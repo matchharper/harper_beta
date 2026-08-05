@@ -12,7 +12,7 @@ export function OrgPageHeader({
 }: {
   actions?: ReactNode;
   description?: string;
-  title: string;
+  title: ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-4 pb-2 sm:flex-row sm:items-start sm:justify-between">

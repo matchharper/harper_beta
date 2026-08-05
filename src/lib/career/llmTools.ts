@@ -7,6 +7,7 @@ import {
   type TalentToolChannel,
 } from "@/lib/talentOnboarding/tools";
 import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
+import { scopeCareerChatToolForOnboarding } from "@/lib/career/onboardingToolSchema";
 
 export type CareerOpenAIChatTool = ReturnType<
   typeof getOpenAIChatTools
@@ -165,12 +166,17 @@ function shouldExposeCareerChatTool(
 }
 
 export function resolveCareerChatTools(args: CareerChatToolSelectionArgs) {
+  const isOnboardingActive = !Boolean(args.isOnboardingDone);
   const selectedTools = applyAllowedToolNames(
     getOpenAIChatTools("chat", {
       responseLocale: args.responseLocale,
-    }).filter((tool) =>
-      shouldExposeCareerChatTool(getOpenAIChatToolName(tool), args)
-    ),
+    })
+      .filter((tool) =>
+        shouldExposeCareerChatTool(getOpenAIChatToolName(tool), args)
+      )
+      .map((tool) =>
+        scopeCareerChatToolForOnboarding(tool, isOnboardingActive)
+      ),
     getOpenAIChatToolName,
     args.allowedToolNames
   );

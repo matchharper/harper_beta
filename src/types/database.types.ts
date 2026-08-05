@@ -5413,6 +5413,56 @@ export type Database = {
           },
         ]
       }
+      talent_documents: {
+        Row: {
+          content_type: string | null
+          created_at: string
+          extracted_text: string | null
+          file_name: string
+          id: string
+          is_primary: boolean
+          is_public: boolean
+          kind: string
+          size_bytes: number | null
+          storage_path: string
+          talent_id: string
+        }
+        Insert: {
+          content_type?: string | null
+          created_at?: string
+          extracted_text?: string | null
+          file_name: string
+          id?: string
+          is_primary?: boolean
+          is_public?: boolean
+          kind?: string
+          size_bytes?: number | null
+          storage_path: string
+          talent_id: string
+        }
+        Update: {
+          content_type?: string | null
+          created_at?: string
+          extracted_text?: string | null
+          file_name?: string
+          id?: string
+          is_primary?: boolean
+          is_public?: boolean
+          kind?: string
+          size_bytes?: number | null
+          storage_path?: string
+          talent_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_documents_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       talent_experiences: {
         Row: {
           company_id: string | null
@@ -6201,50 +6251,6 @@ export type Database = {
           },
           {
             foreignKeyName: "talent_progress_talent_id_fkey"
-            columns: ["talent_id"]
-            isOneToOne: false
-            referencedRelation: "talent_users"
-            referencedColumns: ["user_id"]
-          },
-        ]
-      }
-      talent_publications: {
-        Row: {
-          abstract: string | null
-          citation_num: number | null
-          created_at: string
-          id: number
-          link: string | null
-          memo: string | null
-          published_at: string | null
-          talent_id: string
-          title: string | null
-        }
-        Insert: {
-          abstract?: string | null
-          citation_num?: number | null
-          created_at?: string
-          id?: number
-          link?: string | null
-          memo?: string | null
-          published_at?: string | null
-          talent_id: string
-          title?: string | null
-        }
-        Update: {
-          abstract?: string | null
-          citation_num?: number | null
-          created_at?: string
-          id?: number
-          link?: string | null
-          memo?: string | null
-          published_at?: string | null
-          talent_id?: string
-          title?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "talent_publications_talent_id_fkey"
             columns: ["talent_id"]
             isOneToOne: false
             referencedRelation: "talent_users"

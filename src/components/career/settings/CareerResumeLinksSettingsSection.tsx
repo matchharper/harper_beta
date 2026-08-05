@@ -1,113 +1,84 @@
-import {
-  Cable,
-  ExternalLink,
-  FileText,
-  Globe2,
-  Loader2,
-  Plus,
-  RefreshCw,
-  Save,
-  X,
-} from "lucide-react";
-import Image from "next/image";
-import React, { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
-import ResumeDropzone from "@/components/career/ResumeDropzone";
 import { useCareerProfileContext } from "@/components/career/CareerSidebarContext";
-import { getCareerLinkLabels } from "@/components/career/constants";
 import LoadingState from "@/components/career/OnboardingLoadingState";
-import { showToast } from "@/components/toast/toast";
+import ProfileSourceApplyConfirmModal, {
+  type ProfileSourceApplyConfirmMode,
+} from "@/components/career/profile/ProfileSourceApplyConfirmModal";
+import {
+  CareerAddDocumentModal,
+  CareerDocumentDeleteModal,
+  CareerDocumentRenameModal,
+  type CareerDocumentUploadResult,
+  CareerDocumentVisibilityModal,
+} from "@/components/career/settings/CareerDocumentSettingsModals";
+import CareerDocumentsSettingsSection from "@/components/career/settings/CareerDocumentsSettingsSection";
+import CareerProfileLinksSettingsSection from "@/components/career/settings/CareerProfileLinksSettingsSection";
+import CareerSavedResumeSettingsSection from "@/components/career/settings/CareerSavedResumeSettingsSection";
+import type { CareerTalentDocument } from "@/components/career/types";
 import { pickLinkedinProfileLink } from "@/hooks/career/careerHelpers";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
-import { AttentionBadge } from "@/components/ui/badge";
-import { BareButton, MuteButton } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Field, FieldLabel } from "@/components/ui/panel";
-import { Tooltips } from "@/components/ui/tooltip";
 import { useCareerT } from "@/i18n/useCareerT";
 
-const CAREER_LINK_ITEMS = [
-  {
-    alt: "LinkedIn",
-    iconSrc: "/images/logos/linkedin.svg",
-    placeholder: "https://linkedin.com/in/username",
-  },
-  {
-    alt: "Github",
-    iconSrc: "/images/logos/github.svg",
-    placeholder: "https://github.com/username",
-  },
-  {
-    alt: "Google Scholar",
-    iconSrc: "/images/logos/scholar.png",
-    placeholder: "https://scholar.google.com/citations?user=",
-  },
-  {
-    alt: "Website",
-    iconSrc: null,
-    placeholder: "https://yourname.com",
-  },
-  {
-    alt: "X.com",
-    iconSrc: "/images/logos/xcom.png",
-    placeholder: "https://x.com/username",
-  },
-] as const;
-
-const LINKEDIN_LINK_INDEX = 0;
-
-const LinkItemIcon = ({ index }: { index: number }) => {
-  const item = CAREER_LINK_ITEMS[index];
-
-  if (item?.iconSrc) {
-    const isLinkedin = index === LINKEDIN_LINK_INDEX;
-
-    return (
-      <Image
-        src={item.iconSrc}
-        alt={item.alt}
-        width={isLinkedin ? 19 : 16}
-        height={isLinkedin ? 19 : 16}
-        className={
-          isLinkedin
-            ? "h-[19px] w-[19px] rounded-[4px] object-contain"
-            : "h-4 w-4 rounded-[4px] object-contain"
-        }
-      />
-    );
-  }
-
-  return <Globe2 className="h-4 w-4 text-neutral-muted" aria-hidden="true" />;
-};
+const findDocumentById = (
+  documents: CareerTalentDocument[],
+  documentId: string | null
+) => documents.find((document) => document.id === documentId) ?? null;
 
 const CareerResumeLinksSettingsSection = () => {
   const t = useCareerT();
-  const careerLinkLabels = useMemo(() => getCareerLinkLabels(t), [t]);
-
   const logCareerEvent = useCareerLogEvent();
   const {
-    resumeFile,
-    savedResumeFileName,
-    savedResumeStoragePath,
-    savedResumeDownloadUrl,
+    talentDocuments,
     profileLinks,
     savedProfileLinks,
     profileSavePending,
-    profileSaveError,
-    onResumeFileChange,
-    onProfileLinkChange,
-    onAddProfileLink,
-    onRemoveProfileLink,
     onSaveTalentProfile,
     onRefreshTalentProfileSources,
   } = useCareerProfileContext();
   const [isProcessingSourceUpdate, setIsProcessingSourceUpdate] =
     useState(false);
+  const [sourceApplyConfirmMode, setSourceApplyConfirmMode] =
+    useState<ProfileSourceApplyConfirmMode | null>(null);
+  const [documentPendingDeleteId, setDocumentPendingDeleteId] = useState<
+    string | null
+  >(null);
+  const [addDocumentOpen, setAddDocumentOpen] = useState(false);
+  const [visibilityPromptDocumentId, setVisibilityPromptDocumentId] = useState<
+    string | null
+  >(null);
+  const [documentPendingRenameId, setDocumentPendingRenameId] = useState<
+    string | null
+  >(null);
+  const [pendingPostUploadDialog, setPendingPostUploadDialog] =
+    useState<CareerDocumentUploadResult | null>(null);
 
-  const hasSavedResume = useMemo(
-    () => Boolean(savedResumeFileName || savedResumeStoragePath),
-    [savedResumeFileName, savedResumeStoragePath]
-  );
+  useEffect(() => {
+    if (
+      !pendingPostUploadDialog ||
+      addDocumentOpen ||
+      isProcessingSourceUpdate ||
+      profileSavePending
+    ) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      if (pendingPostUploadDialog.type === "profile_apply") {
+        setSourceApplyConfirmMode("saved_sources");
+      } else {
+        setVisibilityPromptDocumentId(pendingPostUploadDialog.documentId);
+      }
+      setPendingPostUploadDialog(null);
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [
+    addDocumentOpen,
+    isProcessingSourceUpdate,
+    pendingPostUploadDialog,
+    profileSavePending,
+  ]);
 
   const hasUnsavedLinkChanges = useMemo(() => {
     if (profileLinks.length !== savedProfileLinks.length) return true;
@@ -117,257 +88,127 @@ const CareerResumeLinksSettingsSection = () => {
     );
   }, [profileLinks, savedProfileLinks]);
 
-  const shouldShowSaveButton = Boolean(resumeFile) || hasUnsavedLinkChanges;
   const hasLinkedinChange = useMemo(() => {
     const previousLinkedinUrl = pickLinkedinProfileLink(savedProfileLinks);
     const nextLinkedinUrl = pickLinkedinProfileLink(profileLinks);
     return Boolean(nextLinkedinUrl && nextLinkedinUrl !== previousLinkedinUrl);
   }, [profileLinks, savedProfileLinks]);
-  const shouldProcessProfileSources = Boolean(resumeFile) || hasLinkedinChange;
 
-  const handleSaveClick = async () => {
+  const primaryResumeDocument = useMemo(
+    () =>
+      talentDocuments.find(
+        (document) => document.kind === "resume" && document.isPrimary
+      ) ??
+      talentDocuments.find((document) => document.kind === "resume") ??
+      null,
+    [talentDocuments]
+  );
+  const remainingDocuments = useMemo(
+    () =>
+      talentDocuments.filter(
+        (document) => document.id !== primaryResumeDocument?.id
+      ),
+    [primaryResumeDocument?.id, talentDocuments]
+  );
+  const documentPendingDelete = useMemo(
+    () => findDocumentById(talentDocuments, documentPendingDeleteId),
+    [documentPendingDeleteId, talentDocuments]
+  );
+  const visibilityPromptDocument = useMemo(
+    () => findDocumentById(talentDocuments, visibilityPromptDocumentId),
+    [talentDocuments, visibilityPromptDocumentId]
+  );
+  const documentPendingRename = useMemo(
+    () => findDocumentById(talentDocuments, documentPendingRenameId),
+    [documentPendingRenameId, talentDocuments]
+  );
+
+  const handleSaveLinks = async () => {
     logCareerEvent("click_resume_links_save");
-    if (shouldProcessProfileSources) {
-      setIsProcessingSourceUpdate(true);
+    const saved = await onSaveTalentProfile({
+      applyProfileSources: !hasLinkedinChange,
+      persistError: false,
+      resumeFile: null,
+    });
+    if (saved && hasLinkedinChange) {
+      setPendingPostUploadDialog({ type: "profile_apply" });
     }
+  };
 
+  const handleResumeUploadComplete = () => {
+    setPendingPostUploadDialog({ type: "profile_apply" });
+  };
+
+  const handleLinkedinRefresh = () => {
+    logCareerEvent("click_resume_links_refresh_linkedin");
+    setSourceApplyConfirmMode("linkedin_refresh");
+  };
+
+  const handleConfirmSourceApply = async () => {
+    setSourceApplyConfirmMode(null);
+    setIsProcessingSourceUpdate(true);
     try {
-      await onSaveTalentProfile();
+      await onRefreshTalentProfileSources({ links: savedProfileLinks });
     } finally {
       setIsProcessingSourceUpdate(false);
     }
   };
 
-  const handleLinkedinRefreshClick = async () => {
-    logCareerEvent("click_resume_links_refresh_linkedin");
-    setIsProcessingSourceUpdate(true);
-    try {
-      await onRefreshTalentProfileSources({ links: profileLinks });
-    } finally {
-      setIsProcessingSourceUpdate(false);
-    }
+  const openDocumentRename = (document: CareerTalentDocument) => {
+    setDocumentPendingRenameId(document.id);
   };
 
   return (
     <div className="pb-24">
-      <Field
-        label={t("career.common.career.0y7cerf", "저장된 이력서")}
-        icon={<FileText className="h-4 w-4" />}
-      >
-        <div className="rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 py-4 shadow-sm">
-          {hasSavedResume ? (
-            <>
-              <p className="mt-2 truncate text-sm text-neutral-primary">
-                {savedResumeFileName ??
-                  t("career.common.career.0w4x7qh", "파일명 정보 없음")}
-              </p>
-              {savedResumeStoragePath && (
-                <p className="mt-1 truncate text-xs text-neutral-soft">
-                  {savedResumeStoragePath}
-                </p>
-              )}
-              {savedResumeDownloadUrl && (
-                <a
-                  href={savedResumeDownloadUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={() => logCareerEvent("click_resume_download")}
-                  className="mt-2 inline-flex items-center gap-1 text-xs text-neutral-primary underline underline-offset-2"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  {t("career.common.career.07r9xc5", "다운로드")}
-                </a>
-              )}
-            </>
-          ) : (
-            <p className="mt-1 text-sm leading-6 text-neutral-muted">
-              {t("career.common.career.0jt5nqc", "저장된 이력서가 없습니다.")}
-              <br />
-              {t(
-                "career.common.career.0vrhfby",
-                "이력서를 통해 회원님에 대해 알 수 있게되는 정보는 회사와의 연결 및 추천에 큰 영향을 미칩니다."
-              )}
-            </p>
-          )}
+      <CareerSavedResumeSettingsSection
+        primaryResumeDocument={primaryResumeDocument}
+        onRenameDocument={openDocumentRename}
+        onDeleteDocument={setDocumentPendingDeleteId}
+        onUploadComplete={handleResumeUploadComplete}
+      />
 
-          <div className="relative mt-4">
-            <ResumeDropzone
-              inputId="career-settings-resume-upload"
-              variant="compact"
-              accept=".pdf,.docx,.txt,.md"
-              fileName={resumeFile?.name ?? ""}
-              onFileSelect={(file, source) => {
-                logCareerEvent(
-                  source === "drop"
-                    ? "drop_resume_select_file"
-                    : "click_resume_select_file"
-                );
-                onResumeFileChange(file);
-              }}
-              onFileReject={() => {
-                showToast({
-                  message: t(
-                    "career.resume_dropzone.unsupported_file",
-                    "지원하는 이력서 파일 형식만 업로드해 주세요."
-                  ),
-                  variant: "white",
-                });
-              }}
-              title={
-                hasSavedResume
-                  ? t("career.common.career.0j3w14l", "새 이력서 선택")
-                  : t(
-                      "career.resume_dropzone.empty_title",
-                      "이력서를 끌어다 놓거나 선택하세요"
-                    )
-              }
-              description={t(
-                "career.resume_dropzone.settings_description",
-                "PDF, DOCX, TXT, MD 파일을 업로드할 수 있습니다."
-              )}
-              dragTitle={t(
-                "career.resume_dropzone.drag_title",
-                "여기에 놓으면 업로드됩니다"
-              )}
-              dragDescription={t(
-                "career.resume_dropzone.drag_description",
-                "파일을 놓아 이력서를 선택하세요."
-              )}
-              selectedDescription={t(
-                "career.resume_dropzone.settings_selected_description",
-                "저장 버튼을 누르면 이 파일로 업데이트됩니다."
-              )}
-            />
-            {!hasSavedResume ? (
-              <AttentionBadge
-                label={t(
-                  "career.profile.career_profile_workspace.0pv1jmq",
-                  "저장된 이력서가 없습니다"
-                )}
-                className="right-2 top-2"
-              />
-            ) : null}
-          </div>
-        </div>
-      </Field>
+      <CareerProfileLinksSettingsSection
+        hasUnsavedChanges={hasUnsavedLinkChanges}
+        onLinkedinRefresh={handleLinkedinRefresh}
+        onSave={() => void handleSaveLinks()}
+      />
 
-      <div className="">
-        <FieldLabel
-          icon={<Cable className="h-4 w-4" />}
-          label={t("career.common.career.1ominm4", "내 링크")}
-        />
-        <div className="mt-2 space-y-2">
-          {profileLinks.map((link, index) => (
-            <div
-              key={`settings-profile-link-${index}`}
-              className="flex items-center gap-2"
-            >
-              <div className="flex w-36 shrink-0 items-center justify-between gap-2 text-sm text-neutral-muted">
-                <div className="flex items-center gap-1">
-                  <LinkItemIcon index={index} />
-                  <span className="truncate">
-                    {careerLinkLabels[index] ??
-                      t(
-                        "career.chat.career_timeline_section.0ong27a",
-                        "추가 링크"
-                      )}
-                  </span>
-                </div>
-                {index === LINKEDIN_LINK_INDEX ? (
-                  <Tooltips
-                    text={t(
-                      "career.profile.resume_links.linkedin_refresh_tooltip",
-                      "업데이트된 링크드인 정보를 가져옵니다."
-                    )}
-                    side="top"
-                  >
-                    <BareButton
-                      type="button"
-                      onClick={() => void handleLinkedinRefreshClick()}
-                      disabled={profileSavePending}
-                      aria-label={"링크드인 정보 새로고침"}
-                      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-info-200 text-info-600 transition-colors hover:bg-info-400 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {profileSavePending ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-3.5 w-3.5" />
-                      )}
-                    </BareButton>
-                  </Tooltips>
-                ) : null}
-              </div>
-              <Input
-                value={link}
-                onChange={(event) =>
-                  onProfileLinkChange(index, event.target.value)
-                }
-                placeholder={
-                  CAREER_LINK_ITEMS[index]?.placeholder ?? "https://"
-                }
-                className="h-9 flex-1 rounded-lg border border-neutral-400 bg-bg-floating px-2 text-sm text-neutral-primary outline-none transition-colors focus:border-neutral-800"
-              />
-              {index >= CAREER_LINK_ITEMS.length && (
-                <MuteButton
-                  type="button"
-                  onClick={() => {
-                    logCareerEvent("click_resume_links_remove_link");
-                    onRemoveProfileLink(index);
-                  }}
-                  aria-label={t(
-                    "career.settings.career_resume_links_settings_section.114mcb5",
-                    "링크 삭제"
-                  )}
-                >
-                  <X className="h-4 w-4" />
-                </MuteButton>
-              )}
-            </div>
-          ))}
-        </div>
+      <CareerDocumentsSettingsSection
+        documents={remainingDocuments}
+        onAddDocument={() => setAddDocumentOpen(true)}
+        onRenameDocument={openDocumentRename}
+        onDeleteDocument={setDocumentPendingDeleteId}
+      />
 
-        <MuteButton
-          onClick={() => {
-            logCareerEvent("click_resume_links_add_link");
-            onAddProfileLink();
-          }}
-          className="mt-5 gap-1.5"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          {t("career.chat.career_timeline_section.1gvzqes", "링크 추가")}
-        </MuteButton>
-      </div>
+      <ProfileSourceApplyConfirmModal
+        mode={sourceApplyConfirmMode}
+        pending={false}
+        onCancel={() => setSourceApplyConfirmMode(null)}
+        onConfirm={handleConfirmSourceApply}
+      />
 
-      {profileSaveError && (
-        <p className="rounded-lg border border-neutral-1000-a10 bg-bg-floating px-3 py-2 text-sm text-neutral-primary shadow-sm">
-          {profileSaveError}
-        </p>
-      )}
-
-      {shouldShowSaveButton ? (
-        <BareButton
-          type="button"
-          onClick={() => void handleSaveClick()}
-          disabled={profileSavePending}
-          className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-neutral-800 bg-black text-sm font-normal text-neutral-00 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <Save className="h-4 w-4" />
-          {profileSavePending
-            ? t(
-                "career.profile.career_profile_settings_section.08zy6at",
-                "저장 중..."
-              )
-            : t(
-                "career.common.career.07vhdpu",
-                "이력서/링크 저장 및 새로운 정보 업데이트"
-              )}
-        </BareButton>
-      ) : null}
+      <CareerAddDocumentModal
+        open={addDocumentOpen}
+        onClose={() => setAddDocumentOpen(false)}
+        onUploadComplete={setPendingPostUploadDialog}
+      />
+      <CareerDocumentVisibilityModal
+        document={visibilityPromptDocument}
+        onClose={() => setVisibilityPromptDocumentId(null)}
+      />
+      <CareerDocumentRenameModal
+        document={documentPendingRename}
+        onClose={() => setDocumentPendingRenameId(null)}
+      />
+      <CareerDocumentDeleteModal
+        document={documentPendingDelete}
+        onClose={() => setDocumentPendingDeleteId(null)}
+      />
 
       <TalentCareerModal
         open={isProcessingSourceUpdate}
         onClose={() => undefined}
-        ariaLabel={"프로필 업데이트 중"}
+        ariaLabel={t("career.common.career.0tmpcjv", "프로필 업데이트 중")}
         closeOnBackdrop={false}
         showCloseButton={false}
         overlayClassName="z-120"

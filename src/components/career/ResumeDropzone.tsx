@@ -1,5 +1,5 @@
 import { FileText, Upload } from "lucide-react";
-import { useState, type ChangeEvent, type DragEvent } from "react";
+import React, { useState, type ChangeEvent, type DragEvent } from "react";
 import { cn } from "@/lib/cn";
 
 export type ResumeFileSelectSource = "dialog" | "drop";
@@ -204,4 +204,4 @@ const ResumeDropzone = ({
   );
 };
 
-export default ResumeDropzone;
+export default React.memo(ResumeDropzone);

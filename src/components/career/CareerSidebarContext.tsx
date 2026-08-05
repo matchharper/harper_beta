@@ -11,6 +11,7 @@ import type {
   CareerOpportunitySavedStage,
   CareerStage,
   CareerTalentInsights,
+  CareerTalentDocument,
   CareerTalentPreferences,
   CareerTalentProfile,
   CareerOpportunityRun,
@@ -154,6 +155,7 @@ export type CareerSidebarContextValue = {
   savedResumeFileName: string | null;
   savedResumeStoragePath: string | null;
   savedResumeDownloadUrl: string | null;
+  talentDocuments: CareerTalentDocument[];
   profileLinks: string[];
   savedProfileLinks: string[];
   profileSavePending: boolean;
@@ -164,8 +166,25 @@ export type CareerSidebarContextValue = {
   onAddProfileLink: () => void;
   onRemoveProfileLink: (index: number) => void;
   onSaveTalentProfile: (args?: {
+    applyProfileSources?: boolean;
+    links?: string[];
+    persistError?: boolean;
+    preserveLinkDrafts?: boolean;
+    resumeFile?: File | null;
     structuredProfile?: CareerTalentProfile | null;
   }) => boolean | Promise<boolean>;
+  onUploadTalentDocument: (
+    file: File
+  ) => CareerTalentDocument | null | Promise<CareerTalentDocument | null>;
+  onUpdateTalentDocument: (
+    documentId: string,
+    updates: {
+      fileName?: string;
+      isPrimary?: boolean;
+      isPublic?: boolean;
+    }
+  ) => boolean | Promise<boolean>;
+  onDeleteTalentDocument: (documentId: string) => boolean | Promise<boolean>;
   onUpdateAccountProfile: (profile: {
     email: string | null;
     name: string | null;
@@ -263,6 +282,9 @@ export type CareerProfileContextValue = Pick<
   | "hasUnsavedTalentSettingsChanges"
   | "onAddBlockedCompany"
   | "onAddProfileLink"
+  | "onDeleteTalentDocument"
+  | "onUpdateTalentDocument"
+  | "onUploadTalentDocument"
   | "onEngagementTypesChange"
   | "onProfileLinkChange"
   | "onProfileVisibilityChange"
@@ -297,6 +319,7 @@ export type CareerProfileContextValue = Pick<
   | "settingsSaving"
   | "settingsUpdatedAt"
   | "talentInsights"
+  | "talentDocuments"
   | "talentInsightsSaveError"
   | "talentInsightsSaveInfo"
   | "talentInsightsSavePending"

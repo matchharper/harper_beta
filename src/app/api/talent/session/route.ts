@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   ensureTalentUserRecord,
+  fetchTalentDocuments,
   fetchTalentInsights,
   fetchTalentSetting,
   fetchVisibleMessagesPage,
@@ -14,6 +15,8 @@ import {
   markTalentUserLoggedIn,
   normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
+  pickLatestResumeDocument,
+  serializeTalentDocuments,
   type TalentConversationRow,
   type TalentMessageRow,
   type TalentStructuredProfile,
@@ -346,8 +349,17 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const talentDocuments = await withSessionFallback({
+      fallback: [],
+      label: "talent documents",
+      promise: fetchTalentDocuments({ admin, userId: user.id }),
+      userId: user.id,
+    });
+    const latestResumeDocument = pickLatestResumeDocument(talentDocuments);
+
     if (req.nextUrl.searchParams.get("statusOnly") === "1") {
-      const hasFirstSubmission = hasTalentFirstSubmission(profile);
+      const hasFirstSubmission =
+        Boolean(latestResumeDocument) || hasTalentFirstSubmission(profile);
       const isOnboardingDone = Boolean(
         initialTalentSetting?.is_onboarding_done
       );
@@ -360,8 +372,14 @@ export async function GET(req: NextRequest) {
         conversation: {
           id: conversation.id,
           stage: conversation.stage,
-          resumeFileName: profile?.resume_file_name ?? null,
-          resumeStoragePath: profile?.resume_storage_path ?? null,
+          resumeFileName:
+            latestResumeDocument?.file_name ??
+            profile?.resume_file_name ??
+            null,
+          resumeStoragePath:
+            latestResumeDocument?.storage_path ??
+            profile?.resume_storage_path ??
+            null,
           resumeDownloadUrl: null,
           resumeLinks: profile?.resume_links ?? [],
           reliefNudgeSent: Boolean(conversation.relief_nudge_sent),
@@ -582,7 +600,8 @@ export async function GET(req: NextRequest) {
         label: "resume signed URL",
         promise: getTalentResumeSignedUrl({
           admin,
-          storagePath: profile?.resume_storage_path,
+          storagePath:
+            latestResumeDocument?.storage_path ?? profile?.resume_storage_path,
         }),
         userId: user.id,
       }),
@@ -651,6 +670,15 @@ export async function GET(req: NextRequest) {
     ]);
     const pendingInternalOpportunityCallRequest =
       pendingInternalOpportunityCallRequests[0] ?? null;
+    const serializedDocuments = await withSessionFallback({
+      fallback: [],
+      label: "talent document URLs",
+      promise: serializeTalentDocuments({ admin, documents: talentDocuments }),
+      userId: user.id,
+    });
+    const latestResume = serializedDocuments.find(
+      (document) => document.kind === "resume"
+    );
     const { messages, nextBeforeMessageId } = messagePage;
     const visibleMessages = messages.filter(
       (message) => !(message.message_type ?? "").startsWith("mock_interview")
@@ -790,10 +818,13 @@ export async function GET(req: NextRequest) {
       conversation: {
         id: conversation.id,
         stage: conversation.stage,
-        resumeFileName: profile?.resume_file_name ?? null,
-        resumeStoragePath: profile?.resume_storage_path ?? null,
-        resumeDownloadUrl,
+        resumeFileName:
+          latestResume?.fileName ?? profile?.resume_file_name ?? null,
+        resumeStoragePath:
+          latestResume?.storagePath ?? profile?.resume_storage_path ?? null,
+        resumeDownloadUrl: latestResume?.downloadUrl ?? resumeDownloadUrl,
         resumeLinks: profile?.resume_links ?? [],
+        documents: serializedDocuments,
         reliefNudgeSent: Boolean(conversation.relief_nudge_sent),
       },
       historyItems: [],

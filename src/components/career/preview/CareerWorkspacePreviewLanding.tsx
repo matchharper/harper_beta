@@ -787,10 +787,7 @@ const CareerWorkspacePreviewLanding = ({
       onLoadSavedStageHistoryOpportunityPages: () => undefined,
       onLoadHistoryOpportunityByRoleId: (roleId) =>
         historyOpportunities.find((item) => item.roleId === roleId) ?? null,
-      onChangeInternalHistoryOpportunityDecision: (
-        opportunityId,
-        action
-      ) => {
+      onChangeInternalHistoryOpportunityDecision: (opportunityId, action) => {
         setHistoryOpportunities((current) =>
           current.map((item) =>
             item.id !== opportunityId
@@ -888,6 +885,20 @@ const CareerWorkspacePreviewLanding = ({
       savedResumeFileName,
       savedResumeStoragePath: "talent/resume/preview_resume.pdf",
       savedResumeDownloadUrl: "#",
+      talentDocuments: [
+        {
+          id: "preview-resume",
+          kind: "resume",
+          fileName: savedResumeFileName,
+          storagePath: "talent/resume/preview_resume.pdf",
+          contentType: "application/pdf",
+          sizeBytes: null,
+          isPublic: true,
+          isPrimary: true,
+          createdAt: new Date().toISOString(),
+          downloadUrl: "#",
+        },
+      ],
       profileLinks,
       savedProfileLinks,
       profileSavePending: false,
@@ -934,6 +945,9 @@ const CareerWorkspacePreviewLanding = ({
         );
         return true;
       },
+      onUploadTalentDocument: () => null,
+      onUpdateTalentDocument: () => true,
+      onDeleteTalentDocument: () => true,
       onUpdateAccountProfile: (profile) => {
         setTalentProfile((current) => ({
           ...current,

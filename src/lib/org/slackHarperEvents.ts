@@ -47,26 +47,27 @@ export async function queueHarperSlackEvent(envelope: SlackEventEnvelope) {
     return { ignored: "missing_fields" };
   if (event.bot_id || event.subtype) return { ignored: "bot_or_subtype" };
 
-  const { data: integration, error: integrationError } = await (
-    admin.from("company_slack_integrations" as any) as any
-  )
-    .select("company_workspace_id, slack_bot_user_id")
-    .eq("slack_team_id", teamId)
-    .eq("status", "active")
-    .maybeSingle();
-  if (integrationError) throw integrationError;
-  if (!integration) return { ignored: "installation_not_found" };
-
   const { data: channel, error: channelError } = await (
     admin.from("company_slack_channels" as any) as any
   )
     .select("*")
-    .eq("company_workspace_id", integration.company_workspace_id)
+    .eq("slack_team_id", teamId)
     .eq("slack_channel_id", channelId)
     .eq("is_enabled", true)
     .maybeSingle();
   if (channelError) throw channelError;
   if (!channel) return { ignored: "channel_not_enabled" };
+
+  const { data: integration, error: integrationError } = await (
+    admin.from("company_slack_integrations" as any) as any
+  )
+    .select("company_workspace_id, slack_bot_user_id")
+    .eq("company_workspace_id", channel.company_workspace_id)
+    .eq("slack_team_id", teamId)
+    .eq("status", "active")
+    .maybeSingle();
+  if (integrationError) throw integrationError;
+  if (!integration) return { ignored: "installation_not_found" };
 
   const threadTs = clean(event.thread_ts || event.ts);
   const isMention = event.type === "app_mention";

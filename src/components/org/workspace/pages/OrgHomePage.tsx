@@ -11,6 +11,7 @@ import {
 } from "@/components/org/workspace/OrgSection";
 import { BareButton, MuteButton } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltips } from "@/components/ui/tooltip";
 import { useOrgBoard } from "@/hooks/org/useOrg";
 import { useOrgViewedRecommendations } from "@/hooks/org/useOrgViewedRecommendations";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
@@ -200,7 +201,7 @@ function PendingRoleRow({
   );
 }
 
-function PausedConnectionNotice({ roleCount }: { roleCount: number }) {
+function WaitingCapacityNotice({ roleCount }: { roleCount: number }) {
   return (
     <div className="mt-3 rounded-md bg-neutral-200/50 px-4 py-3 text-sm font-light leading-5 text-neutral-muted">
       <span className="font-medium text-neutral-primary">
@@ -248,48 +249,165 @@ function NewCandidates({
   );
 }
 
+type HiringRoleState = "active" | "paused" | "waiting";
+type HiringRoleLifecycle = "active" | "ended" | "paused";
+
+const HIRING_ROLE_STATE_ORDER: Record<HiringRoleState, number> = {
+  waiting: 0,
+  active: 1,
+  paused: 2,
+};
+
+const HIRING_ROLE_STATE_META: Record<
+  HiringRoleState,
+  {
+    dotClassName: string;
+    label: string;
+    rowTooltip: string;
+    summaryTooltip: string;
+  }
+> = {
+  active: {
+    dotClassName: "bg-positive",
+    label: "active",
+    rowTooltip: "현재 채용을 진행 중인 역할입니다.",
+    summaryTooltip: "현재 채용을 진행 중인 역할 수입니다.",
+  },
+  paused: {
+    dotClassName: "bg-neutral-500",
+    label: "paused",
+    rowTooltip: "현재 채용이 일시 중지된 역할입니다.",
+    summaryTooltip: "현재 채용이 일시 중지된 역할 수입니다.",
+  },
+  waiting: {
+    dotClassName: "bg-primary",
+    label: "waiting",
+    rowTooltip: `연결 대기 후보자가 ${ORG_PENDING_CONNECTION_PAUSE_THRESHOLD}명 이상이라 새 연결이 잠시 중단된 역할입니다.`,
+    summaryTooltip: `연결 대기 후보자가 ${ORG_PENDING_CONNECTION_PAUSE_THRESHOLD}명 이상인 역할 수입니다.`,
+  },
+};
+
+function getHiringRoleLifecycle(status: string | null): HiringRoleLifecycle {
+  const normalized = String(status ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (["paused", "on_hold"].includes(normalized)) return "paused";
+  if (
+    ["ended", "closed", "expired", "inactive", "deleted", "archived"].includes(
+      normalized
+    )
+  ) {
+    return "ended";
+  }
+  return "active";
+}
+
+function getHiringRoleState(
+  status: string | null,
+  pending: number
+): HiringRoleState {
+  if (pending >= ORG_PENDING_CONNECTION_PAUSE_THRESHOLD) return "waiting";
+  return getHiringRoleLifecycle(status) === "paused" ? "paused" : "active";
+}
+
+function HiringStatusSummaryItem({
+  count,
+  state,
+}: {
+  count: number;
+  state: HiringRoleState;
+}) {
+  const meta = HIRING_ROLE_STATE_META[state];
+  return (
+    <Tooltips side="top" text={meta.summaryTooltip}>
+      <span className="inline-flex items-center text-neutral-muted">
+        <span>
+          {count} {meta.label}
+        </span>
+      </span>
+    </Tooltips>
+  );
+}
+
+function HiringStatusSummary({
+  active,
+  paused,
+  waiting,
+}: {
+  active: number;
+  paused: number;
+  waiting: number;
+}) {
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
+      <HiringStatusSummaryItem count={active} state="active" />
+      <span aria-hidden="true">·</span>
+      <HiringStatusSummaryItem count={paused} state="paused" />
+      {waiting > 0 ? (
+        <>
+          <span aria-hidden="true">·</span>
+          <HiringStatusSummaryItem count={waiting} state="waiting" />
+        </>
+      ) : null}
+    </span>
+  );
+}
+
 function JobRoleRow({
   name,
-  paused,
   pending,
+  state,
   total,
   onClick,
 }: {
   name: string;
-  paused: boolean;
   pending: number;
+  state: HiringRoleState;
   total: number;
   onClick: () => void;
 }) {
+  const statusMeta = HIRING_ROLE_STATE_META[state];
+  const pendingTooltip =
+    pending > 0
+      ? `${pending}명의 후보자가 연결 결정을 기다리고 있습니다.`
+      : "연결 결정을 기다리는 후보자가 없습니다.";
+
   return (
     <BareButton
-      className="grid w-full grid-cols-[minmax(0,1fr)_72px] items-center gap-3 px-3 py-3.5 text-left outline-none transition hover:bg-neutral-200/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-1000-a10 sm:grid-cols-[minmax(0,1fr)_88px_88px]"
+      className="grid w-full grid-cols-[minmax(0,1fr)_72px] items-center gap-3 py-3.5 text-left outline-none transition hover:bg-neutral-200/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-1000-a10 sm:grid-cols-[minmax(0,1fr)_88px_88px]"
       onClick={onClick}
       type="button"
     >
-      <span className="flex min-w-0 items-center gap-2">
-        <span className="min-w-0 truncate text-[14px] font-medium text-neutral-primary">
-          {name}
-        </span>
-        {paused ? (
-          <span className="shrink-0 rounded-sm bg-info-faded px-1.5 py-0.5 text-[10px] font-medium text-info">
-            일시 중지
+      <Tooltips side="top" text={statusMeta.rowTooltip}>
+        <span className="flex min-w-0 items-center gap-2">
+          <span
+            aria-hidden="true"
+            className={cn(
+              "size-1.5 shrink-0 rounded-full",
+              statusMeta.dotClassName
+            )}
+          />
+          <span className="min-w-0 truncate text-[14px] font-medium text-neutral-primary">
+            {name}
           </span>
-        ) : null}
-      </span>
+        </span>
+      </Tooltips>
       <span className="text-right text-sm font-light text-neutral-muted">
         {total}명
       </span>
-      <span
-        className={cn(
-          "hidden text-right text-sm sm:block",
-          pending > 0
-            ? "font-medium text-primary"
-            : "font-light text-neutral-soft"
-        )}
-      >
-        {pending > 0 ? `${pending}명 대기` : "대기 없음"}
-      </span>
+      <Tooltips side="top" text={pendingTooltip}>
+        <span
+          className={cn(
+            "hidden text-right text-sm sm:block",
+            pending > 0
+              ? "font-medium text-primary"
+              : "font-light text-neutral-soft"
+          )}
+        >
+          {pending > 0 ? `${pending}명 대기` : "대기 없음"}
+        </span>
+      </Tooltips>
     </BareButton>
   );
 }
@@ -330,16 +448,29 @@ export function OrgHomePage() {
     currentUserEmail,
     workspaceId,
   });
+  const visibleRoles = useMemo(
+    () =>
+      roles.filter((role) => getHiringRoleLifecycle(role.status) !== "ended"),
+    [roles]
+  );
+  const visibleRoleIds = useMemo(
+    () => new Set(visibleRoles.map((role) => role.roleId)),
+    [visibleRoles]
+  );
   const pendingItems = useMemo(
     () =>
       (board?.items ?? [])
-        .filter((item) => item.stage === "pending_connection")
+        .filter(
+          (item) =>
+            visibleRoleIds.has(item.roleId) &&
+            item.stage === "pending_connection"
+        )
         .sort(
           (left, right) =>
             new Date(left.recommendedAt).getTime() -
             new Date(right.recommendedAt).getTime()
         ),
-    [board?.items]
+    [board?.items, visibleRoleIds]
   );
   const pendingByRole = useMemo(() => {
     const result = new Map<string, OrgBoardItem[]>();
@@ -352,7 +483,7 @@ export function OrgHomePage() {
   }, [pendingItems]);
   const pendingRoles = useMemo(
     () =>
-      roles.flatMap((role) => {
+      visibleRoles.flatMap((role) => {
         const count = pendingByRole.get(role.roleId)?.length ?? 0;
         return count > 0
           ? [
@@ -364,9 +495,8 @@ export function OrgHomePage() {
             ]
           : [];
       }),
-    [pendingByRole, roles]
+    [pendingByRole, visibleRoles]
   );
-  const pausedRoleCount = pendingRoles.filter((item) => item.paused).length;
   const unseenPending = useMemo(
     () =>
       hasHydrated
@@ -385,6 +515,7 @@ export function OrgHomePage() {
     >();
     const nextStageCounts = new Map<string, number>();
     for (const item of board?.items ?? []) {
+      if (!visibleRoleIds.has(item.roleId)) continue;
       nextStageCounts.set(
         item.stage,
         (nextStageCounts.get(item.stage) ?? 0) + 1
@@ -401,14 +532,56 @@ export function OrgHomePage() {
       currentStageCounts: nextStageCounts,
       roleCounts: nextRoleCounts,
     };
-  }, [board?.items]);
+  }, [board?.items, visibleRoleIds]);
+
+  const hiringRoles = useMemo(
+    () =>
+      visibleRoles
+        .map((role) => {
+          const count = roleCounts.get(role.roleId) ?? {
+            pending: 0,
+            total: 0,
+          };
+          return {
+            count,
+            role,
+            state: getHiringRoleState(role.status, count.pending),
+          };
+        })
+        .sort((left, right) => {
+          const stateOrder =
+            HIRING_ROLE_STATE_ORDER[left.state] -
+            HIRING_ROLE_STATE_ORDER[right.state];
+          if (stateOrder !== 0) return stateOrder;
+
+          const leftCreatedAt = Date.parse(left.role.createdAt);
+          const rightCreatedAt = Date.parse(right.role.createdAt);
+          const leftHasCreatedAt = Number.isFinite(leftCreatedAt);
+          const rightHasCreatedAt = Number.isFinite(rightCreatedAt);
+          if (leftHasCreatedAt && rightHasCreatedAt) {
+            const createdAtOrder = rightCreatedAt - leftCreatedAt;
+            if (createdAtOrder !== 0) return createdAtOrder;
+          } else if (leftHasCreatedAt !== rightHasCreatedAt) {
+            return leftHasCreatedAt ? -1 : 1;
+          }
+
+          return left.role.roleId.localeCompare(right.role.roleId);
+        }),
+    [roleCounts, visibleRoles]
+  );
+  const activeRoleCount = hiringRoles.filter(
+    (item) => item.state === "active"
+  ).length;
+  const pausedRoleCount = hiringRoles.filter(
+    (item) => item.state === "paused"
+  ).length;
+  const waitingRoleCount = hiringRoles.filter(
+    (item) => item.state === "waiting"
+  ).length;
 
   return (
     <div className="space-y-8">
-      <OrgPageHeader
-        description="연결을 기다리는 인재와 진행 중인 채용을 한눈에 확인하세요."
-        title="Home"
-      />
+      <OrgPageHeader title="Home" />
 
       {error ? (
         <OrgErrorState
@@ -421,6 +594,81 @@ export function OrgHomePage() {
         <HomeLoading internalOpsAccess={internalOpsAccess} />
       ) : (
         <>
+          <OrgSection>
+            <OrgSectionHeader
+              actions={
+                <MuteButton
+                  onClick={() => openJobs("all")}
+                  size="md"
+                  variant="transparent"
+                >
+                  전체 보기
+                </MuteButton>
+              }
+              title="Hiring"
+              description={
+                <HiringStatusSummary
+                  active={activeRoleCount}
+                  paused={pausedRoleCount}
+                  waiting={waitingRoleCount}
+                />
+              }
+            />
+            <div className="grid md:grid-cols-[minmax(0,1fr)_240px] grid-cols-1 gap-6">
+              <div>
+                {hiringRoles.length > 0 ? (
+                  <div className="grid grid-cols-[minmax(0,1fr)_72px] gap-3 pb-2 text-[14px] font-light text-neutral-soft sm:grid-cols-[minmax(0,1fr)_88px_88px]">
+                    <span>Role</span>
+                    <span className="text-right">총 연결</span>
+                    <span className="hidden text-right sm:block">
+                      연결 대기
+                    </span>
+                  </div>
+                ) : null}
+                <div className="divide-y divide-neutral-1000-a05">
+                  {hiringRoles.map(({ count, role, state }) => {
+                    return (
+                      <JobRoleRow
+                        key={role.roleId}
+                        name={role.name}
+                        onClick={() => openJobs(role.roleId)}
+                        pending={count.pending}
+                        state={state}
+                        total={count.total}
+                      />
+                    );
+                  })}
+                  {hiringRoles.length === 0 ? (
+                    <div className="py-9 text-center text-sm font-light text-neutral-muted">
+                      등록된 Job이 없습니다.
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              <div className={cn("flex flex-col gap-2")}>
+                {/* <JobsMetric label="진행 중인 역할" value={roles.length} /> */}
+                <JobsMetric
+                  label="연결 대기"
+                  value={currentStageCounts.get("pending_connection") ?? 0}
+                />
+                <JobsMetric
+                  label="진행중"
+                  value={currentStageCounts.get("connected") ?? 0}
+                />
+                <JobsMetric
+                  label="프로세스 중단"
+                  value={currentStageCounts.get("process_stopped") ?? 0}
+                />
+                {internalOpsAccess ? (
+                  <JobsMetric
+                    internalOnly
+                    label="수락 후 대기"
+                    value={currentStageCounts.get("accepted") ?? 0}
+                  />
+                ) : null}
+              </div>
+            </div>
+          </OrgSection>
           <OrgSection>
             <OrgSectionHeader
               description={
@@ -455,87 +703,12 @@ export function OrgHomePage() {
             ) : (
               <EmptyActionState />
             )}
-            {pausedRoleCount > 0 ? (
-              <PausedConnectionNotice roleCount={pausedRoleCount} />
+            {waitingRoleCount > 0 ? (
+              <WaitingCapacityNotice roleCount={waitingRoleCount} />
             ) : null}
             {hasHydrated ? (
               <NewCandidates items={unseenPending} onSelect={openCandidate} />
             ) : null}
-          </OrgSection>
-
-          <OrgSection>
-            <OrgSectionHeader
-              actions={
-                <MuteButton
-                  onClick={() => openJobs("all")}
-                  size="md"
-                  variant="transparent"
-                >
-                  전체 보기
-                </MuteButton>
-              }
-              description="전체 Role의 후보자 진행 상황입니다."
-              title="진행 중인 Jobs"
-            />
-            <div
-              className={cn(
-                "grid gap-2 sm:grid-cols-2",
-                internalOpsAccess ? "xl:grid-cols-5" : "lg:grid-cols-4"
-              )}
-            >
-              <JobsMetric label="진행 중인 역할" value={roles.length} />
-              <JobsMetric
-                label="연결 대기"
-                value={currentStageCounts.get("pending_connection") ?? 0}
-              />
-              <JobsMetric
-                label="진행중"
-                value={currentStageCounts.get("connected") ?? 0}
-              />
-              <JobsMetric
-                label="프로세스 중단"
-                value={currentStageCounts.get("process_stopped") ?? 0}
-              />
-              {internalOpsAccess ? (
-                <JobsMetric
-                  internalOnly
-                  label="수락 후 대기"
-                  value={currentStageCounts.get("accepted") ?? 0}
-                />
-              ) : null}
-            </div>
-            {roles.length > 0 ? (
-              <div className="mt-5 grid grid-cols-[minmax(0,1fr)_72px] gap-3 px-3 pb-2 text-[14px] font-light text-neutral-soft sm:grid-cols-[minmax(0,1fr)_88px_88px]">
-                <span>Role</span>
-                <span className="text-right">후보자</span>
-                <span className="hidden text-right sm:block">연결 대기</span>
-              </div>
-            ) : null}
-            <div className="divide-y divide-neutral-1000-a05">
-              {roles.map((role) => {
-                const count = roleCounts.get(role.roleId) ?? {
-                  pending: 0,
-                  total: 0,
-                };
-                return (
-                  <JobRoleRow
-                    key={role.roleId}
-                    name={role.name}
-                    onClick={() => openJobs(role.roleId)}
-                    paused={["paused", "on_hold"].includes(
-                      String(role.status ?? "").toLowerCase()
-                    )}
-                    pending={count.pending}
-                    total={count.total}
-                  />
-                );
-              })}
-              {roles.length === 0 ? (
-                <div className="py-9 text-center text-sm font-light text-neutral-muted">
-                  등록된 Job이 없습니다.
-                </div>
-              ) : null}
-            </div>
           </OrgSection>
         </>
       )}

@@ -64,6 +64,13 @@ import { CAREER_CHAT_ALLOWED_TOOLS_BY_ACTION } from "@/lib/career/chatToolPreset
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 import type { CareerWorkspaceTab } from "./CareerWorkspaceNav";
+import ProfileSourceApplyConfirmModal, {
+  type ProfileSourceApplyConfirmMode,
+} from "./profile/ProfileSourceApplyConfirmModal";
+import {
+  clearPendingProfileSourceApplyConfirmation,
+  hasPendingProfileSourceApplyConfirmation,
+} from "@/lib/talentCapture/client";
 
 const getCompletedOpportunityRunRefreshKey = (
   run: CareerOpportunityRun | null
@@ -195,6 +202,10 @@ export const CareerFlowProvider = ({
   const [sessionReengagementTestPending, setSessionReengagementTestPending] =
     useState(false);
   const [forceCompletePending, setForceCompletePending] = useState(false);
+  const [profileSourceApplyConfirmMode, setProfileSourceApplyConfirmMode] =
+    useState<ProfileSourceApplyConfirmMode | null>(null);
+  const [profileSourceApplyPending, setProfileSourceApplyPending] =
+    useState(false);
   const completedOpportunityRunRefreshRef = useRef<string | null>(null);
   const companyFollowUpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
@@ -569,6 +580,7 @@ export const CareerFlowProvider = ({
     talentExperiences,
     talentEducations,
     talentExtras,
+    talentDocuments,
     applySessionProfile,
     handleProfileSubmit: handleProfileSubmitBase,
     handleProfileLinkChange,
@@ -577,6 +589,9 @@ export const CareerFlowProvider = ({
     applyTalentProfileSnapshot,
     handleSaveTalentProfile,
     handleRefreshTalentProfileSources,
+    handleUploadTalentDocument,
+    handleUpdateTalentDocument,
+    handleDeleteTalentDocument,
     resetProfileState,
   } = useCareerProfile({
     user,
@@ -1070,8 +1085,37 @@ export const CareerFlowProvider = ({
   );
 
   const handleProfileSubmit = useCallback(async () => {
-    await handleProfileSubmitBase(handleProfileSubmitSuccess);
+    const saved = await handleProfileSubmitBase(handleProfileSubmitSuccess);
+    if (saved) {
+      setProfileSourceApplyConfirmMode("saved_sources");
+    }
   }, [handleProfileSubmitBase, handleProfileSubmitSuccess]);
+
+  useEffect(() => {
+    if (!userId || !hasPendingProfileSourceApplyConfirmation()) return;
+    const timeoutId = window.setTimeout(
+      () => setProfileSourceApplyConfirmMode("saved_sources"),
+      0
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [userId]);
+
+  const closeProfileSourceApplyConfirmation = useCallback(() => {
+    if (profileSourceApplyPending) return;
+    clearPendingProfileSourceApplyConfirmation();
+    setProfileSourceApplyConfirmMode(null);
+  }, [profileSourceApplyPending]);
+
+  const confirmProfileSourceApply = useCallback(async () => {
+    if (profileSourceApplyPending) return;
+    setProfileSourceApplyPending(true);
+    const applied = await handleRefreshTalentProfileSources();
+    setProfileSourceApplyPending(false);
+    if (applied) {
+      clearPendingProfileSourceApplyConfirmation();
+      setProfileSourceApplyConfirmMode(null);
+    }
+  }, [handleRefreshTalentProfileSources, profileSourceApplyPending]);
 
   const hydrateSession = useCallback(
     (payload: SessionResponse) => {
@@ -1830,6 +1874,7 @@ export const CareerFlowProvider = ({
       savedResumeFileName,
       savedResumeStoragePath,
       savedResumeDownloadUrl,
+      talentDocuments,
       profileLinks,
       savedProfileLinks,
       profileSavePending,
@@ -1840,6 +1885,9 @@ export const CareerFlowProvider = ({
       onAddProfileLink: handleAddProfileLink,
       onRemoveProfileLink: handleRemoveProfileLink,
       onSaveTalentProfile: handleSaveTalentProfile,
+      onUploadTalentDocument: handleUploadTalentDocument,
+      onUpdateTalentDocument: handleUpdateTalentDocument,
+      onDeleteTalentDocument: handleDeleteTalentDocument,
       onUpdateAccountProfile: handleUpdateAccountProfile,
       onRefreshTalentProfileSources: handleRefreshTalentProfileSources,
       talentProfile: {
@@ -1887,10 +1935,13 @@ export const CareerFlowProvider = ({
       blockedCompanies,
       engagementTypes,
       handleAddProfileLink,
+      handleDeleteTalentDocument,
       handleProfileLinkChange,
       handleRemoveProfileLink,
       handleRefreshTalentProfileSources,
       handleSaveTalentProfile,
+      handleUpdateTalentDocument,
+      handleUploadTalentDocument,
       handleUpdateAccountProfile,
       hasUnsavedTalentInsightsChanges,
       hasUnsavedTalentPreferencesChanges,
@@ -1935,6 +1986,7 @@ export const CareerFlowProvider = ({
       talentPreferencesSavePending,
       talentPreferencesUpdatedAt,
       talentEducations,
+      talentDocuments,
       talentExperiences,
       talentExtras,
       talentUser,
@@ -1954,6 +2006,12 @@ export const CareerFlowProvider = ({
         value={workspaceContextValue}
       >
         {children}
+        <ProfileSourceApplyConfirmModal
+          mode={profileSourceApplyConfirmMode}
+          pending={profileSourceApplyPending}
+          onCancel={closeProfileSourceApplyConfirmation}
+          onConfirm={confirmProfileSourceApply}
+        />
       </CareerSidebarProvider>
     </CareerChatPanelProvider>
   );

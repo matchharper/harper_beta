@@ -591,6 +591,7 @@ export const ko = {
     "career.chat.career_call_screen.1914g7j": "음소거",
     "career.chat.career_call_screen.1lwovam": "커리어 인터뷰 진행률",
     "career.chat.career_call_screen.force_complete_label": "지금 마무리하기",
+    "career.chat.career_call_screen.tool_executing": "정보 찾는 중...",
     "career.chat.career_composer_section.017fk2m":
       "원하는 역할이나 조건을 편하게 알려주세요.",
     "career.chat.career_composer_section.02tj0kp": "약 5분",
@@ -702,6 +703,7 @@ export const ko = {
     "career.chat.tool.update_talent_profile.start":
       "프로필 정보를 업데이트하고 있습니다.",
     "career.common.cancel": "취소",
+    "career.common.save": "저장",
     "career.common.career.028kv4g": "상세 보기",
     "career.common.career.030f28a": "검색 실패",
     "career.common.career.047a363": "회사 워치리스트를 불러오지 못했습니다.",
@@ -709,7 +711,7 @@ export const ko = {
       "하퍼는 숨겨진 스타트업 기회를 먼저 찾아 추천하고,",
     "career.common.career.055fv5b": "하이브리드",
     "career.common.career.07r9xc5": "다운로드",
-    "career.common.career.07vhdpu": "이력서/링크 저장 및 새로운 정보 업데이트",
+    "career.common.career.07vhdpu": "이력서/링크 저장",
     "career.common.career.083cky2": "아직 회사 설명이 없습니다.",
     "career.common.career.09c4j2c": "링크 열기",
     "career.common.career.0beg208": "{count}개 추천",
@@ -1829,6 +1831,52 @@ export const ko = {
       "확인하면 편집 화면에서 이 항목이 제거됩니다. 최종 반영하려면 프로필을 저장해 주세요.",
     "career.profile.career_talent_profile_panel.remove_confirm_title":
       "{label} 항목을 삭제할까요?",
+    "career.profile.documents.actions": "문서 메뉴",
+    "career.profile.documents.add": "추가하기",
+    "career.profile.documents.add_description":
+      "업로드할 파일의 종류를 선택해 주세요.",
+    "career.profile.documents.add_title": "문서 추가",
+    "career.profile.documents.delete": "문서 삭제",
+    "career.profile.documents.delete_help":
+      "삭제한 문서는 다시 복구할 수 없습니다.",
+    "career.profile.documents.delete_failed": "문서를 삭제하지 못했습니다.",
+    "career.profile.documents.delete_title": "문서를 삭제할까요?",
+    "career.profile.documents.deleted": "문서를 삭제했습니다.",
+    "career.profile.documents.document_kind_help":
+      "저장 후 회사 공개 여부만 선택합니다.",
+    "career.profile.documents.drag_description": "파일을 놓아 선택하세요.",
+    "career.profile.documents.dropzone_title":
+      "파일을 끌어다 놓거나 선택하세요",
+    "career.profile.documents.empty": "추가로 저장된 문서가 없습니다.",
+    "career.profile.documents.file_name": "문서 이름",
+    "career.profile.documents.keep_private": "비공개로 저장",
+    "career.profile.documents.kind.document": "문서",
+    "career.profile.documents.kind.resume": "이력서",
+    "career.profile.documents.make_private": "비공개로 전환",
+    "career.profile.documents.make_public": "공개하기",
+    "career.profile.documents.primary_resume": "대표 이력서",
+    "career.profile.documents.private": "비공개",
+    "career.profile.documents.public": "회사 공개",
+    "career.profile.documents.rename": "이름 수정",
+    "career.profile.documents.rename_title": "문서 이름 수정",
+    "career.profile.documents.resume_kind_help":
+      "대표 이력서로 저장하고 프로필 반영 여부를 확인합니다.",
+    "career.profile.documents.selected_description":
+      "업로드 버튼을 누르면 저장됩니다.",
+    "career.profile.documents.saved": "문서를 저장했습니다.",
+    "career.profile.documents.set_primary": "대표 이력서로 지정",
+    "career.profile.documents.title": "내 문서",
+    "career.profile.documents.unsupported_file":
+      "지원하는 파일 형식만 업로드해 주세요.",
+    "career.profile.documents.upload": "업로드",
+    "career.profile.documents.update_failed": "문서를 수정하지 못했습니다.",
+    "career.profile.documents.updated": "문서를 수정했습니다.",
+    "career.profile.documents.upload_failed": "문서를 업로드하지 못했습니다.",
+    "career.profile.documents.upload_result_missing":
+      "업로드한 문서 정보를 불러오지 못했습니다.",
+    "career.profile.documents.visibility_help":
+      "공개하면 회사가 프로필에서 이 문서를 열람할 수 있습니다. 언제든 다시 비공개로 전환할 수 있습니다.",
+    "career.profile.documents.visibility_title": "회사에 이 문서를 공개할까요?",
     "career.profile.personal_info.phone_modal_title": "휴대폰 번호 수정",
     "career.profile.personal_info.phone_number": "휴대폰 번호",
     "career.profile.personal_info.title": "개인 정보",
@@ -1856,6 +1904,13 @@ export const ko = {
       "링크드인 정보 새로고침",
     "career.profile.resume_links.linkedin_refresh_tooltip":
       "업데이트된 링크드인 정보를 가져옵니다.",
+    "career.profile.source_apply.confirm": "반영하기",
+    "career.profile.source_apply.description":
+      "새로운 내용을 현재 프로필 정보에 반영하시겠습니까?",
+    "career.profile.source_apply.help":
+      "반영하면 새 자료를 바탕으로 경력, 학력 및 추가 프로필 정보를 업데이트합니다.",
+    "career.profile.source_apply.materials_only": "자료만 업로드",
+    "career.profile.source_apply.title": "새로운 내용을 프로필에 반영할까요?",
     "career.profile.settings.no_saved_changes":
       "아직 저장된 변경 이력이 없습니다.",
     "career.recommend_job_postings.chat_preamble":
@@ -2007,7 +2062,7 @@ export const ko = {
     "career.resume_dropzone.settings_description":
       "PDF, DOCX, TXT, MD 파일을 업로드할 수 있습니다.",
     "career.resume_dropzone.settings_selected_description":
-      "저장 버튼을 누르면 이 파일로 업데이트됩니다.",
+      "선택한 이력서를 저장하고 있습니다.",
     "career.resume_dropzone.unsupported_file":
       "지원하는 이력서 파일 형식만 업로드해 주세요.",
     "career.settings.career_resume_links_settings_section.114mcb5": "링크 삭제",

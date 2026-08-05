@@ -564,6 +564,8 @@ export const en = {
     "career.chat.career_call_screen.1914g7j": "Mute",
     "career.chat.career_call_screen.1lwovam": "Career Interview Progress",
     "career.chat.career_call_screen.force_complete_label": "Finish Now",
+    "career.chat.career_call_screen.tool_executing":
+      "Looking up information...",
     "career.chat.career_composer_section.017fk2m":
       "Feel free to tell me your desired role or conditions.",
     "career.chat.career_composer_section.02tj0kp": "About 5 minutes",
@@ -677,6 +679,7 @@ export const en = {
     "career.chat.tool.update_talent_profile.start":
       "Updating your profile information.",
     "career.common.cancel": "Cancel",
+    "career.common.save": "Save",
     "career.common.career.028kv4g": "View Details",
     "career.common.career.030f28a": "Search failed",
     "career.common.career.047a363": "Failed to load your company watchlist.",
@@ -684,7 +687,7 @@ export const en = {
       "I find and recommend hidden startup opportunities first,",
     "career.common.career.055fv5b": "Hybrid",
     "career.common.career.07r9xc5": "Download",
-    "career.common.career.07vhdpu": "Save resume/link and update info",
+    "career.common.career.07vhdpu": "Save resume and links",
     "career.common.career.083cky2": "No company description yet.",
     "career.common.career.09c4j2c": "Open Link",
     "career.common.career.0beg208": "{count} recommendations",
@@ -1841,6 +1844,53 @@ export const en = {
       "This item will be removed from the editor. Save your profile to apply the change.",
     "career.profile.career_talent_profile_panel.remove_confirm_title":
       "Delete {label}?",
+    "career.profile.documents.actions": "Document menu",
+    "career.profile.documents.add": "Add",
+    "career.profile.documents.add_description":
+      "Choose the type of file you want to upload.",
+    "career.profile.documents.add_title": "Add a document",
+    "career.profile.documents.delete": "Delete document",
+    "career.profile.documents.delete_help":
+      "Deleted documents cannot be recovered.",
+    "career.profile.documents.delete_failed": "Failed to delete the document.",
+    "career.profile.documents.delete_title": "Delete this document?",
+    "career.profile.documents.deleted": "Document deleted.",
+    "career.profile.documents.document_kind_help":
+      "Save the document, then choose whether to share it with companies.",
+    "career.profile.documents.drag_description": "Drop your file to select it.",
+    "career.profile.documents.dropzone_title":
+      "Drag and drop a file or select one",
+    "career.profile.documents.empty": "No additional documents saved.",
+    "career.profile.documents.file_name": "Document name",
+    "career.profile.documents.keep_private": "Keep private",
+    "career.profile.documents.kind.document": "Document",
+    "career.profile.documents.kind.resume": "Resume",
+    "career.profile.documents.make_private": "Make private",
+    "career.profile.documents.make_public": "Share with companies",
+    "career.profile.documents.primary_resume": "Primary resume",
+    "career.profile.documents.private": "Private",
+    "career.profile.documents.public": "Visible to companies",
+    "career.profile.documents.rename": "Rename",
+    "career.profile.documents.rename_title": "Rename document",
+    "career.profile.documents.resume_kind_help":
+      "Save as your primary resume, then choose whether to update your profile.",
+    "career.profile.documents.selected_description":
+      "Click Upload to save this file.",
+    "career.profile.documents.saved": "Document saved.",
+    "career.profile.documents.set_primary": "Set as primary resume",
+    "career.profile.documents.title": "My documents",
+    "career.profile.documents.unsupported_file":
+      "Please upload a supported file type.",
+    "career.profile.documents.upload": "Upload",
+    "career.profile.documents.update_failed": "Failed to update the document.",
+    "career.profile.documents.updated": "Document updated.",
+    "career.profile.documents.upload_failed": "Failed to upload the document.",
+    "career.profile.documents.upload_result_missing":
+      "The uploaded document information could not be loaded.",
+    "career.profile.documents.visibility_help":
+      "If you share it, companies can view this document on your profile. You can make it private again at any time.",
+    "career.profile.documents.visibility_title":
+      "Share this document with companies?",
     "career.profile.personal_info.phone_modal_title": "Edit Phone Number",
     "career.profile.personal_info.phone_number": "Phone Number",
     "career.profile.personal_info.title": "Personal Information",
@@ -1870,6 +1920,14 @@ export const en = {
       "Refresh LinkedIn Info",
     "career.profile.resume_links.linkedin_refresh_tooltip":
       "Fetch updated LinkedIn information.",
+    "career.profile.source_apply.confirm": "Update profile",
+    "career.profile.source_apply.description":
+      "Would you like to add the new information to your current profile?",
+    "career.profile.source_apply.help":
+      "Updating will refresh your experience, education, and other profile information based on the new materials.",
+    "career.profile.source_apply.materials_only": "Upload only",
+    "career.profile.source_apply.title":
+      "Update your profile with the new information?",
     "career.profile.settings.no_saved_changes": "No saved changes yet.",
     "career.recommend_job_postings.chat_preamble":
       "Got it. Let me first check the status of your recommendations.",
@@ -2025,7 +2083,7 @@ export const en = {
     "career.resume_dropzone.settings_description":
       "You can upload PDF, DOCX, TXT, and MD files.",
     "career.resume_dropzone.settings_selected_description":
-      "Press Save to update with this file.",
+      "Saving your selected resume...",
     "career.resume_dropzone.unsupported_file":
       "Please upload a supported resume file type.",
     "career.settings.career_resume_links_settings_section.114mcb5":

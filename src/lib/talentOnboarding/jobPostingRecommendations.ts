@@ -880,9 +880,16 @@ function previousExternalRedactionTerms(
   return terms.sort((left, right) => right.length - left.length);
 }
 
-function compactDeliveryMetaForLlm(meta: JsonRecord) {
+function compactDeliveryMetaForLlm(value: unknown) {
+  const meta = parseMaybeJsonValue(value);
+  const direct = normalizeMultiline(meta, 1000);
+  if (direct) return direct;
+
+  const record = asRecord(meta);
+  if (!record) return "";
+
   const parts: string[] = [];
-  const intent = normalizeMultiline(meta.intent, 240);
+  const intent = normalizeMultiline(record.intent, 240);
   if (intent) parts.push(intent);
   for (const [label, key] of [
     ["act", "communicationAct"],
@@ -892,7 +899,7 @@ function compactDeliveryMetaForLlm(meta: JsonRecord) {
     ["cta", "ctaType"],
     ["opening", "openingStyle"],
   ] as const) {
-    const text = cleanText(meta[key], 80);
+    const text = cleanText(record[key], 80);
     if (text) parts.push(`${label}:${text}`);
   }
   return parts.join(" | ");
@@ -1094,8 +1101,7 @@ async function fetchRecentDeliveryContext(args: {
         previousDeliveryTexts.push(text);
       }
     }
-    const meta = asRecord(plan?.deliveryMeta);
-    const compactMeta = meta ? compactDeliveryMetaForLlm(meta) : "";
+    const compactMeta = compactDeliveryMetaForLlm(plan?.deliveryMeta);
     if (compactMeta && recentDeliveryMeta.length < RECENT_DELIVERY_META_LIMIT) {
       recentDeliveryMeta.push(compactMeta);
     }

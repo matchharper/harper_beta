@@ -48,7 +48,6 @@ import {
 } from "@/lib/org/candidateDecision";
 import { isInternalDomainEmail } from "@/lib/internalAccess";
 import { InternalOnlyHatch } from "@/components/org/internal/InternalOnlySurface";
-import { OrgRoleActionsMenu } from "@/components/org/OrgRoleActionsMenu";
 import {
   useCreateOrgReviewStage,
   useDeleteOrgReviewStage,
@@ -59,7 +58,6 @@ import {
   useOrgJobsCandidateActions,
   useOrgJobsFilters,
   useOrgJobsNavigation,
-  useOrgJobsRoleActions,
 } from "@/hooks/org/useOrgJobs";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useOrgViewedRecommendations } from "@/hooks/org/useOrgViewedRecommendations";
@@ -373,18 +371,10 @@ export function OrgPipeline() {
     setRecommendedDateRange: onRecommendedDateChange,
   } = useOrgJobsFilters();
   const {
-    activeRole,
     activeRoleId,
     selectTalent: onSelect,
     workspaceId,
   } = useOrgJobsNavigation();
-  const {
-    deleteRole: onDeleteRole,
-    openRoleEditor,
-    pauseRole: onPauseRole,
-    resumeRole: onResumeRole,
-    roleActionPending,
-  } = useOrgJobsRoleActions();
   const {
     bootstrap,
     currentUser,
@@ -395,8 +385,6 @@ export function OrgPipeline() {
   const members = bootstrap.members;
   const canManageCandidates = permissions.canManageCandidates;
   const isLoading = boardQuery.isLoading;
-  const activeRoleName = activeRole?.name ?? null;
-  const onEditRole = () => openRoleEditor(activeRoleId);
   const [dragOverStage, setDragOverStage] = useState<OrgStageId | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [acceptRequest, setAcceptRequest] = useState<{
@@ -446,6 +434,24 @@ export function OrgPipeline() {
     }
     return map;
   }, [board, getPendingStage]);
+  const pipelineSummary = useMemo(() => {
+    const pendingConnection =
+      itemsByStage.get("pending_connection")?.length ?? 0;
+    const processStopped = itemsByStage.get("process_stopped")?.length ?? 0;
+    let inProgress = 0;
+
+    for (const [stageId, items] of itemsByStage) {
+      if (
+        stageId !== "pending_connection" &&
+        stageId !== "process_stopped" &&
+        stageId !== "archived"
+      ) {
+        inProgress += items.length;
+      }
+    }
+
+    return { inProgress, pendingConnection, processStopped };
+  }, [itemsByStage]);
   const itemByRecommendationId = useMemo(
     () =>
       new Map(
@@ -793,28 +799,56 @@ export function OrgPipeline() {
 
   return (
     <section className="min-w-0 space-y-4">
-      <div className="flex flex-col gap-2 rounded-md py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0 flex flex-row items-center gap-3">
-          <div className="truncate text-[15px] font-medium text-neutral-primary">
-            {activeRoleName ?? "Role"}
+      <div
+        aria-label="파이프라인 현황"
+        className="grid grid-cols-3 overflow-hidden rounded-lg border border-neutral-1000-a05 bg-bg-floating shadow-xs"
+      >
+        <div className="relative min-w-0 px-4 py-3.5 sm:px-5">
+          <div className="absolute inset-x-0 top-0 h-0.5 bg-primary" />
+          <div className="text-[12px] font-medium text-neutral-muted">
+            연결 대기
           </div>
-          <div className="flex items-center gap-1 bg-neutral-100 px-1.5 py-1 text-[13px]">
-            <div className="block h-1 w-1 rounded-full bg-positive"></div>
-            Hiring
+          <div className="mt-1 flex items-baseline gap-1">
+            <span className="text-[24px] font-semibold tracking-tight text-primary">
+              {isLoading ? "–" : pipelineSummary.pendingConnection}
+            </span>
+            <span className="text-[12px] text-neutral-soft">명</span>
+          </div>
+          <div className="mt-0.5 hidden text-[11px] text-neutral-soft sm:block">
+            연결 응답을 기다리고 있어요
           </div>
         </div>
-        {canManageCandidates ? (
-          <OrgRoleActionsMenu
-            role={activeRoleId === "all" ? null : activeRole}
-            pending={roleActionPending}
-            onEdit={() => onEditRole()}
-            onPause={onPauseRole}
-            onResume={onResumeRole}
-            onDelete={onDeleteRole}
-          />
-        ) : null}
+        <div className="relative min-w-0 border-l border-neutral-1000-a05 px-4 py-3.5 sm:px-5">
+          <div className="absolute inset-x-0 top-0 h-0.5 bg-positive" />
+          <div className="text-[12px] font-medium text-neutral-muted">
+            진행 중
+          </div>
+          <div className="mt-1 flex items-baseline gap-1">
+            <span className="text-[24px] font-semibold tracking-tight text-positive">
+              {isLoading ? "–" : pipelineSummary.inProgress}
+            </span>
+            <span className="text-[12px] text-neutral-soft">명</span>
+          </div>
+          <div className="mt-0.5 hidden text-[11px] text-neutral-soft sm:block">
+            모든 진행 단계를 합산했어요
+          </div>
+        </div>
+        <div className="relative min-w-0 border-l border-neutral-1000-a05 px-4 py-3.5 sm:px-5">
+          <div className="absolute inset-x-0 top-0 h-0.5 bg-neutral-400" />
+          <div className="text-[12px] font-medium text-neutral-muted">
+            프로세스 종료
+          </div>
+          <div className="mt-1 flex items-baseline gap-1">
+            <span className="text-[24px] font-semibold tracking-tight text-neutral-primary">
+              {isLoading ? "–" : pipelineSummary.processStopped}
+            </span>
+            <span className="text-[12px] text-neutral-soft">명</span>
+          </div>
+          <div className="mt-0.5 hidden text-[11px] text-neutral-soft sm:block">
+            종료된 채용 프로세스예요
+          </div>
+        </div>
       </div>
-
       <div
         data-org-pipeline-sticky-actions
         className="flex flex-col gap-2 lg:sticky lg:top-0 lg:z-30 lg:h-14 lg:flex-row lg:items-center lg:justify-between lg:border-b lg:border-neutral-1000-a05 lg:bg-neutral-00/95 lg:py-2 lg:backdrop-blur"

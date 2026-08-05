@@ -33,8 +33,23 @@ export type TalentExperienceRow =
   Database["public"]["Tables"]["talent_experiences"]["Row"];
 export type TalentEducationRow =
   Database["public"]["Tables"]["talent_educations"]["Row"];
+export type TalentDocumentRow =
+  Database["public"]["Tables"]["talent_documents"]["Row"];
 export type TalentExtraRow =
   Database["public"]["Tables"]["talent_extras"]["Row"];
+
+export type TalentDocumentResponse = {
+  id: string;
+  kind: string;
+  fileName: string;
+  storagePath: string;
+  contentType: string | null;
+  sizeBytes: number | null;
+  isPublic: boolean;
+  isPrimary: boolean;
+  createdAt: string;
+  downloadUrl: string | null;
+};
 
 export type TalentExtraItem = {
   id?: string | null;

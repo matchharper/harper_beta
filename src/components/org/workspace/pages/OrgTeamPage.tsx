@@ -1,7 +1,24 @@
-import { Ellipsis, LoaderCircle, Trash2 } from "lucide-react";
+import {
+  ArrowUpRight,
+  Calendar,
+  CircleDollarSign,
+  Ellipsis,
+  FileText,
+  Handshake,
+  LoaderCircle,
+  MapPin,
+  Pencil,
+  TrendingUp,
+  Trash2,
+  Users,
+} from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/router";
-import { FormEvent, useState } from "react";
+import { FormEvent, type ReactNode, useState } from "react";
+import {
+  OrgEditDialog,
+  type OrgEditDialogValue,
+} from "@/components/org/OrgEditDialog";
 import { OrgPageHeader } from "@/components/org/workspace/OrgPageHeader";
 import {
   OrgSection,
@@ -32,7 +49,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Radio } from "@/components/ui/radio";
-import { Textarea } from "@/components/ui/textarea";
 import {
   useCancelOrgInvitation,
   useRemoveOrgMember,
@@ -71,19 +87,139 @@ function MemberAvatar({ member }: { member: OrgMember }) {
     return (
       <Image
         alt=""
-        className="size-8 shrink-0 rounded-full object-cover"
-        height={32}
+        className="size-6 shrink-0 rounded-full object-cover"
+        height={24}
         src={member.profilePicture}
+        unoptimized
+        width={24}
+      />
+    );
+  }
+  return (
+    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-bg-weak text-[12px] font-medium text-neutral-muted">
+      {label.slice(0, 1).toUpperCase()}
+    </span>
+  );
+}
+
+function CompanyBrandMark({
+  logoUrl,
+  name,
+}: {
+  logoUrl: string | null;
+  name: string;
+}) {
+  if (logoUrl) {
+    return (
+      <Image
+        alt=""
+        className="size-8 shrink-0 rounded-md object-contain"
+        height={32}
+        src={logoUrl}
         unoptimized
         width={32}
       />
     );
   }
+
   return (
-    <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-bg-weak text-[12px] font-medium text-neutral-muted">
-      {label.slice(0, 1).toUpperCase()}
+    <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-bg-weak text-[12px] font-medium text-neutral-muted">
+      {name.slice(0, 1).toUpperCase()}
     </span>
   );
+}
+
+function getFaviconUrl(href: string) {
+  try {
+    const url = new URL(href);
+    return `https://www.google.com/s2/favicons?domain_url=${encodeURIComponent(
+      url.origin
+    )}&sz=64`;
+  } catch {
+    return "";
+  }
+}
+
+function CompanyLinkPill({ href, label }: { href: string; label: string }) {
+  const iconUrl = getFaviconUrl(href);
+
+  return (
+    <a
+      className="group rounded-md outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
+      href={href}
+      rel="noreferrer"
+      target="_blank"
+    >
+      <Badge
+        className="group-hover:bg-neutral-1000-a10"
+        endIcon={<ArrowUpRight className="size-3.5" />}
+        icon={
+          iconUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              alt=""
+              aria-hidden="true"
+              className="size-3.5 rounded-[3px] object-contain"
+              src={iconUrl}
+            />
+          ) : null
+        }
+        size="lg"
+        variant="faded"
+      >
+        {label}
+      </Badge>
+    </a>
+  );
+}
+
+function CompanyInlineFact({
+  icon,
+  value,
+}: {
+  icon: ReactNode;
+  value: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-1.5 text-[13px] text-neutral-primary">
+      <span className="shrink-0 text-neutral-muted">{icon}</span>
+      <span className="wrap-break-word">{value}</span>
+    </div>
+  );
+}
+
+function CompanyMetric({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string | null | undefined;
+}) {
+  return (
+    <div className="flex min-w-0 items-start gap-2.5">
+      <span className="mt-0.5 shrink-0 text-neutral-muted">{icon}</span>
+      <div className="min-w-0">
+        <div className="text-[12px] font-light leading-5 text-neutral-soft">
+          {label}
+        </div>
+        <div className="mt-0.5 whitespace-pre-wrap wrap-break-word text-[13px] leading-5 text-neutral-primary">
+          {value?.trim() || "-"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function formatEmployeeCount(start: number | null, end: number | null) {
+  const format = (value: number) =>
+    new Intl.NumberFormat("ko-KR").format(value);
+  if (start !== null && end !== null)
+    return `${format(start)}–${format(end)}명`;
+  if (start !== null) return `${format(start)}명 이상`;
+  if (end !== null) return `${format(end)}명 이하`;
+  return null;
 }
 
 function InviteMemberDialog({
@@ -263,35 +399,69 @@ export function OrgTeamPage() {
   const removeMember = useRemoveOrgMember();
   const updateMembershipRole = useUpdateOrgMembershipRole();
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [companyEditOpen, setCompanyEditOpen] = useState(false);
   const [invitationToCancel, setInvitationToCancel] =
     useState<OrgWorkspaceInvitation | null>(null);
   const [memberToRemove, setMemberToRemove] = useState<OrgMember | null>(null);
-  const [companyDescription, setCompanyDescription] = useState(
-    workspace.companyDescription ?? ""
+  const companyProfile = workspace.companyProfile;
+  const resolvedCompanyDescription =
+    workspace.companyDescription ??
+    companyProfile?.companyDbDescription ??
+    null;
+  const employeeCountText = formatEmployeeCount(
+    companyProfile?.employeeCountStart ?? null,
+    companyProfile?.employeeCountEnd ?? null
   );
-  const [pitch, setPitch] = useState(workspace.pitch ?? "");
-  const [companyError, setCompanyError] = useState("");
-  const hasCompanyChanges =
-    companyDescription !== (workspace.companyDescription ?? "") ||
-    pitch !== (workspace.pitch ?? "");
+  const companyEditValue: OrgEditDialogValue = {
+    companyDescription: resolvedCompanyDescription,
+    companyName: workspace.companyName,
+    employeeCountEnd: companyProfile?.employeeCountEnd ?? null,
+    employeeCountStart: companyProfile?.employeeCountStart ?? null,
+    foundedYear: companyProfile?.foundedYear ?? null,
+    homepageUrl: companyProfile?.homepageUrl ?? null,
+    lastFundingRoundDescription:
+      companyProfile?.lastFundingRoundDescription ?? null,
+    lastFundingStage: companyProfile?.lastFundingStage ?? null,
+    linkedinUrl: companyProfile?.linkedinUrl ?? null,
+    locationText: companyProfile?.location ?? null,
+    logoUrl: workspace.logoUrl,
+    mainInvestors: companyProfile?.mainInvestors ?? null,
+    pitch: workspace.pitch,
+    shortDescription: companyProfile?.shortDescription ?? null,
+    totalFundingRaised: companyProfile?.totalFundingRaised ?? null,
+  };
 
-  const saveCompany = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setCompanyError("");
+  const saveCompany = async (value: OrgEditDialogValue) => {
     try {
       await updateWorkspace.mutateAsync({
-        companyDescription: companyDescription.trim() || null,
-        pitch: pitch.trim() || null,
-        request: workspace.request,
+        companyDescription: value.companyDescription?.trim() || null,
+        companyName: value.companyName?.trim() || null,
+        employeeCountEnd: value.employeeCountEnd ?? null,
+        employeeCountStart: value.employeeCountStart ?? null,
+        foundedYear: value.foundedYear ?? null,
+        homepageUrl: value.homepageUrl?.trim() || null,
+        lastFundingRoundDescription:
+          value.lastFundingRoundDescription?.trim() || null,
+        lastFundingStage: value.lastFundingStage?.trim() || null,
+        linkedinUrl: value.linkedinUrl?.trim() || null,
+        location: value.locationText?.trim() || null,
+        logoUrl: value.logoUrl?.trim() || null,
+        mainInvestors: value.mainInvestors?.trim() || null,
+        pitch: value.pitch?.trim() || null,
+        shortDescription: value.shortDescription?.trim() || null,
+        totalFundingRaised: value.totalFundingRaised?.trim() || null,
         workspaceId: workspace.workspaceId,
       });
       addToast({ message: "회사 정보를 저장했습니다.", variant: "success" });
+      setCompanyEditOpen(false);
     } catch (saveError) {
-      setCompanyError(
-        saveError instanceof Error
-          ? saveError.message
-          : "회사 정보를 저장하지 못했습니다."
-      );
+      addToast({
+        message:
+          saveError instanceof Error
+            ? saveError.message
+            : "회사 정보를 저장하지 못했습니다.",
+        variant: "error",
+      });
     }
   };
 
@@ -402,66 +572,131 @@ export function OrgTeamPage() {
 
   return (
     <div className="space-y-8">
-      <OrgPageHeader title="Team" />
+      <OrgPageHeader
+        title={
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="shrink-0">Company:</span>
+            <CompanyBrandMark
+              logoUrl={workspace.logoUrl}
+              name={workspace.companyName}
+            />
+            <span className="truncate">{workspace.companyName}</span>
+          </span>
+        }
+      />
 
       <OrgSection>
         <OrgSectionHeader
+          actions={
+            permissions.canManageWorkspace ? (
+              <MuteButton
+                onClick={() => setCompanyEditOpen(true)}
+                size="md"
+                variant="default"
+              >
+                <Pencil className="size-4" />
+                수정
+              </MuteButton>
+            ) : null
+          }
           description="Harper가 후보자에게 회사를 설명하고 적절한 인재를 연결할 때 사용합니다."
           title="회사 정보"
         />
-        <form className="space-y-5" onSubmit={saveCompany}>
-          <label className="block">
-            <span className="text-[14px] font-medium text-neutral-primary">
-              회사 Pitch
-            </span>
-            <span className="mt-1 block text-[12px] font-light leading-5 text-neutral-muted">
-              투자, 매출, 팀과 제품처럼 후보자에게 어필할 회사의 장점을 적어
-              주세요.
-            </span>
-            <Textarea
-              className="mt-2 min-h-40 px-3 py-2.5 text-[13px] leading-5"
-              disabled={!permissions.canManageWorkspace}
-              onChange={(event) => setPitch(event.target.value)}
-              value={pitch}
-            />
-          </label>
-          <label className="block">
-            <span className="text-[14px] font-medium text-neutral-primary">
-              회사 설명
-            </span>
-            <span className="mt-1 block text-[12px] font-light leading-5 text-neutral-muted">
-              회사에 대한 객관적인 설명을 3~5문장으로 적어 주세요.
-            </span>
-            <Textarea
-              className="mt-2 min-h-40 px-3 py-2.5 text-[13px] leading-5"
-              disabled={!permissions.canManageWorkspace}
-              onChange={(event) => setCompanyDescription(event.target.value)}
-              value={companyDescription}
-            />
-          </label>
-          {companyError ? (
-            <p className="text-[12px] text-critical">{companyError}</p>
-          ) : null}
-          {permissions.canManageWorkspace ? (
-            <div className="flex justify-end">
-              <MuteButton
-                disabled={!hasCompanyChanges || updateWorkspace.isPending}
-                size="md"
-                type="submit"
-                variant="dark"
-              >
-                {updateWorkspace.isPending ? (
-                  <LoaderCircle className="size-4 animate-spin" />
-                ) : null}
-                변경사항 저장
-              </MuteButton>
+
+        <div className="space-y-8">
+          <div className="space-y-4">
+            {companyProfile?.shortDescription?.trim() ? (
+              <p className="max-w-4xl text-[14px] leading-6 text-neutral-muted">
+                {companyProfile.shortDescription}
+              </p>
+            ) : null}
+
+            <div className="flex flex-wrap gap-x-5 gap-y-2.5">
+              {companyProfile?.location ? (
+                <CompanyInlineFact
+                  icon={<MapPin className="size-3.5" strokeWidth={2} />}
+                  value={companyProfile.location}
+                />
+              ) : null}
+              {companyProfile?.foundedYear ? (
+                <CompanyInlineFact
+                  icon={<Calendar className="size-3.5" strokeWidth={2} />}
+                  value={`${companyProfile.foundedYear}년 설립`}
+                />
+              ) : null}
+              {employeeCountText ? (
+                <CompanyInlineFact
+                  icon={<Users className="size-3.5" strokeWidth={2} />}
+                  value={employeeCountText}
+                />
+              ) : null}
             </div>
-          ) : (
-            <p className="text-[12px] font-light text-neutral-soft">
-              회사 정보는 Owner 또는 Admin이 수정할 수 있습니다.
-            </p>
-          )}
-        </form>
+
+            {companyProfile?.homepageUrl || companyProfile?.linkedinUrl ? (
+              <div className="flex flex-wrap gap-2">
+                {companyProfile.homepageUrl ? (
+                  <CompanyLinkPill
+                    href={companyProfile.homepageUrl}
+                    label="웹사이트"
+                  />
+                ) : null}
+                {companyProfile.linkedinUrl ? (
+                  <CompanyLinkPill
+                    href={companyProfile.linkedinUrl}
+                    label="LinkedIn"
+                  />
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="space-y-7">
+            <section>
+              <h3 className="text-[14px] font-medium text-neutral-primary">
+                회사 설명
+              </h3>
+              <p className="mt-2 max-w-4xl whitespace-pre-wrap text-[13px] leading-6 text-neutral-muted">
+                {resolvedCompanyDescription?.trim() || "-"}
+              </p>
+            </section>
+            <section>
+              <h3 className="text-[14px] font-medium text-neutral-primary">
+                회사 Pitch
+              </h3>
+              <p className="mt-2 max-w-4xl whitespace-pre-wrap text-[13px] leading-6 text-neutral-muted">
+                {workspace.pitch?.trim() || "-"}
+              </p>
+            </section>
+          </div>
+
+          <section>
+            <h3 className="text-[14px] font-medium text-neutral-primary">
+              투자 정보
+            </h3>
+            <div className="mt-4 grid gap-x-8 gap-y-5 sm:grid-cols-2 xl:grid-cols-2">
+              <CompanyMetric
+                icon={<TrendingUp className="size-4" strokeWidth={2} />}
+                label="최근 투자 단계"
+                value={companyProfile?.lastFundingStage}
+              />
+              <CompanyMetric
+                icon={<CircleDollarSign className="size-4" strokeWidth={2} />}
+                label="총 투자"
+                value={companyProfile?.totalFundingRaised}
+              />
+              <CompanyMetric
+                icon={<Handshake className="size-4" strokeWidth={2} />}
+                label="주요 투자자"
+                value={companyProfile?.mainInvestors}
+              />
+              <CompanyMetric
+                icon={<FileText className="size-4" strokeWidth={2} />}
+                label="최근 투자 라운드"
+                value={companyProfile?.lastFundingRoundDescription}
+              />
+            </div>
+          </section>
+        </div>
       </OrgSection>
 
       <OrgSection>
@@ -669,6 +904,17 @@ export function OrgTeamPage() {
           </div>
         </div>
       </OrgSection>
+
+      {companyEditOpen ? (
+        <OrgEditDialog
+          mode="workspace"
+          onClose={() => setCompanyEditOpen(false)}
+          onSubmit={(value) => void saveCompany(value)}
+          open
+          pending={updateWorkspace.isPending}
+          value={companyEditValue}
+        />
+      ) : null}
 
       <InviteMemberDialog
         invitations={invitations}

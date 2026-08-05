@@ -91,16 +91,18 @@ export function buildKnownFutureMatchingInsightsSection(args: {
     },
   ];
   const { content, quoteKeys = false } = args;
-  const insightLines = Object.entries(content ?? {})
+  const insightEntries = Object.entries(content ?? {})
     .map(([key, value]) => [key, value.trim()] as const)
     .filter(([, value]) => value.length > 0)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `- ${renderInsightKey(key, quoteKeys)} : ${value}`);
+    .sort(([left], [right]) => left.localeCompare(right));
+  const insightLines = insightEntries.map(
+    ([key, value]) => `- ${renderInsightKey(key, quoteKeys)} : ${value}`
+  );
 
   if (insightLines.length === 0) return "";
 
   const remainNudges = goodToRememberInsights
-    .filter((insight) => !insightLines.some(([key]) => key === insight.key))
+    .filter((insight) => !insightEntries.some(([key]) => key === insight.key))
     .map((insight) => `- ${insight.key} : empty (${insight.label})`);
 
   return [

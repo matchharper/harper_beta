@@ -11,8 +11,7 @@ export type ExtractedInsightValue = {
 
 export type GeneratedTalentInsightValidationReason =
   | "empty_value"
-  | "invalid_english_snake_case_key"
-  | "profile_row_fact_key";
+  | "invalid_english_snake_case_key";
 
 export type NormalizedGeneratedTalentInsightEntry =
   | { key: string; ok: true; value: string }
@@ -24,39 +23,9 @@ export type NormalizedGeneratedTalentInsightEntry =
 
 const GENERATED_TALENT_INSIGHT_KEY_PATTERN = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
 
-const PROFILE_ROW_FACT_INSIGHT_KEYS = new Set([
-  "career_history",
-  "education_history",
-  "latest_experience",
-  "latest_work_experience",
-  "main_experience",
-  "primary_experience",
-  "profile_education",
-  "profile_experience",
-  "recent_experience",
-  "recent_work_experience",
-  "representative_achievement",
-  "representative_career",
-  "representative_education",
-  "representative_experience",
-  "representative_project",
-  "work_history",
-]);
-
-const PROFILE_ROW_FACT_INSIGHT_KEY_PATTERN =
-  /^(?:latest|main|primary|profile|recent|representative)_(?:achievement|career|education|experience|project|work)$/;
-
-export function isProfileRowFactInsightKey(key: string) {
-  return (
-    PROFILE_ROW_FACT_INSIGHT_KEYS.has(key) ||
-    PROFILE_ROW_FACT_INSIGHT_KEY_PATTERN.test(key)
-  );
-}
-
 export function normalizeGeneratedTalentInsightEntry(args: {
   rawKey: unknown;
   rawValue: unknown;
-  rejectProfileRowFactKeys?: boolean;
 }): NormalizedGeneratedTalentInsightEntry {
   const rawKey = typeof args.rawKey === "string" ? args.rawKey.trim() : "";
   if (!rawKey || !GENERATED_TALENT_INSIGHT_KEY_PATTERN.test(rawKey)) {
@@ -74,10 +43,6 @@ export function normalizeGeneratedTalentInsightEntry(args: {
       ok: false,
       reason: "invalid_english_snake_case_key",
     };
-  }
-
-  if (args.rejectProfileRowFactKeys && isProfileRowFactInsightKey(key)) {
-    return { key, ok: false, reason: "profile_row_fact_key" };
   }
 
   const value = typeof args.rawValue === "string" ? args.rawValue.trim() : "";

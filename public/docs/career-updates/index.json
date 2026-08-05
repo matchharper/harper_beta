@@ -1,5 +1,23 @@
 [
   {
+    "date": "2026-08-05",
+    "tag": "matching",
+    "ko": "Harper가 더 유연하게 기회를 탐색합니다. 이전 검색에서 좋은 결과를 찾지 못했다면 관련 직무, 기술 분야, 지역, 원격 근무 범위를 적절히 넓혀 조금 다른 기회를 살펴보고, 분명한 선호가 확인되면 그 방향을 더 깊게 찾아봅니다.",
+    "en": "Harper now explores opportunities more flexibly. If earlier searches don’t find strong matches, it broadens related roles, technical areas, locations, or remote-work options to consider different opportunities. When clear preferences emerge, it searches more deeply in that direction."
+  },
+  {
+    "date": "2026-08-05",
+    "tag": "experience",
+    "ko": "이메일을 더 읽기 쉽게 다듬고, 상황에 맞게 더 다양한 형식으로 작성하도록 했습니다.",
+    "en": "Emails are now easier to read and use a wider variety of formats suited to each situation."
+  },
+  {
+    "date": "2026-08-05",
+    "tag": "feature",
+    "ko": "이제 여러 버전의 이력서를 함께 관리하고, 이력서 외의 문서도 업로드할 수 있습니다.",
+    "en": "You can now manage multiple versions of your resume and upload documents other than resumes."
+  },
+  {
     "date": "2026-08-03",
     "tag": "internal",
     "ko": "내부 기회 연결 제안에 응답하지 않을 때 발송하는 팔로업 메일에 매번 다른 내용을 전달하도록 했습니다.",

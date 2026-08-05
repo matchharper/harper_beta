@@ -7,7 +7,11 @@ export const runtime = "nodejs";
 
 const BATCH_SIZE = 1000;
 
-const COMPANY_ENTRY_TYPES = ["company_new_visit", "company_new_session"];
+const COMPANY_ENTRY_TYPES = [
+  "company_new_visit",
+  "company_new_session",
+  "page_visit:/company",
+];
 const COMPANY_SEARCH_CLICK_TYPE = "company_click_search";
 const COMPANY_MAIN_CLICK_TYPE = "company_click_main";
 const COMPANY_LOG_TYPES = [
@@ -231,7 +235,8 @@ export async function POST(req: NextRequest) {
         key: "entry",
         label: "Company landing entry",
         count: entryCount,
-        detail: "landing_logs type company_new_visit / company_new_session",
+        detail:
+          "landing_logs type company_new_visit / company_new_session / page_visit:/company",
         entryCount,
       }),
       buildStep({

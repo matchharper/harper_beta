@@ -42,6 +42,8 @@ type SupabaseAdminClient = ReturnType<typeof getSupabaseAdmin>;
 type CompanyUserRow = Database["public"]["Tables"]["company_users"]["Row"];
 type CompanyWorkspaceRow =
   Database["public"]["Tables"]["company_workspace"]["Row"];
+type CompanyDataRow = Database["public"]["Tables"]["company_data"]["Row"];
+type CompanyDbRow = Database["public"]["Tables"]["company_db"]["Row"];
 type CompanyUserWorkspaceRow =
   Database["public"]["Tables"]["company_user_workspace"]["Row"];
 type CompanyWorkspaceInvitationRow =
@@ -55,6 +57,8 @@ type TalentExperienceRow =
 type TalentEducationRow =
   Database["public"]["Tables"]["talent_educations"]["Row"];
 type TalentExtraRow = Database["public"]["Tables"]["talent_extras"]["Row"];
+type TalentDocumentRow =
+  Database["public"]["Tables"]["talent_documents"]["Row"];
 type RecommendationRow =
   Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"];
 type TalentOpportunityTagRow =
@@ -71,6 +75,7 @@ export class OrgHttpError extends Error {
 }
 
 export type OrgWorkspace = {
+  companyProfile?: OrgCompanyProfile;
   companyDescription: string | null;
   companyName: string;
   logoUrl: string | null;
@@ -80,7 +85,53 @@ export type OrgWorkspace = {
   workspaceId: string;
 };
 
+export type OrgCompanyProfile = {
+  careerUrl: string | null;
+  companyDbDescription: string | null;
+  companyDbId: number | null;
+  employeeCountEnd: number | null;
+  employeeCountStart: number | null;
+  foundedYear: number | null;
+  fundingUrl: string | null;
+  homepageUrl: string | null;
+  investors: string[];
+  lastFundingRoundDescription: string | null;
+  lastFundingStage: string | null;
+  linkedinUrl: string | null;
+  location: string | null;
+  mainInvestors: string | null;
+  relatedLinks: string[];
+  shortDescription: string | null;
+  specialities: string[];
+  totalFundingRaised: string | null;
+};
+
+export type OrgWorkspaceUpdateFields = {
+  careerUrl?: string | null;
+  companyDescription?: string | null;
+  companyName?: string | null;
+  employeeCountEnd?: number | null;
+  employeeCountStart?: number | null;
+  foundedYear?: number | null;
+  fundingUrl?: string | null;
+  homepageUrl?: string | null;
+  investors?: string[] | null;
+  lastFundingRoundDescription?: string | null;
+  lastFundingStage?: string | null;
+  linkedinUrl?: string | null;
+  location?: string | null;
+  logoUrl?: string | null;
+  mainInvestors?: string | null;
+  pitch?: string | null;
+  relatedLinks?: string[] | null;
+  request?: string | null;
+  shortDescription?: string | null;
+  specialities?: string[] | null;
+  totalFundingRaised?: string | null;
+};
+
 export type OrgRole = {
+  createdAt: string;
   description: string | null;
   employmentTypes: string[];
   externalJdUrl: string | null;
@@ -336,6 +387,12 @@ export type OrgTalentDetailResponse = {
   members: OrgMember[];
   profile: {
     bio: string | null;
+    documents: Array<{
+      contentType: string | null;
+      createdAt: string;
+      fileName: string;
+      id: string;
+    }>;
     educations: OrgProfileEducation[];
     experiences: OrgProfileExperience[];
     extras: OrgProfileExtra[];
@@ -519,11 +576,106 @@ function normalizeOrgRoleWorkMode(value: unknown) {
     : null;
 }
 
-function toWorkspace(row: CompanyWorkspaceRow): OrgWorkspace {
+function normalizeCompanyList(value: unknown, limit: number) {
+  const values = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(/[,\n/·|]+/g)
+      : [];
+
+  return uniqueTexts(
+    values.map((item) => String(item ?? "").trim()).filter(Boolean)
+  ).slice(0, limit);
+}
+
+function normalizeCompanyNumber(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
+function getEmployeeCountBoundary(value: Json | null, key: "end" | "start") {
+  const record = getJsonRecord(value);
+  return normalizeCompanyNumber(record[key]);
+}
+
+type OrgCompanyProfileResult = {
+  companyName: string;
+  logoUrl: string | null;
+  profile: OrgCompanyProfile;
+};
+
+async function fetchOrgCompanyProfile(
+  admin: SupabaseAdminClient,
+  workspace: CompanyWorkspaceRow
+): Promise<OrgCompanyProfileResult> {
+  const companyDbId = normalizeCompanyNumber(workspace.company_db_id);
+  const [companyDbResult, companyDataResult] = await Promise.all([
+    companyDbId
+      ? (admin.from("company_db" as any) as any)
+          .select(
+            "id, name, logo, short_description, description, website_url, linkedin_url, funding_url, location, founded_year, employee_count_range, specialities, investors, related_links"
+          )
+          .eq("id", companyDbId)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    (admin.from("company_data" as any) as any)
+      .select(
+        "company_workspace_id, total_funding_raised, main_investors, last_funding_stage, last_funding_round_description"
+      )
+      .eq("company_workspace_id", workspace.company_workspace_id)
+      .maybeSingle(),
+  ]);
+
+  if (companyDbResult.error) throw companyDbResult.error;
+  if (companyDataResult.error) throw companyDataResult.error;
+
+  const companyDb = (companyDbResult.data as CompanyDbRow | null) ?? null;
+  const companyData = (companyDataResult.data as CompanyDataRow | null) ?? null;
+
   return {
+    companyName:
+      normalizeNullableText(companyDb?.name) ?? workspace.company_name,
+    logoUrl: companyDb?.logo ?? workspace.logo_url ?? null,
+    profile: {
+      careerUrl: workspace.career_url ?? null,
+      companyDbDescription: companyDb?.description ?? null,
+      companyDbId,
+      employeeCountEnd: getEmployeeCountBoundary(
+        companyDb?.employee_count_range ?? null,
+        "end"
+      ),
+      employeeCountStart: getEmployeeCountBoundary(
+        companyDb?.employee_count_range ?? null,
+        "start"
+      ),
+      foundedYear: normalizeCompanyNumber(companyDb?.founded_year),
+      fundingUrl: companyDb?.funding_url ?? null,
+      homepageUrl: workspace.homepage_url ?? companyDb?.website_url ?? null,
+      investors: normalizeCompanyList(companyDb?.investors, 24),
+      lastFundingRoundDescription:
+        companyData?.last_funding_round_description ?? null,
+      lastFundingStage: companyData?.last_funding_stage ?? null,
+      linkedinUrl: companyDb?.linkedin_url ?? workspace.linkedin_url ?? null,
+      location: companyDb?.location ?? null,
+      mainInvestors: companyData?.main_investors ?? null,
+      relatedLinks: normalizeCompanyList(companyDb?.related_links, 12),
+      shortDescription: companyDb?.short_description ?? null,
+      specialities: normalizeCompanyList(companyDb?.specialities, 24),
+      totalFundingRaised: companyData?.total_funding_raised ?? null,
+    },
+  };
+}
+
+function toWorkspace(
+  row: CompanyWorkspaceRow,
+  company?: OrgCompanyProfileResult | null
+): OrgWorkspace {
+  return {
+    ...(company ? { companyProfile: company.profile } : {}),
     companyDescription: row.company_description ?? null,
-    companyName: row.company_name,
-    logoUrl: row.logo_url ?? null,
+    companyName: company?.companyName ?? row.company_name,
+    logoUrl: company?.logoUrl ?? row.logo_url ?? null,
     pitch: row.pitch ?? null,
     request: row.request ?? null,
     updatedAt: row.updated_at,
@@ -533,6 +685,7 @@ function toWorkspace(row: CompanyWorkspaceRow): OrgWorkspace {
 
 function toRole(row: CompanyRoleRow): OrgRole {
   return {
+    createdAt: row.created_at,
     description: row.description ?? null,
     employmentTypes: normalizeOrgRoleEmploymentTypes(row.type),
     externalJdUrl: row.external_jd_url ?? null,
@@ -922,7 +1075,7 @@ async function fetchWorkspaceById(
 ) {
   const { data, error } = await (admin.from("company_workspace" as any) as any)
     .select(
-      "company_workspace_id, company_name, company_description, pitch, request, logo_url, is_internal, updated_at"
+      "company_workspace_id, company_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, is_internal, updated_at"
     )
     .eq("company_workspace_id", workspaceId)
     .maybeSingle();
@@ -1245,7 +1398,7 @@ async function fetchWorkspacesByIds(
   if (workspaceIds.length === 0) return [];
   const { data, error } = await (admin.from("company_workspace" as any) as any)
     .select(
-      "company_workspace_id, company_name, company_description, pitch, request, logo_url, updated_at"
+      "company_workspace_id, company_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, updated_at"
     )
     .in("company_workspace_id", workspaceIds);
 
@@ -1256,7 +1409,7 @@ async function fetchWorkspacesByIds(
 async function fetchDefaultOrgWorkspaces(admin: SupabaseAdminClient) {
   const { data, error } = await (admin.from("company_workspace" as any) as any)
     .select(
-      "company_workspace_id, company_name, company_description, pitch, request, logo_url, updated_at"
+      "company_workspace_id, company_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, updated_at"
     )
     .eq("is_internal", true)
     .order("company_name", { ascending: true })
@@ -1373,9 +1526,10 @@ async function fetchOrgPendingInvitations(
 async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string) {
   const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, request, status, type, location_text, work_mode, updated_at, is_expired"
+      "role_id, company_workspace_id, name, external_jd_url, description, request, status, type, location_text, work_mode, created_at, updated_at, is_expired"
     )
     .eq("company_workspace_id", workspaceId)
+    .eq("source_type", "internal")
     .not("is_expired", "is", true);
 
   if (error) throw error;
@@ -1453,13 +1607,14 @@ export async function fetchOrgBootstrap(args: {
       ok: true,
       roles: [],
       workspace: null,
-      workspaces: workspaces.map(toWorkspace),
+      workspaces: workspaces.map((workspace) => toWorkspace(workspace)),
     };
   }
 
-  const [members, roles] = await Promise.all([
+  const [members, roles, company] = await Promise.all([
     fetchOrgMembers(admin, selectedWorkspace.company_workspace_id),
     fetchOrgRoles(admin, selectedWorkspace.company_workspace_id),
+    fetchOrgCompanyProfile(admin, selectedWorkspace),
   ]);
   const invitations = await fetchOrgPendingInvitations(
     admin,
@@ -1475,8 +1630,8 @@ export async function fetchOrgBootstrap(args: {
     members,
     ok: true,
     roles,
-    workspace: toWorkspace(selectedWorkspace),
-    workspaces: workspaces.map(toWorkspace),
+    workspace: toWorkspace(selectedWorkspace, company),
+    workspaces: workspaces.map((workspace) => toWorkspace(workspace)),
   };
 }
 
@@ -1704,9 +1859,10 @@ async function fetchRoleRowsForWorkspace(
 ) {
   const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, request, status, source_type, type, location_text, work_mode, updated_at, is_expired"
+      "role_id, company_workspace_id, name, external_jd_url, description, request, status, source_type, type, location_text, work_mode, created_at, updated_at, is_expired"
     )
     .eq("company_workspace_id", workspaceId)
+    .eq("source_type", "internal")
     .not("is_expired", "is", true);
 
   if (error) throw error;
@@ -3475,6 +3631,8 @@ export async function fetchOrgTalentDetail(args: {
     educationsResult,
     extrasResult,
     progressResult,
+    primaryResumeResult,
+    documentsResult,
     connectionConfirmationEmails,
   ] = await Promise.all([
     (admin.from("talent_users" as any) as any)
@@ -3503,6 +3661,18 @@ export async function fetchOrgTalentDetail(args: {
       .in("kind", ["org_stage_change", "org_note"])
       .order("created_at", { ascending: false })
       .limit(50),
+    (admin.from("talent_documents" as any) as any)
+      .select("id, file_name, storage_path")
+      .eq("talent_id", talentId)
+      .eq("kind", "resume")
+      .eq("is_primary", true)
+      .maybeSingle(),
+    (admin.from("talent_documents" as any) as any)
+      .select("id, file_name, content_type, created_at")
+      .eq("talent_id", talentId)
+      .eq("kind", "document")
+      .eq("is_public", true)
+      .order("created_at", { ascending: false }),
     fetchInternalConnectionConfirmationEmails({
       admin,
       roleId: recommendation.role_id,
@@ -3523,6 +3693,15 @@ export async function fetchOrgTalentDetail(args: {
     "educations"
   );
   const extras = optionalRows<TalentExtraRow>(extrasResult, "extras");
+  const primaryResume = primaryResumeResult.error
+    ? null
+    : (primaryResumeResult.data as Pick<
+        TalentDocumentRow,
+        "id" | "file_name" | "storage_path"
+      > | null);
+  const documents = optionalRows<
+    Pick<TalentDocumentRow, "id" | "file_name" | "content_type" | "created_at">
+  >(documentsResult, "documents");
   const progressRows = optionalRows<TalentProgressRow>(
     progressResult,
     "progress"
@@ -3557,6 +3736,12 @@ export async function fetchOrgTalentDetail(args: {
     members,
     profile: {
       bio: talent.bio ?? null,
+      documents: documents.map((document) => ({
+        contentType: document.content_type,
+        createdAt: document.created_at,
+        fileName: document.file_name,
+        id: document.id,
+      })),
       educations: educations.map((education) => ({
         degree: education.degree ?? null,
         description: education.description ?? null,
@@ -3596,8 +3781,10 @@ export async function fetchOrgTalentDetail(args: {
       stage: stageInfo.stage,
     },
     resume: {
-      fileName: talent.resume_file_name ?? null,
-      hasStorageFile: Boolean(talent.resume_storage_path),
+      fileName: primaryResume?.file_name ?? talent.resume_file_name ?? null,
+      hasStorageFile: Boolean(
+        primaryResume?.storage_path ?? talent.resume_storage_path
+      ),
       links: registeredLinks,
     },
     role: toRole(roleRow),
@@ -3617,7 +3804,8 @@ export async function fetchOrgTalentDetail(args: {
 }
 
 export async function openOrgResume(args: {
-  kind?: "storage" | "link" | null;
+  documentId?: string | null;
+  kind?: "storage" | "link" | "document" | null;
   link?: string | null;
   talentId: string;
   user: User;
@@ -3651,22 +3839,70 @@ export async function openOrgResume(args: {
   const talent = data as TalentUserRow | null;
   if (!talent) throw new OrgHttpError(404, "Talent not found");
 
+  const { data: primaryResumeData, error: primaryResumeError } = await (
+    admin.from("talent_documents" as any) as any
+  )
+    .select("id, file_name, storage_path")
+    .eq("talent_id", talentId)
+    .eq("kind", "resume")
+    .eq("is_primary", true)
+    .maybeSingle();
+  const primaryResume = primaryResumeError
+    ? null
+    : (primaryResumeData as Pick<
+        TalentDocumentRow,
+        "id" | "file_name" | "storage_path"
+      > | null);
+  const resumeStoragePath =
+    primaryResume?.storage_path ?? talent.resume_storage_path;
+
   const links = Array.isArray(talent.resume_links) ? talent.resume_links : [];
   let url = "";
-  let kind: "storage" | "link" = args.kind === "link" ? "link" : "storage";
+  let kind: "storage" | "link" | "document" =
+    args.kind === "link"
+      ? "link"
+      : args.kind === "document"
+        ? "document"
+        : "storage";
+  let openedFileName =
+    primaryResume?.file_name ?? talent.resume_file_name ?? null;
 
-  if (kind === "link") {
-    const requested = normalizeText(args.link);
-    url = requested && links.includes(requested) ? requested : (links[0] ?? "");
-  } else if (talent.resume_storage_path) {
+  if (kind === "document") {
+    const documentId = normalizeText(args.documentId);
+    if (!documentId) throw new OrgHttpError(400, "documentId is required");
+    const { data: documentData, error: documentError } = await (
+      admin.from("talent_documents" as any) as any
+    )
+      .select("id, file_name, storage_path")
+      .eq("id", documentId)
+      .eq("talent_id", talentId)
+      .eq("kind", "document")
+      .eq("is_public", true)
+      .maybeSingle();
+    if (documentError) throw documentError;
+    const document = documentData as Pick<
+      TalentDocumentRow,
+      "id" | "file_name" | "storage_path"
+    > | null;
+    if (!document) throw new OrgHttpError(404, "Document not found");
     const { data: signed, error: signedError } = await admin.storage
       .from(TALENT_RESUME_BUCKET)
-      .createSignedUrl(talent.resume_storage_path, 10 * 60);
+      .createSignedUrl(document.storage_path, 10 * 60);
+    if (signedError) throw signedError;
+    url = signed?.signedUrl ?? "";
+    openedFileName = document.file_name;
+  } else if (kind === "link") {
+    const requested = normalizeText(args.link);
+    url = requested && links.includes(requested) ? requested : (links[0] ?? "");
+  } else if (resumeStoragePath) {
+    const { data: signed, error: signedError } = await admin.storage
+      .from(TALENT_RESUME_BUCKET)
+      .createSignedUrl(resumeStoragePath, 10 * 60);
     if (signedError) throw signedError;
     url = signed?.signedUrl ?? "";
   }
 
-  if (!url && links.length > 0) {
+  if (kind !== "document" && !url && links.length > 0) {
     kind = "link";
     url = links[0] ?? "";
   }
@@ -3676,7 +3912,8 @@ export async function openOrgResume(args: {
     is_mobile: null,
     meta_data: {
       kind,
-      resumeFileName: talent.resume_file_name ?? null,
+      documentId: kind === "document" ? normalizeText(args.documentId) : null,
+      resumeFileName: openedFileName,
       talentId,
       workspaceId,
     } satisfies Record<string, unknown>,
@@ -3688,13 +3925,12 @@ export async function openOrgResume(args: {
   return { ok: true, url };
 }
 
-export async function updateOrgWorkspace(args: {
-  companyDescription?: string | null;
-  pitch?: string | null;
-  request?: string | null;
-  user: User;
-  workspaceId: string;
-}) {
+export async function updateOrgWorkspace(
+  args: OrgWorkspaceUpdateFields & {
+    user: User;
+    workspaceId: string;
+  }
+) {
   const admin = getSupabaseAdmin();
   const workspaceId = normalizeText(args.workspaceId);
   if (!workspaceId) throw new OrgHttpError(400, "workspaceId is required");
@@ -3705,24 +3941,233 @@ export async function updateOrgWorkspace(args: {
     workspaceId,
   });
 
-  const patch = {
-    company_description: args.companyDescription ?? null,
-    pitch: args.pitch ?? null,
-    request: args.request ?? null,
-    updated_at: new Date().toISOString(),
+  const workspace = await fetchWorkspaceById(admin, workspaceId);
+  if (!workspace) throw new OrgHttpError(404, "Workspace not found");
+
+  const beforeCompany = await fetchOrgCompanyProfile(admin, workspace);
+  const now = new Date().toISOString();
+  const cleanText = (value: unknown, maxLength: number) => {
+    const text = String(value ?? "").trim();
+    return text ? text.slice(0, maxLength) : null;
   };
+  const cleanInteger = (
+    value: unknown,
+    label: string,
+    min: number,
+    max: number
+  ) => {
+    if (value === null || value === undefined || value === "") return null;
+    const number = Number(value);
+    if (!Number.isInteger(number) || number < min || number > max) {
+      throw new OrgHttpError(400, `${label} 값을 확인해 주세요.`);
+    }
+    return number;
+  };
+
+  const workspacePatch: Record<string, unknown> = { updated_at: now };
+  const companyDbPatch: Record<string, unknown> = { last_updated_at: now };
+  const companyDataPatch: Record<string, unknown> = {
+    company_workspace_id: workspaceId,
+    updated_at: now,
+  };
+
+  if (args.companyName !== undefined) {
+    const companyName = cleanText(args.companyName, 160);
+    if (!companyName) {
+      throw new OrgHttpError(400, "회사명을 입력해 주세요.");
+    }
+    workspacePatch.company_name = companyName;
+    companyDbPatch.name = companyName;
+  }
+  if (args.logoUrl !== undefined) {
+    const value = cleanText(args.logoUrl, 2_000);
+    workspacePatch.logo_url = value;
+    companyDbPatch.logo = value;
+  }
+  if (args.companyDescription !== undefined) {
+    const value = cleanText(args.companyDescription, 8_000);
+    workspacePatch.company_description = value;
+    companyDbPatch.description = value;
+  }
+  if (args.pitch !== undefined) {
+    workspacePatch.pitch = cleanText(args.pitch, 8_000);
+  }
+  if (args.request !== undefined) {
+    workspacePatch.request = cleanText(args.request, 6_000);
+  }
+  if (args.homepageUrl !== undefined) {
+    const value = cleanText(args.homepageUrl, 2_000);
+    workspacePatch.homepage_url = value;
+    companyDbPatch.website_url = value;
+  }
+  if (args.careerUrl !== undefined) {
+    workspacePatch.career_url = cleanText(args.careerUrl, 2_000);
+  }
+  if (args.linkedinUrl !== undefined) {
+    const value = cleanText(args.linkedinUrl, 2_000);
+    workspacePatch.linkedin_url = value;
+    companyDbPatch.linkedin_url = value;
+  }
+  if (args.shortDescription !== undefined) {
+    companyDbPatch.short_description = cleanText(args.shortDescription, 1_000);
+  }
+  if (args.fundingUrl !== undefined) {
+    companyDbPatch.funding_url = cleanText(args.fundingUrl, 2_000);
+  }
+  if (args.location !== undefined) {
+    companyDbPatch.location = cleanText(args.location, 500);
+  }
+  if (args.foundedYear !== undefined) {
+    companyDbPatch.founded_year = cleanInteger(
+      args.foundedYear,
+      "설립 연도",
+      1000,
+      new Date().getFullYear() + 1
+    );
+  }
+  if (
+    args.employeeCountStart !== undefined ||
+    args.employeeCountEnd !== undefined
+  ) {
+    const start =
+      args.employeeCountStart === undefined
+        ? beforeCompany.profile.employeeCountStart
+        : cleanInteger(args.employeeCountStart, "최소 인원", 0, 10_000_000);
+    const end =
+      args.employeeCountEnd === undefined
+        ? beforeCompany.profile.employeeCountEnd
+        : cleanInteger(args.employeeCountEnd, "최대 인원", 0, 10_000_000);
+    if (start !== null && end !== null && start > end) {
+      throw new OrgHttpError(
+        400,
+        "직원 수의 최대 인원은 최소 인원보다 커야 합니다."
+      );
+    }
+    companyDbPatch.employee_count_range =
+      start === null && end === null
+        ? null
+        : {
+            ...(start !== null ? { start } : {}),
+            ...(end !== null ? { end } : {}),
+          };
+  }
+  if (args.specialities !== undefined) {
+    companyDbPatch.specialities = normalizeCompanyList(
+      args.specialities ?? [],
+      24
+    ).join(", ");
+  }
+  if (args.investors !== undefined) {
+    companyDbPatch.investors =
+      normalizeCompanyList(args.investors ?? [], 24).join(", ") || null;
+  }
+  if (args.relatedLinks !== undefined) {
+    companyDbPatch.related_links = normalizeCompanyList(
+      args.relatedLinks ?? [],
+      12
+    );
+  }
+  if (args.totalFundingRaised !== undefined) {
+    companyDataPatch.total_funding_raised = cleanText(
+      args.totalFundingRaised,
+      500
+    );
+  }
+  if (args.mainInvestors !== undefined) {
+    companyDataPatch.main_investors = cleanText(args.mainInvestors, 2_000);
+  }
+  if (args.lastFundingStage !== undefined) {
+    companyDataPatch.last_funding_stage = cleanText(args.lastFundingStage, 500);
+  }
+  if (args.lastFundingRoundDescription !== undefined) {
+    companyDataPatch.last_funding_round_description = cleanText(
+      args.lastFundingRoundDescription,
+      2_000
+    );
+  }
+
+  const companyDbFieldNames = [
+    "companyName",
+    "logoUrl",
+    "shortDescription",
+    "companyDescription",
+    "homepageUrl",
+    "linkedinUrl",
+    "fundingUrl",
+    "location",
+    "foundedYear",
+    "employeeCountStart",
+    "employeeCountEnd",
+    "specialities",
+    "investors",
+    "relatedLinks",
+  ] as const;
+  const profileSpecificFieldNames = companyDbFieldNames.filter(
+    (field) => field !== "companyDescription"
+  );
+  const shouldUpdateCompanyDb = companyDbFieldNames.some(
+    (field) => args[field] !== undefined
+  );
+  const shouldCreateCompanyDb = profileSpecificFieldNames.some(
+    (field) => args[field] !== undefined
+  );
+  let companyDbId = beforeCompany.profile.companyDbId;
+
+  if (shouldUpdateCompanyDb && companyDbId) {
+    const { error } = await (admin.from("company_db" as any) as any)
+      .update(companyDbPatch)
+      .eq("id", companyDbId);
+    if (error) throw error;
+  } else if (!companyDbId && shouldCreateCompanyDb) {
+    const { data: createdCompany, error } = await (
+      admin.from("company_db" as any) as any
+    )
+      .insert({
+        ...companyDbPatch,
+        name:
+          companyDbPatch.name ??
+          workspacePatch.company_name ??
+          workspace.company_name,
+        specialities: companyDbPatch.specialities ?? "",
+      })
+      .select("id")
+      .single();
+    if (error) throw error;
+    companyDbId = normalizeCompanyNumber(createdCompany?.id);
+    if (!companyDbId) {
+      throw new Error("Failed to create company_db record");
+    }
+    workspacePatch.company_db_id = companyDbId;
+  }
+
+  const companyDataFieldNames = [
+    "totalFundingRaised",
+    "mainInvestors",
+    "lastFundingStage",
+    "lastFundingRoundDescription",
+  ] as const;
+  if (companyDataFieldNames.some((field) => args[field] !== undefined)) {
+    const { error } = await (admin.from("company_data" as any) as any).upsert(
+      companyDataPatch,
+      { onConflict: "company_workspace_id" }
+    );
+    if (error) throw error;
+  }
+
   const { data, error } = await (admin.from("company_workspace" as any) as any)
-    .update(patch)
+    .update(workspacePatch)
     .eq("company_workspace_id", workspaceId)
     .select(
-      "company_workspace_id, company_name, company_description, pitch, request, logo_url, updated_at"
+      "company_workspace_id, company_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, updated_at"
     )
     .single();
 
   if (error) throw error;
+  const updatedWorkspace = data as CompanyWorkspaceRow;
+  const company = await fetchOrgCompanyProfile(admin, updatedWorkspace);
   return {
     ok: true as const,
-    workspace: toWorkspace(data as CompanyWorkspaceRow),
+    workspace: toWorkspace(updatedWorkspace, company),
   };
 }
 
@@ -3868,7 +4313,7 @@ export async function updateOrgRole(args: {
     .eq("company_workspace_id", workspaceId)
     .eq("role_id", roleId)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, request, status, type, location_text, work_mode, updated_at"
+      "role_id, company_workspace_id, name, external_jd_url, description, request, status, type, location_text, work_mode, created_at, updated_at"
     )
     .single();
 
@@ -3895,7 +4340,7 @@ export async function updateOrgRoleRequestOnly(args: {
     admin.from("company_roles" as any) as any
   )
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, request, status, type, location_text, work_mode, updated_at"
+      "role_id, company_workspace_id, name, external_jd_url, description, request, status, type, location_text, work_mode, created_at, updated_at"
     )
     .eq("company_workspace_id", workspaceId)
     .eq("role_id", roleId)
@@ -3934,7 +4379,7 @@ export async function updateOrgRoleRequestOnly(args: {
   }
   const { data, error } = await updateQuery
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, request, status, type, location_text, work_mode, updated_at"
+      "role_id, company_workspace_id, name, external_jd_url, description, request, status, type, location_text, work_mode, created_at, updated_at"
     )
     .maybeSingle();
 

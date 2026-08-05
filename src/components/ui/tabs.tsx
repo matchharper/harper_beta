@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 export type TabsVariant =
   | "bordered"
+  | "cards"
   | "pills"
   | "pills-elevated"
   | "borderless";
@@ -81,6 +82,10 @@ const Tabs = React.forwardRef<HTMLDivElement, TabsProps>(
           variant === "pills-elevated" &&
             "rounded-lg bg-bg-weak p-1 ring-1 ring-neutral-1000-a05",
           variant === "pills" && "rounded-lg bg-bg-weak p-1",
+          variant === "cards" &&
+            (direction === "row"
+              ? "w-fit gap-1.5"
+              : "w-[200px] gap-1.5 border-l-0"),
           className
         )}
         {...props}
@@ -105,10 +110,15 @@ const Tabs = React.forwardRef<HTMLDivElement, TabsProps>(
                   "rounded-md px-2 text-neutral-muted hover:bg-bg-weak",
                 (variant === "pills" || variant === "pills-elevated") &&
                   "rounded-md px-3 text-neutral-muted hover:bg-bg-floating",
+                variant === "cards" &&
+                  "rounded-md border-2 border-neutral-1000-a05 bg-bg-floating text-neutral-muted hover:border-primary hover:text-primary",
+                variant === "cards" &&
+                  (size === "large" ? "min-w-[156px] px-6" : "min-w-28 px-4"),
                 selected ? "text-neutral-primary" : "text-neutral-muted",
                 selected &&
                   (variant === "pills" || variant === "pills-elevated") &&
-                  "bg-bg-floating text-neutral-primary"
+                  "bg-bg-floating text-neutral-primary",
+                selected && variant === "cards" && "border-primary text-primary"
               )}
               onClick={() => handleChange(item.value)}
             >

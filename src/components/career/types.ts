@@ -94,6 +94,19 @@ export type CareerTalentExtra = {
   memo: string | null;
 };
 
+export type CareerTalentDocument = {
+  id: string;
+  kind: string;
+  fileName: string;
+  storagePath: string;
+  contentType: string | null;
+  sizeBytes: number | null;
+  isPublic: boolean;
+  isPrimary: boolean;
+  createdAt: string;
+  downloadUrl: string | null;
+};
+
 export type CareerTalentProfile = {
   talentUser: CareerTalentUser | null;
   talentExperiences: CareerTalentExperience[];
@@ -349,6 +362,7 @@ export type SessionResponse = {
     resumeStoragePath?: string | null;
     resumeDownloadUrl?: string | null;
     resumeLinks: string[];
+    documents?: CareerTalentDocument[];
     reliefNudgeSent: boolean;
   };
   historyItems?: CareerHistoryItem[];

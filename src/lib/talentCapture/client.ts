@@ -21,6 +21,8 @@ const STORAGE_KEY = "harper_talent_capture_pending_v1";
 const RESUME_DB_NAME = "harper-talent-capture";
 const RESUME_STORE_NAME = "pending-files";
 const RESUME_FILE_KEY = "resume";
+const PROFILE_SOURCE_APPLY_PENDING_KEY =
+  "harper_profile_source_apply_pending_v1";
 
 function isBrowser() {
   return typeof window !== "undefined";
@@ -256,6 +258,23 @@ export async function clearPendingTalentCapture() {
   await deleteResumeFile();
 }
 
+export function hasPendingProfileSourceApplyConfirmation() {
+  return (
+    isBrowser() &&
+    window.localStorage.getItem(PROFILE_SOURCE_APPLY_PENDING_KEY) === "1"
+  );
+}
+
+export function clearPendingProfileSourceApplyConfirmation() {
+  if (!isBrowser()) return;
+  window.localStorage.removeItem(PROFILE_SOURCE_APPLY_PENDING_KEY);
+}
+
+function markPendingProfileSourceApplyConfirmation() {
+  if (!isBrowser()) return;
+  window.localStorage.setItem(PROFILE_SOURCE_APPLY_PENDING_KEY, "1");
+}
+
 export async function loadPendingTalentCapture(): Promise<LoadedPendingTalentCapture | null> {
   const payload = readPendingPayload();
   if (!payload) return null;
@@ -338,6 +357,8 @@ async function uploadResume(accessToken: string, file: File) {
       typeof payload?.resumeStoragePath === "string"
         ? payload.resumeStoragePath
         : "",
+    resumeDocumentId:
+      typeof payload?.document?.id === "string" ? payload.document.id : "",
   };
 }
 
@@ -350,6 +371,7 @@ export async function finalizePendingTalentCapture(accessToken: string) {
   const body: {
     links: string[];
     resumeFileName?: string;
+    resumeDocumentId?: string;
     resumeStoragePath?: string;
     resumeText?: string;
   } = {
@@ -364,6 +386,7 @@ export async function finalizePendingTalentCapture(accessToken: string) {
     const uploadResult = await uploadResume(accessToken, pending.resumeFile);
     const resumeText = await parseResumeText(accessToken, pending.resumeFile);
     body.resumeFileName = uploadResult.resumeFileName;
+    body.resumeDocumentId = uploadResult.resumeDocumentId;
     body.resumeStoragePath = uploadResult.resumeStoragePath;
     if (resumeText) {
       body.resumeText = resumeText;
@@ -382,7 +405,7 @@ export async function finalizePendingTalentCapture(accessToken: string) {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, applyProfileSources: false }),
     }
   );
   const payload = await response.json().catch(() => ({}));
@@ -392,5 +415,6 @@ export async function finalizePendingTalentCapture(accessToken: string) {
   }
 
   await clearPendingTalentCapture();
+  markPendingProfileSourceApplyConfirmation();
   return { ok: true, saved: true };
 }

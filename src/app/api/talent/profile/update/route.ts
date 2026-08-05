@@ -2,12 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   ensureTalentUserRecord,
+  fetchTalentDocument,
+  fetchTalentDocuments,
   fetchTalentStructuredProfile,
   fetchTalentSetting,
   fetchTalentUserProfile,
   getTalentResumeSignedUrl,
   getTalentSupabaseAdmin,
+  pickLatestResumeDocument,
   refreshTalentPreferredLocale,
+  serializeTalentDocuments,
+  updateTalentDocumentExtractedText,
 } from "@/lib/talentOnboarding/server";
 import { insertTalentProfileSourceErrorLog } from "@/lib/talentOnboarding/errorLogs";
 import {
@@ -70,6 +75,8 @@ type StructuredProfileBody = {
 } | null;
 
 type Body = {
+  applyProfileSources?: boolean;
+  resumeDocumentId?: string;
   resumeFileName?: string;
   resumeStoragePath?: string;
   resumeText?: string;
@@ -270,6 +277,8 @@ export async function POST(req: NextRequest) {
       2000
     );
     const resumeText = sanitizeMultilineText(body.resumeText, 20000);
+    const resumeDocumentId = sanitizeSingleLineText(body.resumeDocumentId, 100);
+    const applyProfileSources = body.applyProfileSources !== false;
     const forceProfileIngestion = body.forceProfileIngestion === true;
     const links = (body.links ?? [])
       .map((link) => sanitizeSingleLineText(link, 2000) ?? "")
@@ -304,6 +313,7 @@ export async function POST(req: NextRequest) {
     }
 
     profileSourceLogMetadata = {
+      applyProfileSources,
       forceProfileIngestion,
       hasLinkedin: Boolean(pickLinkedinUrl(links)),
       hasResumeFile: Boolean(resumeFileName || resumeStoragePath),
@@ -335,18 +345,61 @@ export async function POST(req: NextRequest) {
       admin,
       userId: user.id,
     });
+    let resumeDocument = resumeDocumentId
+      ? await fetchTalentDocument({
+          admin,
+          documentId: resumeDocumentId,
+          userId: user.id,
+        })
+      : null;
+    if (
+      resumeDocumentId &&
+      (!resumeDocument || resumeDocument.kind !== "resume")
+    ) {
+      return NextResponse.json(
+        { error: "Resume document not found" },
+        { status: 404 }
+      );
+    }
+    if (resumeDocument && typeof resumeText === "string") {
+      resumeDocument = await updateTalentDocumentExtractedText({
+        admin,
+        documentId: resumeDocument.id,
+        extractedText: resumeText,
+        userId: user.id,
+      });
+    }
+    const sourceDocuments = await fetchTalentDocuments({
+      admin,
+      userId: user.id,
+    });
+    const latestResumeDocument =
+      pickLatestResumeDocument(sourceDocuments) ?? resumeDocument;
+    if (latestResumeDocument) {
+      updatePayload.resume_file_name = latestResumeDocument.file_name;
+      updatePayload.resume_storage_path = latestResumeDocument.storage_path;
+      if (typeof latestResumeDocument.extracted_text === "string") {
+        updatePayload.resume_text = latestResumeDocument.extracted_text;
+      }
+    }
     const previousLinkedinUrl = pickLinkedinUrl(
       existingProfile?.resume_links ?? []
     );
     const nextLinkedinUrl = pickLinkedinUrl(links);
     const effectiveResumeText =
-      resumeText || String(existingProfile?.resume_text ?? "").trim();
+      resumeText ||
+      String(latestResumeDocument?.extracted_text ?? "").trim() ||
+      String(existingProfile?.resume_text ?? "").trim();
     const effectiveResumeFileName =
-      resumeFileName || String(existingProfile?.resume_file_name ?? "").trim();
+      latestResumeDocument?.file_name ||
+      resumeFileName ||
+      String(existingProfile?.resume_file_name ?? "").trim();
     const effectiveResumeStoragePath =
+      latestResumeDocument?.storage_path ||
       resumeStoragePath ||
       String(existingProfile?.resume_storage_path ?? "").trim();
     const shouldMergeLatestSources =
+      applyProfileSources &&
       !structuredProfile &&
       (Boolean(resumeText) ||
         Boolean(nextLinkedinUrl && nextLinkedinUrl !== previousLinkedinUrl) ||
@@ -538,7 +591,11 @@ export async function POST(req: NextRequest) {
           error: ingestionMessage,
         };
       }
-    } else if (forceProfileIngestion && !structuredProfile) {
+    } else if (
+      applyProfileSources &&
+      forceProfileIngestion &&
+      !structuredProfile
+    ) {
       const talentSetting = await fetchTalentSetting({
         admin,
         userId: user.id,
@@ -588,19 +645,32 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       talentUser: profile,
     });
-    const resumeDownloadUrl = await getTalentResumeSignedUrl({
+    const documents = await fetchTalentDocuments({ admin, userId: user.id });
+    const serializedDocuments = await serializeTalentDocuments({
       admin,
-      storagePath: profile?.resume_storage_path,
+      documents,
     });
+    const latestResume = serializedDocuments.find(
+      (document) => document.kind === "resume"
+    );
+    const resumeDownloadUrl =
+      latestResume?.downloadUrl ??
+      (await getTalentResumeSignedUrl({
+        admin,
+        storagePath: profile?.resume_storage_path,
+      }));
 
     return NextResponse.json({
       ok: true,
       profile: {
-        resumeFileName: profile?.resume_file_name ?? null,
-        resumeStoragePath: profile?.resume_storage_path ?? null,
+        resumeFileName:
+          latestResume?.fileName ?? profile?.resume_file_name ?? null,
+        resumeStoragePath:
+          latestResume?.storagePath ?? profile?.resume_storage_path ?? null,
         resumeDownloadUrl,
         resumeLinks: profile?.resume_links ?? [],
       },
+      documents: serializedDocuments,
       talentProfile,
       profileIngestion,
     });

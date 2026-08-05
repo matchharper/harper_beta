@@ -18,6 +18,10 @@ import {
   getOrgPermissions,
   normalizeOrgMembershipRole,
 } from "@/lib/org/permissions";
+import {
+  filterUnclaimedSlackChannels,
+  shouldRevokeSlackBotToken,
+} from "@/lib/org/slackWorkspaceRouting";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { createSlackApiRequest } from "./slackApiRequest";
 
@@ -362,6 +366,14 @@ export async function completeHarperSlackOAuth(args: {
     { onConflict: "company_workspace_id" }
   );
   if (error) throw error;
+
+  const { error: channelCleanupError } = await (
+    admin.from("company_slack_channels" as any) as any
+  )
+    .delete()
+    .eq("company_workspace_id", state.workspaceId)
+    .neq("slack_team_id", teamId);
+  if (channelCleanupError) throw channelCleanupError;
   return state.returnTo;
 }
 
@@ -416,6 +428,7 @@ export async function getHarperSlackStatus(args: {
   )
     .select("*")
     .eq("company_workspace_id", workspaceId)
+    .eq("slack_team_id", row.slack_team_id)
     .order("slack_channel_name");
   if (error) throw error;
   const channels: HarperSlackChannel[] = (data ?? []).map((channel: any) => ({
@@ -427,15 +440,22 @@ export async function getHarperSlackStatus(args: {
     replyToHarperThreads: channel.reply_to_harper_threads,
     respondToMentions: channel.respond_to_mentions,
   }));
+
+  const { data: claimRows, error: claimError } = await (
+    admin.from("company_slack_channels" as any) as any
+  )
+    .select("slack_channel_id")
+    .eq("slack_team_id", row.slack_team_id);
+  if (claimError) throw claimError;
+  const claimedChannelIds = (claimRows ?? []).map(
+    (claim: { slack_channel_id: string }) => claim.slack_channel_id
+  );
   let availableChannels: HarperSlackChannel[] = [];
   try {
     const listed = await listHarperSlackChannels(
       decryptHarperSlackToken(row.bot_token_ciphertext)
     );
-    const configured = new Set(channels.map((channel) => channel.channelId));
-    availableChannels = listed.filter(
-      (channel) => !configured.has(channel.channelId)
-    );
+    availableChannels = filterUnclaimedSlackChannels(listed, claimedChannelIds);
   } catch (error) {
     console.error("[harper-slack] channel list", error);
   }
@@ -476,10 +496,17 @@ export async function addHarperSlackChannel(args: {
       reply_to_harper_threads: false,
       slack_channel_id: args.channelId,
       slack_channel_name: text(channel.name) || null,
+      slack_team_id: row.slack_team_id,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "company_workspace_id,slack_channel_id" }
   );
+  if ((error as { code?: string } | null)?.code === "23505") {
+    throw new HarperSlackError(
+      409,
+      "이 Slack 채널은 다른 Harper workspace에 연결되어 있습니다."
+    );
+  }
   if (error) throw error;
   return { ok: true as const };
 }
@@ -500,10 +527,21 @@ export async function removeHarperSlackChannel(args: {
       .eq("slack_channel_id", args.channelId);
     if (error) throw error;
   } else {
-    const token = decryptHarperSlackToken(row.bot_token_ciphertext);
-    await slackApi(token, "auth.revoke").catch((error) =>
-      console.warn("[harper-slack] auth.revoke", error)
-    );
+    const { data: otherConnections, error: otherConnectionsError } = await (
+      admin.from("company_slack_integrations" as any) as any
+    )
+      .select("company_workspace_id")
+      .eq("slack_team_id", row.slack_team_id)
+      .eq("status", "active")
+      .neq("company_workspace_id", args.workspaceId)
+      .limit(1);
+    if (otherConnectionsError) throw otherConnectionsError;
+    if (shouldRevokeSlackBotToken(otherConnections?.length ?? 0)) {
+      const token = decryptHarperSlackToken(row.bot_token_ciphertext);
+      await slackApi(token, "auth.revoke").catch((error) =>
+        console.warn("[harper-slack] auth.revoke", error)
+      );
+    }
     const { error } = await (
       admin.from("company_slack_integrations" as any) as any
     )
@@ -789,6 +827,7 @@ export async function storeHarperSlackThreadEvent(args: {
 export async function sendHarperWorkspaceSlackMessage(args: {
   channelId?: string;
   notificationKey?: HarperSlackNotificationKey;
+  roleId?: string | null;
   text: string;
   workspaceId: string;
 }) {
@@ -798,6 +837,7 @@ export async function sendHarperWorkspaceSlackMessage(args: {
   let query = (admin.from("company_slack_channels" as any) as any)
     .select("*")
     .eq("company_workspace_id", row.company_workspace_id)
+    .eq("slack_team_id", row.slack_team_id)
     .eq("is_enabled", true);
   if (text(args.channelId))
     query = query.eq("slack_channel_id", text(args.channelId));
@@ -807,9 +847,27 @@ export async function sendHarperWorkspaceSlackMessage(args: {
     query = query.eq("notify_candidate_rejected", true);
   if (args.notificationKey === "memberJoined")
     query = query.eq("notify_member_joined", true);
-  const { data: channels, error } = await query;
+  const { data: channelRows, error } = await query;
   if (error) throw error;
-  if (!channels?.length) return false;
+  let channels = channelRows ?? [];
+  const roleId = text(args.roleId);
+  if (roleId && channels.length > 0) {
+    const { data: optOutRows, error: optOutError } = await (
+      admin.from("company_role_notification_channels" as any) as any
+    )
+      .select("channel_id")
+      .eq("role_id", roleId);
+    if (optOutError) throw optOutError;
+    const disabledChannelIds = new Set(
+      (optOutRows ?? []).map(
+        (optOut: { channel_id: string }) => optOut.channel_id
+      )
+    );
+    channels = channels.filter(
+      (channel: { id: string }) => !disabledChannelIds.has(channel.id)
+    );
+  }
+  if (channels.length === 0) return false;
   const token = decryptHarperSlackToken(row.bot_token_ciphertext);
   const results = await Promise.allSettled(
     channels.map(async (channel: any) => {
@@ -826,7 +884,7 @@ export async function sendHarperWorkspaceSlackMessage(args: {
             {
               channel_id: channel.id,
               created_by_harper: true,
-              role_id: null,
+              role_id: roleId || null,
               slack_thread_ts: posted.ts,
               updated_at: new Date().toISOString(),
             },

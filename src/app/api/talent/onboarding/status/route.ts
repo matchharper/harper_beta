@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     }
 
     const admin = getTalentSupabaseAdmin();
-    const [profileResult, conversationResult, settingResult] =
+    const [profileResult, conversationResult, settingResult, documentResult] =
       await Promise.all([
         admin
           .from("talent_users")
@@ -38,6 +38,10 @@ export async function GET(req: NextRequest) {
           .select("is_onboarding_done")
           .eq("user_id", user.id)
           .maybeSingle(),
+        admin
+          .from("talent_documents")
+          .select("id", { count: "exact", head: true })
+          .eq("talent_id", user.id),
       ]);
 
     const { data: profile, error } = profileResult;
@@ -68,8 +72,19 @@ export async function GET(req: NextRequest) {
         { status: 500 }
       );
     }
+    if (documentResult.error) {
+      return NextResponse.json(
+        {
+          error:
+            documentResult.error.message ??
+            "Failed to load onboarding documents",
+        },
+        { status: 500 }
+      );
+    }
 
     const hasFirstSubmission = Boolean(
+      (documentResult.count ?? 0) > 0 ||
       normalizeText(profile?.resume_file_name) ||
       normalizeText(profile?.resume_storage_path) ||
       normalizeText(profile?.resume_text) ||

@@ -15,12 +15,16 @@
 9. `store.ts`: workspace conversation과 message 저장
 
 전체 argument, 반환값, 권한, 웹·Slack 호출 흐름은
-[`docs/org-agent-tools-reference-ko.md`](../../../docs/org-agent-tools-reference-ko.md)에
+[`docs/org-agent-tools-reference-ko.md`](../../../../docs/org-agent-tools-reference-ko.md)에
 정리되어 있다.
 
 prompt/context/tool 설계 근거와 benchmark는
-[`docs/org-agent-context-engineering-ko.md`](../../../docs/org-agent-context-engineering-ko.md)에
+[`docs/org-agent-context-engineering-ko.md`](../../../../docs/org-agent-context-engineering-ko.md)에
 정리되어 있다.
+
+Slack event부터 첫 prompt, tool 재호출, 최종 답변, summary까지 각 LLM call에
+들어가는 실제에 가까운 예시는
+[`LLM_CALL_TRACE_KO.md`](./LLM_CALL_TRACE_KO.md)에 정리되어 있다.
 
 실제 workspace 데이터를 읽고 선택한 모델의 답변/tool 선택을 검증하되 write tool은
 DB에 반영하지 않는 live eval:

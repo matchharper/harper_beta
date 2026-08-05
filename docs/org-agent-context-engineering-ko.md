@@ -193,8 +193,9 @@ summary로 저장된다. 매 turn에는 가장 최근 summary 2개만 각 1,200�
 ## 측정 결과
 
 2026-07-30에 Anthropic의 무료 `messages/count_tokens` endpoint와
-`claude-sonnet-5` tokenizer를 사용해 비교했다. 현재 기본 model은 `grok-4.3`이며,
-실제 운영 token 사용량은 각 assistant message의 `metadata.llmUsage`로 확인한다.
+`claude-sonnet-5` tokenizer를 사용해 비교했다. 현재 웹 기본 model은 `grok-4.3`,
+Slack 기본 model은 `gpt-5.6-luna`이며, 실제 운영 token 사용량은 각 assistant
+message의 `metadata.llmUsage`로 확인한다.
 대표 fixture는 role 12개, 최근 추천 20명, 최근
 대화 12개, summary 2개, company 정보, 5개 tool schema를 포함한다.
 

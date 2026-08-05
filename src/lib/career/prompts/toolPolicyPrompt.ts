@@ -198,8 +198,12 @@ export function buildCareerToolPolicyPrompt(args: {
       ? [
           "",
           "### update_talent_profile (profile writer)",
-          "- Purpose: update talentUser.bio/location, rowMemos, post-onboarding talentInsights, or recommendationBatchSize.",
-          "- Boundary: row facts -> rowMemos; durable matching memory -> talentInsights after onboarding; batch size -> recommendationBatchSize; subscription actions -> update_setting.",
+          args.isOnboardingActive
+            ? "- Purpose: update talentUser.bio/location or rowMemos during onboarding."
+            : "- Purpose: update talentUser.bio/location, rowMemos, talentInsights, or recommendationBatchSize.",
+          args.isOnboardingActive
+            ? "- Boundary: profile summary/current base -> talentUser; row facts -> rowMemos; subscription actions -> update_setting."
+            : "- Boundary: row facts -> rowMemos; durable matching memory -> talentInsights; batch size -> recommendationBatchSize; subscription actions -> update_setting.",
           "- For recommendationBatchSize, choose a 3-10 value per schema; vague more/less adjusts by 2, maximum requests use 10, and you should not ask a follow-up just to pick the number.",
           ...(hasUpdateSettingTool
             ? [
@@ -209,19 +213,17 @@ export function buildCareerToolPolicyPrompt(args: {
                 "- Do not write subscription/contact actions or cadence/frequency changes through this tool; answer naturally instead.",
               ]),
           args.isOnboardingActive
-            ? "- During onboarding: use only talentUser.bio, talentUser.location, rowMemos. Do NOT send talentInsights; onboarding insight extraction is handled separately."
-            : "- Send talentInsights only when the user's message clearly changes durable future recommendation memory, such as desired next role, search intensity, compensation, must-haves, deal-breakers, team style, company/domain preference, company size/stage preference, or corrections to prior matching preferences.",
-          "- Explicit hard-filter search language counts as durable memory even when phrased as search (e.g. '미국 회사로만', '앞으로 리모트만', '대기업은 빼고', '다음부터 Series B 이상'). Use high impact for hard constraints or major recommendation-changing updates.",
+            ? ""
+            : "- Explicit hard-filter search language counts as durable memory even when phrased as search (e.g. '미국 회사로만', '앞으로 리모트만', '대기업은 빼고', '다음부터 Series B 이상').",
           "- Do NOT call for one-off browsing, curiosity, informational searches, questions, hypotheticals, assistant summaries, duplicates, or aspirational/off-profile role mentions without explicit future intent.",
           "- After this tool returns, produce a normal user-facing chat reply. Do not return an empty assistant message, and do not return only an onboarding marker.",
           "- Trigger conditions: call ONLY when the user's latest statement directly maps to a writable field in this tool:",
           "1) talentUser.bio: explicit final Summary/About/Bio replacement, correction, or clear request; never infer it from assistant-only summaries.",
           "2) talentUser.location: explicit current primary base/residence only; not travel, past/target job location, desired work location, or relocation preference.",
           `3) rowMemos: when the user's latest statement clearly maps to one specific visible experience/education/extra row, use operation=append for genuinely new detail that should follow the existing memo, or operation=update when the user corrects or asks to revise the existing memo. For update, send the complete final ${outputLanguage} memo, not only the changed fragment. Use the visible RowID, omit if ambiguous/no row/generic, update to empty string to delete it and do not duplicate it into talentInsights.`,
-          `4) talentInsights: future preference/memory patch; merge existing axes, use English snake_case keys and complete ${outputLanguage} sentence values, and avoid profile-row keys like representative_experience. Things to remember for opportunity recommendation.`,
           args.isOnboardingActive
-            ? "- Do NOT call this tool during onboarding for general answers that only update insight-like understanding, such as search intensity, desired next role, compensation, must-haves, deal-breakers, team style, environment preference, career-change reason, or optional-question answers. Those are handled outside this tool until onboarding completes."
-            : "",
+            ? "- Use only talentUser.bio, talentUser.location, rowMemos. Do NOT call this tool during onboarding for general answers that only update user preference, futue matching memory. Those are handled outside this tool until onboarding completes."
+            : `4) talentInsights: opportunity preference/memory patch; merge existing axes, use English snake_case keys and complete ${outputLanguage} sentence values. Do not write information about rowMemos here. Things to remember for opportunity recommendation.`,
           "- Do not write profileLinks, resume files, or the same fact twice. Use only user-provided new information, not assistant summaries.",
           ...(hasUpdateSettingTool
             ? [

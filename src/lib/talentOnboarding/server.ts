@@ -39,6 +39,14 @@ import {
   fetchVisibleMessagesPage,
 } from "@/lib/talentOnboarding/messageStore";
 import {
+  fetchTalentDocument,
+  fetchTalentDocuments,
+  pickLatestResumeDocument,
+  serializeTalentDocuments,
+  syncLegacyResumeFromDocuments,
+  updateTalentDocumentExtractedText,
+} from "@/lib/talentOnboarding/documentStore";
+import {
   completeActiveCareerOnboardingCall,
   getCareerOnboardingChecklistCoverage,
   getOnboardingChecklistCoverageStats,
@@ -74,6 +82,8 @@ export {
   countUserChatTurns,
   fetchMessages,
   fetchRecentMessages,
+  fetchTalentDocument,
+  fetchTalentDocuments,
   fetchTalentInsights,
   fetchTalentSetting,
   fetchTalentStructuredProfile,
@@ -95,14 +105,18 @@ export {
   normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
   normalizeTalentInsightKey,
+  pickLatestResumeDocument,
   refreshTalentPreferredLocale,
   sanitizeTalentProfileVisibility,
   setTalentOnboardingDone,
+  serializeTalentDocuments,
+  syncLegacyResumeFromDocuments,
   toTalentMessageResponse,
   toTalentDisplayName,
   mergeCareerOnboardingChecklistCoverage,
   upsertTalentInsights,
   upsertTalentSetting,
+  updateTalentDocumentExtractedText,
 };
 
 export type {

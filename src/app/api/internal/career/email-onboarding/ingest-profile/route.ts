@@ -178,8 +178,7 @@ async function uploadAttachmentToStorage(args: {
   const { error } = await args.admin.storage
     .from(TALENT_RESUME_BUCKET)
     .upload(storagePath, args.buffer, {
-      contentType:
-        args.attachment.contentType || "application/octet-stream",
+      contentType: args.attachment.contentType || "application/octet-stream",
       upsert: false,
     });
   if (error) {
@@ -245,6 +244,67 @@ async function processEmailAttachments(args: {
         userId: args.userId,
       });
       const text = await extractTextFromAttachmentBuffer(attachment, buffer);
+      const isPrimaryResume = !resumeStoragePath;
+      let previousPrimaryResumeId: string | null = null;
+      if (isPrimaryResume) {
+        const { data: previousPrimary, error: previousPrimaryError } =
+          await args.admin
+            .from("talent_documents")
+            .select("id")
+            .eq("talent_id", args.userId)
+            .eq("kind", "resume")
+            .eq("is_primary", true)
+            .maybeSingle();
+        if (previousPrimaryError) {
+          await args.admin.storage
+            .from(TALENT_RESUME_BUCKET)
+            .remove([storagePath]);
+          throw new Error(previousPrimaryError.message);
+        }
+        previousPrimaryResumeId = previousPrimary?.id ?? null;
+        const { error: clearPrimaryError } = await args.admin
+          .from("talent_documents")
+          .update({ is_primary: false, is_public: false })
+          .eq("talent_id", args.userId)
+          .eq("kind", "resume")
+          .eq("is_primary", true);
+        if (clearPrimaryError) {
+          await args.admin.storage
+            .from(TALENT_RESUME_BUCKET)
+            .remove([storagePath]);
+          throw new Error(
+            clearPrimaryError.message ?? "Failed to clear the primary resume"
+          );
+        }
+      }
+      const { error: documentError } = await args.admin
+        .from("talent_documents")
+        .insert({
+          talent_id: args.userId,
+          kind: isPrimaryResume ? "resume" : "document",
+          file_name: attachment.fileName,
+          storage_path: storagePath,
+          content_type: attachment.contentType || null,
+          size_bytes: buffer.byteLength,
+          extracted_text: text || null,
+          is_public: isPrimaryResume,
+          is_primary: isPrimaryResume,
+        });
+      if (documentError) {
+        if (previousPrimaryResumeId) {
+          await args.admin
+            .from("talent_documents")
+            .update({ is_primary: true, is_public: true })
+            .eq("id", previousPrimaryResumeId)
+            .eq("talent_id", args.userId);
+        }
+        await args.admin.storage
+          .from(TALENT_RESUME_BUCKET)
+          .remove([storagePath]);
+        throw new Error(
+          documentError.message ?? "Failed to save email attachment document"
+        );
+      }
       if (!resumeStoragePath) {
         resumeStoragePath = storagePath;
         resumeFileName = attachment.fileName;
@@ -264,11 +324,8 @@ async function processEmailAttachments(args: {
           .join("\n")
       );
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : String(error);
-      warnings.push(
-        `${attachment.fileName}: ${message}`
-      );
+      const message = error instanceof Error ? error.message : String(error);
+      warnings.push(`${attachment.fileName}: ${message}`);
       processed.push({
         ...normalized,
         error: message,
@@ -312,7 +369,11 @@ async function saveResumeFileReference(args: {
   userId: string;
 }) {
   const links = Array.from(
-    new Set((args.links ?? []).map((link) => String(link ?? "").trim()).filter(Boolean))
+    new Set(
+      (args.links ?? [])
+        .map((link) => String(link ?? "").trim())
+        .filter(Boolean)
+    )
   );
   const resumeFileName = String(args.resumeFileName ?? "").trim();
   const resumeStoragePath = String(args.resumeStoragePath ?? "").trim();
@@ -335,6 +396,30 @@ async function saveResumeFileReference(args: {
   }
   if (resumeText) {
     payload.resume_text = resumeText.slice(0, MAX_PARSED_ATTACHMENT_TEXT);
+  }
+
+  if (resumeStoragePath) {
+    const { error: documentError } = await args.admin
+      .from("talent_documents")
+      .upsert(
+        {
+          talent_id: args.userId,
+          kind: "resume",
+          file_name: resumeFileName || "resume",
+          storage_path: resumeStoragePath.slice(0, 2000),
+          extracted_text: resumeText
+            ? resumeText.slice(0, MAX_PARSED_ATTACHMENT_TEXT)
+            : null,
+          is_public: true,
+          is_primary: true,
+        },
+        { onConflict: "storage_path" }
+      );
+    if (documentError) {
+      throw new Error(
+        documentError.message ?? "Failed to save resume document"
+      );
+    }
   }
 
   const { error } = await args.admin
@@ -495,10 +580,7 @@ export async function POST(req: NextRequest) {
         metadata: {
           linkedinUrl: result.linkedinUrl ?? null,
           stats: result.stats,
-          warnings: [
-            ...(result.warnings ?? []),
-            ...warnings,
-          ],
+          warnings: [...(result.warnings ?? []), ...warnings],
         },
       });
     }

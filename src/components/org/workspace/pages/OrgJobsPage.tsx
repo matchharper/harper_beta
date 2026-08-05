@@ -1,17 +1,48 @@
+import { useState } from "react";
 import { OrgAllRolesOverview } from "@/components/org/OrgAllRolesOverview";
-import { OrgEditDialog } from "@/components/org/OrgEditDialog";
 import { OrgPipeline } from "@/components/org/OrgPipeline";
-import { OrgRoleTabs } from "@/components/org/OrgRoleTabs";
+import { OrgRoleOverview } from "@/components/org/OrgRoleOverview";
+import { OrgRolePicker } from "@/components/org/OrgRolePicker";
 import { TalentDetailSimpleView } from "@/components/org/TalentDetailSimpleView";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
 import { OrgPageHeader } from "@/components/org/workspace/OrgPageHeader";
+import { Tabs } from "@/components/ui/tabs";
 import {
   OrgJobsProvider,
   useOrgJobsBoard,
   useOrgJobsDetail,
   useOrgJobsNavigation,
-  useOrgJobsRoleActions,
 } from "@/hooks/org/useOrgJobs";
+
+type OrgRoleView = "pipeline" | "role";
+
+function OrgSelectedRoleContent() {
+  const { boardQuery } = useOrgJobsBoard();
+  const [activeView, setActiveView] = useState<OrgRoleView>("role");
+
+  return (
+    <div className="space-y-7">
+      <Tabs
+        activeValue={activeView}
+        aria-label="Role 화면"
+        items={[
+          { label: "Role", value: "role" },
+          { label: "Pipeline", value: "pipeline" },
+        ]}
+        onValueChange={(value) => setActiveView(value as OrgRoleView)}
+        size="large"
+        variant="cards"
+      />
+      {activeView === "pipeline" && boardQuery.error instanceof Error ? (
+        <OrgErrorState
+          message={boardQuery.error.message}
+          onRetry={() => void boardQuery.refetch()}
+        />
+      ) : null}
+      {activeView === "role" ? <OrgRoleOverview /> : <OrgPipeline />}
+    </div>
+  );
+}
 
 function OrgJobsMain() {
   const { boardQuery } = useOrgJobsBoard();
@@ -20,15 +51,18 @@ function OrgJobsMain() {
 
   return (
     <div className="space-y-7">
-      <OrgPageHeader title="Jobs" />
-      <OrgRoleTabs />
-      {boardQuery.error instanceof Error ? (
+      <OrgPageHeader title={<OrgRolePicker />} />
+      {isAll && boardQuery.error instanceof Error ? (
         <OrgErrorState
           message={boardQuery.error.message}
           onRetry={() => void boardQuery.refetch()}
         />
       ) : null}
-      {isAll ? <OrgAllRolesOverview /> : <OrgPipeline />}
+      {isAll ? (
+        <OrgAllRolesOverview />
+      ) : (
+        <OrgSelectedRoleContent key={activeRoleId} />
+      )}
     </div>
   );
 }
@@ -49,44 +83,11 @@ function OrgJobsTalentDetail() {
   );
 }
 
-function OrgJobsRoleEditor() {
-  const { editingRole, submitRoleEdit, closeRoleEditor, roleActionPending } =
-    useOrgJobsRoleActions();
-
-  return (
-    <OrgEditDialog
-      key={[editingRole?.roleId ?? "closed", editingRole?.updatedAt ?? ""].join(
-        ":"
-      )}
-      mode="role"
-      onClose={closeRoleEditor}
-      onSubmit={submitRoleEdit}
-      open={Boolean(editingRole)}
-      pending={roleActionPending}
-      value={
-        editingRole
-          ? {
-              description: editingRole.description,
-              employmentTypes: editingRole.employmentTypes,
-              externalJdUrl: editingRole.externalJdUrl,
-              locationText: editingRole.locationText,
-              name: editingRole.name,
-              request: editingRole.request,
-              status: editingRole.status,
-              workMode: editingRole.workMode,
-            }
-          : {}
-      }
-    />
-  );
-}
-
 export function OrgJobsPage() {
   return (
     <OrgJobsProvider>
       <OrgJobsMain />
       <OrgJobsTalentDetail />
-      <OrgJobsRoleEditor />
     </OrgJobsProvider>
   );
 }

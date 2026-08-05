@@ -122,11 +122,17 @@ async function postOrgSlackMessage(text: string) {
 async function postWorkspaceScopedOrgSlackMessage(
   text: string,
   workspaceId: string,
-  notificationKey?: HarperSlackNotificationKey
+  notificationKey?: HarperSlackNotificationKey,
+  roleId?: string | null
 ) {
   const [internalResult, workspaceResult] = await Promise.allSettled([
     postOrgSlackMessage(text),
-    sendHarperWorkspaceSlackMessage({ notificationKey, text, workspaceId }),
+    sendHarperWorkspaceSlackMessage({
+      notificationKey,
+      roleId,
+      text,
+      workspaceId,
+    }),
   ]);
 
   if (workspaceResult.status === "rejected") {
@@ -174,7 +180,8 @@ export async function notifyOrgCandidateAcceptedSlack(args: {
   await postWorkspaceScopedOrgSlackMessage(
     lines.join("\n"),
     args.workspace.workspaceId,
-    "candidateAccepted"
+    "candidateAccepted",
+    args.roleId
   );
 }
 
@@ -199,7 +206,8 @@ export async function notifyOrgCandidateRejectedSlack(args: {
   await postWorkspaceScopedOrgSlackMessage(
     lines.join("\n"),
     args.workspace.workspaceId,
-    "candidateRejected"
+    "candidateRejected",
+    args.roleId
   );
 }
 

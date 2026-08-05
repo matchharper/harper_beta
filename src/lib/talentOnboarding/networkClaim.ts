@@ -214,6 +214,32 @@ async function copyResumeToTalentBucket(args: {
     return null;
   }
 
+  const { error: clearPrimaryError } = await admin
+    .from("talent_documents")
+    .update({ is_primary: false, is_public: false })
+    .eq("talent_id", targetUserId)
+    .eq("kind", "resume")
+    .eq("is_primary", true);
+  if (clearPrimaryError) {
+    await admin.storage.from(TALENT_RESUME_BUCKET).remove([storagePath]);
+    return null;
+  }
+
+  const { error: documentError } = await admin.from("talent_documents").insert({
+    talent_id: targetUserId,
+    kind: "resume",
+    file_name: originalName,
+    storage_path: storagePath,
+    content_type: data.type || null,
+    size_bytes: arrayBuffer.byteLength,
+    is_public: true,
+    is_primary: true,
+  });
+  if (documentError) {
+    await admin.storage.from(TALENT_RESUME_BUCKET).remove([storagePath]);
+    return null;
+  }
+
   return {
     resume_file_name: originalName,
     resume_storage_path: storagePath,

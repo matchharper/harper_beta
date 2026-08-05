@@ -32,6 +32,7 @@ import Face from "@/components/common/Face";
 import ResumeDropzone, {
   type ResumeFileSelectSource,
 } from "@/components/career/ResumeDropzone";
+import ProfileSourceApplyConfirmModal from "@/components/career/profile/ProfileSourceApplyConfirmModal";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import {
@@ -1366,6 +1367,10 @@ const CareerNetworkOnboardingContent = () => {
   const [submitState, setSubmitState] = useState<"form" | "loading" | "done">(
     "form"
   );
+  const [pendingSourceApplyPayload, setPendingSourceApplyPayload] =
+    useState<OnboardingStartPayload | null>(null);
+  const [sourceApplyConfirmOpen, setSourceApplyConfirmOpen] = useState(false);
+  const [sourceApplyPending, setSourceApplyPending] = useState(false);
   const defaultDoneUserMessage = useMemo(
     () => getDefaultDoneUserMessage(t),
     [t]
@@ -1815,6 +1820,8 @@ const CareerNetworkOnboardingContent = () => {
       return {
         resumeFileName: String(payload?.resumeFileName ?? file.name),
         resumeStoragePath: String(payload?.resumeStoragePath ?? ""),
+        resumeDocumentId:
+          typeof payload?.document?.id === "string" ? payload.document.id : "",
       };
     },
     [fetchWithAuth, t]
@@ -1853,6 +1860,30 @@ const CareerNetworkOnboardingContent = () => {
     [fetchWithAuth, t]
   );
 
+  const completeOnboardingSubmission = useCallback(
+    (payload: OnboardingStartPayload) => {
+      queryClient.removeQueries({ queryKey: ["career-session"] });
+      queryClient.removeQueries({ queryKey: sessionQueryKey });
+      queryClient.removeQueries({ queryKey: ["career-message-history"] });
+      queryClient.removeQueries({
+        queryKey: ["career-history-opportunities"],
+      });
+      queryClient.setQueryData(talentOnboardingStatusQueryKey(userId), {
+        needsOnboarding: false,
+      });
+      setDoneUserMessage(
+        payload.profileSubmitMessage?.trim() ||
+          payload.userMessage?.content?.trim() ||
+          defaultDoneUserMessage
+      );
+      setDoneKickoffText(getOnboardingKickoffText(payload, t));
+      setPendingSourceApplyPayload(null);
+      setSourceApplyConfirmOpen(false);
+      setSubmitState("done");
+    },
+    [defaultDoneUserMessage, queryClient, sessionQueryKey, t, userId]
+  );
+
   const submitOnboarding = useCallback(async () => {
     if (submitState === "loading") return;
     if (!conversationId) {
@@ -1874,27 +1905,25 @@ const CareerNetworkOnboardingContent = () => {
       let resumeFileName: string | undefined;
       let resumeStoragePath: string | undefined;
       let resumeText: string | undefined;
+      let resumeDocumentId: string | undefined;
 
       if (resumeFile) {
+        const uploadResult = await uploadResumeFile(resumeFile);
+        resumeFileName = uploadResult.resumeFileName;
+        resumeStoragePath = uploadResult.resumeStoragePath;
+        resumeDocumentId = uploadResult.resumeDocumentId;
+
         let parsedText = "";
         try {
           parsedText = await parseResumeText(resumeFile);
         } catch (error) {
-          if (!hasLinkedinProfileSignal) {
-            throw error;
-          }
           console.warn(
-            "[CareerOnboarding] resume parse failed; continuing with LinkedIn only",
+            "[CareerOnboarding] resume parse failed; keeping the uploaded document",
             error
           );
         }
 
-        if (parsedText) {
-          const uploadResult = await uploadResumeFile(resumeFile);
-          resumeFileName = uploadResult.resumeFileName;
-          resumeStoragePath = uploadResult.resumeStoragePath;
-          resumeText = parsedText;
-        }
+        if (parsedText) resumeText = parsedText;
       }
 
       const preferencesRes = await fetchWithAuth("/api/talent/preferences", {
@@ -1950,12 +1979,14 @@ const CareerNetworkOnboardingContent = () => {
         method: "POST",
         body: JSON.stringify({
           conversationId,
+          applyProfileSources: false,
           links,
           locale,
           name: name.trim(),
           officialJobSlug: officialJobSlug || undefined,
           officialJobTitle: officialJobTitle || undefined,
           resumeFileName,
+          resumeDocumentId,
           resumeStoragePath,
           resumeText,
         }),
@@ -1975,20 +2006,8 @@ const CareerNetworkOnboardingContent = () => {
         );
       }
 
-      queryClient.removeQueries({ queryKey: ["career-session"] });
-      queryClient.removeQueries({ queryKey: sessionQueryKey });
-      queryClient.removeQueries({ queryKey: ["career-message-history"] });
-      queryClient.removeQueries({ queryKey: ["career-history-opportunities"] });
-      queryClient.setQueryData(talentOnboardingStatusQueryKey(userId), {
-        needsOnboarding: false,
-      });
-      setDoneUserMessage(
-        payload.profileSubmitMessage?.trim() ||
-          payload.userMessage?.content?.trim() ||
-          defaultDoneUserMessage
-      );
-      setDoneKickoffText(getOnboardingKickoffText(payload, t));
-      setSubmitState("done");
+      setPendingSourceApplyPayload(payload);
+      setSourceApplyConfirmOpen(true);
     } catch (error) {
       showToast({
         message:
@@ -2005,25 +2024,72 @@ const CareerNetworkOnboardingContent = () => {
     }
   }, [
     conversationId,
-    defaultDoneUserMessage,
     fetchWithAuth,
-    hasLinkedinProfileSignal,
     links,
     locale,
     name,
     parseResumeText,
     profileVisibility,
-    queryClient,
     resumeFile,
     selectedEngagements,
-    sessionQueryKey,
     submitState,
     logCareerEvent,
     officialJobSlug,
     officialJobTitle,
     t,
     uploadResumeFile,
-    userId,
+  ]);
+
+  const handleSkipSourceApply = useCallback(() => {
+    if (sourceApplyPending || !pendingSourceApplyPayload) return;
+    completeOnboardingSubmission(pendingSourceApplyPayload);
+  }, [
+    completeOnboardingSubmission,
+    pendingSourceApplyPayload,
+    sourceApplyPending,
+  ]);
+
+  const handleConfirmSourceApply = useCallback(async () => {
+    if (sourceApplyPending || !pendingSourceApplyPayload) return;
+
+    setSourceApplyPending(true);
+    try {
+      const response = await fetchWithAuth("/api/talent/profile/update", {
+        method: "POST",
+        body: JSON.stringify({
+          forceProfileIngestion: true,
+          links,
+          locale,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.profileIngestion?.ok === false) {
+        throw new Error(
+          payload?.profileIngestion?.error ||
+            getErrorMessage(payload, "프로필에 새 정보를 반영하지 못했습니다.")
+        );
+      }
+
+      completeOnboardingSubmission(pendingSourceApplyPayload);
+    } catch (error) {
+      showToast({
+        message:
+          error instanceof Error
+            ? error.message
+            : "프로필에 새 정보를 반영하지 못했습니다.",
+        variant: "error",
+        duration: 5000,
+      });
+    } finally {
+      setSourceApplyPending(false);
+    }
+  }, [
+    completeOnboardingSubmission,
+    fetchWithAuth,
+    links,
+    locale,
+    pendingSourceApplyPayload,
+    sourceApplyPending,
   ]);
 
   const { step, handleNext, handlePrev } = useOnboarding({
@@ -2414,6 +2480,12 @@ const CareerNetworkOnboardingContent = () => {
           </OnboardingFrame>
         )}
       </main>
+      <ProfileSourceApplyConfirmModal
+        mode={sourceApplyConfirmOpen ? "saved_sources" : null}
+        pending={sourceApplyPending}
+        onCancel={handleSkipSourceApply}
+        onConfirm={handleConfirmSourceApply}
+      />
     </>
   );
 };

@@ -384,7 +384,7 @@ export async function fetchRoleForOrgAgent(args: {
 }): Promise<OrgRole> {
   const { data, error } = await (args.admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, request, status, type, location_text, work_mode, updated_at"
+      "role_id, company_workspace_id, name, external_jd_url, description, request, status, type, location_text, work_mode, created_at, updated_at"
     )
     .eq("company_workspace_id", args.workspaceId)
     .eq("role_id", args.roleId)
@@ -394,6 +394,7 @@ export async function fetchRoleForOrgAgent(args: {
   if (!data) throw new OrgHttpError(404, "Role not found");
   const row = data as {
     company_workspace_id: string;
+    created_at: string;
     description: string | null;
     external_jd_url: string | null;
     location_text: string | null;
@@ -406,6 +407,7 @@ export async function fetchRoleForOrgAgent(args: {
     work_mode: string | null;
   };
   return {
+    createdAt: row.created_at,
     description: row.description ?? null,
     employmentTypes: Array.isArray(row.type) ? row.type : [],
     externalJdUrl: row.external_jd_url ?? null,

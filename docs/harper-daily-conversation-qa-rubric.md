@@ -1,7 +1,7 @@
 # Harper Daily Conversation QA Rubric
 
-- Version: 1.3
-- Last updated: 2026-07-31
+- Version: 1.4
+- Last updated: 2026-08-04
 - Applies to: `Harper Daily Conversation QA`
 - Default audit window: the previous complete KST calendar day
 
@@ -37,6 +37,12 @@ or external messages. It must never send a Slack message.
    verification.
 8. Group incidents with the same root cause and report both incident count and
    affected-user count when possible.
+9. Prove the relevant execution path before interpreting a final status, count,
+   label, or message as its cause. An observed outcome is not evidence that
+   every expected upstream step ran.
+10. Reconstruct the effective user and system contract at the time of the
+    incident. Keep historical snapshots, mutable live state, later changes, and
+    the user's latest explicit instruction as separate evidence.
 
 ### 2.1 False-positive prevention and current-state checks
 
@@ -93,6 +99,14 @@ intentional, or telemetry-only signal from being presented as a current defect.
    ID after joins, and keep independent ledgers for incidents, affected users,
    deliveries, and evaluated recommendations. Do not infer a rate, trend, or
    recurrence from incompatible query definitions or duplicate join rows.
+7. **Distinguish allowed, selected, executed, and delivered.** A setting or
+   deterministic gate may allow an action without selecting it; an
+   orchestration decision may select an action without executing its downstream
+   tool; a tool may execute without producing or delivering value. Record each
+   state independently and locate the first transition that failed.
+8. **Do not use historical snapshots as execution-time truth.** For delayed or
+   asynchronous work, compare captured inputs with live state and intervening
+   user/system changes at the time each relevant decision and side effect ran.
 
 ## 3. Time window and evidence
 
@@ -202,6 +216,57 @@ For each non-benign failure, identify:
 - retry/fallback existence and result;
 - final DB side effect and delivery state;
 - likely root-cause category.
+
+### 5.1 Mandatory stage ledger
+
+For every actionable S0/S1/S2 candidate, reconstruct this ledger before
+assigning severity or root cause:
+
+1. **Expected contract:** what the user and system were entitled to expect,
+   based on the latest explicit instruction, product promise, and applicable
+   policy at the incident time.
+2. **Actual chronology:** the relevant request, decision, execution, side
+   effect, exposure, retry, and recovery events in timestamp order.
+3. **Effective inputs:** historical snapshots, mutable live state, intervening
+   changes, and which values each component actually consumed.
+4. **Decision boundaries:** applicable guards, gates, policies, prompts, model
+   or tool decisions, including what was allowed, required, selected, rejected,
+   or normalized.
+5. **Execution boundaries:** direct evidence for which expected components and
+   downstream operations actually ran, failed, were bypassed, or never started.
+6. **Outputs and side effects:** counts and statuses at their exact producing
+   boundary, persisted state, delivery/exposure, and any mismatch between them.
+7. **Fallback and recovery:** whether the applicable fallback ran, whether the
+   user ultimately received the expected value, and the user's current state.
+8. **Implementation contract:** when repository and deployment evidence are
+   available, the code path that permitted or prevented the observed outcome.
+
+State the **first broken stage** from this ledger. Do not group incidents merely
+because their final recommendation count or email status matches.
+
+### 5.2 Root-cause evidence rules
+
+- Assign a root-cause category only when direct evidence reaches the component
+  and boundary being named. A downstream status, count, or missing side effect
+  is a symptom until its upstream execution path is established.
+- Prefer the earliest evidenced divergence from the expected contract over the
+  last visible symptom. Distinguish primary cause, contributing conditions,
+  recovery failure, and observability gaps instead of flattening them into one
+  label.
+- Treat provider/model logs as evidence of which model participated, not by
+  themselves as proof that the provider/model is the root cause. If the prompt,
+  gate, action catalog, normalization, or call ordering permits the observed
+  decision, report that system contract as the primary cause and the model as
+  execution evidence.
+- When repository access is available, inspect the relevant prompt, gate,
+  normalization, and delivery/fallback code. Separate incident-time production
+  behavior from current repository behavior, and do not claim a current fix is
+  deployed without deployment evidence.
+- If raw LLM output, intent, trace, or incident-time code is unavailable, say
+  exactly which explanation cannot be recovered. Do not invent a model
+  rationale from the normalized decision.
+- When a cohort contains different first broken stages, split it even when
+  every row shares the same final status or visible symptom.
 
 Use one of these root-cause categories:
 
@@ -452,6 +517,9 @@ Distinguish these zero-result outcomes:
   explanation;
 - valid recommendations arrived after the stated SLA.
 
+Apply the general stage-ledger and root-cause rules in Section 5 before naming
+the cause of any of these outcomes.
+
 ## 10. Recommendation quality evaluation
 
 Recommendation quality is a separate report section from conversation/errors.
@@ -648,7 +716,10 @@ Harper Daily QA · YYYY-MM-DD
 2) Detailed conversation and system findings
 - [Severity | Confidence] issue — affected users/incidents
   Evidence: identifier prefixes and concise observed behavior
-  Cause/recovery: normalized cause and whether user value recovered
+  Stage ledger: expected contract, effective inputs, decision/execution
+  boundaries, side effects, exposure, fallback, and recovery evidence
+  Cause/recovery: first broken stage, normalized cause, and whether user value
+  recovered
 
 3) Recommendation quality
 External

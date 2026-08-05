@@ -131,8 +131,6 @@
   --color-critical-100: var(--color-red-100);
   --color-critical-500: var(--color-red-700);
 
-  /* --color-bg-basement: #f8f7f5;
-  --color-bg-default: var(--color-neutral-00); */
   --color-bg-default: var(--color-neutral-00);
   --color-bg-basement: var(--color-neutral-100);
   --color-bg-floating: #ffffff;
@@ -268,7 +266,7 @@
 
   :root {
     --foreground-rgb: 0, 0, 0;
-    --main-body-background: #f8f7f5;
+    --main-body-background: #fffefd;
     --background-start-rgb: 248, 247, 245;
     --background-end-rgb: 248, 247, 245;
     --font-inter: "Inter";

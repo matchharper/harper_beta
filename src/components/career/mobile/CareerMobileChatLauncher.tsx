@@ -292,11 +292,11 @@ function CareerMobileChatLauncher({
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
-          className="flex flex-col border-t border-neutral-1000-a05 bg-bg-floating"
+          className="flex flex-col border-t border-neutral-1000-a05/50 bg-bg-floating"
           style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         >
           <div className="flex justify-center pt-2 pb-1">
-            <div className="h-1 w-10 rounded-full bg-black/20" />
+            <div className="h-[3px] w-10 rounded-full bg-black/20" />
           </div>
           {actionBar && !showMinimizedCall ? (
             <div className="px-4 pt-1 pb-2">{actionBar}</div>
@@ -432,18 +432,18 @@ function CareerMobileChatLauncher({
             <div
               className="relative flex shrink-0 items-center justify-center px-4 pb-2"
               style={{
-                paddingTop: "calc(env(safe-area-inset-top) + 0.75rem)",
+                paddingTop: "calc(env(safe-area-inset-top) + 0.5rem)",
               }}
             >
               <DrawerPrimitive.Handle
                 preventCycle
-                className="flex h-6 w-24 items-center justify-center"
+                className="flex h-4 w-24 items-center justify-center"
               >
-                <div className="h-1.5 w-12 rounded-full bg-black/15" />
+                <div className="h-1 w-10 rounded-full bg-black/20" />
               </DrawerPrimitive.Handle>
               <DrawerPrimitive.Close
                 aria-label={"채팅 접기"}
-                className="absolute right-3 top-2 z-[60] inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-1000-a05 bg-bg-floating text-neutral-muted transition active:bg-bg-weak"
+                className="absolute right-3 top-2 z-[60] inline-flex h-8 w-8 items-center justify-center rounded-full bg-bg-floating text-neutral-muted transition active:bg-bg-weak"
                 style={{
                   top: "calc(env(safe-area-inset-top) + 0.5rem)",
                 }}

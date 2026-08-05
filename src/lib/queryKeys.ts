@@ -106,6 +106,7 @@ export const queryKeys = {
     bootstrapAll: ["org", "bootstrap"] as const,
     boardAll: ["org", "board"] as const,
     detailAll: ["org", "detail"] as const,
+    roleNotificationsAll: ["org", "roleNotifications"] as const,
     slackAll: ["org", "slack"] as const,
     bootstrap: (orgId?: string | null) =>
       ["org", "bootstrap", orgId ?? ""] as const,
@@ -159,6 +160,8 @@ export const queryKeys = {
       ] as const,
     slack: (workspaceId?: string | null) =>
       ["org", "slack", workspaceId ?? ""] as const,
+    roleNotifications: (workspaceId?: string | null, roleId?: string | null) =>
+      ["org", "roleNotifications", workspaceId ?? "", roleId ?? ""] as const,
     internalTalent: (filters?: {
       talentId?: string | null;
       workspaceId?: string | null;

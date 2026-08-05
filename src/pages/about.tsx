@@ -12,6 +12,7 @@ import type { GetServerSideProps } from "next";
 import Head from "next/head";
 import { useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
+import { usePublicPageVisitLog } from "@/hooks/usePublicPageVisitLog";
 
 const CONTACT_EMAIL = "chris@matchharper.com";
 const HARPER_COMPANY_NAME = "harper";
@@ -69,6 +70,7 @@ function isHarperOfficialJob(job: OfficialJobListItem) {
 export default function AboutPage({ harperJobs, locale }: AboutPageProps) {
   const [aboutLocale, setAboutLocale] = useState<OfficialJobsLocale>(locale);
   const copy = ABOUT_COPY[aboutLocale];
+  usePublicPageVisitLog();
   const { careerStartHref, handleCareerStartClick } = useCareerLandingStart({
     trackingEnabled: false,
   });

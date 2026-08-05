@@ -121,7 +121,7 @@ export async function fetchOrgAgentRoles(args: {
 }) {
   const { data, error } = await (args.admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, request, status, type, location_text, work_mode, updated_at"
+      "role_id, company_workspace_id, name, external_jd_url, description, request, status, type, location_text, work_mode, created_at, updated_at"
     )
     .eq("company_workspace_id", args.workspaceId)
     .order("updated_at", { ascending: false });
@@ -129,6 +129,7 @@ export async function fetchOrgAgentRoles(args: {
   return (
     (data ?? []) as Array<{
       company_workspace_id: string;
+      created_at: string;
       description: string | null;
       external_jd_url: string | null;
       location_text: string | null;
@@ -142,6 +143,7 @@ export async function fetchOrgAgentRoles(args: {
     }>
   ).map(
     (row): OrgRole => ({
+      createdAt: row.created_at,
       description: row.description ?? null,
       employmentTypes: Array.isArray(row.type) ? row.type : [],
       externalJdUrl: row.external_jd_url ?? null,

@@ -10,6 +10,7 @@ import {
   type CareerUpdateNote,
 } from "@/lib/careerUpdateNotes.server";
 import { useMessages, type Locale } from "@/i18n/useMessage";
+import Image from "next/image";
 
 type CareerUpdateNotesPageProps = {
   notes: CareerUpdateNote[];
@@ -67,7 +68,7 @@ export default function CareerUpdateNotesPage({
       locale={locale}
       landingChrome
       aside={
-        <div className="rounded-sm border-b border-neutral-1000/2 bg-bg-basement pb-4 lg:border lg:p-3">
+        <div className="rounded-sm border-b border-neutral-1000/2 bg-bg-basement pb-4 lg:border p-3">
           <Text type="subtle" className="text-primary">
             {copy.latest}
           </Text>
@@ -89,7 +90,12 @@ export default function CareerUpdateNotesPage({
                 target="_blank"
                 rel="noreferrer"
               >
-                <ExternalLink className="h-3.5 w-3.5" />
+                <Image
+                  src="/images/logos/linkedin.svg"
+                  alt="LinkedIn"
+                  width={18}
+                  height={18}
+                />
                 LinkedIn
               </a>
             </MuteButton>
@@ -106,12 +112,16 @@ export default function CareerUpdateNotesPage({
           {notes.map((note) => (
             <section
               key={`${note.date}-${note.tag}-${note.en}`}
-              className="grid gap-4 py-4 sm:grid-cols-[100px_80px_minmax(0,1fr)]"
+              className="grid gap-4 py-4 items-start sm:grid-cols-[200px_minmax(0,1fr)]"
             >
-              <Text type="caption">{note.date}</Text>
-              <Badge size="sm" variant="faded" className="sm:w-fit">
-                {note.tag}
-              </Badge>
+              <div className="mt-[1px] flex flex-row gap-6 items-center">
+                <Text type="caption" className="text-neutral-muted">
+                  {note.date}
+                </Text>
+                <Badge size="sm" variant="faded" className="sm:w-fit">
+                  {note.tag}
+                </Badge>
+              </div>
               <Text type="desc" className="text-neutral-primary">
                 {locale === "ko" ? note.ko : note.en}
               </Text>

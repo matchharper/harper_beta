@@ -15,6 +15,7 @@ test("role request reads become writable only after the tool batch", () => {
     recentRecommendationsText: "-",
     roles: [
       {
+        createdAt: "2026-07-30T10:23:45.123Z",
         description: null,
         employmentTypes: [],
         externalJdUrl: null,
@@ -28,6 +29,7 @@ test("role request reads become writable only after the tool batch", () => {
         workspaceId: "workspace-1",
       },
       {
+        createdAt: "2026-07-30T10:23:45.123Z",
         description: null,
         employmentTypes: [],
         externalJdUrl: null,

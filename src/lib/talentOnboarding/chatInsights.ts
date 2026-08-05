@@ -592,7 +592,6 @@ export async function extractAndPersistChatInsights(args: {
       const normalized = normalizeGeneratedTalentInsightEntry({
         rawKey,
         rawValue: extracted.value,
-        rejectProfileRowFactKeys: true,
       });
       if (!normalized.ok) {
         logger.log(`[${args.logPrefix}] Skipped invalid talent insight`, {

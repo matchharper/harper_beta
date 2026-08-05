@@ -27,6 +27,7 @@ import type {
   OrgResumeAccessResponse,
   OrgTalentDetailResponse,
   OrgWorkspaceLeaveResponse,
+  OrgWorkspaceUpdateFields,
 } from "@/lib/org/server";
 import type { OrgMembershipRole } from "@/lib/org/permissions";
 import {
@@ -550,7 +551,8 @@ export function useOpenOrgResume() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (args: {
-      kind?: "storage" | "link" | null;
+      documentId?: string | null;
+      kind?: "storage" | "link" | "document" | null;
       link?: string | null;
       talentId: string;
       workspaceId: string;
@@ -568,12 +570,7 @@ export function useOpenOrgResume() {
 export function useUpdateOrgWorkspace() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (args: {
-      companyDescription?: string | null;
-      pitch?: string | null;
-      request?: string | null;
-      workspaceId: string;
-    }) =>
+    mutationFn: (args: OrgWorkspaceUpdateFields & { workspaceId: string }) =>
       fetchWithInternalAuth<{ ok: true }>("/api/org/workspace", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

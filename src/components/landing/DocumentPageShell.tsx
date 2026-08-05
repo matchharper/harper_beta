@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import CareerLandingFooter from "@/components/landing/CareerLandingFooter";
 import CareerAppBar from "@/components/landing/career/CareerAppBarNew";
 import { useCareerLandingStart } from "@/hooks/useCareerLandingStart";
+import { usePublicPageVisitLog } from "@/hooks/usePublicPageVisitLog";
 import type { Locale } from "@/i18n/useMessage";
 
 type DocumentPageShellProps = {
@@ -23,6 +24,7 @@ export default function DocumentPageShell({
   locale,
   title,
 }: DocumentPageShellProps) {
+  usePublicPageVisitLog();
   const { careerStartHref, handleCareerStartClick } = useCareerLandingStart({
     trackingEnabled: false,
   });
@@ -91,14 +93,12 @@ export default function DocumentPageShell({
         </div>
       </div>
 
-      {landingChrome ? (
-        <CareerLandingFooter
-          careerStartHref={careerStartHref}
-          onCareerStartClick={handleCareerStartClick}
-          locale={locale}
-          showLocaleSwitcher={false}
-        />
-      ) : null}
+      <CareerLandingFooter
+        careerStartHref={careerStartHref}
+        onCareerStartClick={handleCareerStartClick}
+        locale={locale}
+        showLocaleSwitcher={false}
+      />
     </main>
   );
 }

@@ -86,6 +86,31 @@ export const CAREER_HOOK_MESSAGES = {
     "career.common.career_hook_messages.0ptxnu1",
     "대화 시작 준비 중 오류가 발생했습니다."
   ),
+  documentDeleted: t(
+    "career.profile.documents.deleted",
+    "문서를 삭제했습니다."
+  ),
+  documentDeleteFailed: t(
+    "career.profile.documents.delete_failed",
+    "문서를 삭제하지 못했습니다."
+  ),
+  documentSaved: t("career.profile.documents.saved", "문서를 저장했습니다."),
+  documentUpdated: t(
+    "career.profile.documents.updated",
+    "문서를 수정했습니다."
+  ),
+  documentUpdateFailed: t(
+    "career.profile.documents.update_failed",
+    "문서를 수정하지 못했습니다."
+  ),
+  documentUploadFailed: t(
+    "career.profile.documents.upload_failed",
+    "문서를 업로드하지 못했습니다."
+  ),
+  documentUploadResultMissing: t(
+    "career.profile.documents.upload_result_missing",
+    "업로드한 문서 정보를 불러오지 못했습니다."
+  ),
   feedbackFollowUpCreateFailed: t(
     "career.common.career_hook_messages.1kdy4hj",
     "피드백 후속 메시지를 만들지 못했습니다."

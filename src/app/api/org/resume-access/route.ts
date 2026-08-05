@@ -4,7 +4,10 @@ import { openOrgResume, OrgHttpError } from "@/lib/org/server";
 
 function toErrorResponse(error: unknown) {
   if (error instanceof OrgHttpError) {
-    return NextResponse.json({ error: error.message }, { status: error.status });
+    return NextResponse.json(
+      { error: error.message },
+      { status: error.status }
+    );
   }
   if (error instanceof Error && error.message === "Unauthorized") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -17,12 +20,14 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthenticatedUser(req);
     const body = (await req.json().catch(() => ({}))) as {
-      kind?: "storage" | "link" | null;
+      documentId?: string | null;
+      kind?: "storage" | "link" | "document" | null;
       link?: string | null;
       talentId?: string;
       workspaceId?: string;
     };
     const payload = await openOrgResume({
+      documentId: body.documentId ?? null,
       kind: body.kind ?? null,
       link: body.link ?? null,
       talentId: body.talentId ?? "",

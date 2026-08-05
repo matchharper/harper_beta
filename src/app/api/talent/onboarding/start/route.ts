@@ -9,12 +9,16 @@ import {
   TalentConversationRow,
   TalentMessageRow,
   ensureTalentUserRecord,
+  fetchTalentDocument,
+  fetchTalentDocuments,
   fetchTalentSetting,
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
   getTalentResumeSignedUrl,
   getTalentSupabaseAdmin,
   toTalentDisplayName,
+  serializeTalentDocuments,
+  updateTalentDocumentExtractedText,
 } from "@/lib/talentOnboarding/server";
 import {
   getTalentProfileVisibilityLabel,
@@ -52,10 +56,12 @@ export const runtime = "nodejs";
 export const maxDuration = 240;
 
 type Body = {
+  applyProfileSources?: boolean;
   conversationId?: string;
   locale?: string;
   name?: string;
   resumeFileName?: string;
+  resumeDocumentId?: string;
   resumeStoragePath?: string;
   resumeText?: string;
   links?: string[];
@@ -234,6 +240,11 @@ export async function POST(req: NextRequest) {
       2000
     );
     const resumeText = sanitizeMultilineDbText(body.resumeText, 20000) ?? "";
+    const resumeDocumentId = sanitizeSingleLineDbText(
+      body.resumeDocumentId,
+      100
+    );
+    const applyProfileSources = body.applyProfileSources !== false;
     const links = (body.links ?? [])
       .map((link) => sanitizeSingleLineDbText(link, 2000) ?? "")
       .filter(Boolean);
@@ -274,6 +285,27 @@ export async function POST(req: NextRequest) {
       admin,
       userId: user.id,
     });
+    if (resumeDocumentId) {
+      const resumeDocument = await fetchTalentDocument({
+        admin,
+        documentId: resumeDocumentId,
+        userId: user.id,
+      });
+      if (!resumeDocument || resumeDocument.kind !== "resume") {
+        return NextResponse.json(
+          { error: "Resume document not found" },
+          { status: 404 }
+        );
+      }
+      if (resumeText) {
+        await updateTalentDocumentExtractedText({
+          admin,
+          documentId: resumeDocument.id,
+          extractedText: resumeText,
+          userId: user.id,
+        });
+      }
+    }
     const { data: conversation, error: conversationError } = await admin
       .from("talent_conversations")
       .select("*")
@@ -376,7 +408,8 @@ export async function POST(req: NextRequest) {
       resumeText,
     });
 
-    const shouldRunProfileIngestion = Boolean(resumeText || hasLinkedin);
+    const shouldRunProfileIngestion =
+      applyProfileSources && Boolean(resumeText || hasLinkedin);
     const profileIngestionPromise = shouldRunProfileIngestion
       ? (async () => {
           try {
@@ -632,9 +665,20 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       talentUser: profile,
     });
+    const documents = await fetchTalentDocuments({
+      admin,
+      userId: user.id,
+    });
+    const serializedDocuments = await serializeTalentDocuments({
+      admin,
+      documents,
+    });
+    const latestResume = serializedDocuments.find(
+      (document) => document.kind === "resume"
+    );
     const resumeDownloadUrl = await getTalentResumeSignedUrl({
       admin,
-      storagePath: profile?.resume_storage_path,
+      storagePath: latestResume?.storagePath ?? profile?.resume_storage_path,
     });
     const insertedUserMessage = insertedRows.find(
       (item) => item.role === "user"
@@ -706,10 +750,13 @@ export async function POST(req: NextRequest) {
       conversation: {
         id: (updatedConversation as TalentConversationRow).id,
         stage: (updatedConversation as TalentConversationRow).stage,
-        resumeFileName: profile?.resume_file_name ?? null,
-        resumeStoragePath: profile?.resume_storage_path ?? null,
-        resumeDownloadUrl,
+        resumeFileName:
+          latestResume?.fileName ?? profile?.resume_file_name ?? null,
+        resumeStoragePath:
+          latestResume?.storagePath ?? profile?.resume_storage_path ?? null,
+        resumeDownloadUrl: latestResume?.downloadUrl ?? resumeDownloadUrl,
         resumeLinks: profile?.resume_links ?? [],
+        documents: serializedDocuments,
       },
       talentProfile,
       userMessage: toResponseMessage(insertedUserMessage),

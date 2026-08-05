@@ -38,6 +38,7 @@ import Face from "@/components/common/Face";
 import { MessagesProvider, type Locale } from "@/i18n/useMessage";
 import { resolveOfficialJobsLocaleFromRequest } from "@/lib/officialJobs/copy";
 import type { GetServerSideProps } from "next";
+import { usePublicPageVisitLog } from "@/hooks/usePublicPageVisitLog";
 
 const fontMain =
   "text-[22px] font-normal leading-[1.5] text-neutral-900 md:text-[28px]";
@@ -193,7 +194,7 @@ const COMPANY_PAGE_COPY = {
       description: [
         "Harper speaks directly with talent and companies to understand the context on both sides, finds the right match, and brings everyone together as your AI agent.",
       ],
-      cta: "Request a meeting",
+      cta: "Request a demo",
     },
     socialProof: {
       talentTitle: "Trusted by talent from",
@@ -205,9 +206,9 @@ const COMPANY_PAGE_COPY = {
       request: "We need a senior backend engineer to lead AI infrastructure.",
       prompt: "Great. Tell me about the team and your must-have criteria.",
       criteria:
-        "Someone experienced with LLM serving and Python/Rust who is excited about expanding across Korea and APAC.",
+        "Someone experienced with LLM serving and Rust who is excited about challenging problems.",
       answer:
-        "Got it. I’ll introduce only candidates whose compensation range, relocation preferences, and interest in AI products Harper has personally confirmed.",
+        "Got it. I’ll introduce only candidates whose compensation range, relocation preferences, and interest in Harper has personally confirmed.",
       notificationTitle: "Meet your candidate",
       notificationBody: "Choose a time to meet.",
     },
@@ -262,17 +263,17 @@ const COMPANY_PAGE_COPY = {
     },
     closing: [
       "Even for the hardest roles to fill, Harper gives you someone worth meeting within a week.",
-      "Describe the role, and Harper defines who will thrive on your team—then finds that person among talent we have already spoken with.",
+      "Describe the role, and Harper defines who will thrive on your team, then finds that person we have already spoken with.",
       "We present your opportunity, answer questions, and build genuine interest before introducing only the candidates who want to interview.",
       "You do not get another list of names. You meet people who are ready to start a hiring conversation now.",
     ],
     contact: {
       title: "Let's find the top talent your team needs now.",
       description:
-        "Harper speaks directly with candidates to uncover what a profile cannot show—compensation expectations, relocation preferences, and genuine interest. Instead of reviewing a pile of resumes, your team receives a small group of candidates who are truly worth interviewing.",
+        "Harper speaks directly with candidates to uncover what a profile cannot show. Instead of reviewing a pile of resumes, your team receives a small group of candidates who are truly worth interviewing.",
       talentLink: "For Talents",
       help: "Have a question?",
-      formTitle: "Request a meeting",
+      formTitle: "Request a demo",
       email: "Email*",
       name: "Name*",
       organization: "Company or team*",
@@ -557,24 +558,32 @@ function TalentRequestChatMockup({ copy }: { copy: CompanyPageCopy["chat"] }) {
         <div className="ml-auto w-fit max-w-[88%] rounded-xl border border-white/45 px-4 py-2">
           {copy.criteria}
         </div>
-        <div
-          className={cn(
-            "harper-reply-bubble mr-auto bg-bg-floating px-4 py-3 text-neutral-primary",
-            !isThinking && "harper-reply-bubble-answer"
-          )}
-        >
-          {isThinking ? (
-            <div className="harper-thinking flex items-center gap-1">
-              <span>Thinking</span>
-              <span className="inline-flex gap-0.5">
-                <span className="harper-thinking-dot">.</span>
-                <span className="harper-thinking-dot">.</span>
-                <span className="harper-thinking-dot">.</span>
-              </span>
-            </div>
-          ) : (
-            <div className="harper-answer">{visibleAnswer}</div>
-          )}
+        <div className="grid">
+          <div
+            aria-hidden="true"
+            className="invisible col-start-1 row-start-1 w-full rounded-2xl px-4 py-3"
+          >
+            {copy.answer}
+          </div>
+          <div
+            className={cn(
+              "harper-reply-bubble col-start-1 row-start-1 mr-auto self-start bg-bg-floating px-4 py-3 text-neutral-primary",
+              !isThinking && "harper-reply-bubble-answer"
+            )}
+          >
+            {isThinking ? (
+              <div className="harper-thinking flex items-center gap-1">
+                <span>Thinking</span>
+                <span className="inline-flex gap-0.5">
+                  <span className="harper-thinking-dot">.</span>
+                  <span className="harper-thinking-dot">.</span>
+                  <span className="harper-thinking-dot">.</span>
+                </span>
+              </div>
+            ) : (
+              <div className="harper-answer">{visibleAnswer}</div>
+            )}
+          </div>
         </div>
         <div
           className={cn(
@@ -1118,6 +1127,7 @@ export default function TestCompanyPage({ locale }: TestCompanyPageProps) {
     useState(false);
   const copy = COMPANY_PAGE_COPY[companyLocale];
   const structuredData = buildCompanyPageStructuredData(copy);
+  usePublicPageVisitLog();
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {

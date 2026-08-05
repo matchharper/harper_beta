@@ -162,13 +162,6 @@ function DeliveryPreview({
           {delivery.subject}
         </div>
       ) : null}
-      {delivery.bodyText ? (
-        <div className="max-h-72 overflow-y-auto whitespace-pre-wrap pr-1">
-          {delivery.bodyText}
-        </div>
-      ) : (
-        <div>표시할 메일 본문이 없습니다.</div>
-      )}
     </div>
   );
 }

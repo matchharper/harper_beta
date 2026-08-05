@@ -428,7 +428,7 @@ Relevant Supabase public schema:
 - talent_conversation_summaries: id uuid, talent_id references talent_users.user_id, conversation_id references talent_conversations.id, from_message_id, to_message_id, summary_text/json, created_at.
 - talent_activity_events: id uuid, talent_id references talent_users.user_id, conversation_id, message_id, event_type, source, summary, impact_level, changed_domains, created_at.
 - talent_insights: id bigint, talent_id references talent_users.user_id, content jsonb, last_updated_at, created_at.
-- talent_experiences / talent_educations / talent_extras / talent_publications: profile tables keyed by talent_id.
+- talent_experiences / talent_educations / talent_extras: profile tables keyed by talent_id.
 - opportunity_discovery_run: id uuid, talent_id references talent_users.user_id, conversation_id, trigger, trigger_payload, status, query_plan, coverage, settings_snapshot, message, run_mode, created_at, updated_at, started_at, completed_at, error_message.
 - talent_opportunity_recommendation: id uuid, talent_id references talent_users.user_id, discovery_run_id references opportunity_discovery_run.id, role_id references company_roles.role_id, opportunity_type, fit_summary, fit_reasons, tradeoffs, preference_fit, feedback ('like'/'dislike'/null), saved_stage, viewed_at, clicked_at, created_at, updated_at.
 - talent_opportunity_chat_preview: id uuid, recommendation_id references talent_opportunity_recommendation.id, discovery_run_id references opportunity_discovery_run.id, conversation_id references talent_conversations.id, assistant_message_id references talent_messages.id, rank, created_at. Delete this before deleting matching recommendations/messages/runs.

@@ -398,7 +398,11 @@ function ProfilePane({
   onAcceptClick?: () => void;
   onMoveToPendingConnection?: () => void;
   onRejectClick?: () => void;
-  onResumeClick: (kind: "storage" | "link", link?: string | null) => void;
+  onResumeClick: (
+    kind: "storage" | "link" | "document",
+    link?: string | null,
+    documentId?: string | null
+  ) => void;
 }) {
   const name = detail.talent.name || detail.talent.email || "이름 없음";
   const registeredLinks = detail.profile.registeredLinks.length
@@ -483,6 +487,14 @@ function ProfilePane({
               onClick={() => onResumeClick("storage")}
             />
           ) : null}
+          {detail.profile.documents.map((document) => (
+            <ResourceRow
+              key={document.id}
+              label="공개 문서"
+              caption={document.fileName}
+              onClick={() => onResumeClick("document", null, document.id)}
+            />
+          ))}
           {resourceLinks.map((link) => {
             const kind = getResourceLinkKind(link);
             const isResumeLink = kind === "resume";
@@ -498,7 +510,9 @@ function ProfilePane({
               />
             );
           })}
-          {!detail.resume.hasStorageFile && resourceLinks.length === 0 ? (
+          {!detail.resume.hasStorageFile &&
+          detail.profile.documents.length === 0 &&
+          resourceLinks.length === 0 ? (
             <div
               className={cn(profileItemClass, "text-[13px] text-neutral-soft")}
             >
@@ -937,7 +951,8 @@ export function TalentDetailSimpleView() {
   );
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [resumeRequest, setResumeRequest] = useState<{
-    kind: "storage" | "link";
+    documentId?: string | null;
+    kind: "storage" | "link" | "document";
     link?: string | null;
   } | null>(null);
   const [resumeError, setResumeError] = useState("");
@@ -977,6 +992,7 @@ export function TalentDetailSimpleView() {
     setResumeError("");
     openResume.mutate(
       {
+        documentId: resumeRequest.documentId ?? null,
         kind: resumeRequest.kind,
         link: resumeRequest.link ?? null,
         talentId,
@@ -1167,8 +1183,8 @@ export function TalentDetailSimpleView() {
                             ? () => setRejectDialogOpen(true)
                             : undefined
                         }
-                        onResumeClick={(kind, link) =>
-                          setResumeRequest({ kind, link })
+                        onResumeClick={(kind, link, documentId) =>
+                          setResumeRequest({ documentId, kind, link })
                         }
                       />
                     )}
@@ -1231,7 +1247,9 @@ export function TalentDetailSimpleView() {
           overlayClassName="z-[80]"
         >
           <DialogHeader>
-            <DialogTitle className="text-[18px]">이력서 열기</DialogTitle>
+            <DialogTitle className="text-[18px]">
+              {resumeRequest?.kind === "document" ? "문서 열기" : "이력서 열기"}
+            </DialogTitle>
           </DialogHeader>
           <div className="mt-1 text-[13px] leading-5 text-neutral-primary">
             이 자료는 채용 검토 목적으로만 사용하고 회사 외부에 공유하지 마세요.

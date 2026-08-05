@@ -10,6 +10,7 @@ import type {
   CareerMessagePayload,
   CareerStage,
   CareerTalentEducation,
+  CareerTalentDocument,
   CareerTalentExperience,
   CareerTalentExtra,
   CareerTalentProfile,
@@ -130,6 +131,9 @@ export const useCareerProfile = ({
     CareerTalentEducation[]
   >([]);
   const [talentExtras, setTalentExtras] = useState<CareerTalentExtra[]>([]);
+  const [talentDocuments, setTalentDocuments] = useState<
+    CareerTalentDocument[]
+  >([]);
 
   const getTranslatedProfileIngestionFailureMessage = useCallback(
     (ingestion: ProfileIngestionPayload | null | undefined) =>
@@ -175,9 +179,61 @@ export const useCareerProfile = ({
           typeof payload?.resumeDownloadUrl === "string"
             ? payload.resumeDownloadUrl
             : null,
+        document:
+          payload?.document && typeof payload.document === "object"
+            ? (payload.document as CareerTalentDocument)
+            : null,
       };
     },
     [fetchWithAuth, tCareer]
+  );
+
+  const handleUploadTalentDocument = useCallback(
+    async (file: File) => {
+      if (!user || profileSavePending) return null;
+
+      setProfileSavePending(true);
+      setProfileSaveError("");
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("kind", "document");
+        const response = await fetchWithAuth("/api/talent/documents/upload", {
+          method: "POST",
+          body: formData,
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(
+            getErrorMessage(payload, tCareer(H.documentUploadFailed))
+          );
+        }
+
+        const document = payload?.document as
+          | CareerTalentDocument
+          | null
+          | undefined;
+        if (!document?.id) {
+          throw new Error(tCareer(H.documentUploadResultMissing));
+        }
+        setTalentDocuments((previous) => [
+          document,
+          ...previous.filter((item) => item.id !== document.id),
+        ]);
+        showProfileSaveToast(tCareer(H.documentSaved));
+        return document;
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : tCareer(H.documentUploadFailed);
+        showProfileSaveToast(message);
+        return null;
+      } finally {
+        setProfileSavePending(false);
+      }
+    },
+    [fetchWithAuth, profileSavePending, tCareer, user]
   );
 
   const readResumeText = useCallback(
@@ -221,6 +277,7 @@ export const useCareerProfile = ({
       setSavedResumeFileName(payload.conversation.resumeFileName ?? null);
       setSavedResumeStoragePath(payload.conversation.resumeStoragePath ?? null);
       setSavedResumeDownloadUrl(payload.conversation.resumeDownloadUrl ?? null);
+      setTalentDocuments(payload.conversation.documents ?? []);
       applyTalentProfileSnapshot(payload.talentProfile);
     },
     [applyTalentProfileSnapshot]
@@ -228,7 +285,7 @@ export const useCareerProfile = ({
 
   const handleProfileSubmit = useCallback(
     async (onSuccess?: () => void | Promise<void>) => {
-      if (!user || !conversationId || profilePending) return;
+      if (!user || !conversationId || profilePending) return false;
 
       const cleanedLinks = compactProfileLinks(profileLinks);
       const hasSavedResume = Boolean(
@@ -238,11 +295,11 @@ export const useCareerProfile = ({
         const message = tCareer(H.invalidLinkedinProfileUrl);
         setProfileError(message);
         showProfileSaveToast(message);
-        return;
+        return false;
       }
       if (!resumeFile && !hasSavedResume && cleanedLinks.length === 0) {
         setProfileError(tCareer(H.profileUploadRequired));
-        return;
+        return false;
       }
 
       setProfilePending(true);
@@ -255,34 +312,34 @@ export const useCareerProfile = ({
         let nextResumeFileName = savedResumeFileName ?? undefined;
         let nextResumeStoragePath = savedResumeStoragePath ?? undefined;
         let resumeText: string | undefined;
-        const hasLinkedinProfileLink = cleanedLinks.some(isLinkedinProfileLink);
-
+        let resumeDocumentId: string | undefined;
+        let uploadedDocument: CareerTalentDocument | null = null;
         if (resumeFile) {
+          const uploadResult = await uploadResumeFile(resumeFile);
+          nextResumeFileName = uploadResult.resumeFileName;
+          nextResumeStoragePath = uploadResult.resumeStoragePath;
+          resumeDocumentId = uploadResult.document?.id;
+          uploadedDocument = uploadResult.document;
+
           let parsedText = "";
           try {
             parsedText = await readResumeText(resumeFile);
           } catch (error) {
-            if (!hasLinkedinProfileLink) {
-              throw error;
-            }
             console.warn(
-              "[CareerProfile] resume parse failed; continuing with LinkedIn only",
+              "[CareerProfile] resume parse failed; keeping the uploaded document",
               error
             );
           }
 
-          if (parsedText) {
-            const uploadResult = await uploadResumeFile(resumeFile);
-            nextResumeFileName = uploadResult.resumeFileName;
-            nextResumeStoragePath = uploadResult.resumeStoragePath;
-            resumeText = parsedText;
-          }
+          if (parsedText) resumeText = parsedText;
         }
 
         const response = await fetchWithAuth("/api/talent/onboarding/start", {
           method: "POST",
           body: JSON.stringify({
             conversationId,
+            applyProfileSources: false,
+            resumeDocumentId,
             resumeFileName: nextResumeFileName,
             resumeStoragePath: nextResumeStoragePath,
             resumeText,
@@ -331,6 +388,19 @@ export const useCareerProfile = ({
         setSavedResumeDownloadUrl(
           payload?.conversation?.resumeDownloadUrl ?? null
         );
+        setTalentDocuments(
+          (payload?.conversation?.documents as
+            | CareerTalentDocument[]
+            | undefined) ??
+            (uploadedDocument
+              ? [
+                  uploadedDocument,
+                  ...talentDocuments.filter(
+                    (document) => document.id !== uploadedDocument?.id
+                  ),
+                ]
+              : talentDocuments)
+        );
         const nextLinks = toProfileLinks(
           (payload?.conversation?.resumeLinks as string[] | undefined) ??
             cleanedLinks
@@ -354,12 +424,14 @@ export const useCareerProfile = ({
         ]);
 
         await onSuccess?.();
+        return true;
       } catch (error) {
         const message =
           error instanceof Error
             ? error.message
             : tCareer(H.basicProfileSubmitFailed);
         setProfileError(message);
+        return false;
       } finally {
         setProfilePending(false);
       }
@@ -381,6 +453,7 @@ export const useCareerProfile = ({
       setChatError,
       setStage,
       tCareer,
+      talentDocuments,
       uploadResumeFile,
       user,
       onMessagesChanged,
@@ -407,19 +480,29 @@ export const useCareerProfile = ({
   }, []);
 
   const handleSaveTalentProfile = useCallback(
-    async (args?: { structuredProfile?: CareerTalentProfile | null }) => {
+    async (args?: {
+      applyProfileSources?: boolean;
+      links?: string[];
+      persistError?: boolean;
+      preserveLinkDrafts?: boolean;
+      resumeFile?: File | null;
+      structuredProfile?: CareerTalentProfile | null;
+    }) => {
       if (!user || profileSavePending) return false;
 
       const structuredProfile = args?.structuredProfile ?? null;
+      const sourceLinks = args?.links ?? profileLinks;
+      const selectedResumeFile =
+        args?.resumeFile !== undefined ? args.resumeFile : resumeFile;
 
-      if (hasInvalidLinkedinProfileInput(profileLinks)) {
+      if (hasInvalidLinkedinProfileInput(sourceLinks)) {
         const message = tCareer(H.invalidLinkedinProfileUrl);
-        setProfileSaveError(message);
+        if (args?.persistError !== false) setProfileSaveError(message);
         showProfileSaveToast(message);
         return false;
       }
 
-      const cleanedLinks = compactProfileLinks(profileLinks);
+      const cleanedLinks = compactProfileLinks(sourceLinks);
       const savedCleanedLinks = compactProfileLinks(savedProfileLinks);
       const hasUnsavedLinkChanges =
         cleanedLinks.length !== savedCleanedLinks.length ||
@@ -436,34 +519,32 @@ export const useCareerProfile = ({
         let nextResumeStoragePath = savedResumeStoragePath;
         let nextResumeDownloadUrl = savedResumeDownloadUrl;
         let nextResumeText: string | undefined;
-        const hasLinkedinProfileLink = cleanedLinks.some(isLinkedinProfileLink);
+        let resumeDocumentId: string | undefined;
+        if (selectedResumeFile) {
+          const uploadResult = await uploadResumeFile(selectedResumeFile);
+          nextResumeFileName = uploadResult.resumeFileName;
+          nextResumeStoragePath = uploadResult.resumeStoragePath;
+          nextResumeDownloadUrl = uploadResult.resumeDownloadUrl;
+          resumeDocumentId = uploadResult.document?.id;
 
-        if (resumeFile) {
           let parsedText = "";
           try {
-            parsedText = await readResumeText(resumeFile);
+            parsedText = await readResumeText(selectedResumeFile);
           } catch (error) {
-            if (!hasLinkedinProfileLink) {
-              throw error;
-            }
             console.warn(
-              "[CareerProfile] resume parse failed; continuing with LinkedIn only",
+              "[CareerProfile] resume parse failed; keeping the uploaded document",
               error
             );
           }
 
-          if (parsedText) {
-            const uploadResult = await uploadResumeFile(resumeFile);
-            nextResumeText = parsedText;
-            nextResumeFileName = uploadResult.resumeFileName;
-            nextResumeStoragePath = uploadResult.resumeStoragePath;
-            nextResumeDownloadUrl = uploadResult.resumeDownloadUrl;
-          }
+          if (parsedText) nextResumeText = parsedText;
         }
 
         const response = await fetchWithAuth("/api/talent/profile/update", {
           method: "POST",
           body: JSON.stringify({
+            applyProfileSources: args?.applyProfileSources !== false,
+            resumeDocumentId,
             resumeFileName: nextResumeFileName,
             resumeStoragePath: nextResumeStoragePath,
             resumeText: nextResumeText,
@@ -494,8 +575,11 @@ export const useCareerProfile = ({
           payload?.profile?.resumeDownloadUrl ?? nextResumeDownloadUrl ?? null
         );
         setSavedProfileLinks(normalizedLinks);
-        setProfileLinks(normalizedLinks);
+        if (!args?.preserveLinkDrafts) setProfileLinks(normalizedLinks);
         setResumeFile(null);
+        if (Array.isArray(payload?.documents)) {
+          setTalentDocuments(payload.documents as CareerTalentDocument[]);
+        }
 
         if (payload?.talentProfile) {
           applyTalentProfileSnapshot(
@@ -509,7 +593,8 @@ export const useCareerProfile = ({
         }
 
         const savedStructuredProfile = Boolean(structuredProfile);
-        const savedResumeOrLinks = Boolean(resumeFile) || hasUnsavedLinkChanges;
+        const savedResumeOrLinks =
+          Boolean(selectedResumeFile) || hasUnsavedLinkChanges;
         const ingestion = payload?.profileIngestion as
           | ProfileIngestionPayload
           | null
@@ -541,7 +626,8 @@ export const useCareerProfile = ({
       } catch (error) {
         const message =
           error instanceof Error ? error.message : tCareer(H.profileSaveFailed);
-        setProfileSaveError(message);
+        if (args?.persistError !== false) setProfileSaveError(message);
+        showProfileSaveToast(message);
         return false;
       } finally {
         setProfileSavePending(false);
@@ -575,7 +661,6 @@ export const useCareerProfile = ({
         (savedProfileLinks.length > 0 ? savedProfileLinks : profileLinks);
       if (hasInvalidLinkedinProfileInput(sourceLinks)) {
         const message = tCareer(H.invalidLinkedinProfileUrl);
-        setProfileSaveError(message);
         showProfileSaveToast(message);
         return false;
       }
@@ -588,7 +673,6 @@ export const useCareerProfile = ({
 
       if (!hasSavedResume && !hasLinkedinLink) {
         const message = tCareer(H.profileSourcesMissing);
-        setProfileSaveError(message);
         showProfileSaveToast(message);
         return false;
       }
@@ -624,6 +708,9 @@ export const useCareerProfile = ({
         setSavedProfileLinks(normalizedLinks);
         setProfileLinks(normalizedLinks);
         setResumeFile(null);
+        if (Array.isArray(payload?.documents)) {
+          setTalentDocuments(payload.documents as CareerTalentDocument[]);
+        }
 
         if (payload?.talentProfile) {
           applyTalentProfileSnapshot(
@@ -639,7 +726,6 @@ export const useCareerProfile = ({
           const message = tCareer(H.profileRefreshFailedWithReason, {
             reason: getTranslatedProfileIngestionFailureMessage(ingestion),
           });
-          setProfileSaveError(message);
           showProfileSaveToast(message);
           return false;
         }
@@ -657,7 +743,6 @@ export const useCareerProfile = ({
           error instanceof Error
             ? error.message
             : tCareer(H.profileRefreshFailed);
-        setProfileSaveError(message);
         showProfileSaveToast(message);
         return false;
       } finally {
@@ -695,7 +780,105 @@ export const useCareerProfile = ({
     setTalentExperiences([]);
     setTalentEducations([]);
     setTalentExtras([]);
+    setTalentDocuments([]);
   }, []);
+
+  const handleDeleteTalentDocument = useCallback(
+    async (documentId: string) => {
+      if (!user || profileSavePending) return false;
+
+      setProfileSavePending(true);
+      setProfileSaveError("");
+      try {
+        const response = await fetchWithAuth("/api/talent/documents", {
+          method: "DELETE",
+          body: JSON.stringify({ documentId }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(
+            getErrorMessage(payload, tCareer(H.documentDeleteFailed))
+          );
+        }
+
+        const documents = Array.isArray(payload?.documents)
+          ? (payload.documents as CareerTalentDocument[])
+          : [];
+        setTalentDocuments(documents);
+        const latestResume =
+          documents.find(
+            (document) => document.kind === "resume" && document.isPrimary
+          ) ?? documents.find((document) => document.kind === "resume");
+        setSavedResumeFileName(latestResume?.fileName ?? null);
+        setSavedResumeStoragePath(latestResume?.storagePath ?? null);
+        setSavedResumeDownloadUrl(latestResume?.downloadUrl ?? null);
+        showProfileSaveToast(tCareer(H.documentDeleted));
+        return true;
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : tCareer(H.documentDeleteFailed);
+        showProfileSaveToast(message);
+        return false;
+      } finally {
+        setProfileSavePending(false);
+      }
+    },
+    [fetchWithAuth, profileSavePending, tCareer, user]
+  );
+
+  const handleUpdateTalentDocument = useCallback(
+    async (
+      documentId: string,
+      updates: {
+        fileName?: string;
+        isPrimary?: boolean;
+        isPublic?: boolean;
+      }
+    ) => {
+      if (!user || profileSavePending) return false;
+
+      setProfileSavePending(true);
+      setProfileSaveError("");
+      try {
+        const response = await fetchWithAuth("/api/talent/documents", {
+          method: "PATCH",
+          body: JSON.stringify({ documentId, ...updates }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(
+            getErrorMessage(payload, tCareer(H.documentUpdateFailed))
+          );
+        }
+
+        const documents = Array.isArray(payload?.documents)
+          ? (payload.documents as CareerTalentDocument[])
+          : [];
+        setTalentDocuments(documents);
+        const primaryResume =
+          documents.find(
+            (document) => document.kind === "resume" && document.isPrimary
+          ) ?? documents.find((document) => document.kind === "resume");
+        setSavedResumeFileName(primaryResume?.fileName ?? null);
+        setSavedResumeStoragePath(primaryResume?.storagePath ?? null);
+        setSavedResumeDownloadUrl(primaryResume?.downloadUrl ?? null);
+        showProfileSaveToast(tCareer(H.documentUpdated));
+        return true;
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : tCareer(H.documentUpdateFailed);
+        showProfileSaveToast(message);
+        return false;
+      } finally {
+        setProfileSavePending(false);
+      }
+    },
+    [fetchWithAuth, profileSavePending, tCareer, user]
+  );
 
   return {
     resumeFile,
@@ -714,6 +897,7 @@ export const useCareerProfile = ({
     talentExperiences,
     talentEducations,
     talentExtras,
+    talentDocuments,
     applySessionProfile,
     handleProfileSubmit,
     handleProfileLinkChange,
@@ -722,6 +906,9 @@ export const useCareerProfile = ({
     applyTalentProfileSnapshot,
     handleSaveTalentProfile,
     handleRefreshTalentProfileSources,
+    handleUploadTalentDocument,
+    handleUpdateTalentDocument,
+    handleDeleteTalentDocument,
     resetProfileState,
   };
 };

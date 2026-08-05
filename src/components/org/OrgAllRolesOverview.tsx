@@ -240,13 +240,8 @@ function RoleStatusBadge({
 export function OrgAllRolesOverview() {
   const { board, boardQuery } = useOrgJobsBoard();
   const { changeRole } = useOrgJobsNavigation();
-  const {
-    deleteRole,
-    openRoleEditor,
-    pauseRole,
-    resumeRole,
-    roleActionPending,
-  } = useOrgJobsRoleActions();
+  const { deleteRole, pauseRole, resumeRole, roleActionPending } =
+    useOrgJobsRoleActions();
   const { permissions, roles } = useOrgWorkspace();
   const canManageCandidates = permissions.canManageCandidates;
   const isLoading = boardQuery.isLoading;
@@ -423,7 +418,7 @@ export function OrgAllRolesOverview() {
                           role={role}
                           pending={roleActionPending}
                           onEdit={(selectedRole) =>
-                            openRoleEditor(selectedRole.roleId)
+                            changeRole(selectedRole.roleId)
                           }
                           onPause={pauseRole}
                           onResume={resumeRole}

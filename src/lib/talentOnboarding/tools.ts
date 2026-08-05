@@ -47,7 +47,6 @@ import {
   insertTalentOpportunityFeedbackActivityEvent,
   isSameActivityValue,
   type TalentActivityChange,
-  type TalentActivityImpactLevel,
   type TalentRowMemoActivityItem,
 } from "./activityEvents";
 import {
@@ -249,31 +248,6 @@ function getTalentToolResponseLanguage(
   context?: TalentToolExecutionContext | null
 ) {
   return getCareerPromptLanguageName(context?.responseLocale);
-}
-
-const IMPACT_LEVEL_RANK: Record<TalentActivityImpactLevel, number> = {
-  low: 0,
-  medium: 1,
-  high: 2,
-};
-
-function normalizeToolImpactLevel(
-  value: unknown
-): TalentActivityImpactLevel | null {
-  const text = optionalToolString(value);
-  if (text === "low" || text === "medium" || text === "high") return text;
-  return null;
-}
-
-function maxImpactLevel(
-  levels: Array<TalentActivityImpactLevel | null | undefined>
-): TalentActivityImpactLevel {
-  return levels.reduce<TalentActivityImpactLevel>((current, next) => {
-    if (!next) return current;
-    return IMPACT_LEVEL_RANK[next] > IMPACT_LEVEL_RANK[current]
-      ? next
-      : current;
-  }, "low");
 }
 
 const normalizeToolLimit = (value: unknown, fallback: number) => {
@@ -2060,12 +2034,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         talentInsights: {
           type: "object",
           description:
-            "Durable future recommendation/search-memory updates from the user's latest statement, such as desired next role, search intensity, compensation, must-haves, deal-breakers, team style, company/domain preference, company size/stage preference, resume/CV positioning context, or corrections to prior matching preferences, or external_delivery_selectivity. Explicit hard-filter search commands are durable memory too: for example, '미국 회사로만 찾아줘' should update must_haves with a value like '앞으로 미국 기반 회사만 추천받고 싶어합니다.' when intended as a hard requirement. If the user talks about what their resume/CV contains, leaves out, emphasizes, or should communicate for matching, preserve that resume-related context here unless it belongs on one visible profile row. Do not use this for facts that belong on a specific experience, education, or extra row; use rowMemos instead. Do not use this for one-off curiosity/browsing/search requests or aspirational/off-profile role mentions unless the user explicitly says Harper should remember the new direction for future matching. Values must be final integrated Korean complete sentences, not fragments. During onboarding, omit this entirely because insight extraction is handled separately.",
+            "Durable opportunity recommendation/search memory-preference updates from the user's latest statement, such as desired next role, search intensity, compensation, must-haves, deal-breakers, team style, company/domain preference, company size/stage preference, external_delivery_selectivity, hard constraint, etc. Explicit hard-filter search commands are durable memory too: for example, '미국 회사로만 찾아줘' should update must_haves with a value like '앞으로 미국 기반 회사만 추천받고 싶어합니다.' when intended as a hard requirement. If the user talks about what their resume/CV contains, leaves out, emphasizes, or should communicate for matching, preserve that resume-related context here unless it belongs on one visible profile row. Do not use this for facts that belong on a specific experience, education, or extra row; use rowMemos instead. Do not use this for one-off curiosity/browsing/search requests or aspirational/off-profile role mentions unless the user explicitly says Harper should remember the new direction for future matching. Values must be final integrated Korean complete sentences, not fragments.",
           properties: {
             content: {
               type: "object",
               description:
-                "Partial future-matching memory patch. If the new information belongs to an existing/current insight or checklist axis, update that key with the final integrated value instead of creating a synonym key. Create a new descriptive English snake_case key when the information is genuinely distinct and does not fit existing keys.",
+                "opportunity matching memory/preference patch. If the new information belongs to an existing/current insight or checklist axis, update that key with the final integrated value instead of creating a synonym key. Create a new descriptive English snake_case key when the information is genuinely distinct and does not fit existing keys.",
               additionalProperties: {
                 type: "string",
                 description: "Final integrated complete Korean sentence.",
@@ -2074,10 +2048,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             changeSummary: {
               type: "string",
               description: "Short one-line Korean summary of what changed.",
-            },
-            impactLevel: {
-              type: "string",
-              enum: ["low", "medium", "high"],
             },
           },
           required: ["content"],
@@ -2256,7 +2226,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
               const normalized = normalizeGeneratedTalentInsightEntry({
                 rawKey,
                 rawValue,
-                rejectProfileRowFactKeys: true,
               });
               if (!normalized.ok) {
                 skippedTalentInsights.push({
@@ -2514,7 +2483,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           changedDomains: ["profile", ...updatedTalentUserFields],
           conversationId: context?.conversationId ?? null,
           eventType: "profile_updated",
-          impactLevel: "low",
           messageId: context?.userMessageId ?? null,
           source: "chat",
           summary: `User ${talentUserSummary}.`,
@@ -2541,7 +2509,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           ],
           conversationId: context?.conversationId ?? null,
           eventType: rowMemoEventType,
-          impactLevel: "medium",
           messageId: context?.userMessageId ?? null,
           source: "chat",
           summary: rowMemoSummary,
@@ -2554,16 +2521,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const insightChangeSummary = optionalToolString(
         talentInsightsInput?.changeSummary
       );
-      const insightImpactLevel = insightSummary
-        ? (normalizeToolImpactLevel(talentInsightsInput?.impactLevel) ?? "high")
-        : null;
       if (insightSummary) {
         await insertTalentActivityEvent({
           admin,
           changedDomains: ["insights", ...talentInsightKeys],
           conversationId: context?.conversationId ?? null,
           eventType: "insight_updated",
-          impactLevel: insightImpactLevel ?? "high",
           messageId: context?.userMessageId ?? null,
           source: "chat",
           summary: insightChangeSummary
@@ -2584,7 +2547,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           ],
           conversationId: context?.conversationId ?? null,
           eventType: "preferences_changed",
-          impactLevel: "high",
           messageId: context?.userMessageId ?? null,
           source: "chat",
           summary: `사용자가 Career 채팅에서 Harper 추천을 한 번에 ${nextRecommendationBatchSize}개씩 받고 싶다고 요청했습니다.`,
@@ -2592,12 +2554,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         });
       }
 
-      const impactLevel = maxImpactLevel([
-        talentUserActivityChanges.length > 0 ? "low" : null,
-        rowMemoActivityItems.length > 0 ? "medium" : null,
-        insightImpactLevel,
-        updatedRecommendationSettings.length > 0 ? "high" : null,
-      ]);
       const responseLanguage = getTalentToolResponseLanguage(context);
       const replyInstructions = [
         `Continue the conversation naturally in ${responseLanguage} now.`,
@@ -2608,7 +2564,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
 
       const result = {
         assistantInstruction: replyInstructions.join(" "),
-        impactLevel,
         ok: true,
         updatedTalentUserFields,
         updatedRowMemos,

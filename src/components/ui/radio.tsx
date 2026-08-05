@@ -63,7 +63,7 @@ const Radio = React.forwardRef<HTMLInputElement, RadioProps>(
         {input}
         <span
           className={cn(
-            "font-normal",
+            "font-normal mt-[-3px]",
             labelSizeClassNames[size],
             disabled ? "text-neutral-disabled" : "text-neutral-primary"
           )}

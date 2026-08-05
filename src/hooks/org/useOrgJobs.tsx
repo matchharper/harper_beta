@@ -91,10 +91,9 @@ export function useOrgJobsRoleActions() {
 }
 
 function OrgJobsRoleActionsProvider({ children }: { children: ReactNode }) {
-  const { permissions, roles, workspace } = useOrgWorkspace();
+  const { permissions, workspace } = useOrgWorkspace();
   const value = useOrgRoleActions({
     canManageCandidates: permissions.canManageCandidates,
-    roles,
     workspaceId: workspace.workspaceId,
   });
   return (
@@ -112,7 +111,6 @@ function OrgJobsRouteProvider({
   routePage: Extract<OrgWorkspacePageId, "all" | "inbox" | "jobs">;
 }) {
   const { roles } = useOrgWorkspace();
-  const roleActions = useOrgJobsRoleActions();
   const route = useOrgJobsRoute({ page: routePage });
   const {
     activeRoleId,
@@ -138,18 +136,12 @@ function OrgJobsRouteProvider({
     () => ({
       activeRole,
       activeRoleId,
-      changeRole: (roleId) => {
-        roleActions.closeRoleEditor();
-        changeRole(roleId);
-      },
+      changeRole,
       closeTalentDetail,
       detailRecommendationId,
       detailRoleId,
       detailTalentId,
-      selectTalent: (item) => {
-        roleActions.closeRoleEditor();
-        selectTalent(item);
-      },
+      selectTalent,
       selectedRoleId,
       workspaceId,
     }),
@@ -161,7 +153,6 @@ function OrgJobsRouteProvider({
       detailRecommendationId,
       detailRoleId,
       detailTalentId,
-      roleActions,
       selectTalent,
       selectedRoleId,
       workspaceId,

@@ -41,14 +41,22 @@ LLM은 매 turn마다 모든 role의 간단한 목록을 보고 사용자의 문
 
 ## Model
 
-- 기본: `grok-4.3`
-- fallback: `claude-sonnet-5`
-- 브라우저에서 허용된 사용자만 model selector로 둘 중 하나를 지정할 수 있다.
-- 기본 model 호출이 실패하면 공통 LLM wrapper가 다른 model로 fallback할 수 있다.
-- temperature는 `0.1`, 한 completion의 `max_tokens`는 `2,000`이다.
+- 웹 기본: `grok-4.3`
+- Slack 기본: `gpt-5.6-luna`. 유효한 `SLACK_ORG_AGENT_MODEL` 환경 변수로 바꿀 수
+  있다.
+- 허용 model: `claude-sonnet-5`, `grok-4.3`, `gpt-5.6-luna`
+- Grok의 fallback은 Claude이고, Claude/Luna의 fallback은 Grok이다.
+- 한 completion의 output limit은 2,000 tokens다. `gpt-5.6-*`에는
+  `max_completion_tokens`, 나머지에는 `max_tokens`를 사용한다.
+- 코드가 `temperature=0.1`을 요청하지만 sampling parameter를 지원하지 않는
+  model에서는 공통 wrapper가 제거한다. `gpt-5.6-*`에는 기본
+  `reasoning_effort=low`도 추가한다.
 
 정확한 값은 `src/lib/org/agent/modelConfig.ts`와
 `src/lib/org/agent/chat.ts`의 `runCompletion()`을 본다.
+
+각 provider에 최종 전달되는 request와 tool 재호출 예시는
+`src/lib/org/agent/LLM_CALL_TRACE_KO.md`를 본다.
 
 ## 한 turn의 호출 흐름
 

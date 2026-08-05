@@ -1,6 +1,4 @@
 import { createHash } from "crypto";
-import { renderEmailBodyHtml } from "@/lib/email/bodyFormat";
-import { getDefaultResendFromEmail, sendResendEmail } from "@/lib/email/send";
 import { CLAUDE_MODEL } from "@/lib/llm/modelConfig";
 import { sendHarperWorkspaceSlackMessage } from "@/lib/org/slackHarper";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
@@ -85,17 +83,6 @@ type TalentRow = {
   user_id: string;
 };
 
-type MemberRow = {
-  company_user_id: string;
-  company_workspace_id: string;
-};
-
-type CompanyUserRow = {
-  email: string | null;
-  name: string | null;
-  user_id: string;
-};
-
 type AutoIntroCandidate = {
   companyName: string;
   fitId: string | null;
@@ -112,6 +99,8 @@ type AutoIntroCandidate = {
 type WorkspaceNotificationGroup = {
   candidates: AutoIntroCandidate[];
   companyName: string;
+  roleId: string;
+  roleTitle: string;
   workspaceId: string;
 };
 
@@ -119,13 +108,9 @@ type GeneratedWorkspaceMessage = {
   body: string;
   model: string;
   raw: string | null;
-  subject: string;
 };
 
 type DeliveryOutcome = {
-  emailErrors: Array<{ email: string; error: string }>;
-  emailRecipients: string[];
-  emailsSent: number;
   slackConnected: boolean;
   slackError: string | null;
   slackSent: boolean;
@@ -137,14 +122,12 @@ export type AutoIntroToCompanyRunResult = {
   groups: Array<{
     candidateCount: number;
     companyName: string;
-    emailRecipients: string[];
     message?: GeneratedWorkspaceMessage;
     slackConnected: boolean;
     workspaceId: string;
   }>;
   processedCandidateCount: number;
   skippedNoChannelCount: number;
-  sentEmailCount: number;
   sentSlackCount: number;
 };
 
@@ -158,10 +141,6 @@ function normalizeMultiline(value: unknown) {
   return String(value ?? "")
     .replace(/\r/g, "")
     .trim();
-}
-
-function isValidEmailAddress(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 function uniqueTexts(values: string[]) {
@@ -287,27 +266,6 @@ function progressIdForCandidate(candidate: AutoIntroCandidate) {
     candidate.roleId,
     candidate.talentId,
   ]);
-}
-
-function deliveryIdempotencyKey(args: {
-  email: string;
-  group: WorkspaceNotificationGroup;
-}) {
-  const digest = createHash("sha256")
-    .update(
-      JSON.stringify({
-        candidateIds: args.group.candidates.map((candidate) => [
-          candidate.roleId,
-          candidate.talentId,
-          candidate.recommendationId,
-        ]),
-        email: args.email,
-        kind: INTRO_TO_COMPANY_KIND,
-        workspaceId: args.group.workspaceId,
-      })
-    )
-    .digest("hex");
-  return `auto-intro-to-company/${digest}`;
 }
 
 function parsePositiveInt(value: string | null | undefined, fallback: number) {
@@ -636,59 +594,29 @@ async function buildEligibleCandidates(
     .slice(0, filters.limit);
 }
 
-function groupCandidatesByWorkspace(candidates: AutoIntroCandidate[]) {
+function groupCandidatesByRole(candidates: AutoIntroCandidate[]) {
   const groups = new Map<string, WorkspaceNotificationGroup>();
   for (const candidate of candidates) {
+    const groupKey = `${candidate.workspaceId}:${candidate.roleId}`;
     const current =
-      groups.get(candidate.workspaceId) ??
+      groups.get(groupKey) ??
       ({
         candidates: [],
         companyName: candidate.companyName,
+        roleId: candidate.roleId,
+        roleTitle: candidate.roleTitle,
         workspaceId: candidate.workspaceId,
       } satisfies WorkspaceNotificationGroup);
     current.candidates.push(candidate);
-    groups.set(candidate.workspaceId, current);
+    groups.set(groupKey, current);
   }
   return Array.from(groups.values());
 }
 
-async function fetchWorkspaceMemberEmails(
+async function hasRoleSlackDeliveryChannel(
   admin: AdminClient,
-  workspaceId: string
-) {
-  const { data: membershipRows, error: membershipError } = await (
-    admin.from("company_user_workspace" as any) as any
-  )
-    .select("company_user_id, company_workspace_id")
-    .eq("company_workspace_id", workspaceId);
-
-  if (membershipError) throw membershipError;
-  const memberIds = uniqueTexts(
-    ((membershipRows ?? []) as MemberRow[]).map((row) =>
-      normalizeText(row.company_user_id)
-    )
-  );
-  if (memberIds.length === 0) return [];
-
-  const users: CompanyUserRow[] = [];
-  for (const memberIdChunk of chunkValues(memberIds)) {
-    const { data, error } = await (admin.from("company_users" as any) as any)
-      .select("user_id, email, name")
-      .in("user_id", memberIdChunk);
-    if (error) throw error;
-    users.push(...((data ?? []) as CompanyUserRow[]));
-  }
-
-  return uniqueTexts(
-    users
-      .map((user) => normalizeText(user.email).toLowerCase())
-      .filter(isValidEmailAddress)
-  );
-}
-
-async function hasWorkspaceSlackIntegration(
-  admin: AdminClient,
-  workspaceId: string
+  workspaceId: string,
+  roleId: string
 ) {
   const { data, error } = await (
     admin.from("company_slack_integrations" as any) as any
@@ -699,11 +627,29 @@ async function hasWorkspaceSlackIntegration(
     .limit(1)
     .maybeSingle();
   if (error) throw error;
-  return Boolean(data);
-}
+  if (!data) return false;
 
-function defaultSubject(companyName: string) {
-  return `[Harper] ${companyName} 추천 후보 제안드립니다`.slice(0, 180);
+  const { data: channelRows, error: channelError } = await (
+    admin.from("company_slack_channels" as any) as any
+  )
+    .select("id")
+    .eq("company_workspace_id", workspaceId)
+    .eq("is_enabled", true);
+  if (channelError) throw channelError;
+  if (!channelRows?.length) return false;
+
+  const { data: optOutRows, error: optOutError } = await (
+    admin.from("company_role_notification_channels" as any) as any
+  )
+    .select("channel_id")
+    .eq("role_id", roleId);
+  if (optOutError) throw optOutError;
+  const disabledChannelIds = new Set(
+    (optOutRows ?? []).map((row: { channel_id: string }) => row.channel_id)
+  );
+  return channelRows.some(
+    (channel: { id: string }) => !disabledChannelIds.has(channel.id)
+  );
 }
 
 function buildFallbackBody(group: WorkspaceNotificationGroup) {
@@ -734,8 +680,7 @@ function buildPrompt(group: WorkspaceNotificationGroup) {
     "아래 입력만 사용해 회사 담당자에게 보낼 Harper 추천 메시지를 작성해 주세요.",
     "",
     "출력 규칙:",
-    '- JSON만 반환하세요. 형식: {"subject":"...","body":"..."}',
-    '- subject는 반드시 "[Harper]"로 시작해야 합니다.',
+    '- JSON만 반환하세요. 형식: {"body":"..."}',
     "- body는 한국어만 사용하세요.",
     "- 첫 문장은 짧게 Harper가 추천 후보를 공유한다는 맥락을 말하세요.",
     "- 후보자마다 하이픈(-) bullet을 하나씩 쓰고, 각 bullet은 2문장 정도로 작성하세요.",
@@ -777,15 +722,6 @@ function parseGeneratedMessage(
     }
   }
 
-  const fallbackSubject = defaultSubject(group.companyName);
-  const rawSubject = normalizeText(parsed?.subject);
-  const subject = (
-    rawSubject.startsWith("[Harper]")
-      ? rawSubject
-      : rawSubject
-        ? `[Harper] ${rawSubject.replace(/^\[?Harper\]?\s*/i, "")}`
-        : fallbackSubject
-  ).slice(0, 180);
   const body =
     normalizeMultiline(parsed?.body) ||
     (parsed ? "" : cleaned) ||
@@ -795,7 +731,6 @@ function parseGeneratedMessage(
     body,
     model: CLAUDE_MODEL,
     raw,
-    subject,
   };
 }
 
@@ -853,7 +788,6 @@ async function claimCandidateProgressRows(args: {
       recommendationId: candidate.recommendationId,
       roleTitle: candidate.roleTitle,
       source: "auto_intro_to_company_cron",
-      subject: args.message.subject,
       workspaceId: candidate.workspaceId,
     } satisfies Record<string, unknown>;
 
@@ -887,21 +821,13 @@ async function updateCandidateProgressMetadata(args: {
   message: GeneratedWorkspaceMessage;
 }) {
   const now = new Date().toISOString();
-  const deliveryStatus =
-    args.delivery.emailsSent > 0 || args.delivery.slackSent
-      ? args.delivery.emailErrors.length > 0 || args.delivery.slackError
-        ? "partial"
-        : "sent"
-      : "failed";
+  const deliveryStatus = args.delivery.slackSent ? "sent" : "failed";
 
   for (const candidate of args.group.candidates) {
     const metadata = {
       autoIntroToCompany: true,
       deliveredAt: now,
       deliveryStatus,
-      emailErrors: args.delivery.emailErrors,
-      emailRecipients: args.delivery.emailRecipients,
-      emailsSent: args.delivery.emailsSent,
       fitId: candidate.fitId,
       model: args.message.model,
       recommendationId: candidate.recommendationId,
@@ -910,7 +836,6 @@ async function updateCandidateProgressMetadata(args: {
       slackError: args.delivery.slackError,
       slackSent: args.delivery.slackSent,
       source: "auto_intro_to_company_cron",
-      subject: args.message.subject,
       workspaceId: candidate.workspaceId,
     } satisfies Record<string, unknown>;
 
@@ -921,45 +846,21 @@ async function updateCandidateProgressMetadata(args: {
   }
 }
 
-function assertEmailDeliveryConfigured() {
-  const resendApiKey = process.env.RESEND_API_KEY?.trim();
-  if (!resendApiKey) throw new Error("RESEND_API_KEY is required");
-  getDefaultResendFromEmail();
-}
-
 function formatError(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
 async function sendWorkspaceMessage(args: {
-  emailRecipients: string[];
   group: WorkspaceNotificationGroup;
   message: GeneratedWorkspaceMessage;
   slackConnected: boolean;
 }): Promise<DeliveryOutcome> {
-  const emailErrors: Array<{ email: string; error: string }> = [];
-  let emailsSent = 0;
-
-  for (const email of args.emailRecipients) {
-    try {
-      await sendResendEmail({
-        html: renderEmailBodyHtml(args.message.body),
-        idempotencyKey: deliveryIdempotencyKey({ email, group: args.group }),
-        subject: args.message.subject,
-        text: args.message.body,
-        to: email,
-      });
-      emailsSent += 1;
-    } catch (error) {
-      emailErrors.push({ email, error: formatError(error).slice(0, 500) });
-    }
-  }
-
   let slackSent = false;
   let slackError: string | null = null;
   if (args.slackConnected) {
     try {
       slackSent = await sendHarperWorkspaceSlackMessage({
+        roleId: args.group.roleId,
         text: args.message.body,
         workspaceId: args.group.workspaceId,
       });
@@ -969,9 +870,6 @@ async function sendWorkspaceMessage(args: {
   }
 
   return {
-    emailErrors,
-    emailRecipients: args.emailRecipients,
-    emailsSent,
     slackConnected: args.slackConnected,
     slackError,
     slackSent,
@@ -993,32 +891,28 @@ export async function runAutoIntroToCompanyNotifications(args?: {
   } satisfies AutoIntroRunFilters;
 
   const eligibleCandidates = await buildEligibleCandidates(admin, filters);
-  const groups = groupCandidatesByWorkspace(eligibleCandidates);
+  const groups = groupCandidatesByRole(eligibleCandidates);
   const result: AutoIntroToCompanyRunResult = {
     dryRun,
     eligibleCandidateCount: eligibleCandidates.length,
     groups: [],
     processedCandidateCount: 0,
     skippedNoChannelCount: 0,
-    sentEmailCount: 0,
     sentSlackCount: 0,
   };
 
   for (const group of groups) {
-    const [emailRecipients, slackConnected] = await Promise.all([
-      fetchWorkspaceMemberEmails(admin, group.workspaceId),
-      hasWorkspaceSlackIntegration(admin, group.workspaceId),
-    ]);
-    if (emailRecipients.length > 0 && !dryRun) {
-      assertEmailDeliveryConfigured();
-    }
+    const slackConnected = await hasRoleSlackDeliveryChannel(
+      admin,
+      group.workspaceId,
+      group.roleId
+    );
 
-    if (emailRecipients.length === 0 && !slackConnected) {
+    if (!slackConnected) {
       result.skippedNoChannelCount += group.candidates.length;
       result.groups.push({
         candidateCount: group.candidates.length,
         companyName: group.companyName,
-        emailRecipients,
         slackConnected,
         workspaceId: group.workspaceId,
       });
@@ -1030,7 +924,6 @@ export async function runAutoIntroToCompanyNotifications(args?: {
           body: buildFallbackBody(group),
           model: "dry-run",
           raw: null,
-          subject: defaultSubject(group.companyName),
         } satisfies GeneratedWorkspaceMessage)
       : await generateWorkspaceMessage(group);
 
@@ -1038,7 +931,6 @@ export async function runAutoIntroToCompanyNotifications(args?: {
       result.groups.push({
         candidateCount: group.candidates.length,
         companyName: group.companyName,
-        emailRecipients,
         message,
         slackConnected,
         workspaceId: group.workspaceId,
@@ -1062,7 +954,6 @@ export async function runAutoIntroToCompanyNotifications(args?: {
         ? message
         : await generateWorkspaceMessage(claimedGroup);
     const delivery = await sendWorkspaceMessage({
-      emailRecipients,
       group: claimedGroup,
       message: deliveryMessage,
       slackConnected,
@@ -1077,13 +968,11 @@ export async function runAutoIntroToCompanyNotifications(args?: {
     result.groups.push({
       candidateCount: claimedCandidates.length,
       companyName: group.companyName,
-      emailRecipients,
       message: deliveryMessage,
       slackConnected,
       workspaceId: group.workspaceId,
     });
     result.processedCandidateCount += claimedCandidates.length;
-    result.sentEmailCount += delivery.emailsSent;
     result.sentSlackCount += delivery.slackSent ? 1 : 0;
   }
 
