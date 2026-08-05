@@ -32,7 +32,6 @@ import Face from "@/components/common/Face";
 import ResumeDropzone, {
   type ResumeFileSelectSource,
 } from "@/components/career/ResumeDropzone";
-import ProfileSourceApplyConfirmModal from "@/components/career/profile/ProfileSourceApplyConfirmModal";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import {
@@ -1367,10 +1366,6 @@ const CareerNetworkOnboardingContent = () => {
   const [submitState, setSubmitState] = useState<"form" | "loading" | "done">(
     "form"
   );
-  const [pendingSourceApplyPayload, setPendingSourceApplyPayload] =
-    useState<OnboardingStartPayload | null>(null);
-  const [sourceApplyConfirmOpen, setSourceApplyConfirmOpen] = useState(false);
-  const [sourceApplyPending, setSourceApplyPending] = useState(false);
   const defaultDoneUserMessage = useMemo(
     () => getDefaultDoneUserMessage(t),
     [t]
@@ -1877,8 +1872,6 @@ const CareerNetworkOnboardingContent = () => {
           defaultDoneUserMessage
       );
       setDoneKickoffText(getOnboardingKickoffText(payload, t));
-      setPendingSourceApplyPayload(null);
-      setSourceApplyConfirmOpen(false);
       setSubmitState("done");
     },
     [defaultDoneUserMessage, queryClient, sessionQueryKey, t, userId]
@@ -1979,7 +1972,7 @@ const CareerNetworkOnboardingContent = () => {
         method: "POST",
         body: JSON.stringify({
           conversationId,
-          applyProfileSources: false,
+          applyProfileSources: true,
           links,
           locale,
           name: name.trim(),
@@ -2006,8 +1999,7 @@ const CareerNetworkOnboardingContent = () => {
         );
       }
 
-      setPendingSourceApplyPayload(payload);
-      setSourceApplyConfirmOpen(true);
+      completeOnboardingSubmission(payload);
     } catch (error) {
       showToast({
         message:
@@ -2024,6 +2016,7 @@ const CareerNetworkOnboardingContent = () => {
     }
   }, [
     conversationId,
+    completeOnboardingSubmission,
     fetchWithAuth,
     links,
     locale,
@@ -2038,58 +2031,6 @@ const CareerNetworkOnboardingContent = () => {
     officialJobTitle,
     t,
     uploadResumeFile,
-  ]);
-
-  const handleSkipSourceApply = useCallback(() => {
-    if (sourceApplyPending || !pendingSourceApplyPayload) return;
-    completeOnboardingSubmission(pendingSourceApplyPayload);
-  }, [
-    completeOnboardingSubmission,
-    pendingSourceApplyPayload,
-    sourceApplyPending,
-  ]);
-
-  const handleConfirmSourceApply = useCallback(async () => {
-    if (sourceApplyPending || !pendingSourceApplyPayload) return;
-
-    setSourceApplyPending(true);
-    try {
-      const response = await fetchWithAuth("/api/talent/profile/update", {
-        method: "POST",
-        body: JSON.stringify({
-          forceProfileIngestion: true,
-          links,
-          locale,
-        }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || payload?.profileIngestion?.ok === false) {
-        throw new Error(
-          payload?.profileIngestion?.error ||
-            getErrorMessage(payload, "프로필에 새 정보를 반영하지 못했습니다.")
-        );
-      }
-
-      completeOnboardingSubmission(pendingSourceApplyPayload);
-    } catch (error) {
-      showToast({
-        message:
-          error instanceof Error
-            ? error.message
-            : "프로필에 새 정보를 반영하지 못했습니다.",
-        variant: "error",
-        duration: 5000,
-      });
-    } finally {
-      setSourceApplyPending(false);
-    }
-  }, [
-    completeOnboardingSubmission,
-    fetchWithAuth,
-    links,
-    locale,
-    pendingSourceApplyPayload,
-    sourceApplyPending,
   ]);
 
   const { step, handleNext, handlePrev } = useOnboarding({
@@ -2480,12 +2421,6 @@ const CareerNetworkOnboardingContent = () => {
           </OnboardingFrame>
         )}
       </main>
-      <ProfileSourceApplyConfirmModal
-        mode={sourceApplyConfirmOpen ? "saved_sources" : null}
-        pending={sourceApplyPending}
-        onCancel={handleSkipSourceApply}
-        onConfirm={handleConfirmSourceApply}
-      />
     </>
   );
 };
