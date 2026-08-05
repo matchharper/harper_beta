@@ -13,6 +13,7 @@ const updateTalentProfileTool = {
       properties: {
         talentUser: { type: "object" },
         rowMemos: { type: "array" },
+        profileLinks: { type: "array" },
         talentInsights: {
           type: "object",
           properties: {
@@ -34,6 +35,7 @@ test("omits talentInsights from update_talent_profile during onboarding", () => 
 
   assert.ok("talentUser" in properties);
   assert.ok("rowMemos" in properties);
+  assert.ok("profileLinks" in properties);
   assert.equal("talentInsights" in properties, false);
   assert.doesNotMatch(
     scopedTool.function.description,

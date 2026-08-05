@@ -70,6 +70,7 @@ function shouldIncludeToolPolicyDuringOnboarding(toolNames: string[]) {
 export function buildCareerConversationPromptPlan(args: {
   activeInternalFitHoldQuestion?: ActiveInternalFitHoldQuestion | null;
   channel: CareerPromptChannel;
+  companyTalentRequestText?: string | null;
   conversationMode?: CareerConversationPromptMode;
   currentInsightContent: Record<string, string> | null;
   currentPreferences?: CareerPromptPreferences | null;
@@ -327,6 +328,7 @@ export function buildCareerConversationPromptPlan(args: {
     // 항상 포함: 현재 채널, 현재 시각, 활성 runtime instruction.
     `## Runtime context\n현재 후보자와 ${channelType}을 통해 소통하고 있습니다.\n현재 시각: ${new Date().toLocaleString()}`,
     runtimeOneTimeInstruction,
+    args.companyTalentRequestText?.trim() ?? "",
     officialJobSignupIntentPrompt,
     onboardingRuntimeStateSection,
     existingPreferencesSection,

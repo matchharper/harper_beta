@@ -33,7 +33,7 @@ export function scopeCareerChatToolForOnboarding<
     function: {
       ...tool.function,
       description:
-        "Update saved profile state from the latest user statement: profile summary, current base, or row memos. Skip questions, hypotheticals, assistant statements, and already-saved information.",
+        "Update saved profile state from the latest user statement: profile summary, current base, personal profile/material links, or row memos. Skip questions, hypotheticals, assistant statements, and already-saved information.",
       parameters: {
         ...parameters,
         properties: onboardingProperties,

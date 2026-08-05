@@ -158,7 +158,7 @@ export function AcceptIntroDialog({
             “{candidateName}” 후보자와의 연결 방식을 선택해 주세요.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="mt-0 space-y-5">
+        <form onSubmit={handleSubmit} className="mt-0 space-y-4">
           <div
             aria-label="연결 방식"
             className="relative grid h-10 grid-cols-2 rounded-full bg-neutral-1000-a05 p-1"
@@ -247,62 +247,62 @@ export function AcceptIntroDialog({
 
                 <div className="-mt-[3px] ml-[77px] mr-3 border border-[#c6c6c6] bg-white py-[14px] pl-[46px] pr-4 shadow-[0_2px_6px_rgba(0,0,0,0.28)]">
                   <div className="grid grid-cols-[30px_minmax(0,1fr)] gap-x-[13px] gap-y-0.5 text-[13px] leading-[18px]">
-                      <div className="text-right text-[#5f6368]">from:</div>
-                      <div className="min-w-0 text-[#202124]">
-                        <span className="font-bold">Harper</span>{" "}
-                        <span className="text-[#5f6368]">
-                          &lt;hello@matchharper.com&gt;
+                    <div className="text-right text-[#5f6368]">from:</div>
+                    <div className="min-w-0 text-[#202124]">
+                      <span className="font-bold">Harper</span>{" "}
+                      <span className="text-[#5f6368]">
+                        &lt;hello@matchharper.com&gt;
+                      </span>
+                    </div>
+
+                    <div className="text-right text-[#5f6368]">to:</div>
+                    <div className="min-w-0 break-words text-[#202124]">
+                      {normalizedCandidateEmail ? (
+                        <>
+                          <span className="font-normal">{candidateName}</span>{" "}
+                          <span>&lt;{normalizedCandidateEmail}&gt;</span>
+                        </>
+                      ) : (
+                        <span className="text-critical">
+                          후보자 이메일 없음
                         </span>
-                      </div>
+                      )}
+                    </div>
 
-                      <div className="text-right text-[#5f6368]">to:</div>
-                      <div className="min-w-0 break-words text-[#202124]">
-                        {normalizedCandidateEmail ? (
-                          <>
-                            <span className="font-normal">{candidateName}</span>{" "}
-                            <span>&lt;{normalizedCandidateEmail}&gt;</span>
-                          </>
-                        ) : (
-                          <span className="text-critical">
-                            후보자 이메일 없음
-                          </span>
-                        )}
-                      </div>
+                    <div className="text-right text-[#5f6368]">cc:</div>
+                    <div className="min-w-0 break-words text-[#202124]">
+                      {introEmails.length > 0 ? (
+                        introEmails.map((email, index) => {
+                          const memberName = memberNameByEmail.get(email);
+                          return (
+                            <span key={email}>
+                              {index > 0 ? ", " : null}
+                              {memberName ? (
+                                <>
+                                  <span>{memberName}</span>{" "}
+                                </>
+                              ) : null}
+                              <span>&lt;{email}&gt;</span>
+                            </span>
+                          );
+                        })
+                      ) : (
+                        <span className="text-critical">
+                          담당자를 1명 이상 선택해 주세요.
+                        </span>
+                      )}
+                    </div>
 
-                      <div className="text-right text-[#5f6368]">cc:</div>
-                      <div className="min-w-0 break-words text-[#202124]">
-                        {introEmails.length > 0 ? (
-                          introEmails.map((email, index) => {
-                            const memberName = memberNameByEmail.get(email);
-                            return (
-                              <span key={email}>
-                                {index > 0 ? ", " : null}
-                                {memberName ? (
-                                  <>
-                                    <span>{memberName}</span>{" "}
-                                  </>
-                                ) : null}
-                                <span>&lt;{email}&gt;</span>
-                              </span>
-                            );
-                          })
-                        ) : (
-                          <span className="text-critical">
-                            담당자를 1명 이상 선택해 주세요.
-                          </span>
-                        )}
-                      </div>
+                    <div className="text-right text-[#5f6368]">date:</div>
+                    <div className="text-[#202124]">수락 시 즉시 발송</div>
 
-                      <div className="text-right text-[#5f6368]">date:</div>
-                      <div className="text-[#202124]">수락 시 즉시 발송</div>
-
-                      <div className="text-right text-[#5f6368]">subject:</div>
-                      <div
-                        className="min-w-0 truncate whitespace-nowrap text-[#202124]"
-                        title={introSubject}
-                      >
-                        {introSubject}
-                      </div>
+                    <div className="text-right text-[#5f6368]">subject:</div>
+                    <div
+                      className="min-w-0 truncate whitespace-nowrap text-[#202124]"
+                      title={introSubject}
+                    >
+                      {introSubject}
+                    </div>
                   </div>
                 </div>
               </section>
@@ -368,7 +368,7 @@ export function AcceptIntroDialog({
             />
             <p className="mt-1 text-[12px] leading-5 text-neutral-soft">
               필수는 아니지만 이유를 적어주신다면 다음 추천에 반영할 수
-              있습니다.
+              있습니다. 후보자측에 공유되지 않습니다.
             </p>
           </label>
           {error ? (

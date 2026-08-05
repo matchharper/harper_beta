@@ -108,7 +108,7 @@ export type CareerChatPanelContextValue = {
       promptImmediately?: boolean;
       savedStage?: CareerOpportunitySavedStage | null;
     }
-  ) => void | Promise<void>;
+  ) => boolean | void | Promise<boolean | void>;
   onLoadOlderMessages: () => void | Promise<void>;
   onRegenerateOnboardingWrapup?: () => void | Promise<void>;
   forceCompletePending?: boolean;

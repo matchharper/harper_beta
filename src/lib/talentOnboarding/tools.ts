@@ -65,6 +65,8 @@ import { formatCareerPromptCompactDateTime } from "@/lib/career/prompts/promptUt
 import { searchInternalRolesForCareerTool } from "@/lib/career/internalRoleSearch";
 import { IncomingWebhook } from "@slack/webhook";
 import { notifyInternalOpportunityDecisionSlack } from "@/lib/internalOpportunityDecisionSlack";
+import { recordCompanyTalentResponse } from "@/lib/companyTalentRequests/server";
+import { buildProfileLinkReplyInstruction } from "@/lib/talentOnboarding/profileLinkReplyInstruction";
 
 export type TalentToolChannel = "chat" | "voice";
 
@@ -147,6 +149,7 @@ export const TALENT_TOOL_NAMES = {
   UPDATE_TALENT_PROFILE: "update_talent_profile",
   RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION:
     "record_internal_fit_reevaluation_information",
+  RECORD_COMPANY_REQUEST_RESPONSE: "record_company_request_response",
 } as const;
 
 export type TalentToolName =
@@ -168,6 +171,7 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.UPDATE_SETTING,
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
   TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION,
+  TALENT_TOOL_NAMES.RECORD_COMPANY_REQUEST_RESPONSE,
 ] as const;
 
 // Edit this value to change the common final-reply guidance added to every
@@ -211,6 +215,13 @@ export function withTalentToolAssistantInstruction(
   result: unknown
 ): Record<string, unknown> {
   if (isTalentToolResultRecord(result)) {
+    if (result.skipCommonAssistantInstruction === true) {
+      const { skipCommonAssistantInstruction: _skip, ...rest } = result;
+      return {
+        ...rest,
+        assistantInstruction: optionalToolString(result.assistantInstruction),
+      };
+    }
     return {
       ...result,
       assistantInstruction: buildCommonTalentToolAssistantInstruction(
@@ -242,6 +253,20 @@ const normalizeToolLocation = (value: unknown) => {
   if (typeof value !== "string") return undefined;
   const text = value.replace(/\s+/g, " ").trim();
   return text ? text.slice(0, 240) : null;
+};
+
+const normalizeToolProfileLink = (value: unknown) => {
+  const text = optionalToolString(value);
+  if (!text || text.length > 2000) return null;
+  try {
+    const url = new URL(text);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    if (url.username || url.password) return null;
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return null;
+  }
 };
 
 function getTalentToolResponseLanguage(
@@ -1736,6 +1761,50 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       });
     },
   },
+  [TALENT_TOOL_NAMES.RECORD_COMPANY_REQUEST_RESPONSE]: {
+    name: TALENT_TOOL_NAMES.RECORD_COMPANY_REQUEST_RESPONSE,
+    description:
+      "Record the user's latest message as the response to the active company request. Use only when the message substantively answers or explicitly declines the request. For a resume request, use this only for decline or unavailability; a real upload is recorded by the upload service. For compensation, do not call until the user explicitly provides an amount, range, or wording to share, or clearly approves the wording Harper showed them.",
+    parameters: {
+      type: "object",
+      properties: {
+        requestId: {
+          type: "string",
+          description:
+            "Exact requestId from the pending company request block.",
+        },
+      },
+      required: ["requestId"],
+      additionalProperties: false,
+    },
+    channels: ["chat"],
+    async execute(input, context) {
+      const admin = context?.admin;
+      const userId = context?.userId;
+      const sourceMessageId = Number(context?.userMessageId);
+      if (!admin || !userId || !Number.isSafeInteger(sourceMessageId)) {
+        throw new TalentToolError(
+          "record_company_request_response requires exact user message context."
+        );
+      }
+      const requestId = optionalToolString(input.requestId);
+      if (!requestId) {
+        throw new TalentToolError("Invalid company request response.");
+      }
+      await recordCompanyTalentResponse({
+        admin: admin as any,
+        requestId,
+        sourceMessageId,
+        talentId: userId,
+      });
+      return {
+        assistantInstruction:
+          "Confirm gently that Harper received the response and will relay it in polished wording without overstating the user's meaning. Do not repeat private request metadata.",
+        ok: true,
+        skipCommonAssistantInstruction: true,
+      };
+    },
+  },
   [TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK]: {
     name: TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK,
     description:
@@ -1972,7 +2041,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE]: {
     name: TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
     description:
-      "Update saved profile/matching state from the latest user statement: profile summary, current base, row memos, post-onboarding future matching memory, or recommendationBatchSize. Do not use for subscription/contact actions; use update_setting for stop_external, stop_all, or resume. Skip questions, one-off searches, hypotheticals, assistant statements, and already-saved information.",
+      "Update saved profile/matching state from the latest user statement: profile summary, current base, the talent's own profile/material links, row memos, post-onboarding future matching memory, or recommendationBatchSize. Never add company, job-posting, recruiting, or third-party links as the talent's profile links. Do not use for subscription/contact actions; use update_setting for stop_external, stop_all, or resume. Skip questions, one-off searches, hypotheticals, assistant statements, and already-saved information.",
     parameters: {
       type: "object",
       properties: {
@@ -1993,6 +2062,27 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             },
           },
           additionalProperties: false,
+        },
+        profileLinks: {
+          type: "array",
+          maxItems: 10,
+          description:
+            "Add or delete links that belong to this talent and represent their own professional profile or materials, such as their personal LinkedIn, GitHub, Google Scholar, portfolio, blog, publication profile, or personal CV link. Never add a company homepage, job posting, recruiting page, company document, or a page about another person. Add only when ownership is explicit or unambiguous. Delete only the URL the user clearly asked to remove.",
+          items: {
+            type: "object",
+            properties: {
+              action: {
+                type: "string",
+                enum: ["add", "delete"],
+              },
+              url: {
+                type: "string",
+                description: "The exact personal profile/material URL.",
+              },
+            },
+            required: ["action", "url"],
+            additionalProperties: false,
+          },
         },
         rowMemos: {
           type: "array",
@@ -2079,6 +2169,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         !Array.isArray(input.talentUser)
           ? (input.talentUser as Record<string, unknown>)
           : null;
+      const profileLinksInput = Array.isArray(input.profileLinks)
+        ? input.profileLinks
+        : [];
       const rowMemosInput: unknown =
         input.rowMemos && typeof input.rowMemos === "object"
           ? input.rowMemos
@@ -2101,6 +2194,10 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       };
 
       const updatedTalentUserFields: string[] = [];
+      const updatedProfileLinks: { added: string[]; deleted: string[] } = {
+        added: [],
+        deleted: [],
+      };
       const talentUserActivityChanges: TalentActivityChange[] = [];
       const updatedRowMemos: {
         experiences: string[];
@@ -2121,7 +2218,91 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         key?: string;
         reason: string;
       }> = [];
+      const skippedProfileLinks: Array<{
+        action?: string;
+        reason: string;
+        url?: string;
+      }> = [];
       const updatedRecommendationSettings: string[] = [];
+
+      if (profileLinksInput.length > 0) {
+        const { data: currentUser, error: currentUserError } = await admin
+          .from("talent_users")
+          .select("resume_links")
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (currentUserError) {
+          throw new TalentToolError(
+            currentUserError.message ?? "Failed to read profile links."
+          );
+        }
+
+        const nextLinks = Array.isArray(currentUser?.resume_links)
+          ? currentUser.resume_links
+              .map((link: unknown) => optionalToolString(link))
+              .filter((link: string | null): link is string => Boolean(link))
+          : [];
+
+        for (const rawChange of profileLinksInput.slice(0, 10)) {
+          if (!rawChange || typeof rawChange !== "object") continue;
+          const change = rawChange as Record<string, unknown>;
+          const action = optionalToolString(change.action)?.toLowerCase();
+          const rawUrl = optionalToolString(change.url);
+          const url = normalizeToolProfileLink(rawUrl);
+          if ((action !== "add" && action !== "delete") || !url) {
+            skippedProfileLinks.push({
+              ...(action ? { action } : {}),
+              reason: "invalid_action_or_url",
+              ...(rawUrl ? { url: rawUrl } : {}),
+            });
+            continue;
+          }
+
+          const existingIndex = nextLinks.findIndex(
+            (link: string) => normalizeToolProfileLink(link) === url
+          );
+          if (action === "add") {
+            if (existingIndex >= 0) {
+              skippedProfileLinks.push({ action, reason: "unchanged", url });
+            } else if (nextLinks.length >= 20) {
+              skippedProfileLinks.push({
+                action,
+                reason: "profile_link_limit_reached",
+                url,
+              });
+            } else {
+              nextLinks.push(url);
+              updatedProfileLinks.added.push(url);
+            }
+            continue;
+          }
+
+          if (existingIndex < 0) {
+            skippedProfileLinks.push({ action, reason: "not_found", url });
+          } else {
+            const [deleted] = nextLinks.splice(existingIndex, 1);
+            updatedProfileLinks.deleted.push(deleted);
+          }
+        }
+
+        if (
+          updatedProfileLinks.added.length > 0 ||
+          updatedProfileLinks.deleted.length > 0
+        ) {
+          const { error: updateLinksError } = await admin
+            .from("talent_users")
+            .update({
+              resume_links: nextLinks,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("user_id", userId);
+          if (updateLinksError) {
+            throw new TalentToolError(
+              updateLinksError.message ?? "Failed to update profile links."
+            );
+          }
+        }
+      }
 
       // talent_users — direct profile-level updates.
       const hasTalentUserBioUpdate = Boolean(
@@ -2490,6 +2671,22 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         });
       }
 
+      if (
+        updatedProfileLinks.added.length > 0 ||
+        updatedProfileLinks.deleted.length > 0
+      ) {
+        await insertTalentActivityEvent({
+          admin,
+          changedDomains: ["profile", "profile_links"],
+          conversationId: context?.conversationId ?? null,
+          eventType: "profile_links_updated",
+          messageId: context?.userMessageId ?? null,
+          source: "chat",
+          summary: `User added ${updatedProfileLinks.added.length} and deleted ${updatedProfileLinks.deleted.length} personal profile link(s).`,
+          userId,
+        });
+      }
+
       const rowMemoSummary = buildRowMemoActivitySummary(rowMemoActivityItems);
       if (rowMemoSummary) {
         const rowMemoEventType = rowMemoActivityItems.some(
@@ -2555,8 +2752,13 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       }
 
       const responseLanguage = getTalentToolResponseLanguage(context);
+      const profileLinkReplyInstruction = buildProfileLinkReplyInstruction({
+        addedCount: updatedProfileLinks.added.length,
+        deletedCount: updatedProfileLinks.deleted.length,
+      });
       const replyInstructions = [
         `Continue the conversation naturally in ${responseLanguage} now.`,
+        profileLinkReplyInstruction,
         "If saved profile or future-matching memory changed, do not make the saved-memory acknowledgement the whole answer. Explain the user-facing consequence in the context of what the user just asked, then continue naturally.",
         "Use other tools only if independently required by the user's latest explicit request.",
         "If onboarding is still active, ask at most one relevant next question, or close naturally with the required marker when appropriate. Do not return an empty assistant message.",
@@ -2566,10 +2768,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         assistantInstruction: replyInstructions.join(" "),
         ok: true,
         updatedTalentUserFields,
+        updatedProfileLinks,
         updatedRowMemos,
         updatedTalentInsightKeys: talentInsightKeys,
         updatedRecommendationSettings,
         skippedRowMemos,
+        skippedProfileLinks,
         skippedTalentInsights,
       };
 

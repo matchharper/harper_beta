@@ -3,6 +3,7 @@ import {
   requireInternalApiUser,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
+import { getCompanyEventActorLabelFromUser } from "@/lib/org/companyEvents";
 import { updateOpsCompanyWorkspace } from "@/lib/ops/company";
 
 export const runtime = "nodejs";
@@ -22,12 +23,13 @@ type CompanyWorkspaceBody = {
 
 export async function PATCH(req: NextRequest) {
   try {
-    await requireInternalApiUser(req);
+    const user = await requireInternalApiUser(req);
     const body = (await req.json().catch(() => ({}))) as CompanyWorkspaceBody;
     const data = await updateOpsCompanyWorkspace({
       careerUrl: body.careerUrl ?? null,
       companyDescription: body.companyDescription ?? null,
       companyName: String(body.companyName ?? ""),
+      eventActorLabel: getCompanyEventActorLabelFromUser(user),
       homepageUrl: body.homepageUrl ?? null,
       linkedinUrl: body.linkedinUrl ?? null,
       logoUrl: body.logoUrl ?? null,

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, LoaderCircle } from "lucide-react";
+import { ArrowRight, LoaderCircle, SlackIcon } from "lucide-react";
 import {
   type ComponentProps,
   type ReactNode,
@@ -90,6 +90,11 @@ function normalizeRoleDraft(draft: RoleDraft) {
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
+}
+
+function formatChannelName(name: string | null, channelId: string) {
+  const value = name?.trim() || channelId;
+  return value.startsWith("#") ? value : `#${value}`;
 }
 
 function SectionHeading({
@@ -459,7 +464,6 @@ export function OrgRoleOverview() {
   return (
     <div className="space-y-8">
       <OrgSection>
-        <OrgSectionHeader actions={settingsActions} title="Setting" />
         {settingsQuery.error ? (
           <div className="space-y-3">
             <div className="rounded-md border border-critical/20 bg-critical-faded px-3 py-3 text-[13px] text-critical">
@@ -477,8 +481,8 @@ export function OrgRoleOverview() {
             <LoaderCircle className="size-5 animate-spin" />
           </div>
         ) : (
-          <div className="space-y-8">
-            <section className="space-y-3">
+          <div className="flex flex-col gap-8 lg:flex-row lg:flex-wrap lg:items-start lg:gap-x-12 lg:gap-y-4">
+            <section className="min-w-0 space-y-3 lg:w-[34%] lg:shrink-0">
               <SectionHeading
                 description="현재 포지션의 채용 상태를 변경합니다."
                 title="Status"
@@ -504,26 +508,33 @@ export function OrgRoleOverview() {
                 })}
               </div>
             </section>
-            <section className="space-y-3">
+            <section className="min-w-0 flex-1 space-y-2">
               <SectionHeading
                 description="이 포지션의 새로운 연결 소식을 받을 Slack 채널을 선택하세요."
                 title="알림 채널"
               />
               {channels.length > 0 ? (
-                <div className="divide-y divide-neutral-1000-a05 border-y border-neutral-1000-a05">
+                <div className="divide-y divide-neutral-1000-a05 bg-bg-default">
                   {channels.map((channel) => (
                     <div
-                      className="flex items-center gap-3 py-3"
+                      className="flex items-center gap-3 py-3.5"
                       key={channel.channelId}
                     >
-                      <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-bg-weak text-[15px] text-neutral-muted">
-                        #
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-neutral-1000-a05 text-neutral-muted">
+                        <SlackIcon
+                          className="size-4"
+                          color="currentColor"
+                          fill="currentColor"
+                        />
                       </span>
-                      <div className="min-w-0 flex-1 truncate text-[13px] text-neutral-primary">
-                        {channel.channelName || channel.channelId}
+                      <div className="min-w-0 flex-1 truncate text-[14px] font-normal text-neutral-primary">
+                        {formatChannelName(
+                          channel.channelName,
+                          channel.channelId
+                        )}
                       </div>
                       <Switch
-                        aria-label={`${channel.channelName || channel.channelId} 알림`}
+                        aria-label={`${formatChannelName(channel.channelName, channel.channelId)} 알림`}
                         checked={channel.enabled}
                         className="data-[state=checked]:bg-positive"
                         disabled={!canManage || settingsPending}
@@ -549,8 +560,8 @@ export function OrgRoleOverview() {
                   ))}
                 </div>
               ) : (
-                <div className="flex w-full flex-col items-start justify-between gap-3 rounded-md border border-neutral-1000-a05 p-4 text-[14px] leading-5 shadow-xs sm:flex-row sm:items-center">
-                  <div>
+                <div className="flex w-full flex-col items-start justify-between gap-3 border-t border-neutral-1000-a05 py-4 text-[13px] leading-5 text-neutral-muted sm:flex-row sm:items-center">
+                  <div className="max-w-lg">
                     연결된 Slack 채널이 없습니다. Settings에서 먼저 채널을
                     연결해 주세요.
                   </div>
@@ -570,7 +581,7 @@ export function OrgRoleOverview() {
 
             {settingsSaveError ? (
               <div
-                className="rounded-md border border-critical/20 bg-critical-faded px-3 py-3 text-[12px] text-critical"
+                className="w-full rounded-md border border-critical/20 bg-critical-faded px-3 py-3 text-[12px] text-critical"
                 role="alert"
               >
                 {settingsSaveError}

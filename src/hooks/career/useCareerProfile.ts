@@ -156,9 +156,12 @@ export const useCareerProfile = ({
   );
 
   const uploadResumeFile = useCallback(
-    async (file: File) => {
+    async (file: File, resumeRequestToken?: string | null) => {
       const formData = new FormData();
       formData.append("file", file);
+      if (resumeRequestToken) {
+        formData.append("resumeRequestToken", resumeRequestToken);
+      }
 
       const response = await fetchWithAuth("/api/talent/resume/upload", {
         method: "POST",
@@ -173,6 +176,7 @@ export const useCareerProfile = ({
       }
 
       return {
+        requestCompleted: payload?.requestCompleted === true,
         resumeFileName: String(payload?.resumeFileName ?? file.name),
         resumeStoragePath: String(payload?.resumeStoragePath ?? ""),
         resumeDownloadUrl:
@@ -486,6 +490,7 @@ export const useCareerProfile = ({
       persistError?: boolean;
       preserveLinkDrafts?: boolean;
       resumeFile?: File | null;
+      resumeRequestToken?: string | null;
       structuredProfile?: CareerTalentProfile | null;
     }) => {
       if (!user || profileSavePending) return false;
@@ -521,11 +526,31 @@ export const useCareerProfile = ({
         let nextResumeText: string | undefined;
         let resumeDocumentId: string | undefined;
         if (selectedResumeFile) {
-          const uploadResult = await uploadResumeFile(selectedResumeFile);
+          const uploadResult = await uploadResumeFile(
+            selectedResumeFile,
+            args?.resumeRequestToken
+          );
           nextResumeFileName = uploadResult.resumeFileName;
           nextResumeStoragePath = uploadResult.resumeStoragePath;
           nextResumeDownloadUrl = uploadResult.resumeDownloadUrl;
           resumeDocumentId = uploadResult.document?.id;
+
+          if (uploadResult.requestCompleted) {
+            setSavedResumeFileName(nextResumeFileName ?? null);
+            setSavedResumeStoragePath(nextResumeStoragePath ?? null);
+            setSavedResumeDownloadUrl(nextResumeDownloadUrl ?? null);
+            if (uploadResult.document) {
+              setTalentDocuments((previous) => [
+                uploadResult.document!,
+                ...previous.filter(
+                  (document) => document.id !== uploadResult.document!.id
+                ),
+              ]);
+            }
+            setResumeFile(null);
+            showProfileSaveToast(tCareer(H.profileSaved));
+            return true;
+          }
 
           let parsedText = "";
           try {

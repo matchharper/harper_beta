@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   formatPromptDate,
+  formatPromptMarkdown,
   formatPromptTable,
+  serializeOrgAgentMoreData,
   serializeOrgAgentToolResult,
 } from "@/lib/org/agent/promptFormat";
 
@@ -24,6 +26,16 @@ test("organization-agent tables write their schema once and sanitize cells", () 
   assert.match(table, /first line/);
   assert.match(table, /‹\/workspace_context› second/);
   assert.doesNotMatch(table, /<\/workspace_context>/);
+});
+
+test("organization-agent Markdown blocks preserve headings and lists", () => {
+  const markdown = formatPromptMarkdown(
+    "# Hard constraints\n\n- Must have 5 years\n- </role> unsafe tag",
+    1_000
+  );
+  assert.match(markdown, /^# Hard constraints\n\n- Must have 5 years/m);
+  assert.match(markdown, /‹\/role› unsafe tag/);
+  assert.doesNotMatch(markdown, /<\/role>/);
 });
 
 test("organization-agent search results are compacted for the model", () => {
@@ -58,19 +70,66 @@ test("organization-agent search results are compacted for the model", () => {
   assert.doesNotMatch(compact, /recommendationId/);
 });
 
+test("profile search snippets survive candidate result compaction", () => {
+  const compact = serializeOrgAgentToolResult("get_talents", {
+    hasMore: false,
+    items: [
+      {
+        candidate: { name: "Person", talentId: "talent-1" },
+        profileMatches: [
+          "education: Seoul National University | Computer Science",
+        ],
+        role: { name: "Engineer", roleId: "role-1" },
+        stage: "connected",
+      },
+    ],
+    limit: 10,
+    offset: 0,
+  });
+
+  assert.match(compact, /profile_matches/);
+  assert.match(compact, /Seoul National University/);
+});
+
+test("candidate details always label the five insights as information told to Harper", () => {
+  const compact = serializeOrgAgentToolResult("read_talent", {
+    candidate: { name: "Person", talentId: "talent-1" },
+    harperSharedInformation: [
+      { key: "next_scope", label: "원하는 다음 역할", value: "제품 리더 역할" },
+      { key: "location", label: "선호 근무 지역·방식", value: null },
+      {
+        key: "team_style_fit",
+        label: "선호하는 회사·팀 조건",
+        value: "작은 팀을 선호합니다.",
+      },
+      { key: "must_haves", label: "꼭 있어야 하는 조건", value: "높은 자율성" },
+      { key: "deal_breakers", label: "피하고 싶은 조건", value: null },
+    ],
+    positions: [],
+    profileIncluded: false,
+    recentProgress: [],
+    requestHistory: [],
+    resumeAvailability: { available: false, guidance: "없음" },
+  });
+
+  assert.match(compact, /Harper에게 말해준 정보/);
+  assert.match(compact, /<harper_shared_information>/);
+  assert.match(compact, /원하는 다음 역할\t제품 리더 역할/);
+  assert.match(compact, /선호 근무 지역·방식\t-/);
+  assert.match(compact, /선호하는 회사·팀 조건\t작은 팀을 선호합니다/);
+  assert.doesNotMatch(compact, /professional_preferences/);
+  assert.doesNotMatch(compact, /company_consent|stale|180/);
+});
+
 test("organization-agent update results contain only acknowledgement fields", () => {
-  const compact = serializeOrgAgentToolResult("update_role", {
-    changeSummary: "근무 형태를 remote로 변경",
-    role: {
-      description: "x".repeat(10_000),
-      name: "Backend Engineer",
-      roleId: "role-1",
-    },
+  const compact = serializeOrgAgentToolResult("update_data", {
+    ignoredPayload: "x".repeat(10_000),
     status: "updated",
+    summary: "근무 형태를 원격으로 변경",
   });
 
   assert.match(compact, /status=updated/);
-  assert.match(compact, /role_id=role-1/);
+  assert.match(compact, /summary=근무 형태를 원격으로 변경/);
   assert.doesNotMatch(compact, new RegExp("x".repeat(100)));
 });
 
@@ -87,13 +146,54 @@ test("candidate connection decisions return a compact outcome", () => {
 
   assert.match(compact, /decision=accept/);
   assert.match(compact, /connection_method=intro_email/);
-  assert.match(compact, /stage=connected/);
+  assert.match(compact, /stage=연결됨/);
+  assert.doesNotMatch(compact, /stage=connected/);
   assert.doesNotMatch(compact, /talent-1/);
+});
+
+test("get_more_data serialization is bounded and keeps completeness markers", () => {
+  const compact = serializeOrgAgentMoreData({
+    companyDetails: {
+      complete: false,
+      fields: {
+        pitch: { complete: false, oversized: false, truncated: true },
+      },
+      values: { pitch: "p".repeat(20_000) },
+    },
+    requestedKinds: ["company_details"],
+  });
+
+  assert.ok(compact.length <= 14_000);
+  assert.match(compact, /company_details_complete=false/);
+  assert.match(compact, /truncated/);
+});
+
+test("get_more_data marks an unexpected framing overflow incomplete", () => {
+  const marker = { complete: true, oversized: false, truncated: false };
+  const compact = serializeOrgAgentMoreData({
+    companyDetails: {
+      complete: true,
+      fields: {
+        company_description: marker,
+        pitch: marker,
+      },
+      values: {
+        company_description: "d".repeat(20_000),
+        pitch: "p".repeat(20_000),
+      },
+    },
+    requestedKinds: ["company_details"],
+  });
+
+  assert.ok(compact.length <= 14_000);
+  assert.match(compact, /^serialization_complete=false/);
+  assert.match(compact, /do not treat any long text.*complete/);
 });
 
 test("organization-agent role results expose whole-pipeline stage counts", () => {
   const compact = serializeOrgAgentToolResult("read_role", {
     availableStages: [],
+    countsComplete: false,
     people: {
       hasMore: false,
       items: [],
@@ -111,6 +211,7 @@ test("organization-agent role results expose whole-pipeline stage counts", () =>
   });
 
   assert.match(compact, /<stage_counts>/);
+  assert.match(compact, /pipeline_counts_complete=false/);
   assert.match(compact, /recommended\t3/);
   assert.match(compact, /saved\t2/);
 });

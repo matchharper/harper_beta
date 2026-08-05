@@ -3,6 +3,7 @@ import {
   requireInternalApiUser,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
+import { getCompanyEventActorLabelFromUser } from "@/lib/org/companyEvents";
 import {
   saveOpsOpportunityRole,
   type OpportunityEmploymentType,
@@ -33,7 +34,7 @@ type RoleBody = {
 };
 
 async function handleSave(req: NextRequest) {
-  await requireInternalApiUser(req);
+  const user = await requireInternalApiUser(req);
   const body = (await req.json().catch(() => ({}))) as RoleBody;
 
   const role = await saveOpsOpportunityRole({
@@ -41,6 +42,7 @@ async function handleSave(req: NextRequest) {
     description: body.description,
     descriptionSummary: body.descriptionSummary,
     employmentTypes: body.employmentTypes,
+    eventActorLabel: getCompanyEventActorLabelFromUser(user),
     expiresAt: body.expiresAt,
     externalJdUrl: body.externalJdUrl,
     locationText: body.locationText,

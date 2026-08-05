@@ -3,6 +3,7 @@ import {
   requireInternalApiUser,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
+import { getCompanyEventActorLabelFromUser } from "@/lib/org/companyEvents";
 import {
   OPS_COMPANIES_PAGE_SIZE,
   fetchOpsCompaniesPage,
@@ -37,13 +38,14 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    await requireInternalApiUser(req);
+    const user = await requireInternalApiUser(req);
     const body = (await req.json().catch(() => null)) as {
       testScore?: unknown;
       workspaceId?: unknown;
     } | null;
 
     const data = await updateOpsCompanyTestScore({
+      eventActorLabel: getCompanyEventActorLabelFromUser(user),
       testScore: Number(body?.testScore),
       workspaceId: String(body?.workspaceId ?? ""),
     });

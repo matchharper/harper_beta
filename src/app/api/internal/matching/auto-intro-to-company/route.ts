@@ -1,16 +1,18 @@
 import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import {
+  fetchAutoIntroToCompanyCandidateDossiers,
   parseAutoIntroToCompanyLimit,
-  runAutoIntroToCompanyNotifications,
+  sendCodexAuthoredAutoIntroToCompanyNotifications,
+  type CodexAuthoredWorkspaceMessage,
 } from "@/lib/ops/autoIntroToCompanyNotifications";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-function getConfiguredCronSecrets() {
+function getConfiguredApiSecrets() {
   return [
-    process.env.AUTO_INTRO_TO_COMPANY_CRON_SECRET?.trim(),
+    process.env.AUTO_INTRO_TO_COMPANY_API_SECRET?.trim(),
     process.env.CRON_SECRET?.trim(),
   ].filter((value): value is string => Boolean(value));
 }
@@ -23,7 +25,7 @@ function isAuthorized(req: NextRequest) {
   const provided = authHeader.slice(7).trim();
   if (!provided) return false;
 
-  return getConfiguredCronSecrets().some((secret) => {
+  return getConfiguredApiSecrets().some((secret) => {
     const expectedBuffer = Buffer.from(secret);
     const actualBuffer = Buffer.from(provided);
     return (
@@ -33,16 +35,11 @@ function isAuthorized(req: NextRequest) {
   });
 }
 
-function shouldDryRun(req: NextRequest) {
-  const value = req.nextUrl.searchParams.get("dryRun");
-  return value === "1" || value === "true";
-}
-
-async function handleAutoIntroToCompany(req: NextRequest) {
-  const configuredSecrets = getConfiguredCronSecrets();
+function authenticationError(req: NextRequest) {
+  const configuredSecrets = getConfiguredApiSecrets();
   if (configuredSecrets.length === 0) {
     return NextResponse.json(
-      { error: "Missing AUTO_INTRO_TO_COMPANY_CRON_SECRET or CRON_SECRET" },
+      { error: "Missing AUTO_INTRO_TO_COMPANY_API_SECRET or CRON_SECRET" },
       { status: 500 }
     );
   }
@@ -50,27 +47,33 @@ async function handleAutoIntroToCompany(req: NextRequest) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  return null;
+}
 
-  const result = await runAutoIntroToCompanyNotifications({
-    dryRun: shouldDryRun(req),
+function requestFilters(req: NextRequest) {
+  return {
     limit: parseAutoIntroToCompanyLimit(req.nextUrl.searchParams.get("limit")),
     roleId: req.nextUrl.searchParams.get("roleId"),
     workspaceId: req.nextUrl.searchParams.get("workspaceId"),
-  });
-  return NextResponse.json({ ok: true, ...result });
+  };
 }
 
 export async function GET(req: NextRequest) {
   try {
-    return await handleAutoIntroToCompany(req);
+    const authError = authenticationError(req);
+    if (authError) return authError;
+    const result = await fetchAutoIntroToCompanyCandidateDossiers(
+      requestFilters(req)
+    );
+    return NextResponse.json({ ok: true, ...result });
   } catch (error) {
-    console.error("[auto-intro-to-company]", error);
+    console.error("[auto-intro-to-company:get]", error);
     return NextResponse.json(
       {
         error:
           error instanceof Error
             ? error.message
-            : "Failed to send auto intro-to-company notifications",
+            : "Failed to load auto intro-to-company candidates",
       },
       { status: 500 }
     );
@@ -78,5 +81,33 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  return GET(req);
+  try {
+    const authError = authenticationError(req);
+    if (authError) return authError;
+    const payload = (await req.json()) as {
+      groups?: CodexAuthoredWorkspaceMessage[];
+    };
+    if (!Array.isArray(payload.groups)) {
+      return NextResponse.json(
+        { error: "groups must be an array" },
+        { status: 400 }
+      );
+    }
+    const result = await sendCodexAuthoredAutoIntroToCompanyNotifications({
+      ...requestFilters(req),
+      groups: payload.groups,
+    });
+    return NextResponse.json({ ok: true, ...result });
+  } catch (error) {
+    console.error("[auto-intro-to-company:post]", error);
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to deliver Codex-authored auto intro messages",
+      },
+      { status: 500 }
+    );
+  }
 }

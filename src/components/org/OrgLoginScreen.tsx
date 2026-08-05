@@ -7,10 +7,28 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 import { useOrgInvitePreview } from "@/hooks/org/useOrg";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { supabase } from "@/lib/supabase";
+import { useAuthStore } from "@/store/useAuthStore";
+import { MuteButton } from "../ui/button";
+import { useRouter } from "next/navigation";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function OrgEntryAppBar({ isAuthenticated }: { isAuthenticated: boolean }) {
+  const router = useRouter();
+  const signOut = useAuthStore((state) => state.signOut);
+  const [signOutPending, setSignOutPending] = useState(false);
+
+  const handleSignOut = async () => {
+    if (signOutPending) return;
+    setSignOutPending(true);
+    try {
+      await signOut();
+      router.replace("/company");
+    } finally {
+      setSignOutPending(false);
+    }
+  };
+
   return (
     <header className="h-[52px]">
       <div className="flex h-full items-center justify-between px-3 sm:px-8">
@@ -29,21 +47,22 @@ function OrgEntryAppBar({ isAuthenticated }: { isAuthenticated: boolean }) {
         </Link>
         <div className="flex items-center gap-2">
           {isAuthenticated && (
-            <Link
-              href="/company"
-              aria-label="Harper 회사 페이지로 이동"
-              className="rounded-full px-4 py-2 text-sm font-normal text-black/50 transition hover:bg-bg-weak hover:text-neutral-primary"
+            <MuteButton
+              aria-label="로그아웃"
+              disabled={signOutPending}
+              onClick={() => void handleSignOut()}
+              variant="transparent"
             >
-              로그아웃
-            </Link>
+              {signOutPending ? "로그아웃 중" : "로그아웃"}
+            </MuteButton>
           )}
-          <Link
-            href="/company"
-            aria-label="Harper 회사 페이지로 이동"
-            className="rounded-full border border-neutral-1000-a10 px-4 py-2 text-sm font-normal text-black/50 transition hover:bg-bg-weak hover:text-neutral-primary"
+          <MuteButton
+            onClick={() => router.push("/company")}
+            size="md"
+            variant="default"
           >
             Company
-          </Link>
+          </MuteButton>
         </div>
       </div>
     </header>

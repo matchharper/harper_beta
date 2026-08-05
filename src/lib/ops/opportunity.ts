@@ -1,4 +1,9 @@
 import { OPS_OPPORTUNITY_COMPANY_PAGE_SIZE } from "@/lib/ops/opportunityConstants";
+import {
+  type CompanyEventInsertClient,
+  writeCompanyEvent,
+} from "@/lib/org/companyEvents";
+import { applyWebsiteCompanyDataChanges } from "@/lib/org/companyDataWebsite";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 
 type WorkspaceRow = {
@@ -484,9 +489,7 @@ export async function fetchOpsOpportunityRoles(
   const internalOnly = Boolean(args.internalOnly);
   const limit = Math.max(1, Math.min(Number(args.limit ?? 25) || 25, 100));
   const offset = Math.max(0, Number(args.offset ?? 0) || 0);
-  const queryText = sanitizeOpportunityFilterText(
-    String(args.query ?? "")
-  );
+  const queryText = sanitizeOpportunityFilterText(String(args.query ?? ""));
   const sourceType =
     args.sourceType === "internal" || args.sourceType === "external"
       ? args.sourceType
@@ -669,6 +672,7 @@ export async function saveOpsOpportunityRole(args: {
   description?: string | null;
   descriptionSummary?: string | null;
   employmentTypes?: OpportunityEmploymentType[];
+  eventActorLabel: string;
   expiresAt?: string | null;
   externalJdUrl?: string | null;
   locationText?: string | null;
@@ -720,30 +724,143 @@ export async function saveOpsOpportunityRole(args: {
   };
 
   const roleId = String(args.roleId ?? "").trim();
-  const query = roleId
-    ? (admin.from("company_roles" as any) as any)
-        .update(payload)
-        .eq("role_id", roleId)
-        .eq("company_workspace_id", workspaceId)
-    : (admin.from("company_roles" as any) as any).insert({
-        ...payload,
-        created_at: now,
-      });
-
-  const { data, error } = await query
-    .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, description_summary, type, status, request, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
+  const roleSelect =
+    "role_id, company_workspace_id, name, external_jd_url, description, description_summary, type, status, request, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode";
+  let beforeRole: RoleRow | null = null;
+  if (roleId) {
+    const { data: beforeData, error: beforeError } = await (
+      admin.from("company_roles" as any) as any
     )
-    .single();
+      .select(roleSelect)
+      .eq("role_id", roleId)
+      .eq("company_workspace_id", workspaceId)
+      .maybeSingle();
+    if (beforeError) {
+      throw new Error(beforeError.message ?? "Failed to load role");
+    }
+    beforeRole = (beforeData as RoleRow | null) ?? null;
+    if (!beforeRole) {
+      throw new Error("Role not found");
+    }
+  }
+
+  if (beforeRole) {
+    await applyWebsiteCompanyDataChanges({
+      actorLabel: args.eventActorLabel,
+      admin,
+      changes: [
+        {
+          key: "role_source_type",
+          roleId,
+          value: payload.source_type,
+        },
+        { key: "role_name", roleId, value: payload.name },
+        { key: "role_description", roleId, value: payload.description },
+        {
+          key: "role_description_summary",
+          roleId,
+          value: payload.description_summary,
+        },
+        {
+          key: "role_external_jd_url",
+          roleId,
+          value: payload.external_jd_url,
+        },
+        { key: "role_location", roleId, value: payload.location_text },
+        { key: "role_status", roleId, value: payload.status },
+        {
+          key: "role_employment_types",
+          roleId,
+          value: payload.type,
+        },
+        { key: "role_work_mode", roleId, value: payload.work_mode },
+        { key: "role_request", roleId, value: payload.request },
+        {
+          key: "role_source_provider",
+          roleId,
+          value: payload.source_provider,
+        },
+        {
+          key: "role_source_job_id",
+          roleId,
+          value: payload.source_job_id,
+        },
+        {
+          key: "role_posted_at",
+          roleId,
+          value: payload.posted_at,
+        },
+        {
+          key: "role_expires_at",
+          roleId,
+          value: payload.expires_at,
+        },
+      ],
+      workspaceId,
+    });
+
+    const { data: savedData, error: savedError } = await (
+      admin.from("company_roles" as any) as any
+    )
+      .select(roleSelect)
+      .eq("role_id", roleId)
+      .eq("company_workspace_id", workspaceId)
+      .single();
+    if (savedError)
+      throw new Error(savedError.message ?? "Failed to load role");
+    return mapRoleRecord({
+      companyName: String(
+        (workspaceData as { company_name?: string }).company_name ?? ""
+      ),
+      row: savedData as RoleRow,
+    });
+  }
+
+  const query = (admin.from("company_roles" as any) as any).insert({
+    ...payload,
+    created_at: now,
+  });
+
+  const { data, error } = await query.select(roleSelect).single();
 
   if (error) {
     throw new Error(error.message ?? "Failed to save role");
   }
 
+  const savedRole = data as RoleRow;
+  const eventFields = [
+    "name",
+    "description",
+    "description_summary",
+    "request",
+    "external_jd_url",
+    "location_text",
+    "type",
+    "work_mode",
+    "status",
+    "source_type",
+    "source_provider",
+    "source_job_id",
+    "posted_at",
+    "expires_at",
+  ] as const;
+  const roleLabel = savedRole.name;
+  await writeCompanyEvent({
+    actorLabel: args.eventActorLabel,
+    changes: eventFields.map((key) => ({
+      after: savedRole[key],
+      before: null,
+      key: `${roleLabel}.${key}`,
+    })),
+    client: admin as unknown as CompanyEventInsertClient,
+    source: "website",
+    workspaceId,
+  });
+
   return mapRoleRecord({
     companyName: String(
       (workspaceData as { company_name?: string }).company_name ?? ""
     ),
-    row: data as RoleRow,
+    row: savedRole,
   });
 }

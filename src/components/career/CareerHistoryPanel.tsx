@@ -1398,7 +1398,7 @@ const CareerHistoryPanel = () => {
         savedStage?: CareerOpportunitySavedStage | null;
       }
     ) => {
-      void onUpdateHistoryOpportunityFeedback(item.id, feedback, {
+      return onUpdateHistoryOpportunityFeedback(item.id, feedback, {
         feedbackReason: options?.feedbackReason ?? null,
         interactionSource: "position_tab",
         promptImmediately:
@@ -2343,7 +2343,7 @@ const CareerHistoryPanel = () => {
           rememberFeedbackAdvanceTarget(
             internalConnectionAcceptanceOpportunity
           );
-          updateFeedbackForItem(
+          return updateFeedbackForItem(
             internalConnectionAcceptanceOpportunity,
             "positive",
             {

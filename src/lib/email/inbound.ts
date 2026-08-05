@@ -92,6 +92,28 @@ function getMatchedReferralIntroAddresses(args: {
   return Array.from(new Set(recipients.filter((item) => allowed.has(item))));
 }
 
+function getMatchedOrgIntroCaptureAddresses(args: {
+  ccAddresses: readonly string[];
+  toAddresses: readonly string[];
+}) {
+  const domain = getEmailReplyDomain();
+  const recipients = [...args.toAddresses, ...args.ccAddresses]
+    .map((item) => normalizeEmailAddress(item))
+    .filter((item): item is string => Boolean(item));
+
+  return Array.from(
+    new Set(
+      recipients.filter((address) => {
+        const [localPart, actualDomain] = address.split("@");
+        return (
+          actualDomain === domain &&
+          /^intro\+[a-z0-9_-]{12,}$/i.test(localPart ?? "")
+        );
+      })
+    )
+  );
+}
+
 function referralJobMetadata(args: { matchedAddresses: readonly string[] }) {
   return {
     referralIntro: {
@@ -101,10 +123,23 @@ function referralJobMetadata(args: { matchedAddresses: readonly string[] }) {
   };
 }
 
-function classifyInboundEmailJob(args: {
+export function classifyInboundEmailJob(args: {
   ccAddresses: readonly string[];
   toAddresses: readonly string[];
 }) {
+  const orgIntroCaptureAddresses = getMatchedOrgIntroCaptureAddresses(args);
+  if (orgIntroCaptureAddresses.length > 0) {
+    return {
+      kind: "org_intro_capture",
+      metadata: {
+        orgIntroCapture: {
+          matchedAddresses: orgIntroCaptureAddresses,
+          source: "inbound_email",
+        },
+      },
+    };
+  }
+
   const matchedAddresses = getMatchedReferralIntroAddresses(args);
   if (matchedAddresses.length > 0) {
     return {
@@ -176,60 +211,31 @@ export async function ingestResendInboundEvent(args: {
     toAddresses: rowPayload.to_addresses,
   });
 
-  const { data: inserted, error: insertError } = await admin
-    .from("email_inbound_events")
-    .insert(rowPayload)
-    .select("id")
-    .single();
-
-  if (insertError) {
-    if (insertError.code !== "23505") {
-      throw new Error(insertError.message ?? "Failed to insert inbound event");
+  const { data: result, error } = await (admin.rpc as any)(
+    "create_email_inbound_event_and_job_v1",
+    {
+      p_cc_addresses: rowPayload.cc_addresses,
+      p_from_email: rowPayload.from_email,
+      p_job_kind: jobClassification.kind,
+      p_job_metadata: jobClassification.metadata,
+      p_message_id: rowPayload.message_id,
+      p_provider: rowPayload.provider,
+      p_provider_email_id: rowPayload.provider_email_id,
+      p_provider_event_id: rowPayload.provider_event_id,
+      p_received_at: rowPayload.received_at,
+      p_subject: rowPayload.subject,
+      p_to_addresses: rowPayload.to_addresses,
     }
-
-    let { data: existing, error: existingError } = await admin
-      .from("email_inbound_events")
-      .select("id")
-      .eq("provider", "resend")
-      .eq("provider_email_id", providerEmailId)
-      .maybeSingle();
-    if (!existing && args.providerEventId) {
-      const existingByEvent = await admin
-        .from("email_inbound_events")
-        .select("id")
-        .eq("provider", "resend")
-        .eq("provider_event_id", args.providerEventId)
-        .maybeSingle();
-      existing = existingByEvent.data;
-      existingError = existingByEvent.error;
-    }
-    if (existingError || !existing) {
-      throw new Error(
-        existingError?.message ?? "Failed to load existing inbound event"
-      );
-    }
-    return {
-      inboundEventId: String(existing.id),
-      inserted: false,
-      queued: false,
-    };
+  );
+  if (error) {
+    throw new Error(
+      error.message ?? "Failed to create or adopt inbound email job"
+    );
   }
-
-  const inboundEvent = inserted as InboundEventRow;
-  const { error: jobError } = await admin.from("email_reply_jobs").insert({
-    inbound_event_id: inboundEvent.id,
-    kind: jobClassification.kind,
-    metadata: jobClassification.metadata,
-    status: "queued",
-  });
-  if (jobError && jobError.code !== "23505") {
-    throw new Error(jobError.message ?? "Failed to enqueue email reply job");
-  }
-
   return {
-    inboundEventId: inboundEvent.id,
-    inserted: true,
-    queued: !jobError,
+    inboundEventId: String(result?.inboundEventId ?? ""),
+    inserted: result?.inserted === true,
+    queued: result?.queued === true,
   };
 }
 
@@ -270,7 +276,9 @@ export async function queueReferralIntroTestEvent(args: {
     .select("id")
     .single();
   if (insertError) {
-    throw new Error(insertError.message ?? "Failed to insert test inbound event");
+    throw new Error(
+      insertError.message ?? "Failed to insert test inbound event"
+    );
   }
 
   const inboundEvent = inserted as InboundEventRow;
@@ -298,7 +306,9 @@ export async function queueReferralIntroTestEvent(args: {
     status: "queued",
   });
   if (jobError) {
-    throw new Error(jobError.message ?? "Failed to enqueue test referral intro");
+    throw new Error(
+      jobError.message ?? "Failed to enqueue test referral intro"
+    );
   }
 
   return {

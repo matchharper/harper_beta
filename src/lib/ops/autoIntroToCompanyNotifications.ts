@@ -1,31 +1,37 @@
 import { createHash } from "crypto";
-import { CLAUDE_MODEL } from "@/lib/llm/modelConfig";
 import { sendHarperWorkspaceSlackMessage } from "@/lib/org/slackHarper";
+import {
+  AUTO_INTRO_MAX_PENDING_AGE_DAYS,
+  AUTO_INTRO_PENDING_TAG,
+  AUTO_INTRO_RESPONSE_GUIDANCE,
+  buildAutoIntroFollowUpPostscript,
+  getAutoIntroReasonMode,
+  getFreshPendingConnectionSince,
+  getLatestAutoIntroInternalStage,
+  wasAutoIntroSlackSent,
+  type AutoIntroReasonMode,
+} from "@/lib/ops/autoIntroToCompanyPolicy";
+import {
+  buildAutoIntroCandidateNameLink,
+  buildAutoIntroWorkspaceActionGuidance,
+  escapeAutoIntroSlackHeading,
+  groupAutoIntroItemsByWorkspaceAndRole,
+  renderAutoIntroCandidateCopy,
+  validateAutoIntroCandidateSentences,
+  validateAutoIntroInternalReason,
+  type AutoIntroPresentation,
+} from "@/lib/ops/autoIntroToCompanyMessage";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
-import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
 import type { Json } from "@/types/database.types";
 
 const INTRO_TO_COMPANY_KIND = "intro_to_company";
 const HARPER_WORKER_USER_ID = "harper_worker";
 const BATCH_SIZE = 1000;
 const ID_FILTER_CHUNK_SIZE = 80;
-const DEFAULT_MAX_CANDIDATES = 200;
-const MAX_REASON_CHARS = 700;
-
-const PENDING_CONNECTION_TAG = "내부:연결대기";
-const RECOMMENDED_TAG = "내부:추천";
-const CUSTOM_STAGE_TAG_PREFIX = "내부단계:";
-const INTERNAL_STAGE_TAGS = new Set([
-  "내부:수락",
-  "내부:아카이브",
-  "내부:최종오퍼",
-  "내부:보류",
-  PENDING_CONNECTION_TAG,
-  "내부:프로세스중단",
-  "내부:거절",
-  RECOMMENDED_TAG,
-  "내부:연결됨",
-]);
+const DEFAULT_MAX_CANDIDATES = Number.MAX_SAFE_INTEGER;
+const MAX_CODEX_REASON_CHARS = 2400;
+const MAX_PROFILE_TEXT_CHARS = 3500;
+const CLAIM_TTL_MS = 30 * 60 * 1000;
 
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
 type FetchPageResult<T> = {
@@ -35,24 +41,35 @@ type FetchPageResult<T> = {
 
 type RoleRow = {
   company_workspace_id: string;
-  is_expired?: boolean | null;
+  description: string | null;
+  description_summary: string | null;
+  information: Json | null;
+  is_expired: boolean | null;
+  location_text: string | null;
   name: string;
+  request: string | null;
   role_id: string;
-  status?: string | null;
+  salary_range: string | null;
+  seniority_level: string | null;
+  status: string | null;
+  summary: Json | null;
+  work_mode: string | null;
 };
 
 type WorkspaceRow = {
+  brief: string | null;
+  company_description: string | null;
   company_name: string;
   company_workspace_id: string;
+  pitch: string | null;
+  request: string | null;
 };
 
 type RecommendationRow = {
   created_at: string;
-  feedback: string | null;
   id: string;
   recommended_at: string;
   role_id: string;
-  saved_stage: string | null;
   talent_id: string;
   updated_at: string;
 };
@@ -69,66 +86,185 @@ type TagRow = {
 type FitRow = {
   created_at: string;
   id: string;
-  label: string;
+  kind: string | null;
   last_evaluated_at: string;
   opportunity_id: string;
   reason: string;
-  score: number;
   talent_id: string;
 };
 
 type TalentRow = {
+  bio: string | null;
+  current_location: string | null;
   email: string | null;
+  headline: string | null;
+  location: string | null;
   name: string | null;
+  resume_text: string | null;
   user_id: string;
 };
 
+type ExperienceRow = {
+  company_location: string | null;
+  company_name: string | null;
+  description: string | null;
+  employment_type: string | null;
+  end_date: string | null;
+  id: number;
+  memo: string | null;
+  role: string | null;
+  start_date: string | null;
+  talent_id: string;
+};
+
+type EducationRow = {
+  degree: string | null;
+  description: string | null;
+  end_date: string | null;
+  field: string | null;
+  id: number;
+  memo: string | null;
+  school: string | null;
+  start_date: string | null;
+  talent_id: string;
+};
+
+type CandidateProfile = {
+  bio: string | null;
+  currentLocation: string | null;
+  educations: Array<Record<string, unknown>>;
+  experiences: Array<Record<string, unknown>>;
+  extras: Json | null;
+  headline: string | null;
+  insights: Json | null;
+  location: string | null;
+  resumeExcerpt: string | null;
+};
+
 type AutoIntroCandidate = {
+  candidateProfile: CandidateProfile | null;
   companyName: string;
   fitId: string | null;
+  fitKind: string | null;
   fitReason: string;
-  recommendationId: string;
+  pendingSince: string;
+  reasonMode: Exclude<AutoIntroReasonMode, "skip">;
+  recommendationId: string | null;
   roleId: string;
   roleTitle: string;
-  talentEmail: string | null;
   talentId: string;
   talentName: string;
   workspaceId: string;
 };
 
+type WorkspaceRoleNotificationSection = {
+  candidates: AutoIntroCandidate[];
+  role: RoleRow;
+  roleId: string;
+  roleTitle: string;
+};
+
 type WorkspaceNotificationGroup = {
   candidates: AutoIntroCandidate[];
   companyName: string;
-  roleId: string;
-  roleTitle: string;
+  roleSections: WorkspaceRoleNotificationSection[];
+  workspace: WorkspaceRow;
   workspaceId: string;
 };
 
 type GeneratedWorkspaceMessage = {
   body: string;
+  candidateCopyByCandidateKey: Record<string, string>;
+  followUpQuestion: string | null;
+  internalReasonByCandidateKey: Record<string, string>;
   model: string;
-  raw: string | null;
+  presentationByCandidateKey: Record<string, AutoIntroPresentation>;
 };
 
 type DeliveryOutcome = {
+  idempotencyKey: string;
   slackConnected: boolean;
   slackError: string | null;
   slackSent: boolean;
 };
 
-export type AutoIntroToCompanyRunResult = {
-  dryRun: boolean;
+type EligibilityStats = {
+  recentPendingConnectionCount: number;
+  skippedAlreadySentCount: number;
+  skippedLaterStageCount: number;
+  skippedMissingFitCount: number;
+  skippedMissingCodexReasonCount: number;
+  skippedUnsupportedFitKindCount: number;
+};
+
+export type CodexAuthoredCandidateCopy = {
+  internalReason?: string | null;
+  presentation: AutoIntroPresentation;
+  sentences: string[];
+  talentId: string;
+};
+
+export type CodexAuthoredRoleSection = {
+  candidates: CodexAuthoredCandidateCopy[];
+  roleId: string;
+};
+
+export type CodexAuthoredWorkspaceMessage = {
+  followUpQuestion?: string | null;
+  roles: CodexAuthoredRoleSection[];
+  workspaceId: string;
+};
+
+export type AutoIntroToCompanyCandidateDossiers = EligibilityStats & {
   eligibleCandidateCount: number;
   groups: Array<{
     candidateCount: number;
     companyName: string;
+    companyContext: Record<string, unknown>;
+    roles: Array<{
+      candidateCount: number;
+      candidates: Array<{
+        fitId: string;
+        fitKind: string | null;
+        name: string;
+        pendingSince: string;
+        professionalProfile: ReturnType<typeof candidateProfileForCodex>;
+        reasonMode: "codex" | "author";
+        storedReason: string | null;
+        talentId: string;
+      }>;
+      roleContext: Record<string, unknown>;
+      roleId: string;
+      roleTitle: string;
+    }>;
+    slackConnected: boolean;
+    workspaceId: string;
+  }>;
+  skippedNoChannelCount: number;
+};
+
+export type AutoIntroToCompanyDeliveryResult = EligibilityStats & {
+  eligibleCandidateCount: number;
+  failedCandidateCount: number;
+  groups: Array<{
+    candidateCount: number;
+    companyName: string;
     message?: GeneratedWorkspaceMessage;
+    roleIds: string[];
+    roleTitles: string[];
     slackConnected: boolean;
     workspaceId: string;
   }>;
   processedCandidateCount: number;
-  skippedNoChannelCount: number;
+  sentCandidateCount: number;
   sentSlackCount: number;
+  skippedNoChannelCount: number;
+};
+
+type AutoIntroRunFilters = {
+  limit: number;
+  roleId: string | null;
+  workspaceId: string | null;
 };
 
 function normalizeText(value: unknown) {
@@ -141,6 +277,11 @@ function normalizeMultiline(value: unknown) {
   return String(value ?? "")
     .replace(/\r/g, "")
     .trim();
+}
+
+function truncateText(value: unknown, maxChars: number) {
+  const normalized = normalizeMultiline(value);
+  return normalized ? normalized.slice(0, maxChars) : null;
 }
 
 function uniqueTexts(values: string[]) {
@@ -157,6 +298,12 @@ function chunkValues<T>(values: T[], size = ID_FILTER_CHUNK_SIZE) {
   return chunks;
 }
 
+function metadataRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 async function fetchAllRows<T>(
   loadPage: (from: number, to: number) => PromiseLike<FetchPageResult<T>>
 ) {
@@ -164,7 +311,6 @@ async function fetchAllRows<T>(
   for (let from = 0; ; from += BATCH_SIZE) {
     const { data, error } = await loadPage(from, from + BATCH_SIZE - 1);
     if (error) throw new Error(error.message || "Failed to load rows");
-
     const page = data ?? [];
     rows.push(...page);
     if (page.length < BATCH_SIZE) break;
@@ -172,73 +318,14 @@ async function fetchAllRows<T>(
   return rows;
 }
 
-function isNewerByTimestamps(
-  candidate: {
-    created_at?: string | null;
-    id: string;
-    recommended_at?: string | null;
-    updated_at?: string | null;
-  },
-  current: {
-    created_at?: string | null;
-    id: string;
-    recommended_at?: string | null;
-    updated_at?: string | null;
-  }
-) {
-  const candidateKey = [
-    candidate.recommended_at ?? "",
-    candidate.updated_at ?? "",
-    candidate.created_at ?? "",
-    candidate.id,
-  ].join("|");
-  const currentKey = [
-    current.recommended_at ?? "",
-    current.updated_at ?? "",
-    current.created_at ?? "",
-    current.id,
-  ].join("|");
-  return candidateKey > currentKey;
+function parsePositiveInt(value: string | null | undefined, fallback: number) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(parsed, 1000);
 }
 
-function normalizeTagKey(value: unknown) {
-  return normalizeText(value).toLowerCase();
-}
-
-function isInternalStageTag(value: unknown) {
-  const tag = normalizeTagKey(value);
-  return (
-    INTERNAL_STAGE_TAGS.has(tag) ||
-    tag.startsWith(normalizeTagKey(CUSTOM_STAGE_TAG_PREFIX))
-  );
-}
-
-function isPendingConnectionStage(tags: TagRow[]) {
-  const latestInternalTag = tags
-    .filter((tag) => isInternalStageTag(tag.tag))
-    .sort((left, right) => {
-      const leftKey = `${left.updated_at}|${left.created_at}|${left.id}`;
-      const rightKey = `${right.updated_at}|${right.created_at}|${right.id}`;
-      return rightKey.localeCompare(leftKey);
-    })[0];
-
-  return (
-    Boolean(latestInternalTag) &&
-    normalizeTagKey(latestInternalTag?.tag) ===
-      normalizeTagKey(PENDING_CONNECTION_TAG)
-  );
-}
-
-function isAcceptedRecommendation(row: RecommendationRow) {
-  const feedback = normalizeText(row.feedback).toLowerCase();
-  const savedStage = normalizeText(row.saved_stage).toLowerCase();
-  return (
-    feedback === "like" ||
-    feedback === "liked" ||
-    feedback === "positive" ||
-    feedback === "accepted" ||
-    savedStage === "accepted"
-  );
+function normalizeOptionalFilter(value: string | null | undefined) {
+  return normalizeText(value) || null;
 }
 
 function deterministicUuid(parts: string[]) {
@@ -268,102 +355,70 @@ function progressIdForCandidate(candidate: AutoIntroCandidate) {
   ]);
 }
 
-function parsePositiveInt(value: string | null | undefined, fallback: number) {
-  const parsed = Number.parseInt(String(value ?? ""), 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
-  return Math.min(parsed, 1000);
+function candidateKey(
+  candidate: Pick<AutoIntroCandidate, "roleId" | "talentId">
+) {
+  return `${candidate.roleId}:${candidate.talentId}`;
 }
 
-function normalizeOptionalFilter(value: string | null | undefined) {
-  return normalizeText(value) || null;
+function deliveryIdempotencyKey(group: WorkspaceNotificationGroup) {
+  return deterministicUuid([
+    "auto_intro_to_company_slack",
+    group.workspaceId,
+    ...group.candidates
+      .map(
+        (candidate) =>
+          `${candidate.roleId}:${candidate.talentId}:${candidate.pendingSince}`
+      )
+      .sort(),
+  ]);
 }
 
-async function fetchAutoRoles(
+async function fetchRecentPendingTags(
   admin: AdminClient,
   filters: AutoIntroRunFilters
 ) {
-  const autoRoleRows = await fetchAllRows<{ role_id: string }>((from, to) =>
-    (admin.from("company_internal_roles" as any) as any)
-      .select("role_id")
-      .eq("is_auto", true)
-      .order("role_id", { ascending: true })
-      .range(from, to)
-  );
+  const cutoff = new Date(
+    Date.now() - AUTO_INTRO_MAX_PENDING_AGE_DAYS * 24 * 60 * 60 * 1_000
+  ).toISOString();
+  return fetchAllRows<TagRow>((from, to) => {
+    let query = (admin.from("talent_opportunity_tag" as any) as any)
+      .select("id, opportunity_id, tag, talent_id, created_at, updated_at")
+      .eq("tag", AUTO_INTRO_PENDING_TAG)
+      .gt("updated_at", cutoff);
+    if (filters.roleId) query = query.eq("opportunity_id", filters.roleId);
+    return query
+      .order("updated_at", { ascending: true, nullsFirst: false })
+      .order("id", { ascending: true })
+      .range(from, to);
+  });
+}
 
-  let roleIds = uniqueTexts(
-    autoRoleRows.map((row) => normalizeText(row.role_id))
-  );
-  if (filters.roleId) {
-    roleIds = roleIds.filter((roleId) => roleId === filters.roleId);
-  }
-  if (roleIds.length === 0) return [] as RoleRow[];
-
-  const roles: RoleRow[] = [];
+async function fetchRoles(
+  admin: AdminClient,
+  roleIds: string[],
+  filters: AutoIntroRunFilters
+) {
+  const rows: RoleRow[] = [];
   for (const roleIdChunk of chunkValues(roleIds)) {
-    const { data, error } = await (admin.from("company_roles" as any) as any)
-      .select("role_id, company_workspace_id, name, status, is_expired")
+    let query = (admin.from("company_roles" as any) as any)
+      .select(
+        "role_id, company_workspace_id, name, description, description_summary, request, information, summary, location_text, work_mode, seniority_level, salary_range, status, is_expired"
+      )
       .in("role_id", roleIdChunk);
-    if (error) throw new Error(error.message || "Failed to load auto roles");
-    roles.push(...((data ?? []) as RoleRow[]));
+    if (filters.workspaceId) {
+      query = query.eq("company_workspace_id", filters.workspaceId);
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    rows.push(...((data ?? []) as RoleRow[]));
   }
 
-  return roles.filter((role) => {
-    if (
-      filters.workspaceId &&
-      role.company_workspace_id !== filters.workspaceId
-    ) {
-      return false;
-    }
+  return rows.filter((role) => {
     if (role.is_expired === true) return false;
     const status = normalizeText(role.status).toLowerCase();
     return status !== "deleted" && status !== "ended";
   });
-}
-
-async function fetchWorkspaces(admin: AdminClient, workspaceIds: string[]) {
-  const rows: WorkspaceRow[] = [];
-  for (const workspaceIdChunk of chunkValues(workspaceIds)) {
-    const { data, error } = await (
-      admin.from("company_workspace" as any) as any
-    )
-      .select("company_workspace_id, company_name")
-      .in("company_workspace_id", workspaceIdChunk);
-    if (error) throw new Error(error.message || "Failed to load workspaces");
-    rows.push(...((data ?? []) as WorkspaceRow[]));
-  }
-  return rows;
-}
-
-async function fetchRecommendations(admin: AdminClient, roleIds: string[]) {
-  const rows: RecommendationRow[] = [];
-  for (const roleIdChunk of chunkValues(roleIds)) {
-    rows.push(
-      ...(await fetchAllRows<RecommendationRow>((from, to) =>
-        (admin.from("talent_opportunity_recommendation" as any) as any)
-          .select(
-            "id, talent_id, role_id, feedback, saved_stage, recommended_at, created_at, updated_at"
-          )
-          .in("role_id", roleIdChunk)
-          .order("recommended_at", { ascending: false, nullsFirst: false })
-          .order("updated_at", { ascending: false, nullsFirst: false })
-          .order("id", { ascending: false })
-          .range(from, to)
-      ))
-    );
-  }
-  return rows;
-}
-
-function getLatestRecommendations(rows: RecommendationRow[]) {
-  const latestByRoleTalent = new Map<string, RecommendationRow>();
-  for (const row of rows) {
-    const key = `${row.role_id}:${row.talent_id}`;
-    const current = latestByRoleTalent.get(key);
-    if (!current || isNewerByTimestamps(row, current)) {
-      latestByRoleTalent.set(key, row);
-    }
-  }
-  return Array.from(latestByRoleTalent.values());
 }
 
 async function fetchTags(
@@ -392,31 +447,63 @@ async function fetchTags(
   return rows;
 }
 
-async function fetchExistingIntroProgressKeys(
+function groupTagsByRoleTalent(tags: TagRow[]) {
+  const map = new Map<string, TagRow[]>();
+  for (const tag of tags) {
+    const key = `${tag.opportunity_id}:${tag.talent_id}`;
+    const current = map.get(key) ?? [];
+    current.push(tag);
+    map.set(key, current);
+  }
+  return map;
+}
+
+async function fetchWorkspaces(admin: AdminClient, workspaceIds: string[]) {
+  const rows: WorkspaceRow[] = [];
+  for (const workspaceIdChunk of chunkValues(workspaceIds)) {
+    const { data, error } = await (
+      admin.from("company_workspace" as any) as any
+    )
+      .select(
+        "company_workspace_id, company_name, brief, company_description, pitch, request"
+      )
+      .in("company_workspace_id", workspaceIdChunk);
+    if (error) throw new Error(error.message || "Failed to load workspaces");
+    rows.push(...((data ?? []) as WorkspaceRow[]));
+  }
+  return rows;
+}
+
+async function fetchRecommendations(
   admin: AdminClient,
   roleIds: string[],
   talentIds: string[]
 ) {
-  const keys = new Set<string>();
+  const rows: RecommendationRow[] = [];
   for (const roleIdChunk of chunkValues(roleIds)) {
     for (const talentIdChunk of chunkValues(talentIds)) {
-      const rows = await fetchAllRows<{
-        role_id: string;
-        talent_id: string;
-      }>((from, to) =>
-        (admin.from("talent_progress" as any) as any)
-          .select("role_id, talent_id")
-          .eq("kind", INTRO_TO_COMPANY_KIND)
-          .in("role_id", roleIdChunk)
-          .in("talent_id", talentIdChunk)
-          .range(from, to)
+      rows.push(
+        ...(await fetchAllRows<RecommendationRow>((from, to) =>
+          (admin.from("talent_opportunity_recommendation" as any) as any)
+            .select(
+              "id, talent_id, role_id, recommended_at, created_at, updated_at"
+            )
+            .in("role_id", roleIdChunk)
+            .in("talent_id", talentIdChunk)
+            .order("recommended_at", { ascending: false, nullsFirst: false })
+            .order("updated_at", { ascending: false, nullsFirst: false })
+            .order("id", { ascending: false })
+            .range(from, to)
+        ))
       );
-      for (const row of rows) {
-        keys.add(`${row.role_id}:${row.talent_id}`);
-      }
     }
   }
-  return keys;
+  const latest = new Map<string, RecommendationRow>();
+  for (const row of rows) {
+    const key = `${row.role_id}:${row.talent_id}`;
+    if (!latest.has(key)) latest.set(key, row);
+  }
+  return latest;
 }
 
 async function fetchFits(
@@ -431,7 +518,7 @@ async function fetchFits(
         ...(await fetchAllRows<FitRow>((from, to) =>
           (admin.from("talent_opportunity_fit" as any) as any)
             .select(
-              "id, opportunity_id, talent_id, reason, score, label, last_evaluated_at, created_at"
+              "id, opportunity_id, talent_id, reason, kind, last_evaluated_at, created_at"
             )
             .in("opportunity_id", roleIdChunk)
             .in("talent_id", talentIdChunk)
@@ -446,27 +533,108 @@ async function fetchFits(
       );
     }
   }
-
   const latest = new Map<string, FitRow>();
   for (const row of rows) {
     const key = `${row.opportunity_id}:${row.talent_id}`;
-    const current = latest.get(key);
-    if (
-      !current ||
-      `${row.last_evaluated_at}|${row.created_at}|${row.id}` >
-        `${current.last_evaluated_at}|${current.created_at}|${current.id}`
-    ) {
-      latest.set(key, row);
-    }
+    if (!latest.has(key)) latest.set(key, row);
   }
   return latest;
+}
+
+async function fetchSentIntroProgressKeys(
+  admin: AdminClient,
+  roleIds: string[],
+  talentIds: string[]
+) {
+  const keys = new Set<string>();
+  for (const roleIdChunk of chunkValues(roleIds)) {
+    for (const talentIdChunk of chunkValues(talentIds)) {
+      const rows = await fetchAllRows<{
+        metadata: Json;
+        role_id: string;
+        talent_id: string;
+      }>((from, to) =>
+        (admin.from("talent_progress" as any) as any)
+          .select("role_id, talent_id, metadata")
+          .eq("kind", INTRO_TO_COMPANY_KIND)
+          .in("role_id", roleIdChunk)
+          .in("talent_id", talentIdChunk)
+          .range(from, to)
+      );
+      for (const row of rows) {
+        if (wasAutoIntroSlackSent(row.metadata)) {
+          keys.add(`${row.role_id}:${row.talent_id}`);
+        }
+      }
+    }
+  }
+  return keys;
+}
+
+async function fetchSlackContactedKeys(
+  admin: AdminClient,
+  roleIds: string[],
+  talentIds: string[]
+) {
+  const roleIdSet = new Set(roleIds);
+  const talentIdSet = new Set(talentIds);
+  const keys = new Set<string>();
+  const collectRows = (
+    rows: Array<{ mentions: Json; role_id: string | null }>
+  ) => {
+    for (const row of rows) {
+      if (!Array.isArray(row.mentions)) continue;
+      for (const mention of row.mentions) {
+        const record = metadataRecord(mention);
+        const roleId =
+          normalizeText(record.roleId) || normalizeText(row.role_id);
+        const talentId = normalizeText(record.talentId);
+        if (roleIdSet.has(roleId) && talentIdSet.has(talentId)) {
+          keys.add(`${roleId}:${talentId}`);
+        }
+      }
+    }
+  };
+  for (const roleIdChunk of chunkValues(roleIds)) {
+    const rows = await fetchAllRows<{
+      mentions: Json;
+      role_id: string | null;
+    }>((from, to) =>
+      (admin.from("company_messages" as any) as any)
+        .select("role_id, mentions")
+        .eq("message_type", "slack")
+        .eq("role", "assistant")
+        .eq("status", "completed")
+        .not("slack_message_ts", "is", null)
+        .in("role_id", roleIdChunk)
+        .range(from, to)
+    );
+    collectRows(rows);
+  }
+  const workspaceMessageRows = await fetchAllRows<{
+    mentions: Json;
+    role_id: string | null;
+  }>((from, to) =>
+    (admin.from("company_messages" as any) as any)
+      .select("role_id, mentions")
+      .eq("message_type", "slack")
+      .eq("role", "assistant")
+      .eq("status", "completed")
+      .not("slack_message_ts", "is", null)
+      .is("role_id", null)
+      .range(from, to)
+  );
+  collectRows(workspaceMessageRows);
+  return keys;
 }
 
 async function fetchTalents(admin: AdminClient, talentIds: string[]) {
   const rows: TalentRow[] = [];
   for (const talentIdChunk of chunkValues(talentIds)) {
     const { data, error } = await (admin.from("talent_users" as any) as any)
-      .select("user_id, name, email")
+      .select(
+        "user_id, name, email, headline, bio, current_location, location, resume_text"
+      )
       .in("user_id", talentIdChunk);
     if (error) throw new Error(error.message || "Failed to load talents");
     rows.push(...((data ?? []) as TalentRow[]));
@@ -474,149 +642,325 @@ async function fetchTalents(admin: AdminClient, talentIds: string[]) {
   return rows;
 }
 
-function groupTagsByRoleTalent(tags: TagRow[]) {
-  const map = new Map<string, TagRow[]>();
-  for (const tag of tags) {
-    const key = `${tag.opportunity_id}:${tag.talent_id}`;
-    const current = map.get(key) ?? [];
-    current.push(tag);
-    map.set(key, current);
+async function fetchCandidateProfiles(
+  admin: AdminClient,
+  talents: TalentRow[],
+  talentIds: string[]
+) {
+  if (talentIds.length === 0) return new Map<string, CandidateProfile>();
+  const experiences: ExperienceRow[] = [];
+  const educations: EducationRow[] = [];
+  const extras = new Map<string, Json | null>();
+  const insights = new Map<string, Json | null>();
+
+  for (const talentIdChunk of chunkValues(talentIds)) {
+    const [experienceResult, educationResult, extraResult, insightResult] =
+      await Promise.all([
+        (admin.from("talent_experiences" as any) as any)
+          .select(
+            "id, talent_id, company_name, company_location, role, employment_type, start_date, end_date, description, memo"
+          )
+          .in("talent_id", talentIdChunk),
+        (admin.from("talent_educations" as any) as any)
+          .select(
+            "id, talent_id, school, degree, field, start_date, end_date, description, memo"
+          )
+          .in("talent_id", talentIdChunk),
+        (admin.from("talent_extras" as any) as any)
+          .select("talent_id, content")
+          .in("talent_id", talentIdChunk),
+        (admin.from("talent_insights" as any) as any)
+          .select("talent_id, content")
+          .in("talent_id", talentIdChunk),
+      ]);
+    if (experienceResult.error) throw experienceResult.error;
+    if (educationResult.error) throw educationResult.error;
+    if (extraResult.error) throw extraResult.error;
+    if (insightResult.error) throw insightResult.error;
+    experiences.push(...((experienceResult.data ?? []) as ExperienceRow[]));
+    educations.push(...((educationResult.data ?? []) as EducationRow[]));
+    for (const row of extraResult.data ?? []) {
+      extras.set(row.talent_id, row.content as Json | null);
+    }
+    for (const row of insightResult.data ?? []) {
+      if (row.talent_id)
+        insights.set(row.talent_id, row.content as Json | null);
+    }
   }
-  return map;
+
+  const talentById = new Map(talents.map((talent) => [talent.user_id, talent]));
+  const profiles = new Map<string, CandidateProfile>();
+  for (const talentId of talentIds) {
+    const talent = talentById.get(talentId);
+    profiles.set(talentId, {
+      bio: truncateText(talent?.bio, 1200),
+      currentLocation: truncateText(talent?.current_location, 300),
+      educations: educations
+        .filter((row) => row.talent_id === talentId)
+        .sort((left, right) =>
+          `${right.end_date ?? ""}|${right.id}`.localeCompare(
+            `${left.end_date ?? ""}|${left.id}`
+          )
+        )
+        .slice(0, 3)
+        .map(({ talent_id: _talentId, ...row }) => ({
+          ...row,
+          description: truncateText(row.description, 500),
+          memo: truncateText(row.memo, 500),
+        })),
+      experiences: experiences
+        .filter((row) => row.talent_id === talentId)
+        .sort((left, right) =>
+          `${right.end_date ?? "9999"}|${right.start_date ?? ""}|${right.id}`.localeCompare(
+            `${left.end_date ?? "9999"}|${left.start_date ?? ""}|${left.id}`
+          )
+        )
+        .slice(0, 8)
+        .map(({ talent_id: _talentId, ...row }) => ({
+          ...row,
+          description: truncateText(row.description, 800),
+          memo: truncateText(row.memo, 500),
+        })),
+      extras: extras.get(talentId) ?? null,
+      headline: truncateText(talent?.headline, 500),
+      insights: insights.get(talentId) ?? null,
+      location: truncateText(talent?.location, 300),
+      resumeExcerpt: truncateText(talent?.resume_text, MAX_PROFILE_TEXT_CHARS),
+    });
+  }
+  return profiles;
 }
-
-function buildCandidate(args: {
-  fit: FitRow | null;
-  recommendation: RecommendationRow;
-  role: RoleRow;
-  talent: TalentRow | null;
-  workspace: WorkspaceRow | null;
-}) {
-  const talentName =
-    normalizeText(args.talent?.name) ||
-    normalizeText(args.talent?.email) ||
-    "후보자";
-  const fitReason = normalizeMultiline(args.fit?.reason).slice(
-    0,
-    MAX_REASON_CHARS
-  );
-
-  return {
-    companyName: normalizeText(args.workspace?.company_name) || "회사",
-    fitId: args.fit?.id ?? null,
-    fitReason: fitReason || "추천 이유가 아직 비어 있습니다.",
-    recommendationId: args.recommendation.id,
-    roleId: args.role.role_id,
-    roleTitle: normalizeText(args.role.name) || "포지션",
-    talentEmail: normalizeText(args.talent?.email) || null,
-    talentId: args.recommendation.talent_id,
-    talentName,
-    workspaceId: args.role.company_workspace_id,
-  } satisfies AutoIntroCandidate;
-}
-
-type AutoIntroRunFilters = {
-  limit: number;
-  roleId: string | null;
-  workspaceId: string | null;
-};
 
 async function buildEligibleCandidates(
   admin: AdminClient,
   filters: AutoIntroRunFilters
 ) {
-  const roles = await fetchAutoRoles(admin, filters);
-  if (roles.length === 0) return [] as AutoIntroCandidate[];
+  const stats: EligibilityStats = {
+    recentPendingConnectionCount: 0,
+    skippedAlreadySentCount: 0,
+    skippedLaterStageCount: 0,
+    skippedMissingFitCount: 0,
+    skippedMissingCodexReasonCount: 0,
+    skippedUnsupportedFitKindCount: 0,
+  };
+  const recentPendingTags = await fetchRecentPendingTags(admin, filters);
+  if (recentPendingTags.length === 0) {
+    return { candidates: [], roles: [], stats, workspaces: [] };
+  }
 
-  const roleIds = roles.map((role) => role.role_id);
-  const recommendations = getLatestRecommendations(
-    await fetchRecommendations(admin, roleIds)
+  const recentRoleIds = uniqueTexts(
+    recentPendingTags.map((tag) => tag.opportunity_id)
   );
-  if (recommendations.length === 0) return [] as AutoIntroCandidate[];
+  const roles = await fetchRoles(admin, recentRoleIds, filters);
+  if (roles.length === 0) {
+    return { candidates: [], roles: [], stats, workspaces: [] };
+  }
+  const allowedRoleIds = new Set(roles.map((role) => role.role_id));
+  const candidateTags = recentPendingTags.filter((tag) =>
+    allowedRoleIds.has(tag.opportunity_id)
+  );
+  const candidateKeys = new Set(
+    candidateTags.map((tag) => `${tag.opportunity_id}:${tag.talent_id}`)
+  );
+  stats.recentPendingConnectionCount = candidateKeys.size;
+  const roleIds = uniqueTexts(candidateTags.map((tag) => tag.opportunity_id));
+  const recentTalentIds = uniqueTexts(
+    candidateTags.map((tag) => tag.talent_id)
+  );
+  const tagsByKey = groupTagsByRoleTalent(
+    await fetchTags(admin, roleIds, recentTalentIds)
+  );
+  const now = new Date();
+  const freshPairs: Array<{
+    key: string;
+    pendingSince: string;
+    roleId: string;
+    talentId: string;
+  }> = [];
 
-  const talentIds = uniqueTexts(
-    recommendations.map((row) => normalizeText(row.talent_id))
+  for (const key of candidateKeys) {
+    const tags = tagsByKey.get(key) ?? [];
+    const latestStage = getLatestAutoIntroInternalStage(tags);
+    if (normalizeText(latestStage?.tag) !== AUTO_INTRO_PENDING_TAG) {
+      stats.skippedLaterStageCount += 1;
+      continue;
+    }
+    const pendingSince = getFreshPendingConnectionSince(tags, now);
+    if (!pendingSince) {
+      stats.skippedLaterStageCount += 1;
+      continue;
+    }
+    const [roleId, talentId] = key.split(":");
+    if (!roleId || !talentId) continue;
+    freshPairs.push({ key, pendingSince, roleId, talentId });
+  }
+
+  const limitedPairs = freshPairs.sort(
+    (left, right) =>
+      left.pendingSince.localeCompare(right.pendingSince) ||
+      left.key.localeCompare(right.key)
   );
-  const [tags, existingIntroKeys, fits, talents, workspaces] =
+  const workspaces = await fetchWorkspaces(
+    admin,
+    uniqueTexts(roles.map((role) => role.company_workspace_id))
+  );
+  if (limitedPairs.length === 0) {
+    return { candidates: [], roles, stats, workspaces };
+  }
+
+  const talentIds = uniqueTexts(limitedPairs.map((pair) => pair.talentId));
+  const limitedRoleIds = uniqueTexts(limitedPairs.map((pair) => pair.roleId));
+  const [fits, recommendations, sentProgressKeys, slackContactedKeys, talents] =
     await Promise.all([
-      fetchTags(admin, roleIds, talentIds),
-      fetchExistingIntroProgressKeys(admin, roleIds, talentIds),
-      fetchFits(admin, roleIds, talentIds),
+      fetchFits(admin, limitedRoleIds, talentIds),
+      fetchRecommendations(admin, limitedRoleIds, talentIds),
+      fetchSentIntroProgressKeys(admin, limitedRoleIds, talentIds),
+      fetchSlackContactedKeys(admin, limitedRoleIds, talentIds),
       fetchTalents(admin, talentIds),
-      fetchWorkspaces(
-        admin,
-        uniqueTexts(
-          roles.map((role) => normalizeText(role.company_workspace_id))
-        )
-      ),
     ]);
+  const generateTalentIds = uniqueTexts(
+    limitedPairs
+      .filter((pair) => {
+        const fit = fits.get(pair.key);
+        return getAutoIntroReasonMode(fit?.kind ?? null) === "author";
+      })
+      .map((pair) => pair.talentId)
+  );
+  const profiles = await fetchCandidateProfiles(
+    admin,
+    talents,
+    generateTalentIds
+  );
 
   const roleById = new Map(roles.map((role) => [role.role_id, role]));
-  const tagsByKey = groupTagsByRoleTalent(tags);
   const talentById = new Map(talents.map((talent) => [talent.user_id, talent]));
   const workspaceById = new Map(
     workspaces.map((workspace) => [workspace.company_workspace_id, workspace])
   );
-
   const candidates: AutoIntroCandidate[] = [];
-  for (const recommendation of recommendations) {
-    const role = roleById.get(recommendation.role_id);
+
+  for (const pair of limitedPairs) {
+    if (sentProgressKeys.has(pair.key) || slackContactedKeys.has(pair.key)) {
+      stats.skippedAlreadySentCount += 1;
+      continue;
+    }
+    const role = roleById.get(pair.roleId);
     if (!role) continue;
-
-    const key = `${recommendation.role_id}:${recommendation.talent_id}`;
-    if (!isAcceptedRecommendation(recommendation)) continue;
-    if (existingIntroKeys.has(key)) continue;
-    if (!isPendingConnectionStage(tagsByKey.get(key) ?? [])) continue;
-
-    candidates.push(
-      buildCandidate({
-        fit: fits.get(key) ?? null,
-        recommendation,
-        role,
-        talent: talentById.get(recommendation.talent_id) ?? null,
-        workspace: workspaceById.get(role.company_workspace_id) ?? null,
-      })
-    );
+    const workspace = workspaceById.get(role.company_workspace_id);
+    if (!workspace) continue;
+    const fit = fits.get(pair.key) ?? null;
+    if (!fit) {
+      stats.skippedMissingFitCount += 1;
+      continue;
+    }
+    const reasonMode = getAutoIntroReasonMode(fit?.kind ?? null);
+    if (reasonMode === "skip") {
+      stats.skippedUnsupportedFitKindCount += 1;
+      continue;
+    }
+    const fitReason = truncateText(fit?.reason, MAX_CODEX_REASON_CHARS) ?? "";
+    if (reasonMode === "codex" && !fitReason) {
+      stats.skippedMissingCodexReasonCount += 1;
+      continue;
+    }
+    const talent = talentById.get(pair.talentId);
+    const talentName =
+      normalizeText(talent?.name) || normalizeText(talent?.email) || "후보자";
+    candidates.push({
+      candidateProfile:
+        reasonMode === "author" ? (profiles.get(pair.talentId) ?? null) : null,
+      companyName: normalizeText(workspace.company_name) || "회사",
+      fitId: fit?.id ?? null,
+      fitKind: fit?.kind ?? null,
+      fitReason,
+      pendingSince: pair.pendingSince,
+      reasonMode,
+      recommendationId: recommendations.get(pair.key)?.id ?? null,
+      roleId: role.role_id,
+      roleTitle: normalizeText(role.name) || "포지션",
+      talentId: pair.talentId,
+      talentName,
+      workspaceId: role.company_workspace_id,
+    });
   }
-
-  return candidates
-    .sort((left, right) => {
-      const companyOrder = left.companyName.localeCompare(
-        right.companyName,
-        "ko"
-      );
-      return (
-        companyOrder ||
-        left.roleTitle.localeCompare(right.roleTitle, "ko") ||
-        left.talentName.localeCompare(right.talentName, "ko")
-      );
-    })
-    .slice(0, filters.limit);
+  return {
+    candidates: candidates.slice(0, filters.limit),
+    roles,
+    stats,
+    workspaces,
+  };
 }
 
-function groupCandidatesByRole(candidates: AutoIntroCandidate[]) {
-  const groups = new Map<string, WorkspaceNotificationGroup>();
-  for (const candidate of candidates) {
-    const groupKey = `${candidate.workspaceId}:${candidate.roleId}`;
-    const current =
-      groups.get(groupKey) ??
-      ({
-        candidates: [],
-        companyName: candidate.companyName,
-        roleId: candidate.roleId,
-        roleTitle: candidate.roleTitle,
-        workspaceId: candidate.workspaceId,
-      } satisfies WorkspaceNotificationGroup);
-    current.candidates.push(candidate);
-    groups.set(groupKey, current);
-  }
-  return Array.from(groups.values());
+function groupCandidatesByWorkspace(
+  candidates: AutoIntroCandidate[],
+  roles: RoleRow[],
+  workspaces: WorkspaceRow[]
+) {
+  const roleById = new Map(roles.map((role) => [role.role_id, role]));
+  const workspaceById = new Map(
+    workspaces.map((workspace) => [workspace.company_workspace_id, workspace])
+  );
+  return groupAutoIntroItemsByWorkspaceAndRole(candidates).flatMap(
+    (workspaceGroup) => {
+      const workspace = workspaceById.get(workspaceGroup.workspaceId);
+      const firstCandidate = workspaceGroup.items[0];
+      if (!workspace || !firstCandidate) return [];
+      const roleSections = workspaceGroup.roles.flatMap((roleGroup) => {
+        const role = roleById.get(roleGroup.roleId);
+        if (!role) return [];
+        return [
+          {
+            candidates: roleGroup.items,
+            role,
+            roleId: roleGroup.roleId,
+            roleTitle: roleGroup.items[0]?.roleTitle ?? role.name,
+          } satisfies WorkspaceRoleNotificationSection,
+        ];
+      });
+      const validCandidateKeys = new Set(
+        roleSections.flatMap((section) => section.candidates.map(candidateKey))
+      );
+      const validCandidates = workspaceGroup.items.filter((candidate) =>
+        validCandidateKeys.has(candidateKey(candidate))
+      );
+      if (validCandidates.length === 0) return [];
+      return [
+        {
+          candidates: validCandidates,
+          companyName: firstCandidate.companyName,
+          roleSections,
+          workspace,
+          workspaceId: workspaceGroup.workspaceId,
+        } satisfies WorkspaceNotificationGroup,
+      ];
+    }
+  );
 }
 
-async function hasRoleSlackDeliveryChannel(
+function groupWithCandidates(
+  group: WorkspaceNotificationGroup,
+  candidates: AutoIntroCandidate[]
+) {
+  const ids = new Set(
+    candidates.map((candidate) => `${candidate.roleId}:${candidate.talentId}`)
+  );
+  return {
+    ...group,
+    candidates,
+    roleSections: group.roleSections
+      .map((section) => ({
+        ...section,
+        candidates: section.candidates.filter((candidate) =>
+          ids.has(`${candidate.roleId}:${candidate.talentId}`)
+        ),
+      }))
+      .filter((section) => section.candidates.length > 0),
+  } satisfies WorkspaceNotificationGroup;
+}
+
+async function hasWorkspaceSlackDeliveryChannel(
   admin: AdminClient,
-  workspaceId: string,
-  roleId: string
+  workspaceId: string
 ) {
   const { data, error } = await (
     admin.from("company_slack_integrations" as any) as any
@@ -636,127 +980,206 @@ async function hasRoleSlackDeliveryChannel(
     .eq("company_workspace_id", workspaceId)
     .eq("is_enabled", true);
   if (channelError) throw channelError;
-  if (!channelRows?.length) return false;
-
-  const { data: optOutRows, error: optOutError } = await (
-    admin.from("company_role_notification_channels" as any) as any
-  )
-    .select("channel_id")
-    .eq("role_id", roleId);
-  if (optOutError) throw optOutError;
-  const disabledChannelIds = new Set(
-    (optOutRows ?? []).map((row: { channel_id: string }) => row.channel_id)
-  );
-  return channelRows.some(
-    (channel: { id: string }) => !disabledChannelIds.has(channel.id)
-  );
+  return Boolean(channelRows?.length);
 }
 
-function buildFallbackBody(group: WorkspaceNotificationGroup) {
-  const lines = [
-    "안녕하세요, Harper입니다.",
-    "",
-    `${group.companyName}에 추천드리고 싶은 후보자를 공유드립니다.`,
-    "",
-    ...group.candidates.map((candidate) => {
-      const reason = normalizeText(candidate.fitReason);
-      return `- ${candidate.talentName}님은 ${candidate.roleTitle} 포지션 후보로 추천드립니다. ${reason} 이런 맥락에서 먼저 가볍게 만나보시기를 제안드립니다.`;
-    }),
-  ];
-  return lines.join("\n");
-}
-
-function buildPrompt(group: WorkspaceNotificationGroup) {
-  const candidateLines = group.candidates.map((candidate, index) =>
-    [
-      `${index + 1}.`,
-      `name: ${candidate.talentName}`,
-      `roleTitle: ${candidate.roleTitle}`,
-      `fitReason: ${candidate.fitReason}`,
-    ].join("\n")
-  );
-
-  return [
-    "아래 입력만 사용해 회사 담당자에게 보낼 Harper 추천 메시지를 작성해 주세요.",
-    "",
-    "출력 규칙:",
-    '- JSON만 반환하세요. 형식: {"body":"..."}',
-    "- body는 한국어만 사용하세요.",
-    "- 첫 문장은 짧게 Harper가 추천 후보를 공유한다는 맥락을 말하세요.",
-    "- 후보자마다 하이픈(-) bullet을 하나씩 쓰고, 각 bullet은 2문장 정도로 작성하세요.",
-    "- 추천이유 전달이 목적입니다. 제공되지 않은 경력, 학력, 성과, 수치, 민감정보는 만들지 마세요.",
-    "- 과장된 확신 대신 '추천드립니다', '만나보시기를 제안드립니다' 정도의 톤을 유지하세요.",
-    "",
-    `companyName: ${group.companyName}`,
-    "",
-    "candidates:",
-    candidateLines.join("\n\n"),
-  ].join("\n");
-}
-
-function parseGeneratedMessage(
-  raw: string,
-  group: WorkspaceNotificationGroup
-): GeneratedWorkspaceMessage {
-  const cleaned = normalizeMultiline(raw)
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-  let parsed: Record<string, unknown> | null = null;
-
+function compactJson(value: unknown, maxChars: number) {
   try {
-    parsed = JSON.parse(cleaned) as Record<string, unknown>;
+    return JSON.stringify(value).slice(0, maxChars);
   } catch {
-    const firstBrace = cleaned.indexOf("{");
-    const lastBrace = cleaned.lastIndexOf("}");
-    if (firstBrace >= 0 && lastBrace > firstBrace) {
-      try {
-        parsed = JSON.parse(cleaned.slice(firstBrace, lastBrace + 1)) as Record<
-          string,
-          unknown
-        >;
-      } catch {
-        parsed = null;
-      }
-    }
+    return "null";
   }
+}
 
-  const body =
-    normalizeMultiline(parsed?.body) ||
-    (parsed ? "" : cleaned) ||
-    buildFallbackBody(group);
-
+function candidateProfileForCodex(profile: CandidateProfile | null) {
+  if (!profile) return null;
   return {
-    body,
-    model: CLAUDE_MODEL,
-    raw,
+    ...profile,
+    extras: compactJson(profile.extras, 2000),
+    insights: compactJson(profile.insights, 2000),
   };
 }
 
-async function generateWorkspaceMessage(
-  group: WorkspaceNotificationGroup
-): Promise<GeneratedWorkspaceMessage> {
-  const raw = await runTalentAssistantCompletion({
-    anthropicOverloadFallbackModel: CLAUDE_MODEL,
-    fallbackModel: CLAUDE_MODEL,
-    jsonMode: true,
-    messages: [
-      {
-        role: "system",
-        content:
-          "You write concise Korean company-facing recruiting recommendation notes for Harper. Return JSON only.",
-      },
-      {
-        role: "user",
-        content: buildPrompt(group),
-      },
-    ],
-    primaryModel: CLAUDE_MODEL,
-    temperature: 0.2,
-    usageLabel: "ops/auto-intro-to-company:message",
+const AUTO_INTRO_PRESENTATIONS = new Set<AutoIntroPresentation>([
+  "paragraph",
+  "tldr",
+  "bullets",
+  "tldr_bullets",
+]);
+
+function buildWorkspaceMessageBody(args: {
+  candidateCopyByCandidateKey: Record<string, string>;
+  followUpQuestion: string | null;
+  group: WorkspaceNotificationGroup;
+}) {
+  const roleBlocks = args.group.roleSections.map((section) => {
+    const candidates = section.candidates.map((candidate) => {
+      const copy = args.candidateCopyByCandidateKey[candidateKey(candidate)];
+      if (!copy) {
+        throw new Error(
+          `Missing candidate copy: ${candidate.roleId}:${candidate.talentId}`
+        );
+      }
+      return `${buildAutoIntroCandidateNameLink({
+        name: candidate.talentName,
+        recommendationId: candidate.recommendationId,
+        roleId: candidate.roleId,
+        talentId: candidate.talentId,
+        workspaceId: candidate.workspaceId,
+      })}\n${copy}`;
+    });
+    const roleTitle = escapeAutoIntroSlackHeading(section.roleTitle);
+    return [`*${roleTitle}*`, ...candidates].join("\n\n");
   });
-  return parseGeneratedMessage(raw, group);
+  const postscript = buildAutoIntroFollowUpPostscript(args.followUpQuestion);
+  return [
+    "*새로운 후보자 연결 제안*",
+    "안녕하세요, Harper입니다. 연결을 제안드리고 싶은 후보자를 공유드립니다.",
+    ...roleBlocks,
+    AUTO_INTRO_RESPONSE_GUIDANCE,
+    buildAutoIntroWorkspaceActionGuidance({
+      workspaceId: args.group.workspaceId,
+    }),
+    ...(postscript ? [postscript] : []),
+  ].join("\n\n");
+}
+
+function parseCodexAuthoredMessage(
+  authored: CodexAuthoredWorkspaceMessage,
+  group: WorkspaceNotificationGroup
+): GeneratedWorkspaceMessage {
+  if (normalizeText(authored.workspaceId) !== group.workspaceId) {
+    throw new Error("Authored message workspace does not match");
+  }
+  if (!Array.isArray(authored.roles) || authored.roles.length === 0) {
+    throw new Error("Authored workspace message has no roles array");
+  }
+
+  const expectedCandidates = new Map(
+    group.candidates.map((candidate) => [candidateKey(candidate), candidate])
+  );
+  const expectedRoleIds = new Set(
+    group.roleSections.map((section) => section.roleId)
+  );
+  const seenRoleIds = new Set<string>();
+  const candidateCopyByCandidateKey: Record<string, string> = {};
+  const internalReasonByCandidateKey: Record<string, string> = {};
+  const presentationByCandidateKey: Record<string, AutoIntroPresentation> = {};
+
+  for (const role of authored.roles) {
+    const roleId = normalizeText(role.roleId);
+    if (!expectedRoleIds.has(roleId) || seenRoleIds.has(roleId)) {
+      throw new Error(`Unexpected or duplicated role section: ${roleId}`);
+    }
+    seenRoleIds.add(roleId);
+    if (!Array.isArray(role.candidates) || role.candidates.length === 0) {
+      throw new Error(`Authored role has no candidates: ${roleId}`);
+    }
+    for (const row of role.candidates) {
+      const talentId = normalizeText(row.talentId);
+      const key = `${roleId}:${talentId}`;
+      const candidate = expectedCandidates.get(key);
+      if (!candidate || candidateCopyByCandidateKey[key]) {
+        throw new Error(`Unexpected or duplicated candidate copy: ${key}`);
+      }
+      if (!Array.isArray(row.sentences)) {
+        throw new Error(`Candidate copy has no sentences: ${key}`);
+      }
+      const sentences = row.sentences.map(normalizeText).filter(Boolean);
+      try {
+        validateAutoIntroCandidateSentences(sentences);
+      } catch (error) {
+        throw new Error(`${formatError(error)}: ${key}`);
+      }
+      const presentation = normalizeText(
+        row.presentation
+      ) as AutoIntroPresentation;
+      if (!AUTO_INTRO_PRESENTATIONS.has(presentation)) {
+        throw new Error(`Unsupported candidate presentation: ${key}`);
+      }
+      let internalReason: string | null;
+      try {
+        internalReason = validateAutoIntroInternalReason({
+          internalReason: row.internalReason,
+          reasonMode: candidate.reasonMode,
+          sentences,
+        });
+      } catch (error) {
+        throw new Error(`${formatError(error)}: ${key}`);
+      }
+      if (internalReason) {
+        internalReasonByCandidateKey[key] = internalReason;
+      }
+      candidateCopyByCandidateKey[key] = renderAutoIntroCandidateCopy(
+        presentation,
+        sentences
+      );
+      presentationByCandidateKey[key] = presentation;
+    }
+  }
+
+  if (seenRoleIds.size !== expectedRoleIds.size) {
+    throw new Error("Auto intro message omitted a role section");
+  }
+  if (
+    Object.keys(candidateCopyByCandidateKey).length !== expectedCandidates.size
+  ) {
+    throw new Error("Auto intro message omitted a candidate");
+  }
+  const normalizedQuestion = normalizeText(authored.followUpQuestion);
+  const followUpQuestion =
+    !normalizedQuestion || normalizedQuestion.toLowerCase() === "null"
+      ? null
+      : normalizedQuestion;
+  return {
+    body: buildWorkspaceMessageBody({
+      candidateCopyByCandidateKey,
+      followUpQuestion,
+      group,
+    }),
+    candidateCopyByCandidateKey,
+    followUpQuestion,
+    internalReasonByCandidateKey,
+    model: "codex-scheduled",
+    presentationByCandidateKey,
+  };
+}
+
+function pendingClaimIsFresh(metadata: unknown) {
+  const record = metadataRecord(metadata);
+  if (record.deliveryStatus !== "pending") return false;
+  const claimedAt = new Date(normalizeText(record.claimedAt));
+  return (
+    Number.isFinite(claimedAt.getTime()) &&
+    Date.now() - claimedAt.getTime() < CLAIM_TTL_MS
+  );
+}
+
+function progressMetadata(args: {
+  candidate: AutoIntroCandidate;
+  deliveryStatus: "pending" | "failed" | "sent";
+  message: GeneratedWorkspaceMessage;
+}) {
+  const now = new Date().toISOString();
+  return {
+    autoIntroToCompany: true,
+    candidateCopy:
+      args.message.candidateCopyByCandidateKey[candidateKey(args.candidate)],
+    claimedAt: now,
+    deliveryStatus: args.deliveryStatus,
+    fitId: args.candidate.fitId,
+    fitKind: args.candidate.fitKind,
+    generatedAt: now,
+    model: args.message.model,
+    pendingSince: args.candidate.pendingSince,
+    presentation:
+      args.message.presentationByCandidateKey[candidateKey(args.candidate)],
+    reasonSource: args.candidate.reasonMode,
+    recommendationId: args.candidate.recommendationId,
+    roleTitle: args.candidate.roleTitle,
+    source: "codex_scheduled_auto_intro_to_company",
+    workspaceId: args.candidate.workspaceId,
+  } satisfies Record<string, unknown>;
 }
 
 async function claimCandidateProgressRows(args: {
@@ -765,52 +1188,45 @@ async function claimCandidateProgressRows(args: {
   message: GeneratedWorkspaceMessage;
 }) {
   const claimed: AutoIntroCandidate[] = [];
-  const now = new Date().toISOString();
-
   for (const candidate of args.group.candidates) {
+    const id = progressIdForCandidate(candidate);
     const { data: existing, error: existingError } = await (
       args.admin.from("talent_progress" as any) as any
     )
-      .select("id")
-      .eq("kind", INTRO_TO_COMPANY_KIND)
-      .eq("role_id", candidate.roleId)
-      .eq("talent_id", candidate.talentId)
-      .limit(1);
+      .select("id, metadata")
+      .eq("id", id)
+      .maybeSingle();
     if (existingError) throw existingError;
-    if ((existing ?? []).length > 0) continue;
-
-    const metadata = {
-      autoIntroToCompany: true,
+    if (wasAutoIntroSlackSent(existing?.metadata)) continue;
+    if (pendingClaimIsFresh(existing?.metadata)) continue;
+    const metadata = progressMetadata({
+      candidate,
       deliveryStatus: "pending",
-      fitId: candidate.fitId,
-      generatedAt: now,
-      model: args.message.model,
-      recommendationId: candidate.recommendationId,
-      roleTitle: candidate.roleTitle,
-      source: "auto_intro_to_company_cron",
-      workspaceId: candidate.workspaceId,
-    } satisfies Record<string, unknown>;
-
-    const { error } = await (
-      args.admin.from("talent_progress" as any) as any
-    ).insert({
-      id: progressIdForCandidate(candidate),
+      message: args.message,
+    });
+    const values = {
+      id,
       kind: INTRO_TO_COMPANY_KIND,
       metadata: metadata as Json,
       recommendation_id: candidate.recommendationId,
       role_id: candidate.roleId,
       talent_id: candidate.talentId,
-      text: `${candidate.talentName}님을 만나보시기를 제안드립니다.`,
+      text:
+        args.message.candidateCopyByCandidateKey[candidateKey(candidate)] ||
+        `${candidate.talentName}님을 만나보시기를 제안드립니다.`,
       user_id: HARPER_WORKER_USER_ID,
-    });
-
-    if (error) {
-      if ((error as { code?: string }).code === "23505") continue;
-      throw error;
+    };
+    const result = existing
+      ? await (args.admin.from("talent_progress" as any) as any)
+          .update(values)
+          .eq("id", id)
+      : await (args.admin.from("talent_progress" as any) as any).insert(values);
+    if (result.error) {
+      if ((result.error as { code?: string }).code === "23505") continue;
+      throw result.error;
     }
     claimed.push(candidate);
   }
-
   return claimed;
 }
 
@@ -822,27 +1238,48 @@ async function updateCandidateProgressMetadata(args: {
 }) {
   const now = new Date().toISOString();
   const deliveryStatus = args.delivery.slackSent ? "sent" : "failed";
-
   for (const candidate of args.group.candidates) {
     const metadata = {
-      autoIntroToCompany: true,
-      deliveredAt: now,
-      deliveryStatus,
-      fitId: candidate.fitId,
-      model: args.message.model,
-      recommendationId: candidate.recommendationId,
-      roleTitle: candidate.roleTitle,
+      ...progressMetadata({ candidate, deliveryStatus, message: args.message }),
+      attemptedAt: now,
+      deliveredAt: args.delivery.slackSent ? now : null,
+      idempotencyKey: args.delivery.idempotencyKey,
       slackConnected: args.delivery.slackConnected,
       slackError: args.delivery.slackError,
       slackSent: args.delivery.slackSent,
-      source: "auto_intro_to_company_cron",
-      workspaceId: candidate.workspaceId,
     } satisfies Record<string, unknown>;
-
     const { error } = await (args.admin.from("talent_progress" as any) as any)
       .update({ metadata: metadata as Json })
       .eq("id", progressIdForCandidate(candidate));
     if (error) throw error;
+  }
+}
+
+async function persistCodexAuthoredFitReasons(args: {
+  admin: AdminClient;
+  group: WorkspaceNotificationGroup;
+  message: GeneratedWorkspaceMessage;
+}) {
+  for (const candidate of args.group.candidates) {
+    if (candidate.reasonMode !== "author" || !candidate.fitId) continue;
+    const reason =
+      args.message.internalReasonByCandidateKey[candidateKey(candidate)];
+    if (!reason)
+      throw new Error(`Missing Codex-authored reason: ${candidate.talentId}`);
+    const { data, error } = await (
+      args.admin.from("talent_opportunity_fit" as any) as any
+    )
+      .update({ reason })
+      .eq("id", candidate.fitId)
+      .is("kind", null)
+      .select("id")
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) {
+      throw new Error(
+        `Fit kind changed before Codex-authored reason persistence: ${candidate.fitId}`
+      );
+    }
   }
 }
 
@@ -855,83 +1292,239 @@ async function sendWorkspaceMessage(args: {
   message: GeneratedWorkspaceMessage;
   slackConnected: boolean;
 }): Promise<DeliveryOutcome> {
+  const idempotencyKey = deliveryIdempotencyKey(args.group);
   let slackSent = false;
   let slackError: string | null = null;
   if (args.slackConnected) {
     try {
       slackSent = await sendHarperWorkspaceSlackMessage({
-        roleId: args.group.roleId,
+        idempotencyKey,
+        messageMetadata: {
+          autoIntroToCompany: {
+            candidateIds: uniqueTexts(
+              args.group.candidates.map((candidate) => candidate.talentId)
+            ),
+            candidateKeys: args.group.candidates.map(candidateKey),
+            pendingSinceByCandidateKey: Object.fromEntries(
+              args.group.candidates.map((candidate) => [
+                candidateKey(candidate),
+                candidate.pendingSince,
+              ])
+            ),
+            reasonSourceByCandidateKey: Object.fromEntries(
+              args.group.candidates.map((candidate) => [
+                candidateKey(candidate),
+                candidate.reasonMode === "codex" ? "codex" : "codex-authored",
+              ])
+            ),
+            roleIds: args.group.roleSections.map((section) => section.roleId),
+          },
+          model: args.message.model,
+          source: "codex_scheduled_auto_intro_to_company",
+        },
+        mentions: args.group.candidates.map((candidate) => ({
+          displayName: candidate.talentName,
+          recommendationId: candidate.recommendationId,
+          roleId: candidate.roleId,
+          talentId: candidate.talentId,
+        })),
+        roleId: null,
         text: args.message.body,
         workspaceId: args.group.workspaceId,
       });
+      if (!slackSent)
+        slackError = "No eligible Slack channel accepted delivery";
     } catch (error) {
       slackError = formatError(error).slice(0, 500);
     }
   }
-
   return {
+    idempotencyKey,
     slackConnected: args.slackConnected,
     slackError,
     slackSent,
   };
 }
 
-export async function runAutoIntroToCompanyNotifications(args?: {
-  dryRun?: boolean;
+function autoIntroFilters(args?: {
   limit?: number;
   roleId?: string | null;
   workspaceId?: string | null;
-}): Promise<AutoIntroToCompanyRunResult> {
-  const admin = getSupabaseAdmin();
-  const dryRun = args?.dryRun === true;
-  const filters = {
+}) {
+  return {
     limit: args?.limit ?? DEFAULT_MAX_CANDIDATES,
     roleId: normalizeOptionalFilter(args?.roleId),
     workspaceId: normalizeOptionalFilter(args?.workspaceId),
   } satisfies AutoIntroRunFilters;
+}
 
-  const eligibleCandidates = await buildEligibleCandidates(admin, filters);
-  const groups = groupCandidatesByRole(eligibleCandidates);
-  const result: AutoIntroToCompanyRunResult = {
-    dryRun,
-    eligibleCandidateCount: eligibleCandidates.length,
+function companyContext(group: WorkspaceNotificationGroup) {
+  return {
+    brief: truncateText(group.workspace.brief, 1200),
+    companyDescription: truncateText(group.workspace.company_description, 2000),
+    companyName: group.workspace.company_name,
+    pitch: truncateText(group.workspace.pitch, 1200),
+    request: truncateText(group.workspace.request, 1600),
+  };
+}
+
+function roleContext(section: WorkspaceRoleNotificationSection) {
+  return {
+    description: truncateText(section.role.description, 3500),
+    descriptionSummary: truncateText(section.role.description_summary, 1600),
+    information: compactJson(section.role.information, 2000),
+    location: section.role.location_text,
+    name: section.role.name,
+    request: truncateText(section.role.request, 2000),
+    salaryRange: section.role.salary_range,
+    seniority: section.role.seniority_level,
+    summary: compactJson(section.role.summary, 2000),
+    workMode: section.role.work_mode,
+  };
+}
+
+export async function fetchAutoIntroToCompanyCandidateDossiers(args?: {
+  limit?: number;
+  roleId?: string | null;
+  workspaceId?: string | null;
+}): Promise<AutoIntroToCompanyCandidateDossiers> {
+  const admin = getSupabaseAdmin();
+  const eligibility = await buildEligibleCandidates(
+    admin,
+    autoIntroFilters(args)
+  );
+  const groups = groupCandidatesByWorkspace(
+    eligibility.candidates,
+    eligibility.roles,
+    eligibility.workspaces
+  );
+  const result: AutoIntroToCompanyCandidateDossiers = {
+    ...eligibility.stats,
+    eligibleCandidateCount: eligibility.candidates.length,
     groups: [],
-    processedCandidateCount: 0,
     skippedNoChannelCount: 0,
-    sentSlackCount: 0,
   };
 
   for (const group of groups) {
-    const slackConnected = await hasRoleSlackDeliveryChannel(
+    const slackConnected = await hasWorkspaceSlackDeliveryChannel(
       admin,
-      group.workspaceId,
-      group.roleId
+      group.workspaceId
     );
+    if (!slackConnected) {
+      result.skippedNoChannelCount += group.candidates.length;
+    }
+    result.groups.push({
+      candidateCount: group.candidates.length,
+      companyContext: companyContext(group),
+      companyName: group.companyName,
+      roles: group.roleSections.map((section) => ({
+        candidateCount: section.candidates.length,
+        candidates: section.candidates.map((candidate) => ({
+          fitId: candidate.fitId as string,
+          fitKind: candidate.fitKind,
+          name: candidate.talentName,
+          pendingSince: candidate.pendingSince,
+          professionalProfile:
+            candidate.reasonMode === "author"
+              ? candidateProfileForCodex(candidate.candidateProfile)
+              : null,
+          reasonMode: candidate.reasonMode,
+          storedReason:
+            candidate.reasonMode === "codex" ? candidate.fitReason : null,
+          talentId: candidate.talentId,
+        })),
+        roleContext: roleContext(section),
+        roleId: section.roleId,
+        roleTitle: section.roleTitle,
+      })),
+      slackConnected,
+      workspaceId: group.workspaceId,
+    });
+  }
+  return result;
+}
 
+function filterAuthoredMessageToCandidates(
+  authored: CodexAuthoredWorkspaceMessage,
+  keys: Set<string>
+): CodexAuthoredWorkspaceMessage {
+  return {
+    ...authored,
+    roles: authored.roles
+      .map((role) => {
+        const roleId = normalizeText(role.roleId);
+        return {
+          ...role,
+          roleId,
+          candidates: role.candidates.filter((candidate) =>
+            keys.has(`${roleId}:${normalizeText(candidate.talentId)}`)
+          ),
+        };
+      })
+      .filter((role) => role.candidates.length > 0),
+  };
+}
+
+export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
+  groups: CodexAuthoredWorkspaceMessage[];
+  limit?: number;
+  roleId?: string | null;
+  workspaceId?: string | null;
+}): Promise<AutoIntroToCompanyDeliveryResult> {
+  if (!Array.isArray(args.groups)) {
+    throw new Error("groups must be an array");
+  }
+  const admin = getSupabaseAdmin();
+  const eligibility = await buildEligibleCandidates(
+    admin,
+    autoIntroFilters(args)
+  );
+  const availableGroups = groupCandidatesByWorkspace(
+    eligibility.candidates,
+    eligibility.roles,
+    eligibility.workspaces
+  );
+  const groupByWorkspaceId = new Map(
+    availableGroups.map((group) => [group.workspaceId, group])
+  );
+
+  const result: AutoIntroToCompanyDeliveryResult = {
+    ...eligibility.stats,
+    eligibleCandidateCount: eligibility.candidates.length,
+    failedCandidateCount: 0,
+    groups: [],
+    processedCandidateCount: 0,
+    sentCandidateCount: 0,
+    sentSlackCount: 0,
+    skippedNoChannelCount: 0,
+  };
+  const submittedWorkspaceIds = new Set<string>();
+
+  for (const authored of args.groups) {
+    const workspaceId = normalizeText(authored.workspaceId);
+    if (!workspaceId || submittedWorkspaceIds.has(workspaceId)) {
+      throw new Error(
+        `Unexpected or duplicated workspace group: ${workspaceId}`
+      );
+    }
+    submittedWorkspaceIds.add(workspaceId);
+    const group = groupByWorkspaceId.get(workspaceId);
+    if (!group)
+      throw new Error(`No currently eligible workspace: ${workspaceId}`);
+    const normalizedAuthored = { ...authored, workspaceId };
+    const message = parseCodexAuthoredMessage(normalizedAuthored, group);
+    const slackConnected = await hasWorkspaceSlackDeliveryChannel(
+      admin,
+      group.workspaceId
+    );
     if (!slackConnected) {
       result.skippedNoChannelCount += group.candidates.length;
       result.groups.push({
         candidateCount: group.candidates.length,
         companyName: group.companyName,
-        slackConnected,
-        workspaceId: group.workspaceId,
-      });
-      continue;
-    }
-
-    const message = dryRun
-      ? ({
-          body: buildFallbackBody(group),
-          model: "dry-run",
-          raw: null,
-        } satisfies GeneratedWorkspaceMessage)
-      : await generateWorkspaceMessage(group);
-
-    if (dryRun) {
-      result.groups.push({
-        candidateCount: group.candidates.length,
-        companyName: group.companyName,
         message,
+        roleIds: group.roleSections.map((section) => section.roleId),
+        roleTitles: group.roleSections.map((section) => section.roleTitle),
         slackConnected,
         workspaceId: group.workspaceId,
       });
@@ -944,15 +1537,22 @@ export async function runAutoIntroToCompanyNotifications(args?: {
       message,
     });
     if (claimedCandidates.length === 0) continue;
-
-    const claimedGroup = {
-      ...group,
-      candidates: claimedCandidates,
-    } satisfies WorkspaceNotificationGroup;
+    const claimedKeys = new Set(
+      claimedCandidates.map((candidate) => candidateKey(candidate))
+    );
+    const claimedGroup = groupWithCandidates(group, claimedCandidates);
     const deliveryMessage =
       claimedCandidates.length === group.candidates.length
         ? message
-        : await generateWorkspaceMessage(claimedGroup);
+        : parseCodexAuthoredMessage(
+            filterAuthoredMessageToCandidates(normalizedAuthored, claimedKeys),
+            claimedGroup
+          );
+    await persistCodexAuthoredFitReasons({
+      admin,
+      group: claimedGroup,
+      message: deliveryMessage,
+    });
     const delivery = await sendWorkspaceMessage({
       group: claimedGroup,
       message: deliveryMessage,
@@ -969,13 +1569,20 @@ export async function runAutoIntroToCompanyNotifications(args?: {
       candidateCount: claimedCandidates.length,
       companyName: group.companyName,
       message: deliveryMessage,
+      roleIds: claimedGroup.roleSections.map((section) => section.roleId),
+      roleTitles: claimedGroup.roleSections.map((section) => section.roleTitle),
       slackConnected,
       workspaceId: group.workspaceId,
     });
     result.processedCandidateCount += claimedCandidates.length;
     result.sentSlackCount += delivery.slackSent ? 1 : 0;
+    result.sentCandidateCount += delivery.slackSent
+      ? claimedCandidates.length
+      : 0;
+    result.failedCandidateCount += delivery.slackSent
+      ? 0
+      : claimedCandidates.length;
   }
-
   return result;
 }
 

@@ -473,7 +473,7 @@ export function OrgAllRolesOverview() {
                               counts.get(`${role.roleId}:${stage.id}`) ?? 0
                             }
                             label={getRoleStageLabel(stage, role)}
-                            onClick={() => changeRole(role.roleId)}
+                            onClick={() => changeRole(role.roleId, "pipeline")}
                             stageId={stage.id}
                           />
                         );

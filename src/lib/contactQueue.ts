@@ -7,11 +7,17 @@ export const CONTACT_QUEUE_TYPE_PROFILE_SUBMITTED_NO_ANSWER =
   "career_profile_submitted_no_answer";
 export const CONTACT_QUEUE_TYPE_INTERNAL_CONNECTION_CONFIRMED =
   "internal_connection_confirmed";
+export const CONTACT_QUEUE_TYPE_COMPANY_REQUEST_CANDIDATE_DELIVERY =
+  "company_request_candidate_delivery";
+export const CONTACT_QUEUE_TYPE_COMPANY_REQUEST_COMPANY_DELIVERY =
+  "company_request_company_delivery";
 
 export type ContactQueueType =
   | typeof CONTACT_QUEUE_TYPE_SIGNUP_NO_PROFILE_SUBMIT
   | typeof CONTACT_QUEUE_TYPE_PROFILE_SUBMITTED_NO_ANSWER
   | typeof CONTACT_QUEUE_TYPE_INTERNAL_CONNECTION_CONFIRMED
+  | typeof CONTACT_QUEUE_TYPE_COMPANY_REQUEST_CANDIDATE_DELIVERY
+  | typeof CONTACT_QUEUE_TYPE_COMPANY_REQUEST_COMPANY_DELIVERY
   | "internal_recommendation_call_abandoned";
 
 const RESCHEDULABLE_STATUSES = ["queued", "processing", "failed"] as const;

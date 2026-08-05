@@ -13,9 +13,25 @@ import type {
   OrgAgentMessageMetadata,
   OrgAgentMessageRole,
   OrgAgentMessageStatus,
+  OrgAgentMoreDataKind,
+  OrgAgentRetainedDataActivation,
   OrgAgentThinkingLog,
 } from "@/lib/org/agent/types";
 import type { Json } from "@/types/database.types";
+import {
+  isOrgAgentRetainedDataActivationActive,
+  RETAINED_MORE_DATA_MAX_AGE_HOURS,
+} from "@/lib/org/agent/retention";
+import {
+  mergeOrgAgentMessageMetadata,
+  resolveAdoptableSlackUserMessageIdentity,
+} from "@/lib/org/agent/messageIdempotency";
+
+export {
+  isOrgAgentRetainedDataActivationActive,
+  RETAINED_MORE_DATA_MAX_AGE_HOURS,
+  RETAINED_MORE_DATA_USER_TURNS,
+} from "@/lib/org/agent/retention";
 
 type SupabaseAdminClient = ReturnType<typeof getSupabaseAdmin>;
 
@@ -45,8 +61,34 @@ export type OrgAgentMessageRow = {
   model: string | null;
   role: OrgAgentMessageRole;
   role_id: string | null;
+  slack_thread_id?: string | null;
+  slack_user_id?: string | null;
   status: OrgAgentMessageStatus;
   thinking_logs: Json;
+};
+
+export type OrgAgentPromptMessageScope =
+  | { kind: "chat" }
+  | { kind: "slack"; slackThreadId: string };
+
+export type OrgAgentStoredRole = OrgRole & {
+  hasMemory: boolean;
+  memory: string | null;
+};
+
+export type OrgAgentWorkspaceData = {
+  brief?: string | null;
+  careerUrl?: string | null;
+  companyDescription: string | null;
+  companyDbId?: number | null;
+  companyName: string;
+  homepageUrl?: string | null;
+  linkedinUrl?: string | null;
+  logoUrl: string | null;
+  pitch: string | null;
+  request: string | null;
+  updatedAt: string;
+  workspaceId: string;
 };
 
 export type OrgAgentSummaryRow = {
@@ -115,6 +157,61 @@ function safeThinkingLogs(value: unknown): OrgAgentThinkingLog[] {
 
 function safeMetadata(value: unknown): OrgAgentMessageMetadata {
   return isRecord(value) ? (value as OrgAgentMessageMetadata) : {};
+}
+
+function safeRetainedDataActivations(
+  value: unknown
+): OrgAgentRetainedDataActivation[] {
+  if (!Array.isArray(value)) return [];
+  const allowedKinds = new Set<OrgAgentMoreDataKind>([
+    "members",
+    "company_details",
+    "workspace_memory",
+  ]);
+  return value.flatMap((item): OrgAgentRetainedDataActivation[] => {
+    if (!isRecord(item)) return [];
+    const kind = normalizeText(item.kind) as OrgAgentMoreDataKind;
+    const scopeKey = normalizeText(item.scopeKey);
+    const activatedByUserMessageId = Number(item.activatedByUserMessageId);
+    if (
+      !allowedKinds.has(kind) ||
+      !scopeKey ||
+      !Number.isSafeInteger(activatedByUserMessageId) ||
+      activatedByUserMessageId <= 0
+    ) {
+      return [];
+    }
+    return [
+      {
+        activatedAt: normalizeText(item.activatedAt) || null,
+        activatedByUserMessageId,
+        fullTextKeys: Array.isArray(item.fullTextKeys)
+          ? Array.from(
+              new Set(
+                item.fullTextKeys
+                  .map(normalizeText)
+                  .filter(Boolean)
+                  .slice(0, 10)
+              )
+            )
+          : [],
+        kind,
+        scopeKey,
+      },
+    ];
+  });
+}
+
+function applyPromptMessageScope(
+  query: any,
+  scope: OrgAgentPromptMessageScope
+) {
+  if (scope.kind === "slack") {
+    return query
+      .eq("message_type", "slack")
+      .eq("slack_thread_id", scope.slackThreadId);
+  }
+  return query.eq("message_type", "chat");
 }
 
 function normalizeMessageStatus(value: unknown): OrgAgentMessageStatus {
@@ -271,6 +368,7 @@ export async function insertOrgAgentMessage(args: {
   userId?: string | null;
 }) {
   const now = new Date().toISOString();
+  const messageType = args.messageType ?? "chat";
   const { data, error } = await (
     args.admin.from("company_messages" as any) as any
   )
@@ -281,7 +379,7 @@ export async function insertOrgAgentMessage(args: {
       conversation_id: args.conversation.id,
       created_at: now,
       mentions: (args.mentions ?? []) as unknown as Json,
-      message_type: args.messageType ?? "chat",
+      message_type: messageType,
       metadata: (args.metadata ?? {}) as Json,
       model: args.model ?? null,
       role: args.role,
@@ -297,8 +395,61 @@ export async function insertOrgAgentMessage(args: {
     )
     .single();
 
-  if (error) throw error;
-  const row = data as OrgAgentMessageRow;
+  let row: OrgAgentMessageRow;
+  if (!error) {
+    row = data as OrgAgentMessageRow;
+  } else {
+    const identity = resolveAdoptableSlackUserMessageIdentity({
+      content: args.content,
+      conversationId: args.conversation.id,
+      errorCode: (error as { code?: string }).code,
+      messageType,
+      role: args.role,
+      slackMessageTs: args.slackMessageTs,
+      slackThreadId: args.slackThreadId,
+      workspaceId: args.conversation.company_workspace_id,
+    });
+    if (!identity) throw error;
+
+    // The Slack Events API and a worker retry can race to persist the same
+    // user message. Adopt only the exact timestamp row; a timestamp collision
+    // with different scope or content remains a hard conflict.
+    const { data: existing, error: existingError } = await (
+      args.admin.from("company_messages" as any) as any
+    )
+      .select(
+        "id, conversation_id, company_workspace_id, role_id, company_user_id, role, content, message_type, model, status, mentions, thinking_logs, metadata, created_at"
+      )
+      .eq("message_type", identity.messageType)
+      .eq("slack_thread_id", identity.slackThreadId)
+      .eq("slack_message_ts", identity.slackMessageTs)
+      .eq("conversation_id", identity.conversationId)
+      .eq("company_workspace_id", identity.workspaceId)
+      .eq("role", identity.role)
+      .eq("content", identity.content)
+      .maybeSingle();
+
+    if (existingError) throw existingError;
+    if (!existing) throw error;
+    row = existing as OrgAgentMessageRow;
+
+    const mergedMetadata = mergeOrgAgentMessageMetadata(
+      row.metadata,
+      args.metadata
+    );
+    if (mergedMetadata.changed) {
+      const { error: metadataError } = await (
+        args.admin.from("company_messages" as any) as any
+      )
+        .update({ metadata: mergedMetadata.metadata as Json })
+        .eq("id", row.id);
+      if (metadataError) throw metadataError;
+      row = {
+        ...row,
+        metadata: mergedMetadata.metadata as Json,
+      };
+    }
+  }
 
   const { error: conversationError } = await (
     args.admin.from("company_conversations" as any) as any
@@ -319,12 +470,16 @@ export async function fetchRecentOrgAgentPromptMessages(args: {
   beforeMessageId?: number | null;
   conversationId: string;
   limit?: number;
+  scope?: OrgAgentPromptMessageScope;
 }) {
   let query = (args.admin.from("company_messages" as any) as any)
-    .select("id, role, content, created_at, mentions, metadata, slack_user_id")
+    .select(
+      "id, role, content, created_at, mentions, metadata, message_type, slack_thread_id, slack_user_id"
+    )
     .eq("conversation_id", args.conversationId)
-    .in("message_type", ["chat", "slack"])
     .order("id", { ascending: false });
+
+  query = applyPromptMessageScope(query, args.scope ?? { kind: "chat" });
 
   if (args.beforeMessageId) {
     query = query.lt("id", args.beforeMessageId);
@@ -358,6 +513,119 @@ export async function fetchRecentOrgAgentPromptMessages(args: {
     }));
 }
 
+export async function countStartedCompanyAgentTurns(args: {
+  activatedByUserMessageId: number;
+  admin: SupabaseAdminClient;
+  conversationId: string;
+  currentUserMessageId: number;
+  scope: OrgAgentPromptMessageScope;
+}) {
+  let query = (args.admin.from("company_messages" as any) as any)
+    .select("id", { count: "exact", head: true })
+    .eq("conversation_id", args.conversationId)
+    .eq("role", "user")
+    .gt("id", args.activatedByUserMessageId)
+    .lte("id", args.currentUserMessageId)
+    .contains("metadata", {
+      source:
+        args.scope.kind === "slack" ? "org_agent_slack_user" : "org_agent_user",
+    });
+  query = applyPromptMessageScope(query, args.scope);
+  const { count, error } = await query;
+  if (error) throw error;
+  return count ?? 0;
+}
+
+/**
+ * Resolves get_more_data auto-load leases. The stored metadata is only a
+ * selector; callers re-read the selected data so retained context never
+ * freezes an old database snapshot.
+ */
+export async function fetchActiveOrgAgentRetainedDataActivations(args: {
+  admin: SupabaseAdminClient;
+  conversationId: string;
+  currentUserMessageId: number;
+  now?: Date;
+  scope: OrgAgentPromptMessageScope;
+  scopeKey: string;
+}) {
+  const now = args.now ?? new Date();
+  const oldest = new Date(
+    now.getTime() - RETAINED_MORE_DATA_MAX_AGE_HOURS * 60 * 60 * 1_000
+  ).toISOString();
+  let query = (args.admin.from("company_messages" as any) as any)
+    .select("id, created_at, metadata")
+    .eq("conversation_id", args.conversationId)
+    .eq("role", "assistant")
+    .lt("id", args.currentUserMessageId)
+    .gte("created_at", oldest)
+    .order("id", { ascending: false })
+    .limit(100);
+  query = applyPromptMessageScope(query, args.scope);
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const latestByKind = new Map<
+    OrgAgentMoreDataKind,
+    OrgAgentRetainedDataActivation
+  >();
+  for (const row of (data ?? []) as Array<{
+    created_at: string;
+    metadata: Json;
+  }>) {
+    const metadata = safeMetadata(row.metadata);
+    for (const activation of safeRetainedDataActivations(
+      metadata.retainedDataActivations
+    )) {
+      if (
+        activation.scopeKey !== args.scopeKey ||
+        latestByKind.has(activation.kind)
+      ) {
+        continue;
+      }
+      const activatedAt = new Date(activation.activatedAt || row.created_at);
+      if (
+        !Number.isFinite(activatedAt.getTime()) ||
+        now.getTime() - activatedAt.getTime() >
+          RETAINED_MORE_DATA_MAX_AGE_HOURS * 60 * 60 * 1_000
+      ) {
+        continue;
+      }
+      latestByKind.set(activation.kind, {
+        ...activation,
+        activatedAt: activatedAt.toISOString(),
+      });
+    }
+  }
+
+  const active: OrgAgentRetainedDataActivation[] = [];
+  for (const kind of [
+    "members",
+    "company_details",
+    "workspace_memory",
+  ] as const) {
+    const activation = latestByKind.get(kind);
+    if (!activation) continue;
+    const turns = await countStartedCompanyAgentTurns({
+      activatedByUserMessageId: activation.activatedByUserMessageId,
+      admin: args.admin,
+      conversationId: args.conversationId,
+      currentUserMessageId: args.currentUserMessageId,
+      scope: args.scope,
+    });
+    if (
+      isOrgAgentRetainedDataActivationActive({
+        activatedAt: activation.activatedAt!,
+        now,
+        startedUserTurns: turns,
+      })
+    ) {
+      active.push(activation);
+    }
+  }
+  return active;
+}
+
 export async function fetchRecentOrgAgentSummaries(args: {
   admin: SupabaseAdminClient;
   conversationId: string;
@@ -379,15 +647,19 @@ export async function fetchRecentOrgAgentSummaries(args: {
 
 export async function fetchRoleForOrgAgent(args: {
   admin: SupabaseAdminClient;
+  includeCriteria?: boolean;
+  includeMemory?: boolean;
   roleId: string;
   workspaceId: string;
-}): Promise<OrgRole> {
+}): Promise<OrgAgentStoredRole> {
   const { data, error } = await (args.admin.from("company_roles" as any) as any)
     .select(
       "role_id, company_workspace_id, name, external_jd_url, description, request, status, type, location_text, work_mode, created_at, updated_at"
     )
     .eq("company_workspace_id", args.workspaceId)
     .eq("role_id", args.roleId)
+    .eq("source_type", "internal")
+    .not("is_expired", "is", true)
     .maybeSingle();
 
   if (error) throw error;
@@ -406,6 +678,24 @@ export async function fetchRoleForOrgAgent(args: {
     updated_at: string;
     work_mode: string | null;
   };
+  const [internalResult, memoryResult] = await Promise.all([
+    args.includeCriteria === false
+      ? Promise.resolve({ data: null, error: null })
+      : (args.admin.from("company_internal_roles" as any) as any)
+          .select("request")
+          .eq("role_id", args.roleId)
+          .maybeSingle(),
+    args.includeMemory === false
+      ? Promise.resolve({ data: null, error: null })
+      : (args.admin.from("company_memories" as any) as any)
+          .select("content")
+          .eq("company_workspace_id", args.workspaceId)
+          .eq("role_id", args.roleId)
+          .maybeSingle(),
+  ]);
+  if (internalResult.error) throw internalResult.error;
+  if (memoryResult.error) throw memoryResult.error;
+  const memory = normalizeText(memoryResult.data?.content) || null;
   return {
     createdAt: row.created_at,
     description: row.description ?? null,
@@ -413,7 +703,9 @@ export async function fetchRoleForOrgAgent(args: {
     externalJdUrl: row.external_jd_url ?? null,
     locationText: row.location_text ?? null,
     name: row.name,
-    request: row.request ?? null,
+    hasMemory: Boolean(memory),
+    memory,
+    request: normalizeText(internalResult.data?.request) || null,
     roleId: row.role_id,
     status: row.status ?? null,
     updatedAt: row.updated_at,
@@ -425,12 +717,12 @@ export async function fetchRoleForOrgAgent(args: {
 export async function fetchWorkspaceForOrgAgent(args: {
   admin: SupabaseAdminClient;
   workspaceId: string;
-}) {
+}): Promise<OrgAgentWorkspaceData> {
   const { data, error } = await (
     args.admin.from("company_workspace" as any) as any
   )
     .select(
-      "company_workspace_id, company_name, company_description, pitch, request, logo_url, updated_at"
+      "company_workspace_id, company_db_id, company_name, brief, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, updated_at"
     )
     .eq("company_workspace_id", args.workspaceId)
     .maybeSingle();
@@ -438,17 +730,27 @@ export async function fetchWorkspaceForOrgAgent(args: {
   if (error) throw error;
   if (!data) throw new OrgHttpError(404, "Workspace not found");
   const row = data as {
+    brief: string | null;
+    career_url: string | null;
     company_description: string | null;
+    company_db_id: number | null;
     company_name: string;
     company_workspace_id: string;
     logo_url: string | null;
+    homepage_url: string | null;
+    linkedin_url: string | null;
     pitch: string | null;
     request: string | null;
     updated_at: string;
   };
   return {
+    brief: row.brief ?? null,
+    careerUrl: row.career_url ?? null,
     companyDescription: row.company_description ?? null,
+    companyDbId: row.company_db_id ?? null,
     companyName: row.company_name,
+    homepageUrl: row.homepage_url ?? null,
+    linkedinUrl: row.linkedin_url ?? null,
     logoUrl: row.logo_url ?? null,
     pitch: row.pitch ?? null,
     request: row.request ?? null,

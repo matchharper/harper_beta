@@ -4,6 +4,7 @@ import {
   MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES,
   resolveTalentDocumentUpload,
   TALENT_DOCUMENT_STORAGE_ALLOWED_MIME_TYPES,
+  validateResumeFileContent,
 } from "./documentUpload";
 
 const GENERAL_DOCUMENT_CASES = {
@@ -74,4 +75,31 @@ test("storage MIME configuration covers every resolved document type", () => {
     assert.ok(allowedMimeTypes.has(resolved.contentType));
   }
   assert.equal(MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES, 20 * 1024 * 1024);
+});
+
+test("resume content validation checks MIME and magic bytes", () => {
+  assert.equal(
+    validateResumeFileContent({
+      bytes: Buffer.from("%PDF-1.7\n"),
+      fileName: "resume.pdf",
+      suppliedContentType: "application/pdf",
+    }),
+    true
+  );
+  assert.equal(
+    validateResumeFileContent({
+      bytes: Buffer.from("not a pdf"),
+      fileName: "resume.pdf",
+      suppliedContentType: "application/pdf",
+    }),
+    false
+  );
+  assert.equal(
+    validateResumeFileContent({
+      bytes: Buffer.from("plain text"),
+      fileName: "resume.txt",
+      suppliedContentType: "application/pdf",
+    }),
+    false
+  );
 });

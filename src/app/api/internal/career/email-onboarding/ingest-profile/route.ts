@@ -10,6 +10,7 @@ import {
   type TalentAdminClient,
 } from "@/lib/talentOnboarding/server";
 import { ingestTalentProfileFromLinkedin } from "@/lib/talentOnboarding/profileIngestion";
+import { resolveTalentDocumentUpload } from "@/lib/talentOnboarding/documentUpload";
 import type { Json } from "@/types/database.types";
 
 export const runtime = "nodejs";
@@ -28,8 +29,14 @@ type EmailAttachment = {
   size: number | null;
 };
 
+type EmailDocumentUpload = {
+  fileName: string;
+  kind: "document" | "resume";
+};
+
 const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
 const MAX_ATTACHMENT_COUNT = 3;
+const MAX_ATTACHMENT_CANDIDATE_COUNT = 10;
 const MAX_PARSED_ATTACHMENT_TEXT = 24_000;
 
 function toUntypedAdmin(admin: TalentAdminClient): UntypedAdmin {
@@ -48,7 +55,10 @@ function normalizeLinks(value: unknown) {
   );
 }
 
-function normalizeAttachments(value: unknown): EmailAttachment[] {
+function normalizeAttachments(
+  value: unknown,
+  maxCount = MAX_ATTACHMENT_COUNT
+): EmailAttachment[] {
   if (!Array.isArray(value)) return [];
   return value
     .map((item) => {
@@ -88,6 +98,29 @@ function normalizeAttachments(value: unknown): EmailAttachment[] {
         item.fileName.length > 0 &&
         item.downloadUrl.length > 0 &&
         /^https:\/\//i.test(item.downloadUrl)
+    )
+    .slice(0, maxCount);
+}
+
+function normalizeDocumentUploads(value: unknown): EmailDocumentUpload[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      const source =
+        item && typeof item === "object"
+          ? (item as Record<string, unknown>)
+          : {};
+      const fileName = String(source.fileName ?? "").trim();
+      const kind = String(source.kind ?? "").trim().toLowerCase();
+      if (kind !== "resume" && kind !== "document") return null;
+      return {
+        fileName,
+        kind,
+      } satisfies EmailDocumentUpload;
+    })
+    .filter(
+      (item): item is EmailDocumentUpload =>
+        item !== null && item.fileName.length > 0
     )
     .slice(0, MAX_ATTACHMENT_COUNT);
 }
@@ -212,15 +245,31 @@ async function extractTextFromAttachmentBuffer(
 async function processEmailAttachments(args: {
   admin: TalentAdminClient;
   attachments: EmailAttachment[];
+  documentUploads?: EmailDocumentUpload[];
   userId: string;
 }) {
   const warnings: string[] = [];
   const texts: string[] = [];
+  const resumeTexts: string[] = [];
   let resumeFileName = "";
   let resumeStoragePath = "";
   const processed: Json[] = [];
+  const documentUploads = args.documentUploads ?? [];
+  const selectiveUpload = documentUploads.length > 0;
+  const matchedUploadIndexes = new Set<number>();
 
   for (const attachment of args.attachments) {
+    const uploadIndex = selectiveUpload
+      ? documentUploads.findIndex(
+          (request, index) =>
+            !matchedUploadIndexes.has(index) &&
+            request.fileName === attachment.fileName
+        )
+      : -1;
+    if (selectiveUpload && uploadIndex < 0) continue;
+    if (uploadIndex >= 0) matchedUploadIndexes.add(uploadIndex);
+    const requestedKind =
+      uploadIndex >= 0 ? documentUploads[uploadIndex]?.kind : null;
     const normalized = {
       contentType: attachment.contentType,
       fileName: attachment.fileName,
@@ -228,10 +277,23 @@ async function processEmailAttachments(args: {
       size: attachment.size,
     };
     try {
-      if (!isSupportedProfileAttachment(attachment)) {
+      const canExtractText = isSupportedProfileAttachment(attachment);
+      const selectiveUploadConfig = requestedKind
+        ? resolveTalentDocumentUpload({
+            fileName: attachment.fileName,
+            kind: requestedKind,
+          })
+        : null;
+      const storedContentType =
+        selectiveUploadConfig?.contentType || attachment.contentType;
+      if (
+        (!selectiveUpload && !canExtractText) ||
+        (selectiveUpload && !selectiveUploadConfig)
+      ) {
         processed.push({
           ...normalized,
           extractionStatus: "unsupported",
+          ...(requestedKind ? { kind: requestedKind } : {}),
         });
         continue;
       }
@@ -239,12 +301,18 @@ async function processEmailAttachments(args: {
       const sha256 = createHash("sha256").update(buffer).digest("hex");
       const storagePath = await uploadAttachmentToStorage({
         admin: args.admin,
-        attachment,
+        attachment: selectiveUploadConfig
+          ? { ...attachment, contentType: storedContentType }
+          : attachment,
         buffer,
         userId: args.userId,
       });
-      const text = await extractTextFromAttachmentBuffer(attachment, buffer);
-      const isPrimaryResume = !resumeStoragePath;
+      const text = canExtractText
+        ? await extractTextFromAttachmentBuffer(attachment, buffer)
+        : "";
+      const documentKind =
+        requestedKind ?? (!resumeStoragePath ? "resume" : "document");
+      const isPrimaryResume = documentKind === "resume";
       let previousPrimaryResumeId: string | null = null;
       if (isPrimaryResume) {
         const { data: previousPrimary, error: previousPrimaryError } =
@@ -277,19 +345,21 @@ async function processEmailAttachments(args: {
           );
         }
       }
-      const { error: documentError } = await args.admin
+      const { data: document, error: documentError } = await args.admin
         .from("talent_documents")
         .insert({
           talent_id: args.userId,
-          kind: isPrimaryResume ? "resume" : "document",
+          kind: documentKind,
           file_name: attachment.fileName,
           storage_path: storagePath,
-          content_type: attachment.contentType || null,
+          content_type: storedContentType || null,
           size_bytes: buffer.byteLength,
           extracted_text: text || null,
           is_public: isPrimaryResume,
           is_primary: isPrimaryResume,
-        });
+        })
+        .select("id")
+        .single();
       if (documentError) {
         if (previousPrimaryResumeId) {
           await args.admin
@@ -305,12 +375,15 @@ async function processEmailAttachments(args: {
           documentError.message ?? "Failed to save email attachment document"
         );
       }
-      if (!resumeStoragePath) {
+      if (isPrimaryResume) {
         resumeStoragePath = storagePath;
         resumeFileName = attachment.fileName;
+        if (text) resumeTexts.push(text);
       }
       processed.push({
         ...normalized,
+        documentId: document?.id ?? null,
+        kind: documentKind,
         extractedTextChars: text.length,
         extractionStatus: text ? "ok" : "empty",
         sha256,
@@ -333,10 +406,24 @@ async function processEmailAttachments(args: {
       });
     }
   }
+  if (selectiveUpload) {
+    documentUploads.forEach((request, index) => {
+      if (matchedUploadIndexes.has(index)) return;
+      processed.push({
+        contentType: null,
+        extractionStatus: "not_found",
+        fileName: request.fileName,
+        id: null,
+        kind: request.kind,
+        size: null,
+      });
+    });
+  }
   return {
     processed,
     resumeFileName,
     resumeStoragePath,
+    resumeText: resumeTexts.join("\n\n").slice(0, MAX_PARSED_ATTACHMENT_TEXT),
     text: texts.join("\n\n").slice(0, MAX_PARSED_ATTACHMENT_TEXT),
     warnings,
   };
@@ -438,6 +525,7 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json().catch(() => ({}))) as {
       attachments?: unknown;
+      documentUploads?: unknown;
       inboundEventId?: unknown;
       leadId?: unknown;
       links?: unknown;
@@ -480,11 +568,18 @@ export async function POST(req: NextRequest) {
     }
 
     const links = normalizeLinks(body.links);
+    const documentUploads = normalizeDocumentUploads(body.documentUploads);
     const directResumeText =
       typeof body.resumeText === "string" ? body.resumeText.trim() : "";
     const attachmentExtraction = await processEmailAttachments({
       admin,
-      attachments: normalizeAttachments(body.attachments),
+      attachments: normalizeAttachments(
+        body.attachments,
+        documentUploads.length > 0
+          ? MAX_ATTACHMENT_CANDIDATE_COUNT
+          : MAX_ATTACHMENT_COUNT
+      ),
+      documentUploads,
       userId,
     });
     const inboundAttachmentUpdateError = inboundEventId
@@ -499,6 +594,30 @@ export async function POST(req: NextRequest) {
       warnings.push(
         `email_inbound_events.attachments update failed: ${inboundAttachmentUpdateError}`
       );
+    }
+    if (documentUploads.length > 0) {
+      if (attachmentExtraction.resumeStoragePath) {
+        await saveResumeFileReference({
+          admin: untyped,
+          resumeFileName: attachmentExtraction.resumeFileName,
+          resumeStoragePath: attachmentExtraction.resumeStoragePath,
+          resumeText: attachmentExtraction.resumeText,
+          userId,
+        });
+      }
+      const storedCount = attachmentExtraction.processed.filter(
+        (item) =>
+          item &&
+          typeof item === "object" &&
+          "storagePath" in item &&
+          Boolean(item.storagePath)
+      ).length;
+      return NextResponse.json({
+        ok: storedCount > 0,
+        attachments: attachmentExtraction.processed,
+        storedCount,
+        warnings,
+      });
     }
     const resumeText = [directResumeText, attachmentExtraction.text]
       .filter(Boolean)

@@ -1,7 +1,11 @@
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
-import { buildOrgHref, type OrgWorkspacePageId } from "@/lib/org/routes";
+import {
+  buildOrgHref,
+  type OrgJobsView,
+  type OrgWorkspacePageId,
+} from "@/lib/org/routes";
 
 export type OrgTalentSelection = {
   recommendationId: string;
@@ -23,6 +27,7 @@ export function useOrgJobsRoute({
   const { roles, workspace } = useOrgWorkspace();
   const baseWorkspaceId = workspace.workspaceId;
   const urlRoleId = router.isReady ? getQueryText(router.query.roleId) : "";
+  const urlView = router.isReady ? getQueryText(router.query.view) : "";
   const detailTalentId = router.isReady
     ? getQueryText(router.query.talentId)
     : "";
@@ -47,32 +52,51 @@ export function useOrgJobsRoute({
       ? requestedRoleId
       : "all";
   const selectedRoleId = activeRoleId === "all" ? null : activeRoleId;
+  const activeView: OrgJobsView =
+    page === "jobs" && urlView === "pipeline" ? "pipeline" : "role";
 
   useEffect(() => {
     if (!router.isReady) return;
     const orgId = getQueryText(router.query.orgId);
     const roleIsCanonical =
       urlRoleId === activeRoleId || (!urlRoleId && activeRoleId === "all");
-    if (orgId !== baseWorkspaceId || roleIsCanonical) return;
+    const viewIsCanonical =
+      page !== "jobs" ||
+      (activeRoleId === "all" ? !urlView : urlView === activeView);
+    if (orgId !== baseWorkspaceId || (roleIsCanonical && viewIsCanonical)) {
+      return;
+    }
+    const nextQuery: Record<string, string | string[] | undefined> = {
+      ...router.query,
+      roleId: activeRoleId,
+    };
+    if (activeRoleId === "all") {
+      delete nextQuery.view;
+    } else {
+      nextQuery.view = activeView;
+    }
     void router.replace(
       {
         pathname: router.pathname,
-        query: { ...router.query, roleId: activeRoleId },
+        query: nextQuery,
       },
       undefined,
       { shallow: true }
     );
   }, [
     activeRoleId,
+    activeView,
+    page,
     router,
     router.isReady,
     router.query,
     urlRoleId,
+    urlView,
     baseWorkspaceId,
   ]);
 
   const changeRole = useCallback(
-    (roleId: string) => {
+    (roleId: string, view: OrgJobsView = "role") => {
       setNameQuery("");
       setRecommendedFromDate("");
       setRecommendedToDate("");
@@ -81,10 +105,26 @@ export function useOrgJobsRoute({
           orgId: baseWorkspaceId,
           page: "jobs",
           roleId: roleId || "all",
+          view,
         })
       );
     },
     [baseWorkspaceId, router]
+  );
+
+  const changeView = useCallback(
+    (view: OrgJobsView) => {
+      if (activeRoleId === "all" || view === activeView) return;
+      void router.push(
+        buildOrgHref({
+          orgId: baseWorkspaceId,
+          page: "jobs",
+          roleId: activeRoleId,
+          view,
+        })
+      );
+    },
+    [activeRoleId, activeView, baseWorkspaceId, router]
   );
 
   const selectTalent = useCallback(
@@ -100,10 +140,11 @@ export function useOrgJobsRoute({
           orgId: baseWorkspaceId,
           page,
           roleId: page === "jobs" ? activeRoleId : null,
+          view: page === "jobs" ? activeView : null,
         })
       );
     },
-    [activeRoleId, baseWorkspaceId, page, router]
+    [activeRoleId, activeView, baseWorkspaceId, page, router]
   );
 
   const closeTalentDetail = useCallback(() => {
@@ -112,11 +153,12 @@ export function useOrgJobsRoute({
         orgId: baseWorkspaceId,
         page,
         roleId: page === "jobs" ? activeRoleId : null,
+        view: page === "jobs" ? activeView : null,
       }),
       undefined,
       { shallow: true }
     );
-  }, [activeRoleId, baseWorkspaceId, page, router]);
+  }, [activeRoleId, activeView, baseWorkspaceId, page, router]);
 
   const setRecommendedDateRange = useCallback((from: string, to: string) => {
     setRecommendedFromDate(from);
@@ -125,7 +167,9 @@ export function useOrgJobsRoute({
 
   return {
     activeRoleId,
+    activeView,
     changeRole,
+    changeView,
     closeTalentDetail,
     detailRecommendationId,
     detailRoleId,

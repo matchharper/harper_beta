@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
+import { getCompanyEventActorLabelFromUser } from "@/lib/org/companyEvents";
 import { fetchMatchWorkspace, saveMatchRole } from "@/lib/match/server";
-import { type MatchEmploymentType, type MatchRoleStatus } from "@/lib/match/shared";
+import {
+  type MatchEmploymentType,
+  type MatchRoleStatus,
+} from "@/lib/match/shared";
 
 export const runtime = "nodejs";
 
@@ -23,6 +27,7 @@ async function handleUpsert(req: NextRequest) {
     companyWorkspaceId: body.companyWorkspaceId,
     description: body.description,
     employmentTypes: body.employmentTypes,
+    eventActorLabel: getCompanyEventActorLabelFromUser(user),
     externalJdUrl: body.externalJdUrl,
     name: String(body.name ?? ""),
     roleId: body.roleId,

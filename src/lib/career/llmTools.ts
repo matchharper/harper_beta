@@ -17,6 +17,7 @@ export type CareerRealtimeTool = ReturnType<typeof getRealtimeTools>[number];
 export type CareerChatToolSelectionArgs = {
   allowedToolNames?: readonly string[] | null;
   activeInternalFitHoldQuestion?: boolean | null;
+  activeCompanyTalentRequestMode?: "document" | "text" | null;
   channel?: TalentToolChannel | null;
   isOnboardingDone?: boolean | null;
   responseLocale?: string | null;
@@ -160,6 +161,13 @@ function shouldExposeCareerChatTool(
     toolName === TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION
   ) {
     return args.activeInternalFitHoldQuestion === true;
+  }
+
+  if (toolName === TALENT_TOOL_NAMES.RECORD_COMPANY_REQUEST_RESPONSE) {
+    return (
+      args.activeCompanyTalentRequestMode === "text" ||
+      args.activeCompanyTalentRequestMode === "document"
+    );
   }
 
   return isListedToolName(CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES, toolName);

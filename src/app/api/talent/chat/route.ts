@@ -88,6 +88,10 @@ import {
 } from "@/lib/career/companySnapshot";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import { getCareerConversationStarter } from "@/lib/career/prompts/conversationStarters";
+import {
+  fetchActiveCompanyTalentRequest,
+  serializeTalentPendingRequest,
+} from "@/lib/companyTalentRequests/server";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import { logger } from "@/utils/logger";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
@@ -834,7 +838,20 @@ export async function POST(req: NextRequest) {
       canUseInternalFitHoldQuestionTool
         ? await fetchActiveInternalFitHoldQuestion({ admin, userId: user.id })
         : null;
+    const activeCompanyTalentRequest = talentSetting?.is_onboarding_done
+      ? await fetchActiveCompanyTalentRequest({
+          admin: admin as any,
+          awaitingTalentOnly: true,
+          talentId: user.id,
+        })
+      : null;
     const toolSelection = resolveCareerChatTools({
+      activeCompanyTalentRequestMode:
+        activeCompanyTalentRequest
+          ? activeCompanyTalentRequest.expects_document
+            ? "document"
+            : "text"
+          : null,
       activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
       allowedToolNames,
       channel: requestChannel,
@@ -878,6 +895,9 @@ export async function POST(req: NextRequest) {
       buildCareerConversationPromptPlan({
         activeInternalFitHoldQuestion,
         channel: "chat",
+        companyTalentRequestText: serializeTalentPendingRequest(
+          activeCompanyTalentRequest
+        ),
         onboardingChecklistCoverage,
         currentInsightContent,
         currentPreferences,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
+import { getCompanyEventActorLabelFromUser } from "@/lib/org/companyEvents";
 import {
   createMatchWorkspace,
   fetchMatchWorkspace,
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest) {
     const workspace = await createMatchWorkspace({
       companyDescription: body.companyDescription,
       companyName: String(body.companyName ?? ""),
+      eventActorLabel: getCompanyEventActorLabelFromUser(user),
       homepageUrl: body.homepageUrl,
       linkedinUrl: body.linkedinUrl,
       userId: user.id,
@@ -73,6 +75,7 @@ export async function PATCH(req: NextRequest) {
     const workspace = await updateMatchWorkspace({
       companyDescription: body.companyDescription,
       companyName: body.companyName,
+      eventActorLabel: getCompanyEventActorLabelFromUser(user),
       homepageUrl: body.homepageUrl,
       linkedinUrl: body.linkedinUrl,
       userId: user.id,

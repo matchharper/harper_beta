@@ -14,6 +14,10 @@ import {
   insertOrgAgentMessage,
   type OrgAgentConversationRow,
 } from "@/lib/org/agent/store";
+import type {
+  OrgAgentMention,
+  OrgAgentMessageMetadata,
+} from "@/lib/org/agent/types";
 import {
   getOrgPermissions,
   normalizeOrgMembershipRole,
@@ -567,6 +571,24 @@ export async function postHarperSlackMessage(args: {
   });
 }
 
+function slackClientMessageId(idempotencyKey: string, channelId: string) {
+  const hex = createHash("sha256")
+    .update(["harper-slack", idempotencyKey, channelId].join("\u001f"))
+    .digest("hex")
+    .slice(0, 32)
+    .split("");
+  hex[12] = "4";
+  hex[16] = ((Number.parseInt(hex[16] ?? "0", 16) & 0x3) | 0x8).toString(16);
+  const value = hex.join("");
+  return [
+    value.slice(0, 8),
+    value.slice(8, 12),
+    value.slice(12, 16),
+    value.slice(16, 20),
+    value.slice(20, 32),
+  ].join("-");
+}
+
 async function ensureSlackConversation(args: {
   admin: ReturnType<typeof getSupabaseAdmin>;
   workspaceId: string;
@@ -826,6 +848,9 @@ export async function storeHarperSlackThreadEvent(args: {
 
 export async function sendHarperWorkspaceSlackMessage(args: {
   channelId?: string;
+  idempotencyKey?: string;
+  messageMetadata?: OrgAgentMessageMetadata;
+  mentions?: OrgAgentMention[];
   notificationKey?: HarperSlackNotificationKey;
   roleId?: string | null;
   text: string;
@@ -873,6 +898,12 @@ export async function sendHarperWorkspaceSlackMessage(args: {
     channels.map(async (channel: any) => {
       const posted = await postHarperSlackMessage({
         channelId: channel.slack_channel_id,
+        clientMessageId: text(args.idempotencyKey)
+          ? slackClientMessageId(
+              text(args.idempotencyKey),
+              channel.slack_channel_id
+            )
+          : undefined,
         text: args.text,
         token,
       });
@@ -903,8 +934,10 @@ export async function sendHarperWorkspaceSlackMessage(args: {
           conversation,
           messageType: "slack",
           metadata: {
-            source: "slack_notification",
+            ...args.messageMetadata,
+            source: args.messageMetadata?.source || "slack_notification",
           },
+          mentions: args.mentions,
           role: "assistant",
           slackMessageTs: posted.ts,
           slackThreadId: thread.id,
@@ -916,6 +949,53 @@ export async function sendHarperWorkspaceSlackMessage(args: {
   if (results.every((result) => result.status === "rejected"))
     throw (results[0] as PromiseRejectedResult).reason;
   return results.some((result) => result.status === "fulfilled");
+}
+
+export async function sendHarperSlackThreadReply(args: {
+  idempotencyKey: string;
+  text: string;
+  threadId: string;
+  workspaceId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const { data: thread, error } = await (
+    admin.from("company_slack_threads" as any) as any
+  )
+    .select(
+      "id, slack_thread_ts, channel:company_slack_channels!inner(slack_channel_id, company_workspace_id)"
+    )
+    .eq("id", args.threadId)
+    .maybeSingle();
+  if (error) throw error;
+  const channel = Array.isArray(thread?.channel)
+    ? thread.channel[0]
+    : thread?.channel;
+  if (
+    !thread ||
+    !channel ||
+    text(channel.company_workspace_id) !== text(args.workspaceId)
+  ) {
+    throw new HarperSlackError(404, "원래 Slack 대화를 찾지 못했습니다.");
+  }
+  const integration = await installation(args.workspaceId);
+  if (!integration) {
+    throw new HarperSlackError(404, "연결된 Slack이 없습니다.");
+  }
+  const posted = await postHarperSlackMessage({
+    channelId: text(channel.slack_channel_id),
+    clientMessageId: slackClientMessageId(
+      args.idempotencyKey,
+      text(channel.slack_channel_id)
+    ),
+    text: args.text,
+    threadTs: text(thread.slack_thread_ts),
+    token: decryptHarperSlackToken(integration.bot_token_ciphertext),
+  });
+  if (!posted.ts) throw new Error("Slack reply did not return a timestamp");
+  return {
+    botUserId: text(integration.slack_bot_user_id),
+    slackMessageTs: posted.ts,
+  };
 }
 
 export function verifyHarperSlackSignature(

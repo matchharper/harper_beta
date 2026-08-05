@@ -1,7 +1,6 @@
-import Image from "next/image";
 import { useRouter } from "next/router";
-import { useMemo, useState } from "react";
-import { formatKstRelativeDate } from "@/components/ops/dateUtils";
+import { useMemo } from "react";
+import { OrgCandidateCard } from "@/components/org/OrgCandidateCard";
 import { InternalOnlySurface } from "@/components/org/internal/InternalOnlySurface";
 import { OrgPageHeader } from "@/components/org/workspace/OrgPageHeader";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
@@ -12,67 +11,14 @@ import {
 import { BareButton, MuteButton } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltips } from "@/components/ui/tooltip";
-import { useOrgBoard } from "@/hooks/org/useOrg";
+import { useOrgBoard, useOrgBoardProfileLabels } from "@/hooks/org/useOrg";
 import { useOrgViewedRecommendations } from "@/hooks/org/useOrgViewedRecommendations";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
-import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
 import { buildOrgHref } from "@/lib/org/routes";
 import type { OrgBoardItem } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
 
 export const ORG_PENDING_CONNECTION_PAUSE_THRESHOLD = 5;
-
-function candidateName(item: OrgBoardItem) {
-  return item.talent.name || item.talent.email || "이름 없음";
-}
-
-function PendingCandidateButton({
-  item,
-  onSelect,
-}: {
-  item: OrgBoardItem;
-  onSelect: (item: OrgBoardItem) => void;
-}) {
-  const name = candidateName(item);
-  const profilePicture = getDisplayableProfileImageUrl(
-    item.talent.profilePicture
-  );
-  const [failedImageSrc, setFailedImageSrc] = useState<string | null>(null);
-  const showProfilePicture =
-    profilePicture && failedImageSrc !== profilePicture;
-
-  return (
-    <BareButton
-      className="flex w-full items-center gap-3 px-3 py-3.5 text-left outline-none transition hover:bg-neutral-1000-a05 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-1000-a10"
-      onClick={() => onSelect(item)}
-    >
-      {showProfilePicture ? (
-        <Image
-          alt=""
-          className="size-8 shrink-0 rounded-full object-cover"
-          height={32}
-          onError={() => setFailedImageSrc(profilePicture)}
-          src={profilePicture}
-          unoptimized
-          width={32}
-        />
-      ) : (
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-neutral-200/50 text-sm font-medium text-neutral-muted">
-          {name.slice(0, 1).toUpperCase()}
-        </span>
-      )}
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[14px] font-medium text-neutral-primary">
-          {name}
-        </span>
-        <span className="mt-1 block truncate text-sm font-light text-neutral-soft">
-          {item.roleName || "Role"} ·{" "}
-          {formatKstRelativeDate(item.recommendedAt)}
-        </span>
-      </span>
-    </BareButton>
-  );
-}
 
 function HomeLoading({ internalOpsAccess }: { internalOpsAccess: boolean }) {
   const metricCount = internalOpsAccess ? 5 : 4;
@@ -215,9 +161,13 @@ function WaitingCapacityNotice({ roleCount }: { roleCount: number }) {
 function NewCandidates({
   items,
   onSelect,
+  profileLabelsError,
+  profileLabelsLoading,
 }: {
   items: OrgBoardItem[];
   onSelect: (item: OrgBoardItem) => void;
+  profileLabelsError: boolean;
+  profileLabelsLoading: boolean;
 }) {
   if (items.length === 0) return null;
 
@@ -236,12 +186,15 @@ function NewCandidates({
           {items.length}명
         </span>
       </div>
-      <div className="divide-y divide-neutral-1000-a05 border-y border-neutral-1000-a05">
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {items.map((item) => (
-          <PendingCandidateButton
+          <OrgCandidateCard
             item={item}
             key={item.recommendationId}
             onSelect={onSelect}
+            profileLabelsError={profileLabelsError}
+            profileLabelsLoading={profileLabelsLoading}
+            viewed={false}
           />
         ))}
       </div>
@@ -421,16 +374,23 @@ export function OrgHomePage() {
   const board = boardQuery.data;
   const error = boardQuery.error instanceof Error ? boardQuery.error : null;
   const isLoading = boardQuery.isLoading;
+  const { hasHydrated, markViewed, viewedRecommendationIds } =
+    useOrgViewedRecommendations({
+      currentUserEmail,
+      workspaceId,
+    });
   const openJobs = (roleId: string) => {
     void router.push(
       buildOrgHref({
         orgId: workspaceId,
         page: "jobs",
         roleId: roleId || "all",
+        view: roleId && roleId !== "all" ? "pipeline" : null,
       })
     );
   };
   const openCandidate = (item: OrgBoardItem) => {
+    markViewed(item.recommendationId);
     void router.push(
       buildOrgHref({
         detail: {
@@ -441,13 +401,10 @@ export function OrgHomePage() {
         orgId: workspaceId,
         page: "jobs",
         roleId: item.roleId,
+        view: "pipeline",
       })
     );
   };
-  const { hasHydrated, viewedRecommendationIds } = useOrgViewedRecommendations({
-    currentUserEmail,
-    workspaceId,
-  });
   const visibleRoles = useMemo(
     () =>
       roles.filter((role) => getHiringRoleLifecycle(role.status) !== "ended"),
@@ -508,6 +465,35 @@ export function OrgHomePage() {
         : [],
     [hasHydrated, pendingItems, viewedRecommendationIds]
   );
+  const unseenRecommendationIds = useMemo(
+    () => unseenPending.map((item) => item.recommendationId),
+    [unseenPending]
+  );
+  const profileLabelsQuery = useOrgBoardProfileLabels({
+    enabled: hasHydrated && unseenRecommendationIds.length > 0,
+    recommendationIds: unseenRecommendationIds,
+    workspaceId,
+  });
+  const unseenPendingWithProfileLabels = useMemo(() => {
+    if (!profileLabelsQuery.data) return unseenPending;
+    const labelsByTalentId = new Map(
+      profileLabelsQuery.data.items.map(
+        (item) => [item.talentId, item] as const
+      )
+    );
+    return unseenPending.map((item) => {
+      const labels = labelsByTalentId.get(item.talentId);
+      if (!labels) return item;
+      return {
+        ...item,
+        talent: {
+          ...item.talent,
+          recentCompanies: labels.recentCompanies,
+          recentSchools: labels.recentSchools,
+        },
+      };
+    });
+  }, [profileLabelsQuery.data, unseenPending]);
   const { currentStageCounts, roleCounts } = useMemo(() => {
     const nextRoleCounts = new Map<
       string,
@@ -707,7 +693,12 @@ export function OrgHomePage() {
               <WaitingCapacityNotice roleCount={waitingRoleCount} />
             ) : null}
             {hasHydrated ? (
-              <NewCandidates items={unseenPending} onSelect={openCandidate} />
+              <NewCandidates
+                items={unseenPendingWithProfileLabels}
+                onSelect={openCandidate}
+                profileLabelsError={profileLabelsQuery.isError}
+                profileLabelsLoading={profileLabelsQuery.isPending}
+              />
             ) : null}
           </OrgSection>
         </>

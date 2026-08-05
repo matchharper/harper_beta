@@ -1,5 +1,10 @@
 import { OpenAI } from "openai";
 import { logger } from "@/utils/logger";
+import {
+  buildOpenAIResponsesRequest,
+  toChatCompletionFromOpenAIResponse,
+  type OpenAIResponsesReasoningEffort,
+} from "@/lib/llm/responsesChatAdapter";
 
 export function sseAsyncIterableToReadableStream(
   sseStream: AsyncIterable<any>
@@ -112,10 +117,7 @@ function omitUnsupportedSamplingParameters(
   requestBody: Record<string, unknown>
 ) {
   const needsMaxCompletionTokens = usesMaxCompletionTokensForModel(model);
-  if (
-    supportsSamplingParametersForModel(model) &&
-    !needsMaxCompletionTokens
-  ) {
+  if (supportsSamplingParametersForModel(model) && !needsMaxCompletionTokens) {
     return requestBody;
   }
   const sanitized = { ...requestBody };
@@ -132,10 +134,19 @@ function omitUnsupportedSamplingParameters(
     sanitized.max_completion_tokens = sanitized.max_tokens;
     delete sanitized.max_tokens;
   }
-  if (needsMaxCompletionTokens && sanitized.reasoning_effort === undefined) {
-    sanitized.reasoning_effort = "low";
-  }
   return sanitized;
+}
+
+async function createOpenAIResponsesCompletion(args: {
+  llmClient: OpenAI;
+  model: string;
+  reasoningEffort: OpenAIResponsesReasoningEffort;
+  requestBody: Record<string, unknown>;
+}) {
+  const response = await args.llmClient.responses.create(
+    buildOpenAIResponsesRequest(args) as any
+  );
+  return toChatCompletionFromOpenAIResponse(response);
 }
 
 export type ChatCompletionFallbackReason =
@@ -308,6 +319,9 @@ export async function createChatCompletionWithFallback(args: {
   debugLabel?: string | null;
   fallbackModel?: string | null;
   model: string;
+  openAIResponses?: {
+    reasoningEffort: OpenAIResponsesReasoningEffort;
+  };
 }): Promise<{
   fallbackReason?: ChatCompletionFallbackReason;
   model: string;
@@ -315,9 +329,29 @@ export async function createChatCompletionWithFallback(args: {
 }> {
   const createForModel = async (model: string) => {
     const llmClient = getChatClientForModel(model);
-    const requestBody = omitUnsupportedSamplingParameters(model, {
+    const rawRequestBody: Record<string, unknown> = {
       ...args.buildRequest(model),
       model,
+    };
+    if (
+      args.openAIResponses &&
+      getLlmChatProviderForModel(model) === "openai"
+    ) {
+      return createOpenAIResponsesCompletion({
+        llmClient,
+        model,
+        reasoningEffort: args.openAIResponses.reasoningEffort,
+        requestBody: rawRequestBody,
+      });
+    }
+    const requestBody = omitUnsupportedSamplingParameters(model, {
+      ...rawRequestBody,
+      messages: Array.isArray(rawRequestBody.messages)
+        ? rawRequestBody.messages.map((message: any) => {
+            const { _responses_output: _ignored, ...chatMessage } = message;
+            return chatMessage;
+          })
+        : rawRequestBody.messages,
     });
     // if (args.debugLabel?.startsWith("career/chat:assistant")) {
     //   console.info(

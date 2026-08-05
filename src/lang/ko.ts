@@ -2065,6 +2065,12 @@ export const ko = {
       "선택한 이력서를 저장하고 있습니다.",
     "career.resume_dropzone.unsupported_file":
       "지원하는 이력서 파일 형식만 업로드해 주세요.",
+    "career.profile.resume_request.banner_title":
+      "{companyName}에서 {roleName} 검토를 위해 이력서 공유를 요청했습니다.",
+    "career.profile.resume_request.banner_description":
+      "아래에서 업로드하면 이 요청과 연결해 해당 회사에만 전달됩니다. 업로드하지 않거나 답하지 않으셔도 됩니다.",
+    "career.profile.resume_request.upload_cta":
+      "업로드하고 {companyName}에 전달",
     "career.settings.career_resume_links_settings_section.114mcb5": "링크 삭제",
     "career.settings.career_settings_modal.0858bd9":
       "탈퇴하면 계정과 커리어 프로필, 이력서, 대화/추천 데이터가 삭제됩니다. 다시 되돌릴 수 없습니다.",

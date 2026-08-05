@@ -1,4 +1,8 @@
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import {
+  type CompanyEventInsertClient,
+  writeCompanyEvent,
+} from "@/lib/org/companyEvents";
 
 export const OPS_COMPANIES_PAGE_SIZE = 100;
 
@@ -252,6 +256,7 @@ export async function fetchOpsCompaniesPage(
 }
 
 export async function updateOpsCompanyTestScore(args: {
+  eventActorLabel: string;
   testScore: number;
   workspaceId: string;
 }) {
@@ -261,6 +266,17 @@ export async function updateOpsCompanyTestScore(args: {
 
   if (!Number.isFinite(testScore)) {
     throw new Error("testScore must be a finite number");
+  }
+
+  const { data: before, error: beforeError } = await (
+    admin.from("company_workspace" as any) as any
+  )
+    .select("test_score")
+    .eq("company_workspace_id", workspaceId)
+    .maybeSingle();
+
+  if (beforeError || !before) {
+    throw new Error(beforeError?.message ?? "Company workspace not found");
   }
 
   const { data, error } = await (admin.from("company_workspace" as any) as any)
@@ -275,6 +291,20 @@ export async function updateOpsCompanyTestScore(args: {
   if (error) {
     throw new Error(error.message ?? "Failed to update test_score");
   }
+
+  await writeCompanyEvent({
+    actorLabel: args.eventActorLabel,
+    changes: [
+      {
+        after: data?.test_score,
+        before: before.test_score,
+        key: "test_score",
+      },
+    ],
+    client: admin as unknown as CompanyEventInsertClient,
+    source: "website",
+    workspaceId,
+  });
 
   return {
     testScore: normalizeTestScore(data?.test_score) ?? testScore,

@@ -1,4 +1,13 @@
 import { MATCH_BOOKING_URL } from "@/lib/booking";
+import {
+  type CompanyEventInsertClient,
+  writeCompanyEvent,
+} from "@/lib/org/companyEvents";
+import {
+  applyWebsiteCompanyDataChanges,
+  WebsiteCompanyDataConflictError,
+  type WebsiteCompanyDataChange,
+} from "@/lib/org/companyDataWebsite";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type { CandidateTypeWithConnection } from "@/hooks/search/useSearchChatCandidates";
 import {
@@ -104,7 +113,7 @@ function normalizeLinkedinCompanyUrl(raw: string): string | null {
   }
 }
 
-async function resolveWorkspaceBrandingFromCompanyDb(
+export async function resolveWorkspaceBrandingFromCompanyDb(
   admin: AdminClient,
   linkedinUrl?: string | null
 ) {
@@ -136,55 +145,51 @@ async function resolveWorkspaceBrandingFromCompanyDb(
     `${normalizedLinkedinUrl.replace("https://www.", "https://")}/`,
   ];
 
-  try {
-    const exactMatchQuery = (admin.from("company_db" as any) as any)
-      .select("id, linkedin_url, logo, last_updated_at")
-      .in("linkedin_url", candidates)
-      .order("last_updated_at", { ascending: false, nullsFirst: false })
-      .limit(1) as any;
-    const { data: exactData, error: exactError } = await exactMatchQuery;
+  const exactMatchQuery = (admin.from("company_db" as any) as any)
+    .select("id, linkedin_url, logo, last_updated_at")
+    .in("linkedin_url", candidates)
+    .order("last_updated_at", { ascending: false, nullsFirst: false })
+    .limit(1) as any;
+  const { data: exactData, error: exactError } = await exactMatchQuery;
 
-    if (exactError) {
-      throw exactError;
-    }
-
-    const exactRow = coerceJsonArray<CompanyDbRow>(exactData)[0];
-    if (exactRow) {
-      return {
-        companyDbId: Number(exactRow.id),
-        linkedinUrl: normalizedLinkedinUrl,
-        logoUrl: exactRow.logo ?? null,
-      };
-    }
-
-    const fuzzyMatchQuery = (admin.from("company_db" as any) as any)
-      .select("id, linkedin_url, logo, last_updated_at")
-      .ilike("linkedin_url", `%/company/${linkedinSlug}%`)
-      .order("last_updated_at", { ascending: false, nullsFirst: false })
-      .limit(10) as any;
-    const { data: fuzzyData, error: fuzzyError } = await fuzzyMatchQuery;
-
-    if (fuzzyError) {
-      throw fuzzyError;
-    }
-
-    const fuzzyRow = coerceJsonArray<CompanyDbRow>(fuzzyData).find(
-      (row) =>
-        normalizeLinkedinCompanyUrl(row.linkedin_url ?? "") ===
-        normalizedLinkedinUrl
+  if (exactError) {
+    throw new Error(
+      exactError.message ?? "Failed to resolve company LinkedIn data"
     );
+  }
+
+  const exactRow = coerceJsonArray<CompanyDbRow>(exactData)[0];
+  if (exactRow) {
     return {
-      companyDbId: fuzzyRow ? Number(fuzzyRow.id) : null,
+      companyDbId: Number(exactRow.id),
       linkedinUrl: normalizedLinkedinUrl,
-      logoUrl: fuzzyRow?.logo ?? null,
-    };
-  } catch {
-    return {
-      companyDbId: null,
-      linkedinUrl: normalizedLinkedinUrl,
-      logoUrl: null,
+      logoUrl: exactRow.logo ?? null,
     };
   }
+
+  const fuzzyMatchQuery = (admin.from("company_db" as any) as any)
+    .select("id, linkedin_url, logo, last_updated_at")
+    .ilike("linkedin_url", `%/company/${linkedinSlug}%`)
+    .order("last_updated_at", { ascending: false, nullsFirst: false })
+    .limit(10) as any;
+  const { data: fuzzyData, error: fuzzyError } = await fuzzyMatchQuery;
+
+  if (fuzzyError) {
+    throw new Error(
+      fuzzyError.message ?? "Failed to resolve company LinkedIn data"
+    );
+  }
+
+  const fuzzyRow = coerceJsonArray<CompanyDbRow>(fuzzyData).find(
+    (row) =>
+      normalizeLinkedinCompanyUrl(row.linkedin_url ?? "") ===
+      normalizedLinkedinUrl
+  );
+  return {
+    companyDbId: fuzzyRow ? Number(fuzzyRow.id) : null,
+    linkedinUrl: normalizedLinkedinUrl,
+    logoUrl: fuzzyRow?.logo ?? null,
+  };
 }
 
 function mapWorkspaceRecord(args: {
@@ -446,6 +451,7 @@ export async function fetchMatchWorkspace(args: {
 export async function createMatchWorkspace(args: {
   companyDescription?: string | null;
   companyName: string;
+  eventActorLabel: string;
   homepageUrl?: string | null;
   linkedinUrl?: string | null;
   userId: string;
@@ -498,6 +504,25 @@ export async function createMatchWorkspace(args: {
     workspaceId: workspaceRow.company_workspace_id,
   });
 
+  const eventFields = [
+    "company_name",
+    "company_description",
+    "homepage_url",
+    "linkedin_url",
+    "logo_url",
+  ] as const;
+  await writeCompanyEvent({
+    actorLabel: args.eventActorLabel,
+    changes: eventFields.map((key) => ({
+      after: workspaceRow[key],
+      before: null,
+      key,
+    })),
+    client: admin as unknown as CompanyEventInsertClient,
+    source: "website",
+    workspaceId: workspaceRow.company_workspace_id,
+  });
+
   return mapWorkspaceRecord({
     membershipRole: memberRole,
     row: workspaceRow,
@@ -507,6 +532,7 @@ export async function createMatchWorkspace(args: {
 export async function updateMatchWorkspace(args: {
   companyDescription?: string | null;
   companyName?: string;
+  eventActorLabel: string;
   homepageUrl?: string | null;
   linkedinUrl?: string | null;
   userId: string;
@@ -523,28 +549,11 @@ export async function updateMatchWorkspace(args: {
     throw new Error("Workspace not found");
   }
 
-  const payload: Record<string, unknown> = {
-    updated_at: new Date().toISOString(),
-  };
-
-  if (args.companyName !== undefined) {
-    payload.company_name = ensureNonEmptyString(
-      args.companyName,
-      "companyName"
-    );
-  }
-  if (args.companyDescription !== undefined) {
-    payload.company_description =
-      String(args.companyDescription ?? "").trim() || null;
-  }
-  if (args.homepageUrl !== undefined) {
-    payload.homepage_url = String(args.homepageUrl ?? "").trim() || null;
-  }
-  if (args.linkedinUrl !== undefined) {
-    const resolvedBranding = await resolveWorkspaceBrandingFromCompanyDb(
-      admin,
-      args.linkedinUrl
-    );
+  const hasCompanyDbReassociation = args.linkedinUrl !== undefined;
+  const resolvedBranding = hasCompanyDbReassociation
+    ? await resolveWorkspaceBrandingFromCompanyDb(admin, args.linkedinUrl)
+    : null;
+  if (resolvedBranding) {
     const existingWorkspace = await fetchWorkspaceRowByCompanyDbId(
       admin,
       resolvedBranding.companyDbId
@@ -558,21 +567,68 @@ export async function updateMatchWorkspace(args: {
         "A workspace already exists for this LinkedIn company page"
       );
     }
-    payload.company_db_id = resolvedBranding.companyDbId;
-    payload.linkedin_url = resolvedBranding.linkedinUrl;
-    payload.logo_url = resolvedBranding.logoUrl;
   }
 
+  const changes: WebsiteCompanyDataChange[] = [];
+  if (hasCompanyDbReassociation || args.companyName !== undefined) {
+    changes.push({
+      key: "company_name",
+      value:
+        args.companyName === undefined
+          ? resolved.workspace.company_name
+          : ensureNonEmptyString(args.companyName, "companyName"),
+    });
+  }
+  if (hasCompanyDbReassociation || args.companyDescription !== undefined) {
+    changes.push({
+      key: "company_description",
+      value:
+        args.companyDescription === undefined
+          ? (resolved.workspace.company_description ?? null)
+          : String(args.companyDescription ?? "").trim() || null,
+    });
+  }
+  if (hasCompanyDbReassociation || args.homepageUrl !== undefined) {
+    changes.push({
+      key: "homepage_url",
+      value:
+        args.homepageUrl === undefined
+          ? (resolved.workspace.homepage_url ?? null)
+          : String(args.homepageUrl ?? "").trim() || null,
+    });
+  }
+  if (resolvedBranding) {
+    changes.push(
+      { key: "linkedin_url", value: resolvedBranding.linkedinUrl },
+      { key: "logo_url", value: resolvedBranding.logoUrl }
+    );
+  }
+  try {
+    await applyWebsiteCompanyDataChanges({
+      actorLabel: args.eventActorLabel,
+      admin,
+      changes,
+      ...(hasCompanyDbReassociation
+        ? { targetCompanyDbId: resolvedBranding?.companyDbId ?? null }
+        : {}),
+      workspaceId: resolved.workspace.company_workspace_id,
+    });
+  } catch (error) {
+    if (
+      error instanceof WebsiteCompanyDataConflictError &&
+      error.key === "target_company_db_id"
+    ) {
+      throw new Error(
+        "A workspace already exists for this LinkedIn company page"
+      );
+    }
+    throw error;
+  }
   const { data, error } = await (admin.from("company_workspace" as any) as any)
-    .update(payload)
-    .eq("company_workspace_id", resolved.workspace.company_workspace_id)
     .select(MATCH_WORKSPACE_SELECT)
+    .eq("company_workspace_id", resolved.workspace.company_workspace_id)
     .single();
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to save workspace");
-  }
-
+  if (error) throw new Error(error.message ?? "Failed to load workspace");
   return mapWorkspaceRecord({
     membershipRole: resolved.membership?.role ?? null,
     row: data as WorkspaceRow,
@@ -583,6 +639,7 @@ export async function saveMatchRole(args: {
   companyWorkspaceId?: string | null;
   description?: string | null;
   employmentTypes?: MatchEmploymentType[];
+  eventActorLabel: string;
   externalJdUrl?: string | null;
   name: string;
   roleId?: string | null;
@@ -612,15 +669,46 @@ export async function saveMatchRole(args: {
   };
 
   const roleId = String(args.roleId ?? "").trim();
-  const query = roleId
-    ? (admin.from("company_roles" as any) as any)
-        .update(basePayload)
-        .eq("role_id", roleId)
-        .eq("company_workspace_id", resolved.workspace.company_workspace_id)
-    : (admin.from("company_roles" as any) as any).insert({
-        ...basePayload,
-        created_at: now,
-      });
+  if (roleId) {
+    await applyWebsiteCompanyDataChanges({
+      actorLabel: args.eventActorLabel,
+      admin,
+      changes: [
+        { key: "role_name", roleId, value: basePayload.name },
+        {
+          key: "role_description",
+          roleId,
+          value: basePayload.description,
+        },
+        {
+          key: "role_external_jd_url",
+          roleId,
+          value: basePayload.external_jd_url,
+        },
+        {
+          key: "role_employment_types",
+          roleId,
+          value: basePayload.type,
+        },
+        { key: "role_status", roleId, value: basePayload.status },
+      ],
+      workspaceId: resolved.workspace.company_workspace_id,
+    });
+    const { data, error } = await (admin.from("company_roles" as any) as any)
+      .select(
+        "role_id, company_workspace_id, name, external_jd_url, description, type, status, created_at, updated_at"
+      )
+      .eq("role_id", roleId)
+      .eq("company_workspace_id", resolved.workspace.company_workspace_id)
+      .single();
+    if (error) throw new Error(error.message ?? "Failed to load role");
+    return mapRoleRecord({ row: data as RoleRow });
+  }
+
+  const query = (admin.from("company_roles" as any) as any).insert({
+    ...basePayload,
+    created_at: now,
+  });
 
   const { data, error } = await query
     .select(
@@ -632,8 +720,29 @@ export async function saveMatchRole(args: {
     throw new Error(error.message ?? "Failed to save role");
   }
 
+  const savedRole = data as RoleRow;
+  const eventFields = [
+    "name",
+    "description",
+    "external_jd_url",
+    "type",
+    "status",
+  ] as const;
+  const roleLabel = savedRole.name;
+  await writeCompanyEvent({
+    actorLabel: args.eventActorLabel,
+    changes: eventFields.map((key) => ({
+      after: savedRole[key],
+      before: null,
+      key: `${roleLabel}.${key}`,
+    })),
+    client: admin as unknown as CompanyEventInsertClient,
+    source: "website",
+    workspaceId: resolved.workspace.company_workspace_id,
+  });
+
   return mapRoleRecord({
-    row: data as RoleRow,
+    row: savedRole,
   });
 }
 

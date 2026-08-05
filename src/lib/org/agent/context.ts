@@ -1,13 +1,21 @@
 import type { User } from "@supabase/supabase-js";
 import { getLlmErrorMessage } from "@/lib/llm/llm";
 import {
+  fetchOrgAgentPipelineSnapshot,
   fetchOrgAgentRoles,
   fetchRecentOrgAgentRecommendations,
+  fetchOrgAgentWorkspaceAvailability,
+  getOrgAgentMoreData,
   getOrgAgentTalents,
+  type OrgAgentMoreDataResult,
   type OrgAgentAdminClient,
 } from "@/lib/org/agent/data";
-import type { OrgAgentConversationRow } from "@/lib/org/agent/store";
+import type {
+  OrgAgentConversationRow,
+  OrgAgentPromptMessageScope,
+} from "@/lib/org/agent/store";
 import {
+  fetchActiveOrgAgentRetainedDataActivations,
   fetchRecentOrgAgentPromptMessages,
   fetchRecentOrgAgentSummaries,
   fetchWorkspaceForOrgAgent,
@@ -15,13 +23,28 @@ import {
 import {
   clipPromptText,
   formatPromptCell,
-  formatPromptDate,
   formatPromptSection,
   formatPromptTable,
+  serializeOrgAgentMoreData,
 } from "@/lib/org/agent/promptFormat";
+import {
+  enforceOrgAgentContextBudget,
+  formatRecentRecommendations,
+  DEFAULT_RECENT_PIPELINE_MAX_CHARS,
+  ORG_AGENT_CONTEXT_MAX_CHARS,
+} from "@/lib/org/agent/contextBudget";
+import {
+  buildDefaultOrgAgentLongTextObservations,
+  type OrgAgentLongTextObservation,
+} from "@/lib/org/agent/contextVisibility";
+import {
+  fetchPendingOrgAgentUpdateProposal,
+  formatPendingOrgAgentUpdateProposal,
+} from "@/lib/org/agent/proposals";
 import type {
   OrgAgentMention,
   OrgAgentMentionCandidate,
+  OrgAgentReadAudience,
 } from "@/lib/org/agent/types";
 import {
   assertOrgWorkspacePermission,
@@ -29,6 +52,11 @@ import {
   OrgHttpError,
   upsertOrgCompanyUser,
 } from "@/lib/org/server";
+import {
+  humanizeOrgRoleStatus,
+  humanizeOrgStage,
+  humanizeOrgWorkMode,
+} from "@/lib/org/pipelineStage";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 
 export type OrgAgentPromptContext = {
@@ -36,11 +64,26 @@ export type OrgAgentPromptContext = {
   completeRoleRequestIds: string[];
   contextNotesText: string;
   conversationText: string;
+  defaultLongTextObservations?: OrgAgentLongTextObservation[];
+  pendingUpdateText?: string;
   recentRecommendationsText: string;
+  retainedDataText?: string;
+  retainedMoreData?: OrgAgentMoreDataResult | null;
   roles: Awaited<ReturnType<typeof fetchOrgAgentRoles>>;
   rolesText: string;
   summariesText: string;
   workspace: Awaited<ReturnType<typeof fetchWorkspaceForOrgAgent>>;
+};
+
+export const DEFAULT_DATA_CONTEXT_MAX_CHARS = 18_000;
+export const DEFAULT_ROLE_INDEX_MAX_ITEMS = 100;
+export const DEFAULT_ROLE_INDEX_MAX_CHARS = 10_000;
+export const CONVERSATION_CONTEXT_MAX_CHARS = 12_000;
+export {
+  enforceOrgAgentContextBudget,
+  formatRecentRecommendations,
+  DEFAULT_RECENT_PIPELINE_MAX_CHARS,
+  ORG_AGENT_CONTEXT_MAX_CHARS,
 };
 
 function text(value: unknown) {
@@ -58,6 +101,7 @@ function stripSerializedMentionIds(value: string) {
 async function optionalContext<T>(args: {
   fallback: T;
   label: string;
+  onError?: () => void;
   task: () => Promise<T>;
 }) {
   try {
@@ -67,101 +111,152 @@ async function optionalContext<T>(args: {
       error: getLlmErrorMessage(error) || String(error),
       label: args.label,
     });
+    args.onError?.();
     return args.fallback;
   }
 }
 
-function formatRoles(roles: OrgAgentPromptContext["roles"]) {
+function formatRoles(
+  roles: OrgAgentPromptContext["roles"],
+  countsByRoleId:
+    | Awaited<
+        ReturnType<typeof fetchOrgAgentPipelineSnapshot>
+      >["countsByRoleId"]
+    | null
+) {
   if (roles.length === 0) {
-    return { completeRoleRequestIds: [], text: "-" };
+    return {
+      completeRoleRequestIds: [],
+      emptyLongTextObservations: [],
+      text: "total_roles=0 returned_roles=0 role_index_truncated=false\n-",
+    };
   }
-  const core = formatPromptTable(
-    ["role_id", "name", "status", "location", "mode", "employment", "updated"],
-    roles.map((role) => [
-      role.roleId,
-      role.name,
-      role.status,
-      role.locationText,
-      role.workMode,
-      role.employmentTypes,
-      formatPromptDate(role.updatedAt),
-    ]),
-    [100, 160, 40, 120, 30, 100, 10]
+  const selected: typeof roles = [];
+  for (const role of roles.slice(0, DEFAULT_ROLE_INDEX_MAX_ITEMS)) {
+    const candidate = [...selected, role];
+    const table = formatPromptTable(
+      [
+        "role_id",
+        "title",
+        "status",
+        "location",
+        "work_mode",
+        "waiting",
+        "active",
+        "ended",
+        "counts_complete",
+        "has_request",
+        "has_memory",
+        "has_description",
+      ],
+      candidate.map((item) => {
+        const counts = countsByRoleId?.get(item.roleId);
+        return [
+          item.roleId,
+          item.name,
+          humanizeOrgRoleStatus(item.status),
+          item.locationText,
+          humanizeOrgWorkMode(item.workMode),
+          counts?.waiting ?? "unavailable",
+          counts?.active ?? "unavailable",
+          counts?.ended ?? "unavailable",
+          counts?.complete ?? false,
+          Boolean(text(item.request)),
+          Boolean(item.hasMemory),
+          Boolean(text(item.description)),
+        ];
+      }),
+      [100, 180, 100, 100, 40, 12, 12, 12, 8, 8, 8, 8]
+    );
+    if (table.length > DEFAULT_ROLE_INDEX_MAX_CHARS) break;
+    selected.push(role);
+  }
+  const table = formatPromptTable(
+    [
+      "role_id",
+      "title",
+      "status",
+      "location",
+      "work_mode",
+      "waiting",
+      "active",
+      "ended",
+      "counts_complete",
+      "has_request",
+      "has_memory",
+      "has_description",
+    ],
+    selected.map((role) => {
+      const counts = countsByRoleId?.get(role.roleId);
+      return [
+        role.roleId,
+        role.name,
+        humanizeOrgRoleStatus(role.status),
+        role.locationText,
+        humanizeOrgWorkMode(role.workMode),
+        counts?.waiting ?? "unavailable",
+        counts?.active ?? "unavailable",
+        counts?.ended ?? "unavailable",
+        counts?.complete ?? false,
+        Boolean(text(role.request)),
+        Boolean(role.hasMemory),
+        Boolean(text(role.description)),
+      ];
+    }),
+    [100, 180, 100, 100, 40, 12, 12, 12, 8, 8, 8, 8]
   );
-
-  // Requests are sparse and variable-length, so keep them out of the core
-  // table. Every role stays visible above even when the request budget fills.
-  const requestRows: unknown[][] = [];
-  const completeRoleRequestIds: string[] = [];
-  const omittedRequestRoleIds: string[] = [];
-  let requestChars = 0;
-  for (const role of roles) {
-    const fullRequest = text(role.request).replace(/\s+/g, " ");
-    if (!fullRequest) {
-      completeRoleRequestIds.push(role.roleId);
-      continue;
-    }
-    const request = clipPromptText(fullRequest, 600);
-    if (requestChars + request.length > 8_000) {
-      omittedRequestRoleIds.push(role.roleId);
-      continue;
-    }
-    requestChars += request.length;
-    requestRows.push([role.roleId, request]);
-    if (request === fullRequest) completeRoleRequestIds.push(role.roleId);
-  }
   return {
-    completeRoleRequestIds,
-    text: [
-      formatPromptSection("role_core", core),
-      formatPromptSection(
-        "role_requests",
-        formatPromptTable(["role_id", "request"], requestRows, [100, 600])
-      ),
-      ...(omittedRequestRoleIds.length > 0
+    completeRoleRequestIds: selected
+      .filter((role) => !text(role.request))
+      .map((role) => role.roleId),
+    emptyLongTextObservations: selected.flatMap((role) => [
+      ...(!text(role.request)
         ? [
-            formatPromptSection(
-              "omitted_role_requests",
-              omittedRequestRoleIds.join("\n")
-            ),
+            {
+              key: "role_request" as const,
+              roleId: role.roleId,
+              value: null,
+            },
           ]
         : []),
+      ...(!role.hasMemory
+        ? [
+            {
+              key: "role_memory" as const,
+              roleId: role.roleId,
+              value: null,
+            },
+          ]
+        : []),
+      ...(!text(role.description)
+        ? [
+            {
+              key: "role_description" as const,
+              roleId: role.roleId,
+              value: null,
+            },
+          ]
+        : []),
+    ]),
+    text: [
+      `total_roles=${roles.length} returned_roles=${selected.length} role_index_truncated=${selected.length < roles.length}`,
+      table,
     ].join("\n"),
   };
-}
-
-function formatRecentRecommendations(
-  rows: Awaited<ReturnType<typeof fetchRecentOrgAgentRecommendations>>
-) {
-  return formatPromptTable(
-    [
-      "talent_id",
-      "name",
-      "headline",
-      "role_id",
-      "role",
-      "stage",
-      "fit",
-      "recommended",
-    ],
-    rows.map((row) => [
-      row.candidate.talentId,
-      row.candidate.name,
-      row.candidate.headline,
-      row.role.roleId,
-      row.role.name,
-      row.stage,
-      row.fitSummary,
-      formatPromptDate(row.recommendedAt),
-    ]),
-    [100, 140, 120, 100, 160, 100, 180, 10]
-  );
 }
 
 function formatConversation(
   messages: Awaited<ReturnType<typeof fetchRecentOrgAgentPromptMessages>>
 ) {
   if (messages.length === 0) return "-";
+  const slackAliasById = new Map<string, string>();
+  const slackAlias = (slackUserId: string) => {
+    const existing = slackAliasById.get(slackUserId);
+    if (existing) return existing;
+    const next = `Slack participant ${slackAliasById.size + 1}`;
+    slackAliasById.set(slackUserId, next);
+    return next;
+  };
   const rows = messages.map((message) => {
     const mentions = message.mentions.length
       ? message.mentions
@@ -175,9 +270,9 @@ function formatConversation(
       message.role === "assistant"
         ? "Harper"
         : message.metadata.slackUserName
-          ? `${message.metadata.slackUserName} [${message.slackUserId ?? "-"}]`
+          ? message.metadata.slackUserName
           : message.slackUserId
-            ? `Slack user [${message.slackUserId}]`
+            ? slackAlias(message.slackUserId)
             : "user";
     return [
       speaker,
@@ -196,7 +291,11 @@ function formatConversation(
       (sum, value) => sum + String(value ?? "").length,
       0
     );
-    if (selected.length > 0 && totalChars + rowChars > 8_000) break;
+    if (
+      selected.length > 0 &&
+      totalChars + rowChars > CONVERSATION_CONTEXT_MAX_CHARS
+    )
+      break;
     totalChars += rowChars;
     selected.unshift(row);
   }
@@ -217,18 +316,34 @@ function formatSummaries(
     .join("\n---\n");
 }
 
-function formatCompany(
-  workspace: Awaited<ReturnType<typeof fetchWorkspaceForOrgAgent>>
-) {
+function formatCompany(args: {
+  availability: Awaited<ReturnType<typeof fetchOrgAgentWorkspaceAvailability>>;
+  workspace: Awaited<ReturnType<typeof fetchWorkspaceForOrgAgent>>;
+}) {
   return formatPromptTable(
     ["field", "value"],
     [
-      ["name", workspace.companyName],
-      ["description", clipPromptText(workspace.companyDescription, 8_000)],
-      ["pitch", clipPromptText(workspace.pitch, 8_000)],
-      ["recruiting_request", clipPromptText(workspace.request, 6_000)],
+      ["company_name", args.workspace.companyName],
+      [
+        "company_description_exists",
+        Boolean(text(args.workspace.companyDescription)),
+      ],
+      ["pitch_exists", Boolean(text(args.workspace.pitch))],
+      ["workspace_request_exists", Boolean(text(args.workspace.request))],
+      [
+        "brief",
+        clipPromptText(
+          args.workspace.brief || args.workspace.companyDescription,
+          1_000
+        ),
+      ],
+      ["company_details_available", args.availability.companyDetailsAvailable],
+      [
+        "workspace_memory_available",
+        args.availability.workspaceMemoryAvailable,
+      ],
     ],
-    [30, 8_000]
+    [40, 1_000]
   );
 }
 
@@ -248,32 +363,49 @@ export async function buildOrgAgentPromptContext(args: {
   admin: OrgAgentAdminClient;
   beforeMessageId?: number | null;
   conversation: OrgAgentConversationRow;
+  currentUserMessageId?: number | null;
+  messageType?: string | null;
+  readAudience?: OrgAgentReadAudience;
+  scopeKey?: string | null;
+  slackThreadId?: string | null;
   slackHistoryTruncated?: boolean;
   user: User;
 }) {
   const workspaceId = args.conversation.company_workspace_id;
-  const [workspace, roles, recentRecommendations, summaries, messages] =
+  const isSlack = args.messageType === "slack" || Boolean(args.slackThreadId);
+  const scope: OrgAgentPromptMessageScope = isSlack
+    ? { kind: "slack", slackThreadId: text(args.slackThreadId) }
+    : { kind: "chat" };
+  if (scope.kind === "slack" && !scope.slackThreadId) {
+    throw new OrgHttpError(400, "slackThreadId is required for Slack context");
+  }
+  const scopeKey =
+    text(args.scopeKey) ||
+    (scope.kind === "slack"
+      ? `slack:${scope.slackThreadId}`
+      : `chat:${args.conversation.id}`);
+  const currentUserMessageId =
+    args.currentUserMessageId ?? args.beforeMessageId ?? null;
+  const workspace = await fetchWorkspaceForOrgAgent({
+    admin: args.admin,
+    workspaceId,
+  });
+  // Workspace identity, canonical internal role criteria, and memory presence
+  // are authoritative. A failed read aborts rather than pretending there are
+  // no roles or memories.
+  const notes: string[] = [];
+  let pendingUpdateUnavailable = false;
+  const [roles, availability, summaries, messages, pendingUpdate] =
     await Promise.all([
-      fetchWorkspaceForOrgAgent({ admin: args.admin, workspaceId }),
-      optionalContext({
-        fallback: [],
-        label: "roles",
-        task: () => fetchOrgAgentRoles({ admin: args.admin, workspaceId }),
-      }),
-      optionalContext({
-        fallback: [],
-        label: "recent_recommendations",
-        task: () =>
-          fetchRecentOrgAgentRecommendations({
-            admin: args.admin,
-            limit: 20,
-            user: args.user,
-            workspaceId,
-          }),
-      }),
+      fetchOrgAgentRoles({ admin: args.admin, workspaceId }),
+      fetchOrgAgentWorkspaceAvailability({ admin: args.admin, workspace }),
       optionalContext({
         fallback: [],
         label: "conversation_summaries",
+        onError: () =>
+          notes.push(
+            "conversation_summaries_unavailable=true; do not treat older context as empty"
+          ),
         task: () =>
           fetchRecentOrgAgentSummaries({
             admin: args.admin,
@@ -284,32 +416,129 @@ export async function buildOrgAgentPromptContext(args: {
       optionalContext({
         fallback: [],
         label: "recent_conversation",
+        onError: () =>
+          notes.push(
+            "recent_conversation_unavailable=true; do not assume there was no prior discussion"
+          ),
         task: () =>
           fetchRecentOrgAgentPromptMessages({
             admin: args.admin,
-            beforeMessageId: args.beforeMessageId,
+            beforeMessageId: currentUserMessageId,
             conversationId: args.conversation.id,
             limit: 14,
+            scope,
+          }),
+      }),
+      optionalContext({
+        fallback: null,
+        label: "pending_update",
+        onError: () => {
+          pendingUpdateUnavailable = true;
+        },
+        task: () =>
+          fetchPendingOrgAgentUpdateProposal({
+            admin: args.admin,
+            scopeKey,
+            workspaceId,
           }),
       }),
     ]);
 
-  const formattedRoles = formatRoles(roles);
-  return {
-    companyText: formatCompany(workspace),
+  let pipeline: Awaited<
+    ReturnType<typeof fetchOrgAgentPipelineSnapshot>
+  > | null = null;
+  try {
+    pipeline = await fetchOrgAgentPipelineSnapshot({
+      admin: args.admin,
+      audience:
+        args.readAudience ??
+        (scope.kind === "slack" ? "company_safe" : "caller"),
+      recentLimit: 20,
+      roles,
+      user: args.user,
+      workspaceId,
+    });
+  } catch (error) {
+    console.warn("[org/agent/context]", {
+      error: getLlmErrorMessage(error) || String(error),
+      label: "pipeline",
+    });
+    notes.push(
+      "pipeline_unavailable=true reason=read_failed; do not report candidate counts as zero or exact"
+    );
+  }
+
+  let retainedMoreData: OrgAgentMoreDataResult | null = null;
+  if (currentUserMessageId) {
+    try {
+      const activations = await fetchActiveOrgAgentRetainedDataActivations({
+        admin: args.admin,
+        conversationId: args.conversation.id,
+        currentUserMessageId,
+        scope,
+        scopeKey,
+      });
+      if (activations.length > 0) {
+        const companyDetailsActivation = activations.find(
+          (activation) => activation.kind === "company_details"
+        );
+        retainedMoreData = await getOrgAgentMoreData({
+          admin: args.admin,
+          fullTextKeys: companyDetailsActivation?.fullTextKeys ?? [],
+          kinds: activations.map((activation) => activation.kind),
+          workspaceId,
+        });
+      }
+    } catch (error) {
+      console.warn("[org/agent/context]", {
+        error: getLlmErrorMessage(error) || String(error),
+        label: "retained_more_data",
+      });
+      notes.push(
+        "retained_more_data_unavailable=true reason=read_failed; do not treat the optional data as empty"
+      );
+    }
+  }
+
+  const formattedRoles = formatRoles(roles, pipeline?.countsByRoleId ?? null);
+  const defaultLongTextObservations = buildDefaultOrgAgentLongTextObservations({
+    companyDbId: workspace.companyDbId,
+    companyDescription: workspace.companyDescription,
+    pitch: workspace.pitch,
+    roleObservations: formattedRoles.emptyLongTextObservations,
+    workspaceMemoryAvailable: availability.workspaceMemoryAvailable,
+    workspaceRequest: workspace.request,
+  });
+  const recentRecommendations = Object.assign(pipeline?.recentItems ?? [], {
+    recentComplete: pipeline?.recentComplete ?? false,
+    returnedItems: pipeline?.returnedItems ?? 0,
+  }) as Awaited<ReturnType<typeof fetchRecentOrgAgentRecommendations>>;
+  if (args.slackHistoryTruncated) {
+    notes.push(
+      "Slack API returned a partial thread page. Use only synchronized messages and do not claim unseen replies were reviewed."
+    );
+  }
+  return enforceOrgAgentContextBudget({
+    companyText: formatCompany({ availability, workspace }),
     completeRoleRequestIds: formattedRoles.completeRoleRequestIds,
-    contextNotesText: args.slackHistoryTruncated
-      ? "Slack API returned a partial thread page. Use only the synchronized messages available in the shared conversation; do not claim that unseen replies were reviewed."
-      : "-",
+    contextNotesText: notes.join("\n") || "-",
     conversationText: formatConversation(messages),
+    defaultLongTextObservations,
+    pendingUpdateText: pendingUpdateUnavailable
+      ? "pending_update_unavailable=true; do not assume that no update is awaiting confirmation"
+      : formatPendingOrgAgentUpdateProposal(pendingUpdate),
     recentRecommendationsText: formatRecentRecommendations(
       recentRecommendations
     ),
+    retainedDataText: retainedMoreData
+      ? serializeOrgAgentMoreData(retainedMoreData)
+      : "-",
+    retainedMoreData,
     roles,
     rolesText: formattedRoles.text,
     summariesText: formatSummaries(summaries),
     workspace,
-  } satisfies OrgAgentPromptContext;
+  } satisfies OrgAgentPromptContext);
 }
 
 export async function searchOrgAgentMentionCandidates(args: {
@@ -346,7 +575,7 @@ export async function searchOrgAgentMentionCandidates(args: {
     subtitle:
       [
         item.role.name,
-        item.stage,
+        humanizeOrgStage(item.stage, item.stageLabel),
         item.candidate.headline,
         item.candidate.email,
       ]

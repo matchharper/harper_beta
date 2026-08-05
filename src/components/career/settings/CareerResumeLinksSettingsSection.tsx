@@ -135,7 +135,8 @@ const CareerResumeLinksSettingsSection = () => {
     }
   };
 
-  const handleResumeUploadComplete = () => {
+  const handleResumeUploadComplete = (requestCompleted: boolean) => {
+    if (requestCompleted) return;
     setPendingPostUploadDialog({ type: "profile_apply" });
   };
 

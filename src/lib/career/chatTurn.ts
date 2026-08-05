@@ -79,6 +79,10 @@ import {
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import {
+  fetchActiveCompanyTalentRequest,
+  serializeTalentPendingRequest,
+} from "@/lib/companyTalentRequests/server";
+import {
   COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
   fetchRecentCompanySnapshot,
   formatCompanySnapshotMessage,
@@ -524,6 +528,13 @@ export async function runCareerChatTurn(
     canUseInternalFitHoldQuestionTool
       ? await fetchActiveInternalFitHoldQuestion({ admin, userId })
       : null;
+  const activeCompanyTalentRequest = talentSetting?.is_onboarding_done
+    ? await fetchActiveCompanyTalentRequest({
+        admin: admin as any,
+        awaitingTalentOnly: true,
+        talentId: userId,
+      })
+    : null;
   const extractTurnInsights = (assistantContent: string) =>
     shouldAutoExtractInsights
       ? extractAndPersistChatInsights({
@@ -630,6 +641,12 @@ export async function runCareerChatTurn(
   }
 
   const toolSelection = resolveCareerChatTools({
+    activeCompanyTalentRequestMode:
+      activeCompanyTalentRequest
+        ? activeCompanyTalentRequest.expects_document
+          ? "document"
+          : "text"
+        : null,
     activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
     allowedToolNames: args.allowedToolNames,
     channel: requestChannel,
@@ -674,6 +691,9 @@ export async function runCareerChatTurn(
     buildCareerConversationPromptPlan({
       activeInternalFitHoldQuestion,
       channel: "chat",
+      companyTalentRequestText: serializeTalentPendingRequest(
+        activeCompanyTalentRequest
+      ),
       currentInsightContent,
       currentPreferences,
       isOnboardingDone: talentSetting?.is_onboarding_done,

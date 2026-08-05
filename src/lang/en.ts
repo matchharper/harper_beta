@@ -2086,6 +2086,12 @@ export const en = {
       "Saving your selected resume...",
     "career.resume_dropzone.unsupported_file":
       "Please upload a supported resume file type.",
+    "career.profile.resume_request.banner_title":
+      "{companyName} requested a resume while reviewing you for {roleName}.",
+    "career.profile.resume_request.banner_description":
+      "Upload below to link this resume to the request and share it only with that company. You may also choose not to upload or respond.",
+    "career.profile.resume_request.upload_cta":
+      "Upload and share with {companyName}",
     "career.settings.career_resume_links_settings_section.114mcb5":
       "Delete link",
     "career.settings.career_settings_modal.0858bd9":

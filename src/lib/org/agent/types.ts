@@ -3,6 +3,24 @@ import type { OrgAgentModelId } from "@/lib/org/agent/modelConfig";
 export type OrgAgentMessageRole = "assistant" | "system" | "user";
 export type OrgAgentMessageStatus = "completed" | "failed" | "pending";
 
+export type OrgAgentReadAudience = "caller" | "company_safe";
+
+export const ORG_AGENT_MORE_DATA_KINDS = [
+  "members",
+  "company_details",
+  "workspace_memory",
+] as const;
+
+export type OrgAgentMoreDataKind = (typeof ORG_AGENT_MORE_DATA_KINDS)[number];
+
+export type OrgAgentRetainedDataActivation = {
+  activatedAt?: string | null;
+  activatedByUserMessageId: number;
+  fullTextKeys: string[];
+  kind: OrgAgentMoreDataKind;
+  scopeKey: string;
+};
+
 export type OrgAgentMention = {
   displayName: string;
   recommendationId?: string | null;
@@ -51,6 +69,13 @@ export type OrgAgentMessageAction =
 
 export type OrgAgentMessageMetadata = {
   actions?: OrgAgentMessageAction[];
+  autoIntroToCompany?: {
+    candidateIds: string[];
+    candidateKeys: string[];
+    pendingSinceByCandidateKey: Record<string, string>;
+    reasonSourceByCandidateKey: Record<string, "codex" | "codex-authored">;
+    roleIds: string[];
+  };
   candidateConnectionConfirmations?: Array<{
     actorId: string;
     recommendationId: string;
@@ -60,6 +85,7 @@ export type OrgAgentMessageMetadata = {
   }>;
   fallbackReason?: string | null;
   historyTruncated?: boolean;
+  internalTokenCorrectionCount?: number;
   llmUsage?: {
     cacheCreationInputTokens: number;
     cacheReadInputTokens: number;
@@ -81,6 +107,8 @@ export type OrgAgentMessageMetadata = {
     changeSummary: string;
     scope: "company" | "role";
   }>;
+  retainedDataActivations?: OrgAgentRetainedDataActivation[];
+  slackReplyJobId?: string;
   source?: string | null;
   slackUserName?: string | null;
   toolResults?: Array<{
@@ -89,6 +117,10 @@ export type OrgAgentMessageMetadata = {
     status: "error" | "success" | "unchanged";
     summary: string;
   }>;
+  updateProposalRef?: {
+    proposalId: string;
+    summary: string;
+  };
 };
 
 export type OrgAgentMessage = {

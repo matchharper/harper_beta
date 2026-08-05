@@ -1,4 +1,9 @@
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import {
+  type CompanyEventInsertClient,
+  writeCompanyEvent,
+} from "@/lib/org/companyEvents";
+import { applyWebsiteCompanyDataChanges } from "@/lib/org/companyDataWebsite";
 import { getInsightLabel } from "@/lib/talentOnboarding/insightChecklist";
 import {
   isOpsMatchingExcludeNotInterestedFilter,
@@ -2712,6 +2717,7 @@ export async function fetchOpsMatchingAllRoles(args: {
 }
 
 export async function updateOpsMatchingAllRole(args: {
+  eventActorLabel: string;
   isAuto?: boolean;
   roleId?: string | null;
   status?: OpportunityStatus;
@@ -2726,7 +2732,7 @@ export async function updateOpsMatchingAllRole(args: {
   const now = new Date().toISOString();
   const { data: existingRole, error: existingRoleError } = await admin
     .from("company_roles")
-    .select("role_id")
+    .select("role_id, company_workspace_id, name")
     .eq("role_id", roleId)
     .eq("source_type", "internal")
     .maybeSingle();
@@ -2734,7 +2740,19 @@ export async function updateOpsMatchingAllRole(args: {
     throw new Error(existingRoleError?.message ?? "Internal role not found");
   }
 
+  let previousIsAuto = false;
   if (typeof args.isAuto === "boolean") {
+    const { data: beforeMetadata, error: beforeMetadataError } = await admin
+      .from("company_internal_roles")
+      .select("is_auto")
+      .eq("role_id", roleId)
+      .maybeSingle();
+    if (beforeMetadataError) {
+      throw new Error(
+        beforeMetadataError.message ?? "Failed to load automatic matching"
+      );
+    }
+    previousIsAuto = beforeMetadata?.is_auto === true;
     const { error } = await admin.from("company_internal_roles").upsert(
       {
         is_auto: args.isAuto,
@@ -2746,20 +2764,29 @@ export async function updateOpsMatchingAllRole(args: {
     if (error) {
       throw new Error(error.message ?? "Failed to update automatic matching");
     }
+    await writeCompanyEvent({
+      actorLabel: args.eventActorLabel,
+      changes: [
+        {
+          after: args.isAuto,
+          before: previousIsAuto,
+          key: `${existingRole.name}.is_auto`,
+        },
+      ],
+      client: admin as unknown as CompanyEventInsertClient,
+      source: "website",
+      workspaceId: existingRole.company_workspace_id,
+    });
   }
 
   if (args.status) {
     const status = normalizeAllRoleStatus(args.status);
-    const { data, error } = await admin
-      .from("company_roles")
-      .update({ status, updated_at: now })
-      .eq("role_id", roleId)
-      .eq("source_type", "internal")
-      .select("role_id")
-      .maybeSingle();
-    if (error || !data) {
-      throw new Error(error?.message ?? "Internal role not found");
-    }
+    await applyWebsiteCompanyDataChanges({
+      actorLabel: args.eventActorLabel,
+      admin,
+      changes: [{ key: "role_status", roleId, value: status }],
+      workspaceId: existingRole.company_workspace_id,
+    });
   }
 
   const [roleResult, metadataResult] = await Promise.all([

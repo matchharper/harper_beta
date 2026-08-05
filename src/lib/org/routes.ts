@@ -7,6 +7,8 @@ export type OrgWorkspacePageId =
   | "settings"
   | "help";
 
+export type OrgJobsView = "pipeline" | "role";
+
 const ORG_PAGE_PATHS: Record<OrgWorkspacePageId, string> = {
   all: "/org/all",
   help: "/org/help",
@@ -27,6 +29,7 @@ export function buildOrgHref(args: {
   orgId?: string | null;
   page?: OrgWorkspacePageId;
   roleId?: string | null;
+  view?: OrgJobsView | null;
 }) {
   const params = new URLSearchParams();
   const orgId = args.orgId?.trim();
@@ -37,6 +40,9 @@ export function buildOrgHref(args: {
   const detailWorkspaceId = args.detail?.workspaceId?.trim();
   if (orgId) params.set("orgId", orgId);
   if (roleId && args.page === "jobs") params.set("roleId", roleId);
+  if (roleId && roleId !== "all" && args.page === "jobs" && args.view) {
+    params.set("view", args.view);
+  }
   if (detailTalentId) params.set("talentId", detailTalentId);
   if (detailRecommendationId) {
     params.set("recommendationId", detailRecommendationId);

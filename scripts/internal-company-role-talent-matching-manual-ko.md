@@ -2107,6 +2107,8 @@ role_margin = best_role_mutual_score - second_role_mutual_score
 
 이 절은 회사-facing `internal_reason` 작성 계약이다. 후보자 화면용 recommendation 상세 필드는 수동 matching agent가 작성하지 않으며, 이 매뉴얼의 필수 산출물·완료 조건·품질 감사 대상이 아니다. audience가 다른 필드를 서로 섞지 않는다.
 
+연결대기 후보자를 회사 Slack에 자동 소개하는 workflow에서도 이 절의 `internal_reason`은 짧은 알림 문구가 아니다. `kind=null` fit은 이 절의 전체 계약에 따라 상세 추천 이유를 먼저 작성해 `talent_opportunity_fit.reason`에 저장하고, Slack에는 그 상세 reason에서 핵심만 다시 고른 별도의 4~6문장 요약을 보낸다. Slack 요약을 `talent_opportunity_fit.reason`에 저장하거나 상세 reason과 동일한 문구로 취급하지 않는다. workspace 단위 Slack 형식과 요약 규칙은 `docs/auto-intro-to-company-slack-notification-ko.md` 4~6장을 따른다.
+
 ### 14.1 내부 판단 이유 `internal_reason`
 
 `internal_reason`은 회사와 Harper 운영자가 읽는 후보자 추천 메모이며, persistence 단계에서 `talent_opportunity_fit.reason`에 저장하는 내용이다. 이 필드가 가장 먼저 답해야 하는 질문은 다음과 같다.

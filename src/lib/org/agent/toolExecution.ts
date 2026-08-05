@@ -1,31 +1,49 @@
 import type { User } from "@supabase/supabase-js";
 import {
+  getOrgAgentMoreData,
   getOrgAgentTalents,
   readOrgAgentRole,
   readOrgAgentTalent,
   type OrgAgentAdminClient,
 } from "@/lib/org/agent/data";
+import {
+  COMPANY_DETAILS_LONG_TEXT_KEYS,
+  companyDataTargetKey,
+  isCompanyDetailsLongTextKey,
+  type CompanyDataKey,
+} from "@/lib/org/agent/companyDataCatalog";
+import {
+  assertCompanyDataProposalSnapshotUnchanged,
+  buildCompanyAgentEventContent,
+  CompanyDataMutationError,
+  fetchCompanyDataSnapshot,
+  mergeCompanyDataProposalRevision,
+  parseCompanyDataChanges,
+  resolveCompanyDataMutation,
+  type ResolvedCompanyDataChange,
+} from "@/lib/org/agent/companyDataMutation";
 import type { OrgAgentConversationRow } from "@/lib/org/agent/store";
-import type { OrgAgentMessageAction } from "@/lib/org/agent/types";
+import { hasPendingOrgAgentUpdateProposal } from "@/lib/org/agent/proposals";
 import type { OrgAgentToolName } from "@/lib/org/agent/tools";
 import {
+  assertOrgAgentToolAvailable,
+  OrgAgentToolInputError,
+} from "@/lib/org/agent/toolAvailability";
+import type { OrgAgentReadAudience } from "@/lib/org/agent/types";
+import {
   createOrgAgentToolExecutionState,
+  isOrgAgentLongTextComplete,
+  markOrgAgentLongTextComplete,
   promoteOrgAgentToolReadVisibility,
   type OrgAgentToolExecutionState,
   type OrgAgentToolResultMetadata,
 } from "@/lib/org/agent/toolState";
-import {
-  updateOrgRole,
-  updateOrgRoleRequestOnly,
-  updateOrgWorkspace,
-  updateOrgWorkspaceRequestOnly,
-  setOrgCandidateStage,
-} from "@/lib/org/server";
+import { setOrgCandidateStage } from "@/lib/org/server";
+import { enqueueCompanyTalentRequest } from "@/lib/companyTalentRequests/server";
 
 export { createOrgAgentToolExecutionState, promoteOrgAgentToolReadVisibility };
+export { OrgAgentToolInputError };
 export type { OrgAgentToolExecutionState };
-
-export class OrgAgentToolInputError extends Error {}
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -91,26 +109,6 @@ function booleanField(
   return typeof input[field] === "boolean" ? input[field] : fallback;
 }
 
-function stringArray(
-  value: unknown,
-  allowed: readonly string[],
-  maxItems: number
-) {
-  if (!Array.isArray(value)) {
-    throw new OrgAgentToolInputError("employmentTypes must be an array");
-  }
-  const items = Array.from(new Set(value.map(text).filter(Boolean))).slice(
-    0,
-    maxItems
-  );
-  if (items.some((item) => !allowed.includes(item))) {
-    throw new OrgAgentToolInputError(
-      `employmentTypes must contain only: ${allowed.join(", ")}`
-    );
-  }
-  return items;
-}
-
 function emailArray(value: unknown, maxItems: number) {
   if (!Array.isArray(value)) {
     throw new OrgAgentToolInputError("introEmails must be an array");
@@ -142,62 +140,6 @@ function recordResult(
   state.toolResults.push(result);
 }
 
-function updateAction(args: {
-  changeSummary: string;
-  scope: "company" | "role";
-}): OrgAgentMessageAction {
-  return {
-    id: crypto.randomUUID(),
-    kind: "entity_updated",
-    label:
-      args.scope === "company"
-        ? "회사 정보 업데이트됨"
-        : "포지션 정보 업데이트됨",
-    payload: {
-      changeSummary: args.changeSummary,
-      scope: args.scope,
-    },
-  };
-}
-
-function addSuccessfulUpdate(args: {
-  callId: string;
-  changeSummary: string;
-  name: OrgAgentToolName;
-  scope: "company" | "role";
-  state: OrgAgentToolExecutionState;
-}) {
-  args.state.actions.push(
-    updateAction({
-      changeSummary: args.changeSummary,
-      scope: args.scope,
-    })
-  );
-  args.state.updateSummaries.push(args.changeSummary);
-  recordResult(args.state, {
-    callId: args.callId,
-    name: args.name,
-    status: "success",
-    summary: args.changeSummary,
-  });
-}
-
-function addRequestChange(args: {
-  after: string | null;
-  before: string | null;
-  changeSummary: string;
-  scope: "company" | "role";
-  state: OrgAgentToolExecutionState;
-}) {
-  if (args.before === args.after) return;
-  args.state.requestChanges.push({
-    after: args.after,
-    before: args.before,
-    changeSummary: args.changeSummary,
-    scope: args.scope,
-  });
-}
-
 export function getOrgAgentToolStatusLabel(args: {
   name: OrgAgentToolName;
   status: "done" | "error" | "running";
@@ -218,15 +160,25 @@ export function getOrgAgentToolStatusLabel(args: {
       "후보자 확인 완료",
       "후보자를 읽지 못했습니다",
     ],
-    update_company: [
-      "회사 정보를 업데이트하는 중",
-      "회사 정보 업데이트 완료",
-      "회사 정보를 업데이트하지 못했습니다",
+    get_more_data: [
+      "추가 회사 정보를 읽는 중",
+      "추가 회사 정보 확인 완료",
+      "추가 회사 정보를 읽지 못했습니다",
     ],
-    update_role: [
-      "포지션 정보를 업데이트하는 중",
-      "포지션 정보 업데이트 완료",
-      "포지션 정보를 업데이트하지 못했습니다",
+    update_data: [
+      "요청하신 변경을 확인하는 중",
+      "변경 요청 확인 완료",
+      "변경 요청을 처리하지 못했습니다",
+    ],
+    contact_talent: [
+      "후보자에게 확인 요청을 준비하는 중",
+      "후보자 확인 요청 준비 완료",
+      "후보자 확인 요청을 준비하지 못했습니다",
+    ],
+    request_talent_resume: [
+      "이력서 요청을 준비하는 중",
+      "이력서 요청 준비 완료",
+      "이력서 요청을 준비하지 못했습니다",
     ],
     prepare_candidate_connection: [
       "후보자 연결 방식을 확인하는 중",
@@ -245,16 +197,19 @@ export function getOrgAgentToolStatusLabel(args: {
 
 async function executeGetTalents(args: {
   admin: OrgAgentAdminClient;
+  audience: OrgAgentReadAudience;
   input: Record<string, unknown>;
   user: User;
   workspaceId: string;
 }) {
   return getOrgAgentTalents({
     admin: args.admin,
+    audience: args.audience,
     limit: boundedInteger(args.input.limit, 10, 1, 20),
     offset: boundedInteger(args.input.offset, 0, 0, 200),
     query: requiredText(args.input.query, "query", 200),
     roleId: text(args.input.roleId) || null,
+    searchProfile: booleanField(args.input, "searchProfile", false),
     user: args.user,
     workspaceId: args.workspaceId,
   });
@@ -262,12 +217,14 @@ async function executeGetTalents(args: {
 
 async function executeReadTalent(args: {
   admin: OrgAgentAdminClient;
+  audience: OrgAgentReadAudience;
   input: Record<string, unknown>;
   user: User;
   workspaceId: string;
 }) {
   return readOrgAgentTalent({
     admin: args.admin,
+    audience: args.audience,
     includeProfile: booleanField(args.input, "includeProfile", false),
     progressLimit: boundedInteger(args.input.progressLimit, 10, 1, 30),
     roleId: text(args.input.roleId) || null,
@@ -279,19 +236,45 @@ async function executeReadTalent(args: {
 
 async function executeReadRole(args: {
   admin: OrgAgentAdminClient;
+  audience: OrgAgentReadAudience;
   input: Record<string, unknown>;
   state: OrgAgentToolExecutionState;
   user: User;
   workspaceId: string;
 }) {
-  const role = roleOrThrow(args.state, args.input.roleId);
+  const roleId = text(args.input.roleId) || null;
+  const exactTitle = text(args.input.exactTitle) || null;
+  if (Boolean(roleId) === Boolean(exactTitle)) {
+    throw new OrgAgentToolInputError(
+      "Provide exactly one of roleId or exactTitle"
+    );
+  }
+  if (roleId && !args.state.roleById.has(roleId)) {
+    throw new OrgAgentToolInputError("Role not found in this workspace");
+  }
+  const allowedIncludes = [
+    "criteria",
+    "memory",
+    "pipeline",
+    "description",
+  ] as const;
+  const include = Array.isArray(args.input.include)
+    ? Array.from(new Set(args.input.include.map(text).filter(Boolean)))
+    : [];
+  if (include.some((value) => !allowedIncludes.includes(value as any))) {
+    throw new OrgAgentToolInputError(
+      `include must contain only: ${allowedIncludes.join(", ")}`
+    );
+  }
   const result = await readOrgAgentRole({
     admin: args.admin,
-    includeDescription: booleanField(args.input, "includeDescription", true),
+    audience: args.audience,
+    exactTitle,
+    include: include as Array<(typeof allowedIncludes)[number]>,
     peopleLimit: boundedInteger(args.input.peopleLimit, 10, 1, 20),
     peopleOffset: boundedInteger(args.input.peopleOffset, 0, 0, 200),
     recentUpdateLimit: boundedInteger(args.input.recentUpdateLimit, 10, 0, 20),
-    roleId: role.roleId,
+    roleId,
     stage: text(args.input.stage) || null,
     user: args.user,
     workspaceId: args.workspaceId,
@@ -299,241 +282,635 @@ async function executeReadRole(args: {
   // A read and a write can appear in the same parallel tool-call batch. The
   // model has not seen this result yet, so chat.ts promotes this ID only after
   // the whole batch finishes and before the next completion.
-  args.state.pendingFullRoleRequestIds.add(role.roleId);
+  if (!result.role?.roleId) return result;
+  const resolvedRoleId = result.role.roleId;
+  if (result.fieldCompleteness.role_request.complete) {
+    args.state.pendingFullRoleRequestIds.add(resolvedRoleId);
+    markOrgAgentLongTextComplete({
+      key: "role_request",
+      observedValue: result.role?.request ?? null,
+      roleId: resolvedRoleId,
+      state: args.state,
+    });
+  }
+  if (result.fieldCompleteness.role_memory.complete) {
+    markOrgAgentLongTextComplete({
+      key: "role_memory",
+      observedValue: result.memory?.content ?? null,
+      roleId: resolvedRoleId,
+      state: args.state,
+    });
+  }
+  if (result.fieldCompleteness.role_description.complete) {
+    markOrgAgentLongTextComplete({
+      key: "role_description",
+      observedValue: result.role?.description ?? null,
+      roleId: resolvedRoleId,
+      state: args.state,
+    });
+  }
   return result;
 }
 
-async function executeUpdateCompany(args: {
-  callId: string;
-  input: Record<string, unknown>;
-  name: OrgAgentToolName;
-  state: OrgAgentToolExecutionState;
-  user: User;
-  workspaceId: string;
-}) {
-  const changeSummary = requiredText(
-    args.input.changeSummary,
-    "changeSummary",
-    500
-  );
-  const description = nullableTextField(
-    args.input,
-    "companyDescription",
-    8_000
-  );
-  const pitch = nullableTextField(args.input, "pitch", 8_000);
-  const request = nullableTextField(args.input, "request", 6_000);
-  if (!description.present && !pitch.present && !request.present) {
+function moreDataKinds(value: unknown) {
+  if (!Array.isArray(value)) {
+    throw new OrgAgentToolInputError("kinds must be an array");
+  }
+  const allowed = ["members", "company_details", "workspace_memory"] as const;
+  const kinds = Array.from(new Set(value.map(text).filter(Boolean)));
+  if (
+    kinds.length < 1 ||
+    kinds.length > 3 ||
+    kinds.some((kind) => !allowed.includes(kind as any))
+  ) {
     throw new OrgAgentToolInputError(
-      "update_company needs at least one changed field"
+      `kinds must contain 1-3 of: ${allowed.join(", ")}`
     );
   }
+  return kinds as Array<(typeof allowed)[number]>;
+}
 
-  const before = args.state.company;
-  const next = {
-    companyDescription: description.present
-      ? description.value
-      : before.companyDescription,
-    pitch: pitch.present ? pitch.value : before.pitch,
-    request: request.present ? request.value : before.request,
-  };
-  const unchanged =
-    next.companyDescription === before.companyDescription &&
-    next.pitch === before.pitch &&
-    next.request === before.request;
-  if (unchanged) {
-    recordResult(args.state, {
-      callId: args.callId,
-      name: args.name,
-      status: "unchanged",
-      summary: changeSummary,
-    });
-    return { changeSummary, status: "already_reflected" };
+function moreDataFullTextKeys(value: unknown) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) {
+    throw new OrgAgentToolInputError("fullTextKeys must be an array");
   }
+  const keys = Array.from(new Set(value.map(text).filter(Boolean)));
+  if (
+    keys.length > COMPANY_DETAILS_LONG_TEXT_KEYS.length ||
+    keys.some((key) => !isCompanyDetailsLongTextKey(key))
+  ) {
+    throw new OrgAgentToolInputError(
+      `fullTextKeys accepts only: ${COMPANY_DETAILS_LONG_TEXT_KEYS.join(", ")}`
+    );
+  }
+  return keys.filter(isCompanyDetailsLongTextKey);
+}
 
-  const result =
-    request.present && !description.present && !pitch.present
-      ? await updateOrgWorkspaceRequestOnly({
-          expectedRequest: before.request,
-          request: next.request,
-          user: args.user,
-          workspaceId: args.workspaceId,
-        })
-      : await updateOrgWorkspace({
-          companyDescription: next.companyDescription,
-          pitch: next.pitch,
-          request: next.request,
-          user: args.user,
-          workspaceId: args.workspaceId,
+async function executeGetMoreData(args: {
+  admin: OrgAgentAdminClient;
+  currentUserMessageId: number;
+  input: Record<string, unknown>;
+  scopeKey: string;
+  state: OrgAgentToolExecutionState;
+  workspaceId: string;
+}) {
+  const kinds = moreDataKinds(args.input.kinds);
+  const fullTextKeys = moreDataFullTextKeys(args.input.fullTextKeys);
+  if (fullTextKeys.length > 0 && !kinds.includes("company_details")) {
+    throw new OrgAgentToolInputError(
+      "fullTextKeys requires company_details in kinds"
+    );
+  }
+  const result = await getOrgAgentMoreData({
+    admin: args.admin,
+    fullTextKeys,
+    kinds,
+    workspaceId: args.workspaceId,
+  });
+
+  if (result.companyDetails) {
+    for (const [key, marker] of Object.entries(result.companyDetails.fields)) {
+      if (isCompanyDetailsLongTextKey(key) && marker.complete) {
+        markOrgAgentLongTextComplete({
+          key,
+          observedValue: result.companyDetails.values[key] ?? null,
+          state: args.state,
         });
-  args.state.company = result.workspace;
-  addRequestChange({
-    after: result.workspace.request,
-    before: before.request,
-    changeSummary,
-    scope: "company",
-    state: args.state,
-  });
-  addSuccessfulUpdate({
+      }
+    }
+  }
+  if (result.workspaceMemory?.complete) {
+    markOrgAgentLongTextComplete({
+      key: "workspace_memory",
+      observedValue: result.workspaceMemory.content ?? null,
+      state: args.state,
+    });
+  }
+  const activatedAt = new Date().toISOString();
+  for (const kind of kinds) {
+    args.state.activatedMoreData = args.state.activatedMoreData.filter(
+      (activation) => activation.kind !== kind
+    );
+    args.state.activatedMoreData.push({
+      activatedAt,
+      activatedByUserMessageId: args.currentUserMessageId,
+      fullTextKeys: kind === "company_details" ? fullTextKeys : [],
+      kind,
+      scopeKey: args.scopeKey,
+    });
+  }
+  // Return the structured value so the shared serializer can preserve
+  // completeness markers. Retention is recorded separately in message
+  // metadata and does not need to be repeated in the model payload.
+  return result;
+}
+
+function proposalMode(input: Record<string, unknown>) {
+  const hasChanges = has(input, "changes");
+  const hasProposal = has(input, "proposalId") || has(input, "proposalAction");
+  if (hasChanges === hasProposal) {
+    throw new OrgAgentToolInputError(
+      "Use exactly one update_data mode: changes, or proposalId with proposalAction"
+    );
+  }
+  return hasChanges ? "changes" : "proposal";
+}
+
+function asRpcResult(value: unknown) {
+  return record(value);
+}
+
+async function executeProposalAction(args: {
+  admin: OrgAgentAdminClient;
+  callId: string;
+  currentUserMessageId: number;
+  input: Record<string, unknown>;
+  name: OrgAgentToolName;
+  scopeKey: string;
+  state: OrgAgentToolExecutionState;
+  workspaceId: string;
+}) {
+  const proposalId = requiredText(args.input.proposalId, "proposalId", 100);
+  const action = requiredText(args.input.proposalAction, "proposalAction", 20);
+  if (action !== "apply" && action !== "reject" && action !== "preview") {
+    throw new OrgAgentToolInputError(
+      "proposalAction must be apply, reject, or preview"
+    );
+  }
+  if (has(args.input, "summary") || has(args.input, "baseProposalId")) {
+    throw new OrgAgentToolInputError(
+      "proposal mode does not accept summary or baseProposalId"
+    );
+  }
+  const { data, error } = await (args.admin.rpc as any)(
+    "resolve_company_agent_update_proposal_v1",
+    {
+      p_action: action,
+      p_current_user_message_id: args.currentUserMessageId,
+      p_proposal_id: proposalId,
+      p_scope_key: args.scopeKey,
+      p_workspace_id: args.workspaceId,
+    }
+  );
+  if (error) throw error;
+  const result = asRpcResult(data);
+  const status = text(result.status) || "not_found";
+  if (status === "preview" || status === "needs_repreview") {
+    args.state.updateProposalRef = {
+      proposalId,
+      summary: text(result.summary) || "확인 대기 중인 변경",
+    };
+    args.state.requiredPresentationText =
+      text(result.presentation_text) || text(result.preview) || null;
+  }
+  if (status === "applied") {
+    const summary = text(result.summary) || "확인한 변경 반영";
+    args.state.terminalReply = `반영했습니다. ${summary}`;
+    args.state.updateSummaries.push(summary);
+    args.state.actions.push({
+      id: crypto.randomUUID(),
+      kind: "entity_updated",
+      label: "회사 정보 업데이트됨",
+      payload: { changeSummary: summary, scope: "company" },
+    });
+  }
+  if (status === "rejected") {
+    args.state.terminalReply = "알겠습니다. 변경안은 적용하지 않았습니다.";
+  } else if (status === "preview" || status === "needs_repreview") {
+    args.state.terminalReply =
+      text(result.presentation_text) ||
+      text(result.preview) ||
+      "확인 대기 중인 변경안을 다시 보여드릴게요.";
+  } else if (status === "expired") {
+    args.state.terminalReply =
+      "변경안의 확인 시간이 지나 적용하지 않았습니다. 원하시면 현재 내용을 다시 확인해 새 변경안을 만들게요.";
+  } else if (status === "stale") {
+    args.state.terminalReply =
+      "그 사이 정보가 바뀌어 이전 변경안은 적용하지 않았습니다. 최신 내용을 다시 확인해 주세요.";
+  } else if (status === "not_found") {
+    args.state.terminalReply =
+      "확인 대기 중인 변경안을 찾지 못했습니다. 변경 내용을 다시 말씀해 주세요.";
+  }
+  recordResult(args.state, {
     callId: args.callId,
-    changeSummary,
     name: args.name,
-    scope: "company",
-    state: args.state,
+    status:
+      status === "applied" || status === "rejected" || status === "preview"
+        ? "success"
+        : "unchanged",
+    summary: text(result.summary) || `변경안 ${status}`,
   });
+  return result;
+}
+
+async function fetchBaseProposal(args: {
+  admin: OrgAgentAdminClient;
+  proposalId: string;
+  scopeKey: string;
+  workspaceId: string;
+}) {
+  const { data, error } = await (
+    args.admin.from("company_agent_update_proposals" as any) as any
+  )
+    .select("id, status, scope_key, payload, preview, summary, expires_at")
+    .eq("id", args.proposalId)
+    .eq("workspace_id", args.workspaceId)
+    .maybeSingle();
+  if (error) throw error;
+  const row = data ? record(data) : null;
+  if (
+    !row ||
+    row.status !== "pending" ||
+    text(row.scope_key) !== args.scopeKey ||
+    new Date(text(row.expires_at)).getTime() <= Date.now()
+  ) {
+    throw new OrgAgentToolInputError(
+      "baseProposalId must identify the active pending proposal in this conversation"
+    );
+  }
+  const payload = record(row.payload);
+  const changes = Array.isArray(payload.changes)
+    ? (payload.changes.map(record) as unknown as ResolvedCompanyDataChange[])
+    : [];
+  if (changes.length === 0) {
+    throw new OrgAgentToolInputError(
+      "The base proposal has no reusable changes"
+    );
+  }
+  if (changes.some((change) => !text(change.preview))) {
+    throw new OrgAgentToolInputError(
+      "This older pending proposal cannot be revised safely. Reject it and create a new proposal."
+    );
+  }
   return {
-    changeSummary,
-    company: result.workspace,
-    status: "updated",
+    changes,
+    preview: text(row.preview),
+    summary: text(row.summary),
   };
 }
 
-async function executeUpdateRole(args: {
+async function executeUpdateData(args: {
+  actorLabel: string;
+  admin: OrgAgentAdminClient;
   callId: string;
+  currentUserMessageId: number;
   input: Record<string, unknown>;
   name: OrgAgentToolName;
+  scopeKey: string;
+  source: "chat" | "slack";
   state: OrgAgentToolExecutionState;
-  user: User;
   workspaceId: string;
 }) {
-  const current = roleOrThrow(args.state, args.input.roleId);
-  const changeSummary = requiredText(
-    args.input.changeSummary,
-    "changeSummary",
-    500
-  );
-  const name = nullableTextField(args.input, "name", 200);
-  if (name.present && name.value === null) {
-    throw new OrgAgentToolInputError("name cannot be cleared");
-  }
-  const description = nullableTextField(args.input, "description", 20_000);
-  const externalJdUrl = nullableTextField(args.input, "externalJdUrl", 2_000);
-  const locationText = nullableTextField(args.input, "locationText", 300);
-  const request = nullableTextField(args.input, "request", 6_000);
-  const workMode = nullableTextField(args.input, "workMode", 20);
-  const status = nullableTextField(args.input, "status", 30);
-  if (request.present && !args.state.fullRoleRequestIds.has(current.roleId)) {
+  if (args.state.terminalMutationUsed) {
     throw new OrgAgentToolInputError(
-      "The role request was compacted. Call read_role for this role before replacing request."
+      "update_data may be called only once per user turn"
     );
   }
-  if (
-    workMode.present &&
-    workMode.value !== null &&
-    !["onsite", "hybrid", "remote"].includes(workMode.value)
-  ) {
-    throw new OrgAgentToolInputError(
-      "workMode must be onsite, hybrid, remote, or null"
-    );
-  }
-  if (
-    status.present &&
-    (status.value === null ||
-      !["top_priority", "active", "paused", "ended"].includes(status.value))
-  ) {
-    throw new OrgAgentToolInputError(
-      "status must be top_priority, active, paused, or ended"
-    );
-  }
-  const employmentTypes = has(args.input, "employmentTypes")
-    ? stringArray(
-        args.input.employmentTypes,
-        ["full_time", "part_time", "internship", "contract"],
-        4
-      )
-    : undefined;
-  const supplied =
-    name.present ||
-    description.present ||
-    externalJdUrl.present ||
-    locationText.present ||
-    request.present ||
-    workMode.present ||
-    status.present ||
-    employmentTypes !== undefined;
-  if (!supplied) {
-    throw new OrgAgentToolInputError(
-      "update_role needs at least one changed field"
-    );
+  args.state.terminalMutationUsed = true;
+  if (proposalMode(args.input) === "proposal") {
+    return executeProposalAction(args);
   }
 
-  const unchanged =
-    (!name.present || name.value === current.name) &&
-    (!description.present || description.value === current.description) &&
-    (!externalJdUrl.present || externalJdUrl.value === current.externalJdUrl) &&
-    (!locationText.present || locationText.value === current.locationText) &&
-    (!request.present || request.value === current.request) &&
-    (!workMode.present || workMode.value === current.workMode) &&
-    (!status.present || status.value === current.status) &&
-    (employmentTypes === undefined ||
-      (employmentTypes.length === current.employmentTypes.length &&
-        employmentTypes.every((value) =>
-          current.employmentTypes.includes(value)
-        )));
-  if (unchanged) {
+  const parsed = parseCompanyDataChanges({
+    changes: args.input.changes,
+    summary: args.input.summary,
+  });
+  const baseProposalId = text(args.input.baseProposalId) || null;
+  let baseProposal: Awaited<ReturnType<typeof fetchBaseProposal>> | null = null;
+  if (baseProposalId) {
+    baseProposal = await fetchBaseProposal({
+      admin: args.admin,
+      proposalId: baseProposalId,
+      scopeKey: args.scopeKey,
+      workspaceId: args.workspaceId,
+    });
+  }
+  const snapshot = await fetchCompanyDataSnapshot({
+    admin: args.admin,
+    changes: [
+      ...parsed.changes,
+      ...(baseProposal?.changes.map((change) => ({
+        key: change.key,
+        kind: "rewrite" as const,
+        roleId: change.role_id,
+        value: change.value,
+      })) ?? []),
+    ],
+    workspaceId: args.workspaceId,
+  });
+  if (baseProposal) {
+    assertCompanyDataProposalSnapshotUnchanged({
+      changes: baseProposal.changes,
+      snapshot,
+    });
+    for (const change of baseProposal.changes) {
+      const target = companyDataTargetKey(change.key, change.role_id);
+      const current = snapshot.get(target);
+      if (!current) {
+        throw new CompanyDataMutationError(
+          "stale_base_proposal",
+          "The pending proposal target is no longer available"
+        );
+      }
+      snapshot.set(target, {
+        ...current,
+        ...(change.expected_physical
+          ? { expected_physical: change.expected_physical }
+          : { expected: change.expected ?? null }),
+        value: change.value,
+      });
+    }
+  }
+  const resolved = resolveCompanyDataMutation({
+    ...parsed,
+    isComplete: (
+      key: CompanyDataKey,
+      roleId: string | null,
+      currentValue: unknown
+    ) =>
+      isOrgAgentLongTextComplete({
+        currentValue,
+        key,
+        roleId,
+        state: args.state,
+      }),
+    snapshot,
+  });
+  let changes = resolved.changes;
+  let preview = resolved.preview;
+  let summary = resolved.summary;
+  if (baseProposal) {
+    const merged = mergeCompanyDataProposalRevision({
+      baseChanges: baseProposal.changes,
+      revisedChanges: changes,
+      roleNamesById: Object.fromEntries(
+        Array.from(args.state.roleById, ([roleId, role]) => [roleId, role.name])
+      ),
+    });
+    changes = merged.changes;
+    preview = merged.preview;
+    summary = merged.summary;
+    if (changes.length > 12) {
+      throw new OrgAgentToolInputError(
+        "The revised proposal would exceed the 12-change batch limit"
+      );
+    }
+  }
+  if (changes.length === 0) {
+    args.state.terminalReply = "이미 같은 내용으로 반영되어 있습니다.";
     recordResult(args.state, {
       callId: args.callId,
       name: args.name,
       status: "unchanged",
-      summary: changeSummary,
+      summary,
+    });
+    return { status: "already_reflected", summary };
+  }
+  const eventContent = buildCompanyAgentEventContent({
+    actorLabel: args.actorLabel,
+    summary,
+  });
+  if (resolved.confirmationRequired || baseProposal) {
+    if (!baseProposalId && (await hasPendingOrgAgentUpdateProposal(args))) {
+      args.state.terminalReply =
+        "이미 확인을 기다리는 변경안이 있습니다. 그 변경안을 고칠지, 취소하고 새로 만들지 알려주세요.";
+      return {
+        status: "pending_proposal_exists",
+        instruction:
+          "Ask whether to revise the existing proposal or reject it before making a new one.",
+      };
+    }
+    args.state.stagedProposal = {
+      changes,
+      eventContent,
+      preview,
+      summary,
+    };
+    args.state.terminalReply = `알겠습니다. ${summary} 내용을 아래와 같이 수정할까요?`;
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "success",
+      summary: `${summary} 확인 대기`,
     });
     return {
-      changeSummary,
-      roleId: current.roleId,
-      status: "already_reflected",
+      preview,
+      status: "confirmation_required",
+      summary,
     };
   }
 
-  const requestOnly =
-    request.present &&
-    !name.present &&
-    !description.present &&
-    !externalJdUrl.present &&
-    !locationText.present &&
-    !workMode.present &&
-    !status.present &&
-    employmentTypes === undefined;
-  const result = requestOnly
-    ? await updateOrgRoleRequestOnly({
-        expectedRequest: current.request,
-        request: request.value,
-        roleId: current.roleId,
-        user: args.user,
-        workspaceId: args.workspaceId,
-      })
-    : await updateOrgRole({
-        ...(description.present && { description: description.value }),
-        ...(employmentTypes !== undefined && { employmentTypes }),
-        ...(externalJdUrl.present && { externalJdUrl: externalJdUrl.value }),
-        ...(locationText.present && { locationText: locationText.value }),
-        ...(name.present && { name: name.value }),
-        ...(request.present && { request: request.value }),
-        roleId: current.roleId,
-        ...(status.present && { status: status.value }),
-        user: args.user,
-        ...(workMode.present && { workMode: workMode.value }),
-        workspaceId: args.workspaceId,
-      });
-
-  args.state.roleById.set(current.roleId, result.role);
-  addRequestChange({
-    after: result.role.request,
-    before: current.request,
-    changeSummary,
-    scope: "role",
-    state: args.state,
-  });
-  addSuccessfulUpdate({
+  const { data, error } = await (args.admin.rpc as any)(
+    "apply_company_data_changes_v1",
+    {
+      p_changes: changes,
+      p_event_content: eventContent,
+      p_source: args.source,
+      p_workspace_id: args.workspaceId,
+    }
+  );
+  if (error) throw error;
+  const result = asRpcResult(data);
+  const status = text(result.status);
+  if (status === "conflict") {
+    throw new OrgAgentToolInputError(
+      "The data changed while this update was being prepared. Read it again before retrying."
+    );
+  }
+  if (status === "updated") {
+    args.state.terminalReply = `반영했습니다. ${summary}`;
+    args.state.updateSummaries.push(summary);
+    args.state.actions.push({
+      id: crypto.randomUUID(),
+      kind: "entity_updated",
+      label: "회사 정보 업데이트됨",
+      payload: {
+        changeSummary: summary,
+        scope: changes.some((change) => change.role_id === null)
+          ? "company"
+          : "role",
+      },
+    });
+  }
+  if (status === "already_reflected") {
+    args.state.terminalReply = "이미 같은 내용으로 반영되어 있습니다.";
+  }
+  if (status !== "updated" && status !== "already_reflected") {
+    throw new Error("Unexpected company data update result");
+  }
+  recordResult(args.state, {
     callId: args.callId,
-    changeSummary,
     name: args.name,
-    scope: "role",
-    state: args.state,
+    status: status === "updated" ? "success" : "unchanged",
+    summary,
+  });
+  return { ...result, summary };
+}
+
+async function executeCompanyTalentRequest(args: {
+  admin: OrgAgentAdminClient;
+  callId: string;
+  conversation: OrgAgentConversationRow;
+  currentUserMessageId: number;
+  input: Record<string, unknown>;
+  mode: "document" | "text";
+  name: OrgAgentToolName;
+  slackThreadId: string | null;
+  source: "chat" | "slack";
+  state: OrgAgentToolExecutionState;
+  user: User;
+  userMessage: string;
+  workspaceId: string;
+}) {
+  if (args.state.terminalMutationUsed) {
+    throw new OrgAgentToolInputError(
+      `${args.name} may be called only once and must be the only tool in this turn`
+    );
+  }
+  args.state.terminalMutationUsed = true;
+
+  const explicitRequestPattern =
+    args.mode === "document"
+      ? /물어봐|확인해|연락해|문의해|받아(?:줘|주세요|서)|요청해|그렇게\s*해|진행해|해줘|해주세요|ask|request|get\s+(?:it|the\s+resume)|go\s+ahead|please\s+do|yes\b/i
+      : /물어봐|확인해|연락해|문의해|그렇게\s*해|진행해|해줘|해주세요|ask|check|contact|reach\s+out|go\s+ahead|please\s+do|yes\b/i;
+  const { data: previousAssistant, error: previousAssistantError } = await (
+    args.admin.from("company_messages" as any) as any
+  )
+    .select("content")
+    .eq("conversation_id", args.conversation.id)
+    .eq("role", "assistant")
+    .lt("id", args.currentUserMessageId)
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (previousAssistantError) throw previousAssistantError;
+  const previousText = text(previousAssistant?.content);
+  const offeredBefore =
+    args.mode === "document"
+      ? /(?:프로필|profile)/i.test(previousText) &&
+        /(?:이력서|resume)/i.test(previousText) &&
+        /원하시면|필요하시면|그렇게\s*할까요|대신\s*(?:요청|확인|문의)|if\s+you(?:'d|\s+would)\s+like|shall\s+i|i\s+can\s+(?:ask|request)/i.test(
+          previousText
+        )
+      : /원하시면|필요하시면|그렇게\s*할까요|대신\s*(?:연락|확인|문의)|if\s+you(?:'d|\s+would)\s+like|shall\s+i|i\s+can\s+(?:ask|check|contact)/i.test(
+          previousText
+        );
+  if (!explicitRequestPattern.test(args.userMessage) || !offeredBefore) {
+    args.state.terminalReply =
+      args.mode === "document"
+        ? "후보자 프로필의 경력과 등록 자료를 먼저 확인해 주세요. 현재 확인 가능한 내용만으로 부족하다면 제가 후보자분께 부담 없이 최신 이력서를 요청하고, 등록되면 이 대화로 알려드릴 수 있어요. 그렇게 할까요?"
+        : "현재 확인된 정보만으로 확답하기 어렵다면 제가 후보자분께 부담 없게 한 번 확인하고, 답이 오면 이 대화로 전달드릴 수 있어요. 그렇게 할까요?";
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "error",
+      summary: "후보자 연락 전 회사 확인 필요",
+    });
+    return {
+      status: "confirmation_required",
+      userMessage: args.state.terminalReply,
+    };
+  }
+  const role = roleOrThrow(args.state, args.input.roleId);
+  const talentId = requiredText(args.input.talentId, "talentId", 100);
+  const requestContext =
+    args.mode === "document"
+      ? `${role.name} 포지션 검토를 위한 최신 이력서 공유 가능 여부 확인`
+      : requiredText(args.input.requestContext, "requestContext", 800);
+  const talent = await readOrgAgentTalent({
+    admin: args.admin,
+    audience: "caller",
+    includeProfile: false,
+    roleId: role.roleId,
+    talentId,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+  const position = talent.positions.find(
+    (item) => item.roleId === role.roleId && item.stage === "pending_connection"
+  );
+  if (!position) {
+    throw new OrgAgentToolInputError(
+      "후보자가 현재 이 포지션의 연결 대기 상태가 아니라 대신 연락할 수 없습니다."
+    );
+  }
+  if (!text(talent.candidate.email)) {
+    args.state.terminalReply =
+      "현재 Harper가 후보자분께 연락할 수 있는 이메일을 확인하지 못해 대신 문의를 보내지 못했습니다. 후보자 상세의 프로필 정보를 먼저 확인해 주시고, 가능한 다른 연락 경로가 있다면 직접 연락해 주세요.";
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "error",
+      summary: "후보자 연락 이메일 없음",
+    });
+    return {
+      status: "contact_unavailable",
+      userMessage: args.state.terminalReply,
+    };
+  }
+
+  if (args.mode === "document") {
+    const { data: documents, error: documentError } = await (
+      args.admin.from("talent_documents" as any) as any
+    )
+      .select("id, is_public")
+      .eq("talent_id", talentId)
+      .eq("kind", "resume")
+      .eq("is_primary", true)
+      .limit(1);
+    if (documentError) throw documentError;
+    const primary = documents?.[0] as
+      | { id: string; is_public: boolean }
+      | undefined;
+    if (primary?.is_public) {
+      throw new OrgAgentToolInputError(
+        "이미 후보자 프로필에서 확인할 수 있는 이력서가 있습니다. 후보자 상세의 이력서를 안내해 주세요."
+      );
+    }
+  }
+
+  let request;
+  try {
+    request = await enqueueCompanyTalentRequest({
+      admin: args.admin as any,
+      expectsDocument: args.mode === "document",
+      recommendationId: position.recommendationId,
+      requestContext,
+      roleId: role.roleId,
+      sourceCompanyMessageId: args.currentUserMessageId,
+      talentId,
+      workspaceId: args.workspaceId,
+    });
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.includes("company_talent_request_already_active")
+    ) {
+      throw new OrgAgentToolInputError(
+        "이 후보자에게는 이미 답변을 기다리는 확인 요청이 있습니다. 다른 회사나 질문 내용은 공개할 수 없으며, 기존 요청이 끝난 뒤 다시 시도해 주세요."
+      );
+    }
+    throw error;
+  }
+
+  args.state.terminalReply =
+    args.mode === "document"
+      ? "후보자분께 부담이 가지 않도록 이력서 공유를 한 번 요청할게요. 이메일과 Harper 채팅으로 전달하고, 업로드되면 이 대화로 알려드리겠습니다. 답변이나 업로드는 선택이라 오지 않을 수도 있어요."
+      : "후보자분께 부담이 가지 않도록 한 번 확인을 요청할게요. 이메일과 Harper 채팅으로 전달하고, 답이 오면 이 대화로 알려드리겠습니다. 답변은 선택이라 오지 않을 수도 있어요.";
+  recordResult(args.state, {
+    callId: args.callId,
+    name: args.name,
+    status: "success",
+    summary:
+      args.mode === "document"
+        ? "후보자 이력서 요청 대기열 생성"
+        : "후보자 확인 요청 대기열 생성",
   });
   return {
-    changeSummary,
-    role: result.role,
-    status: "updated",
+    requestId: request.id,
+    status: "queued",
+    userMessage: args.state.terminalReply,
   };
 }
 
@@ -557,6 +934,7 @@ async function executePrepareCandidateConnection(args: {
   );
   const talent = await readOrgAgentTalent({
     admin: args.admin,
+    audience: "caller",
     includeProfile: false,
     roleId: current.roleId,
     talentId,
@@ -795,16 +1173,22 @@ async function executeCandidateConnectionDecision(args: {
  */
 export async function executeOrgAgentTool(args: {
   actorId: string;
+  actorLabel: string;
   admin: OrgAgentAdminClient;
+  audience: OrgAgentReadAudience;
   callId: string;
   conversation: OrgAgentConversationRow;
   currentUserMessageId: number;
   input: unknown;
   name: OrgAgentToolName;
+  scopeKey: string;
   slackThreadId: string | null;
+  source: "chat" | "slack";
   state: OrgAgentToolExecutionState;
   user: User;
+  userMessage?: string;
 }): Promise<Record<string, unknown>> {
+  assertOrgAgentToolAvailable(args.name);
   const input = record(args.input);
   const workspaceId = args.conversation.company_workspace_id;
   let result: Record<string, unknown>;
@@ -812,6 +1196,7 @@ export async function executeOrgAgentTool(args: {
   if (args.name === "get_talents") {
     result = await executeGetTalents({
       admin: args.admin,
+      audience: args.audience,
       input,
       user: args.user,
       workspaceId,
@@ -819,34 +1204,75 @@ export async function executeOrgAgentTool(args: {
   } else if (args.name === "read_talent") {
     result = await executeReadTalent({
       admin: args.admin,
+      audience: args.audience,
       input,
       user: args.user,
       workspaceId,
     });
+    const sharedInformation = Array.isArray(result.harperSharedInformation)
+      ? result.harperSharedInformation
+      : [];
+    args.state.preferenceDisclosure = {
+      attempted: true,
+      evidence: sharedInformation
+        .map((item) => text(record(item).value))
+        .filter(Boolean),
+    };
   } else if (args.name === "read_role") {
     result = await executeReadRole({
       admin: args.admin,
+      audience: args.audience,
       input,
       state: args.state,
       user: args.user,
       workspaceId,
     });
-  } else if (args.name === "update_company") {
-    return executeUpdateCompany({
-      callId: args.callId,
+  } else if (args.name === "get_more_data") {
+    result = await executeGetMoreData({
+      admin: args.admin,
+      currentUserMessageId: args.currentUserMessageId,
       input,
-      name: args.name,
+      scopeKey: args.scopeKey,
       state: args.state,
-      user: args.user,
       workspaceId,
     });
-  } else if (args.name === "update_role") {
-    return executeUpdateRole({
+  } else if (args.name === "update_data") {
+    try {
+      return await executeUpdateData({
+        actorLabel: args.actorLabel,
+        admin: args.admin,
+        callId: args.callId,
+        currentUserMessageId: args.currentUserMessageId,
+        input,
+        name: args.name,
+        scopeKey: args.scopeKey,
+        source: args.source,
+        state: args.state,
+        workspaceId,
+      });
+    } catch (error) {
+      if (error instanceof CompanyDataMutationError) {
+        throw new OrgAgentToolInputError(`${error.code}: ${error.message}`);
+      }
+      throw error;
+    }
+  } else if (
+    args.name === "contact_talent" ||
+    args.name === "request_talent_resume"
+  ) {
+    return executeCompanyTalentRequest({
+      admin: args.admin,
       callId: args.callId,
+      conversation: args.conversation,
+      currentUserMessageId: args.currentUserMessageId,
       input,
+      mode: args.name === "contact_talent" ? "text" : "document",
       name: args.name,
+      slackThreadId: args.slackThreadId,
+      source: args.source,
       state: args.state,
       user: args.user,
+      userMessage: text(args.userMessage),
       workspaceId,
     });
   } else if (args.name === "prepare_candidate_connection") {
@@ -886,7 +1312,9 @@ export async function executeOrgAgentTool(args: {
         ? "후보자 검색"
         : args.name === "read_talent"
           ? "후보자 상세 조회"
-          : "포지션 상세 조회",
+          : args.name === "read_role"
+            ? "포지션 상세 조회"
+            : "추가 회사 정보 조회",
   });
   return result;
 }

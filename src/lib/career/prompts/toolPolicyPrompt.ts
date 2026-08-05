@@ -199,8 +199,8 @@ export function buildCareerToolPolicyPrompt(args: {
           "",
           "### update_talent_profile (profile writer)",
           args.isOnboardingActive
-            ? "- Purpose: update talentUser.bio/location or rowMemos during onboarding."
-            : "- Purpose: update talentUser.bio/location, rowMemos, talentInsights, or recommendationBatchSize.",
+            ? "- Purpose: update talentUser.bio/location, personal profileLinks, or rowMemos during onboarding."
+            : "- Purpose: update talentUser.bio/location, personal profileLinks, rowMemos, talentInsights, or recommendationBatchSize.",
           args.isOnboardingActive
             ? "- Boundary: profile summary/current base -> talentUser; row facts -> rowMemos; subscription actions -> update_setting."
             : "- Boundary: row facts -> rowMemos; durable matching memory -> talentInsights; batch size -> recommendationBatchSize; subscription actions -> update_setting.",
@@ -222,9 +222,10 @@ export function buildCareerToolPolicyPrompt(args: {
           "2) talentUser.location: explicit current primary base/residence only; not travel, past/target job location, desired work location, or relocation preference.",
           `3) rowMemos: when the user's latest statement clearly maps to one specific visible experience/education/extra row, use operation=append for genuinely new detail that should follow the existing memo, or operation=update when the user corrects or asks to revise the existing memo. For update, send the complete final ${outputLanguage} memo, not only the changed fragment. Use the visible RowID, omit if ambiguous/no row/generic, update to empty string to delete it and do not duplicate it into talentInsights.`,
           args.isOnboardingActive
-            ? "- Use only talentUser.bio, talentUser.location, rowMemos. Do NOT call this tool during onboarding for general answers that only update user preference, futue matching memory. Those are handled outside this tool until onboarding completes."
+            ? "- Use only talentUser.bio, talentUser.location, profileLinks, and rowMemos. Do NOT call this tool during onboarding for general answers that only update user preference or future matching memory. Those are handled outside this tool until onboarding completes."
             : `4) talentInsights: opportunity preference/memory patch; merge existing axes, use English snake_case keys and complete ${outputLanguage} sentence values. Do not write information about rowMemos here. Things to remember for opportunity recommendation.`,
-          "- Do not write profileLinks, resume files, or the same fact twice. Use only user-provided new information, not assistant summaries.",
+          `- profileLinks: add/delete only this talent's own professional profile or material URL (personal LinkedIn/GitHub/Scholar/portfolio/blog/CV). Never add company, job-posting, recruiting, company-document, or another person's URL. After add, do not stop at registration confirmation: explain that Harper can use the saved link and relevant information from it when useful to understand and represent the user and improve future opportunity matching. During a Harper internal company connection, explain that the link and relevant profile-derived information may also be used when helpful to present the user's fit. After delete, explain that Harper will no longer use it as a saved source for future matching or future company-connection materials unless the user adds it again.`,
+          "- Do not write resume files or the same fact twice. Use only user-provided new information, not assistant summaries.",
           ...(hasUpdateSettingTool
             ? [
                 "- If subscription scope and profile/matching memory or batch size both change in one turn, call `update_setting` and `update_talent_profile` separately.",

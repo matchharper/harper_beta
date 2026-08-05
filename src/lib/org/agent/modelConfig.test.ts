@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  DEFAULT_ORG_AGENT_MODEL,
   DEFAULT_SLACK_ORG_AGENT_MODEL,
   getSlackOrgAgentModel,
   ORG_AGENT_CLAUDE_MODEL,
   ORG_AGENT_LUNA_MODEL,
 } from "./modelConfig";
+
+test("uses Luna for the web company-side LLM by default", () => {
+  assert.equal(DEFAULT_ORG_AGENT_MODEL, ORG_AGENT_LUNA_MODEL);
+});
 
 test("uses Luna for Slack when no model override is configured", () => {
   const original = process.env.SLACK_ORG_AGENT_MODEL;

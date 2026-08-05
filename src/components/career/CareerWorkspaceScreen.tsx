@@ -1244,7 +1244,7 @@ const CareerWorkspaceMobileHistoryView = ({
           replaceDecidedOpportunityInLocation(
             internalConnectionAcceptanceOpportunity
           );
-          void onUpdateHistoryOpportunityFeedback(
+          return onUpdateHistoryOpportunityFeedback(
             internalConnectionAcceptanceOpportunity.id,
             "positive",
             {

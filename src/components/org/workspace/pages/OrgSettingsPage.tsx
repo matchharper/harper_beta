@@ -335,9 +335,8 @@ export function OrgSettingsPage() {
                 </div>
                 {permissions.canManageIntegrations ? (
                   <p className="mt-2 text-[12px] font-light leading-5 text-neutral-soft">
-                    공개 채널은 Harper를 초대 시 자동으로 참여합니다. 비공개
-                    채널은 Slack에서 먼저 <code>/invite @Harper</code>를 한 뒤
-                    목록에서 선택해 추가해주세요.
+                    비공개 채널은 Slack에서 먼저 <code>/invite @Harper</code>를
+                    한 뒤 목록에서 선택해 추가할 수 있습니다.
                   </p>
                 ) : null}
                 <div className="mt-4 border-t border-neutral-1000-a05">

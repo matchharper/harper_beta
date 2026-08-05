@@ -36,7 +36,7 @@ type InternalConnectionAcceptanceModalProps = {
   isOnboardingComplete: boolean;
   item: CareerHistoryOpportunity | null;
   pending?: boolean;
-  onAccept: (feedbackReason: string | null) => void;
+  onAccept: (feedbackReason: string | null) => boolean | void | Promise<boolean | void>;
   onClose: () => void;
   onStartCall: () => void;
   onStartChat: () => void;
@@ -56,6 +56,7 @@ export default function InternalConnectionAcceptanceModal({
   const formId = useId();
   const feedbackReasonRef = useRef<HTMLTextAreaElement>(null);
   const [acknowledged, setAcknowledged] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [openMoreWarning, setOpenMoreWarning] = useState(false);
 
   const closeModal = () => {
@@ -68,6 +69,7 @@ export default function InternalConnectionAcceptanceModal({
   const companyPolicyHref = buildCompanyProfileSharingPolicyHref(
     item.companyName
   );
+  const acceptancePending = pending || submitting;
 
   if (!isOnboardingComplete) {
     return (
@@ -205,7 +207,7 @@ export default function InternalConnectionAcceptanceModal({
         <div className="flex flex-col md:flex-row items-center justify-between">
           <Checkbox
             checked={acknowledged}
-            disabled={pending}
+            disabled={acceptancePending}
             required
             label={
               <span>
@@ -236,7 +238,7 @@ export default function InternalConnectionAcceptanceModal({
             <SecondaryButton
               type="button"
               onClick={closeModal}
-              disabled={pending}
+              disabled={acceptancePending}
             >
               {t(
                 "career.common.internal_connection_acceptance_modal.close",
@@ -246,14 +248,16 @@ export default function InternalConnectionAcceptanceModal({
             <PrimaryButton
               type="submit"
               form={formId}
-              disabled={pending || !acknowledged}
+              disabled={acceptancePending || !acknowledged}
               className={cn(
                 "border-primary bg-primary text-neutral-00",
                 !acknowledged ? "opacity-50" : "",
-                pending && "animate-pulse"
+                acceptancePending && "animate-pulse"
               )}
             >
-              {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {acceptancePending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
               {t(
                 "career.common.internal_connection_acceptance_modal.submit",
                 "연결 수락"
@@ -265,11 +269,18 @@ export default function InternalConnectionAcceptanceModal({
     >
       <form
         id={formId}
-        onSubmit={(event) => {
+        onSubmit={async (event) => {
           event.preventDefault();
-          if (pending || !acknowledged) return;
-          onAccept(feedbackReasonRef.current?.value.trim() || null);
-          closeModal();
+          if (acceptancePending || !acknowledged) return;
+          setSubmitting(true);
+          try {
+            const accepted = await onAccept(
+              feedbackReasonRef.current?.value.trim() || null
+            );
+            if (accepted !== false) closeModal();
+          } finally {
+            setSubmitting(false);
+          }
         }}
         className="text-[13px] text-neutral-primary font-normal"
       >

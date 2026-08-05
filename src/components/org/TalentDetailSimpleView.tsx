@@ -13,6 +13,7 @@ import {
   type ProgressFeedItem,
 } from "@/components/progress-feed/ProgressFeed";
 import { ConnectionConfirmationEmailFeedCard } from "@/components/progress-feed/ConnectionConfirmationEmailFeedCard";
+import { OrgIntroEmailFeedCard } from "@/components/progress-feed/OrgIntroEmailFeedCard";
 import { BareButton, Button, MuteButton } from "@/components/ui/button";
 import {
   Dialog,
@@ -51,6 +52,7 @@ import {
 import { useOrgInternalTalentSystem } from "@/hooks/org/useOrgInternalTalent";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import type { CareerTalentOpsProfileMemo } from "@/lib/ops/careerServer";
+import { extractEmailAddress } from "@/lib/email/parse";
 import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
 import { isInternalDomainEmail } from "@/lib/internalAccess";
 import type { OrgInternalTalentSystemResponse } from "@/lib/org/internalTalentTypes";
@@ -676,11 +678,38 @@ function getOrgFeedIcon(kind: string): ProgressFeedIcon {
   return "note";
 }
 
+function getOrgEmailAddressLabel(
+  value: string | null | undefined,
+  detail: OrgTalentDetailResponse
+) {
+  const rawValue = String(value ?? "").trim();
+  const email = extractEmailAddress(rawValue)?.toLowerCase() ?? "";
+  const talentEmail = detail.talent.email?.trim().toLowerCase() ?? "";
+  const member = detail.members.find(
+    (item) => item.email?.trim().toLowerCase() === email
+  );
+  const explicitName = rawValue
+    .match(/^\s*([^<]+?)\s*</)?.[1]
+    ?.trim()
+    .replace(/^['"]|['"]$/g, "");
+  const name =
+    (email && email === talentEmail ? detail.talent.name : null) ||
+    member?.name ||
+    explicitName ||
+    null;
+
+  if (name && email && name.toLowerCase() !== email) {
+    return `${name} · ${email}`;
+  }
+  return email || name || rawValue || "발신자 정보 없음";
+}
+
 function FeedPane({
   canManageCandidates,
   currentUserId,
   decisionActions,
   detail,
+  internalOpsAccess,
   talentId,
   workspaceId,
 }: {
@@ -688,6 +717,7 @@ function FeedPane({
   currentUserId?: string | null;
   decisionActions?: ReactNode;
   detail: OrgTalentDetailResponse;
+  internalOpsAccess: boolean;
   talentId?: string | null;
   workspaceId: string;
 }) {
@@ -795,6 +825,30 @@ function FeedPane({
             text: "",
           };
         }),
+        ...detail.companyRequestHistory.map((item, index) => ({
+          createdAt: item.at,
+          id: `company-request:${item.at}:${index}`,
+          text: [item.roleName, item.label, item.status]
+            .filter(Boolean)
+            .join(" · "),
+          title: "Harper 확인 요청",
+        })),
+        ...(internalOpsAccess
+          ? detail.introEmails.map((item) => ({
+              createdAt: item.createdAt,
+              customContent: (
+                <OrgIntroEmailFeedCard
+                  item={item}
+                  recipientLabels={item.toEmails.map((email) =>
+                    getOrgEmailAddressLabel(email, detail)
+                  )}
+                  senderLabel={getOrgEmailAddressLabel(item.fromEmail, detail)}
+                />
+              ),
+              id: `org-intro-email:${item.id}`,
+              text: "",
+            }))
+          : []),
       ].sort((left, right) => {
         const leftTime = Date.parse(left.createdAt);
         const rightTime = Date.parse(right.createdAt);
@@ -806,9 +860,8 @@ function FeedPane({
     [
       canManageCandidates,
       currentUserId,
-      detail.connectionConfirmationEmails,
-      detail.feed,
-      detail.role.roleId,
+      detail,
+      internalOpsAccess,
       pendingConnectionAction,
       pendingConnectionQueueId,
       updateConnectionEmail.isPending,
@@ -1199,6 +1252,7 @@ export function TalentDetailSimpleView() {
                       canManageCandidates={canManageCandidates}
                       currentUserId={currentUserId}
                       detail={detail}
+                      internalOpsAccess={internalOpsAccess}
                       talentId={talentId}
                       workspaceId={workspaceId}
                     />
@@ -1229,6 +1283,7 @@ export function TalentDetailSimpleView() {
                     />
                   }
                   detail={detail}
+                  internalOpsAccess={internalOpsAccess}
                   talentId={talentId}
                   workspaceId={workspaceId}
                 />

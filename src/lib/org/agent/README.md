@@ -1,37 +1,45 @@
-# Organization Agent
+# Company-side LLM
 
-이 폴더의 Agent는 workspace 전체를 대상으로 한다. 대화에 고정된 `roleId`는 없다.
+`/org` 웹 채팅과 `/org-Slack`에서 회사 사용자에게 응답하는 LLM을
+**company-side LLM**이라고 부른다. 대화는 workspace 단위이며 하나의 role에
+고정되지 않는다.
 
-수정 순서:
+## 먼저 볼 파일
 
-1. `prompts.ts`: LLM 행동 규칙과 실제 prompt 형식
-2. `context.ts`: 매 turn 항상 넣는 데이터
-3. `promptFormat.ts`: header-once table과 LLM용 tool result 직렬화
-4. `tools.ts`: LLM에 노출하는 function schema
-5. `data.ts`: read tool의 bounded DB query
-6. `toolState.ts`: 한 turn의 tool 결과와 read-before-write visibility
-7. `toolExecution.ts`: argument 검증과 write 실행
-8. `chat.ts`: model 호출, tool loop, token usage, 최종 메시지 저장
-9. `store.ts`: workspace conversation과 message 저장
+1. `prompts.ts`: 말투, read/write 정책, 실제 system/user prompt
+2. `context.ts`: 매 turn의 compact context와 전체 문자 budget
+3. `promptFormat.ts`: Markdown/TSV와 tool result 직렬화
+4. `tools.ts`: LLM에 노출하는 활성 function schema
+5. `data.ts`: bounded read, pipeline completeness, 추가 데이터 조회
+6. `companyDataCatalog.ts`: LLM용 flat key와 타입·길이·confirmation 규칙
+7. `companyDataMutation.ts`: append/replace/rewrite와 deterministic preview
+8. `toolState.ts`, `toolExecution.ts`: read-before-write, batch update, proposal 처리
+9. `chat.ts`: model 호출, tool loop, token/result 한도, proposal presentation
+10. `store.ts`, `retention.ts`, `proposals.ts`: 대화, N-turn retention, pending proposal
 
-전체 argument, 반환값, 권한, 웹·Slack 호출 흐름은
-[`docs/org-agent-tools-reference-ko.md`](../../../../docs/org-agent-tools-reference-ko.md)에
-정리되어 있다.
+## 현재 데이터 원칙
 
-prompt/context/tool 설계 근거와 benchmark는
-[`docs/org-agent-context-engineering-ko.md`](../../../../docs/org-agent-context-engineering-ko.md)에
-정리되어 있다.
+- role 매칭 기준의 원본은 `company_internal_roles.request`다.
+  `company_roles.request`는 legacy 호환용 mirror일 뿐 company-side LLM이 읽고 쓰는
+  원본이 아니다.
+- `company_memories`는 workspace memory(`role_id is null`)와 role memory를 저장한다.
+  request는 “누구를 매칭할지”, memory는 그 밖의 지속적으로 기억할 맥락이다.
+- company-side LLM의 write 진입점은 `update_data` 하나다. 한 번에 최대 12개를
+  `append`, `replace`, `rewrite`로 처리한다.
+- request/memory 계열 변경은 즉시 쓰지 않고 저장된 preview를 보여준 뒤 다음
+  명시적 확인에서 적용한다. 나머지 명시적 변경은 직접 적용할 수 있다.
+- `company_events`는 웹·Slack·채팅 변경을 짧게 기록하지만 아직 prompt에서 읽지
+  않는다.
 
-Slack event부터 첫 prompt, tool 재호출, 최종 답변, summary까지 각 LLM call에
-들어가는 실제에 가까운 예시는
-[`LLM_CALL_TRACE_KO.md`](./LLM_CALL_TRACE_KO.md)에 정리되어 있다.
+## 문서
 
-실제 workspace 데이터를 읽고 선택한 모델의 답변/tool 선택을 검증하되 write tool은
-DB에 반영하지 않는 live eval:
+- [구현·Tool 레퍼런스](../../../../docs/org-agent-tools-reference-ko.md)
+- [Prompt·Context 설계](../../../../docs/org-agent-context-engineering-ko.md)
+- [LLM 호출 지도](./LLM_CALL_TRACE_KO.md)
+- [상세 구현 계획](../../../../docs/company-side-llm-context-memory-tools-plan-ko.md)
+
+실제 workspace를 대상으로 write 없이 model/tool 선택을 확인하려면:
 
 ```bash
 pnpm org-agent:live-eval -- <company-workspace-id>
 ```
-
-질문 5개와 변경 요청 3개를 실행하며, 내부 ID 노출·사용자 언어·대상 ID·profile
-필요 여부·전체 pipeline stage 집계까지 검사한다.

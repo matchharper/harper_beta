@@ -1,4 +1,6 @@
 import { Ellipsis, ExternalLink, FileText, Pencil, Trash2 } from "lucide-react";
+import { useRouter } from "next/router";
+import { useEffect, useState } from "react";
 import ResumeDropzone from "@/components/career/ResumeDropzone";
 import { useCareerProfileContext } from "@/components/career/CareerSidebarContext";
 import type { CareerTalentDocument } from "@/components/career/types";
@@ -18,7 +20,14 @@ type CareerSavedResumeSettingsSectionProps = {
   primaryResumeDocument: CareerTalentDocument | null;
   onDeleteDocument: (documentId: string) => void;
   onRenameDocument: (document: CareerTalentDocument) => void;
-  onUploadComplete: () => void;
+  onUploadComplete: (requestCompleted: boolean) => void;
+};
+
+type ResumeCompanyRequest = {
+  companyName: string;
+  requestId: string;
+  roleName: string;
+  token: string;
 };
 
 const CareerSavedResumeSettingsSection = ({
@@ -28,6 +37,7 @@ const CareerSavedResumeSettingsSection = ({
   onUploadComplete,
 }: CareerSavedResumeSettingsSectionProps) => {
   const t = useCareerT();
+  const router = useRouter();
   const logCareerEvent = useCareerLogEvent();
   const {
     resumeFile,
@@ -40,6 +50,33 @@ const CareerSavedResumeSettingsSection = ({
     onSaveTalentProfile,
   } = useCareerProfileContext();
   const hasSavedResume = Boolean(savedResumeFileName || savedResumeStoragePath);
+  const [companyRequest, setCompanyRequest] =
+    useState<ResumeCompanyRequest | null>(null);
+
+  useEffect(() => {
+    const rawToken = router.query.resumeRequest;
+    const token = typeof rawToken === "string" ? rawToken.trim() : "";
+    let active = true;
+    void fetch(
+      token
+        ? `/api/talent/company-requests/active?token=${encodeURIComponent(token)}`
+        : "/api/talent/company-requests/active"
+    )
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(String(payload?.error ?? ""));
+        return payload?.request as ResumeCompanyRequest | null;
+      })
+      .then((request) => {
+        if (active) setCompanyRequest(request?.requestId ? request : null);
+      })
+      .catch(() => {
+        if (active) setCompanyRequest(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [router.query.resumeRequest]);
 
   const handleResumeFileSelect = async (
     file: File | null,
@@ -58,9 +95,19 @@ const CareerSavedResumeSettingsSection = ({
       persistError: false,
       preserveLinkDrafts: true,
       resumeFile: file,
+      resumeRequestToken: companyRequest?.token ?? null,
     });
     if (saved) {
-      onUploadComplete();
+      const completedRequest = Boolean(companyRequest);
+      if (completedRequest) {
+        setCompanyRequest(null);
+        const query = { ...router.query };
+        delete query.resumeRequest;
+        void router.replace({ pathname: router.pathname, query }, undefined, {
+          shallow: true,
+        });
+      }
+      onUploadComplete(completedRequest);
     } else {
       onResumeFileChange(null);
     }
@@ -71,6 +118,28 @@ const CareerSavedResumeSettingsSection = ({
       label={t("career.common.career.0y7cerf", "저장된 이력서")}
       icon={<FileText className="h-4 w-4" />}
     >
+      {companyRequest ? (
+        <div className="mb-3 rounded-md border border-neutral-1000-a10 bg-info-faded px-4 py-3">
+          <p className="text-sm font-medium text-neutral-primary">
+            {t(
+              "career.profile.resume_request.banner_title",
+              "{companyName}에서 {roleName} 검토를 위해 이력서 공유를 요청했습니다.",
+              {
+                values: {
+                  companyName: companyRequest.companyName,
+                  roleName: companyRequest.roleName,
+                },
+              }
+            )}
+          </p>
+          <p className="mt-1 text-xs leading-5 text-neutral-muted">
+            {t(
+              "career.profile.resume_request.banner_description",
+              "아래에서 업로드하면 이 요청과 연결해 해당 회사에만 전달됩니다. 업로드하지 않거나 답하지 않으셔도 됩니다."
+            )}
+          </p>
+        </div>
+      ) : null}
       <div className="rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 py-4 shadow-sm">
         {hasSavedResume ? (
           <>
@@ -165,12 +234,18 @@ const CareerSavedResumeSettingsSection = ({
               });
             }}
             title={
-              hasSavedResume
-                ? t("career.common.career.0j3w14l", "새 이력서 선택")
-                : t(
-                    "career.resume_dropzone.empty_title",
-                    "이력서를 끌어다 놓거나 선택하세요"
+              companyRequest
+                ? t(
+                    "career.profile.resume_request.upload_cta",
+                    "업로드하고 {companyName}에 전달",
+                    { values: { companyName: companyRequest.companyName } }
                   )
+                : hasSavedResume
+                  ? t("career.common.career.0j3w14l", "새 이력서 선택")
+                  : t(
+                      "career.resume_dropzone.empty_title",
+                      "이력서를 끌어다 놓거나 선택하세요"
+                    )
             }
             description={t(
               "career.resume_dropzone.settings_description",

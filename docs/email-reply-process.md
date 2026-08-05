@@ -8,6 +8,13 @@ This flow is shared by:
 - opportunity delivery mail from `new_harper_agent`
 - opportunity delivery mail from `scripted_human_opportunity_agent`
 - other opportunity agents that send through `opp.autonomous_tool_agent.deliver_email()`
+- organization warm-introduction reply capture
+
+Organization warm introductions are capture-only. The outbound message adds a
+per-thread `intro+token@reply.matchharper.com` address alongside the human
+participants in `Reply-To`. Inbound messages to that address are stored as
+`career_email_messages.mail_type='org_intro_reply'`; the worker does not write a
+talent chat message, call an LLM, or send an automatic reply.
 
 Opportunity delivery is reply-capable when `deliver_email()` creates a `reply+token@reply.matchharper.com` alias, stores the token hash in `email_reply_aliases`, and sends the outbound email with Resend `reply_to`.
 
@@ -50,6 +57,8 @@ If `conversation_id` is missing, the alias is still created with `conversation_i
 7. Worker writes the inbound user message into `talent_messages`.
 
 8. Worker decides response path.
+   - `org_intro_capture` jobs verify the sender is an original participant,
+     store the reply, and stop without generating a response.
    - If the conversation belongs to active career email onboarding, `email_reply/onboarding.py` handles the scripted onboarding state machine.
    - Otherwise, it calls the generic LLM reply path.
 

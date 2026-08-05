@@ -129,7 +129,7 @@ export type CareerSidebarContextValue = {
       promptImmediately?: boolean;
       savedStage?: CareerOpportunitySavedStage | null;
     }
-  ) => void | Promise<void>;
+  ) => boolean | void | Promise<boolean | void>;
   onUpdateHistoryOpportunitySavedStage: (
     opportunityId: string,
     savedStage: CareerOpportunitySavedStage
@@ -171,6 +171,7 @@ export type CareerSidebarContextValue = {
     persistError?: boolean;
     preserveLinkDrafts?: boolean;
     resumeFile?: File | null;
+    resumeRequestToken?: string | null;
     structuredProfile?: CareerTalentProfile | null;
   }) => boolean | Promise<boolean>;
   onUploadTalentDocument: (

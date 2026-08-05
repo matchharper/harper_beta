@@ -1052,6 +1052,7 @@ export function useCareerHistoryState(args: {
         if (payload.historyShouldRefresh || !shouldUpdateHistoryCache) {
           await queryClient.invalidateQueries({ queryKey });
         }
+        return true;
       } catch (error) {
         if (shouldUpdateHistoryCache) {
           restoreHistoryOpportunity(localOpportunityId, previousItem);
@@ -1065,6 +1066,7 @@ export function useCareerHistoryState(args: {
             ? error.message
             : tCareer(H.opportunityStatusUpdateFailed)
         );
+        return false;
       } finally {
         endHistoryUpdate(normalizedOpportunityId);
         if (localOpportunityId !== normalizedOpportunityId) {

@@ -15,12 +15,14 @@ import type { OrgTalentSelection } from "@/hooks/org/useOrgJobsRoute";
 import { useOrgRoleActions } from "@/hooks/org/useOrgRoleActions";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import type { OrgBoardItem, OrgRole } from "@/lib/org/server";
-import type { OrgWorkspacePageId } from "@/lib/org/routes";
+import type { OrgJobsView, OrgWorkspacePageId } from "@/lib/org/routes";
 
 type OrgJobsNavigationValue = {
   activeRole: OrgRole | null;
   activeRoleId: string;
-  changeRole: (roleId: string) => void;
+  activeView: OrgJobsView;
+  changeRole: (roleId: string, view?: OrgJobsView) => void;
+  changeView: (view: OrgJobsView) => void;
   closeTalentDetail: () => void;
   detailRecommendationId: string;
   detailRoleId: string;
@@ -114,7 +116,9 @@ function OrgJobsRouteProvider({
   const route = useOrgJobsRoute({ page: routePage });
   const {
     activeRoleId,
+    activeView,
     changeRole,
+    changeView,
     closeTalentDetail,
     detailRecommendationId,
     detailRoleId,
@@ -136,7 +140,9 @@ function OrgJobsRouteProvider({
     () => ({
       activeRole,
       activeRoleId,
+      activeView,
       changeRole,
+      changeView,
       closeTalentDetail,
       detailRecommendationId,
       detailRoleId,
@@ -148,7 +154,9 @@ function OrgJobsRouteProvider({
     [
       activeRole,
       activeRoleId,
+      activeView,
       changeRole,
+      changeView,
       closeTalentDetail,
       detailRecommendationId,
       detailRoleId,

@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { applyWebsiteCompanyDataChanges } from "@/lib/org/companyDataWebsite";
 
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
 
@@ -745,7 +746,7 @@ export async function fetchOpsCompanyWaiting(): Promise<OpsCompanyWaitingRespons
 }
 
 export async function updateOpsCompanyWorkspace(
-  args: OpsCompanyWorkspaceUpdateInput
+  args: OpsCompanyWorkspaceUpdateInput & { eventActorLabel: string }
 ): Promise<OpsCompanyWorkspaceUpdateResponse> {
   const admin = getSupabaseAdmin();
   const workspaceId = normalizeText(args.workspaceId);
@@ -754,27 +755,49 @@ export async function updateOpsCompanyWorkspace(
   if (!workspaceId) throw new Error("workspaceId is required");
   if (!companyName) throw new Error("companyName is required");
 
+  const workspaceSelect =
+    "company_workspace_id, company_name, published_name, company_description, pitch, request, homepage_url, career_url, linkedin_url, logo_url, updated_at";
+  const payload = {
+    career_url: normalizeOptionalText(args.careerUrl),
+    company_description: normalizeOptionalText(args.companyDescription),
+    company_name: companyName,
+    homepage_url: normalizeOptionalText(args.homepageUrl),
+    linkedin_url: normalizeOptionalText(args.linkedinUrl),
+    logo_url: normalizeOptionalText(args.logoUrl),
+    pitch: normalizeOptionalText(args.pitch),
+    published_name: normalizeOptionalText(args.publishedName),
+    request: normalizeOptionalText(args.request),
+  };
+
+  await applyWebsiteCompanyDataChanges({
+    actorLabel: args.eventActorLabel,
+    admin,
+    changes: [
+      { key: "company_name", value: payload.company_name },
+      {
+        key: "company_description",
+        value: payload.company_description,
+      },
+      { key: "pitch", value: payload.pitch },
+      { key: "workspace_request", value: payload.request },
+      { key: "logo_url", value: payload.logo_url },
+      { key: "homepage_url", value: payload.homepage_url },
+      { key: "career_url", value: payload.career_url },
+      { key: "linkedin_url", value: payload.linkedin_url },
+      {
+        key: "workspace_published_name",
+        value: payload.published_name,
+      },
+    ],
+    workspaceId,
+  });
   const { data, error } = await (admin.from("company_workspace" as any) as any)
-    .update({
-      career_url: normalizeOptionalText(args.careerUrl),
-      company_description: normalizeOptionalText(args.companyDescription),
-      company_name: companyName,
-      homepage_url: normalizeOptionalText(args.homepageUrl),
-      linkedin_url: normalizeOptionalText(args.linkedinUrl),
-      logo_url: normalizeOptionalText(args.logoUrl),
-      pitch: normalizeOptionalText(args.pitch),
-      published_name: normalizeOptionalText(args.publishedName),
-      request: normalizeOptionalText(args.request),
-      updated_at: new Date().toISOString(),
-    })
+    .select(workspaceSelect)
     .eq("company_workspace_id", workspaceId)
-    .select(
-      "company_workspace_id, company_name, published_name, company_description, pitch, request, homepage_url, career_url, linkedin_url, logo_url, updated_at"
-    )
     .single();
 
   if (error || !data) {
-    throw new Error(error?.message ?? "Failed to update company workspace");
+    throw new Error(error?.message ?? "Failed to load company workspace");
   }
 
   return {

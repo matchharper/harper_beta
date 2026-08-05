@@ -35,6 +35,7 @@ Write in the same structure and tone as a strong personal introduction:
 - "Best regards," and the supplied sender name.
 
 Rules:
+- each explanation about the candidate and the company should be under 3-4 sentences.
 - Use only facts explicitly present in the input. Do not invent funding, locations, titles, metrics, credentials, employers, education, technologies, or achievements.
 - The only allowed candidate evidence is fitSummary, fitReasons, and acceptanceReason. Do not infer or request any other candidate profile details.
 - The allowed company evidence is companyName, companyDescription, pitch, companyUserName, and roleTitle.

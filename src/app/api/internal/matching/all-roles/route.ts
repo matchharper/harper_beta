@@ -3,6 +3,7 @@ import {
   requireInternalApiUser,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
+import { getCompanyEventActorLabelFromUser } from "@/lib/org/companyEvents";
 import {
   fetchOpsMatchingAllRoles,
   parseOpsMatchingLimit,
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    await requireInternalApiUser(req);
+    const user = await requireInternalApiUser(req);
     const body = (await req.json().catch(() => ({}))) as {
       isAuto?: unknown;
       roleId?: unknown;
@@ -42,6 +43,7 @@ export async function PATCH(req: NextRequest) {
       ? (body.status as OpportunityStatus)
       : undefined;
     const payload = await updateOpsMatchingAllRole({
+      eventActorLabel: getCompanyEventActorLabelFromUser(user),
       isAuto: typeof body.isAuto === "boolean" ? body.isAuto : undefined,
       roleId: String(body.roleId ?? ""),
       status,

@@ -1,4 +1,12 @@
 import type { OrgAgentToolName } from "@/lib/org/agent/tools";
+import type { OrgAgentMoreDataResult } from "@/lib/org/agent/data";
+import {
+  humanizeOrgEmploymentType,
+  humanizeOrgFeedback,
+  humanizeOrgRoleStatus,
+  humanizeOrgStage,
+  humanizeOrgWorkMode,
+} from "@/lib/org/pipelineStage";
 
 const EMPTY_CELL = "-";
 
@@ -12,6 +20,21 @@ export function clipPromptText(value: unknown, maxLength: number) {
     .replaceAll("\u0000", "")
     .replace(/\s+/g, " ")
     .trim();
+  return normalized.length > maxLength
+    ? `${normalized.slice(0, Math.max(0, maxLength - 1))}…`
+    : normalized;
+}
+
+/** Preserves Markdown structure while neutralizing prompt section tags. */
+export function formatPromptMarkdown(value: unknown, maxLength: number) {
+  const normalized = String(value ?? "")
+    .replaceAll("\u0000", "")
+    .replaceAll("\r\n", "\n")
+    .replaceAll("\r", "\n")
+    .trim()
+    .replaceAll("<", "‹")
+    .replaceAll(">", "›");
+  if (!normalized) return EMPTY_CELL;
   return normalized.length > maxLength
     ? `${normalized.slice(0, Math.max(0, maxLength - 1))}…`
     : normalized;
@@ -93,6 +116,10 @@ function pageLine(value: Record<string, any>) {
 
 function formatTalentSearchResult(result: Record<string, any>) {
   const items = Array.isArray(result.items) ? result.items : [];
+  const hasProfileMatches = items.some(
+    (item: any) =>
+      Array.isArray(item?.profileMatches) && item.profileMatches.length > 0
+  );
   return [
     "status=ok",
     pageLine(result),
@@ -108,6 +135,7 @@ function formatTalentSearchResult(result: Record<string, any>) {
           "role",
           "stage",
           "fit",
+          ...(hasProfileMatches ? ["profile_matches"] : []),
           "recommended",
         ],
         items.map((item: any) => [
@@ -117,11 +145,29 @@ function formatTalentSearchResult(result: Record<string, any>) {
           item?.candidate?.headline,
           item?.role?.roleId,
           item?.role?.name,
-          item?.stage,
+          humanizeOrgStage(item?.stage, item?.stageLabel),
           item?.fitSummary,
+          ...(hasProfileMatches
+            ? [
+                Array.isArray(item?.profileMatches)
+                  ? item.profileMatches.join(" ; ")
+                  : null,
+              ]
+            : []),
           formatPromptDate(item?.recommendedAt),
         ]),
-        [100, 140, 180, 180, 100, 160, 100, 400, 10]
+        [
+          100,
+          140,
+          180,
+          180,
+          100,
+          160,
+          100,
+          400,
+          ...(hasProfileMatches ? [500] : []),
+          10,
+        ]
       )
     ),
   ].join("\n");
@@ -141,7 +187,6 @@ function formatTalentProfile(profile: Record<string, any>) {
           ["location", profile.location],
           ["bio", profile.bio],
           ["resume_excerpt", profile.resumeExcerpt],
-          ["extras", profile.extras],
         ],
         [30, 4_000]
       )
@@ -149,33 +194,23 @@ function formatTalentProfile(profile: Record<string, any>) {
     formatPromptSection(
       "experience",
       formatPromptTable(
-        [
-          "company",
-          "role",
-          "type",
-          "location",
-          "start",
-          "end",
-          "description",
-          "memo",
-        ],
+        ["company", "role", "type", "location", "start", "end", "description"],
         experiences.map((item: any) => [
           item?.company_name,
           item?.role,
-          item?.employment_type,
+          humanizeOrgEmploymentType(item?.employment_type),
           item?.company_location,
           formatPromptDate(item?.start_date),
           formatPromptDate(item?.end_date),
           item?.description,
-          item?.memo,
         ]),
-        [160, 160, 80, 120, 10, 10, 800, 400]
+        [160, 160, 80, 120, 10, 10, 800]
       )
     ),
     formatPromptSection(
       "education",
       formatPromptTable(
-        ["school", "degree", "field", "start", "end", "description", "memo"],
+        ["school", "degree", "field", "start", "end", "description"],
         education.map((item: any) => [
           item?.school,
           item?.degree,
@@ -183,9 +218,8 @@ function formatTalentProfile(profile: Record<string, any>) {
           formatPromptDate(item?.start_date),
           formatPromptDate(item?.end_date),
           item?.description,
-          item?.memo,
         ]),
-        [180, 120, 160, 10, 10, 500, 300]
+        [180, 120, 160, 10, 10, 500]
       )
     ),
   ].join("\n");
@@ -198,6 +232,13 @@ function formatTalentResult(result: Record<string, any>) {
     ? result.recentProgress
     : [];
   const profile = asRecord(result.profile);
+  const resumeAvailability = asRecord(result.resumeAvailability);
+  const harperSharedInformation = Array.isArray(result.harperSharedInformation)
+    ? result.harperSharedInformation
+    : [];
+  const requestHistory = Array.isArray(result.requestHistory)
+    ? result.requestHistory
+    : [];
   return [
     "status=ok",
     formatPromptSection(
@@ -234,10 +275,10 @@ function formatTalentResult(result: Record<string, any>) {
         positions.map((item: any) => [
           item?.roleId,
           item?.roleName,
-          item?.stage,
+          humanizeOrgStage(item?.stage, item?.stageLabel),
           item?.fitSummary,
           item?.fitReasons,
-          item?.existingFeedback,
+          humanizeOrgFeedback(item?.existingFeedback),
           item?.feedbackReason,
           item?.talentMemo,
           item?.tradeoffs,
@@ -262,6 +303,36 @@ function formatTalentResult(result: Record<string, any>) {
         [10, 100, 160, 100, 700, 500]
       )
     ),
+    formatPromptSection(
+      "resume_availability",
+      formatPromptTable(
+        ["available", "guidance"],
+        [[resumeAvailability.available, resumeAvailability.guidance]],
+        [10, 240]
+      )
+    ),
+    formatPromptSection(
+      "company_contact_history",
+      formatPromptTable(
+        ["kst", "role", "request", "status"],
+        requestHistory.map((item: any) => [
+          item?.at,
+          item?.roleName,
+          item?.label,
+          item?.status,
+        ]),
+        [40, 160, 180, 160]
+      )
+    ),
+    "Harper에게 말해준 정보. 후보자가 Harper에게 공유한 직업 관련 정보이며, 없는 내용은 추정하지 마세요. 보상 정보는 이 목록에 포함되지 않습니다.",
+    formatPromptSection(
+      "harper_shared_information",
+      formatPromptTable(
+        ["item", "candidate_shared_information"],
+        harperSharedInformation.map((item: any) => [item?.label, item?.value]),
+        [120, 600]
+      )
+    ),
     result.profileIncluded && Object.keys(profile).length > 0
       ? formatTalentProfile(profile)
       : "profile_included=false",
@@ -269,7 +340,25 @@ function formatTalentResult(result: Record<string, any>) {
 }
 
 function formatRoleResult(result: Record<string, any>) {
+  if (result.matchStatus) {
+    const candidates = Array.isArray(result.candidates)
+      ? result.candidates
+      : [];
+    return [
+      `status=${formatPromptCell(result.matchStatus, 40)}`,
+      formatPromptSection(
+        "role_candidates",
+        formatPromptTable(
+          ["role_id", "name"],
+          candidates.map((item: any) => [item?.roleId, item?.name]),
+          [100, 200]
+        )
+      ),
+    ].join("\n");
+  }
   const role = asRecord(result.role);
+  const memory = asRecord(result.memory);
+  const completeness = asRecord(result.fieldCompleteness);
   const people = asRecord(result.people);
   const peopleItems = Array.isArray(people.items) ? people.items : [];
   const stageCounts = Array.isArray(result.stageCounts)
@@ -290,26 +379,58 @@ function formatRoleResult(result: Record<string, any>) {
         [
           ["role_id", role.roleId],
           ["name", role.name],
-          ["status", role.status],
+          ["status", humanizeOrgRoleStatus(role.status)],
           ["location", role.locationText],
-          ["work_mode", role.workMode],
-          ["employment", role.employmentTypes],
+          ["work_mode", humanizeOrgWorkMode(role.workMode)],
+          [
+            "employment",
+            Array.isArray(role.employmentTypes)
+              ? role.employmentTypes.map(humanizeOrgEmploymentType)
+              : role.employmentTypes,
+          ],
           ["external_jd_url", role.externalJdUrl],
-          ["request", role.request],
-          ["description", role.description],
           ["updated", formatPromptDate(role.updatedAt)],
         ],
-        [40, 20_000]
+        [40, 1_000]
       )
     ),
+    completeness.role_request?.included
+      ? [
+          `role_request_complete=${Boolean(completeness.role_request.complete)}`,
+          formatPromptSection(
+            "role_request_markdown",
+            formatPromptMarkdown(role.request, 20_000)
+          ),
+        ].join("\n")
+      : "role_request_included=false",
+    completeness.role_memory?.included
+      ? [
+          `role_memory_complete=${Boolean(completeness.role_memory.complete)}`,
+          `role_memory_exists=${Boolean(memory.exists)}`,
+          formatPromptSection(
+            "role_memory_markdown",
+            formatPromptMarkdown(memory.content, 12_000)
+          ),
+        ].join("\n")
+      : "role_memory_included=false",
+    completeness.role_description?.included
+      ? [
+          `role_description_complete=${Boolean(completeness.role_description.complete)}`,
+          formatPromptSection(
+            "role_description",
+            formatPromptMarkdown(role.description, 20_000)
+          ),
+        ].join("\n")
+      : "role_description_included=false",
     formatPromptSection(
       "stages",
       formatPromptTable(
-        ["id", "label"],
-        stages.map((item: any) => [item?.id, item?.label]),
-        [100, 120]
+        ["label"],
+        stages.map((item: any) => [item?.label]),
+        [120]
       )
     ),
+    `pipeline_counts_complete=${Boolean(result.countsComplete)}`,
     formatPromptSection(
       "stage_counts",
       formatPromptTable(
@@ -363,21 +484,111 @@ function formatRoleResult(result: Record<string, any>) {
   ].join("\n");
 }
 
-function formatUpdateResult(
-  name: "update_company" | "update_role",
-  result: Record<string, any>
-) {
-  const role = asRecord(result.role);
-  const company = asRecord(result.company);
+export function serializeOrgAgentMoreData(value: OrgAgentMoreDataResult) {
+  const blocks: string[] = [
+    `requested=${value.requestedKinds.join(",") || EMPTY_CELL}`,
+  ];
+  if (value.members) {
+    blocks.push(
+      [
+        `members_total=${value.members.totalCount} members_returned=${value.members.returnedCount} members_complete=${value.members.complete}`,
+        formatPromptSection(
+          "members",
+          formatPromptTable(
+            ["name", "email", "workspace_role"],
+            value.members.items.map((item) => [
+              item.name,
+              item.email,
+              item.role,
+            ]),
+            [120, 220, 80]
+          )
+        ),
+      ].join("\n")
+    );
+  }
+  if (value.companyDetails) {
+    const keys = Object.keys(value.companyDetails.values).sort();
+    blocks.push(
+      [
+        `company_details_complete=${value.companyDetails.complete}`,
+        formatPromptSection(
+          "company_details",
+          formatPromptTable(
+            ["key", "value", "complete", "truncated", "oversized"],
+            keys.map((key) => {
+              const state = value.companyDetails!.fields[key];
+              const fieldValue = value.companyDetails!.values[key];
+              return [
+                key === "workspace_request"
+                  ? "workspace_request (legacy)"
+                  : key,
+                COMPANY_DETAIL_LONG_KEYS_FOR_FORMAT.has(key)
+                  ? formatPromptMarkdown(fieldValue, 12_000)
+                  : fieldValue,
+                state?.complete ?? true,
+                state?.truncated ?? false,
+                state?.oversized ?? false,
+              ];
+            }),
+            [80, 12_000, 8, 8, 8]
+          )
+        ),
+      ].join("\n")
+    );
+  }
+  if (value.workspaceMemory) {
+    blocks.push(
+      [
+        `workspace_memory_exists=${value.workspaceMemory.exists} workspace_memory_complete=${value.workspaceMemory.complete} workspace_memory_truncated=${value.workspaceMemory.truncated}`,
+        formatPromptSection(
+          "workspace_memory_markdown",
+          formatPromptMarkdown(value.workspaceMemory.content, 12_000)
+        ),
+      ].join("\n")
+    );
+  }
+  const serialized = blocks.join("\n");
+  return serialized.length > 14_000
+    ? `serialization_complete=false\nmessage=Output framing exceeded the safety limit; do not treat any long text in this result as complete.\n${serialized.slice(0, 13_860)}…`
+    : serialized;
+}
+
+const COMPANY_DETAIL_LONG_KEYS_FOR_FORMAT = new Set([
+  "company_description",
+  "last_funding_round_description",
+  "pitch",
+  "short_description",
+  "workspace_request",
+]);
+
+function formatUpdateDataResult(result: Record<string, any>) {
+  const applyResult = asRecord(result.apply_result);
   return [
-    `status=${formatPromptCell(result.status, 40)}`,
-    `change=${formatPromptCell(result.changeSummary, 500)}`,
-    ...(name === "update_role"
+    `status=${formatPromptCell(result.status, 60)}`,
+    `summary=${formatPromptCell(result.summary, 160)}`,
+    ...(result.preview
       ? [
-          `role_id=${formatPromptCell(result.roleId ?? role.roleId, 100)}`,
-          `role=${formatPromptCell(role.name, 160)}`,
+          formatPromptSection(
+            "exact_change_preview",
+            formatPromptMarkdown(result.preview, 3_000)
+          ),
         ]
-      : [`company=${formatPromptCell(company.companyName, 160)}`]),
+      : []),
+    ...(result.presentation_text
+      ? [
+          formatPromptSection(
+            "stored_presentation",
+            formatPromptMarkdown(result.presentation_text, 6_000)
+          ),
+        ]
+      : []),
+    ...(result.instruction
+      ? [`instruction=${formatPromptCell(result.instruction, 500)}`]
+      : []),
+    ...(applyResult.status
+      ? [`apply_status=${formatPromptCell(applyResult.status, 60)}`]
+      : []),
   ].join("\n");
 }
 
@@ -387,7 +598,7 @@ function formatCandidateConnectionDecisionResult(result: Record<string, any>) {
     `change=${formatPromptCell(result.changeSummary, 500)}`,
     `decision=${formatPromptCell(result.decision, 30)}`,
     `connection_method=${formatPromptCell(result.connectionMethod, 40)}`,
-    `stage=${formatPromptCell(result.stage, 100)}`,
+    `stage=${formatPromptCell(humanizeOrgStage(result.stage), 100)}`,
   ].join("\n");
 }
 
@@ -400,6 +611,13 @@ function formatCandidateConnectionPreparationResult(
     `candidate_email=${formatPromptCell(result.candidateEmail, 320)}`,
     `requester_email=${formatPromptCell(result.requesterEmail, 320)}`,
     `next_step=${formatPromptCell(result.nextStep, 160)}`,
+  ].join("\n");
+}
+
+function formatCompanyTalentRequestResult(result: Record<string, any>) {
+  return [
+    `status=${formatPromptCell(result.status, 40)}`,
+    `message=${formatPromptCell(result.userMessage, 800)}`,
   ].join("\n");
 }
 
@@ -416,13 +634,21 @@ export function serializeOrgAgentToolResult(
   if (name === "get_talents") return formatTalentSearchResult(result);
   if (name === "read_talent") return formatTalentResult(result);
   if (name === "read_role") return formatRoleResult(result);
+  if (name === "get_more_data") {
+    return serializeOrgAgentMoreData(value as OrgAgentMoreDataResult);
+  }
+  if (name === "update_data") return formatUpdateDataResult(result);
+  if (name === "contact_talent" || name === "request_talent_resume") {
+    return formatCompanyTalentRequestResult(result);
+  }
   if (name === "decide_candidate_connection") {
     return formatCandidateConnectionDecisionResult(result);
   }
   if (name === "prepare_candidate_connection") {
     return formatCandidateConnectionPreparationResult(result);
   }
-  return formatUpdateResult(name, result);
+  const unsupported: never = name;
+  throw new Error(`Unsupported tool result: ${unsupported}`);
 }
 
 export function serializeOrgAgentToolError(message: unknown) {

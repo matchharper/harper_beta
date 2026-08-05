@@ -50,3 +50,93 @@ export function resolveTalentDocumentUpload(args: {
 
   return { contentType, extension };
 }
+
+const GENERIC_BINARY_MIME_TYPES = new Set([
+  "",
+  "application/octet-stream",
+  "binary/octet-stream",
+]);
+
+/** Validate resume bytes before they are persisted or shared with a company. */
+export function validateResumeFileContent(args: {
+  bytes: Uint8Array;
+  fileName: string;
+  suppliedContentType?: string | null;
+}) {
+  const upload = resolveTalentDocumentUpload({
+    fileName: args.fileName,
+    kind: "resume",
+  });
+  if (!upload || args.bytes.byteLength === 0) return false;
+
+  const suppliedContentType = String(args.suppliedContentType ?? "")
+    .split(";", 1)[0]
+    .trim()
+    .toLowerCase();
+  const compatibleMimeTypes: Record<string, Set<string>> = {
+    docx: new Set([
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/zip",
+    ]),
+    md: new Set(["text/markdown", "text/plain"]),
+    pdf: new Set(["application/pdf"]),
+    txt: new Set(["text/plain"]),
+  };
+  if (
+    !GENERIC_BINARY_MIME_TYPES.has(suppliedContentType) &&
+    !compatibleMimeTypes[upload.extension]?.has(suppliedContentType)
+  ) {
+    return false;
+  }
+
+  const bytes = args.bytes;
+  if (upload.extension === "pdf") {
+    return new TextDecoder("ascii")
+      .decode(bytes.slice(0, 5))
+      .startsWith("%PDF-");
+  }
+  if (upload.extension === "docx") {
+    if (bytes[0] !== 0x50 || bytes[1] !== 0x4b) return false;
+    const archiveText = new TextDecoder("latin1").decode(bytes);
+    return (
+      archiveText.includes("[Content_Types].xml") &&
+      archiveText.includes("word/")
+    );
+  }
+  if (bytes.some((byte) => byte === 0)) return false;
+  try {
+    new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function extractResumeTextContent(args: {
+  bytes: Uint8Array;
+  fileName: string;
+  maxChars?: number;
+}) {
+  const maxChars = Math.max(1, args.maxChars ?? 24_000);
+  const lower = args.fileName.toLowerCase();
+  const buffer = Buffer.from(args.bytes);
+  if (lower.endsWith(".txt") || lower.endsWith(".md")) {
+    return new TextDecoder("utf-8", { fatal: true })
+      .decode(args.bytes)
+      .trim()
+      .slice(0, maxChars);
+  }
+  if (lower.endsWith(".docx")) {
+    const mammoth = await import("mammoth");
+    const parsed = await mammoth.extractRawText({ buffer });
+    return String(parsed.value ?? "")
+      .trim()
+      .slice(0, maxChars);
+  }
+  // @ts-ignore: pdf-parse-fork does not ship module declarations.
+  const pdfModule = await import("pdf-parse-fork");
+  const parsed = await pdfModule.default(buffer, { max: 8 });
+  return String(parsed.text ?? "")
+    .trim()
+    .slice(0, maxChars);
+}
