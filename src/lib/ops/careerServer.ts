@@ -118,6 +118,8 @@ export type CareerTalentDetailResponse = {
   isOnboardingDone: boolean;
   lastConversationAt: string | null;
   createdAt: string | null;
+  getExternalRecommendation: boolean | null;
+  status: string | null;
   preferences: CareerTalentPreferenceSummary | null;
   opsProfileMemo: CareerTalentOpsProfileMemo | null;
   opsProfileMemos: CareerTalentOpsProfileMemo[];
@@ -1785,7 +1787,9 @@ export async function fetchCareerTalentDetail(
 
   const { data: setting } = await admin
     .from("talent_setting")
-    .select("engagement_types, profile_visibility, is_onboarding_done")
+    .select(
+      "engagement_types, profile_visibility, is_onboarding_done, get_external_recommendation, status"
+    )
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -1799,6 +1803,8 @@ export async function fetchCareerTalentDetail(
     isOnboardingDone: Boolean(setting?.is_onboarding_done),
     lastConversationAt: latestConv?.updated_at ?? null,
     createdAt: profile?.created_at ?? null,
+    getExternalRecommendation: setting?.get_external_recommendation ?? null,
+    status: setting?.status ?? null,
     preferences: setting
       ? {
           engagementTypes: (setting.engagement_types as string[]) ?? [],

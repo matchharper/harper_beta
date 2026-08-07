@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useId, useState } from "react";
 import { ChevronDown, LoaderCircle, Plus, X } from "lucide-react";
 import { motion } from "motion/react";
 import { Button, MuteButton } from "@/components/ui/button";
@@ -13,6 +13,11 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import type { OrgMember } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
+import {
+  DEFAULT_ORG_STOP_REASONS,
+  extractCustomOrgStopReasons,
+  useOrgStopReasonStore,
+} from "@/store/useOrgStopReasonStore";
 
 function parseEmailList(value: string) {
   return Array.from(
@@ -421,15 +426,33 @@ export function StopCandidateDialog({
   open: boolean;
   pending?: boolean;
 }) {
+  const stopNoteId = useId();
   const [error, setError] = useState("");
+  const [stopNote, setStopNote] = useState("");
+  const savedReasons = useOrgStopReasonStore((state) => state.savedReasons);
+  const rememberReasons = useOrgStopReasonStore(
+    (state) => state.rememberReasons
+  );
+  const stopReasonOptions = [...DEFAULT_ORG_STOP_REASONS, ...savedReasons];
+  const selectedStopReasonSet = new Set(
+    stopNote
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+  );
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const trimmedNote = String(formData.get("stopNote") ?? "").trim();
+    const trimmedNote = stopNote.trim();
+    const customReasons = extractCustomOrgStopReasons(
+      trimmedNote,
+      stopReasonOptions
+    );
     setError("");
     try {
       await onSubmit({ note: trimmedNote || null });
+      rememberReasons(customReasons);
+      setStopNote("");
     } catch (submitError) {
       setError(
         submitError instanceof Error
@@ -440,7 +463,23 @@ export function StopCandidateDialog({
   };
   const handleClose = () => {
     setError("");
+    setStopNote("");
     onClose();
+  };
+  const toggleStopReason = (reason: string) => {
+    setStopNote((currentNote) => {
+      const lines = currentNote.split(/\r?\n/);
+      const selected = lines.some((line) => line.trim() === reason);
+
+      if (selected) {
+        return lines.filter((line) => line.trim() !== reason).join("\n");
+      }
+
+      const separator =
+        currentNote.length === 0 || currentNote.endsWith("\n") ? "" : "\n";
+      return `${currentNote}${separator}${reason}\n`;
+    });
+    if (error) setError("");
   };
 
   return (
@@ -449,10 +488,8 @@ export function StopCandidateDialog({
         className="z-[90] max-w-md gap-4 rounded-lg p-6"
         overlayClassName="z-[80]"
       >
-        <DialogHeader>
-          <DialogTitle className="text-[18px]">연결받지 않기</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="mt-2 space-y-4">
+        <DialogTitle className="text-[16px]">연결받지 않기</DialogTitle>
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2 text-[13px] leading-5 text-neutral-primary">
             <div>{candidateName}</div>
             <div className="text-neutral-muted">
@@ -460,14 +497,19 @@ export function StopCandidateDialog({
               시점에 부드럽게 안내합니다.
             </div>
           </div>
-          <label className="block space-y-1.5">
-            <span className="text-[12px] font-medium text-neutral-muted">
-              연결받지 않는 이유 (선택)
-            </span>
+          <div className="space-y-1.5">
+            <label
+              className="block text-[12px] font-medium text-neutral-muted"
+              htmlFor={stopNoteId}
+            >
+              Pass 이유 (선택)
+            </label>
             <Textarea
-              key={`${open}:${candidateName}`}
+              id={stopNoteId}
               name="stopNote"
+              value={stopNote}
               onChange={(event) => {
+                setStopNote(event.target.value);
                 if (error) setError("");
               }}
               rows={5}
@@ -475,10 +517,29 @@ export function StopCandidateDialog({
               className="mt-1 min-h-[120px] px-3 py-2 text-[13px] leading-5"
               disabled={pending}
             />
-            <p className="text-[12px] leading-5 text-neutral-soft">
-              필수는 아니며, 작성한 내용은 후보자에게 직접 전달되지 않습니다.
-            </p>
-          </label>
+            <div className="flex flex-wrap gap-1.5" role="group">
+              {stopReasonOptions.map((reason) => {
+                const selected = selectedStopReasonSet.has(reason);
+
+                return (
+                  <MuteButton
+                    aria-pressed={selected}
+                    className={cn(
+                      "text-[12px]",
+                      selected && "border-neutral-800"
+                    )}
+                    disabled={pending}
+                    key={reason}
+                    onClick={() => toggleStopReason(reason)}
+                    size="sm"
+                    variant={selected ? "neutral" : "default"}
+                  >
+                    {reason}
+                  </MuteButton>
+                );
+              })}
+            </div>
+          </div>
           {error ? (
             <div className="text-[12px] text-critical" role="alert">
               {error}

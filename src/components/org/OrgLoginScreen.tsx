@@ -81,16 +81,16 @@ function WorkspaceMark({
       <Image
         src={logoUrl}
         alt=""
-        width={40}
-        height={40}
+        width={24}
+        height={24}
         unoptimized
-        className="h-10 w-10 rounded-lg border border-neutral-1000-a05 object-cover"
+        className="h-6 w-6 rounded-lg border border-neutral-1000-a05 object-cover"
       />
     );
   }
 
   return (
-    <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-weak text-sm font-medium text-neutral-primary">
+    <div className="flex h-6 w-6 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-weak text-sm font-medium text-neutral-primary">
       {companyName.slice(0, 1).toUpperCase()}
     </div>
   );
@@ -129,9 +129,15 @@ export function OrgLoginScreen({
   const handleLogin = async () => {
     setLoginPending(true);
     setLoginError(null);
-    const next = hasInvite
+    const fallbackNext = hasInvite
       ? `/org?orgId=${encodeURIComponent(normalizedOrgId)}`
       : "/org";
+    const currentPath = `${window.location.pathname}${window.location.search}`;
+    const next =
+      window.location.pathname === "/org" ||
+      window.location.pathname.startsWith("/org/")
+        ? currentPath
+        : fallbackNext;
     const redirectTo = `${window.location.origin}/auths/callback?next=${encodeURIComponent(next)}`;
     const { error: nextLoginError } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -219,6 +225,29 @@ export function OrgLoginScreen({
     setMessage(value.split("\n").slice(0, 2).join("\n"));
   };
 
+  const LoginButton = () => {
+    return (
+      <button
+        type="button"
+        onClick={() => void handleLogin()}
+        disabled={loginPending}
+        className="inline-flex w-full items-center justify-center gap-2.5 rounded-full border border-neutral-1000-a05 bg-bg-floating px-4 py-3 text-[14px] font-medium text-neutral-700 shadow-sm transition duration-200 hover:border-neutral-200 hover:shadow-none active:shadow-inner disabled:cursor-not-allowed disabled:opacity-55"
+      >
+        {loginPending ? (
+          <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Image
+            src="/images/logos/google.png"
+            alt="Google"
+            width={18}
+            height={18}
+          />
+        )}
+        Google로 로그인
+      </button>
+    );
+  };
+
   const renderInviteContent = () => {
     if (invitePreview.isLoading) {
       return (
@@ -255,31 +284,20 @@ export function OrgLoginScreen({
     const workspace = invitePreview.data.workspace;
     return (
       <div>
-        <WorkspaceMark
-          companyName={workspace.companyName}
-          logoUrl={workspace.logoUrl}
-        />
-        <div className="mt-4 text-[11px] font-medium text-neutral-soft">
-          WORKSPACE INVITATION
+        <div className="flex items-center gap-2 justify-center">
+          <WorkspaceMark
+            companyName={workspace.companyName}
+            logoUrl={workspace.logoUrl}
+          />
+          <h1 className="text-[18px] font-normal leading-6 tracking-[-0.025em] text-neutral-primary">
+            {workspace.companyName} Workspace
+          </h1>
         </div>
-        <h1 className="mt-1.5 text-[16px] font-medium leading-6 tracking-[-0.025em] text-neutral-primary">
-          {workspace.companyName} Workspace에 초대받았습니다.
-        </h1>
-        <p className="mt-2 text-[13px] font-normal leading-5 text-neutral-muted">
-          초대 메일을 받은 Google 계정으로 계속하면 팀의 Organization에 참여할
-          수 있습니다.
+        <p className="mt-2 text-[14px] font-normal text-center leading-5 text-neutral-muted">
+          초대를 받은 계정만 해당 워크스페이스에 접근할 수 있습니다.
         </p>
-        <button
-          type="button"
-          onClick={() => void handleLogin()}
-          disabled={loginPending}
-          className="mt-5 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-neutral-1000 px-3 text-[12px] font-medium text-neutral-00 transition hover:bg-neutral-900 disabled:cursor-not-allowed disabled:opacity-55"
-        >
-          {loginPending ? (
-            <LoaderCircle className="h-4 w-4 animate-spin" />
-          ) : null}
-          Google로 초대 수락하기
-        </button>
+        <br />
+        {LoginButton()}
         {loginError ? (
           <p className="mt-3 text-[12px] font-normal leading-5 text-critical">
             {loginError}

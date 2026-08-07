@@ -816,7 +816,8 @@ export function OrgAppBar({
                   const roleLabel =
                     member.userId === currentUser?.userId
                       ? "나"
-                      : member.role === "admin" || member.role === "owner"
+                      : member.authority === "admin" ||
+                          member.authority === "owner"
                         ? "관리자"
                         : "멤버";
                   return (

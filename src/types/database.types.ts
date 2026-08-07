@@ -1644,6 +1644,7 @@ export type Database = {
           slack_channel_name: string | null;
           slack_team_id: string;
           updated_at: string;
+          worker_target: string;
         };
         Insert: {
           company_workspace_id: string;
@@ -1661,6 +1662,7 @@ export type Database = {
           slack_channel_name?: string | null;
           slack_team_id: string;
           updated_at?: string;
+          worker_target?: string;
         };
         Update: {
           company_workspace_id?: string;
@@ -1678,6 +1680,7 @@ export type Database = {
           slack_channel_name?: string | null;
           slack_team_id?: string;
           updated_at?: string;
+          worker_target?: string;
         };
         Relationships: [
           {
@@ -1993,27 +1996,30 @@ export type Database = {
       };
       company_user_workspace: {
         Row: {
+          authority: string;
           company_user_id: string;
           company_workspace_id: string;
           created_at: string;
           id: string;
-          role: string;
+          role: string | null;
           updated_at: string;
         };
         Insert: {
+          authority?: string;
           company_user_id: string;
           company_workspace_id: string;
           created_at?: string;
           id?: string;
-          role?: string;
+          role?: string | null;
           updated_at?: string;
         };
         Update: {
+          authority?: string;
           company_user_id?: string;
           company_workspace_id?: string;
           created_at?: string;
           id?: string;
-          role?: string;
+          role?: string | null;
           updated_at?: string;
         };
         Relationships: [
@@ -5410,6 +5416,8 @@ export type Database = {
       slack_reply_jobs: {
         Row: {
           attempt_count: number;
+          batched_prompt: string | null;
+          choice_source_job_id: string | null;
           completed_at: string | null;
           created_at: string;
           id: string;
@@ -5421,6 +5429,11 @@ export type Database = {
           response_message_id: number | null;
           response_proposal_id: string | null;
           response_text: string | null;
+          selected_choice_at: string | null;
+          selected_choice_by_slack_user_id: string | null;
+          selected_choice_index: number | null;
+          selected_choice_label: string | null;
+          selected_choice_message: string | null;
           slack_event_id: string;
           slack_message_ts: string;
           slack_response_ts: string | null;
@@ -5430,9 +5443,12 @@ export type Database = {
           trigger_kind: string;
           updated_at: string;
           user_message_id: number | null;
+          worker_target: string;
         };
         Insert: {
           attempt_count?: number;
+          batched_prompt?: string | null;
+          choice_source_job_id?: string | null;
           completed_at?: string | null;
           created_at?: string;
           id?: string;
@@ -5444,6 +5460,11 @@ export type Database = {
           response_message_id?: number | null;
           response_proposal_id?: string | null;
           response_text?: string | null;
+          selected_choice_at?: string | null;
+          selected_choice_by_slack_user_id?: string | null;
+          selected_choice_index?: number | null;
+          selected_choice_label?: string | null;
+          selected_choice_message?: string | null;
           slack_event_id: string;
           slack_message_ts: string;
           slack_response_ts?: string | null;
@@ -5453,9 +5474,12 @@ export type Database = {
           trigger_kind: string;
           updated_at?: string;
           user_message_id?: number | null;
+          worker_target?: string;
         };
         Update: {
           attempt_count?: number;
+          batched_prompt?: string | null;
+          choice_source_job_id?: string | null;
           completed_at?: string | null;
           created_at?: string;
           id?: string;
@@ -5467,6 +5491,11 @@ export type Database = {
           response_message_id?: number | null;
           response_proposal_id?: string | null;
           response_text?: string | null;
+          selected_choice_at?: string | null;
+          selected_choice_by_slack_user_id?: string | null;
+          selected_choice_index?: number | null;
+          selected_choice_label?: string | null;
+          selected_choice_message?: string | null;
           slack_event_id?: string;
           slack_message_ts?: string;
           slack_response_ts?: string | null;
@@ -5476,8 +5505,16 @@ export type Database = {
           trigger_kind?: string;
           updated_at?: string;
           user_message_id?: number | null;
+          worker_target?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "slack_reply_jobs_choice_source_job_id_fkey";
+            columns: ["choice_source_job_id"];
+            isOneToOne: false;
+            referencedRelation: "slack_reply_jobs";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "slack_reply_jobs_response_message_id_fkey";
             columns: ["response_message_id"];
@@ -7516,13 +7553,96 @@ export type Database = {
           isSetofReturn: true;
         };
       };
+      claim_slack_reply_jobs: {
+        Args: {
+          p_batch_size?: number;
+          p_max_retry_count?: number;
+          p_stale_after_seconds?: number;
+          p_worker_id: string;
+        };
+        Returns: Database["public"]["Tables"]["slack_reply_jobs"]["Row"][];
+        SetofOptions: {
+          from: "*";
+          to: "slack_reply_jobs";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
+      claim_slack_reply_jobs_v2: {
+        Args: {
+          p_batch_size?: number;
+          p_max_retry_count?: number;
+          p_stale_after_seconds?: number;
+          p_worker_id: string;
+          p_worker_target: string;
+        };
+        Returns: Database["public"]["Tables"]["slack_reply_jobs"]["Row"][];
+        SetofOptions: {
+          from: "*";
+          to: "slack_reply_jobs";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
+      enqueue_slack_reply_job_v1: {
+        Args: {
+          p_prompt: string;
+          p_slack_event_id: string;
+          p_slack_message_ts: string;
+          p_slack_user_id: string | null;
+          p_thread_id: string;
+          p_trigger_kind: string;
+        };
+        Returns: Json;
+      };
+      enqueue_slack_button_choice_v1: {
+        Args: {
+          p_action_ts: string;
+          p_choice_index: number;
+          p_choice_label: string;
+          p_choice_message: string;
+          p_slack_channel_id: string;
+          p_slack_team_id: string;
+          p_slack_user_id: string;
+          p_source_job_id: string;
+          p_source_message_ts: string;
+        };
+        Returns: Json;
+      };
       company_talent_request_stage_is_pending_v1: {
         Args: { p_request_id: string };
         Returns: boolean;
       };
+      cancel_company_talent_request_v1: {
+        Args: {
+          p_request_id: string;
+          p_role_id: string;
+          p_talent_id: string;
+          p_workspace_id: string;
+        };
+        Returns: Json;
+      };
+      change_company_talent_request_v1: {
+        Args: {
+          p_action: string;
+          p_request_id: string;
+          p_role_id: string;
+          p_talent_id: string;
+          p_workspace_id: string;
+        };
+        Returns: Json;
+      };
       reconcile_company_talent_requests_for_stage_v1: {
         Args: { p_role_id: string; p_talent_id: string };
         Returns: undefined;
+      };
+      set_slack_agent_worker_target_v1: {
+        Args: {
+          p_company_workspace_id?: string | null;
+          p_slack_channel_id?: string | null;
+          p_worker_target: string;
+        };
+        Returns: Json;
       };
       enqueue_company_talent_request_v1: {
         Args: {

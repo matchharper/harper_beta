@@ -51,9 +51,9 @@ type RoleRow = {
 };
 
 type MembershipRow = {
+  authority: string | null;
   company_user_id: string;
   company_workspace_id: string;
-  role: string | null;
 };
 
 type CompanyDbRow = {
@@ -228,7 +228,7 @@ async function fetchMembershipRows(admin: AdminClient, userId: string) {
   const { data, error } = await (
     admin.from("company_user_workspace" as any) as any
   )
-    .select("company_user_id, company_workspace_id, role")
+    .select("company_user_id, company_workspace_id, authority")
     .eq("company_user_id", userId);
 
   if (error) {
@@ -246,7 +246,7 @@ async function ensureWorkspaceMembership(args: {
   const { data: existingData, error: existingError } = await (
     args.admin.from("company_user_workspace" as any) as any
   )
-    .select("company_user_id, company_workspace_id, role")
+    .select("company_user_id, company_workspace_id, authority")
     .eq("company_user_id", args.userId)
     .eq("company_workspace_id", args.workspaceId)
     .limit(1);
@@ -260,25 +260,25 @@ async function ensureWorkspaceMembership(args: {
   const existingMembership =
     coerceJsonArray<MembershipRow>(existingData)[0] ?? null;
   if (existingMembership) {
-    return existingMembership.role ?? null;
+    return existingMembership.authority ?? null;
   }
 
   const { data, error } = await (
     args.admin.from("company_user_workspace" as any) as any
   )
     .insert({
+      authority: "owner",
       company_user_id: args.userId,
       company_workspace_id: args.workspaceId,
-      role: "owner",
     })
-    .select("company_user_id, company_workspace_id, role")
+    .select("company_user_id, company_workspace_id, authority")
     .single();
 
   if (error) {
     throw new Error(error.message ?? "Failed to create workspace membership");
   }
 
-  return (data as MembershipRow).role ?? "owner";
+  return (data as MembershipRow).authority ?? "owner";
 }
 
 async function fetchWorkspaceRowByCompanyDbId(
@@ -351,7 +351,7 @@ async function resolveWorkspaceContext(args: {
     mapWorkspaceRecord({
       membershipRole:
         membershipByWorkspaceId.get(String(row.company_workspace_id ?? ""))
-          ?.role ?? null,
+          ?.authority ?? null,
       row,
     })
   );
@@ -441,7 +441,7 @@ export async function fetchMatchWorkspace(args: {
     bookingUrl: MATCH_BOOKING_URL,
     roles,
     workspace: mapWorkspaceRecord({
-      membershipRole: resolved.membership?.role ?? null,
+      membershipRole: resolved.membership?.authority ?? null,
       row: resolved.workspace,
     }),
     workspaces: resolved.workspaces,
@@ -630,7 +630,7 @@ export async function updateMatchWorkspace(args: {
     .single();
   if (error) throw new Error(error.message ?? "Failed to load workspace");
   return mapWorkspaceRecord({
-    membershipRole: resolved.membership?.role ?? null,
+    membershipRole: resolved.membership?.authority ?? null,
     row: data as WorkspaceRow,
   });
 }
@@ -784,7 +784,7 @@ export async function fetchMatchCandidates(args: {
     items: [] as MatchCandidateListItem[],
     total: 0,
     workspace: mapWorkspaceRecord({
-      membershipRole: resolved.membership?.role ?? null,
+      membershipRole: resolved.membership?.authority ?? null,
       row: resolved.workspace,
     }),
   };

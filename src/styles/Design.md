@@ -82,6 +82,38 @@ Palette token은 색상 자체를 정의한다. 직접 써도 되지만, 레이�
 
 상태 토큰은 실제 상태를 말할 때만 쓴다. 단순히 예쁜 강조가 필요하면 `primary` 또는 `primary-faded`를 쓴다.
 
+## Shared Input And Textarea
+
+`/career`와 `/org`의 일반 form은 실제로 널리 사용 중인 아래 shared component를
+그대로 사용한다.
+
+- `Input`: `src/components/ui/input.tsx`의 `Input`
+- `Textarea`: `src/components/ui/textarea.tsx`의 `Textarea`
+
+두 component에는 `bg-bg-floating`, neutral border, placeholder, focus, disabled
+스타일이 이미 들어 있다. 새 wrapper나 domain별 input component를 만들지 말고
+기본 style을 유지한다. 호출부에서는 `className`으로 너비, grid 위치,
+textarea의 `min-height` 같은 layout만 보완한다. `unstyled`는 chat composer처럼
+부모가 border와 background를 모두 소유하는 composite field에서만 사용한다.
+
+label, helper, error는 control 바깥에서 조합하고 `htmlFor`,
+`aria-describedby`, `aria-invalid`로 연결한다. 같은 파일에 있는 `TextField`는
+새로 사용하지 않으며, 기존 사용처를 수정할 때 `Input`과 외부 label/message로
+교체한다.
+
+### `/career`
+
+profile, onboarding, settings의 기존 패턴처럼 기본 `Input`과 `Textarea`를
+사용한다. 긴 profile 입력은 `Textarea`에 `rows` 또는 `min-h-*`만 추가하고,
+chat composer처럼 부모가 하나의 field surface를 만드는 경우에만 `unstyled`를
+사용한다.
+
+### `/org`
+
+role, pipeline, workspace 편집과 후보자 dialog의 기존 패턴처럼 기본 `Input`과
+`Textarea`를 사용한다. `/org` 전용 variant나 `TextField`를 추가하지 않으며,
+label과 오류 문구는 기존 row/dialog의 정보 구조 안에서 control 밖에 둔다.
+
 ## Common Recipes
 
 Page shell:
@@ -102,10 +134,21 @@ Nested weak box:
 <div className="rounded-md bg-bg-weak px-3 py-2 text-neutral-muted" />
 ```
 
-Input:
+Input and textarea:
 
 ```tsx
-<input className="border border-neutral-1000-a10 bg-bg-floating text-neutral-primary placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a10" />
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+
+<label className="grid gap-1.5 text-[13px] font-medium text-neutral-primary">
+  <span>이름</span>
+  <Input id="name" aria-describedby="name-help" />
+  <span id="name-help" className="text-[12px] font-normal text-neutral-muted">
+    팀에서 사용하는 이름을 입력하세요.
+  </span>
+</label>
+
+<Textarea rows={4} className="min-h-[120px]" />
 ```
 
 Primary CTA:
@@ -160,7 +203,7 @@ Use shared UI components before writing raw markup:
 | Existing card action migration | `InteractiveCard`, `ChoiceCard` |
 | Text | `Text` |
 | Labels/status chips | `Badge` |
-| Form fields | `Input`, `TextField`, `Textarea`, `Select`, `Checkbox`, `Switch`, `Radio` |
+| Form fields | `Input`, `Textarea`, `Select`, `Checkbox`, `Switch`, `Radio` |
 | Menu | `ActionDropdown`, `DropdownMenu` |
 | Page section copy | `SectionHeader`, `SectionTitle`, `SectionDescription` |
 
@@ -266,3 +309,4 @@ When touching old UI:
 4. Replace `status-*` with `positive/info/critical` and their `*-faded` backgrounds.
 5. Replace `gray-*` design aliases with `neutral-*` or `black`.
 6. Prefer `MuteButton`, `CardButton`, `Badge`, `Input`, `Select`, `Tabs`, and `Text` over local one-off components. Replace touched `Button`, `IconButton`, and `ActionButton` usages with `MuteButton` when practical.
+7. Replace touched `TextField` usages with an external label/message and `Input` or `Textarea`.

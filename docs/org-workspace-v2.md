@@ -231,8 +231,10 @@ Claude Console과 xAI Console의 관리 화면에서 공통적으로 보이는 �
 
 Migration에서 다음을 적용한다.
 
-- `company_user_workspace.role`을 `owner | admin | viewer`로 정규화하고 check
-  constraint를 추가한다.
+- `company_user_workspace.authority`를 `owner | admin | viewer`로 정규화하고
+  check constraint를 추가한다.
+- `company_user_workspace.role`은 워크스페이스별 직함으로 사용한다. 값이 없으면
+  이름과 직함을 받는 최초 프로필 모달을 완료할 때까지 계속 표시한다.
 - Owner가 없는 기존 workspace는 가장 오래된 membership 한 명을 Owner로
   승격한다.
 - `company_workspace_invitations.role`을 추가한다.

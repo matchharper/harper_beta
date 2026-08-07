@@ -131,6 +131,40 @@ export const profileVisibilityBadgeClass = (
   }
 };
 
+export const externalRecommendationLabel = (
+  value: boolean | null | undefined
+) => {
+  if (value === true) return "true";
+  if (value === false) return "false";
+  return "미설정";
+};
+
+export const externalRecommendationBadgeClass = (
+  value: boolean | null | undefined
+) => {
+  if (value === true) return "bg-positive-faded text-positive";
+  if (value === false) return "bg-critical-faded text-critical";
+  return "bg-bg-weak text-neutral-muted";
+};
+
+export const talentStatusLabel = (value: string | null | undefined) =>
+  value?.trim() || "미설정";
+
+export const talentStatusBadgeClass = (
+  value: string | null | undefined
+) => {
+  switch (value) {
+    case "active":
+      return "bg-positive-faded text-positive";
+    case "passive":
+      return "bg-info-faded text-info";
+    case "stopped":
+      return "bg-critical-faded text-critical";
+    default:
+      return "bg-bg-weak text-neutral-muted";
+  }
+};
+
 export const compactMailAddress = (value: string | null | undefined) => {
   const normalized = value?.trim();
   return normalized || "-";

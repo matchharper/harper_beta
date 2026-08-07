@@ -218,24 +218,80 @@ test("pending proposal lookup ignores expired rows at the query boundary", async
   assert.ok(expiry >= before && expiry <= after);
 });
 
-test("disabled candidate mutation tools are rejected before any side effect", async () => {
-  const { assertOrgAgentToolAvailable, OrgAgentToolInputError } =
+test("candidate decision execution is an enabled terminal tool", async () => {
+  const { assertOrgAgentToolAvailable } =
     await import("@/lib/org/agent/toolAvailability");
-  let databaseCalls = 0;
-  const state = createOrgAgentToolExecutionState(minimalContext());
+  const { isOrgAgentTerminalToolName } = await import("@/lib/org/agent/tools");
 
-  assert.throws(
-    () => {
-      assertOrgAgentToolAvailable("decide_candidate_connection");
-      databaseCalls += 1;
-    },
-    (error: unknown) =>
-      error instanceof OrgAgentToolInputError &&
-      error.message === "This tool is not available"
+  assert.doesNotThrow(() =>
+    assertOrgAgentToolAvailable("prepare_candidate_connection")
   );
-  assert.equal(databaseCalls, 0);
-  assert.equal(state.actions.length, 0);
-  assert.equal(state.updateSummaries.length, 0);
+  assert.doesNotThrow(() =>
+    assertOrgAgentToolAvailable("decide_candidate_connection")
+  );
+  assert.equal(
+    isOrgAgentTerminalToolName("prepare_candidate_connection"),
+    false
+  );
+  assert.equal(isOrgAgentTerminalToolName("change_role_status"), true);
+  assert.equal(isOrgAgentTerminalToolName("decide_candidate_connection"), true);
+  assert.equal(isOrgAgentTerminalToolName("change_talent_contact"), true);
+});
+
+test("a failed Role status change cannot be presented as completed", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  state.terminalMutationUsed = true;
+  state.toolResults.push({
+    callId: "role-status-1",
+    name: "change_role_status",
+    status: "error",
+    summary: "상태 변경 실패",
+  });
+
+  assert.equal(
+    enforceOrgAgentTerminalMutationOutcome(
+      state,
+      "역할의 채용을 종료했습니다."
+    ),
+    "역할 상태를 변경하지 못했습니다. 역할과 현재 상태를 다시 확인한 뒤 시도해 주세요. 후보 추천이나 진행 중인 연결에는 변화가 없습니다."
+  );
+});
+
+test("a failed candidate contact change cannot be presented as completed", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  state.terminalMutationUsed = true;
+  state.toolResults.push({
+    callId: "cancel-contact-1",
+    name: "change_talent_contact",
+    status: "error",
+    summary: "발송 시작으로 취소 실패",
+  });
+
+  assert.equal(
+    enforceOrgAgentTerminalMutationOutcome(state, "문의를 취소했습니다."),
+    "후보자 문의 요청을 변경하지 못했습니다. 최신 발송 상태를 다시 확인해 주세요."
+  );
+});
+
+test("a successful candidate contact change uses the server-authoritative reply", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  state.terminalMutationUsed = true;
+  state.terminalReply =
+    "김후보님께 드릴 문의를 즉시 발송하도록 변경했습니다. 아직 전달 완료 단계는 아닙니다.";
+  state.toolResults.push({
+    callId: "immediate-contact-1",
+    name: "change_talent_contact",
+    status: "success",
+    summary: "후보자 문의 즉시 발송 변경",
+  });
+
+  assert.equal(
+    enforceOrgAgentTerminalMutationOutcome(
+      state,
+      "안녕하세요. 후보자께 보낼 이메일 본문입니다."
+    ),
+    state.terminalReply
+  );
 });
 
 test("a failed terminal mutation cannot be presented as a success", () => {
@@ -249,7 +305,154 @@ test("a failed terminal mutation cannot be presented as a success", () => {
   });
 
   assert.equal(
-    enforceOrgAgentTerminalMutationOutcome(state, "요청하신 내용을 반영했습니다."),
+    enforceOrgAgentTerminalMutationOutcome(
+      state,
+      "요청하신 내용을 반영했습니다."
+    ),
     "요청하신 변경은 적용되지 않았습니다. 내용을 다시 확인한 뒤 시도해 주세요."
+  );
+});
+
+test("a successful retry supersedes an earlier update_data input error", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  state.terminalMutationUsed = true;
+  state.toolResults.push(
+    {
+      callId: "update-invalid-1",
+      name: "update_data",
+      status: "error",
+      summary: "proposalId and proposalAction must be provided together",
+    },
+    {
+      callId: "update-retry-1",
+      name: "update_data",
+      status: "success",
+      summary: "확인한 변경 반영",
+    }
+  );
+
+  assert.equal(
+    enforceOrgAgentTerminalMutationOutcome(
+      state,
+      "요청하신 내용을 반영했습니다."
+    ),
+    "요청하신 내용을 반영했습니다."
+  );
+});
+
+test("an update_data input error stays authoritative before mutation starts", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  state.terminalReply =
+    "변경 요청을 안전하게 해석하지 못해 적용하지 않았습니다. 기존 내용은 바뀌지 않았어요.";
+  state.toolResults.push({
+    callId: "update-invalid-before-mutation",
+    name: "update_data",
+    status: "error",
+    summary: "proposalId and proposalAction must be provided together",
+  });
+
+  assert.equal(
+    enforceOrgAgentTerminalMutationOutcome(
+      state,
+      "요청하신 내용을 반영했습니다."
+    ),
+    state.terminalReply
+  );
+});
+
+test("a failed candidate contact is not mislabeled as a data change", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  state.terminalMutationUsed = true;
+  state.toolResults.push({
+    callId: "contact-1",
+    name: "contact_talent",
+    status: "error",
+    summary: "도구 실행 실패",
+  });
+
+  assert.equal(
+    enforceOrgAgentTerminalMutationOutcome(
+      state,
+      "후보자분께 확인 요청을 보냈습니다."
+    ),
+    "후보자분께 요청을 접수하지 못했습니다. 대상 후보자와 포지션, 요청 내용을 다시 확인한 뒤 요청해 주세요. 아직 후보자분께는 이메일이나 Harper 채팅이 전달되지 않았습니다."
+  );
+});
+
+test("an existing candidate request keeps the model's replacement question", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  state.terminalMutationUsed = true;
+  state.terminalReply = "기존 요청을 취소하고 이번 요청으로 새로 접수할까요?";
+  state.toolResults.push({
+    callId: "contact-existing",
+    name: "contact_talent",
+    status: "unchanged",
+    summary: "기존 후보자 요청 확인·교체 여부 확인 필요",
+  });
+
+  assert.equal(
+    enforceOrgAgentTerminalMutationOutcome(
+      state,
+      "이미 대기 중인 요청이 있습니다. 기존 요청을 취소하고 새 질문으로 바꿀까요?"
+    ),
+    "이미 대기 중인 요청이 있습니다. 기존 요청을 취소하고 새 질문으로 바꿀까요?"
+  );
+});
+
+test("a successful candidate contact keeps the model-authored explanation", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  state.terminalMutationUsed = true;
+  state.terminalReply =
+    "후보자분께 확인 요청을 접수했습니다. 이메일과 Harper 채팅으로 한 번 전달할 예정이며, 답이 오면 이 대화로 알려드리겠습니다.";
+  state.toolResults.push({
+    callId: "contact-2",
+    name: "contact_talent",
+    status: "success",
+    summary: "후보자 확인 요청 대기열 생성",
+  });
+
+  assert.equal(
+    enforceOrgAgentTerminalMutationOutcome(
+      state,
+      "요청을 접수했고 다음 전달 단계도 설명했습니다."
+    ),
+    "요청을 접수했고 다음 전달 단계도 설명했습니다."
+  );
+});
+
+test("a failed candidate decision cannot be presented as completed", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  state.terminalMutationUsed = true;
+  state.toolResults.push({
+    callId: "decision-1",
+    name: "decide_candidate_connection",
+    status: "error",
+    summary: "직전 확인 없음",
+  });
+
+  assert.equal(
+    enforceOrgAgentTerminalMutationOutcome(state, "후보자를 거절했습니다."),
+    "후보자 연결 결정을 반영하지 못했습니다. 후보자가 아직 연결 대기 상태인지와 직전 확인 내용이 현재 답변과 일치하는지 확인한 뒤 다시 시도해 주세요. 상태 변경이나 연결 메일 발송은 이루어지지 않았습니다."
+  );
+});
+
+test("a successful candidate decision keeps the model-authored explanation", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  state.terminalMutationUsed = true;
+  state.terminalReply =
+    "김하퍼 후보자를 연결받지 않기로 처리하고 프로세스를 중단했습니다. 말씀해 주신 이유도 진행 이력에 저장했습니다.";
+  state.toolResults.push({
+    callId: "decision-2",
+    name: "decide_candidate_connection",
+    status: "success",
+    summary: "연결 대기 후보자의 프로세스를 중단했습니다.",
+  });
+
+  assert.equal(
+    enforceOrgAgentTerminalMutationOutcome(
+      state,
+      "프로세스를 중단했고 이유가 어떻게 저장됐는지도 설명했습니다."
+    ),
+    "프로세스를 중단했고 이유가 어떻게 저장됐는지도 설명했습니다."
   );
 });

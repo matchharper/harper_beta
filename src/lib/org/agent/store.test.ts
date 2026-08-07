@@ -101,3 +101,103 @@ test("adopted Slack metadata is enriched without discarding sync metadata", () =
     false
   );
 });
+
+test("Slack history cursor is opaque and reads the next older page", async () => {
+  const {
+    createOrgAgentConversationHistoryCursor,
+    fetchOrgAgentConversationHistory,
+    OrgAgentConversationHistoryCursorError,
+  } = await import("@/lib/org/agent/conversationHistory");
+  const makeRow = (id: number, content: string) => ({
+    content,
+    created_at: `2026-08-06T00:00:${String(id).padStart(2, "0")}.000Z`,
+    id,
+    mentions: [],
+    metadata: { slackUserName: "사용자" },
+    role: "user",
+    slack_thread_id: "thread-1",
+    slack_user_id: "U1",
+  });
+  const cursor = createOrgAgentConversationHistoryCursor({
+    beforeId: 20,
+    scope: "current_thread",
+    slackThreadId: "thread-1",
+  });
+
+  assert.doesNotMatch(cursor, /thread-1|20/);
+
+  const filters: Array<[string, unknown]> = [];
+  const messageQuery = {
+    eq(field: string, value: unknown) {
+      filters.push([`eq:${field}`, value]);
+      return this;
+    },
+    limit() {
+      return Promise.resolve({ data: [makeRow(10, "older")], error: null });
+    },
+    lt(field: string, value: unknown) {
+      filters.push([`lt:${field}`, value]);
+      return this;
+    },
+    not() {
+      return this;
+    },
+    order() {
+      return this;
+    },
+    select() {
+      return this;
+    },
+  };
+  const threadQuery = {
+    in() {
+      return Promise.resolve({
+        data: [
+          {
+            channel: { slack_channel_name: "채용" },
+            id: "thread-1",
+            slack_thread_ts: "1785960000.000",
+          },
+        ],
+        error: null,
+      });
+    },
+    select() {
+      return this;
+    },
+  };
+  const history = await fetchOrgAgentConversationHistory({
+    admin: {
+      from: (table: string) =>
+        table === "company_messages" ? messageQuery : threadQuery,
+    } as any,
+    conversationId: "conversation-1",
+    currentSlackThreadId: "thread-1",
+    currentUserMessageId: 40,
+    cursor,
+    limit: 2,
+    scope: "current_thread",
+    workspaceId: "workspace-1",
+  });
+
+  assert.deepEqual(
+    history.messages.map((message) => message.content),
+    ["older"]
+  );
+  assert.equal(history.messages[0]?.channelName, "채용");
+  assert.equal(history.messages[0]?.currentThread, true);
+  assert.deepEqual(filters.find(([name]) => name === "lt:id"), ["lt:id", 20]);
+  await assert.rejects(
+    fetchOrgAgentConversationHistory({
+      admin: { from: () => messageQuery } as any,
+      conversationId: "conversation-1",
+      currentSlackThreadId: "thread-1",
+      currentUserMessageId: 40,
+      cursor,
+      limit: 2,
+      scope: "workspace",
+      workspaceId: "workspace-1",
+    }),
+    OrgAgentConversationHistoryCursorError
+  );
+});

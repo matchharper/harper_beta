@@ -5,6 +5,8 @@ import {
   CLAUDE_INPUT_USD_PER_MTOK,
   CLAUDE_MODEL,
   CLAUDE_OUTPUT_USD_PER_MTOK,
+  DEEPSEEK_V4_FLASH_MODEL,
+  DEEPSEEK_V4_PRO_MODEL,
   GPT_56_LUNA_CACHE_READ_USD_PER_MTOK,
   GPT_56_LUNA_CACHE_WRITE_USD_PER_MTOK,
   GPT_56_LUNA_INPUT_USD_PER_MTOK,
@@ -131,6 +133,7 @@ const LLM_LOG_SOURCES: readonly string[] = [
   "career/chat",
   "career/internal-opportunity-call-request",
   "org/intro-email",
+  "org/slack-router",
   ...LLM_LOG_TOOL_NAMES.map((name) => `career_tool:${name}`),
 ];
 
@@ -158,6 +161,16 @@ const MODEL_PRICING_USD_PER_MTOK: Record<string, LlmModelPricing> = {
     cacheWriteUsdPerMtok: GPT_56_LUNA_CACHE_WRITE_USD_PER_MTOK,
     inputUsdPerMtok: GPT_56_LUNA_INPUT_USD_PER_MTOK,
     outputUsdPerMtok: GPT_56_LUNA_OUTPUT_USD_PER_MTOK,
+  },
+  [DEEPSEEK_V4_FLASH_MODEL]: {
+    cacheReadUsdPerMtok: 0.0028,
+    inputUsdPerMtok: 0.14,
+    outputUsdPerMtok: 0.28,
+  },
+  [DEEPSEEK_V4_PRO_MODEL]: {
+    cacheReadUsdPerMtok: 0.003625,
+    inputUsdPerMtok: 0.435,
+    outputUsdPerMtok: 0.87,
   },
   "grok-4.3": {
     cacheReadUsdPerMtok: 0.2,

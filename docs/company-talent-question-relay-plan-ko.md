@@ -32,7 +32,7 @@ Harper는 이미 안전하게 공유 가능한 정보로 먼저 답하고, 확�
    insight는 포함하지 않는다.
 3. 명확한 근거가 있으면 후보자에게 불리하지 않게 재서술해 답한다.
 4. 근거가 없거나 애매하면 현재 확인 범위를 설명하고, 대신 후보자에게 연락할지 묻는다.
-5. 회사가 명시적으로 요청하면 `contact_talent`가 범용 질문 원문과 대상을 저장한다.
+5. 회사가 명시적으로 요청하면 `contact_talent(kind=question)`가 범용 질문 원문과 대상을 저장한다.
 6. worker의 별도 copy LLM이 후보자용 제목과 본문을 작성한다.
 7. 같은 본문이 이메일과 Harper 채팅에 전달된다.
 8. 후보자가 답하면 활성 요청이 있을 때만 답변 기록 tool을 노출한다.
@@ -42,7 +42,7 @@ Harper는 이미 안전하게 공유 가능한 정보로 먼저 답하고, 확�
 ### 2.2 이력서 요청
 
 1. 회사가 이력서를 요청하면 Harper는 먼저 후보자 프로필 정보를 확인하도록 안내한다.
-2. 회사가 그래도 요청하라고 명시하면 `request_talent_resume`를 실행한다.
+2. 회사가 그래도 요청하라고 명시하면 `contact_talent(kind=resume)`를 실행한다.
 3. 후보자는 이메일 첨부 또는 `/career/profile`의 signed request link로 업로드할 수 있다.
 4. 업로드 파일은 회사 전용 사본이 아니라 후보자의 일반 primary resume로 등록된다.
 5. 일반 이력서 업로드와 동일하게 `is_primary=true`, `is_public=true`로 저장하며 이전 primary를
@@ -99,6 +99,10 @@ Harper는 이미 안전하게 공유 가능한 정보로 먼저 답하고, 확�
 - `company_request_company_delivery`
 
 후보자 발송을 만들 때 `payload.delivery`에 아래 snapshot을 한 번만 고정한다.
+
+candidate delivery의 `scheduled_at`은 요청 생성 시점에서 최소 20분 뒤이며, KST
+08:00 이상 20:00 미만인 가장 빠른 시각으로 정한다. worker도 같은 조건을 다시 검사해
+오래된 app code나 수동 queue 변경이 있어도 허용 시간 밖에는 발송하지 않는다.
 
 ```text
 to, from, replyTo
@@ -247,6 +251,11 @@ is_public = true
 - DB transaction 실패 시 새 storage object를 제거한다.
 - copy generation 또는 provider 오류는 queue 재시도 정책을 사용하고, 한도 초과 시에만
   요청을 `failed`로 둔다.
+- candidate delivery가 `queued` 또는 `failed`일 때만 회사가 취소할 수 있다. 취소 RPC는
+  request와 outbox를 함께 잠근 뒤 outbox를 `cancelled`, 요청을 `closed`로 한 transaction에서
+  바꾼다. `processing` 이후에는 취소 성공으로 응답하지 않는다.
+- 회사 agent의 `read_talent`과 후보자 상세 피드는 예정 시각, 주제, 발송 상태와 취소 가능
+  여부를 같은 outbox 상태에서 읽는다.
 
 ## 11. 점검 항목
 
@@ -265,7 +274,8 @@ is_public = true
 
 ## 12. 구현 위치
 
-- DB 및 RPC: `supabase/migrations/20260805100000_company_talent_requests.sql`
+- DB 및 RPC: `supabase/migrations/20260805100000_company_talent_requests.sql`,
+  `supabase/migrations/20260806040000_schedule_and_cancel_company_talent_requests.sql`
 - web 정책·compact context: `src/lib/companyTalentRequests/`
 - company-side LLM tools: `src/lib/org/agent/tools.ts`, `toolExecution.ts`
 - 후보자 이메일/회사 relay prompt: `harper_worker/email_reply/talent_request_copy.py`

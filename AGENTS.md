@@ -16,6 +16,7 @@
   the user explicitly requires those exact details.
 - Validate the generalized behavior with cases beyond the example when tests or
   verification are part of the task.
+- Agent-system data must accommodate diverse inputs an LLM may generate; avoid overly restrictive database constraints that reject otherwise valid variations.
 
 ## UI and design
 

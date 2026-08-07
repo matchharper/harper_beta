@@ -1,5 +1,6 @@
 import type { User } from "@supabase/supabase-js";
 import { getLlmErrorMessage } from "@/lib/llm/llm";
+import { createOrgAgentConversationHistoryCursor } from "@/lib/org/agent/conversationHistory";
 import {
   fetchOrgAgentPipelineSnapshot,
   fetchOrgAgentRoles,
@@ -246,9 +247,15 @@ function formatRoles(
 }
 
 function formatConversation(
-  messages: Awaited<ReturnType<typeof fetchRecentOrgAgentPromptMessages>>
+  page: Awaited<ReturnType<typeof fetchRecentOrgAgentPromptMessages>>,
+  slackThreadId: string | null
 ) {
-  if (messages.length === 0) return "-";
+  const messages = page.messages;
+  if (messages.length === 0) {
+    return slackThreadId
+      ? "scope=current_thread returned_items=0 has_more=false next_cursor=-"
+      : "-";
+  }
   const slackAliasById = new Map<string, string>();
   const slackAlias = (slackUserId: string) => {
     const existing = slackAliasById.get(slackUserId);
@@ -258,14 +265,24 @@ function formatConversation(
     return next;
   };
   const rows = messages.map((message) => {
-    const mentions = message.mentions.length
-      ? message.mentions
-          .map(
-            (mention) =>
-              `${clipPromptText(mention.displayName, 80)}[${mention.talentId}@${mention.roleId ?? "-"}]`
-          )
-          .join(",")
-      : null;
+    const references = [
+      ...message.mentions.map(
+        (mention) =>
+          `${clipPromptText(mention.displayName, 80)}[${mention.talentId}@${mention.roleId ?? "-"}]`
+      ),
+      (message.metadata.candidateConnectionConfirmations ?? [])
+        .map((confirmation) =>
+          [
+            `decision=${confirmation.decision}`,
+            `talent_id=${confirmation.talentId}`,
+            `role_id=${confirmation.roleId}`,
+            `recommendation_id=${confirmation.recommendationId}`,
+            `connection_method=${confirmation.connectionMethod ?? "not_selected"}`,
+          ].join(";")
+        )
+        .map((value) => `candidate_decision_context{${value}}`)
+        .join(","),
+    ].filter(Boolean);
     const speaker =
       message.role === "assistant"
         ? "Harper"
@@ -274,20 +291,23 @@ function formatConversation(
           : message.slackUserId
             ? slackAlias(message.slackUserId)
             : "user";
-    return [
-      speaker,
-      mentions,
-      clipPromptText(stripSerializedMentionIds(message.content), 900),
-    ];
+    return {
+      cells: [
+        speaker,
+        references.join(",") || null,
+        clipPromptText(stripSerializedMentionIds(message.content), 900),
+      ],
+      id: message.id,
+    };
   });
 
   // Keep newest turns when several messages are long. Older durable facts are
   // retained by the conversation summary.
-  const selected: unknown[][] = [];
+  const selected: typeof rows = [];
   let totalChars = 0;
   for (let index = rows.length - 1; index >= 0; index -= 1) {
     const row = rows[index]!;
-    const rowChars = row.reduce<number>(
+    const rowChars = row.cells.reduce<number>(
       (sum, value) => sum + String(value ?? "").length,
       0
     );
@@ -299,11 +319,24 @@ function formatConversation(
     totalChars += rowChars;
     selected.unshift(row);
   }
-  return formatPromptTable(
-    ["speaker", "mentions", "message"],
-    selected,
+  const table = formatPromptTable(
+    ["speaker", "references", "message"],
+    selected.map((row) => row.cells),
     [140, 500, 900]
   );
+  if (!slackThreadId) return table;
+  const hasMore = page.hasMore || selected.length < messages.length;
+  const oldestVisible = selected[0];
+  const nextCursor =
+    hasMore && oldestVisible
+      ? createOrgAgentConversationHistoryCursor({
+          beforeId: oldestVisible.id,
+          scope: "current_thread",
+          slackThreadId,
+        })
+      : null;
+  const pageMetadata = `scope=current_thread returned_items=${selected.length} has_more=${hasMore} next_cursor=${nextCursor ?? "-"}`;
+  return `${pageMetadata}\n${table}`;
 }
 
 function formatSummaries(
@@ -414,7 +447,7 @@ export async function buildOrgAgentPromptContext(args: {
           }),
       }),
       optionalContext({
-        fallback: [],
+        fallback: { hasMore: false, messages: [], nextCursor: null },
         label: "recent_conversation",
         onError: () =>
           notes.push(
@@ -522,7 +555,10 @@ export async function buildOrgAgentPromptContext(args: {
     companyText: formatCompany({ availability, workspace }),
     completeRoleRequestIds: formattedRoles.completeRoleRequestIds,
     contextNotesText: notes.join("\n") || "-",
-    conversationText: formatConversation(messages),
+    conversationText: formatConversation(
+      messages,
+      scope.kind === "slack" ? scope.slackThreadId : null
+    ),
     defaultLongTextObservations,
     pendingUpdateText: pendingUpdateUnavailable
       ? "pending_update_unavailable=true; do not assume that no update is awaiting confirmation"

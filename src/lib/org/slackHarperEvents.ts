@@ -92,7 +92,7 @@ export async function queueHarperSlackEvent(envelope: SlackEventEnvelope) {
     thread = data;
   }
 
-  if (isMention && channel.respond_to_mentions) {
+  if (isMention) {
     triggerKind = "mention";
     if (!thread) {
       const { data, error } = await (
@@ -101,12 +101,26 @@ export async function queueHarperSlackEvent(envelope: SlackEventEnvelope) {
         .upsert(
           {
             channel_id: channel.id,
+            created_by_harper: true,
             role_id: null,
             slack_thread_ts: threadTs,
             updated_at: new Date().toISOString(),
           },
           { onConflict: "channel_id,slack_thread_ts" }
         )
+        .select("*")
+        .single();
+      if (error) throw error;
+      thread = data;
+    } else if (!thread.created_by_harper) {
+      const { data, error } = await (
+        admin.from("company_slack_threads" as any) as any
+      )
+        .update({
+          created_by_harper: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", thread.id)
         .select("*")
         .single();
       if (error) throw error;
@@ -138,29 +152,35 @@ export async function queueHarperSlackEvent(envelope: SlackEventEnvelope) {
   if (!prompt) return { ignored: "empty_prompt" };
   if (!thread) throw new Error("Slack thread was not resolved");
 
-  const { data: existing, error: existingError } = await (
-    admin.from("slack_reply_jobs" as any) as any
-  )
-    .select("id")
-    .eq("slack_event_id", eventId)
-    .maybeSingle();
-  if (existingError) throw existingError;
-  if (existing) return { duplicate: true };
-
-  const { error: jobError } = await (
-    admin.from("slack_reply_jobs" as any) as any
-  ).insert({
-    prompt,
-    slack_event_id: eventId,
-    slack_message_ts: messageTs,
-    slack_user_id: clean(event.user) || null,
-    thread_id: thread.id,
-    trigger_kind: triggerKind,
-  });
-  if (jobError) {
-    if ((jobError as { code?: string }).code === "23505")
-      return { duplicate: true };
-    throw jobError;
+  if (triggerKind === "thread_reply") {
+    await storeHarperSlackThreadEvent({
+      content: prompt,
+      slackMessageTs: messageTs,
+      slackUserId: clean(event.user) || null,
+      threadId: thread.id,
+      workspaceId: integration.company_workspace_id,
+    });
   }
-  return { queued: true };
+
+  const { data: enqueueData, error: enqueueError } = await (admin.rpc as any)(
+    "enqueue_slack_reply_job_v1",
+    {
+      p_prompt: prompt,
+      p_slack_event_id: eventId,
+      p_slack_message_ts: messageTs,
+      p_slack_user_id: clean(event.user) || null,
+      p_thread_id: thread.id,
+      p_trigger_kind: triggerKind,
+    }
+  );
+  if (enqueueError) throw enqueueError;
+  const enqueueResult =
+    enqueueData && typeof enqueueData === "object"
+      ? (enqueueData as Record<string, unknown>)
+      : {};
+  if (enqueueResult.duplicate === true) return { duplicate: true };
+  return {
+    queued: true,
+    supersededJobId: clean(enqueueResult.superseded_job_id) || null,
+  };
 }

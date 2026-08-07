@@ -93,6 +93,7 @@ role request/memory/JD 본문과 큰 회사 정보는 기본으로 넣지 않는
 | `read_role` | 특정 role의 선택 block 읽기 | 없음 |
 | `get_more_data` | workspace optional data 읽기 | 없음 |
 | `update_data` | 회사·role 정보를 단일 atomic batch로 변경/확인 | 있음 |
+| `change_role_status` | Role의 진행·중단·종료 lifecycle 변경 | 있음 |
 
 후보 연결·거절·stage 이동 tool은 현재 LLM에 노출되지 않는다.
 
@@ -195,6 +196,9 @@ kind의 lease와 selector만 갱신한다.
 
 ## `update_data`
 
+Role lifecycle 상태는 이 tool로 변경하지 않는다. 상태 변경은 아래
+`change_role_status`만 사용한다.
+
 두 mode 중 정확히 하나를 사용한다.
 
 ### 1. changes mode
@@ -246,7 +250,7 @@ flat key는 다음 범주다.
 - 회사/workspace: 이름, 설명, pitch, legacy workspace request, logo/homepage/career/
   LinkedIn URL, 위치, 설립 연도, 직원 수, 분야·투자사·링크·투자 정보
 - memory: `workspace_memory`
-- role: 이름, 설명, 외부 JD, 위치, 상태, 근무 방식, 고용 형태
+- role: 이름, 설명, 외부 JD, 위치, 근무 방식, 고용 형태
 - role 기준/기억: `role_request`, `role_memory`
 
 논리 key가 실제 어느 table에 있는지는 LLM에 노출하지 않는다. mirror field는 RPC가
@@ -291,6 +295,21 @@ proposal로 간다.
 `source=website` event를 기록한다. event는 현재 저장만 하며 LLM context에서 읽지
 않는다.
 
+## `change_role_status`
+
+정확한 internal Role 하나의 lifecycle을 바꾸는 단독·terminal tool이다. 사용자가
+명시적으로 상태 변경을 요청한 경우에만 호출한다.
+
+| status | 사용자 표현 | 의미 |
+| --- | --- | --- |
+| `active` | 진행 | 채용을 진행하며 Harper가 주기적으로 적합한 인재를 연결한다. |
+| `paused` | 중단 | Role은 열어두되 추가 후보 추천만 중단한다. 이미 진행 중인 후보자와 연결은 유지한다. |
+| `ended` | 종료 | Role 채용과 추가 추천을 종료한다. 현재 프로세스의 후보자에게 종료 소식을 자연스럽게 안내하고 연결을 닫는다. |
+
+argument는 exact `roleId`와 `status` 두 개다. `paused`를 기존 후보 프로세스까지
+끝내는 의미로 사용하거나, 단순히 새 추천만 잠시 멈추려는 요청에 `ended`를 사용하면
+안 된다. 상태 변경은 기존 atomic company-data RPC와 event 기록 경로를 공유한다.
+
 ## 동시성·부분 데이터 안전
 
 - long text rewrite 전에 complete current value를 읽어야 한다.
@@ -304,10 +323,16 @@ proposal로 간다.
 
 ## Model과 실행 한도
 
-- 웹 기본 model: `gpt-5.6-luna`
-- Slack 기본 model: `gpt-5.6-luna`; 허용된 `SLACK_ORG_AGENT_MODEL`로 변경 가능
-- 허용 model: `claude-sonnet-5`, `grok-4.3`, `gpt-5.6-luna`
-- Luna는 Responses API에서 `reasoning.effort=high`로 호출
+- 웹·Slack 기본 model: `deepseek-v4-flash` (`reasoning_effort=high`)
+- 공통 서버 기본값: `ORG_AGENT_MODEL`
+- Slack 전용 override: `SLACK_ORG_AGENT_MODEL` (`ORG_AGENT_MODEL`보다 우선)
+- 웹 내부 model selector는 요청마다 model을 지정하며 공통 기본값보다 우선한다.
+- 허용 model: `deepseek-v4-flash`, `deepseek-v4-pro`, `gpt-5.6-luna`,
+  `gpt-5.6-terra`, `claude-sonnet-5`, `grok-4.3`
+- DeepSeek V4는 DeepSeek Chat Completions endpoint와 `DEEPSEEK_API_KEY`를 사용한다.
+  thinking mode에서 tool call이 발생하면 `reasoning_content`를 다음 tool turn에
+  그대로 전달한다.
+- Luna와 Terra는 Responses API에서 `reasoning.effort=high`로 호출한다.
 - tool loop 최대 4회, 실제 tool call 최대 5개
 - 누적 tool result 최대 48,000자
 - 일반 completion 최대 4,000 tokens

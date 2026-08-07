@@ -26,6 +26,8 @@ import {
   filterUnclaimedSlackChannels,
   shouldRevokeSlackBotToken,
 } from "@/lib/org/slackWorkspaceRouting";
+import type { HarperSlackBlock } from "@/lib/org/slackChoiceButtons";
+import { buildHarperSlackWelcomeMessage } from "@/lib/org/slackWelcome";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { createSlackApiRequest } from "./slackApiRequest";
 
@@ -245,7 +247,7 @@ async function assertAccess(user: User, workspaceId: string, manage = false) {
   const { data: membership, error: membershipError } = await (
     admin.from("company_user_workspace" as any) as any
   )
-    .select("role")
+    .select("authority")
     .eq("company_user_id", user.id)
     .eq("company_workspace_id", workspaceId)
     .maybeSingle();
@@ -253,7 +255,7 @@ async function assertAccess(user: User, workspaceId: string, manage = false) {
   if (!membership) throw new HarperSlackError(403, "접근 권한이 없습니다.");
   if (
     manage &&
-    !getOrgPermissions(normalizeOrgMembershipRole(membership.role))
+    !getOrgPermissions(normalizeOrgMembershipRole(membership.authority))
       .canManageIntegrations
   )
     throw new HarperSlackError(403, "Slack 설정을 변경할 권한이 없습니다.");
@@ -497,7 +499,7 @@ export async function addHarperSlackChannel(args: {
       company_workspace_id: args.workspaceId,
       is_enabled: true,
       is_private: isPrivate,
-      reply_to_harper_threads: false,
+      reply_to_harper_threads: true,
       slack_channel_id: args.channelId,
       slack_channel_name: text(channel.name) || null,
       slack_team_id: row.slack_team_id,
@@ -512,6 +514,20 @@ export async function addHarperSlackChannel(args: {
     );
   }
   if (error) throw error;
+
+  await postHarperSlackMessage({
+    channelId: args.channelId,
+    text: buildHarperSlackWelcomeMessage({
+      botUserId: row.slack_bot_user_id,
+      publicSiteUrl:
+        text(process.env.NEXT_PUBLIC_SITE_URL) ||
+        text(process.env.NEXT_PUBLIC_APP_URL) ||
+        text(process.env.APP_BASE_URL),
+      workspaceId: args.workspaceId,
+    }),
+    token,
+  });
+
   return { ok: true as const };
 }
 
@@ -557,6 +573,7 @@ export async function removeHarperSlackChannel(args: {
 }
 
 export async function postHarperSlackMessage(args: {
+  blocks?: HarperSlackBlock[];
   channelId: string;
   clientMessageId?: string;
   text: string;
@@ -564,10 +581,45 @@ export async function postHarperSlackMessage(args: {
   token: string;
 }) {
   return slackApi<SlackApiResult>(args.token, "chat.postMessage", {
+    ...(args.blocks ? { blocks: JSON.stringify(args.blocks) } : {}),
     channel: args.channelId,
     ...(args.clientMessageId ? { client_msg_id: args.clientMessageId } : {}),
     text: args.text,
     ...(args.threadTs ? { thread_ts: args.threadTs } : {}),
+  });
+}
+
+export async function updateHarperSlackMessage(args: {
+  blocks: HarperSlackBlock[];
+  channelId: string;
+  messageTs: string;
+  text: string;
+  workspaceId: string;
+}) {
+  const row = await installation(text(args.workspaceId));
+  if (!row) throw new HarperSlackError(404, "연결된 Slack이 없습니다.");
+  return slackApi<SlackApiResult>(
+    decryptHarperSlackToken(row.bot_token_ciphertext),
+    "chat.update",
+    {
+      blocks: JSON.stringify(args.blocks),
+      channel: args.channelId,
+      text: args.text,
+      ts: args.messageTs,
+    }
+  );
+}
+
+export async function setHarperSlackThreadStatus(args: {
+  channelId: string;
+  status: string;
+  threadTs: string;
+  token: string;
+}) {
+  return slackApi<SlackApiResult>(args.token, "assistant.threads.setStatus", {
+    channel_id: args.channelId,
+    status: args.status,
+    thread_ts: args.threadTs,
   });
 }
 

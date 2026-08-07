@@ -6,16 +6,10 @@ import {
   formatDailyUserStatsSlackMessages,
   resolveDailyUserStatsDate,
 } from "@/lib/dailyUserStats";
-import {
-  buildAutoRoleAcceptedNotificationGroups,
-  formatAutoRoleAcceptedNotificationSlackMessage,
-} from "@/lib/ops/autoRoleAcceptedNotifications";
-import { getPublicSiteUrlFromRequest } from "@/lib/siteUrl";
 
 export const runtime = "nodejs";
 
 const SLACK_DAILY_USER_STATS_CHANNEL_ID = "C0B2TFPUS6P";
-const SLACK_COMPANY_NOTIFICATION_CHANNEL_ID = "C0AKK93FMH8";
 const SLACK_DEV_CHANNEL_ID = "C0AB43Q9U58";
 
 function getConfiguredCronSecrets() {
@@ -106,23 +100,13 @@ async function handleDailyUserStats(req: NextRequest) {
   }
 
   const date = resolveDailyUserStatsDate(req.nextUrl.searchParams.get("date"));
-  const [{ previousReport, report }, companyNotificationGroups] =
-    await Promise.all([
-      buildDailyUserStatsReportComparison(date),
-      buildAutoRoleAcceptedNotificationGroups(),
-    ]);
+  const { previousReport, report } =
+    await buildDailyUserStatsReportComparison(date);
   const message = formatDailyUserStatsSlackMessage(report, previousReport);
   const messages = formatDailyUserStatsSlackMessages(report, previousReport);
-  const companyNotificationMessage =
-    formatAutoRoleAcceptedNotificationSlackMessage(
-      companyNotificationGroups,
-      getPublicSiteUrlFromRequest(req)
-    );
 
   if (shouldDryRun(req)) {
     return NextResponse.json({
-      companyNotificationGroups,
-      companyNotificationMessage,
       dryRun: true,
       message,
       messages,
@@ -140,16 +124,8 @@ async function handleDailyUserStats(req: NextRequest) {
     text: messages.details,
     threadTs,
   });
-  if (companyNotificationMessage) {
-    await postSlackMessage({
-      channelId: SLACK_COMPANY_NOTIFICATION_CHANNEL_ID,
-      text: companyNotificationMessage,
-    });
-  }
 
   return NextResponse.json({
-    companyNotificationGroupCount: companyNotificationGroups.length,
-    companyNotificationSent: Boolean(companyNotificationMessage),
     date: report.date,
     ok: true,
     sent: true,

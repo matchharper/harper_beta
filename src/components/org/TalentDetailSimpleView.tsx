@@ -13,6 +13,7 @@ import {
   type ProgressFeedItem,
 } from "@/components/progress-feed/ProgressFeed";
 import { ConnectionConfirmationEmailFeedCard } from "@/components/progress-feed/ConnectionConfirmationEmailFeedCard";
+import { CompanyTalentRequestFeedCard } from "@/components/progress-feed/CompanyTalentRequestFeedCard";
 import { OrgIntroEmailFeedCard } from "@/components/progress-feed/OrgIntroEmailFeedCard";
 import { BareButton, Button, MuteButton } from "@/components/ui/button";
 import {
@@ -38,6 +39,7 @@ import {
 } from "@/components/profile/TalentExperienceSection";
 import { useOpsCareerDetail } from "@/hooks/ops/useOpsCareer";
 import {
+  useCancelOrgCompanyTalentRequest,
   useCreateOrgFeedItem,
   useDeleteOrgFeedItem,
   useOpenOrgResume,
@@ -58,6 +60,7 @@ import { isInternalDomainEmail } from "@/lib/internalAccess";
 import type { OrgInternalTalentSystemResponse } from "@/lib/org/internalTalentTypes";
 import type { OrgTalentDetailResponse } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
+import Face from "../common/Face";
 
 type ResourceLinkKind =
   | "github"
@@ -427,18 +430,18 @@ function ProfilePane({
   );
 
   return (
-    <div className="min-w-0 space-y-5">
+    <div className="min-w-0 space-y-7">
       <div className="flex min-w-0 items-start gap-3">
         <TalentAvatar name={name} src={detail.talent.profilePicture} />
         <div className="min-w-0 flex-1">
           <div className="text-[16px] font-medium text-neutral-primary">
             {name}
           </div>
-          <div className="mt-1 truncate text-[13px] text-neutral-muted">
+          <div className="mt-0 truncate text-[13px] text-neutral-muted">
             {detail.talent.email ?? "-"}
           </div>
           {detail.talent.headline ? (
-            <div className="mt-2 text-[13px] leading-6 text-neutral-primary">
+            <div className="mt-1 text-[13px] leading-6 text-neutral-primary">
               {detail.talent.headline}
             </div>
           ) : null}
@@ -456,28 +459,34 @@ function ProfilePane({
         onRejectClick={onRejectClick}
       />
 
-      <ProfileSection title="추천 이유">
-        {detail.recommendation.fitSummary ||
-        detail.recommendation.fitReasons.length > 0 ? (
-          <div className="space-y-2">
-            {detail.recommendation.fitSummary ? (
-              <div className="border-l-2 border-primary px-3 text-[13px] leading-6 text-neutral-primary">
-                {detail.recommendation.fitSummary}
-              </div>
-            ) : null}
-            {detail.recommendation.fitReasons.length > 0 ? (
-              <ul className="space-y-1.5 text-[13px] leading-6 text-neutral-muted">
-                {detail.recommendation.fitReasons.map((reason) => (
-                  <li key={reason} className="ml-4 list-disc">
-                    {reason}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        ) : (
-          <div className="text-[13px] text-neutral-soft">-</div>
-        )}
+      <ProfileSection title="">
+        <div className="pt-2 flex items-center gap-2 text-[15px] text-neutral-900">
+          <Face size={24} />
+          Harper의 추천 이유
+        </div>
+        <div className="mt-4 mb-10">
+          {detail.recommendation.fitSummary ||
+          detail.recommendation.fitReasons.length > 0 ? (
+            <div className="space-y-2">
+              {detail.recommendation.fitSummary ? (
+                <div className="border-l-2 border-primary px-3 text-[13px] leading-6 text-neutral-primary">
+                  {detail.recommendation.fitSummary}
+                </div>
+              ) : null}
+              {detail.recommendation.fitReasons.length > 0 ? (
+                <ul className="space-y-1.5 text-[13px] leading-6 text-neutral-muted">
+                  {detail.recommendation.fitReasons.map((reason) => (
+                    <li key={reason} className="ml-4 list-disc">
+                      {reason}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : (
+            <div className="text-[13px] text-neutral-soft">-</div>
+          )}
+        </div>
       </ProfileSection>
 
       <ProfileSection title="등록 자료">
@@ -727,11 +736,15 @@ function FeedPane({
   const createFeed = useCreateOrgFeedItem();
   const updateFeed = useUpdateOrgFeedItem();
   const deleteFeed = useDeleteOrgFeedItem();
+  const cancelCompanyRequest = useCancelOrgCompanyTalentRequest();
   const updateConnectionEmail = useUpdateOrgConnectionConfirmationEmail();
   const trimmedDraft = draft.trim();
   const refetchDetail = detailQuery.refetch;
   const pendingConnectionQueueId =
     updateConnectionEmail.variables?.queueId ?? null;
+  const pendingCompanyRequestId =
+    cancelCompanyRequest.variables?.requestId ?? null;
+  const cancelCompanyRequestMutate = cancelCompanyRequest.mutate;
 
   useEffect(() => {
     if (!pollingQueueId) return;
@@ -825,13 +838,30 @@ function FeedPane({
             text: "",
           };
         }),
-        ...detail.companyRequestHistory.map((item, index) => ({
-          createdAt: item.at,
-          id: `company-request:${item.at}:${index}`,
-          text: [item.roleName, item.label, item.status]
-            .filter(Boolean)
-            .join(" · "),
-          title: "Harper 확인 요청",
+        ...detail.companyRequestHistory.map((item) => ({
+          createdAt: item.sentAt ?? item.cancelledAt ?? item.createdAt,
+          customContent: (
+            <CompanyTalentRequestFeedCard
+              item={item}
+              onCancel={
+                canManageCandidates && item.canCancel
+                  ? () =>
+                      cancelCompanyRequestMutate({
+                        requestId: item.id,
+                        roleId: item.roleId,
+                        talentId: talentId ?? detail.talent.userId,
+                        workspaceId,
+                      })
+                  : undefined
+              }
+              pending={
+                cancelCompanyRequest.isPending &&
+                pendingCompanyRequestId === item.id
+              }
+            />
+          ),
+          id: `company-request:${item.id}`,
+          text: "",
         })),
         ...(internalOpsAccess
           ? detail.introEmails.map((item) => ({
@@ -859,13 +889,17 @@ function FeedPane({
       }),
     [
       canManageCandidates,
+      cancelCompanyRequest.isPending,
+      cancelCompanyRequestMutate,
       currentUserId,
       detail,
       internalOpsAccess,
+      pendingCompanyRequestId,
       pendingConnectionAction,
       pendingConnectionQueueId,
       updateConnectionEmail.isPending,
       updateConnectionEmailMutate,
+      talentId,
       workspaceId,
     ]
   );
@@ -943,6 +977,13 @@ function FeedPane({
           {updateConnectionEmail.error instanceof Error
             ? updateConnectionEmail.error.message
             : "메일 상태를 변경하지 못했습니다."}
+        </div>
+      ) : null}
+      {cancelCompanyRequest.error ? (
+        <div className={opsTheme.errorNotice}>
+          {cancelCompanyRequest.error instanceof Error
+            ? cancelCompanyRequest.error.message
+            : "후보자 문의를 취소하지 못했습니다."}
         </div>
       ) : null}
     </div>

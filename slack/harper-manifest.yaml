@@ -9,7 +9,7 @@ display_information:
 features:
   bot_user:
     display_name: Harper
-    always_online: false
+    always_online: true
 
 oauth_config:
   redirect_urls:
@@ -33,6 +33,9 @@ settings:
       - app_uninstalled
       - message.channels
       - message.groups
+  interactivity:
+    is_enabled: true
+    request_url: https://matchharper.com/api/internal/slack/interactivity
   incoming_webhooks:
     incoming_webhooks_enabled: false
   org_deploy_enabled: false

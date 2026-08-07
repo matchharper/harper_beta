@@ -19,6 +19,7 @@ import {
   isTalentAuthDestination,
   resolveAuthCallbackDestination,
   resolveAuthCallbackErrorDestination,
+  resolveCompanyBootstrapDestination,
 } from "@/lib/authPersona";
 import {
   parseLegalAcceptanceQuery,
@@ -327,7 +328,12 @@ export default function AuthCallback() {
         return;
       }
       if (bootstrapJson?.persona === "talent") {
-        router.replace("/career");
+        router.replace(
+          resolveCompanyBootstrapDestination({
+            nextPath,
+            persona: bootstrapJson.persona,
+          })
+        );
         return;
       }
       if (bootstrapJson?.created === true) {

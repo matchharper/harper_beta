@@ -176,8 +176,11 @@ rewrite가 필요할 때 최대 32,000 tokens, tool-free final에서는 최대 2
 
 ## Write 안전성과 context의 연결
 
-write tool은 `update_data` 하나다. 최대 12개 변경을 하나의 batch로 받고
-`append`, `replace`, `rewrite`를 지원한다.
+일반 정보 write tool은 `update_data`다. 최대 12개 변경을 하나의 batch로 받고
+`append`, `replace`, `rewrite`를 지원한다. Role lifecycle은 별도 terminal tool
+`change_role_status`가 `active`(진행), `paused`(중단), `ended`(종료)만 받는다.
+중단은 기존 프로세스를 유지한 채 새 추천만 멈추고, 종료는 기존 후보 프로세스와
+연결까지 닫으며 후보자 측에는 역할 종료로 자연스럽게 안내된다.
 
 - append: text/list를 추가한다. `role_request`는 hard/preferred section을 지정한다.
 - replace: 현재 값에 정확히 한 번 존재하는 `oldValue`만 교체한다.

@@ -84,8 +84,10 @@ function toThinkingLog(value: unknown): OrgAgentThinkingLog | null {
 function sanitizeVisibleAgentError(value: unknown) {
   return String(value ?? "")
     .replace(/claude-sonnet-5(?:-[\w.-]+)?/gi, "선택한 모델")
+    .replace(/deepseek-v4-(?:flash|pro)(?:-[\w.-]+)?/gi, "선택한 모델")
     .replace(/grok-4\.3(?:-[\w.-]+)?/gi, "선택한 모델")
     .replace(/gpt-5\.6-luna(?:-[\w.-]+)?/gi, "선택한 모델")
+    .replace(/gpt-5\.6-terra(?:-[\w.-]+)?/gi, "선택한 모델")
     .trim();
 }
 

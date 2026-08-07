@@ -53,7 +53,8 @@ import {
   useCancelOrgInvitation,
   useRemoveOrgMember,
   useSendOrgInvitations,
-  useUpdateOrgMembershipRole,
+  useUpdateOrgMemberProfile,
+  useUpdateOrgMembershipAuthority,
   useUpdateOrgWorkspace,
 } from "@/hooks/org/useOrg";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
@@ -397,12 +398,18 @@ export function OrgTeamPage() {
   const sendInvitations = useSendOrgInvitations();
   const cancelInvitation = useCancelOrgInvitation();
   const removeMember = useRemoveOrgMember();
-  const updateMembershipRole = useUpdateOrgMembershipRole();
+  const updateMemberProfile = useUpdateOrgMemberProfile();
+  const updateMembershipAuthority = useUpdateOrgMembershipAuthority();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [companyEditOpen, setCompanyEditOpen] = useState(false);
   const [invitationToCancel, setInvitationToCancel] =
     useState<OrgWorkspaceInvitation | null>(null);
   const [memberToRemove, setMemberToRemove] = useState<OrgMember | null>(null);
+  const [memberRoleToEdit, setMemberRoleToEdit] = useState<OrgMember | null>(
+    null
+  );
+  const [memberRoleDraft, setMemberRoleDraft] = useState("");
+  const [memberRoleError, setMemberRoleError] = useState<string | null>(null);
   const companyProfile = workspace.companyProfile;
   const resolvedCompanyDescription =
     workspace.companyDescription ??
@@ -509,19 +516,19 @@ export function OrgTeamPage() {
     }
   };
 
-  const changeMemberRole = async (
+  const changeMemberAuthority = async (
     member: OrgMember,
-    role: OrgMembershipRole
+    authority: OrgMembershipRole
   ) => {
-    if (member.role === role) return;
+    if (member.authority === authority) return;
     try {
-      await updateMembershipRole.mutateAsync({
-        role,
+      await updateMembershipAuthority.mutateAsync({
+        authority,
         userId: member.userId,
         workspaceId: workspace.workspaceId,
       });
       addToast({
-        message: `${member.name || member.email || "멤버"}의 권한을 ${getOrgRoleLabel(role)}로 변경했습니다.`,
+        message: `${member.name || member.email || "멤버"}의 권한을 ${getOrgRoleLabel(authority)}로 변경했습니다.`,
         variant: "success",
       });
     } catch (roleError) {
@@ -532,6 +539,38 @@ export function OrgTeamPage() {
             : "권한을 변경하지 못했습니다.",
         variant: "error",
       });
+    }
+  };
+
+  const openMemberRoleEdit = (member: OrgMember) => {
+    setMemberRoleToEdit(member);
+    setMemberRoleDraft(member.role ?? "");
+    setMemberRoleError(null);
+  };
+
+  const saveMemberRole = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!memberRoleToEdit || updateMemberProfile.isPending) return;
+    const role = memberRoleDraft.trim();
+    if (!role) {
+      setMemberRoleError("직함을 입력해 주세요.");
+      return;
+    }
+
+    try {
+      await updateMemberProfile.mutateAsync({
+        role,
+        userId: memberRoleToEdit.userId,
+        workspaceId: workspace.workspaceId,
+      });
+      addToast({ message: "멤버 직함을 저장했습니다.", variant: "success" });
+      setMemberRoleToEdit(null);
+    } catch (roleError) {
+      setMemberRoleError(
+        roleError instanceof Error
+          ? roleError.message
+          : "직함을 저장하지 못했습니다."
+      );
     }
   };
 
@@ -575,7 +614,6 @@ export function OrgTeamPage() {
       <OrgPageHeader
         title={
           <span className="flex min-w-0 items-center gap-2">
-            <span className="shrink-0">Company:</span>
             <CompanyBrandMark
               logoUrl={workspace.logoUrl}
               name={workspace.companyName}
@@ -599,7 +637,7 @@ export function OrgTeamPage() {
               </MuteButton>
             ) : null
           }
-          description="Harper가 후보자에게 회사를 설명하고 적절한 인재를 연결할 때 사용합니다."
+          description="Harper가 인재에게 회사를 설명하고 설득하기위해 사용합니다."
           title="회사 정보"
         />
 
@@ -730,12 +768,13 @@ export function OrgTeamPage() {
               </span>
             </div>
             <div className="overflow-x-auto rounded-sm border border-neutral-1000-a05 bg-bg-floating">
-              <table className="w-full min-w-[720px] border-collapse text-left">
+              <table className="w-full min-w-[860px] border-collapse text-left">
                 <thead className="bg-neutral-200/35">
                   <tr className="border-b border-neutral-1000-a05 text-[12px] font-light text-neutral-soft">
                     <th className="px-4 py-2.5 font-normal">이메일</th>
                     <th className="px-3 py-2.5 font-normal">이름</th>
-                    <th className="w-36 px-3 py-2.5 font-normal">역할</th>
+                    <th className="w-44 px-3 py-2.5 font-normal">직함</th>
+                    <th className="w-36 px-3 py-2.5 font-normal">권한</th>
                     <th className="w-40 px-3 py-2.5 font-normal">가입 날짜</th>
                     {permissions.canManageMembers ? (
                       <th className="w-12 px-2 py-2.5 font-normal">
@@ -769,23 +808,28 @@ export function OrgTeamPage() {
                         </div>
                       </td>
                       <td className="px-3 py-3">
+                        <span className="block max-w-40 truncate text-[12px] font-normal text-neutral-muted">
+                          {member.role || "-"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3">
                         {permissions.canManageMembers ? (
                           <Select
                             disabled={
-                              updateMembershipRole.isPending &&
-                              updateMembershipRole.variables?.userId ===
+                              updateMembershipAuthority.isPending &&
+                              updateMembershipAuthority.variables?.userId ===
                                 member.userId
                             }
                             onValueChange={(value) =>
-                              void changeMemberRole(
+                              void changeMemberAuthority(
                                 member,
                                 value as OrgMembershipRole
                               )
                             }
-                            value={member.role}
+                            value={member.authority}
                           >
                             <SelectTrigger
-                              aria-label={`${member.name || member.email || "멤버"} 역할`}
+                              aria-label={`${member.name || member.email || "멤버"} 권한`}
                               className="h-9 w-[112px] text-[12px]"
                               size="sm"
                             >
@@ -804,7 +848,7 @@ export function OrgTeamPage() {
                           </Select>
                         ) : (
                           <span className="text-[12px] font-normal text-neutral-muted">
-                            {getOrgRoleLabel(member.role)}
+                            {getOrgRoleLabel(member.authority)}
                           </span>
                         )}
                       </td>
@@ -824,6 +868,13 @@ export function OrgTeamPage() {
                               </MuteButton>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-40">
+                              <DropdownMenuItem
+                                disabled={updateMemberProfile.isPending}
+                                onSelect={() => openMemberRoleEdit(member)}
+                              >
+                                <Pencil />
+                                직함 수정
+                              </DropdownMenuItem>
                               <DropdownMenuItem
                                 disabled={removeMember.isPending}
                                 onSelect={() => setMemberToRemove(member)}
@@ -855,6 +906,9 @@ export function OrgTeamPage() {
                             수락 대기
                           </Badge>
                         </div>
+                      </td>
+                      <td className="px-3 py-3 text-[12px] font-normal text-neutral-muted">
+                        -
                       </td>
                       <td className="px-3 py-3 text-[12px] font-normal text-neutral-muted">
                         {getOrgRoleLabel(invitation.role)}
@@ -923,6 +977,72 @@ export function OrgTeamPage() {
         open={inviteOpen}
         workspace={workspace}
       />
+
+      <Dialog
+        open={Boolean(memberRoleToEdit)}
+        onOpenChange={(open) => {
+          if (!open && !updateMemberProfile.isPending) {
+            setMemberRoleToEdit(null);
+            setMemberRoleError(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm gap-5 rounded-lg p-6">
+          <DialogHeader>
+            <DialogTitle className="text-[17px]">직함 수정</DialogTitle>
+            <DialogDescription className="text-[13px] leading-5">
+              {memberRoleToEdit?.name ||
+                memberRoleToEdit?.email ||
+                "선택한 멤버"}
+              의 팀 내 직함을 입력해 주세요.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(event) => void saveMemberRole(event)}
+          >
+            <TextField
+              autoFocus
+              id="org-member-role-edit"
+              label="직함"
+              maxLength={160}
+              onChange={(event) => {
+                setMemberRoleDraft(event.target.value);
+                setMemberRoleError(null);
+              }}
+              placeholder="예: 채용 매니저, VP of Engineering"
+              required
+              value={memberRoleDraft}
+            />
+            {memberRoleError ? (
+              <p className="text-[12px] leading-5 text-critical" role="alert">
+                {memberRoleError}
+              </p>
+            ) : null}
+            <DialogFooter>
+              <MuteButton
+                disabled={updateMemberProfile.isPending}
+                onClick={() => setMemberRoleToEdit(null)}
+                size="md"
+                type="button"
+              >
+                취소
+              </MuteButton>
+              <MuteButton
+                disabled={updateMemberProfile.isPending}
+                size="md"
+                type="submit"
+                variant="primary"
+              >
+                {updateMemberProfile.isPending ? (
+                  <LoaderCircle className="size-4 animate-spin" />
+                ) : null}
+                저장
+              </MuteButton>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={Boolean(invitationToCancel)}

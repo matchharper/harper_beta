@@ -20,10 +20,22 @@ import {
 } from "react";
 import { Button, IconButton } from "@/components/ui/button";
 import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   DEFAULT_ORG_AGENT_MODEL,
   ORG_AGENT_CLAUDE_MODEL,
+  ORG_AGENT_DEEPSEEK_FLASH_MODEL,
+  ORG_AGENT_DEEPSEEK_PRO_MODEL,
   ORG_AGENT_GROK_MODEL,
   ORG_AGENT_LUNA_MODEL,
+  ORG_AGENT_TERRA_MODEL,
+  isOrgAgentModelId,
   type OrgAgentModelId,
 } from "@/lib/org/agent/modelConfig";
 import type {
@@ -354,31 +366,44 @@ function ModelSelector({
   onChange: (model: OrgAgentModelId) => void;
   visible: boolean;
 }) {
-  const options: Array<{ id: OrgAgentModelId; label: string }> = [
-    { id: ORG_AGENT_CLAUDE_MODEL, label: "Claude" },
-    { id: ORG_AGENT_GROK_MODEL, label: "Grok" },
-    { id: ORG_AGENT_LUNA_MODEL, label: "Luna · GPT-5.6" },
+  const options: Array<{ label: string; value: OrgAgentModelId }> = [
+    {
+      label: "DeepSeek V4 Flash · high",
+      value: ORG_AGENT_DEEPSEEK_FLASH_MODEL,
+    },
+    { label: "DeepSeek V4 Pro · high", value: ORG_AGENT_DEEPSEEK_PRO_MODEL },
+    { label: "Luna · GPT-5.6", value: ORG_AGENT_LUNA_MODEL },
+    { label: "Terra · GPT-5.6", value: ORG_AGENT_TERRA_MODEL },
+    { label: "Claude Sonnet 5", value: ORG_AGENT_CLAUDE_MODEL },
+    { label: "Grok 4.3", value: ORG_AGENT_GROK_MODEL },
   ];
 
   if (!visible) return null;
   return (
-    <div className="flex items-center rounded-md border border-neutral-1000-a05 bg-bg-default p-0.5">
-      {options.map((item) => (
-        <button
-          key={item.id}
-          type="button"
-          className={cn(
-            "rounded px-2 py-1 text-[11px] transition",
-            model === item.id
-              ? "bg-neutral-1000 text-neutral-00"
-              : "text-neutral-muted hover:bg-bg-weak hover:text-neutral-primary"
-          )}
-          onClick={() => onChange(item.id)}
-        >
-          {item.label}
-        </button>
-      ))}
-    </div>
+    <Select
+      items={options}
+      value={model}
+      onValueChange={(value) => {
+        if (isOrgAgentModelId(value)) onChange(value);
+      }}
+    >
+      <SelectTrigger
+        aria-label="company-side LLM 모델"
+        className="w-56 text-xs"
+        size="sm"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent align="start" alignItemWithTrigger={false}>
+        <SelectGroup>
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -639,7 +664,15 @@ export function OrgAgentPanel() {
 
   const handleModelChange = (nextModel: OrgAgentModelId) => {
     setModel(nextModel);
+    window.localStorage.setItem("harper:org-agent:model", nextModel);
   };
+
+  useEffect(() => {
+    const savedModel = window.localStorage.getItem("harper:org-agent:model");
+    if (!isOrgAgentModelId(savedModel)) return;
+    const frame = window.requestAnimationFrame(() => setModel(savedModel));
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   useEffect(() => {
     if (!open) return;

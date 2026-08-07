@@ -26,6 +26,7 @@ import {
   mergeOrgAgentMessageMetadata,
   resolveAdoptableSlackUserMessageIdentity,
 } from "@/lib/org/agent/messageIdempotency";
+import { createOrgAgentConversationHistoryCursor } from "@/lib/org/agent/conversationHistory";
 
 export {
   isOrgAgentRetainedDataActivationActive,
@@ -70,6 +71,23 @@ export type OrgAgentMessageRow = {
 export type OrgAgentPromptMessageScope =
   | { kind: "chat" }
   | { kind: "slack"; slackThreadId: string };
+
+export type OrgAgentPromptMessageView = {
+  content: string;
+  createdAt: string;
+  id: number;
+  metadata: OrgAgentMessageMetadata;
+  mentions: OrgAgentMention[];
+  role: OrgAgentMessageRole;
+  slackThreadId: string | null;
+  slackUserId: string | null;
+};
+
+export type OrgAgentPromptMessagePage = {
+  hasMore: boolean;
+  messages: OrgAgentPromptMessageView[];
+  nextCursor: string | null;
+};
 
 export type OrgAgentStoredRole = OrgRole & {
   hasMemory: boolean;
@@ -465,13 +483,39 @@ export async function insertOrgAgentMessage(args: {
   return toOrgAgentMessage(row);
 }
 
+function toPromptMessageView(row: {
+  content: string;
+  created_at: string;
+  id: number;
+  metadata: Json;
+  mentions: Json;
+  role: OrgAgentMessageRole;
+  slack_thread_id: string | null;
+  slack_user_id: string | null;
+}): OrgAgentPromptMessageView {
+  return {
+    content: row.content ?? "",
+    createdAt: row.created_at,
+    id: Number(row.id),
+    metadata: isRecord(row.metadata)
+      ? (row.metadata as OrgAgentMessageMetadata)
+      : {},
+    mentions: safeMentions(row.mentions),
+    role: row.role,
+    slackThreadId: normalizeText(row.slack_thread_id) || null,
+    slackUserId: normalizeText(row.slack_user_id) || null,
+  };
+}
+
 export async function fetchRecentOrgAgentPromptMessages(args: {
   admin: SupabaseAdminClient;
   beforeMessageId?: number | null;
   conversationId: string;
   limit?: number;
   scope?: OrgAgentPromptMessageScope;
-}) {
+}): Promise<OrgAgentPromptMessagePage> {
+  const scope = args.scope ?? { kind: "chat" };
+  const limit = args.limit ?? 16;
   let query = (args.admin.from("company_messages" as any) as any)
     .select(
       "id, role, content, created_at, mentions, metadata, message_type, slack_thread_id, slack_user_id"
@@ -479,38 +523,40 @@ export async function fetchRecentOrgAgentPromptMessages(args: {
     .eq("conversation_id", args.conversationId)
     .order("id", { ascending: false });
 
-  query = applyPromptMessageScope(query, args.scope ?? { kind: "chat" });
+  query = applyPromptMessageScope(query, scope);
 
   if (args.beforeMessageId) {
     query = query.lt("id", args.beforeMessageId);
   }
 
-  const { data, error } = await query.limit(args.limit ?? 16);
+  const { data, error } = await query.limit(limit + 1);
 
   if (error) throw error;
-  return (
-    (data ?? []) as Array<{
-      content: string;
-      created_at: string;
-      id: number;
-      metadata: Json;
-      mentions: Json;
-      role: OrgAgentMessageRole;
-      slack_user_id: string | null;
-    }>
-  )
-    .reverse()
-    .map((row) => ({
-      content: row.content ?? "",
-      createdAt: row.created_at,
-      id: Number(row.id),
-      metadata: isRecord(row.metadata)
-        ? (row.metadata as OrgAgentMessageMetadata)
-        : {},
-      mentions: safeMentions(row.mentions),
-      role: row.role,
-      slackUserId: normalizeText(row.slack_user_id) || null,
-    }));
+  const rows = (data ?? []) as Array<{
+    content: string;
+    created_at: string;
+    id: number;
+    metadata: Json;
+    mentions: Json;
+    role: OrgAgentMessageRole;
+    slack_thread_id: string | null;
+    slack_user_id: string | null;
+  }>;
+  const selected = rows.slice(0, limit);
+  const oldest = selected.at(-1);
+  const hasMore = rows.length > limit;
+  return {
+    hasMore,
+    messages: selected.reverse().map(toPromptMessageView),
+    nextCursor:
+      hasMore && oldest && scope.kind === "slack"
+        ? createOrgAgentConversationHistoryCursor({
+            beforeId: Number(oldest.id),
+            scope: "current_thread",
+            slackThreadId: scope.slackThreadId,
+          })
+        : null,
+  };
 }
 
 export async function countStartedCompanyAgentTurns(args: {

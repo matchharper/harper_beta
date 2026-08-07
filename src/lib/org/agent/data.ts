@@ -6,6 +6,7 @@ import {
   type OrgRole,
 } from "@/lib/org/server";
 import { fetchRoleForOrgAgent } from "@/lib/org/agent/store";
+import { buildReadTalentResponseGuide } from "@/lib/org/agent/talentResponseGuide";
 import {
   getOrgAgentPipelineBucket,
   humanizeOrgEmploymentType,
@@ -20,6 +21,7 @@ import type {
   OrgAgentMoreDataKind,
   OrgAgentReadAudience,
 } from "@/lib/org/agent/types";
+import { formatOrgAgentKstDateTime } from "@/lib/org/agent/dateTime";
 import { hasOrgWorkspaceAccessBypass } from "@/lib/org/access";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { humanizeCompanyTalentRequestStatus } from "@/lib/companyTalentRequests/server";
@@ -917,16 +919,8 @@ function safePreferenceValue(value: unknown) {
 }
 
 function formatRequestTimestamp(value: unknown) {
-  const date = new Date(text(value));
-  if (!Number.isFinite(date.getTime())) return null;
-  return new Intl.DateTimeFormat("ko-KR", {
-    day: "numeric",
-    hour: "2-digit",
-    hour12: false,
-    minute: "2-digit",
-    month: "numeric",
-    timeZone: "Asia/Seoul",
-  }).format(date);
+  const formatted = formatOrgAgentKstDateTime(value, { includeYear: true });
+  return formatted ? `${formatted} KST` : null;
 }
 
 async function readCompanyTalentRequestProjection(args: {
@@ -938,7 +932,7 @@ async function readCompanyTalentRequestProjection(args: {
   const [historyResult, documentsResult] = await Promise.all([
     (args.admin.from("company_talent_requests" as any) as any)
       .select(
-        "id, role_id, expects_document, workflow_status, expires_at, created_at, deliveries:contact_queue(sent_at, status, type)"
+        "id, role_id, expects_document, request_context, workflow_status, expires_at, created_at, deliveries:contact_queue(scheduled_at, sent_at, cancelled_at, status, type)"
       )
       .eq("company_workspace_id", args.workspaceId)
       .eq("talent_id", args.talentId)
@@ -960,19 +954,42 @@ async function readCompanyTalentRequestProjection(args: {
     | { id: string; is_public: boolean }
     | undefined;
   return {
-    requestHistory: historyRows.map((row) => ({
-      at: formatRequestTimestamp(
-        (Array.isArray(row.deliveries)
-          ? row.deliveries.find(
-              (delivery) =>
-                text(delivery?.type) === "company_request_candidate_delivery"
-            )?.sent_at
-          : null) ?? row.created_at
-      ),
-      label: row.expects_document ? "이력서 요청" : "회사 질문 확인",
-      roleName: args.roleById.get(text(row.role_id))?.name ?? null,
-      status: humanizeCompanyTalentRequestStatus(row),
-    })),
+    requestHistory: historyRows.map((row) => {
+      const delivery = Array.isArray(row.deliveries)
+        ? row.deliveries.find(
+            (item) => text(item?.type) === "company_request_candidate_delivery"
+          )
+        : null;
+      const workflowStatus = text(row.workflow_status);
+      const expiresAt = Date.parse(text(row.expires_at));
+      const blocksNewRequest =
+        [
+          "queued",
+          "failed",
+          "awaiting_talent",
+          "relay_queued",
+          "review_required",
+        ].includes(workflowStatus) &&
+        (!Number.isFinite(expiresAt) || expiresAt > Date.now());
+      return {
+        at: formatRequestTimestamp(delivery?.sent_at ?? row.created_at),
+        blocksNewRequest,
+        cancelable:
+          ["queued", "failed"].includes(text(delivery?.status)) &&
+          ["queued", "failed"].includes(workflowStatus),
+        deliveryStatus: text(delivery?.status),
+        label: row.expects_document ? "이력서 요청" : "회사 질문 확인",
+        requestId: text(row.id),
+        roleId: text(row.role_id),
+        roleName: args.roleById.get(text(row.role_id))?.name ?? null,
+        scheduledAt: formatRequestTimestamp(delivery?.scheduled_at),
+        status: humanizeCompanyTalentRequestStatus({
+          ...row,
+          delivery_status: text(delivery?.status),
+        }),
+        topic: text(row.request_context),
+      };
+    }),
     resumeAvailability: primary
       ? primary.is_public
         ? {
@@ -1179,11 +1196,12 @@ export async function readOrgAgentTalent(args: {
     };
   }
 
+  const candidateName = talent.name ?? talent.email ?? talentId;
   return {
     candidate: {
       email: talent.email,
       headline: talent.headline,
-      name: talent.name ?? talent.email ?? talentId,
+      name: candidateName,
       talentId,
     },
     positions: recommendations.flatMap((row) => {
@@ -1209,6 +1227,10 @@ export async function readOrgAgentTalent(args: {
     }),
     profile,
     profileIncluded: Boolean(args.includeProfile),
+    responseGuide: buildReadTalentResponseGuide({
+      name: candidateName,
+      talentId,
+    }),
     harperSharedInformation,
     recentProgress: visibleProgress.map((row) => ({
       at: row.created_at,
@@ -1552,12 +1574,12 @@ async function fetchOrgAgentMembers(args: {
   const { data: membershipData, error: membershipError } = await (
     args.admin.from("company_user_workspace" as any) as any
   )
-    .select("company_user_id, role")
+    .select("company_user_id, authority")
     .eq("company_workspace_id", args.workspaceId);
   if (membershipError) throw membershipError;
   const memberships = (membershipData ?? []) as Array<{
+    authority: string;
     company_user_id: string;
-    role: string;
   }>;
   const userIds = unique(memberships.map((row) => row.company_user_id));
   const userById = new Map<
@@ -1590,8 +1612,8 @@ async function fetchOrgAgentMembers(args: {
             {
               email: user.email,
               name: user.name,
-              rawRole: membership.role,
-              role: humanizeOrgMembershipRole(membership.role),
+              rawRole: membership.authority,
+              role: humanizeOrgMembershipRole(membership.authority),
             },
           ]
         : [];

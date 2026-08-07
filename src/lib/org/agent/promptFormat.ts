@@ -314,14 +314,27 @@ function formatTalentResult(result: Record<string, any>) {
     formatPromptSection(
       "company_contact_history",
       formatPromptTable(
-        ["kst", "role", "request", "status"],
+        [
+          "request_id",
+          "created_or_sent_kst",
+          "scheduled_kst",
+          "role",
+          "request",
+          "topic",
+          "status",
+          "cancelable",
+        ],
         requestHistory.map((item: any) => [
+          item?.requestId,
           item?.at,
+          item?.scheduledAt,
           item?.roleName,
           item?.label,
+          item?.topic,
           item?.status,
+          item?.cancelable,
         ]),
-        [40, 160, 180, 160]
+        [100, 40, 40, 160, 180, 800, 160, 10]
       )
     ),
     "Harper에게 말해준 정보. 후보자가 Harper에게 공유한 직업 관련 정보이며, 없는 내용은 추정하지 마세요. 보상 정보는 이 목록에 포함되지 않습니다.",
@@ -592,6 +605,15 @@ function formatUpdateDataResult(result: Record<string, any>) {
   ].join("\n");
 }
 
+function formatRoleStatusChangeResult(result: Record<string, any>) {
+  return [
+    `status=${formatPromptCell(result.status, 60)}`,
+    `role=${formatPromptCell(result.roleName, 200)}`,
+    `lifecycle=${humanizeOrgRoleStatus(result.roleStatus)}`,
+    `effect=${formatPromptCell(result.effect, 500)}`,
+  ].join("\n");
+}
+
 function formatCandidateConnectionDecisionResult(result: Record<string, any>) {
   return [
     `status=${formatPromptCell(result.status, 40)}`,
@@ -610,14 +632,138 @@ function formatCandidateConnectionPreparationResult(
     `candidate=${formatPromptCell(result.candidateName, 160)}`,
     `candidate_email=${formatPromptCell(result.candidateEmail, 320)}`,
     `requester_email=${formatPromptCell(result.requesterEmail, 320)}`,
-    `next_step=${formatPromptCell(result.nextStep, 160)}`,
+    `decision=${formatPromptCell(result.decision, 30)}`,
+    `connection_method=${formatPromptCell(result.connectionMethod, 40)}`,
+    `intro_email_available=${Boolean(result.introEmailAvailable)}`,
+    `direct_contact_available=${Boolean(result.directContactAvailable)}`,
+    `intro_recipients=${formatPromptCell(
+      Array.isArray(result.introEmails) ? result.introEmails.join(", ") : null,
+      1_000
+    )}`,
+    `reason=${formatPromptCell(result.reason, 1_000)}`,
   ].join("\n");
 }
 
 function formatCompanyTalentRequestResult(result: Record<string, any>) {
+  if (result.status === "already_pending") {
+    const existing = asRecord(result.existingRequest);
+    const requested = asRecord(result.requested);
+    return [
+      "status=already_pending",
+      `new_request_queued=${Boolean(result.newRequestQueued)}`,
+      formatPromptSection(
+        "requested_replacement",
+        formatPromptTable(
+          ["kind", "role", "topic"],
+          [[requested.kind, requested.roleName, requested.topic]],
+          [40, 160, 800]
+        )
+      ),
+      formatPromptSection(
+        "existing_request",
+        Object.keys(existing).length > 0
+          ? formatPromptTable(
+              [
+                "request_id",
+                "kind",
+                "role",
+                "topic",
+                "status",
+                "scheduled_kst",
+                "cancelable",
+              ],
+              [
+                [
+                  existing.requestId,
+                  existing.kind,
+                  existing.roleName,
+                  existing.topic,
+                  existing.status,
+                  existing.scheduledAt,
+                  existing.cancelable,
+                ],
+              ],
+              [100, 80, 160, 800, 160, 40, 10]
+            )
+          : "private_conflict=true"
+      ),
+      `instruction=${formatPromptCell(result.instruction, 800)}`,
+      `fallback_message=${formatPromptCell(result.userMessage, 1_200)}`,
+    ].join("\n");
+  }
   return [
     `status=${formatPromptCell(result.status, 40)}`,
     `message=${formatPromptCell(result.userMessage, 800)}`,
+  ].join("\n");
+}
+
+function formatConversationHistoryResult(result: Record<string, any>) {
+  const messages = Array.isArray(result.messages)
+    ? result.messages.map(asRecord)
+    : [];
+  const participantAliases = new Map<string, string>();
+  const threadAliases = new Map<string, string>();
+  const participantLabel = (slackUserId: string) => {
+    const existing = participantAliases.get(slackUserId);
+    if (existing) return existing;
+    const label = `Slack participant ${participantAliases.size + 1}`;
+    participantAliases.set(slackUserId, label);
+    return label;
+  };
+  const threadLabel = (message: Record<string, any>) => {
+    if (message.currentThread) return "current_thread";
+    const threadId = String(message.slackThreadId ?? "").trim();
+    if (!threadId) return "unknown_thread";
+    const existing = threadAliases.get(threadId);
+    if (existing) return existing;
+    const label = `thread_${threadAliases.size + 1}`;
+    threadAliases.set(threadId, label);
+    return label;
+  };
+
+  return [
+    [
+      "status=ok",
+      `scope=${formatPromptCell(result.scope, 30)}`,
+      `requested_limit=${Number(result.limit ?? 0)}`,
+      `returned_items=${messages.length}`,
+      `has_more=${Boolean(result.hasMore)}`,
+      `next_cursor=${formatPromptCell(result.nextCursor, 500)}`,
+      "order=oldest_to_newest",
+    ].join(" "),
+    formatPromptSection(
+      "messages",
+      formatPromptTable(
+        [
+          "channel",
+          "thread",
+          "thread_started_at",
+          "sent_at",
+          "speaker",
+          "message",
+        ],
+        messages.map((message) => {
+          const metadata = asRecord(message.metadata);
+          const slackUserId = String(message.slackUserId ?? "").trim();
+          const speaker =
+            message.role === "assistant"
+              ? "Harper"
+              : String(metadata.slackUserName ?? "").trim() ||
+                (slackUserId
+                  ? participantLabel(slackUserId)
+                  : "Slack participant");
+          return [
+            message.channelName,
+            threadLabel(message),
+            message.threadStartedAt,
+            message.createdAt,
+            speaker,
+            message.content,
+          ];
+        }),
+        [100, 40, 30, 30, 140, 900]
+      )
+    ),
   ].join("\n");
 }
 
@@ -637,8 +783,17 @@ export function serializeOrgAgentToolResult(
   if (name === "get_more_data") {
     return serializeOrgAgentMoreData(value as OrgAgentMoreDataResult);
   }
+  if (name === "read_conversation_history") {
+    return formatConversationHistoryResult(result);
+  }
   if (name === "update_data") return formatUpdateDataResult(result);
-  if (name === "contact_talent" || name === "request_talent_resume") {
+  if (name === "change_role_status") {
+    return formatRoleStatusChangeResult(result);
+  }
+  if (name === "contact_talent") {
+    return formatCompanyTalentRequestResult(result);
+  }
+  if (name === "change_talent_contact") {
     return formatCompanyTalentRequestResult(result);
   }
   if (name === "decide_candidate_connection") {

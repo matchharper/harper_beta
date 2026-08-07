@@ -139,17 +139,17 @@ speaker  message
 - request/memory는 immutable preview를 보여주고 다음 확인 후 적용한다.
 - 후보 stage 변경과 outbound introduction은 여기서 실행하지 않는다.
 
-## 첫 Responses API request
+## 첫 model request
 
 일반적인 Slack 첫 호출은 개념적으로 다음과 같다.
 
 ```jsonc
 {
-  "model": "gpt-5.6-luna",
-  "max_output_tokens": 4000,
-  "reasoning": { "effort": "high" },
-  "store": false,
-  "input": [
+  "model": "deepseek-v4-flash",
+  "max_tokens": 4000,
+  "reasoning_effort": "high",
+  "thinking": { "type": "enabled" },
+  "messages": [
     { "role": "system", "content": "<stable system prompt>" },
     { "role": "user", "content": "<workspace_context + user_message>" }
   ],
@@ -159,15 +159,18 @@ speaker  message
     { "type": "function", "name": "read_talent", "parameters": {} },
     { "type": "function", "name": "read_role", "parameters": {} },
     { "type": "function", "name": "get_more_data", "parameters": {} },
-    { "type": "function", "name": "update_data", "parameters": {} }
+    { "type": "function", "name": "update_data", "parameters": {} },
+    { "type": "function", "name": "change_role_status", "parameters": {} }
   ]
 }
 ```
 
 실제 request에는 `tools.ts`의 description과 JSON schema 전체가 들어간다. tool
-호출 뒤에는 암호화된 reasoning item과 function item을 다음 request input에 함께
-되돌려 보낸다. 웹과 Slack 기본 model은 모두 `gpt-5.6-luna`이며
-`SLACK_ORG_AGENT_MODEL`이 허용 model이면 바뀐다.
+호출 뒤에는 provider가 요구하는 reasoning state와 function item을 다음 request에
+함께 되돌려 보낸다. DeepSeek thinking tool call은 `reasoning_content`를 그대로
+재전달하고, Luna/Terra Responses API는 암호화된 reasoning item을 재전달한다.
+웹과 Slack 기본 model은 모두 `deepseek-v4-flash`이며, 공통 기본값은
+`ORG_AGENT_MODEL`, Slack 전용 override는 `SLACK_ORG_AGENT_MODEL`로 바꾼다.
 
 ## 예시 1: role request append proposal
 
@@ -340,7 +343,7 @@ Slack post가 실패하면 draft는 적용 불가능한 상태로 남는다. pos
 - 일반 completion output 최대 4,000 tokens
 - complete long text를 읽은 뒤 큰 rewrite completion 최대 32,000 tokens
 - tool-free final completion 최대 2,000 tokens
-- `update_data`는 단독·1회·terminal mutation
+- `update_data`와 `change_role_status`는 단독·1회·terminal mutation
 
 tool result가 남은 문자 budget을 넘으면 `status=truncated`를 붙이고 그 result가
 열어 준 complete-read state를 취소한다. loop가 끝났는데 final text가 없으면 tools를

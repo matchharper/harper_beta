@@ -109,6 +109,24 @@ export function inferCompanyAuthEntrySource(
   return "auth_callback";
 }
 
+export function resolveCompanyBootstrapDestination(args: {
+  nextPath: string;
+  persona?: unknown;
+}) {
+  const persona = String(args.persona ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (
+    persona === "talent" &&
+    inferCompanyAuthEntrySource(args.nextPath) !== "org"
+  ) {
+    return "/career";
+  }
+
+  return args.nextPath;
+}
+
 export function getCompanyAuthEntryLabel(source: CompanyAuthEntrySource) {
   switch (source) {
     case "search":

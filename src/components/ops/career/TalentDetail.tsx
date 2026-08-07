@@ -11,11 +11,15 @@ import {
   useOpsInternalDataExclusionStore,
 } from "@/store/useOpsInternalDataExclusionStore";
 import {
+  externalRecommendationBadgeClass,
+  externalRecommendationLabel,
   formatKst,
   onboardingStatusBadgeClass,
   onboardingStatusLabel,
   profileVisibilityBadgeClass,
   profileVisibilityLabel,
+  talentStatusBadgeClass,
+  talentStatusLabel,
 } from "./utils";
 import { OpsProfileMemoFeed } from "./OpsProfileMemoFeed";
 import { ProfileTab } from "./ProfileTab";
@@ -196,6 +200,32 @@ export const TalentDetail = memo(function TalentDetail({
                   {profileVisibilityLabel(
                     detail.preferences?.profileVisibility
                   )}
+                </span>
+              </span>
+              <span>
+                외부 추천:{" "}
+                <span
+                  className={cx(
+                    "rounded px-1.5 py-0.5 font-medium",
+                    externalRecommendationBadgeClass(
+                      detail.getExternalRecommendation
+                    )
+                  )}
+                >
+                  {externalRecommendationLabel(
+                    detail.getExternalRecommendation
+                  )}
+                </span>
+              </span>
+              <span>
+                활성 상태:{" "}
+                <span
+                  className={cx(
+                    "rounded px-1.5 py-0.5 font-medium",
+                    talentStatusBadgeClass(detail.status)
+                  )}
+                >
+                  {talentStatusLabel(detail.status)}
                 </span>
               </span>
             </div>

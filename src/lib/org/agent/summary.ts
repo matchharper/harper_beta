@@ -77,6 +77,7 @@ async function summarizeOrgAgentSource(args: {
       temperature: 0.1,
     }),
     debugLabel: "org/agent:summary",
+    deepSeekThinking: { reasoningEffort: "high" },
     fallbackModel: getOrgAgentFallbackModel(args.model),
     model: args.model,
   });

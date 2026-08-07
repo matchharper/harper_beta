@@ -140,3 +140,26 @@ test("total context truncation revokes every retained completeness marker", asyn
   assert.equal(retainedMoreData.workspaceMemory.truncated, true);
   assert.equal(retainedMoreData.members.complete, false);
 });
+
+test("conversation truncation preserves the opaque older-history cursor", async () => {
+  const { enforceOrgAgentContextBudget } =
+    await import("@/lib/org/agent/contextBudget");
+  const cursor = "opaque-next-cursor";
+  const context = {
+    companyText: "c".repeat(47_500),
+    contextNotesText: "-",
+    conversationText: [
+      `scope=current_thread returned_items=14 has_more=true next_cursor=${cursor}`,
+      "speaker\treferences\tmessage",
+      `user\t-\t${"m".repeat(3_000)}`,
+    ].join("\n"),
+    recentRecommendationsText: "-",
+    rolesText: "-",
+    summariesText: "-",
+  } as any;
+
+  enforceOrgAgentContextBudget(context);
+
+  assert.match(context.conversationText, /older_conversation_truncated=true/);
+  assert.match(context.conversationText, new RegExp(`next_cursor=${cursor}`));
+});

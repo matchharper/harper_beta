@@ -29,6 +29,10 @@ const TOKEN_REPLACEMENTS: Record<string, Replacement> = {
   },
   company_memories: { en: "company notes", ko: "회사 메모" },
   company_workspace: { en: "company workspace", ko: "회사 워크스페이스" },
+  change_role_status: {
+    en: "position status change function",
+    ko: "포지션 상태 변경 기능",
+  },
   connected: { en: "connected", ko: "연결됨" },
   contract: { en: "contract", ko: "계약직" },
   custom: { en: "company-defined stage", ko: "회사 지정 단계" },
@@ -200,80 +204,4 @@ export function replaceNewOrgAgentInternalTokens(args: {
     (reply, id) => reply.replace(tokenPattern(id), hiddenId),
     withoutTokens
   );
-}
-
-const CANDIDATE_COMPENSATION_QUESTION_PATTERN =
-  /연봉|급여|보상|희망\s*금액|salary|compensation|pay\s*(?:range|expectation)|current\s*pay/i;
-
-/**
- * Compensation is a server-enforced disclosure boundary. A company question
- * never receives a stored amount (or even a confirmation that one exists)
- * until the candidate answers the scoped request.
- */
-export function guardOrgAgentCandidatePrivacyReply(args: {
-  preferenceDisclosure?: {
-    attempted: boolean;
-    evidence: string[];
-  };
-  reply: string;
-  toolResults: Array<{ name: string; status: string }>;
-  userMessage: string;
-}) {
-  if (!CANDIDATE_COMPENSATION_QUESTION_PATTERN.test(args.userMessage)) {
-    const disclosure = args.preferenceDisclosure;
-    if (!disclosure?.attempted) return args.reply;
-
-    const evidence = disclosure.evidence
-      .map((item) => String(item ?? "").trim())
-      .filter(Boolean);
-    const reply = args.reply;
-    const containsRawEvidence = evidence.some(
-      (item) => item.length >= 24 && reply.includes(item)
-    );
-    const negativeOrConflicting = evidence.some((item) =>
-      /싫|원하지\s*않|피하고|선호하지\s*않|not\s+(?:want|prefer)|avoid|against/i.test(
-        item
-      )
-    );
-    const replyExposesNegative =
-      /싫어|원하지\s*않|피하고\s*있|선호하지\s*않|doesn'?t\s+want|does\s+not\s+prefer|avoids?/i.test(
-        reply
-      );
-    const evidenceIsOpenOnly =
-      evidence.length > 0 &&
-      evidence.every((item) =>
-        /열려|고려\s*(?:가능|할 수)|open\s+to|would\s+consider|can\s+consider/i.test(
-          item
-        )
-      );
-    const replyStrengthensPreference =
-      /적극|우선적|가장\s*(?:먼저|원)|원하고|찾고\s*있|actively|priority|specifically\s+wants?|is\s+seeking/i.test(
-        reply
-      );
-    const infersConditionAwareness =
-      /(?:추천|기회).{0,40}(?:수락|오케이|OK).{0,60}(?:조건|규모|단계).{0,30}(?:알|이해|확인)|(?:조건|규모|단계).{0,50}(?:알|이해|확인).{0,40}(?:수락|오케이|OK)/i.test(
-        reply
-      );
-
-    if (
-      evidence.length === 0 ||
-      containsRawEvidence ||
-      negativeOrConflicting ||
-      replyExposesNegative ||
-      (evidenceIsOpenOnly && replyStrengthensPreference) ||
-      infersConditionAwareness
-    ) {
-      return /[가-힣]/.test(args.userMessage)
-        ? "현재 확인된 선호만으로는 이 조건을 적극적으로 원한다고 확답하기 어려워요. 이번 기회를 별도로 긍정적으로 보신 이유가 있을 수 있으니, 원하시면 후보자분께 부담 없게 확인하고 답이 오면 전달드리겠습니다."
-        : "The current preference evidence is not strong enough to confirm that the candidate actively wants this exact condition. If you would like, I can ask them without pressure and relay any response.";
-    }
-    return reply;
-  }
-  const contactAttempt = args.toolResults.find(
-    (result) => result.name === "contact_talent"
-  );
-  if (contactAttempt) return args.reply;
-  return /[가-힣]/.test(args.userMessage)
-    ? "보상 정보는 후보자 확인 없이 먼저 공유하지 않고 있어요. 원하시면 현재 생각하는 금액을 그대로 전달해도 되는지, 범위나 다른 표현으로 전달하길 원하는지 후보자분께 확인하겠습니다."
-    : "Harper does not share compensation information without checking with the candidate first. If you would like, I can ask whether they want their current figure shared as-is, as a range, or in different wording.";
 }

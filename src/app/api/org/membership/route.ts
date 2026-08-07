@@ -3,7 +3,7 @@ import {
   leaveOrgWorkspace,
   OrgHttpError,
   removeOrgWorkspaceMember,
-  updateOrgMembershipRole,
+  updateOrgMembershipAuthority,
 } from "@/lib/org/server";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 
@@ -53,12 +53,12 @@ export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthenticatedUser(req);
     const body = (await req.json().catch(() => ({}))) as {
-      role?: unknown;
+      authority?: unknown;
       userId?: string;
       workspaceId?: string;
     };
-    const payload = await updateOrgMembershipRole({
-      role: body.role,
+    const payload = await updateOrgMembershipAuthority({
+      authority: body.authority,
       user,
       userId: body.userId ?? "",
       workspaceId: body.workspaceId ?? "",

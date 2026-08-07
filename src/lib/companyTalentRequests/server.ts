@@ -2,12 +2,10 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "crypto";
 import { buildOrgHref } from "@/lib/org/routes";
-import {
-  assertSafeProfessionalQuestion,
-  isCompensationQuestion,
-} from "@/lib/companyTalentRequests/policy";
+import { assertSafeProfessionalQuestion } from "@/lib/companyTalentRequests/policy";
 
 export { assertSafeProfessionalQuestion } from "@/lib/companyTalentRequests/policy";
+export { serializeTalentPendingRequest } from "@/lib/companyTalentRequests/presentation";
 
 type UntypedAdmin = {
   from: (table: string) => any;
@@ -19,6 +17,11 @@ export const COMPANY_TALENT_REQUEST_ACTIVE_STATUSES = [
   "awaiting_talent",
   "relay_queued",
   "review_required",
+] as const;
+
+export const COMPANY_TALENT_REQUEST_BLOCKING_STATUSES = [
+  ...COMPANY_TALENT_REQUEST_ACTIVE_STATUSES,
+  "failed",
 ] as const;
 
 export type CompanyTalentRequestRow = {
@@ -34,6 +37,26 @@ export type CompanyTalentRequestRow = {
   document_id: string | null;
   created_at: string;
 };
+
+export type EnqueuedCompanyTalentRequest = CompanyTalentRequestRow & {
+  candidateDeliveryScheduledAt: string;
+};
+
+export type CompanyTalentRequestCancellationResult = {
+  cancelledAt: string | null;
+  idempotent: boolean;
+  requestId: string;
+  status: "cancelled";
+};
+
+export type CompanyTalentRequestChangeResult =
+  | CompanyTalentRequestCancellationResult
+  | {
+      idempotent: boolean;
+      requestId: string;
+      scheduledAt: string;
+      status: "immediate";
+    };
 
 function normalizedText(value: unknown, maxLength = 800) {
   return String(value ?? "")
@@ -67,7 +90,67 @@ export async function enqueueCompanyTalentRequest(args: {
     }
   );
   if (error) throw error;
-  return data as CompanyTalentRequestRow;
+  const request = data as CompanyTalentRequestRow;
+  const { data: delivery, error: deliveryError } = await args.admin
+    .from("contact_queue")
+    .select("scheduled_at")
+    .eq("company_talent_request_id", request.id)
+    .eq("type", "company_request_candidate_delivery")
+    .maybeSingle();
+  if (deliveryError) throw deliveryError;
+  const candidateDeliveryScheduledAt = normalizedText(
+    delivery?.scheduled_at,
+    100
+  );
+  if (!candidateDeliveryScheduledAt) {
+    throw new Error("Candidate delivery schedule was not created");
+  }
+  return {
+    ...request,
+    candidateDeliveryScheduledAt,
+  } as EnqueuedCompanyTalentRequest;
+}
+
+export async function cancelCompanyTalentRequest(args: {
+  admin: UntypedAdmin;
+  requestId: string;
+  roleId: string;
+  talentId: string;
+  workspaceId: string;
+}) {
+  const { data, error } = await args.admin.rpc(
+    "cancel_company_talent_request_v1",
+    {
+      p_request_id: args.requestId,
+      p_role_id: args.roleId,
+      p_talent_id: args.talentId,
+      p_workspace_id: args.workspaceId,
+    }
+  );
+  if (error) throw error;
+  return data as CompanyTalentRequestCancellationResult;
+}
+
+export async function changeCompanyTalentRequest(args: {
+  action: "cancel" | "immediate";
+  admin: UntypedAdmin;
+  requestId: string;
+  roleId: string;
+  talentId: string;
+  workspaceId: string;
+}) {
+  const { data, error } = await args.admin.rpc(
+    "change_company_talent_request_v1",
+    {
+      p_action: args.action,
+      p_request_id: args.requestId,
+      p_role_id: args.roleId,
+      p_talent_id: args.talentId,
+      p_workspace_id: args.workspaceId,
+    }
+  );
+  if (error) throw error;
+  return data as CompanyTalentRequestChangeResult;
 }
 
 export async function fetchActiveCompanyTalentRequest(args: {
@@ -100,34 +183,56 @@ export async function fetchActiveCompanyTalentRequest(args: {
     | null;
 }
 
-export function serializeTalentPendingRequest(
-  request: Awaited<ReturnType<typeof fetchActiveCompanyTalentRequest>>
-) {
-  if (!request) return null;
-  const company =
-    normalizedText(request.workspace?.company_name, 160) || "채용 회사";
-  const role = normalizedText(request.role?.name, 160) || "해당 포지션";
-  const requestContext = normalizedText(request.request_context, 800);
-  if (request.expects_document) {
-    return [
-      "[Pending company resume request — private system context]",
-      `requestId: ${request.id}`,
-      `company: ${company}`,
-      `role: ${role}`,
-      "The company asked whether the talent can share a current resume.",
-      "Use record_company_request_response only when the talent declines or has no current resume. An upload is completed by the document service, never by a chat claim.",
-    ].join("\n");
-  }
-  return [
-    "[Pending company question — private system context]",
-    `requestId: ${request.id}`,
-    `company: ${company}`,
-    `role: ${role}`,
-    `neutral question: ${requestContext}`,
-    isCompensationQuestion(request.request_context)
-      ? "Compensation is never shared from stored profile/insight. Record a response only when the talent explicitly provides an amount/range/wording to share, or clearly approves the wording Harper showed them. Otherwise ask one clarification question."
-      : "The candidate may answer, decline, or ignore. Never pressure them.",
-  ].join("\n");
+export async function fetchBlockingCompanyTalentRequestForWorkspace(args: {
+  admin: UntypedAdmin;
+  roleId: string;
+  talentId: string;
+  workspaceId: string;
+}) {
+  const { data, error } = await args.admin
+    .from("company_talent_requests")
+    .select(
+      "id, role_id, expects_document, request_context, workflow_status, expires_at, created_at, role:company_roles!inner(name), deliveries:contact_queue(scheduled_at, sent_at, status, type)"
+    )
+    .eq("company_workspace_id", args.workspaceId)
+    .eq("role_id", args.roleId)
+    .eq("talent_id", args.talentId)
+    .in("workflow_status", [...COMPANY_TALENT_REQUEST_BLOCKING_STATUSES])
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const row = data as CompanyTalentRequestRow & {
+    deliveries?: Array<{
+      scheduled_at?: string | null;
+      sent_at?: string | null;
+      status?: string | null;
+      type?: string | null;
+    }> | null;
+    role?: { name?: string | null } | null;
+  };
+  const delivery = row.deliveries?.find(
+    (item) => item.type === "company_request_candidate_delivery"
+  );
+  const deliveryStatus = normalizedText(delivery?.status, 80);
+  return {
+    blocksNewRequest: true,
+    cancelable:
+      ["queued", "failed"].includes(deliveryStatus) &&
+      ["queued", "failed"].includes(row.workflow_status),
+    label: row.expects_document ? "이력서 요청" : "회사 질문 확인",
+    requestId: row.id,
+    roleId: row.role_id,
+    roleName: normalizedText(row.role?.name, 160) || null,
+    scheduledAt: normalizedText(delivery?.scheduled_at, 100) || null,
+    status: humanizeCompanyTalentRequestStatus({
+      ...row,
+      delivery_status: deliveryStatus,
+    }),
+    topic: normalizedText(row.request_context, 800),
+  };
 }
 
 function tokenSecret() {
@@ -310,11 +415,15 @@ export function buildCompanyTalentProfileHref(args: {
 }
 
 export function humanizeCompanyTalentRequestStatus(row: {
+  delivery_status?: string | null;
   expires_at?: string | null;
   expects_document?: boolean | null;
   workflow_status?: string | null;
 }) {
   const status = row.workflow_status;
+  if (row.delivery_status === "cancelled") return "발송 취소";
+  if (row.delivery_status === "processing") return "발송 중";
+  if (row.delivery_status === "failed") return "발송 실패·재시도 필요";
   const expiresAt = Date.parse(String(row.expires_at ?? ""));
   if (
     Number.isFinite(expiresAt) &&

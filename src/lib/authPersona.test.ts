@@ -9,6 +9,7 @@ import {
   normalizeCompanyAuthEntrySource,
   resolveAuthCallbackDestination,
   resolveAuthCallbackErrorDestination,
+  resolveCompanyBootstrapDestination,
 } from "./authPersona";
 
 test("career destinations always use the talent persona", () => {
@@ -111,6 +112,40 @@ test("company entry sources are inferred from the callback destination", () => {
   );
   assert.equal(inferCompanyAuthEntrySource("/org/example"), "org");
   assert.equal(inferCompanyAuthEntrySource("/unknown"), "auth_callback");
+});
+
+test("org logins return to the requested org route for talent-only users", () => {
+  assert.equal(
+    resolveCompanyBootstrapDestination({
+      nextPath: "/org/jobs?orgId=workspace-slug&roleId=role-slug",
+      persona: "talent",
+    }),
+    "/org/jobs?orgId=workspace-slug&roleId=role-slug"
+  );
+  assert.equal(
+    resolveCompanyBootstrapDestination({
+      nextPath: "/org?orgId=workspace-slug",
+      persona: "talent",
+    }),
+    "/org?orgId=workspace-slug"
+  );
+});
+
+test("talent-only users still return to career from non-org company logins", () => {
+  assert.equal(
+    resolveCompanyBootstrapDestination({
+      nextPath: "/find?query=engineer",
+      persona: "talent",
+    }),
+    "/career"
+  );
+  assert.equal(
+    resolveCompanyBootstrapDestination({
+      nextPath: "/search",
+      persona: "company",
+    }),
+    "/search"
+  );
 });
 
 test("untrusted company entry sources fall back to auth callback", () => {

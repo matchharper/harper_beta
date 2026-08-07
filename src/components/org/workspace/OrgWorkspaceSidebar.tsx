@@ -1,4 +1,5 @@
 import {
+  Blocks,
   BriefcaseBusiness,
   ChevronDown,
   CircleHelp,
@@ -42,7 +43,7 @@ const PRIMARY_NAV: Array<{
   { icon: Inbox, id: "inbox", label: "Inbox" },
   { icon: SquareKanban, id: "jobs", label: "Pipeline" },
   { icon: Users, id: "team", label: "Team" },
-  { icon: Settings, id: "settings", label: "Settings" },
+  { icon: Blocks, id: "settings", label: "Integration" },
 ];
 const INTERNAL_ALL_NAV = {
   icon: ListFilter,

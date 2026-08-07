@@ -257,6 +257,31 @@ test("unchanged changes resolve to a no-op batch", () => {
   assert.equal(result.confirmationRequired, false);
 });
 
+test("employment types preserve company-specific labels", () => {
+  const parsed = parseCompanyDataChanges({
+    changes: [
+      {
+        key: "role_employment_types",
+        kind: "rewrite",
+        roleId: "role-1",
+        value: ["full_time", "freelance", "프로젝트 계약"],
+      },
+    ],
+    summary: "고용 형태 수정",
+  });
+  const result = resolveCompanyDataMutation({
+    ...parsed,
+    isComplete: () => true,
+    snapshot: snapshot({ "role_employment_types:role-1": ["full_time"] }),
+  });
+
+  assert.deepEqual(result.changes[0]?.value, [
+    "full_time",
+    "freelance",
+    "프로젝트 계약",
+  ]);
+});
+
 test("a mirrored physical value drift is not treated as a logical no-op", () => {
   const parsed = parseCompanyDataChanges({
     changes: [{ key: "company_description", kind: "rewrite", value: null }],

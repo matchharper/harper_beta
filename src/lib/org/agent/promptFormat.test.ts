@@ -133,6 +133,66 @@ test("organization-agent update results contain only acknowledgement fields", ()
   assert.doesNotMatch(compact, new RegExp("x".repeat(100)));
 });
 
+test("Role status changes explain the candidate-facing lifecycle effect", () => {
+  const compact = serializeOrgAgentToolResult("change_role_status", {
+    effect:
+      "역할의 채용과 추가 추천을 종료합니다. 현재 프로세스의 후보자에게 역할 종료 소식을 자연스럽게 안내하고 연결을 닫습니다.",
+    roleName: "Backend Engineer",
+    roleStatus: "ended",
+    status: "updated",
+  });
+
+  assert.match(compact, /status=updated/);
+  assert.match(compact, /role=Backend Engineer/);
+  assert.match(compact, /lifecycle=종료/);
+  assert.match(compact, /후보자에게 역할 종료 소식을 자연스럽게 안내/);
+  assert.doesNotMatch(compact, /lifecycle=ended/);
+});
+
+test("stored Slack history is serialized as a bounded thread-aware table", () => {
+  const compact = serializeOrgAgentToolResult("read_conversation_history", {
+    hasMore: true,
+    limit: 2,
+    messages: [
+      {
+        channelName: "채용",
+        content: "첫 메시지\n두 번째 줄",
+        createdAt: "2026-08-06T01:00:00.000Z",
+        currentThread: false,
+        metadata: { slackUserName: "김호진" },
+        role: "user",
+        slackThreadId: "internal-thread-id",
+        slackUserId: "U123",
+        threadStartedAt: "2026-08-05T01:00:00.000Z",
+      },
+      {
+        channelName: "채용",
+        content: "확인했습니다.",
+        createdAt: "2026-08-06T01:01:00.000Z",
+        currentThread: true,
+        metadata: {},
+        role: "assistant",
+        slackThreadId: "current-internal-thread-id",
+        slackUserId: "BOT",
+        threadStartedAt: "2026-08-06T00:30:00.000Z",
+      },
+    ],
+    nextCursor: "opaque-cursor",
+    scope: "workspace",
+  });
+
+  assert.match(compact, /scope=workspace/);
+  assert.match(compact, /has_more=true/);
+  assert.match(compact, /next_cursor=opaque-cursor/);
+  assert.match(compact, /channel\tthread\tthread_started_at\tsent_at\tspeaker/);
+  assert.match(compact, /채용\tthread_1/);
+  assert.match(compact, /current_thread/);
+  assert.match(compact, /김호진/);
+  assert.match(compact, /Harper/);
+  assert.match(compact, /첫 메시지 두 번째 줄/);
+  assert.doesNotMatch(compact, /internal-thread-id/);
+});
+
 test("candidate connection decisions return a compact outcome", () => {
   const compact = serializeOrgAgentToolResult("decide_candidate_connection", {
     changeSummary: "연결 대기 후보자에게 소개 메일을 보내 연결을 시작했습니다.",
@@ -149,6 +209,61 @@ test("candidate connection decisions return a compact outcome", () => {
   assert.match(compact, /stage=연결됨/);
   assert.doesNotMatch(compact, /stage=connected/);
   assert.doesNotMatch(compact, /talent-1/);
+});
+
+test("candidate decision preparation returns facts without server-authored confirmation copy", () => {
+  const compact = serializeOrgAgentToolResult("prepare_candidate_connection", {
+    candidateEmail: "candidate@example.com",
+    candidateName: "김하퍼",
+    connectionMethod: "intro_email",
+    decision: "accept",
+    directContactAvailable: true,
+    introEmailAvailable: true,
+    introEmails: ["company@example.com"],
+    reason: "팀과 잘 맞음",
+    requesterEmail: "company@example.com",
+    status: "decision_context_ready",
+  });
+
+  assert.match(compact, /status=decision_context_ready/);
+  assert.match(compact, /intro_email_available=true/);
+  assert.match(compact, /direct_contact_available=true/);
+  assert.match(compact, /intro_recipients=company@example.com/);
+  assert.match(compact, /reason=팀과 잘 맞음/);
+  assert.doesNotMatch(compact, /required_confirmation/);
+  assert.doesNotMatch(compact, /이대로 진행할까요/);
+});
+
+test("pending candidate contact results tell the model what can be replaced", () => {
+  const compact = serializeOrgAgentToolResult("contact_talent", {
+    existingRequest: {
+      cancelable: true,
+      kind: "회사 질문 확인",
+      requestId: "request-existing",
+      roleName: "Backend Engineer",
+      scheduledAt: "2026. 8. 6. 15:26",
+      status: "발송 실패·재시도 필요",
+      topic: "현재 또는 희망 연봉을 공유할 의향이 있는지 확인",
+    },
+    instruction:
+      "No new request was queued. Ask whether to cancel and replace it.",
+    newRequestQueued: false,
+    requested: {
+      kind: "question",
+      roleName: "Backend Engineer",
+      topic: "연 5,500만원이 가능한지 확인",
+    },
+    status: "already_pending",
+    userMessage: "기존 요청을 취소하고 이번 요청으로 새로 접수할까요?",
+  });
+
+  assert.match(compact, /status=already_pending/);
+  assert.match(compact, /new_request_queued=false/);
+  assert.match(compact, /발송 실패·재시도 필요/);
+  assert.match(compact, /현재 또는 희망 연봉/);
+  assert.match(compact, /연 5,500만원/);
+  assert.match(compact, /cancelable/);
+  assert.match(compact, /cancel and replace/);
 });
 
 test("get_more_data serialization is bounded and keeps completeness markers", () => {

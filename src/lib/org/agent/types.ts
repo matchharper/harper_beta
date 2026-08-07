@@ -1,5 +1,23 @@
 import type { OrgAgentModelId } from "@/lib/org/agent/modelConfig";
 
+export type OrgAgentCandidateDecision = "accept" | "decline";
+
+export type OrgAgentCandidateConnectionMethod =
+  | "intro_email"
+  | "direct_contact";
+
+export type OrgAgentCandidateDecisionConfirmation = {
+  actorId: string;
+  connectionMethod: OrgAgentCandidateConnectionMethod | null;
+  decision: OrgAgentCandidateDecision;
+  introEmails: string[];
+  reason: string | null;
+  recommendationId: string;
+  roleId: string;
+  slackThreadId: string | null;
+  talentId: string;
+};
+
 export type OrgAgentMessageRole = "assistant" | "system" | "user";
 export type OrgAgentMessageStatus = "completed" | "failed" | "pending";
 
@@ -76,13 +94,7 @@ export type OrgAgentMessageMetadata = {
     reasonSourceByCandidateKey: Record<string, "codex" | "codex-authored">;
     roleIds: string[];
   };
-  candidateConnectionConfirmations?: Array<{
-    actorId: string;
-    recommendationId: string;
-    roleId: string;
-    slackThreadId: string | null;
-    talentId: string;
-  }>;
+  candidateConnectionConfirmations?: OrgAgentCandidateDecisionConfirmation[];
   fallbackReason?: string | null;
   historyTruncated?: boolean;
   internalTokenCorrectionCount?: number;
@@ -108,6 +120,7 @@ export type OrgAgentMessageMetadata = {
     scope: "company" | "role";
   }>;
   retainedDataActivations?: OrgAgentRetainedDataActivation[];
+  slackChoiceSourceJobId?: string;
   slackReplyJobId?: string;
   source?: string | null;
   slackUserName?: string | null;

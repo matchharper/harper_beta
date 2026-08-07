@@ -106,8 +106,17 @@ export function enforceOrgAgentContextBudget<
     const excess = size() - ORG_AGENT_CONTEXT_MAX_CHARS;
     if (excess <= 0) return;
     const source = mutable[key];
-    const keep = Math.max(0, source.length - excess - marker.length - 1);
-    mutable[key] = keep > 0 ? `${marker}\n${source.slice(-keep)}` : marker;
+    const firstLine = source.split("\n", 1)[0] ?? "";
+    const preservedMetadata =
+      key === "conversationText" && firstLine.startsWith("scope=current_thread ")
+        ? firstLine
+        : "";
+    const prefix = [marker, preservedMetadata].filter(Boolean).join("\n");
+    const body = preservedMetadata
+      ? source.slice(Math.min(source.length, firstLine.length + 1))
+      : source;
+    const keep = Math.max(0, source.length - excess - prefix.length - 1);
+    mutable[key] = keep > 0 ? `${prefix}\n${body.slice(-keep)}` : prefix;
   };
   trimOldest("summariesText", "older_summaries_truncated=true");
   trimOldest("conversationText", "older_conversation_truncated=true");

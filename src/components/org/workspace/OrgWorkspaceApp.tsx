@@ -2,9 +2,11 @@ import Head from "next/head";
 import type { ReactNode } from "react";
 import { OrgAgentPanel } from "@/components/org/agent/OrgAgentPanel";
 import { OrgLoginScreen } from "@/components/org/OrgLoginScreen";
+import { OrgMemberProfileDialog } from "@/components/org/OrgMemberProfileDialog";
 import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
+import { OrgSlackConnectionGate } from "@/components/org/workspace/OrgSlackConnectionGate";
 import {
   OrgWorkspaceSidebar,
   OrgWorkspaceShellSkeleton,
@@ -71,6 +73,10 @@ export function OrgWorkspaceApp({
   }
 
   const pageTitle = `${workspace.companyName} · ${page[0].toUpperCase()}${page.slice(1)}`;
+  const requiresMemberProfile =
+    !contextValue.internalOpsAccess &&
+    Boolean(contextValue.currentUser) &&
+    !contextValue.currentUser?.role?.trim();
 
   return (
     <OrgWorkspaceProvider value={contextValue}>
@@ -95,7 +101,19 @@ export function OrgWorkspaceApp({
           </PageContainer>
         </div>
       </Page>
-      {contextValue.permissions.canManageCandidates ? <OrgAgentPanel /> : null}
+      {requiresMemberProfile && contextValue.currentUser ? (
+        <OrgMemberProfileDialog
+          key={workspace.workspaceId}
+          member={contextValue.currentUser}
+          workspace={workspace}
+        />
+      ) : (
+        <OrgSlackConnectionGate>
+          {contextValue.permissions.canManageCandidates ? (
+            <OrgAgentPanel />
+          ) : null}
+        </OrgSlackConnectionGate>
+      )}
     </OrgWorkspaceProvider>
   );
 }

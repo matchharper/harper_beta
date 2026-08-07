@@ -37,10 +37,6 @@ export type OrgAgentToolExecutionState = {
   internalTokenCorrectionCount: number;
   observedLongTextFingerprints: Map<string, string>;
   pendingFullRoleRequestIds: Set<string>;
-  preferenceDisclosure: {
-    attempted: boolean;
-    evidence: string[];
-  };
   requestChanges: RequestChange[];
   requiredPresentationText: string | null;
   roleById: Map<string, OrgRole>;
@@ -57,8 +53,20 @@ export type OrgAgentToolExecutionState = {
   updateSummaries: string[];
 };
 
-export const ORG_AGENT_FAILED_MUTATION_REPLY =
+export const ORG_AGENT_FAILED_UPDATE_REPLY =
   "요청하신 변경은 적용되지 않았습니다. 내용을 다시 확인한 뒤 시도해 주세요.";
+
+export const ORG_AGENT_FAILED_ROLE_STATUS_REPLY =
+  "역할 상태를 변경하지 못했습니다. 역할과 현재 상태를 다시 확인한 뒤 시도해 주세요. 후보 추천이나 진행 중인 연결에는 변화가 없습니다.";
+
+export const ORG_AGENT_FAILED_CONTACT_REPLY =
+  "후보자분께 요청을 접수하지 못했습니다. 대상 후보자와 포지션, 요청 내용을 다시 확인한 뒤 요청해 주세요. 아직 후보자분께는 이메일이나 Harper 채팅이 전달되지 않았습니다.";
+
+export const ORG_AGENT_FAILED_CONTACT_CHANGE_REPLY =
+  "후보자 문의 요청을 변경하지 못했습니다. 최신 발송 상태를 다시 확인해 주세요.";
+
+export const ORG_AGENT_FAILED_CANDIDATE_DECISION_REPLY =
+  "후보자 연결 결정을 반영하지 못했습니다. 후보자가 아직 연결 대기 상태인지와 직전 확인 내용이 현재 답변과 일치하는지 확인한 뒤 다시 시도해 주세요. 상태 변경이나 연결 메일 발송은 이루어지지 않았습니다.";
 
 /**
  * A failed mutation is a server-authoritative outcome. Do not let a
@@ -68,13 +76,40 @@ export function enforceOrgAgentTerminalMutationOutcome(
   state: OrgAgentToolExecutionState,
   modelReply: string
 ) {
-  const mutationFailed =
-    state.terminalMutationUsed &&
-    state.toolResults.some((result) => result.status === "error");
-
-  return mutationFailed
-    ? state.terminalReply || ORG_AGENT_FAILED_MUTATION_REPLY
-    : modelReply;
+  const finalTerminalResult = state.toolResults.findLast((result) =>
+    [
+      "change_talent_contact",
+      "change_role_status",
+      "contact_talent",
+      "decide_candidate_connection",
+      "update_data",
+    ].includes(result.name)
+  );
+  if (!finalTerminalResult) {
+    return modelReply;
+  }
+  if (
+    finalTerminalResult.name === "change_talent_contact" &&
+    state.terminalReply
+  ) {
+    return state.terminalReply;
+  }
+  if (finalTerminalResult.status !== "error") return modelReply;
+  const failedResult = finalTerminalResult;
+  if (state.terminalReply) return state.terminalReply;
+  if (failedResult.name === "contact_talent") {
+    return ORG_AGENT_FAILED_CONTACT_REPLY;
+  }
+  if (failedResult.name === "change_talent_contact") {
+    return ORG_AGENT_FAILED_CONTACT_CHANGE_REPLY;
+  }
+  if (failedResult.name === "decide_candidate_connection") {
+    return ORG_AGENT_FAILED_CANDIDATE_DECISION_REPLY;
+  }
+  if (failedResult.name === "change_role_status") {
+    return ORG_AGENT_FAILED_ROLE_STATUS_REPLY;
+  }
+  return ORG_AGENT_FAILED_UPDATE_REPLY;
 }
 
 export function createOrgAgentToolExecutionState(
@@ -90,7 +125,6 @@ export function createOrgAgentToolExecutionState(
     internalTokenCorrectionCount: 0,
     observedLongTextFingerprints: new Map(),
     pendingFullRoleRequestIds: new Set(),
-    preferenceDisclosure: { attempted: false, evidence: [] },
     requestChanges: [],
     requiredPresentationText: null,
     roleById: new Map(context.roles.map((role) => [role.roleId, { ...role }])),

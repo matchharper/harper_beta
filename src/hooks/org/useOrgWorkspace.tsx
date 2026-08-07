@@ -98,8 +98,8 @@ export function useOrgWorkspaceController({
   const workspace = bootstrap?.workspace ?? null;
   const currentUser = bootstrap?.currentUser ?? null;
   const permissions = useMemo(
-    () => getOrgPermissions(currentUser?.role),
-    [currentUser?.role]
+    () => getOrgPermissions(currentUser?.authority),
+    [currentUser?.authority]
   );
   const internalOpsAccess = isInternalDomainEmail(user?.email);
   const roles = useMemo(() => bootstrap?.roles ?? [], [bootstrap?.roles]);

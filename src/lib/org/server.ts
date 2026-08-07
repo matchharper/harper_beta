@@ -45,7 +45,10 @@ import {
   notifyOrgMemberJoinedSlack,
 } from "@/lib/org/slack";
 import { TALENT_RESUME_BUCKET } from "@/lib/talentOnboarding/models";
-import { humanizeCompanyTalentRequestStatus } from "@/lib/companyTalentRequests/server";
+import {
+  cancelCompanyTalentRequest,
+  humanizeCompanyTalentRequestStatus,
+} from "@/lib/companyTalentRequests/server";
 import type { Database, Json } from "@/types/database.types";
 
 type SupabaseAdminClient = ReturnType<typeof getSupabaseAdmin>;
@@ -158,11 +161,12 @@ export type OrgRole = {
 };
 
 export type OrgMember = {
+  authority: OrgMembershipRole;
   email: string | null;
   joinedAt: string;
   name: string | null;
   profilePicture: string | null;
-  role: OrgMembershipRole;
+  role: string | null;
   userId: string;
 };
 
@@ -213,9 +217,16 @@ export type OrgInvitationMutationResponse = {
   ok: true;
 };
 
-export type OrgMembershipRoleUpdateResponse = {
+export type OrgMembershipAuthorityUpdateResponse = {
+  authority: OrgMembershipRole;
   ok: true;
-  role: OrgMembershipRole;
+  userId: string;
+};
+
+export type OrgMemberProfileUpdateResponse = {
+  name: string | null;
+  ok: true;
+  role: string;
   userId: string;
 };
 
@@ -408,13 +419,24 @@ export type OrgProfileExtra = {
   title: string | null;
 };
 
+export type OrgCompanyTalentRequestFeedItem = {
+  canCancel: boolean;
+  cancelledAt: string | null;
+  createdAt: string;
+  deliveryStatus: string;
+  id: string;
+  label: string;
+  lastError: string | null;
+  requestContext: string;
+  roleId: string;
+  roleName: string | null;
+  scheduledAt: string;
+  sentAt: string | null;
+  status: string;
+};
+
 export type OrgTalentDetailResponse = {
-  companyRequestHistory: Array<{
-    at: string;
-    label: string;
-    roleName: string | null;
-    status: string;
-  }>;
+  companyRequestHistory: OrgCompanyTalentRequestFeedItem[];
   connectionConfirmationEmails: OpsMatchingConnectionConfirmationEmail[];
   feed: OrgFeedItem[];
   introEmails: OrgIntroEmailFeedItem[];
@@ -573,12 +595,13 @@ function isOrgAllWorkspaceAccessEmail(email: string | null | undefined) {
 
 function buildVirtualOrgMember(user: User): OrgMember {
   return {
+    authority: "owner",
     email: getUserEmail(user),
     joinedAt: new Date().toISOString(),
     name: getUserName(user),
     profilePicture:
       normalizeNullableText(user.user_metadata?.avatar_url) ?? null,
-    role: "owner",
+    role: null,
     userId: user.id,
   };
 }
@@ -1070,11 +1093,12 @@ function buildMember(
   user: CompanyUserRow | null
 ): OrgMember {
   return {
+    authority: normalizeOrgMembershipRole(membership.authority),
     email: user?.email ?? null,
     joinedAt: membership.created_at,
     name: user?.name ?? null,
     profilePicture: user?.profile_picture ?? null,
-    role: normalizeOrgMembershipRole(membership.role),
+    role: normalizeNullableText(membership.role),
     userId: membership.company_user_id,
   };
 }
@@ -1094,11 +1118,19 @@ export async function upsertOrgCompanyUser(
   admin: SupabaseAdminClient,
   user: User
 ) {
+  const { data: existingUser, error: existingUserError } = await (
+    admin.from("company_users" as any) as any
+  )
+    .select("user_id, name")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (existingUserError) throw existingUserError;
+
   const { error } = await (admin.from("company_users" as any) as any).upsert(
     {
       email: user.email ?? null,
       is_authenticated: true,
-      name: getUserName(user),
+      name: normalizeNullableText(existingUser?.name) ?? getUserName(user),
       profile_picture: user.user_metadata?.avatar_url ?? null,
       user_id: user.id,
     },
@@ -1151,7 +1183,7 @@ async function fetchMembershipsForUser(
     admin.from("company_user_workspace" as any) as any
   )
     .select(
-      "id, company_user_id, company_workspace_id, role, created_at, updated_at"
+      "id, company_user_id, company_workspace_id, authority, role, created_at, updated_at"
     )
     .eq("company_user_id", userId)
     .order("created_at", { ascending: true });
@@ -1168,7 +1200,7 @@ async function ensureOrgMembershipFromInvitation(args: {
   const { data: existing, error: existingError } = await (
     args.admin.from("company_user_workspace" as any) as any
   )
-    .select("id, role")
+    .select("id, authority")
     .eq("company_user_id", args.user.id)
     .eq("company_workspace_id", args.workspaceId)
     .maybeSingle();
@@ -1211,9 +1243,9 @@ async function ensureOrgMembershipFromInvitation(args: {
   const { error } = await (
     args.admin.from("company_user_workspace" as any) as any
   ).insert({
+    authority: membershipRole,
     company_user_id: args.user.id,
     company_workspace_id: args.workspaceId,
-    role: membershipRole,
   });
 
   if (error) throw error;
@@ -1273,15 +1305,15 @@ export async function assertOrgWorkspacePermission(args: {
   const { data, error } = await (
     args.admin.from("company_user_workspace" as any) as any
   )
-    .select("id, role")
+    .select("id, authority")
     .eq("company_user_id", args.user.id)
     .eq("company_workspace_id", args.workspaceId)
     .maybeSingle();
 
   if (error) throw error;
   if (!data) throw new OrgHttpError(403, "Workspace access denied");
-  const role = normalizeOrgMembershipRole(data.role);
-  const permissions = getOrgPermissions(role);
+  const authority = normalizeOrgMembershipRole(data.authority);
+  const permissions = getOrgPermissions(authority);
   const allowed =
     args.permission === "view" ||
     (args.permission === "manage_candidates" &&
@@ -1293,7 +1325,7 @@ export async function assertOrgWorkspacePermission(args: {
   if (!allowed) {
     throw new OrgHttpError(403, "이 작업을 수행할 권한이 없습니다.");
   }
-  return role;
+  return authority;
 }
 
 export async function leaveOrgWorkspace(args: {
@@ -1313,7 +1345,7 @@ export async function leaveOrgWorkspace(args: {
   const { data: membership, error: membershipError } = await (
     admin.from("company_user_workspace" as any) as any
   )
-    .select("id, role")
+    .select("id, authority")
     .eq("company_user_id", args.user.id)
     .eq("company_workspace_id", workspaceId)
     .maybeSingle();
@@ -1326,13 +1358,13 @@ export async function leaveOrgWorkspace(args: {
     );
   }
 
-  if (normalizeOrgMembershipRole(membership.role) === "owner") {
+  if (normalizeOrgMembershipRole(membership.authority) === "owner") {
     const { count, error: ownerCountError } = await (
       admin.from("company_user_workspace" as any) as any
     )
       .select("id", { count: "exact", head: true })
       .eq("company_workspace_id", workspaceId)
-      .eq("role", "owner");
+      .eq("authority", "owner");
     if (ownerCountError) throw ownerCountError;
     if ((count ?? 0) <= 1) {
       throw new OrgHttpError(
@@ -1383,20 +1415,20 @@ export async function removeOrgWorkspaceMember(args: {
   const { data: membership, error: membershipError } = await (
     admin.from("company_user_workspace" as any) as any
   )
-    .select("id, role")
+    .select("id, authority")
     .eq("company_user_id", userId)
     .eq("company_workspace_id", workspaceId)
     .maybeSingle();
   if (membershipError) throw membershipError;
   if (!membership) throw new OrgHttpError(404, "멤버를 찾지 못했습니다.");
 
-  if (normalizeOrgMembershipRole(membership.role) === "owner") {
+  if (normalizeOrgMembershipRole(membership.authority) === "owner") {
     const { count, error: ownerCountError } = await (
       admin.from("company_user_workspace" as any) as any
     )
       .select("id", { count: "exact", head: true })
       .eq("company_workspace_id", workspaceId)
-      .eq("role", "owner");
+      .eq("authority", "owner");
     if (ownerCountError) throw ownerCountError;
     if ((count ?? 0) <= 1) {
       throw new OrgHttpError(409, "마지막 Owner는 제거할 수 없습니다.");
@@ -1466,7 +1498,7 @@ async function fetchOrgMembers(
     admin.from("company_user_workspace" as any) as any
   )
     .select(
-      "id, company_user_id, company_workspace_id, role, created_at, updated_at"
+      "id, company_user_id, company_workspace_id, authority, role, created_at, updated_at"
     )
     .eq("company_workspace_id", workspaceId)
     .order("created_at", { ascending: true });
@@ -1837,23 +1869,23 @@ export async function cancelOrgWorkspaceInvitation(args: {
   return { invitationId, ok: true };
 }
 
-export async function updateOrgMembershipRole(args: {
-  role: unknown;
+export async function updateOrgMembershipAuthority(args: {
+  authority: unknown;
   user: User;
   userId: string;
   workspaceId: string;
-}): Promise<OrgMembershipRoleUpdateResponse> {
+}): Promise<OrgMembershipAuthorityUpdateResponse> {
   const admin = getSupabaseAdmin();
   const userId = normalizeText(args.userId);
   const workspaceId = normalizeText(args.workspaceId);
-  const rawRole = normalizeText(args.role).toLowerCase();
+  const rawAuthority = normalizeText(args.authority).toLowerCase();
   if (!userId || !workspaceId) {
     throw new OrgHttpError(400, "Missing required fields");
   }
-  if (!["owner", "admin", "viewer"].includes(rawRole)) {
+  if (!["owner", "admin", "viewer"].includes(rawAuthority)) {
     throw new OrgHttpError(400, "올바른 권한을 선택해 주세요.");
   }
-  const role = rawRole as OrgMembershipRole;
+  const authority = rawAuthority as OrgMembershipRole;
   await assertOrgWorkspacePermission({
     admin,
     permission: "manage_members",
@@ -1864,21 +1896,21 @@ export async function updateOrgMembershipRole(args: {
   const { data: membership, error: membershipError } = await (
     admin.from("company_user_workspace" as any) as any
   )
-    .select("id, role")
+    .select("id, authority")
     .eq("company_workspace_id", workspaceId)
     .eq("company_user_id", userId)
     .maybeSingle();
   if (membershipError) throw membershipError;
   if (!membership) throw new OrgHttpError(404, "멤버를 찾지 못했습니다.");
 
-  const previousRole = normalizeOrgMembershipRole(membership.role);
-  if (previousRole === "owner" && role !== "owner") {
+  const previousAuthority = normalizeOrgMembershipRole(membership.authority);
+  if (previousAuthority === "owner" && authority !== "owner") {
     const { count, error: countError } = await (
       admin.from("company_user_workspace" as any) as any
     )
       .select("id", { count: "exact", head: true })
       .eq("company_workspace_id", workspaceId)
-      .eq("role", "owner");
+      .eq("authority", "owner");
     if (countError) throw countError;
     if ((count ?? 0) <= 1) {
       throw new OrgHttpError(409, "마지막 Owner의 권한은 변경할 수 없습니다.");
@@ -1886,10 +1918,105 @@ export async function updateOrgMembershipRole(args: {
   }
 
   const { error } = await (admin.from("company_user_workspace" as any) as any)
-    .update({ role, updated_at: new Date().toISOString() })
+    .update({ authority, updated_at: new Date().toISOString() })
     .eq("id", membership.id);
   if (error) throw error;
-  return { ok: true, role, userId };
+  return { authority, ok: true, userId };
+}
+
+function normalizeOrgMemberProfileField(
+  value: unknown,
+  label: string,
+  maxLength: number
+) {
+  const normalized = normalizeText(value).replace(/\s+/g, " ");
+  if (!normalized) {
+    throw new OrgHttpError(400, `${label}을(를) 입력해 주세요.`);
+  }
+  if (normalized.length > maxLength) {
+    throw new OrgHttpError(
+      400,
+      `${label}은(는) ${maxLength}자 이하로 입력해 주세요.`
+    );
+  }
+  return normalized;
+}
+
+export async function updateOrgMemberProfile(args: {
+  firstName?: unknown;
+  lastName?: unknown;
+  role: unknown;
+  user: User;
+  userId?: string | null;
+  workspaceId: string;
+}): Promise<OrgMemberProfileUpdateResponse> {
+  const admin = getSupabaseAdmin();
+  const workspaceId = normalizeText(args.workspaceId);
+  const requestedUserId = normalizeText(args.userId);
+  const userId = requestedUserId || args.user.id;
+  const role = normalizeOrgMemberProfileField(args.role, "직함", 160);
+
+  if (!workspaceId) {
+    throw new OrgHttpError(400, "workspaceId is required");
+  }
+
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: requestedUserId ? "manage_members" : "view",
+    user: args.user,
+    workspaceId,
+  });
+
+  const { data: membership, error: membershipError } = await (
+    admin.from("company_user_workspace" as any) as any
+  )
+    .select("id")
+    .eq("company_workspace_id", workspaceId)
+    .eq("company_user_id", userId)
+    .maybeSingle();
+  if (membershipError) throw membershipError;
+  if (!membership) throw new OrgHttpError(404, "멤버를 찾지 못했습니다.");
+
+  let name: string | null = null;
+  if (!requestedUserId) {
+    const firstName = normalizeOrgMemberProfileField(
+      args.firstName,
+      "이름",
+      100
+    );
+    const lastName = normalizeOrgMemberProfileField(args.lastName, "성", 100);
+    name = `${firstName} ${lastName}`;
+
+    const { data: updatedUser, error: userError } = await (
+      admin.from("company_users" as any) as any
+    )
+      .update({ name })
+      .eq("user_id", userId)
+      .select("user_id")
+      .maybeSingle();
+    if (userError) throw userError;
+    if (!updatedUser) {
+      throw new OrgHttpError(404, "사용자 프로필을 찾지 못했습니다.");
+    }
+  } else {
+    const { data: targetUser, error: targetUserError } = await (
+      admin.from("company_users" as any) as any
+    )
+      .select("name")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (targetUserError) throw targetUserError;
+    name = normalizeNullableText(targetUser?.name);
+  }
+
+  const { error: roleError } = await (
+    admin.from("company_user_workspace" as any) as any
+  )
+    .update({ role, updated_at: new Date().toISOString() })
+    .eq("id", membership.id);
+  if (roleError) throw roleError;
+
+  return { name, ok: true, role, userId };
 }
 
 async function fetchRoleRowsForWorkspace(
@@ -2717,6 +2844,12 @@ async function sendOrgIntroEmail(args: {
   if (cc.some((email) => !isValidEmailAddress(email))) {
     throw new OrgHttpError(400, "One or more introduction emails are invalid");
   }
+  if (cc.length === 0) {
+    throw new OrgHttpError(
+      400,
+      "소개 이메일에는 후보자 이메일과 다른 회사 담당자 이메일이 필요합니다."
+    );
+  }
 
   const recipients = [candidateEmail, ...cc];
   const identity = buildOrgIntroDeliveryIdentity({
@@ -3303,6 +3436,72 @@ export async function updateOrgConnectionConfirmationEmail(args: {
   }
 }
 
+export type OrgCompanyTalentRequestCancelResponse = {
+  cancelledAt: string | null;
+  ok: true;
+  requestId: string;
+  status: "cancelled";
+};
+
+export async function cancelOrgCompanyTalentRequest(args: {
+  requestId: string;
+  roleId: string;
+  talentId: string;
+  user: User;
+  workspaceId: string;
+}): Promise<OrgCompanyTalentRequestCancelResponse> {
+  const admin = getSupabaseAdmin();
+  const workspaceId = normalizeText(args.workspaceId);
+  const roleId = normalizeText(args.roleId);
+  const talentId = normalizeText(args.talentId);
+  const requestId = normalizeText(args.requestId);
+  if (!workspaceId || !roleId || !talentId || !requestId) {
+    throw new OrgHttpError(400, "Missing required fields");
+  }
+
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "manage_candidates",
+    user: args.user,
+    workspaceId,
+  });
+  const roleRows = await fetchRoleRowsForWorkspace(admin, workspaceId);
+  if (!roleRows.some((role) => role.role_id === roleId)) {
+    throw new OrgHttpError(404, "Role not found");
+  }
+
+  try {
+    const result = await cancelCompanyTalentRequest({
+      admin: admin as any,
+      requestId,
+      roleId,
+      talentId,
+      workspaceId,
+    });
+    return {
+      cancelledAt: result.cancelledAt,
+      ok: true,
+      requestId: result.requestId,
+      status: result.status,
+    };
+  } catch (error) {
+    const message =
+      error && typeof error === "object" && "message" in error
+        ? String(error.message)
+        : String(error);
+    if (message.includes("company_talent_request_not_found")) {
+      throw new OrgHttpError(404, "후보자 문의 요청을 찾을 수 없습니다.");
+    }
+    if (message.includes("company_talent_request_not_cancellable")) {
+      throw new OrgHttpError(
+        409,
+        "이미 발송이 시작됐거나 완료된 문의는 취소할 수 없습니다."
+      );
+    }
+    throw error;
+  }
+}
+
 export async function createOrgTalentFeedItem(args: {
   recommendationId?: string | null;
   roleId: string;
@@ -3873,12 +4072,12 @@ export async function fetchOrgTalentDetail(args: {
       .order("created_at", { ascending: false }),
     (admin.from("company_talent_requests" as any) as any)
       .select(
-        "role_id, expects_document, workflow_status, expires_at, created_at, deliveries:contact_queue(sent_at, type)"
+        "id, role_id, expects_document, request_context, workflow_status, expires_at, created_at, deliveries:contact_queue(scheduled_at, sent_at, cancelled_at, status, last_error, type)"
       )
       .eq("company_workspace_id", workspaceId)
       .eq("talent_id", talentId)
       .order("created_at", { ascending: false })
-      .limit(5),
+      .limit(50),
     fetchInternalConnectionConfirmationEmails({
       admin,
       roleId: recommendation.role_id,
@@ -3914,21 +4113,47 @@ export async function fetchOrgTalentDetail(args: {
       > | null);
   const companyRequestHistory = optionalRows<{
     created_at: string;
-    deliveries: Array<{ sent_at: string | null; type: string }> | null;
+    deliveries: Array<{
+      cancelled_at: string | null;
+      last_error: string | null;
+      scheduled_at: string;
+      sent_at: string | null;
+      status: string;
+      type: string;
+    }> | null;
     expects_document: boolean;
     expires_at: string;
+    id: string;
+    request_context: string;
     role_id: string;
     workflow_status: string;
-  }>(companyRequestHistoryResult, "company request history").map((row) => ({
-    at:
-      row.deliveries?.find(
-        (delivery) => delivery.type === "company_request_candidate_delivery"
-      )?.sent_at ?? row.created_at,
-    label: row.expects_document ? "이력서 요청" : "회사 질문 확인",
-    roleName:
-      roleRows.find((role) => role.role_id === row.role_id)?.name ?? null,
-    status: humanizeCompanyTalentRequestStatus(row),
-  }));
+  }>(companyRequestHistoryResult, "company request history").map((row) => {
+    const delivery = row.deliveries?.find(
+      (item) => item.type === "company_request_candidate_delivery"
+    );
+    const deliveryStatus = delivery?.status ?? "unknown";
+    return {
+      canCancel:
+        ["queued", "failed"].includes(deliveryStatus) &&
+        ["queued", "failed"].includes(row.workflow_status),
+      cancelledAt: delivery?.cancelled_at ?? null,
+      createdAt: row.created_at,
+      deliveryStatus,
+      id: row.id,
+      label: row.expects_document ? "이력서 요청" : "회사 질문 확인",
+      lastError: delivery?.last_error ?? null,
+      requestContext: row.request_context,
+      roleId: row.role_id,
+      roleName:
+        roleRows.find((role) => role.role_id === row.role_id)?.name ?? null,
+      scheduledAt: delivery?.scheduled_at ?? row.created_at,
+      sentAt: delivery?.sent_at ?? null,
+      status: humanizeCompanyTalentRequestStatus({
+        ...row,
+        delivery_status: deliveryStatus,
+      }),
+    } satisfies OrgCompanyTalentRequestFeedItem;
+  });
   const visiblePrimaryResume = primaryResume?.is_public ? primaryResume : null;
   const documents = optionalRows<
     Pick<TalentDocumentRow, "id" | "file_name" | "content_type" | "created_at">

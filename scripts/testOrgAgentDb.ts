@@ -12,7 +12,17 @@ const MIGRATIONS = [
   "20260805040000_company_role_request_legacy_write_guard.sql",
   "20260805060000_finalize_slack_company_agent_reply.sql",
   "20260805070000_reassociate_company_workspace_db.sql",
+  "20260806020000_slack_agent_worker_routing.sql",
+  "20260806070000_coalesce_slack_thread_replies.sql",
 ] as const;
+const WORKSPACE_SCOPED_TALENT_REQUEST_MIGRATION =
+  "20260806010000_allow_workspace_scoped_company_talent_requests.sql";
+const SCHEDULED_TALENT_REQUEST_MIGRATION =
+  "20260806040000_schedule_and_cancel_company_talent_requests.sql";
+const COMPANY_SIDE_CONSTRAINT_BALANCE_MIGRATION =
+  "20260806060000_company_side_constraint_balance.sql";
+const CHANGE_TALENT_REQUEST_MIGRATION =
+  "20260806080000_change_company_talent_request_delivery.sql";
 
 const IDS = {
   workspaceA: "00000000-0000-4000-8000-000000000001",
@@ -28,9 +38,19 @@ const IDS = {
   conversation: "00000000-0000-4000-8000-000000000201",
   slackChannel: "00000000-0000-4000-8000-000000000301",
   slackThread: "00000000-0000-4000-8000-000000000302",
+  slackBatchChannel: "00000000-0000-4000-8000-000000000303",
+  slackBatchThread: "00000000-0000-4000-8000-000000000304",
   normalReplyJob: "00000000-0000-4000-8000-000000000401",
   adoptedReplyJob: "00000000-0000-4000-8000-000000000402",
   conflictingReplyJob: "00000000-0000-4000-8000-000000000403",
+  routeExistingJob: "00000000-0000-4000-8000-000000000404",
+  routeLocalJob: "00000000-0000-4000-8000-000000000405",
+  routeProductionJob: "00000000-0000-4000-8000-000000000406",
+  talent: "00000000-0000-4000-8000-000000000501",
+  recommendation: "00000000-0000-4000-8000-000000000502",
+  recommendationB: "00000000-0000-4000-8000-000000000505",
+  talentRequestConversation: "00000000-0000-4000-8000-000000000503",
+  talentRequestConversationB: "00000000-0000-4000-8000-000000000504",
 } as const;
 
 const BASELINE_SQL = String.raw`
@@ -393,7 +413,7 @@ async function ensureLocalRoles(sql: Db) {
   `);
 }
 
-async function applyMigration(sql: Db, filename: (typeof MIGRATIONS)[number]) {
+async function applyMigration(sql: Db, filename: string) {
   const body = await readFile(
     path.join(ROOT, "supabase", "migrations", filename),
     "utf8"
@@ -639,6 +659,535 @@ async function applyRemainingMigrations(sql: Db) {
   await applyMigration(sql, MIGRATIONS[3]);
   await applyMigration(sql, MIGRATIONS[4]);
   await applyMigration(sql, MIGRATIONS[5]);
+  await applyMigration(sql, MIGRATIONS[6]);
+  await applyMigration(sql, MIGRATIONS[7]);
+}
+
+async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
+  await sql.unsafe(`
+    create table public.talent_users (
+      user_id uuid primary key
+    );
+    create table public.talent_opportunity_recommendation (
+      id uuid primary key,
+      role_id uuid not null references public.company_roles(role_id),
+      talent_id uuid not null references public.talent_users(user_id),
+      updated_at timestamptz not null default now()
+    );
+    create table public.company_talent_requests (
+      id uuid primary key default gen_random_uuid(),
+      company_workspace_id uuid not null references public.company_workspace(company_workspace_id),
+      role_id uuid not null references public.company_roles(role_id),
+      recommendation_id uuid not null references public.talent_opportunity_recommendation(id),
+      talent_id uuid not null references public.talent_users(user_id),
+      source_company_message_id bigint not null references public.company_messages(id),
+      expects_document boolean not null default false,
+      request_context text not null,
+      workflow_status text not null default 'queued',
+      expires_at timestamptz not null default (now() + interval '14 days'),
+      created_at timestamptz not null default now()
+    );
+    create table public.contact_queue (
+      id bigserial primary key,
+      user_id uuid not null,
+      type text not null,
+      status text not null,
+      payload jsonb not null,
+      scheduled_at timestamptz not null,
+      attempts integer not null default 0,
+      cancelled_at timestamptz,
+      created_at timestamptz not null default now(),
+      last_error text,
+      locked_at timestamptz,
+      locked_by text,
+      resend_email_id text,
+      sent_at timestamptz,
+      updated_at timestamptz not null default now(),
+      role_id uuid,
+      recommendation_id uuid,
+      company_talent_request_id uuid references public.company_talent_requests(id)
+    );
+    create unique index contact_queue_type_recommendation_uidx
+      on public.contact_queue(type, recommendation_id);
+    create unique index contact_queue_company_request_type_uidx
+      on public.contact_queue(company_talent_request_id, type)
+      where company_talent_request_id is not null;
+    alter table public.company_roles
+      add constraint company_roles_type_check
+      check (type <@ array['full_time', 'part_time', 'internship', 'contract']::text[]);
+  `);
+  await sql`
+    insert into public.talent_users(user_id)
+    values (${IDS.talent}::uuid)
+  `;
+  await sql`
+    insert into public.talent_opportunity_recommendation(id, role_id, talent_id)
+    values
+      (
+        ${IDS.recommendation}::uuid,
+        ${IDS.legacyRole}::uuid,
+        ${IDS.talent}::uuid
+      ),
+      (
+        ${IDS.recommendationB}::uuid,
+        ${IDS.conflictRole}::uuid,
+        ${IDS.talent}::uuid
+      )
+  `;
+  await sql`
+    insert into public.company_conversations(id, company_workspace_id)
+    values
+      (${IDS.talentRequestConversation}::uuid, ${IDS.workspaceA}::uuid),
+      (${IDS.talentRequestConversationB}::uuid, ${IDS.workspaceB}::uuid)
+  `;
+  const workspaceScopedMessage = firstRow(
+    await sql`
+      insert into public.company_messages(
+        conversation_id, company_workspace_id, role_id, company_user_id,
+        role, content
+      ) values (
+        ${IDS.talentRequestConversation}::uuid, ${IDS.workspaceA}::uuid, null,
+        ${IDS.user}::uuid, 'user', 'Please ask the candidate'
+      )
+      returning id
+    `
+  );
+  const wrongRoleMessage = firstRow(
+    await sql`
+      insert into public.company_messages(
+        conversation_id, company_workspace_id, role_id, company_user_id,
+        role, content
+      ) values (
+        ${IDS.talentRequestConversation}::uuid, ${IDS.workspaceA}::uuid,
+        ${IDS.conflictRole}::uuid, ${IDS.user}::uuid, 'user',
+        'Please ask the wrong scoped candidate'
+      )
+      returning id
+    `
+  );
+  const replacementMessage = firstRow(
+    await sql`
+      insert into public.company_messages(
+        conversation_id, company_workspace_id, role_id, company_user_id,
+        role, content
+      ) values (
+        ${IDS.talentRequestConversation}::uuid, ${IDS.workspaceA}::uuid,
+        null, ${IDS.user}::uuid, 'user',
+        'Please send a separately authorized replacement request'
+      )
+      returning id
+    `
+  );
+  const otherWorkspaceMessage = firstRow(
+    await sql`
+      insert into public.company_messages(
+        conversation_id, company_workspace_id, role_id, company_user_id,
+        role, content
+      ) values (
+        ${IDS.talentRequestConversationB}::uuid, ${IDS.workspaceB}::uuid,
+        null, ${IDS.user}::uuid, 'user',
+        'Please ask a candidate from another workspace'
+      )
+      returning id
+    `
+  );
+
+  await applyMigration(sql, WORKSPACE_SCOPED_TALENT_REQUEST_MIGRATION);
+  await applyMigration(sql, SCHEDULED_TALENT_REQUEST_MIGRATION);
+  await applyMigration(sql, COMPANY_SIDE_CONSTRAINT_BALANCE_MIGRATION);
+  await applyMigration(sql, CHANGE_TALENT_REQUEST_MIGRATION);
+  const scopedQueueIndex = firstRow(
+    await sql`
+      select indexdef
+      from pg_indexes
+      where schemaname = 'public'
+        and indexname = 'contact_queue_internal_connection_recommendation_uidx'
+    `
+  );
+  assert(
+    /where .*type.*internal_connection_confirmed/i.test(
+      String(scopedQueueIndex.indexdef)
+    ),
+    "recommendation-level queue uniqueness was not limited to internal connection emails"
+  );
+  await sql`
+    update public.company_roles
+    set type = array['contractor', 'temporary']::text[]
+    where role_id = ${IDS.conflictRole}::uuid
+  `;
+  await sql`
+    insert into public.company_events(workspace_id, content, source)
+    values (${IDS.workspaceA}::uuid, 'Extensible event source', 'api')
+  `;
+  const created = firstRow(
+    await sql`
+      select request.id, request.workflow_status
+      from public.enqueue_company_talent_request_v1(
+        ${IDS.workspaceA}::uuid,
+        ${IDS.legacyRole}::uuid,
+        ${IDS.recommendation}::uuid,
+        ${IDS.talent}::uuid,
+        ${Number(workspaceScopedMessage.id)}::bigint,
+        false,
+        'Current interest in the role'
+      ) request
+    `
+  );
+  assert(
+    created.workflow_status === "queued",
+    "workspace-scoped user message did not create a talent request"
+  );
+  const schedule = firstRow(
+    await sql`
+      select
+        queue.scheduled_at >= request.created_at + interval '20 minutes'
+          as delayed,
+        (queue.scheduled_at at time zone 'Asia/Seoul')::time >= time '08:00'
+          and (queue.scheduled_at at time zone 'Asia/Seoul')::time < time '20:00'
+          as inside_window
+      from public.company_talent_requests request
+      join public.contact_queue queue
+        on queue.company_talent_request_id = request.id
+      where request.id = ${String(created.id)}::uuid
+        and queue.type = 'company_request_candidate_delivery'
+    `
+  );
+  assert(
+    schedule.delayed === true && schedule.inside_window === true,
+    "candidate contact was not delayed into the 08:00-20:00 KST window"
+  );
+  const repeated = firstRow(
+    await sql`
+      select request.id
+      from public.enqueue_company_talent_request_v1(
+        ${IDS.workspaceA}::uuid,
+        ${IDS.legacyRole}::uuid,
+        ${IDS.recommendation}::uuid,
+        ${IDS.talent}::uuid,
+        ${Number(workspaceScopedMessage.id)}::bigint,
+        false,
+        'Current interest in the role'
+      ) request
+    `
+  );
+  assert(
+    repeated.id === created.id,
+    "workspace-scoped talent request retry was not idempotent"
+  );
+  assert(
+    value<number>(
+      await sql`
+        select count(*)::int as count
+        from public.contact_queue
+        where company_talent_request_id = ${String(created.id)}::uuid
+      `,
+      "count"
+    ) === 1,
+    "workspace-scoped talent request retry duplicated delivery"
+  );
+  await expectDbError(
+    "second company talent request for the same role while one is queued",
+    () =>
+      sql`
+        select *
+        from public.enqueue_company_talent_request_v1(
+          ${IDS.workspaceA}::uuid,
+          ${IDS.legacyRole}::uuid,
+          ${IDS.recommendation}::uuid,
+          ${IDS.talent}::uuid,
+          ${Number(wrongRoleMessage.id)}::bigint,
+          false,
+          'A replacement question while the first is queued'
+        )
+      `,
+    /company_talent_requests_workspace_role_talent_open_uidx/i
+  );
+  const otherRoleRequest = firstRow(
+    await sql`
+      select request.id, request.workflow_status
+      from public.enqueue_company_talent_request_v1(
+        ${IDS.workspaceA}::uuid,
+        ${IDS.conflictRole}::uuid,
+        ${IDS.recommendationB}::uuid,
+        ${IDS.talent}::uuid,
+        ${Number(replacementMessage.id)}::bigint,
+        false,
+        'A separately authorized question for another role'
+      ) request
+    `
+  );
+  assert(
+    otherRoleRequest.workflow_status === "queued" &&
+      otherRoleRequest.id !== created.id,
+    "the database blocked an independently authorized request for another role"
+  );
+  await sql`
+    update public.company_talent_requests
+    set workflow_status = 'failed'
+    where id = ${String(created.id)}::uuid
+  `;
+  await sql`
+    update public.contact_queue
+    set status = 'failed', attempts = 3, last_error = 'test delivery failure'
+    where company_talent_request_id = ${String(created.id)}::uuid
+      and type = 'company_request_candidate_delivery'
+  `;
+  assert(
+    value<number>(
+      await sql`
+        select count(*)::int as count
+        from public.contact_queue
+        where recommendation_id = ${IDS.recommendation}::uuid
+          and type = 'company_request_candidate_delivery'
+      `,
+      "count"
+    ) === 1,
+    "a failed delivery unexpectedly duplicated the original role request"
+  );
+  await expectDbError(
+    "replacement for the same role while an earlier delivery is failed",
+    () =>
+      sql`
+        select *
+        from public.enqueue_company_talent_request_v1(
+          ${IDS.workspaceA}::uuid,
+          ${IDS.legacyRole}::uuid,
+          ${IDS.recommendation}::uuid,
+          ${IDS.talent}::uuid,
+          ${Number(wrongRoleMessage.id)}::bigint,
+          false,
+          'A replacement question after a delivery failure'
+        )
+      `,
+    /company_talent_requests_workspace_role_talent_open_uidx/i
+  );
+  await expectDbError(
+    "unsupported candidate contact change action",
+    () =>
+      sql`
+        select public.change_company_talent_request_v1(
+          'later',
+          ${String(created.id)}::uuid,
+          ${IDS.workspaceA}::uuid,
+          ${IDS.legacyRole}::uuid,
+          ${IDS.talent}::uuid
+        )
+      `,
+    /company_talent_request_action_invalid/i
+  );
+  const immediate = firstRow(
+    await sql`
+      select public.change_company_talent_request_v1(
+        'immediate',
+        ${String(created.id)}::uuid,
+        ${IDS.workspaceA}::uuid,
+        ${IDS.legacyRole}::uuid,
+        ${IDS.talent}::uuid
+      ) as result
+    `
+  ).result as Record<string, unknown>;
+  assert(
+    immediate.status === "immediate" && immediate.idempotent === false,
+    "failed candidate contact was not changed to immediate delivery"
+  );
+  const immediateState = firstRow(
+    await sql`
+      select request.workflow_status, queue.status as queue_status,
+             queue.scheduled_at <= now() as scheduled_now,
+             queue.attempts, queue.last_error,
+             queue.payload ->> 'deliveryMode' as delivery_mode,
+             queue.payload -> 'deliveryChange' ->> 'action' as delivery_action
+      from public.company_talent_requests request
+      join public.contact_queue queue
+        on queue.company_talent_request_id = request.id
+      where request.id = ${String(created.id)}::uuid
+    `
+  );
+  assert(
+    immediateState.workflow_status === "queued" &&
+      immediateState.queue_status === "queued" &&
+      immediateState.scheduled_now === true &&
+      immediateState.attempts === 0 &&
+      immediateState.last_error === null &&
+      immediateState.delivery_mode === "immediate" &&
+      immediateState.delivery_action === "immediate",
+    "immediate delivery did not atomically reset the existing request and outbox"
+  );
+  const immediateAgain = firstRow(
+    await sql`
+      select public.change_company_talent_request_v1(
+        'immediate',
+        ${String(created.id)}::uuid,
+        ${IDS.workspaceA}::uuid,
+        ${IDS.legacyRole}::uuid,
+        ${IDS.talent}::uuid
+      ) as result
+    `
+  ).result as Record<string, unknown>;
+  assert(
+    immediateAgain.status === "immediate" && immediateAgain.idempotent === true,
+    "immediate candidate contact change was not idempotent"
+  );
+  const cancelled = firstRow(
+    await sql`
+      select public.change_company_talent_request_v1(
+        'cancel',
+        ${String(created.id)}::uuid,
+        ${IDS.workspaceA}::uuid,
+        ${IDS.legacyRole}::uuid,
+        ${IDS.talent}::uuid
+      ) as result
+    `
+  ).result as Record<string, unknown>;
+  assert(
+    cancelled.status === "cancelled" && cancelled.idempotent === false,
+    "failed candidate contact was not cancelled"
+  );
+  const cancelledState = firstRow(
+    await sql`
+      select request.workflow_status, queue.status as queue_status,
+             queue.payload -> 'cancellation' ->> 'source' as cancellation_source
+      from public.company_talent_requests request
+      join public.contact_queue queue
+        on queue.company_talent_request_id = request.id
+      where request.id = ${String(created.id)}::uuid
+    `
+  );
+  assert(
+    cancelledState.workflow_status === "closed" &&
+      cancelledState.queue_status === "cancelled" &&
+      cancelledState.cancellation_source === "company",
+    "candidate contact cancellation did not close request and outbox together"
+  );
+  const cancelledAgain = firstRow(
+    await sql`
+      select public.cancel_company_talent_request_v1(
+        ${String(created.id)}::uuid,
+        ${IDS.workspaceA}::uuid,
+        ${IDS.legacyRole}::uuid,
+        ${IDS.talent}::uuid
+      ) as result
+    `
+  ).result as Record<string, unknown>;
+  assert(
+    cancelledAgain.status === "cancelled" && cancelledAgain.idempotent === true,
+    "candidate contact cancellation was not idempotent"
+  );
+  const createdAfterCancellation = firstRow(
+    await sql`
+      select request.id, request.workflow_status
+      from public.enqueue_company_talent_request_v1(
+        ${IDS.workspaceA}::uuid,
+        ${IDS.legacyRole}::uuid,
+        ${IDS.recommendation}::uuid,
+        ${IDS.talent}::uuid,
+        ${Number(wrongRoleMessage.id)}::bigint,
+        false,
+        'A new question after cancelling an earlier delivery'
+      ) request
+    `
+  );
+  assert(
+    createdAfterCancellation.workflow_status === "queued" &&
+      createdAfterCancellation.id !== created.id &&
+      createdAfterCancellation.id !== otherRoleRequest.id,
+    "a cancelled delivery still blocked a new independently authorized request"
+  );
+  const privileges = firstRow(
+    await sql`
+      select
+        has_function_privilege(
+          'anon',
+          'public.enqueue_company_talent_request_v1(uuid,uuid,uuid,uuid,bigint,boolean,text)',
+          'EXECUTE'
+        ) as anon_execute,
+        has_function_privilege(
+          'service_role',
+          'public.enqueue_company_talent_request_v1(uuid,uuid,uuid,uuid,bigint,boolean,text)',
+          'EXECUTE'
+        ) as service_execute,
+        has_function_privilege(
+          'anon',
+          'public.cancel_company_talent_request_v1(uuid,uuid,uuid,uuid)',
+          'EXECUTE'
+        ) as anon_cancel,
+        has_function_privilege(
+          'service_role',
+          'public.cancel_company_talent_request_v1(uuid,uuid,uuid,uuid)',
+          'EXECUTE'
+        ) as service_cancel,
+        has_function_privilege(
+          'anon',
+          'public.change_company_talent_request_v1(text,uuid,uuid,uuid,uuid)',
+          'EXECUTE'
+        ) as anon_change,
+        has_function_privilege(
+          'service_role',
+          'public.change_company_talent_request_v1(text,uuid,uuid,uuid,uuid)',
+          'EXECUTE'
+        ) as service_change
+    `
+  );
+  assert(
+    privileges.anon_execute === false &&
+      privileges.service_execute === true &&
+      privileges.anon_cancel === false &&
+      privileges.service_cancel === true &&
+      privileges.anon_change === false &&
+      privileges.service_change === true,
+    "workspace-scoped talent request migration changed RPC privileges"
+  );
+  const createdFromLegacyRoleHint = firstRow(
+    await sql`
+      select request.id, request.workflow_status
+      from public.enqueue_company_talent_request_v1(
+        ${IDS.workspaceA}::uuid,
+        ${IDS.legacyRole}::uuid,
+        ${IDS.recommendation}::uuid,
+        ${IDS.talent}::uuid,
+        ${Number(wrongRoleMessage.id)}::bigint,
+        false,
+        'Current interest in the role'
+      ) request
+    `
+  );
+  assert(
+    createdFromLegacyRoleHint.workflow_status === "queued" &&
+      createdFromLegacyRoleHint.id === createdAfterCancellation.id,
+    "deprecated message role hint blocked a valid request or its retry was not idempotent"
+  );
+  assert(
+    value<number>(
+      await sql`
+        select count(*)::int as count
+        from public.contact_queue
+        where recommendation_id = ${IDS.recommendation}::uuid
+          and type = 'company_request_candidate_delivery'
+      `,
+      "count"
+    ) === 2,
+    "a cancelled request still prevented a replacement delivery"
+  );
+  await expectDbError(
+    "cross-workspace company message",
+    () =>
+      sql`
+        select *
+        from public.enqueue_company_talent_request_v1(
+          ${IDS.workspaceA}::uuid,
+          ${IDS.legacyRole}::uuid,
+          ${IDS.recommendation}::uuid,
+          ${IDS.talent}::uuid,
+          ${Number(otherWorkspaceMessage.id)}::bigint,
+          false,
+          'Current interest in the role'
+        )
+      `,
+    /company_talent_request_target_not_found/i
+  );
+  logPass(
+    "company requests are scoped by company, role, and talent while extensible company-side values remain accepted"
+  );
 }
 
 async function testInternalRoleChildUpdateLockOrder(sql: Db, lockHolder: Db) {
@@ -1425,16 +1974,6 @@ async function testApplyRpcAndGuard(sql: Db, lockHolder: Db) {
     },
     {
       change: {
-        key: "role_employment_types",
-        role_id: IDS.legacyRole,
-        expected: [],
-        value: ["full_time", "freelance"],
-      },
-      label: "employment type allowlist",
-      pattern: /invalid role employment type/i,
-    },
-    {
-      change: {
         key: "company_description",
         role_id: null,
         expected_physical: {
@@ -1468,6 +2007,38 @@ async function testApplyRpcAndGuard(sql: Db, lockHolder: Db) {
   logPass(
     "SECURITY DEFINER value validation matches enum, URL, size, and integer contracts"
   );
+  const extensibleEmploymentResult = rpcResult(
+    await sql`
+      select public.apply_company_data_changes_v1(
+        ${IDS.workspaceA}::uuid,
+        ${JSON.stringify([
+          {
+            key: "role_employment_types",
+            role_id: IDS.legacyRole,
+            expected: [],
+            value: ["full_time", "freelance", "프로젝트 계약"],
+          },
+        ])}::jsonb,
+        'chat',
+        'DB Tester · extensible employment labels'
+      ) as result
+    `
+  );
+  const extensibleEmploymentTypes = value<string[]>(
+    await sql`
+      select type
+      from public.company_roles
+      where role_id = ${IDS.legacyRole}::uuid
+    `,
+    "type"
+  );
+  assert(
+    extensibleEmploymentResult.status === "updated" &&
+      extensibleEmploymentTypes.join("|") ===
+        "full_time|freelance|프로젝트 계약",
+    "company-specific employment labels were rejected or rewritten"
+  );
+  logPass("company-specific employment labels remain extensible");
 
   const sourceTransitionEventsBefore = await countEvents(sql);
   const canonicalBeforeExternalization =
@@ -2398,6 +2969,323 @@ async function ensureSlackFixtures(sql: Db) {
   `;
 }
 
+async function setSlackWorkerTarget(sql: Db, workerTarget: string) {
+  return rpcResult(
+    await sql`
+      select public.set_slack_agent_worker_target_v1(
+        ${workerTarget},
+        ${IDS.workspaceA}::uuid,
+        null
+      ) as result
+    `
+  );
+}
+
+async function testSlackWorkerRouting(sql: Db) {
+  await ensureSlackFixtures(sql);
+
+  await sql`
+    insert into public.slack_reply_jobs(
+      id, slack_event_id, thread_id, trigger_kind, slack_message_ts, prompt
+    ) values (
+      ${IDS.routeExistingJob}::uuid,
+      'Ev_ROUTE_EXISTING',
+      ${IDS.slackThread}::uuid,
+      'mention',
+      '1700000005.000001',
+      'existing production-routed prompt'
+    )
+  `;
+  assert(
+    value<string>(
+      await sql`
+        select worker_target
+        from public.slack_reply_jobs
+        where id = ${IDS.routeExistingJob}::uuid
+      `,
+      "worker_target"
+    ) === "production",
+    "new Slack job did not default to the production worker target"
+  );
+
+  const localRoute = await setSlackWorkerTarget(sql, "local-db-test");
+  assert(
+    localRoute.status === "updated" &&
+      localRoute.worker_target === "local-db-test" &&
+      localRoute.channel_count === 1 &&
+      localRoute.pending_job_count === 1,
+    "workspace route did not update its channel and pending job"
+  );
+  const routedState = firstRow(
+    await sql`
+      select channel.worker_target as channel_target,
+             job.worker_target as job_target
+      from public.company_slack_channels channel
+      join public.company_slack_threads thread on thread.channel_id = channel.id
+      join public.slack_reply_jobs job on job.thread_id = thread.id
+      where job.id = ${IDS.routeExistingJob}::uuid
+    `
+  );
+  assert(
+    routedState.channel_target === "local-db-test" &&
+      routedState.job_target === "local-db-test",
+    "local worker route was not persisted on the channel and queued job"
+  );
+
+  await sql`
+    insert into public.slack_reply_jobs(
+      id, slack_event_id, thread_id, trigger_kind, slack_message_ts, prompt
+    ) values (
+      ${IDS.routeLocalJob}::uuid,
+      'Ev_ROUTE_LOCAL',
+      ${IDS.slackThread}::uuid,
+      'mention',
+      '1700000006.000001',
+      'future local-routed prompt'
+    )
+  `;
+  assert(
+    value<string>(
+      await sql`
+        select worker_target
+        from public.slack_reply_jobs
+        where id = ${IDS.routeLocalJob}::uuid
+      `,
+      "worker_target"
+    ) === "local-db-test",
+    "enqueue trigger did not copy the channel worker target"
+  );
+
+  const legacyProductionClaims = await sql`
+    select id::text
+    from public.claim_slack_reply_jobs('legacy-production-worker', 10, 5, 300)
+  `;
+  assert(
+    legacyProductionClaims.length === 0,
+    "legacy production claim stole a locally routed Slack job"
+  );
+  const localClaims = await sql`
+    select id::text, worker_target
+    from public.claim_slack_reply_jobs_v2(
+      'local-worker', 'local-db-test', 1, 5, 300
+    )
+  `;
+  assert(
+    localClaims.length === 1 &&
+      localClaims[0]?.id === IDS.routeExistingJob &&
+      localClaims[0]?.worker_target === "local-db-test",
+    "local worker did not exclusively claim its routed job"
+  );
+
+  await expectDbError(
+    "Slack worker route change during processing",
+    () => setSlackWorkerTarget(sql, "production"),
+    /while matching jobs are processing/i
+  );
+  await sql`
+    update public.slack_reply_jobs
+    set status = 'completed', locked_at = null, locked_by = null,
+        completed_at = now(), updated_at = now()
+    where id = ${IDS.routeExistingJob}::uuid
+  `;
+
+  const productionRoute = await setSlackWorkerTarget(sql, "production");
+  assert(
+    productionRoute.status === "updated" &&
+      productionRoute.worker_target === "production" &&
+      productionRoute.pending_job_count === 1,
+    "production route did not restore the remaining local job"
+  );
+  await sql`
+    insert into public.slack_reply_jobs(
+      id, slack_event_id, thread_id, trigger_kind, slack_message_ts, prompt
+    ) values (
+      ${IDS.routeProductionJob}::uuid,
+      'Ev_ROUTE_PRODUCTION',
+      ${IDS.slackThread}::uuid,
+      'mention',
+      '1700000007.000001',
+      'future production-routed prompt'
+    )
+  `;
+
+  const localClaimsAfterRestore = await sql`
+    select id::text
+    from public.claim_slack_reply_jobs_v2(
+      'local-worker', 'local-db-test', 10, 5, 300
+    )
+  `;
+  assert(
+    localClaimsAfterRestore.length === 0,
+    "local worker retained jobs after restoring the production route"
+  );
+  const productionClaims = await sql`
+    select id::text, worker_target
+    from public.claim_slack_reply_jobs('production-worker', 10, 5, 300)
+    order by id
+  `;
+  assert(
+    productionClaims.length === 2 &&
+      productionClaims.every((row) => row.worker_target === "production") &&
+      productionClaims.some((row) => row.id === IDS.routeLocalJob) &&
+      productionClaims.some((row) => row.id === IDS.routeProductionJob),
+    "production worker did not reclaim restored and newly queued jobs"
+  );
+  logPass(
+    "Slack jobs route exclusively between production and a selected local worker"
+  );
+}
+
+async function enqueueSlackReplyJob(
+  sql: Db,
+  args: {
+    eventId: string;
+    messageTs: string;
+    prompt: string;
+    triggerKind: "mention" | "thread_reply";
+  }
+) {
+  return rpcResult(
+    await sql`
+      select public.enqueue_slack_reply_job_v1(
+        ${args.eventId},
+        ${IDS.slackBatchThread}::uuid,
+        ${args.triggerKind},
+        ${args.messageTs},
+        'U_BATCH',
+        ${args.prompt}
+      ) as result
+    `
+  );
+}
+
+async function testSlackThreadReplyCoalescing(sql: Db) {
+  await ensureSlackFixtures(sql);
+  await sql`
+    insert into public.company_slack_channels(
+      id, company_workspace_id, slack_team_id, slack_channel_id, worker_target
+    ) values (
+      ${IDS.slackBatchChannel}::uuid,
+      ${IDS.workspaceA}::uuid,
+      'T_TEST',
+      'C_BATCH',
+      'batch-test'
+    )
+  `;
+  await sql`
+    insert into public.company_slack_threads(
+      id, channel_id, role_id, slack_thread_ts
+    ) values (
+      ${IDS.slackBatchThread}::uuid,
+      ${IDS.slackBatchChannel}::uuid,
+      null,
+      '1700000100.000001'
+    )
+  `;
+
+  const first = await enqueueSlackReplyJob(sql, {
+    eventId: "Ev_BATCH_1",
+    messageTs: "1700000101.000001",
+    prompt: "첫 번째 질문",
+    triggerKind: "mention",
+  });
+  await sql`
+    update public.slack_reply_jobs
+    set status = 'processing', locked_at = now(), locked_by = 'batch-worker'
+    where id = ${String(first.job_id)}::uuid
+  `;
+
+  const second = await enqueueSlackReplyJob(sql, {
+    eventId: "Ev_BATCH_2",
+    messageTs: "1700000102.000001",
+    prompt: "두 번째 질문",
+    triggerKind: "thread_reply",
+  });
+  const third = await enqueueSlackReplyJob(sql, {
+    eventId: "Ev_BATCH_3",
+    messageTs: "1700000103.000001",
+    prompt: "세 번째 질문",
+    triggerKind: "thread_reply",
+  });
+  const rows = await sql`
+    select id::text, status, last_error, prompt, batched_prompt, trigger_kind,
+           locked_at, locked_by
+    from public.slack_reply_jobs
+    where thread_id = ${IDS.slackBatchThread}::uuid
+    order by slack_message_ts
+  `;
+  assert(
+    rows.length === 3 &&
+      rows[0]?.status === "ignored" &&
+      rows[0]?.last_error === "superseded_by_new_thread_message" &&
+      rows[1]?.status === "ignored" &&
+      rows[1]?.last_error === "superseded_by_new_thread_message" &&
+      rows[2]?.id === third.job_id &&
+      rows[2]?.status === "queued",
+    "new Slack thread messages did not supersede the active turn"
+  );
+  assert(
+    rows[0]?.locked_at === null &&
+      rows[0]?.locked_by === null &&
+      rows[2]?.prompt === "세 번째 질문" &&
+      rows[2]?.batched_prompt ===
+        "첫 번째 질문\n\n두 번째 질문\n\n세 번째 질문" &&
+      rows[2]?.trigger_kind === "mention",
+    "Slack thread messages were not coalesced into one mention-aware prompt"
+  );
+  assert(
+    second.superseded_job_id === first.job_id &&
+      third.superseded_job_id === second.job_id,
+    "Slack enqueue did not report the superseded generation chain"
+  );
+
+  const duplicate = await enqueueSlackReplyJob(sql, {
+    eventId: "Ev_BATCH_3",
+    messageTs: "1700000103.000001",
+    prompt: "세 번째 질문",
+    triggerKind: "thread_reply",
+  });
+  assert(
+    duplicate.duplicate === true && duplicate.job_id === third.job_id,
+    "duplicate Slack event did not preserve the current coalesced job"
+  );
+
+  await sql`
+    update public.slack_reply_jobs
+    set status = 'processing', response_text = '생성 완료 응답'
+    where id = ${String(third.job_id)}::uuid
+  `;
+  const afterGeneration = await enqueueSlackReplyJob(sql, {
+    eventId: "Ev_BATCH_4",
+    messageTs: "1700000104.000001",
+    prompt: "생성 완료 뒤 질문",
+    triggerKind: "thread_reply",
+  });
+  const completedGeneration = firstRow(
+    await sql`
+      select status, batched_prompt
+      from public.slack_reply_jobs
+      where id = ${String(third.job_id)}::uuid
+    `
+  );
+  const nextTurn = firstRow(
+    await sql`
+      select status, batched_prompt
+      from public.slack_reply_jobs
+      where id = ${String(afterGeneration.job_id)}::uuid
+    `
+  );
+  assert(
+    completedGeneration.status === "processing" &&
+      nextTurn.status === "queued" &&
+      nextTurn.batched_prompt === "생성 완료 뒤 질문",
+    "a message after the generation cutoff incorrectly cancelled the ready reply"
+  );
+  logPass(
+    "Slack thread messages immediately coalesce and supersede in-flight generations"
+  );
+}
+
 async function insertNormalSlackAssistant(
   sql: Db,
   args: {
@@ -2873,10 +3761,13 @@ async function run() {
     await installBaseline(testDb);
     await testRequestMigration(testDb, notices);
     await applyRemainingMigrations(testDb);
+    await testWorkspaceScopedCompanyTalentRequest(testDb);
     await testMemoryConstraints(testDb, lockHolderDb);
     await testRlsAndGrants(testDb);
     await testApplyRpcAndGuard(testDb, lockHolderDb);
     await testChatProposalLifecycle(testDb);
+    await testSlackWorkerRouting(testDb);
+    await testSlackThreadReplyCoalescing(testDb);
     await testSlackReplyFinalization(testDb);
     await testSlackProposalLifecycle(testDb);
     process.stdout.write(

@@ -58,12 +58,19 @@ export const anthropicClient = new OpenAI({
   baseURL: "https://api.anthropic.com/v1/",
 });
 
-export type LlmChatProvider = "anthropic" | "openai" | "xai";
+export const deepseekClient = new OpenAI({
+  apiKey: process.env.DEEPSEEK_API_KEY ?? "missing-deepseek-api-key",
+  dangerouslyAllowBrowser: true,
+  baseURL: "https://api.deepseek.com",
+});
+
+export type LlmChatProvider = "anthropic" | "deepseek" | "openai" | "xai";
 
 export function getLlmChatProviderForModel(model: string): LlmChatProvider {
   const normalized = model.trim().toLowerCase();
   if (normalized.startsWith("grok-")) return "xai";
   if (normalized.startsWith("claude-")) return "anthropic";
+  if (normalized.startsWith("deepseek-")) return "deepseek";
   return "openai";
 }
 
@@ -71,11 +78,13 @@ export function getChatClientForModel(model: string) {
   const provider = getLlmChatProviderForModel(model);
   if (provider === "xai") return xaiClient;
   if (provider === "anthropic") return anthropicClient;
+  if (provider === "deepseek") return deepseekClient;
   return client;
 }
 
 export function supportsResponseFormatForModel(model: string) {
-  return getLlmChatProviderForModel(model) === "openai";
+  const provider = getLlmChatProviderForModel(model);
+  return provider === "deepseek" || provider === "openai";
 }
 
 export function supportsSamplingParametersForModel(model: string) {
@@ -86,6 +95,7 @@ export function supportsSamplingParametersForModel(model: string) {
   ) {
     return false;
   }
+  if (getLlmChatProviderForModel(normalized) === "deepseek") return false;
   if (getLlmChatProviderForModel(normalized) !== "anthropic") return true;
   if (
     normalized === "claude-sonnet-5" ||
@@ -142,9 +152,11 @@ async function createOpenAIResponsesCompletion(args: {
   model: string;
   reasoningEffort: OpenAIResponsesReasoningEffort;
   requestBody: Record<string, unknown>;
+  signal?: AbortSignal;
 }) {
   const response = await args.llmClient.responses.create(
-    buildOpenAIResponsesRequest(args) as any
+    buildOpenAIResponsesRequest(args) as any,
+    { signal: args.signal }
   );
   return toChatCompletionFromOpenAIResponse(response);
 }
@@ -317,31 +329,39 @@ export async function createChatCompletionWithFallback(args: {
   anthropicOverloadFallbackModel?: string | null;
   buildRequest: (model: string) => Record<string, unknown>;
   debugLabel?: string | null;
+  deepSeekThinking?: {
+    reasoningEffort: "high" | "max";
+  };
   fallbackModel?: string | null;
   model: string;
   openAIResponses?: {
     reasoningEffort: OpenAIResponsesReasoningEffort;
   };
+  signal?: AbortSignal;
 }): Promise<{
   fallbackReason?: ChatCompletionFallbackReason;
   model: string;
   response: any;
 }> {
   const createForModel = async (model: string) => {
+    args.signal?.throwIfAborted();
     const llmClient = getChatClientForModel(model);
+    const provider = getLlmChatProviderForModel(model);
     const rawRequestBody: Record<string, unknown> = {
       ...args.buildRequest(model),
       model,
     };
-    if (
-      args.openAIResponses &&
-      getLlmChatProviderForModel(model) === "openai"
-    ) {
+    if (provider === "deepseek" && args.deepSeekThinking) {
+      rawRequestBody.reasoning_effort = args.deepSeekThinking.reasoningEffort;
+      rawRequestBody.thinking = { type: "enabled" };
+    }
+    if (args.openAIResponses && provider === "openai") {
       return createOpenAIResponsesCompletion({
         llmClient,
         model,
         reasoningEffort: args.openAIResponses.reasoningEffort,
         requestBody: rawRequestBody,
+        signal: args.signal,
       });
     }
     const requestBody = omitUnsupportedSamplingParameters(model, {
@@ -349,7 +369,12 @@ export async function createChatCompletionWithFallback(args: {
       messages: Array.isArray(rawRequestBody.messages)
         ? rawRequestBody.messages.map((message: any) => {
             const { _responses_output: _ignored, ...chatMessage } = message;
-            return chatMessage;
+            if (provider === "deepseek") return chatMessage;
+            const {
+              reasoning_content: _ignoredReasoningContent,
+              ...portableChatMessage
+            } = chatMessage;
+            return portableChatMessage;
           })
         : rawRequestBody.messages,
     });
@@ -359,15 +384,19 @@ export async function createChatCompletionWithFallback(args: {
     //     JSON.stringify(requestBody, null, 2)
     //   );
     // }
-    return llmClient.chat.completions.create(requestBody as any);
+    return llmClient.chat.completions.create(requestBody as any, {
+      signal: args.signal,
+    });
   };
   const createForModelWithTransientRetry = async (model: string) => {
     let attempt = 0;
 
     for (;;) {
       try {
+        args.signal?.throwIfAborted();
         return await createForModel(model);
       } catch (error) {
+        args.signal?.throwIfAborted();
         const delayMs = CHAT_COMPLETION_TRANSIENT_RETRY_DELAYS_MS[attempt];
         if (
           delayMs === undefined ||
@@ -386,6 +415,7 @@ export async function createChatCompletionWithFallback(args: {
           provider: getLlmChatProviderForModel(model),
         });
         await sleep(delayMs);
+        args.signal?.throwIfAborted();
       }
     }
   };
@@ -396,6 +426,7 @@ export async function createChatCompletionWithFallback(args: {
       response: await createForModelWithTransientRetry(args.model),
     };
   } catch (error) {
+    args.signal?.throwIfAborted();
     const fallbackCandidates = getChatCompletionFallbackCandidates({
       anthropicOverloadFallbackModel: args.anthropicOverloadFallbackModel,
       error,
@@ -413,6 +444,7 @@ export async function createChatCompletionWithFallback(args: {
         toModel: fallback.model,
       });
       try {
+        args.signal?.throwIfAborted();
         return {
           fallbackReason: fallback.reason,
           model: fallback.model,

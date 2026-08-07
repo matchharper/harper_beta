@@ -4,6 +4,7 @@ import { applyWebsiteCompanyDataChanges } from "@/lib/org/companyDataWebsite";
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
 
 type CompanyUserWorkspaceRow = {
+  authority: string;
   company_user_id: string;
   company_workspace_id: string;
   created_at: string;
@@ -267,7 +268,7 @@ async function fetchMembershipRows(args: {
 }) {
   let query = (args.admin.from("company_user_workspace" as any) as any)
     .select(
-      "id, company_user_id, company_workspace_id, role, created_at, updated_at"
+      "id, company_user_id, company_workspace_id, authority, role, created_at, updated_at"
     )
     .eq("company_workspace_id", args.workspaceId)
     .order("created_at", { ascending: false }) as any;

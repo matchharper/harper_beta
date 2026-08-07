@@ -7,6 +7,11 @@ import {
 } from "@/lib/llm/llm";
 import { extractLlmTokenUsage } from "@/lib/llm/usageLogging";
 import {
+  createLlmDebugCall,
+  summarizeLlmDebugCalls,
+  type LlmDebugCall,
+} from "@/lib/llm/debugUsage";
+import {
   DEFAULT_ORG_AGENT_MODEL,
   getOrgAgentFallbackModel,
   ORG_AGENT_GROK_MODEL,
@@ -28,7 +33,6 @@ import {
 } from "@/lib/org/agent/promptFormat";
 import {
   findNewOrgAgentInternalArtifacts,
-  guardOrgAgentCandidatePrivacyReply,
   replaceNewOrgAgentInternalTokens,
 } from "@/lib/org/agent/responseGuard";
 import { maybeSummarizeOrgAgentConversation } from "@/lib/org/agent/summary";
@@ -51,9 +55,18 @@ import {
   isOrgAgentTerminalToolName,
   isOrgAgentToolName,
 } from "@/lib/org/agent/tools";
-import { getOrgAgentToolCompletionMaxTokens } from "@/lib/org/agent/toolCompletionBudget";
+import {
+  getOrgAgentToolCompletionMaxTokens,
+  NORMAL_TOOL_COMPLETION_MAX_TOKENS,
+} from "@/lib/org/agent/toolCompletionBudget";
 import { fitOrgAgentToolResultToBudget } from "@/lib/org/agent/toolResultBudget";
 import { enforceOrgAgentTerminalMutationOutcome } from "@/lib/org/agent/toolState";
+import {
+  clipOrgAgentToolDebugSummary,
+  summarizeOrgAgentToolInput,
+  summarizeOrgAgentToolResult,
+  type OrgAgentToolDebugEvent,
+} from "@/lib/org/agent/toolDebug";
 import type {
   OrgAgentMention,
   OrgAgentMessage,
@@ -67,7 +80,9 @@ export type OrgAgentChatEventName =
   | "assistant_message"
   | "done"
   | "error"
+  | "llm_debug"
   | "text_delta"
+  | "tool_debug"
   | "tool_status"
   | "user_message";
 
@@ -106,6 +121,7 @@ type OrgAgentLlmMessage = {
   _responses_output?: any[];
   content: string;
   name?: string;
+  reasoning_content?: string;
   role: "assistant" | "system" | "tool" | "user";
   tool_call_id?: string;
   tool_calls?: OrgAgentLlmToolCall[];
@@ -129,14 +145,27 @@ function createTurnUsage(): OrgAgentTurnUsage {
   };
 }
 
-function addCompletionUsage(usage: OrgAgentTurnUsage, response: any) {
-  const current = extractLlmTokenUsage(response);
-  usage.cacheCreationInputTokens += current.cacheCreationInputTokens ?? 0;
-  usage.cacheReadInputTokens += current.cacheReadInputTokens ?? 0;
-  usage.completionCount += 1;
-  usage.inputTokens += current.inputTokens ?? 0;
-  usage.outputTokens += current.outputTokens ?? 0;
-  usage.totalTokens += current.totalTokens ?? 0;
+function addCompletionUsage(args: {
+  debugCalls: LlmDebugCall[];
+  model: string;
+  response: any;
+  step: string;
+  usage: OrgAgentTurnUsage;
+}) {
+  const current = extractLlmTokenUsage(args.response);
+  args.usage.cacheCreationInputTokens += current.cacheCreationInputTokens ?? 0;
+  args.usage.cacheReadInputTokens += current.cacheReadInputTokens ?? 0;
+  args.usage.completionCount += 1;
+  args.usage.inputTokens += current.inputTokens ?? 0;
+  args.usage.outputTokens += current.outputTokens ?? 0;
+  args.usage.totalTokens += current.totalTokens ?? 0;
+  args.debugCalls.push(
+    createLlmDebugCall({
+      model: args.model,
+      response: args.response,
+      step: args.step,
+    })
+  );
 }
 
 function normalizeText(value: unknown) {
@@ -288,6 +317,7 @@ async function runCompletion(args: {
   maxTokens: number;
   messages: OrgAgentLlmMessage[];
   model: OrgAgentModelId;
+  signal?: AbortSignal;
 }) {
   return createChatCompletionWithFallback({
     anthropicOverloadFallbackModel: ORG_AGENT_GROK_MODEL,
@@ -305,15 +335,19 @@ async function runCompletion(args: {
         : {}),
     }),
     debugLabel: "org/agent:chat",
+    deepSeekThinking: { reasoningEffort: "high" },
     fallbackModel: getOrgAgentFallbackModel(args.model),
     model: args.model,
     openAIResponses: { reasoningEffort: "high" },
+    signal: args.signal,
   });
 }
 
 async function correctOrgAgentInternalTokenLeak(args: {
+  debugCalls: LlmDebugCall[];
   model: OrgAgentModelId;
   reply: string;
+  signal?: AbortSignal;
   usage: OrgAgentTurnUsage;
   userMessage: string;
 }) {
@@ -324,7 +358,7 @@ async function correctOrgAgentInternalTokenLeak(args: {
   try {
     const correction = await runCompletion({
       allowTools: false,
-      maxTokens: 1_500,
+      maxTokens: NORMAL_TOOL_COMPLETION_MAX_TOKENS,
       messages: [
         {
           content:
@@ -337,8 +371,15 @@ async function correctOrgAgentInternalTokenLeak(args: {
         },
       ],
       model: args.model,
+      signal: args.signal,
     });
-    addCompletionUsage(args.usage, correction.response);
+    addCompletionUsage({
+      debugCalls: args.debugCalls,
+      model: correction.model,
+      response: correction.response,
+      step: "internal_token_correction",
+      usage: args.usage,
+    });
     const reply = extractAssistantText(
       correction.response?.choices?.[0]?.message
     );
@@ -377,11 +418,13 @@ async function runOrgAgentToolLoop(args: {
     ReturnType<typeof ensureOrgAgentConversation>
   >["conversation"];
   currentUserMessageId: number;
+  debug?: boolean;
   emit?: OrgAgentChatEmitter;
   mentions: OrgAgentMention[];
   model: OrgAgentModelId;
   readAudience: "caller" | "company_safe";
   scopeKey: string;
+  signal?: AbortSignal;
   slackThreadId: string | null;
   source: "chat" | "slack";
   user: User;
@@ -389,7 +432,12 @@ async function runOrgAgentToolLoop(args: {
   userMessage: string;
 }) {
   const messages: OrgAgentLlmMessage[] = [
-    { content: buildOrgAgentSystemPrompt(), role: "system" },
+    {
+      content: buildOrgAgentSystemPrompt({
+        enableSlackChoiceButtons: args.source === "slack",
+      }),
+      role: "system",
+    },
     {
       content: buildOrgAgentUserPrompt({
         context: args.context,
@@ -407,6 +455,7 @@ async function runOrgAgentToolLoop(args: {
   let totalToolResultChars = 0;
   let terminalReached = false;
   const usage = createTurnUsage();
+  const debugCalls: LlmDebugCall[] = [];
 
   for (let loop = 0; loop < MAX_TOOL_LOOPS; loop += 1) {
     let completion: Awaited<ReturnType<typeof runCompletion>>;
@@ -416,8 +465,10 @@ async function runOrgAgentToolLoop(args: {
         maxTokens: getOrgAgentToolCompletionMaxTokens(state),
         messages,
         model: activeModel,
+        signal: args.signal,
       });
     } catch (error) {
+      args.signal?.throwIfAborted();
       if (!state.terminalMutationUsed && state.updateSummaries.length === 0)
         throw error;
       console.error(
@@ -425,6 +476,7 @@ async function runOrgAgentToolLoop(args: {
         getLlmErrorMessage(error)
       );
       return {
+        debugCalls,
         fallbackReason,
         model: activeModel,
         reply: buildFallbackReply(state),
@@ -434,13 +486,20 @@ async function runOrgAgentToolLoop(args: {
     }
     activeModel = completion.model as OrgAgentModelId;
     fallbackReason = fallbackReason ?? completion.fallbackReason ?? null;
-    addCompletionUsage(usage, completion.response);
+    addCompletionUsage({
+      debugCalls,
+      model: completion.model,
+      response: completion.response,
+      step: `tool_loop_${loop + 1}`,
+      usage,
+    });
 
     const responseMessage = completion.response?.choices?.[0]?.message;
     const assistantText = extractAssistantText(responseMessage);
     const toolCalls = normalizeToolCalls(responseMessage);
     if (toolCalls.length === 0) {
       return {
+        debugCalls,
         fallbackReason,
         model: activeModel,
         reply: assistantText || buildFallbackReply(state),
@@ -454,6 +513,10 @@ async function runOrgAgentToolLoop(args: {
         ? responseMessage._responses_output
         : undefined,
       content: assistantText,
+      reasoning_content:
+        typeof responseMessage?.reasoning_content === "string"
+          ? responseMessage.reasoning_content
+          : undefined,
       role: "assistant",
       tool_calls: toolCalls,
     });
@@ -470,6 +533,17 @@ async function runOrgAgentToolLoop(args: {
         summary: "실행 도구는 한 메시지에서 단독으로 호출해야 합니다",
       });
       for (const toolCall of toolCalls) {
+        if (args.debug) {
+          args.emit?.("tool_debug", {
+            callId: toolCall.id,
+            durationMs: 0,
+            input: summarizeOrgAgentToolInput(toolCall.function.arguments),
+            loop: loop + 1,
+            name: toolCall.function.name || "unknown_tool",
+            status: "skipped",
+            summary: "terminal tool must be called alone",
+          } satisfies OrgAgentToolDebugEvent);
+        }
         messages.push({
           content: serializeOrgAgentToolError(
             "terminal_call_conflict: a terminal action must be the only tool call in its assistant message. No action was applied."
@@ -484,7 +558,28 @@ async function runOrgAgentToolLoop(args: {
     }
 
     for (const toolCall of toolCalls) {
+      args.signal?.throwIfAborted();
       const toolName = toolCall.function.name;
+      const toolDebugInput = args.debug
+        ? summarizeOrgAgentToolInput(toolCall.function.arguments)
+        : undefined;
+      const toolStartedAt = args.debug ? performance.now() : 0;
+      const emitToolDebug = (
+        event: Omit<
+          OrgAgentToolDebugEvent,
+          "callId" | "durationMs" | "input" | "loop" | "name"
+        >
+      ) => {
+        if (!args.debug) return;
+        args.emit?.("tool_debug", {
+          callId: toolCall.id,
+          durationMs: Math.round((performance.now() - toolStartedAt) * 10) / 10,
+          input: toolDebugInput,
+          loop: loop + 1,
+          name: toolName || "unknown_tool",
+          ...event,
+        } satisfies OrgAgentToolDebugEvent);
+      };
       if (totalToolCalls >= MAX_TOTAL_TOOL_CALLS) {
         messages.push({
           content: serializeOrgAgentToolError(
@@ -493,6 +588,10 @@ async function runOrgAgentToolLoop(args: {
           name: toolName || "unknown_tool",
           role: "tool",
           tool_call_id: toolCall.id,
+        });
+        emitToolDebug({
+          status: "skipped",
+          summary: "tool call budget reached",
         });
         continue;
       }
@@ -513,6 +612,7 @@ async function runOrgAgentToolLoop(args: {
           role: "tool",
           tool_call_id: toolCall.id,
         });
+        emitToolDebug({ status: "skipped", summary: "unknown tool" });
         continue;
       }
 
@@ -527,7 +627,9 @@ async function runOrgAgentToolLoop(args: {
       const completeBefore = new Set(state.completeLongTextTargets);
       const observedBefore = new Map(state.observedLongTextFingerprints);
       const pendingRoleReadsBefore = new Set(state.pendingFullRoleRequestIds);
+      let retryableUpdateInputError = false;
       try {
+        const toolInput = parseToolArguments(toolCall.function.arguments);
         const result = await executeOrgAgentTool({
           actorId: args.actorId,
           actorLabel: args.actorLabel,
@@ -536,7 +638,7 @@ async function runOrgAgentToolLoop(args: {
           callId: toolCall.id,
           conversation: args.conversation,
           currentUserMessageId: args.currentUserMessageId,
-          input: parseToolArguments(toolCall.function.arguments),
+          input: toolInput,
           name: toolName,
           scopeKey: args.scopeKey,
           slackThreadId: args.slackThreadId,
@@ -575,7 +677,19 @@ async function runOrgAgentToolLoop(args: {
           role: "tool",
           tool_call_id: toolCall.id,
         });
+        const resultMetadata = state.toolResults.findLast(
+          (item) => item.callId === toolCall.id
+        );
+        emitToolDebug({
+          resultShape: summarizeOrgAgentToolResult(result),
+          resultStatus: resultMetadata?.status ?? "success",
+          status: "completed",
+          ...(resultMetadata?.summary && {
+            summary: clipOrgAgentToolDebugSummary(resultMetadata.summary),
+          }),
+        });
       } catch (error) {
+        args.signal?.throwIfAborted();
         restoreLongTextVisibility({
           completeTargets: completeBefore,
           observedFingerprints: observedBefore,
@@ -588,11 +702,23 @@ async function runOrgAgentToolLoop(args: {
         const errorMessage = isInputError
           ? error.message
           : "The tool could not be completed. Do not claim success.";
+        retryableUpdateInputError =
+          error instanceof OrgAgentToolInputError &&
+          toolName === "update_data" &&
+          !state.terminalMutationUsed;
         console.error("[org/agent:tool]", {
           callId: toolCall.id,
           error: getLlmErrorMessage(error),
           name: toolName,
         });
+        if (
+          error instanceof OrgAgentToolInputError &&
+          toolName === "update_data" &&
+          !state.terminalReply
+        ) {
+          state.terminalReply =
+            "변경 요청을 안전하게 해석하지 못해 적용하지 않았습니다. 기존 내용은 바뀌지 않았어요. 같은 변경을 다시 요청해 주시면 다시 처리하겠습니다.";
+        }
         state.toolResults.push({
           callId: toolCall.id,
           name: toolName,
@@ -607,13 +733,24 @@ async function runOrgAgentToolLoop(args: {
           status: "error",
         });
         messages.push({
-          content: serializeOrgAgentToolError(errorMessage),
+          content: serializeOrgAgentToolError(
+            retryableUpdateInputError
+              ? `${errorMessage}. No change was applied. Correct the arguments and call update_data again in this turn.`
+              : errorMessage
+          ),
           name: toolName,
           role: "tool",
           tool_call_id: toolCall.id,
         });
+        emitToolDebug({
+          resultStatus: "error",
+          status: "failed",
+          summary: clipOrgAgentToolDebugSummary(
+            isInputError ? error.message : getLlmErrorMessage(error)
+          ),
+        });
       }
-      if (isOrgAgentTerminalToolName(toolName)) {
+      if (isOrgAgentTerminalToolName(toolName) && !retryableUpdateInputError) {
         terminalReached = true;
       }
     }
@@ -635,8 +772,10 @@ async function runOrgAgentToolLoop(args: {
         },
       ],
       model: activeModel,
+      signal: args.signal,
     });
   } catch (error) {
+    args.signal?.throwIfAborted();
     if (!state.terminalMutationUsed && state.updateSummaries.length === 0)
       throw error;
     console.error(
@@ -644,6 +783,7 @@ async function runOrgAgentToolLoop(args: {
       getLlmErrorMessage(error)
     );
     return {
+      debugCalls,
       fallbackReason,
       model: activeModel,
       reply: buildFallbackReply(state),
@@ -653,8 +793,15 @@ async function runOrgAgentToolLoop(args: {
   }
   activeModel = finalCompletion.model as OrgAgentModelId;
   fallbackReason = fallbackReason ?? finalCompletion.fallbackReason ?? null;
-  addCompletionUsage(usage, finalCompletion.response);
+  addCompletionUsage({
+    debugCalls,
+    model: finalCompletion.model,
+    response: finalCompletion.response,
+    step: "final_response",
+    usage,
+  });
   return {
+    debugCalls,
     fallbackReason,
     model: activeModel,
     reply: enforceOrgAgentTerminalMutationOutcome(
@@ -783,9 +930,11 @@ async function presentStagedProposal(args: {
 
 export async function runOrgAgentChat(args: {
   assistantMessageMetadata?: OrgAgentMessageMetadata;
+  debug?: boolean;
   emit?: OrgAgentChatEmitter;
   messageType?: string;
   messageUserId?: string | null;
+  llmUserMessage?: string;
   mentions?: OrgAgentMention[];
   message: string;
   model?: unknown;
@@ -795,6 +944,7 @@ export async function runOrgAgentChat(args: {
   slackThreadId?: string;
   slackUserId?: string | null;
   slackUserMessageTs?: string | null;
+  signal?: AbortSignal;
   userMessageMetadata?: OrgAgentMessageMetadata;
   user: User;
   workspaceId: string;
@@ -804,6 +954,8 @@ export async function runOrgAgentChat(args: {
   if (userMessageText.length > 8_000) {
     throw new OrgHttpError(400, "message is too long");
   }
+  const llmUserMessage = normalizeText(args.llmUserMessage) || userMessageText;
+  args.signal?.throwIfAborted();
 
   const modelConfig = resolveOrgAgentModel(args.model);
   const thinkingLogs: OrgAgentThinkingLog[] = [];
@@ -896,6 +1048,7 @@ export async function runOrgAgentChat(args: {
       context,
       conversation,
       currentUserMessageId: userMessage.id,
+      debug: args.debug,
       emit: args.emit,
       mentions,
       model: modelConfig.model,
@@ -903,6 +1056,7 @@ export async function runOrgAgentChat(args: {
       scopeKey: args.slackThreadId
         ? `slack:${args.slackThreadId}`
         : `chat:${conversation.id}`,
+      signal: args.signal,
       slackThreadId: args.slackThreadId ?? null,
       source: args.slackThreadId ? "slack" : "chat",
       user: args.user,
@@ -911,7 +1065,7 @@ export async function runOrgAgentChat(args: {
         : args.slackUserId
           ? "Slack participant"
           : "user",
-      userMessage: userMessageText,
+      userMessage: llmUserMessage,
     });
     const exactServerText = [
       llmResult.state.stagedProposal?.preview,
@@ -922,25 +1076,24 @@ export async function runOrgAgentChat(args: {
       llmResult.reply
     );
     const corrected = await correctOrgAgentInternalTokenLeak({
+      debugCalls: llmResult.debugCalls,
       model: llmResult.model,
       reply: draftProse,
+      signal: args.signal,
       usage: llmResult.usage,
-      userMessage: userMessageText,
+      userMessage: llmUserMessage,
     });
     llmResult.model = corrected.model;
     llmResult.state.internalTokenCorrectionCount += corrected.attempted ? 1 : 0;
     llmResult.reply = enforceOrgAgentTerminalMutationOutcome(
       llmResult.state,
-      guardOrgAgentCandidatePrivacyReply({
-        preferenceDisclosure: llmResult.state.preferenceDisclosure,
-        reply:
-          corrected.reply ||
-          llmResult.state.terminalReply ||
-          "내부 상태를 사람이 읽을 수 있는 표현으로 바꾸지 못했습니다. 잠시 후 다시 시도해 주세요.",
-        toolResults: llmResult.state.toolResults,
-        userMessage: userMessageText,
-      })
+      corrected.reply ||
+        llmResult.state.terminalReply ||
+        "내부 상태를 사람이 읽을 수 있는 표현으로 바꾸지 못했습니다. 잠시 후 다시 시도해 주세요."
     );
+    if (args.debug) {
+      args.emit?.("llm_debug", summarizeLlmDebugCalls(llmResult.debugCalls));
+    }
     const usedTool = llmResult.state.toolResults.length > 0;
     if (usedTool) {
       thinkingLogs[thinkingLogs.length - 1] = nowLog("응답 생성 완료", "done");
@@ -968,6 +1121,7 @@ export async function runOrgAgentChat(args: {
         reply,
         summary: llmResult.state.stagedProposal.summary,
       });
+      args.signal?.throwIfAborted();
       const presented = await presentStagedProposal({
         admin,
         conversationId: conversation.id,
@@ -1015,6 +1169,7 @@ export async function runOrgAgentChat(args: {
       args.emit?.("text_delta", { delta });
     }
 
+    args.signal?.throwIfAborted();
     const assistantMessage = await insertOrgAgentMessage({
       admin,
       content: reply,
@@ -1045,6 +1200,7 @@ export async function runOrgAgentChat(args: {
       userMessage,
     };
   } catch (error) {
+    args.signal?.throwIfAborted();
     if (thinkingLogs.length > 0) {
       thinkingLogs[thinkingLogs.length - 1] = nowLog("응답 생성 실패", "error");
     }

@@ -277,7 +277,7 @@ async function assertWorkspaceAccess(
   const { data: membership, error: membershipError } = await (
     admin.from("company_user_workspace" as any) as any
   )
-    .select("id, role")
+    .select("id, authority")
     .eq("company_user_id", user.id)
     .eq("company_workspace_id", workspaceId)
     .maybeSingle();
@@ -288,7 +288,7 @@ async function assertWorkspaceAccess(
   }
   if (
     permission === "manage_integrations" &&
-    !getOrgPermissions(normalizeOrgMembershipRole(membership.role))
+    !getOrgPermissions(normalizeOrgMembershipRole(membership.authority))
       .canManageIntegrations
   ) {
     throw new OrgSlackIntegrationError(

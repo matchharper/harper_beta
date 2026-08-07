@@ -187,10 +187,9 @@ export const COMPANY_DATA_CATALOG: Record<
     type: "enum",
   },
   role_employment_types: {
-    allowedValues: ["full_time", "part_time", "internship", "contract"],
     confirmationRequired: false,
     longText: false,
-    maxItems: 4,
+    maxItems: 12,
     nullable: false,
     roleScoped: true,
     type: "string_list",

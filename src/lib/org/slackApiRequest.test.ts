@@ -19,3 +19,21 @@ test("encodes conversations.list filters as form data", () => {
   assert.equal(request.body.get("exclude_archived"), "true");
   assert.equal(request.body.get("limit"), "200");
 });
+
+test("encodes Slack assistant thread status fields and preserves an empty clear status", () => {
+  const request = createSlackApiRequest("bot-token", {
+    channel_id: "C123",
+    status: "답변을 작성 중입니다…",
+    thread_ts: "1724264405.531769",
+  });
+  const clearRequest = createSlackApiRequest("bot-token", {
+    channel_id: "C123",
+    status: "",
+    thread_ts: "1724264405.531769",
+  });
+
+  assert.equal(request.body.get("channel_id"), "C123");
+  assert.equal(request.body.get("status"), "답변을 작성 중입니다…");
+  assert.equal(request.body.get("thread_ts"), "1724264405.531769");
+  assert.equal(clearRequest.body.get("status"), "");
+});

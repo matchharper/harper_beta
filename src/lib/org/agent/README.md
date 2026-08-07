@@ -24,8 +24,9 @@
   원본이 아니다.
 - `company_memories`는 workspace memory(`role_id is null`)와 role memory를 저장한다.
   request는 “누구를 매칭할지”, memory는 그 밖의 지속적으로 기억할 맥락이다.
-- company-side LLM의 write 진입점은 `update_data` 하나다. 한 번에 최대 12개를
-  `append`, `replace`, `rewrite`로 처리한다.
+- company-side LLM의 일반 정보 write 진입점은 `update_data`다. 한 번에 최대 12개를
+  `append`, `replace`, `rewrite`로 처리한다. Role의 진행·중단·종료는 별도 terminal
+  tool `change_role_status`가 담당한다.
 - request/memory 계열 변경은 즉시 쓰지 않고 저장된 preview를 보여준 뒤 다음
   명시적 확인에서 적용한다. 나머지 명시적 변경은 직접 적용할 수 있다.
 - `company_events`는 웹·Slack·채팅 변경을 짧게 기록하지만 아직 prompt에서 읽지
@@ -35,6 +36,7 @@
 
 - [구현·Tool 레퍼런스](../../../../docs/org-agent-tools-reference-ko.md)
 - [Prompt·Context 설계](../../../../docs/org-agent-context-engineering-ko.md)
+- [Skill·Tool 라우팅 구현 설계](../../../../docs/company-side-llm-skill-routing-implementation-ko.md)
 - [LLM 호출 지도](./LLM_CALL_TRACE_KO.md)
 - [상세 구현 계획](../../../../docs/company-side-llm-context-memory-tools-plan-ko.md)
 
@@ -43,3 +45,12 @@
 ```bash
 pnpm org-agent:live-eval -- <company-workspace-id>
 ```
+
+## Model 선택
+
+- 기본값은 웹과 Slack 모두 `deepseek-v4-flash`의 high thinking mode다.
+- 내부 웹 사용자는 composer의 model selector에서 턴별 model을 바꿀 수 있고,
+  마지막 선택은 브라우저에 저장된다.
+- 서버 공통 기본값은 `ORG_AGENT_MODEL`, Slack 전용 override는
+  `SLACK_ORG_AGENT_MODEL`로 바꾼다.
+- 허용값은 `modelConfig.ts`의 `ORG_AGENT_MODEL_IDS`가 단일 기준이다.

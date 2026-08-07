@@ -14,13 +14,15 @@ import type {
   OrgBoardResponse,
   OrgAcceptedTalentsResponse,
   OrgBootstrapResponse,
+  OrgCompanyTalentRequestCancelResponse,
   OrgFeedCreateResponse,
   OrgFeedMutationResponse,
   OrgInvitationMutationResponse,
   OrgInvitePreviewResponse,
   OrgInviteSendResponse,
+  OrgMemberProfileUpdateResponse,
   OrgMemberRemoveResponse,
-  OrgMembershipRoleUpdateResponse,
+  OrgMembershipAuthorityUpdateResponse,
   OrgRoleReviewStageCreateResponse,
   OrgRoleReviewStageDeleteResponse,
   OrgRoleReviewStageUpdateResponse,
@@ -148,16 +150,41 @@ export function useCancelOrgInvitation() {
   });
 }
 
-export function useUpdateOrgMembershipRole() {
+export function useUpdateOrgMembershipAuthority() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (args: {
-      role: OrgMembershipRole;
+      authority: OrgMembershipRole;
       userId: string;
       workspaceId: string;
     }) =>
-      fetchWithInternalAuth<OrgMembershipRoleUpdateResponse>(
+      fetchWithInternalAuth<OrgMembershipAuthorityUpdateResponse>(
         "/api/org/membership",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(args),
+        }
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.org.bootstrapAll,
+      }),
+  });
+}
+
+export function useUpdateOrgMemberProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: {
+      firstName?: string;
+      lastName?: string;
+      role: string;
+      userId?: string;
+      workspaceId: string;
+    }) =>
+      fetchWithInternalAuth<OrgMemberProfileUpdateResponse>(
+        "/api/org/member-profile",
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -424,6 +451,28 @@ export function useUpdateOrgConnectionConfirmationEmail() {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(args),
+        }
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.org.detailAll }),
+  });
+}
+
+export function useCancelOrgCompanyTalentRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: {
+      requestId: string;
+      roleId: string;
+      talentId: string;
+      workspaceId: string;
+    }) =>
+      fetchWithInternalAuth<OrgCompanyTalentRequestCancelResponse>(
+        "/api/org/company-talent-request",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "cancel", ...args }),
         }
       ),
     onSuccess: () =>
