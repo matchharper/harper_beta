@@ -1091,6 +1091,13 @@ async function executeCompanyTalentRequest(args: {
     throw new OrgAgentToolInputError("kind must be question or resume");
   }
   const kind: "question" | "resume" = kindValue;
+  const deliveryModeValue = text(args.input.deliveryMode) || "standard";
+  if (deliveryModeValue !== "standard" && deliveryModeValue !== "immediate") {
+    throw new OrgAgentToolInputError(
+      "deliveryMode must be standard or immediate"
+    );
+  }
+  const deliveryMode: "standard" | "immediate" = deliveryModeValue;
   const role = roleOrThrow(args.state, args.input.roleId);
   const talentId = requiredText(args.input.talentId, "talentId", 100);
   const requestContext =
@@ -1170,6 +1177,7 @@ async function executeCompanyTalentRequest(args: {
   try {
     request = await enqueueCompanyTalentRequest({
       admin: args.admin as any,
+      deliveryMode,
       expectsDocument: kind === "resume",
       recommendationId: position.recommendationId,
       requestContext,
@@ -1230,23 +1238,31 @@ async function executeCompanyTalentRequest(args: {
     throw error;
   }
 
+  const deliveryCopy =
+    deliveryMode === "immediate"
+      ? "요청하신 대로 표준 20분 대기와 KST 발송 시간 제한을 건너뛰고, 발송 시스템이 가져가는 즉시 이메일과 Harper 채팅으로 한 번 전달합니다. 아직 후보자 전달 완료를 의미하지 않으며, 처리가 바로 시작되므로 취소 가능 시간이 없을 수 있습니다."
+      : `${formatKstDateTime(request.candidateDeliveryScheduledAt)}에 이메일과 Harper 채팅으로 한 번 전달할 예정이며, 그전에는 취소할 수 있습니다.`;
   args.state.terminalReply =
     kind === "resume"
-      ? `${text(talent.candidate.name) || "후보자분"}께 ${text(args.state.company.companyName) || "회사"}의 ${role.name} 포지션 검토를 위한 최신 이력서 공유 요청을 접수했습니다. ${formatKstDateTime(request.candidateDeliveryScheduledAt)}에 이메일과 Harper 채팅으로 한 번 전달할 예정이며, 그전에는 취소할 수 있습니다. 아직 전달 완료나 업로드 완료를 의미하는 단계는 아닙니다. 후보자분이 이력서를 올리면 이 대화로 알려드리겠습니다. 답변이나 업로드는 선택이며, Harper가 자동으로 재촉하지는 않습니다.`
-      : `${text(talent.candidate.name) || "후보자분"}께 ${text(args.state.company.companyName) || "회사"}에서 ${role.name} 포지션과 관련해 확인하는 질문이라는 점을 공개하고, “${requestContext}”라는 질문을 대신 전달하도록 접수했습니다. ${formatKstDateTime(request.candidateDeliveryScheduledAt)}에 이메일과 Harper 채팅으로 한 번 전달할 예정이며, 그전에는 취소할 수 있습니다. 아직 전달 완료나 후보자 답변을 의미하는 단계는 아닙니다. 답이 오면 이 대화로 전달드리겠습니다. 답변은 후보자분의 선택이며, Harper가 자동으로 재촉하지는 않습니다.`;
+      ? `${text(talent.candidate.name) || "후보자분"}께 ${text(args.state.company.companyName) || "회사"}의 ${role.name} 포지션 검토를 위한 최신 이력서 공유 요청을 접수했습니다. ${deliveryCopy} 아직 업로드 완료를 의미하는 단계는 아닙니다. 후보자분이 이력서를 올리면 이 대화로 알려드리겠습니다. 답변이나 업로드는 선택이며, Harper가 자동으로 재촉하지는 않습니다.`
+      : `${text(talent.candidate.name) || "후보자분"}께 ${text(args.state.company.companyName) || "회사"}에서 ${role.name} 포지션과 관련해 확인하는 질문이라는 점을 공개하고, “${requestContext}”라는 질문을 대신 전달하도록 접수했습니다. ${deliveryCopy} 아직 후보자 답변을 의미하는 단계는 아닙니다. 답이 오면 이 대화로 전달드리겠습니다. 답변은 후보자분의 선택이며, Harper가 자동으로 재촉하지는 않습니다.`;
   recordResult(args.state, {
     callId: args.callId,
     name: args.name,
     status: "success",
     summary:
-      kind === "resume"
-        ? "후보자 이력서 요청 대기열 생성"
-        : "후보자 확인 요청 대기열 생성",
+      deliveryMode === "immediate"
+        ? kind === "resume"
+          ? "후보자 이력서 요청 즉시 발송"
+          : "후보자 확인 요청 즉시 발송"
+        : kind === "resume"
+          ? "후보자 이력서 요청 대기열 생성"
+          : "후보자 확인 요청 대기열 생성",
   });
   return {
     requestId: request.id,
     scheduledAt: request.candidateDeliveryScheduledAt,
-    status: "queued",
+    status: deliveryMode === "immediate" ? "immediate" : "queued",
     userMessage: args.state.terminalReply,
   };
 }

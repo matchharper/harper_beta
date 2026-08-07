@@ -123,6 +123,10 @@ test("organization-agent system prompt keeps runtime data out", () => {
     /Only call contact_talent when the immediately previous assistant message presented that exact candidate-contact confirmation/
   );
   assert.match(prompt, /A short yes counts only when it directly follows/);
+  assert.match(
+    prompt,
+    /contact_talent once with deliveryMode=immediate.*do not ask for a third confirmation/
+  );
   assert.match(prompt, /write requestContext in the latest user's language/);
   assert.match(prompt, /Current-intent question/);
   assert.match(prompt, /Compensation question/);
@@ -144,6 +148,10 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.match(prompt, /change_talent_contact with action=immediate/);
   assert.match(prompt, /change_talent_contact with action=cancel/);
   assert.match(prompt, /bypasses the standard 20-minute delay/);
+  assert.match(
+    prompt,
+    /confirmation reply itself.*contact_talent deliveryMode=immediate/
+  );
   assert.match(
     prompt,
     /Never call contact_talent\(kind=resume\) in the same user turn/

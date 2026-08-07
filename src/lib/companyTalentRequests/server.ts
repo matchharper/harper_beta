@@ -68,6 +68,7 @@ function normalizedText(value: unknown, maxLength = 800) {
 
 export async function enqueueCompanyTalentRequest(args: {
   admin: UntypedAdmin;
+  deliveryMode?: "standard" | "immediate";
   expectsDocument: boolean;
   recommendationId: string;
   requestContext: string;
@@ -81,6 +82,7 @@ export async function enqueueCompanyTalentRequest(args: {
     "enqueue_company_talent_request_v1",
     {
       p_expects_document: args.expectsDocument,
+      p_delivery_mode: args.deliveryMode ?? "standard",
       p_recommendation_id: args.recommendationId,
       p_request_context: context,
       p_role_id: args.roleId,

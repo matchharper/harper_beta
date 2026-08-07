@@ -173,6 +173,10 @@ test("company-to-talent relay uses one kind-discriminated tool", () => {
   );
   const parameters = contactTalent?.function.parameters as any;
   assert.deepEqual(parameters.properties.kind.enum, ["question", "resume"]);
+  assert.deepEqual(parameters.properties.deliveryMode.enum, [
+    "standard",
+    "immediate",
+  ]);
   assert.deepEqual(parameters.required, ["kind", "talentId", "roleId"]);
   assert.match(
     parameters.properties.requestContext.description,
@@ -197,6 +201,10 @@ test("company-to-talent relay uses one kind-discriminated tool", () => {
   assert.match(
     contactTalent?.function.description ?? "",
     /immediately previous assistant message presented that exact confirmation/
+  );
+  assert.match(
+    contactTalent?.function.description ?? "",
+    /deliveryMode=immediate.*does not require a third confirmation turn/
   );
   assert.match(
     contactTalent?.function.description ?? "",
