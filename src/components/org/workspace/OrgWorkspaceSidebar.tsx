@@ -154,13 +154,9 @@ function NavLink({
       <Icon className="relative z-20 size-4.5 stroke-[1.5]" />
       <span className="relative z-20">{label}</span>
       {pendingConnectionCount !== undefined ? (
-        <Badge
-          className="relative z-20 ml-auto min-w-5 bg-blue-500 px-1.5 tabular-nums text-white"
-          radius="full"
-          size="sm"
-        >
+        <div className="relative z-20 ml-auto rounded-full text-xs py-0.5 bg-action-500 px-2 tabular-nums text-white">
           {pendingConnectionCount}
-        </Badge>
+        </div>
       ) : null}
     </Link>
   );
