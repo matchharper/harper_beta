@@ -899,6 +899,7 @@ export async function storeHarperSlackThreadEvent(args: {
 }
 
 export async function sendHarperWorkspaceSlackMessage(args: {
+  blocks?: HarperSlackBlock[];
   channelId?: string;
   idempotencyKey?: string;
   messageMetadata?: OrgAgentMessageMetadata;
@@ -949,6 +950,7 @@ export async function sendHarperWorkspaceSlackMessage(args: {
   const results = await Promise.allSettled(
     channels.map(async (channel: any) => {
       const posted = await postHarperSlackMessage({
+        blocks: args.blocks,
         channelId: channel.slack_channel_id,
         clientMessageId: text(args.idempotencyKey)
           ? slackClientMessageId(

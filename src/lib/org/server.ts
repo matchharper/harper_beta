@@ -154,6 +154,7 @@ export type OrgRole = {
   name: string;
   request: string | null;
   roleId: string;
+  salaryRange?: string | null;
   status: string | null;
   updatedAt: string;
   workMode: string | null;
@@ -751,6 +752,7 @@ function toRole(row: CompanyRoleRow): OrgRole {
     name: row.name,
     request: row.request ?? null,
     roleId: row.role_id,
+    salaryRange: row.salary_range ?? null,
     status: row.status ?? null,
     updatedAt: row.updated_at,
     workMode: row.work_mode ?? null,
@@ -1597,7 +1599,7 @@ async function fetchOrgPendingInvitations(
 async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string) {
   const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, request, status, type, location_text, work_mode, created_at, updated_at, is_expired"
+      "role_id, company_workspace_id, name, external_jd_url, description, request, salary_range, status, type, location_text, work_mode, created_at, updated_at, is_expired"
     )
     .eq("company_workspace_id", workspaceId)
     .eq("source_type", "internal")
@@ -2025,7 +2027,7 @@ async function fetchRoleRowsForWorkspace(
 ) {
   const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, request, status, source_type, type, location_text, work_mode, created_at, updated_at, is_expired"
+      "role_id, company_workspace_id, name, external_jd_url, description, request, salary_range, status, source_type, type, location_text, work_mode, created_at, updated_at, is_expired"
     )
     .eq("company_workspace_id", workspaceId)
     .eq("source_type", "internal")
@@ -2758,6 +2760,48 @@ async function fetchOrgCompanyUser(admin: SupabaseAdminClient, user: User) {
   };
 }
 
+async function fetchOrgRoleAssigneeEmails(args: {
+  admin: SupabaseAdminClient;
+  roleId: string;
+  workspaceId: string;
+}) {
+  const assignmentResult = await (
+    args.admin.from("company_role_assignees" as any) as any
+  )
+    .select("company_user_id")
+    .eq("role_id", args.roleId);
+  if (assignmentResult.error) throw assignmentResult.error;
+
+  const assignedUserIds = uniqueTexts(
+    (assignmentResult.data ?? []).map(
+      (row: { company_user_id: string }) => row.company_user_id
+    )
+  );
+  if (assignedUserIds.length === 0) return [];
+
+  const membershipResult = await (
+    args.admin.from("company_user_workspace" as any) as any
+  )
+    .select("company_user_id")
+    .eq("company_workspace_id", args.workspaceId)
+    .in("company_user_id", assignedUserIds);
+  if (membershipResult.error) throw membershipResult.error;
+  const memberUserIds = uniqueTexts(
+    (membershipResult.data ?? []).map(
+      (row: { company_user_id: string }) => row.company_user_id
+    )
+  );
+  if (memberUserIds.length === 0) return [];
+
+  const userResult = await (args.admin.from("company_users" as any) as any)
+    .select("email")
+    .in("user_id", memberUserIds);
+  if (userResult.error) throw userResult.error;
+  return normalizeLooseEmailList(
+    (userResult.data ?? []).map((row: { email: string | null }) => row.email)
+  ).filter(isValidEmailAddress);
+}
+
 function buildOrgIntroDeliveryIdentity(args: {
   recommendationId: string;
   recipients: string[];
@@ -3107,7 +3151,7 @@ export async function setOrgCandidateStage(args: {
   const acceptReason = normalizeText(args.acceptReason).slice(0, 2000);
   const canInitiateContact = canInitiateOrgCandidateContact(stage);
   const contactDirectly = canInitiateContact && args.contactDirectly === true;
-  const introEmails =
+  const requestedIntroEmails =
     canInitiateContact && !contactDirectly
       ? normalizeLooseEmailList(args.introEmails)
       : [];
@@ -3116,7 +3160,7 @@ export async function setOrgCandidateStage(args: {
   if (!workspaceId || !roleId || !talentId || !recommendationId || !stage) {
     throw new OrgHttpError(400, "Missing required fields");
   }
-  if (introEmails.some((email) => !isValidEmailAddress(email))) {
+  if (requestedIntroEmails.some((email) => !isValidEmailAddress(email))) {
     throw new OrgHttpError(400, "One or more introduction emails are invalid");
   }
   if (isOrgInternalStage(stage) && !hasOrgAllWorkspaceAccess(args.user)) {
@@ -3133,6 +3177,14 @@ export async function setOrgCandidateStage(args: {
   const roleRows = await fetchRoleRowsForWorkspace(admin, workspaceId);
   const role = roleRows.find((row) => row.role_id === roleId);
   if (!role) throw new OrgHttpError(404, "Role not found");
+  const assignedIntroEmails =
+    canInitiateContact && !contactDirectly
+      ? await fetchOrgRoleAssigneeEmails({ admin, roleId, workspaceId })
+      : [];
+  const introEmails = normalizeLooseEmailList([
+    ...requestedIntroEmails,
+    ...assignedIntroEmails,
+  ]);
 
   const stageRows = await fetchStageRowsForRole(admin, roleId);
   validateStageForRole(stage, stageRows);
@@ -4748,6 +4800,7 @@ export async function updateOrgRole(args: {
   name?: string | null;
   request?: string | null;
   roleId: string;
+  salaryRange?: string | null;
   status?: string | null;
   user: User;
   workMode?: string | null;
@@ -4844,9 +4897,21 @@ export async function updateOrgRole(args: {
     throw error;
   }
 
+  if (args.salaryRange !== undefined) {
+    const salaryRange =
+      normalizeNullableText(args.salaryRange)?.slice(0, 1_000) ?? null;
+    const { error: salaryError } = await (
+      admin.from("company_roles" as any) as any
+    )
+      .update({ salary_range: salaryRange })
+      .eq("company_workspace_id", workspaceId)
+      .eq("role_id", roleId);
+    if (salaryError) throw salaryError;
+  }
+
   const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, request, status, type, location_text, work_mode, created_at, updated_at, is_expired"
+      "role_id, company_workspace_id, name, external_jd_url, description, request, salary_range, status, type, location_text, work_mode, created_at, updated_at, is_expired"
     )
     .eq("company_workspace_id", workspaceId)
     .eq("role_id", roleId)
@@ -4877,7 +4942,7 @@ export async function updateOrgRoleRequestOnly(args: {
     admin.from("company_roles" as any) as any
   )
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, request, status, source_type, type, location_text, work_mode, created_at, updated_at, is_expired"
+      "role_id, company_workspace_id, name, external_jd_url, description, request, salary_range, status, source_type, type, location_text, work_mode, created_at, updated_at, is_expired"
     )
     .eq("company_workspace_id", workspaceId)
     .eq("role_id", roleId)
@@ -4946,7 +5011,7 @@ export async function updateOrgRoleRequestOnly(args: {
     }
     const { data, error } = await (admin.from("company_roles" as any) as any)
       .select(
-        "role_id, company_workspace_id, name, external_jd_url, description, request, status, type, location_text, work_mode, created_at, updated_at"
+        "role_id, company_workspace_id, name, external_jd_url, description, request, salary_range, status, type, location_text, work_mode, created_at, updated_at"
       )
       .eq("company_workspace_id", workspaceId)
       .eq("role_id", roleId)
@@ -4975,7 +5040,7 @@ export async function updateOrgRoleRequestOnly(args: {
   }
   const { data, error } = await updateQuery
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, request, status, type, location_text, work_mode, created_at, updated_at"
+      "role_id, company_workspace_id, name, external_jd_url, description, request, salary_range, status, type, location_text, work_mode, created_at, updated_at"
     )
     .maybeSingle();
 

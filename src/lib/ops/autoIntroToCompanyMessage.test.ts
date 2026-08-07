@@ -3,6 +3,9 @@ import test from "node:test";
 import {
   buildAutoIntroCandidateNameLink,
   buildAutoIntroCandidateProfileUrl,
+  buildAutoIntroRoleJobsUrl,
+  buildAutoIntroRoleSummarySlackBlocks,
+  buildAutoIntroRoleSummaryText,
   buildAutoIntroWorkspaceActionGuidance,
   buildAutoIntroWorkspaceJobsUrl,
   groupAutoIntroItemsByWorkspaceAndRole,
@@ -69,6 +72,48 @@ test("workspace action guidance links to the org jobs overview once", () => {
   });
   assert.match(guidance, /<http:\/\/localhost:3000\/org\/jobs\?/);
   assert.match(guidance, /연결을 수락하거나 거절하실 수 있습니다\.$/);
+});
+
+test("role summary uses a native Slack table with exact role links", () => {
+  const summary = {
+    companyName: "Wonderful",
+    roles: [
+      {
+        pendingDecisionCount: 5,
+        roleId: "6da0a19e-b4b5-533e-92b4-598f3666969f",
+        roleTitle: "FDE (Forward Deployed Engineer)",
+        status: "active",
+        workspaceId: "f2e80aee-fee3-40f5-807f-5f8694c37eee",
+      },
+    ],
+    workspaceId: "f2e80aee-fee3-40f5-807f-5f8694c37eee",
+  };
+  const expectedUrl =
+    "https://matchharper.com/org/jobs?orgId=f2e80aee-fee3-40f5-807f-5f8694c37eee&roleId=6da0a19e-b4b5-533e-92b4-598f3666969f";
+  assert.equal(
+    buildAutoIntroRoleJobsUrl({
+      roleId: summary.roles[0].roleId,
+      workspaceId: summary.workspaceId,
+    }),
+    expectedUrl
+  );
+  const text = buildAutoIntroRoleSummaryText({ summary });
+  assert.match(text, /FDE \(Forward Deployed Engineer\)> \| 진행중 \| 5명/);
+  const blocks = buildAutoIntroRoleSummarySlackBlocks({ summary });
+  const table = blocks.find((block) => block.type === "table") as {
+    rows: Array<Array<Record<string, unknown>>>;
+  };
+  assert.ok(table);
+  assert.equal(table.rows.length, 2);
+  const roleCell = table.rows[1]?.[0] as {
+    elements: Array<{ elements: Array<{ type: string; url: string }> }>;
+  };
+  assert.equal(roleCell.elements[0]?.elements[0]?.type, "link");
+  assert.equal(roleCell.elements[0]?.elements[0]?.url, expectedUrl);
+  assert.deepEqual(table.rows[1]?.[2], {
+    text: "5명",
+    type: "raw_text",
+  });
 });
 
 test("candidate copy supports readable presentation variants", () => {

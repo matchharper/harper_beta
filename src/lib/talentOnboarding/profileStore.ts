@@ -12,6 +12,7 @@ import {
   getTalentProfileVisibilityLabel,
   normalizeTalentBlockedCompanies,
 } from "@/lib/talentOnboarding/stateStore";
+import { safeSlice } from "@/lib/textSanitization";
 
 export const MEMO_MAX_CHARS = 2000;
 
@@ -24,28 +25,28 @@ function asText(value: unknown, maxLength = 4000): string | null {
   if (typeof value !== "string") return null;
   const normalized = value.replace(/\s+/g, " ").trim();
   if (!normalized) return null;
-  return normalized.slice(0, maxLength);
+  return safeSlice(normalized, maxLength);
 }
 
 function asMultilineText(value: unknown, maxLength = 4000): string | null {
   if (typeof value !== "string") return null;
   const normalized = value.replace(/\r/g, "").trim();
   if (!normalized) return null;
-  return normalized.slice(0, maxLength);
+  return safeSlice(normalized, maxLength);
 }
 
 function asDateText(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const normalized = value.trim();
   if (!normalized) return null;
-  return normalized.slice(0, 32);
+  return safeSlice(normalized, 32);
 }
 
 function asRowIdText(value: unknown): string | null {
   if (typeof value !== "string" && typeof value !== "number") return null;
   const normalized = String(value).replace(/\s+/g, " ").trim();
   if (!normalized) return null;
-  return normalized.slice(0, 120);
+  return safeSlice(normalized, 120);
 }
 
 function normalizeExtraRowIdSeed(value: string | null | undefined): string {
@@ -189,7 +190,7 @@ function clampPromptText(value: string | null | undefined, maxLength: number) {
   if (typeof value !== "string") return "";
   const normalized = value.replace(/\r/g, "").trim();
   if (!normalized) return "";
-  return normalized.slice(0, maxLength);
+  return safeSlice(normalized, maxLength);
 }
 
 function formatDateRange(
@@ -509,19 +510,19 @@ export function applyRowMemoOperation(args: {
   const trimmedExisting = (existing ?? "").replace(/\r/g, "").trim();
   const trimmedNew = memo.replace(/\r/g, "").trim();
   if (operation === "update") {
-    return trimmedNew.slice(0, MEMO_MAX_CHARS);
+    return safeSlice(trimmedNew, MEMO_MAX_CHARS);
   }
   if (!trimmedNew) return null;
   if (
     trimmedExisting === trimmedNew ||
     trimmedExisting.endsWith(`\n${trimmedNew}`)
   ) {
-    return trimmedExisting.slice(0, MEMO_MAX_CHARS);
+    return safeSlice(trimmedExisting, MEMO_MAX_CHARS);
   }
   const appended = trimmedExisting
     ? `${trimmedExisting}\n${trimmedNew}`
     : trimmedNew;
-  return appended.slice(0, MEMO_MAX_CHARS);
+  return safeSlice(appended, MEMO_MAX_CHARS);
 }
 
 function parseRowIdToNumber(rowId: string | number | null | undefined) {

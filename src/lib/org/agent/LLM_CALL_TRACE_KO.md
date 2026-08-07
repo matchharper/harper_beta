@@ -63,7 +63,7 @@ read audience, current user message ID를 고정하고 tool argument를 다시 �
 - role request/memory/JD 본문
 - 회사 description, pitch, legacy workspace request의 전체 본문
 - workspace memory 본문
-- 후보 email, resume, 경력·학력, fit 전문
+- 후보 email, resume 존재 여부, 경력·학력·extra, fit 전문
 - role별 전체 후보와 progress
 - 다른 Slack thread의 raw 대화
 - recommendation ID와 정밀 timestamp

@@ -98,6 +98,10 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
   );
   assert.match(
     changeRoleStatus?.function.description ?? "",
+    /does not atomically close every existing candidate stage or company request/
+  );
+  assert.doesNotMatch(
+    changeRoleStatus?.function.description ?? "",
     /close candidate processes and connections already in progress/
   );
 });
@@ -134,10 +138,11 @@ test("read_role documents built-in pipeline stage filter values", () => {
   assert.match(stageDescription, /process_stopped=프로세스 종료/);
 });
 
-test("read_talent always returns fixed safe insights without topic selectors", () => {
+test("read_talent accepts up to ten IDs and keeps resume output availability-only", () => {
   const readTalent = ORG_AGENT_TOOLS.find(
     (item) => item.function.name === "read_talent"
   );
+  const parameters = readTalent?.function.parameters as any;
   const properties = readTalent?.function.parameters.properties as Record<
     string,
     unknown
@@ -148,7 +153,15 @@ test("read_talent always returns fixed safe insights without topic selectors", (
     "progressLimit",
     "roleId",
     "talentId",
+    "talentIds",
   ]);
+  assert.deepEqual(parameters.anyOf, [
+    { required: ["talentIds"] },
+    { required: ["talentId"] },
+  ]);
+  assert.equal((properties.talentIds as any).minItems, 1);
+  assert.equal((properties.talentIds as any).maxItems, 10);
+  assert.equal((properties.talentIds as any).uniqueItems, true);
   assert.equal("preferenceTopics" in properties, false);
   assert.match(
     readTalent?.function.description ?? "",
@@ -156,7 +169,27 @@ test("read_talent always returns fixed safe insights without topic selectors", (
   );
   assert.match(
     readTalent?.function.description ?? "",
-    /Compensation is never returned/
+    /Compensation.*never returned/
+  );
+  assert.match(
+    readTalent?.function.description ?? "",
+    /raw resume text are never returned/
+  );
+  assert.match(
+    readTalent?.function.description ?? "",
+    /includeProfile=false \(the compact default\).*candidate name, email, and headline/
+  );
+  assert.match(
+    readTalent?.function.description ?? "",
+    /includeProfile=true.*current profile location, bio, structured work history, education, and extras/
+  );
+  assert.match(
+    String((properties.includeProfile as any).description),
+    /false \(default\) returns the compact base/
+  );
+  assert.match(
+    String((properties.includeProfile as any).description),
+    /companies or roles worked at, schools or education/
   );
 });
 

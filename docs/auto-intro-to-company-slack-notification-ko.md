@@ -30,11 +30,9 @@ scheduled task는 처음부터 비활성 상태로 둔다. 사용자가 Codex �
 
 1. 가장 최신 내부 단계가 `내부:연결대기`다. `내부단계:*` custom stage도 내부 단계 변경으로 간주한다.
 2. 최신 연결대기 전환 시각이 실행 시각 기준 14일 미만이다. 정확히 14일인 경우도 제외한다.
-3. 같은 role·후보자에 대해 아래 두 발송 증거가 모두 없어야 한다. 하나라도 있으면 “이미 Slack으로 팀에 연락한 후보자”로 보고 제외한다.
-   - `talent_progress.kind=intro_to_company`에서 `metadata.deliveryStatus=sent` 또는 `metadata.slackSent=true`
-   - `company_messages`에서 `message_type=slack`, `role=assistant`, `status=completed`, Slack timestamp가 있고 `mentions[].talentId`가 해당 후보자인 행
+3. 같은 role·후보자에 대해 `talent_progress.kind=intro_to_company`이면서 `metadata.deliveryStatus=sent` 또는 `metadata.slackSent=true`인 기록이 없어야 한다. 이 성공 기록이 하나라도 있으면 이미 발송된 후보자로 보고 제외한다. `company_messages`의 Slack 메시지와 mention은 중복 판정에 사용하지 않는다.
 
-   pending·failed progress는 발송 완료로 보지 않아 재시도할 수 있다. 과거 메시지까지 `company_messages.mentions`로 함께 확인하므로 이 scheduled workflow에서 만든 progress만 보는 방식보다 넓게 중복을 막는다.
+   pending·failed progress는 발송 완료로 보지 않아 재시도할 수 있다.
 4. 최신 `talent_opportunity_fit` 행이 있고 fit `kind`가 `codex` 또는 `null`이다.
 5. `kind=codex`라면 비어 있지 않은 `talent_opportunity_fit.reason`이 있다.
 6. workspace에 메시지를 받을 수 있는 활성 Slack integration과 channel이 있다.
@@ -214,7 +212,7 @@ companyContext + roleContext + professionalProfile + 매뉴얼 14장
 
 ## 5. 최종 Slack 본문 형식
 
-Codex는 workspace별로 role section, 후보자별 `presentation`과 `sentences`, workspace 전체의 `followUpQuestion`을 작성한다. 애플리케이션은 **한 workspace의 모든 role section을 하나의 top-level Slack 메시지로 조립해 한 번만 발송**한다.
+Codex는 workspace별로 role section, 후보자별 `presentation`과 `sentences`, workspace 전체의 `followUpQuestion`을 작성한다. 애플리케이션은 **한 workspace의 모든 role section을 하나의 top-level Slack 메시지로 조립해 한 번만 발송**한다. 월요일과 목요일에는 5.3의 현재 Role 현황 표도 같은 메시지에 붙인다.
 
 1. workspace 공통 제목과 인사말을 한 번만 쓴다.
 2. 연결대기 후보자가 있는 각 role을 `*{roleTitle}*` heading으로 분리한다.
@@ -312,19 +310,37 @@ P.S.는 **후보자 평가 질문이 아니라 다음 매칭 기준을 보완하
 {필요할 때만 P.S. 질문}
 ```
 
+### 5.3 월·목 현재 Role 현황 표
+
+Asia/Seoul 기준 월요일과 목요일 오전 9시 실행에는 workspace별 현재 Role 현황을 Slack Block Kit의 native `table` block으로 함께 보낸다.
+
+1. 표의 대상은 `company_roles.source_type=internal`, `is_expired=false`이고 종료 lifecycle(`ended`, `deleted`, `closed`, `expired`, `inactive`, `archived`)이 아닌 모든 Role이다. 후보자 소개 대상이 없는 Role과 연결 결정 대기 인원이 0명인 Role도 표에 포함한다.
+2. 열은 `Role | 상태 | 연결 결정 대기` 세 개만 둔다. `active`는 `진행중`, `top_priority`는 `최우선`, `paused`·`on_hold`는 `일시중지`로 표시한다.
+3. `연결 결정 대기`는 해당 Role·후보자의 최신 내부 단계가 현재 `내부:연결대기`인 사람 수다. 14일 제한, fit kind, Slack 발송 progress와 무관하게 회사가 지금 수락·거절을 결정해야 하는 전체 인원을 센다.
+4. Role 이름 셀은 rich-text link로 만들며 URL은 정확히 `NEXT_PUBLIC_SITE_URL(없으면 https://matchharper.com) + /org/jobs?orgId={workspaceId}&roleId={roleId}` 형식이다.
+5. 같은 workspace에 새 후보자 소개가 있으면 후보자 본문과 표를 하나의 top-level Slack 메시지로 보낸다. 새 후보자 소개가 없어도 월·목에는 표만 top-level 메시지로 보낸다.
+6. text fallback과 `company_messages.content`에는 각 행을 `<roleUrl|roleTitle> | 상태 | N명` 형태로 저장한다. 표 발송은 workspace와 KST 날짜로 만든 deterministic idempotency key를 사용해 같은 날 재실행 중복을 막는다.
+
+표 예시:
+
+```text
+Role                              | 상태   | 연결 결정 대기
+FDE (Forward Deployed Engineer)   | 진행중 | 5명
+```
+
 ## 6. scheduled task 실행 과정
 
 Codex는 `/Users/gimhojin/Desktop/harper/harper_beta`에서 다음 과정을 수행한다.
 
 1. 작업 디렉터리를 repository root로 설정하고 `AGENTS.md`, 이 문서 전체, `scripts/internal-company-role-talent-matching-manual-ko.md` 14장을 읽는다.
-2. `pnpm ops:auto-intro:list`를 한 번 실행해 빠른 후보 dossier와 Slack channel 여부를 읽는다. 이 결과 대신 모든 role·tag를 전체 스캔하는 별도 쿼리를 만들지 않는다.
-3. `eligibleCandidateCount=0`이면 어떤 DB write나 Slack 발송도 하지 않고 0건 요약을 남긴다.
-4. `slackConnected=false`인 workspace는 후보자 문구를 작성하거나 발송하지 않고 channel 없음 생략 수에 포함한다.
+2. `pnpm ops:auto-intro:list`를 한 번 실행해 빠른 후보 dossier, Slack channel 여부, `roleSummaryDue`, `roleSummaries`를 읽는다. 이 결과 대신 모든 role·tag를 전체 스캔하는 별도 쿼리를 만들지 않는다.
+3. `eligibleCandidateCount=0`이고 `roleSummaryDue=false`이면 어떤 DB write나 Slack 발송도 하지 않고 0건 요약을 남긴다. `eligibleCandidateCount=0`이어도 `roleSummaryDue=true`이고 Role 현황 workspace가 있으면 `groups: []` 입력으로 send를 실행해 표만 발송한다.
+4. 후보자 group의 `slackConnected=false` workspace는 후보자 문구를 작성하거나 발송하지 않고 channel 없음 생략 수에 포함한다. Role 현황의 `slackConnected=false` workspace도 표를 발송하지 않고 별도의 Role 현황 channel 없음 수에 포함한다.
 5. 발송 가능한 후보자를 workspace별로 모두 모은다. 후보자 수를 이유로 5명씩 자르거나 role별 top-level 메시지로 쪼개지 않는다.
 6. 한 workspace 안에서 후보자를 role별 section으로 나누고, role마다 `roleContext`와 해당 후보자들을 함께 유지한다.
 7. `reasonMode=author` 후보자는 먼저 4.6.1의 긴 상세 reason을 작성하고, 그 reason에서 4.6.2의 별도 Slack 4~6문장을 만든다. `reasonMode=codex` 후보자는 4.5에 따라 `storedReason`에서 Slack 문구를 만든다.
 8. 각 후보자 내용에 맞는 `presentation`을 선택하고, workspace 전체에 대해 5.2의 `followUpQuestion` 하나 또는 `null`을 결정한다.
-9. 4.8의 편집 체크를 마친 뒤 다음 workspace 단위 구조의 JSON을 임시 파일에 만든다.
+9. 4.8의 편집 체크를 마친 뒤 다음 workspace 단위 구조의 JSON을 임시 파일에 만든다. 월·목 Role 현황만 발송하고 후보자 group이 없으면 `{"groups": []}`를 만든다.
 
 ```json
 {
@@ -354,8 +370,8 @@ Codex는 `/Users/gimhojin/Desktop/harper/harper_beta`에서 다음 과정을 수
 11. send 단계가 현재 eligibility와 Slack channel을 다시 조회한다. 작성 중 14일 경계를 넘었거나, stage·fit kind가 바뀌었거나, 이미 성공 발송된 후보자는 우회하지 않고 제외·오류 결과를 그대로 보고한다.
 12. send 단계는 candidate count에 임의의 5명 제한을 두지 않는다. 4~6개 Slack 문장, 문장부호, 허용된 presentation, author 상세 reason 존재, 후보자 누락·중복, workspace-role 일치도를 검증한 뒤 deterministic progress ID로 발송 claim을 만든다.
 13. `reasonMode=author` 후보자의 **긴 상세 reason**을 해당 `talent_opportunity_fit.reason`에 먼저 저장하고 `kind=null`을 유지한다. Slack 4~6문장 요약을 reason에 저장하지 않는다.
-14. 애플리케이션이 후보자 이름에 5.1의 상세 `/org/jobs` 링크를 붙이고 한 workspace의 모든 role section을 하나의 Slack 본문으로 조립한다. 모든 후보자 설명 뒤에는 workspace의 `/org/jobs?orgId={workspaceId}&roleId=all` 링크와 사이트 안에서 연결을 수락·거절할 수 있다는 안내를 한 번만 붙이며, 후보자별 연결 제안은 넣지 않는다.
-15. workspace에 연결된 활성 Slack channel로 top-level 메시지를 한 번 보낸다. deterministic `client_msg_id`를 사용해 재시도 중복 발송을 막는다.
+14. 애플리케이션이 후보자 이름에 5.1의 상세 `/org/jobs` 링크를 붙이고 한 workspace의 모든 role section을 하나의 Slack 본문으로 조립한다. 모든 후보자 설명 뒤에는 workspace의 `/org/jobs?orgId={workspaceId}&roleId=all` 링크와 사이트 안에서 연결을 수락·거절할 수 있다는 안내를 한 번만 붙이며, 후보자별 연결 제안은 넣지 않는다. 월·목에는 5.3의 native table을 같은 message blocks 뒤에 붙인다.
+15. workspace에 연결된 활성 Slack channel로 top-level 메시지를 한 번 보낸다. 월·목에 후보자 소개가 없는 workspace는 Role 현황 표만 한 번 보낸다. deterministic `client_msg_id`를 사용해 재시도 중복 발송을 막는다.
 16. Slack 성공 후 `company_slack_threads`, `company_messages`, `talent_progress`에 본문, 모든 role·후보자 mention, reason source와 발송 결과를 저장한다. 실패하면 progress를 `failed`로 남겨 다음 실행에서 재시도할 수 있게 한다.
 17. 임시 입력 파일 외에 repository 파일을 만들거나 source code를 수정하지 않는다.
 
@@ -368,7 +384,9 @@ scheduled task의 최종 응답에는 다음을 빠짐없이 적는다.
 - 이미 발송됨, 후속 stage, fit 없음, `kind=codex` reason 없음, 지원하지 않는 fit kind로 각각 생략된 수
 - Slack channel 없음으로 생략된 수
 - 처리 후보자 수, Slack 성공 메시지 수, 성공 후보자 수, 실패 후보자 수
+- 월·목 Role 현황 대상 workspace 수, 성공·실패·channel 없음 workspace 수
 - 실제 send 결과의 `groups[].message.body`를 workspace별로 **전문 그대로** 출력
+- Role 현황을 보낸 경우 실제 `roleSummaries[].body`도 workspace별로 **전문 그대로** 출력
 
 발송하지 않은 후보자의 전체 dossier, 이력서, 이메일, 내부 ID, 토큰, 환경변수 또는 비밀값은 최종 응답에 출력하지 않는다. 검증 오류나 eligibility 변경으로 발송하지 못한 경우 임의로 우회하거나 수동 DB write를 하지 말고 오류와 영향을 받은 그룹만 보고한다.
 

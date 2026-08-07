@@ -9,7 +9,7 @@ import {
 } from "@/lib/legal/companyProfileSharingPolicy";
 import {
   normalizeLocale,
-  resolveLocaleFromCountryLanguage,
+  resolveLocaleFromLanguage,
 } from "@/i18n/localeResolution";
 import { loadVersionedLegalDocument } from "@/lib/legalDocs.server";
 
@@ -32,13 +32,7 @@ export const getServerSideProps: GetServerSideProps<
   const locale =
     normalizeLocale(requestedLanguage) ??
     normalizeLocale(req.cookies.NEXT_LOCALE) ??
-    resolveLocaleFromCountryLanguage({
-      countryCode:
-        req.headers["x-vercel-ip-country"] ??
-        req.headers["cf-ipcountry"] ??
-        "ZZ",
-      language: acceptLanguage.split(",")[0],
-    });
+    resolveLocaleFromLanguage(acceptLanguage.split(",")[0]);
   const template = await loadVersionedLegalDocument(
     COMPANY_PROFILE_SHARING_POLICY_SLUG,
     locale

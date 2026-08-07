@@ -4,6 +4,7 @@ import {
   getOrgAgentTalents,
   readOrgAgentRole,
   readOrgAgentTalent,
+  readOrgAgentTalents,
   type OrgAgentAdminClient,
 } from "@/lib/org/agent/data";
 import {
@@ -29,6 +30,7 @@ import {
   type OrgAgentConversationHistoryScope,
 } from "@/lib/org/agent/conversationHistory";
 import { hasPendingOrgAgentUpdateProposal } from "@/lib/org/agent/proposals";
+import { parseReadTalentIds } from "@/lib/org/agent/readTalentInput";
 import type { OrgAgentToolName } from "@/lib/org/agent/tools";
 import { resolveOrgAgentUpdateDataMode } from "@/lib/org/agent/updateDataMode";
 import {
@@ -194,7 +196,7 @@ const ORG_AGENT_ROLE_STATUS_COPY: Record<
   },
   ended: {
     effect:
-      "역할의 채용과 추가 추천을 종료합니다. 현재 프로세스의 후보자에게 역할 종료 소식을 자연스럽게 안내하고 연결을 닫습니다.",
+      "역할을 종료 상태로 바꾸고 추가 추천을 중단합니다. 후보자 화면은 역할 종료로 해석하지만, 기존 후보 단계와 회사 요청은 이 변경만으로 모두 자동 종료되지 않습니다.",
     label: "종료",
   },
 };
@@ -394,13 +396,14 @@ async function executeReadTalent(args: {
   user: User;
   workspaceId: string;
 }) {
-  return readOrgAgentTalent({
+  const talentIds = parseReadTalentIds(args.input);
+  return readOrgAgentTalents({
     admin: args.admin,
     audience: args.audience,
     includeProfile: booleanField(args.input, "includeProfile", false),
     progressLimit: boundedInteger(args.input.progressLimit, 10, 1, 30),
     roleId: text(args.input.roleId) || null,
-    talentId: requiredText(args.input.talentId, "talentId", 100),
+    talentIds,
     user: args.user,
     workspaceId: args.workspaceId,
   });

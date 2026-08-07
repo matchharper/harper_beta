@@ -59,7 +59,10 @@ import {
   getOrgAgentToolCompletionMaxTokens,
   NORMAL_TOOL_COMPLETION_MAX_TOKENS,
 } from "@/lib/org/agent/toolCompletionBudget";
-import { fitOrgAgentToolResultToBudget } from "@/lib/org/agent/toolResultBudget";
+import {
+  fitOrgAgentToolResultToBudget,
+  ORG_AGENT_MAX_TOTAL_TOOL_RESULT_CHARS,
+} from "@/lib/org/agent/toolResultBudget";
 import { enforceOrgAgentTerminalMutationOutcome } from "@/lib/org/agent/toolState";
 import {
   clipOrgAgentToolDebugSummary,
@@ -130,7 +133,6 @@ type OrgAgentLlmMessage = {
 // A normal multi-step turn is search -> read -> update -> final answer.
 const MAX_TOOL_LOOPS = 4;
 const MAX_TOTAL_TOOL_CALLS = 5;
-const MAX_TOTAL_TOOL_RESULT_CHARS = 48_000;
 const TOOL_FREE_FINAL_MAX_TOKENS = 2_000;
 type OrgAgentTurnUsage = NonNullable<OrgAgentMessageMetadata["llmUsage"]>;
 
@@ -654,7 +656,7 @@ async function runOrgAgentToolLoop(args: {
         const serializedResult = serializeOrgAgentToolResult(toolName, result);
         const remainingResultChars = Math.max(
           0,
-          MAX_TOTAL_TOOL_RESULT_CHARS - totalToolResultChars
+          ORG_AGENT_MAX_TOTAL_TOOL_RESULT_CHARS - totalToolResultChars
         );
         const fittedResult = fitOrgAgentToolResultToBudget({
           remainingChars: remainingResultChars,

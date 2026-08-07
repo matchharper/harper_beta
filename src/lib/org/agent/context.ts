@@ -142,6 +142,7 @@ function formatRoles(
         "status",
         "location",
         "work_mode",
+        "salary",
         "waiting",
         "active",
         "ended",
@@ -158,6 +159,7 @@ function formatRoles(
           humanizeOrgRoleStatus(item.status),
           item.locationText,
           humanizeOrgWorkMode(item.workMode),
+          item.salaryRange,
           counts?.waiting ?? "unavailable",
           counts?.active ?? "unavailable",
           counts?.ended ?? "unavailable",
@@ -167,7 +169,7 @@ function formatRoles(
           Boolean(text(item.description)),
         ];
       }),
-      [100, 180, 100, 100, 40, 12, 12, 12, 8, 8, 8, 8]
+      [100, 180, 100, 100, 40, 180, 12, 12, 12, 8, 8, 8, 8]
     );
     if (table.length > DEFAULT_ROLE_INDEX_MAX_CHARS) break;
     selected.push(role);
@@ -179,6 +181,7 @@ function formatRoles(
       "status",
       "location",
       "work_mode",
+      "salary",
       "waiting",
       "active",
       "ended",
@@ -195,6 +198,7 @@ function formatRoles(
         humanizeOrgRoleStatus(role.status),
         role.locationText,
         humanizeOrgWorkMode(role.workMode),
+        role.salaryRange,
         counts?.waiting ?? "unavailable",
         counts?.active ?? "unavailable",
         counts?.ended ?? "unavailable",
@@ -204,7 +208,7 @@ function formatRoles(
         Boolean(text(role.description)),
       ];
     }),
-    [100, 180, 100, 100, 40, 12, 12, 12, 8, 8, 8, 8]
+    [100, 180, 100, 100, 40, 180, 12, 12, 12, 8, 8, 8, 8]
   );
   return {
     completeRoleRequestIds: selected

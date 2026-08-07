@@ -99,6 +99,15 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.match(prompt, /workspace company name and role/);
   assert.match(prompt, /read_talent as a neutral read operation/);
   assert.match(prompt, /never means the user asked about preference/);
+  assert.match(prompt, /includeProfile=false is the compact default/);
+  assert.match(
+    prompt,
+    /It does not return current profile location, bio, structured work history, education, or extras/
+  );
+  assert.match(
+    prompt,
+    /includeProfile=true returns the same compact base plus those longer professional-profile fields/
+  );
   assert.match(prompt, /meaning of the current message and conversation/);
   assert.match(
     prompt,

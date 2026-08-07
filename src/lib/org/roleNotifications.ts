@@ -16,6 +16,10 @@ type ChannelRow = {
   slack_channel_name: string | null;
 };
 
+type WorkspaceMemberRow = {
+  company_user_id: string;
+};
+
 function text(value: unknown) {
   return String(value ?? "").trim();
 }
@@ -58,13 +62,17 @@ export async function fetchOrgRoleNotificationSettings(args: {
     user: args.user,
     workspaceId,
   });
-  const channelOptOutResult = await (
-    admin.from("company_role_notification_channels" as any) as any
-  )
-    .select("channel_id")
-    .eq("role_id", roleId);
+  const [channelOptOutResult, assigneeResult] = await Promise.all([
+    (admin.from("company_role_notification_channels" as any) as any)
+      .select("channel_id")
+      .eq("role_id", roleId),
+    (admin.from("company_role_assignees" as any) as any)
+      .select("company_user_id")
+      .eq("role_id", roleId),
+  ]);
 
   if (channelOptOutResult.error) throw channelOptOutResult.error;
+  if (assigneeResult.error) throw assigneeResult.error;
 
   const disabledChannelIds = new Set<string>(
     (channelOptOutResult.data ?? []).map(
@@ -73,6 +81,9 @@ export async function fetchOrgRoleNotificationSettings(args: {
   );
 
   return {
+    assigneeUserIds: (assigneeResult.data ?? []).map(
+      (row: { company_user_id: string }) => row.company_user_id
+    ),
     channels: channels.map((channel) => ({
       channelId: channel.slack_channel_id,
       channelName: channel.slack_channel_name,
@@ -80,6 +91,67 @@ export async function fetchOrgRoleNotificationSettings(args: {
     })),
     roleId,
   };
+}
+
+function normalizeUserIds(value: unknown) {
+  return Array.from(
+    new Set(
+      (Array.isArray(value) ? value : [])
+        .map((item) => text(item))
+        .filter(Boolean)
+    )
+  );
+}
+
+async function replaceRoleAssignees(args: {
+  admin: AdminClient;
+  assigneeUserIds: string[];
+  roleId: string;
+  workspaceId: string;
+}) {
+  if (args.assigneeUserIds.length === 0) {
+    const deleteResult = await (
+      args.admin.from("company_role_assignees" as any) as any
+    )
+      .delete()
+      .eq("role_id", args.roleId);
+    if (deleteResult.error) throw deleteResult.error;
+    return;
+  }
+
+  const memberResult = await (
+    args.admin.from("company_user_workspace" as any) as any
+  )
+    .select("company_user_id")
+    .eq("company_workspace_id", args.workspaceId)
+    .in("company_user_id", args.assigneeUserIds);
+  if (memberResult.error) throw memberResult.error;
+
+  const memberIds = new Set(
+    ((memberResult.data ?? []) as WorkspaceMemberRow[]).map(
+      (row) => row.company_user_id
+    )
+  );
+  if (args.assigneeUserIds.some((userId) => !memberIds.has(userId))) {
+    throw new OrgHttpError(400, "담당자는 현재 Organization 멤버여야 합니다.");
+  }
+
+  const deleteResult = await (
+    args.admin.from("company_role_assignees" as any) as any
+  )
+    .delete()
+    .eq("role_id", args.roleId);
+  if (deleteResult.error) throw deleteResult.error;
+
+  const insertResult = await (
+    args.admin.from("company_role_assignees" as any) as any
+  ).insert(
+    args.assigneeUserIds.map((companyUserId) => ({
+      company_user_id: companyUserId,
+      role_id: args.roleId,
+    }))
+  );
+  if (insertResult.error) throw insertResult.error;
 }
 
 function normalizeChannelUpdates(
@@ -140,6 +212,7 @@ export async function updateOrgRoleNotificationSettings(
     workspaceId,
   });
   const channelUpdates = normalizeChannelUpdates(args.channels);
+  const assigneeUserIds = normalizeUserIds(args.assigneeUserIds);
   const channelByPublicId = new Map(
     channels.map((channel) => [channel.slack_channel_id, channel.id])
   );
@@ -165,6 +238,14 @@ export async function updateOrgRoleNotificationSettings(
     enabledIds: channelEnabledIds,
     roleId,
   });
+  if (args.assigneeUserIds !== undefined) {
+    await replaceRoleAssignees({
+      admin,
+      assigneeUserIds,
+      roleId,
+      workspaceId,
+    });
+  }
 
   return fetchOrgRoleNotificationSettings({
     roleId,

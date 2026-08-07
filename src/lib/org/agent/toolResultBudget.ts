@@ -1,3 +1,6 @@
+/** Shared by the production tool loop and exact-result debugging surfaces. */
+export const ORG_AGENT_MAX_TOTAL_TOOL_RESULT_CHARS = 48_000;
+
 export const ORG_AGENT_TOOL_RESULT_BUDGET_MARKER = [
   "status=tool_budget_exhausted",
   "complete=false",

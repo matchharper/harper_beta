@@ -45,6 +45,7 @@ import { cx } from "@/components/ops/theme";
 import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/badge";
 import { MessagesProvider, type Locale } from "@/i18n/useMessage";
+import { resolveLocaleFromLanguage } from "@/i18n/localeResolution";
 import {
   CAREER_LANDING_HERO_COPY_ABTEST_COOKIE,
   resolveCareerLandingHeroCopyAbtestType,
@@ -1864,10 +1865,11 @@ function normalizeLocale(value: unknown): Locale | null {
   return value === "ko" || value === "en" ? value : null;
 }
 
-function getLocaleCountryFromAcceptLanguage(acceptLanguage: string) {
-  const primaryLocale = acceptLanguage.split(",")[0]?.trim() ?? "";
-  const [, rawCountry] = primaryLocale.split("-");
-  return (rawCountry ?? "").toUpperCase();
+function getLocaleLanguageFromAcceptLanguage(acceptLanguage: string) {
+  const primaryLocale =
+    acceptLanguage.split(",")[0]?.split(";")[0]?.trim() ?? "";
+  const [rawLanguage] = primaryLocale.replace(/_/g, "-").split("-");
+  return (rawLanguage ?? "").toLowerCase();
 }
 
 function resolveLandingLocale(
@@ -1877,16 +1879,10 @@ function resolveLandingLocale(
   const cookieLocale = normalizeLocale(cookies.NEXT_LOCALE);
   if (cookieLocale) return cookieLocale;
 
-  const headerCountry =
-    readHeader(headers, "x-vercel-ip-country") ||
-    readHeader(headers, "cf-ipcountry") ||
-    readHeader(headers, "x-country-code");
-  const countryCode = (
-    headerCountry ||
-    getLocaleCountryFromAcceptLanguage(readHeader(headers, "accept-language"))
-  ).toUpperCase();
-
-  return countryCode === "KR" ? "ko" : "en";
+  const language = getLocaleLanguageFromAcceptLanguage(
+    readHeader(headers, "accept-language")
+  );
+  return resolveLocaleFromLanguage(language);
 }
 
 function buildHeroCopyAbtestCookie(value: CareerLandingHeroCopyAbtestType) {

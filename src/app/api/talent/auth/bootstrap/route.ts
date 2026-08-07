@@ -100,17 +100,6 @@ function resolveSignupCurrentLocation(req: NextRequest) {
 }
 
 function resolveSignupLocale(req: NextRequest) {
-  const countryCode = String(
-    req.headers.get("x-vercel-ip-country") ||
-      req.headers.get("cf-ipcountry") ||
-      ""
-  )
-    .trim()
-    .toUpperCase();
-
-  if (countryCode === "KR") return "ko";
-  if (countryCode && countryCode !== "ZZ") return "en";
-
   const acceptedLanguages = String(req.headers.get("accept-language") ?? "")
     .split(",")
     .map((item) => item.split(";")[0]?.trim().toLowerCase())
@@ -407,7 +396,6 @@ export async function POST(req: NextRequest) {
     await upsertTalentSetting({
       admin,
       preferredLocale,
-      preferProvidedLocale: Boolean(emailOnboardingClaim),
       userId: user.id,
     });
 

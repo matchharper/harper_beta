@@ -12,6 +12,7 @@
     "ops:auto-intro:list": "tsx --tsconfig scripts/tsconfig.json scripts/autoIntroToCompanyCodexScheduled.ts list",
     "ops:auto-intro:send": "tsx --tsconfig scripts/tsconfig.json scripts/autoIntroToCompanyCodexScheduled.ts send",
     "org-agent:live-eval": "tsx --tsconfig scripts/tsconfig.json scripts/evalOrgAgentLive.ts",
+    "org-agent:prompt-snapshot": "tsx --tsconfig scripts/tsconfig.json scripts/exportOrgAgentPromptSnapshot.ts",
     "org-agent:prompt-benchmark": "tsx scripts/benchmarkOrgAgentPrompt.ts",
     "test:org-agent:db": "node --import tsx scripts/testOrgAgentDb.ts",
     "ops:workspace:sync-list": "node scripts/syncCompanyWorkspacesFromList.mjs",

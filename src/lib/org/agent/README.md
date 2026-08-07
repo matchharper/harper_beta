@@ -46,6 +46,22 @@
 pnpm org-agent:live-eval -- <company-workspace-id>
 ```
 
+실제 company-side LLM 첫 호출에 들어가는 system prompt, 동적 user prompt,
+tool schema를 최신 실제 turn 기준으로 로컬 Markdown에 저장하려면:
+
+```bash
+pnpm org-agent:prompt-snapshot
+pnpm org-agent:prompt-snapshot -- --workspace=<company-workspace-id>
+pnpm org-agent:prompt-snapshot -- --message-id=<company-message-id>
+```
+
+기본 출력 위치는 `.local/org-agent-prompt-snapshots/`다. snapshot에는 회사와
+후보자의 private data가 포함될 수 있어 `.local/` 전체를 Git에서 제외한다. 이 명령은
+DB를 읽기만 하며 LLM을 호출하거나 tool을 실행하지 않는다. 저장되는 내용은 선택한
+실제 user turn의 대화 경계와 현재 authoritative DB 값을 조합해 첫 completion payload를
+재구성한 것이다. tool 호출 이후 completion은 모델이 선택한 tool input/result에 따라
+동적으로 생기므로 이 snapshot에 포함되지 않는다.
+
 ## Model 선택
 
 - 기본값은 웹과 Slack 모두 `deepseek-v4-flash`의 high thinking mode다.

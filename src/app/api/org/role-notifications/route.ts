@@ -45,6 +45,7 @@ export async function PATCH(req: NextRequest) {
       .json()
       .catch(() => ({}))) as Partial<OrgRoleNotificationSettingsUpdate>;
     const payload = await updateOrgRoleNotificationSettings({
+      assigneeUserIds: body.assigneeUserIds,
       channels: body.channels,
       roleId: body.roleId ?? "",
       user,

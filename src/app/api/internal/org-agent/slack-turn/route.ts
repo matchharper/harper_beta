@@ -18,6 +18,7 @@ import {
 import { getSlackOrgAgentModel } from "@/lib/org/agent/modelConfig";
 import {
   buildHarperSlackChoiceBlocks,
+  formatHarperSlackToolUsage,
   parseHarperSlackChoiceMarkers,
 } from "@/lib/org/slackChoiceButtons";
 import {
@@ -462,6 +463,35 @@ async function recoverPersistedSlackReply(args: {
   return null;
 }
 
+async function loadPersistedSlackToolUsage(args: {
+  admin: ReturnType<typeof getSupabaseAdmin>;
+  responseMessageId: number;
+  responseProposalId: string | null;
+  workspaceId: string;
+}) {
+  if (args.responseProposalId) {
+    const { data, error } = await (
+      args.admin.from("company_agent_update_proposals" as any) as any
+    )
+      .select("message_metadata")
+      .eq("id", args.responseProposalId)
+      .eq("workspace_id", args.workspaceId)
+      .maybeSingle();
+    if (error) throw error;
+    return formatHarperSlackToolUsage(data?.message_metadata);
+  }
+  if (!args.responseMessageId) return null;
+  const { data, error } = await (
+    args.admin.from("company_messages" as any) as any
+  )
+    .select("metadata")
+    .eq("id", args.responseMessageId)
+    .eq("company_workspace_id", args.workspaceId)
+    .maybeSingle();
+  if (error) throw error;
+  return formatHarperSlackToolUsage(data?.metadata);
+}
+
 export async function POST(req: NextRequest) {
   const requestStartedAt = performance.now();
   const toolCalls: OrgAgentToolDebugEvent[] = [];
@@ -898,6 +928,18 @@ export async function POST(req: NextRequest) {
 
     if (!slackResponseTs) {
       const parsedSlackResponse = parseHarperSlackChoiceMarkers(responseText);
+      let toolUsageText: string | null = null;
+      try {
+        toolUsageText = await loadPersistedSlackToolUsage({
+          admin,
+          responseMessageId,
+          responseProposalId,
+          workspaceId: channel.company_workspace_id,
+        });
+      } catch (error) {
+        // Debug context must never block the actual Slack reply.
+        console.warn("[org-agent/slack-turn:tool-usage]", error);
+      }
       let slackResponseText: string;
       try {
         const targets = await loadSlackOrgLinkTargets({
@@ -925,15 +967,15 @@ export async function POST(req: NextRequest) {
         });
       }
       const deliveredSlackText = slackResponseText || "선택해 주세요.";
+      const slackBlocks = buildHarperSlackChoiceBlocks({
+        choices: parsedSlackResponse.choices,
+        sourceJobId: job.id,
+        text: deliveredSlackText,
+        toolUsageText,
+      });
       const posted = await postHarperSlackMessage({
-        ...(parsedSlackResponse.choices.length > 0
-          ? {
-              blocks: buildHarperSlackChoiceBlocks({
-                choices: parsedSlackResponse.choices,
-                sourceJobId: job.id,
-                text: deliveredSlackText,
-              }),
-            }
+        ...(parsedSlackResponse.choices.length > 0 || toolUsageText
+          ? { blocks: slackBlocks }
           : {}),
         channelId,
         clientMessageId: job.id,

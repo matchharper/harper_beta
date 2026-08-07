@@ -27,7 +27,7 @@ import {
   parseCareerPromptLocale,
   type CareerPromptLocale,
 } from "@/lib/career/promptLocale";
-import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
+import { safeSlice, stripPostgresUnsafeChars } from "@/lib/textSanitization";
 import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
 
 const TALENT_PROFILE_VISIBILITY_LABELS: Record<
@@ -48,60 +48,27 @@ const TALENT_ALLOWED_ENGAGEMENT_TYPES =
   new Set<TalentNetworkEngagementOptionId>(
     TALENT_NETWORK_ENGAGEMENT_OPTIONS.map((option) => option.id)
   );
-const KOREA_LOCATION_TERMS = ["korea", "대한민국", "한국"];
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
 }
 
-function hasKoreaLocationSignal(value: string | null | undefined) {
-  const normalized = String(value ?? "")
-    .trim()
-    .toLocaleLowerCase("ko-KR");
-  if (!normalized) return false;
-  return KOREA_LOCATION_TERMS.some((term) => normalized.includes(term));
-}
-
 export function resolveTalentPreferredLocale(args: {
-  currentLocation?: string | null;
   nextLocale?: string | null;
   settingLocale?: string | null;
 }): CareerPromptLocale {
   const explicitLocale = parseCareerPromptLocale(args.settingLocale);
   if (explicitLocale) return explicitLocale;
 
-  if (parseCareerPromptLocale(args.nextLocale) === "ko") return "ko";
-
-  if (hasKoreaLocationSignal(args.currentLocation)) {
-    return "ko";
-  }
-
-  return "en";
-}
-
-async function fetchTalentLocaleProfile(args: {
-  admin: TalentAdminClient;
-  userId: string;
-}) {
-  const { data, error } = await args.admin
-    .from("talent_users")
-    .select("location, current_location")
-    .eq("user_id", args.userId)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to load talent locale profile");
-  }
-
-  return data ?? null;
+  return parseCareerPromptLocale(args.nextLocale) ?? "en";
 }
 
 function normalizeTalentInsightText(value: unknown, maxLength = 8000) {
   if (typeof value !== "string") return null;
   const normalized = stripPostgresUnsafeChars(value).trim();
   if (!normalized) return null;
-  return normalized.slice(0, maxLength);
+  return safeSlice(normalized, maxLength);
 }
 
 export function normalizeTalentBlockedCompanies(companies: unknown): string[] {
@@ -113,7 +80,7 @@ export function normalizeTalentBlockedCompanies(companies: unknown): string[] {
     if (!name) continue;
     const lower = name.toLowerCase();
     if (unique.has(lower)) continue;
-    unique.set(lower, name.slice(0, 120));
+    unique.set(lower, safeSlice(name, 120));
   }
   return Array.from(unique.values());
 }
@@ -304,7 +271,6 @@ export async function upsertTalentSetting(args: {
   getExternalRecommendation?: boolean;
   periodicIntervalDays?: number;
   preferredLocale?: string | null;
-  preferProvidedLocale?: boolean;
   recommendationBatchSize?: number;
   settingLocale?: string | null;
 }) {
@@ -315,23 +281,12 @@ export async function upsertTalentSetting(args: {
     args.settingLocale === undefined
       ? parseCareerPromptLocale(current?.setting_locale)
       : parseCareerPromptLocale(args.settingLocale);
-  const localeProfile = await fetchTalentLocaleProfile({ admin, userId });
   const providedLocale = parseCareerPromptLocale(args.preferredLocale);
-  const shouldPreferProvidedLocale =
-    args.preferProvidedLocale === true &&
-    args.settingLocale === undefined &&
-    !settingLocale &&
-    Boolean(providedLocale);
-  const preferredLocale =
-    args.settingLocale === undefined && settingLocale
-      ? (parseCareerPromptLocale(current?.preferred_locale) ?? settingLocale)
-      : shouldPreferProvidedLocale && providedLocale
-        ? providedLocale
-      : resolveTalentPreferredLocale({
-          currentLocation: localeProfile?.current_location,
-          nextLocale: args.preferredLocale,
-          settingLocale,
-        });
+  const preferredLocale = resolveTalentPreferredLocale({
+    nextLocale:
+      providedLocale ?? parseCareerPromptLocale(current?.preferred_locale),
+    settingLocale,
+  });
   const payload = {
     user_id: userId,
     profile_visibility: sanitizeTalentProfileVisibility(
@@ -387,9 +342,8 @@ export async function refreshTalentPreferredLocale(args: {
   const settingLocale = parseCareerPromptLocale(current.setting_locale);
   if (settingLocale) return current;
 
-  const localeProfile = await fetchTalentLocaleProfile({ admin, userId });
   const preferredLocale = resolveTalentPreferredLocale({
-    currentLocation: localeProfile?.current_location,
+    nextLocale: current.preferred_locale,
     settingLocale,
   });
 
@@ -425,11 +379,7 @@ export async function setTalentOnboardingDone(args: {
   userId: string;
   isOnboardingDone?: boolean;
 }) {
-  const {
-    admin,
-    userId,
-    isOnboardingDone = true,
-  } = args;
+  const { admin, userId, isOnboardingDone = true } = args;
   const now = new Date().toISOString();
   const updatePayload = {
     is_onboarding_done: isOnboardingDone,
@@ -452,9 +402,7 @@ export async function setTalentOnboardingDone(args: {
   }
 
   const settingLocale = null;
-  const localeProfile = await fetchTalentLocaleProfile({ admin, userId });
   const preferredLocale = resolveTalentPreferredLocale({
-    currentLocation: localeProfile?.current_location,
     settingLocale,
   });
 

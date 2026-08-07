@@ -44,3 +44,6 @@ yarn-error.log*
 next-env.d.ts
 
 .omc/
+
+# local read-only snapshots that may contain private company/candidate data
+/.local/

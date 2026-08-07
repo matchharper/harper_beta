@@ -8,6 +8,20 @@ export type AutoIntroPresentation =
   | "bullets"
   | "tldr_bullets";
 
+export type AutoIntroRoleSummaryItem = {
+  pendingDecisionCount: number;
+  roleId: string;
+  roleTitle: string;
+  status: string | null;
+  workspaceId: string;
+};
+
+export type AutoIntroRoleSummary = {
+  companyName: string;
+  roles: AutoIntroRoleSummaryItem[];
+  workspaceId: string;
+};
+
 export function groupAutoIntroItemsByWorkspaceAndRole<
   T extends { roleId: string; workspaceId: string },
 >(items: T[]) {
@@ -119,6 +133,162 @@ export function buildAutoIntroWorkspaceJobsUrl(args: {
       args.publicSiteUrl ?? process.env.NEXT_PUBLIC_SITE_URL
     )}/`
   ).toString();
+}
+
+export function buildAutoIntroRoleJobsUrl(args: {
+  publicSiteUrl?: string | null;
+  roleId: string;
+  workspaceId: string;
+}) {
+  const href = buildOrgHref({
+    orgId: args.workspaceId,
+    page: "jobs",
+    roleId: args.roleId,
+  });
+  return new URL(
+    href,
+    `${normalizeSiteOrigin(
+      args.publicSiteUrl ?? process.env.NEXT_PUBLIC_SITE_URL
+    )}/`
+  ).toString();
+}
+
+export function autoIntroRoleStatusLabel(value: unknown) {
+  const status = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  if (status === "paused" || status === "on_hold") return "일시중지";
+  if (status === "top_priority") return "최우선";
+  return "진행중";
+}
+
+export function buildAutoIntroRoleSummaryText(args: {
+  introBody?: string | null;
+  publicSiteUrl?: string | null;
+  summary: AutoIntroRoleSummary;
+}) {
+  const rows = args.summary.roles.map(
+    (role) =>
+      `<${buildAutoIntroRoleJobsUrl({
+        publicSiteUrl: args.publicSiteUrl,
+        roleId: role.roleId,
+        workspaceId: role.workspaceId,
+      })}|${escapeSlackLinkLabel(role.roleTitle)}> | ${autoIntroRoleStatusLabel(
+        role.status
+      )} | ${role.pendingDecisionCount}명`
+  );
+  return [
+    ...(String(args.introBody ?? "").trim()
+      ? [String(args.introBody).trim()]
+      : []),
+    [
+      "*현재 Role 현황*",
+      "연결 여부를 결정해야 하는 후보자 수를 정리했습니다.",
+      ...rows,
+    ].join("\n"),
+  ].join("\n\n");
+}
+
+function splitSlackSectionText(value: string, maxLength = 2_900) {
+  const chunks: string[] = [];
+  let remaining = value.trim();
+  while (remaining.length > maxLength) {
+    const candidate = remaining.slice(0, maxLength);
+    const paragraphBreak = candidate.lastIndexOf("\n\n");
+    const lineBreak = candidate.lastIndexOf("\n");
+    const splitAt =
+      paragraphBreak > maxLength / 2
+        ? paragraphBreak
+        : lineBreak > maxLength / 2
+          ? lineBreak
+          : maxLength;
+    chunks.push(remaining.slice(0, splitAt).trim());
+    remaining = remaining.slice(splitAt).trim();
+  }
+  if (remaining) chunks.push(remaining);
+  return chunks;
+}
+
+export function buildAutoIntroRoleSummarySlackBlocks(args: {
+  introBody?: string | null;
+  publicSiteUrl?: string | null;
+  summary: AutoIntroRoleSummary;
+}) {
+  if (args.summary.roles.length === 0) {
+    throw new Error("Role summary has no current roles");
+  }
+  if (args.summary.roles.length > 99) {
+    throw new Error("Role summary exceeds the Slack table row limit");
+  }
+  const tableCharacterCount = args.summary.roles.reduce(
+    (total, role) =>
+      total +
+      role.roleTitle.length +
+      autoIntroRoleStatusLabel(role.status).length +
+      String(role.pendingDecisionCount).length,
+    "Role상태연결 결정 대기".length
+  );
+  if (tableCharacterCount > 10_000) {
+    throw new Error("Role summary exceeds the Slack table character limit");
+  }
+  const introBlocks = String(args.introBody ?? "").trim()
+    ? splitSlackSectionText(String(args.introBody)).map((text) => ({
+        text: { text, type: "mrkdwn" },
+        type: "section",
+      }))
+    : [];
+  return [
+    ...introBlocks,
+    ...(introBlocks.length > 0 ? [{ type: "divider" }] : []),
+    {
+      text: {
+        text: "*현재 Role 현황*\n연결 여부를 결정해야 하는 후보자 수를 정리했습니다.",
+        type: "mrkdwn",
+      },
+      type: "section",
+    },
+    {
+      column_settings: [
+        { is_wrapped: true },
+        { align: "center" },
+        { align: "right" },
+      ],
+      rows: [
+        [
+          { text: "Role", type: "raw_text" },
+          { text: "상태", type: "raw_text" },
+          { text: "연결 결정 대기", type: "raw_text" },
+        ],
+        ...args.summary.roles.map((role) => [
+          {
+            elements: [
+              {
+                elements: [
+                  {
+                    text: role.roleTitle,
+                    type: "link",
+                    url: buildAutoIntroRoleJobsUrl({
+                      publicSiteUrl: args.publicSiteUrl,
+                      roleId: role.roleId,
+                      workspaceId: role.workspaceId,
+                    }),
+                  },
+                ],
+                type: "rich_text_section",
+              },
+            ],
+            type: "rich_text",
+          },
+          {
+            text: autoIntroRoleStatusLabel(role.status),
+            type: "raw_text",
+          },
+          { text: `${role.pendingDecisionCount}명`, type: "raw_text" },
+        ]),
+      ],
+      type: "table",
+    },
+  ];
 }
 
 export function buildAutoIntroWorkspaceActionGuidance(args: {

@@ -115,26 +115,11 @@ export function enforceOrgAgentTerminalMutationOutcome(
 export function createOrgAgentToolExecutionState(
   context: OrgAgentPromptContext
 ): OrgAgentToolExecutionState {
-  const state: OrgAgentToolExecutionState = {
-    activatedMoreData: [],
-    actions: [],
-    candidateConnectionConfirmations: [],
-    company: { ...context.workspace },
-    completeLongTextTargets: new Set(),
-    fullRoleRequestIds: new Set(context.completeRoleRequestIds),
-    internalTokenCorrectionCount: 0,
-    observedLongTextFingerprints: new Map(),
-    pendingFullRoleRequestIds: new Set(),
-    requestChanges: [],
-    requiredPresentationText: null,
-    roleById: new Map(context.roles.map((role) => [role.roleId, { ...role }])),
-    stagedProposal: null,
-    terminalReply: null,
-    terminalMutationUsed: false,
-    toolResults: [],
-    updateProposalRef: null,
-    updateSummaries: [],
-  };
+  const state = createOrgAgentToolExecutionStateFromSnapshot({
+    completeRoleRequestIds: context.completeRoleRequestIds,
+    roles: context.roles,
+    workspace: context.workspace,
+  });
   for (const observation of context.defaultLongTextObservations ?? []) {
     markOrgAgentLongTextComplete({
       key: observation.key,
@@ -162,6 +147,39 @@ export function createOrgAgentToolExecutionState(
       state,
     });
   }
+  return state;
+}
+
+/**
+ * Builds the runtime bookkeeping state from already-loaded authoritative rows.
+ * Debug and inspection paths can use this without paying for the full prompt,
+ * recent conversation, retained-data, and pipeline context reads.
+ */
+export function createOrgAgentToolExecutionStateFromSnapshot(args: {
+  completeRoleRequestIds?: string[];
+  roles: OrgAgentPromptContext["roles"];
+  workspace: OrgAgentPromptContext["workspace"];
+}): OrgAgentToolExecutionState {
+  const state: OrgAgentToolExecutionState = {
+    activatedMoreData: [],
+    actions: [],
+    candidateConnectionConfirmations: [],
+    company: { ...args.workspace },
+    completeLongTextTargets: new Set(),
+    fullRoleRequestIds: new Set(args.completeRoleRequestIds ?? []),
+    internalTokenCorrectionCount: 0,
+    observedLongTextFingerprints: new Map(),
+    pendingFullRoleRequestIds: new Set(),
+    requestChanges: [],
+    requiredPresentationText: null,
+    roleById: new Map(args.roles.map((role) => [role.roleId, { ...role }])),
+    stagedProposal: null,
+    terminalReply: null,
+    terminalMutationUsed: false,
+    toolResults: [],
+    updateProposalRef: null,
+    updateSummaries: [],
+  };
   return state;
 }
 

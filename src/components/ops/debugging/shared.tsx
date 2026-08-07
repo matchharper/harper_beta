@@ -11,12 +11,18 @@ import { useAuthStore } from "@/store/useAuthStore";
 export const FETCH_LIMIT = 40;
 export const OPPORTUNITY_RUN_FETCH_LIMIT = 20;
 
-export type DebugTabId = "calls" | "cost" | "emails" | "opportunityRuns";
+export type DebugTabId =
+  | "calls"
+  | "cost"
+  | "emails"
+  | "opportunityRuns"
+  | "orgAgentTools";
 
 export function debugTabTitle(tab: DebugTabId) {
   if (tab === "emails") return "메일 로그";
   if (tab === "calls") return "콜 로그";
   if (tab === "cost") return "비용";
+  if (tab === "orgAgentTools") return "Company-side LLM Tool";
   return "Opportunity Runs";
 }
 
@@ -29,6 +35,9 @@ export function debugTabDescription(tab: DebugTabId) {
   }
   if (tab === "cost") {
     return "Claude, OpenAI, Grok, Exa, EC2 비용과 현재 credit을 확인합니다.";
+  }
+  if (tab === "orgAgentTools") {
+    return "tool의 실제 반환 JSON과 company-side LLM에 전달되는 최종 content 문자열을 원문 그대로 확인합니다.";
   }
   return "최근 opportunity_discovery_run의 추천 저장, 발송, action, partial 사유를 확인합니다.";
 }

@@ -28,6 +28,7 @@ export async function PATCH(req: NextRequest) {
       name?: string | null;
       request?: string | null;
       roleId?: string;
+      salaryRange?: string | null;
       status?: string | null;
       workMode?: string | null;
       workspaceId?: string;
@@ -41,6 +42,7 @@ export async function PATCH(req: NextRequest) {
       name: body.name,
       request: body.request,
       roleId: body.roleId ?? "",
+      salaryRange: body.salaryRange,
       status: body.status,
       user,
       workMode: body.workMode,

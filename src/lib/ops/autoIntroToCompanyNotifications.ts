@@ -6,13 +6,17 @@ import {
   AUTO_INTRO_RESPONSE_GUIDANCE,
   buildAutoIntroFollowUpPostscript,
   getAutoIntroReasonMode,
+  getAutoIntroRoleSummaryDateKey,
   getFreshPendingConnectionSince,
   getLatestAutoIntroInternalStage,
+  isAutoIntroRoleSummaryDay,
   wasAutoIntroSlackSent,
   type AutoIntroReasonMode,
 } from "@/lib/ops/autoIntroToCompanyPolicy";
 import {
   buildAutoIntroCandidateNameLink,
+  buildAutoIntroRoleSummarySlackBlocks,
+  buildAutoIntroRoleSummaryText,
   buildAutoIntroWorkspaceActionGuidance,
   escapeAutoIntroSlackHeading,
   groupAutoIntroItemsByWorkspaceAndRole,
@@ -20,6 +24,7 @@ import {
   validateAutoIntroCandidateSentences,
   validateAutoIntroInternalReason,
   type AutoIntroPresentation,
+  type AutoIntroRoleSummary,
 } from "@/lib/ops/autoIntroToCompanyMessage";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type { Json } from "@/types/database.types";
@@ -54,6 +59,14 @@ type RoleRow = {
   status: string | null;
   summary: Json | null;
   work_mode: string | null;
+};
+
+type RoleSummaryRow = {
+  company_workspace_id: string;
+  is_expired: boolean | null;
+  name: string;
+  role_id: string;
+  status: string | null;
 };
 
 type WorkspaceRow = {
@@ -179,6 +192,7 @@ type GeneratedWorkspaceMessage = {
   internalReasonByCandidateKey: Record<string, string>;
   model: string;
   presentationByCandidateKey: Record<string, AutoIntroPresentation>;
+  slackBlocks?: Array<Record<string, unknown>>;
 };
 
 type DeliveryOutcome = {
@@ -240,7 +254,15 @@ export type AutoIntroToCompanyCandidateDossiers = EligibilityStats & {
     slackConnected: boolean;
     workspaceId: string;
   }>;
+  roleSummaries: Array<
+    AutoIntroRoleSummary & {
+      slackConnected: boolean;
+    }
+  >;
+  roleSummaryDue: boolean;
+  roleSummaryWorkspaceCount: number;
   skippedNoChannelCount: number;
+  skippedRoleSummaryNoChannelCount: number;
 };
 
 export type AutoIntroToCompanyDeliveryResult = EligibilityStats & {
@@ -255,10 +277,24 @@ export type AutoIntroToCompanyDeliveryResult = EligibilityStats & {
     slackConnected: boolean;
     workspaceId: string;
   }>;
+  failedRoleSummaryCount: number;
   processedCandidateCount: number;
+  roleSummaries: Array<{
+    body: string;
+    companyName: string;
+    roleCount: number;
+    slackConnected: boolean;
+    slackError: string | null;
+    slackSent: boolean;
+    workspaceId: string;
+  }>;
+  roleSummaryDue: boolean;
+  roleSummaryWorkspaceCount: number;
   sentCandidateCount: number;
+  sentRoleSummaryCount: number;
   sentSlackCount: number;
   skippedNoChannelCount: number;
+  skippedRoleSummaryNoChannelCount: number;
 };
 
 type AutoIntroRunFilters = {
@@ -374,6 +410,14 @@ function deliveryIdempotencyKey(group: WorkspaceNotificationGroup) {
   ]);
 }
 
+function roleSummaryIdempotencyKey(workspaceId: string, dateKey: string) {
+  return deterministicUuid([
+    "auto_intro_to_company_role_summary",
+    workspaceId,
+    dateKey,
+  ]);
+}
+
 async function fetchRecentPendingTags(
   admin: AdminClient,
   filters: AutoIntroRunFilters
@@ -419,6 +463,111 @@ async function fetchRoles(
     const status = normalizeText(role.status).toLowerCase();
     return status !== "deleted" && status !== "ended";
   });
+}
+
+const INACTIVE_ROLE_SUMMARY_STATUSES = new Set([
+  "archived",
+  "closed",
+  "deleted",
+  "ended",
+  "expired",
+  "inactive",
+]);
+
+async function fetchCurrentRoleSummaries(
+  admin: AdminClient,
+  filters: AutoIntroRunFilters
+) {
+  const roles = await fetchAllRows<RoleSummaryRow>((from, to) => {
+    let query = (admin.from("company_roles" as any) as any)
+      .select("role_id, company_workspace_id, name, status, is_expired")
+      .eq("source_type", "internal")
+      .eq("is_expired", false);
+    if (filters.workspaceId) {
+      query = query.eq("company_workspace_id", filters.workspaceId);
+    }
+    if (filters.roleId) query = query.eq("role_id", filters.roleId);
+    return query
+      .order("company_workspace_id", { ascending: true })
+      .order("name", { ascending: true })
+      .order("role_id", { ascending: true })
+      .range(from, to);
+  });
+  const currentRoles = roles.filter(
+    (role) =>
+      role.is_expired !== true &&
+      !INACTIVE_ROLE_SUMMARY_STATUSES.has(
+        normalizeText(role.status).toLowerCase()
+      )
+  );
+  if (currentRoles.length === 0) return [];
+
+  const roleIds = uniqueTexts(currentRoles.map((role) => role.role_id));
+  const pendingTags: TagRow[] = [];
+  for (const roleIdChunk of chunkValues(roleIds)) {
+    pendingTags.push(
+      ...(await fetchAllRows<TagRow>((from, to) =>
+        (admin.from("talent_opportunity_tag" as any) as any)
+          .select("id, opportunity_id, tag, talent_id, created_at, updated_at")
+          .eq("tag", AUTO_INTRO_PENDING_TAG)
+          .in("opportunity_id", roleIdChunk)
+          .order("updated_at", { ascending: false, nullsFirst: false })
+          .order("id", { ascending: false })
+          .range(from, to)
+      ))
+    );
+  }
+  const candidateKeys = new Set(
+    pendingTags.map((tag) => `${tag.opportunity_id}:${tag.talent_id}`)
+  );
+  const pendingCountByRoleId = new Map<string, number>();
+  if (candidateKeys.size > 0) {
+    const talentIds = uniqueTexts(pendingTags.map((tag) => tag.talent_id));
+    const tagsByKey = groupTagsByRoleTalent(
+      await fetchTags(admin, roleIds, talentIds)
+    );
+    for (const key of candidateKeys) {
+      const latestStage = getLatestAutoIntroInternalStage(
+        tagsByKey.get(key) ?? []
+      );
+      if (normalizeText(latestStage?.tag) !== AUTO_INTRO_PENDING_TAG) continue;
+      const [roleId] = key.split(":");
+      if (!roleId) continue;
+      pendingCountByRoleId.set(
+        roleId,
+        (pendingCountByRoleId.get(roleId) ?? 0) + 1
+      );
+    }
+  }
+
+  const workspaces = await fetchWorkspaces(
+    admin,
+    uniqueTexts(currentRoles.map((role) => role.company_workspace_id))
+  );
+  const workspaceById = new Map(
+    workspaces.map((workspace) => [workspace.company_workspace_id, workspace])
+  );
+  const rolesByWorkspaceId = new Map<string, RoleSummaryRow[]>();
+  for (const role of currentRoles) {
+    const workspaceRoles =
+      rolesByWorkspaceId.get(role.company_workspace_id) ?? [];
+    workspaceRoles.push(role);
+    rolesByWorkspaceId.set(role.company_workspace_id, workspaceRoles);
+  }
+  return Array.from(rolesByWorkspaceId, ([workspaceId, workspaceRoles]) => {
+    const workspace = workspaceById.get(workspaceId);
+    return {
+      companyName: normalizeText(workspace?.company_name) || "회사",
+      roles: workspaceRoles.map((role) => ({
+        pendingDecisionCount: pendingCountByRoleId.get(role.role_id) ?? 0,
+        roleId: role.role_id,
+        roleTitle: normalizeText(role.name) || "Role",
+        status: role.status,
+        workspaceId,
+      })),
+      workspaceId,
+    } satisfies AutoIntroRoleSummary;
+  }).sort((left, right) => left.workspaceId.localeCompare(right.workspaceId));
 }
 
 async function fetchTags(
@@ -568,63 +717,6 @@ async function fetchSentIntroProgressKeys(
       }
     }
   }
-  return keys;
-}
-
-async function fetchSlackContactedKeys(
-  admin: AdminClient,
-  roleIds: string[],
-  talentIds: string[]
-) {
-  const roleIdSet = new Set(roleIds);
-  const talentIdSet = new Set(talentIds);
-  const keys = new Set<string>();
-  const collectRows = (
-    rows: Array<{ mentions: Json; role_id: string | null }>
-  ) => {
-    for (const row of rows) {
-      if (!Array.isArray(row.mentions)) continue;
-      for (const mention of row.mentions) {
-        const record = metadataRecord(mention);
-        const roleId =
-          normalizeText(record.roleId) || normalizeText(row.role_id);
-        const talentId = normalizeText(record.talentId);
-        if (roleIdSet.has(roleId) && talentIdSet.has(talentId)) {
-          keys.add(`${roleId}:${talentId}`);
-        }
-      }
-    }
-  };
-  for (const roleIdChunk of chunkValues(roleIds)) {
-    const rows = await fetchAllRows<{
-      mentions: Json;
-      role_id: string | null;
-    }>((from, to) =>
-      (admin.from("company_messages" as any) as any)
-        .select("role_id, mentions")
-        .eq("message_type", "slack")
-        .eq("role", "assistant")
-        .eq("status", "completed")
-        .not("slack_message_ts", "is", null)
-        .in("role_id", roleIdChunk)
-        .range(from, to)
-    );
-    collectRows(rows);
-  }
-  const workspaceMessageRows = await fetchAllRows<{
-    mentions: Json;
-    role_id: string | null;
-  }>((from, to) =>
-    (admin.from("company_messages" as any) as any)
-      .select("role_id, mentions")
-      .eq("message_type", "slack")
-      .eq("role", "assistant")
-      .eq("status", "completed")
-      .not("slack_message_ts", "is", null)
-      .is("role_id", null)
-      .range(from, to)
-  );
-  collectRows(workspaceMessageRows);
   return keys;
 }
 
@@ -810,14 +902,12 @@ async function buildEligibleCandidates(
 
   const talentIds = uniqueTexts(limitedPairs.map((pair) => pair.talentId));
   const limitedRoleIds = uniqueTexts(limitedPairs.map((pair) => pair.roleId));
-  const [fits, recommendations, sentProgressKeys, slackContactedKeys, talents] =
-    await Promise.all([
-      fetchFits(admin, limitedRoleIds, talentIds),
-      fetchRecommendations(admin, limitedRoleIds, talentIds),
-      fetchSentIntroProgressKeys(admin, limitedRoleIds, talentIds),
-      fetchSlackContactedKeys(admin, limitedRoleIds, talentIds),
-      fetchTalents(admin, talentIds),
-    ]);
+  const [fits, recommendations, sentProgressKeys, talents] = await Promise.all([
+    fetchFits(admin, limitedRoleIds, talentIds),
+    fetchRecommendations(admin, limitedRoleIds, talentIds),
+    fetchSentIntroProgressKeys(admin, limitedRoleIds, talentIds),
+    fetchTalents(admin, talentIds),
+  ]);
   const generateTalentIds = uniqueTexts(
     limitedPairs
       .filter((pair) => {
@@ -840,7 +930,7 @@ async function buildEligibleCandidates(
   const candidates: AutoIntroCandidate[] = [];
 
   for (const pair of limitedPairs) {
-    if (sentProgressKeys.has(pair.key) || slackContactedKeys.has(pair.key)) {
+    if (sentProgressKeys.has(pair.key)) {
       stats.skippedAlreadySentCount += 1;
       continue;
     }
@@ -1287,6 +1377,23 @@ function formatError(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
+function attachRoleSummaryToMessage(
+  message: GeneratedWorkspaceMessage,
+  summary: AutoIntroRoleSummary
+): GeneratedWorkspaceMessage {
+  return {
+    ...message,
+    body: buildAutoIntroRoleSummaryText({
+      introBody: message.body,
+      summary,
+    }),
+    slackBlocks: buildAutoIntroRoleSummarySlackBlocks({
+      introBody: message.body,
+      summary,
+    }),
+  };
+}
+
 async function sendWorkspaceMessage(args: {
   group: WorkspaceNotificationGroup;
   message: GeneratedWorkspaceMessage;
@@ -1298,6 +1405,7 @@ async function sendWorkspaceMessage(args: {
   if (args.slackConnected) {
     try {
       slackSent = await sendHarperWorkspaceSlackMessage({
+        blocks: args.message.slackBlocks,
         idempotencyKey,
         messageMetadata: {
           autoIntroToCompany: {
@@ -1334,6 +1442,47 @@ async function sendWorkspaceMessage(args: {
       });
       if (!slackSent)
         slackError = "No eligible Slack channel accepted delivery";
+    } catch (error) {
+      slackError = formatError(error).slice(0, 500);
+    }
+  }
+  return {
+    idempotencyKey,
+    slackConnected: args.slackConnected,
+    slackError,
+    slackSent,
+  };
+}
+
+async function sendRoleSummaryOnly(args: {
+  dateKey: string;
+  slackConnected: boolean;
+  summary: AutoIntroRoleSummary;
+}): Promise<DeliveryOutcome> {
+  const idempotencyKey = roleSummaryIdempotencyKey(
+    args.summary.workspaceId,
+    args.dateKey
+  );
+  let slackSent = false;
+  let slackError: string | null = null;
+  if (args.slackConnected) {
+    try {
+      slackSent = await sendHarperWorkspaceSlackMessage({
+        blocks: buildAutoIntroRoleSummarySlackBlocks({
+          summary: args.summary,
+        }),
+        idempotencyKey,
+        messageMetadata: {
+          model: "application",
+          source: "codex_scheduled_auto_intro_role_summary",
+        },
+        roleId: null,
+        text: buildAutoIntroRoleSummaryText({ summary: args.summary }),
+        workspaceId: args.summary.workspaceId,
+      });
+      if (!slackSent) {
+        slackError = "No eligible Slack channel accepted delivery";
+      }
     } catch (error) {
       slackError = formatError(error).slice(0, 500);
     }
@@ -1385,31 +1534,59 @@ function roleContext(section: WorkspaceRoleNotificationSection) {
 
 export async function fetchAutoIntroToCompanyCandidateDossiers(args?: {
   limit?: number;
+  now?: Date;
   roleId?: string | null;
   workspaceId?: string | null;
 }): Promise<AutoIntroToCompanyCandidateDossiers> {
   const admin = getSupabaseAdmin();
-  const eligibility = await buildEligibleCandidates(
-    admin,
-    autoIntroFilters(args)
-  );
+  const filters = autoIntroFilters(args);
+  const roleSummaryDue = isAutoIntroRoleSummaryDay(args?.now);
+  const [eligibility, summaries] = await Promise.all([
+    buildEligibleCandidates(admin, filters),
+    roleSummaryDue
+      ? fetchCurrentRoleSummaries(admin, filters)
+      : Promise.resolve([]),
+  ]);
   const groups = groupCandidatesByWorkspace(
     eligibility.candidates,
     eligibility.roles,
     eligibility.workspaces
   );
+  const slackConnectedByWorkspace = new Map<string, boolean>();
+  await Promise.all(
+    summaries.map(async (summary) => {
+      slackConnectedByWorkspace.set(
+        summary.workspaceId,
+        await hasWorkspaceSlackDeliveryChannel(admin, summary.workspaceId)
+      );
+    })
+  );
   const result: AutoIntroToCompanyCandidateDossiers = {
     ...eligibility.stats,
     eligibleCandidateCount: eligibility.candidates.length,
     groups: [],
+    roleSummaries: summaries.map((summary) => ({
+      ...summary,
+      slackConnected:
+        slackConnectedByWorkspace.get(summary.workspaceId) ?? false,
+    })),
+    roleSummaryDue,
+    roleSummaryWorkspaceCount: summaries.length,
     skippedNoChannelCount: 0,
+    skippedRoleSummaryNoChannelCount: summaries.filter(
+      (summary) => !slackConnectedByWorkspace.get(summary.workspaceId)
+    ).length,
   };
 
   for (const group of groups) {
-    const slackConnected = await hasWorkspaceSlackDeliveryChannel(
-      admin,
-      group.workspaceId
-    );
+    let slackConnected = slackConnectedByWorkspace.get(group.workspaceId);
+    if (slackConnected === undefined) {
+      slackConnected = await hasWorkspaceSlackDeliveryChannel(
+        admin,
+        group.workspaceId
+      );
+      slackConnectedByWorkspace.set(group.workspaceId, slackConnected);
+    }
     if (!slackConnected) {
       result.skippedNoChannelCount += group.candidates.length;
     }
@@ -1468,6 +1645,7 @@ function filterAuthoredMessageToCandidates(
 export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
   groups: CodexAuthoredWorkspaceMessage[];
   limit?: number;
+  now?: Date;
   roleId?: string | null;
   workspaceId?: string | null;
 }): Promise<AutoIntroToCompanyDeliveryResult> {
@@ -1475,10 +1653,16 @@ export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
     throw new Error("groups must be an array");
   }
   const admin = getSupabaseAdmin();
-  const eligibility = await buildEligibleCandidates(
-    admin,
-    autoIntroFilters(args)
-  );
+  const filters = autoIntroFilters(args);
+  const now = args.now ?? new Date();
+  const roleSummaryDue = isAutoIntroRoleSummaryDay(now);
+  const roleSummaryDateKey = getAutoIntroRoleSummaryDateKey(now);
+  const [eligibility, roleSummaries] = await Promise.all([
+    buildEligibleCandidates(admin, filters),
+    roleSummaryDue
+      ? fetchCurrentRoleSummaries(admin, filters)
+      : Promise.resolve([]),
+  ]);
   const availableGroups = groupCandidatesByWorkspace(
     eligibility.candidates,
     eligibility.roles,
@@ -1487,18 +1671,62 @@ export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
   const groupByWorkspaceId = new Map(
     availableGroups.map((group) => [group.workspaceId, group])
   );
+  const roleSummaryByWorkspaceId = new Map(
+    roleSummaries.map((summary) => [summary.workspaceId, summary])
+  );
 
   const result: AutoIntroToCompanyDeliveryResult = {
     ...eligibility.stats,
     eligibleCandidateCount: eligibility.candidates.length,
     failedCandidateCount: 0,
+    failedRoleSummaryCount: 0,
     groups: [],
     processedCandidateCount: 0,
+    roleSummaries: [],
+    roleSummaryDue,
+    roleSummaryWorkspaceCount: roleSummaries.length,
     sentCandidateCount: 0,
+    sentRoleSummaryCount: 0,
     sentSlackCount: 0,
     skippedNoChannelCount: 0,
+    skippedRoleSummaryNoChannelCount: 0,
   };
   const submittedWorkspaceIds = new Set<string>();
+  const attemptedRoleSummaryWorkspaceIds = new Set<string>();
+  const slackConnectedByWorkspace = new Map<string, boolean>();
+  const slackConnectedFor = async (workspaceId: string) => {
+    const cached = slackConnectedByWorkspace.get(workspaceId);
+    if (cached !== undefined) return cached;
+    const connected = await hasWorkspaceSlackDeliveryChannel(
+      admin,
+      workspaceId
+    );
+    slackConnectedByWorkspace.set(workspaceId, connected);
+    return connected;
+  };
+  const recordRoleSummary = (
+    summary: AutoIntroRoleSummary,
+    slackConnected: boolean,
+    delivery?: DeliveryOutcome
+  ) => {
+    attemptedRoleSummaryWorkspaceIds.add(summary.workspaceId);
+    result.roleSummaries.push({
+      body: buildAutoIntroRoleSummaryText({ summary }),
+      companyName: summary.companyName,
+      roleCount: summary.roles.length,
+      slackConnected,
+      slackError: delivery?.slackError ?? null,
+      slackSent: delivery?.slackSent ?? false,
+      workspaceId: summary.workspaceId,
+    });
+    if (!slackConnected) {
+      result.skippedRoleSummaryNoChannelCount += 1;
+    } else if (delivery?.slackSent) {
+      result.sentRoleSummaryCount += 1;
+    } else {
+      result.failedRoleSummaryCount += 1;
+    }
+  };
 
   for (const authored of args.groups) {
     const workspaceId = normalizeText(authored.workspaceId);
@@ -1513,16 +1741,20 @@ export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
       throw new Error(`No currently eligible workspace: ${workspaceId}`);
     const normalizedAuthored = { ...authored, workspaceId };
     const message = parseCodexAuthoredMessage(normalizedAuthored, group);
-    const slackConnected = await hasWorkspaceSlackDeliveryChannel(
-      admin,
-      group.workspaceId
-    );
+    const roleSummary = roleSummaryByWorkspaceId.get(group.workspaceId);
+    const previewMessage = roleSummary
+      ? attachRoleSummaryToMessage(message, roleSummary)
+      : message;
+    const slackConnected = await slackConnectedFor(group.workspaceId);
     if (!slackConnected) {
       result.skippedNoChannelCount += group.candidates.length;
+      if (roleSummary) {
+        recordRoleSummary(roleSummary, false);
+      }
       result.groups.push({
         candidateCount: group.candidates.length,
         companyName: group.companyName,
-        message,
+        message: previewMessage,
         roleIds: group.roleSections.map((section) => section.roleId),
         roleTitles: group.roleSections.map((section) => section.roleTitle),
         slackConnected,
@@ -1541,13 +1773,16 @@ export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
       claimedCandidates.map((candidate) => candidateKey(candidate))
     );
     const claimedGroup = groupWithCandidates(group, claimedCandidates);
-    const deliveryMessage =
+    const candidateMessage =
       claimedCandidates.length === group.candidates.length
         ? message
         : parseCodexAuthoredMessage(
             filterAuthoredMessageToCandidates(normalizedAuthored, claimedKeys),
             claimedGroup
           );
+    const deliveryMessage = roleSummary
+      ? attachRoleSummaryToMessage(candidateMessage, roleSummary)
+      : candidateMessage;
     await persistCodexAuthoredFitReasons({
       admin,
       group: claimedGroup,
@@ -1558,6 +1793,9 @@ export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
       message: deliveryMessage,
       slackConnected,
     });
+    if (roleSummary) {
+      recordRoleSummary(roleSummary, slackConnected, delivery);
+    }
     await updateCandidateProgressMetadata({
       admin,
       delivery,
@@ -1582,6 +1820,22 @@ export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
     result.failedCandidateCount += delivery.slackSent
       ? 0
       : claimedCandidates.length;
+  }
+
+  for (const summary of roleSummaries) {
+    if (attemptedRoleSummaryWorkspaceIds.has(summary.workspaceId)) continue;
+    const slackConnected = await slackConnectedFor(summary.workspaceId);
+    if (!slackConnected) {
+      recordRoleSummary(summary, false);
+      continue;
+    }
+    const delivery = await sendRoleSummaryOnly({
+      dateKey: roleSummaryDateKey,
+      slackConnected,
+      summary,
+    });
+    recordRoleSummary(summary, slackConnected, delivery);
+    result.sentSlackCount += delivery.slackSent ? 1 : 0;
   }
   return result;
 }

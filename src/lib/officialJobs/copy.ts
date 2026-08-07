@@ -1,7 +1,7 @@
 import type { IncomingMessage } from "http";
 import {
   normalizeLocale,
-  resolveLocaleFromCountryLanguage,
+  resolveLocaleFromLanguage,
   type ResolvedLocale,
 } from "@/i18n/localeResolution";
 
@@ -30,15 +30,9 @@ export function resolveOfficialJobsLocaleFromRequest(
   const cookieLocale = normalizeLocale(req.cookies?.NEXT_LOCALE);
   if (cookieLocale) return cookieLocale;
 
-  const countryCode =
-    readHeader(req, "x-vercel-ip-country") ||
-    readHeader(req, "cf-ipcountry") ||
-    "ZZ";
-
-  return resolveLocaleFromCountryLanguage({
-    countryCode,
-    language: parsePrimaryLanguage(readHeader(req, "accept-language")),
-  });
+  return resolveLocaleFromLanguage(
+    parsePrimaryLanguage(readHeader(req, "accept-language"))
+  );
 }
 
 export const OFFICIAL_JOBS_COPY = {

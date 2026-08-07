@@ -1,5 +1,6 @@
 export const AUTO_INTRO_PENDING_TAG = "내부:연결대기";
 export const AUTO_INTRO_MAX_PENDING_AGE_DAYS = 14;
+const KST_OFFSET_MS = 9 * 60 * 60 * 1_000;
 
 export const AUTO_INTRO_INTERNAL_STAGE_TAGS = new Set([
   "내부:수락",
@@ -88,6 +89,19 @@ export function wasAutoIntroSlackSent(metadata: unknown) {
   }
   const record = metadata as Record<string, unknown>;
   return record.slackSent === true || record.deliveryStatus === "sent";
+}
+
+function kstShiftedDate(value: Date) {
+  return new Date(value.getTime() + KST_OFFSET_MS);
+}
+
+export function getAutoIntroRoleSummaryDateKey(now = new Date()) {
+  return kstShiftedDate(now).toISOString().slice(0, 10);
+}
+
+export function isAutoIntroRoleSummaryDay(now = new Date()) {
+  const day = kstShiftedDate(now).getUTCDay();
+  return day === 1 || day === 4;
 }
 
 export function buildAutoIntroFollowUpPostscript(question: unknown) {

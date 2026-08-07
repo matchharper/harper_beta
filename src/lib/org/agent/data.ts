@@ -100,7 +100,6 @@ type TalentRow = {
   headline: string | null;
   location?: string | null;
   name: string | null;
-  resume_text?: string | null;
   user_id: string;
 };
 
@@ -168,7 +167,7 @@ async function fetchTalentsById(args: {
   const talentIds = unique(args.talentIds);
   if (talentIds.length === 0) return new Map<string, TalentRow>();
   const fields = args.includeProfile
-    ? "user_id, name, email, headline, bio, current_location, location, resume_text"
+    ? "user_id, name, email, headline, bio, current_location, location"
     : "user_id, name, email, headline, current_location, location";
   const { data, error } = await (args.admin.from("talent_users" as any) as any)
     .select(fields)
@@ -185,7 +184,7 @@ export async function fetchOrgAgentRoles(args: {
 }) {
   const { data, error } = await (args.admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, status, type, location_text, work_mode, created_at, updated_at"
+      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, type, location_text, work_mode, created_at, updated_at"
     )
     .eq("company_workspace_id", args.workspaceId)
     .eq("source_type", "internal")
@@ -201,6 +200,7 @@ export async function fetchOrgAgentRoles(args: {
     location_text: string | null;
     name: string;
     role_id: string;
+    salary_range: string | null;
     status: string | null;
     type: string[] | null;
     updated_at: string;
@@ -250,6 +250,7 @@ export async function fetchOrgAgentRoles(args: {
         name: row.name,
         request: requestByRoleId.get(row.role_id) ?? null,
         roleId: row.role_id,
+        salaryRange: row.salary_range ?? null,
         status: row.status ?? null,
         updatedAt: row.updated_at,
         workMode: row.work_mode ?? null,
@@ -729,25 +730,31 @@ async function findOrgAgentProfileMatches(args: {
   }
   const results = await Promise.all(
     chunks.map(async (talentIds) => {
-      const [talents, educationResult, experienceResult] = await Promise.all([
-        fetchTalentsById({
-          admin: args.admin,
-          includeProfile: true,
-          talentIds,
-        }),
-        (args.admin.from("talent_educations" as any) as any)
-          .select("talent_id, school, degree, field, description, memo")
-          .in("talent_id", talentIds)
-          .limit(1_000),
-        (args.admin.from("talent_experiences" as any) as any)
-          .select(
-            "talent_id, company_name, role, company_location, description, memo"
-          )
-          .in("talent_id", talentIds)
-          .limit(1_000),
-      ]);
+      const [talents, educationResult, experienceResult, extrasResult] =
+        await Promise.all([
+          fetchTalentsById({
+            admin: args.admin,
+            includeProfile: true,
+            talentIds,
+          }),
+          (args.admin.from("talent_educations" as any) as any)
+            .select("talent_id, school, degree, field, description, memo")
+            .in("talent_id", talentIds)
+            .limit(1_000),
+          (args.admin.from("talent_experiences" as any) as any)
+            .select(
+              "talent_id, company_name, role, company_location, description, memo"
+            )
+            .in("talent_id", talentIds)
+            .limit(1_000),
+          (args.admin.from("talent_extras" as any) as any)
+            .select("talent_id, content")
+            .in("talent_id", talentIds)
+            .limit(1_000),
+        ]);
       if (educationResult.error) throw educationResult.error;
       if (experienceResult.error) throw experienceResult.error;
+      if (extrasResult.error) throw extrasResult.error;
       return {
         educations: (educationResult.data ?? []) as Array<
           Record<string, unknown>
@@ -755,6 +762,7 @@ async function findOrgAgentProfileMatches(args: {
         experiences: (experienceResult.data ?? []) as Array<
           Record<string, unknown>
         >,
+        extras: (extrasResult.data ?? []) as Array<Record<string, unknown>>,
         talents,
       };
     })
@@ -767,7 +775,7 @@ async function findOrgAgentProfileMatches(args: {
         matches,
         queryLower,
         talentId,
-        values: [talent.bio, talent.resume_text],
+        values: [talent.bio],
       });
     }
     for (const education of result.educations) {
@@ -799,6 +807,17 @@ async function findOrgAgentProfileMatches(args: {
           experience.memo,
         ],
       });
+    }
+    for (const extraRow of result.extras) {
+      for (const extra of compactTalentExtras(extraRow.content)) {
+        addProfileSearchMatch({
+          label: "extra",
+          matches,
+          queryLower,
+          talentId: text(extraRow.talent_id),
+          values: [extra.title, extra.date, extra.description],
+        });
+      }
     }
   }
   return matches;
@@ -1035,6 +1054,43 @@ async function readHarperSharedInformation(args: {
   }));
 }
 
+function talentExtraEntries(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== "object") return [];
+  const extraRecord = value as Record<string, unknown>;
+  for (const key of [
+    "talent_extras",
+    "talentExtras",
+    "extras",
+    "items",
+    "publications",
+    "projects",
+    "activities",
+  ]) {
+    if (Array.isArray(extraRecord[key])) return extraRecord[key];
+  }
+  return [];
+}
+
+function compactTalentExtras(value: unknown) {
+  return talentExtraEntries(value)
+    .flatMap((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+      const extra = item as Record<string, unknown>;
+      const title = clip(extra.title ?? extra.name ?? extra.role, 300) || null;
+      const date = clip(
+        extra.date ?? extra.issued_at ?? extra.published_at ?? extra.start_date,
+        100
+      );
+      const description =
+        clip(extra.description ?? extra.content ?? extra.summary, 1_000) ||
+        null;
+      if (!title && !date && !description) return [];
+      return [{ date: date || null, description, title }];
+    })
+    .slice(0, 5);
+}
+
 export async function readOrgAgentTalent(args: {
   admin: OrgAgentAdminClient;
   audience?: OrgAgentReadAudience;
@@ -1158,21 +1214,27 @@ export async function readOrgAgentTalent(args: {
 
   let profile: Record<string, unknown> | null = null;
   if (args.includeProfile) {
-    const [experienceResult, educationResult] = await Promise.all([
-      (args.admin.from("talent_experiences" as any) as any)
-        .select(
-          "company_name, role, employment_type, company_location, start_date, end_date, description"
-        )
-        .eq("talent_id", talentId)
-        .order("start_date", { ascending: false, nullsFirst: false })
-        .limit(8),
-      (args.admin.from("talent_educations" as any) as any)
-        .select("school, degree, field, start_date, end_date, description")
-        .eq("talent_id", talentId)
-        .order("start_date", { ascending: false, nullsFirst: false })
-        .limit(5),
-    ]);
-    for (const result of [experienceResult, educationResult]) {
+    const [experienceResult, educationResult, extrasResult] = await Promise.all(
+      [
+        (args.admin.from("talent_experiences" as any) as any)
+          .select(
+            "company_name, role, employment_type, company_location, start_date, end_date, description"
+          )
+          .eq("talent_id", talentId)
+          .order("start_date", { ascending: false, nullsFirst: false })
+          .limit(8),
+        (args.admin.from("talent_educations" as any) as any)
+          .select("school, degree, field, start_date, end_date, description")
+          .eq("talent_id", talentId)
+          .order("start_date", { ascending: false, nullsFirst: false })
+          .limit(5),
+        (args.admin.from("talent_extras" as any) as any)
+          .select("content")
+          .eq("talent_id", talentId)
+          .maybeSingle(),
+      ]
+    );
+    for (const result of [experienceResult, educationResult, extrasResult]) {
       if (result.error) throw result.error;
     }
     profile = {
@@ -1189,10 +1251,8 @@ export async function readOrgAgentTalent(args: {
         ...item,
         description: clip(item.description, 800) || null,
       })),
+      extras: compactTalentExtras(extrasResult.data?.content),
       location: talent.current_location ?? talent.location ?? null,
-      resumeExcerpt: requestProjection.resumeAvailability.available
-        ? clip(talent.resume_text, 4_000) || null
-        : null,
     };
   }
 
@@ -1243,6 +1303,72 @@ export async function readOrgAgentTalent(args: {
     })),
     requestHistory: requestProjection.requestHistory,
     resumeAvailability: requestProjection.resumeAvailability,
+  };
+}
+
+export async function readOrgAgentTalents(args: {
+  admin: OrgAgentAdminClient;
+  audience?: OrgAgentReadAudience;
+  includeProfile?: boolean;
+  progressLimit?: number;
+  roleId?: string | null;
+  talentIds: string[];
+  user: User;
+  workspaceId: string;
+}) {
+  const talentIds = unique(args.talentIds);
+  if (talentIds.length === 0) {
+    throw new OrgHttpError(400, "talentIds is required");
+  }
+  if (talentIds.length > 10) {
+    throw new OrgHttpError(400, "talentIds must contain at most 10 items");
+  }
+
+  const byTalentId = new Map<
+    string,
+    Awaited<ReturnType<typeof readOrgAgentTalent>>
+  >();
+  const notFoundTalentIds = new Set<string>();
+  // Bound concurrency because each candidate read intentionally performs
+  // several visibility-scoped reads.
+  for (let index = 0; index < talentIds.length; index += 3) {
+    const chunk = talentIds.slice(index, index + 3);
+    const chunkResults = await Promise.all(
+      chunk.map(async (talentId) => {
+        try {
+          return {
+            result: await readOrgAgentTalent({ ...args, talentId }),
+            talentId,
+          };
+        } catch (error) {
+          if (
+            error instanceof OrgHttpError &&
+            error.status === 404 &&
+            /Talent not found/.test(error.message)
+          ) {
+            return { result: null, talentId };
+          }
+          throw error;
+        }
+      })
+    );
+    for (const item of chunkResults) {
+      if (item.result) byTalentId.set(item.talentId, item.result);
+      else notFoundTalentIds.add(item.talentId);
+    }
+  }
+
+  const items = talentIds.flatMap((talentId) => {
+    const result = byTalentId.get(talentId);
+    return result ? [result] : [];
+  });
+  return {
+    items,
+    notFoundTalentIds: talentIds.filter((talentId) =>
+      notFoundTalentIds.has(talentId)
+    ),
+    requestedCount: talentIds.length,
+    returnedCount: items.length,
   };
 }
 
@@ -1385,6 +1511,7 @@ export async function readOrgAgentRole(args: {
     locationText: role.locationText,
     name: role.name,
     roleId: role.roleId,
+    salaryRange: role.salaryRange,
     status: humanizeOrgRoleStatus(role.status),
     updatedAt: role.updatedAt,
     workMode: humanizeOrgWorkMode(role.workMode),

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { parseCompanyDataChanges } from "@/lib/org/agent/companyDataMutation";
 import type { OrgAgentPromptContext } from "@/lib/org/agent/context";
+import { parseReadTalentIds } from "@/lib/org/agent/readTalentInput";
 import {
   createOrgAgentToolExecutionState,
   enforceOrgAgentTerminalMutationOutcome,
@@ -236,6 +237,37 @@ test("candidate decision execution is an enabled terminal tool", async () => {
   assert.equal(isOrgAgentTerminalToolName("change_role_status"), true);
   assert.equal(isOrgAgentTerminalToolName("decide_candidate_connection"), true);
   assert.equal(isOrgAgentTerminalToolName("change_talent_contact"), true);
+});
+
+test("read_talent input accepts ten unique IDs and rejects invalid batches", () => {
+  const tenTalentIds = Array.from(
+    { length: 10 },
+    (_, index) => `talent-${index}`
+  );
+  assert.deepEqual(
+    parseReadTalentIds({ talentIds: tenTalentIds }),
+    tenTalentIds
+  );
+  assert.deepEqual(parseReadTalentIds({ talentId: "talent-1" }), ["talent-1"]);
+  assert.throws(
+    () =>
+      parseReadTalentIds({
+        talentIds: [...tenTalentIds, "talent-10"],
+      }),
+    /talentIds must contain at most 10 items/
+  );
+  assert.throws(
+    () =>
+      parseReadTalentIds({
+        talentId: "talent-1",
+        talentIds: ["talent-1"],
+      }),
+    /Provide talentIds or talentId, not both/
+  );
+  assert.throws(
+    () => parseReadTalentIds({ talentIds: ["talent-1", "talent-1"] }),
+    /talentIds must not contain duplicates/
+  );
 });
 
 test("a failed Role status change cannot be presented as completed", () => {

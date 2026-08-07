@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveLocaleFromCountryLanguage } from "@/i18n/localeResolution";
+import { resolveLocaleFromLanguage } from "@/i18n/localeResolution";
 
 const parseLanguage = (acceptLanguage: string) => {
   const primaryLocale =
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     countryCode,
     language,
-    locale: resolveLocaleFromCountryLanguage({ countryCode, language }),
+    locale: resolveLocaleFromLanguage(language),
     countryLang: `${countryCode}_${language}`,
   });
 }

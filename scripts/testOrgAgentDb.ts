@@ -23,6 +23,10 @@ const COMPANY_SIDE_CONSTRAINT_BALANCE_MIGRATION =
   "20260806060000_company_side_constraint_balance.sql";
 const CHANGE_TALENT_REQUEST_MIGRATION =
   "20260806080000_change_company_talent_request_delivery.sql";
+const TALENT_REQUEST_DELIVERY_CONSISTENCY_MIGRATION =
+  "20260807110000_company_talent_request_delivery_consistency.sql";
+const TALENT_REQUEST_IMMEDIATE_ENQUEUE_MIGRATION =
+  "20260807120000_company_talent_request_immediate_enqueue.sql";
 
 const IDS = {
   workspaceA: "00000000-0000-4000-8000-000000000001",
@@ -685,8 +689,29 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
       request_context text not null,
       workflow_status text not null default 'queued',
       expires_at timestamptz not null default (now() + interval '14 days'),
+      talent_source_message_id bigint,
+      document_id uuid,
       created_at timestamptz not null default now()
     );
+    create table public.talent_opportunity_tag (
+      id bigserial primary key,
+      opportunity_id uuid not null references public.company_roles(role_id),
+      talent_id uuid not null references public.talent_users(user_id),
+      tag text not null,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+    create or replace function public.internal_opportunity_is_stage_tag(p_tag text)
+    returns boolean
+    language sql
+    immutable
+    set search_path = public
+    as $$
+      select btrim(coalesce(p_tag, '')) in (
+        '내부:수락', '내부:아카이브', '내부:연결됨', '내부:최종오퍼',
+        '내부:보류', '내부:연결대기', '내부:프로세스중단', '내부:거절'
+      ) or btrim(coalesce(p_tag, '')) like '내부단계:%'
+    $$;
     create table public.contact_queue (
       id bigserial primary key,
       user_id uuid not null,
@@ -733,6 +758,12 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
         ${IDS.conflictRole}::uuid,
         ${IDS.talent}::uuid
       )
+  `;
+  await sql`
+    insert into public.talent_opportunity_tag(opportunity_id, talent_id, tag)
+    values
+      (${IDS.legacyRole}::uuid, ${IDS.talent}::uuid, '내부:연결대기'),
+      (${IDS.conflictRole}::uuid, ${IDS.talent}::uuid, '내부:연결대기')
   `;
   await sql`
     insert into public.company_conversations(id, company_workspace_id)
@@ -796,6 +827,8 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
   await applyMigration(sql, SCHEDULED_TALENT_REQUEST_MIGRATION);
   await applyMigration(sql, COMPANY_SIDE_CONSTRAINT_BALANCE_MIGRATION);
   await applyMigration(sql, CHANGE_TALENT_REQUEST_MIGRATION);
+  await applyMigration(sql, TALENT_REQUEST_DELIVERY_CONSISTENCY_MIGRATION);
+  await applyMigration(sql, TALENT_REQUEST_IMMEDIATE_ENQUEUE_MIGRATION);
   const scopedQueueIndex = firstRow(
     await sql`
       select indexdef
@@ -1083,7 +1116,8 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
         ${IDS.talent}::uuid,
         ${Number(wrongRoleMessage.id)}::bigint,
         false,
-        'A new question after cancelling an earlier delivery'
+        'A new question after cancelling an earlier delivery',
+        'immediate'
       ) request
     `
   );
@@ -1092,6 +1126,23 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
       createdAfterCancellation.id !== created.id &&
       createdAfterCancellation.id !== otherRoleRequest.id,
     "a cancelled delivery still blocked a new independently authorized request"
+  );
+  const immediateOnConfirmation = firstRow(
+    await sql`
+      select queue.status, queue.scheduled_at <= now() as scheduled_now,
+             queue.payload ->> 'deliveryMode' as delivery_mode,
+             queue.payload -> 'deliveryChange' ->> 'action' as delivery_action
+      from public.contact_queue queue
+      where queue.company_talent_request_id = ${String(createdAfterCancellation.id)}::uuid
+        and queue.type = 'company_request_candidate_delivery'
+    `
+  );
+  assert(
+    immediateOnConfirmation.status === "queued" &&
+      immediateOnConfirmation.scheduled_now === true &&
+      immediateOnConfirmation.delivery_mode === "immediate" &&
+      immediateOnConfirmation.delivery_action === "immediate",
+    "an explicit immediate confirmation was not enqueued atomically"
   );
   const privileges = firstRow(
     await sql`
@@ -1106,6 +1157,16 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
           'public.enqueue_company_talent_request_v1(uuid,uuid,uuid,uuid,bigint,boolean,text)',
           'EXECUTE'
         ) as service_execute,
+        has_function_privilege(
+          'anon',
+          'public.enqueue_company_talent_request_v1(uuid,uuid,uuid,uuid,bigint,boolean,text,text)',
+          'EXECUTE'
+        ) as anon_immediate_execute,
+        has_function_privilege(
+          'service_role',
+          'public.enqueue_company_talent_request_v1(uuid,uuid,uuid,uuid,bigint,boolean,text,text)',
+          'EXECUTE'
+        ) as service_immediate_execute,
         has_function_privilege(
           'anon',
           'public.cancel_company_talent_request_v1(uuid,uuid,uuid,uuid)',
@@ -1131,6 +1192,8 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
   assert(
     privileges.anon_execute === false &&
       privileges.service_execute === true &&
+      privileges.anon_immediate_execute === false &&
+      privileges.service_immediate_execute === true &&
       privileges.anon_cancel === false &&
       privileges.service_cancel === true &&
       privileges.anon_change === false &&
@@ -1185,8 +1248,131 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
       `,
     /company_talent_request_target_not_found/i
   );
+
+  await sql`
+    update public.talent_opportunity_tag
+    set tag = '내부:연결됨', updated_at = now()
+    where opportunity_id = ${IDS.legacyRole}::uuid
+      and talent_id = ${IDS.talent}::uuid
+  `;
+  await sql`
+    select public.reconcile_company_talent_requests_for_stage_v1(
+      ${IDS.talent}::uuid, ${IDS.legacyRole}::uuid
+    )
+  `;
+  const cancelledBeforeSend = firstRow(
+    await sql`
+      select request.workflow_status, queue.status as queue_status,
+             queue.sent_at, queue.cancelled_at, queue.last_error
+      from public.company_talent_requests request
+      join public.contact_queue queue
+        on queue.company_talent_request_id = request.id
+       and queue.type = 'company_request_candidate_delivery'
+      where request.id = ${String(createdAfterCancellation.id)}::uuid
+    `
+  );
+  assert(
+    cancelledBeforeSend.workflow_status === "closed" &&
+      cancelledBeforeSend.queue_status === "cancelled" &&
+      cancelledBeforeSend.sent_at === null &&
+      cancelledBeforeSend.cancelled_at !== null &&
+      cancelledBeforeSend.last_error === "stage_changed_before_send",
+    "a pre-provider stage change did not cancel the unsent request"
+  );
+
+  await sql`
+    update public.contact_queue
+    set status = 'processing', locked_at = now(), locked_by = 'db-test'
+    where company_talent_request_id = ${String(otherRoleRequest.id)}::uuid
+      and type = 'company_request_candidate_delivery'
+  `;
+  await sql`
+    update public.talent_opportunity_tag
+    set tag = '내부:연결됨', updated_at = now()
+    where opportunity_id = ${IDS.conflictRole}::uuid
+      and talent_id = ${IDS.talent}::uuid
+  `;
+  await sql`
+    select public.reconcile_company_talent_requests_for_stage_v1(
+      ${IDS.talent}::uuid, ${IDS.conflictRole}::uuid
+    )
+  `;
+  const providerRace = firstRow(
+    await sql`
+      select request.workflow_status, queue.status as queue_status,
+             queue.cancelled_at
+      from public.company_talent_requests request
+      join public.contact_queue queue
+        on queue.company_talent_request_id = request.id
+       and queue.type = 'company_request_candidate_delivery'
+      where request.id = ${String(otherRoleRequest.id)}::uuid
+    `
+  );
+  assert(
+    providerRace.workflow_status === "queued" &&
+      providerRace.queue_status === "processing" &&
+      providerRace.cancelled_at === null,
+    "stage reconciliation rewrote a provider call already in progress"
+  );
+
+  await sql`
+    update public.contact_queue
+    set status = 'sent', sent_at = now(), cancelled_at = null,
+        locked_at = null, locked_by = null
+    where company_talent_request_id = ${String(otherRoleRequest.id)}::uuid
+      and type = 'company_request_candidate_delivery'
+  `;
+  await sql`
+    update public.company_talent_requests
+    set workflow_status = 'awaiting_talent'
+    where id = ${String(otherRoleRequest.id)}::uuid
+  `;
+  await sql`
+    select public.reconcile_company_talent_requests_for_stage_v1(
+      ${IDS.talent}::uuid, ${IDS.conflictRole}::uuid
+    )
+  `;
+  const answerAfterStageChange = firstRow(
+    await sql`
+      select request.workflow_status,
+             public.company_talent_request_stage_is_pending_v1(request.id) as may_continue
+      from public.company_talent_requests request
+      where request.id = ${String(otherRoleRequest.id)}::uuid
+    `
+  );
+  assert(
+    answerAfterStageChange.workflow_status === "awaiting_talent" &&
+      answerAfterStageChange.may_continue === true,
+    "a committed candidate delivery stopped being answerable after a stage change"
+  );
+
+  const recordedAfterStageChange = firstRow(
+    await sql`
+      select request.workflow_status, request.talent_source_message_id
+      from public.record_company_talent_response_v1(
+        ${String(otherRoleRequest.id)}::uuid,
+        ${IDS.talent}::uuid,
+        900001::bigint
+      ) request
+    `
+  );
+  assert(
+    recordedAfterStageChange.workflow_status === "relay_queued" &&
+      Number(recordedAfterStageChange.talent_source_message_id) === 900001 &&
+      value<number>(
+        await sql`
+          select count(*)::int as count
+          from public.contact_queue
+          where company_talent_request_id = ${String(otherRoleRequest.id)}::uuid
+            and type = 'company_request_company_delivery'
+            and status = 'queued'
+        `,
+        "count"
+      ) === 1,
+    "a candidate answer after committed delivery was not queued for the company"
+  );
   logPass(
-    "company requests are scoped by company, role, and talent while extensible company-side values remain accepted"
+    "company requests remain scoped and preserve committed delivery across stage changes"
   );
 }
 

@@ -1409,6 +1409,36 @@ export type Database = {
           },
         ];
       };
+      company_role_assignees: {
+        Row: {
+          company_user_id: string;
+          role_id: string;
+        };
+        Insert: {
+          company_user_id: string;
+          role_id: string;
+        };
+        Update: {
+          company_user_id?: string;
+          role_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "company_role_assignees_company_user_id_fkey";
+            columns: ["company_user_id"];
+            isOneToOne: false;
+            referencedRelation: "company_users";
+            referencedColumns: ["user_id"];
+          },
+          {
+            foreignKeyName: "company_role_assignees_role_id_fkey";
+            columns: ["role_id"];
+            isOneToOne: false;
+            referencedRelation: "company_roles";
+            referencedColumns: ["role_id"];
+          },
+        ];
+      };
       company_role_liveness: {
         Row: {
           closed_detected_at: string | null;

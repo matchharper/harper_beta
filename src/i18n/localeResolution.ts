@@ -34,26 +34,18 @@ function normalizeLanguageCode(value: unknown) {
     .split("-")[0];
 }
 
-export function resolveLocaleFromCountryLanguage(args: {
-  countryCode?: unknown;
-  language?: unknown;
-}): ResolvedLocale {
-  const countryCode = normalizeCountryCode(args.countryCode);
-  const language = normalizeLanguageCode(args.language);
+export function resolveLocaleFromLanguage(language: unknown): ResolvedLocale {
+  const normalizedLanguage = normalizeLanguageCode(language);
 
-  if (countryCode === "KR") return "ko";
-  if (language === "ko") return "ko";
+  if (normalizedLanguage === "ko") return "ko";
   return "en";
 }
 
 export function resolveLocaleFromCountryLang(
   countryLang?: string | null
 ): ResolvedLocale {
-  const [rawCountry, rawLanguage] = String(countryLang ?? "").split("_");
-  return resolveLocaleFromCountryLanguage({
-    countryCode: rawCountry || "ZZ",
-    language: rawLanguage || "",
-  });
+  const [, rawLanguage] = String(countryLang ?? "").split("_");
+  return resolveLocaleFromLanguage(rawLanguage || "");
 }
 
 export function isOverseasCountryLang(countryLang?: string | null) {

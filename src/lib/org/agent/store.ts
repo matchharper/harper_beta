@@ -700,7 +700,7 @@ export async function fetchRoleForOrgAgent(args: {
 }): Promise<OrgAgentStoredRole> {
   const { data, error } = await (args.admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, request, status, type, location_text, work_mode, created_at, updated_at"
+      "role_id, company_workspace_id, name, external_jd_url, description, request, salary_range, status, type, location_text, work_mode, created_at, updated_at"
     )
     .eq("company_workspace_id", args.workspaceId)
     .eq("role_id", args.roleId)
@@ -719,6 +719,7 @@ export async function fetchRoleForOrgAgent(args: {
     name: string;
     request: string | null;
     role_id: string;
+    salary_range: string | null;
     status: string | null;
     type: string[] | null;
     updated_at: string;
@@ -753,6 +754,7 @@ export async function fetchRoleForOrgAgent(args: {
     memory,
     request: normalizeText(internalResult.data?.request) || null,
     roleId: row.role_id,
+    salaryRange: row.salary_range ?? null,
     status: row.status ?? null,
     updatedAt: row.updated_at,
     workMode: row.work_mode ?? null,

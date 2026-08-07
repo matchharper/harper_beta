@@ -1,7 +1,7 @@
 # Harper Daily Conversation QA Rubric
 
-- Version: 1.4
-- Last updated: 2026-08-04
+- Version: 1.5
+- Last updated: 2026-08-07
 - Applies to: `Harper Daily Conversation QA`
 - Default audit window: the previous complete KST calendar day
 
@@ -472,6 +472,55 @@ Classify actual user exposure as:
 
 Report both stored-content anomalies and confirmed user-visible exposures.
 
+### 8.4 Mandatory sent-email locale audit
+
+For every target-day email whose delivery state proves that it was actually
+sent, compare the user-facing subject and main body with the effective locale at
+send time. This is a full structured scan, not a risk-based sample. Include
+opportunity/recommendation emails and other Harper talent emails whenever the
+available canonical delivery source can identify them.
+
+1. **Establish exposure first.** Use the canonical sent/delivered record and
+   delivery timestamp. A draft, generated query-plan body, queued row, or failed
+   delivery is not a confirmed wrong-language exposure. Track stored-only
+   anomalies separately.
+2. **Reconstruct the send-time locale.** Apply Section 8.2 using conversation
+   and settings evidence available before the send timestamp. Do not let a
+   later locale change rewrite incident-time truth, and do not let a queued
+   run's stale settings snapshot override a newer explicit language request or
+   live preference that existed before delivery.
+3. **Check components separately.** Evaluate `emailSubject` and the main
+   user-facing email body independently. Also distinguish LLM-authored copy from
+   deterministic layout, history links, unsubscribe text, signatures, and
+   footers when the source permits it. A correct-language footer does not make
+   a wrong-language subject or main body valid.
+4. **Generate candidates without exposing PII.** Prefer server-side or local
+   script counts for Hangul, Latin letters, and substantial-language segments.
+   Do not print full email bodies. Review only the minimum redacted excerpt
+   needed to distinguish prose from proper nouns, quoted user text, role titles,
+   or company names.
+5. **Audit both directions.** Flag substantial Korean prose sent to an
+   English-locale user and substantial English prose sent to a Korean-locale
+   user. Any opposite-script fragment remains a candidate, but confirm that it
+   is user-facing prose before classifying an incident.
+6. **Trace the first broken stage.** Compare the resolved locale, prompt/input
+   locale, generated subject/body, normalized delivery, transport rendering,
+   and canonical sent content when available. Do not assign the cause to an
+   example, prompt, model, template, or transport layer merely because the final
+   language is wrong. Confirm the earliest boundary where the language first
+   diverged; otherwise use `Needs verification`.
+7. **Report denominators and recurrence.** Report target-day sent emails,
+   emails with a reconstructable effective locale, English-locale and
+   Korean-locale counts, candidates reviewed, confirmed subject mismatches,
+   confirmed main-body mismatches, stored-only anomalies, and affected users.
+   Compare the same normalized mismatch signature over the preceding seven
+   complete KST days when reconstructable.
+
+A substantial wrong-language subject or main body that was actually sent is at
+least `S1 High` because it materially breaks the user's communication contract.
+Use `S2 Medium` only for a limited fragment that does not change the main
+language or meaning, and `S3/data_quality` only when the bad copy was not sent.
+
 ## 9. Onboarding-to-value checks
 
 Build a cohort of users whose recommendation promise SLA expired during the
@@ -733,6 +782,7 @@ Internal
 5) Coverage and limitations
 - Total messages, selected messages, context messages, conversations reviewed
 - Complete structured scans performed
+- Sent-email locale audit denominators and component-level mismatch counts
 - Seven-day comparison window and which trend signals were reconstructable
 - Missing data, assumptions, or needs-verification items
 ```

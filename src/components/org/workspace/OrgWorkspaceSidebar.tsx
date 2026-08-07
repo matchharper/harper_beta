@@ -139,15 +139,15 @@ function NavLink({
     <Link
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative isolate flex h-9 items-center gap-2.5 overflow-hidden rounded-md px-3 text-[14px] font-normal outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
+        "relative isolate flex h-9 items-center gap-2.5 overflow-hidden rounded-md px-2.5 text-[14.5px] font-normal outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
         active
-          ? "bg-neutral-100 text-black"
-          : "text-neutral-muted hover:bg-neutral-100 hover:text-neutral-primary"
+          ? "bg-neutral-200/80 text-black"
+          : "text-neutral-primary hover:bg-neutral-100 hover:text-neutral-primary"
       )}
       href={href}
     >
       {internalOnly ? <InternalOnlyHatch className="opacity-70" /> : null}
-      <Icon className="relative z-20 size-4 stroke-[1.75]" />
+      <Icon className="relative z-20 size-4.5 stroke-[1.5]" />
       <span className="relative z-20">{label}</span>
     </Link>
   );
@@ -235,7 +235,7 @@ export function OrgWorkspaceSidebar() {
   return (
     <>
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[256px] flex-col border-r border-neutral-1000-a05 px-4 py-3 lg:flex">
-        <div className="mb-6">{workspaceControl}</div>
+        <div className="mb-2">{workspaceControl}</div>
         <nav aria-label="Organization" className="space-y-1">
           {primaryNav.map((item) => (
             <NavLink

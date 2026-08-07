@@ -5,6 +5,7 @@ import {
   buildTalentProfileContext,
   MEMO_MAX_CHARS,
 } from "@/lib/talentOnboarding/profileStore";
+import type { TalentUserProfileRow } from "@/lib/talentOnboarding/models";
 
 test("appends new row memo text after the existing memo", () => {
   assert.equal(
@@ -100,4 +101,16 @@ test("exposes row memos to the LLM context up to 2000 characters", () => {
   });
 
   assert.match(context, new RegExp(`Memo: ${memo}$`));
+});
+
+test("does not split a styled Unicode character in profile context", () => {
+  const prefix = "a".repeat(1199);
+  const context = buildTalentProfileContext({
+    profile: {
+      bio: `${prefix}\u{1d600}tail`,
+    } as TalentUserProfileRow,
+  });
+
+  assert.match(context, new RegExp(`Bio: ${prefix}$`, "m"));
+  assert.doesNotMatch(JSON.stringify(context), /\\ud835/i);
 });

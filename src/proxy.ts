@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   normalizeLocale,
-  resolveLocaleFromCountryLanguage,
+  resolveLocaleFromLanguage,
 } from "@/i18n/localeResolution";
 
 const LOCALE_COOKIE_NAME = "NEXT_LOCALE";
@@ -14,15 +14,9 @@ function parsePrimaryLanguage(acceptLanguage: string | null) {
 }
 
 function inferRequestLocale(request: NextRequest) {
-  const countryCode =
-    request.headers.get("x-vercel-ip-country") ||
-    request.headers.get("cf-ipcountry") ||
-    "ZZ";
-
-  return resolveLocaleFromCountryLanguage({
-    countryCode,
-    language: parsePrimaryLanguage(request.headers.get("accept-language")),
-  });
+  return resolveLocaleFromLanguage(
+    parsePrimaryLanguage(request.headers.get("accept-language"))
+  );
 }
 
 export function proxy(req: NextRequest) {

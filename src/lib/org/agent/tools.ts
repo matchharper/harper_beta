@@ -46,7 +46,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "get_talents",
       description:
-        "Search the company-visible candidate set. Default search covers identity, headline, and role; set searchProfile when the requested evidence may be in education, work history, bio, or resume. Results are bounded and include matching evidence snippets. Read a selected candidate only when more detail is needed; use read_role for a role's whole pipeline.",
+        "Search the company-visible candidate set. Default search covers identity, headline, and role; set searchProfile when the requested evidence may be in education, structured work history, bio, or extras. Results are bounded and include matching evidence snippets. Raw resume text is never searched or returned. Read selected candidates only when more detail is needed; use read_role for a role's whole pipeline.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -74,7 +74,7 @@ export const ORG_AGENT_TOOLS = [
           },
           searchProfile: {
             description:
-              "Also search education, experience, bio, and resume; use only when the question needs them.",
+              "Also search education, structured experience, bio, and extras; use only when the question needs them. Raw resume text is excluded.",
             type: "boolean",
           },
         },
@@ -88,13 +88,14 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "read_talent",
       description:
-        "Read one company-visible candidate after resolving talentId. This is a neutral candidate read and never by itself implies preference disclosure or candidate contact. Returns every visible role/stage entry, bounded recent progress, candidate-contact history with scheduled KST time and cancellation availability, and five safe career insights the candidate told Harper. Compensation is never returned. Set includeProfile for identity or profile overviews and whenever bio, resume, work, or education is needed; it is much larger.",
+        "Read one to ten company-visible candidates after resolving their exact talent IDs. Use talentIds for batch reads; the singular talentId remains available for backward-compatible one-candidate reads, and the two forms must not be combined. This is a neutral candidate read and never by itself implies preference disclosure or candidate contact. With includeProfile=false (the compact default), it still returns candidate name, email, and headline; visible workspace role and candidate-stage entries with recommendation evidence; bounded recent progress; candidate-contact history with scheduled KST time and cancellation availability; resume availability; and five safe career insights each candidate told Harper. With includeProfile=true, it returns that same base plus the longer professional profile: current profile location, bio, structured work history, education, and extras. Compensation and raw resume text are never returned; resume output remains availability-only.",
       parameters: {
         additionalProperties: false,
+        anyOf: [{ required: ["talentIds"] }, { required: ["talentId"] }],
         properties: {
           includeProfile: {
             description:
-              "Include bio, resume, work, and education. Use for questions such as who the candidate is or what they have done; default false.",
+              "Choose response detail. false (default) returns the compact base with identity, visible workspace role/candidate stage and recommendation evidence, progress, contact history, resume availability, and safe career insights. true returns the same base plus current profile location, bio, structured work history, education, and extras. Use true whenever the question needs career background, companies or roles worked at, schools or education, current profile location, or a detailed identity/profile overview. Raw resume text is never included.",
             type: "boolean",
           },
           progressLimit: {
@@ -108,11 +109,26 @@ export const ORG_AGENT_TOOLS = [
             type: "string",
           },
           talentId: {
-            description: "Exact talent ID.",
+            description:
+              "Backward-compatible exact talent ID for one candidate. Prefer talentIds and never provide both fields.",
+            maxLength: 100,
+            minLength: 1,
             type: "string",
           },
+          talentIds: {
+            description:
+              "One to ten exact talent IDs. Use a one-item array for a normal single-candidate read and multiple IDs for comparison or batch review.",
+            items: {
+              maxLength: 100,
+              minLength: 1,
+              type: "string",
+            },
+            maxItems: 10,
+            minItems: 1,
+            type: "array",
+            uniqueItems: true,
+          },
         },
-        required: ["talentId"],
         type: "object",
       },
     },
@@ -367,8 +383,8 @@ This is terminal and must be the only tool call in the message.
 Status meanings and effects:
 • active (진행): keep hiring in progress and periodically receive suitable candidate connections from Harper.
 • paused (중단): keep the Role open, but stop receiving additional candidate recommendations. Candidate processes and connections already in progress remain open.
-• ended (종료): end hiring for the Role, stop additional recommendations, close candidate processes and connections already in progress, and let Harper convey the Role closure naturally to those candidates.
-Use the exact roleId from current context or a fresh read. Do not use paused when the company wants to end existing candidate processes, and do not use ended when it only wants to stop new recommendations temporarily.`,
+• ended (종료): mark the Role ended and stop additional recommendations. Candidate-facing opportunity views interpret the Role as closed, but this status change alone does not atomically close every existing candidate stage or company request.
+Use the exact roleId from current context or a fresh read. Do not claim existing candidate processes or requests were closed unless a separate cleanup path actually completed and was verified.`,
       parameters: {
         additionalProperties: false,
         properties: {
@@ -379,7 +395,7 @@ Use the exact roleId from current context or a fresh read. Do not use paused whe
           },
           status: {
             description:
-              "active=진행 (periodic suitable candidate connections continue); paused=중단 (Role stays open but additional recommendations stop, while existing processes stay open); ended=종료 (hiring and existing candidate processes/connections close, with a natural candidate-facing closure update).",
+              "active=진행 (periodic suitable candidate connections continue); paused=중단 (Role stays open but additional recommendations stop, while existing processes stay open); ended=종료 (Role ends and additional recommendations stop; existing stages and company requests are not all closed by this status change alone).",
             enum: ["active", "paused", "ended"],
             type: "string",
           },

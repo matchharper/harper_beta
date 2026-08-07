@@ -151,6 +151,12 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         matchPrefix: "/ops/debugging/opportunity-runs",
       },
       {
+        description: "company-side LLM tool 원문 결과 확인",
+        href: "/ops/debugging/org-agent-tools",
+        label: "LLM Tool",
+        matchPrefix: "/ops/debugging/org-agent-tools",
+      },
+      {
         description: "LLM API와 AWS EC2 비용 및 credit 확인",
         href: "/ops/cost",
         label: "비용",

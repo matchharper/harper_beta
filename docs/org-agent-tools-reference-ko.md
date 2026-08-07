@@ -111,17 +111,21 @@ role request/memory/JD 본문과 큰 회사 정보는 기본으로 넣지 않는
 
 결과는 talent/role ID, 이름, 이메일, headline, 사람용 stage, 짧은 fit과 pagination을
 반환한다. role 전체 pipeline을 읽는 검색 도구가 아니며 그 경우 `read_role`을 쓴다.
+`searchProfile=true`는 bio, 구조화된 경력·학력·extra에서만 검색하며 raw resume text는
+검색하거나 snippet으로 반환하지 않는다.
 
 ## `read_talent`
 
 | argument | 필수 | 기본/한도 |
 | --- | --- | --- |
-| `talentId` | 예 | exact ID |
+| `talentIds` | `talentId`와 둘 중 하나 | exact ID 1~10개, 중복 금지 |
+| `talentId` | `talentIds`와 둘 중 하나 | 단일 후보용 legacy 호환 필드 |
 | `roleId` | 아니오 | 특정 role에 한정할 때 |
 | `includeProfile` | 아니오 | 기본 `false` |
 | `progressLimit` | 아니오 | 기본 10, 최대 30 |
 
-기본 결과에는 후보 식별 정보, 현재 workspace에서 보이는 role/stage, fit, feedback,
+`talentIds`와 `talentId`를 동시에 보내면 실패한다. 기본 결과에는 후보 식별 정보,
+현재 workspace에서 보이는 role/stage, fit, feedback,
 memo, tradeoff, 최근 progress, 회사 연락 이력, 이력서 등록 여부가 포함된다. 또한 최신
 `talent_insights.content`에서 다음 다섯 항목을 항상 읽어 `Harper에게 말해준 정보`로
 전달한다.
@@ -135,8 +139,14 @@ memo, tradeoff, 최근 progress, 회사 연락 이력, 이력서 등록 여부�
 회사별 동의, insight 작성 시점, 요청 topic으로 이 다섯 항목을 제한하지 않는다. 값이 없으면
 빈 값으로 표시한다. 보상 insight와 민감한 개인정보 표현은 포함하지 않는다.
 
-`includeProfile=true`일 때만 bio, 확인 가능한 resume excerpt, 최근 경력 8개, 학력 5개를
-추가한다.
+`includeProfile=true`일 때만 bio, 최근 경력 8개, 학력 5개, extra 5개를 추가한다.
+`talent_users.resume_text`와 resume excerpt는 DB에서 읽거나 tool result에 직렬화하지
+않는다. resume는 공개 가능한 primary resume 파일의 존재 여부와 안내 문구만 반환한다.
+
+여러 후보를 한 번에 읽을 때도 전체 tool result는 48,000자 한도 안에 들어오도록 후보별
+detail을 bounded하게 직렬화한다. 특정 후보의 detail이 잘리면 해당 item에
+`detail_complete=false`를 표시하므로, exact 나머지 정보가 필요할 때 그 후보 한 명만
+다시 읽는다.
 
 조회는 최신 board page에만 의존하지 않는다. talent/role과 최근 progress의
 recommendation ID를 bounded하게 다시 확인하므로 최근 활동이 생긴 오래된
@@ -304,11 +314,13 @@ proposal로 간다.
 | --- | --- | --- |
 | `active` | 진행 | 채용을 진행하며 Harper가 주기적으로 적합한 인재를 연결한다. |
 | `paused` | 중단 | Role은 열어두되 추가 후보 추천만 중단한다. 이미 진행 중인 후보자와 연결은 유지한다. |
-| `ended` | 종료 | Role 채용과 추가 추천을 종료한다. 현재 프로세스의 후보자에게 종료 소식을 자연스럽게 안내하고 연결을 닫는다. |
+| `ended` | 종료 | Role 상태를 종료로 바꾸고 종료 시각을 기록해 추가 추천을 막는다. 후보자 기회 화면은 종료로 해석하며, 미응답 내부 추천은 이력 조회 시 보관된다. 이 변경 하나가 모든 기존 후보 stage와 회사 요청을 원자적으로 닫지는 않는다. |
 
 argument는 exact `roleId`와 `status` 두 개다. `paused`를 기존 후보 프로세스까지
 끝내는 의미로 사용하거나, 단순히 새 추천만 잠시 멈추려는 요청에 `ended`를 사용하면
-안 된다. 상태 변경은 기존 atomic company-data RPC와 event 기록 경로를 공유한다.
+안 된다. 상태 변경은 기존 atomic company-data RPC와 event 기록 경로를 공유하지만,
+기존 후보 stage와 회사 요청의 종료가 필요하면 별도 stage·요청 정리 경로를 실행하고
+그 결과를 확인해야 한다.
 
 ## 동시성·부분 데이터 안전
 

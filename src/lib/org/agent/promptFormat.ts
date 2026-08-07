@@ -178,6 +178,7 @@ function formatTalentProfile(profile: Record<string, any>) {
     ? profile.experiences
     : [];
   const education = Array.isArray(profile.education) ? profile.education : [];
+  const extras = Array.isArray(profile.extras) ? profile.extras : [];
   return [
     formatPromptSection(
       "profile_summary",
@@ -186,9 +187,8 @@ function formatTalentProfile(profile: Record<string, any>) {
         [
           ["location", profile.location],
           ["bio", profile.bio],
-          ["resume_excerpt", profile.resumeExcerpt],
         ],
-        [30, 4_000]
+        [30, 2_000]
       )
     ),
     formatPromptSection(
@@ -222,10 +222,18 @@ function formatTalentProfile(profile: Record<string, any>) {
         [180, 120, 160, 10, 10, 500]
       )
     ),
+    formatPromptSection(
+      "extras",
+      formatPromptTable(
+        ["title", "date", "description"],
+        extras.map((item: any) => [item?.title, item?.date, item?.description]),
+        [300, 100, 1_000]
+      )
+    ),
   ].join("\n");
 }
 
-function formatTalentResult(result: Record<string, any>) {
+function formatSingleTalentResult(result: Record<string, any>) {
   const candidate = asRecord(result.candidate);
   const positions = Array.isArray(result.positions) ? result.positions : [];
   const progress = Array.isArray(result.recentProgress)
@@ -352,6 +360,68 @@ function formatTalentResult(result: Record<string, any>) {
   ].join("\n");
 }
 
+const BATCH_TALENT_RESULT_CONTENT_BUDGET = 42_000;
+
+function formatBoundedTalentResult(
+  result: Record<string, any>,
+  index: number,
+  total: number
+) {
+  const serialized = formatSingleTalentResult(result);
+  const itemBudget = Math.max(
+    2_000,
+    Math.floor(BATCH_TALENT_RESULT_CONTENT_BUDGET / Math.max(1, total))
+  );
+  const suffix = [
+    "",
+    "detail_complete=false",
+    "message=This candidate detail was clipped to fit the batch result. Re-read only this talent ID when exact remaining detail is needed.",
+  ].join("\n");
+  const complete = serialized.length <= itemBudget;
+  const content = complete
+    ? serialized
+    : `${serialized.slice(0, Math.max(0, itemBudget - suffix.length))}${suffix}`;
+  return [
+    `<talent index="${index + 1}" detail_complete="${complete}">`,
+    content,
+    "</talent>",
+  ].join("\n");
+}
+
+function formatTalentResult(result: Record<string, any>) {
+  if (!Array.isArray(result.items)) return formatSingleTalentResult(result);
+  const items = result.items.map(asRecord);
+  const notFoundTalentIds = Array.isArray(result.notFoundTalentIds)
+    ? result.notFoundTalentIds
+    : [];
+  return [
+    "status=ok",
+    [
+      `requested_count=${Number(result.requestedCount ?? items.length)}`,
+      `returned_count=${Number(result.returnedCount ?? items.length)}`,
+      `not_found_count=${notFoundTalentIds.length}`,
+    ].join(" "),
+    formatPromptSection(
+      "talents",
+      items.length > 0
+        ? items
+            .map((item, index) =>
+              formatBoundedTalentResult(item, index, items.length)
+            )
+            .join("\n")
+        : EMPTY_CELL
+    ),
+    formatPromptSection(
+      "not_found_talent_ids",
+      formatPromptTable(
+        ["talent_id"],
+        notFoundTalentIds.map((talentId) => [talentId]),
+        [100]
+      )
+    ),
+  ].join("\n");
+}
+
 function formatRoleResult(result: Record<string, any>) {
   if (result.matchStatus) {
     const candidates = Array.isArray(result.candidates)
@@ -395,6 +465,7 @@ function formatRoleResult(result: Record<string, any>) {
           ["status", humanizeOrgRoleStatus(role.status)],
           ["location", role.locationText],
           ["work_mode", humanizeOrgWorkMode(role.workMode)],
+          ["salary", role.salaryRange],
           [
             "employment",
             Array.isArray(role.employmentTypes)

@@ -4,10 +4,7 @@ import {
   appendHarperEmailFooterText,
   renderEmailBodyHtmlWithHarperFooter,
 } from "@/lib/email/harperFooter";
-import {
-  getDefaultResendFromEmail,
-  sendResendEmail,
-} from "@/lib/email/send";
+import { getDefaultResendFromEmail, sendResendEmail } from "@/lib/email/send";
 import { createEmailReplyAlias } from "@/lib/email/inbound";
 import { normalizeEmailAddress } from "@/lib/email/parse";
 import {
@@ -104,9 +101,9 @@ function hasProfileMaterial(row: TalentCandidateRow) {
     : false;
   return Boolean(
     String(row.resume_file_name ?? "").trim() ||
-      String(row.resume_storage_path ?? "").trim() ||
-      String(row.resume_text ?? "").trim() ||
-      hasLinks
+    String(row.resume_storage_path ?? "").trim() ||
+    String(row.resume_text ?? "").trim() ||
+    hasLinks
   );
 }
 
@@ -124,14 +121,15 @@ function onboardingUrl() {
 }
 
 function displayName(row: TalentCandidateRow, locale: "en" | "ko") {
-  const name = String(row.name ?? "").replace(/\s+/g, " ").trim();
+  const name = String(row.name ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
   if (name) return name;
   return locale === "ko" ? "회원" : "there";
 }
 
-function resolveLocale(row: TalentCandidateRow, setting?: TalentSettingRow) {
+function resolveLocale(setting?: TalentSettingRow) {
   return resolveTalentPreferredLocale({
-    currentLocation: row.current_location ?? row.location,
     settingLocale: setting?.setting_locale ?? setting?.preferred_locale,
   });
 }
@@ -386,7 +384,7 @@ async function handleSignupFollowup(req: NextRequest) {
   const results: Array<Record<string, unknown>> = [];
 
   for (const row of targets) {
-    const locale = resolveLocale(row, settingsByUserId.get(row.user_id));
+    const locale = resolveLocale(settingsByUserId.get(row.user_id));
     if (dryRun) {
       results.push({
         email: normalizeEmailAddress(row.email),

@@ -642,6 +642,7 @@ export function useUpdateOrgRole() {
       name?: string | null;
       request?: string | null;
       roleId: string;
+      salaryRange?: string | null;
       status?: string | null;
       workMode?: string | null;
       workspaceId: string;

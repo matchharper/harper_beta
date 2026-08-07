@@ -121,6 +121,112 @@ test("candidate details always label the five insights as information told to Ha
   assert.doesNotMatch(compact, /company_consent|stale|180/);
 });
 
+test("candidate batch details expose structured profiles without raw resume text", () => {
+  const rawResumeSecret = "RAW_RESUME_TEXT_MUST_NOT_REACH_THE_MODEL";
+  const compact = serializeOrgAgentToolResult("read_talent", {
+    items: [
+      {
+        candidate: { name: "Person One", talentId: "talent-1" },
+        harperSharedInformation: [],
+        positions: [],
+        profile: {
+          bio: "Product engineer",
+          education: [
+            { degree: "BS", field: "CS", school: "Example University" },
+          ],
+          experiences: [{ company_name: "Example", role: "Engineer" }],
+          extras: [
+            {
+              date: "2025",
+              description: "Built an open-source compiler",
+              title: "Projects",
+            },
+          ],
+          resumeExcerpt: rawResumeSecret,
+          resumeText: rawResumeSecret,
+        },
+        profileIncluded: true,
+        recentProgress: [],
+        requestHistory: [],
+        resumeAvailability: {
+          available: true,
+          guidance: "이력서 파일이 있습니다.",
+        },
+      },
+      {
+        candidate: { name: "Person Two", talentId: "talent-2" },
+        harperSharedInformation: [],
+        positions: [],
+        profileIncluded: false,
+        recentProgress: [],
+        requestHistory: [],
+        resumeAvailability: { available: false, guidance: "없음" },
+      },
+    ],
+    notFoundTalentIds: ["talent-missing"],
+    requestedCount: 3,
+    returnedCount: 2,
+  });
+
+  assert.match(compact, /requested_count=3 returned_count=2/);
+  assert.match(compact, /talent-1/);
+  assert.match(compact, /talent-2/);
+  assert.match(compact, /talent-missing/);
+  assert.match(compact, /Projects\t2025\tBuilt an open-source compiler/);
+  assert.match(compact, /resume_availability/);
+  assert.doesNotMatch(compact, /resume_excerpt|resume_text|resumeText/);
+  assert.doesNotMatch(compact, new RegExp(rawResumeSecret));
+  assert.ok(compact.length < 48_000);
+});
+
+test("ten-candidate read_talent results stay inside the shared tool-result budget", () => {
+  const compact = serializeOrgAgentToolResult("read_talent", {
+    items: Array.from({ length: 10 }, (_, index) => ({
+      candidate: { name: `Person ${index}`, talentId: `talent-${index}` },
+      harperSharedInformation: Array.from({ length: 5 }, () => ({
+        label: "조건",
+        value: "v".repeat(600),
+      })),
+      positions: Array.from({ length: 4 }, () => ({
+        fitReasons: ["reason".repeat(100)],
+        fitSummary: "f".repeat(700),
+        roleId: "role-1",
+        roleName: "Engineer",
+        stage: "connected",
+      })),
+      profile: {
+        bio: "b".repeat(2_000),
+        education: Array.from({ length: 5 }, () => ({
+          description: "e".repeat(500),
+          school: "Example University",
+        })),
+        experiences: Array.from({ length: 8 }, () => ({
+          company_name: "Example",
+          description: "x".repeat(800),
+          role: "Engineer",
+        })),
+        extras: Array.from({ length: 5 }, () => ({
+          description: "z".repeat(1_000),
+          title: "Projects",
+        })),
+      },
+      profileIncluded: true,
+      recentProgress: [],
+      requestHistory: [],
+      resumeAvailability: { available: false, guidance: "없음" },
+    })),
+    notFoundTalentIds: [],
+    requestedCount: 10,
+    returnedCount: 10,
+  });
+
+  assert.ok(compact.length < 48_000);
+  assert.match(compact, /detail_complete="false"/);
+  for (let index = 0; index < 10; index += 1) {
+    assert.match(compact, new RegExp(`talent-${index}`));
+  }
+});
+
 test("organization-agent update results contain only acknowledgement fields", () => {
   const compact = serializeOrgAgentToolResult("update_data", {
     ignoredPayload: "x".repeat(10_000),
@@ -136,7 +242,7 @@ test("organization-agent update results contain only acknowledgement fields", ()
 test("Role status changes explain the candidate-facing lifecycle effect", () => {
   const compact = serializeOrgAgentToolResult("change_role_status", {
     effect:
-      "역할의 채용과 추가 추천을 종료합니다. 현재 프로세스의 후보자에게 역할 종료 소식을 자연스럽게 안내하고 연결을 닫습니다.",
+      "역할을 종료 상태로 바꾸고 추가 추천을 중단합니다. 후보자 화면은 역할 종료로 해석하지만, 기존 후보 단계와 회사 요청은 이 변경만으로 모두 자동 종료되지 않습니다.",
     roleName: "Backend Engineer",
     roleStatus: "ended",
     status: "updated",
@@ -145,7 +251,10 @@ test("Role status changes explain the candidate-facing lifecycle effect", () => 
   assert.match(compact, /status=updated/);
   assert.match(compact, /role=Backend Engineer/);
   assert.match(compact, /lifecycle=종료/);
-  assert.match(compact, /후보자에게 역할 종료 소식을 자연스럽게 안내/);
+  assert.match(
+    compact,
+    /기존 후보 단계와 회사 요청은 .*자동 종료되지 않습니다/
+  );
   assert.doesNotMatch(compact, /lifecycle=ended/);
 });
 
@@ -318,7 +427,11 @@ test("organization-agent role results expose whole-pipeline stage counts", () =>
       total: 5,
     },
     recentUpdates: [],
-    role: { name: "Backend Engineer", roleId: "role-1" },
+    role: {
+      name: "Backend Engineer",
+      roleId: "role-1",
+      salaryRange: "연봉 7,000만–9,000만원 + 스톡옵션",
+    },
     stageCounts: [
       { count: 3, stage: "recommended" },
       { count: 2, stage: "saved" },
@@ -329,4 +442,5 @@ test("organization-agent role results expose whole-pipeline stage counts", () =>
   assert.match(compact, /pipeline_counts_complete=false/);
   assert.match(compact, /recommended\t3/);
   assert.match(compact, /saved\t2/);
+  assert.match(compact, /salary\t연봉 7,000만–9,000만원 \+ 스톡옵션/);
 });

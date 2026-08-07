@@ -1,5 +1,6 @@
 import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
 import type { CareerPromptBlock } from "@/lib/career/prompts/types";
+import { safeSlice } from "@/lib/textSanitization";
 
 export const CAREER_PROFILE_PROMPT_TIME_ZONE = "Asia/Seoul";
 
@@ -65,7 +66,7 @@ export function normalizeToolNames(toolNames?: readonly string[] | string) {
 
 export function cleanCareerPromptInlineValue(value: unknown, maxLength = 180) {
   return typeof value === "string"
-    ? value.replace(/\s+/g, " ").trim().slice(0, maxLength)
+    ? safeSlice(value.replace(/\s+/g, " ").trim(), maxLength)
     : "";
 }
 
@@ -112,11 +113,13 @@ export function formatCareerPromptCompactDateTime(value: unknown) {
     value instanceof Date
       ? value.toISOString()
       : typeof value === "string"
-        ? value.replace(/\s+/g, " ").trim().slice(0, 160)
-        : String(value ?? "")
-            .replace(/\s+/g, " ")
-            .trim()
-            .slice(0, 160);
+        ? safeSlice(value.replace(/\s+/g, " ").trim(), 160)
+        : safeSlice(
+            String(value ?? "")
+              .replace(/\s+/g, " ")
+              .trim(),
+            160
+          );
   if (!text) return "";
   if (/^\d{4}-\d{2}-\d{2} \d{1,2}시(?:\s*KST)?$/.test(text)) {
     return text.replace(/\s*KST$/, "");

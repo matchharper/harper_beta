@@ -3,7 +3,9 @@ import test from "node:test";
 import {
   buildAutoIntroFollowUpPostscript,
   getAutoIntroReasonMode,
+  getAutoIntroRoleSummaryDateKey,
   getFreshPendingConnectionSince,
+  isAutoIntroRoleSummaryDay,
   wasAutoIntroSlackSent,
 } from "./autoIntroToCompanyPolicy";
 
@@ -65,6 +67,25 @@ test("only successful Slack delivery metadata counts as contacted", () => {
   assert.equal(wasAutoIntroSlackSent({ slackSent: true }), true);
   assert.equal(wasAutoIntroSlackSent({ deliveryStatus: "failed" }), false);
   assert.equal(wasAutoIntroSlackSent({ deliveryStatus: "pending" }), false);
+});
+
+test("role summary runs on Monday and Thursday in Asia/Seoul", () => {
+  assert.equal(
+    isAutoIntroRoleSummaryDay(new Date("2026-08-10T00:00:00.000Z")),
+    true
+  );
+  assert.equal(
+    isAutoIntroRoleSummaryDay(new Date("2026-08-13T00:00:00.000Z")),
+    true
+  );
+  assert.equal(
+    isAutoIntroRoleSummaryDay(new Date("2026-08-14T00:00:00.000Z")),
+    false
+  );
+  assert.equal(
+    getAutoIntroRoleSummaryDateKey(new Date("2026-08-09T16:00:00.000Z")),
+    "2026-08-10"
+  );
 });
 
 test("optional follow-up postscript always ends as a question", () => {

@@ -252,6 +252,14 @@ function terminalCallIsAlone(result: EvalResult, name: string) {
   );
 }
 
+function readTalentCallIncludes(call: ToolCallRecord, talentId: string) {
+  if (call.name !== "read_talent") return false;
+  const talentIds = Array.isArray(call.arguments.talentIds)
+    ? call.arguments.talentIds.map(text).filter(Boolean)
+    : [text(call.arguments.talentId)].filter(Boolean);
+  return talentIds.includes(talentId);
+}
+
 async function main() {
   const arguments_ = process.argv
     .slice(2)
@@ -419,7 +427,7 @@ async function main() {
         fitSummary:
           "고객 문제를 제품으로 구현하고 프로덕션 배포까지 이끈 경험이 있습니다.",
         location: "Seoul",
-        resumeExcerpt: null,
+        extras: [{ description: "초기 제품 출시", title: "Projects" }],
       },
     ],
     [
@@ -441,7 +449,7 @@ async function main() {
         fitSummary:
           "안정적인 엔터프라이즈 제품 개발에는 강점이 있으나 고객 현장 배포 경험은 추가 확인이 필요합니다.",
         location: "Seoul",
-        resumeExcerpt: "Enterprise SaaS product engineer",
+        extras: [{ description: "API 플랫폼 구축", title: "Projects" }],
       },
     ],
     [
@@ -463,7 +471,7 @@ async function main() {
         fitSummary:
           "복잡한 기업용 제품을 단순하게 설계한 경험이 Product Designer 역할과 맞습니다.",
         location: "Singapore",
-        resumeExcerpt: "B2B product design portfolio",
+        extras: [{ description: "디자인 시스템 구축", title: "Projects" }],
       },
     ],
   ]);
@@ -669,32 +677,11 @@ async function main() {
                     })()
                   : syntheticMode && name === "read_talent"
                     ? (() => {
-                        const talentId = text(input.talentId);
-                        const recommendation = recommendations.find(
-                          (item: any) => item.candidate.talentId === talentId
-                        );
-                        const candidate = recommendation?.candidate ?? {
-                          headline: "Synthetic candidate",
-                          name: "합성후보",
-                          talentId,
-                        };
-                        const roleId =
-                          text(input.roleId) ||
-                          text(recommendation?.role?.roleId) ||
-                          targetRole.roleId;
-                        const roleName =
-                          roleNameById.get(roleId) || targetRole.name;
-                        const profileData =
-                          syntheticProfileByTalentId.get(talentId) ??
-                          syntheticProfileByTalentId.get(
-                            recommendations[0].candidate.talentId
-                          )!;
-                        const sharedInformation = [
-                          {
-                            label: "기회 검토 성향",
-                            value: "좋은 기회가 있다면 검토에 열려 있습니다.",
-                          },
-                        ];
+                        const talentIds = Array.isArray(input.talentIds)
+                          ? Array.from(
+                              new Set(input.talentIds.map(text).filter(Boolean))
+                            ).slice(0, 10)
+                          : [text(input.talentId)].filter(Boolean);
                         state.toolResults.push({
                           callId,
                           name,
@@ -702,69 +689,103 @@ async function main() {
                           summary: "합성 후보자 상세 조회",
                         });
                         return {
-                          candidate: {
-                            email: null,
-                            headline: candidate.headline,
-                            name: candidate.name,
-                            talentId,
-                          },
-                          harperSharedInformation: sharedInformation,
-                          positions: [
-                            {
-                              existingFeedback: null,
-                              feedbackReason: null,
-                              fitReasons: profileData.fitReasons,
-                              fitSummary: profileData.fitSummary,
-                              recommendationId:
-                                recommendation?.recommendationId ??
-                                "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee9",
-                              recommendedAt: new Date().toISOString(),
-                              roleId,
-                              roleName,
-                              stage:
-                                recommendation?.stage ?? "pending_connection",
-                              stageLabel:
-                                recommendation?.stageLabel ?? "연결 대기",
-                              talentMemo: null,
-                              tradeoffs: null,
-                              updatedAt: new Date().toISOString(),
-                            },
-                          ],
-                          profile:
-                            input.includeProfile === true
-                              ? {
-                                  bio: profileData.bio,
-                                  education: profileData.education,
-                                  experiences: profileData.experiences,
-                                  location: profileData.location,
-                                  resumeExcerpt: profileData.resumeExcerpt,
-                                }
-                              : null,
-                          profileIncluded: input.includeProfile === true,
-                          recentProgress: [
-                            {
-                              at: new Date().toISOString(),
-                              kind: "후보자 추천",
-                              recommendationId:
-                                recommendation?.recommendationId ?? null,
-                              roleId,
-                              roleName,
-                              text: "합성 평가 후보자로 추천되었습니다.",
-                            },
-                          ],
-                          requestHistory: [
-                            {
-                              at: "8. 5. 18:00",
-                              label: "회사 질문 확인",
-                              roleName,
-                              status: "전달 준비 중",
-                            },
-                          ],
-                          resumeAvailability: {
-                            available: false,
-                            guidance:
-                              "현재 후보자 프로필에서 확인 가능한 이력서 파일이 없습니다.",
-                          },
+                          items: talentIds.map((talentId) => {
+                            const recommendation = recommendations.find(
+                              (item: any) =>
+                                item.candidate.talentId === talentId
+                            );
+                            const candidate = recommendation?.candidate ?? {
+                              headline: "Synthetic candidate",
+                              name: "합성후보",
+                              talentId,
+                            };
+                            const roleId =
+                              text(input.roleId) ||
+                              text(recommendation?.role?.roleId) ||
+                              targetRole.roleId;
+                            const roleName =
+                              roleNameById.get(roleId) || targetRole.name;
+                            const profileData =
+                              syntheticProfileByTalentId.get(talentId) ??
+                              syntheticProfileByTalentId.get(
+                                recommendations[0].candidate.talentId
+                              )!;
+                            return {
+                              candidate: {
+                                email: null,
+                                headline: candidate.headline,
+                                name: candidate.name,
+                                talentId,
+                              },
+                              harperSharedInformation: [
+                                {
+                                  label: "기회 검토 성향",
+                                  value:
+                                    "좋은 기회가 있다면 검토에 열려 있습니다.",
+                                },
+                              ],
+                              positions: [
+                                {
+                                  existingFeedback: null,
+                                  feedbackReason: null,
+                                  fitReasons: profileData.fitReasons,
+                                  fitSummary: profileData.fitSummary,
+                                  recommendationId:
+                                    recommendation?.recommendationId ??
+                                    "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee9",
+                                  recommendedAt: new Date().toISOString(),
+                                  roleId,
+                                  roleName,
+                                  stage:
+                                    recommendation?.stage ??
+                                    "pending_connection",
+                                  stageLabel:
+                                    recommendation?.stageLabel ?? "연결 대기",
+                                  talentMemo: null,
+                                  tradeoffs: null,
+                                  updatedAt: new Date().toISOString(),
+                                },
+                              ],
+                              profile:
+                                input.includeProfile === true
+                                  ? {
+                                      bio: profileData.bio,
+                                      education: profileData.education,
+                                      experiences: profileData.experiences,
+                                      extras: profileData.extras,
+                                      location: profileData.location,
+                                    }
+                                  : null,
+                              profileIncluded: input.includeProfile === true,
+                              recentProgress: [
+                                {
+                                  at: new Date().toISOString(),
+                                  kind: "후보자 추천",
+                                  recommendationId:
+                                    recommendation?.recommendationId ?? null,
+                                  roleId,
+                                  roleName,
+                                  text: "합성 평가 후보자로 추천되었습니다.",
+                                },
+                              ],
+                              requestHistory: [
+                                {
+                                  at: "8. 5. 18:00",
+                                  label: "회사 질문 확인",
+                                  roleName,
+                                  status: "전달 준비 중",
+                                },
+                              ],
+                              resumeAvailability: {
+                                available: false,
+                                guidance:
+                                  "현재 후보자 프로필에서 확인 가능한 이력서 파일이 없습니다.",
+                              },
+                            };
+                          }),
+                          notFoundTalentIds: [],
+                          requestedCount: talentIds.length,
+                          returnedCount: talentIds.length,
                         };
                       })()
                     : syntheticMode && name === "read_role"
@@ -1157,8 +1178,7 @@ async function main() {
       pass: (result: EvalResult) =>
         result.calls.some(
           (call) =>
-            call.name === "read_talent" &&
-            call.arguments.talentId === recent.candidate.talentId &&
+            readTalentCallIncludes(call, recent.candidate.talentId) &&
             call.arguments.includeProfile === true
         ) &&
         result.answer.includes(recent.candidate.name) &&
@@ -1175,8 +1195,7 @@ async function main() {
       pass: (result: EvalResult) =>
         result.calls.some(
           (call) =>
-            call.name === "read_talent" &&
-            call.arguments.talentId === recent.candidate.talentId &&
+            readTalentCallIncludes(call, recent.candidate.talentId) &&
             call.arguments.includeProfile === true
         ) &&
         result.calls.some(
@@ -1461,10 +1480,8 @@ async function main() {
       id: "C1",
       message: `${founderRecommendation.candidate.name} 이 사람 지금 이직 생각 있는 거 맞아? 현재 회사 founder인데.`,
       pass: (result: EvalResult) =>
-        result.calls.some(
-          (call) =>
-            call.name === "read_talent" &&
-            call.arguments.talentId === founderRecommendation.candidate.talentId
+        result.calls.some((call) =>
+          readTalentCallIncludes(call, founderRecommendation.candidate.talentId)
         ) &&
         !result.calls.some((call) => call.name === "contact_talent") &&
         /확답|단정|확인된.*부족|정보.*부족/.test(result.answer) &&
@@ -1605,10 +1622,8 @@ async function main() {
       id: "C5",
       message: `${founderRecommendation.candidate.name} 후보자 이력서 볼 수 있어? 없으면 바로 요청해줘.`,
       pass: (result: EvalResult) =>
-        result.calls.some(
-          (call) =>
-            call.name === "read_talent" &&
-            call.arguments.talentId === founderRecommendation.candidate.talentId
+        result.calls.some((call) =>
+          readTalentCallIncludes(call, founderRecommendation.candidate.talentId)
         ) &&
         !result.calls.some(
           (call) =>
@@ -1660,10 +1675,8 @@ async function main() {
       id: "C7",
       message: "아까 그 확인 요청 실제로 전달됐어? 지금 상태가 뭐야?",
       pass: (result: EvalResult) =>
-        result.calls.some(
-          (call) =>
-            call.name === "read_talent" &&
-            call.arguments.talentId === founderRecommendation.candidate.talentId
+        result.calls.some((call) =>
+          readTalentCallIncludes(call, founderRecommendation.candidate.talentId)
         ) &&
         /기록|상태|전달|요청/.test(result.answer) &&
         !/확실히 전달됐|전달 완료됐습니다/.test(result.answer),
@@ -1674,10 +1687,8 @@ async function main() {
       id: "C8",
       message: `${founderRecommendation.candidate.name} 후보자는 작은 회사나 초기 팀을 싫어해?`,
       pass: (result: EvalResult) =>
-        result.calls.some(
-          (call) =>
-            call.name === "read_talent" &&
-            call.arguments.talentId === founderRecommendation.candidate.talentId
+        result.calls.some((call) =>
+          readTalentCallIncludes(call, founderRecommendation.candidate.talentId)
         ) &&
         !/싫어한다고|원하지 않는다고|피하고 있다고/.test(result.answer) &&
         /확답|단정|확인|근거/.test(result.answer),
@@ -1712,9 +1723,10 @@ async function main() {
       pass: (result: EvalResult) =>
         result.calls.some(
           (call) =>
-            call.name === "read_talent" &&
-            call.arguments.talentId === recommendations[0].candidate.talentId &&
-            call.arguments.includeProfile === true
+            readTalentCallIncludes(
+              call,
+              recommendations[0].candidate.talentId
+            ) && call.arguments.includeProfile === true
         ) &&
         /Founder|창업|B2B|배포|고객/.test(result.answer) &&
         /연결 대기/.test(result.answer) &&
@@ -1729,9 +1741,10 @@ async function main() {
       pass: (result: EvalResult) =>
         result.calls.some(
           (call) =>
-            (call.name === "read_talent" &&
-              call.arguments.talentId ===
-                recommendations[0].candidate.talentId) ||
+            readTalentCallIncludes(
+              call,
+              recommendations[0].candidate.talentId
+            ) ||
             (call.name === "read_role" &&
               call.arguments.roleId === targetRole.roleId &&
               Array.isArray(call.arguments.include) &&
@@ -1746,10 +1759,8 @@ async function main() {
       id: "D04",
       message: `${recommendations[0].candidate.name} 지금 어디까지 진행됐어?`,
       pass: (result: EvalResult) =>
-        result.calls.some(
-          (call) =>
-            call.name === "read_talent" &&
-            call.arguments.talentId === recommendations[0].candidate.talentId
+        result.calls.some((call) =>
+          readTalentCallIncludes(call, recommendations[0].candidate.talentId)
         ) &&
         /연결 대기/.test(result.answer) &&
         /최근|다음|결정|진행/.test(result.answer),
@@ -1760,8 +1771,16 @@ async function main() {
       id: "D05",
       message: `${recommendations[0].candidate.name}이랑 ${recommendations[1].candidate.name} 중 누가 이 역할에 더 가까워 보여?`,
       pass: (result: EvalResult) =>
-        result.calls.filter((call) => call.name === "read_talent").length >=
-          2 &&
+        result.calls.filter((call) => call.name === "read_talent").length ===
+          1 &&
+        result.calls.some(
+          (call) =>
+            readTalentCallIncludes(
+              call,
+              recommendations[0].candidate.talentId
+            ) &&
+            readTalentCallIncludes(call, recommendations[1].candidate.talentId)
+        ) &&
         result.answer.includes(recommendations[0].candidate.name) &&
         result.answer.includes(recommendations[1].candidate.name) &&
         /고객|배포/.test(result.answer) &&
@@ -2105,10 +2124,8 @@ async function main() {
       id: "D25",
       message: `${recommendations[0].candidate.name} 이력서 있어? 없으면 바로 요청해줘.`,
       pass: (result: EvalResult) =>
-        result.calls.some(
-          (call) =>
-            call.name === "read_talent" &&
-            call.arguments.talentId === recommendations[0].candidate.talentId
+        result.calls.some((call) =>
+          readTalentCallIncludes(call, recommendations[0].candidate.talentId)
         ) &&
         !result.calls.some((call) => call.name === "contact_talent") &&
         /이력서.*없|확인.*이력서|프로필/.test(result.answer) &&
@@ -2154,10 +2171,8 @@ async function main() {
       id: "D27",
       message: "아까 물어본 거 실제로 전달됐어?",
       pass: (result: EvalResult) =>
-        result.calls.some(
-          (call) =>
-            call.name === "read_talent" &&
-            call.arguments.talentId === recommendations[0].candidate.talentId
+        result.calls.some((call) =>
+          readTalentCallIncludes(call, recommendations[0].candidate.talentId)
         ) &&
         /준비 중|준비.*단계|아직.*전달/.test(result.answer) &&
         !/전달 완료됐습니다|확실히 전달/.test(result.answer) &&

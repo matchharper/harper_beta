@@ -4,6 +4,7 @@ import {
   buildHarperSlackChoiceBlocks,
   buildSelectedHarperSlackChoiceBlocks,
   decodeHarperSlackChoiceActionValue,
+  formatHarperSlackToolUsage,
   HARPER_SLACK_CHOICE_ACTION_PREFIX,
   parseHarperSlackChoiceMarkers,
 } from "./slackChoiceButtons";
@@ -89,4 +90,44 @@ test("builds Slack actions with opaque job references and removes them after sel
   );
   assert.match(JSON.stringify(selected.at(-1)), /<@U123>/);
   assert.match(JSON.stringify(selected.at(-1)), /진행해주세요/);
+});
+
+test("puts a compact tool usage counter in the first Slack context block", () => {
+  const toolUsageText = formatHarperSlackToolUsage({
+    toolResults: [
+      { name: "read_talent" },
+      { name: "read_role" },
+      { name: "read_talent" },
+      { name: "read_talent" },
+      { name: "read_talent" },
+    ],
+  });
+  const blocks = buildHarperSlackChoiceBlocks({
+    choices: [],
+    sourceJobId: "123e4567-e89b-42d3-a456-426614174000",
+    text: "답변입니다.",
+    toolUsageText,
+  });
+
+  assert.equal(toolUsageText, "read_talent:4번 · read_role:1번");
+  assert.deepEqual(blocks[0], {
+    type: "context",
+    elements: [
+      {
+        type: "mrkdwn",
+        text: "read_talent:4번 · read_role:1번",
+      },
+    ],
+  });
+  assert.equal(blocks[1].type, "section");
+});
+
+test("omits the Slack tool usage counter when metadata has no valid calls", () => {
+  assert.equal(formatHarperSlackToolUsage({ toolResults: [] }), null);
+  assert.equal(
+    formatHarperSlackToolUsage({
+      toolResults: [{ name: "bad\ncontext" }, null],
+    }),
+    null
+  );
 });
