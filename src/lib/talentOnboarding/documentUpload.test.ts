@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  extractResumeTextContentBestEffort,
   MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES,
   resolveTalentDocumentUpload,
   TALENT_DOCUMENT_STORAGE_ALLOWED_MIME_TYPES,
@@ -102,4 +103,16 @@ test("resume content validation checks MIME and magic bytes", () => {
     }),
     false
   );
+});
+
+test("resume text extraction failure does not reject a valid upload", async () => {
+  const errors: unknown[] = [];
+  const extracted = await extractResumeTextContentBestEffort({
+    bytes: Buffer.from("%PDF-1.7\nnot a parseable PDF body"),
+    fileName: "resume.pdf",
+    onError: (error) => errors.push(error),
+  });
+
+  assert.equal(extracted, null);
+  assert.equal(errors.length, 1);
 });

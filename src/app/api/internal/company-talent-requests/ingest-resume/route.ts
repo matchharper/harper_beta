@@ -13,7 +13,7 @@ import {
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
 import {
-  extractResumeTextContent,
+  extractResumeTextContentBestEffort,
   resolveTalentDocumentUpload,
   validateResumeFileContent,
 } from "@/lib/talentOnboarding/documentUpload";
@@ -212,9 +212,19 @@ export async function POST(req: NextRequest) {
         admin: admin as any,
         contentType: upload.contentType,
         conversationId,
-        extractedText: await extractResumeTextContent({
+        extractedText: await extractResumeTextContentBestEffort({
           bytes: buffer,
           fileName: attachment.fileName,
+          onError: (error) => {
+            console.warn(
+              "[company-talent-resume] text extraction failed; preserving valid upload",
+              {
+                error: error instanceof Error ? error.message : String(error),
+                requestId,
+                talentId,
+              }
+            );
+          },
         }),
         fileName: attachment.fileName,
         requestId,

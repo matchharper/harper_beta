@@ -388,7 +388,7 @@ begin
     impact_level, changed_domains
   ) values (
     p_talent_id, p_conversation_id, v_message_id, 'system_action',
-    'resume_uploaded', '요청받은 이력서를 업로드했습니다.', 'normal',
+    'resume_uploaded', '요청받은 이력서를 업로드했습니다.', 'medium',
     array['profile', 'resume']::text[]
   );
 

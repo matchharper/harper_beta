@@ -140,3 +140,17 @@ export async function extractResumeTextContent(args: {
     .trim()
     .slice(0, maxChars);
 }
+
+export async function extractResumeTextContentBestEffort(args: {
+  bytes: Uint8Array;
+  fileName: string;
+  maxChars?: number;
+  onError?: (error: unknown) => void;
+}) {
+  try {
+    return await extractResumeTextContent(args);
+  } catch (error) {
+    args.onError?.(error);
+    return null;
+  }
+}
