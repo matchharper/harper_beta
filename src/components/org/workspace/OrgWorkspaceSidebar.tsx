@@ -14,8 +14,9 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { type ComponentType, useState } from "react";
+import { type ComponentType, useMemo, useState } from "react";
 import { MuteButton } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
 import {
@@ -27,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useOrgInbox } from "@/hooks/org/useOrg";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { buildOrgHref, type OrgWorkspacePageId } from "@/lib/org/routes";
 import type { OrgMember, OrgWorkspace } from "@/lib/org/server";
@@ -128,12 +130,14 @@ function NavLink({
   icon: Icon,
   internalOnly = false,
   label,
+  pendingConnectionCount,
 }: {
   active: boolean;
   href: string;
   icon: ComponentType<{ className?: string }>;
   internalOnly?: boolean;
   label: string;
+  pendingConnectionCount?: number;
 }) {
   return (
     <Link
@@ -149,6 +153,15 @@ function NavLink({
       {internalOnly ? <InternalOnlyHatch className="opacity-70" /> : null}
       <Icon className="relative z-20 size-4.5 stroke-[1.5]" />
       <span className="relative z-20">{label}</span>
+      {pendingConnectionCount !== undefined ? (
+        <Badge
+          className="relative z-20 ml-auto min-w-5 bg-blue-500 px-1.5 tabular-nums text-white"
+          radius="full"
+          size="sm"
+        >
+          {pendingConnectionCount}
+        </Badge>
+      ) : null}
     </Link>
   );
 }
@@ -164,6 +177,15 @@ export function OrgWorkspaceSidebar() {
     workspace,
     workspaces,
   } = useOrgWorkspace();
+  const inboxQuery = useOrgInbox({ workspaceId: workspace.workspaceId });
+  const pendingConnectionCount = useMemo(
+    () =>
+      inboxQuery.data?.items.reduce(
+        (count, item) => count + (item.stage === "pending_connection" ? 1 : 0),
+        0
+      ),
+    [inboxQuery.data?.items]
+  );
   const canSwitchWorkspace = internalOpsAccess;
   const primaryNav = internalOpsAccess
     ? [INTERNAL_ALL_NAV, ...PRIMARY_NAV]
@@ -245,6 +267,9 @@ export function OrgWorkspaceSidebar() {
               icon={item.icon}
               internalOnly={item.id === "all"}
               label={item.label}
+              pendingConnectionCount={
+                item.id === "inbox" ? pendingConnectionCount : undefined
+              }
             />
           ))}
         </nav>
@@ -356,7 +381,19 @@ export function OrgWorkspaceSidebar() {
               {item.id === "all" ? (
                 <InternalOnlyHatch className="opacity-70" />
               ) : null}
-              <span className="relative z-20">{item.label}</span>
+              <span className="relative z-20 flex items-center gap-2">
+                {item.label}
+                {item.id === "inbox" && pendingConnectionCount !== undefined ? (
+                  <Badge
+                    aria-label={`연결 대기 ${pendingConnectionCount}명`}
+                    className="min-w-5 bg-blue-500 px-1.5 tabular-nums text-white"
+                    radius="full"
+                    size="sm"
+                  >
+                    {pendingConnectionCount}
+                  </Badge>
+                ) : null}
+              </span>
             </Link>
           ))}
         </nav>
