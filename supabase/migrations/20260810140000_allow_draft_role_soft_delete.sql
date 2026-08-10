@@ -1,4 +1,4 @@
-/-- Draft roles still require the guarded completion RPC to become live, but
+-- Draft roles still require the guarded completion RPC to become live, but
 -- ending one is a soft-delete operation and must not require activation first.
 create or replace function public.guard_company_role_draft_activation_v1()
 returns trigger
