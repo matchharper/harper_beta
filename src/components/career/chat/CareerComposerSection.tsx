@@ -18,8 +18,8 @@ import { isOnboardingPaused } from "@/hooks/career/careerHelpers";
 import { cn } from "@/lib/utils";
 import { ActionButton, BareButton } from "@/components/ui/button";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
-import { Textarea as UiTextarea } from "@/components/ui/textarea";
 import { useCareerT } from "@/i18n/useCareerT";
+import { ChatComposerFrame } from "@/components/chat/ChatComposer";
 
 const RECENT_CHAT_HISTORY_WINDOW_MS = 60 * 60 * 1000;
 
@@ -336,64 +336,56 @@ const CareerComposerSection = () => {
               : "rounded-3xl"
           )}
         >
-          <div className="overflow-hidden rounded-[16px] border border-neutral-1000-a10 bg-bg-floating/75 shadow-sm backdrop-blur-xl transition-all duration-200 focus-within:border-neutral-400">
-            <div className="relative flex items-end gap-2">
-              <UiTextarea
-                unstyled
-                key={textareaResetVersion}
-                ref={textareaRef}
-                id="career-chat-composer"
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                onCompositionStart={() => {
-                  isComposingRef.current = true;
-                }}
-                onCompositionEnd={(event) => {
-                  isComposingRef.current = false;
-                  setDraft(event.currentTarget.value);
-                }}
-                onFocus={handleComposerFocus}
-                onKeyDown={handleComposerKeyDown}
-                enterKeyHint="send"
-                placeholder={composerPlaceholder}
-                rows={3}
-                disabled={isTextInputLocked}
+          <ChatComposerFrame
+            ref={textareaRef}
+            textareaKey={textareaResetVersion}
+            id="career-chat-composer"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onCompositionStart={() => {
+              isComposingRef.current = true;
+            }}
+            onCompositionEnd={(event) => {
+              isComposingRef.current = false;
+              setDraft(event.currentTarget.value);
+            }}
+            onFocus={handleComposerFocus}
+            onKeyDown={handleComposerKeyDown}
+            enterKeyHint="send"
+            placeholder={composerPlaceholder}
+            rows={3}
+            disabled={isTextInputLocked}
+            action={
+              <ActionButton
+                onClick={handlePrimaryComposerAction}
+                disabled={
+                  hasDraftText
+                    ? isComposerActionLocked
+                    : isComposerActionLocked ||
+                      isStartingCall ||
+                      !onStartCallMode
+                }
+                actionVariant="primary"
+                buttonRadius="pill"
                 className={cn(
-                  "min-h-[72px] min-w-0 flex-1 resize-none border-none px-3.5 py-4 text-base leading-5 text-neutral-primary outline-none transition-all placeholder:text-neutral-placeholder disabled:cursor-not-allowed md:text-sm lg:text-[14px]"
+                  "px-2.5 h-9 rounded-[18px] text-neutral-00 shadow-xs",
+                  hasDraftText
+                    ? "border-neutral-1000-a10 bg-primary"
+                    : "border border-neutral-1000-a10 bg-primary"
                 )}
-              />
-              <div className="absolute bottom-3 right-3 flex items-center gap-2">
-                <ActionButton
-                  onClick={handlePrimaryComposerAction}
-                  disabled={
-                    hasDraftText
-                      ? isComposerActionLocked
-                      : isComposerActionLocked ||
-                        isStartingCall ||
-                        !onStartCallMode
-                  }
-                  actionVariant="primary"
-                  buttonRadius="pill"
-                  className={cn(
-                    "px-2.5 h-9 rounded-[18px] text-neutral-00 shadow-xs",
-                    hasDraftText
-                      ? "border-neutral-1000-a10 bg-primary"
-                      : "border border-neutral-1000-a10 bg-primary"
-                  )}
-                  aria-label={hasDraftText ? "메시지 보내기" : "통화 모드"}
-                >
-                  {(hasDraftText && isComposerBusy) ||
-                  (!hasDraftText && isStartingCall) ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : hasDraftText ? (
-                    <ArrowUp className="h-4 w-4" />
-                  ) : (
-                    <AudioLines className="h-3.5 w-3.5" />
-                  )}
-                </ActionButton>
-              </div>
-            </div>
-          </div>
+                aria-label={hasDraftText ? "메시지 보내기" : "통화 모드"}
+              >
+                {(hasDraftText && isComposerBusy) ||
+                (!hasDraftText && isStartingCall) ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : hasDraftText ? (
+                  <ArrowUp className="h-4 w-4" />
+                ) : (
+                  <AudioLines className="h-3.5 w-3.5" />
+                )}
+              </ActionButton>
+            }
+          />
           {showInterviewComposerFrame ? (
             <div className="mt-2 flex flex-wrap items-center justify-end gap-x-3 gap-y-2 px-1 text-neutral-muted md:justify-between">
               {showResumeInterviewAction ? (

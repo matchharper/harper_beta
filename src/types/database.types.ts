@@ -3697,6 +3697,7 @@ export type Database = {
           final_url: string | null;
           http_status: number | null;
           id: number;
+          ingestion_run_id: string | null;
           metadata: Json;
           page_alive: boolean | null;
           role_inserted_count: number;
@@ -3716,6 +3717,7 @@ export type Database = {
           final_url?: string | null;
           http_status?: number | null;
           id?: number;
+          ingestion_run_id?: string | null;
           metadata?: Json;
           page_alive?: boolean | null;
           role_inserted_count?: number;
@@ -3735,6 +3737,7 @@ export type Database = {
           final_url?: string | null;
           http_status?: number | null;
           id?: number;
+          ingestion_run_id?: string | null;
           metadata?: Json;
           page_alive?: boolean | null;
           role_inserted_count?: number;
@@ -3745,6 +3748,13 @@ export type Database = {
           status?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "jobposting_crawl_log_ingestion_run_id_fkey";
+            columns: ["ingestion_run_id"];
+            isOneToOne: false;
+            referencedRelation: "opportunity_ingestion_run";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "jobposting_crawl_log_company_db_id_fkey";
             columns: ["company_db_id"];
@@ -4350,6 +4360,10 @@ export type Database = {
           to_date: string | null;
           trigger: string;
           updated_at: string;
+          workflow_name: string | null;
+          workflow_run_attempt: number | null;
+          workflow_run_id: string | null;
+          workflow_run_url: string | null;
         };
         Insert: {
           completed_at?: string | null;
@@ -4366,6 +4380,10 @@ export type Database = {
           to_date?: string | null;
           trigger?: string;
           updated_at?: string;
+          workflow_name?: string | null;
+          workflow_run_attempt?: number | null;
+          workflow_run_id?: string | null;
+          workflow_run_url?: string | null;
         };
         Update: {
           completed_at?: string | null;
@@ -4382,6 +4400,10 @@ export type Database = {
           to_date?: string | null;
           trigger?: string;
           updated_at?: string;
+          workflow_name?: string | null;
+          workflow_run_attempt?: number | null;
+          workflow_run_id?: string | null;
+          workflow_run_url?: string | null;
         };
         Relationships: [];
       };

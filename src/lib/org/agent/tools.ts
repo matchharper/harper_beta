@@ -4,6 +4,10 @@
  * Keep this file declarative: names, descriptions, and JSON schemas only.
  * Runtime validation and database work live in toolExecution.ts and data.ts.
  */
+import {
+  OPEN_URL_TOOL_DEFINITION,
+  WEB_SEARCH_TOOL_DEFINITION,
+} from "@/lib/agentTools/web";
 function nullableText(description: string, maxLength: number) {
   return {
     description,
@@ -13,6 +17,8 @@ function nullableText(description: string, maxLength: number) {
 }
 
 export const ORG_AGENT_TOOL_NAMES = [
+  "web_search",
+  "open_url",
   "get_talents",
   "read_talent",
   "read_role",
@@ -41,6 +47,8 @@ export function isOrgAgentTerminalToolName(value: unknown) {
 }
 
 export const ORG_AGENT_TOOLS = [
+  WEB_SEARCH_TOOL_DEFINITION,
+  OPEN_URL_TOOL_DEFINITION,
   {
     type: "function",
     function: {

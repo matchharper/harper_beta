@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  attachAutoIntroSlackReviewAction,
+  AUTO_INTRO_SLACK_REVIEW_ACTION_ID,
   buildAutoIntroCandidateNameLink,
   buildAutoIntroCandidateProfileUrl,
   buildAutoIntroRoleJobsUrl,
@@ -114,6 +116,24 @@ test("role summary uses a native Slack table with exact role links", () => {
     text: "5명",
     type: "raw_text",
   });
+});
+
+test("auto intro Slack review action is appended once for the sent candidate batch", () => {
+  const blocks = attachAutoIntroSlackReviewAction({
+    candidateCount: 7,
+    messageBody: "후보자 소개 본문",
+  });
+  const actionBlocks = blocks.filter(
+    (block) => block.type === "actions"
+  ) as Array<{
+    elements: Array<{ action_id: string; text: { text: string } }>;
+  }>;
+  assert.equal(actionBlocks.length, 1);
+  assert.equal(
+    actionBlocks[0]?.elements[0]?.action_id,
+    AUTO_INTRO_SLACK_REVIEW_ACTION_ID
+  );
+  assert.equal(actionBlocks[0]?.elements[0]?.text.text, "후보자 7명 검토하기");
 });
 
 test("candidate copy supports readable presentation variants", () => {

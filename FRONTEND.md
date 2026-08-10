@@ -330,6 +330,7 @@ import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 | `/onboard` | auth | desktop_only | 모바일 미디자인 |
 | `/career_login` | career | partial | 모바일 카드와 풋터 wrap 적용. 입력 글꼴 16px 이상으로 보정 후 iOS 줌 QA 필요 |
 | `/career`, `/career/onboarding`, `/career/preview` | career | designed | `CareerWorkspaceScreen` 모바일 분기(`CareerMobile*` 6종). onboarding은 단계별 모바일-퍼스트 그리드 + svh. preview는 workspace를 그대로 사용. |
+| `/org/jobs/new` | org | partial | 데스크톱은 72px 아이콘 사이드바와 hover tooltip, 왼쪽 company-side LLM 채팅, 오른쪽 Role/Company/Setting/Calibration 상세 패널을 제공. 모바일은 채팅만 제공. |
 | `/auths/*` | auth | designed | 단순 콜백 페이지, 시각 요소 거의 없음 |
 | `/my`, `/my/*` | app | partial | `AppLayout`이 모바일에서 햄버거 + 하단 시트 drawer로 분기됨. 콘텐츠 영역 페이지별 모바일 디자인 필요 |
 | `/ops/*` | ops | partial | `OpsShell` overflow-x-auto pill nav. 본문 미검증 |

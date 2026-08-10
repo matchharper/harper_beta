@@ -26,11 +26,6 @@ export type OpportunityDiscoveryAgentVariant =
 export const DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT: OpportunityDiscoveryAgentVariant =
   "new_harper_agent_v2";
 
-export type OpportunityIngestionTrigger =
-  | "scheduled_refresh"
-  | "manual_admin_refresh"
-  | "scope_expanded";
-
 export type OpportunityRunRow = {
   completed_at: string | null;
   conversation_id: string | null;
@@ -46,18 +41,6 @@ export type OpportunityRunRow = {
   talent_id: string | null;
   trigger: OpportunityDiscoveryTrigger;
   trigger_payload: Json;
-};
-
-export type OpportunityIngestionRunRow = {
-  completed_at: string | null;
-  created_at: string;
-  coverage: Json;
-  error_message: string | null;
-  id: string;
-  source_scope: Json;
-  started_at: string | null;
-  status: OpportunityRunStatus;
-  trigger: OpportunityIngestionTrigger;
 };
 
 export type RecommendationSettings = {

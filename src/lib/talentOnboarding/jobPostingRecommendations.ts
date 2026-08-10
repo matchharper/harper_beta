@@ -3119,6 +3119,8 @@ async function shortlistRoles(args: {
       },
     ],
     primaryModel: RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL,
+    openAIResponsesReasoningEffort:
+      CAREER_LLM_CONFIG.recommendJobPostings.shortlistReasoningEffort,
     temperature: CAREER_LLM_CONFIG.recommendJobPostings.shortlistTemperature,
     usageLabel: "career_tool:recommend_job_postings:shortlist",
   });
@@ -3314,6 +3316,8 @@ async function selectFinalRecommendations(args: {
         },
       ],
       primaryModel: RECOMMEND_JOB_POSTINGS_FINAL_SELECTION_MODEL,
+      openAIResponsesReasoningEffort:
+        CAREER_LLM_CONFIG.recommendJobPostings.finalSelectionReasoningEffort,
       temperature:
         CAREER_LLM_CONFIG.recommendJobPostings.finalSelectionTemperature,
       usageLabel: "career_tool:recommend_job_postings:final_selection",
@@ -3543,6 +3547,7 @@ async function persistRecommendations(args: {
         evidence: buildRecommendationEvidence(item),
         fit_reasons: item.detail.fitReasons.filter(Boolean),
         fit_summary: item.detail.roleOverviewText,
+        kind: "recommend_job_postings",
         opportunity_type: OpportunityType.ExternalJd,
         rank: index + 1,
         role_id: roleId,

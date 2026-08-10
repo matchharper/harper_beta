@@ -14,6 +14,7 @@ import {
   type AutoIntroReasonMode,
 } from "@/lib/ops/autoIntroToCompanyPolicy";
 import {
+  attachAutoIntroSlackReviewAction,
   buildAutoIntroCandidateNameLink,
   buildAutoIntroRoleSummarySlackBlocks,
   buildAutoIntroRoleSummaryText,
@@ -1394,6 +1395,20 @@ function attachRoleSummaryToMessage(
   };
 }
 
+function attachReviewActionToMessage(
+  message: GeneratedWorkspaceMessage,
+  candidateCount: number
+): GeneratedWorkspaceMessage {
+  return {
+    ...message,
+    slackBlocks: attachAutoIntroSlackReviewAction({
+      blocks: message.slackBlocks,
+      candidateCount,
+      messageBody: message.body,
+    }),
+  };
+}
+
 async function sendWorkspaceMessage(args: {
   group: WorkspaceNotificationGroup;
   message: GeneratedWorkspaceMessage;
@@ -1742,9 +1757,10 @@ export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
     const normalizedAuthored = { ...authored, workspaceId };
     const message = parseCodexAuthoredMessage(normalizedAuthored, group);
     const roleSummary = roleSummaryByWorkspaceId.get(group.workspaceId);
-    const previewMessage = roleSummary
-      ? attachRoleSummaryToMessage(message, roleSummary)
-      : message;
+    const previewMessage = attachReviewActionToMessage(
+      roleSummary ? attachRoleSummaryToMessage(message, roleSummary) : message,
+      group.candidates.length
+    );
     const slackConnected = await slackConnectedFor(group.workspaceId);
     if (!slackConnected) {
       result.skippedNoChannelCount += group.candidates.length;
@@ -1780,9 +1796,12 @@ export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
             filterAuthoredMessageToCandidates(normalizedAuthored, claimedKeys),
             claimedGroup
           );
-    const deliveryMessage = roleSummary
-      ? attachRoleSummaryToMessage(candidateMessage, roleSummary)
-      : candidateMessage;
+    const deliveryMessage = attachReviewActionToMessage(
+      roleSummary
+        ? attachRoleSummaryToMessage(candidateMessage, roleSummary)
+        : candidateMessage,
+      claimedGroup.candidates.length
+    );
     await persistCodexAuthoredFitReasons({
       admin,
       group: claimedGroup,

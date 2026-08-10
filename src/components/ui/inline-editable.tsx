@@ -28,6 +28,7 @@ type InlineEditableCommonProps = {
 };
 
 export function InlineEditableValue({
+  alwaysShowEditor = false,
   ariaLabel,
   className,
   disabled = false,
@@ -38,17 +39,21 @@ export function InlineEditableValue({
   inline = false,
   onEdit,
 }: Omit<InlineEditableCommonProps, "emptyText"> & {
+  alwaysShowEditor?: boolean;
   editor: ReactNode;
 }) {
   const Component = inline ? "span" : "div";
   const editorClassName = inline ? "inline-flex" : "w-full";
   const viewingClassName = inline
     ? "inline-flex max-w-full items-center rounded-md px-1"
-    : "min-h-10 w-full rounded-md px-3 py-2 text-sm font-normal leading-6 text-neutral-primary";
+    : "min-h-10 w-full rounded-md px-3 py-2 text-sm font-normal text-neutral-primary";
 
-  if (editing) {
+  if (editing || alwaysShowEditor) {
     return (
-      <Component className={cn("min-w-0", editorClassName, className)}>
+      <Component
+        className={cn("min-w-0", editorClassName, className)}
+        data-inline-editable-interaction=""
+      >
         {editor}
       </Component>
     );
@@ -58,6 +63,7 @@ export function InlineEditableValue({
     return (
       <Component
         className={cn("min-w-0", viewingClassName, className, displayClassName)}
+        data-inline-editable-interaction=""
       >
         {displayValue}
       </Component>
@@ -68,11 +74,12 @@ export function InlineEditableValue({
     <Component
       aria-label={ariaLabel}
       className={cn(
-        "cursor-pointer text-left outline-none transition-colors hover:bg-bg-weak focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
+        "cursor-pointer text-left outline-none transition-colors leading-[22px] border border-neutral-1000-a05 hover:bg-bg-basement focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
         viewingClassName,
         className,
         displayClassName
       )}
+      data-inline-editable-interaction=""
       onClick={onEdit}
       onKeyDown={(event) => {
         if (event.key !== "Enter" && event.key !== " ") return;
@@ -252,6 +259,7 @@ export function InlineEditableSelect({
 
   return (
     <InlineEditableValue
+      alwaysShowEditor
       ariaLabel={ariaLabel}
       className={className}
       disabled={disabled}
@@ -262,17 +270,19 @@ export function InlineEditableSelect({
       editing={editing}
       editor={
         <Select
-          defaultOpen
           disabled={disabled}
+          onOpenChange={(open) => {
+            if (open) onEdit();
+          }}
           onValueChange={(nextValue) => {
             if (nextValue !== null) onValueChange(nextValue);
           }}
           value={value}
         >
-          <SelectTrigger autoFocus className={triggerClassName}>
+          <SelectTrigger aria-label={ariaLabel} className={triggerClassName}>
             <SelectValue placeholder={placeholder} />
           </SelectTrigger>
-          <SelectContent align="start">
+          <SelectContent align="start" data-inline-editable-interaction="">
             {options.map((option) => (
               <SelectItem
                 disabled={option.disabled}

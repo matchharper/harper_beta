@@ -3,8 +3,6 @@ import {
   DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT,
   type OpportunityDiscoveryTrigger,
   type OpportunityDiscoveryAgentVariant,
-  type OpportunityIngestionRunRow,
-  type OpportunityIngestionTrigger,
   type OpportunityRunMode,
   type OpportunityRunRow,
   type RecommendationSettings,
@@ -417,78 +415,6 @@ export async function updateOpportunityRun(args: {
     .eq("id", args.runId) as any);
 
   if (error) throw new Error(error.message ?? "Failed to update run");
-}
-
-export async function createOpportunityIngestionRun(args: {
-  admin: AdminClient;
-  limit?: number;
-  sourceScope?: Record<string, unknown>;
-  trigger: OpportunityIngestionTrigger;
-}) {
-  const { data, error } = await ((
-    args.admin.from("opportunity_ingestion_run" as any) as any
-  )
-    .insert({
-      source_scope: {
-        limit: args.limit ?? null,
-        ...(args.sourceScope ?? {}),
-      },
-      status: "queued",
-      trigger: args.trigger,
-    })
-    .select("*")
-    .single() as any);
-
-  if (error) throw new Error(error.message ?? "Failed to create ingestion run");
-  return data as OpportunityIngestionRunRow;
-}
-
-export async function fetchIngestionRun(args: {
-  admin: AdminClient;
-  runId: string;
-}) {
-  const { data, error } = await ((
-    args.admin.from("opportunity_ingestion_run" as any) as any
-  )
-    .select("*")
-    .eq("id", args.runId)
-    .maybeSingle() as any);
-
-  if (error) throw new Error(error.message ?? "Failed to load ingestion run");
-  return (data ?? null) as OpportunityIngestionRunRow | null;
-}
-
-export async function updateIngestionRun(args: {
-  admin: AdminClient;
-  coverage?: Record<string, unknown>;
-  errorMessage?: string | null;
-  runId: string;
-  status: "running" | "completed" | "failed" | "partial";
-}) {
-  const now = new Date().toISOString();
-  const payload: Record<string, unknown> = {
-    status: args.status,
-  };
-
-  if (args.status === "running") payload.started_at = now;
-  if (
-    args.status === "completed" ||
-    args.status === "failed" ||
-    args.status === "partial"
-  ) {
-    payload.completed_at = now;
-  }
-  if (args.coverage) payload.coverage = args.coverage;
-  if (args.errorMessage !== undefined)
-    payload.error_message = args.errorMessage;
-
-  const { error } = await ((
-    args.admin.from("opportunity_ingestion_run" as any) as any
-  )
-    .update(payload)
-    .eq("id", args.runId) as any);
-
-  if (error) throw new Error(error.message ?? "Failed to update ingestion run");
 }
 
 export function triggerToRunMode(

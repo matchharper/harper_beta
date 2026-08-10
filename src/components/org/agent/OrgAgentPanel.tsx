@@ -1,666 +1,132 @@
+import { Info, LoaderCircle } from "lucide-react";
 import {
-  ArrowUp,
-  CalendarClock,
-  Check,
-  ChevronUp,
-  Info,
-  LoaderCircle,
-  SquarePen,
-  X,
-} from "lucide-react";
-import {
-  type FormEvent,
-  type KeyboardEvent,
   type ReactNode,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
 } from "react";
-import { Button, IconButton } from "@/components/ui/button";
+import { ChatThinkingLogPanel } from "@/components/chat/ChatThinkingLogPanel";
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  ChatLoadOlderButton,
+  getChatMessageDateKey,
+  getPreviousChatMessageDateKey,
+} from "@/components/chat/ChatTimeline";
+import { OrgAgentComposer } from "@/components/org/agent/OrgAgentComposer";
+import {
+  OrgAgentDateDivider,
+  OrgAgentMessageBubble,
+  OrgAgentPendingBubble,
+  OrgAgentStreamingBubble,
+} from "@/components/org/agent/OrgAgentMessage";
+import { MuteButton } from "@/components/ui/button";
+import {
+  useConfirmOrgRoleCreation,
+  useOrgAgentChat,
+  useOrgAgentMessageHistory,
+} from "@/hooks/org/useOrgAgent";
+import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import {
   DEFAULT_ORG_AGENT_MODEL,
-  ORG_AGENT_CLAUDE_MODEL,
-  ORG_AGENT_DEEPSEEK_FLASH_MODEL,
-  ORG_AGENT_DEEPSEEK_PRO_MODEL,
-  ORG_AGENT_GROK_MODEL,
-  ORG_AGENT_LUNA_MODEL,
-  ORG_AGENT_TERRA_MODEL,
   isOrgAgentModelId,
   type OrgAgentModelId,
 } from "@/lib/org/agent/modelConfig";
-import type {
-  OrgAgentMention,
-  OrgAgentMentionCandidate,
-  OrgAgentMessage,
-  OrgAgentMessageAction,
-} from "@/lib/org/agent/types";
-import {
-  useOrgAgentChat,
-  useOrgAgentMentionCandidates,
-  useOrgAgentMessageHistory,
-  useSendOrgAgentMeetingRequest,
-} from "@/hooks/org/useOrgAgent";
-import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
+import { splitRoleCreationCompletionSentences } from "@/lib/org/agent/roleCreationCompletionMessage";
 import { cn } from "@/lib/utils";
 
-function parseDate(createdAt: string) {
-  const date = new Date(createdAt);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
+const ORG_AGENT_COMPOSER_DEFAULT_HEIGHT_PX = 148;
+const ORG_AGENT_TIMELINE_BOTTOM_GAP_PX = 48;
+const ORG_AGENT_BOTTOM_THRESHOLD_PX = 120;
+const ROLE_CREATION_COMPLETION_SENTENCE_INTERVAL_MS = 240;
 
-function getDateKey(createdAt: string) {
-  const date = parseDate(createdAt);
-  if (!date) return "";
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, "0"),
-    String(date.getDate()).padStart(2, "0"),
-  ].join("-");
-}
-
-function formatDateLabel(createdAt: string) {
-  const date = parseDate(createdAt);
-  if (!date) return "";
-  return new Intl.DateTimeFormat("ko-KR", {
-    day: "numeric",
-    month: "long",
-    weekday: "short",
-    year: "numeric",
-  }).format(date);
-}
-
-function normalizeText(value: unknown) {
-  return String(value ?? "").trim();
-}
-
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function serializeDraftWithMentions(
-  draft: string,
-  mentions: OrgAgentMention[]
-) {
-  let output = draft;
-  const remaining = mentions.filter((mention) =>
-    output.includes(`@${mention.displayName}`)
-  );
-  for (const mention of remaining) {
-    const pattern = new RegExp(`@${escapeRegExp(mention.displayName)}\\b`);
-    output = output.replace(
-      pattern,
-      `@[${mention.displayName}](talent:${mention.talentId})`
-    );
-  }
-  return {
-    mentions: remaining,
-    text: output.trim(),
-  };
-}
-
-function getMentionSearch(value: string, cursor: number) {
-  const prefix = value.slice(0, cursor);
-  const atIndex = prefix.lastIndexOf("@");
-  if (atIndex < 0) return null;
-  const afterAt = prefix.slice(atIndex + 1);
-  if (afterAt.includes("\n") || afterAt.includes("  ")) return null;
-  return {
-    query: afterAt.trim(),
-    start: atIndex,
-  };
-}
-
-function getPreviousMessageDateKey(
-  messages: OrgAgentMessage[],
-  currentIndex: number
-) {
-  for (let index = currentIndex - 1; index >= 0; index -= 1) {
-    const dateKey = getDateKey(messages[index].createdAt);
-    if (dateKey) return dateKey;
-  }
-  return "";
-}
-
-function DateDivider({ label }: { label: string }) {
+function OrgAgentInfo() {
   return (
-    <div className="flex justify-center py-2">
-      <span className="rounded-full bg-bg-basement px-2.5 py-1 text-[11px] font-light text-neutral-muted">
-        {label}
-      </span>
-    </div>
-  );
-}
-
-function MentionText({
-  content,
-  inverse,
-}: {
-  content: string;
-  inverse?: boolean;
-}) {
-  const regex = /@\[([^\]]+)\]\(talent:([^)]+)\)/g;
-  const nodes: ReactNode[] = [];
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(content))) {
-    if (match.index > lastIndex) {
-      nodes.push(content.slice(lastIndex, match.index));
-    }
-    nodes.push(
-      <span
-        key={`${match[2]}-${match.index}`}
-        className="inline-flex max-w-full align-baseline"
-        title={`talentId: ${match[2]}`}
-      >
-        <span
-          className={cn(
-            "mx-0.5 rounded-md px-1.5 py-0.5 font-medium",
-            inverse
-              ? "bg-neutral-00/15 text-neutral-00"
-              : "bg-neutral-1000-a05 text-neutral-primary"
-          )}
-        >
-          @{match[1]}
-        </span>
-      </span>
-    );
-    lastIndex = match.index + match[0].length;
-  }
-  if (lastIndex < content.length) nodes.push(content.slice(lastIndex));
-  return <>{nodes}</>;
-}
-
-function MessageActionView({
-  action,
-  message,
-  roleId,
-  workspaceId,
-}: {
-  action: OrgAgentMessageAction;
-  message: OrgAgentMessage;
-  roleId?: string | null;
-  workspaceId: string;
-}) {
-  const meetingRequest = useSendOrgAgentMeetingRequest();
-
-  if (action.kind === "entity_updated" || action.kind === "request_updated") {
-    return (
-      <div className="inline-flex items-center gap-1.5 text-[12px] text-positive">
-        <Check className="h-3.5 w-3.5" />
-        {action.label}
-      </div>
-    );
-  }
-
-  const sent = action.status === "sent" || meetingRequest.isSuccess;
-  return (
-    <div className="mt-3">
-      <Button
+    <div className="group relative">
+      <MuteButton
         type="button"
+        aria-describedby="org-agent-info-tooltip"
+        aria-label="채팅 안내"
         size="sm"
-        variant="secondary"
-        disabled={!roleId || sent || meetingRequest.isPending}
-        onClick={() => {
-          if (!roleId) return;
-          meetingRequest.mutate({
-            actionId: action.id,
-            messageId: message.id,
-            reason: action.payload.reason ?? null,
-            roleId,
-            topic: action.payload.topic,
-            workspaceId,
-          });
-        }}
+        variant="transparent"
       >
-        {meetingRequest.isPending ? (
-          <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-        ) : sent ? (
-          <Check className="h-3.5 w-3.5" />
-        ) : (
-          <CalendarClock className="h-3.5 w-3.5" />
-        )}
-        {sent ? "요청 보냄" : action.label}
-      </Button>
-    </div>
-  );
-}
-
-function MessageBubble({
-  message,
-  roleId,
-  workspaceId,
-}: {
-  message: OrgAgentMessage;
-  roleId?: string | null;
-  workspaceId: string;
-}) {
-  const isUser = message.role === "user";
-  const actions = message.metadata.actions ?? [];
-  const toolResultActions = actions.filter(
-    (action) =>
-      action.kind === "entity_updated" || action.kind === "request_updated"
-  );
-  const followUpActions = actions.filter(
-    (action) =>
-      action.kind !== "entity_updated" && action.kind !== "request_updated"
-  );
-
-  return (
-    <div className="space-y-0">
-      {!isUser && (
-        <ThinkingPanel
-          logs={message.thinkingLogs}
-          showResponseCompletion={
-            (message.metadata.toolResults?.length ?? 0) > 0
-          }
-        />
-      )}
-      {!isUser &&
-        toolResultActions.map((action) => (
-          <MessageActionView
-            key={action.id}
-            action={action}
-            message={message}
-            roleId={roleId}
-            workspaceId={workspaceId}
-          />
-        ))}
+        <Info className="h-4 w-4" strokeWidth={1.8} />
+      </MuteButton>
       <div
-        className={cn("flex gap-2", isUser ? "justify-end" : "justify-start")}
+        id="org-agent-info-tooltip"
+        role="tooltip"
+        className="pointer-events-none absolute right-0 top-full z-30 mt-2 w-[300px] max-w-[calc(100vw-64px)] translate-y-1 rounded-lg border border-neutral-1000-a10 bg-neutral-1000 px-3.5 py-3 text-[12px] leading-4 text-neutral-00 opacity-0 shadow-xl transition duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
       >
-        <div
-          className={cn(
-            "leading-[23px] font-normal mb-2",
-            isUser
-              ? "max-w-[82%] rounded-lg bg-neutral-200 px-3 py-1.5 text-neutral-1000"
-              : "max-w-[98%] text-neutral-primary py-1",
-            message.status === "failed" &&
-              "border-critical/20 bg-critical-faded"
-          )}
-        >
-          <div className="whitespace-pre-wrap break-words">
-            <MentionText content={message.content} inverse={isUser} />
-          </div>
-          {followUpActions.map((action) => (
-            <MessageActionView
-              key={action.id}
-              action={action}
-              message={message}
-              roleId={roleId}
-              workspaceId={workspaceId}
-            />
-          ))}
+        <div className="absolute -top-1.5 right-2.5 h-3 w-3 rotate-45 border-l border-t border-neutral-1000-a10 bg-neutral-1000" />
+        <div className="relative space-y-2">
+          <p>회사 전체 채용 정보를 읽고 다루는 채팅입니다.</p>
+          <p>
+            포지션이나 후보자를 이름으로 말하면 Harper가 대상을 찾습니다. 여러
+            포지션이 모호하게 겹치면 먼저 확인합니다.
+          </p>
+          <p>
+            @로 특정 후보자를 지정해 해당 후보자 연결의 좋은 점과 아쉬운 점을
+            설명할 수 있습니다.
+          </p>
+          <p>수락, 거절, 단계 이동은 후보자 프로필에서 직접 처리해야 합니다.</p>
+          <p>회사·포지션 정보와 채용 기준 변경도 요청할 수 있습니다.</p>
         </div>
       </div>
     </div>
   );
 }
 
-function MentionMenu({
-  candidates,
-  highlightedIndex,
-  isLoading,
-  onSelect,
+export function OrgAgentChatSurface({
+  autoFocus = true,
+  className,
+  onClose,
+  onRoleCreated,
+  purpose = "general",
+  roleId,
+  header = null,
 }: {
-  candidates: OrgAgentMentionCandidate[];
-  highlightedIndex: number;
-  isLoading: boolean;
-  onSelect: (candidate: OrgAgentMentionCandidate) => void;
+  autoFocus?: boolean;
+  className?: string;
+  onClose?: () => void;
+  onRoleCreated?: (roleId: string) => void;
+  purpose?: "general" | "role-creation";
+  roleId?: string | null;
+  header?: ReactNode;
 }) {
-  return (
-    <div className="absolute bottom-full left-0 right-0 z-20 mb-2 overflow-hidden rounded-lg border border-neutral-1000-a10 bg-bg-floating shadow-xl">
-      {isLoading ? (
-        <div className="flex items-center gap-2 px-3 py-3 text-[12px] text-neutral-muted">
-          <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-          후보자 불러오는 중
-        </div>
-      ) : candidates.length === 0 ? (
-        <div className="px-3 py-3 text-[12px] text-neutral-muted">
-          이 역할 pipeline에서 찾지 못했습니다.
-        </div>
-      ) : (
-        <div className="max-h-64 overflow-y-auto py-1">
-          {candidates.map((candidate, index) => (
-            <button
-              key={`${candidate.talentId}:${candidate.recommendationId}`}
-              type="button"
-              className={cn(
-                "flex w-full flex-col gap-0.5 px-3 py-2 text-left transition",
-                index === highlightedIndex
-                  ? "bg-bg-weak text-neutral-primary"
-                  : "text-neutral-primary hover:bg-bg-weak"
-              )}
-              onMouseDown={(event) => {
-                event.preventDefault();
-                onSelect(candidate);
-              }}
-            >
-              <span className="text-[13px] font-medium">{candidate.label}</span>
-              <span className="line-clamp-1 text-[11px] text-neutral-muted">
-                {candidate.subtitle}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ModelSelector({
-  model,
-  onChange,
-  visible,
-}: {
-  model: OrgAgentModelId;
-  onChange: (model: OrgAgentModelId) => void;
-  visible: boolean;
-}) {
-  const options: Array<{ label: string; value: OrgAgentModelId }> = [
-    {
-      label: "DeepSeek V4 Flash · high",
-      value: ORG_AGENT_DEEPSEEK_FLASH_MODEL,
-    },
-    { label: "DeepSeek V4 Pro · high", value: ORG_AGENT_DEEPSEEK_PRO_MODEL },
-    { label: "Luna · GPT-5.6", value: ORG_AGENT_LUNA_MODEL },
-    { label: "Terra · GPT-5.6", value: ORG_AGENT_TERRA_MODEL },
-    { label: "Claude Sonnet 5", value: ORG_AGENT_CLAUDE_MODEL },
-    { label: "Grok 4.3", value: ORG_AGENT_GROK_MODEL },
-  ];
-
-  if (!visible) return null;
-  return (
-    <Select
-      items={options}
-      value={model}
-      onValueChange={(value) => {
-        if (isOrgAgentModelId(value)) onChange(value);
-      }}
-    >
-      <SelectTrigger
-        aria-label="company-side LLM 모델"
-        className="w-56 text-xs"
-        size="sm"
-      >
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent align="start" alignItemWithTrigger={false}>
-        <SelectGroup>
-          {options.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectGroup>
-      </SelectContent>
-    </Select>
-  );
-}
-
-function Composer({
-  disabled,
-  isStreaming,
-  model,
-  onModelChange,
-  onSend,
-  showModelSelector,
-  workspaceId,
-}: {
-  disabled?: boolean;
-  isStreaming: boolean;
-  model: OrgAgentModelId;
-  onModelChange: (model: OrgAgentModelId) => void;
-  onSend: (args: { mentions: OrgAgentMention[]; message: string }) => void;
-  showModelSelector: boolean;
-  workspaceId: string;
-}) {
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const lastSpaceAtRef = useRef<number>(0);
-  const [draft, setDraft] = useState("");
-  const [mentions, setMentions] = useState<OrgAgentMention[]>([]);
-  const [mentionSearch, setMentionSearch] = useState<{
-    query: string;
-    start: number;
-  } | null>(null);
-  const [highlightedIndex, setHighlightedIndex] = useState(0);
-  const mentionQuery = mentionSearch?.query ?? "";
-  const mentionCandidates = useOrgAgentMentionCandidates({
-    enabled: Boolean(mentionSearch && workspaceId),
-    query: mentionQuery,
-    workspaceId,
-  });
-
-  const candidates = mentionCandidates.data ?? [];
-
-  useLayoutEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    textarea.style.height = "auto";
-
-    const styles = window.getComputedStyle(textarea);
-    const lineHeight = Number.parseFloat(styles.lineHeight) || 20;
-    const paddingHeight =
-      Number.parseFloat(styles.paddingTop) +
-      Number.parseFloat(styles.paddingBottom);
-    const borderHeight =
-      Number.parseFloat(styles.borderTopWidth) +
-      Number.parseFloat(styles.borderBottomWidth);
-    const maxHeight = lineHeight * 4 + paddingHeight + borderHeight;
-    const contentHeight = textarea.scrollHeight + borderHeight;
-
-    textarea.style.height = `${Math.min(contentHeight, maxHeight)}px`;
-    textarea.style.overflowY = contentHeight > maxHeight ? "auto" : "hidden";
-  }, [draft]);
-
-  const updateMentionSearch = useCallback((value: string) => {
-    const cursor = textareaRef.current?.selectionStart ?? value.length;
-    const search = getMentionSearch(value, cursor);
-    setMentionSearch(search);
-    setHighlightedIndex(0);
-  }, []);
-
-  const handleChange = (value: string) => {
-    setDraft(value);
-    updateMentionSearch(value);
-  };
-
-  const handleSelectMention = (candidate: OrgAgentMentionCandidate) => {
-    if (!mentionSearch) return;
-    const textarea = textareaRef.current;
-    const cursor = textarea?.selectionStart ?? draft.length;
-    const before = draft.slice(0, mentionSearch.start);
-    const after = draft.slice(cursor);
-    const insertion = `@${candidate.label}`;
-    const nextDraft = `${before}${insertion}${after}`;
-    setDraft(nextDraft);
-    setMentions((current) => [
-      ...current.filter((mention) => mention.talentId !== candidate.talentId),
-      {
-        displayName: candidate.label,
-        recommendationId: candidate.recommendationId,
-        roleId: candidate.roleId,
-        talentId: candidate.talentId,
-      },
-    ]);
-    setMentionSearch(null);
-    requestAnimationFrame(() => {
-      textarea?.focus();
-      const nextCursor = before.length + insertion.length;
-      textarea?.setSelectionRange(nextCursor, nextCursor);
-    });
-  };
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    const isComposing = event.nativeEvent.isComposing;
-
-    if (mentionSearch) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setMentionSearch(null);
-        return;
-      }
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        setHighlightedIndex((index) =>
-          candidates.length ? (index + 1) % candidates.length : 0
-        );
-        return;
-      }
-      if (event.key === "ArrowUp") {
-        event.preventDefault();
-        setHighlightedIndex((index) =>
-          candidates.length
-            ? (index - 1 + candidates.length) % candidates.length
-            : 0
-        );
-        return;
-      }
-      if (
-        event.key === "Enter" &&
-        !isComposing &&
-        candidates[highlightedIndex]
-      ) {
-        event.preventDefault();
-        handleSelectMention(candidates[highlightedIndex]);
-        return;
-      }
-      if (event.key === " ") {
-        const now = event.timeStamp;
-        if (lastSpaceAtRef.current > 0 && now - lastSpaceAtRef.current < 650) {
-          setMentionSearch(null);
-        }
-        lastSpaceAtRef.current = now;
-      }
-    }
-
-    if (event.key === "Enter" && !event.shiftKey && !isComposing) {
-      event.preventDefault();
-      void handleSubmit();
-    }
-  };
-
-  const handleSubmit = async (event?: FormEvent) => {
-    event?.preventDefault();
-    const serialized = serializeDraftWithMentions(draft, mentions);
-    if (!serialized.text || disabled || isStreaming) return;
-    onSend({ mentions: serialized.mentions, message: serialized.text });
-    setDraft("");
-    setMentions([]);
-    setMentionSearch(null);
-  };
-
-  return (
-    <form
-      className="absolute bottom-0 left- w-full bg-linear-to-b to-50% from-bg-floating/0 to-bg-floating px-2 pb-2"
-      onSubmit={handleSubmit}
-    >
-      <div className="relative flex items-end">
-        {mentionSearch && (
-          <MentionMenu
-            candidates={candidates}
-            highlightedIndex={highlightedIndex}
-            isLoading={mentionCandidates.isLoading}
-            onSelect={handleSelectMention}
-          />
-        )}
-        <textarea
-          ref={textareaRef}
-          value={draft}
-          rows={1}
-          autoFocus
-          disabled={disabled || isStreaming}
-          className="w-full resize-none overflow-y-hidden rounded-3xl border border-black/5 bg-bg-default px-3.5 py-[13px] pr-12 text-[13px] font-normal leading-5 text-neutral-primary shadow-[0_0_24px_4px_rgb(0_0_0_/_0.05)] outline-none transition placeholder:text-neutral-placeholder focus:border-black/10 disabled:cursor-not-allowed disabled:opacity-60"
-          placeholder="원하는 조건 혹은 요구사항을 알려주세요."
-          onChange={(event) => handleChange(event.target.value)}
-          onKeyDown={handleKeyDown}
-        />
-        <IconButton
-          type="submit"
-          aria-label="메시지 보내기"
-          variant="secondary"
-          className="absolute bg-primary text-white bottom-[8px] right-[8px] h-8 w-8 rounded-2xl hover:bg-primary/80"
-          disabled={disabled || isStreaming || !draft.trim()}
-          icon={<ArrowUp className="h-4 w-4" />}
-        />
-      </div>
-      {showModelSelector && (
-        <div className="mt-2 flex items-center justify-between gap-2">
-          <ModelSelector
-            model={model}
-            onChange={onModelChange}
-            visible={showModelSelector}
-          />
-        </div>
-      )}
-    </form>
-  );
-}
-
-function StreamingBubble({ text }: { text: string }) {
-  if (!text) return null;
-  return (
-    <div className="flex max-w-[82%] py-2 leading-5 text-neutral-primary">
-      <div className="whitespace-pre-wrap break-words">{text}</div>
-    </div>
-  );
-}
-
-function ThinkingPanel({
-  logs,
-  showResponseCompletion = true,
-}: {
-  logs: Array<{ label: string; status?: string }>;
-  showResponseCompletion?: boolean;
-}) {
-  if (logs.length === 0) return null;
-  const latest = logs[logs.length - 1];
-  if (latest.label.includes("응답 생성 완료") && !showResponseCompletion) {
-    return null;
-  }
-  const label = latest.label.includes("응답 생성 완료")
-    ? "응답 생성 완료"
-    : latest.label.includes("응답 생성 중")
-      ? "응답 생성 중"
-      : latest.label;
-  return (
-    <div className="flex items-center gap-2 px-0 py-0.5 text-[12px] text-neutral-muted">
-      {latest.status === "running" ? (
-        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-      ) : latest.status === "error" ? (
-        <X className="h-3.5 w-3.5" />
-      ) : (
-        <Check className="h-3.5 w-3.5" />
-      )}
-      <span className="truncate">{label}</span>
-    </div>
-  );
-}
-
-export function OrgAgentPanel() {
-  const { currentUserEmail, workspace } = useOrgWorkspace();
+  const { bootstrap, currentUser, currentUserEmail, user, workspace } =
+    useOrgWorkspace();
   const workspaceId = workspace.workspaceId;
-  const [open, setOpen] = useState(false);
+  const mode = purpose === "role-creation" ? "role_creation" : "general";
+  const initialRoleCreation = purpose === "role-creation" && !roleId;
   const history = useOrgAgentMessageHistory({
-    enabled: Boolean(open && workspaceId),
+    enabled: Boolean(workspaceId) && (mode === "general" || Boolean(roleId)),
+    mode,
+    roleId,
     workspaceId,
   });
   const chat = useOrgAgentChat({
     appendMessagesToCache: history.appendMessagesToCache,
+    currentUserId: user.id,
+    mode,
+    onRoleCreated,
+    roleId,
     workspaceId,
   });
+  const confirmRoleCreation = useConfirmOrgRoleCreation();
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const composerOverlayRef = useRef<HTMLDivElement | null>(null);
   const [model, setModel] = useState<OrgAgentModelId>(DEFAULT_ORG_AGENT_MODEL);
+  const [composerOverlayHeight, setComposerOverlayHeight] = useState(
+    ORG_AGENT_COMPOSER_DEFAULT_HEIGHT_PX
+  );
+  const [stickToBottom, setStickToBottom] = useState(true);
+  const [completionReveal, setCompletionReveal] = useState<{
+    content: string;
+    messageId: number;
+    revealedSentenceCount: number;
+  } | null>(null);
+  const completionRevealChunks = completionReveal
+    ? splitRoleCreationCompletionSentences(completionReveal.content)
+    : [];
 
   const handleModelChange = (nextModel: OrgAgentModelId) => {
     setModel(nextModel);
@@ -674,17 +140,99 @@ export function OrgAgentPanel() {
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
-  useEffect(() => {
-    if (!open) return;
+  const syncScrollState = useCallback(() => {
     const node = scrollRef.current;
     if (!node) return;
-    node.scrollTop = node.scrollHeight;
+    const distanceToBottom =
+      node.scrollHeight - node.scrollTop - node.clientHeight;
+    setStickToBottom(distanceToBottom <= ORG_AGENT_BOTTOM_THRESHOLD_PX);
+  }, []);
+
+  useEffect(() => {
+    if (!stickToBottom) return;
+    const node = scrollRef.current;
+    if (!node) return;
+    const frame = window.requestAnimationFrame(() => {
+      node.scrollTop = node.scrollHeight;
+      syncScrollState();
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [
     history.messages.length,
     chat.optimisticUserMessage?.id,
     chat.streamingText,
     chat.thinkingLogs.length,
-    open,
+    completionReveal?.revealedSentenceCount,
+    stickToBottom,
+    syncScrollState,
+  ]);
+
+  useEffect(() => {
+    if (
+      !completionReveal ||
+      completionReveal.revealedSentenceCount >= completionRevealChunks.length
+    ) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setCompletionReveal((current) =>
+        current
+          ? {
+              ...current,
+              revealedSentenceCount: current.revealedSentenceCount + 1,
+            }
+          : null
+      );
+    }, ROLE_CREATION_COMPLETION_SENTENCE_INTERVAL_MS);
+    return () => window.clearTimeout(timer);
+  }, [completionReveal, completionRevealChunks.length]);
+
+  useEffect(() => {
+    if (initialRoleCreation) return;
+    const element = composerOverlayRef.current;
+    if (!element) return;
+
+    let frameId: number | null = null;
+    const updateComposerHeight = () => {
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(() => {
+        frameId = null;
+        const nextHeight = Math.ceil(element.getBoundingClientRect().height);
+        if (nextHeight <= 0) return;
+        setComposerOverlayHeight((currentHeight) =>
+          Math.abs(currentHeight - nextHeight) <= 1 ? currentHeight : nextHeight
+        );
+      });
+    };
+
+    updateComposerHeight();
+    const observer = window.ResizeObserver
+      ? new window.ResizeObserver(updateComposerHeight)
+      : null;
+    observer?.observe(element);
+    window.addEventListener("resize", updateComposerHeight);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateComposerHeight);
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+    };
+  }, [initialRoleCreation]);
+
+  useEffect(() => {
+    if (!stickToBottom || initialRoleCreation) return;
+    const node = scrollRef.current;
+    if (!node) return;
+    const frame = window.requestAnimationFrame(() => {
+      node.scrollTop = node.scrollHeight;
+      syncScrollState();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [
+    composerOverlayHeight,
+    initialRoleCreation,
+    stickToBottom,
+    syncScrollState,
   ]);
 
   const showModelSelector =
@@ -693,188 +241,238 @@ export function OrgAgentPanel() {
   const lastHistoryMessage = history.messages.at(-1);
   const showOptimisticDateDivider = Boolean(
     chat.optimisticUserMessage &&
-    getDateKey(chat.optimisticUserMessage.createdAt) !==
-      getDateKey(lastHistoryMessage?.createdAt ?? "")
+    getChatMessageDateKey(chat.optimisticUserMessage.createdAt) !==
+      getChatMessageDateKey(lastHistoryMessage?.createdAt ?? "")
   );
-
-  const iconBtn =
-    "flex h-7 w-7 items-center justify-center rounded-[10px] text-neutral-primary transition hover:bg-bg-weak";
-
   return (
-    <div className="pointer-events-none fixed bottom-4 left-4 right-4 z-40 flex justify-end sm:bottom-5 sm:left-auto sm:right-5">
-      {open ? (
-        <aside className="pointer-events-auto flex h-[calc(100vh-96px)] max-h-[760px] w-[calc(100vw-32px)] max-w-[520px] overflow-hidden rounded-4xl border border-black/5 bg-bg-default shadow-xl shadow-gray-200">
-          <div className="flex min-w-0 flex-1 flex-col relative">
-            <header className="absolute top-0 left-0 w-full flex items-center justify-between gap-3 px-2.5 pt-2.5 pb-6 bg-linear-to-b from-70% from-bg-floating to-bg-floating/0">
-              <div className="flex items-center gap-2 text-[13px] py-0.5 font-normal text-black truncate pl-1">
-                Harper{" "}
-                <span className="text-primary">@ {workspace.companyName}</span>
-              </div>
-              <div className="flex shrink-0 items-center gap-1">
-                <div className="group relative">
-                  <button
-                    type="button"
-                    aria-describedby="org-agent-info-tooltip"
-                    aria-label="채팅 안내"
-                    className={iconBtn}
-                  >
-                    <Info className="h-4 w-4" strokeWidth={1.8} />
-                  </button>
-                  <div
-                    id="org-agent-info-tooltip"
-                    role="tooltip"
-                    className="pointer-events-none absolute right-0 top-full z-30 mt-2 w-[300px] max-w-[calc(100vw-64px)] translate-y-1 rounded-lg border border-neutral-1000-a10 bg-neutral-1000 px-3.5 py-3 text-[12px] leading-4 text-neutral-00 opacity-0 shadow-xl transition duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
-                  >
-                    <div className="absolute -top-1.5 right-2.5 h-3 w-3 rotate-45 border-l border-t border-neutral-1000-a10 bg-neutral-1000" />
-                    <div className="relative space-y-2">
-                      <p>회사 전체 채용 정보를 읽고 다루는 채팅입니다.</p>
-                      <p>
-                        포지션이나 후보자를 이름으로 말하면 Harper가 대상을
-                        찾습니다. 여러 포지션이 모호하게 겹치면 먼저 확인합니다.
-                      </p>
-                      <p>
-                        @로 특정 후보자를 지정해 해당 후보자 연결의 좋은 점과
-                        아쉬운 점을 설명할 수 있습니다.
-                      </p>
-                      <p>
-                        수락, 거절, 단계 이동은 후보자 프로필에서 직접 처리해야
-                        합니다.
-                      </p>
-                      <p>
-                        회사·포지션 정보와 채용 기준 변경도 요청할 수 있습니다.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  aria-label="채팅 닫기"
-                  className={iconBtn}
-                  onClick={() => setOpen(false)}
-                >
-                  <X className="h-4 w-4" strokeWidth={1.8} />
-                </button>
-              </div>
-            </header>
+    <section
+      className={cn(
+        "relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-bg-default",
+        className
+      )}
+    >
+      {header && header}
 
-            <div
-              ref={scrollRef}
-              className="flex-1 space-y-3 overflow-y-auto bg-bg-default px-4 pb-24 pt-12 text-[14px] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10"
-              onScroll={(event) => {
-                const node = event.currentTarget;
-                if (
-                  node.scrollTop < 80 &&
-                  history.hasOlderMessages &&
-                  !history.loadingOlderMessages
-                ) {
+      <div
+        ref={scrollRef}
+        className={cn(
+          "min-h-0 flex-1 overflow-y-auto overscroll-contain px-0 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10",
+          header ? "pt-12" : "pt-4",
+          initialRoleCreation && "hidden"
+        )}
+        style={
+          initialRoleCreation
+            ? undefined
+            : {
+                paddingBottom:
+                  composerOverlayHeight + ORG_AGENT_TIMELINE_BOTTOM_GAP_PX,
+                scrollPaddingBottom:
+                  composerOverlayHeight + ORG_AGENT_TIMELINE_BOTTOM_GAP_PX,
+              }
+        }
+        onScroll={(event) => {
+          const node = event.currentTarget;
+          syncScrollState();
+          if (
+            node.scrollTop < 80 &&
+            history.hasOlderMessages &&
+            !history.loadingOlderMessages
+          ) {
+            void history.loadOlderMessages();
+          }
+        }}
+      >
+        <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-4 px-5 py-1">
+          {history.hasOlderMessages && (
+            <div className="sticky top-0 z-10 flex justify-center pb-2">
+              <ChatLoadOlderButton
+                label="이전 대화 더 보기"
+                loading={history.loadingOlderMessages}
+                loadingLabel="불러오는 중..."
+                onClick={() => {
                   void history.loadOlderMessages();
-                }
-              }}
-            >
-              {history.hasOlderMessages && (
-                <div className="flex justify-center">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    disabled={history.loadingOlderMessages}
-                    onClick={() => void history.loadOlderMessages()}
-                  >
-                    {history.loadingOlderMessages ? (
-                      <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <ChevronUp className="h-3.5 w-3.5" />
-                    )}
-                    이전 대화
-                  </Button>
-                </div>
-              )}
+                }}
+              />
+            </div>
+          )}
 
-              {history.isLoading ? (
-                <div className="flex items-center justify-center py-12 text-neutral-muted">
-                  <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                  대화 불러오는 중
-                </div>
-              ) : history.messages.length === 0 &&
-                !chat.optimisticUserMessage ? (
-                <div className="flex min-h-[260px] items-center justify-center px-8">
-                  <p className="max-w-[320px] text-center leading-5 text-neutral-muted">
-                    후보자나 포지션을 찾아보거나, 회사·채용 정보를
-                    <br />
-                    확인하고 변경할 내용을 알려주세요.
-                  </p>
-                </div>
-              ) : (
-                history.messages.map((message, index) => {
-                  const dateKey = getDateKey(message.createdAt);
-                  const previousDateKey = getPreviousMessageDateKey(
-                    history.messages,
-                    index
-                  );
-                  return (
-                    <div key={message.id} className="space-y-3">
-                      {dateKey && dateKey !== previousDateKey && (
-                        <DateDivider
-                          label={formatDateLabel(message.createdAt)}
-                        />
-                      )}
-                      <MessageBubble
-                        message={message}
-                        workspaceId={workspaceId}
-                      />
-                    </div>
-                  );
-                })
-              )}
-              {chat.optimisticUserMessage && (
-                <div className="space-y-3">
-                  {showOptimisticDateDivider && (
-                    <DateDivider
-                      label={formatDateLabel(
-                        chat.optimisticUserMessage.createdAt
-                      )}
-                    />
+          {history.isLoading ? (
+            <div className="flex items-center justify-center py-12 text-neutral-muted">
+              <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+              대화 불러오는 중
+            </div>
+          ) : history.messages.length === 0 &&
+            !chat.optimisticUserMessage &&
+            purpose !== "role-creation" ? (
+            <div className="flex min-h-[260px] items-center justify-center px-8">
+              <p className="max-w-[320px] text-center leading-5 text-neutral-muted">
+                후보자나 포지션을 찾아보거나, 회사·채용 정보를
+                <br />
+                확인하고 변경할 내용을 알려주세요.
+              </p>
+            </div>
+          ) : (
+            history.messages.map((message, index) => {
+              const dateKey = getChatMessageDateKey(message.createdAt);
+              const previousDateKey = getPreviousChatMessageDateKey(
+                history.messages,
+                index
+              );
+              const authorMember = message.authorUserId
+                ? bootstrap.members.find(
+                    (member) => member.userId === message.authorUserId
+                  )
+                : null;
+              const authorName =
+                authorMember?.name ||
+                authorMember?.email ||
+                (message.authorUserId === user.id || !message.authorUserId
+                  ? currentUser?.name || currentUser?.email || user.email
+                  : null);
+              return (
+                <div key={message.id} className="space-y-3">
+                  {dateKey && dateKey !== previousDateKey && (
+                    <OrgAgentDateDivider createdAt={message.createdAt} />
                   )}
-                  <MessageBubble
-                    message={chat.optimisticUserMessage}
+                  <OrgAgentMessageBubble
+                    assistantContentOverride={
+                      completionReveal?.messageId === message.id
+                        ? completionRevealChunks
+                            .slice(0, completionReveal.revealedSentenceCount)
+                            .join("")
+                        : undefined
+                    }
+                    authorName={authorName}
+                    choicePending={confirmRoleCreation.isPending}
+                    currentUserId={user.id}
+                    message={message}
+                    onRoleCreationChoice={({
+                      actionId,
+                      decision,
+                      messageId,
+                    }) => {
+                      if (!roleId) return;
+                      confirmRoleCreation.mutate(
+                        {
+                          actionId,
+                          decision,
+                          messageId,
+                          roleId,
+                          workspaceId,
+                        },
+                        {
+                          onSuccess: (result) => {
+                            if (result.completed && result.assistantMessage) {
+                              history.appendMessagesToCache([
+                                result.assistantMessage,
+                              ]);
+                              setStickToBottom(true);
+                              setCompletionReveal({
+                                content: result.assistantMessage.content,
+                                messageId: result.assistantMessage.id,
+                                revealedSentenceCount: 1,
+                              });
+                            }
+                          },
+                        }
+                      );
+                    }}
+                    roleId={roleId}
+                    showUserAttribution={purpose === "role-creation"}
                     workspaceId={workspaceId}
                   />
                 </div>
+              );
+            })
+          )}
+          {chat.optimisticUserMessage && (
+            <div className="space-y-3">
+              {showOptimisticDateDivider && (
+                <OrgAgentDateDivider
+                  createdAt={chat.optimisticUserMessage.createdAt}
+                />
               )}
-              <ThinkingPanel logs={chat.thinkingLogs} />
-              <StreamingBubble text={chat.streamingText} />
-              {chat.error && (
-                <div className="rounded-md bg-critical-faded px-3 py-2 text-[12px] text-critical">
-                  {chat.error}
-                </div>
-              )}
+              <OrgAgentMessageBubble
+                authorName={
+                  currentUser?.name || currentUser?.email || user.email
+                }
+                currentUserId={user.id}
+                message={chat.optimisticUserMessage}
+                roleId={roleId}
+                showUserAttribution={purpose === "role-creation"}
+                workspaceId={workspaceId}
+              />
             </div>
-
-            <Composer
-              disabled={!workspaceId}
-              isStreaming={chat.isStreaming}
-              model={model}
-              onModelChange={handleModelChange}
-              onSend={({ mentions, message }) => {
-                void chat.sendMessage({ mentions, message, model });
-              }}
-              showModelSelector={showModelSelector}
-              workspaceId={workspaceId}
-            />
-          </div>
-        </aside>
-      ) : (
-        <div className="pointer-events-auto flex flex-col items-end gap-3">
-          <button
-            type="button"
-            aria-label="채팅 열기"
-            className="group flex h-15 w-15 items-center justify-center rounded-full bg-primary text-neutral-00 shadow-sm ring-2 ring-neutral-00/10 transition hover:-translate-y-0.5 hover:shadow-lg hover:ring-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
-            onClick={() => setOpen(true)}
-          >
-            <SquarePen className="h-6 w-6" strokeWidth={1.6} />
-          </button>
+          )}
+          <ChatThinkingLogPanel
+            active={chat.isStreaming}
+            logs={chat.thinkingLogs.map((log) => log.label)}
+            typographyClassName="text-[13px] leading-[1.65]"
+          />
+          {chat.assistantStatus === "pending" ? (
+            <OrgAgentPendingBubble />
+          ) : null}
+          <OrgAgentStreamingBubble
+            text={chat.streamingText}
+            workspaceId={workspaceId}
+          />
+          {(chat.error || confirmRoleCreation.error) && (
+            <div className="rounded-md bg-critical-faded px-3 py-2 text-[12px] text-critical">
+              {chat.error || confirmRoleCreation.error?.message}
+            </div>
+          )}
         </div>
-      )}
-    </div>
+      </div>
+
+      <div
+        ref={composerOverlayRef}
+        className={cn(
+          "pointer-events-none absolute z-20",
+          initialRoleCreation
+            ? "inset-0 flex items-center justify-center px-4"
+            : "inset-x-0 bottom-0 bg-linear-to-t from-bg-basement via-bg-basement/10 to-transparent"
+        )}
+      >
+        <div
+          className={cn(
+            "pointer-events-auto w-full",
+            initialRoleCreation && "-translate-y-[7svh]"
+          )}
+        >
+          {initialRoleCreation ? (
+            <p className="mx-auto mb-5 max-w-[760px] px-5 text-center text-xl font-normal leading-7 text-neutral-primary">
+              안녕하세요. 새롭게 채용을 원하는 역할에 대해 알려주세요.
+              <br />
+              JD 링크 혹은 파일을 주시거나, 쭉 설명해주셔도 좋습니다.
+            </p>
+          ) : null}
+          <OrgAgentComposer
+            allowAttachments={purpose === "role-creation"}
+            autoFocus={autoFocus}
+            compactWidth={initialRoleCreation}
+            disabled={!workspaceId}
+            isStreaming={chat.isStreaming}
+            model={model}
+            onModelChange={handleModelChange}
+            onSend={({ attachments, mentions, message }) => {
+              setStickToBottom(true);
+              return chat.sendMessage({
+                attachments,
+                draftRoleId:
+                  initialRoleCreation && typeof crypto !== "undefined"
+                    ? crypto.randomUUID()
+                    : null,
+                mentions,
+                message,
+                model,
+              });
+            }}
+            roleId={roleId}
+            showModelSelector={showModelSelector}
+            workspaceId={workspaceId}
+          />
+        </div>
+      </div>
+    </section>
   );
 }

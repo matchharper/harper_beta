@@ -16,7 +16,10 @@ export function OrgUnsavedChangesBar({
 }) {
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
-      <div className="pointer-events-auto flex w-full max-w-[480px] flex-col gap-3 rounded-lg border border-neutral-1000-a05 bg-bg-floating/70 backdrop-blur-md p-2 shadow-[0_18px_60px_color-mix(in_srgb,var(--color-neutral-1000)_18%,transparent)] sm:flex-row sm:items-center sm:justify-between">
+      <div
+        className="pointer-events-auto flex w-full max-w-[480px] flex-col gap-3 rounded-lg border border-neutral-1000-a05 bg-bg-floating/70 backdrop-blur-md p-2 shadow-[0_18px_60px_color-mix(in_srgb,var(--color-neutral-1000)_18%,transparent)] sm:flex-row sm:items-center sm:justify-between"
+        data-org-unsaved-changes-bar=""
+      >
         <div className="flex min-w-0 items-start gap-2">
           <span className="mt-1 text-critical">
             <TriangleAlert className="size-4" />

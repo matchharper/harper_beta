@@ -12,7 +12,7 @@ import { getErrorMessage, sleep, toUiMessage } from "./careerHelpers";
 import { showOpportunityDiscoveryStartedToast } from "./opportunityDiscoveryToast";
 import type { FetchWithAuth } from "./useCareerApi";
 import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
-import { buildCareerTypewriterChunks } from "@/lib/career/typewriter";
+import { buildChatTypewriterChunks } from "@/lib/chat/typewriter";
 import { createRecommendJobPostingStatusLog } from "@/lib/talentOnboarding/recommendJobPostingStatus";
 import type { TalentUserChatMessageType } from "@/lib/talentOnboarding/onboarding";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
@@ -274,7 +274,7 @@ export const useCareerChat = ({
       ]);
 
       const fullText = message.content;
-      const chunks = buildCareerTypewriterChunks(fullText);
+      const chunks = buildChatTypewriterChunks(fullText);
       const delay = Math.max(
         45,
         Math.min(130, Math.floor(2200 / Math.max(chunks.length, 12)))

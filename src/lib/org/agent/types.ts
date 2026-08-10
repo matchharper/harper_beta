@@ -1,4 +1,20 @@
 import type { OrgAgentModelId } from "@/lib/org/agent/modelConfig";
+import type { ChatAttachmentPayload } from "@/types/chat";
+
+export type OrgAgentMode = "general" | "role_creation";
+
+export type OrgAgentMessageAttachment = Pick<
+  ChatAttachmentPayload,
+  "kind" | "mime" | "name" | "size" | "truncated" | "url"
+>;
+
+export type OrgRoleCreationChoice = {
+  actionId: string;
+  kind: "role_creation_confirmation";
+  label: string;
+  status: "declined" | "pending" | "confirmed";
+  value: "no" | "yes";
+};
 
 export type OrgAgentCandidateDecision = "accept" | "decline";
 
@@ -87,6 +103,7 @@ export type OrgAgentMessageAction =
 
 export type OrgAgentMessageMetadata = {
   actions?: OrgAgentMessageAction[];
+  attachments?: OrgAgentMessageAttachment[];
   autoIntroToCompany?: {
     candidateIds: string[];
     candidateKeys: string[];
@@ -123,6 +140,19 @@ export type OrgAgentMessageMetadata = {
   slackChoiceSourceJobId?: string;
   slackReplyJobId?: string;
   source?: string | null;
+  roleCreation?: {
+    choices?: OrgRoleCreationChoice[];
+    confirmationPrompt?: string;
+    roleId: string;
+  };
+  roleCreationConfirmation?: {
+    actionId: string;
+    decision: "no" | "yes";
+    kind: "assistant" | "user";
+    sourceMessageId: number;
+  };
+  /** Server-only extracted context retained for later turns; UI uses attachments. */
+  roleCreationAttachments?: ChatAttachmentPayload[];
   slackUserName?: string | null;
   toolResults?: Array<{
     callId: string;
@@ -137,6 +167,7 @@ export type OrgAgentMessageMetadata = {
 };
 
 export type OrgAgentMessage = {
+  authorUserId: string | null;
   content: string;
   createdAt: string;
   id: number;
@@ -170,9 +201,13 @@ export type OrgAgentMessagesResponse = {
 export type OrgAgentMentionCandidate = {
   headline: string | null;
   label: string;
+  profilePicture: string | null;
+  recommendedAt: string;
   recommendationId: string;
   roleId: string;
+  roleName: string;
   stage: string;
+  stageLabel: string;
   subtitle: string;
   talentId: string;
 };
@@ -183,10 +218,21 @@ export type OrgAgentMentionsResponse = {
 };
 
 export type OrgAgentChatBody = {
+  attachments?: ChatAttachmentPayload[];
+  draftRoleId?: string;
   mentions?: OrgAgentMention[];
   message?: string;
+  mode?: OrgAgentMode;
   model?: OrgAgentModelId | string | null;
-  /** @deprecated The organization agent is no longer bound to one role. */
+  /** Required only for the isolated role_creation conversation. */
+  roleId?: string;
+  workspaceId?: string;
+};
+
+export type OrgRoleCreationConfirmationBody = {
+  actionId?: string;
+  decision?: "no" | "yes";
+  messageId?: number;
   roleId?: string;
   workspaceId?: string;
 };

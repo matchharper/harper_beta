@@ -600,29 +600,39 @@ export async function searchOrgAgentMentionCandidates(args: {
 
   const result = await getOrgAgentTalents({
     admin,
-    limit: 12,
+    includeProfilePicture: true,
+    limit: 200,
+    limitCap: 200,
     query: args.query,
     roleId: args.roleId,
     user: args.user,
     workspaceId,
   });
-  return result.items.map((item) => ({
-    headline: item.candidate.headline,
-    label: item.candidate.name,
-    recommendationId: item.recommendationId,
-    roleId: item.role.roleId,
-    stage: item.stage,
-    subtitle:
-      [
-        item.role.name,
-        humanizeOrgStage(item.stage, item.stageLabel),
-        item.candidate.headline,
-        item.candidate.email,
-      ]
-        .filter(Boolean)
-        .join(" · ") || item.candidate.talentId,
-    talentId: item.candidate.talentId,
-  }));
+  return result.items.flatMap((item): OrgAgentMentionCandidate[] => {
+    return [
+      {
+        headline: item.candidate.headline,
+        label: item.candidate.name,
+        profilePicture: item.candidate.profilePicture ?? null,
+        recommendedAt: item.recommendedAt,
+        recommendationId: item.recommendationId,
+        roleId: item.role.roleId,
+        roleName: text(item.role.name) || "이름 없는 역할",
+        stage: item.stage,
+        stageLabel: humanizeOrgStage(item.stage, item.stageLabel),
+        subtitle:
+          [
+            item.role.name,
+            humanizeOrgStage(item.stage, item.stageLabel),
+            item.candidate.headline,
+            item.candidate.email,
+          ]
+            .filter(Boolean)
+            .join(" · ") || item.candidate.talentId,
+        talentId: item.candidate.talentId,
+      },
+    ];
+  });
 }
 
 /**

@@ -1,4 +1,9 @@
-import { runWebSearch } from "@/lib/tools/webSearch";
+import {
+  OPEN_URL_TOOL_DEFINITION,
+  WEB_SEARCH_TOOL_DEFINITION,
+  executeSharedOpenUrl,
+  executeSharedWebSearch,
+} from "@/lib/agentTools/web";
 import {
   fetchTalentOpportunityHistory,
   fetchTalentOpportunityHistoryByIds,
@@ -16,7 +21,6 @@ import {
 import { runCareerJobPostingRecommendations } from "./jobPostingRecommendations";
 import { lookupAnswerExamples } from "@/lib/serviceAnswerExamples";
 import { normalizeGeneratedTalentInsightEntry } from "./insights";
-import { openUrlWithDocumentsCache } from "./openUrlTool";
 import {
   fetchTalentUserProfile,
   mutateEducationMemo,
@@ -1167,97 +1171,30 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   },
   [TALENT_TOOL_NAMES.WEB_SEARCH]: {
     name: TALENT_TOOL_NAMES.WEB_SEARCH,
-    description:
-      "Search the web for current factual information. Use only when the answer depends on recent or external web information.",
-    parameters: {
-      type: "object",
-      properties: {
-        query: {
-          type: "string",
-          description: "The exact search query to run on the web.",
-        },
-        maxResults: {
-          type: "integer",
-          description: "Maximum number of results to inspect.",
-          minimum: 1,
-          maximum: 5,
-          default: 5,
-        },
-      },
-      required: ["query"],
-      additionalProperties: false,
-    },
+    description: WEB_SEARCH_TOOL_DEFINITION.function.description,
+    parameters: WEB_SEARCH_TOOL_DEFINITION.function.parameters,
     channels: ["chat", "voice"],
     voicePreamble: "잠시만요. 한번 찾아볼게요.",
     async execute(input) {
-      const query = String(input.query ?? "").trim();
-      const maxResults =
-        typeof input.maxResults === "number"
-          ? input.maxResults
-          : Number.parseInt(String(input.maxResults ?? ""), 10);
-
-      if (!query) {
-        throw new TalentToolError("web_search requires a non-empty query.");
-      }
-
-      const searchResponse = await runWebSearch({
-        query,
-        maxResults: Number.isFinite(maxResults) ? maxResults : 5,
+      return executeSharedWebSearch(input, {
+        inputError: (message) => new TalentToolError(message),
       });
-
-      return {
-        query: searchResponse.query,
-        resultCount: searchResponse.results.length,
-        results: searchResponse.results.map((result, index) => ({
-          rank: index + 1,
-          title: result.title,
-          url: result.url,
-          snippet:
-            result.snippet.length > 280
-              ? `${result.snippet.slice(0, 280)}...`
-              : result.snippet,
-        })),
-      };
     },
   },
   [TALENT_TOOL_NAMES.OPEN_URL]: {
     name: TALENT_TOOL_NAMES.OPEN_URL,
-    description:
-      "Open a specific website URL and return page markdown. Use when the user provides a URL or asks to read, inspect, summarize, or reason about a specific webpage.",
-    parameters: {
-      type: "object",
-      properties: {
-        url: {
-          type: "string",
-          description: "The exact http(s) URL to open.",
-        },
-        maxMarkdownChars: {
-          type: "integer",
-          description:
-            "Optional maximum markdown characters returned to the model.",
-          minimum: 1000,
-          maximum: 40000,
-          default: 20000,
-        },
-      },
-      required: ["url"],
-      additionalProperties: false,
-    },
+    description: OPEN_URL_TOOL_DEFINITION.function.description,
+    parameters: OPEN_URL_TOOL_DEFINITION.function.parameters,
     channels: ["chat"],
     async execute(input, context) {
       const admin = context?.admin;
-      const url = optionalToolString(input.url);
       if (!admin) {
         throw new TalentToolError("open_url requires service context.");
       }
-      if (!url) {
-        throw new TalentToolError("open_url requires a non-empty URL.");
-      }
-
-      return openUrlWithDocumentsCache({
-        admin: admin as any,
-        maxMarkdownChars: input.maxMarkdownChars,
-        url,
+      return executeSharedOpenUrl({
+        admin: admin as TalentAdminClient,
+        input,
+        inputError: (message) => new TalentToolError(message),
       });
     },
   },

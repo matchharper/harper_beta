@@ -2104,20 +2104,6 @@ Meeting CTA는 assistant bubble 아래에 action button으로 보인다.
 
 변경 후 구조는 다음과 같다.
 
-```tsx
-<div className="mx-auto max-w-[1440px] space-y-3 px-3 py-3 sm:px-5">
-  <OrgRoleTabs ... />
-  {isAllTab ? (
-    <OrgAllRolesOverview ... />
-  ) : (
-    <div className="grid min-h-[calc(100vh-160px)] grid-cols-[minmax(0,1fr)_380px] gap-3">
-      <OrgPipeline ... />
-      <OrgAgentPanel ... />
-    </div>
-  )}
-</div>
-```
-
 Breakpoint는 실제 화면에서 조정한다.
 
 작은 화면에서는 `grid-cols-1`로 만들고 Agent panel을 접는다.

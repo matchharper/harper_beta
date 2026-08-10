@@ -113,6 +113,8 @@ UI에 현재 보이는 탭과 prompt에 필요한 데이터의 로딩 시점은 
 
 - `chat/CareerMessageBubble.tsx`
   - 메시지 bubble presentation.
+  - `components/chat`의 공통 bubble, 선택지, 날짜, Thinking log primitive에
+    career 전용 rich text와 marker parsing을 주입합니다.
 
 ### Supporting UI
 

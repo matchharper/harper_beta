@@ -2,6 +2,7 @@ import {
   createChatCompletionWithFallback,
   supportsResponseFormatForModel,
 } from "@/lib/llm/llm";
+import type { OpenAIResponsesReasoningEffort } from "@/lib/llm/responsesChatAdapter";
 import {
   logLlmTokenUsage,
   logLlmTokenUsageForToolCalls,
@@ -152,6 +153,7 @@ export async function runTalentAssistantCompletion(args: {
   fallbackModel?: string;
   primaryModel?: string;
   messages: TalentChatMessage[];
+  openAIResponsesReasoningEffort?: OpenAIResponsesReasoningEffort;
   temperature?: number;
   jsonMode?: boolean;
   usageLabel?: string;
@@ -160,6 +162,7 @@ export async function runTalentAssistantCompletion(args: {
     anthropicOverloadFallbackModel = DEFAULT_TALENT_ANTHROPIC_OVERLOAD_FALLBACK_MODEL,
     fallbackModel = DEFAULT_TALENT_FALLBACK_MODEL,
     messages,
+    openAIResponsesReasoningEffort,
     primaryModel = DEFAULT_TALENT_PRIMARY_MODEL,
     temperature = 0.35,
     jsonMode = false,
@@ -170,6 +173,13 @@ export async function runTalentAssistantCompletion(args: {
     fallbackModel,
     model: primaryModel,
     debugLabel: usageLabel,
+    ...(openAIResponsesReasoningEffort
+      ? {
+          openAIResponses: {
+            reasoningEffort: openAIResponsesReasoningEffort,
+          },
+        }
+      : {}),
     buildRequest: (model) => {
       const responseFormat =
         jsonMode && supportsResponseFormatForModel(model)

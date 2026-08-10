@@ -1,7 +1,7 @@
 # Harper Daily Conversation QA Rubric
 
-- Version: 1.5
-- Last updated: 2026-08-07
+- Version: 1.9
+- Last updated: 2026-08-10
 - Applies to: `Harper Daily Conversation QA`
 - Default audit window: the previous complete KST calendar day
 
@@ -17,8 +17,52 @@ The audit has two distinct goals:
 2. Evaluate external and internal recommendation quality separately and derive
    evidence-backed improvements.
 
-The audit is read-only. It must not modify production data, repository files,
-or external messages. It must never send a Slack message.
+The audit is read-only. It must not modify production data or repository files.
+After the final report is fixed, it must create exactly one Notion page in the
+`Debugging Logs` database (`collection://3b87277d-26df-80d5-b777-000b8d7b67bb`)
+with the title determined in Section 3.1 and the complete five-section report
+as its body. It must fetch the database schema before each creation and use
+only its `Name` property; never overwrite or update an earlier daily page.
+
+The top of every Notion page must be a small, problem-level checklist before
+the five report sections:
+
+1. Read the five most recent Daily QA pages before creating today's page. Use
+   their title dates and checkbox state, not only their creation timestamp.
+2. Add `## 문제 체크리스트` first. It contains `### 최근 5일 미체크 중요 이슈`
+   followed by at most two unresolved carryovers, then `### 오늘 새 이슈` for
+   today's newly observed actionable issues.
+3. Each checkbox represents one normalized root-cause/problem signature, never
+   an individual run, delivery, user, or recommendation. Include a short
+   stable `추적 키` so later runs can recognize the same problem.
+4. Keep the combined checklist to 3–8 items. Include only actionable findings
+   or important evidence-backed follow-ups; do not turn a high-volume cohort
+   into dozens of boxes.
+5. A carryover is eligible only when its matching key remains unchecked in the
+   recent pages. Once a reviewer has checked that key, do not repeat it merely
+   because an older page still contains an unchecked copy. Carry forward only
+   `P0`/`P1`, `S0`/`S1`, or a repeated material `S2` issue, and state the
+   current confidence rather than converting uncertainty into a fact.
+
+After the Notion page is created, it must send exactly one compact summary DM
+to the configured Harper Daily QA Slack destination through
+`harper_worker/scripts/send_daily_conversation_qa_slack.py`. These are the
+only permitted external writes: no channel post, reply, follow-up message, or
+raw data export is allowed.
+
+The Slack DM is a concise alert, not a second report:
+
+- order findings by `S0` → `S3`, then `P0` → `P3`;
+- include at most three findings, each as `P# · S# | confidence` plus one short
+  sentence; prefer actionable `S0`/`S1`/`S2` findings;
+- include one next action and a pointer to the task's final report;
+- include the newly created Notion page link when it is available;
+- start with up to two eligible recent-five-day unchecked checklist items, then
+  include today's findings; keep all listed items combined to three;
+- when there are no actionable findings, send only the date and that result;
+- when the audit fails, send the missing source and next diagnostic action;
+- never include PII, raw message/email content, tokens, payloads, or IDs longer
+  than the report's allowed eight-character prefixes.
 
 ## 2. Non-negotiable judgment rules
 
@@ -112,17 +156,26 @@ intentional, or telemetry-only signal from being presented as a current defect.
 
 ### 3.1 Target window
 
-- Count incidents and messages created during the previous complete KST day,
-  `00:00:00` through `23:59:59`.
+- On Tuesday through Sunday KST, count incidents and messages created during the
+  previous complete KST day, `00:00:00` through `23:59:59`.
+- On Monday KST, run one combined weekend audit over the three immediately
+  preceding complete KST dates: Friday `00:00:00` through Sunday `23:59:59`.
+  This is one report and one Notion page, not three delayed daily reports.
+- Label a one-day report `Harper Daily QA · YYYY-MM-DD`; label the Monday
+  combined report `Harper Daily QA · YYYY-MM-DD~YYYY-MM-DD` using its Friday
+  start and Sunday end dates. Use the same label in the Notion page and Slack
+  DM.
 - To determine whether a target-day failure later recovered, read subsequent
   events through the audit execution time. Do not count those later events as
-  target-day incidents.
+  incidents in the audited date or combined window.
 - For onboarding-to-recommendation SLA checks, include cohorts whose SLA
   deadline expired during the target day.
-- In addition to the target-day audit, compute a rolling comparison over the
-  preceding seven complete KST days when the data source permits it. Use this
-  comparison only to identify recurrence, concentration, and direction of
-  change; do not add older incidents to the target-day incident count.
+- In addition to the audit window, compute a rolling comparison over the seven
+  complete KST days immediately preceding that window when the data source
+  permits it. Use this comparison only to identify recurrence, concentration,
+  and direction of change; do not add older incidents to the current incident
+  count. The Monday comparison therefore ends on the Thursday before the
+  Friday–Sunday window.
 - Normalize comparable issues by root-cause signature and product stage so the
   report can distinguish a recurring problem from a one-day anomaly. At
   minimum, compare failed/recovered run classes, conversation complaint

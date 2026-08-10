@@ -42,6 +42,7 @@ const BOT_SCOPES = [
   "groups:history",
   "groups:read",
   "users:read",
+  "users:read.email",
 ].join(",");
 
 type OAuthState = {
@@ -69,17 +70,30 @@ type SlackApiResult = {
     ts?: string;
     user?: string;
   }>;
-  response_metadata?: { next_cursor?: string };
+  response_metadata?: { messages?: string[]; next_cursor?: string };
   ts?: string;
   user?: {
     id?: string;
     name?: string;
     profile?: {
       display_name?: string;
+      email?: string;
       real_name?: string;
     };
     real_name?: string;
   };
+  view?: {
+    hash?: string;
+    id?: string;
+  };
+};
+
+export type HarperSlackInteractionContext = {
+  channelId: string | null;
+  scopes: string[];
+  slackTeamId: string;
+  token: string;
+  workspaceId: string;
 };
 
 export type HarperSlackChannel = {
@@ -127,6 +141,11 @@ function appId() {
   if (!value)
     throw new HarperSlackError(503, "Harper Slack App ID가 없습니다.");
   return value;
+}
+
+function localDevelopmentValue(name: string) {
+  if (process.env.NODE_ENV === "production") return "";
+  return text(process.env[name]);
 }
 
 function signingSecret() {
@@ -272,11 +291,16 @@ export async function slackApi<T extends SlackApiResult>(
     createSlackApiRequest(token, body)
   );
   const payload = (await response.json().catch(() => null)) as T | null;
-  if (!response.ok || !payload?.ok)
+  if (!response.ok || !payload?.ok) {
+    const validationDetails = payload?.response_metadata?.messages
+      ?.map((message) => text(message))
+      .filter(Boolean)
+      .join("; ");
     throw new HarperSlackError(
       502,
-      `Slack API ${method} 실패: ${payload?.error || response.status}`
+      `Slack API ${method} 실패: ${payload?.error || response.status}${validationDetails ? ` (${validationDetails})` : ""}`
     );
+  }
   return payload;
 }
 
@@ -291,6 +315,109 @@ async function installation(workspaceId: string) {
     .maybeSingle();
   if (error) throw error;
   return data as Record<string, any> | null;
+}
+
+export async function resolveHarperSlackInteractionContext(args: {
+  channelId?: string | null;
+  slackTeamId: string;
+  workspaceId?: string | null;
+}): Promise<HarperSlackInteractionContext> {
+  const admin = getSupabaseAdmin();
+  const slackTeamId = text(args.slackTeamId);
+  const requestedWorkspaceId = text(args.workspaceId);
+  const channelId = text(args.channelId);
+  if (!slackTeamId || (!requestedWorkspaceId && !channelId)) {
+    throw new HarperSlackError(400, "Slack workspace 정보를 찾지 못했습니다.");
+  }
+
+  let workspaceId = requestedWorkspaceId;
+  if (channelId) {
+    const { data: channel, error: channelError } = await (
+      admin.from("company_slack_channels" as any) as any
+    )
+      .select("company_workspace_id")
+      .eq("slack_team_id", slackTeamId)
+      .eq("slack_channel_id", channelId)
+      .eq("is_enabled", true)
+      .maybeSingle();
+    if (channelError) throw channelError;
+    if (!channel) {
+      throw new HarperSlackError(404, "활성 Slack 채널을 찾지 못했습니다.");
+    }
+    workspaceId = text(channel.company_workspace_id);
+    if (requestedWorkspaceId && requestedWorkspaceId !== workspaceId) {
+      throw new HarperSlackError(403, "Slack workspace가 일치하지 않습니다.");
+    }
+  }
+
+  const { data: row, error } = await (
+    admin.from("company_slack_integrations" as any) as any
+  )
+    .select("company_workspace_id, bot_token_ciphertext, scopes, slack_team_id")
+    .eq("company_workspace_id", workspaceId)
+    .eq("slack_team_id", slackTeamId)
+    .eq("status", "active")
+    .maybeSingle();
+  if (error) throw error;
+  if (!row?.bot_token_ciphertext) {
+    throw new HarperSlackError(404, "연결된 Slack을 찾지 못했습니다.");
+  }
+  return {
+    channelId: channelId || null,
+    scopes: Array.isArray(row.scopes)
+      ? row.scopes.map(text).filter(Boolean)
+      : [],
+    slackTeamId,
+    token:
+      localDevelopmentValue("SLACK_HARPER_LOCAL_BOT_TOKEN") ||
+      decryptHarperSlackToken(row.bot_token_ciphertext),
+    workspaceId,
+  };
+}
+
+export async function getHarperSlackUserEmail(args: {
+  token: string;
+  userId: string;
+}) {
+  const response = await slackApi<SlackApiResult>(args.token, "users.info", {
+    user: text(args.userId),
+  });
+  return text(response.user?.profile?.email).toLowerCase() || null;
+}
+
+export async function openHarperSlackModal(args: {
+  token: string;
+  triggerId: string;
+  view: Record<string, unknown>;
+}) {
+  return slackApi<SlackApiResult>(args.token, "views.open", {
+    trigger_id: args.triggerId,
+    view: JSON.stringify(args.view),
+  });
+}
+
+export async function pushHarperSlackModal(args: {
+  token: string;
+  triggerId: string;
+  view: Record<string, unknown>;
+}) {
+  return slackApi<SlackApiResult>(args.token, "views.push", {
+    trigger_id: args.triggerId,
+    view: JSON.stringify(args.view),
+  });
+}
+
+export async function updateHarperSlackModal(args: {
+  hash?: string | null;
+  token: string;
+  view: Record<string, unknown>;
+  viewId: string;
+}) {
+  return slackApi<SlackApiResult>(args.token, "views.update", {
+    ...(text(args.hash) ? { hash: text(args.hash) } : {}),
+    view: JSON.stringify(args.view),
+    view_id: args.viewId,
+  });
 }
 
 export async function createHarperSlackAuthorizeUrl(args: {
@@ -1073,7 +1200,11 @@ export function verifyHarperSlackSignature(
 }
 
 export function isHarperSlackAppId(value: unknown) {
-  return text(value) === appId();
+  const candidate = text(value);
+  return (
+    candidate === appId() ||
+    candidate === localDevelopmentValue("SLACK_HARPER_LOCAL_APP_ID")
+  );
 }
 
 export function buildHarperSlackCallbackPath(args: {

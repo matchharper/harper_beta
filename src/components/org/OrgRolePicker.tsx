@@ -1,11 +1,14 @@
 import { AlignJustify, ChevronDown } from "lucide-react";
+import { useRouter } from "next/router";
 import {
   type PointerEvent as ReactPointerEvent,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import { MuteButton } from "@/components/ui/button";
+import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,23 +20,43 @@ import {
 import { useOrgJobsNavigation } from "@/hooks/org/useOrgJobs";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { normalizeOrgRoleStatus } from "@/lib/org/roleStatus";
+import { buildOrgHref } from "@/lib/org/routes";
 import { cn } from "@/lib/utils";
 
-function getRoleDotClassName(status: string | null) {
-  const normalized = normalizeOrgRoleStatus(status);
-  if (normalized === "ended") return "bg-critical";
-  if (normalized === "paused") return "bg-info";
-  if (normalized === "top_priority") return "bg-primary";
-  return "bg-positive";
+function getRoleStatusOrder(status: string | null) {
+  const rawStatus = String(status ?? "")
+    .trim()
+    .toLowerCase();
+  if (rawStatus === "stopped") return 2;
+
+  const normalized = normalizeOrgRoleStatus(rawStatus);
+  if (normalized === "active" || normalized === "top_priority") return 0;
+  if (normalized === "paused") return 1;
+  if (normalized === "ended") return 2;
+  return 3;
 }
 
 export function OrgRolePicker() {
+  const router = useRouter();
   const { activeRole, activeRoleId, changeRole } = useOrgJobsNavigation();
-  const { roles } = useOrgWorkspace();
+  const { roles, workspace } = useOrgWorkspace();
   const [open, setOpen] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
+  const orderedRoles = useMemo(
+    () =>
+      roles
+        .map((role, originalIndex) => ({ originalIndex, role }))
+        .sort(
+          (left, right) =>
+            getRoleStatusOrder(left.role.status) -
+              getRoleStatusOrder(right.role.status) ||
+            left.originalIndex - right.originalIndex
+        )
+        .map(({ role }) => role),
+    [roles]
+  );
 
   const cancelClose = () => {
     if (!closeTimerRef.current) return;
@@ -68,6 +91,17 @@ export function OrgRolePicker() {
 
   const selectRole = (roleId: string) => {
     setOpen(false);
+    const role = roles.find((item) => item.roleId === roleId);
+    if (role && normalizeOrgRoleStatus(role.status) === "draft") {
+      void router.push(
+        buildOrgHref({
+          orgId: workspace.workspaceId,
+          page: "new-role",
+          roleId,
+        })
+      );
+      return;
+    }
     if (roleId !== activeRoleId) changeRole(roleId);
   };
 
@@ -117,18 +151,13 @@ export function OrgRolePicker() {
         <DropdownMenuLabel className="text-[11px] font-normal uppercase tracking-[0.08em] text-neutral-soft">
           Roles
         </DropdownMenuLabel>
-        {roles.map((role) => (
+        {orderedRoles.map((role) => (
           <DropdownMenuItem
             key={role.roleId}
             onSelect={() => selectRole(role.roleId)}
             selected={activeRoleId === role.roleId}
           >
-            <span
-              className={cn(
-                "size-1.5 shrink-0 rounded-full",
-                getRoleDotClassName(role.status)
-              )}
-            />
+            <OrgRoleStatusDot status={role.status} />
             <span className="min-w-0 flex-1 truncate">{role.name}</span>
           </DropdownMenuItem>
         ))}

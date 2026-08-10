@@ -9,7 +9,10 @@ import {
   logLlmTokenUsage,
   logLlmTokenUsageForToolCalls,
 } from "@/lib/llm/usageLogging";
-import { CLAUDE_MODEL } from "@/lib/llm/modelConfig";
+import {
+  CLAUDE_MODEL,
+  GPT_56_LUNA_MODEL,
+} from "@/lib/llm/modelConfig";
 import {
   runTalentAssistantCompletion,
   runTalentAssistantToolLoop,
@@ -84,11 +87,13 @@ export const CAREER_LLM_CONFIG = {
   recommendJobPostings: {
     anthropicOverloadFallbackModel: "grok-4.3",
     fallbackModel: "grok-4-fast-reasoning",
-    finalSelectionModel: "grok-4.3",
+    finalSelectionModel: GPT_56_LUNA_MODEL,
+    finalSelectionReasoningEffort: "high" as const,
     finalSelectionTemperature: 0.2,
     planModel: CLAUDE_MODEL,
     planTemperature: 0.2,
-    shortlistModel: "grok-4.3",
+    shortlistModel: GPT_56_LUNA_MODEL,
+    shortlistReasoningEffort: "high" as const,
     shortlistTemperature: 0.1,
   },
   // LinkedIn/이력서/입력 링크에서 가져온 profile raw data를 정규화/보강할 때.

@@ -848,6 +848,9 @@ export function serializeOrgAgentToolResult(
   value: unknown
 ) {
   const result = asRecord(value);
+  if (name === "web_search" || name === "open_url") {
+    return `status=success\n${JSON.stringify(result, null, 2).slice(0, 40_000)}`;
+  }
   if (name === "get_talents") return formatTalentSearchResult(result);
   if (name === "read_talent") return formatTalentResult(result);
   if (name === "read_role") return formatRoleResult(result);

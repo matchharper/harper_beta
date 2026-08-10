@@ -171,14 +171,27 @@ test("organization-agent system prompt keeps runtime data out", () => {
 test("organization-agent Slack prompt enables sparse private choice markers", () => {
   const prompt = buildOrgAgentSystemPrompt({
     enableSlackChoiceButtons: true,
+    surface: "slack",
   });
   const regularPrompt = buildOrgAgentSystemPrompt();
 
+  assert.match(prompt, /Slack mrkdwn/);
+  assert.match(prompt, /굵게: \*텍스트\*/);
+  assert.doesNotMatch(prompt, /표준 Markdown\/GFM/);
   assert.match(prompt, /\[짧은 버튼 라벨\]\(button:/);
   assert.match(prompt, /한 답변에 버튼은 최대 2개/);
   assert.match(prompt, /단일 제안의 확인 질문이면 긍정과 부정/);
   assert.match(prompt, /버튼을 쓸지 애매하면 일반 텍스트/);
   assert.doesNotMatch(regularPrompt, /\(button:/);
+});
+
+test("organization-agent web prompt requests standard Markdown", () => {
+  const prompt = buildOrgAgentSystemPrompt({ surface: "chat" });
+
+  assert.match(prompt, /표준 Markdown\/GFM/);
+  assert.match(prompt, /굵게: \*\*텍스트\*\*/);
+  assert.match(prompt, /\[링크 이름\]\(https:\/\/example\.com\)/);
+  assert.doesNotMatch(prompt, /Slack 메시지로 표시될 답변/);
 });
 
 test("organization-agent user prompt keeps recent conversation next to the latest query", () => {

@@ -13,6 +13,7 @@ import {
   getInternalAccessToken,
   refreshInternalAccessToken,
 } from "@/lib/internalApiClient";
+import { filterOrgAgentMentionCandidates } from "@/lib/org/agent/mentionCandidates";
 import type { OrgAgentModelId } from "@/lib/org/agent/modelConfig";
 import type {
   OrgAgentMeetingRequestResponse,
@@ -23,7 +24,12 @@ import type {
   OrgAgentMessagesResponse,
   OrgAgentThinkingLog,
 } from "@/lib/org/agent/types";
+import type { ChatAttachmentPayload } from "@/types/chat";
 import { queryKeys } from "@/lib/queryKeys";
+import {
+  splitChatTextDeltaForReveal,
+  waitForChatTextReveal,
+} from "@/lib/chat/progressiveText";
 
 type OrgAgentMessagesPage = OrgAgentMessagesResponse;
 
@@ -93,24 +99,33 @@ function sanitizeVisibleAgentError(value: unknown) {
 
 export function orgAgentMessageHistoryQueryOptions(args: {
   enabled?: boolean;
+  mode?: "general" | "role_creation";
+  roleId?: string | null;
   workspaceId?: string | null;
 }) {
   const workspaceId = args.workspaceId?.trim() ?? "";
+  const roleId = args.roleId?.trim() ?? "";
+  const mode = args.mode ?? "general";
   return infiniteQueryOptions({
-    queryKey: queryKeys.org.agentMessages({ workspaceId }),
+    queryKey: queryKeys.org.agentMessages({ mode, roleId, workspaceId }),
     initialPageParam: null as number | null,
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams({
         limit: "30",
+        mode,
         workspaceId,
       });
+      if (roleId) params.set("roleId", roleId);
       if (pageParam) params.set("beforeMessageId", String(pageParam));
       return fetchWithInternalAuth<OrgAgentMessagesPage>(
         `/api/org/agent/messages?${params.toString()}`
       );
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
-    enabled: (args.enabled ?? true) && Boolean(workspaceId),
+    enabled:
+      (args.enabled ?? true) &&
+      Boolean(workspaceId) &&
+      (mode === "general" || Boolean(roleId)),
     refetchOnWindowFocus: false,
     staleTime: 20_000,
   });
@@ -118,6 +133,8 @@ export function orgAgentMessageHistoryQueryOptions(args: {
 
 export function useOrgAgentMessageHistory(args: {
   enabled?: boolean;
+  mode?: "general" | "role_creation";
+  roleId?: string | null;
   workspaceId?: string | null;
 }) {
   const queryClient = useQueryClient();
@@ -176,42 +193,58 @@ export function useOrgAgentMessageHistory(args: {
 
 export function orgAgentMentionCandidatesQueryOptions(args: {
   enabled?: boolean;
-  query?: string | null;
   workspaceId?: string | null;
 }) {
   const workspaceId = args.workspaceId?.trim() ?? "";
-  const query = args.query?.trim() ?? "";
   return queryOptions({
-    queryKey: queryKeys.org.agentMentions({ query, workspaceId }),
+    queryKey: queryKeys.org.agentMentions({ workspaceId }),
     queryFn: async () => {
       const params = new URLSearchParams({ workspaceId });
-      if (query) params.set("query", query);
       const payload = await fetchWithInternalAuth<OrgAgentMentionsResponse>(
         `/api/org/agent/mentions?${params.toString()}`
       );
       return payload.candidates;
     },
     enabled: (args.enabled ?? true) && Boolean(workspaceId),
-    staleTime: 20_000,
+    staleTime: 60_000,
   });
 }
 
 export function useOrgAgentMentionCandidates(args: {
   enabled?: boolean;
   query?: string | null;
+  roleId?: string | null;
   workspaceId?: string | null;
 }) {
-  return useQuery(orgAgentMentionCandidatesQueryOptions(args));
+  return useQuery({
+    ...orgAgentMentionCandidatesQueryOptions(args),
+    select: (candidates) =>
+      filterOrgAgentMentionCandidates({
+        candidates,
+        query: args.query,
+        roleId: args.roleId,
+      }),
+  });
 }
 
 export function useOrgAgentChat(args: {
   appendMessagesToCache: (messages: OrgAgentMessage[]) => void;
+  currentUserId?: string | null;
+  mode?: "general" | "role_creation";
+  onRoleCreated?: (roleId: string) => void;
+  roleId?: string | null;
   workspaceId?: string | null;
 }) {
   const queryClient = useQueryClient();
   const appendMessagesToCache = args.appendMessagesToCache;
+  const onRoleCreated = args.onRoleCreated;
   const activeWorkspaceId = args.workspaceId?.trim() ?? "";
+  const activeRoleId = args.roleId?.trim() ?? "";
+  const mode = args.mode ?? "general";
   const [error, setError] = useState<string | null>(null);
+  const [assistantStatus, setAssistantStatus] = useState<
+    "idle" | "pending" | "streaming"
+  >("idle");
   const [isStreaming, setIsStreaming] = useState(false);
   const [optimisticUserMessage, setOptimisticUserMessage] =
     useState<OrgAgentMessage | null>(null);
@@ -220,6 +253,8 @@ export function useOrgAgentChat(args: {
 
   const sendMessage = useCallback(
     async (input: {
+      attachments?: ChatAttachmentPayload[];
+      draftRoleId?: string | null;
       mentions?: OrgAgentMention[];
       message: string;
       model?: OrgAgentModelId | string | null;
@@ -228,13 +263,25 @@ export function useOrgAgentChat(args: {
       if (!workspaceId) return;
 
       setError(null);
+      setAssistantStatus("pending");
       setIsStreaming(true);
       setOptimisticUserMessage({
+        authorUserId: args.currentUserId?.trim() || null,
         content: input.message,
         createdAt: new Date().toISOString(),
         id: -Date.now(),
         mentions: input.mentions ?? [],
-        metadata: { source: "org_agent_user_optimistic" },
+        metadata: {
+          attachments: (input.attachments ?? []).map((attachment) => ({
+            kind: attachment.kind,
+            mime: attachment.mime,
+            name: attachment.name,
+            size: attachment.size,
+            truncated: attachment.truncated,
+            url: attachment.url,
+          })),
+          source: "org_agent_user_optimistic",
+        },
         model: input.model ? String(input.model) : null,
         role: "user",
         status: "pending",
@@ -249,17 +296,26 @@ export function useOrgAgentChat(args: {
       }
       if (!accessToken) {
         setError("로그인 세션을 찾지 못했습니다. 다시 로그인해 주세요.");
+        setAssistantStatus("idle");
         setOptimisticUserMessage(null);
         setIsStreaming(false);
         return;
       }
 
+      let responseRoleId =
+        activeRoleId ||
+        (mode === "role_creation" ? (input.draftRoleId?.trim() ?? "") : "");
+      let queriesInvalidated = false;
       try {
         let response = await fetch("/api/org/agent/chat", {
           body: JSON.stringify({
             mentions: input.mentions ?? [],
+            attachments: input.attachments ?? [],
+            draftRoleId: input.draftRoleId ?? null,
             message: input.message,
+            mode,
             model: input.model ?? null,
+            roleId: activeRoleId || null,
             workspaceId,
           }),
           headers: {
@@ -277,8 +333,12 @@ export function useOrgAgentChat(args: {
             response = await fetch("/api/org/agent/chat", {
               body: JSON.stringify({
                 mentions: input.mentions ?? [],
+                attachments: input.attachments ?? [],
+                draftRoleId: input.draftRoleId ?? null,
                 message: input.message,
+                mode,
                 model: input.model ?? null,
+                roleId: activeRoleId || null,
                 workspaceId,
               }),
               headers: {
@@ -321,14 +381,29 @@ export function useOrgAgentChat(args: {
               setOptimisticUserMessage(null);
             } else if (parsed.event === "assistant_message") {
               appendMessagesToCache([parsed.data as OrgAgentMessage]);
+              setAssistantStatus("idle");
               setOptimisticUserMessage(null);
               setStreamingText("");
               setThinkingLogs([]);
+            } else if (parsed.event === "role_created") {
+              const roleId = String(
+                (parsed.data as { roleId?: unknown }).roleId ?? ""
+              ).trim();
+              if (roleId) {
+                responseRoleId = roleId;
+                onRoleCreated?.(roleId);
+              }
             } else if (parsed.event === "text_delta") {
               const delta = String(
                 (parsed.data as { delta?: unknown }).delta ?? ""
               );
-              setStreamingText((current) => current + delta);
+              if (delta) {
+                setAssistantStatus("streaming");
+                for (const revealChunk of splitChatTextDeltaForReveal(delta)) {
+                  setStreamingText((current) => current + revealChunk);
+                  await waitForChatTextReveal();
+                }
+              }
             } else if (parsed.event === "tool_status") {
               const log = toThinkingLog(parsed.data);
               if (log) {
@@ -339,6 +414,7 @@ export function useOrgAgentChat(args: {
                 (parsed.data as { error?: unknown }).error ??
                   "에이전트 응답을 만들지 못했습니다."
               );
+              setAssistantStatus("idle");
               setError(message);
             }
           }
@@ -347,9 +423,24 @@ export function useOrgAgentChat(args: {
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: queryKeys.org.all }),
           queryClient.invalidateQueries({
-            queryKey: queryKeys.org.agentMessages({ workspaceId }),
+            queryKey: queryKeys.org.agentMessages({
+              mode,
+              roleId: responseRoleId,
+              workspaceId,
+            }),
           }),
+          ...(responseRoleId
+            ? [
+                queryClient.invalidateQueries({
+                  queryKey: queryKeys.org.roleNotifications(
+                    workspaceId,
+                    responseRoleId
+                  ),
+                }),
+              ]
+            : []),
         ]);
+        queriesInvalidated = true;
       } catch (error) {
         setError(
           error instanceof Error
@@ -357,16 +448,48 @@ export function useOrgAgentChat(args: {
             : "에이전트 응답을 만들지 못했습니다."
         );
       } finally {
+        if (mode === "role_creation" && !queriesInvalidated) {
+          await Promise.allSettled([
+            queryClient.invalidateQueries({ queryKey: queryKeys.org.all }),
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.org.agentMessages({
+                mode,
+                roleId: responseRoleId,
+                workspaceId,
+              }),
+            }),
+            ...(responseRoleId
+              ? [
+                  queryClient.invalidateQueries({
+                    queryKey: queryKeys.org.roleNotifications(
+                      workspaceId,
+                      responseRoleId
+                    ),
+                  }),
+                ]
+              : []),
+          ]);
+        }
         setOptimisticUserMessage(null);
+        setAssistantStatus("idle");
         setStreamingText("");
         setThinkingLogs([]);
         setIsStreaming(false);
       }
     },
-    [activeWorkspaceId, appendMessagesToCache, queryClient]
+    [
+      activeRoleId,
+      activeWorkspaceId,
+      appendMessagesToCache,
+      args.currentUserId,
+      mode,
+      onRoleCreated,
+      queryClient,
+    ]
   );
 
   return {
+    assistantStatus,
     error,
     isStreaming,
     optimisticUserMessage,
@@ -375,6 +498,46 @@ export function useOrgAgentChat(args: {
     streamingText,
     thinkingLogs,
   };
+}
+
+export function useConfirmOrgRoleCreation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: {
+      actionId: string;
+      decision: "no" | "yes";
+      messageId: number;
+      roleId: string;
+      workspaceId: string;
+    }) =>
+      fetchWithInternalAuth<{
+        alreadyHandled: boolean;
+        assistantMessage?: OrgAgentMessage | null;
+        completed: boolean;
+        ok: true;
+        roleId: string;
+      }>("/api/org/agent/role-creation/confirm", {
+        body: JSON.stringify(args),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }),
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.org.all });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.org.agentMessages({
+          mode: "role_creation",
+          roleId: variables.roleId,
+          workspaceId: variables.workspaceId,
+        }),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.org.roleNotifications(
+          variables.workspaceId,
+          variables.roleId
+        ),
+      });
+    },
+  });
 }
 
 export function useSendOrgAgentMeetingRequest() {

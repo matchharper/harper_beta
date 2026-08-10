@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLlmErrorMessage } from "@/lib/llm/llm";
 import { runOrgAgentChat } from "@/lib/org/agent/chat";
+import { runOrgRoleCreationChat } from "@/lib/org/agent/roleCreationChat";
 import type { OrgAgentChatBody } from "@/lib/org/agent/types";
 import { OrgHttpError } from "@/lib/org/server";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
@@ -55,9 +56,22 @@ export async function POST(req: NextRequest) {
       user,
       workspaceId: body.workspaceId ?? "",
     };
+    const roleCreationArgs = {
+      attachments: Array.isArray(body.attachments) ? body.attachments : [],
+      draftRoleId: body.draftRoleId ?? null,
+      mentions: Array.isArray(body.mentions) ? body.mentions : [],
+      message: body.message ?? "",
+      model: body.model ?? null,
+      roleId: body.roleId ?? null,
+      user,
+      workspaceId: body.workspaceId ?? "",
+    };
+    const isRoleCreation = body.mode === "role_creation";
 
     if (!wantsSseStream(req)) {
-      const payload = await runOrgAgentChat(args);
+      const payload = isRoleCreation
+        ? await runOrgRoleCreationChat(roleCreationArgs)
+        : await runOrgAgentChat(args);
       return NextResponse.json({ ok: true, ...payload });
     }
 
@@ -69,7 +83,11 @@ export async function POST(req: NextRequest) {
         };
 
         try {
-          await runOrgAgentChat({ ...args, emit });
+          if (isRoleCreation) {
+            await runOrgRoleCreationChat({ ...roleCreationArgs, emit });
+          } else {
+            await runOrgAgentChat({ ...args, emit });
+          }
           emit("done", { ok: true });
         } catch (error) {
           const detail = getLlmErrorMessage(error);

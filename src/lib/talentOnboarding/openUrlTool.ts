@@ -1,4 +1,9 @@
 import Firecrawl from "@mendable/firecrawl-js";
+import {
+  callApifyActor,
+  getApifyApiToken,
+  listApifyDatasetItems,
+} from "@/lib/apifyRest";
 
 import type { TalentAdminClient } from "./admin";
 
@@ -88,7 +93,7 @@ function isUniqueViolation(error: { code?: string; message?: string } | null) {
   );
 }
 
-function getLinkedinUrlKind(normalizedUrl: string) {
+export function getLinkedinUrlKind(normalizedUrl: string) {
   let url: URL;
   try {
     url = new URL(normalizedUrl);
@@ -147,6 +152,304 @@ function formatLinkedinUnsupportedResult(args: {
     provider: "linkedin",
     title: "LinkedIn links cannot be opened directly",
     truncated: false,
+    url: args.url,
+    urlKind: args.kind,
+  };
+}
+
+function compactText(value: unknown, maxChars = 4_000) {
+  if (
+    typeof value !== "string" &&
+    typeof value !== "number" &&
+    typeof value !== "boolean"
+  ) {
+    return "";
+  }
+  return String(value).replace(/\s+/g, " ").trim().slice(0, maxChars);
+}
+
+function object(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function pickText(source: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = compactText(source[key]);
+    if (value) return value;
+  }
+  return null;
+}
+
+function pickNestedText(value: unknown, keys: string[]) {
+  return pickText(object(value), keys);
+}
+
+function compactDate(value: unknown) {
+  const direct = compactText(value, 80);
+  if (direct) return direct;
+  const source = object(value);
+  const label = pickText(source, ["text", "date", "label"]);
+  if (label) return label;
+  const year = compactText(source.year, 4);
+  const month = compactText(source.month, 2);
+  return year ? [year, month].filter(Boolean).join("-") : null;
+}
+
+function compactNamedList(value: unknown, maxItems: number) {
+  return (Array.isArray(value) ? value : [])
+    .map(
+      (item) =>
+        compactText(item, 200) ||
+        pickNestedText(item, ["name", "title", "label", "industry", "skill"])
+    )
+    .filter((item): item is string => Boolean(item))
+    .slice(0, maxItems);
+}
+
+function compactProfileExperiences(value: unknown) {
+  return (Array.isArray(value) ? value : []).slice(0, 12).map((raw) => {
+    const item = object(raw);
+    return {
+      company:
+        pickText(item, ["companyName", "company_name"]) ||
+        pickNestedText(item.company, ["name", "companyName"]),
+      description: pickText(item, ["description"])?.slice(0, 1_500) ?? null,
+      employmentType: pickText(item, ["employmentType", "employment_type"]),
+      endDate: compactDate(item.endDate ?? item.end_date),
+      location: pickText(item, [
+        "location",
+        "companyLocation",
+        "company_location",
+      ]),
+      startDate: compactDate(item.startDate ?? item.start_date),
+      title: pickText(item, ["title", "role", "position"]),
+    };
+  });
+}
+
+function compactProfileEducation(value: unknown) {
+  return (Array.isArray(value) ? value : []).slice(0, 8).map((raw) => {
+    const item = object(raw);
+    return {
+      degree: pickText(item, ["degree"]),
+      endDate: compactDate(item.endDate ?? item.end_date),
+      field: pickText(item, ["field", "fieldOfStudy"]),
+      school: pickText(item, ["school", "schoolName"]),
+      startDate: compactDate(item.startDate ?? item.start_date),
+    };
+  });
+}
+
+function compactLocations(value: unknown) {
+  return (Array.isArray(value) ? value : []).slice(0, 12).map((raw) => {
+    const item = object(raw);
+    return {
+      city: pickText(item, ["city", "geographicArea"]),
+      country: pickText(item, ["country", "countryCode"]),
+      description: pickText(item, ["description", "name", "label"]),
+      headquarters: item.headquarter ?? item.isHeadquarter ?? null,
+    };
+  });
+}
+
+function linkedinJobId(url: string) {
+  try {
+    const parsed = new URL(url);
+    const pathMatch = parsed.pathname.match(
+      /(?:view|jobs)\/(?:[^/]*-)?(\d{5,})/i
+    );
+    return pathMatch?.[1] ?? parsed.searchParams.get("currentJobId");
+  } catch {
+    return null;
+  }
+}
+
+function normalizeLinkedinComparableUrl(value: unknown) {
+  try {
+    const url = new URL(String(value ?? ""));
+    url.hash = "";
+    url.search = "";
+    return `${url.hostname.replace(/^www\./, "").toLowerCase()}${url.pathname.replace(/\/$/, "")}`;
+  } catch {
+    return "";
+  }
+}
+
+function compactLinkedinProfile(item: Record<string, unknown>) {
+  const firstName = pickText(item, ["firstName"]);
+  const lastName = pickText(item, ["lastName"]);
+  return {
+    about: pickText(item, ["about", "summary", "description"]),
+    education: compactProfileEducation(item.education ?? item.educations),
+    experience: compactProfileExperiences(item.experience ?? item.experiences),
+    headline: pickText(item, ["headline", "occupation"]),
+    location:
+      pickText(item, ["location", "geoLocationName"]) ||
+      pickNestedText(item.location, ["linkedinText", "text", "name"]),
+    name:
+      pickText(item, ["fullName", "name"]) ||
+      [firstName, lastName].filter(Boolean).join(" ") ||
+      null,
+    openToWork: item.openToWork ?? item.isOpenToWork ?? null,
+    profileUrl: pickText(item, ["linkedinUrl", "url", "profileUrl"]),
+    skills: compactNamedList(item.skills, 20),
+  };
+}
+
+function compactLinkedinCompany(item: Record<string, unknown>) {
+  return {
+    description: pickText(item, ["description", "about"]),
+    employeeCount: item.employeeCount ?? item.staffCount ?? null,
+    employeeCountRange: item.employeeCountRange ?? item.companySize ?? null,
+    followerCount: item.followerCount ?? item.followersCount ?? null,
+    founded: item.founded ?? item.foundedOn ?? null,
+    funding:
+      pickNestedText(item.fundingData ?? item.funding, [
+        "lastFundingRound",
+        "fundingRound",
+        "totalFunding",
+        "amount",
+      ]) ?? null,
+    industries: compactNamedList(item.industries ?? item.industry, 12),
+    locations: compactLocations(item.locations),
+    name: pickText(item, ["name", "companyName"]),
+    specialties: compactNamedList(item.specialities ?? item.specialties, 20),
+    tagline: pickText(item, ["tagline", "slogan"]),
+    website: pickText(item, ["website", "websiteUrl"]),
+  };
+}
+
+function compactLinkedinJob(item: Record<string, unknown>) {
+  const salary = object(item.salary ?? item.salaryInfo);
+  return {
+    company:
+      pickText(item, ["companyName", "company"]) ||
+      pickNestedText(item.company, ["name", "companyName"]),
+    description: pickText(item, [
+      "descriptionText",
+      "description",
+      "descriptionHtml",
+    ]),
+    employmentType:
+      item.employmentType ?? item.formattedEmploymentStatus ?? null,
+    jobId: pickText(item, ["jobId", "id", "linkedinJobId"]),
+    location:
+      pickText(item, ["location", "formattedLocation"]) ||
+      pickNestedText(item.location, ["name", "text", "formattedLocation"]),
+    postedAt: item.postedAt ?? item.postedDate ?? item.listedAt ?? null,
+    salary:
+      pickText(item, ["salary", "salaryInfo"]) ||
+      (Object.keys(salary).length > 0
+        ? {
+            currency: pickText(salary, ["currency"]),
+            max: salary.max ?? salary.maxSalary ?? null,
+            min: salary.min ?? salary.minSalary ?? null,
+            period: pickText(salary, ["period", "payPeriod"]),
+          }
+        : null),
+    seniorityLevel: item.seniorityLevel ?? null,
+    title: pickText(item, ["title", "jobTitle"]),
+    url: pickText(item, ["url", "jobUrl", "link", "linkedinUrl"]),
+    workplaceType:
+      item.workplaceType ?? item.workplaceTypes ?? item.remote ?? null,
+  };
+}
+
+export function findExactLinkedinJob(
+  items: Record<string, unknown>[],
+  requestedUrl: string
+) {
+  const expectedId = linkedinJobId(requestedUrl);
+  const expectedUrl = normalizeLinkedinComparableUrl(requestedUrl);
+  return (
+    items.find((candidate) => {
+      const candidateId = pickText(candidate, ["jobId", "id", "linkedinJobId"]);
+      const candidateUrl = pickText(candidate, [
+        "url",
+        "jobUrl",
+        "link",
+        "linkedinUrl",
+      ]);
+      return (
+        (expectedId && candidateId === expectedId) ||
+        (candidateUrl &&
+          normalizeLinkedinComparableUrl(candidateUrl) === expectedUrl)
+      );
+    }) ?? null
+  );
+}
+
+async function readLinkedinWithApify(args: {
+  kind: "company" | "job" | "profile";
+  maxMarkdownChars: number;
+  url: string;
+}) {
+  const actorByKind = {
+    company:
+      process.env.APIFY_LINKEDIN_COMPANY_ACTOR_ID?.trim() ||
+      "UwSdACBp7ymaGUJjS",
+    job:
+      process.env.APIFY_LINKEDIN_JOBS_ACTOR_ID?.trim() || "hKByXkMQaC5Qt9UMN",
+    profile:
+      process.env.APIFY_LINKEDIN_PROFILE_ACTOR_ID?.trim() ||
+      "LpVuK3Zozwuipa5bp",
+  };
+  const inputByKind = {
+    company: { companies: [args.url] },
+    job: {
+      count: 1,
+      scrapeCompany: true,
+      splitByLocation: false,
+      urls: [args.url],
+    },
+    profile: {
+      profileScraperMode: "Profile details no email ($4 per 1k)",
+      queries: [args.url],
+    },
+  } satisfies Record<typeof args.kind, Record<string, unknown>>;
+  const token = getApifyApiToken();
+  const run = await callApifyActor({
+    actorId: actorByKind[args.kind],
+    input: inputByKind[args.kind],
+    maxRunWaitSeconds: 90,
+    token,
+    waitForFinishSeconds: 60,
+  });
+  const items = await listApifyDatasetItems<Record<string, unknown>>({
+    datasetId: run.defaultDatasetId,
+    limit: args.kind === "job" ? 20 : 5,
+    token,
+  });
+  if (items.length === 0) throw new Error("LinkedIn reader returned no data");
+
+  let item = items[0];
+  if (args.kind === "job") {
+    const exact = findExactLinkedinJob(items, args.url);
+    if (!exact) {
+      throw new Error("LinkedIn job reader did not return the requested job");
+    }
+    item = exact;
+  }
+
+  const data =
+    args.kind === "profile"
+      ? compactLinkedinProfile(item)
+      : args.kind === "company"
+        ? compactLinkedinCompany(item)
+        : compactLinkedinJob(item);
+  const fullMarkdown = `LinkedIn ${args.kind}\n\n${JSON.stringify(data, null, 2)}`;
+  const clamped = clampMarkdown(fullMarkdown, args.maxMarkdownChars);
+  return {
+    cached: false,
+    excerpt: fullMarkdown.slice(0, 2_500),
+    markdown: clamped.markdown,
+    markdownCharCount: fullMarkdown.length,
+    ok: true,
+    provider: "apify_linkedin",
+    title: `LinkedIn ${args.kind}`,
+    truncated: clamped.truncated,
     url: args.url,
     urlKind: args.kind,
   };
@@ -240,6 +543,7 @@ async function scrapeUrlWithFirecrawl(url: string) {
 
 export async function openUrlWithDocumentsCache(args: {
   admin: TalentAdminClient;
+  enableLinkedinApify?: boolean;
   maxMarkdownChars?: unknown;
   url: string;
 }) {
@@ -247,8 +551,20 @@ export async function openUrlWithDocumentsCache(args: {
   const maxMarkdownChars = normalizeMaxMarkdownChars(args.maxMarkdownChars);
   const linkedinUrlKind = getLinkedinUrlKind(normalizedUrl);
   if (linkedinUrlKind) {
-    return formatLinkedinUnsupportedResult({
+    if (!args.enableLinkedinApify) {
+      return formatLinkedinUnsupportedResult({
+        kind: linkedinUrlKind,
+        url: normalizedUrl,
+      });
+    }
+    if (linkedinUrlKind === "generic") {
+      throw new Error(
+        "Only LinkedIn profile, job, and company URLs are supported."
+      );
+    }
+    return readLinkedinWithApify({
       kind: linkedinUrlKind,
+      maxMarkdownChars,
       url: normalizedUrl,
     });
   }

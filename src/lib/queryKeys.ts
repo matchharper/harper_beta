@@ -172,8 +172,18 @@ export const queryKeys = {
         filters?.workspaceId ?? "",
         filters?.talentId ?? "",
       ] as const,
-    agentMessages: (filters?: { workspaceId?: string | null }) =>
-      ["org", "agentMessages", filters?.workspaceId ?? ""] as const,
+    agentMessages: (filters?: {
+      mode?: "general" | "role_creation";
+      roleId?: string | null;
+      workspaceId?: string | null;
+    }) =>
+      [
+        "org",
+        "agentMessages",
+        filters?.workspaceId ?? "",
+        filters?.mode ?? "general",
+        filters?.roleId ?? "",
+      ] as const,
     agentMentions: (filters?: {
       query?: string | null;
       workspaceId?: string | null;

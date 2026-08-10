@@ -1,6 +1,7 @@
 import { buildOrgHref } from "@/lib/org/routes";
 
 const DEFAULT_PUBLIC_SITE_URL = "https://matchharper.com";
+export const AUTO_INTRO_SLACK_REVIEW_ACTION_ID = "harper_talent_review:open";
 
 export type AutoIntroPresentation =
   | "paragraph"
@@ -207,6 +208,42 @@ function splitSlackSectionText(value: string, maxLength = 2_900) {
   }
   if (remaining) chunks.push(remaining);
   return chunks;
+}
+
+export function attachAutoIntroSlackReviewAction(args: {
+  blocks?: Array<Record<string, unknown>>;
+  candidateCount: number;
+  messageBody: string;
+}) {
+  if (!Number.isSafeInteger(args.candidateCount) || args.candidateCount <= 0) {
+    throw new Error("Review action requires at least one candidate");
+  }
+  const contentBlocks = args.blocks?.length
+    ? args.blocks
+    : splitSlackSectionText(args.messageBody).map((text) => ({
+        text: { text, type: "mrkdwn" },
+        type: "section",
+      }));
+  return [
+    ...contentBlocks,
+    { type: "divider" },
+    {
+      block_id: "harper_auto_intro_review_actions",
+      elements: [
+        {
+          action_id: AUTO_INTRO_SLACK_REVIEW_ACTION_ID,
+          style: "primary",
+          text: {
+            text: `후보자 ${args.candidateCount}명 검토하기`,
+            type: "plain_text",
+          },
+          type: "button",
+          value: "daily_auto_intro",
+        },
+      ],
+      type: "actions",
+    },
+  ];
 }
 
 export function buildAutoIntroRoleSummarySlackBlocks(args: {

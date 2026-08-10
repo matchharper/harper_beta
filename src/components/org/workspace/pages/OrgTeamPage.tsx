@@ -15,6 +15,7 @@ import {
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { FormEvent, type ReactNode, useState } from "react";
+import * as Popover from "@radix-ui/react-popover";
 import { OrgPageHeader } from "@/components/org/workspace/OrgPageHeader";
 import {
   OrgSection,
@@ -42,7 +43,7 @@ import {
   InlineEditableSelect,
   InlineEditableTextarea,
 } from "@/components/ui/inline-editable";
-import { TextField } from "@/components/ui/input";
+import { Input, TextField } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -66,6 +67,7 @@ import {
   ORG_MEMBERSHIP_ROLE_OPTIONS,
   type OrgMembershipRole,
 } from "@/lib/org/permissions";
+import { createOrgEditingDismissHandlers } from "@/lib/org/editingInteraction";
 import type {
   OrgMember,
   OrgWorkspace,
@@ -95,7 +97,6 @@ type CompanyDraft = {
 
 type CompanyEditingField =
   | "companyDescription"
-  | "companyName"
   | "employeeCount"
   | "foundedYear"
   | "homepageUrl"
@@ -103,7 +104,6 @@ type CompanyEditingField =
   | "lastFundingStage"
   | "linkedinUrl"
   | "locationText"
-  | "logoUrl"
   | "mainInvestors"
   | "pitch"
   | "shortDescription"
@@ -239,18 +239,106 @@ function CompanyLinkBadge({ href, label }: { href: string; label: string }) {
   );
 }
 
-function CompanyInlineFact({
-  icon,
-  value,
+function CompanyEditableLink({
+  disabled,
+  editable,
+  fieldId,
+  href,
+  label,
+  onEdit,
+  onValueChange,
 }: {
-  icon: ReactNode;
-  value: string;
+  disabled: boolean;
+  editable: boolean;
+  fieldId: string;
+  href: string;
+  label: string;
+  onEdit: () => void;
+  onValueChange: (value: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
+
+  if (!editable) {
+    return href ? (
+      <CompanyLinkPill href={href} label={label} />
+    ) : (
+      <span className="text-[13px] text-neutral-soft">{label} -</span>
+    );
+  }
+
   return (
-    <div className="flex min-w-0 items-center gap-1.5 text-[13px] text-neutral-primary">
-      <span className="shrink-0 text-neutral-muted">{icon}</span>
-      <span className="wrap-break-word">{value}</span>
-    </div>
+    <Popover.Root
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (disabled && nextOpen) return;
+        if (nextOpen) onEdit();
+        setOpen(nextOpen);
+      }}
+    >
+      <Popover.Trigger asChild>
+        <button
+          aria-label={`${label} 링크 수정`}
+          className="group rounded-md outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:pointer-events-none disabled:opacity-50"
+          data-inline-editable-interaction=""
+          disabled={disabled}
+          type="button"
+        >
+          {href ? (
+            <CompanyLinkBadge href={href} label={label} />
+          ) : (
+            <Badge
+              className="group-hover:bg-neutral-1000-a10"
+              endIcon={<Pencil className="size-3.5" />}
+              size="lg"
+              variant="faded"
+            >
+              {label} -
+            </Badge>
+          )}
+        </button>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          align="start"
+          className="z-[140] w-[min(360px,calc(100vw-32px))] rounded-lg border border-neutral-1000-a10 bg-bg-floating p-3 shadow-[0_18px_48px_color-mix(in_srgb,var(--color-neutral-1000)_16%,transparent)] outline-none"
+          data-inline-editable-interaction=""
+          sideOffset={6}
+        >
+          <Input
+            autoFocus
+            className="h-9 text-[13px]"
+            disabled={disabled}
+            id={fieldId}
+            onChange={(event) => onValueChange(event.target.value)}
+            placeholder="https://"
+            type="url"
+            value={href}
+          />
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <span className="text-[11px] text-neutral-soft">
+              변경 후 저장 버튼을 눌러주세요.
+            </span>
+            <div className="flex shrink-0 items-center gap-1">
+              {href ? (
+                <MuteButton asChild size="sm" variant="transparent">
+                  <a href={href} rel="noreferrer" target="_blank">
+                    열기
+                    <ArrowUpRight className="size-3.5" />
+                  </a>
+                </MuteButton>
+              ) : null}
+              <MuteButton
+                onClick={() => setOpen(false)}
+                size="sm"
+                variant="neutral"
+              >
+                닫기
+              </MuteButton>
+            </div>
+          </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }
 
@@ -266,11 +354,11 @@ function CompanyMetric({
   return (
     <div className="flex min-w-0 items-start gap-2.5">
       <span className="mt-0.5 shrink-0 text-neutral-muted">{icon}</span>
-      <div className="min-w-0">
+      <div className="min-w-0 w-full">
         <div className="text-[12px] font-light leading-5 text-neutral-soft">
           {label}
         </div>
-        <div className="mt-0.5 text-[13px] leading-5 text-neutral-primary">
+        <div className="mt-0.5 text-[13px] w-full leading-5 text-neutral-primary">
           {value}
         </div>
       </div>
@@ -459,7 +547,11 @@ function InviteMemberDialog({
   );
 }
 
-export function OrgTeamPage() {
+export function OrgTeamPage({
+  companyOnly = false,
+}: {
+  companyOnly?: boolean;
+} = {}) {
   const {
     bootstrap: { invitations, members },
     currentUser,
@@ -543,6 +635,12 @@ export function OrgTeamPage() {
     setCompanyEditingField(null);
     setCompanySaveError("");
   };
+  const companyEditingDismissHandlers = createOrgEditingDismissHandlers({
+    active: companyEditing,
+    hasChanges: companyHasChanges,
+    onDismiss: cancelCompanyEditing,
+    pending: updateWorkspace.isPending,
+  });
 
   const saveCompany = async () => {
     if (!companyDraft || !companyHasChanges || updateWorkspace.isPending)
@@ -723,62 +821,28 @@ export function OrgTeamPage() {
   };
 
   return (
-    <div className="space-y-8">
+    <div {...companyEditingDismissHandlers} className="space-y-2">
       <OrgPageHeader
         title={
           <span className="flex min-w-0 items-center gap-2">
-            <InlineEditableInput
-              ariaLabel="회사 로고 수정"
-              disabled={
-                !permissions.canManageWorkspace || updateWorkspace.isPending
-              }
-              displayValue={
-                <CompanyBrandMark
-                  logoUrl={currentCompanyDraft.logoUrl || null}
-                  name={currentCompanyDraft.companyName}
-                />
-              }
-              editing={companyEditingField === "logoUrl"}
-              inline
-              inputClassName="w-64 text-[13px] font-normal"
-              onChange={(event) =>
-                changeCompanyDraft({ logoUrl: event.target.value })
-              }
-              onEdit={() => startCompanyEditing("logoUrl")}
-              placeholder="https://"
-              type="url"
-              value={currentCompanyDraft.logoUrl}
+            <CompanyBrandMark
+              logoUrl={currentCompanyDraft.logoUrl || null}
+              name={currentCompanyDraft.companyName}
             />
-            <InlineEditableInput
-              ariaLabel="회사명 수정"
-              disabled={
-                !permissions.canManageWorkspace || updateWorkspace.isPending
-              }
-              displayClassName="truncate"
-              displayValue={
-                <span className="truncate">
-                  {currentCompanyDraft.companyName}
-                </span>
-              }
-              editing={companyEditingField === "companyName"}
-              inline
-              inputClassName="w-64 text-[16px] font-semibold sm:w-80"
-              onChange={(event) =>
-                changeCompanyDraft({ companyName: event.target.value })
-              }
-              onEdit={() => startCompanyEditing("companyName")}
-              required
-              value={currentCompanyDraft.companyName}
-            />
+            <span className="truncate">{currentCompanyDraft.companyName}</span>
           </span>
         }
       />
 
       <OrgSection>
-        <OrgSectionHeader
-          description="Harper가 인재에게 회사를 설명하고 설득하기위해 사용합니다."
-          title="회사 정보"
-        />
+        <div className="text-sm text-neutral-muted mb-4">
+          아래의 정보들은 Harper가 인재에게 회사를 설명하고 설득하기위해
+          사용합니다. 모든 역할에 공통적으로 반영됩니다.
+          <br />
+          아래의 내용을 그대로 전달하지 않고, 인재의 관심사/니즈 등에 맞게
+          Harper가 말을 건넬 때 자연스럽게 활용하게 됩니다.
+        </div>
+        <OrgSectionHeader title="회사 정보" />
         <form
           className="space-y-8"
           onSubmit={(event) => {
@@ -787,133 +851,114 @@ export function OrgTeamPage() {
           }}
         >
           <div className="space-y-4">
-            {(permissions.canManageWorkspace ||
-              currentCompanyDraft.shortDescription.trim()) && (
-              <InlineEditableInput
-                ariaLabel="한 줄 소개 수정"
-                className="max-w-4xl"
-                disabled={
-                  !permissions.canManageWorkspace || updateWorkspace.isPending
-                }
-                displayClassName="text-[14px] leading-6 text-neutral-muted"
-                editing={companyEditingField === "shortDescription"}
-                inputClassName="max-w-4xl"
-                onChange={(event) =>
-                  changeCompanyDraft({ shortDescription: event.target.value })
-                }
-                onEdit={() => startCompanyEditing("shortDescription")}
-                placeholder="한 줄 소개를 입력하세요."
-                value={currentCompanyDraft.shortDescription}
-              />
-            )}
-
-            <div className="flex flex-wrap gap-x-5 gap-y-2.5">
+            <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
               {(permissions.canManageWorkspace ||
                 currentCompanyDraft.locationText) && (
-                <InlineEditableInput
-                  ariaLabel="본사 위치 수정"
-                  className="w-64"
-                  disabled={
-                    !permissions.canManageWorkspace || updateWorkspace.isPending
-                  }
-                  displayValue={
-                    <CompanyInlineFact
-                      icon={<MapPin className="size-3.5" strokeWidth={2} />}
-                      value={currentCompanyDraft.locationText || "-"}
+                <CompanyMetric
+                  icon={<MapPin className="size-4" strokeWidth={2} />}
+                  label="본사 위치"
+                  value={
+                    <InlineEditableInput
+                      ariaLabel="본사 위치 수정"
+                      disabled={
+                        !permissions.canManageWorkspace ||
+                        updateWorkspace.isPending
+                      }
+                      editing={companyEditingField === "locationText"}
+                      inputClassName="w-full"
+                      onChange={(event) =>
+                        changeCompanyDraft({ locationText: event.target.value })
+                      }
+                      onEdit={() => startCompanyEditing("locationText")}
+                      placeholder="본사 위치"
+                      value={currentCompanyDraft.locationText}
                     />
                   }
-                  editing={companyEditingField === "locationText"}
-                  inputClassName="text-[13px]"
-                  onChange={(event) =>
-                    changeCompanyDraft({ locationText: event.target.value })
-                  }
-                  onEdit={() => startCompanyEditing("locationText")}
-                  placeholder="본사 위치"
-                  value={currentCompanyDraft.locationText}
                 />
               )}
               {(permissions.canManageWorkspace ||
                 currentCompanyDraft.foundedYear) && (
-                <InlineEditableInput
-                  ariaLabel="설립 연도 수정"
-                  className="w-40"
-                  disabled={
-                    !permissions.canManageWorkspace || updateWorkspace.isPending
-                  }
-                  displayValue={
-                    <CompanyInlineFact
-                      icon={<Calendar className="size-3.5" strokeWidth={2} />}
-                      value={
+                <CompanyMetric
+                  icon={<Calendar className="size-4" strokeWidth={2} />}
+                  label="설립 연도"
+                  value={
+                    <InlineEditableInput
+                      ariaLabel="설립 연도 수정"
+                      disabled={
+                        !permissions.canManageWorkspace ||
+                        updateWorkspace.isPending
+                      }
+                      displayValue={
                         currentCompanyDraft.foundedYear
-                          ? `${currentCompanyDraft.foundedYear}년 설립`
+                          ? `${currentCompanyDraft.foundedYear}년`
                           : "-"
                       }
+                      editing={companyEditingField === "foundedYear"}
+                      inputClassName="w-full"
+                      inputMode="numeric"
+                      max={new Date().getFullYear() + 1}
+                      min={1000}
+                      onChange={(event) =>
+                        changeCompanyDraft({
+                          foundedYear: event.target.value
+                            ? Number(event.target.value)
+                            : null,
+                        })
+                      }
+                      onEdit={() => startCompanyEditing("foundedYear")}
+                      placeholder="설립 연도"
+                      type="number"
+                      value={currentCompanyDraft.foundedYear ?? ""}
                     />
                   }
-                  editing={companyEditingField === "foundedYear"}
-                  inputClassName="text-[13px]"
-                  inputMode="numeric"
-                  max={new Date().getFullYear() + 1}
-                  min={1000}
-                  onChange={(event) =>
-                    changeCompanyDraft({
-                      foundedYear: event.target.value
-                        ? Number(event.target.value)
-                        : null,
-                    })
-                  }
-                  onEdit={() => startCompanyEditing("foundedYear")}
-                  placeholder="설립 연도"
-                  type="number"
-                  value={currentCompanyDraft.foundedYear ?? ""}
                 />
               )}
               {(permissions.canManageWorkspace || employeeCountText) && (
-                <InlineEditableSelect
-                  ariaLabel="직원 수 수정"
-                  className="w-52"
-                  disabled={
-                    !permissions.canManageWorkspace || updateWorkspace.isPending
-                  }
-                  displayValue={
-                    <CompanyInlineFact
-                      icon={<Users className="size-3.5" strokeWidth={2} />}
-                      value={employeeCountText || "-"}
-                    />
-                  }
-                  editing={companyEditingField === "employeeCount"}
-                  onEdit={() => startCompanyEditing("employeeCount")}
-                  onValueChange={(value) => {
-                    if (value === EMPTY_EMPLOYEE_COUNT_RANGE) {
-                      changeCompanyDraft({
-                        employeeCountEnd: null,
-                        employeeCountStart: null,
-                      });
-                      return;
-                    }
-                    const selected = EMPLOYEE_COUNT_RANGE_OPTIONS.find(
-                      (option) => option.value === value
-                    );
-                    if (!selected) return;
-                    changeCompanyDraft({
-                      employeeCountEnd: selected.end,
-                      employeeCountStart: selected.start,
-                    });
-                  }}
-                  options={[
-                    {
-                      label: "정보 없음",
-                      value: EMPTY_EMPLOYEE_COUNT_RANGE,
-                    },
-                    ...EMPLOYEE_COUNT_RANGE_OPTIONS,
-                  ]}
-                  placeholder="직원 수 범위"
-                  triggerClassName="w-full text-[13px]"
+                <CompanyMetric
+                  icon={<Users className="size-4" strokeWidth={2} />}
+                  label="직원 수"
                   value={
-                    getEmployeeCountRangeValue(
-                      currentCompanyDraft.employeeCountStart,
-                      currentCompanyDraft.employeeCountEnd
-                    ) ?? EMPTY_EMPLOYEE_COUNT_RANGE
+                    <InlineEditableSelect
+                      ariaLabel="직원 수 수정"
+                      disabled={
+                        !permissions.canManageWorkspace ||
+                        updateWorkspace.isPending
+                      }
+                      editing={companyEditingField === "employeeCount"}
+                      onEdit={() => startCompanyEditing("employeeCount")}
+                      onValueChange={(value) => {
+                        if (value === EMPTY_EMPLOYEE_COUNT_RANGE) {
+                          changeCompanyDraft({
+                            employeeCountEnd: null,
+                            employeeCountStart: null,
+                          });
+                          return;
+                        }
+                        const selected = EMPLOYEE_COUNT_RANGE_OPTIONS.find(
+                          (option) => option.value === value
+                        );
+                        if (!selected) return;
+                        changeCompanyDraft({
+                          employeeCountEnd: selected.end,
+                          employeeCountStart: selected.start,
+                        });
+                      }}
+                      options={[
+                        {
+                          label: "정보 없음",
+                          value: EMPTY_EMPLOYEE_COUNT_RANGE,
+                        },
+                        ...EMPLOYEE_COUNT_RANGE_OPTIONS,
+                      ]}
+                      placeholder="직원 수 범위"
+                      triggerClassName="w-full text-[13px]"
+                      value={
+                        getEmployeeCountRangeValue(
+                          currentCompanyDraft.employeeCountStart,
+                          currentCompanyDraft.employeeCountEnd
+                        ) ?? EMPTY_EMPLOYEE_COUNT_RANGE
+                      }
+                    />
                   }
                 />
               )}
@@ -925,80 +970,30 @@ export function OrgTeamPage() {
               <div className="flex flex-wrap gap-2">
                 {(permissions.canManageWorkspace ||
                   currentCompanyDraft.homepageUrl) && (
-                  <InlineEditableInput
-                    ariaLabel="홈페이지 수정"
-                    className="w-72"
-                    disabled={
-                      !permissions.canManageWorkspace ||
-                      updateWorkspace.isPending
-                    }
-                    displayValue={
-                      currentCompanyDraft.homepageUrl ? (
-                        permissions.canManageWorkspace ? (
-                          <CompanyLinkBadge
-                            href={currentCompanyDraft.homepageUrl}
-                            label="웹사이트"
-                          />
-                        ) : (
-                          <CompanyLinkPill
-                            href={currentCompanyDraft.homepageUrl}
-                            label="웹사이트"
-                          />
-                        )
-                      ) : (
-                        <span className="text-[13px] text-neutral-soft">
-                          웹사이트 -
-                        </span>
-                      )
-                    }
-                    editing={companyEditingField === "homepageUrl"}
-                    inputClassName="text-[13px]"
-                    onChange={(event) =>
-                      changeCompanyDraft({ homepageUrl: event.target.value })
-                    }
+                  <CompanyEditableLink
+                    disabled={updateWorkspace.isPending}
+                    editable={permissions.canManageWorkspace}
+                    fieldId="org-company-homepage-url"
+                    href={currentCompanyDraft.homepageUrl}
+                    label="웹사이트"
                     onEdit={() => startCompanyEditing("homepageUrl")}
-                    placeholder="https://"
-                    type="url"
-                    value={currentCompanyDraft.homepageUrl}
+                    onValueChange={(homepageUrl) =>
+                      changeCompanyDraft({ homepageUrl })
+                    }
                   />
                 )}
                 {(permissions.canManageWorkspace ||
                   currentCompanyDraft.linkedinUrl) && (
-                  <InlineEditableInput
-                    ariaLabel="LinkedIn 수정"
-                    className="w-72"
-                    disabled={
-                      !permissions.canManageWorkspace ||
-                      updateWorkspace.isPending
-                    }
-                    displayValue={
-                      currentCompanyDraft.linkedinUrl ? (
-                        permissions.canManageWorkspace ? (
-                          <CompanyLinkBadge
-                            href={currentCompanyDraft.linkedinUrl}
-                            label="LinkedIn"
-                          />
-                        ) : (
-                          <CompanyLinkPill
-                            href={currentCompanyDraft.linkedinUrl}
-                            label="LinkedIn"
-                          />
-                        )
-                      ) : (
-                        <span className="text-[13px] text-neutral-soft">
-                          LinkedIn -
-                        </span>
-                      )
-                    }
-                    editing={companyEditingField === "linkedinUrl"}
-                    inputClassName="text-[13px]"
-                    onChange={(event) =>
-                      changeCompanyDraft({ linkedinUrl: event.target.value })
-                    }
+                  <CompanyEditableLink
+                    disabled={updateWorkspace.isPending}
+                    editable={permissions.canManageWorkspace}
+                    fieldId="org-company-linkedin-url"
+                    href={currentCompanyDraft.linkedinUrl}
+                    label="LinkedIn"
                     onEdit={() => startCompanyEditing("linkedinUrl")}
-                    placeholder="https://"
-                    type="url"
-                    value={currentCompanyDraft.linkedinUrl}
+                    onValueChange={(linkedinUrl) =>
+                      changeCompanyDraft({ linkedinUrl })
+                    }
                   />
                 )}
               </div>
@@ -1016,7 +1011,7 @@ export function OrgTeamPage() {
                 disabled={
                   !permissions.canManageWorkspace || updateWorkspace.isPending
                 }
-                displayClassName="min-h-[132px] text-[13px] leading-6 text-neutral-muted"
+                displayClassName="min-h-[132px] text-[13px] text-neutral-muted"
                 editing={companyEditingField === "companyDescription"}
                 onChange={(event) =>
                   changeCompanyDraft({
@@ -1040,7 +1035,7 @@ export function OrgTeamPage() {
                 disabled={
                   !permissions.canManageWorkspace || updateWorkspace.isPending
                 }
-                displayClassName="min-h-[112px] text-[13px] leading-6 text-neutral-muted"
+                displayClassName="min-h-[112px] text-[13px] text-neutral-muted"
                 editing={companyEditingField === "pitch"}
                 onChange={(event) =>
                   changeCompanyDraft({ pitch: event.target.value })
@@ -1117,6 +1112,7 @@ export function OrgTeamPage() {
                     onChange={(event) =>
                       changeCompanyDraft({ mainInvestors: event.target.value })
                     }
+                    displayClassName="w-full"
                     onEdit={() => startCompanyEditing("mainInvestors")}
                     value={currentCompanyDraft.mainInvestors}
                   />
@@ -1126,7 +1122,7 @@ export function OrgTeamPage() {
                 icon={<FileText className="size-4" strokeWidth={2} />}
                 label="최근 투자 라운드"
                 value={
-                  <InlineEditableTextarea
+                  <InlineEditableInput
                     ariaLabel="최근 투자 라운드 수정"
                     disabled={
                       !permissions.canManageWorkspace ||
@@ -1135,8 +1131,7 @@ export function OrgTeamPage() {
                     editing={
                       companyEditingField === "lastFundingRoundDescription"
                     }
-                    displayClassName="min-h-[96px]"
-                    maxRows={8}
+                    displayClassName="w-full"
                     onChange={(event) =>
                       changeCompanyDraft({
                         lastFundingRoundDescription: event.target.value,
@@ -1145,8 +1140,7 @@ export function OrgTeamPage() {
                     onEdit={() =>
                       startCompanyEditing("lastFundingRoundDescription")
                     }
-                    rows={3}
-                    textareaClassName="min-h-[96px] w-full max-w-xl"
+                    inputClassName="w-full max-w-xl"
                     value={currentCompanyDraft.lastFundingRoundDescription}
                   />
                 }
@@ -1165,227 +1159,231 @@ export function OrgTeamPage() {
         </form>
       </OrgSection>
 
-      <OrgSection>
-        <OrgSectionHeader
-          actions={
-            permissions.canManageMembers ? (
-              <MuteButton
-                onClick={() => setInviteOpen(true)}
-                size="md"
-                variant="primary"
-              >
-                초대하기
-              </MuteButton>
-            ) : null
-          }
-          description="함께 후보자를 검토할 팀원을 초대하고 역할에 맞는 권한을 부여하세요."
-          title="멤버"
-        />
+      {!companyOnly ? (
+        <OrgSection>
+          <OrgSectionHeader
+            actions={
+              permissions.canManageMembers ? (
+                <MuteButton
+                  onClick={() => setInviteOpen(true)}
+                  size="md"
+                  variant="primary"
+                >
+                  초대하기
+                </MuteButton>
+              ) : null
+            }
+            description="함께 후보자를 검토할 팀원을 초대하고 역할에 맞는 권한을 부여하세요."
+            title="멤버"
+          />
 
-        <div className="space-y-6">
-          <div>
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h3 className="text-[14px] font-medium text-neutral-primary">
-                가입 멤버
-              </h3>
-              <span className="text-[12px] font-light text-neutral-soft">
-                {members.length}명
-                {invitations.length > 0
-                  ? ` · 수락 대기 ${invitations.length}명`
-                  : ""}
-              </span>
-            </div>
-            <div className="overflow-x-auto rounded-sm border border-neutral-1000-a05 bg-bg-floating">
-              <table className="w-full min-w-[860px] border-collapse text-left">
-                <thead className="bg-neutral-200/35">
-                  <tr className="border-b border-neutral-1000-a05 text-[12px] font-light text-neutral-soft">
-                    <th className="px-4 py-2.5 font-normal">이메일</th>
-                    <th className="px-3 py-2.5 font-normal">이름</th>
-                    <th className="w-44 px-3 py-2.5 font-normal">직함</th>
-                    <th className="w-36 px-3 py-2.5 font-normal">권한</th>
-                    <th className="w-40 px-3 py-2.5 font-normal">가입 날짜</th>
-                    {permissions.canManageMembers ? (
-                      <th className="w-12 px-2 py-2.5 font-normal">
-                        <span className="sr-only">멤버 작업</span>
+          <div className="space-y-6">
+            <div>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="text-[14px] font-medium text-neutral-primary">
+                  가입 멤버
+                </h3>
+                <span className="text-[12px] font-light text-neutral-soft">
+                  {members.length}명
+                  {invitations.length > 0
+                    ? ` · 수락 대기 ${invitations.length}명`
+                    : ""}
+                </span>
+              </div>
+              <div className="overflow-x-auto rounded-sm border border-neutral-1000-a05 bg-bg-floating">
+                <table className="w-full min-w-[860px] border-collapse text-left">
+                  <thead className="bg-neutral-200/35">
+                    <tr className="border-b border-neutral-1000-a05 text-[12px] font-light text-neutral-soft">
+                      <th className="px-4 py-2.5 font-normal">이메일</th>
+                      <th className="px-3 py-2.5 font-normal">이름</th>
+                      <th className="w-44 px-3 py-2.5 font-normal">직함</th>
+                      <th className="w-36 px-3 py-2.5 font-normal">권한</th>
+                      <th className="w-40 px-3 py-2.5 font-normal">
+                        가입 날짜
                       </th>
-                    ) : null}
-                  </tr>
-                </thead>
-                <tbody>
-                  {members.map((member) => (
-                    <tr
-                      className="border-b border-neutral-1000-a05 last:border-b-0"
-                      key={`member-${member.userId}`}
-                    >
-                      <td className="max-w-60 truncate px-4 py-3 text-[13px] text-neutral-primary">
-                        {member.email || "-"}
-                      </td>
-                      <td className="px-3 py-3">
-                        <div className="flex min-w-0 items-center gap-2.5">
-                          <MemberAvatar member={member} />
-                          <span className="flex min-w-0 items-center gap-1.5">
-                            <span className="truncate text-[13px] text-neutral-primary">
-                              {member.name || "이름 없음"}
+                      {permissions.canManageMembers ? (
+                        <th className="w-12 px-2 py-2.5 font-normal">
+                          <span className="sr-only">멤버 작업</span>
+                        </th>
+                      ) : null}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {members.map((member) => (
+                      <tr
+                        className="border-b border-neutral-1000-a05 last:border-b-0"
+                        key={`member-${member.userId}`}
+                      >
+                        <td className="max-w-60 truncate px-4 py-3 text-[13px] text-neutral-primary">
+                          {member.email || "-"}
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <MemberAvatar member={member} />
+                            <span className="flex min-w-0 items-center gap-1.5">
+                              <span className="truncate text-[13px] text-neutral-primary">
+                                {member.name || "이름 없음"}
+                              </span>
+                              {member.userId === currentUser?.userId ? (
+                                <Badge radius="full" size="sm" variant="faded">
+                                  나
+                                </Badge>
+                              ) : null}
                             </span>
-                            {member.userId === currentUser?.userId ? (
-                              <Badge radius="full" size="sm" variant="faded">
-                                나
-                              </Badge>
-                            ) : null}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3">
+                          <span className="block max-w-40 truncate text-[12px] font-normal text-neutral-muted">
+                            {member.role || "-"}
                           </span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3">
-                        <span className="block max-w-40 truncate text-[12px] font-normal text-neutral-muted">
-                          {member.role || "-"}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3">
-                        {permissions.canManageMembers ? (
-                          <Select
-                            disabled={
-                              updateMembershipAuthority.isPending &&
-                              updateMembershipAuthority.variables?.userId ===
-                                member.userId
-                            }
-                            onValueChange={(value) =>
-                              void changeMemberAuthority(
-                                member,
-                                value as OrgMembershipRole
-                              )
-                            }
-                            value={member.authority}
-                          >
-                            <SelectTrigger
-                              aria-label={`${member.name || member.email || "멤버"} 권한`}
-                              className="h-9 w-[112px] text-[12px]"
-                              size="sm"
+                        </td>
+                        <td className="px-3 py-3">
+                          {permissions.canManageMembers ? (
+                            <Select
+                              disabled={
+                                updateMembershipAuthority.isPending &&
+                                updateMembershipAuthority.variables?.userId ===
+                                  member.userId
+                              }
+                              onValueChange={(value) =>
+                                void changeMemberAuthority(
+                                  member,
+                                  value as OrgMembershipRole
+                                )
+                              }
+                              value={member.authority}
                             >
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent align="end">
-                              {ORG_MEMBERSHIP_ROLE_OPTIONS.map((option) => (
-                                <SelectItem
-                                  key={option.value}
-                                  value={option.value}
+                              <SelectTrigger
+                                aria-label={`${member.name || member.email || "멤버"} 권한`}
+                                className="h-9 w-[112px] text-[12px]"
+                                size="sm"
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent align="end">
+                                {ORG_MEMBERSHIP_ROLE_OPTIONS.map((option) => (
+                                  <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span className="text-[12px] font-normal text-neutral-muted">
+                              {getOrgRoleLabel(member.authority)}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-[12px] font-light text-neutral-muted">
+                          {formatDate(member.joinedAt)}
+                        </td>
+                        {permissions.canManageMembers ? (
+                          <td className="px-2 py-3 text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <MuteButton
+                                  aria-label={`${member.name || member.email || "멤버"} 작업`}
+                                  size="sm"
+                                  variant="transparent"
                                 >
-                                  {option.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <span className="text-[12px] font-normal text-neutral-muted">
-                            {getOrgRoleLabel(member.authority)}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-3 text-[12px] font-light text-neutral-muted">
-                        {formatDate(member.joinedAt)}
-                      </td>
-                      {permissions.canManageMembers ? (
-                        <td className="px-2 py-3 text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <MuteButton
-                                aria-label={`${member.name || member.email || "멤버"} 작업`}
-                                size="sm"
-                                variant="transparent"
-                              >
-                                <Ellipsis className="size-4" />
-                              </MuteButton>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-40">
-                              <DropdownMenuItem
-                                disabled={updateMemberProfile.isPending}
-                                onSelect={() => openMemberRoleEdit(member)}
-                              >
-                                <Pencil />
-                                직함 수정
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                disabled={removeMember.isPending}
-                                onSelect={() => setMemberToRemove(member)}
-                                tone="danger"
-                              >
-                                <Trash2 />
-                                멤버 제거
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                                  <Ellipsis className="size-4" />
+                                </MuteButton>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-40">
+                                <DropdownMenuItem
+                                  disabled={updateMemberProfile.isPending}
+                                  onSelect={() => openMemberRoleEdit(member)}
+                                >
+                                  <Pencil />
+                                  직함 수정
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  disabled={removeMember.isPending}
+                                  onSelect={() => setMemberToRemove(member)}
+                                  tone="danger"
+                                >
+                                  <Trash2 />
+                                  멤버 제거
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </td>
+                        ) : null}
+                      </tr>
+                    ))}
+                    {invitations.map((invitation) => (
+                      <tr
+                        className="border-b border-neutral-1000-a05 bg-bg-weak/30 last:border-b-0"
+                        key={`invitation-${invitation.invitationId}`}
+                      >
+                        <td className="max-w-60 truncate px-4 py-3 text-[13px] text-neutral-primary">
+                          {invitation.email}
                         </td>
-                      ) : null}
-                    </tr>
-                  ))}
-                  {invitations.map((invitation) => (
-                    <tr
-                      className="border-b border-neutral-1000-a05 bg-bg-weak/30 last:border-b-0"
-                      key={`invitation-${invitation.invitationId}`}
-                    >
-                      <td className="max-w-60 truncate px-4 py-3 text-[13px] text-neutral-primary">
-                        {invitation.email}
-                      </td>
-                      <td className="px-3 py-3">
-                        <div className="flex items-center gap-2.5">
-                          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-bg-weak text-[12px] font-medium text-neutral-muted">
-                            {invitation.email.slice(0, 1).toUpperCase()}
-                          </span>
-                          <Badge radius="full" size="sm" variant="faded">
-                            수락 대기
-                          </Badge>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 text-[12px] font-normal text-neutral-muted">
-                        -
-                      </td>
-                      <td className="px-3 py-3 text-[12px] font-normal text-neutral-muted">
-                        {getOrgRoleLabel(invitation.role)}
-                      </td>
-                      <td className="px-3 py-3 text-[12px] font-light text-neutral-muted">
-                        -
-                      </td>
-                      {permissions.canManageMembers ? (
-                        <td className="px-2 py-3 text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <MuteButton
-                                aria-label={`${invitation.email} 초대 작업`}
-                                size="sm"
-                                variant="transparent"
-                              >
-                                <Ellipsis className="size-4" />
-                              </MuteButton>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-40">
-                              <DropdownMenuItem
-                                disabled={sendInvitations.isPending}
-                                onSelect={() =>
-                                  void resendInvitation(invitation)
-                                }
-                              >
-                                다시 보내기
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                disabled={cancelInvitation.isPending}
-                                onSelect={() =>
-                                  setInvitationToCancel(invitation)
-                                }
-                                tone="danger"
-                              >
-                                초대 취소
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                        <td className="px-3 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-bg-weak text-[12px] font-medium text-neutral-muted">
+                              {invitation.email.slice(0, 1).toUpperCase()}
+                            </span>
+                            <Badge radius="full" size="sm" variant="faded">
+                              수락 대기
+                            </Badge>
+                          </div>
                         </td>
-                      ) : null}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        <td className="px-3 py-3 text-[12px] font-normal text-neutral-muted">
+                          -
+                        </td>
+                        <td className="px-3 py-3 text-[12px] font-normal text-neutral-muted">
+                          {getOrgRoleLabel(invitation.role)}
+                        </td>
+                        <td className="px-3 py-3 text-[12px] font-light text-neutral-muted">
+                          -
+                        </td>
+                        {permissions.canManageMembers ? (
+                          <td className="px-2 py-3 text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <MuteButton
+                                  aria-label={`${invitation.email} 초대 작업`}
+                                  size="sm"
+                                  variant="transparent"
+                                >
+                                  <Ellipsis className="size-4" />
+                                </MuteButton>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-40">
+                                <DropdownMenuItem
+                                  disabled={sendInvitations.isPending}
+                                  onSelect={() =>
+                                    void resendInvitation(invitation)
+                                  }
+                                >
+                                  다시 보내기
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  disabled={cancelInvitation.isPending}
+                                  onSelect={() =>
+                                    setInvitationToCancel(invitation)
+                                  }
+                                  tone="danger"
+                                >
+                                  초대 취소
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </td>
+                        ) : null}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </div>
-      </OrgSection>
+        </OrgSection>
+      ) : null}
 
       {permissions.canManageWorkspace && companyEditing ? (
         <OrgUnsavedChangesBar
@@ -1397,158 +1395,167 @@ export function OrgTeamPage() {
         />
       ) : null}
 
-      <InviteMemberDialog
-        invitations={invitations}
-        members={members}
-        onOpenChange={setInviteOpen}
-        open={inviteOpen}
-        workspace={workspace}
-      />
+      {!companyOnly ? (
+        <>
+          <InviteMemberDialog
+            invitations={invitations}
+            members={members}
+            onOpenChange={setInviteOpen}
+            open={inviteOpen}
+            workspace={workspace}
+          />
 
-      <Dialog
-        open={Boolean(memberRoleToEdit)}
-        onOpenChange={(open) => {
-          if (!open && !updateMemberProfile.isPending) {
-            setMemberRoleToEdit(null);
-            setMemberRoleError(null);
-          }
-        }}
-      >
-        <DialogContent className="max-w-sm gap-5 rounded-lg p-6">
-          <DialogHeader>
-            <DialogTitle className="text-[17px]">직함 수정</DialogTitle>
-            <DialogDescription className="text-[13px] leading-5">
-              {memberRoleToEdit?.name ||
-                memberRoleToEdit?.email ||
-                "선택한 멤버"}
-              의 팀 내 직함을 입력해 주세요.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            className="space-y-4"
-            onSubmit={(event) => void saveMemberRole(event)}
-          >
-            <TextField
-              autoFocus
-              id="org-member-role-edit"
-              label="직함"
-              maxLength={160}
-              onChange={(event) => {
-                setMemberRoleDraft(event.target.value);
+          <Dialog
+            open={Boolean(memberRoleToEdit)}
+            onOpenChange={(open) => {
+              if (!open && !updateMemberProfile.isPending) {
+                setMemberRoleToEdit(null);
                 setMemberRoleError(null);
-              }}
-              placeholder="예: 채용 매니저, VP of Engineering"
-              required
-              value={memberRoleDraft}
-            />
-            {memberRoleError ? (
-              <p className="text-[12px] leading-5 text-critical" role="alert">
-                {memberRoleError}
-              </p>
-            ) : null}
-            <DialogFooter>
-              <MuteButton
-                disabled={updateMemberProfile.isPending}
-                onClick={() => setMemberRoleToEdit(null)}
-                size="md"
-                type="button"
-              >
-                취소
-              </MuteButton>
-              <MuteButton
-                disabled={updateMemberProfile.isPending}
-                size="md"
-                type="submit"
-                variant="primary"
-              >
-                {updateMemberProfile.isPending ? (
-                  <LoaderCircle className="size-4 animate-spin" />
-                ) : null}
-                저장
-              </MuteButton>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={Boolean(invitationToCancel)}
-        onOpenChange={(open) => !open && setInvitationToCancel(null)}
-      >
-        <DialogContent className="max-w-sm gap-4 rounded-lg p-6">
-          <DialogHeader>
-            <DialogTitle className="text-[17px]">초대 취소</DialogTitle>
-            <DialogDescription className="text-[13px] leading-5">
-              {invitationToCancel?.email}에 부여한 Organization 초대 권한을
-              취소합니다.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <MuteButton
-              disabled={cancelInvitation.isPending}
-              onClick={() => setInvitationToCancel(null)}
-              size="md"
-              type="button"
-            >
-              돌아가기
-            </MuteButton>
-            <MuteButton
-              disabled={cancelInvitation.isPending}
-              onClick={() =>
-                invitationToCancel
-                  ? void cancelPendingInvitation(invitationToCancel)
-                  : undefined
               }
-              size="md"
-              type="button"
-              variant="warn"
-            >
-              {cancelInvitation.isPending ? (
-                <LoaderCircle className="size-4 animate-spin" />
-              ) : null}
-              초대 취소
-            </MuteButton>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            }}
+          >
+            <DialogContent className="max-w-sm gap-5 rounded-lg p-6">
+              <DialogHeader>
+                <DialogTitle className="text-[17px]">직함 수정</DialogTitle>
+                <DialogDescription className="text-[13px] leading-5">
+                  {memberRoleToEdit?.name ||
+                    memberRoleToEdit?.email ||
+                    "선택한 멤버"}
+                  의 팀 내 직함을 입력해 주세요.
+                </DialogDescription>
+              </DialogHeader>
+              <form
+                className="space-y-4"
+                onSubmit={(event) => void saveMemberRole(event)}
+              >
+                <TextField
+                  autoFocus
+                  id="org-member-role-edit"
+                  label="직함"
+                  maxLength={160}
+                  onChange={(event) => {
+                    setMemberRoleDraft(event.target.value);
+                    setMemberRoleError(null);
+                  }}
+                  placeholder="예: 채용 매니저, VP of Engineering"
+                  required
+                  value={memberRoleDraft}
+                />
+                {memberRoleError ? (
+                  <p
+                    className="text-[12px] leading-5 text-critical"
+                    role="alert"
+                  >
+                    {memberRoleError}
+                  </p>
+                ) : null}
+                <DialogFooter>
+                  <MuteButton
+                    disabled={updateMemberProfile.isPending}
+                    onClick={() => setMemberRoleToEdit(null)}
+                    size="md"
+                    type="button"
+                  >
+                    취소
+                  </MuteButton>
+                  <MuteButton
+                    disabled={updateMemberProfile.isPending}
+                    size="md"
+                    type="submit"
+                    variant="primary"
+                  >
+                    {updateMemberProfile.isPending ? (
+                      <LoaderCircle className="size-4 animate-spin" />
+                    ) : null}
+                    저장
+                  </MuteButton>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
 
-      <Dialog
-        open={Boolean(memberToRemove)}
-        onOpenChange={(open) => !open && setMemberToRemove(null)}
-      >
-        <DialogContent className="max-w-sm gap-4 rounded-lg p-6">
-          <DialogHeader>
-            <DialogTitle className="text-[17px]">멤버 제거</DialogTitle>
-            <DialogDescription className="text-[13px] leading-5">
-              {memberToRemove?.name || memberToRemove?.email || "선택한 멤버"}를
-              Organization에서 제거합니다. 제거한 멤버는 더 이상 이
-              Organization에 접근할 수 없습니다.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <MuteButton
-              disabled={removeMember.isPending}
-              onClick={() => setMemberToRemove(null)}
-              size="md"
-              type="button"
-            >
-              돌아가기
-            </MuteButton>
-            <MuteButton
-              disabled={removeMember.isPending}
-              onClick={() => void removeSelectedMember()}
-              size="md"
-              type="button"
-              variant="warn"
-            >
-              {removeMember.isPending ? (
-                <LoaderCircle className="size-4 animate-spin" />
-              ) : null}
-              멤버 제거
-            </MuteButton>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <Dialog
+            open={Boolean(invitationToCancel)}
+            onOpenChange={(open) => !open && setInvitationToCancel(null)}
+          >
+            <DialogContent className="max-w-sm gap-4 rounded-lg p-6">
+              <DialogHeader>
+                <DialogTitle className="text-[17px]">초대 취소</DialogTitle>
+                <DialogDescription className="text-[13px] leading-5">
+                  {invitationToCancel?.email}에 부여한 Organization 초대 권한을
+                  취소합니다.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <MuteButton
+                  disabled={cancelInvitation.isPending}
+                  onClick={() => setInvitationToCancel(null)}
+                  size="md"
+                  type="button"
+                >
+                  돌아가기
+                </MuteButton>
+                <MuteButton
+                  disabled={cancelInvitation.isPending}
+                  onClick={() =>
+                    invitationToCancel
+                      ? void cancelPendingInvitation(invitationToCancel)
+                      : undefined
+                  }
+                  size="md"
+                  type="button"
+                  variant="warn"
+                >
+                  {cancelInvitation.isPending ? (
+                    <LoaderCircle className="size-4 animate-spin" />
+                  ) : null}
+                  초대 취소
+                </MuteButton>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog
+            open={Boolean(memberToRemove)}
+            onOpenChange={(open) => !open && setMemberToRemove(null)}
+          >
+            <DialogContent className="max-w-sm gap-4 rounded-lg p-6">
+              <DialogHeader>
+                <DialogTitle className="text-[17px]">멤버 제거</DialogTitle>
+                <DialogDescription className="text-[13px] leading-5">
+                  {memberToRemove?.name ||
+                    memberToRemove?.email ||
+                    "선택한 멤버"}
+                  를 Organization에서 제거합니다. 제거한 멤버는 더 이상 이
+                  Organization에 접근할 수 없습니다.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <MuteButton
+                  disabled={removeMember.isPending}
+                  onClick={() => setMemberToRemove(null)}
+                  size="md"
+                  type="button"
+                >
+                  돌아가기
+                </MuteButton>
+                <MuteButton
+                  disabled={removeMember.isPending}
+                  onClick={() => void removeSelectedMember()}
+                  size="md"
+                  type="button"
+                  variant="warn"
+                >
+                  {removeMember.isPending ? (
+                    <LoaderCircle className="size-4 animate-spin" />
+                  ) : null}
+                  멤버 제거
+                </MuteButton>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
+      ) : null}
     </div>
   );
 }

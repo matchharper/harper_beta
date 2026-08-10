@@ -6,11 +6,12 @@ import {
   Search,
 } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
+import { useRouter } from "next/router";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
 import { opsTheme } from "@/components/ops/theme";
 import { OrgRoleActionsMenu } from "@/components/org/OrgRoleActionsMenu";
 import { InternalOnlySurface } from "@/components/org/internal/InternalOnlySurface";
-import { BareButton } from "@/components/ui/button";
+import { BareButton, MuteButton } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -24,6 +25,7 @@ import {
   useOrgJobsRoleActions,
 } from "@/hooks/org/useOrgJobs";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
+import { buildOrgHref } from "@/lib/org/routes";
 import type {
   OrgBoardItem,
   OrgBoardResponse,
@@ -192,7 +194,7 @@ function getRoleStatusMeta(status: string | null | undefined) {
   }
   if (normalized === "draft" || normalized === "pending") {
     return {
-      className: "bg-info-faded text-info",
+      className: "bg-neutral-100 text-neutral-800",
       label: "준비중",
     };
   }
@@ -209,6 +211,7 @@ function getRoleStatusMeta(status: string | null | undefined) {
 }
 
 const ROLE_STATUS_FILTER_OPTIONS = [
+  { label: "준비중", value: "draft" },
   { label: "진행중", value: "active" },
   { label: "중단", value: "paused" },
 ] as const;
@@ -238,11 +241,12 @@ function RoleStatusBadge({
 }
 
 export function OrgAllRolesOverview() {
+  const router = useRouter();
   const { board, boardQuery } = useOrgJobsBoard();
   const { changeRole } = useOrgJobsNavigation();
   const { deleteRole, pauseRole, resumeRole, roleActionPending } =
     useOrgJobsRoleActions();
-  const { permissions, roles } = useOrgWorkspace();
+  const { permissions, roles, workspace } = useOrgWorkspace();
   const canManageCandidates = permissions.canManageCandidates;
   const isLoading = boardQuery.isLoading;
   const [roleStatusFilters, setRoleStatusFilters] = useState<
@@ -305,6 +309,19 @@ export function OrgAllRolesOverview() {
   }, [roleStatusFilters, roleTitleQuery, roles]);
   const hasActiveFilter =
     roleStatusFilters.length > 0 || roleTitleQuery.trim().length > 0;
+  const openRole = (role: OrgRole, view: "pipeline" | "role" = "role") => {
+    if (normalizeRoleStatus(role.status) === "draft") {
+      void router.push(
+        buildOrgHref({
+          orgId: workspace.workspaceId,
+          page: "new-role",
+          roleId: role.roleId,
+        })
+      );
+      return;
+    }
+    changeRole(role.roleId, view);
+  };
 
   return (
     <div>
@@ -407,19 +424,18 @@ export function OrgAllRolesOverview() {
                       <div className="flex min-w-0 flex-wrap items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => changeRole(role.roleId)}
+                          onClick={() => openRole(role)}
                           className="min-w-0 max-w-full truncate text-left text-[14px] font-medium text-neutral-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
                         >
                           {role.name}
                         </button>
                       </div>
-                      {canManageCandidates ? (
+                      {canManageCandidates &&
+                      normalizeRoleStatus(role.status) !== "draft" ? (
                         <OrgRoleActionsMenu
                           role={role}
                           pending={roleActionPending}
-                          onEdit={(selectedRole) =>
-                            changeRole(selectedRole.roleId)
-                          }
+                          onEdit={(selectedRole) => openRole(selectedRole)}
                           onPause={pauseRole}
                           onResume={resumeRole}
                           onDelete={deleteRole}
@@ -450,44 +466,56 @@ export function OrgAllRolesOverview() {
                     </div>
                   </div>
 
-                  <div className="flex min-h-[76px] overflow-x-auto">
-                    <div className="flex w-[116px] shrink-0 flex-col justify-center gap-1.5 border-r border-neutral-1000-a05 px-3 text-[12px] text-neutral-muted">
-                      <div className="flex justify-between gap-2">
-                        <span>총계</span>
-                        <span className="font-medium text-neutral-primary">
-                          {totalCount}
-                        </span>
+                  {normalizeRoleStatus(role.status) === "draft" ? (
+                    <div className="flex min-h-[76px] items-center justify-between gap-4 px-3.5 py-3 text-[13px] text-neutral-muted">
+                      <span>새로운 역할 등록을 완료하세요.</span>
+                      <MuteButton onClick={() => openRole(role)} size="md">
+                        이어서 작성
+                      </MuteButton>
+                    </div>
+                  ) : (
+                    <div className="flex min-h-[76px] overflow-x-auto">
+                      <div className="flex w-[116px] shrink-0 flex-col justify-center gap-1.5 border-r border-neutral-1000-a05 px-3 text-[12px] text-neutral-muted">
+                        <div className="flex justify-between gap-2">
+                          <span>총계</span>
+                          <span className="font-medium text-neutral-primary">
+                            {totalCount}
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span>중단</span>
+                          <span className="font-medium text-neutral-primary">
+                            {counts.get(`${role.roleId}:process_stopped`) ?? 0}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex justify-between gap-2">
-                        <span>중단</span>
-                        <span className="font-medium text-neutral-primary">
-                          {counts.get(`${role.roleId}:process_stopped`) ?? 0}
-                        </span>
+                      <div className="flex min-w-max flex-1 items-center gap-4 px-3 py-3">
+                        {roleStages.map((stage) => {
+                          const cell = (
+                            <StageCountCell
+                              count={
+                                counts.get(`${role.roleId}:${stage.id}`) ?? 0
+                              }
+                              label={getRoleStageLabel(stage, role)}
+                              onClick={() => openRole(role, "pipeline")}
+                              stageId={stage.id}
+                            />
+                          );
+                          return stage.id === "accepted" ||
+                            stage.id === "archived" ? (
+                            <InternalOnlySurface
+                              key={stage.id}
+                              showLabel={false}
+                            >
+                              {cell}
+                            </InternalOnlySurface>
+                          ) : (
+                            <div key={stage.id}>{cell}</div>
+                          );
+                        })}
                       </div>
                     </div>
-                    <div className="flex min-w-max flex-1 items-center gap-4 px-3 py-3">
-                      {roleStages.map((stage) => {
-                        const cell = (
-                          <StageCountCell
-                            count={
-                              counts.get(`${role.roleId}:${stage.id}`) ?? 0
-                            }
-                            label={getRoleStageLabel(stage, role)}
-                            onClick={() => changeRole(role.roleId, "pipeline")}
-                            stageId={stage.id}
-                          />
-                        );
-                        return stage.id === "accepted" ||
-                          stage.id === "archived" ? (
-                          <InternalOnlySurface key={stage.id} showLabel={false}>
-                            {cell}
-                          </InternalOnlySurface>
-                        ) : (
-                          <div key={stage.id}>{cell}</div>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  )}
                 </article>
               );
             })}

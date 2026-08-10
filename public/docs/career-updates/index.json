@@ -1,5 +1,17 @@
 [
   {
+    "date": "2026-08-10",
+    "tag": "internal",
+    "ko": "업데이트가 비어 있는 이유: Harper는 무엇보다 좋은 기회를 직접 더 많이 연결해 드리고자 하고 있어요. 현재 직접 연결 가능한 기회를 늘리기 위해 회사에 제공하는 기능을 업데이트하고 있습니다. 앞으로 더 많은 기회를 받아보실 수 있도록 노력할게요.",
+    "en": "Why there haven’t been any updates: More than anything, Harper is focused on connecting you with more great opportunities. We’re currently improving the features we offer companies so we can create more opportunities for direct connections. We’ll keep working to bring you more opportunities."
+  },
+  {
+    "date": "2026-08-10",
+    "tag": "fix-error",
+    "ko": "첫 추천까지 시간이 오래 걸리던 점을 개선했습니다.",
+    "en": "We've improved the time it takes to get the first recommendation."
+  },
+  {
     "date": "2026-08-05",
     "tag": "matching",
     "ko": "Harper가 더 유연하게 기회를 탐색합니다. 이전 검색에서 좋은 결과를 찾지 못했다면 관련 직무, 기술 분야, 지역, 원격 근무 범위를 적절히 넓혀 조금 다른 기회를 살펴보고, 분명한 선호가 확인되면 그 방향을 더 깊게 찾아봅니다.",

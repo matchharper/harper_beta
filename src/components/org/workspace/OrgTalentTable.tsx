@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
 import { cn } from "@/lib/utils";
 
-export type OrgTalentTableStatusTone = "muted" | "primary";
+export type OrgTalentTableStatusTone = "muted" | "primary" | "action";
 
 export type OrgTalentTableRow<Item> = {
   companyName?: string | null;
@@ -65,13 +65,19 @@ function StatusLabel({
         "inline-flex items-center gap-1.5 whitespace-nowrap text-[12px]",
         tone === "primary"
           ? "font-medium text-primary"
-          : "font-light text-neutral-muted"
+          : tone === "action"
+            ? "font-medium text-action"
+            : "font-light text-neutral-muted"
       )}
     >
       <span
         className={cn(
-          "size-1.5 rounded-full",
-          tone === "primary" ? "bg-primary" : "bg-neutral-400"
+          "size-[5px] rounded-full",
+          tone === "primary"
+            ? "bg-primary"
+            : tone === "action"
+              ? "bg-action"
+              : "bg-neutral-400"
         )}
       />
       {children}

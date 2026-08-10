@@ -1,6 +1,6 @@
 import Head from "next/head";
+import { useRouter } from "next/router";
 import type { ReactNode } from "react";
-import { OrgAgentPanel } from "@/components/org/agent/OrgAgentPanel";
 import { OrgLoginScreen } from "@/components/org/OrgLoginScreen";
 import { OrgMemberProfileDialog } from "@/components/org/OrgMemberProfileDialog";
 import { Page } from "@/components/layout/Page";
@@ -16,6 +16,7 @@ import {
   useOrgWorkspaceController,
 } from "@/hooks/org/useOrgWorkspace";
 import type { OrgWorkspacePageId } from "@/lib/org/routes";
+import { cn } from "@/lib/utils";
 
 export function OrgWorkspaceApp({
   children,
@@ -26,6 +27,7 @@ export function OrgWorkspaceApp({
   legacyEntry?: boolean;
   page: OrgWorkspacePageId;
 }) {
+  const router = useRouter();
   const {
     authLoading,
     bootstrapQuery,
@@ -35,16 +37,34 @@ export function OrgWorkspaceApp({
     user,
     workspace,
   } = useOrgWorkspaceController({ legacyEntry, page });
-  const useWideLayout = page === "all" || page === "inbox" || page === "jobs";
+  const isRoleCreationPage = page === "new-role";
+  const isRoleCreationStarted = false;
+  // const isRoleCreationStarted =
+  //   isRoleCreationPage &&
+  //   typeof router.query.roleId === "string" &&
+  //   Boolean(router.query.roleId.trim());
+
+  const useWideLayout =
+    page === "all" || page === "inbox" || page === "jobs" || isRoleCreationPage;
 
   if (authLoading || !routerReady) {
-    return <OrgWorkspaceShellSkeleton wide={useWideLayout} />;
+    return (
+      <OrgWorkspaceShellSkeleton
+        compact={isRoleCreationStarted}
+        wide={useWideLayout}
+      />
+    );
   }
   if (!user) {
     return <OrgLoginScreen orgId={orgId} />;
   }
   if (bootstrapQuery.isLoading) {
-    return <OrgWorkspaceShellSkeleton wide={useWideLayout} />;
+    return (
+      <OrgWorkspaceShellSkeleton
+        compact={isRoleCreationStarted}
+        wide={useWideLayout}
+      />
+    );
   }
   if (bootstrapQuery.error) {
     return (
@@ -66,13 +86,20 @@ export function OrgWorkspaceApp({
     );
   }
   if (orgId && !workspace) {
-    return <OrgWorkspaceShellSkeleton wide={useWideLayout} />;
+    return (
+      <OrgWorkspaceShellSkeleton
+        compact={isRoleCreationStarted}
+        wide={useWideLayout}
+      />
+    );
   }
   if (!workspace || !contextValue) {
     return <OrgLoginScreen authenticatedEmail={user.email} />;
   }
 
-  const pageTitle = `${workspace.companyName} · ${page[0].toUpperCase()}${page.slice(1)}`;
+  const pageTitle = isRoleCreationPage
+    ? `${workspace.companyName} · 새 역할 등록`
+    : `${workspace.companyName} · ${page[0].toUpperCase()}${page.slice(1)}`;
   const requiresMemberProfile =
     !contextValue.internalOpsAccess &&
     Boolean(contextValue.currentUser) &&
@@ -89,13 +116,21 @@ export function OrgWorkspaceApp({
         className="overflow-x-clip overflow-y-auto overscroll-y-none font-sans text-neutral-primary"
         minHeight="fillScreen"
       >
-        <OrgWorkspaceSidebar />
-        <div className="lg:pl-[256px]">
+        <OrgWorkspaceSidebar compact={isRoleCreationStarted} />
+        <div
+          className={isRoleCreationStarted ? "lg:pl-[72px]" : "lg:pl-[256px]"}
+        >
           <PageContainer
             key={workspace.workspaceId}
-            className="py-6 sm:py-9 lg:py-10"
-            padding="default"
-            size={useWideLayout ? "wide" : "narrow"}
+            className={cn(
+              isRoleCreationPage
+                ? "h-[calc(100svh-104px)] min-h-[560px] lg:h-screen lg:min-h-0"
+                : "py-6 sm:py-9 lg:py-10"
+            )}
+            padding={isRoleCreationPage ? "none" : "default"}
+            size={
+              isRoleCreationPage ? "full" : useWideLayout ? "wide" : "narrow"
+            }
           >
             {children}
           </PageContainer>
@@ -108,11 +143,7 @@ export function OrgWorkspaceApp({
           workspace={workspace}
         />
       ) : (
-        <OrgSlackConnectionGate>
-          {contextValue.permissions.canManageCandidates ? (
-            <OrgAgentPanel />
-          ) : null}
-        </OrgSlackConnectionGate>
+        <OrgSlackConnectionGate>{null}</OrgSlackConnectionGate>
       )}
     </OrgWorkspaceProvider>
   );

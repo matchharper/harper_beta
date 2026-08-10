@@ -1,5 +1,5 @@
 import type { GetStaticProps } from "next";
-import { ExternalLink, MessageSquareText } from "lucide-react";
+import { MessageSquareText } from "lucide-react";
 import DocumentPageShell from "@/components/landing/DocumentPageShell";
 import { Badge } from "@/components/ui/badge";
 import { MuteButton } from "@/components/ui/button";

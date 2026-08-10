@@ -58,6 +58,11 @@ import {
   fetchBlockingCompanyTalentRequestForWorkspace,
 } from "@/lib/companyTalentRequests/server";
 import { formatOrgAgentKstDateTime } from "@/lib/org/agent/dateTime";
+import {
+  executeSharedOpenUrl,
+  executeSharedWebSearch,
+} from "@/lib/agentTools/web";
+import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 
 export { createOrgAgentToolExecutionState, promoteOrgAgentToolReadVisibility };
 export { OrgAgentToolInputError };
@@ -309,6 +314,16 @@ export function getOrgAgentToolStatusLabel(args: {
   status: "done" | "error" | "running";
 }) {
   const labels: Record<OrgAgentToolName, [string, string, string]> = {
+    web_search: [
+      "웹에서 확인하는 중",
+      "웹 검색 완료",
+      "웹 검색을 완료하지 못했습니다",
+    ],
+    open_url: [
+      "링크를 읽는 중",
+      "링크 확인 완료",
+      "링크를 읽지 못했습니다",
+    ],
     get_talents: [
       "후보자를 찾는 중",
       "후보자 검색 완료",
@@ -1721,7 +1736,15 @@ export async function executeOrgAgentTool(args: {
   const workspaceId = args.conversation.company_workspace_id;
   let result: Record<string, unknown>;
 
-  if (args.name === "get_talents") {
+  if (args.name === "web_search") {
+    result = await executeSharedWebSearch(input);
+  } else if (args.name === "open_url") {
+    result = (await executeSharedOpenUrl({
+      admin: args.admin as unknown as TalentAdminClient,
+      enableLinkedinApify: true,
+      input,
+    })) as Record<string, unknown>;
+  } else if (args.name === "get_talents") {
     result = await executeGetTalents({
       admin: args.admin,
       audience: args.audience,
@@ -1853,7 +1876,11 @@ export async function executeOrgAgentTool(args: {
     name: args.name,
     status: "success",
     summary:
-      args.name === "get_talents"
+      args.name === "web_search"
+        ? "웹 검색"
+        : args.name === "open_url"
+          ? "링크 조회"
+          : args.name === "get_talents"
         ? "후보자 검색"
         : args.name === "read_talent"
           ? "후보자 상세 조회"

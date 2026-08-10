@@ -292,6 +292,7 @@ async function main() {
   const mentions = safeMentions(message.mentions);
   const systemPrompt = buildOrgAgentSystemPrompt({
     enableSlackChoiceButtons: isSlack,
+    surface: isSlack ? "slack" : "chat",
   });
   const userPrompt = buildOrgAgentUserPrompt({
     context,

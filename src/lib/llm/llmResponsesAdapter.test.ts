@@ -13,6 +13,7 @@ test("builds a stateless high-reasoning Responses request", () => {
     requestBody: {
       max_tokens: 4_000,
       messages: [{ content: "Hello", role: "user" }],
+      response_format: { type: "json_object" },
       tools: [
         {
           function: {
@@ -26,6 +27,7 @@ test("builds a stateless high-reasoning Responses request", () => {
   });
 
   assert.deepEqual(request.reasoning, { effort: "high" });
+  assert.deepEqual(request.text, { format: { type: "json_object" } });
   assert.equal(request.store, false);
   assert.deepEqual(request.include, ["reasoning.encrypted_content"]);
   assert.equal(request.max_output_tokens, 4_000);

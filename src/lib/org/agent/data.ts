@@ -287,12 +287,18 @@ async function assertRoleInWorkspace(args: {
   });
 }
 
-function compactBoardItem(item: OrgBoardItem) {
+function compactBoardItem(
+  item: OrgBoardItem,
+  options?: { includeProfilePicture?: boolean }
+) {
   return {
     candidate: {
       email: item.talent.email,
       headline: item.talent.headline,
       name: item.talent.name ?? item.talent.email ?? item.talentId,
+      ...(options?.includeProfilePicture
+        ? { profilePicture: item.talent.profilePicture }
+        : {}),
       talentId: item.talentId,
     },
     fitSummary: clip(item.fitSummary, 400) || null,
@@ -826,7 +832,9 @@ async function findOrgAgentProfileMatches(args: {
 export async function getOrgAgentTalents(args: {
   admin: OrgAgentAdminClient;
   audience?: OrgAgentReadAudience;
+  includeProfilePicture?: boolean;
   limit?: number;
+  limitCap?: number;
   offset?: number;
   query?: string | null;
   roleId?: string | null;
@@ -836,7 +844,8 @@ export async function getOrgAgentTalents(args: {
 }) {
   const queryText = text(args.query);
   const queryLower = queryText.toLocaleLowerCase();
-  const limit = integer(args.limit, 10, 1, 20);
+  const limitCap = integer(args.limitCap, 20, 1, 200);
+  const limit = integer(args.limit, 10, 1, limitCap);
   const offset = integer(args.offset, 0, 0, 200);
   const board = await fetchVisibleOrgAgentBoard({
     audience: args.audience,
@@ -873,7 +882,9 @@ export async function getOrgAgentTalents(args: {
   return {
     hasMore: rows.length > offset + limit,
     items: page.map((item) => ({
-      ...compactBoardItem(item),
+      ...compactBoardItem(item, {
+        includeProfilePicture: args.includeProfilePicture,
+      }),
       ...(profileMatches.has(item.talentId) && {
         profileMatches: profileMatches.get(item.talentId),
       }),

@@ -6,14 +6,93 @@ import {
   type DraftChatAttachment,
 } from "@/lib/chat/attachmentClient";
 import { useMessages } from "@/i18n/useMessage";
-import React, { useCallback, useRef } from "react";
+import {
+  forwardRef,
+  type Key,
+  type ReactNode,
+  type TextareaHTMLAttributes,
+  useCallback,
+  useRef,
+} from "react";
 import { ArrowUp, Square } from "lucide-react";
-import { Textarea as UiTextarea } from "@/components/ui/textarea";
-import { BareButton } from "@/components/ui/button";
 
-type Props = {
+import { Textarea } from "@/components/ui/textarea";
+import { BareButton } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
+export type ChatComposerFrameProps = Omit<
+  TextareaHTMLAttributes<HTMLTextAreaElement>,
+  "className"
+> & {
+  action: ReactNode;
+  actionLayout?: "footer" | "overlay";
+  className?: string;
+  overlay?: ReactNode;
+  textareaKey?: Key;
+  textareaClassName?: string;
+};
+
+export const ChatComposerFrame = forwardRef<
+  HTMLTextAreaElement,
+  ChatComposerFrameProps
+>(function ChatComposerFrame(
+  {
+    action,
+    actionLayout = "overlay",
+    className,
+    overlay,
+    rows = 3,
+    textareaClassName,
+    textareaKey,
+    ...textareaProps
+  },
+  ref
+) {
+  return (
+    <div
+      className={cn(
+        "overflow-hidden rounded-[16px] border border-neutral-1000-a10 bg-bg-floating/75 shadow-sm backdrop-blur-xl transition-all duration-200 focus-within:border-neutral-400",
+        className
+      )}
+    >
+      <div
+        className={cn(
+          "relative",
+          actionLayout === "footer" ? "flex flex-col" : "flex items-end gap-2"
+        )}
+      >
+        {overlay}
+        <Textarea
+          key={textareaKey}
+          unstyled
+          ref={ref}
+          rows={rows}
+          className={cn(
+            "min-h-[72px] min-w-0 resize-none border-none px-3.5 py-4 text-base leading-5 text-neutral-primary outline-none transition-all placeholder:text-neutral-placeholder disabled:cursor-not-allowed md:text-sm lg:text-[14px]",
+            actionLayout === "footer" ? "w-full flex-none" : "flex-1",
+            textareaClassName
+          )}
+          {...textareaProps}
+        />
+        {actionLayout === "footer" ? (
+          <div className="flex items-center justify-between px-3 pb-3">
+            {action}
+          </div>
+        ) : (
+          <div className="absolute bottom-3 right-3 flex items-center gap-2">
+            {action}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+
+ChatComposerFrame.displayName = "ChatComposerFrame";
+
+type LegacyChatComposerProps = {
   value: string;
-  onChange: (v: string) => void;
+  onChange: (value: string) => void;
   onSend: () => void;
   onStop: () => void;
   onRetry: () => void;
@@ -38,7 +117,7 @@ export default function ChatComposer({
   onAddAttachment,
   onRemoveAttachment,
   isPreparing = false,
-}: Props) {
+}: LegacyChatComposerProps) {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const { m } = useMessages();
 
@@ -78,7 +157,7 @@ export default function ChatComposer({
       ) : null}
 
       <div className="relative flex items-end">
-        <UiTextarea
+        <Textarea
           unstyled
           ref={inputRef}
           autoFocus

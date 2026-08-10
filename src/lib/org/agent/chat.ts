@@ -437,6 +437,7 @@ async function runOrgAgentToolLoop(args: {
     {
       content: buildOrgAgentSystemPrompt({
         enableSlackChoiceButtons: args.source === "slack",
+        surface: args.source,
       }),
       role: "system",
     },

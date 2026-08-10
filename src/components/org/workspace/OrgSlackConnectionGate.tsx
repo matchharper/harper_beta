@@ -1,10 +1,11 @@
-import { Check, Hash, LoaderCircle, RefreshCw } from "lucide-react";
+import { Check, Hash, LoaderCircle, RefreshCw, X } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { type ReactNode, useState } from "react";
 import { MuteButton } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -58,6 +59,7 @@ function getErrorMessage(error: unknown) {
 export function OrgSlackConnectionGate({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { internalOpsAccess, permissions, workspace } = useOrgWorkspace();
+  const [dismissed, setDismissed] = useState(false);
   const [selectedChannelId, setSelectedChannelId] = useState("");
   const [previewCompleted, setPreviewCompleted] = useState(false);
   const isChannelSelectionPreview =
@@ -86,7 +88,11 @@ export function OrgSlackConnectionGate({ children }: { children: ReactNode }) {
     return <>{children}</>;
   }
 
-  if (previewCompleted || (status?.connected && status.channels.length > 0)) {
+  if (
+    dismissed ||
+    previewCompleted ||
+    (status?.connected && status.channels.length > 0)
+  ) {
     return <>{children}</>;
   }
 
@@ -124,7 +130,12 @@ export function OrgSlackConnectionGate({ children }: { children: ReactNode }) {
   );
 
   return (
-    <Dialog open onOpenChange={() => undefined}>
+    <Dialog
+      open={!dismissed}
+      onOpenChange={(open) => {
+        if (!open) setDismissed(true);
+      }}
+    >
       <DialogContent
         className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-[680px] gap-0 overflow-x-hidden overflow-y-auto rounded-[24px] border-white/50 bg-transparent p-0 shadow-[0_30px_90px_rgba(11,38,72,0.28)] max-sm:bottom-0 max-sm:left-0 max-sm:top-auto max-sm:max-h-[calc(100dvh-1.5rem)] max-sm:w-full max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none max-sm:rounded-t-[24px] max-sm:border-b-0 max-sm:data-[state=closed]:slide-out-to-bottom max-sm:data-[state=closed]:zoom-out-100 max-sm:data-[state=open]:slide-in-from-bottom max-sm:data-[state=open]:zoom-in-100"
         hideCloseButton
@@ -152,23 +163,30 @@ export function OrgSlackConnectionGate({ children }: { children: ReactNode }) {
             className="pointer-events-none absolute inset-0 -z-10 bg-linear-to-b from-white/5 via-transparent to-[#0b315c]/20"
           />
 
-          <div className="flex min-h-[min(500px,calc(100dvh-3.75rem))] flex-col sm:min-h-[492px]">
-            <div className="flex items-center gap-3 text-white drop-shadow-sm">
-              <span className="flex size-11 items-center justify-center rounded-xl border border-white/70 bg-white/90 shadow-sm backdrop-blur-sm">
-                <Image
-                  alt="Slack"
-                  height={24}
-                  src="/images/logos/slack.svg"
-                  width={24}
-                />
-              </span>
-              <div>
-                <p className="text-[14px] font-medium">
-                  Harper × {workspace.companyName}
-                </p>
-                <p className="text-[12px] font-normal text-white/80">
-                  Slack Integration
-                </p>
+          <div className="flex relative min-h-[min(500px,calc(100dvh-3.75rem))] flex-col sm:min-h-[492px]">
+            <DialogClose asChild className="absolute right-0 top-0">
+              <div className="z-20 flex size-8 cursor-pointer text-white hover:bg-white/20 items-center justify-center rounded-md bg-white/10 shadow-sm backdrop-blur-sm">
+                <X className="size-4" />
+              </div>
+            </DialogClose>
+            <div className="flex items-center justify-between gap-3 text-white drop-shadow-sm">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-white/70 bg-white/90 shadow-sm backdrop-blur-sm">
+                  <Image
+                    alt="Slack"
+                    height={24}
+                    src="/images/logos/slack.svg"
+                    width={24}
+                  />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-[14px] font-medium">
+                    Harper × {workspace.companyName}
+                  </p>
+                  <p className="text-[12px] font-normal text-white/80">
+                    Slack Integration
+                  </p>
+                </div>
               </div>
             </div>
 

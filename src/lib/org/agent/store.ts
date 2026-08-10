@@ -248,12 +248,16 @@ export function toOrgAgentConversation(
 }
 
 export function toOrgAgentMessage(row: OrgAgentMessageRow): OrgAgentMessage {
+  const storedMetadata = safeMetadata(row.metadata);
+  const visibleMetadata = { ...storedMetadata };
+  delete visibleMetadata.roleCreationAttachments;
   return {
+    authorUserId: row.company_user_id ?? null,
     content: row.content ?? "",
     createdAt: row.created_at,
     id: Number(row.id),
     mentions: safeMentions(row.mentions),
-    metadata: safeMetadata(row.metadata),
+    metadata: visibleMetadata,
     model: row.model ?? null,
     role: row.role,
     status: normalizeMessageStatus(row.status),
@@ -332,13 +336,120 @@ export async function ensureOrgAgentConversation(args: {
   return { admin, conversation: raced as OrgAgentConversationRow };
 }
 
+/**
+ * Returns the chat-only conversation owned by one role. This is deliberately
+ * separate from ensureOrgAgentConversation so normal web chat and Slack
+ * continue to share only the role_id-null workspace conversation.
+ */
+export async function ensureOrgRoleCreationConversation(args: {
+  allowCompletedRole?: boolean;
+  user: User;
+  roleId: string;
+  workspaceId: string;
+}): Promise<{
+  admin: SupabaseAdminClient;
+  conversation: OrgAgentConversationRow;
+}> {
+  const admin = getSupabaseAdmin();
+  const workspaceId = normalizeText(args.workspaceId);
+  const roleId = normalizeText(args.roleId);
+  if (!workspaceId || !roleId) {
+    throw new OrgHttpError(400, "workspaceId and roleId are required");
+  }
+
+  await upsertOrgCompanyUser(admin, args.user);
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "manage_candidates",
+    user: args.user,
+    workspaceId,
+  });
+
+  const { data: role, error: roleError } = await (
+    admin.from("company_roles" as any) as any
+  )
+    .select("role_id, status")
+    .eq("company_workspace_id", workspaceId)
+    .eq("role_id", roleId)
+    .eq("source_type", "internal")
+    .not("is_expired", "is", true)
+    .maybeSingle();
+  if (roleError) throw roleError;
+  if (!role) throw new OrgHttpError(404, "Role not found");
+  const roleStatus = normalizeText(role.status).toLowerCase();
+  if (roleStatus !== "draft" && !args.allowCompletedRole) {
+    throw new OrgHttpError(409, "Role creation is already complete");
+  }
+
+  const select =
+    "id, company_workspace_id, role_id, title, last_message_at, last_message_id, summary_cursor_message_id, metadata, created_at, updated_at";
+  const { data: existing, error: existingError } = await (
+    admin.from("company_conversations" as any) as any
+  )
+    .select(select)
+    .eq("company_workspace_id", workspaceId)
+    .eq("role_id", roleId)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (existing) {
+    return { admin, conversation: existing as OrgAgentConversationRow };
+  }
+
+  const now = new Date().toISOString();
+  const metadata = {
+    confirmedAssigneeUserId: null,
+    confirmedSlackChannelIds: [],
+    pendingConfirmationMessageId: null,
+    phase: roleStatus === "draft" ? "collecting" : "completed",
+    scope: "role_creation",
+  };
+  const { data, error } = await (
+    admin.from("company_conversations" as any) as any
+  )
+    .insert({
+      company_workspace_id: workspaceId,
+      created_at: now,
+      metadata,
+      role_id: roleId,
+      title: "새 역할 등록",
+      updated_at: now,
+    })
+    .select(select)
+    .single();
+  if (!error) {
+    return { admin, conversation: data as OrgAgentConversationRow };
+  }
+  if ((error as { code?: string }).code !== "23505") throw error;
+
+  const { data: raced, error: racedError } = await (
+    admin.from("company_conversations" as any) as any
+  )
+    .select(select)
+    .eq("company_workspace_id", workspaceId)
+    .eq("role_id", roleId)
+    .single();
+  if (racedError) throw racedError;
+  return { admin, conversation: raced as OrgAgentConversationRow };
+}
+
 export async function fetchOrgAgentMessages(args: {
   beforeMessageId?: number | null;
   limit?: number | null;
+  mode?: "general" | "role_creation";
+  roleId?: string | null;
   user: User;
   workspaceId: string;
 }) {
-  const { admin, conversation } = await ensureOrgAgentConversation(args);
+  const scoped =
+    args.mode === "role_creation"
+      ? await ensureOrgRoleCreationConversation({
+          allowCompletedRole: true,
+          roleId: normalizeText(args.roleId),
+          user: args.user,
+          workspaceId: args.workspaceId,
+        })
+      : await ensureOrgAgentConversation(args);
+  const { admin, conversation } = scoped;
   const limit = Math.min(Math.max(args.limit ?? 30, 1), 80);
   let query = (admin.from("company_messages" as any) as any)
     .select(

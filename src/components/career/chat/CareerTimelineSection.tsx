@@ -1,4 +1,4 @@
-import { ArrowUp, Loader2, Plus, Upload, X } from "lucide-react";
+import { Loader2, Plus, Upload, X } from "lucide-react";
 import {
   FormEvent,
   Fragment,
@@ -11,6 +11,13 @@ import {
 } from "react";
 import { getCareerLinkLabels } from "@/components/career/constants";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
+import {
+  ChatAssistantLabel,
+  ChatDateDivider,
+  ChatLoadOlderButton,
+  getChatMessageDateKey,
+  getPreviousChatMessageDateKey,
+} from "@/components/chat/ChatTimeline";
 import {
   CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER,
   type CareerCallStartRequest,
@@ -48,7 +55,6 @@ import { cn } from "@/lib/utils";
 import CareerMessageBubble, {
   type CareerAssistantChoiceSelection,
 } from "./CareerMessageBubble";
-import Image from "next/image";
 import { useRouter } from "next/router";
 import React from "react";
 import {
@@ -105,26 +111,6 @@ const parseMessageDate = (createdAt: string) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const getMessageDateKey = (createdAt: string) => {
-  const date = parseMessageDate(createdAt);
-  if (!date) return "";
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-const getPreviousMessageDateKey = (
-  messages: CareerMessage[],
-  currentIndex: number
-) => {
-  for (let index = currentIndex - 1; index >= 0; index -= 1) {
-    const dateKey = getMessageDateKey(messages[index].createdAt);
-    if (dateKey) return dateKey;
-  }
-  return "";
-};
-
 const getSingleQueryValue = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : value;
 
@@ -149,15 +135,10 @@ const TimelinePanel = ({
   </InlinePanel>
 );
 
-const AssistantLabel = ({ children }: { children: React.ReactNode }) => (
-  <div
-    className={cn(
-      "font-medium text-neutral-primary",
-      careerTimelineMetaTextClassName
-    )}
-  >
+const AssistantLabel = ({ children }: { children?: React.ReactNode }) => (
+  <ChatAssistantLabel className={careerTimelineMetaTextClassName}>
     {children}
-  </div>
+  </ChatAssistantLabel>
 );
 
 const TimelineDateDivider = ({
@@ -167,20 +148,11 @@ const TimelineDateDivider = ({
   ariaPrefix: string;
   label: string;
 }) => (
-  <div
-    role="separator"
-    className="flex justify-center py-2"
-    aria-label={`${ariaPrefix} ${label}`}
-  >
-    <span
-      className={cn(
-        "rounded-full bg-bg-weak px-2.5 py-0.5 font-light text-neutral-soft",
-        careerTimelineMetaTextClassName
-      )}
-    >
-      {label}
-    </span>
-  </div>
+  <ChatDateDivider
+    ariaLabel={`${ariaPrefix} ${label}`}
+    className={careerTimelineMetaTextClassName}
+    label={label}
+  />
 );
 
 const getRecommendationStatusAnchor = (
@@ -307,8 +279,8 @@ const TimelineMessageList = memo(function TimelineMessageList({
         const { latestStatus, textLogs } =
           splitRecommendJobPostingStatusLogs(thinkingLogs);
         const isRunningRecommendationSearch = latestStatus?.state === "running";
-        const messageDateKey = getMessageDateKey(message.createdAt);
-        const previousMessageDateKey = getPreviousMessageDateKey(
+        const messageDateKey = getChatMessageDateKey(message.createdAt);
+        const previousMessageDateKey = getPreviousChatMessageDateKey(
           messages,
           index
         );
@@ -384,15 +356,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
               )}
             {shouldRenderSplitRecommendationSearch && latestStatus ? (
               <>
-                <AssistantLabel>
-                  <Image
-                    src="/svgs/harper-h-mark.svg"
-                    alt="Harper"
-                    width={18}
-                    height={18}
-                    className="mt-2"
-                  />
-                </AssistantLabel>
+                <AssistantLabel />
                 <CareerMessageBubble
                   message={recommendationSearchPreambleMessage}
                   isUser={false}
@@ -443,17 +407,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
               <OnboardingCompletionNotice content={message.content} />
             ) : shouldRenderChatBubble ? (
               <>
-                {!isUser && (
-                  <AssistantLabel>
-                    <Image
-                      src="/svgs/harper-h-mark.svg"
-                      alt="Harper"
-                      width={18}
-                      height={18}
-                      className="mt-2"
-                    />
-                  </AssistantLabel>
-                )}
+                {!isUser && <AssistantLabel />}
                 <CareerMessageBubble
                   message={message}
                   isUser={isUser}
@@ -1043,23 +997,18 @@ const CareerTimelineSection = () => {
       <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-4 px-5 py-1">
         {showLoadOlderButton && hasOlderMessages && (
           <div className="sticky top-0 z-10 flex justify-center pb-2">
-            <BareButton
-              type="button"
-              onClick={() => void handleLoadOlderMessages()}
-              disabled={loadingOlderMessages}
-              className="inline-flex gap-2 h-8 items-center justify-center rounded-[8px] bg-bg-floating px-4 text-xs text-neutral-muted transition-colors hover:border-neutral-400 hover:bg-bg-basement hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loadingOlderMessages
-                ? t(
-                    "career.chat.career_timeline_section.0bh3gyc",
-                    "불러오는 중..."
-                  )
-                : t(
-                    "career.chat.career_timeline_section.0t1ynxd",
-                    "이전 대화 더 보기"
-                  )}
-              <ArrowUp className="h-3 w-3" strokeWidth={1.8} />
-            </BareButton>
+            <ChatLoadOlderButton
+              label={t(
+                "career.chat.career_timeline_section.0t1ynxd",
+                "이전 대화 더 보기"
+              )}
+              loading={loadingOlderMessages}
+              loadingLabel={t(
+                "career.chat.career_timeline_section.0bh3gyc",
+                "불러오는 중..."
+              )}
+              onClick={handleLoadOlderMessages}
+            />
           </div>
         )}
 

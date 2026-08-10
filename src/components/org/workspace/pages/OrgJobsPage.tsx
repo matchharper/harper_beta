@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { OrgAllRolesOverview } from "@/components/org/OrgAllRolesOverview";
 import { OrgPipeline } from "@/components/org/OrgPipeline";
 import { OrgRoleOverview } from "@/components/org/OrgRoleOverview";
@@ -87,10 +87,20 @@ function OrgSelectedRoleContent() {
 function OrgJobsMain() {
   const { boardQuery } = useOrgJobsBoard();
   const { activeRoleId } = useOrgJobsNavigation();
+  const contentRef = useRef<HTMLDivElement>(null);
+  const previousRoleIdRef = useRef(activeRoleId);
   const isAll = activeRoleId === "all";
 
+  useEffect(() => {
+    if (previousRoleIdRef.current === activeRoleId) return;
+    previousRoleIdRef.current = activeRoleId;
+    contentRef.current
+      ?.closest("main")
+      ?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [activeRoleId]);
+
   return (
-    <div className="space-y-2">
+    <div ref={contentRef} className="space-y-2">
       <OrgPageHeader title={<OrgRolePicker />} />
       {isAll && boardQuery.error instanceof Error ? (
         <OrgErrorState

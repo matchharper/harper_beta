@@ -256,7 +256,7 @@ function RoleDescriptionMarkdownPreview({ markdown }: { markdown: string }) {
           "min-h-[112px] px-4 py-3.5 text-[13px] leading-6 text-neutral-primary"
         )}
       >
-        {trimmedMarkdown ? (
+        {trimmedMarkdown && (
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             rehypePlugins={[rehypeSanitize]}
@@ -314,10 +314,6 @@ function RoleDescriptionMarkdownPreview({ markdown }: { markdown: string }) {
           >
             {trimmedMarkdown}
           </ReactMarkdown>
-        ) : (
-          <div className="text-[13px] text-neutral-muted">
-            Description에 markdown을 입력하면 여기서 미리보기로 렌더링됩니다.
-          </div>
         )}
       </div>
     </div>
@@ -646,10 +642,13 @@ export function OrgEditDialog({
                     <span className="text-[14px] font-medium text-primary">
                       Role Request & Criteria
                     </span>
-                    <span className="text-[13px] font-normal leading-6 text-black/60">
+                    <span className="text-[13px] font-normal leading-5 text-black/60">
                       이 내용은 매번 인재를 탐색하고 연결하거나 후보자를 추천할
                       때 기준으로 반영됩니다. 여러가지 사항이 있다면 무엇이 더
-                      우선순위가 높은지 등을 자세히 알려주실 수록 좋습니다.
+                      우선순위가 높은지 등을 자세히 알려주실 수록 좋습니다.{" "}
+                      <br />
+                      내부적인 모든 판단 기준을 알려주세요. 민감한 사항도 전부
+                      괜찮습니다.
                     </span>
                     <AutoResizeTextarea
                       value={draft.request ?? ""}

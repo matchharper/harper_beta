@@ -1,13 +1,8 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { DEFAULT_ORG_STOP_REASONS } from "@/lib/org/candidateDecision";
 
-export const DEFAULT_ORG_STOP_REASONS = [
-  "너무 주니어",
-  "너무 시니어",
-  "높은 연봉을 요구할 것 같음",
-  "이미 대화해본 후보자",
-  "위치/지역 조건 불일치",
-] as const;
+export { DEFAULT_ORG_STOP_REASONS } from "@/lib/org/candidateDecision";
 
 const DEFAULT_ORG_STOP_REASON_SET = new Set<string>(DEFAULT_ORG_STOP_REASONS);
 

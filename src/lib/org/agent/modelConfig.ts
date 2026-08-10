@@ -24,8 +24,7 @@ export const ORG_AGENT_MODEL_IDS = [
 
 export type OrgAgentModelId = (typeof ORG_AGENT_MODEL_IDS)[number];
 
-export const DEFAULT_ORG_AGENT_MODEL: OrgAgentModelId =
-  ORG_AGENT_DEEPSEEK_FLASH_MODEL;
+export const DEFAULT_ORG_AGENT_MODEL: OrgAgentModelId = ORG_AGENT_LUNA_MODEL;
 export const DEFAULT_SLACK_ORG_AGENT_MODEL: OrgAgentModelId =
   ORG_AGENT_CLAUDE_MODEL;
 // ORG_AGENT_DEEPSEEK_FLASH_MODEL;

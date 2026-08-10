@@ -62,6 +62,7 @@ type CompanyUserWorkspaceRow =
 type CompanyWorkspaceInvitationRow =
   Database["public"]["Tables"]["company_workspace_invitations"]["Row"];
 type CompanyRoleRow = Database["public"]["Tables"]["company_roles"]["Row"];
+type CompanyMemoryRow = Database["public"]["Tables"]["company_memories"]["Row"];
 type RoleStageRow =
   Database["public"]["Tables"]["ops_matching_role_stages"]["Row"];
 type TalentUserRow = Database["public"]["Tables"]["talent_users"]["Row"];
@@ -150,7 +151,10 @@ export type OrgRole = {
   description: string | null;
   employmentTypes: string[];
   externalJdUrl: string | null;
+  lastConversationAt?: string | null;
   locationText: string | null;
+  memory?: string | null;
+  memoryUpdatedAt?: string | null;
   name: string;
   request: string | null;
   roleId: string;
@@ -742,13 +746,20 @@ function toWorkspace(
   };
 }
 
-function toRole(row: CompanyRoleRow): OrgRole {
+function toRole(
+  row: CompanyRoleRow,
+  memory?: { content: string; updated_at: string } | null,
+  lastConversationAt?: string | null
+): OrgRole {
   return {
     createdAt: row.created_at,
     description: row.description ?? null,
     employmentTypes: normalizeOrgRoleEmploymentTypes(row.type),
     externalJdUrl: row.external_jd_url ?? null,
+    lastConversationAt: lastConversationAt ?? null,
     locationText: row.location_text ?? null,
+    memory: normalizeNullableText(memory?.content) ?? null,
+    memoryUpdatedAt: memory?.updated_at ?? null,
     name: row.name,
     request: row.request ?? null,
     roleId: row.role_id,
@@ -1597,16 +1608,64 @@ async function fetchOrgPendingInvitations(
 }
 
 async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string) {
-  const { data, error } = await (admin.from("company_roles" as any) as any)
-    .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, request, salary_range, status, type, location_text, work_mode, created_at, updated_at, is_expired"
-    )
-    .eq("company_workspace_id", workspaceId)
-    .eq("source_type", "internal")
-    .not("is_expired", "is", true);
+  const [rolesResult, memoriesResult, conversationsResult] = await Promise.all([
+    (admin.from("company_roles" as any) as any)
+      .select(
+        "role_id, company_workspace_id, name, external_jd_url, description, request, salary_range, status, type, location_text, work_mode, created_at, updated_at, is_expired"
+      )
+      .eq("company_workspace_id", workspaceId)
+      .eq("source_type", "internal")
+      .not("is_expired", "is", true),
+    admin
+      .from("company_memories")
+      .select("role_id, content, updated_at")
+      .eq("company_workspace_id", workspaceId)
+      .not("role_id", "is", null),
+    (admin.from("company_conversations" as any) as any)
+      .select("role_id, last_message_at")
+      .eq("company_workspace_id", workspaceId)
+      .not("role_id", "is", null)
+      .not("last_message_at", "is", null),
+  ]);
 
-  if (error) throw error;
-  return sortRoles((data ?? []) as CompanyRoleRow[]).map(toRole);
+  if (rolesResult.error) throw rolesResult.error;
+  if (memoriesResult.error) throw memoriesResult.error;
+  if (conversationsResult.error) throw conversationsResult.error;
+
+  const memoryByRoleId = new Map<
+    string,
+    { content: string; updated_at: string }
+  >();
+  for (const memory of (memoriesResult.data ?? []) as Pick<
+    CompanyMemoryRow,
+    "content" | "role_id" | "updated_at"
+  >[]) {
+    if (!memory.role_id) continue;
+    memoryByRoleId.set(memory.role_id, memory);
+  }
+
+  const lastConversationByRoleId = new Map<string, string>();
+  for (const conversation of (conversationsResult.data ?? []) as Array<{
+    last_message_at: string | null;
+    role_id: string | null;
+  }>) {
+    if (!conversation.role_id || !conversation.last_message_at) continue;
+    const previous = lastConversationByRoleId.get(conversation.role_id);
+    if (!previous || conversation.last_message_at > previous) {
+      lastConversationByRoleId.set(
+        conversation.role_id,
+        conversation.last_message_at
+      );
+    }
+  }
+
+  return sortRoles((rolesResult.data ?? []) as CompanyRoleRow[]).map((role) =>
+    toRole(
+      role,
+      memoryByRoleId.get(role.role_id) ?? null,
+      lastConversationByRoleId.get(role.role_id) ?? null
+    )
+  );
 }
 
 export async function fetchOrgBootstrap(args: {

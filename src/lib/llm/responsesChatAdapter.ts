@@ -93,12 +93,24 @@ function toOpenAIResponsesToolChoice(toolChoice: unknown) {
     : undefined;
 }
 
+function toOpenAIResponsesTextConfig(responseFormat: unknown) {
+  if (
+    responseFormat &&
+    typeof responseFormat === "object" &&
+    (responseFormat as { type?: unknown }).type === "json_object"
+  ) {
+    return { format: { type: "json_object" as const } };
+  }
+  return undefined;
+}
+
 export function buildOpenAIResponsesRequest(args: {
   model: string;
   reasoningEffort: OpenAIResponsesReasoningEffort;
   requestBody: Record<string, unknown>;
 }) {
   const tools = toOpenAIResponsesTools(args.requestBody.tools);
+  const text = toOpenAIResponsesTextConfig(args.requestBody.response_format);
   return {
     include: ["reasoning.encrypted_content"],
     input: toOpenAIResponsesInput(args.requestBody.messages),
@@ -110,6 +122,7 @@ export function buildOpenAIResponsesRequest(args: {
     model: args.model,
     reasoning: { effort: args.reasoningEffort },
     store: false,
+    ...(text ? { text } : {}),
     ...(tools && tools.length > 0
       ? {
           tool_choice: toOpenAIResponsesToolChoice(

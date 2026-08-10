@@ -12,9 +12,16 @@ Organization은 회사 사용자가 Harper가 추천한 인재를 빠르게 검�
 4. **Team**: 회사 정보, 초대, 멤버와 권한을 관리한다.
 5. **Settings**: Slack 연결과 Organization 알림을 관리한다.
 6. **Help**: 회사 사용자가 실제 업무 중 참고할 제품 설명과 FAQ를 제공한다.
+7. **역할 대화**: 공통 채팅 UI에서 company-side LLM과 새 역할을 등록하고,
+   등록된 역할의 정보도 같은 대화에서 수정한다. 오른쪽은 Role, Company, Setting,
+   Calibration 탭으로 기존 Organization 데이터와 같은 query cache를 보여준다.
 
 화면은 데스크톱에서 고정 왼쪽 사이드바와 오른쪽 콘텐츠로 구성한다. 모바일에서는
-같은 목적지를 유지하는 축약 내비게이션을 제공한다.
+같은 목적지를 유지하는 축약 내비게이션을 제공한다. 역할을 고르기 전 `/org/new`와
+다른 Organization 화면은 256px 사이드바를 유지한다. `New` 아래의 `Recent`에는
+마지막 대화가 최신인 역할을 먼저, 대화가 없는 역할은 생성 시각이 최신인 순서로
+보여준다. 역할별 대화를 열면 sidebar는 72px 아이콘 모드로 접히며 각 아이콘의 이름은
+hover tooltip과 접근성 label로 제공한다.
 
 ## URL과 코드 구조
 
@@ -23,6 +30,7 @@ Organization은 회사 사용자가 Harper가 추천한 인재를 빠르게 검�
 | Home | `/org/home` | 대기 결정, 미열람 추천, 진행 중 Jobs 요약 |
 | Inbox | `/org/inbox` | Workspace별 추천 인재, 미열람/연결 대기 필터 |
 | Jobs | `/org/jobs` | 전체 Role 및 Role별 pipeline |
+| 새 역할 등록 | `/org/new` | 왼쪽 company-side LLM 채팅, 오른쪽 Role/Company/Setting/Calibration 상세 영역 |
 | Team | `/org/team` | 회사 정보, 초대, 멤버/권한 |
 | Settings | `/org/settings` | Slack 연결, 알림 설정 |
 | Help | `/org/help` | Harper 사용 안내, FAQ |
