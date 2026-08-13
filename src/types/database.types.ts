@@ -3895,36 +3895,6 @@ export type Database = {
         };
         Relationships: [];
       };
-      linkedin_company_id_collision_log: {
-        Row: {
-          detected_at: string;
-          existing_company_db_id: number;
-          harvestapi_id: number | null;
-          id: number;
-          incoming_company_db_id: number;
-          linkedin_company_id: number;
-          slug: string | null;
-        };
-        Insert: {
-          detected_at?: string;
-          existing_company_db_id: number;
-          harvestapi_id?: number | null;
-          id?: number;
-          incoming_company_db_id: number;
-          linkedin_company_id: number;
-          slug?: string | null;
-        };
-        Update: {
-          detected_at?: string;
-          existing_company_db_id?: number;
-          harvestapi_id?: number | null;
-          id?: number;
-          incoming_company_db_id?: number;
-          linkedin_company_id?: number;
-          slug?: string | null;
-        };
-        Relationships: [];
-      };
       llm_logs: {
         Row: {
           cost_status: string;
