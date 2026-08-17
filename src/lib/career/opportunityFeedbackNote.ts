@@ -1,4 +1,5 @@
 import { careerT } from "@/lib/career/translatedCareerMessage";
+import { stripOpportunityRunMarkers } from "@/lib/opportunityDiscovery/messageMarker";
 export const TALENT_MESSAGE_TYPE_OPPORTUNITY_FEEDBACK_NOTE =
   "opportunity_feedback_note";
 export const TALENT_MESSAGE_TYPE_RESUME_UPLOAD_NOTE = "resume_upload_note";
@@ -56,7 +57,7 @@ export function formatTalentMessageContentForLlmPrompt(message: {
   messageType?: string | null;
   message_type?: string | null;
 }) {
-  const content = String(message.content ?? "");
+  const content = stripOpportunityRunMarkers(String(message.content ?? ""));
   const messageType = message.message_type ?? message.messageType;
   if (messageType === TALENT_MESSAGE_TYPE_RESUME_UPLOAD_NOTE) {
     const normalizedContent = content.replace(/\s+/g, " ").trim();
@@ -64,9 +65,7 @@ export function formatTalentMessageContentForLlmPrompt(message: {
       ? `${RESUME_UPLOAD_SYSTEM_ACTION_LOG_PREFIX}\nAction note: ${normalizedContent}`
       : RESUME_UPLOAD_SYSTEM_ACTION_LOG_PREFIX;
   }
-  if (
-    !isOpportunityFeedbackNoteMessageType(messageType)
-  ) {
+  if (!isOpportunityFeedbackNoteMessageType(messageType)) {
     return content;
   }
 

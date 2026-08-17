@@ -67,6 +67,21 @@ type TalentMemoRow = {
   updated_at: string;
 };
 
+type CompanyConversationMessageRow = {
+  company_user_id: string | null;
+  company_workspace_id: string;
+  content: string;
+  conversation_id: string;
+  created_at: string;
+  id: number;
+  message_type: string;
+  metadata: unknown;
+  role: string;
+  slack_thread_id: string | null;
+  slack_user_id: string | null;
+  status: string;
+};
+
 export type OpsCompanyMemberRecord = {
   email: string | null;
   joinedAt: string;
@@ -110,6 +125,30 @@ export type OpsCompanyActivityResponse = {
   nextOffset: number | null;
   offset: number;
   totalCount: number;
+  workspaceId: string;
+};
+
+export type OpsCompanyConversationSource = "slack" | "web";
+export type OpsCompanyConversationRole = "assistant" | "user";
+
+export type OpsCompanyConversationItem = {
+  content: string;
+  conversationId: string;
+  messageId: number;
+  occurredAt: string;
+  role: OpsCompanyConversationRole;
+  source: OpsCompanyConversationSource;
+  user: {
+    email: string | null;
+    name: string | null;
+    slackUserId: string | null;
+  };
+};
+
+export type OpsCompanyConversationsResponse = {
+  items: OpsCompanyConversationItem[];
+  limit: number;
+  nextCursor: number | null;
   workspaceId: string;
 };
 
@@ -184,6 +223,16 @@ function normalizeQuery(value: unknown) {
   return normalizeText(value).toLowerCase();
 }
 
+function getRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function getSlackUserName(value: unknown) {
+  return normalizeText(getRecord(value).slackUserName) || null;
+}
+
 function uniqueStrings(values: Array<string | null | undefined>) {
   return Array.from(
     new Set(values.map((value) => normalizeText(value)).filter(Boolean))
@@ -209,6 +258,8 @@ function displayPersonName(
 
 function roleStatusLabel(status: string | null | undefined) {
   switch (normalizeText(status)) {
+    case "draft":
+      return "작성중";
     case "active":
       return "진행";
     case "ended":
@@ -409,6 +460,81 @@ export async function fetchOpsCompanyMembers(args: {
     items,
     query,
     totalCount: items.length,
+    workspaceId,
+  };
+}
+
+export async function fetchOpsCompanyConversations(args: {
+  offset?: number | null;
+  limit?: number;
+  workspaceId?: string | null;
+}): Promise<OpsCompanyConversationsResponse> {
+  const admin = getSupabaseAdmin();
+  const workspaceId = normalizeText(args.workspaceId);
+  if (!workspaceId) throw new Error("workspaceId is required");
+
+  const limit = Math.max(1, Math.min(Number(args.limit ?? 20) || 20, 20));
+  const offset = Math.max(0, Math.floor(Number(args.offset ?? 0) || 0));
+  const { data, error } = await (admin.from("company_messages" as any) as any)
+    .select(
+      "id, company_workspace_id, conversation_id, company_user_id, role, content, message_type, status, slack_thread_id, slack_user_id, metadata, created_at"
+    )
+    .eq("company_workspace_id", workspaceId)
+    .eq("status", "completed")
+    .in("role", ["user", "assistant"])
+    .in("message_type", ["chat", "slack"])
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(offset, offset + limit);
+  if (error) {
+    throw new Error(error.message ?? "Failed to load company conversations");
+  }
+
+  const rows = coerceJsonArray<CompanyConversationMessageRow>(data);
+  const visibleRows = rows.slice(0, limit);
+  const companyUserIds = uniqueStrings(
+    visibleRows
+      .filter((message) => message.role === "user")
+      .map((message) => message.company_user_id)
+  );
+  const companyUsers = await fetchCompanyUsersByIds({
+    admin,
+    userIds: companyUserIds,
+  });
+  const items = visibleRows.map<OpsCompanyConversationItem>((message) => {
+    const source: OpsCompanyConversationSource =
+      message.message_type === "slack" ? "slack" : "web";
+    const companyUser = message.company_user_id
+      ? (companyUsers.get(normalizeText(message.company_user_id)) ?? null)
+      : null;
+    const isUserMessage = message.role === "user";
+
+    return {
+      content: String(message.content ?? "").trim(),
+      conversationId: normalizeText(message.conversation_id),
+      messageId: Number(message.id),
+      occurredAt: String(message.created_at ?? ""),
+      role: isUserMessage ? "user" : "assistant",
+      source,
+      user: {
+        email: isUserMessage ? (companyUser?.email ?? null) : null,
+        name: isUserMessage
+          ? source === "slack"
+            ? getSlackUserName(message.metadata)
+            : (companyUser?.name ?? null)
+          : null,
+        slackUserId:
+          isUserMessage && source === "slack"
+            ? normalizeOptionalText(message.slack_user_id)
+            : null,
+      },
+    };
+  });
+
+  return {
+    items,
+    limit,
+    nextCursor: rows.length > limit ? offset + limit : null,
     workspaceId,
   };
 }

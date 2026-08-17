@@ -3,58 +3,56 @@ import {
   type CompanyEditDraft,
   workspaceToCompanyEditDraft,
 } from "@/components/ops/company/CompanyEditSheet";
+import { CompanyConversationsTab } from "@/components/ops/company/CompanyConversationsTab";
+import { CompanyRolesOverview } from "@/components/ops/company/CompanyRolesOverview";
 import {
   EmptyState,
-  EMPTY_ROLE_DRAFT,
-  roleToDraft,
-  type RoleDraft,
-  RoleOptionCard,
-  Token,
   formatUpdatedAt,
 } from "@/components/ops/opportunities/shared";
-import { RoleCreateModal } from "@/components/ops/opportunities/modals";
+import { formatKstRelativeDate } from "@/components/ops/dateUtils";
 import OpsShell from "@/components/ops/OpsShell";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { showToast } from "@/components/toast/toast";
 import { BareButton } from "@/components/ui/button";
 import { Input as UiInput } from "@/components/ui/input";
 import { TabBoxes } from "@/components/ui/tab-boxes";
+import { Tooltips } from "@/components/ui/tooltip";
 import {
   OPS_COMPANY_ACTIVITY_PAGE_SIZE,
   useOpsCompanyActivity,
   useOpsCompanyMembers,
   useUpdateOpsCompanyWorkspace,
 } from "@/hooks/ops/useOpsCompany";
-import { useSaveOpsOpportunityRole } from "@/hooks/ops/useOpsOpportunities";
 import { useOpsOpportunityCatalogController } from "@/hooks/ops/useOpsOpportunityCatalogController";
 import { isInternalEmail } from "@/lib/internalAccess";
+import { queryKeys } from "@/lib/queryKeys";
 import type {
   OpsCompanyActivityItem,
   OpsCompanyMemberRecord,
 } from "@/lib/ops/company";
-import type {
-  OpsOpportunityRoleRecord,
-  OpsOpportunityWorkspaceRecord,
-} from "@/lib/ops/opportunity";
+import type { OpsOpportunityWorkspaceRecord } from "@/lib/ops/opportunity";
 import { useAuthStore } from "@/store/useAuthStore";
 import {
+  Bot,
   ChevronDown,
-  Copy,
   LoaderCircle,
   Pencil,
   RefreshCw,
   Search,
 } from "lucide-react";
 import Head from "next/head";
+import Image from "next/image";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
-type CompanyDetailTab = "roles" | "members" | "activity";
+type CompanyDetailTab = "roles" | "members" | "activity" | "conversations";
 
 const DETAIL_TABS: Array<{ id: CompanyDetailTab; label: string }> = [
   { id: "roles", label: "Roles" },
   { id: "members", label: "Members" },
   { id: "activity", label: "최근 활동" },
+  { id: "conversations", label: "최근 대화" },
 ];
 const DETAIL_TAB_IDS = new Set<CompanyDetailTab>(
   DETAIL_TABS.map((tab) => tab.id)
@@ -103,11 +101,32 @@ function CompanyCard({
           : "border-neutral-1000-a05 bg-bg-default/65 hover:border-primary/45 hover:bg-bg-default"
       )}
     >
+      <div className="absolute right-2 top-2 z-10 flex items-center gap-1.5">
+        {workspace.hasAutoRole ? (
+          <Tooltips side="top" text="자동 매칭이 켜진 역할이 있습니다.">
+            <span className="flex h-5 w-5 items-center justify-center rounded bg-primary-faded text-primary">
+              <Bot className="h-3 w-3" />
+            </span>
+          </Tooltips>
+        ) : null}
+        {workspace.hasSlackConnection ? (
+          <Tooltips side="top" text="Slack이 연결되어 있습니다.">
+            <span className="flex h-5 w-5 items-center justify-center rounded bg-bg-floating">
+              <Image
+                alt="Slack"
+                height={12}
+                src="/images/logos/slack.svg"
+                width={12}
+              />
+            </span>
+          </Tooltips>
+        ) : null}
+      </div>
       <div className="px-3 pt-3">
         <BareButton
           type="button"
           onClick={onSelect}
-          className="flex w-full min-w-0 items-center gap-2.5 text-left text-neutral-primary"
+          className="flex w-full min-w-0 items-center gap-2.5 pr-10 text-left text-neutral-primary"
         >
           {workspace.logoUrl ? (
             <span
@@ -143,30 +162,41 @@ function CompanyCard({
         onClick={onSelect}
         className="w-full px-3 pb-3 pt-3 text-left text-neutral-primary"
       >
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="grid grid-cols-4 gap-1.5">
           {[
-            ["Roles", workspace.totalRoleCount],
-            ["Active", workspace.activeRoleCount],
-            ["Members", workspace.memberCount],
-          ].map(([label, value]) => (
+            { label: "Roles", value: workspace.totalRoleCount },
+            { label: "채용 중인 역할", value: workspace.activeRoleCount },
+            { label: "Members", value: workspace.memberCount },
+            {
+              detail: `대기 ${workspace.pendingConnectionCount} · 연결 ${workspace.connectedCount}`,
+              label: "연결된 사람",
+              value:
+                workspace.pendingConnectionCount + workspace.connectedCount,
+            },
+          ].map(({ detail, label, value }) => (
             <div
-              key={String(label)}
-              className={cx(
-                "rounded-md px-2 py-2",
-                active ? "bg-primary-faded" : "bg-bg-floating"
-              )}
+              key={label}
+              className={cx("rounded-md px-2 py-2 bg-bg-floating")}
             >
-              <div
-                className={cx(
-                  "text-[10px] uppercase",
-                  active ? "text-primary/70" : "text-neutral-soft"
-                )}
-              >
+              <div className={cx("text-[10px] uppercase text-neutral-soft")}>
                 {label}
               </div>
-              <div className="mt-1 text-sm font-medium">{value}</div>
+              <div className="mt-1 text-sm font-normal">{value}</div>
+              {detail ? (
+                <div className="mt-0.5 truncate text-[9px] text-neutral-soft">
+                  {detail}
+                </div>
+              ) : null}
             </div>
           ))}
+        </div>
+        <div className="mt-2 flex items-center justify-between gap-3 border-t border-neutral-1000-a05 pt-2 text-xs text-neutral-muted">
+          <span>최근 대화</span>
+          <span>
+            {workspace.recentConversationAt
+              ? formatKstRelativeDate(workspace.recentConversationAt)
+              : "-"}
+          </span>
         </div>
       </BareButton>
     </article>
@@ -278,22 +308,12 @@ function ActivityRow({ item }: { item: OpsCompanyActivityItem }) {
   );
 }
 
-function buildWorkspaceInviteUrl(workspaceId: string) {
-  const path = `/org?orgId=${encodeURIComponent(workspaceId)}`;
-  if (typeof window === "undefined") return path;
-  return `${window.location.origin}${path}`;
-}
-
 export default function OpsCompanyPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const authLoading = useAuthStore((state) => state.loading);
   const user = useAuthStore((state) => state.user);
   const canFetchInternal = !authLoading && isInternalEmail(user?.email);
-  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
-  const [editingRole, setEditingRole] =
-    useState<OpsOpportunityRoleRecord | null>(null);
-  const [roleDraft, setRoleDraft] = useState<RoleDraft>(EMPTY_ROLE_DRAFT);
-  const [isRoleEditModalOpen, setIsRoleEditModalOpen] = useState(false);
   const [editingCompanyWorkspaceId, setEditingCompanyWorkspaceId] = useState<
     string | null
   >(null);
@@ -304,11 +324,12 @@ export default function OpsCompanyPage() {
   );
   const [memberSearch, setMemberSearch] = useState("");
   const [appliedMemberSearch, setAppliedMemberSearch] = useState("");
+  const [isWorkspaceSearchOpen, setIsWorkspaceSearchOpen] = useState(false);
 
   const catalog = useOpsOpportunityCatalogController({
     canFetchInternal,
+    loadRoles: false,
   });
-  const saveRole = useSaveOpsOpportunityRole();
   const updateCompanyWorkspace = useUpdateOpsCompanyWorkspace();
   const setCatalogSelectedWorkspaceId = catalog.setSelectedWorkspaceId;
   const queryWorkspaceId = router.isReady
@@ -326,7 +347,6 @@ export default function OpsCompanyPage() {
     if (!router.isReady) return;
     const timeout = window.setTimeout(() => {
       setCatalogSelectedWorkspaceId(queryWorkspaceId || null);
-      setSelectedRoleId(null);
       setAppliedMemberSearch("");
       setMemberSearch("");
     }, 0);
@@ -350,17 +370,29 @@ export default function OpsCompanyPage() {
 
   const handleRefresh = () => {
     void catalog.refetchCatalog();
-    void catalog.refetchRoles();
     if (selectedWorkspaceId && activeTab === "members") {
       void membersQuery.refetch();
     }
     if (selectedWorkspaceId && activeTab === "activity") {
       void activityQuery.refetch();
     }
+    if (selectedWorkspaceId && activeTab === "roles") {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.opsCompany.board(selectedWorkspaceId),
+      });
+    }
+    if (selectedWorkspaceId && activeTab === "conversations") {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.opsCompany.conversations({
+          cursor: 0,
+          limit: 20,
+          workspaceId: selectedWorkspaceId,
+        }),
+      });
+    }
   };
 
   const handleWorkspaceSelect = (workspaceId: string) => {
-    setSelectedRoleId(null);
     setAppliedMemberSearch("");
     setMemberSearch("");
     catalog.onWorkspaceSelect(workspaceId);
@@ -377,21 +409,6 @@ export default function OpsCompanyPage() {
       undefined,
       { scroll: false, shallow: true }
     );
-  };
-
-  const handleCopyInviteLink = async () => {
-    if (!selectedWorkspaceId) return;
-    try {
-      await navigator.clipboard.writeText(
-        buildWorkspaceInviteUrl(selectedWorkspaceId)
-      );
-      showToast({ message: "초대 링크가 복사되었습니다.", variant: "white" });
-    } catch {
-      showToast({
-        message: "초대 링크 복사에 실패했습니다.",
-        variant: "white",
-      });
-    }
   };
 
   const openCompanyEditSheet = () => {
@@ -435,52 +452,6 @@ export default function OpsCompanyPage() {
     }
   };
 
-  const openRoleEditModal = (role: OpsOpportunityRoleRecord) => {
-    setSelectedRoleId(role.roleId);
-    setEditingRole(role);
-    setRoleDraft(roleToDraft(role));
-    setIsRoleEditModalOpen(true);
-  };
-
-  const closeRoleEditModal = () => {
-    if (saveRole.isPending) return;
-    setIsRoleEditModalOpen(false);
-    setEditingRole(null);
-    setRoleDraft(EMPTY_ROLE_DRAFT);
-  };
-
-  const handleRoleSave = async () => {
-    if (!editingRole) {
-      showToast({
-        message: "수정할 role을 먼저 선택해 주세요.",
-        variant: "white",
-      });
-      return;
-    }
-
-    try {
-      const response = await saveRole.mutateAsync({
-        ...roleDraft,
-        companyWorkspaceId: editingRole.companyWorkspaceId,
-        roleId: editingRole.roleId,
-      });
-      setSelectedRoleId(response.role.roleId);
-      setIsRoleEditModalOpen(false);
-      setEditingRole(null);
-      setRoleDraft(EMPTY_ROLE_DRAFT);
-      showToast({
-        message: "role이 수정되었습니다.",
-        variant: "white",
-      });
-    } catch (error) {
-      showToast({
-        message:
-          error instanceof Error ? error.message : "role 수정에 실패했습니다.",
-        variant: "white",
-      });
-    }
-  };
-
   const refreshPending =
     catalog.isFetching || membersQuery.isFetching || activityQuery.isFetching;
 
@@ -495,51 +466,53 @@ export default function OpsCompanyPage() {
         compactHeader
         title="Company Ops"
         actions={
-          <BareButton
-            type="button"
-            onClick={handleRefresh}
-            className={cx(opsTheme.buttonSecondary, "h-10 px-3")}
-          >
-            {refreshPending ? (
-              <LoaderCircle className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-            새로고침
-          </BareButton>
-        }
-      >
-        <div className="space-y-4">
-          <div className={cx(opsTheme.panel, "p-4")}>
+          <div className="flex items-center gap-2">
             <form
-              className="flex flex-col gap-2 lg:flex-row lg:items-center"
+              className="flex items-center gap-2"
               onSubmit={(event) => {
                 event.preventDefault();
+                if (!isWorkspaceSearchOpen) {
+                  setIsWorkspaceSearchOpen(true);
+                  return;
+                }
                 catalog.onWorkspaceSearchSubmit();
               }}
             >
-              <div className="relative min-w-0 flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
+              {isWorkspaceSearchOpen ? (
                 <UiInput
-                  unstyled
+                  autoFocus
                   value={catalog.workspaceSearch}
                   onChange={(event) =>
                     catalog.onWorkspaceSearchChange(event.target.value)
                   }
                   placeholder="회사명 검색"
-                  className={cx(opsTheme.input, "pl-9")}
+                  className="h-10 w-48 sm:w-64"
                 />
-              </div>
+              ) : null}
               <BareButton
+                aria-label="회사명 검색"
+                className={cx(opsTheme.buttonSecondary, "h-10 w-10")}
                 type="submit"
-                className={cx(opsTheme.buttonPrimary, "h-11 px-3")}
               >
                 <Search className="h-4 w-4" />
-                검색
               </BareButton>
             </form>
+            <BareButton
+              type="button"
+              onClick={handleRefresh}
+              className={cx(opsTheme.buttonSecondary, "h-10 px-3")}
+            >
+              {refreshPending ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              새로고침
+            </BareButton>
           </div>
-
+        }
+      >
+        <div className="space-y-4">
           <section className="grid gap-4 xl:grid-cols-[minmax(300px,420px)_minmax(0,1fr)]">
             {catalog.catalogErrorMessage ? (
               <div
@@ -650,103 +623,33 @@ export default function OpsCompanyPage() {
                       회사 정보 수정
                     </BareButton>
                   </div>
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0 lg:w-[620px]">
+                  <div className="min-w-0">
+                    <div className="min-w-0 w-full">
                       <TabBoxes
                         activeValue={activeTab}
                         items={DETAIL_TABS.map((tab) => ({
                           label: tab.label,
                           value: tab.id,
                         }))}
-                        listClassName="min-w-full"
+                        itemClassName="flex-1"
+                        listClassName="w-full min-w-[440px]"
                         onValueChange={handleTabChange}
-                        size="md"
+                        size="xs"
                       />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        <Token>{selectedWorkspace.totalRoleCount} roles</Token>
-                        <Token>
-                          {selectedWorkspace.activeRoleCount} active
-                        </Token>
-                        <Token>{selectedWorkspace.memberCount} members</Token>
-                      </div>
                     </div>
                   </div>
 
                   {activeTab === "roles" ? (
-                    <div className="space-y-3">
-                      <form
-                        className="grid gap-2 lg:grid-cols-[1fr_auto]"
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          catalog.onRoleSearchSubmit();
-                        }}
-                      >
-                        <div className="relative">
-                          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
-                          <UiInput
-                            unstyled
-                            value={catalog.roleSearch}
-                            onChange={(event) =>
-                              catalog.onRoleSearchChange(event.target.value)
-                            }
-                            placeholder="role, location 검색"
-                            className={cx(opsTheme.input, "pl-9")}
-                          />
-                        </div>
-                        <BareButton
-                          type="submit"
-                          className={cx(opsTheme.buttonPrimary, "h-11 px-3")}
-                        >
-                          <Search className="h-4 w-4" />
-                          검색
-                        </BareButton>
-                      </form>
-                      {!catalog.roleLoading ? (
-                        <div className="text-xs text-neutral-muted">
-                          {catalog.catalogRoles.length} /{" "}
-                          {catalog.roleTotalCount}개 roles
-                        </div>
-                      ) : null}
-                      {catalog.roleLoading ? (
-                        <EmptyState copy="Roles를 불러오는 중입니다." />
-                      ) : catalog.catalogRoles.length === 0 ? (
-                        <EmptyState copy="표시할 role이 없습니다." />
-                      ) : (
-                        <div className="space-y-2">
-                          {catalog.catalogRoles.map((role) => (
-                            <RoleOptionCard
-                              key={role.roleId}
-                              role={role}
-                              active={role.roleId === selectedRoleId}
-                              onSelect={() => setSelectedRoleId(role.roleId)}
-                              onEdit={() => openRoleEditModal(role)}
-                            />
-                          ))}
-                        </div>
-                      )}
-                      {catalog.catalogRoles.length < catalog.roleTotalCount &&
-                      !catalog.roleLoading ? (
-                        <BareButton
-                          type="button"
-                          onClick={catalog.onLoadMoreRoles}
-                          className={cx(
-                            opsTheme.buttonSecondary,
-                            "h-10 w-full"
-                          )}
-                        >
-                          <ChevronDown className="h-4 w-4" />
-                          더보기
-                        </BareButton>
-                      ) : null}
-                    </div>
+                    <CompanyRolesOverview
+                      enabled={canFetchInternal}
+                      workspaceId={selectedWorkspace.companyWorkspaceId}
+                    />
                   ) : null}
 
                   {activeTab === "members" ? (
                     <div className="space-y-3">
                       <form
-                        className="grid gap-2 lg:grid-cols-[1fr_auto_auto]"
+                        className="grid gap-2 lg:grid-cols-[1fr_auto]"
                         onSubmit={(event) => {
                           event.preventDefault();
                           setAppliedMemberSearch(memberSearch.trim());
@@ -770,14 +673,6 @@ export default function OpsCompanyPage() {
                         >
                           <Search className="h-4 w-4" />
                           검색
-                        </BareButton>
-                        <BareButton
-                          type="button"
-                          onClick={handleCopyInviteLink}
-                          className={cx(opsTheme.buttonSecondary, "h-11 px-3")}
-                        >
-                          <Copy className="h-4 w-4" />
-                          초대 링크 복사
                         </BareButton>
                       </form>
                       {membersQuery.isLoading ? (
@@ -834,24 +729,19 @@ export default function OpsCompanyPage() {
                       ) : null}
                     </div>
                   ) : null}
+
+                  {activeTab === "conversations" ? (
+                    <CompanyConversationsTab
+                      enabled={canFetchInternal}
+                      workspaceId={selectedWorkspaceId}
+                    />
+                  ) : null}
                 </div>
               )}
             </div>
           </section>
         </div>
       </OpsShell>
-      <RoleCreateModal
-        open={isRoleEditModalOpen}
-        draft={roleDraft}
-        mode="edit"
-        onChange={setRoleDraft}
-        onClose={closeRoleEditModal}
-        onSubmit={() => void handleRoleSave()}
-        pending={saveRole.isPending}
-        workspaceName={
-          editingRole?.companyName ?? selectedWorkspace?.companyName ?? null
-        }
-      />
       {companyDraft && initialCompanyDraft ? (
         <CompanyEditSheet
           open={Boolean(editingCompanyWorkspaceId)}

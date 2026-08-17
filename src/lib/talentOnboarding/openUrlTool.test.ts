@@ -1,70 +1,190 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  findExactLinkedinJob,
-  getLinkedinUrlKind,
+  normalizeOpenUrl,
   openUrlWithDocumentsCache,
 } from "@/lib/talentOnboarding/openUrlTool";
+import { saveDocumentCache } from "@/lib/tools/documentCache";
 
-test("routes supported LinkedIn URL families to dedicated readers", () => {
-  assert.equal(
-    getLinkedinUrlKind("https://www.linkedin.com/in/example-person"),
-    "profile"
-  );
-  assert.equal(
-    getLinkedinUrlKind("https://linkedin.com/jobs/view/example-123456789"),
-    "job"
-  );
-  assert.equal(
-    getLinkedinUrlKind("https://kr.linkedin.com/company/example-company"),
-    "company"
-  );
-});
-
-test("does not route non-LinkedIn hosts or unrelated LinkedIn paths", () => {
-  assert.equal(getLinkedinUrlKind("https://example.com/in/person"), null);
-  assert.equal(getLinkedinUrlKind("https://linkedin.com/feed/"), "generic");
-});
-
-test("keeps talent-side LinkedIn opening blocked unless company-side opts in", async () => {
-  const result = await openUrlWithDocumentsCache({
-    admin: {} as never,
-    url: "https://www.linkedin.com/jobs/view/example-123456789",
-  });
-  assert.equal(result.ok, false);
-  assert.equal("blocked" in result && result.blocked, true);
-  assert.equal(
-    "blockedReason" in result && result.blockedReason,
-    "linkedin_unsupported"
-  );
-  assert.equal("provider" in result && result.provider, "linkedin");
-});
-
-test("selects only the exact requested LinkedIn job", () => {
-  const jobs = [
-    {
-      jobId: "123456789",
-      title: "Wrong job",
-      url: "https://www.linkedin.com/jobs/view/wrong-123456789",
+function createOpenUrlAdmin(cached: Record<string, unknown> | null = null) {
+  let inserted: Record<string, unknown> | null = null;
+  const builder = {
+    eq() {
+      return builder;
     },
-    {
-      jobId: "987654321",
-      title: "Requested job",
-      url: "https://www.linkedin.com/jobs/view/requested-987654321?tracking=x",
+    in() {
+      return builder;
     },
-  ];
+    insert(value: Record<string, unknown>) {
+      inserted = value;
+      return builder;
+    },
+    limit() {
+      return builder;
+    },
+    maybeSingle: async () => ({ data: cached, error: null }),
+    order() {
+      return builder;
+    },
+    select() {
+      return builder;
+    },
+    single: async () => ({
+      data: { created_at: "2026-08-11T00:00:00.000Z", id: 42 },
+      error: null,
+    }),
+  };
+
+  return {
+    admin: {
+      from(table: string) {
+        assert.equal(table, "documents");
+        return builder;
+      },
+    } as never,
+    getInserted: () => inserted,
+  };
+}
+
+test("canonicalizes LinkedIn job search URLs with currentJobId", () => {
   assert.equal(
-    findExactLinkedinJob(
-      jobs,
-      "https://www.linkedin.com/jobs/view/requested-987654321"
-    )?.title,
-    "Requested job"
-  );
-  assert.equal(
-    findExactLinkedinJob(
-      jobs,
-      "https://www.linkedin.com/jobs/view/missing-555555555"
+    normalizeOpenUrl(
+      "https://www.linkedin.com/jobs/search/?keywords=designer&currentJobId=4452474383#details"
     ),
-    null
+    "https://www.linkedin.com/jobs/view/4452474383"
   );
+  assert.equal(
+    normalizeOpenUrl(
+      "https://kr.linkedin.com/jobs/search?currentJobId=123456789&trackingId=x"
+    ),
+    "https://kr.linkedin.com/jobs/view/123456789"
+  );
+});
+
+test("leaves other LinkedIn and non-numeric job search URLs on the general Exa path", () => {
+  assert.equal(
+    normalizeOpenUrl("https://www.linkedin.com/company/example/#about"),
+    "https://www.linkedin.com/company/example/"
+  );
+  assert.equal(
+    normalizeOpenUrl(
+      "https://www.linkedin.com/jobs/search/?currentJobId=not-a-job-id"
+    ),
+    "https://www.linkedin.com/jobs/search/?currentJobId=not-a-job-id"
+  );
+});
+
+test("returns a documents cache hit without calling Exa", async () => {
+  const { admin } = createOpenUrlAdmin({
+    created_at: "2026-08-10T00:00:00.000Z",
+    excerpt: "Cached excerpt",
+    id: 7,
+    markdown: "Cached full text",
+    title: "Cached title",
+    url: "https://example.com/article",
+  });
+  const result = await openUrlWithDocumentsCache({
+    admin,
+    exa: {
+      getContents: async () => {
+        throw new Error("Exa should not be called for a cache hit");
+      },
+    } as never,
+    url: "https://example.com/article",
+  });
+
+  assert.equal(result.cached, true);
+  assert.equal(result.markdown, "Cached full text");
+});
+
+test("gets uncached LinkedIn content from Exa and saves it under the canonical URL", async () => {
+  const { admin, getInserted } = createOpenUrlAdmin();
+  let requestedUrls: unknown = null;
+  let requestedOptions: unknown = null;
+  const result = await openUrlWithDocumentsCache({
+    admin,
+    exa: {
+      getContents: async (urls: unknown, options: unknown) => {
+        requestedUrls = urls;
+        requestedOptions = options;
+        return {
+          requestId: "request-1",
+          results: [
+            {
+              id: "linkedin-job",
+              text: "Full LinkedIn job text from Exa",
+              title: "Product Designer",
+              url: "https://www.linkedin.com/jobs/view/4452474383",
+            },
+          ],
+        };
+      },
+    } as never,
+    url: "https://www.linkedin.com/jobs/search/?currentJobId=4452474383",
+  });
+
+  assert.deepEqual(requestedUrls, [
+    "https://www.linkedin.com/jobs/view/4452474383",
+  ]);
+  assert.deepEqual(requestedOptions, {
+    text: { maxCharacters: 20_000 },
+  });
+  assert.equal(
+    getInserted()?.url,
+    "https://www.linkedin.com/jobs/view/4452474383"
+  );
+  assert.equal(
+    getInserted()?.markdown,
+    "Full LinkedIn job text from Exa"
+  );
+  assert.equal(result.cached, false);
+  assert.equal(result.markdown, "Full LinkedIn job text from Exa");
+});
+
+test("updates an existing URL by id without requiring a unique URL constraint", async () => {
+  let updated: Record<string, unknown> | null = null;
+  let updatedId: unknown = null;
+  const getUpdated = (): Record<string, unknown> | null => updated;
+  const builder = {
+    eq(column: string, value: unknown) {
+      if (column === "id") updatedId = value;
+      return builder;
+    },
+    limit() {
+      return builder;
+    },
+    maybeSingle: async () => ({ data: { id: 17 }, error: null }),
+    order() {
+      return builder;
+    },
+    select() {
+      return builder;
+    },
+    single: async () => ({
+      data: { created_at: "2026-08-12T00:00:00.000Z", id: 17 },
+      error: null,
+    }),
+    update(value: Record<string, unknown>) {
+      updated = value;
+      return builder;
+    },
+  };
+
+  const saved = await saveDocumentCache({
+    admin: {
+      from(table: string) {
+        assert.equal(table, "documents");
+        return builder;
+      },
+    } as never,
+    document: {
+      markdown: "Refreshed Exa content",
+      title: "Updated title",
+      url: "https://example.com/existing",
+    },
+  });
+
+  assert.equal(updatedId, 17);
+  assert.equal(getUpdated()?.markdown, "Refreshed Exa content");
+  assert.equal(saved.documentId, 17);
 });

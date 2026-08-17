@@ -32,6 +32,7 @@ import type {
   OrgWorkspaceUpdateFields,
 } from "@/lib/org/server";
 import type { OrgMembershipRole } from "@/lib/org/permissions";
+import type { OrgRoleCriterion } from "@/lib/org/roleCriteria";
 import {
   applyOrgCandidateStageToAcceptedTalents,
   applyOrgCandidateStageToBoard,
@@ -634,9 +635,11 @@ export function useUpdateOrgRole() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (args: {
+      criteria?: OrgRoleCriterion[];
       description?: string | null;
       employmentTypes?: string[] | null;
       externalJdUrl?: string | null;
+      expectedCriteria?: OrgRoleCriterion[];
       isExpired?: boolean | null;
       locationText?: string | null;
       name?: string | null;

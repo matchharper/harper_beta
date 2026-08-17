@@ -71,6 +71,19 @@ import { IncomingWebhook } from "@slack/webhook";
 import { notifyInternalOpportunityDecisionSlack } from "@/lib/internalOpportunityDecisionSlack";
 import { recordCompanyTalentResponse } from "@/lib/companyTalentRequests/server";
 import { buildProfileLinkReplyInstruction } from "@/lib/talentOnboarding/profileLinkReplyInstruction";
+import { getCompanyInternalRoleRequest } from "@/lib/companyInternalRole";
+import {
+  CAREER_LANGUAGE_SETTING_TOOL_DESCRIPTION,
+  CAREER_LANGUAGE_SETTING_TOOL_PARAMETERS,
+  parseCareerLanguageSetting,
+} from "./languageSettingTool";
+import {
+  buildActiveCareerChatExternalSearchResult,
+  buildOnDemandJobSearchStatusUnknownResult,
+  enqueueOnDemandJobSearch,
+  findActiveCareerChatExternalSearchRun,
+  normalizeRecommendJobPostingsKind,
+} from "@/lib/opportunityDiscovery/onDemandJobSearch";
 
 export type TalentToolChannel = "chat" | "voice";
 
@@ -103,6 +116,16 @@ async function insertToolUsageLogFromContext(args: {
 }) {
   const admin = args.context?.admin;
   if (!admin) return;
+
+  // The worker treats this persisted usage event as an explicit strong
+  // reaction. Programmatic feedback/re-engagement turns have no user message
+  // origin and must not create that lifecycle signal a second time.
+  if (
+    args.name === "recommend_job_postings" &&
+    !/^[1-9][0-9]*$/.test(String(args.context?.userMessageId ?? "").trim())
+  ) {
+    return;
+  }
 
   await insertTalentToolUsageLog({
     admin: admin as TalentAdminClient,
@@ -149,6 +172,7 @@ export const TALENT_TOOL_NAMES = {
   RESEARCH_COMPANY: "research_company",
   LOOKUP_ANSWER_EXAMPLES: "lookup_answer_examples",
   READ_TALENT_ACTIVITY_EVENTS: "read_talent_activity_events",
+  UPDATE_LANGUAGE_SETTING: "update_language_setting",
   UPDATE_SETTING: "update_setting",
   UPDATE_TALENT_PROFILE: "update_talent_profile",
   RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION:
@@ -172,6 +196,7 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.RESEARCH_COMPANY,
   TALENT_TOOL_NAMES.LOOKUP_ANSWER_EXAMPLES,
   TALENT_TOOL_NAMES.READ_TALENT_ACTIVITY_EVENTS,
+  TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING,
   TALENT_TOOL_NAMES.UPDATE_SETTING,
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
   TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION,
@@ -447,7 +472,9 @@ const ROLE_CONTEXT_ROLE_SELECT = `
   posted_at,
   expires_at,
   source_type,
-  request,
+  company_internal_roles (
+    request
+  ),
   company_workspace:company_workspace!inner (
     company_db:company_db (
       name,
@@ -613,7 +640,14 @@ async function runGetRoleContext(args: {
         postedAt: optionalToolString(row.posted_at),
         expiresAt: optionalToolString(row.expires_at),
         sourceType: optionalToolString(row.source_type),
-        internalRequest: optionalToolString(row.request),
+        internalRequest: optionalToolString(
+          getCompanyInternalRoleRequest(
+            row.company_internal_roles as
+              | { request?: string | null }
+              | Array<{ request?: string | null }>
+              | null
+          )
+        ),
       },
       companyDb: {
         name: optionalToolString(companyDb?.name),
@@ -1175,8 +1209,13 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
     parameters: WEB_SEARCH_TOOL_DEFINITION.function.parameters,
     channels: ["chat", "voice"],
     voicePreamble: "잠시만요. 한번 찾아볼게요.",
-    async execute(input) {
+    async execute(input, context) {
+      const admin = context?.admin;
+      if (!admin) {
+        throw new TalentToolError("web_search requires service context.");
+      }
       return executeSharedWebSearch(input, {
+        admin: admin as TalentAdminClient,
         inputError: (message) => new TalentToolError(message),
       });
     },
@@ -1201,7 +1240,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS]: {
     name: TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS,
     description:
-      "Find, rerank, enrich, and save up to 5 current job postings for this user. Use when the user asks to find, recommend, or match new job postings, roles, positions, companies, or opportunities with specific requirements. If the user's first conversation-completed recommendation is still queued or running, this tool does not search or save anything and instead returns a waiting notice in answerDraft. Do not use first when the user's request includes a durable hard filter or future-matching command such as '~로만 찾아줘', '~만 보내줘', '앞으로 ~로 찾아줘', '다음부터 ~는 빼줘', or '~ 조건을 반영해줘'; call update_talent_profile first so the condition is saved, then let the fresh search run. Do not use immediately for clearly off-profile or aspirational role requests; first explain the mismatch and ask one clarifying question. If the user clarifies it is only curiosity/browsing, use this as a one-off exploratory search and do not update future matching memory.",
+      "Search current external job postings for this user. Choose kind=instant by default: it runs the original immediate recommendation flow and returns up to 5 postings in the current conversation. Choose kind=bulk only when the user explicitly requests roughly 10-20 postings, explicitly asks for a deeper/high-accuracy search, or has explicitly accepted an offered bulk search. Never infer bulk permission from an ordinary recommendation request. Before a bulk call, tell the user it takes longer because Harper searches and evaluates more postings, and that Harper will notify them by email when it finishes. Bulk runs in the background with a default target of 15 and a maximum of 20; never silently fall back to instant if bulk cannot be scheduled. Follow answerDraft exactly for a bulk receipt and never imply queued work has already found jobs. If another bulk search is queued or running, this tool does not merge new conditions and returns which request is actually active. Do not use first when the user's request includes a durable hard filter or future-matching command such as '~로만 찾아줘', '~만 보내줘', '앞으로 ~로 찾아줘', '다음부터 ~는 빼줘', or '~ 조건을 반영해줘'; call update_talent_profile first so the condition is saved, then let the fresh search run. Do not use immediately for clearly off-profile or aspirational role requests; first explain the mismatch and ask one clarifying question. If the user clarifies it is only curiosity/browsing, use this as a one-off exploratory search and do not update future matching memory.",
     parameters: {
       type: "object",
       properties: {
@@ -1209,6 +1248,18 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           type: "string",
           description:
             "The user's full job-search request, including role, domain, location, work mode, company type, seniority, and any constraints they mentioned. If this is one-off curiosity/browsing rather than a durable preference, explicitly include that in the request so the search does not imply future matching criteria changed.",
+        },
+        kind: {
+          type: "string",
+          enum: ["instant", "bulk"],
+          default: "instant",
+          description:
+            "Search mode. Use instant by default for the original immediate flow (up to 5 results). Use bulk only after the user explicitly requests or permits a longer, deeper search for roughly 10-20 results with completion notification by email.",
+        },
+        max_results: {
+          type: "integer",
+          description:
+            "The requested maximum number of postings. For instant, use 5; the original immediate flow returns up to 5. For bulk, preserve the user's explicit count or use 15 when omitted; the service accepts up to 20 and may deliver fewer when not enough strong matches pass quality checks.",
         },
       },
       required: ["request"],
@@ -1220,6 +1271,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const conversationId = context?.conversationId;
       const userId = context?.userId;
       const request = optionalToolString(input.request);
+      const kind = normalizeRecommendJobPostingsKind(input.kind);
 
       if (!admin || !conversationId || !userId) {
         throw new TalentToolError(
@@ -1230,12 +1282,67 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         throw new TalentToolError("recommend_job_postings requires request.");
       }
 
+      const directUserMessageId = String(context?.userMessageId ?? "").trim();
+      const hasStableDirectUserMessageId = /^[1-9][0-9]*$/.test(
+        directUserMessageId
+      );
+
+      if (kind === "bulk") {
+        if (!hasStableDirectUserMessageId) {
+          throw new TalentToolError(
+            "bulk recommend_job_postings requires a stable user message ID."
+          );
+        }
+        return enqueueOnDemandJobSearch({
+          admin: admin as TalentAdminClient,
+          conversationId,
+          maxResultsInput: input.max_results,
+          request,
+          responseLocale: context?.responseLocale,
+          userId,
+          userMessageId: directUserMessageId,
+        });
+      }
+
+      let activeAsyncRun = null;
+      try {
+        activeAsyncRun = await findActiveCareerChatExternalSearchRun({
+          admin: admin as TalentAdminClient,
+          userId,
+        });
+      } catch (error) {
+        console.warn(
+          "[recommend_job_postings] async drain guard unavailable; refusing an overlapping sync search",
+          {
+            error: error instanceof Error ? error.message : String(error),
+            userId,
+          }
+        );
+        return buildOnDemandJobSearchStatusUnknownResult({
+          locale: context?.responseLocale,
+          maxResultsInput: input.max_results,
+          request,
+        });
+      }
+
+      if (activeAsyncRun) {
+        return buildActiveCareerChatExternalSearchResult({
+          activeRun: activeAsyncRun,
+          directUserRequest: hasStableDirectUserMessageId,
+          kind,
+          maxResultsInput: input.max_results,
+          request,
+          responseLocale: context?.responseLocale,
+        });
+      }
+
       return runCareerJobPostingRecommendations({
         admin: admin as any,
         abortSignal: context?.abortSignal,
         conversationId,
         preferredLocale: context?.responseLocale ?? null,
         request,
+        strategy: "legacy",
         userId,
       });
     },
@@ -1972,6 +2079,41 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         impactLevel: "high",
         ok: true,
         updatedSettingFields,
+      };
+    },
+  },
+  [TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING]: {
+    name: TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING,
+    description: CAREER_LANGUAGE_SETTING_TOOL_DESCRIPTION,
+    parameters: CAREER_LANGUAGE_SETTING_TOOL_PARAMETERS,
+    channels: ["chat"],
+    async execute(input, context) {
+      const admin = context?.admin as TalentAdminClient | undefined;
+      const userId = context?.userId;
+      if (!admin || !userId) {
+        throw new TalentToolError(
+          "update_language_setting requires user context."
+        );
+      }
+
+      const language = parseCareerLanguageSetting(input.language);
+      if (!language) {
+        throw new TalentToolError(
+          "update_language_setting requires a valid language."
+        );
+      }
+
+      await upsertTalentSetting({
+        admin,
+        settingLocale: language,
+        userId,
+      });
+
+      return {
+        assistantInstruction: `Briefly confirm in ${getCareerPromptLanguageName(language)} that the saved language was changed permanently.`,
+        language,
+        ok: true,
+        skipCommonAssistantInstruction: true,
       };
     },
   },
@@ -2748,6 +2890,13 @@ function withUiStatusMessageParameter(parameters: Record<string, unknown>) {
   };
 }
 
+function getToolParameters(tool: TalentToolDefinition) {
+  return tool.name === TALENT_TOOL_NAMES.END_CALL ||
+    tool.name === TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING
+    ? tool.parameters
+    : withUiStatusMessageParameter(tool.parameters);
+}
+
 function localizeTalentToolPromptValue(
   value: unknown,
   responseLocale?: string | null
@@ -2787,7 +2936,7 @@ export function getOpenAIChatTools(
         options?.responseLocale
       ) as string,
       parameters: localizeTalentToolPromptValue(
-        withUiStatusMessageParameter(tool.parameters),
+        getToolParameters(tool),
         options?.responseLocale
       ) as Record<string, unknown>,
     },
@@ -2812,9 +2961,7 @@ export function getRealtimeTools(
       options?.responseLocale
     ) as string,
     parameters: localizeTalentToolPromptValue(
-      tool.name === TALENT_TOOL_NAMES.END_CALL
-        ? tool.parameters
-        : withUiStatusMessageParameter(tool.parameters),
+      getToolParameters(tool),
       options?.responseLocale
     ) as Record<string, unknown>,
   }));

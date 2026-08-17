@@ -2,13 +2,19 @@ import { BriefcaseBusiness, Building2, Scale, Settings } from "lucide-react";
 import { useRouter } from "next/router";
 import { useCallback, useState } from "react";
 import { OrgAgentChatSurface } from "@/components/org/agent/OrgAgentPanel";
-import { OrgRoleOverviewPanel } from "@/components/org/OrgRoleOverview";
+import { OrgRoleDetailsContent } from "@/components/org/role-overview/OrgRoleDetailsContent";
+import { OrgRoleMatchingContent } from "@/components/org/role-overview/OrgRoleMatchingContent";
+import { OrgRoleSettingsContent } from "@/components/org/role-overview/OrgRoleSettingsContent";
 import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
 import { OrgTeamPage } from "@/components/org/workspace/pages/OrgTeamPage";
+import { DocumentEditorPanelProvider } from "@/components/ui/document-editor";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useResizableSplitPanel } from "@/hooks/useResizableSplitPanel";
-import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
+import {
+  getOrgRoleStatusPresentation,
+  normalizeOrgRoleStatus,
+} from "@/lib/org/roleStatus";
 import { buildOrgHref } from "@/lib/org/routes";
 import type { OrgRole } from "@/lib/org/server";
 import {
@@ -18,21 +24,21 @@ import {
   useOrgRoleCreationUiStore,
 } from "@/store/useOrgRoleCreationUiStore";
 
-type RoleCreationTab = "role" | "company" | "settings" | "calibration";
+type RoleCreationTab = "matching" | "role" | "company" | "settings";
 
 const ORG_ROLE_DESKTOP_MEDIA_QUERY = "(min-width: 1024px)";
 const ORG_ROLE_SPLIT_HANDLE_WIDTH_PX = 8;
 
 const DETAIL_TABS = [
   {
-    icon: <BriefcaseBusiness className="size-3.5" strokeWidth={1.65} />,
-    label: "Role",
-    value: "role",
+    icon: <Scale className="size-3.5" strokeWidth={1.65} />,
+    label: "매칭 기준",
+    value: "matching",
   },
   {
-    icon: <Building2 className="size-3.5" strokeWidth={1.65} />,
-    label: "Company",
-    value: "company",
+    icon: <BriefcaseBusiness className="size-3.5" strokeWidth={1.65} />,
+    label: "역할 정보",
+    value: "role",
   },
   {
     icon: <Settings className="size-3.5" strokeWidth={1.65} />,
@@ -40,9 +46,9 @@ const DETAIL_TABS = [
     value: "settings",
   },
   {
-    icon: <Scale className="size-3.5" strokeWidth={1.65} />,
-    label: "Calibration",
-    value: "calibration",
+    icon: <Building2 className="size-3.5" strokeWidth={1.65} />,
+    label: "회사 설명",
+    value: "company",
   },
 ] as const;
 
@@ -50,115 +56,125 @@ function getQueryText(value: string | string[] | undefined) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function getRoleVersion(role: OrgRole) {
-  return `${role.updatedAt}:${role.memoryUpdatedAt ?? ""}`;
-}
-
 function OrgRoleCreationDetails({ role }: { role: OrgRole | null }) {
   const { workspace } = useOrgWorkspace();
-  const [activeTab, setActiveTab] = useState<RoleCreationTab>("role");
+  const [activeTab, setActiveTab] = useState<RoleCreationTab>("matching");
+  const roleCreation =
+    role !== null && normalizeOrgRoleStatus(role.status) === "draft";
 
   return (
     <section
       aria-label="새 역할 등록 상세"
-      className="hidden ml-[-4px] min-h-0 min-w-0 flex-1 flex-col bg-bg-default lg:flex"
+      className="relative hidden ml-[-4px] min-h-0 min-w-0 flex-1 flex-col bg-bg-default lg:flex"
     >
-      <div
-        aria-label="새 역할 정보"
-        className="flex w-full items-center gap-1 border-b border-neutral-1000-a05 px-3"
-        role="tablist"
-      >
-        {DETAIL_TABS.map((tab) => {
-          const active = activeTab === tab.value;
-          return (
-            <button
-              aria-controls={`role-creation-${tab.value}-panel`}
-              aria-selected={active}
-              className={`flex min-w-0 items-center justify-center gap-1.5 rounded-xs px-3 py-3 text-[14px] font-light focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 ${
-                active
-                  ? " text-neutral-primary"
-                  : "text-neutral-600 hover:text-neutral-primary"
-              }`}
-              id={`role-creation-${tab.value}-tab`}
-              key={tab.value}
-              onClick={() => setActiveTab(tab.value)}
-              role="tab"
-              type="button"
-            >
-              {tab.icon}
-              <span className="truncate">{tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10">
+      <DocumentEditorPanelProvider key={role?.roleId ?? "loading"}>
         <div
-          aria-label="Role 탭 내용"
-          aria-labelledby="role-creation-role-tab"
-          hidden={activeTab !== "role"}
-          id="role-creation-role-panel"
-          role="tabpanel"
+          aria-label="새 역할 정보"
+          className="flex w-full items-center gap-1 border-b border-neutral-1000-a05 px-3"
+          role="tablist"
         >
-          {role ? (
-            <OrgRoleOverviewPanel
-              key={`role:${role.roleId}:${getRoleVersion(role)}`}
-              roleCreation
-              role={role}
-              section="role"
-              workspaceId={workspace.workspaceId}
-            />
-          ) : (
-            <div className="py-12 text-center text-sm text-neutral-muted">
-              역할 정보를 불러오는 중입니다.
-            </div>
-          )}
+          {DETAIL_TABS.map((tab) => {
+            const active = activeTab === tab.value;
+            return (
+              <button
+                aria-controls={`role-creation-${tab.value}-panel`}
+                aria-selected={active}
+                className={`flex min-w-0 items-center justify-center gap-1.5 rounded-xs px-3 py-3 text-[14px] font-light focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 ${tab.value === "company" ? "ml-auto" : ""} ${
+                  active
+                    ? " text-neutral-primary"
+                    : "text-neutral-600 hover:text-neutral-primary"
+                }`}
+                id={`role-creation-${tab.value}-tab`}
+                key={tab.value}
+                onClick={() => setActiveTab(tab.value)}
+                role="tab"
+                type="button"
+              >
+                {tab.icon}
+                <span className="truncate">{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
-        <div
-          aria-label="Company 탭 내용"
-          aria-labelledby="role-creation-company-tab"
-          hidden={activeTab !== "company"}
-          id="role-creation-company-panel"
-          role="tabpanel"
-        >
-          <OrgTeamPage companyOnly />
+        <div className="min-h-0 flex-1 pb-48 bg-white overflow-y-auto overscroll-contain px-5 py-6 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10">
+          <div
+            aria-label="매칭 기준 탭 내용"
+            aria-labelledby="role-creation-matching-tab"
+            hidden={activeTab !== "matching"}
+            id="role-creation-matching-panel"
+            role="tabpanel"
+          >
+            {role ? (
+              <OrgRoleMatchingContent
+                key={`matching:${role.roleId}`}
+                role={role}
+                workspaceId={workspace.workspaceId}
+              />
+            ) : (
+              <div className="py-12 text-center text-sm text-neutral-muted">
+                역할 정보를 불러오는 중입니다.
+              </div>
+            )}
+          </div>
+          <div
+            aria-label="역할 정보 탭 내용"
+            aria-labelledby="role-creation-role-tab"
+            hidden={activeTab !== "role"}
+            id="role-creation-role-panel"
+            role="tabpanel"
+          >
+            {role ? (
+              <OrgRoleDetailsContent
+                key={`role:${role.roleId}`}
+                role={role}
+                roleCreation={roleCreation}
+                workspaceId={workspace.workspaceId}
+              />
+            ) : (
+              <div className="py-12 text-center text-sm text-neutral-muted">
+                역할 정보를 불러오는 중입니다.
+              </div>
+            )}
+          </div>
+          <div
+            aria-label="Company 탭 내용"
+            aria-labelledby="role-creation-company-tab"
+            hidden={activeTab !== "company"}
+            id="role-creation-company-panel"
+            role="tabpanel"
+          >
+            <OrgTeamPage companyOnly />
+          </div>
+          <div
+            aria-label="Setting 탭 내용"
+            aria-labelledby="role-creation-settings-tab"
+            hidden={activeTab !== "settings"}
+            id="role-creation-settings-panel"
+            role="tabpanel"
+          >
+            {role ? (
+              <OrgRoleSettingsContent
+                key={`settings:${role.roleId}`}
+                layout="panel"
+                role={role}
+                roleCreation={roleCreation}
+                workspaceId={workspace.workspaceId}
+              />
+            ) : null}
+          </div>
         </div>
-        <div
-          aria-label="Setting 탭 내용"
-          aria-labelledby="role-creation-settings-tab"
-          hidden={activeTab !== "settings"}
-          id="role-creation-settings-panel"
-          role="tabpanel"
-        >
-          {role ? (
-            <OrgRoleOverviewPanel
-              key={`settings:${role.roleId}:${getRoleVersion(role)}`}
-              roleCreation
-              role={role}
-              section="settings"
-              workspaceId={workspace.workspaceId}
-            />
-          ) : null}
-        </div>
-        <div
-          aria-label="Calibration 탭 내용"
-          aria-labelledby="role-creation-calibration-tab"
-          hidden={activeTab !== "calibration"}
-          id="role-creation-calibration-panel"
-          role="tabpanel"
-        />
-      </div>
+      </DocumentEditorPanelProvider>
     </section>
   );
 }
 
 export function OrgRoleCreationPage() {
   const router = useRouter();
-  const { permissions, roles, workspace } = useOrgWorkspace();
+  const { page, permissions, roles, workspace } = useOrgWorkspace();
+  const isNewRolePage = page === "new-role";
   const roleId = router.isReady ? getQueryText(router.query.roleId) : "";
   const role = roles.find((item) => item.roleId === roleId) ?? null;
-  const roleStatus = role
-    ? getOrgRoleStatusPresentation(role.status)
-    : null;
+  const roleStatus = role ? getOrgRoleStatusPresentation(role.status) : null;
   const isDesktop = useMediaQuery(ORG_ROLE_DESKTOP_MEDIA_QUERY);
   const persistedChatPanelWidth = useOrgRoleCreationUiStore(
     (state) => state.chatPanelWidthPct
@@ -201,7 +217,7 @@ export function OrgRoleCreationPage() {
       }
     >
       <section
-        aria-label="새 역할 등록 대화"
+        aria-label={isNewRolePage ? "새 역할 등록 대화" : "역할 대화"}
         className="flex relative h-full min-h-0 min-w-0 flex-col overflow-hidden lg:flex-none lg:basis-[42%]"
         style={
           roleId && isDesktop
@@ -233,7 +249,9 @@ export function OrgRoleCreationPage() {
                     ) : null}
                   </header>
                 ) : (
-                  <h1 className="sr-only">새 역할 등록</h1>
+                  <h1 className="sr-only">
+                    {isNewRolePage ? "새 역할 등록" : "역할 대화"}
+                  </h1>
                 )}
               </>
             }
@@ -241,11 +259,10 @@ export function OrgRoleCreationPage() {
               void router.replace(
                 buildOrgHref({
                   orgId: workspace.workspaceId,
-                  page: "new-role",
+                  page: "role",
                   roleId: createdRoleId,
                 }),
-                undefined,
-                { shallow: true }
+                undefined
               );
             }}
             purpose="role-creation"

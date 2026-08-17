@@ -15,7 +15,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input as UiInput } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { Tooltips } from "@/components/ui/tooltip";
 import {
   useOpsMatchingAllRoles,
@@ -29,8 +28,6 @@ import {
 } from "@/lib/ops/matching";
 import type { OpportunityStatus } from "@/lib/ops/opportunity";
 import {
-  Bot,
-  BotOff,
   LoaderCircle,
   MoreHorizontal,
   PauseCircle,
@@ -175,31 +172,6 @@ function StatusBadge({ status }: { status: OpportunityStatus }) {
   );
 }
 
-function AutoBadge({ isAuto }: { isAuto: boolean }) {
-  return (
-    <Tooltips
-      text={
-        isAuto
-          ? "매주 월요일 자동으로 후보자 추천이 진행되고 있습니다."
-          : "자동 추천이 꺼져 있습니다. 후보자 추천은 수동으로 진행해야 합니다."
-      }
-      side="top"
-    >
-      <span
-        className={cx(
-          "inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium",
-          isAuto
-            ? "bg-primary-faded text-primary"
-            : "bg-bg-weak text-neutral-muted"
-        )}
-      >
-        {isAuto ? <Bot className="h-3 w-3" /> : <BotOff className="h-3 w-3" />}
-        {isAuto ? "자동 진행중" : "자동 추천 X"}
-      </span>
-    </Tooltips>
-  );
-}
-
 export function MatchingAllRoles({
   canFetchInternal,
 }: {
@@ -209,7 +181,6 @@ export function MatchingAllRoles({
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const [searchInput, setSearchInput] = useState("");
   const [query, setQuery] = useState("");
-  const [selfServeOnly, setSelfServeOnly] = useState(false);
   const [editingRole, setEditingRole] = useState<OpsMatchingAllRoleItem | null>(
     null
   );
@@ -218,7 +189,6 @@ export function MatchingAllRoles({
     enabled: canFetchInternal,
     limit: OPS_MATCHING_ALL_ROLES_PAGE_SIZE,
     query,
-    selfServeOnly,
   });
   const updateRole = useUpdateOpsMatchingAllRole();
   const saveRole = useSaveOpsOpportunityRole();
@@ -306,7 +276,7 @@ export function MatchingAllRoles({
 
   const handleRoleSettingChange = async (
     role: OpsMatchingAllRoleItem,
-    patch: { isAuto?: boolean; status?: OpportunityStatus }
+    patch: { status: OpportunityStatus }
   ) => {
     try {
       await updateRole.mutateAsync({ roleId: role.roleId, ...patch });
@@ -351,14 +321,6 @@ export function MatchingAllRoles({
             className={cx(opsTheme.input, "pl-9")}
           />
         </div>
-        <label className="flex h-11 shrink-0 items-center justify-between gap-3 rounded-md bg-bg-weak px-3 text-sm text-neutral-primary">
-          <span className="whitespace-nowrap">Self-serve만 보기</span>
-          <Switch
-            checked={selfServeOnly}
-            onCheckedChange={setSelfServeOnly}
-            aria-label="Self-serve role만 보기"
-          />
-        </label>
         <div className="shrink-0 text-xs text-neutral-muted">
           {roles.length} / {totalCount} roles
         </div>
@@ -384,21 +346,20 @@ export function MatchingAllRoles({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1180px] border-collapse text-left">
+            <table className="w-full min-w-[1070px] border-collapse text-left">
               <thead className="bg-bg-weak text-[10px] font-medium uppercase tracking-[0.04em] text-neutral-soft">
                 <tr>
                   <th className="w-[190px] px-3 py-2">회사</th>
                   <th className="min-w-[220px] px-3 py-2">Role title</th>
                   <th className="w-[390px] px-3 py-2">후보자</th>
                   <th className="w-[90px] px-3 py-2">Status</th>
-                  <th className="w-[110px] px-3 py-2">is_auto</th>
                   <th className="w-[58px] px-3 py-2 text-right">Action</th>
                 </tr>
               </thead>
               {groups.map((group) => (
                 <tbody key={group.companyWorkspaceId}>
                   <tr className="border-t border-neutral-1000-a05 bg-bg-default/80">
-                    <td colSpan={6} className="px-3 py-2">
+                    <td colSpan={5} className="px-3 py-2">
                       <div className="flex items-center gap-2 text-xs font-medium text-neutral-primary">
                         <CompanyLogo
                           companyName={group.companyName}
@@ -458,9 +419,6 @@ export function MatchingAllRoles({
                         <td className="px-3 py-2">
                           <StatusBadge status={role.status} />
                         </td>
-                        <td className="px-3 py-2">
-                          <AutoBadge isAuto={role.isAuto} />
-                        </td>
                         <td className="px-3 py-2 text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -484,25 +442,6 @@ export function MatchingAllRoles({
                               className="w-48"
                               onClick={(event) => event.stopPropagation()}
                             >
-                              <DropdownMenuItem
-                                variant="sm"
-                                disabled={rowPending}
-                                onSelect={(event) => {
-                                  event.stopPropagation();
-                                  void handleRoleSettingChange(role, {
-                                    isAuto: !role.isAuto,
-                                  });
-                                }}
-                              >
-                                {role.isAuto ? (
-                                  <BotOff className="h-3.5 w-3.5" />
-                                ) : (
-                                  <Bot className="h-3.5 w-3.5" />
-                                )}
-                                {role.isAuto
-                                  ? "자동 추천 끄기"
-                                  : "자동 추천 켜기"}
-                              </DropdownMenuItem>
                               <DropdownMenuItem
                                 variant="sm"
                                 disabled={rowPending}

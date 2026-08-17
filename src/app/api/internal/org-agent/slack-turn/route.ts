@@ -4,18 +4,42 @@ import {
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
 import { runOrgAgentChat } from "@/lib/org/agent/chat";
+import { runOrgRoleCreationChat } from "@/lib/org/agent/roleCreationChat";
+import { confirmRoleCreationChoice } from "@/lib/org/agent/roleCreationConfirmation";
+import {
+  appendMissingInProgressSlackRoleLinks,
+  resolveDraftRoleCreationForSlackThread,
+} from "@/lib/org/agent/slackRoleCreation";
+import {
+  findOrgAgentSlackUserMessage,
+  toOrgAgentMessage,
+  type OrgAgentMessageRow,
+} from "@/lib/org/agent/store";
 import type { OrgAgentToolDebugEvent } from "@/lib/org/agent/toolDebug";
+import type { OrgAgentMessageMetadata } from "@/lib/org/agent/types";
 import {
   summarizeLlmDebugCalls,
   type LlmDebugSummary,
 } from "@/lib/llm/debugUsage";
 import {
   decryptHarperSlackToken,
+  getHarperSlackFileInfo,
   postHarperSlackMessage,
   setHarperSlackThreadStatus,
   syncHarperSlackThreadContext,
 } from "@/lib/org/slackHarper";
-import { getSlackOrgAgentModel } from "@/lib/org/agent/modelConfig";
+import {
+  buildHarperSlackFileLlmMessage,
+  extractHarperSlackFileAttachments,
+  mergeHarperSlackFiles,
+  needsHarperSlackFileInfo,
+  parseQueuedHarperSlackFiles,
+  type HarperSlackFile,
+} from "@/lib/org/slackFiles";
+import {
+  getSlackOrgAgentModel,
+  type OrgAgentModelId,
+} from "@/lib/org/agent/modelConfig";
 import {
   buildHarperSlackChoiceBlocks,
   formatHarperSlackToolUsage,
@@ -25,6 +49,10 @@ import {
   decideHarperSlackThreadReply,
   type SlackReplyRoutingMessage,
 } from "@/lib/org/slackReplyRouter";
+import {
+  postHarperSlackAccessDenied,
+  resolveHarperSlackWorkspaceAccess,
+} from "@/lib/org/slackMemberAccess";
 import {
   extractSlackRoleMarkerIds,
   extractSlackTalentMarkerIds,
@@ -41,6 +69,12 @@ export const maxDuration = 180;
 export const runtime = "nodejs";
 
 const clean = (value: unknown) => String(value ?? "").trim();
+
+function object(value: unknown): Record<string, any> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, any>)
+    : {};
+}
 
 type SlackTurnPhase = "all" | "respond" | "route";
 const SLACK_JOB_CANCELLATION_POLL_MS = 500;
@@ -147,6 +181,7 @@ function watchSlackReplyJob(args: {
 async function markSlackReplyJobIgnored(args: {
   admin: ReturnType<typeof getSupabaseAdmin>;
   jobId: string;
+  lastError?: string | null;
 }) {
   const now = new Date().toISOString();
   const { data, error } = await (
@@ -154,7 +189,7 @@ async function markSlackReplyJobIgnored(args: {
   )
     .update({
       completed_at: now,
-      last_error: null,
+      last_error: args.lastError ?? null,
       locked_at: null,
       locked_by: null,
       status: "ignored",
@@ -594,75 +629,6 @@ export async function POST(req: NextRequest) {
     slackTurnSignal = jobWatch.signal;
     stopSlackJobWatch = jobWatch.stop;
 
-    const hasCachedJobResponse = Boolean(
-      clean(job.response_text) &&
-      (Number(job.response_message_id || 0) || clean(job.response_proposal_id))
-    );
-    const isFreshRoutingPhase =
-      phase === "route" &&
-      Number(job.attempt_count || 0) <= 1 &&
-      !hasCachedJobResponse;
-    if (isFreshRoutingPhase) {
-      const messageTs = clean(job.slack_message_ts);
-      const prompt = clean(job.prompt);
-      const slackThreadId = clean(job.thread_id);
-      const slackUserId = clean(job.slack_user_id) || null;
-      if (!messageTs || !prompt || !slackThreadId) {
-        throw new Error("Slack reply job payload is invalid");
-      }
-
-      let routingDecision: "ignore" | "respond" | "uncertain" = "respond";
-      let routingMode = "mention_bypass";
-      if (clean(job.trigger_kind) === "thread_reply") {
-        const routingMessages = await loadSlackReplyRoutingMessages({
-          admin,
-          messageTs,
-          prompt,
-          slackThreadId,
-          slackUserId,
-        });
-        routingDecision = await decideHarperSlackThreadReply(routingMessages, {
-          onDebugCall: verbose
-            ? (call) => {
-                llmUsage = summarizeLlmDebugCalls([call]);
-                console.info("[org-agent/slack-turn:llm]", {
-                  jobId: job.id,
-                  ...llmUsage,
-                });
-              }
-            : undefined,
-          signal: slackTurnSignal,
-        });
-        routingMode = "model";
-      }
-      slackTurnSignal.throwIfAborted();
-      await assertSlackReplyJobCurrent({ admin, jobId: job.id });
-
-      const routingElapsedSeconds = elapsedSeconds(requestStartedAt);
-      if (routingDecision !== "respond") {
-        await markSlackReplyJobIgnored({ admin, jobId: job.id });
-        return NextResponse.json({
-          ignored: true,
-          ok: true,
-          outcome: "ignored",
-          phase: "routing",
-          routingDecision,
-          routingElapsedSeconds,
-          routingMode,
-          ...verboseLlmUsagePayload(verbose, llmUsage),
-        });
-      }
-      return NextResponse.json({
-        ok: true,
-        outcome: "respond",
-        phase: "routing",
-        routingDecision,
-        routingElapsedSeconds,
-        routingMode,
-        ...verboseLlmUsagePayload(verbose, llmUsage),
-      });
-    }
-
     const { data: thread, error: threadError } = await (
       admin.from("company_slack_threads" as any) as any
     )
@@ -698,8 +664,68 @@ export async function POST(req: NextRequest) {
     const teamId = clean(integration.slack_team_id);
     const threadTs = clean(thread.slack_thread_ts);
     const token = decryptHarperSlackToken(integration.bot_token_ciphertext);
-    if (!channelId || !messageTs || !prompt || !teamId || !threadTs)
+    if (
+      !channelId ||
+      !messageTs ||
+      !prompt ||
+      !slackUserId ||
+      !teamId ||
+      !threadTs
+    )
       throw new Error("Slack reply job payload is invalid");
+    const draftRoleCreation = await resolveDraftRoleCreationForSlackThread({
+      admin,
+      slackThreadId: thread.id,
+      workspaceId: channel.company_workspace_id,
+    });
+
+    const slackAccess = await resolveHarperSlackWorkspaceAccess({
+      slackUserId,
+      token,
+      workspaceId: channel.company_workspace_id,
+    });
+    if (!slackAccess.allowed || !slackAccess.member.canManageCandidates) {
+      const denialReason = slackAccess.allowed
+        ? "insufficient_role"
+        : slackAccess.reason;
+      try {
+        await postHarperSlackAccessDenied({
+          access: slackAccess,
+          channelId,
+          reason: denialReason,
+          slackUserId,
+          token,
+        });
+      } catch (error) {
+        // Authorization remains fail-closed even if Slack cannot deliver the
+        // best-effort private explanation.
+        console.warn("[org-agent/slack-turn:access-denied-message]", error);
+      }
+      await markSlackReplyJobIgnored({
+        admin,
+        jobId: job.id,
+        lastError: `slack_access_denied:${denialReason}`,
+      });
+      if (phase === "respond") {
+        return NextResponse.json({
+          accessDenied: true,
+          ok: true,
+          outcome: "completed",
+          phase: "reply",
+          replyElapsedSeconds: elapsedSeconds(requestStartedAt),
+        });
+      }
+      return NextResponse.json({
+        accessDenied: true,
+        ignored: true,
+        ok: true,
+        outcome: "ignored",
+        phase: "routing",
+        routingDecision: "ignore",
+        routingElapsedSeconds: elapsedSeconds(requestStartedAt),
+        routingMode: "workspace_membership",
+      });
+    }
 
     let responseText = clean(job.response_text);
     let responseMessageId = Number(job.response_message_id || 0);
@@ -722,6 +748,8 @@ export async function POST(req: NextRequest) {
       );
       if (recovered || hasPersistedResponse) {
         routingMode = "persisted_response";
+      } else if (draftRoleCreation) {
+        routingMode = "role_creation_thread_bypass";
       } else if (clean(job.trigger_kind) === "thread_reply") {
         const routingMessages = await loadSlackReplyRoutingMessages({
           admin,
@@ -795,34 +823,26 @@ export async function POST(req: NextRequest) {
           console.warn("[org-agent/slack-turn:set-status]", error);
         }
 
-        let actorUserId = clean(integration.installed_by_user_id);
-        if (!actorUserId) {
-          const { data: member, error } = await (
-            admin.from("company_user_workspace" as any) as any
-          )
-            .select("company_user_id")
-            .eq("company_workspace_id", channel.company_workspace_id)
-            .in("role", ["owner", "admin", "member"])
-            .limit(1)
-            .maybeSingle();
-          if (error) throw error;
-          actorUserId = clean(member?.company_user_id);
-        }
+        const actorUserId = slackAccess.member.companyUserId;
         if (!actorUserId)
-          throw new Error("Slack installation has no service actor");
+          throw new Error("Slack caller has no Harper member account");
         const { data: authData, error: authError } =
           await admin.auth.admin.getUserById(actorUserId);
         if (authError || !authData.user)
-          throw authError || new Error("Service actor not found");
+          throw authError || new Error("Slack caller account not found");
 
         let slackUserName: string | null = null;
         let historyTruncated = false;
+        let pendingUserFiles: HarperSlackFile[] = parseQueuedHarperSlackFiles(
+          job.batched_slack_files ?? job.slack_files
+        );
         try {
           const synced = await syncHarperSlackThreadContext({
             botUserId: clean(integration.slack_bot_user_id),
             channelId,
             currentMessageTs: messageTs,
             currentSlackUserId: slackUserId,
+            roleId: draftRoleCreation?.roleId,
             scopes: integration.scopes,
             threadId: thread.id,
             threadTs,
@@ -831,60 +851,256 @@ export async function POST(req: NextRequest) {
           });
           slackUserName = synced.currentSlackUserName;
           historyTruncated = synced.historyTruncated;
+          pendingUserFiles.push(...synced.pendingUserFiles);
         } catch (error) {
           // A Slack history/rate-limit failure should not make the mention
           // unusable. Stored Events API messages remain available as context.
           console.warn("[org-agent/slack-turn:thread-sync]", error);
         }
 
-        const result = await runOrgAgentChat({
-          assistantMessageMetadata: {
-            slackReplyJobId: job.id,
-            source: "org_agent_slack",
-          },
-          debug: verbose,
-          emit: verbose
-            ? (event, data) => {
-                if (event === "tool_debug") {
-                  const toolCall = data as OrgAgentToolDebugEvent;
-                  toolCalls.push(toolCall);
-                  console.info("[org-agent/slack-turn:tool]", {
-                    jobId: job.id,
-                    ...toolCall,
-                  });
-                } else if (event === "llm_debug") {
-                  llmUsage = data as LlmDebugSummary;
-                  console.info("[org-agent/slack-turn:llm]", {
-                    jobId: job.id,
-                    ...llmUsage,
-                  });
-                }
+        const slackFileErrors: string[] = [];
+        let slackFileAttachments: Awaited<
+          ReturnType<typeof extractHarperSlackFileAttachments>
+        >["attachments"] = [];
+        if (pendingUserFiles.length > 0) {
+          pendingUserFiles = mergeHarperSlackFiles(pendingUserFiles);
+          const grantedScopes = Array.isArray(integration.scopes)
+            ? integration.scopes.map(clean)
+            : [];
+          if (!grantedScopes.includes("files:read")) {
+            slackFileErrors.push(
+              "Slack 파일 읽기 권한이 없습니다. Workspace 관리자가 Harper Slack 앱을 다시 설치해야 합니다."
+            );
+          } else {
+            const resolvedFiles: HarperSlackFile[] = [];
+            for (const file of pendingUserFiles) {
+              if (!needsHarperSlackFileInfo(file)) {
+                resolvedFiles.push(file);
+                continue;
               }
-            : undefined,
-          mentions: [],
-          llmUserMessage: batchedPrompt,
-          message: prompt,
-          messageType: "slack",
-          messageUserId: null,
-          model: getSlackOrgAgentModel(),
-          slackAssistantUserId: integration.slack_bot_user_id,
-          slackThreadId: thread.id,
-          slackUserId,
-          slackUserMessageTs: messageTs,
-          signal: slackTurnSignal,
-          user: authData.user,
-          userMessageMetadata: {
-            historyTruncated,
-            slackUserName,
-            source: isButtonChoice
-              ? "org_agent_slack_button_choice"
-              : "org_agent_slack_user",
-            ...(isButtonChoice && clean(job.choice_source_job_id)
-              ? { slackChoiceSourceJobId: clean(job.choice_source_job_id) }
-              : {}),
-          },
-          workspaceId: channel.company_workspace_id,
+              const fileId = clean(file.id);
+              if (!fileId) {
+                slackFileErrors.push(
+                  `${clean(file.name || file.title) || "Slack file"}: 파일 정보를 확인하지 못했습니다.`
+                );
+                continue;
+              }
+              try {
+                resolvedFiles.push(
+                  await getHarperSlackFileInfo({ fileId, token })
+                );
+              } catch (error) {
+                slackFileErrors.push(
+                  `${clean(file.name || file.title || fileId)}: ${error instanceof Error ? error.message : "파일 정보를 확인하지 못했습니다."}`
+                );
+              }
+            }
+            const extracted = await extractHarperSlackFileAttachments({
+              files: resolvedFiles,
+              token,
+            });
+            slackFileAttachments = extracted.attachments;
+            slackFileErrors.push(...extracted.errors);
+          }
+        }
+
+        const sharedMessageMetadata: OrgAgentMessageMetadata = {
+          ...(slackFileAttachments.length > 0
+            ? {
+                attachments: slackFileAttachments.map((attachment) => ({
+                  kind: attachment.kind,
+                  mime: attachment.mime,
+                  name: attachment.name,
+                  size: attachment.size,
+                  truncated: attachment.truncated,
+                })),
+                slackFileAttachments,
+              }
+            : {}),
+          ...(slackFileErrors.length > 0 ? { slackFileErrors } : {}),
+          historyTruncated,
+          slackUserName,
+          source: isButtonChoice
+            ? "org_agent_slack_button_choice"
+            : "org_agent_slack_user",
+          ...(isButtonChoice && clean(job.choice_source_job_id)
+            ? { slackChoiceSourceJobId: clean(job.choice_source_job_id) }
+            : {}),
+        };
+        const llmUserMessage = buildHarperSlackFileLlmMessage({
+          attachments: slackFileAttachments,
+          errors: slackFileErrors,
+          message: batchedPrompt,
         });
+        let roleConfirmationResult: Awaited<
+          ReturnType<typeof runOrgRoleCreationChat>
+        > | null = null;
+        if (
+          draftRoleCreation &&
+          isButtonChoice &&
+          clean(job.choice_source_job_id)
+        ) {
+          const { data: sourceJob, error: sourceJobError } = await (
+            admin.from("slack_reply_jobs" as any) as any
+          )
+            .select("response_message_id, response_text")
+            .eq("id", clean(job.choice_source_job_id))
+            .maybeSingle();
+          if (sourceJobError) throw sourceJobError;
+          const sourceMessageId = Number(sourceJob?.response_message_id || 0);
+          const parsedChoices = parseHarperSlackChoiceMarkers(
+            clean(sourceJob?.response_text)
+          ).choices;
+          const choiceIndex = parsedChoices.findIndex(
+            (choice) => choice.userMessage === prompt
+          );
+          if (sourceMessageId && choiceIndex >= 0) {
+            const { data: sourceMessage, error: sourceMessageError } = await (
+              admin.from("company_messages" as any) as any
+            )
+              .select("conversation_id, metadata")
+              .eq("id", sourceMessageId)
+              .eq("role_id", draftRoleCreation.roleId)
+              .maybeSingle();
+            if (sourceMessageError) throw sourceMessageError;
+            const roleCreation = object(
+              object(sourceMessage?.metadata).roleCreation
+            );
+            const confirmationChoice = Array.isArray(roleCreation.choices)
+              ? object(roleCreation.choices[choiceIndex])
+              : {};
+            const decision =
+              confirmationChoice.value === "yes" ||
+              confirmationChoice.value === "no"
+                ? confirmationChoice.value
+                : null;
+            const actionId = clean(confirmationChoice.actionId);
+            if (decision && actionId) {
+              const confirmed = await confirmRoleCreationChoice({
+                actionId,
+                assistantMessageMetadata: { slackReplyJobId: job.id },
+                decision,
+                messageId: sourceMessageId,
+                messageType: "slack",
+                roleId: draftRoleCreation.roleId,
+                slackAssistantUserId: integration.slack_bot_user_id,
+                slackThreadId: thread.id,
+                slackUserId,
+                user: authData.user,
+                workspaceId: channel.company_workspace_id,
+              });
+              let currentUserMessage = await findOrgAgentSlackUserMessage({
+                admin,
+                slackMessageTs: messageTs,
+                slackThreadId: thread.id,
+                workspaceId: channel.company_workspace_id,
+              });
+              if (!currentUserMessage) {
+                const { data: confirmationUser, error: confirmationUserError } =
+                  await (admin.from("company_messages" as any) as any)
+                    .select(
+                      "id, conversation_id, company_workspace_id, role_id, company_user_id, role, content, message_type, model, status, mentions, thinking_logs, metadata, created_at"
+                    )
+                    .eq("conversation_id", sourceMessage?.conversation_id)
+                    .eq("role", "user")
+                    .contains("metadata", {
+                      roleCreationConfirmation: {
+                        actionId,
+                        decision,
+                        kind: "user",
+                        sourceMessageId,
+                      },
+                    })
+                    .maybeSingle();
+                if (confirmationUserError) throw confirmationUserError;
+                currentUserMessage = confirmationUser
+                  ? toOrgAgentMessage(confirmationUser as OrgAgentMessageRow)
+                  : null;
+              }
+              if (confirmed.assistantMessage && currentUserMessage) {
+                roleConfirmationResult = {
+                  assistantMessage: confirmed.assistantMessage,
+                  conversationId: clean(sourceMessage?.conversation_id),
+                  kind: "message",
+                  model: getSlackOrgAgentModel() as OrgAgentModelId,
+                  roleId: draftRoleCreation.roleId,
+                  userMessage: currentUserMessage,
+                };
+              }
+            }
+          }
+        }
+        const result =
+          roleConfirmationResult ??
+          (draftRoleCreation
+            ? await runOrgRoleCreationChat({
+                assistantMessageMetadata: {
+                  slackReplyJobId: job.id,
+                  source: "org_role_creation_slack",
+                },
+                attachments: slackFileAttachments,
+                llmUserMessage,
+                mentions: [],
+                message: prompt,
+                messageType: "slack",
+                messageUserId: actorUserId,
+                model: getSlackOrgAgentModel(),
+                roleId: draftRoleCreation.roleId,
+                slackAssistantUserId: integration.slack_bot_user_id,
+                slackThreadId: thread.id,
+                slackUserId,
+                slackUserMessageTs: messageTs,
+                surface: "slack",
+                user: authData.user,
+                userMessageMetadata: sharedMessageMetadata,
+                workspaceId: channel.company_workspace_id,
+              })
+            : await runOrgAgentChat({
+                assistantMessageMetadata: {
+                  slackReplyJobId: job.id,
+                  source: "org_agent_slack",
+                },
+                debug: verbose,
+                emit: verbose
+                  ? (event, data) => {
+                      if (event === "tool_debug") {
+                        const toolCall = data as OrgAgentToolDebugEvent;
+                        toolCalls.push(toolCall);
+                        console.info("[org-agent/slack-turn:tool]", {
+                          jobId: job.id,
+                          ...toolCall,
+                        });
+                      } else if (event === "llm_debug") {
+                        llmUsage = data as LlmDebugSummary;
+                        console.info("[org-agent/slack-turn:llm]", {
+                          jobId: job.id,
+                          ...llmUsage,
+                        });
+                      }
+                    }
+                  : undefined,
+                mentions: [],
+                llmUserMessage,
+                message: prompt,
+                messageType: "slack",
+                messageUserId: null,
+                model: getSlackOrgAgentModel(),
+                slackAssistantUserId: integration.slack_bot_user_id,
+                slackExecutionContext: {
+                  channelDbId: channel.id,
+                  channelId,
+                  publicSiteUrl: getPublicSiteUrlFromRequest(req),
+                  sourceKey: job.id,
+                  token,
+                },
+                slackThreadId: thread.id,
+                slackUserId,
+                slackUserMessageTs: messageTs,
+                signal: slackTurnSignal,
+                user: authData.user,
+                userMessageMetadata: sharedMessageMetadata,
+                workspaceId: channel.company_workspace_id,
+              }));
         slackTurnSignal.throwIfAborted();
         await assertSlackReplyJobCurrent({ admin, jobId: job.id });
         if (result.kind === "slack_proposal_draft") {
@@ -966,6 +1182,18 @@ export async function POST(req: NextRequest) {
           workspaceId: channel.company_workspace_id,
         });
       }
+      if (!draftRoleCreation) {
+        try {
+          slackResponseText = await appendMissingInProgressSlackRoleLinks({
+            admin,
+            message: slackResponseText,
+            workspaceId: channel.company_workspace_id,
+          });
+        } catch (error) {
+          // A missing-link safeguard must not block the main Slack reply.
+          console.warn("[org-agent/slack-turn:role-creation-links]", error);
+        }
+      }
       const deliveredSlackText = slackResponseText || "선택해 주세요.";
       const slackBlocks = buildHarperSlackChoiceBlocks({
         choices: parsedSlackResponse.choices,
@@ -974,9 +1202,9 @@ export async function POST(req: NextRequest) {
         toolUsageText,
       });
       const posted = await postHarperSlackMessage({
-        ...(parsedSlackResponse.choices.length > 0 || toolUsageText
-          ? { blocks: slackBlocks }
-          : {}),
+        // Use an explicit mrkdwn Block Kit section for every reply. The
+        // top-level text remains a notification/accessibility fallback.
+        blocks: slackBlocks,
         channelId,
         clientMessageId: job.id,
         text: deliveredSlackText,

@@ -24,7 +24,7 @@ test("presents every role lifecycle status with its sidebar label and tone", () 
   assert.deepEqual(getOrgRoleStatusPresentation("draft"), {
     label: "역할 작성 중",
     status: "draft",
-    tone: "neutral",
+    tone: "action",
   });
   assert.deepEqual(getOrgRoleStatusPresentation("top_priority"), {
     label: "최우선 진행 중",
@@ -39,12 +39,12 @@ test("presents every role lifecycle status with its sidebar label and tone", () 
   assert.deepEqual(getOrgRoleStatusPresentation("paused"), {
     label: "중지",
     status: "paused",
-    tone: "info",
+    tone: "primary",
   });
   assert.deepEqual(getOrgRoleStatusPresentation("ended"), {
     label: "종료",
     status: "ended",
-    tone: "critical",
+    tone: "neutral",
   });
 });
 

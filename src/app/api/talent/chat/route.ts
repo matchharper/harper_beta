@@ -55,12 +55,14 @@ import {
 } from "@/lib/talentOnboarding/completion";
 import {
   completeOnboardingAndQueueInitialOpportunityRun,
+  fetchSerializedOpportunityRunForTalent,
   getActiveOpportunityRun,
   serializeOpportunityRun,
 } from "@/lib/opportunityDiscovery/store";
 import {
   createRecommendJobPostingStatusLog,
   getRecommendJobPostingsChatPreamble,
+  isRecommendJobPostingSearchStopped,
   type RecommendJobPostingStatus,
 } from "@/lib/talentOnboarding/recommendJobPostingStatus";
 import {
@@ -88,6 +90,7 @@ import {
 } from "@/lib/career/companySnapshot";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import { getCareerConversationStarter } from "@/lib/career/prompts/conversationStarters";
+import { getCareerLanguageSettingToolStatus } from "@/lib/talentOnboarding/languageSettingTool";
 import {
   fetchActiveCompanyTalentRequest,
   serializeTalentPendingRequest,
@@ -101,6 +104,14 @@ import {
 } from "@/lib/textSanitization";
 import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
 import { OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE } from "@/lib/officialJobs";
+import {
+  extractRecommendJobPostingsReceipt,
+  type RecommendJobPostingsReceipt,
+} from "@/lib/opportunityDiscovery/onDemandJobSearch";
+import {
+  ensureOpportunityRunMarker,
+  stripOpportunityRunMarkers,
+} from "@/lib/opportunityDiscovery/messageMarker";
 
 export const maxDuration = 180;
 
@@ -207,6 +218,7 @@ async function buildTalentProfileSnapshot(args: {
     fetchTalentStructuredProfile({ admin: args.admin, userId: args.userId }),
   ]);
   return {
+    preferredLocale: setting?.preferred_locale ?? null,
     talentPreferences: {
       engagementTypes: normalizeTalentEngagementTypes(
         setting?.engagement_types ?? []
@@ -317,8 +329,14 @@ function getOnboardingMarkerPrefixSuffixLength(value: string) {
   return 0;
 }
 
-function getToolStartThinkingLog(toolName: string, locale?: string | null) {
+function getToolStartThinkingLog(
+  toolName: string,
+  locale?: string | null,
+  input?: Record<string, unknown>
+) {
   switch (toolName) {
+    case TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING:
+      return getCareerLanguageSettingToolStatus(input?.language);
     case TALENT_TOOL_NAMES.UPDATE_SETTING:
       return careerT(
         locale,
@@ -508,6 +526,30 @@ async function persistThinkingLogsForMessage(args: {
   if (error) {
     throw new Error(error.message ?? "Failed to persist thinking logs");
   }
+}
+
+async function fetchStoppedRecommendationSourceMessage(args: {
+  admin: ReturnType<typeof getTalentSupabaseAdmin>;
+  conversationId: string;
+  messageId: number;
+  userId: string;
+}) {
+  const { data, error } = await args.admin
+    .from("talent_messages")
+    .select("*")
+    .eq("id", args.messageId)
+    .eq("conversation_id", args.conversationId)
+    .eq("user_id", args.userId)
+    .eq("role", "user")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load recommendation status");
+  }
+  if (!data || !isRecommendJobPostingSearchStopped(data.thinking_logs)) {
+    return null;
+  }
+  return data as TalentMessageRow;
 }
 
 function attachThinkingLogsToLastMessage<
@@ -846,12 +888,11 @@ export async function POST(req: NextRequest) {
         })
       : null;
     const toolSelection = resolveCareerChatTools({
-      activeCompanyTalentRequestMode:
-        activeCompanyTalentRequest
-          ? activeCompanyTalentRequest.expects_document
-            ? "document"
-            : "text"
-          : null,
+      activeCompanyTalentRequestMode: activeCompanyTalentRequest
+        ? activeCompanyTalentRequest.expects_document
+          ? "document"
+          : "text"
+        : null,
       activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
       allowedToolNames,
       channel: requestChannel,
@@ -940,6 +981,9 @@ export async function POST(req: NextRequest) {
     } = { current: null };
     let thinkingLogs: string[] = [];
     let pendingRecommendationPostingRoleIds: string[] = [];
+    const recommendationReceiptRef: {
+      current: RecommendJobPostingsReceipt | null;
+    } = { current: null };
     let opportunityRecommendationsChanged = false;
     let changedOpportunityRoleId: string | null = null;
     let emitToolStatus: ((message: string) => void) | null = null;
@@ -1030,7 +1074,10 @@ export async function POST(req: NextRequest) {
           name: TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS,
           input,
         });
+        recommendationReceiptRef.current =
+          extractRecommendJobPostingsReceipt(result);
         rememberRecommendationPostingRoleIds(result);
+        if (recommendationReceiptRef.current) return result;
         const recommendationResult = isRecord(result) ? result : {};
         const completedStatus: RecommendJobPostingStatus = {
           candidateCount:
@@ -1119,6 +1166,7 @@ export async function POST(req: NextRequest) {
             send("opportunity_recommendations_changed", { roleId });
           let pendingAssistantText = "";
           let streamedAssistantText = "";
+          let recommendationToolStarted = false;
           let recommendationStatusAfterCharCount: number | null = null;
           const sendVisibleTextDelta = (delta: string) => {
             pendingAssistantText = stripPostgresUnsafeChars(
@@ -1194,123 +1242,138 @@ export async function POST(req: NextRequest) {
               ),
             });
 
-            const assistantText = await runCareerChatAssistantStream({
-              messages: llmMessages,
-              tools: toolDefinitions,
-              isOnboardingActive,
-              stopAfterToolNames: toolSelection.stopAfterToolNames,
-              systemBlocks,
-              responseLocale,
-              onTextDelta: (delta) => {
-                sendVisibleTextDelta(delta);
-              },
-              onToolStart: (tool) => {
-                if (tool.name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS) {
-                  ensureRecommendationToolPreamble();
-                  markRecommendationStatusAnchor();
-                  recordRecommendationStatus({ state: "running" });
-                  return;
-                }
-
-                const status = getToolStartThinkingLog(
-                  tool.name,
-                  responseLocale
-                );
-                if (status) {
-                  recordThinkingLog(status);
-                }
-              },
-              onStopToolStart: () => {
-                clearStopToolPreamble();
-              },
-              executeTool: async ({ name, input }) => {
-                const { status, toolInput } = splitToolUiStatus(input);
-                if (status) {
-                  recordThinkingLog(status);
-                }
-
-                if (name === TALENT_TOOL_NAMES.RESEARCH_COMPANY) {
-                  await insertTalentToolUsageLog({
-                    admin,
-                    name,
-                    userId: user.id,
-                  });
-
-                  const companyName =
-                    optionalToolString(toolInput.company_name) ??
-                    optionalToolString(toolInput.companyName);
-                  if (!companyName) {
-                    throw new Error("research_company requires company_name.");
+            let assistantText: string;
+            try {
+              assistantText = await runCareerChatAssistantStream({
+                messages: llmMessages,
+                tools: toolDefinitions,
+                isOnboardingActive,
+                stopAfterToolNames: toolSelection.stopAfterToolNames,
+                systemBlocks,
+                responseLocale,
+                onTextDelta: (delta) => {
+                  if (!recommendationToolStarted) sendVisibleTextDelta(delta);
+                },
+                onToolStart: (tool) => {
+                  if (tool.name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS) {
+                    recommendationToolStarted = true;
+                    ensureRecommendationToolPreamble();
+                    markRecommendationStatusAnchor();
+                    recordRecommendationStatus({ state: "running" });
+                    return;
                   }
 
-                  const cachedSnapshot = await fetchRecentCompanySnapshot({
-                    admin,
-                    companyName,
-                    preferredLocale: responseLocale,
-                  });
-                  if (cachedSnapshot) {
+                  const status = getToolStartThinkingLog(
+                    tool.name,
+                    responseLocale
+                  );
+                  if (status) {
+                    recordThinkingLog(status);
+                  }
+                },
+                onStopToolStart: () => {
+                  clearStopToolPreamble();
+                },
+                executeTool: async ({ name, input }) => {
+                  const { status, toolInput } = splitToolUiStatus(input);
+                  if (name === TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING) {
+                    const languageStatus = getToolStartThinkingLog(
+                      name,
+                      responseLocale,
+                      toolInput
+                    );
+                    if (languageStatus) recordThinkingLog(languageStatus);
+                  }
+                  if (status) {
+                    recordThinkingLog(status);
+                  }
+
+                  if (name === TALENT_TOOL_NAMES.RESEARCH_COMPANY) {
+                    await insertTalentToolUsageLog({
+                      admin,
+                      name,
+                      userId: user.id,
+                    });
+
+                    const companyName =
+                      optionalToolString(toolInput.company_name) ??
+                      optionalToolString(toolInput.companyName);
+                    if (!companyName) {
+                      throw new Error(
+                        "research_company requires company_name."
+                      );
+                    }
+
+                    const cachedSnapshot = await fetchRecentCompanySnapshot({
+                      admin,
+                      companyName,
+                      preferredLocale: responseLocale,
+                    });
+                    if (cachedSnapshot) {
+                      const messageContent = stripPostgresUnsafeChars(
+                        formatCompanySnapshotMessage({
+                          preferredLocale: responseLocale,
+                          reused: true,
+                          snapshot: cachedSnapshot,
+                        })
+                      );
+                      const { data: cacheMessage, error: cacheMessageError } =
+                        await admin
+                          .from("talent_messages")
+                          .insert(
+                            withIsMobile(
+                              {
+                                content: messageContent,
+                                conversation_id: conversationId,
+                                message_type:
+                                  COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
+                                role: "assistant",
+                                user_id: user.id,
+                              },
+                              isMobile
+                            )
+                          )
+                          .select("*")
+                          .single();
+                      if (cacheMessageError || !cacheMessage) {
+                        throw new Error(
+                          cacheMessageError?.message ??
+                            "Failed to insert company_snapshot result message."
+                        );
+                      }
+                      await touchConversationIfAllowed();
+                      preparedCompanySnapshotRef.current = {
+                        messages: [
+                          toResponseMessage(cacheMessage as TalentMessageRow),
+                        ],
+                      };
+                      return withTalentToolAssistantInstruction({
+                        ok: true,
+                        cached: true,
+                      });
+                    }
+
+                    // Intentional double cache-fetch: route checked cache above for fast-path,
+                    // but getOrCreateCompanySnapshot rechecks for idempotency (another request
+                    // may have created the snapshot between the two calls).
+                    const result = await getOrCreateCompanySnapshot({
+                      admin,
+                      companyName,
+                      preferredLocale: responseLocale,
+                      reason: optionalToolString(toolInput.reason),
+                      userId: user.id,
+                    });
                     const messageContent = stripPostgresUnsafeChars(
                       formatCompanySnapshotMessage({
                         preferredLocale: responseLocale,
-                        reused: true,
-                        snapshot: cachedSnapshot,
+                        reused: result.reused,
+                        snapshot: result.snapshot,
                       })
                     );
-                    const { data: cacheMessage, error: cacheMessageError } =
-                      await admin
-                        .from("talent_messages")
-                        .insert(
-                          withIsMobile(
-                            {
-                              content: messageContent,
-                              conversation_id: conversationId,
-                              message_type:
-                                COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
-                              role: "assistant",
-                              user_id: user.id,
-                            },
-                            isMobile
-                          )
-                        )
-                        .select("*")
-                        .single();
-                    if (cacheMessageError || !cacheMessage) {
-                      throw new Error(
-                        cacheMessageError?.message ??
-                          "Failed to insert company_snapshot result message."
-                      );
-                    }
-                    await touchConversationIfAllowed();
-                    preparedCompanySnapshotRef.current = {
-                      messages: [
-                        toResponseMessage(cacheMessage as TalentMessageRow),
-                      ],
-                    };
-                    return withTalentToolAssistantInstruction({
-                      ok: true,
-                      cached: true,
-                    });
-                  }
-
-                  // Intentional double cache-fetch: route checked cache above for fast-path,
-                  // but getOrCreateCompanySnapshot rechecks for idempotency (another request
-                  // may have created the snapshot between the two calls).
-                  const result = await getOrCreateCompanySnapshot({
-                    admin,
-                    companyName,
-                    preferredLocale: responseLocale,
-                    reason: optionalToolString(toolInput.reason),
-                    userId: user.id,
-                  });
-                  const messageContent = stripPostgresUnsafeChars(
-                    formatCompanySnapshotMessage({
-                      preferredLocale: responseLocale,
-                      reused: result.reused,
-                      snapshot: result.snapshot,
-                    })
-                  );
-                  const { data: researchMessage, error: researchMessageError } =
-                    await admin
+                    const {
+                      data: researchMessage,
+                      error: researchMessageError,
+                    } = await admin
                       .from("talent_messages")
                       .insert(
                         withIsMobile(
@@ -1326,27 +1389,42 @@ export async function POST(req: NextRequest) {
                       )
                       .select("*")
                       .single();
-                  if (researchMessageError || !researchMessage) {
-                    throw new Error(
-                      researchMessageError?.message ??
-                        "Failed to insert company_snapshot result message."
-                    );
+                    if (researchMessageError || !researchMessage) {
+                      throw new Error(
+                        researchMessageError?.message ??
+                          "Failed to insert company_snapshot result message."
+                      );
+                    }
+                    await touchConversationIfAllowed();
+                    preparedCompanySnapshotRef.current = {
+                      messages: [
+                        toResponseMessage(researchMessage as TalentMessageRow),
+                      ],
+                    };
+                    return withTalentToolAssistantInstruction({
+                      ok: true,
+                      cached: result.reused,
+                    });
                   }
-                  await touchConversationIfAllowed();
-                  preparedCompanySnapshotRef.current = {
-                    messages: [
-                      toResponseMessage(researchMessage as TalentMessageRow),
-                    ],
-                  };
-                  return withTalentToolAssistantInstruction({
-                    ok: true,
-                    cached: result.reused,
-                  });
-                }
 
-                return executeDefaultTalentTool({ name, input: toolInput });
-              },
-            });
+                  return executeDefaultTalentTool({ name, input: toolInput });
+                },
+              });
+            } catch (error) {
+              const receipt = recommendationReceiptRef.current;
+              if (!receipt) throw error;
+              console.warn(
+                "[TalentChat] Falling back to deterministic streamed recommendation receipt",
+                {
+                  conversationId,
+                  error: error instanceof Error ? error.message : String(error),
+                  outcome: receipt.outcome,
+                  runId: receipt.statusRunId,
+                  userId: user.id,
+                }
+              );
+              assistantText = receipt.answerDraft;
+            }
 
             const preparedCompanySnapshot = preparedCompanySnapshotRef.current;
             if (preparedCompanySnapshot) {
@@ -1396,6 +1474,10 @@ export async function POST(req: NextRequest) {
             }
 
             let assistantTextSource = assistantText.trim();
+            if (recommendationReceiptRef.current) {
+              assistantTextSource =
+                recommendationReceiptRef.current.answerDraft;
+            }
             if (!assistantTextSource) {
               assistantTextSource = (
                 await recoverCareerChatAssistantText({
@@ -1445,6 +1527,7 @@ export async function POST(req: NextRequest) {
               );
             }
             if (
+              !recommendationReceiptRef.current &&
               injectedRecommendationToolPreamble &&
               !safeAssistantText.startsWith(injectedRecommendationToolPreamble)
             ) {
@@ -1457,6 +1540,34 @@ export async function POST(req: NextRequest) {
             }
             safeAssistantText =
               ensureRecommendationPostingLinks(safeAssistantText);
+            if (
+              recommendationReceiptRef.current?.statusRunId &&
+              recommendationReceiptRef.current.statusRelation
+            ) {
+              safeAssistantText = ensureOpportunityRunMarker(
+                safeAssistantText,
+                {
+                  relation: recommendationReceiptRef.current.statusRelation,
+                  runId: recommendationReceiptRef.current.statusRunId,
+                }
+              );
+            } else {
+              safeAssistantText = stripOpportunityRunMarkers(safeAssistantText);
+            }
+            const stoppedSourceMessage =
+              await fetchStoppedRecommendationSourceMessage({
+                admin,
+                conversationId,
+                messageId: insertedUserMessage.id,
+                userId: user.id,
+              });
+            if (stoppedSourceMessage) {
+              send("user_message", {
+                message: toResponseMessage(stoppedSourceMessage),
+              });
+              send("done", { ok: true, stopped: true });
+              return;
+            }
             flushVisibleText(safeAssistantText);
             send("assistant_text_done", { ok: true });
 
@@ -1486,7 +1597,7 @@ export async function POST(req: NextRequest) {
             }
 
             scheduleInsightExtractionForAssistantMessage({
-              content: safeAssistantText,
+              content: stripOpportunityRunMarkers(safeAssistantText),
               messageId: insertedAssistantMessage.id,
             });
             const finalAssistantThinkingLogs = thinkingLogs;
@@ -1541,6 +1652,25 @@ export async function POST(req: NextRequest) {
               insertedCompletionNextStepsMessage =
                 completionMessages.nextStepsMessage;
             }
+            const recommendationSearchRun = recommendationReceiptRef.current
+              ?.statusRunId
+              ? await fetchSerializedOpportunityRunForTalent({
+                  admin,
+                  runId: recommendationReceiptRef.current.statusRunId,
+                  userId: user.id,
+                }).catch((error) => {
+                  console.error(
+                    "[TalentChat] Failed to hydrate queued recommendation run",
+                    {
+                      error:
+                        error instanceof Error ? error.message : String(error),
+                      runId: recommendationReceiptRef.current?.statusRunId,
+                      userId: user.id,
+                    }
+                  );
+                  return null;
+                })
+              : null;
             const assistantResponseMessages =
               await attachPostingPreviewsToMessages({
                 admin,
@@ -1550,6 +1680,14 @@ export async function POST(req: NextRequest) {
                       insertedAssistantMessage as TalentMessageRow
                     ),
                     thinkingLogs: finalAssistantThinkingLogs,
+                    ...(recommendationSearchRun
+                      ? {
+                          recommendationSearchRelation:
+                            recommendationReceiptRef.current?.statusRelation ??
+                            null,
+                          recommendationSearchRun,
+                        }
+                      : {}),
                   }),
                   insertedCompletionWrapupMessage
                     ? toResponseMessage(insertedCompletionWrapupMessage)
@@ -1579,10 +1717,14 @@ export async function POST(req: NextRequest) {
               });
             }
             send("opportunity_run", {
-              opportunityDiscoveryQueued: Boolean(completedOpportunityRun),
-              opportunityRun: serializeOpportunityRun(
-                completedOpportunityRun ?? activeRun
+              opportunityDiscoveryQueued: Boolean(
+                completedOpportunityRun ||
+                recommendationReceiptRef.current?.newRunCreated
               ),
+              opportunityRun:
+                serializeOpportunityRun(completedOpportunityRun) ??
+                recommendationSearchRun ??
+                serializeOpportunityRun(activeRun),
             });
             send("progress", {
               progress: {
@@ -1637,157 +1779,182 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const assistantText = await runCareerChatAssistant({
-      messages: llmMessages,
-      tools: toolDefinitions,
-      isOnboardingActive,
-      stopAfterToolNames: toolSelection.stopAfterToolNames,
-      systemBlocks,
-      responseLocale,
-      executeTool: async ({ name, input }) => {
-        const { status, toolInput } = splitToolUiStatus(input);
-        if (status) {
-          recordThinkingLog(status);
-        }
-
-        if (name === TALENT_TOOL_NAMES.RESEARCH_COMPANY) {
-          await insertTalentToolUsageLog({
-            admin,
-            name,
-            userId: user.id,
-          });
-
-          const companyName =
-            optionalToolString(toolInput.company_name) ??
-            optionalToolString(toolInput.companyName);
-          if (!companyName) {
-            throw new Error("research_company requires company_name.");
+    let assistantText: string;
+    try {
+      assistantText = await runCareerChatAssistant({
+        messages: llmMessages,
+        tools: toolDefinitions,
+        isOnboardingActive,
+        stopAfterToolNames: toolSelection.stopAfterToolNames,
+        systemBlocks,
+        responseLocale,
+        onToolStart: ({ name, input }) => {
+          if (name !== TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING) return;
+          const status = getToolStartThinkingLog(name, responseLocale, input);
+          if (status) recordThinkingLog(status);
+        },
+        executeTool: async ({ name, input }) => {
+          const { status, toolInput } = splitToolUiStatus(input);
+          if (status) {
+            recordThinkingLog(status);
           }
 
-          const cachedSnapshot = await fetchRecentCompanySnapshot({
-            admin,
-            companyName,
-            preferredLocale: responseLocale,
-          });
-          if (cachedSnapshot) {
+          if (name === TALENT_TOOL_NAMES.RESEARCH_COMPANY) {
+            await insertTalentToolUsageLog({
+              admin,
+              name,
+              userId: user.id,
+            });
+
+            const companyName =
+              optionalToolString(toolInput.company_name) ??
+              optionalToolString(toolInput.companyName);
+            if (!companyName) {
+              throw new Error("research_company requires company_name.");
+            }
+
+            const cachedSnapshot = await fetchRecentCompanySnapshot({
+              admin,
+              companyName,
+              preferredLocale: responseLocale,
+            });
+            if (cachedSnapshot) {
+              const messageContent = stripPostgresUnsafeChars(
+                formatCompanySnapshotMessage({
+                  preferredLocale: responseLocale,
+                  reused: true,
+                  snapshot: cachedSnapshot,
+                })
+              );
+              const { data: cacheMessage, error: cacheMessageError } =
+                await admin
+                  .from("talent_messages")
+                  .insert(
+                    withIsMobile(
+                      {
+                        content: messageContent,
+                        conversation_id: conversationId,
+                        message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
+                        role: "assistant",
+                        user_id: user.id,
+                      },
+                      isMobile
+                    )
+                  )
+                  .select("*")
+                  .single();
+              if (cacheMessageError || !cacheMessage) {
+                await notifyUnsupportedUnicodeEscapeError({
+                  conversationId,
+                  error: cacheMessageError,
+                  metadata: {
+                    companyName,
+                    messageContentLength: messageContent.length,
+                    reusedSnapshot: true,
+                    streamResponse: false,
+                  },
+                  route: "/api/talent/chat",
+                  stage: "talent_messages.insert:company_snapshot_cached",
+                  userId: user.id,
+                });
+                throw new Error(
+                  cacheMessageError?.message ??
+                    "Failed to insert company_snapshot result message."
+                );
+              }
+              await touchConversationIfAllowed();
+              preparedCompanySnapshotRef.current = {
+                messages: [toResponseMessage(cacheMessage as TalentMessageRow)],
+              };
+              return withTalentToolAssistantInstruction({
+                ok: true,
+                cached: true,
+              });
+            }
+
+            // Intentional double cache-fetch: route checked cache above for fast-path,
+            // but getOrCreateCompanySnapshot rechecks for idempotency (another request
+            // may have created the snapshot between the two calls).
+            const result = await getOrCreateCompanySnapshot({
+              admin,
+              companyName,
+              preferredLocale: responseLocale,
+              reason: optionalToolString(toolInput.reason),
+              userId: user.id,
+            });
             const messageContent = stripPostgresUnsafeChars(
               formatCompanySnapshotMessage({
                 preferredLocale: responseLocale,
-                reused: true,
-                snapshot: cachedSnapshot,
+                reused: result.reused,
+                snapshot: result.snapshot,
               })
             );
-            const { data: cacheMessage, error: cacheMessageError } = await admin
-              .from("talent_messages")
-              .insert(
-                withIsMobile(
-                  {
-                    content: messageContent,
-                    conversation_id: conversationId,
-                    message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
-                    role: "assistant",
-                    user_id: user.id,
-                  },
-                  isMobile
+            const { data: researchMessage, error: researchMessageError } =
+              await admin
+                .from("talent_messages")
+                .insert(
+                  withIsMobile(
+                    {
+                      content: messageContent,
+                      conversation_id: conversationId,
+                      message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
+                      role: "assistant",
+                      user_id: user.id,
+                    },
+                    isMobile
+                  )
                 )
-              )
-              .select("*")
-              .single();
-            if (cacheMessageError || !cacheMessage) {
+                .select("*")
+                .single();
+            if (researchMessageError || !researchMessage) {
               await notifyUnsupportedUnicodeEscapeError({
                 conversationId,
-                error: cacheMessageError,
+                error: researchMessageError,
                 metadata: {
                   companyName,
                   messageContentLength: messageContent.length,
-                  reusedSnapshot: true,
+                  reusedSnapshot: result.reused,
                   streamResponse: false,
                 },
                 route: "/api/talent/chat",
-                stage: "talent_messages.insert:company_snapshot_cached",
+                stage: "talent_messages.insert:company_snapshot",
                 userId: user.id,
               });
               throw new Error(
-                cacheMessageError?.message ??
+                researchMessageError?.message ??
                   "Failed to insert company_snapshot result message."
               );
             }
             await touchConversationIfAllowed();
             preparedCompanySnapshotRef.current = {
-              messages: [toResponseMessage(cacheMessage as TalentMessageRow)],
+              messages: [
+                toResponseMessage(researchMessage as TalentMessageRow),
+              ],
             };
             return withTalentToolAssistantInstruction({
               ok: true,
-              cached: true,
+              cached: result.reused,
             });
           }
 
-          // Intentional double cache-fetch: route checked cache above for fast-path,
-          // but getOrCreateCompanySnapshot rechecks for idempotency (another request
-          // may have created the snapshot between the two calls).
-          const result = await getOrCreateCompanySnapshot({
-            admin,
-            companyName,
-            preferredLocale: responseLocale,
-            reason: optionalToolString(toolInput.reason),
-            userId: user.id,
-          });
-          const messageContent = stripPostgresUnsafeChars(
-            formatCompanySnapshotMessage({
-              preferredLocale: responseLocale,
-              reused: result.reused,
-              snapshot: result.snapshot,
-            })
-          );
-          const { data: researchMessage, error: researchMessageError } =
-            await admin
-              .from("talent_messages")
-              .insert(
-                withIsMobile(
-                  {
-                    content: messageContent,
-                    conversation_id: conversationId,
-                    message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
-                    role: "assistant",
-                    user_id: user.id,
-                  },
-                  isMobile
-                )
-              )
-              .select("*")
-              .single();
-          if (researchMessageError || !researchMessage) {
-            await notifyUnsupportedUnicodeEscapeError({
-              conversationId,
-              error: researchMessageError,
-              metadata: {
-                companyName,
-                messageContentLength: messageContent.length,
-                reusedSnapshot: result.reused,
-                streamResponse: false,
-              },
-              route: "/api/talent/chat",
-              stage: "talent_messages.insert:company_snapshot",
-              userId: user.id,
-            });
-            throw new Error(
-              researchMessageError?.message ??
-                "Failed to insert company_snapshot result message."
-            );
-          }
-          await touchConversationIfAllowed();
-          preparedCompanySnapshotRef.current = {
-            messages: [toResponseMessage(researchMessage as TalentMessageRow)],
-          };
-          return withTalentToolAssistantInstruction({
-            ok: true,
-            cached: result.reused,
-          });
+          return executeDefaultTalentTool({ name, input: toolInput });
+        },
+      });
+    } catch (error) {
+      const receipt = recommendationReceiptRef.current;
+      if (!receipt) throw error;
+      console.warn(
+        "[TalentChat] Falling back to deterministic recommendation receipt",
+        {
+          conversationId,
+          error: error instanceof Error ? error.message : String(error),
+          outcome: receipt.outcome,
+          runId: receipt.statusRunId,
+          userId: user.id,
         }
-
-        return executeDefaultTalentTool({ name, input: toolInput });
-      },
-    });
+      );
+      assistantText = receipt.answerDraft;
+    }
 
     const preparedCompanySnapshot = preparedCompanySnapshotRef.current;
     if (preparedCompanySnapshot) {
@@ -1844,6 +2011,9 @@ export async function POST(req: NextRequest) {
     logger.log("\n\nassistantText : ", assistantText, "\n\n");
 
     let assistantTextSource = assistantText.trim();
+    if (recommendationReceiptRef.current) {
+      assistantTextSource = recommendationReceiptRef.current.answerDraft;
+    }
     if (!assistantTextSource) {
       assistantTextSource = (
         await recoverCareerChatAssistantText({
@@ -1891,6 +2061,32 @@ export async function POST(req: NextRequest) {
       );
     }
     safeAssistantText = ensureRecommendationPostingLinks(safeAssistantText);
+    if (
+      recommendationReceiptRef.current?.statusRunId &&
+      recommendationReceiptRef.current.statusRelation
+    ) {
+      safeAssistantText = ensureOpportunityRunMarker(safeAssistantText, {
+        relation: recommendationReceiptRef.current.statusRelation,
+        runId: recommendationReceiptRef.current.statusRunId,
+      });
+    } else {
+      safeAssistantText = stripOpportunityRunMarkers(safeAssistantText);
+    }
+
+    const stoppedSourceMessage = await fetchStoppedRecommendationSourceMessage({
+      admin,
+      conversationId,
+      messageId: insertedUserMessage.id,
+      userId: user.id,
+    });
+    if (stoppedSourceMessage) {
+      return NextResponse.json({
+        ok: true,
+        stopped: true,
+        userMessage: toResponseMessage(stoppedSourceMessage),
+        assistantMessages: [],
+      });
+    }
 
     // --- Save assistant message ---
     const { data: insertedAssistantMessage, error: assistantError } =
@@ -1936,7 +2132,7 @@ export async function POST(req: NextRequest) {
     }
 
     scheduleInsightExtractionForAssistantMessage({
-      content: safeAssistantText,
+      content: stripOpportunityRunMarkers(safeAssistantText),
       messageId: insertedAssistantMessage.id,
     });
     const finalAssistantThinkingLogs = thinkingLogs;
@@ -1979,12 +2175,37 @@ export async function POST(req: NextRequest) {
       admin,
       userId: user.id,
     });
+    const recommendationSearchRun = recommendationReceiptRef.current
+      ?.statusRunId
+      ? await fetchSerializedOpportunityRunForTalent({
+          admin,
+          runId: recommendationReceiptRef.current.statusRunId,
+          userId: user.id,
+        }).catch((error) => {
+          console.error(
+            "[TalentChat] Failed to hydrate queued recommendation run",
+            {
+              error: error instanceof Error ? error.message : String(error),
+              runId: recommendationReceiptRef.current?.statusRunId,
+              userId: user.id,
+            }
+          );
+          return null;
+        })
+      : null;
     const assistantResponseMessages = await attachPostingPreviewsToMessages({
       admin,
       messages: [
         {
           ...toResponseMessage(insertedAssistantMessage as TalentMessageRow),
           thinkingLogs: finalAssistantThinkingLogs,
+          ...(recommendationSearchRun
+            ? {
+                recommendationSearchRelation:
+                  recommendationReceiptRef.current?.statusRelation ?? null,
+                recommendationSearchRun,
+              }
+            : {}),
         },
         insertedCompletionWrapupMessage
           ? toResponseMessage(insertedCompletionWrapupMessage)
@@ -2011,10 +2232,14 @@ export async function POST(req: NextRequest) {
         insertedAssistantResponseMessage ??
         toResponseMessage(insertedAssistantMessage as TalentMessageRow),
       assistantMessages: assistantResponseMessages,
-      opportunityDiscoveryQueued: Boolean(completedOpportunityRun),
-      opportunityRun: serializeOpportunityRun(
-        completedOpportunityRun ?? activeRun
+      opportunityDiscoveryQueued: Boolean(
+        completedOpportunityRun ||
+        recommendationReceiptRef.current?.newRunCreated
       ),
+      opportunityRun:
+        serializeOpportunityRun(completedOpportunityRun) ??
+        recommendationSearchRun ??
+        serializeOpportunityRun(activeRun),
       progress: {
         answeredCount: userTurnCount,
         targetCount: TALENT_INTERVIEW_FINAL_STEP,

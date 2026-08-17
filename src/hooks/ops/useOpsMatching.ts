@@ -137,17 +137,14 @@ export function useOpsMatchingAllRoles(args: {
   enabled?: boolean;
   limit?: number;
   query?: string;
-  selfServeOnly?: boolean;
 }) {
   const limit = args.limit ?? 20;
   const query = args.query?.trim() ?? "";
-  const selfServeOnly = Boolean(args.selfServeOnly);
 
   return useInfiniteQuery({
     queryKey: queryKeys.opsMatching.allRoles({
       limit,
       query,
-      selfServeOnly,
     }),
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams({
@@ -155,7 +152,6 @@ export function useOpsMatchingAllRoles(args: {
         offset: String(pageParam),
       });
       if (query) params.set("query", query);
-      if (selfServeOnly) params.set("selfServeOnly", "true");
       return fetchWithInternalAuth<OpsMatchingAllRolesResponse>(
         `/api/internal/matching/all-roles?${params.toString()}`
       );
@@ -171,11 +167,7 @@ export function useUpdateOpsMatchingAllRole() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: {
-      isAuto?: boolean;
-      roleId: string;
-      status?: OpportunityStatus;
-    }) =>
+    mutationFn: (input: { roleId: string; status: OpportunityStatus }) =>
       fetchWithInternalAuth<OpsMatchingAllRoleUpdateResponse>(
         "/api/internal/matching/all-roles",
         {

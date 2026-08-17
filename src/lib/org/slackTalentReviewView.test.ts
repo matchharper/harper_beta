@@ -4,13 +4,17 @@ import {
   buildSlackTalentReviewAccessDeniedView,
   buildSlackTalentReviewAcceptDecisionView,
   buildSlackTalentReviewCandidateView,
-  buildSlackTalentReviewDecisionPreviewResultView,
+  buildSlackTalentReviewDecisionProcessingView,
+  buildSlackTalentReviewDecisionResultView,
   buildSlackTalentReviewRejectDecisionView,
   decodeSlackTalentReviewViewMetadata,
   HARPER_TALENT_REVIEW_ACCEPT_CALLBACK_ID,
   HARPER_TALENT_REVIEW_ACCEPT_ACTION_ID,
+  HARPER_TALENT_REVIEW_CONNECTION_MODE_ACTION_ID,
   HARPER_TALENT_REVIEW_REJECT_ACTION_ID,
+  HARPER_TALENT_REVIEW_REJECT_CALLBACK_ID,
   markdownToSlackMrkdwn,
+  parseSlackTalentReviewDecisionSubmission,
 } from "./slackTalentReviewView";
 import { orderedSlackTalentReviewCandidates } from "./slackTalentReviewSource";
 
@@ -131,6 +135,7 @@ test("experience and education metadata use cards with context descriptions", ()
     ],
   };
   const view = buildSlackTalentReviewCandidateView({
+    canManageCandidates: true,
     candidate,
     candidateCount: 1,
     candidateIndex: 0,
@@ -192,6 +197,7 @@ test("profile items are separated by dividers and Supabase logos use contain res
     ],
   };
   const view = buildSlackTalentReviewCandidateView({
+    canManageCandidates: true,
     candidate,
     candidateCount: 1,
     candidateIndex: 0,
@@ -240,8 +246,9 @@ test("profile items are separated by dividers and Supabase logos use contain res
   }
 });
 
-test("candidate review modal contains profile sections and preview-only decisions", () => {
+test("candidate review modal contains profile sections and live decisions", () => {
   const view = buildSlackTalentReviewCandidateView({
+    canManageCandidates: true,
     candidate: CANDIDATE,
     candidateCount: 3,
     candidateIndex: 0,
@@ -275,8 +282,8 @@ test("candidate review modal contains profile sections and preview-only decision
       element.value,
     ]),
     [
-      [HARPER_TALENT_REVIEW_ACCEPT_ACTION_ID, "preview_only"],
-      [HARPER_TALENT_REVIEW_REJECT_ACTION_ID, "preview_only"],
+      [HARPER_TALENT_REVIEW_ACCEPT_ACTION_ID, "accept"],
+      [HARPER_TALENT_REVIEW_REJECT_ACTION_ID, "reject"],
     ]
   );
   assert.deepEqual(decodeSlackTalentReviewViewMetadata(view.private_metadata), {
@@ -288,6 +295,7 @@ test("candidate review modal contains profile sections and preview-only decision
 
 test("candidate review overflow notice uses a valid Slack context block", () => {
   const view = buildSlackTalentReviewCandidateView({
+    canManageCandidates: true,
     candidate: {
       ...CANDIDATE,
       extras: Array.from({ length: 25 }, (_, index) => ({
@@ -322,7 +330,7 @@ test("access denied modal explains invitation and sign-up requirement", () => {
   assert.match(rendered, /가입하면 다시 확인/);
 });
 
-test("accept confirmation mirrors org connection choices without a send action", () => {
+test("accept confirmation mirrors org connection choices and explains the live action", () => {
   const view = buildSlackTalentReviewAcceptDecisionView({
     actorEmail: "member@example.com",
     candidate: CANDIDATE,
@@ -342,7 +350,8 @@ test("accept confirmation mirrors org connection choices without a send action",
   assert.match(rendered, /CC로 연결/);
   assert.match(rendered, /직접 연락/);
   assert.match(rendered, /수락 이유/);
-  assert.match(rendered, /상태가 바뀌거나 메일이 발송되지 않습니다/);
+  assert.match(rendered, /즉시 반영됩니다/);
+  assert.doesNotMatch(rendered, /미리보기/);
   assert.doesNotMatch(rendered, /send_now/);
 });
 
@@ -374,7 +383,7 @@ test("direct contact hides the intro member input", () => {
   assert.ok(reasonBlock);
 });
 
-test("reject confirmation contains org pass reasons and stays preview-only", () => {
+test("reject confirmation contains org pass reasons and is live", () => {
   const view = buildSlackTalentReviewRejectDecisionView({
     candidate: CANDIDATE,
     candidateIndex: 0,
@@ -385,10 +394,147 @@ test("reject confirmation contains org pass reasons and stays preview-only", () 
   assert.match(rendered, /너무 주니어/);
   assert.match(rendered, /위치\/지역 조건 불일치/);
   assert.match(rendered, /Pass 이유/);
-  assert.match(rendered, /메일이 발송되지 않습니다/);
+  assert.match(rendered, /결정이 즉시 반영됩니다/);
+  assert.doesNotMatch(rendered, /미리보기/);
 
   const result = JSON.stringify(
-    buildSlackTalentReviewDecisionPreviewResultView("reject")
+    buildSlackTalentReviewDecisionResultView({
+      candidateName: "김하퍼",
+      decision: "reject",
+    })
   );
-  assert.match(result, /상태 변경·메일 발송·결정 로그 저장/);
+  assert.match(result, /연결받지 않기로 했습니다/);
+  assert.match(result, /결정 기록에 반영했습니다/);
+});
+
+test("viewer candidate review stays read-only", () => {
+  const view = buildSlackTalentReviewCandidateView({
+    canManageCandidates: false,
+    candidate: CANDIDATE,
+    candidateCount: 1,
+    candidateIndex: 0,
+    sourceMessageId: 42,
+  }) as { blocks: Array<Record<string, any>> };
+  const rendered = JSON.stringify(view.blocks);
+
+  assert.doesNotMatch(
+    rendered,
+    new RegExp(HARPER_TALENT_REVIEW_ACCEPT_ACTION_ID)
+  );
+  assert.doesNotMatch(
+    rendered,
+    new RegExp(HARPER_TALENT_REVIEW_REJECT_ACTION_ID)
+  );
+  assert.match(rendered, /Viewer 권한/);
+});
+
+test("accept submission parses connection method, recipients, and reason", () => {
+  const parsed = parseSlackTalentReviewDecisionSubmission({
+    callbackId: HARPER_TALENT_REVIEW_ACCEPT_CALLBACK_ID,
+    state: {
+      values: {
+        review_accept_connection_mode: {
+          [HARPER_TALENT_REVIEW_CONNECTION_MODE_ACTION_ID]: {
+            selected_option: { value: "cc_intro" },
+          },
+        },
+        review_accept_intro_members: {
+          intro_members: {
+            selected_options: [
+              { value: "Owner@Example.com" },
+              { value: "owner@example.com" },
+              { value: "admin@example.com" },
+            ],
+          },
+        },
+        review_accept_reason: {
+          accept_reason: { value: "  시스템 운영 경험이 잘 맞습니다.  " },
+        },
+      },
+    },
+  });
+
+  assert.deepEqual(parsed, {
+    submission: {
+      acceptReason: "시스템 운영 경험이 잘 맞습니다.",
+      connectionMode: "cc_intro",
+      decision: "accept",
+      introEmails: ["owner@example.com", "admin@example.com"],
+    },
+  });
+});
+
+test("CC introduction requires at least one current member selection", () => {
+  const parsed = parseSlackTalentReviewDecisionSubmission({
+    callbackId: HARPER_TALENT_REVIEW_ACCEPT_CALLBACK_ID,
+    state: {
+      values: {
+        review_accept_connection_mode: {
+          [HARPER_TALENT_REVIEW_CONNECTION_MODE_ACTION_ID]: {
+            selected_option: { value: "cc_intro" },
+          },
+        },
+      },
+    },
+  });
+
+  assert.deepEqual(parsed, {
+    errors: {
+      review_accept_intro_members:
+        "소개 메일에 포함할 회사 멤버를 1명 이상 선택해 주세요.",
+    },
+  });
+});
+
+test("reject submission combines selected and written reasons", () => {
+  const parsed = parseSlackTalentReviewDecisionSubmission({
+    callbackId: HARPER_TALENT_REVIEW_REJECT_CALLBACK_ID,
+    state: {
+      values: {
+        review_reject_note: {
+          reject_note: { value: "도메인 경험을 조금 더 보고 싶습니다." },
+        },
+        review_reject_reasons: {
+          reject_reasons: {
+            selected_options: [
+              { value: "너무 주니어" },
+              { value: "위치/지역 조건 불일치" },
+            ],
+          },
+        },
+      },
+    },
+  });
+
+  assert.deepEqual(parsed, {
+    submission: {
+      decision: "reject",
+      stopNote:
+        "너무 주니어\n위치/지역 조건 불일치\n도메인 경험을 조금 더 보고 싶습니다.",
+    },
+  });
+});
+
+test("decision result views distinguish email and direct contact outcomes", () => {
+  const processing = JSON.stringify(
+    buildSlackTalentReviewDecisionProcessingView("accept")
+  );
+  const emailed = JSON.stringify(
+    buildSlackTalentReviewDecisionResultView({
+      candidateName: "김하퍼",
+      connectionMode: "cc_intro",
+      decision: "accept",
+    })
+  );
+  const direct = JSON.stringify(
+    buildSlackTalentReviewDecisionResultView({
+      candidateName: "김하퍼",
+      connectionMode: "contact_directly",
+      decision: "accept",
+    })
+  );
+
+  assert.match(processing, /반영하고 있습니다/);
+  assert.match(emailed, /소개 메일을 발송했습니다/);
+  assert.match(direct, /직접 연락해 주세요/);
 });

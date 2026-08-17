@@ -123,7 +123,10 @@ function walkFiles(dirPath) {
     const filePath = path.join(dirPath, entry.name);
     if (entry.isDirectory()) {
       output.push(...walkFiles(filePath));
-    } else if (/\.(ts|tsx)$/.test(entry.name)) {
+    } else if (
+      /\.(ts|tsx)$/.test(entry.name) &&
+      !/\.(test|spec)\.(ts|tsx)$/.test(entry.name)
+    ) {
       output.push(filePath);
     }
   }
@@ -491,20 +494,35 @@ function runCheck(entries, existingKo, existingEn) {
   );
 }
 
-async function translateMissing(entries, existingEnglish) {
+async function translateMissing(entries, existingKorean, existingEnglish) {
   if (!shouldTranslate) return {};
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error("Missing GEMINI_API_KEY for --translate.");
+  }
 
   let cached = {};
   if (fs.existsSync(translationCachePath)) {
     cached = JSON.parse(fs.readFileSync(translationCachePath, "utf8"));
   }
 
-  const missing = entries.filter((entry) => !existingEnglish[entry.key]);
-  if (missing.length === 0) return {};
+  const needsTranslation = entries.filter(
+    (entry) =>
+      !existingEnglish[entry.key] || existingKorean[entry.key] !== entry.ko
+  );
+  if (needsTranslation.length === 0) return {};
+
+  const sourceChangedKeys = new Set(
+    needsTranslation
+      .filter((entry) => existingKorean[entry.key] !== entry.ko)
+      .map((entry) => entry.key)
+  );
 
   const { GoogleGenAI } = await import("@google/genai");
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const translations = { ...cached };
+  for (const key of sourceChangedKeys) {
+    delete translations[key];
+  }
   const batchSize = 35;
   const models = [
     "gemini-2.5-flash-lite",
@@ -550,13 +568,13 @@ async function translateMissing(entries, existingEnglish) {
     throw lastError ?? new Error("Translation request failed.");
   }
 
-  for (let index = 0; index < missing.length; index += batchSize) {
-    const batch = missing
+  for (let index = 0; index < needsTranslation.length; index += batchSize) {
+    const batch = needsTranslation
       .slice(index, index + batchSize)
       .filter((entry) => !translations[entry.key]);
     if (batch.length === 0) {
       console.log(
-        `Translated ${Math.min(index + batchSize, missing.length)} / ${missing.length}`
+        `Translated ${Math.min(index + batchSize, needsTranslation.length)} / ${needsTranslation.length}`
       );
       continue;
     }
@@ -567,10 +585,18 @@ async function translateMissing(entries, existingEnglish) {
     const response = await generateBatch(payload);
 
     const parsed = parseJsonObject(response.text ?? "{}");
+    const missingResponseKeys = batch
+      .map((entry) => entry.key)
+      .filter((key) => typeof parsed[key] !== "string" || !parsed[key]);
+    if (missingResponseKeys.length > 0) {
+      throw new Error(
+        `Translation response omitted keys: ${missingResponseKeys.join(", ")}`
+      );
+    }
     Object.assign(translations, parsed);
     writeText(translationCachePath, JSON.stringify(translations, null, 2));
     console.log(
-      `Translated ${Math.min(index + batch.length, missing.length)} / ${missing.length}`
+      `Translated ${Math.min(index + batchSize, needsTranslation.length)} / ${needsTranslation.length}`
     );
   }
 
@@ -601,15 +627,15 @@ if (shouldCheck) {
   process.exit();
 }
 
-const translated = await translateMissing(entries, existingEn);
+const translated = await translateMissing(entries, existingKo, existingEn);
 
 const koCareer = {};
 const enCareer = {};
 
 for (const entry of entries) {
-  koCareer[entry.key] = existingKo[entry.key] ?? entry.ko;
+  koCareer[entry.key] = entry.ko;
   enCareer[entry.key] =
-    existingEn[entry.key] ?? translated[entry.key] ?? entry.ko;
+    translated[entry.key] ?? existingEn[entry.key] ?? entry.ko;
 }
 
 replaceTopLevelObjectProperty({

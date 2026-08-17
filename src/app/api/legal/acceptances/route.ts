@@ -4,6 +4,7 @@ import { loadVersionedLegalDocument } from "@/lib/legalDocs.server";
 import type { LegalDocumentAcceptanceType } from "@/lib/legal/legalDocumentAcceptance";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
+import type { Json } from "@/types/database.types";
 
 type AcceptanceBody = {
   acceptanceType?: unknown;
@@ -31,13 +32,15 @@ function normalizeText(value: unknown, maxLength: number) {
     .slice(0, maxLength);
 }
 
-function normalizeContext(value: unknown) {
+function normalizeContext(value: unknown): {
+  [key: string]: Json | undefined;
+} {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const serialized = JSON.stringify(value);
   if (serialized.length > 4000) {
     throw new Error("Legal acceptance context is too large");
   }
-  return value as Record<string, unknown>;
+  return JSON.parse(serialized) as { [key: string]: Json | undefined };
 }
 
 function normalizeAcceptanceBody(body: AcceptanceBody) {

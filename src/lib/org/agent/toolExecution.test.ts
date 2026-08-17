@@ -47,6 +47,7 @@ test("role request reads become writable only after the tool batch", () => {
     recentRecommendationsText: "-",
     roles: [
       {
+        criteria: [],
         createdAt: "2026-07-30T10:23:45.123Z",
         description: null,
         employmentTypes: [],
@@ -61,6 +62,7 @@ test("role request reads become writable only after the tool batch", () => {
         workspaceId: "workspace-1",
       },
       {
+        criteria: [],
         createdAt: "2026-07-30T10:23:45.123Z",
         description: null,
         employmentTypes: [],
@@ -235,6 +237,8 @@ test("candidate decision execution is an enabled terminal tool", async () => {
     false
   );
   assert.equal(isOrgAgentTerminalToolName("change_role_status"), true);
+  assert.equal(isOrgAgentTerminalToolName("manage_role_pipeline_stages"), true);
+  assert.equal(isOrgAgentTerminalToolName("move_candidate_stage"), true);
   assert.equal(isOrgAgentTerminalToolName("decide_candidate_connection"), true);
   assert.equal(isOrgAgentTerminalToolName("change_talent_contact"), true);
 });
@@ -326,6 +330,26 @@ test("a successful candidate contact change uses the server-authoritative reply"
   );
 });
 
+test("a started role creation keeps the server-authoritative Slack thread link", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  state.terminalReply =
+    "역할 작성 스레드를 열어뒀어요.\n\n<https://slack.example/thread|작성 스레드로 이동>";
+  state.toolResults.push({
+    callId: "call-start-role",
+    name: "start_role_creation",
+    status: "success",
+    summary: "Staff Engineer 역할 작성 스레드 시작",
+  });
+
+  assert.equal(
+    enforceOrgAgentTerminalMutationOutcome(
+      state,
+      "제가 다른 링크를 만들어서 안내하겠습니다."
+    ),
+    state.terminalReply
+  );
+});
+
 test("a failed terminal mutation cannot be presented as a success", () => {
   const state = createOrgAgentToolExecutionState(minimalContext());
   state.terminalMutationUsed = true;
@@ -340,6 +364,25 @@ test("a failed terminal mutation cannot be presented as a success", () => {
     enforceOrgAgentTerminalMutationOutcome(
       state,
       "요청하신 내용을 반영했습니다."
+    ),
+    "요청하신 변경은 적용되지 않았습니다. 내용을 다시 확인한 뒤 시도해 주세요."
+  );
+});
+
+test("a failed role criteria edit cannot be presented as a success", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  state.terminalMutationUsed = true;
+  state.toolResults.push({
+    callId: "criteria-edit-1",
+    name: "update_role_criteria",
+    status: "error",
+    summary: "대상 기준 없음",
+  });
+
+  assert.equal(
+    enforceOrgAgentTerminalMutationOutcome(
+      state,
+      "요청하신 평가 기준을 삭제했습니다."
     ),
     "요청하신 변경은 적용되지 않았습니다. 내용을 다시 확인한 뒤 시도해 주세요."
   );

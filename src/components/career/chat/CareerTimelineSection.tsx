@@ -271,14 +271,17 @@ const TimelineMessageList = memo(function TimelineMessageList({
     <>
       {messages.map((message, index) => {
         const isUser = message.role === "user";
-        const thinkingLogs = isUser
-          ? []
-          : message.thinkingLogs?.length
-            ? message.thinkingLogs
+        const thinkingLogs = message.thinkingLogs?.length
+          ? message.thinkingLogs
+          : isUser
+            ? []
             : (thinkingLogsByMessageId[String(message.id)] ?? []);
         const { latestStatus, textLogs } =
           splitRecommendJobPostingStatusLogs(thinkingLogs);
         const isRunningRecommendationSearch = latestStatus?.state === "running";
+        const recommendationSearchRun = !isUser
+          ? (message.recommendationSearchRun ?? null)
+          : null;
         const messageDateKey = getChatMessageDateKey(message.createdAt);
         const previousMessageDateKey = getPreviousChatMessageDateKey(
           messages,
@@ -322,6 +325,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
             : message.content.slice(recommendationStatusAnchor).trim();
         const shouldRenderSplitRecommendationSearch =
           !isUser &&
+          !recommendationSearchRun &&
           Boolean(latestStatus) &&
           recommendationStatusAnchor !== null &&
           recommendationSearchPreambleContent.length > 0 &&
@@ -346,6 +350,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
               />
             )}
             {!isUser &&
+              !recommendationSearchRun &&
               latestStatus &&
               !isRunningRecommendationSearch &&
               !shouldRenderSplitRecommendationSearch && (
@@ -436,7 +441,21 @@ const TimelineMessageList = memo(function TimelineMessageList({
                 )} */}
               </>
             ) : null}
+            {isUser && latestStatus?.state === "stopped" && (
+              <RecommendationSearchStatusPanel
+                active={false}
+                status={latestStatus}
+              />
+            )}
+            {!isUser && recommendationSearchRun && (
+              <RecommendationSearchStatusPanel
+                active={recommendationSearchRun.active}
+                relation={message.recommendationSearchRelation}
+                run={recommendationSearchRun}
+              />
+            )}
             {!isUser &&
+              !recommendationSearchRun &&
               latestStatus &&
               isRunningRecommendationSearch &&
               !shouldRenderSplitRecommendationSearch && (
@@ -530,6 +549,7 @@ const CareerTimelineSection = () => {
     sessionReengagementActionMessageId,
     opportunityFeedbackFollowUpPending,
     opportunityFeedbackFollowUpTrigger,
+    unlinkedOpportunityRuns,
     onboardingBeginPending,
     callStartPending = false,
     callWrapUpPending = false,
@@ -1046,6 +1066,15 @@ const CareerTimelineSection = () => {
             onOpenOpportunity={handleOpenOpportunity}
           />
         ) : null}
+
+        {(unlinkedOpportunityRuns ?? []).map((run) => (
+          <RecommendationSearchStatusPanel
+            key={`unlinked-opportunity-run-${run.id}`}
+            active={run.active}
+            relation="accepted"
+            run={run}
+          />
+        ))}
 
         {showSessionReengagementPending &&
           (sessionReengagementRecommendationStatus ? (

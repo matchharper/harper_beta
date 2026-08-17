@@ -401,6 +401,43 @@ test("daily Slack stats compare counts by percent and rates by percentage point"
   );
 });
 
+test("daily Slack stats show the current signup-flow allocation", async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:54321";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-key";
+  const { formatDailyUserStatsSlackMessages } =
+    await import("@/lib/dailyUserStats");
+
+  const report = makeDailyUserStatsReport({
+    landingAbtestRows: [
+      {
+        abtestType: "career_signup_flow_v1_email_first",
+        entryCount: 0,
+        label: "Email first",
+        onboardingCompletedCount: 0,
+        onboardingCompletedRateFromEntry: null,
+        signupSubmittedCount: 0,
+        signupSubmittedRateFromEntry: null,
+      },
+      {
+        abtestType: "career_signup_flow_v1_control",
+        entryCount: 10,
+        label: "Login first",
+        onboardingCompletedCount: 1,
+        onboardingCompletedRateFromEntry: 0.1,
+        signupSubmittedCount: 2,
+        signupSubmittedRateFromEntry: 0.2,
+      },
+    ],
+  });
+
+  const { details } = formatDailyUserStatsSlackMessages(report);
+
+  assert.match(
+    details,
+    /현재 배정 비율: Email first 0% \/ Login first 100%/
+  );
+});
+
 test("weekly Slack stats compare against the previous week", async () => {
   process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:54321";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-key";

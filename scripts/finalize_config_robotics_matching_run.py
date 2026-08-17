@@ -245,7 +245,7 @@ def build_evaluation(packet: dict[str, Any], raw_messages: list[dict[str, Any]])
         [
             ["8296", "8297", "candidate_resume", "10.1109/LRA.2024.3386451"],
             ["8296", "8297", "candidate_resume"],
-            ["company_roles.request", "10.1109/LRA.2024.3386451"],
+            ["company_internal_roles.request", "10.1109/LRA.2024.3386451"],
             ["10.1109/LRA.2024.3386451", "IROS-ERC-2024", "candidate_resume"],
             ["61220", "61224", "61256"],
         ]
@@ -347,7 +347,11 @@ def build_evaluation(packet: dict[str, Any], raw_messages: list[dict[str, Any]])
 
 
 def live_source_preflight(db: SupabaseReadOnly, source_snapshot: dict[str, Any]) -> tuple[bool, dict[str, Any]]:
-    role_rows = db.get("company_roles", filters={"role_id": f"eq.{ROLE_ID}"})
+    role_rows = db.get(
+        "company_roles",
+        select="role_id,company_workspace_id,name,description,type,location_text,work_mode,status,source_type,is_expired,salary_range,salary_min,salary_max",
+        filters={"role_id": f"eq.{ROLE_ID}"},
+    )
     if len(role_rows) != 1:
         return False, {"error": "role_not_found_or_not_unique"}
     role = role_rows[0]
@@ -358,7 +362,7 @@ def live_source_preflight(db: SupabaseReadOnly, source_snapshot: dict[str, Any])
     workspace = workspace_rows[0]
     internal = internal_rows[0] if internal_rows else {"request": None}
     hashes = {
-        "roleInputHash": digest({key: role.get(key) for key in ("description", "request", "location_text", "work_mode", "type", "status", "is_expired", "salary_range", "salary_min", "salary_max")}),
+        "roleInputHash": digest({key: role.get(key) for key in ("description", "location_text", "work_mode", "type", "status", "is_expired", "salary_range", "salary_min", "salary_max")}),
         "internalRequestHash": digest(internal.get("request")),
         "workspaceInputHash": digest({key: workspace.get(key) for key in ("request", "company_description", "pitch")}),
     }

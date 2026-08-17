@@ -43,7 +43,10 @@ function walkFiles(dirPath) {
     const filePath = path.join(dirPath, entry.name);
     if (entry.isDirectory()) {
       output.push(...walkFiles(filePath));
-    } else if (/\.(ts|tsx)$/.test(entry.name)) {
+    } else if (
+      /\.(ts|tsx)$/.test(entry.name) &&
+      !/\.(test|spec)\.(ts|tsx)$/.test(entry.name)
+    ) {
       output.push(filePath);
     }
   }

@@ -6,6 +6,7 @@ import {
   type TalentAdminClient,
 } from "@/lib/talentOnboarding/server";
 import { insertTalentActivityEvent } from "@/lib/talentOnboarding/activityEvents";
+import { resolveCompanyLogoUrl } from "@/lib/imageUrl";
 
 if (typeof window !== "undefined") {
   throw new Error("companyWatchlist must not run in the browser");
@@ -369,7 +370,10 @@ function getCompanyLogoUrl(args: {
   companyDb?: CompanyDbRow | null;
   workspace?: CompanyWorkspaceRow | null;
 }) {
-  return args.companyDb?.logo ?? args.workspace?.logo_url ?? null;
+  return resolveCompanyLogoUrl({
+    companyDbLogoUrl: args.companyDb?.logo,
+    workspaceLogoUrl: args.workspace?.logo_url,
+  });
 }
 
 function getCompanyShortDescription(args: {

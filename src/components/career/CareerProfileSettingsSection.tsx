@@ -22,6 +22,7 @@ import type {
 import {
   ActionButton,
   ChoiceCard,
+  MuteButton,
   PrimaryButton,
   SecondaryButton,
 } from "@/components/ui/button";
@@ -454,7 +455,7 @@ export const CareerProfileSharingSettingsSection = ({
               "여기에 등록된 회사와는 매칭이 일어나지 않고 프로필도 절대 공유되지 않습니다."
             )}
           >
-            <div className="space-y-3">
+            <div className="space-y-2">
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Input
                   value={blockedCompanyDraft}
@@ -473,16 +474,13 @@ export const CareerProfileSharingSettingsSection = ({
                   }
                   className="flex-1"
                 />
-                <ActionButton
+                <MuteButton
                   onClick={() => void handleAddBlockedCompany()}
                   disabled={
                     settingsLoading ||
                     isSavePending ||
                     blockedCompaniesSavePending
                   }
-                  actionVariant="secondary"
-                  buttonRadius="rounded"
-                  className="py-0 h-9"
                 >
                   {blockedCompaniesSavePending ? (
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -498,22 +496,17 @@ export const CareerProfileSharingSettingsSection = ({
                         "career.profile.career_profile_settings_section.07836ex",
                         "추가"
                       )}
-                </ActionButton>
+                </MuteButton>
               </div>
 
               {blockedCompanies.length === 0 ? (
-                <div className="rounded-[8px] border border-dashed border-neutral-1000-a10 bg-bg-floating px-3 py-2 text-sm text-neutral-soft shadow-sm">
-                  {t(
-                    "career.profile.career_profile_settings_section.1mzsli6",
-                    "차단된 회사가 없습니다."
-                  )}
-                </div>
+                <div className=""></div>
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {blockedCompanies.map((companyName) => (
                     <div
                       key={companyName}
-                      className="inline-flex items-center gap-2 rounded-[8px] border border-neutral-1000-a05 bg-bg-floating py-1.5 pl-3 pr-1.5 text-sm text-neutral-primary shadow-sm"
+                      className="inline-flex items-center gap-2 rounded-[8px] border border-neutral-1000-a05 bg-bg-floating py-1.5 pl-3 pr-1.5 text-sm text-neutral-primary shadow-xs"
                     >
                       <span>{companyName}</span>
                       <ActionButton

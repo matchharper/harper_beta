@@ -5,13 +5,11 @@ import {
   BriefcaseBusiness,
   Building2,
   Calendar,
-  Check,
   CircleHelp,
   FileText,
   GalleryVerticalEnd,
   House,
   Lock,
-  Mail,
   MapPin,
   MessageCircleMore,
   MessageSquareText,
@@ -22,6 +20,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
+  Star,
   User,
   X,
   type LucideIcon,
@@ -255,7 +254,7 @@ const COPY: Record<Locale, StaticCopy> = {
       newOpportunityButton: "검토하기",
       savedTitle: "저장 / 연결",
       savedCount: 2,
-      savedDescription: "Global Remote SaaS 저장함",
+      savedDescription: "관심·진행 중인 포지션",
       savedButton: "상세 보기",
       profileVisibilityLabel: "프로필 공개",
       profileVisibilityHint:
@@ -410,7 +409,7 @@ const COPY: Record<Locale, StaticCopy> = {
       newOpportunityButton: "Review",
       savedTitle: "Saved / connected",
       savedCount: 2,
-      savedDescription: "Global Remote SaaS saved",
+      savedDescription: "Interested or in-progress positions",
       savedButton: "View details",
       profileVisibilityLabel: "Profile visibility",
       profileVisibilityHint:
@@ -1086,7 +1085,12 @@ const StaticDashboard = ({ copy }: { copy: StaticCopy }) => (
           count={copy.home.newOpportunityCount}
           description={copy.home.newOpportunityDescription}
           buttonLabel={copy.home.newOpportunityButton}
-          icon={<Mail className="h-5 w-5 text-primary" strokeWidth={1.8} />}
+          icon={
+            <GalleryVerticalEnd
+              className="h-5 w-5 text-primary"
+              strokeWidth={1.8}
+            />
+          }
           iconClassName="bg-accent-200"
         />
         <HomeOpportunitySummaryCardStatic
@@ -1094,7 +1098,7 @@ const StaticDashboard = ({ copy }: { copy: StaticCopy }) => (
           count={copy.home.savedCount}
           description={copy.home.savedDescription}
           buttonLabel={copy.home.savedButton}
-          icon={<Check className="h-6 w-6 text-positive" strokeWidth={1.9} />}
+          icon={<Star className="h-5 w-5 text-positive" strokeWidth={1.9} />}
           iconClassName="bg-positive-faded"
         />
       </div>

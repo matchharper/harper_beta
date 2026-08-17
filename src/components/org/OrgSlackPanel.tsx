@@ -1,10 +1,4 @@
-import {
-  Check,
-  LoaderCircle,
-  RefreshCw,
-  Slack,
-  Unplug,
-} from "lucide-react";
+import { Check, LoaderCircle, RefreshCw, Slack, Unplug } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -47,8 +41,7 @@ export function OrgSlackPanel({
   const connectSlack = useConnectOrgSlack();
   const disconnectSlack = useDisconnectOrgSlack(workspace.workspaceId);
   const status = statusQuery.data;
-  const mutationError =
-    connectSlack.error ?? disconnectSlack.error;
+  const mutationError = connectSlack.error ?? disconnectSlack.error;
 
   const handleConnect = async () => {
     const result = await connectSlack.mutateAsync({
@@ -115,11 +108,24 @@ export function OrgSlackPanel({
                 </div>
               </div>
 
+              {status.needsReinstall ? (
+                <div className="rounded-md border border-info/30 bg-info-faded px-3 py-3 text-[12px] leading-5 text-neutral-primary">
+                  <div className="font-medium">
+                    Slack 권한 업데이트 필요
+                  </div>
+                  <p className="mt-1 text-neutral-muted">
+                    Harper 멤버 확인과 PDF, DOCX, TXT 파일 읽기를 사용하려면
+                    아래 앱 다시 설치를 눌러 새 권한을 승인해 주세요.
+                  </p>
+                </div>
+              ) : null}
+
               <section>
                 <h3 className="text-[12px] font-medium text-neutral-primary">
                   발송 알림
                 </h3>
                 <div className="mt-2 divide-y divide-neutral-1000-a05 border-y border-neutral-1000-a05 text-[11px] text-neutral-muted">
+                  <div className="py-2.5">신규 역할 등록 완료 및 탐색 시작</div>
                   <div className="py-2.5">Warm intro 요청</div>
                   <div className="py-2.5">후보자 프로세스 중단</div>
                   <div className="py-2.5">Organization 멤버 합류</div>

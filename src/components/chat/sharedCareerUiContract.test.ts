@@ -39,6 +39,10 @@ test("shared primitives preserve the established Career visual classes", () => {
     /inline-flex gap-2 h-8 items-center justify-center rounded-\[8px\]/
   );
   assert.match(thinking, /ml-\[7px\] border-l border-neutral-1000-a05 pl-4/);
+  assert.match(thinking, /ThinkingLogStatusIcon/);
+  assert.match(thinking, /animate-spin text-neutral-soft/);
+  assert.doesNotMatch(thinking, /text-positive/);
+  assert.doesNotMatch(thinking, /text-critical/);
 });
 
 test("Career adapters use shared presentation without enabling org attachments", () => {
@@ -73,6 +77,8 @@ test("org attachment composer stacks the textarea above split actions", () => {
   assert.match(orgComposer, /new window\.ResizeObserver/);
   assert.match(orgMessage, /<ChatAssistantContent/);
   assert.match(orgMessage, /<ChatAssistantPending/);
+  assert.match(orgMessage, /logs=\{message\.thinkingLogs\}/);
+  assert.match(orgAgent, /logs=\{chat\.thinkingLogs\}/);
   assert.match(orgAgent, /chat\.assistantStatus === "pending"/);
   assert.match(
     orgAgent,

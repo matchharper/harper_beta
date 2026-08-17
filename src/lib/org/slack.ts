@@ -2,93 +2,27 @@ import {
   sendHarperWorkspaceSlackMessage,
   type HarperSlackNotificationKey,
 } from "@/lib/org/slackHarper";
+import {
+  buildOrgCandidateAcceptedSlackMessage,
+  buildOrgRoleUrl,
+  buildOrgRoleCreatedSlackMessage,
+  escapeSlackText,
+  formatCandidate,
+  formatOptional,
+  formatPerson,
+  formatSlackLink,
+  type OrgSlackCandidate,
+  type OrgSlackUser,
+  type OrgSlackWorkspace,
+} from "@/lib/org/slackMessages";
+
+export {
+  buildOrgCandidateAcceptedSlackMessage,
+  buildOrgRoleCreatedSlackMessage,
+} from "@/lib/org/slackMessages";
 
 export const ORG_SLACK_CHANNEL_ID =
   process.env.ORG_SLACK_CHANNEL_ID?.trim() || "C0AKK93FMH8";
-const DEFAULT_PUBLIC_SITE_URL = "https://matchharper.com";
-
-type OrgSlackWorkspace = {
-  companyName: string;
-  workspaceId: string;
-};
-
-type OrgSlackUser = {
-  email?: string | null;
-  name?: string | null;
-  userId?: string | null;
-};
-
-type OrgSlackCandidate = {
-  email?: string | null;
-  name?: string | null;
-  talentId: string;
-};
-
-function normalizeText(value: unknown) {
-  return String(value ?? "").trim();
-}
-
-function escapeSlackText(value: unknown) {
-  return normalizeText(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
-
-function escapeSlackLinkUrl(value: unknown) {
-  return normalizeText(value)
-    .replace(/\s/g, "%20")
-    .replace(/</g, "%3C")
-    .replace(/>/g, "%3E")
-    .replace(/\|/g, "%7C");
-}
-
-function formatSlackLink(url: string, label: string) {
-  const safeUrl = escapeSlackLinkUrl(url);
-  const safeLabel = escapeSlackText(label);
-  return safeUrl && safeLabel ? `<${safeUrl}|${safeLabel}>` : safeLabel;
-}
-
-function getPublicSiteUrl() {
-  const value =
-    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    process.env.APP_BASE_URL?.trim() ||
-    DEFAULT_PUBLIC_SITE_URL;
-  const withProtocol = /^https?:\/\//i.test(value) ? value : `https://${value}`;
-
-  try {
-    return new URL(withProtocol).origin.replace(/\/+$/, "");
-  } catch {
-    return DEFAULT_PUBLIC_SITE_URL;
-  }
-}
-
-function buildOrgRoleUrl(workspaceId: string, roleId?: string | null) {
-  const params = new URLSearchParams({ orgId: workspaceId });
-  if (roleId) params.set("roleId", roleId);
-  return `${getPublicSiteUrl()}/org/jobs?${params.toString()}`;
-}
-
-function formatPerson(user: OrgSlackUser) {
-  const name = normalizeText(user.name);
-  const email = normalizeText(user.email);
-  if (name && email)
-    return `${escapeSlackText(name)} (${escapeSlackText(email)})`;
-  return escapeSlackText(name || email || user.userId || "Unknown");
-}
-
-function formatCandidate(candidate: OrgSlackCandidate) {
-  const name = normalizeText(candidate.name);
-  const email = normalizeText(candidate.email);
-  if (name && email)
-    return `${escapeSlackText(name)} (${escapeSlackText(email)})`;
-  return escapeSlackText(name || email || candidate.talentId);
-}
-
-function formatOptional(value: unknown) {
-  return escapeSlackText(value) || "없음";
-}
 
 async function postOrgSlackMessage(text: string) {
   const token = process.env.SLACK_BOT_TOKEN?.trim();
@@ -123,11 +57,13 @@ async function postWorkspaceScopedOrgSlackMessage(
   text: string,
   workspaceId: string,
   notificationKey?: HarperSlackNotificationKey,
-  roleId?: string | null
+  roleId?: string | null,
+  idempotencyKey?: string
 ) {
   const [internalResult, workspaceResult] = await Promise.allSettled([
     postOrgSlackMessage(text),
     sendHarperWorkspaceSlackMessage({
+      idempotencyKey,
       notificationKey,
       roleId,
       text,
@@ -153,32 +89,40 @@ async function postWorkspaceScopedOrgSlackMessage(
       internalResult.reason
     );
   }
+  return (
+    workspaceResult.status === "fulfilled" && workspaceResult.value === true
+  );
+}
+
+export async function notifyOrgRoleCreatedSlack(args: {
+  actor: OrgSlackUser;
+  roleId: string;
+  roleName: string;
+  workspace: OrgSlackWorkspace;
+}) {
+  return postWorkspaceScopedOrgSlackMessage(
+    buildOrgRoleCreatedSlackMessage(args),
+    args.workspace.workspaceId,
+    undefined,
+    args.roleId,
+    `org-role-created/${args.roleId}`
+  );
 }
 
 export async function notifyOrgCandidateAcceptedSlack(args: {
   acceptReason?: string | null;
   actor: OrgSlackUser;
   candidate: OrgSlackCandidate;
+  closureNotificationDelivered?: boolean;
   contactDirectly?: boolean;
   introEmails: string[];
+  reactivated?: boolean;
   roleId: string;
   roleName: string;
   workspace: OrgSlackWorkspace;
 }) {
-  const roleUrl = buildOrgRoleUrl(args.workspace.workspaceId, args.roleId);
-  const lines = [
-    "*Org 후보자 수락*",
-    `- *Workspace*: ${formatSlackLink(roleUrl, args.workspace.companyName)}`,
-    `- *Role*: ${escapeSlackText(args.roleName)}`,
-    `- *Candidate*: ${formatCandidate(args.candidate)}`,
-    `- *Accepted by*: ${formatPerson(args.actor)}`,
-    `- *Contact*: ${args.contactDirectly ? "회사에서 직접 연락" : "Harper 소개 메일"}`,
-    `- *Intro emails*: ${args.introEmails.map(escapeSlackText).join(", ") || "없음"}`,
-    `- *Reason*: ${formatOptional(args.acceptReason)}`,
-  ];
-
   await postWorkspaceScopedOrgSlackMessage(
-    lines.join("\n"),
+    buildOrgCandidateAcceptedSlackMessage(args),
     args.workspace.workspaceId,
     "candidateAccepted",
     args.roleId
@@ -195,12 +139,12 @@ export async function notifyOrgCandidateRejectedSlack(args: {
 }) {
   const roleUrl = buildOrgRoleUrl(args.workspace.workspaceId, args.roleId);
   const lines = [
-    "*Org 후보자 연결받지 않음*",
-    `- *Workspace*: ${formatSlackLink(roleUrl, args.workspace.companyName)}`,
-    `- *Role*: ${escapeSlackText(args.roleName)}`,
-    `- *Candidate*: ${formatCandidate(args.candidate)}`,
-    `- *Decided by*: ${formatPerson(args.actor)}`,
-    `- *Reason*: ${formatOptional(args.stopNote)}`,
+    "*후보자 프로세스를 종료했어요*",
+    `- *역할*: ${formatSlackLink(roleUrl, args.roleName)}`,
+    `- *후보자*: ${formatCandidate(args.candidate)}`,
+    `- *결정한 분*: ${formatPerson(args.actor)}`,
+    `- *남긴 이유*: ${formatOptional(args.stopNote)}`,
+    "후보자에게는 아직 종료 안내가 나가지 않았습니다. Harper가 적절한 시점에 배려 있게 안내하며, 그 전에 다시 연결하면 종료 안내는 발송되지 않습니다.",
   ];
 
   await postWorkspaceScopedOrgSlackMessage(

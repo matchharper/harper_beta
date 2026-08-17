@@ -189,7 +189,7 @@ export function OrgSettingsPage() {
     <div className="space-y-8">
       <OrgPageHeader
         description="팀이 중요한 채용 변화를 놓치지 않도록 연동과 알림을 설정하세요."
-        title="Inregration"
+        title="Integration"
       />
 
       <OrgSection>

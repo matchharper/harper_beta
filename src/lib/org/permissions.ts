@@ -14,20 +14,18 @@ export const ORG_MEMBERSHIP_ROLE_OPTIONS: Array<{
   value: OrgMembershipRole;
 }> = [
   {
-    description:
-      "멤버 초대와 권한 변경을 포함해 모든 Organization 기능을 관리합니다.",
+    description: "멤버 초대와 권한 변경을 포함해 모든 기능을 관리합니다.",
     label: "Owner",
     value: "owner",
   },
   {
     description:
-      "후보자와 Jobs, 회사 정보 및 연동을 관리합니다. 멤버 관리는 할 수 없습니다.",
+      "후보자와 Jobs, 회사 정보 및 연동을 관리합니다. 멤버 초대 및 제거는 할 수 없습니다.",
     label: "Admin",
     value: "admin",
   },
   {
-    description:
-      "후보자와 Organization 정보를 확인할 수 있지만 변경할 수 없습니다.",
+    description: "후보자와 회사 정보를 확인할 수 있지만 변경할 수 없습니다.",
     label: "Viewer",
     value: "viewer",
   },

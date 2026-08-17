@@ -1,18 +1,14 @@
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
+import type { OrgTalentDetailNavigationTarget } from "@/lib/org/detailNavigation";
 import {
   buildOrgHref,
   type OrgJobsView,
   type OrgWorkspacePageId,
 } from "@/lib/org/routes";
 
-export type OrgTalentSelection = {
-  recommendationId: string;
-  roleId: string;
-  talentId: string;
-  workspaceId?: string;
-};
+export type OrgTalentSelection = OrgTalentDetailNavigationTarget;
 
 function getQueryText(value: string | string[] | undefined) {
   return typeof value === "string" ? value.trim() : "";
@@ -45,6 +41,10 @@ export function useOrgJobsRoute({
   const [nameQuery, setNameQuery] = useState("");
   const [recommendedFromDate, setRecommendedFromDate] = useState("");
   const [recommendedToDate, setRecommendedToDate] = useState("");
+  const [talentNavigationItems, setTalentNavigationItems] = useState<
+    OrgTalentSelection[]
+  >([]);
+  const [talentNavigationLabel, setTalentNavigationLabel] = useState("");
   const requestedRoleId = urlRoleId || "all";
   const activeRoleId =
     requestedRoleId === "all" ||
@@ -128,7 +128,13 @@ export function useOrgJobsRoute({
   );
 
   const selectTalent = useCallback(
-    (item: OrgTalentSelection) => {
+    (
+      item: OrgTalentSelection,
+      navigationItems: readonly OrgTalentSelection[] = [],
+      navigationLabel = ""
+    ) => {
+      setTalentNavigationItems([...navigationItems]);
+      setTalentNavigationLabel(navigationLabel);
       void router.push(
         buildOrgHref({
           detail: {
@@ -148,6 +154,8 @@ export function useOrgJobsRoute({
   );
 
   const closeTalentDetail = useCallback(() => {
+    setTalentNavigationItems([]);
+    setTalentNavigationLabel("");
     void router.replace(
       buildOrgHref({
         orgId: baseWorkspaceId,
@@ -181,6 +189,8 @@ export function useOrgJobsRoute({
     selectedRoleId,
     setNameQuery,
     setRecommendedDateRange,
+    talentNavigationItems,
+    talentNavigationLabel,
     workspaceId,
   };
 }

@@ -5,8 +5,8 @@ import {
   MapPin,
   Search,
 } from "lucide-react";
-import { type ReactNode, useMemo, useState } from "react";
 import { useRouter } from "next/router";
+import { type ReactNode, useMemo, useState } from "react";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
 import { opsTheme } from "@/components/ops/theme";
 import { OrgRoleActionsMenu } from "@/components/org/OrgRoleActionsMenu";
@@ -195,7 +195,7 @@ function getRoleStatusMeta(status: string | null | undefined) {
   if (normalized === "draft" || normalized === "pending") {
     return {
       className: "bg-neutral-100 text-neutral-800",
-      label: "준비중",
+      label: "작성중",
     };
   }
   if (normalized === "none") {
@@ -211,7 +211,7 @@ function getRoleStatusMeta(status: string | null | undefined) {
 }
 
 const ROLE_STATUS_FILTER_OPTIONS = [
-  { label: "준비중", value: "draft" },
+  { label: "작성중", value: "draft" },
   { label: "진행중", value: "active" },
   { label: "중단", value: "paused" },
 ] as const;
@@ -240,15 +240,27 @@ function RoleStatusBadge({
   );
 }
 
-export function OrgAllRolesOverview() {
-  const router = useRouter();
-  const { board, boardQuery } = useOrgJobsBoard();
-  const { changeRole } = useOrgJobsNavigation();
-  const { deleteRole, pauseRole, resumeRole, roleActionPending } =
-    useOrgJobsRoleActions();
-  const { permissions, roles, workspace } = useOrgWorkspace();
-  const canManageCandidates = permissions.canManageCandidates;
-  const isLoading = boardQuery.isLoading;
+export function OrgRolesOverview({
+  board,
+  canManageCandidates = false,
+  isLoading,
+  onDeleteRole,
+  onOpenRole,
+  onPauseRole,
+  onResumeRole,
+  roleActionPending = false,
+  roles,
+}: {
+  board: OrgBoardResponse | null | undefined;
+  canManageCandidates?: boolean;
+  isLoading: boolean;
+  onDeleteRole?: (role: OrgRole) => void;
+  onOpenRole: (role: OrgRole, view?: "pipeline" | "role") => void;
+  onPauseRole?: (role: OrgRole) => void;
+  onResumeRole?: (role: OrgRole) => void;
+  roleActionPending?: boolean;
+  roles: OrgRole[];
+}) {
   const [roleStatusFilters, setRoleStatusFilters] = useState<
     RoleStatusFilterValue[]
   >([]);
@@ -309,19 +321,8 @@ export function OrgAllRolesOverview() {
   }, [roleStatusFilters, roleTitleQuery, roles]);
   const hasActiveFilter =
     roleStatusFilters.length > 0 || roleTitleQuery.trim().length > 0;
-  const openRole = (role: OrgRole, view: "pipeline" | "role" = "role") => {
-    if (normalizeRoleStatus(role.status) === "draft") {
-      void router.push(
-        buildOrgHref({
-          orgId: workspace.workspaceId,
-          page: "new-role",
-          roleId: role.roleId,
-        })
-      );
-      return;
-    }
-    changeRole(role.roleId, view);
-  };
+  const canManageRole =
+    canManageCandidates && Boolean(onDeleteRole && onPauseRole && onResumeRole);
 
   return (
     <div>
@@ -424,21 +425,21 @@ export function OrgAllRolesOverview() {
                       <div className="flex min-w-0 flex-wrap items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => openRole(role)}
+                          onClick={() => onOpenRole(role)}
                           className="min-w-0 max-w-full truncate text-left text-[14px] font-medium text-neutral-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
                         >
                           {role.name}
                         </button>
                       </div>
-                      {canManageCandidates &&
+                      {canManageRole &&
                       normalizeRoleStatus(role.status) !== "draft" ? (
                         <OrgRoleActionsMenu
                           role={role}
                           pending={roleActionPending}
-                          onEdit={(selectedRole) => openRole(selectedRole)}
-                          onPause={pauseRole}
-                          onResume={resumeRole}
-                          onDelete={deleteRole}
+                          onEdit={(selectedRole) => onOpenRole(selectedRole)}
+                          onPause={onPauseRole!}
+                          onResume={onResumeRole!}
+                          onDelete={onDeleteRole!}
                         />
                       ) : null}
                     </div>
@@ -469,7 +470,7 @@ export function OrgAllRolesOverview() {
                   {normalizeRoleStatus(role.status) === "draft" ? (
                     <div className="flex min-h-[76px] items-center justify-between gap-4 px-3.5 py-3 text-[13px] text-neutral-muted">
                       <span>새로운 역할 등록을 완료하세요.</span>
-                      <MuteButton onClick={() => openRole(role)} size="md">
+                      <MuteButton onClick={() => onOpenRole(role)} size="md">
                         이어서 작성
                       </MuteButton>
                     </div>
@@ -497,7 +498,7 @@ export function OrgAllRolesOverview() {
                                 counts.get(`${role.roleId}:${stage.id}`) ?? 0
                               }
                               label={getRoleStageLabel(stage, role)}
-                              onClick={() => openRole(role, "pipeline")}
+                              onClick={() => onOpenRole(role, "pipeline")}
                               stageId={stage.id}
                             />
                           );
@@ -523,5 +524,42 @@ export function OrgAllRolesOverview() {
         )}
       </section>
     </div>
+  );
+}
+
+export function OrgAllRolesOverview() {
+  const router = useRouter();
+  const { board, boardQuery } = useOrgJobsBoard();
+  const { changeRole } = useOrgJobsNavigation();
+  const { deleteRole, pauseRole, resumeRole, roleActionPending } =
+    useOrgJobsRoleActions();
+  const { permissions, roles, workspace } = useOrgWorkspace();
+
+  const openRole = (role: OrgRole, view: "pipeline" | "role" = "role") => {
+    if (normalizeRoleStatus(role.status) === "draft") {
+      void router.push(
+        buildOrgHref({
+          orgId: workspace.workspaceId,
+          page: "role",
+          roleId: role.roleId,
+        })
+      );
+      return;
+    }
+    changeRole(role.roleId, view);
+  };
+
+  return (
+    <OrgRolesOverview
+      board={board}
+      canManageCandidates={permissions.canManageCandidates}
+      isLoading={boardQuery.isLoading}
+      onDeleteRole={deleteRole}
+      onOpenRole={openRole}
+      onPauseRole={pauseRole}
+      onResumeRole={resumeRole}
+      roleActionPending={roleActionPending}
+      roles={roles}
+    />
   );
 }

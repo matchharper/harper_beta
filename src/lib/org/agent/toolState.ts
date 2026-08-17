@@ -36,6 +36,7 @@ export type OrgAgentToolExecutionState = {
   fullRoleRequestIds: Set<string>;
   internalTokenCorrectionCount: number;
   observedLongTextFingerprints: Map<string, string>;
+  openedUrls: Set<string>;
   pendingFullRoleRequestIds: Set<string>;
   requestChanges: RequestChange[];
   requiredPresentationText: string | null;
@@ -49,6 +50,7 @@ export type OrgAgentToolExecutionState = {
   terminalReply: string | null;
   terminalMutationUsed: boolean;
   toolResults: OrgAgentToolResultMetadata[];
+  successfulWebSearchQueries: Set<string>;
   updateProposalRef: null | { proposalId: string; summary: string };
   updateSummaries: string[];
 };
@@ -78,15 +80,25 @@ export function enforceOrgAgentTerminalMutationOutcome(
 ) {
   const finalTerminalResult = state.toolResults.findLast((result) =>
     [
+      "start_role_creation",
       "change_talent_contact",
       "change_role_status",
       "contact_talent",
       "decide_candidate_connection",
+      "manage_role_pipeline_stages",
+      "move_candidate_stage",
       "update_data",
+      "update_role_criteria",
     ].includes(result.name)
   );
   if (!finalTerminalResult) {
     return modelReply;
+  }
+  if (
+    finalTerminalResult.name === "start_role_creation" &&
+    state.terminalReply
+  ) {
+    return state.terminalReply;
   }
   if (
     finalTerminalResult.name === "change_talent_contact" &&
@@ -169,6 +181,7 @@ export function createOrgAgentToolExecutionStateFromSnapshot(args: {
     fullRoleRequestIds: new Set(args.completeRoleRequestIds ?? []),
     internalTokenCorrectionCount: 0,
     observedLongTextFingerprints: new Map(),
+    openedUrls: new Set(),
     pendingFullRoleRequestIds: new Set(),
     requestChanges: [],
     requiredPresentationText: null,
@@ -177,6 +190,7 @@ export function createOrgAgentToolExecutionStateFromSnapshot(args: {
     terminalReply: null,
     terminalMutationUsed: false,
     toolResults: [],
+    successfulWebSearchQueries: new Set(),
     updateProposalRef: null,
     updateSummaries: [],
   };

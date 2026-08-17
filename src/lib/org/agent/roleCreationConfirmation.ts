@@ -25,6 +25,7 @@ import type {
   OrgRoleCreationChoice,
 } from "@/lib/org/agent/types";
 import { OrgHttpError } from "@/lib/org/server";
+import { notifyOrgRoleCreatedSlack } from "@/lib/org/slack";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type { Json } from "@/types/database.types";
 
@@ -142,24 +143,52 @@ function isConfirmationMessage(args: {
 
 async function persistConfirmationMessages(args: {
   admin: ReturnType<typeof getSupabaseAdmin>;
+  assistantMessageMetadata?: OrgAgentMessageMetadata;
   assistantContent?: string | null;
+  confirmationUserMessage?: OrgAgentMessage | null;
   conversation: Parameters<typeof insertOrgAgentMessage>[0]["conversation"];
   identity: RoleCreationConfirmationIdentity;
+  messageType?: "chat" | "slack";
   roleId: string;
+  slackAssistantUserId?: string | null;
+  slackThreadId?: string | null;
+  slackUserId?: string | null;
   userId: string;
 }) {
   const recent = await fetchRecentOrgAgentPromptMessages({
     admin: args.admin,
     conversationId: args.conversation.id,
     limit: 40,
-    scope: { kind: "chat" },
+    scope:
+      args.messageType === "slack" && args.slackThreadId
+        ? { kind: "slack", slackThreadId: args.slackThreadId }
+        : { kind: "chat" },
   });
   const marker = {
     actionId: args.identity.actionId,
     decision: args.identity.decision,
     sourceMessageId: args.identity.messageId,
   };
-  if (
+  if (args.confirmationUserMessage) {
+    const nextMetadata: OrgAgentMessageMetadata = {
+      ...args.confirmationUserMessage.metadata,
+      roleCreationConfirmation: { ...marker, kind: "user" },
+    };
+    const { data: updatedUserMessage, error: updateUserMessageError } = await (
+      args.admin.from("company_messages" as any) as any
+    )
+      .update({ metadata: nextMetadata as unknown as Json })
+      .eq("id", args.confirmationUserMessage.id)
+      .eq("conversation_id", args.conversation.id)
+      .eq("role_id", args.roleId)
+      .eq("role", "user")
+      .select("id")
+      .maybeSingle();
+    if (updateUserMessageError) throw updateUserMessageError;
+    if (!updatedUserMessage) {
+      throw new OrgHttpError(409, "Confirmation reply message not found");
+    }
+  } else if (
     !recent.messages.some((message) =>
       isConfirmationMessage({ ...marker, kind: "user", message })
     )
@@ -172,8 +201,11 @@ async function persistConfirmationMessages(args: {
         roleCreationConfirmation: { ...marker, kind: "user" },
         source: "org_role_creation_confirmation_user",
       },
+      messageType: args.messageType,
       role: "user",
       roleId: args.roleId,
+      slackThreadId: args.slackThreadId,
+      slackUserId: args.slackUserId,
       userId: args.userId,
     });
   }
@@ -186,11 +218,15 @@ async function persistConfirmationMessages(args: {
       content: args.assistantContent,
       conversation: args.conversation,
       metadata: {
+        ...args.assistantMessageMetadata,
         roleCreationConfirmation: { ...marker, kind: "assistant" },
         source: "org_role_creation_confirmation_assistant",
       },
+      messageType: args.messageType,
       role: "assistant",
       roleId: args.roleId,
+      slackThreadId: args.slackThreadId,
+      slackUserId: args.slackAssistantUserId,
     });
   }
   return null;
@@ -198,9 +234,15 @@ async function persistConfirmationMessages(args: {
 
 export async function confirmRoleCreationChoice(args: {
   actionId: string;
+  assistantMessageMetadata?: OrgAgentMessageMetadata;
+  confirmationUserMessage?: OrgAgentMessage | null;
   decision: "no" | "yes";
   messageId: number;
+  messageType?: "chat" | "slack";
   roleId: string;
+  slackAssistantUserId?: string | null;
+  slackThreadId?: string | null;
+  slackUserId?: string | null;
   user: User;
   workspaceId: string;
 }) {
@@ -354,10 +396,16 @@ export async function confirmRoleCreationChoice(args: {
 
   await persistConfirmationMessages({
     admin,
+    assistantMessageMetadata: args.assistantMessageMetadata,
     assistantContent: null,
+    confirmationUserMessage: args.confirmationUserMessage,
     conversation: state.conversation,
     identity,
+    messageType: args.messageType,
     roleId,
+    slackAssistantUserId: args.slackAssistantUserId,
+    slackThreadId: args.slackThreadId,
+    slackUserId: args.slackUserId,
     userId: args.user.id,
   });
 
@@ -386,10 +434,29 @@ export async function confirmRoleCreationChoice(args: {
       user: args.user,
       workspaceId,
     });
+    let slackNotificationDelivered: boolean | null = null;
+    if (completed) {
+      try {
+        slackNotificationDelivered = await notifyOrgRoleCreatedSlack({
+          actor: outcomeState.currentUser,
+          roleId,
+          roleName: outcomeState.role.name,
+          workspace: {
+            companyName: outcomeState.workspace.companyName,
+            workspaceId: outcomeState.workspace.workspaceId,
+          },
+        });
+      } catch (error) {
+        slackNotificationDelivered = false;
+        console.error("[org/role-creation] Slack completion notify failed", error);
+      }
+    }
     const assistantContent = completed
       ? buildRoleCreationCompletionMessage({
           companyName: outcomeState.workspace.companyName,
           roleName: outcomeState.role.name,
+          slackNotificationDelivered,
+          surface: args.messageType === "slack" ? "slack" : "chat",
           userName: outcomeState.currentUser.name,
         })
       : (
@@ -397,19 +464,47 @@ export async function confirmRoleCreationChoice(args: {
             missingFields,
             model: sourceMetadata.model ?? rawMessage.model,
             outcome,
+            surface: args.messageType === "slack" ? "slack" : "chat",
             state: outcomeState,
           })
         ).content;
     assistantMessage = await persistConfirmationMessages({
       admin,
+      assistantMessageMetadata: args.assistantMessageMetadata,
       assistantContent,
+      confirmationUserMessage: args.confirmationUserMessage,
       conversation: state.conversation,
       identity,
+      messageType: args.messageType,
       roleId,
+      slackAssistantUserId: args.slackAssistantUserId,
+      slackThreadId: args.slackThreadId,
+      slackUserId: args.slackUserId,
       userId: args.user.id,
     });
   } catch (error) {
     console.error("[org/agent/role-creation/confirmation-reply]", error);
+  }
+  if (!assistantMessage && args.messageType === "slack") {
+    const assistantContent = completed
+      ? "역할 등록을 완료했어요. 이제 Harper가 정리한 역할 설명과 매칭 기준을 바탕으로 적합한 인재를 살펴보기 시작합니다."
+      : outcome === "revalidation_failed"
+        ? "최종 등록 전에 아직 확인할 내용이 있어요. 이어서 필요한 내용을 함께 정리하겠습니다."
+        : "알겠습니다. 아직 역할을 등록하지 않고, 이 스레드에서 내용을 더 수정할게요.";
+    assistantMessage = await persistConfirmationMessages({
+      admin,
+      assistantMessageMetadata: args.assistantMessageMetadata,
+      assistantContent,
+      confirmationUserMessage: args.confirmationUserMessage,
+      conversation: state.conversation,
+      identity,
+      messageType: args.messageType,
+      roleId,
+      slackAssistantUserId: args.slackAssistantUserId,
+      slackThreadId: args.slackThreadId,
+      slackUserId: args.slackUserId,
+      userId: args.user.id,
+    });
   }
   return { alreadyHandled: false, assistantMessage, completed, roleId };
 }

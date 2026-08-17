@@ -2,6 +2,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 export type StatusDotTone =
+  | "action"
   | "critical"
   | "info"
   | "neutral"
@@ -11,6 +12,7 @@ export type StatusDotTone =
 export type StatusDotSize = "md" | "sm";
 
 const toneClassNames: Record<StatusDotTone, string> = {
+  action: "bg-action",
   critical: "bg-critical",
   info: "bg-info",
   neutral: "bg-neutral-500",

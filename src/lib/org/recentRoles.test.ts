@@ -9,6 +9,7 @@ function role(args: {
   roleId: string;
 }): OrgRole {
   return {
+    criteria: [],
     createdAt: args.createdAt,
     description: null,
     employmentTypes: [],

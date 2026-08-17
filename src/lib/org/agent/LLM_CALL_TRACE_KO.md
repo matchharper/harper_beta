@@ -47,7 +47,7 @@ read audience, current user message ID를 고정하고 tool argument를 다시 �
 
 | section | 핵심 내용 |
 | --- | --- |
-| `company` | 회사명, brief, 상세/memory availability |
+| `company` | 회사명, pitch 전문 회사 정보 문서, 상세/memory availability |
 | `roles` | internal role ID/제목/상태, 3개 count와 completeness, request/memory 존재 여부 |
 | `recent_recommendations` | effective activity 기준 후보-포지션 최대 20개 |
 | `older_summaries` | workspace summary 최근 2개 |
@@ -61,7 +61,7 @@ read audience, current user message ID를 고정하고 tool argument를 다시 �
 ### 기본으로 들어가지 않는 것
 
 - role request/memory/JD 본문
-- 회사 description, pitch, legacy workspace request의 전체 본문
+- legacy workspace request의 전체 본문
 - workspace memory 본문
 - 후보 email, resume 존재 여부, 경력·학력·extra, fit 전문
 - role별 전체 후보와 progress
@@ -80,9 +80,15 @@ read audience, current user message ID를 고정하고 tool argument를 다시 �
 <company>
 field  value
 company_name  Acme Labs
-brief  물류 운영 소프트웨어를 만드는 B2B SaaS 회사
+pitch_document_exists  true
+pitch_document_complete  true
 company_details_available  true
 workspace_memory_available  true
+<company_information_document>
+# Acme Labs
+
+물류 운영 소프트웨어를 만드는 B2B SaaS 회사입니다.
+</company_information_document>
 </company>
 <roles>
 total_roles=2 returned_roles=2 role_index_truncated=false
@@ -290,14 +296,13 @@ transaction에서 적용한다. mirror가 있는 field는 함께 바뀌고, 하�
 
 ## 예시 4: `get_more_data`와 retention
 
-질문이 “우리 회사 pitch와 구성원 목록 보여줘”라면:
+질문이 “우리 회사 상세 정보와 구성원 목록 보여줘”라면:
 
 ```json
 {
   "name": "get_more_data",
   "arguments": {
-    "kinds": ["company_details", "members"],
-    "fullTextKeys": ["pitch"]
+    "kinds": ["company_details", "members"]
   }
 }
 ```
@@ -308,7 +313,7 @@ assistant message metadata에는 content 복사본 대신 다음 selector가 저
 ```json
 {
   "kind": "company_details",
-  "fullTextKeys": ["pitch"],
+  "fullTextKeys": [],
   "activatedByUserMessageId": 501,
   "scopeKey": "slack:thread_123",
   "activatedAt": "2026-08-05T10:00:00.000Z"

@@ -77,6 +77,8 @@ export const queryKeys = {
   opsCompany: {
     all: ["opsCompany"] as const,
     waiting: ["opsCompany", "waiting"] as const,
+    board: (workspaceId?: string | null) =>
+      ["opsCompany", "board", workspaceId ?? ""] as const,
     members: (filters?: {
       query?: string | null;
       workspaceId?: string | null;
@@ -98,6 +100,18 @@ export const queryKeys = {
         filters?.workspaceId ?? "",
         filters?.limit ?? 20,
         filters?.offset ?? 0,
+      ] as const,
+    conversations: (filters?: {
+      cursor?: number | null;
+      limit?: number | null;
+      workspaceId?: string | null;
+    }) =>
+      [
+        "opsCompany",
+        "conversations",
+        filters?.workspaceId ?? "",
+        filters?.limit ?? 20,
+        filters?.cursor ?? 0,
       ] as const,
   },
   org: {
@@ -203,17 +217,12 @@ export const queryKeys = {
     talentFitsAll: ["opsMatching", "talentFits"] as const,
     talentPoolAll: ["opsMatching", "talentPool"] as const,
     talentsAll: ["opsMatching", "talents"] as const,
-    allRoles: (filters: {
-      limit?: number | null;
-      query?: string | null;
-      selfServeOnly?: boolean | null;
-    }) =>
+    allRoles: (filters: { limit?: number | null; query?: string | null }) =>
       [
         "opsMatching",
         "allRoles",
         filters.limit ?? 20,
         filters.query ?? "",
-        Boolean(filters.selfServeOnly),
       ] as const,
     companies: (query?: string | null) =>
       ["opsMatching", "companies", query ?? ""] as const,

@@ -31,16 +31,52 @@ export type OpportunityRunRow = {
   conversation_id: string | null;
   coverage: Json;
   created_at: string;
+  dedupe_key: string | null;
   error_message: string | null;
   id: string;
+  last_progress_at?: string | null;
+  lease_heartbeat_at?: string | null;
+  lease_token?: string | null;
   query_plan: Json;
   run_mode: OpportunityRunMode;
   settings_snapshot: Json;
   started_at: string | null;
   status: OpportunityRunStatus;
   talent_id: string | null;
+  target_recommendation_count: number;
   trigger: OpportunityDiscoveryTrigger;
   trigger_payload: Json;
+  updated_at: string;
+};
+
+export type OpportunityRunSourceKind =
+  | "initial"
+  | "on_demand"
+  | "feedback"
+  | "periodic"
+  | "other";
+
+export type SerializedOpportunityRun = {
+  active: boolean;
+  agentVariant: OpportunityDiscoveryAgentVariant | null;
+  candidateCount: number | null;
+  completedAt: string | null;
+  completionKind: string | null;
+  coverage: Record<string, unknown>;
+  createdAt: string;
+  deliveryRetryPending: boolean;
+  failureKind: string | null;
+  id: string;
+  inputLocked: boolean;
+  purposeText: string | null;
+  recommendationCount: number | null;
+  requestedMaxResults: number | null;
+  searchTerminal: boolean;
+  sourceKind: OpportunityRunSourceKind;
+  startedAt: string | null;
+  status: OpportunityRunStatus;
+  trigger: OpportunityDiscoveryTrigger;
+  updatedAt?: string;
 };
 
 export type RecommendationSettings = {

@@ -50,6 +50,7 @@ const FEEDBACK_LABELS: Record<string, string> = {
 };
 
 const PROGRESS_KIND_LABELS: Record<string, string> = {
+  internal_process_stopped_notified: "후보자 프로세스 종료 안내 발송",
   org_note: "회사 메모",
   org_stage_change: "채용 단계 변경",
 };

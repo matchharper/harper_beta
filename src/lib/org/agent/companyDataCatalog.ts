@@ -1,8 +1,7 @@
 /**
- * Logical fields exposed to the company-side LLM.
- *
- * The model only sees these flat names. Database table/column routing is kept
- * in the mutation RPC and must stay in sync with this catalog.
+ * Logical fields understood by the shared mutation machinery. Some legacy
+ * fields remain here for database and response-guard compatibility, but only
+ * COMPANY_SIDE_LLM_DATA_KEYS are exposed to the company-side LLM.
  */
 export const COMPANY_DATA_KEYS = [
   "company_name",
@@ -39,6 +38,41 @@ export const COMPANY_DATA_KEYS = [
 ] as const;
 
 export type CompanyDataKey = (typeof COMPANY_DATA_KEYS)[number];
+
+/**
+ * Company-side LLM contract.
+ *
+ * Descriptive company content is consolidated into pitch. Homepage and
+ * LinkedIn retain dedicated fields; every other company-level link belongs in
+ * related_links. Legacy description, branding, speciality, investor-list, and
+ * dedicated career/funding-link fields intentionally stay out of this list.
+ */
+export const COMPANY_SIDE_LLM_DATA_KEYS = [
+  "company_name",
+  "pitch",
+  "workspace_request",
+  "homepage_url",
+  "linkedin_url",
+  "location",
+  "founded_year",
+  "employee_count_start",
+  "employee_count_end",
+  "related_links",
+  "total_funding_raised",
+  "last_funding_stage",
+  "workspace_memory",
+  "role_name",
+  "role_description",
+  "role_external_jd_url",
+  "role_location",
+  "role_status",
+  "role_work_mode",
+  "role_employment_types",
+  "role_request",
+  "role_memory",
+] as const satisfies readonly CompanyDataKey[];
+
+export type CompanySideLlmDataKey = (typeof COMPANY_SIDE_LLM_DATA_KEYS)[number];
 export type CompanyDataChangeKind = "append" | "replace" | "rewrite";
 export type CompanyDataRequestSection =
   | "hard_constraints"
@@ -208,19 +242,19 @@ export const COMPANY_DATA_CATALOG: Record<
   }),
 };
 
-export const COMPANY_DETAILS_LONG_TEXT_KEYS = [
-  "company_description",
-  "pitch",
-  "workspace_request",
-  "short_description",
-  "last_funding_round_description",
-] as const;
+export const COMPANY_DETAILS_LONG_TEXT_KEYS = ["workspace_request"] as const;
 
 export type CompanyDetailsLongTextKey =
   (typeof COMPANY_DETAILS_LONG_TEXT_KEYS)[number];
 
 export function isCompanyDataKey(value: string): value is CompanyDataKey {
   return (COMPANY_DATA_KEYS as readonly string[]).includes(value);
+}
+
+export function isCompanySideLlmDataKey(
+  value: string
+): value is CompanySideLlmDataKey {
+  return (COMPANY_SIDE_LLM_DATA_KEYS as readonly string[]).includes(value);
 }
 
 export function isCompanyDetailsLongTextKey(
@@ -239,7 +273,7 @@ export function companyDataTargetKey(
 const COMPANY_DATA_LABELS: Record<CompanyDataKey, string> = {
   company_name: "회사명",
   company_description: "회사 소개",
-  pitch: "후보자 안내 문구",
+  pitch: "회사 정보 문서",
   workspace_request: "기존 회사 요청",
   logo_url: "로고 주소",
   homepage_url: "홈페이지",

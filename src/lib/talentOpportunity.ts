@@ -7,6 +7,7 @@ import {
   toPostingOpportunityId,
 } from "@/lib/career/postingLinks";
 import { OpportunityType, isOpportunityType } from "@/lib/opportunityType";
+import { resolveCompanyLogoUrl } from "@/lib/imageUrl";
 
 type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 
@@ -1361,7 +1362,10 @@ function mapRecommendationRow(
           : null,
     companyHomepageUrl: homepageUrl,
     companyLinkedinUrl: linkedinUrl,
-    companyLogoUrl: workspace.company_db?.logo ?? workspace.logo_url ?? null,
+    companyLogoUrl: resolveCompanyLogoUrl({
+      companyDbLogoUrl: workspace.company_db?.logo,
+      workspaceLogoUrl: workspace.logo_url,
+    }),
     companyName: String(workspace.company_name ?? ""),
     description: role.description ?? null,
     employmentTypes: Array.isArray(role.type) ? role.type : [],
@@ -1456,7 +1460,10 @@ function mapPostingRoleRow(
           : null,
     companyHomepageUrl: homepageUrl,
     companyLinkedinUrl: linkedinUrl,
-    companyLogoUrl: workspace.company_db?.logo ?? workspace.logo_url ?? null,
+    companyLogoUrl: resolveCompanyLogoUrl({
+      companyDbLogoUrl: workspace.company_db?.logo,
+      workspaceLogoUrl: workspace.logo_url,
+    }),
     companyName: String(workspace.company_name ?? ""),
     description: row.description ?? null,
     employmentTypes: Array.isArray(row.type) ? row.type : [],

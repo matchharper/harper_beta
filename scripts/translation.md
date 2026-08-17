@@ -2,6 +2,27 @@
 
 This file is the Codex runbook for keeping `/career` translations in sync.
 
+## Mandatory Source Priority
+
+Resolve every translation key in this exact order:
+
+1. **Changed `t(key, koSource)` fallback** — If the Korean fallback in React or
+   TypeScript is new or differs from the pulled DB/local value, treat the code
+   change as authoritative. Write that Korean value to `ko.ts`, regenerate the
+   corresponding English in `en.ts`, and upsert both locales to DB. Neither DB
+   nor a local language file may overwrite the changed source fallback.
+2. **DB value** — When the `t()` fallback has not changed, use the DB value. DB
+   wins over a different value in `src/lang/ko.ts` or `src/lang/en.ts`, including
+   English copy edited through `/ops/translation`.
+3. **Local language-file value** — Use the existing `ko.ts` or `en.ts` value
+   only when there is no applicable source change and the DB has no value for
+   that key/locale.
+
+A new `t("new", koSource)` call counts as a source change. After resolving the
+priority, all three stores—code fallback, local language files, and DB—must be
+synchronized wherever that store applies. File timestamps or an uncommitted
+local diff never override this order.
+
 ## Goal
 
 Developers should write product text in code once, using Korean as the source:
@@ -18,7 +39,7 @@ For a new string, use a temporary key:
 t("new", "이력서 보강하기");
 ```
 
-If the Korean text changed enough that English should be rewritten:
+If English should be regenerated even though the Korean source did not change:
 
 ```tsx
 t("career.profile.links.improve_resume", "이력서 보강하기", {
@@ -41,27 +62,27 @@ pnpm exec tsc --noEmit --pretty false --incremental false
 `translation:pull` is a mandatory first step before every `translation:sync`
 run. Do not run `translation:sync`, `translation:sync:dry`, or
 `translation:push` against stale local language files. `/ops/translation` is a
-human-editable source for English copy, and those DB edits must be pulled into
-`src/lang/en.ts` before any sync can write back to `translation_entries`.
+human-editable DB surface for English copy, so those values must be pulled into
+`src/lang/en.ts` before sync resolves the priority above. Pulling DB values must
+never rewrite React/TypeScript `t(key, koSource)` fallback arguments.
 
 `translation:sync` does all of this:
 
 - replaces `t("new", "...")` with a stable generated key
 - updates `src/lang/ko.ts` from the Korean source in `t(key, koSource)`
-- creates or rewrites English when the key is new or `retranslate: true` / `meaningChanged: true` is present
+- creates or rewrites English when the key is new, the Korean source changed, or `retranslate: true` / `meaningChanged: true` is present
 - removes `retranslate` / `meaningChanged` from the source call after processing
 - upserts changed `ko` / `en` rows into `translation_entries`
 
-`translation:sync` should preserve existing English copy unless the key is new,
-the English value is empty, or the source call explicitly has
-`retranslate: true` / `meaningChanged: true`. If English was manually edited in
-`/ops/translation`, `translation:pull` is what makes that edited English the
-local value that sync preserves.
+`translation:sync` should preserve the pulled DB English copy unless the key is
+new, the Korean source changed, the English value is empty, or the source call
+explicitly has `retranslate: true` / `meaningChanged: true`. A local-only English
+value is considered only when the DB has no English value for the key.
 
 `translation:pull` does this:
 
 - pulls DB values into `src/lang/ko.ts` and `src/lang/en.ts`
-- updates Korean fallback arguments in `t(key, koSource)` from DB `ko` values
+- never updates Korean fallback arguments in `t(key, koSource)`
 
 `translation:push` is not part of the normal sync workflow. Use it only when you
 intentionally want local `src/lang/ko.ts` / `src/lang/en.ts` to overwrite DB
@@ -70,12 +91,12 @@ rows, because it can overwrite human edits that exist only in `/ops/translation`
 ## Codex Checklist
 
 1. Run `pnpm translation:pull`.
-2. Inspect the pull diff. If it changes unrelated English copy, keep it unless
-   the user explicitly asks to discard the DB edit.
+2. Inspect the pull diff. For unchanged `t()` fallbacks, keep DB values over
+   conflicting local values. Never copy pulled Korean back into a `t()` fallback.
 3. Run `pnpm translation:sync:dry`.
-4. Inspect the reported new keys and touched keys. Existing manually edited
-   English should not be rewritten unless the source has `retranslate: true` /
-   `meaningChanged: true`.
+4. Inspect the reported new keys and touched keys. A changed `t()` fallback
+   overrides DB/local values and automatically regenerates English; otherwise
+   DB wins, with local files used only for DB-missing values.
 5. Run `pnpm translation:sync` when the changes are expected.
 6. Review generated English against Harper tone:
    - conversational Harper text uses “I” for Harper actions

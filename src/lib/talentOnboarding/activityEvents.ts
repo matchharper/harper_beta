@@ -771,19 +771,20 @@ export async function fetchPendingOpportunityFeedbackPromptContext(args: {
 
 export async function fetchRecentTalentActivitySummaries(args: {
   admin: TalentAdminClient;
+  before?: string | null;
   limit?: number;
   userId: string;
 }): Promise<TalentActivitySummaryRow[]> {
   const limit = Math.max(1, Math.min(20, Math.floor(args.limit ?? 5)));
 
   try {
-    const { data, error } = (await (
-      args.admin.from("talent_activity_events" as any) as any
-    )
+    let query = (args.admin.from("talent_activity_events" as any) as any)
       .select("created_at, summary")
       .eq("talent_id", args.userId)
       .order("created_at", { ascending: false })
-      .limit(limit)) as {
+      .limit(limit);
+    if (args.before) query = query.lte("created_at", args.before);
+    const { data, error } = (await query) as {
       data: TalentActivitySummaryRow[] | null;
       error: { message?: string } | null;
     };

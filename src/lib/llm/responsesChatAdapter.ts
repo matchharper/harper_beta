@@ -10,6 +10,38 @@ type ChatMessageWithResponsesOutput = Record<string, any> & {
   _responses_output?: any[];
 };
 
+type PromptCacheBreakpoint = {
+  mode: "explicit";
+};
+
+function toOpenAIResponsesMessageContent(content: unknown) {
+  if (!Array.isArray(content)) return String(content ?? "");
+  return content.flatMap((part: any) => {
+    if (!part || typeof part !== "object") return [];
+    const text =
+      typeof part.text === "string"
+        ? part.text
+        : typeof part.content === "string"
+          ? part.content
+          : "";
+    if (!text) return [];
+    const breakpoint = part.prompt_cache_breakpoint;
+    return [
+      {
+        text,
+        type: "input_text" as const,
+        ...(breakpoint?.mode === "explicit"
+          ? {
+              prompt_cache_breakpoint: {
+                mode: "explicit" as const,
+              } satisfies PromptCacheBreakpoint,
+            }
+          : {}),
+      },
+    ];
+  });
+}
+
 export function toOpenAIResponsesInput(messages: unknown) {
   if (!Array.isArray(messages)) return [];
   const input: any[] = [];
@@ -54,7 +86,7 @@ export function toOpenAIResponsesInput(messages: unknown) {
       message.role === "user"
     ) {
       input.push({
-        content: String(message.content ?? ""),
+        content: toOpenAIResponsesMessageContent(message.content),
         role: message.role,
       });
     }
@@ -97,6 +129,29 @@ function toOpenAIResponsesTextConfig(responseFormat: unknown) {
   if (
     responseFormat &&
     typeof responseFormat === "object" &&
+    (responseFormat as { type?: unknown }).type === "json_schema"
+  ) {
+    const jsonSchema = (responseFormat as any).json_schema;
+    if (
+      jsonSchema &&
+      typeof jsonSchema === "object" &&
+      typeof jsonSchema.name === "string" &&
+      jsonSchema.schema &&
+      typeof jsonSchema.schema === "object"
+    ) {
+      return {
+        format: {
+          name: jsonSchema.name,
+          schema: jsonSchema.schema,
+          strict: jsonSchema.strict !== false,
+          type: "json_schema" as const,
+        },
+      };
+    }
+  }
+  if (
+    responseFormat &&
+    typeof responseFormat === "object" &&
     (responseFormat as { type?: unknown }).type === "json_object"
   ) {
     return { format: { type: "json_object" as const } };
@@ -111,6 +166,20 @@ export function buildOpenAIResponsesRequest(args: {
 }) {
   const tools = toOpenAIResponsesTools(args.requestBody.tools);
   const text = toOpenAIResponsesTextConfig(args.requestBody.response_format);
+  const promptCacheKey =
+    typeof args.requestBody.prompt_cache_key === "string"
+      ? args.requestBody.prompt_cache_key.trim()
+      : "";
+  const promptCacheOptions = args.requestBody.prompt_cache_options;
+  const normalizedPromptCacheOptions =
+    promptCacheOptions &&
+    typeof promptCacheOptions === "object" &&
+    (promptCacheOptions as any).mode === "explicit"
+      ? {
+          mode: "explicit" as const,
+          ttl: "30m" as const,
+        }
+      : null;
   return {
     include: ["reasoning.encrypted_content"],
     input: toOpenAIResponsesInput(args.requestBody.messages),
@@ -122,6 +191,10 @@ export function buildOpenAIResponsesRequest(args: {
     model: args.model,
     reasoning: { effort: args.reasoningEffort },
     store: false,
+    ...(promptCacheKey ? { prompt_cache_key: promptCacheKey } : {}),
+    ...(normalizedPromptCacheOptions
+      ? { prompt_cache_options: normalizedPromptCacheOptions }
+      : {}),
     ...(text ? { text } : {}),
     ...(tools && tools.length > 0
       ? {

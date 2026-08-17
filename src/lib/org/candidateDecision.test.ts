@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   canInitiateOrgCandidateContact,
+  canStopOrgCandidateProcess,
   isOrgInternalStage,
   requiresOrgIntroEmailRecipient,
   shouldOpenOrgAcceptIntroDialog,
@@ -46,6 +47,10 @@ test("requests an intro for an active stage after pending connection", () => {
     shouldOpenOrgAcceptIntroDialog("accepted", "connected"),
     false
   );
+  assert.equal(
+    shouldOpenOrgAcceptIntroDialog("process_stopped", "connected"),
+    true
+  );
 });
 
 test("requires at least one company recipient only for an emailed connection", () => {
@@ -61,9 +66,13 @@ test("requires at least one company recipient only for an emailed connection", (
     requiresOrgIntroEmailRecipient("connected", "final_offer", false),
     false
   );
+  assert.equal(
+    requiresOrgIntroEmailRecipient("process_stopped", "connected", false),
+    true
+  );
 });
 
-test("only confirms declining a connection from pending connection", () => {
+test("confirms stopping both waiting and already active company connections", () => {
   assert.equal(
     shouldOpenOrgStopCandidateDialog(
       "pending_connection",
@@ -73,16 +82,19 @@ test("only confirms declining a connection from pending connection", () => {
   );
   assert.equal(
     shouldOpenOrgStopCandidateDialog("connected", "process_stopped"),
-    false
+    true
   );
   assert.equal(
     shouldOpenOrgStopCandidateDialog("final_offer", "process_stopped"),
-    false
+    true
   );
   assert.equal(
     shouldOpenOrgStopCandidateDialog("pending_connection", "archived"),
     false
   );
+  assert.equal(canStopOrgCandidateProcess("custom:interview"), true);
+  assert.equal(canStopOrgCandidateProcess("accepted"), false);
+  assert.equal(canStopOrgCandidateProcess("process_stopped"), false);
 });
 
 test("recognizes matchharper.com login emails case-insensitively", () => {

@@ -1,6 +1,16 @@
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { CircleAlert, ExternalLink, LoaderCircle, X } from "lucide-react";
+import {
+  BadgeCheck,
+  ChevronLeft,
+  ChevronRight,
+  CircleCheck,
+  CircleAlert,
+  CircleHelp,
+  CircleX,
+  LoaderCircle,
+  X,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
@@ -37,6 +47,11 @@ import {
   TalentExperienceSection,
   TalentExtraSection,
 } from "@/components/profile/TalentExperienceSection";
+import {
+  getTalentProfileLinkImageSrc,
+  TalentProfileHeader,
+  type TalentProfileResource,
+} from "@/components/profile/TalentProfileHeader";
 import { useOpsCareerDetail } from "@/hooks/ops/useOpsCareer";
 import {
   useCancelOrgCompanyTalentRequest,
@@ -52,13 +67,17 @@ import {
   useOrgJobsNavigation,
 } from "@/hooks/org/useOrgJobs";
 import { useOrgInternalTalentSystem } from "@/hooks/org/useOrgInternalTalent";
+import { useOrgViewedRecommendations } from "@/hooks/org/useOrgViewedRecommendations";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import type { CareerTalentOpsProfileMemo } from "@/lib/ops/careerServer";
 import { extractEmailAddress } from "@/lib/email/parse";
 import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
 import { isInternalDomainEmail } from "@/lib/internalAccess";
 import type { OrgInternalTalentSystemResponse } from "@/lib/org/internalTalentTypes";
+import { canStopOrgCandidateProcess } from "@/lib/org/candidateDecision";
+import { getOrgTalentDetailNavigationState } from "@/lib/org/detailNavigation";
 import type { OrgTalentDetailResponse } from "@/lib/org/server";
+import type { OrgCompanyCriterionFitness } from "@/lib/org/companyCriteriaEvaluations";
 import { cn } from "@/lib/utils";
 import Face from "../common/Face";
 
@@ -76,9 +95,6 @@ const RESOURCE_LINK_KIND_ORDER: Record<ResourceLinkKind, number> = {
   portfolio: 3,
   other: 4,
 };
-
-const profileItemClass =
-  "border-b border-neutral-1000-a05 px-0 py-3 last:border-b-0";
 
 const OrgInternalTalentPanel = dynamic(
   () => import("@/components/org/internal/OrgInternalTalentPanel"),
@@ -186,59 +202,6 @@ function ProfileSection({
   );
 }
 
-function ResourceRow({
-  caption,
-  href,
-  label,
-  onClick,
-}: {
-  caption: string;
-  href?: string;
-  label: string;
-  onClick?: () => void;
-}) {
-  const className = cn(
-    profileItemClass,
-    "flex w-full items-center justify-between gap-3 bg-black/4 px-3 text-left text-[13px] transition hover:bg-black/8"
-  );
-
-  const content = (
-    <>
-      <span className="flex min-w-0 items-center gap-1.5">
-        <span className="min-w-0 flex flex-row items-center gap-1.5">
-          <span className="block font-normal font-sm text-neutral-primary">
-            {label}
-          </span>
-          <span className="block max-w-[600px] truncate text-[12px] text-neutral-muted">
-            {caption}
-          </span>
-        </span>
-      </span>
-      <ExternalLink className="h-3.5 w-3.5 shrink-0 text-neutral-soft" />
-    </>
-  );
-
-  if (onClick) {
-    return (
-      <BareButton type="button" onClick={onClick} className={className}>
-        {content}
-      </BareButton>
-    );
-  }
-
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className={className}
-      title={caption}
-    >
-      {content}
-    </a>
-  );
-}
-
 const profileMarkdownComponents: Components = {
   a: ({ children, href }) => (
     <a href={href} target="_blank" rel="noreferrer" className={opsTheme.link}>
@@ -279,6 +242,87 @@ function MarkdownProfile({ value }: { value: string }) {
         {value}
       </ReactMarkdown>
     </div>
+  );
+}
+
+const criteriaFitnessMeta: Record<
+  OrgCompanyCriterionFitness,
+  {
+    icon: typeof CircleCheck;
+    iconClassName: string;
+    label: string;
+  }
+> = {
+  excellent: {
+    icon: BadgeCheck,
+    iconClassName: "bg-positive-faded text-positive",
+    label: "매우 잘 맞음",
+  },
+  good: {
+    icon: CircleCheck,
+    iconClassName: "bg-positive-faded text-positive",
+    label: "잘 맞음",
+  },
+  uncertain: {
+    icon: CircleHelp,
+    iconClassName: "bg-info-faded text-info",
+    label: "추가 확인 필요",
+  },
+  bad: {
+    icon: CircleX,
+    iconClassName: "bg-critical-faded text-critical",
+    label: "맞지 않음",
+  },
+};
+
+function CompanyCriteriaEvaluations({
+  evaluations,
+}: {
+  evaluations: OrgTalentDetailResponse["recommendation"]["criteriaEvaluations"];
+}) {
+  if (evaluations.length === 0) return null;
+
+  return (
+    <section
+      aria-labelledby="company-criteria-evaluations-title"
+      className="mt-8"
+    >
+      {/* <h2
+        className="text-[15px] font-medium text-neutral-primary"
+        id="company-criteria-evaluations-title"
+      >
+        평가 기준
+      </h2> */}
+      <div className="mt-4 grid gap-x-8 gap-y-5 sm:grid-cols-2 font-normal">
+        {evaluations.map((evaluation, index) => {
+          const meta = criteriaFitnessMeta[evaluation.fitness];
+          const Icon = meta.icon;
+          return (
+            <article key={`${evaluation.name}:${index}`} className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span
+                  aria-label={meta.label}
+                  className={cn(
+                    "flex size-6 shrink-0 items-center justify-center rounded-sm",
+                    meta.iconClassName
+                  )}
+                  role="img"
+                  title={meta.label}
+                >
+                  <Icon aria-hidden="true" className="size-4" />
+                </span>
+                <h3 className="min-w-0 text-[14px] leading-5 text-black">
+                  {evaluation.name}
+                </h3>
+              </div>
+              <p className="mt-1.5 text-[13px] leading-[22px] text-black/60">
+                {evaluation.content}
+              </p>
+            </article>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -421,6 +465,73 @@ function ProfilePane({
         RESOURCE_LINK_KIND_ORDER[rightKind] || left.localeCompare(right)
     );
   });
+  const primaryResumeLink = resourceLinks.find(
+    (link) => getResourceLinkKind(link) === "resume"
+  );
+  const primaryLinkedinLink = resourceLinks.find(
+    (link) => getResourceLinkKind(link) === "linkedin"
+  );
+  const primaryResources: TalentProfileResource[] = [];
+
+  if (detail.resume.hasStorageFile) {
+    primaryResources.push({
+      key: "stored-resume",
+      kind: "resume",
+      label: "이력서",
+      onClick: () => onResumeClick("storage"),
+      title: detail.resume.fileName ?? "저장된 이력서 파일",
+    });
+  } else if (primaryResumeLink) {
+    primaryResources.push({
+      key: `primary:${primaryResumeLink}`,
+      kind: "resume",
+      label: "이력서",
+      onClick: () => onResumeClick("link", primaryResumeLink),
+      title: formatLinkLabel(primaryResumeLink),
+    });
+  }
+
+  if (primaryLinkedinLink) {
+    primaryResources.push({
+      href: normalizeLinkHref(primaryLinkedinLink),
+      key: `primary:${primaryLinkedinLink}`,
+      imageSrc: getTalentProfileLinkImageSrc(primaryLinkedinLink),
+      kind: "linkedin",
+      label: "LinkedIn",
+      title: formatLinkLabel(primaryLinkedinLink),
+    });
+  }
+
+  const secondaryResources: TalentProfileResource[] = [
+    ...detail.profile.documents.map((document) => ({
+      key: `document:${document.id}`,
+      kind: "document" as const,
+      label: document.fileName || "공개 문서",
+      onClick: () => onResumeClick("document", null, document.id),
+      title: document.fileName,
+    })),
+    ...resourceLinks
+      .filter(
+        (link) =>
+          link !== primaryLinkedinLink &&
+          (detail.resume.hasStorageFile || link !== primaryResumeLink)
+      )
+      .map((link) => {
+        const kind = getResourceLinkKind(link);
+        const isResumeLink = kind === "resume";
+        return {
+          href: isResumeLink ? undefined : normalizeLinkHref(link),
+          imageSrc: isResumeLink
+            ? undefined
+            : getTalentProfileLinkImageSrc(link),
+          key: `secondary:${link}`,
+          kind: kind === "linkedin" || kind === "resume" ? kind : "link",
+          label: getResourceLinkLabel(kind),
+          onClick: isResumeLink ? () => onResumeClick("link", link) : undefined,
+          title: formatLinkLabel(link),
+        } satisfies TalentProfileResource;
+      }),
+  ];
   const hasProfileContent = Boolean(
     detail.profile.bio ||
     detail.profile.location ||
@@ -430,23 +541,15 @@ function ProfilePane({
   );
 
   return (
-    <div className="min-w-0 space-y-7">
-      <div className="flex min-w-0 items-start gap-3">
-        <TalentAvatar name={name} src={detail.talent.profilePicture} />
-        <div className="min-w-0 flex-1">
-          <div className="text-[16px] font-medium text-neutral-primary">
-            {name}
-          </div>
-          <div className="mt-0 truncate text-[13px] text-neutral-muted">
-            {detail.talent.email ?? "-"}
-          </div>
-          {detail.talent.headline ? (
-            <div className="mt-1 text-[13px] leading-6 text-neutral-primary">
-              {detail.talent.headline}
-            </div>
-          ) : null}
-        </div>
-      </div>
+    <div className="min-w-0 space-y-7 px-2">
+      <TalentProfileHeader
+        avatar={<TalentAvatar name={name} src={detail.talent.profilePicture} />}
+        headline={detail.talent.headline}
+        location={detail.profile.location}
+        name={name}
+        primaryResources={primaryResources}
+        secondaryResources={secondaryResources}
+      />
 
       <CandidateDecisionActions
         acceptDisabled={acceptDisabled}
@@ -486,50 +589,9 @@ function ProfilePane({
           ) : (
             <div className="text-[13px] text-neutral-soft">-</div>
           )}
-        </div>
-      </ProfileSection>
-
-      <ProfileSection title="등록 자료">
-        <div className="space-y-2">
-          {detail.resume.hasStorageFile ? (
-            <ResourceRow
-              label="이력서"
-              caption={detail.resume.fileName ?? "저장된 이력서 파일"}
-              onClick={() => onResumeClick("storage")}
-            />
-          ) : null}
-          {detail.profile.documents.map((document) => (
-            <ResourceRow
-              key={document.id}
-              label="공개 문서"
-              caption={document.fileName}
-              onClick={() => onResumeClick("document", null, document.id)}
-            />
-          ))}
-          {resourceLinks.map((link) => {
-            const kind = getResourceLinkKind(link);
-            const isResumeLink = kind === "resume";
-            return (
-              <ResourceRow
-                key={link}
-                label={getResourceLinkLabel(kind)}
-                caption={formatLinkLabel(link)}
-                href={isResumeLink ? undefined : normalizeLinkHref(link)}
-                onClick={
-                  isResumeLink ? () => onResumeClick("link", link) : undefined
-                }
-              />
-            );
-          })}
-          {!detail.resume.hasStorageFile &&
-          detail.profile.documents.length === 0 &&
-          resourceLinks.length === 0 ? (
-            <div
-              className={cn(profileItemClass, "text-[13px] text-neutral-soft")}
-            >
-              등록된 자료가 없습니다.
-            </div>
-          ) : null}
+          <CompanyCriteriaEvaluations
+            evaluations={detail.recommendation.criteriaEvaluations}
+          />
         </div>
       </ProfileSection>
 
@@ -537,14 +599,6 @@ function ProfilePane({
         <ProfileSection title="소개">
           <div className="whitespace-pre-wrap text-[13px] leading-6 text-neutral-primary">
             {detail.profile.bio.trim()}
-          </div>
-        </ProfileSection>
-      ) : null}
-
-      {detail.profile.location ? (
-        <ProfileSection title="위치">
-          <div className="text-[13px] text-neutral-primary">
-            {detail.profile.location}
           </div>
         </ProfileSection>
       ) : null}
@@ -583,6 +637,8 @@ function CandidateDecisionActions({
   onMoveToPendingConnection?: () => void;
   onRejectClick?: () => void;
 }) {
+  if (currentStage === "process_stopped") return null;
+
   if (currentStage === "accepted") {
     if (!onMoveToPendingConnection) return null;
     return (
@@ -606,6 +662,37 @@ function CandidateDecisionActions({
           variant="primary"
         >
           연결 대기로 이동
+        </MuteButton>
+      </section>
+    );
+  }
+
+  if (
+    currentStage !== "pending_connection" &&
+    canStopOrgCandidateProcess(currentStage)
+  ) {
+    if (!onRejectClick) return null;
+    return (
+      <section
+        aria-label="진행 중인 후보자 연결 종료"
+        className={cn("rounded-md bg-critical-faded px-4 py-4", className)}
+      >
+        <div className="text-[16px] font-medium text-critical">
+          진행 중인 프로세스를 종료하시겠습니까?
+        </div>
+        <p className="mt-1 text-[13px] font-normal leading-5 text-neutral-muted">
+          종료하면 현재 단계에서 프로세스를 닫고, Harper가 후보자에게 적절히
+          안내합니다.
+        </p>
+        <MuteButton
+          className="mt-4"
+          disabled={decisionPending}
+          onClick={onRejectClick}
+          size="md"
+          type="button"
+          variant="warn"
+        >
+          연결 종료하기
         </MuteButton>
       </section>
     );
@@ -991,8 +1078,15 @@ function FeedPane({
 }
 
 export function TalentDetailSimpleView() {
-  const { closeTalentDetail, workspaceId } = useOrgJobsNavigation();
   const {
+    closeTalentDetail,
+    selectTalent,
+    talentNavigationItems,
+    talentNavigationLabel,
+    workspaceId,
+  } = useOrgJobsNavigation();
+  const {
+    activeDetailRecommendationId,
     activeDetailRoleId,
     activeDetailTalentId,
     detailOpen,
@@ -1069,6 +1163,10 @@ export function TalentDetailSimpleView() {
     systemActivityQuery.error instanceof Error
       ? systemActivityQuery.error
       : null;
+  const { markViewed } = useOrgViewedRecommendations({
+    currentUserEmail,
+    workspaceId,
+  });
   const onMoveToPendingConnection = canManageCandidates
     ? () => setPendingConnectionDialogOpen(true)
     : undefined;
@@ -1126,6 +1224,21 @@ export function TalentDetailSimpleView() {
   const subtitle = detail
     ? `${companyName} · ${detail.role.name}`
     : companyName;
+  const detailNavigation = getOrgTalentDetailNavigationState(
+    talentNavigationItems,
+    {
+      recommendationId: activeDetailRecommendationId,
+      roleId: activeDetailRoleId,
+      talentId: activeDetailTalentId,
+    }
+  );
+  const navigateToTalent = (
+    target: (typeof talentNavigationItems)[number] | null
+  ) => {
+    if (!target) return;
+    markViewed(target.recommendationId);
+    selectTalent(target, talentNavigationItems, talentNavigationLabel);
+  };
 
   return (
     <>
@@ -1141,23 +1254,69 @@ export function TalentDetailSimpleView() {
           aria-modal="true"
           className="absolute bottom-0 right-0 top-0 flex w-full min-w-0 flex-col overflow-hidden bg-bg-default shadow-[0_24px_90px_color-mix(in_srgb,var(--color-neutral-1000)_22%,transparent)] animate-in slide-in-from-right-6 duration-200 sm:w-[92vw] lg:w-[90vw]"
         >
-          <div className="flex shrink-0 items-center justify-between border-b border-neutral-1000-a05 bg-bg-default px-5 py-3">
-            <div className="min-w-0">
-              <div className="truncate text-[14px] font-medium text-neutral-primary">
-                {title}
+          <div className="flex shrink-0 items-center justify-between border-b border-neutral-1000-a05 bg-bg-default px-5 py-3 font-normal">
+            {detailNavigation ? (
+              <div className="flex min-w-0 items-center gap-3">
+                <div
+                  aria-label={`후보자 ${detailNavigation.position} / ${detailNavigation.total}`}
+                  className="inline-flex shrink-0 overflow-hidden rounded-sm bg-bg-weak font-normal"
+                  role="group"
+                >
+                  <MuteButton
+                    aria-label="이전 후보자"
+                    className="rounded-none border-0 border-r border-neutral-1000-a10 shadow-none"
+                    disabled={!detailNavigation.previous}
+                    onClick={() => navigateToTalent(detailNavigation.previous)}
+                    size="md"
+                    variant="transparent"
+                  >
+                    <ChevronLeft aria-hidden className="size-4" />
+                  </MuteButton>
+                  <div
+                    aria-live="polite"
+                    className="flex min-w-16 items-center justify-center px-3 text-[14px] font-normal tabular-nums text-neutral-primary"
+                  >
+                    {detailNavigation.position} / {detailNavigation.total}
+                  </div>
+                  <MuteButton
+                    aria-label="다음 후보자"
+                    className="rounded-none border-0 border-l border-neutral-1000-a10 shadow-none"
+                    disabled={!detailNavigation.next}
+                    onClick={() => navigateToTalent(detailNavigation.next)}
+                    size="md"
+                    variant="transparent"
+                  >
+                    <ChevronRight aria-hidden className="size-4" />
+                  </MuteButton>
+                </div>
+                {talentNavigationLabel ? (
+                  <div
+                    className="max-w-[min(40vw,320px)] truncate text-[13px] font-normal text-neutral-muted"
+                    title={talentNavigationLabel}
+                  >
+                    {talentNavigationLabel}
+                  </div>
+                ) : null}
               </div>
-              <div className="mt-1 truncate text-[11px] text-neutral-muted">
-                {subtitle}
+            ) : (
+              <div className="min-w-0">
+                <div className="truncate text-[14px] font-normal text-neutral-primary">
+                  {title}
+                </div>
+                <div className="mt-1 truncate text-[11px] text-neutral-muted">
+                  {subtitle}
+                </div>
               </div>
-            </div>
-            <BareButton
-              type="button"
-              onClick={onClose}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-muted transition hover:bg-bg-weak hover:text-neutral-primary"
+            )}
+            <MuteButton
               aria-label="닫기"
+              onClick={onClose}
+              size="md"
+              type="button"
+              variant="transparent"
             >
-              <X className="h-4 w-4" />
-            </BareButton>
+              <X aria-hidden className="size-4" />
+            </MuteButton>
           </div>
 
           {isLoading ? (
@@ -1419,6 +1578,9 @@ export function TalentDetailSimpleView() {
 
       <StopCandidateDialog
         candidateName={title}
+        connectionStarted={Boolean(
+          detail && detail.recommendation.stage !== "pending_connection"
+        )}
         open={rejectDialogOpen && Boolean(detail)}
         pending={decisionPending}
         onClose={() => setRejectDialogOpen(false)}

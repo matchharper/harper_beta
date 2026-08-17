@@ -1,7 +1,14 @@
 import "server-only";
 
 import { storeHarperSlackThreadEvent } from "@/lib/org/slackHarper";
+import {
+  buildHarperSlackFileFallbackPrompt,
+  compactHarperSlackFilesForQueue,
+  type HarperSlackFile,
+} from "@/lib/org/slackFiles";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { resolveDraftRoleCreationForSlackThread } from "@/lib/org/agent/slackRoleCreation";
+import { stripSlackSentUsingAttribution } from "@/lib/org/slackMessageText";
 
 export type SlackEventEnvelope = {
   api_app_id?: string;
@@ -9,6 +16,7 @@ export type SlackEventEnvelope = {
     bot_id?: string;
     channel?: string;
     event_ts?: string;
+    files?: HarperSlackFile[];
     subtype?: string;
     text?: string;
     thread_ts?: string;
@@ -45,7 +53,9 @@ export async function queueHarperSlackEvent(envelope: SlackEventEnvelope) {
 
   if (!event || !eventId || !teamId || !channelId || !messageTs)
     return { ignored: "missing_fields" };
-  if (event.bot_id || event.subtype) return { ignored: "bot_or_subtype" };
+  if (event.bot_id || (event.subtype && event.subtype !== "file_share")) {
+    return { ignored: "bot_or_subtype" };
+  }
 
   const { data: channel, error: channelError } = await (
     admin.from("company_slack_channels" as any) as any
@@ -79,6 +89,13 @@ export async function queueHarperSlackEvent(envelope: SlackEventEnvelope) {
   ) {
     return { ignored: "mention_delivered_separately" };
   }
+  const prompt = buildHarperSlackFileFallbackPrompt(
+    stripSlackSentUsingAttribution(
+      clean(event.text).replaceAll(`<@${integration.slack_bot_user_id}>`, "")
+    ),
+    event.files
+  );
+  if (!prompt) return { ignored: "empty_prompt" };
 
   if (isMention || event.thread_ts) {
     const { data, error } = await (
@@ -91,6 +108,13 @@ export async function queueHarperSlackEvent(envelope: SlackEventEnvelope) {
     if (error) throw error;
     thread = data;
   }
+  const draftRoleCreation = thread
+    ? await resolveDraftRoleCreationForSlackThread({
+        admin,
+        slackThreadId: clean(thread.id),
+        workspaceId: integration.company_workspace_id,
+      })
+    : null;
 
   if (isMention) {
     triggerKind = "mention";
@@ -129,13 +153,14 @@ export async function queueHarperSlackEvent(envelope: SlackEventEnvelope) {
   } else if (
     event.type === "message" &&
     event.thread_ts &&
-    channel.reply_to_harper_threads
+    (channel.reply_to_harper_threads || draftRoleCreation)
   ) {
     if (!thread?.created_by_harper) return { ignored: "unmanaged_thread" };
     triggerKind = "thread_reply";
   } else if (event.type === "message" && event.thread_ts && thread) {
     await storeHarperSlackThreadEvent({
-      content: clean(event.text),
+      content: prompt,
+      roleId: draftRoleCreation?.roleId,
       slackMessageTs: messageTs,
       slackUserId: clean(event.user) || null,
       threadId: thread.id,
@@ -146,15 +171,12 @@ export async function queueHarperSlackEvent(envelope: SlackEventEnvelope) {
     return { ignored: "unsupported_event" };
   }
 
-  const prompt = clean(event.text)
-    .replaceAll(`<@${integration.slack_bot_user_id}>`, "")
-    .trim();
-  if (!prompt) return { ignored: "empty_prompt" };
   if (!thread) throw new Error("Slack thread was not resolved");
 
   if (triggerKind === "thread_reply") {
     await storeHarperSlackThreadEvent({
       content: prompt,
+      roleId: draftRoleCreation?.roleId,
       slackMessageTs: messageTs,
       slackUserId: clean(event.user) || null,
       threadId: thread.id,
@@ -163,9 +185,10 @@ export async function queueHarperSlackEvent(envelope: SlackEventEnvelope) {
   }
 
   const { data: enqueueData, error: enqueueError } = await (admin.rpc as any)(
-    "enqueue_slack_reply_job_v1",
+    "enqueue_slack_reply_job_v2",
     {
       p_prompt: prompt,
+      p_slack_files: compactHarperSlackFilesForQueue(event.files),
       p_slack_event_id: eventId,
       p_slack_message_ts: messageTs,
       p_slack_user_id: clean(event.user) || null,

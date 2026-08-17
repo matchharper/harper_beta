@@ -324,17 +324,14 @@ test("records an association-only change and supports a null detach target", asy
   ]);
 });
 
-test("external request snapshots the parent and timestamps use UTC milliseconds", async () => {
+test("external-to-internal request snapshots an absent child and timestamps use UTC milliseconds", async () => {
   const fixture = createWebsiteMutationAdminFixture({
-    internalRoles: {
-      "role-1": { request: "stale extension", role_id: "role-1" },
-    },
+    internalRoles: {},
     roles: {
       "role-1": {
         expires_at: null,
         name: "Backend",
         posted_at: "2026-08-05T12:34:56.123456+09:00",
-        request: "external parent",
         role_id: "role-1",
         source_type: "external",
       },
@@ -350,6 +347,7 @@ test("external request snapshots the parent and timestamps use UTC milliseconds"
     actorLabel: "김호진",
     admin: fixture.admin as never,
     changes: [
+      { key: "role_source_type", roleId: "role-1", value: "internal" },
       { key: "role_request", roleId: "role-1", value: "new request" },
       {
         key: "role_posted_at",
@@ -365,7 +363,8 @@ test("external request snapshots the parent and timestamps use UTC milliseconds"
       ({ expected, key }) => ({ expected, key })
     ),
     [
-      { expected: "external parent", key: "role_request" },
+      { expected: "external", key: "role_source_type" },
+      { expected: null, key: "role_request" },
       { expected: "2026-08-05T03:34:56.123Z", key: "role_posted_at" },
     ]
   );

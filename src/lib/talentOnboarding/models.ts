@@ -5,6 +5,9 @@ export type TalentConversationRow = {
   id: string;
   user_id: string;
   stage: "profile" | "chat" | "completed";
+  profile_ingestion_error?: string | null;
+  profile_ingestion_status?: string | null;
+  profile_ingestion_updated_at?: string | null;
   relief_nudge_sent: boolean | null;
   created_at: string;
   updated_at: string;

@@ -273,7 +273,7 @@ async function fetchWebsiteCompanyDataSnapshots(args: {
     roleIds.length
       ? (args.admin.from("company_roles" as any) as any)
           .select(
-            "role_id, company_workspace_id, name, description, description_summary, external_jd_url, location_text, status, work_mode, type, request, source_type, source_provider, source_job_id, posted_at, expires_at, is_expired"
+            "role_id, company_workspace_id, name, description, description_summary, external_jd_url, location_text, status, work_mode, type, source_type, source_provider, source_job_id, posted_at, expires_at, is_expired"
           )
           .eq("company_workspace_id", args.workspaceId)
           .in("role_id", roleIds)
@@ -398,8 +398,11 @@ async function fetchWebsiteCompanyDataSnapshots(args: {
     const role = roleById.get(roleId);
     if (!role) throw new Error("Role not found");
     const internal = internalByRoleId.get(roleId);
-    const isExternalRole = singleLine(role.source_type) === "external";
-    if (change.key === "role_request" && !isExternalRole && !internal) {
+    if (
+      change.key === "role_request" &&
+      singleLine(role.source_type) === "internal" &&
+      !internal
+    ) {
       throw new Error("Canonical internal role request is unavailable");
     }
     const roleValues: Partial<Record<WebsiteCompanyDataKey, unknown>> = {
@@ -411,12 +414,7 @@ async function fetchWebsiteCompanyDataSnapshots(args: {
       role_is_expired: role.is_expired ?? null,
       role_location: role.location_text ?? null,
       role_name: role.name,
-      // Internal roles use the extension as canonical storage. External roles
-      // intentionally keep request on the parent row; the atomic SQL path also
-      // uses that parent value as the external -> internal transition snapshot.
-      role_request: isExternalRole
-        ? (role.request ?? null)
-        : (internal?.request ?? null),
+      role_request: internal?.request ?? null,
       role_posted_at: utcMillisOrNull(role.posted_at),
       role_source_job_id: role.source_job_id ?? null,
       role_source_provider: role.source_provider ?? null,

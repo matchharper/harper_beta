@@ -35,9 +35,7 @@ company workspace
   └─ company_events                  # compact 변경 기록
 ```
 
-`company_roles.request`는 삭제하거나 비우지 않는다. migration과 compatibility
-trigger가 legacy reader/writer를 위해 mirror하지만 company-side LLM은
-`company_internal_roles.request`를 canonical source로 읽고 쓴다.
+`company_internal_roles.request`가 role별 후보 매칭 기준의 유일한 저장소다.
 
 request는 어떤 후보를 매칭할지에 관한 기준이고, memory는 그 밖의 지속적으로
 기억할 회사/role 맥락이다. conversation summary는 과거 대화의 압축본일 뿐 현재
@@ -92,10 +90,16 @@ role request/memory/JD 본문과 큰 회사 정보는 기본으로 넣지 않는
 | `read_talent` | 특정 후보의 role/stage/progress, Harper 공유 정보와 선택적 profile | 없음 |
 | `read_role` | 특정 role의 선택 block 읽기 | 없음 |
 | `get_more_data` | workspace optional data 읽기 | 없음 |
+| `update_role_criteria` | structured role criteria 전체 교체 또는 선택 편집 | 있음 |
 | `update_data` | 회사·role 정보를 단일 atomic batch로 변경/확인 | 있음 |
 | `change_role_status` | Role의 진행·중단·종료 lifecycle 변경 | 있음 |
+| `decide_candidate_connection` | 연결 대기 후보자의 수락·거절과 연락 방식 결정 | 있음 |
+| `manage_role_pipeline_stages` | Role의 custom 단계 추가·이름 변경·빈 단계 삭제 | 있음 |
+| `move_candidate_stage` | 연결 이후 후보자를 활성 pipeline 단계 사이에서 이동 | 있음 |
 
-후보 연결·거절·stage 이동 tool은 현재 LLM에 노출되지 않는다.
+pipeline 구조 변경과 후보자 위치 변경은 서로 다른 terminal tool이다. 단계만 고치는
+요청이 후보자 위치·연락·일정을 함께 바꾸지 않으며, 후보자를 옮기는 요청도 단계
+구조를 바꾸지 않는다.
 
 ## `get_talents`
 
@@ -166,7 +170,7 @@ recommendation도 읽을 수 있다. Slack은 `company_safe` audience를 사용�
 
 `include`를 생략하면 이름, 상태, 위치, 근무 방식 같은 base만 읽는다.
 
-- `criteria`: `company_internal_roles.request`
+- `criteria`: `company_internal_roles.request`와 선택적인 0~6개의 structured criteria
 - `memory`: 해당 role의 `company_memories`
 - `pipeline`: bounded count, 후보 page, 최근 progress
 - `description`: role JD 본문
@@ -176,33 +180,117 @@ request, memory, description은 Markdown을 보존하고 field별
 complete read가 있어야 한다. pipeline count가 cap에 닿으면 정확한 수가 아니라
 lower bound이며 `countsComplete=false`다.
 
+`pipeline` 결과는 사람이 읽는 label과 함께 변경에 필요한 exact stage ID와 정렬
+순서를 반환한다. custom 단계는 `custom:<uuid>` 형식이며, 후보자마다 현재
+`currentStageId`와 `currentStageLabel`을 함께 준다. “다음 단계”는 이 최신 정렬
+순서에서 현재 단계 바로 다음을 뜻한다.
+
+## `manage_role_pipeline_stages`
+
+정확한 internal Role 하나의 custom pipeline 구조를 바꾸는 단독·terminal tool이다.
+호출 직전에 `read_role(include=["pipeline"])`로 최신 stage ID와 순서를 읽어야 한다.
+
+| action | 필수 값 | 동작 |
+| --- | --- | --- |
+| `add` | `roleId`, `labels` 1~6개 | 입력 순서대로 custom 단계 추가; 같은 이름은 재생성하지 않음 |
+| `rename` | `roleId`, exact `stageId`, `label` | custom 단계 이름만 변경 |
+| `delete` | `roleId`, exact `stageId` | 후보자가 한 명도 없는 custom 단계만 삭제 |
+
+기본 단계인 연결 대기·연결됨·최종 오퍼·프로세스 종료는 수정하거나 삭제하지 않는다.
+단계 삭제는 사용 중이면 거절하고 후보자 태그를 함께 지우지 않는다. 어떤 action도
+후보자 위치, Role 조건·요청·메모·상태, 후보자 연락이나 인터뷰 일정을 바꾸지 않는다.
+
+## `move_candidate_stage`
+
+후보자 한 명을 같은 Role의 활성 pipeline 단계 사이에서 옮기는 단독·terminal
+tool이다. argument는 `roleId`, `talentId`, `expectedCurrentStageId`,
+`targetStageId`다. 현재 위치와 목표 위치는 호출 직전 pipeline read에서 본 exact
+ID를 사용한다.
+
+허용되는 단계는 `connected`, `final_offer`, 그리고 해당 Role의 `custom:<uuid>`다.
+`pending_connection`, `process_stopped`, 내부 보관 단계에서는 이 tool을 쓰지 않는다.
+연결 시작·거절·중단·재활성화는 기존 후보 연결 decision/lifecycle 경로를 사용한다.
+
+서버는 후보자의 실제 현재 stage가 `expectedCurrentStageId`와 같은지 다시 확인하고,
+달라졌으면 409 conflict로 거절한다. 이동은 stage tag와 progress만 기록하며 후보자
+연락·이메일·일정 생성은 하지 않는다.
+
 ## `get_more_data`
 
 ```json
 {
   "kinds": ["members", "company_details", "workspace_memory"],
-  "fullTextKeys": ["pitch"]
+  "fullTextKeys": ["workspace_request"]
 }
 ```
 
 `kinds`는 1~3개다.
 
 - `members`: 이름, 이메일, 사람용 workspace 역할과 total/returned/complete
-- `company_details`: 여러 실제 table을 숨긴 flat key/value와 field별 complete marker
+- `company_details`: 회사명, 홈페이지, LinkedIn, 위치, 설립 연도, 직원 수, 관련
+  링크, 누적 투자금, 최근 투자 단계, legacy workspace request와 field별 complete
+  marker. 기존 채용·투자 링크는 별도 값이 아니라 관련 링크에 합쳐 반환한다.
 - `workspace_memory`: `company_memories`의 workspace Markdown
 
-`fullTextKeys`는 `company_details`와 함께만 쓰며 다음 long field를 우선한다.
-
-- `company_description`
-- `pitch`
-- `workspace_request`
-- `short_description`
-- `last_funding_round_description`
+pitch 전문은 이미 모든 호출에 들어가므로 `fullTextKeys`로 다시 읽지 않는다.
+`fullTextKeys`는 `company_details`와 함께 legacy `workspace_request` 전문이 필요한
+수정에서만 사용한다.
 
 field content 합계는 12,000자, framing을 포함한 직렬화는 14,000자까지다. 선택한
 kind는 같은 웹 대화 또는 Slack thread의 다음 사용자 turn T1~T3에 최신 값으로
 자동 재조회된다. activation 후 24시간이 지나면 제거되고, kind별 재호출은 그
 kind의 lease와 selector만 갱신한다.
+
+## `update_role_criteria`
+
+사용자가 명시적으로 요청했을 때 internal role의 0~6개 structured criteria를
+변경한다. 충분한 판단 축이 있으면 3~6개를 권장하지만 필수 개수는 아니다. 현재 기준이
+prompt에 보이지 않으면 먼저 `read_role(include=["criteria"])`로 읽는다. 한 호출에서는
+전체 교체와 선택 편집 중 정확히 하나만 사용한다.
+
+특정 기준만 편집할 때는 `edits`를 사용한다. 여러 edit은 입력 순서로 계산한 뒤 한 번에
+저장되므로, 중간 하나가 실패하면 아무것도 반영되지 않는다.
+
+```json
+{
+  "roleId": "role-id",
+  "edits": [
+    {
+      "operation": "update",
+      "targetName": "Technical depth",
+      "criteria": "설계부터 운영까지 복잡한 기술 문제를 해결한 근거"
+    },
+    {
+      "operation": "add",
+      "name": "Communication",
+      "criteria": "복잡한 의사결정을 이해관계자에게 명확히 설명한 경험"
+    }
+  ]
+}
+```
+
+| operation | 필수 값 | 동작 |
+| --- | --- | --- |
+| `add` | `name`, `criteria` | 기준 한 개 추가 |
+| `update` | 정확한 `targetName`, 그리고 `name`/`criteria` 중 하나 이상 | 선택한 기준의 이름이나 상세 내용만 수정 |
+| `delete` | 정확한 `targetName` | 선택한 기준 삭제 |
+
+기준에는 별도 item ID가 없으므로 `targetName`은 현재 이름과 정확히 같아야 한다. 같은
+이름이 중복되면 선택 편집을 거절한다. 최종 목록이 6개를 초과하는 편집은 거절하며,
+삭제 결과가 0개가 되는 것은 허용한다.
+
+전체를 다시 쓸 때는 기존 `criteria` 배열 형식을 그대로 사용한다.
+
+```json
+{
+  "roleId": "role-id",
+  "criteria": [
+    { "name": "Experience", "criteria": "관련 성과와 기간" },
+    { "name": "Technical depth", "criteria": "기술적 복잡성과 주도 범위" },
+    { "name": "Collaboration", "criteria": "협업과 의사결정 근거" }
+  ]
+}
+```
 
 ## `update_data`
 
@@ -257,14 +345,18 @@ operation은 입력 순서로 fold되고 최종 DB write는 한 번이다. batch
 
 flat key는 다음 범주다.
 
-- 회사/workspace: 이름, 설명, pitch, legacy workspace request, logo/homepage/career/
-  LinkedIn URL, 위치, 설립 연도, 직원 수, 분야·투자사·링크·투자 정보
+- 회사/workspace: 이름, 회사 정보 문서(pitch), legacy workspace request,
+  홈페이지·LinkedIn, 위치, 설립 연도, 직원 수, 관련 링크, 누적 투자금, 최근 투자
+  단계
 - memory: `workspace_memory`
 - role: 이름, 설명, 외부 JD, 위치, 근무 방식, 고용 형태
 - role 기준/기억: `role_request`, `role_memory`
 
-논리 key가 실제 어느 table에 있는지는 LLM에 노출하지 않는다. mirror field는 RPC가
-한 transaction에서 함께 갱신한다.
+모든 서술형 회사 정보와 후보자 안내용 회사 문구는 pitch 문서에 쓴다. 홈페이지와
+LinkedIn 이외의 채용·투자·보도·참고 URL은 모두 관련 링크에 쓴다. 별도 회사 소개,
+한 줄 소개, 로고, 채용 페이지, 투자 링크, 주요 분야, 투자사 목록·설명, 최근 투자
+설명 field는 company-side LLM에 노출하지 않는다. 논리 key가 실제 어느 table에
+있는지는 LLM에 노출하지 않는다.
 
 ### 2. proposal mode
 
@@ -330,6 +422,10 @@ argument는 exact `roleId`와 `status` 두 개다. `paused`를 기존 후보 프
   하지 않는다.
 - truncated tool result는 complete read state를 열지 않는다.
 - 동일 결과면 write 없이 `already_reflected`를 반환한다.
+- 후보 stage 이동은 호출 직전 읽은 `expectedCurrentStageId`가 실제 현재 stage와
+  다르면 적용하지 않는다.
+- custom 단계 삭제는 후보자가 없는 단계만 허용하며 사용 중인 단계와 후보자 위치를
+  보존한다.
 - Slack user message insert 재시도는 thread, timestamp, conversation, workspace,
   role, content가 모두 같을 때만 기존 row를 채택한다.
 
@@ -355,8 +451,6 @@ argument는 exact `roleId`와 `status` 두 개다. `paused`를 기존 후보 프
 
 company-side LLM은 현재 다음을 직접 실행하지 않는다.
 
-- 후보 수락·거절·stage 이동
-- 후보에게 이메일·메시지 발송
 - 새 role 생성·삭제
 - Slack integration, billing, contract 변경
 - sourcing run 즉시 시작

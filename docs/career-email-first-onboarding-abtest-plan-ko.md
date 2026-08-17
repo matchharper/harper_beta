@@ -168,7 +168,7 @@ worker는 사용자가 답장을 영어로 썼는지 한국어로 썼는지에 �
   - `?signup_flow=web`
   - `?signup_flow=email`
 - local assignment:
-  - 기존 `CAREER_LANDING_LOCAL_ID_STORAGE_KEY`의 local id를 salt로 Email first 25% / Login first 75% bucket
+  - 기존 `CAREER_LANDING_LOCAL_ID_STORAGE_KEY`의 local id를 salt로 배정한다. 현재 자동 배정은 Email first 0% / Login first 100%이며, `signup_flow` query override로 두 flow를 계속 강제할 수 있다.
   - local id가 없으면 id 생성 후 bucket을 계산한다.
 
 현재 `src/lib/career/utm.ts`의 hero copy A/B helper는 `career_landing_v1`과 hero label에 묶여 있다. signup flow 실험은 별도 helper로 분리한다. admin UI의 “Hero Copy A/B Test” 라벨을 그대로 재사용하면 안 된다.

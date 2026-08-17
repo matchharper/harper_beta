@@ -16,12 +16,17 @@ export function canInitiateOrgCandidateContact(stage: OrgStageId) {
   return !isOrgInternalStage(stage) && stage !== "process_stopped";
 }
 
+export function canStopOrgCandidateProcess(stage: OrgStageId) {
+  return !isOrgInternalStage(stage) && stage !== "process_stopped";
+}
+
 export function shouldOpenOrgAcceptIntroDialog(
   currentStage: OrgStageId,
   nextStage: OrgStageId
 ) {
   return (
-    currentStage === "pending_connection" &&
+    (currentStage === "pending_connection" ||
+      currentStage === "process_stopped") &&
     nextStage !== "accepted" &&
     canInitiateOrgCandidateContact(nextStage)
   );
@@ -32,7 +37,7 @@ export function shouldOpenOrgStopCandidateDialog(
   nextStage: OrgStageId
 ) {
   return (
-    currentStage === "pending_connection" && nextStage === "process_stopped"
+    canStopOrgCandidateProcess(currentStage) && nextStage === "process_stopped"
   );
 }
 

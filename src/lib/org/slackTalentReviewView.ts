@@ -80,6 +80,32 @@ export type SlackTalentReviewDecisionMember = {
   name: string | null;
 };
 
+export type SlackTalentReviewViewState = {
+  values?: Record<
+    string,
+    Record<
+      string,
+      {
+        selected_option?: { value?: string } | null;
+        selected_options?: Array<{ value?: string }>;
+        value?: string | null;
+      }
+    >
+  >;
+};
+
+export type SlackTalentReviewDecisionSubmission =
+  | {
+      acceptReason: string | null;
+      connectionMode: SlackTalentReviewConnectionMode;
+      decision: "accept";
+      introEmails: string[];
+    }
+  | {
+      decision: "reject";
+      stopNote: string | null;
+    };
+
 export type SlackModalView = Record<string, unknown>;
 
 const MAX_PROFILE_ITEMS = 24;
@@ -508,13 +534,124 @@ function decisionOption(args: {
   };
 }
 
-function decisionPreviewNotice() {
-  return {
-    text: textObject(
-      ":information_source: *확인용 미리보기입니다.* `확인`을 눌러도 후보자 상태가 바뀌거나 메일이 발송되지 않습니다."
-    ),
-    type: "section",
-  };
+function stateAction(
+  state: SlackTalentReviewViewState | null | undefined,
+  blockId: string,
+  actionId: string
+) {
+  return state?.values?.[blockId]?.[actionId];
+}
+
+function uniqueNormalizedEmails(values: unknown[]) {
+  return Array.from(
+    new Set(
+      values
+        .map(clean)
+        .map((value) => value.toLowerCase())
+        .filter(Boolean)
+    )
+  );
+}
+
+export function parseSlackTalentReviewDecisionSubmission(args: {
+  callbackId: unknown;
+  state?: SlackTalentReviewViewState | null;
+}):
+  | { errors: Record<string, string>; submission?: never }
+  | { errors?: never; submission: SlackTalentReviewDecisionSubmission } {
+  const callbackId = clean(args.callbackId);
+  if (callbackId === HARPER_TALENT_REVIEW_ACCEPT_CALLBACK_ID) {
+    const connectionMode = clean(
+      stateAction(
+        args.state,
+        "review_accept_connection_mode",
+        HARPER_TALENT_REVIEW_CONNECTION_MODE_ACTION_ID
+      )?.selected_option?.value
+    );
+    if (
+      connectionMode !== "cc_intro" &&
+      connectionMode !== "contact_directly"
+    ) {
+      return {
+        errors: {
+          review_accept_connection_mode: "연결 방식을 선택해 주세요.",
+        },
+      };
+    }
+    const introEmails = uniqueNormalizedEmails(
+      stateAction(
+        args.state,
+        "review_accept_intro_members",
+        "intro_members"
+      )?.selected_options?.map((option) => option.value) ?? []
+    );
+    if (connectionMode === "cc_intro" && introEmails.length === 0) {
+      return {
+        errors: {
+          review_accept_intro_members:
+            "소개 메일에 포함할 회사 멤버를 1명 이상 선택해 주세요.",
+        },
+      };
+    }
+    const acceptReason = clean(
+      stateAction(args.state, "review_accept_reason", "accept_reason")?.value
+    );
+    if (acceptReason.length > 2_000) {
+      return {
+        errors: {
+          review_accept_reason: "수락 이유는 2,000자 이내로 입력해 주세요.",
+        },
+      };
+    }
+    return {
+      submission: {
+        acceptReason: acceptReason || null,
+        connectionMode,
+        decision: "accept",
+        introEmails: connectionMode === "cc_intro" ? introEmails : [],
+      },
+    };
+  }
+
+  if (callbackId === HARPER_TALENT_REVIEW_REJECT_CALLBACK_ID) {
+    const allowedReasons = new Set<string>(DEFAULT_ORG_STOP_REASONS);
+    const selectedReasons = Array.from(
+      new Set(
+        (
+          stateAction(args.state, "review_reject_reasons", "reject_reasons")
+            ?.selected_options ?? []
+        )
+          .map((option) => clean(option.value))
+          .filter(Boolean)
+      )
+    );
+    if (selectedReasons.some((reason) => !allowedReasons.has(reason))) {
+      return {
+        errors: {
+          review_reject_reasons: "올바른 Pass 이유를 선택해 주세요.",
+        },
+      };
+    }
+    const note = clean(
+      stateAction(args.state, "review_reject_note", "reject_note")?.value
+    );
+    const stopNote = Array.from(
+      new Set([...selectedReasons, ...(note ? [note] : [])])
+    ).join("\n");
+    if (stopNote.length > 2_000) {
+      return {
+        errors: {
+          review_reject_note:
+            "선택한 이유를 포함해 Pass 이유는 2,000자 이내로 입력해 주세요.",
+        },
+      };
+    }
+    return {
+      submission: { decision: "reject", stopNote: stopNote || null },
+    };
+  }
+
+  return { errors: {} };
 }
 
 export function buildSlackTalentReviewAcceptDecisionView(args: {
@@ -526,7 +663,9 @@ export function buildSlackTalentReviewAcceptDecisionView(args: {
   members: SlackTalentReviewDecisionMember[];
   sourceMessageId: number;
 }): SlackModalView {
-  const connectionMode = args.connectionMode ?? "cc_intro";
+  const connectionMode =
+    args.connectionMode ??
+    (args.candidate.email ? "cc_intro" : "contact_directly");
   const metadata = encodeSlackTalentReviewViewMetadata({
     candidateIndex: args.candidateIndex,
     sourceMessageId: args.sourceMessageId,
@@ -545,7 +684,12 @@ export function buildSlackTalentReviewAcceptDecisionView(args: {
       value: "contact_directly",
     }),
   ];
-  const memberOptions = args.members.slice(0, 10).map((member) =>
+  const actorEmail = clean(args.actorEmail).toLowerCase();
+  const orderedMembers = [
+    ...args.members.filter((member) => member.email === actorEmail),
+    ...args.members.filter((member) => member.email !== actorEmail),
+  ];
+  const memberOptions = orderedMembers.slice(0, 10).map((member) =>
     decisionOption({
       description: member.email,
       label: member.name || member.email.split("@")[0] || member.email,
@@ -553,7 +697,7 @@ export function buildSlackTalentReviewAcceptDecisionView(args: {
     })
   );
   const initialMembers = memberOptions.filter(
-    (option) => option.value === clean(args.actorEmail).toLowerCase()
+    (option) => option.value === actorEmail
   );
   const candidateEmailMessage = args.candidate.email
     ? `후보자 수신 주소: ${escapeMrkdwn(args.candidate.email)}`
@@ -561,10 +705,9 @@ export function buildSlackTalentReviewAcceptDecisionView(args: {
 
   return {
     blocks: [
-      decisionPreviewNotice(),
       {
         text: textObject(
-          `*“${escapeMrkdwn(args.candidate.name)}” 후보자와의 연결 방식을 선택해 주세요.*\n${escapeMrkdwn(args.candidate.roleName)} · ${candidateEmailMessage}`
+          `*“${escapeMrkdwn(args.candidate.name)}” 후보자와의 연결 방식을 선택해 주세요.*\n${escapeMrkdwn(args.candidate.roleName)} · ${candidateEmailMessage}\n\n\`확인\`을 누르면 Harper의 후보자 상태와 결정 기록에 즉시 반영됩니다.`
         ),
         type: "section",
       },
@@ -600,7 +743,6 @@ export function buildSlackTalentReviewAcceptDecisionView(args: {
                 "plain_text"
               ),
               label: textObject("함께 연결할 멤버", "plain_text"),
-              optional: true,
               type: "input",
             },
           ]
@@ -609,6 +751,7 @@ export function buildSlackTalentReviewAcceptDecisionView(args: {
         block_id: "review_accept_reason",
         element: {
           action_id: "accept_reason",
+          max_length: 2000,
           multiline: true,
           placeholder: textObject(
             "예: 후보자의 ML infra 경험이 현재 역할과 잘 맞습니다.",
@@ -626,6 +769,7 @@ export function buildSlackTalentReviewAcceptDecisionView(args: {
       },
     ],
     callback_id: HARPER_TALENT_REVIEW_ACCEPT_CALLBACK_ID,
+    clear_on_close: true,
     close: textObject("취소", "plain_text"),
     private_metadata: metadata,
     submit: textObject("확인", "plain_text"),
@@ -644,10 +788,9 @@ export function buildSlackTalentReviewRejectDecisionView(args: {
   );
   return {
     blocks: [
-      decisionPreviewNotice(),
       {
         text: textObject(
-          `*${escapeMrkdwn(args.candidate.name)}*\n이 후보자는 이번에 연결받지 않습니다. 후보자에게는 Harper가 적절한 시점에 부드럽게 안내합니다.`
+          `*${escapeMrkdwn(args.candidate.name)}*\n이 후보자는 이번에 연결받지 않습니다. 후보자에게는 Harper가 적절한 시점에 부드럽게 안내합니다. \`확인\`을 누르면 결정이 즉시 반영됩니다.`
         ),
         type: "section",
       },
@@ -666,6 +809,7 @@ export function buildSlackTalentReviewRejectDecisionView(args: {
         block_id: "review_reject_note",
         element: {
           action_id: "reject_note",
+          max_length: 1500,
           multiline: true,
           placeholder: textObject(
             "이유를 알려주시면 다음에 더 적합한 인재를 추천하는 데 참고합니다.",
@@ -683,6 +827,7 @@ export function buildSlackTalentReviewRejectDecisionView(args: {
       },
     ],
     callback_id: HARPER_TALENT_REVIEW_REJECT_CALLBACK_ID,
+    clear_on_close: true,
     close: textObject("취소", "plain_text"),
     private_metadata: encodeSlackTalentReviewViewMetadata({
       candidateIndex: args.candidateIndex,
@@ -695,25 +840,77 @@ export function buildSlackTalentReviewRejectDecisionView(args: {
   };
 }
 
-export function buildSlackTalentReviewDecisionPreviewResultView(
+export function buildSlackTalentReviewDecisionProcessingView(
   decision: "accept" | "reject"
 ): SlackModalView {
   return {
     blocks: [
       {
         text: textObject(
-          `:white_check_mark: *${decision === "accept" ? "수락" : "거절"} 확인 화면을 검증했습니다.*\n현재는 미리보기 단계이므로 후보자 상태 변경·메일 발송·결정 로그 저장은 모두 수행하지 않았습니다.`
+          `:hourglass_flowing_sand: *${decision === "accept" ? "연결 수락" : "연결받지 않기"} 결정을 반영하고 있습니다.*\n이 창을 닫지 말고 잠시 기다려 주세요.`
         ),
         type: "section",
       },
     ],
+    close: textObject("처리 중", "plain_text"),
+    clear_on_close: true,
+    title: textObject("결정 반영 중", "plain_text"),
+    type: "modal",
+  };
+}
+
+export function buildSlackTalentReviewDecisionResultView(args: {
+  candidateName: string;
+  connectionMode?: SlackTalentReviewConnectionMode;
+  decision: "accept" | "reject";
+}): SlackModalView {
+  const detail =
+    args.decision === "reject"
+      ? "Harper의 후보자 상태와 결정 기록에 반영했습니다. 회사가 남긴 이유는 후보자에게 그대로 전달되지 않습니다."
+      : args.connectionMode === "cc_intro"
+        ? "Harper의 후보자 상태와 결정 기록에 반영하고 선택한 회사 멤버와 후보자에게 소개 메일을 발송했습니다."
+        : "Harper의 후보자 상태와 결정 기록에 반영했습니다. 회사에서 후보자에게 직접 연락해 주세요.";
+  return {
+    blocks: [
+      {
+        text: textObject(
+          `:white_check_mark: *${escapeMrkdwn(args.candidateName)} 후보자를 ${
+            args.decision === "accept"
+              ? "수락했습니다"
+              : "연결받지 않기로 했습니다"
+          }.*\n${detail}`
+        ),
+        type: "section",
+      },
+    ],
+    clear_on_close: true,
     close: textObject("닫기", "plain_text"),
-    title: textObject("미리보기 완료", "plain_text"),
+    title: textObject("결정 반영 완료", "plain_text"),
+    type: "modal",
+  };
+}
+
+export function buildSlackTalentReviewDecisionErrorView(
+  message: string
+): SlackModalView {
+  return {
+    blocks: [
+      {
+        text: textObject(
+          `:warning: *결정을 반영하지 못했습니다.*\n${escapeMrkdwn(message)}\n\nSlack 알림에서 후보자 검토를 다시 열면 최신 상태를 확인할 수 있습니다.`
+        ),
+        type: "section",
+      },
+    ],
+    clear_on_close: true,
+    close: textObject("닫기", "plain_text"),
+    title: textObject("결정 반영 실패", "plain_text"),
     type: "modal",
   };
 }
 
 export function buildSlackTalentReviewCandidateView(args: {
+  canManageCandidates: boolean;
   candidate: SlackTalentReviewCandidate;
   candidateCount: number;
   candidateIndex: number;
@@ -780,26 +977,38 @@ export function buildSlackTalentReviewCandidateView(args: {
     )
   );
 
-  blocks.push({
-    block_id: "review_candidate_decisions",
-    elements: [
-      {
-        action_id: HARPER_TALENT_REVIEW_ACCEPT_ACTION_ID,
-        style: "primary",
-        text: textObject("수락", "plain_text"),
-        type: "button",
-        value: "preview_only",
-      },
-      {
-        action_id: HARPER_TALENT_REVIEW_REJECT_ACTION_ID,
-        style: "danger",
-        text: textObject("거절", "plain_text"),
-        type: "button",
-        value: "preview_only",
-      },
-    ],
-    type: "actions",
-  });
+  blocks.push(
+    args.canManageCandidates
+      ? {
+          block_id: "review_candidate_decisions",
+          elements: [
+            {
+              action_id: HARPER_TALENT_REVIEW_ACCEPT_ACTION_ID,
+              style: "primary",
+              text: textObject("수락", "plain_text"),
+              type: "button",
+              value: "accept",
+            },
+            {
+              action_id: HARPER_TALENT_REVIEW_REJECT_ACTION_ID,
+              style: "danger",
+              text: textObject("거절", "plain_text"),
+              type: "button",
+              value: "reject",
+            },
+          ],
+          type: "actions",
+        }
+      : {
+          block_id: "review_candidate_decisions_read_only",
+          elements: [
+            textObject(
+              "Viewer 권한에서는 후보자 정보를 열람할 수 있지만 수락하거나 거절할 수 없습니다. Owner 또는 Admin에게 결정을 요청해 주세요."
+            ),
+          ],
+          type: "context",
+        }
+  );
 
   blocks.push(
     ...spacedDivider(),

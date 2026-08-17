@@ -37,7 +37,9 @@ import {
 } from "@/lib/talentOpportunity";
 import { extractPostingRoleIdsFromText } from "@/lib/career/postingLinks";
 import {
+  fetchActiveOpportunityRunsForConversation,
   fetchLatestOpportunityRun,
+  hydrateOpportunityRunsForMessages,
   serializeOpportunityRun,
 } from "@/lib/opportunityDiscovery/store";
 import { runCareerChatTurn } from "@/lib/career/chatTurn";
@@ -363,7 +365,14 @@ export async function GET(req: NextRequest) {
       const isOnboardingDone = Boolean(
         initialTalentSetting?.is_onboarding_done
       );
-      const needsOnboarding = !hasFirstSubmission && !isOnboardingDone;
+      const profileIngestionStatus =
+        conversation.profile_ingestion_status?.trim() || null;
+      const isProfileIngestionIncomplete =
+        profileIngestionStatus === "processing" ||
+        profileIngestionStatus === "failed";
+      const needsOnboarding =
+        isProfileIngestionIncomplete ||
+        (!hasFirstSubmission && !isOnboardingDone);
 
       return NextResponse.json({
         ok: true,
@@ -383,6 +392,10 @@ export async function GET(req: NextRequest) {
           resumeDownloadUrl: null,
           resumeLinks: profile?.resume_links ?? [],
           reliefNudgeSent: Boolean(conversation.relief_nudge_sent),
+          profileIngestionError: conversation.profile_ingestion_error ?? null,
+          profileIngestionStatus,
+          profileIngestionUpdatedAt:
+            conversation.profile_ingestion_updated_at ?? null,
         },
         messages: [],
         nextBeforeMessageId: null,
@@ -812,6 +825,45 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const serializedMessages = visibleMessages.map((message) => ({
+      ...toTalentMessageResponse(message as TalentMessageRow),
+      opportunityPreview: previewByMessageId.get(message.id) ?? [],
+    }));
+    const hydratedMessages: Awaited<
+      ReturnType<typeof hydrateOpportunityRunsForMessages>
+    > = await withSessionFallback({
+      fallback: serializedMessages as Awaited<
+        ReturnType<typeof hydrateOpportunityRunsForMessages>
+      >,
+      label: "message-linked opportunity runs",
+      promise: hydrateOpportunityRunsForMessages({
+        admin,
+        messages: serializedMessages,
+        userId: user.id,
+      }),
+      userId: user.id,
+    });
+    const linkedOpportunityRunIds = new Set(
+      hydratedMessages
+        .map((message) => message.recommendationSearchRun?.id)
+        .filter((runId): runId is string => Boolean(runId))
+        .map((runId) => runId.toLowerCase())
+    );
+    const activeConversationRuns = await withSessionFallback({
+      fallback: [],
+      label: "active conversation opportunity runs",
+      promise: fetchActiveOpportunityRunsForConversation({
+        admin,
+        conversationId: conversation.id,
+        userId: user.id,
+      }),
+      userId: user.id,
+    });
+    const unlinkedOpportunityRuns = activeConversationRuns
+      .filter((run) => !linkedOpportunityRunIds.has(run.id.toLowerCase()))
+      .map((run) => serializeOpportunityRun(run))
+      .filter((run) => run !== null);
+
     return NextResponse.json({
       ok: true,
       activeCompanyRoleCount,
@@ -826,6 +878,11 @@ export async function GET(req: NextRequest) {
         resumeLinks: profile?.resume_links ?? [],
         documents: serializedDocuments,
         reliefNudgeSent: Boolean(conversation.relief_nudge_sent),
+        profileIngestionError: conversation.profile_ingestion_error ?? null,
+        profileIngestionStatus:
+          conversation.profile_ingestion_status?.trim() || null,
+        profileIngestionUpdatedAt:
+          conversation.profile_ingestion_updated_at ?? null,
       },
       historyItems: [],
       historyOpportunitiesIncluded,
@@ -863,12 +920,10 @@ export async function GET(req: NextRequest) {
       },
       talentProfile,
       opportunityRun: serializeOpportunityRun(latestOpportunityRun),
+      unlinkedOpportunityRuns,
       pendingInternalOpportunityCallRequest,
       pendingInternalOpportunityCallRequests,
-      messages: visibleMessages.map((message) => ({
-        ...toTalentMessageResponse(message as TalentMessageRow),
-        opportunityPreview: previewByMessageId.get(message.id) ?? [],
-      })),
+      messages: hydratedMessages,
       nextBeforeMessageId,
     });
   } catch (error) {

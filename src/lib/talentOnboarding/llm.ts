@@ -1,6 +1,8 @@
 import {
   createChatCompletionWithFallback,
+  getLlmChatProviderForModel,
   supportsResponseFormatForModel,
+  usesMaxCompletionTokensForModel,
 } from "@/lib/llm/llm";
 import type { OpenAIResponsesReasoningEffort } from "@/lib/llm/responsesChatAdapter";
 import {
@@ -13,8 +15,16 @@ import {
   logTalentToolResult,
 } from "./toolLogging";
 
+export type TalentChatTextContentBlock = {
+  prompt_cache_breakpoint?: {
+    mode: "explicit";
+  };
+  text: string;
+  type: "input_text" | "text";
+};
+
 export type TalentChatMessage = {
-  content: string;
+  content: string | TalentChatTextContentBlock[];
   name?: string;
   role: "system" | "user" | "assistant" | "tool";
   tool_call_id?: string;
@@ -26,6 +36,18 @@ export type TalentChatMessage = {
     id: string;
     type: "function";
   }>;
+};
+
+type TalentJsonSchema = {
+  name: string;
+  schema: Record<string, unknown>;
+  strict?: boolean;
+};
+
+type TalentPromptCacheOptions = {
+  key: string;
+  mode: "explicit";
+  ttl: "30m";
 };
 
 export type TalentChatTool = {
@@ -76,6 +98,22 @@ function getMessageContent(message: any) {
   }
 
   return "";
+}
+
+function flattenTalentMessageContent(content: TalentChatMessage["content"]) {
+  if (typeof content === "string") return content;
+  return content
+    .map((part) => (typeof part?.text === "string" ? part.text : ""))
+    .filter(Boolean)
+    .join("\n");
+}
+
+function supportsExplicitPromptCache(model: string) {
+  const normalized = model.trim().toLowerCase();
+  return (
+    getLlmChatProviderForModel(normalized) === "openai" &&
+    (normalized === "gpt-5.6" || normalized.startsWith("gpt-5.6-"))
+  );
 }
 
 function getOpenAiResponseToolCallNames(response: any) {
@@ -149,8 +187,12 @@ async function createTalentChatCompletion(args: {
 }
 
 export async function runTalentAssistantCompletion(args: {
+  abortSignal?: AbortSignal;
   anthropicOverloadFallbackModel?: string;
   fallbackModel?: string;
+  jsonSchema?: TalentJsonSchema;
+  maxTokens?: number;
+  openAIResponsesPromptCache?: TalentPromptCacheOptions;
   primaryModel?: string;
   messages: TalentChatMessage[];
   openAIResponsesReasoningEffort?: OpenAIResponsesReasoningEffort;
@@ -159,9 +201,13 @@ export async function runTalentAssistantCompletion(args: {
   usageLabel?: string;
 }) {
   const {
+    abortSignal,
     anthropicOverloadFallbackModel = DEFAULT_TALENT_ANTHROPIC_OVERLOAD_FALLBACK_MODEL,
     fallbackModel = DEFAULT_TALENT_FALLBACK_MODEL,
+    jsonSchema,
+    maxTokens,
     messages,
+    openAIResponsesPromptCache,
     openAIResponsesReasoningEffort,
     primaryModel = DEFAULT_TALENT_PRIMARY_MODEL,
     temperature = 0.35,
@@ -173,6 +219,7 @@ export async function runTalentAssistantCompletion(args: {
     fallbackModel,
     model: primaryModel,
     debugLabel: usageLabel,
+    signal: abortSignal,
     ...(openAIResponsesReasoningEffort
       ? {
           openAIResponses: {
@@ -181,13 +228,44 @@ export async function runTalentAssistantCompletion(args: {
         }
       : {}),
     buildRequest: (model) => {
+      const useExplicitPromptCache = Boolean(
+        openAIResponsesPromptCache && supportsExplicitPromptCache(model)
+      );
       const responseFormat =
-        jsonMode && supportsResponseFormatForModel(model)
-          ? ({ type: "json_object" } as const)
+        (jsonMode || jsonSchema) && supportsResponseFormatForModel(model)
+          ? jsonSchema
+            ? ({
+                json_schema: {
+                  name: jsonSchema.name,
+                  schema: jsonSchema.schema,
+                  strict: jsonSchema.strict !== false,
+                },
+                type: "json_schema",
+              } as const)
+            : ({ type: "json_object" } as const)
           : undefined;
       return {
-        messages: messages as any,
+        messages: (useExplicitPromptCache
+          ? messages
+          : messages.map((message) => ({
+              ...message,
+              content: flattenTalentMessageContent(message.content),
+            }))) as any,
         temperature,
+        ...(maxTokens
+          ? usesMaxCompletionTokensForModel(model)
+            ? { max_completion_tokens: maxTokens }
+            : { max_tokens: maxTokens }
+          : {}),
+        ...(useExplicitPromptCache
+          ? {
+              prompt_cache_key: openAIResponsesPromptCache!.key,
+              prompt_cache_options: {
+                mode: openAIResponsesPromptCache!.mode,
+                ttl: openAIResponsesPromptCache!.ttl,
+              },
+            }
+          : {}),
         ...(responseFormat && { response_format: responseFormat }),
       };
     },

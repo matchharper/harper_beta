@@ -488,7 +488,7 @@ export function OrgPipeline() {
                 onMove={requestMove}
                 onSelect={(selectedItem) => {
                   markViewed(selectedItem.recommendationId);
-                  onSelect(selectedItem);
+                  onSelect(selectedItem, items, stage.label);
                 }}
                 pending={isCandidateStagePending(item)}
                 profileLabelsError={profileLabelsError}
@@ -792,6 +792,9 @@ export function OrgPipeline() {
 
       <StopCandidateDialog
         candidateName={stopItem ? getOrgCandidateDisplayName(stopItem) : ""}
+        connectionStarted={Boolean(
+          stopItem && stopItem.stage !== "pending_connection"
+        )}
         open={Boolean(stopItem)}
         pending={Boolean(stopItem && isCandidateStagePending(stopItem))}
         onClose={() => setStopItem(null)}

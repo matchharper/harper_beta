@@ -30,15 +30,15 @@ company-side LLM과 같은 모델 실행 기반을 쓰지만, 대화 범위·시
 - 공통 채팅 UI를 재사용하더라도 기존 Career 렌더 트리와 CSS 토큰의 결과가 같아야
   한다.
 - 공통 `open_url`/`web_search` 정의를 Career에서 사용하게 바꾸는 경우에도 기존
-  tool 이름과 JSON schema, 일반 URL 응답 계약을 유지한다. LinkedIn Apify reader는
-  company-side 호출에서만 명시적으로 활성화하며, Career의 기존 “지원하지 않음”
-  응답도 그대로 유지한다.
+  tool 이름과 일반 응답 계약을 유지한다. 두 surface 모두 Exa 기반의 동일 executor를
+  사용하고 LinkedIn을 포함한 URL도 같은 경로로 읽는다.
 
 ### `/org` 일반 채팅과 Slack
 
 - `mode`를 보내지 않은 기존 요청은 항상 `general`로 해석한다.
-- 일반 웹 채팅과 Slack은 현재의 workspace-scoped conversation(`role_id IS NULL`)을
-  계속 사용한다.
+- 일반 웹 채팅과 일반 Slack 대화는 현재의 workspace-scoped conversation
+  (`role_id IS NULL`)을 계속 사용한다. 다만 역할 등록을 위해 Harper가 만든 전용 Slack
+  thread는 같은 역할의 role-creation conversation을 사용한다.
 - 기존 일반 채팅 프롬프트, tool loop, 후보자 mention, 변경 제안/확정 로직은
   수정하지 않는다.
 - `role_creation`은 API entry point에서 전용 orchestrator로 분기하며 일반
@@ -73,7 +73,8 @@ company-side LLM과 같은 모델 실행 기반을 쓰지만, 대화 범위·시
 - draft 카드/역할 선택기를 누르면 일반 역할 상세가 아니라
   `/org/new?roleId=...`로 이동한다.
 - 해당 역할의 role-scoped conversation만 불러와 그대로 이어간다.
-- 다른 role의 role-creation 대화, 일반 `/org` 채팅, Slack 메시지는 보이지 않는다.
+- 다른 role의 role-creation 대화와 일반 `/org`/Slack 메시지는 보이지 않는다. 해당
+  역할 등록 전용 Slack thread의 Harper·사용자 메시지는 같은 시간순 대화로 보인다.
 - 이름을 아직 파악하지 못한 draft는 `새 역할`이라는 중립적인 임시 이름을 쓴다.
 
 ### 3.3 Recent 역할과 등록 후 수정
@@ -139,8 +140,8 @@ company-side LLM과 같은 모델 실행 기반을 쓰지만, 대화 범위·시
 
 | scope | `company_conversations.role_id` | 사용처 |
 | --- | --- | --- |
-| workspace | `NULL` | 기존 `/org` 일반 채팅 및 Slack |
-| role creation | 해당 role UUID | `/org/new` 역할 생성 대화 |
+| workspace | `NULL` | 기존 `/org` 일반 채팅 및 일반 Slack 대화 |
+| role creation | 해당 role UUID | `/org/new` 역할 생성 대화 및 연결된 전용 Slack thread |
 
 Role-creation conversation metadata에는 최소 다음을 둔다.
 
@@ -153,9 +154,10 @@ Role-creation conversation metadata에는 최소 다음을 둔다.
 - 마지막으로 처리한 confirmation의 action/message/decision과 처리 시각
 - `completedAt`, `completedBy` (완료 시)
 
-`company_messages.message_type`은 role creation에서 항상 `chat`이다. role-specific
-conversation을 조회할 때 conversation id와 role id를 함께 검사하므로 Slack worker가
-workspace conversation에 쓴 메시지가 쿼리 결과에 들어갈 수 없다.
+Role creation에서 웹 메시지는 `message_type = 'chat'`, 연결된 전용 Slack thread의
+메시지는 `message_type = 'slack'`으로 같은 role-specific conversation에 저장한다.
+`/org/new?roleId=...`는 두 유형만 함께 조회한다. 다른 Slack thread와 workspace
+conversation의 메시지는 conversation id가 다르므로 결과에 들어갈 수 없다.
 
 ### 4.3 첫 전송 멱등성
 
@@ -292,25 +294,21 @@ Role-creation mode에는 역할 작성에 필요한 작은 범위의 도구를 �
 
 후보자 조회/수락/거절/단계 이동, meeting, Slack reply 도구는 이 모드에 제공하지 않는다.
 
-## 8. URL 읽기와 LinkedIn Apify routing
+## 8. URL 읽기와 Exa routing
 
-`open_url`은 URL을 정규화한 후 host/path로 reader를 선택한다.
-아래 LinkedIn reader는 company-side LLM에서만 opt-in하며 Career에는 적용하지 않는다.
+`web_search`는 Exa search에서 최대 10개 결과와 결과별 본문(최대 15,000자),
+highlight(최대 500자)를 함께 가져온다. LLM에는 title, URL, highlight, 작성자와 게시일
+같은 compact metadata만 전달하고 본문은 URL 기준으로 `documents` cache에 저장한다.
+그래서 같은 turn이나 이후 turn에서 `open_url`을 호출하면 검색 때 저장한 본문을 바로
+재사용할 수 있다.
 
-| URL | reader | 결과 원칙 |
-| --- | --- | --- |
-| `linkedin.com/in/*`, `/pub/*` | profile actor | 기본 정보, headline/about, 현재·과거 경험, 교육, 핵심 skills |
-| `linkedin.com/jobs/view/*` 등 job URL | job actor | URL/job ID가 정확히 일치하는 공고 1개만 |
-| `linkedin.com/company/*` | company actor | 회사 소개, 규모, 산업, 위치, 홈페이지, specialties, funding 요약 |
-| 그 외 | 기존 Firecrawl/documents cache | 기존 계약 유지 |
+`open_url`은 URL을 정규화하고 `documents` cache를 먼저 읽는다. cache miss이면 Exa
+contents API로 최대 20,000자의 본문을 읽고 저장한 뒤 LLM에 반환한다. Career와
+company-side LLM 모두 같은 경로를 사용하며 LinkedIn 전용 actor나 차단 분기는 없다.
 
-Job actor가 여러 행을 반환하면 정규화한 LinkedIn job ID 또는 canonical URL로 exact
-match한 한 행만 선택한다. exact match가 없으면 첫 행을 추측해서 쓰지 않고 읽기 실패로
-처리한다.
-
-모든 reader는 actor raw payload를 그대로 반환하지 않는다. role 작성에 필요한 필드만
-pick하고 문자열/배열 길이를 제한하며 인증정보, 내부 actor metadata, 불필요한 crawl
-데이터는 버린다.
+`linkedin.com/jobs/search` URL에 숫자형 `currentJobId`가 있으면 Exa 호출과 cache key를
+`linkedin.com/jobs/view/{currentJobId}`로 정규화한다. 그 외 LinkedIn URL은 다른 일반
+URL과 동일하게 Exa로 읽는다.
 
 ## 9. 파일 UX와 파싱
 

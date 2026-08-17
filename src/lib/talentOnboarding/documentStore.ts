@@ -6,7 +6,7 @@ import {
 } from "@/lib/talentOnboarding/models";
 
 const TALENT_DOCUMENT_SELECT =
-  "id, talent_id, kind, file_name, storage_path, content_type, size_bytes, extracted_text, is_public, is_primary, created_at";
+  "id, talent_id, kind, file_name, storage_path, content_type, size_bytes, content_sha256, extracted_text, is_public, is_primary, created_at";
 
 export async function fetchTalentDocuments(args: {
   admin: TalentAdminClient;

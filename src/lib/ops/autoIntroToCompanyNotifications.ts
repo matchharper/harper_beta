@@ -28,6 +28,7 @@ import {
   type AutoIntroRoleSummary,
 } from "@/lib/ops/autoIntroToCompanyMessage";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { getCompanyInternalRoleRequest } from "@/lib/companyInternalRole";
 import type { Json } from "@/types/database.types";
 
 const INTRO_TO_COMPANY_KIND = "intro_to_company";
@@ -46,6 +47,10 @@ type FetchPageResult<T> = {
 };
 
 type RoleRow = {
+  company_internal_roles?:
+    | { request?: string | null }
+    | Array<{ request?: string | null }>
+    | null;
   company_workspace_id: string;
   description: string | null;
   description_summary: string | null;
@@ -53,7 +58,6 @@ type RoleRow = {
   is_expired: boolean | null;
   location_text: string | null;
   name: string;
-  request: string | null;
   role_id: string;
   salary_range: string | null;
   seniority_level: string | null;
@@ -448,7 +452,7 @@ async function fetchRoles(
   for (const roleIdChunk of chunkValues(roleIds)) {
     let query = (admin.from("company_roles" as any) as any)
       .select(
-        "role_id, company_workspace_id, name, description, description_summary, request, information, summary, location_text, work_mode, seniority_level, salary_range, status, is_expired"
+        "role_id, company_workspace_id, name, description, description_summary, information, summary, location_text, work_mode, seniority_level, salary_range, status, is_expired, company_internal_roles(request)"
       )
       .in("role_id", roleIdChunk);
     if (filters.workspaceId) {
@@ -1539,7 +1543,10 @@ function roleContext(section: WorkspaceRoleNotificationSection) {
     information: compactJson(section.role.information, 2000),
     location: section.role.location_text,
     name: section.role.name,
-    request: truncateText(section.role.request, 2000),
+    request: truncateText(
+      getCompanyInternalRoleRequest(section.role.company_internal_roles),
+      2000
+    ),
     salaryRange: section.role.salary_range,
     seniority: section.role.seniority_level,
     summary: compactJson(section.role.summary, 2000),

@@ -15,7 +15,10 @@ import {
   requiresOrgIntroEmailRecipient,
 } from "@/lib/org/candidateDecision";
 import { buildOrgInviteEmail } from "@/lib/org/inviteEmail";
-import { getCompanyEventActorLabelFromUser } from "@/lib/org/companyEvents";
+import {
+  buildCompanyEventContent,
+  getCompanyEventActorLabelFromUser,
+} from "@/lib/org/companyEvents";
 import {
   applyWebsiteCompanyDataChanges,
   type WebsiteCompanyDataChange,
@@ -28,6 +31,15 @@ import {
 } from "@/lib/org/permissions";
 import { getOrgImplicitAcceptanceStage } from "@/lib/org/recommendationStage";
 import { normalizeOrgRoleStatus } from "@/lib/org/roleStatus";
+import {
+  normalizeOrgCompanyCriteriaEvaluations,
+  type OrgCompanyCriteriaEvaluation,
+} from "@/lib/org/companyCriteriaEvaluations";
+import {
+  normalizeOrgRoleCriteria,
+  parseOrgRoleCriteria,
+  type OrgRoleCriterion,
+} from "@/lib/org/roleCriteria";
 import { normalizeOrgAgentRecommendationIdFilter } from "@/lib/org/pipelineStage";
 import {
   ConnectionConfirmationEmailError,
@@ -40,7 +52,7 @@ import {
 } from "@/lib/ops/connectionConfirmationEmail";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import {
-  // notifyOrgCandidateAcceptedSlack,
+  notifyOrgCandidateAcceptedSlack,
   notifyOrgCandidateRejectedSlack,
   notifyOrgMemberJoinedSlack,
 } from "@/lib/org/slack";
@@ -50,6 +62,8 @@ import {
   humanizeCompanyTalentRequestStatus,
 } from "@/lib/companyTalentRequests/server";
 import type { Database, Json } from "@/types/database.types";
+import { getCompanyInternalRoleRecord } from "@/lib/companyInternalRole";
+import { fetchOrgProcessClosureNotifications } from "@/lib/org/processClosureNotification";
 
 type SupabaseAdminClient = ReturnType<typeof getSupabaseAdmin>;
 type CompanyUserRow = Database["public"]["Tables"]["company_users"]["Row"];
@@ -62,6 +76,12 @@ type CompanyUserWorkspaceRow =
 type CompanyWorkspaceInvitationRow =
   Database["public"]["Tables"]["company_workspace_invitations"]["Row"];
 type CompanyRoleRow = Database["public"]["Tables"]["company_roles"]["Row"];
+type CompanyRoleWithInternalRow = CompanyRoleRow & {
+  company_internal_roles?:
+    | { criteria?: unknown; request?: string | null }
+    | Array<{ criteria?: unknown; request?: string | null }>
+    | null;
+};
 type CompanyMemoryRow = Database["public"]["Tables"]["company_memories"]["Row"];
 type RoleStageRow =
   Database["public"]["Tables"]["ops_matching_role_stages"]["Row"];
@@ -147,6 +167,7 @@ export type OrgWorkspaceUpdateFields = {
 };
 
 export type OrgRole = {
+  criteria: OrgRoleCriterion[];
   createdAt: string;
   description: string | null;
   employmentTypes: string[];
@@ -446,6 +467,12 @@ export type OrgTalentDetailResponse = {
   feed: OrgFeedItem[];
   introEmails: OrgIntroEmailFeedItem[];
   members: OrgMember[];
+  processClosureNotification: {
+    deliveredAt: string | null;
+    sentChannel: string | null;
+    status: "not_sent" | "sent";
+    stoppedAt: string | null;
+  } | null;
   profile: {
     bio: string | null;
     documents: Array<{
@@ -462,6 +489,7 @@ export type OrgTalentDetailResponse = {
   };
   profileMarkdown: string;
   recommendation: {
+    criteriaEvaluations: OrgCompanyCriteriaEvaluation[];
     fitReasons: string[];
     fitSummary: string | null;
     recommendedAt: string;
@@ -747,11 +775,17 @@ function toWorkspace(
 }
 
 function toRole(
-  row: CompanyRoleRow,
+  row: CompanyRoleWithInternalRow,
   memory?: { content: string; updated_at: string } | null,
-  lastConversationAt?: string | null
+  lastConversationAt?: string | null,
+  internal?: { criteria?: unknown; request?: string | null } | null
 ): OrgRole {
+  const canonicalInternal =
+    internal === undefined
+      ? getCompanyInternalRoleRecord(row.company_internal_roles)
+      : internal;
   return {
+    criteria: normalizeOrgRoleCriteria(canonicalInternal?.criteria),
     createdAt: row.created_at,
     description: row.description ?? null,
     employmentTypes: normalizeOrgRoleEmploymentTypes(row.type),
@@ -761,7 +795,7 @@ function toRole(
     memory: normalizeNullableText(memory?.content) ?? null,
     memoryUpdatedAt: memory?.updated_at ?? null,
     name: row.name,
-    request: row.request ?? null,
+    request: canonicalInternal?.request ?? null,
     roleId: row.role_id,
     salaryRange: row.salary_range ?? null,
     status: row.status ?? null,
@@ -1116,7 +1150,7 @@ function buildMember(
   };
 }
 
-function sortRoles(rows: CompanyRoleRow[]) {
+function sortRoles<T extends CompanyRoleRow>(rows: T[]) {
   return rows.sort((left, right) => {
     const leftStatus = normalizeText(left.status).toLowerCase();
     const rightStatus = normalizeText(right.status).toLowerCase();
@@ -1611,7 +1645,7 @@ async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string) {
   const [rolesResult, memoriesResult, conversationsResult] = await Promise.all([
     (admin.from("company_roles" as any) as any)
       .select(
-        "role_id, company_workspace_id, name, external_jd_url, description, request, salary_range, status, type, location_text, work_mode, created_at, updated_at, is_expired"
+        "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, type, location_text, work_mode, created_at, updated_at, is_expired"
       )
       .eq("company_workspace_id", workspaceId)
       .eq("source_type", "internal")
@@ -1631,6 +1665,24 @@ async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string) {
   if (rolesResult.error) throw rolesResult.error;
   if (memoriesResult.error) throw memoriesResult.error;
   if (conversationsResult.error) throw conversationsResult.error;
+
+  const roleRows = (rolesResult.data ?? []) as CompanyRoleRow[];
+  const roleIds = roleRows.map((role) => role.role_id);
+  const internalResult = roleIds.length
+    ? await (admin.from("company_internal_roles" as any) as any)
+        .select("role_id, request, criteria")
+        .in("role_id", roleIds)
+    : { data: [], error: null };
+  if (internalResult.error) throw internalResult.error;
+  const internalByRoleId = new Map(
+    (
+      (internalResult.data ?? []) as Array<{
+        criteria: unknown;
+        request: string | null;
+        role_id: string;
+      }>
+    ).map((row) => [row.role_id, row])
+  );
 
   const memoryByRoleId = new Map<
     string,
@@ -1659,11 +1711,12 @@ async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string) {
     }
   }
 
-  return sortRoles((rolesResult.data ?? []) as CompanyRoleRow[]).map((role) =>
+  return sortRoles(roleRows).map((role) =>
     toRole(
       role,
       memoryByRoleId.get(role.role_id) ?? null,
-      lastConversationByRoleId.get(role.role_id) ?? null
+      lastConversationByRoleId.get(role.role_id) ?? null,
+      internalByRoleId.get(role.role_id) ?? null
     )
   );
 }
@@ -2086,14 +2139,14 @@ async function fetchRoleRowsForWorkspace(
 ) {
   const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, request, salary_range, status, source_type, type, location_text, work_mode, created_at, updated_at, is_expired"
+      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, source_type, type, location_text, work_mode, created_at, updated_at, is_expired, company_internal_roles(request, criteria)"
     )
     .eq("company_workspace_id", workspaceId)
     .eq("source_type", "internal")
     .not("is_expired", "is", true);
 
   if (error) throw error;
-  return sortRoles((data ?? []) as CompanyRoleRow[]);
+  return sortRoles((data ?? []) as CompanyRoleWithInternalRow[]);
 }
 
 async function fetchCustomStages(
@@ -3292,6 +3345,22 @@ export async function setOrgCandidateStage(args: {
       savedStage: recommendation.saved_stage,
       tags: (previousTags ?? []) as TalentOpportunityTagRow[],
     })?.stage ?? "pending_connection";
+  const reactivation =
+    previousStage === "process_stopped" && stage === "connected";
+  const processClosureNotification = reactivation
+    ? ((
+        await fetchOrgProcessClosureNotifications({
+          admin,
+          roleIds: [roleId],
+          talentId,
+        })
+      ).get(roleId) ?? {
+        deliveredAt: null,
+        sentChannel: null,
+        status: "not_sent" as const,
+        stoppedAt: null,
+      })
+    : null;
 
   if (
     args.expectedPreviousStage &&
@@ -3333,7 +3402,9 @@ export async function setOrgCandidateStage(args: {
 
     try {
       introDelivery = await sendOrgIntroEmail({
-        acceptReason,
+        // Company-side reactivation context belongs in the company reply, not
+        // in the candidate-facing CC introduction.
+        acceptReason: reactivation ? "" : acceptReason,
         admin,
         candidate,
         companyUser,
@@ -3373,6 +3444,20 @@ export async function setOrgCandidateStage(args: {
 
   if (insertError) throw insertError;
 
+  if (reactivation) {
+    const { error: reopenError } = await (
+      admin.from("talent_opportunity_recommendation" as any) as any
+    )
+      .update({
+        saved_stage: "accepted",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("talent_id", talentId)
+      .eq("role_id", roleId)
+      .eq("saved_stage", "closed");
+    if (reopenError) throw reopenError;
+  }
+
   const previousLabel = buildStageLabel(previousStage, stageRows);
   const nextLabel = buildStageLabel(stage, stageRows);
   const nextDestinationLabel = buildStageDestinationLabel(nextLabel);
@@ -3405,6 +3490,13 @@ export async function setOrgCandidateStage(args: {
     introRequested: isIntroRequested,
     org: true,
     previousStage,
+    processClosureNotificationDelivered:
+      processClosureNotification?.status === "sent",
+    processClosureNotificationDeliveredAt:
+      processClosureNotification?.deliveredAt ?? null,
+    processClosureNotificationSentChannel:
+      processClosureNotification?.sentChannel ?? null,
+    reactivation,
     stage,
     stopNote: stage === "process_stopped" ? stopNote : null,
     stopReason: null,
@@ -3467,13 +3559,15 @@ export async function setOrgCandidateStage(args: {
         };
 
         if (isIntroRequested || contactDirectly) {
-          // TODO: Re-enable the candidate accepted Slack notification when needed.
-          // await notifyOrgCandidateAcceptedSlack({
-          //   ...slackBaseArgs,
-          //   acceptReason,
-          //   contactDirectly,
-          //   introEmails,
-          // });
+          await notifyOrgCandidateAcceptedSlack({
+            ...slackBaseArgs,
+            acceptReason,
+            closureNotificationDelivered:
+              processClosureNotification?.status === "sent",
+            contactDirectly,
+            introEmails,
+            reactivated: reactivation,
+          });
         } else {
           await notifyOrgCandidateRejectedSlack({
             ...slackBaseArgs,
@@ -3488,6 +3582,10 @@ export async function setOrgCandidateStage(args: {
 
   return {
     ok: true as const,
+    closureNotificationDelivered: processClosureNotification?.status === "sent",
+    closureNotificationDeliveredAt:
+      processClosureNotification?.deliveredAt ?? null,
+    reactivated: reactivation,
     roleId,
     stage,
     stageTag: nextTag,
@@ -4133,6 +4231,7 @@ export async function fetchOrgTalentDetail(args: {
 
   const [
     talentResult,
+    fitCriteriaResult,
     experiencesResult,
     educationsResult,
     extrasResult,
@@ -4142,12 +4241,18 @@ export async function fetchOrgTalentDetail(args: {
     companyRequestHistoryResult,
     connectionConfirmationEmails,
     introEmails,
+    processClosureNotifications,
   ] = await Promise.all([
     (admin.from("talent_users" as any) as any)
       .select(
         "user_id, email, name, profile_picture, headline, bio, current_location, location, resume_file_name, resume_storage_path, resume_links, resume_text"
       )
       .eq("user_id", talentId)
+      .maybeSingle(),
+    (admin.from("talent_opportunity_fit" as any) as any)
+      .select("company_criteria_evaluations")
+      .eq("talent_id", talentId)
+      .eq("opportunity_id", recommendation.role_id)
       .maybeSingle(),
     (admin.from("talent_experiences" as any) as any)
       .select("*")
@@ -4201,10 +4306,18 @@ export async function fetchOrgTalentDetail(args: {
           talentId,
         })
       : Promise.resolve([] as OrgIntroEmailFeedItem[]),
+    stageInfo.stage === "process_stopped"
+      ? fetchOrgProcessClosureNotifications({
+          admin,
+          roleIds: [recommendation.role_id],
+          talentId,
+        })
+      : Promise.resolve(new Map()),
   ]);
 
   const talent = talentResult.data as TalentUserRow | null;
   if (talentResult.error) throw talentResult.error;
+  if (fitCriteriaResult.error) throw fitCriteriaResult.error;
   if (!talent) throw new OrgHttpError(404, "Talent not found");
 
   const experiences = optionalRows<TalentExperienceRow>(
@@ -4303,6 +4416,15 @@ export async function fetchOrgTalentDetail(args: {
     feed: sortOrgFeedItems(progressFeedItems).slice(0, 50),
     introEmails,
     members,
+    processClosureNotification:
+      stageInfo.stage === "process_stopped"
+        ? (processClosureNotifications.get(recommendation.role_id) ?? {
+            deliveredAt: null,
+            sentChannel: null,
+            status: "not_sent" as const,
+            stoppedAt: null,
+          })
+        : null,
     profile: {
       bio: talent.bio ?? null,
       documents: documents.map((document) => ({
@@ -4346,6 +4468,9 @@ export async function fetchOrgTalentDetail(args: {
           : talent,
     }),
     recommendation: {
+      criteriaEvaluations: normalizeOrgCompanyCriteriaEvaluations(
+        fitCriteriaResult.data?.company_criteria_evaluations
+      ),
       fitReasons: coerceJsonStringList(recommendation.fit_reasons),
       fitSummary: recommendation.fit_summary ?? null,
       recommendedAt: recommendation.recommended_at,
@@ -4850,10 +4975,110 @@ export async function updateOrgWorkspaceRequestOnly(args: {
   };
 }
 
+export async function updateOrgRoleCriteria(args: {
+  actorLabel?: string;
+  criteria: unknown;
+  expectedCriteria?: unknown;
+  roleId: string;
+  source?: "chat" | "slack" | "website";
+  user: User;
+  workspaceId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const workspaceId = normalizeText(args.workspaceId);
+  const roleId = normalizeText(args.roleId);
+  if (!workspaceId || !roleId) {
+    throw new OrgHttpError(400, "Missing required fields");
+  }
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "manage_candidates",
+    user: args.user,
+    workspaceId,
+  });
+
+  let criteria: OrgRoleCriterion[];
+  try {
+    criteria = parseOrgRoleCriteria(args.criteria);
+  } catch (error) {
+    throw new OrgHttpError(
+      400,
+      error instanceof Error ? error.message : "Invalid role criteria"
+    );
+  }
+
+  const { data: role, error: roleError } = await (
+    admin.from("company_roles" as any) as any
+  )
+    .select("role_id, name")
+    .eq("company_workspace_id", workspaceId)
+    .eq("role_id", roleId)
+    .eq("source_type", "internal")
+    .not("is_expired", "is", true)
+    .maybeSingle();
+  if (roleError) throw roleError;
+  if (!role) throw new OrgHttpError(404, "Role not found");
+
+  const { data: internal, error: internalError } = await (
+    admin.from("company_internal_roles" as any) as any
+  )
+    .select("criteria")
+    .eq("role_id", roleId)
+    .maybeSingle();
+  if (internalError) throw internalError;
+  if (!internal) {
+    throw new OrgHttpError(409, "Canonical internal role data is missing");
+  }
+  const currentCriteria = normalizeOrgRoleCriteria(internal.criteria);
+  const expectedCriteria =
+    args.expectedCriteria === undefined
+      ? currentCriteria
+      : normalizeOrgRoleCriteria(args.expectedCriteria);
+  const eventContent =
+    buildCompanyEventContent({
+      actorLabel:
+        normalizeText(args.actorLabel) ||
+        getOrgCompanyEventActorLabel(args.user),
+      changes: [
+        {
+          after: criteria.map((item) => item.name),
+          before: currentCriteria.map((item) => item.name),
+          key: `${normalizeText(role.name) || "Role"}.criteria`,
+        },
+      ],
+    }) ?? `${getOrgCompanyEventActorLabel(args.user)} · 역할 평가 기준 수정`;
+
+  const { data, error } = await (admin.rpc as any)(
+    "update_company_internal_role_criteria_v1",
+    {
+      p_criteria: criteria as unknown as Json,
+      p_event_content: eventContent,
+      p_expected_criteria: expectedCriteria as unknown as Json,
+      p_role_id: roleId,
+      p_source: args.source ?? "website",
+      p_workspace_id: workspaceId,
+    }
+  );
+  if (error) throw error;
+  const result = getJsonRecord(data);
+  if (result.status === "conflict") {
+    throw new OrgHttpError(
+      409,
+      "Role 평가 기준이 방금 변경되었습니다. 새로고침 후 다시 저장해 주세요."
+    );
+  }
+  if (result.status !== "updated" && result.status !== "already_reflected") {
+    throw new Error("Unexpected role criteria update result");
+  }
+  return { criteria, status: result.status };
+}
+
 export async function updateOrgRole(args: {
+  criteria?: unknown;
   description?: string | null;
   employmentTypes?: string[] | null;
   externalJdUrl?: string | null;
+  expectedCriteria?: unknown;
   isExpired?: boolean | null;
   locationText?: string | null;
   name?: string | null;
@@ -4968,9 +5193,20 @@ export async function updateOrgRole(args: {
     if (salaryError) throw salaryError;
   }
 
+  if (args.criteria !== undefined) {
+    await updateOrgRoleCriteria({
+      criteria: args.criteria,
+      expectedCriteria: args.expectedCriteria,
+      roleId,
+      source: "website",
+      user: args.user,
+      workspaceId,
+    });
+  }
+
   const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, request, salary_range, status, type, location_text, work_mode, created_at, updated_at, is_expired"
+      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, type, location_text, work_mode, created_at, updated_at, is_expired"
     )
     .eq("company_workspace_id", workspaceId)
     .eq("role_id", roleId)
@@ -4979,7 +5215,17 @@ export async function updateOrgRole(args: {
   if (error) throw error;
   if (!data) throw new OrgHttpError(404, "Role not found");
   const updatedRole = data as CompanyRoleRow;
-  return { ok: true as const, role: toRole(updatedRole) };
+  const { data: internalRole, error: internalError } = await (
+    admin.from("company_internal_roles" as any) as any
+  )
+    .select("request, criteria")
+    .eq("role_id", roleId)
+    .maybeSingle();
+  if (internalError) throw internalError;
+  return {
+    ok: true as const,
+    role: toRole(updatedRole, null, null, internalRole),
+  };
 }
 
 export async function updateOrgRoleRequestOnly(args: {
@@ -5001,7 +5247,7 @@ export async function updateOrgRoleRequestOnly(args: {
     admin.from("company_roles" as any) as any
   )
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, request, salary_range, status, source_type, type, location_text, work_mode, created_at, updated_at, is_expired"
+      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, source_type, type, location_text, work_mode, created_at, updated_at, is_expired"
     )
     .eq("company_workspace_id", workspaceId)
     .eq("role_id", roleId)
@@ -5013,24 +5259,27 @@ export async function updateOrgRoleRequestOnly(args: {
   const beforeRole = before as CompanyRoleRow;
   const isInternalRole =
     normalizeText(beforeRole.source_type).toLowerCase() === "internal";
+  if (!isInternalRole) {
+    throw new OrgHttpError(
+      400,
+      "Role requests are only available for internal roles"
+    );
+  }
   const shouldCheckExpectedRequest = Object.prototype.hasOwnProperty.call(
     args,
     "expectedRequest"
   );
-  let previousRequest = beforeRole.request ?? null;
-  if (isInternalRole) {
-    const { data: internalRole, error: internalError } = await (
-      admin.from("company_internal_roles" as any) as any
-    )
-      .select("role_id, request")
-      .eq("role_id", roleId)
-      .maybeSingle();
-    if (internalError) throw internalError;
-    if (!internalRole) {
-      throw new OrgHttpError(409, "Canonical internal role data is missing");
-    }
-    previousRequest = internalRole.request ?? null;
+  const { data: internalRole, error: internalError } = await (
+    admin.from("company_internal_roles" as any) as any
+  )
+    .select("role_id, request")
+    .eq("role_id", roleId)
+    .maybeSingle();
+  if (internalError) throw internalError;
+  if (!internalRole) {
+    throw new OrgHttpError(409, "Canonical internal role data is missing");
   }
+  const previousRequest = internalRole.request ?? null;
   if (
     shouldCheckExpectedRequest &&
     previousRequest !== (args.expectedRequest ?? null)
@@ -5041,79 +5290,45 @@ export async function updateOrgRoleRequestOnly(args: {
     );
   }
 
-  if (isInternalRole) {
-    try {
-      await applyWebsiteCompanyDataChanges({
-        actorLabel: getOrgCompanyEventActorLabel(args.user),
-        admin,
-        changes: [
-          {
-            ...(shouldCheckExpectedRequest
-              ? { expected: args.expectedRequest ?? null }
-              : {}),
-            key: "role_request",
-            roleId,
-            value: args.request ?? null,
-          },
-        ],
-        source: "chat",
-        workspaceId,
-      });
-    } catch (error) {
-      if (error instanceof WebsiteCompanyDataConflictError) {
-        throw new OrgHttpError(
-          409,
-          "Role request changed while the agent was responding"
-        );
-      }
-      throw error;
+  try {
+    await applyWebsiteCompanyDataChanges({
+      actorLabel: getOrgCompanyEventActorLabel(args.user),
+      admin,
+      changes: [
+        {
+          ...(shouldCheckExpectedRequest
+            ? { expected: args.expectedRequest ?? null }
+            : {}),
+          key: "role_request",
+          roleId,
+          value: args.request ?? null,
+        },
+      ],
+      source: "chat",
+      workspaceId,
+    });
+  } catch (error) {
+    if (error instanceof WebsiteCompanyDataConflictError) {
+      throw new OrgHttpError(
+        409,
+        "Role request changed while the agent was responding"
+      );
     }
-    const { data, error } = await (admin.from("company_roles" as any) as any)
-      .select(
-        "role_id, company_workspace_id, name, external_jd_url, description, request, salary_range, status, type, location_text, work_mode, created_at, updated_at"
-      )
-      .eq("company_workspace_id", workspaceId)
-      .eq("role_id", roleId)
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) throw new OrgHttpError(404, "Role not found");
-    return {
-      ok: true as const,
-      previousRequest,
-      role: toRole(data as CompanyRoleRow),
-    };
+    throw error;
   }
-
-  let updateQuery = (admin.from("company_roles" as any) as any)
-    .update({
-      request: args.request ?? null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("company_workspace_id", workspaceId)
-    .eq("role_id", roleId);
-  if (shouldCheckExpectedRequest) {
-    updateQuery =
-      previousRequest === null
-        ? updateQuery.is("request", null)
-        : updateQuery.eq("request", previousRequest);
-  }
-  const { data, error } = await updateQuery
+  const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, request, salary_range, status, type, location_text, work_mode, created_at, updated_at"
+      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, type, location_text, work_mode, created_at, updated_at, company_internal_roles(request, criteria)"
     )
+    .eq("company_workspace_id", workspaceId)
+    .eq("role_id", roleId)
     .maybeSingle();
-
   if (error) throw error;
-  if (!data) {
-    throw new OrgHttpError(
-      409,
-      "Role request changed while the agent was responding"
-    );
-  }
+  if (!data) throw new OrgHttpError(404, "Role not found");
   return {
     ok: true as const,
     previousRequest,
-    role: toRole(data as CompanyRoleRow),
+    role: toRole(data as CompanyRoleWithInternalRow),
   };
 }
 
@@ -5198,6 +5413,109 @@ export async function createOrgRoleReviewStage(args: {
     ok: true,
     roleId,
     stage: buildOrgRoleReviewStage(data as RoleStageRow),
+  };
+}
+
+export async function createOrgRoleReviewStages(args: {
+  labels: unknown;
+  roleId: string;
+  user: User;
+  workspaceId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const workspaceId = normalizeText(args.workspaceId);
+  const roleId = normalizeText(args.roleId);
+  if (!workspaceId || !roleId) {
+    throw new OrgHttpError(400, "Missing required fields");
+  }
+  if (
+    !Array.isArray(args.labels) ||
+    args.labels.length < 1 ||
+    args.labels.length > 6
+  ) {
+    throw new OrgHttpError(400, "labels must contain one to six items");
+  }
+  const normalizedLabels = args.labels.map((value) => normalizeText(value));
+  if (
+    normalizedLabels.some(
+      (label) => !label || label.length > MAX_ORG_ROLE_STAGE_LABEL_LENGTH
+    )
+  ) {
+    throw new OrgHttpError(
+      400,
+      `Every stage label must contain 1 to ${MAX_ORG_ROLE_STAGE_LABEL_LENGTH} characters`
+    );
+  }
+  const requestedLabels: string[] = [];
+  const requestedLabelKeys = new Set<string>();
+  for (const label of normalizedLabels) {
+    const key = label.toLocaleLowerCase();
+    if (requestedLabelKeys.has(key)) continue;
+    requestedLabelKeys.add(key);
+    requestedLabels.push(label);
+  }
+
+  await assertOrgRoleAccess({ admin, roleId, user: args.user, workspaceId });
+  const currentRows = await fetchStageRowsForRole(admin, roleId);
+  const currentByLabel = new Map(
+    currentRows.map((row) => [
+      normalizeText(row.label).toLocaleLowerCase(),
+      row,
+    ])
+  );
+  const missingLabels: string[] = [];
+  for (const label of requestedLabels) {
+    const key = label.toLocaleLowerCase();
+    if (!currentByLabel.has(key)) missingLabels.push(label);
+  }
+  const latestSortOrder = currentRows.reduce(
+    (latest, row) => Math.max(latest, row.sort_order ?? 0),
+    0
+  );
+  let createdRows: RoleStageRow[] = [];
+  if (missingLabels.length > 0) {
+    const { data, error } = await (
+      admin.from("ops_matching_role_stages" as any) as any
+    )
+      .insert(
+        missingLabels.map((label, index) => ({
+          label,
+          role_id: roleId,
+          sort_order: latestSortOrder + index + 1,
+        }))
+      )
+      .select("id, role_id, label, sort_order");
+    if (error) {
+      if (error.code === "23505") {
+        throw new OrgHttpError(
+          409,
+          "Pipeline stages changed while this request was being applied. Read the Role again before retrying."
+        );
+      }
+      throw error;
+    }
+    createdRows = (data ?? []) as RoleStageRow[];
+  }
+  const createdByLabel = new Map(
+    createdRows.map((row) => [
+      normalizeText(row.label).toLocaleLowerCase(),
+      row,
+    ])
+  );
+
+  return {
+    ok: true as const,
+    roleId,
+    stages: requestedLabels.map((label) => {
+      const key = label.toLocaleLowerCase();
+      const created = createdByLabel.get(key);
+      const row = created ?? currentByLabel.get(key);
+      if (!row) throw new Error("Pipeline stage result is missing");
+      return {
+        ...buildOrgRoleReviewStage(row),
+        status: created ? ("created" as const) : ("already_exists" as const),
+      };
+    }),
   };
 }
 
@@ -5295,4 +5613,53 @@ export async function deleteOrgRoleReviewStage(args: {
     roleId,
     stageId,
   };
+}
+
+export async function deleteEmptyOrgRoleReviewStage(args: {
+  roleId: string;
+  stageId: string;
+  user: User;
+  workspaceId: string;
+}): Promise<OrgRoleReviewStageDeleteResponse> {
+  const admin = getSupabaseAdmin();
+  const workspaceId = normalizeText(args.workspaceId);
+  const roleId = normalizeText(args.roleId);
+  const stageId = normalizeText(args.stageId);
+  if (!workspaceId || !roleId || !stageId) {
+    throw new OrgHttpError(400, "Missing required fields");
+  }
+
+  await assertOrgRoleAccess({ admin, roleId, user: args.user, workspaceId });
+  const { data: stage, error: stageLookupError } = await (
+    admin.from("ops_matching_role_stages" as any) as any
+  )
+    .select("id")
+    .eq("id", stageId)
+    .eq("role_id", roleId)
+    .maybeSingle();
+  if (stageLookupError) throw stageLookupError;
+  if (!stage) throw new OrgHttpError(404, "Pipeline stage not found");
+
+  const { count, error: usageError } = await (
+    admin.from("talent_opportunity_tag" as any) as any
+  )
+    .select("id", { count: "exact", head: true })
+    .eq("opportunity_id", roleId)
+    .eq("tag", buildCustomStageTag(stageId));
+  if (usageError) throw usageError;
+  if ((count ?? 0) > 0) {
+    throw new OrgHttpError(
+      409,
+      "이 단계에 후보자가 있어 삭제할 수 없습니다. 후보자를 다른 단계로 옮긴 뒤 다시 시도해 주세요."
+    );
+  }
+
+  const { error: deleteError } = await (
+    admin.from("ops_matching_role_stages" as any) as any
+  )
+    .delete()
+    .eq("id", stageId)
+    .eq("role_id", roleId);
+  if (deleteError) throw deleteError;
+  return { ok: true, roleId, stageId };
 }

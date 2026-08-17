@@ -59,6 +59,7 @@ export const EMPLOYMENT_LABEL: Record<OpportunityEmploymentType, string> = {
 
 export const STATUS_LABEL: Record<OpportunityStatus, string> = {
   active: "진행",
+  draft: "작성중",
   ended: "종료",
   paused: "중단",
   top_priority: "최우선",

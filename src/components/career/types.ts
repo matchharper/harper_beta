@@ -1,5 +1,9 @@
 import { OpportunityType } from "@/lib/opportunityType";
-import type { OpportunityDiscoveryAgentVariant } from "@/lib/opportunityDiscovery/types";
+import type {
+  OpportunityDiscoveryAgentVariant,
+  SerializedOpportunityRun,
+} from "@/lib/opportunityDiscovery/types";
+import type { OpportunityRunMarkerRelation } from "@/lib/opportunityDiscovery/messageMarker";
 import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
 export {
   CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER,
@@ -282,17 +286,29 @@ export type CareerHistoryOpportunity = {
   workMode: string | null;
 };
 
-export type CareerOpportunityRun = {
-  agentVariant: CareerOpportunityAgentVariant | null;
-  completedAt: string | null;
-  coverage: Record<string, unknown>;
-  createdAt: string;
-  errorMessage: string | null;
-  id: string;
-  inputLocked: boolean;
-  startedAt: string | null;
-  status: string;
-  trigger: string;
+export type CareerOpportunityRun = Omit<
+  SerializedOpportunityRun,
+  | "active"
+  | "candidateCount"
+  | "completionKind"
+  | "deliveryRetryPending"
+  | "failureKind"
+  | "purposeText"
+  | "recommendationCount"
+  | "requestedMaxResults"
+  | "searchTerminal"
+  | "sourceKind"
+> & {
+  active?: boolean;
+  candidateCount?: number | null;
+  completionKind?: string | null;
+  deliveryRetryPending?: boolean;
+  failureKind?: string | null;
+  purposeText?: string | null;
+  recommendationCount?: number | null;
+  requestedMaxResults?: number | null;
+  searchTerminal?: boolean;
+  sourceKind?: SerializedOpportunityRun["sourceKind"];
 };
 
 export type CareerHistoryItem = {
@@ -314,6 +330,8 @@ export type CareerMessage = {
   messageType: string;
   createdAt: string;
   opportunityPreview?: CareerHistoryOpportunity[];
+  recommendationSearchRelation?: OpportunityRunMarkerRelation | null;
+  recommendationSearchRun?: CareerOpportunityRun | null;
   recommendationStatusAfterCharCount?: number | null;
   thinkingLogs?: string[];
   typing?: boolean;
@@ -327,6 +345,8 @@ export type CareerMessagePayload = {
   messageType: string;
   createdAt: string;
   opportunityPreview?: CareerHistoryOpportunity[];
+  recommendationSearchRelation?: OpportunityRunMarkerRelation | null;
+  recommendationSearchRun?: CareerOpportunityRun | null;
   recommendationStatusAfterCharCount?: number | null;
   thinkingLogs?: string[];
 };
@@ -375,6 +395,7 @@ export type SessionResponse = {
   profileSettingsMeta?: CareerProfileSettingsMeta;
   talentProfile?: CareerTalentProfile;
   opportunityRun?: CareerOpportunityRun | null;
+  unlinkedOpportunityRuns?: CareerOpportunityRun[];
   pendingInternalOpportunityCallRequest?: CareerInternalOpportunityCallRequest | null;
   pendingInternalOpportunityCallRequests?: CareerInternalOpportunityCallRequest[];
   messages: CareerMessagePayload[];

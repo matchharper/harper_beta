@@ -31,6 +31,7 @@ type OpenAICompatibleUsage = {
     text_tokens?: number | null;
   } | null;
   input_tokens_details?: {
+    cache_write_tokens?: number | null;
     cached_tokens?: number | null;
   } | null;
   input_tokens?: number | null;
@@ -41,6 +42,7 @@ type OpenAICompatibleUsage = {
   } | null;
   output_tokens?: number | null;
   prompt_tokens_details?: {
+    cache_write_tokens?: number | null;
     cached_tokens?: number | null;
   } | null;
   prompt_tokens?: number | null;
@@ -59,6 +61,7 @@ type LlmModelPricing = {
 
 type LlmTokenUsage = {
   cacheCreationInputTokens: number | null;
+  cacheCreationInputTokensIncludedInInput: boolean;
   cacheReadInputTokens: number | null;
   cacheReadInputTokensIncludedInInput: boolean;
   inputTokens: number | null;
@@ -352,9 +355,18 @@ export function extractLlmTokenUsage(response: any): LlmTokenUsage {
   );
   const nestedCacheReadInputTokens =
     responseInputCacheReadTokens ?? chatInputCacheReadTokens;
-  const cacheCreationInputTokens = toNullableNumber(
+  const explicitCacheCreationInputTokens = toNullableNumber(
     usage?.cache_creation_input_tokens
   );
+  const nestedCacheCreationInputTokens = toNullableNumber(
+    usage?.input_tokens_details?.cache_write_tokens ??
+      usage?.prompt_tokens_details?.cache_write_tokens
+  );
+  const cacheCreationInputTokens =
+    explicitCacheCreationInputTokens ?? nestedCacheCreationInputTokens;
+  const cacheCreationInputTokensIncludedInInput =
+    explicitCacheCreationInputTokens === null &&
+    nestedCacheCreationInputTokens !== null;
   const explicitCacheReadInputTokens = toNullableNumber(
     usage?.cache_read_input_tokens
   );
@@ -373,7 +385,9 @@ export function extractLlmTokenUsage(response: any): LlmTokenUsage {
     cacheReadInputTokensIncludedInInput && inputTokens !== null;
   const totalProcessedInputTokens = toNullableNumber(
     (inputTokens ?? 0) +
-      (cacheCreationInputTokens ?? 0) +
+      (cacheCreationInputTokensIncludedInInput
+        ? 0
+        : (cacheCreationInputTokens ?? 0)) +
       (inputTokensAlreadyIncludeCacheRead ? 0 : (cacheReadInputTokens ?? 0))
   );
   const totalTokens = toNullableNumber(
@@ -385,6 +399,7 @@ export function extractLlmTokenUsage(response: any): LlmTokenUsage {
 
   return {
     cacheCreationInputTokens,
+    cacheCreationInputTokensIncludedInInput,
     cacheReadInputTokens,
     cacheReadInputTokensIncludedInInput,
     inputTokens,
@@ -404,7 +419,10 @@ export function estimateLlmUsageCost(model: string, usage: LlmTokenUsage) {
   const inputTokens = usage.inputTokens ?? 0;
   const standardInputTokens = Math.max(
     inputTokens -
-      (usage.cacheReadInputTokensIncludedInInput ? cacheReadInputTokens : 0),
+      (usage.cacheReadInputTokensIncludedInInput ? cacheReadInputTokens : 0) -
+      (usage.cacheCreationInputTokensIncludedInInput
+        ? cacheCreationInputTokens
+        : 0),
     0
   );
   const outputTokens = usage.outputTokens ?? 0;

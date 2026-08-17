@@ -1,4 +1,5 @@
 import { fetchRecentTalentActivitySummaries } from "@/lib/talentOnboarding/activityEvents";
+import { createHash } from "node:crypto";
 import { CAREER_LLM_CONFIG } from "@/lib/career/llm";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import { careerT } from "@/lib/career/translatedCareerMessage";
@@ -18,6 +19,23 @@ import {
   buildInitialRecommendationPendingResult,
   fetchActiveInitialConversationRun,
 } from "@/lib/talentOnboarding/initialRecommendationGuard";
+import { hasPendingBehaviorContextChanges } from "@/lib/talentOnboarding/behaviorContextFreshness";
+import {
+  FULL_JD_FIT_MAX_FRESH_ROLES,
+  buildFullJdBatchWaves,
+  buildFullJdUserContextText,
+  canonicalJobPostingCompanyKey,
+  fullJdPromptCacheKey,
+  hasEnoughDirectFullJdFits,
+  resolveJobPostingRecommendationStrategy,
+  scoreFullJdCandidateBatch,
+  selectFullJdEvaluations,
+  type FullJdBehaviorContext,
+  type FullJdFitEvaluation,
+  type FullJdPromptCandidate,
+  type FullJdSelectionInput,
+  type JobPostingRecommendationStrategy,
+} from "@/lib/talentOnboarding/jobPostingFullJdScoring";
 
 if (typeof window !== "undefined") {
   throw new Error("jobPostingRecommendations must not run in the browser");
@@ -74,6 +92,11 @@ type RawRoleRow = {
   posted_at?: string | null;
   role_id?: string | null;
   role_name?: string | null;
+  salary_currency?: string | null;
+  salary_max?: number | string | null;
+  salary_min?: number | string | null;
+  salary_period?: string | null;
+  salary_range?: string | null;
   search_rank?: number | null;
   seniority_level?: string | null;
   summary?: unknown;
@@ -99,6 +122,7 @@ type RoleCard = {
   roleDescription: string;
   roleId: string;
   roleName: string;
+  salaryRange: string | null;
   score: number | null;
   searchRank: number;
   seniorityLevel: string | null;
@@ -112,6 +136,7 @@ type RoleCard = {
 type ExternalFitCache = {
   createdAt: string | null;
   fitSummary: string;
+  hasScore: boolean;
   reason: string;
   reasons: string[];
   score100: number;
@@ -175,7 +200,7 @@ const MAX_SEARCH_RESULTS = 150;
 const PREVIOUSLY_RECOMMENDED_ROLE_ID_PAGE_SIZE = 1000;
 const RECENT_TALENT_ACTIVITY_SUMMARY_LIMIT = 10;
 const RECENT_CONVERSATION_SUMMARY_LIMIT = 3;
-const ROLE_FIT_SUMMARY_VERSION = "v1";
+const ROLE_FIT_SUMMARY_VERSION = "v2-neutral-source-hash";
 const ROLE_FIT_SUMMARY_MAX_LENGTH = 1400;
 const RECENT_RECOMMENDATIONS_FOR_CONTEXT = 10;
 const RECENT_DELIVERY_TEXTS_LIMIT = 6;
@@ -189,7 +214,9 @@ const TALENT_EXPERIENCE_DESCRIPTION_MAX_LENGTH = 5000;
 const TALENT_TIMELINE_DESCRIPTION_MAX_LENGTH = 900;
 const FINAL_RECOMMENDATION_COUNT = 5;
 const CONTINUATION_RECOMMENDATION_BATCH_LIMIT = 10;
-const EXTERNAL_FIT_CACHE_TTL_DAYS = 10;
+const EXTERNAL_FIT_CACHE_TTL_DAYS = 30;
+const EXTERNAL_FIT_CACHE_CHANGED_CONTEXT_TTL_DAYS = 10;
+const EXTERNAL_FIT_CACHE_EVALUATOR_KEY = "beta-full-jd-v1";
 const EXTERNAL_FIT_CACHE_SHORTLIST_SKIP_MIN_SCORE100 = 70;
 const EXTERNAL_FIT_CACHE_SHORTLIST_SKIP_MIN_COUNT = 20;
 const COMPANY_LEADERSHIP_MAX_PEOPLE = 3;
@@ -212,6 +239,10 @@ const RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL =
   CAREER_LLM_CONFIG.recommendJobPostings.fallbackModel;
 const RECOMMEND_JOB_POSTINGS_ANTHROPIC_OVERLOAD_FALLBACK_MODEL =
   CAREER_LLM_CONFIG.recommendJobPostings.anthropicOverloadFallbackModel;
+const RECOMMEND_JOB_POSTINGS_FULL_JD_PLAN_MODEL =
+  CAREER_LLM_CONFIG.recommendJobPostings.fullJdPlanModel;
+const RECOMMEND_JOB_POSTINGS_FULL_JD_SCORING_MODEL =
+  CAREER_LLM_CONFIG.recommendJobPostings.fullJdScoringModel;
 
 const DEBUG_RECOMMEND_JOB_POSTINGS =
   process.env.DEBUG_RECOMMEND_JOB_POSTINGS === "1";
@@ -277,6 +308,35 @@ Rules:
 - If the request is broad, still produce high-recall ftsKeywords based on user's profile rather than generic "good jobs".
 `;
 
+const FULL_JD_PLAN_SYSTEM_PROMPT = `Create a high-recall search plan for external public job postings. Return JSON only.
+
+The current request is the primary target. Use explicit user settings next. Profile, behavior context, and feedback may help choose aliases and relevant domain terms, but do not turn an inferred or weak preference into a hard database filter.
+
+Return exactly this shape:
+{
+  "searchIntentSummary": "one sentence in the requested output language",
+  "ftsKeywords": [{"terms": ["synonyms"], "weight": 1.0}],
+  "role_titles": ["broad title fragment"],
+  "include_contract": false,
+  "include_parttime": false,
+  "include_intern": false,
+  "includeRemote": true,
+  "remoteOnly": false,
+  "is_prefer_entry": 0,
+  "locations": [],
+  "postingRecency": null
+}
+
+role_titles is a hard ILIKE gate over the posting title, so return 1-12 broad title fragments and useful Korean/English aliases. Recall matters more than precision. Do not put company names, skills, location, stage, or prestige in role_titles.
+
+ftsKeywords may cover title, responsibilities, domain, skills, and problem area. Group Korean/English synonyms when useful. Avoid generic standalone terms and do not put company stage, funding, investors, salary, culture, brand prestige, location, or work mode in ftsKeywords. Use weights 1-5 to express relevance, not exclusion.
+
+Only use locations when the current request or an explicit setting makes geography a real constraint. Leave locations empty for an inferred profile location or a mild preference. Never put remote in locations. Set remoteOnly only for an explicit remote-only requirement. includeRemote controls whether otherwise matching remote roles are allowed.
+
+Employment-type switches are hard filters. Enable contract, part-time, or internship only when the request or explicit settings accept them. is_prefer_entry is 1 for entry/junior preference, -1 for non-entry preference, and 0 when neutral. postingRecency must be null unless the current request explicitly asks for freshness; otherwise use recentDays/maxAgeDays/recentWeight/olderWeight values between 1-3650 days and 0-20 weights.
+
+Do not output SQL or fields outside the schema.`;
+
 const SHORTLIST_SYSTEM_PROMPT = `너는 Harper의 external job-posting shortlist 담당자다.
 반드시 JSON만 반환한다.
 
@@ -295,10 +355,7 @@ Output schema:
 - 절대 같은 회사의 후보를 2개 이상 고르지 않는다. 같은 회사에서는 현재 요청에 가장 직접적으로 맞는 role 1개만 고른다.
 - company_score는 회사 점수이다. role fit 점수가 아니다.
 - 같은 역할이라면 company_score가 높은 회사를 더 우선시해라.
-- retrievalFtsScore는 title 후보군 안에서 계산한 FTS/domain relevance에 company score bonus를 더한 내부 retrieval rank다. 참고값일 뿐 사용자에게 말하지 않는다. retrievalFtsScore를 선택에 반영하지 않는다.
 `;
-// - 현재 요청과 명확히 어긋나는 후보는 company_score 혹은 retrievalFtsScore가 높아도 제외한다.
-// - 이미 한번이라도 추천된 회사는 정말 좋은 role이 아니면 안고르는게 좋아.
 
 function finalSelectionSystemPrompt(outputLanguage: string) {
   const fitSummarySchemaInstruction =
@@ -307,8 +364,8 @@ function finalSelectionSystemPrompt(outputLanguage: string) {
       : "회사와 역할에 대한 중립 요약. 한글로 작성";
   const fitSummaryExample =
     outputLanguage === "English"
-      ? '- Example: "ElevenLabs develops AI for speech synthesis, voice cloning, and audio generation. Its substantial funding and strong adoption make it a technically compelling company for a Voice AI career. This Research Engineer role owns datasets, model training, and quality improvements for TTS models. The scope spans core voice-model development rather than a single product feature."'
-      : '- 예: "ElevenLabs는 음성 합성·음성 복제·오디오 생성 AI를 개발하는 글로벌 연구 중심 회사입니다. 대규모 투자와 높은 사용량이 확인되는 회사라 Voice AI 커리어에서 브랜드와 기술 밀도가 모두 강한 편입니다. 이 역할은 Research Engineer로 TTS 모델의 데이터셋, 모델 학습, 품질 개선을 담당합니다. 특정 기능 하나에만 묶이기보다 음성 AI 모델 개발 전반에 깊게 관여하는 포지션입니다."';
+      ? '- Example: "ElevenLabs develops AI for speech synthesis, voice cloning, and audio generation. Its substantial funding and strong adoption make it a technically compelling company for a Voice AI career. This Research Engineer role owns datasets, model training, and quality improvements for TTS models. The scope spans core voice-model development rather than a single product feature. The role is remote within the United States."'
+      : '- 예: "ElevenLabs는 음성 합성·음성 복제·오디오 생성 AI를 개발하는 글로벌 연구 중심 회사입니다. 대규모 투자와 높은 사용량이 확인되는 회사라 Voice AI 커리어에서 브랜드와 기술 밀도가 모두 강한 편입니다. 이 역할은 Research Engineer로 TTS 모델의 데이터셋, 모델 학습, 품질 개선을 담당합니다. 특정 기능 하나에만 묶이기보다 음성 AI 모델 개발 전반에 깊게 관여하는 포지션입니다. 근무지는 경기 판교이며 출퇴근 근무입니다."';
 
   return `너는 Harper의 external job-posting selector다.
 반드시 JSON만 반환한다.
@@ -338,6 +395,11 @@ Output schema:
 - score: 정수 0~100. 이 유저에게 지금 추천하기 얼마나 방어 가능한지 나타낸다. retrieval 점수나 회사 점수를 복사하지 않는다.
 - fitSummary is a neutral card summary. It should cover company context in 2-4
   concise lines/sentences and role context in 2-4 concise lines/sentences in ${outputLanguage}.
+  End on its own final line with one short sentence stating the provided location and work mode.
+  Omit it only when both are missing; never infer a country restriction,
+  office-day requirement, or remote policy.
+  When provided, add one further final line stating the exact compensation range.
+  Never convert currencies, estimate total compensation, or infer equity, bonus, or benefits.
   Use provided investment, funding amount, investor, stage, when it would make the company more compelling
   to this user. Never put personal fit reasoning in fitSummary.
   Use founder background information only when it is given, the company is small and the founders have good experience.
@@ -743,6 +805,7 @@ type RecentRecommendationRow = {
   clickedAt?: string | null;
   companyName?: string | null;
   feedback?: string | null;
+  feedbackAt?: string | null;
   feedbackReason?: string | null;
   fitReasons?: unknown;
   fitSummary?: string | null;
@@ -758,6 +821,7 @@ type RecentRecommendationRow = {
   status?: string | null;
   tradeoffs?: unknown;
   viewedAt?: string | null;
+  updatedAt?: string | null;
   workMode?: string | null;
 };
 
@@ -907,19 +971,20 @@ function compactDeliveryMetaForLlm(value: unknown) {
 
 async function fetchRecentConversationSummaries(args: {
   admin: AdminClient;
+  asOf?: string | null;
   conversationId: string;
   userId: string;
 }) {
-  const { data, error } = await ((
-    args.admin.from("talent_conversation_summaries" as any) as any
-  )
+  let query = (args.admin.from("talent_conversation_summaries" as any) as any)
     .select("created_at, segment_summary, to_message_id")
     .eq("talent_id", args.userId)
     .eq("conversation_id", args.conversationId)
     .neq("segment_summary", "")
     .order("to_message_id", { ascending: false })
     .order("created_at", { ascending: false })
-    .limit(RECENT_CONVERSATION_SUMMARY_LIMIT) as any);
+    .limit(RECENT_CONVERSATION_SUMMARY_LIMIT);
+  if (args.asOf) query = query.lte("created_at", args.asOf);
+  const { data, error } = await (query as any);
 
   if (error) {
     throw new Error(
@@ -940,9 +1005,10 @@ async function fetchRecentConversationSummaries(args: {
 
 async function fetchRecentRecommendations(args: {
   admin: AdminClient;
+  asOf?: string | null;
   userId: string;
 }) {
-  const { data, error } = await ((
+  let query = (
     args.admin.from("talent_opportunity_recommendation" as any) as any
   )
     .select(
@@ -951,7 +1017,9 @@ async function fetchRecentRecommendations(args: {
        opportunity_type,
        feedback,
        feedback_reason,
+       feedback_at,
        created_at,
+       updated_at,
        viewed_at,
        clicked_at,
        saved_stage,
@@ -970,7 +1038,9 @@ async function fetchRecentRecommendations(args: {
     .eq("talent_id", args.userId)
     .eq("opportunity_type", OpportunityType.ExternalJd)
     .order("created_at", { ascending: false })
-    .limit(RECENT_RECOMMENDATIONS_FOR_CONTEXT) as any);
+    .limit(RECENT_RECOMMENDATIONS_FOR_CONTEXT);
+  if (args.asOf) query = query.lte("created_at", args.asOf);
+  const { data, error } = await (query as any);
 
   if (error) {
     throw new Error(error.message ?? "Failed to load recommendation history");
@@ -984,6 +1054,7 @@ async function fetchRecentRecommendations(args: {
         clickedAt: cleanText(row?.clicked_at, 80) || null,
         companyName: cleanText(workspace?.company_name, 160) || null,
         feedback: cleanText(row?.feedback, 80) || null,
+        feedbackAt: cleanText(row?.feedback_at, 120) || null,
         feedbackReason: normalizeMultiline(row?.feedback_reason, 500) || null,
         fitReasons: row?.fit_reasons,
         fitSummary: normalizeMultiline(row?.fit_summary, 700) || null,
@@ -1002,10 +1073,343 @@ async function fetchRecentRecommendations(args: {
         status: cleanText(row?.saved_stage, 80),
         tradeoffs: row?.tradeoffs,
         viewedAt: cleanText(row?.viewed_at, 80) || null,
+        updatedAt: cleanText(row?.updated_at, 120) || null,
         workMode: cleanText(role?.work_mode, 80) || null,
       };
     }
   );
+}
+
+type JobPostingBehaviorContextSnapshot = {
+  lastEvaluatedAt: string | null;
+  lastConsumedChangeId: number;
+  text: string;
+  version: number | null;
+};
+
+async function fetchJobPostingBehaviorContextSnapshot(args: {
+  admin: AdminClient;
+  asOf?: string | null;
+  userId: string;
+}): Promise<JobPostingBehaviorContextSnapshot | null> {
+  try {
+    const { data, error } = await ((
+      args.admin.from("talent_behavior_contexts" as any) as any
+    )
+      .select(
+        "context_text, context_version, context_hash, last_consumed_change_id, last_evaluated_at, builder_version"
+      )
+      .eq("talent_id", args.userId)
+      .maybeSingle() as unknown as Promise<{
+      data: unknown;
+      error: { message?: string } | null;
+    }>);
+    if (error) {
+      infoJson("behavior context unavailable", { message: error.message });
+      return null;
+    }
+    const row = asRecord(data);
+    const contextText = normalizeMultiline(row?.context_text, 24_000);
+    if (!contextText) return null;
+    if (cleanText(row?.builder_version, 120) !== "behavior_context_lines_v1") {
+      infoJson("behavior context builder mismatch", { userId: args.userId });
+      return null;
+    }
+    const headings = [
+      "현재 명시적 목표",
+      "확실한 제약",
+      "관찰된 선호",
+      "최근 변화",
+      "불확실하거나 충돌하는 부분",
+      "근거 강도",
+    ];
+    const contextLines = contextText.split("\n");
+    const headingIndexes = headings.map((heading) =>
+      contextLines.indexOf(heading)
+    );
+    if (
+      contextLines[0] !== headings[0] ||
+      headings.some(
+        (heading) =>
+          contextLines.filter((line) => line === heading).length !== 1
+      ) ||
+      headingIndexes.some(
+        (value, index) => index > 0 && value <= headingIndexes[index - 1]
+      )
+    ) {
+      infoJson("behavior context schema invalid", { userId: args.userId });
+      return null;
+    }
+    const storedHash = cleanText(row?.context_hash, 128);
+    const expectedHash = createHash("sha256")
+      .update(contextText, "utf8")
+      .digest("hex");
+    if (!storedHash || storedHash !== expectedHash) {
+      infoJson("behavior context hash mismatch", { userId: args.userId });
+      return null;
+    }
+    const lastEvaluatedAt = cleanText(row?.last_evaluated_at, 120) || null;
+    if (
+      args.asOf &&
+      lastEvaluatedAt &&
+      new Date(lastEvaluatedAt).getTime() > new Date(args.asOf).getTime()
+    ) {
+      return null;
+    }
+    const lastConsumedChangeIdText = cleanText(
+      row?.last_consumed_change_id,
+      40
+    );
+    const lastConsumedChangeId = lastConsumedChangeIdText
+      ? Number(lastConsumedChangeIdText)
+      : Number.NaN;
+    if (
+      !Number.isSafeInteger(lastConsumedChangeId) ||
+      lastConsumedChangeId < 0
+    ) {
+      infoJson("behavior context cursor unavailable", {
+        userId: args.userId,
+      });
+      return null;
+    }
+    if (
+      await hasPendingBehaviorContextChanges({
+        admin: args.admin,
+        asOf: args.asOf,
+        lastConsumedChangeId,
+        userId: args.userId,
+      })
+    ) {
+      infoJson("behavior context stale", {
+        lastConsumedChangeId,
+        userId: args.userId,
+      });
+      return null;
+    }
+    const version = Number(row?.context_version);
+    return {
+      lastEvaluatedAt,
+      lastConsumedChangeId,
+      text: contextText,
+      version: Number.isFinite(version) ? version : null,
+    };
+  } catch (error) {
+    infoJson("behavior context unavailable", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
+async function fetchRecentUserMessagesAfterBehaviorContext(args: {
+  admin: AdminClient;
+  asOf?: string | null;
+  conversationId: string;
+  lastEvaluatedAt: string | null;
+  request: string;
+  userId: string;
+}) {
+  try {
+    let query = (args.admin.from("talent_messages" as any) as any)
+      .select("content, created_at, id")
+      .eq("user_id", args.userId)
+      .eq("conversation_id", args.conversationId)
+      .eq("role", "user")
+      .order("created_at", { ascending: false })
+      .limit(6);
+    if (args.lastEvaluatedAt) {
+      query = query.gt("created_at", args.lastEvaluatedAt);
+    }
+    if (args.asOf) query = query.lte("created_at", args.asOf);
+    const { data, error } = (await query) as {
+      data: unknown;
+      error: { message?: string } | null;
+    };
+    if (error) {
+      infoJson("recent behavior messages unavailable", {
+        message: error.message,
+      });
+      return [];
+    }
+    const requestKey = normalizeMultiline(args.request, 1_400).toLowerCase();
+    return (Array.isArray(data) ? data : [])
+      .map((row) => {
+        const content = normalizeMultiline(row?.content, 1_200);
+        if (!content || content.toLowerCase() === requestKey) return "";
+        const createdAt = compactDatetimeForLlm(row?.created_at);
+        return createdAt
+          ? `${createdAt} | user: ${content}`
+          : `user: ${content}`;
+      })
+      .filter(Boolean)
+      .reverse();
+  } catch (error) {
+    infoJson("recent behavior messages unavailable", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return [];
+  }
+}
+
+async function fetchRecentRecommendationSignalTimes(args: {
+  admin: AdminClient;
+  asOf?: string | null;
+  userId: string;
+}) {
+  const timestamps = new Map<string, number>();
+  try {
+    let query = (
+      args.admin.from("talent_opportunity_recommendation" as any) as any
+    )
+      .select(
+        "id,feedback_at,updated_at,created_at,viewed_at,clicked_at,dismissed_at"
+      )
+      .eq("talent_id", args.userId)
+      .eq("opportunity_type", OpportunityType.ExternalJd)
+      .order("updated_at", { ascending: false })
+      .limit(60);
+    if (args.asOf) query = query.lte("created_at", args.asOf);
+    const { data, error } = await (query as any);
+    if (error) {
+      infoJson("recent recommendation signal timestamps unavailable", {
+        message: error.message,
+      });
+      return timestamps;
+    }
+    const asOfMs = args.asOf
+      ? new Date(args.asOf).getTime()
+      : Number.POSITIVE_INFINITY;
+    for (const row of Array.isArray(data) ? data : []) {
+      const id = cleanText(row?.id, 120);
+      if (!id) continue;
+      const timestamp = [
+        row?.feedback_at,
+        row?.updated_at,
+        row?.viewed_at,
+        row?.clicked_at,
+        row?.dismissed_at,
+      ]
+        .map((value) => {
+          const parsed = value ? new Date(String(value)).getTime() : Number.NaN;
+          return Number.isFinite(parsed) && parsed <= asOfMs
+            ? parsed
+            : Number.NEGATIVE_INFINITY;
+        })
+        .reduce(
+          (latest, value) => Math.max(latest, value),
+          Number.NEGATIVE_INFINITY
+        );
+      if (Number.isFinite(timestamp)) timestamps.set(id, timestamp);
+    }
+  } catch (error) {
+    infoJson("recent recommendation signal timestamps unavailable", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+  return timestamps;
+}
+
+async function buildFullJdBehaviorContext(args: {
+  admin: AdminClient;
+  asOf?: string | null;
+  conversationId: string;
+  recentRecommendations: RecentRecommendationRow[];
+  redactionTerms: string[];
+  request: string;
+  userId: string;
+}): Promise<FullJdBehaviorContext | null> {
+  const snapshot = await fetchJobPostingBehaviorContextSnapshot({
+    admin: args.admin,
+    asOf: args.asOf,
+    userId: args.userId,
+  });
+  if (!snapshot) return null;
+  const recentMessages = await fetchRecentUserMessagesAfterBehaviorContext({
+    admin: args.admin,
+    asOf: args.asOf,
+    conversationId: args.conversationId,
+    lastEvaluatedAt: snapshot.lastEvaluatedAt,
+    request: args.request,
+    userId: args.userId,
+  });
+  const parsedCutoff = snapshot.lastEvaluatedAt
+    ? new Date(snapshot.lastEvaluatedAt).getTime()
+    : Number.NEGATIVE_INFINITY;
+  const cutoff = Number.isFinite(parsedCutoff)
+    ? parsedCutoff
+    : Number.NEGATIVE_INFINITY;
+  const signalTimes = await fetchRecentRecommendationSignalTimes({
+    admin: args.admin,
+    asOf: args.asOf,
+    userId: args.userId,
+  });
+  const recentFeedback = args.recentRecommendations
+    .filter((item) => {
+      const hasSignal = Boolean(
+        cleanText(item.feedback, 80) ||
+        cleanText(item.feedbackReason, 220) ||
+        cleanText(item.savedStage, 80) ||
+        item.viewedAt ||
+        item.clickedAt
+      );
+      const fallbackTimestamp = item.recommendedAt
+        ? new Date(item.recommendedAt).getTime()
+        : Number.NaN;
+      if (args.asOf) {
+        const asOfMs = new Date(args.asOf).getTime();
+        const atOrBeforeAsOf = (value: string | null | undefined) => {
+          const parsed = value ? new Date(value).getTime() : Number.NaN;
+          return Number.isFinite(parsed) && parsed <= asOfMs;
+        };
+        if (
+          (cleanText(item.feedback, 80) ||
+            cleanText(item.feedbackReason, 220)) &&
+          !atOrBeforeAsOf(item.feedbackAt)
+        ) {
+          return false;
+        }
+        if (cleanText(item.savedStage, 80) && !atOrBeforeAsOf(item.updatedAt)) {
+          return false;
+        }
+        if (item.viewedAt && !atOrBeforeAsOf(item.viewedAt)) return false;
+        if (item.clickedAt && !atOrBeforeAsOf(item.clickedAt)) return false;
+      }
+      const signalAt = item.id
+        ? (signalTimes.get(item.id) ??
+          (args.asOf ? Number.NaN : fallbackTimestamp))
+        : fallbackTimestamp;
+      return (
+        hasSignal &&
+        (!args.asOf || Number.isFinite(signalAt)) &&
+        (!Number.isFinite(signalAt) || signalAt > cutoff)
+      );
+    })
+    .slice(0, 10)
+    .map((item) =>
+      compactRecentRecommendation(item, args.redactionTerms, false)
+    )
+    .filter(Boolean)
+    .reverse();
+  if (
+    await hasPendingBehaviorContextChanges({
+      admin: args.admin,
+      asOf: args.asOf,
+      lastConsumedChangeId: snapshot.lastConsumedChangeId,
+      userId: args.userId,
+    })
+  ) {
+    infoJson("behavior context became stale during read", {
+      lastConsumedChangeId: snapshot.lastConsumedChangeId,
+      userId: args.userId,
+    });
+    return null;
+  }
+  return {
+    recentFeedback,
+    recentMessages,
+    text: snapshot.text,
+    version: snapshot.version,
+  };
 }
 
 type PreviousExternalRecommendation = {
@@ -1016,12 +1420,13 @@ type PreviousExternalRecommendation = {
 
 async function fetchExistingExternalRecommendations(args: {
   admin: AdminClient;
+  asOf?: string | null;
   userId: string;
 }) {
   const result: PreviousExternalRecommendation[] = [];
   let offset = 0;
   while (true) {
-    const { data, error } = await ((
+    let query = (
       args.admin.from("talent_opportunity_recommendation" as any) as any
     )
       .select(
@@ -1034,10 +1439,9 @@ async function fetchExistingExternalRecommendations(args: {
       )
       .eq("talent_id", args.userId)
       .eq("opportunity_type", OpportunityType.ExternalJd)
-      .range(
-        offset,
-        offset + PREVIOUSLY_RECOMMENDED_ROLE_ID_PAGE_SIZE - 1
-      ) as any);
+      .range(offset, offset + PREVIOUSLY_RECOMMENDED_ROLE_ID_PAGE_SIZE - 1);
+    if (args.asOf) query = query.lte("created_at", args.asOf);
+    const { data, error } = await (query as any);
 
     if (error) {
       throw new Error(
@@ -1066,21 +1470,75 @@ async function fetchExistingExternalRecommendations(args: {
   return result;
 }
 
+async function fetchRecentExternalCompanyRanks(args: {
+  admin: AdminClient;
+  asOf?: string | null;
+  recentRecommendations: RecentRecommendationRow[];
+  userId: string;
+}) {
+  const names: string[] = [];
+  try {
+    let query = (
+      args.admin.from("talent_opportunity_recommendation" as any) as any
+    )
+      .select(
+        `created_at,
+         company_roles!inner(
+           source_type,
+           company_workspace:company_workspace_id(company_name)
+         )`
+      )
+      .eq("talent_id", args.userId)
+      .eq("opportunity_type", OpportunityType.ExternalJd)
+      .order("created_at", { ascending: false })
+      .limit(60);
+    if (args.asOf) query = query.lte("created_at", args.asOf);
+    const { data, error } = (await query) as unknown as {
+      data: unknown;
+      error: { message?: string } | null;
+    };
+    if (error) throw new Error(error.message ?? "recent company query failed");
+    for (const row of Array.isArray(data) ? data : []) {
+      const role = asRecord(row?.company_roles);
+      const workspace = asRecord(role?.company_workspace);
+      const name = cleanText(workspace?.company_name, 180);
+      if (name) names.push(name);
+    }
+  } catch (error) {
+    infoJson("recent company ranks fallback", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    names.push(
+      ...args.recentRecommendations
+        .map((item) => cleanText(item.companyName, 180))
+        .filter(Boolean)
+    );
+  }
+
+  const ranks = new Map<string, number>();
+  for (const name of names) {
+    const key = companyKey(name);
+    if (!key || ranks.has(key)) continue;
+    ranks.set(key, ranks.size + 1);
+    if (ranks.size >= 18) break;
+  }
+  return ranks;
+}
+
 async function fetchRecentDeliveryContext(args: {
   admin: AdminClient;
+  asOf?: string | null;
   redactionTerms: string[];
   userId: string;
 }) {
-  const { data, error } = await ((
-    args.admin.from("opportunity_discovery_run" as any) as any
-  )
+  let query = (args.admin.from("opportunity_discovery_run" as any) as any)
     .select("query_plan")
     .eq("talent_id", args.userId)
     .in("status", ["completed", "partial"])
     .order("created_at", { ascending: false })
-    .limit(
-      Math.max(RECENT_DELIVERY_TEXTS_LIMIT, RECENT_DELIVERY_META_LIMIT)
-    ) as any);
+    .limit(Math.max(RECENT_DELIVERY_TEXTS_LIMIT, RECENT_DELIVERY_META_LIMIT));
+  if (args.asOf) query = query.lte("created_at", args.asOf);
+  const { data, error } = await (query as any);
 
   if (error) {
     throw new Error(error.message ?? "Failed to load recent delivery context");
@@ -1159,6 +1617,7 @@ async function buildLlmUserProfile(args: {
     ReturnType<typeof fetchRecentTalentActivitySummaries>
   >;
   admin: AdminClient;
+  asOf?: string | null;
   conversationId: string;
   existingExternalRecommendations: PreviousExternalRecommendation[];
   insights: unknown;
@@ -1181,6 +1640,7 @@ async function buildLlmUserProfile(args: {
   const hasLinkedIn = containsLinkedIn(resumeLinks) || containsLinkedIn(extras);
   const conversation = await fetchRecentConversationSummaries({
     admin: args.admin,
+    asOf: args.asOf,
     conversationId: args.conversationId,
     userId: args.userId,
   });
@@ -1603,6 +2063,71 @@ async function buildSearchPlan(args: {
   );
 }
 
+async function buildFullJdSearchPlan(args: {
+  outputLanguage: string;
+  previousDeliveryTexts: string[];
+  recentDeliveryMeta: string[];
+  request: string;
+  searchContextText: string;
+  usageLabel?: string;
+}) {
+  const deliveryLines = [
+    ...args.previousDeliveryTexts.map(
+      (item, index) =>
+        `delivery ${index + 1}: ${normalizeMultiline(item, 1_600)}`
+    ),
+    ...args.recentDeliveryMeta.map(
+      (item, index) =>
+        `delivery meta ${index + 1}: ${normalizeMultiline(item, 500)}`
+    ),
+  ].filter(Boolean);
+  const userPrompt = [
+    "[USER AND CURRENT REQUEST CONTEXT]",
+    args.searchContextText,
+    deliveryLines.length > 0
+      ? `\n[RECENT DELIVERY CONTEXT]\n${deliveryLines.join("\n")}`
+      : "",
+    "\nReturn only the search-plan JSON object from the schema in the system prompt.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  try {
+    const raw = await runTalentAssistantCompletion({
+      anthropicOverloadFallbackModel:
+        RECOMMEND_JOB_POSTINGS_ANTHROPIC_OVERLOAD_FALLBACK_MODEL,
+      fallbackModel: RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL,
+      jsonMode: true,
+      maxTokens: 8_000,
+      messages: [
+        { role: "system", content: FULL_JD_PLAN_SYSTEM_PROMPT },
+        {
+          role: "system",
+          content: `User-facing output language: ${args.outputLanguage}. Write searchIntentSummary in ${args.outputLanguage}. Retrieval keywords may mix Korean and English when useful.`,
+        },
+        { role: "user", content: userPrompt },
+      ],
+      openAIResponsesReasoningEffort:
+        CAREER_LLM_CONFIG.recommendJobPostings.fullJdPlanReasoningEffort,
+      primaryModel: RECOMMEND_JOB_POSTINGS_FULL_JD_PLAN_MODEL,
+      temperature: CAREER_LLM_CONFIG.recommendJobPostings.fullJdPlanTemperature,
+      usageLabel:
+        args.usageLabel ?? "career_tool:recommend_job_postings:full_jd_plan",
+    });
+
+    return normalizeExternalSearchPlan(
+      parseJsonObject(raw),
+      args.request,
+      args.outputLanguage
+    );
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") throw error;
+    infoJson("full JD search plan unavailable; using heuristic plan", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return normalizeExternalSearchPlan(null, args.request, args.outputLanguage);
+  }
+}
+
 function sqlLiteral(value: string) {
   return `'${value.replace(/'/g, "''")}'`;
 }
@@ -1847,20 +2372,28 @@ function buildLocationSql(plan: ExternalSearchPlan) {
   ];
 }
 
-function previouslyRecommendedRoleExclusionSql(userId: string) {
+function previouslyRecommendedRoleExclusionSql(
+  userId: string,
+  asOf?: string | null
+) {
   const normalizedUserId = cleanText(userId, 120);
   if (!normalizedUserId || !isUuid(normalizedUserId)) return null;
+  const asOfSql = asOf
+    ? `\n      AND tor.created_at <= ${sqlLiteral(asOf)}::timestamptz`
+    : "";
   return `NOT EXISTS (
     SELECT 1
     FROM public.talent_opportunity_recommendation tor
     WHERE tor.talent_id = ${sqlLiteral(normalizedUserId)}::uuid
       AND tor.opportunity_type = ${sqlLiteral(OpportunityType.ExternalJd)}
       AND tor.role_id = cr.role_id
+      ${asOfSql}
   )`;
 }
 
 function buildRoleSearchSql(args: {
   blockedCompanies: string[];
+  asOf?: string | null;
   plan: ExternalSearchPlan;
   searchMode: RoleSearchMode;
   userId: string;
@@ -1874,7 +2407,7 @@ function buildRoleSearchSql(args: {
     "(cr.expires_at IS NULL OR cr.expires_at > now())",
     "cr.status NOT IN ('expired', 'closed', 'inactive', 'archived')",
     "cr.source_type = 'external'",
-    previouslyRecommendedRoleExclusionSql(args.userId),
+    previouslyRecommendedRoleExclusionSql(args.userId, args.asOf),
     ...buildBlockedCompanySql(args.blockedCompanies),
     ...buildEmploymentTypeSql(args.plan),
     ...buildRoleTitleSql(args.plan.roleTitles),
@@ -1898,6 +2431,11 @@ title_candidates AS MATERIALIZED (
     cr.work_mode,
     cr.type,
     cr.posted_at,
+    cr.salary_min,
+    cr.salary_max,
+    cr.salary_currency,
+    cr.salary_period,
+    cr.salary_range,
     cr.seniority_level,
     cr.summary AS role_summary,
     cr.updated_at AS role_updated_at,
@@ -1928,6 +2466,11 @@ candidates AS (
     tc.work_mode,
     tc.type,
     tc.posted_at,
+    tc.salary_min,
+    tc.salary_max,
+    tc.salary_currency,
+    tc.salary_period,
+    tc.salary_range,
     tc.seniority_level,
     tc.role_summary,
     tc.role_updated_at,
@@ -1968,6 +2511,11 @@ SELECT
   work_mode,
   type,
   posted_at,
+  salary_min,
+  salary_max,
+  salary_currency,
+  salary_period,
+  salary_range,
   seniority_level,
   role_summary,
   company_name,
@@ -2144,6 +2692,7 @@ function hasRoleData(row: RawRoleRow | null): row is RawRoleRow {
 
 async function executeRoleSql(args: {
   admin: AdminClient;
+  asOf?: string | null;
   blockedCompanies: string[];
   plan: ExternalSearchPlan;
   searchMode: RoleSearchMode;
@@ -2655,6 +3204,17 @@ function roleSummaryFromValue(value: unknown): JsonRecord | null {
   return Object.keys(cleaned).length > 0 ? cleaned : null;
 }
 
+function roleCompensationRange(row: RawRoleRow) {
+  const salaryRange = cleanText(row.salary_range, 240);
+  if (salaryRange) return salaryRange;
+  const salaryMin = cleanText(row.salary_min, 60);
+  const salaryMax = cleanText(row.salary_max, 60);
+  const salaryCurrency = cleanText(row.salary_currency, 40);
+  const salaryPeriod = cleanText(row.salary_period, 40);
+  if (!salaryMin || !salaryMax || !salaryCurrency || !salaryPeriod) return null;
+  return `${salaryPeriod} ${salaryMin}-${salaryMax} ${salaryCurrency}`;
+}
+
 function roleCard(row: RawRoleRow): RoleCard {
   const companyScore = normalizeCompanyTestScore(row.company_test_score);
   const roleSummary = roleSummaryFromValue(row.summary);
@@ -2677,6 +3237,7 @@ function roleCard(row: RawRoleRow): RoleCard {
     roleDescription: normalizeMultiline(row.description, 4000),
     roleId: cleanText(row.role_id, 120),
     roleName: cleanText(row.role_name, 180),
+    salaryRange: roleCompensationRange(row),
     row,
     score: companyScore,
     searchRank: Number(row.search_rank ?? 0) || 0,
@@ -2752,6 +3313,7 @@ function normalizeExternalFitCache(
   return {
     createdAt: cleanText(createdAtValue, 120) || null,
     fitSummary,
+    hasScore,
     reason,
     reasons,
     score100: hasScore ? normalizeExternalFitCacheScore100(meta) : 0,
@@ -2767,9 +3329,20 @@ function roleSummaryLanguageKey(
     : "ko";
 }
 
-function roleSummaryContentFromSummary(summary: unknown, languageKey: string) {
+function roleSummaryContentFromSummary(
+  summary: unknown,
+  languageKey: string,
+  expectedSourceHash?: string
+) {
   const summaries = asRecord(summary);
   const entry = asRecord(summaries?.[languageKey]);
+  if (
+    cleanText(entry?.version, 120) !== ROLE_FIT_SUMMARY_VERSION ||
+    (expectedSourceHash &&
+      cleanText(entry?.sourceHash, 128) !== expectedSourceHash)
+  ) {
+    return "";
+  }
   const content = normalizeMultiline(
     entry?.content,
     ROLE_FIT_SUMMARY_MAX_LENGTH
@@ -2778,11 +3351,57 @@ function roleSummaryContentFromSummary(summary: unknown, languageKey: string) {
 }
 
 function roleSummaryContent(card: RoleCard, languageKey: string) {
-  return roleSummaryContentFromSummary(card.roleSummary, languageKey);
+  return roleSummaryContentFromSummary(
+    card.roleSummary,
+    languageKey,
+    fullJdRoleSourceHash(card)
+  );
+}
+
+function fullJdRoleSourceHash(card: RoleCard) {
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        company: card.company,
+        companyName: card.companyName,
+        companyWorkspaceId: card.companyWorkspaceId,
+        employmentType: card.employmentType,
+        location: card.location,
+        roleDescription:
+          typeof card.row.description === "string"
+            ? card.row.description
+            : card.roleDescription,
+        roleId: card.roleId,
+        roleName: card.roleName,
+        seniorityLevel: card.seniorityLevel,
+        workMode: card.workMode,
+      })
+    )
+    .digest("hex");
+}
+
+function fullJdCacheInputFingerprint(args: { llmUserProfile: JsonRecord }) {
+  const profile = asRecord(args.llmUserProfile.profile) ?? {};
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        evaluatorKey: EXTERNAL_FIT_CACHE_EVALUATOR_KEY,
+        profile,
+        experiences: args.llmUserProfile.experiences ?? [],
+        educations: args.llmUserProfile.educations ?? [],
+        extra: args.llmUserProfile.extra ?? {},
+        insights: args.llmUserProfile.insights ?? {},
+      })
+    )
+    .digest("hex");
 }
 
 async function fetchExternalFitCache(args: {
   admin: AdminClient;
+  asOf?: string | null;
+  behaviorContextVersion?: number | null;
+  inputFingerprint?: string;
+  roleCards?: RoleCard[];
   roleIds: string[];
   userId: string;
 }) {
@@ -2791,21 +3410,22 @@ async function fetchExternalFitCache(args: {
   ).filter(isUuid);
   if (roleIds.length === 0) return new Map<string, ExternalFitCache>();
 
+  const referenceTime = args.asOf ? new Date(args.asOf).getTime() : Date.now();
   const cutoff = new Date(
-    Date.now() - EXTERNAL_FIT_CACHE_TTL_DAYS * 24 * 60 * 60 * 1000
+    referenceTime - EXTERNAL_FIT_CACHE_TTL_DAYS * 24 * 60 * 60 * 1000
   ).toISOString();
 
   try {
-    const { data, error } = await ((
-      args.admin.from("talent_external_fit" as any) as any
-    )
-      .select("role_id, meta, created_at")
+    let query = (args.admin.from("talent_external_fit" as any) as any)
+      .select("role_id, meta, created_at, behavior_context_version")
       .eq("talent_id", args.userId)
       .gte("created_at", cutoff)
-      .in("role_id", roleIds) as unknown as Promise<{
+      .in("role_id", roleIds);
+    if (args.asOf) query = query.lte("created_at", args.asOf);
+    const { data, error } = (await query) as unknown as {
       data: unknown;
       error: { message?: string } | null;
-    }>);
+    };
 
     if (error) {
       infoJson("external fit cache fetch failed", {
@@ -2816,10 +3436,45 @@ async function fetchExternalFitCache(args: {
     }
 
     const result = new Map<string, ExternalFitCache>();
+    const cardByRoleId = new Map(
+      (args.roleCards ?? []).map((card) => [card.roleId, card])
+    );
     for (const row of Array.isArray(data) ? data : []) {
       const record = asRecord(row);
       const roleId = cleanText(record?.role_id, 120);
-      const cache = normalizeExternalFitCache(record?.meta, record?.created_at);
+      const meta = asRecord(record?.meta);
+      if (args.inputFingerprint) {
+        const card = cardByRoleId.get(roleId);
+        if (
+          cleanText(meta?.evaluatorKey, 120) !==
+            EXTERNAL_FIT_CACHE_EVALUATOR_KEY ||
+          cleanText(meta?.inputFingerprint, 128) !== args.inputFingerprint ||
+          !card ||
+          cleanText(meta?.roleSourceHash, 128) !== fullJdRoleSourceHash(card)
+        ) {
+          continue;
+        }
+      }
+      const createdAtMs = new Date(String(record?.created_at ?? "")).getTime();
+      const rowVersionRaw = record?.behavior_context_version;
+      const rowVersion =
+        rowVersionRaw === null || rowVersionRaw === undefined
+          ? null
+          : Number(rowVersionRaw);
+      const requestedVersion = args.behaviorContextVersion ?? null;
+      const sameVersion =
+        (rowVersion === null && requestedVersion === null) ||
+        (Number.isFinite(rowVersion) && rowVersion === requestedVersion);
+      const ttlDays = sameVersion
+        ? EXTERNAL_FIT_CACHE_TTL_DAYS
+        : EXTERNAL_FIT_CACHE_CHANGED_CONTEXT_TTL_DAYS;
+      if (
+        !Number.isFinite(createdAtMs) ||
+        createdAtMs < referenceTime - ttlDays * 24 * 60 * 60 * 1000
+      ) {
+        continue;
+      }
+      const cache = normalizeExternalFitCache(meta, record?.created_at);
       if (roleId && cache) result.set(roleId, cache);
     }
     return result;
@@ -2915,6 +3570,7 @@ function roleLineForLlm(card: RoleCard, includePostedAt = true) {
   details.push(workModeLineForLlm(card.workMode));
   const employmentType = cleanText(card.employmentType, 120);
   if (employmentType) details.push(employmentType);
+  if (card.salaryRange) details.push(`compensation ${card.salaryRange}`);
   details.push(seniorityLevelLineForLlm(card.seniorityLevel));
   const postedAt = includePostedAt ? compactDateForRoleCard(card.postedAt) : "";
   if (postedAt) details.push(`posted ${postedAt}`);
@@ -2948,12 +3604,11 @@ function roleSearchResultCard(card: RoleCard, languageKey?: string) {
     ? roleSummaryContent(card, languageKey)
     : "";
   const role = cachedSummary
-    ? `${roleLineForLlm(card)} | summry: ${cachedSummary}`
+    ? `${roleLineForLlm(card)} | summary: ${cachedSummary}`
     : roleLineForLlm(card);
   return cleanEmptyValues({
     id: card._shortlistCandidateId,
     company: companyLineForLlm(card, true),
-    retrievalFtsScore: compactFloat(card.searchRank, 3),
     role,
   }) as JsonRecord;
 }
@@ -2981,6 +3636,7 @@ function companyLeadershipForLlm(value: unknown) {
 function roleDetailCardForLlm(card: RoleCard, languageKey?: string) {
   const roleSummary = languageKey ? roleSummaryContent(card, languageKey) : "";
   const detail: JsonRecord = {
+    compensation: card.salaryRange,
     roleId: card.roleId,
     role: roleLineForLlm(card),
     company: companyLineForLlm(card, false),
@@ -3147,7 +3803,11 @@ async function shortlistRoles(args: {
 function fallbackFitSummary(card: RoleCard) {
   const company = cleanText(card.companyName, 160) || "Company";
   const title = cleanText(card.roleName, 180) || "Role";
-  return `${title} at ${company}`;
+  const lines = [`${title} at ${company}`];
+  const workLocation = [card.location, card.workMode].filter(Boolean).join(" · ");
+  if (workLocation) lines.push(`Location/work mode: ${workLocation}`);
+  if (card.salaryRange) lines.push(`Compensation: ${card.salaryRange}`);
+  return lines.join("\n");
 }
 
 function selectedRecommendationFromExternalFitCache(
@@ -3220,8 +3880,12 @@ function dedupeSelectedByCompany(
   for (const item of selected) {
     const card = byRoleId.get(item.roleId);
     if (!card || seenRoles.has(item.roleId)) continue;
-    const company =
-      companyKey(card.companyName) || card.companyWorkspaceId || item.roleId;
+    const company = canonicalJobPostingCompanyKey({
+      companyName: card.companyName,
+      companyWorkspaceId: card.companyWorkspaceId,
+      externalJdUrl: card.row.external_jd_url,
+      roleId: item.roleId,
+    });
     if (company && seenCompanies.has(company)) continue;
     result.push(item);
     seenRoles.add(item.roleId);
@@ -3254,16 +3918,24 @@ async function selectFinalRecommendations(args: {
   );
   const cachedCompanyKeys = new Set(
     cachedCards
-      .map(
-        (card) =>
-          companyKey(card.companyName) || card.companyWorkspaceId || card.roleId
+      .map((card) =>
+        canonicalJobPostingCompanyKey({
+          companyName: card.companyName,
+          companyWorkspaceId: card.companyWorkspaceId,
+          externalJdUrl: card.row.external_jd_url,
+          roleId: card.roleId,
+        })
       )
       .filter(Boolean)
   );
   const uncachedCards = args.cards.filter((card) => {
     if (card.externalFitCache) return false;
-    const company =
-      companyKey(card.companyName) || card.companyWorkspaceId || card.roleId;
+    const company = canonicalJobPostingCompanyKey({
+      companyName: card.companyName,
+      companyWorkspaceId: card.companyWorkspaceId,
+      externalJdUrl: card.row.external_jd_url,
+      roleId: card.roleId,
+    });
     return !company || !cachedCompanyKeys.has(company);
   });
   const cachedSelections = cachedCards.map((card) =>
@@ -3382,13 +4054,477 @@ async function selectFinalRecommendations(args: {
   };
 }
 
+function fullJdPromptCandidate(
+  card: RoleCard,
+  languageKey: RoleSummaryLanguageKey
+): FullJdPromptCandidate {
+  return {
+    cachedRoleSummary: roleSummaryContent(card, languageKey) || null,
+    company: card.company,
+    companyData: card.companyData,
+    companyKey:
+      companyKey(card.companyName) || card.companyWorkspaceId || card.roleId,
+    companyLeadership: card.companyLeadership,
+    companyName: card.companyName,
+    employmentType: card.employmentType,
+    location: card.location,
+    postedAt: card.postedAt,
+    roleDescription:
+      typeof card.row.description === "string"
+        ? card.row.description
+        : card.roleDescription,
+    roleId: card.roleId,
+    roleName: card.roleName,
+    salaryRange: card.salaryRange,
+    seniorityLevel: card.seniorityLevel,
+    workMode: card.workMode,
+  };
+}
+
+function cachedFullJdEvaluation(
+  card: RoleCard,
+  languageKey: RoleSummaryLanguageKey
+): FullJdFitEvaluation | null {
+  const cache = card.externalFitCache;
+  if (!cache?.hasScore) return null;
+  return {
+    fitReasons:
+      cache.reasons.length > 0
+        ? cache.reasons
+        : cache.reason
+          ? [cache.reason]
+          : [],
+    fitSummary:
+      roleSummaryContent(card, languageKey) ||
+      cache.fitSummary ||
+      fallbackFitSummary(card),
+    modelScore100: cache.score100,
+    roleId: card.roleId,
+    tradeoff: cache.tradeoff,
+  };
+}
+
+function hydrateFullJdEvaluation(
+  evaluation: FullJdFitEvaluation,
+  card: RoleCard,
+  languageKey: RoleSummaryLanguageKey
+): FullJdFitEvaluation {
+  return {
+    ...evaluation,
+    fitSummary: roleSummaryContent(card, languageKey) || evaluation.fitSummary,
+  };
+}
+
+async function saveFullJdExternalFitEvaluations(args: {
+  admin: AdminClient;
+  behaviorContextVersion?: number | null;
+  evaluations: FullJdFitEvaluation[];
+  inputFingerprint: string;
+  cards: RoleCard[];
+  userId: string;
+}) {
+  const createdAt = new Date().toISOString();
+  const cardByRoleId = new Map(args.cards.map((card) => [card.roleId, card]));
+  const rows = args.evaluations
+    .filter((item) => isUuid(item.roleId) && cardByRoleId.has(item.roleId))
+    .map((item) => ({
+      created_at: createdAt,
+      meta: {
+        evaluatorKey: EXTERNAL_FIT_CACHE_EVALUATOR_KEY,
+        fitReasons: item.fitReasons.slice(0, 3),
+        fitSummary: normalizeMultiline(
+          item.fitSummary,
+          ROLE_FIT_SUMMARY_MAX_LENGTH
+        ),
+        score: normalizeScore100(item.modelScore100, 0),
+        inputFingerprint: args.inputFingerprint,
+        roleSourceHash: fullJdRoleSourceHash(cardByRoleId.get(item.roleId)!),
+        tradeoff: normalizeMultiline(item.tradeoff, 360),
+      },
+      role_id: item.roleId,
+      talent_id: args.userId,
+      behavior_context_version: args.behaviorContextVersion ?? null,
+    }));
+  if (rows.length === 0) return 0;
+  const { error } = await ((
+    args.admin.from("talent_external_fit" as any) as any
+  ).upsert(rows, { onConflict: "talent_id,role_id" }) as unknown as Promise<{
+    error: { message?: string } | null;
+  }>);
+  if (error)
+    throw new Error(error.message ?? "Failed to save external fit cache");
+  return rows.length;
+}
+
+async function saveFullJdRoleSummariesBatch(args: {
+  admin: AdminClient;
+  cards: RoleCard[];
+  evaluations: FullJdFitEvaluation[];
+  outputLanguage: string;
+}) {
+  const languageKey = roleSummaryLanguageKey(args.outputLanguage);
+  const cardByRoleId = new Map(args.cards.map((card) => [card.roleId, card]));
+  const updates: Array<{ payload: string; roleId: string }> = [];
+  let skippedLanguageValidation = 0;
+  for (const evaluation of args.evaluations) {
+    const roleId = cleanText(evaluation.roleId, 120);
+    const card = cardByRoleId.get(roleId);
+    if (!card || !isUuid(roleId)) continue;
+    if (roleSummaryContent(card, languageKey)) {
+      continue;
+    }
+    const content = normalizeMultiline(
+      evaluation.fitSummary,
+      ROLE_FIT_SUMMARY_MAX_LENGTH
+    );
+    if (!content) continue;
+    const validation = validateRoleSummaryLanguage(content, languageKey);
+    if (!validation.confidentMatch) {
+      skippedLanguageValidation += 1;
+      continue;
+    }
+    updates.push({
+      payload: JSON.stringify({
+        content,
+        generatedAt: new Date().toISOString(),
+        sourceHash: fullJdRoleSourceHash(card),
+        version: ROLE_FIT_SUMMARY_VERSION,
+      }),
+      roleId,
+    });
+  }
+  if (updates.length === 0) {
+    return { skippedLanguageValidation, stored: 0 };
+  }
+  const valuesSql = updates
+    .map(
+      (item) =>
+        `(${sqlLiteral(item.roleId)}::uuid, ${sqlLiteral(item.payload)}::jsonb)`
+    )
+    .join(",\n  ");
+  const sql = `
+WITH incoming(role_id, payload) AS (
+  VALUES
+  ${valuesSql}
+)
+UPDATE public.company_roles AS role
+SET summary = jsonb_set(
+  COALESCE(role.summary, '{}'::jsonb),
+  ARRAY[${sqlLiteral(languageKey)}::text],
+  incoming.payload,
+  true
+)
+FROM incoming
+WHERE role.role_id = incoming.role_id
+  AND (
+    role.summary IS NULL
+    OR NOT (role.summary ? ${sqlLiteral(languageKey)})
+    OR NULLIF(BTRIM(role.summary -> ${sqlLiteral(languageKey)} ->> 'content'), '') IS NULL
+    OR role.summary -> ${sqlLiteral(languageKey)} ->> 'version' IS DISTINCT FROM ${sqlLiteral(ROLE_FIT_SUMMARY_VERSION)}
+    OR role.summary -> ${sqlLiteral(languageKey)} ->> 'sourceHash' IS DISTINCT FROM incoming.payload ->> 'sourceHash'
+  )
+`.trim();
+  const { error } = await (args.admin.rpc(
+    "set_timeout_and_execute_raw_sql" as never,
+    {
+      limit_num: updates.length,
+      offset_num: 0,
+      page_idx: 0,
+      sql_query: sql,
+    } as never
+  ) as unknown as Promise<{
+    data: unknown;
+    error: { message?: string } | null;
+  }>);
+  if (error) {
+    throw new Error(error.message ?? "Failed to save full JD role summaries");
+  }
+  return { skippedLanguageValidation, stored: updates.length };
+}
+
+async function persistFullJdBatchEvaluations(args: {
+  admin: AdminClient;
+  behaviorContextVersion?: number | null;
+  cards: RoleCard[];
+  evaluations: FullJdFitEvaluation[];
+  inputFingerprint: string;
+  outputLanguage: string;
+  userId: string;
+}) {
+  if (args.evaluations.length === 0) return;
+  const results = await Promise.allSettled([
+    saveFullJdExternalFitEvaluations({
+      admin: args.admin,
+      behaviorContextVersion: args.behaviorContextVersion,
+      cards: args.cards,
+      evaluations: args.evaluations,
+      inputFingerprint: args.inputFingerprint,
+      userId: args.userId,
+    }),
+    saveFullJdRoleSummariesBatch({
+      admin: args.admin,
+      cards: args.cards,
+      evaluations: args.evaluations,
+      outputLanguage: args.outputLanguage,
+    }),
+  ]);
+  results.forEach((result, index) => {
+    if (result.status === "fulfilled") return;
+    infoJson(
+      index === 0
+        ? "full JD fit cache save skipped"
+        : "full JD role summary save skipped",
+      {
+        message:
+          result.reason instanceof Error
+            ? result.reason.message
+            : String(result.reason),
+      }
+    );
+  });
+}
+
+function fullJdSelectionInputs(args: {
+  cards: RoleCard[];
+  evaluations: FullJdFitEvaluation[];
+  recentCompanyRanks: Map<string, number>;
+}) {
+  const cardIndexByRoleId = new Map(
+    args.cards.map((card, index) => [card.roleId, { card, index }])
+  );
+  return args.evaluations.flatMap((evaluation): FullJdSelectionInput[] => {
+    const indexed = cardIndexByRoleId.get(evaluation.roleId);
+    if (!indexed) return [];
+    const storedCompanyKey = companyKey(indexed.card.companyName);
+    const key = canonicalJobPostingCompanyKey({
+      companyName: indexed.card.companyName,
+      companyWorkspaceId: indexed.card.companyWorkspaceId,
+      externalJdUrl: indexed.card.row.external_jd_url,
+      roleId: indexed.card.roleId,
+    });
+    const canonicalCompanyNameKey = key.startsWith("company:")
+      ? key.slice("company:".length)
+      : "";
+    return [
+      {
+        companyKey: key,
+        companyScore20: indexed.card.score,
+        evaluation,
+        originalIndex: indexed.index,
+        postedAt: indexed.card.postedAt,
+        recentCompanyRank:
+          args.recentCompanyRanks.get(storedCompanyKey) ??
+          args.recentCompanyRanks.get(canonicalCompanyNameKey) ??
+          null,
+        searchRank: indexed.card.searchRank,
+      },
+    ];
+  });
+}
+
+async function selectFullJdRecommendations(args: {
+  abortSignal?: AbortSignal;
+  admin: AdminClient;
+  behaviorContextVersion?: number | null;
+  cards: RoleCard[];
+  dryRun?: boolean;
+  fitContextText: string;
+  inputFingerprint: string;
+  outputLanguage: string;
+  plan: ExternalSearchPlan;
+  recentCompanyRanks: Map<string, number>;
+  targetRecommendationCount: number;
+  usageLabel?: string;
+  userId: string;
+}) {
+  const languageKey = roleSummaryLanguageKey(args.outputLanguage);
+  const evaluationsByRoleId = new Map<string, FullJdFitEvaluation>();
+  for (const card of args.cards) {
+    const evaluation = cachedFullJdEvaluation(card, languageKey);
+    if (evaluation) evaluationsByRoleId.set(card.roleId, evaluation);
+  }
+
+  const currentInputs = () =>
+    fullJdSelectionInputs({
+      cards: args.cards,
+      evaluations: Array.from(evaluationsByRoleId.values()),
+      recentCompanyRanks: args.recentCompanyRanks,
+    });
+  let earlyStopped = hasEnoughDirectFullJdFits(
+    currentInputs(),
+    args.targetRecommendationCount
+  );
+  let scoredFreshCount = 0;
+  let scoredWaveCount = 0;
+  let scoringCards = args.cards;
+
+  if (!earlyStopped) {
+    const freshCards = args.cards
+      .filter((card) => !evaluationsByRoleId.has(card.roleId))
+      .slice(0, FULL_JD_FIT_MAX_FRESH_ROLES);
+    const cardsWithCompanyContext = await attachCompanyContextToCards({
+      admin: args.admin,
+      cards: freshCards,
+    });
+    const enrichedByRoleId = new Map(
+      cardsWithCompanyContext.map((card) => [card.roleId, card])
+    );
+    scoringCards = args.cards.map(
+      (card) => enrichedByRoleId.get(card.roleId) ?? card
+    );
+    const promptCandidates = cardsWithCompanyContext.map((card) =>
+      fullJdPromptCandidate(card, languageKey)
+    );
+    const waves = buildFullJdBatchWaves(promptCandidates);
+    const shardCount = Math.max(
+      1,
+      Number.parseInt(
+        process.env.CAREER_RECOMMEND_JOB_POSTINGS_CACHE_SHARDS ?? "16",
+        10
+      ) || 16
+    );
+    const promptCacheKey = fullJdPromptCacheKey(args.userId, shardCount);
+    const stableUserContext = [
+      args.fitContextText,
+      "[NORMALIZED SEARCH INTENT]",
+      args.plan.searchIntentSummary,
+      "[SEARCH ROLE TITLES]",
+      args.plan.roleTitles.join(", "),
+      "[SEARCH DOMAIN TERMS]",
+      args.plan.ftsKeywords
+        .flatMap((keyword) => keyword.terms)
+        .slice(0, 40)
+        .join(", "),
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    for (let waveIndex = 0; waveIndex < waves.length; waveIndex += 1) {
+      throwIfRecommendationSearchAborted(args.abortSignal);
+      scoredWaveCount += 1;
+      const wave = waves[waveIndex];
+      const results = await Promise.allSettled(
+        wave.map(async (batch, batchIndex) => {
+          const rawEvaluations = await scoreFullJdCandidateBatch({
+            abortSignal: args.abortSignal,
+            anthropicOverloadFallbackModel:
+              RECOMMEND_JOB_POSTINGS_ANTHROPIC_OVERLOAD_FALLBACK_MODEL,
+            batchLabel: `${waveIndex + 1}-${batchIndex + 1}`,
+            candidates: batch,
+            fallbackModel: RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL,
+            model: RECOMMEND_JOB_POSTINGS_FULL_JD_SCORING_MODEL,
+            outputLanguage: args.outputLanguage,
+            promptCacheKey,
+            reasoningEffort:
+              CAREER_LLM_CONFIG.recommendJobPostings
+                .fullJdScoringReasoningEffort,
+            stableUserContext,
+            usageLabel: args.usageLabel,
+          });
+          const batchCards = batch.flatMap((candidate) => {
+            const card = enrichedByRoleId.get(candidate.roleId);
+            return card ? [card] : [];
+          });
+          const cardByRoleId = new Map(
+            batchCards.map((card) => [card.roleId, card])
+          );
+          const evaluations = rawEvaluations.flatMap((evaluation) => {
+            const card = cardByRoleId.get(evaluation.roleId);
+            return card
+              ? [hydrateFullJdEvaluation(evaluation, card, languageKey)]
+              : [];
+          });
+          if (!args.dryRun) {
+            await persistFullJdBatchEvaluations({
+              admin: args.admin,
+              behaviorContextVersion: args.behaviorContextVersion,
+              cards: batchCards,
+              evaluations,
+              inputFingerprint: args.inputFingerprint,
+              outputLanguage: args.outputLanguage,
+              userId: args.userId,
+            });
+          }
+          return evaluations;
+        })
+      );
+      for (const result of results) {
+        if (result.status === "rejected") {
+          if (
+            result.reason instanceof Error &&
+            result.reason.name === "AbortError"
+          ) {
+            throw result.reason;
+          }
+          infoJson("full JD scoring batch skipped", {
+            message:
+              result.reason instanceof Error
+                ? result.reason.message
+                : String(result.reason),
+            wave: waveIndex + 1,
+          });
+          continue;
+        }
+        scoredFreshCount += result.value.length;
+        for (const evaluation of result.value) {
+          evaluationsByRoleId.set(evaluation.roleId, evaluation);
+        }
+      }
+      earlyStopped = hasEnoughDirectFullJdFits(
+        fullJdSelectionInputs({
+          cards: scoringCards,
+          evaluations: Array.from(evaluationsByRoleId.values()),
+          recentCompanyRanks: args.recentCompanyRanks,
+        }),
+        args.targetRecommendationCount
+      );
+      if (earlyStopped) break;
+    }
+  }
+
+  const selectedRanked = selectFullJdEvaluations(
+    fullJdSelectionInputs({
+      cards: scoringCards,
+      evaluations: Array.from(evaluationsByRoleId.values()),
+      recentCompanyRanks: args.recentCompanyRanks,
+    }),
+    args.targetRecommendationCount
+  );
+  const selected: SelectedRecommendation[] = dedupeSelectedByCompany(
+    selectedRanked.map((item) => ({
+      fitReasons: item.evaluation.fitReasons,
+      fitSummary: item.evaluation.fitSummary,
+      isSupplemental: item.isSupplemental,
+      roleId: item.evaluation.roleId,
+      score: item.adjustedScore100,
+      tradeoffs: item.evaluation.tradeoff ? [item.evaluation.tradeoff] : [],
+    })),
+    scoringCards
+  ).slice(0, args.targetRecommendationCount);
+  return {
+    cards: scoringCards,
+    result: {
+      directFitCount: selected.filter((item) => !item.isSupplemental).length,
+      scoredCount: evaluationsByRoleId.size,
+      selected,
+      supplementalCount: selected.filter((item) => item.isSupplemental).length,
+    } satisfies FinalSelectionResult,
+    stats: {
+      earlyStopped,
+      scoredFreshCount,
+      scoredWaveCount,
+    },
+  };
+}
+
 function roleUrl(role: RawRoleRow) {
   return cleanText(role.external_jd_url, 500) || null;
 }
 
 function rankedFromSelected(
   selected: SelectedRecommendation[],
-  cards: RoleCard[]
+  cards: RoleCard[],
+  options?: { preferSummaryAsRecommendationText?: boolean }
 ): EnrichedRankedRole[] {
   const byRoleId = new Map(cards.map((card) => [card.roleId, card]));
   return selected
@@ -3405,7 +4541,9 @@ function rankedFromSelected(
         goodPoints: item.fitReasons,
         isSupplemental: item.isSupplemental,
         recommendationId: null,
-        recommendationText: item.fitReasons.join(" ") || item.fitSummary,
+        recommendationText: options?.preferSummaryAsRecommendationText
+          ? item.fitSummary || item.fitReasons.join(" ")
+          : item.fitReasons.join(" ") || item.fitSummary,
         role: card.row,
         roleId: item.roleId,
         score: item.score / 10,
@@ -3457,7 +4595,8 @@ async function saveValidatedRoleFitSummaries(args: {
     if (
       roleSummaryContentFromSummary(
         roleSummaryFromValue(item.role.summary),
-        languageKey
+        languageKey,
+        fullJdRoleSourceHash(roleCard(item.role))
       )
     ) {
       continue;
@@ -3484,6 +4623,7 @@ async function saveValidatedRoleFitSummaries(args: {
     const payload = JSON.stringify({
       content,
       generatedAt: new Date().toISOString(),
+      sourceHash: fullJdRoleSourceHash(roleCard(item.role)),
       version: ROLE_FIT_SUMMARY_VERSION,
     });
     const sql = `
@@ -3500,6 +4640,7 @@ WHERE role_id = ${sqlLiteral(roleId)}::uuid
     OR NOT (summary ? ${sqlLiteral(languageKey)})
     OR NULLIF(BTRIM(summary -> ${sqlLiteral(languageKey)} ->> 'content'), '') IS NULL
     OR summary -> ${sqlLiteral(languageKey)} ->> 'version' IS DISTINCT FROM ${sqlLiteral(ROLE_FIT_SUMMARY_VERSION)}
+    OR summary -> ${sqlLiteral(languageKey)} ->> 'sourceHash' IS DISTINCT FROM ${sqlLiteral(fullJdRoleSourceHash(roleCard(item.role)))}
   )
 `.trim();
     const { error } = await (args.admin.rpc(
@@ -3751,12 +4892,37 @@ export async function runCareerJobPostingRecommendations(args: {
   admin: AdminClient;
   abortSignal?: AbortSignal;
   conversationId: string;
+  evaluation?: {
+    asOf?: string | null;
+    dryRun?: boolean;
+    usageTag?: string | null;
+  };
   preferredLocale?: string | null;
   request: string;
+  strategy?: JobPostingRecommendationStrategy;
   userId: string;
 }) {
   const request = cleanText(args.request, 1400);
   if (!request) throw new Error("recommend_job_postings requires a request.");
+  const evaluationAsOf = cleanText(args.evaluation?.asOf, 120) || null;
+  if (evaluationAsOf && !Number.isFinite(new Date(evaluationAsOf).getTime())) {
+    throw new Error("recommend_job_postings evaluation.asOf must be ISO time.");
+  }
+  const evaluationUsageTag = cleanText(args.evaluation?.usageTag, 80)
+    .replace(/[^a-zA-Z0-9_.-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const fullJdPlanUsageLabel = evaluationUsageTag
+    ? `career_tool:recommend_job_postings:full_jd_plan.${evaluationUsageTag}`
+    : "career_tool:recommend_job_postings:full_jd_plan";
+  const fullJdScoringUsageLabel = evaluationUsageTag
+    ? `career_tool:recommend_job_postings:full_jd_fit_scoring.${evaluationUsageTag}`
+    : "career_tool:recommend_job_postings:full_jd_fit_scoring";
+  const recommendationStrategy = resolveJobPostingRecommendationStrategy({
+    explicitStrategy: args.strategy,
+    fullJdUserIds: process.env.CAREER_RECOMMEND_JOB_POSTINGS_FULL_JD_USER_IDS,
+    globalStrategy: process.env.CAREER_RECOMMEND_JOB_POSTINGS_STRATEGY,
+    userId: args.userId,
+  });
   throwIfRecommendationSearchAborted(args.abortSignal);
 
   const activeInitialRun = await fetchActiveInitialConversationRun({
@@ -3782,6 +4948,7 @@ export async function runCareerJobPostingRecommendations(args: {
   const startedAt = Date.now();
   console.info("[recommend_job_postings] start", {
     conversationId: args.conversationId,
+    recommendationStrategy,
     request,
     requestedCount,
     userId: args.userId,
@@ -3803,14 +4970,20 @@ export async function runCareerJobPostingRecommendations(args: {
     fetchJobPostingTalentSetting({ admin: args.admin, userId: args.userId }),
     fetchExistingExternalRecommendations({
       admin: args.admin,
+      asOf: evaluationAsOf,
       userId: args.userId,
     }),
     fetchRecentTalentActivitySummaries({
       admin: args.admin,
+      before: evaluationAsOf,
       limit: RECENT_TALENT_ACTIVITY_SUMMARY_LIMIT,
       userId: args.userId,
     }),
-    fetchRecentRecommendations({ admin: args.admin, userId: args.userId }),
+    fetchRecentRecommendations({
+      admin: args.admin,
+      asOf: evaluationAsOf,
+      userId: args.userId,
+    }),
   ]);
   throwIfRecommendationSearchAborted(args.abortSignal);
   const outputLanguage = getCareerPromptLanguageName(
@@ -3826,6 +4999,7 @@ export async function runCareerJobPostingRecommendations(args: {
   );
   const deliveryContext = await fetchRecentDeliveryContext({
     admin: args.admin,
+    asOf: evaluationAsOf,
     redactionTerms,
     userId: args.userId,
   });
@@ -3833,6 +5007,7 @@ export async function runCareerJobPostingRecommendations(args: {
   const llmUserProfile = await buildLlmUserProfile({
     activitySummaries,
     admin: args.admin,
+    asOf: evaluationAsOf,
     conversationId: args.conversationId,
     existingExternalRecommendations,
     insights: insights?.content ?? null,
@@ -3843,17 +5018,60 @@ export async function runCareerJobPostingRecommendations(args: {
     userId: args.userId,
   });
   throwIfRecommendationSearchAborted(args.abortSignal);
+  const fullJdBehaviorContext =
+    recommendationStrategy === "full_jd"
+      ? await buildFullJdBehaviorContext({
+          admin: args.admin,
+          asOf: evaluationAsOf,
+          conversationId: args.conversationId,
+          recentRecommendations,
+          redactionTerms,
+          request,
+          userId: args.userId,
+        })
+      : null;
+  const fullJdSearchContextText =
+    recommendationStrategy === "full_jd"
+      ? buildFullJdUserContextText({
+          behaviorContext: fullJdBehaviorContext,
+          llmUserProfile,
+          outputLanguage,
+          request,
+          view: "search",
+        })
+      : "";
+  const fullJdFitContextText =
+    recommendationStrategy === "full_jd"
+      ? buildFullJdUserContextText({
+          behaviorContext: fullJdBehaviorContext,
+          llmUserProfile,
+          outputLanguage,
+          request,
+          view: "fit",
+        })
+      : "";
+  throwIfRecommendationSearchAborted(args.abortSignal);
   const targetRecommendationCount = desiredRecommendationCount();
   const blockedCompanies = normalizeTalentBlockedCompanies(
     (asRecord(setting)?.blocked_companies as unknown) ?? []
   );
-  const plan = await buildSearchPlan({
-    llmUserProfile,
-    outputLanguage,
-    previousDeliveryTexts: deliveryContext.previousDeliveryTexts,
-    recentDeliveryMeta: deliveryContext.recentDeliveryMeta,
-    request,
-  });
+  const plan =
+    recommendationStrategy === "full_jd"
+      ? await buildFullJdSearchPlan({
+          outputLanguage,
+          previousDeliveryTexts: deliveryContext.previousDeliveryTexts,
+          recentDeliveryMeta: deliveryContext.recentDeliveryMeta,
+          request,
+          searchContextText: fullJdSearchContextText,
+          usageLabel: fullJdPlanUsageLabel,
+        })
+      : await buildSearchPlan({
+          llmUserProfile,
+          outputLanguage,
+          previousDeliveryTexts: deliveryContext.previousDeliveryTexts,
+          recentDeliveryMeta: deliveryContext.recentDeliveryMeta,
+          request,
+        });
   throwIfRecommendationSearchAborted(args.abortSignal);
   infoJson("external search plan", {
     ftsKeywords: plan.ftsKeywords,
@@ -3867,11 +5085,13 @@ export async function runCareerJobPostingRecommendations(args: {
     remoteOnly: plan.remoteOnly,
     role_titles: plan.roleTitles,
     searchIntentSummary: plan.searchIntentSummary,
+    recommendationStrategy,
     targetRecommendationCount,
   });
 
   const strictSearch = await executeRoleSql({
     admin: args.admin,
+    asOf: evaluationAsOf,
     blockedCompanies,
     plan,
     searchMode: "strict",
@@ -3902,8 +5122,18 @@ export async function runCareerJobPostingRecommendations(args: {
   });
 
   const candidateCardsWithoutCache = roleRowsToCards(rows);
+  const externalFitInputFingerprint =
+    recommendationStrategy === "full_jd"
+      ? fullJdCacheInputFingerprint({
+          llmUserProfile,
+        })
+      : "";
   const externalFitCacheByRoleId = await fetchExternalFitCache({
     admin: args.admin,
+    asOf: evaluationAsOf,
+    behaviorContextVersion: fullJdBehaviorContext?.version ?? null,
+    inputFingerprint: externalFitInputFingerprint,
+    roleCards: candidateCardsWithoutCache,
     roleIds: candidateCardsWithoutCache.map((card) => card.roleId),
     userId: args.userId,
   });
@@ -3920,6 +5150,114 @@ export async function runCareerJobPostingRecommendations(args: {
       (card.externalFitCache?.score100 ?? -1) >=
       EXTERNAL_FIT_CACHE_SHORTLIST_SKIP_MIN_SCORE100
   ).length;
+  if (recommendationStrategy === "full_jd") {
+    const recentCompanyRanks = await fetchRecentExternalCompanyRanks({
+      admin: args.admin,
+      asOf: evaluationAsOf,
+      recentRecommendations,
+      userId: args.userId,
+    });
+    throwIfRecommendationSearchAborted(args.abortSignal);
+    const fullJdSelection = await selectFullJdRecommendations({
+      abortSignal: args.abortSignal,
+      admin: args.admin,
+      behaviorContextVersion: fullJdBehaviorContext?.version ?? null,
+      cards: candidateCards,
+      dryRun: args.evaluation?.dryRun === true,
+      fitContextText: fullJdFitContextText,
+      inputFingerprint: externalFitInputFingerprint,
+      outputLanguage,
+      plan,
+      recentCompanyRanks,
+      targetRecommendationCount,
+      usageLabel: fullJdScoringUsageLabel,
+      userId: args.userId,
+    });
+    throwIfRecommendationSearchAborted(args.abortSignal);
+    const detailedRecommendations = rankedFromSelected(
+      fullJdSelection.result.selected,
+      fullJdSelection.cards,
+      { preferSummaryAsRecommendationText: true }
+    );
+    const recommendations = args.evaluation?.dryRun
+      ? detailedRecommendations
+      : await persistRecommendations({
+          admin: args.admin,
+          outputLanguage,
+          recommendations: detailedRecommendations,
+          userId: args.userId,
+        });
+    infoJson("completed", {
+      behaviorContextVersion: fullJdBehaviorContext?.version ?? null,
+      candidateCount: candidateCards.length,
+      durationMs: Date.now() - startedAt,
+      externalFitCacheHighScoreHitCount: highScoreCacheHitCount,
+      externalFitCacheHitCount: cacheHitCount,
+      fullJdEarlyStopped: fullJdSelection.stats.earlyStopped,
+      fullJdFreshScoredCount: fullJdSelection.stats.scoredFreshCount,
+      fullJdScoredWaveCount: fullJdSelection.stats.scoredWaveCount,
+      recommendationCount: recommendations.length,
+      recommendationStrategy,
+      scoredFinalCandidateCount: fullJdSelection.result.scoredCount,
+      supplementalRecommendationCount: fullJdSelection.result.supplementalCount,
+      topScores: recommendations.slice(0, 5).map((item) => ({
+        desc: `${item.role.role_name} - ${item.role.company_name} - ${item.role.company_test_score}`,
+        score: item.score,
+      })),
+    });
+    return {
+      answerDraft: formatAnswerDraft({
+        candidateCount: candidateCards.length,
+        outputLanguage,
+        plan,
+        recommendations,
+        requestedCount,
+        supplementalRecommendationCount:
+          fullJdSelection.result.supplementalCount,
+      }),
+      candidateCount: candidateCards.length,
+      postingRoleIds: recommendations.map((item) => item.roleId).filter(isUuid),
+      recommendationCount: recommendations.length,
+      searchPlan: {
+        ftsKeywords: plan.ftsKeywords,
+        include_contract: plan.includeContract,
+        include_intern: plan.includeIntern,
+        include_parttime: plan.includeParttime,
+        includeRemote: plan.includeRemote,
+        is_prefer_entry: plan.isPreferEntry,
+        locations: plan.locations,
+        postingRecency: plan.postingRecency,
+        remoteOnly: plan.remoteOnly,
+        role_titles: plan.roleTitles,
+        searchIntentSummary: plan.searchIntentSummary,
+        sourceType: "external",
+      },
+      ...(args.evaluation
+        ? {
+            evaluationDiagnostics: {
+              asOf: evaluationAsOf,
+              cacheHitCount,
+              dryRun: args.evaluation.dryRun === true,
+              durationMs: Date.now() - startedAt,
+              earlyStopped: fullJdSelection.stats.earlyStopped,
+              freshScoredCount: fullJdSelection.stats.scoredFreshCount,
+              scoredWaveCount: fullJdSelection.stats.scoredWaveCount,
+              selected: recommendations.map((item) => ({
+                companyName:
+                  item.role.company_name ?? item.role.company_db_name ?? null,
+                fitReasons: item.detail.fitReasons,
+                fitSummary: item.detail.roleOverviewText,
+                roleId: item.roleId,
+                roleName: item.role.role_name ?? null,
+                score100: Math.round(item.score * 10),
+                tradeoffs: item.detail.tradeoffs,
+              })),
+              usageTag: evaluationUsageTag || null,
+            },
+          }
+        : {}),
+    };
+  }
   const selectionLimit = shortlistLimit(targetRecommendationCount);
   const cachedShortlistCards =
     candidateCards.length > 0

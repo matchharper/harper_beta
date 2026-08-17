@@ -10,6 +10,10 @@ import TurndownService from "turndown";
 import { POSTING_LINK_LABEL } from "@/lib/career/postingLinks";
 import { compactUrlLabel, isHarperOwnedUrl, isUrlText } from "@/lib/urlDisplay";
 import { cn } from "@/lib/utils";
+import {
+  OPPORTUNITY_RUN_MARKER_LABEL,
+  stripOpportunityRunMarkers,
+} from "@/lib/opportunityDiscovery/messageMarker";
 
 const turndownService = new TurndownService({
   bulletListMarker: "-",
@@ -271,6 +275,37 @@ function renderUrlLinkParagraph(
   );
 }
 
+function removeMarkdownBreakFormattingNewlines(children: ReactNode) {
+  if (!Array.isArray(children)) return children;
+
+  return children.map((child, index) => {
+    if (typeof child !== "string" || index === 0) return child;
+
+    const previousChild = children[index - 1];
+    if (!isValidElement(previousChild) || previousChild.type !== "br") {
+      return child;
+    }
+
+    // react-markdown emits a formatting newline after every <br>. Since these
+    // paragraphs preserve whitespace, keeping both would render two breaks.
+    return child.replace(/^\n/, "");
+  });
+}
+
+function isStandaloneStrongParagraph(children: ReactNode) {
+  const meaningfulChildren = React.Children.toArray(children).filter(
+    (child) => typeof child !== "string" || child.trim()
+  );
+
+  if (meaningfulChildren.length !== 1) return false;
+
+  const child = meaningfulChildren[0];
+  return (
+    isValidElement<{ node?: { tagName?: string } }>(child) &&
+    child.props.node?.tagName === "strong"
+  );
+}
+
 export default function RichText({
   content,
   className,
@@ -286,7 +321,9 @@ export default function RichText({
   renderEmailLinksAsText?: boolean;
   trailingInlineNode?: ReactNode;
 }) {
-  const normalizedContent = normalizeRichText(content);
+  const normalizedContent = normalizeRichText(
+    stripOpportunityRunMarkers(content)
+  );
   const markdownContent = trailingInlineNode
     ? `${normalizedContent}${TRAILING_INLINE_NODE_MARKER}`
     : normalizedContent;
@@ -304,7 +341,10 @@ export default function RichText({
 
   return (
     <div
-      className={cn("max-w-none text-sm leading-6", className)}
+      className={cn(
+        "max-w-none text-sm leading-6 [&_:is(h1,h2,h3,h4,h5,h6,[data-rich-text-section-title])+:is(p,ul,ol,blockquote,pre,[data-rich-text-table])]:mt-2",
+        className
+      )}
       data-career-i18n-skip="true"
     >
       <ReactMarkdown
@@ -325,12 +365,55 @@ export default function RichText({
               {renderNodeWithHighlights(children, "h3", trailingInlineNode)}
             </h3>
           ),
-          p: ({ children }) =>
-            renderUrlLinkParagraph(children, renderEmailLinksAsText) ?? (
-              <p className="mt-3 whitespace-pre-wrap wrap-break-word text-sm leading-6 first:mt-0">
-                {renderNodeWithHighlights(children, "p", trailingInlineNode)}
-              </p>
-            ),
+          h4: ({ children }) => (
+            <h4 className="mt-4 text-sm font-semibold leading-6 text-neutral-primary first:mt-0">
+              {renderNodeWithHighlights(children, "h4", trailingInlineNode)}
+            </h4>
+          ),
+          h5: ({ children }) => (
+            <h5 className="mt-4 text-sm font-semibold leading-6 text-neutral-primary first:mt-0">
+              {renderNodeWithHighlights(children, "h5", trailingInlineNode)}
+            </h5>
+          ),
+          h6: ({ children }) => (
+            <h6 className="mt-4 text-sm font-semibold leading-6 text-neutral-primary first:mt-0">
+              {renderNodeWithHighlights(children, "h6", trailingInlineNode)}
+            </h6>
+          ),
+          p: ({ children }) => {
+            const normalizedChildren =
+              removeMarkdownBreakFormattingNewlines(children);
+
+            if (isStandaloneStrongParagraph(normalizedChildren)) {
+              return (
+                <p
+                  className="mt-5 wrap-break-word text-sm leading-6 first:mt-0"
+                  data-rich-text-section-title="true"
+                >
+                  {renderNodeWithHighlights(
+                    normalizedChildren,
+                    "section-title",
+                    trailingInlineNode
+                  )}
+                </p>
+              );
+            }
+
+            return (
+              renderUrlLinkParagraph(
+                normalizedChildren,
+                renderEmailLinksAsText
+              ) ?? (
+                <p className="mt-3 whitespace-pre-wrap wrap-break-word text-sm leading-6 first:mt-0">
+                  {renderNodeWithHighlights(
+                    normalizedChildren,
+                    "p",
+                    trailingInlineNode
+                  )}
+                </p>
+              )
+            );
+          },
           ul: ({ children }) => (
             <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 first:mt-0">
               {children}
@@ -359,6 +442,11 @@ export default function RichText({
               );
             }
             const childText = getPlainText(children);
+            if (
+              childText.trim().toLowerCase() === OPPORTUNITY_RUN_MARKER_LABEL
+            ) {
+              return null;
+            }
             if (
               childText.trim().toLowerCase() === POSTING_LINK_LABEL &&
               !href.startsWith("http://") &&
@@ -460,7 +548,10 @@ export default function RichText({
             <hr className="my-4 border-0 border-t border-neutral-1000-a05" />
           ),
           table: ({ children }) => (
-            <div className="mt-4 overflow-x-auto first:mt-0">
+            <div
+              className="mt-4 overflow-x-auto first:mt-0"
+              data-rich-text-table="true"
+            >
               <table className="min-w-full border-collapse text-left text-sm leading-6 text-neutral-muted">
                 {children}
               </table>

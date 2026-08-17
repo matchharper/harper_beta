@@ -1,6 +1,7 @@
 import { useRouter } from "next/router";
 import { useMemo } from "react";
 import { OrgCandidateCard } from "@/components/org/OrgCandidateCard";
+import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
 import { InternalOnlySurface } from "@/components/org/internal/InternalOnlySurface";
 import { OrgPageHeader } from "@/components/org/workspace/OrgPageHeader";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
@@ -14,6 +15,7 @@ import { Tooltips } from "@/components/ui/tooltip";
 import { useOrgBoard, useOrgBoardProfileLabels } from "@/hooks/org/useOrg";
 import { useOrgViewedRecommendations } from "@/hooks/org/useOrgViewedRecommendations";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
+import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
 import { buildOrgHref } from "@/lib/org/routes";
 import type { OrgBoardItem } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
@@ -214,26 +216,22 @@ const HIRING_ROLE_STATE_ORDER: Record<HiringRoleState, number> = {
 const HIRING_ROLE_STATE_META: Record<
   HiringRoleState,
   {
-    dotClassName: string;
     label: string;
     rowTooltip: string;
     summaryTooltip: string;
   }
 > = {
   active: {
-    dotClassName: "bg-positive",
     label: "active",
     rowTooltip: "현재 채용을 진행 중인 역할입니다.",
     summaryTooltip: "현재 채용을 진행 중인 역할 수입니다.",
   },
   paused: {
-    dotClassName: "bg-neutral-500",
     label: "paused",
     rowTooltip: "현재 채용이 일시 중지된 역할입니다.",
     summaryTooltip: "현재 채용이 일시 중지된 역할 수입니다.",
   },
   waiting: {
-    dotClassName: "bg-primary",
     label: "waiting",
     rowTooltip: `연결 대기 후보자가 ${ORG_PENDING_CONNECTION_PAUSE_THRESHOLD}명 이상이라 새 연결이 잠시 중단된 역할입니다.`,
     summaryTooltip: `연결 대기 후보자가 ${ORG_PENDING_CONNECTION_PAUSE_THRESHOLD}명 이상인 역할 수입니다.`,
@@ -310,17 +308,24 @@ function HiringStatusSummary({
 function JobRoleRow({
   name,
   pending,
+  status,
   state,
   total,
   onClick,
 }: {
   name: string;
   pending: number;
+  status: string | null;
   state: HiringRoleState;
   total: number;
   onClick: () => void;
 }) {
   const statusMeta = HIRING_ROLE_STATE_META[state];
+  const roleStatus = getOrgRoleStatusPresentation(status);
+  const roleTooltip =
+    state === "waiting"
+      ? statusMeta.rowTooltip
+      : `현재 역할 상태는 ${roleStatus.label}입니다.`;
   const pendingTooltip =
     pending > 0
       ? `${pending}명의 후보자가 연결 결정을 기다리고 있습니다.`
@@ -332,15 +337,9 @@ function JobRoleRow({
       onClick={onClick}
       type="button"
     >
-      <Tooltips side="top" text={statusMeta.rowTooltip}>
+      <Tooltips side="top" text={roleTooltip}>
         <span className="flex min-w-0 items-center gap-2">
-          <span
-            aria-hidden="true"
-            className={cn(
-              "size-1.5 shrink-0 rounded-full",
-              statusMeta.dotClassName
-            )}
-          />
+          <OrgRoleStatusDot status={status} />
           <span className="min-w-0 truncate text-[14px] font-medium text-neutral-primary">
             {name}
           </span>
@@ -619,6 +618,7 @@ export function OrgHomePage() {
                         name={role.name}
                         onClick={() => openJobs(role.roleId)}
                         pending={count.pending}
+                        status={role.status}
                         state={state}
                         total={count.total}
                       />

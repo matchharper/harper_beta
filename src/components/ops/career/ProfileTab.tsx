@@ -1,5 +1,5 @@
 import { memo, useMemo, useState } from "react";
-import { ExternalLink, FileText, LoaderCircle, RefreshCw } from "lucide-react";
+import { FileText, LoaderCircle, RefreshCw } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { useIngestCareerProfile } from "@/hooks/ops/useOpsCareer";
 import type {
@@ -8,10 +8,8 @@ import type {
 } from "@/lib/ops/careerServer";
 import {
   formatKst,
-  formatRegisteredLinkLabel,
   getLinkedinProfileUrl,
   getResumeFileDisplayName,
-  normalizeRegisteredLinkHref,
 } from "./utils";
 import { BareButton } from "@/components/ui/button";
 import {
@@ -127,7 +125,7 @@ export const ProfileTab = memo(function ProfileTab({
     <div className="space-y-4">
       <div className={cx(opsTheme.panelSoft, "p-4")}>
         <div className="flex items-center justify-between gap-3">
-          <div className={cx(opsTheme.eyebrow)}>등록 자료</div>
+          <div className={cx(opsTheme.eyebrow)}>프로필 정보 가져오기</div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             {linkedinUrl ? (
               <BareButton
@@ -182,106 +180,6 @@ export const ProfileTab = memo(function ProfileTab({
           </div>
         </div>
 
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <div className="rounded-md border border-neutral-1000-a05 bg-bg-default/45 px-3 py-2">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-neutral-muted">
-                <FileText className="h-3.5 w-3.5 shrink-0 text-neutral-soft" />
-                <span>이력서 파일</span>
-              </div>
-              <span
-                className={cx(
-                  "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
-                  hasResumeFile
-                    ? "bg-positive-faded text-positive"
-                    : "bg-bg-weak text-neutral-muted"
-                )}
-              >
-                {hasResumeFile ? "있음" : "없음"}
-              </span>
-            </div>
-            {resumeFileDisplayName ? (
-              detail.resumeDownloadUrl ? (
-                <a
-                  href={detail.resumeDownloadUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-neutral-muted underline-offset-2 transition hover:text-neutral-primary hover:underline"
-                  title={resumeFileDisplayName}
-                >
-                  <span className="min-w-0 truncate">
-                    {resumeFileDisplayName}
-                  </span>
-                  <ExternalLink className="h-3 w-3 shrink-0 text-neutral-soft" />
-                </a>
-              ) : (
-                <div
-                  className="mt-1 truncate text-xs text-neutral-muted"
-                  title={resumeFileDisplayName}
-                >
-                  {resumeFileDisplayName} · 열기 링크 없음
-                </div>
-              )
-            ) : (
-              <div className="mt-1 truncate text-xs text-neutral-muted">
-                저장된 파일 없음
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-md border border-neutral-1000-a05 bg-bg-default/45 px-3 py-2">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-neutral-muted">
-                <FileText className="h-3.5 w-3.5 shrink-0 text-neutral-soft" />
-                <span>이력서 텍스트</span>
-              </div>
-              <span
-                className={cx(
-                  "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
-                  hasResumeText
-                    ? "bg-positive-faded text-positive"
-                    : "bg-bg-weak text-neutral-muted"
-                )}
-              >
-                {hasResumeText ? "추출됨" : "없음"}
-              </span>
-            </div>
-            <div className="mt-1 truncate text-xs text-neutral-muted">
-              {hasResumeText
-                ? "프로필 추출에 사용할 resume text가 저장되어 있습니다."
-                : "저장된 resume text 없음"}
-            </div>
-          </div>
-        </div>
-
-        <div className={cx(opsTheme.eyebrow, "mt-4")}>등록 링크</div>
-        {registeredLinks.length > 0 ? (
-          <div className="mt-3 space-y-2">
-            {registeredLinks.map((link) => {
-              const isLinkedin = /linkedin\.com\/in\//i.test(link);
-              return (
-                <a
-                  key={link}
-                  href={normalizeRegisteredLinkHref(link)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center justify-between gap-3 rounded-md border border-neutral-1000-a05 bg-bg-default/45 px-3 py-2 text-xs text-neutral-muted transition hover:border-neutral-1000-a10 hover:bg-blue-200/50"
-                >
-                  <span className="min-w-0 truncate">
-                    {isLinkedin ? "LinkedIn · " : ""}
-                    {formatRegisteredLinkLabel(link)}
-                  </span>
-                  <ExternalLink className="h-3.5 w-3.5 shrink-0 text-neutral-soft" />
-                </a>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="mt-2 text-sm text-neutral-soft">
-            등록된 링크가 없습니다.
-          </div>
-        )}
-
         {visibleIngestStatus ? (
           <div
             className={
@@ -301,13 +199,6 @@ export const ProfileTab = memo(function ProfileTab({
           <div className="whitespace-pre-wrap text-sm text-neutral-primary">
             {detail.bio}
           </div>
-        </div>
-      ) : null}
-
-      {detail.location ? (
-        <div className={cx(opsTheme.panelSoft, "p-4")}>
-          <div className={cx(opsTheme.eyebrow, "mb-1")}>위치</div>
-          <div className="text-sm text-neutral-primary">{detail.location}</div>
         </div>
       ) : null}
 

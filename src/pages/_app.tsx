@@ -15,6 +15,7 @@ import {
   isCareerTranslationRoute,
 } from "@/i18n/careerTranslationRoutes";
 import { DEFAULT_LOCALE } from "@/i18n/localeResolution";
+import { RouteHistoryProvider } from "@/hooks/useRouteHistory";
 import {
   getInitialClientLocalePreference,
   MessagesProvider,
@@ -79,7 +80,8 @@ export default function App({ Component, pageProps }: AppProps) {
   const shouldMountCustomCrisp =
     shouldShowCustomCrispLauncher ||
     isCareerWorkspacePage ||
-    isCareerLandingPage;
+    isCareerLandingPage ||
+    isOrgPage;
   const appDescription =
     isCareerLocalePage && careerLocale === "en"
       ? "Harper is an AI Career Agent for every talented professional."
@@ -152,22 +154,24 @@ export default function App({ Component, pageProps }: AppProps) {
             </Script>
           </>
         )}
-        <div className="notranslate font-sans" translate="no">
-          <Analytics />
-          <AppErrorBoundary resetKey={router.asPath}>
-            <CompanyModalRoot />
-            <PaperModalRoot />
-            <RepoModalRoot />
-            {page}
-            {shouldMountCustomCrisp && (
-              <CustomCrispWidget
-                showLauncher={shouldShowCustomCrispLauncher}
-                showLauncherWhenOpen={isCareerWorkspacePage}
-              />
-            )}
-            <ToastProvider />
-          </AppErrorBoundary>
-        </div>
+        <RouteHistoryProvider>
+          <div className="notranslate font-sans" translate="no">
+            <Analytics />
+            <AppErrorBoundary resetKey={router.asPath}>
+              <CompanyModalRoot />
+              <PaperModalRoot />
+              <RepoModalRoot />
+              {page}
+              {shouldMountCustomCrisp && (
+                <CustomCrispWidget
+                  showLauncher={shouldShowCustomCrispLauncher}
+                  showLauncherWhenOpen={isCareerWorkspacePage}
+                />
+              )}
+              <ToastProvider />
+            </AppErrorBoundary>
+          </div>
+        </RouteHistoryProvider>
       </ReactQueryProvider>
     </MessagesProvider>
   );

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import {
   getSlackActivityDeviceLabel,
   notifySlackActivity,
@@ -35,7 +35,7 @@ import {
   generateTalentKickoff,
 } from "@/lib/talentOnboarding/kickoff";
 import { logger } from "@/utils/logger";
-import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
+import { isMobileRequest } from "@/lib/requestDevice";
 import {
   cancelSignupNoProfileSubmit,
   enqueueProfileSubmittedNoAnswer,
@@ -81,6 +81,8 @@ type TalentProfileUpdatePayload = {
 
 type ProfileIngestionSummary = {
   ok: boolean;
+  queued?: boolean;
+  status?: string;
   linkedinUrl?: string;
   stats?: Record<string, number>;
   warnings?: Array<{
@@ -91,7 +93,23 @@ type ProfileIngestionSummary = {
   error?: string;
 };
 
+type AtomicOnboardingResult = {
+  inserted?: boolean;
+  conversation?: TalentConversationRow | null;
+  userMessage?: TalentMessageRow | null;
+  assistantMessages?: Array<TalentMessageRow | null>;
+};
+
 const ONBOARDING_SUBMITTED_EVENT_TYPE = "career_onboarding_submitted";
+const PROFILE_INGESTION_RETRY_AFTER_MS = 3 * 60_000;
+
+const isStaleProfileIngestion = (updatedAt?: string | null) => {
+  const updatedAtMs = Date.parse(String(updatedAt ?? ""));
+  return (
+    !Number.isFinite(updatedAtMs) ||
+    Date.now() - updatedAtMs >= PROFILE_INGESTION_RETRY_AFTER_MS
+  );
+};
 
 const normalizeLink = (value: string) => {
   const trimmed = value.trim();
@@ -217,6 +235,69 @@ const buildProfileSubmitMessage = (args: {
     "프로필 정보를 제출했습니다."
   );
 };
+
+export async function GET(req: NextRequest) {
+  try {
+    const user = await getRequestUser(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const conversationId = sanitizeSingleLineDbText(
+      req.nextUrl.searchParams.get("conversationId"),
+      80
+    );
+    if (!conversationId) {
+      return NextResponse.json(
+        { error: "conversationId is required" },
+        { status: 400 }
+      );
+    }
+
+    const admin = getTalentSupabaseAdmin();
+    const { data: conversation, error } = await admin
+      .from("talent_conversations")
+      .select(
+        "id, profile_ingestion_status, profile_ingestion_error, profile_ingestion_updated_at"
+      )
+      .eq("id", conversationId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (error) {
+      return NextResponse.json(
+        { error: error.message ?? "Failed to read profile ingestion status" },
+        { status: 500 }
+      );
+    }
+    if (!conversation) {
+      return NextResponse.json(
+        { error: "Conversation not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      conversationId: conversation.id,
+      profileIngestion: {
+        error: conversation.profile_ingestion_error ?? null,
+        status: conversation.profile_ingestion_status?.trim() || null,
+        updatedAt: conversation.profile_ingestion_updated_at ?? null,
+      },
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to read profile ingestion status",
+      },
+      { status: 500 }
+    );
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -391,7 +472,7 @@ export async function POST(req: NextRequest) {
     const talentSetting = await fetchTalentSetting({ admin, userId: user.id });
     const preferredLocale =
       talentSetting?.preferred_locale ?? body.locale ?? cookieLocale;
-    const kickoffLlmPromise = generateTalentKickoff({
+    const kickoff = await generateTalentKickoff({
       displayName,
       links,
       preferredLocale,
@@ -407,208 +488,101 @@ export async function POST(req: NextRequest) {
       resumeFileName,
       resumeText,
     });
-
     const shouldRunProfileIngestion =
       applyProfileSources && Boolean(resumeText || hasLinkedin);
-    const profileIngestionPromise = shouldRunProfileIngestion
-      ? (async () => {
-          try {
-            const ingestion = await ingestTalentProfileFromLinkedin({
-              admin,
-              userId: user.id,
-              links,
-              resumeText,
-              resumeFileName,
-              resumeStoragePath,
-            });
-            return {
-              ok: true,
-              linkedinUrl: ingestion.linkedinUrl,
-              stats: ingestion.stats,
-              warnings: ingestion.warnings,
-            } as ProfileIngestionSummary;
-          } catch (ingestionError) {
-            const ingestionMessage =
-              ingestionError instanceof Error
-                ? ingestionError.message
-                : "Failed to ingest talent profile";
-            logger.log("[TalentOnboardingStart] profile ingestion failed", {
-              userId: user.id,
-              error: ingestionMessage,
-            });
-            await insertTalentProfileSourceErrorLog({
-              admin,
-              error: ingestionError,
-              stage: "onboarding_profile_ingest",
-              userId: user.id,
-              metadata: {
-                conversationId,
-                hasLinkedin,
-                hasResume,
-                hasResumeText: Boolean(resumeText),
-                linkCount: links.length,
-                resumeFileName: resumeFileName ?? null,
-              },
-            });
-            return {
-              ok: false,
-              error: ingestionMessage,
-            };
-          }
-        })()
-      : Promise.resolve({
-          ok: true,
-        } as ProfileIngestionSummary);
-
-    const [llmRaw, profileIngestion] = await Promise.all([
-      kickoffLlmPromise,
-      profileIngestionPromise,
-    ]);
-
-    const submittedIdentityPayload: {
-      email?: string;
-      name?: string;
-      updated_at: string;
-    } = { updated_at: now };
-    if (submittedName) {
-      submittedIdentityPayload.name = submittedName.slice(0, 240);
-    }
-    if (verifiedEmail) {
-      submittedIdentityPayload.email = verifiedEmail.slice(0, 320);
-    }
-
-    if (submittedIdentityPayload.name || submittedIdentityPayload.email) {
-      const { error: submittedIdentityUpdateError } = await admin
-        .from("talent_users")
-        .update(submittedIdentityPayload)
-        .eq("user_id", user.id);
-
-      if (submittedIdentityUpdateError) {
-        await notifyUnsupportedUnicodeEscapeError({
-          conversationId,
-          error: submittedIdentityUpdateError,
-          metadata: {
-            hasSubmittedEmail: Boolean(verifiedEmail),
-            hasSubmittedName: Boolean(submittedName),
-          },
-          route: "/api/talent/onboarding/start",
-          stage: "talent_users.update:submitted_identity",
-          userId: user.id,
-        });
-        return NextResponse.json(
-          {
-            error:
-              submittedIdentityUpdateError.message ??
-              "Failed to save submitted identity",
-          },
-          { status: 500 }
-        );
-      }
-    }
-
-    const kickoff = llmRaw;
     const profileSubmitContent = buildProfileSubmitMessage({
       hasResume,
       links,
       preferredLocale,
     });
+    const pendingQuestionContent = `${TALENT_PENDING_QUESTION_PREFIX}${buildTalentKickoffOpeningMessage(
+      displayName,
+      preferredLocale
+    )}`;
+    const { data: atomicData, error: atomicError } = await admin.rpc(
+      "finalize_talent_onboarding_submission_v1",
+      {
+        p_conversation_id: conversationId,
+        p_is_mobile: isMobile,
+        p_kickoff_content: `${kickoff.acknowledgement}\n\n${kickoff.insight}`,
+        p_pending_question_content: pendingQuestionContent,
+        p_profile_submit_content: profileSubmitContent,
+        p_user_id: user.id,
+      }
+    );
 
-    const messagePayloads = [
-      withIsMobile(
-        {
-          conversation_id: conversationId,
-          user_id: user.id,
-          role: "user",
-          content: profileSubmitContent,
-          message_type: "profile_submit",
-        },
-        isMobile
-      ),
-      withIsMobile(
-        {
-          conversation_id: conversationId,
-          user_id: user.id,
-          role: "assistant",
-          content: `${kickoff.acknowledgement}\n\n${kickoff.insight}`,
-          message_type: "system",
-        },
-        isMobile
-      ),
-      withIsMobile(
-        {
-          conversation_id: conversationId,
-          user_id: user.id,
-          role: "assistant",
-          content: `${TALENT_PENDING_QUESTION_PREFIX}${buildTalentKickoffOpeningMessage(
-            displayName,
-            preferredLocale
-          )}`,
-          message_type: "system",
-        },
-        isMobile
-      ),
-    ];
-
-    const { data: insertedMessages, error: messageInsertError } = await admin
-      .from("talent_messages")
-      .insert(messagePayloads)
-      .select("*");
-
-    if (messageInsertError) {
+    if (atomicError) {
       await notifyUnsupportedUnicodeEscapeError({
         conversationId,
-        error: messageInsertError,
+        error: atomicError,
         metadata: {
-          assistantMessageCount: messagePayloads.filter(
-            (item) => item.role === "assistant"
-          ).length,
           hasResume,
           hasResumeText: Boolean(resumeText),
           linkCount: links.length,
-          userMessageCount: messagePayloads.filter(
-            (item) => item.role === "user"
-          ).length,
         },
         route: "/api/talent/onboarding/start",
-        stage: "talent_messages.insert:onboarding_messages",
+        stage: "finalize_talent_onboarding_submission_v1",
         userId: user.id,
       });
       return NextResponse.json(
         {
-          error:
-            messageInsertError.message ??
-            "Failed to insert onboarding messages",
+          error: atomicError.message ?? "Failed to finalize onboarding",
         },
         { status: 500 }
       );
     }
 
-    const insertedRows = (insertedMessages ?? []) as TalentMessageRow[];
-
-    const { data: updatedConversation, error: conversationUpdateError } =
-      await admin
-        .from("talent_conversations")
-        .update({
-          stage: "chat",
-          updated_at: now,
-        })
-        .eq("id", conversationId)
-        .eq("user_id", user.id)
-        .select("*")
-        .single();
-
-    if (conversationUpdateError) {
-      const insertedIds = insertedRows.map((item) => item.id);
-      if (insertedIds.length > 0) {
-        await admin.from("talent_messages").delete().in("id", insertedIds);
-      }
+    const atomicResult = atomicData as unknown as AtomicOnboardingResult;
+    let updatedConversation = atomicResult?.conversation;
+    const insertedUserMessage = atomicResult?.userMessage;
+    const assistantRows = (atomicResult?.assistantMessages ?? []).filter(
+      (message): message is TalentMessageRow => Boolean(message?.id)
+    );
+    if (!updatedConversation?.id || !insertedUserMessage?.id) {
       return NextResponse.json(
-        {
-          error:
-            conversationUpdateError.message ?? "Failed to update conversation",
-        },
+        { error: "Failed to finalize onboarding messages" },
         { status: 500 }
       );
+    }
+
+    const existingIngestionStatus =
+      updatedConversation.profile_ingestion_status?.trim() ?? "";
+    const shouldScheduleProfileIngestion =
+      shouldRunProfileIngestion &&
+      (atomicResult.inserted !== false ||
+        !existingIngestionStatus ||
+        existingIngestionStatus === "failed" ||
+        (existingIngestionStatus === "processing" &&
+          isStaleProfileIngestion(
+            updatedConversation.profile_ingestion_updated_at
+          )));
+
+    if (shouldScheduleProfileIngestion) {
+      const profileIngestionStartedAt = new Date().toISOString();
+      const { data: processingConversation, error: processingStatusError } =
+        await admin
+          .from("talent_conversations")
+          .update({
+            profile_ingestion_error: null,
+            profile_ingestion_status: "processing",
+            profile_ingestion_updated_at: profileIngestionStartedAt,
+          })
+          .eq("id", conversationId)
+          .eq("user_id", user.id)
+          .select("*")
+          .single();
+
+      if (processingStatusError || !processingConversation) {
+        return NextResponse.json(
+          {
+            error:
+              processingStatusError?.message ??
+              "Failed to start profile ingestion",
+          },
+          { status: 500 }
+        );
+      }
+      updatedConversation = processingConversation as TalentConversationRow;
     }
 
     const toResponseMessage = (message: TalentMessageRow) => ({
@@ -619,56 +593,19 @@ export async function POST(req: NextRequest) {
       createdAt: message.created_at,
     });
 
-    const profile = await fetchTalentUserProfile({ admin, userId: user.id });
-    const materialActivity = buildProfileMaterialActivity({
-      previous: {
-        resumeFileName: previousProfile?.resume_file_name ?? null,
-        resumeLinks: previousProfile?.resume_links ?? [],
-        resumeStoragePath: previousProfile?.resume_storage_path ?? null,
-        resumeText: previousProfile?.resume_text ?? null,
-      },
-      next: {
-        resumeFileName: profile?.resume_file_name ?? null,
-        resumeLinks: profile?.resume_links ?? [],
-        resumeStoragePath: profile?.resume_storage_path ?? null,
-        resumeText: profile?.resume_text ?? null,
-      },
-    });
-    if (materialActivity) {
-      await insertTalentActivityEvent({
-        admin,
-        changedDomains: materialActivity.changedDomains,
-        conversationId,
-        eventType: "profile_materials_updated",
-        impactLevel: materialActivity.impactLevel,
-        source: "onboarding",
-        summary: materialActivity.summary,
-        userId: user.id,
-      });
-    }
-    if (officialJobSignupIntentPrompt) {
-      await insertTalentActivityEvent({
-        admin,
-        changedDomains: ["official_job_intent", "onboarding"],
-        conversationId,
-        eventType: OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE,
-        impactLevel: "high",
-        source: officialJobSlug
-          ? `official_jobs_onboarding:${officialJobSlug}`
-          : "official_jobs_onboarding",
-        summary: officialJobSignupIntentPrompt,
-        userId: user.id,
-      });
-    }
-    const talentProfile = await fetchTalentStructuredProfile({
-      admin,
-      userId: user.id,
-      talentUser: profile,
-    });
-    const documents = await fetchTalentDocuments({
-      admin,
-      userId: user.id,
-    });
+    const [profile, documents] = await Promise.all([
+      fetchTalentUserProfile({ admin, userId: user.id }),
+      applyProfileSources
+        ? Promise.resolve([])
+        : fetchTalentDocuments({ admin, userId: user.id }),
+    ]);
+    const talentProfile = applyProfileSources
+      ? null
+      : await fetchTalentStructuredProfile({
+          admin,
+          userId: user.id,
+          talentUser: profile,
+        });
     const serializedDocuments = await serializeTalentDocuments({
       admin,
       documents,
@@ -676,80 +613,193 @@ export async function POST(req: NextRequest) {
     const latestResume = serializedDocuments.find(
       (document) => document.kind === "resume"
     );
-    const resumeDownloadUrl = await getTalentResumeSignedUrl({
-      admin,
-      storagePath: latestResume?.storagePath ?? profile?.resume_storage_path,
-    });
-    const insertedUserMessage = insertedRows.find(
-      (item) => item.role === "user"
-    );
-    if (!insertedUserMessage) {
-      return NextResponse.json(
-        { error: "Failed to create profile submit message" },
-        { status: 500 }
-      );
+    const resumeDownloadUrl = applyProfileSources
+      ? null
+      : await getTalentResumeSignedUrl({
+          admin,
+          storagePath:
+            latestResume?.storagePath ?? profile?.resume_storage_path,
+        });
+
+    if (atomicResult.inserted !== false || shouldScheduleProfileIngestion) {
+      const runBackgroundOnboardingWork = async () => {
+        try {
+          if (shouldScheduleProfileIngestion) {
+            try {
+              await ingestTalentProfileFromLinkedin({
+                admin,
+                userId: user.id,
+                links,
+                resumeText,
+                resumeFileName,
+                resumeStoragePath,
+              });
+              const { error: completedStatusError } = await admin
+                .from("talent_conversations")
+                .update({
+                  profile_ingestion_error: null,
+                  profile_ingestion_status: "completed",
+                  profile_ingestion_updated_at: new Date().toISOString(),
+                })
+                .eq("id", conversationId)
+                .eq("user_id", user.id);
+              if (completedStatusError) {
+                throw completedStatusError;
+              }
+            } catch (ingestionError) {
+              const ingestionMessage =
+                ingestionError instanceof Error
+                  ? ingestionError.message
+                  : "Failed to ingest talent profile";
+              logger.log("[TalentOnboardingStart] profile ingestion failed", {
+                userId: user.id,
+                error: ingestionMessage,
+              });
+              await insertTalentProfileSourceErrorLog({
+                admin,
+                error: ingestionError,
+                stage: "onboarding_profile_ingest",
+                userId: user.id,
+                metadata: {
+                  conversationId,
+                  hasLinkedin,
+                  hasResume,
+                  hasResumeText: Boolean(resumeText),
+                  linkCount: links.length,
+                  resumeFileName: resumeFileName ?? null,
+                },
+              });
+              await admin
+                .from("talent_conversations")
+                .update({
+                  profile_ingestion_error: ingestionMessage.slice(0, 2000),
+                  profile_ingestion_status: "failed",
+                  profile_ingestion_updated_at: new Date().toISOString(),
+                })
+                .eq("id", conversationId)
+                .eq("user_id", user.id);
+            }
+          }
+
+          const backgroundProfile = await fetchTalentUserProfile({
+            admin,
+            userId: user.id,
+          });
+          const materialActivity = buildProfileMaterialActivity({
+            previous: {
+              resumeFileName: previousProfile?.resume_file_name ?? null,
+              resumeLinks: previousProfile?.resume_links ?? [],
+              resumeStoragePath: previousProfile?.resume_storage_path ?? null,
+              resumeText: previousProfile?.resume_text ?? null,
+            },
+            next: {
+              resumeFileName: backgroundProfile?.resume_file_name ?? null,
+              resumeLinks: backgroundProfile?.resume_links ?? [],
+              resumeStoragePath: backgroundProfile?.resume_storage_path ?? null,
+              resumeText: backgroundProfile?.resume_text ?? null,
+            },
+          });
+          if (materialActivity) {
+            await insertTalentActivityEvent({
+              admin,
+              changedDomains: materialActivity.changedDomains,
+              conversationId,
+              eventType: "profile_materials_updated",
+              impactLevel: materialActivity.impactLevel,
+              source: "onboarding",
+              summary: materialActivity.summary,
+              userId: user.id,
+            });
+          }
+          if (officialJobSignupIntentPrompt) {
+            await insertTalentActivityEvent({
+              admin,
+              changedDomains: ["official_job_intent", "onboarding"],
+              conversationId,
+              eventType: OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE,
+              impactLevel: "high",
+              source: officialJobSlug
+                ? `official_jobs_onboarding:${officialJobSlug}`
+                : "official_jobs_onboarding",
+              summary: officialJobSignupIntentPrompt,
+              userId: user.id,
+            });
+          }
+
+          const { error: logInsertError } = await admin.from("logs").insert({
+            type: ONBOARDING_SUBMITTED_EVENT_TYPE,
+            user_id: user.id,
+          });
+          if (logInsertError) {
+            console.error(
+              "[TalentOnboardingStart] log insert failed:",
+              logInsertError
+            );
+          }
+
+          await Promise.all([
+            cancelSignupNoProfileSubmit({ admin, userId: user.id }),
+            enqueueProfileSubmittedNoAnswer({
+              admin,
+              conversationId,
+              payload: {
+                hasLinkedin,
+                hasResume,
+                linkCount: links.length,
+                resumeFileName: resumeFileName ?? null,
+              },
+              userId: user.id,
+            }),
+          ]).catch((queueError) => {
+            console.error(
+              "[TalentOnboardingStart] contact queue update failed:",
+              queueError
+            );
+          });
+
+          await notifySlackActivity({
+            action: "/career/onboarding 제출 완료",
+            details: [
+              { label: "Device", value: getSlackActivityDeviceLabel(req) },
+              { label: "Headline", value: backgroundProfile?.headline },
+            ],
+            email: verifiedEmail || backgroundProfile?.email || user.email,
+            name: submittedName || backgroundProfile?.name || displayName,
+            user,
+          });
+        } catch (backgroundError) {
+          console.error(
+            "[TalentOnboardingStart] background work failed:",
+            backgroundError
+          );
+        }
+      };
+
+      try {
+        after(runBackgroundOnboardingWork);
+      } catch {
+        void runBackgroundOnboardingWork();
+      }
     }
 
-    const { error: logInsertError } = await admin.from("logs").insert({
-      type: ONBOARDING_SUBMITTED_EVENT_TYPE,
-      user_id: user.id,
-    });
-    if (logInsertError) {
-      console.error(
-        "[TalentOnboardingStart] log insert failed:",
-        logInsertError
-      );
-    }
-
-    await cancelSignupNoProfileSubmit({
-      admin,
-      userId: user.id,
-    }).catch((queueError) => {
-      console.error(
-        "[TalentOnboardingStart] signup contact queue cancel failed:",
-        queueError
-      );
-    });
-    await enqueueProfileSubmittedNoAnswer({
-      admin,
-      conversationId,
-      payload: {
-        hasLinkedin,
-        hasResume,
-        linkCount: links.length,
-        resumeFileName: resumeFileName ?? null,
-      },
-      userId: user.id,
-    }).catch((queueError) => {
-      console.error(
-        "[TalentOnboardingStart] profile contact queue enqueue failed:",
-        queueError
-      );
-    });
-
-    try {
-      await notifySlackActivity({
-        action: "/career/onboarding 제출 완료",
-        details: [
-          { label: "Device", value: getSlackActivityDeviceLabel(req) },
-          { label: "Headline", value: profile?.headline },
-        ],
-        email: verifiedEmail || profile?.email || user.email,
-        name: submittedName || profile?.name || displayName,
-        user,
-      });
-    } catch (slackError) {
-      console.error(
-        "[TalentOnboardingStart] onboarding slack notify error:",
-        slackError
-      );
-    }
+    const responseIngestionStatus = shouldRunProfileIngestion
+      ? shouldScheduleProfileIngestion
+        ? "processing"
+        : existingIngestionStatus || "processing"
+      : "completed";
+    const profileIngestion: ProfileIngestionSummary = shouldRunProfileIngestion
+      ? {
+          ok: responseIngestionStatus !== "failed",
+          queued: responseIngestionStatus === "processing",
+          status: responseIngestionStatus,
+        }
+      : { ok: true };
 
     return NextResponse.json({
       ok: true,
       conversation: {
-        id: (updatedConversation as TalentConversationRow).id,
-        stage: (updatedConversation as TalentConversationRow).stage,
+        id: updatedConversation.id,
+        stage: updatedConversation.stage,
         resumeFileName:
           latestResume?.fileName ?? profile?.resume_file_name ?? null,
         resumeStoragePath:
@@ -761,8 +811,8 @@ export async function POST(req: NextRequest) {
       talentProfile,
       userMessage: toResponseMessage(insertedUserMessage),
       profileSubmitMessage: profileSubmitContent,
-      kickoff,
-      assistantMessages: insertedRows
+      kickoff: atomicResult.inserted === false ? null : kickoff,
+      assistantMessages: assistantRows
         .filter(
           (item) =>
             item.role === "assistant" &&

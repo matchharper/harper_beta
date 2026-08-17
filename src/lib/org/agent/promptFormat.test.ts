@@ -121,6 +121,32 @@ test("candidate details always label the five insights as information told to Ha
   assert.doesNotMatch(compact, /company_consent|stale|180/);
 });
 
+test("candidate details expose whether the current company closure notice was sent", () => {
+  const compact = serializeOrgAgentToolResult("read_talent", {
+    candidate: { name: "Person", talentId: "talent-1" },
+    harperSharedInformation: [],
+    positions: [
+      {
+        processClosureNotification: {
+          deliveredAt: "2026-08-10T00:00:00.000Z",
+          sentChannel: "chat,email",
+          status: "sent",
+        },
+        roleId: "role-1",
+        roleName: "Engineer",
+        stage: "process_stopped",
+      },
+    ],
+    profileIncluded: false,
+    recentProgress: [],
+    requestHistory: [],
+    resumeAvailability: { available: false, guidance: "없음" },
+  });
+
+  assert.match(compact, /closure_notice/);
+  assert.match(compact, /sent\t2026-08-10\tchat,email/);
+});
+
 test("candidate batch details expose structured profiles without raw resume text", () => {
   const rawResumeSecret = "RAW_RESUME_TEXT_MUST_NOT_REACH_THE_MODEL";
   const compact = serializeOrgAgentToolResult("read_talent", {
@@ -308,16 +334,50 @@ test("candidate connection decisions return a compact outcome", () => {
     connectionMethod: "intro_email",
     decision: "accept",
     roleId: "role-1",
+    reactivation: true,
     stage: "connected",
     status: "updated",
     talentId: "talent-1",
+    closureNotificationDelivered: true,
+    closureNotificationDeliveredAt: "2026-08-10T01:00:00.000Z",
+    closureNotificationSentChannel: "chat,email",
   });
 
   assert.match(compact, /decision=accept/);
   assert.match(compact, /connection_method=intro_email/);
   assert.match(compact, /stage=연결됨/);
+  assert.match(compact, /reactivation=true/);
+  assert.match(compact, /closure_notice_delivered=true/);
+  assert.match(compact, /closure_notice_channel=chat,email/);
   assert.doesNotMatch(compact, /stage=connected/);
   assert.doesNotMatch(compact, /talent-1/);
+});
+
+test("pipeline mutation results state exact effects and no candidate contact", () => {
+  const structure = serializeOrgAgentToolResult("manage_role_pipeline_stages", {
+    action: "add",
+    roleName: "Engineer",
+    stages: [
+      { label: "기술 면접", status: "created" },
+      { label: "컬처핏 인터뷰", status: "already_exists" },
+    ],
+    status: "updated",
+    summary: "Engineer 파이프라인 단계 추가",
+  });
+  const move = serializeOrgAgentToolResult("move_candidate_stage", {
+    candidateName: "김하퍼",
+    previousStageLabel: "1차 인터뷰",
+    roleName: "Engineer",
+    stageLabel: "2차 인터뷰",
+    status: "updated",
+  });
+
+  assert.match(structure, /기술 면접\tcreated/);
+  assert.match(structure, /컬처핏 인터뷰\talready_exists/);
+  assert.match(structure, /candidate_moved=false candidate_contacted=false/);
+  assert.match(move, /from=1차 인터뷰/);
+  assert.match(move, /to=2차 인터뷰/);
+  assert.match(move, /candidate_contacted=false email_sent=false/);
 });
 
 test("candidate decision preparation returns facts without server-authored confirmation copy", () => {
@@ -331,6 +391,9 @@ test("candidate decision preparation returns facts without server-authored confi
     introEmails: ["company@example.com"],
     reason: "팀과 잘 맞음",
     requesterEmail: "company@example.com",
+    currentStage: "process_stopped",
+    reactivation: true,
+    closureNotificationDelivered: false,
     status: "decision_context_ready",
   });
 
@@ -339,6 +402,9 @@ test("candidate decision preparation returns facts without server-authored confi
   assert.match(compact, /direct_contact_available=true/);
   assert.match(compact, /intro_recipients=company@example.com/);
   assert.match(compact, /reason=팀과 잘 맞음/);
+  assert.match(compact, /current_stage=프로세스 종료/);
+  assert.match(compact, /reactivation=true/);
+  assert.match(compact, /closure_notice_delivered=false/);
   assert.doesNotMatch(compact, /required_confirmation/);
   assert.doesNotMatch(compact, /이대로 진행할까요/);
 });
@@ -380,9 +446,13 @@ test("get_more_data serialization is bounded and keeps completeness markers", ()
     companyDetails: {
       complete: false,
       fields: {
-        pitch: { complete: false, oversized: false, truncated: true },
+        workspace_request: {
+          complete: false,
+          oversized: false,
+          truncated: true,
+        },
       },
-      values: { pitch: "p".repeat(20_000) },
+      values: { workspace_request: "r".repeat(20_000) },
     },
     requestedKinds: ["company_details"],
   });
@@ -398,12 +468,12 @@ test("get_more_data marks an unexpected framing overflow incomplete", () => {
     companyDetails: {
       complete: true,
       fields: {
-        company_description: marker,
-        pitch: marker,
+        unexpected_detail: marker,
+        workspace_request: marker,
       },
       values: {
-        company_description: "d".repeat(20_000),
-        pitch: "p".repeat(20_000),
+        unexpected_detail: "d".repeat(20_000),
+        workspace_request: "r".repeat(20_000),
       },
     },
     requestedKinds: ["company_details"],
@@ -443,4 +513,101 @@ test("organization-agent role results expose whole-pipeline stage counts", () =>
   assert.match(compact, /recommended\t3/);
   assert.match(compact, /saved\t2/);
   assert.match(compact, /salary\t연봉 7,000만–9,000만원 \+ 스톡옵션/);
+});
+
+test("role pipeline reads expose ordered stage and current-stage IDs for safe mutations", () => {
+  const compact = serializeOrgAgentToolResult("read_role", {
+    availableStages: [
+      {
+        kind: "built_in",
+        label: "연결됨",
+        sortOrder: 1,
+        stageId: "connected",
+      },
+      {
+        kind: "custom",
+        label: "1차 인터뷰",
+        sortOrder: 101,
+        stageId: "custom:stage-1",
+      },
+    ],
+    countsComplete: true,
+    people: {
+      hasMore: false,
+      items: [
+        {
+          currentStageId: "custom:stage-1",
+          currentStageLabel: "1차 인터뷰",
+          name: "김하퍼",
+          talentId: "talent-1",
+        },
+      ],
+      limit: 10,
+      offset: 0,
+      total: 1,
+    },
+    recentUpdates: [],
+    role: { name: "Engineer", roleId: "role-1" },
+    stageCounts: [],
+  });
+
+  assert.match(compact, /stage_id\tlabel\tkind\tsort_order/);
+  assert.match(compact, /custom:stage-1\t1차 인터뷰\tcustom\t101/);
+  assert.match(compact, /current_stage_id\tstage/);
+  assert.match(compact, /talent-1\t김하퍼.*custom:stage-1\t1차 인터뷰/);
+});
+
+test("organization-agent role reads expose structured criteria beside the request", () => {
+  const compact = serializeOrgAgentToolResult("read_role", {
+    availableStages: [],
+    countsComplete: true,
+    fieldCompleteness: {
+      role_criteria: { complete: true, included: true, truncated: false },
+      role_description: { complete: false, included: false, truncated: false },
+      role_memory: { complete: false, included: false, truncated: false },
+      role_request: { complete: true, included: true, truncated: false },
+    },
+    role: {
+      criteria: [
+        {
+          criteria: "관련 업무를 3년 이상 수행한 경험과 성과를 함께 봅니다.",
+          name: "Experience level",
+        },
+        {
+          criteria: "초기 팀에서 제품을 직접 만든 경험을 우대합니다.",
+          name: "Founding-stage building",
+        },
+        {
+          criteria: "복잡한 기술 문제를 주도해 해결한 근거를 봅니다.",
+          name: "Technical depth",
+        },
+      ],
+      name: "Backend Engineer",
+      request: "## Hard constraints\n\n- 백엔드 운영 경험",
+      roleId: "role-1",
+    },
+  });
+
+  assert.match(compact, /<role_request_markdown>/);
+  assert.match(compact, /<structured_role_criteria>/);
+  assert.match(compact, /Experience level/);
+  assert.match(compact, /관련 업무를 3년 이상 수행한 경험/);
+  assert.match(compact, /role_criteria_complete=true/);
+});
+
+test("start_role_creation exposes only continuation links and the authoritative reply", () => {
+  const compact = serializeOrgAgentToolResult("start_role_creation", {
+    roleId: "private-role-id",
+    roleTitle: "Staff Engineer",
+    status: "started",
+    threadPermalink: "https://slack.example/thread",
+    userMessage: "새 역할 작성 스레드에서 이어가 주세요.",
+    webUrl: "https://harper.example/org/role?orgId=org&roleId=role",
+  });
+
+  assert.match(compact, /status=started/);
+  assert.match(compact, /thread_permalink=https:\/\/slack\.example\/thread/);
+  assert.match(compact, /web_url=https:\/\/harper\.example\/org\/role/);
+  assert.match(compact, /authoritative outcome/);
+  assert.doesNotMatch(compact, /private-role-id/);
 });

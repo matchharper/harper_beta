@@ -1,11 +1,17 @@
+import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import {
-  callApifyActor,
-  getApifyApiToken,
-  listApifyDatasetItems,
-} from "@/lib/apifyRest";
+  normalizeOpenUrl,
+  saveDocumentCaches,
+} from "@/lib/tools/documentCache";
+import {
+  getExaClient,
+  type ExaSearchClient,
+} from "@/lib/tools/exaClient";
 
 export type WebSearchResult = {
-  snippet: string;
+  author?: string;
+  highlights: string[];
+  publishedDate?: string;
   title: string;
   url: string;
 };
@@ -15,7 +21,10 @@ export type WebSearchResponse = {
   results: WebSearchResult[];
 };
 
-const APIFY_SEARCH_LIMITS = [10, 20, 30, 40, 50, 100] as const;
+const DEFAULT_RESULT_COUNT = 10;
+const MAX_RESULT_COUNT = 10;
+const SEARCH_TEXT_MAX_CHARACTERS = 15_000;
+const SEARCH_HIGHLIGHTS_MAX_CHARACTERS = 500;
 
 function clampCount(value: unknown, fallback: number) {
   const parsed =
@@ -23,74 +32,85 @@ function clampCount(value: unknown, fallback: number) {
       ? value
       : Number.parseInt(String(value ?? ""), 10);
   if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(1, Math.min(100, parsed));
+  return Math.max(1, Math.min(MAX_RESULT_COUNT, Math.floor(parsed)));
 }
 
-function toApifyLimit(maxResults: number) {
-  return (
-    APIFY_SEARCH_LIMITS.find((limit) => limit >= maxResults) ??
-    APIFY_SEARCH_LIMITS[APIFY_SEARCH_LIMITS.length - 1]
-  );
+function optionalString(value: unknown) {
+  const text = typeof value === "string" ? value.trim() : "";
+  return text || undefined;
 }
 
 export async function runWebSearch(args: {
+  admin: TalentAdminClient;
+  exa?: ExaSearchClient;
   maxResults?: number;
   query: string;
 }): Promise<WebSearchResponse> {
   const query = String(args.query ?? "").trim();
-  const maxResults = clampCount(args.maxResults, 5);
+  const maxResults = clampCount(args.maxResults, DEFAULT_RESULT_COUNT);
 
   if (!query) {
     throw new Error("query is required");
   }
 
-  const token = getApifyApiToken();
-
-  const run = await callApifyActor({
-    actorId: "563JCPLOqM1kMmbbP",
-    input: {
-      keyword: query,
-      language: "ko",
-      country: "KR",
-      page: 1,
-      limit: String(toApifyLimit(maxResults)),
-      logger: null,
+  const response = await (args.exa ?? getExaClient()).search(query, {
+    numResults: maxResults,
+    type: "auto",
+    contents: {
+      text: { maxCharacters: SEARCH_TEXT_MAX_CHARACTERS },
+      highlights: { maxCharacters: SEARCH_HIGHLIGHTS_MAX_CHARACTERS },
     },
-    maxRunWaitSeconds: 60,
-    token,
-    waitForFinishSeconds: 60,
   });
 
-  const items = await listApifyDatasetItems({
-    datasetId: run.defaultDatasetId,
-    limit: 10,
-    token,
+  const resultsWithText = response.results.flatMap((result) => {
+    let url: string;
+    try {
+      url = normalizeOpenUrl(result.url);
+    } catch {
+      return [];
+    }
+
+    const title = optionalString(result.title) ?? url;
+    const text = optionalString(result.text);
+    const highlights = Array.isArray(result.highlights)
+      ? result.highlights
+          .map((highlight) => optionalString(highlight))
+          .filter((highlight): highlight is string => Boolean(highlight))
+      : [];
+
+    return [
+      {
+        author: optionalString(result.author),
+        highlights,
+        publishedDate: optionalString(result.publishedDate),
+        text,
+        title,
+        url,
+      },
+    ];
   });
-  if (!items || items.length === 0) {
-    return { query, results: [] };
-  }
 
-  const lastItem = items[items.length - 1] as {
-    results?: Array<{
-      description?: string;
-      title?: string;
-      url?: string;
-    }>;
-  };
-
-  const results = Array.isArray(lastItem?.results)
-    ? lastItem.results
-        .map((item) => ({
-          snippet: String(item.description ?? "").trim(),
-          title: String(item.title ?? "").trim(),
-          url: String(item.url ?? "").trim(),
-        }))
-        .filter((item) => item.url.length > 0)
-        .slice(0, maxResults)
-    : [];
+  await saveDocumentCaches({
+    admin: args.admin,
+    documents: resultsWithText.flatMap((result) =>
+      result.text
+        ? [
+            {
+              excerpt:
+                result.highlights.length > 0
+                  ? result.highlights.join("\n...\n")
+                  : null,
+              markdown: result.text,
+              title: result.title,
+              url: result.url,
+            },
+          ]
+        : []
+    ),
+  });
 
   return {
     query,
-    results,
+    results: resultsWithText.map(({ text: _text, ...result }) => result),
   };
 }

@@ -27,8 +27,14 @@ type OrgJobsNavigationValue = {
   detailRecommendationId: string;
   detailRoleId: string;
   detailTalentId: string;
-  selectTalent: (item: OrgTalentSelection) => void;
+  selectTalent: (
+    item: OrgTalentSelection,
+    navigationItems?: readonly OrgTalentSelection[],
+    navigationLabel?: string
+  ) => void;
   selectedRoleId: string | null;
+  talentNavigationItems: readonly OrgTalentSelection[];
+  talentNavigationLabel: string;
   workspaceId: string;
 };
 
@@ -130,6 +136,8 @@ function OrgJobsRouteProvider({
     selectedRoleId,
     setNameQuery,
     setRecommendedDateRange,
+    talentNavigationItems,
+    talentNavigationLabel,
     workspaceId,
   } = route;
   const activeRole = useMemo(
@@ -149,6 +157,8 @@ function OrgJobsRouteProvider({
       detailTalentId,
       selectTalent,
       selectedRoleId,
+      talentNavigationItems,
+      talentNavigationLabel,
       workspaceId,
     }),
     [
@@ -163,6 +173,8 @@ function OrgJobsRouteProvider({
       detailTalentId,
       selectTalent,
       selectedRoleId,
+      talentNavigationItems,
+      talentNavigationLabel,
       workspaceId,
     ]
   );

@@ -13,7 +13,11 @@ import {
 import {
   externalRecommendationBadgeClass,
   externalRecommendationLabel,
+  formatRegisteredLinkLabel,
   formatKst,
+  getLinkedinProfileUrl,
+  getResumeFileDisplayName,
+  normalizeRegisteredLinkHref,
   onboardingStatusBadgeClass,
   onboardingStatusLabel,
   profileVisibilityBadgeClass,
@@ -34,7 +38,15 @@ import {
   TalentRoleTagsPanel,
 } from "./TalentRoleTagsPanel";
 import { BareButton } from "@/components/ui/button";
-import type { CareerTalentOpsProfileMemo } from "@/lib/ops/careerServer";
+import {
+  getTalentProfileLinkImageSrc,
+  TalentProfileHeader,
+  type TalentProfileResource,
+} from "@/components/profile/TalentProfileHeader";
+import type {
+  CareerTalentOpsProfileMemo,
+  CareerTalentProfileResponse,
+} from "@/lib/ops/careerServer";
 
 type TalentDetailTabId = "all_feed" | "profile" | TalentDetailSharedTabId;
 
@@ -92,8 +104,15 @@ function TalentAllFeedTab({
   );
 }
 
-function TalentProfileTab({ userId }: { userId: string }) {
-  const { data, error, isLoading } = useOpsCareerProfile(userId);
+function TalentProfileTab({
+  data,
+  error,
+  isLoading,
+}: {
+  data?: CareerTalentProfileResponse;
+  error: unknown;
+  isLoading: boolean;
+}) {
   if (isLoading) return <TabLoading />;
   if (error || !data) {
     return <TabError error={error} fallback="프로필을 불러오지 못했습니다." />;
@@ -101,10 +120,103 @@ function TalentProfileTab({ userId }: { userId: string }) {
   return <ProfileTab detail={data} />;
 }
 
+function getRegisteredResourceKind(link: string) {
+  const normalized = link.trim().toLowerCase();
+  if (normalized.includes("linkedin.com")) return "linkedin" as const;
+  if (
+    normalized.includes("resume") ||
+    normalized.includes("cv") ||
+    normalized.endsWith(".pdf") ||
+    normalized.endsWith(".doc") ||
+    normalized.endsWith(".docx")
+  ) {
+    return "resume" as const;
+  }
+  return "link" as const;
+}
+
+function getRegisteredResourceLabel(link: string) {
+  const normalized = link.toLowerCase();
+  if (normalized.includes("github.com")) return "GitHub";
+  if (
+    normalized.includes("portfolio") ||
+    normalized.includes("notion.site") ||
+    normalized.includes("medium.com")
+  ) {
+    return "Portfolio";
+  }
+  if (getRegisteredResourceKind(link) === "resume") return "이력서";
+  return "웹사이트";
+}
+
+function getProfileResources(profile?: CareerTalentProfileResponse) {
+  const primaryResources: TalentProfileResource[] = [];
+  const secondaryResources: TalentProfileResource[] = [];
+  if (!profile) return { primaryResources, secondaryResources };
+
+  const linkedinUrl = getLinkedinProfileUrl(profile.registeredLinks);
+  const registeredResumeUrl = profile.registeredLinks.find(
+    (link) => getRegisteredResourceKind(link) === "resume"
+  );
+  const resumeFileDisplayName = getResumeFileDisplayName(profile);
+
+  if (resumeFileDisplayName) {
+    primaryResources.push({
+      disabled: !profile.resumeDownloadUrl,
+      href: profile.resumeDownloadUrl ?? undefined,
+      key: "stored-resume",
+      kind: "resume",
+      label: "이력서",
+      title: profile.resumeDownloadUrl
+        ? resumeFileDisplayName
+        : `${resumeFileDisplayName} · 열기 링크 없음`,
+    });
+  } else if (registeredResumeUrl) {
+    primaryResources.push({
+      href: normalizeRegisteredLinkHref(registeredResumeUrl),
+      key: `primary:${registeredResumeUrl}`,
+      kind: "resume",
+      label: "이력서",
+      title: formatRegisteredLinkLabel(registeredResumeUrl),
+    });
+  }
+
+  if (linkedinUrl) {
+    primaryResources.push({
+      href: normalizeRegisteredLinkHref(linkedinUrl),
+      imageSrc: getTalentProfileLinkImageSrc(linkedinUrl),
+      key: `primary:${linkedinUrl}`,
+      kind: "linkedin",
+      label: "LinkedIn",
+      title: formatRegisteredLinkLabel(linkedinUrl),
+    });
+  }
+
+  profile.registeredLinks
+    .filter(
+      (link) =>
+        link !== linkedinUrl &&
+        (resumeFileDisplayName || link !== registeredResumeUrl)
+    )
+    .forEach((link) => {
+      secondaryResources.push({
+        href: normalizeRegisteredLinkHref(link),
+        imageSrc: getTalentProfileLinkImageSrc(link),
+        key: `secondary:${link}`,
+        kind: getRegisteredResourceKind(link),
+        label: getRegisteredResourceLabel(link),
+        title: formatRegisteredLinkLabel(link),
+      });
+    });
+
+  return { primaryResources, secondaryResources };
+}
+
 export const TalentDetail = memo(function TalentDetail({
   userId,
 }: TalentDetailProps) {
   const { data: detail, isLoading, error } = useOpsCareerDetail(userId);
+  const profileQuery = useOpsCareerProfile(userId);
   const emailExclusionTerms = useOpsInternalDataExclusionStore(
     (state) => state.emailExclusionTerms
   );
@@ -139,97 +251,87 @@ export const TalentDetail = memo(function TalentDetail({
     );
   }
 
+  const { primaryResources, secondaryResources } = getProfileResources(
+    profileQuery.data
+  );
+
   return (
     <div>
       <div className="px-5 pt-5 pb-4 border-b border-neutral-1000-a05">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-3">
-              {detail.profilePicture ? (
-                <Image
-                  src={detail.profilePicture}
-                  alt=""
-                  width={40}
-                  height={40}
-                  unoptimized
-                  className="h-10 w-10 rounded-full object-cover"
-                />
-              ) : (
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-bg-weak">
-                  <User className="h-5 w-5 text-neutral-soft" />
-                </div>
+        <TalentProfileHeader
+          avatar={
+            detail.profilePicture ? (
+              <Image
+                src={detail.profilePicture}
+                alt=""
+                width={40}
+                height={40}
+                unoptimized
+                className="h-10 w-10 rounded-full object-cover"
+              />
+            ) : (
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-bg-weak">
+                <User className="h-5 w-5 text-neutral-soft" />
+              </div>
+            )
+          }
+          headline={detail.headline}
+          location={profileQuery.data?.location}
+          name={detail.name || "이름 없음"}
+          primaryResources={primaryResources}
+          secondaryResources={secondaryResources}
+        />
+        <div className="mt-3 flex flex-row flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-soft">
+          <span>
+            온보딩:{" "}
+            <span
+              className={cx(
+                "rounded px-1.5 py-0.5 font-medium",
+                onboardingStatusBadgeClass(detail.isOnboardingDone)
               )}
-              <div className="min-w-0">
-                <div className="text-base font-medium text-neutral-primary truncate">
-                  {detail.name || "이름 없음"}
-                </div>
-                <div className="text-xs text-neutral-muted truncate">
-                  {detail.email ?? "-"}
-                </div>
-              </div>
-            </div>
-            {detail.headline ? (
-              <div className="mt-2 text-sm text-neutral-muted">
-                {detail.headline}
-              </div>
-            ) : null}
-            <div className="mt-2 flex flex-row flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-soft">
-              <span>
-                온보딩:{" "}
-                <span
-                  className={cx(
-                    "rounded px-1.5 py-0.5 font-medium",
-                    onboardingStatusBadgeClass(detail.isOnboardingDone)
-                  )}
-                >
-                  {onboardingStatusLabel(detail.isOnboardingDone)}
-                </span>
-              </span>
-              <span>가입: {formatKst(detail.createdAt)}</span>
-              <span>마지막 대화: {formatKst(detail.lastConversationAt)}</span>
-              <span>
-                공개 범위:{" "}
-                <span
-                  className={cx(
-                    "rounded px-1.5 py-0.5 font-medium",
-                    profileVisibilityBadgeClass(
-                      detail.preferences?.profileVisibility
-                    )
-                  )}
-                >
-                  {profileVisibilityLabel(
-                    detail.preferences?.profileVisibility
-                  )}
-                </span>
-              </span>
-              <span>
-                외부 추천:{" "}
-                <span
-                  className={cx(
-                    "rounded px-1.5 py-0.5 font-medium",
-                    externalRecommendationBadgeClass(
-                      detail.getExternalRecommendation
-                    )
-                  )}
-                >
-                  {externalRecommendationLabel(
-                    detail.getExternalRecommendation
-                  )}
-                </span>
-              </span>
-              <span>
-                활성 상태:{" "}
-                <span
-                  className={cx(
-                    "rounded px-1.5 py-0.5 font-medium",
-                    talentStatusBadgeClass(detail.status)
-                  )}
-                >
-                  {talentStatusLabel(detail.status)}
-                </span>
-              </span>
-            </div>
-          </div>
+            >
+              {onboardingStatusLabel(detail.isOnboardingDone)}
+            </span>
+          </span>
+          <span>가입: {formatKst(detail.createdAt)}</span>
+          <span>마지막 대화: {formatKst(detail.lastConversationAt)}</span>
+          <span>
+            공개 범위:{" "}
+            <span
+              className={cx(
+                "rounded px-1.5 py-0.5 font-medium",
+                profileVisibilityBadgeClass(
+                  detail.preferences?.profileVisibility
+                )
+              )}
+            >
+              {profileVisibilityLabel(detail.preferences?.profileVisibility)}
+            </span>
+          </span>
+          <span>
+            외부 추천:{" "}
+            <span
+              className={cx(
+                "rounded px-1.5 py-0.5 font-medium",
+                externalRecommendationBadgeClass(
+                  detail.getExternalRecommendation
+                )
+              )}
+            >
+              {externalRecommendationLabel(detail.getExternalRecommendation)}
+            </span>
+          </span>
+          <span>
+            활성 상태:{" "}
+            <span
+              className={cx(
+                "rounded px-1.5 py-0.5 font-medium",
+                talentStatusBadgeClass(detail.status)
+              )}
+            >
+              {talentStatusLabel(detail.status)}
+            </span>
+          </span>
         </div>
       </div>
 
@@ -262,7 +364,11 @@ export const TalentDetail = memo(function TalentDetail({
           />
         ) : null}
         {activeTab === "profile" ? (
-          <TalentProfileTab userId={detail.userId} />
+          <TalentProfileTab
+            data={profileQuery.data}
+            error={profileQuery.error}
+            isLoading={profileQuery.isLoading}
+          />
         ) : null}
         {activeTab !== "all_feed" && activeTab !== "profile" ? (
           <TalentDetailSharedTabContent

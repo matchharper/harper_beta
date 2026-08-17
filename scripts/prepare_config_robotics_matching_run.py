@@ -322,7 +322,7 @@ def structured_consideration(role: Mapping[str, Any], workspace: Mapping[str, An
         "roleId": role.get("role_id"),
         "onePageSummary": consideration_markdown(),
         "sourceSnapshot": snapshot.get("hashes"),
-        "requestHistory": {"historyCoverage": "latest_only", "versions": [{"effectiveAt": role.get("updated_at"), "sourceId": "company_roles.request", "summary": "현재 Config Robotics Systems Engineer 평가 원칙과 역할 기준", "supersededBy": None}], "limitations": ["company_internal_roles row와 별도 request history가 없음"]},
+        "requestHistory": {"historyCoverage": "latest_only", "versions": [{"effectiveAt": snapshot.get("internalRole", {}).get("updatedAt"), "sourceId": "company_internal_roles.request", "summary": "현재 Config Robotics Systems Engineer 평가 원칙과 역할 기준", "supersededBy": None}], "limitations": ["별도 request history가 없음"]},
         "policyConstraints": {"nonOverridable": ["protected_traits", "candidate_opt_out", "blocked_company", "duplicate_send", "human_override", "private_data_exposure"], "conflicts": []},
         "roleEssence": [
             {"statement": "physical robot control·execution stack의 안정성과 반복 가능성", "sourceIds": ["company_roles.description"]},
@@ -330,20 +330,20 @@ def structured_consideration(role: Mapping[str, Any], workspace: Mapping[str, An
             {"statement": "robot-learning용 고품질 data collection infrastructure", "sourceIds": ["company_roles.description"]},
         ],
         "hardFilters": [
-            {"id": "physical_robot_systems", "statement": "실제 physical robot build·integration·deployment 또는 control 직접 근거", "side": "company", "rationale": "역할의 핵심이 실제 hardware와 control stack의 안정화임", "whyHard": "simulation·일반 AI만으로 수행 불가", "candidateAcceptanceImpact": "physical hardware hands-on 의향 필요", "sourceIds": ["company_roles.description", "company_roles.request"], "confidence": "high", "unknownPolicy": "verify_before_final", "sqlStrategy": "robot context와 control/integration evidence로 high-recall retrieval 후 직접 검증", "verificationMethod": "experience·resume·project·publication 원문과 필요 시 공식 자료"},
+            {"id": "physical_robot_systems", "statement": "실제 physical robot build·integration·deployment 또는 control 직접 근거", "side": "company", "rationale": "역할의 핵심이 실제 hardware와 control stack의 안정화임", "whyHard": "simulation·일반 AI만으로 수행 불가", "candidateAcceptanceImpact": "physical hardware hands-on 의향 필요", "sourceIds": ["company_roles.description", "company_internal_roles.request"], "confidence": "high", "unknownPolicy": "verify_before_final", "sqlStrategy": "robot context와 control/integration evidence로 high-recall retrieval 후 직접 검증", "verificationMethod": "experience·resume·project·publication 원문과 필요 시 공식 자료"},
             {"id": "python_cpp_ros_control", "statement": "Python, 실무 C++, ROS/ROS2 및 control fundamentals", "side": "company", "rationale": "JD 명시 stack", "whyHard": "실행 stack을 직접 구현해야 함", "candidateAcceptanceImpact": "hands-on coding scope", "sourceIds": ["company_roles.description"], "confidence": "high", "unknownPolicy": "verify_before_final", "sqlStrategy": "keyword는 retrieval에만 사용", "verificationMethod": "실제 project/role description"},
-            {"id": "korean_english_seoul_onsite", "statement": "한국어·영어 문서 협업과 서울 full-time onsite", "side": "both", "rationale": "물리 장비와 팀 협업의 현장성", "whyHard": "remote로 대체 불가", "candidateAcceptanceImpact": "이주·통근 및 근무 형태 제약", "sourceIds": ["company_roles.description", "company_roles.request"], "confidence": "high", "unknownPolicy": "verify_before_final", "sqlStrategy": "location은 soft retrieval; 최종은 insight/message로 확인", "verificationMethod": "최신 후보자 진술과 location/work preference"},
-            {"id": "two_objective_signals", "statement": "role-direct 1개 포함 독립적인 객관적 품질 신호 최소 2개", "side": "company", "rationale": "keyword·pedigree 단독 오판 방지", "whyHard": "role request의 명시 평가 원칙", "candidateAcceptanceImpact": "없음", "sourceIds": ["company_roles.request"], "confidence": "high", "unknownPolicy": "exclude", "sqlStrategy": "retrieval 후 직접 검증", "verificationMethod": "직무·기간·system outcome·논문·progression·학업 성과"},
+            {"id": "korean_english_seoul_onsite", "statement": "한국어·영어 문서 협업과 서울 full-time onsite", "side": "both", "rationale": "물리 장비와 팀 협업의 현장성", "whyHard": "remote로 대체 불가", "candidateAcceptanceImpact": "이주·통근 및 근무 형태 제약", "sourceIds": ["company_roles.description", "company_internal_roles.request"], "confidence": "high", "unknownPolicy": "verify_before_final", "sqlStrategy": "location은 soft retrieval; 최종은 insight/message로 확인", "verificationMethod": "최신 후보자 진술과 location/work preference"},
+            {"id": "two_objective_signals", "statement": "role-direct 1개 포함 독립적인 객관적 품질 신호 최소 2개", "side": "company", "rationale": "keyword·pedigree 단독 오판 방지", "whyHard": "role request의 명시 평가 원칙", "candidateAcceptanceImpact": "없음", "sourceIds": ["company_internal_roles.request"], "confidence": "high", "unknownPolicy": "exclude", "sqlStrategy": "retrieval 후 직접 검증", "verificationMethod": "직무·기간·system outcome·논문·progression·학업 성과"},
         ],
         "rankingSignals": {
             "companyPlus": [
                 {"id": "manipulation_control", "statement": "manipulation·bimanual·low-level control 직접 ownership", "maxImpact": 12, "sourceIds": ["company_roles.description"], "rationale": "핵심 실행 결과와 직접 연결"},
-                {"id": "integration_deployment", "statement": "hardware bring-up·integration·field deployment와 안정적 운영", "maxImpact": 10, "sourceIds": ["company_roles.description", "company_roles.request"], "rationale": "prototype을 repeatable system으로 전환"},
+                {"id": "integration_deployment", "statement": "hardware bring-up·integration·field deployment와 안정적 운영", "maxImpact": 10, "sourceIds": ["company_roles.description", "company_internal_roles.request"], "rationale": "prototype을 repeatable system으로 전환"},
                 {"id": "teleop_sensing_data", "statement": "teleoperation·calibration·sensing·robot data collection", "maxImpact": 8, "sourceIds": ["company_roles.description"], "rationale": "foundation-model data 품질과 throughput"},
             ],
-            "companyMinus": [{"id": "non_physical_or_management_only", "statement": "physical robotics 근거 없는 일반 AI/CV 또는 management-only", "maxImpact": -18, "sourceIds": ["company_roles.request"], "rationale": "hands-on physical systems scope와 불일치"}],
+            "companyMinus": [{"id": "non_physical_or_management_only", "statement": "physical robotics 근거 없는 일반 AI/CV 또는 management-only", "maxImpact": -18, "sourceIds": ["company_internal_roles.request"], "rationale": "hands-on physical systems scope와 불일치"}],
             "candidatePlus": [{"id": "current_physical_ai_interest", "statement": "최근 physical AI·robotics·초기팀 hands-on 명시 선호", "maxImpact": 12, "sourceIds": ["additional_instruction", "company_roles.description"], "rationale": "수락 가능성 직접 근거"}],
-            "candidateMinus": [{"id": "onsite_or_scope_uncertain", "statement": "서울 onsite 또는 hands-on scope 의향 미관측", "maxImpact": -20, "sourceIds": ["additional_instruction", "company_roles.request"], "rationale": "확실한 사람만 선발"}],
+            "candidateMinus": [{"id": "onsite_or_scope_uncertain", "statement": "서울 onsite 또는 hands-on scope 의향 미관측", "maxImpact": -20, "sourceIds": ["additional_instruction", "company_internal_roles.request"], "rationale": "확실한 사람만 선발"}],
             "systemSignals": ["other_internal_company_validated_progress", "recent_activity", "internal_responsiveness"],
         },
         "retrievalRankSpec": [
@@ -411,7 +411,11 @@ def main() -> int:
     }
     write_json(output / "run_manifest.json", manifest)
 
-    role_rows = db.get("company_roles", filters={"role_id": f"eq.{args.role_id}"})
+    role_rows = db.get(
+        "company_roles",
+        select="role_id,company_workspace_id,name,description,type,seniority_level,location_text,work_mode,status,source_type,is_expired,salary_range,salary_min,salary_max,updated_at",
+        filters={"role_id": f"eq.{args.role_id}"},
+    )
     if not role_rows:
         raise RuntimeError("role not found")
     role = role_rows[0]
@@ -447,7 +451,7 @@ def main() -> int:
 
     with ThreadPoolExecutor(max_workers=12) as executor:
         futures = {
-            "all_roles": executor.submit(db.get, "company_roles", select="role_id,company_workspace_id,name,source_type,status,request,updated_at"),
+            "all_roles": executor.submit(db.get, "company_roles", select="role_id,company_workspace_id,name,source_type,status,updated_at"),
             "all_workspaces": executor.submit(db.get, "company_workspace", select="company_workspace_id,company_name,company_db_id"),
             "target_recs": executor.submit(db.get, "talent_opportunity_recommendation", filters={"role_id": f"eq.{args.role_id}"}),
             "target_progress": executor.submit(db.get, "talent_progress", filters={"role_id": f"eq.{args.role_id}"}),
@@ -471,7 +475,7 @@ def main() -> int:
     company_tags = [row for row in loaded["all_tags"] if compact(row.get("opportunity_id"), 100) in company_role_ids]
 
     source_hashes = {
-        "roleInputHash": digest({key_name: role.get(key_name) for key_name in ("description", "request", "location_text", "work_mode", "type", "status", "is_expired", "salary_range", "salary_min", "salary_max")}),
+        "roleInputHash": digest({key_name: role.get(key_name) for key_name in ("description", "location_text", "work_mode", "type", "status", "is_expired", "salary_range", "salary_min", "salary_max")}),
         "internalRequestHash": digest(internal_role.get("request")),
         "workspaceInputHash": digest({key_name: workspace.get(key_name) for key_name in ("request", "company_description", "pitch")}),
     }
@@ -492,7 +496,7 @@ def main() -> int:
 
     consideration = structured_consideration(role, workspace, snapshot, iso_now(), args.requested_by)
     consideration_fingerprint = digest(consideration)
-    role_fingerprint = digest({"version": "2.1-config-robotics-1", "role": {key_name: role.get(key_name) for key_name in ("description", "request", "type", "seniority_level", "location_text", "work_mode", "salary_range", "salary_min", "salary_max")}, "internalRequest": internal_role.get("request"), "workspaceRequest": workspace.get("request"), "companyFitContext": {"description": workspace.get("company_description"), "pitch": workspace.get("pitch")}, "hardFilters": consideration["hardFilters"], "rankingSignals": consideration["rankingSignals"], "acceptanceHypothesis": consideration["acceptanceHypothesis"]})
+    role_fingerprint = digest({"version": "2.1-config-robotics-1", "role": {key_name: role.get(key_name) for key_name in ("description", "type", "seniority_level", "location_text", "work_mode", "salary_range", "salary_min", "salary_max")}, "internalRequest": internal_role.get("request"), "workspaceRequest": workspace.get("request"), "companyFitContext": {"description": workspace.get("company_description"), "pitch": workspace.get("pitch")}, "hardFilters": consideration["hardFilters"], "rankingSignals": consideration["rankingSignals"], "acceptanceHypothesis": consideration["acceptanceHypothesis"]})
     consideration["considerationFingerprint"] = consideration_fingerprint
     consideration["roleFingerprint"] = role_fingerprint
     write_text(output / "consideration.md", consideration_markdown())

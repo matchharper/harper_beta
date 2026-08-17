@@ -329,6 +329,7 @@ async function fetchLightweightDebugRoles(args: {
     .not("is_expired", "is", true);
   if (error) throw error;
   return ((data ?? []) as LightweightRoleRow[]).map((role) => ({
+    criteria: [],
     createdAt: role.created_at,
     description: null,
     employmentTypes: [],

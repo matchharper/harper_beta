@@ -20,18 +20,12 @@ import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { CompanyLogo } from "./CompanyLogo";
 import { FollowButton } from "./FollowButton";
 import {
-  formatCrunchbaseLabel,
-  formatCrunchbaseMetricValue,
   formatEmployeeCountRange,
   formatFoundedYear,
   formatFollowedAt,
-  formatSignedCrunchbaseMetricValue,
   splitTextList,
-  toRecord,
-  toStringArray,
 } from "./watchlistFormatters";
 import type {
-  CompanyDetailRow,
   CompanyFollowClickHandler,
   CompanyLeadershipPayload,
   CompanyLeadershipPerson,
@@ -62,19 +56,6 @@ const DetailSection = ({
     </Text>
     <div className="mt-2">{children}</div>
   </section>
-);
-
-const DetailRows = ({ rows }: { rows: CompanyDetailRow[] }) => (
-  <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
-    {rows.map((row) => (
-      <div key={row.label} className="min-w-0">
-        <dt className="text-xs leading-5 text-neutral-muted">{row.label}</dt>
-        <dd className="mt-1 wrap-break-word text-base leading-6 text-neutral-primary">
-          {row.value}
-        </dd>
-      </div>
-    ))}
-  </dl>
 );
 
 const TagList = ({ items }: { items: string[] }) => (
@@ -487,22 +468,6 @@ export const CompanyDetailView = ({
   const displayFundingStage = lastFundingStage || lastFundingRoundStage;
 
   const infoRows = [
-    displayFundingStage
-      ? {
-          icon: (
-            <TrendingUp
-              className="h-3.5 w-3.5 text-neutral-muted"
-              strokeWidth={2}
-            />
-          ),
-          label: "",
-          value: t(
-            "career.company.company_data.last_funding_stage",
-            "최근 단계 {stage}",
-            { values: { stage: displayFundingStage } }
-          ),
-        }
-      : null,
     displayLocation
       ? {
           icon: (
@@ -544,73 +509,74 @@ export const CompanyDetailView = ({
     item.companyData?.mainInvestors
   );
   const showCompanyDataRows = locale === "ko";
-  const companyDataRows = showCompanyDataRows
-    ? [
-        totalFundingRaised
-          ? {
-              icon: (
-                <CircleDollarSign
-                  className="h-3.5 w-3.5 text-neutral-muted"
-                  strokeWidth={2}
-                />
-              ),
-              label: t(
-                "career.company.company_data.total_funding_raised_label",
-                "총 투자"
-              ),
-              value: t(
-                "career.company.company_data.total_funding_raised",
-                "총 투자 {amount}",
-                { values: { amount: totalFundingRaised } }
-              ),
-            }
-          : null,
-        mainInvestors
-          ? {
-              icon: (
-                <Handshake
-                  className="h-3.5 w-3.5 text-neutral-muted"
-                  strokeWidth={2}
-                />
-              ),
-              label: t(
-                "career.company.company_data.main_investors_label",
-                "주요 투자자"
-              ),
-              value: t(
-                "career.company.company_data.main_investors",
-                "주요 투자자 {investors}",
-                { values: { investors: mainInvestors } }
-              ),
-            }
-          : null,
-        lastFundingRoundStage
-          ? {
-              icon: (
-                <FileText
-                  className="h-3.5 w-3.5 text-neutral-muted"
-                  strokeWidth={2}
-                />
-              ),
-              label: t(
-                "career.company.company_data.last_funding_round_description_label",
-                "최근 라운드"
-              ),
-              value: t(
-                "career.company.company_data.last_funding_round_description",
-                "최근 라운드 {description}",
-                { values: { description: lastFundingRoundStage } }
-              ),
-            }
-          : null,
-      ].filter((row) => row !== null)
-    : [];
+  const companyDataRows = [
+    displayFundingStage
+      ? {
+          icon: (
+            <TrendingUp
+              className="h-3.5 w-3.5 text-neutral-muted"
+              strokeWidth={2}
+            />
+          ),
+          label: t(
+            "career.company.company_data.last_funding_stage_label",
+            "최근 단계"
+          ),
+          value: displayFundingStage,
+        }
+      : null,
+    ...(showCompanyDataRows
+      ? [
+          totalFundingRaised
+            ? {
+                icon: (
+                  <CircleDollarSign
+                    className="h-3.5 w-3.5 text-neutral-muted"
+                    strokeWidth={2}
+                  />
+                ),
+                label: t(
+                  "career.company.company_data.total_funding_raised_label",
+                  "총 투자"
+                ),
+                value: totalFundingRaised,
+              }
+            : null,
+          mainInvestors
+            ? {
+                icon: (
+                  <Handshake
+                    className="h-3.5 w-3.5 text-neutral-muted"
+                    strokeWidth={2}
+                  />
+                ),
+                label: t(
+                  "career.company.company_data.main_investors_label",
+                  "주요 투자자"
+                ),
+                value: mainInvestors,
+              }
+            : null,
+          lastFundingRoundStage
+            ? {
+                icon: (
+                  <FileText
+                    className="h-3.5 w-3.5 text-neutral-muted"
+                    strokeWidth={2}
+                  />
+                ),
+                label: t(
+                  "career.company.company_data.last_funding_round_description_label",
+                  "최근 라운드"
+                ),
+                value: lastFundingRoundStage,
+              }
+            : null,
+        ]
+      : []),
+  ].filter((row) => row !== null);
 
   const investorTags = splitTextList(item.investors, 24);
-  const relatedLinks = (item.relatedLinks ?? [])
-    .map((link) => String(link ?? "").trim())
-    .filter(Boolean)
-    .slice(0, 8);
   const snapshotMarkdown = item.companySnapshot?.fullMarkdown
     ? stripCompanySnapshotChrome(item.companySnapshot.fullMarkdown)
     : "";
@@ -620,59 +586,9 @@ export const CompanyDetailView = ({
     locale
   );
 
-  const crunchbaseInformation = toRecord(item.crunchbaseInformation);
-  const crunchbaseCompany = toRecord(crunchbaseInformation.company);
-  const crunchbaseTaxonomy = toRecord(crunchbaseInformation.taxonomy);
-  const crunchbaseScores = toRecord(crunchbaseInformation.scores);
   const leadershipPeople = leadershipQuery.data ?? [];
   const showLeadershipSection =
     leadershipQuery.isLoading || leadershipPeople.length > 0;
-  const crunchbaseStatusRows = [
-    {
-      label: t("career.company.company_detail_view.0lq2ran", "운영 상태"),
-      value: formatCrunchbaseLabel(crunchbaseCompany.operating_status),
-    },
-    {
-      label: t("career.company.company_detail_view.0vk24i0", "회사 유형"),
-      value: formatCrunchbaseLabel(crunchbaseCompany.company_type),
-    },
-    {
-      label: t("career.company.company_detail_view.0d3086e", "IPO 상태"),
-      value: formatCrunchbaseLabel(crunchbaseCompany.ipo_status),
-    },
-  ].filter((row): row is CompanyDetailRow => row.value.length > 0);
-  const crunchbaseMetricRows = [
-    {
-      label: "Growth Score",
-      value: formatCrunchbaseMetricValue(crunchbaseScores.growth_score),
-    },
-    {
-      label: "Heat Score",
-      value: formatCrunchbaseMetricValue(crunchbaseScores.heat_score),
-    },
-    {
-      label: "Growth 90d",
-      value: formatSignedCrunchbaseMetricValue(
-        crunchbaseScores.growth_score_delta_d90
-      ),
-    },
-    {
-      label: "Heat 90d",
-      value: formatSignedCrunchbaseMetricValue(
-        crunchbaseScores.heat_score_delta_d90
-      ),
-    },
-  ].filter((row): row is CompanyDetailRow => row.value.length > 0);
-  const crunchbaseCategories = toStringArray(crunchbaseTaxonomy.categories, 18);
-  const crunchbaseLocationGroups = toStringArray(
-    crunchbaseTaxonomy.location_groups,
-    12
-  );
-  const hasCrunchbase =
-    crunchbaseStatusRows.length > 0 ||
-    crunchbaseMetricRows.length > 0 ||
-    crunchbaseCategories.length > 0 ||
-    crunchbaseLocationGroups.length > 0;
 
   return (
     <section className="min-w-0">
@@ -690,7 +606,7 @@ export const CompanyDetailView = ({
         <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
           <div className="flex min-w-0 items-start gap-4">
             <CompanyLogo logoUrl={item.logoUrl} name={item.name} size="lg" />
-            <div className="min-w-0 space-y-2">
+            <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <Text
                   as="h1"
@@ -706,10 +622,7 @@ export const CompanyDetailView = ({
                   </span>
                 ) : null}
               </div>
-              <Text
-                className="max-w-[780px] text-[14px] line-clamp-3"
-                tone="muted"
-              >
+              <Text className="max-w-[780px] mt-2 text-[14px] line-clamp-4">
                 {item.shortDescription ??
                   displayLocation ??
                   t(
@@ -719,7 +632,7 @@ export const CompanyDetailView = ({
               </Text>
 
               {links.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 mt-3">
                   {links.map((link) => (
                     <Badge
                       onClick={() => window.open(link.href, "_blank")}
@@ -743,7 +656,7 @@ export const CompanyDetailView = ({
         </div>
       </header>
 
-      <div className="mt-5 space-y-4">
+      <div className="mt-6 space-y-6">
         {infoRows.length > 0 ? (
           <div className="flex flex-wrap gap-x-4 gap-y-2">
             {infoRows.map((row) => (
@@ -758,19 +671,24 @@ export const CompanyDetailView = ({
           </div>
         ) : null}
         {companyDataRows.length > 0 ? (
-          <div className="flex flex-wrap gap-x-4 gap-y-3">
+          <dl className="grid w-full min-w-[16.5rem] gap-y-3">
             {companyDataRows.map((row) => (
               <div
                 key={row.label}
-                className="flex min-w-0 max-w-full flex-row items-start gap-1.5 text-sm text-neutral-primary"
+                className="grid min-w-[16.5rem] grid-cols-[minmax(5rem,1fr)_minmax(20rem,4fr)] items-start gap-x-3 text-sm"
               >
-                <span className="mt-0.5 shrink-0">{row.icon}</span>
-                <span className="min-w-0 wrap-break-word font-normal">
+                <dt className="flex min-w-[5rem] items-start gap-1.5 wrap-break-word text-neutral-muted">
+                  <span className="mt-0.5 shrink-0" aria-hidden="true">
+                    {row.icon}
+                  </span>
+                  <span>{row.label}</span>
+                </dt>
+                <dd className="min-w-[9rem] wrap-break-word font-normal text-neutral-primary">
                   {row.value}
-                </span>
+                </dd>
               </div>
             ))}
-          </div>
+          </dl>
         ) : null}
       </div>
       <div>
@@ -795,17 +713,18 @@ export const CompanyDetailView = ({
             </div>
           </DetailSection>
         ) : (
-          <DetailSection
-            title={t("career.company.company_detail_view.0izicuk", "회사 설명")}
-          >
-            <Text
-              className="whitespace-pre-wrap text-sm leading-6"
-              tone="neutral"
-            >
-              {item.description ??
-                t("career.common.career.083cky2", "아직 회사 설명이 없습니다.")}
-            </Text>
-          </DetailSection>
+          <></>
+          // <DetailSection
+          //   title={t("career.company.company_detail_view.0izicuk", "회사 설명")}
+          // >
+          //   <Text
+          //     className="whitespace-pre-wrap text-sm leading-6"
+          //     tone="neutral"
+          //   >
+          //     {item.description ??
+          //       t("career.common.career.083cky2", "아직 회사 설명이 없습니다.")}
+          //   </Text>
+          // </DetailSection>
         )}
 
         {item.specialities.length > 0 ? (
@@ -833,62 +752,6 @@ export const CompanyDetailView = ({
               locale={locale}
               people={leadershipPeople}
             />
-          </DetailSection>
-        ) : null}
-
-        {hasCrunchbase ? (
-          <DetailSection title="Crunchbase">
-            <div className="space-y-5">
-              {crunchbaseStatusRows.length > 0 ? (
-                <DetailRows rows={crunchbaseStatusRows} />
-              ) : null}
-              {crunchbaseMetricRows.length > 0 ? (
-                <DetailRows rows={crunchbaseMetricRows} />
-              ) : null}
-              {crunchbaseCategories.length > 0 ? (
-                <div>
-                  <div className="mb-2 text-[12px] leading-5 text-neutral-muted">
-                    {t(
-                      "career.company.company_detail_view.199tx5d",
-                      "카테고리"
-                    )}
-                  </div>
-                  <TagList items={crunchbaseCategories} />
-                </div>
-              ) : null}
-              {crunchbaseLocationGroups.length > 0 ? (
-                <div>
-                  <div className="mb-2 text-[12px] leading-5 text-neutral-muted">
-                    {t(
-                      "career.company.company_detail_view.0gx8zud",
-                      "지역 그룹"
-                    )}
-                  </div>
-                  <TagList items={crunchbaseLocationGroups} />
-                </div>
-              ) : null}
-            </div>
-          </DetailSection>
-        ) : null}
-
-        {relatedLinks.length > 0 ? (
-          <DetailSection
-            title={t("career.company.company_detail_view.1gy0i9e", "관련 링크")}
-          >
-            <div className="space-y-2">
-              {relatedLinks.map((link) => (
-                <a
-                  key={link}
-                  href={link}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex min-w-0 items-center justify-between gap-3 text-[13px] leading-6 text-neutral-muted transition-colors hover:text-neutral-primary"
-                >
-                  <span className="min-w-0 truncate">{link}</span>
-                  <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
-                </a>
-              ))}
-            </div>
           </DetailSection>
         ) : null}
       </div>

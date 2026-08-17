@@ -6,9 +6,11 @@
 2. 사용자가 Harper 메시지의 thread에 댓글을 달면 같은 thread의 앞선 맥락을 읽고 답한다.
 3. 허용 채널에서 `@Harper`를 mention하면 기존 Organization Agent가 답한다.
 
-Slack 사용자의 Harper 계정 또는 Organization membership은 확인하지 않는다.
-활성화된 Slack 채널 자체가 권한 경계다. Slack user ID와 표시 이름은 메시지
-작성자를 구분하고 대화 맥락을 만드는 데 사용한다.
+활성화된 Slack 채널과 Harper Workspace membership을 함께 권한 경계로 사용한다.
+Slack user email이 현재 Harper Workspace의 Owner 또는 Admin과 일치할 때만
+company-side LLM을 실행한다. 멤버가 아니거나 Viewer이면 LLM, 조회, 변경 tool을
+실행하지 않고 호출자에게만 보이는 ephemeral 권한 안내를 보낸다. Slack user ID와
+표시 이름은 메시지 작성자를 구분하고 대화 맥락 및 감사 기록을 만드는 데 사용한다.
 
 ## 최종 데이터 모델
 
@@ -70,13 +72,16 @@ slack_thread_ts
 created_by_harper
 ```
 
-새 thread는 `role_id = null`이다. Agent는 메시지와 workspace 전체 role 목록으로
-필요한 role을 매 turn 판단한다.
+일반 새 thread는 `role_id = null`이다. Agent는 메시지와 workspace 전체 role 목록으로
+필요한 role을 매 turn 판단한다. 단, 새 역할 등록용으로 Harper가 만든 전용 thread는
+draft `role_id`를 저장하고 `/org/new`의 같은 role-creation conversation에 메시지를
+기록한다.
 
 ### 기존 `company_messages`
 
 웹 Agent와 Slack Agent 메시지의 공통 원장이다. Slack 메시지는
-`message_type = 'slack'`으로 저장한다.
+`message_type = 'slack'`으로 저장한다. 일반 Slack thread는 workspace conversation을,
+역할 등록 전용 thread는 해당 role-creation conversation을 사용한다.
 
 ```text
 slack_thread_id FK -> company_slack_threads
@@ -84,10 +89,11 @@ slack_message_ts
 slack_user_id
 ```
 
-Slack 사용자의 메시지는 `company_user_id = null`이다. 실제 Slack 작성자는
-`slack_user_id`에 저장하고, `users.info`로 해석한 표시 이름은 해당 message의
-`metadata.slackUserName`에 저장한다. Agent tool 실행은 installation을 생성한
-Organization 관리자 또는 현재 Owner/Admin을 service actor로 사용한다.
+Slack thread 동기화로 가져온 사용자 메시지는 `company_user_id = null`일 수 있다.
+실제 Slack 작성자는 `slack_user_id`에 저장하고, `users.info`로 해석한 표시 이름은 해당
+message의 `metadata.slackUserName`에 저장한다. 처리 중인 역할 등록 turn은 Slack email과
+일치하는 Harper 사용자도 함께 기록한다. Agent 권한 검증과 tool 실행에는 그 실제
+Workspace Owner/Admin 계정을 사용한다.
 
 Slack thread context는 같은 `slack_thread_id`를 가진 `company_messages`만
 조회한다. 웹 대화나 다른 Slack thread는 포함하지 않는다. LLM에는
@@ -159,7 +165,11 @@ docs/org-agent-tools-reference-ko.md
 
 ## 이벤트 정책
 
-- `app_mention`: 활성 채널에서 항상 처리한다.
+- `app_mention`: 활성 채널의 Harper Workspace Owner/Admin 호출만 처리한다.
+- Harper Workspace 비멤버, 가입 미완료 초대자, Viewer의 호출은 private ephemeral
+  안내 후 종료한다. 일반 응답과 company-side LLM/tool 실행은 만들지 않는다.
+- company-side LLM의 선택 버튼도 클릭한 Slack 사용자의 같은 membership 검사를
+  통과해야 새 turn을 enqueue한다.
 - `message.channels`, `message.groups`: Harper가 이미 답했거나 Harper가 먼저
   보낸 managed thread의 댓글은 설정에 따라 처리한다.
 - bot message와 subtype event는 무시한다.
@@ -203,10 +213,10 @@ https://matchharper.com/api/internal/slack/events
 
 비공개 채널은 Slack에서 `/invite @Harper`를 먼저 실행해야 한다.
 
-Manifest의 bot scope에는 `users:read`가 포함되어야 한다. 이메일은 읽지 않으므로
-`users:read.email`은 필요 없다. 기존 installation token에는 새 scope가 자동으로
-생기지 않으므로 Manifest를 저장한 뒤 각 workspace에서 Harper app을 reinstall해야
-실제 사용자 표시 이름을 읽을 수 있다.
+Manifest의 bot scope에는 `users:read`와 `users:read.email`이 포함되어야 한다.
+`users.info`의 email로 실제 Harper Workspace membership을 확인한다. 기존
+installation token에는 새 scope가 자동으로 생기지 않으므로 scope가 빠진
+workspace에서는 Harper app을 reinstall해야 Slack 호출을 사용할 수 있다.
 
 ## 배포
 

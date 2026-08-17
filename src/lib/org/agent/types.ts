@@ -64,6 +64,7 @@ export type OrgAgentMention = {
 
 export type OrgAgentThinkingLog = {
   at: string;
+  id?: string;
   label: string;
   status?: "done" | "error" | "running";
 };
@@ -153,6 +154,9 @@ export type OrgAgentMessageMetadata = {
   };
   /** Server-only extracted context retained for later turns; UI uses attachments. */
   roleCreationAttachments?: ChatAttachmentPayload[];
+  /** Server-only Slack file text retained for later turns; UI uses attachments. */
+  slackFileAttachments?: ChatAttachmentPayload[];
+  slackFileErrors?: string[];
   slackUserName?: string | null;
   toolResults?: Array<{
     callId: string;
@@ -175,16 +179,14 @@ export type OrgAgentMessage = {
   metadata: OrgAgentMessageMetadata;
   model: string | null;
   role: OrgAgentMessageRole;
+  sourceSurface: "slack" | "web";
   status: OrgAgentMessageStatus;
   thinkingLogs: OrgAgentThinkingLog[];
 };
 
 export type OrgAgentConversation = {
   conversationId: string;
-  /**
-   * Legacy field kept during the workspace-conversation migration.
-   * New organization agent conversations always return null.
-   */
+  /** Null for general chat; the owning role for role-creation chat. */
   roleId: string | null;
   title: string | null;
   workspaceId: string;

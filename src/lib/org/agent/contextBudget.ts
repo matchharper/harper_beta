@@ -34,6 +34,7 @@ type OrgAgentContextBudgetShape = {
   companyText: string;
   contextNotesText: string;
   conversationText: string;
+  inProgressRoleCreationsText?: string;
   pendingUpdateText?: string;
   recentRecommendationsText: string;
   retainedDataText?: string;
@@ -95,6 +96,7 @@ export function enforceOrgAgentContextBudget<
       mutable.recentRecommendationsText,
       mutable.summariesText,
       mutable.conversationText,
+      mutable.inProgressRoleCreationsText,
       mutable.pendingUpdateText,
       mutable.retainedDataText,
       mutable.contextNotesText,

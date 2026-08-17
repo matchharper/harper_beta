@@ -32,6 +32,7 @@ test("debugger can build tool state without loading a full prompt context", () =
   const state = createOrgAgentToolExecutionStateFromSnapshot({
     roles: [
       {
+        criteria: [],
         createdAt: "2026-08-07T00:00:00.000Z",
         description: null,
         employmentTypes: [],

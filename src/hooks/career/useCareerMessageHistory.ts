@@ -7,6 +7,7 @@ import {
 import type {
   CareerMessage,
   CareerMessagePayload,
+  CareerOpportunityRun,
   CareerStage,
   SessionResponse,
 } from "@/components/career/types";
@@ -15,6 +16,7 @@ import type { FetchWithAuth } from "./useCareerApi";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { useMessages } from "@/i18n/useMessage";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
+import { extractOpportunityRunMarkers } from "@/lib/opportunityDiscovery/messageMarker";
 
 type CareerMessagesPage = {
   conversation: {
@@ -251,6 +253,55 @@ export const useCareerMessageHistory = ({
     [queryClient, queryKey]
   );
 
+  const updateOpportunityRunsInCache = useCallback(
+    (runs: CareerOpportunityRun[]) => {
+      if (runs.length === 0) return;
+      const runById = new Map(runs.map((run) => [run.id.toLowerCase(), run]));
+
+      queryClient.setQueryData<InfiniteData<CareerMessagesPage, number | null>>(
+        queryKey,
+        (current) => {
+          if (!current?.pages?.length) return current;
+
+          let changed = false;
+          const pages = current.pages.map((page) => ({
+            ...page,
+            messages: page.messages.map((message) => {
+              if (message.role !== "assistant") return message;
+              const marker = extractOpportunityRunMarkers(message.content).at(
+                -1
+              );
+              if (!marker) return message;
+              const run = runById.get(marker.runId.toLowerCase());
+              if (!run) return message;
+
+              if (
+                message.recommendationSearchRun?.status === run.status &&
+                (message.recommendationSearchRun?.updatedAt ??
+                  message.recommendationSearchRun?.createdAt) ===
+                  (run.updatedAt ?? run.createdAt) &&
+                message.recommendationSearchRun?.deliveryRetryPending ===
+                  run.deliveryRetryPending &&
+                message.recommendationSearchRelation === marker.relation
+              ) {
+                return message;
+              }
+              changed = true;
+              return {
+                ...message,
+                recommendationSearchRelation: marker.relation,
+                recommendationSearchRun: run,
+              };
+            }),
+          }));
+
+          return changed ? { ...current, pages } : current;
+        }
+      );
+    },
+    [queryClient, queryKey]
+  );
+
   return {
     ...infinite,
     conversation,
@@ -261,5 +312,6 @@ export const useCareerMessageHistory = ({
     invalidateMessageHistory,
     appendLatestMessagesToCache,
     removeMessagesFromCache,
+    updateOpportunityRunsInCache,
   };
 };

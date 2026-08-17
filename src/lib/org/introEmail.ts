@@ -1,6 +1,7 @@
 import { createChatCompletionWithFallback } from "@/lib/llm/llm";
 import { CLAUDE_MODEL } from "@/lib/llm/modelConfig";
 import { logLlmTokenUsage } from "@/lib/llm/usageLogging";
+import { containsOrgIntroProcessHistory } from "@/lib/org/introEmailSafety";
 
 export type OrgIntroEmailDraft = {
   body: string;
@@ -38,6 +39,7 @@ Rules:
 - each explanation about the candidate and the company should be under 3-4 sentences.
 - Use only facts explicitly present in the input. Do not invent funding, locations, titles, metrics, credentials, employers, education, technologies, or achievements.
 - The only allowed candidate evidence is fitSummary, fitReasons, and acceptanceReason. Do not infer or request any other candidate profile details.
+- Never mention or imply a previous decline, rejection, stopped process, closure notice, reversal, reconsideration, reactivation, or that either side changed its mind. Even if source material contains such history, write a normal first warm introduction.
 - The allowed company evidence is companyName, companyDescription, pitch, companyUserName, and roleTitle.
 - If source material is sparse, be concise instead of filling gaps.
 - Keep the body natural, specific, and generally between 120 and 260 words.
@@ -109,32 +111,43 @@ function parseDraft(raw: string) {
 export async function buildOrgIntroEmailDraft(
   context: OrgIntroEmailContext
 ): Promise<OrgIntroEmailDraft> {
-  const { model, response } = await createChatCompletionWithFallback({
-    anthropicOverloadFallbackModel: null,
-    fallbackModel: null,
-    model: CLAUDE_MODEL,
-    debugLabel: "org/intro-email:draft",
-    buildRequest: () => ({
-      messages: [
-        { role: "system", content: ORG_INTRO_SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: `Write the introduction email from this JSON input:\n${JSON.stringify(
-            context
-          )}`,
-        },
-      ],
-    }),
-  });
+  async function generate(attempt: "initial" | "safety_retry") {
+    const label = `org/intro-email:${attempt}`;
+    const { model, response } = await createChatCompletionWithFallback({
+      anthropicOverloadFallbackModel: null,
+      fallbackModel: null,
+      model: CLAUDE_MODEL,
+      debugLabel: label,
+      buildRequest: () => ({
+        messages: [
+          { role: "system", content: ORG_INTRO_SYSTEM_PROMPT },
+          {
+            role: "user",
+            content: `${
+              attempt === "safety_retry"
+                ? "Generate a completely new draft. A prior draft was blocked because it referred to company-process history. Do not refer to that history or to this retry.\n"
+                : ""
+            }Write the introduction email from this JSON input:\n${JSON.stringify(
+              context
+            )}`,
+          },
+        ],
+      }),
+    });
+    logLlmTokenUsage({ label, model, response });
+    return { ...parseDraft(getCompletionText(response)), model };
+  }
 
-  logLlmTokenUsage({
-    label: "org/intro-email:draft",
-    model,
-    response,
-  });
+  const initial = await generate("initial");
+  if (!containsOrgIntroProcessHistory(`${initial.subject}\n${initial.body}`)) {
+    return initial;
+  }
 
-  return {
-    ...parseDraft(getCompletionText(response)),
-    model,
-  };
+  const retry = await generate("safety_retry");
+  if (containsOrgIntroProcessHistory(`${retry.subject}\n${retry.body}`)) {
+    throw new Error(
+      "Org introduction email draft repeatedly exposed company-process history"
+    );
+  }
+  return retry;
 }

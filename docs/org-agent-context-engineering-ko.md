@@ -31,8 +31,7 @@ company-side LLM은 “모든 DB 값을 매번 넣는 모델”이 아니다.
 | role memory | `company_memories`, 해당 `role_id` | 그 role에서 지속적으로 기억할 기타 맥락 |
 | conversation summary | `company_conversation_summaries` | 오래된 대화를 압축한 과거 맥락 |
 
-`company_roles.request`는 rolling deploy와 legacy 코드 호환을 위한 mirror로 남아
-있지만 company-side LLM의 canonical read/write source가 아니다.
+`company_internal_roles.request`가 role request의 유일한 read/write source다.
 
 request에는 hard constraint와 preferred criterion을 구분한다. candidate 이름이나
 후보별 사실은 넣지 않는다. memory는 request의 보조 매칭 소스가 아니며, 일정·의사
@@ -62,12 +61,17 @@ prefix를 유지하고 prompt caching에 유리하다.
 항상 넣는 회사 값은 다음뿐이다.
 
 - 회사명
-- `company_workspace.brief`; 없으면 회사 설명의 짧은 앞부분
+- `company_workspace.pitch` 전문을 Markdown 구조 그대로 담은 회사 정보 문서
+- pitch 문서와 legacy workspace request의 존재 여부
 - 상세 회사 데이터가 있는지 여부
 - workspace memory가 있는지 여부
 
-회사 description, pitch, legacy workspace request, `company_data` 전체와 memory
-본문은 기본 context에 넣지 않는다.
+pitch는 회사에 관한 모든 서술형 정보의 canonical 문서이며 후보자에게 회사를
+설명할 때 쓰는 회사 정보다. 별도 회사 소개, 한 줄 소개, 후보자 안내 문구, 주요
+분야, 투자사 목록·설명은 company-side LLM에 넣지 않는다. legacy workspace
+request, `company_data`의 구조화 값과 memory 본문은 기본 context에 넣지 않는다.
+홈페이지와 LinkedIn은 전용 값으로 유지하고, 그 밖의 회사 링크는 `related_links`로
+다룬다.
 
 ### Bounded role index
 

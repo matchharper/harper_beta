@@ -6,10 +6,15 @@ import {
   formatDailyUserStatsSlackMessages,
   resolveDailyUserStatsDate,
 } from "@/lib/dailyUserStats";
+import {
+  buildDailyCompanyStatsReport,
+  formatDailyCompanyStatsSlackMessage,
+} from "@/lib/dailyCompanyStats";
 
 export const runtime = "nodejs";
 
 const SLACK_DAILY_USER_STATS_CHANNEL_ID = "C0B2TFPUS6P";
+const SLACK_DAILY_COMPANY_STATS_CHANNEL_ID = "C0AKK93FMH8";
 const SLACK_DEV_CHANNEL_ID = "C0AB43Q9U58";
 
 function getConfiguredCronSecrets() {
@@ -100,13 +105,18 @@ async function handleDailyUserStats(req: NextRequest) {
   }
 
   const date = resolveDailyUserStatsDate(req.nextUrl.searchParams.get("date"));
-  const { previousReport, report } =
-    await buildDailyUserStatsReportComparison(date);
+  const [{ previousReport, report }, companyReport] = await Promise.all([
+    buildDailyUserStatsReportComparison(date),
+    buildDailyCompanyStatsReport(date),
+  ]);
   const message = formatDailyUserStatsSlackMessage(report, previousReport);
   const messages = formatDailyUserStatsSlackMessages(report, previousReport);
+  const companyMessage = formatDailyCompanyStatsSlackMessage(companyReport);
 
   if (shouldDryRun(req)) {
     return NextResponse.json({
+      companyMessage,
+      companyReport,
       dryRun: true,
       message,
       messages,
@@ -124,8 +134,13 @@ async function handleDailyUserStats(req: NextRequest) {
     text: messages.details,
     threadTs,
   });
+  const companyThreadTs = await postSlackMessage({
+    channelId: SLACK_DAILY_COMPANY_STATS_CHANNEL_ID,
+    text: companyMessage,
+  });
 
   return NextResponse.json({
+    companyThreadTs,
     date: report.date,
     ok: true,
     sent: true,

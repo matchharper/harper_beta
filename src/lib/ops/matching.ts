@@ -1,9 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
-import {
-  type CompanyEventInsertClient,
-  writeCompanyEvent,
-} from "@/lib/org/companyEvents";
 import { applyWebsiteCompanyDataChanges } from "@/lib/org/companyDataWebsite";
+import { getCompanyInternalRoleRequest } from "@/lib/companyInternalRole";
 import { getInsightLabel } from "@/lib/talentOnboarding/insightChecklist";
 import {
   isOpsMatchingExcludeNotInterestedFilter,
@@ -153,7 +150,6 @@ type OpsMatchingAllRoleRow = Pick<
   | "location_text"
   | "name"
   | "posted_at"
-  | "request"
   | "role_id"
   | "source_job_id"
   | "source_provider"
@@ -164,8 +160,8 @@ type OpsMatchingAllRoleRow = Pick<
   | "work_mode"
 > & {
   company_internal_roles?:
-    | { is_auto: boolean | null }
-    | Array<{ is_auto: boolean | null }>
+    | { request?: string | null }
+    | Array<{ request?: string | null }>
     | null;
 };
 type OpsMatchingAllRoleRecommendationRow = Pick<
@@ -305,7 +301,6 @@ export type OpsMatchingAllRoleItem = {
   employmentTypes: OpportunityEmploymentType[];
   expiresAt: string | null;
   externalJdUrl: string | null;
-  isAuto: boolean;
   locationText: string | null;
   logoUrl: string | null;
   name: string;
@@ -327,12 +322,10 @@ export type OpsMatchingAllRolesResponse = {
   nextOffset: number | null;
   offset: number;
   query: string;
-  selfServeOnly: boolean;
   totalCount: number;
 };
 
 export type OpsMatchingAllRoleUpdateResponse = {
-  isAuto: boolean;
   roleId: string;
   status: OpportunityStatus;
 };
@@ -2347,18 +2340,10 @@ function normalizeAllRoleWorkMode(value: unknown): OpportunityWorkMode | null {
   return ALL_ROLE_WORK_MODES.has(mode) ? mode : null;
 }
 
-function getAllRoleIsAuto(row: OpsMatchingAllRoleRow) {
-  const metadata = Array.isArray(row.company_internal_roles)
-    ? row.company_internal_roles[0]
-    : row.company_internal_roles;
-  return metadata?.is_auto === true;
-}
-
 function emptyOpsMatchingAllRolesResponse(args: {
   limit: number;
   offset: number;
   query: string;
-  selfServeOnly: boolean;
 }): OpsMatchingAllRolesResponse {
   return {
     hasMore: false,
@@ -2367,7 +2352,6 @@ function emptyOpsMatchingAllRolesResponse(args: {
     nextOffset: null,
     offset: args.offset,
     query: args.query,
-    selfServeOnly: args.selfServeOnly,
     totalCount: 0,
   };
 }
@@ -2562,7 +2546,6 @@ export async function fetchOpsMatchingAllRoles(args: {
   limit?: number;
   offset?: number;
   query?: string | null;
-  selfServeOnly?: boolean;
 }): Promise<OpsMatchingAllRolesResponse> {
   const limit = Math.max(
     1,
@@ -2573,7 +2556,6 @@ export async function fetchOpsMatchingAllRoles(args: {
   );
   const offset = Math.max(0, args.offset ?? 0);
   const query = normalizeText(args.query);
-  const selfServeOnly = Boolean(args.selfServeOnly);
   const admin = getSupabaseAdmin();
   const searchRoleIds = query
     ? await fetchOpsMatchingAllRoleSearchIds({ admin, query })
@@ -2584,7 +2566,6 @@ export async function fetchOpsMatchingAllRoles(args: {
       limit,
       offset,
       query,
-      selfServeOnly,
     });
   }
 
@@ -2597,7 +2578,6 @@ export async function fetchOpsMatchingAllRoles(args: {
     "description_summary",
     "type",
     "status",
-    "request",
     "created_at",
     "updated_at",
     "source_type",
@@ -2607,17 +2587,12 @@ export async function fetchOpsMatchingAllRoles(args: {
     "expires_at",
     "location_text",
     "work_mode",
-    selfServeOnly
-      ? "company_internal_roles!inner(is_auto)"
-      : "company_internal_roles(is_auto)",
+    "company_internal_roles(request)",
   ].join(", ");
   let roleQuery = (admin.from("company_roles" as any) as any)
     .select(roleSelect, { count: "exact" })
     .eq("source_type", "internal");
 
-  if (selfServeOnly) {
-    roleQuery = roleQuery.eq("company_internal_roles.is_auto", true);
-  }
   if (searchRoleIds) {
     roleQuery = roleQuery.in("role_id", searchRoleIds);
   }
@@ -2692,12 +2667,11 @@ export async function fetchOpsMatchingAllRoles(args: {
         employmentTypes: normalizeAllRoleEmploymentTypes(role.type),
         expiresAt: role.expires_at,
         externalJdUrl: role.external_jd_url,
-        isAuto: getAllRoleIsAuto(role),
         locationText: role.location_text,
         logoUrl: workspace?.logo_url ?? null,
         name: role.name,
         postedAt: role.posted_at,
-        request: role.request,
+        request: getCompanyInternalRoleRequest(role.company_internal_roles),
         roleId: role.role_id,
         sourceJobId: role.source_job_id,
         sourceProvider: role.source_provider,
@@ -2711,28 +2685,23 @@ export async function fetchOpsMatchingAllRoles(args: {
     nextOffset,
     offset,
     query,
-    selfServeOnly,
     totalCount,
   };
 }
 
 export async function updateOpsMatchingAllRole(args: {
   eventActorLabel: string;
-  isAuto?: boolean;
   roleId?: string | null;
   status?: OpportunityStatus;
 }): Promise<OpsMatchingAllRoleUpdateResponse> {
   const roleId = normalizeText(args.roleId);
   if (!roleId) throw new Error("roleId is required");
-  if (typeof args.isAuto !== "boolean" && !args.status) {
-    throw new Error("No role changes provided");
-  }
+  if (!args.status) throw new Error("No role changes provided");
 
   const admin = getSupabaseAdmin();
-  const now = new Date().toISOString();
   const { data: existingRole, error: existingRoleError } = await admin
     .from("company_roles")
-    .select("role_id, company_workspace_id, name")
+    .select("role_id, company_workspace_id")
     .eq("role_id", roleId)
     .eq("source_type", "internal")
     .maybeSingle();
@@ -2740,80 +2709,26 @@ export async function updateOpsMatchingAllRole(args: {
     throw new Error(existingRoleError?.message ?? "Internal role not found");
   }
 
-  let previousIsAuto = false;
-  if (typeof args.isAuto === "boolean") {
-    const { data: beforeMetadata, error: beforeMetadataError } = await admin
-      .from("company_internal_roles")
-      .select("is_auto")
-      .eq("role_id", roleId)
-      .maybeSingle();
-    if (beforeMetadataError) {
-      throw new Error(
-        beforeMetadataError.message ?? "Failed to load automatic matching"
-      );
-    }
-    previousIsAuto = beforeMetadata?.is_auto === true;
-    const { error } = await admin.from("company_internal_roles").upsert(
-      {
-        is_auto: args.isAuto,
-        role_id: roleId,
-        updated_at: now,
-      },
-      { onConflict: "role_id" }
-    );
-    if (error) {
-      throw new Error(error.message ?? "Failed to update automatic matching");
-    }
-    await writeCompanyEvent({
-      actorLabel: args.eventActorLabel,
-      changes: [
-        {
-          after: args.isAuto,
-          before: previousIsAuto,
-          key: `${existingRole.name}.is_auto`,
-        },
-      ],
-      client: admin as unknown as CompanyEventInsertClient,
-      source: "website",
-      workspaceId: existingRole.company_workspace_id,
-    });
-  }
+  const status = normalizeAllRoleStatus(args.status);
+  await applyWebsiteCompanyDataChanges({
+    actorLabel: args.eventActorLabel,
+    admin,
+    changes: [{ key: "role_status", roleId, value: status }],
+    workspaceId: existingRole.company_workspace_id,
+  });
 
-  if (args.status) {
-    const status = normalizeAllRoleStatus(args.status);
-    await applyWebsiteCompanyDataChanges({
-      actorLabel: args.eventActorLabel,
-      admin,
-      changes: [{ key: "role_status", roleId, value: status }],
-      workspaceId: existingRole.company_workspace_id,
-    });
-  }
-
-  const [roleResult, metadataResult] = await Promise.all([
-    admin
-      .from("company_roles")
-      .select("role_id, status")
-      .eq("role_id", roleId)
-      .eq("source_type", "internal")
-      .maybeSingle(),
-    admin
-      .from("company_internal_roles")
-      .select("is_auto")
-      .eq("role_id", roleId)
-      .maybeSingle(),
-  ]);
+  const roleResult = await admin
+    .from("company_roles")
+    .select("role_id, status")
+    .eq("role_id", roleId)
+    .eq("source_type", "internal")
+    .maybeSingle();
 
   if (roleResult.error || !roleResult.data) {
     throw new Error(roleResult.error?.message ?? "Internal role not found");
   }
-  if (metadataResult.error) {
-    throw new Error(
-      metadataResult.error.message ?? "Failed to load automatic matching"
-    );
-  }
 
   return {
-    isAuto: metadataResult.data?.is_auto === true,
     roleId,
     status: normalizeAllRoleStatus(roleResult.data.status),
   };

@@ -36,6 +36,11 @@ function sourceMessageIdFromArgs() {
 }
 
 async function main() {
+  if (!process.argv.includes("--allow-live-decisions")) {
+    throw new Error(
+      "This modal can change the real candidate stage and send a real introduction email. Re-run with --allow-live-decisions after choosing safe test data."
+    );
+  }
   const token = clean(process.env.SLACK_HARPER_LOCAL_BOT_TOKEN);
   const channelId = clean(process.env.HARPER_SLACK_LOCAL_TEST_CHANNEL_ID);
   if (!token.startsWith("xoxb-")) {
@@ -86,7 +91,7 @@ async function main() {
     blocks: JSON.stringify([
       {
         text: {
-          text: "*Harper 로컬 후보자 검토 테스트*\n실제 후보자 데이터와 실제 Slack 모달을 사용하지만 수락·거절 확인을 완료해도 상태 변경이나 메일 발송은 일어나지 않습니다.",
+          text: "*Harper 로컬 후보자 검토 테스트*\n:warning: 실제 후보자 데이터와 실제 결정 흐름을 사용합니다. 최종 수락·거절은 상태와 결정 기록을 변경하며, CC 연결을 선택하면 실제 소개 메일이 발송됩니다.",
           type: "mrkdwn",
         },
         type: "section",

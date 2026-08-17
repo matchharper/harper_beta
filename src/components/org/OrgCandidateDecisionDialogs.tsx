@@ -216,8 +216,8 @@ export function AcceptIntroDialog({
           ) : (
             <div className="space-y-4" role="tabpanel">
               <p className="text-[12px] leading-5 text-neutral-muted">
-                Harper가 아래 구성대로 소개 메일을 보냅니다. 이후 답장하면
-                Harper 없이 후보자와 담당자끼리 바로 대화할 수 있습니다.
+                Harper가 아래 구성대로 소개 메일을 보냅니다. 이후 후보자와
+                담당자끼리 바로 대화를 이어나갈 수 있습니다.
               </p>
 
               <section
@@ -330,7 +330,7 @@ export function AcceptIntroDialog({
                           onClick={() => toggleMemberEmail(email)}
                           size="md"
                           title={`${member.name || email} · ${email}`}
-                          variant={selected ? "primary" : "default"}
+                          variant={selected ? "dark" : "default"}
                         >
                           <span className="max-w-24 truncate">
                             {member.name || email.split("@")[0]}
@@ -415,12 +415,14 @@ export function AcceptIntroDialog({
 
 export function StopCandidateDialog({
   candidateName,
+  connectionStarted = false,
   onClose,
   onSubmit,
   open,
   pending,
 }: {
   candidateName: string;
+  connectionStarted?: boolean;
   onClose: () => void;
   onSubmit: (args: { note: string | null }) => void | Promise<void>;
   open: boolean;
@@ -488,13 +490,16 @@ export function StopCandidateDialog({
         className="z-[90] max-w-md gap-4 rounded-lg p-6"
         overlayClassName="z-[80]"
       >
-        <DialogTitle className="text-[16px]">연결받지 않기</DialogTitle>
+        <DialogTitle className="text-[16px]">
+          {connectionStarted ? "진행 중인 연결 종료" : "연결받지 않기"}
+        </DialogTitle>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2 text-[13px] leading-5 text-neutral-primary">
             <div>{candidateName}</div>
             <div className="text-neutral-muted">
-              이 후보자는 이번에 연결받지 않습니다. 후보자에게는 Harper가 적절한
-              시점에 부드럽게 안내합니다.
+              {connectionStarted
+                ? "이미 보낸 소개 메일이나 회사에서 시작한 연락은 회수할 수 없습니다. 현재 단계에서 프로세스를 닫고, 후보자에게는 Harper가 적절한 시점에 안내합니다."
+                : "이 후보자는 이번에 연결받지 않습니다. 후보자에게는 Harper가 적절한 시점에 부드럽게 안내합니다."}
             </div>
           </div>
           <div className="space-y-1.5">

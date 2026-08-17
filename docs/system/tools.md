@@ -8,7 +8,7 @@ Career의 LLM tool schema와 실행 함수는 `src/lib/talentOnboarding/tools.ts
 |---|---|---|
 | `web_search` | 최신/외부 웹 정보 검색 | chat, realtime voice |
 | `open_url` | 사용자가 준 URL의 페이지 markdown 읽기 | chat |
-| `recommend_job_postings` | 새 job posting 검색, rerank, 저장 | chat |
+| `recommend_job_postings` | 기본 instant(기존 legacy 동기 검색, 최대 5개) 또는 명시적으로 허용된 bulk(worker 정밀 검색, 기본 15·최대 20개, 완료 이메일)로 새 job posting 검색·rerank·저장 | chat |
 | `read_recommended_opportunities` | 기존 추천 opportunity 이력 읽기 | chat, realtime voice |
 | `get_role_context` | 특정 roleId의 JD/company/recommendation 상세 맥락 읽기 | chat, realtime voice |
 | `update_recommended_opportunity_feedback` | 추천 공고에 like/dislike 저장 | chat |

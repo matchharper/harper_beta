@@ -49,6 +49,7 @@ import {
   type SessionReengagementPayload,
 } from "@/hooks/career/useCareerSessionReengagement";
 import { showOpportunityDiscoveryStartedToast } from "@/hooks/career/opportunityDiscoveryToast";
+import { extractOpportunityRunMarkers } from "@/lib/opportunityDiscovery/messageMarker";
 import { INSIGHT_CHECKLIST } from "@/lib/talentOnboarding/insightChecklist";
 import {
   TALENT_MESSAGE_TYPE_OPEN_POSITION_RECOMMENDATION_REQUEST,
@@ -76,8 +77,14 @@ const getCompletedOpportunityRunRefreshKey = (
   run: CareerOpportunityRun | null
 ) => {
   if (!run || run.inputLocked) return null;
-  if (run.status !== "completed" && run.status !== "partial") return null;
-  return `${run.id}:${run.completedAt ?? run.status}`;
+  if (
+    run.status !== "completed" &&
+    run.status !== "partial" &&
+    run.status !== "failed"
+  ) {
+    return null;
+  }
+  return `${run.id}:${run.status}:${run.completedAt ?? "terminal"}`;
 };
 
 const CAREER_COMPANY_FOLLOW_UP_DELAY_MS = 15_000;
@@ -187,6 +194,9 @@ export const CareerFlowProvider = ({
   const [activeCompanyRoleCount, setActiveCompanyRoleCount] = useState(0);
   const [opportunityRun, setOpportunityRun] =
     useState<CareerOpportunityRun | null>(null);
+  const [unlinkedOpportunityRuns, setUnlinkedOpportunityRuns] = useState<
+    CareerOpportunityRun[]
+  >([]);
   const [onboardingChecklistProgress, setOnboardingChecklistProgress] =
     useState<CareerOnboardingChecklistProgress | null>(null);
   const [
@@ -279,6 +289,7 @@ export const CareerFlowProvider = ({
     loadingOlderMessages,
     appendLatestMessagesToCache,
     removeMessagesFromCache,
+    updateOpportunityRunsInCache,
   } = useCareerMessageHistory({
     conversationId: sessionConversationId,
     fetchWithAuth,
@@ -368,6 +379,20 @@ export const CareerFlowProvider = ({
     onTalentProfileRefreshed: handleTalentProfileRefreshedFromChat,
     onMessagesChanged: appendLatestMessagesToCache,
   });
+
+  const visibleUnlinkedOpportunityRuns = useMemo(() => {
+    const linkedRunIds = new Set<string>();
+    for (const message of messages) {
+      if (message.role !== "assistant") continue;
+      for (const marker of extractOpportunityRunMarkers(message.content)) {
+        linkedRunIds.add(marker.runId.toLowerCase());
+      }
+    }
+
+    return unlinkedOpportunityRuns.filter(
+      (run) => !linkedRunIds.has(run.id.toLowerCase())
+    );
+  }, [messages, unlinkedOpportunityRuns]);
 
   useEffect(() => {
     if (sessionData || !messageConversation) return;
@@ -1143,6 +1168,7 @@ export const CareerFlowProvider = ({
         Math.max(0, Number(payload.activeCompanyRoleCount ?? 0) || 0)
       );
       setOpportunityRun(payload.opportunityRun ?? null);
+      setUnlinkedOpportunityRuns(payload.unlinkedOpportunityRuns ?? []);
       replacePendingInternalOpportunityCallRequests(
         Array.isArray(payload.pendingInternalOpportunityCallRequests)
           ? payload.pendingInternalOpportunityCallRequests
@@ -1427,6 +1453,7 @@ export const CareerFlowProvider = ({
       resetHistoryState();
       resetRuntimeActionsState();
       setActiveCompanyRoleCount(0);
+      setUnlinkedOpportunityRuns([]);
       setOnboardingChecklistProgress(null);
       replacePendingInternalOpportunityCallRequests([]);
       clearSessionReengagementAction();
@@ -1471,10 +1498,14 @@ export const CareerFlowProvider = ({
     fetchWithAuth,
     hydrateSession,
     loadSessionForCompletedOpportunityRun,
+    messages,
     opportunityRun,
     sessionPending,
     setOpportunityRun,
+    setUnlinkedOpportunityRuns,
     stage,
+    unlinkedOpportunityRuns: visibleUnlinkedOpportunityRuns,
+    updateOpportunityRunsInCache,
     userId,
   });
 
@@ -1625,6 +1656,7 @@ export const CareerFlowProvider = ({
       opportunityFeedbackFollowUpPending,
       opportunityFeedbackFollowUpTrigger,
       opportunityRun,
+      unlinkedOpportunityRuns: visibleUnlinkedOpportunityRuns,
       opportunitySearchLocked: Boolean(opportunityRun?.inputLocked),
       historyUpdatingOpportunityIds,
       emailOnboardingToken: emailOnboardingToken?.trim() || undefined,
@@ -1708,6 +1740,7 @@ export const CareerFlowProvider = ({
       callWrapUpPending,
       onboardingPausePending,
       opportunityRun,
+      visibleUnlinkedOpportunityRuns,
       profileError,
       profileLinks,
       profilePending,

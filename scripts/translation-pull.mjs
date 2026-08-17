@@ -9,7 +9,6 @@ import {
   formatFlatObject,
   replaceTopLevelObjectProperty,
 } from "./translationCommon.mjs";
-import { rewriteCareerTCalls } from "./translationCareerT.mjs";
 
 dotenv.config({ path: path.join(PROJECT_ROOT, ".env.local") });
 
@@ -86,15 +85,6 @@ replaceTopLevelObjectProperty({
   propertyObjectLiteral: formatFlatObject(valuesByLocale.en),
 });
 
-const changedSourceFiles = rewriteCareerTCalls({
-  koSourceByKey: new Map(Object.entries(valuesByLocale.ko)),
-});
-
 console.log(
   `Pulled ${Object.keys(valuesByLocale.ko).length} ko and ${Object.keys(valuesByLocale.en).length} en ${namespace} keys.`
 );
-if (changedSourceFiles.length > 0) {
-  console.log(
-    `Updated ${changedSourceFiles.length} t() Korean fallback source file(s).`
-  );
-}

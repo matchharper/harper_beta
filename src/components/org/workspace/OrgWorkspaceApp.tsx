@@ -6,7 +6,6 @@ import { OrgMemberProfileDialog } from "@/components/org/OrgMemberProfileDialog"
 import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
-import { OrgSlackConnectionGate } from "@/components/org/workspace/OrgSlackConnectionGate";
 import {
   OrgWorkspaceSidebar,
   OrgWorkspaceShellSkeleton,
@@ -37,7 +36,7 @@ export function OrgWorkspaceApp({
     user,
     workspace,
   } = useOrgWorkspaceController({ legacyEntry, page });
-  const isRoleCreationPage = page === "new-role";
+  const isRoleWorkspacePage = page === "new-role" || page === "role";
   const isRoleCreationStarted = false;
   // const isRoleCreationStarted =
   //   isRoleCreationPage &&
@@ -45,7 +44,11 @@ export function OrgWorkspaceApp({
   //   Boolean(router.query.roleId.trim());
 
   const useWideLayout =
-    page === "all" || page === "inbox" || page === "jobs" || isRoleCreationPage;
+    page === "all" ||
+    page === "documents" ||
+    page === "inbox" ||
+    page === "jobs" ||
+    isRoleWorkspacePage;
 
   if (authLoading || !routerReady) {
     return (
@@ -97,8 +100,8 @@ export function OrgWorkspaceApp({
     return <OrgLoginScreen authenticatedEmail={user.email} />;
   }
 
-  const pageTitle = isRoleCreationPage
-    ? `${workspace.companyName} · 새 역할 등록`
+  const pageTitle = isRoleWorkspacePage
+    ? `${workspace.companyName} · ${page === "new-role" ? "새 역할 등록" : "역할"}`
     : `${workspace.companyName} · ${page[0].toUpperCase()}${page.slice(1)}`;
   const requiresMemberProfile =
     !contextValue.internalOpsAccess &&
@@ -123,13 +126,13 @@ export function OrgWorkspaceApp({
           <PageContainer
             key={workspace.workspaceId}
             className={cn(
-              isRoleCreationPage
+              isRoleWorkspacePage
                 ? "h-[calc(100svh-104px)] min-h-[560px] lg:h-screen lg:min-h-0"
                 : "py-6 sm:py-9 lg:py-10"
             )}
-            padding={isRoleCreationPage ? "none" : "default"}
+            padding={isRoleWorkspacePage ? "none" : "default"}
             size={
-              isRoleCreationPage ? "full" : useWideLayout ? "wide" : "narrow"
+              isRoleWorkspacePage ? "full" : useWideLayout ? "wide" : "narrow"
             }
           >
             {children}
@@ -142,9 +145,7 @@ export function OrgWorkspaceApp({
           member={contextValue.currentUser}
           workspace={workspace}
         />
-      ) : (
-        <OrgSlackConnectionGate>{null}</OrgSlackConnectionGate>
-      )}
+      ) : null}
     </OrgWorkspaceProvider>
   );
 }

@@ -15,11 +15,16 @@ import { Button } from "@/components/ui/button";
 import { useSendOrgAgentMeetingRequest } from "@/hooks/org/useOrgAgent";
 import { splitOrgAgentMentionText } from "@/lib/org/agent/mentionText";
 import { formatOrgChatMessageTime } from "@/lib/org/agent/messagePresentation";
-import { renderOrgAgentWebLinks } from "@/lib/org/agent/navigationMarkdown";
+import {
+  convertSlackMrkdwnToWebMarkdown,
+  renderOrgAgentWebLinks,
+} from "@/lib/org/agent/navigationMarkdown";
 import type {
   OrgAgentMessage,
   OrgAgentMessageAction,
 } from "@/lib/org/agent/types";
+import { parseHarperSlackChoiceMarkers } from "@/lib/org/slackChoiceButtons";
+import { stripSlackSentUsingAttribution } from "@/lib/org/slackMessageText";
 import { cn } from "@/lib/utils";
 import { getHarperOwnedUrlRoute } from "@/lib/urlDisplay";
 
@@ -50,7 +55,7 @@ export function OrgAgentDateDivider({ createdAt }: { createdAt: string }) {
   );
 }
 
-function OrgAssistantLabel() {
+function OrgAssistantLabel({ fromSlack = false }: { fromSlack?: boolean }) {
   return (
     <ChatAssistantLabel>
       <div className="mt-2 mb-1 flex items-center gap-1.5 text-[12px] text-neutral-800 font-light">
@@ -62,6 +67,15 @@ function OrgAssistantLabel() {
           width={18}
         />
         Harper
+        {fromSlack ? (
+          <Image
+            alt="Slack"
+            className="size-3 shrink-0"
+            height={12}
+            src="/images/logos/slack.svg"
+            width={12}
+          />
+        ) : null}
       </div>
     </ChatAssistantLabel>
   );
@@ -88,13 +102,24 @@ function MentionText({ content }: { content: string }) {
 
 function OrgAssistantContent({
   content,
+  fromSlack = false,
   workspaceId,
 }: {
   content: string;
+  fromSlack?: boolean;
   workspaceId: string;
 }) {
   const router = useRouter();
-  const markdown = renderOrgAgentWebLinks({ markdown: content, workspaceId });
+  const visibleContent = fromSlack
+    ? parseHarperSlackChoiceMarkers(stripSlackSentUsingAttribution(content))
+        .text
+    : content;
+  const markdown = renderOrgAgentWebLinks({
+    markdown: fromSlack
+      ? convertSlackMrkdwnToWebMarkdown(visibleContent)
+      : visibleContent,
+    workspaceId,
+  });
 
   return (
     <ChatAssistantContent
@@ -189,11 +214,15 @@ export function OrgAgentMessageBubble({
   workspaceId: string;
 }) {
   const isUser = message.role === "user";
+  const fromSlack = message.sourceSurface === "slack";
+  const visibleMessageContent = fromSlack
+    ? stripSlackSentUsingAttribution(message.content)
+    : message.content;
   const isOwnUserMessage =
     isUser &&
     (!showUserAttribution ||
-      !message.authorUserId ||
-      message.authorUserId === currentUserId);
+      message.authorUserId === currentUserId ||
+      (!message.authorUserId && !fromSlack));
   const messageTime = formatOrgChatMessageTime(message.createdAt);
   const actions = message.metadata.actions ?? [];
   const toolResultActions = actions.filter(
@@ -210,7 +239,7 @@ export function OrgAgentMessageBubble({
     <div className="space-y-0">
       {!isUser && (
         <ChatThinkingLogPanel
-          logs={message.thinkingLogs.map((log) => log.label)}
+          logs={message.thinkingLogs}
           typographyClassName="text-[13px] leading-[1.65]"
         />
       )}
@@ -224,7 +253,7 @@ export function OrgAgentMessageBubble({
             workspaceId={workspaceId}
           />
         ))}
-      {!isUser ? <OrgAssistantLabel /> : null}
+      {!isUser ? <OrgAssistantLabel fromSlack={fromSlack} /> : null}
       {isUser && showUserAttribution ? (
         <div
           className={cn(
@@ -234,6 +263,15 @@ export function OrgAgentMessageBubble({
         >
           <span className="font-medium text-neutral-muted">
             {authorName || (isOwnUserMessage ? "나" : "워크스페이스 멤버")}
+            {fromSlack ? (
+              <Image
+                alt="Slack"
+                className="ml-1 inline-block size-3 align-[-2px]"
+                height={12}
+                src="/images/logos/slack.svg"
+                width={12}
+              />
+            ) : null}
           </span>
           {messageTime ? (
             <time
@@ -263,11 +301,12 @@ export function OrgAgentMessageBubble({
       >
         {isUser ? (
           <div className="whitespace-pre-wrap break-words">
-            <MentionText content={message.content} />
+            <MentionText content={visibleMessageContent} />
           </div>
         ) : (
           <OrgAssistantContent
             content={assistantContentOverride ?? message.content}
+            fromSlack={fromSlack}
             workspaceId={workspaceId}
           />
         )}

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash, randomUUID } from "node:crypto";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   TALENT_RESUME_BUCKET,
   ensureTalentUserRecord,
-  fetchTalentDocuments,
   getTalentResumeSignedUrl,
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
+import type { TalentDocumentRow } from "@/lib/talentOnboarding/models";
 import { insertTalentProfileSourceErrorLog } from "@/lib/talentOnboarding/errorLogs";
 import {
   MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES,
@@ -26,6 +27,11 @@ function sanitizeFileName(fileName: string) {
     .replace(/_+/g, "_")
     .slice(0, 120);
 }
+
+type DocumentUpsertResult = {
+  created?: boolean;
+  document?: TalentDocumentRow | null;
+};
 
 export const runtime = "nodejs";
 
@@ -83,10 +89,11 @@ export async function POST(req: NextRequest) {
       );
     }
     const safeName = sanitizeFileName(originalName);
-    const storagePath = `${user.id}/${Date.now()}_${safeName}`;
+    const storagePath = `${user.id}/${Date.now()}_${randomUUID()}_${safeName}`;
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+    const contentSha256 = createHash("sha256").update(buffer).digest("hex");
     if (
       kind === "resume" &&
       !validateResumeFileContent({
@@ -103,19 +110,6 @@ export async function POST(req: NextRequest) {
 
     admin = getTalentSupabaseAdmin();
     await ensureTalentUserRecord({ admin, user });
-
-    const previousResumes =
-      kind === "resume"
-        ? await fetchTalentDocuments({
-            admin,
-            userId: user.id,
-            kind: "resume",
-          })
-        : [];
-    const previousPrimaryResume =
-      previousResumes.find((document) => document.is_primary) ??
-      previousResumes[0] ??
-      null;
 
     const { error: uploadError } = await admin.storage
       .from(TALENT_RESUME_BUCKET)
@@ -160,35 +154,33 @@ export async function POST(req: NextRequest) {
       let conversationId = "";
       const { data: existingConversation, error: conversationError } =
         await admin
-            .from("talent_conversations")
-            .select("id")
-            .eq("user_id", user.id)
-            .order("updated_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
+          .from("talent_conversations")
+          .select("id")
+          .eq("user_id", user.id)
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
       if (conversationError) {
-          await admin.storage.from(TALENT_RESUME_BUCKET).remove([storagePath]);
-          throw conversationError;
+        await admin.storage.from(TALENT_RESUME_BUCKET).remove([storagePath]);
+        throw conversationError;
       }
       if (existingConversation?.id) {
-          conversationId = existingConversation.id;
+        conversationId = existingConversation.id;
       } else {
-          const { data: createdConversation, error: createConversationError } =
-            await admin
-              .from("talent_conversations")
-              .insert({ user_id: user.id, stage: "chat" })
-              .select("id")
-              .single();
-          if (createConversationError || !createdConversation?.id) {
-            await admin.storage
-              .from(TALENT_RESUME_BUCKET)
-              .remove([storagePath]);
-            throw new Error(
-              createConversationError?.message ??
-                "Failed to create talent conversation"
-            );
-          }
-          conversationId = createdConversation.id;
+        const { data: createdConversation, error: createConversationError } =
+          await admin
+            .from("talent_conversations")
+            .insert({ user_id: user.id, stage: "chat" })
+            .select("id")
+            .single();
+        if (createConversationError || !createdConversation?.id) {
+          await admin.storage.from(TALENT_RESUME_BUCKET).remove([storagePath]);
+          throw new Error(
+            createConversationError?.message ??
+              "Failed to create talent conversation"
+          );
+        }
+        conversationId = createdConversation.id;
       }
       let finalized;
       try {
@@ -253,48 +245,22 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const createdAt = new Date().toISOString();
-    if (kind === "resume") {
-      const { error: clearPrimaryError } = await admin
-        .from("talent_documents")
-        .update({ is_primary: false, is_public: false })
-        .eq("talent_id", user.id)
-        .eq("kind", "resume")
-        .eq("is_primary", true);
-      if (clearPrimaryError) {
-        await admin.storage.from(TALENT_RESUME_BUCKET).remove([storagePath]);
-        throw new Error(
-          clearPrimaryError.message ?? "Failed to update primary resume"
-        );
+    const { data: upsertData, error: documentError } = await admin.rpc(
+      "upsert_talent_document_by_hash_v1",
+      {
+        p_content_sha256: contentSha256,
+        p_content_type: uploadConfig.contentType,
+        p_file_name: originalName,
+        p_kind: kind,
+        p_size_bytes: file.size,
+        p_storage_path: storagePath,
+        p_talent_id: user.id,
       }
-    }
+    );
+    const upsertResult = upsertData as DocumentUpsertResult | null;
+    const document = upsertResult?.document ?? null;
 
-    const { data: document, error: documentError } = await admin
-      .from("talent_documents")
-      .insert({
-        talent_id: user.id,
-        kind,
-        file_name: originalName,
-        storage_path: storagePath,
-        content_type: uploadConfig.contentType,
-        size_bytes: file.size,
-        is_public: kind === "resume",
-        is_primary: kind === "resume",
-        created_at: createdAt,
-      })
-      .select(
-        "id, kind, file_name, storage_path, content_type, size_bytes, is_public, is_primary, created_at"
-      )
-      .single();
-
-    if (documentError || !document) {
-      if (previousPrimaryResume) {
-        await admin
-          .from("talent_documents")
-          .update({ is_primary: true, is_public: true })
-          .eq("id", previousPrimaryResume.id)
-          .eq("talent_id", user.id);
-      }
+    if (documentError || !document?.id) {
       await admin.storage.from(TALENT_RESUME_BUCKET).remove([storagePath]);
       await insertTalentProfileSourceErrorLog({
         admin,
@@ -312,46 +278,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Only the representative resume is mirrored for legacy readers.
-    const { error: legacyUpdateError } =
-      kind === "resume"
-        ? await admin
-            .from("talent_users")
-            .update({
-              resume_file_name: originalName,
-              resume_storage_path: storagePath,
-              resume_text: null,
-              updated_at: createdAt,
-            })
-            .eq("user_id", user.id)
-        : { error: null };
-
-    if (legacyUpdateError) {
-      await admin.from("talent_documents").delete().eq("id", document.id);
-      if (previousPrimaryResume) {
-        await admin
-          .from("talent_documents")
-          .update({ is_primary: true, is_public: true })
-          .eq("id", previousPrimaryResume.id)
-          .eq("talent_id", user.id);
-      }
+    if (upsertResult?.created === false) {
       await admin.storage.from(TALENT_RESUME_BUCKET).remove([storagePath]);
-      await insertTalentProfileSourceErrorLog({
-        admin,
-        error: legacyUpdateError,
-        stage: "resume_legacy_mirror_update",
-        userId,
-        metadata: { documentId: document.id, storagePath },
-      });
-      return NextResponse.json(
-        {
-          error: legacyUpdateError.message ?? "Failed to update latest resume",
-        },
-        { status: 500 }
-      );
     }
 
-    if (kind === "resume") {
+    if (kind === "resume" && upsertResult?.created !== false) {
       const { error: activityError } = await admin
         .from("talent_activity_events")
         .insert({
@@ -359,7 +290,7 @@ export async function POST(req: NextRequest) {
           source: "profile",
           event_type: "resume_uploaded",
           summary: "프로필에서 이력서를 업로드했습니다.",
-          impact_level: "normal",
+          impact_level: "medium",
           changed_domains: ["profile", "resume"],
         });
       if (activityError) {
@@ -375,13 +306,13 @@ export async function POST(req: NextRequest) {
 
     const documentDownloadUrl = await getTalentResumeSignedUrl({
       admin,
-      storagePath,
+      storagePath: document.storage_path,
     });
 
     return NextResponse.json({
       ok: true,
-      resumeFileName: kind === "resume" ? originalName : null,
-      resumeStoragePath: kind === "resume" ? storagePath : null,
+      resumeFileName: kind === "resume" ? document.file_name : null,
+      resumeStoragePath: kind === "resume" ? document.storage_path : null,
       resumeDownloadUrl: kind === "resume" ? documentDownloadUrl : null,
       bucket: TALENT_RESUME_BUCKET,
       document: {

@@ -7,6 +7,7 @@ import type {
 } from "@/components/career/types";
 import { TALENT_MESSAGE_TYPE_OPPORTUNITY_FEEDBACK_NOTE } from "@/lib/career/opportunityFeedbackNote";
 import { stripStandalonePostingLinksFromText } from "@/lib/career/postingLinks";
+import { stripOpportunityRunMarkers } from "@/lib/opportunityDiscovery/messageMarker";
 import { buildChatTypewriterChunks } from "@/lib/chat/typewriter";
 import {
   compactUrlLabel,
@@ -373,7 +374,9 @@ const CareerMessageBubble = ({
   const choiceBlockExtraction = !isUser
     ? extractAssistantChoiceBlocks(internalCallRequestExtraction.content)
     : { content: internalCallRequestExtraction.content, choices: [] };
-  const displayContent = choiceBlockExtraction.content;
+  const displayContent = !isUser
+    ? stripOpportunityRunMarkers(choiceBlockExtraction.content)
+    : choiceBlockExtraction.content;
   const assistantChoices = choiceBlockExtraction.choices;
   const internalCallRequestMarkers = internalCallRequestExtraction.markers;
   const assistantContent =

@@ -96,7 +96,7 @@ export function OrgRolePicker() {
       void router.push(
         buildOrgHref({
           orgId: workspace.workspaceId,
-          page: "new-role",
+          page: "role",
           roleId,
         })
       );

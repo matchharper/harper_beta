@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 type InlineEditableCommonProps = {
-  ariaLabel: string;
+  ariaLabel?: string;
   className?: string;
   disabled?: boolean;
   displayClassName?: string;
@@ -45,7 +45,7 @@ export function InlineEditableValue({
   const Component = inline ? "span" : "div";
   const editorClassName = inline ? "inline-flex" : "w-full";
   const viewingClassName = inline
-    ? "inline-flex max-w-full items-center rounded-md px-1"
+    ? "inline-flex max-w-full items-center rounded-md px-1 font-light"
     : "min-h-10 w-full rounded-md px-3 py-2 text-sm font-normal text-neutral-primary";
 
   if (editing || alwaysShowEditor) {
@@ -72,7 +72,7 @@ export function InlineEditableValue({
 
   return (
     <Component
-      aria-label={ariaLabel}
+      aria-label={ariaLabel ?? ""}
       className={cn(
         "cursor-pointer text-left outline-none transition-colors leading-[22px] border border-neutral-1000-a05 hover:bg-bg-basement focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
         viewingClassName,
@@ -113,7 +113,7 @@ export function InlineEditableInput({
   displayClassName,
   displayValue,
   editing,
-  emptyText = "-",
+  emptyText = "정보 없음",
   inline,
   inputClassName,
   onEdit,
@@ -130,7 +130,10 @@ export function InlineEditableInput({
       className={className}
       disabled={disabled}
       displayClassName={displayClassName}
-      displayValue={displayValue ?? defaultDisplayValue(value, emptyText)}
+      displayValue={
+        displayValue ??
+        defaultDisplayValue(value, inputProps.placeholder || emptyText)
+      }
       editing={editing}
       editor={
         <Input

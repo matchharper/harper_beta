@@ -21,7 +21,6 @@ export async function GET(req: NextRequest) {
       limit: parseOpsMatchingLimit(req.nextUrl.searchParams.get("limit")),
       offset: parseOpsMatchingOffset(req.nextUrl.searchParams.get("offset")),
       query: req.nextUrl.searchParams.get("query"),
-      selfServeOnly: req.nextUrl.searchParams.get("selfServeOnly") === "true",
     });
     return NextResponse.json(payload);
   } catch (error) {
@@ -33,7 +32,6 @@ export async function PATCH(req: NextRequest) {
   try {
     const user = await requireInternalApiUser(req);
     const body = (await req.json().catch(() => ({}))) as {
-      isAuto?: unknown;
       roleId?: unknown;
       status?: unknown;
     };
@@ -44,7 +42,6 @@ export async function PATCH(req: NextRequest) {
       : undefined;
     const payload = await updateOpsMatchingAllRole({
       eventActorLabel: getCompanyEventActorLabelFromUser(user),
-      isAuto: typeof body.isAuto === "boolean" ? body.isAuto : undefined,
       roleId: String(body.roleId ?? ""),
       status,
     });

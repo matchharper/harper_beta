@@ -2,14 +2,14 @@ import {
   Check,
   ChevronRight,
   FileText,
+  GalleryVerticalEnd,
   Loader2,
-  Mail,
   MessageSquareText,
   RefreshCw,
   Search,
+  Star,
   UserRound,
 } from "lucide-react";
-import { useMemo } from "react";
 import {
   useCareerHistoryContext,
   useCareerProfileContext,
@@ -24,7 +24,6 @@ import React from "react";
 import CareerCallCard from "./CareerCallCard";
 import CareerHomeDevControls from "./CareerHomeDevControls";
 import { InternalOpportunityCallActions } from "./InternalOpportunityCallActions";
-import { getCareerDefaultSavedStage } from "./opportunityTypeMeta";
 import { ConversationStarterActions } from "./ConversationStarterActions";
 import { ActionButton, InteractiveCard } from "@/components/ui/button";
 import type {
@@ -196,8 +195,7 @@ const CareerHomePanel = ({
     onRequestMoreOpenPositions,
     pendingInternalOpportunityCallRequests = [],
   } = useCareerSidebarContext();
-  const { historyOpportunityCounts, historyOpportunities } =
-    useCareerHistoryContext();
+  const { historyOpportunityCounts } = useCareerHistoryContext();
   const {
     talentProfile,
     talentPreferences,
@@ -228,82 +226,10 @@ const CareerHomePanel = ({
     historyOpportunityCounts.savedStages.connected +
     historyOpportunityCounts.savedStages.closed;
   const inProgressPositionCount = savedPositionCount + connectedPositionCount;
-  const inProgressTargetSavedStage =
-    savedPositionCount > 0 || connectedPositionCount === 0
-      ? "saved"
-      : "connected";
-  const inProgressOpportunities = useMemo(
-    () =>
-      historyOpportunities.flatMap((item) => {
-        if (item.feedback !== "positive") return [];
-        const savedStage =
-          item.savedStage ?? getCareerDefaultSavedStage(item.opportunityType);
-        if (
-          savedStage !== "saved" &&
-          savedStage !== "applied" &&
-          savedStage !== "connected" &&
-          savedStage !== "closed"
-        ) {
-          return [];
-        }
-        return [{ item, savedStage }];
-      }),
-    [historyOpportunities]
+  const inProgressPositionDescription = t(
+    "career.home.career_home_panel.saved_positions_description",
+    "관심·진행 중인 포지션"
   );
-  const inProgressCompanyLabel = useMemo(() => {
-    if (inProgressPositionCount === 0) {
-      return t(
-        "career.home.career_home_panel.1psd54b",
-        "아직 저장하거나 연결된 포지션 없음"
-      );
-    }
-
-    const firstCompanyName = (
-      inProgressOpportunities.find((opportunity) =>
-        inProgressTargetSavedStage === "saved"
-          ? opportunity.savedStage === "saved"
-          : opportunity.savedStage !== "saved"
-      ) ?? inProgressOpportunities[0]
-    )?.item.companyName?.trim();
-    const statusLabel =
-      inProgressTargetSavedStage === "saved"
-        ? t("career.common.career_history_panel.interested_status", "관심 있음")
-        : t("career.common.career_history_panel.0y27adb", "진행중");
-
-    if (!firstCompanyName) {
-      return t("career.home.career_home_panel.1qhpcnm", "{count}개 {status}", {
-        values: {
-          count: countFormatter.format(inProgressPositionCount),
-          status: statusLabel,
-        },
-      });
-    }
-
-    if (inProgressPositionCount === 1) {
-      return formatCareerMessage(m, "{company} {status}", {
-        company: firstCompanyName,
-        status: statusLabel,
-      });
-    }
-
-    return t(
-      "career.home.career_home_panel.0ejjdwp",
-      "{company} 외 {count}개 {status}",
-      {
-        values: {
-          company: firstCompanyName,
-          count: countFormatter.format(inProgressPositionCount - 1),
-          status: statusLabel,
-        },
-      }
-    );
-  }, [
-    inProgressOpportunities,
-    inProgressPositionCount,
-    inProgressTargetSavedStage,
-    m,
-    t,
-  ]);
 
   const activeOpportunityLabel =
     activeCompanyRoleCount > 0
@@ -629,7 +555,12 @@ const CareerHomePanel = ({
             count={newPositionCount}
             description={newPositionDescription}
             buttonLabel={t("career.common.career.1nldebx", "검토하기")}
-            icon={<Mail className="h-5 w-5 text-primary" strokeWidth={1.8} />}
+            icon={
+              <GalleryVerticalEnd
+                className="h-5 w-5 text-primary"
+                strokeWidth={1.8}
+              />
+            }
             iconClassName="bg-accent-200"
             onClick={() =>
               onOpenHistory({
@@ -641,9 +572,9 @@ const CareerHomePanel = ({
           <HomeOpportunitySummaryCard
             title={t("career.home.career_home_panel.11q0oj9", "저장한 포지션")}
             count={inProgressPositionCount}
-            description={inProgressCompanyLabel}
+            description={inProgressPositionDescription}
             buttonLabel={t("career.common.career.028kv4g", "상세 보기")}
-            icon={<Check className="h-6 w-6 text-positive" strokeWidth={1.9} />}
+            icon={<Star className="h-5 w-5 text-positive" strokeWidth={1.9} />}
             iconClassName="bg-positive-faded"
             onClick={() =>
               onOpenHistory({

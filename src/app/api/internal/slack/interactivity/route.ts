@@ -26,10 +26,16 @@ import {
   type SlackTalentReviewSource,
 } from "@/lib/org/slackTalentReview";
 import {
+  postHarperSlackAccessDenied,
+  resolveHarperSlackWorkspaceAccess,
+} from "@/lib/org/slackMemberAccess";
+import {
   buildSlackTalentReviewAccessDeniedView,
   buildSlackTalentReviewAcceptDecisionView,
   buildSlackTalentReviewCandidateView,
-  buildSlackTalentReviewDecisionPreviewResultView,
+  buildSlackTalentReviewDecisionErrorView,
+  buildSlackTalentReviewDecisionProcessingView,
+  buildSlackTalentReviewDecisionResultView,
   buildSlackTalentReviewErrorView,
   buildSlackTalentReviewLoadingView,
   buildSlackTalentReviewRejectDecisionView,
@@ -42,8 +48,12 @@ import {
   HARPER_TALENT_REVIEW_PREVIOUS_ACTION_ID,
   HARPER_TALENT_REVIEW_REJECT_ACTION_ID,
   HARPER_TALENT_REVIEW_REJECT_CALLBACK_ID,
+  parseSlackTalentReviewDecisionSubmission,
+  type SlackTalentReviewDecisionSubmission,
+  type SlackTalentReviewViewState,
 } from "@/lib/org/slackTalentReviewView";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { OrgHttpError, setOrgCandidateStage } from "@/lib/org/server";
 
 export const runtime = "nodejs";
 
@@ -67,6 +77,7 @@ type SlackBlockActionPayload = {
     hash?: string;
     id?: string;
     private_metadata?: string;
+    state?: SlackTalentReviewViewState;
   };
 };
 
@@ -123,6 +134,7 @@ async function showReviewCandidate(args: {
     hash: args.hash,
     token: args.token,
     view: buildSlackTalentReviewCandidateView({
+      canManageCandidates: args.member.canManageCandidates,
       candidate,
       candidateCount: args.source.candidates.length,
       candidateIndex: args.candidateIndex,
@@ -302,6 +314,16 @@ async function hydrateDecisionReviewModal(args: {
       });
       return;
     }
+    if (!member.canManageCandidates) {
+      await updateReviewModalSafely({
+        token: args.token,
+        view: buildSlackTalentReviewDecisionErrorView(
+          "Viewer 권한에서는 후보자를 수락하거나 거절할 수 없습니다. Owner 또는 Admin에게 결정을 요청해 주세요."
+        ),
+        viewId: args.viewId,
+      });
+      return;
+    }
     const candidateIndex = Math.min(
       Math.max(args.candidateIndex, 0),
       source.candidates.length - 1
@@ -348,6 +370,146 @@ async function hydrateDecisionReviewModal(args: {
   }
 }
 
+function decisionErrorMessage(error: unknown) {
+  if (error instanceof OrgHttpError) {
+    if (error.status === 403) {
+      return "후보자를 결정할 권한이 없습니다. Owner 또는 Admin 권한을 확인해 주세요.";
+    }
+    if (error.status === 409) {
+      return "이미 다른 멤버가 이 후보자를 결정했거나 현재 상태가 바뀌었습니다.";
+    }
+    if (error.status >= 400 && error.status < 500) return error.message;
+  }
+  return "일시적인 오류가 발생했습니다. 잠시 후 최신 후보자 상태를 확인하고 다시 시도해 주세요.";
+}
+
+async function hydrateSubmittedDecisionModal(args: {
+  candidateIndex: number;
+  slackUserId: string;
+  sourceMessageId: number;
+  submission: SlackTalentReviewDecisionSubmission;
+  token: string;
+  viewId: string;
+  workspaceId: string;
+}) {
+  try {
+    const source = await loadSlackTalentReviewSourceById({
+      sourceMessageId: args.sourceMessageId,
+      workspaceId: args.workspaceId,
+    });
+    const member = await authorizeReviewMember({
+      slackUserId: args.slackUserId,
+      token: args.token,
+      workspaceId: args.workspaceId,
+    });
+    if (!member) {
+      throw new OrgHttpError(
+        403,
+        "Slack 이메일과 일치하는 Harper workspace 멤버를 찾지 못했습니다."
+      );
+    }
+    if (!member.canManageCandidates) {
+      throw new OrgHttpError(403, "이 작업을 수행할 권한이 없습니다.");
+    }
+    const candidateRef = source.candidates[args.candidateIndex];
+    if (!candidateRef) {
+      throw new OrgHttpError(404, "선택한 후보자를 찾지 못했습니다.");
+    }
+    const candidate = await loadSlackTalentReviewCandidate({
+      candidate: candidateRef,
+      workspaceId: args.workspaceId,
+    });
+    if (!candidate.recommendationId) {
+      throw new OrgHttpError(404, "후보자의 연결 추천 기록을 찾지 못했습니다.");
+    }
+
+    if (args.submission.decision === "accept") {
+      if (args.submission.connectionMode === "cc_intro") {
+        const members = await listSlackTalentReviewDecisionMembers(
+          args.workspaceId
+        );
+        const allowedEmails = new Set(members.map((item) => item.email));
+        if (
+          args.submission.introEmails.some((email) => !allowedEmails.has(email))
+        ) {
+          throw new OrgHttpError(
+            400,
+            "소개 메일 수신자는 현재 workspace 멤버 중에서 선택해 주세요."
+          );
+        }
+      }
+      if (args.submission.connectionMode === "cc_intro" && !candidate.email) {
+        throw new OrgHttpError(
+          422,
+          "후보자 이메일이 없어 CC 연결 메일을 보낼 수 없습니다. 직접 연락을 선택해 주세요."
+        );
+      }
+    }
+
+    const admin = getSupabaseAdmin();
+    const { data: authData, error: authError } =
+      await admin.auth.admin.getUserById(member.companyUserId);
+    if (authError || !authData.user) {
+      throw (
+        authError || new OrgHttpError(403, "Harper 멤버를 찾지 못했습니다.")
+      );
+    }
+    if (clean(authData.user.email).toLowerCase() !== member.email) {
+      throw new OrgHttpError(
+        403,
+        "Slack과 Harper 계정의 이메일이 일치하지 않습니다. 계정 정보를 확인해 주세요."
+      );
+    }
+
+    await setOrgCandidateStage({
+      acceptReason:
+        args.submission.decision === "accept"
+          ? args.submission.acceptReason
+          : null,
+      contactDirectly:
+        args.submission.decision === "accept" &&
+        args.submission.connectionMode === "contact_directly",
+      expectedPreviousStage: "pending_connection",
+      introEmails:
+        args.submission.decision === "accept"
+          ? args.submission.introEmails
+          : null,
+      recommendationId: candidate.recommendationId,
+      roleId: candidate.roleId,
+      stage:
+        args.submission.decision === "accept" ? "connected" : "process_stopped",
+      stopNote:
+        args.submission.decision === "reject" ? args.submission.stopNote : null,
+      talentId: candidate.talentId,
+      user: authData.user,
+      workspaceId: args.workspaceId,
+    });
+
+    await updateReviewModalSafely({
+      token: args.token,
+      view: buildSlackTalentReviewDecisionResultView({
+        candidateName: candidate.name,
+        ...(args.submission.decision === "accept"
+          ? {
+              connectionMode: args.submission.connectionMode,
+            }
+          : {}),
+        decision: args.submission.decision,
+      }),
+      viewId: args.viewId,
+    });
+  } catch (error) {
+    console.warn("[harper-slack/review:submit-decision]", error);
+    await updateReviewModalSafely({
+      token: args.token,
+      view: buildSlackTalentReviewDecisionErrorView(
+        decisionErrorMessage(error)
+      ),
+      viewId: args.viewId,
+    });
+  }
+}
+
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
   const timestamp = req.headers.get("x-slack-request-timestamp") ?? "";
@@ -377,12 +539,66 @@ export async function POST(req: NextRequest) {
     (callbackId === HARPER_TALENT_REVIEW_ACCEPT_CALLBACK_ID ||
       callbackId === HARPER_TALENT_REVIEW_REJECT_CALLBACK_ID)
   ) {
+    const metadata = decodeSlackTalentReviewViewMetadata(
+      payload.view?.private_metadata
+    );
+    const parsedSubmission = parseSlackTalentReviewDecisionSubmission({
+      callbackId,
+      state: payload.view?.state,
+    });
+    if ("errors" in parsedSubmission) {
+      return NextResponse.json({
+        errors: parsedSubmission.errors,
+        response_action: "errors",
+      });
+    }
+    const slackTeamId = clean(payload.team?.id);
+    const slackUserId = clean(payload.user?.id);
+    const viewId = clean(payload.view?.id);
+    if (!metadata || !slackTeamId || !slackUserId || !viewId) {
+      return NextResponse.json({
+        errors: {
+          [callbackId === HARPER_TALENT_REVIEW_ACCEPT_CALLBACK_ID
+            ? "review_accept_connection_mode"
+            : "review_reject_note"]:
+            "후보자 검토 정보가 만료되었습니다. 모달을 닫고 다시 열어 주세요.",
+        },
+        response_action: "errors",
+      });
+    }
+    let context;
+    try {
+      context = await resolveHarperSlackInteractionContext({
+        slackTeamId,
+        workspaceId: metadata.workspaceId,
+      });
+    } catch (error) {
+      console.warn("[harper-slack/review:resolve-submit]", error);
+      return NextResponse.json({
+        errors: {
+          [callbackId === HARPER_TALENT_REVIEW_ACCEPT_CALLBACK_ID
+            ? "review_accept_connection_mode"
+            : "review_reject_note"]:
+            "Slack 연결 정보를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+        },
+        response_action: "errors",
+      });
+    }
+    after(() => {
+      return hydrateSubmittedDecisionModal({
+        candidateIndex: metadata.candidateIndex,
+        slackUserId,
+        sourceMessageId: metadata.sourceMessageId,
+        submission: parsedSubmission.submission,
+        token: context.token,
+        viewId,
+        workspaceId: context.workspaceId,
+      });
+    });
     return NextResponse.json({
       response_action: "update",
-      view: buildSlackTalentReviewDecisionPreviewResultView(
-        callbackId === HARPER_TALENT_REVIEW_ACCEPT_CALLBACK_ID
-          ? "accept"
-          : "reject"
+      view: buildSlackTalentReviewDecisionProcessingView(
+        parsedSubmission.submission.decision
       ),
     });
   }
@@ -539,7 +755,7 @@ export async function POST(req: NextRequest) {
         workspaceId: context.workspaceId,
       })
     );
-    return NextResponse.json({ ok: true, status: "decision_preview_opened" });
+    return NextResponse.json({ ok: true, status: "decision_modal_opened" });
   }
 
   if (
@@ -593,20 +809,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ignored: true, ok: true });
   }
 
-  const admin = getSupabaseAdmin();
-  const { data: sourceJob, error: sourceJobError } = await (
-    admin.from("slack_reply_jobs" as any) as any
-  )
-    .select("response_text")
-    .eq("id", actionValue.sourceJobId)
-    .maybeSingle();
-  if (sourceJobError) throw sourceJobError;
-  const parsed = parseHarperSlackChoiceMarkers(clean(sourceJob?.response_text));
-  const choice = parsed.choices[actionValue.choiceIndex];
-  if (!choice) {
-    return NextResponse.json({ ignored: true, ok: true });
-  }
-
   const channelId = clean(payload.container?.channel_id || payload.channel?.id);
   const sourceMessageTs = clean(
     payload.container?.message_ts || payload.message?.ts
@@ -621,6 +823,51 @@ export async function POST(req: NextRequest) {
     !slackUserId ||
     !actionTs
   ) {
+    return NextResponse.json({ ignored: true, ok: true });
+  }
+
+  const context = await resolveHarperSlackInteractionContext({
+    channelId,
+    slackTeamId,
+  });
+  const slackAccess = await resolveHarperSlackWorkspaceAccess({
+    slackUserId,
+    token: context.token,
+    workspaceId: context.workspaceId,
+  });
+  if (!slackAccess.allowed || !slackAccess.member.canManageCandidates) {
+    const denialReason = slackAccess.allowed
+      ? "insufficient_role"
+      : slackAccess.reason;
+    try {
+      await postHarperSlackAccessDenied({
+        access: slackAccess,
+        channelId,
+        reason: denialReason,
+        slackUserId,
+        token: context.token,
+      });
+    } catch (error) {
+      console.warn("[harper-slack/interactivity:access-denied-message]", error);
+    }
+    return NextResponse.json({
+      accessDenied: true,
+      ok: true,
+      status: "access_denied",
+    });
+  }
+
+  const admin = getSupabaseAdmin();
+  const { data: sourceJob, error: sourceJobError } = await (
+    admin.from("slack_reply_jobs" as any) as any
+  )
+    .select("response_text")
+    .eq("id", actionValue.sourceJobId)
+    .maybeSingle();
+  if (sourceJobError) throw sourceJobError;
+  const parsed = parseHarperSlackChoiceMarkers(clean(sourceJob?.response_text));
+  const choice = parsed.choices[actionValue.choiceIndex];
+  if (!choice) {
     return NextResponse.json({ ignored: true, ok: true });
   }
 

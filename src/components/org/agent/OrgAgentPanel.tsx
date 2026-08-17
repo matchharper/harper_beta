@@ -324,9 +324,11 @@ export function OrgAgentChatSurface({
                   )
                 : null;
               const authorName =
+                message.metadata.slackUserName ||
                 authorMember?.name ||
                 authorMember?.email ||
-                (message.authorUserId === user.id || !message.authorUserId
+                (message.authorUserId === user.id ||
+                (!message.authorUserId && message.sourceSurface !== "slack")
                   ? currentUser?.name || currentUser?.email || user.email
                   : null);
               return (
@@ -406,7 +408,7 @@ export function OrgAgentChatSurface({
           )}
           <ChatThinkingLogPanel
             active={chat.isStreaming}
-            logs={chat.thinkingLogs.map((log) => log.label)}
+            logs={chat.thinkingLogs}
             typographyClassName="text-[13px] leading-[1.65]"
           />
           {chat.assistantStatus === "pending" ? (
@@ -443,7 +445,7 @@ export function OrgAgentChatSurface({
             <p className="mx-auto mb-5 max-w-[760px] px-5 text-center text-xl font-normal leading-7 text-neutral-primary">
               안녕하세요. 새롭게 채용을 원하는 역할에 대해 알려주세요.
               <br />
-              JD 링크 혹은 파일을 주시거나, 쭉 설명해주셔도 좋습니다.
+              JD 링크 혹은 파일로 시작하거나, 편하게 설명해주셔도 좋습니다.
             </p>
           ) : null}
           <OrgAgentComposer

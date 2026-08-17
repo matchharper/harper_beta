@@ -2,14 +2,13 @@
 
 import React, { useMemo } from "react";
 import {
-  Bookmark,
   Check,
   ChevronRight,
   FileText,
   GalleryVerticalEnd,
-  Mail,
   MessageSquareText,
   Search,
+  Star,
   UserRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -26,7 +25,6 @@ import {
   formatCareerMessageByKey,
 } from "@/i18n/careerMessage";
 import { useMessages } from "@/i18n/useMessage";
-import { getCareerDefaultSavedStage } from "@/components/career/opportunityTypeMeta";
 import { ConversationStarterActions } from "@/components/career/ConversationStarterActions";
 import type {
   CareerInternalOpportunityCallRequest,
@@ -288,8 +286,7 @@ const CareerMobileHomeView = ({
     onRequestMoreOpenPositions,
     pendingInternalOpportunityCallRequests = [],
   } = useCareerSidebarContext();
-  const { historyOpportunityCounts, historyOpportunities } =
-    useCareerHistoryContext();
+  const { historyOpportunityCounts } = useCareerHistoryContext();
   const { talentProfile } = useCareerProfileContext();
   const { m } = useMessages();
 
@@ -303,10 +300,6 @@ const CareerMobileHomeView = ({
   const isOnboardingCompleted = isOnboardingDone || stage === "completed";
 
   const newPositionCount = historyOpportunityCounts.new;
-  const newPositionDescription = formatCareerMessage(
-    m,
-    t("career.home.career_home_panel.0x7lgjp", "추천된 기회")
-  );
 
   const savedPositionCount = historyOpportunityCounts.savedStages.saved;
   const connectedPositionCount =
@@ -314,80 +307,6 @@ const CareerMobileHomeView = ({
     historyOpportunityCounts.savedStages.connected +
     historyOpportunityCounts.savedStages.closed;
   const inProgressPositionCount = savedPositionCount + connectedPositionCount;
-  const inProgressTargetSavedStage =
-    savedPositionCount > 0 || connectedPositionCount === 0
-      ? "saved"
-      : "connected";
-
-  const inProgressOpportunities = useMemo(
-    () =>
-      historyOpportunities.flatMap((item) => {
-        if (item.feedback !== "positive") return [];
-        const savedStage =
-          item.savedStage ?? getCareerDefaultSavedStage(item.opportunityType);
-        if (
-          savedStage !== "saved" &&
-          savedStage !== "applied" &&
-          savedStage !== "connected" &&
-          savedStage !== "closed"
-        ) {
-          return [];
-        }
-        return [{ item, savedStage }];
-      }),
-    [historyOpportunities]
-  );
-
-  const inProgressCompanyLabel = useMemo(() => {
-    if (inProgressPositionCount === 0) {
-      return t(
-        "career.home.career_home_panel.1psd54b",
-        "아직 저장하거나 연결된 포지션 없음"
-      );
-    }
-    const firstCompanyName = (
-      inProgressOpportunities.find((opportunity) =>
-        inProgressTargetSavedStage === "saved"
-          ? opportunity.savedStage === "saved"
-          : opportunity.savedStage !== "saved"
-      ) ?? inProgressOpportunities[0]
-    )?.item.companyName?.trim();
-    const statusLabel =
-      inProgressTargetSavedStage === "saved"
-        ? t("career.common.career_history_panel.interested_status", "관심 있음")
-        : t("career.common.career_history_panel.0y27adb", "진행중");
-    if (!firstCompanyName) {
-      return t("career.home.career_home_panel.1qhpcnm", "{count}개 {status}", {
-        values: {
-          count: countFormatter.format(inProgressPositionCount),
-          status: statusLabel,
-        },
-      });
-    }
-    if (inProgressPositionCount === 1) {
-      return formatCareerMessage(m, "{company} {status}", {
-        company: firstCompanyName,
-        status: statusLabel,
-      });
-    }
-    return t(
-      "career.home.career_home_panel.0ejjdwp",
-      "{company} 외 {count}개 {status}",
-      {
-        values: {
-          company: firstCompanyName,
-          count: countFormatter.format(inProgressPositionCount - 1),
-          status: statusLabel,
-        },
-      }
-    );
-  }, [
-    inProgressOpportunities,
-    inProgressPositionCount,
-    inProgressTargetSavedStage,
-    m,
-    t,
-  ]);
 
   const callCardUsesCompletedLayout = isOnboardingCompleted;
   const callCardTitle = isOnboardingCompleted
@@ -584,7 +503,7 @@ const CareerMobileHomeView = ({
             )}
             count={inProgressPositionCount}
             icon={
-              <Bookmark
+              <Star
                 className="!h-5 !w-5 text-neutral-muted"
                 strokeWidth={2.4}
               />

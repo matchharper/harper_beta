@@ -54,6 +54,7 @@ import { cn } from "@/lib/cn";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 import { getCareerSignupAttributionPayload } from "@/lib/career/signupAttribution";
 import { trackSignUp } from "@/lib/ga";
+import { isTalentOnboardingSubmissionCommitted } from "@/lib/talentOnboarding/submissionRecovery";
 import {
   OFFICIAL_JOBS_ONBOARDING_COMPANY_PARAM,
   OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
@@ -317,6 +318,9 @@ const careerOnboardingSessionKey = (
 type OnboardingSessionPayload = {
   conversation?: {
     id?: string | number | null;
+    profileIngestionError?: string | null;
+    profileIngestionStatus?: string | null;
+    profileIngestionUpdatedAt?: string | null;
     stage?: string | null;
   } | null;
   error?: string;
@@ -336,8 +340,24 @@ type OnboardingStartPayload = {
     insight?: string | null;
   } | null;
   profileSubmitMessage?: string | null;
+  profileIngestion?: {
+    queued?: boolean;
+    status?: string | null;
+  } | null;
   userMessage?: OnboardingStartMessagePayload | null;
 };
+
+type OnboardingProfileIngestionStatusPayload = {
+  conversationId?: string | null;
+  profileIngestion?: {
+    error?: string | null;
+    status?: string | null;
+    updatedAt?: string | null;
+  } | null;
+};
+
+const ONBOARDING_PROFILE_INGESTION_POLL_MS = 1_500;
+const ONBOARDING_PROFILE_INGESTION_TIMEOUT_MS = 4 * 60_000;
 
 const getDefaultDoneUserMessage = (t: CareerT) =>
   t(
@@ -610,16 +630,36 @@ const OnboardingFrame = ({
       </div>
     );
   }
-
   return (
-    <div className="mx-auto flex min-h-svh w-full justify-center px-4 pb-4 pt-16 md:py-16">
-      <div className="grid w-full max-w-[400px] gap-8">
-        <div className="flex h-[calc(100svh-5rem)] min-h-[520px] w-full flex-col md:h-[calc(100svh-8rem)]">
+    <div
+      className={cn(
+        "mx-auto flex w-full justify-center px-4 pb-4 pt-16 md:py-16",
+        progressStep === 2 ? "h-svh overflow-y-auto" : "min-h-svh"
+      )}
+    >
+      <div className="grid h-max w-full max-w-[400px] gap-8">
+        <div
+          className={cn(
+            "flex w-full flex-col",
+            progressStep === 2
+              ? "min-h-[520px]"
+              : "h-[calc(100svh-5rem)] min-h-[520px] md:h-[calc(100svh-8rem)]"
+          )}
+        >
           {topBar}
           {titleSlot}
-          <section className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-8 pr-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 hover:scrollbar-thumb-neutral-1000-a50">
+
+          <section
+            className={cn(
+              "py-8 pr-1",
+              progressStep === 2
+                ? "shrink-0 overflow-visible"
+                : "min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 hover:scrollbar-thumb-neutral-1000-a50"
+            )}
+          >
             {children}
           </section>
+
           <footer className="shrink-0 pt-4">{footer}</footer>
         </div>
       </div>
@@ -703,12 +743,14 @@ const LinkInput = ({
 const ProfileInputToggle = ({
   active,
   id,
+  invalid = false,
   label,
   onClick,
   requiredBadge,
 }: {
   active: boolean;
   id: TalentNetworkProfileInputType;
+  invalid?: boolean;
   label: string;
   onClick: () => void;
   requiredBadge?: string;
@@ -716,11 +758,13 @@ const ProfileInputToggle = ({
   <BareButton
     type="button"
     onClick={onClick}
+    aria-invalid={invalid || undefined}
     className={cn(
       "flex relative h-[104px] w-full shrink-0 flex-col items-center justify-center gap-2 rounded-[8px] border px-3 py-3 text-center text-[13px] font-medium leading-4 transition",
       active
         ? "border-neutral-800 bg-bg-weak"
-        : "border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:border-neutral-800 hover:bg-bg-weak"
+        : "border-neutral-1000-a05 bg-bg-floating text-neutral-primary hover:border-neutral-800 hover:bg-bg-weak",
+      invalid && "border-critical/30 hover:border-critical/50"
     )}
   >
     <div className="absolute top-1.5 right-1.5">
@@ -1285,7 +1329,7 @@ const OnboardingLoadingBody = () => {
       >
         {t(
           "career.onboarding.onboarding_loading_state.0ouyje6",
-          "LinkedIn과 이력서에서 배경과 경험을 확인하고 있습니다."
+          "제공해주신 자료에서 배경과 경험을 확인하고 있습니다."
         )}
       </Text>
     </div>
@@ -1356,6 +1400,8 @@ const CareerNetworkOnboardingContent = () => {
   const [scholar, setScholar] = useState("");
   const [website, setWebsite] = useState("");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [showRequiredProfileSignalError, setShowRequiredProfileSignalError] =
+    useState(false);
   const [selectedEngagements, setSelectedEngagements] = useState<
     TalentNetworkEngagementOptionId[]
   >([]);
@@ -1452,6 +1498,58 @@ const CareerNetworkOnboardingContent = () => {
     [emailOnboardingToken, inviteToken, mail, requestLocale, userId]
   );
   const lastSavedBasicInfoRef = useRef("");
+
+  const waitForProfileIngestion = useCallback(
+    async (targetConversationId: string) => {
+      const deadline = Date.now() + ONBOARDING_PROFILE_INGESTION_TIMEOUT_MS;
+
+      while (Date.now() < deadline) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, ONBOARDING_PROFILE_INGESTION_POLL_MS)
+        );
+
+        let payload: OnboardingProfileIngestionStatusPayload | null = null;
+        try {
+          const statusParams = new URLSearchParams({
+            conversationId: targetConversationId,
+          });
+          const response = await fetchWithAuth(
+            `/api/talent/onboarding/start?${statusParams.toString()}`
+          );
+          if (!response.ok) continue;
+
+          payload = (await response
+            .json()
+            .catch(() => ({}))) as OnboardingProfileIngestionStatusPayload;
+        } catch {
+          continue;
+        }
+
+        if (String(payload?.conversationId ?? "") !== targetConversationId) {
+          continue;
+        }
+
+        const status = payload?.profileIngestion?.status?.trim();
+        if (status === "completed") return;
+        if (status === "failed") {
+          throw new Error(
+            t(
+              "career.onboarding.profile_ingestion_failed",
+              "프로필 분석에 실패했습니다. 다시 제출해주세요."
+            )
+          );
+        }
+      }
+
+      throw new Error(
+        t(
+          "career.onboarding.profile_ingestion_timeout",
+          "프로필 분석이 예상보다 오래 걸리고 있습니다. 다시 시도해주세요."
+        )
+      );
+    },
+    [fetchWithAuth, t]
+  );
 
   const fetchOnboardingSession = useCallback(async () => {
     const bootstrapRes = await fetchWithAuth("/api/talent/auth/bootstrap", {
@@ -1556,6 +1654,52 @@ const CareerNetworkOnboardingContent = () => {
 
         if (cancelled) return;
 
+        const loadedConversationId = String(payload?.conversation?.id ?? "");
+        const profileIngestionStatus =
+          payload?.conversation?.profileIngestionStatus?.trim();
+        setConversationId(loadedConversationId);
+
+        if (loadedConversationId && profileIngestionStatus === "processing") {
+          setSubmitState("loading");
+          setBootstrapLoading(false);
+          void waitForProfileIngestion(loadedConversationId)
+            .then(() => {
+              if (cancelled) return;
+              queryClient.removeQueries({ queryKey: sessionQueryKey });
+              queryClient.removeQueries({ queryKey: ["career-session"] });
+              setSubmitState("done");
+            })
+            .catch((error) => {
+              if (cancelled) return;
+              showToast({
+                message:
+                  error instanceof Error
+                    ? error.message
+                    : t(
+                        "career.onboarding.profile_ingestion_failed",
+                        "프로필 분석에 실패했습니다. 다시 제출해주세요."
+                      ),
+                variant: "error",
+                duration: 5000,
+              });
+              setSubmitState("form");
+            });
+          return;
+        }
+
+        if (profileIngestionStatus === "failed") {
+          showToast({
+            message: t(
+              "career.onboarding.profile_ingestion_failed",
+              "프로필 분석에 실패했습니다. 다시 제출해주세요."
+            ),
+            variant: "error",
+            duration: 5000,
+          });
+          setSubmitState("form");
+          return;
+        }
+
         if (
           payload?.conversation?.stage !== "profile" &&
           payload?.needsOnboarding !== true
@@ -1577,7 +1721,6 @@ const CareerNetworkOnboardingContent = () => {
           return;
         }
 
-        setConversationId(String(payload?.conversation?.id ?? ""));
         setSubmitState(payload?.hasFirstSubmission ? "done" : "form");
       } catch (error) {
         if (cancelled) return;
@@ -1619,6 +1762,7 @@ const CareerNetworkOnboardingContent = () => {
     sessionQueryKey,
     t,
     userId,
+    waitForProfileIngestion,
   ]);
 
   const saveBasicInfo = useCallback(async () => {
@@ -1774,6 +1918,7 @@ const CareerNetworkOnboardingContent = () => {
         }
 
         if (!hasRequiredProfileSignal) {
+          setShowRequiredProfileSignalError(true);
           showToast({
             message: t(
               "career.onboarding.onboarding.0d18cht",
@@ -1999,16 +2144,43 @@ const CareerNetworkOnboardingContent = () => {
         );
       }
 
+      if (
+        payload.profileIngestion?.queued === true ||
+        payload.profileIngestion?.status === "processing"
+      ) {
+        await waitForProfileIngestion(conversationId);
+      }
+
       completeOnboardingSubmission(payload);
     } catch (error) {
+      try {
+        const recoveredSession = await fetchOnboardingSession();
+        if (
+          recoveredSession.conversation?.profileIngestionStatus ===
+            "processing" &&
+          conversationId
+        ) {
+          await waitForProfileIngestion(conversationId);
+          completeOnboardingSubmission({});
+          return;
+        }
+        if (isTalentOnboardingSubmissionCommitted(recoveredSession)) {
+          completeOnboardingSubmission({});
+          return;
+        }
+      } catch (recoveryError) {
+        console.warn(
+          "[CareerOnboarding] failed to verify submission after request error",
+          recoveryError
+        );
+      }
+
+      console.error("[CareerOnboarding] submission failed", error);
       showToast({
-        message:
-          error instanceof Error
-            ? error.message
-            : t(
-                "career.onboarding.onboarding.1p04ixt",
-                "온보딩 제출 중 오류가 발생했습니다."
-              ),
+        message: t(
+          "career.onboarding.onboarding.1p04ixt",
+          "온보딩 제출 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+        ),
         variant: "error",
         duration: 5000,
       });
@@ -2017,6 +2189,7 @@ const CareerNetworkOnboardingContent = () => {
   }, [
     conversationId,
     completeOnboardingSubmission,
+    fetchOnboardingSession,
     fetchWithAuth,
     links,
     locale,
@@ -2031,6 +2204,7 @@ const CareerNetworkOnboardingContent = () => {
     officialJobTitle,
     t,
     uploadResumeFile,
+    waitForProfileIngestion,
   ]);
 
   const { step, handleNext, handlePrev } = useOnboarding({
@@ -2316,13 +2490,22 @@ const CareerNetworkOnboardingContent = () => {
 
                 {step === 2 && (
                   <>
-                    <div className={currentStepDefinition.bodyClassName}>
+                    <div
+                      className={cn(
+                        currentStepDefinition.bodyClassName,
+                        "mt-[-20px] sm:mt-0"
+                      )}
+                    >
                       {profileInputOptions.map((option) => (
                         <ProfileInputToggle
                           key={option.id}
                           id={option.id}
                           label={option.label}
                           active={selectedProfileInputs.includes(option.id)}
+                          invalid={
+                            showRequiredProfileSignalError &&
+                            (option.id === "linkedin" || option.id === "cv")
+                          }
                           onClick={() => handleProfileInputToggle(option.id)}
                           requiredBadge={
                             option.id === "linkedin" || option.id === "cv"
@@ -2333,14 +2516,24 @@ const CareerNetworkOnboardingContent = () => {
                       ))}
                     </div>
                     <div
-                      className={currentStepDefinition.secondaryBodyClassName}
+                      className={cn(
+                        currentStepDefinition.secondaryBodyClassName
+                      )}
                     >
                       {selectedProfileInputs.includes("linkedin") && (
                         <LinkInput
                           label="LinkedIn"
                           placeholder="https://linkedin.com/in/..."
                           value={linkedin}
-                          onChange={(event) => setLinkedin(event.target.value)}
+                          onChange={(event) => {
+                            const nextLinkedin = event.target.value;
+                            setLinkedin(nextLinkedin);
+                            if (
+                              isLinkedinProfileLink(normalizeLink(nextLinkedin))
+                            ) {
+                              setShowRequiredProfileSignalError(false);
+                            }
+                          }}
                         />
                       )}
                       {selectedProfileInputs.includes("github") && (
@@ -2380,6 +2573,9 @@ const CareerNetworkOnboardingContent = () => {
                                 : "click_onboarding_resume_select"
                             );
                             setResumeFile(file);
+                            if (file) {
+                              setShowRequiredProfileSignalError(false);
+                            }
                           }}
                         />
                       )}

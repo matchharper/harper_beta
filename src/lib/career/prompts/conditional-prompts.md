@@ -34,6 +34,7 @@ Action note: ...
 
 온보딩 중 text chat 기본 tool:
 
+- `update_language_setting`
 - `web_search`
 - `update_talent_profile`
 - `open_url`
@@ -42,6 +43,7 @@ Action note: ...
 
 온보딩 완료 후 text chat 기본 tool:
 
+- `update_language_setting`
 - `web_search`
 - `open_url`
 - `recommend_job_postings`
@@ -152,8 +154,6 @@ System blocks passed to the LLM:
    {pending opportunity feedback context}
    {recent activity summaries}
    {opportunity status}
-
-   Important: Use {outputLanguage} unless the latest user message explicitly asks to change language.
 ```
 
 The `buildCareerOpportunityFeedbackFollowUpTurnInstruction` block is:

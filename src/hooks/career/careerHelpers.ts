@@ -57,6 +57,8 @@ export const toUiMessage = (message: {
   messageType?: string;
   createdAt?: string;
   opportunityPreview?: CareerMessage["opportunityPreview"];
+  recommendationSearchRelation?: CareerMessage["recommendationSearchRelation"];
+  recommendationSearchRun?: CareerMessage["recommendationSearchRun"];
   recommendationStatusAfterCharCount?: number | null;
   thinkingLogs?: unknown;
 }): CareerMessage => ({
@@ -66,6 +68,8 @@ export const toUiMessage = (message: {
   messageType: message.messageType ?? "chat",
   createdAt: message.createdAt ?? new Date().toISOString(),
   opportunityPreview: message.opportunityPreview,
+  recommendationSearchRelation: message.recommendationSearchRelation ?? null,
+  recommendationSearchRun: message.recommendationSearchRun ?? null,
   recommendationStatusAfterCharCount:
     typeof message.recommendationStatusAfterCharCount === "number" &&
     Number.isFinite(message.recommendationStatusAfterCharCount) &&

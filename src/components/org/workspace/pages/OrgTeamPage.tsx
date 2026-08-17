@@ -4,7 +4,6 @@ import {
   CircleDollarSign,
   Ellipsis,
   FileText,
-  Handshake,
   LoaderCircle,
   MapPin,
   Pencil,
@@ -38,11 +37,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  InlineEditableInput,
-  InlineEditableSelect,
-  InlineEditableTextarea,
-} from "@/components/ui/inline-editable";
+import { DocumentEditor } from "@/components/ui/document-editor";
 import { Input, TextField } from "@/components/ui/input";
 import {
   Select,
@@ -78,7 +73,6 @@ import { useToastStore } from "@/store/useToastStore";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type CompanyDraft = {
-  companyDescription: string;
   companyName: string;
   employeeCountEnd: number | null;
   employeeCountStart: number | null;
@@ -89,22 +83,14 @@ type CompanyDraft = {
   linkedinUrl: string;
   locationText: string;
   logoUrl: string;
-  mainInvestors: string;
   pitch: string;
   shortDescription: string;
   totalFundingRaised: string;
 };
 
 type CompanyEditingField =
-  | "companyDescription"
-  | "employeeCount"
-  | "foundedYear"
   | "homepageUrl"
-  | "lastFundingRoundDescription"
-  | "lastFundingStage"
   | "linkedinUrl"
-  | "locationText"
-  | "mainInvestors"
   | "pitch"
   | "shortDescription"
   | "totalFundingRaised";
@@ -277,7 +263,6 @@ function CompanyEditableLink({
     >
       <Popover.Trigger asChild>
         <button
-          aria-label={`${label} 링크 수정`}
           className="group rounded-md outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 disabled:pointer-events-none disabled:opacity-50"
           data-inline-editable-interaction=""
           disabled={disabled}
@@ -342,7 +327,7 @@ function CompanyEditableLink({
   );
 }
 
-function CompanyMetric({
+function CompanyInfoRow({
   icon,
   label,
   value,
@@ -352,17 +337,30 @@ function CompanyMetric({
   value: ReactNode;
 }) {
   return (
-    <div className="flex min-w-0 items-start gap-2.5">
-      <span className="mt-0.5 shrink-0 text-neutral-muted">{icon}</span>
-      <div className="min-w-0 w-full">
-        <div className="text-[12px] font-light leading-5 text-neutral-soft">
+    <tr>
+      <th
+        className="w-[180px] py-1 pr-4 text-left align-center font-normal"
+        scope="row"
+      >
+        <span className="flex items-center gap-2 text-[13px] leading-5 text-black">
+          <span className="shrink-0">{icon}</span>
           {label}
-        </div>
-        <div className="mt-0.5 text-[13px] w-full leading-5 text-neutral-primary">
-          {value}
-        </div>
-      </div>
-    </div>
+        </span>
+      </th>
+      <td className="min-w-0 py-2 pl-4 align-top text-[13px] leading-5 text-black">
+        {value}
+      </td>
+    </tr>
+  );
+}
+
+function CompanyInfoText({ value }: { value: string | null | undefined }) {
+  const text = value?.trim();
+
+  return text ? (
+    <span className="whitespace-pre-wrap wrap-break-word">{text}</span>
+  ) : (
+    <span className="text-neutral-soft">정보 없음</span>
   );
 }
 
@@ -549,8 +547,10 @@ function InviteMemberDialog({
 
 export function OrgTeamPage({
   companyOnly = false,
+  section = "company",
 }: {
   companyOnly?: boolean;
+  section?: "company" | "members";
 } = {}) {
   const {
     bootstrap: { invitations, members },
@@ -567,6 +567,7 @@ export function OrgTeamPage({
   const updateMemberProfile = useUpdateOrgMemberProfile();
   const updateMembershipAuthority = useUpdateOrgMembershipAuthority();
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [companyInfoEditing, setCompanyInfoEditing] = useState(false);
   const [companyEditingField, setCompanyEditingField] =
     useState<CompanyEditingField | null>(null);
   const [companyDraft, setCompanyDraft] = useState<CompanyDraft | null>(null);
@@ -580,12 +581,7 @@ export function OrgTeamPage({
   const [memberRoleDraft, setMemberRoleDraft] = useState("");
   const [memberRoleError, setMemberRoleError] = useState<string | null>(null);
   const companyProfile = workspace.companyProfile;
-  const resolvedCompanyDescription =
-    workspace.companyDescription ??
-    companyProfile?.companyDbDescription ??
-    null;
   const initialCompanyDraft: CompanyDraft = {
-    companyDescription: resolvedCompanyDescription ?? "",
     companyName: workspace.companyName,
     employeeCountEnd: companyProfile?.employeeCountEnd ?? null,
     employeeCountStart: companyProfile?.employeeCountStart ?? null,
@@ -597,7 +593,6 @@ export function OrgTeamPage({
     linkedinUrl: companyProfile?.linkedinUrl ?? "",
     locationText: companyProfile?.location ?? "",
     logoUrl: workspace.logoUrl ?? "",
-    mainInvestors: companyProfile?.mainInvestors ?? "",
     pitch: workspace.pitch ?? "",
     shortDescription: companyProfile?.shortDescription ?? "",
     totalFundingRaised: companyProfile?.totalFundingRaised ?? "",
@@ -607,11 +602,20 @@ export function OrgTeamPage({
     currentCompanyDraft.employeeCountStart,
     currentCompanyDraft.employeeCountEnd
   );
-  const companyEditing = companyEditingField !== null;
+  const companyEditing = companyInfoEditing || companyEditingField !== null;
+  const showCompany = companyOnly || section === "company";
+  const showMembers = !companyOnly && section === "members";
   const companyHasChanges =
     companyDraft !== null &&
     JSON.stringify(companyDraft) !== JSON.stringify(initialCompanyDraft);
   useUnsavedChangesWarning(companyHasChanges);
+
+  const startCompanyInfoEditing = () => {
+    if (!permissions.canManageWorkspace || updateWorkspace.isPending) return;
+    setCompanyInfoEditing(true);
+    setCompanySaveError("");
+    setCompanyDraft((current) => current ?? initialCompanyDraft);
+  };
 
   const startCompanyEditing = (field: CompanyEditingField) => {
     if (!permissions.canManageWorkspace || updateWorkspace.isPending) return;
@@ -620,8 +624,12 @@ export function OrgTeamPage({
     setCompanyDraft((current) => current ?? initialCompanyDraft);
   };
 
-  const changeCompanyDraft = (patch: Partial<CompanyDraft>) => {
+  const changeCompanyDraft = (
+    patch: Partial<CompanyDraft>,
+    field?: CompanyEditingField
+  ) => {
     if (!permissions.canManageWorkspace || updateWorkspace.isPending) return;
+    if (field) setCompanyEditingField(field);
     setCompanySaveError("");
     setCompanyDraft((current) => ({
       ...(current ?? initialCompanyDraft),
@@ -632,6 +640,7 @@ export function OrgTeamPage({
   const cancelCompanyEditing = () => {
     if (updateWorkspace.isPending) return;
     setCompanyDraft(null);
+    setCompanyInfoEditing(false);
     setCompanyEditingField(null);
     setCompanySaveError("");
   };
@@ -652,7 +661,6 @@ export function OrgTeamPage({
     }
     try {
       await updateWorkspace.mutateAsync({
-        companyDescription: companyDraft.companyDescription.trim() || null,
         companyName,
         employeeCountEnd: companyDraft.employeeCountEnd,
         employeeCountStart: companyDraft.employeeCountStart,
@@ -664,7 +672,6 @@ export function OrgTeamPage({
         linkedinUrl: companyDraft.linkedinUrl.trim() || null,
         location: companyDraft.locationText.trim() || null,
         logoUrl: companyDraft.logoUrl.trim() || null,
-        mainInvestors: companyDraft.mainInvestors.trim() || null,
         pitch: companyDraft.pitch.trim() || null,
         shortDescription: companyDraft.shortDescription.trim() || null,
         totalFundingRaised: companyDraft.totalFundingRaised.trim() || null,
@@ -672,6 +679,7 @@ export function OrgTeamPage({
       });
       addToast({ message: "회사 정보를 저장했습니다.", variant: "success" });
       setCompanyDraft(null);
+      setCompanyInfoEditing(false);
       setCompanyEditingField(null);
       setCompanySaveError("");
     } catch (saveError) {
@@ -821,331 +829,315 @@ export function OrgTeamPage({
   };
 
   return (
-    <div {...companyEditingDismissHandlers} className="space-y-2">
+    <div {...companyEditingDismissHandlers}>
       <OrgPageHeader
+        actions={
+          showCompany &&
+          (permissions.canManageWorkspace ||
+            currentCompanyDraft.homepageUrl ||
+            currentCompanyDraft.linkedinUrl) ? (
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {(permissions.canManageWorkspace ||
+                currentCompanyDraft.homepageUrl) && (
+                <CompanyEditableLink
+                  disabled={updateWorkspace.isPending}
+                  editable={permissions.canManageWorkspace}
+                  fieldId="org-company-homepage-url"
+                  href={currentCompanyDraft.homepageUrl}
+                  label="웹사이트"
+                  onEdit={() => startCompanyEditing("homepageUrl")}
+                  onValueChange={(homepageUrl) =>
+                    changeCompanyDraft({ homepageUrl })
+                  }
+                />
+              )}
+              {(permissions.canManageWorkspace ||
+                currentCompanyDraft.linkedinUrl) && (
+                <CompanyEditableLink
+                  disabled={updateWorkspace.isPending}
+                  editable={permissions.canManageWorkspace}
+                  fieldId="org-company-linkedin-url"
+                  href={currentCompanyDraft.linkedinUrl}
+                  label="LinkedIn"
+                  onEdit={() => startCompanyEditing("linkedinUrl")}
+                  onValueChange={(linkedinUrl) =>
+                    changeCompanyDraft({ linkedinUrl })
+                  }
+                />
+              )}
+            </div>
+          ) : undefined
+        }
         title={
-          <span className="flex min-w-0 items-center gap-2">
-            <CompanyBrandMark
-              logoUrl={currentCompanyDraft.logoUrl || null}
-              name={currentCompanyDraft.companyName}
-            />
-            <span className="truncate">{currentCompanyDraft.companyName}</span>
-          </span>
+          showMembers ? (
+            "멤버"
+          ) : (
+            <span className="flex min-w-0 items-center gap-2">
+              <CompanyBrandMark
+                logoUrl={currentCompanyDraft.logoUrl || null}
+                name={currentCompanyDraft.companyName}
+              />
+              <span className="truncate">
+                {currentCompanyDraft.companyName}
+              </span>
+            </span>
+          )
         }
       />
 
-      <OrgSection>
-        <div className="text-sm text-neutral-muted mb-4">
+      <OrgSection hidden={!showCompany}>
+        <div className="text-[13px] text-neutral-900 bg-neutral-100 rounded-lg p-3 mb-4">
           아래의 정보들은 Harper가 인재에게 회사를 설명하고 설득하기위해
-          사용합니다. 모든 역할에 공통적으로 반영됩니다.
-          <br />
-          아래의 내용을 그대로 전달하지 않고, 인재의 관심사/니즈 등에 맞게
-          Harper가 말을 건넬 때 자연스럽게 활용하게 됩니다.
+          사용합니다. 모든 역할에 공통적으로 반영됩니다. 내용을 그대로 전달하지
+          않고, 인재의 관심사/니즈 등에 맞게 Harper가 말을 건넬 때 자연스럽게
+          활용하게 됩니다.
         </div>
-        <OrgSectionHeader title="회사 정보" />
         <form
-          className="space-y-8"
+          className="space-y-8 mt-8"
           onSubmit={(event) => {
             event.preventDefault();
             void saveCompany();
           }}
         >
-          <div className="space-y-4">
-            <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
-              {(permissions.canManageWorkspace ||
-                currentCompanyDraft.locationText) && (
-                <CompanyMetric
+          <OrgSectionHeader
+            className="max-w-2xl"
+            title="회사 정보"
+            actions={
+              <>
+                {permissions.canManageWorkspace && !companyInfoEditing ? (
+                  <MuteButton
+                    disabled={updateWorkspace.isPending}
+                    onClick={startCompanyInfoEditing}
+                    size="md"
+                    type="button"
+                  >
+                    <Pencil className="size-4" />
+                    수정하기
+                  </MuteButton>
+                ) : null}
+              </>
+            }
+          />
+          <div
+            className="max-w-2xl overflow-x-auto rounded-lg bg-neutral-100 px-4 py-1"
+            data-inline-editable-interaction={
+              companyInfoEditing ? "" : undefined
+            }
+          >
+            <table className="w-full border-collapse">
+              <tbody className="divide-y divide-neutral-1000-a05">
+                <CompanyInfoRow
                   icon={<MapPin className="size-4" strokeWidth={2} />}
                   label="본사 위치"
                   value={
-                    <InlineEditableInput
-                      ariaLabel="본사 위치 수정"
-                      disabled={
-                        !permissions.canManageWorkspace ||
-                        updateWorkspace.isPending
-                      }
-                      editing={companyEditingField === "locationText"}
-                      inputClassName="w-full"
-                      onChange={(event) =>
-                        changeCompanyDraft({ locationText: event.target.value })
-                      }
-                      onEdit={() => startCompanyEditing("locationText")}
-                      placeholder="본사 위치"
-                      value={currentCompanyDraft.locationText}
-                    />
+                    companyInfoEditing ? (
+                      <Input
+                        autoFocus
+                        aria-label="본사 위치"
+                        className="h-9 w-full text-[13px]"
+                        disabled={updateWorkspace.isPending}
+                        onChange={(event) =>
+                          changeCompanyDraft({
+                            locationText: event.target.value,
+                          })
+                        }
+                        placeholder="본사 위치"
+                        value={currentCompanyDraft.locationText}
+                      />
+                    ) : (
+                      <CompanyInfoText
+                        value={currentCompanyDraft.locationText}
+                      />
+                    )
                   }
                 />
-              )}
-              {(permissions.canManageWorkspace ||
-                currentCompanyDraft.foundedYear) && (
-                <CompanyMetric
+                <CompanyInfoRow
                   icon={<Calendar className="size-4" strokeWidth={2} />}
                   label="설립 연도"
                   value={
-                    <InlineEditableInput
-                      ariaLabel="설립 연도 수정"
-                      disabled={
-                        !permissions.canManageWorkspace ||
-                        updateWorkspace.isPending
-                      }
-                      displayValue={
-                        currentCompanyDraft.foundedYear
-                          ? `${currentCompanyDraft.foundedYear}년`
-                          : "-"
-                      }
-                      editing={companyEditingField === "foundedYear"}
-                      inputClassName="w-full"
-                      inputMode="numeric"
-                      max={new Date().getFullYear() + 1}
-                      min={1000}
-                      onChange={(event) =>
-                        changeCompanyDraft({
-                          foundedYear: event.target.value
-                            ? Number(event.target.value)
-                            : null,
-                        })
-                      }
-                      onEdit={() => startCompanyEditing("foundedYear")}
-                      placeholder="설립 연도"
-                      type="number"
-                      value={currentCompanyDraft.foundedYear ?? ""}
-                    />
+                    companyInfoEditing ? (
+                      <Input
+                        aria-label="설립 연도"
+                        className="h-9 w-full text-[13px]"
+                        disabled={updateWorkspace.isPending}
+                        inputMode="numeric"
+                        max={new Date().getFullYear() + 1}
+                        min={1000}
+                        onChange={(event) =>
+                          changeCompanyDraft({
+                            foundedYear: event.target.value
+                              ? Number(event.target.value)
+                              : null,
+                          })
+                        }
+                        placeholder="설립 연도"
+                        type="number"
+                        value={currentCompanyDraft.foundedYear ?? ""}
+                      />
+                    ) : (
+                      <CompanyInfoText
+                        value={
+                          currentCompanyDraft.foundedYear
+                            ? `${currentCompanyDraft.foundedYear}년`
+                            : null
+                        }
+                      />
+                    )
                   }
                 />
-              )}
-              {(permissions.canManageWorkspace || employeeCountText) && (
-                <CompanyMetric
+                <CompanyInfoRow
                   icon={<Users className="size-4" strokeWidth={2} />}
                   label="직원 수"
                   value={
-                    <InlineEditableSelect
-                      ariaLabel="직원 수 수정"
-                      disabled={
-                        !permissions.canManageWorkspace ||
-                        updateWorkspace.isPending
-                      }
-                      editing={companyEditingField === "employeeCount"}
-                      onEdit={() => startCompanyEditing("employeeCount")}
-                      onValueChange={(value) => {
-                        if (value === EMPTY_EMPLOYEE_COUNT_RANGE) {
+                    companyInfoEditing ? (
+                      <Select
+                        disabled={updateWorkspace.isPending}
+                        onValueChange={(value) => {
+                          if (value === null) return;
+                          if (value === EMPTY_EMPLOYEE_COUNT_RANGE) {
+                            changeCompanyDraft({
+                              employeeCountEnd: null,
+                              employeeCountStart: null,
+                            });
+                            return;
+                          }
+                          const selected = EMPLOYEE_COUNT_RANGE_OPTIONS.find(
+                            (option) => option.value === value
+                          );
+                          if (!selected) return;
                           changeCompanyDraft({
-                            employeeCountEnd: null,
-                            employeeCountStart: null,
+                            employeeCountEnd: selected.end,
+                            employeeCountStart: selected.start,
                           });
-                          return;
+                        }}
+                        value={
+                          getEmployeeCountRangeValue(
+                            currentCompanyDraft.employeeCountStart,
+                            currentCompanyDraft.employeeCountEnd
+                          ) ?? EMPTY_EMPLOYEE_COUNT_RANGE
                         }
-                        const selected = EMPLOYEE_COUNT_RANGE_OPTIONS.find(
-                          (option) => option.value === value
-                        );
-                        if (!selected) return;
-                        changeCompanyDraft({
-                          employeeCountEnd: selected.end,
-                          employeeCountStart: selected.start,
-                        });
-                      }}
-                      options={[
-                        {
-                          label: "정보 없음",
-                          value: EMPTY_EMPLOYEE_COUNT_RANGE,
-                        },
-                        ...EMPLOYEE_COUNT_RANGE_OPTIONS,
-                      ]}
-                      placeholder="직원 수 범위"
-                      triggerClassName="w-full text-[13px]"
-                      value={
-                        getEmployeeCountRangeValue(
-                          currentCompanyDraft.employeeCountStart,
-                          currentCompanyDraft.employeeCountEnd
-                        ) ?? EMPTY_EMPLOYEE_COUNT_RANGE
-                      }
-                    />
+                      >
+                        <SelectTrigger
+                          aria-label="직원 수"
+                          className="w-full text-[13px]"
+                        >
+                          <SelectValue placeholder="직원 수 범위" />
+                        </SelectTrigger>
+                        <SelectContent
+                          align="start"
+                          data-inline-editable-interaction=""
+                        >
+                          <SelectItem value={EMPTY_EMPLOYEE_COUNT_RANGE}>
+                            정보 없음
+                          </SelectItem>
+                          {EMPLOYEE_COUNT_RANGE_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <CompanyInfoText value={employeeCountText} />
+                    )
                   }
                 />
-              )}
-            </div>
-
-            {(permissions.canManageWorkspace ||
-              currentCompanyDraft.homepageUrl ||
-              currentCompanyDraft.linkedinUrl) && (
-              <div className="flex flex-wrap gap-2">
-                {(permissions.canManageWorkspace ||
-                  currentCompanyDraft.homepageUrl) && (
-                  <CompanyEditableLink
-                    disabled={updateWorkspace.isPending}
-                    editable={permissions.canManageWorkspace}
-                    fieldId="org-company-homepage-url"
-                    href={currentCompanyDraft.homepageUrl}
-                    label="웹사이트"
-                    onEdit={() => startCompanyEditing("homepageUrl")}
-                    onValueChange={(homepageUrl) =>
-                      changeCompanyDraft({ homepageUrl })
-                    }
-                  />
-                )}
-                {(permissions.canManageWorkspace ||
-                  currentCompanyDraft.linkedinUrl) && (
-                  <CompanyEditableLink
-                    disabled={updateWorkspace.isPending}
-                    editable={permissions.canManageWorkspace}
-                    fieldId="org-company-linkedin-url"
-                    href={currentCompanyDraft.linkedinUrl}
-                    label="LinkedIn"
-                    onEdit={() => startCompanyEditing("linkedinUrl")}
-                    onValueChange={(linkedinUrl) =>
-                      changeCompanyDraft({ linkedinUrl })
-                    }
-                  />
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-7">
-            <section>
-              <h3 className="text-[14px] font-medium text-neutral-primary">
-                회사 설명
-              </h3>
-              <InlineEditableTextarea
-                ariaLabel="회사 설명 수정"
-                className="mt-2 max-w-4xl"
-                disabled={
-                  !permissions.canManageWorkspace || updateWorkspace.isPending
-                }
-                displayClassName="min-h-[132px] text-[13px] text-neutral-muted"
-                editing={companyEditingField === "companyDescription"}
-                onChange={(event) =>
-                  changeCompanyDraft({
-                    companyDescription: event.target.value,
-                  })
-                }
-                onEdit={() => startCompanyEditing("companyDescription")}
-                rows={5}
-                textareaClassName="min-h-[132px] text-[13px]"
-                value={currentCompanyDraft.companyDescription}
-              />
-            </section>
-
-            <section>
-              <h3 className="text-[14px] font-medium text-neutral-primary">
-                회사 Pitch
-              </h3>
-              <InlineEditableTextarea
-                ariaLabel="회사 Pitch 수정"
-                className="mt-2 max-w-4xl"
-                disabled={
-                  !permissions.canManageWorkspace || updateWorkspace.isPending
-                }
-                displayClassName="min-h-[112px] text-[13px] text-neutral-muted"
-                editing={companyEditingField === "pitch"}
-                onChange={(event) =>
-                  changeCompanyDraft({ pitch: event.target.value })
-                }
-                onEdit={() => startCompanyEditing("pitch")}
-                rows={4}
-                textareaClassName="min-h-[112px] text-[13px]"
-                value={currentCompanyDraft.pitch}
-              />
-            </section>
+                <CompanyInfoRow
+                  icon={<TrendingUp className="size-4" strokeWidth={2} />}
+                  label="최근 투자 단계"
+                  value={
+                    companyInfoEditing ? (
+                      <Input
+                        aria-label="최근 투자 단계"
+                        className="h-9 w-full text-[13px]"
+                        disabled={updateWorkspace.isPending}
+                        onChange={(event) =>
+                          changeCompanyDraft({
+                            lastFundingStage: event.target.value,
+                          })
+                        }
+                        placeholder="최근 투자 단계"
+                        value={currentCompanyDraft.lastFundingStage}
+                      />
+                    ) : (
+                      <CompanyInfoText
+                        value={currentCompanyDraft.lastFundingStage}
+                      />
+                    )
+                  }
+                />
+                <CompanyInfoRow
+                  icon={<CircleDollarSign className="size-4" strokeWidth={2} />}
+                  label="누적 투자 유치액"
+                  value={
+                    companyInfoEditing ? (
+                      <Input
+                        aria-label="누적 투자 유치액"
+                        className="h-9 w-full text-[13px]"
+                        disabled={updateWorkspace.isPending}
+                        onChange={(event) =>
+                          changeCompanyDraft({
+                            totalFundingRaised: event.target.value,
+                          })
+                        }
+                        placeholder="누적 투자 유치액"
+                        value={currentCompanyDraft.totalFundingRaised}
+                      />
+                    ) : (
+                      <CompanyInfoText
+                        value={currentCompanyDraft.totalFundingRaised}
+                      />
+                    )
+                  }
+                />
+                <CompanyInfoRow
+                  icon={<FileText className="size-4" strokeWidth={2} />}
+                  label="최근 투자 라운드"
+                  value={
+                    companyInfoEditing ? (
+                      <Input
+                        aria-label="최근 투자 라운드"
+                        className="h-9 w-full text-[13px]"
+                        disabled={updateWorkspace.isPending}
+                        onChange={(event) =>
+                          changeCompanyDraft({
+                            lastFundingRoundDescription: event.target.value,
+                          })
+                        }
+                        placeholder="최근 투자 라운드"
+                        value={currentCompanyDraft.lastFundingRoundDescription}
+                      />
+                    ) : (
+                      <CompanyInfoText
+                        value={currentCompanyDraft.lastFundingRoundDescription}
+                      />
+                    )
+                  }
+                />
+              </tbody>
+            </table>
           </div>
 
           <section>
-            <h3 className="text-[14px] font-medium text-neutral-primary">
-              투자 정보
-            </h3>
-            <div className="mt-4 grid gap-x-8 gap-y-5 sm:grid-cols-2 xl:grid-cols-2">
-              <CompanyMetric
-                icon={<TrendingUp className="size-4" strokeWidth={2} />}
-                label="최근 투자 단계"
-                value={
-                  <InlineEditableInput
-                    ariaLabel="최근 투자 단계 수정"
-                    disabled={
-                      !permissions.canManageWorkspace ||
-                      updateWorkspace.isPending
-                    }
-                    editing={companyEditingField === "lastFundingStage"}
-                    inputClassName="w-full max-w-sm"
-                    onChange={(event) =>
-                      changeCompanyDraft({
-                        lastFundingStage: event.target.value,
-                      })
-                    }
-                    onEdit={() => startCompanyEditing("lastFundingStage")}
-                    value={currentCompanyDraft.lastFundingStage}
-                  />
-                }
-              />
-              <CompanyMetric
-                icon={<CircleDollarSign className="size-4" strokeWidth={2} />}
-                label="총 투자"
-                value={
-                  <InlineEditableInput
-                    ariaLabel="총 투자 수정"
-                    disabled={
-                      !permissions.canManageWorkspace ||
-                      updateWorkspace.isPending
-                    }
-                    editing={companyEditingField === "totalFundingRaised"}
-                    inputClassName="w-full max-w-sm"
-                    onChange={(event) =>
-                      changeCompanyDraft({
-                        totalFundingRaised: event.target.value,
-                      })
-                    }
-                    onEdit={() => startCompanyEditing("totalFundingRaised")}
-                    value={currentCompanyDraft.totalFundingRaised}
-                  />
-                }
-              />
-              <CompanyMetric
-                icon={<Handshake className="size-4" strokeWidth={2} />}
-                label="주요 투자자"
-                value={
-                  <InlineEditableInput
-                    ariaLabel="주요 투자자 수정"
-                    disabled={
-                      !permissions.canManageWorkspace ||
-                      updateWorkspace.isPending
-                    }
-                    editing={companyEditingField === "mainInvestors"}
-                    inputClassName="w-full max-w-sm"
-                    onChange={(event) =>
-                      changeCompanyDraft({ mainInvestors: event.target.value })
-                    }
-                    displayClassName="w-full"
-                    onEdit={() => startCompanyEditing("mainInvestors")}
-                    value={currentCompanyDraft.mainInvestors}
-                  />
-                }
-              />
-              <CompanyMetric
-                icon={<FileText className="size-4" strokeWidth={2} />}
-                label="최근 투자 라운드"
-                value={
-                  <InlineEditableInput
-                    ariaLabel="최근 투자 라운드 수정"
-                    disabled={
-                      !permissions.canManageWorkspace ||
-                      updateWorkspace.isPending
-                    }
-                    editing={
-                      companyEditingField === "lastFundingRoundDescription"
-                    }
-                    displayClassName="w-full"
-                    onChange={(event) =>
-                      changeCompanyDraft({
-                        lastFundingRoundDescription: event.target.value,
-                      })
-                    }
-                    onEdit={() =>
-                      startCompanyEditing("lastFundingRoundDescription")
-                    }
-                    inputClassName="w-full max-w-xl"
-                    value={currentCompanyDraft.lastFundingRoundDescription}
-                  />
-                }
-              />
-            </div>
+            <OrgSectionHeader title="회사 설명" />
+            <DocumentEditor
+              aria-label="회사 설명 수정"
+              className="mt-2 max-w-4xl"
+              disabled={updateWorkspace.isPending}
+              documentTitle="Company Description"
+              errorMessage={
+                companyEditingField === "pitch" ? companySaveError : ""
+              }
+              lastChangedAt={workspace.updatedAt}
+              onChange={(event) =>
+                changeCompanyDraft({ pitch: event.target.value }, "pitch")
+              }
+              placeholder="인재에게 회사를 소개하고 설득할 때 강조할 내용을 작성해 주세요."
+              readOnly={!permissions.canManageWorkspace}
+              rows={4}
+              savedValue={workspace.pitch ?? ""}
+              value={currentCompanyDraft.pitch}
+            />
           </section>
 
           {companySaveError ? (
@@ -1159,7 +1151,7 @@ export function OrgTeamPage({
         </form>
       </OrgSection>
 
-      {!companyOnly ? (
+      {showMembers ? (
         <OrgSection>
           <OrgSectionHeader
             actions={
@@ -1254,7 +1246,6 @@ export function OrgTeamPage({
                               value={member.authority}
                             >
                               <SelectTrigger
-                                aria-label={`${member.name || member.email || "멤버"} 권한`}
                                 className="h-9 w-[112px] text-[12px]"
                                 size="sm"
                               >
@@ -1284,11 +1275,7 @@ export function OrgTeamPage({
                           <td className="px-2 py-3 text-right">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <MuteButton
-                                  aria-label={`${member.name || member.email || "멤버"} 작업`}
-                                  size="sm"
-                                  variant="transparent"
-                                >
+                                <MuteButton size="sm" variant="transparent">
                                   <Ellipsis className="size-4" />
                                 </MuteButton>
                               </DropdownMenuTrigger>
@@ -1345,11 +1332,7 @@ export function OrgTeamPage({
                           <td className="px-2 py-3 text-right">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <MuteButton
-                                  aria-label={`${invitation.email} 초대 작업`}
-                                  size="sm"
-                                  variant="transparent"
-                                >
+                                <MuteButton size="sm" variant="transparent">
                                   <Ellipsis className="size-4" />
                                 </MuteButton>
                               </DropdownMenuTrigger>
@@ -1385,7 +1368,9 @@ export function OrgTeamPage({
         </OrgSection>
       ) : null}
 
-      {permissions.canManageWorkspace && companyEditing ? (
+      {showCompany &&
+      permissions.canManageWorkspace &&
+      (companyInfoEditing || companyHasChanges) ? (
         <OrgUnsavedChangesBar
           canSave={companyHasChanges}
           hasChanges={companyHasChanges}
@@ -1395,7 +1380,7 @@ export function OrgTeamPage({
         />
       ) : null}
 
-      {!companyOnly ? (
+      {showMembers ? (
         <>
           <InviteMemberDialog
             invitations={invitations}

@@ -62,6 +62,17 @@ test("the decline choice explains that more details can be added in chat", () =>
   );
 });
 
+test("a contextual free-form affirmative reuses the guarded confirmation path", () => {
+  assert.match(chat, /confirm_pending_role_creation/);
+  assert.match(chat, /previousMessage\?\.id === pendingConfirmationMessageId/);
+  assert.match(chat, /await import\([\s\S]*roleCreationConfirmation/);
+  assert.match(chat, /confirmationUserMessage: userMessage/);
+  assert.match(
+    confirmation,
+    /args\.confirmationUserMessage[\s\S]*\.eq\("role", "user"\)/
+  );
+});
+
 test("role creation conversation stays model-authored while successful completion uses fixed guidance", () => {
   assert.doesNotMatch(
     chat,

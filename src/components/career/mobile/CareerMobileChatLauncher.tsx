@@ -41,6 +41,7 @@ function readVisualViewportSnapshot() {
       height: 0,
       offsetTop: 0,
       bottomInset: 0,
+      scale: 1,
     };
   }
 
@@ -48,11 +49,13 @@ function readVisualViewportSnapshot() {
   const height = viewport?.height ?? window.innerHeight;
   const offsetTop = viewport?.offsetTop ?? 0;
   const bottomInset = Math.max(window.innerHeight - height - offsetTop, 0);
+  const scale = viewport?.scale ?? 1;
 
   return {
     height,
     offsetTop,
     bottomInset,
+    scale,
   };
 }
 
@@ -70,7 +73,14 @@ function useMobileChatViewport(open: boolean) {
     const updateViewportVars = () => {
       window.cancelAnimationFrame(animationFrame);
       animationFrame = window.requestAnimationFrame(() => {
-        const { height, offsetTop, bottomInset } = readVisualViewportSnapshot();
+        const { height, offsetTop, bottomInset, scale } =
+          readVisualViewportSnapshot();
+
+        // Pinch zoom changes the visual viewport height just like the on-screen
+        // keyboard does. Keep the last unzoomed drawer geometry rather than
+        // treating that change as an open keyboard.
+        if (scale > 1) return;
+
         maxViewportHeightRef.current = Math.max(
           maxViewportHeightRef.current,
           height

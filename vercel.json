@@ -1,14 +1,6 @@
 {
   "crons": [
     {
-      "path": "/api/internal/billing/sweep",
-      "schedule": "0 1 * * *"
-    },
-    {
-      "path": "/api/internal/official-jobs/sync-ashby",
-      "schedule": "0 2 * * *"
-    },
-    {
       "path": "/api/internal/zighang/watchdog",
       "schedule": "0 12 * * *"
     },

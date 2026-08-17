@@ -16,9 +16,9 @@ export interface RadioProps extends Omit<
 }
 
 const radioSizeClassNames: Record<RadioSize, string> = {
-  small: "size-4",
-  medium: "size-5",
-  large: "size-6",
+  small: "size-3",
+  medium: "size-4",
+  large: "size-5",
 };
 
 const labelSizeClassNames: Record<RadioSize, string> = {

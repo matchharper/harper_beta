@@ -1,15 +1,56 @@
-import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  CircleAlert,
+  Loader2,
+} from "lucide-react";
 import { memo, useState } from "react";
 
 import { BareButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+export type ChatThinkingLogEntry = {
+  id?: string;
+  label: string;
+  status?: "done" | "error" | "running";
+};
+
 export type ChatThinkingLogPanelProps = {
   active?: boolean;
   className?: string;
-  logs: string[];
+  logs: Array<string | ChatThinkingLogEntry>;
   typographyClassName?: string;
 };
+
+function ThinkingLogStatusIcon({
+  status,
+}: {
+  status: "done" | "error" | "running";
+}) {
+  if (status === "running") {
+    return (
+      <Loader2
+        aria-hidden="true"
+        className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-neutral-soft"
+      />
+    );
+  }
+  if (status === "error") {
+    return (
+      <CircleAlert
+        aria-hidden="true"
+        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral-muted"
+      />
+    );
+  }
+  return (
+    <Check
+      aria-hidden="true"
+      className="mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral-soft"
+    />
+  );
+}
 
 export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
   active = false,
@@ -52,17 +93,24 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
       {isExpanded ? (
         <div className="ml-[7px] border-l border-neutral-1000-a05 pl-4">
           <ol className="flex flex-col gap-1.5">
-            {logs.map((log, index) => (
-              <li
-                key={`${index}-${log}`}
-                className={cn(
-                  "wrap-break-word text-neutral-muted",
-                  typographyClassName
-                )}
-              >
-                {log}
-              </li>
-            ))}
+            {logs.map((log, index) => {
+              const entry: ChatThinkingLogEntry =
+                typeof log === "string" ? { label: log } : log;
+              return (
+                <li
+                  key={entry.id || `${index}-${entry.label}`}
+                  className={cn(
+                    "wrap-break-word flex items-start gap-2 text-neutral-muted",
+                    typographyClassName
+                  )}
+                >
+                  {entry.status ? (
+                    <ThinkingLogStatusIcon status={entry.status} />
+                  ) : null}
+                  <span>{entry.label}</span>
+                </li>
+              );
+            })}
           </ol>
         </div>
       ) : null}

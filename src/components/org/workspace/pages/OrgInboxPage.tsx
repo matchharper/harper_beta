@@ -342,7 +342,7 @@ function OrgInboxMain() {
           dateHeader="추천일"
           onSelect={(item) => {
             markViewed(item.recommendationId);
-            selectTalent(item);
+            selectTalent(item, visibleItems, "Inbox");
           }}
           onSelectRole={(item) => changeRole(item.roleId)}
           rows={visibleItems.map((item) => ({

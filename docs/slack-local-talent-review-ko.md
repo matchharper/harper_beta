@@ -38,13 +38,13 @@ Socket Mode 브리지는 Slack interactive payload를 로컬 `/api/internal/slac
 최근 자동 소개 기록을 이용해 개발 App으로 테스트 메시지 한 건을 보낸다.
 
 ```bash
-pnpm dev:slack-review-post
+pnpm dev:slack-review-post -- --allow-live-decisions
 ```
 
 특정 자동 소개 기록을 사용할 때는 다음처럼 지정한다.
 
 ```bash
-pnpm dev:slack-review-post -- --source-message-id 123
+pnpm dev:slack-review-post -- --allow-live-decisions --source-message-id 123
 ```
 
 Slack에서 `후보자 검토하기`를 누르면 실제 Block Kit 모달이 열린다. 등록된 workspace 멤버 이메일만 후보자 내용을 볼 수 있다.
@@ -52,8 +52,10 @@ Slack에서 `후보자 검토하기`를 누르면 실제 Block Kit 모달이 열
 ## 안전 경계
 
 - 후보자 프로필을 성공적으로 열면 운영과 같은 열람 로그가 기록된다.
-- 수락·거절 버튼은 확인용 하위 모달만 연다.
+- 로컬 테스트 메시지는 `--allow-live-decisions`를 명시하지 않으면 생성되지 않는다.
+- 수락·거절 버튼은 실제 결정을 위한 확인 모달을 연다.
 - 수락 확인 화면은 `CC로 연결`과 `직접 연락`, 연결할 멤버, 선택적 수락 이유를 받는다.
 - 거절 확인 화면은 기본 Pass 이유와 선택적 자유 입력을 받는다.
-- 최종 `확인`을 눌러도 stage API, 메일 API, Slack 발송 API, 결정 로그 저장을 호출하지 않는다.
-- 최종 화면에는 아무 상태 변경이나 메일 발송이 없었다는 안내만 표시한다.
+- 최종 `확인`을 누르면 운영과 같은 상태 변경·결정 로그 저장 경로를 실행한다.
+- `CC로 연결`을 선택하면 실제 후보자와 선택한 회사 멤버에게 소개 메일이 발송된다.
+- 안전한 테스트 후보자와 수신자를 정한 경우에만 최종 `확인`을 누른다.

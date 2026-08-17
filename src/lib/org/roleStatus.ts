@@ -11,15 +11,21 @@ export type OrgRoleLifecycleAction = "delete" | "pause" | "resume";
 
 const ORG_ROLE_STATUS_PRESENTATION = {
   active: { label: "진행 중", tone: "positive" },
-  draft: { label: "역할 작성 중", tone: "neutral" },
-  ended: { label: "종료", tone: "critical" },
-  paused: { label: "중지", tone: "info" },
+  draft: { label: "역할 작성 중", tone: "action" },
+  ended: { label: "종료", tone: "neutral" },
+  paused: { label: "중지", tone: "primary" },
   top_priority: { label: "최우선 진행 중", tone: "primary" },
 } as const satisfies Record<
   OrgRoleStatus,
   {
     label: string;
-    tone: "critical" | "info" | "neutral" | "positive" | "primary";
+    tone:
+      | "action"
+      | "critical"
+      | "info"
+      | "neutral"
+      | "positive"
+      | "primary";
   }
 >;
 

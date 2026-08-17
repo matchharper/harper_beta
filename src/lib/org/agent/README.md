@@ -19,14 +19,20 @@
 
 ## 현재 데이터 원칙
 
-- role 매칭 기준의 원본은 `company_internal_roles.request`다.
-  `company_roles.request`는 legacy 호환용 mirror일 뿐 company-side LLM이 읽고 쓰는
-  원본이 아니다.
+- role의 broad matching instruction·hard constraint·preference는
+  `company_internal_roles.request`, 선택적인 0~6개의 reviewer-facing 평가 차원은
+  `company_internal_roles.criteria`에 저장한다. 충분한 내용이 있으면 3~6개를
+  권장하지만 저장이나 역할 완료의 필수 조건은 아니다. company-side LLM과 다른
+  runtime 경로는 매칭에서 두 값을 함께 사용한다.
 - `company_memories`는 workspace memory(`role_id is null`)와 role memory를 저장한다.
   request는 “누구를 매칭할지”, memory는 그 밖의 지속적으로 기억할 맥락이다.
+- `company_workspace.pitch` 전문은 모든 호출에 들어가는 canonical 회사 정보
+  문서다. 모든 서술형 회사 정보와 후보자에게 전달할 회사 설명은 이 Markdown
+  문서에 저장한다. 홈페이지·LinkedIn 외의 회사 URL은 `related_links`에 저장한다.
 - company-side LLM의 일반 정보 write 진입점은 `update_data`다. 한 번에 최대 12개를
   `append`, `replace`, `rewrite`로 처리한다. Role의 진행·중단·종료는 별도 terminal
-  tool `change_role_status`가 담당한다.
+  tool `change_role_status`가 담당하고, structured criteria의 전체 교체와 이름 기반
+  선택 추가·수정·삭제는 `update_role_criteria`가 담당한다.
 - request/memory 계열 변경은 즉시 쓰지 않고 저장된 preview를 보여준 뒤 다음
   명시적 확인에서 적용한다. 나머지 명시적 변경은 직접 적용할 수 있다.
 - `company_events`는 웹·Slack·채팅 변경을 짧게 기록하지만 아직 prompt에서 읽지

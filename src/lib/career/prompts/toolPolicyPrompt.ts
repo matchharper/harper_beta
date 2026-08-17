@@ -14,7 +14,9 @@ export function buildCareerToolPolicyPrompt(args: {
   const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
   const toolNameText = toolNames.join(", ");
   const hasEndCallTool = toolNames.includes("end_call");
-  const hasStatusMessageTools = toolNames.some((name) => name !== "end_call");
+  const hasStatusMessageTools = toolNames.some(
+    (name) => name !== "end_call" && name !== "update_language_setting"
+  );
   const hasWebSearchTool = toolNames.includes("web_search");
   const hasResearchCompanyTool = toolNames.includes("research_company");
   const hasOpenUrlTool = toolNames.includes("open_url");
@@ -41,6 +43,9 @@ export function buildCareerToolPolicyPrompt(args: {
   const hasUpdateTalentProfileTool = toolNames.includes(
     "update_talent_profile"
   );
+  const hasUpdateLanguageSettingTool = toolNames.includes(
+    "update_language_setting"
+  );
   const hasUpdateSettingTool = toolNames.includes("update_setting");
   const hasRecordInternalFitReevaluationInformationTool = toolNames.includes(
     "record_internal_fit_reevaluation_information"
@@ -50,6 +55,7 @@ export function buildCareerToolPolicyPrompt(args: {
       ? "- Voice mode: if a tool is needed, call it directly. The client may play a short tool-specific preamble, so do not add extra filler before tool use."
       : `- Chat mode: if a tool is needed, call it directly and then answer naturally in ${outputLanguage} using only the relevant findings.`;
   const onboardingToolExceptionNames = [
+    hasUpdateLanguageSettingTool ? "`update_language_setting`" : null,
     hasUpdateSettingTool ? "`update_setting`" : null,
     hasUpdateTalentProfileTool ? "`update_talent_profile`" : null,
   ]
@@ -63,10 +69,10 @@ export function buildCareerToolPolicyPrompt(args: {
     "## Tool Use Policy",
     `Available tools: ${toolNameText}`,
     hasStatusMessageTools
-      ? "For every tool call except `end_call`, include `_uiStatusMessage`: a specific English user-facing Thinking log sentence for this exact tool call. Say what is being changed, checked, searched, or prepared. If searching jobs, describe the kind of opportunities being searched for. If changing saved information, mention the concrete field/value being adjusted; old-to-new is optional only when it is naturally available. Do not use vague text like 'updating', 'checking', or 'searching' by itself. Do not mention internal tool names, storage names, or implementation details. Keep it under 160 characters."
+      ? "When a tool schema includes `_uiStatusMessage`, include a specific English user-facing Thinking log sentence for that call. Say what is being changed, checked, searched, or prepared. If searching jobs, describe the kind of opportunities being searched for. If changing saved information, mention the concrete field/value being adjusted; old-to-new is optional only when it is naturally available. Do not use vague text like 'updating', 'checking', or 'searching' by itself. Do not mention internal tool names, storage names, or implementation details. Keep it under 160 characters."
       : "",
     hasStatusMessageTools
-      ? "For every tool call except `end_call`, follow the returned assistantInstruction after tool use."
+      ? "After tool use, follow the returned assistantInstruction."
       : "",
     ...(hasEndCallTool
       ? [
@@ -175,9 +181,12 @@ export function buildCareerToolPolicyPrompt(args: {
           "- Before searching, triage aligned search vs off-profile/aspirational vs one-off browsing. For clearly off-profile requests, explain the mismatch and ask one clarifier first. For one-off browsing, include that in `request` and do not update memory.",
           "- If you run `recommend_job_postings` for an ambiguous search condition before saving it, end the answer by asking one short question about whether Harper should reflect that condition in future matching. If the user says yes, call `update_talent_profile` on the next turn.",
           "- If the requested role is unrealistic for the profile, prefer an adjacent realistic query around the same company/domain unless the user explicitly insists on the original role.",
-          "- `recommend_job_postings` immediately returns and saves at most 5 high-fit postings. If the user asks for more, use the tool's larger-request guidance: explain that Harper will show the best 5 now and continue with periodic batches of up to 10 high-quality postings rather than dumping weak matches.",
-          "- If `recommend_job_postings` returns `initialRecommendationPending=true`, no new search was run. Use `answerDraft` as-is and do not claim that you searched, found, or saved any postings.",
-          "- After `recommend_job_postings`, answer briefly using `answerDraft`. Do not explain all postings each one by one.",
+          "- Always choose the search kind deliberately. Use `kind=instant` by default. Instant uses Harper's original immediate recommendation flow and returns up to 5 postings in the current conversation; pass `max_results=5`.",
+          "- Use `kind=bulk` only when the user explicitly asks for roughly 10-20 postings, explicitly asks for a deeper/high-accuracy search, or explicitly accepts your offer to run bulk. An ordinary request to find or recommend jobs is not bulk permission.",
+          "- Before calling with `kind=bulk`, briefly tell the user that it takes longer because Harper searches and evaluates more postings, and that Harper will notify them by email when it finishes. If the user did not specify a count, pass `max_results=15`; preserve an explicit count up to the service maximum of 20.",
+          "- Never silently change a bulk request into instant. If the bulk result says it could not be scheduled, explain that outcome from `answerDraft` and let the user explicitly request instant instead.",
+          "- A `kind=bulk` call schedules a background search instead of returning postings immediately. Treat `answerDraft` as the factual source of truth: do not claim that queued work already searched, found, selected, or saved roles, and do not claim new criteria were merged when the result says they were not applied.",
+          "- After `recommend_job_postings`, use `answerDraft` directly. Preserve its details about the active request, whether a new run was created, the maximum count, delivery channels, and next step.",
           "- Preserve every standalone `[posting](role_id)` line from `answerDraft` exactly. These lines drive the chat posting-card carousel, so do not remove or rewrite them.",
         ]
       : []),

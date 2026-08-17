@@ -102,6 +102,33 @@ export function formatPromptSection(name: string, content: string) {
   return `<${name}>\n${content || EMPTY_CELL}\n</${name}>`;
 }
 
+export function formatOrgAgentCompanyContext(args: {
+  companyDetailsAvailable: boolean;
+  companyName: string;
+  pitch: string | null;
+  workspaceMemoryAvailable: boolean;
+  workspaceRequestExists: boolean;
+}) {
+  return [
+    formatPromptTable(
+      ["field", "value"],
+      [
+        ["company_name", args.companyName],
+        ["pitch_document_exists", Boolean(String(args.pitch ?? "").trim())],
+        ["pitch_document_complete", true],
+        ["workspace_request_exists", args.workspaceRequestExists],
+        ["company_details_available", args.companyDetailsAvailable],
+        ["workspace_memory_available", args.workspaceMemoryAvailable],
+      ],
+      [40, 1_000]
+    ),
+    formatPromptSection(
+      "company_information_document",
+      formatPromptMarkdown(args.pitch, Number.MAX_SAFE_INTEGER)
+    ),
+  ].join("\n");
+}
+
 function pageLine(value: Record<string, any>) {
   return [
     `offset=${Number(value.offset ?? 0)}`,
@@ -271,6 +298,9 @@ function formatSingleTalentResult(result: Record<string, any>) {
           "role_id",
           "role",
           "stage",
+          "closure_notice",
+          "closure_notice_at",
+          "closure_notice_channel",
           "fit",
           "fit_reasons",
           "feedback",
@@ -284,6 +314,9 @@ function formatSingleTalentResult(result: Record<string, any>) {
           item?.roleId,
           item?.roleName,
           humanizeOrgStage(item?.stage, item?.stageLabel),
+          item?.processClosureNotification?.status,
+          formatPromptDate(item?.processClosureNotification?.deliveredAt),
+          item?.processClosureNotification?.sentChannel,
           item?.fitSummary,
           item?.fitReasons,
           humanizeOrgFeedback(item?.existingFeedback),
@@ -293,7 +326,7 @@ function formatSingleTalentResult(result: Record<string, any>) {
           formatPromptDate(item?.recommendedAt),
           formatPromptDate(item?.updatedAt),
         ]),
-        [100, 160, 100, 700, 500, 300, 400, 700, 1_000, 10, 10]
+        [100, 160, 100, 30, 10, 40, 700, 500, 300, 400, 700, 1_000, 10, 10]
       )
     ),
     formatPromptSection(
@@ -487,6 +520,21 @@ function formatRoleResult(result: Record<string, any>) {
           ),
         ].join("\n")
       : "role_request_included=false",
+    completeness.role_criteria?.included
+      ? [
+          `role_criteria_complete=${Boolean(completeness.role_criteria.complete)}`,
+          formatPromptSection(
+            "structured_role_criteria",
+            formatPromptTable(
+              ["name", "criteria"],
+              (Array.isArray(role.criteria) ? role.criteria : []).map(
+                (item: any) => [item?.name, item?.criteria]
+              ),
+              [200, 8_000]
+            )
+          ),
+        ].join("\n")
+      : "role_criteria_included=false",
     completeness.role_memory?.included
       ? [
           `role_memory_complete=${Boolean(completeness.role_memory.complete)}`,
@@ -509,9 +557,14 @@ function formatRoleResult(result: Record<string, any>) {
     formatPromptSection(
       "stages",
       formatPromptTable(
-        ["label"],
-        stages.map((item: any) => [item?.label]),
-        [120]
+        ["stage_id", "label", "kind", "sort_order"],
+        stages.map((item: any) => [
+          item?.stageId,
+          item?.label,
+          item?.kind,
+          item?.sortOrder,
+        ]),
+        [100, 120, 40, 12]
       )
     ),
     `pipeline_counts_complete=${Boolean(result.countsComplete)}`,
@@ -532,6 +585,7 @@ function formatRoleResult(result: Record<string, any>) {
           "name",
           "email",
           "headline",
+          "current_stage_id",
           "stage",
           "fit",
           "recommended",
@@ -542,12 +596,13 @@ function formatRoleResult(result: Record<string, any>) {
           item?.name,
           item?.email,
           item?.headline,
-          item?.stage,
+          item?.currentStageId,
+          item?.currentStageLabel ?? item?.stage,
           item?.fitSummary,
           formatPromptDate(item?.recommendedAt),
           formatPromptDate(item?.updatedAt),
         ]),
-        [100, 160, 180, 240, 100, 500, 10, 10]
+        [100, 160, 180, 240, 100, 100, 500, 10, 10]
       )
     ),
     formatPromptSection(
@@ -638,13 +693,7 @@ export function serializeOrgAgentMoreData(value: OrgAgentMoreDataResult) {
     : serialized;
 }
 
-const COMPANY_DETAIL_LONG_KEYS_FOR_FORMAT = new Set([
-  "company_description",
-  "last_funding_round_description",
-  "pitch",
-  "short_description",
-  "workspace_request",
-]);
+const COMPANY_DETAIL_LONG_KEYS_FOR_FORMAT = new Set(["workspace_request"]);
 
 function formatUpdateDataResult(result: Record<string, any>) {
   const applyResult = asRecord(result.apply_result);
@@ -685,6 +734,40 @@ function formatRoleStatusChangeResult(result: Record<string, any>) {
   ].join("\n");
 }
 
+function formatRolePipelineStageChangeResult(result: Record<string, any>) {
+  const stages = Array.isArray(result.stages) ? result.stages : [];
+  return [
+    `status=${formatPromptCell(result.status, 60)}`,
+    `action=${formatPromptCell(result.action, 30)}`,
+    `role=${formatPromptCell(result.roleName, 200)}`,
+    `summary=${formatPromptCell(result.summary, 500)}`,
+    ...(stages.length > 0
+      ? [
+          formatPromptSection(
+            "affected_stages",
+            formatPromptTable(
+              ["label", "status"],
+              stages.map((stage: any) => [stage?.label, stage?.status]),
+              [120, 40]
+            )
+          ),
+        ]
+      : []),
+    "candidate_moved=false candidate_contacted=false",
+  ].join("\n");
+}
+
+function formatCandidateStageMoveResult(result: Record<string, any>) {
+  return [
+    `status=${formatPromptCell(result.status, 60)}`,
+    `candidate=${formatPromptCell(result.candidateName, 160)}`,
+    `role=${formatPromptCell(result.roleName, 200)}`,
+    `from=${formatPromptCell(result.previousStageLabel, 120)}`,
+    `to=${formatPromptCell(result.stageLabel, 120)}`,
+    "candidate_contacted=false email_sent=false interview_scheduled=false",
+  ].join("\n");
+}
+
 function formatCandidateConnectionDecisionResult(result: Record<string, any>) {
   return [
     `status=${formatPromptCell(result.status, 40)}`,
@@ -692,6 +775,16 @@ function formatCandidateConnectionDecisionResult(result: Record<string, any>) {
     `decision=${formatPromptCell(result.decision, 30)}`,
     `connection_method=${formatPromptCell(result.connectionMethod, 40)}`,
     `stage=${formatPromptCell(humanizeOrgStage(result.stage), 100)}`,
+    `reactivation=${Boolean(result.reactivation)}`,
+    `closure_notice_delivered=${Boolean(result.closureNotificationDelivered)}`,
+    `closure_notice_delivered_at=${formatPromptCell(
+      result.closureNotificationDeliveredAt,
+      40
+    )}`,
+    `closure_notice_channel=${formatPromptCell(
+      result.closureNotificationSentChannel,
+      40
+    )}`,
   ].join("\n");
 }
 
@@ -704,6 +797,20 @@ function formatCandidateConnectionPreparationResult(
     `candidate_email=${formatPromptCell(result.candidateEmail, 320)}`,
     `requester_email=${formatPromptCell(result.requesterEmail, 320)}`,
     `decision=${formatPromptCell(result.decision, 30)}`,
+    `current_stage=${formatPromptCell(
+      humanizeOrgStage(result.currentStage),
+      100
+    )}`,
+    `reactivation=${Boolean(result.reactivation)}`,
+    `closure_notice_delivered=${Boolean(result.closureNotificationDelivered)}`,
+    `closure_notice_delivered_at=${formatPromptCell(
+      result.closureNotificationDeliveredAt,
+      40
+    )}`,
+    `closure_notice_channel=${formatPromptCell(
+      result.closureNotificationSentChannel,
+      40
+    )}`,
     `connection_method=${formatPromptCell(result.connectionMethod, 40)}`,
     `intro_email_available=${Boolean(result.introEmailAvailable)}`,
     `direct_contact_available=${Boolean(result.directContactAvailable)}`,
@@ -848,6 +955,16 @@ export function serializeOrgAgentToolResult(
   value: unknown
 ) {
   const result = asRecord(value);
+  if (name === "start_role_creation") {
+    return [
+      `status=${formatPromptCell(result.status, 30)}`,
+      `role_title=${formatPromptCell(result.roleTitle, 200)}`,
+      `thread_permalink=${formatPromptCell(result.threadPermalink, 1_000)}`,
+      `web_url=${formatPromptCell(result.webUrl, 1_000)}`,
+      `user_message=${formatPromptCell(result.userMessage, 2_000)}`,
+      "instruction=Use user_message as the authoritative outcome. Do not continue role discovery in the current conversation.",
+    ].join("\n");
+  }
   if (name === "web_search" || name === "open_url") {
     return `status=success\n${JSON.stringify(result, null, 2).slice(0, 40_000)}`;
   }
@@ -860,9 +977,17 @@ export function serializeOrgAgentToolResult(
   if (name === "read_conversation_history") {
     return formatConversationHistoryResult(result);
   }
-  if (name === "update_data") return formatUpdateDataResult(result);
+  if (name === "update_data" || name === "update_role_criteria") {
+    return formatUpdateDataResult(result);
+  }
   if (name === "change_role_status") {
     return formatRoleStatusChangeResult(result);
+  }
+  if (name === "manage_role_pipeline_stages") {
+    return formatRolePipelineStageChangeResult(result);
+  }
+  if (name === "move_candidate_stage") {
+    return formatCandidateStageMoveResult(result);
   }
   if (name === "contact_talent") {
     return formatCompanyTalentRequestResult(result);

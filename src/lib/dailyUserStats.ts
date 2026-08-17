@@ -14,6 +14,7 @@ import {
   OFFICIAL_JOBS_INTERNAL_COPY_SLUG,
 } from "@/lib/officialJobs";
 import {
+  CAREER_SIGNUP_FLOW_EMAIL_FIRST_ALLOCATION_PERCENT,
   CAREER_SIGNUP_FLOW_CONTROL_ABTEST_TYPE,
   CAREER_SIGNUP_FLOW_EMAIL_FIRST_ABTEST_TYPE,
 } from "@/lib/careerEmailOnboarding/constants";
@@ -2341,10 +2342,13 @@ function formatInternalConnectionResponseStats(
 }
 
 function formatLandingAbtestRows(rows: DailyUserStatsLandingAbtestRow[]) {
+  const loginFirstAllocationPercent =
+    100 - CAREER_SIGNUP_FLOW_EMAIL_FIRST_ALLOCATION_PERCENT;
+
   return [
     formatSlackSectionTitle("랜딩페이지 A/B Test"),
     "career signup-flow 실험의 신규 가입 대상 unique visitor 대비 (전체 신규 방문자와 별도)",
-    "현재 배정 비율: Email first 25% / Login first 75%",
+    `현재 배정 비율: Email first ${CAREER_SIGNUP_FLOW_EMAIL_FIRST_ALLOCATION_PERCENT}% / Login first ${loginFirstAllocationPercent}%`,
     ...rows.map(
       (row) =>
         `- ${row.label}: 회원가입+제출완료 ${formatCount(

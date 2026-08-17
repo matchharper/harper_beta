@@ -9,6 +9,7 @@ import {
 import { cx } from "@/components/ops/theme";
 import { parseRecommendJobPostingStatusLog } from "@/lib/talentOnboarding/recommendJobPostingStatus";
 import { formatKst } from "./utils";
+import { stripOpportunityRunMarkers } from "@/lib/opportunityDiscovery/messageMarker";
 
 type MessageItem = {
   content: string;
@@ -236,7 +237,9 @@ export const MessagesTab = memo(function MessagesTab({
                 ))}
               </div>
             ) : null}
-            <div className="whitespace-pre-wrap">{msg.content}</div>
+            <div className="whitespace-pre-wrap">
+              {stripOpportunityRunMarkers(msg.content)}
+            </div>
           </div>
         );
       })}

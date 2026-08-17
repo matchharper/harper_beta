@@ -45,6 +45,7 @@ function pickRole(
 
 export function useOpsOpportunityCatalogController(args: {
   canFetchInternal: boolean;
+  loadRoles?: boolean;
 }) {
   const [workspaceSearch, setWorkspaceSearch] = useState("");
   const [appliedWorkspaceSearch, setAppliedWorkspaceSearch] = useState("");
@@ -83,7 +84,10 @@ export function useOpsOpportunityCatalogController(args: {
   const selectedWorkspaceId = selectedWorkspace?.companyWorkspaceId ?? null;
 
   const catalogRolesQuery = useOpsOpportunityRoles({
-    enabled: args.canFetchInternal && Boolean(selectedWorkspaceId),
+    enabled:
+      args.canFetchInternal &&
+      args.loadRoles !== false &&
+      Boolean(selectedWorkspaceId),
     internalOnly: true,
     limit: CATALOG_ROLE_PAGE_SIZE,
     query: appliedRoleSearch,

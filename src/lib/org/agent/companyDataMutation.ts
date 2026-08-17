@@ -1063,7 +1063,7 @@ export async function fetchCompanyDataSnapshot(args: {
       roleIds.length
         ? (args.admin.from("company_roles" as any) as any)
             .select(
-              "role_id, company_workspace_id, name, description, external_jd_url, location_text, status, work_mode, type, request, source_type, is_expired"
+              "role_id, company_workspace_id, name, description, external_jd_url, location_text, status, work_mode, type, source_type, is_expired"
             )
             .eq("company_workspace_id", args.workspaceId)
             .eq("source_type", "internal")
@@ -1180,7 +1180,20 @@ export async function fetchCompanyDataSnapshot(args: {
   setWorkspace("employee_count_end", numberOrNull(range.end));
   setWorkspace("specialities", splitList(companyDb.specialities));
   setWorkspace("investors", splitList(companyDb.investors));
-  setWorkspace("related_links", splitList(companyDb.related_links));
+  const storedRelatedLinks = splitList(companyDb.related_links);
+  const consolidatedRelatedLinks = Array.from(
+    new Set(
+      [
+        singleLine(workspace.career_url),
+        singleLine(companyDb.funding_url),
+        ...storedRelatedLinks,
+      ].filter(Boolean)
+    )
+  ).slice(0, COMPANY_DATA_CATALOG.related_links.maxItems ?? 12);
+  snapshot.set(companyDataTargetKey("related_links", null), {
+    expected: storedRelatedLinks,
+    value: consolidatedRelatedLinks,
+  });
   setWorkspace(
     "total_funding_raised",
     companyData.total_funding_raised ?? null

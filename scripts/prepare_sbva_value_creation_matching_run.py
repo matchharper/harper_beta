@@ -562,8 +562,8 @@ def structured_consideration(
             "historyCoverage": "latest_only",
             "versions": [
                 {
-                    "effectiveAt": role.get("updated_at"),
-                    "sourceId": "company_roles.request",
+                    "effectiveAt": snapshot.get("internalRole", {}).get("updatedAt"),
+                    "sourceId": "company_internal_roles.request",
                     "summary": "3–5년차 대리급 hands-on Communications / Value Creation 기준",
                     "supersededBy": None,
                 }
@@ -582,7 +582,7 @@ def structured_consideration(
             "conflicts": [],
         },
         "roleEssence": [
-            {"statement": "포트폴리오 PR·미디어·콘텐츠 실행", "sourceIds": ["company_roles.description", "company_roles.request"]},
+            {"statement": "포트폴리오 PR·미디어·콘텐츠 실행", "sourceIds": ["company_roles.description", "company_internal_roles.request"]},
             {"statement": "창업자·C-level 대상 커뮤니티와 이벤트 기획·운영", "sourceIds": ["company_roles.description"]},
             {"statement": "SBVA 브랜드와 네트워크를 포트폴리오 성장 기회로 전환", "sourceIds": ["company_roles.description", "company_workspace.pitch"]},
         ],
@@ -616,7 +616,7 @@ def structured_consideration(
                 "rationale": "role이 대리급 실행자 scope임",
                 "whyHard": "과도한 seniority와 실행 경험 부족 모두 실패 가능성이 큼",
                 "candidateAcceptanceImpact": "seniority·보상·ownership 기대와 직접 연결",
-                "sourceIds": ["company_roles.request"],
+                "sourceIds": ["company_internal_roles.request"],
                 "confidence": "high",
                 "unknownPolicy": "verify_before_final",
                 "sqlStrategy": "관련 pattern으로 경력기간을 high-recall 계산하고 finalist에서 직접 검증",
@@ -629,7 +629,7 @@ def structured_consideration(
                 "rationale": "JD의 주요 업무가 두 축 이상을 동시에 요구",
                 "whyHard": "하나의 약한 adjacent 경험만으로는 role 수행 근거가 부족",
                 "candidateAcceptanceImpact": "실제 업무 폭과 후보자 선호 확인 필요",
-                "sourceIds": ["company_roles.description", "company_roles.request"],
+                "sourceIds": ["company_roles.description", "company_internal_roles.request"],
                 "confidence": "high",
                 "unknownPolicy": "verify_before_final",
                 "sqlStrategy": "CORE_GROUPS match는 retrieval용, 최종은 output 사실 검증",
@@ -642,7 +642,7 @@ def structured_consideration(
                 "rationale": "value creation team의 핵심 성공 방식",
                 "whyHard": "내부 콘텐츠 제작만으로는 부족",
                 "candidateAcceptanceImpact": "외부-facing 업무 선호 필요",
-                "sourceIds": ["company_roles.description", "company_roles.request"],
+                "sourceIds": ["company_roles.description", "company_internal_roles.request"],
                 "confidence": "high",
                 "unknownPolicy": "verify_before_final",
                 "sqlStrategy": "stakeholder/community/partnership pattern",
@@ -664,12 +664,12 @@ def structured_consideration(
         ],
         "rankingSignals": {
             "companyPlus": [
-                {"id": "vc_startup_ecosystem", "statement": "VC·스타트업·포트폴리오·창업자 생태계 경험", "maxImpact": 12, "sourceIds": ["company_roles.request"], "rationale": "SBVA portfolio-facing 업무 이해"},
+                {"id": "vc_startup_ecosystem", "statement": "VC·스타트업·포트폴리오·창업자 생태계 경험", "maxImpact": 12, "sourceIds": ["company_internal_roles.request"], "rationale": "SBVA portfolio-facing 업무 이해"},
                 {"id": "concrete_outputs", "statement": "보도자료, SNS, 뉴스레터, 행사 등 실제 output ownership", "maxImpact": 12, "sourceIds": ["company_roles.description"], "rationale": "hands-on execution 직접 근거"},
                 {"id": "stakeholder_networking", "statement": "창업자·C-level·투자자·언론 관계 조율", "maxImpact": 10, "sourceIds": ["company_roles.description"], "rationale": "value creation program 운영 핵심"},
             ],
             "companyMinus": [
-                {"id": "over_senior_strategy_only", "statement": "senior manager 이상 또는 전략/투자심사 중심", "maxImpact": -18, "sourceIds": ["company_roles.request"], "rationale": "대리급 실행 role과 mismatch"}
+                {"id": "over_senior_strategy_only", "statement": "senior manager 이상 또는 전략/투자심사 중심", "maxImpact": -18, "sourceIds": ["company_internal_roles.request"], "rationale": "대리급 실행 role과 mismatch"}
             ],
             "candidatePlus": [
                 {"id": "current_interest_in_startup_ecosystem_comms", "statement": "스타트업 생태계·커뮤니케이션·커뮤니티 운영에 대한 최근 선호", "maxImpact": 12, "sourceIds": ["candidate_insights"], "rationale": "수락 가능성 직접 근거"}
@@ -698,7 +698,7 @@ def structured_consideration(
         "unknowns": ["compensation", "reporting line", "Japanese need level", "event cadence"],
         "prohibitedCriteria": [],
         "changeSummary": [
-            "workspace request의 investment-team VP/Senior Associate 문구는 현재 role과 충돌하므로 role-specific PDF/JD와 company_roles.request를 우선합니다.",
+            "workspace request의 investment-team VP/Senior Associate 문구는 현재 role과 충돌하므로 role-specific PDF/JD와 company_internal_roles.request를 우선합니다.",
             f"additional_instruction={additional_instruction!r}은 M을 채우려는 선호로만 반영하고 quality gate는 유지합니다.",
         ],
     }
@@ -752,7 +752,11 @@ def main() -> int:
     }
     write_json(output / "run_manifest.json", manifest)
 
-    role_rows = db.get("company_roles", filters={"role_id": f"eq.{args.role_id}"})
+    role_rows = db.get(
+        "company_roles",
+        select="role_id,company_workspace_id,name,description,type,seniority_level,location_text,work_mode,status,source_type,is_expired,salary_range,salary_min,salary_max,updated_at",
+        filters={"role_id": f"eq.{args.role_id}"},
+    )
     if not role_rows:
         raise RuntimeError("role not found")
     role = role_rows[0]
@@ -811,7 +815,7 @@ def main() -> int:
 
     company_roles = db.get(
         "company_roles",
-        select="role_id,company_workspace_id,name,source_type,status,request,updated_at",
+        select="role_id,company_workspace_id,name,source_type,status,updated_at",
         filters={"company_workspace_id": f"eq.{role.get('company_workspace_id')}"},
     )
     company_role_ids = {compact(row.get("role_id"), 100) for row in company_roles}
@@ -824,7 +828,7 @@ def main() -> int:
     log(f"loaded company tags: {len(company_tags)}")
 
     source_hashes = {
-        "roleInputHash": digest({key_name: role.get(key_name) for key_name in ("description", "request", "location_text", "work_mode", "type", "status", "is_expired", "salary_range", "salary_min", "salary_max")}),
+        "roleInputHash": digest({key_name: role.get(key_name) for key_name in ("description", "location_text", "work_mode", "type", "status", "is_expired", "salary_range", "salary_min", "salary_max")}),
         "internalRequestHash": digest(internal_role.get("request")),
         "workspaceInputHash": digest({key_name: workspace.get(key_name) for key_name in ("request", "company_description", "pitch")}),
     }
@@ -846,7 +850,7 @@ def main() -> int:
 
     consideration = structured_consideration(role, workspace, snapshot, iso_now(), args.requested_by, args.additional_instruction)
     consideration_fingerprint = digest(consideration)
-    role_fingerprint = digest({"version": "2.2-sbva-value-creation-1", "role": {key_name: role.get(key_name) for key_name in ("description", "request", "type", "seniority_level", "location_text", "work_mode", "salary_range", "salary_min", "salary_max")}, "internalRequest": internal_role.get("request"), "workspaceRequest": workspace.get("request"), "companyFitContext": {"description": workspace.get("company_description"), "pitch": workspace.get("pitch")}, "hardFilters": consideration["hardFilters"], "rankingSignals": consideration["rankingSignals"], "acceptanceHypothesis": consideration["acceptanceHypothesis"]})
+    role_fingerprint = digest({"version": "2.2-sbva-value-creation-1", "role": {key_name: role.get(key_name) for key_name in ("description", "type", "seniority_level", "location_text", "work_mode", "salary_range", "salary_min", "salary_max")}, "internalRequest": internal_role.get("request"), "workspaceRequest": workspace.get("request"), "companyFitContext": {"description": workspace.get("company_description"), "pitch": workspace.get("pitch")}, "hardFilters": consideration["hardFilters"], "rankingSignals": consideration["rankingSignals"], "acceptanceHypothesis": consideration["acceptanceHypothesis"]})
     consideration["considerationFingerprint"] = consideration_fingerprint
     consideration["roleFingerprint"] = role_fingerprint
     write_text(output / "consideration.md", consideration_markdown())

@@ -45,6 +45,7 @@ const EN_REALTIME_TOOL_VOICE_PREAMBLES: Partial<Record<string, string>> = {
 // - 아래 목록에서 tool을 빼면 그 상황의 LLM tools에는 들어가지 않는다.
 // - 단, registry 쪽에서 disabled 된 tool은 여기에 넣어도 최종 노출되지 않는다.
 export const CAREER_CHAT_ONBOARDING_TOOL_NAMES = [
+  TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING,
   // 온보딩 중에도 사용자가 최신/외부 정보가 필요한 질문을 하면 웹 검색 허용.
   TALENT_TOOL_NAMES.WEB_SEARCH,
   // 온보딩 중 사용자가 말한 프로필 row memo 같은 저장 가능한 정보 기록.
@@ -64,6 +65,7 @@ export const CAREER_CHAT_VOICE_ONBOARDING_TOOL_NAMES = [
 
 // 온보딩 완료 후 텍스트 채팅에서 노출할 tool allowlist.
 export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
+  TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING,
   // 최신/외부 웹 정보가 필요한 질문용. 예: 최근 투자, 최신 뉴스.
   TALENT_TOOL_NAMES.WEB_SEARCH,
   // 사용자가 특정 URL을 주고 읽어달라고 할 때.
@@ -145,6 +147,13 @@ function shouldExposeCareerChatTool(
 ) {
   const channel = args.channel === "voice" ? "voice" : "chat";
   const isOnboardingActive = !Boolean(args.isOnboardingDone);
+
+  if (
+    toolName === TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING &&
+    channel !== "chat"
+  ) {
+    return false;
+  }
 
   if (isOnboardingActive) {
     if (channel === "voice") {

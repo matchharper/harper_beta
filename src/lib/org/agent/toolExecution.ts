@@ -11,6 +11,7 @@ import {
   COMPANY_DETAILS_LONG_TEXT_KEYS,
   companyDataTargetKey,
   isCompanyDetailsLongTextKey,
+  isCompanySideLlmDataKey,
   type CompanyDataKey,
 } from "@/lib/org/agent/companyDataCatalog";
 import {
@@ -51,7 +52,20 @@ import {
   type OrgAgentToolExecutionState,
   type OrgAgentToolResultMetadata,
 } from "@/lib/org/agent/toolState";
-import { setOrgCandidateStage } from "@/lib/org/server";
+import {
+  createOrgRoleReviewStages,
+  deleteEmptyOrgRoleReviewStage,
+  setOrgCandidateStage,
+  updateOrgRoleCriteria,
+  updateOrgRoleReviewStage,
+  type OrgStageId,
+} from "@/lib/org/server";
+import { canStopOrgCandidateProcess } from "@/lib/org/candidateDecision";
+import { humanizeOrgStage } from "@/lib/org/pipelineStage";
+import {
+  applyOrgRoleCriteriaEdits,
+  parseOrgRoleCriteria,
+} from "@/lib/org/roleCriteria";
 import {
   changeCompanyTalentRequest,
   enqueueCompanyTalentRequest,
@@ -63,6 +77,10 @@ import {
   executeSharedWebSearch,
 } from "@/lib/agentTools/web";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
+import {
+  startSlackRoleCreation,
+  type SlackRoleCreationExecutionContext,
+} from "@/lib/org/agent/slackRoleCreation";
 
 export { createOrgAgentToolExecutionState, promoteOrgAgentToolReadVisibility };
 export { OrgAgentToolInputError };
@@ -70,6 +88,14 @@ export type { OrgAgentToolExecutionState };
 
 function text(value: unknown) {
   return String(value ?? "").trim();
+}
+
+function externalQueryKey(value: unknown) {
+  return text(value).replace(/\s+/g, " ").toLocaleLowerCase();
+}
+
+function externalUrlKey(value: unknown) {
+  return text(value);
 }
 
 function formatKstDateTime(value: unknown) {
@@ -314,16 +340,17 @@ export function getOrgAgentToolStatusLabel(args: {
   status: "done" | "error" | "running";
 }) {
   const labels: Record<OrgAgentToolName, [string, string, string]> = {
+    start_role_creation: [
+      "새 역할 작성 스레드를 여는 중",
+      "새 역할 작성 스레드 준비 완료",
+      "새 역할 작성 스레드를 열지 못했습니다",
+    ],
     web_search: [
       "웹에서 확인하는 중",
       "웹 검색 완료",
       "웹 검색을 완료하지 못했습니다",
     ],
-    open_url: [
-      "링크를 읽는 중",
-      "링크 확인 완료",
-      "링크를 읽지 못했습니다",
-    ],
+    open_url: ["링크를 읽는 중", "링크 확인 완료", "링크를 읽지 못했습니다"],
     get_talents: [
       "후보자를 찾는 중",
       "후보자 검색 완료",
@@ -349,6 +376,11 @@ export function getOrgAgentToolStatusLabel(args: {
       "이전 대화 확인 완료",
       "이전 대화를 읽지 못했습니다",
     ],
+    update_role_criteria: [
+      "역할 평가 기준을 수정하는 중",
+      "역할 평가 기준 수정 완료",
+      "역할 평가 기준을 수정하지 못했습니다",
+    ],
     update_data: [
       "요청하신 변경을 확인하는 중",
       "변경 요청 확인 완료",
@@ -359,6 +391,11 @@ export function getOrgAgentToolStatusLabel(args: {
       "역할 상태 변경 완료",
       "역할 상태를 변경하지 못했습니다",
     ],
+    manage_role_pipeline_stages: [
+      "파이프라인 단계를 변경하는 중",
+      "파이프라인 단계 변경 완료",
+      "파이프라인 단계를 변경하지 못했습니다",
+    ],
     contact_talent: [
       "후보자 요청을 준비하는 중",
       "후보자 요청 준비 완료",
@@ -368,6 +405,11 @@ export function getOrgAgentToolStatusLabel(args: {
       "후보자 요청 변경을 확인하는 중",
       "후보자 요청 변경 완료",
       "후보자 요청을 변경하지 못했습니다",
+    ],
+    move_candidate_stage: [
+      "후보자 파이프라인 단계를 변경하는 중",
+      "후보자 파이프라인 단계 변경 완료",
+      "후보자 파이프라인 단계를 변경하지 못했습니다",
     ],
     prepare_candidate_connection: [
       "후보자 연결 결정 정보를 확인하는 중",
@@ -765,6 +807,113 @@ async function fetchBaseProposal(args: {
   };
 }
 
+async function executeUpdateRoleCriteria(args: {
+  actorLabel: string;
+  callId: string;
+  input: Record<string, unknown>;
+  name: OrgAgentToolName;
+  source: "chat" | "slack";
+  state: OrgAgentToolExecutionState;
+  user: User;
+  workspaceId: string;
+}) {
+  if (args.state.terminalMutationUsed) {
+    throw new OrgAgentToolInputError(
+      "update_role_criteria may be called only once and must be the only mutation in this turn"
+    );
+  }
+  args.state.terminalMutationUsed = true;
+  const role = roleOrThrow(args.state, args.input.roleId);
+  const hasReplacement = has(args.input, "criteria");
+  const hasEdits = has(args.input, "edits");
+  if (hasReplacement === hasEdits) {
+    throw new OrgAgentToolInputError(
+      "Provide exactly one of criteria or edits"
+    );
+  }
+  let criteria;
+  let editCounts:
+    | { added: number; deleted: number; updated: number }
+    | undefined;
+  let expectedCriteria: unknown = undefined;
+  if (hasReplacement) {
+    try {
+      criteria = parseOrgRoleCriteria(args.input.criteria);
+    } catch (error) {
+      throw new OrgAgentToolInputError(
+        error instanceof Error ? error.message : "Invalid role criteria"
+      );
+    }
+  } else {
+    // Apply the patch to the authoritative criteria snapshot that built this
+    // turn. Passing the same snapshot to the RPC prevents a concurrent edit
+    // from being silently overwritten.
+    expectedCriteria = role.criteria;
+    try {
+      const applied = applyOrgRoleCriteriaEdits(
+        expectedCriteria,
+        args.input.edits
+      );
+      criteria = applied.criteria;
+      editCounts = applied.counts;
+    } catch (error) {
+      throw new OrgAgentToolInputError(
+        error instanceof Error ? error.message : "Invalid role criteria edits"
+      );
+    }
+  }
+
+  const result = await updateOrgRoleCriteria({
+    actorLabel: args.actorLabel,
+    criteria,
+    expectedCriteria,
+    roleId: role.roleId,
+    source: args.source,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+  const changed = result.status === "updated";
+  const currentRole = args.state.roleById.get(role.roleId);
+  if (currentRole) {
+    args.state.roleById.set(role.roleId, { ...currentRole, criteria });
+  }
+  const editSummary = editCounts
+    ? [
+        editCounts.added > 0 ? `추가 ${editCounts.added}개` : "",
+        editCounts.updated > 0 ? `수정 ${editCounts.updated}개` : "",
+        editCounts.deleted > 0 ? `삭제 ${editCounts.deleted}개` : "",
+      ]
+        .filter(Boolean)
+        .join(", ")
+    : "전체 교체";
+  const summary = `${role.name} 역할 평가 기준 ${editSummary} (총 ${criteria.length}개)`;
+  args.state.terminalReply = changed
+    ? `반영했습니다. ${summary}를 저장했습니다. 역할 요청과 역할 메모는 변경하지 않았습니다.`
+    : "이미 같은 역할 평가 기준으로 반영되어 있습니다.";
+  if (changed) {
+    args.state.updateSummaries.push(summary);
+    args.state.actions.push({
+      id: crypto.randomUUID(),
+      kind: "entity_updated",
+      label: "역할 평가 기준 업데이트됨",
+      payload: { changeSummary: summary, scope: "role" },
+    });
+  }
+  recordResult(args.state, {
+    callId: args.callId,
+    name: args.name,
+    status: changed ? "success" : "unchanged",
+    summary,
+  });
+  return {
+    criteriaCount: criteria.length,
+    ...(editCounts ? { editCounts } : {}),
+    mode: editCounts ? "edits" : "replace",
+    status: result.status,
+    summary,
+  };
+}
+
 async function executeUpdateData(args: {
   actorLabel: string;
   admin: OrgAgentAdminClient;
@@ -792,6 +941,11 @@ async function executeUpdateData(args: {
     changes: args.input.changes,
     summary: args.input.summary,
   });
+  if (parsed.changes.some((change) => !isCompanySideLlmDataKey(change.key))) {
+    throw new OrgAgentToolInputError(
+      "This field is not exposed to the company-side LLM"
+    );
+  }
   if (parsed.changes.some((change) => change.key === "role_status")) {
     throw new OrgAgentToolInputError(
       "Use change_role_status for Role lifecycle changes"
@@ -1413,8 +1567,314 @@ async function executeChangeTalentContact(args: {
   };
 }
 
-async function readPendingCandidateDecisionTarget(args: {
+function normalizePipelineStageLabel(value: unknown) {
+  return String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function customPipelineStageDbId(value: unknown) {
+  const stage = text(value);
+  return stage.startsWith("custom:") ? stage.slice("custom:".length) : "";
+}
+
+function activeCompanyPipelineStage(value: unknown, field: string): OrgStageId {
+  const stage = requiredText(value, field, 100) as OrgStageId;
+  if (
+    stage !== "connected" &&
+    stage !== "final_offer" &&
+    !stage.startsWith("custom:")
+  ) {
+    throw new OrgAgentToolInputError(
+      `${field} must be connected, final_offer, or an exact custom:<id> stage`
+    );
+  }
+  return stage;
+}
+
+async function executeManageRolePipelineStages(args: {
   admin: OrgAgentAdminClient;
+  callId: string;
+  input: Record<string, unknown>;
+  name: OrgAgentToolName;
+  state: OrgAgentToolExecutionState;
+  user: User;
+  workspaceId: string;
+}) {
+  if (args.state.terminalMutationUsed) {
+    throw new OrgAgentToolInputError(
+      "manage_role_pipeline_stages may be called only once and must be the only tool in this turn"
+    );
+  }
+  args.state.terminalMutationUsed = true;
+  const role = roleOrThrow(args.state, args.input.roleId);
+  const action = requiredText(args.input.action, "action", 20);
+  if (action !== "add" && action !== "rename" && action !== "delete") {
+    throw new OrgAgentToolInputError("action must be add, rename, or delete");
+  }
+
+  let stages: Array<{ label: string; status: string }> = [];
+  let summary = "";
+  if (action === "add") {
+    if (!Array.isArray(args.input.labels)) {
+      throw new OrgAgentToolInputError("labels is required for action=add");
+    }
+    if (args.input.labels.length < 1 || args.input.labels.length > 6) {
+      throw new OrgAgentToolInputError("labels must contain one to six items");
+    }
+    if (has(args.input, "label") || has(args.input, "stageId")) {
+      throw new OrgAgentToolInputError(
+        "action=add accepts labels and must omit label and stageId"
+      );
+    }
+    const labels = args.input.labels.map((value, index) => {
+      const label = normalizePipelineStageLabel(value);
+      if (!label) {
+        throw new OrgAgentToolInputError(`labels[${index}] is required`);
+      }
+      if (label.length > 40) {
+        throw new OrgAgentToolInputError(
+          `labels[${index}] must contain at most 40 characters`
+        );
+      }
+      return label;
+    });
+    const result = await createOrgRoleReviewStages({
+      labels,
+      roleId: role.roleId,
+      user: args.user,
+      workspaceId: args.workspaceId,
+    });
+    stages = result.stages.map((stage) => ({
+      label: stage.label,
+      status: stage.status,
+    }));
+    const created = stages.filter((stage) => stage.status === "created");
+    summary =
+      created.length > 0
+        ? `${role.name} 파이프라인에 ${created.map((stage) => stage.label).join(", ")} 단계 추가`
+        : `${role.name} 파이프라인 단계가 이미 모두 존재함`;
+  } else {
+    if (has(args.input, "labels")) {
+      throw new OrgAgentToolInputError(`action=${action} must omit labels`);
+    }
+    const customStageId = customPipelineStageDbId(args.input.stageId);
+    if (!customStageId) {
+      throw new OrgAgentToolInputError(
+        "stageId must be an exact custom:<id> value from read_role"
+      );
+    }
+    const { data: existing, error: existingError } = await (
+      args.admin.from("ops_matching_role_stages" as any) as any
+    )
+      .select("id, label")
+      .eq("id", customStageId)
+      .eq("role_id", role.roleId)
+      .maybeSingle();
+    if (existingError) throw existingError;
+    if (!existing) {
+      throw new OrgAgentToolInputError(
+        "The custom stage no longer exists for this Role. Read the pipeline again before retrying."
+      );
+    }
+    const previousLabel = normalizePipelineStageLabel(existing.label);
+    if (action === "rename") {
+      const label = requiredText(args.input.label, "label", 40).replace(
+        /\s+/g,
+        " "
+      );
+      const result = await updateOrgRoleReviewStage({
+        label,
+        roleId: role.roleId,
+        stageId: customStageId,
+        user: args.user,
+        workspaceId: args.workspaceId,
+      });
+      const unchanged = previousLabel === result.stage.label;
+      stages = [
+        {
+          label: result.stage.label,
+          status: unchanged ? "already_reflected" : "renamed",
+        },
+      ];
+      summary = unchanged
+        ? `${role.name} 파이프라인 단계 이름이 이미 ${result.stage.label}`
+        : `${role.name} 파이프라인 단계 이름: ${previousLabel} → ${result.stage.label}`;
+    } else {
+      if (has(args.input, "label")) {
+        throw new OrgAgentToolInputError("action=delete must omit label");
+      }
+      await deleteEmptyOrgRoleReviewStage({
+        roleId: role.roleId,
+        stageId: customStageId,
+        user: args.user,
+        workspaceId: args.workspaceId,
+      });
+      stages = [{ label: previousLabel, status: "deleted" }];
+      summary = `${role.name} 파이프라인에서 ${previousLabel} 단계 삭제`;
+    }
+  }
+
+  args.state.terminalReply = `${summary}. 후보자 단계와 연락 상태, 역할 정보는 변경하지 않았습니다.`;
+  args.state.updateSummaries.push(summary);
+  args.state.actions.push({
+    id: crypto.randomUUID(),
+    kind: "entity_updated",
+    label: "파이프라인 단계 업데이트됨",
+    payload: { changeSummary: summary, scope: "role" },
+  });
+  recordResult(args.state, {
+    callId: args.callId,
+    name: args.name,
+    status: "success",
+    summary,
+  });
+  return {
+    action,
+    roleName: role.name,
+    stages,
+    status: stages.every((stage) =>
+      ["already_exists", "already_reflected"].includes(stage.status)
+    )
+      ? "already_reflected"
+      : "updated",
+    summary,
+  };
+}
+
+async function executeMoveCandidateStage(args: {
+  admin: OrgAgentAdminClient;
+  callId: string;
+  input: Record<string, unknown>;
+  name: OrgAgentToolName;
+  state: OrgAgentToolExecutionState;
+  user: User;
+  workspaceId: string;
+}) {
+  if (args.state.terminalMutationUsed) {
+    throw new OrgAgentToolInputError(
+      "move_candidate_stage may be called only once and must be the only tool in this turn"
+    );
+  }
+  args.state.terminalMutationUsed = true;
+  const role = roleOrThrow(args.state, args.input.roleId);
+  const talentId = requiredText(args.input.talentId, "talentId", 100);
+  const expectedCurrentStage = activeCompanyPipelineStage(
+    args.input.expectedCurrentStageId,
+    "expectedCurrentStageId"
+  );
+  const targetStage = activeCompanyPipelineStage(
+    args.input.targetStageId,
+    "targetStageId"
+  );
+  const talent = await readOrgAgentTalent({
+    admin: args.admin,
+    audience: "company_safe",
+    includeProfile: false,
+    roleId: role.roleId,
+    talentId,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+  const position = talent.positions
+    .filter((item) => item.roleId === role.roleId)
+    .sort(
+      (left, right) =>
+        String(right.updatedAt).localeCompare(String(left.updatedAt)) ||
+        String(right.recommendationId).localeCompare(
+          String(left.recommendationId)
+        )
+    )[0];
+  if (!position) {
+    throw new OrgAgentToolInputError(
+      "The candidate is not visible in this Role's pipeline"
+    );
+  }
+  const currentStage = activeCompanyPipelineStage(
+    position.stage,
+    "currentStageId"
+  );
+  const candidateName = text(talent.candidate.name) || "후보자";
+  if (currentStage === targetStage) {
+    const stageLabel = position.stageLabel || humanizeOrgStage(targetStage);
+    const summary = `${candidateName} 후보자는 이미 ${stageLabel} 단계`;
+    args.state.terminalReply = `${summary}입니다. 후보자에게 별도 연락은 보내지 않았습니다.`;
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "unchanged",
+      summary,
+    });
+    return {
+      candidateName,
+      previousStageLabel: stageLabel,
+      roleName: role.name,
+      stageLabel,
+      status: "already_reflected",
+    };
+  }
+  if (currentStage !== expectedCurrentStage) {
+    throw new OrgAgentToolInputError(
+      "The candidate stage changed while this move was being prepared. Read the Role pipeline again before retrying."
+    );
+  }
+
+  const targetCustomStageId = customPipelineStageDbId(targetStage);
+  let targetStageLabel = humanizeOrgStage(targetStage);
+  if (targetCustomStageId) {
+    const { data: target, error: targetError } = await (
+      args.admin.from("ops_matching_role_stages" as any) as any
+    )
+      .select("label")
+      .eq("id", targetCustomStageId)
+      .eq("role_id", role.roleId)
+      .maybeSingle();
+    if (targetError) throw targetError;
+    if (!target) {
+      throw new OrgAgentToolInputError(
+        "The destination stage no longer exists for this Role. Read the pipeline again before retrying."
+      );
+    }
+    targetStageLabel = normalizePipelineStageLabel(target.label);
+  }
+  const previousStageLabel =
+    position.stageLabel || humanizeOrgStage(currentStage);
+  await setOrgCandidateStage({
+    expectedPreviousStage: expectedCurrentStage,
+    recommendationId: position.recommendationId,
+    roleId: role.roleId,
+    stage: targetStage,
+    talentId,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+  const summary = `${candidateName} 후보자: ${previousStageLabel} → ${targetStageLabel}`;
+  args.state.terminalReply = `${summary}로 옮겼습니다. 후보자에게 이메일이나 Harper 메시지를 보내거나 인터뷰를 예약하지는 않았습니다.`;
+  args.state.updateSummaries.push(summary);
+  args.state.actions.push({
+    id: crypto.randomUUID(),
+    kind: "entity_updated",
+    label: "후보자 단계 업데이트됨",
+    payload: { changeSummary: summary, scope: "role" },
+  });
+  recordResult(args.state, {
+    callId: args.callId,
+    name: args.name,
+    status: "success",
+    summary,
+  });
+  return {
+    candidateName,
+    previousStageLabel,
+    roleName: role.name,
+    stageLabel: targetStageLabel,
+    status: "updated",
+  };
+}
+
+async function readCandidateDecisionTarget(args: {
+  admin: OrgAgentAdminClient;
+  decision: OrgAgentCandidateDecision;
   roleId: string;
   talentId: string;
   user: User;
@@ -1429,21 +1889,40 @@ async function readPendingCandidateDecisionTarget(args: {
     user: args.user,
     workspaceId: args.workspaceId,
   });
-  const pendingPositions = talent.positions.filter(
-    (position) =>
-      position.roleId === args.roleId && position.stage === "pending_connection"
-  );
-  if (pendingPositions.length === 0) {
+  const matchingPositions = talent.positions
+    .filter(
+      (position) =>
+        position.roleId === args.roleId &&
+        (args.decision === "decline"
+          ? canStopOrgCandidateProcess(position.stage)
+          : position.stage === "pending_connection" ||
+            position.stage === "process_stopped")
+    )
+    .sort(
+      (left, right) =>
+        String(right.updatedAt).localeCompare(String(left.updatedAt)) ||
+        String(right.recommendationId).localeCompare(
+          String(left.recommendationId)
+        )
+    );
+  if (matchingPositions.length === 0) {
     throw new OrgAgentToolInputError(
-      "후보자가 현재 이 포지션의 연결 대기 상태가 아니라 수락하거나 거절할 수 없습니다."
+      args.decision === "accept"
+        ? "후보자가 현재 이 포지션의 연결 대기 또는 프로세스 종료 상태가 아니라 연결을 수락할 수 없습니다."
+        : "후보자가 현재 이 포지션에서 종료할 수 있는 회사측 진행 상태가 아닙니다."
     );
   }
-  if (pendingPositions.length > 1) {
+  const position = matchingPositions[0];
+  if (position.stage === "process_stopped" && !position.candidateAccepted) {
     throw new OrgAgentToolInputError(
-      "이 후보자와 포지션에 연결 대기 항목이 여러 개 있어 안전하게 결정할 수 없습니다. 후보자 화면에서 처리해 주세요."
+      "후보자의 기존 연결 수락을 확인할 수 없어 종료된 프로세스를 회사 요청만으로 다시 연결할 수 없습니다."
     );
   }
-  return { position: pendingPositions[0], talent };
+  return {
+    position,
+    reactivation: position.stage === "process_stopped",
+    talent,
+  };
 }
 
 function stageCandidateDecisionContext(args: {
@@ -1512,8 +1991,9 @@ async function executePrepareCandidateConnection(args: {
     );
   }
 
-  const { position, talent } = await readPendingCandidateDecisionTarget({
+  const { position, reactivation, talent } = await readCandidateDecisionTarget({
     admin: args.admin,
+    decision,
     roleId: current.roleId,
     talentId,
     user: args.user,
@@ -1555,7 +2035,14 @@ async function executePrepareCandidateConnection(args: {
   return {
     candidateEmail: talent.candidate.email,
     candidateName: talent.candidate.name,
+    closureNotificationDelivered:
+      position.processClosureNotification?.status === "sent",
+    closureNotificationDeliveredAt:
+      position.processClosureNotification?.deliveredAt ?? null,
+    closureNotificationSentChannel:
+      position.processClosureNotification?.sentChannel ?? null,
     connectionMethod,
+    currentStage: position.stage,
     decision,
     directContactAvailable: decision === "accept",
     introEmailAvailable:
@@ -1565,6 +2052,7 @@ async function executePrepareCandidateConnection(args: {
     introEmails,
     reason: reason.present ? reason.value : null,
     requesterEmail,
+    reactivation,
     status: "decision_context_ready",
   };
 }
@@ -1613,8 +2101,9 @@ async function executeCandidateConnectionDecision(args: {
     ? emailArray(args.input.introEmails, 10)
     : null;
   const requesterEmail = text(args.user.email).toLowerCase();
-  const { position, talent } = await readPendingCandidateDecisionTarget({
+  const { position, reactivation, talent } = await readCandidateDecisionTarget({
     admin: args.admin,
+    decision,
     roleId: current.roleId,
     talentId,
     user: args.user,
@@ -1625,7 +2114,7 @@ async function executeCandidateConnectionDecision(args: {
   const finalReason = reason.present ? reason.value : null;
   if (decision === "decline") {
     const result = await setOrgCandidateStage({
-      expectedPreviousStage: "pending_connection",
+      expectedPreviousStage: position.stage,
       recommendationId: position.recommendationId,
       roleId: current.roleId,
       stage: "process_stopped",
@@ -1634,7 +2123,10 @@ async function executeCandidateConnectionDecision(args: {
       user: args.user,
       workspaceId: args.workspaceId,
     });
-    const changeSummary = "연결 대기 후보자의 프로세스를 중단했습니다.";
+    const changeSummary =
+      position.stage === "pending_connection"
+        ? "연결 대기 후보자의 프로세스를 중단했습니다."
+        : "이미 시작된 후보자 연결을 종료했습니다. 이전에 보낸 소개 메일이나 회사의 직접 연락은 회수되지 않으며, Harper가 후보자에게 종료를 안내합니다.";
     args.state.updateSummaries.push(changeSummary);
     recordResult(args.state, {
       callId: args.callId,
@@ -1645,6 +2137,7 @@ async function executeCandidateConnectionDecision(args: {
     return {
       changeSummary,
       decision,
+      previousStage: position.stage,
       roleId: result.roleId,
       stage: result.stage,
       status: "updated",
@@ -1679,7 +2172,7 @@ async function executeCandidateConnectionDecision(args: {
   const result = await setOrgCandidateStage({
     acceptReason: finalReason,
     contactDirectly: connectionMethod === "direct_contact",
-    expectedPreviousStage: "pending_connection",
+    expectedPreviousStage: position.stage,
     introEmails,
     recommendationId: position.recommendationId,
     roleId: current.roleId,
@@ -1689,9 +2182,17 @@ async function executeCandidateConnectionDecision(args: {
     workspaceId: args.workspaceId,
   });
   const changeSummary =
-    connectionMethod === "intro_email"
-      ? "연결 대기 후보자에게 소개 메일을 보내 연결을 시작했습니다."
-      : "연결 대기 후보자를 연결됨으로 옮겼습니다. 회사에서 직접 연락해야 합니다.";
+    reactivation && connectionMethod === "intro_email"
+      ? position.processClosureNotification?.status === "sent"
+        ? "종료 안내가 이미 전달된 후보자의 프로세스를 다시 열고, 과거 거절을 언급하지 않는 소개 메일로 연결을 시작했습니다."
+        : "아직 종료 안내가 전달되지 않은 후보자의 종료 절차를 취소하고 소개 메일로 연결을 시작했습니다."
+      : reactivation
+        ? position.processClosureNotification?.status === "sent"
+          ? "종료 안내가 이미 전달된 후보자의 프로세스를 다시 열어 연결됨으로 옮겼습니다. 회사에서 직접 연락하며 이전 안내를 솔직하게 짚어 주세요."
+          : "아직 종료 안내가 전달되지 않은 후보자의 종료 절차를 취소하고 연결됨으로 옮겼습니다. 회사에서 직접 연락해야 합니다."
+        : connectionMethod === "intro_email"
+          ? "연결 대기 후보자에게 소개 메일을 보내 연결을 시작했습니다."
+          : "연결 대기 후보자를 연결됨으로 옮겼습니다. 회사에서 직접 연락해야 합니다.";
   args.state.updateSummaries.push(changeSummary);
   recordResult(args.state, {
     callId: args.callId,
@@ -1701,9 +2202,16 @@ async function executeCandidateConnectionDecision(args: {
   });
   return {
     changeSummary,
+    closureNotificationDelivered:
+      position.processClosureNotification?.status === "sent",
+    closureNotificationDeliveredAt:
+      position.processClosureNotification?.deliveredAt ?? null,
+    closureNotificationSentChannel:
+      position.processClosureNotification?.sentChannel ?? null,
     connectionMethod,
     decision,
     roleId: result.roleId,
+    reactivation,
     stage: result.stage,
     status: "updated",
     talentId: result.talentId,
@@ -1725,6 +2233,7 @@ export async function executeOrgAgentTool(args: {
   input: unknown;
   name: OrgAgentToolName;
   scopeKey: string;
+  slackExecutionContext?: SlackRoleCreationExecutionContext | null;
   slackThreadId: string | null;
   source: "chat" | "slack";
   state: OrgAgentToolExecutionState;
@@ -1736,14 +2245,136 @@ export async function executeOrgAgentTool(args: {
   const workspaceId = args.conversation.company_workspace_id;
   let result: Record<string, unknown>;
 
-  if (args.name === "web_search") {
-    result = await executeSharedWebSearch(input);
+  if (args.name === "start_role_creation") {
+    if (args.source !== "slack" || !args.slackExecutionContext) {
+      throw new OrgAgentToolInputError(
+        "start_role_creation is available only in an active Slack turn"
+      );
+    }
+    if (args.state.terminalMutationUsed) {
+      throw new OrgAgentToolInputError(
+        "start_role_creation may be called only once and must be the only tool in this turn"
+      );
+    }
+    args.state.terminalMutationUsed = true;
+    const roleTitle = requiredText(
+      args.input && input.roleTitle,
+      "roleTitle",
+      200
+    );
+    const description = requiredText(
+      args.input && input.description,
+      "description",
+      12_000
+    );
+    const descriptionOrigin = requiredText(
+      args.input && input.descriptionOrigin,
+      "descriptionOrigin",
+      100
+    );
+    if (
+      descriptionOrigin !== "user_supplied" &&
+      descriptionOrigin !== "same_company_public_jd" &&
+      descriptionOrigin !== "company_style_draft"
+    ) {
+      throw new OrgAgentToolInputError(
+        "descriptionOrigin must be user_supplied, same_company_public_jd, or company_style_draft"
+      );
+    }
+    const descriptionSourceUrl = text(input.descriptionSourceUrl);
+    if (descriptionSourceUrl) {
+      let parsedSourceUrl: URL;
+      try {
+        parsedSourceUrl = new URL(descriptionSourceUrl);
+      } catch {
+        throw new OrgAgentToolInputError(
+          "descriptionSourceUrl must be a valid http(s) URL"
+        );
+      }
+      if (
+        parsedSourceUrl.protocol !== "http:" &&
+        parsedSourceUrl.protocol !== "https:"
+      ) {
+        throw new OrgAgentToolInputError(
+          "descriptionSourceUrl must be a valid http(s) URL"
+        );
+      }
+    }
+    const requiredSearchQuery = `${args.state.company.companyName} ${roleTitle} 채용 career`;
+    const priorSuccessfulSearch = args.state.successfulWebSearchQueries.has(
+      externalQueryKey(requiredSearchQuery)
+    );
+    const priorSuccessfulOpen = args.state.openedUrls.has(
+      externalUrlKey(descriptionSourceUrl)
+    );
+    if (descriptionOrigin !== "user_supplied" && !priorSuccessfulSearch) {
+      throw new OrgAgentToolInputError(
+        "Harper-authored role descriptions require the one-time web_search earlier in this turn"
+      );
+    }
+    if (
+      descriptionOrigin === "same_company_public_jd" &&
+      (!descriptionSourceUrl || !priorSuccessfulOpen)
+    ) {
+      throw new OrgAgentToolInputError(
+        "same_company_public_jd requires an exact descriptionSourceUrl opened earlier in this turn"
+      );
+    }
+    if (
+      descriptionOrigin === "company_style_draft" &&
+      descriptionSourceUrl
+    ) {
+      throw new OrgAgentToolInputError(
+        "descriptionSourceUrl is not allowed for company_style_draft"
+      );
+    }
+    if (descriptionSourceUrl && !priorSuccessfulOpen) {
+      throw new OrgAgentToolInputError(
+        "descriptionSourceUrl must be opened earlier in this turn"
+      );
+    }
+    const started = await startSlackRoleCreation({
+      actorLabel: args.actorLabel,
+      description,
+      descriptionOrigin,
+      descriptionSourceUrl,
+      execution: args.slackExecutionContext,
+      roleTitle,
+      user: args.user,
+      workspaceId,
+    });
+    args.state.terminalReply = [
+      "역할 작성 스레드를 열어뒀어요.",
+      "",
+      `<${started.threadPermalink}|🧵 ${started.roleTitle} 역할 작성 스레드로 이동>`,
+      "",
+      "이제 이 스레드에서 내용을 이어서 알려주세요.",
+    ].join("\n");
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "success",
+      summary: `${started.roleTitle} 역할 작성 스레드 시작`,
+    });
+    return {
+      roleId: started.roleId,
+      roleTitle: started.roleTitle,
+      status: "started",
+      threadPermalink: started.threadPermalink,
+      userMessage: args.state.terminalReply,
+      webUrl: started.webUrl,
+    };
+  } else if (args.name === "web_search") {
+    result = await executeSharedWebSearch(input, {
+      admin: args.admin as unknown as TalentAdminClient,
+    });
+    args.state.successfulWebSearchQueries.add(externalQueryKey(input.query));
   } else if (args.name === "open_url") {
     result = (await executeSharedOpenUrl({
       admin: args.admin as unknown as TalentAdminClient,
-      enableLinkedinApify: true,
       input,
     })) as Record<string, unknown>;
+    args.state.openedUrls.add(externalUrlKey(input.url));
   } else if (args.name === "get_talents") {
     result = await executeGetTalents({
       admin: args.admin,
@@ -1785,6 +2416,17 @@ export async function executeOrgAgentTool(args: {
       currentUserMessageId: args.currentUserMessageId,
       input,
       slackThreadId: args.slackThreadId,
+    });
+  } else if (args.name === "update_role_criteria") {
+    return executeUpdateRoleCriteria({
+      actorLabel: args.actorLabel,
+      callId: args.callId,
+      input,
+      name: args.name,
+      source: args.source,
+      state: args.state,
+      user: args.user,
+      workspaceId,
     });
   } else if (args.name === "update_data") {
     try {
@@ -1847,6 +2489,26 @@ export async function executeOrgAgentTool(args: {
       user: args.user,
       workspaceId,
     });
+  } else if (args.name === "manage_role_pipeline_stages") {
+    return executeManageRolePipelineStages({
+      admin: args.admin,
+      callId: args.callId,
+      input,
+      name: args.name,
+      state: args.state,
+      user: args.user,
+      workspaceId,
+    });
+  } else if (args.name === "move_candidate_stage") {
+    return executeMoveCandidateStage({
+      admin: args.admin,
+      callId: args.callId,
+      input,
+      name: args.name,
+      state: args.state,
+      user: args.user,
+      workspaceId,
+    });
   } else if (args.name === "prepare_candidate_connection") {
     return executePrepareCandidateConnection({
       actorId: args.actorId,
@@ -1881,14 +2543,14 @@ export async function executeOrgAgentTool(args: {
         : args.name === "open_url"
           ? "링크 조회"
           : args.name === "get_talents"
-        ? "후보자 검색"
-        : args.name === "read_talent"
-          ? "후보자 상세 조회"
-          : args.name === "read_role"
-            ? "포지션 상세 조회"
-            : args.name === "get_more_data"
-              ? "추가 회사 정보 조회"
-              : "이전 대화 조회",
+            ? "후보자 검색"
+            : args.name === "read_talent"
+              ? "후보자 상세 조회"
+              : args.name === "read_role"
+                ? "포지션 상세 조회"
+                : args.name === "get_more_data"
+                  ? "추가 회사 정보 조회"
+                  : "이전 대화 조회",
   });
   return result;
 }

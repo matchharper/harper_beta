@@ -6,6 +6,7 @@ import {
 import CompanyWorkspaceCombobox from "@/components/ops/jobs/CompanyWorkspaceCombobox";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { showToast } from "@/components/toast/toast";
+import { MarkdownRichTextEditor } from "@/components/ui/markdown-rich-text-editor";
 import { Switch } from "@/components/ui/switch";
 import {
   useOpsOfficialJobAnalytics,
@@ -35,7 +36,7 @@ import {
 import Head from "next/head";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { BareButton } from "@/components/ui/button";
 import { Input as UiInput } from "@/components/ui/input";
 import {
@@ -360,12 +361,6 @@ function createSlug(value: string) {
   return slug || "official-job";
 }
 
-function resizeTextareaToContent(textarea: HTMLTextAreaElement | null) {
-  if (!textarea) return;
-  textarea.style.height = "auto";
-  textarea.style.height = `${textarea.scrollHeight}px`;
-}
-
 function matchesFilter(job: OpsOfficialJobRecord, filter: JobFilter) {
   if (filter === "published") return job.isPublished;
   if (filter === "draft") return !job.isPublished;
@@ -444,8 +439,6 @@ export default function OpsOfficialJobsPage() {
     initialDraft: EMPTY_DRAFT,
     key: NEW_JOB_ID,
   });
-  const roleDescriptionTextareaRef = useRef<HTMLTextAreaElement | null>(null);
-
   const jobsQuery = useOpsOfficialJobs(canFetchInternal);
   const companyOptionsQuery = useOpsOfficialJobCompanyOptions(canFetchInternal);
   const saveJob = useSaveOpsOfficialJob();
@@ -476,10 +469,6 @@ export default function OpsOfficialJobsPage() {
     selectedJob?.id,
     canFetchInternal && Boolean(selectedJob) && !selectedJob?.isInternalCopy
   );
-
-  useEffect(() => {
-    resizeTextareaToContent(roleDescriptionTextareaRef.current);
-  }, [draft.roleDescriptionMarkdown, activeDraftKey]);
 
   const filteredJobs = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -559,19 +548,18 @@ export default function OpsOfficialJobsPage() {
     }
   };
 
-  const handleCopyRoleDescriptionTemplate = async (
+  const handleAddRoleDescriptionTemplate = (
     template: (typeof ROLE_DESCRIPTION_MARKDOWN_TEMPLATES)[number]
   ) => {
-    try {
-      await navigator.clipboard.writeText(template.content);
-      showToast({
-        message: `${template.label} markdown 복사 완료`,
-      });
-    } catch {
-      showToast({
-        message: `${template.label} markdown 복사 실패`,
-      });
-    }
+    const currentDescription = draft.roleDescriptionMarkdown.trimEnd();
+    const templateContent = template.content.trim();
+    updateDraft(
+      "roleDescriptionMarkdown",
+      currentDescription
+        ? `${currentDescription}\n\n${templateContent}`
+        : templateContent
+    );
+    showToast({ message: `${template.label} 섹션 추가 완료` });
   };
 
   return (
@@ -806,7 +794,7 @@ export default function OpsOfficialJobsPage() {
                 <p className="mt-2 text-sm leading-6 text-neutral-muted">
                   {isInternalCopyDraft
                     ? "이 row는 public job으로 공개되지 않습니다."
-                    : "공개 상세 페이지 본문에는 Role description markdown만 노출됩니다."}
+                    : "공개 상세 페이지 본문에는 Role description만 노출됩니다."}
                 </p>
               </div>
 
@@ -1088,41 +1076,41 @@ export default function OpsOfficialJobsPage() {
                   className={cx(opsTheme.textarea, "min-h-[88px]")}
                 />
               </Field>
-              <Field label="Role description markdown   (큰글씨: ### 텍스트, 가로선:---, bold: **텍스트**)">
-                <UiTextarea
-                  ref={roleDescriptionTextareaRef}
-                  unstyled
-                  value={draft.roleDescriptionMarkdown}
-                  onChange={(event) => {
-                    updateDraft("roleDescriptionMarkdown", event.target.value);
-                    resizeTextareaToContent(event.currentTarget);
-                  }}
-                  className={cx(
-                    opsTheme.textarea,
-                    "min-h-[480px] resize-none overflow-hidden"
-                  )}
-                />
+              <div>
+                <div className={opsTheme.label}>Role description</div>
+                <div className="mt-2">
+                  <MarkdownRichTextEditor
+                    key={activeDraftKey ?? NEW_JOB_ID}
+                    ariaLabel="Role description"
+                    className={cx(
+                      opsTheme.textarea,
+                      "min-h-[480px] focus-within:border-black/80 focus-within:bg-bg-default"
+                    )}
+                    onValueChange={(value) =>
+                      updateDraft("roleDescriptionMarkdown", value)
+                    }
+                    value={draft.roleDescriptionMarkdown}
+                  />
+                </div>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {ROLE_DESCRIPTION_MARKDOWN_TEMPLATES.map((template) => (
                     <BareButton
                       key={template.label}
                       type="button"
-                      onClick={() =>
-                        handleCopyRoleDescriptionTemplate(template)
-                      }
+                      onClick={() => handleAddRoleDescriptionTemplate(template)}
                       className={cx(
                         opsTheme.buttonSecondary,
                         "h-10 px-3 text-xs"
                       )}
                     >
-                      ### {template.label} 복사
+                      {template.label} 추가
                     </BareButton>
                   ))}
                 </div>
-              </Field>
+              </div>
             </div>
 
-            <div className="mt-88 grid gap-4 lg:grid-cols-2">
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
               <div>Slug는 최초 저장 후 고정됩니다</div>
               <Field label="Slug">
                 <div className="flex gap-2">

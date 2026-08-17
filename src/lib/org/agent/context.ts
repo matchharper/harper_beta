@@ -23,6 +23,7 @@ import {
 } from "@/lib/org/agent/store";
 import {
   clipPromptText,
+  formatOrgAgentCompanyContext,
   formatPromptCell,
   formatPromptSection,
   formatPromptTable,
@@ -59,6 +60,7 @@ import {
   humanizeOrgWorkMode,
 } from "@/lib/org/pipelineStage";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { formatInProgressSlackRoleCreations } from "@/lib/org/agent/slackRoleCreation";
 
 export type OrgAgentPromptContext = {
   companyText: string;
@@ -66,6 +68,7 @@ export type OrgAgentPromptContext = {
   contextNotesText: string;
   conversationText: string;
   defaultLongTextObservations?: OrgAgentLongTextObservation[];
+  inProgressRoleCreationsText?: string;
   pendingUpdateText?: string;
   recentRecommendationsText: string;
   retainedDataText?: string;
@@ -148,6 +151,7 @@ function formatRoles(
         "ended",
         "counts_complete",
         "has_request",
+        "has_structured_criteria",
         "has_memory",
         "has_description",
       ],
@@ -165,6 +169,7 @@ function formatRoles(
           counts?.ended ?? "unavailable",
           counts?.complete ?? false,
           Boolean(text(item.request)),
+          item.criteria.length >= 3,
           Boolean(item.hasMemory),
           Boolean(text(item.description)),
         ];
@@ -187,6 +192,7 @@ function formatRoles(
       "ended",
       "counts_complete",
       "has_request",
+      "has_structured_criteria",
       "has_memory",
       "has_description",
     ],
@@ -204,6 +210,7 @@ function formatRoles(
         counts?.ended ?? "unavailable",
         counts?.complete ?? false,
         Boolean(text(role.request)),
+        role.criteria.length >= 3,
         Boolean(role.hasMemory),
         Boolean(text(role.description)),
       ];
@@ -295,11 +302,27 @@ function formatConversation(
           : message.slackUserId
             ? slackAlias(message.slackUserId)
             : "user";
+    const slackFileContext = (message.metadata.slackFileAttachments ?? [])
+      .slice(0, 3)
+      .map((attachment, index) => ({
+        index: index + 1,
+        name: clipPromptText(attachment.name, 240),
+        text: clipPromptText(attachment.text, 2_400),
+        truncated: Boolean(attachment.truncated),
+      }));
+    const messageContent = [
+      stripSerializedMentionIds(message.content),
+      slackFileContext.length > 0
+        ? `<untrusted_slack_file_attachments>${JSON.stringify(slackFileContext)}</untrusted_slack_file_attachments>`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
     return {
       cells: [
         speaker,
         references.join(",") || null,
-        clipPromptText(stripSerializedMentionIds(message.content), 900),
+        clipPromptText(messageContent, 4_000),
       ],
       id: message.id,
     };
@@ -351,37 +374,6 @@ function formatSummaries(
     .map((summary) => formatPromptCell(summary.content, 1_200))
     .filter(Boolean)
     .join("\n---\n");
-}
-
-function formatCompany(args: {
-  availability: Awaited<ReturnType<typeof fetchOrgAgentWorkspaceAvailability>>;
-  workspace: Awaited<ReturnType<typeof fetchWorkspaceForOrgAgent>>;
-}) {
-  return formatPromptTable(
-    ["field", "value"],
-    [
-      ["company_name", args.workspace.companyName],
-      [
-        "company_description_exists",
-        Boolean(text(args.workspace.companyDescription)),
-      ],
-      ["pitch_exists", Boolean(text(args.workspace.pitch))],
-      ["workspace_request_exists", Boolean(text(args.workspace.request))],
-      [
-        "brief",
-        clipPromptText(
-          args.workspace.brief || args.workspace.companyDescription,
-          1_000
-        ),
-      ],
-      ["company_details_available", args.availability.companyDetailsAvailable],
-      [
-        "workspace_memory_available",
-        args.availability.workspaceMemoryAvailable,
-      ],
-    ],
-    [40, 1_000]
-  );
 }
 
 /**
@@ -480,6 +472,19 @@ export async function buildOrgAgentPromptContext(args: {
           }),
       }),
     ]);
+  const inProgressRoleCreationsText =
+    scope.kind === "slack"
+      ? await optionalContext({
+          fallback:
+            "unavailable=true; do not claim there are no in-progress role creations",
+          label: "in_progress_role_creations",
+          task: () =>
+            formatInProgressSlackRoleCreations({
+              admin: args.admin as ReturnType<typeof getSupabaseAdmin>,
+              workspaceId,
+            }),
+        })
+      : "-";
 
   let pipeline: Awaited<
     ReturnType<typeof fetchOrgAgentPipelineSnapshot>
@@ -539,8 +544,6 @@ export async function buildOrgAgentPromptContext(args: {
 
   const formattedRoles = formatRoles(roles, pipeline?.countsByRoleId ?? null);
   const defaultLongTextObservations = buildDefaultOrgAgentLongTextObservations({
-    companyDbId: workspace.companyDbId,
-    companyDescription: workspace.companyDescription,
     pitch: workspace.pitch,
     roleObservations: formattedRoles.emptyLongTextObservations,
     workspaceMemoryAvailable: availability.workspaceMemoryAvailable,
@@ -556,7 +559,13 @@ export async function buildOrgAgentPromptContext(args: {
     );
   }
   return enforceOrgAgentContextBudget({
-    companyText: formatCompany({ availability, workspace }),
+    companyText: formatOrgAgentCompanyContext({
+      companyDetailsAvailable: availability.companyDetailsAvailable,
+      companyName: workspace.companyName,
+      pitch: workspace.pitch,
+      workspaceMemoryAvailable: availability.workspaceMemoryAvailable,
+      workspaceRequestExists: Boolean(text(workspace.request)),
+    }),
     completeRoleRequestIds: formattedRoles.completeRoleRequestIds,
     contextNotesText: notes.join("\n") || "-",
     conversationText: formatConversation(
@@ -564,6 +573,7 @@ export async function buildOrgAgentPromptContext(args: {
       scope.kind === "slack" ? scope.slackThreadId : null
     ),
     defaultLongTextObservations,
+    inProgressRoleCreationsText,
     pendingUpdateText: pendingUpdateUnavailable
       ? "pending_update_unavailable=true; do not assume that no update is awaiting confirmation"
       : formatPendingOrgAgentUpdateProposal(pendingUpdate),

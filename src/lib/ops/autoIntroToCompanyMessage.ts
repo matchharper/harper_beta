@@ -183,8 +183,8 @@ export function buildAutoIntroRoleSummaryText(args: {
       ? [String(args.introBody).trim()]
       : []),
     [
-      "*현재 Role 현황*",
-      "연결 여부를 결정해야 하는 후보자 수를 정리했습니다.",
+      "*현재 채용 현황*",
+      "현재 연결 여부를 결정해야 하는 후보자를 정리했습니다.",
       ...rows,
     ].join("\n"),
   ].join("\n\n");
@@ -279,7 +279,7 @@ export function buildAutoIntroRoleSummarySlackBlocks(args: {
     ...(introBlocks.length > 0 ? [{ type: "divider" }] : []),
     {
       text: {
-        text: "*현재 Role 현황*\n연결 여부를 결정해야 하는 후보자 수를 정리했습니다.",
+        text: "*현재 채용 현황*\n현재 연결 여부를 결정해야 하는 후보자를 정리했습니다.",
         type: "mrkdwn",
       },
       type: "section",

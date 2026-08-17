@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   getEnabledOrgAgentTools,
+  ORG_AGENT_TERMINAL_TOOL_NAMES,
   ORG_AGENT_TOOLS,
   isOrgAgentToolName,
 } from "@/lib/org/agent/tools";
@@ -47,37 +48,132 @@ test("candidate decisions expose LLM-judged context and terminal execution tools
     decide?.function.description ?? "",
     /meaning of the current message and relevant conversation/
   );
+  assert.match(
+    prepare?.function.description ?? "",
+    /company-stopped candidate/
+  );
+  assert.match(decide?.function.description ?? "", /neutral warm introduction/);
   assert.doesNotMatch(
     decide?.function.description ?? "",
     /matching prepare_candidate_connection confirmation must have appeared/
   );
 });
 
+test("role creation is exposed only on Slack and records description provenance", () => {
+  const webNames = getEnabledOrgAgentTools().map((tool) => tool.function.name);
+  const slackTools = getEnabledOrgAgentTools("slack");
+  const start = slackTools.find(
+    (tool) => tool.function.name === "start_role_creation"
+  );
+
+  assert.equal(webNames.includes("start_role_creation"), false);
+  assert.ok(start);
+  const parameters = start.function.parameters as {
+    additionalProperties: boolean;
+    required: string[];
+  };
+  assert.deepEqual(parameters.required, [
+    "roleTitle",
+    "description",
+    "descriptionOrigin",
+  ]);
+  const properties = (start?.function.parameters as any).properties;
+  assert.deepEqual(properties.descriptionOrigin.enum, [
+    "user_supplied",
+    "same_company_public_jd",
+    "company_style_draft",
+  ]);
+  assert.match(
+    start?.function.description ?? "",
+    /one-time web search found no clearly matching JD/
+  );
+  assert.match(
+    start?.function.description ?? "",
+    /public-JD origin also requires open_url/
+  );
+  assert.equal(parameters.additionalProperties, false);
+  assert.equal(ORG_AGENT_TERMINAL_TOOL_NAMES.has("start_role_creation"), true);
+});
+
 test("company-side tools separate lifecycle changes from the batch writer", () => {
   const toolNames = ORG_AGENT_TOOLS.map((item) => item.function.name);
   assert.equal(toolNames.includes("get_more_data"), true);
+  assert.equal(toolNames.includes("update_role_criteria"), true);
   assert.equal(toolNames.includes("update_data"), true);
   assert.equal(toolNames.includes("change_role_status"), true);
   assert.equal(toolNames.includes("update_company" as any), false);
   assert.equal(toolNames.includes("update_role" as any), false);
   assert.equal(isOrgAgentToolName("get_more_data"), true);
+  assert.equal(isOrgAgentToolName("update_role_criteria"), true);
   assert.equal(isOrgAgentToolName("update_data"), true);
   assert.equal(isOrgAgentToolName("change_role_status"), true);
+
+  const updateRoleCriteria = ORG_AGENT_TOOLS.find(
+    (item) => item.function.name === "update_role_criteria"
+  );
+  const criteriaParameters = updateRoleCriteria?.function.parameters as any;
+  assert.deepEqual(criteriaParameters.required, ["roleId"]);
+  assert.deepEqual(criteriaParameters.anyOf, [
+    { required: ["criteria"] },
+    { required: ["edits"] },
+  ]);
+  assert.equal(criteriaParameters.properties.criteria.minItems, 0);
+  assert.equal(criteriaParameters.properties.criteria.maxItems, 6);
+  assert.deepEqual(criteriaParameters.properties.criteria.items.required, [
+    "name",
+    "criteria",
+  ]);
+  assert.equal(criteriaParameters.properties.edits.minItems, 1);
+  assert.equal(criteriaParameters.properties.edits.maxItems, 6);
+  assert.deepEqual(
+    criteriaParameters.properties.edits.items.properties.operation.enum,
+    ["add", "update", "delete"]
+  );
+  assert.deepEqual(criteriaParameters.properties.edits.items.required, [
+    "operation",
+  ]);
+  assert.match(updateRoleCriteria?.function.description ?? "", /targetName/);
+  assert.match(updateRoleCriteria?.function.description ?? "", /exactly one/);
+  assert.match(updateRoleCriteria?.function.description ?? "", /0-6/);
+  assert.match(updateRoleCriteria?.function.description ?? "", /prefer 2-4/);
+  assert.match(
+    updateRoleCriteria?.function.description ?? "",
+    /one technical-fit dimension/
+  );
 
   const updateData = ORG_AGENT_TOOLS.find(
     (item) => item.function.name === "update_data"
   );
   const changes = (updateData?.function.parameters.properties as any).changes;
+  const updateKeys = changes.items.properties.key.enum as string[];
   assert.equal(changes.maxItems, 12);
   assert.deepEqual(changes.items.properties.kind.enum, [
     "append",
     "replace",
     "rewrite",
   ]);
-  assert.equal(
-    changes.items.properties.key.enum.includes("role_status"),
-    false
-  );
+  assert.equal(updateKeys.includes("role_status"), false);
+  for (const removed of [
+    "company_description",
+    "short_description",
+    "logo_url",
+    "career_url",
+    "funding_url",
+    "specialities",
+    "investors",
+    "main_investors",
+    "last_funding_round_description",
+  ]) {
+    assert.equal(updateKeys.includes(removed), false, removed);
+  }
+  for (const retained of [
+    "pitch",
+    "homepage_url",
+    "linkedin_url",
+    "related_links",
+  ]) {
+    assert.equal(updateKeys.includes(retained), true, retained);
+  }
 
   const changeRoleStatus = ORG_AGENT_TOOLS.find(
     (item) => item.function.name === "change_role_status"
@@ -106,6 +202,46 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
   );
 });
 
+test("pipeline management exposes separate terminal structure and candidate movement tools", () => {
+  const manage = ORG_AGENT_TOOLS.find(
+    (item) => item.function.name === "manage_role_pipeline_stages"
+  );
+  const move = ORG_AGENT_TOOLS.find(
+    (item) => item.function.name === "move_candidate_stage"
+  );
+  assert.ok(manage);
+  assert.ok(move);
+  assert.equal(isOrgAgentToolName("manage_role_pipeline_stages"), true);
+  assert.equal(isOrgAgentToolName("move_candidate_stage"), true);
+  assert.equal(
+    ORG_AGENT_TERMINAL_TOOL_NAMES.has("manage_role_pipeline_stages"),
+    true
+  );
+  assert.equal(ORG_AGENT_TERMINAL_TOOL_NAMES.has("move_candidate_stage"), true);
+
+  const manageParameters = manage.function.parameters as any;
+  assert.deepEqual(manageParameters.required, ["action", "roleId"]);
+  assert.deepEqual(manageParameters.properties.action.enum, [
+    "add",
+    "rename",
+    "delete",
+  ]);
+  assert.equal(manageParameters.properties.labels.maxItems, 6);
+  assert.equal(manageParameters.properties.label.maxLength, 40);
+  assert.match(manage.function.description, /no candidate currently occupies/);
+
+  const moveParameters = move.function.parameters as any;
+  assert.deepEqual(moveParameters.required, [
+    "roleId",
+    "talentId",
+    "expectedCurrentStageId",
+    "targetStageId",
+  ]);
+  assert.match(move.function.description, /compare-and-set/);
+  assert.match(move.function.description, /cannot move.*pending_connection/);
+  assert.doesNotMatch(JSON.stringify(moveParameters), /recommendationId/);
+});
+
 test("conversation history uses one bounded scope-and-cursor reader", () => {
   const history = ORG_AGENT_TOOLS.find(
     (item) => item.function.name === "read_conversation_history"
@@ -129,10 +265,15 @@ test("read_role documents built-in pipeline stage filter values", () => {
   const readRole = ORG_AGENT_TOOLS.find(
     (item) => item.function.name === "read_role"
   );
-  const stageDescription = String(
-    (readRole?.function.parameters.properties as any).stage.description
-  );
+  const properties = readRole?.function.parameters.properties as any;
+  const stageDescription = String(properties.stage.description);
 
+  assert.deepEqual(properties.include.items.enum, [
+    "criteria",
+    "memory",
+    "pipeline",
+    "description",
+  ]);
   assert.match(stageDescription, /pending_connection=연결 대기/);
   assert.match(stageDescription, /connected=진행 중/);
   assert.match(stageDescription, /process_stopped=프로세스 종료/);

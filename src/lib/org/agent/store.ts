@@ -6,6 +6,7 @@ import {
   type OrgRole,
   upsertOrgCompanyUser,
 } from "@/lib/org/server";
+import { normalizeOrgRoleCriteria } from "@/lib/org/roleCriteria";
 import type {
   OrgAgentConversation,
   OrgAgentMention,
@@ -17,6 +18,7 @@ import type {
   OrgAgentRetainedDataActivation,
   OrgAgentThinkingLog,
 } from "@/lib/org/agent/types";
+import { compactOrgAgentThinkingLogs } from "@/lib/org/agent/thinkingLogs";
 import type { Json } from "@/types/database.types";
 import {
   isOrgAgentRetainedDataActivationActive,
@@ -27,6 +29,7 @@ import {
   resolveAdoptableSlackUserMessageIdentity,
 } from "@/lib/org/agent/messageIdempotency";
 import { createOrgAgentConversationHistoryCursor } from "@/lib/org/agent/conversationHistory";
+import { stripSlackSentUsingAttribution } from "@/lib/org/slackMessageText";
 
 export {
   isOrgAgentRetainedDataActivationActive,
@@ -156,10 +159,11 @@ function safeMentions(value: unknown): OrgAgentMention[] {
 
 function safeThinkingLogs(value: unknown): OrgAgentThinkingLog[] {
   if (!Array.isArray(value)) return [];
-  return value
-    .flatMap((item): OrgAgentThinkingLog[] => {
+  return compactOrgAgentThinkingLogs(
+    value.flatMap((item): OrgAgentThinkingLog[] => {
       if (!isRecord(item)) return [];
       const at = normalizeText(item.at);
+      const id = normalizeText(item.id);
       const label = normalizeText(item.label);
       if (!at || !label) return [];
       const status =
@@ -168,9 +172,10 @@ function safeThinkingLogs(value: unknown): OrgAgentThinkingLog[] {
         item.status === "error"
           ? item.status
           : undefined;
-      return [{ at, label, status }];
-    })
-    .slice(0, 20);
+      return [{ at, ...(id ? { id } : {}), label, status }];
+    }),
+    20
+  );
 }
 
 function safeMetadata(value: unknown): OrgAgentMessageMetadata {
@@ -251,6 +256,7 @@ export function toOrgAgentMessage(row: OrgAgentMessageRow): OrgAgentMessage {
   const storedMetadata = safeMetadata(row.metadata);
   const visibleMetadata = { ...storedMetadata };
   delete visibleMetadata.roleCreationAttachments;
+  delete visibleMetadata.slackFileAttachments;
   return {
     authorUserId: row.company_user_id ?? null,
     content: row.content ?? "",
@@ -260,6 +266,7 @@ export function toOrgAgentMessage(row: OrgAgentMessageRow): OrgAgentMessage {
     metadata: visibleMetadata,
     model: row.model ?? null,
     role: row.role,
+    sourceSurface: row.message_type === "slack" ? "slack" : "web",
     status: normalizeMessageStatus(row.status),
     thinkingLogs: safeThinkingLogs(row.thinking_logs),
   };
@@ -337,9 +344,9 @@ export async function ensureOrgAgentConversation(args: {
 }
 
 /**
- * Returns the chat-only conversation owned by one role. This is deliberately
- * separate from ensureOrgAgentConversation so normal web chat and Slack
- * continue to share only the role_id-null workspace conversation.
+ * Returns the conversation owned by one role. It contains /org/role chat and
+ * only the dedicated Slack role-creation thread; ordinary web and Slack chat
+ * remain in the role_id-null workspace conversation.
  */
 export async function ensureOrgRoleCreationConversation(args: {
   allowCompletedRole?: boolean;
@@ -456,9 +463,13 @@ export async function fetchOrgAgentMessages(args: {
       "id, conversation_id, company_workspace_id, role_id, company_user_id, role, content, message_type, model, status, mentions, thinking_logs, metadata, created_at"
     )
     .eq("conversation_id", conversation.id)
-    .eq("message_type", "chat")
     .order("id", { ascending: false })
     .limit(limit + 1);
+
+  query =
+    args.mode === "role_creation"
+      ? query.in("message_type", ["chat", "slack"])
+      : query.eq("message_type", "chat");
 
   if (typeof args.beforeMessageId === "number" && args.beforeMessageId > 0) {
     query = query.lt("id", args.beforeMessageId);
@@ -598,6 +609,7 @@ function toPromptMessageView(row: {
   content: string;
   created_at: string;
   id: number;
+  message_type?: string;
   metadata: Json;
   mentions: Json;
   role: OrgAgentMessageRole;
@@ -605,7 +617,10 @@ function toPromptMessageView(row: {
   slack_user_id: string | null;
 }): OrgAgentPromptMessageView {
   return {
-    content: row.content ?? "",
+    content:
+      row.message_type === "slack"
+        ? stripSlackSentUsingAttribution(row.content)
+        : (row.content ?? ""),
     createdAt: row.created_at,
     id: Number(row.id),
     metadata: isRecord(row.metadata)
@@ -648,6 +663,7 @@ export async function fetchRecentOrgAgentPromptMessages(args: {
     created_at: string;
     id: number;
     metadata: Json;
+    message_type: string;
     mentions: Json;
     role: OrgAgentMessageRole;
     slack_thread_id: string | null;
@@ -667,6 +683,131 @@ export async function fetchRecentOrgAgentPromptMessages(args: {
             slackThreadId: scope.slackThreadId,
           })
         : null,
+  };
+}
+
+export async function findOrgAgentSlackUserMessage(args: {
+  adoptInto?: {
+    conversation: OrgAgentConversationRow;
+    roleId: string;
+    userId?: string | null;
+  };
+  admin: SupabaseAdminClient;
+  slackMessageTs: string;
+  slackThreadId: string;
+  workspaceId: string;
+}) {
+  const { data, error } = await (
+    args.admin.from("company_messages" as any) as any
+  )
+    .select(
+      "id, conversation_id, company_workspace_id, role_id, company_user_id, role, content, message_type, model, status, mentions, thinking_logs, metadata, created_at"
+    )
+    .eq("company_workspace_id", args.workspaceId)
+    .eq("message_type", "slack")
+    .eq("role", "user")
+    .eq("slack_thread_id", args.slackThreadId)
+    .eq("slack_message_ts", args.slackMessageTs)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+
+  let row = data as OrgAgentMessageRow;
+  const target = args.adoptInto;
+  if (
+    target &&
+    (row.conversation_id !== target.conversation.id ||
+      row.role_id !== target.roleId ||
+      (target.userId !== undefined && row.company_user_id !== target.userId))
+  ) {
+    const previousConversationId = row.conversation_id;
+    const { data: moved, error: moveError } = await (
+      args.admin.from("company_messages" as any) as any
+    )
+      .update({
+        ...(target.userId !== undefined
+          ? { company_user_id: target.userId }
+          : {}),
+        conversation_id: target.conversation.id,
+        role_id: target.roleId,
+      })
+      .eq("id", row.id)
+      .eq("company_workspace_id", args.workspaceId)
+      .eq("message_type", "slack")
+      .eq("role", "user")
+      .eq("slack_thread_id", args.slackThreadId)
+      .eq("slack_message_ts", args.slackMessageTs)
+      .select(
+        "id, conversation_id, company_workspace_id, role_id, company_user_id, role, content, message_type, model, status, mentions, thinking_logs, metadata, created_at"
+      )
+      .single();
+    if (moveError) throw moveError;
+    row = moved as OrgAgentMessageRow;
+
+    for (const conversationId of new Set([
+      previousConversationId,
+      target.conversation.id,
+    ])) {
+      const { data: latest, error: latestError } = await (
+        args.admin.from("company_messages" as any) as any
+      )
+        .select("id, created_at")
+        .eq("conversation_id", conversationId)
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (latestError) throw latestError;
+      const { error: conversationError } = await (
+        args.admin.from("company_conversations" as any) as any
+      )
+        .update({
+          last_message_at: latest?.created_at ?? null,
+          last_message_id: latest?.id ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", conversationId);
+      if (conversationError) throw conversationError;
+    }
+  }
+
+  return toOrgAgentMessage(row);
+}
+
+export async function fetchRecentOrgAgentSlackThreadPromptMessages(args: {
+  admin: SupabaseAdminClient;
+  beforeMessageId?: number | null;
+  limit?: number;
+  slackThreadId: string;
+  workspaceId: string;
+}): Promise<OrgAgentPromptMessagePage> {
+  const limit = args.limit ?? 20;
+  let query = (args.admin.from("company_messages" as any) as any)
+    .select(
+      "id, role, content, created_at, mentions, metadata, message_type, slack_thread_id, slack_user_id"
+    )
+    .eq("company_workspace_id", args.workspaceId)
+    .eq("message_type", "slack")
+    .eq("slack_thread_id", args.slackThreadId)
+    .order("id", { ascending: false });
+  if (args.beforeMessageId) query = query.lt("id", args.beforeMessageId);
+  const { data, error } = await query.limit(limit + 1);
+  if (error) throw error;
+  const rows = (data ?? []) as Array<{
+    content: string;
+    created_at: string;
+    id: number;
+    metadata: Json;
+    message_type: string;
+    mentions: Json;
+    role: OrgAgentMessageRole;
+    slack_thread_id: string | null;
+    slack_user_id: string | null;
+  }>;
+  const selected = rows.slice(0, limit);
+  return {
+    hasMore: rows.length > limit,
+    messages: selected.reverse().map(toPromptMessageView),
+    nextCursor: null,
   };
 }
 
@@ -811,7 +952,7 @@ export async function fetchRoleForOrgAgent(args: {
 }): Promise<OrgAgentStoredRole> {
   const { data, error } = await (args.admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, request, salary_range, status, type, location_text, work_mode, created_at, updated_at"
+      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, type, location_text, work_mode, created_at, updated_at"
     )
     .eq("company_workspace_id", args.workspaceId)
     .eq("role_id", args.roleId)
@@ -828,7 +969,6 @@ export async function fetchRoleForOrgAgent(args: {
     external_jd_url: string | null;
     location_text: string | null;
     name: string;
-    request: string | null;
     role_id: string;
     salary_range: string | null;
     status: string | null;
@@ -840,7 +980,7 @@ export async function fetchRoleForOrgAgent(args: {
     args.includeCriteria === false
       ? Promise.resolve({ data: null, error: null })
       : (args.admin.from("company_internal_roles" as any) as any)
-          .select("request")
+          .select("request, criteria")
           .eq("role_id", args.roleId)
           .maybeSingle(),
     args.includeMemory === false
@@ -855,6 +995,7 @@ export async function fetchRoleForOrgAgent(args: {
   if (memoryResult.error) throw memoryResult.error;
   const memory = normalizeText(memoryResult.data?.content) || null;
   return {
+    criteria: normalizeOrgRoleCriteria(internalResult.data?.criteria),
     createdAt: row.created_at,
     description: row.description ?? null,
     employmentTypes: Array.isArray(row.type) ? row.type : [],

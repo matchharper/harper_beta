@@ -128,8 +128,10 @@ async function main() {
       pendingConfirmationMessageId: null,
       phase: "collecting" as const,
       scope: "role_creation" as const,
+      slackRoleCreationThread: null,
     },
     role: {
+      criteria: [],
       createdAt: currentYear,
       description: null,
       employmentTypes: [],
@@ -157,6 +159,7 @@ async function main() {
       linkedinUrl: null,
       logoUrl: null,
       pitch: "복잡한 기업 데이터 운영을 단순하게 만듭니다.",
+      relatedLinks: [],
       request: null,
       updatedAt: currentYear,
       workspaceId,
@@ -376,6 +379,10 @@ async function main() {
   assert(state.role.name === roleTitle, "role title mismatch");
   assert(Boolean(state.role.description), "description was not saved");
   assert(Boolean(state.role.request), "private criteria were not saved");
+  assert(
+    state.role.criteria.length >= 3 && state.role.criteria.length <= 6,
+    "structured criteria were not saved"
+  );
   assert(state.role.locationText === "서울 강남", "location mismatch");
   assert(state.role.workMode === "hybrid", "work mode mismatch");
   assert(state.role.employmentTypes.includes("full_time"), "employment type missing");

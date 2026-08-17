@@ -45,6 +45,7 @@ import { buildInternalOpportunityRealtimeInstruction } from "./cases/lifecyclePr
 import type { InternalOpportunityCallRequest } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
 
 const ONBOARDING_TOOL_POLICY_ALLOWED_TOOLS = [
+  "update_language_setting",
   "update_setting",
   "update_talent_profile",
   "open_url",
@@ -340,7 +341,6 @@ export function buildCareerConversationPromptPlan(args: {
     recentActivitySummariesSection,
     opportunityStatusSection,
     // voice call에만 포함: 최근 채팅 맥락을 짧게 넣어 통화 시작점을 맞춘다.
-    `Important: Use ${outputLanguage} unless the latest user message explicitly asks to change language.`,
     args.channel === "voice" ? (args.recentConversationSection ?? "") : "",
   ].filter((value) => value && value.trim().length > 0);
 

@@ -23,6 +23,7 @@ export type OrgSlackStatus = {
     respondToMentions: boolean;
   }>;
   connected: boolean;
+  needsReinstall: boolean;
   teamId: string | null;
   teamName: string | null;
 };

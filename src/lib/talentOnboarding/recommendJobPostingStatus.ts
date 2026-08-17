@@ -107,3 +107,28 @@ export function splitRecommendJobPostingStatusLogs(logs: string[]) {
 
   return { latestStatus, textLogs };
 }
+
+export function upsertRecommendJobPostingStatusLog(
+  value: unknown,
+  status: RecommendJobPostingStatus
+) {
+  const existingLogs = Array.isArray(value)
+    ? value
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => item.replace(/\s+/g, " ").trim())
+        .filter(Boolean)
+    : [];
+  const textLogs = existingLogs.filter(
+    (log) => !parseRecommendJobPostingStatusLog(log)
+  );
+
+  return [...textLogs.slice(-11), createRecommendJobPostingStatusLog(status)];
+}
+
+export function isRecommendJobPostingSearchStopped(value: unknown) {
+  if (!Array.isArray(value)) return false;
+  const logs = value.filter((item): item is string => typeof item === "string");
+  return (
+    splitRecommendJobPostingStatusLogs(logs).latestStatus?.state === "stopped"
+  );
+}

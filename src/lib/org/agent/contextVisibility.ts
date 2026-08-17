@@ -11,28 +11,15 @@ function hasText(value: unknown) {
 }
 
 export function buildDefaultOrgAgentLongTextObservations(args: {
-  companyDbId?: number | null;
-  companyDescription: string | null;
   pitch: string | null;
   roleObservations: OrgAgentLongTextObservation[];
   workspaceMemoryAvailable: boolean;
   workspaceRequest: string | null;
 }): OrgAgentLongTextObservation[] {
   return [
-    // A linked company_db may still contain a mirrored legacy description.
-    // company_details performs the authoritative cross-record read first.
-    ...(!hasText(args.companyDescription) && !args.companyDbId
-      ? [
-          {
-            key: "company_description" as const,
-            roleId: null,
-            value: null,
-          },
-        ]
-      : []),
-    ...(!hasText(args.pitch)
-      ? [{ key: "pitch" as const, roleId: null, value: null }]
-      : []),
+    // pitch is injected in full on every call, including an authoritative
+    // empty value, so it is always safe to use as the base for an edit.
+    { key: "pitch" as const, roleId: null, value: args.pitch },
     ...(!hasText(args.workspaceRequest)
       ? [
           {

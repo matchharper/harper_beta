@@ -25,6 +25,8 @@ import { formatOrgAgentKstDateTime } from "@/lib/org/agent/dateTime";
 import { hasOrgWorkspaceAccessBypass } from "@/lib/org/access";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { humanizeCompanyTalentRequestStatus } from "@/lib/companyTalentRequests/server";
+import { normalizeOrgRoleCriteria } from "@/lib/org/roleCriteria";
+import { fetchOrgProcessClosureNotifications } from "@/lib/org/processClosureNotification";
 
 export { serializeOrgAgentMoreData } from "@/lib/org/agent/promptFormat";
 
@@ -210,7 +212,7 @@ export async function fetchOrgAgentRoles(args: {
   const [internalResult, memoryResult] = await Promise.all([
     roleIds.length > 0
       ? (args.admin.from("company_internal_roles" as any) as any)
-          .select("role_id, request")
+          .select("role_id, request, criteria")
           .in("role_id", roleIds)
       : Promise.resolve({ data: [], error: null }),
     roleIds.length > 0
@@ -230,6 +232,14 @@ export async function fetchOrgAgentRoles(args: {
       }>
     ).map((row) => [row.role_id, text(row.request) || null])
   );
+  const criteriaByRoleId = new Map(
+    (
+      (internalResult.data ?? []) as Array<{
+        criteria: unknown;
+        role_id: string;
+      }>
+    ).map((row) => [row.role_id, normalizeOrgRoleCriteria(row.criteria)])
+  );
   const memoryRoleIds = new Set(
     (
       (memoryResult.data ?? []) as Array<{
@@ -241,6 +251,7 @@ export async function fetchOrgAgentRoles(args: {
   return rows
     .map(
       (row): OrgAgentRole => ({
+        criteria: criteriaByRoleId.get(row.role_id) ?? [],
         createdAt: row.created_at,
         description: row.description ?? null,
         employmentTypes: Array.isArray(row.type) ? row.type : [],
@@ -668,6 +679,7 @@ export async function fetchOrgAgentPipelineSnapshot(args: {
       id: stage.id,
       label: humanizeOrgStage(stage.id, stage.label),
       roleId: stage.roleId ?? null,
+      sortOrder: stage.sortOrder,
     })),
     countsByRoleId,
     recentComplete:
@@ -1192,27 +1204,36 @@ export async function readOrgAgentTalent(args: {
   }
 
   const progressLimit = integer(args.progressLimit, 10, 1, 30);
-  const [progressResult, requestProjection, harperSharedInformation] =
-    await Promise.all([
-      (args.admin.from("talent_progress" as any) as any)
-        .select(
-          "created_at, kind, recommendation_id, role_id, talent_id, text, metadata"
-        )
-        .eq("talent_id", talentId)
-        .in("role_id", visibleRoleIds)
-        .order("created_at", { ascending: false })
-        .limit(Math.max(progressLimit * 5, 50)),
-      readCompanyTalentRequestProjection({
-        admin: args.admin,
-        roleById,
-        talentId,
-        workspaceId: args.workspaceId,
-      }),
-      readHarperSharedInformation({
-        admin: args.admin,
-        talentId,
-      }),
-    ]);
+  const [
+    progressResult,
+    requestProjection,
+    harperSharedInformation,
+    processClosureNotifications,
+  ] = await Promise.all([
+    (args.admin.from("talent_progress" as any) as any)
+      .select(
+        "created_at, kind, recommendation_id, role_id, talent_id, text, metadata"
+      )
+      .eq("talent_id", talentId)
+      .in("role_id", visibleRoleIds)
+      .order("created_at", { ascending: false })
+      .limit(Math.max(progressLimit * 5, 50)),
+    readCompanyTalentRequestProjection({
+      admin: args.admin,
+      roleById,
+      talentId,
+      workspaceId: args.workspaceId,
+    }),
+    readHarperSharedInformation({
+      admin: args.admin,
+      talentId,
+    }),
+    fetchOrgProcessClosureNotifications({
+      admin: args.admin,
+      roleIds: visibleRoleIds,
+      talentId,
+    }),
+  ]);
   const { data: progressData, error: progressError } = progressResult;
   if (progressError) throw progressError;
   const visibleProgress = ((progressData ?? []) as ProgressRow[])
@@ -1288,6 +1309,20 @@ export async function readOrgAgentTalent(args: {
           recommendedAt: row.recommended_at,
           roleId: row.role_id,
           roleName: roleById.get(row.role_id)?.name ?? null,
+          candidateAccepted:
+            ["like", "positive"].includes(text(row.feedback).toLowerCase()) ||
+            ["accepted", "closed"].includes(
+              text(row.saved_stage).toLowerCase()
+            ),
+          processClosureNotification:
+            visibleItem.stage === "process_stopped"
+              ? (processClosureNotifications.get(row.role_id) ?? {
+                  deliveredAt: null,
+                  sentChannel: null,
+                  status: "not_sent" as const,
+                  stoppedAt: null,
+                })
+              : null,
           stage: visibleItem.stage,
           stageLabel: getBoardStageLabel(board, visibleItem),
           talentMemo: clip(row.talent_memo, 700) || null,
@@ -1399,6 +1434,34 @@ function fitRoleLongTextResult(result: Record<string, any>) {
     string,
     { complete: boolean; included: boolean; truncated: boolean }
   >;
+  const roleCriteria = Array.isArray(result.role?.criteria)
+    ? result.role.criteria
+    : [];
+  if (fields.role_criteria?.included) {
+    result.role.criteria = roleCriteria.map((item: unknown) => {
+      const source =
+        item && typeof item === "object" && !Array.isArray(item)
+          ? (item as Record<string, unknown>)
+          : {};
+      const name = String(source.name ?? "");
+      const criteria = String(source.criteria ?? "");
+      const reservedForName = Math.min(name.length, remaining);
+      remaining -= reservedForName;
+      const available = Math.max(0, remaining);
+      const clippedCriteria =
+        criteria.length <= available
+          ? criteria
+          : available > 0
+            ? `${criteria.slice(0, Math.max(0, available - 1))}…`
+            : null;
+      remaining = Math.max(0, remaining - criteria.length);
+      if (clippedCriteria !== criteria) {
+        fields.role_criteria.complete = false;
+        fields.role_criteria.truncated = true;
+      }
+      return { criteria: clippedCriteria, name };
+    });
+  }
   const targets = [
     {
       field: fields.role_request,
@@ -1529,6 +1592,11 @@ export async function readOrgAgentRole(args: {
   };
   const result: Record<string, unknown> = {
     fieldCompleteness: {
+      role_criteria: {
+        complete: include.has("criteria"),
+        included: include.has("criteria"),
+        truncated: false,
+      },
       role_description: {
         complete: include.has("description"),
         included: include.has("description"),
@@ -1548,6 +1616,7 @@ export async function readOrgAgentRole(args: {
     included: [...include],
     role: {
       ...baseRole,
+      ...(include.has("criteria") ? { criteria: role.criteria } : {}),
       ...(include.has("criteria") ? { request: role.request } : {}),
       ...(include.has("description") ? { description: role.description } : {}),
     },
@@ -1619,12 +1688,25 @@ export async function readOrgAgentRole(args: {
   const pipelineResult = {
     ...result,
     availableStages: snapshot.availableStages.map((item) => ({
+      kind: item.id.startsWith("custom:") ? "custom" : "built_in",
       label: item.label,
+      roleId: item.roleId,
+      sortOrder: item.sortOrder,
+      stageId: item.id,
     })),
     countsComplete: bucketCounts.complete,
     people: {
       hasMore: peopleOffset + peopleItems.length < filteredItems.length,
       items: peopleItems.map((item) => ({
+        currentStageId: item.stage,
+        currentStageLabel: humanizeOrgStage(
+          item.stage,
+          snapshot.availableStages.find(
+            (stage) =>
+              stage.id === item.stage &&
+              (!stage.roleId || stage.roleId === item.roleId)
+          )?.label
+        ),
         email: item.talent.email,
         fitSummary: clip(item.fitSummary, 500) || null,
         headline: item.talent.headline,
@@ -1672,13 +1754,7 @@ export async function readOrgAgentRole(args: {
   return pipelineResult;
 }
 
-const COMPANY_DETAIL_LONG_KEYS = new Set([
-  "company_description",
-  "last_funding_round_description",
-  "pitch",
-  "short_description",
-  "workspace_request",
-]);
+const COMPANY_DETAIL_LONG_KEYS = new Set(["workspace_request"]);
 
 function normalizeMoreDataKinds(values: OrgAgentMoreDataKind[]) {
   const requested = new Set(values);
@@ -1781,7 +1857,7 @@ async function fetchOrgAgentCompanyDetails(args: {
     args.admin.from("company_workspace" as any) as any
   )
     .select(
-      "company_workspace_id, company_db_id, company_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url"
+      "company_workspace_id, company_db_id, company_name, request, homepage_url, career_url, linkedin_url"
     )
     .eq("company_workspace_id", args.workspaceId)
     .maybeSingle();
@@ -1789,15 +1865,13 @@ async function fetchOrgAgentCompanyDetails(args: {
   if (!workspace) throw new OrgHttpError(404, "Workspace not found");
   const [companyDataResult, companyDbResult] = await Promise.all([
     (args.admin.from("company_data" as any) as any)
-      .select(
-        "total_funding_raised, main_investors, last_funding_stage, last_funding_round_description"
-      )
+      .select("total_funding_raised, last_funding_stage")
       .eq("company_workspace_id", args.workspaceId)
       .maybeSingle(),
     workspace.company_db_id
       ? (args.admin.from("company_db" as any) as any)
           .select(
-            "name, description, short_description, website_url, linkedin_url, logo, funding_url, location, founded_year, employee_count_range, specialities, investors, related_links"
+            "funding_url, location, founded_year, employee_count_range, related_links"
           )
           .eq("id", workspace.company_db_id)
           .maybeSingle()
@@ -1814,25 +1888,19 @@ async function fetchOrgAgentCompanyDetails(args: {
       ? (companyDb.employee_count_range as Record<string, unknown>)
       : {};
   const rawValues: Record<string, unknown> = {
-    career_url: workspace.career_url,
-    company_description: workspace.company_description,
     company_name: workspace.company_name,
     employee_count_end: employeeRange.end,
     employee_count_start: employeeRange.start,
     founded_year: companyDb.founded_year,
-    funding_url: companyDb.funding_url,
     homepage_url: workspace.homepage_url,
-    investors: companyDb.investors,
-    last_funding_round_description: companyData.last_funding_round_description,
     last_funding_stage: companyData.last_funding_stage,
     linkedin_url: workspace.linkedin_url,
     location: companyDb.location,
-    logo_url: workspace.logo_url,
-    main_investors: companyData.main_investors,
-    pitch: workspace.pitch,
-    related_links: companyDb.related_links,
-    short_description: companyDb.short_description,
-    specialities: stringList(companyDb.specialities, 30),
+    related_links: unique([
+      workspace.career_url,
+      companyDb.funding_url,
+      ...stringList(companyDb.related_links, 30),
+    ]).slice(0, 12),
     total_funding_raised: companyData.total_funding_raised,
     workspace_request: workspace.request,
   };
@@ -1885,9 +1953,10 @@ export async function fetchOrgAgentWorkspaceMemory(args: {
 export async function fetchOrgAgentWorkspaceAvailability(args: {
   admin: OrgAgentAdminClient;
   workspace: {
-    companyDescription: string | null;
+    careerUrl?: string | null;
     companyDbId?: number | null;
-    pitch: string | null;
+    homepageUrl?: string | null;
+    linkedinUrl?: string | null;
     request: string | null;
     workspaceId: string;
   };
@@ -1905,9 +1974,10 @@ export async function fetchOrgAgentWorkspaceAvailability(args: {
   if (companyDataResult.error) throw companyDataResult.error;
   return {
     companyDetailsAvailable: Boolean(
-      text(args.workspace.companyDescription) ||
-      text(args.workspace.pitch) ||
       text(args.workspace.request) ||
+      text(args.workspace.homepageUrl) ||
+      text(args.workspace.linkedinUrl) ||
+      text(args.workspace.careerUrl) ||
       args.workspace.companyDbId ||
       companyDataResult.data
     ),

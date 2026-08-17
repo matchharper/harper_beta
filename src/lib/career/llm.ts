@@ -9,10 +9,7 @@ import {
   logLlmTokenUsage,
   logLlmTokenUsageForToolCalls,
 } from "@/lib/llm/usageLogging";
-import {
-  CLAUDE_MODEL,
-  GPT_56_LUNA_MODEL,
-} from "@/lib/llm/modelConfig";
+import { CLAUDE_MODEL, GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import {
   runTalentAssistantCompletion,
   runTalentAssistantToolLoop,
@@ -95,6 +92,11 @@ export const CAREER_LLM_CONFIG = {
     shortlistModel: GPT_56_LUNA_MODEL,
     shortlistReasoningEffort: "high" as const,
     shortlistTemperature: 0.1,
+    fullJdPlanModel: GPT_56_LUNA_MODEL,
+    fullJdPlanReasoningEffort: "high" as const,
+    fullJdPlanTemperature: 0.2,
+    fullJdScoringModel: GPT_56_LUNA_MODEL,
+    fullJdScoringReasoningEffort: "high" as const,
   },
   // LinkedIn/이력서/입력 링크에서 가져온 profile raw data를 정규화/보강할 때.
   // 모델은 assistant.primary/fallback을 쓴다.
@@ -148,6 +150,14 @@ export const CAREER_LLM_CONFIG = {
     temperature: 0.25,
   },
 } as const;
+
+const isAbortLikeError = (error: unknown) =>
+  Boolean(
+    error &&
+    typeof error === "object" &&
+    "name" in error &&
+    error.name === "AbortError"
+  );
 
 type DirectOpenAIMessage = {
   content: string;
@@ -1568,6 +1578,7 @@ export async function runCareerChatAssistant(args: {
             break;
           }
         } catch (error) {
+          if (isAbortLikeError(error)) throw error;
           logTalentToolError({
             callId: toolCall.id,
             durationMs: Date.now() - toolStartedAt,
@@ -1640,6 +1651,7 @@ export async function runCareerChatAssistant(args: {
       usageLabel,
     });
   } catch (error) {
+    if (isAbortLikeError(error)) throw error;
     const nativeFallback = resolveNativeAnthropicFallbackModelConfig(
       error,
       modelConfig
@@ -1933,6 +1945,7 @@ export async function runCareerChatAssistantStream(args: {
             break;
           }
         } catch (error) {
+          if (isAbortLikeError(error)) throw error;
           logTalentToolError({
             callId: toolCall.id,
             durationMs: Date.now() - toolStartedAt,
@@ -2028,6 +2041,7 @@ export async function runCareerChatAssistantStream(args: {
     });
     return getForwardedVisibleText() || recoveredText;
   } catch (error) {
+    if (isAbortLikeError(error)) throw error;
     if (streamedAnyText || startedAnyTool || executedAnyTool) {
       const recoveredText = await recoverVisibleTextFromAnthropicMessages({
         messages: workingMessages,

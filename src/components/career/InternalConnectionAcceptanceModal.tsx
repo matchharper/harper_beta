@@ -226,8 +226,7 @@ export default function InternalConnectionAcceptanceModal({
                 </Link>
                 {t(
                   "career.common.internal_connection_acceptance_modal.acknowledgement",
-                  " 내용을 확인하고 동의합니다.",
-                  { meaningChanged: true }
+                  " 내용을 확인하고 동의합니다."
                 )}
               </span>
             }

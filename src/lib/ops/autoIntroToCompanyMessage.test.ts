@@ -100,8 +100,19 @@ test("role summary uses a native Slack table with exact role links", () => {
     expectedUrl
   );
   const text = buildAutoIntroRoleSummaryText({ summary });
+  assert.match(
+    text,
+    /^\*현재 채용 현황\*\n현재 연결 여부를 결정해야 하는 후보자를 정리했습니다\./
+  );
   assert.match(text, /FDE \(Forward Deployed Engineer\)> \| 진행중 \| 5명/);
   const blocks = buildAutoIntroRoleSummarySlackBlocks({ summary });
+  assert.deepEqual(blocks[0], {
+    text: {
+      text: "*현재 채용 현황*\n현재 연결 여부를 결정해야 하는 후보자를 정리했습니다.",
+      type: "mrkdwn",
+    },
+    type: "section",
+  });
   const table = blocks.find((block) => block.type === "table") as {
     rows: Array<Array<Record<string, unknown>>>;
   };

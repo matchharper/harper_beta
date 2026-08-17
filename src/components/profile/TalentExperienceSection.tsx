@@ -185,23 +185,24 @@ export function TalentEducationSection({
           const educationMeta = [education.degree, education.field]
             .map((value) => value?.trim())
             .filter(Boolean)
-            .join(" · ");
+            .join(", ");
 
           return (
-            <div key={index} className={cx(opsTheme.panelSoft, "p-3")}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 text-[13px] font-medium text-neutral-primary">
-                  {education.school?.trim() || "학교 미상"}
-                </div>
-                {period ? (
-                  <div className="shrink-0 text-[11px] text-neutral-soft">
-                    {period}
-                  </div>
-                ) : null}
+            <div
+              key={index}
+              className={cx(opsTheme.panelSoft, "py-2 font-normal")}
+            >
+              <div className="min-w-0 text-[15px] text-neutral-primary">
+                {education.school?.trim() || "학교 미상"}
               </div>
               {educationMeta ? (
-                <div className="mt-1 text-[12px] text-neutral-muted">
+                <div className="mt-1 text-[13px] text-neutral-muted">
                   {educationMeta}
+                </div>
+              ) : null}
+              {period ? (
+                <div className="mt-1 text-[12px] text-neutral-soft">
+                  {period}
                 </div>
               ) : null}
               <TalentProfileDescriptionMarkdown value={education.description} />
@@ -222,13 +223,13 @@ export function TalentExtraSection({ extras }: { extras: TalentExtraItem[] }) {
       <div className={cx(opsTheme.eyebrow, "mb-2")}>기타</div>
       <div className="space-y-2">
         {extras.map((extra, index) => (
-          <div key={index} className={cx(opsTheme.panelSoft, "p-3")}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 text-[13px] font-medium text-neutral-primary">
+          <div key={index} className={cx(opsTheme.panelSoft, "py-2")}>
+            <div className="flex flex-col items-start justify-between gap-1 font-normal">
+              <div className="min-w-0 text-[14px] text-neutral-primary">
                 {extra.title?.trim() || "제목 없음"}
               </div>
               {extra.date ? (
-                <div className="shrink-0 text-[11px] text-neutral-soft">
+                <div className="shrink-0 text-[12px] text-neutral-soft">
                   {extra.date}
                 </div>
               ) : null}
@@ -257,6 +258,9 @@ export function TalentExperienceSection({
           const period = formatExperiencePeriod(experience);
           const location = experience.companyLocation?.trim();
           const companyName = experience.companyName?.trim();
+          const companyMeta = [companyName, experience.employmentType?.trim()]
+            .filter(Boolean)
+            .join(" · ");
 
           return (
             <div key={index} className={cx(opsTheme.panelSoft, "py-3")}>
@@ -265,34 +269,28 @@ export function TalentExperienceSection({
                   companyName={experience.companyName}
                   logoUrl={experience.companyLogo}
                 />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-0.5">
-                    <div className="min-w-0 text-sm font-medium text-neutral-primary">
-                      {experience.role?.trim() || "역할 미상"}
-                      {companyName && (
-                        <div className="mt-1 text-[14px] text-neutral-primary">
-                          {companyName}
-                        </div>
-                      )}
-                      {location && (
-                        <div className="mt-1 text-[13px] text-neutral-muted">
-                          {location}
-                        </div>
-                      )}
-                    </div>
-                    <div className="shrink-0 text-[13px] text-neutral-soft text-right">
-                      {period ? <div>{period}</div> : null}
-                      <div>
-                        {experience.employmentType &&
-                          `${experience.employmentType}`}
-                      </div>
-                    </div>
+                <div className="min-w-0 flex-1 font-normal">
+                  <div className="text-sm font-medium text-neutral-primary">
+                    {experience.role?.trim() || "역할 미상"}
                   </div>
-                  {experience.description?.trim() ? (
-                    <div className="mt-2 whitespace-pre-wrap text-[13px] leading-5 text-neutral-muted">
-                      {experience.description.trim()}
+                  {companyMeta ? (
+                    <div className="mt-1 text-[13px] text-neutral-primary">
+                      {companyMeta}
                     </div>
                   ) : null}
+                  {period ? (
+                    <div className="mt-1 text-[12px] text-neutral-muted">
+                      {period}
+                    </div>
+                  ) : null}
+                  {location ? (
+                    <div className="mt-1 text-[12px] text-neutral-muted">
+                      {location}
+                    </div>
+                  ) : null}
+                  <TalentProfileDescriptionMarkdown
+                    value={experience.description}
+                  />
                   <TalentProfileMemo value={experience.memo} />
                 </div>
               </div>

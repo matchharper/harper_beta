@@ -145,7 +145,17 @@ requested_by=<운영자 식별자>
 
 `additional_instruction`은 이번 role의 업무 기준을 보완할 수 있지만 execution mode를 바꾸거나, 보호 특성·동의·privacy·중복 발송·human override 규칙을 무효화할 수 없다.
 
-### 2.1 외부 모델 호출·판단 위임 금지
+### 2.1 주기적인 Company Context·fit 갱신 workflow는 별도 범위다
+
+[`../docs/company/company-context-run-overview-ko.md`](../docs/company/company-context-run-overview-ko.md)에 의해 정의되는 주기 workflow는 이 절의 수동 `M`명 선정·연결 제안 workflow가 아니다.
+
+- 회사 행동을 role별 current context로 verbalize한 뒤 신규·변경 후보를 pair별로 평가한다.
+- Pending limit은 후보 검색만 막으며 context 갱신은 계속한다.
+- 실제 평가하거나 재평가한 pair의 current fit을 저장하지만 추천·발송·연결 대기 전환은 만들지 않는다.
+- `dissatisfied`, `unfit`, unchanged input, 평가와 무관한 변경은 반복 재평가하지 않는다.
+- Human override를 보존하고, 올바른 제외 뒤 후보가 0명이면 정상 결과로 처리한다.
+
+### 2.2 외부 모델 호출·판단 위임 금지
 
 이 문서를 실행하는 주체는 **현재 대화에서 사용자의 명령을 받은 Codex agent 본인**이다. 이 agent가 다음 작업을 직접 수행해야 한다.
 
@@ -165,7 +175,7 @@ requested_by=<운영자 식별자>
 
 SQL·DB read, deterministic filtering·scoring·formatting script, 공개 웹 사실 검증은 이 금지에 포함되지 않는다. 단, 이 도구들이 생성형 모델을 내부적으로 호출하는 경로라면 사용하지 않는다. 환경에 `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` 등 model credential이 존재해도 호출 허가로 해석하지 않는다.
 
-현재 agent의 context·시간·도구 한도 때문에 pool 전원을 직접 평가할 수 없으면 다른 모델로 우회하지 않는다. 마지막으로 완전히 평가한 candidate와 남은 수를 기록하고 `incomplete_agent_capacity`로 종료한다.
+현재 run에서 pool 전원을 직접 평가하지 못하면 다른 모델로 우회하지 않는다. 마지막으로 완전히 평가한 candidate와 남은 수를 기록하고 `incomplete_evaluation`로 종료한다.
 
 외부 모델 호출이 한 건이라도 시도되거나 후보자 payload가 전송된 사실을 발견하면 즉시 다음과 같이 처리한다.
 
@@ -318,7 +328,7 @@ SQL에서 약 200명을 가져온 뒤 초반에 `M`명의 좋은 후보를 찾�
 이 절은 2026-07-22 코드와 live schema를 기준으로 한다. 실행 전 실제 schema와 코드를 다시 확인한다.
 
 1. `company_internal_roles`는 `company_roles.role_id`와 1:1이고 `request`, `considerations`를 가진다.
-2. 기존 자동 internal fit evaluator는 현재 `company_roles.request`를 읽는다. `company_internal_roles.request`와 `considerations`가 자동 worker에 반영된다고 가정하면 안 된다.
+2. 자동 internal fit evaluator는 `company_internal_roles.request`를 읽는다. `considerations`는 자동 worker에 반영된다고 가정하면 안 된다.
 3. 이 매뉴얼을 실행하는 agent는 role description, 세 request source, 기존 consideration을 직접 읽고 아래 우선순위로 통합해야 한다.
 4. `talent_opportunity_fit.score`는 0~100 정수이고 기존 prompt 계약상 `fit`은 80~100이다.
 5. `talent_opportunity_recommendation.score`는 저장 경로에서 0~1 numeric으로 정규화된다. 두 score scale을 혼동하지 않는다.
@@ -426,8 +436,8 @@ output/internal_role_matching/<role_id>/<YYYYMMDDTHHMMSSZ>/
 
 | source | 사용 목적 | 주의 |
 | --- | --- | --- |
-| `company_roles` | role 이름, description, request, location, work mode, type, status | 공개·기존 role 정보 |
-| `company_internal_roles` | internal-only role request와 구조화 considerations | 현재 자동 evaluator는 직접 읽지 않음 |
+| `company_roles` | role 이름, description, location, work mode, type, status | 공개·기존 role 정보 |
+| `company_internal_roles` | internal-only role request와 구조화 considerations | request는 자동 evaluator가 직접 읽음 |
 | `company_workspace` | 회사 description, pitch, request, internal 여부 | company-level request는 role-specific request보다 아래 우선순위 |
 | `company_db` | 회사 설명, 위치, 규모, 투자·LinkedIn 보조 정보 | 데이터 freshness와 출처 확인 |
 | `companies/*.md` | 공개 회사 리서치 메모 | 조사일 확인, 오래됐으면 최신 웹 검증 |
@@ -438,11 +448,10 @@ request 해석 우선순위:
 1. 안전·법적·동의·privacy 제약. 다른 source가 override할 수 없음
 2. 이번 실행의 `additional_instruction`. 단, 1번을 위반하거나 execution mode를 바꿀 수 없음
 3. `company_internal_roles.request`
-4. `company_roles.request`
-5. role description/JD의 명시 requirement
-6. `company_workspace.request`
-7. 반복적인 최신 회사 피드백에서 도출한 criterion
-8. 일반적인 role title 추정
+4. role description/JD의 명시 requirement
+5. `company_workspace.request`
+6. 반복적인 최신 회사 피드백에서 도출한 criterion
+7. 일반적인 role title 추정
 
 상위 source와 하위 source가 충돌하면 상위를 적용한다. 단, 상위 source가 오래됐고 하위 source가 최근 갱신된 정황이 있으면 임의 결정하지 말고 consideration에 충돌로 기록하고 발송 전 확인한다.
 
@@ -574,7 +583,7 @@ WHERE cr.role_id = :role_id::uuid;
 최소 비교 대상:
 
 - `company_roles.updated_at`
-- `company_roles.description`, `request`, location·work mode·type의 content hash
+- `company_roles.description`, location·work mode·type의 content hash
 - `company_internal_roles.request`의 content hash
 - `company_workspace.updated_at`
 - `company_workspace.request`, description, pitch의 content hash
@@ -664,8 +673,9 @@ WITH target AS (
   FROM public.company_roles
   WHERE role_id = :role_id::uuid
 ), company_roles AS (
-  SELECT cr.role_id, cr.name, cr.request, cr.updated_at
+  SELECT cr.role_id, cr.name, cir.request, cr.updated_at
   FROM public.company_roles cr
+  JOIN public.company_internal_roles cir ON cir.role_id = cr.role_id
   JOIN target t USING (company_workspace_id)
   WHERE lower(cr.source_type) = 'internal'
 )
@@ -1027,8 +1037,8 @@ risk: 동시에 수행한 두 경력을 단순 합산하면 경력이 부풀려�
 target geography는 다음 source를 우선순위대로 읽어 확정한다.
 
 1. `company_roles.location_text`, `work_mode`, `type`
-2. role description과 최신 `company_roles.request`
-3. `company_internal_roles.request`와 workspace request
+2. role description과 최신 `company_internal_roles.request`
+3. `company_workspace.request`
 4. 고객 현장·시간대·법인·출장처럼 실제 수행 지역을 제한하는 명시 조건
 
 서울 onsite와 미국 remote를 함께 허용하는 role처럼 target country가 여러 개일 수 있다. `remote`라는 단어만으로 worldwide를 추정하지 않는다. 고용 가능한 국가가 제한된 remote role이면 허용 국가를 모두 기록한다. source만으로 target country를 정할 수 없으면 전 세계를 기본값으로 쓰지 말고 `incomplete_target_geography`로 retrieval 전에 중단한다. `worldwide=true`는 회사가 국가 제한 없는 채용을 명시한 경우에만 허용한다.
@@ -2361,6 +2371,8 @@ persisted_fit_score = clamp(80 + round((mutual_score - 70) * 2 / 3), 80, 100)
 이 점수는 자동 model score인 척하면 안 된다. 수동 deep review 실행 ID와 양면 score는 `write_plan.json`과 `audit_reasoning`에 남기고, 회사가 읽는 `reason`에는 노출하지 않는다.
 
 ### 15.4 fit upsert 원칙
+
+이 절은 수동 선정 workflow에 적용된다. 주기적인 Company Context·fit 갱신 workflow의 전원 upsert 예외는 이 문서의 2.1절을 따른다.
 
 - 선택자만 upsert한다.
 - 미선택자 150명에게 대량 `unfit`을 쓰지 않는다. 이번 role의 최종 추천에서 빠졌다는 사실과 영구 unfit은 다르다.

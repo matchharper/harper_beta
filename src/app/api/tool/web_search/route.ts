@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runWebSearch } from "@/lib/tools/webSearch";
+import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,6 +16,7 @@ export async function POST(req: NextRequest) {
 
     console.log(`\n\n-----웹 검색 ${query}-----\n\n`);
     const response = await runWebSearch({
+      admin: getSupabaseAdmin(),
       query,
       maxResults: body.maxResults,
     });
@@ -22,7 +24,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(
       response.results.map((item) => ({
-        content: item.snippet,
+        content: item.highlights.join("\n...\n"),
         title: item.title,
         url: item.url,
       })),

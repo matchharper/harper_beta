@@ -55,6 +55,7 @@ import {
   isOrgAgentTerminalToolName,
   isOrgAgentToolName,
 } from "@/lib/org/agent/tools";
+import type { SlackRoleCreationExecutionContext } from "@/lib/org/agent/slackRoleCreation";
 import {
   getOrgAgentToolCompletionMaxTokens,
   NORMAL_TOOL_COMPLETION_MAX_TOKENS,
@@ -320,6 +321,7 @@ async function runCompletion(args: {
   messages: OrgAgentLlmMessage[];
   model: OrgAgentModelId;
   signal?: AbortSignal;
+  surface?: "chat" | "slack";
 }) {
   return createChatCompletionWithFallback({
     anthropicOverloadFallbackModel: ORG_AGENT_GROK_MODEL,
@@ -332,7 +334,7 @@ async function runCompletion(args: {
       ...(args.allowTools
         ? {
             tool_choice: "auto" as const,
-            tools: getEnabledOrgAgentTools() as any,
+            tools: getEnabledOrgAgentTools(args.surface) as any,
           }
         : {}),
     }),
@@ -427,6 +429,7 @@ async function runOrgAgentToolLoop(args: {
   readAudience: "caller" | "company_safe";
   scopeKey: string;
   signal?: AbortSignal;
+  slackExecutionContext?: SlackRoleCreationExecutionContext | null;
   slackThreadId: string | null;
   source: "chat" | "slack";
   user: User;
@@ -469,6 +472,7 @@ async function runOrgAgentToolLoop(args: {
         messages,
         model: activeModel,
         signal: args.signal,
+        surface: args.source,
       });
     } catch (error) {
       args.signal?.throwIfAborted();
@@ -644,6 +648,7 @@ async function runOrgAgentToolLoop(args: {
           input: toolInput,
           name: toolName,
           scopeKey: args.scopeKey,
+          slackExecutionContext: args.slackExecutionContext,
           slackThreadId: args.slackThreadId,
           source: args.source,
           state,
@@ -944,6 +949,7 @@ export async function runOrgAgentChat(args: {
   /** @deprecated Ignored. The conversation is workspace-scoped. */
   roleId?: string | null;
   slackAssistantUserId?: string | null;
+  slackExecutionContext?: SlackRoleCreationExecutionContext | null;
   slackThreadId?: string;
   slackUserId?: string | null;
   slackUserMessageTs?: string | null;
@@ -1060,6 +1066,7 @@ export async function runOrgAgentChat(args: {
         ? `slack:${args.slackThreadId}`
         : `chat:${conversation.id}`,
       signal: args.signal,
+      slackExecutionContext: args.slackExecutionContext,
       slackThreadId: args.slackThreadId ?? null,
       source: args.slackThreadId ? "slack" : "chat",
       user: args.user,

@@ -141,7 +141,7 @@ export function OrgRoleActionsMenu({
             </DialogTitle>
             <DialogDescription className="text-[13px] leading-5">
               {lifecycleAction === "delete"
-                ? `“${role.name}” 역할과 파이프라인을 목록에서 숨깁니다. 계속할까요?`
+                ? `“${role.name}” 역할을 삭제합니다. 계속할까요?`
                 : lifecycleAction === "pause"
                   ? `“${role.name}” 역할의 새 후보자 연결을 일시 중지할까요?`
                   : `“${role.name}” 역할의 후보자 연결을 다시 시작할까요?`}

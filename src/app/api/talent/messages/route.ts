@@ -12,6 +12,7 @@ import {
   fetchTalentPostingCardsByRoleIds,
 } from "@/lib/talentOpportunity";
 import { extractPostingRoleIdsFromText } from "@/lib/career/postingLinks";
+import { hydrateOpportunityRunsForMessages } from "@/lib/opportunityDiscovery/store";
 
 const parsePositiveIntegerParam = (
   value: string | null,
@@ -197,16 +198,31 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const serializedMessages = visibleMessages.map((message) => ({
+      ...toTalentMessageResponse(message as TalentMessageRow),
+      opportunityPreview: previewByMessageId.get(message.id) ?? [],
+    }));
+    let hydratedMessages = serializedMessages;
+    try {
+      hydratedMessages = await hydrateOpportunityRunsForMessages({
+        admin,
+        messages: serializedMessages,
+        userId: user.id,
+      });
+    } catch (error) {
+      console.warn(
+        "[career] Failed to hydrate recommendation search status for messages",
+        error
+      );
+    }
+
     return NextResponse.json({
       ok: true,
       conversation: {
         id: conversation.id,
         stage: conversation.stage,
       },
-      messages: visibleMessages.map((message) => ({
-        ...toTalentMessageResponse(message as TalentMessageRow),
-        opportunityPreview: previewByMessageId.get(message.id) ?? [],
-      })),
+      messages: hydratedMessages,
       nextBeforeMessageId,
     });
   } catch (error) {

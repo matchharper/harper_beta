@@ -265,7 +265,7 @@ for (const entry of entries) {
     touchedKeys.add(entry.key);
   }
 
-  if (isNew || !previousEn || entry.retranslate) {
+  if (isNew || !previousEn || entry.retranslate || koChanged) {
     englishRequests.push(entry);
     touchedKeys.add(entry.key);
   }
@@ -344,6 +344,9 @@ const summary = {
   pushedDbRows: !dryRun && shouldPushDb ? dbRows.length : 0,
   retranslatedCount: englishRequests.filter((entry) => entry.retranslate)
     .length,
+  sourceChangedEnglishCount: englishRequests.filter(
+    (entry) => existingKo[entry.key] !== entry.ko
+  ).length,
   touchedKeys: Array.from(touchedKeys).sort(),
 };
 

@@ -24,6 +24,7 @@ const base: RoleCreationConversationMetadata = {
   pendingConfirmationMessageId: 9,
   phase: "confirmation_pending",
   scope: "role_creation",
+  slackRoleCreationThread: null,
 };
 
 test("recognizes only the exact handled confirmation identity", () => {

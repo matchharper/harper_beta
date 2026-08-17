@@ -6,6 +6,13 @@ This is the implementation contract for `career/chat`'s
 Scope:
 
 - Recommend external public job postings only.
+- `kind=instant` is the default and uses the original synchronous Career search
+  implementation with the explicit `legacy` strategy. It returns up to 5 roles
+  in the current chat turn.
+- `kind=bulk` is allowed only after the user explicitly requests or accepts a
+  deeper search. It queues the dedicated worker pipeline, defaults to 15 roles,
+  supports up to 20, and sends the completion result by email when email is
+  available.
 - The user's latest `request` is the primary retrieval target.
 - User profile, history, and feedback are context for interpreting the request,
   not a separate long-term recommendation strategy.
@@ -18,11 +25,21 @@ Input from `/api/talent/chat`:
 
 ```json
 {
-  "request": "서울 기반 LLM infra engineer 포지션 찾아줘. Series B 이상이면 좋고 대기업은 빼줘."
+  "request": "서울 기반 LLM infra engineer 포지션 찾아줘. Series B 이상이면 좋고 대기업은 빼줘.",
+  "kind": "instant",
+  "max_results": 5
 }
 ```
 
-Output returned by `runCareerJobPostingRecommendations`:
+`kind` defaults to `instant`. Ordinary recommendation requests always use this
+mode. `bulk` may be selected only when the user explicitly asks for roughly
+10–20 results or a deeper/high-accuracy search, or explicitly accepts an offer
+to run it. Before enqueueing bulk, Harper explains that it takes longer because
+it searches and evaluates more postings and that completion is sent by email.
+If no bulk count is given, `max_results` defaults to 15; the server caps it at
+20. A bulk scheduling failure never silently falls back to instant.
+
+Instant output returned by `runCareerJobPostingRecommendations`:
 
 ```json
 {
@@ -312,7 +329,7 @@ Additional filters:
 ```txt
 A: company_roles.name
 B: company_roles.description
-C: company_roles.request
+C: company_internal_roles.request
 D: company_roles.location_text, work_mode, type[]
 ```
 
@@ -423,7 +440,6 @@ Notes:
     {
       "id": 0,
       "role": "external : ML Engineer at Example AI | work at San Francisco | hybrid | full-time | senior | posted 2026-05-19",
-      "retrievalFtsScore": 4.2,
       "company": "Example AI : Builds AI products | 11-50 employees | HQ San Francisco | founded 2023 | company_score 17.5"
     }
   ]

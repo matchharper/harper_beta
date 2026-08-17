@@ -17,6 +17,12 @@ import type { TalentOpportunityHistoryItem } from "@/lib/talentOpportunity";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
 import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
+import { getCompanyInternalRoleRequest } from "@/lib/companyInternalRole";
+import {
+  INTERNAL_OPPORTUNITY_CALL_REQUEST_MAX_AGE_MS,
+  isFreshInternalOpportunityCallRequest,
+  isTerminalInternalOpportunityCompanyDecision,
+} from "./internalOpportunityCallRequestPolicy";
 
 export const TALENT_CALL_KIND_INTERNAL_OPPORTUNITY_REQUEST =
   "internal_opportunity_request";
@@ -320,8 +326,10 @@ async function fetchRoleContext(args: {
         role_id,
         name,
         description,
-        request,
         source_type,
+        company_internal_roles (
+          request
+        ),
         company_workspace:company_workspace (
           company_name
         )
@@ -343,7 +351,14 @@ async function fetchRoleContext(args: {
   return {
     companyName: optionalString(workspaceRecord.company_name),
     description: optionalString(data.description),
-    request: optionalString(data.request),
+    request: optionalString(
+      getCompanyInternalRoleRequest(
+        data.company_internal_roles as
+          | { request?: string | null }
+          | Array<{ request?: string | null }>
+          | null
+      )
+    ),
     roleId: optionalString(data.role_id) ?? args.roleId,
     sourceType: optionalString(data.source_type),
     title: optionalString(data.name),
@@ -371,14 +386,21 @@ async function fetchExistingOpenInternalCallRequest(args: {
 
 async function fetchOpenInternalOpportunityCallRequestRows(args: {
   admin: TalentAdminClient;
+  createdAfter?: string;
   userId: string;
 }) {
-  const { data, error } = await args.admin
+  let query = args.admin
     .from("talent_calls")
     .select("*")
     .eq("user_id", args.userId)
     .eq("kind", TALENT_CALL_KIND_INTERNAL_OPPORTUNITY_REQUEST)
-    .in("status", [TALENT_CALL_STATUS_PENDING, TALENT_CALL_STATUS_ACTIVE])
+    .in("status", [TALENT_CALL_STATUS_PENDING, TALENT_CALL_STATUS_ACTIVE]);
+
+  if (args.createdAfter) {
+    query = query.gt("created_at", args.createdAfter);
+  }
+
+  const { data, error } = await query
     .order("last_active_at", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(INTERNAL_CALL_REQUEST_LOOKBACK_LIMIT);
@@ -388,6 +410,37 @@ async function fetchOpenInternalOpportunityCallRequestRows(args: {
   }
 
   return (data ?? []) as TalentCallRow[];
+}
+
+async function fetchTerminalInternalOpportunityCompanyDecisionRoleIds(args: {
+  admin: TalentAdminClient;
+  roleIds: string[];
+  userId: string;
+}) {
+  const roleIds = Array.from(new Set(args.roleIds.filter(Boolean)));
+  if (roleIds.length === 0) return new Set<string>();
+
+  const { data, error } = await args.admin
+    .from("talent_progress")
+    .select("role_id, metadata")
+    .eq("talent_id", args.userId)
+    .eq("kind", "org_stage_change")
+    .in("role_id", roleIds)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(
+      error.message ?? "Failed to read internal opportunity company decisions"
+    );
+  }
+
+  return new Set(
+    (data ?? []).flatMap((row) => {
+      return isTerminalInternalOpportunityCompanyDecision(row.metadata)
+        ? [row.role_id]
+        : [];
+    })
+  );
 }
 
 async function fetchCompletedInternalCallRequestForOpportunity(args: {
@@ -430,18 +483,37 @@ export async function fetchPendingInternalOpportunityCallRequest(args: {
 
 export async function fetchPendingInternalOpportunityCallRequests(args: {
   admin: TalentAdminClient;
+  now?: Date;
   userId: string;
 }) {
+  const nowMs = args.now?.getTime() ?? Date.now();
+  const createdAfter = new Date(
+    nowMs - INTERNAL_OPPORTUNITY_CALL_REQUEST_MAX_AGE_MS
+  ).toISOString();
   const rows = await fetchOpenInternalOpportunityCallRequestRows({
     admin: args.admin,
+    createdAfter,
     userId: args.userId,
   });
 
-  return rows
+  const freshRequests = rows
     .map((row) => serializeInternalOpportunityCallRequest(row))
     .filter(
       (request): request is InternalOpportunityCallRequest => request !== null
+    )
+    .filter((request) =>
+      isFreshInternalOpportunityCallRequest(request.createdAt, nowMs)
     );
+  const terminalRoleIds =
+    await fetchTerminalInternalOpportunityCompanyDecisionRoleIds({
+      admin: args.admin,
+      roleIds: freshRequests.map((request) => request.roleId),
+      userId: args.userId,
+    });
+
+  return freshRequests.filter(
+    (request) => !terminalRoleIds.has(request.roleId)
+  );
 }
 
 export async function fetchInternalOpportunityCallRequestById(args: {

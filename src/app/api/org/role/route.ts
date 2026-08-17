@@ -20,9 +20,11 @@ export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthenticatedUser(req);
     const body = (await req.json().catch(() => ({}))) as {
+      criteria?: unknown;
       description?: string | null;
       employmentTypes?: string[] | null;
       externalJdUrl?: string | null;
+      expectedCriteria?: unknown;
       isExpired?: boolean | null;
       locationText?: string | null;
       name?: string | null;
@@ -34,9 +36,11 @@ export async function PATCH(req: NextRequest) {
       workspaceId?: string;
     };
     const payload = await updateOrgRole({
+      criteria: body.criteria,
       description: body.description,
       employmentTypes: body.employmentTypes,
       externalJdUrl: body.externalJdUrl,
+      expectedCriteria: body.expectedCriteria,
       isExpired: body.isExpired,
       locationText: body.locationText,
       name: body.name,

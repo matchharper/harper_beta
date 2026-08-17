@@ -63,6 +63,7 @@ export type CareerChatPanelContextValue = {
   opportunityFeedbackFollowUpPending: boolean;
   opportunityFeedbackFollowUpTrigger: CareerOpportunityFeedbackFollowUpTrigger | null;
   opportunityRun: CareerOpportunityRun | null;
+  unlinkedOpportunityRuns?: CareerOpportunityRun[];
   opportunitySearchLocked: boolean;
   historyUpdatingOpportunityIds: string[];
   emailOnboardingToken?: string;

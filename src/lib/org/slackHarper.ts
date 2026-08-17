@@ -27,23 +27,31 @@ import {
   shouldRevokeSlackBotToken,
 } from "@/lib/org/slackWorkspaceRouting";
 import type { HarperSlackBlock } from "@/lib/org/slackChoiceButtons";
+import {
+  buildHarperSlackFileFallbackPrompt,
+  selectPendingHarperSlackFiles,
+  type HarperSlackFile,
+} from "@/lib/org/slackFiles";
 import { buildHarperSlackWelcomeMessage } from "@/lib/org/slackWelcome";
+import { stripSlackSentUsingAttribution } from "@/lib/org/slackMessageText";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { createSlackApiRequest } from "./slackApiRequest";
 
 const CALLBACK_PATH = "/api/org/slack/callback";
 const STATE_TTL_MS = 10 * 60 * 1000;
-const BOT_SCOPES = [
+const BOT_SCOPE_LIST = [
   "app_mentions:read",
   "channels:history",
   "channels:join",
   "channels:read",
   "chat:write",
+  "files:read",
   "groups:history",
   "groups:read",
   "users:read",
   "users:read.email",
-].join(",");
+] as const;
+const BOT_SCOPES = BOT_SCOPE_LIST.join(",");
 
 type OAuthState = {
   issuedAt: number;
@@ -57,6 +65,7 @@ type SlackApiResult = {
   access_token?: string;
   bot_user_id?: string;
   error?: string;
+  file?: HarperSlackFile;
   ok?: boolean;
   scope?: string;
   team?: { id?: string; name?: string };
@@ -65,11 +74,13 @@ type SlackApiResult = {
   has_more?: boolean;
   messages?: Array<{
     bot_id?: string;
+    files?: HarperSlackFile[];
     subtype?: string;
     text?: string;
     ts?: string;
     user?: string;
   }>;
+  permalink?: string;
   response_metadata?: { messages?: string[]; next_cursor?: string };
   ts?: string;
   user?: {
@@ -385,6 +396,19 @@ export async function getHarperSlackUserEmail(args: {
   return text(response.user?.profile?.email).toLowerCase() || null;
 }
 
+export async function getHarperSlackFileInfo(args: {
+  fileId: string;
+  token: string;
+}) {
+  const response = await slackApi<SlackApiResult>(args.token, "files.info", {
+    file: text(args.fileId),
+  });
+  if (!response.file) {
+    throw new HarperSlackError(502, "Slack 파일 정보를 받지 못했습니다.");
+  }
+  return response.file;
+}
+
 export async function openHarperSlackModal(args: {
   token: string;
   triggerId: string;
@@ -552,6 +576,7 @@ export async function getHarperSlackStatus(args: {
       availableChannels: [] as HarperSlackChannel[],
       channels: [] as HarperSlackChannel[],
       connected: false,
+      needsReinstall: false,
       teamId: null,
       teamName: null,
     };
@@ -596,6 +621,9 @@ export async function getHarperSlackStatus(args: {
     availableChannels,
     channels,
     connected: true,
+    needsReinstall: !["files:read", "users:read.email"].every((scope) =>
+      (Array.isArray(row.scopes) ? row.scopes : []).map(text).includes(scope)
+    ),
     teamId: row.slack_team_id,
     teamName: row.slack_team_name,
   };
@@ -716,6 +744,39 @@ export async function postHarperSlackMessage(args: {
   });
 }
 
+export async function getHarperSlackMessagePermalink(args: {
+  channelId: string;
+  messageTs: string;
+  token: string;
+}) {
+  const result = await slackApi<SlackApiResult>(
+    args.token,
+    "chat.getPermalink",
+    {
+      channel: args.channelId,
+      message_ts: args.messageTs,
+    }
+  );
+  const permalink = text(result.permalink);
+  if (!permalink) {
+    throw new HarperSlackError(502, "Slack 메시지 링크를 만들지 못했습니다.");
+  }
+  return permalink;
+}
+
+export async function postHarperSlackEphemeralMessage(args: {
+  channelId: string;
+  text: string;
+  token: string;
+  userId: string;
+}) {
+  return slackApi<SlackApiResult>(args.token, "chat.postEphemeral", {
+    channel: args.channelId,
+    text: args.text,
+    user: args.userId,
+  });
+}
+
 export async function updateHarperSlackMessage(args: {
   blocks: HarperSlackBlock[];
   channelId: string;
@@ -770,17 +831,20 @@ function slackClientMessageId(idempotencyKey: string, channelId: string) {
 
 async function ensureSlackConversation(args: {
   admin: ReturnType<typeof getSupabaseAdmin>;
+  roleId?: string | null;
   workspaceId: string;
 }) {
+  const roleId = text(args.roleId);
   const select =
     "id, company_workspace_id, role_id, title, last_message_at, last_message_id, summary_cursor_message_id, metadata, created_at, updated_at";
-  const { data: existing, error: existingError } = await (
-    args.admin.from("company_conversations" as any) as any
-  )
+  let existingQuery = (args.admin.from("company_conversations" as any) as any)
     .select(select)
-    .eq("company_workspace_id", args.workspaceId)
-    .is("role_id", null)
-    .maybeSingle();
+    .eq("company_workspace_id", args.workspaceId);
+  existingQuery = roleId
+    ? existingQuery.eq("role_id", roleId)
+    : existingQuery.is("role_id", null);
+  const { data: existing, error: existingError } =
+    await existingQuery.maybeSingle();
   if (existingError) throw existingError;
   if (existing) return existing as OrgAgentConversationRow;
 
@@ -791,21 +855,30 @@ async function ensureSlackConversation(args: {
     .insert({
       company_workspace_id: args.workspaceId,
       created_at: now,
-      metadata: { scope: "workspace" },
-      role_id: null,
+      metadata: roleId
+        ? {
+            confirmedAssigneeUserId: null,
+            confirmedSlackChannelIds: [],
+            pendingConfirmationMessageId: null,
+            phase: "collecting",
+            scope: "role_creation",
+          }
+        : { scope: "workspace" },
+      role_id: roleId || null,
+      title: roleId ? "새 역할 등록" : null,
       updated_at: now,
     })
     .select(select)
     .single();
   if (!error) return data as OrgAgentConversationRow;
   if ((error as { code?: string }).code !== "23505") throw error;
-  const { data: raced, error: racedError } = await (
-    args.admin.from("company_conversations" as any) as any
-  )
+  let racedQuery = (args.admin.from("company_conversations" as any) as any)
     .select(select)
-    .eq("company_workspace_id", args.workspaceId)
-    .is("role_id", null)
-    .single();
+    .eq("company_workspace_id", args.workspaceId);
+  racedQuery = roleId
+    ? racedQuery.eq("role_id", roleId)
+    : racedQuery.is("role_id", null);
+  const { data: raced, error: racedError } = await racedQuery.single();
   if (racedError) throw racedError;
   return raced as OrgAgentConversationRow;
 }
@@ -868,6 +941,7 @@ export async function syncHarperSlackThreadContext(args: {
   channelId: string;
   currentMessageTs: string;
   currentSlackUserId?: string | null;
+  roleId?: string | null;
   scopes?: unknown;
   threadId: string;
   threadTs: string;
@@ -877,8 +951,10 @@ export async function syncHarperSlackThreadContext(args: {
   const admin = getSupabaseAdmin();
   const conversation = await ensureSlackConversation({
     admin,
+    roleId: args.roleId,
     workspaceId: args.workspaceId,
   });
+  const roleId = text(args.roleId) || null;
   const replyPage = await slackApi<SlackApiResult>(
     args.token,
     "conversations.replies",
@@ -888,8 +964,16 @@ export async function syncHarperSlackThreadContext(args: {
       ts: args.threadTs,
     }
   );
-  const slackMessages = (replyPage.messages ?? []).filter(
-    (message) => text(message.ts) && text(message.text)
+  const allSlackMessages = replyPage.messages ?? [];
+  const pendingUserFiles = selectPendingHarperSlackFiles({
+    botUserId: args.botUserId,
+    currentMessageTs: args.currentMessageTs,
+    messages: allSlackMessages,
+  });
+  const slackMessages = allSlackMessages.filter(
+    (message) =>
+      text(message.ts) &&
+      (text(message.text) || (message.files ?? []).length > 0)
   );
   const { data: existingData, error: existingError } = await (
     admin.from("company_messages" as any) as any
@@ -948,9 +1032,12 @@ export async function syncHarperSlackThreadContext(args: {
       return [];
     }
     const userId = text(message.user);
-    const content = text(message.text)
-      .replaceAll(`<@${args.botUserId}>`, "")
-      .trim();
+    const content = buildHarperSlackFileFallbackPrompt(
+      stripSlackSentUsingAttribution(
+        text(message.text).replaceAll(`<@${args.botUserId}>`, "")
+      ),
+      message.files
+    );
     if (!content) return [];
     return [
       {
@@ -969,7 +1056,7 @@ export async function syncHarperSlackThreadContext(args: {
         },
         model: null,
         role: userId === args.botUserId ? "assistant" : "user",
-        role_id: null,
+        role_id: roleId,
         slack_message_ts: messageTs,
         slack_thread_id: args.threadId,
         slack_user_id: userId || null,
@@ -990,12 +1077,14 @@ export async function syncHarperSlackThreadContext(args: {
     historyTruncated: Boolean(
       replyPage.has_more || text(replyPage.response_metadata?.next_cursor)
     ),
+    pendingUserFiles,
     syncedMessageCount: newRows.length,
   };
 }
 
 export async function storeHarperSlackThreadEvent(args: {
   content: string;
+  roleId?: string | null;
   slackMessageTs: string;
   slackUserId?: string | null;
   threadId: string;
@@ -1004,6 +1093,7 @@ export async function storeHarperSlackThreadEvent(args: {
   const admin = getSupabaseAdmin();
   const conversation = await ensureSlackConversation({
     admin,
+    roleId: args.roleId,
     workspaceId: args.workspaceId,
   });
   try {
@@ -1014,6 +1104,7 @@ export async function storeHarperSlackThreadEvent(args: {
       messageType: "slack",
       metadata: { source: "slack_thread_event" },
       role: "user",
+      roleId: text(args.roleId) || null,
       slackMessageTs: text(args.slackMessageTs),
       slackThreadId: args.threadId,
       slackUserId: text(args.slackUserId) || null,

@@ -14,6 +14,11 @@ const MIGRATIONS = [
   "20260805070000_reassociate_company_workspace_db.sql",
   "20260806020000_slack_agent_worker_routing.sql",
   "20260806070000_coalesce_slack_thread_replies.sql",
+  "20260811100000_company_internal_role_criteria.sql",
+  "20260811110000_company_internal_role_request_only.sql",
+  "20260812140000_company_internal_roles_is_auto_default_true.sql",
+  "20260814130000_slack_company_agent_file_attachments.sql",
+  "20260814210000_allow_zero_to_six_company_internal_role_criteria.sql",
 ] as const;
 const WORKSPACE_SCOPED_TALENT_REQUEST_MIGRATION =
   "20260806010000_allow_workspace_scoped_company_talent_requests.sql";
@@ -27,6 +32,14 @@ const TALENT_REQUEST_DELIVERY_CONSISTENCY_MIGRATION =
   "20260807110000_company_talent_request_delivery_consistency.sql";
 const TALENT_REQUEST_IMMEDIATE_ENQUEUE_MIGRATION =
   "20260807120000_company_talent_request_immediate_enqueue.sql";
+const COMPANY_ROLE_RECURRING_MATCHING_MIGRATION =
+  "20260812150000_company_role_behavior_context_matching.sql";
+const COMPANY_INTERNAL_ROLE_MATCHING_LIFECYCLE_MIGRATION =
+  "20260814100000_company_internal_role_matching_lifecycle.sql";
+const COMPANY_CONTEXT_RUN_QUEUE_MIGRATION =
+  "20260814180000_company_context_run_queue.sql";
+const COMPANY_BEHAVIOR_CONTEXT_CURRENT_MIGRATION =
+  "20260814200000_company_behavior_contexts_role_current.sql";
 
 const IDS = {
   workspaceA: "00000000-0000-4000-8000-000000000001",
@@ -39,6 +52,8 @@ const IDS = {
   externalRole: "00000000-0000-4000-8000-000000000105",
   otherWorkspaceRole: "00000000-0000-4000-8000-000000000106",
   oversizedRole: "00000000-0000-4000-8000-000000000107",
+  recurringAutoRole: "00000000-0000-4000-8000-000000000108",
+  recurringLegacyPausedRole: "00000000-0000-4000-8000-000000000109",
   conversation: "00000000-0000-4000-8000-000000000201",
   slackChannel: "00000000-0000-4000-8000-000000000301",
   slackThread: "00000000-0000-4000-8000-000000000302",
@@ -114,6 +129,7 @@ create table public.company_roles (
   source_job_id text,
   posted_at timestamptz,
   expires_at timestamptz,
+  expired_at timestamptz,
   is_expired boolean not null default false,
   opportunity_search_tsv tsvector,
   created_at timestamptz not null default now(),
@@ -139,10 +155,12 @@ create table public.company_internal_roles (
   request text,
   considerations jsonb not null default '{}'::jsonb,
   questions jsonb,
-  is_auto boolean not null default false,
-  is_require_linkedin boolean,
-  is_require_resume boolean,
-  created_at timestamptz not null default now(),
+      is_auto boolean not null default false,
+      is_require_linkedin boolean,
+      is_require_resume boolean,
+      max_peding_talents integer,
+      memory text,
+      created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
@@ -665,18 +683,151 @@ async function applyRemainingMigrations(sql: Db) {
   await applyMigration(sql, MIGRATIONS[5]);
   await applyMigration(sql, MIGRATIONS[6]);
   await applyMigration(sql, MIGRATIONS[7]);
+  await applyMigration(sql, MIGRATIONS[8]);
+  await applyMigration(sql, MIGRATIONS[9]);
+  await applyMigration(sql, MIGRATIONS[10]);
+  await applyMigration(sql, MIGRATIONS[11]);
+  await applyMigration(sql, MIGRATIONS[12]);
+  const isAutoColumn = firstRow(
+    await sql`
+      select column_default, is_nullable
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'company_internal_roles'
+        and column_name = 'is_auto'
+    `
+  );
+  assert(
+    isAutoColumn.column_default === "true" && isAutoColumn.is_nullable === "NO",
+    "company_internal_roles.is_auto does not default to true"
+  );
+  assert(
+    value<boolean>(
+      await sql`
+        select is_auto
+        from public.company_internal_roles
+        where role_id = ${IDS.legacyRole}::uuid
+      `,
+      "is_auto"
+    ) === false,
+    "migration overwrote an existing explicit is_auto=false value"
+  );
+  logPass("is_auto defaults to true without changing existing opt-outs");
+
+  const oneCriterion = [
+    { name: "Ownership", criteria: "모호한 문제를 끝까지 맡은 경험" },
+  ];
+  await sql`
+    select public.update_company_internal_role_criteria_v1(
+      ${IDS.workspaceA}::uuid,
+      ${IDS.legacyRole}::uuid,
+      '[]'::jsonb,
+      ${JSON.stringify(oneCriterion)}::jsonb,
+      'DB Tester · 역할 평가 기준 1개 저장',
+      'website'
+    )
+  `;
+  await sql`
+    select public.update_company_internal_role_criteria_v1(
+      ${IDS.workspaceA}::uuid,
+      ${IDS.legacyRole}::uuid,
+      ${JSON.stringify(oneCriterion)}::jsonb,
+      '[]'::jsonb,
+      'DB Tester · 역할 평가 기준 전체 삭제',
+      'website'
+    )
+  `;
+  assert(
+    JSON.stringify(
+      value<unknown>(
+        await sql`
+          select criteria
+          from public.company_internal_roles
+          where role_id = ${IDS.legacyRole}::uuid
+        `,
+        "criteria"
+      )
+    ) === "[]",
+    "role criteria RPC did not allow a one-item list and then an empty list"
+  );
+  await expectDbError(
+    "role criteria upper bound",
+    () => sql`
+      select public.update_company_internal_role_criteria_v1(
+        ${IDS.workspaceA}::uuid,
+        ${IDS.legacyRole}::uuid,
+        '[]'::jsonb,
+        ${JSON.stringify(
+          Array.from({ length: 7 }, (_, index) => ({
+            name: `Criterion ${index + 1}`,
+            criteria: "상세 기준",
+          }))
+        )}::jsonb,
+        'DB Tester · 역할 평가 기준 7개 저장',
+        'website'
+      )
+    `,
+    /zero to six items/i
+  );
+  logPass("role criteria RPC accepts zero to six complete items");
+
+  await sql`drop trigger if exists company_roles_test_search on public.company_roles`;
+  await sql`drop function if exists public.test_refresh_company_role_search()`;
+  await sql`alter table public.company_roles drop column request`;
 }
 
 async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
   await sql.unsafe(`
     create table public.talent_users (
-      user_id uuid primary key
+      user_id uuid primary key,
+      email text,
+      headline text,
+      bio text,
+      resume_text text,
+      current_location text,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+    create table public.talent_setting (
+      user_id uuid primary key references public.talent_users(user_id),
+      is_onboarding_done boolean not null default true,
+      profile_visibility text not null default 'exceptional_only',
+      blocked_companies text[] not null default '{}'
+    );
+    create table public.talent_experiences (
+      id uuid primary key default gen_random_uuid(),
+      talent_id uuid not null references public.talent_users(user_id),
+      role text,
+      company_name text,
+      start_date date,
+      end_date date,
+      description text
     );
     create table public.talent_opportunity_recommendation (
       id uuid primary key,
       role_id uuid not null references public.company_roles(role_id),
       talent_id uuid not null references public.talent_users(user_id),
       updated_at timestamptz not null default now()
+    );
+    create table public.talent_opportunity_fit (
+      id uuid primary key default gen_random_uuid(),
+      talent_id uuid not null references public.talent_users(user_id),
+      opportunity_id uuid not null references public.company_roles(role_id),
+      score integer not null,
+      label text not null,
+      reason text not null default '',
+      reevaluation_criteria jsonb,
+      human_label text,
+      human_reason text,
+      human_reviewed_by text,
+      human_reviewed_at timestamptz,
+      last_evaluated_at timestamptz not null default now(),
+      reevaluation_checked_at timestamptz,
+      created_at timestamptz not null default now(),
+      kind text,
+      company_criteria_evaluations jsonb,
+      behavior_context_version bigint,
+      unique(talent_id, opportunity_id)
     );
     create table public.company_talent_requests (
       id uuid primary key default gen_random_uuid(),
@@ -743,6 +894,10 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
   `);
   await sql`
     insert into public.talent_users(user_id)
+    values (${IDS.talent}::uuid)
+  `;
+  await sql`
+    insert into public.talent_setting(user_id)
     values (${IDS.talent}::uuid)
   `;
   await sql`
@@ -1376,6 +1531,133 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
   );
 }
 
+async function testCompanyRoleRecurringMatchingMigration(sql: Db) {
+  await applyMigration(sql, COMPANY_ROLE_RECURRING_MATCHING_MIGRATION);
+  await applyMigration(sql, COMPANY_INTERNAL_ROLE_MATCHING_LIFECYCLE_MIGRATION);
+  await applyMigration(sql, COMPANY_CONTEXT_RUN_QUEUE_MIGRATION);
+  await applyMigration(sql, COMPANY_BEHAVIOR_CONTEXT_CURRENT_MIGRATION);
+
+  const schema = firstRow(
+    await sql`
+      select
+        to_regclass('public.company_behavior_contexts') is not null as has_role_context,
+        to_regclass('public.company_role_behavior_contexts') is null as removed_legacy_role_context,
+        (select count(*) = 2
+         from information_schema.columns
+         where table_schema = 'public' and table_name = 'company_behavior_contexts') as has_two_context_columns,
+        exists (
+          select 1
+          from information_schema.columns
+          where table_schema = 'public'
+            and table_name = 'company_behavior_contexts'
+            and column_name = 'role_id'
+        ) as context_is_role_scoped,
+        to_regclass('public.company_context_runs') is not null as has_context_run_queue,
+        (select count(*) = 6
+         from information_schema.columns
+         where table_schema = 'public' and table_name = 'company_context_runs') as has_six_queue_columns,
+        exists (
+          select 1
+          from information_schema.columns
+          where table_schema = 'public'
+            and table_name = 'company_internal_roles'
+            and column_name = 'max_pending_talents'
+        ) as has_correct_pending_limit,
+        exists (
+          select 1
+          from information_schema.columns
+          where table_schema = 'public'
+            and table_name = 'talent_opportunity_fit'
+            and column_name = 'company_side_evaluation_metadata'
+        ) as has_fit_metadata,
+        exists (
+          select 1
+          from information_schema.columns
+          where table_schema = 'public'
+            and table_name = 'company_internal_roles'
+            and column_name = 'role_status_changed_at'
+        ) as has_internal_role_status_time,
+        not exists (
+          select 1
+          from information_schema.columns
+          where table_schema = 'public'
+            and table_name = 'company_internal_roles'
+            and column_name = 'last_long_inactive_reactivated_at'
+        ) as removed_long_resume_time,
+        not exists (
+          select 1
+          from information_schema.columns
+          where table_schema = 'public'
+            and table_name = 'company_internal_roles'
+            and column_name = 'last_auto_enabled_at'
+        ) as removed_auto_enabled_time
+    `
+  );
+  assert(
+    Object.values(schema).every((present) => present === true),
+    "recurring company-role matching schema is incomplete"
+  );
+
+  await sql`
+    insert into public.company_roles(
+      role_id, company_workspace_id, name, source_type, status, is_expired
+    ) values (
+      ${IDS.recurringLegacyPausedRole}::uuid,
+      ${IDS.workspaceA}::uuid,
+      'Lifecycle Tracking Role',
+      'internal',
+      'paused',
+      false
+    )
+  `;
+  await sql`
+    insert into public.company_internal_roles(
+      role_id, request, is_auto, max_pending_talents, role_status_changed_at
+    ) values (
+      ${IDS.recurringLegacyPausedRole}::uuid,
+      'Lifecycle test',
+      true,
+      5,
+      timezone('utc', now()) - interval '8 days'
+    )
+  `;
+  await sql`
+    update public.company_context_runs
+    set status = 'canceled', result = result || '{"testCleanup":true}'::jsonb
+    where role_id = ${IDS.recurringLegacyPausedRole}::uuid
+      and status = 'queued'
+  `;
+  await sql`
+    update public.company_roles
+    set status = 'ended'
+    where role_id = ${IDS.recurringLegacyPausedRole}::uuid
+  `;
+  await sql`
+    update public.company_roles
+    set status = 'active'
+    where role_id = ${IDS.recurringLegacyPausedRole}::uuid
+  `;
+  const resumed = firstRow(
+    await sql`
+      select internal_role.role_status_changed_at, run.trigger_reason, run.status
+      from public.company_internal_roles internal_role
+      join public.company_context_runs run on run.role_id = internal_role.role_id
+      where internal_role.role_id = ${IDS.recurringLegacyPausedRole}::uuid
+      order by run.available_at desc, run.id desc
+      limit 1
+    `
+  );
+  assert(
+    resumed.role_status_changed_at != null &&
+      resumed.trigger_reason === "reactivated_after_7d" &&
+      resumed.status === "queued",
+    "a role reactivated after seven days was not queued"
+  );
+  logPass(
+    "company context runs use one role context, a six-column DB queue, and seven-day reactivation"
+  );
+}
+
 async function testInternalRoleChildUpdateLockOrder(sql: Db, lockHolder: Db) {
   let holderTransactionOpen = false;
   try {
@@ -1390,19 +1672,20 @@ async function testInternalRoleChildUpdateLockOrder(sql: Db, lockHolder: Db) {
     await sql`select set_config('lock_timeout', '200ms', false)`;
     await sql`
       update public.company_internal_roles
-      set is_auto = true
+      set questions = '{"lockOrder":true}'::jsonb
       where role_id = ${IDS.legacyRole}::uuid
     `;
     await lockHolder.unsafe("rollback");
     holderTransactionOpen = false;
     assert(
-      value<boolean>(
+      value<string>(
         await sql`
-          select is_auto from public.company_internal_roles
+          select questions->>'lockOrder' as lock_order
+          from public.company_internal_roles
           where role_id = ${IDS.legacyRole}::uuid
         `,
-        "is_auto"
-      ) === true,
+        "lock_order"
+      ) === "true",
       "ordinary internal role child update did not complete under a parent lock"
     );
     logPass(
@@ -1415,7 +1698,7 @@ async function testInternalRoleChildUpdateLockOrder(sql: Db, lockHolder: Db) {
     await sql`select set_config('lock_timeout', '0', false)`;
     await sql`
       update public.company_internal_roles
-      set is_auto = false
+      set questions = null
       where role_id = ${IDS.legacyRole}::uuid
     `;
   }
@@ -1637,17 +1920,11 @@ async function countEvents(sql: Db) {
 }
 
 async function testApplyRpcAndGuard(sql: Db, lockHolder: Db) {
-  await sql`select set_config('harper.company_role_request_guard_enabled', 'on', false)`;
-  await expectDbError(
-    "legacy direct-write guard",
-    () => sql`
-      update public.company_roles
-      set request = 'must fail'
-      where role_id = ${IDS.legacyRole}::uuid
-    `,
-    /direct writes to company_roles\.request are disabled/i
-  );
-  logPass("legacy direct-write guard can be activated after old writers drain");
+  await sql`
+    update public.company_internal_roles
+    set request = 'canonical request before RPC'
+    where role_id = ${IDS.legacyRole}::uuid
+  `;
 
   const changes = [
     {
@@ -1660,7 +1937,7 @@ async function testApplyRpcAndGuard(sql: Db, lockHolder: Db) {
     {
       key: "role_request",
       role_id: IDS.legacyRole,
-      expected: "old writer update",
+      expected: "canonical request before RPC",
       value:
         "## Hard constraints\n\n- Backend experience\n\n## Preferred criteria\n\n- Startup experience",
     },
@@ -1684,7 +1961,6 @@ async function testApplyRpcAndGuard(sql: Db, lockHolder: Db) {
     select
       workspace.pitch,
       company.founded_year,
-      role.request as legacy_request,
       internal_role.request as internal_request,
       role.opportunity_search_tsv @@ plainto_tsquery('simple', 'Backend') as search_updated
     from public.company_workspace workspace
@@ -1700,19 +1976,19 @@ async function testApplyRpcAndGuard(sql: Db, lockHolder: Db) {
   );
   assert(state.founded_year === 2021, "company_db field was not updated");
   assert(
-    state.legacy_request === state.internal_request,
-    "role request mirror drifted"
+    Boolean(state.internal_request),
+    "canonical role request was not updated"
   );
   assert(
     state.search_updated === true,
-    "legacy search vector did not observe the mirrored request"
+    "role search vector did not observe the canonical request"
   );
   assert(
     (await countEvents(sql)) === 1,
     "successful batch did not write exactly one event"
   );
   logPass(
-    "apply RPC atomically updates flat fields, request mirror, search, and one event"
+    "apply RPC atomically updates flat fields, canonical request, search, and one event"
   );
 
   const noOpChanges = [
@@ -1945,7 +2221,7 @@ async function testApplyRpcAndGuard(sql: Db, lockHolder: Db) {
     {
       key: "role_request",
       role_id: IDS.externalRole,
-      expected: "external request",
+      expected: null,
       value: convertedRequest,
     },
     {
@@ -2002,7 +2278,6 @@ async function testApplyRpcAndGuard(sql: Db, lockHolder: Db) {
            role.source_job_id,
            to_char(role.posted_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as posted_at,
            to_char(role.expires_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as expires_at,
-           role.request as legacy_request,
            internal_role.request as internal_request
     from public.company_workspace workspace
     join public.company_roles role on role.role_id = ${IDS.externalRole}::uuid
@@ -2018,7 +2293,6 @@ async function testApplyRpcAndGuard(sql: Db, lockHolder: Db) {
       hiddenState.source_job_id === "job-123" &&
       hiddenState.posted_at === "2026-08-01T00:00:00Z" &&
       hiddenState.expires_at === "2026-09-01T00:00:00Z" &&
-      hiddenState.legacy_request === convertedRequest &&
       hiddenState.internal_request === convertedRequest,
     "external role conversion did not converge source, request, and site metadata"
   );
@@ -2228,13 +2502,12 @@ async function testApplyRpcAndGuard(sql: Db, lockHolder: Db) {
 
   const sourceTransitionEventsBefore = await countEvents(sql);
   const canonicalBeforeExternalization =
-    "Canonical request despite a stale legacy mirror";
+    "Canonical request before externalization";
   await sql`
     update public.company_internal_roles
     set request = ${canonicalBeforeExternalization}
     where role_id = ${IDS.externalRole}::uuid
   `;
-  const externalRequest = "Website-owned external request";
   const externalizedBatch = rpcResult(
     await sql`
       select public.apply_company_data_changes_v1(
@@ -2246,12 +2519,6 @@ async function testApplyRpcAndGuard(sql: Db, lockHolder: Db) {
             expected: "internal",
             value: "external",
           },
-          {
-            key: "role_request",
-            role_id: IDS.externalRole,
-            expected: canonicalBeforeExternalization,
-            value: externalRequest,
-          },
         ])}::jsonb,
         'website',
         'DB Tester · role externalization'
@@ -2260,7 +2527,7 @@ async function testApplyRpcAndGuard(sql: Db, lockHolder: Db) {
   );
   const externalizedState = firstRow(
     await sql`
-      select role.source_type, role.request,
+      select role.source_type,
              exists (
                select 1 from public.company_internal_roles internal_role
                where internal_role.role_id = role.role_id
@@ -2271,15 +2538,14 @@ async function testApplyRpcAndGuard(sql: Db, lockHolder: Db) {
   );
   assert(
     externalizedBatch.status === "updated" &&
-      externalizedBatch.changed_count === 2 &&
+      externalizedBatch.changed_count === 1 &&
       externalizedState.source_type === "external" &&
-      externalizedState.request === externalRequest &&
       externalizedState.has_extension === false,
-    "internal to external batch lost the revised legacy request or retained its extension"
+    "internal to external transition retained canonical internal-role data"
   );
 
   await expectDbError(
-    "chat cannot edit an external role request",
+    "external roles cannot store requests",
     () => sql`
       select public.apply_company_data_changes_v1(
         ${IDS.workspaceA}::uuid,
@@ -2287,38 +2553,15 @@ async function testApplyRpcAndGuard(sql: Db, lockHolder: Db) {
           {
             key: "role_request",
             role_id: IDS.externalRole,
-            expected: externalRequest,
+            expected: null,
             value: "Chat must not write this",
           },
         ])}::jsonb,
-        'chat',
-        'DB Tester · invalid external chat request'
+        'website',
+        'DB Tester · invalid external request'
       )
     `,
     /final active internal role/i
-  );
-
-  const revisedExternalRequest = "Revised website external request";
-  const revisedExternal = rpcResult(
-    await sql`
-      select public.apply_company_data_changes_v1(
-        ${IDS.workspaceA}::uuid,
-        ${JSON.stringify([
-          {
-            key: "role_request",
-            role_id: IDS.externalRole,
-            expected: externalRequest,
-            value: revisedExternalRequest,
-          },
-        ])}::jsonb,
-        'website',
-        'DB Tester · external request edit'
-      ) as result
-    `
-  );
-  assert(
-    revisedExternal.status === "updated" && revisedExternal.changed_count === 1,
-    "stable external website request update failed"
   );
 
   const reinternalizedRequest = "Reinternalized canonical request";
@@ -2336,7 +2579,7 @@ async function testApplyRpcAndGuard(sql: Db, lockHolder: Db) {
           {
             key: "role_request",
             role_id: IDS.externalRole,
-            expected: revisedExternalRequest,
+            expected: null,
             value: reinternalizedRequest,
           },
         ])}::jsonb,
@@ -2348,7 +2591,6 @@ async function testApplyRpcAndGuard(sql: Db, lockHolder: Db) {
   const reinternalizedState = firstRow(
     await sql`
       select role.source_type,
-             role.request as legacy_request,
              internal_role.request as internal_request
       from public.company_roles role
       join public.company_internal_roles internal_role
@@ -2360,14 +2602,11 @@ async function testApplyRpcAndGuard(sql: Db, lockHolder: Db) {
     reinternalizedBatch.status === "updated" &&
       reinternalizedBatch.changed_count === 2 &&
       reinternalizedState.source_type === "internal" &&
-      reinternalizedState.legacy_request === reinternalizedRequest &&
       reinternalizedState.internal_request === reinternalizedRequest &&
-      (await countEvents(sql)) === sourceTransitionEventsBefore + 3,
-    "external to internal batch did not seed and revise the canonical request atomically"
+      (await countEvents(sql)) === sourceTransitionEventsBefore + 2,
+    "external to internal batch did not create and update the canonical request atomically"
   );
-  logPass(
-    "website role request semantics follow final source across both transition directions"
-  );
+  logPass("role requests exist only while the final role source is internal");
 
   const originalCompanyDbId = Number(
     value<number>(
@@ -3020,7 +3259,6 @@ async function testChatProposalLifecycle(sql: Db) {
     select
       proposal.status,
       proposal.payload,
-      role.request as legacy,
       internal_role.request as internal
     from public.company_agent_update_proposals proposal
     join public.company_roles role on role.role_id = ${IDS.legacyRole}::uuid
@@ -3033,9 +3271,8 @@ async function testChatProposalLifecycle(sql: Db) {
     "applied proposal retained its exact payload"
   );
   assert(
-    appliedState.legacy === finalRequest &&
-      appliedState.internal === finalRequest,
-    "proposal apply did not mirror request"
+    appliedState.internal === finalRequest,
+    "proposal apply did not update the canonical request"
   );
   logPass(
     "chat proposal preserves message metadata and applies exact stored changes once"
@@ -3327,10 +3564,26 @@ async function enqueueSlackReplyJob(
   args: {
     eventId: string;
     messageTs: string;
+    files?: Array<{ id: string; mimetype: string; name: string; size: number }>;
     prompt: string;
     triggerKind: "mention" | "thread_reply";
   }
 ) {
+  if (args.files) {
+    return rpcResult(
+      await sql`
+        select public.enqueue_slack_reply_job_v2(
+          ${args.eventId},
+          ${IDS.slackBatchThread}::uuid,
+          ${args.triggerKind},
+          ${args.messageTs},
+          'U_BATCH',
+          ${args.prompt},
+          ${JSON.stringify(args.files)}::jsonb
+        ) as result
+      `
+    );
+  }
   return rpcResult(
     await sql`
       select public.enqueue_slack_reply_job_v1(
@@ -3371,6 +3624,14 @@ async function testSlackThreadReplyCoalescing(sql: Db) {
 
   const first = await enqueueSlackReplyJob(sql, {
     eventId: "Ev_BATCH_1",
+    files: [
+      {
+        id: "F_BATCH_1",
+        mimetype: "application/pdf",
+        name: "first.pdf",
+        size: 100,
+      },
+    ],
     messageTs: "1700000101.000001",
     prompt: "첫 번째 질문",
     triggerKind: "mention",
@@ -3389,13 +3650,21 @@ async function testSlackThreadReplyCoalescing(sql: Db) {
   });
   const third = await enqueueSlackReplyJob(sql, {
     eventId: "Ev_BATCH_3",
+    files: [
+      {
+        id: "F_BATCH_3",
+        mimetype: "text/plain",
+        name: "third.txt",
+        size: 50,
+      },
+    ],
     messageTs: "1700000103.000001",
     prompt: "세 번째 질문",
     triggerKind: "thread_reply",
   });
   const rows = await sql`
-    select id::text, status, last_error, prompt, batched_prompt, trigger_kind,
-           locked_at, locked_by
+    select id::text, status, last_error, prompt, batched_prompt,
+           batched_slack_files, trigger_kind, locked_at, locked_by
     from public.slack_reply_jobs
     where thread_id = ${IDS.slackBatchThread}::uuid
     order by slack_message_ts
@@ -3418,6 +3687,24 @@ async function testSlackThreadReplyCoalescing(sql: Db) {
         "첫 번째 질문\n\n두 번째 질문\n\n세 번째 질문" &&
       rows[2]?.trigger_kind === "mention",
     "Slack thread messages were not coalesced into one mention-aware prompt"
+  );
+  assert(
+    JSON.stringify(rows[2]?.batched_slack_files) ===
+      JSON.stringify([
+        {
+          id: "F_BATCH_1",
+          mimetype: "application/pdf",
+          name: "first.pdf",
+          size: 100,
+        },
+        {
+          id: "F_BATCH_3",
+          mimetype: "text/plain",
+          name: "third.txt",
+          size: 50,
+        },
+      ]),
+    "Slack file metadata was not preserved across coalesced messages"
   );
   assert(
     second.superseded_job_id === first.job_id &&
@@ -3948,6 +4235,7 @@ async function run() {
     await testRequestMigration(testDb, notices);
     await applyRemainingMigrations(testDb);
     await testWorkspaceScopedCompanyTalentRequest(testDb);
+    await testCompanyRoleRecurringMatchingMigration(testDb);
     await testMemoryConstraints(testDb, lockHolderDb);
     await testRlsAndGrants(testDb);
     await testApplyRpcAndGuard(testDb, lockHolderDb);

@@ -1,4 +1,5 @@
 import { runWebSearch } from "@/lib/tools/webSearch";
+import type { ExaSearchClient } from "@/lib/tools/exaClient";
 import { openUrlWithDocumentsCache } from "@/lib/talentOnboarding/openUrlTool";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 
@@ -20,8 +21,8 @@ export const WEB_SEARCH_TOOL_DEFINITION = {
         maxResults: {
           type: "integer",
           minimum: 1,
-          maximum: 5,
-          default: 5,
+          maximum: 10,
+          default: 10,
           description: "Maximum number of results to inspect.",
         },
       },
@@ -58,7 +59,11 @@ export const OPEN_URL_TOOL_DEFINITION = {
 
 export async function executeSharedWebSearch(
   input: Record<string, unknown>,
-  options?: { inputError?: SharedToolInputErrorFactory }
+  options: {
+    admin: TalentAdminClient;
+    exa?: ExaSearchClient;
+    inputError?: SharedToolInputErrorFactory;
+  }
 ) {
   const query = String(input.query ?? "").trim();
   if (!query) {
@@ -70,18 +75,21 @@ export async function executeSharedWebSearch(
       ? input.maxResults
       : Number.parseInt(String(input.maxResults ?? ""), 10);
   const response = await runWebSearch({
-    maxResults: Number.isFinite(parsed) ? parsed : 5,
+    admin: options.admin,
+    exa: options.exa,
+    maxResults: Number.isFinite(parsed) ? parsed : 10,
     query,
   });
   return {
     query: response.query,
     resultCount: response.results.length,
     results: response.results.map((result, index) => ({
+      ...(result.author ? { author: result.author } : {}),
+      highlights: result.highlights,
+      ...(result.publishedDate
+        ? { publishedDate: result.publishedDate }
+        : {}),
       rank: index + 1,
-      snippet:
-        result.snippet.length > 280
-          ? `${result.snippet.slice(0, 280)}...`
-          : result.snippet,
       title: result.title,
       url: result.url,
     })),
@@ -90,7 +98,6 @@ export async function executeSharedWebSearch(
 
 export async function executeSharedOpenUrl(args: {
   admin: TalentAdminClient;
-  enableLinkedinApify?: boolean;
   input: Record<string, unknown>;
   inputError?: SharedToolInputErrorFactory;
 }) {
@@ -101,7 +108,6 @@ export async function executeSharedOpenUrl(args: {
   }
   return openUrlWithDocumentsCache({
     admin: args.admin,
-    enableLinkedinApify: args.enableLinkedinApify,
     maxMarkdownChars: args.input.maxMarkdownChars,
     url,
   });

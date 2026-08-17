@@ -6,6 +6,10 @@ import type {
   SlackTalentReviewExtra,
 } from "@/lib/org/slackTalentReviewView";
 import { orderedSlackTalentReviewCandidates } from "@/lib/org/slackTalentReviewSource";
+import {
+  findHarperSlackWorkspaceMember,
+  type HarperSlackWorkspaceMember,
+} from "@/lib/org/slackMemberAccess";
 
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
 
@@ -15,10 +19,10 @@ export type SlackTalentReviewSource = {
   workspaceId: string;
 };
 
-export type SlackTalentReviewMember = {
-  companyUserId: string;
-  email: string;
-};
+export type SlackTalentReviewMember = Pick<
+  HarperSlackWorkspaceMember,
+  "canManageCandidates" | "companyUserId" | "email"
+>;
 
 export type SlackTalentReviewDecisionMember = {
   email: string;
@@ -126,36 +130,7 @@ export async function findSlackTalentReviewMember(args: {
   email: string;
   workspaceId: string;
 }): Promise<SlackTalentReviewMember | null> {
-  const admin = getSupabaseAdmin();
-  const normalizedEmail = clean(args.email).toLowerCase();
-  if (!normalizedEmail) return null;
-  const { data: membershipData, error: membershipError } = await (
-    admin.from("company_user_workspace" as any) as any
-  )
-    .select("company_user_id")
-    .eq("company_workspace_id", args.workspaceId);
-  if (membershipError) throw membershipError;
-  const companyUserIds = Array.from(
-    new Set(
-      (membershipData ?? [])
-        .map((row: { company_user_id?: unknown }) => clean(row.company_user_id))
-        .filter(Boolean)
-    )
-  );
-  if (companyUserIds.length === 0) return null;
-  const { data: userData, error: userError } = await (
-    admin.from("company_users" as any) as any
-  )
-    .select("user_id, email")
-    .in("user_id", companyUserIds);
-  if (userError) throw userError;
-  const user = (userData ?? []).find(
-    (row: { email?: unknown }) =>
-      clean(row.email).toLowerCase() === normalizedEmail
-  ) as { email?: unknown; user_id?: unknown } | undefined;
-  const companyUserId = clean(user?.user_id);
-  if (!companyUserId) return null;
-  return { companyUserId, email: normalizedEmail };
+  return findHarperSlackWorkspaceMember(args);
 }
 
 function extraItems(value: unknown): unknown[] {
@@ -225,6 +200,7 @@ export async function loadSlackTalentReviewCandidate(args: {
 
   const [
     talentResult,
+    recommendationResult,
     experiencesResult,
     educationsResult,
     extrasResult,
@@ -237,6 +213,18 @@ export async function loadSlackTalentReviewCandidate(args: {
       )
       .eq("user_id", args.candidate.talentId)
       .maybeSingle(),
+    (() => {
+      let query = (
+        admin.from("talent_opportunity_recommendation" as any) as any
+      )
+        .select("id")
+        .eq("talent_id", args.candidate.talentId)
+        .eq("role_id", args.candidate.roleId);
+      query = args.candidate.recommendationId
+        ? query.eq("id", args.candidate.recommendationId)
+        : query.order("recommended_at", { ascending: false }).limit(1);
+      return query.maybeSingle();
+    })(),
     (admin.from("talent_experiences" as any) as any)
       .select(
         "company_logo, company_location, company_name, description, employment_type, end_date, memo, role, start_date"
@@ -264,6 +252,7 @@ export async function loadSlackTalentReviewCandidate(args: {
   ]);
   for (const result of [
     talentResult,
+    recommendationResult,
     experiencesResult,
     educationsResult,
     extrasResult,
@@ -274,6 +263,10 @@ export async function loadSlackTalentReviewCandidate(args: {
   }
   const talent = talentResult.data as Record<string, unknown> | null;
   if (!talent) throw new Error("후보자 정보를 찾지 못했습니다.");
+  const recommendationId = clean(recommendationResult.data?.id);
+  if (!recommendationId) {
+    throw new Error("후보자의 연결 추천 기록을 찾지 못했습니다.");
+  }
   const documentRows = (documentsResult.data ?? []) as Array<{
     file_name?: unknown;
     is_primary?: unknown;
@@ -327,7 +320,7 @@ export async function loadSlackTalentReviewCandidate(args: {
     reason: nullable(
       (fitResult.data?.[0] as { reason?: unknown } | undefined)?.reason
     ),
-    recommendationId: args.candidate.recommendationId,
+    recommendationId,
     registeredLinks: stringList(talent.resume_links),
     roleId: args.candidate.roleId,
     roleName: clean(role.name) || "Role",

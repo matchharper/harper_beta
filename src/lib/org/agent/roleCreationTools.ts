@@ -9,23 +9,28 @@ import {
 } from "@/lib/agentTools/web";
 import { applyWebsiteCompanyDataChanges } from "@/lib/org/companyDataWebsite";
 import {
+  fetchOtherRoleDescriptionReferences,
   fetchOtherRoleCriteria,
   fetchRoleCreationState,
   getRoleCreationMissingFields,
   setRoleCreationNotification,
   updateRoleCreationDraft,
+  updateRoleCreationConversationMetadata,
 } from "@/lib/org/agent/roleCreationState";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { OrgHttpError } from "@/lib/org/server";
+import { parseOrgRoleCriteria } from "@/lib/org/roleCriteria";
 
 export const ROLE_CREATION_TOOL_NAMES = [
   "open_url",
   "web_search",
+  "research_role_description_sources",
   "update_role_draft",
   "update_company_context",
   "read_other_roles",
   "set_role_notification",
+  "confirm_pending_role_creation",
   "request_role_creation_confirmation",
 ] as const;
 
@@ -34,6 +39,19 @@ export type RoleCreationToolName = (typeof ROLE_CREATION_TOOL_NAMES)[number];
 export const ROLE_CREATION_TOOLS = [
   OPEN_URL_TOOL_DEFINITION,
   WEB_SEARCH_TOOL_DEFINITION,
+  {
+    type: "function" as const,
+    function: {
+      name: "research_role_description_sources",
+      description:
+        "Run the one automatic source-discovery attempt for a sparse new role. The server searches once using the saved company and role title and also returns other roles from this company as fallback style references. Call only after the real role title is saved, only when the user supplied no substantial description, JD URL, or file, and never call again after descriptionSourceResearch is present. Do not use ordinary web_search for this automatic JD discovery.",
+      parameters: {
+        type: "object",
+        properties: {},
+        additionalProperties: false,
+      },
+    },
+  },
   {
     type: "function" as const,
     function: {
@@ -46,6 +64,7 @@ export const ROLE_CREATION_TOOLS = [
           { required: ["name"] },
           { required: ["description"] },
           { required: ["request"] },
+          { required: ["criteria"] },
           { required: ["locationText"] },
           { required: ["workMode"] },
           { required: ["employmentTypes"] },
@@ -59,7 +78,23 @@ export const ROLE_CREATION_TOOLS = [
           request: {
             type: ["string", "null"],
             description:
-              "Private matching criteria and internal requirements. Write request using Markdown.",
+              "A compact private hiring brief in Markdown. Group related hard requirements, then capture team-specific preferences, evidence, tradeoffs, and decision rules. Do not reduce it to a technology checklist copied from the JD.",
+          },
+          criteria: {
+            type: "array",
+            minItems: 0,
+            maxItems: 6,
+            description:
+              "Optional high-level evaluation dimensions. Zero to six may be saved; when useful, prefer two to four complete dimensions and keep two when only two meaningful judgments exist. Consolidate related languages, frameworks, databases, cloud services, and baseline qualifications into one technical-fit criterion instead of one item per technology. Each dimension must still be independently assessable. name is a concise dimension label, never a yes/no question; criteria states the minimum bar, strong and acceptable adjacent evidence, tradeoffs, and concrete concerns.",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                name: { type: "string", minLength: 1, maxLength: 200 },
+                criteria: { type: "string", minLength: 1, maxLength: 8000 },
+              },
+              required: ["name", "criteria"],
+            },
           },
           locationText: { type: ["string", "null"] },
           workMode: {
@@ -90,35 +125,31 @@ export const ROLE_CREATION_TOOLS = [
     function: {
       name: "update_company_context",
       description:
-        "Useful when the user means a company fact to apply across all roles, rather than only to the role currently being drafted.",
+        "Useful when the user means a company fact to apply across all roles, rather than only to the role currently being drafted. Put all descriptive and candidate-facing company information in pitch as one coherent Markdown document. Homepage and LinkedIn have dedicated fields; every other company-level URL belongs in relatedLinks.",
       parameters: {
         type: "object",
         anyOf: [
           { required: ["companyName"] },
-          { required: ["description"] },
           { required: ["pitch"] },
           { required: ["request"] },
-          { required: ["logoUrl"] },
-          { required: ["shortDescription"] },
           { required: ["locationText"] },
           { required: ["foundedYear"] },
           { required: ["employeeCountStart"] },
           { required: ["employeeCountEnd"] },
           { required: ["homepageUrl"] },
-          { required: ["careerUrl"] },
           { required: ["linkedinUrl"] },
+          { required: ["relatedLinks"] },
           { required: ["totalFundingRaised"] },
-          { required: ["mainInvestors"] },
           { required: ["lastFundingStage"] },
-          { required: ["lastFundingRoundDescription"] },
         ],
         properties: {
           companyName: { type: "string" },
-          description: { type: ["string", "null"] },
-          pitch: { type: ["string", "null"] },
+          pitch: {
+            type: ["string", "null"],
+            description:
+              "The complete Markdown company-information document used for all descriptive and candidate-facing company context.",
+          },
           request: { type: ["string", "null"] },
-          logoUrl: { type: ["string", "null"] },
-          shortDescription: { type: ["string", "null"] },
           locationText: { type: ["string", "null"] },
           foundedYear: {
             type: ["integer", "null"],
@@ -128,12 +159,15 @@ export const ROLE_CREATION_TOOLS = [
           employeeCountStart: { type: ["integer", "null"], minimum: 0 },
           employeeCountEnd: { type: ["integer", "null"], minimum: 0 },
           homepageUrl: { type: ["string", "null"] },
-          careerUrl: { type: ["string", "null"] },
           linkedinUrl: { type: ["string", "null"] },
+          relatedLinks: {
+            type: "array",
+            items: { type: "string" },
+            maxItems: 12,
+            uniqueItems: true,
+          },
           totalFundingRaised: { type: ["string", "null"] },
-          mainInvestors: { type: ["string", "null"] },
           lastFundingStage: { type: ["string", "null"] },
-          lastFundingRoundDescription: { type: ["string", "null"] },
         },
         additionalProperties: false,
       },
@@ -144,7 +178,7 @@ export const ROLE_CREATION_TOOLS = [
     function: {
       name: "read_other_roles",
       description:
-        "Useful for finding a potentially reusable hiring standard from other roles in the same company, so Harper can propose it for the user's review.",
+        "Read up to eight other internal roles in the same company, including each role's private request, structured criteria, description, and memory. For a new draft, call this before the first internal request or criteria draft. Use analogous roles only to propose a team preference for the user's review; never copy it silently.",
       parameters: {
         type: "object",
         properties: {},
@@ -172,9 +206,22 @@ export const ROLE_CREATION_TOOLS = [
   {
     type: "function" as const,
     function: {
+      name: "confirm_pending_role_creation",
+      description:
+        "Activate the saved draft after the immediately preceding Harper message asked for final role-creation confirmation and the user's current free-form reply clearly authorizes registering that exact role now. Natural affirmative replies such as '응', '좋아요, 진행해 주세요', or equivalent wording count when their conversational meaning is clear. This is terminal: do not call it when the user asks a question, is ambiguous, merely reacts positively, or adds, removes, or changes any role detail; apply changes first and present a fresh confirmation instead.",
+      parameters: {
+        type: "object",
+        properties: {},
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "request_role_creation_confirmation",
       description:
-        "Useful when the saved role appears ready for a final review. The server checks the current state and attaches [예/아니오] choices; this tool itself does not activate the role.",
+        "Use only when the saved role is ready for final review and the user has had at least two distinct opportunities to explain team-specific candidate preferences beyond the JD and technical must-haves. The server checks the current state and attaches [예/아니오] choices; this tool itself does not activate the role.",
       parameters: {
         type: "object",
         properties: {},
@@ -186,6 +233,15 @@ export const ROLE_CREATION_TOOLS = [
 
 function text(value: unknown) {
   return String(value ?? "").trim();
+}
+
+export function buildRoleDescriptionSourceQuery(args: {
+  companyName: string;
+  roleTitle: string;
+}) {
+  return `${text(args.companyName)} ${text(args.roleTitle)} 채용 career`
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function optionalText(value: unknown) {
@@ -203,6 +259,17 @@ function optionalNumber(value: unknown) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) throw new Error("Expected a finite number");
   return Math.floor(parsed);
+}
+
+function roleCriteria(value: unknown) {
+  try {
+    return parseOrgRoleCriteria(value);
+  } catch (error) {
+    throw new OrgHttpError(
+      400,
+      error instanceof Error ? error.message : "Invalid role criteria"
+    );
+  }
 }
 
 function optionalNonNegativeInteger(value: unknown) {
@@ -263,15 +330,94 @@ export async function executeRoleCreationTool(args: {
   workspaceId: string;
 }) {
   if (args.name === "web_search") {
-    return { result: await executeSharedWebSearch(args.input) };
+    return {
+      result: await executeSharedWebSearch(args.input, {
+        admin: getSupabaseAdmin() as unknown as TalentAdminClient,
+      }),
+    };
   }
   if (args.name === "open_url") {
     return {
       result: await executeSharedOpenUrl({
         admin: getSupabaseAdmin() as unknown as TalentAdminClient,
-        enableLinkedinApify: true,
         input: args.input,
       }),
+    };
+  }
+  if (args.name === "research_role_description_sources") {
+    assertOnlyKeys(args.input, [], args.name);
+    const state = await fetchRoleCreationState(args);
+    const previous = state.metadata.descriptionSourceResearch;
+    if (previous) {
+      return {
+        result: {
+          alreadyAttempted: true,
+          research: previous,
+          instruction:
+            "Do not search for a role-description source again. Continue from the saved draft, conversation, or new material supplied by the user.",
+        },
+      };
+    }
+    if (state.role.status !== "draft") {
+      throw new OrgHttpError(
+        409,
+        "Automatic role-description research is only for a new draft"
+      );
+    }
+    const roleTitle = text(state.role.name);
+    if (!roleTitle || roleTitle === "새 역할") {
+      throw new OrgHttpError(
+        409,
+        "Save the user's actual role title before researching description sources"
+      );
+    }
+    const query = buildRoleDescriptionSourceQuery({
+      companyName: state.workspace.companyName,
+      roleTitle,
+    });
+    let search: Awaited<ReturnType<typeof executeSharedWebSearch>> | null =
+      null;
+    let searchFailed = false;
+    try {
+      search = await executeSharedWebSearch(
+        { maxResults: 8, query },
+        { admin: getSupabaseAdmin() as unknown as TalentAdminClient }
+      );
+    } catch (error) {
+      searchFailed = true;
+      console.warn("[org/agent:role-description-source-research]", error);
+    }
+    let otherRoles: Awaited<
+      ReturnType<typeof fetchOtherRoleDescriptionReferences>
+    > | null = null;
+    try {
+      otherRoles = await fetchOtherRoleDescriptionReferences(args);
+    } catch (error) {
+      console.warn("[org/agent:role-description-fallback-roles]", error);
+    }
+    const research = {
+      attemptedAt: new Date().toISOString(),
+      query,
+      resultCount: search?.resultCount ?? null,
+      selectedSourceUrl: null,
+      source: "role_creation_chat" as const,
+      status: searchFailed ? ("failed" as const) : ("completed" as const),
+    };
+    await updateRoleCreationConversationMetadata({
+      admin: getSupabaseAdmin(),
+      conversationId: state.conversation.id,
+      current: state.conversation.metadata,
+      patch: { descriptionSourceResearch: research },
+    });
+    return {
+      result: {
+        alreadyAttempted: false,
+        fallbackCompanyRoles: otherRoles?.roles ?? [],
+        instruction:
+          "Choose at most one result only if it is clearly this same company's same role, then open that URL before using its contents. Otherwise do not run another search: draft from analogous company-role structure and the saved company document, clearly labeling it as Harper's draft.",
+        research,
+        search,
+      },
     };
   }
   if (args.name === "read_other_roles") {
@@ -283,6 +429,7 @@ export async function executeRoleCreationTool(args: {
       "name",
       "description",
       "request",
+      "criteria",
       "locationText",
       "workMode",
       "employmentTypes",
@@ -314,6 +461,9 @@ export async function executeRoleCreationTool(args: {
     const state = await updateRoleCreationDraft({
       actorLabel: args.actorLabel,
       allowCompletedRole: args.allowCompletedRole,
+      ...(Object.prototype.hasOwnProperty.call(args.input, "criteria")
+        ? { criteria: roleCriteria(args.input.criteria) }
+        : {}),
       ...(Object.prototype.hasOwnProperty.call(args.input, "description")
         ? { description: optionalText(args.input.description) ?? null }
         : {}),
@@ -358,19 +508,13 @@ export async function executeRoleCreationTool(args: {
   }
   if (args.name === "update_company_context") {
     const keyByInput = {
-      careerUrl: "career_url",
       companyName: "company_name",
-      description: "company_description",
       homepageUrl: "homepage_url",
-      lastFundingRoundDescription: "last_funding_round_description",
       lastFundingStage: "last_funding_stage",
       linkedinUrl: "linkedin_url",
       locationText: "location",
-      logoUrl: "logo_url",
-      mainInvestors: "main_investors",
       pitch: "pitch",
       request: "workspace_request",
-      shortDescription: "short_description",
       totalFundingRaised: "total_funding_raised",
     } as const;
     const changes: Parameters<
@@ -388,9 +532,16 @@ export async function executeRoleCreationTool(args: {
     const allowedKeys = [
       ...Object.keys(keyByInput),
       ...Object.keys(numericKeyByInput),
+      "relatedLinks",
     ];
     assertOnlyKeys(args.input, allowedKeys, args.name);
     requireOneInput(args.input, allowedKeys, args.name);
+    if (Object.prototype.hasOwnProperty.call(args.input, "relatedLinks")) {
+      changes.push({
+        key: "related_links",
+        value: stringList(args.input.relatedLinks),
+      });
+    }
     for (const [inputKey, key] of Object.entries(numericKeyByInput)) {
       if (Object.prototype.hasOwnProperty.call(args.input, inputKey)) {
         changes.push({
@@ -436,6 +587,22 @@ export async function executeRoleCreationTool(args: {
         ok: true,
       },
       updateSummary: "알림 채널과 담당자를 반영했습니다.",
+    };
+  }
+
+  if (args.name === "confirm_pending_role_creation") {
+    assertOnlyKeys(args.input, [], args.name);
+    const state = await fetchRoleCreationState(args);
+    if (
+      state.role.status !== "draft" ||
+      state.metadata.phase !== "confirmation_pending" ||
+      !state.metadata.pendingConfirmationMessageId
+    ) {
+      throw new OrgHttpError(409, "There is no pending role confirmation");
+    }
+    return {
+      confirmationAccepted: true,
+      result: { ok: true, terminal: true },
     };
   }
 

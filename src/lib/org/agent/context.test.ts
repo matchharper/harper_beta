@@ -2,16 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { OrgAgentPromptContext } from "@/lib/org/agent/context";
 import { buildDefaultOrgAgentLongTextObservations } from "@/lib/org/agent/contextVisibility";
+import { formatOrgAgentCompanyContext } from "@/lib/org/agent/promptFormat";
 
-test("default visibility includes authoritative empties but not an unread mirrored description", () => {
+test("default visibility treats the always-injected pitch document as complete", () => {
   const roleObservation = {
     key: "role_memory" as const,
     roleId: "role-1",
     value: null,
   };
   const unlinked = buildDefaultOrgAgentLongTextObservations({
-    companyDbId: null,
-    companyDescription: null,
     pitch: null,
     roleObservations: [roleObservation],
     workspaceMemoryAvailable: false,
@@ -20,7 +19,6 @@ test("default visibility includes authoritative empties but not an unread mirror
   assert.deepEqual(
     unlinked.map((item) => `${item.key}:${item.roleId ?? "workspace"}`),
     [
-      "company_description:workspace",
       "pitch:workspace",
       "workspace_request:workspace",
       "workspace_memory:workspace",
@@ -29,17 +27,30 @@ test("default visibility includes authoritative empties but not an unread mirror
   );
 
   const linked = buildDefaultOrgAgentLongTextObservations({
-    companyDbId: 42,
-    companyDescription: null,
     pitch: "이미 있음",
     roleObservations: [],
     workspaceMemoryAvailable: true,
     workspaceRequest: "이미 있음",
   });
-  assert.equal(
-    linked.some((item) => item.key === "company_description"),
-    false
-  );
+  assert.equal(linked[0]?.key, "pitch");
+  assert.equal(linked[0]?.value, "이미 있음");
+});
+
+test("company context always includes the complete pitch document and no legacy descriptions", () => {
+  const pitch = `# 회사 문서\n\n${"전체 설명 ".repeat(1_500)}\n마지막 문장`;
+  const formatted = formatOrgAgentCompanyContext({
+    companyDetailsAvailable: true,
+    companyName: "Example",
+    pitch,
+    workspaceMemoryAvailable: false,
+    workspaceRequestExists: false,
+  });
+
+  assert.match(formatted, /pitch_document_complete\ttrue/);
+  assert.match(formatted, /<company_information_document>/);
+  assert.match(formatted, /# 회사 문서/);
+  assert.match(formatted, /마지막 문장/);
+  assert.doesNotMatch(formatted, /brief|company_description|short_description/);
 });
 
 test("oversized recent pipeline data is replaced by one unambiguous incomplete marker", async () => {
@@ -79,9 +90,13 @@ test("total context truncation revokes every retained completeness marker", asyn
     companyDetails: {
       complete: true,
       fields: {
-        pitch: { complete: true, oversized: false, truncated: false },
+        workspace_request: {
+          complete: true,
+          oversized: false,
+          truncated: false,
+        },
       },
-      values: { pitch: "전체 피치" },
+      values: { workspace_request: "전체 요청" },
     },
     members: {
       complete: true,
@@ -134,8 +149,14 @@ test("total context truncation revokes every retained completeness marker", asyn
   assert.match(bounded.retainedDataText ?? "", /serialization_complete=false/);
   assert.doesNotMatch(bounded.retainedDataText ?? "", /complete=true/);
   assert.equal(retainedMoreData.companyDetails.complete, false);
-  assert.equal(retainedMoreData.companyDetails.fields.pitch.complete, false);
-  assert.equal(retainedMoreData.companyDetails.fields.pitch.truncated, true);
+  assert.equal(
+    retainedMoreData.companyDetails.fields.workspace_request.complete,
+    false
+  );
+  assert.equal(
+    retainedMoreData.companyDetails.fields.workspace_request.truncated,
+    true
+  );
   assert.equal(retainedMoreData.workspaceMemory.complete, false);
   assert.equal(retainedMoreData.workspaceMemory.truncated, true);
   assert.equal(retainedMoreData.members.complete, false);

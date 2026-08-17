@@ -24,6 +24,7 @@ import type {
   OrgAgentMessagesResponse,
   OrgAgentThinkingLog,
 } from "@/lib/org/agent/types";
+import { upsertOrgAgentThinkingLog } from "@/lib/org/agent/thinkingLogs";
 import type { ChatAttachmentPayload } from "@/types/chat";
 import { queryKeys } from "@/lib/queryKeys";
 import {
@@ -32,6 +33,22 @@ import {
 } from "@/lib/chat/progressiveText";
 
 type OrgAgentMessagesPage = OrgAgentMessagesResponse;
+
+function compareOrgAgentMessages(
+  left: OrgAgentMessage,
+  right: OrgAgentMessage
+) {
+  const leftTime = Date.parse(left.createdAt);
+  const rightTime = Date.parse(right.createdAt);
+  if (
+    Number.isFinite(leftTime) &&
+    Number.isFinite(rightTime) &&
+    leftTime !== rightTime
+  ) {
+    return leftTime - rightTime;
+  }
+  return left.id - right.id;
+}
 
 function mergeMessages(
   existing: OrgAgentMessage[],
@@ -50,7 +67,7 @@ function mergeMessages(
     indexById.set(message.id, merged.length);
     merged.push(message);
   }
-  return merged.sort((left, right) => left.id - right.id);
+  return merged.sort(compareOrgAgentMessages);
 }
 
 function parseSseBlock(block: string) {
@@ -72,6 +89,8 @@ function parseSseBlock(block: string) {
 function toThinkingLog(value: unknown): OrgAgentThinkingLog | null {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
+  const at = String(record.at ?? "").trim();
+  const id = String(record.id ?? "").trim();
   const label = String(record.label ?? "").trim();
   if (!label) return null;
   const status =
@@ -81,7 +100,8 @@ function toThinkingLog(value: unknown): OrgAgentThinkingLog | null {
       ? record.status
       : undefined;
   return {
-    at: new Date().toISOString(),
+    at: at || new Date().toISOString(),
+    ...(id ? { id } : {}),
     label,
     status,
   };
@@ -146,7 +166,8 @@ export function useOrgAgentMessageHistory(args: {
   const messages = useMemo(() => {
     return [...(infinite.data?.pages ?? [])]
       .reverse()
-      .flatMap((page) => page.messages);
+      .flatMap((page) => page.messages)
+      .sort(compareOrgAgentMessages);
   }, [infinite.data?.pages]);
 
   const appendMessagesToCache = useCallback(
@@ -284,6 +305,7 @@ export function useOrgAgentChat(args: {
         },
         model: input.model ? String(input.model) : null,
         role: "user",
+        sourceSurface: "web",
         status: "pending",
         thinkingLogs: [],
       });
@@ -407,7 +429,9 @@ export function useOrgAgentChat(args: {
             } else if (parsed.event === "tool_status") {
               const log = toThinkingLog(parsed.data);
               if (log) {
-                setThinkingLogs((current) => [...current.slice(-5), log]);
+                setThinkingLogs((current) =>
+                  upsertOrgAgentThinkingLog(current, log, 6)
+                );
               }
             } else if (parsed.event === "error") {
               const message = sanitizeVisibleAgentError(
