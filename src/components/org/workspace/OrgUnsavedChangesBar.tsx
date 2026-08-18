@@ -1,5 +1,21 @@
+"use client";
+
 import { LoaderCircle, TriangleAlert } from "lucide-react";
+import { useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { MuteButton } from "@/components/ui/button";
+
+function subscribeToDocumentBody() {
+  return () => {};
+}
+
+function getDocumentBody() {
+  return document.body;
+}
+
+function getServerDocumentBody() {
+  return null;
+}
 
 export function OrgUnsavedChangesBar({
   canSave,
@@ -14,7 +30,13 @@ export function OrgUnsavedChangesBar({
   onSave: () => void;
   pending: boolean;
 }) {
-  return (
+  const portalTarget = useSyncExternalStore(
+    subscribeToDocumentBody,
+    getDocumentBody,
+    getServerDocumentBody
+  );
+
+  const bar = (
     <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
       <div
         className="pointer-events-auto flex w-full max-w-[480px] flex-col gap-3 rounded-lg border border-neutral-1000-a05 bg-bg-floating/70 backdrop-blur-md p-2 shadow-[0_18px_60px_color-mix(in_srgb,var(--color-neutral-1000)_18%,transparent)] sm:flex-row sm:items-center sm:justify-between"
@@ -54,4 +76,6 @@ export function OrgUnsavedChangesBar({
       </div>
     </div>
   );
+
+  return portalTarget ? createPortal(bar, portalTarget) : bar;
 }

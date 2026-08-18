@@ -127,8 +127,10 @@ function OrgAllAcceptedMain() {
             void router.push(
               buildOrgHref({
                 orgId: item.workspaceId,
-                page: "jobs",
+                page: "role",
                 roleId: item.roleId,
+                tab: "pipeline",
+                view: "pipeline",
               })
             );
           }}

@@ -44,7 +44,6 @@ function OrgAgentInfo() {
     <div className="group relative">
       <MuteButton
         type="button"
-        aria-describedby="org-agent-info-tooltip"
         aria-label="채팅 안내"
         size="sm"
         variant="transparent"
@@ -92,8 +91,7 @@ export function OrgAgentChatSurface({
   roleId?: string | null;
   header?: ReactNode;
 }) {
-  const { bootstrap, currentUser, currentUserEmail, user, workspace } =
-    useOrgWorkspace();
+  const { bootstrap, currentUser, user, workspace } = useOrgWorkspace();
   const workspaceId = workspace.workspaceId;
   const mode = purpose === "role-creation" ? "role_creation" : "general";
   const initialRoleCreation = purpose === "role-creation" && !roleId;
@@ -235,9 +233,6 @@ export function OrgAgentChatSurface({
     syncScrollState,
   ]);
 
-  const showModelSelector =
-    currentUserEmail?.toLowerCase().endsWith("@matchharper.com") ||
-    process.env.NEXT_PUBLIC_ORG_AGENT_MODEL_SELECTOR_ENABLED === "true";
   const lastHistoryMessage = history.messages.at(-1);
   const showOptimisticDateDivider = Boolean(
     chat.optimisticUserMessage &&
@@ -470,7 +465,6 @@ export function OrgAgentChatSurface({
               });
             }}
             roleId={roleId}
-            showModelSelector={showModelSelector}
             workspaceId={workspaceId}
           />
         </div>

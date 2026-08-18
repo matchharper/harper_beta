@@ -12,8 +12,13 @@ export async function GET(req: NextRequest) {
     const user = await requireInternalApiUser(req);
     const workspaceId = req.nextUrl.searchParams.get("workspaceId") ?? "";
     const [bootstrap, board] = await Promise.all([
-      fetchOrgBootstrap({ orgId: workspaceId, user }),
+      fetchOrgBootstrap({
+        allowInternalOpsAccess: true,
+        orgId: workspaceId,
+        user,
+      }),
       fetchOrgBoard({
+        allowInternalOpsAccess: true,
         includeProfileLabels: false,
         user,
         workspaceId,

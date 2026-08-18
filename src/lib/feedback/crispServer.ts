@@ -1,4 +1,3 @@
-import { IncomingWebhook } from "@slack/webhook";
 import type { NextRequest } from "next/server";
 import {
   type CrispFeedbackMessage,
@@ -8,15 +7,7 @@ import {
 } from "@/lib/feedback/crisp";
 import { sendResendEmail } from "@/lib/email/send";
 import { getPublicSiteUrlFromRequest } from "@/lib/siteUrl";
-
-function getInternalSlackWebhook() {
-  const webhookUrl = process.env.SLACK_INTERNAL_NOTI_TOKEN?.trim();
-  if (!webhookUrl) {
-    throw new Error("SLACK_INTERNAL_NOTI_TOKEN is required");
-  }
-
-  return new IncomingWebhook(webhookUrl);
-}
+import { postUserFeedbackSlackMessage } from "@/lib/userFeedbackSlack";
 
 export function getRequestOrigin(req: NextRequest) {
   return getPublicSiteUrlFromRequest(req);
@@ -83,7 +74,7 @@ export async function notifyCrispFeedbackSlack({
     `답장하기: ${replyUrl}`,
   ].join("\n");
 
-  await getInternalSlackWebhook().send({
+  await postUserFeedbackSlackMessage({
     text,
     blocks: [
       {

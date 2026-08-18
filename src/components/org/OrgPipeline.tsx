@@ -1,14 +1,7 @@
-import { Archive, LoaderCircle, Search } from "lucide-react";
-import {
-  type DragEvent,
-  type FormEvent,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { OpsDateRangeFilter } from "@/components/ops/OpsDateRangeFilter";
+import { LoaderCircle } from "lucide-react";
+import { type DragEvent, type FormEvent, useMemo, useState } from "react";
 import { opsTheme } from "@/components/ops/theme";
-import { BareButton, Button, MuteButton } from "@/components/ui/button";
+import { MuteButton } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -17,16 +10,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import {
-  ReviewPipelineColumnAddRail,
   ReviewPipelineColumnHeader,
   ReviewPipelineColumnShell,
   ReviewPipelineDropTargetHint,
   ReviewPipelineEmptyState,
   ReviewPipelineStageDialog,
 } from "@/components/review-pipeline/ReviewPipelinePrimitives";
-import { PendingConnectionDialog } from "@/components/review-pipeline/PendingConnectionDialog";
 import {
   AcceptIntroDialog,
   StopCandidateDialog,
@@ -41,7 +31,6 @@ import {
   shouldOpenOrgStopCandidateDialog,
 } from "@/lib/org/candidateDecision";
 import { isInternalDomainEmail } from "@/lib/internalAccess";
-import { InternalOnlyHatch } from "@/components/org/internal/InternalOnlySurface";
 import {
   useCreateOrgReviewStage,
   useDeleteOrgReviewStage,
@@ -50,7 +39,6 @@ import {
 import {
   useOrgJobsBoard,
   useOrgJobsCandidateActions,
-  useOrgJobsFilters,
   useOrgJobsNavigation,
 } from "@/hooks/org/useOrgJobs";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
@@ -62,95 +50,6 @@ function getCustomStageDbId(stageId: OrgStageId) {
   return stageId.startsWith("custom:") ? stageId.slice("custom:".length) : "";
 }
 
-function RecommendedDateFilter({
-  onChange,
-  from,
-  to,
-}: {
-  from: string;
-  onChange: (from: string, to: string) => void;
-  to: string;
-}) {
-  return (
-    <OpsDateRangeFilter
-      align="end"
-      buttonClassName="w-full min-w-0"
-      buttonSize="default"
-      emptyLabel="추천일 전체"
-      from={from}
-      inactiveButtonClassName="border-neutral-1000-a05 bg-bg-floating text-neutral-muted hover:border-neutral-1000-a10 hover:bg-bg-weak"
-      onChange={onChange}
-      prefix="추천"
-      to={to}
-    />
-  );
-}
-
-function ArchiveStageToggle({
-  active,
-  canDrop,
-  count,
-  isDropTarget,
-  onClick,
-  onDrop,
-  onTargetLeave,
-  onTargetOver,
-}: {
-  active: boolean;
-  canDrop: boolean;
-  count: number;
-  isDropTarget: boolean;
-  onClick: () => void;
-  onDrop: (event: DragEvent<HTMLButtonElement>) => void;
-  onTargetLeave: () => void;
-  onTargetOver: () => void;
-}) {
-  return (
-    <BareButton
-      type="button"
-      aria-pressed={active}
-      title={active ? "아카이브 닫기" : "아카이브 열기"}
-      onClick={onClick}
-      onDragOver={(event) => {
-        if (!canDrop) return;
-        event.preventDefault();
-        event.dataTransfer.dropEffect = "move";
-        onTargetOver();
-      }}
-      onDragLeave={(event) => {
-        if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
-          return;
-        }
-        onTargetLeave();
-      }}
-      onDrop={(event) => {
-        event.preventDefault();
-        if (canDrop) onDrop(event);
-      }}
-      className={cn(
-        "relative isolate inline-flex h-10 shrink-0 items-center gap-2 overflow-hidden rounded-md border px-3 text-[12px] font-medium transition",
-        isDropTarget
-          ? "border-primary bg-primary-faded text-primary ring-2 ring-primary/20"
-          : active
-            ? "border-primary/30 bg-primary-faded text-primary"
-            : "border-neutral-1000-a10 bg-bg-floating text-neutral-muted hover:border-neutral-400 hover:bg-bg-weak hover:text-neutral-primary",
-        canDrop &&
-          !isDropTarget &&
-          "border-primary/50 bg-primary-faded/30 text-primary"
-      )}
-    >
-      <InternalOnlyHatch className="opacity-70" />
-      <span className="relative z-20 inline-flex items-center gap-2">
-        <Archive className="h-3.5 w-3.5" />
-        <span>{isDropTarget ? "아카이브로 이동" : "아카이브"}</span>
-        <span className="rounded-sm bg-bg-floating px-1.5 py-0.5 text-[10px] text-neutral-muted">
-          {count}
-        </span>
-      </span>
-    </BareButton>
-  );
-}
-
 export function OrgPipeline() {
   const { board, boardQuery, profileLabelsError, profileLabelsLoading } =
     useOrgJobsBoard();
@@ -160,13 +59,6 @@ export function OrgPipeline() {
     isCandidateStagePending,
   } = useOrgJobsCandidateActions();
   const {
-    nameQuery,
-    recommendedFromDate,
-    recommendedToDate,
-    setNameQuery: onNameQueryChange,
-    setRecommendedDateRange: onRecommendedDateChange,
-  } = useOrgJobsFilters();
-  const {
     activeRoleId,
     selectTalent: onSelect,
     workspaceId,
@@ -175,20 +67,16 @@ export function OrgPipeline() {
     bootstrap,
     currentUser,
     currentUserEmail,
-    internalOpsAccess,
     permissions,
   } = useOrgWorkspace();
   const members = bootstrap.members;
   const canManageCandidates = permissions.canManageCandidates;
   const isLoading = boardQuery.isLoading;
   const [dragOverStage, setDragOverStage] = useState<OrgStageId | null>(null);
-  const [archiveOpen, setArchiveOpen] = useState(false);
   const [acceptRequest, setAcceptRequest] = useState<{
     item: OrgBoardItem;
     stage: OrgStageId;
   } | null>(null);
-  const [pendingConnectionRequest, setPendingConnectionRequest] =
-    useState<OrgBoardItem | null>(null);
   const [stopItem, setStopItem] = useState<OrgBoardItem | null>(null);
   const [draggedRecommendationId, setDraggedRecommendationId] = useState<
     string | null
@@ -202,7 +90,6 @@ export function OrgPipeline() {
   const [customStageError, setCustomStageError] = useState("");
   const [customStageActionError, setCustomStageActionError] = useState("");
   const [stageToDelete, setStageToDelete] = useState<OrgStage | null>(null);
-  const pipelineHeaderScrollRef = useRef<HTMLDivElement>(null);
   const createCustomStage = useCreateOrgReviewStage();
   const updateCustomStage = useUpdateOrgReviewStage();
   const deleteCustomStage = useDeleteOrgReviewStage();
@@ -241,7 +128,6 @@ export function OrgPipeline() {
     () =>
       (board?.stages ?? []).filter(
         (stage) =>
-          stage.id === "accepted" ||
           stage.id === "pending_connection" ||
           stage.id === "connected" ||
           Boolean(stage.roleId && stage.roleId === activeRoleId)
@@ -255,29 +141,11 @@ export function OrgPipeline() {
       ),
     [board?.stages]
   );
-  const archiveStage = useMemo(
-    () =>
-      (board?.stages ?? []).find((stage) => stage.id === "archived") ?? null,
-    [board?.stages]
-  );
-  const draggedItem = draggedRecommendationId
-    ? (itemByRecommendationId.get(draggedRecommendationId) ?? null)
-    : null;
-  const canDropToArchive = Boolean(
-    canManageCandidates &&
-    archiveStage &&
-    draggedItem &&
-    draggedItem.stage !== "archived" &&
-    canDropOrgCandidateToStage(draggedItem, archiveStage)
-  );
+  const lastPreOfferStageId = preOfferStages.at(-1)?.id ?? null;
 
   const requestMove = (item: OrgBoardItem, stage: OrgStageId) => {
     if (!canManageCandidates) return;
     if (item.stage === stage) return;
-    if (item.stage === "accepted" && stage === "pending_connection") {
-      setPendingConnectionRequest(item);
-      return;
-    }
     if (shouldOpenOrgStopCandidateDialog(item.stage, stage)) {
       setStopItem(item);
       return;
@@ -410,6 +278,10 @@ export function OrgPipeline() {
       canManageCandidates &&
       Boolean(customStageId) &&
       stage.roleId === activeRoleId;
+    const canAddCustomStage =
+      canManageCandidates &&
+      activeRoleId !== "all" &&
+      stage.id === lastPreOfferStageId;
 
     return (
       <ReviewPipelineColumnShell
@@ -432,26 +304,15 @@ export function OrgPipeline() {
         onDrop={(event) => handleDrop(event, stage)}
         canDrop={canDrop}
         isDropTarget={isDropTarget}
-        tone={
-          stage.id === "accepted"
-            ? "accepted"
-            : stage.id === "process_stopped"
-              ? "rejected"
-              : "default"
-        }
-        className={cn(
-          (stage.id === "accepted" || stage.id === "archived") &&
-            "relative isolate overflow-hidden",
-          isLastColumn && "border-r"
-        )}
+        tone={stage.id === "process_stopped" ? "rejected" : "default"}
+        className="!flex !h-full !min-h-0 !w-[280px] !flex-col !border-0 !bg-transparent !ring-0"
       >
-        {stage.id === "accepted" || stage.id === "archived" ? (
-          <InternalOnlyHatch />
-        ) : null}
         <ReviewPipelineColumnHeader
-          className="lg:hidden"
+          compact
+          className="shrink-0 !border-x-0"
           count={items.length}
           label={stage.label}
+          onAdd={canAddCustomStage ? openCreateCustomStageDialog : undefined}
           onEdit={
             isEditableCustomStage
               ? () => openEditCustomStageDialog(stage)
@@ -464,7 +325,19 @@ export function OrgPipeline() {
           }
           pending={pendingCustomStageId === customStageId}
         />
-        <div className="space-y-1.5 p-1.5">
+        <div
+          className={cn(
+            "min-h-0 flex-1 space-y-1.5 border-l border-neutral-1000-a10 px-1.5 pb-1.5 transition-colors",
+            isLastColumn && "border-r",
+            isDropTarget
+              ? "bg-primary-faded/55 ring-2 ring-inset ring-primary/55"
+              : canDrop
+                ? "bg-primary-faded/20"
+                : stage.id === "process_stopped"
+                  ? "bg-critical-faded/40"
+                  : "bg-bg-default"
+          )}
+        >
           {isDropTarget ? (
             <ReviewPipelineDropTargetHint label={stage.label} />
           ) : null}
@@ -483,7 +356,6 @@ export function OrgPipeline() {
             >
               <OrgCandidateCard
                 canManageCandidates={canManageCandidates}
-                internalOpsAccess={internalOpsAccess}
                 item={item}
                 onMove={requestMove}
                 onSelect={(selectedItem) => {
@@ -498,123 +370,16 @@ export function OrgPipeline() {
               />
             </div>
           ))}
-          {items.length === 0 ? <ReviewPipelineEmptyState /> : null}
+          {items.length === 0 ? (
+            <ReviewPipelineEmptyState className="border-0 bg-transparent" />
+          ) : null}
         </div>
       </ReviewPipelineColumnShell>
     );
   };
 
-  const renderStickyStageHeader = (stage: OrgStage, isLastColumn: boolean) => {
-    const items = itemsByStage.get(stage.id) ?? [];
-    const columnDraggedItem = draggedRecommendationId
-      ? itemByRecommendationId.get(draggedRecommendationId)
-      : null;
-    const canDrop = Boolean(
-      columnDraggedItem && canDropOrgCandidateToStage(columnDraggedItem, stage)
-    );
-    const isDropTarget = canDrop && dragOverStage === stage.id;
-    const customStageId = getCustomStageDbId(stage.id);
-    const isEditableCustomStage =
-      canManageCandidates &&
-      Boolean(customStageId) &&
-      stage.roleId === activeRoleId;
-    const isInternalStage = stage.id === "accepted" || stage.id === "archived";
-
-    return (
-      <div
-        className={cn(
-          "relative isolate w-[300px] shrink-0 overflow-hidden border-l border-t border-neutral-1000-a10",
-          isDropTarget && "ring-2 ring-inset ring-primary/55",
-          isLastColumn && "border-r"
-        )}
-        key={`sticky:${stage.id}`}
-        onDragOver={(event) => {
-          if (!canManageCandidates || !canDrop) return;
-          event.preventDefault();
-          event.dataTransfer.dropEffect = "move";
-          setDragOverStage(stage.id);
-        }}
-        onDragLeave={(event) => {
-          if (
-            event.currentTarget.contains(event.relatedTarget as Node | null)
-          ) {
-            return;
-          }
-          setDragOverStage(null);
-        }}
-        onDrop={(event) => handleDrop(event, stage)}
-      >
-        {isInternalStage ? <InternalOnlyHatch /> : null}
-        <ReviewPipelineColumnHeader
-          className={cn(
-            isDropTarget
-              ? "bg-primary-faded"
-              : canDrop
-                ? "bg-primary-faded/30"
-                : stage.id === "accepted"
-                  ? "bg-positive-faded"
-                  : stage.id === "process_stopped"
-                    ? "bg-critical-faded/40"
-                    : "bg-bg-floating"
-          )}
-          count={items.length}
-          label={stage.label}
-          onEdit={
-            isEditableCustomStage
-              ? () => openEditCustomStageDialog(stage)
-              : undefined
-          }
-          onDelete={
-            isEditableCustomStage
-              ? () => handleDeleteCustomStage(stage)
-              : undefined
-          }
-          pending={pendingCustomStageId === customStageId}
-        />
-      </div>
-    );
-  };
-
   return (
-    <section className="min-w-0 space-y-4">
-      <div
-        data-org-pipeline-sticky-actions
-        className="flex flex-col gap-2 lg:sticky lg:top-0 lg:z-30 lg:h-14 lg:flex-row lg:items-center lg:justify-between lg:bg-neutral-00/95 lg:py-2 lg:backdrop-blur"
-      >
-        {internalOpsAccess && archiveStage && (
-          <ArchiveStageToggle
-            active={archiveOpen}
-            canDrop={canDropToArchive}
-            count={itemsByStage.get("archived")?.length ?? 0}
-            isDropTarget={canDropToArchive && dragOverStage === "archived"}
-            onClick={() => setArchiveOpen((current) => !current)}
-            onDrop={(event) => handleDrop(event, archiveStage)}
-            onTargetLeave={() =>
-              setDragOverStage((current) =>
-                current === "archived" ? null : current
-              )
-            }
-            onTargetOver={() => setDragOverStage("archived")}
-          />
-        )}
-        <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[minmax(0,1fr)_220px]">
-          <label className="relative min-w-0">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
-            <Input
-              value={nameQuery}
-              onChange={(event) => onNameQueryChange(event.target.value)}
-              placeholder="이름 검색"
-              className="h-10 pl-9 text-[13px]"
-            />
-          </label>
-          <RecommendedDateFilter
-            from={recommendedFromDate}
-            onChange={onRecommendedDateChange}
-            to={recommendedToDate}
-          />
-        </div>
-      </div>
-
+    <section className="flex h-full min-h-0 min-w-0 flex-col gap-2">
       {customStageActionError && !customStageDialogOpen && !stageToDelete ? (
         <div className={opsTheme.errorNotice}>{customStageActionError}</div>
       ) : null}
@@ -625,57 +390,17 @@ export function OrgPipeline() {
           불러오는 중
         </div>
       ) : (
-        <>
-          <div
-            data-org-pipeline-sticky-columns
-            className="sticky top-14 z-20 hidden bg-neutral-00/95 backdrop-blur lg:block"
-          >
-            <div className="overflow-hidden" ref={pipelineHeaderScrollRef}>
-              <div className="flex min-w-max gap-0">
-                {archiveOpen && archiveStage
-                  ? renderStickyStageHeader(archiveStage, false)
-                  : null}
-                {preOfferStages.map((stage) =>
-                  renderStickyStageHeader(stage, false)
-                )}
-                {canManageCandidates ? (
-                  <div className="w-8 shrink-0 border-y border-neutral-1000-a10 bg-bg-default" />
-                ) : null}
-                {postOfferStages.map((stage, index) =>
-                  renderStickyStageHeader(
-                    stage,
-                    index === postOfferStages.length - 1
-                  )
-                )}
-              </div>
-            </div>
+        <div
+          data-org-pipeline-scroll
+          className="min-h-0 flex-1 overflow-x-auto pb-0"
+        >
+          <div className="flex h-full min-h-[560px] min-w-max items-stretch gap-0">
+            {preOfferStages.map((stage) => renderStageColumn(stage, false))}
+            {postOfferStages.map((stage, index) =>
+              renderStageColumn(stage, index === postOfferStages.length - 1)
+            )}
           </div>
-          <div
-            data-org-pipeline-scroll
-            className="overflow-x-auto pb-2"
-            onScroll={(event) => {
-              if (pipelineHeaderScrollRef.current) {
-                pipelineHeaderScrollRef.current.scrollLeft =
-                  event.currentTarget.scrollLeft;
-              }
-            }}
-          >
-            <div className="flex min-w-max gap-0">
-              {archiveOpen && archiveStage
-                ? renderStageColumn(archiveStage, false)
-                : null}
-              {preOfferStages.map((stage) => renderStageColumn(stage, false))}
-              {canManageCandidates ? (
-                <ReviewPipelineColumnAddRail
-                  onClick={openCreateCustomStageDialog}
-                />
-              ) : null}
-              {postOfferStages.map((stage, index) =>
-                renderStageColumn(stage, index === postOfferStages.length - 1)
-              )}
-            </div>
-          </div>
-        </>
+        </div>
       )}
 
       <ReviewPipelineStageDialog
@@ -691,33 +416,6 @@ export function OrgPipeline() {
         }}
         onSubmit={(event) => void handleCustomStageSubmit(event)}
         onClose={closeCustomStageDialog}
-      />
-
-      <PendingConnectionDialog
-        candidateName={
-          pendingConnectionRequest
-            ? getOrgCandidateDisplayName(pendingConnectionRequest)
-            : "이 후보자"
-        }
-        onClose={() => setPendingConnectionRequest(null)}
-        onConfirm={async (emailMode) => {
-          if (!pendingConnectionRequest) return;
-          const move = pendingConnectionRequest;
-          const request = onStageChange(move, "pending_connection", {
-            emailMode,
-          });
-          setPendingConnectionRequest(null);
-          await request;
-        }}
-        open={Boolean(pendingConnectionRequest)}
-        pending={
-          Boolean(pendingConnectionRequest) &&
-          Boolean(
-            pendingConnectionRequest &&
-            isCandidateStagePending(pendingConnectionRequest)
-          )
-        }
-        recipientEmail={pendingConnectionRequest?.talent.email}
       />
 
       <Dialog

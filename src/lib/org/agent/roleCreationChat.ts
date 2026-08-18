@@ -572,6 +572,7 @@ export async function runOrgRoleCreationChat(args: {
   > | null = null;
   const updateSummaries: string[] = [];
   let logs: OrgAgentThinkingLog[] = [];
+  const toolResults: NonNullable<OrgAgentMessageMetadata["toolResults"]> = [];
 
   for (let loop = 0; loop < MAX_TOOL_LOOPS; loop += 1) {
     const result = await completion({
@@ -656,6 +657,12 @@ export async function runOrgRoleCreationChat(args: {
         };
         logs = upsertOrgAgentThinkingLog(logs, doneLog);
         args.emit?.("tool_status", doneLog);
+        toolResults.push({
+          callId: call.id,
+          name: call.function.name,
+          status: "success",
+          summary: execution.updateSummary ?? doneLog.label,
+        });
         messages.push({
           content: JSON.stringify(execution.result),
           role: "tool",
@@ -670,6 +677,12 @@ export async function runOrgRoleCreationChat(args: {
         };
         logs = upsertOrgAgentThinkingLog(logs, failedLog);
         args.emit?.("tool_status", failedLog);
+        toolResults.push({
+          callId: call.id,
+          name: call.function.name,
+          status: "error",
+          summary: failedLog.label,
+        });
         messages.push({
           content: JSON.stringify({
             error: error instanceof Error ? error.message : "tool_failed",
@@ -765,6 +778,7 @@ export async function runOrgRoleCreationChat(args: {
     model: activeModel,
     source: "org_role_creation_assistant",
     ...args.assistantMessageMetadata,
+    ...(toolResults.length > 0 && { toolResults }),
     ...(confirmationRequested && actionId
       ? {
           roleCreation: {

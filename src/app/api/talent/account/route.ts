@@ -4,6 +4,7 @@ import {
   getSlackActivityDeviceLabel,
   notifySlackActivity,
 } from "@/lib/slackActivity";
+import { USER_FEEDBACK_SLACK_CHANNEL_ID } from "@/lib/userFeedbackSlack";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   TALENT_RESUME_BUCKET,
@@ -42,6 +43,7 @@ type AccountDeletionContext = {
   companyRunIds: string[];
   conversationIds: string[];
   discoveryRunIds: string[];
+  documentStoragePaths: string[];
   email: string | null;
   emailInboundEventIds: string[];
   emailReplyJobIds: string[];
@@ -305,6 +307,7 @@ async function collectAccountDeletionContext(
     companyQueryIds,
     directCompanyRunIds,
     bookmarkFolderIds,
+    documentRows,
     waitlistRows,
   ] = await Promise.all([
     selectRows<{ resume_storage_path: string | null }>(
@@ -356,6 +359,12 @@ async function collectAccountDeletionContext(
     selectValues<number>(admin, "bookmark_folder", "id", (query) =>
       query.eq("user_id", userId)
     ),
+    selectRows<{ storage_path: string }>(
+      admin,
+      "talent_documents",
+      "storage_path",
+      (query) => query.eq("talent_id", userId)
+    ),
     email
       ? selectRows<{ text: string | null; url: string | null }>(
           admin,
@@ -402,6 +411,9 @@ async function collectAccountDeletionContext(
       ...directDiscoveryRunIds,
       ...discoveryRunIdsByConversation,
     ]),
+    documentStoragePaths: uniqueValues<string>(
+      documentRows.map((row) => row.storage_path)
+    ),
     email,
     emailInboundEventIds: uniqueValues<string>(
       emailReplyRows.map((row) => row.inbound_event_id)
@@ -484,6 +496,7 @@ async function removeAccountStorage(
   await Promise.all([
     removeStorageObjects(admin, TALENT_RESUME_BUCKET, [
       ...context.resumeStoragePaths,
+      ...context.documentStoragePaths,
       ...resumeFolderPaths,
     ]),
     removeStorageObjects(admin, CAREER_PROFILE_ASSET_BUCKET, [
@@ -718,10 +731,87 @@ async function deleteAccountData(
   admin: UntypedAdminClient,
   context: AccountDeletionContext
 ) {
-  await deleteLooseUserRows(admin, context);
-  await deleteCareerRows(admin, context);
-  await deleteCompanyWorkspaceRows(admin, context);
-  await deleteEmailMatchedRows(admin, context);
+  const now = new Date().toISOString();
+
+  // Keep operational history (runs, recommendations, deliveries, CRM records)
+  // intact. It remains linked only to an account with all direct profile fields
+  // erased, so deleting the auth user cannot be blocked by downstream FKs.
+  const { error: runError } = await admin
+    .from("opportunity_discovery_run")
+    .update({
+      completed_at: now,
+      error_message: "Account deleted before discovery completed",
+      status: "failed",
+      updated_at: now,
+    })
+    .eq("talent_id", context.userId)
+    .in("status", ["queued", "running"]);
+  if (runError) {
+    throw dbError("opportunity_discovery_run", "cancel active", runError);
+  }
+
+  const { error: queueError } = await admin
+    .from("contact_queue")
+    .update({
+      cancelled_at: now,
+      last_error: "Account deleted",
+      status: "cancelled",
+      updated_at: now,
+    })
+    .eq("user_id", context.userId)
+    .in("status", ["queued", "processing"]);
+  if (queueError) {
+    throw dbError("contact_queue", "cancel active", queueError);
+  }
+
+  const { error: replyJobError } = await admin
+    .from("email_reply_jobs")
+    .update({
+      locked_at: null,
+      locked_by: null,
+      processed_at: now,
+      skip_reason: "account_deleted",
+      status: "skipped",
+      updated_at: now,
+    })
+    .eq("talent_id", context.userId)
+    .in("status", ["queued", "processing"]);
+  if (replyJobError) {
+    throw dbError("email_reply_jobs", "cancel active", replyJobError);
+  }
+
+  await Promise.all([
+    deleteEq(admin, "email_reply_aliases", "talent_id", context.userId),
+    deleteEq(admin, "talent_documents", "talent_id", context.userId),
+    deleteEq(admin, "talent_setting", "user_id", context.userId),
+    deleteEq(admin, "talent_insights", "talent_id", context.userId),
+    deleteEq(admin, "talent_extras", "talent_id", context.userId),
+    deleteEq(admin, "talent_educations", "talent_id", context.userId),
+    deleteEq(admin, "talent_experiences", "talent_id", context.userId),
+  ]);
+
+  const { error: profileError } = await admin
+    .from("talent_users")
+    .update({
+      bio: null,
+      current_location: null,
+      email: null,
+      headline: null,
+      last_logined_at: null,
+      location: null,
+      name: null,
+      phone_number: null,
+      profile_picture: null,
+      resume_file_name: null,
+      resume_links: [],
+      resume_storage_path: null,
+      resume_text: null,
+      updated_at: now,
+    })
+    .eq("user_id", context.userId);
+  if (profileError) {
+    throw dbError("talent_users", "anonymize", profileError);
+  }
 }
 
 async function notifyAccountDeletionSlack(
@@ -743,6 +833,7 @@ async function notifyAccountDeletionSlack(
   try {
     await notifySlackActivity({
       action: "회원 탈퇴 완료",
+      channelId: USER_FEEDBACK_SLACK_CHANNEL_ID,
       details: [
         { label: "Device", value: getSlackActivityDeviceLabel(req) },
         { label: "Source", value: "/career/settings" },

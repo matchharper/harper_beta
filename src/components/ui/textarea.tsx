@@ -7,18 +7,48 @@ export const textareaSurfaceClassName =
 
 export type TextareaProps =
   React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
+    autoResize?: boolean;
     unstyled?: boolean;
   };
 
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ className, rows = 4, unstyled = false, ...props }, ref) => (
-    <textarea
-      ref={ref}
-      rows={rows}
-      className={unstyled ? className : cn(textareaSurfaceClassName, className)}
-      {...props}
-    />
-  )
+  (
+    { autoResize = false, className, rows = 4, unstyled = false, ...props },
+    forwardedRef
+  ) => {
+    const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
+
+    React.useImperativeHandle(
+      forwardedRef,
+      () => textareaRef.current as HTMLTextAreaElement
+    );
+
+    React.useLayoutEffect(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+
+      if (!autoResize) {
+        textarea.style.height = "";
+        textarea.style.overflowY = "";
+        return;
+      }
+
+      textarea.style.height = "auto";
+      textarea.style.height = `${textarea.scrollHeight}px`;
+      textarea.style.overflowY = "hidden";
+    }, [autoResize, props.value]);
+
+    return (
+      <textarea
+        ref={textareaRef}
+        rows={rows}
+        className={
+          unstyled ? className : cn(textareaSurfaceClassName, className)
+        }
+        {...props}
+      />
+    );
+  }
 );
 Textarea.displayName = "Textarea";
 

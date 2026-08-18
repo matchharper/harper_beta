@@ -1288,11 +1288,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       );
 
       if (kind === "bulk") {
-        if (!hasStableDirectUserMessageId) {
-          throw new TalentToolError(
-            "bulk recommend_job_postings requires a stable user message ID."
-          );
-        }
         return enqueueOnDemandJobSearch({
           admin: admin as TalentAdminClient,
           conversationId,
@@ -1300,7 +1295,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           request,
           responseLocale: context?.responseLocale,
           userId,
-          userMessageId: directUserMessageId,
+          userMessageId: hasStableDirectUserMessageId
+            ? directUserMessageId
+            : null,
         });
       }
 

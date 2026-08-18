@@ -4,6 +4,7 @@ export const ORG_ROLE_STATUS_VALUES = [
   "active",
   "ended",
   "paused",
+  "deleted",
 ] as const;
 
 export type OrgRoleStatus = (typeof ORG_ROLE_STATUS_VALUES)[number];
@@ -11,6 +12,7 @@ export type OrgRoleLifecycleAction = "delete" | "pause" | "resume";
 
 const ORG_ROLE_STATUS_PRESENTATION = {
   active: { label: "진행 중", tone: "positive" },
+  deleted: { label: "삭제됨", tone: "neutral" },
   draft: { label: "역할 작성 중", tone: "action" },
   ended: { label: "종료", tone: "neutral" },
   paused: { label: "중지", tone: "primary" },
@@ -19,13 +21,7 @@ const ORG_ROLE_STATUS_PRESENTATION = {
   OrgRoleStatus,
   {
     label: string;
-    tone:
-      | "action"
-      | "critical"
-      | "info"
-      | "neutral"
-      | "positive"
-      | "primary";
+    tone: "action" | "critical" | "info" | "neutral" | "positive" | "primary";
   }
 >;
 
@@ -47,19 +43,17 @@ const ORG_ROLE_STATUS_FILTER_ORDER = [
   "ended",
 ] as const satisfies readonly OrgRoleStatus[];
 
-export const ORG_ROLE_STATUS_FILTER_OPTIONS =
-  ORG_ROLE_STATUS_FILTER_ORDER.map((status) => ({
+export const ORG_ROLE_STATUS_FILTER_OPTIONS = ORG_ROLE_STATUS_FILTER_ORDER.map(
+  (status) => ({
     status,
     ...ORG_ROLE_STATUS_PRESENTATION[status],
-  }));
+  })
+);
 
 export function normalizeOrgRoleStatus(value: unknown): OrgRoleStatus {
   const normalized = String(value ?? "")
     .replace(/\s+/g, " ")
     .trim();
-
-  // Older clients used this unsupported status for soft deletion.
-  if (normalized === "deleted") return "ended";
 
   return ORG_ROLE_STATUS_VALUES.includes(normalized as OrgRoleStatus)
     ? (normalized as OrgRoleStatus)
@@ -90,7 +84,7 @@ export function getOrgRoleLifecycleUpdate(action: OrgRoleLifecycleAction): {
   status: OrgRoleStatus;
 } {
   if (action === "delete") {
-    return { isExpired: true, status: "ended" };
+    return { isExpired: true, status: "deleted" };
   }
   return { status: action === "pause" ? "paused" : "active" };
 }

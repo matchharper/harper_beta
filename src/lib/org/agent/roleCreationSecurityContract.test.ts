@@ -21,6 +21,9 @@ const internalSearch = source("../../career/internalRoleSearch.ts");
 const migration = source(
   "../../../../supabase/migrations/20260807140000_org_role_creation_conversations.sql"
 );
+const deletedStatusMigration = source(
+  "../../../../supabase/migrations/20260819100000_internal_role_deleted_status.sql"
+);
 
 test("role creation storage is isolated from the workspace and other roles", () => {
   assert.match(store, /\.is\("role_id", null\)/);
@@ -59,6 +62,21 @@ test("drafts are excluded from search and regain a vector only after activation"
   assert.match(
     migration,
     /complete_company_role_creation_v1[\s\S]*set status = 'active'/
+  );
+});
+
+test("internal role deletion has a dedicated status and migrates only legacy soft deletes", () => {
+  assert.match(
+    deletedStatusMigration,
+    /status = 'deleted' and source_type = 'internal'/
+  );
+  assert.match(
+    deletedStatusMigration,
+    /set status = 'deleted'[\s\S]*source_type = 'internal'[\s\S]*status = 'ended'[\s\S]*is_expired is true/
+  );
+  assert.match(
+    deletedStatusMigration,
+    /old\.status = 'draft'[\s\S]*new\.status is distinct from 'deleted'/
   );
 });
 

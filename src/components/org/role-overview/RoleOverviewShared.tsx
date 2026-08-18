@@ -44,7 +44,7 @@ export function RoleSectionHeading({
         ) : null}
       </div>
       {description ? (
-        <p className="mt-1 text-[12px] leading-5 text-neutral-muted">
+        <p className="mt-1 text-[13px] leading-5 text-neutral-muted">
           {description}
         </p>
       ) : null}

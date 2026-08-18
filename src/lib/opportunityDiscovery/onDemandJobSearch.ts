@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { fetchTalentSetting } from "@/lib/talentOnboarding/server";
@@ -689,14 +689,15 @@ export async function enqueueOnDemandJobSearch(args: {
   request: string;
   responseLocale?: string | null;
   userId: string;
-  userMessageId: number | string;
+  userMessageId?: number | string | null;
 }): Promise<RecommendJobPostingsAsyncToolResult> {
   const requestText = normalizeRequest(args.request);
   if (!requestText) throw new Error("recommend_job_postings requires request");
-  const sourceId = String(args.userMessageId ?? "").trim();
-  if (!sourceId) {
-    throw new Error("Direct async job search requires a user message ID");
-  }
+  const userMessageId = String(args.userMessageId ?? "").trim();
+  const hasUserMessage = /^[1-9][0-9]*$/.test(userMessageId);
+  const sourceId = hasUserMessage
+    ? `user_message:${userMessageId}`
+    : `assistant_turn:${randomUUID()}`;
   const normalizedCount = normalizeOnDemandJobSearchMaxResults(
     args.maxResultsInput
   );
@@ -704,7 +705,7 @@ export async function enqueueOnDemandJobSearch(args: {
   const fingerprint = `sha256:${createHash("sha256")
     .update(`${requestText}\n${normalizedCount.maxResults}`)
     .digest("hex")}`;
-  const dedupeKey = `career_recommend_job_postings:${args.userId}:user_message:${sourceId}`;
+  const dedupeKey = `career_recommend_job_postings:${args.userId}:${sourceId}`;
   const setting = await fetchTalentSetting({
     admin: args.admin,
     userId: args.userId,
@@ -749,12 +750,12 @@ export async function enqueueOnDemandJobSearch(args: {
       kind: "bulk",
       locale: args.responseLocale ?? null,
       maxResults: normalizedCount.maxResults,
-      messageId: sourceId,
       requestedAt,
       scope: "one_off",
       sourceId,
-      sourceKind: "user_message",
+      sourceKind: hasUserMessage ? "user_message" : "assistant_turn",
       text: requestText,
+      ...(hasUserMessage ? { messageId: userMessageId } : {}),
     },
     runContract: CAREER_CHAT_EXTERNAL_SEARCH_RUN_CONTRACT,
     schemaVersion: 1,

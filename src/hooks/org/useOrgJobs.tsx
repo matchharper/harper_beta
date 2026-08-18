@@ -38,14 +38,6 @@ type OrgJobsNavigationValue = {
   workspaceId: string;
 };
 
-type OrgJobsFiltersValue = {
-  nameQuery: string;
-  recommendedFromDate: string;
-  recommendedToDate: string;
-  setNameQuery: (value: string) => void;
-  setRecommendedDateRange: (from: string, to: string) => void;
-};
-
 type OrgJobsBoardValue = ReturnType<typeof useOrgJobsBoardData>;
 type OrgJobsDetailValue = ReturnType<typeof useOrgJobsDetailData>;
 type OrgJobsCandidateActionsValue = ReturnType<typeof useOrgCandidateActions>;
@@ -54,7 +46,6 @@ type OrgJobsRoleActionsValue = ReturnType<typeof useOrgRoleActions>;
 const OrgJobsNavigationContext = createContext<OrgJobsNavigationValue | null>(
   null
 );
-const OrgJobsFiltersContext = createContext<OrgJobsFiltersValue | null>(null);
 const OrgJobsBoardContext = createContext<OrgJobsBoardValue | null>(null);
 const OrgJobsDetailContext = createContext<OrgJobsDetailValue | null>(null);
 const OrgJobsCandidateActionsContext =
@@ -73,10 +64,6 @@ function useRequiredContext<T>(context: Context<T | null>, hookName: string) {
 
 export function useOrgJobsNavigation() {
   return useRequiredContext(OrgJobsNavigationContext, "useOrgJobsNavigation");
-}
-
-export function useOrgJobsFilters() {
-  return useRequiredContext(OrgJobsFiltersContext, "useOrgJobsFilters");
 }
 
 export function useOrgJobsBoard() {
@@ -116,7 +103,7 @@ function OrgJobsRouteProvider({
   routePage,
 }: {
   children: ReactNode;
-  routePage: Extract<OrgWorkspacePageId, "all" | "inbox" | "jobs">;
+  routePage: Extract<OrgWorkspacePageId, "all" | "inbox" | "jobs" | "role">;
 }) {
   const { roles } = useOrgWorkspace();
   const route = useOrgJobsRoute({ page: routePage });
@@ -129,13 +116,8 @@ function OrgJobsRouteProvider({
     detailRecommendationId,
     detailRoleId,
     detailTalentId,
-    nameQuery,
-    recommendedFromDate,
-    recommendedToDate,
     selectTalent,
     selectedRoleId,
-    setNameQuery,
-    setRecommendedDateRange,
     talentNavigationItems,
     talentNavigationLabel,
     workspaceId,
@@ -178,39 +160,16 @@ function OrgJobsRouteProvider({
       workspaceId,
     ]
   );
-  const filtersValue = useMemo<OrgJobsFiltersValue>(
-    () => ({
-      nameQuery,
-      recommendedFromDate,
-      recommendedToDate,
-      setNameQuery,
-      setRecommendedDateRange,
-    }),
-    [
-      nameQuery,
-      recommendedFromDate,
-      recommendedToDate,
-      setNameQuery,
-      setRecommendedDateRange,
-    ]
-  );
-
   return (
     <OrgJobsNavigationContext.Provider value={navigationValue}>
-      <OrgJobsFiltersContext.Provider value={filtersValue}>
-        {children}
-      </OrgJobsFiltersContext.Provider>
+      {children}
     </OrgJobsNavigationContext.Provider>
   );
 }
 
 function OrgJobsBoardProvider({ children }: { children: ReactNode }) {
-  const filters = useOrgJobsFilters();
   const navigation = useOrgJobsNavigation();
   const value = useOrgJobsBoardData({
-    nameQuery: filters.nameQuery,
-    recommendedFromDate: filters.recommendedFromDate,
-    recommendedToDate: filters.recommendedToDate,
     selectedRoleId: navigation.selectedRoleId,
     workspaceId: navigation.workspaceId,
   });
@@ -266,7 +225,7 @@ export function OrgJobsProvider({
 }: {
   children: ReactNode;
   includeBoard?: boolean;
-  routePage?: Extract<OrgWorkspacePageId, "all" | "inbox" | "jobs">;
+  routePage?: Extract<OrgWorkspacePageId, "all" | "inbox" | "jobs" | "role">;
 }) {
   const detailProviders = (
     <OrgJobsDetailProvider>

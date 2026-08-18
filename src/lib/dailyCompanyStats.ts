@@ -1,13 +1,18 @@
 import { supabaseServer } from "@/lib/supabaseServer";
 
 const BATCH_SIZE = 1_000;
-const KST_OFFSET_MS = 9 * 60 * 60 * 1_000;
+const DAY_MS = 24 * 60 * 60 * 1_000;
 const ACTIVE_ROLE_STATUSES = new Set(["active", "top_priority"]);
 const ACCEPTED_FEEDBACK_VALUES = new Set([
   "accepted",
   "like",
   "liked",
   "positive",
+]);
+const REJECTED_FEEDBACK_VALUES = new Set([
+  "dislike",
+  "negative",
+  "rejected",
 ]);
 
 type CompanyWorkspaceRow = {
@@ -17,11 +22,19 @@ type CompanyWorkspaceRow = {
 
 type CompanyRoleRow = {
   company_internal_roles:
-    | { is_auto: boolean | null }
-    | Array<{ is_auto: boolean | null }>
+    | {
+        is_auto: boolean | null;
+        role_status_changed_at?: string | null;
+      }
+    | Array<{
+        is_auto: boolean | null;
+        role_status_changed_at?: string | null;
+      }>
     | null;
   company_workspace_id: string;
+  created_at?: string | null;
   is_expired: boolean;
+  name?: string | null;
   role_id: string;
   source_type: string;
   status: string;
@@ -30,6 +43,13 @@ type CompanyRoleRow = {
 type CompanyMembershipRow = {
   company_user_id: string;
   company_workspace_id: string;
+  created_at?: string | null;
+};
+
+type CompanyEventRow = {
+  content: string;
+  created_at: string;
+  workspace_id: string;
 };
 
 type CompanySlackIntegrationRow = {
@@ -42,6 +62,14 @@ type CompanyMessageRow = {
   created_at: string;
   message_type: string;
   role: string;
+};
+
+type CompanyToolMessageRow = {
+  company_workspace_id: string;
+  created_at: string;
+  metadata: unknown;
+  status: string | null;
+  thinking_logs?: unknown;
 };
 
 type LoginLogRow = {
@@ -84,10 +112,23 @@ type FetchPageResult<T> = {
 
 export type DailyCompanyUsageKind = "accepted" | "chat" | "rejected" | "slack";
 
+export type DailyCompanyRoleLifecycleEvent = {
+  action: "activated" | "created" | "deleted" | "ended" | "paused";
+  occurredAt: string;
+  roleName: string;
+};
+
+export type DailyCompanyToolRow = {
+  callCount: number;
+  failedCallCount: number;
+  name: string;
+};
+
 export type DailyCompanyStatsRow = {
   acceptedCount: number;
   acceptedTodayCount: number;
   activeRoleCount: number;
+  chatTodayCount: number;
   companyName: string;
   companyWorkspaceId: string;
   connectedCount: number;
@@ -99,18 +140,51 @@ export type DailyCompanyStatsRow = {
   latestUsageAt: string | null;
   latestUsageKind: DailyCompanyUsageKind | null;
   memberCount: number;
+  newMemberTodayCount: number;
+  newRoleTodayCount: number;
   pendingConnectionCount: number;
+  pendingConnectionTodayCount: number;
+  rejectedCount: number;
+  rejectedTodayCount: number;
+  roleLifecycleEvents: DailyCompanyRoleLifecycleEvent[];
+  slackTodayCount: number;
+};
+
+export type DailyCompanyCandidateStats = {
+  acceptedCount: number;
+  pendingConnectionCount: number;
+  rejectedCount: number;
+};
+
+export type DailyCompanyStatsTotals = {
+  acceptedCount: number;
+  acceptedTodayCount: number;
+  activeRoleCount: number;
+  chatTodayCount: number;
+  memberCount: number;
+  newMemberTodayCount: number;
+  newRoleTodayCount: number;
+  pendingConnectionCount: number;
+  pendingConnectionTodayCount: number;
+  rejectedCount: number;
+  rejectedTodayCount: number;
+  rolling7Day: DailyCompanyCandidateStats;
+  slackTodayCount: number;
 };
 
 export type DailyCompanyStatsReport = {
   date: string;
   endIso: string;
+  failedToolCallCount: number;
   otherCompanies: DailyCompanyStatsRow[];
   servedCompanies: DailyCompanyStatsRow[];
   startIso: string;
+  tools: DailyCompanyToolRow[];
+  totals: DailyCompanyStatsTotals;
 };
 
 export type DailyCompanyStatsSourceRows = {
+  events: CompanyEventRow[];
   loginLogs: LoginLogRow[];
   memberships: CompanyMembershipRow[];
   messages: CompanyMessageRow[];
@@ -119,10 +193,15 @@ export type DailyCompanyStatsSourceRows = {
   roles: CompanyRoleRow[];
   slackIntegrations: CompanySlackIntegrationRow[];
   tags: OpportunityTagRow[];
+  toolMessages: CompanyToolMessageRow[];
   workspaces: CompanyWorkspaceRow[];
 };
 
-type CurrentCandidateStage = "accepted" | "connected" | "pending_connection";
+type CurrentCandidateStage =
+  | "accepted"
+  | "connected"
+  | "pending_connection"
+  | "rejected";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -142,13 +221,208 @@ function isAcceptedFeedback(value: unknown) {
   return ACCEPTED_FEEDBACK_VALUES.has(normalized(value));
 }
 
-function isAutoRole(row: CompanyRoleRow) {
-  const internalRoles = Array.isArray(row.company_internal_roles)
+function isRejectedFeedback(value: unknown) {
+  return REJECTED_FEEDBACK_VALUES.has(normalized(value));
+}
+
+function getInternalRoleRows(row: CompanyRoleRow) {
+  return Array.isArray(row.company_internal_roles)
     ? row.company_internal_roles
     : row.company_internal_roles
       ? [row.company_internal_roles]
       : [];
-  return internalRoles.some((internalRole) => internalRole.is_auto === true);
+}
+
+function isAutoRole(row: CompanyRoleRow) {
+  return getInternalRoleRows(row).some(
+    (internalRole) => internalRole.is_auto === true
+  );
+}
+
+function getRoleStatusChangedAt(row: CompanyRoleRow) {
+  return getInternalRoleRows(row)
+    .map((internalRole) => internalRole.role_status_changed_at)
+    .find((value): value is string => Boolean(value));
+}
+
+function roleLifecycleActionFromStatus(
+  value: unknown
+): DailyCompanyRoleLifecycleEvent["action"] | null {
+  const status = normalized(value);
+  if (status === "active" || status === "top_priority") return "activated";
+  if (status === "paused" || status === "on_hold") return "paused";
+  if (
+    ["ended", "closed", "expired", "inactive", "stopped", "deleted"].includes(
+      status
+    )
+  ) {
+    return "ended";
+  }
+  return null;
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function lifecycleActionFromEventContent(
+  content: string,
+  roleName: string
+): DailyCompanyRoleLifecycleEvent["action"] | null {
+  const role = escapeRegExp(roleName);
+  if (!role) return null;
+
+  if (
+    new RegExp(`${role}\\.is_expired:\\s*-\\s*(?:false|"false")\\s*\\+\\s*(?:true|"true")`, "i").test(
+      content
+    )
+  ) {
+    return "deleted";
+  }
+
+  const statusChange = content.match(
+    new RegExp(
+      `${role}\\.status:\\s*-\\s*(?:"[^"]*"|[^+;]+)\\s*\\+\\s*"?([^";\\s]+)`,
+      "i"
+    )
+  );
+  const statusAction = roleLifecycleActionFromStatus(statusChange?.[1]);
+  if (statusAction) return statusAction;
+
+  const koreanStatusChange = content.match(
+    new RegExp(`${role}\\s*역할\\s*상태:\\s*([^;]+)`, "i")
+  );
+  const koreanStatus = normalized(koreanStatusChange?.[1]);
+  if (koreanStatus.includes("진행")) return "activated";
+  if (koreanStatus.includes("중단") || koreanStatus.includes("일시 중지")) {
+    return "paused";
+  }
+  if (koreanStatus.includes("종료") || koreanStatus.includes("정지")) {
+    return "ended";
+  }
+  return null;
+}
+
+function buildRoleLifecycleEvents(args: {
+  endIso: string;
+  events: CompanyEventRow[];
+  roles: CompanyRoleRow[];
+  startIso: string;
+  workspaceId: string;
+}) {
+  const events: DailyCompanyRoleLifecycleEvent[] = [];
+  const addedKeys = new Set<string>();
+  const addEvent = (event: DailyCompanyRoleLifecycleEvent) => {
+    const key = `${event.action}:${event.roleName}:${event.occurredAt}`;
+    if (addedKeys.has(key)) return;
+    addedKeys.add(key);
+    events.push(event);
+  };
+  const roles = args.roles.filter(
+    (role) => text(role.company_workspace_id) === args.workspaceId
+  );
+
+  for (const role of roles) {
+    const roleName = text(role.name) || "이름 없는 역할";
+    if (isInRange(role.created_at, args.startIso, args.endIso)) {
+      addEvent({
+        action: "created",
+        occurredAt: text(role.created_at),
+        roleName,
+      });
+    }
+
+    const matchingEvents = args.events.filter(
+      (event) =>
+        isInRange(event.created_at, args.startIso, args.endIso) &&
+        event.content.includes(roleName)
+    );
+    for (const event of matchingEvents) {
+      const action = lifecycleActionFromEventContent(event.content, roleName);
+      if (!action) continue;
+      addEvent({ action, occurredAt: event.created_at, roleName });
+    }
+
+    if (matchingEvents.some((event) => lifecycleActionFromEventContent(event.content, roleName))) {
+      continue;
+    }
+    const statusChangedAt = getRoleStatusChangedAt(role);
+    const action = roleLifecycleActionFromStatus(role.status);
+    if (
+      action &&
+      statusChangedAt &&
+      !isInRange(role.created_at, args.startIso, args.endIso) &&
+      isInRange(statusChangedAt, args.startIso, args.endIso)
+    ) {
+      addEvent({ action, occurredAt: statusChangedAt, roleName });
+    }
+  }
+
+  return events.sort((left, right) => {
+    const byTime = left.occurredAt.localeCompare(right.occurredAt);
+    return byTime || left.roleName.localeCompare(right.roleName, "ko");
+  });
+}
+
+function buildCompanyToolRows(args: {
+  endIso: string;
+  startIso: string;
+  toolMessages: CompanyToolMessageRow[];
+}) {
+  const tools = new Map<string, DailyCompanyToolRow>();
+  const addTool = (name: string, failed: boolean) => {
+    if (!name) return;
+    const current = tools.get(name) ?? {
+      callCount: 0,
+      failedCallCount: 0,
+      name,
+    };
+    current.callCount += 1;
+    if (failed) current.failedCallCount += 1;
+    tools.set(name, current);
+  };
+  for (const message of args.toolMessages) {
+    if (!isInRange(message.created_at, args.startIso, args.endIso)) continue;
+    const metadata = getRecord(message.metadata);
+    const toolResults = metadata.toolResults;
+    if (Array.isArray(toolResults)) {
+      for (const toolResult of toolResults) {
+        const result = getRecord(toolResult);
+        addTool(text(result.name), normalized(result.status) === "error");
+      }
+      continue;
+    }
+    if (text(metadata.source) !== "org_role_creation_assistant") continue;
+    const thinkingLogs = Array.isArray(message.thinking_logs)
+      ? message.thinking_logs
+      : [];
+    for (const thinkingLog of thinkingLogs) {
+      const log = getRecord(thinkingLog);
+      const label = text(log.label);
+      if (!label) continue;
+      addTool(
+        roleCreationToolNameFromThinkingLabel(label),
+        normalized(log.status) === "error"
+      );
+    }
+  }
+  return Array.from(tools.values()).sort((left, right) =>
+    left.name.localeCompare(right.name)
+  );
+}
+
+function roleCreationToolNameFromThinkingLabel(label: string) {
+  if (label.includes("역할 설명 참고자료")) {
+    return "research_role_description_sources";
+  }
+  if (label.includes("이전 역할 기준")) return "read_other_roles";
+  if (label.includes("알림 채널과 담당자")) return "set_role_notification";
+  if (label.includes("완료 조건")) return "request_role_creation_confirmation";
+  if (label.includes("역할 등록")) return "confirm_pending_role_creation";
+  if (label.includes("회사 정보")) return "update_company_context";
+  if (label.includes("링크")) return "open_url";
+  if (label.includes("웹")) return "web_search";
+  return "update_role_draft";
 }
 
 function getKstDayRange(date: string) {
@@ -159,8 +433,12 @@ function getKstDayRange(date: string) {
   if (!Number.isFinite(start.getTime())) {
     throw new Error("date must be YYYY-MM-DD");
   }
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1_000);
+  const end = new Date(start.getTime() + DAY_MS);
   return { endIso: end.toISOString(), startIso: start.toISOString() };
+}
+
+function getRolling7DayStartIso(startIso: string) {
+  return new Date(new Date(startIso).getTime() - 6 * DAY_MS).toISOString();
 }
 
 function isInRange(
@@ -221,6 +499,7 @@ function getStageFromTag(
   if (!tag) return null;
   if (tag === "내부:수락") return "accepted";
   if (tag === "내부:연결대기") return "pending_connection";
+  if (tag === "내부:거절") return "rejected";
   if (
     tag === "내부:연결됨" ||
     tag === "내부:최종오퍼" ||
@@ -230,7 +509,6 @@ function getStageFromTag(
   }
   if (
     tag === "내부:아카이브" ||
-    tag === "내부:거절" ||
     tag === "내부:보류" ||
     tag === "내부:추천" ||
     tag === "내부:프로세스중단"
@@ -248,6 +526,7 @@ function chooseCandidateStage(
     accepted: 1,
     pending_connection: 2,
     connected: 3,
+    rejected: 0,
   };
   return !current || rank[next] > rank[current] ? next : current;
 }
@@ -278,6 +557,9 @@ function resolveRecommendationStage(args: {
   if (savedStage === "connected") return "connected";
   if (savedStage === "pending_connection") return "pending_connection";
   if (savedStage === "closed" || savedStage === "hidden") return null;
+  if (savedStage === "rejected" || isRejectedFeedback(recommendation.feedback)) {
+    return "rejected";
+  }
   if (
     savedStage === "accepted" ||
     isAcceptedFeedback(recommendation.feedback)
@@ -300,6 +582,7 @@ export function compileDailyCompanyStatsReport(args: {
   rows: DailyCompanyStatsSourceRows;
 }): DailyCompanyStatsReport {
   const { endIso, startIso } = getKstDayRange(args.date);
+  const rolling7DayStartIso = getRolling7DayStartIso(startIso);
   const workspaceIds = new Set(
     args.rows.workspaces.map((row) => text(row.company_workspace_id))
   );
@@ -316,6 +599,7 @@ export function compileDailyCompanyStatsReport(args: {
   );
 
   const membersByWorkspaceId = new Map<string, Set<string>>();
+  const newMembersTodayByWorkspaceId = new Map<string, Set<string>>();
   const workspaceIdsByMemberId = new Map<string, Set<string>>();
   for (const row of args.rows.memberships) {
     const workspaceId = text(row.company_workspace_id);
@@ -328,6 +612,12 @@ export function compileDailyCompanyStatsReport(args: {
       workspaceIdsByMemberId.get(userId) ?? new Set<string>();
     memberWorkspaces.add(workspaceId);
     workspaceIdsByMemberId.set(userId, memberWorkspaces);
+    if (isInRange(row.created_at, startIso, endIso)) {
+      const newMembers =
+        newMembersTodayByWorkspaceId.get(workspaceId) ?? new Set<string>();
+      newMembers.add(userId);
+      newMembersTodayByWorkspaceId.set(workspaceId, newMembers);
+    }
   }
 
   const slackWorkspaceIds = new Set(
@@ -339,6 +629,7 @@ export function compileDailyCompanyStatsReport(args: {
 
   const activeRoleCountByWorkspaceId = new Map<string, number>();
   const autoWorkspaceIds = new Set<string>();
+  const newRolesTodayByWorkspaceId = new Map<string, Set<string>>();
   for (const role of internalRoles) {
     const workspaceId = text(role.company_workspace_id);
     if (!role.is_expired && ACTIVE_ROLE_STATUSES.has(normalized(role.status))) {
@@ -348,6 +639,12 @@ export function compileDailyCompanyStatsReport(args: {
       );
     }
     if (isAutoRole(role)) autoWorkspaceIds.add(workspaceId);
+    if (isInRange(role.created_at, startIso, endIso)) {
+      const newRoles =
+        newRolesTodayByWorkspaceId.get(workspaceId) ?? new Set<string>();
+      newRoles.add(text(role.role_id));
+      newRolesTodayByWorkspaceId.set(workspaceId, newRoles);
+    }
   }
 
   const sortedTags = [...args.rows.tags].sort((left, right) => {
@@ -379,6 +676,9 @@ export function compileDailyCompanyStatsReport(args: {
     CurrentCandidateStage
   >();
   const acceptedTodayByWorkspaceId = new Map<string, Set<string>>();
+  const rejectedTodayByWorkspaceId = new Map<string, Set<string>>();
+  const rolling7DayAcceptedByWorkspaceId = new Map<string, Set<string>>();
+  const rolling7DayRejectedByWorkspaceId = new Map<string, Set<string>>();
   for (const recommendation of args.rows.recommendations) {
     const workspaceId = roleWorkspaceId.get(text(recommendation.role_id));
     const talentId = text(recommendation.talent_id);
@@ -397,18 +697,48 @@ export function compileDailyCompanyStatsReport(args: {
       );
     }
 
-    if (
-      isAcceptedFeedback(recommendation.feedback) &&
-      isInRange(recommendation.feedback_at, startIso, endIso)
-    ) {
-      const acceptedToday =
-        acceptedTodayByWorkspaceId.get(workspaceId) ?? new Set<string>();
-      acceptedToday.add(talentId);
-      acceptedTodayByWorkspaceId.set(workspaceId, acceptedToday);
+    if (isAcceptedFeedback(recommendation.feedback)) {
+      if (isInRange(recommendation.feedback_at, startIso, endIso)) {
+        const acceptedToday =
+          acceptedTodayByWorkspaceId.get(workspaceId) ?? new Set<string>();
+        acceptedToday.add(talentId);
+        acceptedTodayByWorkspaceId.set(workspaceId, acceptedToday);
+      }
+      if (
+        isInRange(recommendation.feedback_at, rolling7DayStartIso, endIso)
+      ) {
+        const rolling7DayAccepted =
+          rolling7DayAcceptedByWorkspaceId.get(workspaceId) ??
+          new Set<string>();
+        rolling7DayAccepted.add(talentId);
+        rolling7DayAcceptedByWorkspaceId.set(workspaceId, rolling7DayAccepted);
+      }
+    }
+    if (isRejectedFeedback(recommendation.feedback)) {
+      if (isInRange(recommendation.feedback_at, startIso, endIso)) {
+        const rejectedToday =
+          rejectedTodayByWorkspaceId.get(workspaceId) ?? new Set<string>();
+        rejectedToday.add(talentId);
+        rejectedTodayByWorkspaceId.set(workspaceId, rejectedToday);
+      }
+      if (
+        isInRange(recommendation.feedback_at, rolling7DayStartIso, endIso)
+      ) {
+        const rolling7DayRejected =
+          rolling7DayRejectedByWorkspaceId.get(workspaceId) ??
+          new Set<string>();
+        rolling7DayRejected.add(talentId);
+        rolling7DayRejectedByWorkspaceId.set(workspaceId, rolling7DayRejected);
+      }
     }
   }
 
   const connectedTodayByWorkspaceId = new Map<string, Set<string>>();
+  const pendingConnectionTodayByWorkspaceId = new Map<string, Set<string>>();
+  const rolling7DayPendingConnectionByWorkspaceId = new Map<
+    string,
+    Set<string>
+  >();
   const latestUsageByWorkspaceId = new Map<
     string,
     { at: string; kind: DailyCompanyUsageKind }
@@ -426,6 +756,29 @@ export function compileDailyCompanyStatsReport(args: {
       connectedTodayByWorkspaceId.set(workspaceId, connectedToday);
     }
     if (
+      stage === "pending_connection" &&
+      isInRange(row.created_at, startIso, endIso)
+    ) {
+      const pendingToday =
+        pendingConnectionTodayByWorkspaceId.get(workspaceId) ??
+        new Set<string>();
+      pendingToday.add(talentId);
+      pendingConnectionTodayByWorkspaceId.set(workspaceId, pendingToday);
+    }
+    if (
+      stage === "pending_connection" &&
+      isInRange(row.created_at, rolling7DayStartIso, endIso)
+    ) {
+      const rolling7DayPending =
+        rolling7DayPendingConnectionByWorkspaceId.get(workspaceId) ??
+        new Set<string>();
+      rolling7DayPending.add(talentId);
+      rolling7DayPendingConnectionByWorkspaceId.set(
+        workspaceId,
+        rolling7DayPending
+      );
+    }
+    if (
       row.company_user_id &&
       (stage === "connected" || stage === "process_stopped")
     ) {
@@ -438,6 +791,10 @@ export function compileDailyCompanyStatsReport(args: {
     }
   }
 
+  const chatsTodayByWorkspaceId = new Map<
+    string,
+    { chat: number; slack: number }
+  >();
   for (const row of args.rows.messages) {
     const workspaceId = text(row.company_workspace_id);
     const messageType = normalized(row.message_type);
@@ -452,8 +809,17 @@ export function compileDailyCompanyStatsReport(args: {
       latestUsageByWorkspaceId,
       workspaceId,
       row.created_at,
-      messageType
+      messageType as "chat" | "slack"
     );
+    if (isInRange(row.created_at, startIso, endIso)) {
+      const chats = chatsTodayByWorkspaceId.get(workspaceId) ?? {
+        chat: 0,
+        slack: 0,
+      };
+      if (messageType === "chat") chats.chat += 1;
+      else chats.slack += 1;
+      chatsTodayByWorkspaceId.set(workspaceId, chats);
+    }
   }
 
   const latestLoginByWorkspaceId = new Map<string, string>();
@@ -467,7 +833,7 @@ export function compileDailyCompanyStatsReport(args: {
 
   const candidateCountsByWorkspaceId = new Map<
     string,
-    { accepted: number; connected: number; pending: number }
+    { accepted: number; connected: number; pending: number; rejected: number }
   >();
   for (const [key, stage] of candidateStageByWorkspaceTalent) {
     const separator = key.lastIndexOf(":");
@@ -476,9 +842,11 @@ export function compileDailyCompanyStatsReport(args: {
       accepted: 0,
       connected: 0,
       pending: 0,
+      rejected: 0,
     };
     if (stage === "accepted") counts.accepted += 1;
     else if (stage === "pending_connection") counts.pending += 1;
+    else if (stage === "rejected") counts.rejected += 1;
     else counts.connected += 1;
     candidateCountsByWorkspaceId.set(workspaceId, counts);
   }
@@ -493,12 +861,18 @@ export function compileDailyCompanyStatsReport(args: {
       accepted: 0,
       connected: 0,
       pending: 0,
+      rejected: 0,
+    };
+    const chatsToday = chatsTodayByWorkspaceId.get(workspaceId) ?? {
+      chat: 0,
+      slack: 0,
     };
     return {
       acceptedCount: counts.accepted,
       acceptedTodayCount:
         acceptedTodayByWorkspaceId.get(workspaceId)?.size ?? 0,
       activeRoleCount: activeRoleCountByWorkspaceId.get(workspaceId) ?? 0,
+      chatTodayCount: chatsToday.chat,
       companyName: text(workspace.company_name) || "회사명 없음",
       companyWorkspaceId: workspaceId,
       connectedCount: counts.connected,
@@ -511,13 +885,94 @@ export function compileDailyCompanyStatsReport(args: {
       latestUsageAt: usage?.at ?? null,
       latestUsageKind: usage?.kind ?? null,
       memberCount,
+      newMemberTodayCount:
+        newMembersTodayByWorkspaceId.get(workspaceId)?.size ?? 0,
+      newRoleTodayCount:
+        newRolesTodayByWorkspaceId.get(workspaceId)?.size ?? 0,
       pendingConnectionCount: counts.pending,
+      pendingConnectionTodayCount:
+        pendingConnectionTodayByWorkspaceId.get(workspaceId)?.size ?? 0,
+      rejectedCount: counts.rejected,
+      rejectedTodayCount:
+        rejectedTodayByWorkspaceId.get(workspaceId)?.size ?? 0,
+      roleLifecycleEvents: buildRoleLifecycleEvents({
+        endIso,
+        events: args.rows.events,
+        roles: internalRoles,
+        startIso,
+        workspaceId,
+      }),
+      slackTodayCount: chatsToday.slack,
     } satisfies DailyCompanyStatsRow;
   });
+
+  const tools = buildCompanyToolRows({
+    endIso,
+    startIso,
+    toolMessages: args.rows.toolMessages,
+  });
+  const totals = allCompanies.reduce<DailyCompanyStatsTotals>(
+    (current, company) => ({
+      acceptedCount: current.acceptedCount + company.acceptedCount,
+      acceptedTodayCount: current.acceptedTodayCount + company.acceptedTodayCount,
+      activeRoleCount: current.activeRoleCount + company.activeRoleCount,
+      chatTodayCount: current.chatTodayCount + company.chatTodayCount,
+      memberCount: current.memberCount + company.memberCount,
+      newMemberTodayCount:
+        current.newMemberTodayCount + company.newMemberTodayCount,
+      newRoleTodayCount: current.newRoleTodayCount + company.newRoleTodayCount,
+      pendingConnectionCount:
+        current.pendingConnectionCount + company.pendingConnectionCount,
+      pendingConnectionTodayCount:
+        current.pendingConnectionTodayCount +
+        company.pendingConnectionTodayCount,
+      rejectedCount: current.rejectedCount + company.rejectedCount,
+      rejectedTodayCount: current.rejectedTodayCount + company.rejectedTodayCount,
+      rolling7Day: {
+        acceptedCount:
+          current.rolling7Day.acceptedCount +
+          (rolling7DayAcceptedByWorkspaceId.get(company.companyWorkspaceId)
+            ?.size ?? 0),
+        pendingConnectionCount:
+          current.rolling7Day.pendingConnectionCount +
+          (rolling7DayPendingConnectionByWorkspaceId.get(
+            company.companyWorkspaceId
+          )?.size ?? 0),
+        rejectedCount:
+          current.rolling7Day.rejectedCount +
+          (rolling7DayRejectedByWorkspaceId.get(company.companyWorkspaceId)
+            ?.size ?? 0),
+      },
+      slackTodayCount: current.slackTodayCount + company.slackTodayCount,
+    }),
+    {
+      acceptedCount: 0,
+      acceptedTodayCount: 0,
+      activeRoleCount: 0,
+      chatTodayCount: 0,
+      memberCount: 0,
+      newMemberTodayCount: 0,
+      newRoleTodayCount: 0,
+      pendingConnectionCount: 0,
+      pendingConnectionTodayCount: 0,
+      rejectedCount: 0,
+      rejectedTodayCount: 0,
+      rolling7Day: {
+        acceptedCount: 0,
+        pendingConnectionCount: 0,
+        rejectedCount: 0,
+      },
+      slackTodayCount: 0,
+    }
+  );
 
   return {
     date: args.date,
     endIso,
+    failedToolCallCount: tools.reduce(
+      (count, tool) => count + tool.failedCallCount,
+      0
+    ),
     otherCompanies: sortCompanyRows(
       allCompanies.filter((company) => !company.isServed)
     ),
@@ -525,6 +980,8 @@ export function compileDailyCompanyStatsReport(args: {
       allCompanies.filter((company) => company.isServed)
     ),
     startIso,
+    tools,
+    totals,
   };
 }
 
@@ -546,6 +1003,7 @@ async function fetchAllRows<T>(
 export async function buildDailyCompanyStatsReport(
   date: string
 ): Promise<DailyCompanyStatsReport> {
+  const { endIso, startIso } = getKstDayRange(date);
   const workspaces = await fetchAllRows<CompanyWorkspaceRow>((from, to) =>
     supabaseServer
       .from("company_workspace")
@@ -559,6 +1017,7 @@ export async function buildDailyCompanyStatsReport(
     return compileDailyCompanyStatsReport({
       date,
       rows: {
+        events: [],
         loginLogs: [],
         memberships: [],
         messages: [],
@@ -567,16 +1026,24 @@ export async function buildDailyCompanyStatsReport(
         roles: [],
         slackIntegrations: [],
         tags: [],
+        toolMessages: [],
         workspaces,
       },
     });
   }
 
-  const [roles, memberships, slackIntegrations, messages] = await Promise.all([
+  const [
+    roles,
+    memberships,
+    slackIntegrations,
+    messages,
+    events,
+    toolMessages,
+  ] = await Promise.all([
     fetchAllRows<CompanyRoleRow>((from, to) =>
       (supabaseServer.from("company_roles") as any)
         .select(
-          "role_id,company_workspace_id,status,is_expired,source_type,company_internal_roles(is_auto)"
+          "role_id,company_workspace_id,name,status,is_expired,source_type,created_at,company_internal_roles(is_auto,role_status_changed_at)"
         )
         .in("company_workspace_id", workspaceIds)
         .eq("source_type", "internal")
@@ -585,7 +1052,7 @@ export async function buildDailyCompanyStatsReport(
     fetchAllRows<CompanyMembershipRow>((from, to) =>
       supabaseServer
         .from("company_user_workspace")
-        .select("company_workspace_id,company_user_id")
+        .select("company_workspace_id,company_user_id,created_at")
         .in("company_workspace_id", workspaceIds)
         .range(from, to)
     ),
@@ -604,6 +1071,27 @@ export async function buildDailyCompanyStatsReport(
         .eq("role", "user")
         .in("message_type", ["chat", "slack"])
         .order("created_at", { ascending: false })
+        .range(from, to)
+    ),
+    fetchAllRows<CompanyEventRow>((from, to) =>
+      supabaseServer
+        .from("company_events")
+        .select("workspace_id,content,created_at")
+        .in("workspace_id", workspaceIds)
+        .gte("created_at", startIso)
+        .lt("created_at", endIso)
+        .order("created_at", { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows<CompanyToolMessageRow>((from, to) =>
+      supabaseServer
+        .from("company_messages")
+        .select("company_workspace_id,created_at,metadata,status,thinking_logs")
+        .in("company_workspace_id", workspaceIds)
+        .eq("role", "assistant")
+        .in("message_type", ["chat", "slack"])
+        .gte("created_at", startIso)
+        .lt("created_at", endIso)
         .range(from, to)
     ),
   ]);
@@ -662,6 +1150,7 @@ export async function buildDailyCompanyStatsReport(
   return compileDailyCompanyStatsReport({
     date,
     rows: {
+      events,
       loginLogs,
       memberships,
       messages,
@@ -670,6 +1159,7 @@ export async function buildDailyCompanyStatsReport(
       roles,
       slackIntegrations,
       tags,
+      toolMessages,
       workspaces,
     },
   });
@@ -682,46 +1172,28 @@ function escapeSlackText(value: string) {
     .replace(/>/g, "&gt;");
 }
 
-function formatKstTimestamp(value: string | null) {
-  if (!value) return "없음";
-  const timestamp = new Date(value).getTime();
-  if (!Number.isFinite(timestamp)) return "없음";
-  const kst = new Date(timestamp + KST_OFFSET_MS).toISOString();
-  return `${kst.slice(5, 10).replace("-", "/")} ${kst.slice(11, 16)}`;
+function companyJobsUrl(companyWorkspaceId: string) {
+  return `https://matchharper.com/org/jobs?orgId=${encodeURIComponent(
+    companyWorkspaceId
+  )}&roleId=all`;
 }
 
-function usageKindLabel(value: DailyCompanyUsageKind | null) {
-  if (value === "accepted") return "수락";
-  if (value === "rejected") return "거절";
-  if (value === "slack") return "Slack";
-  if (value === "chat") return "채팅";
-  return null;
+function companyConversationsUrl(companyWorkspaceId: string) {
+  return `https://matchharper.com/ops/company?workspaceId=${encodeURIComponent(
+    companyWorkspaceId
+  )}&tab=conversations`;
 }
 
-function formatCompanyLine(company: DailyCompanyStatsRow, served: boolean) {
+function formatAcceptedLink(company: DailyCompanyStatsRow) {
+  return `<${companyJobsUrl(company.companyWorkspaceId)}|수락 ${company.acceptedCount}>`;
+}
+
+function formatCompanyLine(company: DailyCompanyStatsRow) {
   const prefix = `• ${escapeSlackText(company.companyName)} — `;
-  if (!served) {
-    const details = [
-      `active role ${company.activeRoleCount}`,
-      `수락 ${company.acceptedCount}(+오늘 ${company.acceptedTodayCount})`,
-      ...(company.isAuto ? ["auto O"] : []),
-    ];
-    return `${prefix}${details.join(" · ")}`;
-  }
-  const usageLabel = usageKindLabel(company.latestUsageKind);
-  const latestUsage = usageLabel
-    ? `${usageLabel} ${formatKstTimestamp(company.latestUsageAt)}`
-    : "없음";
   const details = [
-    ...(company.isAuto ? ["auto O"] : []),
-    `Slack ${company.isSlackConnected ? "O" : "X"}`,
-    `멤버 ${company.memberCount}`,
-    `active role ${company.activeRoleCount}`,
+    formatAcceptedLink(company),
     `연결 대기 ${company.pendingConnectionCount}`,
-    `수락 ${company.acceptedCount}(+오늘 ${company.acceptedTodayCount})`,
-    `연결 중 ${company.connectedCount}(+오늘 ${company.connectedTodayCount})`,
-    `최근 사용 ${latestUsage}`,
-    `최근 접속 ${formatKstTimestamp(company.latestLoginAt)}`,
+    `거절 ${company.rejectedCount}`,
   ];
   return `${prefix}${details.join(" · ")}`;
 }
@@ -731,18 +1203,22 @@ export function formatDailyCompanyStatsSlackMessage(
 ) {
   const servedLines =
     report.servedCompanies.length > 0
-      ? report.servedCompanies.map((company) =>
-          formatCompanyLine(company, true)
-        )
+      ? report.servedCompanies.map(formatCompanyLine)
       : ["• 없음"];
   const otherLines =
     report.otherCompanies.length > 0
-      ? report.otherCompanies.map((company) =>
-          formatCompanyLine(company, false)
-        )
+      ? report.otherCompanies.map(formatCompanyLine)
       : ["• 없음"];
   return [
     `🏢 [Daily Company Stats] ${report.date}`,
+    "",
+    "*전체*",
+    `- 채팅 수: Slack ${report.totals.slackTodayCount}개 · web ${report.totals.chatTodayCount}개`,
+    `- 전체 멤버 수: ${report.totals.memberCount}명 (+오늘 ${report.totals.newMemberTodayCount}명)`,
+    `- 전체 active 상태 역할 수: ${report.totals.activeRoleCount}개 (+오늘 새 역할 ${report.totals.newRoleTodayCount}개)`,
+    `- 전체 후보 상태: 수락자 ${report.totals.acceptedCount}명 · 연결 대기 ${report.totals.pendingConnectionCount}명 · 거절 ${report.totals.rejectedCount}명`,
+    `- 오늘 신규 전환: 수락자 ${report.totals.acceptedTodayCount}명 · 연결 대기 ${report.totals.pendingConnectionTodayCount}명 · 거절 ${report.totals.rejectedTodayCount}명`,
+    `- 지난 7일 신규 전환: 수락자 ${report.totals.rolling7Day.acceptedCount}명 · 연결 대기 ${report.totals.rolling7Day.pendingConnectionCount}명 · 거절 ${report.totals.rolling7Day.rejectedCount}명`,
     "",
     `*Slack/직접 서빙 중 · ${report.servedCompanies.length}개*`,
     ...servedLines,
@@ -750,4 +1226,103 @@ export function formatDailyCompanyStatsSlackMessage(
     `*그 외 회사 · ${report.otherCompanies.length}개*`,
     ...otherLines,
   ].join("\n");
+}
+
+function lifecycleActionLabel(
+  action: DailyCompanyRoleLifecycleEvent["action"]
+) {
+  if (action === "created") return "역할 등록";
+  if (action === "activated") return "역할 진행";
+  if (action === "paused") return "역할 중단";
+  if (action === "ended") return "역할 정지";
+  return "역할 삭제";
+}
+
+function formatCompanyDetailLines(company: DailyCompanyStatsRow) {
+  const lines: string[] = [];
+  const chatTodayCount = company.chatTodayCount + company.slackTodayCount;
+  if (chatTodayCount > 0) {
+    lines.push(
+      `- <${companyConversationsUrl(
+        company.companyWorkspaceId
+      )}|오늘 채팅 수: Slack ${company.slackTodayCount}개 · web ${
+        company.chatTodayCount
+      }개>`
+    );
+  }
+  if (company.memberCount > 0 || company.newMemberTodayCount > 0) {
+    lines.push(
+      `- 멤버 ${company.memberCount}명 (+오늘 ${company.newMemberTodayCount}명)`
+    );
+  }
+  for (const event of company.roleLifecycleEvents) {
+    lines.push(
+      `- ${lifecycleActionLabel(event.action)}: ${escapeSlackText(
+        event.roleName
+      )}`
+    );
+  }
+  if (company.pendingConnectionTodayCount > 0) {
+    lines.push(
+      `- 새로 등록된 연결 대기 ${company.pendingConnectionTodayCount}명`
+    );
+  }
+  if (company.acceptedTodayCount > 0) {
+    lines.push(
+      `- <${companyJobsUrl(
+        company.companyWorkspaceId
+      )}|새로 등록된 수락자 ${company.acceptedTodayCount}명>`
+    );
+  }
+  return lines;
+}
+
+function splitSlackMessage(text: string, maxLength = 35_000) {
+  if (text.length <= maxLength) return [text];
+
+  const chunks: string[] = [];
+  let current = "";
+  for (const line of text.split("\n")) {
+    const next = current ? `${current}\n${line}` : line;
+    if (current && next.length > maxLength) {
+      chunks.push(current);
+      current = line;
+    } else {
+      current = next;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+export function formatDailyCompanyStatsSlackDetailMessages(
+  report: DailyCompanyStatsReport
+) {
+  const toolLines =
+    report.tools.length > 0
+      ? report.tools.map(
+          (tool) =>
+            `- ${escapeSlackText(tool.name)}: ${tool.callCount} calls / error ${tool.failedCallCount}`
+        )
+      : ["- 없음"];
+  const companies = [...report.servedCompanies, ...report.otherCompanies];
+  const companySections = companies
+    .map((company) => {
+      const lines = formatCompanyDetailLines(company);
+      if (lines.length === 0) return null;
+      return [`*${escapeSlackText(company.companyName)}*`, ...lines].join("\n");
+    })
+    .filter((section): section is string => Boolean(section));
+  const sections = [
+    [
+      "*회사측 LLM 도구 호출*",
+      ...toolLines,
+      `- 실패한 tool call: ${report.failedToolCallCount}개`,
+    ].join("\n"),
+    "*회사별 상세 지표*",
+    companySections.length > 0
+      ? companySections.join("\n\n")
+      : "오늘 기록된 회사별 상세 지표가 없습니다.",
+  ];
+  return splitSlackMessage(sections.join("\n\n"));
 }

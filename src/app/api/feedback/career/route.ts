@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { IncomingWebhook } from "@slack/webhook";
 import { getRequestUser, supabaseServer } from "@/lib/supabaseServer";
+import { postUserFeedbackSlackMessage } from "@/lib/userFeedbackSlack";
 
 const CAREER_INQUIRY_SOURCE = "career-inquiry";
 
@@ -12,15 +12,6 @@ type CareerInquiryBody = {
 
 const isValidEmail = (value: string) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-
-function getInternalSlackWebhook() {
-  const webhookUrl = process.env.SLACK_INTERNAL_NOTI_TOKEN?.trim();
-  if (!webhookUrl) {
-    throw new Error("SLACK_INTERNAL_NOTI_TOKEN is required");
-  }
-
-  return new IncomingWebhook(webhookUrl);
-}
 
 function getKstTimestamp() {
   return new Date().toLocaleString("ko-KR", {
@@ -86,7 +77,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await getInternalSlackWebhook().send({
+    await postUserFeedbackSlackMessage({
       text: `✉️ *Career Inquiry*
 
 • *User ID*: ${user.id}

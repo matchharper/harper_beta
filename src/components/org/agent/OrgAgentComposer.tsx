@@ -170,7 +170,7 @@ function MentionMenu({
       role="option"
       type="button"
       className={cn(
-        "flex w-full items-center gap-3 px-3 py-1.5 text-left transition",
+        "grid grid-cols-[24px_1fr_160px_60px] w-full items-center gap-3 px-3 py-1.5 text-left transition",
         index === highlightedIndex
           ? "bg-bg-basement text-neutral-primary"
           : "text-neutral-primary hover:bg-bg-weak"
@@ -189,37 +189,32 @@ function MentionMenu({
         {candidate.label}
       </span>
       {showRoleName ? (
-        <Badge
-          className="max-w-28 truncate text-neutral-muted"
-          radius="full"
-          size="sm"
-          title={candidate.roleName}
-          variant="outline"
-        >
+        <div className="text-[11px] font-normal max-w-39 truncate text-neutral-muted">
           {candidate.roleName}
-        </Badge>
+        </div>
       ) : null}
-      <Badge
+      <div className="text-[11px] font-normal">{candidate.stageLabel}</div>
+      {/* <Badge
         className="max-w-28 truncate"
         radius="full"
         size="sm"
         variant="faded"
       >
-        {candidate.stageLabel}
-      </Badge>
-      <span
+       
+      </Badge> */}
+      {/* <span
         aria-label={`연결 제안일 ${formatMentionDate(candidate.recommendedAt)}`}
         className="shrink-0 text-[11px] tabular-nums text-neutral-soft"
       >
         {formatMentionDate(candidate.recommendedAt)}
-      </span>
+      </span> */}
     </button>
   );
 
   return (
     <div className="absolute bottom-full left-0 z-20 mb-2 w-full overflow-hidden rounded-lg border border-neutral-1000-a10 bg-bg-floating shadow-xl sm:w-[60%] sm:min-w-[480px]">
       <div className="flex items-center justify-between px-3 py-2 text-[11px] text-neutral-muted">
-        <span>연결된 talent</span>
+        <span>연결 목록</span>
         {!isLoading && candidates.length > 0 ? (
           <span>{candidates.length}명</span>
         ) : null}
@@ -231,11 +226,10 @@ function MentionMenu({
         </div>
       ) : candidates.length === 0 ? (
         <div className="px-3 py-3 text-[12px] text-neutral-muted">
-          연결된 talent에서 찾지 못했습니다.
+          아직 연결된 인재가 없습니다.
         </div>
       ) : (
         <div
-          aria-label="연결된 talent 선택"
           className="max-h-72 overflow-y-auto py-1"
           id={listId}
           role="listbox"
@@ -324,7 +318,6 @@ export function OrgAgentComposer({
   onModelChange,
   onSend,
   roleId,
-  showModelSelector,
   workspaceId,
 }: {
   allowAttachments?: boolean;
@@ -340,7 +333,6 @@ export function OrgAgentComposer({
     message: string;
   }) => void | Promise<void>;
   roleId?: string | null;
-  showModelSelector: boolean;
   workspaceId: string;
 }) {
   const mentionListId = useId();
@@ -624,7 +616,7 @@ export function OrgAgentComposer({
           aria-autocomplete="list"
           aria-controls={mentionSearch ? mentionListId : undefined}
           aria-expanded={Boolean(mentionSearch)}
-          placeholder="원하는 조건 혹은 요구사항을 알려주세요."
+          placeholder="Ask anything, @ for choosing talent"
           onChange={(event) =>
             handleChange(event.target.value, event.currentTarget)
           }
@@ -674,7 +666,7 @@ export function OrgAgentComposer({
             </>
           }
           action={
-            <>
+            <div className="w-full flex items-end justify-between gap-2">
               {allowAttachments && (
                 <MuteButton
                   aria-label="파일 첨부"
@@ -706,7 +698,7 @@ export function OrgAgentComposer({
                   <ArrowUp className="h-4 w-4" />
                 )}
               </MuteButton>
-            </>
+            </div>
           }
         />
         {attachmentError ? (
@@ -714,15 +706,13 @@ export function OrgAgentComposer({
             {attachmentError}
           </div>
         ) : null}
-        {showModelSelector && (
-          <div className="mt-2 flex items-center justify-between gap-2">
+        {/* <div className="mt-2 flex items-center justify-between gap-2">
             <ModelSelector
               model={model}
               onChange={onModelChange}
-              visible={showModelSelector}
+              visible={true}
             />
-          </div>
-        )}
+          </div> */}
       </div>
     </form>
   );

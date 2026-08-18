@@ -1,6 +1,6 @@
-import { IncomingWebhook } from "@slack/webhook";
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser, supabaseServer } from "@/lib/supabaseServer";
+import { postUserFeedbackSlackMessage } from "@/lib/userFeedbackSlack";
 
 const ORG_ACCESS_REQUEST_SOURCE = "org-access-request";
 const MAX_MESSAGE_LENGTH = 2000;
@@ -24,15 +24,6 @@ function escapeSlackText(value: string) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-}
-
-function getOrgAccessWebhook() {
-  const webhookUrl =
-    process.env.SLACK_INTERNAL_NOTI_TOKEN?.trim() ||
-    process.env.SLACK_COMPANY_NOTIFICATION_TOKEN?.trim();
-  if (!webhookUrl)
-    throw new Error("Org access Slack webhook is not configured");
-  return new IncomingWebhook(webhookUrl);
 }
 
 export async function POST(req: NextRequest) {
@@ -97,7 +88,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await getOrgAccessWebhook().send({
+    await postUserFeedbackSlackMessage({
       text: [
         "🔗 *Organization 초대 링크 요청*",
         "",

@@ -205,7 +205,7 @@ export const COMPANY_DATA_CATALOG: Record<
   role_external_jd_url: url(true),
   role_location: text({ maxLength: 300, roleScoped: true }),
   role_status: {
-    allowedValues: ["top_priority", "active", "paused", "ended"],
+    allowedValues: ["top_priority", "active", "paused", "ended", "deleted"],
     confirmationRequired: false,
     longText: false,
     nullable: false,

@@ -151,7 +151,10 @@ function OrgInboxMain() {
 
   return (
     <div className="space-y-6">
-      <OrgPageHeader description="추천된 인재를 확인합니다." title="Inbox" />
+      <OrgPageHeader
+        description="최근에 추천된 인재를 확인합니다."
+        title="Inbox"
+      />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div

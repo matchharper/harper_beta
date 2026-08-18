@@ -6,16 +6,10 @@ import {
 } from "@/hooks/org/useOrg";
 
 export function useOrgJobsBoardData(args: {
-  nameQuery: string;
-  recommendedFromDate: string;
-  recommendedToDate: string;
   selectedRoleId: string | null;
   workspaceId: string;
 }) {
   const boardQuery = useOrgBoard({
-    query: args.selectedRoleId ? args.nameQuery : "",
-    recommendedFromDate: args.selectedRoleId ? args.recommendedFromDate : "",
-    recommendedToDate: args.selectedRoleId ? args.recommendedToDate : "",
     roleId: args.selectedRoleId,
     workspaceId: args.workspaceId,
   });

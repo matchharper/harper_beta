@@ -28,6 +28,68 @@ export function canDropOrgCandidateToStage(
   return !stage.roleId || stage.roleId === item.roleId;
 }
 
+export function OrgCandidateStageMenu({
+  internalOpsAccess = false,
+  item,
+  onMove,
+  pending = false,
+  stages,
+}: {
+  internalOpsAccess?: boolean;
+  item: OrgBoardItem;
+  onMove: (item: OrgBoardItem, stage: OrgStageId) => void;
+  pending?: boolean;
+  stages: OrgStage[];
+}) {
+  const availableStages = stages.filter(
+    (stage) =>
+      canDropOrgCandidateToStage(item, stage) &&
+      (internalOpsAccess || !isOrgInternalStage(stage.id))
+  );
+
+  return (
+    <div
+      onClick={(event) => event.stopPropagation()}
+      onDragStart={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <MuteButton
+            aria-label="후보자 이동"
+            size="sm"
+            variant="transparent"
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </MuteButton>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-44">
+          {availableStages.map((stage) => {
+            const isInternalStage = isOrgInternalStage(stage.id);
+            return (
+              <DropdownMenuItem
+                className={cn(
+                  isInternalStage && "relative isolate overflow-hidden"
+                )}
+                key={stage.id}
+                disabled={pending || stage.id === item.stage}
+                onSelect={() => onMove(item, stage.id)}
+              >
+                {isInternalStage && (
+                  <InternalOnlyHatch className="opacity-70" />
+                )}
+                <span className={cn(isInternalStage && "relative z-20")}>
+                  {stage.label}
+                </span>
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
 export function OrgCandidateCard({
   canManageCandidates = false,
   internalOpsAccess = false,
@@ -52,11 +114,6 @@ export function OrgCandidateCard({
   viewed?: boolean;
 }) {
   const displayName = getOrgCandidateDisplayName(item);
-  const availableStages = stages.filter(
-    (stage) =>
-      canDropOrgCandidateToStage(item, stage) &&
-      (internalOpsAccess || !isOrgInternalStage(stage.id))
-  );
   const profilePicture = getDisplayableProfileImageUrl(
     item.talent.profilePicture
   );
@@ -97,14 +154,14 @@ export function OrgCandidateCard({
           <Image
             src={profilePicture}
             alt=""
-            width={36}
-            height={36}
+            width={28}
+            height={28}
             unoptimized
             onError={() => setFailedImageSrc(profilePicture)}
-            className="h-9 w-9 shrink-0 rounded-full object-cover"
+            className="h-7 w-7 shrink-0 rounded-full object-cover"
           />
         ) : (
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-bg-weak text-[12px] font-medium text-neutral-muted">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-bg-weak text-[12px] font-normal text-neutral-muted">
             {displayName.slice(0, 1).toUpperCase()}
           </div>
         )}
@@ -123,57 +180,18 @@ export function OrgCandidateCard({
           </div>
         </div>
         {canManageCandidates && onMove ? (
-          <div
-            onClick={(event) => event.stopPropagation()}
-            onDragStart={(event) => event.stopPropagation()}
-            onPointerDown={(event) => event.stopPropagation()}
-          >
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <MuteButton
-                  aria-label="후보자 이동"
-                  size="sm"
-                  variant="transparent"
-                >
-                  <MoreHorizontal className="h-4 w-4" />
-                </MuteButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
-                {availableStages.map((stage) => {
-                  const isInternalStage = isOrgInternalStage(stage.id);
-                  return (
-                    <DropdownMenuItem
-                      className={cn(
-                        isInternalStage && "relative isolate overflow-hidden"
-                      )}
-                      key={stage.id}
-                      disabled={pending || stage.id === item.stage}
-                      onSelect={() => onMove(item, stage.id)}
-                    >
-                      {isInternalStage && (
-                        <InternalOnlyHatch className="opacity-70" />
-                      )}
-                      <span className={cn(isInternalStage && "relative z-20")}>
-                        {stage.label}
-                      </span>
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          <OrgCandidateStageMenu
+            internalOpsAccess={internalOpsAccess}
+            item={item}
+            onMove={onMove}
+            pending={pending}
+            stages={stages}
+          />
         ) : null}
       </div>
-
-      {item.talent.headline ? (
-        <div className="mt-2 line-clamp-2 text-[12px] leading-5 text-neutral-muted">
-          {item.talent.headline}
-        </div>
-      ) : null}
-      <div className="mt-3 grid gap-2 border-t border-neutral-1000-a05 pt-3">
+      <div className="mt-1 grid gap-2">
         {profileLabelsLoading ? (
           <>
-            <div className="h-5 w-4/5 animate-pulse rounded-sm bg-neutral-1000-a05" />
             <div className="h-5 w-3/5 animate-pulse rounded-sm bg-neutral-1000-a05" />
           </>
         ) : profileLabelsError ? (
@@ -184,16 +202,17 @@ export function OrgCandidateCard({
           <>
             <div className="min-w-0">
               <ProfileLabelCell
+                isCompact={true}
                 emptyLabel="회사 없음"
                 labels={item.talent.recentCompanies}
               />
             </div>
-            <div className="min-w-0">
+            {/* <div className="min-w-0">
               <ProfileLabelCell
                 emptyLabel="학교 없음"
                 labels={item.talent.recentSchools}
               />
-            </div>
+            </div> */}
           </>
         )}
       </div>
@@ -206,13 +225,13 @@ export function OrgCandidateCard({
         <span className="rounded-sm bg-bg-weak px-2 py-1 text-[11px] leading-4 text-neutral-muted">
           추천 {formatKstRelativeDate(item.recommendedAt)}
         </span>
-        {item.roleName ? (
+        {/* {item.roleName && (
           <span className="rounded-sm bg-bg-weak px-2 py-1 text-[11px] leading-4 text-neutral-muted">
             {item.roleName}
           </span>
-        ) : null}
+        )} */}
       </div>
-      {pending ? <ReviewPipelineCardPendingState /> : null}
+      {pending && <ReviewPipelineCardPendingState />}
     </div>
   );
 }

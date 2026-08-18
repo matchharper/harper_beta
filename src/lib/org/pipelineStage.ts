@@ -3,6 +3,7 @@ export const ORG_AGENT_RECOMMENDATION_ID_FILTER_MAX = 100;
 
 const ROLE_STATUS_LABELS: Record<string, string> = {
   active: "채용 중",
+  deleted: "삭제됨",
   ended: "종료",
   open: "채용 중",
   paused: "일시 중지",

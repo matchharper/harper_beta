@@ -539,7 +539,7 @@ export function MarkdownRichTextEditor({
       <EditorContent
         editor={editor}
         className={cn(
-          "min-h-0 w-full flex-1 overflow-y-auto text-[16px] font-normal leading-7 text-neutral-primary",
+          "min-h-0 w-full flex-1 overflow-y-auto text-[16px] font-normal leading-7 text-neutral-primary py-6",
           "[&_.tiptap]:min-h-full [&_.tiptap]:outline-none",
           "[&_.tiptap_p]:mt-3 [&_.tiptap_p:first-child]:mt-0",
           "[&_.tiptap_h1]:mt-6 [&_.tiptap_h1]:text-[22px] [&_.tiptap_h1]:font-semibold [&_.tiptap_h1]:leading-8 [&_.tiptap_h1:first-child]:mt-0",
@@ -562,7 +562,7 @@ export function MarkdownRichTextEditor({
       />
 
       {editable ? (
-        <p className="pointer-events-none mt-2 shrink-0 text-[11px] leading-4 text-neutral-soft">
+        <p className="pointer-events-none mt-2 pb-2 bg-white/10 backdrop-blur-sm shrink-0 text-[11px] leading-4 text-neutral-soft">
           텍스트를 선택하면 서식을 적용할 수 있습니다.
         </p>
       ) : null}

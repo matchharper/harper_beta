@@ -180,9 +180,8 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     });
     nextPayload.messages = [...payload.messages, appendedMessage];
     nextPayload.status = "open";
-    if (hasKnownRequester) {
-      slackMessage = appendedMessage;
-    } else {
+    slackMessage = appendedMessage;
+    if (!hasKnownRequester) {
       nextPayload.identityRequestedAt = now;
     }
   }
@@ -219,6 +218,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
   if (
     !slackMessage &&
     receivedCompleteGuestIdentity &&
+    !nextPayload.lastSlackNotifiedAt &&
     (!previouslyHadGuestIdentity || clearedGuestIdentity)
   ) {
     slackMessage =

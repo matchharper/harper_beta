@@ -106,8 +106,9 @@ export function buildSlackTalentProfileUrl(args: {
       talentId: args.target.talentId,
     },
     orgId: args.workspaceId,
-    page: "jobs",
+    page: "role",
     roleId: args.target.roleId,
+    tab: "pipeline",
     view: "pipeline",
   });
   return new URL(
@@ -139,8 +140,9 @@ export function buildSlackRolePipelineUrl(args: {
 }) {
   const href = buildOrgHref({
     orgId: args.workspaceId,
-    page: "jobs",
+    page: "role",
     roleId: args.roleId,
+    tab: "pipeline",
     view: "pipeline",
   });
   return new URL(

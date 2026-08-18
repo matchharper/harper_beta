@@ -1,6 +1,7 @@
 // slack.ts
 import { xaiInference } from "@/lib/llm/llm";
 import { IncomingWebhook } from "@slack/webhook";
+import { postUserFeedbackSlackMessage } from "@/lib/userFeedbackSlack";
 
 const getWebhook = (
   envName: "SLACK_TOKEN" | "SLACK_COMPANY_NOTIFICATION_TOKEN"
@@ -24,7 +25,7 @@ async function sendSlackMessage(
 }
 
 export async function notifySlack(message: string) {
-  await sendSlackMessage("SLACK_TOKEN", message);
+  await postUserFeedbackSlackMessage({ text: message });
 }
 
 export async function notifyUsageSlack(message: string) {

@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import {
   infiniteQueryOptions,
+  type QueryClient,
   queryOptions,
   useInfiniteQuery,
   useMutation,
@@ -27,6 +28,11 @@ import type {
 import { upsertOrgAgentThinkingLog } from "@/lib/org/agent/thinkingLogs";
 import type { ChatAttachmentPayload } from "@/types/chat";
 import { queryKeys } from "@/lib/queryKeys";
+import {
+  EMPTY_ORG_AGENT_LIVE_CHAT,
+  getOrgAgentLiveChatKey,
+  useOrgAgentLiveChatStore,
+} from "@/store/useOrgAgentLiveChatStore";
 import {
   splitChatTextDeltaForReveal,
   waitForChatTextReveal,
@@ -68,6 +74,49 @@ function mergeMessages(
     merged.push(message);
   }
   return merged.sort(compareOrgAgentMessages);
+}
+
+export function appendOrgAgentMessagesToCache(
+  queryClient: QueryClient,
+  args: {
+    mode: "general" | "role_creation";
+    roleId?: string | null;
+    workspaceId: string;
+  },
+  incomingMessages: OrgAgentMessage[]
+) {
+  if (incomingMessages.length === 0) return;
+  const roleId = args.roleId?.trim() ?? "";
+  const queryKey = queryKeys.org.agentMessages({
+    mode: args.mode,
+    roleId,
+    workspaceId: args.workspaceId,
+  });
+
+  queryClient.setQueryData<InfiniteData<OrgAgentMessagesPage, number | null>>(
+    queryKey,
+    (current) => {
+      const pages = current?.pages ? [...current.pages] : [];
+      const pageParams = current?.pageParams ? [...current.pageParams] : [null];
+      const latestPage = pages[0] ?? {
+        conversation: {
+          conversationId: "",
+          roleId: roleId || null,
+          title: null,
+          workspaceId: args.workspaceId,
+        },
+        hasMore: false,
+        messages: [],
+        nextCursor: null,
+        ok: true as const,
+      };
+      pages[0] = {
+        ...latestPage,
+        messages: mergeMessages(latestPage.messages, incomingMessages),
+      };
+      return { pageParams, pages };
+    }
+  );
 }
 
 function parseSseBlock(block: string) {
@@ -160,7 +209,6 @@ export function useOrgAgentMessageHistory(args: {
   const queryClient = useQueryClient();
   const workspaceId = args.workspaceId?.trim() ?? "";
   const options = orgAgentMessageHistoryQueryOptions(args);
-  const queryKey = options.queryKey;
   const infinite = useInfiniteQuery(options);
 
   const messages = useMemo(() => {
@@ -172,34 +220,17 @@ export function useOrgAgentMessageHistory(args: {
 
   const appendMessagesToCache = useCallback(
     (incomingMessages: OrgAgentMessage[]) => {
-      if (incomingMessages.length === 0) return;
-      queryClient.setQueryData<
-        InfiniteData<OrgAgentMessagesPage, number | null>
-      >(queryKey, (current) => {
-        const pages = current?.pages ? [...current.pages] : [];
-        const pageParams = current?.pageParams
-          ? [...current.pageParams]
-          : [null];
-        const latestPage = pages[0] ?? {
-          conversation: {
-            conversationId: "",
-            roleId: null,
-            title: null,
-            workspaceId,
-          },
-          hasMore: false,
-          messages: [],
-          nextCursor: null,
-          ok: true as const,
-        };
-        pages[0] = {
-          ...latestPage,
-          messages: mergeMessages(latestPage.messages, incomingMessages),
-        };
-        return { pageParams, pages };
-      });
+      appendOrgAgentMessagesToCache(
+        queryClient,
+        {
+          mode: args.mode ?? "general",
+          roleId: args.roleId,
+          workspaceId,
+        },
+        incomingMessages
+      );
     },
-    [queryClient, queryKey, workspaceId]
+    [args.mode, args.roleId, queryClient, workspaceId]
   );
 
   return {
@@ -262,15 +293,19 @@ export function useOrgAgentChat(args: {
   const activeWorkspaceId = args.workspaceId?.trim() ?? "";
   const activeRoleId = args.roleId?.trim() ?? "";
   const mode = args.mode ?? "general";
-  const [error, setError] = useState<string | null>(null);
-  const [assistantStatus, setAssistantStatus] = useState<
-    "idle" | "pending" | "streaming"
-  >("idle");
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [optimisticUserMessage, setOptimisticUserMessage] =
-    useState<OrgAgentMessage | null>(null);
-  const [streamingText, setStreamingText] = useState("");
-  const [thinkingLogs, setThinkingLogs] = useState<OrgAgentThinkingLog[]>([]);
+  const liveChatKey = getOrgAgentLiveChatKey({
+    mode,
+    roleId: activeRoleId,
+    workspaceId: activeWorkspaceId,
+  });
+  const liveChat = useOrgAgentLiveChatStore(
+    (state) => state.chats[liveChatKey] ?? EMPTY_ORG_AGENT_LIVE_CHAT
+  );
+  const setError = useCallback(
+    (error: string | null) =>
+      useOrgAgentLiveChatStore.getState().patch(liveChatKey, { error }),
+    [liveChatKey]
+  );
 
   const sendMessage = useCallback(
     async (input: {
@@ -283,10 +318,8 @@ export function useOrgAgentChat(args: {
       const workspaceId = activeWorkspaceId;
       if (!workspaceId) return;
 
-      setError(null);
-      setAssistantStatus("pending");
-      setIsStreaming(true);
-      setOptimisticUserMessage({
+      let streamLiveChatKey = liveChatKey;
+      const optimisticUserMessage: OrgAgentMessage = {
         authorUserId: args.currentUserId?.trim() || null,
         content: input.message,
         createdAt: new Date().toISOString(),
@@ -308,19 +341,22 @@ export function useOrgAgentChat(args: {
         sourceSurface: "web",
         status: "pending",
         thinkingLogs: [],
-      });
-      setStreamingText("");
-      setThinkingLogs([]);
+      };
+      useOrgAgentLiveChatStore
+        .getState()
+        .start(streamLiveChatKey, optimisticUserMessage);
 
       let accessToken = await getInternalAccessToken();
       if (!accessToken) {
         accessToken = await refreshInternalAccessToken();
       }
       if (!accessToken) {
-        setError("로그인 세션을 찾지 못했습니다. 다시 로그인해 주세요.");
-        setAssistantStatus("idle");
-        setOptimisticUserMessage(null);
-        setIsStreaming(false);
+        useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
+          assistantStatus: "idle",
+          error: "로그인 세션을 찾지 못했습니다. 다시 로그인해 주세요.",
+          isStreaming: false,
+          optimisticUserMessage: null,
+        });
         return;
       }
 
@@ -377,10 +413,11 @@ export function useOrgAgentChat(args: {
           const payload = (await response.json().catch(() => ({}))) as {
             error?: string;
           };
-          setError(
-            sanitizeVisibleAgentError(payload.error) ||
-              "에이전트 응답을 만들지 못했습니다."
-          );
+          useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
+            error:
+              sanitizeVisibleAgentError(payload.error) ||
+              "에이전트 응답을 만들지 못했습니다.",
+          });
           return;
         }
 
@@ -400,19 +437,41 @@ export function useOrgAgentChat(args: {
             if (!parsed) continue;
             if (parsed.event === "user_message") {
               appendMessagesToCache([parsed.data as OrgAgentMessage]);
-              setOptimisticUserMessage(null);
+              if (responseRoleId !== activeRoleId) {
+                appendOrgAgentMessagesToCache(queryClient, {
+                  mode,
+                  roleId: responseRoleId,
+                  workspaceId,
+                }, [parsed.data as OrgAgentMessage]);
+              }
+              useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
+                optimisticUserMessage: null,
+              });
             } else if (parsed.event === "assistant_message") {
               appendMessagesToCache([parsed.data as OrgAgentMessage]);
-              setAssistantStatus("idle");
-              setOptimisticUserMessage(null);
-              setStreamingText("");
-              setThinkingLogs([]);
+              if (responseRoleId !== activeRoleId) {
+                appendOrgAgentMessagesToCache(queryClient, {
+                  mode,
+                  roleId: responseRoleId,
+                  workspaceId,
+                }, [parsed.data as OrgAgentMessage]);
+              }
+              useOrgAgentLiveChatStore.getState().finish(streamLiveChatKey);
             } else if (parsed.event === "role_created") {
               const roleId = String(
                 (parsed.data as { roleId?: unknown }).roleId ?? ""
               ).trim();
               if (roleId) {
                 responseRoleId = roleId;
+                const nextLiveChatKey = getOrgAgentLiveChatKey({
+                  mode,
+                  roleId,
+                  workspaceId,
+                });
+                useOrgAgentLiveChatStore
+                  .getState()
+                  .move(streamLiveChatKey, nextLiveChatKey);
+                streamLiveChatKey = nextLiveChatKey;
                 onRoleCreated?.(roleId);
               }
             } else if (parsed.event === "text_delta") {
@@ -420,26 +479,47 @@ export function useOrgAgentChat(args: {
                 (parsed.data as { delta?: unknown }).delta ?? ""
               );
               if (delta) {
-                setAssistantStatus("streaming");
+                useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
+                  assistantStatus: "streaming",
+                });
                 for (const revealChunk of splitChatTextDeltaForReveal(delta)) {
-                  setStreamingText((current) => current + revealChunk);
+                  const current =
+                    useOrgAgentLiveChatStore.getState().chats[
+                      streamLiveChatKey
+                    ] ?? EMPTY_ORG_AGENT_LIVE_CHAT;
+                  useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
+                    streamingText: current.streamingText + revealChunk,
+                  });
                   await waitForChatTextReveal();
                 }
               }
             } else if (parsed.event === "tool_status") {
               const log = toThinkingLog(parsed.data);
               if (log) {
-                setThinkingLogs((current) =>
-                  upsertOrgAgentThinkingLog(current, log, 6)
-                );
+                const current =
+                  useOrgAgentLiveChatStore.getState().chats[
+                    streamLiveChatKey
+                  ] ?? EMPTY_ORG_AGENT_LIVE_CHAT;
+                useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
+                  thinkingLogs: upsertOrgAgentThinkingLog(
+                    current.thinkingLogs,
+                    log,
+                    6
+                  ),
+                });
               }
             } else if (parsed.event === "error") {
               const message = sanitizeVisibleAgentError(
                 (parsed.data as { error?: unknown }).error ??
                   "에이전트 응답을 만들지 못했습니다."
               );
-              setAssistantStatus("idle");
-              setError(message);
+              useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
+                assistantStatus: "idle",
+                isStreaming: false,
+              });
+              useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
+                error: message,
+              });
             }
           }
         }
@@ -466,11 +546,12 @@ export function useOrgAgentChat(args: {
         ]);
         queriesInvalidated = true;
       } catch (error) {
-        setError(
-          error instanceof Error
-            ? sanitizeVisibleAgentError(error.message)
-            : "에이전트 응답을 만들지 못했습니다."
-        );
+        useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
+          error:
+            error instanceof Error
+              ? sanitizeVisibleAgentError(error.message)
+              : "에이전트 응답을 만들지 못했습니다.",
+        });
       } finally {
         if (mode === "role_creation" && !queriesInvalidated) {
           await Promise.allSettled([
@@ -494,11 +575,7 @@ export function useOrgAgentChat(args: {
               : []),
           ]);
         }
-        setOptimisticUserMessage(null);
-        setAssistantStatus("idle");
-        setStreamingText("");
-        setThinkingLogs([]);
-        setIsStreaming(false);
+        useOrgAgentLiveChatStore.getState().finish(streamLiveChatKey);
       }
     },
     [
@@ -506,6 +583,7 @@ export function useOrgAgentChat(args: {
       activeWorkspaceId,
       appendMessagesToCache,
       args.currentUserId,
+      liveChatKey,
       mode,
       onRoleCreated,
       queryClient,
@@ -513,14 +591,14 @@ export function useOrgAgentChat(args: {
   );
 
   return {
-    assistantStatus,
-    error,
-    isStreaming,
-    optimisticUserMessage,
+    assistantStatus: liveChat.assistantStatus,
+    error: liveChat.error,
+    isStreaming: liveChat.isStreaming,
+    optimisticUserMessage: liveChat.optimisticUserMessage,
     sendMessage,
     setError,
-    streamingText,
-    thinkingLogs,
+    streamingText: liveChat.streamingText,
+    thinkingLogs: liveChat.thinkingLogs,
   };
 }
 

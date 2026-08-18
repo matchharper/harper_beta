@@ -1,13 +1,9 @@
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import {
-  BadgeCheck,
   ChevronLeft,
   ChevronRight,
-  CircleCheck,
   CircleAlert,
-  CircleHelp,
-  CircleX,
   LoaderCircle,
   X,
 } from "lucide-react";
@@ -77,7 +73,6 @@ import type { OrgInternalTalentSystemResponse } from "@/lib/org/internalTalentTy
 import { canStopOrgCandidateProcess } from "@/lib/org/candidateDecision";
 import { getOrgTalentDetailNavigationState } from "@/lib/org/detailNavigation";
 import type { OrgTalentDetailResponse } from "@/lib/org/server";
-import type { OrgCompanyCriterionFitness } from "@/lib/org/companyCriteriaEvaluations";
 import { cn } from "@/lib/utils";
 import Face from "../common/Face";
 
@@ -242,87 +237,6 @@ function MarkdownProfile({ value }: { value: string }) {
         {value}
       </ReactMarkdown>
     </div>
-  );
-}
-
-const criteriaFitnessMeta: Record<
-  OrgCompanyCriterionFitness,
-  {
-    icon: typeof CircleCheck;
-    iconClassName: string;
-    label: string;
-  }
-> = {
-  excellent: {
-    icon: BadgeCheck,
-    iconClassName: "bg-positive-faded text-positive",
-    label: "매우 잘 맞음",
-  },
-  good: {
-    icon: CircleCheck,
-    iconClassName: "bg-positive-faded text-positive",
-    label: "잘 맞음",
-  },
-  uncertain: {
-    icon: CircleHelp,
-    iconClassName: "bg-info-faded text-info",
-    label: "추가 확인 필요",
-  },
-  bad: {
-    icon: CircleX,
-    iconClassName: "bg-critical-faded text-critical",
-    label: "맞지 않음",
-  },
-};
-
-function CompanyCriteriaEvaluations({
-  evaluations,
-}: {
-  evaluations: OrgTalentDetailResponse["recommendation"]["criteriaEvaluations"];
-}) {
-  if (evaluations.length === 0) return null;
-
-  return (
-    <section
-      aria-labelledby="company-criteria-evaluations-title"
-      className="mt-8"
-    >
-      {/* <h2
-        className="text-[15px] font-medium text-neutral-primary"
-        id="company-criteria-evaluations-title"
-      >
-        평가 기준
-      </h2> */}
-      <div className="mt-4 grid gap-x-8 gap-y-5 sm:grid-cols-2 font-normal">
-        {evaluations.map((evaluation, index) => {
-          const meta = criteriaFitnessMeta[evaluation.fitness];
-          const Icon = meta.icon;
-          return (
-            <article key={`${evaluation.name}:${index}`} className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span
-                  aria-label={meta.label}
-                  className={cn(
-                    "flex size-6 shrink-0 items-center justify-center rounded-sm",
-                    meta.iconClassName
-                  )}
-                  role="img"
-                  title={meta.label}
-                >
-                  <Icon aria-hidden="true" className="size-4" />
-                </span>
-                <h3 className="min-w-0 text-[14px] leading-5 text-black">
-                  {evaluation.name}
-                </h3>
-              </div>
-              <p className="mt-1.5 text-[13px] leading-[22px] text-black/60">
-                {evaluation.content}
-              </p>
-            </article>
-          );
-        })}
-      </div>
-    </section>
   );
 }
 
@@ -562,38 +476,17 @@ function ProfilePane({
         onRejectClick={onRejectClick}
       />
 
-      <ProfileSection title="">
-        <div className="pt-2 flex items-center gap-2 text-[15px] text-neutral-900">
-          <Face size={24} />
-          Harper의 추천 이유
-        </div>
-        <div className="mt-4 mb-10">
-          {detail.recommendation.fitSummary ||
-          detail.recommendation.fitReasons.length > 0 ? (
-            <div className="space-y-2">
-              {detail.recommendation.fitSummary ? (
-                <div className="border-l-2 border-primary px-3 text-[13px] leading-6 text-neutral-primary">
-                  {detail.recommendation.fitSummary}
-                </div>
-              ) : null}
-              {detail.recommendation.fitReasons.length > 0 ? (
-                <ul className="space-y-1.5 text-[13px] leading-6 text-neutral-muted">
-                  {detail.recommendation.fitReasons.map((reason) => (
-                    <li key={reason} className="ml-4 list-disc">
-                      {reason}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
-          ) : (
-            <div className="text-[13px] text-neutral-soft">-</div>
-          )}
-          <CompanyCriteriaEvaluations
-            evaluations={detail.recommendation.criteriaEvaluations}
-          />
-        </div>
-      </ProfileSection>
+      {detail.recommendation.fitReason ? (
+        <ProfileSection title="">
+          <div className="flex items-center gap-2 pt-2 text-[15px] text-neutral-900">
+            <Face size={24} />
+            Harper의 추천 이유
+          </div>
+          <div className="mt-4 mb-10 border-l-2 border-primary px-3 text-[13px] leading-6 text-neutral-primary">
+            {detail.recommendation.fitReason}
+          </div>
+        </ProfileSection>
+      ) : null}
 
       {detail.profile.bio ? (
         <ProfileSection title="소개">
@@ -677,12 +570,11 @@ function CandidateDecisionActions({
         aria-label="진행 중인 후보자 연결 종료"
         className={cn("rounded-md bg-critical-faded px-4 py-4", className)}
       >
-        <div className="text-[16px] font-medium text-critical">
+        <div className="text-[15px] font-medium text-critical">
           진행 중인 프로세스를 종료하시겠습니까?
         </div>
-        <p className="mt-1 text-[13px] font-normal leading-5 text-neutral-muted">
-          종료하면 현재 단계에서 프로세스를 닫고, Harper가 후보자에게 적절히
-          안내합니다.
+        <p className="mt-1 text-[13px] font-normal leading-5">
+          프로세스 종료시, Harper가 후보자에게 적절히 안내합니다.
         </p>
         <MuteButton
           className="mt-4"
@@ -800,7 +692,7 @@ function getOrgEmailAddressLabel(
   return email || name || rawValue || "발신자 정보 없음";
 }
 
-function FeedPane({
+function FeedPanel({
   canManageCandidates,
   currentUserId,
   decisionActions,
@@ -1331,7 +1223,7 @@ export function TalentDetailSimpleView() {
               onRetry={onRetry}
             />
           ) : detail ? (
-            <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_560px]">
+            <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_480px]">
               <div className="min-h-0 overflow-y-auto">
                 <div className="border-b border-neutral-1000-a05 px-5 py-3 lg:hidden">
                   <div className="flex">
@@ -1448,7 +1340,7 @@ export function TalentDetailSimpleView() {
                       "lg:hidden"
                     )}
                   >
-                    <FeedPane
+                    <FeedPanel
                       canManageCandidates={canManageCandidates}
                       currentUserId={currentUserId}
                       detail={detail}
@@ -1460,7 +1352,7 @@ export function TalentDetailSimpleView() {
                 </div>
               </div>
               <div className="hidden min-h-0 overflow-y-auto border-l border-neutral-1000-a05 bg-bg-default p-5 lg:block">
-                <FeedPane
+                <FeedPanel
                   canManageCandidates={canManageCandidates}
                   currentUserId={currentUserId}
                   decisionActions={

@@ -155,9 +155,12 @@ function CareerMobileChatLauncher({
   const logCareerEvent = useCareerLogEvent();
   const { isChatLauncherHidden } = useCareerMobileChatLauncherVisibility();
   const [internalOpen, setInternalOpen] = useState(false);
+  const [drawerClosing, setDrawerClosing] = useState(false);
   const isControlled = controlledOpen !== undefined;
   const requestedOpen = isControlled ? controlledOpen : internalOpen;
   const open = requestedOpen && !isChatLauncherHidden;
+  const shouldHideLauncher =
+    isChatLauncherHidden || requestedOpen || drawerClosing;
   const setOpen = (next: boolean) => {
     if (!isControlled) setInternalOpen(next);
     onOpenChange?.(next);
@@ -227,6 +230,13 @@ function CareerMobileChatLauncher({
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && open) {
+      // Keep the launcher out of view until Vaul's close animation finishes.
+      // Otherwise it becomes visible behind a drawer being dragged downward.
+      setDrawerClosing(true);
+    } else if (nextOpen) {
+      setDrawerClosing(false);
+    }
     if (nextOpen) {
       chatNotice.markRead();
     }
@@ -257,17 +267,21 @@ function CareerMobileChatLauncher({
       <motion.div
         initial={false}
         animate={{
-          opacity: isChatLauncherHidden ? 0 : 1,
-          y: isChatLauncherHidden ? "100%" : "0%",
+          opacity: shouldHideLauncher ? 0 : 1,
+          y: shouldHideLauncher ? "100%" : "0%",
         }}
         onAnimationStart={() => {
           if (isChatLauncherHidden && requestedOpen) setOpen(false);
         }}
-        transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-        aria-hidden={isChatLauncherHidden}
+        transition={
+          shouldHideLauncher
+            ? { duration: 0 }
+            : { duration: 0.24, ease: [0.22, 1, 0.36, 1] }
+        }
+        aria-hidden={shouldHideLauncher}
         className={cn(
           "fixed inset-x-0 bottom-0 z-30 flex flex-col",
-          isChatLauncherHidden && "pointer-events-none",
+          shouldHideLauncher && "pointer-events-none",
           className
         )}
       >
@@ -406,6 +420,9 @@ function CareerMobileChatLauncher({
       <DrawerPrimitive.Root
         open={open}
         onOpenChange={handleOpenChange}
+        onAnimationEnd={(nextOpen) => {
+          if (!nextOpen) setDrawerClosing(false);
+        }}
         handleOnly={keyboardOpen}
         repositionInputs={false}
         shouldScaleBackground={false}
@@ -447,10 +464,8 @@ function CareerMobileChatLauncher({
             >
               <DrawerPrimitive.Handle
                 preventCycle
-                className="flex h-4 w-24 items-center justify-center"
-              >
-                <div className="h-1 w-10 rounded-full bg-black/20" />
-              </DrawerPrimitive.Handle>
+                className="!h-[3px] !w-10 !rounded-full !bg-black/20"
+              />
               <DrawerPrimitive.Close
                 aria-label={"채팅 접기"}
                 className="absolute right-3 top-2 z-[60] inline-flex h-8 w-8 items-center justify-center rounded-full bg-bg-floating text-neutral-muted transition active:bg-bg-weak"

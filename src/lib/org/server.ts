@@ -32,10 +32,6 @@ import {
 import { getOrgImplicitAcceptanceStage } from "@/lib/org/recommendationStage";
 import { normalizeOrgRoleStatus } from "@/lib/org/roleStatus";
 import {
-  normalizeOrgCompanyCriteriaEvaluations,
-  type OrgCompanyCriteriaEvaluation,
-} from "@/lib/org/companyCriteriaEvaluations";
-import {
   normalizeOrgRoleCriteria,
   parseOrgRoleCriteria,
   type OrgRoleCriterion,
@@ -311,6 +307,7 @@ export type OrgRoleReviewStageDeleteResponse = {
 export type OrgBoardProfileLabel = {
   detail: string | null;
   label: string;
+  logoUrl: string | null;
   period: string | null;
 };
 
@@ -489,9 +486,7 @@ export type OrgTalentDetailResponse = {
   };
   profileMarkdown: string;
   recommendation: {
-    criteriaEvaluations: OrgCompanyCriteriaEvaluation[];
-    fitReasons: string[];
-    fitSummary: string | null;
+    fitReason: string | null;
     recommendedAt: string;
     recommendationId: string;
     stage: OrgStageId;
@@ -890,7 +885,7 @@ function formatProfilePeriod(args: {
 function buildExperienceLabel(
   row: Pick<
     TalentExperienceRow,
-    "company_name" | "end_date" | "role" | "start_date"
+    "company_logo" | "company_name" | "end_date" | "role" | "start_date"
   >
 ): OrgBoardProfileLabel | null {
   const companyName = normalizeNullableText(row.company_name);
@@ -900,6 +895,7 @@ function buildExperienceLabel(
   return {
     detail: role,
     label,
+    logoUrl: normalizeNullableText(row.company_logo),
     period: formatProfilePeriod({
       endDate: row.end_date,
       startDate: row.start_date,
@@ -923,6 +919,7 @@ function buildEducationLabel(
   return {
     detail: detail || null,
     label,
+    logoUrl: null,
     period: formatProfilePeriod({
       endDate: row.end_date,
       startDate: row.start_date,
@@ -942,7 +939,9 @@ async function fetchBoardProfileLabels(args: {
     chunkValues(uniqueTexts(args.talentIds)).map(async (talentIdChunk) => {
       const [experienceResult, educationResult] = await Promise.all([
         (args.admin.from("talent_experiences" as any) as any)
-          .select("talent_id, company_name, role, start_date, end_date")
+          .select(
+            "talent_id, company_name, company_logo, role, start_date, end_date"
+          )
           .in("talent_id", talentIdChunk)
           .order("start_date", { ascending: false, nullsFirst: false }),
         (args.admin.from("talent_educations" as any) as any)
@@ -1722,12 +1721,18 @@ async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string) {
 }
 
 export async function fetchOrgBootstrap(args: {
+  /**
+   * Reserved for API routes already protected by `requireInternalApiUser`.
+   * Do not use for company-facing Organization routes.
+   */
+  allowInternalOpsAccess?: boolean;
   orgId?: string | null;
   user: User;
 }): Promise<OrgBootstrapResponse> {
   const admin = getSupabaseAdmin();
   const requestedWorkspaceId = normalizeText(args.orgId);
-  const hasAllWorkspaceAccess = hasOrgAllWorkspaceAccess(args.user);
+  const hasAllWorkspaceAccess =
+    args.allowInternalOpsAccess === true || hasOrgAllWorkspaceAccess(args.user);
 
   await upsertOrgCompanyUser(admin, args.user);
 
@@ -2411,6 +2416,11 @@ async function fetchTalentRows(
 }
 
 export async function fetchOrgBoard(args: {
+  /**
+   * Reserved for API routes already protected by `requireInternalApiUser`.
+   * Do not use for company-facing Organization routes.
+   */
+  allowInternalOpsAccess?: boolean;
   includeInternalStages?: boolean;
   includeProfileLabels?: boolean;
   query?: string | null;
@@ -2436,16 +2446,23 @@ export async function fetchOrgBoard(args: {
       error instanceof Error ? error.message : "recommendationIds is invalid"
     );
   }
+  const hasAllWorkspaceAccess =
+    args.allowInternalOpsAccess === true || hasOrgAllWorkspaceAccess(args.user);
   const includeInternalAccepted =
-    args.includeInternalStages !== false && hasOrgAllWorkspaceAccess(args.user);
+    args.includeInternalStages !== false && hasAllWorkspaceAccess;
 
   if (!workspaceId) throw new OrgHttpError(400, "workspaceId is required");
-  await assertOrgWorkspacePermission({
-    admin,
-    permission: "view",
-    user: args.user,
-    workspaceId,
-  });
+  if (args.allowInternalOpsAccess === true) {
+    const workspace = await fetchWorkspaceById(admin, workspaceId);
+    if (!workspace) throw new OrgHttpError(404, "Workspace not found");
+  } else {
+    await assertOrgWorkspacePermission({
+      admin,
+      permission: "view",
+      user: args.user,
+      workspaceId,
+    });
+  }
 
   const roleRows = await fetchRoleRowsForWorkspace(admin, workspaceId);
   const roleById = new Map(roleRows.map((row) => [row.role_id, row]));
@@ -4250,7 +4267,7 @@ export async function fetchOrgTalentDetail(args: {
       .eq("user_id", talentId)
       .maybeSingle(),
     (admin.from("talent_opportunity_fit" as any) as any)
-      .select("company_criteria_evaluations")
+      .select("reason")
       .eq("talent_id", talentId)
       .eq("opportunity_id", recommendation.role_id)
       .maybeSingle(),
@@ -4468,11 +4485,7 @@ export async function fetchOrgTalentDetail(args: {
           : talent,
     }),
     recommendation: {
-      criteriaEvaluations: normalizeOrgCompanyCriteriaEvaluations(
-        fitCriteriaResult.data?.company_criteria_evaluations
-      ),
-      fitReasons: coerceJsonStringList(recommendation.fit_reasons),
-      fitSummary: recommendation.fit_summary ?? null,
+      fitReason: normalizeNullableText(fitCriteriaResult.data?.reason),
       recommendedAt: recommendation.recommended_at,
       recommendationId: recommendation.id,
       stage: stageInfo.stage,
@@ -5103,6 +5116,50 @@ export async function updateOrgRole(args: {
     workspaceId,
   });
 
+  const requestedStatus =
+    args.status === undefined ? null : normalizeOrgRoleStatus(args.status);
+  let activatedDraftRole = false;
+  if (requestedStatus) {
+    const { data: currentRole, error: currentRoleError } = await (
+      admin.from("company_roles" as any) as any
+    )
+      .select("status")
+      .eq("company_workspace_id", workspaceId)
+      .eq("role_id", roleId)
+      .maybeSingle();
+    if (currentRoleError) throw currentRoleError;
+    if (!currentRole) throw new OrgHttpError(404, "Role not found");
+
+    const currentRoleStatus = normalizeOrgRoleStatus(currentRole.status);
+    if (
+      currentRoleStatus === "draft" &&
+      requestedStatus !== "draft" &&
+      requestedStatus !== "deleted"
+    ) {
+      if (
+        requestedStatus !== "active" ||
+        !hasOrgAllWorkspaceAccess(args.user)
+      ) {
+        throw new OrgHttpError(
+          403,
+          "작성 중 역할은 matchharper.com 계정만 Settings에서 진행할 수 있습니다."
+        );
+      }
+
+      const { data: activated, error: activationError } = await (
+        admin.rpc as any
+      )("complete_company_role_creation_v1", {
+        p_role_id: roleId,
+        p_workspace_id: workspaceId,
+      });
+      if (activationError) throw activationError;
+      if (activated !== true) {
+        throw new OrgHttpError(409, "Role was already updated");
+      }
+      activatedDraftRole = true;
+    }
+  }
+
   const changes: WebsiteCompanyDataChange[] = [];
   if (args.name !== undefined) {
     const name = normalizeText(args.name);
@@ -5135,11 +5192,11 @@ export async function updateOrgRole(args: {
   if (args.request !== undefined) {
     changes.push({ key: "role_request", roleId, value: args.request ?? null });
   }
-  if (args.status !== undefined) {
+  if (requestedStatus && !activatedDraftRole) {
     changes.push({
       key: "role_status",
       roleId,
-      value: normalizeOrgRoleStatus(args.status),
+      value: requestedStatus,
     });
   }
   if (args.employmentTypes !== undefined) {

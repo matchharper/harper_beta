@@ -159,9 +159,6 @@ export function AcceptIntroDialog({
       >
         <DialogHeader>
           <DialogTitle className="text-[18px]">후보자 연결</DialogTitle>
-          <DialogDescription className="text-[13px] leading-5">
-            “{candidateName}”님과의 연결 방식을 선택해 주세요.
-          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="mt-0 space-y-4">
           <div

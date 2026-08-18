@@ -19,11 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import {
-  useOrgJobsBoard,
-  useOrgJobsNavigation,
-  useOrgJobsRoleActions,
-} from "@/hooks/org/useOrgJobs";
+import { useOrgJobsBoard, useOrgJobsRoleActions } from "@/hooks/org/useOrgJobs";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { buildOrgHref } from "@/lib/org/routes";
 import type {
@@ -326,7 +322,7 @@ export function OrgRolesOverview({
 
   return (
     <div>
-      <div className="mb-5 rounded-md">
+      {/* <div className="mb-5 rounded-md">
         <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
           <label className="relative min-w-0 sm:w-72">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-soft" />
@@ -387,7 +383,7 @@ export function OrgRolesOverview({
             </BareButton>
           ) : null}
         </div>
-      </div>
+      </div> */}
       <section className="space-y-3 bg-bg-basement p-4">
         <div className="flex items-center justify-between">
           <div className="text-[15px] font-medium text-neutral-primary">
@@ -468,7 +464,7 @@ export function OrgRolesOverview({
                   </div>
 
                   {normalizeRoleStatus(role.status) === "draft" ? (
-                    <div className="flex min-h-[76px] items-center justify-between gap-4 px-3.5 py-3 text-[13px] text-neutral-muted">
+                    <div className="flex min-h-[52px] items-center justify-between gap-4 px-3.5 py-1 text-[13px] text-neutral-muted">
                       <span>새로운 역할 등록을 완료하세요.</span>
                       <MuteButton onClick={() => onOpenRole(role)} size="md">
                         이어서 작성
@@ -530,7 +526,6 @@ export function OrgRolesOverview({
 export function OrgAllRolesOverview() {
   const router = useRouter();
   const { board, boardQuery } = useOrgJobsBoard();
-  const { changeRole } = useOrgJobsNavigation();
   const { deleteRole, pauseRole, resumeRole, roleActionPending } =
     useOrgJobsRoleActions();
   const { permissions, roles, workspace } = useOrgWorkspace();
@@ -546,7 +541,15 @@ export function OrgAllRolesOverview() {
       );
       return;
     }
-    changeRole(role.roleId, view);
+    void router.push(
+      buildOrgHref({
+        orgId: workspace.workspaceId,
+        page: "role",
+        roleId: role.roleId,
+        tab: view === "pipeline" ? "pipeline" : undefined,
+        view: view === "pipeline" ? "pipeline" : undefined,
+      })
+    );
   };
 
   return (

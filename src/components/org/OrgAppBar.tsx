@@ -691,9 +691,6 @@ export function OrgAppBar({
                   <input
                     ref={inviteInputRef}
                     id="org-invite-email"
-                    aria-describedby={
-                      inviteInputError ? "org-invite-email-error" : undefined
-                    }
                     aria-invalid={Boolean(inviteInputError)}
                     autoCapitalize="none"
                     autoComplete="off"

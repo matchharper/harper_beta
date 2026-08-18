@@ -45,7 +45,7 @@ import { useOrgInbox } from "@/hooks/org/useOrg";
 import { useOrgSlackStatus } from "@/hooks/org/useOrgSlack";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { usePreviousPathname } from "@/hooks/useRouteHistory";
-import { sortOrgRolesByRecentConversation } from "@/lib/org/recentRoles";
+import { sortOrgRolesForRecentList } from "@/lib/org/recentRoles";
 import {
   getOrgRoleStatusFilterValue,
   ORG_ROLE_STATUS_FILTER_OPTIONS,
@@ -330,12 +330,10 @@ function OrgSlackConnectionCard() {
             src="/images/logos/slack.svg"
             width={12}
           />
-          Integration에서 연결하기
+          Slack 연결하기
         </MuteButton>
       ) : (
-        <p className="mt-3 text-[10px] leading-4 text-neutral-soft">
-          Workspace Owner 또는 Admin이 Slack을 연결할 수 있어요.
-        </p>
+        <></>
       )}
     </section>
   );
@@ -382,10 +380,7 @@ export function OrgWorkspaceSidebar({
     : baseNav;
   const topNav = primaryNav.filter((item) => item.location !== "bottom");
   const bottomNav = primaryNav.filter((item) => item.location === "bottom");
-  const recentRoles = useMemo(
-    () => sortOrgRolesByRecentConversation(roles),
-    [roles]
-  );
+  const recentRoles = useMemo(() => sortOrgRolesForRecentList(roles), [roles]);
   const visibleRecentRoleStatusSet = useMemo(
     () => new Set(visibleRecentRoleStatuses),
     [visibleRecentRoleStatuses]
@@ -544,7 +539,7 @@ export function OrgWorkspaceSidebar({
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-40 hidden flex-col overflow-hidden border-r border-neutral-1000-a05 py-3 lg:flex",
-          compact ? "w-[72px] px-3" : "w-[244px] px-3"
+          compact ? "w-[72px]" : "w-[244px]"
         )}
       >
         <AnimatePresence mode="wait">
@@ -559,7 +554,7 @@ export function OrgWorkspaceSidebar({
               key="organization-sidebar"
               transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
             >
-              <div className="mb-3 border-b border-neutral-1000-a05 pb-3">
+              <div className="mx-3 mb-3 border-b border-neutral-1000-a05 pb-3">
                 <NavLink
                   active={false}
                   href={organizationReturnHref}
@@ -567,7 +562,7 @@ export function OrgWorkspaceSidebar({
                   label="돌아가기"
                 />
               </div>
-              <nav aria-label="Organization 설정" className="space-y-1">
+              <nav aria-label="Organization 설정" className="mx-3 space-y-1">
                 <NavLink
                   active={organizationSection === "company"}
                   href={organizationCompanyHref}
@@ -597,11 +592,11 @@ export function OrgWorkspaceSidebar({
               key="main-sidebar"
               transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
             >
-              <div className="mb-2">
+              <div className="mx-3 mb-2">
                 {compact ? compactWorkspaceControl : workspaceControl}
               </div>
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10">
-                <nav aria-label="Organization" className="space-y-1">
+              <div className="flex min-h-0 flex-1 flex-col">
+                <nav aria-label="Organization" className="mx-3 space-y-1">
                   {topNav.map((item) => (
                     <NavLink
                       key={item.id}
@@ -620,8 +615,8 @@ export function OrgWorkspaceSidebar({
                 </nav>
 
                 {!compact && permissions.canManageCandidates ? (
-                  <section className="mt-4 border-t border-neutral-1000-a05 pt-4">
-                    <div className="mb-2 flex items-center justify-between px-2.5 text-[13px] font-normal text-neutral-muted">
+                  <section className="mt-4 flex min-h-0 flex-1 flex-col border-t border-neutral-1000-a05 pt-4">
+                    <div className="mx-3 mb-2 flex items-center justify-between px-2.5 text-[13px] font-normal text-neutral-muted">
                       <span>Recent</span>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -681,43 +676,49 @@ export function OrgWorkspaceSidebar({
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
-                    <nav aria-label="Recent roles" className="space-y-1">
-                      {filteredRecentRoles.map((role) => {
-                        const active =
-                          activePage === "role" && activeRoleId === role.roleId;
-                        return (
-                          <Link
-                            key={role.roleId}
-                            aria-current={active ? "page" : undefined}
-                            className={cn(
-                              "flex h-9 min-w-0 items-center gap-2.5 rounded-sm px-2.5 text-[14px] font-normal outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
-                              active
-                                ? "bg-neutral-200/80 text-black"
-                                : "text-neutral-primary hover:bg-neutral-100"
-                            )}
-                            href={buildOrgHref({
-                              orgId: workspace.workspaceId,
-                              page: "role",
-                              roleId: role.roleId,
-                            })}
-                          >
-                            <OrgRoleStatusDot status={role.status} />
-                            <RecentRoleTitle title={role.name} />
-                          </Link>
-                        );
-                      })}
-                      {recentRoles.length > 0 &&
-                      filteredRecentRoles.length === 0 ? (
-                        <p className="px-2.5 py-2 text-[12px] text-neutral-soft">
-                          선택한 상태의 역할이 없습니다.
-                        </p>
-                      ) : null}
+                    <nav
+                      aria-label="Recent roles"
+                      className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10"
+                    >
+                      <div className="space-y-1">
+                        {filteredRecentRoles.map((role) => {
+                          const active =
+                            activePage === "role" &&
+                            activeRoleId === role.roleId;
+                          return (
+                            <Link
+                              key={role.roleId}
+                              aria-current={active ? "page" : undefined}
+                              className={cn(
+                                "flex h-9 min-w-0 items-center gap-2.5 rounded-sm px-2.5 text-[14px] font-normal outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
+                                active
+                                  ? "bg-neutral-200/80 text-black"
+                                  : "text-neutral-primary hover:bg-neutral-100"
+                              )}
+                              href={buildOrgHref({
+                                orgId: workspace.workspaceId,
+                                page: "role",
+                                roleId: role.roleId,
+                              })}
+                            >
+                              <OrgRoleStatusDot status={role.status} />
+                              <RecentRoleTitle title={role.name} />
+                            </Link>
+                          );
+                        })}
+                        {recentRoles.length > 0 &&
+                        filteredRecentRoles.length === 0 ? (
+                          <p className="px-2.5 py-2 text-[12px] text-neutral-soft">
+                            선택한 상태의 역할이 없습니다.
+                          </p>
+                        ) : null}
+                      </div>
                     </nav>
                   </section>
                 ) : null}
               </div>
 
-              <div className="space-y-1">
+              <div className="mx-3 space-y-1">
                 {bottomNav.map((item) => (
                   <div key={item.id}>
                     {item.id === "team" && !compact ? (
@@ -741,73 +742,75 @@ export function OrgWorkspaceSidebar({
           )}
         </AnimatePresence>
 
-        <DropdownMenu>
-          {compact ? (
-            <Tooltips side="right" text="프로필 메뉴">
+        <div className="mx-3">
+          <DropdownMenu>
+            {compact ? (
+              <Tooltips side="right" text="프로필 메뉴">
+                <DropdownMenuTrigger asChild>
+                  <MuteButton
+                    aria-label="프로필 메뉴"
+                    className="w-full justify-center px-0"
+                    size="md"
+                    variant="transparent"
+                  >
+                    <UserAvatar member={currentUser} size="sm" />
+                  </MuteButton>
+                </DropdownMenuTrigger>
+              </Tooltips>
+            ) : (
               <DropdownMenuTrigger asChild>
                 <MuteButton
                   aria-label="프로필 메뉴"
-                  className="w-full justify-center px-0"
+                  className="w-full justify-start"
                   size="md"
                   variant="transparent"
                 >
                   <UserAvatar member={currentUser} size="sm" />
+                  <span className="ml-1 min-w-0 text-left">
+                    <span className="block truncate text-sm font-medium text-neutral-primary">
+                      {currentUser?.name || currentUser?.email || "User"}
+                    </span>
+                    {currentUser?.email ? (
+                      <span className="block truncate text-[12px] font-light text-neutral-soft">
+                        {currentUser.email}
+                      </span>
+                    ) : null}
+                  </span>
                 </MuteButton>
               </DropdownMenuTrigger>
-            </Tooltips>
-          ) : (
-            <DropdownMenuTrigger asChild>
-              <MuteButton
-                aria-label="프로필 메뉴"
-                className="w-full justify-start"
-                size="md"
-                variant="transparent"
-              >
-                <UserAvatar member={currentUser} size="sm" />
-                <span className="ml-1 min-w-0 text-left">
-                  <span className="block truncate text-sm font-medium text-neutral-primary">
-                    {currentUser?.name || currentUser?.email || "User"}
-                  </span>
-                  {currentUser?.email ? (
-                    <span className="block truncate text-[12px] font-light text-neutral-soft">
-                      {currentUser.email}
-                    </span>
-                  ) : null}
+            )}
+            <DropdownMenuContent align="start" className="w-[224px]" side="top">
+              <DropdownMenuLabel className="font-normal">
+                <span className="block truncate text-[13px] font-medium text-neutral-primary">
+                  {currentUser?.name || "이름 없음"}
                 </span>
-              </MuteButton>
-            </DropdownMenuTrigger>
-          )}
-          <DropdownMenuContent align="start" className="w-[224px]" side="top">
-            <DropdownMenuLabel className="font-normal">
-              <span className="block truncate text-[13px] font-medium text-neutral-primary">
-                {currentUser?.name || "이름 없음"}
-              </span>
-              <span className="mt-0.5 block truncate text-[11px] font-light text-neutral-muted">
-                {currentUser?.email || "-"}
-              </span>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => openCustomCrispWidget()}>
-              <CircleHelp />
-              문의하기
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => void router.push(navHref("documents"))}
-            >
-              <BookOpenText />
-              Documents
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              disabled={signOutPending}
-              onSelect={() => void handleSignOut()}
-              tone="danger"
-            >
-              <LogOut />
-              {signOutPending ? "로그아웃 중" : "로그아웃"}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+                <span className="mt-0.5 block truncate text-[11px] font-light text-neutral-muted">
+                  {currentUser?.email || "-"}
+                </span>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => openCustomCrispWidget()}>
+                <CircleHelp />
+                문의하기
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => void router.push(navHref("documents"))}
+              >
+                <BookOpenText />
+                Documents
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                disabled={signOutPending}
+                onSelect={() => void handleSignOut()}
+                tone="danger"
+              >
+                <LogOut />
+                {signOutPending ? "로그아웃 중" : "로그아웃"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </aside>
 
       <header className="sticky top-0 z-40 border-b border-neutral-1000-a05 bg-bg-default/95 backdrop-blur lg:hidden">
@@ -843,7 +846,6 @@ export function OrgWorkspaceSidebar({
                 <BookOpenText />
                 Documents
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
               <DropdownMenuItem
                 disabled={signOutPending}
                 onSelect={() => void handleSignOut()}

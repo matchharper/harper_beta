@@ -211,7 +211,7 @@ function DocumentEditingSurface({
           <span className="text-[14px] font-normal">{documentTitle}</span>
         </MuteButton>
       </header>
-      <div className="min-h-0 flex-1 px-5 py-5 sm:px-6 sm:py-6">
+      <div className="min-h-0 flex-1 px-5 sm:px-6">
         {format === "markdown" ? (
           <MarkdownRichTextEditor
             ariaLabel={

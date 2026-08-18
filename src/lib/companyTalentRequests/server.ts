@@ -410,8 +410,9 @@ export function buildCompanyTalentProfileHref(args: {
       talentId: args.talentId,
       workspaceId: args.workspaceId,
     },
-    page: "jobs",
+    page: "role",
     roleId: args.roleId,
+    tab: "pipeline",
     view: "pipeline",
   });
 }

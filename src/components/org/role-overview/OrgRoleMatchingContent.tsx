@@ -1,4 +1,4 @@
-import { Plus, X } from "lucide-react";
+import { BadgeCheck, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { OrgSection } from "@/components/org/workspace/OrgSection";
 import { OrgUnsavedChangesBar } from "@/components/org/workspace/OrgUnsavedChangesBar";
@@ -168,11 +168,11 @@ export function OrgRoleMatchingContent({
       });
       setDraft(null);
       setEditingField(null);
-      addToast({ message: "Role 정보를 저장했습니다.", variant: "success" });
+      addToast({ message: "정보를 저장했습니다.", variant: "success" });
     } catch (error) {
       const message = getRoleOverviewErrorMessage(
         error,
-        "Role 정보를 저장하지 못했습니다."
+        "정보를 저장하지 못했습니다."
       );
       setSaveError(message);
       addToast({ message, variant: "error" });
@@ -269,7 +269,7 @@ export function OrgRoleMatchingContent({
                       size="sm"
                       variant="transparent"
                     >
-                      <X className="size-3.5" />
+                      <Trash2 className="size-3.5" />
                     </MuteButton>
                   </div>
                   <Input
@@ -282,6 +282,7 @@ export function OrgRoleMatchingContent({
                     value={item.name}
                   />
                   <Textarea
+                    autoResize
                     aria-label={`기준 ${index + 1} 상세 내용`}
                     className="mt-2 min-h-[96px]"
                     onChange={(event) =>
@@ -313,8 +314,9 @@ export function OrgRoleMatchingContent({
                   className="rounded-md bg-bg-basement px-4 py-3"
                   key={`${item.name}-${index}`}
                 >
-                  <div className="text-[13px] font-medium text-neutral-primary">
-                    {index + 1}. {item.name}
+                  <div className="flex items-center gap-2 text-[13px] font-medium text-neutral-primary">
+                    <BadgeCheck className="size-4 shrink-0 text-positive" />
+                    <span>{item.name}</span>
                   </div>
                   <p className="mt-1 whitespace-pre-wrap text-[13px] leading-5 text-neutral-muted">
                     {item.criteria}

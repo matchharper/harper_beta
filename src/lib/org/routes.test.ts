@@ -27,3 +27,16 @@ test("keeps new role creation separate from an existing role workspace", () => {
     "/org/role?orgId=workspace-id&roleId=role-id"
   );
 });
+
+test("builds the role pipeline tab URL separately from the all-roles page", () => {
+  assert.equal(
+    buildOrgHref({
+      orgId: "workspace-id",
+      page: "role",
+      roleId: "role-id",
+      tab: "pipeline",
+      view: "board",
+    }),
+    "/org/role?orgId=workspace-id&roleId=role-id&tab=pipeline&view=board"
+  );
+});

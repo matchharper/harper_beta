@@ -1,7 +1,7 @@
-import { IncomingWebhook } from "@slack/webhook";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import type { Database } from "@/types/database.types";
+import { postUserFeedbackSlackMessage } from "@/lib/userFeedbackSlack";
 
 export const runtime = "nodejs";
 
@@ -30,15 +30,6 @@ function getKstTimestamp() {
   return new Date().toLocaleString("ko-KR", {
     timeZone: "Asia/Seoul",
   });
-}
-
-function getCompanySlackWebhook() {
-  const webhookUrl = process.env.SLACK_COMPANY_NOTIFICATION_TOKEN?.trim();
-  if (!webhookUrl) {
-    throw new Error("SLACK_COMPANY_NOTIFICATION_TOKEN is required");
-  }
-
-  return new IncomingWebhook(webhookUrl);
 }
 
 function formatCompanyDemoRequestContent({
@@ -154,7 +145,7 @@ export async function POST(req: NextRequest) {
 
   let slackNotified = true;
   try {
-    await getCompanySlackWebhook().send({ text: content });
+    await postUserFeedbackSlackMessage({ text: content });
   } catch (slackError) {
     slackNotified = false;
     console.error("company demo request slack notify failed:", slackError);

@@ -7,6 +7,7 @@ process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-key";
 
 function baseRows(): DailyCompanyStatsSourceRows {
   return {
+    events: [],
     loginLogs: [],
     memberships: [],
     messages: [],
@@ -15,6 +16,7 @@ function baseRows(): DailyCompanyStatsSourceRows {
     roles: [],
     slackIntegrations: [],
     tags: [],
+    toolMessages: [],
     workspaces: [],
   };
 }
@@ -199,6 +201,7 @@ test("company stats choose the latest use and login and format one company per l
   const {
     compileDailyCompanyStatsReport,
     formatDailyCompanyStatsSlackMessage,
+    formatDailyCompanyStatsSlackDetailMessages,
   } = await import("@/lib/dailyCompanyStats");
   const rows = baseRows();
   rows.workspaces = [
@@ -261,11 +264,250 @@ test("company stats choose the latest use and login and format one company per l
     report.servedCompanies[0].latestLoginAt,
     "2026-08-15T23:00:00.000Z"
   );
-  assert.match(message, /• A &amp; B — Slack O · 멤버 1/);
+  assert.match(message, /• A &amp; B — /);
+  assert.match(
+    message,
+    /<https:\/\/matchharper\.com\/org\/jobs\?orgId=workspace&roleId=all\|수락 0> · 연결 대기 0 · 거절 0/
+  );
   assert.doesNotMatch(message, /auto X/);
-  assert.match(message, /최근 사용 거절 08\/16 12:00/);
   assert.equal(
     message.split("\n").filter((line) => line.includes("A &amp; B")).length,
     1
   );
+  assert.equal(formatDailyCompanyStatsSlackDetailMessages(report).length, 1);
+});
+
+test("company stats include daily totals, linked acceptances, and thread details", async () => {
+  const {
+    compileDailyCompanyStatsReport,
+    formatDailyCompanyStatsSlackDetailMessages,
+    formatDailyCompanyStatsSlackMessage,
+  } = await import("@/lib/dailyCompanyStats");
+  const rows = baseRows();
+  rows.workspaces = [
+    { company_name: "Slack Company", company_workspace_id: "workspace-main" },
+    { company_name: "No Change", company_workspace_id: "workspace-empty" },
+  ];
+  rows.roles = [
+    {
+      company_internal_roles: { is_auto: false },
+      company_workspace_id: "workspace-main",
+      created_at: "2026-08-16T01:00:00.000Z",
+      is_expired: false,
+      name: "Platform",
+      role_id: "role-new",
+      source_type: "internal",
+      status: "active",
+    },
+    {
+      company_internal_roles: { is_auto: false },
+      company_workspace_id: "workspace-main",
+      created_at: "2026-08-10T01:00:00.000Z",
+      is_expired: false,
+      name: "API",
+      role_id: "role-paused",
+      source_type: "internal",
+      status: "paused",
+    },
+    {
+      company_internal_roles: { is_auto: false },
+      company_workspace_id: "workspace-main",
+      created_at: "2026-08-10T01:00:00.000Z",
+      is_expired: false,
+      name: "Legacy",
+      role_id: "role-ended",
+      source_type: "internal",
+      status: "ended",
+    },
+    {
+      company_internal_roles: { is_auto: false },
+      company_workspace_id: "workspace-main",
+      created_at: "2026-08-10T01:00:00.000Z",
+      is_expired: true,
+      name: "Deleted",
+      role_id: "role-deleted",
+      source_type: "internal",
+      status: "ended",
+    },
+    {
+      company_internal_roles: { is_auto: false },
+      company_workspace_id: "workspace-empty",
+      created_at: "2026-08-10T01:00:00.000Z",
+      is_expired: false,
+      name: "Old",
+      role_id: "role-empty",
+      source_type: "internal",
+      status: "ended",
+    },
+  ];
+  rows.memberships = [
+    {
+      company_user_id: "member-new",
+      company_workspace_id: "workspace-main",
+      created_at: "2026-08-16T01:30:00.000Z",
+    },
+    {
+      company_user_id: "member-old",
+      company_workspace_id: "workspace-main",
+      created_at: "2026-08-10T01:30:00.000Z",
+    },
+  ];
+  rows.slackIntegrations = [
+    { company_workspace_id: "workspace-main", status: "active" },
+  ];
+  rows.messages = [
+    {
+      company_workspace_id: "workspace-main",
+      created_at: "2026-08-16T02:00:00.000Z",
+      message_type: "slack",
+      role: "user",
+    },
+    {
+      company_workspace_id: "workspace-main",
+      created_at: "2026-08-16T03:00:00.000Z",
+      message_type: "chat",
+      role: "user",
+    },
+  ];
+  rows.recommendations = [
+    {
+      feedback: "accepted",
+      feedback_at: "2026-08-16T04:00:00.000Z",
+      id: "recommendation-accepted",
+      role_id: "role-new",
+      saved_stage: "accepted",
+      talent_id: "talent-accepted",
+    },
+    {
+      feedback: null,
+      feedback_at: null,
+      id: "recommendation-pending",
+      role_id: "role-new",
+      saved_stage: "pending_connection",
+      talent_id: "talent-pending",
+    },
+    {
+      feedback: "negative",
+      feedback_at: "2026-08-16T04:30:00.000Z",
+      id: "recommendation-rejected",
+      role_id: "role-new",
+      saved_stage: "rejected",
+      talent_id: "talent-rejected",
+    },
+  ];
+  rows.progress = [
+    {
+      company_user_id: "member-new",
+      created_at: "2026-08-16T05:00:00.000Z",
+      kind: "org_stage_change",
+      metadata: { stage: "pending_connection" },
+      recommendation_id: "recommendation-pending",
+      role_id: "role-new",
+      talent_id: "talent-pending",
+    },
+  ];
+  rows.events = [
+    {
+      content: 'Mina · API.status: - "active" + "paused"',
+      created_at: "2026-08-16T06:00:00.000Z",
+      workspace_id: "workspace-main",
+    },
+    {
+      content: 'Mina · Legacy.status: - "active" + "ended"',
+      created_at: "2026-08-16T07:00:00.000Z",
+      workspace_id: "workspace-main",
+    },
+    {
+      content: "Mina · Deleted.is_expired: - false + true",
+      created_at: "2026-08-16T08:00:00.000Z",
+      workspace_id: "workspace-main",
+    },
+  ];
+  rows.toolMessages = [
+    {
+      company_workspace_id: "workspace-main",
+      created_at: "2026-08-16T09:00:00.000Z",
+      metadata: {
+        toolResults: [
+          { name: "get_roles", status: "success" },
+          { name: "change_role_status", status: "error" },
+        ],
+      },
+      status: "sent",
+    },
+    {
+      company_workspace_id: "workspace-main",
+      created_at: "2026-08-16T10:00:00.000Z",
+      metadata: { toolResults: [{ name: "get_roles", status: "unchanged" }] },
+      status: "sent",
+    },
+    {
+      company_workspace_id: "workspace-main",
+      created_at: "2026-08-16T10:30:00.000Z",
+      metadata: { source: "org_role_creation_assistant" },
+      status: "sent",
+      thinking_logs: [
+        { label: "링크 확인 실패", status: "error" },
+        { label: "역할 정보 반영 완료", status: "done" },
+      ],
+    },
+  ];
+
+  const report = compileDailyCompanyStatsReport({ date: "2026-08-16", rows });
+  const message = formatDailyCompanyStatsSlackMessage(report);
+  const detail = formatDailyCompanyStatsSlackDetailMessages(report).join("\n");
+
+  assert.deepEqual(report.totals, {
+    acceptedCount: 1,
+    acceptedTodayCount: 1,
+    activeRoleCount: 1,
+    chatTodayCount: 1,
+    memberCount: 2,
+    newMemberTodayCount: 1,
+    newRoleTodayCount: 1,
+    pendingConnectionCount: 1,
+    pendingConnectionTodayCount: 1,
+    rejectedCount: 1,
+    rejectedTodayCount: 1,
+    rolling7Day: {
+      acceptedCount: 1,
+      pendingConnectionCount: 1,
+      rejectedCount: 1,
+    },
+    slackTodayCount: 1,
+  });
+  assert.equal(report.failedToolCallCount, 2);
+  assert.deepEqual(report.tools, [
+    { callCount: 1, failedCallCount: 1, name: "change_role_status" },
+    { callCount: 2, failedCallCount: 0, name: "get_roles" },
+    { callCount: 1, failedCallCount: 1, name: "open_url" },
+    { callCount: 1, failedCallCount: 0, name: "update_role_draft" },
+  ]);
+  assert.match(
+    message,
+    /<https:\/\/matchharper\.com\/org\/jobs\?orgId=workspace-main&roleId=all\|수락 1> · 연결 대기 1 · 거절 1/
+  );
+  assert.match(message, /- 채팅 수: Slack 1개 · web 1개/);
+  assert.match(
+    message,
+    /- 지난 7일 신규 전환: 수락자 1명 · 연결 대기 1명 · 거절 1명/
+  );
+  assert.match(
+    detail,
+    /- <https:\/\/matchharper\.com\/ops\/company\?workspaceId=workspace-main&tab=conversations\|오늘 채팅 수: Slack 1개 · web 1개>/
+  );
+  assert.match(detail, /- 멤버 2명 \(\+오늘 1명\)/);
+  assert.match(detail, /- 역할 등록: Platform/);
+  assert.match(detail, /- 역할 중단: API/);
+  assert.match(detail, /- 역할 정지: Legacy/);
+  assert.match(detail, /- 역할 삭제: Deleted/);
+  assert.match(detail, /- 새로 등록된 연결 대기 1명/);
+  assert.match(
+    detail,
+    /<https:\/\/matchharper\.com\/org\/jobs\?orgId=workspace-main&roleId=all\|새로 등록된 수락자 1명>/
+  );
+  assert.match(detail, /- get_roles: 2 calls \/ error 0/);
+  assert.match(detail, /- open_url: 1 calls \/ error 1/);
+  assert.match(detail, /- 실패한 tool call: 2개/);
+  assert.doesNotMatch(detail, /No Change/);
 });

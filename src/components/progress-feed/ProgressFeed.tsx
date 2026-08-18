@@ -494,7 +494,7 @@ export function ProgressFeed({
             unstyled
             value={draft}
             onChange={(event) => onDraftChange?.(event.target.value)}
-            className="min-h-[104px] w-full resize-y border-b border-neutral-1000-a10 bg-bg-floating px-3 py-3 text-sm leading-6 text-neutral-primary outline-none transition placeholder:text-neutral-placeholder"
+            className="min-h-[104px] w-full resize-none border-b border-neutral-1000-a05 bg-bg-floating px-3 py-3 text-sm leading-6 text-neutral-primary outline-none transition placeholder:text-neutral-placeholder"
             placeholder={placeholder}
             maxLength={2000}
             disabled={pendingSubmit}

@@ -36,9 +36,11 @@ function profileLabelsTitle(labels: OpsMatchingProfileLabel[]) {
 export function ProfileLabelCell({
   emptyLabel,
   labels,
+  isCompact = false,
 }: {
   emptyLabel: string;
   labels: OpsMatchingProfileLabel[];
+  isCompact?: boolean;
 }) {
   const latest = labels[0] ?? null;
   if (!latest) {
@@ -48,21 +50,34 @@ export function ProfileLabelCell({
 
   return (
     <Tooltips text={profileLabelsTitle(labels)} side="bottom">
-      <div className="min-w-0">
-        <div className="truncate text-[13px] font-medium leading-5 text-neutral-primary">
-          {label}
+      {isCompact ? (
+        <>
+          <div className="min-w-0 line-clamp-3 text-[14px] font-normal leading-5 text-neutral-800">
+            {detail && (
+              <div>
+                {detail} at {label}
+              </div>
+            )}
+            {!detail && <div>{label}</div>}
+          </div>
+        </>
+      ) : (
+        <div className="min-w-0">
+          <div className="truncate text-[13px] font-medium leading-5 text-neutral-primary">
+            {label}
+          </div>
+          {detail ? (
+            <div className="truncate text-[12px] leading-4 text-neutral-muted">
+              {detail}
+            </div>
+          ) : null}
+          {latest.period ? (
+            <div className="mt-0.5 truncate text-[11px] leading-4 text-neutral-soft">
+              {latest.period}
+            </div>
+          ) : null}
         </div>
-        {detail ? (
-          <div className="truncate text-[12px] leading-4 text-neutral-muted">
-            {detail}
-          </div>
-        ) : null}
-        {latest.period ? (
-          <div className="mt-0.5 truncate text-[11px] leading-4 text-neutral-soft">
-            {latest.period}
-          </div>
-        ) : null}
-      </div>
+      )}
     </Tooltips>
   );
 }

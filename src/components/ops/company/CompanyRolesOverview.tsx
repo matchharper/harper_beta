@@ -19,9 +19,16 @@ export function CompanyRolesOverview({
     void router.push(
       buildOrgHref({
         orgId: workspaceId,
-        page: role.status === "draft" ? "new-role" : "jobs",
+        page: role.status === "draft" ? "new-role" : "role",
         roleId: role.roleId,
-        view: role.status === "draft" ? null : view,
+        tab:
+          role.status === "draft" || view !== "pipeline"
+            ? undefined
+            : "pipeline",
+        view:
+          role.status === "draft" || view !== "pipeline"
+            ? null
+            : "pipeline",
       })
     );
   };

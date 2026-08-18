@@ -1,14 +1,31 @@
-import { BriefcaseBusiness, Building2, Scale, Settings } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  Columns3,
+  PanelsTopLeft,
+  Rows3,
+  Scale,
+  Settings,
+} from "lucide-react";
 import { useRouter } from "next/router";
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { OrgAgentChatSurface } from "@/components/org/agent/OrgAgentPanel";
+import { OrgPipeline } from "@/components/org/OrgPipeline";
+import { OrgRoleTalentBoard } from "@/components/org/OrgRoleTalentBoard";
 import { OrgRoleDetailsContent } from "@/components/org/role-overview/OrgRoleDetailsContent";
 import { OrgRoleMatchingContent } from "@/components/org/role-overview/OrgRoleMatchingContent";
 import { OrgRoleSettingsContent } from "@/components/org/role-overview/OrgRoleSettingsContent";
 import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
-import { OrgTeamPage } from "@/components/org/workspace/pages/OrgTeamPage";
+import { TalentDetailSimpleView } from "@/components/org/TalentDetailSimpleView";
+import { MuteButton } from "@/components/ui/button";
 import { DocumentEditorPanelProvider } from "@/components/ui/document-editor";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { OrgJobsProvider, useOrgJobsBoard } from "@/hooks/org/useOrgJobs";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useResizableSplitPanel } from "@/hooks/useResizableSplitPanel";
 import {
@@ -24,7 +41,8 @@ import {
   useOrgRoleCreationUiStore,
 } from "@/store/useOrgRoleCreationUiStore";
 
-type RoleCreationTab = "matching" | "role" | "company" | "settings";
+type RoleCreationTab = "pipeline" | "matching" | "role" | "settings";
+type RolePipelineDisplay = "pipeline" | "board";
 
 const ORG_ROLE_DESKTOP_MEDIA_QUERY = "(min-width: 1024px)";
 const ORG_ROLE_SPLIT_HANDLE_WIDTH_PX = 8;
@@ -42,25 +60,181 @@ const DETAIL_TABS = [
   },
   {
     icon: <Settings className="size-3.5" strokeWidth={1.65} />,
-    label: "Setting",
+    label: "설정",
     value: "settings",
   },
-  {
-    icon: <Building2 className="size-3.5" strokeWidth={1.65} />,
-    label: "회사 설명",
-    value: "company",
-  },
 ] as const;
+
+const PIPELINE_TAB = {
+  icon: <PanelsTopLeft className="size-3.5" strokeWidth={1.65} />,
+  label: "파이프라인",
+  value: "pipeline",
+} as const;
 
 function getQueryText(value: string | string[] | undefined) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function getRoleTab({
+  isDraft,
+  tab,
+}: {
+  isDraft: boolean;
+  tab: string;
+}): RoleCreationTab {
+  if (!isDraft && tab === "pipeline") return "pipeline";
+  if (tab === "role" || tab === "settings") return tab;
+  return "matching";
+}
+
+function OrgRolePipelineWorkspace({
+  display,
+  onDisplayChange,
+}: {
+  display: RolePipelineDisplay;
+  onDisplayChange: (display: RolePipelineDisplay) => void;
+}) {
+  const { boardQuery } = useOrgJobsBoard();
+
+  const displayControl = (
+    <RolePipelineDisplayMenu
+      display={display}
+      onDisplayChange={onDisplayChange}
+    />
+  );
+
+  return (
+    <div
+      className={
+        display === "pipeline"
+          ? "flex h-full min-h-0 flex-col gap-2"
+          : "space-y-2"
+      }
+    >
+      {display === "pipeline" ? (
+        <>
+          <div className="flex w-full shrink-0 flex-row justify-between">
+            <div className="text-[16px] font-normal text-neutral-primary">
+              Pipeline
+            </div>
+            <div className="flex justify-end">{displayControl}</div>
+          </div>
+          <OrgPipeline />
+        </>
+      ) : (
+        <OrgRoleTalentBoard displayControl={displayControl} />
+      )}
+    </div>
+  );
+}
+
+function RolePipelineDisplayMenu({
+  display,
+  onDisplayChange,
+}: {
+  display: RolePipelineDisplay;
+  onDisplayChange: (display: RolePipelineDisplay) => void;
+}) {
+  const DisplayIcon = display === "pipeline" ? Columns3 : Rows3;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <MuteButton
+          aria-label={`표시 방식: ${
+            display === "pipeline" ? "파이프라인" : "보드"
+          }`}
+          size="sm"
+          variant="transparent"
+        >
+          <DisplayIcon className="size-4" />
+        </MuteButton>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-32 w-32" sideOffset={2}>
+        <DropdownMenuItem
+          onSelect={() => onDisplayChange("pipeline")}
+          selected={display === "pipeline"}
+          variant="sm"
+        >
+          <Columns3 />
+          파이프라인
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => onDisplayChange("board")}
+          selected={display === "board"}
+          variant="sm"
+        >
+          <Rows3 />
+          보드
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function OrgRolePipelineTab({
+  display,
+  onDisplayChange,
+}: {
+  display: RolePipelineDisplay;
+  onDisplayChange: (display: RolePipelineDisplay) => void;
+}) {
+  return (
+    <OrgJobsProvider routePage="role">
+      <OrgRolePipelineWorkspace
+        display={display}
+        onDisplayChange={onDisplayChange}
+      />
+      <TalentDetailSimpleView />
+    </OrgJobsProvider>
+  );
+}
+
 function OrgRoleCreationDetails({ role }: { role: OrgRole | null }) {
+  const router = useRouter();
   const { workspace } = useOrgWorkspace();
-  const [activeTab, setActiveTab] = useState<RoleCreationTab>("matching");
   const roleCreation =
     role !== null && normalizeOrgRoleStatus(role.status) === "draft";
+  const requestedTab = router.isReady ? getQueryText(router.query.tab) : "";
+  const requestedView = router.isReady ? getQueryText(router.query.view) : "";
+  const activeTab = getRoleTab({ isDraft: roleCreation, tab: requestedTab });
+  const pipelineDisplay: RolePipelineDisplay =
+    requestedView === "board" ? "board" : "pipeline";
+  const detailTabs = roleCreation
+    ? DETAIL_TABS
+    : [PIPELINE_TAB, ...DETAIL_TABS];
+  const setActiveTab = (tab: RoleCreationTab) => {
+    const nextQuery = { ...router.query };
+    if (tab === "pipeline") {
+      nextQuery.tab = "pipeline";
+      nextQuery.view = pipelineDisplay;
+    } else if (tab === "matching") {
+      delete nextQuery.tab;
+      delete nextQuery.view;
+    } else {
+      nextQuery.tab = tab;
+      delete nextQuery.view;
+    }
+    void router.push(
+      { pathname: router.pathname, query: nextQuery },
+      undefined,
+      { shallow: true }
+    );
+  };
+  const setPipelineDisplay = (display: RolePipelineDisplay) => {
+    void router.replace(
+      {
+        pathname: router.pathname,
+        query: {
+          ...router.query,
+          tab: "pipeline",
+          view: display,
+        },
+      },
+      undefined,
+      { shallow: true }
+    );
+  };
 
   return (
     <section
@@ -73,13 +247,13 @@ function OrgRoleCreationDetails({ role }: { role: OrgRole | null }) {
           className="flex w-full items-center gap-1 border-b border-neutral-1000-a05 px-3"
           role="tablist"
         >
-          {DETAIL_TABS.map((tab) => {
+          {detailTabs.map((tab) => {
             const active = activeTab === tab.value;
             return (
               <button
                 aria-controls={`role-creation-${tab.value}-panel`}
                 aria-selected={active}
-                className={`flex min-w-0 items-center justify-center gap-1.5 rounded-xs px-3 py-3 text-[14px] font-light focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 ${tab.value === "company" ? "ml-auto" : ""} ${
+                className={`flex min-w-0 items-center justify-center gap-1.5 rounded-xs px-3 py-3 text-[14px] font-light focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 ${
                   active
                     ? " text-neutral-primary"
                     : "text-neutral-600 hover:text-neutral-primary"
@@ -96,7 +270,26 @@ function OrgRoleCreationDetails({ role }: { role: OrgRole | null }) {
             );
           })}
         </div>
-        <div className="min-h-0 flex-1 pb-48 bg-white overflow-y-auto overscroll-contain px-5 py-6 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10">
+        <div
+          className={`min-h-0 flex-1 overflow-y-auto overscroll-contain bg-bg-default px-5 pt-6 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 ${
+            activeTab === "pipeline" ? "pb-0" : "pb-48"
+          }`}
+        >
+          <div
+            aria-label="파이프라인 탭 내용"
+            aria-labelledby="role-creation-pipeline-tab"
+            className={activeTab === "pipeline" ? "h-full min-h-0" : undefined}
+            hidden={activeTab !== "pipeline"}
+            id="role-creation-pipeline-panel"
+            role="tabpanel"
+          >
+            {activeTab === "pipeline" && role && !roleCreation ? (
+              <OrgRolePipelineTab
+                display={pipelineDisplay}
+                onDisplayChange={setPipelineDisplay}
+              />
+            ) : null}
+          </div>
           <div
             aria-label="매칭 기준 탭 내용"
             aria-labelledby="role-creation-matching-tab"
@@ -127,7 +320,6 @@ function OrgRoleCreationDetails({ role }: { role: OrgRole | null }) {
               <OrgRoleDetailsContent
                 key={`role:${role.roleId}`}
                 role={role}
-                roleCreation={roleCreation}
                 workspaceId={workspace.workspaceId}
               />
             ) : (
@@ -135,15 +327,6 @@ function OrgRoleCreationDetails({ role }: { role: OrgRole | null }) {
                 역할 정보를 불러오는 중입니다.
               </div>
             )}
-          </div>
-          <div
-            aria-label="Company 탭 내용"
-            aria-labelledby="role-creation-company-tab"
-            hidden={activeTab !== "company"}
-            id="role-creation-company-panel"
-            role="tabpanel"
-          >
-            <OrgTeamPage companyOnly />
           </div>
           <div
             aria-label="Setting 탭 내용"

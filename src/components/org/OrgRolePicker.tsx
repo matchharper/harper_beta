@@ -17,7 +17,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useOrgJobsNavigation } from "@/hooks/org/useOrgJobs";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { normalizeOrgRoleStatus } from "@/lib/org/roleStatus";
 import { buildOrgHref } from "@/lib/org/routes";
@@ -38,7 +37,6 @@ function getRoleStatusOrder(status: string | null) {
 
 export function OrgRolePicker() {
   const router = useRouter();
-  const { activeRole, activeRoleId, changeRole } = useOrgJobsNavigation();
   const { roles, workspace } = useOrgWorkspace();
   const [open, setOpen] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -91,18 +89,17 @@ export function OrgRolePicker() {
 
   const selectRole = (roleId: string) => {
     setOpen(false);
-    const role = roles.find((item) => item.roleId === roleId);
-    if (role && normalizeOrgRoleStatus(role.status) === "draft") {
-      void router.push(
-        buildOrgHref({
-          orgId: workspace.workspaceId,
-          page: "role",
-          roleId,
-        })
-      );
-      return;
-    }
-    if (roleId !== activeRoleId) changeRole(roleId);
+    void router.push(
+      buildOrgHref(
+        roleId === "all"
+          ? { orgId: workspace.workspaceId, page: "jobs", roleId: "all" }
+          : {
+              orgId: workspace.workspaceId,
+              page: "role",
+              roleId,
+            }
+      )
+    );
   };
 
   return (
@@ -121,7 +118,7 @@ export function OrgRolePicker() {
           >
             <AlignJustify className="size-5" />
             <span className="max-w-[min(640px,calc(100vw-132px))] truncate">
-              {activeRoleId === "all" ? "All roles" : activeRole?.name}
+              All roles
             </span>
             <ChevronDown
               className={cn(
@@ -142,7 +139,7 @@ export function OrgRolePicker() {
       >
         <DropdownMenuItem
           onSelect={() => selectRole("all")}
-          selected={activeRoleId === "all"}
+          selected
         >
           <AlignJustify className="size-4 text-neutral-muted" />
           <span className="min-w-0 flex-1 truncate">All</span>
@@ -155,7 +152,6 @@ export function OrgRolePicker() {
           <DropdownMenuItem
             key={role.roleId}
             onSelect={() => selectRole(role.roleId)}
-            selected={activeRoleId === role.roleId}
           >
             <OrgRoleStatusDot status={role.status} />
             <span className="min-w-0 flex-1 truncate">{role.name}</span>

@@ -89,10 +89,11 @@ test("builds the shorter exact pipeline detail URL", () => {
   );
 
   assert.equal(url.origin, "https://matchharper.com");
-  assert.equal(url.pathname, "/org/jobs");
+  assert.equal(url.pathname, "/org/role");
   assert.deepEqual(Object.fromEntries(url.searchParams), {
     orgId: "workspace-id",
     roleId: "role-id",
+    tab: "pipeline",
     view: "pipeline",
     talentId: TALENT_A,
     recommendationId: "recommendation-id",
@@ -129,7 +130,7 @@ test("builds workspace and role navigation URLs", () => {
       roleId: ROLE_A,
       workspaceId: "workspace-id",
     }),
-    `https://matchharper.com/org/jobs?orgId=workspace-id&roleId=${ROLE_A}&view=pipeline`
+    `https://matchharper.com/org/role?orgId=workspace-id&roleId=${ROLE_A}&tab=pipeline&view=pipeline`
   );
 });
 
@@ -151,7 +152,7 @@ test("renders Slack links and removes unresolved private talent markers", () => 
 
   assert.match(
     rendered,
-    /^현재 역할에는 <https:\/\/matchharper\.com\/org\/jobs\?[^>]+\|김하퍼 &#124; CTO>님이 있습니다\./
+    /^현재 역할에는 <https:\/\/matchharper\.com\/org\/role\?[^>]+\|김하퍼 &#124; CTO>님이 있습니다\./
   );
   assert.match(rendered, /미확인 &lt;후보&gt;도 확인 중입니다\.$/);
   assert.doesNotMatch(rendered, /talent:/);
@@ -187,7 +188,7 @@ test("renders all company-side LLM navigation markers as Slack links", () => {
   assert.match(
     rendered,
     new RegExp(
-      `<https://matchharper\\.com/org/jobs\\?orgId=workspace-id&roleId=${ROLE_A}&view=pipeline\\|Backend &#124; API>`
+      `<https://matchharper\\.com/org/role\\?orgId=workspace-id&roleId=${ROLE_A}&tab=pipeline&view=pipeline\\|Backend &#124; API>`
     )
   );
   assert.match(

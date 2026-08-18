@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
   const now = new Date().toISOString();
   const userName = getUserName(user);
   const userEmail = normalizeCrispText(user?.email, 240) || null;
-  const shouldNotifySlack = Boolean(userEmail || (guestName && guestEmail));
+  const hasKnownRequester = Boolean(userEmail || (guestName && guestEmail));
   const message = createCrispMessage("user", content, {
     email: userEmail ?? guestEmail,
     name: userName ?? guestName,
@@ -75,9 +75,9 @@ export async function POST(req: NextRequest) {
     emailReplyAnsweredAt: null,
     guestEmail,
     guestName,
-    identityRequestedAt: shouldNotifySlack ? null : now,
+    identityRequestedAt: hasKnownRequester ? null : now,
     kind: CRISP_FEEDBACK_KIND,
-    lastSlackNotifiedAt: shouldNotifySlack ? now : null,
+    lastSlackNotifiedAt: now,
     locale,
     messages: [message],
     pagePath,
@@ -108,18 +108,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (shouldNotifySlack) {
-    try {
-      await notifyCrispFeedbackSlack({
-        authenticated: Boolean(user),
-        feedbackId: data.id,
-        message,
-        payload,
-        req,
-      });
-    } catch (slackError) {
-      console.error("crisp feedback slack notify failed:", slackError);
-    }
+  try {
+    await notifyCrispFeedbackSlack({
+      authenticated: Boolean(user),
+      feedbackId: data.id,
+      message,
+      payload,
+      req,
+    });
+  } catch (slackError) {
+    console.error("crisp feedback slack notify failed:", slackError);
   }
 
   return NextResponse.json({

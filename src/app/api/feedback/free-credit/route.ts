@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser, supabaseServer } from "@/lib/supabaseServer";
+import { postUserFeedbackSlackMessage } from "@/lib/userFeedbackSlack";
 
 const FEEDBACK_SOURCE = "general-feedback";
 
@@ -40,6 +41,24 @@ export async function POST(req: NextRequest) {
       { error: insertFeedbackError?.message ?? "Failed to save feedback" },
       { status: 500 }
     );
+  }
+
+  try {
+    await postUserFeedbackSlackMessage({
+      text: [
+        `💬 *User Feedback #${insertedFeedback.id}*`,
+        "",
+        `• *User ID*: ${user.id}`,
+        `• *Email*: ${user.email ?? "N/A"}`,
+        "• *Source*: free-credit feedback",
+        `• *Content*: ${content}`,
+        `• *Time(Standard Korea Time)*: ${new Date().toLocaleString("ko-KR", {
+          timeZone: "Asia/Seoul",
+        })}`,
+      ].join("\n"),
+    });
+  } catch (slackError) {
+    console.error("free-credit feedback slack notify failed:", slackError);
   }
 
   return NextResponse.json({ ok: true, id: insertedFeedback.id }, { status: 200 });

@@ -11,7 +11,7 @@ export type TabsVariant =
   | "pills-elevated"
   | "borderless";
 export type TabsDirection = "row" | "column";
-export type TabsSize = "medium" | "large" | "xlarge";
+export type TabsSize = "small" | "medium" | "large" | "xlarge";
 
 export interface TabItem {
   disabled?: boolean;
@@ -32,6 +32,7 @@ export interface TabsProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 const tabSizeClassNames: Record<TabsSize, string> = {
+  small: "h-7 text-[12px] font-normal leading-4",
   medium: "h-9 text-[14px] leading-[22px]",
   large: "h-11 text-[16px] leading-6",
   xlarge: "min-h-13 py-3 text-[16px] leading-6",
@@ -83,6 +84,9 @@ const Tabs = React.forwardRef<HTMLDivElement, TabsProps>(
           variant === "pills-elevated" &&
             "rounded-lg bg-bg-weak p-1 ring-1 ring-neutral-1000-a05",
           variant === "pills" && "rounded-lg bg-bg-weak p-1",
+          size === "small" &&
+            (variant === "pills" || variant === "pills-elevated") &&
+            "rounded-md p-0.5",
           variant === "cards" &&
             (direction === "row"
               ? "w-fit gap-1.5"
@@ -111,6 +115,9 @@ const Tabs = React.forwardRef<HTMLDivElement, TabsProps>(
                   "rounded-md px-2 text-neutral-muted hover:bg-bg-weak",
                 (variant === "pills" || variant === "pills-elevated") &&
                   "rounded-md px-3 text-neutral-muted hover:bg-bg-floating",
+                size === "small" &&
+                  (variant === "pills" || variant === "pills-elevated") &&
+                  "rounded-sm px-2",
                 variant === "cards" &&
                   "rounded-md border-2 border-neutral-1000-a05 bg-bg-floating text-neutral-muted hover:border-primary hover:text-primary",
                 variant === "cards" &&

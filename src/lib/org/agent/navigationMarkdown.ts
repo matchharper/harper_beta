@@ -41,8 +41,9 @@ function toHarperWebUrl(args: { target: string; workspaceId: string }) {
     if (!roleId) return null;
     return `${HARPER_SITE_ORIGIN}${buildOrgHref({
       orgId: workspaceId,
-      page: "jobs",
+      page: "role",
       roleId,
+      tab: "pipeline",
       view: "pipeline",
     })}`;
   }

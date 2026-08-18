@@ -92,7 +92,9 @@ const profileDescriptionMarkdownComponents: Components = {
       {children}
     </h4>
   ),
-  li: ({ children }) => <li className="pl-1 [&_p]:mt-0">{children}</li>,
+  li: ({ children }) => (
+    <li className="pl-1 [&_p]:mt-0 leading-5">{children}</li>
+  ),
   ol: ({ children }) => (
     <ol className="mt-2 list-decimal space-y-1 pl-5 first:mt-0">{children}</ol>
   ),
@@ -201,7 +203,7 @@ export function TalentEducationSection({
                 </div>
               ) : null}
               {period ? (
-                <div className="mt-1 text-[12px] text-neutral-soft">
+                <div className="mt-1 text-[13px] text-neutral-soft">
                   {period}
                 </div>
               ) : null}
@@ -225,7 +227,7 @@ export function TalentExtraSection({ extras }: { extras: TalentExtraItem[] }) {
         {extras.map((extra, index) => (
           <div key={index} className={cx(opsTheme.panelSoft, "py-2")}>
             <div className="flex flex-col items-start justify-between gap-1 font-normal">
-              <div className="min-w-0 text-[14px] text-neutral-primary">
+              <div className="min-w-0 text-[15px] text-neutral-primary">
                 {extra.title?.trim() || "제목 없음"}
               </div>
               {extra.date ? (
@@ -270,21 +272,21 @@ export function TalentExperienceSection({
                   logoUrl={experience.companyLogo}
                 />
                 <div className="min-w-0 flex-1 font-normal">
-                  <div className="text-sm font-medium text-neutral-primary">
+                  <div className="text-[15px] font-medium text-neutral-primary">
                     {experience.role?.trim() || "역할 미상"}
                   </div>
                   {companyMeta ? (
-                    <div className="mt-1 text-[13px] text-neutral-primary">
+                    <div className="mt-1 text-[14px] text-neutral-primary">
                       {companyMeta}
                     </div>
                   ) : null}
                   {period ? (
-                    <div className="mt-1 text-[12px] text-neutral-muted">
+                    <div className="mt-1 text-[13px] text-neutral-muted">
                       {period}
                     </div>
                   ) : null}
                   {location ? (
-                    <div className="mt-1 text-[12px] text-neutral-muted">
+                    <div className="mt-1 text-[13px] text-neutral-muted">
                       {location}
                     </div>
                   ) : null}

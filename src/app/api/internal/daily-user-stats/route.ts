@@ -8,6 +8,7 @@ import {
 } from "@/lib/dailyUserStats";
 import {
   buildDailyCompanyStatsReport,
+  formatDailyCompanyStatsSlackDetailMessages,
   formatDailyCompanyStatsSlackMessage,
 } from "@/lib/dailyCompanyStats";
 
@@ -112,10 +113,14 @@ async function handleDailyUserStats(req: NextRequest) {
   const message = formatDailyUserStatsSlackMessage(report, previousReport);
   const messages = formatDailyUserStatsSlackMessages(report, previousReport);
   const companyMessage = formatDailyCompanyStatsSlackMessage(companyReport);
+  const companyDetailMessages = formatDailyCompanyStatsSlackDetailMessages(
+    companyReport
+  );
 
   if (shouldDryRun(req)) {
     return NextResponse.json({
       companyMessage,
+      companyDetailMessages,
       companyReport,
       dryRun: true,
       message,
@@ -138,6 +143,13 @@ async function handleDailyUserStats(req: NextRequest) {
     channelId: SLACK_DAILY_COMPANY_STATS_CHANNEL_ID,
     text: companyMessage,
   });
+  for (const companyDetailMessage of companyDetailMessages) {
+    await postSlackMessage({
+      channelId: SLACK_DAILY_COMPANY_STATS_CHANNEL_ID,
+      text: companyDetailMessage,
+      threadTs: companyThreadTs,
+    });
+  }
 
   return NextResponse.json({
     companyThreadTs,

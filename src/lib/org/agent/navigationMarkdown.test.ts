@@ -22,7 +22,7 @@ test("company-side LLM private navigation markers become Harper web links", () =
   assert.match(rendered, /\/org\/home\?orgId=workspace-1/);
   assert.match(rendered, /\/org\/jobs\?orgId=workspace-1/);
   assert.match(rendered, /\/org\/team\?orgId=workspace-1/);
-  assert.match(rendered, /roleId=role-1&view=pipeline/);
+  assert.match(rendered, /roleId=role-1&tab=pipeline&view=pipeline/);
   assert.match(rendered, /talentId=talent-1/);
   assert.doesNotMatch(rendered, /\]\((?:home|roles|team|role:|talent:)/);
 });

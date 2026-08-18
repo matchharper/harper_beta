@@ -13,10 +13,10 @@ test("preserves the role creation draft lifecycle state", () => {
   assert.equal(normalizeOrgRoleStatus(" active "), "active");
 });
 
-test("soft deletes roles with the shared ended and expired lifecycle update", () => {
+test("soft deletes roles with a dedicated deleted lifecycle status", () => {
   assert.deepEqual(getOrgRoleLifecycleUpdate("delete"), {
     isExpired: true,
-    status: "ended",
+    status: "deleted",
   });
 });
 
@@ -44,6 +44,11 @@ test("presents every role lifecycle status with its sidebar label and tone", () 
   assert.deepEqual(getOrgRoleStatusPresentation("ended"), {
     label: "종료",
     status: "ended",
+    tone: "neutral",
+  });
+  assert.deepEqual(getOrgRoleStatusPresentation("deleted"), {
+    label: "삭제됨",
+    status: "deleted",
     tone: "neutral",
   });
 });

@@ -8,7 +8,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
-import { BareButton } from "@/components/ui/button";
+import { BareButton, MuteButton } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -64,8 +64,10 @@ export function ReviewPipelineColumnShell({
 export function ReviewPipelineColumnHeader({
   className,
   collapsed = false,
+  compact = false,
   count,
   label,
+  onAdd,
   onCollapse,
   onDelete,
   onEdit,
@@ -74,8 +76,10 @@ export function ReviewPipelineColumnHeader({
 }: {
   className?: string;
   collapsed?: boolean;
+  compact?: boolean;
   count: number;
   label: string;
+  onAdd?: () => void;
   onCollapse?: () => void;
   onDelete?: () => void;
   onEdit?: () => void;
@@ -85,7 +89,9 @@ export function ReviewPipelineColumnHeader({
   return (
     <div
       className={cn(
-        "border-b border-neutral-1000-a10 bg-bg-floating px-3 py-2.5",
+        compact
+          ? "border-0 bg-transparent px-2.5 py-2"
+          : "border-b border-neutral-1000-a10 bg-bg-floating px-3 py-2.5",
         className
       )}
     >
@@ -109,14 +115,25 @@ export function ReviewPipelineColumnHeader({
           </span>
         </div>
       ) : (
-        <div className="flex items-center justify-between gap-2">
-          <div className="truncate text-xs font-semibold text-neutral-primary">
+        <div className={cn("flex items-center gap-2 justify-between h-8")}>
+          <div
+            className={cn(
+              "min-w-0 truncate text-[13px] text-neutral-primary",
+              compact ? "font-normal" : "font-semibold"
+            )}
+          >
             {label}
-          </div>
-          <div className="flex shrink-0 items-center gap-1">
-            <span className="rounded-sm bg-bg-default px-1.5 py-0.5 text-[10px] text-neutral-muted">
+            <span
+              className={cn(
+                compact
+                  ? "text-[13px] ml-2 font-normal text-neutral-soft"
+                  : "rounded-sm bg-bg-default px-1.5 py-0.5 text-[13px] text-neutral-muted"
+              )}
+            >
               {count}
             </span>
+          </div>
+          <div className="flex items-center gap-1 flex-row">
             {onEdit ? (
               <BareButton
                 type="button"
@@ -155,6 +172,17 @@ export function ReviewPipelineColumnHeader({
                 <ChevronLeft className="h-3.5 w-3.5" />
               </BareButton>
             ) : null}
+            {onAdd ? (
+              <BareButton
+                type="button"
+                onClick={onAdd}
+                aria-label={`${label} 뒤에 프로세스 단계 추가`}
+                title="프로세스 단계 추가"
+                className="flex h-6 w-6 items-center justify-center rounded-md text-neutral-soft transition hover:bg-primary-faded hover:text-primary"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </BareButton>
+            ) : null}
           </div>
         </div>
       )}
@@ -170,9 +198,18 @@ export function ReviewPipelineDropTargetHint({ label }: { label: string }) {
   );
 }
 
-export function ReviewPipelineEmptyState() {
+export function ReviewPipelineEmptyState({
+  className,
+}: {
+  className?: string;
+} = {}) {
   return (
-    <div className="border border-dashed border-neutral-1000-a10 bg-bg-floating px-3 py-8 text-center text-xs text-neutral-soft">
+    <div
+      className={cn(
+        "border border-dashed border-neutral-1000-a10 bg-bg-floating px-3 py-8 text-center text-xs text-neutral-soft",
+        className
+      )}
+    >
       비어 있음
     </div>
   );
@@ -200,8 +237,7 @@ export function ReviewPipelineColumnAddRail({
       <BareButton
         type="button"
         onClick={onClick}
-        aria-label="칼럼 추가"
-        title="칼럼 추가"
+        title="프로세스 추가"
         className="absolute left-1/2 top-2 z-10 flex h-7 w-7 -translate-x-1/2 items-center justify-center rounded-full border border-neutral-1000-a10 bg-bg-floating text-neutral-muted shadow-sm transition hover:border-primary/40 hover:bg-primary-faded hover:text-primary"
       >
         <Plus className="h-3.5 w-3.5" />
@@ -237,11 +273,11 @@ export function ReviewPipelineStageDialog({
         <form onSubmit={onSubmit}>
           <DialogHeader>
             <DialogTitle>
-              {mode === "edit" ? "칼럼 이름 수정" : "칼럼 추가"}
+              {mode === "edit" ? "프로세스명 수정" : "프로세스 추가"}
             </DialogTitle>
             <DialogDescription>
               {mode === "edit"
-                ? "Pipeline 단계 이름을 수정합니다."
+                ? "Pipeline 프로세스명을 수정합니다."
                 : "연결 대기와 최종 오퍼 사이에 새 단계를 추가합니다."}
             </DialogDescription>
           </DialogHeader>
@@ -263,21 +299,22 @@ export function ReviewPipelineStageDialog({
             ) : null}
           </div>
           <DialogFooter className="mt-5">
-            <BareButton
-              type="button"
+            <MuteButton
               onClick={onClose}
               disabled={pending}
-              className={cx(opsTheme.buttonSecondary, "h-10 px-4 text-sm")}
+              size="md"
+              variant="transparent"
             >
               취소
-            </BareButton>
-            <BareButton
-              type="submit"
+            </MuteButton>
+            <MuteButton
               disabled={!label.trim() || pending}
-              className={cx(opsTheme.buttonPrimary, "h-10 px-4 text-sm")}
+              size="md"
+              variant="dark"
+              type="submit"
             >
               {pending ? "저장 중..." : mode === "edit" ? "수정" : "추가"}
-            </BareButton>
+            </MuteButton>
           </DialogFooter>
         </form>
       </DialogContent>

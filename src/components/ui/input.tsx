@@ -130,7 +130,6 @@ const TextField = React.forwardRef<HTMLInputElement, TextFieldProps>(
             ref={ref}
             disabled={resolvedStatus === "disabled"}
             aria-invalid={resolvedStatus === "error" || undefined}
-            aria-describedby={describedBy}
             className="min-w-0 flex-1 bg-transparent px-2 font-normal text-neutral-primary outline-none placeholder:text-neutral-muted disabled:cursor-not-allowed disabled:text-neutral-disabled disabled:placeholder:text-neutral-placeholder"
             {...props}
           />

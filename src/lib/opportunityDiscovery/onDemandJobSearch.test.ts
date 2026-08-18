@@ -150,6 +150,78 @@ test("keeps an RPC transport failure unknown when immediate reconciliation finds
   assert.doesNotMatch(result.answerDraft, /has not started/i);
 });
 
+test("queues a bulk search without a user message ID", async () => {
+  let rpcArgs: Record<string, unknown> | null = null;
+  const admin = {
+    from(table: string) {
+      if (table === "talent_setting") {
+        return {
+          select() {
+            return this;
+          },
+          eq() {
+            return this;
+          },
+          maybeSingle: async () => ({ data: null, error: null }),
+        };
+      }
+      assert.equal(table, "talent_users");
+      return {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        maybeSingle: async () => ({
+          data: { email: "person@example.com" },
+          error: null,
+        }),
+      };
+    },
+    rpc: async (_name: string, args: Record<string, unknown>) => {
+      rpcArgs = args;
+      return {
+        data: {
+          outcome: "queued",
+          status_run: {
+            created_at: "2026-08-18T00:00:00.000Z",
+            id: "00000000-0000-4000-8000-000000000001",
+            status: "queued",
+            target_recommendation_count: 5,
+            trigger_payload: args.p_trigger_payload,
+          },
+        },
+        error: null,
+      };
+    },
+  };
+
+  const result = await enqueueOnDemandJobSearch({
+    admin: admin as never,
+    conversationId: "00000000-0000-4000-8000-000000000002",
+    maxResultsInput: 5,
+    request: "Find Japan roles",
+    responseLocale: "en",
+    userId: "00000000-0000-4000-8000-000000000003",
+  });
+
+  assert.equal(result.outcome, "queued");
+  assert.equal(result.newRunCreated, true);
+  assert.ok(rpcArgs);
+  const capturedArgs = rpcArgs as Record<string, unknown>;
+  assert.match(
+    String(capturedArgs.p_dedupe_key),
+    /^career_recommend_job_postings:00000000-0000-4000-8000-000000000003:assistant_turn:/
+  );
+  const payload = capturedArgs.p_trigger_payload as {
+    request?: Record<string, unknown>;
+  };
+  assert.equal(payload.request?.sourceKind, "assistant_turn");
+  assert.equal(payload.request?.messageId, undefined);
+  assert.match(String(payload.request?.sourceId), /^assistant_turn:/);
+});
+
 test("builds an English different-request receipt without merging criteria", () => {
   const result = buildActiveCareerChatExternalSearchResult({
     activeRun: {

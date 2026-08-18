@@ -75,6 +75,7 @@ export function OrgRoleSettingsContent({
   const router = useRouter();
   const {
     bootstrap: { members },
+    internalOpsAccess,
     permissions,
   } = useOrgWorkspace();
   const canManage = permissions.canManageCandidates;
@@ -148,10 +149,16 @@ export function OrgRoleSettingsContent({
           };
   const statusConfirmCopy =
     statusToConfirm === "active"
-      ? {
-          description: "후보자 추천을 다시 시작하고 채용을 진행합니다.",
-          title: "채용을 다시 진행할까요?",
-        }
+      ? roleCreation
+        ? {
+            description:
+              "Slack 알림 채널과 담당자는 나중에 설정할 수 있습니다. 이 역할의 채용을 진행할까요?",
+            title: "채용을 진행할까요?",
+          }
+        : {
+            description: "후보자 추천을 다시 시작하고 채용을 진행합니다.",
+            title: "채용을 다시 진행할까요?",
+          }
       : statusToConfirm === "paused"
         ? {
             description:
@@ -279,7 +286,18 @@ export function OrgRoleSettingsContent({
                 {statusMeta.description}
               </p>
             </div>
-            {!roleCreation ? (
+            {roleCreation ? (
+              internalOpsAccess ? (
+                <MuteButton
+                  disabled={!canManage || updateRoleStatus.isPending}
+                  onClick={() => setStatusToConfirm("active")}
+                  variant="default"
+                >
+                  <Play className="size-4" />
+                  채용 진행하기
+                </MuteButton>
+              ) : null
+            ) : (
               <div className="flex flex-wrap gap-2">
                 {lifecycleStatus === "active" ? (
                   <MuteButton
@@ -310,7 +328,7 @@ export function OrgRoleSettingsContent({
                   </MuteButton>
                 ) : null}
               </div>
-            ) : null}
+            )}
           </section>
 
           {settingsQuery.error ? (

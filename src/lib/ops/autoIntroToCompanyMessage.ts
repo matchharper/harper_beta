@@ -94,8 +94,9 @@ export function buildAutoIntroCandidateProfileUrl(args: {
       workspaceId: args.workspaceId,
     },
     orgId: args.workspaceId,
-    page: "jobs",
+    page: "role",
     roleId: args.roleId,
+    tab: "pipeline",
     view: "pipeline",
   });
   return new URL(
@@ -143,8 +144,10 @@ export function buildAutoIntroRoleJobsUrl(args: {
 }) {
   const href = buildOrgHref({
     orgId: args.workspaceId,
-    page: "jobs",
+    page: "role",
     roleId: args.roleId,
+    tab: "pipeline",
+    view: "pipeline",
   });
   return new URL(
     href,

@@ -27,9 +27,10 @@ const LINK_ARGS = {
 test("candidate profile URL opens the org pipeline detail", () => {
   const url = new URL(buildAutoIntroCandidateProfileUrl(LINK_ARGS));
   assert.equal(url.origin, "http://localhost:3000");
-  assert.equal(url.pathname, "/org/jobs");
+  assert.equal(url.pathname, "/org/role");
   assert.equal(url.searchParams.get("orgId"), "workspace-1");
   assert.equal(url.searchParams.get("roleId"), "role-1");
+  assert.equal(url.searchParams.get("tab"), "pipeline");
   assert.equal(url.searchParams.get("view"), "pipeline");
   assert.equal(url.searchParams.get("talentId"), "talent-1");
   assert.equal(url.searchParams.get("recommendationId"), "recommendation-1");
@@ -53,7 +54,7 @@ test("Slack candidate name link escapes the label", () => {
     ...LINK_ARGS,
     name: "Kim | R&D",
   });
-  assert.match(link, /^\*<http:\/\/localhost:3000\/org\/jobs\?/);
+  assert.match(link, /^\*<http:\/\/localhost:3000\/org\/role\?/);
   assert.ok(link.endsWith("|Kim &#124; R&amp;D>*"));
 });
 
@@ -91,7 +92,7 @@ test("role summary uses a native Slack table with exact role links", () => {
     workspaceId: "f2e80aee-fee3-40f5-807f-5f8694c37eee",
   };
   const expectedUrl =
-    "https://matchharper.com/org/jobs?orgId=f2e80aee-fee3-40f5-807f-5f8694c37eee&roleId=6da0a19e-b4b5-533e-92b4-598f3666969f";
+    "https://matchharper.com/org/role?orgId=f2e80aee-fee3-40f5-807f-5f8694c37eee&roleId=6da0a19e-b4b5-533e-92b4-598f3666969f&tab=pipeline&view=pipeline";
   assert.equal(
     buildAutoIntroRoleJobsUrl({
       roleId: summary.roles[0].roleId,
