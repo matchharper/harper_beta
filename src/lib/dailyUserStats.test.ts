@@ -65,8 +65,11 @@ function makeDailyUserStatsReport(
       viewedJobCount: 0,
     },
     landingAbtestRows: [],
+    mailOpenRate: null,
+    mailOpenedCount: 0,
     mailReplyCount: 0,
     mailSentCount: 0,
+    mailTrackedSentCount: 0,
     negativeFeedbackClickedCount: 0,
     negativeFeedbackCount: 0,
     newSignupFourPlusChatDropoffCount: 0,
@@ -112,6 +115,55 @@ test("referral visit log helpers recognize recorded visits", () => {
   assert.equal(type, "talent_network_referral_visit:referral-token");
   assert.equal(isTalentNetworkReferralVisitLogType(type), true);
   assert.equal(isTalentNetworkReferralVisitLogType("new_visit:career"), false);
+});
+
+test("mail open stats dedupe Resend ids and respect the report cutoff", async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:54321";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-key";
+  const { buildMailOpenStats } = await import("@/lib/dailyUserStats");
+
+  const stats = buildMailOpenStats({
+    endIso: "2026-08-19T15:00:00.000Z",
+    rows: [
+      {
+        direction: "outbound",
+        metadata: {
+          resendEmailId: "email-opened",
+          resendFirstOpenedAt: "2026-08-19T10:00:00.000Z",
+        },
+        status: "sent",
+      },
+      {
+        direction: "outbound",
+        metadata: { resendEmailId: "email-opened" },
+        status: "sent",
+      },
+      {
+        direction: "outbound",
+        metadata: {
+          resendEmailId: "email-opened-after-cutoff",
+          resendFirstOpenedAt: "2026-08-19T16:00:00.000Z",
+        },
+        status: "sent",
+      },
+      {
+        direction: "outbound",
+        metadata: { resendEmailId: "email-unopened" },
+        status: "sent",
+      },
+      {
+        direction: "inbound",
+        metadata: { resendEmailId: "inbound-email" },
+        status: "received",
+      },
+    ],
+  });
+
+  assert.deepEqual(stats, {
+    openRate: 1 / 3,
+    openedCount: 1,
+    trackedSentCount: 3,
+  });
 });
 
 test("referral funnel dedupes visitors and uses visit-based nested rates", () => {
@@ -345,6 +397,9 @@ test("daily Slack stats compare counts by percent and rates by percentage point"
       recommendationCount: 17,
       rejectedCount: 0,
     },
+    mailOpenRate: 0.5,
+    mailOpenedCount: 40,
+    mailTrackedSentCount: 80,
     newSignupSubmittedCount: 87,
     newVisitorCount: 370,
     onboardingCompletedNoEmailUserCount: 8,
@@ -365,6 +420,9 @@ test("daily Slack stats compare counts by percent and rates by percentage point"
       recommendationCount: 14,
       rejectedCount: 1,
     },
+    mailOpenRate: 0.61,
+    mailOpenedCount: 72,
+    mailTrackedSentCount: 118,
     newSignupSubmittedCount: 103,
     newVisitorCount: 446,
     onboardingCompletedNoEmailUserCount: 10,
@@ -388,6 +446,10 @@ test("daily Slack stats compare counts by percent and rates by percentage point"
     /신규 가입자 중 제출 완료: 103명\(\+18\.4%\), 가입 대비 78\.6% \(-1\.2%p\)/
   );
   assert.match(main, /회원 탈퇴: 0명\(-100\.0%\)/);
+  assert.match(
+    main,
+    /메일 오픈\(추정\): 72\/118개, 61\.0% \(\+11\.0%p\)/
+  );
   assert.match(main, /열람\(확인\): 345개\(-2\.0%\), 21\.9% \(-3\.3%p\)/);
   assert.match(main, /거절: 1개\(신규\), 전체 추천 대비 7\.1% \(\+7\.1%p\)/);
   assert.match(main, /opportunity_discovery_run failed 종료: 12개\(-36\.8%\)/);
