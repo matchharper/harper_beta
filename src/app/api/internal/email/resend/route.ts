@@ -3,6 +3,10 @@ import {
   ingestResendInboundEvent,
   type ResendInboundEventPayload,
 } from "@/lib/email/inbound";
+import {
+  recordResendEmailOpenedEvent,
+  type ResendEmailOpenedEventPayload,
+} from "@/lib/email/openTracking";
 import { verifyResendWebhookSignature } from "@/lib/email/security";
 
 export const runtime = "nodejs";
@@ -53,6 +57,24 @@ export async function POST(req: Request) {
       { error: "Invalid webhook payload" },
       { status: 400 }
     );
+  }
+
+  const eventType = (event as { type?: unknown }).type;
+  if (eventType === "email.opened") {
+    try {
+      const result = await recordResendEmailOpenedEvent({
+        event: event as ResendEmailOpenedEventPayload,
+      });
+      return NextResponse.json({ ok: true, ...result }, { status: 200 });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to record email open";
+      console.error("[email-webhook] open tracking failed", {
+        error: message,
+        svixId,
+      });
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
   }
 
   const typedEvent = event as ResendInboundEventPayload;
