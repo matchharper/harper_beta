@@ -269,8 +269,11 @@ export type DailyUserStatsReport = {
   landingAbtestRows: DailyUserStatsLandingAbtestRow[];
   referralFunnelStats: DailyUserStatsReferralFunnelStats;
   harperMailReplyCount: number;
+  mailOpenRate: number | null;
+  mailOpenedCount: number;
   mailReplyCount: number;
   mailSentCount: number;
+  mailTrackedSentCount: number;
   negativeFeedbackCount: number;
   negativeFeedbackClickedCount: number;
   newSignupFourPlusChatDropoffCount: number;
@@ -513,6 +516,53 @@ function getOpportunityDeliveryDedupeKey(args: {
 
 function countRate(numerator: number, denominator: number) {
   return denominator > 0 ? numerator / denominator : null;
+}
+
+export function buildMailOpenStats(args: {
+  endIso: string;
+  rows: readonly Pick<
+    CareerEmailMessageRow,
+    "direction" | "metadata" | "status"
+  >[];
+}) {
+  const endTimestamp = Date.parse(args.endIso);
+  const openedByResendEmailId = new Map<string, boolean>();
+
+  for (const row of args.rows) {
+    if (row.direction !== "outbound" || row.status !== "sent") continue;
+
+    const resendEmailId = getJsonString(row.metadata, "resendEmailId");
+    if (!resendEmailId) continue;
+
+    const firstOpenedAt = getJsonString(
+      row.metadata,
+      "resendFirstOpenedAt"
+    );
+    const firstOpenedTimestamp = firstOpenedAt
+      ? Date.parse(firstOpenedAt)
+      : Number.NaN;
+    const openedWithinPeriod =
+      Number.isFinite(endTimestamp) &&
+      Number.isFinite(firstOpenedTimestamp) &&
+      firstOpenedTimestamp < endTimestamp;
+
+    openedByResendEmailId.set(
+      resendEmailId,
+      (openedByResendEmailId.get(resendEmailId) ?? false) ||
+        openedWithinPeriod
+    );
+  }
+
+  const trackedSentCount = openedByResendEmailId.size;
+  const openedCount = Array.from(openedByResendEmailId.values()).filter(
+    Boolean
+  ).length;
+
+  return {
+    openRate: countRate(openedCount, trackedSentCount),
+    openedCount,
+    trackedSentCount,
+  };
 }
 
 const EXTERNAL_NEGATIVE_FEEDBACK_REASON_OPTIONS = [
@@ -1909,6 +1959,10 @@ async function buildUserStatsReport(args: {
       row.direction === "outbound" &&
       row.status === "sent"
   );
+  const mailOpenStats = buildMailOpenStats({
+    endIso,
+    rows: outboundEmailRows,
+  });
   const harperMailReplyRows = outboundEmailRows.filter(
     (row) => row.mail_type === "auto_reply" && Boolean(row.reply_job_id)
   );
@@ -2163,10 +2217,13 @@ async function buildUserStatsReport(args: {
     landingAbtestRows,
     referralFunnelStats,
     harperMailReplyCount: harperMailReplyRows.length,
+    mailOpenRate: mailOpenStats.openRate,
+    mailOpenedCount: mailOpenStats.openedCount,
     mailReplyCount: inboundEmailRows.length,
     mailSentCount:
       outboundEmailRowsForSentCount.length +
       includedOpportunityEmailDeliveries.length,
+    mailTrackedSentCount: mailOpenStats.trackedSentCount,
     negativeFeedbackCount: negativeFeedbackRows.length,
     negativeFeedbackClickedCount: negativeFeedbackClickedRows.length,
     newSignupFourPlusChatDropoffCount,
@@ -2907,6 +2964,16 @@ export function formatDailyUserStatsSlackMessages(
       report.userMessageUniqueTalentCount
     )}명`,
     `메일 발송: ${formatCount(report.mailSentCount)}개`,
+    report.mailOpenRate === null
+      ? "메일 오픈(추정): 집계 가능한 메일 없음"
+      : `메일 오픈(추정): ${formatCount(
+          report.mailOpenedCount
+        )}/${formatCount(report.mailTrackedSentCount)}개, ${formatPercent(
+          report.mailOpenRate
+        )}${formatRateChangeSuffix(
+          report.mailOpenRate,
+          previousComparisonReport?.mailOpenRate
+        )}`,
     `주기적인 추천 메일을 받은 유저 수: ${formatCount(
       report.periodicRecommendationMailUserCount
     )}명`,
