@@ -1395,6 +1395,7 @@ export const ko = {
     "career.profile.personal_info.title": "개인 정보",
     "career.profile.recruiter_profile.default": "채용 담당자가 보는 프로필",
     "career.profile.recruiter_profile.named": "채용 담당자가 보는 {name}의 프로필",
+    "career.profile.resume_links.gmail_connect": "연결",
     "career.profile.resume_links.linkedin_refresh_label": "링크드인 정보 새로고침",
     "career.profile.resume_links.linkedin_refresh_tooltip": "업데이트된 링크드인 정보를 가져옵니다.",
     "career.profile.resume_request.banner_description": "아래에서 업로드하면 이 요청과 연결해 해당 회사에만 전달됩니다. 업로드하지 않거나 답하지 않으셔도 됩니다.",

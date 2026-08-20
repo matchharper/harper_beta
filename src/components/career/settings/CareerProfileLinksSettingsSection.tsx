@@ -243,6 +243,23 @@ const CareerProfileLinksSettingsSection = ({
             </div>
           </div>
         ))}
+        <div className="grid gap-0 sm:grid-cols-[9rem_minmax(0,1fr)] sm:items-center sm:gap-2">
+          <div className="flex min-h-9 w-full items-center gap-1 text-sm text-neutral-muted sm:w-36">
+            <Image
+              src="/images/logos/gmail.svg"
+              alt="Gmail"
+              width={16}
+              height={16}
+              className="h-4 w-4 object-contain"
+            />
+            <span className="truncate">Gmail</span>
+          </div>
+          <div className="flex min-h-9 items-center">
+            <MuteButton type="button" size="lg">
+              {t("career.profile.resume_links.gmail_connect", "연결")}
+            </MuteButton>
+          </div>
+        </div>
       </div>
 
       <div className="mt-5 flex items-center gap-2">

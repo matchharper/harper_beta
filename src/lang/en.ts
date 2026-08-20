@@ -1366,6 +1366,7 @@ export const en = {
     "career.profile.personal_info.title": "Personal Information",
     "career.profile.recruiter_profile.default": "Profile as seen by recruiters",
     "career.profile.recruiter_profile.named": "How companies see your profile",
+    "career.profile.resume_links.gmail_connect": "Connect",
     "career.profile.resume_links.linkedin_refresh_label": "Refresh LinkedIn Info",
     "career.profile.resume_links.linkedin_refresh_tooltip": "Fetch updated LinkedIn information.",
     "career.profile.resume_request.banner_description": "Uploading below will link it to this request and share it only with that company. You are not obligated to upload or respond.",
