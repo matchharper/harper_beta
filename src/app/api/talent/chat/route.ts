@@ -3,6 +3,8 @@ import { getRequestUser } from "@/lib/supabaseServer";
 import {
   buildTalentProfileContext,
   countUserChatTurns,
+  fetchTalentDocuments,
+  fetchTalentDocumentsByIds,
   fetchTalentInsights,
   fetchTalentSetting,
   fetchTalentStructuredProfile,
@@ -12,6 +14,7 @@ import {
   getTalentSupabaseAdmin,
   normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
+  serializeTalentDocuments,
   toTalentMessageResponse,
 } from "@/lib/talentOnboarding/server";
 import {
@@ -72,6 +75,7 @@ import {
 } from "@/lib/talentOnboarding/activityEvents";
 import {
   fetchRecentRecommendedOpportunitiesForPrompt,
+  fetchTalentOpportunityHistoryByIds,
   fetchTalentPostingCardsByRoleIds,
   formatRecentRecommendedOpportunitiesForPrompt,
   type TalentOpportunityHistoryItem,
@@ -89,6 +93,11 @@ import {
   touchConversation,
 } from "@/lib/career/companySnapshot";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
+import {
+  appendCareerOpportunityMentionMetadata,
+  normalizeCareerOpportunityMentions,
+} from "@/lib/career/opportunityMentionText";
+import { appendCareerMessageAttachmentMetadata } from "@/lib/career/messageAttachments";
 import { getCareerConversationStarter } from "@/lib/career/prompts/conversationStarters";
 import { getCareerLanguageSettingToolStatus } from "@/lib/talentOnboarding/languageSettingTool";
 import {
@@ -104,6 +113,7 @@ import {
 } from "@/lib/textSanitization";
 import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
 import { OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE } from "@/lib/officialJobs";
+import { normalizeCareerPendingActionReference } from "@/lib/career/pendingActions";
 import {
   extractRecommendJobPostingsReceipt,
   type RecommendJobPostingsReceipt,
@@ -112,6 +122,7 @@ import {
   ensureOpportunityRunMarker,
   stripOpportunityRunMarkers,
 } from "@/lib/opportunityDiscovery/messageMarker";
+import { buildFirstTurnUploadedDocumentContext } from "@/lib/talentOnboarding/documentPromptContext";
 
 export const maxDuration = 180;
 
@@ -123,6 +134,9 @@ type Body = {
   locale?: string;
   message?: string;
   messageType?: unknown;
+  opportunityMentions?: unknown;
+  pendingAction?: unknown;
+  uploadedDocumentIds?: unknown;
   link?: string;
 };
 
@@ -210,12 +224,19 @@ function startOpportunityDiscoveryInBackground(runId: string) {
 
 async function buildTalentProfileSnapshot(args: {
   admin: ReturnType<typeof getTalentSupabaseAdmin>;
+  includeDocuments?: boolean;
   userId: string;
 }) {
-  const [setting, insights, talentProfile] = await Promise.all([
+  const [setting, insights, talentProfile, documents] = await Promise.all([
     fetchTalentSetting({ admin: args.admin, userId: args.userId }),
     fetchTalentInsights({ admin: args.admin, userId: args.userId }),
     fetchTalentStructuredProfile({ admin: args.admin, userId: args.userId }),
+    args.includeDocuments
+      ? fetchTalentDocuments({ admin: args.admin, userId: args.userId }).then(
+          (rows) =>
+            serializeTalentDocuments({ admin: args.admin, documents: rows })
+        )
+      : null,
   ]);
   return {
     preferredLocale: setting?.preferred_locale ?? null,
@@ -234,7 +255,12 @@ async function buildTalentProfileSnapshot(args: {
       ),
     },
     talentInsights: normalizeTalentInsightContent(insights?.content ?? null),
-    talentProfile,
+    talentProfile: documents
+      ? {
+          ...talentProfile,
+          documents,
+        }
+      : talentProfile,
     preferencesUpdatedAt: setting?.updated_at ?? null,
     insightUpdatedAt: insights?.last_updated_at ?? null,
   };
@@ -252,6 +278,21 @@ const normalizeAllowedToolNames = (value: unknown) => {
     .map((item) => (typeof item === "string" ? item.trim() : ""))
     .filter((item) => item.length > 0);
 };
+
+function normalizeUploadedDocumentIds(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return Array.from(
+    new Set(
+      value
+        .map((item) => (typeof item === "string" ? item.trim() : ""))
+        .filter((item) =>
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+            item
+          )
+        )
+    )
+  ).slice(0, 5);
+}
 
 function countPromptChars(value: string | null | undefined) {
   return typeof value === "string" ? value.length : 0;
@@ -348,6 +389,24 @@ function getToolStartThinkingLog(
         locale,
         "career.chat.tool.update_talent_profile.start",
         "프로필 정보를 업데이트하고 있습니다."
+      );
+    case TALENT_TOOL_NAMES.LIST_DOCUMENTS:
+      return careerT(
+        locale,
+        "career.chat.tool.list_documents.start",
+        "저장된 문서를 확인하고 있습니다."
+      );
+    case TALENT_TOOL_NAMES.READ_DOCUMENT:
+      return careerT(
+        locale,
+        "career.chat.tool.read_document.start",
+        "문서 내용을 확인하고 있습니다."
+      );
+    case TALENT_TOOL_NAMES.UPDATE_DOCUMENT:
+      return careerT(
+        locale,
+        "career.chat.tool.update_document.start",
+        "문서 정보를 업데이트하고 있습니다."
       );
     case TALENT_TOOL_NAMES.OPEN_URL:
       return careerT(
@@ -576,7 +635,7 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as Body;
     const isMobile = isMobileRequest(req);
     const conversationId = sanitizeSingleLineDbText(body.conversationId, 80);
-    const message =
+    let message =
       typeof body.message === "string"
         ? stripPostgresUnsafeChars(body.message).trim()
         : "";
@@ -584,6 +643,20 @@ export async function POST(req: NextRequest) {
     const userMessageType = normalizeUserChatMessageType(body.messageType);
     const requestChannel = body.channel === "voice" ? "voice" : "chat";
     const allowedToolNames = normalizeAllowedToolNames(body.allowedToolNames);
+    const canUseInternalFitHoldQuestionTool =
+      !Array.isArray(allowedToolNames) ||
+      allowedToolNames.includes(
+        TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION
+      );
+    const opportunityMentions = normalizeCareerOpportunityMentions(
+      body.opportunityMentions
+    );
+    const pendingActionReference = normalizeCareerPendingActionReference(
+      body.pendingAction
+    );
+    const uploadedDocumentIds = normalizeUploadedDocumentIds(
+      body.uploadedDocumentIds
+    );
     const conversationStarterId =
       typeof body.conversationStarterId === "string"
         ? body.conversationStarterId.trim()
@@ -596,9 +669,9 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (!message) {
+    if (!message && uploadedDocumentIds.length === 0) {
       return NextResponse.json(
-        { error: "message is required" },
+        { error: "message or uploadedDocumentIds is required" },
         { status: 400 }
       );
     }
@@ -657,6 +730,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const uploadedDocuments = await fetchTalentDocumentsByIds({
+      admin,
+      documentIds: uploadedDocumentIds,
+      userId: user.id,
+    });
+    if (uploadedDocuments.length !== uploadedDocumentIds.length) {
+      return NextResponse.json(
+        { error: "One or more uploaded documents were not found" },
+        { status: 400 }
+      );
+    }
+    if (!message && uploadedDocuments.length > 0) {
+      message = uploadedDocuments
+        .map((document) => document.file_name)
+        .join(", ");
+    }
     const activeRun = await getActiveOpportunityRun({
       admin,
       conversationId,
@@ -774,10 +863,74 @@ export async function POST(req: NextRequest) {
           })
         : Promise.resolve(0);
 
-    const normalizedContent = link
-      ? `${message}\n\nReference link: ${link}`
-      : message;
+    let selectedCompanyTalentRequest: Awaited<
+      ReturnType<typeof fetchActiveCompanyTalentRequest>
+    > = null;
+    let selectedInternalFitHoldQuestion: Awaited<
+      ReturnType<typeof fetchActiveInternalFitHoldQuestion>
+    > = null;
+    let selectedInternalOpportunity: TalentOpportunityHistoryItem | null = null;
 
+    if (talentSetting?.is_onboarding_done && pendingActionReference) {
+      if (pendingActionReference.kind === "company_request") {
+        selectedCompanyTalentRequest = await fetchActiveCompanyTalentRequest({
+          admin: admin as any,
+          awaitingTalentOnly: true,
+          requestId: pendingActionReference.id,
+          talentId: user.id,
+        });
+      } else if (
+        pendingActionReference.kind === "internal_fit_question" &&
+        talentSetting.profile_visibility !== "dont_share" &&
+        canUseInternalFitHoldQuestionTool
+      ) {
+        const activeQuestion = await fetchActiveInternalFitHoldQuestion({
+          admin,
+          userId: user.id,
+        });
+        selectedInternalFitHoldQuestion =
+          activeQuestion?.fitId === pendingActionReference.id
+            ? activeQuestion
+            : null;
+      } else if (pendingActionReference.kind === "internal_opportunity") {
+        const [opportunity] = await fetchTalentOpportunityHistoryByIds({
+          admin,
+          ids: [pendingActionReference.id],
+          locale: responseLocale,
+          userId: user.id,
+        });
+        selectedInternalOpportunity =
+          opportunity?.sourceType === "internal" &&
+          opportunity.feedback === null &&
+          opportunity.savedStage !== "hidden" &&
+          !opportunity.isExpired
+            ? opportunity
+            : null;
+      }
+    }
+
+    const effectiveOpportunityMentions = selectedInternalOpportunity
+      ? normalizeCareerOpportunityMentions([
+          ...opportunityMentions.filter(
+            (mention) => mention.roleId !== selectedInternalOpportunity?.roleId
+          ),
+          {
+            label: `${selectedInternalOpportunity.companyName} · ${selectedInternalOpportunity.title}`,
+            roleId: selectedInternalOpportunity.roleId,
+          },
+        ])
+      : opportunityMentions;
+    const normalizedContent = appendCareerMessageAttachmentMetadata(
+      appendCareerOpportunityMentionMetadata(
+        link ? `${message}\n\nReference link: ${link}` : message,
+        effectiveOpportunityMentions
+      ),
+      uploadedDocuments.map((document) => ({
+        mime: document.content_type ?? undefined,
+        name: document.file_name,
+        size: document.size_bytes ?? undefined,
+      }))
+    );
     const { data: insertedUserMessage, error: userMessageError } = await admin
       .from("talent_messages")
       .insert(
@@ -869,23 +1022,23 @@ export async function POST(req: NextRequest) {
       }))
       .filter((item) => item.content.trim().length > 0);
 
-    const canUseInternalFitHoldQuestionTool =
-      !Array.isArray(allowedToolNames) ||
-      allowedToolNames.includes(
-        TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION
-      );
     const activeInternalFitHoldQuestion =
+      selectedInternalFitHoldQuestion ??
+      (pendingActionReference?.kind !== "internal_fit_question" &&
       talentSetting?.is_onboarding_done &&
       talentSetting.profile_visibility !== "dont_share" &&
       canUseInternalFitHoldQuestionTool
         ? await fetchActiveInternalFitHoldQuestion({ admin, userId: user.id })
-        : null;
+        : null);
     const activeCompanyTalentRequest = talentSetting?.is_onboarding_done
-      ? await fetchActiveCompanyTalentRequest({
-          admin: admin as any,
-          awaitingTalentOnly: true,
-          talentId: user.id,
-        })
+      ? (selectedCompanyTalentRequest ??
+        (pendingActionReference?.kind === "company_request"
+          ? null
+          : await fetchActiveCompanyTalentRequest({
+              admin: admin as any,
+              awaitingTalentOnly: true,
+              talentId: user.id,
+            })))
       : null;
     const toolSelection = resolveCareerChatTools({
       activeCompanyTalentRequestMode: activeCompanyTalentRequest
@@ -932,6 +1085,34 @@ export async function POST(req: NextRequest) {
             onboardingCompletedAt: onboardingCompletionEvent.created_at,
           }
         : null;
+    const selectedPendingActionRuntimeInstruction = selectedCompanyTalentRequest
+      ? [
+          "The user deliberately selected the active company request shown in the composer before writing the latest message.",
+          `Treat the latest message specifically as a response to requestId ${selectedCompanyTalentRequest.id}.`,
+          "If it clearly answers or declines the request, use the company-request response tool. If the intent is ambiguous, ask a concise clarification instead of inferring consent or refusal.",
+        ].join(" ")
+      : selectedInternalFitHoldQuestion
+        ? [
+            "The user deliberately selected the active internal-fit reevaluation question shown in the composer before writing the latest message.",
+            `Treat the latest message as an answer to fitId ${selectedInternalFitHoldQuestion.fitId}.`,
+            "Record it when it provides new information; otherwise ask one concise clarification.",
+          ].join(" ")
+        : selectedInternalOpportunity
+          ? [
+              "The user deliberately selected an undecided internal connection proposal before writing the latest message.",
+              `The exact role is ${selectedInternalOpportunity.title} at ${selectedInternalOpportunity.companyName} (roleId: ${selectedInternalOpportunity.roleId}).`,
+              "Answer questions in this role context. Only record positive or negative feedback when the user clearly accepts or rejects; do not infer a decision from a question.",
+            ].join(" ")
+          : undefined;
+    const uploadedDocumentRuntimeInstruction =
+      buildFirstTurnUploadedDocumentContext(uploadedDocuments);
+    const runtimeInstruction = [
+      officialJobSignupSourcePrompt,
+      selectedPendingActionRuntimeInstruction,
+      uploadedDocumentRuntimeInstruction,
+    ]
+      .filter((value): value is string => Boolean(value))
+      .join("\n\n");
     const { isOnboardingActive, promptBlocks } =
       buildCareerConversationPromptPlan({
         activeInternalFitHoldQuestion,
@@ -952,7 +1133,7 @@ export async function POST(req: NextRequest) {
         conversationMode: conversationStarter?.id ?? "default",
         recentActivitySummaries,
         recentRecommendedOpportunitiesText,
-        runtimeInstruction: officialJobSignupSourcePrompt,
+        runtimeInstruction: runtimeInstruction || undefined,
         structuredProfileText,
         toolNames: toolSelection.toolNames,
       });
@@ -985,6 +1166,7 @@ export async function POST(req: NextRequest) {
       current: RecommendJobPostingsReceipt | null;
     } = { current: null };
     let opportunityRecommendationsChanged = false;
+    let documentsChanged = uploadedDocuments.length > 0;
     let changedOpportunityRoleId: string | null = null;
     let emitToolStatus: ((message: string) => void) | null = null;
     let emitRecommendationStatus:
@@ -1126,6 +1308,10 @@ export async function POST(req: NextRequest) {
         name: toolArgs.name,
         input: toolInput,
       });
+
+      if (toolArgs.name === TALENT_TOOL_NAMES.UPDATE_DOCUMENT) {
+        documentsChanged = true;
+      }
 
       if (
         toolArgs.name ===
@@ -1466,6 +1652,7 @@ export async function POST(req: NextRequest) {
               });
               const profileSnapshot = await buildTalentProfileSnapshot({
                 admin,
+                includeDocuments: documentsChanged,
                 userId: user.id,
               });
               send("talent_profile", profileSnapshot);
@@ -1736,6 +1923,7 @@ export async function POST(req: NextRequest) {
             });
             const profileSnapshot = await buildTalentProfileSnapshot({
               admin,
+              includeDocuments: documentsChanged,
               userId: user.id,
             });
             send("talent_profile", profileSnapshot);
@@ -1987,6 +2175,7 @@ export async function POST(req: NextRequest) {
       summarizeConversationInBackground();
       const profileSnapshot = await buildTalentProfileSnapshot({
         admin,
+        includeDocuments: documentsChanged,
         userId: user.id,
       });
 
@@ -2173,6 +2362,7 @@ export async function POST(req: NextRequest) {
 
     const profileSnapshot = await buildTalentProfileSnapshot({
       admin,
+      includeDocuments: documentsChanged,
       userId: user.id,
     });
     const recommendationSearchRun = recommendationReceiptRef.current

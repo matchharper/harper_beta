@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   resolveOrgAgentDraftMentions,
+  serializeOrgAgentDraftMentionTokens,
   serializeOrgAgentDraftMentions,
   splitOrgAgentMentionText,
 } from "@/lib/org/agent/mentionText";
@@ -18,7 +19,7 @@ const mentions: OrgAgentMention[] = [
 
 test("serializes selected talent ids while retaining only visible mentions", () => {
   assert.deepEqual(
-    serializeOrgAgentDraftMentions("  @김하퍼 님과 이야기해줘  ", mentions),
+    serializeOrgAgentDraftMentions("  김하퍼 님과 이야기해줘  ", mentions),
     {
       mentions,
       text: "@[김하퍼](talent:talent-1) 님과 이야기해줘",
@@ -42,14 +43,14 @@ test("keeps draft whitespace and pairs duplicate names with their talent ids", (
 
   assert.equal(
     resolveOrgAgentDraftMentions(
-      "  @Alex Kim 그리고 @Alex Kim\n",
+      "  Alex Kim 그리고 Alex Kim\n",
       duplicateNameMentions
     ).serializedText,
     "  @[Alex Kim](talent:talent-a) 그리고 @[Alex Kim](talent:talent-b)\n"
   );
 });
 
-test("renders only blue-label text segments without exposing talent ids", () => {
+test("renders selected labels without exposing trigger characters or talent ids", () => {
   const segments = splitOrgAgentMentionText(
     "@[김하퍼](talent:talent-1) 님과 @[Alex](talent:talent-2)"
   );
@@ -59,18 +60,56 @@ test("renders only blue-label text segments without exposing talent ids", () => 
       displayName: "김하퍼",
       kind: "mention",
       talentId: "talent-1",
-      text: "@김하퍼",
+      text: "김하퍼",
     },
     { kind: "text", text: " 님과 " },
     {
       displayName: "Alex",
       kind: "mention",
       talentId: "talent-2",
-      text: "@Alex",
+      text: "Alex",
     },
   ]);
   assert.equal(
     segments.map((segment) => segment.text).join(""),
-    "@김하퍼 님과 @Alex"
+    "김하퍼 님과 Alex"
+  );
+});
+
+test("matches plain selected labels at word boundaries and prefers longer names", () => {
+  const alexMentions: OrgAgentMention[] = [
+    { displayName: "Alex", talentId: "talent-short" },
+    { displayName: "Alex Kim", talentId: "talent-long" },
+  ];
+
+  assert.deepEqual(
+    resolveOrgAgentDraftMentions("Alex와 Alex Kim", alexMentions),
+    {
+      mentions: [alexMentions[1]],
+      serializedText: "Alex와 @[Alex Kim](talent:talent-long)",
+    }
+  );
+});
+
+test("serializes only the exact selected token when visible names repeat", () => {
+  const selectedMention: OrgAgentMention = {
+    displayName: "Alex",
+    roleId: "role-selected",
+    talentId: "talent-selected",
+  };
+  assert.deepEqual(
+    serializeOrgAgentDraftMentionTokens("Alex and Alex", [
+      {
+        data: selectedMention,
+        end: 13,
+        id: "mention-1",
+        start: 9,
+        text: "Alex",
+      },
+    ]),
+    {
+      mentions: [selectedMention],
+      text: "Alex and @[Alex](talent:talent-selected)",
+    }
   );
 });

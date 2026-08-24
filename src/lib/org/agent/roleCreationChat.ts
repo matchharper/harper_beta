@@ -35,7 +35,10 @@ import {
   findOrgAgentSlackUserMessage,
   insertOrgAgentMessage,
 } from "@/lib/org/agent/store";
-import { upsertOrgAgentThinkingLog } from "@/lib/org/agent/thinkingLogs";
+import {
+  getOrgAgentThinkingLogIcon,
+  upsertOrgAgentThinkingLog,
+} from "@/lib/org/agent/thinkingLogs";
 import { filterOrgAgentMentionsForWorkspace } from "@/lib/org/agent/context";
 import type {
   OrgAgentMention,
@@ -54,6 +57,12 @@ import {
   isRoleCreationFileNameAllowed,
   isRoleCreationMediaMime,
 } from "@/lib/org/agent/roleCreationDocumentTypes";
+import { ensureOrgAgentCompanyInfoMarker } from "@/lib/org/agent/companyInfoMarker";
+import { shouldAttachRoleCreationConfirmation } from "@/lib/org/agent/roleCreationCadence";
+import {
+  buildServiceAnswerExamplesPromptBlock,
+  lookupAnswerExamples,
+} from "@/lib/serviceAnswerExamples";
 
 type RoleCreationChatEventName =
   | "assistant_message"
@@ -234,9 +243,9 @@ function toolLabel(
   }
   if (name === "web_search") {
     return statusLabel(status, {
-      done: "웹 확인 완료",
-      error: "웹 확인 실패",
-      running: "웹에서 확인하는 중",
+      done: "웹 검색 완료",
+      error: "웹 검색 실패",
+      running: "웹 검색 중",
     });
   }
   if (name === "research_role_description_sources") {
@@ -255,16 +264,16 @@ function toolLabel(
   }
   if (name === "set_role_notification") {
     return statusLabel(status, {
-      done: "알림 채널과 담당자 반영 완료",
-      error: "알림 채널과 담당자 반영 실패",
-      running: "알림 채널과 담당자 반영 중",
+      done: "알림 설정 저장 완료",
+      error: "알림 설정 저장 실패",
+      running: "알림 설정 저장 중",
     });
   }
   if (name === "request_role_creation_confirmation") {
     return statusLabel(status, {
-      done: "완료 조건 확인 완료",
-      error: "완료 조건 확인 실패",
-      running: "완료 조건 확인 중",
+      done: "등록 조건 확인 완료",
+      error: "등록 조건 확인 실패",
+      running: "등록 조건 확인 중",
     });
   }
   if (name === "confirm_pending_role_creation") {
@@ -276,15 +285,15 @@ function toolLabel(
   }
   if (name === "update_company_context") {
     return statusLabel(status, {
-      done: "회사 정보 반영 완료",
-      error: "회사 정보 반영 실패",
-      running: "회사 정보 반영 중",
+      done: "회사 정보 저장 완료",
+      error: "회사 정보 저장 실패",
+      running: "회사 정보 저장 중",
     });
   }
   return statusLabel(status, {
-    done: "역할 정보 반영 완료",
-    error: "역할 정보 반영 실패",
-    running: "역할 정보 반영 중",
+    done: "역할 정보 저장 완료",
+    error: "역할 정보 저장 실패",
+    running: "역할 정보 저장 중",
   });
 }
 
@@ -405,6 +414,9 @@ export async function runOrgRoleCreationChat(args: {
       : "");
   if (!persistedMessage) throw new Error("메시지 또는 첨부 파일이 필요합니다.");
   const message = text(args.llmUserMessage) || persistedMessage;
+  const serviceAnswerExamplesPromise = lookupAnswerExamples(message, {
+    audience: "company",
+  });
   const surface = args.surface ?? (args.slackThreadId ? "slack" : "chat");
 
   let roleId = requestedRoleId;
@@ -534,6 +546,11 @@ export async function runOrgRoleCreationChat(args: {
     ) ?? null;
   const canConfirmPendingRole =
     attachments.length === 0 && Boolean(pendingConfirmationChoice);
+  const serviceAnswerExamples = await serviceAnswerExamplesPromise;
+  const serviceAnswerExamplesText = buildServiceAnswerExamplesPromptBlock({
+    audience: "company",
+    examples: serviceAnswerExamples.examples,
+  });
   const messages: LlmMessage[] = [
     {
       content: buildRoleCreationSystemPrompt({
@@ -553,6 +570,7 @@ export async function runOrgRoleCreationChat(args: {
             role: item.role,
           })),
         mentions,
+        serviceAnswerExamplesText,
         state,
         userMessage: message,
       }),
@@ -567,6 +585,8 @@ export async function runOrgRoleCreationChat(args: {
   let confirmationRequested = false;
   let pendingConfirmationAccepted = false;
   let confirmationNarrativeGenerated = false;
+  let companyInfoDescriptionUpdated = false;
+  let notificationSaved = false;
   let confirmationState: Awaited<
     ReturnType<typeof fetchRoleCreationState>
   > | null = null;
@@ -610,6 +630,7 @@ export async function runOrgRoleCreationChat(args: {
       const startedLog = {
         at: new Date().toISOString(),
         id: call.id,
+        icon: getOrgAgentThinkingLogIcon(call.function.name),
         label: toolLabel(call.function.name, "running"),
         status: "running" as const,
       };
@@ -627,10 +648,11 @@ export async function runOrgRoleCreationChat(args: {
             "Final role confirmation must be the only tool call in this turn"
           );
         }
+        const toolInput = parseArguments(call.function.arguments);
         const execution = await executeRoleCreationTool({
           actorLabel: state.currentUser.name,
           allowCompletedRole: true,
-          input: parseArguments(call.function.arguments),
+          input: toolInput,
           name: call.function.name,
           previousAssistantMessage,
           roleId,
@@ -641,17 +663,30 @@ export async function runOrgRoleCreationChat(args: {
         if (execution.updateSummary) {
           updateSummaries.push(execution.updateSummary);
         }
+        if (
+          surface === "slack" &&
+          call.function.name === "update_role_draft" &&
+          Object.prototype.hasOwnProperty.call(toolInput, "description") &&
+          text(toolInput.description) &&
+          text(state.workspace.pitch)
+        ) {
+          companyInfoDescriptionUpdated = true;
+        }
+        if (call.function.name === "set_role_notification") {
+          notificationSaved = true;
+        }
         confirmationRequested =
           confirmationRequested || Boolean(execution.confirmationRequested);
         pendingConfirmationAccepted =
           pendingConfirmationAccepted ||
           Boolean(
             "confirmationAccepted" in execution &&
-              execution.confirmationAccepted
+            execution.confirmationAccepted
           );
         const doneLog = {
           at: new Date().toISOString(),
           id: call.id,
+          icon: getOrgAgentThinkingLogIcon(call.function.name),
           label: toolLabel(call.function.name, "done"),
           status: "done" as const,
         };
@@ -672,6 +707,7 @@ export async function runOrgRoleCreationChat(args: {
         const failedLog = {
           at: new Date().toISOString(),
           id: call.id,
+          icon: getOrgAgentThinkingLogIcon(call.function.name),
           label: toolLabel(call.function.name, "error"),
           status: "error" as const,
         };
@@ -698,13 +734,45 @@ export async function runOrgRoleCreationChat(args: {
   }
 
   if (
+    shouldAttachRoleCreationConfirmation({
+      assistantText: reply || lastAssistantText,
+      confirmationRequested,
+      notificationSaved,
+      roleWasDraft: state.role.status === "draft",
+      surface,
+    })
+  ) {
+    const callId = `server_final_review_${crypto.randomUUID()}`;
+    const execution = await executeRoleCreationTool({
+      actorLabel: state.currentUser.name,
+      allowCompletedRole: true,
+      input: {},
+      name: "request_role_creation_confirmation",
+      previousAssistantMessage,
+      roleId,
+      user: args.user,
+      userMessage: message,
+      workspaceId: args.workspaceId,
+    });
+    if (execution.confirmationRequested) {
+      confirmationRequested = true;
+      confirmationNarrativeGenerated = true;
+      toolResults.push({
+        callId,
+        name: "request_role_creation_confirmation",
+        status: "success",
+        summary: "등록 조건 확인 완료",
+      });
+    }
+  }
+
+  if (
     pendingConfirmationAccepted &&
     pendingConfirmationMessage &&
     pendingConfirmationChoice
   ) {
-    const { confirmRoleCreationChoice } = await import(
-      "@/lib/org/agent/roleCreationConfirmation"
-    );
+    const { confirmRoleCreationChoice } =
+      await import("@/lib/org/agent/roleCreationConfirmation");
     const confirmed = await confirmRoleCreationChoice({
       actionId: pendingConfirmationChoice.actionId,
       assistantMessageMetadata: args.assistantMessageMetadata,
@@ -758,8 +826,11 @@ export async function runOrgRoleCreationChat(args: {
   if (!reply) {
     throw new Error("Role creation assistant returned no content");
   }
+  if (companyInfoDescriptionUpdated) {
+    reply = ensureOrgAgentCompanyInfoMarker(reply);
+  }
   if (surface === "slack" && confirmationRequested) {
-    reply = `${reply}\n\n[예](button:이 역할을 지금 최종 등록합니다.) [아니오](button:이 역할은 아직 등록하지 않고 내용을 더 수정합니다.)`;
+    reply = `${reply}\n\n[Create role](button:이 역할을 지금 등록해 주세요.) [Keep editing](button:이 역할은 아직 등록하지 않고 더 수정할게요.)`;
   }
   emitText(args.emit, reply);
 
@@ -786,15 +857,14 @@ export async function runOrgRoleCreationChat(args: {
               {
                 actionId,
                 kind: "role_creation_confirmation" as const,
-                label: "예",
+                label: "Create role",
                 status: "pending" as const,
                 value: "yes" as const,
               },
               {
                 actionId,
                 kind: "role_creation_confirmation" as const,
-                label:
-                  "아니오 : 채팅에서 바로 추가로 알려주고 싶은 사항을 작성하셔도 됩니다.",
+                label: "Keep editing",
                 status: "pending" as const,
                 value: "no" as const,
               },

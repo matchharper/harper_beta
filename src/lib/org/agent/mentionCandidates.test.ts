@@ -79,3 +79,16 @@ test("filters the cached list by talent, role, stage, and subtitle text", () => 
     0
   );
 });
+
+test("keeps all matching candidates so the picker can paginate them", () => {
+  const candidates = Array.from({ length: 35 }, (_, index) =>
+    candidate({
+      label: `인재 ${index}`,
+      roleId: "role-design",
+      roleName: "Founding Designer",
+      talentId: `talent-${index}`,
+    })
+  );
+
+  assert.equal(filterOrgAgentMentionCandidates({ candidates }).length, 35);
+});

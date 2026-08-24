@@ -101,6 +101,12 @@ const CAMEL_CASE_INTERNAL_TOKENS = [
 const UUID_EXACT_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SLACK_ID_EXACT_PATTERN = /^[UWBCDG][A-Z0-9]{8,}$/;
+const ORG_AGENT_NAVIGATION_MARKER_PATTERN =
+  /\[([^\]\r\n]+)\]\((?:talent|role):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\)/gi;
+
+function withoutOrgAgentNavigationMarkers(value: string) {
+  return value.replace(ORG_AGENT_NAVIGATION_MARKER_PATTERN, "$1");
+}
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -137,19 +143,21 @@ export function findNewOrgAgentInternalTokens(args: {
   reply: string;
   userMessage: string;
 }) {
+  const replyForInspection = withoutOrgAgentNavigationMarkers(args.reply);
   const candidates = [
     ...Object.keys(TOKEN_REPLACEMENTS).filter((token) =>
-      containsToken(args.reply, token)
+      containsToken(replyForInspection, token)
     ),
-    ...findSnakeCaseTokens(args.reply),
+    ...findSnakeCaseTokens(replyForInspection),
     ...CAMEL_CASE_INTERNAL_TOKENS.filter((token) =>
-      containsToken(args.reply, token)
+      containsToken(replyForInspection, token)
     ),
   ];
   return Array.from(new Set(candidates))
     .filter((token) => !containsToken(args.userMessage, token))
     .sort(
-      (left, right) => args.reply.indexOf(left) - args.reply.indexOf(right)
+      (left, right) =>
+        replyForInspection.indexOf(left) - replyForInspection.indexOf(right)
     );
 }
 
@@ -162,7 +170,11 @@ export function findNewOrgAgentInternalArtifacts(args: {
     args.userMessage
   );
   if (!userAskedForId) {
-    for (const id of [...findUuids(args.reply), ...findSlackIds(args.reply)]) {
+    const replyForInspection = withoutOrgAgentNavigationMarkers(args.reply);
+    for (const id of [
+      ...findUuids(replyForInspection),
+      ...findSlackIds(replyForInspection),
+    ]) {
       if (!args.userMessage.toLowerCase().includes(id.toLowerCase())) {
         tokens.push(id);
       }

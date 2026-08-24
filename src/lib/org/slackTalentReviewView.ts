@@ -599,7 +599,8 @@ export function parseSlackTalentReviewDecisionSubmission(args: {
     if (acceptReason.length > 2_000) {
       return {
         errors: {
-          review_accept_reason: "수락 이유는 2,000자 이내로 입력해 주세요.",
+          review_accept_reason:
+            "연결 메모는 2,000자 이내로 입력해 주세요.",
         },
       };
     }
@@ -628,7 +629,7 @@ export function parseSlackTalentReviewDecisionSubmission(args: {
     if (selectedReasons.some((reason) => !allowedReasons.has(reason))) {
       return {
         errors: {
-          review_reject_reasons: "올바른 Pass 이유를 선택해 주세요.",
+          review_reject_reasons: "목록에 있는 연결 거절 이유를 선택해 주세요.",
         },
       };
     }
@@ -642,7 +643,7 @@ export function parseSlackTalentReviewDecisionSubmission(args: {
       return {
         errors: {
           review_reject_note:
-            "선택한 이유를 포함해 Pass 이유는 2,000자 이내로 입력해 주세요.",
+            "선택한 이유를 포함해 거절 이유는 2,000자 이내로 입력해 주세요.",
         },
       };
     }
@@ -674,7 +675,7 @@ export function buildSlackTalentReviewAcceptDecisionView(args: {
   const connectionOptions = [
     decisionOption({
       description: "Harper가 후보자와 선택한 담당자를 소개 메일로 연결합니다.",
-      label: "CC로 연결",
+      label: "소개 이메일",
       value: "cc_intro",
     }),
     decisionOption({
@@ -701,13 +702,13 @@ export function buildSlackTalentReviewAcceptDecisionView(args: {
   );
   const candidateEmailMessage = args.candidate.email
     ? `후보자 수신 주소: ${escapeMrkdwn(args.candidate.email)}`
-    : "후보자 이메일이 없어 실제 CC 연결 시에는 직접 연락을 선택해야 합니다.";
+    : "후보자 이메일이 없어 소개 이메일을 보낼 수 없어요. 직접 연락을 선택해 주세요.";
 
   return {
     blocks: [
       {
         text: textObject(
-          `*“${escapeMrkdwn(args.candidate.name)}” 후보자와의 연결 방식을 선택해 주세요.*\n${escapeMrkdwn(args.candidate.roleName)} · ${candidateEmailMessage}\n\n\`확인\`을 누르면 Harper의 후보자 상태와 결정 기록에 즉시 반영됩니다.`
+          `*${escapeMrkdwn(args.candidate.name)}님과의 연결을 시작할게요.*\n${escapeMrkdwn(args.candidate.roleName)} · ${candidateEmailMessage}\n\n소개 이메일 방식은 선택한 담당자와 후보자에게 소개 이메일을 바로 보내고, 양측이 같은 이메일에서 인사와 다음 일정을 이어갈 수 있게 연결해요. 보낸 이메일은 회수할 수 없어요.\n\n직접 연락 방식은 Harper가 이메일을 보내지 않으며, 연결 후 회사가 후보자에게 직접 연락해 인사하고 다음 일정을 조율해야 해요. 원하시는 방식을 선택해 주세요.`
         ),
         type: "section",
       },
@@ -739,10 +740,10 @@ export function buildSlackTalentReviewAcceptDecisionView(args: {
                 type: "checkboxes",
               },
               hint: textObject(
-                "CC로 연결할 때 소개 메일에 함께 포함할 메일입니다.",
+                "소개 이메일에 함께 포함할 회사 담당자예요.",
                 "plain_text"
               ),
-              label: textObject("함께 연결할 멤버", "plain_text"),
+              label: textObject("회사 수신자", "plain_text"),
               type: "input",
             },
           ]
@@ -763,7 +764,7 @@ export function buildSlackTalentReviewAcceptDecisionView(args: {
           "다음 추천에 참고하며 후보자에게 직접 공유되지 않습니다.",
           "plain_text"
         ),
-        label: textObject("수락 이유", "plain_text"),
+        label: textObject("연결 메모", "plain_text"),
         optional: true,
         type: "input",
       },
@@ -772,7 +773,12 @@ export function buildSlackTalentReviewAcceptDecisionView(args: {
     clear_on_close: true,
     close: textObject("취소", "plain_text"),
     private_metadata: metadata,
-    submit: textObject("확인", "plain_text"),
+    submit: textObject(
+      connectionMode === "cc_intro"
+        ? "소개 이메일 보내기"
+        : "직접 연락으로 연결하기",
+      "plain_text"
+    ),
     title: textObject("후보자 연결", "plain_text"),
     type: "modal",
   };
@@ -790,7 +796,7 @@ export function buildSlackTalentReviewRejectDecisionView(args: {
     blocks: [
       {
         text: textObject(
-          `*${escapeMrkdwn(args.candidate.name)}*\n이 후보자는 이번에 연결받지 않습니다. 후보자에게는 Harper가 적절한 시점에 부드럽게 안내합니다. \`확인\`을 누르면 결정이 즉시 반영됩니다.`
+          `*${escapeMrkdwn(args.candidate.name)}님과의 연결을 이번에는 진행하지 않을까요?*\n연결을 거절하면 회사가 더 진행하지 않기로 했다는 종료 결정이 후보자에게 표시되고, Harper가 후보자에게 배려 있게 안내해요. 이후 이 후보자는 해당 역할의 연결 과정에서 더 이상 진행되지 않으며, 후보자에게 보이거나 전달된 안내는 회수할 수 없어요.\n\n선택하신 이유는 후보자에게 그대로 전하지 않고 다음 추천을 더 정확하게 하는 데 참고할게요.`
         ),
         type: "section",
       },
@@ -801,7 +807,7 @@ export function buildSlackTalentReviewRejectDecisionView(args: {
           options: reasonOptions,
           type: "checkboxes",
         },
-        label: textObject("Pass 이유 빠른 선택", "plain_text"),
+        label: textObject("연결 거절 이유", "plain_text"),
         optional: true,
         type: "input",
       },
@@ -821,7 +827,7 @@ export function buildSlackTalentReviewRejectDecisionView(args: {
           "선택 사항이며 후보자에게 직접 전달되지 않습니다.",
           "plain_text"
         ),
-        label: textObject("Pass 이유 (선택)", "plain_text"),
+        label: textObject("추가 이유", "plain_text"),
         optional: true,
         type: "input",
       },
@@ -834,8 +840,8 @@ export function buildSlackTalentReviewRejectDecisionView(args: {
       sourceMessageId: args.sourceMessageId,
       workspaceId: args.candidate.workspaceId,
     }),
-    submit: textObject("확인", "plain_text"),
-    title: textObject("연결받지 않기", "plain_text"),
+    submit: textObject("연결 거절하기", "plain_text"),
+    title: textObject("연결 거절", "plain_text"),
     type: "modal",
   };
 }
@@ -847,7 +853,7 @@ export function buildSlackTalentReviewDecisionProcessingView(
     blocks: [
       {
         text: textObject(
-          `:hourglass_flowing_sand: *${decision === "accept" ? "연결 수락" : "연결받지 않기"} 결정을 반영하고 있습니다.*\n이 창을 닫지 말고 잠시 기다려 주세요.`
+          `:hourglass_flowing_sand: *${decision === "accept" ? "후보자 연결" : "후보자 연결 거절"}을 처리하고 있어요.*\n이 창을 닫지 말고 잠시 기다려 주세요.`
         ),
         type: "section",
       },
@@ -864,20 +870,21 @@ export function buildSlackTalentReviewDecisionResultView(args: {
   connectionMode?: SlackTalentReviewConnectionMode;
   decision: "accept" | "reject";
 }): SlackModalView {
+  const candidateName = args.candidateName.endsWith("님")
+    ? args.candidateName
+    : `${args.candidateName}님`;
   const detail =
     args.decision === "reject"
-      ? "Harper의 후보자 상태와 결정 기록에 반영했습니다. 회사가 남긴 이유는 후보자에게 그대로 전달되지 않습니다."
+      ? "Harper가 후보자에게 회사가 이번 연결을 더 진행하지 않기로 했다고 배려 있게 안내해요. 이후 이 후보자는 해당 역할의 연결 과정에서 더 이상 진행되지 않으며, 회사가 남긴 이유는 후보자에게 그대로 전달하지 않고 다음 추천 기준에 참고할게요."
       : args.connectionMode === "cc_intro"
-        ? "Harper의 후보자 상태와 결정 기록에 반영하고 선택한 회사 멤버와 후보자에게 소개 메일을 발송했습니다."
-        : "Harper의 후보자 상태와 결정 기록에 반영했습니다. 회사에서 후보자에게 직접 연락해 주세요.";
+        ? "선택한 회사 담당자와 후보자에게 소개 이메일을 보냈어요. 이제 양측이 같은 이메일에서 인사하고 다음 일정을 직접 조율할 수 있어요. 보낸 이메일은 회수할 수 없어요.\n\n서로에게 좋은 기회가 되길 바랄게요 :)"
+        : "후보자를 연결됨으로 표시했어요. Harper는 소개 이메일을 보내지 않았으니 회사에서 후보자에게 직접 연락해 인사하고 다음 일정을 조율해 주세요.\n\n서로에게 좋은 기회가 되길 바랄게요 :)";
   return {
     blocks: [
       {
         text: textObject(
-          `:white_check_mark: *${escapeMrkdwn(args.candidateName)} 후보자를 ${
-            args.decision === "accept"
-              ? "수락했습니다"
-              : "연결받지 않기로 했습니다"
+          `:white_check_mark: *${escapeMrkdwn(candidateName)}과 ${
+            args.decision === "accept" ? "연결해드렸어요" : "연결을 거절했어요"
           }.*\n${detail}`
         ),
         type: "section",
@@ -885,7 +892,10 @@ export function buildSlackTalentReviewDecisionResultView(args: {
     ],
     clear_on_close: true,
     close: textObject("닫기", "plain_text"),
-    title: textObject("결정 반영 완료", "plain_text"),
+    title: textObject(
+      args.decision === "accept" ? "연결 시작" : "연결 거절",
+      "plain_text"
+    ),
     type: "modal",
   };
 }
@@ -985,14 +995,14 @@ export function buildSlackTalentReviewCandidateView(args: {
             {
               action_id: HARPER_TALENT_REVIEW_ACCEPT_ACTION_ID,
               style: "primary",
-              text: textObject("수락", "plain_text"),
+              text: textObject("연결 수락", "plain_text"),
               type: "button",
               value: "accept",
             },
             {
               action_id: HARPER_TALENT_REVIEW_REJECT_ACTION_ID,
               style: "danger",
-              text: textObject("거절", "plain_text"),
+              text: textObject("연결 거절", "plain_text"),
               type: "button",
               value: "reject",
             },
@@ -1003,7 +1013,7 @@ export function buildSlackTalentReviewCandidateView(args: {
           block_id: "review_candidate_decisions_read_only",
           elements: [
             textObject(
-              "Viewer 권한에서는 후보자 정보를 열람할 수 있지만 수락하거나 거절할 수 없습니다. Owner 또는 Admin에게 결정을 요청해 주세요."
+              "후보자 정보는 볼 수 있지만 연결 여부는 결정할 수 없어요. Owner 또는 Admin에게 요청해 주세요."
             ),
           ],
           type: "context",

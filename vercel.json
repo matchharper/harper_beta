@@ -11,6 +11,10 @@
     {
       "path": "/api/internal/weekly-user-stats",
       "schedule": "0 16 * * 0"
+    },
+    {
+      "path": "/api/internal/matching/auto-intro-to-company/cron",
+      "schedule": "0 0 * * *"
     }
   ]
 }

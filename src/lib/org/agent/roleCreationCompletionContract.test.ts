@@ -56,9 +56,10 @@ test("confirmation pending metadata preserves notification confirmations from th
 });
 
 test("the decline choice explains that more details can be added in chat", () => {
+  assert.match(chat, /label:\s*"Keep editing"/);
   assert.match(
     chat,
-    /label:\s*"아니오 : 채팅에서 바로 추가로 알려주고 싶은 사항을 작성하셔도 됩니다\."/
+    /\[Keep editing\]\(button:이 역할은 아직 등록하지 않고 더 수정할게요\.\)/
   );
 });
 

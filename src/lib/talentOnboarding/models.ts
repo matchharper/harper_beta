@@ -1,5 +1,11 @@
 import type { Database } from "@/types/database.types";
 import type { TalentNetworkEngagementOptionId } from "@/lib/talentNetworkOptions";
+import { stripCareerOpportunityMentionMetadata } from "@/lib/career/opportunityMentionText";
+import {
+  extractCareerMessageAttachments,
+  stripCareerMessageAttachmentMetadata,
+  type CareerMessageAttachment,
+} from "@/lib/career/messageAttachments";
 
 export type TalentConversationRow = {
   id: string;
@@ -94,6 +100,7 @@ export type TalentMessageRow = {
 };
 
 export type TalentMessageResponse = {
+  attachments?: CareerMessageAttachment[];
   id: number;
   role: "user" | "assistant";
   content: string;
@@ -115,10 +122,14 @@ export function normalizeTalentMessageThinkingLogs(value: unknown): string[] {
 export function toTalentMessageResponse(
   item: TalentMessageRow
 ): TalentMessageResponse {
+  const attachments = extractCareerMessageAttachments(item.content);
   return {
+    ...(attachments.length > 0 ? { attachments } : {}),
     id: item.id,
     role: item.role,
-    content: item.content,
+    content: stripCareerMessageAttachmentMetadata(
+      stripCareerOpportunityMentionMetadata(item.content)
+    ),
     messageType: item.message_type ?? "chat",
     createdAt: item.created_at,
     thinkingLogs: normalizeTalentMessageThinkingLogs(item.thinking_logs),

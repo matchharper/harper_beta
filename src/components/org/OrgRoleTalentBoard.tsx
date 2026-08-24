@@ -1,4 +1,8 @@
-import { ArrowRight, Check, LoaderCircle } from "lucide-react";
+import {
+  ArrowRight,
+  ChartNoAxesColumnIncreasing,
+  LoaderCircle,
+} from "lucide-react";
 import Image from "next/image";
 import { type ReactNode, useMemo, useState } from "react";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
@@ -10,7 +14,7 @@ import {
   getOrgCandidateDisplayName,
   OrgCandidateStageMenu,
 } from "@/components/org/OrgCandidateCard";
-import { BareButton, MuteButton } from "@/components/ui/button";
+import { CardButton, MuteButton } from "@/components/ui/button";
 import { Tabs } from "@/components/ui/tabs";
 import {
   useOrgJobsBoard,
@@ -22,23 +26,35 @@ import {
   getDisplayableCompanyLogoUrl,
   getDisplayableProfileImageUrl,
 } from "@/lib/imageUrl";
+import { InternalOnlyHatch } from "@/components/org/internal/InternalOnlySurface";
 import { isInternalDomainEmail } from "@/lib/internalAccess";
 import {
+  CANDIDATE_DECISION_LABELS,
   isOrgInternalStage,
   shouldOpenOrgAcceptIntroDialog,
   shouldOpenOrgStopCandidateDialog,
 } from "@/lib/org/candidateDecision";
-import type {
-  OrgBoardItem,
-  OrgStage,
-  OrgStageId,
-} from "@/lib/org/server";
+import { cn } from "@/lib/utils";
+import type { OrgBoardItem, OrgStage, OrgStageId } from "@/lib/org/server";
+import { Tooltips } from "../ui/tooltip";
 
 function getStageLabel(stage: OrgStage, roleName: string | null) {
   const prefix = roleName ? `${roleName} · ` : "";
   return prefix && stage.label.startsWith(prefix)
     ? stage.label.slice(prefix.length)
     : stage.label;
+}
+
+function getBoardStageLabel(stage: OrgStage, roleName: string | null) {
+  const label = getStageLabel(stage, roleName);
+  if (stage.id !== "accepted") return label;
+
+  return (
+    <span className="relative isolate overflow-hidden px-0.5">
+      <InternalOnlyHatch />
+      <span className="relative z-20">{label}</span>
+    </span>
+  );
 }
 
 function BoardTalentAvatar({ item }: { item: OrgBoardItem }) {
@@ -69,19 +85,57 @@ function BoardTalentAvatar({ item }: { item: OrgBoardItem }) {
   );
 }
 
-function MatchSignal({ label }: { label: string }) {
+const CRITERIA_FITNESS_PRESENTATION: Record<
+  OrgBoardItem["criteriaEvaluations"][number]["fitness"],
+  { label: string; surfaceClassName: string }
+> = {
+  excellent: {
+    label: "매우 잘 맞음",
+    surfaceClassName: "border-positive/30 bg-positive text-white",
+  },
+  good: {
+    label: "잘 맞음",
+    surfaceClassName: "border-positive/20 bg-positive-faded/50 text-positive",
+  },
+  uncertain: {
+    label: "확인 필요",
+    surfaceClassName: "border-info/20 bg-info-faded text-info",
+  },
+  bad: {
+    label: "맞지 않음",
+    surfaceClassName: "border-critical/25 bg-critical-faded text-critical",
+  },
+};
+
+function CriteriaEvaluation({
+  evaluation,
+}: {
+  evaluation: OrgBoardItem["criteriaEvaluations"][number];
+}) {
+  const presentation = CRITERIA_FITNESS_PRESENTATION[evaluation.fitness];
+
   return (
-    <div className="flex min-w-0 items-center gap-2">
-      <span
-        aria-hidden="true"
-        className="flex size-4 shrink-0 items-center justify-center rounded-sm bg-positive-faded text-positive"
-      >
-        <Check className="size-3" strokeWidth={2} />
-      </span>
-      <span className="truncate text-[12px] font-normal text-neutral-primary">
-        {label}
-      </span>
-    </div>
+    <Tooltips text={evaluation.content}>
+      <div className={cn("min-w-0 flex flex-row gap-2 items-center")}>
+        <Image
+          src={`/svgs/${evaluation.fitness}.svg`}
+          alt=""
+          width={16}
+          height={16}
+        />
+        {/* <div
+          className={cn(
+            presentation.surfaceClassName,
+            "flex items-center p-[2px] rounded-sm"
+          )}
+        >
+          <ChartNoAxesColumnIncreasing className="size-4" strokeWidth={3} />
+        </div> */}
+        <div className="line-clamp-2 text-[12px] font-medium leading-4 text-neutral-primary">
+          {evaluation.name}
+        </div>
+      </div>
+    </Tooltips>
   );
 }
 
@@ -97,21 +151,37 @@ function CompanyMark({
   const showLogo = Boolean(logoUrl && logoUrl !== failedLogoUrl);
 
   return (
-    <span className="relative flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-bg-weak text-[11px] font-normal text-neutral-muted">
+    <span className="relative flex size-3 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-bg-weak text-[7px] font-normal text-neutral-muted md:size-7 md:rounded-md md:text-[10px]">
       {label.slice(0, 1).toUpperCase()}
       {showLogo && logoUrl ? (
         <Image
           alt=""
-          className="absolute inset-0 size-full bg-bg-floating object-contain p-1"
-          height={32}
+          className="absolute inset-0 size-full bg-bg-floating object-contain p-0.5 md:p-1"
+          height={28}
           onError={() => setFailedLogoUrl(logoUrl)}
           src={logoUrl}
           unoptimized
-          width={32}
+          width={28}
         />
       ) : null}
     </span>
   );
+}
+
+function getExperienceTitle({
+  detail,
+  label,
+}: OrgBoardItem["talent"]["recentCompanies"][number]) {
+  const companyName = label.trim();
+  const role = detail?.trim();
+  if (role && companyName && role !== companyName) {
+    return `${role} at ${companyName}`;
+  }
+  return role || companyName;
+}
+
+function formatExperienceYearPeriod(period: string) {
+  return period.replace(/\b(\d{4})\.\d{1,2}\b/g, "$1");
 }
 
 function TalentExperienceList({ item }: { item: OrgBoardItem }) {
@@ -121,26 +191,29 @@ function TalentExperienceList({ item }: { item: OrgBoardItem }) {
   return (
     <section
       aria-label="최근 경력"
-      className="mt-6 grid max-h-[58px] grid-cols-[repeat(auto-fit,minmax(168px,1fr))] gap-x-5 gap-y-5 overflow-hidden"
+      className="mt-6 grid grid-cols-1 gap-x-5 gap-y-3 md:grid-cols-2 md:gap-y-5 lg:grid-cols-4"
     >
       {recentCompanies.map((company) => (
         <div
-          className="flex min-w-[168px] items-start gap-2.5 overflow-hidden"
-          key={`${company.label}:${company.period ?? ""}`}
+          className="flex min-w-0 items-start gap-1.5 overflow-hidden md:gap-2.5"
+          key={`${company.label}:${company.detail ?? ""}:${company.period ?? ""}`}
         >
           <CompanyMark label={company.label} logoUrl={company.logoUrl} />
           <div className="min-w-0">
-            <div className="truncate text-[13px] font-normal text-neutral-primary">
+            <div className="line-clamp-2 text-[12px] font-normal leading-4 text-neutral-primary md:hidden">
+              {getExperienceTitle(company)}
+            </div>
+            <div className="hidden truncate text-[13px] font-normal text-neutral-primary md:block">
               {company.label}
             </div>
             {company.detail ? (
-              <div className="mt-0.5 truncate text-[11px] text-neutral-muted">
+              <div className="mt-0.5 hidden truncate text-[11px] text-neutral-muted md:block">
                 {company.detail}
               </div>
             ) : null}
             {company.period ? (
               <div className="mt-0.5 truncate text-[11px] text-neutral-soft">
-                {company.period}
+                {formatExperienceYearPeriod(company.period)}
               </div>
             ) : null}
           </div>
@@ -150,14 +223,9 @@ function TalentExperienceList({ item }: { item: OrgBoardItem }) {
   );
 }
 
-function uniqueText(values: Array<string | null | undefined>) {
-  return [
-    ...new Set(values.map((value) => value?.trim()).filter(Boolean)),
-  ] as string[];
-}
-
 export function OrgRoleTalentBoardCard({
   canManageCandidates = false,
+  internalOpsAccess = false,
   item,
   onAccept,
   onMove,
@@ -167,6 +235,7 @@ export function OrgRoleTalentBoardCard({
   stages,
 }: {
   canManageCandidates?: boolean;
+  internalOpsAccess?: boolean;
   item: OrgBoardItem;
   onAccept?: () => void;
   onMove?: (item: OrgBoardItem, stage: OrgStageId) => void;
@@ -176,78 +245,93 @@ export function OrgRoleTalentBoardCard({
   stages: OrgStage[];
 }) {
   const name = item.talent.name || item.talent.email || "이름 없음";
-  const highlights = uniqueText([item.fitSummary, ...item.fitReasons]);
-  const signals = highlights.slice(2, 6);
   const isDecisionStage = item.stage === "pending_connection";
   const showDecisionActions = canManageCandidates && isDecisionStage;
+  const latestExperience = item.talent.recentCompanies[0] ?? null;
 
   return (
-    <article className="rounded-lg border border-neutral-1000-a05 bg-bg-floating px-5 py-5">
-      <header className="flex items-start gap-3">
-        <BoardTalentAvatar item={item} />
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-start justify-between gap-4">
-            <div className="min-w-0">
-              <BareButton className="block max-w-full text-left" onClick={onOpen}>
-                <h3 className="truncate text-[19px] font-normal leading-6 tracking-[-0.02em] text-neutral-primary hover:underline">
+    <article className="relative isolate overflow-hidden rounded-lg">
+      <CardButton
+        aria-label={`${name} 후보자 상세 보기`}
+        className="absolute inset-0 z-0 h-full rounded-lg border-neutral-1000-a05 p-0"
+        onClick={onOpen}
+      >
+        <span className="sr-only">{name} 후보자 상세 보기</span>
+      </CardButton>
+      <div className="pointer-events-none relative z-10 p-4 sm:p-5">
+        <header className="flex items-start gap-3">
+          <BoardTalentAvatar item={item} />
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-start justify-between gap-4">
+              <div className="min-w-0">
+                <h3 className="truncate text-base font-normal tracking-[-0.02em] text-neutral-primary sm:text-[19px] sm:leading-6">
                   {name}
                 </h3>
-              </BareButton>
-              {item.talent.headline ? (
-                <p className="mt-0.5 line-clamp-2 text-[13px] font-normal leading-5 text-neutral-muted">
-                  {item.talent.headline}
-                </p>
-              ) : null}
-            </div>
-            <div className="flex shrink-0 items-center gap-1">
-              <time className="pt-0.5 text-[11px] font-normal text-neutral-soft">
-                {formatKstRelativeDate(item.recommendedAt)}
-              </time>
-              {!isDecisionStage && canManageCandidates && onMove ? (
-                <OrgCandidateStageMenu
-                  item={item}
-                  onMove={onMove}
-                  pending={pending}
-                  stages={stages}
-                />
-              ) : null}
+                {latestExperience ? (
+                  <p className="mt-0.5 line-clamp-2 text-[12px] font-normal leading-5 text-neutral-muted sm:text-[13px]">
+                    {getExperienceTitle(latestExperience)}
+                  </p>
+                ) : null}
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <time className="pt-0.5 text-[11px] font-normal text-neutral-soft">
+                  {formatKstRelativeDate(item.recommendedAt)}
+                </time>
+                {!isDecisionStage && canManageCandidates && onMove ? (
+                  <div className="pointer-events-auto">
+                    <OrgCandidateStageMenu
+                      internalOpsAccess={internalOpsAccess}
+                      item={item}
+                      onMove={onMove}
+                      pending={pending}
+                      stages={stages}
+                    />
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {signals.length > 0 ? (
-        <div className="mt-6 grid grid-cols-2 gap-x-5 gap-y-3 lg:grid-cols-3">
-          {signals.map((signal) => (
-            <MatchSignal key={signal} label={signal} />
-          ))}
-        </div>
-      ) : null}
-
-      <TalentExperienceList item={item} />
-
-      {showDecisionActions ? (
-        <div className="mt-6 grid grid-cols-[108px_minmax(0,1fr)] gap-2">
-          <MuteButton
-            disabled={pending}
-            onClick={onReject}
-            size="md"
-            variant="neutral"
+        {item.criteriaEvaluations.length > 0 ? (
+          <section
+            aria-label="평가 기준별 적합도"
+            className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3"
           >
-            연결 거절
-          </MuteButton>
-          <MuteButton
-            className="w-full"
-            disabled={pending}
-            onClick={onAccept}
-            size="md"
-            variant="dark"
-          >
-            연결 수락
-            <ArrowRight className="size-4" />
-          </MuteButton>
-        </div>
-      ) : null}
+            {item.criteriaEvaluations.map((evaluation, index) => (
+              <CriteriaEvaluation
+                evaluation={evaluation}
+                key={`${evaluation.name}:${index}`}
+              />
+            ))}
+          </section>
+        ) : null}
+
+        <TalentExperienceList item={item} />
+
+        {showDecisionActions ? (
+          <div className="pointer-events-auto mt-6 grid grid-cols-[108px_minmax(0,1fr)] gap-2">
+            <MuteButton
+              disabled={pending}
+              onClick={onReject}
+              size="md"
+              variant="neutral"
+            >
+              {CANDIDATE_DECISION_LABELS.reject}
+            </MuteButton>
+            <MuteButton
+              className="w-full"
+              disabled={pending}
+              onClick={onAccept}
+              size="md"
+              variant="dark"
+            >
+              {CANDIDATE_DECISION_LABELS.connect}
+              <ArrowRight className="size-4" />
+            </MuteButton>
+          </div>
+        ) : null}
+      </div>
     </article>
   );
 }
@@ -264,6 +348,7 @@ export function OrgRoleTalentBoard({
     bootstrap,
     currentUser,
     currentUserEmail,
+    internalOpsAccess,
     permissions,
   } = useOrgWorkspace();
   const members = bootstrap.members;
@@ -275,8 +360,12 @@ export function OrgRoleTalentBoard({
   const [stopItem, setStopItem] = useState<OrgBoardItem | null>(null);
   const visibleStages = useMemo(
     () =>
-      (board?.stages ?? []).filter((stage) => !isOrgInternalStage(stage.id)),
-    [board?.stages]
+      (board?.stages ?? []).filter(
+        (stage) =>
+          !isOrgInternalStage(stage.id) ||
+          (internalOpsAccess && stage.id === "accepted")
+      ),
+    [board?.stages, internalOpsAccess]
   );
   const defaultStageId = visibleStages[0]?.id ?? "";
   const selectedStageId = visibleStages.some(
@@ -336,7 +425,7 @@ export function OrgRoleTalentBoard({
             aria-label="보드 단계 선택"
             className="min-w-max w-fit gap-0.5"
             items={visibleStages.map((stage) => ({
-              label: getStageLabel(stage, activeRole?.name ?? null),
+              label: getBoardStageLabel(stage, activeRole?.name ?? null),
               value: stage.id,
             }))}
             onValueChange={setActiveStageId}
@@ -344,19 +433,34 @@ export function OrgRoleTalentBoard({
             variant="pills"
           />
         </div>
-        <div className="shrink-0">{displayControl}</div>
+        {displayControl ? (
+          <div className="shrink-0">{displayControl}</div>
+        ) : null}
       </div>
 
-      <div className="mt-4 space-y-4">
+      <div
+        className={cn(
+          "relative isolate mt-4 space-y-4",
+          selectedStage?.id === "accepted" && "overflow-hidden"
+        )}
+      >
+        {selectedStage?.id === "accepted" ? <InternalOnlyHatch /> : null}
         {items.map((item) => (
           <OrgRoleTalentBoardCard
             canManageCandidates={permissions.canManageCandidates}
+            internalOpsAccess={internalOpsAccess}
             item={item}
             key={item.recommendationId}
             onAccept={() => requestMove(item, "connected")}
             onMove={requestMove}
             onOpen={() =>
-              selectTalent(item, items, selectedStage?.label ?? "후보자 보드")
+              selectTalent(
+                item,
+                items,
+                selectedStage
+                  ? getStageLabel(selectedStage, activeRole?.name ?? null)
+                  : "후보자 보드"
+              )
             }
             onReject={() => requestMove(item, "process_stopped")}
             pending={isCandidateStagePending(item)}
@@ -371,6 +475,7 @@ export function OrgRoleTalentBoard({
       </div>
 
       <AcceptIntroDialog
+        allowContactDirectly={isInternalDomainEmail(currentUserEmail)}
         candidateEmail={acceptRequest?.item.talent.email}
         candidateName={
           acceptRequest ? getOrgCandidateDisplayName(acceptRequest.item) : ""

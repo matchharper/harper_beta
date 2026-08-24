@@ -240,7 +240,8 @@ test("candidate decision execution is an enabled terminal tool", async () => {
   assert.equal(isOrgAgentTerminalToolName("manage_role_pipeline_stages"), true);
   assert.equal(isOrgAgentTerminalToolName("move_candidate_stage"), true);
   assert.equal(isOrgAgentTerminalToolName("decide_candidate_connection"), true);
-  assert.equal(isOrgAgentTerminalToolName("change_talent_contact"), true);
+  assert.equal(isOrgAgentTerminalToolName("contact_talent"), true);
+  assert.equal(isOrgAgentTerminalToolName("change_talent_contact"), false);
 });
 
 test("read_talent input accepts ten unique IDs and rejects invalid batches", () => {
@@ -293,30 +294,30 @@ test("a failed Role status change cannot be presented as completed", () => {
   );
 });
 
-test("a failed candidate contact change cannot be presented as completed", () => {
+test("a failed candidate contact lifecycle action cannot be presented as completed", () => {
   const state = createOrgAgentToolExecutionState(minimalContext());
   state.terminalMutationUsed = true;
   state.toolResults.push({
     callId: "cancel-contact-1",
-    name: "change_talent_contact",
+    name: "contact_talent",
     status: "error",
     summary: "발송 시작으로 취소 실패",
   });
 
   assert.equal(
     enforceOrgAgentTerminalMutationOutcome(state, "문의를 취소했습니다."),
-    "후보자 문의 요청을 변경하지 못했습니다. 최신 발송 상태를 다시 확인해 주세요."
+    "후보자에게 요청을 보내지 못했어요. 대상 후보자와 역할, 요청 내용을 다시 확인해 주세요. 이메일이나 Harper 채팅으로 전달된 내용은 없어요."
   );
 });
 
-test("a successful candidate contact change uses the server-authoritative reply", () => {
+test("a successful candidate contact action keeps the model reply", () => {
   const state = createOrgAgentToolExecutionState(minimalContext());
   state.terminalMutationUsed = true;
   state.terminalReply =
     "김후보님께 드릴 문의를 즉시 발송하도록 변경했습니다. 아직 전달 완료 단계는 아닙니다.";
   state.toolResults.push({
     callId: "immediate-contact-1",
-    name: "change_talent_contact",
+    name: "contact_talent",
     status: "success",
     summary: "후보자 문의 즉시 발송 변경",
   });
@@ -326,14 +327,16 @@ test("a successful candidate contact change uses the server-authoritative reply"
       state,
       "안녕하세요. 후보자께 보낼 이메일 본문입니다."
     ),
-    state.terminalReply
+    "안녕하세요. 후보자께 보낼 이메일 본문입니다."
   );
 });
 
-test("a started role creation keeps the server-authoritative Slack thread link", () => {
+test("a started role creation keeps model-authored prose and requires the exact Slack link", () => {
   const state = createOrgAgentToolExecutionState(minimalContext());
+  state.requiredSlackContinuationLink =
+    "<https://slack.example/thread|새로운 채용 등록 이어가기>";
   state.terminalReply =
-    "역할 작성 스레드를 열어뒀어요.\n\n<https://slack.example/thread|작성 스레드로 이동>";
+    "Staff Engineer 역할 등록을 함께 시작할게요.\n\n<https://slack.example/thread|새로운 채용 등록 이어가기>";
   state.toolResults.push({
     callId: "call-start-role",
     name: "start_role_creation",
@@ -344,10 +347,75 @@ test("a started role creation keeps the server-authoritative Slack thread link",
   assert.equal(
     enforceOrgAgentTerminalMutationOutcome(
       state,
-      "제가 다른 링크를 만들어서 안내하겠습니다."
+      "네, Staff Engineer 역할 등록을 함께 시작할게요.\n\n보내주신 JD도 새 역할 대화에서 이어서 살펴볼게요."
     ),
-    state.terminalReply
+    "네, Staff Engineer 역할 등록을 함께 시작할게요.\n\n보내주신 JD도 새 역할 대화에서 이어서 살펴볼게요.\n\n<https://slack.example/thread|새로운 채용 등록 이어가기>"
   );
+});
+
+test("a started role creation corrects the label without replacing model-authored prose", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  state.requiredSlackContinuationLink =
+    "<https://slack.example/thread|새로운 채용 등록 이어가기>";
+  state.terminalReply = "역할 등록을 시작할게요.";
+  state.toolResults.push({
+    callId: "call-start-role",
+    name: "start_role_creation",
+    status: "success",
+    summary: "Product Designer 역할 작성 스레드 시작",
+  });
+
+  assert.equal(
+    enforceOrgAgentTerminalMutationOutcome(
+      state,
+      "Product Designer 역할 등록을 함께 준비할게요.\n\n<https://slack.example/thread|역할 작성 스레드로 이동>"
+    ),
+    "Product Designer 역할 등록을 함께 준비할게요.\n\n<https://slack.example/thread|새로운 채용 등록 이어가기>"
+  );
+});
+
+test("a started role creation keeps the required link exactly once", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  const requiredLink =
+    "<https://slack.example/thread|새로운 채용 등록 이어가기>";
+  state.requiredSlackContinuationLink = requiredLink;
+  state.terminalReply = "역할 등록을 시작할게요.";
+  state.toolResults.push({
+    callId: "call-start-role",
+    name: "start_role_creation",
+    status: "success",
+    summary: "Data Engineer 역할 작성 스레드 시작",
+  });
+
+  const reply = enforceOrgAgentTerminalMutationOutcome(
+    state,
+    `Data Engineer 역할 등록을 시작할게요.\n\n${requiredLink}\n\n새 역할 대화에서 이어갈게요.\n\n${requiredLink}`
+  );
+
+  assert.equal(reply.split(requiredLink).length - 1, 1);
+  assert.match(reply, /새 역할 대화에서 이어갈게요\./);
+});
+
+test("a started role creation removes a duplicate standalone continuation heading", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  const requiredLink =
+    "<https://slack.example/thread|새로운 채용 등록 이어가기>";
+  state.requiredSlackContinuationLink = requiredLink;
+  state.terminalReply = "역할 등록을 시작할게요.";
+  state.toolResults.push({
+    callId: "call-start-role-heading",
+    name: "start_role_creation",
+    status: "success",
+    summary: "Data Engineer 역할 작성 스레드 시작",
+  });
+
+  const reply = enforceOrgAgentTerminalMutationOutcome(
+    state,
+    `역할 등록을 시작할게요.\n\n**새로운 채용 등록 이어가기**\n\n${requiredLink}`
+  );
+
+  assert.equal(reply.split("새로운 채용 등록 이어가기").length - 1, 1);
+  assert.doesNotMatch(reply, /\*\*새로운 채용 등록 이어가기\*\*/);
 });
 
 test("a failed terminal mutation cannot be presented as a success", () => {
@@ -450,7 +518,7 @@ test("a failed candidate contact is not mislabeled as a data change", () => {
       state,
       "후보자분께 확인 요청을 보냈습니다."
     ),
-    "후보자분께 요청을 접수하지 못했습니다. 대상 후보자와 포지션, 요청 내용을 다시 확인한 뒤 요청해 주세요. 아직 후보자분께는 이메일이나 Harper 채팅이 전달되지 않았습니다."
+    "후보자에게 요청을 보내지 못했어요. 대상 후보자와 역할, 요청 내용을 다시 확인해 주세요. 이메일이나 Harper 채팅으로 전달된 내용은 없어요."
   );
 });
 
@@ -495,6 +563,28 @@ test("a successful candidate contact keeps the model-authored explanation", () =
   );
 });
 
+test("a candidate draft keeps the server status beside the exact presentation", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  state.terminalMutationUsed = true;
+  state.terminalReply =
+    "후보자에게 보낼 전체 문구를 작성해 초안으로 저장했습니다. 아직 발송하지 않았습니다.";
+  state.requiredPresentationText = "제목과 본문 전체";
+  state.toolResults.push({
+    callId: "contact-draft",
+    name: "contact_talent",
+    status: "success",
+    summary: "후보자 연락 초안 작성",
+  });
+
+  assert.equal(
+    enforceOrgAgentTerminalMutationOutcome(
+      state,
+      "이번 결과에는 본문이 표시되지 않았습니다."
+    ),
+    state.terminalReply
+  );
+});
+
 test("a failed candidate decision cannot be presented as completed", () => {
   const state = createOrgAgentToolExecutionState(minimalContext());
   state.terminalMutationUsed = true;
@@ -507,15 +597,31 @@ test("a failed candidate decision cannot be presented as completed", () => {
 
   assert.equal(
     enforceOrgAgentTerminalMutationOutcome(state, "후보자를 거절했습니다."),
-    "후보자 연결 결정을 반영하지 못했습니다. 후보자가 아직 연결 대기 상태인지와 직전 확인 내용이 현재 답변과 일치하는지 확인한 뒤 다시 시도해 주세요. 상태 변경이나 연결 메일 발송은 이루어지지 않았습니다."
+    "후보자 연결 결정의 최종 결과를 확인하지 못했어요. 소개 이메일이나 후보자 안내가 전달됐을 수 있으니 바로 다시 시도하지 말고, 후보자의 현재 상태와 메일을 먼저 확인해 주세요."
+  );
+});
+
+test("an unconfirmed candidate decision keeps the server confirmation copy", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  state.terminalMutationUsed = true;
+  state.terminalReply =
+    "Harper가 후보자와 회사를 CC한 소개 메일로 연결합니다. 이대로 연결할까요?";
+  state.toolResults.push({
+    callId: "decision-confirmation",
+    name: "decide_candidate_connection",
+    status: "unchanged",
+    summary: "후보자 연결 수락 재확인 필요",
+  });
+
+  assert.equal(
+    enforceOrgAgentTerminalMutationOutcome(state, "후보자를 연결했습니다."),
+    state.terminalReply
   );
 });
 
 test("a successful candidate decision keeps the model-authored explanation", () => {
   const state = createOrgAgentToolExecutionState(minimalContext());
   state.terminalMutationUsed = true;
-  state.terminalReply =
-    "김하퍼 후보자를 연결받지 않기로 처리하고 프로세스를 중단했습니다. 말씀해 주신 이유도 진행 이력에 저장했습니다.";
   state.toolResults.push({
     callId: "decision-2",
     name: "decide_candidate_connection",

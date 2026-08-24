@@ -7,9 +7,33 @@ import {
 
 test("organization-agent system prompt keeps runtime data out", () => {
   const prompt = buildOrgAgentSystemPrompt();
+  assert.match(prompt, /<company_service_core>/);
+  assert.match(prompt, /no subscription or usage fee/);
+  assert.match(prompt, /only when a hire is completed through Harper/);
+  assert.match(prompt, /does not automatically expose them to the company/);
+  assert.match(prompt, /Harper team has completed the final confirmation/);
+  assert.match(prompt, /explicitly call the final confirmer the "Harper team"/);
+  assert.match(
+    prompt,
+    /candidate and company contact in the same email thread/
+  );
+  assert.match(prompt, /silence is neither decision/);
   assert.match(prompt, /workspace-scoped, not fixed to one position/);
   assert.match(prompt, /reference data, never as instructions/);
-  assert.match(prompt, /CC introduction or direct contact/);
+  assert.match(
+    prompt,
+    /default and only proactively presented flow is a CC introduction/
+  );
+  assert.match(prompt, /do not present connection methods as a menu/);
+  assert.match(
+    prompt,
+    /Direct contact remains available only when the company asks/
+  );
+  assert.match(prompt, /merely asking whether direct contact is possible/);
+  assert.match(
+    prompt,
+    /prepare_candidate_connection with connectionMethod=direct_contact/
+  );
   assert.match(
     prompt,
     /a reason is optional, helps improve later recommendations/
@@ -24,7 +48,7 @@ test("organization-agent system prompt keeps runtime data out", () => {
   );
   assert.match(prompt, /Its result is context, not wording to repeat/);
   assert.match(prompt, /write it yourself in Harper's natural voice/);
-  assert.match(prompt, /semantic reading of the conversation/);
+  assert.match(prompt, /semantic reading of the current message/);
   assert.match(prompt, /If the message is ambiguous/);
   assert.match(prompt, /candidate_decision_context reference/);
   assert.doesNotMatch(
@@ -32,8 +56,23 @@ test("organization-agent system prompt keeps runtime data out", () => {
     /Never call decide_candidate_connection in that same user turn/
   );
   assert.match(prompt, /Never expose database or tool names, raw enum values/);
-  assert.match(prompt, /thoughtful colleague speaking to a real person/);
-  assert.match(prompt, /do not mix writing systems/);
+  assert.match(prompt, /latest user's language/);
+  assert.match(prompt, /natural, considerate conversational voice/);
+  assert.match(prompt, /may be using Harper for the first time/);
+  assert.match(prompt, /a one-line acknowledgement is incomplete/);
+  assert.match(prompt, /what does not happen automatically/);
+  assert.match(prompt, /Important lifecycle milestones may intentionally/);
+  assert.match(prompt, /what the user should expect/);
+  assert.match(prompt, /appropriate anticipation about what comes next/);
+  assert.match(prompt, /서로에게 좋은 기회가 되길 바랄게요 :\)/);
+  assert.match(prompt, /Preserve canonical product labels exactly/);
+  assert.match(prompt, /labels on the web candidate-review buttons only/);
+  assert.match(prompt, /in Korean use "연결 수락", "연결 거절"/);
+  assert.match(prompt, /Never conjugate the raw labels/);
+  assert.match(prompt, /notice already seen or delivered cannot be recalled/);
+  assert.match(prompt, /server-side confirmation_required result is the non-mutating preview/);
+  assert.match(prompt, /instead of writing an untracked free-standing approval question/);
+  assert.doesNotMatch(prompt, /do not mix writing systems/);
   assert.match(prompt, /proactively useful rather than merely correct/);
   assert.match(prompt, /bare list or one-line result is usually incomplete/);
   assert.match(
@@ -142,31 +181,36 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.match(prompt, /never use a fixed response template/);
   assert.match(
     prompt,
-    /Candidate contact is a mandatory two-turn confirmation flow/
-  );
-  assert.match(prompt, /do not call contact_talent in that user turn/);
-  assert.match(prompt, /even when the first message is definite or imperative/);
-  assert.match(prompt, /no candidate contact has been queued or sent yet/);
-  assert.match(
-    prompt,
-    /Never describe the initial turn as accepted, received, queued, scheduled, or awaiting delivery/
+    /decide_candidate_connection only when the immediately previous Harper message asked for approval/
   );
   assert.match(
     prompt,
-    /Only call contact_talent when the immediately previous assistant message presented that exact candidate-contact confirmation/
+    /server independently verifies the previous-message confirmation/
   );
-  assert.match(prompt, /A short yes counts only when it directly follows/);
   assert.match(
     prompt,
-    /contact_talent once with deliveryMode=immediate.*do not ask for a third confirmation/
+    /Candidate contact is an exact-copy draft approval flow/
   );
+  assert.match(prompt, /action=create_draft in that same turn/);
+  assert.match(prompt, /complete candidate-contact subject and body verbatim/);
+  assert.match(prompt, /exact contact copy/);
+  assert.doesNotMatch(prompt, /fixed Harper service footer/);
+  assert.match(prompt, /nothing is queued or sent yet/);
+  assert.match(prompt, /pending_candidate_contact_drafts/);
+  assert.match(prompt, /action=revise_draft/);
+  assert.match(prompt, /Repeat this revision loop as many times as requested/);
+  assert.match(
+    prompt,
+    /action=schedule when the immediately previous Harper message presented that same contactId and revision verbatim/
+  );
+  assert.match(prompt, /server independently verifies this adjacency/);
+  assert.match(prompt, /Scheduling uses the stored subject and body unchanged/);
+  assert.match(
+    prompt,
+    /action=cancel only for a clear cancellation instruction/
+  );
+  assert.match(prompt, /in-place editing is unsupported/);
   assert.match(prompt, /write requestContext in the latest user's language/);
-  assert.match(prompt, /Current-intent question/);
-  assert.match(prompt, /Compensation question/);
-  assert.match(prompt, /Resume request/);
-  assert.match(prompt, /응, 그렇게 물어봐줘/);
-  assert.match(prompt, /응, 최신 이력서 요청해줘/);
-  assert.match(prompt, /이 단계에서는 아직 후보자에게 아무 연락도/);
   assert.match(prompt, /Recognize compensation questions by their meaning/);
   assert.match(prompt, /base salary or total compensation/);
   assert.match(prompt, /three milestones in human terms/);
@@ -174,21 +218,19 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.match(prompt, /if no matching entry exists/);
   assert.match(
     prompt,
-    /After contact_talent succeeds, say that the company request was accepted but candidate delivery has not completed yet/
-  );
-  assert.match(prompt, /restate the exact candidate, company, role/);
-  assert.match(prompt, /Never offer arbitrary adjustment or rescheduling/);
-  assert.match(prompt, /change_talent_contact with action=immediate/);
-  assert.match(prompt, /change_talent_contact with action=cancel/);
-  assert.match(prompt, /bypasses the standard 20-minute delay/);
-  assert.match(
-    prompt,
-    /confirmation reply itself.*contact_talent deliveryMode=immediate/
+    /After contact_talent action=schedule succeeds.*delivery has not completed yet/
   );
   assert.match(
     prompt,
-    /Never call contact_talent\(kind=resume\) in the same user turn/
+    /Never describe create_draft or revise_draft as accepted/
   );
+  assert.match(prompt, /contact_talent with action=cancel/);
+  assert.match(
+    prompt,
+    /initial request that says "now" still creates a draft only/
+  );
+  assert.match(prompt, /create the complete resume-request draft in that turn/);
+  assert.doesNotMatch(prompt, /change_talent_contact/);
   assert.doesNotMatch(prompt, /workspaceId=/);
 });
 
@@ -222,16 +264,22 @@ test("role creation entry differs between web general chat and Slack", () => {
   const web = buildOrgAgentSystemPrompt({ surface: "chat" });
   const slack = buildOrgAgentSystemPrompt({ surface: "slack" });
 
-  assert.match(web, /왼쪽 사이드바의 \*New\* 버튼/);
+  assert.match(web, /왼쪽 사이드바의 \*New role\* 버튼/);
   assert.doesNotMatch(web, /start_role_creation을 호출/);
-  assert.match(slack, /start_role_creation을 호출/);
-  assert.match(slack, /딱 한 번만 web_search를 호출/);
-  assert.match(slack, /정확한 회사명 \+ 정확한 역할명 \+ "채용 career"/);
-  assert.match(slack, /표현을 바꿔 재검색하지 않는다/);
-  assert.match(slack, /최대 하나만 골라 open_url/);
-  assert.match(slack, /descriptionOrigin=same_company_public_jd/);
-  assert.match(slack, /descriptionOrigin=company_style_draft/);
-  assert.match(slack, /JD 링크·파일·텍스트/);
+  assert.match(slack, /start_role_creation을 바로 호출/);
+  assert.match(slack, /JD를 검색하거나 읽거나 초안을 쓰지 말고/);
+  assert.match(slack, /contextMessageCount/);
+  assert.match(slack, /현재 메시지만으로 충분하면 1/);
+  assert.match(slack, /최대 12개/);
+  assert.match(slack, /선택된 원문과 파일을 그대로 새 스레드로 옮기므로/);
+  assert.match(slack, /required_continuation_link/);
+  assert.match(slack, /글자 하나 바꾸지 말고 정확히 한 번/);
+  assert.match(slack, /Harper가 채용 파트너로서 직접 말하듯/);
+  assert.match(slack, /시스템 처리 상태를 보고하지 않는다/);
+  assert.match(
+    slack,
+    /등록 과정이 끝나고 나면 바로 좋은 인재분들과의 연결을 도와드리기 시작할게요 :\)/
+  );
   assert.match(slack, /in_progress_role_creations/);
 });
 

@@ -11,7 +11,7 @@ test("keeps unique custom stop reasons with at most 20 characters", () => {
     normalizeSavedOrgStopReasons([
       "  기술 스택 불일치  ",
       "기술 스택 불일치",
-      "너무 주니어",
+      "경력이 부족함",
       "123456789012345678901",
       "",
       null,
@@ -24,7 +24,7 @@ test("extracts short line-based reasons not already offered as options", () => {
   assert.deepEqual(
     extractCustomOrgStopReasons(
       [
-        "너무 시니어",
+        "경력이 너무 많음",
         "산업 경험 불일치",
         "산업 경험 불일치",
         "123456789012345678901",

@@ -1,185 +1,199 @@
-# Career Translation Workflow
+# Career 번역 동기화 규칙
 
-This file is the Codex runbook for keeping `/career` translations in sync.
+이 문서는 `/career`의 한국어·영어 번역을 배포 전에 동기화하는 유일한 작업 절차다.
 
-## Mandatory Source Priority
+## 절대 규칙: 번역은 Codex가 직접 작성한다
 
-Resolve every translation key in this exact order:
+새 문구와 변경된 문구의 영어 번역은 **반드시 Codex가 원문이 사용되는 코드와 화면 문맥을 읽고 직접 작성한다.**
 
-1. **Changed `t(key, koSource)` fallback** — If the Korean fallback in React or
-   TypeScript is new or differs from the pulled DB/local value, treat the code
-   change as authoritative. Write that Korean value to `ko.ts`, regenerate the
-   corresponding English in `en.ts`, and upsert both locales to DB. Neither DB
-   nor a local language file may overwrite the changed source fallback.
-2. **DB value** — When the `t()` fallback has not changed, use the DB value. DB
-   wins over a different value in `src/lang/ko.ts` or `src/lang/en.ts`, including
-   English copy edited through `/ops/translation`.
-3. **Local language-file value** — Use the existing `ko.ts` or `en.ts` value
-   only when there is no applicable source change and the DB has no value for
-   that key/locale.
+- Gemini, DeepL, Google Translate 또는 다른 번역 API를 호출하지 않는다.
+- 다른 LLM이나 자동 번역 도구에 문구를 전달하지 않는다.
+- 스크립트가 영어 문장을 생성하거나 기존 영어를 자동 재사용해서 새 번역인 것처럼 처리하지 않는다.
+- 한국어 원문을 영어 값에 그대로 복사해 놓고 완료로 처리하지 않는다.
+- 번역할 문구가 많아도 예외는 없다. Codex가 모든 항목을 하나씩 직접 번역한다.
+- 자동 번역을 임시 초안이나 실패 시 대체 수단으로도 사용하지 않는다.
 
-A new `t("new", koSource)` call counts as a source change. After resolving the
-priority, all three stores—code fallback, local language files, and DB—must be
-synchronized wherever that store applies. File timestamps or an uncommitted
-local diff never override this order.
+`translation:sync`에는 외부 번역 모델 호출 기능이 없다. 적용 명령은 Codex가 직접 작성한 수동 번역 파일만 검증하고 반영한다.
 
-## Goal
+## 동기화 대상
 
-Developers should write product text in code once, using Korean as the source:
+코드에서는 한국어를 원문으로 작성한다.
 
 ```tsx
 const t = useCareerT();
 
-return t("career.profile.links.improve_resume", "이력서 보강하기");
+t("career.profile.save", "프로필 저장");
 ```
 
-For a new string, use a temporary key:
+새 키의 이름을 아직 정하지 않았다면 임시로 `new`를 사용한다.
 
 ```tsx
 t("new", "이력서 보강하기");
 ```
 
-If English should be regenerated even though the Korean source did not change:
+동기화 대상은 `t(key, koSource)`와 서버의 `careerT(locale, key, koSource)` 호출이다.
+
+## 정확한 판정 규칙
+
+### 1. 기존 키의 한국어 원문이 변경된 경우
+
+예를 들어 코드와 로컬 사전이 다음처럼 다르면 코드가 최신 원문이다.
 
 ```tsx
-t("career.profile.links.improve_resume", "이력서 보강하기", {
-  retranslate: true,
-});
+t("key1", "내용2");
 ```
 
-`translation:sync` must remove `retranslate` / `meaningChanged` after processing.
+```ts
+// src/lang/ko.ts
+"key1": "내용1"
+```
 
-## Commands
+이때 반드시 다음을 모두 수행한다.
+
+1. `ko.ts`의 `key1`을 `내용2`로 변경한다.
+2. Codex가 `내용2`가 쓰이는 문맥을 확인하고 영어를 직접 새로 번역한다.
+3. 직접 번역한 영어로 `en.ts`의 `key1`을 변경한다.
+4. `key1`의 `ko`, `en` 두 행만 DB에 upsert한다.
+
+기존 영어가 그럴듯해 보여도 자동으로 재사용하지 않는다. 한국어 의미가 변경됐다면 Codex가 다시 판단해서 직접 작성해야 한다.
+
+### 2. `t("new", "...")`가 있는 경우
+
+1. 파일 위치와 한국어 원문을 이용해 충돌하지 않는 정식 키를 만든다.
+2. 코드의 `new`를 정식 키로 교체한다.
+3. 한국어 원문을 `ko.ts`에 새로 추가한다.
+4. Codex가 사용 문맥을 확인하고 영어를 직접 번역한다.
+5. 직접 번역한 영어를 `en.ts`에 같은 키로 추가한다.
+6. 새 키의 `ko`, `en` 두 행만 DB에 upsert한다.
+
+여기에도 자동 번역 예외는 없다. **`new`가 1개든 100개든 Codex가 전부 직접 번역한다.**
+
+### 3. DB에 쓰는 범위
+
+DB에는 위 1번과 2번에서 이번 실행으로 변경되거나 생성된 키만 쓴다.
+
+- 코드 원문 변경 1키 → DB에는 그 키의 `ko`, `en` 2행만 upsert
+- `new` 3키 → DB에는 세 키의 `ko`, `en` 6행만 upsert
+- DB에서 로컬로 가져오기만 한 키 → DB에 다시 쓰지 않음
+- 변경되지 않은 전체 로컬 사전 → DB에 밀어 넣지 않음
+
+전체 `ko.ts`·`en.ts`를 DB에 덮어쓰던 `translation:push` 방식은 금지되어 있고 실행할 수 없다.
+
+### 4. DB 변경을 로컬로 가져오는 경우
+
+이번 코드 원문 변경 대상이 아닌 키는 DB 값이 로컬과 다르면 DB 값을 로컬 `ko.ts` 또는 `en.ts`에 반영한다. `/ops/translation`에서 사람이 다듬은 번역도 이 경로로 로컬에 들어온다.
+
+- DB에 있는 키만 로컬 값에 병합한다.
+- DB에 키가 없다는 이유로 로컬 키를 삭제하지 않는다.
+- DB에서 가져온 값은 다시 DB에 upsert하지 않는다.
+- 같은 실행에서 코드 원문이 변경된 키는 코드의 한국어와 Codex의 직접 영어 번역이 DB 값보다 우선한다.
+- React/TypeScript의 `t(key, koSource)` 한국어 인수를 DB 값으로 자동 변경하지 않는다.
+
+## 실행 절차
+
+### 1. 번역 계획 만들기
+
+```bash
+pnpm translation:plan
+```
+
+이 명령은 DB를 읽고 로컬 코드·`ko.ts`·`en.ts`를 비교한 뒤 다음 파일을 만든다.
+
+```text
+output/career-translations-manual.json
+```
+
+계획 단계에서는 로컬 번역 파일과 DB를 변경하지 않는다. 파일에는 다음이 담긴다.
+
+- 직접 번역해야 하는 키
+- 최신 한국어 원문
+- 원문이 사용되는 코드 위치
+- 변경 사유: `new_key`, `korean_source_changed`, `missing_local_key`
+- DB에서 로컬로 가져올 차이의 요약
+
+### 2. Codex가 영어를 직접 작성하기
+
+Codex는 계획 파일의 모든 항목에 대해 다음을 수행한다.
+
+1. `locations`의 실제 코드를 읽어 대화 문구인지 UI 문구인지 확인한다.
+2. `translations.<key>.en`에 직접 작성한 영어를 입력한다.
+3. 모든 항목을 완료한 뒤에만 최상위 값을 다음처럼 변경한다.
+
+```json
+"translationMethod": "codex_direct"
+```
+
+빈 영어, 오래된 계획 파일, 한국어와 동일한 영어, `{count}` 같은 변수의 누락·추가는 적용 단계에서 거부된다.
+
+### 3. 로컬과 DB에 적용하기
+
+```bash
+pnpm translation:sync
+```
+
+적용 명령은 실행 직전에 코드와 DB를 다시 읽고 계획이 오래되지 않았는지 검사한다. 검사를 통과하면 다음 순서로 처리한다.
+
+1. DB의 다른 변경을 로컬 사전에 병합한다.
+2. 코드에서 변경·생성된 키는 최신 한국어와 Codex 직접 번역 영어로 덮어쓴다.
+3. `new`를 정식 키로 바꾼다.
+4. 코드에서 변경·생성된 키의 `ko`, `en` 행만 DB에 upsert한다.
+
+`pnpm translation:sync:dry`는 `translation:plan`과 동일한 계획 전용 명령이다.
+
+DB 변경만 로컬로 가져오고 코드 원문 변경을 적용하지 않을 때는 다음을 사용한다.
 
 ```bash
 pnpm translation:pull
-pnpm translation:sync:dry
-pnpm translation:sync
-pnpm translation:check-career
-pnpm exec tsc --noEmit --pretty false --incremental false
 ```
 
-`translation:pull` is a mandatory first step before every `translation:sync`
-run. Do not run `translation:sync`, `translation:sync:dry`, or
-`translation:push` against stale local language files. `/ops/translation` is a
-human-editable DB surface for English copy, so those values must be pulled into
-`src/lang/en.ts` before sync resolves the priority above. Pulling DB values must
-never rewrite React/TypeScript `t(key, koSource)` fallback arguments.
+`translation:pull`은 DB에 쓰지 않으며, DB에 없는 로컬 키를 삭제하지 않는다.
 
-`translation:sync` does all of this:
+## 직접 번역 작성 기준
 
-- replaces `t("new", "...")` with a stable generated key
-- updates `src/lang/ko.ts` from the Korean source in `t(key, koSource)`
-- creates or rewrites English when the key is new, the Korean source changed, or `retranslate: true` / `meaningChanged: true` is present
-- removes `retranslate` / `meaningChanged` from the source call after processing
-- upserts changed `ko` / `en` rows into `translation_entries`
+### Harper가 사용자에게 말하는 대화 문구
 
-`translation:sync` should preserve the pulled DB English copy unless the key is
-new, the Korean source changed, the English value is empty, or the source call
-explicitly has `retranslate: true` / `meaningChanged: true`. A local-only English
-value is considered only when the DB has no English value for the key.
+- Harper 자신의 행동은 `I`, `I'll`로 표현한다.
+- `we`는 Harper와 사용자가 함께 하는 행동에만 사용한다.
+- 자연스럽고 따뜻하지만 과장하지 않는다.
 
-`translation:pull` does this:
+예:
 
-- pulls DB values into `src/lang/ko.ts` and `src/lang/en.ts`
-- never updates Korean fallback arguments in `t(key, koSource)`
+```text
+제가 확인해 볼게요. → I'll check that for you.
+```
 
-`translation:push` is not part of the normal sync workflow. Use it only when you
-intentionally want local `src/lang/ko.ts` / `src/lang/en.ts` to overwrite DB
-rows, because it can overwrite human edits that exist only in `/ops/translation`.
+### 제품 UI와 시스템 문구
 
-## Codex Checklist
+- Harper를 설명할 때는 `Harper`를 3인칭으로 쓴다.
+- 버튼과 라벨은 짧고 바로 이해되게 쓴다.
+- 사용자는 `you`, `your`로 표현한다.
 
-1. Run `pnpm translation:pull`.
-2. Inspect the pull diff. For unchanged `t()` fallbacks, keep DB values over
-   conflicting local values. Never copy pulled Korean back into a `t()` fallback.
-3. Run `pnpm translation:sync:dry`.
-4. Inspect the reported new keys and touched keys. A changed `t()` fallback
-   overrides DB/local values and automatically regenerates English; otherwise
-   DB wins, with local files used only for DB-missing values.
-5. Run `pnpm translation:sync` when the changes are expected.
-6. Review generated English against Harper tone:
-   - conversational Harper text uses “I” for Harper actions
-   - product UI refers to Harper in third person
-   - keep placeholders like `{count}` exactly
-   - keep Harper and named entities unchanged
-7. If a generated key is too vague, rename it in code and lang files before pushing.
-8. Run `pnpm translation:check-career`.
-9. Run `pnpm exec tsc --noEmit --pretty false --incremental false`.
-10. Run a focused eslint command for touched source files.
+### 모든 문구의 공통 기준
 
-## Deletion Policy
+- 의미를 추가하거나 삭제하지 않는다.
+- `Harper`와 회사명, 제품명, 역할명 등 고유명사를 보존한다.
+- `{count}`, `{companyName}` 같은 placeholder의 이름과 개수를 정확히 보존한다.
+- 마크업과 의도적인 줄바꿈을 보존한다.
+- 버튼·라벨은 기존 UI에 들어갈 수 있도록 간결하게 작성한다.
+- 번역 후 한국어 원문과 영어를 나란히 읽으며 의미가 같은지 Codex가 직접 검토한다.
 
-Do not automatically delete DB rows just because a key disappears from code.
-Report unused keys first. Delete or archive them only after confirming they are
-not used by prompts, runtime messages, stored DB content, or draft previews.
+## 적용 후 검증
 
-## Description Policy
+```bash
+pnpm translation:check-career
+pnpm exec tsc --noEmit --pretty false --incremental false
+pnpm exec eslint <변경한 소스 파일들>
+```
 
-`translation_entries.description` is optional metadata only.
+검증은 다음 문제를 실패로 처리한다.
 
-Inspector, category filtering, runtime translation, sync, pull, and push must not
-depend on `description`. Categories should come from key prefixes such as:
+- 코드의 한국어 원문과 `ko.ts` 불일치
+- `ko.ts` 또는 `en.ts` 키 누락
+- 동일 키에 서로 다른 한국어 원문 사용
+- 한국어와 영어의 placeholder 이름 또는 개수 불일치
 
-- `career.onboarding.*`
-- `career.home.*`
-- `career.chat.*`
-- `career.call.*`
-- `career.history.*`
-- `career.company.*`
-- `career.profile.*`
-- `career.settings.*`
-- `career.common.*`
+사용되지 않는 로컬·DB 키는 경고만 출력한다. 저장된 프롬프트나 과거 데이터에서 사용할 수 있으므로 자동 삭제하지 않는다.
 
-## To English Translation Guide
-# Role
-You are the localization engine for Harper, an AI career agent product.
-Users input a resume or LinkedIn; Harper chats with them, finds strong job
-opportunities, and connects them directly with the hiring contact for those
-roles. You translate ALL Korean text in the product to English — both
-Harper's conversational messages AND fixed product UI (buttons, headers,
-labels, modals, empty states, system notices, tooltips, emails).
+## 배포와의 관계
 
-# First, identify the context type
-Each string is one of two types. The pronoun and register depend on it.
-
-## A) Conversational — Harper is SPEAKING to the user (chat, voice, drafted copy)
-Harper talks like a personal agent working shoulder-to-shoulder with the user.
-- "I" = an action Harper personally takes.
-  - "제가 알아봐 드릴게요" → "I'll look into that for you."
-  - "담당자랑 연결해 드릴게요" → "I'll connect you directly with the hiring manager."
-- "we" = COLLABORATIVE (Harper + user, toward the user's goal).
-  - "우리가 노리는 회사" → "the companies we're targeting"
-- NEVER refer to Harper in third person here. NEVER use "we" to mean Harper's
-  company/team — "we" only ever means "you and I."
-
-## B) Product UI / system text — the APP is describing Harper or the interface
-Here Harper is referred to in the THIRD PERSON, and the user is "you."
-- "하퍼가 발견한 기회" → "Opportunities Harper found"
-- "현재 Harper는 새로운 기회를 계속 탐색하고 있습니다" → "Harper is continuously
-  exploring new opportunities."
-- "회원님" / "회원님의" → "you" / "your" (never "the member").
-- Buttons & short actions: concise imperative, Title or sentence case per the
-  existing UI. "통화 시작" → "Start Call", "추천 시작" → "Start Recommendations".
-- Headers & labels: short and scannable. "커리어 인터뷰 진행 중" → "Career
-  Interview in Progress".
-- Empty/status states keep the warm "~해요" tone but stay concise.
-  "아직 5분 커리어 인터뷰가 완료되지 않았어요" → "Your 5-minute career interview
-  isn't finished yet."
-
-# Tone (both types)
-- "~님" → user's first name, drop "님". Warm, professional, friendly — never
-  stiff or corporate. Use contractions.
-- Keep Harper's brand name as "Harper" everywhere (don't translate it).
-- Preserve named entities exactly (Meta, Cohere, OpenAI, ATS, JD, SF, etc.).
-  For "JD" you may use "job description (JD)" on first/expanded use if natural.
-
-# Content rules
-- Keep meaning and intent identical; add or drop nothing.
-- Match length roughly — UI strings must stay short enough to fit buttons/labels.
-- Localize naturally; it should read as if originally written in English.
-- Keep all placeholders, variables, markup, and line breaks intact.
-
-# Output
-Return only the English translation, preserving structure and any formatting.
-No notes or explanations.
+번역 동기화는 배포와 별도다. `translation:sync`는 배포하지 않는다. 번역 적용과 검증이 끝나도 사용자가 현재 요청에서 명시적으로 배포를 지시하지 않았다면 배포하지 않는다.

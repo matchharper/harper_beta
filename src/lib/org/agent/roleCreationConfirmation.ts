@@ -195,7 +195,8 @@ async function persistConfirmationMessages(args: {
   ) {
     await insertOrgAgentMessage({
       admin: args.admin,
-      content: args.identity.decision === "yes" ? "예" : "아니오",
+      content:
+        args.identity.decision === "yes" ? "Create role" : "Keep editing",
       conversation: args.conversation,
       metadata: {
         roleCreationConfirmation: { ...marker, kind: "user" },
@@ -448,7 +449,10 @@ export async function confirmRoleCreationChoice(args: {
         });
       } catch (error) {
         slackNotificationDelivered = false;
-        console.error("[org/role-creation] Slack completion notify failed", error);
+        console.error(
+          "[org/role-creation] Slack completion notify failed",
+          error
+        );
       }
     }
     const assistantContent = completed
@@ -487,10 +491,10 @@ export async function confirmRoleCreationChoice(args: {
   }
   if (!assistantMessage && args.messageType === "slack") {
     const assistantContent = completed
-      ? "역할 등록을 완료했어요. 이제 Harper가 정리한 역할 설명과 매칭 기준을 바탕으로 적합한 인재를 살펴보기 시작합니다."
+      ? "역할 등록을 완료했고 지금부터 매칭을 시작합니다. 앞으로 Harper가 역할의 기준과 팀의 선호도에 맞는 후보자를 찾아 추천하고, 회사와 역할을 충분히 소개한 뒤 만나보고 싶다고 응한 분들을 연결해드릴게요."
       : outcome === "revalidation_failed"
-        ? "최종 등록 전에 아직 확인할 내용이 있어요. 이어서 필요한 내용을 함께 정리하겠습니다."
-        : "알겠습니다. 아직 역할을 등록하지 않고, 이 스레드에서 내용을 더 수정할게요.";
+        ? "등록 전에 확인할 내용이 남아 있어 역할은 아직 등록하지 않았어요. 이 스레드에서 필요한 내용을 이어서 정리할게요."
+        : "역할은 아직 등록하지 않았어요. 이 스레드에서 내용을 더 수정할게요.";
     assistantMessage = await persistConfirmationMessages({
       admin,
       assistantMessageMetadata: args.assistantMessageMetadata,

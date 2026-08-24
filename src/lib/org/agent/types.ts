@@ -62,9 +62,18 @@ export type OrgAgentMention = {
   talentId: string;
 };
 
+export type OrgAgentThinkingLogIcon =
+  | "read"
+  | "write"
+  | "send"
+  | "run"
+  | "search"
+  | "link";
+
 export type OrgAgentThinkingLog = {
   at: string;
   id?: string;
+  icon?: OrgAgentThinkingLogIcon;
   label: string;
   status?: "done" | "error" | "running";
 };
@@ -111,8 +120,13 @@ export type OrgAgentMessageMetadata = {
     pendingSinceByCandidateKey: Record<string, string>;
     reasonSourceByCandidateKey: Record<string, "codex" | "codex-authored">;
     roleIds: string[];
+    webToolCallCount?: number;
   };
   candidateConnectionConfirmations?: OrgAgentCandidateDecisionConfirmation[];
+  contactDraftRef?: {
+    contactId: string;
+    revision: number;
+  };
   fallbackReason?: string | null;
   historyTruncated?: boolean;
   internalTokenCorrectionCount?: number;
@@ -125,6 +139,8 @@ export type OrgAgentMessageMetadata = {
     totalTokens: number;
   };
   model?: string | null;
+  /** Server-authored role context used to resolve Slack candidate links. */
+  preferredRoleId?: string | null;
   requestChange?: {
     after: string | null;
     before: string | null;
@@ -139,6 +155,14 @@ export type OrgAgentMessageMetadata = {
   }>;
   retainedDataActivations?: OrgAgentRetainedDataActivation[];
   slackChoiceSourceJobId?: string;
+  /** Server-only marker for exact Slack messages transferred into a new role thread. */
+  slackRoleCreationBootstrap?: {
+    contextMessageCount: number;
+    isCurrent: boolean;
+    sourceKey: string;
+    sourceMessageId: number;
+    sourceSlackThreadId: string;
+  };
   slackReplyJobId?: string;
   source?: string | null;
   roleCreation?: {
@@ -216,7 +240,10 @@ export type OrgAgentMentionCandidate = {
 
 export type OrgAgentMentionsResponse = {
   candidates: OrgAgentMentionCandidate[];
+  hasMore: boolean;
+  nextOffset: number | null;
   ok: true;
+  totalCount: number;
 };
 
 export type OrgAgentChatBody = {

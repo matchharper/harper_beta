@@ -6,7 +6,7 @@ import {
 } from "@/lib/talentOnboarding/models";
 
 const TALENT_DOCUMENT_SELECT =
-  "id, talent_id, kind, file_name, storage_path, content_type, size_bytes, content_sha256, extracted_text, is_public, is_primary, created_at";
+  "id, talent_id, kind, file_name, storage_path, content_type, size_bytes, content_sha256, extracted_text, is_public, is_primary, is_deleted, created_at";
 
 export async function fetchTalentDocuments(args: {
   admin: TalentAdminClient;
@@ -18,6 +18,7 @@ export async function fetchTalentDocuments(args: {
     .from("talent_documents")
     .select(TALENT_DOCUMENT_SELECT)
     .eq("talent_id", userId)
+    .eq("is_deleted", false)
     .order("created_at", { ascending: false });
 
   if (kind) {
@@ -35,20 +36,52 @@ export async function fetchTalentDocuments(args: {
 export async function fetchTalentDocument(args: {
   admin: TalentAdminClient;
   documentId: string;
+  includeDeleted?: boolean;
   userId: string;
 }) {
-  const { data, error } = await args.admin
+  let query = args.admin
     .from("talent_documents")
     .select(TALENT_DOCUMENT_SELECT)
     .eq("id", args.documentId)
-    .eq("talent_id", args.userId)
-    .maybeSingle();
+    .eq("talent_id", args.userId);
+
+  if (!args.includeDeleted) {
+    query = query.eq("is_deleted", false);
+  }
+
+  const { data, error } = await query.maybeSingle();
 
   if (error) {
     throw new Error(error.message ?? "Failed to fetch talent document");
   }
 
   return (data ?? null) as TalentDocumentRow | null;
+}
+
+export async function fetchTalentDocumentsByIds(args: {
+  admin: TalentAdminClient;
+  documentIds: string[];
+  userId: string;
+}) {
+  const documentIds = Array.from(new Set(args.documentIds)).slice(0, 5);
+  if (documentIds.length === 0) return [];
+
+  const { data, error } = await args.admin
+    .from("talent_documents")
+    .select(TALENT_DOCUMENT_SELECT)
+    .eq("talent_id", args.userId)
+    .eq("is_deleted", false)
+    .in("id", documentIds);
+  if (error) {
+    throw new Error(error.message ?? "Failed to fetch talent documents");
+  }
+
+  const rows = (data ?? []) as TalentDocumentRow[];
+  const rowById = new Map(rows.map((row) => [row.id, row]));
+  return documentIds.flatMap((documentId) => {
+    const row = rowById.get(documentId);
+    return row ? [row] : [];
+  });
 }
 
 export async function updateTalentDocumentExtractedText(args: {
@@ -62,6 +95,7 @@ export async function updateTalentDocumentExtractedText(args: {
     .update({ extracted_text: args.extractedText })
     .eq("id", args.documentId)
     .eq("talent_id", args.userId)
+    .eq("is_deleted", false)
     .select(TALENT_DOCUMENT_SELECT)
     .maybeSingle();
 
@@ -128,6 +162,7 @@ export async function syncLegacyResumeFromDocuments(args: {
       .update({ is_primary: true, is_public: true })
       .eq("id", primaryResume.id)
       .eq("talent_id", args.userId)
+      .eq("is_deleted", false)
       .select(TALENT_DOCUMENT_SELECT)
       .single();
     if (primaryError) {

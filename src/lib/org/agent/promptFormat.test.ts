@@ -269,6 +269,9 @@ test("Role status changes explain the candidate-facing lifecycle effect", () => 
   const compact = serializeOrgAgentToolResult("change_role_status", {
     effect:
       "역할을 종료 상태로 바꾸고 추가 추천을 중단합니다. 후보자 화면은 역할 종료로 해석하지만, 기존 후보 단계와 회사 요청은 이 변경만으로 모두 자동 종료되지 않습니다.",
+    expectation:
+      "이미 검토 중인 후보자와 후보자에게 보낸 질문은 그대로 남습니다.",
+    nextProcess: "남아 있는 후보자와 요청은 각각 마무리해 주세요.",
     roleName: "Backend Engineer",
     roleStatus: "ended",
     status: "updated",
@@ -281,6 +284,8 @@ test("Role status changes explain the candidate-facing lifecycle effect", () => 
     compact,
     /기존 후보 단계와 회사 요청은 .*자동 종료되지 않습니다/
   );
+  assert.match(compact, /expectation=.*후보자에게 보낸 질문은 그대로 남습니다/);
+  assert.match(compact, /next_process=남아 있는 후보자와 요청은 각각 마무리/);
   assert.doesNotMatch(compact, /lifecycle=ended/);
 });
 
@@ -341,6 +346,12 @@ test("candidate connection decisions return a compact outcome", () => {
     closureNotificationDelivered: true,
     closureNotificationDeliveredAt: "2026-08-10T01:00:00.000Z",
     closureNotificationSentChannel: "chat,email",
+    candidateName: "김후보",
+    roleName: "Backend Engineer",
+    nextProcess:
+      "후보자와 회사 담당자가 같은 이메일에서 다음 일정을 조율합니다.",
+    responseGuidance: "다음 과정을 설명하고 따뜻하게 축하하세요.",
+    warmClosing: "서로에게 좋은 기회가 되길 바랄게요 :)",
   });
 
   assert.match(compact, /decision=accept/);
@@ -349,6 +360,10 @@ test("candidate connection decisions return a compact outcome", () => {
   assert.match(compact, /reactivation=true/);
   assert.match(compact, /closure_notice_delivered=true/);
   assert.match(compact, /closure_notice_channel=chat,email/);
+  assert.match(compact, /candidate=김후보/);
+  assert.match(compact, /role=Backend Engineer/);
+  assert.match(compact, /next_process=.*다음 일정을 조율합니다/);
+  assert.match(compact, /warm_closing=서로에게 좋은 기회가 되길 바랄게요/);
   assert.doesNotMatch(compact, /stage=connected/);
   assert.doesNotMatch(compact, /talent-1/);
 });
@@ -595,19 +610,26 @@ test("organization-agent role reads expose structured criteria beside the reques
   assert.match(compact, /role_criteria_complete=true/);
 });
 
-test("start_role_creation exposes only continuation links and the authoritative reply", () => {
+test("start_role_creation exposes the required continuation link and writing guidance", () => {
   const compact = serializeOrgAgentToolResult("start_role_creation", {
     roleId: "private-role-id",
     roleTitle: "Staff Engineer",
+    requiredContinuationLink:
+      "<https://slack.example/thread|새로운 채용 등록 이어가기>",
+    responseExample: "네, Staff Engineer 역할 등록을 함께 시작할게요.",
+    responseGuidance: "채용 파트너처럼 자연스럽게 안내해 주세요.",
     status: "started",
     threadPermalink: "https://slack.example/thread",
-    userMessage: "새 역할 작성 스레드에서 이어가 주세요.",
     webUrl: "https://harper.example/org/role?orgId=org&roleId=role",
   });
 
   assert.match(compact, /status=started/);
-  assert.match(compact, /thread_permalink=https:\/\/slack\.example\/thread/);
-  assert.match(compact, /web_url=https:\/\/harper\.example\/org\/role/);
-  assert.match(compact, /authoritative outcome/);
+  assert.match(
+    compact,
+    /required_continuation_link=<https:\/\/slack\.example\/thread\|새로운 채용 등록 이어가기>/
+  );
+  assert.match(compact, /writing guidance|response_guidance/);
+  assert.match(compact, /example is illustrative/i);
   assert.doesNotMatch(compact, /private-role-id/);
+  assert.doesNotMatch(compact, /harper\.example/);
 });

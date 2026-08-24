@@ -13,9 +13,9 @@ export type OrgRoleLifecycleAction = "delete" | "pause" | "resume";
 const ORG_ROLE_STATUS_PRESENTATION = {
   active: { label: "진행 중", tone: "positive" },
   deleted: { label: "삭제됨", tone: "neutral" },
-  draft: { label: "역할 작성 중", tone: "action" },
+  draft: { label: "작성 중", tone: "action" },
   ended: { label: "종료", tone: "neutral" },
-  paused: { label: "중지", tone: "primary" },
+  paused: { label: "중단", tone: "primary" },
   top_priority: { label: "최우선 진행 중", tone: "primary" },
 } as const satisfies Record<
   OrgRoleStatus,

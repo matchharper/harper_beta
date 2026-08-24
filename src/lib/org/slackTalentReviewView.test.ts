@@ -345,12 +345,13 @@ test("accept confirmation mirrors org connection choices and explains the live a
   };
   const rendered = JSON.stringify(view.blocks);
   assert.equal(view.callback_id, HARPER_TALENT_REVIEW_ACCEPT_CALLBACK_ID);
-  assert.equal(view.submit.text, "확인");
+  assert.equal(view.submit.text, "소개 이메일 보내기");
   assert.match(rendered, /"dispatch_action":true/);
-  assert.match(rendered, /CC로 연결/);
+  assert.match(rendered, /소개 이메일/);
   assert.match(rendered, /직접 연락/);
-  assert.match(rendered, /수락 이유/);
-  assert.match(rendered, /즉시 반영됩니다/);
+  assert.match(rendered, /연결 메모/);
+  assert.doesNotMatch(rendered, /Email intro|Direct contact|Recipients|Connection note/);
+  assert.match(rendered, /보낸 이메일은 회수할 수 없어요/);
   assert.doesNotMatch(rendered, /미리보기/);
   assert.doesNotMatch(rendered, /send_now/);
 });
@@ -383,18 +384,19 @@ test("direct contact hides the intro member input", () => {
   assert.ok(reasonBlock);
 });
 
-test("reject confirmation contains org pass reasons and is live", () => {
+test("reject confirmation preserves reason presets and explains the irreversible result", () => {
   const view = buildSlackTalentReviewRejectDecisionView({
     candidate: CANDIDATE,
     candidateIndex: 0,
     sourceMessageId: 42,
   }) as { blocks: Array<Record<string, any>>; submit: { text: string } };
   const rendered = JSON.stringify(view.blocks);
-  assert.equal(view.submit.text, "확인");
-  assert.match(rendered, /너무 주니어/);
-  assert.match(rendered, /위치\/지역 조건 불일치/);
-  assert.match(rendered, /Pass 이유/);
-  assert.match(rendered, /결정이 즉시 반영됩니다/);
+  assert.equal(view.submit.text, "연결 거절하기");
+  assert.match(rendered, /경력이 부족함/);
+  assert.match(rendered, /위치 조건이 맞지 않음/);
+  assert.match(rendered, /연결 거절 이유/);
+  assert.match(rendered, /종료 결정이 후보자에게 표시/);
+  assert.match(rendered, /안내는 회수할 수 없어요/);
   assert.doesNotMatch(rendered, /미리보기/);
 
   const result = JSON.stringify(
@@ -403,8 +405,11 @@ test("reject confirmation contains org pass reasons and is live", () => {
       decision: "reject",
     })
   );
-  assert.match(result, /연결받지 않기로 했습니다/);
-  assert.match(result, /결정 기록에 반영했습니다/);
+  assert.match(result, /김하퍼님과 연결을 거절했어요/);
+  assert.doesNotMatch(result, /Connect|Reject/);
+  assert.match(result, /후보자에게 .*배려 있게 안내/);
+  assert.match(result, /연결 과정에서 더 이상 진행되지 않으며/);
+  assert.match(result, /다음 추천 기준에 참고/);
 });
 
 test("viewer candidate review stays read-only", () => {
@@ -425,7 +430,7 @@ test("viewer candidate review stays read-only", () => {
     rendered,
     new RegExp(HARPER_TALENT_REVIEW_REJECT_ACTION_ID)
   );
-  assert.match(rendered, /Viewer 권한/);
+  assert.match(rendered, /Owner 또는 Admin/);
 });
 
 test("accept submission parses connection method, recipients, and reason", () => {
@@ -497,8 +502,8 @@ test("reject submission combines selected and written reasons", () => {
         review_reject_reasons: {
           reject_reasons: {
             selected_options: [
-              { value: "너무 주니어" },
-              { value: "위치/지역 조건 불일치" },
+              { value: "경력이 부족함" },
+              { value: "위치 조건이 맞지 않음" },
             ],
           },
         },
@@ -510,7 +515,7 @@ test("reject submission combines selected and written reasons", () => {
     submission: {
       decision: "reject",
       stopNote:
-        "너무 주니어\n위치/지역 조건 불일치\n도메인 경험을 조금 더 보고 싶습니다.",
+        "경력이 부족함\n위치 조건이 맞지 않음\n도메인 경험을 조금 더 보고 싶습니다.",
     },
   });
 });
@@ -534,7 +539,10 @@ test("decision result views distinguish email and direct contact outcomes", () =
     })
   );
 
-  assert.match(processing, /반영하고 있습니다/);
-  assert.match(emailed, /소개 메일을 발송했습니다/);
-  assert.match(direct, /직접 연락해 주세요/);
+  assert.match(processing, /처리하고 있어요/);
+  assert.match(emailed, /소개 이메일을 보냈어요/);
+  assert.match(emailed, /같은 이메일에서 인사하고 다음 일정을 직접 조율/);
+  assert.match(emailed, /서로에게 좋은 기회가 되길 바랄게요/);
+  assert.match(direct, /직접 연락해 인사하고 다음 일정을 조율해 주세요/);
+  assert.match(direct, /서로에게 좋은 기회가 되길 바랄게요/);
 });

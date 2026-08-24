@@ -15,6 +15,7 @@ import {
   isHarperOwnedUrl,
 } from "@/lib/urlDisplay";
 import { BareButton } from "@/components/ui/button";
+import { ChatMessageAttachmentList } from "@/components/chat/ChatMessageAttachmentList";
 import { cn } from "@/lib/utils";
 import {
   careerTimelineAssistantRichTextClassName,
@@ -384,184 +385,198 @@ const CareerMessageBubble = ({
       ? stripStandalonePostingLinksFromText(displayContent)
       : displayContent;
   return (
-    <ChatMessageBubbleFrame
-      active={isAssistantSpeaking}
-      className={
-        isOpportunityFeedbackNote
-          ? cn(
-              "ml-auto max-w-[820px] px-1 py-0 text-right text-neutral-soft",
-              careerTimelineFeedbackNoteTextClassName
-            )
-          : undefined
-      }
-      isUser={isUser}
-      startAdornment={
-        isCallTranscript || isMailMessage ? (
-          <span
-            className={[
-              "flex shrink-0 items-center justify-center",
-              isUser ? "h-6" : "h-7",
-            ].join(" ")}
-          >
-            {isMailMessage ? (
-              <Mail
-                className={[
-                  "h-3.5 w-3.5",
-                  isUser ? "text-neutral-00/70" : "text-neutral-soft",
-                ].join(" ")}
-                aria-label={"이메일"}
-              />
+    <>
+      {isUser && (message.attachments?.length ?? 0) > 0 ? (
+        <ChatMessageAttachmentList
+          attachments={message.attachments ?? []}
+          className="mb-1"
+        />
+      ) : null}
+      <ChatMessageBubbleFrame
+        active={isAssistantSpeaking}
+        className={
+          isOpportunityFeedbackNote
+            ? cn(
+                "ml-auto max-w-[820px] px-1 py-0 text-right text-neutral-soft",
+                careerTimelineFeedbackNoteTextClassName
+              )
+            : undefined
+        }
+        isUser={isUser}
+        startAdornment={
+          isCallTranscript || isMailMessage ? (
+            <span
+              className={[
+                "flex shrink-0 items-center justify-center",
+                isUser ? "h-6" : "h-7",
+              ].join(" ")}
+            >
+              {isMailMessage ? (
+                <Mail
+                  className={[
+                    "h-3.5 w-3.5",
+                    isUser ? "text-neutral-00/70" : "text-neutral-soft",
+                  ].join(" ")}
+                  aria-label={"이메일"}
+                />
+              ) : (
+                <AudioLines
+                  className={[
+                    "h-3.5 w-3.5",
+                    isUser ? "text-neutral-00/70" : "text-neutral-soft",
+                  ].join(" ")}
+                  aria-label={"전화 대화"}
+                />
+              )}
+            </span>
+          ) : null
+        }
+        typographyClassName={careerTimelineMessageTextClassName}
+        unstyled={isOpportunityFeedbackNote}
+      >
+        {isUser ? (
+          <div className="whitespace-pre-wrap wrap-break-word">
+            {renderHighlightedContent(displayContent, handleHarperLinkClick)}
+          </div>
+        ) : message.typing && !assistantContent.trim() ? (
+          <ChatAssistantPending
+            className={careerTimelineMetaTextClassName}
+            label={t(
+              "career.chat.career_message_bubble.composing",
+              "작성 중..."
+            )}
+          />
+        ) : (
+          <>
+            {message.typing && message.typingMode === "word" ? (
+              <AnimatedAssistantTypingContent content={assistantContent} />
             ) : (
-              <AudioLines
-                className={[
-                  "h-3.5 w-3.5",
-                  isUser ? "text-neutral-00/70" : "text-neutral-soft",
-                ].join(" ")}
-                aria-label={"전화 대화"}
+              <ChatAssistantContent
+                content={assistantContent}
+                className={careerTimelineAssistantRichTextClassName}
+                linkClassName={CAREER_MESSAGE_LINK_CLASS}
+                onHarperLinkClick={handleHarperLinkClick}
+                renderEmailLinksAsText
               />
             )}
-          </span>
-        ) : null
-      }
-      typographyClassName={careerTimelineMessageTextClassName}
-      unstyled={isOpportunityFeedbackNote}
-    >
-      {isUser ? (
-        <div className="whitespace-pre-wrap wrap-break-word">
-          {renderHighlightedContent(displayContent, handleHarperLinkClick)}
-        </div>
-      ) : message.typing && !assistantContent.trim() ? (
-        <ChatAssistantPending
-          className={careerTimelineMetaTextClassName}
-          label={t("career.chat.career_message_bubble.composing", "작성 중...")}
-        />
-      ) : (
-        <>
-          {message.typing && message.typingMode === "word" ? (
-            <AnimatedAssistantTypingContent content={assistantContent} />
-          ) : (
-            <ChatAssistantContent
-              content={assistantContent}
-              className={careerTimelineAssistantRichTextClassName}
-              linkClassName={CAREER_MESSAGE_LINK_CLASS}
-              onHarperLinkClick={handleHarperLinkClick}
-              renderEmailLinksAsText
-            />
-          )}
-        </>
-      )}
-      {!isUser && assistantChoices.length > 0 && (
-        <ChatChoiceList
-          choices={assistantChoices}
-          disabled={choiceActionsDisabled || !onSelectAssistantChoice}
-          hint={t(
-            "career.chat.career_message_bubble.1xpjlib",
-            "채팅으로 대답할 수 있어요."
-          )}
-          keyPrefix={`${message.id}-choice`}
-          onSelect={(_choice, index) =>
-            onSelectAssistantChoice?.({
-              assistantMessageId: String(message.id),
-              choice: assistantChoices[index].value,
-              choiceCount: assistantChoices.length,
-              choiceIndex: index,
-            })
-          }
-          typographyClassName={careerTimelineMetaTextClassName}
-        />
-      )}
-      {hasCallAction && (
-        <BareButton
-          type="button"
-          onClick={() =>
-            void onStartCallMode?.({
-              openingText: callActionOpeningText,
-            })
-          }
-          disabled={!onStartCallMode || isCallStartPending}
-          className={cn(
-            "mt-3 inline-flex h-9 items-center gap-2 rounded-[8px] border border-neutral-1000-a10 bg-bg-floating px-3 font-medium text-neutral-primary transition-colors hover:border-neutral-400 hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-60",
-            careerTimelineMetaTextClassName
-          )}
-        >
-          <Phone className="h-4 w-4" />
-          {isCallStartPending
-            ? t("career.call.career_call_card.1vn8y3k", "연결 중...")
-            : t("career.chat.career_message_bubble.0o5swvp", "전화하기")}
-        </BareButton>
-      )}
-      {internalCallRequestMarkers.map((marker) => (
-        <div
-          key={marker.callId}
-          className="mt-3 w-[94%] max-w-[400px] rounded-md border border-neutral-200 bg-bg-floating px-2 py-2 text-neutral-primary"
-        >
-          <div className="flex flex-col items-center justify-center gap-3">
-            <div className="min-h-28 py-2 px-3 bg-neutral-100 rounded-md flex flex-col items-center justify-center">
-              <div className="text-sm font-medium leading-snug pb-4 pt-2">
-                Call for {'"'}
-                {marker.companyName} - {marker.roleTitle}
-                {'"'}
+          </>
+        )}
+        {!isUser && assistantChoices.length > 0 && (
+          <ChatChoiceList
+            choices={assistantChoices}
+            disabled={choiceActionsDisabled || !onSelectAssistantChoice}
+            hint={t(
+              "career.chat.career_message_bubble.1xpjlib",
+              "채팅으로 대답할 수 있어요."
+            )}
+            keyPrefix={`${message.id}-choice`}
+            onSelect={(_choice, index) =>
+              onSelectAssistantChoice?.({
+                assistantMessageId: String(message.id),
+                choice: assistantChoices[index].value,
+                choiceCount: assistantChoices.length,
+                choiceIndex: index,
+              })
+            }
+            typographyClassName={careerTimelineMetaTextClassName}
+          />
+        )}
+        {hasCallAction && (
+          <BareButton
+            type="button"
+            onClick={() =>
+              void onStartCallMode?.({
+                openingText: callActionOpeningText,
+              })
+            }
+            disabled={!onStartCallMode || isCallStartPending}
+            className={cn(
+              "mt-3 inline-flex h-9 items-center gap-2 rounded-[8px] border border-neutral-1000-a10 bg-bg-floating px-3 font-medium text-neutral-primary transition-colors hover:border-neutral-400 hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-60",
+              careerTimelineMetaTextClassName
+            )}
+          >
+            <Phone className="h-4 w-4" />
+            {isCallStartPending
+              ? t("career.call.career_call_card.1vn8y3k", "연결 중...")
+              : t("career.chat.career_message_bubble.0o5swvp", "전화하기")}
+          </BareButton>
+        )}
+        {internalCallRequestMarkers.map((marker) => (
+          <div
+            key={marker.callId}
+            className="mt-3 w-[94%] max-w-[400px] rounded-md border border-neutral-200 bg-bg-floating px-2 py-2 text-neutral-primary"
+          >
+            <div className="flex flex-col items-center justify-center gap-3">
+              <div className="min-h-28 py-2 px-3 bg-neutral-100 rounded-md flex flex-col items-center justify-center">
+                <div className="text-sm font-medium leading-snug pb-4 pt-2">
+                  Call for {'"'}
+                  {marker.companyName} - {marker.roleTitle}
+                  {'"'}
+                </div>
+                <div
+                  className="mt-1 text-[14px] md:text-[13px] text-center leading-5 text-neutral-muted"
+                  dangerouslySetInnerHTML={{
+                    __html: t(
+                      "career.chat.career_message_bubble.optional_call_notice",
+                      "꼭 해야하는 대화는 아니고, 연결 시에 도움이될 정보를 몇가지 여쭤보기 위한 통화에요. 진행하지 않으셔도 {companyName} 측과의 연결은 제가 계속 진행할게요.",
+                      {
+                        values: {
+                          companyName: marker.companyName,
+                        },
+                      }
+                    ),
+                  }}
+                />
               </div>
-              <div
-                className="mt-1 text-[14px] md:text-[13px] text-center leading-5 text-neutral-muted"
-                dangerouslySetInnerHTML={{
-                  __html: t(
-                    "career.chat.career_message_bubble.optional_call_notice",
-                    "꼭 해야하는 대화는 아니고, 연결 시에 도움이될 정보를 몇가지 여쭤보기 위한 통화에요. 진행하지 않으셔도 {companyName} 측과의 연결은 제가 계속 진행할게요.",
-                    {
-                      values: {
-                        companyName: marker.companyName,
-                      },
+              <div className="flex items-center gap-2 mt-1 w-full">
+                {marker.resumePromptNeeded && (
+                  <BareButton
+                    type="button"
+                    onClick={() =>
+                      void router.push("/career/profile?profileSection=links")
                     }
-                  ),
-                }}
-              />
-            </div>
-            <div className="flex items-center gap-2 mt-1 w-full">
-              {marker.resumePromptNeeded && (
+                    className="h-9 w-full text-center inline-flex items-center gap-1.5 rounded-[8px] border border-neutral-1000-a10 bg-bg-weak px-2.5 py-1.5 text-xs text-neutral-primary transition-colors hover:border-neutral-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    {t(
+                      "career.chat.career_message_bubble.1tqt1ip",
+                      "이력서 보강"
+                    )}
+                  </BareButton>
+                )}
                 <BareButton
                   type="button"
                   onClick={() =>
-                    void router.push("/career/profile?profileSection=links")
+                    void onStartCallMode?.({
+                      internalCallRequestId: marker.callId,
+                      openingText: formatCareerMessageByKey(
+                        m,
+                        "career.internal_opportunity.call_opening",
+                        "",
+                        {
+                          companyName: marker.companyName,
+                          roleTitle: marker.roleTitle,
+                        }
+                      ),
+                    })
                   }
-                  className="h-9 w-full text-center inline-flex items-center gap-1.5 rounded-[8px] border border-neutral-1000-a10 bg-bg-weak px-2.5 py-1.5 text-xs text-neutral-primary transition-colors hover:border-neutral-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={!onStartCallMode || isCallStartPending}
+                  className="h-9 w-full text-center inline-flex items-center justify-center gap-1.5 rounded-[8px] border border-neutral-1000-a10 bg-primary px-2.5 py-1.5 text-sm text-neutral-00 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <FileText className="h-3.5 w-3.5" />
-                  {t(
-                    "career.chat.career_message_bubble.1tqt1ip",
-                    "이력서 보강"
-                  )}
+                  <PhoneOutgoing strokeWidth={1.9} size={14} />
+                  {isCallStartPending
+                    ? t("career.call.career_call_card.1vn8y3k", "연결 중...")
+                    : t(
+                        "career.chat.career_message_bubble.0whsa78",
+                        "통화하기"
+                      )}
                 </BareButton>
-              )}
-              <BareButton
-                type="button"
-                onClick={() =>
-                  void onStartCallMode?.({
-                    internalCallRequestId: marker.callId,
-                    openingText: formatCareerMessageByKey(
-                      m,
-                      "career.internal_opportunity.call_opening",
-                      "",
-                      {
-                        companyName: marker.companyName,
-                        roleTitle: marker.roleTitle,
-                      }
-                    ),
-                  })
-                }
-                disabled={!onStartCallMode || isCallStartPending}
-                className="h-9 w-full text-center inline-flex items-center justify-center gap-1.5 rounded-[8px] border border-neutral-1000-a10 bg-primary px-2.5 py-1.5 text-sm text-neutral-00 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <PhoneOutgoing strokeWidth={1.9} size={14} />
-                {isCallStartPending
-                  ? t("career.call.career_call_card.1vn8y3k", "연결 중...")
-                  : t("career.chat.career_message_bubble.0whsa78", "통화하기")}
-              </BareButton>
+              </div>
             </div>
           </div>
-        </div>
-      ))}
-    </ChatMessageBubbleFrame>
+        ))}
+      </ChatMessageBubbleFrame>
+    </>
   );
 };
 

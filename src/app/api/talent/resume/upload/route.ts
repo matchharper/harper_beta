@@ -11,10 +11,17 @@ import type { TalentDocumentRow } from "@/lib/talentOnboarding/models";
 import { insertTalentProfileSourceErrorLog } from "@/lib/talentOnboarding/errorLogs";
 import {
   MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES,
+  extractTalentDocumentTextContentBestEffort,
   extractResumeTextContent,
+  inferTalentDocumentKindFromFileName,
   resolveTalentDocumentUpload,
+  validateTalentDocumentFileContent,
   validateResumeFileContent,
 } from "@/lib/talentOnboarding/documentUpload";
+import {
+  syncLegacyResumeFromDocuments,
+  updateTalentDocumentExtractedText,
+} from "@/lib/talentOnboarding/documentStore";
 import {
   fetchActiveCompanyTalentRequest,
   finalizeRequestedResumeUpload,
@@ -22,10 +29,12 @@ import {
 } from "@/lib/companyTalentRequests/server";
 
 function sanitizeFileName(fileName: string) {
-  return fileName
-    .replace(/[^a-zA-Z0-9._-]/g, "_")
-    .replace(/_+/g, "_")
-    .slice(0, 120);
+  return (
+    fileName
+      .replace(/[^a-zA-Z0-9._-]/g, "_")
+      .replace(/_+/g, "_")
+      .slice(0, 120) || "document"
+  );
 }
 
 type DocumentUpsertResult = {
@@ -34,10 +43,13 @@ type DocumentUpsertResult = {
 };
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   let admin: ReturnType<typeof getTalentSupabaseAdmin> | null = null;
   let userId: string | null = null;
+  let cleanupStoragePath: string | null = null;
+  let storageClaimed = false;
 
   try {
     const user = await getRequestUser(req);
@@ -48,14 +60,27 @@ export async function POST(req: NextRequest) {
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
+    if (!file) {
+      return NextResponse.json({ error: "file is required" }, { status: 400 });
+    }
+    const originalName = file.name?.trim().slice(0, 255) || "document";
     const requestedKind = String(formData.get("kind") ?? "resume").trim();
-    const kind = requestedKind === "document" ? "document" : "resume";
+    const isChatUpload =
+      String(formData.get("source") ?? "").trim() === "chat";
     const resumeRequestToken = String(
       formData.get("resumeRequestToken") ?? ""
     ).trim();
+    const suppliedContentType = file.type;
+    const fileSize = file.size;
+
     const requestToken = resumeRequestToken
       ? verifyCompanyTalentResumeUploadToken(resumeRequestToken)
       : null;
+    const kind = isChatUpload
+      ? inferTalentDocumentKindFromFileName(originalName)
+      : requestedKind === "document"
+        ? "document"
+        : "resume";
     if (
       resumeRequestToken &&
       (!requestToken || requestToken.talentId !== user.id || kind !== "resume")
@@ -65,16 +90,9 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-
-    if (!file) {
-      return NextResponse.json({ error: "file is required" }, { status: 400 });
-    }
-
-    const originalName =
-      file.name?.trim() || (kind === "resume" ? "resume" : "document");
     const uploadConfig = resolveTalentDocumentUpload({
       fileName: originalName,
-      kind,
+      kind: isChatUpload ? "document" : kind,
     });
     if (!uploadConfig) {
       return NextResponse.json(
@@ -82,28 +100,31 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (file.size > MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES) {
+    if (fileSize > MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES) {
       return NextResponse.json(
-        { error: "File size must not exceed 20 MB" },
+        { error: "File size must not exceed 4 MB" },
         { status: 413 }
       );
     }
     const safeName = sanitizeFileName(originalName);
     const storagePath = `${user.id}/${Date.now()}_${randomUUID()}_${safeName}`;
-
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const buffer = Buffer.from(await file.arrayBuffer());
     const contentSha256 = createHash("sha256").update(buffer).digest("hex");
-    if (
-      kind === "resume" &&
-      !validateResumeFileContent({
-        bytes: buffer,
-        fileName: originalName,
-        suppliedContentType: file.type,
-      })
-    ) {
+    const validFileContent =
+      isChatUpload || kind === "document"
+        ? validateTalentDocumentFileContent({
+            bytes: buffer,
+            fileName: originalName,
+            suppliedContentType,
+          })
+        : validateResumeFileContent({
+            bytes: buffer,
+            fileName: originalName,
+            suppliedContentType,
+          });
+    if (!validFileContent) {
       return NextResponse.json(
-        { error: "File content does not match a supported resume format" },
+        { error: "File content does not match a supported document format" },
         { status: 400 }
       );
     }
@@ -128,7 +149,7 @@ export async function POST(req: NextRequest) {
           bucket: TALENT_RESUME_BUCKET,
           contentType: uploadConfig.contentType,
           fileName: originalName,
-          fileSize: file.size,
+          fileSize,
         },
       });
       return NextResponse.json(
@@ -136,6 +157,7 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
+    cleanupStoragePath = storagePath;
 
     if (requestToken) {
       const activeRequest = await fetchActiveCompanyTalentRequest({
@@ -146,6 +168,7 @@ export async function POST(req: NextRequest) {
       });
       if (!activeRequest || !activeRequest.expects_document) {
         await admin.storage.from(TALENT_RESUME_BUCKET).remove([storagePath]);
+        cleanupStoragePath = null;
         return NextResponse.json(
           { error: "This resume request is no longer active" },
           { status: 409 }
@@ -195,7 +218,7 @@ export async function POST(req: NextRequest) {
           extractedText,
           fileName: originalName,
           requestId: activeRequest.id,
-          sizeBytes: file.size,
+          sizeBytes: fileSize,
           storagePath,
           talentId: user.id,
         });
@@ -205,11 +228,15 @@ export async function POST(req: NextRequest) {
       }
       if (finalized.idempotent) {
         await admin.storage.from(TALENT_RESUME_BUCKET).remove([storagePath]);
+        cleanupStoragePath = null;
+      } else {
+        storageClaimed = true;
+        cleanupStoragePath = null;
       }
       const { data: requestDocument, error: requestDocumentError } = await admin
         .from("talent_documents")
         .select(
-          "id, kind, file_name, storage_path, content_type, size_bytes, is_public, is_primary, created_at"
+          "id, kind, file_name, storage_path, content_type, size_bytes, extracted_text, is_public, is_primary, created_at"
         )
         .eq("id", finalized.documentId)
         .eq("talent_id", user.id)
@@ -229,6 +256,7 @@ export async function POST(req: NextRequest) {
         resumeFileName: requestDocument.file_name,
         resumeStoragePath: requestDocument.storage_path,
         resumeDownloadUrl: downloadUrl,
+        resumeText: requestDocument.extracted_text ?? "",
         bucket: TALENT_RESUME_BUCKET,
         document: {
           id: requestDocument.id,
@@ -245,23 +273,69 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const { data: upsertData, error: documentError } = await admin.rpc(
-      "upsert_talent_document_by_hash_v1",
-      {
-        p_content_sha256: contentSha256,
-        p_content_type: uploadConfig.contentType,
-        p_file_name: originalName,
-        p_kind: kind,
-        p_size_bytes: file.size,
-        p_storage_path: storagePath,
-        p_talent_id: user.id,
+    let upsertResult: DocumentUpsertResult | null = null;
+    let documentError: { message?: string | null } | null = null;
+
+    if (isChatUpload) {
+      const { data: existingDocument, error: existingDocumentError } =
+        await admin
+          .from("talent_documents")
+          .select("*")
+          .eq("talent_id", user.id)
+          .eq("content_sha256", contentSha256)
+          .eq("is_deleted", false)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+      if (existingDocumentError) {
+        documentError = existingDocumentError;
+      } else if (existingDocument) {
+        upsertResult = { created: false, document: existingDocument };
+      } else {
+        const { data: insertedDocument, error: insertDocumentError } =
+          await admin
+            .from("talent_documents")
+            .insert({
+              content_sha256: contentSha256,
+              content_type: uploadConfig.contentType,
+              file_name: originalName,
+              is_deleted: false,
+              is_primary: false,
+              is_public: false,
+              kind,
+              size_bytes: fileSize,
+              storage_path: storagePath,
+              talent_id: user.id,
+            })
+            .select("*")
+            .single();
+        documentError = insertDocumentError;
+        upsertResult = insertedDocument
+          ? { created: true, document: insertedDocument }
+          : null;
       }
-    );
-    const upsertResult = upsertData as DocumentUpsertResult | null;
-    const document = upsertResult?.document ?? null;
+    } else {
+      const { data: upsertData, error: upsertError } = await admin.rpc(
+        "upsert_talent_document_by_hash_v1",
+        {
+          p_content_sha256: contentSha256,
+          p_content_type: uploadConfig.contentType,
+          p_file_name: originalName,
+          p_kind: kind,
+          p_size_bytes: fileSize,
+          p_storage_path: storagePath,
+          p_talent_id: user.id,
+        }
+      );
+      documentError = upsertError;
+      upsertResult = upsertData as DocumentUpsertResult | null;
+    }
+
+    let document = upsertResult?.document ?? null;
 
     if (documentError || !document?.id) {
       await admin.storage.from(TALENT_RESUME_BUCKET).remove([storagePath]);
+      cleanupStoragePath = null;
       await insertTalentProfileSourceErrorLog({
         admin,
         error: documentError ?? new Error("Document row was not returned"),
@@ -280,6 +354,45 @@ export async function POST(req: NextRequest) {
 
     if (upsertResult?.created === false) {
       await admin.storage.from(TALENT_RESUME_BUCKET).remove([storagePath]);
+      cleanupStoragePath = null;
+    } else {
+      storageClaimed = true;
+      cleanupStoragePath = null;
+    }
+
+    let extractionError: unknown = null;
+    const extractedText = await extractTalentDocumentTextContentBestEffort({
+      bytes: buffer,
+      fileName: originalName,
+      maxChars: isChatUpload || kind === "document" ? 120_000 : 24_000,
+      maxPdfPages: isChatUpload || kind === "document" ? 40 : 8,
+      onError: (error) => {
+        extractionError = error;
+      },
+    });
+    if (extractedText) {
+      const updatedDocument = await updateTalentDocumentExtractedText({
+        admin,
+        documentId: document.id,
+        extractedText,
+        userId: user.id,
+      });
+      if (updatedDocument) document = updatedDocument;
+      if (kind === "resume" && !isChatUpload) {
+        await syncLegacyResumeFromDocuments({ admin, userId: user.id });
+      }
+    } else if (extractionError) {
+      await insertTalentProfileSourceErrorLog({
+        admin,
+        error: extractionError,
+        stage: "talent_document_text_extraction",
+        userId,
+        metadata: {
+          contentType: uploadConfig.contentType,
+          documentId: document.id,
+          fileName: originalName,
+        },
+      });
     }
 
     if (kind === "resume" && upsertResult?.created !== false) {
@@ -289,7 +402,9 @@ export async function POST(req: NextRequest) {
           talent_id: user.id,
           source: "profile",
           event_type: "resume_uploaded",
-          summary: "프로필에서 이력서를 업로드했습니다.",
+          summary: isChatUpload
+            ? "채팅에서 이력서로 분류된 파일을 업로드했습니다."
+            : "프로필에서 이력서를 업로드했습니다.",
           impact_level: "medium",
           changed_domains: ["profile", "resume"],
         });
@@ -314,6 +429,7 @@ export async function POST(req: NextRequest) {
       resumeFileName: kind === "resume" ? document.file_name : null,
       resumeStoragePath: kind === "resume" ? document.storage_path : null,
       resumeDownloadUrl: kind === "resume" ? documentDownloadUrl : null,
+      resumeText: kind === "resume" ? document.extracted_text ?? "" : null,
       bucket: TALENT_RESUME_BUCKET,
       document: {
         id: document.id,
@@ -331,6 +447,12 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to upload document";
+    if (admin && cleanupStoragePath && !storageClaimed) {
+      await admin.storage
+        .from(TALENT_RESUME_BUCKET)
+        .remove([cleanupStoragePath])
+        .catch(() => undefined);
+    }
     if (admin && userId) {
       await insertTalentProfileSourceErrorLog({
         admin,

@@ -59,12 +59,15 @@ import {
   humanizeOrgStage,
   humanizeOrgWorkMode,
 } from "@/lib/org/pipelineStage";
+import { filterOrgAgentMentionCandidates } from "@/lib/org/agent/mentionCandidates";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { formatInProgressSlackRoleCreations } from "@/lib/org/agent/slackRoleCreation";
+import { fetchCompanyTalentContactDraftsForScope } from "@/lib/companyTalentRequests/server";
 
 export type OrgAgentPromptContext = {
   companyText: string;
   completeRoleRequestIds: string[];
+  contactDraftsText?: string;
   contextNotesText: string;
   conversationText: string;
   defaultLongTextObservations?: OrgAgentLongTextObservation[];
@@ -293,6 +296,9 @@ function formatConversation(
         )
         .map((value) => `candidate_decision_context{${value}}`)
         .join(","),
+      message.metadata.contactDraftRef
+        ? `candidate_contact_draft{contact_id=${message.metadata.contactDraftRef.contactId};revision=${message.metadata.contactDraftRef.revision}}`
+        : "",
     ].filter(Boolean);
     const speaker =
       message.role === "assistant"
@@ -376,6 +382,25 @@ function formatSummaries(
     .join("\n---\n");
 }
 
+function formatContactDrafts(
+  drafts: Awaited<ReturnType<typeof fetchCompanyTalentContactDraftsForScope>>
+) {
+  if (drafts.length === 0) return "-";
+  return drafts
+    .map((draft) =>
+      [
+        `contact_id=${draft.contactId} revision=${draft.revision}`,
+        `talent_id=${draft.talentId} candidate=${JSON.stringify(draft.candidateName)}`,
+        `role_id=${draft.roleId} role=${JSON.stringify(draft.roleName)}`,
+        `kind=${draft.kind}`,
+        `request_json=${JSON.stringify(draft.requestContext)}`,
+        `subject_json=${JSON.stringify(draft.subject)}`,
+        `body_json=${JSON.stringify(draft.body)}`,
+      ].join("\n")
+    )
+    .join("\n---\n");
+}
+
 /**
  * Builds the data injected on every LLM call.
  *
@@ -424,54 +449,75 @@ export async function buildOrgAgentPromptContext(args: {
   // no roles or memories.
   const notes: string[] = [];
   let pendingUpdateUnavailable = false;
-  const [roles, availability, summaries, messages, pendingUpdate] =
-    await Promise.all([
-      fetchOrgAgentRoles({ admin: args.admin, workspaceId }),
-      fetchOrgAgentWorkspaceAvailability({ admin: args.admin, workspace }),
-      optionalContext({
-        fallback: [],
-        label: "conversation_summaries",
-        onError: () =>
-          notes.push(
-            "conversation_summaries_unavailable=true; do not treat older context as empty"
-          ),
-        task: () =>
-          fetchRecentOrgAgentSummaries({
-            admin: args.admin,
-            conversationId: args.conversation.id,
-            limit: 2,
-          }),
-      }),
-      optionalContext({
-        fallback: { hasMore: false, messages: [], nextCursor: null },
-        label: "recent_conversation",
-        onError: () =>
-          notes.push(
-            "recent_conversation_unavailable=true; do not assume there was no prior discussion"
-          ),
-        task: () =>
-          fetchRecentOrgAgentPromptMessages({
-            admin: args.admin,
-            beforeMessageId: currentUserMessageId,
-            conversationId: args.conversation.id,
-            limit: 14,
-            scope,
-          }),
-      }),
-      optionalContext({
-        fallback: null,
-        label: "pending_update",
-        onError: () => {
-          pendingUpdateUnavailable = true;
-        },
-        task: () =>
-          fetchPendingOrgAgentUpdateProposal({
-            admin: args.admin,
-            scopeKey,
-            workspaceId,
-          }),
-      }),
-    ]);
+  const [
+    roles,
+    availability,
+    summaries,
+    messages,
+    pendingUpdate,
+    contactDrafts,
+  ] = await Promise.all([
+    fetchOrgAgentRoles({ admin: args.admin, workspaceId }),
+    fetchOrgAgentWorkspaceAvailability({ admin: args.admin, workspace }),
+    optionalContext({
+      fallback: [],
+      label: "conversation_summaries",
+      onError: () =>
+        notes.push(
+          "conversation_summaries_unavailable=true; do not treat older context as empty"
+        ),
+      task: () =>
+        fetchRecentOrgAgentSummaries({
+          admin: args.admin,
+          conversationId: args.conversation.id,
+          limit: 2,
+        }),
+    }),
+    optionalContext({
+      fallback: { hasMore: false, messages: [], nextCursor: null },
+      label: "recent_conversation",
+      onError: () =>
+        notes.push(
+          "recent_conversation_unavailable=true; do not assume there was no prior discussion"
+        ),
+      task: () =>
+        fetchRecentOrgAgentPromptMessages({
+          admin: args.admin,
+          beforeMessageId: currentUserMessageId,
+          conversationId: args.conversation.id,
+          limit: 14,
+          scope,
+        }),
+    }),
+    optionalContext({
+      fallback: null,
+      label: "pending_update",
+      onError: () => {
+        pendingUpdateUnavailable = true;
+      },
+      task: () =>
+        fetchPendingOrgAgentUpdateProposal({
+          admin: args.admin,
+          scopeKey,
+          workspaceId,
+        }),
+    }),
+    optionalContext({
+      fallback: [],
+      label: "candidate_contact_drafts",
+      onError: () =>
+        notes.push(
+          "candidate_contact_drafts_unavailable=true; do not assume that no contact draft is awaiting review"
+        ),
+      task: () =>
+        fetchCompanyTalentContactDraftsForScope({
+          admin: args.admin as any,
+          conversationId: args.conversation.id,
+          slackThreadId: scope.kind === "slack" ? scope.slackThreadId : null,
+          workspaceId,
+        }),
+    }),
+  ]);
   const inProgressRoleCreationsText =
     scope.kind === "slack"
       ? await optionalContext({
@@ -567,6 +613,7 @@ export async function buildOrgAgentPromptContext(args: {
       workspaceRequestExists: Boolean(text(workspace.request)),
     }),
     completeRoleRequestIds: formattedRoles.completeRoleRequestIds,
+    contactDraftsText: formatContactDrafts(contactDrafts),
     contextNotesText: notes.join("\n") || "-",
     conversationText: formatConversation(
       messages,
@@ -592,11 +639,13 @@ export async function buildOrgAgentPromptContext(args: {
 }
 
 export async function searchOrgAgentMentionCandidates(args: {
+  limit?: number;
+  offset?: number;
   query?: string | null;
   roleId?: string | null;
   user: User;
   workspaceId: string;
-}): Promise<OrgAgentMentionCandidate[]> {
+}) {
   const workspaceId = text(args.workspaceId);
   if (!workspaceId) throw new OrgHttpError(400, "workspaceId is required");
   const admin = getSupabaseAdmin();
@@ -618,8 +667,8 @@ export async function searchOrgAgentMentionCandidates(args: {
     user: args.user,
     workspaceId,
   });
-  return result.items.flatMap((item): OrgAgentMentionCandidate[] => {
-    return [
+  const candidates = filterOrgAgentMentionCandidates({
+    candidates: result.items.flatMap((item): OrgAgentMentionCandidate[] => [
       {
         headline: item.candidate.headline,
         label: item.candidate.name,
@@ -641,8 +690,24 @@ export async function searchOrgAgentMentionCandidates(args: {
             .join(" · ") || item.candidate.talentId,
         talentId: item.candidate.talentId,
       },
-    ];
+    ]),
+    query: args.query,
+    roleId: args.roleId,
   });
+  const limit = Math.max(1, Math.min(Math.floor(Number(args.limit) || 20), 20));
+  const offset = Math.max(
+    0,
+    Math.min(Math.floor(Number(args.offset) || 0), 200)
+  );
+  const page = candidates.slice(offset, offset + limit);
+
+  return {
+    candidates: page,
+    hasMore: offset + page.length < candidates.length,
+    nextOffset:
+      offset + page.length < candidates.length ? offset + page.length : null,
+    totalCount: candidates.length,
+  };
 }
 
 /**

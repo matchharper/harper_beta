@@ -57,17 +57,13 @@ function OrgAgentInfo() {
       >
         <div className="absolute -top-1.5 right-2.5 h-3 w-3 rotate-45 border-l border-t border-neutral-1000-a10 bg-neutral-1000" />
         <div className="relative space-y-2">
-          <p>회사 전체 채용 정보를 읽고 다루는 채팅입니다.</p>
           <p>
-            포지션이나 후보자를 이름으로 말하면 Harper가 대상을 찾습니다. 여러
-            포지션이 모호하게 겹치면 먼저 확인합니다.
+            후보자와 역할을 찾고, 회사 정보와 채용 기준을 확인하거나 바꿀 수
+            있어요. 후보자는 이름이나 @로 지정해 주세요.
           </p>
           <p>
-            @로 특정 후보자를 지정해 해당 후보자 연결의 좋은 점과 아쉬운 점을
-            설명할 수 있습니다.
+            외부 연락과 중요한 상태 변경은 대상과 결과를 설명한 뒤 확인받아요.
           </p>
-          <p>수락, 거절, 단계 이동은 후보자 프로필에서 직접 처리해야 합니다.</p>
-          <p>회사·포지션 정보와 채용 기준 변경도 요청할 수 있습니다.</p>
         </div>
       </div>
     </div>
@@ -78,6 +74,7 @@ export function OrgAgentChatSurface({
   autoFocus = true,
   className,
   onClose,
+  onCompanyInfoClick,
   onRoleCreated,
   purpose = "general",
   roleId,
@@ -86,6 +83,7 @@ export function OrgAgentChatSurface({
   autoFocus?: boolean;
   className?: string;
   onClose?: () => void;
+  onCompanyInfoClick?: () => void;
   onRoleCreated?: (roleId: string) => void;
   purpose?: "general" | "role-creation";
   roleId?: string | null;
@@ -301,9 +299,9 @@ export function OrgAgentChatSurface({
             purpose !== "role-creation" ? (
             <div className="flex min-h-[260px] items-center justify-center px-8">
               <p className="max-w-[320px] text-center leading-5 text-neutral-muted">
-                후보자나 포지션을 찾아보거나, 회사·채용 정보를
+                역할이나 후보자에 대해 물어보세요. 정보를 바꾸거나 외부 연락이
                 <br />
-                확인하고 변경할 내용을 알려주세요.
+                필요한 요청은 실행 전에 확인할게요.
               </p>
             </div>
           ) : (
@@ -343,6 +341,7 @@ export function OrgAgentChatSurface({
                     choicePending={confirmRoleCreation.isPending}
                     currentUserId={user.id}
                     message={message}
+                    onCompanyInfoClick={onCompanyInfoClick}
                     onRoleCreationChoice={({
                       actionId,
                       decision,
@@ -395,6 +394,7 @@ export function OrgAgentChatSurface({
                 }
                 currentUserId={user.id}
                 message={chat.optimisticUserMessage}
+                onCompanyInfoClick={onCompanyInfoClick}
                 roleId={roleId}
                 showUserAttribution={purpose === "role-creation"}
                 workspaceId={workspaceId}
@@ -410,6 +410,7 @@ export function OrgAgentChatSurface({
             <OrgAgentPendingBubble />
           ) : null}
           <OrgAgentStreamingBubble
+            onCompanyInfoClick={onCompanyInfoClick}
             text={chat.streamingText}
             workspaceId={workspaceId}
           />

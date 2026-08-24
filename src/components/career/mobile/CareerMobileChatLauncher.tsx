@@ -6,28 +6,45 @@ import {
   X,
   AudioLines,
   Loader2,
+  List,
   MessageCircle,
   MessageSquareText,
   Mic,
   MicOff,
+  Plus,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@/lib/utils";
+import {
+  ChatComposerCollapsedFrame,
+  CHAT_COMPOSER_GLASS_SURFACE_CLASS_NAME,
+} from "@/components/chat/ChatComposer";
 import {
   useCareerCallContext,
   useCareerChatPanelContext,
 } from "@/components/career/CareerChatPanelContext";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerMobileChatNotice } from "@/hooks/career/useCareerMobileChatNotice";
-import { BareButton } from "@/components/ui/button";
+import { BareButton, MuteButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useCareerMobileChatLauncherVisibility } from "@/components/career/mobile/CareerMobileChatLauncherVisibilityContext";
+import CareerMobileNavigationMenu, {
+  type CareerMobileNavigationOption,
+  type CareerMobileNavigationOptionId,
+} from "@/components/career/mobile/CareerMobileNavigationMenu";
+
+type CareerMobileChatNavigation = {
+  activeTab: CareerMobileNavigationOptionId;
+  onChangeTab: (tab: CareerMobileNavigationOptionId) => void;
+  options: CareerMobileNavigationOption[];
+};
 
 type CareerMobileChatLauncherProps = {
   children: React.ReactNode;
   actionBar?: React.ReactNode;
   placeholder?: string;
   className?: string;
+  navigation?: CareerMobileChatNavigation;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 };
@@ -107,6 +124,10 @@ function useMobileChatViewport(open: boolean) {
           `${drawerViewportTop}px`
         );
         root.style.setProperty(
+          "--career-mobile-chat-toolbar-top",
+          `${offsetTop}px`
+        );
+        root.style.setProperty(
           "--career-mobile-chat-safe-bottom",
           keyboardOpen ? "0px" : "env(safe-area-inset-bottom)"
         );
@@ -132,6 +153,7 @@ function useMobileChatViewport(open: boolean) {
       window.visualViewport?.removeEventListener("scroll", updateViewportVars);
       root.style.removeProperty("--career-mobile-chat-viewport-height");
       root.style.removeProperty("--career-mobile-chat-viewport-top");
+      root.style.removeProperty("--career-mobile-chat-toolbar-top");
       root.style.removeProperty("--career-mobile-chat-safe-bottom");
       maxViewportHeightRef.current = 0;
       keyboardOpenRef.current = false;
@@ -147,6 +169,7 @@ function CareerMobileChatLauncher({
   actionBar,
   placeholder,
   className,
+  navigation,
   open: controlledOpen,
   onOpenChange,
 }: CareerMobileChatLauncherProps) {
@@ -316,7 +339,7 @@ function CareerMobileChatLauncher({
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
-          className="flex flex-col border-t border-neutral-1000-a05/50 bg-bg-floating"
+          className="flex flex-col bg-linear-to-t from-bg-basement via-bg-basement/80 to-transparent pt-1"
           style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         >
           <div className="flex justify-center pt-2 pb-1">
@@ -371,47 +394,37 @@ function CareerMobileChatLauncher({
                 </div>
               </div>
             ) : (
-              <>
-                {showChatInterviewCta ? (
-                  <BareButton
-                    type="button"
-                    onClick={openDrawer}
-                    className={cn(
-                      "flex h-10 flex-1 items-center justify-center gap-2 rounded-full border border-black bg-black px-4 text-center text-[13px] font-normal text-neutral-00 shadow-[0_12px_28px_rgba(0,0,0,0.1)] transition active:scale-[0.99]",
-                      chatNotice.hasUnread && "ring-2 ring-primary/35"
-                    )}
-                    aria-label={chatInterviewCtaLabel}
-                  >
-                    <span className="min-w-0 whitespace-normal leading-5">
-                      {chatInterviewCtaLabel}
-                    </span>
-                  </BareButton>
-                ) : (
-                  <BareButton
-                    type="button"
-                    onClick={openDrawer}
-                    className={cn(
-                      "flex h-12 flex-1 items-center justify-between rounded-full border border-neutral-1000-a05 bg-bg-floating px-4 text-left text-sm text-neutral-soft transition active:bg-bg-weak",
-                      harperPreparing &&
-                        "border-primary/20 bg-primary/5 text-neutral-primary shadow-[0_8px_24px_rgba(31,28,26,0.06)]",
-                      chatNotice.hasUnread &&
-                        "border-primary/40 text-neutral-primary"
-                    )}
-                  >
-                    <span>{launcherPlaceholder}</span>
-                    <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
-                      {harperPreparing ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                      ) : (
-                        <AudioLines className="h-5 w-5 text-neutral-muted" />
-                      )}
-                      {chatNotice.hasUnread ? (
-                        <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border border-bg-default bg-primary" />
-                      ) : null}
-                    </span>
-                  </BareButton>
+              <ChatComposerCollapsedFrame
+                aria-label={
+                  showChatInterviewCta ? chatInterviewCtaLabel : "채팅 열기"
+                }
+                leadingAction={<Plus className="h-4 w-4" />}
+                onClick={openDrawer}
+                textClassName={cn(
+                  (showChatInterviewCta ||
+                    harperPreparing ||
+                    chatNotice.hasUnread) &&
+                    "text-neutral-primary"
                 )}
-              </>
+                action={
+                  <>
+                    {harperPreparing ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    ) : showChatInterviewCta ? (
+                      <MessageSquareText className="h-4 w-4 text-neutral-muted" />
+                    ) : (
+                      <AudioLines className="h-5 w-5 text-neutral-muted" />
+                    )}
+                    {chatNotice.hasUnread ? (
+                      <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full border border-bg-default bg-primary" />
+                    ) : null}
+                  </>
+                }
+              >
+                {showChatInterviewCta
+                  ? chatInterviewCtaLabel
+                  : launcherPlaceholder}
+              </ChatComposerCollapsedFrame>
             )}
           </div>
         </div>
@@ -462,18 +475,53 @@ function CareerMobileChatLauncher({
                 paddingTop: "calc(env(safe-area-inset-top) + 0.5rem)",
               }}
             >
+              {navigation ? (
+                <div
+                  className="fixed left-3 z-[70]"
+                  style={{
+                    top: "calc(var(--career-mobile-chat-toolbar-top, 0px) + env(safe-area-inset-top) + 0.5rem)",
+                  }}
+                >
+                  <CareerMobileNavigationMenu
+                    activeTab={navigation.activeTab}
+                    onChangeTab={(nextTab) => {
+                      handleOpenChange(false);
+                      navigation.onChangeTab(nextTab);
+                    }}
+                    options={navigation.options}
+                    sideOffset={8}
+                  >
+                    <MuteButton
+                      aria-label="메뉴 열기"
+                      className={cn(
+                        "rounded-full text-neutral-muted",
+                        CHAT_COMPOSER_GLASS_SURFACE_CLASS_NAME
+                      )}
+                      size="md"
+                    >
+                      <List className="h-4 w-4" />
+                    </MuteButton>
+                  </CareerMobileNavigationMenu>
+                </div>
+              ) : null}
               <DrawerPrimitive.Handle
                 preventCycle
                 className="!h-[3px] !w-10 !rounded-full !bg-black/20"
               />
-              <DrawerPrimitive.Close
-                aria-label={"채팅 접기"}
-                className="absolute right-3 top-2 z-[60] inline-flex h-8 w-8 items-center justify-center rounded-full bg-bg-floating text-neutral-muted transition active:bg-bg-weak"
-                style={{
-                  top: "calc(env(safe-area-inset-top) + 0.5rem)",
-                }}
-              >
-                <X className="h-4 w-4" />
+              <DrawerPrimitive.Close asChild>
+                <MuteButton
+                  aria-label="채팅 접기"
+                  className={cn(
+                    "fixed right-3 z-[70] rounded-full text-neutral-muted",
+                    CHAT_COMPOSER_GLASS_SURFACE_CLASS_NAME
+                  )}
+                  size="md"
+                  style={{
+                    top: "calc(var(--career-mobile-chat-toolbar-top, 0px) + env(safe-area-inset-top) + 0.5rem)",
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </MuteButton>
               </DrawerPrimitive.Close>
             </div>
 

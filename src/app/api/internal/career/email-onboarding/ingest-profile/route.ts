@@ -259,6 +259,8 @@ async function processEmailAttachments(args: {
   const matchedUploadIndexes = new Set<number>();
 
   for (const attachment of args.attachments) {
+    let uploadedStoragePath: string | null = null;
+    let documentPersisted = false;
     const uploadIndex = selectiveUpload
       ? documentUploads.findIndex(
           (request, index) =>
@@ -307,6 +309,7 @@ async function processEmailAttachments(args: {
         buffer,
         userId: args.userId,
       });
+      uploadedStoragePath = storagePath;
       const text = canExtractText
         ? await extractTextFromAttachmentBuffer(attachment, buffer)
         : "";
@@ -324,9 +327,6 @@ async function processEmailAttachments(args: {
             .eq("is_primary", true)
             .maybeSingle();
         if (previousPrimaryError) {
-          await args.admin.storage
-            .from(TALENT_RESUME_BUCKET)
-            .remove([storagePath]);
           throw new Error(previousPrimaryError.message);
         }
         previousPrimaryResumeId = previousPrimary?.id ?? null;
@@ -337,9 +337,6 @@ async function processEmailAttachments(args: {
           .eq("kind", "resume")
           .eq("is_primary", true);
         if (clearPrimaryError) {
-          await args.admin.storage
-            .from(TALENT_RESUME_BUCKET)
-            .remove([storagePath]);
           throw new Error(
             clearPrimaryError.message ?? "Failed to clear the primary resume"
           );
@@ -360,7 +357,7 @@ async function processEmailAttachments(args: {
         })
         .select("id")
         .single();
-      if (documentError) {
+      if (documentError || !document?.id) {
         if (previousPrimaryResumeId) {
           await args.admin
             .from("talent_documents")
@@ -368,13 +365,11 @@ async function processEmailAttachments(args: {
             .eq("id", previousPrimaryResumeId)
             .eq("talent_id", args.userId);
         }
-        await args.admin.storage
-          .from(TALENT_RESUME_BUCKET)
-          .remove([storagePath]);
         throw new Error(
-          documentError.message ?? "Failed to save email attachment document"
+          documentError?.message ?? "Failed to save email attachment document"
         );
       }
+      documentPersisted = true;
       if (isPrimaryResume) {
         resumeStoragePath = storagePath;
         resumeFileName = attachment.fileName;
@@ -397,7 +392,25 @@ async function processEmailAttachments(args: {
           .join("\n")
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      let cleanupErrorMessage = "";
+      if (uploadedStoragePath && !documentPersisted) {
+        try {
+          const { error: cleanupError } = await args.admin.storage
+            .from(TALENT_RESUME_BUCKET)
+            .remove([uploadedStoragePath]);
+          cleanupErrorMessage = cleanupError?.message ?? "";
+        } catch (cleanupError) {
+          cleanupErrorMessage =
+            cleanupError instanceof Error
+              ? cleanupError.message
+              : String(cleanupError);
+        }
+      }
+      const extractionErrorMessage =
+        error instanceof Error ? error.message : String(error);
+      const message = cleanupErrorMessage
+        ? `${extractionErrorMessage}; storage cleanup failed: ${cleanupErrorMessage}`
+        : extractionErrorMessage;
       warnings.push(`${attachment.fileName}: ${message}`);
       processed.push({
         ...normalized,

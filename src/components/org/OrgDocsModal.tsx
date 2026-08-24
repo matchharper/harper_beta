@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 const DOCS_SECTIONS = [
   { id: "review", label: "후보자 검토" },
-  { id: "decision", label: "수락과 거절" },
+  { id: "decision", label: "연결 결정" },
   { id: "feedback", label: "메모" },
   { id: "pipeline", label: "파이프라인" },
   { id: "settings", label: "회사와 Role" },
@@ -177,8 +177,8 @@ export function OrgDocsModal({
 
             <DocsSection
               id="decision"
-              title="수락과 거절"
-              description="수락 이유와 거절 이유는 모두 선택 사항입니다. 이유를 구체적으로 남길수록 다음 추천이 정확해집니다."
+              title="연결 수락과 연결 거절"
+              description="웹에서는 Connect와 Reject 버튼으로 표시됩니다. 연결을 수락하면 대화를 시작하고, 연결을 거절하면 회사의 종료 결정을 후보자에게 안내합니다. 이유는 선택 사항이며 다음 추천에 참고합니다."
             >
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Button
@@ -187,7 +187,7 @@ export function OrgDocsModal({
                   tabIndex={-1}
                   className="pointer-events-none w-full bg-primary text-white sm:w-auto"
                 >
-                  이 후보자를 만나보겠습니다.
+                  Connect
                 </Button>
                 <Button
                   type="button"
@@ -195,19 +195,19 @@ export function OrgDocsModal({
                   tabIndex={-1}
                   className="pointer-events-none w-full border-red-500 sm:w-auto"
                 >
-                  이 후보자는 거절하겠습니다.
+                  Reject
                 </Button>
               </div>
               <p className="mt-3 text-xs font-normal leading-5 text-neutral-muted">
-                수락하면 연결됨으로, 연결받지 않으면 프로세스 중단으로
-                이동합니다.
+                연결 거절은 임시 보류가 아니에요. 후보자에게 회사의 종료
+                결정이 안내되며 이미 보이거나 전달된 안내는 회수할 수 없어요.
               </p>
             </DocsSection>
 
             <DocsSection
               id="feedback"
               title="메모"
-              description="피드에는 상태 변경, 수락·거절과 이유, 회사 멤버가 남긴 메모만 표시됩니다. 자신이 남긴 메모는 수정하거나 삭제할 수 있습니다."
+              description="피드에는 상태 변경, 연결 시작·거절과 이유, 회사 멤버가 남긴 메모만 표시됩니다. 자신이 남긴 메모는 수정하거나 삭제할 수 있습니다."
             >
               <div className="max-w-[440px] overflow-hidden rounded-md border border-neutral-1000-a10">
                 <div className="min-h-[64px] px-3 py-2.5 text-xs font-normal leading-5 text-neutral-muted">

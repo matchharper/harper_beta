@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { validateRoleCreationNotificationConsent } from "@/lib/org/agent/roleCreationConsent";
+import {
+  isUnambiguousFinalRoleNotificationDefault,
+  validateRoleCreationNotificationConsent,
+} from "@/lib/org/agent/roleCreationConsent";
 
 const channel = {
   aliases: ["#채용", "C123"],
@@ -63,5 +66,32 @@ test("rejects an unrelated yes and a target absent from the proposal", () => {
       userMessage: "아니요",
     }).missingTargetIds,
     ["channel:C123", "assignee:U123"]
+  );
+});
+
+test("allows only the sole channel and current author as ready-draft defaults", () => {
+  const defaults = {
+    availableChannelIds: ["C123"],
+    currentUserId: "U123",
+    memberUserIds: ["U123"],
+    roleStatus: "draft",
+    selectedAssigneeUserId: "U123",
+    selectedChannelIds: ["C123"],
+    unresolvedFields: ["connected_slack", "assignee"],
+  };
+  assert.equal(isUnambiguousFinalRoleNotificationDefault(defaults), true);
+  assert.equal(
+    isUnambiguousFinalRoleNotificationDefault({
+      ...defaults,
+      availableChannelIds: ["C123", "C456"],
+    }),
+    false
+  );
+  assert.equal(
+    isUnambiguousFinalRoleNotificationDefault({
+      ...defaults,
+      unresolvedFields: ["location", "connected_slack", "assignee"],
+    }),
+    false
   );
 });

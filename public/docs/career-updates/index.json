@@ -1,97 +1,127 @@
 [
   {
+    "date": "2026-08-24",
+    "tag": "IMPROVED",
+    "ko": "모바일 채팅 화면의 읽기와 작성 흐름을 다듬었습니다. 메시지를 더 편안하게 읽고, 입력한 내용을 더 쉽게 보낼 수 있습니다.",
+    "en": "We've refined the mobile chat experience so messages are more comfortable to read and replies are easier to write and send."
+  },
+  {
+    "date": "2026-08-24",
+    "tag": "NEW",
+    "ko": "이제 채팅에서 이력서, 포트폴리오, 문서 등의 파일을 업로드하고 해당 내용을 바탕으로 Harper와 바로 이야기할 수 있습니다.",
+    "en": "You can now upload resumes, portfolios, documents, images, and other files in chat and discuss them directly with Harper."
+  },
+  {
+    "date": "2026-08-24",
+    "tag": "NEW",
+    "ko": "이제 채팅으로 저장된 이력서와 문서를 확인하고 관리할 수 있습니다. 기본 이력서를 지정하거나 회사 공개 여부를 바꾸고, 필요 없는 문서를 삭제할 수 있습니다.",
+    "en": "You can now review and manage saved resumes and documents through chat, including choosing a primary resume, changing company visibility, and deleting files you no longer need."
+  },
+  {
+    "date": "2026-08-24",
+    "tag": "NEW",
+    "ko": "채팅창의 + 버튼에서 파일 업로드, 새 공고 추천 요청, 선호 조건 업데이트, 답변이 필요한 회사 요청과 연결 제안 등 지금 가능한 작업을 한눈에 확인할 수 있습니다.",
+    "en": "The + button in chat now shows your available actions in one place, including file uploads, requests for new job recommendations, preference updates, company requests, and connection proposals that need a response."
+  },
+  {
+    "date": "2026-08-24",
+    "tag": "NEW",
+    "ko": "이제 채팅에서 @를 입력해 이전에 추천받은 회사와 역할을 불러오고, 특정 기회를 지정해 질문할 수 있습니다.",
+    "en": "You can now type @ in chat to bring up companies and roles you've been recommended and ask Harper about a specific opportunity."
+  },
+  {
     "date": "2026-08-17",
-    "tag": "feature",
+    "tag": "NEW",
     "ko": "이제 Harper에게 최대 20개의 공고를 한 번에 찾아달라고 요청할 수 있습니다. 검색은 백그라운드에서 진행되며 완료되면 이메일과 채팅으로 알려드립니다.",
     "en": "You can now ask Harper to run a deeper search for up to 20 job postings at once. The search runs in the background, and Harper lets you know when it is complete."
   },
   {
     "date": "2026-08-17",
-    "tag": "feature",
+    "tag": "IMPROVED",
     "ko": "웹 검색과 링크 읽기 기능을 개선했습니다. 더 많은 검색 결과를 살펴보고 웹페이지의 실제 내용을 바탕으로 답변할 수 있습니다.",
     "en": "We've improved web search and link reading. Harper can review more search results and answer based on the actual content of webpages."
   },
   {
     "date": "2026-08-17",
-    "tag": "matching",
+    "tag": "IMPROVED",
     "ko": "이전 대화와 공고에 남긴 반응을 더 일관되게 이해해, 이미 알려주신 조건을 다음 추천과 내부 기회 연결에 더 잘 반영하도록 개선하고 있습니다. 가장 신경을 쓰고 있는 부분입니다",
     "en": "We're improving how consistently Harper understands past conversations and your reactions to job postings, so preferences you've already shared can be reflected more reliably in future recommendations and internal opportunity connections. This is our most important area of focus."
   },
   {
     "date": "2026-08-17",
-    "tag": "experience",
+    "tag": "NEW",
     "ko": "이제 채팅에서 원하는 언어를 말하면 이후 대화에서도 해당 언어 설정이 유지됩니다.",
     "en": "You can now tell Harper your preferred language in chat, and that language setting will be kept for future conversations."
   },
   {
     "date": "2026-08-17",
-    "tag": "fix-error",
+    "tag": "FIXED",
     "ko": "모바일에서 화면을 확대하거나 축소할 때 채팅창 크기가 비정상적으로 바뀌던 문제를 해결했습니다.",
     "en": "We've fixed an issue that caused the mobile chat window to resize incorrectly when zooming in or out."
   },
   {
     "date": "2026-08-17",
-    "tag": "fix-error",
+    "tag": "FIXED",
     "ko": "이력서와 LinkedIn 정보를 불러오는 중 화면이 먼저 넘어가거나, 재시도 과정에서 제출이 중복될 수 있던 문제를 개선했습니다.",
     "en": "We've improved onboarding reliability so it no longer moves ahead before resume and LinkedIn information is ready, and retries do not create duplicate submissions."
   },
   {
     "date": "2026-08-17",
-    "tag": "fix-error",
+    "tag": "FIXED",
     "ko": "역할 추천 과정에서 임의로 중단했을 때 중단 상태가 새로고침 후에도 유지되도록 개선했습니다.",
     "en": "When you stop a jobs recommendation process, its stopped state now remains visible after refreshing the page."
   },
   {
     "date": "2026-08-10",
-    "tag": "internal",
+    "tag": "NOTIFICATION",
     "ko": "업데이트가 비어 있는 이유: Harper는 무엇보다 좋은 기회를 직접 더 많이 연결해 드리고자 하고 있습니다. 현재 앞으로 더 많은 기회를 받아보실 수 있도록 직접 연결 가능한 기회를 늘리기 위해 회사에 제공되는 기능을 업데이트하고 있습니다. ",
     "en": "Why there haven’t been any updates: More than anything, Harper is focused on connecting you with more great opportunities. We’re currently improving the features we offer companies so we can create more opportunities for direct connections. We’ll keep working to bring you more opportunities."
   },
   {
     "date": "2026-08-10",
-    "tag": "fix-error",
+    "tag": "IMPROVED",
     "ko": "첫 추천까지 시간이 오래 걸리던 점을 개선했습니다.",
     "en": "We've improved the time it takes to get the first recommendation."
   },
   {
     "date": "2026-08-05",
-    "tag": "matching",
+    "tag": "IMPROVED",
     "ko": "Harper가 더 유연하게 기회를 탐색합니다. 이전 검색에서 좋은 결과를 찾지 못했다면 관련 직무, 기술 분야, 지역, 원격 근무 범위를 적절히 넓혀 조금 다른 기회를 살펴보고, 분명한 선호가 확인되면 그 방향을 더 깊게 찾아봅니다.",
     "en": "Harper now explores opportunities more flexibly. If earlier searches don’t find strong matches, it broadens related roles, technical areas, locations, or remote-work options to consider different opportunities. When clear preferences emerge, it searches more deeply in that direction."
   },
   {
     "date": "2026-08-05",
-    "tag": "experience",
+    "tag": "IMPROVED",
     "ko": "이메일을 더 읽기 쉽게 다듬고, 상황에 맞게 더 다양한 형식으로 작성하도록 했습니다.",
     "en": "Emails are now easier to read and use a wider variety of formats suited to each situation."
   },
   {
     "date": "2026-08-05",
-    "tag": "feature",
+    "tag": "NEW",
     "ko": "이제 여러 버전의 이력서를 함께 관리하고, 이력서 외의 문서도 업로드할 수 있습니다.",
     "en": "You can now manage multiple versions of your resume and upload documents other than resumes."
   },
   {
     "date": "2026-08-03",
-    "tag": "internal",
+    "tag": "IMPROVED",
     "ko": "내부 기회 연결 제안에 응답하지 않을 때 발송하는 팔로업 메일에 매번 다른 내용을 전달하도록 했습니다.",
     "en": "Follow-up emails sent when you haven’t responded to an internal opportunity connection now share different information each time."
   },
   {
     "date": "2026-08-03",
-    "tag": "fix-error",
+    "tag": "NEW",
     "ko": "이제 우선 검토 요청을 취소할 수 있습니다.",
     "en": "You can now cancel a priority review request."
   },
   {
     "date": "2026-08-03",
-    "tag": "internal",
+    "tag": "NOTIFICATION",
     "ko": "기존에는 회사 측 요청에 따라 인재가 질문한 경우에만 프로세스 종료를 안내했지만, 인재분들의 시간을 아껴드리기 위해 이제 회사가 프로세스를 종료하면 이메일로 먼저 안내드립니다.",
     "en": "Previously, at the company’s request, we only notified talent users that a process had ended when they asked. To save them time, we now send an email when the company ends the process."
   },
   {
     "date": "2026-08-03",
-    "tag": "feature",
+    "tag": "NEW",
     "ko": "업데이트 노트를 만들었습니다.",
     "en": "We created an Update Notes page."
   }

@@ -172,7 +172,18 @@ function safeThinkingLogs(value: unknown): OrgAgentThinkingLog[] {
         item.status === "error"
           ? item.status
           : undefined;
-      return [{ at, ...(id ? { id } : {}), label, status }];
+      const icon =
+        item.icon === "read" ||
+        item.icon === "write" ||
+        item.icon === "send" ||
+        item.icon === "run" ||
+        item.icon === "search" ||
+        item.icon === "link"
+          ? item.icon
+          : undefined;
+      return [
+        { at, ...(id ? { id } : {}), ...(icon ? { icon } : {}), label, status },
+      ];
     }),
     20
   );
@@ -257,6 +268,7 @@ export function toOrgAgentMessage(row: OrgAgentMessageRow): OrgAgentMessage {
   const visibleMetadata = { ...storedMetadata };
   delete visibleMetadata.roleCreationAttachments;
   delete visibleMetadata.slackFileAttachments;
+  delete visibleMetadata.slackRoleCreationBootstrap;
   return {
     authorUserId: row.company_user_id ?? null,
     content: row.content ?? "",

@@ -6,11 +6,11 @@ import {
   createTalentNetworkLocalId,
 } from "@/lib/talentNetwork";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES } from "@/lib/talentOnboarding/documentUploadLimits";
 
 export const runtime = "nodejs";
 
 const TALENT_NETWORK_CV_BUCKET = "talent-network-cv";
-const MAX_RESUME_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_RESUME_EXTENSIONS = new Set(["pdf", "doc", "docx"]);
 
 const isValidEmail = (value: string) =>
@@ -127,10 +127,10 @@ export async function POST(req: NextRequest) {
     let uploadedFileName: string | null = null;
 
     if (file) {
-      if (file.size > MAX_RESUME_FILE_SIZE_BYTES) {
+      if (file.size > MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES) {
         return NextResponse.json(
-          { error: "Resume file is too large" },
-          { status: 400 }
+          { error: "Resume file must not exceed 4 MB" },
+          { status: 413 }
         );
       }
 

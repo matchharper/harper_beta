@@ -23,12 +23,15 @@ function toErrorResponse(error: unknown) {
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthenticatedUser(req);
-    const candidates = await searchOrgAgentMentionCandidates({
+    const page = await searchOrgAgentMentionCandidates({
+      limit: Number(req.nextUrl.searchParams.get("limit")),
+      offset: Number(req.nextUrl.searchParams.get("offset")),
       query: req.nextUrl.searchParams.get("query"),
+      roleId: req.nextUrl.searchParams.get("roleId"),
       user,
       workspaceId: req.nextUrl.searchParams.get("workspaceId") ?? "",
     });
-    return NextResponse.json({ candidates, ok: true });
+    return NextResponse.json({ ...page, ok: true });
   } catch (error) {
     return toErrorResponse(error);
   }

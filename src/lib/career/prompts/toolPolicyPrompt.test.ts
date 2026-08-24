@@ -51,3 +51,22 @@ test("defaults job search to instant and requires explicit bulk permission", () 
   assert.match(prompt, /max_results=15/);
   assert.match(prompt, /maximum of 20/);
 });
+
+test("document tools use paginated metadata, bounded reads, and soft delete", () => {
+  const prompt = buildCareerToolPolicyPrompt({
+    channel: "chat",
+    isOnboardingActive: false,
+    preferredLocale: "ko",
+    toolNames: ["list_documents", "read_document", "update_document"],
+  });
+
+  assert.match(prompt, /offset=0 and limit=10/);
+  assert.match(prompt, /metadata-only/);
+  assert.match(prompt, /content_excerpt.*next_offset/);
+  assert.match(prompt, /earlier saved document.*offset=0/);
+  assert.match(prompt, /max_chars=4000/);
+  assert.match(prompt, /continue from nextOffset/);
+  assert.match(prompt, /binary-only file may have textAvailable=false/);
+  assert.match(prompt, /is_deleted=true is a soft delete only/);
+  assert.match(prompt, /transient third-party reference material/);
+});

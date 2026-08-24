@@ -3,13 +3,14 @@ import { cn } from "@/lib/cn";
 import { useMessages } from "@/i18n/useMessage";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileText, Link2, Loader2, X } from "lucide-react";
-import { BareButton } from "@/components/ui/button";
+import { MuteButton } from "@/components/ui/button";
 
 type Props = {
   attachments: DraftChatAttachment[];
   className?: string;
   isPreparing?: boolean;
   onRemove: (attachmentId: string) => void;
+  tone?: "dark" | "light";
 };
 
 function formatBytes(bytes?: number) {
@@ -35,6 +36,7 @@ export default function ChatAttachmentDraftList({
   className,
   isPreparing = false,
   onRemove,
+  tone = "dark",
 }: Props) {
   const { m } = useMessages();
 
@@ -49,12 +51,31 @@ export default function ChatAttachmentDraftList({
         return (
           <div
             key={attachment.id}
-            className="relative flex w-fit max-w-full items-start justify-between gap-3 overflow-hidden rounded-[14px] bg-neutral-00/5 px-3 pr-5 py-2.5 text-left"
+            className={cn(
+              "relative flex w-fit max-w-full items-start justify-between gap-3 overflow-hidden rounded-[14px] px-3 pr-8 py-2.5 text-left",
+              tone === "light"
+                ? "border border-neutral-1000-a05 bg-bg-floating"
+                : "bg-neutral-00/5"
+            )}
           >
             <div className="min-w-0 max-w-full">
-              <div className="flex min-w-0 flex-row items-center gap-2 text-[13px] text-neutral-00/90">
+              <div
+                className={cn(
+                  "flex min-w-0 flex-row items-center gap-2 text-[13px]",
+                  tone === "light"
+                    ? "text-neutral-primary"
+                    : "text-neutral-00/90"
+                )}
+              >
                 {isPreparing ? (
-                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-neutral-00/60" />
+                  <Loader2
+                    className={cn(
+                      "h-3.5 w-3.5 shrink-0 animate-spin",
+                      tone === "light"
+                        ? "text-neutral-muted"
+                        : "text-neutral-00/60"
+                    )}
+                  />
                 ) : (
                   <Icon className="h-3.5 w-3.5 shrink-0" />
                 )}
@@ -67,21 +88,35 @@ export default function ChatAttachmentDraftList({
               {isPreparing ? (
                 <Skeleton className="mt-1 h-[11px] w-40 rounded-sm bg-neutral-00/10" />
               ) : meta ? (
-                <div className="mt-1 max-w-full truncate text-[11px] text-neutral-00/60">
+                <div
+                  className={cn(
+                    "mt-1 max-w-full truncate text-[11px]",
+                    tone === "light"
+                      ? "text-neutral-soft"
+                      : "text-neutral-00/60"
+                  )}
+                >
                   {meta}
                 </div>
               ) : null}
             </div>
-            <BareButton
+            <MuteButton
               type="button"
+              size="sm"
+              variant="transparent"
               onClick={() => onRemove(attachment.id)}
-              className="absolute right-1 top-1 inline-flex h-6 w-6 shrink-0 items-center justify-center text-neutral-00/60 transition hover:text-neutral-00/90"
+              className={cn(
+                "absolute right-1 top-1 shrink-0",
+                tone === "light"
+                  ? "text-neutral-muted"
+                  : "text-neutral-00/60 hover:text-neutral-00/90"
+              )}
               aria-label={
                 attachment.kind === "link" ? "첨부 링크 제거" : "첨부 파일 제거"
               }
             >
               <X className="h-3.5 w-3.5" />
-            </BareButton>
+            </MuteButton>
           </div>
         );
       })}

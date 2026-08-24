@@ -1,4 +1,5 @@
 import { buildOrgHref } from "@/lib/org/routes";
+import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
 
 const DEFAULT_PUBLIC_SITE_URL = "https://matchharper.com";
 export const AUTO_INTRO_SLACK_REVIEW_ACTION_ID = "harper_talent_review:open";
@@ -8,6 +9,19 @@ export type AutoIntroPresentation =
   | "tldr"
   | "bullets"
   | "tldr_bullets";
+
+export type AutoIntroSlackProfile = {
+  currentRole: string | null;
+  education: string | null;
+  harperNote: string | null;
+  location: string | null;
+  preferences: string[];
+  tldr: string;
+  workSummary: Array<{
+    bullets: string[];
+    heading: string;
+  }>;
+};
 
 export type AutoIntroRoleSummaryItem = {
   pendingDecisionCount: number;
@@ -115,9 +129,9 @@ export function buildAutoIntroCandidateNameLink(args: {
   talentId: string;
   workspaceId: string;
 }) {
-  return `*<${buildAutoIntroCandidateProfileUrl(args)}|${escapeSlackLinkLabel(
+  return `<${buildAutoIntroCandidateProfileUrl(args)}|${escapeSlackLinkLabel(
     args.name
-  )}>*`;
+  )}>`;
 }
 
 export function buildAutoIntroWorkspaceJobsUrl(args: {
@@ -158,12 +172,7 @@ export function buildAutoIntroRoleJobsUrl(args: {
 }
 
 export function autoIntroRoleStatusLabel(value: unknown) {
-  const status = String(value ?? "")
-    .trim()
-    .toLowerCase();
-  if (status === "paused" || status === "on_hold") return "일시중지";
-  if (status === "top_priority") return "최우선";
-  return "진행중";
+  return getOrgRoleStatusPresentation(value).label;
 }
 
 export function buildAutoIntroRoleSummaryText(args: {
@@ -335,9 +344,9 @@ export function buildAutoIntroWorkspaceActionGuidance(args: {
   publicSiteUrl?: string | null;
   workspaceId: string;
 }) {
-  return `후보자별 자세한 정보는 <${buildAutoIntroWorkspaceJobsUrl(
+  return `후보자에 대한 더 자세한 정보는 <${buildAutoIntroWorkspaceJobsUrl(
     args
-  )}|Harper에서 확인>하신 뒤, 해당 화면에서 연결을 수락하거나 거절하실 수 있습니다.`;
+  )}|Harper 웹에서 확인해 주세요>.`;
 }
 
 export function renderAutoIntroCandidateCopy(
@@ -369,6 +378,96 @@ export function renderAutoIntroCandidateCopy(
     .join("\n\n");
 }
 
+function normalizedSlackProfileText(value: unknown, maxLength: number) {
+  const normalized = String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return normalized ? normalized.slice(0, maxLength) : null;
+}
+
+export function validateAutoIntroSlackProfile(
+  value: AutoIntroSlackProfile
+): AutoIntroSlackProfile {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Candidate Slack profile must be an object");
+  }
+  const tldr = normalizedSlackProfileText(value.tldr, 2_400);
+  if (!tldr) throw new Error("Candidate Slack profile requires a TL;DR");
+
+  const workSummary = Array.isArray(value.workSummary)
+    ? value.workSummary.slice(0, 10).flatMap((raw) => {
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
+        const heading = normalizedSlackProfileText(raw.heading, 320);
+        if (!heading) return [];
+        const bullets = Array.isArray(raw.bullets)
+          ? raw.bullets
+              .map((bullet) => normalizedSlackProfileText(bullet, 700))
+              .filter((bullet): bullet is string => Boolean(bullet))
+              .slice(0, 8)
+          : [];
+        return [{ bullets, heading }];
+      })
+    : [];
+  const preferences = Array.isArray(value.preferences)
+    ? value.preferences
+        .map((item) => normalizedSlackProfileText(item, 700))
+        .filter((item): item is string => Boolean(item))
+        .slice(0, 8)
+    : [];
+
+  return {
+    currentRole: normalizedSlackProfileText(value.currentRole, 500),
+    education: normalizedSlackProfileText(value.education, 500),
+    harperNote: normalizedSlackProfileText(value.harperNote, 2_000),
+    location: normalizedSlackProfileText(value.location, 500),
+    preferences,
+    tldr,
+    workSummary,
+  };
+}
+
+export function renderAutoIntroSlackProfile(value: AutoIntroSlackProfile) {
+  const profile = validateAutoIntroSlackProfile(value);
+  const lines = [
+    ...(profile.currentRole
+      ? [`*Role:* ${escapeSlackText(profile.currentRole)}`]
+      : []),
+    ...(profile.location
+      ? [`*Location:* ${escapeSlackText(profile.location)}`]
+      : []),
+    ...(profile.education
+      ? [`*Education:* ${escapeSlackText(profile.education)}`]
+      : []),
+    "",
+    "_*PLEASE REPLY TO REQUEST AN INTRO*_",
+    "",
+    `*TL;DR* - ${escapeSlackText(profile.tldr)}`,
+    ...(profile.harperNote
+      ? ["", `*Harper Note* - ${escapeSlackText(profile.harperNote)}`]
+      : []),
+  ];
+
+  if (profile.workSummary.length > 0) {
+    lines.push("", "--------", "Work Summary:");
+    for (const item of profile.workSummary) {
+      lines.push(`*${escapeSlackText(item.heading)}*`);
+      lines.push(
+        ...item.bullets.map((bullet) => `• ${escapeSlackText(bullet)}`)
+      );
+    }
+  }
+  if (profile.preferences.length > 0) {
+    lines.push(
+      "",
+      "------------",
+      "*Preferences:*",
+      ...profile.preferences.map((item) => `• ${escapeSlackText(item)}`)
+    );
+  }
+
+  return lines.join("\n").trim();
+}
+
 export function validateAutoIntroCandidateSentences(sentences: string[]) {
   if (sentences.length < 4 || sentences.length > 6) {
     throw new Error("Candidate copy must contain 4-6 sentences");
@@ -387,7 +486,8 @@ export function validateAutoIntroCandidateSentences(sentences: string[]) {
 export function validateAutoIntroInternalReason(args: {
   internalReason?: string | null;
   reasonMode: "author" | "codex";
-  sentences: string[];
+  sentences?: string[];
+  slackSummary?: string | null;
 }) {
   const internalReason = String(args.internalReason ?? "")
     .replace(/\r/g, "")
@@ -397,7 +497,12 @@ export function validateAutoIntroInternalReason(args: {
       throw new Error("Author candidate has no detailed reason");
     }
     const compactReason = internalReason.replace(/\s+/g, " ").trim();
-    if (compactReason === args.sentences.join(" ")) {
+    const compactSlackSummary = String(
+      args.slackSummary ?? args.sentences?.join(" ") ?? ""
+    )
+      .replace(/\s+/g, " ")
+      .trim();
+    if (compactSlackSummary && compactReason === compactSlackSummary) {
       throw new Error("Detailed reason must differ from Slack summary");
     }
     return internalReason;

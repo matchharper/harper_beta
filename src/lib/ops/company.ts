@@ -1,5 +1,12 @@
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { applyWebsiteCompanyDataChanges } from "@/lib/org/companyDataWebsite";
+import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
+import {
+  describeOpsCompanyProgressActivity,
+  describeOpsCompanyRoleRecommendation,
+  getOpsCompanyStageLabelKey,
+  isHiddenOpsCompanyProgressActivity,
+} from "@/lib/ops/companyActivityPresentation";
 
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
 
@@ -54,9 +61,16 @@ type TalentProgressRow = {
   created_at: string;
   id: string;
   kind: string;
+  metadata: unknown;
   role_id: string;
   talent_id: string;
   text: string;
+};
+
+type RoleStageRow = {
+  id: string;
+  label: string;
+  role_id: string;
 };
 
 type TalentMemoRow = {
@@ -257,22 +271,7 @@ function displayPersonName(
 }
 
 function roleStatusLabel(status: string | null | undefined) {
-  switch (normalizeText(status)) {
-    case "draft":
-      return "작성중";
-    case "active":
-      return "진행";
-    case "ended":
-      return "종료";
-    case "paused":
-      return "중단";
-    case "deleted":
-      return "삭제";
-    case "top_priority":
-      return "최우선";
-    default:
-      return normalizeText(status) || "상태 없음";
-  }
+  return status ? getOrgRoleStatusPresentation(status).label : "상태 없음";
 }
 
 function isAcceptedFeedback(feedback: string | null | undefined) {
@@ -289,18 +288,6 @@ function isAcceptedRecommendation(row: RecommendationRow) {
   return (
     isAcceptedFeedback(row.feedback) ||
     normalizeText(row.saved_stage).toLowerCase() === "accepted"
-  );
-}
-
-function isHiddenProgressActivity(row: TalentProgressRow) {
-  const kind = normalizeText(row.kind).toLowerCase();
-  const text = normalizeText(row.text).toLowerCase();
-  return (
-    kind === "internal_role_priority_review_requested" ||
-    text.includes("user requested priority review") ||
-    text.includes("follow-up") ||
-    text.includes("follow up") ||
-    text.includes("follow_up")
   );
 }
 
@@ -571,7 +558,7 @@ async function fetchTalentProgress(args: {
   const { data, error } = await (
     args.admin.from("talent_progress" as any) as any
   )
-    .select("id, talent_id, role_id, kind, text, created_at")
+    .select("id, talent_id, role_id, kind, metadata, text, created_at")
     .in("role_id", args.roleIds)
     .order("created_at", { ascending: false })
     .limit(args.limit);
@@ -581,6 +568,25 @@ async function fetchTalentProgress(args: {
   }
 
   return coerceJsonArray<TalentProgressRow>(data);
+}
+
+async function fetchRoleStages(args: {
+  admin: AdminClient;
+  roleIds: string[];
+}) {
+  if (args.roleIds.length === 0) return [] as RoleStageRow[];
+  const { data, error } = await (
+    args.admin.from("ops_matching_role_stages" as any) as any
+  )
+    .select("id, role_id, label")
+    .in("role_id", args.roleIds)
+    .limit(1_000);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load role stages");
+  }
+
+  return coerceJsonArray<RoleStageRow>(data);
 }
 
 async function fetchTalentMemos(args: {
@@ -641,10 +647,17 @@ export async function fetchOpsCompanyActivity(args: {
     roles.map((row) => [normalizeText(row.role_id), row])
   );
 
-  const [recommendations, progressRows] = await Promise.all([
+  const [recommendations, progressRows, roleStages] = await Promise.all([
     fetchRecommendations({ admin, limit: sourceLimit, roleIds }),
     fetchTalentProgress({ admin, limit: sourceLimit, roleIds }),
+    fetchRoleStages({ admin, roleIds }),
   ]);
+  const customStageLabelByKey = new Map(
+    roleStages.map((row) => [
+      getOpsCompanyStageLabelKey(row.role_id, row.id),
+      normalizeText(row.label) || "회사 지정 단계",
+    ])
+  );
 
   const memoTalentIds = uniqueStrings([
     ...recommendations.map((row) => row.talent_id),
@@ -664,41 +677,54 @@ export async function fetchOpsCompanyActivity(args: {
   for (const row of recommendations) {
     const talent = talentMap.get(normalizeText(row.talent_id));
     const role = roleById.get(normalizeText(row.role_id));
+    const activity = describeOpsCompanyRoleRecommendation({
+      candidateName: displayPersonName(talent, "후보자"),
+      roleName: role?.name,
+    });
     items.push({
       id: `recommendation:${row.id}`,
       kind: "candidate_recommended",
-      meta: "추천된 후보자",
+      meta: activity.meta,
       occurredAt: String(row.recommended_at ?? row.created_at ?? ""),
-      subtitle: role?.name ? role.name : null,
-      title: `${displayPersonName(talent, "후보자")} 추천`,
+      subtitle: activity.subtitle,
+      title: activity.title,
     });
 
     if (isAcceptedRecommendation(row)) {
       items.push({
         id: `recommendation-accepted:${row.id}`,
         kind: "candidate_accepted",
-        meta: "추천 수락",
+        meta: "후보자가 역할 추천 수락",
         occurredAt: String(row.feedback_at ?? row.updated_at ?? ""),
         subtitle: role?.name ? role.name : null,
-        title: `${displayPersonName(talent, "후보자")} 수락`,
+        title: `${displayPersonName(talent, "후보자")} 역할 추천 수락`,
       });
     }
   }
 
   for (const row of progressRows.filter(
-    (row) => !isHiddenProgressActivity(row)
+    (row) => !isHiddenOpsCompanyProgressActivity(row)
   )) {
     const talent = talentMap.get(normalizeText(row.talent_id));
     const role = roleById.get(normalizeText(row.role_id));
+    const activity = describeOpsCompanyProgressActivity({
+      candidateName: displayPersonName(talent, "후보자"),
+      customStageLabelByKey,
+      progress: {
+        kind: row.kind,
+        metadata: row.metadata,
+        roleId: row.role_id,
+        text: row.text,
+      },
+      roleName: role?.name,
+    });
     items.push({
       id: `progress:${row.id}`,
       kind: "candidate_status_changed",
-      meta: "상태 변경",
+      meta: activity.meta,
       occurredAt: String(row.created_at ?? ""),
-      subtitle: [role?.name, normalizeText(row.text)]
-        .filter(Boolean)
-        .join(" · "),
-      title: `${displayPersonName(talent, "후보자")} 상태 변경`,
+      subtitle: activity.subtitle,
+      title: activity.title,
     });
   }
 

@@ -173,6 +173,7 @@
   --font-poppins: Poppins, Inter, sans-serif;
   --font-roboto: var(--font-roboto);
   --font-serif: var(--font-serif);
+  --font-weight-regular: 400;
 
   --grad-primary: linear-gradient(180deg, #cecece 0%, #e09867 100%);
 

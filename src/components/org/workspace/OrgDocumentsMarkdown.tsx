@@ -6,19 +6,23 @@ import ReactMarkdown, {
 } from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Check, Copy, Info } from "lucide-react";
 import { MuteButton } from "@/components/ui/button";
+import { Code } from "@/components/ui/code";
+import { Text } from "@/components/ui/text";
 
 export type OrgDocumentsHeading = {
   id: string;
-  level: 1 | 2;
+  level: 1 | 2 | 3;
   text: string;
 };
 
 type OrgDocumentsMarkdownProps = {
+  copied: boolean;
   headings: readonly OrgDocumentsHeading[];
   linkTargets: Record<string, string>;
   markdown: string;
+  onCopy: () => void;
 };
 
 /**
@@ -27,46 +31,60 @@ type OrgDocumentsMarkdownProps = {
  */
 export const ORG_DOCUMENTS_MARKDOWN_STYLES = {
   action:
-    "mt-8 font-normal focus-visible:ring-neutral-1000-a10 focus-visible:ring-offset-bg-default",
+    "mt-8 font-normal focus-visible:ring-black/10 focus-visible:ring-offset-white",
   blockquote:
-    "mt-5 border-l-2 border-neutral-1000 bg-bg-weak px-4 py-3.5 text-[15px] font-normal leading-7 text-neutral-muted",
+    "mt-6 border-l-2 border-[#d8d1cc] py-0.5 pl-5 text-[16px] font-normal italic leading-7 text-[#504a46]",
   callout: {
-    container: "mt-6 border-l-2 border-neutral-1000 bg-bg-weak px-4 py-3.5",
+    container:
+      "mt-6 flex gap-3.5 rounded-xl border border-[#eee7e3] bg-[#faf7f5] px-4 py-4",
     content:
-      "mt-1.5 text-[14px] leading-7 text-neutral-muted [&_p:first-child]:mt-0",
-    label: "text-[12px] font-medium leading-5 text-neutral-primary",
+      "mt-1 text-[15px] leading-[1.7] text-[#504a46] [&_p:first-child]:mt-0",
+    icon: "mt-0.5 size-[17px] shrink-0 text-[#8a766a]",
+    label: "text-[14px] font-semibold leading-5 text-[#272321]",
   },
-  code: "rounded bg-bg-weak px-1.5 py-0.5 font-mono text-[0.9em] text-neutral-primary",
+  code: "rounded-md bg-[#f4f1ef] px-1.5 py-0.5 font-mono text-[0.88em] text-[#272321]",
   codeBlock:
-    "mt-5 overflow-x-auto bg-neutral-1000 px-4 py-3.5 text-[13px] leading-6 text-neutral-00",
-  codeBlockCode: "font-mono whitespace-pre-wrap",
-  codeBlockLabel: "mb-2 text-[12px] font-medium leading-5 text-neutral-soft",
-  em: "italic text-neutral-muted",
-  h1: "scroll-mt-36 text-[38px] font-normal leading-tight tracking-[-0.04em] text-neutral-primary sm:text-[44px] lg:scroll-mt-12",
-  h2: "scroll-mt-36 mt-16 border-t border-neutral-1000-a10 pt-16 text-[26px] font-normal leading-[1.35] tracking-[-0.025em] text-neutral-primary first:mt-0 first:border-t-0 first:pt-0 sm:text-[29px] lg:scroll-mt-12",
-  h3: "scroll-mt-36 mt-10 text-[17px] font-medium leading-7 text-neutral-primary lg:scroll-mt-12",
-  h4: "scroll-mt-36 mt-8 text-[16px] font-medium leading-7 text-neutral-primary lg:scroll-mt-12",
-  hr: "my-10 border-neutral-1000-a10",
-  image: "mt-5 h-auto max-w-full",
-  link: "text-link underline decoration-current/30 underline-offset-4 transition-colors hover:decoration-current focus-visible:outline-none focus-visible:decoration-current",
-  list: "mt-3 list-disc space-y-2.5 pl-[18px] text-[15px] font-normal leading-[1.75] text-neutral-muted marker:text-neutral-soft [&>li]:pl-1",
+    "mt-5 rounded-xl border-[#e9e4e1] bg-[#f7f5f4] text-[13px] leading-6 text-[#2b2725]",
+  codeBlockLabel: "mb-2 text-[13px] font-medium leading-5 text-[#716b67]",
+  em: "italic text-[#504a46]",
+  h1: "scroll-mt-36 text-[34px] font-medium leading-[1.2] tracking-[-0.035em] text-[#181717] sm:text-[36px] xl:scroll-mt-12",
+  eyebrow: "normal-case text-primary",
+  h2: "mt-2 text-[23px] font-medium leading-8 tracking-[-0.025em] text-[#181717] sm:text-[24px]",
+  h3: "scroll-mt-36 mt-11 text-[18px] font-medium leading-7 tracking-[-0.012em] text-[#272321] xl:scroll-mt-12",
+  h4: "scroll-mt-36 mt-9 text-[16px] font-semibold leading-7 text-[#272321] xl:scroll-mt-12",
+  hr: "my-12 border-[#e9e6e4]",
+  image: "mt-6 h-auto max-w-full rounded-xl border border-[#ebe7e4]",
+  lead: "mt-2 text-[18px] font-normal leading-7 text-[#504a46]",
+  link: "text-[#7c4f35] underline decoration-[#c9a994] decoration-1 underline-offset-4 transition-colors hover:text-[#573824] hover:decoration-current focus-visible:outline-none focus-visible:decoration-current",
+  list: "mt-3 list-disc space-y-2 pl-[19px] text-[16px] font-normal leading-7 text-[#403f3f] marker:text-[#a39b96] [&>li]:pl-1",
   orderedList:
-    "mt-3 list-decimal space-y-3 pl-[22px] text-[15px] font-normal leading-[1.75] text-neutral-muted marker:text-neutral-muted [&>li]:pl-1",
-  paragraph:
-    "mt-4 text-[15px] font-normal leading-[1.75] text-neutral-muted first:mt-0",
+    "mt-3 list-decimal space-y-2.5 pl-[22px] text-[16px] font-normal leading-7 text-[#403f3f] marker:font-medium marker:text-[#716b67] [&>li]:pl-1",
+  paragraph: "mt-4 text-[16px] font-normal leading-7 text-[#403f3f] first:mt-0",
   quote: {
-    container: "mt-5 border-l-2 border-neutral-1000 bg-bg-weak px-4 py-3.5",
+    container: "mt-6",
     content:
-      "mt-1.5 text-[15px] font-normal leading-7 text-neutral-muted [&_p:first-child]:mt-0",
-    label: "text-[12px] font-medium leading-5 text-neutral-soft",
+      "mt-2 border-l-2 border-[#d8d1cc] py-0.5 pl-5 text-[16px] font-normal italic leading-7 text-[#504a46] [&_p:first-child]:mt-0",
+    label: "text-[13px] font-medium leading-5 text-[#716b67]",
   },
-  strong: "font-medium text-neutral-primary",
+  strong: "font-semibold text-[#272321]",
   table:
-    "mt-5 w-full border-collapse text-left text-[14px] leading-6 text-neutral-muted",
-  tableCell: "border border-neutral-1000-a10 px-3 py-2 align-top",
-  tableHead:
-    "border border-neutral-1000-a10 bg-bg-weak px-3 py-2 font-medium text-neutral-primary",
+    "w-full border-collapse text-left text-[14px] leading-6 text-[#504a46]",
+  tableCell: "border-t border-[#ebe7e4] px-4 py-3 align-top",
+  tableHead: "bg-[#f7f5f4] px-4 py-3 font-semibold text-[#272321]",
+  tableWrapper: "mt-6 overflow-x-auto rounded-xl border border-[#ebe7e4]",
 } as const;
+
+export const ORG_DOCUMENTS_SECTION_EYEBROWS: Record<string, string> = {
+  "accept-or-decline": "연결 결정",
+  "ask-harper": "후보자 추가 확인",
+  "create-a-role": "채용 기준 정리",
+  faq: "도움말",
+  "getting-started": "사용 준비",
+  "harper-introduction": "Harper 알아보기",
+  pipeline: "연결 이후 관리",
+  "review-recommendations": "후보자 검토",
+  slack: "알림과 팀 협업",
+};
 
 const HEADING_ID_COMMENT = /\s*<!--\s*id:\s*[A-Za-z0-9_-]+\s*-->\s*$/;
 const HEADING_ID_PATTERN = /<!--\s*id:\s*([A-Za-z0-9_-]+)\s*-->/;
@@ -82,7 +100,7 @@ function toHeadingText(source: string) {
 
 function makeHeadingId(text: string, index: number) {
   const normalized = text
-    .normalize("NFKD")
+    .normalize("NFKC")
     .toLowerCase()
     .replace(/[^\p{L}\p{N}\s-]/gu, "")
     .trim()
@@ -91,7 +109,7 @@ function makeHeadingId(text: string, index: number) {
   return normalized || `heading-${index + 1}`;
 }
 
-/** H1/H2만 목차와 anchor로 사용합니다. 코드 펜스 안의 #은 무시합니다. */
+/** H1/H2/H3를 anchor로 사용합니다. 코드 펜스 안의 #은 무시합니다. */
 export function extractOrgDocumentsHeadings(markdown: string) {
   const headings: OrgDocumentsHeading[] = [];
   const usedIds = new Set<string>();
@@ -105,10 +123,10 @@ export function extractOrgDocumentsHeadings(markdown: string) {
 
     if (inFence) continue;
 
-    const match = /^(#{1,2})\s+(.+?)\s*#*\s*$/.exec(line);
+    const match = /^(#{1,3})\s+(.+?)\s*#*\s*$/.exec(line);
     if (!match) continue;
 
-    const level = match[1].length as 1 | 2;
+    const level = match[1].length as 1 | 2 | 3;
     const source = match[2];
     const explicitId = HEADING_ID_PATTERN.exec(source)?.[1];
     const baseId =
@@ -182,10 +200,17 @@ function getOrgDocumentTarget(
 }
 
 function createMarkdownComponents({
+  copied,
   headings,
   linkTargets,
-}: Pick<OrgDocumentsMarkdownProps, "headings" | "linkTargets">) {
+  onCopy,
+}: Pick<
+  OrgDocumentsMarkdownProps,
+  "copied" | "headings" | "linkTargets" | "onCopy"
+>) {
   let renderedHeadingIndex = 0;
+  let renderedH2Index = 0;
+  let renderedParagraphIndex = 0;
   let components: Components;
 
   const renderNestedMarkdown = (markdown: string) => (
@@ -235,15 +260,11 @@ function createMarkdownComponents({
     ),
     code: ({ children, className }) => {
       if (className) {
-        return (
-          <code className={ORG_DOCUMENTS_MARKDOWN_STYLES.codeBlockCode}>
-            {children}
-          </code>
-        );
+        return <>{children}</>;
       }
 
       return (
-        <code className={ORG_DOCUMENTS_MARKDOWN_STYLES.code}>{children}</code>
+        <Code className={ORG_DOCUMENTS_MARKDOWN_STYLES.code}>{children}</Code>
       );
     },
     del: ({ children }) => <del className="line-through">{children}</del>,
@@ -261,16 +282,40 @@ function createMarkdownComponents({
     },
     h2: ({ children }) => {
       const heading = headings[renderedHeadingIndex];
+      const isFirstH2 = renderedH2Index === 0;
+      const eyebrow = heading
+        ? ORG_DOCUMENTS_SECTION_EYEBROWS[heading.id]
+        : undefined;
       renderedHeadingIndex += 1;
+      renderedH2Index += 1;
       return (
-        <h2 className={ORG_DOCUMENTS_MARKDOWN_STYLES.h2} id={heading?.id}>
-          {children}
-        </h2>
+        <div
+          className={`${isFirstH2 ? "mt-9" : "mt-20"} scroll-mt-36 xl:scroll-mt-12`}
+          id={heading?.id}
+        >
+          {eyebrow ? (
+            <Text
+              as="p"
+              className={ORG_DOCUMENTS_MARKDOWN_STYLES.eyebrow}
+              data-documents-copy-exclude
+              type="eyebrow"
+            >
+              {eyebrow}
+            </Text>
+          ) : null}
+          <h2 className={ORG_DOCUMENTS_MARKDOWN_STYLES.h2}>{children}</h2>
+        </div>
       );
     },
-    h3: ({ children }) => (
-      <h3 className={ORG_DOCUMENTS_MARKDOWN_STYLES.h3}>{children}</h3>
-    ),
+    h3: ({ children }) => {
+      const heading = headings[renderedHeadingIndex];
+      renderedHeadingIndex += 1;
+      return (
+        <h3 className={ORG_DOCUMENTS_MARKDOWN_STYLES.h3} id={heading?.id}>
+          {children}
+        </h3>
+      );
+    },
     h4: ({ children }) => (
       <h4 className={ORG_DOCUMENTS_MARKDOWN_STYLES.h4}>{children}</h4>
     ),
@@ -287,26 +332,63 @@ function createMarkdownComponents({
     ol: ({ children }) => (
       <ol className={ORG_DOCUMENTS_MARKDOWN_STYLES.orderedList}>{children}</ol>
     ),
-    p: ({ children }) => (
-      <p className={ORG_DOCUMENTS_MARKDOWN_STYLES.paragraph}>{children}</p>
-    ),
+    p: ({ children }) => {
+      const isLead = renderedParagraphIndex === 0;
+      renderedParagraphIndex += 1;
+      if (isLead) {
+        return (
+          <>
+            <p className={ORG_DOCUMENTS_MARKDOWN_STYLES.lead}>{children}</p>
+            <MuteButton
+              className="mt-3 font-normal focus-visible:ring-black/10 focus-visible:ring-offset-white"
+              data-documents-copy-exclude
+              onClick={onCopy}
+              size="md"
+            >
+              {copied ? (
+                <Check aria-hidden="true" className="size-4" />
+              ) : (
+                <Copy aria-hidden="true" className="size-4" />
+              )}
+              <span aria-live="polite">
+                {copied ? "복사됨" : "페이지 복사"}
+              </span>
+            </MuteButton>
+          </>
+        );
+      }
+
+      return (
+        <p className={ORG_DOCUMENTS_MARKDOWN_STYLES.paragraph}>{children}</p>
+      );
+    },
     pre: ({ children, node }) => {
       const directive = getDirective(node);
 
       if (directive?.language === "callout") {
         const { body, label } = splitLabelAndBody(directive.content);
         return (
-          <aside className={ORG_DOCUMENTS_MARKDOWN_STYLES.callout.container}>
-            {label ? (
-              <p className={ORG_DOCUMENTS_MARKDOWN_STYLES.callout.label}>
-                {label}
-              </p>
-            ) : null}
-            {body ? (
-              <div className={ORG_DOCUMENTS_MARKDOWN_STYLES.callout.content}>
-                {renderNestedMarkdown(body)}
-              </div>
-            ) : null}
+          <aside
+            className={ORG_DOCUMENTS_MARKDOWN_STYLES.callout.container}
+            role="note"
+          >
+            <Info
+              aria-hidden="true"
+              className={ORG_DOCUMENTS_MARKDOWN_STYLES.callout.icon}
+              strokeWidth={2}
+            />
+            <div className="min-w-0 flex-1">
+              {label ? (
+                <p className={ORG_DOCUMENTS_MARKDOWN_STYLES.callout.label}>
+                  {label}
+                </p>
+              ) : null}
+              {body ? (
+                <div className={ORG_DOCUMENTS_MARKDOWN_STYLES.callout.content}>
+                  {renderNestedMarkdown(body)}
+                </div>
+              ) : null}
+            </div>
           </aside>
         );
       }
@@ -344,7 +426,7 @@ function createMarkdownComponents({
             <MuteButton
               asChild
               className={ORG_DOCUMENTS_MARKDOWN_STYLES.action}
-              size="lg"
+              size="md"
               variant="dark"
             >
               <Link href={target}>
@@ -367,19 +449,20 @@ function createMarkdownComponents({
                 {label}
               </figcaption>
             ) : null}
-            <pre className={ORG_DOCUMENTS_MARKDOWN_STYLES.codeBlock}>
-              <code className={ORG_DOCUMENTS_MARKDOWN_STYLES.codeBlockCode}>
-                {body}
-              </code>
-            </pre>
+            <Code
+              className={ORG_DOCUMENTS_MARKDOWN_STYLES.codeBlock}
+              type="block"
+            >
+              {body}
+            </Code>
           </figure>
         );
       }
 
       return (
-        <pre className={ORG_DOCUMENTS_MARKDOWN_STYLES.codeBlock}>
+        <Code className={ORG_DOCUMENTS_MARKDOWN_STYLES.codeBlock} type="block">
           {children}
-        </pre>
+        </Code>
       );
     },
     strong: ({ children }) => (
@@ -388,7 +471,7 @@ function createMarkdownComponents({
       </strong>
     ),
     table: ({ children }) => (
-      <div className="overflow-x-auto">
+      <div className={ORG_DOCUMENTS_MARKDOWN_STYLES.tableWrapper}>
         <table className={ORG_DOCUMENTS_MARKDOWN_STYLES.table}>
           {children}
         </table>
@@ -409,11 +492,18 @@ function createMarkdownComponents({
 }
 
 export function OrgDocumentsMarkdown({
+  copied,
   headings,
   linkTargets,
   markdown,
+  onCopy,
 }: OrgDocumentsMarkdownProps) {
-  const components = createMarkdownComponents({ headings, linkTargets });
+  const components = createMarkdownComponents({
+    copied,
+    headings,
+    linkTargets,
+    onCopy,
+  });
 
   return (
     <ReactMarkdown

@@ -50,6 +50,9 @@ export const CAREER_CHAT_ONBOARDING_TOOL_NAMES = [
   TALENT_TOOL_NAMES.WEB_SEARCH,
   // 온보딩 중 사용자가 말한 프로필 row memo 같은 저장 가능한 정보 기록.
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
+  TALENT_TOOL_NAMES.LIST_DOCUMENTS,
+  TALENT_TOOL_NAMES.READ_DOCUMENT,
+  TALENT_TOOL_NAMES.UPDATE_DOCUMENT,
   // 온보딩 텍스트 채팅에서 사용자가 URL을 줬을 때만 페이지 본문 확인.
   TALENT_TOOL_NAMES.OPEN_URL,
   // 온보딩 중이라도 특정 internal role 연결/우선 검토의 등록·철회를 명시적으로 요청하면 처리.
@@ -85,14 +88,15 @@ export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
   TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK,
   // 특정 회사 자체를 조사할 때. 예: "A 회사 어떤 회사야?"
   TALENT_TOOL_NAMES.RESEARCH_COMPANY,
-  // Ops가 관리하는 "유저 질문 -> 좋은 답변 예시" 검색용.
-  TALENT_TOOL_NAMES.LOOKUP_ANSWER_EXAMPLES,
   // 최근 프로필/선호 변경, follow/unfollow 등 Career activity를 읽을 때.
   TALENT_TOOL_NAMES.READ_TALENT_ACTIVITY_EVENTS,
   // 온보딩 후에도 사용자가 "3일마다", "외부 공고 빼줘"처럼 추천 발송 설정을 말할 때.
   TALENT_TOOL_NAMES.UPDATE_SETTING,
   // 온보딩 후에도 사용자가 "앞으로 리모트만"처럼 저장할 선호를 말할 때.
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
+  TALENT_TOOL_NAMES.LIST_DOCUMENTS,
+  TALENT_TOOL_NAMES.READ_DOCUMENT,
+  TALENT_TOOL_NAMES.UPDATE_DOCUMENT,
 ] as const;
 
 export const CAREER_REALTIME_VOICE_ONBOARDING_TOOL_NAMES: readonly string[] = [

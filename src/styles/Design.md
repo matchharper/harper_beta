@@ -116,6 +116,14 @@ label과 오류 문구는 기존 row/dialog의 정보 구조 안에서 control �
 
 ## Common Recipes
 
+Font weight:
+
+```tsx
+<span className="font-regular">400 weight text</span>
+```
+
+`font-regular`은 `font-weight: 400`에 대응한다.
+
 Page shell:
 
 ```tsx
@@ -243,6 +251,8 @@ Variants:
 | `neutral` | 약한 fill이 필요한 filter, toggle, grouped 또는 repeated action |
 | `dark` | 가장 높은 대비가 필요한 main CTA나 저장/확인 action |
 | `primary` | 브랜드 강조가 필요한 main CTA, 복사, 초대 action. 한 scope에 남발하지 않는다 |
+| `positive` | 수락, 연결, 완료처럼 명확한 긍정 action |
+| `critical` | 거절처럼 명확한 부정 action. 삭제처럼 destructive한 flow에는 `warn`을 우선한다 |
 | `warn` | 삭제, 탈퇴처럼 destructive flow에 진입하거나 이를 확정하는 action |
 
 Sizes:

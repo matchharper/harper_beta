@@ -32,6 +32,8 @@ const TALENT_REQUEST_DELIVERY_CONSISTENCY_MIGRATION =
   "20260807110000_company_talent_request_delivery_consistency.sql";
 const TALENT_REQUEST_IMMEDIATE_ENQUEUE_MIGRATION =
   "20260807120000_company_talent_request_immediate_enqueue.sql";
+const TALENT_CONTACT_DRAFT_MIGRATION =
+  "20260819110000_company_talent_contact_drafts.sql";
 const COMPANY_ROLE_RECURRING_MATCHING_MIGRATION =
   "20260812150000_company_role_behavior_context_matching.sql";
 const COMPANY_INTERNAL_ROLE_MATCHING_LIFECYCLE_MIGRATION =
@@ -984,6 +986,7 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
   await applyMigration(sql, CHANGE_TALENT_REQUEST_MIGRATION);
   await applyMigration(sql, TALENT_REQUEST_DELIVERY_CONSISTENCY_MIGRATION);
   await applyMigration(sql, TALENT_REQUEST_IMMEDIATE_ENQUEUE_MIGRATION);
+  await applyMigration(sql, TALENT_CONTACT_DRAFT_MIGRATION);
   const scopedQueueIndex = firstRow(
     await sql`
       select indexdef
@@ -1525,6 +1528,133 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
         "count"
       ) === 1,
     "a candidate answer after committed delivery was not queued for the company"
+  );
+
+  await sql`
+    update public.talent_opportunity_tag
+    set tag = '내부:연결대기', updated_at = now()
+    where opportunity_id = ${IDS.legacyRole}::uuid
+      and talent_id = ${IDS.talent}::uuid
+  `;
+  const draft = firstRow(
+    await sql`
+      insert into public.company_talent_requests(
+        company_workspace_id, role_id, recommendation_id, talent_id,
+        source_company_message_id, expects_document, request_context,
+        workflow_status, delivery_subject, delivery_body, draft_revision
+      ) values (
+        ${IDS.workspaceA}::uuid,
+        ${IDS.legacyRole}::uuid,
+        ${IDS.recommendation}::uuid,
+        ${IDS.talent}::uuid,
+        ${Number(workspaceScopedMessage.id)}::bigint,
+        false,
+        'Exact-copy draft verification',
+        'draft',
+        'Draft subject revision 1',
+        'Draft body revision 1',
+        1
+      )
+      returning id, workflow_status, draft_revision, approved_at
+    `
+  );
+  assert(
+    draft.workflow_status === "draft" &&
+      draft.draft_revision === 1 &&
+      draft.approved_at === null &&
+      value<number>(
+        await sql`
+          select count(*)::int as count
+          from public.contact_queue
+          where company_talent_request_id = ${String(draft.id)}::uuid
+        `,
+        "count"
+      ) === 0,
+    "a candidate contact draft created an outbox item before approval"
+  );
+  await expectDbError(
+    "stale candidate contact draft approval",
+    () =>
+      sql`
+        select public.schedule_company_talent_request_v1(
+          ${String(draft.id)}::uuid,
+          ${IDS.workspaceA}::uuid,
+          ${IDS.legacyRole}::uuid,
+          ${IDS.talent}::uuid,
+          2,
+          'standard'
+        )
+      `,
+    /company_talent_request_draft_stale/i
+  );
+  await sql`
+    update public.company_talent_requests
+    set delivery_subject = 'Draft subject revision 2',
+        delivery_body = 'Draft body revision 2',
+        draft_revision = 2
+    where id = ${String(draft.id)}::uuid
+      and workflow_status = 'draft'
+      and draft_revision = 1
+  `;
+  const scheduledDraft = firstRow(
+    await sql`
+      select public.schedule_company_talent_request_v1(
+        ${String(draft.id)}::uuid,
+        ${IDS.workspaceA}::uuid,
+        ${IDS.legacyRole}::uuid,
+        ${IDS.talent}::uuid,
+        2,
+        'standard'
+      ) as result
+    `
+  ).result as Record<string, unknown>;
+  const scheduledDraftState = firstRow(
+    await sql`
+      select request.workflow_status, request.approved_at,
+             queue.status as queue_status,
+             queue.payload -> 'delivery' ->> 'subject' as queued_subject,
+             queue.payload -> 'delivery' ->> 'chatText' as queued_body,
+             (queue.payload -> 'delivery' ->> 'draftRevision')::int
+               as queued_revision
+      from public.company_talent_requests request
+      join public.contact_queue queue
+        on queue.company_talent_request_id = request.id
+       and queue.type = 'company_request_candidate_delivery'
+      where request.id = ${String(draft.id)}::uuid
+    `
+  );
+  assert(
+    scheduledDraft.status === "queued" &&
+      scheduledDraftState.workflow_status === "queued" &&
+      scheduledDraftState.approved_at !== null &&
+      scheduledDraftState.queue_status === "queued" &&
+      scheduledDraftState.queued_subject === "Draft subject revision 2" &&
+      scheduledDraftState.queued_body === "Draft body revision 2" &&
+      scheduledDraftState.queued_revision === 2,
+    "draft approval did not atomically snapshot the exact approved revision"
+  );
+  const cancelledDraft = firstRow(
+    await sql`
+      select public.cancel_company_talent_request_v1(
+        ${String(draft.id)}::uuid,
+        ${IDS.workspaceA}::uuid,
+        ${IDS.legacyRole}::uuid,
+        ${IDS.talent}::uuid
+      ) as result
+    `
+  ).result as Record<string, unknown>;
+  assert(
+    cancelledDraft.status === "cancelled" &&
+      value<string>(
+        await sql`
+          select status
+          from public.contact_queue
+          where company_talent_request_id = ${String(draft.id)}::uuid
+            and type = 'company_request_candidate_delivery'
+        `,
+        "status"
+      ) === "cancelled",
+    "an approved candidate contact draft was not cancellable before delivery"
   );
   logPass(
     "company requests remain scoped and preserve committed delivery across stage changes"

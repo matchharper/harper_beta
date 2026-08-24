@@ -20,9 +20,6 @@ export function buildCareerToolPolicyPrompt(args: {
   const hasWebSearchTool = toolNames.includes("web_search");
   const hasResearchCompanyTool = toolNames.includes("research_company");
   const hasOpenUrlTool = toolNames.includes("open_url");
-  const hasLookupAnswerExamplesTool = toolNames.includes(
-    "lookup_answer_examples"
-  );
   const hasRecommendedOpportunitiesTool = toolNames.includes(
     "read_recommended_opportunities"
   );
@@ -37,6 +34,9 @@ export function buildCareerToolPolicyPrompt(args: {
   const hasReadActivityEventsTool = toolNames.includes(
     "read_talent_activity_events"
   );
+  const hasListDocumentsTool = toolNames.includes("list_documents");
+  const hasReadDocumentTool = toolNames.includes("read_document");
+  const hasUpdateDocumentTool = toolNames.includes("update_document");
   const hasJobPostingRecommendationTool = toolNames.includes(
     "recommend_job_postings"
   );
@@ -58,6 +58,9 @@ export function buildCareerToolPolicyPrompt(args: {
     hasUpdateLanguageSettingTool ? "`update_language_setting`" : null,
     hasUpdateSettingTool ? "`update_setting`" : null,
     hasUpdateTalentProfileTool ? "`update_talent_profile`" : null,
+    hasListDocumentsTool ? "`list_documents`" : null,
+    hasReadDocumentTool ? "`read_document`" : null,
+    hasUpdateDocumentTool ? "`update_document`" : null,
   ]
     .filter((name): name is string => Boolean(name))
     .join(", ");
@@ -105,11 +108,6 @@ export function buildCareerToolPolicyPrompt(args: {
           "- Use `research_company` only when the user genuinely wants to learn about a specific company, such as culture, funding, team, business model, or hiring landscape.",
           "- Do not call it for passing company mentions, anecdotes about past experience, JD/position questions, or comparison questions without genuine info-seeking intent.",
           "- For a clear light company-info request like '~~는 어떤 회사야?', call it directly. Ask before researching only when the company mention is ambiguous or not clearly an information request.",
-        ]
-      : []),
-    ...(hasLookupAnswerExamplesTool
-      ? [
-          "- Use `lookup_answer_examples` when user's question or request cannot be answered well with the current prompt and conversation context. mostly about question about harper service's system logic or help about how to use harper service(ex. 탈퇴, 기회 연결 수락/거절 하면 어떻게 되는지, ~~를 어디서 하는지 등). Pass the user's latest message verbatim, then adapt any returned answer examples naturally without exposing raw IDs or scores.",
         ]
       : []),
     ...(hasRecommendedOpportunitiesTool
@@ -172,6 +170,28 @@ export function buildCareerToolPolicyPrompt(args: {
     ...(hasReadActivityEventsTool
       ? [
           "- Use `read_talent_activity_events` when the answer depends on recent Career activity or profile changes, such as what the user changed since the last conversation, what Harper should remember from recent updates, whether the user followed or unfollowed a company, or whether there were major updates before discussing recommendations. Prefer a small `limit` such as 3-5 unless the user asks for more.",
+        ]
+      : []),
+    ...(hasListDocumentsTool || hasReadDocumentTool || hasUpdateDocumentTool
+      ? [
+          "",
+          "### Saved documents",
+          hasListDocumentsTool
+            ? "- Use `list_documents` for earlier or ambiguous saved-file references. Start with offset=0 and limit=10; fetch nextOffset only when the user needs more. The list is metadata-only and excludes soft-deleted documents."
+            : "",
+          hasReadDocumentTool
+            ? "- Use `read_document` only when the answer needs saved document content. For a current-turn upload that already includes content_excerpt, start from its next_offset; for an earlier saved document, start with offset=0. Use max_chars=4000, then continue from nextOffset only when hasMore is true and the missing portion matters. A binary-only file may have textAvailable=false."
+            : "",
+          hasUpdateDocumentTool
+            ? '- Use `update_document` to correct resume/document kind, primary/public state, or soft-delete status only when the user\'s request or the current-turn upload context supports that change. Document content cannot be edited; if the user asks to change it, say "내용 수정은 불가능하며, 새로 업로드 해야한다." Never expose internal field names in the user-facing reply.'
+            : "",
+          hasUpdateDocumentTool
+            ? "- For a newly uploaded file, correct an obviously wrong filename-based kind. Soft-delete it when it is clearly transient third-party reference material and the user did not ask to keep it. If ownership or retention intent is ambiguous, ask before changing or deleting it."
+            : "",
+          hasUpdateDocumentTool
+            ? "- Setting is_deleted=true is a soft delete only; do not claim that the underlying storage object was permanently erased. Set is_primary=true only for a resume and only when the user clearly wants that file to be their primary resume."
+            : "",
+          "",
         ]
       : []),
     ...(hasJobPostingRecommendationTool

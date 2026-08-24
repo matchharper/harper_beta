@@ -24,6 +24,7 @@ import {
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import { buildCareerToolPolicyPrompt } from "@/lib/career/prompts/toolPolicyPrompt";
 import { resolveCareerRealtimeProvider } from "@/lib/career/realtimeProvider";
+import { getCareerStreamingNextToolNames } from "@/lib/career/streamingToolChainPolicy";
 
 export const CAREER_LLM_CONFIG = {
   // 커리어 제품군의 LLM/Realtime 기본 설정 모음.
@@ -272,17 +273,6 @@ type AnthropicEffort = "low" | "medium" | "high" | "xhigh" | "max";
 
 const STREAMING_TOOL_CHAIN_MAX_CALLS = 3;
 
-const STREAMING_CHAINABLE_TOOLS: Record<string, readonly string[]> = {
-  web_search: ["open_url", "web_search"],
-  open_url: ["open_url", "web_search"],
-  get_internal_roles: ["internal_role_priority_review", "get_internal_roles"],
-  read_recommended_opportunities: [
-    "get_role_context",
-    "update_recommended_opportunity_feedback",
-  ],
-  get_role_context: ["update_recommended_opportunity_feedback"],
-};
-
 function cleanModelText(raw: string) {
   return raw
     .replace(/^```json\s*/i, "")
@@ -463,13 +453,9 @@ function resolveNextStreamingTools(args: {
   allTools: readonly TalentChatTool[];
   attemptedToolNames: readonly string[];
 }) {
-  const nextToolNameSet = new Set<string>();
-  for (const attemptedToolName of args.attemptedToolNames) {
-    for (const nextToolName of STREAMING_CHAINABLE_TOOLS[attemptedToolName] ??
-      []) {
-      nextToolNameSet.add(nextToolName);
-    }
-  }
+  const nextToolNameSet = new Set<string>(
+    getCareerStreamingNextToolNames(args.attemptedToolNames)
+  );
   if (nextToolNameSet.size === 0) return [];
 
   return args.allTools.filter((tool) =>

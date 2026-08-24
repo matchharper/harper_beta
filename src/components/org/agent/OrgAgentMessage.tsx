@@ -1,7 +1,14 @@
-import { CalendarClock, Check, FileText, LoaderCircle } from "lucide-react";
+import {
+  Building2,
+  CalendarClock,
+  Check,
+  FileText,
+  LoaderCircle,
+} from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { ChatThinkingLogPanel } from "@/components/chat/ChatThinkingLogPanel";
+import { ChatMessageAttachmentList } from "@/components/chat/ChatMessageAttachmentList";
 import {
   CHAT_ASSISTANT_CONTENT_INHERIT_CLASS,
   ChatAssistantContent,
@@ -11,10 +18,11 @@ import {
   ChatDateDivider,
   ChatMessageBubbleFrame,
 } from "@/components/chat/ChatTimeline";
-import { Button } from "@/components/ui/button";
+import { CardButton, MuteButton } from "@/components/ui/button";
 import { useSendOrgAgentMeetingRequest } from "@/hooks/org/useOrgAgent";
 import { splitOrgAgentMentionText } from "@/lib/org/agent/mentionText";
 import { formatOrgChatMessageTime } from "@/lib/org/agent/messagePresentation";
+import { splitOrgAgentCompanyInfoMarker } from "@/lib/org/agent/companyInfoMarker";
 import {
   convertSlackMrkdwnToWebMarkdown,
   renderOrgAgentWebLinks,
@@ -100,13 +108,46 @@ function MentionText({ content }: { content: string }) {
   );
 }
 
+function OrgCompanyInfoCard({
+  className,
+  onClick,
+}: {
+  className?: string;
+  onClick: () => void;
+}) {
+  return (
+    <CardButton
+      aria-label="역할 설명에 반영한 회사 정보 열기"
+      className={cn(
+        "w-fit min-w-[min(360px,100%)] rounded-lg border-black/5 items-center gap-3 px-3 pr-6 py-4 mb-2 font-normal hover:bg-neutral-100 hover:border-black/5",
+        className
+      )}
+      onClick={onClick}
+    >
+      <span className="flex size-10 bg-black/4 shrink-0 items-center justify-center rounded-md text-black/70">
+        <Building2 aria-hidden className="size-4.5" strokeWidth={1.7} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[13px] text-black font-medium">
+          회사 정보
+        </span>
+        <span className="block text-[13px] leading-4 text-black/50">
+          현재 후보자에게 소개되는 회사 정보를 확인해 보세요.
+        </span>
+      </span>
+    </CardButton>
+  );
+}
+
 function OrgAssistantContent({
   content,
   fromSlack = false,
+  onCompanyInfoClick,
   workspaceId,
 }: {
   content: string;
   fromSlack?: boolean;
+  onCompanyInfoClick?: () => void;
   workspaceId: string;
 }) {
   const router = useRouter();
@@ -114,22 +155,53 @@ function OrgAssistantContent({
     ? parseHarperSlackChoiceMarkers(stripSlackSentUsingAttribution(content))
         .text
     : content;
-  const markdown = renderOrgAgentWebLinks({
-    markdown: fromSlack
-      ? convertSlackMrkdwnToWebMarkdown(visibleContent)
-      : visibleContent,
-    workspaceId,
-  });
+  const companyInfoSegments = splitOrgAgentCompanyInfoMarker(visibleContent);
+  const handleCompanyInfoClick = () => {
+    if (onCompanyInfoClick) {
+      onCompanyInfoClick();
+      return;
+    }
+    void router.push({
+      pathname: "/org/team",
+      query: { orgId: workspaceId },
+    });
+  };
 
   return (
-    <ChatAssistantContent
-      className={CHAT_ASSISTANT_CONTENT_INHERIT_CLASS}
-      content={markdown}
-      onHarperLinkClick={(href) => {
-        const route = getHarperOwnedUrlRoute(href);
-        if (route) void router.push(route);
-      }}
-    />
+    <>
+      {companyInfoSegments.map((segment, index) => {
+        if (segment.kind === "company_info") {
+          return (
+            <OrgCompanyInfoCard
+              className={index > 0 ? "mt-3" : undefined}
+              key={`company-info:${index}`}
+              onClick={handleCompanyInfoClick}
+            />
+          );
+        }
+
+        const markdown = renderOrgAgentWebLinks({
+          markdown: fromSlack
+            ? convertSlackMrkdwnToWebMarkdown(segment.text)
+            : segment.text,
+          workspaceId,
+        });
+        return (
+          <ChatAssistantContent
+            className={cn(
+              CHAT_ASSISTANT_CONTENT_INHERIT_CLASS,
+              index > 0 && "mt-3"
+            )}
+            content={markdown}
+            key={`text:${index}`}
+            onHarperLinkClick={(href) => {
+              const route = getHarperOwnedUrlRoute(href);
+              if (route) void router.push(route);
+            }}
+          />
+        );
+      })}
+    </>
   );
 }
 
@@ -158,10 +230,9 @@ function MessageActionView({
   const sent = action.status === "sent" || meetingRequest.isSuccess;
   return (
     <div className="mt-3">
-      <Button
+      <MuteButton
         type="button"
         size="sm"
-        variant="secondary"
         disabled={!roleId || sent || meetingRequest.isPending}
         onClick={() => {
           if (!roleId) return;
@@ -183,7 +254,7 @@ function MessageActionView({
           <CalendarClock className="h-3.5 w-3.5" />
         )}
         {sent ? "요청 보냄" : action.label}
-      </Button>
+      </MuteButton>
     </div>
   );
 }
@@ -194,6 +265,7 @@ export function OrgAgentMessageBubble({
   choicePending,
   currentUserId,
   message,
+  onCompanyInfoClick,
   onRoleCreationChoice,
   roleId,
   showUserAttribution = false,
@@ -204,6 +276,7 @@ export function OrgAgentMessageBubble({
   choicePending?: boolean;
   currentUserId?: string | null;
   message: OrgAgentMessage;
+  onCompanyInfoClick?: () => void;
   onRoleCreationChoice?: (args: {
     actionId: string;
     decision: "no" | "yes";
@@ -225,15 +298,24 @@ export function OrgAgentMessageBubble({
       (!message.authorUserId && !fromSlack));
   const messageTime = formatOrgChatMessageTime(message.createdAt);
   const actions = message.metadata.actions ?? [];
-  const toolResultActions = actions.filter(
-    (action) =>
-      action.kind === "entity_updated" || action.kind === "request_updated"
-  );
+  const toolResultActions = actions
+    .filter(
+      (action) =>
+        action.kind === "entity_updated" || action.kind === "request_updated"
+    )
+    .filter(
+      (action, index, items) =>
+        items.findIndex(
+          (candidate) =>
+            candidate.kind === action.kind && candidate.label === action.label
+        ) === index
+    );
   const followUpActions = actions.filter(
     (action) =>
       action.kind !== "entity_updated" && action.kind !== "request_updated"
   );
   const roleChoices = message.metadata.roleCreation?.choices ?? [];
+  const attachments = message.metadata.attachments ?? [];
 
   return (
     <div className="space-y-0">
@@ -283,6 +365,13 @@ export function OrgAgentMessageBubble({
           ) : null}
         </div>
       ) : null}
+      {isUser && attachments.length > 0 ? (
+        <ChatMessageAttachmentList
+          align={isOwnUserMessage ? "end" : "start"}
+          attachments={attachments}
+          className="mb-1"
+        />
+      ) : null}
       <ChatMessageBubbleFrame
         className={cn(
           "mb-2",
@@ -307,20 +396,16 @@ export function OrgAgentMessageBubble({
           <OrgAssistantContent
             content={assistantContentOverride ?? message.content}
             fromSlack={fromSlack}
+            onCompanyInfoClick={onCompanyInfoClick}
             workspaceId={workspaceId}
           />
         )}
-        {(message.metadata.attachments ?? []).length > 0 ? (
+        {!isUser && attachments.length > 0 ? (
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {(message.metadata.attachments ?? []).map((attachment, index) => (
+            {attachments.map((attachment, index) => (
               <span
                 key={`${attachment.name}:${index}`}
-                className={cn(
-                  "inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px]",
-                  isOwnUserMessage
-                    ? "bg-neutral-00/15 text-neutral-00"
-                    : "bg-bg-weak text-neutral-muted"
-                )}
+                className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-bg-weak px-2.5 py-1 text-[11px] text-neutral-muted"
               >
                 <FileText className="size-3 shrink-0" />
                 <span className="truncate">{attachment.name}</span>
@@ -369,9 +454,11 @@ export function OrgAgentMessageBubble({
 }
 
 export function OrgAgentStreamingBubble({
+  onCompanyInfoClick,
   text,
   workspaceId,
 }: {
+  onCompanyInfoClick?: () => void;
   text: string;
   workspaceId: string;
 }) {
@@ -383,7 +470,11 @@ export function OrgAgentStreamingBubble({
         isUser={false}
         typographyClassName="text-[15px] leading-[1.72] md:text-[14px] md:leading-[1.8]"
       >
-        <OrgAssistantContent content={text} workspaceId={workspaceId} />
+        <OrgAssistantContent
+          content={text}
+          onCompanyInfoClick={onCompanyInfoClick}
+          workspaceId={workspaceId}
+        />
       </ChatMessageBubbleFrame>
     </div>
   );
@@ -399,7 +490,7 @@ export function OrgAgentPendingBubble() {
       >
         <ChatAssistantPending
           className="text-[13px] leading-[1.55]"
-          label="작성 중..."
+          label="답변 작성 중"
         />
       </ChatMessageBubbleFrame>
     </div>

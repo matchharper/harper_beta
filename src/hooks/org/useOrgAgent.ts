@@ -14,7 +14,6 @@ import {
   getInternalAccessToken,
   refreshInternalAccessToken,
 } from "@/lib/internalApiClient";
-import { filterOrgAgentMentionCandidates } from "@/lib/org/agent/mentionCandidates";
 import type { OrgAgentModelId } from "@/lib/org/agent/modelConfig";
 import type {
   OrgAgentMeetingRequestResponse,
@@ -148,9 +147,19 @@ function toThinkingLog(value: unknown): OrgAgentThinkingLog | null {
     record.status === "error"
       ? record.status
       : undefined;
+  const icon =
+    record.icon === "read" ||
+    record.icon === "write" ||
+    record.icon === "send" ||
+    record.icon === "run" ||
+    record.icon === "search" ||
+    record.icon === "link"
+      ? record.icon
+      : undefined;
   return {
     at: at || new Date().toISOString(),
     ...(id ? { id } : {}),
+    ...(icon ? { icon } : {}),
     label,
     status,
   };
@@ -245,18 +254,29 @@ export function useOrgAgentMessageHistory(args: {
 
 export function orgAgentMentionCandidatesQueryOptions(args: {
   enabled?: boolean;
+  query?: string | null;
+  roleId?: string | null;
   workspaceId?: string | null;
 }) {
   const workspaceId = args.workspaceId?.trim() ?? "";
-  return queryOptions({
-    queryKey: queryKeys.org.agentMentions({ workspaceId }),
-    queryFn: async () => {
-      const params = new URLSearchParams({ workspaceId });
-      const payload = await fetchWithInternalAuth<OrgAgentMentionsResponse>(
+  const query = args.query?.trim() ?? "";
+  const roleId = args.roleId?.trim() ?? "";
+  return infiniteQueryOptions({
+    queryKey: queryKeys.org.agentMentions({ query, roleId, workspaceId }),
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({
+        limit: "20",
+        offset: String(pageParam),
+        query,
+        workspaceId,
+      });
+      if (roleId) params.set("roleId", roleId);
+      return fetchWithInternalAuth<OrgAgentMentionsResponse>(
         `/api/org/agent/mentions?${params.toString()}`
       );
-      return payload.candidates;
     },
+    getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
     enabled: (args.enabled ?? true) && Boolean(workspaceId),
     staleTime: 60_000,
   });
@@ -268,15 +288,25 @@ export function useOrgAgentMentionCandidates(args: {
   roleId?: string | null;
   workspaceId?: string | null;
 }) {
-  return useQuery({
-    ...orgAgentMentionCandidatesQueryOptions(args),
-    select: (candidates) =>
-      filterOrgAgentMentionCandidates({
-        candidates,
-        query: args.query,
-        roleId: args.roleId,
-      }),
-  });
+  const infinite = useInfiniteQuery(
+    orgAgentMentionCandidatesQueryOptions(args)
+  );
+  const candidates = useMemo(() => {
+    const seenTalentIds = new Set<string>();
+    return (infinite.data?.pages ?? [])
+      .flatMap((page) => page.candidates)
+      .filter((candidate) => {
+        if (seenTalentIds.has(candidate.talentId)) return false;
+        seenTalentIds.add(candidate.talentId);
+        return true;
+      });
+  }, [infinite.data?.pages]);
+
+  return {
+    ...infinite,
+    candidates,
+    totalCount: infinite.data?.pages[0]?.totalCount ?? candidates.length,
+  };
 }
 
 export function useOrgAgentChat(args: {
@@ -416,7 +446,7 @@ export function useOrgAgentChat(args: {
           useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
             error:
               sanitizeVisibleAgentError(payload.error) ||
-              "에이전트 응답을 만들지 못했습니다.",
+              "답변을 만들지 못했어요. 잠시 후 다시 시도해 주세요.",
           });
           return;
         }
@@ -438,11 +468,15 @@ export function useOrgAgentChat(args: {
             if (parsed.event === "user_message") {
               appendMessagesToCache([parsed.data as OrgAgentMessage]);
               if (responseRoleId !== activeRoleId) {
-                appendOrgAgentMessagesToCache(queryClient, {
-                  mode,
-                  roleId: responseRoleId,
-                  workspaceId,
-                }, [parsed.data as OrgAgentMessage]);
+                appendOrgAgentMessagesToCache(
+                  queryClient,
+                  {
+                    mode,
+                    roleId: responseRoleId,
+                    workspaceId,
+                  },
+                  [parsed.data as OrgAgentMessage]
+                );
               }
               useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
                 optimisticUserMessage: null,
@@ -450,11 +484,15 @@ export function useOrgAgentChat(args: {
             } else if (parsed.event === "assistant_message") {
               appendMessagesToCache([parsed.data as OrgAgentMessage]);
               if (responseRoleId !== activeRoleId) {
-                appendOrgAgentMessagesToCache(queryClient, {
-                  mode,
-                  roleId: responseRoleId,
-                  workspaceId,
-                }, [parsed.data as OrgAgentMessage]);
+                appendOrgAgentMessagesToCache(
+                  queryClient,
+                  {
+                    mode,
+                    roleId: responseRoleId,
+                    workspaceId,
+                  },
+                  [parsed.data as OrgAgentMessage]
+                );
               }
               useOrgAgentLiveChatStore.getState().finish(streamLiveChatKey);
             } else if (parsed.event === "role_created") {
@@ -511,7 +549,7 @@ export function useOrgAgentChat(args: {
             } else if (parsed.event === "error") {
               const message = sanitizeVisibleAgentError(
                 (parsed.data as { error?: unknown }).error ??
-                  "에이전트 응답을 만들지 못했습니다."
+                  "답변을 만들지 못했어요. 잠시 후 다시 시도해 주세요."
               );
               useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
                 assistantStatus: "idle",
@@ -550,7 +588,7 @@ export function useOrgAgentChat(args: {
           error:
             error instanceof Error
               ? sanitizeVisibleAgentError(error.message)
-              : "에이전트 응답을 만들지 못했습니다.",
+              : "답변을 만들지 못했어요. 잠시 후 다시 시도해 주세요.",
         });
       } finally {
         if (mode === "role_creation" && !queriesInvalidated) {

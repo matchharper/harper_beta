@@ -1,9 +1,15 @@
 import {
+  BookOpen,
   Check,
   ChevronDown,
   ChevronRight,
   CircleAlert,
+  ExternalLink,
   Loader2,
+  Pencil,
+  Play,
+  ScanSearch,
+  Send,
 } from "lucide-react";
 import { memo, useState } from "react";
 
@@ -12,6 +18,7 @@ import { cn } from "@/lib/utils";
 
 export type ChatThinkingLogEntry = {
   id?: string;
+  icon?: "read" | "write" | "send" | "run" | "search" | "link";
   label: string;
   status?: "done" | "error" | "running";
 };
@@ -24,8 +31,10 @@ export type ChatThinkingLogPanelProps = {
 };
 
 function ThinkingLogStatusIcon({
+  icon,
   status,
 }: {
+  icon?: ChatThinkingLogEntry["icon"];
   status: "done" | "error" | "running";
 }) {
   if (status === "running") {
@@ -44,8 +53,22 @@ function ThinkingLogStatusIcon({
       />
     );
   }
+  const Icon =
+    icon === "search"
+      ? ScanSearch
+      : icon === "link"
+        ? ExternalLink
+        : icon === "read"
+          ? BookOpen
+          : icon === "write"
+            ? Pencil
+            : icon === "send"
+              ? Send
+              : icon === "run"
+                ? Play
+                : Check;
   return (
-    <Check
+    <Icon
       aria-hidden="true"
       className="mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral-soft"
     />
@@ -105,7 +128,10 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
                   )}
                 >
                   {entry.status ? (
-                    <ThinkingLogStatusIcon status={entry.status} />
+                    <ThinkingLogStatusIcon
+                      icon={entry.icon}
+                      status={entry.status}
+                    />
                   ) : null}
                   <span>{entry.label}</span>
                 </li>

@@ -1,3 +1,5 @@
+import { uploadTalentDocument } from "@/lib/talentOnboarding/documentUploadClient";
+
 export type TalentCaptureSource =
   | "resume"
   | "linkedin"
@@ -307,46 +309,11 @@ async function fetchWithAccessToken(
   });
 }
 
-async function parseResumeText(accessToken: string, file: File) {
-  const formData = new FormData();
-  formData.append("file", file);
-
-  const response = await fetchWithAccessToken(
-    accessToken,
-    "/api/talent/resume/parse",
-    {
-      method: "POST",
-      body: formData,
-    }
-  );
-
-  if (!response.ok) {
-    return "";
-  }
-
-  const payload = await response.json().catch(() => ({}));
-  return typeof payload?.text === "string"
-    ? payload.text.trim().slice(0, 20000)
-    : "";
-}
-
 async function uploadResume(accessToken: string, file: File) {
-  const formData = new FormData();
-  formData.append("file", file);
-
-  const response = await fetchWithAccessToken(
-    accessToken,
-    "/api/talent/resume/upload",
-    {
-      method: "POST",
-      body: formData,
-    }
-  );
-  const payload = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    throw new Error(payload?.error ?? "이력서 업로드에 실패했습니다.");
-  }
+  const payload = await uploadTalentDocument({
+    fetchWithAuth: (url, init) => fetchWithAccessToken(accessToken, url, init),
+    file,
+  });
 
   return {
     resumeFileName:
@@ -359,6 +326,8 @@ async function uploadResume(accessToken: string, file: File) {
         : "",
     resumeDocumentId:
       typeof payload?.document?.id === "string" ? payload.document.id : "",
+    resumeText:
+      typeof payload?.resumeText === "string" ? payload.resumeText : "",
   };
 }
 
@@ -384,12 +353,11 @@ export async function finalizePendingTalentCapture(accessToken: string) {
     }
 
     const uploadResult = await uploadResume(accessToken, pending.resumeFile);
-    const resumeText = await parseResumeText(accessToken, pending.resumeFile);
     body.resumeFileName = uploadResult.resumeFileName;
     body.resumeDocumentId = uploadResult.resumeDocumentId;
     body.resumeStoragePath = uploadResult.resumeStoragePath;
-    if (resumeText) {
-      body.resumeText = resumeText;
+    if (uploadResult.resumeText) {
+      body.resumeText = uploadResult.resumeText;
     }
   } else if (pending.link) {
     body.links = [pending.link];

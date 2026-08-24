@@ -179,7 +179,7 @@ const buildCareerOpportunityTypeMeta = (
     savedStageLabels: {
       applied: t("career.common.opportunity_type_meta.0ume46n", "지원함"),
     },
-    shortLabel: t("career.common.opportunity_type_meta.16ujfch", "외부 JD"),
+    shortLabel: t("career.common.opportunity_type_meta.16ujfch", "외부 기회"),
     sortPriority: 2,
   },
   [OpportunityType.InternalRecommendation]: {
@@ -284,7 +284,7 @@ const buildCareerOpportunityTypeMeta = (
         "연결됨"
       ),
     },
-    shortLabel: t("career.common.opportunity_type_meta.1gbs2on", "회사 추천"),
+    shortLabel: t("career.common.opportunity_type_meta.1gbs2on", "Harper 기회"),
     sortPriority: 1,
   },
   [OpportunityType.IntroRequest]: {

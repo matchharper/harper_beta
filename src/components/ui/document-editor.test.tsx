@@ -7,7 +7,7 @@ import {
   isDocumentPreviewOverflowing,
 } from "@/components/ui/document-editor";
 
-test("renders a compact clickable document preview", () => {
+test("renders a taller clickable document preview", () => {
   const html = renderToStaticMarkup(
     <DocumentEditor
       aria-label="문서 내용"
@@ -23,8 +23,9 @@ test("renders a compact clickable document preview", () => {
   assert.match(html, /^<div/);
   assert.match(html, /<button/);
   assert.match(html, /data-document-editor-preview=""/);
-  assert.match(html, /min-h-\[260px\]/);
-  assert.match(html, /max-h-\[340px\]/);
+  assert.match(html, /min-h-\[340px\]/);
+  assert.match(html, /max-h-\[440px\]/);
+  assert.match(html, /max-h-\[268px\]/);
   assert.match(html, /rounded-lg/);
   assert.match(html, /border-neutral-1000-a05/);
   assert.match(html, /hover:bg-neutral-100/);

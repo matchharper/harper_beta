@@ -12,8 +12,8 @@ import {
 } from "@/lib/org/pipelineStage";
 
 test("company-side labels never expose common database enums", () => {
-  assert.equal(humanizeOrgRoleStatus("top_priority"), "최우선 채용");
-  assert.equal(humanizeOrgRoleStatus("paused"), "일시 중지");
+  assert.equal(humanizeOrgRoleStatus("top_priority"), "최우선 진행 중");
+  assert.equal(humanizeOrgRoleStatus("paused"), "중단");
   assert.equal(humanizeOrgStage("pending_connection"), "연결 대기");
   assert.equal(humanizeOrgStage("final_offer"), "최종 오퍼 단계");
   assert.equal(humanizeOrgWorkMode("remote"), "원격 근무");

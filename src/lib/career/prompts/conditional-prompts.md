@@ -53,7 +53,6 @@ Action note: ...
 - `get_role_context`
 - `update_recommended_opportunity_feedback`
 - `research_company`
-- `lookup_answer_examples`
 - `read_talent_activity_events`
 - `update_setting`
 - `update_talent_profile`

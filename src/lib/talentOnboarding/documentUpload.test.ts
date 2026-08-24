@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  extractTalentDocumentTextContent,
   extractResumeTextContentBestEffort,
+  inferTalentDocumentKindFromFileName,
+  isTalentDocumentTextExtractable,
   MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES,
   resolveTalentDocumentUpload,
   TALENT_DOCUMENT_STORAGE_ALLOWED_MIME_TYPES,
+  validateTalentDocumentFileContent,
   validateResumeFileContent,
 } from "./documentUpload";
 
@@ -75,7 +79,30 @@ test("storage MIME configuration covers every resolved document type", () => {
     assert.ok(resolved);
     assert.ok(allowedMimeTypes.has(resolved.contentType));
   }
-  assert.equal(MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES, 20 * 1024 * 1024);
+  assert.equal(MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES, 4 * 1024 * 1024);
+});
+
+test("chat upload kind starts from resume terms in the file name", () => {
+  for (const fileName of [
+    "gildong-resume.pdf",
+    "CV_2026.docx",
+    "홍길동이력서.pdf",
+    "경력기술서_최종.md",
+  ]) {
+    assert.equal(inferTalentDocumentKindFromFileName(fileName), "resume");
+  }
+  for (const fileName of ["portfolio.pptx", "job-description.pdf"]) {
+    assert.equal(inferTalentDocumentKindFromFileName(fileName), "document");
+  }
+});
+
+test("only PDF, DOCX, TXT, and Markdown are text-extractable", () => {
+  for (const fileName of ["a.pdf", "a.docx", "a.txt", "a.md"]) {
+    assert.equal(isTalentDocumentTextExtractable(fileName), true);
+  }
+  for (const fileName of ["a.doc", "a.ppt", "a.pptx", "a.png", "a.xlsx"]) {
+    assert.equal(isTalentDocumentTextExtractable(fileName), false);
+  }
 });
 
 test("resume content validation checks MIME and magic bytes", () => {
@@ -102,6 +129,42 @@ test("resume content validation checks MIME and magic bytes", () => {
       suppliedContentType: "application/pdf",
     }),
     false
+  );
+});
+
+test("general document validation checks binary magic bytes", () => {
+  assert.equal(
+    validateTalentDocumentFileContent({
+      bytes: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00]),
+      fileName: "portfolio.png",
+      suppliedContentType: "image/png",
+    }),
+    true
+  );
+  assert.equal(
+    validateTalentDocumentFileContent({
+      bytes: Buffer.from("not a png"),
+      fileName: "portfolio.png",
+      suppliedContentType: "image/png",
+    }),
+    false
+  );
+});
+
+test("extracts text files without applying extraction to presentation files", async () => {
+  assert.equal(
+    await extractTalentDocumentTextContent({
+      bytes: Buffer.from("hello document"),
+      fileName: "notes.md",
+    }),
+    "hello document"
+  );
+  assert.equal(
+    await extractTalentDocumentTextContent({
+      bytes: Buffer.from("presentation bytes"),
+      fileName: "portfolio.ppt",
+    }),
+    null
   );
 });
 

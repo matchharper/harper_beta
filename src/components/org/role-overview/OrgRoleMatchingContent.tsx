@@ -192,27 +192,27 @@ export function OrgRoleMatchingContent({
         <div>
           <div className="mb-3 flex items-start justify-between gap-4">
             <div>
-              <RoleSectionHeading size="large" title="Role Request" />
+              <RoleSectionHeading size="large" title="Hiring Brief" />
               <div className="mt-1 text-[13px] font-normal leading-5 text-black/60">
-                이 내용은 매번 인재를 탐색하고 연결하거나 후보자를 추천할 때
-                기준으로 반영됩니다. 여러가지 사항이 있다면 무엇이 더 우선순위가
-                높은지 등을 자세히 알려주실 수록 좋습니다.
+                이 내용은 후보자를 탐색하고 추천할 때 내부 기준으로 사용해요.
+                여러 기준이 있다면 우선순위와 허용할 수 있는 tradeoff를 함께
+                적어 주세요.
                 <br />
-                내부적인 모든 판단 기준을 알려주세요. 민감한 사항도 전부
-                괜찮습니다.
+                공개 Description에 넣기 어려운 내부 기준도 작성할 수 있어요.
+                직무와 관련된 기준만 남겨 주세요.
               </div>
             </div>
           </div>
           <DocumentEditor
-            aria-label="Role Request 수정"
+            aria-label="Hiring Brief 수정"
             disabled={updateRole.isPending}
-            documentTitle="Request"
+            documentTitle="Hiring Brief"
             errorMessage={editingField === "request" ? saveError : ""}
             lastChangedAt={role.updatedAt}
             onChange={(event) =>
               changeDraft({ request: event.target.value }, "request")
             }
-            placeholder="Harper가 인재를 탐색하고 판단할 때 꼭 알아야 할 기준을 작성해 주세요."
+            placeholder="Harper가 후보자를 탐색하고 판단할 때 알아야 할 내부 기준을 작성해 주세요."
             readOnly={!canManage}
             rows={5}
             savedValue={role.request ?? ""}
@@ -228,9 +228,9 @@ export function OrgRoleMatchingContent({
         <div className="mt-20 pb-6">
           <div className="flex items-start justify-between gap-4">
             <RoleSectionHeading
-              info="이름은 기준을 나타내고, 상세 내용에는 필요한 수준과 근거, 가산점 또는 우려 요소를 적습니다. 평가 기준은 0-6개까지 저장할 수 있으며, 후보자를 검토하기에 충분한 내용이 있다면 3-6개의 평가 축으로 정리하는 것을 권장합니다."
+              info="이름은 기준을 나타내고, 상세 내용에는 필요한 수준과 근거, 가산점 또는 우려 요소를 적어요. 2–4개를 권장하며 최대 6개까지 추가할 수 있어요."
               size="large"
-              title="평가 기준"
+              title="Evaluation Criteria"
             />
             {editingField !== "criteria" ? (
               <MuteButton
@@ -326,8 +326,8 @@ export function OrgRoleMatchingContent({
             </div>
           ) : (
             <div className="mt-4 rounded-md bg-bg-basement px-4 py-3 text-[13px] leading-5 text-neutral-muted">
-              아직 구조화된 평가 기준이 없습니다. Harper가 역할 내용과 요청을
-              바탕으로 먼저 초안을 작성합니다.
+              아직 Evaluation Criteria가 없어요. Harper가 역할 내용과 Hiring
+              Brief를 바탕으로 먼저 초안을 작성합니다.
             </div>
           )}
           {editingField === "criteria" && saveError ? (

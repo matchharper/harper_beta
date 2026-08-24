@@ -21,6 +21,11 @@ import type {
   CareerConversationStarterMode,
 } from "@/lib/career/prompts/conversationStarters";
 import type { TalentUserChatMessageType } from "@/lib/talentOnboarding/onboarding";
+import type { CareerOpportunityMention } from "@/lib/career/opportunityMentionText";
+import type {
+  CareerPendingAction,
+  CareerPendingActionReference,
+} from "@/lib/career/pendingActions";
 
 export type CareerChatPanelContextValue = {
   user: User | null;
@@ -70,6 +75,7 @@ export type CareerChatPanelContextValue = {
   onboardingBeginPending: boolean;
   callStartPending?: boolean;
   callWrapUpPending?: boolean;
+  pendingActionsOverride?: CareerPendingAction[];
   onboardingPausePending: boolean;
 
   onGoogleLogin: () => void | Promise<void>;
@@ -87,11 +93,14 @@ export type CareerChatPanelContextValue = {
 
   onSendChatMessage: (args: {
     allowedToolNames?: readonly string[];
+    files?: File[];
     channel?: "chat" | "voice";
     conversationStarterId?: CareerConversationStarterId;
     text: string;
     link?: string;
     messageType?: TalentUserChatMessageType;
+    opportunityMentions?: CareerOpportunityMention[];
+    pendingAction?: CareerPendingActionReference;
     onError?: () => void;
   }) => void | Promise<void>;
   onStartConversationStarter?: (args: {
@@ -132,6 +141,7 @@ export type CareerChatPanelContextValue = {
   onStartCallMode?: (
     args?: CareerCallStartRequest
   ) => boolean | Promise<boolean>;
+  onOpenHistoryOpportunity?: (roleId: string) => void;
   onEndCallMode?: (options?: { forceCompleteOnboarding?: boolean }) => void;
   callTranscriptEntries?: CallTranscriptEntry[];
   liveUserTranscriptPlacement?: CallLiveTranscriptPlacement;

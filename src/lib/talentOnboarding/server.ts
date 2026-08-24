@@ -41,6 +41,7 @@ import {
 import {
   fetchTalentDocument,
   fetchTalentDocuments,
+  fetchTalentDocumentsByIds,
   pickLatestResumeDocument,
   serializeTalentDocuments,
   syncLegacyResumeFromDocuments,
@@ -84,6 +85,7 @@ export {
   fetchRecentMessages,
   fetchTalentDocument,
   fetchTalentDocuments,
+  fetchTalentDocumentsByIds,
   fetchTalentInsights,
   fetchTalentSetting,
   fetchTalentStructuredProfile,

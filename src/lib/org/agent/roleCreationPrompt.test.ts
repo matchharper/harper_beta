@@ -24,12 +24,15 @@ test("Slack role creation keeps the thread linked and uses Slack mrkdwn", () => 
   assert.match(prompt, /SLACK SURFACE/);
   assert.match(prompt, /permanently linked/);
   assert.match(prompt, /\*bold\*/);
-  assert.match(prompt, /server adds Slack choice buttons/);
+  assert.match(prompt, /server adds Create role \/ Keep editing buttons/);
   assert.match(prompt, /press a button or clearly confirm/);
 });
 
 test("guides adaptive role discovery without turning it into a fixed script", () => {
   const prompt = buildRoleCreationSystemPrompt();
+
+  assert.match(prompt, /<company_service_core>/);
+  assert.match(prompt, /no subscription or usage fee/);
 
   assert.match(
     prompt,
@@ -85,16 +88,38 @@ test("guides adaptive role discovery without turning it into a fixed script", ()
   assert.match(prompt, /do not replace the internal role request/);
   assert.match(prompt, /optional structured-criteria draft/);
   assert.match(prompt, /at least two distinct, substantive opportunities/);
+  assert.match(prompt, /NEW-DRAFT CONVERSATION CADENCE/);
+  assert.match(prompt, /save onsite and present it as `대면 근무`/);
+  assert.match(prompt, /save full_time and present it as `풀타임`/);
+  assert.match(prompt, /혹시 위 내용 중 잘못된 내용이 있다면/);
+  assert.match(prompt, /prefer one focused question per turn/);
+  assert.match(prompt, /Slack channel and assignee belong at the end/);
+  assert.match(prompt, /\*마지막 설정\*/);
+  assert.match(prompt, /Never mention the raw channel count/);
   assert.match(prompt, /open invitation/);
   assert.match(prompt, /do not count as these two team-preference questions/);
   assert.match(prompt, /call read_other_roles/);
   assert.match(prompt, /영어 커뮤니케이션을 필수로 보셨는데/);
   assert.match(prompt, /Never let it become only a technical checklist/);
-  assert.match(prompt, /only once the saved state looks ready and the required team-preference discovery/);
+  assert.match(
+    prompt,
+    /only once the saved state looks ready and the required team-preference discovery/
+  );
   assert.match(prompt, /short contextual “응”/);
   assert.match(prompt, /as the only tool in the turn/);
   assert.match(prompt, /do not merely acknowledge/);
   assert.match(prompt, /adds, removes, or changes role details/);
+});
+
+test("requires a settings link when no Slack channel is available", () => {
+  const prompt = buildRoleCreationSystemPrompt({ surface: "chat" });
+
+  assert.match(prompt, /availableSlackChannels.*is empty/);
+  assert.match(prompt, /do not imply that Slack is optional/);
+  assert.match(prompt, /role cannot be registered until Slack is connected/);
+  assert.match(prompt, /\[Slack 연결하기\]\(\/org\/settings\)/);
+  assert.match(prompt, /return once Slack and a channel are connected/);
+  assert.match(prompt, /Do not request final role-creation confirmation/);
 });
 
 test("includes the durable one-attempt source-research marker in role state", () => {
@@ -236,4 +261,15 @@ test("signals when Harper should proactively draft structured criteria", () => {
   assert.match(prompt, /"minItems": 0/);
   assert.match(prompt, /"recommendedMinItems": 2/);
   assert.match(prompt, /"maxItems": 6/);
+});
+
+test("prioritizes a supplied JD while requiring a company introduction and usage marker", () => {
+  const prompt = buildRoleCreationSystemPrompt({ surface: "chat" });
+
+  assert.match(prompt, /JD remains the primary source/);
+  assert.match(prompt, /first paragraph a concise company introduction/);
+  assert.match(prompt, /exact standalone marker \[\[company_info\]\]/);
+  assert.match(prompt, /Do not add a separate sentence, heading, card label/);
+  assert.match(prompt, /compact linked sentence "회사 정보를 반영했습니다\."/);
+  assert.match(prompt, /only when company information was actually used/);
 });

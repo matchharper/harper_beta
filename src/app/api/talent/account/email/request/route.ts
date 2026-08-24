@@ -1,30 +1,23 @@
 import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import {
-  isTalentAccountEmailUnavailableError,
-  TALENT_ACCOUNT_EMAIL_UNAVAILABLE_MESSAGE,
-} from "@/lib/career/accountEmailErrors";
+import { isTalentAccountEmailUnavailableError } from "@/lib/career/accountEmailErrors";
 import { sendResendEmail } from "@/lib/email/send";
 import { getFreshRequestUser } from "@/lib/supabaseServer";
-import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
+import {
+  fetchTalentSetting,
+  getTalentSupabaseAdmin,
+} from "@/lib/talentOnboarding/server";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 import {
   isTalentAccountEmailAvailable,
   isValidTalentAccountEmail,
   normalizeTalentAccountEmail,
 } from "@/lib/talentOnboarding/accountEmail";
+import { buildVerificationEmail } from "./verificationEmail";
 
 const EMAIL_SEND_COOLDOWN_MS = 60_000;
 const DEFAULT_RETURN_PATH =
   "/career/profile?panel=settings&settingsTab=account&tab=profile";
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 function sanitizeReturnPath(value: unknown) {
   if (typeof value !== "string" || !value.startsWith("/career")) {
@@ -45,36 +38,6 @@ function sanitizeReturnPath(value: unknown) {
   }
 }
 
-function buildVerificationEmail(args: {
-  actionLink: string;
-  requestCode: string;
-}) {
-  const safeActionLink = escapeHtml(args.actionLink);
-  const safeRequestCode = escapeHtml(args.requestCode);
-
-  return {
-    subject: `[Harper] 이메일 변경 인증 · 요청 ${args.requestCode}`,
-    text: [
-      "Harper 이메일 변경 인증",
-      "",
-      `요청 코드: ${args.requestCode}`,
-      "아래 링크를 열어 새 이메일을 인증해주세요.",
-      args.actionLink,
-      "",
-      "인증 메일을 다시 발송하면 이전 링크는 사용할 수 없습니다.",
-    ].join("\n"),
-    html: [
-      '<div style="font-family:Arial,sans-serif;line-height:1.6;color:#171717;max-width:560px;margin:0 auto;padding:24px;">',
-      '<h2 style="margin:0 0 16px;">Harper 이메일 변경 인증</h2>',
-      `<p style="margin:0 0 16px;color:#525252;">요청 코드: <strong>${safeRequestCode}</strong></p>`,
-      '<p style="margin:0 0 20px;color:#525252;">아래 버튼을 눌러 새 이메일을 인증해주세요.</p>',
-      `<p style="margin:0 0 20px;"><a href="${safeActionLink}" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#171717;color:#fff;text-decoration:none;font-weight:600;">새 이메일 인증하기</a></p>`,
-      '<p style="margin:0;color:#737373;font-size:13px;">인증 메일을 다시 발송하면 이전 링크는 사용할 수 없습니다.</p>',
-      "</div>",
-    ].join(""),
-  };
-}
-
 export async function POST(req: NextRequest) {
   try {
     const user = await getFreshRequestUser(req);
@@ -87,16 +50,34 @@ export async function POST(req: NextRequest) {
       resend?: boolean;
       returnPath?: string;
     };
+    const admin = getTalentSupabaseAdmin();
+    const talentSetting = await fetchTalentSetting({ admin, userId: user.id });
+    const responseLocale =
+      talentSetting?.preferred_locale ??
+      req.cookies.get("NEXT_LOCALE")?.value ??
+      null;
     const email = normalizeTalentAccountEmail(body.email);
     if (!isValidTalentAccountEmail(email)) {
       return NextResponse.json(
-        { error: "유효한 이메일을 입력해주세요." },
+        {
+          error: careerT(
+            responseLocale,
+            "career.settings.email_change.invalid",
+            "유효한 이메일을 입력해주세요."
+          ),
+        },
         { status: 400 }
       );
     }
     if (email === normalizeTalentAccountEmail(user.email)) {
       return NextResponse.json(
-        { error: "현재 사용 중인 이메일과 같습니다." },
+        {
+          error: careerT(
+            responseLocale,
+            "career.settings.email_change.same_email",
+            "현재 사용 중인 이메일과 같습니다."
+          ),
+        },
         { status: 400 }
       );
     }
@@ -106,8 +87,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           code: "EMAIL_CHANGE_REQUEST_MISSING",
-          error:
-            "재발송할 이메일 변경 요청을 찾지 못했습니다. 이메일을 다시 입력해주세요.",
+          error: careerT(
+            responseLocale,
+            "career.api.email_change.request_missing",
+            "재발송할 이메일 변경 요청을 찾지 못했습니다. 이메일을 다시 입력해주세요."
+          ),
         },
         { status: 409 }
       );
@@ -124,7 +108,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           code: "EMAIL_RATE_LIMIT",
-          error: `${retryAfterSeconds}초 후에 인증 메일을 다시 요청해주세요.`,
+          error: careerT(
+            responseLocale,
+            "career.api.email_change.rate_limit",
+            "{retryAfterSeconds}초 후에 인증 메일을 다시 요청해주세요.",
+            { values: { retryAfterSeconds } }
+          ),
           retryAfterSeconds,
         },
         {
@@ -134,7 +123,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const admin = getTalentSupabaseAdmin();
     const available = await isTalentAccountEmailAvailable(admin, {
       email,
       userId: user.id,
@@ -143,7 +131,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           code: "EMAIL_IN_USE",
-          error: TALENT_ACCOUNT_EMAIL_UNAVAILABLE_MESSAGE,
+          error: careerT(
+            responseLocale,
+            "career.settings.email_change.in_use",
+            "해당 이메일로 진행할 수 없습니다. 사유: 인증이 차단된 이메일 혹은 이미 등록된 이메일"
+          ),
         },
         { status: 409 }
       );
@@ -166,7 +158,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             code: "EMAIL_IN_USE",
-            error: TALENT_ACCOUNT_EMAIL_UNAVAILABLE_MESSAGE,
+            error: careerT(
+              responseLocale,
+              "career.settings.email_change.in_use",
+              "해당 이메일로 진행할 수 없습니다. 사유: 인증이 차단된 이메일 혹은 이미 등록된 이메일"
+            ),
           },
           { status: 409 }
         );
@@ -177,6 +173,7 @@ export async function POST(req: NextRequest) {
     const requestCode = randomBytes(4).toString("hex").toUpperCase();
     const emailContent = buildVerificationEmail({
       actionLink: data.properties.action_link,
+      locale: responseLocale,
       requestCode,
     });
     await sendResendEmail({

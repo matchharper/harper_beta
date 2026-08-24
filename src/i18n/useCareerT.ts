@@ -7,15 +7,6 @@ import { useMessages } from "@/i18n/useMessage";
 type CareerTValues = Record<string, string | number | null | undefined>;
 
 export type CareerTOptions = {
-  /**
-   * Temporary sync hint. `pnpm translation:sync` uses this to regenerate
-   * non-Korean values, then removes the flag from source code.
-   */
-  meaningChanged?: boolean;
-  /**
-   * Alias for meaningChanged, kept for readability in short-lived edits.
-   */
-  retranslate?: boolean;
   values?: CareerTValues;
 };
 

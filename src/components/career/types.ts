@@ -5,6 +5,7 @@ import type {
 } from "@/lib/opportunityDiscovery/types";
 import type { OpportunityRunMarkerRelation } from "@/lib/opportunityDiscovery/messageMarker";
 import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
+import type { CareerMessageAttachment } from "@/lib/career/messageAttachments";
 export {
   CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER,
   CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER_VALUES,
@@ -112,6 +113,7 @@ export type CareerTalentDocument = {
 };
 
 export type CareerTalentProfile = {
+  documents?: CareerTalentDocument[];
   talentUser: CareerTalentUser | null;
   talentExperiences: CareerTalentExperience[];
   talentEducations: CareerTalentEducation[];
@@ -324,6 +326,7 @@ export type CareerHistoryItem = {
 };
 
 export type CareerMessage = {
+  attachments?: CareerMessageAttachment[];
   id: string | number;
   role: MessageRole;
   content: string;
@@ -339,6 +342,7 @@ export type CareerMessage = {
 };
 
 export type CareerMessagePayload = {
+  attachments?: CareerMessageAttachment[];
   id: number;
   role: MessageRole;
   content: string;

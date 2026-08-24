@@ -433,12 +433,12 @@ const CareerHomePanel = ({
           {activeOpportunityLabel}
         </Text>
         {recommendationSettingLabel && (
-          <Text type="desc" className="mt-2 text-center">
+          <Text type="desc" className="mt-2 text-center mb-12">
             {recommendationSettingLabel}
           </Text>
         )}
       </div>
-      {isOnboardingCompleted && (
+      {/* {isOnboardingCompleted && (
         <ConversationStarterActions
           callStartPending={callStartPending}
           className="mt-12"
@@ -450,7 +450,7 @@ const CareerHomePanel = ({
           }
           onStart={handleStartConversationStarter}
         />
-      )}
+      )} */}
       <CareerCallCard
         callDisabled={!onStartCallMode}
         callStartPending={callStartPending}

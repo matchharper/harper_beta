@@ -35,10 +35,8 @@ import ResumeDropzone, {
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import {
-  isDocxResumeFile,
   isLinkedinLink,
   isLinkedinProfileLink,
-  readDocxResumeText,
 } from "@/hooks/career/careerHelpers";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { talentOnboardingStatusQueryKey } from "@/hooks/career/useTalentOnboardingStatus";
@@ -55,6 +53,7 @@ import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding
 import { getCareerSignupAttributionPayload } from "@/lib/career/signupAttribution";
 import { trackSignUp } from "@/lib/ga";
 import { isTalentOnboardingSubmissionCommitted } from "@/lib/talentOnboarding/submissionRecovery";
+import { uploadTalentDocument } from "@/lib/talentOnboarding/documentUploadClient";
 import {
   OFFICIAL_JOBS_ONBOARDING_COMPANY_PARAM,
   OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
@@ -966,19 +965,25 @@ const ResumeUploadInput = ({
       accept=".pdf,.docx,.txt,.md"
       fileName={fileName}
       onFileSelect={onFileSelect}
-      onFileReject={() => {
+      onFileReject={(_file, _source, reason) => {
         showToast({
-          message: t(
-            "career.resume_dropzone.unsupported_file",
-            "지원하는 이력서 파일 형식만 업로드해 주세요."
-          ),
+          message:
+            reason === "file-size"
+              ? t(
+                  "career.resume_dropzone.file_too_large",
+                  "이력서 파일은 최대 4MB까지 업로드할 수 있습니다."
+                )
+              : t(
+                  "career.resume_dropzone.unsupported_file",
+                  "지원하는 이력서 파일 형식만 업로드해 주세요."
+                ),
           variant: "white",
         });
       }}
       title={t("career.onboarding.onboarding.13vjc2d", "이력서/CV 업로드")}
       description={t(
         "career.onboarding.onboarding.1xpgwgk",
-        "PDF, DOCX, 텍스트 파일을 올려주세요. 최대 10MB까지 권장합니다."
+        "PDF, DOCX, 텍스트 파일을 올려주세요. 최대 4MB까지 가능합니다."
       )}
       dragTitle={t(
         "career.resume_dropzone.drag_title",
@@ -1937,67 +1942,21 @@ const CareerNetworkOnboardingContent = () => {
 
   const uploadResumeFile = useCallback(
     async (file: File) => {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const response = await fetchWithAuth("/api/talent/resume/upload", {
-        method: "POST",
-        body: formData,
+      const payload = await uploadTalentDocument({
+        fetchWithAuth,
+        file,
       });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(
-            payload,
-            t(
-              "career.onboarding.onboarding.0yuh7d0",
-              "이력서 업로드에 실패했습니다."
-            )
-          )
-        );
-      }
 
       return {
         resumeFileName: String(payload?.resumeFileName ?? file.name),
         resumeStoragePath: String(payload?.resumeStoragePath ?? ""),
         resumeDocumentId:
           typeof payload?.document?.id === "string" ? payload.document.id : "",
+        resumeText:
+          typeof payload?.resumeText === "string" ? payload.resumeText : "",
       };
     },
-    [fetchWithAuth, t]
-  );
-
-  const parseResumeText = useCallback(
-    async (file: File) => {
-      if (isDocxResumeFile(file)) {
-        return (await readDocxResumeText(file)).slice(0, 20000);
-      }
-
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const response = await fetchWithAuth("/api/talent/resume/parse", {
-        method: "POST",
-        body: formData,
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(
-            payload,
-            t(
-              "career.onboarding.onboarding.010bz98",
-              "이력서 내용을 읽지 못했습니다."
-            )
-          )
-        );
-      }
-
-      return String(payload?.text ?? "")
-        .trim()
-        .slice(0, 20000);
-    },
-    [fetchWithAuth, t]
+    [fetchWithAuth]
   );
 
   const completeOnboardingSubmission = useCallback(
@@ -2050,18 +2009,7 @@ const CareerNetworkOnboardingContent = () => {
         resumeFileName = uploadResult.resumeFileName;
         resumeStoragePath = uploadResult.resumeStoragePath;
         resumeDocumentId = uploadResult.resumeDocumentId;
-
-        let parsedText = "";
-        try {
-          parsedText = await parseResumeText(resumeFile);
-        } catch (error) {
-          console.warn(
-            "[CareerOnboarding] resume parse failed; keeping the uploaded document",
-            error
-          );
-        }
-
-        if (parsedText) resumeText = parsedText;
+        if (uploadResult.resumeText) resumeText = uploadResult.resumeText;
       }
 
       const preferencesRes = await fetchWithAuth("/api/talent/preferences", {
@@ -2194,7 +2142,6 @@ const CareerNetworkOnboardingContent = () => {
     links,
     locale,
     name,
-    parseResumeText,
     profileVisibility,
     resumeFile,
     selectedEngagements,

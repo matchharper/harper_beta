@@ -19,7 +19,7 @@ import Image from "next/image";
 function getErrorMessage(error: unknown) {
   return error instanceof Error
     ? error.message
-    : "Slack 요청을 처리하지 못했습니다.";
+    : "Slack 요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.";
 }
 
 export function OrgSlackPanel({
@@ -54,7 +54,7 @@ export function OrgSlackPanel({
   const handleDisconnect = async () => {
     if (!window.confirm("이 Workspace의 Slack 연결을 해제할까요?")) return;
     await disconnectSlack.mutateAsync();
-    addToast({ message: "Slack 연결을 해제했습니다." });
+    addToast({ message: "Slack 연결을 해제했어요." });
   };
 
   return (
@@ -73,7 +73,7 @@ export function OrgSlackPanel({
                 height={20}
               />
             </div>
-            <DialogTitle className="text-[16px]">Slack 연결</DialogTitle>
+            <DialogTitle className="text-[16px]">Slack</DialogTitle>
             <DialogDescription className="text-[12px]">
               {workspace.companyName}의 Organization 알림 채널
             </DialogDescription>
@@ -110,24 +110,22 @@ export function OrgSlackPanel({
 
               {status.needsReinstall ? (
                 <div className="rounded-md border border-info/30 bg-info-faded px-3 py-3 text-[12px] leading-5 text-neutral-primary">
-                  <div className="font-medium">
-                    Slack 권한 업데이트 필요
-                  </div>
+                  <div className="font-medium">Slack을 다시 연결해 주세요</div>
                   <p className="mt-1 text-neutral-muted">
                     Harper 멤버 확인과 PDF, DOCX, TXT 파일 읽기를 사용하려면
-                    아래 앱 다시 설치를 눌러 새 권한을 승인해 주세요.
+                    아래 다시 연결을 눌러 새 권한을 승인해 주세요.
                   </p>
                 </div>
               ) : null}
 
               <section>
                 <h3 className="text-[12px] font-medium text-neutral-primary">
-                  발송 알림
+                  Slack notifications
                 </h3>
                 <div className="mt-2 divide-y divide-neutral-1000-a05 border-y border-neutral-1000-a05 text-[11px] text-neutral-muted">
-                  <div className="py-2.5">신규 역할 등록 완료 및 탐색 시작</div>
-                  <div className="py-2.5">Warm intro 요청</div>
-                  <div className="py-2.5">후보자 프로세스 중단</div>
+                  <div className="py-2.5">역할 등록과 후보자 탐색 시작</div>
+                  <div className="py-2.5">후보자 연결 시작</div>
+                  <div className="py-2.5">후보자 연결 거절</div>
                   <div className="py-2.5">Organization 멤버 합류</div>
                 </div>
               </section>
@@ -151,7 +149,7 @@ export function OrgSlackPanel({
                   ) : (
                     <RefreshCw />
                   )}
-                  앱 다시 설치
+                  다시 연결
                 </Button>
               </div>
             </div>
@@ -162,7 +160,8 @@ export function OrgSlackPanel({
                   Slack에서 바로 확인하세요
                 </h3>
                 <p className="mt-1.5 text-[12px] leading-5 text-neutral-muted">
-                  후보자 진행 상황과 멤버 변경 알림을 선택한 채널로 보냅니다.
+                  역할과 후보자 진행 상황, 멤버 변경 알림을 선택한 채널로
+                  보내요.
                 </p>
               </div>
 

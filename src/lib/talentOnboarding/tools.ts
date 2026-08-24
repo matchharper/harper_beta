@@ -19,7 +19,6 @@ import {
   toPostingOpportunityId,
 } from "@/lib/career/postingLinks";
 import { runCareerJobPostingRecommendations } from "./jobPostingRecommendations";
-import { lookupAnswerExamples } from "@/lib/serviceAnswerExamples";
 import { normalizeGeneratedTalentInsightEntry } from "./insights";
 import {
   fetchTalentUserProfile,
@@ -84,6 +83,11 @@ import {
   findActiveCareerChatExternalSearchRun,
   normalizeRecommendJobPostingsKind,
 } from "@/lib/opportunityDiscovery/onDemandJobSearch";
+import {
+  listTalentDocumentsForTool,
+  readTalentDocumentForTool,
+  updateTalentDocumentForTool,
+} from "./documentTool";
 
 export type TalentToolChannel = "chat" | "voice";
 
@@ -170,7 +174,9 @@ export const TALENT_TOOL_NAMES = {
   WEB_SEARCH: "web_search",
   OPEN_URL: "open_url",
   RESEARCH_COMPANY: "research_company",
-  LOOKUP_ANSWER_EXAMPLES: "lookup_answer_examples",
+  LIST_DOCUMENTS: "list_documents",
+  READ_DOCUMENT: "read_document",
+  UPDATE_DOCUMENT: "update_document",
   READ_TALENT_ACTIVITY_EVENTS: "read_talent_activity_events",
   UPDATE_LANGUAGE_SETTING: "update_language_setting",
   UPDATE_SETTING: "update_setting",
@@ -194,7 +200,9 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.GET_ROLE_CONTEXT,
   TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK,
   TALENT_TOOL_NAMES.RESEARCH_COMPANY,
-  TALENT_TOOL_NAMES.LOOKUP_ANSWER_EXAMPLES,
+  TALENT_TOOL_NAMES.LIST_DOCUMENTS,
+  TALENT_TOOL_NAMES.READ_DOCUMENT,
+  TALENT_TOOL_NAMES.UPDATE_DOCUMENT,
   TALENT_TOOL_NAMES.READ_TALENT_ACTIVITY_EVENTS,
   TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING,
   TALENT_TOOL_NAMES.UPDATE_SETTING,
@@ -1367,31 +1375,137 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
     channels: ["chat"],
     stopAfterExecution: true,
   },
-  [TALENT_TOOL_NAMES.LOOKUP_ANSWER_EXAMPLES]: {
-    name: TALENT_TOOL_NAMES.LOOKUP_ANSWER_EXAMPLES,
+  [TALENT_TOOL_NAMES.LIST_DOCUMENTS]: {
+    name: TALENT_TOOL_NAMES.LIST_DOCUMENTS,
     description:
-      "Use when the current prompt and conversation context are not enough to answer well. Retrieves managed example user messages and answer examples.",
+      "List this user's active saved documents as paginated metadata. Use it to resolve references to earlier uploads or answer which documents are saved. It never returns document text and never returns soft-deleted rows.",
     parameters: {
       type: "object",
       properties: {
-        question: {
+        kind: {
           type: "string",
+          enum: ["resume", "document"],
+          description: "Optional resume/document filter.",
+        },
+        offset: {
+          type: "integer",
+          minimum: 0,
           description:
-            "The user's latest question or message, in their own words.",
+            "Pagination offset. Start at 0 and use nextOffset only when another page is needed.",
+        },
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 20,
+          default: 10,
+          description:
+            "Page size. Prefer 10 and do not fetch every page by default.",
         },
       },
-      required: ["question"],
       additionalProperties: false,
     },
     channels: ["chat"],
-    async execute(input) {
-      const question = optionalToolString(input.question);
-      if (!question) {
-        throw new TalentToolError(
-          "lookup_answer_examples requires a non-empty question."
-        );
+    async execute(input, context) {
+      const admin = context?.admin;
+      const userId = context?.userId;
+      if (!admin || !userId) {
+        throw new TalentToolError("list_documents requires user context.");
       }
-      return lookupAnswerExamples(question);
+      return listTalentDocumentsForTool({
+        admin: admin as TalentAdminClient,
+        input,
+        userId,
+      });
+    },
+  },
+  [TALENT_TOOL_NAMES.READ_DOCUMENT]: {
+    name: TALENT_TOOL_NAMES.READ_DOCUMENT,
+    description:
+      "Read one bounded excerpt from one active saved document's extracted text. Use the exact document_id from current upload context or list_documents. If current upload context already includes content_excerpt, continue from its next_offset instead of rereading offset 0. Binary-only files can be saved but return textAvailable=false.",
+    parameters: {
+      type: "object",
+      properties: {
+        document_id: {
+          type: "string",
+          description: "Exact saved document id.",
+        },
+        offset: {
+          type: "integer",
+          minimum: 0,
+          description:
+            "Character offset. For current upload context use its next_offset when provided; otherwise start at 0. Continue later reads from nextOffset only when needed.",
+        },
+        max_chars: {
+          type: "integer",
+          minimum: 500,
+          maximum: 6000,
+          default: 4000,
+          description: "Maximum excerpt length for this read.",
+        },
+      },
+      required: ["document_id"],
+      additionalProperties: false,
+    },
+    channels: ["chat"],
+    async execute(input, context) {
+      const admin = context?.admin;
+      const userId = context?.userId;
+      if (!admin || !userId) {
+        throw new TalentToolError("read_document requires user context.");
+      }
+      return readTalentDocumentForTool({
+        admin: admin as TalentAdminClient,
+        input,
+        userId,
+      });
+    },
+  },
+  [TALENT_TOOL_NAMES.UPDATE_DOCUMENT]: {
+    name: TALENT_TOOL_NAMES.UPDATE_DOCUMENT,
+    description:
+      'Update one exact saved document. It can correct resume/document kind, primary/public state, or the soft-delete marker. Document content and extracted_text cannot be edited. If the user asks to change document content, say "내용 수정은 불가능하며, 새로 업로드 해야한다." Use only for changes supported by the user\'s request or the current-turn upload policy; is_deleted does not remove the storage object.',
+    parameters: {
+      type: "object",
+      properties: {
+        document_id: {
+          type: "string",
+          description: "Exact saved document id.",
+        },
+        kind: {
+          type: "string",
+          enum: ["resume", "document"],
+          description: "Corrected document kind.",
+        },
+        is_primary: {
+          type: "boolean",
+          description:
+            "Whether this is the primary resume. Only valid for kind=resume.",
+        },
+        is_public: {
+          type: "boolean",
+          description: "Whether Harper may expose the document to companies.",
+        },
+        is_deleted: {
+          type: "boolean",
+          description:
+            "Soft-delete or restore the document. Deleted documents disappear from list/read but remain in storage.",
+        },
+      },
+      required: ["document_id"],
+      additionalProperties: false,
+    },
+    channels: ["chat"],
+    async execute(input, context) {
+      const admin = context?.admin;
+      const userId = context?.userId;
+      if (!admin || !userId) {
+        throw new TalentToolError("update_document requires user context.");
+      }
+      return updateTalentDocumentForTool({
+        admin: admin as TalentAdminClient,
+        input,
+        userId,
+      });
     },
   },
   [TALENT_TOOL_NAMES.READ_TALENT_ACTIVITY_EVENTS]: {

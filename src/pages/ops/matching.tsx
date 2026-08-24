@@ -70,7 +70,7 @@ function parseMatchingTab(
   if (normalized === "all" || normalized === "harper_review") {
     return normalized;
   }
-  return "all";
+  return "harper_review";
 }
 
 function parseMatchingViewMode(
@@ -384,7 +384,8 @@ export default function OpsMatchingPage() {
     if (parsed.hasUrlState) {
       setStateFromUrl(parsed.state);
     } else {
-      replaceUrlState({});
+      setStateFromUrl({ activeTab: "harper_review" });
+      replaceUrlState({ activeTab: "harper_review" });
     }
     hasInitializedUrlStateRef.current = true;
   }, [

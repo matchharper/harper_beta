@@ -45,21 +45,37 @@ test("candidate decisions expose LLM-judged context and terminal execution tools
     /write any confirmation or clarification yourself/
   );
   assert.match(
+    prepare?.function.description ?? "",
+    /Always call it with connectionMethod=direct_contact/
+  );
+  assert.match(
     decide?.function.description ?? "",
-    /meaning of the current message and relevant conversation/
+    /current message authorizes all of it/
   );
   assert.match(
     prepare?.function.description ?? "",
     /company-stopped candidate/
   );
   assert.match(decide?.function.description ?? "", /neutral warm introduction/);
+  assert.match(
+    decide?.function.description ?? "",
+    /omitted connectionMethod defaults to intro_email/
+  );
+  assert.match(
+    decide?.function.description ?? "",
+    /Never proactively offer direct_contact/
+  );
+  assert.match(
+    prepareParameters.properties.connectionMethod.description,
+    /default CC introduction/
+  );
   assert.doesNotMatch(
     decide?.function.description ?? "",
     /matching prepare_candidate_connection confirmation must have appeared/
   );
 });
 
-test("role creation is exposed only on Slack and records description provenance", () => {
+test("role creation is exposed only on Slack and transfers bounded source context", () => {
   const webNames = getEnabledOrgAgentTools().map((tool) => tool.function.name);
   const slackTools = getEnabledOrgAgentTools("slack");
   const start = slackTools.find(
@@ -72,24 +88,29 @@ test("role creation is exposed only on Slack and records description provenance"
     additionalProperties: boolean;
     required: string[];
   };
-  assert.deepEqual(parameters.required, [
-    "roleTitle",
-    "description",
-    "descriptionOrigin",
-  ]);
+  assert.deepEqual(parameters.required, ["roleTitle", "contextMessageCount"]);
   const properties = (start?.function.parameters as any).properties;
-  assert.deepEqual(properties.descriptionOrigin.enum, [
-    "user_supplied",
-    "same_company_public_jd",
-    "company_style_draft",
-  ]);
+  assert.equal(properties.contextMessageCount.minimum, 1);
+  assert.equal(properties.contextMessageCount.maximum, 12);
   assert.match(
     start?.function.description ?? "",
-    /one-time web search found no clearly matching JD/
+    /exact recent Slack context/
   );
   assert.match(
     start?.function.description ?? "",
-    /public-JD origin also requires open_url/
+    /automatically continues before the user has to say anything/
+  );
+  assert.match(
+    start?.function.description ?? "",
+    /Do not research or draft/
+  );
+  assert.match(
+    start?.function.description ?? "",
+    /exact required continuation link/
+  );
+  assert.match(
+    start?.function.description ?? "",
+    /author the final handoff reply naturally as Harper/
   );
   assert.equal(parameters.additionalProperties, false);
   assert.equal(ORG_AGENT_TERMINAL_TOOL_NAMES.has("start_role_creation"), true);
@@ -113,10 +134,8 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
   );
   const criteriaParameters = updateRoleCriteria?.function.parameters as any;
   assert.deepEqual(criteriaParameters.required, ["roleId"]);
-  assert.deepEqual(criteriaParameters.anyOf, [
-    { required: ["criteria"] },
-    { required: ["edits"] },
-  ]);
+  assert.equal(criteriaParameters.minProperties, 2);
+  assert.equal(criteriaParameters.anyOf, undefined);
   assert.equal(criteriaParameters.properties.criteria.minItems, 0);
   assert.equal(criteriaParameters.properties.criteria.maxItems, 6);
   assert.deepEqual(criteriaParameters.properties.criteria.items.required, [
@@ -296,10 +315,8 @@ test("read_talent accepts up to ten IDs and keeps resume output availability-onl
     "talentId",
     "talentIds",
   ]);
-  assert.deepEqual(parameters.anyOf, [
-    { required: ["talentIds"] },
-    { required: ["talentId"] },
-  ]);
+  assert.equal(parameters.minProperties, 1);
+  assert.equal(parameters.anyOf, undefined);
   assert.equal((properties.talentIds as any).minItems, 1);
   assert.equal((properties.talentIds as any).maxItems, 10);
   assert.equal((properties.talentIds as any).uniqueItems, true);
@@ -334,7 +351,7 @@ test("read_talent accepts up to ten IDs and keeps resume output availability-onl
   );
 });
 
-test("company-to-talent relay uses one kind-discriminated tool", () => {
+test("candidate contact uses one draft-lifecycle tool", () => {
   const enabled: string[] = getEnabledOrgAgentTools().map(
     (item) => item.function.name
   );
@@ -346,15 +363,21 @@ test("company-to-talent relay uses one kind-discriminated tool", () => {
     (item) => item.function.name === "contact_talent"
   );
   const parameters = contactTalent?.function.parameters as any;
+  assert.deepEqual(parameters.properties.action.enum, [
+    "create_draft",
+    "revise_draft",
+    "schedule",
+    "cancel",
+  ]);
   assert.deepEqual(parameters.properties.kind.enum, ["question", "resume"]);
   assert.deepEqual(parameters.properties.deliveryMode.enum, [
     "standard",
     "immediate",
   ]);
-  assert.deepEqual(parameters.required, ["kind", "talentId", "roleId"]);
+  assert.deepEqual(parameters.required, ["action"]);
   assert.match(
     parameters.properties.requestContext.description,
-    /Required for kind=question/
+    /create_draft with kind=question/
   );
   assert.match(
     parameters.properties.requestContext.description,
@@ -362,58 +385,45 @@ test("company-to-talent relay uses one kind-discriminated tool", () => {
   );
   assert.match(
     contactTalent?.function.description ?? "",
-    /mandatory two-turn candidate-contact flow/
+    /action=create_draft/
   );
   assert.match(
     contactTalent?.function.description ?? "",
-    /Never call it on the initial user turn/
+    /saves the complete subject and body without queuing delivery/
   );
   assert.match(
     contactTalent?.function.description ?? "",
-    /nothing has been queued or sent yet/
+    /action=revise_draft/
   );
   assert.match(
     contactTalent?.function.description ?? "",
-    /immediately previous assistant message presented that exact confirmation/
+    /action=schedule.*immediately previous Harper message presented the same contactId and revision/
   );
   assert.match(
     contactTalent?.function.description ?? "",
-    /deliveryMode=immediate.*does not require a third confirmation turn/
+    /Scheduling never regenerates or rewrites copy/
   );
+  assert.match(contactTalent?.function.description ?? "", /action=cancel/);
   assert.match(
     contactTalent?.function.description ?? "",
-    /if there is no resume, request one now/
+    /pending_candidate_contact_drafts/
   );
-  assert.match(
-    contactTalent?.function.description ?? "",
-    /accepted-but-not-delivered state; restate the exact candidate, company, role/
-  );
-  assert.match(
-    contactTalent?.function.description ?? "",
-    /Never offer arbitrary rescheduling/
+  assert.equal(enabled.includes("change_talent_contact"), false);
+  assert.equal(isOrgAgentToolName("change_talent_contact"), false);
+  assert.equal(isOrgAgentToolName("cancel_talent_contact"), false);
+});
+
+test("candidate connection execution declares the server confirmation gate", () => {
+  const decision = ORG_AGENT_TOOLS.find(
+    (item) => item.function.name === "decide_candidate_connection"
   );
 
-  const changeContact = ORG_AGENT_TOOLS.find(
-    (item) => item.function.name === "change_talent_contact"
-  );
-  const changeParameters = changeContact?.function.parameters as any;
-  assert.equal(enabled.includes("change_talent_contact"), true);
-  assert.equal(isOrgAgentToolName("change_talent_contact"), true);
-  assert.equal(isOrgAgentToolName("cancel_talent_contact"), false);
-  assert.deepEqual(changeParameters.required, [
-    "action",
-    "requestId",
-    "talentId",
-    "roleId",
-  ]);
-  assert.deepEqual(changeParameters.properties.action.enum, [
-    "cancel",
-    "immediate",
-  ]);
-  assert.match(changeContact?.function.description ?? "", /clearly instructs/);
-  assert.match(changeContact?.function.description ?? "", /not authorization/);
   assert.match(
-    changeContact?.function.description ?? "",
-    /bypasses the standard/
+    decision?.function.description ?? "",
+    /immediately previous Harper message asked for approval/
+  );
+  assert.match(
+    decision?.function.description ?? "",
+    /server verifies that adjacency.*confirmation_required/
   );
 });

@@ -41,7 +41,8 @@ export async function GET(req: NextRequest) {
         admin
           .from("talent_documents")
           .select("id", { count: "exact", head: true })
-          .eq("talent_id", user.id),
+          .eq("talent_id", user.id)
+          .eq("is_deleted", false),
       ]);
 
     const { data: profile, error } = profileResult;

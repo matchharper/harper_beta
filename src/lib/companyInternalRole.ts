@@ -1,5 +1,8 @@
 type CompanyInternalRoleRecord = {
+  considerations?: unknown;
   criteria?: unknown;
+  memory?: string | null;
+  questions?: unknown;
   request?: string | null;
 };
 

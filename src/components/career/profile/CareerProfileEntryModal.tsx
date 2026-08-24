@@ -1,14 +1,18 @@
-import React, { useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
+import React, { useMemo, useRef, useState } from "react";
+import { Building2, Loader2 } from "lucide-react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
-import { PrimaryButton, SecondaryButton } from "@/components/ui/button";
+import { MuteButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerT } from "@/i18n/useCareerT";
 
 export type CareerProfileEntryKind = "work" | "education" | "extra";
 
 export type CareerProfileEntryFormValues = {
+  companyId: string;
+  companyLinkedinUrl: string;
+  companyLogo: string;
   companyLocation: string;
   companyName: string;
   date: string;
@@ -25,6 +29,9 @@ export type CareerProfileEntryFormValues = {
 };
 
 const EMPTY_FORM_VALUES: CareerProfileEntryFormValues = {
+  companyId: "",
+  companyLinkedinUrl: "",
+  companyLogo: "",
   companyLocation: "",
   companyName: "",
   date: "",
@@ -75,9 +82,18 @@ const CareerProfileEntryModal = ({
   ) => boolean | void | Promise<boolean | void>;
 }) => {
   const t = useCareerT();
+  const { fetchWithAuth } = useCareerApi();
   const [values, setValues] =
     useState<CareerProfileEntryFormValues>(EMPTY_FORM_VALUES);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCompanyLookupPending, setIsCompanyLookupPending] = useState(false);
+  const [isCompanyLogoUploadPending, setIsCompanyLogoUploadPending] =
+    useState(false);
+  const [companyLogoError, setCompanyLogoError] = useState("");
+  const companyLinkedinValueAtFocusRef = useRef("");
+  const companyLookupRequestIdRef = useRef(0);
+  const companyLookupInFlightRef = useRef(false);
+  const companyLogoInputRef = useRef<HTMLInputElement | null>(null);
 
   const title = useMemo(() => {
     if (kind === "work") {
@@ -98,15 +114,16 @@ const CareerProfileEntryModal = ({
   const hasValidMonthRange =
     isCompleteOrEmptyMonth(values.startDate) &&
     isCompleteOrEmptyMonth(values.endDate);
-  const canSubmit = hasValidMonthRange
-    ? kind === "work"
-      ? Boolean(values.role.trim() && values.companyName.trim())
-      : kind === "education"
-        ? Boolean(values.school.trim())
-        : kind === "extra"
-          ? Boolean(values.title.trim())
-          : false
-    : false;
+  const canSubmit =
+    !isCompanyLookupPending && !isCompanyLogoUploadPending && hasValidMonthRange
+      ? kind === "work"
+        ? Boolean(values.role.trim() && values.companyName.trim())
+        : kind === "education"
+          ? Boolean(values.school.trim())
+          : kind === "extra"
+            ? Boolean(values.title.trim())
+            : false
+      : false;
 
   const updateValue = (
     field: keyof CareerProfileEntryFormValues,
@@ -119,13 +136,154 @@ const CareerProfileEntryModal = ({
     if (PARTIAL_MONTH_PATTERN.test(value)) updateValue(field, value);
   };
 
+  const lookupCompanyByLinkedin = async (linkedinUrl: string) => {
+    const requestId = ++companyLookupRequestIdRef.current;
+    companyLookupInFlightRef.current = true;
+    setIsCompanyLookupPending(true);
+
+    try {
+      const response = await fetchWithAuth(
+        `/api/talent/profile/company/lookup?linkedinUrl=${encodeURIComponent(linkedinUrl)}`
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || requestId !== companyLookupRequestIdRef.current) {
+        return;
+      }
+
+      const normalizedLinkedinUrl =
+        typeof payload?.linkedinUrl === "string"
+          ? payload.linkedinUrl.trim()
+          : "";
+      const company = payload?.company as
+        | {
+            id?: string | null;
+            linkedinUrl?: string | null;
+            location?: string | null;
+            logo?: string | null;
+            name?: string | null;
+          }
+        | null
+        | undefined;
+      if (!company) {
+        if (!normalizedLinkedinUrl) return;
+
+        setValues((current) =>
+          current.companyLinkedinUrl.trim() === linkedinUrl
+            ? { ...current, companyLinkedinUrl: normalizedLinkedinUrl }
+            : current
+        );
+        return;
+      }
+
+      setValues((current) => {
+        if (current.companyLinkedinUrl.trim() !== linkedinUrl) return current;
+
+        return {
+          ...current,
+          companyId: company.id?.trim() || current.companyId,
+          companyLinkedinUrl:
+            company.linkedinUrl?.trim() ||
+            normalizedLinkedinUrl ||
+            current.companyLinkedinUrl,
+          companyLocation:
+            current.companyLocation.trim() || company.location?.trim() || "",
+          companyLogo: current.companyLogo.trim() || company.logo?.trim() || "",
+          companyName: current.companyName.trim() || company.name?.trim() || "",
+        };
+      });
+    } finally {
+      if (requestId === companyLookupRequestIdRef.current) {
+        companyLookupInFlightRef.current = false;
+        setIsCompanyLookupPending(false);
+      }
+    }
+  };
+
+  const handleCompanyLinkedinBlur = (
+    event: React.FocusEvent<HTMLInputElement>
+  ) => {
+    const linkedinUrl = event.currentTarget.value.trim();
+    if (linkedinUrl === companyLinkedinValueAtFocusRef.current) return;
+
+    setValues((current) => ({
+      ...current,
+      companyId: "",
+      companyLinkedinUrl: linkedinUrl,
+    }));
+    if (linkedinUrl) void lookupCompanyByLinkedin(linkedinUrl);
+  };
+
+  const uploadCompanyLogo = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      setCompanyLogoError(
+        t(
+          "career.profile.career_talent_profile_panel.0anxi5z",
+          "이미지 파일만 업로드할 수 있습니다."
+        )
+      );
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setCompanyLogoError(
+        t(
+          "career.profile.career_talent_profile_panel.04441vu",
+          "로고 이미지는 5MB 이하로 업로드해 주세요."
+        )
+      );
+      return;
+    }
+
+    setCompanyLogoError("");
+    setIsCompanyLogoUploadPending(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetchWithAuth("/api/talent/profile/logo/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || typeof payload?.logoUrl !== "string") {
+        throw new Error(
+          payload?.error ??
+            t(
+              "career.profile.career_talent_profile_panel.0acdx91",
+              "로고 업로드에 실패했습니다."
+            )
+        );
+      }
+
+      updateValue("companyLogo", payload.logoUrl);
+    } catch (error) {
+      setCompanyLogoError(
+        error instanceof Error
+          ? error.message
+          : t(
+              "career.profile.career_talent_profile_panel.0acdx91",
+              "로고 업로드에 실패했습니다."
+            )
+      );
+    } finally {
+      setIsCompanyLogoUploadPending(false);
+    }
+  };
+
   const handleClose = () => {
     if (!isSubmitting) onClose();
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!kind || !canSubmit || isSubmitting) return;
+    if (
+      !kind ||
+      !canSubmit ||
+      isSubmitting ||
+      companyLookupInFlightRef.current
+    ) {
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -148,13 +306,15 @@ const CareerProfileEntryModal = ({
       bodyClassName="bg-bg-floating px-4 py-5 sm:px-5"
       footer={
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
-          <SecondaryButton onClick={handleClose} disabled={isSubmitting}>
+          <MuteButton onClick={handleClose} disabled={isSubmitting} size="lg">
             {t(
               "career.profile.career_profile_settings_section.0jiry9t",
               "취소"
             )}
-          </SecondaryButton>
-          <PrimaryButton
+          </MuteButton>
+          <MuteButton
+            variant="primary"
+            size="lg"
             type="submit"
             form={FORM_ID}
             disabled={!canSubmit || isSubmitting}
@@ -164,13 +324,108 @@ const CareerProfileEntryModal = ({
               "career.profile.career_profile_settings_section.07836ex",
               "추가"
             )}
-          </PrimaryButton>
+          </MuteButton>
         </div>
       }
     >
       <form id={FORM_ID} className="space-y-4" onSubmit={handleSubmit}>
         {kind === "work" ? (
           <>
+            <ProfileEntryField
+              label={t(
+                "career.profile.entry.company_linkedin_label",
+                "회사 LinkedIn"
+              )}
+            >
+              <Input
+                type="url"
+                placeholder="https://www.linkedin.com/company/example"
+                value={values.companyLinkedinUrl}
+                onFocus={(event) => {
+                  companyLinkedinValueAtFocusRef.current =
+                    event.currentTarget.value.trim();
+                }}
+                onBlur={handleCompanyLinkedinBlur}
+                onChange={(event) =>
+                  updateValue("companyLinkedinUrl", event.target.value)
+                }
+                aria-describedby="career-profile-company-linkedin-help"
+              />
+              <span
+                id="career-profile-company-linkedin-help"
+                className="text-[12px] font-normal text-neutral-muted"
+              >
+                {isCompanyLookupPending
+                  ? t(
+                      "career.profile.entry.company_lookup_loading",
+                      "회사 정보를 불러오는 중입니다."
+                    )
+                  : t(
+                      "career.profile.entry.company_linkedin_help",
+                      "주소를 변경한 뒤 입력창을 벗어나면 비어 있는 회사 정보가 자동으로 채워집니다."
+                    )}
+              </span>
+            </ProfileEntryField>
+            <ProfileEntryField
+              label={t("career.profile.entry.company_logo_label", "회사 로고")}
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-neutral-1000-a10 bg-bg-weak text-neutral-muted">
+                  {values.companyLogo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      key={values.companyLogo}
+                      src={values.companyLogo}
+                      alt={t(
+                        "career.profile.entry.company_logo_label",
+                        "회사 로고"
+                      )}
+                      className="h-full w-full object-cover"
+                      onError={(event) => {
+                        event.currentTarget.style.display = "none";
+                      }}
+                    />
+                  ) : (
+                    <Building2 className="h-5 w-5" />
+                  )}
+                </div>
+                <Input
+                  ref={companyLogoInputRef}
+                  unstyled
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = "";
+                    if (file) void uploadCompanyLogo(file);
+                  }}
+                />
+                <MuteButton
+                  type="button"
+                  disabled={isCompanyLogoUploadPending}
+                  onClick={() => companyLogoInputRef.current?.click()}
+                >
+                  {isCompanyLogoUploadPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : null}
+                  {isCompanyLogoUploadPending
+                    ? t(
+                        "career.profile.entry.company_logo_uploading",
+                        "업로드 중"
+                      )
+                    : t(
+                        "career.profile.entry.company_logo_choose",
+                        "로고 선택"
+                      )}
+                </MuteButton>
+              </div>
+              {companyLogoError ? (
+                <span className="text-[12px] font-normal text-critical">
+                  {companyLogoError}
+                </span>
+              ) : null}
+            </ProfileEntryField>
             <div className="grid gap-4 sm:grid-cols-2">
               <ProfileEntryField
                 label={t(

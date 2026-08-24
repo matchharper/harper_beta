@@ -1,4 +1,45 @@
-import type { OrgAgentThinkingLog } from "@/lib/org/agent/types";
+import type {
+  OrgAgentThinkingLog,
+  OrgAgentThinkingLogIcon,
+} from "@/lib/org/agent/types";
+
+export function getOrgAgentThinkingLogIcon(
+  toolName: string
+): OrgAgentThinkingLogIcon {
+  if (toolName === "web_search") return "search";
+  if (toolName === "open_url") return "link";
+  if (toolName === "contact_talent") return "send";
+  if (
+    [
+      "update_role_criteria",
+      "update_data",
+      "change_role_status",
+      "manage_role_pipeline_stages",
+      "move_candidate_stage",
+      "decide_candidate_connection",
+      "set_role_notification",
+      "confirm_pending_role_creation",
+      "update_company_context",
+    ].includes(toolName)
+  ) {
+    return "write";
+  }
+  if (
+    [
+      "get_talents",
+      "read_talent",
+      "read_role",
+      "get_more_data",
+      "read_conversation_history",
+      "read_other_roles",
+      "research_role_description_sources",
+      "prepare_candidate_connection",
+    ].includes(toolName)
+  ) {
+    return "read";
+  }
+  return "run";
+}
 
 function replaceAt(
   logs: OrgAgentThinkingLog[],

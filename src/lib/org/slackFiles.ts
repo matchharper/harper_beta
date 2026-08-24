@@ -44,7 +44,7 @@ function text(value: unknown) {
 }
 
 function safeFileName(file: HarperSlackFile) {
-  return (text(file.name) || text(file.title) || text(file.id) || "Slack file")
+  return (text(file.name) || text(file.title) || text(file.id) || "Slack 파일")
     .replace(/[\r\n\t]/g, " ")
     .slice(0, 240);
 }

@@ -1,4 +1,4 @@
-import { ArrowUp, FileText, LoaderCircle, Paperclip, X } from "lucide-react";
+import { ArrowUp, FileText, FileUp, LoaderCircle, Plus, X } from "lucide-react";
 import Image from "next/image";
 import {
   type FormEvent,
@@ -10,9 +10,14 @@ import {
   useRef,
   useState,
 } from "react";
-import { formatKstDateOnly } from "@/components/ops/dateUtils";
 import { ChatComposerFrame } from "@/components/chat/ChatComposer";
-import { Badge } from "@/components/ui/badge";
+import { ChatComposerActionMenu } from "@/components/chat/ChatComposerActionMenu";
+import { ChatComposerTokenOverlay } from "@/components/chat/ChatComposerTokenOverlay";
+import {
+  ChatComposerPicker,
+  type ChatComposerPickerItem,
+  useChatComposerPickerKeyboard,
+} from "@/components/chat/ChatComposerPicker";
 import { MuteButton } from "@/components/ui/button";
 import {
   Select,
@@ -23,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useOrgAgentMentionCandidates } from "@/hooks/org/useOrgAgent";
+import { useChatComposerTokens } from "@/hooks/chat/useChatComposerTokens";
 import {
   createDraftFileAttachment,
   dedupeDraftAttachments,
@@ -39,11 +45,7 @@ import {
   isOrgAgentModelId,
   type OrgAgentModelId,
 } from "@/lib/org/agent/modelConfig";
-import {
-  resolveOrgAgentDraftMentions,
-  serializeOrgAgentDraftMentions,
-  splitOrgAgentMentionText,
-} from "@/lib/org/agent/mentionText";
+import { serializeOrgAgentDraftMentionTokens } from "@/lib/org/agent/mentionText";
 import {
   readRoleCreationAttachments,
   validateRoleCreationDraftAttachments,
@@ -53,6 +55,10 @@ import type {
   OrgAgentMention,
   OrgAgentMentionCandidate,
 } from "@/lib/org/agent/types";
+import {
+  applyChatComposerPickerSelection,
+  getChatComposerTriggerSearch,
+} from "@/lib/chat/composerPicker";
 import { cn } from "@/lib/utils";
 
 const ROLE_CREATION_TEXTAREA_MAX_ROWS = 4;
@@ -74,23 +80,6 @@ function resizeRoleCreationTextarea(textarea: HTMLTextAreaElement) {
 
   textarea.style.height = `${Math.min(contentHeight, maxHeight)}px`;
   textarea.style.overflowY = contentHeight > maxHeight ? "auto" : "hidden";
-}
-
-function getMentionSearch(value: string, cursor: number) {
-  const prefix = value.slice(0, cursor);
-  const atIndex = prefix.lastIndexOf("@");
-  if (atIndex < 0) return null;
-  const afterAt = prefix.slice(atIndex + 1);
-  if (afterAt.includes("\n") || afterAt.includes("  ")) return null;
-  return {
-    query: afterAt.trim(),
-    start: atIndex,
-  };
-}
-
-function formatMentionDate(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "-" : formatKstDateOnly(date);
 }
 
 function TalentMentionAvatar({
@@ -121,140 +110,6 @@ function TalentMentionAvatar({
     <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-bg-weak text-[12px] font-medium text-neutral-muted">
       {name.slice(0, 1).toUpperCase()}
     </span>
-  );
-}
-
-function MentionMenu({
-  candidates,
-  currentRoleId,
-  highlightedIndex,
-  isLoading,
-  listId,
-  onHighlight,
-  onSelect,
-}: {
-  candidates: OrgAgentMentionCandidate[];
-  currentRoleId?: string | null;
-  highlightedIndex: number;
-  isLoading: boolean;
-  listId: string;
-  onHighlight: (index: number) => void;
-  onSelect: (candidate: OrgAgentMentionCandidate) => void;
-}) {
-  const highlightedOptionRef = useRef<HTMLButtonElement | null>(null);
-
-  useEffect(() => {
-    highlightedOptionRef.current?.scrollIntoView({ block: "nearest" });
-  }, [highlightedIndex]);
-
-  const normalizedCurrentRoleId = currentRoleId?.trim() ?? "";
-  const currentRoleCandidates = normalizedCurrentRoleId
-    ? candidates.filter(
-        (candidate) => candidate.roleId === normalizedCurrentRoleId
-      )
-    : [];
-  const otherRoleCandidates = candidates.filter(
-    (candidate) => candidate.roleId !== normalizedCurrentRoleId
-  );
-
-  const renderCandidate = (
-    candidate: OrgAgentMentionCandidate,
-    index: number,
-    showRoleName: boolean
-  ) => (
-    <button
-      ref={index === highlightedIndex ? highlightedOptionRef : null}
-      aria-selected={index === highlightedIndex}
-      id={`${listId}-option-${index}`}
-      key={`${candidate.talentId}:${candidate.recommendationId}`}
-      role="option"
-      type="button"
-      className={cn(
-        "grid grid-cols-[24px_1fr_160px_60px] w-full items-center gap-3 px-3 py-1.5 text-left transition",
-        index === highlightedIndex
-          ? "bg-bg-basement text-neutral-primary"
-          : "text-neutral-primary hover:bg-bg-weak"
-      )}
-      onMouseEnter={() => onHighlight(index)}
-      onMouseDown={(event) => {
-        event.preventDefault();
-        onSelect(candidate);
-      }}
-    >
-      <TalentMentionAvatar
-        name={candidate.label}
-        src={candidate.profilePicture}
-      />
-      <span className="min-w-0 flex-1 truncate text-[12px] font-normal">
-        {candidate.label}
-      </span>
-      {showRoleName ? (
-        <div className="text-[11px] font-normal max-w-39 truncate text-neutral-muted">
-          {candidate.roleName}
-        </div>
-      ) : null}
-      <div className="text-[11px] font-normal">{candidate.stageLabel}</div>
-      {/* <Badge
-        className="max-w-28 truncate"
-        radius="full"
-        size="sm"
-        variant="faded"
-      >
-       
-      </Badge> */}
-      {/* <span
-        aria-label={`연결 제안일 ${formatMentionDate(candidate.recommendedAt)}`}
-        className="shrink-0 text-[11px] tabular-nums text-neutral-soft"
-      >
-        {formatMentionDate(candidate.recommendedAt)}
-      </span> */}
-    </button>
-  );
-
-  return (
-    <div className="absolute bottom-full left-0 z-20 mb-2 w-full overflow-hidden rounded-lg border border-neutral-1000-a10 bg-bg-floating shadow-xl sm:w-[60%] sm:min-w-[480px]">
-      <div className="flex items-center justify-between px-3 py-2 text-[11px] text-neutral-muted">
-        <span>연결 목록</span>
-        {!isLoading && candidates.length > 0 ? (
-          <span>{candidates.length}명</span>
-        ) : null}
-      </div>
-      {isLoading ? (
-        <div className="flex items-center gap-2 px-3 py-3 text-[12px] text-neutral-muted">
-          <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-          talent 불러오는 중
-        </div>
-      ) : candidates.length === 0 ? (
-        <div className="px-3 py-3 text-[12px] text-neutral-muted">
-          아직 연결된 인재가 없습니다.
-        </div>
-      ) : (
-        <div
-          className="max-h-72 overflow-y-auto py-1"
-          id={listId}
-          role="listbox"
-        >
-          {currentRoleCandidates.map((candidate, index) =>
-            renderCandidate(candidate, index, false)
-          )}
-          {currentRoleCandidates.length > 0 &&
-          otherRoleCandidates.length > 0 ? (
-            <div
-              aria-hidden="true"
-              className="mx-3 my-1 border-t border-neutral-1000-a10"
-              role="separator"
-            />
-          ) : null}
-          {otherRoleCandidates.map((candidate, index) =>
-            renderCandidate(
-              candidate,
-              currentRoleCandidates.length + index,
-              true
-            )
-          )}
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -289,7 +144,7 @@ function ModelSelector({
       }}
     >
       <SelectTrigger
-        aria-label="company-side LLM 모델"
+        aria-label="Harper 모델 선택"
         className="w-56 text-xs"
         size="sm"
       >
@@ -345,12 +200,10 @@ export function OrgAgentComposer({
   const [attachments, setAttachments] = useState<DraftChatAttachment[]>([]);
   const [attachmentError, setAttachmentError] = useState("");
   const [isPreparingAttachments, setIsPreparingAttachments] = useState(false);
-  const [mentions, setMentions] = useState<OrgAgentMention[]>([]);
   const [mentionSearch, setMentionSearch] = useState<{
     query: string;
     start: number;
   } | null>(null);
-  const [highlightedIndex, setHighlightedIndex] = useState(0);
   const mentionQuery = mentionSearch?.query ?? "";
   const mentionCandidates = useOrgAgentMentionCandidates({
     enabled: Boolean(workspaceId),
@@ -359,14 +212,13 @@ export function OrgAgentComposer({
     workspaceId,
   });
 
-  const candidates = mentionCandidates.data ?? [];
-  const resolvedDraft = resolveOrgAgentDraftMentions(draft, mentions);
-  const highlightedDraftSegments = splitOrgAgentMentionText(
-    resolvedDraft.serializedText
-  );
-  const hasHighlightedMention = highlightedDraftSegments.some(
-    (segment) => segment.kind === "mention"
-  );
+  const candidates = mentionCandidates.candidates;
+  const mentionTokens = useChatComposerTokens<OrgAgentMention>({
+    onValueChange: setDraft,
+    textareaRef,
+    value: draft,
+  });
+  const hasHighlightedMention = mentionTokens.tokens.length > 0;
 
   const syncMentionHighlight = useCallback(
     (textarea: HTMLTextAreaElement | null) => {
@@ -403,12 +255,139 @@ export function OrgAgentComposer({
     return () => observer.disconnect();
   }, [allowAttachments, syncMentionHighlight]);
 
-  const updateMentionSearch = useCallback((value: string) => {
-    const cursor = textareaRef.current?.selectionStart ?? value.length;
-    const search = getMentionSearch(value, cursor);
-    setMentionSearch(search);
-    setHighlightedIndex(0);
-  }, []);
+  const closeMentionPicker = useCallback(() => setMentionSearch(null), []);
+  const handleSelectMention = useCallback(
+    (candidate: OrgAgentMentionCandidate) => {
+      if (!mentionSearch) return;
+      const textarea = textareaRef.current;
+      const cursor = textarea?.selectionStart ?? draft.length;
+      const selection = applyChatComposerPickerSelection({
+        cursor,
+        search: mentionSearch,
+        selectedText: candidate.label,
+        value: draft,
+      });
+      mentionTokens.insertToken({
+        cursor: selection.cursor,
+        data: {
+          displayName: candidate.label,
+          recommendationId: candidate.recommendationId,
+          roleId: candidate.roleId,
+          talentId: candidate.talentId,
+        },
+        end: selection.selectedEnd,
+        id: `${candidate.talentId}:${crypto.randomUUID()}`,
+        start: selection.selectedStart,
+        text: candidate.label,
+        value: selection.value,
+      });
+      setMentionSearch(null);
+    },
+    [draft, mentionSearch, mentionTokens]
+  );
+  const mentionPickerCountLabel =
+    mentionCandidates.totalCount > candidates.length
+      ? `${candidates.length}/${mentionCandidates.totalCount}명`
+      : candidates.length > 0
+        ? `${candidates.length}명`
+        : undefined;
+  const normalizedRoleId = roleId?.trim() ?? "";
+  const mentionPickerItems: ChatComposerPickerItem[] = [
+    {
+      id: "title",
+      text: "연결 목록",
+      trailingText: mentionPickerCountLabel,
+      type: "text",
+    },
+    ...(mentionCandidates.isLoading && candidates.length === 0
+      ? [
+          {
+            announcement: "status" as const,
+            id: "loading",
+            text: "Searching...",
+            type: "text" as const,
+          },
+        ]
+      : mentionCandidates.error && candidates.length === 0
+        ? [
+            {
+              announcement: "alert" as const,
+              id: "error",
+              text: "후보자를 불러오지 못했어요.",
+              type: "text" as const,
+            },
+          ]
+        : candidates.length === 0
+          ? [
+              {
+                id: "empty",
+                text: "아직 연결된 후보자가 없어요.",
+                type: "text" as const,
+              },
+            ]
+          : candidates.map((candidate) => ({
+              icon: (
+                <TalentMentionAvatar
+                  name={candidate.label}
+                  src={candidate.profilePicture}
+                />
+              ),
+              id: `${candidate.talentId}:${candidate.recommendationId}`,
+              onSelect: () => handleSelectMention(candidate),
+              subText:
+                normalizedRoleId && candidate.roleId !== normalizedRoleId
+                  ? candidate.roleName
+                  : undefined,
+              text: candidate.label,
+              trailingText: candidate.stageLabel,
+              type: "option" as const,
+            }))),
+    ...(mentionCandidates.hasNextPage
+      ? [
+          {
+            disabled: mentionCandidates.isFetchingNextPage,
+            icon: mentionCandidates.isFetchingNextPage ? (
+              <LoaderCircle className="animate-spin" />
+            ) : (
+              <Plus />
+            ),
+            id: "load-more",
+            onSelect: () => {
+              void mentionCandidates.fetchNextPage();
+            },
+            text: "더 불러오기",
+            type: "action" as const,
+          },
+        ]
+      : []),
+  ];
+  const {
+    activeDescendantId: mentionActiveDescendantId,
+    highlightedIndex: mentionHighlightedIndex,
+    navigationDirection: mentionNavigationDirection,
+    onKeyDown: handleMentionPickerKeyDown,
+    resetHighlight: resetMentionHighlight,
+    setHighlightedIndex: setMentionHighlightedIndex,
+  } = useChatComposerPickerKeyboard({
+    isOpen: Boolean(mentionSearch),
+    items: mentionPickerItems,
+    listId: mentionListId,
+    onClose: closeMentionPicker,
+  });
+
+  const updateMentionSearch = useCallback(
+    (value: string) => {
+      const cursor = textareaRef.current?.selectionStart ?? value.length;
+      const search = getChatComposerTriggerSearch({
+        cursor,
+        triggers: ["@"],
+        value,
+      });
+      setMentionSearch(search);
+      resetMentionHighlight();
+    },
+    [resetMentionHighlight]
+  );
 
   const handleChange = (
     value: string,
@@ -417,71 +396,15 @@ export function OrgAgentComposer({
     if (allowAttachments && textarea) {
       resizeRoleCreationTextarea(textarea);
     }
-    setDraft(value);
+    mentionTokens.updateValue(value);
     updateMentionSearch(value);
-  };
-
-  const handleSelectMention = (candidate: OrgAgentMentionCandidate) => {
-    if (!mentionSearch) return;
-    if (!mentionSearch) return;
-    const textarea = textareaRef.current;
-    const cursor = textarea?.selectionStart ?? draft.length;
-    const before = draft.slice(0, mentionSearch.start);
-    const after = draft.slice(cursor);
-    const insertion = `@${candidate.label}${after.startsWith(" ") ? "" : " "}`;
-    const nextDraft = `${before}${insertion}${after}`;
-    setDraft(nextDraft);
-    setMentions((current) => [
-      ...current.filter((mention) => mention.talentId !== candidate.talentId),
-      {
-        displayName: candidate.label,
-        recommendationId: candidate.recommendationId,
-        roleId: candidate.roleId,
-        talentId: candidate.talentId,
-      },
-    ]);
-    setMentionSearch(null);
-    requestAnimationFrame(() => {
-      textarea?.focus();
-      const nextCursor = before.length + insertion.length;
-      textarea?.setSelectionRange(nextCursor, nextCursor);
-    });
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     const isComposing = event.nativeEvent.isComposing;
 
     if (mentionSearch) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setMentionSearch(null);
-        return;
-      }
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        setHighlightedIndex((index) =>
-          candidates.length ? (index + 1) % candidates.length : 0
-        );
-        return;
-      }
-      if (event.key === "ArrowUp") {
-        event.preventDefault();
-        setHighlightedIndex((index) =>
-          candidates.length
-            ? (index - 1 + candidates.length) % candidates.length
-            : 0
-        );
-        return;
-      }
-      if (
-        event.key === "Enter" &&
-        !isComposing &&
-        candidates[highlightedIndex]
-      ) {
-        event.preventDefault();
-        handleSelectMention(candidates[highlightedIndex]);
-        return;
-      }
+      if (handleMentionPickerKeyDown(event)) return;
       if (event.key === " ") {
         const now = event.timeStamp;
         if (lastSpaceAtRef.current > 0 && now - lastSpaceAtRef.current < 650) {
@@ -491,6 +414,8 @@ export function OrgAgentComposer({
       }
     }
 
+    if (mentionTokens.handleKeyDown(event)) return;
+
     if (event.key === "Enter" && !event.shiftKey && !isComposing) {
       event.preventDefault();
       void handleSubmit();
@@ -499,7 +424,10 @@ export function OrgAgentComposer({
 
   const handleSubmit = async (event?: FormEvent) => {
     event?.preventDefault();
-    const serialized = serializeOrgAgentDraftMentions(draft, mentions);
+    const serialized = serializeOrgAgentDraftMentionTokens(
+      draft,
+      mentionTokens.tokens
+    );
     if (
       (!serialized.text && attachments.length === 0) ||
       disabled ||
@@ -517,7 +445,7 @@ export function OrgAgentComposer({
         : [];
       setDraft("");
       setAttachments([]);
-      setMentions([]);
+      mentionTokens.resetTokens();
       setMentionSearch(null);
       await onSend({
         attachments: preparedAttachments,
@@ -551,6 +479,46 @@ export function OrgAgentComposer({
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
+  const attachmentMenuItems = [
+    {
+      disabled: disabled || isPreparingAttachments || isStreaming,
+      icon: <FileUp />,
+      id: "upload-file",
+      label: "파일 업로드",
+      loading: isPreparingAttachments,
+      onSelect: () => fileInputRef.current?.click(),
+      sectionLabel: "도구",
+      trailingText: "PDF, DOCX",
+    },
+  ];
+  const attachmentContext =
+    attachments.length > 0 ? (
+      <div className="flex flex-wrap gap-1.5">
+        {attachments.map((attachment) => (
+          <span
+            key={attachment.id}
+            className="inline-flex h-8 max-w-full items-center gap-1.5 rounded-xl border border-neutral-1000-a10 bg-bg-floating pl-2.5 pr-1 text-[12px] text-neutral-primary"
+          >
+            <FileText className="size-3.5 shrink-0 text-neutral-muted" />
+            <span className="max-w-56 truncate">{attachment.name}</span>
+            <MuteButton
+              aria-label={`${attachment.name} 제거`}
+              disabled={isPreparingAttachments || isStreaming}
+              onClick={() =>
+                setAttachments((current) =>
+                  current.filter((item) => item.id !== attachment.id)
+                )
+              }
+              size="sm"
+              type="button"
+              variant="transparent"
+            >
+              <X className="size-3" />
+            </MuteButton>
+          </span>
+        ))}
+      </div>
+    ) : undefined;
 
   return (
     <form
@@ -573,113 +541,71 @@ export function OrgAgentComposer({
             type="file"
           />
         ) : null}
-        {attachments.length > 0 ? (
-          <div className="mb-2 flex flex-wrap gap-1.5">
-            {attachments.map((attachment) => (
-              <span
-                key={attachment.id}
-                className="inline-flex h-8 max-w-full items-center gap-1.5 rounded-full border border-neutral-1000-a10 bg-bg-floating pl-2.5 pr-1 text-[12px] text-neutral-primary"
-              >
-                <FileText className="size-3.5 shrink-0 text-neutral-muted" />
-                <span className="max-w-56 truncate">{attachment.name}</span>
-                <MuteButton
-                  aria-label={`${attachment.name} 제거`}
-                  disabled={isPreparingAttachments || isStreaming}
-                  onClick={() =>
-                    setAttachments((current) =>
-                      current.filter((item) => item.id !== attachment.id)
-                    )
-                  }
-                  size="sm"
-                  type="button"
-                  variant="transparent"
-                >
-                  <X className="size-3" />
-                </MuteButton>
-              </span>
-            ))}
-          </div>
-        ) : null}
         <ChatComposerFrame
           ref={textareaRef}
           actionLayout={allowAttachments ? "footer" : "overlay"}
           className="overflow-visible"
+          context={attachmentContext}
           value={draft}
           rows={allowAttachments ? 2 : 3}
           autoFocus={autoFocus}
           disabled={disabled || isStreaming || isPreparingAttachments}
-          aria-activedescendant={
-            mentionSearch && candidates[highlightedIndex]
-              ? `${mentionListId}-option-${highlightedIndex}`
-              : undefined
-          }
+          aria-activedescendant={mentionActiveDescendantId}
           aria-autocomplete="list"
           aria-controls={mentionSearch ? mentionListId : undefined}
           aria-expanded={Boolean(mentionSearch)}
           placeholder="Ask anything, @ for choosing talent"
+          mobileLeadingAction={
+            allowAttachments ? (
+              <ChatComposerActionMenu
+                disabled={disabled || isPreparingAttachments || isStreaming}
+                items={attachmentMenuItems}
+              />
+            ) : undefined
+          }
           onChange={(event) =>
             handleChange(event.target.value, event.currentTarget)
           }
+          onBeforeInput={mentionTokens.handleBeforeInput}
           onKeyDown={handleKeyDown}
+          onSelect={mentionTokens.handleSelect}
           onScroll={(event) => syncMentionHighlight(event.currentTarget)}
           textareaClassName={cn(
-            allowAttachments && "min-h-12 py-3",
+            allowAttachments &&
+              "min-h-12 py-3 [&::placeholder]:block [&::placeholder]:truncate",
             hasHighlightedMention &&
               "relative z-10 text-transparent caret-neutral-primary"
           )}
           overlay={
             <>
               {hasHighlightedMention ? (
-                <div
+                <ChatComposerTokenOverlay
                   ref={mentionHighlightRef}
-                  aria-hidden="true"
-                  className={cn(
-                    "pointer-events-none absolute left-0 top-0 z-0 min-h-[72px] select-none overflow-hidden whitespace-pre-wrap break-words border-none px-3.5 py-4 text-base leading-5 text-neutral-primary md:text-sm lg:text-[14px]",
-                    allowAttachments && "min-h-12 py-3"
-                  )}
-                >
-                  {highlightedDraftSegments.map((segment, index) =>
-                    segment.kind === "mention" ? (
-                      <span
-                        key={`${segment.talentId}:${index}`}
-                        className="font-medium text-link"
-                      >
-                        {segment.text}
-                      </span>
-                    ) : (
-                      <span key={`text:${index}`}>{segment.text}</span>
-                    )
-                  )}
-                </div>
+                  className={cn(allowAttachments && "min-h-12 py-3")}
+                  segments={mentionTokens.segments}
+                />
               ) : null}
               {mentionSearch ? (
-                <MentionMenu
-                  candidates={candidates}
-                  currentRoleId={roleId}
-                  highlightedIndex={highlightedIndex}
-                  isLoading={mentionCandidates.isLoading}
+                <ChatComposerPicker
+                  highlightedIndex={mentionHighlightedIndex}
+                  items={mentionPickerItems}
                   listId={mentionListId}
-                  onHighlight={setHighlightedIndex}
-                  onSelect={handleSelectMention}
+                  navigationDirection={mentionNavigationDirection}
+                  onClose={closeMentionPicker}
+                  onHighlight={setMentionHighlightedIndex}
                 />
               ) : null}
             </>
           }
           action={
             <div className="w-full flex items-end justify-between gap-2">
-              {allowAttachments && (
-                <MuteButton
-                  aria-label="파일 첨부"
-                  className="rounded-full"
-                  disabled={isPreparingAttachments || isStreaming}
-                  onClick={() => fileInputRef.current?.click()}
-                  size="sm"
-                  type="button"
-                  variant="transparent"
-                >
-                  <Paperclip className="size-4" />
-                </MuteButton>
-              )}
+              {allowAttachments ? (
+                <ChatComposerActionMenu
+                  className="hidden md:inline-flex"
+                  disabled={disabled || isPreparingAttachments || isStreaming}
+                  items={attachmentMenuItems}
+                />
+              ) : null}
               <MuteButton
                 type="submit"
                 aria-label="메시지 보내기"

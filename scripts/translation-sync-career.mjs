@@ -1,30 +1,58 @@
+import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import dotenv from "dotenv";
-import { createClient } from "@supabase/supabase-js";
 import {
   LANG_DIR,
   PROJECT_ROOT,
-  SUPPORTED_LOCALES,
   formatFlatObject,
   readTopLevelStringObjectProperty,
   replaceTopLevelObjectProperty,
+  writeText,
 } from "./translationCommon.mjs";
 import {
   extractCareerTCalls,
-  generateCareerTranslationKey,
   rewriteCareerTCalls,
 } from "./translationCareerT.mjs";
+import {
+  fetchTranslationRows,
+  getTranslationSupabaseAdmin,
+  upsertTranslationRows,
+} from "./translationDb.mjs";
+import {
+  applyCareerSyncPlan,
+  buildCareerSyncPlan,
+  createManualTranslationRequest,
+} from "./translationSyncCore.mjs";
 
 dotenv.config({ path: path.join(PROJECT_ROOT, ".env.local") });
 
-const namespace = "career";
-const tableName = "translation_entries";
 const args = new Set(process.argv.slice(2));
-const dryRun = args.has("--dry-run");
+const shouldPlan = args.has("--plan") || args.has("--dry-run");
+const shouldApply = args.has("--apply");
 const shouldPushDb = args.has("--push-db");
-const shouldTranslate = args.has("--translate");
-const shouldRemoveSyncOptions = !args.has("--keep-sync-options");
+const manualFileArg = process.argv
+  .slice(2)
+  .find((arg) => arg.startsWith("--manual-file="));
+const manualFilePath = path.resolve(
+  PROJECT_ROOT,
+  manualFileArg?.slice("--manual-file=".length) ||
+    "output/career-translations-manual.json"
+);
+
+if (args.has("--translate")) {
+  throw new Error(
+    "Automatic translation is forbidden. Codex must translate every requested entry directly."
+  );
+}
+if (shouldPlan === shouldApply) {
+  throw new Error("Choose exactly one of --plan or --apply.");
+}
+if (shouldApply && !shouldPushDb) {
+  throw new Error(
+    "Applying code-source translations requires --push-db so the same touched keys are synchronized to DB."
+  );
+}
 
 function readCareerValues(exportName) {
   return readTopLevelStringObjectProperty({
@@ -34,320 +62,85 @@ function readCareerValues(exportName) {
   });
 }
 
-function getCallIdentity(call) {
-  return `${call.filePath}:${call.nodeStart}`;
-}
-
-function assertSupportedLocales() {
-  if (!SUPPORTED_LOCALES.includes("ko") || !SUPPORTED_LOCALES.includes("en")) {
-    throw new Error("translation:sync currently requires ko and en locales.");
-  }
-}
-
-function getSupabaseAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
+function readManualRequest() {
+  if (!fs.existsSync(manualFilePath)) {
     throw new Error(
-      "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY."
+      `Missing ${path.relative(PROJECT_ROOT, manualFilePath)}. Run pnpm translation:plan, then have Codex directly fill every English translation.`
     );
   }
-
-  return createClient(url, key, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
+  return JSON.parse(fs.readFileSync(manualFilePath, "utf8"));
 }
 
-async function upsertRows(rows) {
-  if (rows.length === 0) return;
-  const supabase = getSupabaseAdmin();
-  const batchSize = 500;
-
-  for (let index = 0; index < rows.length; index += batchSize) {
-    const batch = rows.slice(index, index + batchSize);
-    const { error } = await supabase.from(tableName).upsert(batch, {
-      onConflict: "namespace,key,locale",
-    });
-    if (error) throw error;
-    console.log(
-      `Uploaded ${Math.min(index + batch.length, rows.length)} / ${rows.length}`
-    );
-  }
-}
-
-function parseJsonObject(text) {
-  const trimmed = text.trim();
-  try {
-    return JSON.parse(trimmed);
-  } catch {
-    const start = trimmed.indexOf("{");
-    const end = trimmed.lastIndexOf("}");
-    if (start >= 0 && end > start)
-      return JSON.parse(trimmed.slice(start, end + 1));
-    throw new Error("Model response did not contain a JSON object.");
-  }
-}
-
-function extractPlaceholders(value) {
-  return Array.from(value.matchAll(/\{([a-zA-Z0-9_]+)\}/g))
-    .map((match) => match[1])
-    .sort();
-}
-
-function getUnsupportedPlaceholders(koValue, enValue) {
-  const koPlaceholders = new Set(extractPlaceholders(koValue));
-  return extractPlaceholders(enValue).filter(
-    (placeholder) => !koPlaceholders.has(placeholder)
-  );
-}
-
-async function translateEnglish(entries) {
-  if (entries.length === 0) return {};
-  if (!shouldTranslate) return {};
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error("Missing GEMINI_API_KEY for --translate.");
-  }
-
-  const { GoogleGenAI } = await import("@google/genai");
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-  const translations = {};
-  const batchSize = 30;
-  const models = [
-    "gemini-2.5-flash-lite",
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-  ];
-
-  async function generateBatch(payload) {
-    let lastError = null;
-    const guide = [
-      "You are the localization engine for Harper, an AI career agent product.",
-      "Translate Korean product strings into English as if writing native English product UI.",
-      "Classify conversational Harper messages separately from product UI.",
-      "For conversational strings, Harper speaks in first person: I will, I'll, you and I.",
-      "For product UI/system text, refer to Harper in third person and use you/your for the user.",
-      "Keep the tone friendly, professional, concise, and natural.",
-      "Preserve Harper, named entities, placeholders like {count}, markup, and line breaks exactly.",
-      "Return only a JSON object with the same keys and English string values.",
-    ].join("\n");
-
-    for (const model of models) {
-      for (let attempt = 0; attempt < 4; attempt += 1) {
-        try {
-          return await ai.models.generateContent({
-            model,
-            contents: [
-              {
-                role: "user",
-                parts: [
-                  {
-                    text: `${guide}\n\n${JSON.stringify(payload, null, 2)}`,
-                  },
-                ],
-              },
-            ],
-            config: {
-              responseMimeType: "application/json",
-              temperature: 0.2,
-            },
-          });
-        } catch (error) {
-          lastError = error;
-          const waitMs = 800 * (attempt + 1) * (attempt + 1);
-          await new Promise((resolve) => setTimeout(resolve, waitMs));
-        }
-      }
-    }
-
-    throw lastError ?? new Error("Translation request failed.");
-  }
-
-  for (let index = 0; index < entries.length; index += batchSize) {
-    const batch = entries.slice(index, index + batchSize);
-    const payload = Object.fromEntries(
-      batch.map((entry) => [entry.key, entry.ko])
-    );
-    const response = await generateBatch(payload);
-    Object.assign(translations, parseJsonObject(response.text ?? "{}"));
-    console.log(
-      `Translated ${Math.min(index + batch.length, entries.length)} / ${entries.length}`
-    );
-  }
-
-  return translations;
-}
-
-function collectExplicitEntries({ calls, existingKeys }) {
-  const entries = new Map();
-  const keyRewrites = new Map();
-  const claimedKeys = new Set(existingKeys);
-  const conflicts = [];
-
-  for (const call of calls) {
-    let key = call.key;
-    if (key === "new") {
-      key = generateCareerTranslationKey({
-        existingKeys: claimedKeys,
-        koSource: call.koSource,
-        relPath: path.relative(PROJECT_ROOT, call.filePath),
-      });
-      keyRewrites.set(getCallIdentity(call), key);
-      claimedKeys.add(key);
-    }
-
-    const current = entries.get(key);
-    if (current && current.ko !== call.koSource) {
-      conflicts.push({ current, key, next: call });
-      continue;
-    }
-
-    if (!current) {
-      entries.set(key, {
-        key,
-        ko: call.koSource,
-        locations: [call.location],
-        retranslate: call.retranslate,
-      });
-      continue;
-    }
-
-    current.locations.push(call.location);
-    current.retranslate ||= call.retranslate;
-  }
-
-  if (conflicts.length > 0) {
-    const details = conflicts
-      .slice(0, 10)
-      .map(
-        ({ current, key, next }) =>
-          `- ${key}: ${current.locations[0]}=${JSON.stringify(
-            current.ko
-          )}, ${next.location}=${JSON.stringify(next.koSource)}`
-      )
-      .join("\n");
-    throw new Error(`Conflicting t() Korean sources:\n${details}`);
-  }
-
-  return { entries: Array.from(entries.values()), keyRewrites };
-}
-
-assertSupportedLocales();
-
+const supabase = getTranslationSupabaseAdmin();
+const dbRows = await fetchTranslationRows(supabase);
 const calls = extractCareerTCalls();
-const existingKo = readCareerValues("ko");
-const existingEn = readCareerValues("en");
-const existingKeys = new Set([
-  ...Object.keys(existingKo),
-  ...Object.keys(existingEn),
-  ...calls.filter((call) => call.key !== "new").map((call) => call.key),
-]);
-const { entries, keyRewrites } = collectExplicitEntries({
-  calls,
-  existingKeys,
-});
-const englishRequests = [];
-const touchedKeys = new Set();
+const localKo = readCareerValues("ko");
+const localEn = readCareerValues("en");
+const plan = buildCareerSyncPlan({ calls, dbRows, localEn, localKo });
 
-const nextKo = { ...existingKo };
-const nextEn = { ...existingEn };
-
-for (const entry of entries) {
-  const previousKo = existingKo[entry.key];
-  const previousEn = existingEn[entry.key];
-  const koChanged = previousKo !== entry.ko;
-  const isNew = previousKo === undefined && previousEn === undefined;
-
-  if (koChanged) {
-    nextKo[entry.key] = entry.ko;
-    touchedKeys.add(entry.key);
-  }
-
-  if (isNew || !previousEn || entry.retranslate || koChanged) {
-    englishRequests.push(entry);
-    touchedKeys.add(entry.key);
-  }
-}
-
-const translatedEn = await translateEnglish(englishRequests);
-
-for (const entry of englishRequests) {
-  const nextValue =
-    translatedEn[entry.key] ?? existingEn[entry.key] ?? entry.ko;
-  const unsupportedPlaceholders = getUnsupportedPlaceholders(
-    entry.ko,
-    nextValue
+if (shouldPlan) {
+  const request = createManualTranslationRequest(plan);
+  writeText(manualFilePath, `${JSON.stringify(request, null, 2)}\n`);
+  console.log(
+    JSON.stringify(
+      {
+        dbValuesToPull: plan.pulledKeys,
+        directTranslationCount: plan.codeChanges.length,
+        directTranslationKeys: plan.codeChanges.map((entry) => entry.key),
+        generatedKeyCount: plan.keyRewrites.size,
+        manualFile: path.relative(PROJECT_ROOT, manualFilePath),
+        next:
+          plan.codeChanges.length > 0
+            ? 'Codex must directly write every translations.*.en value, then set translationMethod to "codex_direct" and run pnpm translation:sync.'
+            : "No direct translations are needed. Run pnpm translation:sync to pull DB differences into local files.",
+      },
+      null,
+      2
+    )
   );
-  if (unsupportedPlaceholders.length > 0) {
-    throw new Error(
-      `Unsupported placeholder after translation for ${
-        entry.key
-      }: unsupported=${unsupportedPlaceholders.join(
-        ","
-      )} source=${extractPlaceholders(entry.ko).join(",")}`
-    );
-  }
-  nextEn[entry.key] = nextValue;
+  process.exit(0);
 }
 
-const changedSourceFiles = dryRun
-  ? []
-  : rewriteCareerTCalls({
-      keyRewrites,
-      koSourceByKey: new Map(),
-      removeSyncOnlyOptions: shouldRemoveSyncOptions,
-    });
+const request = plan.codeChanges.length > 0 ? readManualRequest() : null;
+const result = applyCareerSyncPlan({
+  dbRows,
+  localEn,
+  localKo,
+  plan,
+  request,
+});
 
-if (!dryRun) {
-  replaceTopLevelObjectProperty({
-    exportName: "ko",
-    filePath: path.join(LANG_DIR, "ko.ts"),
-    propertyName: "career",
-    propertyObjectLiteral: formatFlatObject(nextKo),
-  });
-  replaceTopLevelObjectProperty({
-    exportName: "en",
-    filePath: path.join(LANG_DIR, "en.ts"),
-    propertyName: "career",
-    propertyObjectLiteral: formatFlatObject(nextEn),
-  });
-}
+replaceTopLevelObjectProperty({
+  exportName: "ko",
+  filePath: path.join(LANG_DIR, "ko.ts"),
+  propertyName: "career",
+  propertyObjectLiteral: formatFlatObject(result.nextKo),
+});
+replaceTopLevelObjectProperty({
+  exportName: "en",
+  filePath: path.join(LANG_DIR, "en.ts"),
+  propertyName: "career",
+  propertyObjectLiteral: formatFlatObject(result.nextEn),
+});
 
-const dbRows = Array.from(touchedKeys).flatMap((key) =>
-  SUPPORTED_LOCALES.flatMap((locale) => {
-    const value = locale === "ko" ? nextKo[key] : nextEn[key];
-    if (typeof value !== "string") return [];
-    return {
-      description: null,
-      key,
-      locale,
-      namespace,
-      status: locale === "ko" ? "reviewed" : "draft",
-      updated_by: "translation:sync",
-      value,
-    };
-  })
+const changedSourceFiles = rewriteCareerTCalls({
+  keyRewrites: plan.keyRewrites,
+});
+
+await upsertTranslationRows(supabase, result.dbUpserts);
+
+console.log(
+  JSON.stringify(
+    {
+      changedLocalKeys: result.changedLocalKeys,
+      changedSourceFiles: changedSourceFiles.map((filePath) =>
+        path.relative(PROJECT_ROOT, filePath)
+      ),
+      directTranslationCount: plan.codeChanges.length,
+      pushedDbRows: result.dbUpserts.length,
+      pulledDbValueCount: result.pulledKeys.length,
+    },
+    null,
+    2
+  )
 );
-
-if (!dryRun && shouldPushDb) {
-  await upsertRows(dbRows);
-}
-
-const summary = {
-  changedSourceFiles: changedSourceFiles.map((filePath) =>
-    path.relative(PROJECT_ROOT, filePath)
-  ),
-  explicitCallCount: calls.length,
-  newKeyCount: keyRewrites.size,
-  pushedDbRows: !dryRun && shouldPushDb ? dbRows.length : 0,
-  retranslatedCount: englishRequests.filter((entry) => entry.retranslate)
-    .length,
-  sourceChangedEnglishCount: englishRequests.filter(
-    (entry) => existingKo[entry.key] !== entry.ko
-  ).length,
-  touchedKeys: Array.from(touchedKeys).sort(),
-};
-
-console.log(JSON.stringify(summary, null, 2));

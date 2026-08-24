@@ -1,5 +1,7 @@
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import { stripOpportunityRunMarkers } from "@/lib/opportunityDiscovery/messageMarker";
+import { formatCareerOpportunityMentionsForLlm } from "@/lib/career/opportunityMentionText";
+import { formatCareerMessageAttachmentsForLlm } from "@/lib/career/messageAttachments";
 export const TALENT_MESSAGE_TYPE_OPPORTUNITY_FEEDBACK_NOTE =
   "opportunity_feedback_note";
 export const TALENT_MESSAGE_TYPE_RESUME_UPLOAD_NOTE = "resume_upload_note";
@@ -57,7 +59,11 @@ export function formatTalentMessageContentForLlmPrompt(message: {
   messageType?: string | null;
   message_type?: string | null;
 }) {
-  const content = stripOpportunityRunMarkers(String(message.content ?? ""));
+  const content = formatCareerMessageAttachmentsForLlm(
+    formatCareerOpportunityMentionsForLlm(
+      stripOpportunityRunMarkers(String(message.content ?? ""))
+    )
+  );
   const messageType = message.message_type ?? message.messageType;
   if (messageType === TALENT_MESSAGE_TYPE_RESUME_UPLOAD_NOTE) {
     const normalizedContent = content.replace(/\s+/g, " ").trim();

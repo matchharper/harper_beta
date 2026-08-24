@@ -2,9 +2,15 @@ import {
   Ellipsis,
   Eye,
   EyeOff,
+  File,
+  FileImage,
+  Files,
+  FileSpreadsheet,
   FileText,
+  FileType2,
   Pencil,
   Plus,
+  Presentation,
   Star,
   Trash2,
 } from "lucide-react";
@@ -19,12 +25,35 @@ import { Badge } from "@/components/ui/badge";
 import { MuteButton } from "@/components/ui/button";
 import { FieldLabel } from "@/components/ui/panel";
 import { useCareerT } from "@/i18n/useCareerT";
+import { useMessages } from "@/i18n/useMessage";
+import { formatCareerDate } from "@/lib/career/dateFormat";
+import {
+  getCareerDocumentFormat,
+  type CareerDocumentFormat,
+} from "@/lib/career/documentFormat";
 
 type CareerDocumentsSettingsSectionProps = {
   documents: CareerTalentDocument[];
   onAddDocument: () => void;
   onDeleteDocument: (documentId: string) => void;
   onRenameDocument: (document: CareerTalentDocument) => void;
+};
+
+const DOCUMENT_FORMAT_ICONS: Record<CareerDocumentFormat, typeof File> = {
+  document: FileText,
+  image: FileImage,
+  pdf: FileType2,
+  presentation: Presentation,
+  spreadsheet: FileSpreadsheet,
+  unknown: File,
+};
+
+const CareerDocumentFormatIcon = ({ fileName }: { fileName: string }) => {
+  const Icon = DOCUMENT_FORMAT_ICONS[getCareerDocumentFormat(fileName)];
+
+  return (
+    <Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-neutral-muted" />
+  );
 };
 
 const CareerDocumentsSettingsSection = ({
@@ -34,6 +63,7 @@ const CareerDocumentsSettingsSection = ({
   onRenameDocument,
 }: CareerDocumentsSettingsSectionProps) => {
   const t = useCareerT();
+  const { locale } = useMessages();
   const { profileSavePending, onUpdateTalentDocument } =
     useCareerProfileContext();
 
@@ -41,7 +71,7 @@ const CareerDocumentsSettingsSection = ({
     <div className="mt-8">
       <div className="flex items-center justify-between gap-3">
         <FieldLabel
-          icon={<FileText className="h-4 w-4" />}
+          icon={<Files className="h-4 w-4" />}
           label={t("career.profile.documents.title", "내 문서")}
         />
         <MuteButton
@@ -61,7 +91,7 @@ const CareerDocumentsSettingsSection = ({
               key={document.id}
               className="flex items-center gap-3 rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 py-3 shadow-sm"
             >
-              <FileText className="h-4 w-4 shrink-0 text-neutral-muted" />
+              <CareerDocumentFormatIcon fileName={document.fileName} />
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
                   {document.downloadUrl ? (
@@ -95,7 +125,7 @@ const CareerDocumentsSettingsSection = ({
                   )}
                 </div>
                 <p className="mt-1 text-xs text-neutral-soft">
-                  {new Date(document.createdAt).toLocaleDateString()}
+                  {formatCareerDate(document.createdAt, locale)}
                 </p>
               </div>
               <ActionDropdown

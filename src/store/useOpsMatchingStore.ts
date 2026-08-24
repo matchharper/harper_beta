@@ -26,7 +26,7 @@ const normalizeTab = (value: unknown): OpsMatchingStageTabId => {
   if (normalized === "all" || normalized === "harper_review") {
     return normalized;
   }
-  return "all";
+  return "harper_review";
 };
 
 const normalizeViewMode = (value: unknown): OpsMatchingViewMode => {
@@ -89,7 +89,7 @@ function normalizeCollapsedColumnIds(values: readonly string[] | undefined) {
 export const useOpsMatchingStore = create<OpsMatchingStoreState>()(
   persist(
     (set, get) => ({
-      activeTab: "all",
+      activeTab: "harper_review",
       allCreatedFrom: "",
       allCreatedTo: "",
       allExcludeRecommended: false,
@@ -151,7 +151,9 @@ export const useOpsMatchingStore = create<OpsMatchingStoreState>()(
         set({ selectedRoleId: normalizeText(roleId) }),
       setStateFromUrl: (state) =>
         set({
-          activeTab: state.activeTab ? normalizeTab(state.activeTab) : "all",
+          activeTab: state.activeTab
+            ? normalizeTab(state.activeTab)
+            : "harper_review",
           allCreatedFrom: normalizeText(state.allCreatedFrom),
           allCreatedTo: normalizeText(state.allCreatedTo),
           allExcludeRecommended: Boolean(state.allExcludeRecommended),

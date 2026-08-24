@@ -124,7 +124,6 @@ const LLM_LOG_TOOL_NAMES = [
   "web_search",
   "open_url",
   "research_company",
-  "lookup_answer_examples",
   "read_talent_activity_events",
   "update_setting",
   "update_talent_profile",
@@ -136,6 +135,7 @@ const LLM_LOG_SOURCES: readonly string[] = [
   "career/chat",
   "career/internal-opportunity-call-request",
   "org/intro-email",
+  "org/auto-intro",
   "org/slack-router",
   ...LLM_LOG_TOOL_NAMES.map((name) => `career_tool:${name}`),
 ];

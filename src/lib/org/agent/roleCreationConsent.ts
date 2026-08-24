@@ -9,6 +9,28 @@ export type RoleCreationNotificationConsent = {
   ok: boolean;
 };
 
+export function isUnambiguousFinalRoleNotificationDefault(args: {
+  availableChannelIds: string[];
+  currentUserId: string;
+  memberUserIds: string[];
+  roleStatus: string | null;
+  selectedAssigneeUserId: string;
+  selectedChannelIds: string[];
+  unresolvedFields: string[];
+}) {
+  return (
+    args.roleStatus === "draft" &&
+    args.availableChannelIds.length === 1 &&
+    args.selectedChannelIds.length === 1 &&
+    args.selectedChannelIds[0] === args.availableChannelIds[0] &&
+    args.selectedAssigneeUserId === args.currentUserId &&
+    args.memberUserIds.includes(args.currentUserId) &&
+    args.unresolvedFields.every(
+      (field) => field === "connected_slack" || field === "assignee"
+    )
+  );
+}
+
 function normalized(value: unknown) {
   return String(value ?? "")
     .normalize("NFKC")

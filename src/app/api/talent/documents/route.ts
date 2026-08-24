@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
-  TALENT_RESUME_BUCKET,
   fetchTalentDocument,
   fetchTalentDocuments,
   getTalentSupabaseAdmin,
@@ -120,6 +119,7 @@ export async function PATCH(req: NextRequest) {
         .update({ is_primary: false, is_public: false })
         .eq("talent_id", userId)
         .eq("kind", "resume")
+        .eq("is_deleted", false)
         .eq("is_primary", true);
       if (clearError) throw new Error(clearError.message);
       update.is_primary = true;
@@ -137,7 +137,8 @@ export async function PATCH(req: NextRequest) {
       .from("talent_documents")
       .update(update)
       .eq("id", document.id)
-      .eq("talent_id", userId);
+      .eq("talent_id", userId)
+      .eq("is_deleted", false);
     if (updateError) {
       if (previousPrimaryId) {
         await admin
@@ -212,31 +213,20 @@ export async function DELETE(req: NextRequest) {
 
     const { error: deleteError } = await admin
       .from("talent_documents")
-      .delete()
+      .update({
+        is_deleted: true,
+        is_primary: false,
+        is_public: false,
+      })
       .eq("id", document.id)
-      .eq("talent_id", userId);
+      .eq("talent_id", userId)
+      .eq("is_deleted", false);
     if (deleteError) {
       throw new Error(deleteError.message ?? "Failed to delete document");
     }
 
     if (document.kind === "resume") {
       await syncLegacyResumeFromDocuments({ admin, userId });
-    }
-
-    const { error: storageError } = await admin.storage
-      .from(TALENT_RESUME_BUCKET)
-      .remove([document.storage_path]);
-    if (storageError) {
-      await insertTalentProfileSourceErrorLog({
-        admin,
-        error: storageError,
-        stage: "talent_document_storage_delete",
-        userId,
-        metadata: {
-          documentId: document.id,
-          storagePath: document.storage_path,
-        },
-      });
     }
 
     return NextResponse.json({
