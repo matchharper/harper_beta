@@ -62,6 +62,7 @@ import {
   type CareerConversationStarterMode,
 } from "@/lib/career/prompts/conversationStarters";
 import { CAREER_CHAT_ALLOWED_TOOLS_BY_ACTION } from "@/lib/career/chatToolPresets";
+import type { CareerOpportunityMention } from "@/lib/career/opportunityMentionText";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 import type { CareerWorkspaceTab } from "./CareerWorkspaceNav";
@@ -748,6 +749,7 @@ export const CareerFlowProvider = ({
       text: string;
       link?: string;
       messageType?: TalentUserChatMessageType;
+      opportunityMentions?: CareerOpportunityMention[];
       onError?: () => void;
     }) => {
       if (opportunityFeedbackFollowUpPending) return;

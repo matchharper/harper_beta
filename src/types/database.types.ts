@@ -1926,9 +1926,13 @@ export type Database = {
       }
       company_talent_requests: {
         Row: {
+          approved_at: string | null
           company_workspace_id: string
           created_at: string
+          delivery_body: string | null
+          delivery_subject: string | null
           document_id: string | null
+          draft_revision: number
           expects_document: boolean
           expires_at: string
           id: string
@@ -1938,12 +1942,17 @@ export type Database = {
           source_company_message_id: number
           talent_id: string
           talent_source_message_id: number | null
+          updated_at: string
           workflow_status: string
         }
         Insert: {
+          approved_at?: string | null
           company_workspace_id: string
           created_at?: string
+          delivery_body?: string | null
+          delivery_subject?: string | null
           document_id?: string | null
+          draft_revision?: number
           expects_document?: boolean
           expires_at?: string
           id?: string
@@ -1953,12 +1962,17 @@ export type Database = {
           source_company_message_id: number
           talent_id: string
           talent_source_message_id?: number | null
+          updated_at?: string
           workflow_status?: string
         }
         Update: {
+          approved_at?: string | null
           company_workspace_id?: string
           created_at?: string
+          delivery_body?: string | null
+          delivery_subject?: string | null
           document_id?: string | null
+          draft_revision?: number
           expects_document?: boolean
           expires_at?: string
           id?: string
@@ -1968,6 +1982,7 @@ export type Database = {
           source_company_message_id?: number
           talent_id?: string
           talent_source_message_id?: number | null
+          updated_at?: string
           workflow_status?: string
         }
         Relationships: [
@@ -5338,6 +5353,7 @@ export type Database = {
       service_answer_examples: {
         Row: {
           answer_example_text: string
+          audience: string
           created_at: string
           created_by: string | null
           embedding: string
@@ -5353,6 +5369,7 @@ export type Database = {
         }
         Insert: {
           answer_example_text: string
+          audience: string
           created_at?: string
           created_by?: string | null
           embedding: string
@@ -5368,6 +5385,7 @@ export type Database = {
         }
         Update: {
           answer_example_text?: string
+          audience?: string
           created_at?: string
           created_by?: string | null
           embedding?: string
@@ -6085,6 +6103,7 @@ export type Database = {
           extracted_text: string | null
           file_name: string
           id: string
+          is_deleted: boolean
           is_primary: boolean
           is_public: boolean
           kind: string
@@ -6099,6 +6118,7 @@ export type Database = {
           extracted_text?: string | null
           file_name: string
           id?: string
+          is_deleted?: boolean
           is_primary?: boolean
           is_public?: boolean
           kind?: string
@@ -6113,6 +6133,7 @@ export type Database = {
           extracted_text?: string | null
           file_name?: string
           id?: string
+          is_deleted?: boolean
           is_primary?: boolean
           is_public?: boolean
           kind?: string
@@ -8077,6 +8098,7 @@ export type Database = {
       }
       match_service_answer_examples: {
         Args: {
+          audience_filter: string
           embedding_model_filter?: string
           match_count?: number
           min_score?: number
@@ -8165,6 +8187,17 @@ export type Database = {
           p_current_user_message_id: number
           p_proposal_id: string
           p_scope_key: string
+          p_workspace_id: string
+        }
+        Returns: Json
+      }
+      schedule_company_talent_request_v1: {
+        Args: {
+          p_delivery_mode: string
+          p_expected_revision: number
+          p_request_id: string
+          p_role_id: string
+          p_talent_id: string
           p_workspace_id: string
         }
         Returns: Json

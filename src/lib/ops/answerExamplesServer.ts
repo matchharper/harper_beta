@@ -3,6 +3,7 @@ import {
   embedAnswerExampleUserText,
   hashAnswerExampleUserText,
   normalizeAnswerExampleEmbeddingInput,
+  type ServiceAnswerExampleAudience,
 } from "@/lib/serviceAnswerExamples";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 
@@ -14,6 +15,7 @@ const MAX_NOTES_LENGTH = 4000;
 
 const ANSWER_EXAMPLE_SELECT_COLUMNS = [
   "id",
+  "audience",
   "user_example_text",
   "answer_example_text",
   "tags",
@@ -31,6 +33,7 @@ type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 
 type ServiceAnswerExampleRow = {
   answer_example_text: string;
+  audience: ServiceAnswerExampleAudience;
   created_at: string;
   created_by: string | null;
   enabled: boolean;
@@ -46,6 +49,7 @@ type ServiceAnswerExampleRow = {
 
 export type OpsAnswerExampleItem = {
   answerExampleText: string;
+  audience: ServiceAnswerExampleAudience;
   createdAt: string;
   createdBy: string | null;
   enabled: boolean;
@@ -65,6 +69,7 @@ export type OpsAnswerExamplesResponse = {
 
 export type OpsAnswerExampleSaveInput = {
   answerExampleText?: unknown;
+  audience?: unknown;
   enabled?: unknown;
   id?: unknown;
   notes?: unknown;
@@ -142,9 +147,15 @@ function normalizeEnabled(value: unknown) {
   return true;
 }
 
+function normalizeAudience(value: unknown): ServiceAnswerExampleAudience {
+  if (value === "company" || value === "career") return value;
+  throw new Error("audience must be company or career");
+}
+
 function toOpsAnswerExampleItem(row: ServiceAnswerExampleRow) {
   return {
     answerExampleText: row.answer_example_text,
+    audience: row.audience,
     createdAt: row.created_at,
     createdBy: row.created_by,
     enabled: row.enabled,
@@ -189,6 +200,7 @@ export async function fetchOpsAnswerExamples(args?: {
       [
         example.userExampleText,
         example.answerExampleText,
+        example.audience,
         example.notes ?? "",
         example.tags.join(" "),
       ]
@@ -218,6 +230,7 @@ export async function saveOpsAnswerExample(args: {
     "answerExampleText",
     MAX_ANSWER_EXAMPLE_TEXT_LENGTH
   );
+  const audience = normalizeAudience(args.input.audience);
   const notes = normalizeOptionalString(args.input.notes, MAX_NOTES_LENGTH);
   const tags = normalizeTags(args.input.tags);
   const enabled =
@@ -261,6 +274,7 @@ export async function saveOpsAnswerExample(args: {
 
   const basePayload = {
     answer_example_text: answerExampleText,
+    audience,
     enabled,
     notes,
     tags,

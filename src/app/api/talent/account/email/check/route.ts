@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { TALENT_ACCOUNT_EMAIL_UNAVAILABLE_MESSAGE } from "@/lib/career/accountEmailErrors";
 import { getRequestUser } from "@/lib/supabaseServer";
-import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
+import {
+  fetchTalentSetting,
+  getTalentSupabaseAdmin,
+} from "@/lib/talentOnboarding/server";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 import {
   isTalentAccountEmailAvailable,
   isValidTalentAccountEmail,
@@ -16,21 +19,38 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json().catch(() => ({}))) as { email?: string };
+    const admin = getTalentSupabaseAdmin();
+    const talentSetting = await fetchTalentSetting({ admin, userId: user.id });
+    const responseLocale =
+      talentSetting?.preferred_locale ??
+      req.cookies.get("NEXT_LOCALE")?.value ??
+      null;
     const email = normalizeTalentAccountEmail(body.email);
     if (!isValidTalentAccountEmail(email)) {
       return NextResponse.json(
-        { error: "유효한 이메일을 입력해주세요." },
+        {
+          error: careerT(
+            responseLocale,
+            "career.settings.email_change.invalid",
+            "유효한 이메일을 입력해주세요."
+          ),
+        },
         { status: 400 }
       );
     }
     if (email === normalizeTalentAccountEmail(user.email)) {
       return NextResponse.json(
-        { error: "현재 사용 중인 이메일과 같습니다." },
+        {
+          error: careerT(
+            responseLocale,
+            "career.settings.email_change.same_email",
+            "현재 사용 중인 이메일과 같습니다."
+          ),
+        },
         { status: 400 }
       );
     }
 
-    const admin = getTalentSupabaseAdmin();
     const available = await isTalentAccountEmailAvailable(admin, {
       email,
       userId: user.id,
@@ -39,7 +59,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           code: "EMAIL_IN_USE",
-          error: TALENT_ACCOUNT_EMAIL_UNAVAILABLE_MESSAGE,
+          error: careerT(
+            responseLocale,
+            "career.settings.email_change.in_use",
+            "해당 이메일로 진행할 수 없습니다. 사유: 인증이 차단된 이메일 혹은 이미 등록된 이메일"
+          ),
         },
         { status: 409 }
       );

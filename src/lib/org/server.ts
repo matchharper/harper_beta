@@ -7,6 +7,8 @@ import {
   isOrgInvitationForUser,
 } from "@/lib/org/access";
 import { buildOrgIntroEmailDraft } from "@/lib/org/introEmail";
+import { buildOrgIntroCandidateProfessionalSummary } from "@/lib/org/introEmailProfessionalSummary";
+import { parseCareerPromptLocale } from "@/lib/career/promptLocale";
 import { appendOrgIntroCaptureDisclosure } from "@/lib/org/introEmailDisclosure";
 import { getOrCreateOrgIntroCaptureThread } from "@/lib/org/introEmailCapture";
 import {
@@ -24,6 +26,10 @@ import {
   type WebsiteCompanyDataChange,
   WebsiteCompanyDataConflictError,
 } from "@/lib/org/companyDataWebsite";
+import {
+  normalizeOrgCompanyCriteriaEvaluations,
+  type OrgCompanyCriteriaEvaluation,
+} from "@/lib/org/companyCriteriaEvaluations";
 import {
   getOrgPermissions,
   normalizeOrgMembershipRole,
@@ -93,6 +99,8 @@ type RecommendationRow =
   Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"];
 type TalentOpportunityTagRow =
   Database["public"]["Tables"]["talent_opportunity_tag"]["Row"];
+type TalentOpportunityFitRow =
+  Database["public"]["Tables"]["talent_opportunity_fit"]["Row"];
 type TalentProgressRow = Database["public"]["Tables"]["talent_progress"]["Row"];
 type CareerEmailMessageRow =
   Database["public"]["Tables"]["career_email_messages"]["Row"];
@@ -322,6 +330,7 @@ export type OrgBoardTalent = {
 };
 
 export type OrgBoardItem = {
+  criteriaEvaluations: OrgCompanyCriteriaEvaluation[];
   createdAt: string;
   fitReasons: string[];
   fitSummary: string | null;
@@ -2267,6 +2276,65 @@ async function fetchTagsForBoard(args: {
   return map;
 }
 
+async function fetchCriteriaEvaluationsForBoard(args: {
+  admin: SupabaseAdminClient;
+  recommendationRows: Array<Pick<RecommendationRow, "role_id" | "talent_id">>;
+}) {
+  const talentIdsByRoleId = new Map<string, string[]>();
+  for (const row of args.recommendationRows) {
+    const talentIds = talentIdsByRoleId.get(row.role_id) ?? [];
+    talentIds.push(row.talent_id);
+    talentIdsByRoleId.set(row.role_id, talentIds);
+  }
+
+  const results = await Promise.all(
+    Array.from(talentIdsByRoleId.entries()).flatMap(([roleId, talentIds]) =>
+      chunkValues(uniqueTexts(talentIds)).map(async (talentIdChunk) => {
+        const { data, error } = await (
+          args.admin.from("talent_opportunity_fit" as any) as any
+        )
+          .select(
+            "id, opportunity_id, talent_id, company_criteria_evaluations, last_evaluated_at, created_at"
+          )
+          .eq("opportunity_id", roleId)
+          .in("talent_id", talentIdChunk)
+          .order("last_evaluated_at", {
+            ascending: false,
+            nullsFirst: false,
+          })
+          .order("created_at", { ascending: false, nullsFirst: false })
+          .order("id", { ascending: false })
+          .limit(ORG_BOARD_STAGE_DEPENDENCY_CAP);
+        if (error) throw error;
+        return (data ?? []) as Array<
+          Pick<
+            TalentOpportunityFitRow,
+            | "company_criteria_evaluations"
+            | "created_at"
+            | "id"
+            | "last_evaluated_at"
+            | "opportunity_id"
+            | "talent_id"
+          >
+        >;
+      })
+    )
+  );
+
+  const evaluationsByKey = new Map<string, OrgCompanyCriteriaEvaluation[]>();
+  for (const row of results.flat()) {
+    const key = `${row.talent_id}:${row.opportunity_id}`;
+    if (evaluationsByKey.has(key)) continue;
+    evaluationsByKey.set(
+      key,
+      normalizeOrgCompanyCriteriaEvaluations(
+        row.company_criteria_evaluations
+      ).slice(0, 6)
+    );
+  }
+  return evaluationsByKey;
+}
+
 async function fetchOrgConnectedRecommendationIds(args: {
   admin: SupabaseAdminClient;
   roleIds: string[];
@@ -2548,23 +2616,29 @@ export async function fetchOrgBoard(args: {
 
   const recommendationRows = (recommendations ?? []) as RecommendationRow[];
   const talentIds = uniqueTexts(recommendationRows.map((row) => row.talent_id));
-  const [talentById, tagsByKey, profileLabels, connectedRecommendationIds] =
-    await Promise.all([
-      fetchTalentRows(admin, talentIds),
-      fetchTagsForBoard({ admin, roleIds, talentIds }),
-      args.includeProfileLabels === false
-        ? {
-            recentCompanies: new Map<string, OrgBoardProfileLabel[]>(),
-            recentSchools: new Map<string, OrgBoardProfileLabel[]>(),
-          }
-        : fetchBoardProfileLabels({ admin, talentIds }),
-      recommendationIds
-        ? fetchOrgConnectedRecommendationIdsForPage({
-            admin,
-            recommendationIds: recommendationRows.map((row) => row.id),
-          })
-        : fetchOrgConnectedRecommendationIds({ admin, roleIds }),
-    ]);
+  const [
+    talentById,
+    tagsByKey,
+    profileLabels,
+    connectedRecommendationIds,
+    criteriaEvaluationsByKey,
+  ] = await Promise.all([
+    fetchTalentRows(admin, talentIds),
+    fetchTagsForBoard({ admin, roleIds, talentIds }),
+    args.includeProfileLabels === false
+      ? {
+          recentCompanies: new Map<string, OrgBoardProfileLabel[]>(),
+          recentSchools: new Map<string, OrgBoardProfileLabel[]>(),
+        }
+      : fetchBoardProfileLabels({ admin, talentIds }),
+    recommendationIds
+      ? fetchOrgConnectedRecommendationIdsForPage({
+          admin,
+          recommendationIds: recommendationRows.map((row) => row.id),
+        })
+      : fetchOrgConnectedRecommendationIds({ admin, roleIds }),
+    fetchCriteriaEvaluationsForBoard({ admin, recommendationRows }),
+  ]);
   const customStageByTagKey = new Map(
     customStages.map((row) => [
       customTagKeyFromStageRow(row),
@@ -2617,6 +2691,8 @@ export async function fetchOrgBoard(args: {
 
     return [
       {
+        criteriaEvaluations:
+          criteriaEvaluationsByKey.get(`${row.talent_id}:${row.role_id}`) ?? [],
         createdAt: row.created_at,
         fitReasons: coerceJsonStringList(row.fit_reasons),
         fitSummary: row.fit_summary ?? null,
@@ -2981,7 +3057,6 @@ function isOrgIntroMailTypeConstraintError(error: unknown) {
 }
 
 async function sendOrgIntroEmail(args: {
-  acceptReason: string;
   admin: SupabaseAdminClient;
   candidate: {
     email: string | null;
@@ -3049,13 +3124,50 @@ async function sendOrgIntroEmail(args: {
 
   const storedSubject = normalizeText(existingMessage?.subject);
   const storedBody = normalizeText(existingMessage?.body_text);
+  let introLocale: "en" | "ko" = "ko";
+  let candidateProfessionalSummary: string | null = null;
+  if (!storedSubject || !storedBody) {
+    const [talentSettingResult, experienceResult] = await Promise.all([
+      (args.admin.from("talent_setting" as any) as any)
+        .select("preferred_locale, setting_locale")
+        .eq("user_id", args.candidate.talentId)
+        .maybeSingle(),
+      (args.admin.from("talent_experiences" as any) as any)
+        .select("company_name, role, start_date, end_date")
+        .eq("talent_id", args.candidate.talentId)
+        .order("start_date", { ascending: false, nullsFirst: false }),
+    ]);
+    const { data: talentSetting, error: talentSettingError } =
+      talentSettingResult;
+    if (talentSettingError) throw talentSettingError;
+    if (experienceResult.error) throw experienceResult.error;
+    introLocale =
+      parseCareerPromptLocale(
+        talentSetting?.setting_locale ?? talentSetting?.preferred_locale
+      ) ?? "ko";
+    candidateProfessionalSummary = buildOrgIntroCandidateProfessionalSummary(
+      (experienceResult.data ?? []).map(
+        (
+          experience: Pick<
+            TalentExperienceRow,
+            "company_name" | "end_date" | "role" | "start_date"
+          >
+        ) => ({
+          companyName: experience.company_name,
+          endDate: experience.end_date,
+          role: experience.role,
+          startDate: experience.start_date,
+        })
+      )
+    );
+  }
   const generatedDraft =
     storedSubject && storedBody
       ? null
       : await buildOrgIntroEmailDraft({
-          acceptanceReason: args.acceptReason || null,
           candidateName:
             normalizeText(args.candidate.name) || candidateEmail.split("@")[0],
+          candidateProfessionalSummary,
           companyDescription:
             normalizeNullableText(args.workspace.company_description)?.slice(
               0,
@@ -3063,16 +3175,12 @@ async function sendOrgIntroEmail(args: {
             ) ?? null,
           companyName: args.workspace.company_name,
           companyUserName: args.companyUser.name,
-          fitReasons: coerceJsonStringList(args.recommendation.fit_reasons)
-            .slice(0, 10)
-            .map((reason) => reason.slice(0, 1_000)),
-          fitSummary:
-            normalizeNullableText(args.recommendation.fit_summary)?.slice(
-              0,
-              3_000
-            ) ?? null,
+          locale: introLocale,
           pitch:
             normalizeNullableText(args.workspace.pitch)?.slice(0, 3_000) ??
+            null,
+          roleDescription:
+            normalizeNullableText(args.role.description)?.slice(0, 4_000) ??
             null,
           roleTitle: args.role.name,
           senderName: "Harper",
@@ -3419,9 +3527,6 @@ export async function setOrgCandidateStage(args: {
 
     try {
       introDelivery = await sendOrgIntroEmail({
-        // Company-side reactivation context belongs in the company reply, not
-        // in the candidate-facing CC introduction.
-        acceptReason: reactivation ? "" : acceptReason,
         admin,
         candidate,
         companyUser,
@@ -3588,6 +3693,7 @@ export async function setOrgCandidateStage(args: {
         } else {
           await notifyOrgCandidateRejectedSlack({
             ...slackBaseArgs,
+            previousStage,
             stopNote,
           });
         }

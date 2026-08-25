@@ -72,6 +72,8 @@ import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 import Face from "@/components/common/Face";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
+import { showToast } from "@/components/toast/toast";
+import { MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES } from "@/lib/talentOnboarding/documentUploadLimits";
 
 const BOTTOM_THRESHOLD_PX = 120;
 const TIMELINE_SCROLL_STYLE: React.CSSProperties = {
@@ -427,18 +429,6 @@ const TimelineMessageList = memo(function TimelineMessageList({
                       : undefined
                   }
                 />
-                {/* {showReengagementActions && (
-                  <div className="mt-1">
-                    <ConversationStarterActions
-                      callStartPending={isStartingCall}
-                      disabled={isStartingCall}
-                      onStart={(startArgs) => {
-                        return onStartConversationStarter?.(startArgs) ?? false;
-                      }}
-                      variant="reengagement"
-                    />
-                  </div>
-                )} */}
               </>
             ) : null}
             {isUser && latestStatus?.state === "stopped" && (
@@ -1181,7 +1171,7 @@ const CareerTimelineSection = () => {
                 <div className="mt-1 text-[13px] leading-6 text-neutral-soft">
                   {t(
                     "career.chat.career_timeline_section.0ebbrm3",
-                    "PDF, DOCX, TXT, MD 파일을 업로드할 수 있습니다."
+                    "PDF, DOCX, TXT, MD · 최대 4MB"
                   )}
                 </div>
                 <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -1202,7 +1192,22 @@ const CareerTimelineSection = () => {
                     accept=".pdf,.docx,.txt,.md"
                     className="hidden"
                     onChange={(event) => {
-                      onResumeFileChange(event.target.files?.[0] ?? null);
+                      const file = event.currentTarget.files?.[0] ?? null;
+                      if (
+                        file &&
+                        file.size > MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES
+                      ) {
+                        showToast({
+                          message: t(
+                            "career.resume_dropzone.file_too_large",
+                            "이력서 파일은 최대 4MB까지 업로드할 수 있습니다."
+                          ),
+                          variant: "white",
+                        });
+                        event.currentTarget.value = "";
+                        return;
+                      }
+                      onResumeFileChange(file);
                     }}
                   />
                   <div className="text-sm text-neutral-muted">

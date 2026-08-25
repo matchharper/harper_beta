@@ -16,10 +16,15 @@ export const AUTO_INTRO_INTERNAL_STAGE_TAGS = new Set([
 
 export const AUTO_INTRO_CUSTOM_STAGE_TAG_PREFIX = "내부단계:";
 
+export const AUTO_INTRO_WORKSPACE_OPENING = [
+  "*연결을 제안드리고 싶은 후보자가 있습니다.*",
+];
+
 export const AUTO_INTRO_RESPONSE_GUIDANCE = [
-  "어떤 후보자를 연결받고 싶으시거나, 혹은 연결을 원하지 않으시나요?",
-  "추천드린 후보자들이 회사와 잘 맞지 않는다면 다음부터 어떤 기준을 적용해 연결드리면 좋을지도 알려주세요.",
-  "그 기준을 바탕으로 다음 추천에 반영해볼게요.",
+  "프로필과 Harper의 추천 이유를 천천히 확인한 뒤 연결을 받으실지, 거절하실지 선택해 주세요.",
+  "연결을 수락하면 후보자와의 대화를 직접 이어나가실 수 있게 연결해드려요.",
+  "거절시 연결이 진행되지 않는다는 내용을 Harper가 후보자에게 적절한 타이밍에 가볍게 안내해요.",
+  "이번 추천에서 좋았던 점이나 맞지 않았던 점을 알려주시면 다음에는 팀이 원하는 분을 더 정확하게 찾아볼게요.",
 ].join(" ");
 
 export type AutoIntroStageTag = {
@@ -110,10 +115,5 @@ export function buildAutoIntroFollowUpPostscript(question: unknown) {
   const questionText = /[?？]$/.test(normalized)
     ? normalized
     : `${normalized.replace(/[.!。！]+$/, "")}?`;
-  return [
-    "P.S. 더 좋은 매칭을 위해 한 가지만 여쭤볼게요.",
-    questionText,
-    "답변해주시면 더 적합한 분을 찾는 데 반영하겠습니다.",
-    "아직 정하지 않으셨다면 “상관없어요”라고 알려주시겠어요?",
-  ].join(" ");
+  return ["*다음 추천을 위한 질문*", questionText].join(" ");
 }

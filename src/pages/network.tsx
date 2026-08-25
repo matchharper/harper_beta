@@ -50,6 +50,7 @@ import { BareButton } from "@/components/ui/button";
 import { Input as UiInput } from "@/components/ui/input";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 import { useCareerT } from "@/i18n/useCareerT";
+import { MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES } from "@/lib/talentOnboarding/documentUploadLimits";
 
 type CompanyRequest = {
   id: string;
@@ -1890,9 +1891,12 @@ const NetworkPage = () => {
       return;
     }
 
-    if (quickApplyResumeFile && quickApplyResumeFile.size > 10 * 1024 * 1024) {
+    if (
+      quickApplyResumeFile &&
+      quickApplyResumeFile.size > MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES
+    ) {
       showToast({
-        message: "이력서 파일은 10MB 이하로 업로드해 주세요.",
+        message: "이력서 파일은 4MB 이하로 업로드해 주세요.",
         variant: "white",
       });
       return;

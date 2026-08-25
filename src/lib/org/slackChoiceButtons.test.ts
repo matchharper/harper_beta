@@ -4,7 +4,6 @@ import {
   buildHarperSlackChoiceBlocks,
   buildSelectedHarperSlackChoiceBlocks,
   decodeHarperSlackChoiceActionValue,
-  formatHarperSlackToolUsage,
   HARPER_SLACK_CHOICE_ACTION_PREFIX,
   parseHarperSlackChoiceMarkers,
 } from "./slackChoiceButtons";
@@ -92,42 +91,32 @@ test("builds Slack actions with opaque job references and removes them after sel
   assert.match(JSON.stringify(selected.at(-1)), /진행해주세요/);
 });
 
-test("puts a compact tool usage counter in the first Slack context block", () => {
-  const toolUsageText = formatHarperSlackToolUsage({
-    toolResults: [
-      { name: "read_talent" },
-      { name: "read_role" },
-      { name: "read_talent" },
-      { name: "read_talent" },
-      { name: "read_talent" },
-    ],
-  });
+test("removes unsupported language labels from Slack code fences", () => {
   const blocks = buildHarperSlackChoiceBlocks({
     choices: [],
     sourceJobId: "123e4567-e89b-42d3-a456-426614174000",
-    text: "답변입니다.",
-    toolUsageText,
+    text: "본문:\n```text\n안녕하세요.\n```",
   });
 
-  assert.equal(toolUsageText, "read_talent:4번 · read_role:1번");
-  assert.deepEqual(blocks[0], {
-    type: "context",
-    elements: [
-      {
-        type: "mrkdwn",
-        text: "read_talent:4번 · read_role:1번",
-      },
-    ],
-  });
-  assert.equal(blocks[1].type, "section");
+  assert.equal(blocks[0].type, "section");
+  assert.doesNotMatch(JSON.stringify(blocks), /```text/);
+  assert.match(JSON.stringify(blocks), /```\\n안녕하세요/);
 });
 
-test("omits the Slack tool usage counter when metadata has no valid calls", () => {
-  assert.equal(formatHarperSlackToolUsage({ toolResults: [] }), null);
-  assert.equal(
-    formatHarperSlackToolUsage({
-      toolResults: [{ name: "bad\ncontext" }, null],
-    }),
-    null
-  );
+test("keeps inline company-information links inside the normal Slack reply", () => {
+  const blocks = buildHarperSlackChoiceBlocks({
+    choices: [{ label: "확인", userMessage: "확인했습니다." }],
+    sourceJobId: "123e4567-e89b-42d3-a456-426614174000",
+    text: "<https://matchharper.com/org/team?orgId=workspace-1|회사 정보>를 반영했습니다.",
+  });
+  const message = blocks[0] as {
+    expand: boolean;
+    text: { text: string; type: string };
+    type: string;
+  };
+
+  assert.equal(message.type, "section");
+  assert.equal(message.expand, true);
+  assert.match(message.text.text, /<https:\/\/matchharper\.com\/org\/team\?orgId=workspace-1\|회사 정보>를 반영했습니다\./);
+  assert.equal(blocks[1].type, "actions");
 });

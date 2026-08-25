@@ -152,6 +152,7 @@ export type DailyCompanyStatsRow = {
 
 export type DailyCompanyCandidateStats = {
   acceptedCount: number;
+  connectedCount: number;
   pendingConnectionCount: number;
   rejectedCount: number;
 };
@@ -161,6 +162,8 @@ export type DailyCompanyStatsTotals = {
   acceptedTodayCount: number;
   activeRoleCount: number;
   chatTodayCount: number;
+  connectedCount: number;
+  connectedTodayCount: number;
   memberCount: number;
   newMemberTodayCount: number;
   newRoleTodayCount: number;
@@ -334,6 +337,7 @@ function buildRoleLifecycleEvents(args: {
 
     const matchingEvents = args.events.filter(
       (event) =>
+        text(event.workspace_id) === args.workspaceId &&
         isInRange(event.created_at, args.startIso, args.endIso) &&
         event.content.includes(roleName)
     );
@@ -734,6 +738,7 @@ export function compileDailyCompanyStatsReport(args: {
   }
 
   const connectedTodayByWorkspaceId = new Map<string, Set<string>>();
+  const rolling7DayConnectedByWorkspaceId = new Map<string, Set<string>>();
   const pendingConnectionTodayByWorkspaceId = new Map<string, Set<string>>();
   const rolling7DayPendingConnectionByWorkspaceId = new Map<
     string,
@@ -754,6 +759,15 @@ export function compileDailyCompanyStatsReport(args: {
         connectedTodayByWorkspaceId.get(workspaceId) ?? new Set<string>();
       connectedToday.add(talentId);
       connectedTodayByWorkspaceId.set(workspaceId, connectedToday);
+    }
+    if (
+      stage === "connected" &&
+      isInRange(row.created_at, rolling7DayStartIso, endIso)
+    ) {
+      const rolling7DayConnected =
+        rolling7DayConnectedByWorkspaceId.get(workspaceId) ?? new Set<string>();
+      rolling7DayConnected.add(talentId);
+      rolling7DayConnectedByWorkspaceId.set(workspaceId, rolling7DayConnected);
     }
     if (
       stage === "pending_connection" &&
@@ -917,6 +931,9 @@ export function compileDailyCompanyStatsReport(args: {
       acceptedTodayCount: current.acceptedTodayCount + company.acceptedTodayCount,
       activeRoleCount: current.activeRoleCount + company.activeRoleCount,
       chatTodayCount: current.chatTodayCount + company.chatTodayCount,
+      connectedCount: current.connectedCount + company.connectedCount,
+      connectedTodayCount:
+        current.connectedTodayCount + company.connectedTodayCount,
       memberCount: current.memberCount + company.memberCount,
       newMemberTodayCount:
         current.newMemberTodayCount + company.newMemberTodayCount,
@@ -932,6 +949,10 @@ export function compileDailyCompanyStatsReport(args: {
         acceptedCount:
           current.rolling7Day.acceptedCount +
           (rolling7DayAcceptedByWorkspaceId.get(company.companyWorkspaceId)
+            ?.size ?? 0),
+        connectedCount:
+          current.rolling7Day.connectedCount +
+          (rolling7DayConnectedByWorkspaceId.get(company.companyWorkspaceId)
             ?.size ?? 0),
         pendingConnectionCount:
           current.rolling7Day.pendingConnectionCount +
@@ -950,6 +971,8 @@ export function compileDailyCompanyStatsReport(args: {
       acceptedTodayCount: 0,
       activeRoleCount: 0,
       chatTodayCount: 0,
+      connectedCount: 0,
+      connectedTodayCount: 0,
       memberCount: 0,
       newMemberTodayCount: 0,
       newRoleTodayCount: 0,
@@ -959,6 +982,7 @@ export function compileDailyCompanyStatsReport(args: {
       rejectedTodayCount: 0,
       rolling7Day: {
         acceptedCount: 0,
+        connectedCount: 0,
         pendingConnectionCount: 0,
         rejectedCount: 0,
       },
@@ -1193,6 +1217,7 @@ function formatCompanyLine(company: DailyCompanyStatsRow) {
   const details = [
     formatAcceptedLink(company),
     `연결 대기 ${company.pendingConnectionCount}`,
+    `진행 중 ${company.connectedCount}`,
     `거절 ${company.rejectedCount}`,
   ];
   return `${prefix}${details.join(" · ")}`;
@@ -1216,9 +1241,9 @@ export function formatDailyCompanyStatsSlackMessage(
     `- 채팅 수: Slack ${report.totals.slackTodayCount}개 · web ${report.totals.chatTodayCount}개`,
     `- 전체 멤버 수: ${report.totals.memberCount}명 (+오늘 ${report.totals.newMemberTodayCount}명)`,
     `- 전체 active 상태 역할 수: ${report.totals.activeRoleCount}개 (+오늘 새 역할 ${report.totals.newRoleTodayCount}개)`,
-    `- 전체 후보 상태: 수락자 ${report.totals.acceptedCount}명 · 연결 대기 ${report.totals.pendingConnectionCount}명 · 거절 ${report.totals.rejectedCount}명`,
-    `- 오늘 신규 전환: 수락자 ${report.totals.acceptedTodayCount}명 · 연결 대기 ${report.totals.pendingConnectionTodayCount}명 · 거절 ${report.totals.rejectedTodayCount}명`,
-    `- 지난 7일 신규 전환: 수락자 ${report.totals.rolling7Day.acceptedCount}명 · 연결 대기 ${report.totals.rolling7Day.pendingConnectionCount}명 · 거절 ${report.totals.rolling7Day.rejectedCount}명`,
+    `- 전체 후보 상태: 수락자 ${report.totals.acceptedCount}명 · 연결 대기 ${report.totals.pendingConnectionCount}명 · 진행 중 ${report.totals.connectedCount}명 · 거절 ${report.totals.rejectedCount}명`,
+    `- 오늘 신규 전환: 수락자 ${report.totals.acceptedTodayCount}명 · 연결 대기 ${report.totals.pendingConnectionTodayCount}명 · 연결됨 ${report.totals.connectedTodayCount}명 · 거절 ${report.totals.rejectedTodayCount}명`,
+    `- 지난 7일 신규 전환: 수락자 ${report.totals.rolling7Day.acceptedCount}명 · 연결 대기 ${report.totals.rolling7Day.pendingConnectionCount}명 · 연결됨 ${report.totals.rolling7Day.connectedCount}명 · 거절 ${report.totals.rolling7Day.rejectedCount}명`,
     "",
     `*Slack/직접 서빙 중 · ${report.servedCompanies.length}개*`,
     ...servedLines,
@@ -1266,6 +1291,9 @@ function formatCompanyDetailLines(company: DailyCompanyStatsRow) {
     lines.push(
       `- 새로 등록된 연결 대기 ${company.pendingConnectionTodayCount}명`
     );
+  }
+  if (company.connectedTodayCount > 0) {
+    lines.push(`- 새로 연결된 후보 ${company.connectedTodayCount}명`);
   }
   if (company.acceptedTodayCount > 0) {
     lines.push(

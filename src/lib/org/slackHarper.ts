@@ -734,6 +734,7 @@ export async function postHarperSlackMessage(args: {
   text: string;
   threadTs?: string | null;
   token: string;
+  unfurlLinks?: boolean;
 }) {
   return slackApi<SlackApiResult>(args.token, "chat.postMessage", {
     ...(args.blocks ? { blocks: JSON.stringify(args.blocks) } : {}),
@@ -741,6 +742,9 @@ export async function postHarperSlackMessage(args: {
     ...(args.clientMessageId ? { client_msg_id: args.clientMessageId } : {}),
     text: args.text,
     ...(args.threadTs ? { thread_ts: args.threadTs } : {}),
+    ...(args.unfurlLinks === undefined
+      ? {}
+      : { unfurl_links: args.unfurlLinks }),
   });
 }
 

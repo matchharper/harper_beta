@@ -99,3 +99,24 @@ test("detects an unrequested UUID but permits an explicit ID question", () => {
     "후보 내부 ID는 내부 식별자입니다."
   );
 });
+
+test("preserves valid talent and role navigation markers", () => {
+  const talentId = "123e4567-e89b-42d3-a456-426614174000";
+  const roleId = "223e4567-e89b-42d3-a456-426614174000";
+  const reply = `[김호진](talent:${talentId})님을 [Portfolio Lead](role:${roleId}) 포지션에 연결했습니다.`;
+
+  assert.deepEqual(
+    findNewOrgAgentInternalArtifacts({
+      reply,
+      userMessage: "소개 메일을 보내줘.",
+    }),
+    []
+  );
+  assert.equal(
+    replaceNewOrgAgentInternalTokens({
+      reply: `${reply} 현재 상태는 pending_connection입니다.`,
+      userMessage: "소개 메일을 보내줘.",
+    }),
+    `${reply} 현재 상태는 연결 대기입니다.`
+  );
+});

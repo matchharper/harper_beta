@@ -1,13 +1,15 @@
 import {
   BriefcaseBusiness,
   Columns3,
+  PanelRight,
+  PanelRightClose,
   PanelsTopLeft,
   Rows3,
   Scale,
   Settings,
 } from "lucide-react";
 import { useRouter } from "next/router";
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { OrgAgentChatSurface } from "@/components/org/agent/OrgAgentPanel";
 import { OrgPipeline } from "@/components/org/OrgPipeline";
 import { OrgRoleTalentBoard } from "@/components/org/OrgRoleTalentBoard";
@@ -16,6 +18,8 @@ import { OrgRoleMatchingContent } from "@/components/org/role-overview/OrgRoleMa
 import { OrgRoleSettingsContent } from "@/components/org/role-overview/OrgRoleSettingsContent";
 import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
 import { TalentDetailSimpleView } from "@/components/org/TalentDetailSimpleView";
+import { useOrgMobileNavigation } from "@/components/org/workspace/OrgMobileNavigation";
+import { OrgTeamPage } from "@/components/org/workspace/pages/OrgTeamPage";
 import { MuteButton } from "@/components/ui/button";
 import { DocumentEditorPanelProvider } from "@/components/ui/document-editor";
 import {
@@ -25,7 +29,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
-import { OrgJobsProvider, useOrgJobsBoard } from "@/hooks/org/useOrgJobs";
+import { OrgJobsProvider } from "@/hooks/org/useOrgJobs";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useResizableSplitPanel } from "@/hooks/useResizableSplitPanel";
 import {
@@ -34,6 +38,7 @@ import {
 } from "@/lib/org/roleStatus";
 import { buildOrgHref } from "@/lib/org/routes";
 import type { OrgRole } from "@/lib/org/server";
+import { cn } from "@/lib/utils";
 import {
   ORG_ROLE_CHAT_PANEL_DEFAULT_WIDTH_PCT,
   ORG_ROLE_CHAT_PANEL_MAX_WIDTH_PCT,
@@ -44,7 +49,7 @@ import {
 type RoleCreationTab = "pipeline" | "matching" | "role" | "settings";
 type RolePipelineDisplay = "pipeline" | "board";
 
-const ORG_ROLE_DESKTOP_MEDIA_QUERY = "(min-width: 1024px)";
+const ORG_ROLE_DESKTOP_MEDIA_QUERY = "(min-width: 768px)";
 const ORG_ROLE_SPLIT_HANDLE_WIDTH_PX = 8;
 
 const DETAIL_TABS = [
@@ -89,16 +94,18 @@ function getRoleTab({
 
 function OrgRolePipelineWorkspace({
   display,
+  mobile = false,
   onDisplayChange,
 }: {
   display: RolePipelineDisplay;
+  mobile?: boolean;
   onDisplayChange: (display: RolePipelineDisplay) => void;
 }) {
-  const { boardQuery } = useOrgJobsBoard();
+  const resolvedDisplay = mobile ? "board" : display;
 
-  const displayControl = (
+  const displayControl = mobile ? null : (
     <RolePipelineDisplayMenu
-      display={display}
+      display={resolvedDisplay}
       onDisplayChange={onDisplayChange}
     />
   );
@@ -106,12 +113,12 @@ function OrgRolePipelineWorkspace({
   return (
     <div
       className={
-        display === "pipeline"
+        resolvedDisplay === "pipeline"
           ? "flex h-full min-h-0 flex-col gap-2"
           : "space-y-2"
       }
     >
-      {display === "pipeline" ? (
+      {resolvedDisplay === "pipeline" ? (
         <>
           <div className="flex w-full shrink-0 flex-row justify-between">
             <div className="text-[16px] font-normal text-neutral-primary">
@@ -174,15 +181,18 @@ function RolePipelineDisplayMenu({
 
 function OrgRolePipelineTab({
   display,
+  mobile = false,
   onDisplayChange,
 }: {
   display: RolePipelineDisplay;
+  mobile?: boolean;
   onDisplayChange: (display: RolePipelineDisplay) => void;
 }) {
   return (
     <OrgJobsProvider routePage="role">
       <OrgRolePipelineWorkspace
         display={display}
+        mobile={mobile}
         onDisplayChange={onDisplayChange}
       />
       <TalentDetailSimpleView />
@@ -190,7 +200,19 @@ function OrgRolePipelineTab({
   );
 }
 
-function OrgRoleCreationDetails({ role }: { role: OrgRole | null }) {
+function OrgRoleCreationDetails({
+  companyInfoOpen = false,
+  mobile = false,
+  onClose,
+  onCompanyInfoClose,
+  role,
+}: {
+  companyInfoOpen?: boolean;
+  mobile?: boolean;
+  onClose?: () => void;
+  onCompanyInfoClose?: () => void;
+  role: OrgRole | null;
+}) {
   const router = useRouter();
   const { workspace } = useOrgWorkspace();
   const roleCreation =
@@ -199,7 +221,7 @@ function OrgRoleCreationDetails({ role }: { role: OrgRole | null }) {
   const requestedView = router.isReady ? getQueryText(router.query.view) : "";
   const activeTab = getRoleTab({ isDraft: roleCreation, tab: requestedTab });
   const pipelineDisplay: RolePipelineDisplay =
-    requestedView === "board" ? "board" : "pipeline";
+    mobile || requestedView === "board" ? "board" : "pipeline";
   const detailTabs = roleCreation
     ? DETAIL_TABS
     : [PIPELINE_TAB, ...DETAIL_TABS];
@@ -238,54 +260,94 @@ function OrgRoleCreationDetails({ role }: { role: OrgRole | null }) {
 
   return (
     <section
-      aria-label="새 역할 등록 상세"
-      className="relative hidden ml-[-4px] min-h-0 min-w-0 flex-1 flex-col bg-bg-default lg:flex"
+      aria-label={companyInfoOpen ? "회사 정보 상세" : "새 역할 등록 상세"}
+      className={
+        mobile
+          ? "relative flex h-full min-h-0 min-w-0 flex-1 flex-col bg-bg-default"
+          : "relative hidden ml-[-4px] min-h-0 min-w-0 flex-1 flex-col bg-bg-default md:flex"
+      }
     >
       <DocumentEditorPanelProvider key={role?.roleId ?? "loading"}>
-        <div
-          aria-label="새 역할 정보"
-          className="flex w-full items-center gap-1 border-b border-neutral-1000-a05 px-3"
-          role="tablist"
-        >
-          {detailTabs.map((tab) => {
-            const active = activeTab === tab.value;
-            return (
-              <button
-                aria-controls={`role-creation-${tab.value}-panel`}
-                aria-selected={active}
-                className={`flex min-w-0 items-center justify-center gap-1.5 rounded-xs px-3 py-3 text-[14px] font-light focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 ${
-                  active
-                    ? " text-neutral-primary"
-                    : "text-neutral-600 hover:text-neutral-primary"
-                }`}
-                id={`role-creation-${tab.value}-tab`}
-                key={tab.value}
-                onClick={() => setActiveTab(tab.value)}
-                role="tab"
-                type="button"
-              >
-                {tab.icon}
-                <span className="truncate">{tab.label}</span>
-              </button>
-            );
-          })}
+        <div className="flex w-full shrink-0 items-center border-b border-neutral-1000-a05">
+          {mobile ? (
+            <MuteButton
+              aria-label="역할 상세 닫기"
+              className="ml-1 rounded-full"
+              onClick={onClose}
+              size="md"
+              variant="transparent"
+            >
+              <PanelRightClose
+                aria-hidden
+                className="size-4"
+                strokeWidth={1.65}
+              />
+            </MuteButton>
+          ) : null}
+          <div
+            aria-label="새 역할 정보"
+            className={cn(
+              "flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-3 scrollbar-none",
+              mobile && "pl-1"
+            )}
+            role="tablist"
+          >
+            {detailTabs.map((tab) => {
+              const active = !companyInfoOpen && activeTab === tab.value;
+              return (
+                <button
+                  aria-controls={`role-creation-${tab.value}-panel`}
+                  aria-selected={active}
+                  className={`flex min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-xs px-3 py-3 text-[14px] font-light focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 ${
+                    active
+                      ? " text-neutral-primary"
+                      : "text-neutral-600 hover:text-neutral-primary"
+                  }`}
+                  id={`role-creation-${tab.value}-tab`}
+                  key={tab.value}
+                  onClick={() => {
+                    onCompanyInfoClose?.();
+                    setActiveTab(tab.value);
+                  }}
+                  role="tab"
+                  type="button"
+                >
+                  {tab.icon}
+                  <span className="truncate">{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
         <div
-          className={`min-h-0 flex-1 overflow-y-auto overscroll-contain bg-bg-default px-5 pt-6 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 ${
-            activeTab === "pipeline" ? "pb-0" : "pb-48"
+          className={`min-h-0 flex-1 overflow-y-auto overscroll-contain bg-bg-default px-4 pt-5 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 md:px-5 md:pt-6 ${
+            !companyInfoOpen && activeTab === "pipeline"
+              ? "pb-0"
+              : mobile
+                ? "pb-16"
+                : "pb-48"
           }`}
         >
+          {companyInfoOpen ? (
+            <div aria-label="회사 정보 상세 내용">
+              <OrgTeamPage companyOnly readOnlyCompany />
+            </div>
+          ) : null}
           <div
             aria-label="파이프라인 탭 내용"
             aria-labelledby="role-creation-pipeline-tab"
             className={activeTab === "pipeline" ? "h-full min-h-0" : undefined}
-            hidden={activeTab !== "pipeline"}
+            hidden={companyInfoOpen || activeTab !== "pipeline"}
             id="role-creation-pipeline-panel"
             role="tabpanel"
           >
-            {activeTab === "pipeline" && role && !roleCreation ? (
+            {!companyInfoOpen &&
+            activeTab === "pipeline" &&
+            role &&
+            !roleCreation ? (
               <OrgRolePipelineTab
                 display={pipelineDisplay}
+                mobile={mobile}
                 onDisplayChange={setPipelineDisplay}
               />
             ) : null}
@@ -293,7 +355,7 @@ function OrgRoleCreationDetails({ role }: { role: OrgRole | null }) {
           <div
             aria-label="매칭 기준 탭 내용"
             aria-labelledby="role-creation-matching-tab"
-            hidden={activeTab !== "matching"}
+            hidden={companyInfoOpen || activeTab !== "matching"}
             id="role-creation-matching-panel"
             role="tabpanel"
           >
@@ -312,7 +374,7 @@ function OrgRoleCreationDetails({ role }: { role: OrgRole | null }) {
           <div
             aria-label="역할 정보 탭 내용"
             aria-labelledby="role-creation-role-tab"
-            hidden={activeTab !== "role"}
+            hidden={companyInfoOpen || activeTab !== "role"}
             id="role-creation-role-panel"
             role="tabpanel"
           >
@@ -331,7 +393,7 @@ function OrgRoleCreationDetails({ role }: { role: OrgRole | null }) {
           <div
             aria-label="Setting 탭 내용"
             aria-labelledby="role-creation-settings-tab"
-            hidden={activeTab !== "settings"}
+            hidden={companyInfoOpen || activeTab !== "settings"}
             id="role-creation-settings-panel"
             role="tabpanel"
           >
@@ -353,7 +415,10 @@ function OrgRoleCreationDetails({ role }: { role: OrgRole | null }) {
 
 export function OrgRoleCreationPage() {
   const router = useRouter();
+  const { setNavigationTriggerHidden } = useOrgMobileNavigation();
   const { page, permissions, roles, workspace } = useOrgWorkspace();
+  const [companyInfoOpen, setCompanyInfoOpen] = useState(false);
+  const [mobileDetailsOpen, setMobileDetailsOpen] = useState(false);
   const isNewRolePage = page === "new-role";
   const roleId = router.isReady ? getQueryText(router.query.roleId) : "";
   const role = roles.find((item) => item.roleId === roleId) ?? null;
@@ -382,6 +447,11 @@ export function OrgRoleCreationPage() {
     onResizeEnd: handleChatPanelResizeEnd,
   });
 
+  useEffect(() => {
+    setNavigationTriggerHidden(mobileDetailsOpen);
+    return () => setNavigationTriggerHidden(false);
+  }, [mobileDetailsOpen, setNavigationTriggerHidden]);
+
   if (!permissions.canManageCandidates) {
     return (
       <div className="flex h-full items-center justify-center px-6 text-sm text-neutral-muted">
@@ -393,15 +463,16 @@ export function OrgRoleCreationPage() {
   return (
     <div
       ref={containerRef}
-      className={
+      className={cn(
         roleId
-          ? "flex h-full min-h-0 flex-col lg:flex-row lg:overflow-hidden"
-          : "h-full min-h-0"
-      }
+          ? "flex h-full w-full min-h-0 flex-row transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] md:translate-x-0 md:overflow-hidden motion-reduce:transition-none"
+          : "h-full min-h-0",
+        roleId && mobileDetailsOpen && "-translate-x-full"
+      )}
     >
       <section
         aria-label={isNewRolePage ? "새 역할 등록 대화" : "역할 대화"}
-        className="flex relative h-full min-h-0 min-w-0 flex-col overflow-hidden lg:flex-none lg:basis-[42%]"
+        className="relative flex h-full w-full shrink-0 min-w-0 flex-col overflow-hidden md:w-auto md:flex-none md:basis-[42%]"
         style={
           roleId && isDesktop
             ? {
@@ -416,7 +487,34 @@ export function OrgRoleCreationPage() {
           <OrgAgentChatSurface
             header={
               <>
-                {roleId ? (
+                <header className="absolute inset-x-0 top-0 z-30 flex h-12 items-center gap-2 bg-linear-to-b from-bg-default from-35% via-bg-default/80 to-bg-default/0 px-3 md:hidden">
+                  <span aria-hidden className="size-8 shrink-0" />
+                  <div className="min-w-0 flex-1 px-1 text-left">
+                    <h1 className="truncate whitespace-nowrap text-[13px] font-medium text-neutral-primary">
+                      {roleId
+                        ? role?.name || "역할 불러오는 중"
+                        : "새 역할 등록"}
+                    </h1>
+                  </div>
+                  {roleId ? (
+                    <MuteButton
+                      aria-label="역할 상세 열기"
+                      className="rounded-md bg-white/20 backdrop-blur-md hover:bg-white/30 border border-neutral-1000-a05"
+                      onClick={() => setMobileDetailsOpen(true)}
+                      size="md"
+                      variant="transparent"
+                    >
+                      <PanelRight
+                        aria-hidden
+                        className="size-4.5"
+                        strokeWidth={1.7}
+                      />
+                    </MuteButton>
+                  ) : (
+                    <span aria-hidden className="size-8 shrink-0" />
+                  )}
+                </header>
+                {isDesktop && roleId ? (
                   <header className="absolute left-0 top-0 flex h-13 w-full shrink-0 items-center gap-2 bg-linear-to-b from-70% from-bg-default to-bg-default/0 px-4 pb-2">
                     {role ? (
                       <OrgRoleStatusDot decorative status={role.status} />
@@ -431,11 +529,7 @@ export function OrgRoleCreationPage() {
                       </span>
                     ) : null}
                   </header>
-                ) : (
-                  <h1 className="sr-only">
-                    {isNewRolePage ? "새 역할 등록" : "역할 대화"}
-                  </h1>
-                )}
+                ) : null}
               </>
             }
             onRoleCreated={(createdRoleId) => {
@@ -447,6 +541,10 @@ export function OrgRoleCreationPage() {
                 }),
                 undefined
               );
+            }}
+            onCompanyInfoClick={() => {
+              setCompanyInfoOpen(true);
+              if (!isDesktop) setMobileDetailsOpen(true);
             }}
             purpose="role-creation"
             roleId={roleId || null}
@@ -461,7 +559,7 @@ export function OrgRoleCreationPage() {
             aria-valuemax={ORG_ROLE_CHAT_PANEL_MAX_WIDTH_PCT}
             aria-valuemin={ORG_ROLE_CHAT_PANEL_MIN_WIDTH_PCT}
             aria-valuenow={Math.round(chatPanelWidth)}
-            className="group relative hidden w-2 shrink-0 cursor-col-resize items-center justify-center bg-transparent outline-none lg:flex"
+            className="group relative hidden w-2 shrink-0 cursor-col-resize items-center justify-center bg-transparent outline-none md:flex"
             onKeyDown={handleResizeKeyDown}
             onPointerDown={(event) => {
               event.preventDefault();
@@ -475,8 +573,28 @@ export function OrgRoleCreationPage() {
               className="h-full w-px bg-neutral-1000-a05 transition-colors group-hover:bg-neutral-1000-a10 group-focus-visible:bg-neutral-1000-a10"
             />
           </div>
-          <OrgRoleCreationDetails role={role} />
+          <OrgRoleCreationDetails
+            companyInfoOpen={companyInfoOpen}
+            onCompanyInfoClose={() => setCompanyInfoOpen(false)}
+            role={role}
+          />
         </>
+      ) : null}
+      {roleId ? (
+        <div className="h-full w-full shrink-0 md:hidden">
+          <OrgRoleCreationDetails
+            companyInfoOpen={companyInfoOpen}
+            mobile
+            onClose={() => {
+              setMobileDetailsOpen(false);
+              setCompanyInfoOpen(false);
+            }}
+            onCompanyInfoClose={() => {
+              setCompanyInfoOpen(false);
+            }}
+            role={role}
+          />
+        </div>
       ) : null}
     </div>
   );

@@ -50,6 +50,7 @@ function shouldDryRun(req: NextRequest) {
 
 async function postSlackMessage(args: {
   channelId: string;
+  disableLinkPreviews?: boolean;
   text: string;
   threadTs?: string;
 }) {
@@ -62,6 +63,9 @@ async function postSlackMessage(args: {
     body: JSON.stringify({
       channel: args.channelId,
       text: args.text,
+      ...(args.disableLinkPreviews
+        ? { unfurl_links: false, unfurl_media: false }
+        : {}),
       ...(args.threadTs ? { thread_ts: args.threadTs } : {}),
     }),
     headers: {
@@ -141,11 +145,13 @@ async function handleDailyUserStats(req: NextRequest) {
   });
   const companyThreadTs = await postSlackMessage({
     channelId: SLACK_DAILY_COMPANY_STATS_CHANNEL_ID,
+    disableLinkPreviews: true,
     text: companyMessage,
   });
   for (const companyDetailMessage of companyDetailMessages) {
     await postSlackMessage({
       channelId: SLACK_DAILY_COMPANY_STATS_CHANNEL_ID,
+      disableLinkPreviews: true,
       text: companyDetailMessage,
       threadTs: companyThreadTs,
     });

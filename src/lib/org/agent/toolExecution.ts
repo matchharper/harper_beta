@@ -62,15 +62,26 @@ import {
 } from "@/lib/org/server";
 import { canStopOrgCandidateProcess } from "@/lib/org/candidateDecision";
 import { humanizeOrgStage } from "@/lib/org/pipelineStage";
+import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
 import {
   applyOrgRoleCriteriaEdits,
   parseOrgRoleCriteria,
 } from "@/lib/org/roleCriteria";
 import {
   changeCompanyTalentRequest,
+  createCompanyTalentContactDraft,
+  createCompanyTalentResumeUploadToken,
   enqueueCompanyTalentRequest,
   fetchBlockingCompanyTalentRequestForWorkspace,
+  fetchCompanyTalentContact,
+  reviseCompanyTalentContactDraft,
+  scheduleCompanyTalentContact,
 } from "@/lib/companyTalentRequests/server";
+import {
+  generateCandidateContactDraft,
+  reviseCandidateContactDraft,
+} from "@/lib/companyTalentRequests/copy";
+import { candidateContactDraftPresentation } from "@/lib/companyTalentRequests/presentation";
 import { formatOrgAgentKstDateTime } from "@/lib/org/agent/dateTime";
 import {
   executeSharedOpenUrl,
@@ -213,22 +224,30 @@ type OrgAgentRoleLifecycleStatus = "active" | "paused" | "ended";
 
 const ORG_AGENT_ROLE_STATUS_COPY: Record<
   OrgAgentRoleLifecycleStatus,
-  { effect: string; label: string }
+  { effect: string; expectation: string; nextProcess: string }
 > = {
   active: {
-    effect:
-      "역할의 채용을 진행하며 Harper가 주기적으로 적합한 인재를 연결합니다.",
-    label: "진행",
+    effect: "Harper가 이 역할에 맞는 후보자를 계속 찾아 추천해요.",
+    expectation:
+      "역할의 기준과 팀의 선호도를 바탕으로 후보자를 살펴보고, 회사와 역할을 소개해 연결 의사를 확인한 분이 생기면 알려드릴게요.",
+    nextProcess:
+      "새 후보자가 추천되면 프로필과 Harper의 추천 이유를 검토한 뒤 연결을 수락할지 거절할지 알려 주세요.",
   },
   paused: {
     effect:
-      "역할은 열어두지만 추가 후보 추천을 중단합니다. 현재 진행 중인 후보자와 연결은 그대로 유지합니다.",
-    label: "중단",
+      "새 후보자 추천은 멈추지만, 기존 후보자와 진행 중인 연결은 그대로 유지해요.",
+    expectation:
+      "중단한 동안에는 새로운 추천이 오지 않으며, 이미 검토 중이거나 연결된 후보자는 현재 단계에서 계속 관리할 수 있어요.",
+    nextProcess:
+      "다시 채용을 시작하고 싶을 때 말씀해 주시면 같은 역할과 기준으로 매칭을 이어갈게요.",
   },
   ended: {
     effect:
-      "역할을 종료 상태로 바꾸고 추가 추천을 중단합니다. 후보자 화면은 역할 종료로 해석하지만, 기존 후보 단계와 회사 요청은 이 변경만으로 모두 자동 종료되지 않습니다.",
-    label: "종료",
+      "새 후보자 추천은 멈추고 후보자 화면에는 역할이 종료된 것으로 표시돼요. 기존 후보자 단계와 회사 요청은 자동으로 종료되지 않아요.",
+    expectation:
+      "이미 검토 중이거나 연결된 후보자, 후보자에게 보낸 질문은 그대로 남기 때문에 필요한 결정은 각각 마무리해 주셔야 해요.",
+    nextProcess:
+      "남아 있는 후보자나 요청을 함께 정리하고 싶다면 말씀해 주세요. 현재 상태를 확인해 다음 결정을 도와드릴게요.",
   },
 };
 
@@ -258,6 +277,9 @@ function recordResult(
 type BlockingCompanyTalentRequest = {
   blocksNewRequest?: boolean;
   cancelable?: boolean;
+  draftBody?: string | null;
+  draftRevision?: number | null;
+  draftSubject?: string | null;
   label?: string | null;
   requestId?: string | null;
   roleId?: string | null;
@@ -295,8 +317,8 @@ function existingCompanyTalentRequestResult(args: {
   const existingStatus = text(existing?.status) || "처리 중";
   const cancelable = Boolean(existing?.cancelable);
   const existingDescription = existing
-    ? `${existingRoleName} 포지션 관련${existingTopic ? ` “${existingTopic}”` : ""} 요청이 ${existingStatus} 상태로 남아 있습니다.`
-    : "이미 다른 확인 요청이 진행 중입니다.";
+    ? `${existingRoleName} 역할 관련${existingTopic ? ` “${existingTopic}”` : ""} 요청이 ${existingStatus} 상태로 남아 있어요.`
+    : "이미 다른 확인 요청이 진행 중이에요.";
   const conflictSummary = `${candidateName}께 ${existingDescription}`;
   args.state.terminalReply = cancelable
     ? `${conflictSummary} 새 요청은 접수하지 않았습니다. 기존 요청을 취소하고 이번 요청으로 새로 접수할까요?`
@@ -357,9 +379,9 @@ export function getOrgAgentToolStatusLabel(args: {
       "후보자를 찾지 못했습니다",
     ],
     read_role: [
-      "포지션과 진행 현황을 읽는 중",
-      "포지션 확인 완료",
-      "포지션을 읽지 못했습니다",
+      "역할과 진행 현황을 읽는 중",
+      "역할 확인 완료",
+      "역할을 읽지 못했습니다",
     ],
     read_talent: [
       "후보자와 진행 현황을 읽는 중",
@@ -367,9 +389,9 @@ export function getOrgAgentToolStatusLabel(args: {
       "후보자를 읽지 못했습니다",
     ],
     get_more_data: [
-      "추가 회사 정보를 읽는 중",
-      "추가 회사 정보 확인 완료",
-      "추가 회사 정보를 읽지 못했습니다",
+      "회사 정보를 읽는 중",
+      "회사 정보 확인 완료",
+      "회사 정보를 읽지 못했습니다",
     ],
     read_conversation_history: [
       "이전 대화를 읽는 중",
@@ -400,11 +422,6 @@ export function getOrgAgentToolStatusLabel(args: {
       "후보자 요청을 준비하는 중",
       "후보자 요청 준비 완료",
       "후보자 요청을 준비하지 못했습니다",
-    ],
-    change_talent_contact: [
-      "후보자 요청 변경을 확인하는 중",
-      "후보자 요청 변경 완료",
-      "후보자 요청을 변경하지 못했습니다",
     ],
     move_candidate_stage: [
       "후보자 파이프라인 단계를 변경하는 중",
@@ -723,12 +740,12 @@ async function executeProposalAction(args: {
   }
   if (status === "applied") {
     const summary = text(result.summary) || "확인한 변경 반영";
-    args.state.terminalReply = `반영했습니다. ${summary}`;
+    args.state.terminalReply = `변경 내용을 저장했어요. ${summary}`;
     args.state.updateSummaries.push(summary);
     args.state.actions.push({
       id: crypto.randomUUID(),
       kind: "entity_updated",
-      label: "회사 정보 업데이트됨",
+      label: "변경 내용 저장 완료",
       payload: { changeSummary: summary, scope: "company" },
     });
   }
@@ -888,14 +905,14 @@ async function executeUpdateRoleCriteria(args: {
     : "전체 교체";
   const summary = `${role.name} 역할 평가 기준 ${editSummary} (총 ${criteria.length}개)`;
   args.state.terminalReply = changed
-    ? `반영했습니다. ${summary}를 저장했습니다. 역할 요청과 역할 메모는 변경하지 않았습니다.`
-    : "이미 같은 역할 평가 기준으로 반영되어 있습니다.";
+    ? `${role.name} 역할의 Evaluation Criteria를 저장했어요. ${editSummary}, 총 ${criteria.length}개예요. Hiring Brief와 Context for Harper는 바꾸지 않았어요.`
+    : "이미 같은 Evaluation Criteria가 저장되어 있어 바뀐 내용은 없어요.";
   if (changed) {
     args.state.updateSummaries.push(summary);
     args.state.actions.push({
       id: crypto.randomUUID(),
       kind: "entity_updated",
-      label: "역할 평가 기준 업데이트됨",
+      label: "Evaluation Criteria 저장 완료",
       payload: { changeSummary: summary, scope: "role" },
     });
   }
@@ -1094,12 +1111,12 @@ async function executeUpdateData(args: {
     );
   }
   if (status === "updated") {
-    args.state.terminalReply = `반영했습니다. ${summary}`;
+    args.state.terminalReply = `변경 내용을 저장했어요. ${summary}`;
     args.state.updateSummaries.push(summary);
     args.state.actions.push({
       id: crypto.randomUUID(),
       kind: "entity_updated",
-      label: "회사 정보 업데이트됨",
+      label: "변경 내용 저장 완료",
       payload: {
         changeSummary: summary,
         scope: changes.some((change) => change.role_id === null)
@@ -1143,7 +1160,8 @@ async function executeChangeRoleStatus(args: {
   const role = roleOrThrow(args.state, args.input.roleId);
   const status = roleLifecycleStatus(args.input.status);
   const copy = ORG_AGENT_ROLE_STATUS_COPY[status];
-  const summary = `${role.name} 역할 상태: ${copy.label}`;
+  const statusLabel = getOrgRoleStatusPresentation(status).label;
+  const summary = `${role.name} 역할 상태: ${statusLabel}`;
   const parsed = parseCompanyDataChanges({
     changes: [
       {
@@ -1167,7 +1185,7 @@ async function executeChangeRoleStatus(args: {
   });
 
   if (resolved.changes.length === 0) {
-    args.state.terminalReply = `${role.name} 역할은 이미 ${copy.label} 상태입니다. ${copy.effect}`;
+    args.state.terminalReply = `${role.name} 역할은 이미 ${statusLabel} 상태예요. ${copy.effect}\n\n${copy.expectation}\n\n${copy.nextProcess}`;
     recordResult(args.state, {
       callId: args.callId,
       name: args.name,
@@ -1176,6 +1194,8 @@ async function executeChangeRoleStatus(args: {
     });
     return {
       effect: copy.effect,
+      expectation: copy.expectation,
+      nextProcess: copy.nextProcess,
       roleName: role.name,
       roleStatus: status,
       status: "already_reflected",
@@ -1213,14 +1233,14 @@ async function executeChangeRoleStatus(args: {
     args.state.roleById.set(role.roleId, { ...currentRole, status });
   }
   args.state.terminalReply = changed
-    ? `${role.name} 역할을 ${copy.label} 상태로 변경했습니다. ${copy.effect}`
-    : `${role.name} 역할은 이미 ${copy.label} 상태입니다. ${copy.effect}`;
+    ? `${role.name} 역할을 ${statusLabel} 상태로 바꿨어요. ${copy.effect}\n\n${copy.expectation}\n\n${copy.nextProcess}`
+    : `${role.name} 역할은 이미 ${statusLabel} 상태예요. ${copy.effect}\n\n${copy.expectation}\n\n${copy.nextProcess}`;
   if (changed) {
     args.state.updateSummaries.push(summary);
     args.state.actions.push({
       id: crypto.randomUUID(),
       kind: "entity_updated",
-      label: "역할 상태 업데이트됨",
+      label: "역할 상태 저장 완료",
       payload: { changeSummary: summary, scope: "role" },
     });
   }
@@ -1232,6 +1252,8 @@ async function executeChangeRoleStatus(args: {
   });
   return {
     effect: copy.effect,
+    expectation: copy.expectation,
+    nextProcess: copy.nextProcess,
     roleName: role.name,
     roleStatus: status,
     status: resultStatus,
@@ -1274,7 +1296,7 @@ async function executeCompanyTalentRequest(args: {
   const talentId = requiredText(args.input.talentId, "talentId", 100);
   const requestContext =
     kind === "resume"
-      ? `${role.name} 포지션 검토를 위한 최신 이력서 공유 가능 여부 확인`
+      ? `${role.name} 역할 검토를 위한 최신 이력서 공유 가능 여부 확인`
       : requiredText(args.input.requestContext, "requestContext", 800);
   const talent = await readOrgAgentTalent({
     admin: args.admin,
@@ -1290,7 +1312,7 @@ async function executeCompanyTalentRequest(args: {
   );
   if (!position) {
     throw new OrgAgentToolInputError(
-      "후보자가 현재 이 포지션의 연결 대기 상태가 아니라 대신 연락할 수 없습니다."
+      "후보자가 현재 이 역할의 연결 대기 상태가 아니어서 대신 연락할 수 없어요."
     );
   }
   if (!text(talent.candidate.email)) {
@@ -1412,12 +1434,12 @@ async function executeCompanyTalentRequest(args: {
 
   const deliveryCopy =
     deliveryMode === "immediate"
-      ? "요청하신 대로 표준 20분 대기와 KST 발송 시간 제한을 건너뛰고, 발송 시스템이 가져가는 즉시 이메일과 Harper 채팅으로 한 번 전달합니다. 아직 후보자 전달 완료를 의미하지 않으며, 처리가 바로 시작되므로 취소 가능 시간이 없을 수 있습니다."
-      : `${formatKstDateTime(request.candidateDeliveryScheduledAt)}에 이메일과 Harper 채팅으로 한 번 전달할 예정이며, 그전에는 취소할 수 있습니다.`;
+      ? "요청하신 대로 대기 시간과 KST 발송 시간 제한 없이 이메일과 Harper 채팅 전달을 바로 시작해요. 아직 전달 완료를 의미하지 않으며, 처리가 시작되면 취소하지 못할 수 있어요."
+      : `${formatKstDateTime(request.candidateDeliveryScheduledAt)}에 이메일과 Harper 채팅으로 한 번 전달할 예정이며, 그전에는 취소할 수 있어요.`;
   args.state.terminalReply =
     kind === "resume"
-      ? `${text(talent.candidate.name) || "후보자분"}께 ${text(args.state.company.companyName) || "회사"}의 ${role.name} 포지션 검토를 위한 최신 이력서 공유 요청을 접수했습니다. ${deliveryCopy} 아직 업로드 완료를 의미하는 단계는 아닙니다. 후보자분이 이력서를 올리면 이 대화로 알려드리겠습니다. 답변이나 업로드는 선택이며, Harper가 자동으로 재촉하지는 않습니다.`
-      : `${text(talent.candidate.name) || "후보자분"}께 ${text(args.state.company.companyName) || "회사"}에서 ${role.name} 포지션과 관련해 확인하는 질문이라는 점을 공개하고, “${requestContext}”라는 질문을 대신 전달하도록 접수했습니다. ${deliveryCopy} 아직 후보자 답변을 의미하는 단계는 아닙니다. 답이 오면 이 대화로 전달드리겠습니다. 답변은 후보자분의 선택이며, Harper가 자동으로 재촉하지는 않습니다.`;
+      ? `${text(talent.candidate.name) || "후보자분"}께 ${text(args.state.company.companyName) || "회사"}의 ${role.name} 역할 검토를 위한 최신 이력서 공유 요청을 준비했어요. ${deliveryCopy} 아직 업로드가 끝난 것은 아니에요. 후보자가 이력서를 올리면 이 대화로 알려드릴게요. 답변이나 업로드는 선택이며, Harper가 자동으로 재촉하지 않아요.`
+      : `${text(talent.candidate.name) || "후보자분"}께 ${text(args.state.company.companyName) || "회사"}에서 ${role.name} 역할과 관련해 확인하는 질문이라고 밝히고, “${requestContext}”를 대신 전달하도록 준비했어요. ${deliveryCopy} 아직 후보자가 답한 것은 아니에요. 답이 오면 이 대화로 알려드릴게요. 답변은 후보자의 선택이며, Harper가 자동으로 재촉하지 않아요.`;
   recordResult(args.state, {
     callId: args.callId,
     name: args.name,
@@ -1428,8 +1450,8 @@ async function executeCompanyTalentRequest(args: {
           ? "후보자 이력서 요청 즉시 발송"
           : "후보자 확인 요청 즉시 발송"
         : kind === "resume"
-          ? "후보자 이력서 요청 대기열 생성"
-          : "후보자 확인 요청 대기열 생성",
+          ? "후보자 이력서 요청 예약"
+          : "후보자 확인 요청 예약",
   });
   return {
     requestId: request.id,
@@ -1476,7 +1498,7 @@ async function executeChangeTalentContact(args: {
   );
   if (!pendingRequest) {
     throw new OrgAgentToolInputError(
-      "이 후보자와 포지션에서 해당 문의 요청을 찾지 못했습니다. 최신 요청 이력을 다시 확인해 주세요."
+      "이 후보자와 역할에서 해당 문의 요청을 찾지 못했어요. 최신 요청 이력을 다시 확인해 주세요."
     );
   }
   if (!pendingRequest.cancelable) {
@@ -1542,13 +1564,13 @@ async function executeChangeTalentContact(args: {
   if (action === "immediate") {
     args.state.terminalReply =
       pendingRequest.deliveryStatus === "failed"
-        ? `${text(talent.candidate.name) || "후보자분"}께 드릴 ${role.name} 포지션 관련 문의를 같은 요청으로 즉시 재시도하도록 변경했습니다. 표준 20분 대기와 KST 08:00–20:00 발송 시간 제한을 적용하지 않고, 발송 시스템이 가져가는 대로 이메일과 Harper 채팅으로 전달합니다. 아직 후보자 전달 완료를 의미하는 단계는 아닙니다. 실패 상태는 외부 전송 직후 기록만 실패한 경우도 포함할 수 있어 중복 전달 가능성이 있으며, 답이 오면 이 대화로 알려드리겠습니다.`
-        : `${text(talent.candidate.name) || "후보자분"}께 드릴 ${role.name} 포지션 관련 문의를 즉시 발송하도록 변경했습니다. 표준 20분 대기와 KST 08:00–20:00 발송 시간 제한을 적용하지 않고, 발송 시스템이 가져가는 대로 이메일과 Harper 채팅으로 전달합니다. 아직 후보자 전달 완료를 의미하는 단계는 아니며, 답이 오면 이 대화로 알려드리겠습니다.`;
+        ? `${text(talent.candidate.name) || "후보자분"}께 드릴 ${role.name} 역할 관련 문의를 바로 다시 전달하도록 바꿨어요. 이메일과 Harper 채팅 전달을 곧 시작하지만 아직 완료된 것은 아니에요. 이전 시도가 실제로 전달된 뒤 기록만 실패했을 수도 있어 중복 전달 가능성이 있어요. 답이 오면 이 대화로 알려드릴게요.`
+        : `${text(talent.candidate.name) || "후보자분"}께 드릴 ${role.name} 역할 관련 문의를 바로 전달하도록 바꿨어요. 이메일과 Harper 채팅 전달을 곧 시작하지만 아직 완료된 것은 아니에요. 답이 오면 이 대화로 알려드릴게요.`;
   } else {
     args.state.terminalReply =
       pendingRequest.deliveryStatus === "failed"
-        ? `${text(talent.candidate.name) || "후보자분"}께 보낸 ${role.name} 포지션 관련 문의의 남은 발송 처리를 종료했습니다. 이 요청으로 추가 이메일이나 Harper 채팅을 보내지 않습니다. 다만 실패 상태는 외부 전송 직후 기록만 실패한 경우도 포함할 수 있어, 이전 전달 여부는 발송 기록을 별도로 확인해야 합니다.`
-        : `${text(talent.candidate.name) || "후보자분"}께 보낼 예정이던 ${role.name} 포지션 관련 문의를 취소했습니다. 후보자에게 이메일이나 Harper 채팅으로 전달되지 않습니다.`;
+        ? `${text(talent.candidate.name) || "후보자분"}께 보낸 ${role.name} 역할 관련 문의의 남은 전달을 중단했어요. 이 요청으로 추가 이메일이나 Harper 채팅을 보내지 않아요. 다만 이전 시도가 실제로 전달된 뒤 기록만 실패했을 수도 있어, 이전 전달 여부는 별도로 확인해야 해요.`
+        : `${text(talent.candidate.name) || "후보자분"}께 보낼 예정이던 ${role.name} 역할 관련 문의를 취소했어요. 후보자에게 이메일이나 Harper 채팅으로 전달되지 않아요.`;
   }
   recordResult(args.state, {
     callId: args.callId,
@@ -1562,6 +1584,680 @@ async function executeChangeTalentContact(args: {
   return {
     requestId,
     scheduledAt: changed.status === "immediate" ? changed.scheduledAt : null,
+    status: changed.status,
+    userMessage: args.state.terminalReply,
+  };
+}
+
+function requiredPositiveInteger(value: unknown, field: string) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new OrgAgentToolInputError(`${field} must be a positive integer`);
+  }
+  return parsed;
+}
+
+function candidateResumeUploadUrl(args: {
+  requestId: string;
+  talentId: string;
+}) {
+  const origin =
+    text(process.env.NEXT_PUBLIC_SITE_URL) ||
+    text(process.env.NEXT_PUBLIC_APP_URL) ||
+    "https://matchharper.com";
+  const url = new URL("/career/profile", origin);
+  url.searchParams.set("profileSection", "links");
+  url.searchParams.set(
+    "resumeRequest",
+    createCompanyTalentResumeUploadToken(args)
+  );
+  return url.toString();
+}
+
+function candidateResumeUploadUrlFromDraft(body: string) {
+  const match = body.match(
+    /https?:\/\/[^\s<>"']+\/career\/profile\?[^\s<>"']*resumeRequest=[^\s<>"']+/
+  );
+  if (!match) {
+    throw new OrgAgentToolInputError(
+      "이력서 요청 초안에 필수 업로드 링크가 없어 수정할 수 없습니다. 현재 요청을 취소하고 새 초안을 만들어 주세요."
+    );
+  }
+  return match[0];
+}
+
+async function wasContactDraftImmediatelyPresented(args: {
+  admin: OrgAgentAdminClient;
+  contactId: string;
+  conversationId: string;
+  currentUserMessageId: number;
+  revision: number;
+  slackThreadId: string | null;
+  source: "chat" | "slack";
+}) {
+  let query = (args.admin.from("company_messages" as any) as any)
+    .select("metadata")
+    .eq("conversation_id", args.conversationId)
+    .eq("role", "assistant")
+    .eq("status", "completed")
+    .lt("id", args.currentUserMessageId)
+    .order("id", { ascending: false })
+    .limit(1);
+  query =
+    args.source === "slack"
+      ? query
+          .eq("message_type", "slack")
+          .eq("slack_thread_id", args.slackThreadId)
+      : query.eq("message_type", "chat");
+  const { data, error } = await query.maybeSingle();
+  if (error) throw error;
+  const ref = record(record(data).metadata).contactDraftRef;
+  const parsedRef = record(ref);
+  return (
+    text(parsedRef.contactId) === args.contactId &&
+    Number(parsedRef.revision) === args.revision
+  );
+}
+
+function normalizedDecisionEmails(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return Array.from(
+    new Set(value.map((item) => text(item).toLowerCase()).filter(Boolean))
+  ).sort();
+}
+
+function sameDecisionEmails(left: unknown, right: unknown) {
+  const normalizedLeft = normalizedDecisionEmails(left);
+  const normalizedRight = normalizedDecisionEmails(right);
+  return (
+    normalizedLeft.length === normalizedRight.length &&
+    normalizedLeft.every((email, index) => email === normalizedRight[index])
+  );
+}
+
+async function immediatelyPresentedCandidateDecision(args: {
+  actorId: string;
+  admin: OrgAgentAdminClient;
+  conversationId: string;
+  currentUserMessageId: number;
+  decision: OrgAgentCandidateDecision;
+  introEmails: string[] | null;
+  reason: string | null | undefined;
+  recommendationId: string;
+  requestedConnectionMethod: OrgAgentCandidateConnectionMethod | null;
+  roleId: string;
+  slackThreadId: string | null;
+  source: "chat" | "slack";
+  talentId: string;
+}) {
+  let query = (args.admin.from("company_messages" as any) as any)
+    .select("metadata")
+    .eq("conversation_id", args.conversationId)
+    .eq("role", "assistant")
+    .eq("status", "completed")
+    .lt("id", args.currentUserMessageId)
+    .order("id", { ascending: false })
+    .limit(1);
+  query =
+    args.source === "slack"
+      ? query
+          .eq("message_type", "slack")
+          .eq("slack_thread_id", args.slackThreadId)
+      : query.eq("message_type", "chat");
+  const { data, error } = await query.maybeSingle();
+  if (error) throw error;
+  const confirmations = record(
+    record(data).metadata
+  ).candidateConnectionConfirmations;
+  if (!Array.isArray(confirmations)) return null;
+  const confirmation = confirmations
+    .map((value) => record(value))
+    .findLast((value) => {
+      if (
+        text(value.actorId) !== args.actorId ||
+        text(value.decision) !== args.decision ||
+        text(value.recommendationId) !== args.recommendationId ||
+        text(value.roleId) !== args.roleId ||
+        text(value.talentId) !== args.talentId
+      ) {
+        return false;
+      }
+      const connectionMethod = candidateConnectionMethod(
+        value.connectionMethod
+      );
+      if (
+        args.requestedConnectionMethod &&
+        connectionMethod !== args.requestedConnectionMethod
+      ) {
+        return false;
+      }
+      if (
+        args.introEmails &&
+        !sameDecisionEmails(value.introEmails, args.introEmails)
+      ) {
+        return false;
+      }
+      const confirmationReason = text(value.reason) || null;
+      return (
+        args.reason === undefined ||
+        (text(args.reason) || null) === confirmationReason
+      );
+    });
+  if (!confirmation) return null;
+  const connectionMethod = candidateConnectionMethod(
+    confirmation.connectionMethod
+  );
+  const confirmationReason = text(confirmation.reason) || null;
+  return {
+    connectionMethod,
+    introEmails: normalizedDecisionEmails(confirmation.introEmails),
+    reason: confirmationReason,
+  };
+}
+
+function candidateDecisionConfirmationText(args: {
+  candidateEmail: string;
+  candidateName: string;
+  connectionMethod: OrgAgentCandidateConnectionMethod | null;
+  decision: OrgAgentCandidateDecision;
+  introEmails: string[];
+  previousStage: string;
+  roleName: string;
+}) {
+  if (args.decision === "decline") {
+    if (args.previousStage !== "pending_connection") {
+      return `${args.candidateName}님과 진행 중인 ${args.roleName} 역할의 연결을 종료하려고 해요.\n\n종료하면 Harper가 후보자에게 회사가 더 진행하지 않기로 했다고 안내하고, 이 후보자는 해당 역할의 연결 과정에서 더 이상 진행되지 않아요. 이미 보낸 소개 이메일이나 회사의 직접 연락, 후보자에게 보이거나 전달된 종료 안내는 회수할 수 없어요.\n\n남겨주신 이유는 후보자에게 그대로 전하지 않고 다음 추천 기준에 참고할게요. 연결 종료를 진행할까요?`;
+    }
+    return `${args.candidateName}님과 ${args.roleName} 역할의 연결을 이번에는 진행하지 않으시려는 것으로 이해했어요.\n\n연결을 거절하면 회사가 더 진행하지 않기로 했다는 종료 결정이 후보자에게 표시되고, Harper가 후보자에게 배려 있게 안내해요. 이후 이 후보자는 해당 역할의 연결 과정에서 더 이상 진행되지 않으며, 후보자에게 보이거나 전달된 안내는 회수할 수 없어요.\n\n연결 거절 이유는 후보자에게 그대로 전하지 않고 다음 추천을 더 정확하게 하는 데 참고할게요. ${args.candidateName}님과의 연결을 거절할까요?`;
+  }
+  if (args.connectionMethod === "direct_contact") {
+    return `${args.candidateName}님과 ${args.roleName} 역할의 연결을 시작할게요.\n\n직접 연락 방식을 선택하면 후보자를 연결됨 상태로 바꾸지만 Harper가 소개 이메일을 보내지는 않아요. 회사에서 후보자에게 직접 연락해 인사하고 다음 일정을 조율해 주셔야 해요.\n\n직접 연락 방식으로 연결할까요?`;
+  }
+  const recipients = args.introEmails.filter(
+    (email) => email !== args.candidateEmail.toLowerCase()
+  );
+  if (recipients.length === 0) {
+    return `${args.candidateName}님과 ${args.roleName} 역할의 연결을 시작하면 Harper가 후보자와 회사 담당자에게 소개 이메일을 보내고, 양측이 같은 이메일에서 인사와 다음 일정을 이어갈 수 있게 도와드려요.\n\n현재 함께 연결할 회사 수신자가 없어 아직 진행할 수 없어요. 소개 이메일을 받을 회사 담당자 이메일을 알려 주세요.`;
+  }
+  return `${args.candidateName}님과 ${args.roleName} 역할의 연결을 시작할게요.\n\n소개 이메일 방식을 선택하면 Harper가 후보자와 ${recipients.join(", ")}에게 소개 이메일을 바로 보내고, 서로 인사한 뒤 같은 이메일에서 다음 일정을 조율할 수 있게 연결해요. 보낸 이메일은 회수할 수 없어요.\n\n소개 이메일을 보내고 연결할까요?`;
+}
+
+async function executeCandidateContactLifecycle(args: {
+  admin: OrgAgentAdminClient;
+  callId: string;
+  conversation: OrgAgentConversationRow;
+  currentUserMessageId: number;
+  input: Record<string, unknown>;
+  name: OrgAgentToolName;
+  slackThreadId: string | null;
+  source: "chat" | "slack";
+  state: OrgAgentToolExecutionState;
+  user: User;
+  workspaceId: string;
+}) {
+  if (args.state.terminalMutationUsed) {
+    throw new OrgAgentToolInputError(
+      "contact_talent may be called only once and must be the only terminal tool in this turn"
+    );
+  }
+  args.state.terminalMutationUsed = true;
+
+  const action = requiredText(args.input.action, "action", 30);
+  if (
+    action !== "create_draft" &&
+    action !== "revise_draft" &&
+    action !== "schedule" &&
+    action !== "cancel"
+  ) {
+    throw new OrgAgentToolInputError(
+      "action must be create_draft, revise_draft, schedule, or cancel"
+    );
+  }
+
+  if (action === "create_draft") {
+    const kindValue = requiredText(args.input.kind, "kind", 20);
+    if (kindValue !== "question" && kindValue !== "resume") {
+      throw new OrgAgentToolInputError("kind must be question or resume");
+    }
+    const kind: "question" | "resume" = kindValue;
+    const role = roleOrThrow(args.state, args.input.roleId);
+    args.state.preferredRoleId = role.roleId;
+    const talentId = requiredText(args.input.talentId, "talentId", 100);
+    const requestContext =
+      kind === "resume"
+        ? `${role.name} 역할 검토를 위한 최신 이력서 공유 가능 여부 확인`
+        : requiredText(args.input.requestContext, "requestContext", 800);
+    const talent = await readOrgAgentTalent({
+      admin: args.admin,
+      audience: "caller",
+      includeProfile: false,
+      roleId: role.roleId,
+      talentId,
+      user: args.user,
+      workspaceId: args.workspaceId,
+    });
+    const position = talent.positions.find(
+      (item) =>
+        item.roleId === role.roleId && item.stage === "pending_connection"
+    );
+    if (!position) {
+      throw new OrgAgentToolInputError(
+        "후보자가 현재 이 역할의 연결 대기 상태가 아니어서 대신 연락할 수 없어요."
+      );
+    }
+    if (!text(talent.candidate.email)) {
+      args.state.terminalReply =
+        "현재 Harper가 후보자분께 연락할 수 있는 이메일을 확인하지 못해 초안을 만들지 못했습니다. 아직 접수되거나 발송된 내용은 없습니다.";
+      recordResult(args.state, {
+        callId: args.callId,
+        name: args.name,
+        status: "error",
+        summary: "후보자 연락 이메일 없음",
+      });
+      return {
+        status: "contact_unavailable",
+        userMessage: args.state.terminalReply,
+      };
+    }
+    if (kind === "resume") {
+      const { data: documents, error } = await (
+        args.admin.from("talent_documents" as any) as any
+      )
+        .select("id, is_public")
+        .eq("talent_id", talentId)
+        .eq("kind", "resume")
+        .eq("is_primary", true)
+        .limit(1);
+      if (error) throw error;
+      if (documents?.[0]?.is_public) {
+        throw new OrgAgentToolInputError(
+          "이미 후보자 프로필에서 회사가 확인할 수 있는 이력서가 있습니다."
+        );
+      }
+    }
+
+    const existingRequest =
+      blockingCompanyTalentRequest(
+        talent.requestHistory as BlockingCompanyTalentRequest[],
+        role.roleId
+      ) ??
+      (await fetchBlockingCompanyTalentRequestForWorkspace({
+        admin: args.admin as any,
+        roleId: role.roleId,
+        talentId,
+        workspaceId: args.workspaceId,
+      }));
+    if (existingRequest) {
+      if (
+        text(existingRequest.draftBody) &&
+        text(existingRequest.draftSubject) &&
+        Number(existingRequest.draftRevision) > 0
+      ) {
+        const contactId = text(existingRequest.requestId);
+        const revision = Number(existingRequest.draftRevision);
+        args.state.contactDraftRef = { contactId, revision };
+        args.state.requiredPresentationText = candidateContactDraftPresentation(
+          {
+            body: String(existingRequest.draftBody),
+            candidateName: text(talent.candidate.name),
+            revision,
+            roleName: text(existingRequest.roleName) || role.name,
+            subject: String(existingRequest.draftSubject),
+          }
+        );
+        args.state.terminalReply =
+          "이 후보자와 역할에 이미 확인 중인 문구가 있어 새 초안을 만들지 않고 현재 문구를 다시 보여드려요.";
+        recordResult(args.state, {
+          callId: args.callId,
+          name: args.name,
+          status: "unchanged",
+          summary: "기존 후보자 연락 초안 재표시",
+        });
+        return {
+          contactId,
+          revision,
+          status: "draft",
+          userMessage: args.state.terminalReply,
+        };
+      }
+      return existingCompanyTalentRequestResult({
+        callId: args.callId,
+        candidateName: text(talent.candidate.name),
+        existingRequest,
+        kind,
+        name: args.name,
+        requestContext,
+        roleName: role.name,
+        state: args.state,
+      });
+    }
+
+    const requestId = crypto.randomUUID();
+    const { data: setting, error: settingError } = await (
+      args.admin.from("talent_setting" as any) as any
+    )
+      .select("preferred_locale")
+      .eq("user_id", talentId)
+      .maybeSingle();
+    if (settingError) throw settingError;
+    const profileUrl =
+      kind === "resume"
+        ? candidateResumeUploadUrl({ requestId, talentId })
+        : null;
+    const draftCopy = await generateCandidateContactDraft({
+      candidateName: text(talent.candidate.name),
+      companyName: text(args.state.company.companyName) || "채용 회사",
+      kind,
+      locale: text(setting?.preferred_locale) || null,
+      profileUrl,
+      requestContext,
+      requestId,
+      roleName: role.name,
+    });
+    let draft;
+    try {
+      draft = await createCompanyTalentContactDraft({
+        admin: args.admin as any,
+        body: draftCopy.body,
+        expectsDocument: kind === "resume",
+        id: requestId,
+        recommendationId: position.recommendationId,
+        requestContext: draftCopy.requestContext,
+        roleId: role.roleId,
+        sourceCompanyMessageId: args.currentUserMessageId,
+        subject: draftCopy.subject,
+        talentId,
+        workspaceId: args.workspaceId,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (
+        !message.includes("company_talent_request_already_active") &&
+        !message.includes(
+          "company_talent_requests_workspace_role_talent_open_uidx"
+        )
+      ) {
+        throw error;
+      }
+      const existing = await fetchBlockingCompanyTalentRequestForWorkspace({
+        admin: args.admin as any,
+        roleId: role.roleId,
+        talentId,
+        workspaceId: args.workspaceId,
+      });
+      if (
+        !existing ||
+        !text(existing.draftBody) ||
+        !text(existing.draftSubject) ||
+        Number(existing.draftRevision) < 1
+      ) {
+        return existingCompanyTalentRequestResult({
+          callId: args.callId,
+          candidateName: text(talent.candidate.name),
+          existingRequest: existing,
+          kind,
+          name: args.name,
+          requestContext,
+          roleName: role.name,
+          state: args.state,
+        });
+      }
+      draft = {
+        delivery_body: existing.draftBody,
+        delivery_subject: existing.draftSubject,
+        draft_revision: existing.draftRevision,
+        id: existing.requestId,
+      };
+    }
+    const contactId = text(draft.id);
+    const revision = Number(draft.draft_revision);
+    args.state.contactDraftRef = { contactId, revision };
+    args.state.requiredPresentationText = candidateContactDraftPresentation({
+      body: String(draft.delivery_body),
+      candidateName: text(talent.candidate.name),
+      revision,
+      roleName: role.name,
+      subject: String(draft.delivery_subject),
+    });
+    args.state.terminalReply =
+      "후보자에게 보낼 전체 문구를 초안으로 저장했어요. 아직 후보자에게 보내지 않았어요.";
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "success",
+      summary: "후보자 연락 초안 작성",
+    });
+    return {
+      contactId,
+      revision,
+      status: "draft",
+      userMessage: args.state.terminalReply,
+    };
+  }
+
+  const contactId = requiredText(args.input.contactId, "contactId", 100);
+  const contact = await fetchCompanyTalentContact({
+    admin: args.admin as any,
+    requestId: contactId,
+    workspaceId: args.workspaceId,
+  });
+  if (!contact) {
+    throw new OrgAgentToolInputError(
+      "해당 후보자 연락 요청을 이 회사에서 찾지 못했습니다."
+    );
+  }
+  args.state.preferredRoleId = text(contact.role_id) || null;
+  const candidateName = text(contact.candidateName) || "후보자분";
+  const roleName = text(contact.roleName) || "해당 역할";
+
+  if (action === "revise_draft") {
+    const expectedRevision = requiredPositiveInteger(
+      args.input.expectedRevision,
+      "expectedRevision"
+    );
+    const editInstruction = requiredText(
+      args.input.editInstruction,
+      "editInstruction",
+      2_000
+    );
+    if (contact.workflow_status !== "draft") {
+      throw new OrgAgentToolInputError(
+        "발송 등록된 문구는 그 자리에서 수정할 수 없습니다. 취소 가능하면 먼저 취소한 뒤 새 초안을 만들어야 합니다."
+      );
+    }
+    if (contact.draft_revision !== expectedRevision) {
+      throw new OrgAgentToolInputError(
+        "초안이 그사이 바뀌었어요. 최신 문구를 다시 확인한 뒤 수정해 주세요."
+      );
+    }
+    const kind = contact.expects_document ? "resume" : "question";
+    const profileUrl =
+      kind === "resume"
+        ? candidateResumeUploadUrlFromDraft(String(contact.delivery_body ?? ""))
+        : null;
+    const revisedCopy = await reviseCandidateContactDraft({
+      current: {
+        body: String(contact.delivery_body ?? ""),
+        requestContext: contact.request_context,
+        subject: String(contact.delivery_subject ?? ""),
+      },
+      editInstruction,
+      kind,
+      profileUrl,
+      requestId: contact.id,
+    });
+    const revised = await reviseCompanyTalentContactDraft({
+      admin: args.admin as any,
+      body: revisedCopy.body,
+      expectedRevision,
+      requestContext: revisedCopy.requestContext,
+      requestId: contact.id,
+      subject: revisedCopy.subject,
+      workspaceId: args.workspaceId,
+    });
+    args.state.contactDraftRef = {
+      contactId: revised.id,
+      revision: revised.draft_revision,
+    };
+    args.state.requiredPresentationText = candidateContactDraftPresentation({
+      body: String(revised.delivery_body),
+      candidateName,
+      revision: revised.draft_revision,
+      roleName,
+      subject: String(revised.delivery_subject),
+    });
+    args.state.terminalReply =
+      "요청하신 수정을 초안에 저장했어요. 아직 후보자에게 보내지 않았어요.";
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "success",
+      summary: "후보자 연락 초안 수정",
+    });
+    return {
+      contactId: revised.id,
+      revision: revised.draft_revision,
+      status: "draft_revised",
+      userMessage: args.state.terminalReply,
+    };
+  }
+
+  if (action === "schedule") {
+    const expectedRevision = requiredPositiveInteger(
+      args.input.expectedRevision,
+      "expectedRevision"
+    );
+    const deliveryModeValue = text(args.input.deliveryMode) || "standard";
+    if (deliveryModeValue !== "standard" && deliveryModeValue !== "immediate") {
+      throw new OrgAgentToolInputError(
+        "deliveryMode must be standard or immediate"
+      );
+    }
+    if (contact.workflow_status !== "draft") {
+      throw new OrgAgentToolInputError(
+        "초안 상태의 연락만 발송 등록할 수 있습니다. 이 요청의 현재 상태를 확인해 주세요."
+      );
+    }
+    if (contact.draft_revision !== expectedRevision) {
+      throw new OrgAgentToolInputError(
+        "확인하신 뒤 초안이 바뀌었어요. 최신 문구를 다시 보여드린 뒤 확인받아야 해요."
+      );
+    }
+    const immediatelyPresented = await wasContactDraftImmediatelyPresented({
+      admin: args.admin,
+      contactId: contact.id,
+      conversationId: args.conversation.id,
+      currentUserMessageId: args.currentUserMessageId,
+      revision: contact.draft_revision,
+      slackThreadId: args.slackThreadId,
+      source: args.source,
+    });
+    if (!immediatelyPresented) {
+      args.state.contactDraftRef = {
+        contactId: contact.id,
+        revision: contact.draft_revision,
+      };
+      args.state.requiredPresentationText = candidateContactDraftPresentation({
+        body: String(contact.delivery_body ?? ""),
+        candidateName,
+        revision: contact.draft_revision,
+        roleName,
+        subject: String(contact.delivery_subject ?? ""),
+      });
+      args.state.terminalReply =
+        "직전 Harper 답변에서 보여드린 최신 문구에 대한 확인이 아니어서 보내지 않았어요. 현재 문구를 다시 보여드려요.";
+      recordResult(args.state, {
+        callId: args.callId,
+        name: args.name,
+        status: "unchanged",
+        summary: "정확한 초안 재확인 필요",
+      });
+      return {
+        contactId: contact.id,
+        revision: contact.draft_revision,
+        status: "confirmation_required",
+        userMessage: args.state.terminalReply,
+      };
+    }
+    const scheduled = await scheduleCompanyTalentContact({
+      admin: args.admin as any,
+      deliveryMode: deliveryModeValue,
+      expectedRevision,
+      requestId: contact.id,
+      roleId: contact.role_id,
+      talentId: contact.talent_id,
+      workspaceId: args.workspaceId,
+    });
+    args.state.contactDraftRef = {
+      contactId: contact.id,
+      revision: contact.draft_revision,
+    };
+    args.state.terminalReply =
+      deliveryModeValue === "immediate"
+        ? `${candidateName}님께 확인하신 ${roleName} 관련 문구를 바로 보내도록 준비했어요. 이메일과 Harper 채팅 전달을 곧 시작하지만 아직 완료된 것은 아니에요.\n\n후보자는 답하거나, 답하기 어렵다고 하거나, 답하지 않을 수 있어요. Harper가 자동으로 재촉하지는 않으며, 답변이 오면 의미를 바꾸지 않고 정리해 이 대화에서 알려드릴게요.`
+        : `${candidateName}님께 확인하신 ${roleName} 관련 문구를 ${formatKstDateTime(scheduled.scheduledAt)}에 보낼 예정이에요. 이메일과 Harper 채팅으로 한 번 전달하며, 아직 전달이 끝난 것은 아니에요.\n\n후보자는 답하거나, 답하기 어렵다고 하거나, 답하지 않을 수 있어요. Harper가 자동으로 재촉하지는 않으며, 답변이 오면 의미를 바꾸지 않고 정리해 이 대화에서 알려드릴게요.`;
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "success",
+      summary:
+        deliveryModeValue === "immediate"
+          ? "후보자 연락 즉시 발송 등록"
+          : "후보자 연락 발송 등록",
+    });
+    return {
+      contactId: contact.id,
+      revision: contact.draft_revision,
+      scheduledAt: scheduled.scheduledAt,
+      status: scheduled.status,
+      userMessage: args.state.terminalReply,
+    };
+  }
+
+  let changed: Awaited<ReturnType<typeof changeCompanyTalentRequest>>;
+  try {
+    changed = await changeCompanyTalentRequest({
+      action: "cancel",
+      admin: args.admin as any,
+      requestId: contact.id,
+      roleId: contact.role_id,
+      talentId: contact.talent_id,
+      workspaceId: args.workspaceId,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (
+      message.includes("company_talent_request_not_cancellable") ||
+      message.includes("company_talent_request_not_changeable")
+    ) {
+      args.state.terminalReply =
+        "확인하는 사이 발송 처리가 시작되어 이 요청은 취소하지 못했습니다.";
+      recordResult(args.state, {
+        callId: args.callId,
+        name: args.name,
+        status: "error",
+        summary: "후보자 연락 취소 불가",
+      });
+      return {
+        status: "not_changeable",
+        userMessage: args.state.terminalReply,
+      };
+    }
+    throw error;
+  }
+  args.state.contactDraftRef = null;
+  args.state.terminalReply =
+    contact.workflow_status === "draft"
+      ? `${candidateName}님께 보낼 ${roleName} 관련 초안을 취소했어요. 후보자에게 전달된 내용은 없어요.`
+      : `${candidateName}님께 보낼 예정이던 ${roleName} 관련 요청을 취소했어요. 이 요청으로 추가 이메일이나 Harper 채팅을 보내지 않아요.`;
+  recordResult(args.state, {
+    callId: args.callId,
+    name: args.name,
+    status: "success",
+    summary: "후보자 연락 취소",
+  });
+  return {
+    contactId: contact.id,
     status: changed.status,
     userMessage: args.state.terminalReply,
   };
@@ -1908,8 +2604,8 @@ async function readCandidateDecisionTarget(args: {
   if (matchingPositions.length === 0) {
     throw new OrgAgentToolInputError(
       args.decision === "accept"
-        ? "후보자가 현재 이 포지션의 연결 대기 또는 프로세스 종료 상태가 아니라 연결을 수락할 수 없습니다."
-        : "후보자가 현재 이 포지션에서 종료할 수 있는 회사측 진행 상태가 아닙니다."
+        ? "후보자가 현재 이 역할의 연결 대기 또는 프로세스 종료 상태가 아니라 연결을 시작할 수 없어요."
+        : "후보자가 현재 이 역할에서 종료할 수 있는 회사 측 진행 상태가 아니에요."
     );
   }
   const position = matchingPositions[0];
@@ -1964,13 +2660,14 @@ async function executePrepareCandidateConnection(args: {
   workspaceId: string;
 }) {
   const current = roleOrThrow(args.state, args.input.roleId);
+  args.state.preferredRoleId = current.roleId;
   const talentId = requiredText(args.input.talentId, "talentId", 100);
   const decision = candidateDecision(args.input.decision);
-  const connectionMethod = candidateConnectionMethod(
+  const requestedConnectionMethod = candidateConnectionMethod(
     args.input.connectionMethod
   );
   const reason = nullableTextField(args.input, "reason", 2_000);
-  if (decision === "decline" && connectionMethod) {
+  if (decision === "decline" && requestedConnectionMethod) {
     throw new OrgAgentToolInputError(
       "connectionMethod can only be used with an accept decision"
     );
@@ -1980,17 +2677,17 @@ async function executePrepareCandidateConnection(args: {
       "introEmails can only be used with an accept decision"
     );
   }
-  if (!connectionMethod && has(args.input, "introEmails")) {
-    throw new OrgAgentToolInputError(
-      "introEmails requires connectionMethod intro_email"
-    );
-  }
-  if (connectionMethod === "direct_contact" && has(args.input, "introEmails")) {
+  if (
+    requestedConnectionMethod === "direct_contact" &&
+    has(args.input, "introEmails")
+  ) {
     throw new OrgAgentToolInputError(
       "introEmails can only be used with connectionMethod intro_email"
     );
   }
 
+  const connectionMethod =
+    decision === "accept" ? (requestedConnectionMethod ?? "intro_email") : null;
   const { position, reactivation, talent } = await readCandidateDecisionTarget({
     admin: args.admin,
     decision,
@@ -2000,16 +2697,18 @@ async function executePrepareCandidateConnection(args: {
     workspaceId: args.workspaceId,
   });
   const requesterEmail = text(args.user.email).toLowerCase() || null;
+  const candidateEmail = text(talent.candidate.email).toLowerCase();
   const suppliedIntroEmails = has(args.input, "introEmails")
     ? emailArray(args.input.introEmails, 10)
     : [];
   const introEmails =
     connectionMethod === "intro_email"
-      ? suppliedIntroEmails.length > 0
-        ? suppliedIntroEmails
-        : requesterEmail
-          ? [requesterEmail]
-          : []
+      ? (suppliedIntroEmails.length > 0
+          ? suppliedIntroEmails
+          : requesterEmail
+            ? [requesterEmail]
+            : []
+        ).filter((email) => email !== candidateEmail)
       : [];
   stageCandidateDecisionContext({
     actorId: args.actorId,
@@ -2048,7 +2747,7 @@ async function executePrepareCandidateConnection(args: {
     introEmailAvailable:
       decision === "accept" &&
       Boolean(text(talent.candidate.email)) &&
-      Boolean(introEmails.length > 0 || requesterEmail),
+      introEmails.length > 0,
     introEmails,
     reason: reason.present ? reason.value : null,
     requesterEmail,
@@ -2058,16 +2757,22 @@ async function executePrepareCandidateConnection(args: {
 }
 
 async function executeCandidateConnectionDecision(args: {
+  actorId: string;
   admin: OrgAgentAdminClient;
   callId: string;
+  conversation: OrgAgentConversationRow;
+  currentUserMessageId: number;
   input: Record<string, unknown>;
   name: OrgAgentToolName;
+  slackThreadId: string | null;
+  source: "chat" | "slack";
   state: OrgAgentToolExecutionState;
   user: User;
   workspaceId: string;
 }) {
   args.state.terminalMutationUsed = true;
   const current = roleOrThrow(args.state, args.input.roleId);
+  args.state.preferredRoleId = current.roleId;
   const decision = candidateDecision(args.input.decision);
   const talentId = requiredText(args.input.talentId, "talentId", 100);
   const reason = nullableTextField(args.input, "reason", 2_000);
@@ -2092,11 +2797,6 @@ async function executeCandidateConnectionDecision(args: {
       "introEmails can only be used with connectionMethod intro_email"
     );
   }
-  if (!requestedConnectionMethod && has(args.input, "introEmails")) {
-    throw new OrgAgentToolInputError(
-      "introEmails requires connectionMethod intro_email"
-    );
-  }
   const suppliedIntroEmails = has(args.input, "introEmails")
     ? emailArray(args.input.introEmails, 10)
     : null;
@@ -2109,9 +2809,85 @@ async function executeCandidateConnectionDecision(args: {
     user: args.user,
     workspaceId: args.workspaceId,
   });
+  const candidateEmail = text(talent.candidate.email).toLowerCase();
+  const proposedConnectionMethod =
+    decision === "accept" ? (requestedConnectionMethod ?? "intro_email") : null;
+  const proposedIntroEmails =
+    proposedConnectionMethod === "intro_email"
+      ? (suppliedIntroEmails?.length
+          ? suppliedIntroEmails
+          : requesterEmail
+            ? [requesterEmail]
+            : []
+        ).filter((email) => email !== candidateEmail)
+      : [];
+  const proposedReason = reason.present ? reason.value : null;
+  const confirmed = await immediatelyPresentedCandidateDecision({
+    actorId: args.actorId,
+    admin: args.admin,
+    conversationId: args.conversation.id,
+    currentUserMessageId: args.currentUserMessageId,
+    decision,
+    introEmails:
+      suppliedIntroEmails === null
+        ? null
+        : proposedConnectionMethod === "intro_email"
+          ? proposedIntroEmails
+          : [],
+    reason: reason.present ? proposedReason : undefined,
+    recommendationId: position.recommendationId,
+    requestedConnectionMethod,
+    roleId: current.roleId,
+    slackThreadId: args.slackThreadId,
+    source: args.source,
+    talentId,
+  });
+  if (!confirmed) {
+    stageCandidateDecisionContext({
+      actorId: args.actorId,
+      connectionMethod: proposedConnectionMethod,
+      decision,
+      introEmails: proposedIntroEmails,
+      reason: proposedReason,
+      recommendationId: position.recommendationId,
+      roleId: current.roleId,
+      slackThreadId: args.slackThreadId,
+      state: args.state,
+      talentId,
+    });
+    args.state.terminalReply = candidateDecisionConfirmationText({
+      candidateEmail,
+      candidateName: text(talent.candidate.name) || "후보자",
+      connectionMethod: proposedConnectionMethod,
+      decision,
+      introEmails: proposedIntroEmails,
+      previousStage: position.stage,
+      roleName: current.name,
+    });
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "unchanged",
+      summary:
+        decision === "accept"
+          ? "후보자 연결 수락 재확인 필요"
+          : "후보자 연결 거절 재확인 필요",
+    });
+    return {
+      candidateName: talent.candidate.name,
+      connectionMethod: proposedConnectionMethod,
+      decision,
+      introEmails: proposedIntroEmails,
+      status: "confirmation_required",
+      userMessage: args.state.terminalReply,
+    };
+  }
   const connectionMethod =
-    decision === "accept" ? requestedConnectionMethod : null;
-  const finalReason = reason.present ? reason.value : null;
+    decision === "accept"
+      ? (confirmed.connectionMethod ?? "intro_email")
+      : null;
+  const finalReason = reason.present ? reason.value : confirmed.reason;
+  const candidateName = text(talent.candidate.name) || "후보자";
   if (decision === "decline") {
     const result = await setOrgCandidateStage({
       expectedPreviousStage: position.stage,
@@ -2125,8 +2901,8 @@ async function executeCandidateConnectionDecision(args: {
     });
     const changeSummary =
       position.stage === "pending_connection"
-        ? "연결 대기 후보자의 프로세스를 중단했습니다."
-        : "이미 시작된 후보자 연결을 종료했습니다. 이전에 보낸 소개 메일이나 회사의 직접 연락은 회수되지 않으며, Harper가 후보자에게 종료를 안내합니다.";
+        ? `${candidateName}님과의 연결을 거절했어요. 회사가 더 진행하지 않기로 했다는 종료 결정이 후보자에게 표시되고 Harper가 이를 안내해요.`
+        : `${candidateName}님과 진행 중이던 연결을 종료했어요. 이전에 보낸 소개 이메일이나 회사의 직접 연락은 회수되지 않으며, Harper가 후보자에게 종료를 안내해요.`;
     args.state.updateSummaries.push(changeSummary);
     recordResult(args.state, {
       callId: args.callId,
@@ -2135,32 +2911,27 @@ async function executeCandidateConnectionDecision(args: {
       summary: changeSummary,
     });
     return {
+      candidateName,
       changeSummary,
       decision,
+      nextProcess:
+        "Harper가 후보자에게 회사가 이번 연결을 더 진행하지 않기로 했다고 안내하고, 이 후보자는 해당 역할의 연결 과정에서 더 이상 진행되지 않아요.",
       previousStage: position.stage,
+      responseGuidance:
+        "결정이 후보자에게 어떻게 안내되고 이후 매칭에 어떻게 반영되는지 다정하고 분명하게 설명하세요.",
       roleId: result.roleId,
+      roleName: current.name,
       stage: result.stage,
       status: "updated",
       talentId: result.talentId,
     };
   }
 
-  if (!connectionMethod) {
-    throw new OrgAgentToolInputError(
-      "The user must choose CC introduction or direct contact before accepting"
-    );
-  }
   const introEmails =
-    connectionMethod === "intro_email"
-      ? suppliedIntroEmails?.length
-        ? suppliedIntroEmails
-        : requesterEmail
-          ? [requesterEmail]
-          : []
-      : null;
-  if (connectionMethod === "intro_email" && !text(talent.candidate.email)) {
+    connectionMethod === "intro_email" ? confirmed.introEmails : null;
+  if (connectionMethod === "intro_email" && !candidateEmail) {
     throw new OrgAgentToolInputError(
-      "후보자 이메일이 없어 CC 연결 메일을 보낼 수 없습니다. 직접 연락을 선택해 주세요."
+      "후보자 이메일이 없어 Email intro를 사용할 수 없어요."
     );
   }
   if (connectionMethod === "intro_email" && !introEmails?.length) {
@@ -2184,15 +2955,15 @@ async function executeCandidateConnectionDecision(args: {
   const changeSummary =
     reactivation && connectionMethod === "intro_email"
       ? position.processClosureNotification?.status === "sent"
-        ? "종료 안내가 이미 전달된 후보자의 프로세스를 다시 열고, 과거 거절을 언급하지 않는 소개 메일로 연결을 시작했습니다."
-        : "아직 종료 안내가 전달되지 않은 후보자의 종료 절차를 취소하고 소개 메일로 연결을 시작했습니다."
+        ? "종료 안내가 이미 전달된 후보자의 프로세스를 다시 열고 소개 이메일을 보냈어요. 이미 표시되거나 전달된 종료 안내는 회수할 수 없어요. 이후 대화에서 회사의 상황이 바뀐 점을 직접 설명해 주세요."
+        : "Harper의 별도 종료 안내를 중단하고 소개 이메일을 보냈어요. 다만 이전 종료 결정이 후보자 화면에 이미 표시됐을 수 있으므로 이후 대화에서 상황이 바뀐 점을 배려 있게 설명해 주세요."
       : reactivation
         ? position.processClosureNotification?.status === "sent"
-          ? "종료 안내가 이미 전달된 후보자의 프로세스를 다시 열어 연결됨으로 옮겼습니다. 회사에서 직접 연락하며 이전 안내를 솔직하게 짚어 주세요."
-          : "아직 종료 안내가 전달되지 않은 후보자의 종료 절차를 취소하고 연결됨으로 옮겼습니다. 회사에서 직접 연락해야 합니다."
+          ? "종료 안내가 이미 전달된 후보자를 다시 연결됨으로 표시했어요. Harper는 소개 이메일을 보내지 않았어요. 회사에서 직접 연락하며 이미 안내된 종료 결정과 상황이 바뀐 점을 솔직하게 설명해 주세요."
+          : "Harper의 별도 종료 안내를 중단하고 후보자를 다시 연결됨으로 표시했어요. Harper는 소개 이메일을 보내지 않았어요. 이전 종료 결정이 후보자 화면에 이미 표시됐을 수 있으므로 회사에서 직접 연락해 상황이 바뀐 점을 설명해 주세요."
         : connectionMethod === "intro_email"
-          ? "연결 대기 후보자에게 소개 메일을 보내 연결을 시작했습니다."
-          : "연결 대기 후보자를 연결됨으로 옮겼습니다. 회사에서 직접 연락해야 합니다.";
+          ? `${candidateName}님과 연결해드렸어요. Harper가 ${candidateName}님과 선택한 회사 수신자에게 소개 이메일을 보냈어요.`
+          : `${candidateName}님과 연결해드렸어요. Harper는 소개 이메일을 보내지 않았으니 회사에서 직접 연락해 주세요.`;
   args.state.updateSummaries.push(changeSummary);
   recordResult(args.state, {
     callId: args.callId,
@@ -2201,6 +2972,7 @@ async function executeCandidateConnectionDecision(args: {
     summary: changeSummary,
   });
   return {
+    candidateName,
     changeSummary,
     closureNotificationDelivered:
       position.processClosureNotification?.status === "sent",
@@ -2210,11 +2982,21 @@ async function executeCandidateConnectionDecision(args: {
       position.processClosureNotification?.sentChannel ?? null,
     connectionMethod,
     decision,
+    nextProcess:
+      connectionMethod === "intro_email"
+        ? "후보자와 선택한 회사 담당자가 같은 소개 이메일에서 인사하고 다음 일정을 직접 조율해요."
+        : "Harper가 소개 이메일을 보내지 않았으므로 회사에서 후보자에게 직접 연락해 인사하고 다음 일정을 조율해 주세요.",
+    responseGuidance:
+      "연결이 실제로 어떻게 시작됐고 이제 양측이 무엇을 하면 되는지 설명한 뒤, 사람다운 축하와 기대의 말을 덧붙이세요.",
     roleId: result.roleId,
+    roleName: current.name,
     reactivation,
     stage: result.stage,
     status: "updated",
     talentId: result.talentId,
+    warmClosing: reactivation
+      ? "이번 연결이 서로에게 좋은 방향으로 이어질 수 있도록 상황이 달라진 점을 후보자에게 배려 있게 설명해 주세요."
+      : "서로에게 좋은 기회가 되길 바랄게요 :)",
   };
 }
 
@@ -2262,93 +3044,36 @@ export async function executeOrgAgentTool(args: {
       "roleTitle",
       200
     );
-    const description = requiredText(
-      args.input && input.description,
-      "description",
-      12_000
-    );
-    const descriptionOrigin = requiredText(
-      args.input && input.descriptionOrigin,
-      "descriptionOrigin",
-      100
-    );
+    const contextMessageCount = Number(input.contextMessageCount);
     if (
-      descriptionOrigin !== "user_supplied" &&
-      descriptionOrigin !== "same_company_public_jd" &&
-      descriptionOrigin !== "company_style_draft"
+      !Number.isSafeInteger(contextMessageCount) ||
+      contextMessageCount < 1 ||
+      contextMessageCount > 12
     ) {
       throw new OrgAgentToolInputError(
-        "descriptionOrigin must be user_supplied, same_company_public_jd, or company_style_draft"
-      );
-    }
-    const descriptionSourceUrl = text(input.descriptionSourceUrl);
-    if (descriptionSourceUrl) {
-      let parsedSourceUrl: URL;
-      try {
-        parsedSourceUrl = new URL(descriptionSourceUrl);
-      } catch {
-        throw new OrgAgentToolInputError(
-          "descriptionSourceUrl must be a valid http(s) URL"
-        );
-      }
-      if (
-        parsedSourceUrl.protocol !== "http:" &&
-        parsedSourceUrl.protocol !== "https:"
-      ) {
-        throw new OrgAgentToolInputError(
-          "descriptionSourceUrl must be a valid http(s) URL"
-        );
-      }
-    }
-    const requiredSearchQuery = `${args.state.company.companyName} ${roleTitle} 채용 career`;
-    const priorSuccessfulSearch = args.state.successfulWebSearchQueries.has(
-      externalQueryKey(requiredSearchQuery)
-    );
-    const priorSuccessfulOpen = args.state.openedUrls.has(
-      externalUrlKey(descriptionSourceUrl)
-    );
-    if (descriptionOrigin !== "user_supplied" && !priorSuccessfulSearch) {
-      throw new OrgAgentToolInputError(
-        "Harper-authored role descriptions require the one-time web_search earlier in this turn"
-      );
-    }
-    if (
-      descriptionOrigin === "same_company_public_jd" &&
-      (!descriptionSourceUrl || !priorSuccessfulOpen)
-    ) {
-      throw new OrgAgentToolInputError(
-        "same_company_public_jd requires an exact descriptionSourceUrl opened earlier in this turn"
-      );
-    }
-    if (
-      descriptionOrigin === "company_style_draft" &&
-      descriptionSourceUrl
-    ) {
-      throw new OrgAgentToolInputError(
-        "descriptionSourceUrl is not allowed for company_style_draft"
-      );
-    }
-    if (descriptionSourceUrl && !priorSuccessfulOpen) {
-      throw new OrgAgentToolInputError(
-        "descriptionSourceUrl must be opened earlier in this turn"
+        "contextMessageCount must be an integer between 1 and 12"
       );
     }
     const started = await startSlackRoleCreation({
       actorLabel: args.actorLabel,
-      description,
-      descriptionOrigin,
-      descriptionSourceUrl,
+      contextMessageCount,
       execution: args.slackExecutionContext,
       roleTitle,
+      sourceConversation: args.conversation,
+      sourceCurrentMessageId: args.currentUserMessageId,
+      sourceSlackThreadId: args.slackThreadId,
       user: args.user,
       workspaceId,
     });
+    args.state.requiredSlackContinuationLink = `<${started.threadPermalink}|새로운 채용 등록 이어가기>`;
     args.state.terminalReply = [
-      "역할 작성 스레드를 열어뒀어요.",
+      `${started.roleTitle} 역할 등록을 함께 시작할게요.`,
       "",
-      `<${started.threadPermalink}|🧵 ${started.roleTitle} 역할 작성 스레드로 이동>`,
+      "보내주신 내용은 새 역할 대화로 옮겨 두었어요. 역할 정보와 원하는 매칭 기준은 그곳에서 이어서 정리해요.",
       "",
-      "이제 이 스레드에서 내용을 이어서 알려주세요.",
+      args.state.requiredSlackContinuationLink,
+      "",
+      "등록 과정이 끝나고 나면 바로 좋은 인재분들과의 연결을 도와드리기 시작할게요 :)",
     ].join("\n");
     recordResult(args.state, {
       callId: args.callId,
@@ -2359,9 +3084,26 @@ export async function executeOrgAgentTool(args: {
     return {
       roleId: started.roleId,
       roleTitle: started.roleTitle,
+      requiredContinuationLink: args.state.requiredSlackContinuationLink,
+      responseExample: [
+        `네, ${started.roleTitle} 역할 등록을 함께 시작할게요.`,
+        "",
+        "역할 등록은 새 역할 대화에서 이어갈게요. 방금 보내주신 내용도 함께 옮겨 두었어요.",
+        "",
+        args.state.requiredSlackContinuationLink,
+        "",
+        "그 대화에서 역할 정보와 어떤 기준으로 인재를 매칭하길 원하시는지 이야기해 주실수록 좋아요. 등록 과정이 끝나고 나면 바로 좋은 인재분들과의 연결을 도와드리기 시작할게요 :)",
+      ].join("\n"),
+      responseGuidance: [
+        "Harper가 함께 채용을 준비하는 파트너처럼 사용자의 요청을 자연스럽게 받아 주세요.",
+        "역할 등록을 현재 대화가 아닌 새 역할 대화에서 이어간다는 점과, 방금 받은 관련 내용도 옮겨졌다는 점을 설명해 주세요.",
+        "새 대화에서 역할 정보와 매칭 기준을 더 알려 주면 왜 도움이 되는지 짧게 안내해 주세요.",
+        "역할이 이미 등록됐거나 후보자 연결이 이미 시작됐다고 말하지 마세요. 대신 등록 과정이 끝나면 바로 좋은 인재분들과의 연결을 돕기 시작한다고 안내해 주세요.",
+        "스레드 생성, 처리 중, 잠시 후 같은 시스템 상태 보고 문구를 쓰지 마세요.",
+        "requiredContinuationLink를 제외한 제목이나 본문에는 '새로운 채용 등록 이어가기' 문구를 반복하지 마세요.",
+      ].join(" "),
       status: "started",
       threadPermalink: started.threadPermalink,
-      userMessage: args.state.terminalReply,
       webUrl: started.webUrl,
     };
   } else if (args.name === "web_search") {
@@ -2467,24 +3209,15 @@ export async function executeOrgAgentTool(args: {
       throw error;
     }
   } else if (args.name === "contact_talent") {
-    return executeCompanyTalentRequest({
+    return executeCandidateContactLifecycle({
       admin: args.admin,
       callId: args.callId,
+      conversation: args.conversation,
       currentUserMessageId: args.currentUserMessageId,
       input,
       name: args.name,
       slackThreadId: args.slackThreadId,
       source: args.source,
-      state: args.state,
-      user: args.user,
-      workspaceId,
-    });
-  } else if (args.name === "change_talent_contact") {
-    return executeChangeTalentContact({
-      admin: args.admin,
-      callId: args.callId,
-      input,
-      name: args.name,
       state: args.state,
       user: args.user,
       workspaceId,
@@ -2523,10 +3256,15 @@ export async function executeOrgAgentTool(args: {
     });
   } else {
     return executeCandidateConnectionDecision({
+      actorId: args.actorId,
       admin: args.admin,
       callId: args.callId,
+      conversation: args.conversation,
+      currentUserMessageId: args.currentUserMessageId,
       input,
       name: args.name,
+      slackThreadId: args.slackThreadId,
+      source: args.source,
       state: args.state,
       user: args.user,
       workspaceId,
@@ -2547,9 +3285,9 @@ export async function executeOrgAgentTool(args: {
             : args.name === "read_talent"
               ? "후보자 상세 조회"
               : args.name === "read_role"
-                ? "포지션 상세 조회"
+                ? "역할 상세 조회"
                 : args.name === "get_more_data"
-                  ? "추가 회사 정보 조회"
+                  ? "회사 정보 조회"
                   : "이전 대화 조회",
   });
   return result;

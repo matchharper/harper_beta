@@ -23,7 +23,10 @@ import {
 } from "@/lib/org/agent/store";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type { Json } from "@/types/database.types";
-import { validateRoleCreationNotificationConsent } from "@/lib/org/agent/roleCreationConsent";
+import {
+  isUnambiguousFinalRoleNotificationDefault,
+  validateRoleCreationNotificationConsent,
+} from "@/lib/org/agent/roleCreationConsent";
 import {
   hasCompleteOrgRoleCriteria,
   type OrgRoleCriterion,
@@ -606,7 +609,21 @@ export async function setRoleCreationNotification(args: {
     ],
     userMessage: args.userMessage,
   });
-  if (!consent.ok) {
+  const transparentFinalDefaults =
+    hasChannels &&
+    hasAssignee &&
+    isUnambiguousFinalRoleNotificationDefault({
+      availableChannelIds: state.channels
+        .filter((channel) => channel.enabled)
+        .map((channel) => channel.channelId),
+      currentUserId: state.currentUser.userId,
+      memberUserIds: state.members.map((member) => member.userId),
+      roleStatus: state.role.status,
+      selectedAssigneeUserId: assigneeUserId,
+      selectedChannelIds: channelIds,
+      unresolvedFields: getRoleCreationMissingFields(state),
+    });
+  if (!consent.ok && !transparentFinalDefaults) {
     throw new OrgHttpError(
       409,
       "Slack channel and assignee changes require explicit user confirmation"

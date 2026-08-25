@@ -577,7 +577,6 @@ export async function runCareerChatTurn(
   const normalizedContent = link
     ? `${rawUserMessage}\n\nReference link: ${link}`
     : rawUserMessage;
-
   if (rawUserMessage) {
     const { data, error } = await admin
       .from("talent_messages")
@@ -726,6 +725,7 @@ export async function runCareerChatTurn(
       structuredProfileText,
       toolNames: toolSelection.toolNames,
     });
+  const systemBlocks = promptBlocks;
 
   const preparedCompanySnapshotRef: {
     current: CompanySnapshotToolResult | null;
@@ -1027,7 +1027,7 @@ export async function runCareerChatTurn(
       messages: assistantTurnMessages,
       responseLocale,
       stopAfterToolNames: toolSelection.stopAfterToolNames,
-      systemBlocks: promptBlocks,
+      systemBlocks,
       tools: toolDefinitions,
       usageLabel: args.usageLabel,
     });
@@ -1148,7 +1148,7 @@ export async function runCareerChatTurn(
         latestUserMessage: normalizedContent || proactiveContext,
         messages: assistantTurnMessages,
         responseLocale,
-        systemBlocks: promptBlocks,
+        systemBlocks,
         usageLabel: args.usageLabel,
       })
     ).trim();
@@ -1197,7 +1197,7 @@ export async function runCareerChatTurn(
         latestUserMessage: normalizedContent || proactiveContext,
         messages: assistantTurnMessages,
         responseLocale,
-        systemBlocks: promptBlocks,
+        systemBlocks,
         usageLabel: args.usageLabel,
       })
     ).trim();

@@ -22,7 +22,7 @@ test("soft deletes roles with a dedicated deleted lifecycle status", () => {
 
 test("presents every role lifecycle status with its sidebar label and tone", () => {
   assert.deepEqual(getOrgRoleStatusPresentation("draft"), {
-    label: "역할 작성 중",
+    label: "작성 중",
     status: "draft",
     tone: "action",
   });
@@ -37,7 +37,7 @@ test("presents every role lifecycle status with its sidebar label and tone", () 
     tone: "positive",
   });
   assert.deepEqual(getOrgRoleStatusPresentation("paused"), {
-    label: "중지",
+    label: "중단",
     status: "paused",
     tone: "primary",
   });

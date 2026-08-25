@@ -195,6 +195,9 @@ test("company stats count current candidate stages and daily additions by unique
   assert.equal(company.connectedCount, 2);
   assert.equal(company.acceptedTodayCount, 2);
   assert.equal(company.connectedTodayCount, 1);
+  assert.equal(report.totals.connectedCount, 2);
+  assert.equal(report.totals.connectedTodayCount, 1);
+  assert.equal(report.totals.rolling7Day.connectedCount, 1);
 });
 
 test("company stats choose the latest use and login and format one company per line", async () => {
@@ -267,7 +270,7 @@ test("company stats choose the latest use and login and format one company per l
   assert.match(message, /• A &amp; B — /);
   assert.match(
     message,
-    /<https:\/\/matchharper\.com\/org\/jobs\?orgId=workspace&roleId=all\|수락 0> · 연결 대기 0 · 거절 0/
+    /<https:\/\/matchharper\.com\/org\/jobs\?orgId=workspace&roleId=all\|수락 0> · 연결 대기 0 · 진행 중 0 · 거절 0/
   );
   assert.doesNotMatch(message, /auto X/);
   assert.equal(
@@ -422,6 +425,11 @@ test("company stats include daily totals, linked acceptances, and thread details
       created_at: "2026-08-16T08:00:00.000Z",
       workspace_id: "workspace-main",
     },
+    {
+      content: 'Other · API.status: - "active" + "paused"',
+      created_at: "2026-08-16T08:30:00.000Z",
+      workspace_id: "workspace-empty",
+    },
   ];
   rows.toolMessages = [
     {
@@ -462,6 +470,8 @@ test("company stats include daily totals, linked acceptances, and thread details
     acceptedTodayCount: 1,
     activeRoleCount: 1,
     chatTodayCount: 1,
+    connectedCount: 0,
+    connectedTodayCount: 0,
     memberCount: 2,
     newMemberTodayCount: 1,
     newRoleTodayCount: 1,
@@ -471,6 +481,7 @@ test("company stats include daily totals, linked acceptances, and thread details
     rejectedTodayCount: 1,
     rolling7Day: {
       acceptedCount: 1,
+      connectedCount: 0,
       pendingConnectionCount: 1,
       rejectedCount: 1,
     },
@@ -485,12 +496,12 @@ test("company stats include daily totals, linked acceptances, and thread details
   ]);
   assert.match(
     message,
-    /<https:\/\/matchharper\.com\/org\/jobs\?orgId=workspace-main&roleId=all\|수락 1> · 연결 대기 1 · 거절 1/
+    /<https:\/\/matchharper\.com\/org\/jobs\?orgId=workspace-main&roleId=all\|수락 1> · 연결 대기 1 · 진행 중 0 · 거절 1/
   );
   assert.match(message, /- 채팅 수: Slack 1개 · web 1개/);
   assert.match(
     message,
-    /- 지난 7일 신규 전환: 수락자 1명 · 연결 대기 1명 · 거절 1명/
+    /- 지난 7일 신규 전환: 수락자 1명 · 연결 대기 1명 · 연결됨 0명 · 거절 1명/
   );
   assert.match(
     detail,
@@ -499,6 +510,7 @@ test("company stats include daily totals, linked acceptances, and thread details
   assert.match(detail, /- 멤버 2명 \(\+오늘 1명\)/);
   assert.match(detail, /- 역할 등록: Platform/);
   assert.match(detail, /- 역할 중단: API/);
+  assert.equal(detail.match(/- 역할 중단: API/g)?.length, 1);
   assert.match(detail, /- 역할 정지: Legacy/);
   assert.match(detail, /- 역할 삭제: Deleted/);
   assert.match(detail, /- 새로 등록된 연결 대기 1명/);

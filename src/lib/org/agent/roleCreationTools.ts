@@ -60,18 +60,7 @@ export const ROLE_CREATION_TOOLS = [
         "Best suited to saving role facts the user has supplied, confirmed, or asked Harper to extract from a source in this turn. Partial updates are welcome.",
       parameters: {
         type: "object",
-        anyOf: [
-          { required: ["name"] },
-          { required: ["description"] },
-          { required: ["request"] },
-          { required: ["criteria"] },
-          { required: ["locationText"] },
-          { required: ["workMode"] },
-          { required: ["employmentTypes"] },
-          { required: ["salaryRange"] },
-          { required: ["externalJdUrl"] },
-          { required: ["memory"] },
-        ],
+        minProperties: 1,
         properties: {
           name: { type: "string" },
           description: { type: ["string", "null"] },
@@ -128,20 +117,7 @@ export const ROLE_CREATION_TOOLS = [
         "Useful when the user means a company fact to apply across all roles, rather than only to the role currently being drafted. Put all descriptive and candidate-facing company information in pitch as one coherent Markdown document. Homepage and LinkedIn have dedicated fields; every other company-level URL belongs in relatedLinks.",
       parameters: {
         type: "object",
-        anyOf: [
-          { required: ["companyName"] },
-          { required: ["pitch"] },
-          { required: ["request"] },
-          { required: ["locationText"] },
-          { required: ["foundedYear"] },
-          { required: ["employeeCountStart"] },
-          { required: ["employeeCountEnd"] },
-          { required: ["homepageUrl"] },
-          { required: ["linkedinUrl"] },
-          { required: ["relatedLinks"] },
-          { required: ["totalFundingRaised"] },
-          { required: ["lastFundingStage"] },
-        ],
+        minProperties: 1,
         properties: {
           companyName: { type: "string" },
           pitch: {
@@ -191,10 +167,10 @@ export const ROLE_CREATION_TOOLS = [
     function: {
       name: "set_role_notification",
       description:
-        "Best used when the user's current message clearly selects or agrees to the Slack channel and primary assignee. Omitted fields are preserved.",
+        "Save the Slack channel and primary assignee selected or accepted by the user. For a new draft's final review only, Harper may also save the single available Slack channel and the active current author as transparent defaults; name both defaults clearly and make them easy to change. In that unambiguous-default case, do not use this as the final tool and do not ask a separate setup-confirmation question: call request_role_creation_confirmation later in the same assistant turn so the final settings and Create role / Keep editing choices arrive together. Omitted fields are preserved.",
       parameters: {
         type: "object",
-        anyOf: [{ required: ["assigneeUserId"] }, { required: ["channelIds"] }],
+        minProperties: 1,
         properties: {
           assigneeUserId: { type: "string" },
           channelIds: { type: "array", items: { type: "string" }, minItems: 1 },
@@ -221,7 +197,7 @@ export const ROLE_CREATION_TOOLS = [
     function: {
       name: "request_role_creation_confirmation",
       description:
-        "Use only when the saved role is ready for final review and the user has had at least two distinct opportunities to explain team-specific candidate preferences beyond the JD and technical must-haves. The server checks the current state and attaches [예/아니오] choices; this tool itself does not activate the role.",
+        "Use only when the saved role is ready for final review and the user has had at least two distinct opportunities to explain team-specific candidate preferences beyond the JD and technical must-haves. When set_role_notification just saved the single available Slack channel and active current author as transparent final defaults, call this immediately afterward in the same assistant turn; do not insert a separate yes/no question about those unambiguous defaults. The server checks the current state and attaches Create role / Keep editing choices; this tool itself does not activate the role.",
       parameters: {
         type: "object",
         properties: {},
@@ -503,7 +479,7 @@ export async function executeRoleCreationTool(args: {
           : { missingFields: getRoleCreationMissingFields(state) }),
         ok: true,
       },
-      updateSummary: "역할 정보를 반영했습니다.",
+      updateSummary: "역할 정보를 저장했어요.",
     };
   }
   if (args.name === "update_company_context") {
@@ -560,7 +536,7 @@ export async function executeRoleCreationTool(args: {
       source: "chat",
       workspaceId: args.workspaceId,
     });
-    return { result: { ok: true }, updateSummary: "회사 정보를 반영했습니다." };
+    return { result: { ok: true }, updateSummary: "회사 정보를 저장했어요." };
   }
   if (args.name === "set_role_notification") {
     assertOnlyKeys(args.input, ["assigneeUserId", "channelIds"], args.name);
@@ -586,7 +562,7 @@ export async function executeRoleCreationTool(args: {
           : { missingFields: getRoleCreationMissingFields(state) }),
         ok: true,
       },
-      updateSummary: "알림 채널과 담당자를 반영했습니다.",
+      updateSummary: "알림 채널과 담당자를 저장했어요.",
     };
   }
 

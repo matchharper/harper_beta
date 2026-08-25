@@ -41,6 +41,7 @@ import {
 } from "@/lib/talentOnboarding/recommendationSettings";
 import { cn } from "@/lib/utils";
 import { useCareerT } from "@/i18n/useCareerT";
+import type { CareerPendingAction } from "@/lib/career/pendingActions";
 
 type CareerT = ReturnType<typeof useCareerT>;
 
@@ -432,6 +433,88 @@ const getInitialHistoryOpportunities = (
   },
 ];
 
+const getPreviewPendingActions = (): CareerPendingAction[] => [
+  {
+    callRequest: {
+      companyLogoUrl: null,
+      companyName: "Harper Portfolio Team",
+      createdAt: previewHoursAgo(3),
+      id: "preview-call-1",
+      opportunityId: "preview-history-1",
+      questions: [
+        "최근 agent 제품을 실제 사용자에게 배포한 경험을 알려주세요.",
+        "작은 팀에서 제품 의사결정까지 맡는 역할에 관심이 있나요?",
+      ],
+      reason: "회사 연결 전에 핵심 경험을 짧게 확인하는 통화예요.",
+      resumePromptNeeded: false,
+      roleId: "preview-role-1",
+      roleTitle: "Applied AI Engineer",
+      status: "pending",
+      updatedAt: previewHoursAgo(2),
+    },
+    id: "preview-call-1",
+    kind: "internal_opportunity_call",
+  },
+  {
+    callRequest: {
+      companyLogoUrl: null,
+      companyName: "Stealth Commerce AI",
+      createdAt: previewHoursAgo(5),
+      id: "preview-call-2",
+      opportunityId: "preview-history-4",
+      questions: ["제품 ML 조직을 리드했던 범위와 팀 규모를 알려주세요."],
+      reason: "리드 역할의 범위를 확인하는 짧은 통화예요.",
+      resumePromptNeeded: true,
+      roleId: "preview-role-4",
+      roleTitle: "Product ML Lead",
+      status: "pending",
+      updatedAt: previewHoursAgo(4),
+    },
+    id: "preview-call-2",
+    kind: "internal_opportunity_call",
+  },
+  {
+    companyName: "Nexus AI",
+    expiresAt: previewDate(7 * 24 * 60 * 60 * 1000),
+    id: "preview-company-question",
+    kind: "company_request",
+    prompt:
+      "최근 1년 안에 프로덕션 환경에서 LLM evaluation 체계를 직접 설계하고 운영한 경험이 있다면, 맡았던 범위와 가장 중요하게 본 지표를 알려주세요.",
+    requestMode: "question",
+    resumeRequestToken: null,
+    roleId: "preview-role-1",
+    roleTitle: "Applied AI Engineer",
+  },
+  {
+    companyName: "Orbit Labs",
+    expiresAt: previewDate(7 * 24 * 60 * 60 * 1000),
+    id: "preview-company-resume",
+    kind: "company_request",
+    prompt:
+      "Orbit Labs에서 Founding AI Engineer 검토를 위해 최신 이력서를 요청했어요. 업로드하거나, 최신본이 없거나 공유하지 않겠다고 답할 수 있어요.",
+    requestMode: "resume",
+    resumeRequestToken: "preview-resume-request-token",
+    roleId: "preview-role-2",
+    roleTitle: "Founding AI Engineer",
+  },
+  {
+    id: "preview-fit-question",
+    kind: "internal_fit_question",
+    prompt:
+      "이 역할은 미국 팀과 매일 영어로 제품·기술 의사결정을 진행합니다. 최근 업무에서 영어 회의를 주도하거나 비동기 문서로 복잡한 기술 결정을 이끌었던 경험이 있나요? 있다면 빈도와 맡았던 역할을 알려주세요.",
+  },
+  {
+    companyLogoUrl: null,
+    companyName: "Harper Portfolio Team",
+    id: "preview-history-1",
+    kind: "internal_opportunity",
+    recommendationSummary:
+      "작은 제품팀에서 agent 기능의 모델 품질과 사용자 경험을 함께 책임지는 역할입니다.",
+    roleId: "preview-role-1",
+    roleTitle: "Applied AI Engineer",
+  },
+];
+
 type CareerWorkspacePreviewViewport = "desktop" | "mobile";
 type CareerWorkspacePreviewViewportMode =
   | CareerWorkspacePreviewViewport
@@ -552,12 +635,16 @@ const CareerWorkspacePreview = ({
   );
   const initialTalentInsights = useMemo(() => getInitialTalentInsights(t), [t]);
   const initialTalentProfile = useMemo(() => getInitialTalentProfile(t), [t]);
+  const previewPendingActions = useMemo(() => getPreviewPendingActions(), []);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<CareerWorkspaceTab | "chat">(
     initialTab
   );
   const workspaceActiveTab = activeTab === "chat" ? "home" : activeTab;
   const [autoLoopEnabled, setAutoLoopEnabled] = useState(autoPlayConversation);
+  const [previewInputMode, setPreviewInputMode] = useState<"text" | "call">(
+    "text"
+  );
   const [conversationLoopKey, setConversationLoopKey] = useState(0);
   const [visibleConversationCount, setVisibleConversationCount] = useState(
     autoPlayConversation ? 1 : previewConversationTurns.length
@@ -931,8 +1018,9 @@ const CareerWorkspacePreview = ({
       },
       onSaveTalentProfile: (args) => {
         setSavedProfileLinks(profileLinks);
-        if (resumeFile) {
-          setSavedResumeFileName(resumeFile.name);
+        const nextResumeFile = args?.resumeFile ?? resumeFile;
+        if (nextResumeFile) {
+          setSavedResumeFileName(nextResumeFile.name);
           setResumeFile(null);
         }
         if (args?.structuredProfile) {
@@ -1154,7 +1242,7 @@ const CareerWorkspacePreview = ({
       profilePending: false,
       profileError: "",
       chatError: "",
-      assistantTyping: autoLoopEnabled,
+      assistantTyping: false,
       toolStatusMessage: "",
       activeThinkingLogs: [],
       activeRecommendationSearchStatus: null,
@@ -1169,6 +1257,7 @@ const CareerWorkspacePreview = ({
       opportunityRun: null,
       opportunitySearchLocked: false,
       historyUpdatingOpportunityIds: [],
+      pendingActionsOverride: previewPendingActions,
       onboardingBeginPending: false,
       forceCompletePending: false,
       interviewProgress: {
@@ -1192,7 +1281,11 @@ const CareerWorkspacePreview = ({
         ),
       onAddProfileLink: () => setProfileLinks((current) => [...current, ""]),
       onProfileSubmit: () => undefined,
-      onSendChatMessage: async ({ text }) => {
+      onSendChatMessage: async ({
+        opportunityMentions,
+        pendingAction,
+        text,
+      }) => {
         setAutoLoopEnabled(false);
         const nextUserMessage: CareerMessage = {
           id: Date.now(),
@@ -1204,10 +1297,14 @@ const CareerWorkspacePreview = ({
         const nextAssistantMessage: CareerMessage = {
           id: Date.now() + 1,
           role: "assistant",
-          content: t(
-            "career.preview.career_workspace_preview.1dkij5s",
-            "미리보기 화면입니다. 실제 연동에서는 이 입력이 서버 대화와 이어집니다."
-          ),
+          content: pendingAction
+            ? `미리보기 응답입니다. ${pendingAction.kind} (${pendingAction.id})에 대한 답변으로 전달됐어요.`
+            : opportunityMentions?.length
+              ? `미리보기 응답입니다. ${opportunityMentions.map((item) => item.label).join(", ")} 기회를 선택한 대화로 전달됐어요.`
+              : t(
+                  "career.preview.career_workspace_preview.1dkij5s",
+                  "미리보기 화면입니다. 실제 연동에서는 이 입력이 서버 대화와 이어집니다."
+                ),
           messageType: "chat",
           createdAt: new Date().toISOString(),
         };
@@ -1255,14 +1352,36 @@ const CareerWorkspacePreview = ({
       onPauseOnboarding: async () => undefined,
       onSubmitOnboardingInterest: async () => true,
       onContinueOnboardingConversation: async () => undefined,
-      inputMode: "text",
+      inputMode: previewInputMode,
       voiceTranscript: "",
       voiceMuted: false,
       onToggleVoiceMute: () => undefined,
+      onStartCallMode: async () => {
+        setAutoLoopEnabled(false);
+        setPreviewInputMode("call");
+        return true;
+      },
+      onEndCallMode: () => setPreviewInputMode("text"),
+      callTranscriptEntries: [
+        {
+          role: "assistant",
+          text: "미리보기 Talent call입니다. 실제 통화 연결 없이 화면 동작만 확인할 수 있어요.",
+          timestamp: previewDate(),
+        },
+      ],
+      callConnectionStatus: "connected",
+      isAssistantSpeaking: false,
+      isVoiceToolExecuting: false,
+      onOpenHistoryOpportunity: (roleId) =>
+        handleWorkspaceTabChange("history", {
+          historyTarget: { historyTab: "new", roleId },
+        }),
     }),
     [
-      autoLoopEnabled,
+      handleWorkspaceTabChange,
       messages,
+      previewInputMode,
+      previewPendingActions,
       profileLinks,
       resumeFile,
       t,

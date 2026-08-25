@@ -224,12 +224,18 @@ const CareerSavedResumeSettingsSection = ({
             onFileSelect={(file, source) =>
               void handleResumeFileSelect(file, source)
             }
-            onFileReject={() => {
+            onFileReject={(_file, _source, reason) => {
               showToast({
-                message: t(
-                  "career.resume_dropzone.unsupported_file",
-                  "지원하는 이력서 파일 형식만 업로드해 주세요."
-                ),
+                message:
+                  reason === "file-size"
+                    ? t(
+                        "career.resume_dropzone.file_too_large",
+                        "이력서 파일은 최대 4MB까지 업로드할 수 있습니다."
+                      )
+                    : t(
+                        "career.resume_dropzone.unsupported_file",
+                        "지원하는 이력서 파일 형식만 업로드해 주세요."
+                      ),
                 variant: "white",
               });
             }}
@@ -249,7 +255,7 @@ const CareerSavedResumeSettingsSection = ({
             }
             description={t(
               "career.resume_dropzone.settings_description",
-              "PDF, DOCX, TXT, MD 파일을 업로드할 수 있습니다."
+              "PDF, DOCX, TXT, MD · 최대 4MB"
             )}
             dragTitle={t(
               "career.resume_dropzone.drag_title",

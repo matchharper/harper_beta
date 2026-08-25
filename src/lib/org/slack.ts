@@ -4,10 +4,10 @@ import {
 } from "@/lib/org/slackHarper";
 import {
   buildOrgCandidateAcceptedSlackMessage,
+  buildOrgCandidateRejectedSlackMessage,
   buildOrgRoleUrl,
   buildOrgRoleCreatedSlackMessage,
   escapeSlackText,
-  formatCandidate,
   formatOptional,
   formatPerson,
   formatSlackLink,
@@ -18,6 +18,7 @@ import {
 
 export {
   buildOrgCandidateAcceptedSlackMessage,
+  buildOrgCandidateRejectedSlackMessage,
   buildOrgRoleCreatedSlackMessage,
 } from "@/lib/org/slackMessages";
 
@@ -132,23 +133,14 @@ export async function notifyOrgCandidateAcceptedSlack(args: {
 export async function notifyOrgCandidateRejectedSlack(args: {
   actor: OrgSlackUser;
   candidate: OrgSlackCandidate;
+  previousStage?: string | null;
   roleId: string;
   roleName: string;
   stopNote?: string | null;
   workspace: OrgSlackWorkspace;
 }) {
-  const roleUrl = buildOrgRoleUrl(args.workspace.workspaceId, args.roleId);
-  const lines = [
-    "*후보자 프로세스를 종료했어요*",
-    `- *역할*: ${formatSlackLink(roleUrl, args.roleName)}`,
-    `- *후보자*: ${formatCandidate(args.candidate)}`,
-    `- *결정한 분*: ${formatPerson(args.actor)}`,
-    `- *남긴 이유*: ${formatOptional(args.stopNote)}`,
-    "후보자에게는 아직 종료 안내가 나가지 않았습니다. Harper가 적절한 시점에 배려 있게 안내하며, 그 전에 다시 연결하면 종료 안내는 발송되지 않습니다.",
-  ];
-
   await postWorkspaceScopedOrgSlackMessage(
-    lines.join("\n"),
+    buildOrgCandidateRejectedSlackMessage(args),
     args.workspace.workspaceId,
     "candidateRejected",
     args.roleId

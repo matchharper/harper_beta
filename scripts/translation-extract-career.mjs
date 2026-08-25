@@ -1,22 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import dotenv from "dotenv";
 import ts from "typescript";
-import {
-  LANG_DIR,
-  PROJECT_ROOT,
-  formatFlatObject,
-  replaceTopLevelObjectProperty,
-  stableHash,
-  writeText,
-} from "./translationCommon.mjs";
+import { LANG_DIR, PROJECT_ROOT, stableHash } from "./translationCommon.mjs";
 import {
   extractCareerTCalls,
   isCareerTCallExpression,
 } from "./translationCareerT.mjs";
-
-dotenv.config({ path: path.join(PROJECT_ROOT, ".env.local") });
 
 const CAREER_SOURCE_DIRS = [
   path.join(PROJECT_ROOT, "src", "pages", "career"),
@@ -110,12 +100,6 @@ const SKIP_COMMENT_PATTERN = /\bcareer-i18n-skip(?:-next-line)?\b/;
 
 const args = new Set(process.argv.slice(2));
 const shouldCheck = args.has("--check");
-const shouldTranslate = args.has("--translate");
-const translationCachePath = path.join(
-  PROJECT_ROOT,
-  "output",
-  "career-translation-cache.json"
-);
 
 function walkFiles(dirPath) {
   const output = [];
@@ -375,36 +359,16 @@ function extractExistingCareerObject(filePath, exportName) {
   return values;
 }
 
-function parseJsonObject(text) {
-  const trimmed = text.trim();
-  try {
-    return JSON.parse(trimmed);
-  } catch {
-    const start = trimmed.indexOf("{");
-    const end = trimmed.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      return JSON.parse(trimmed.slice(start, end + 1));
-    }
-    throw new Error("Model response did not contain a JSON object.");
-  }
-}
-
 function extractPlaceholders(value) {
   return Array.from(value.matchAll(/\{([a-zA-Z0-9_]+)\}/g))
     .map((match) => match[1])
     .sort();
 }
 
-function getUnsupportedPlaceholders(sourceValue, targetValue) {
-  const sourcePlaceholders = new Set(extractPlaceholders(sourceValue));
-  return extractPlaceholders(targetValue).filter(
-    (placeholder) => !sourcePlaceholders.has(placeholder)
-  );
-}
-
 function runCheck(entries, existingKo, existingEn) {
   const entryKeys = new Set(entries.map((entry) => entry.key));
   const failures = [];
+  const warnings = [];
 
   for (const entry of entries) {
     if (!Object.prototype.hasOwnProperty.call(existingKo, entry.key)) {
@@ -435,16 +399,16 @@ function runCheck(entries, existingKo, existingEn) {
       continue;
     }
 
-    const unsupportedPlaceholders = getUnsupportedPlaceholders(
-      entry.ko,
-      existingEn[entry.key] ?? ""
-    );
-    if (unsupportedPlaceholders.length > 0) {
+    const sourcePlaceholders = extractPlaceholders(entry.ko);
+    const targetPlaceholders = extractPlaceholders(existingEn[entry.key] ?? "");
+    if (
+      JSON.stringify(sourcePlaceholders) !== JSON.stringify(targetPlaceholders)
+    ) {
       failures.push({
-        actual: unsupportedPlaceholders.join(", "),
-        expected: extractPlaceholders(entry.ko).join(", "),
+        actual: targetPlaceholders.join(", "),
+        expected: sourcePlaceholders.join(", "),
         key: entry.key,
-        reason: "unsupported placeholder",
+        reason: "placeholder mismatch",
         source: entry.locations[0] ?? "",
       });
     }
@@ -452,13 +416,25 @@ function runCheck(entries, existingKo, existingEn) {
 
   for (const key of Object.keys(existingKo)) {
     if (!entryKeys.has(key)) {
-      failures.push({ key, reason: "stale ko key", source: "" });
+      warnings.push({ key, reason: "unused ko key" });
     }
   }
 
   for (const key of Object.keys(existingEn)) {
     if (!entryKeys.has(key)) {
-      failures.push({ key, reason: "stale en key", source: "" });
+      warnings.push({ key, reason: "unused en key" });
+    }
+  }
+
+  if (warnings.length > 0) {
+    console.warn(
+      `Career translation check warning: ${warnings.length} unused local key(s). DB/local rows are never deleted automatically.`
+    );
+    for (const warning of warnings.slice(0, 30)) {
+      console.warn(`- ${warning.reason}: ${warning.key}`);
+    }
+    if (warnings.length > 30) {
+      console.warn(`...and ${warnings.length - 30} more.`);
     }
   }
 
@@ -494,128 +470,6 @@ function runCheck(entries, existingKo, existingEn) {
   );
 }
 
-async function translateMissing(entries, existingKorean, existingEnglish) {
-  if (!shouldTranslate) return {};
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error("Missing GEMINI_API_KEY for --translate.");
-  }
-
-  let cached = {};
-  if (fs.existsSync(translationCachePath)) {
-    cached = JSON.parse(fs.readFileSync(translationCachePath, "utf8"));
-  }
-
-  const needsTranslation = entries.filter(
-    (entry) =>
-      !existingEnglish[entry.key] || existingKorean[entry.key] !== entry.ko
-  );
-  if (needsTranslation.length === 0) return {};
-
-  const sourceChangedKeys = new Set(
-    needsTranslation
-      .filter((entry) => existingKorean[entry.key] !== entry.ko)
-      .map((entry) => entry.key)
-  );
-
-  const { GoogleGenAI } = await import("@google/genai");
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-  const translations = { ...cached };
-  for (const key of sourceChangedKeys) {
-    delete translations[key];
-  }
-  const batchSize = 35;
-  const models = [
-    "gemini-2.5-flash-lite",
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-  ];
-
-  async function generateBatch(payload) {
-    let lastError = null;
-
-    for (const model of models) {
-      for (let attempt = 0; attempt < 4; attempt += 1) {
-        try {
-          return await ai.models.generateContent({
-            model,
-            contents: [
-              {
-                role: "user",
-                parts: [
-                  {
-                    text:
-                      "Translate these Korean product UI strings into English. " +
-                      "Keep the tone friendly but professional. Preserve product names, placeholders like {count}, punctuation intent, line break markers like <br />, and technical words such as SQL, LinkedIn, JD, Remote, and Harper. " +
-                      "Return only a JSON object with the same keys and English string values.\n\n" +
-                      JSON.stringify(payload, null, 2),
-                  },
-                ],
-              },
-            ],
-            config: {
-              responseMimeType: "application/json",
-              temperature: 0.2,
-            },
-          });
-        } catch (error) {
-          lastError = error;
-          const waitMs = 800 * (attempt + 1) * (attempt + 1);
-          await new Promise((resolve) => setTimeout(resolve, waitMs));
-        }
-      }
-    }
-
-    throw lastError ?? new Error("Translation request failed.");
-  }
-
-  for (let index = 0; index < needsTranslation.length; index += batchSize) {
-    const batch = needsTranslation
-      .slice(index, index + batchSize)
-      .filter((entry) => !translations[entry.key]);
-    if (batch.length === 0) {
-      console.log(
-        `Translated ${Math.min(index + batchSize, needsTranslation.length)} / ${needsTranslation.length}`
-      );
-      continue;
-    }
-    const payload = Object.fromEntries(
-      batch.map((entry) => [entry.key, entry.ko])
-    );
-
-    const response = await generateBatch(payload);
-
-    const parsed = parseJsonObject(response.text ?? "{}");
-    const missingResponseKeys = batch
-      .map((entry) => entry.key)
-      .filter((key) => typeof parsed[key] !== "string" || !parsed[key]);
-    if (missingResponseKeys.length > 0) {
-      throw new Error(
-        `Translation response omitted keys: ${missingResponseKeys.join(", ")}`
-      );
-    }
-    Object.assign(translations, parsed);
-    writeText(translationCachePath, JSON.stringify(translations, null, 2));
-    console.log(
-      `Translated ${Math.min(index + batchSize, needsTranslation.length)} / ${needsTranslation.length}`
-    );
-  }
-
-  return translations;
-}
-
-function writeMeta(entries) {
-  const lines = [
-    "export const careerTranslationMeta = {",
-    ...entries.map((entry) => {
-      const firstLocation = entry.locations[0] ?? "";
-      return `  ${JSON.stringify(entry.key)}: { source: ${JSON.stringify(firstLocation)}, locations: ${JSON.stringify(entry.locations)} },`;
-    }),
-    "} as const;",
-    "",
-  ];
-  writeText(path.join(LANG_DIR, "careerMeta.ts"), lines.join("\n"));
-}
-
 const entries = extractCareerMessages();
 const enPath = path.join(LANG_DIR, "en.ts");
 const koPath = path.join(LANG_DIR, "ko.ts");
@@ -627,29 +481,6 @@ if (shouldCheck) {
   process.exit();
 }
 
-const translated = await translateMissing(entries, existingKo, existingEn);
-
-const koCareer = {};
-const enCareer = {};
-
-for (const entry of entries) {
-  koCareer[entry.key] = entry.ko;
-  enCareer[entry.key] =
-    translated[entry.key] ?? existingEn[entry.key] ?? entry.ko;
-}
-
-replaceTopLevelObjectProperty({
-  exportName: "ko",
-  filePath: koPath,
-  propertyName: "career",
-  propertyObjectLiteral: formatFlatObject(koCareer),
-});
-replaceTopLevelObjectProperty({
-  exportName: "en",
-  filePath: enPath,
-  propertyName: "career",
-  propertyObjectLiteral: formatFlatObject(enCareer),
-});
-writeMeta(entries);
-
-console.log(`Updated ${entries.length} career translation keys.`);
+throw new Error(
+  "Automatic translation extraction was removed. Use pnpm translation:plan, have Codex translate every requested entry directly, then run pnpm translation:sync."
+);

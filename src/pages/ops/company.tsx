@@ -286,7 +286,7 @@ function ActivityRow({ item }: { item: OpsCompanyActivityItem }) {
       />
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="truncate text-sm font-medium text-neutral-primary">
+          <div className="min-w-0 text-sm font-medium text-neutral-primary">
             {item.title}
           </div>
           {item.meta ? (

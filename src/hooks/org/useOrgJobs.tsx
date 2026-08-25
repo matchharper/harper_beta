@@ -70,6 +70,10 @@ export function useOrgJobsBoard() {
   return useRequiredContext(OrgJobsBoardContext, "useOrgJobsBoard");
 }
 
+export function useOptionalOrgJobsBoard() {
+  return useContext(OrgJobsBoardContext);
+}
+
 export function useOrgJobsDetail() {
   return useRequiredContext(OrgJobsDetailContext, "useOrgJobsDetail");
 }

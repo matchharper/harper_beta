@@ -26,6 +26,7 @@ import {
   getOrgCandidateDisplayName,
   OrgCandidateCard,
 } from "@/components/org/OrgCandidateCard";
+import { InternalOnlyHatch } from "@/components/org/internal/InternalOnlySurface";
 import {
   shouldOpenOrgAcceptIntroDialog,
   shouldOpenOrgStopCandidateDialog,
@@ -67,6 +68,7 @@ export function OrgPipeline() {
     bootstrap,
     currentUser,
     currentUserEmail,
+    internalOpsAccess,
     permissions,
   } = useOrgWorkspace();
   const members = bootstrap.members;
@@ -123,6 +125,13 @@ export function OrgPipeline() {
         (board?.items ?? []).map((item) => [item.recommendationId, item])
       ),
     [board]
+  );
+  const acceptedStages = useMemo(
+    () =>
+      internalOpsAccess
+        ? (board?.stages ?? []).filter((stage) => stage.id === "accepted")
+        : [],
+    [board?.stages, internalOpsAccess]
   );
   const preOfferStages = useMemo(
     () =>
@@ -282,6 +291,7 @@ export function OrgPipeline() {
       canManageCandidates &&
       activeRoleId !== "all" &&
       stage.id === lastPreOfferStageId;
+    const isInternalAcceptedStage = stage.id === "accepted";
 
     return (
       <ReviewPipelineColumnShell
@@ -305,7 +315,10 @@ export function OrgPipeline() {
         canDrop={canDrop}
         isDropTarget={isDropTarget}
         tone={stage.id === "process_stopped" ? "rejected" : "default"}
-        className="!flex !h-full !min-h-0 !w-[280px] !flex-col !border-0 !bg-transparent !ring-0"
+        className={cn(
+          "!flex !h-full !min-h-0 !w-[280px] !flex-col !border-0 !bg-transparent !ring-0",
+          isInternalAcceptedStage && "relative isolate overflow-hidden"
+        )}
       >
         <ReviewPipelineColumnHeader
           compact
@@ -325,9 +338,10 @@ export function OrgPipeline() {
           }
           pending={pendingCustomStageId === customStageId}
         />
+        {isInternalAcceptedStage ? <InternalOnlyHatch /> : null}
         <div
           className={cn(
-            "min-h-0 flex-1 space-y-1.5 border-l border-neutral-1000-a10 px-1.5 pb-1.5 transition-colors",
+            "min-h-0 flex-1 space-y-1.5 border-l border-neutral-1000-a10 px-1.5 py-1.5 transition-colors",
             isLastColumn && "border-r",
             isDropTarget
               ? "bg-primary-faded/55 ring-2 ring-inset ring-primary/55"
@@ -338,9 +352,7 @@ export function OrgPipeline() {
                   : "bg-bg-default"
           )}
         >
-          {isDropTarget ? (
-            <ReviewPipelineDropTargetHint label={stage.label} />
-          ) : null}
+          {isDropTarget && <ReviewPipelineDropTargetHint label={stage.label} />}
           {items.map((item) => (
             <div
               key={item.recommendationId}
@@ -356,6 +368,7 @@ export function OrgPipeline() {
             >
               <OrgCandidateCard
                 canManageCandidates={canManageCandidates}
+                internalOpsAccess={internalOpsAccess}
                 item={item}
                 onMove={requestMove}
                 onSelect={(selectedItem) => {
@@ -395,6 +408,7 @@ export function OrgPipeline() {
           className="min-h-0 flex-1 overflow-x-auto pb-0"
         >
           <div className="flex h-full min-h-[560px] min-w-max items-stretch gap-0">
+            {acceptedStages.map((stage) => renderStageColumn(stage, false))}
             {preOfferStages.map((stage) => renderStageColumn(stage, false))}
             {postOfferStages.map((stage, index) =>
               renderStageColumn(stage, index === postOfferStages.length - 1)
@@ -463,6 +477,7 @@ export function OrgPipeline() {
       </Dialog>
 
       <AcceptIntroDialog
+        allowContactDirectly={isInternalDomainEmail(currentUserEmail)}
         candidateEmail={acceptRequest?.item.talent.email}
         candidateName={
           acceptRequest ? getOrgCandidateDisplayName(acceptRequest.item) : ""

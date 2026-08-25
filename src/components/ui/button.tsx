@@ -67,6 +67,10 @@ const muteButtonVariants = cva(
         dark: "border-neutral-1000 bg-neutral-1000 text-neutral-00 hover:border-neutral-900 hover:bg-neutral-900 active:border-neutral-800 active:bg-neutral-800",
         primary:
           "border-primary bg-primary text-neutral-00 hover:border-primary/90 hover:bg-primary/90 active:border-primary/80 active:bg-primary/80",
+        positive:
+          "border-positive bg-positive text-neutral-00 hover:border-positive/90 hover:bg-positive/90 active:border-positive/80 active:bg-positive/80",
+        critical:
+          "border-critical bg-critical text-neutral-00 hover:border-critical/90 hover:bg-critical/90 active:border-critical/80 active:bg-critical/80",
         default:
           "border-neutral-1000-a10 bg-bg-floating text-neutral-primary hover:border-neutral-1000-a10 hover:bg-black/3 active:bg-bg-weak",
         transparent:
@@ -293,8 +297,8 @@ const CardButton = React.forwardRef<HTMLButtonElement, CardButtonProps>(
       className={cn(
         "h-auto w-full justify-start whitespace-normal rounded-lg px-4 py-4 text-left",
         selected
-          ? "border-neutral-800 bg-bg-weak text-neutral-primary outline outline-[0.5px] outline-neutral-800 hover:border-neutral-800 hover:bg-bg-weak"
-          : "border-neutral-1000-a10 bg-bg-floating text-neutral-primary hover:border-neutral-400 hover:bg-bg-weak",
+          ? "border-neutral-800 bg-bg-weak text-neutral-primary outline outline-[0.5px] outline-neutral-800 hover:border-neutral-800 hover:bg-neutral-100"
+          : "border-neutral-1000-a10 bg-bg-floating text-neutral-primary hover:border-neutral-400 hover:bg-neutral-100",
         className
       )}
       {...props}

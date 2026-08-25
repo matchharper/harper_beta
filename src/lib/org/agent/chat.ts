@@ -55,6 +55,7 @@ import {
   isOrgAgentTerminalToolName,
   isOrgAgentToolName,
 } from "@/lib/org/agent/tools";
+import { shouldRetryOrgAgentTerminalInputError } from "@/lib/org/agent/terminalInputRetry";
 import type { SlackRoleCreationExecutionContext } from "@/lib/org/agent/slackRoleCreation";
 import {
   getOrgAgentToolCompletionMaxTokens,
@@ -77,8 +78,16 @@ import type {
   OrgAgentMessageMetadata,
   OrgAgentThinkingLog,
 } from "@/lib/org/agent/types";
+import {
+  getOrgAgentThinkingLogIcon,
+  upsertOrgAgentThinkingLog,
+} from "@/lib/org/agent/thinkingLogs";
 import { OrgHttpError } from "@/lib/org/server";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import {
+  buildServiceAnswerExamplesPromptBlock,
+  lookupAnswerExamples,
+} from "@/lib/serviceAnswerExamples";
 
 export type OrgAgentChatEventName =
   | "assistant_message"
@@ -186,9 +195,14 @@ function chunkText(text: string) {
   return chunks;
 }
 
-function nowLog(label: string, status: OrgAgentThinkingLog["status"]) {
+function nowLog(
+  label: string,
+  status: OrgAgentThinkingLog["status"],
+  options: Pick<OrgAgentThinkingLog, "icon" | "id"> = {}
+) {
   return {
     at: new Date().toISOString(),
+    ...options,
     label,
     status,
   } satisfies OrgAgentThinkingLog;
@@ -256,12 +270,12 @@ function buildFallbackReply(state: OrgAgentToolExecutionState) {
   }
   const updates = state.updateSummaries;
   if (updates.length === 1) {
-    return `반영했습니다. ${updates[0]}`;
+    return `변경 내용을 저장했어요. ${updates[0]}`;
   }
   if (updates.length > 1) {
-    return "요청하신 변경 사항을 모두 반영했습니다.";
+    return "요청하신 변경 내용을 모두 저장했어요.";
   }
-  return "요청을 처리하려면 대상 포지션이나 후보자를 조금 더 구체적으로 알려주세요.";
+  return "요청을 처리하려면 대상 역할이나 후보자를 조금 더 구체적으로 알려 주세요.";
 }
 
 function clipCharacters(value: string, maxLength: number) {
@@ -424,10 +438,12 @@ async function runOrgAgentToolLoop(args: {
   currentUserMessageId: number;
   debug?: boolean;
   emit?: OrgAgentChatEmitter;
+  onToolStatus?: (log: OrgAgentThinkingLog) => void;
   mentions: OrgAgentMention[];
   model: OrgAgentModelId;
   readAudience: "caller" | "company_safe";
   scopeKey: string;
+  serviceAnswerExamplesText?: string | null;
   signal?: AbortSignal;
   slackExecutionContext?: SlackRoleCreationExecutionContext | null;
   slackThreadId: string | null;
@@ -448,6 +464,7 @@ async function runOrgAgentToolLoop(args: {
       content: buildOrgAgentUserPrompt({
         context: args.context,
         mentions: args.mentions,
+        serviceAnswerExamplesText: args.serviceAnswerExamplesText,
         userLabel: args.userLabel,
         userMessage: args.userMessage,
       }),
@@ -623,18 +640,21 @@ async function runOrgAgentToolLoop(args: {
         continue;
       }
 
-      args.emit?.("tool_status", {
-        label: getOrgAgentToolStatusLabel({
-          name: toolName,
-          status: "running",
-        }),
-        status: "running",
-      });
+      const emitToolStatus = (status: "done" | "error" | "running") => {
+        const log = nowLog(
+          getOrgAgentToolStatusLabel({ name: toolName, status }),
+          status,
+          { icon: getOrgAgentThinkingLogIcon(toolName), id: toolCall.id }
+        );
+        args.emit?.("tool_status", log);
+        args.onToolStatus?.(log);
+      };
+      emitToolStatus("running");
 
       const completeBefore = new Set(state.completeLongTextTargets);
       const observedBefore = new Map(state.observedLongTextFingerprints);
       const pendingRoleReadsBefore = new Set(state.pendingFullRoleRequestIds);
-      let retryableUpdateInputError = false;
+      let retryableTerminalInputError = false;
       try {
         const toolInput = parseToolArguments(toolCall.function.arguments);
         const result = await executeOrgAgentTool({
@@ -655,10 +675,7 @@ async function runOrgAgentToolLoop(args: {
           user: args.user,
           userMessage: args.userMessage,
         });
-        args.emit?.("tool_status", {
-          label: getOrgAgentToolStatusLabel({ name: toolName, status: "done" }),
-          status: "done",
-        });
+        emitToolStatus("done");
         const serializedResult = serializeOrgAgentToolResult(toolName, result);
         const remainingResultChars = Math.max(
           0,
@@ -710,10 +727,11 @@ async function runOrgAgentToolLoop(args: {
         const errorMessage = isInputError
           ? error.message
           : "The tool could not be completed. Do not claim success.";
-        retryableUpdateInputError =
-          error instanceof OrgAgentToolInputError &&
-          toolName === "update_data" &&
-          !state.terminalMutationUsed;
+        retryableTerminalInputError = shouldRetryOrgAgentTerminalInputError({
+          isToolInputError: error instanceof OrgAgentToolInputError,
+          terminalMutationUsed: state.terminalMutationUsed,
+          toolName,
+        });
         console.error("[org/agent:tool]", {
           callId: toolCall.id,
           error: getLlmErrorMessage(error),
@@ -733,17 +751,11 @@ async function runOrgAgentToolLoop(args: {
           status: "error",
           summary: isInputError ? error.message : "도구 실행 실패",
         });
-        args.emit?.("tool_status", {
-          label: getOrgAgentToolStatusLabel({
-            name: toolName,
-            status: "error",
-          }),
-          status: "error",
-        });
+        emitToolStatus("error");
         messages.push({
           content: serializeOrgAgentToolError(
-            retryableUpdateInputError
-              ? `${errorMessage}. No change was applied. Correct the arguments and call update_data again in this turn.`
+            retryableTerminalInputError
+              ? `${errorMessage}. No change was applied. Correct the arguments and call ${toolName} again in this turn.`
               : errorMessage
           ),
           name: toolName,
@@ -758,7 +770,10 @@ async function runOrgAgentToolLoop(args: {
           ),
         });
       }
-      if (isOrgAgentTerminalToolName(toolName) && !retryableUpdateInputError) {
+      if (
+        isOrgAgentTerminalToolName(toolName) &&
+        !retryableTerminalInputError
+      ) {
         terminalReached = true;
       }
     }
@@ -835,12 +850,18 @@ function buildAssistantMetadata(args: {
       candidateConnectionConfirmations:
         args.state.candidateConnectionConfirmations,
     }),
+    ...(args.state.contactDraftRef && {
+      contactDraftRef: args.state.contactDraftRef,
+    }),
     fallbackReason: args.fallbackReason,
     ...(args.state.internalTokenCorrectionCount > 0 && {
       internalTokenCorrectionCount: args.state.internalTokenCorrectionCount,
     }),
     llmUsage: args.usage,
     model: args.model,
+    ...(args.state.preferredRoleId && {
+      preferredRoleId: args.state.preferredRoleId,
+    }),
     ...(lastRequestChange && { requestChange: lastRequestChange }),
     ...(args.state.requestChanges.length > 0 && {
       requestChanges: args.state.requestChanges,
@@ -964,10 +985,17 @@ export async function runOrgAgentChat(args: {
     throw new OrgHttpError(400, "message is too long");
   }
   const llmUserMessage = normalizeText(args.llmUserMessage) || userMessageText;
+  const serviceAnswerExamplesPromise = lookupAnswerExamples(llmUserMessage, {
+    audience: "company",
+  });
   args.signal?.throwIfAborted();
 
   const modelConfig = resolveOrgAgentModel(args.model);
-  const thinkingLogs: OrgAgentThinkingLog[] = [];
+  let thinkingLogs: OrgAgentThinkingLog[] = [];
+  const recordThinkingLog = (log: OrgAgentThinkingLog) => {
+    thinkingLogs = upsertOrgAgentThinkingLog(thinkingLogs, log);
+    args.emit?.("tool_status", log);
+  };
   const { admin, conversation } = await ensureOrgAgentConversation({
     user: args.user,
     workspaceId: args.workspaceId,
@@ -1009,41 +1037,45 @@ export async function runOrgAgentChat(args: {
   args.emit?.("user_message", userMessage);
 
   try {
-    thinkingLogs.push(nowLog("회사와 최근 추천 정보를 읽는 중", "running"));
-    args.emit?.("tool_status", {
-      label: "회사와 최근 추천 정보를 읽는 중",
-      status: "running",
-    });
-    const context = await buildOrgAgentPromptContext({
-      admin,
-      beforeMessageId: userMessage.id,
-      conversation,
-      currentUserMessageId: userMessage.id,
-      messageType: args.slackThreadId ? "slack" : "chat",
-      readAudience: args.slackThreadId ? "company_safe" : "caller",
-      scopeKey: args.slackThreadId
-        ? `slack:${args.slackThreadId}`
-        : `chat:${conversation.id}`,
-      slackThreadId: args.slackThreadId ?? null,
-      slackHistoryTruncated: Boolean(
-        args.userMessageMetadata?.historyTruncated
-      ),
-      user: args.user,
-    });
-    thinkingLogs[thinkingLogs.length - 1] = nowLog(
-      "회사와 최근 추천 정보 확인 완료",
-      "done"
+    recordThinkingLog(
+      nowLog("회사와 최근 추천 정보를 읽는 중", "running", {
+        icon: "read",
+        id: "context",
+      })
     );
-    args.emit?.("tool_status", {
-      label: "회사와 최근 추천 정보 확인 완료",
-      status: "done",
+    const [context, serviceAnswerExamples] = await Promise.all([
+      buildOrgAgentPromptContext({
+        admin,
+        beforeMessageId: userMessage.id,
+        conversation,
+        currentUserMessageId: userMessage.id,
+        messageType: args.slackThreadId ? "slack" : "chat",
+        readAudience: args.slackThreadId ? "company_safe" : "caller",
+        scopeKey: args.slackThreadId
+          ? `slack:${args.slackThreadId}`
+          : `chat:${conversation.id}`,
+        slackThreadId: args.slackThreadId ?? null,
+        slackHistoryTruncated: Boolean(
+          args.userMessageMetadata?.historyTruncated
+        ),
+        user: args.user,
+      }),
+      serviceAnswerExamplesPromise,
+    ]);
+    const serviceAnswerExamplesText = buildServiceAnswerExamplesPromptBlock({
+      audience: "company",
+      examples: serviceAnswerExamples.examples,
     });
+    recordThinkingLog(
+      nowLog("회사와 최근 추천 정보 확인 완료", "done", {
+        icon: "read",
+        id: "context",
+      })
+    );
 
-    thinkingLogs.push(nowLog("응답 생성 중", "running"));
-    args.emit?.("tool_status", {
-      label: "응답 생성 중",
-      status: "running",
-    });
+    recordThinkingLog(
+      nowLog("응답 생성 중", "running", { icon: "run", id: "response" })
+    );
 
     const llmResult = await runOrgAgentToolLoop({
       actorId: args.slackUserId ?? args.user.id,
@@ -1061,11 +1093,15 @@ export async function runOrgAgentChat(args: {
       emit: args.emit,
       mentions,
       model: modelConfig.model,
+      onToolStatus: (log) => {
+        thinkingLogs = upsertOrgAgentThinkingLog(thinkingLogs, log);
+      },
       readAudience: args.slackThreadId ? "company_safe" : "caller",
       scopeKey: args.slackThreadId
         ? `slack:${args.slackThreadId}`
         : `chat:${conversation.id}`,
       signal: args.signal,
+      serviceAnswerExamplesText,
       slackExecutionContext: args.slackExecutionContext,
       slackThreadId: args.slackThreadId ?? null,
       source: args.slackThreadId ? "slack" : "chat",
@@ -1106,11 +1142,12 @@ export async function runOrgAgentChat(args: {
     }
     const usedTool = llmResult.state.toolResults.length > 0;
     if (usedTool) {
-      thinkingLogs[thinkingLogs.length - 1] = nowLog("응답 생성 완료", "done");
-      args.emit?.("tool_status", {
-        label: "응답 생성 완료",
-        status: "done",
-      });
+      recordThinkingLog(
+        nowLog("응답 생성 완료", "done", {
+          icon: "run",
+          id: "response",
+        })
+      );
     } else {
       // 일반 텍스트 응답에는 완료 상태를 메시지 위에 남기지 않는다.
       thinkingLogs.length = 0;
@@ -1211,9 +1248,10 @@ export async function runOrgAgentChat(args: {
     };
   } catch (error) {
     args.signal?.throwIfAborted();
-    if (thinkingLogs.length > 0) {
-      thinkingLogs[thinkingLogs.length - 1] = nowLog("응답 생성 실패", "error");
-    }
+    thinkingLogs = upsertOrgAgentThinkingLog(
+      thinkingLogs,
+      nowLog("응답 생성 실패", "error", { icon: "run", id: "response" })
+    );
     const detail = getVisibleErrorMessage(error);
     const message =
       "지금은 에이전트 응답을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.";

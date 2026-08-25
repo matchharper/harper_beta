@@ -358,6 +358,8 @@ function formatSingleTalentResult(result: Record<string, any>) {
         [
           "request_id",
           "created_or_sent_kst",
+          "approved_kst",
+          "updated_kst",
           "scheduled_kst",
           "role",
           "request",
@@ -368,6 +370,8 @@ function formatSingleTalentResult(result: Record<string, any>) {
         requestHistory.map((item: any) => [
           item?.requestId,
           item?.at,
+          item?.approvedAt,
+          item?.updatedAt,
           item?.scheduledAt,
           item?.roleName,
           item?.label,
@@ -375,7 +379,7 @@ function formatSingleTalentResult(result: Record<string, any>) {
           item?.status,
           item?.cancelable,
         ]),
-        [100, 40, 40, 160, 180, 800, 160, 10]
+        [100, 40, 40, 40, 40, 160, 180, 800, 160, 10]
       )
     ),
     "Harper에게 말해준 정보. 후보자가 Harper에게 공유한 직업 관련 정보이며, 없는 내용은 추정하지 마세요. 보상 정보는 이 목록에 포함되지 않습니다.",
@@ -731,6 +735,8 @@ function formatRoleStatusChangeResult(result: Record<string, any>) {
     `role=${formatPromptCell(result.roleName, 200)}`,
     `lifecycle=${humanizeOrgRoleStatus(result.roleStatus)}`,
     `effect=${formatPromptCell(result.effect, 500)}`,
+    `expectation=${formatPromptCell(result.expectation, 800)}`,
+    `next_process=${formatPromptCell(result.nextProcess, 800)}`,
   ].join("\n");
 }
 
@@ -771,6 +777,8 @@ function formatCandidateStageMoveResult(result: Record<string, any>) {
 function formatCandidateConnectionDecisionResult(result: Record<string, any>) {
   return [
     `status=${formatPromptCell(result.status, 40)}`,
+    `candidate=${formatPromptCell(result.candidateName, 160)}`,
+    `role=${formatPromptCell(result.roleName, 200)}`,
     `change=${formatPromptCell(result.changeSummary, 500)}`,
     `decision=${formatPromptCell(result.decision, 30)}`,
     `connection_method=${formatPromptCell(result.connectionMethod, 40)}`,
@@ -785,6 +793,9 @@ function formatCandidateConnectionDecisionResult(result: Record<string, any>) {
       result.closureNotificationSentChannel,
       40
     )}`,
+    `next_process=${formatPromptCell(result.nextProcess, 1_000)}`,
+    `response_guidance=${formatPromptCell(result.responseGuidance, 1_000)}`,
+    `warm_closing=${formatPromptCell(result.warmClosing, 500)}`,
   ].join("\n");
 }
 
@@ -956,13 +967,30 @@ export function serializeOrgAgentToolResult(
 ) {
   const result = asRecord(value);
   if (name === "start_role_creation") {
+    const requiredContinuationLink = String(
+      result.requiredContinuationLink ?? ""
+    ).trim();
+    const exactRequiredContinuationLink =
+      /^<https:\/\/[^<>|\s]+\|새로운 채용 등록 이어가기>$/.test(
+        requiredContinuationLink
+      )
+        ? requiredContinuationLink
+        : EMPTY_CELL;
+    const sanitizedExample = formatPromptCell(result.responseExample, 3_000);
+    const illustrativeResponse =
+      exactRequiredContinuationLink === EMPTY_CELL
+        ? sanitizedExample
+        : sanitizedExample.replaceAll(
+            formatPromptCell(requiredContinuationLink, 1_200),
+            exactRequiredContinuationLink
+          );
     return [
       `status=${formatPromptCell(result.status, 30)}`,
       `role_title=${formatPromptCell(result.roleTitle, 200)}`,
-      `thread_permalink=${formatPromptCell(result.threadPermalink, 1_000)}`,
-      `web_url=${formatPromptCell(result.webUrl, 1_000)}`,
-      `user_message=${formatPromptCell(result.userMessage, 2_000)}`,
-      "instruction=Use user_message as the authoritative outcome. Do not continue role discovery in the current conversation.",
+      `required_continuation_link=${exactRequiredContinuationLink}`,
+      `response_guidance=${formatPromptCell(result.responseGuidance, 3_000)}`,
+      `illustrative_response=${illustrativeResponse}`,
+      "instruction=Write the final reply yourself in Harper's natural recruiting-partner voice. The example is illustrative, not fixed copy. Include required_continuation_link exactly once, use its label nowhere else as a heading or repeated CTA, and do not continue role discovery in the current conversation.",
     ].join("\n");
   }
   if (name === "web_search" || name === "open_url") {
@@ -990,9 +1018,6 @@ export function serializeOrgAgentToolResult(
     return formatCandidateStageMoveResult(result);
   }
   if (name === "contact_talent") {
-    return formatCompanyTalentRequestResult(result);
-  }
-  if (name === "change_talent_contact") {
     return formatCompanyTalentRequestResult(result);
   }
   if (name === "decide_candidate_connection") {

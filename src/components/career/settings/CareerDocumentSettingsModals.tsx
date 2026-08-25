@@ -167,12 +167,18 @@ export const CareerAddDocumentModal = ({
         }
         fileName={documentFile?.name ?? ""}
         onFileSelect={(file) => setDocumentFile(file)}
-        onFileReject={() =>
+        onFileReject={(_file, _source, reason) =>
           showToast({
-            message: t(
-              "career.profile.documents.unsupported_file",
-              "지원하는 파일 형식만 업로드해 주세요."
-            ),
+            message:
+              reason === "file-size"
+                ? t(
+                    "career.resume_dropzone.file_too_large_generic",
+                    "파일은 최대 4MB까지 업로드할 수 있습니다."
+                  )
+                : t(
+                    "career.profile.documents.unsupported_file",
+                    "지원하는 파일 형식만 업로드해 주세요."
+                  ),
             variant: "white",
           })
         }
@@ -182,8 +188,14 @@ export const CareerAddDocumentModal = ({
         )}
         description={
           documentKind === "resume"
-            ? "PDF, DOCX, TXT, MD"
-            : "PDF, Office, TXT, MD, PNG, JPG"
+            ? t(
+                "career.profile.documents.resume_formats",
+                "PDF, DOCX, TXT, MD · 최대 4MB"
+              )
+            : t(
+                "career.profile.documents.document_formats",
+                "PDF, Office, TXT, MD, PNG, JPG · 최대 4MB"
+              )
         }
         dragTitle={t(
           "career.resume_dropzone.drag_title",

@@ -10,6 +10,7 @@ import {
   OrgWorkspaceSidebar,
   OrgWorkspaceShellSkeleton,
 } from "@/components/org/workspace/OrgWorkspaceSidebar";
+import { OrgMobileNavigationProvider } from "@/components/org/workspace/OrgMobileNavigation";
 import {
   OrgWorkspaceProvider,
   useOrgWorkspaceController,
@@ -113,32 +114,39 @@ export function OrgWorkspaceApp({
       <Head>
         <title>{pageTitle}</title>
       </Head>
-      <Page
-        as="main"
-        background="neutral"
-        className="overflow-x-clip overflow-y-auto overscroll-y-none font-sans text-neutral-primary"
-        minHeight="fillScreen"
-      >
-        <OrgWorkspaceSidebar compact={isRoleCreationStarted} />
-        <div
-          className={isRoleCreationStarted ? "lg:pl-[72px]" : "lg:pl-[256px]"}
+      <OrgMobileNavigationProvider>
+        <Page
+          as="main"
+          background="neutral"
+          className="overflow-x-clip overflow-y-auto overscroll-y-none font-sans text-neutral-primary"
+          minHeight="fillScreen"
         >
-          <PageContainer
-            key={workspace.workspaceId}
+          <OrgWorkspaceSidebar compact={isRoleCreationStarted} />
+          <div
             className={cn(
-              isRoleWorkspacePage
-                ? "h-[calc(100svh-104px)] min-h-[560px] lg:h-screen lg:min-h-0"
-                : "py-6 sm:py-9 lg:py-10"
+              page === "role" ? "md:pt-0" : "pt-12 md:pt-0",
+              isRoleCreationStarted ? "md:pl-[72px]" : "md:pl-[256px]"
             )}
-            padding={isRoleWorkspacePage ? "none" : "default"}
-            size={
-              isRoleWorkspacePage ? "full" : useWideLayout ? "wide" : "narrow"
-            }
           >
-            {children}
-          </PageContainer>
-        </div>
-      </Page>
+            <PageContainer
+              key={workspace.workspaceId}
+              className={cn(
+                page === "role"
+                  ? "h-svh min-h-[520px] md:h-screen md:min-h-0"
+                  : page === "new-role"
+                    ? "h-[calc(100svh-3rem)] min-h-[472px] md:h-screen md:min-h-0"
+                    : "py-6 sm:py-9 lg:py-10"
+              )}
+              padding={isRoleWorkspacePage ? "none" : "default"}
+              size={
+                isRoleWorkspacePage ? "full" : useWideLayout ? "wide" : "narrow"
+              }
+            >
+              {children}
+            </PageContainer>
+          </div>
+        </Page>
+      </OrgMobileNavigationProvider>
       {requiresMemberProfile && contextValue.currentUser ? (
         <OrgMemberProfileDialog
           key={workspace.workspaceId}

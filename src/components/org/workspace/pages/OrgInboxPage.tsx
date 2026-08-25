@@ -152,13 +152,13 @@ function OrgInboxMain() {
   return (
     <div className="space-y-6">
       <OrgPageHeader
-        description="최근에 추천된 인재를 확인합니다."
+        description="최근 추천된 후보자를 확인해요."
         title="Inbox"
       />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div
-          aria-label="Inbox 인재 필터"
+          aria-label="Inbox 후보자 필터"
           className="flex flex-wrap items-center gap-2"
           role="group"
         >
@@ -377,13 +377,13 @@ function OrgInboxMain() {
         <div className="rounded-lg border border-neutral-1000-a05 bg-bg-floating px-5 py-14 text-center">
           <div className="text-[14px] font-medium text-neutral-primary">
             {hasActiveFilter
-              ? "조건에 맞는 인재가 없습니다."
-              : "아직 Inbox에 표시할 인재가 없습니다."}
+              ? "조건에 맞는 후보자가 없어요."
+              : "아직 Inbox에 표시할 후보자가 없어요."}
           </div>
           <div className="mt-1 text-[13px] font-light text-neutral-muted">
             {hasActiveFilter
-              ? "필터를 해제하면 전체 추천 인재를 다시 확인할 수 있습니다."
-              : "수락 이후 연결 검토가 시작된 인재가 여기에 표시됩니다."}
+              ? "필터를 해제하면 추천 후보자 전체를 다시 확인할 수 있어요."
+              : "수락 이후 연결 검토가 시작된 후보자가 여기에 표시돼요."}
           </div>
         </div>
       )}

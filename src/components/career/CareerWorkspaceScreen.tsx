@@ -864,6 +864,23 @@ const CareerWorkspaceMobileHistoryView = ({
     [logCareerEvent, updateMobileHistoryLocation]
   );
 
+  const handleMobileNavigationChange = useCallback(
+    (nextOption: CareerMobileTopBarOptionId) => {
+      if (nextOption === "inbox") {
+        handleChangeJobsTab("new");
+        return;
+      }
+
+      if (nextOption === "jobs") {
+        handleChangeJobsTab(jobsTab === "new" ? "saved" : jobsTab);
+        return;
+      }
+
+      onChangeTab(nextOption);
+    },
+    [handleChangeJobsTab, jobsTab, onChangeTab]
+  );
+
   const handleNavigate = useCallback(
     (delta: -1 | 1) => {
       logCareerEvent(
@@ -1175,6 +1192,7 @@ const CareerWorkspaceMobileHistoryView = ({
     <>
       <CareerMobileJobsView
         onChangeWorkspaceTab={onChangeTab}
+        onChangeTopBarOption={handleMobileNavigationChange}
         workspaceTabOptions={workspaceTabOptions}
         statusCounts={mobileJobsStatusCounts}
         opportunities={filteredOpportunities}
@@ -1219,6 +1237,11 @@ const CareerWorkspaceMobileHistoryView = ({
       />
       <CareerMobileChatLauncher
         actionBar={actionBar}
+        navigation={{
+          activeTab: jobsTab === "new" ? "inbox" : "jobs",
+          onChangeTab: handleMobileNavigationChange,
+          options: workspaceTabOptions,
+        }}
         open={chatOpen}
         onOpenChange={setChatOpen}
       >
@@ -1447,6 +1470,11 @@ const CareerWorkspaceMobileLayout = ({
               </AnimatePresence>
             </CareerMobileShell>
             <CareerMobileChatLauncher
+              navigation={{
+                activeTab,
+                onChangeTab: handleTopBarOptionChange,
+                options: workspaceTabOptions,
+              }}
               open={chatOpen}
               onOpenChange={setChatOpen}
             >

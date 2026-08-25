@@ -1,0 +1,18 @@
+export const ORG_PRODUCT_LABELS = {
+  candidate: "Candidate",
+  company: "Company",
+  companyDescription: "Company Description",
+  contextForHarper: "Context for Harper",
+  description: "Description",
+  evaluationCriteria: "Evaluation Criteria",
+  hiringBrief: "Hiring Brief",
+  home: "Home",
+  inbox: "Inbox",
+  integrations: "Integrations",
+  members: "Members",
+  newRole: "New role",
+  organization: "Organization",
+  pipeline: "Pipeline",
+  recent: "Recent",
+  roles: "Roles",
+} as const;

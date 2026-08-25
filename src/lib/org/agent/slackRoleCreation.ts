@@ -12,13 +12,18 @@ import {
   postHarperSlackMessage,
 } from "@/lib/org/slackHarper";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
-import { insertOrgAgentMessage } from "@/lib/org/agent/store";
+import {
+  insertOrgAgentMessage,
+  type OrgAgentConversationRow,
+} from "@/lib/org/agent/store";
+import type { OrgAgentMessageMetadata } from "@/lib/org/agent/types";
 import {
   appendMissingSlackRoleCreationThreadLinks,
   buildSlackRoleCreationStartMessage,
-  buildSlackRoleCreationThreadIntro,
   buildSlackRoleCreationWebUrl,
 } from "@/lib/org/agent/slackRoleCreationMessages";
+import { stripSlackSentUsingAttribution } from "@/lib/org/slackMessageText";
+import type { ChatAttachmentPayload } from "@/types/chat";
 
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
 
@@ -26,6 +31,7 @@ export type SlackRoleCreationExecutionContext = {
   channelDbId: string;
   channelId: string;
   publicSiteUrl: string;
+  slackUserId: string;
   sourceKey: string;
   token: string;
 };
@@ -39,11 +45,6 @@ export type SlackRoleCreationThread = {
   webUrl: string;
 };
 
-export type SlackRoleDescriptionOrigin =
-  | "company_style_draft"
-  | "same_company_public_jd"
-  | "user_supplied";
-
 type InProgressSlackRoleCreation = {
   roleId: string;
   roleTitle: string;
@@ -54,10 +55,189 @@ function text(value: unknown) {
   return String(value ?? "").trim();
 }
 
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function bootstrapAttachments(value: unknown): ChatAttachmentPayload[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 3).flatMap((item) => {
+    const attachment = record(item);
+    const name = text(attachment.name).slice(0, 240);
+    const content = text(attachment.text);
+    const size = Number(attachment.size ?? 0);
+    if (!name || !content || !Number.isFinite(size) || size <= 0) return [];
+    return [
+      {
+        kind: "file" as const,
+        ...(text(attachment.mime)
+          ? { mime: text(attachment.mime).slice(0, 160) }
+          : {}),
+        name,
+        size,
+        text: content,
+        truncated: Boolean(attachment.truncated),
+      },
+    ];
+  });
+}
+
+async function ensureSlackRoleCreationBootstrap(args: {
+  actorLabel: string;
+  admin: AdminClient;
+  contextMessageCount: number;
+  execution: SlackRoleCreationExecutionContext;
+  roleConversation: OrgAgentConversationRow;
+  roleId: string;
+  roleSlackThreadId: string;
+  roleSlackThreadTs: string;
+  sourceConversation: OrgAgentConversationRow;
+  sourceCurrentMessageId: number;
+  sourceSlackThreadId: string;
+}) {
+  const expectedBootstrapMessageTs = `${args.roleSlackThreadTs}-bootstrap-${args.sourceCurrentMessageId}`;
+  const existingResult = await (
+    args.admin.from("company_messages" as any) as any
+  )
+    .select("content, slack_message_ts")
+    .eq("company_workspace_id", args.roleConversation.company_workspace_id)
+    .eq("conversation_id", args.roleConversation.id)
+    .eq("role", "user")
+    .eq("slack_thread_id", args.roleSlackThreadId)
+    .eq("slack_message_ts", expectedBootstrapMessageTs)
+    .maybeSingle();
+  if (existingResult.error) throw existingResult.error;
+
+  let bootstrapMessageTs = text(existingResult.data?.slack_message_ts);
+  let bootstrapPrompt = text(existingResult.data?.content);
+  if (!bootstrapMessageTs || !bootstrapPrompt) {
+    const { data, error } = await (
+      args.admin.from("company_messages" as any) as any
+    )
+      .select("id, company_user_id, content, metadata, role, slack_user_id")
+      .eq("company_workspace_id", args.sourceConversation.company_workspace_id)
+      .eq("conversation_id", args.sourceConversation.id)
+      .eq("message_type", "slack")
+      .eq("slack_thread_id", args.sourceSlackThreadId)
+      .lte("id", args.sourceCurrentMessageId)
+      .in("role", ["assistant", "user"])
+      .order("id", { ascending: false })
+      .limit(args.contextMessageCount);
+    if (error) throw error;
+    const sourceMessages = [...(data ?? [])].reverse() as Array<{
+      company_user_id: string | null;
+      content: string;
+      id: number;
+      metadata: unknown;
+      role: "assistant" | "user";
+      slack_user_id: string | null;
+    }>;
+    const current = sourceMessages.at(-1);
+    if (
+      !current ||
+      Number(current.id) !== args.sourceCurrentMessageId ||
+      current.role !== "user"
+    ) {
+      throw new Error("Slack role creation source context is unavailable");
+    }
+
+    for (const sourceMessage of sourceMessages) {
+      const sourceMetadata = record(sourceMessage.metadata);
+      const attachments = bootstrapAttachments(
+        sourceMetadata.slackFileAttachments
+      );
+      const isCurrent =
+        Number(sourceMessage.id) === args.sourceCurrentMessageId;
+      const copied = await insertOrgAgentMessage({
+        admin: args.admin,
+        content: stripSlackSentUsingAttribution(sourceMessage.content),
+        conversation: args.roleConversation,
+        messageType: "slack",
+        metadata: {
+          ...(attachments.length > 0
+            ? {
+                attachments: attachments.map((attachment) => ({
+                  kind: attachment.kind,
+                  mime: attachment.mime,
+                  name: attachment.name,
+                  size: attachment.size,
+                  truncated: attachment.truncated,
+                })),
+                roleCreationAttachments: attachments,
+              }
+            : {}),
+          ...(Array.isArray(sourceMetadata.slackFileErrors)
+            ? {
+                slackFileErrors: sourceMetadata.slackFileErrors
+                  .map(text)
+                  .filter(Boolean)
+                  .slice(0, 10),
+              }
+            : {}),
+          slackRoleCreationBootstrap: {
+            contextMessageCount: sourceMessages.length,
+            isCurrent,
+            sourceKey: args.execution.sourceKey,
+            sourceMessageId: Number(sourceMessage.id),
+            sourceSlackThreadId: args.sourceSlackThreadId,
+          },
+          slackUserName:
+            text(sourceMetadata.slackUserName) ||
+            (sourceMessage.role === "assistant"
+              ? "Harper"
+              : isCurrent
+                ? args.actorLabel
+                : null),
+          source: "org_role_creation_slack_bootstrap_context",
+        } satisfies OrgAgentMessageMetadata,
+        role: sourceMessage.role,
+        roleId: args.roleId,
+        slackMessageTs: `${args.roleSlackThreadTs}-bootstrap-${sourceMessage.id}`,
+        slackThreadId: args.roleSlackThreadId,
+        slackUserId: sourceMessage.slack_user_id,
+        userId:
+          sourceMessage.role === "user" ? sourceMessage.company_user_id : null,
+      });
+      if (isCurrent) {
+        bootstrapMessageTs = `${args.roleSlackThreadTs}-bootstrap-${sourceMessage.id}`;
+        bootstrapPrompt = copied.content;
+      }
+    }
+  }
+
+  if (!bootstrapMessageTs || !bootstrapPrompt) {
+    throw new Error("Slack role creation bootstrap message is unavailable");
+  }
+  const { error: enqueueError } = await (args.admin.rpc as any)(
+    "enqueue_slack_reply_job_v2",
+    {
+      p_prompt: bootstrapPrompt,
+      p_slack_event_id: `role_creation_bootstrap:${args.execution.sourceKey}`,
+      p_slack_files: [],
+      p_slack_message_ts: bootstrapMessageTs,
+      p_slack_user_id: args.execution.slackUserId,
+      p_thread_id: args.roleSlackThreadId,
+      // Keep this on the existing durable thread-reply queue contract. The
+      // event id and copied message metadata identify the server-only
+      // bootstrap turn without requiring a database enum/constraint change.
+      p_trigger_kind: "thread_reply",
+    }
+  );
+  if (enqueueError) throw enqueueError;
+}
+
 async function fetchExistingStartedThread(args: {
+  actorLabel: string;
   admin: AdminClient;
   channelId: string;
+  contextMessageCount: number;
+  execution: SlackRoleCreationExecutionContext;
   publicSiteUrl: string;
+  sourceConversation: OrgAgentConversationRow;
+  sourceCurrentMessageId: number;
+  sourceSlackThreadId: string;
   sourceKey: string;
   token: string;
   workspaceId: string;
@@ -65,7 +245,9 @@ async function fetchExistingStartedThread(args: {
   const { data: conversation, error } = await (
     args.admin.from("company_conversations" as any) as any
   )
-    .select("id, role_id, metadata")
+    .select(
+      "id, company_workspace_id, role_id, title, last_message_at, last_message_id, summary_cursor_message_id, metadata, created_at, updated_at"
+    )
     .eq("company_workspace_id", args.workspaceId)
     .contains("metadata", {
       slackRoleCreationThread: { sourceKey: args.sourceKey },
@@ -102,19 +284,9 @@ async function fetchExistingStartedThread(args: {
   });
   let permalink = text(linked.threadPermalink);
   if (!permalink) {
-    const intro = await postHarperSlackMessage({
-      channelId: args.channelId,
-      text: buildSlackRoleCreationThreadIntro(),
-      threadTs: text(thread.slack_thread_ts),
-      token: args.token,
-    });
-    const introTs = text(intro.ts);
-    if (!introTs) {
-      throw new Error("Slack role creation intro has no timestamp");
-    }
     permalink = await getHarperSlackMessagePermalink({
       channelId: args.channelId,
-      messageTs: introTs,
+      messageTs: text(thread.slack_thread_ts),
       token: args.token,
     });
     await updateRoleCreationConversationMetadata({
@@ -129,6 +301,19 @@ async function fetchExistingStartedThread(args: {
       },
     });
   }
+  await ensureSlackRoleCreationBootstrap({
+    actorLabel: args.actorLabel,
+    admin: args.admin,
+    contextMessageCount: args.contextMessageCount,
+    execution: args.execution,
+    roleConversation: conversation as OrgAgentConversationRow,
+    roleId,
+    roleSlackThreadId: text(thread.id),
+    roleSlackThreadTs: text(thread.slack_thread_ts),
+    sourceConversation: args.sourceConversation,
+    sourceCurrentMessageId: args.sourceCurrentMessageId,
+    sourceSlackThreadId: args.sourceSlackThreadId,
+  });
   return {
     roleId,
     roleTitle: text(role.name) || "새 역할",
@@ -141,19 +326,30 @@ async function fetchExistingStartedThread(args: {
 
 export async function startSlackRoleCreation(args: {
   actorLabel: string;
-  description: string;
-  descriptionOrigin: SlackRoleDescriptionOrigin;
-  descriptionSourceUrl?: string | null;
+  contextMessageCount: number;
   execution: SlackRoleCreationExecutionContext;
   roleTitle: string;
+  sourceConversation: OrgAgentConversationRow;
+  sourceCurrentMessageId: number;
+  sourceSlackThreadId: string | null;
   user: User;
   workspaceId: string;
 }): Promise<SlackRoleCreationThread> {
   const admin = getSupabaseAdmin();
+  const sourceSlackThreadId = text(args.sourceSlackThreadId);
+  if (!sourceSlackThreadId) {
+    throw new Error("Slack role creation source thread is unavailable");
+  }
   const existing = await fetchExistingStartedThread({
+    actorLabel: args.actorLabel,
     admin,
     channelId: args.execution.channelId,
+    contextMessageCount: args.contextMessageCount,
+    execution: args.execution,
     publicSiteUrl: args.execution.publicSiteUrl,
+    sourceConversation: args.sourceConversation,
+    sourceCurrentMessageId: args.sourceCurrentMessageId,
+    sourceSlackThreadId,
     sourceKey: args.execution.sourceKey,
     token: args.execution.token,
     workspaceId: args.workspaceId,
@@ -168,10 +364,6 @@ export async function startSlackRoleCreation(args: {
   });
   const state = await updateRoleCreationDraft({
     actorLabel: args.actorLabel,
-    description: args.description,
-    ...(text(args.descriptionSourceUrl)
-      ? { externalJdUrl: text(args.descriptionSourceUrl) }
-      : {}),
     name: args.roleTitle,
     roleId,
     user: args.user,
@@ -184,9 +376,6 @@ export async function startSlackRoleCreation(args: {
     workspaceId: args.workspaceId,
   });
   const startMessage = buildSlackRoleCreationStartMessage({
-    description: args.description,
-    descriptionOrigin: args.descriptionOrigin,
-    descriptionSourceUrl: args.descriptionSourceUrl,
     roleTitle: args.roleTitle,
     webUrl,
   });
@@ -222,24 +411,6 @@ export async function startSlackRoleCreation(args: {
     conversationId: state.conversation.id,
     current: state.conversation.metadata,
     patch: {
-      ...(args.descriptionOrigin !== "user_supplied"
-        ? {
-            descriptionSourceResearch: {
-              attemptedAt: now,
-              query:
-                `${state.workspace.companyName} ${args.roleTitle} 채용 career`
-                  .replace(/\s+/g, " ")
-                  .trim(),
-              resultCount: null,
-              selectedSourceUrl:
-                args.descriptionOrigin === "same_company_public_jd"
-                  ? text(args.descriptionSourceUrl) || null
-                  : null,
-              source: "slack_entry" as const,
-              status: "completed" as const,
-            },
-          }
-        : {}),
       slackRoleCreationThread: {
         slackThreadId: text(thread.id),
         slackThreadTs: text(thread.slack_thread_ts),
@@ -260,31 +431,9 @@ export async function startSlackRoleCreation(args: {
     slackThreadId: text(thread.id),
   });
 
-  const introMessage = buildSlackRoleCreationThreadIntro({
-    descriptionOrigin: args.descriptionOrigin,
-  });
-  const intro = await postHarperSlackMessage({
-    channelId: args.execution.channelId,
-    text: introMessage,
-    threadTs: rootTs,
-    token: args.execution.token,
-  });
-  const introTs = text(intro.ts);
-  if (!introTs) throw new Error("Slack role creation intro has no timestamp");
-  await insertOrgAgentMessage({
-    admin,
-    content: introMessage,
-    conversation: state.conversation,
-    messageType: "slack",
-    metadata: { source: "org_role_creation_slack_intro" },
-    role: "assistant",
-    roleId,
-    slackMessageTs: introTs,
-    slackThreadId: text(thread.id),
-  });
   const threadPermalink = await getHarperSlackMessagePermalink({
     channelId: args.execution.channelId,
-    messageTs: introTs,
+    messageTs: rootTs,
     token: args.execution.token,
   });
   await updateRoleCreationConversationMetadata({
@@ -299,6 +448,19 @@ export async function startSlackRoleCreation(args: {
         threadPermalink,
       },
     },
+  });
+  await ensureSlackRoleCreationBootstrap({
+    actorLabel: args.actorLabel,
+    admin,
+    contextMessageCount: args.contextMessageCount,
+    execution: args.execution,
+    roleConversation: state.conversation,
+    roleId,
+    roleSlackThreadId: text(thread.id),
+    roleSlackThreadTs: text(thread.slack_thread_ts),
+    sourceConversation: args.sourceConversation,
+    sourceCurrentMessageId: args.sourceCurrentMessageId,
+    sourceSlackThreadId,
   });
 
   return {

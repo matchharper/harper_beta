@@ -1,14 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRight, ChevronDown } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowRight, ChevronDown, List } from "lucide-react";
 import { MuteButton } from "@/components/ui/button";
+import { Text } from "@/components/ui/text";
 import {
   extractOrgDocumentsHeadings,
   OrgDocumentsMarkdown,
+  ORG_DOCUMENTS_SECTION_EYEBROWS,
   type OrgDocumentsHeading,
 } from "@/components/org/workspace/OrgDocumentsMarkdown";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { openCustomCrispWidget } from "@/lib/feedback/customCrispEvents";
 import { buildOrgHref } from "@/lib/org/routes";
+import { COMPANY_SERVICE_FAQ_ITEMS } from "@/lib/org/serviceFaq";
 import { cn } from "@/lib/utils";
 
 type DocumentNavigationItem = OrgDocumentsHeading & { label: string };
@@ -19,39 +22,6 @@ const FAQ_NAVIGATION_ITEM: DocumentNavigationItem = {
   level: 2,
   text: "자주 묻는 질문",
 };
-
-const FAQ_ITEMS = [
-  {
-    answer:
-      "Organization의 Integration에서 Slack이 연결되어 있는지, 이 역할의 알림을 받을 채널이 추가되어 있는지 먼저 확인해 주세요. 비공개 채널이라면 Slack에서 /invite @Harper로 Harper를 초대한 뒤 채널을 다시 추가해야 합니다. 회사에서 Slack 앱 설치 승인을 따로 받는 경우에는 Slack 관리자에게 Harper 설치가 승인되었는지도 확인해 주세요.",
-    question: "Slack 알림이 오지 않아요.",
-  },
-  {
-    answer:
-      "Harper의 추천은 지원자 목록을 바로 채우는 방식이 아닙니다. 역할에 맞는 사람을 찾은 뒤 회사와 역할을 먼저 설명하고, 실제로 대화할 의사가 있는지 확인합니다. 이 과정을 마친 사람만 연결 대기로 들어오기 때문에 첫 추천까지는 시간이 걸릴 수 있습니다. 꼭 필요한 조건이나 제외해야 할 조건이 분명하다면 역할 대화에 더 구체적으로 남겨 주세요.",
-    question: "역할을 등록했는데 추천이 바로 오지 않아요.",
-  },
-  {
-    answer:
-      "한 역할에 연결 대기 후보자가 5명 이상이면 회사가 먼저 기존 후보자를 검토할 수 있도록 새 연결이 잠시 멈춥니다. Inbox에서 기다리는 후보자를 수락하거나 거절하면 다시 이어집니다. 대기 후보자가 많지 않다면 해당 역할이 진행 중인지, 잠시 중단되었거나 종료되지는 않았는지 역할 설정도 확인해 주세요.",
-    question: "새 추천이 멈춘 것 같아요.",
-  },
-  {
-    answer:
-      "Owner와 Admin은 후보자를 수락하거나 거절하고, Pipeline 단계를 옮기고, 역할 기준을 수정할 수 있습니다. Viewer는 후보자와 진행 상황을 볼 수 있지만 최종 결정은 할 수 없습니다. 함께 검토만 할 동료는 Viewer로, 결정을 맡길 동료는 Admin으로 초대하면 됩니다.",
-    question: "누가 후보자를 수락하거나 거절할 수 있나요?",
-  },
-  {
-    answer:
-      "CC로 연결할 때 고른 회사 멤버와 후보자에게 소개 메일이 갑니다. 후보자는 받는 사람에, 회사 멤버는 참조에 들어갑니다. 채용 담당자와 현업 리더가 함께 후속 대화를 이어가야 한다면 두 사람을 모두 선택해 주세요. 필요한 사람이 보이지 않으면 먼저 Organization의 Members에서 초대해야 합니다.",
-    question: "소개 메일은 누구에게 가나요?",
-  },
-  {
-    answer:
-      "역할을 잠시 중단하면 새로운 후보자를 찾고 연결 의사를 확인하는 일만 멈춥니다. 이미 연결 대기에 있거나 연결이 시작된 후보자는 사라지지 않으므로 회사가 계속 검토하고 다음 단계를 정해야 합니다. 채용 계획 자체가 끝났다면 잠시 중단이 아니라 종료를 선택해 주세요.",
-    question: "역할을 잠시 중단하면 기존 후보자는 어떻게 되나요?",
-  },
-] as const;
 
 function SectionNavigation({
   activeSection,
@@ -64,41 +34,87 @@ function SectionNavigation({
   mobile?: boolean;
   onNavigate: (id: string) => void;
 }) {
+  const activeItemIndex = items.findIndex((item) => item.id === activeSection);
+  let activePrimarySectionId = items[0]?.id;
+  for (let index = Math.max(0, activeItemIndex); index >= 0; index -= 1) {
+    if (items[index]?.level === 2) {
+      activePrimarySectionId = items[index].id;
+      break;
+    }
+  }
+  const primarySections = items.filter((item) => item.level === 2);
+
+  const getChildren = (section: DocumentNavigationItem) => {
+    const sectionIndex = items.findIndex((item) => item.id === section.id);
+    const children: DocumentNavigationItem[] = [];
+    for (let index = sectionIndex + 1; index < items.length; index += 1) {
+      if (items[index].level === 2) break;
+      if (items[index].level === 3) children.push(items[index]);
+    }
+    return children;
+  };
+
+  const renderLink = (
+    item: DocumentNavigationItem,
+    { child = false }: { child?: boolean } = {}
+  ) => {
+    const active = activeSection === item.id;
+    const activeGroup = activePrimarySectionId === item.id;
+    return (
+      <a
+        aria-current={active ? "location" : undefined}
+        className={cn(
+          "block shrink-0 rounded-sm py-1 text-[13px] leading-5 outline-none transition-colors duration-150 focus-visible:underline motion-reduce:transition-none",
+          child && "text-[12.5px] leading-[1.55]",
+          active || activeGroup
+            ? "font-medium text-[#181717]"
+            : "font-normal text-[#77716d] hover:text-[#403f3f]"
+        )}
+        data-documents-section-link={item.id}
+        href={`#${item.id}`}
+        key={item.id}
+        onClick={(event) => {
+          event.preventDefault();
+          onNavigate(item.id);
+        }}
+      >
+        {item.label}
+      </a>
+    );
+  };
+
   return (
     <nav
       aria-label="Documents 목차"
       className={cn(
         mobile
-          ? "flex gap-5 overflow-x-auto border-y border-neutral-1000-a10 bg-bg-default/95 px-4 py-3.5 backdrop-blur scrollbar-none"
-          : "space-y-1"
+          ? "flex gap-5 overflow-x-auto border-y border-[#ebe7e4] bg-white/95 px-4 py-3 backdrop-blur scrollbar-none"
+          : "w-full"
       )}
       data-documents-mobile-nav={mobile ? "true" : undefined}
     >
-      {items.map((item) => {
-        const active = activeSection === item.id;
-        return (
-          <a
-            aria-current={active ? "location" : undefined}
-            className={cn(
-              "block shrink-0 py-0.5 text-[13px] font-normal leading-6 outline-none transition-[color,transform] duration-200 focus-visible:underline motion-reduce:transition-none",
-              item.level === 2 && "pl-3",
-              active
-                ? "translate-x-1 text-neutral-primary"
-                : "text-neutral-soft hover:text-neutral-muted",
-              mobile && active && "translate-x-0"
-            )}
-            data-documents-section-link={item.id}
-            href={`#${item.id}`}
-            key={item.id}
-            onClick={(event) => {
-              event.preventDefault();
-              onNavigate(item.id);
-            }}
-          >
-            {item.label}
-          </a>
-        );
-      })}
+      {mobile ? null : (
+        <div className="mb-4 flex items-center gap-2 text-[13px] font-medium leading-5 text-[#403f3f]">
+          <List aria-hidden="true" className="size-3.5" strokeWidth={2} />
+          <span>문서 내용</span>
+        </div>
+      )}
+      <div className={cn(mobile ? "contents" : "space-y-1")}>
+        {primarySections.map((section) => {
+          const children = getChildren(section);
+          const expanded = activePrimarySectionId === section.id;
+          return (
+            <div className={cn(mobile && "contents")} key={section.id}>
+              {renderLink(section)}
+              {!mobile && expanded && children.length > 0 ? (
+                <div className="my-1.5 ml-0.5 space-y-0.5 border-l border-[#e7e3e0] pl-3">
+                  {children.map((child) => renderLink(child, { child: true }))}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
     </nav>
   );
 }
@@ -111,14 +127,18 @@ export function OrgDocumentsPage({ markdown }: { markdown: string }) {
   );
   const navigationItems = useMemo<DocumentNavigationItem[]>(
     () => [
-      ...headings.map((heading) => ({ ...heading, label: heading.text })),
+      ...headings
+        .filter((heading) => heading.level !== 1)
+        .map((heading) => ({ ...heading, label: heading.text })),
       FAQ_NAVIGATION_ITEM,
     ],
     [headings]
   );
   const [activeSection, setActiveSection] = useState(
-    headings[0]?.id ?? FAQ_NAVIGATION_ITEM.id
+    navigationItems[0]?.id ?? FAQ_NAVIGATION_ITEM.id
   );
+  const [copied, setCopied] = useState(false);
+  const copyResetTimerRef = useRef<number | null>(null);
   const orgId = workspace.workspaceId;
   const linkTargets = {
     company: buildOrgHref({ orgId, page: "team" }),
@@ -143,12 +163,54 @@ export function OrgDocumentsPage({ markdown }: { markdown: string }) {
     });
   }, []);
 
+  const copyPage = useCallback(async () => {
+    const source = document.querySelector<HTMLElement>(
+      "[data-documents-copy-source]"
+    );
+    if (!source || !navigator.clipboard) return;
+
+    const selector = "h1, h2, h3, h4, p, li, figcaption, pre";
+    const blocks = Array.from(source.querySelectorAll<HTMLElement>(selector));
+    const pageText = blocks
+      .filter(
+        (element) =>
+          !element.closest("[data-documents-copy-exclude]") &&
+          !element.parentElement?.closest(selector)
+      )
+      .map((element) => element.innerText.trim())
+      .filter(Boolean)
+      .join("\n\n");
+
+    try {
+      await navigator.clipboard.writeText(pageText);
+      setCopied(true);
+      if (copyResetTimerRef.current !== null) {
+        window.clearTimeout(copyResetTimerRef.current);
+      }
+      copyResetTimerRef.current = window.setTimeout(() => {
+        setCopied(false);
+        copyResetTimerRef.current = null;
+      }, 1600);
+    } catch {
+      setCopied(false);
+    }
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (copyResetTimerRef.current !== null) {
+        window.clearTimeout(copyResetTimerRef.current);
+      }
+    },
+    []
+  );
+
   useEffect(() => {
     let frame = 0;
     const updateActiveSection = () => {
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
-        const anchor = window.innerWidth >= 1024 ? 96 : 150;
+        const anchor = Math.min(320, Math.max(140, window.innerHeight * 0.45));
         let next = navigationItems[0]?.id ?? FAQ_NAVIGATION_ITEM.id;
         const firstSection = document.getElementById(next);
         const scrollContainer = firstSection?.closest("main");
@@ -204,11 +266,21 @@ export function OrgDocumentsPage({ markdown }: { markdown: string }) {
   }, [navigationItems]);
 
   useEffect(() => {
+    const activeItemIndex = navigationItems.findIndex(
+      (item) => item.id === activeSection
+    );
+    let activePrimarySectionId = navigationItems[0]?.id ?? activeSection;
+    for (let index = Math.max(0, activeItemIndex); index >= 0; index -= 1) {
+      if (navigationItems[index]?.level === 2) {
+        activePrimarySectionId = navigationItems[index].id;
+        break;
+      }
+    }
     const mobileNav = document.querySelector<HTMLElement>(
       '[data-documents-mobile-nav="true"]'
     );
     const activeLink = mobileNav?.querySelector<HTMLElement>(
-      `[data-documents-section-link="${activeSection}"]`
+      `[data-documents-section-link="${activePrimarySectionId}"]`
     );
     if (!mobileNav || !activeLink) return;
     const targetLeft =
@@ -221,11 +293,11 @@ export function OrgDocumentsPage({ markdown }: { markdown: string }) {
         : "smooth",
       left: Math.max(0, targetLeft),
     });
-  }, [activeSection]);
+  }, [activeSection, navigationItems]);
 
   return (
-    <div className="min-h-screen w-full max-w-none bg-bg-default pb-24 text-neutral-primary">
-      <div className="sticky top-14 z-30 -mx-4 mb-14 lg:hidden">
+    <div className="min-h-screen w-full max-w-none bg-white pb-28 text-[#181717]">
+      <div className="sticky top-12 z-30 -mx-4 -mt-6 mb-12 sm:-mt-9 lg:-mt-10 xl:hidden">
         <SectionNavigation
           activeSection={activeSection}
           items={navigationItems}
@@ -234,39 +306,39 @@ export function OrgDocumentsPage({ markdown }: { markdown: string }) {
         />
       </div>
 
-      <div className="lg:grid lg:grid-cols-[180px_minmax(0,1fr)] lg:gap-12">
-        <aside className="hidden lg:block">
-          <div className="sticky top-10">
-            <SectionNavigation
-              activeSection={activeSection}
-              items={navigationItems}
-              onNavigate={navigateToSection}
-            />
-          </div>
-        </aside>
-
-        <article className="w-full max-w-[840px]">
+      <div className="xl:grid xl:grid-cols-[minmax(0,600px)_200px] xl:justify-between xl:gap-12 xl:pl-24 2xl:pl-32">
+        <article
+          className="mx-auto w-full max-w-[680px] xl:mx-0 xl:max-w-[600px]"
+          data-documents-copy-source
+        >
           <OrgDocumentsMarkdown
+            copied={copied}
             headings={headings}
             linkTargets={linkTargets}
             markdown={markdown}
+            onCopy={() => void copyPage()}
           />
 
-          <section
-            className="scroll-mt-36 mt-16 border-t border-neutral-1000-a10 pt-16 lg:scroll-mt-12"
-            id="faq"
-          >
-            <h2 className="text-[26px] font-normal leading-[1.35] tracking-[-0.025em] text-neutral-primary sm:text-[29px]">
+          <section className="scroll-mt-36 mt-20 xl:scroll-mt-12" id="faq">
+            <Text
+              as="p"
+              className="normal-case text-primary"
+              data-documents-copy-exclude
+              type="eyebrow"
+            >
+              {ORG_DOCUMENTS_SECTION_EYEBROWS.faq}
+            </Text>
+            <h2 className="mt-2 text-[23px] font-medium leading-8 tracking-[-0.025em] text-[#181717] sm:text-[24px]">
               자주 묻는 질문
             </h2>
-            <div className="mt-8 divide-y divide-neutral-1000-a10 border-y border-neutral-1000-a10">
-              {FAQ_ITEMS.map((item) => (
-                <details className="group py-5" key={item.question}>
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-5 text-[15px] font-medium leading-7 text-neutral-primary outline-none marker:hidden focus-visible:underline">
+            <div className="mt-6 divide-y divide-[#e9e6e4] border-y border-[#e9e6e4]">
+              {COMPANY_SERVICE_FAQ_ITEMS.map((item) => (
+                <details className="group py-4.5" key={item.question}>
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-5 text-[16px] font-medium leading-7 text-[#272321] outline-none marker:hidden focus-visible:underline">
                     {item.question}
-                    <ChevronDown className="size-4 shrink-0 text-neutral-soft transition-transform group-open:rotate-180 motion-reduce:transition-none" />
+                    <ChevronDown className="size-4 shrink-0 text-[#8d8580] transition-transform group-open:rotate-180 motion-reduce:transition-none" />
                   </summary>
-                  <p className="mt-3 mr-8 border-l-2 border-neutral-1000-a10 bg-bg-weak px-4 py-3 text-[14px] font-normal leading-7 text-neutral-muted">
+                  <p className="mt-3 mr-8 rounded-lg bg-[#f8f6f4] px-4 py-3.5 text-[15px] font-normal leading-[1.7] text-[#504a46]">
                     {item.answer}
                   </p>
                 </details>
@@ -274,15 +346,15 @@ export function OrgDocumentsPage({ markdown }: { markdown: string }) {
             </div>
 
             <div className="mt-10">
-              <p className="text-[15px] font-normal leading-7 text-neutral-muted">
-                여기에서 해결되지 않았다면 프로필 메뉴의 문의하기를 열어주세요.
-                보고 있던 역할이나 후보자 이름을 같이 남기면 더 빨리 확인할 수
-                있습니다.
+              <p className="text-[16px] font-normal leading-7 text-[#504a46]">
+                문의하기를 통해 Harper 팀에 직접 문의를 남겨주시면 최대한 빠르게
+                응답드리겠습니다. 보고 있던 역할이나 후보자 이름, 궁금한 내용을
+                함께 남겨주시면 더 정확하게 확인할 수 있습니다.
               </p>
               <MuteButton
-                className="mt-5 font-normal focus-visible:ring-neutral-1000-a10 focus-visible:ring-offset-bg-default"
+                className="mt-5 font-normal focus-visible:ring-black/10 focus-visible:ring-offset-white"
                 onClick={() => openCustomCrispWidget()}
-                size="lg"
+                size="md"
                 variant="dark"
               >
                 문의하기
@@ -291,6 +363,16 @@ export function OrgDocumentsPage({ markdown }: { markdown: string }) {
             </div>
           </section>
         </article>
+
+        <aside className="hidden xl:block">
+          <div className="sticky top-10">
+            <SectionNavigation
+              activeSection={activeSection}
+              items={navigationItems}
+              onNavigate={navigateToSection}
+            />
+          </div>
+        </aside>
       </div>
     </div>
   );

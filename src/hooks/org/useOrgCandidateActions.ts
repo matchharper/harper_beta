@@ -135,7 +135,7 @@ export function useOrgCandidateActions(args: {
     });
     if (!changed) return;
     addToast({
-      message: "후보자 연결을 수락했습니다.",
+      message: "후보자 연결을 시작했어요.",
       variant: "success",
     });
   };
@@ -159,8 +159,13 @@ export function useOrgCandidateActions(args: {
       workspaceId: args.workspaceId,
     });
     if (!changed) return;
+    const endedExistingConnection =
+      args.detail?.recommendation.stage !== undefined &&
+      args.detail.recommendation.stage !== "pending_connection";
     addToast({
-      message: "이 후보자와 연결받지 않기로 했습니다.",
+      message: endedExistingConnection
+        ? "후보자 연결을 종료했어요. Harper가 후보자에게 종료를 안내해요."
+        : "후보자 연결을 거절했어요. 회사의 종료 결정이 후보자에게 안내돼요.",
       variant: "success",
     });
   };

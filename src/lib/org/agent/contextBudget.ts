@@ -32,6 +32,7 @@ type RetainedMoreDataState = {
 
 type OrgAgentContextBudgetShape = {
   companyText: string;
+  contactDraftsText?: string;
   contextNotesText: string;
   conversationText: string;
   inProgressRoleCreationsText?: string;
@@ -92,6 +93,7 @@ export function enforceOrgAgentContextBudget<
   const size = () =>
     [
       mutable.companyText,
+      mutable.contactDraftsText,
       mutable.rolesText,
       mutable.recentRecommendationsText,
       mutable.summariesText,
@@ -110,7 +112,8 @@ export function enforceOrgAgentContextBudget<
     const source = mutable[key];
     const firstLine = source.split("\n", 1)[0] ?? "";
     const preservedMetadata =
-      key === "conversationText" && firstLine.startsWith("scope=current_thread ")
+      key === "conversationText" &&
+      firstLine.startsWith("scope=current_thread ")
         ? firstLine
         : "";
     const prefix = [marker, preservedMetadata].filter(Boolean).join("\n");

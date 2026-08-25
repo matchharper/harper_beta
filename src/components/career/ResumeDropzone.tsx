@@ -1,8 +1,10 @@
 import { FileText, Upload } from "lucide-react";
 import React, { useState, type ChangeEvent, type DragEvent } from "react";
 import { cn } from "@/lib/cn";
+import { MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES } from "@/lib/talentOnboarding/documentUploadLimits";
 
 export type ResumeFileSelectSource = "dialog" | "drop";
+export type ResumeFileRejectReason = "file-size" | "file-type";
 
 type ResumeDropzoneProps = {
   accept?: string;
@@ -13,8 +15,13 @@ type ResumeDropzoneProps = {
   dragTitle: string;
   fileName?: string;
   inputId: string;
+  maxFileSizeBytes?: number;
   onFileSelect: (file: File | null, source: ResumeFileSelectSource) => void;
-  onFileReject?: (file: File, source: ResumeFileSelectSource) => void;
+  onFileReject?: (
+    file: File,
+    source: ResumeFileSelectSource,
+    reason: ResumeFileRejectReason
+  ) => void;
   selectedDescription?: string;
   selectedTitle?: string;
   title: string;
@@ -51,6 +58,7 @@ const ResumeDropzone = ({
   dragTitle,
   fileName = "",
   inputId,
+  maxFileSizeBytes = MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES,
   onFileSelect,
   onFileReject,
   selectedDescription,
@@ -103,7 +111,11 @@ const ResumeDropzone = ({
     const file = event.dataTransfer.files?.[0] ?? null;
     if (file) {
       if (!isAcceptedFile(file, accept)) {
-        onFileReject?.(file, "drop");
+        onFileReject?.(file, "drop", "file-type");
+        return;
+      }
+      if (file.size > maxFileSizeBytes) {
+        onFileReject?.(file, "drop", "file-size");
         return;
       }
 
@@ -114,7 +126,12 @@ const ResumeDropzone = ({
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null;
     if (file && !isAcceptedFile(file, accept)) {
-      onFileReject?.(file, "dialog");
+      onFileReject?.(file, "dialog", "file-type");
+      event.currentTarget.value = "";
+      return;
+    }
+    if (file && file.size > maxFileSizeBytes) {
+      onFileReject?.(file, "dialog", "file-size");
       event.currentTarget.value = "";
       return;
     }

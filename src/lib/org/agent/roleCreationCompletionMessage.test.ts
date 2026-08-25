@@ -5,24 +5,31 @@ import {
   splitRoleCreationCompletionSentences,
 } from "@/lib/org/agent/roleCreationCompletionMessage";
 
-test("builds a scannable completion guide with bold labels and role context", () => {
+test("builds a detailed matching-start guide with role context and expectations", () => {
   const message = buildRoleCreationCompletionMessage({
     companyName: "Harper",
     roleName: "Founding Designer",
     userName: "민지",
   });
 
-  assert.ok(message.split("\n\n").length >= 10);
+  assert.ok(message.split("\n\n").length >= 7);
   assert.doesNotMatch(message, /^#{1,6}\s/m);
-  assert.match(message, /\*\*Harper는 이제 이런 인재를 찾아요\*\*/);
-  assert.match(message, /\*\*적합도가 높은 인재를 발견하면\*\*/);
-  assert.match(message, /\*\*민지님이 해주실 일\*\*/);
-  assert.match(message, /\*\*기준이 달라지면 언제든 알려주세요\*\*/);
-  assert.match(message, /민지님/);
-  assert.match(message, /Harper/);
-  assert.match(message, /Founding Designer/);
-  assert.match(message, /곧바로 회사에 공유하지 않고/);
-  assert.match(message, /임의로 수락이나 거절로 판단하지 않기 때문에/);
+  assert.match(
+    message,
+    /지금부터 Harper의 \*\*Founding Designer\*\* 역할의 매칭을 시작합니다/
+  );
+  assert.match(message, /🔥 앞으로 Harper가 해당 역할의 기준과 팀의 선호도/);
+  assert.match(message, /Harper 인재풀을 검토하고/);
+  assert.match(message, /후보자에게 먼저 확인해요/);
+  assert.match(message, /Inbox의 연결 대기 후보자/);
+  assert.match(message, /Harper와 역할을 충분히 소개하고/);
+  assert.match(message, /천천히 정말 적합한 분들만을 연결/);
+  assert.match(message, /연결을 수락하거나 거절/);
+  assert.doesNotMatch(message, /Connect|Reject/);
+  assert.match(message, /종료 결정이 후보자에게 안내돼요/);
+  assert.match(message, /자세히 알려주실수록 다음 매칭에 더 정확하게 반영/);
+  assert.match(message, /기준이 달라진다면 편하게 알려주세요/);
+  assert.match(message, /감사합니다\.$/);
 });
 
 test("splits completion copy by whole sentences while preserving paragraphs", () => {
@@ -33,7 +40,7 @@ test("splits completion copy by whole sentences while preserving paragraphs", ()
   });
   const chunks = splitRoleCreationCompletionSentences(message);
 
-  assert.ok(chunks.length >= 9);
+  assert.ok(chunks.length >= 5);
   assert.equal(chunks.join(""), message);
   assert.ok(chunks.some((chunk) => chunk.endsWith("\n\n")));
 });
@@ -52,12 +59,12 @@ test("states whether the selected Slack channel received completion guidance", (
     userName: "민지",
   });
 
-  assert.match(delivered, /Slack 채널에도 역할 등록 완료/);
-  assert.match(failed, /Slack 채널에는 등록 완료 안내를 전달하지 못했어요/);
+  assert.match(delivered, /Slack 채널에도 역할 등록과 후보자 탐색 시작/);
+  assert.match(failed, /Slack에는 등록 안내를 보내지 못했어요/);
   assert.match(failed, /역할 등록과 후보자 탐색은 정상적으로 시작/);
 });
 
-test("keeps Slack completion guidance concise", () => {
+test("keeps the full matching-start explanation on Slack", () => {
   const message = buildRoleCreationCompletionMessage({
     companyName: "Harper",
     roleName: "Founding Designer",
@@ -66,9 +73,9 @@ test("keeps Slack completion guidance concise", () => {
     userName: "민지",
   });
 
-  assert.equal(message.split("\n\n").length, 2);
+  assert.ok(message.split("\n\n").length >= 7);
   assert.match(message, /Founding Designer/);
-  assert.match(message, /Slack 채널에도 역할 등록 완료/);
-  assert.match(message, /언제든 이 스레드에서 알려 주세요/);
-  assert.ok(message.length < 500);
+  assert.match(message, /Slack 채널에도 역할 등록과 후보자 탐색 시작/);
+  assert.match(message, /천천히 정말 적합한 분들만을 연결/);
+  assert.match(message, /감사합니다\.$/);
 });

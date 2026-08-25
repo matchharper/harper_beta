@@ -351,7 +351,7 @@ export function OrgRoleSettingsContent({
             <section className="min-w-0 space-y-7">
               <div className="space-y-2">
                 <RoleSectionHeading
-                  description="이 포지션의 새로운 연결 소식을 받을 Slack 채널을 선택하세요."
+                  description="이 역할의 새로운 연결 소식을 받을 Slack 채널을 선택하세요."
                   title="알림 채널"
                 />
                 {channels.length > 0 ? (
@@ -401,19 +401,16 @@ export function OrgRoleSettingsContent({
                     ))}
                   </div>
                 ) : (
-                  <div className="flex w-full flex-col items-start justify-between gap-3 border-t border-neutral-1000-a05 py-4 text-[13px] leading-5 text-neutral-muted sm:flex-row sm:items-center">
-                    <div className="max-w-lg">
-                      연결된 Slack 채널이 없습니다. Settings에서 먼저 채널을
-                      연결해 주세요.
-                    </div>
-                    <MuteButton asChild variant="transparent">
+                  <div className="flex w-full flex-col items-start justify-between gap-3 mt-1 sm:flex-row sm:items-center">
+                    <MuteButton asChild variant="default">
                       <Link
                         href={buildOrgHref({
                           orgId: workspaceId,
                           page: "settings",
                         })}
                       >
-                        이동 <ArrowRight className="size-4" />
+                        Slack 연결
+                        <ArrowRight className="size-4" />
                       </Link>
                     </MuteButton>
                   </div>
@@ -534,7 +531,7 @@ export function OrgRoleSettingsContent({
         <OrgSection>
           <OrgSectionHeader
             description="후보자 매칭 기준과는 별도로, Harper가 이 역할에 대해 계속 기억해야 할 운영 맥락입니다."
-            title="Guide for Harper"
+            title="Context for Harper"
           />
           {role.memory?.trim() ? (
             <div className="min-h-28 text-[13px] leading-6 text-neutral-primary">

@@ -26,7 +26,6 @@ import {
 import { useCountryLang } from "@/hooks/useCountryLang";
 import { BareButton } from "@/components/ui/button";
 import { Input as UiInput } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Text } from "@/components/ui/text";
 import ConfirmModal from "@/components/Modal/ConfirmModal";
 import { isOverseasCountryLang } from "@/i18n/localeResolution";
@@ -118,9 +117,9 @@ const CAREER_LOGIN_COPY: Record<
     copyBrowserLink: string;
     copyBrowserLinkDone: string;
     copyBrowserLinkFailed: string;
-    privacyAcknowledgement: string;
+    privacyNoticePrefix: string;
+    privacyNoticeSuffix: string;
     privacyPolicyLabel: string;
-    privacyRequired: string;
     trustedBy: string;
   }
 > = {
@@ -171,9 +170,9 @@ const CAREER_LOGIN_COPY: Record<
       "링크를 복사했습니다. Safari나 Chrome 주소창에 붙여넣어 주세요.",
     copyBrowserLinkFailed:
       "링크 복사에 실패했습니다. 주소창의 URL을 Safari나 Chrome에서 직접 열어 주세요.",
-    privacyAcknowledgement: "에 동의합니다.",
+    privacyNoticePrefix: "계속 진행한다면 Harper의 ",
+    privacyNoticeSuffix: "에 동의하게 됩니다.",
     privacyPolicyLabel: "개인정보 처리방침",
-    privacyRequired: "회원가입하려면 개인정보 처리방침을 확인해 주세요.",
     trustedBy: "이곳의 인재들이 신뢰합니다.",
   },
   en: {
@@ -223,9 +222,9 @@ const CAREER_LOGIN_COPY: Record<
       "Link copied. Paste it into Safari or Chrome to continue.",
     copyBrowserLinkFailed:
       "We couldn't copy the link. Open the current URL directly in Safari or Chrome.",
-    privacyAcknowledgement: "",
-    privacyPolicyLabel: "I agree to the Privacy Policy",
-    privacyRequired: "Review the Privacy Policy before creating an account.",
+    privacyNoticePrefix: "By continuing, you agree to Harper's ",
+    privacyNoticeSuffix: ".",
+    privacyPolicyLabel: "Privacy Policy",
     trustedBy: "Trusted by talent from these communities.",
   },
 };
@@ -344,7 +343,6 @@ const CareerLoginContent = () => {
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [emailMode, setEmailMode] = useState<"signin" | "signup">("signin");
-  const [privacyAcknowledged, setPrivacyAcknowledged] = useState(true);
   const [formError, setFormError] = useState("");
   const [resetInfo, setResetInfo] = useState("");
   const [resetPending, setResetPending] = useState(false);
@@ -572,10 +570,6 @@ const CareerLoginContent = () => {
       return;
     }
 
-    if (emailMode === "signup" && !privacyAcknowledged) {
-      setFormError(copy.privacyRequired);
-      return;
-    }
     if (emailMode === "signup" && password !== passwordConfirm) {
       setFormError(copy.passwordMismatch);
       return;
@@ -595,10 +589,6 @@ const CareerLoginContent = () => {
   const handleGoogleAuth = () => {
     setFormError("");
     setResetInfo("");
-    if (!privacyAcknowledged) {
-      setFormError(copy.privacyRequired);
-      return;
-    }
     void handleGoogleLogin(privacyPolicyAcknowledgement);
   };
 
@@ -1013,38 +1003,28 @@ const CareerLoginContent = () => {
                     {resetInfo}
                   </Text>
                 ) : null}
-
-                <div className="mx-auto mt-4 flex max-w-[370px] justify-center text-left">
-                  <Checkbox
-                    checked={privacyAcknowledged}
-                    onChange={(event) => {
-                      setPrivacyAcknowledged(event.target.checked);
-                      setFormError("");
-                    }}
-                    disabled={authActionPending}
-                    state={
-                      formError === copy.privacyRequired ? "error" : "default"
-                    }
-                    size="medium"
-                    label={
-                      <span>
-                        <Link
-                          href={`/privacy?lang=${locale}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-link underline underline-offset-2"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          {copy.privacyPolicyLabel}
-                        </Link>
-                        {copy.privacyAcknowledgement}
-                      </span>
-                    }
-                  />
-                </div>
               </>
             )}
           </div>
+          {!emailConfirmationSent ? (
+            <Text
+              as="p"
+              variant="caption"
+              tone="subtle"
+              className="mt-4 max-w-[370px] break-keep text-center text-[12px] font-normal leading-5"
+            >
+              {copy.privacyNoticePrefix}
+              <Link
+                href={`/privacy?lang=${locale}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-link underline underline-offset-2"
+              >
+                {copy.privacyPolicyLabel}
+              </Link>
+              {copy.privacyNoticeSuffix}
+            </Text>
+          ) : null}
         </section>
 
         {!emailConfirmationSent ? (

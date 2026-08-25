@@ -2,6 +2,7 @@ const BUTTON_MARKER_START_PATTERN = /\[([^\]\r\n]{1,75})\]\(button:/g;
 
 export const HARPER_SLACK_CHOICE_ACTION_PREFIX = "harper_company_agent_choice:";
 export const HARPER_SLACK_CHOICE_BLOCK_PREFIX = "harper_company_agent_choices:";
+export const HARPER_SLACK_COMPANY_INFO_ACTION_ID = "harper_company_info_link";
 
 const MAX_SLACK_CHOICES = 2;
 const MAX_SLACK_SECTION_LENGTH = 3_000;
@@ -191,34 +192,23 @@ export function buildHarperSlackChoiceBlocks(args: {
   choices: HarperSlackChoice[];
   sourceJobId: string;
   text: string;
-  toolUsageText?: string | null;
 }): HarperSlackBlock[] {
-  const sections = splitSlackSectionText(args.text || "선택해 주세요.").map(
-    (section) => ({
-      type: "section",
-      text: { type: "mrkdwn", text: section },
-    })
+  const slackText = args.text.replace(
+    /(^|\n)```(?:text|plaintext|markdown|md)\s*\n/gi,
+    "$1```\n"
   );
-  const toolUsageText = String(args.toolUsageText ?? "").trim();
-  const context = toolUsageText
-    ? [
-        {
-          type: "context",
-          elements: [
-            {
-              type: "mrkdwn",
-              text: escapeSlackMrkdwnText(toolUsageText),
-            },
-          ],
-        },
-      ]
-    : [];
-  const sectionLimit = 50 - context.length - (args.choices.length > 0 ? 1 : 0);
+  const sections = splitSlackSectionText(
+    slackText || "다음 행동을 선택해 주세요."
+  ).map((section) => ({
+    expand: true,
+    type: "section",
+    text: { type: "mrkdwn", text: section },
+  }));
+  const sectionLimit = 50 - (args.choices.length > 0 ? 1 : 0);
   if (args.choices.length === 0) {
-    return [...context, ...sections.slice(0, sectionLimit)];
+    return sections.slice(0, sectionLimit);
   }
   return [
-    ...context,
     ...sections.slice(0, sectionLimit),
     {
       type: "actions",
@@ -236,25 +226,6 @@ export function buildHarperSlackChoiceBlocks(args: {
         })),
     },
   ];
-}
-
-/** Builds the compact, first-seen-order tool counter shown above Slack replies. */
-export function formatHarperSlackToolUsage(metadata: unknown) {
-  if (!metadata || typeof metadata !== "object") return null;
-  const toolResults = (metadata as Record<string, unknown>).toolResults;
-  if (!Array.isArray(toolResults)) return null;
-
-  const counts = new Map<string, number>();
-  for (const result of toolResults) {
-    if (!result || typeof result !== "object") continue;
-    const name = String((result as Record<string, unknown>).name ?? "").trim();
-    if (!/^[A-Za-z0-9_-]{1,75}$/.test(name)) continue;
-    counts.set(name, (counts.get(name) ?? 0) + 1);
-  }
-  if (counts.size === 0) return null;
-  return Array.from(counts, ([name, count]) => `${name}:${count}번`).join(
-    " · "
-  );
 }
 
 function escapeSlackMrkdwnText(value: string) {

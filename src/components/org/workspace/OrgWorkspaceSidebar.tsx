@@ -9,8 +9,10 @@ import {
   Home,
   Inbox,
   Landmark,
+  Menu,
   ListFilter,
   LogOut,
+  PanelLeftClose,
   Plus,
   Users,
 } from "lucide-react";
@@ -27,6 +29,7 @@ import {
 } from "react";
 import { MuteButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
 import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
@@ -41,11 +44,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltips } from "@/components/ui/tooltip";
+import { useOrgMobileNavigation } from "@/components/org/workspace/OrgMobileNavigation";
 import { useOrgInbox } from "@/hooks/org/useOrg";
 import { useOrgSlackStatus } from "@/hooks/org/useOrgSlack";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { usePreviousPathname } from "@/hooks/useRouteHistory";
 import { sortOrgRolesForRecentList } from "@/lib/org/recentRoles";
+import { ORG_PRODUCT_LABELS } from "@/lib/org/productVocabulary";
 import {
   getOrgRoleStatusFilterValue,
   ORG_ROLE_STATUS_FILTER_OPTIONS,
@@ -54,40 +59,36 @@ import {
 import { openCustomCrispWidget } from "@/lib/feedback/customCrispEvents";
 import { buildOrgHref, type OrgWorkspacePageId } from "@/lib/org/routes";
 import { shouldAnimateOrganizationSidebarEntry } from "@/lib/org/sidebarTransition";
-import type { OrgMember, OrgWorkspace } from "@/lib/org/server";
+import type { OrgMember, OrgRole, OrgWorkspace } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
-import { InternalOnlyHatch } from "@/components/org/internal/InternalOnlySurface";
 
 type OrgNavItem = {
-  icon: ComponentType<{ className?: string }>;
+  icon: ComponentType<{ className?: string; strokeWidth?: number }>;
   id: OrgWorkspacePageId;
   label: string;
   location?: "top" | "bottom";
 };
 
 const PRIMARY_NAV: OrgNavItem[] = [
-  { icon: Home, id: "home", label: "Home" },
-  { icon: Inbox, id: "inbox", label: "Inbox" },
-  { icon: BriefcaseBusiness, id: "jobs", label: "Roles" },
+  { icon: Home, id: "home", label: ORG_PRODUCT_LABELS.home },
+  { icon: Inbox, id: "inbox", label: ORG_PRODUCT_LABELS.inbox },
+  { icon: BriefcaseBusiness, id: "jobs", label: ORG_PRODUCT_LABELS.roles },
   {
     icon: Landmark,
     id: "team",
-    label: "Organization",
+    label: ORG_PRODUCT_LABELS.organization,
     location: "bottom",
   },
 ];
 const NEW_ROLE_NAV: OrgNavItem = {
   icon: Plus,
   id: "new-role",
-  label: "New",
+  label: ORG_PRODUCT_LABELS.newRole,
 };
-const INTERNAL_ALL_NAV: OrgNavItem = {
-  icon: ListFilter,
-  id: "all",
-  label: "All",
-  location: "bottom",
-};
+const ALL_ROLE_STATUSES = ORG_ROLE_STATUS_FILTER_OPTIONS.map(
+  (option) => option.status
+);
 
 function WorkspaceAvatar({
   size = "md",
@@ -122,6 +123,90 @@ function WorkspaceAvatar({
     >
       {workspace.companyName.slice(0, 1).toUpperCase()}
     </span>
+  );
+}
+
+function WorkspaceControl({
+  compact = false,
+  onSelectWorkspace,
+  workspace,
+  workspaces,
+}: {
+  compact?: boolean;
+  onSelectWorkspace: (workspaceId: string) => void;
+  workspace: OrgWorkspace;
+  workspaces: OrgWorkspace[];
+}) {
+  if (workspaces.length <= 1) {
+    return compact ? (
+      <Tooltips side="right" text={workspace.companyName}>
+        <div
+          aria-label={workspace.companyName}
+          className="flex h-9 items-center justify-center"
+          role="img"
+        >
+          <WorkspaceAvatar workspace={workspace} />
+        </div>
+      </Tooltips>
+    ) : (
+      <div className="flex min-w-0 items-center gap-2.5 px-2 py-1.5">
+        <WorkspaceAvatar workspace={workspace} />
+        <span className="truncate text-[13px] font-medium text-neutral-primary">
+          {workspace.companyName}
+        </span>
+      </div>
+    );
+  }
+
+  const trigger = (
+    <DropdownMenuTrigger asChild>
+      <MuteButton
+        aria-label={`${workspace.companyName} Workspace 변경`}
+        className={cn(
+          "w-full",
+          compact ? "justify-center px-0" : "justify-between"
+        )}
+        size="md"
+        variant="transparent"
+      >
+        <span className={cn("flex items-center", !compact && "min-w-0 gap-2")}>
+          <WorkspaceAvatar workspace={workspace} />
+          {compact ? null : (
+            <span className="truncate text-[14px] font-medium text-neutral-primary">
+              {workspace.companyName}
+            </span>
+          )}
+        </span>
+        {compact ? null : (
+          <ChevronDown className="size-3.5 text-neutral-soft" />
+        )}
+      </MuteButton>
+    </DropdownMenuTrigger>
+  );
+
+  return (
+    <DropdownMenu>
+      {compact ? (
+        <Tooltips side="right" text={workspace.companyName}>
+          {trigger}
+        </Tooltips>
+      ) : (
+        trigger
+      )}
+      <DropdownMenuContent align="start" className="w-56">
+        <DropdownMenuLabel>Workspace</DropdownMenuLabel>
+        {workspaces.map((item) => (
+          <DropdownMenuItem
+            key={item.workspaceId}
+            onSelect={() => onSelectWorkspace(item.workspaceId)}
+            selected={item.workspaceId === workspace.workspaceId}
+          >
+            <WorkspaceAvatar size="sm" workspace={item} />
+            <span className="truncate">{item.companyName}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -176,22 +261,12 @@ function getNavItemClassName({
   );
 }
 
-function getMobileNavItemClassName(active: boolean) {
-  return cn(
-    "relative isolate shrink-0 overflow-hidden rounded-md px-3 py-1.5 text-[12px] font-normal",
-    active
-      ? "bg-bg-weak text-neutral-primary"
-      : "text-neutral-muted hover:bg-bg-weak hover:text-neutral-primary"
-  );
-}
-
 function NavLink({
   active,
   compact = false,
   href,
   icon: Icon,
   iconBackground = false,
-  internalOnly = false,
   label,
   pendingConnectionCount,
 }: {
@@ -200,7 +275,6 @@ function NavLink({
   href: string;
   icon: ComponentType<{ className?: string }>;
   iconBackground?: boolean;
-  internalOnly?: boolean;
   label: string;
   pendingConnectionCount?: number;
 }) {
@@ -215,7 +289,6 @@ function NavLink({
       className={getNavItemClassName({ active, compact })}
       href={href}
     >
-      {internalOnly ? <InternalOnlyHatch className="opacity-70" /> : null}
       {iconBackground ? (
         <span className="relative z-20 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary-faded text-primary">
           <Icon className="size-3.5 stroke-[1.8]" />
@@ -241,7 +314,13 @@ function NavLink({
   );
 }
 
-function RecentRoleTitle({ title }: { title: string }) {
+function RecentRoleTitle({
+  mobile = false,
+  title,
+}: {
+  mobile?: boolean;
+  title: string;
+}) {
   const textRef = useRef<HTMLSpanElement | null>(null);
   const [isTruncated, setIsTruncated] = useState(false);
 
@@ -250,7 +329,11 @@ function RecentRoleTitle({ title }: { title: string }) {
     if (!text) return;
 
     const measureTruncation = () => {
-      setIsTruncated(text.scrollWidth > text.clientWidth);
+      setIsTruncated(
+        mobile
+          ? text.scrollHeight > text.clientHeight
+          : text.scrollWidth > text.clientWidth
+      );
     };
 
     measureTruncation();
@@ -264,14 +347,173 @@ function RecentRoleTitle({ title }: { title: string }) {
       window.removeEventListener("resize", measureTruncation);
       resizeObserver?.disconnect();
     };
-  }, [title]);
+  }, [mobile, title]);
 
   return (
     <Tooltips side="right" text={isTruncated ? title : ""}>
-      <span ref={textRef} className="min-w-0 flex-1 truncate">
+      <span
+        ref={textRef}
+        className={cn("min-w-0 flex-1", mobile ? "line-clamp-2" : "truncate")}
+      >
         {title}
       </span>
     </Tooltips>
+  );
+}
+
+function RecentRoleStatusFilter({
+  active,
+  onReset,
+  onToggle,
+  visibleStatuses,
+}: {
+  active: boolean;
+  onReset: () => void;
+  onToggle: (status: OrgRoleStatus, checked: boolean) => void;
+  visibleStatuses: ReadonlySet<OrgRoleStatus>;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <MuteButton
+          aria-label="Recent 역할 상태 필터"
+          aria-pressed={active}
+          size="sm"
+          variant={active ? "neutral" : "transparent"}
+        >
+          <ListFilter className="size-3.5 stroke-[1.6]" />
+        </MuteButton>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuLabel className="text-[12px] font-normal">
+          표시할 상태
+        </DropdownMenuLabel>
+        {ORG_ROLE_STATUS_FILTER_OPTIONS.map((option) => (
+          <DropdownMenuCheckboxItem
+            key={option.status}
+            checked={visibleStatuses.has(option.status)}
+            className="gap-2"
+            indicatorPosition="right"
+            onCheckedChange={(checked) =>
+              onToggle(option.status, checked === true)
+            }
+            onSelect={(event) => event.preventDefault()}
+          >
+            <OrgRoleStatusDot decorative status={option.status} />
+            <span>{option.label}</span>
+          </DropdownMenuCheckboxItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={onReset} selected={!active}>
+          전체 상태
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function RecentRolesSection({
+  activePage,
+  activeRoleId,
+  filteredRoles,
+  mobile = false,
+  onNavigate,
+  onResetStatusFilter,
+  onToggleStatus,
+  recentRoleCount,
+  statusFilterActive,
+  visibleStatuses,
+  workspaceId,
+}: {
+  activePage: OrgWorkspacePageId;
+  activeRoleId: string;
+  filteredRoles: readonly OrgRole[];
+  mobile?: boolean;
+  onNavigate?: () => void;
+  onResetStatusFilter: () => void;
+  onToggleStatus: (status: OrgRoleStatus, checked: boolean) => void;
+  recentRoleCount: number;
+  statusFilterActive: boolean;
+  visibleStatuses: ReadonlySet<OrgRoleStatus>;
+  workspaceId: string;
+}) {
+  return (
+    <section
+      className={cn(
+        "flex min-h-0 flex-1 flex-col border-t border-neutral-1000-a05",
+        mobile ? "pt-2" : "mt-4 pt-4"
+      )}
+    >
+      <div
+        className={cn(
+          "flex items-center justify-between text-neutral-muted",
+          mobile
+            ? "mb-1 px-4 text-[12px]"
+            : "mx-3 mb-2 px-2.5 text-[13px] font-normal"
+        )}
+      >
+        <span>{ORG_PRODUCT_LABELS.recent}</span>
+        <RecentRoleStatusFilter
+          active={statusFilterActive}
+          onReset={onResetStatusFilter}
+          onToggle={onToggleStatus}
+          visibleStatuses={visibleStatuses}
+        />
+      </div>
+      <nav
+        aria-label="Recent roles"
+        className={cn(
+          "min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10",
+          mobile ? "px-2" : "px-3"
+        )}
+      >
+        <div className={cn("space-y-1", mobile && "pb-2")}>
+          {filteredRoles.map((role) => {
+            const active =
+              activePage === "role" && activeRoleId === role.roleId;
+            return (
+              <Link
+                key={role.roleId}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex min-h-9 min-w-0 items-center font-normal outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
+                  mobile
+                    ? "gap-2 rounded-md px-2 py-1.5 text-[13px]"
+                    : "h-9 gap-2.5 rounded-sm px-2.5 text-[14px]",
+                  active &&
+                    (mobile
+                      ? "bg-bg-weak text-neutral-primary"
+                      : "bg-neutral-200/80 text-black"),
+                  !active &&
+                    (mobile
+                      ? "text-neutral-primary hover:bg-bg-weak"
+                      : "text-neutral-primary hover:bg-neutral-100")
+                )}
+                href={buildOrgHref({
+                  orgId: workspaceId,
+                  page: "role",
+                  roleId: role.roleId,
+                })}
+                onClick={onNavigate}
+              >
+                <OrgRoleStatusDot status={role.status} />
+                <RecentRoleTitle mobile={mobile} title={role.name} />
+              </Link>
+            );
+          })}
+          {recentRoleCount > 0 && filteredRoles.length === 0 ? (
+            <p
+              className={cn(
+                "py-2 text-[12px] text-neutral-soft",
+                mobile ? "px-3" : "px-2.5"
+              )}
+            >
+              선택한 상태의 역할이 없습니다.
+            </p>
+          ) : null}
+        </div>
+      </nav>
+    </section>
   );
 }
 
@@ -345,15 +587,23 @@ export function OrgWorkspaceSidebar({
   compact?: boolean;
 }) {
   const router = useRouter();
+  const {
+    closeNavigation,
+    navigationOpen,
+    navigationTriggerHidden,
+    openNavigation,
+    setNavigationOpen,
+  } = useOrgMobileNavigation();
   const previousPathname = usePreviousPathname();
   const signOut = useAuthStore((state) => state.signOut);
   const [signOutPending, setSignOutPending] = useState(false);
+  const [mobileOrganizationMenuOpen, setMobileOrganizationMenuOpen] =
+    useState(false);
   const [visibleRecentRoleStatuses, setVisibleRecentRoleStatuses] = useState<
     OrgRoleStatus[]
-  >(() => ORG_ROLE_STATUS_FILTER_OPTIONS.map((option) => option.status));
+  >(() => [...ALL_ROLE_STATUSES]);
   const {
     currentUser,
-    internalOpsAccess,
     page: activePage,
     permissions,
     roles,
@@ -369,15 +619,11 @@ export function OrgWorkspaceSidebar({
       ),
     [inboxQuery.data?.items]
   );
-  const canSwitchWorkspace = workspaces.length > 1;
-  const baseNav = internalOpsAccess
-    ? [INTERNAL_ALL_NAV, ...PRIMARY_NAV]
-    : PRIMARY_NAV;
   const primaryNav = permissions.canManageCandidates
-    ? baseNav.flatMap((item) =>
+    ? PRIMARY_NAV.flatMap((item) =>
         item.id === "jobs" ? [item, NEW_ROLE_NAV] : [item]
       )
-    : baseNav;
+    : PRIMARY_NAV;
   const topNav = primaryNav.filter((item) => item.location !== "bottom");
   const bottomNav = primaryNav.filter((item) => item.location === "bottom");
   const recentRoles = useMemo(() => sortOrgRolesForRecentList(roles), [roles]);
@@ -410,18 +656,38 @@ export function OrgWorkspaceSidebar({
       : activePage === "member"
         ? "members"
         : "company";
-  const organizationCompanyHref = buildOrgHref({
-    orgId: workspace.workspaceId,
-    page: "team",
-  });
-  const organizationMembersHref = buildOrgHref({
-    orgId: workspace.workspaceId,
-    page: "member",
-  });
+  const organizationNav = [
+    {
+      active: organizationSection === "company",
+      href: navHref("team"),
+      icon: Building2,
+      label: ORG_PRODUCT_LABELS.company,
+    },
+    {
+      active: organizationSection === "members",
+      href: navHref("member"),
+      icon: Users,
+      label: ORG_PRODUCT_LABELS.members,
+    },
+    {
+      active: organizationSection === "integration",
+      href: navHref("settings"),
+      icon: Blocks,
+      label: ORG_PRODUCT_LABELS.integrations,
+    },
+  ];
   const organizationReturnHref = buildOrgHref({
     orgId: workspace.workspaceId,
     page: "home",
   });
+  const handleOpenMobileNavigation = () => {
+    setMobileOrganizationMenuOpen(organizationMode);
+    openNavigation();
+  };
+  const handleMobileNavigationOpenChange = (open: boolean) => {
+    if (open) setMobileOrganizationMenuOpen(organizationMode);
+    setNavigationOpen(open);
+  };
   const toggleRecentRoleStatus = (status: OrgRoleStatus, checked: boolean) => {
     setVisibleRecentRoleStatuses((current) => {
       const next = new Set(current);
@@ -432,8 +698,11 @@ export function OrgWorkspaceSidebar({
       ).filter((value) => next.has(value));
     });
   };
+  const resetRecentRoleStatusFilter = () =>
+    setVisibleRecentRoleStatuses([...ALL_ROLE_STATUSES]);
   const selectWorkspace = (workspaceId: string) => {
     if (!workspaceId || workspaceId === workspace.workspaceId) return;
+    closeNavigation();
     void router.push(
       buildOrgHref({
         orgId: workspaceId,
@@ -446,99 +715,22 @@ export function OrgWorkspaceSidebar({
     setSignOutPending(true);
     try {
       await signOut();
+      closeNavigation();
       await router.replace("/org");
     } finally {
       setSignOutPending(false);
     }
   };
 
-  const workspaceControl =
-    canSwitchWorkspace && workspaces.length > 1 ? (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <MuteButton
-            aria-label="Workspace 변경"
-            className="w-full justify-between"
-            size="md"
-            variant="transparent"
-          >
-            <span className="flex min-w-0 items-center gap-2">
-              <WorkspaceAvatar workspace={workspace} />
-              <span className="truncate text-[14px] font-medium text-neutral-primary">
-                {workspace.companyName}
-              </span>
-            </span>
-            <ChevronDown className="size-3.5 text-neutral-soft" />
-          </MuteButton>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
-          <DropdownMenuLabel>Workspace</DropdownMenuLabel>
-          {workspaces.map((item) => (
-            <DropdownMenuItem
-              key={item.workspaceId}
-              onSelect={() => selectWorkspace(item.workspaceId)}
-              selected={item.workspaceId === workspace.workspaceId}
-            >
-              <WorkspaceAvatar size="sm" workspace={item} />
-              <span className="truncate">{item.companyName}</span>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    ) : (
-      <div className="flex min-w-0 items-center gap-2.5 px-2 py-1.5">
-        <WorkspaceAvatar workspace={workspace} />
-        <span className="truncate text-[13px] font-medium text-neutral-primary">
-          {workspace.companyName}
-        </span>
-      </div>
-    );
-  const compactWorkspaceControl =
-    canSwitchWorkspace && workspaces.length > 1 ? (
-      <DropdownMenu>
-        <Tooltips side="right" text={workspace.companyName}>
-          <DropdownMenuTrigger asChild>
-            <MuteButton
-              aria-label={`${workspace.companyName} Workspace 변경`}
-              className="w-full justify-center px-0"
-              size="md"
-              variant="transparent"
-            >
-              <WorkspaceAvatar workspace={workspace} />
-            </MuteButton>
-          </DropdownMenuTrigger>
-        </Tooltips>
-        <DropdownMenuContent align="start" className="w-56">
-          <DropdownMenuLabel>Workspace</DropdownMenuLabel>
-          {workspaces.map((item) => (
-            <DropdownMenuItem
-              key={item.workspaceId}
-              onSelect={() => selectWorkspace(item.workspaceId)}
-              selected={item.workspaceId === workspace.workspaceId}
-            >
-              <WorkspaceAvatar size="sm" workspace={item} />
-              <span className="truncate">{item.companyName}</span>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    ) : (
-      <Tooltips side="right" text={workspace.companyName}>
-        <div
-          aria-label={workspace.companyName}
-          className="flex h-9 items-center justify-center"
-          role="img"
-        >
-          <WorkspaceAvatar workspace={workspace} />
-        </div>
-      </Tooltips>
-    );
+  useEffect(() => {
+    setNavigationOpen(false);
+  }, [router.asPath, setNavigationOpen]);
 
   return (
     <>
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 hidden flex-col overflow-hidden border-r border-neutral-1000-a05 py-3 lg:flex",
+          "fixed inset-y-0 left-0 z-40 hidden flex-col overflow-hidden border-r border-neutral-1000-a05 py-3 md:flex",
           compact ? "w-[72px]" : "w-[244px]"
         )}
       >
@@ -563,24 +755,9 @@ export function OrgWorkspaceSidebar({
                 />
               </div>
               <nav aria-label="Organization 설정" className="mx-3 space-y-1">
-                <NavLink
-                  active={organizationSection === "company"}
-                  href={organizationCompanyHref}
-                  icon={Building2}
-                  label="회사정보"
-                />
-                <NavLink
-                  active={organizationSection === "members"}
-                  href={organizationMembersHref}
-                  icon={Users}
-                  label="멤버"
-                />
-                <NavLink
-                  active={organizationSection === "integration"}
-                  href={navHref("settings")}
-                  icon={Blocks}
-                  label="Integration"
-                />
+                {organizationNav.map((item) => (
+                  <NavLink key={item.label} {...item} />
+                ))}
               </nav>
             </motion.div>
           ) : (
@@ -593,7 +770,12 @@ export function OrgWorkspaceSidebar({
               transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
             >
               <div className="mx-3 mb-2">
-                {compact ? compactWorkspaceControl : workspaceControl}
+                <WorkspaceControl
+                  compact={compact}
+                  onSelectWorkspace={selectWorkspace}
+                  workspace={workspace}
+                  workspaces={workspaces}
+                />
               </div>
               <div className="flex min-h-0 flex-1 flex-col">
                 <nav aria-label="Organization" className="mx-3 space-y-1">
@@ -605,7 +787,6 @@ export function OrgWorkspaceSidebar({
                       href={navHref(item.id)}
                       icon={item.icon}
                       iconBackground={item.id === "new-role"}
-                      internalOnly={item.id === "all"}
                       label={item.label}
                       pendingConnectionCount={
                         item.id === "inbox" ? pendingConnectionCount : undefined
@@ -615,106 +796,17 @@ export function OrgWorkspaceSidebar({
                 </nav>
 
                 {!compact && permissions.canManageCandidates ? (
-                  <section className="mt-4 flex min-h-0 flex-1 flex-col border-t border-neutral-1000-a05 pt-4">
-                    <div className="mx-3 mb-2 flex items-center justify-between px-2.5 text-[13px] font-normal text-neutral-muted">
-                      <span>Recent</span>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <MuteButton
-                            aria-label="Recent 역할 상태 필터"
-                            aria-pressed={recentStatusFilterActive}
-                            size="sm"
-                            variant={
-                              recentStatusFilterActive
-                                ? "neutral"
-                                : "transparent"
-                            }
-                          >
-                            <ListFilter className="size-3.5 stroke-[1.5]" />
-                          </MuteButton>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-52">
-                          <DropdownMenuLabel className="text-[12px] font-normal">
-                            표시할 상태
-                          </DropdownMenuLabel>
-                          {ORG_ROLE_STATUS_FILTER_OPTIONS.map((option) => (
-                            <DropdownMenuCheckboxItem
-                              key={option.status}
-                              checked={visibleRecentRoleStatusSet.has(
-                                option.status
-                              )}
-                              className="gap-2"
-                              indicatorPosition="right"
-                              onCheckedChange={(checked) =>
-                                toggleRecentRoleStatus(
-                                  option.status,
-                                  checked === true
-                                )
-                              }
-                              onSelect={(event) => event.preventDefault()}
-                            >
-                              <OrgRoleStatusDot
-                                decorative
-                                status={option.status}
-                              />
-                              <span>{option.label}</span>
-                            </DropdownMenuCheckboxItem>
-                          ))}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onSelect={() =>
-                              setVisibleRecentRoleStatuses([
-                                ...ORG_ROLE_STATUS_FILTER_OPTIONS.map(
-                                  (option) => option.status
-                                ),
-                              ])
-                            }
-                            selected={!recentStatusFilterActive}
-                          >
-                            전체 상태
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                    <nav
-                      aria-label="Recent roles"
-                      className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10"
-                    >
-                      <div className="space-y-1">
-                        {filteredRecentRoles.map((role) => {
-                          const active =
-                            activePage === "role" &&
-                            activeRoleId === role.roleId;
-                          return (
-                            <Link
-                              key={role.roleId}
-                              aria-current={active ? "page" : undefined}
-                              className={cn(
-                                "flex h-9 min-w-0 items-center gap-2.5 rounded-sm px-2.5 text-[14px] font-normal outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
-                                active
-                                  ? "bg-neutral-200/80 text-black"
-                                  : "text-neutral-primary hover:bg-neutral-100"
-                              )}
-                              href={buildOrgHref({
-                                orgId: workspace.workspaceId,
-                                page: "role",
-                                roleId: role.roleId,
-                              })}
-                            >
-                              <OrgRoleStatusDot status={role.status} />
-                              <RecentRoleTitle title={role.name} />
-                            </Link>
-                          );
-                        })}
-                        {recentRoles.length > 0 &&
-                        filteredRecentRoles.length === 0 ? (
-                          <p className="px-2.5 py-2 text-[12px] text-neutral-soft">
-                            선택한 상태의 역할이 없습니다.
-                          </p>
-                        ) : null}
-                      </div>
-                    </nav>
-                  </section>
+                  <RecentRolesSection
+                    activePage={activePage}
+                    activeRoleId={activeRoleId}
+                    filteredRoles={filteredRecentRoles}
+                    onResetStatusFilter={resetRecentRoleStatusFilter}
+                    onToggleStatus={toggleRecentRoleStatus}
+                    recentRoleCount={recentRoles.length}
+                    statusFilterActive={recentStatusFilterActive}
+                    visibleStatuses={visibleRecentRoleStatusSet}
+                    workspaceId={workspace.workspaceId}
+                  />
                 ) : null}
               </div>
 
@@ -729,7 +821,6 @@ export function OrgWorkspaceSidebar({
                       compact={compact}
                       href={navHref(item.id)}
                       icon={item.icon}
-                      internalOnly={item.id === "all"}
                       label={item.label}
                       pendingConnectionCount={
                         item.id === "inbox" ? pendingConnectionCount : undefined
@@ -813,141 +904,220 @@ export function OrgWorkspaceSidebar({
         </div>
       </aside>
 
-      <header className="sticky top-0 z-40 border-b border-neutral-1000-a05 bg-bg-default/95 backdrop-blur lg:hidden">
-        <div className="flex h-14 items-center justify-between gap-3 px-4">
-          <div className="min-w-0 flex-1">{workspaceControl}</div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+      {navigationTriggerHidden ? null : (
+        <header className="fixed inset-x-0 top-0 z-50 flex h-12 items-center border-b border-neutral-1000-a05 bg-bg-default px-3 md:hidden">
+          <MuteButton
+            aria-label="메뉴 열기"
+            onClick={handleOpenMobileNavigation}
+            size="md"
+            variant="transparent"
+          >
+            <Menu aria-hidden className="size-4.5" strokeWidth={1.7} />
+          </MuteButton>
+        </header>
+      )}
+
+      <Dialog
+        open={navigationOpen}
+        onOpenChange={handleMobileNavigationOpenChange}
+      >
+        <DialogContent
+          className="!inset-y-0 !left-0 !right-auto !top-0 z-[60] flex h-svh w-[min(82vw,280px)] max-w-[280px] !translate-x-0 !translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 border-r border-neutral-1000-a05 bg-bg-default p-0 shadow-[18px_0_48px_color-mix(in_srgb,var(--color-neutral-1000)_18%,transparent)] duration-300 data-[state=closed]:slide-out-to-left-full data-[state=closed]:zoom-out-100 data-[state=open]:slide-in-from-left-full data-[state=open]:zoom-in-100 md:hidden"
+          hideCloseButton
+          overlayClassName="z-[59] bg-transparent backdrop-blur-none md:hidden"
+        >
+          <DialogTitle className="sr-only">Organization 메뉴</DialogTitle>
+          <div className="flex min-h-0 flex-1 flex-col pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
+            <div className="flex h-14 shrink-0 items-center gap-2.5 px-3">
+              <WorkspaceAvatar workspace={workspace} />
+              <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-neutral-primary">
+                {workspace.companyName}
+              </span>
               <MuteButton
-                aria-label="프로필 메뉴"
-                size="sm"
+                aria-label="메뉴 닫기"
+                onClick={closeNavigation}
+                size="md"
                 variant="transparent"
               >
-                <UserAvatar member={currentUser} size="sm" />
+                <PanelLeftClose
+                  aria-hidden
+                  className="size-4.5"
+                  strokeWidth={1.7}
+                />
               </MuteButton>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel className="font-normal">
-                <span className="block truncate text-[12px] font-medium">
-                  {currentUser?.name || "이름 없음"}
-                </span>
-                <span className="block truncate text-[11px] text-neutral-muted">
-                  {currentUser?.email || "-"}
-                </span>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => openCustomCrispWidget()}>
-                <CircleHelp />
-                문의하기
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => void router.push(navHref("documents"))}
-              >
-                <BookOpenText />
-                Documents
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={signOutPending}
-                onSelect={() => void handleSignOut()}
-                tone="danger"
-              >
-                <LogOut />
-                {signOutPending ? "로그아웃 중" : "로그아웃"}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        <nav
-          aria-label={organizationMode ? "Organization 설정" : "Organization"}
-          className="flex gap-1.5 overflow-x-auto px-4 pb-2 scrollbar-none"
-        >
-          {organizationMode ? (
-            <>
-              <Link
-                className={getMobileNavItemClassName(false)}
-                href={organizationReturnHref}
-              >
-                <span className="flex items-center gap-1.5">
-                  <ArrowLeft className="size-3.5" />
+            </div>
+            {mobileOrganizationMenuOpen ? (
+              <div className="flex min-h-0 flex-1 flex-col px-2 py-2">
+                <MuteButton
+                  className="mb-2 h-9 w-full justify-start gap-2 px-2 text-[13px]"
+                  onClick={() => setMobileOrganizationMenuOpen(false)}
+                  size="md"
+                  variant="transparent"
+                >
+                  <ArrowLeft className="size-4" strokeWidth={1.6} />
                   돌아가기
-                </span>
-              </Link>
-              <Link
-                aria-current={
-                  organizationSection === "company" ? "page" : undefined
-                }
-                className={getMobileNavItemClassName(
-                  organizationSection === "company"
-                )}
-                href={organizationCompanyHref}
-              >
-                회사정보
-              </Link>
-              <Link
-                aria-current={
-                  organizationSection === "members" ? "page" : undefined
-                }
-                className={getMobileNavItemClassName(
-                  organizationSection === "members"
-                )}
-                href={organizationMembersHref}
-              >
-                멤버
-              </Link>
-              <Link
-                aria-current={
-                  organizationSection === "integration" ? "page" : undefined
-                }
-                className={getMobileNavItemClassName(
-                  organizationSection === "integration"
-                )}
-                href={navHref("settings")}
-              >
-                Integration
-              </Link>
-            </>
-          ) : (
-            [
-              ...primaryNav,
-              {
-                icon: BookOpenText,
-                id: "documents" as const,
-                label: "Documents",
-              },
-            ].map((item) => (
-              <Link
-                key={item.id}
-                aria-current={activePage === item.id ? "page" : undefined}
-                className={getMobileNavItemClassName(activePage === item.id)}
-                href={navHref(item.id)}
-              >
-                {item.id === "all" ? (
-                  <InternalOnlyHatch className="opacity-70" />
-                ) : null}
-                <span className="relative z-20 flex items-center gap-2">
-                  {item.id === "new-role" ? (
-                    <span className="flex size-5 items-center justify-center rounded-full bg-primary-faded text-primary">
-                      <Plus className="size-3.5 stroke-[1.8]" />
-                    </span>
-                  ) : null}
-                  {item.label}
-                  {item.id === "inbox" &&
-                  pendingConnectionCount !== undefined ? (
-                    <Badge
-                      aria-label={`연결 대기 ${pendingConnectionCount}명`}
-                      className="min-w-5 bg-blue-500 px-1.5 tabular-nums text-white"
-                      radius="full"
-                      size="sm"
+                </MuteButton>
+                <nav aria-label="Organization 설정" className="space-y-1">
+                  {organizationNav.map((item) => (
+                    <Link
+                      aria-current={item.active ? "page" : undefined}
+                      className={cn(
+                        "flex h-9 items-center gap-2 rounded-md px-2 text-[14px] outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
+                        item.active
+                          ? "bg-bg-weak text-neutral-primary"
+                          : "text-neutral-muted hover:bg-bg-weak hover:text-neutral-primary"
+                      )}
+                      href={item.href}
+                      key={item.label}
+                      onClick={closeNavigation}
                     >
-                      {pendingConnectionCount}
-                    </Badge>
-                  ) : null}
-                </span>
-              </Link>
-            ))
-          )}
-        </nav>
-      </header>
+                      <item.icon className="size-4" strokeWidth={1.55} />
+                      {item.label}
+                    </Link>
+                  ))}
+                </nav>
+              </div>
+            ) : (
+              <div className="flex min-h-0 flex-1 flex-col">
+                <nav
+                  aria-label="Organization"
+                  className="shrink-0 space-y-1 px-2 py-2"
+                >
+                  {primaryNav.map((item) => {
+                    const Icon = item.icon;
+                    const active =
+                      item.id === "team"
+                        ? organizationMode
+                        : activePage === item.id;
+                    if (item.id === "team") {
+                      return (
+                        <MuteButton
+                          aria-current={active ? "page" : undefined}
+                          aria-expanded={mobileOrganizationMenuOpen}
+                          className={cn(
+                            "h-9 w-full justify-start gap-2 px-2 text-[14px]",
+                            active
+                              ? "bg-bg-weak text-neutral-primary"
+                              : "text-neutral-muted"
+                          )}
+                          key={item.id}
+                          onClick={() => setMobileOrganizationMenuOpen(true)}
+                          size="md"
+                          variant="transparent"
+                        >
+                          <Icon className="size-4" strokeWidth={1.55} />
+                          <span>{item.label}</span>
+                        </MuteButton>
+                      );
+                    }
+
+                    return (
+                      <Link
+                        aria-current={active ? "page" : undefined}
+                        className={cn(
+                          "flex h-9 items-center gap-2 rounded-md px-2 text-[14px] outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
+                          active
+                            ? "bg-bg-weak text-neutral-primary"
+                            : "text-neutral-muted hover:bg-bg-weak hover:text-neutral-primary"
+                        )}
+                        href={navHref(item.id)}
+                        key={item.id}
+                        onClick={closeNavigation}
+                      >
+                        {item.id === "new-role" ? (
+                          <span className="flex size-5 items-center justify-center rounded-full bg-primary-faded text-primary">
+                            <Plus className="size-3.5" strokeWidth={1.8} />
+                          </span>
+                        ) : (
+                          <Icon className="size-4" strokeWidth={1.55} />
+                        )}
+                        <span>{item.label}</span>
+                        {item.id === "inbox" &&
+                        pendingConnectionCount !== undefined ? (
+                          <Badge
+                            aria-label={`연결 대기 ${pendingConnectionCount}명`}
+                            className="ml-auto min-w-5 bg-blue-500 px-1.5 tabular-nums text-white"
+                            radius="full"
+                            size="sm"
+                          >
+                            {pendingConnectionCount}
+                          </Badge>
+                        ) : null}
+                      </Link>
+                    );
+                  })}
+                </nav>
+
+                {permissions.canManageCandidates ? (
+                  <RecentRolesSection
+                    activePage={activePage}
+                    activeRoleId={activeRoleId}
+                    filteredRoles={filteredRecentRoles}
+                    mobile
+                    onNavigate={closeNavigation}
+                    onResetStatusFilter={resetRecentRoleStatusFilter}
+                    onToggleStatus={toggleRecentRoleStatus}
+                    recentRoleCount={recentRoles.length}
+                    statusFilterActive={recentStatusFilterActive}
+                    visibleStatuses={visibleRecentRoleStatusSet}
+                    workspaceId={workspace.workspaceId}
+                  />
+                ) : null}
+              </div>
+            )}
+
+            <div className="shrink-0 border-t border-neutral-1000-a05 px-1 py-0">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <MuteButton
+                    aria-label="프로필 메뉴"
+                    className="w-full justify-start"
+                    size="md"
+                    variant="transparent"
+                  >
+                    <UserAvatar member={currentUser} size="sm" />
+                    <span className="ml-1 min-w-0 text-left">
+                      <span className="block truncate text-[13px] font-medium text-neutral-primary">
+                        {currentUser?.name || currentUser?.email || "User"}
+                      </span>
+                      {currentUser?.email ? (
+                        <span className="block text-[11px] truncate font-light text-neutral-soft">
+                          {currentUser.email}
+                        </span>
+                      ) : null}
+                    </span>
+                  </MuteButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  className="w-[min(260px,calc(100vw-24px))]"
+                  side="top"
+                >
+                  <DropdownMenuItem onSelect={() => openCustomCrispWidget()}>
+                    <CircleHelp />
+                    문의하기
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => void router.push(navHref("documents"))}
+                  >
+                    <BookOpenText />
+                    Documents
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    disabled={signOutPending}
+                    onSelect={() => void handleSignOut()}
+                    tone="danger"
+                  >
+                    <LogOut />
+                    {signOutPending ? "로그아웃 중" : "로그아웃"}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
@@ -963,7 +1133,7 @@ export function OrgWorkspaceShellSkeleton({
     <Page as="main" background="neutral">
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 hidden border-r border-neutral-1000-a05 py-4 lg:block ",
+          "fixed inset-y-0 left-0 hidden border-r border-neutral-1000-a05 py-4 md:block ",
           compact ? "w-[72px] px-3" : "w-[256px] px-4"
         )}
       >
@@ -977,7 +1147,7 @@ export function OrgWorkspaceShellSkeleton({
           ))}
         </div>
       </aside>
-      <div className={compact ? "lg:pl-[72px]" : "lg:pl-[256px]"}>
+      <div className={compact ? "md:pl-[72px]" : "md:pl-[256px]"}>
         <PageContainer className="py-7" size={wide ? "wide" : "narrow"}>
           <Skeleton className="h-6 w-40" />
           <Skeleton className="mt-2 h-3 w-72 max-w-full" />

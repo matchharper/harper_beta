@@ -45,6 +45,7 @@ import {
   type CareerInternalOpportunityDecisionAction,
 } from "@/lib/career/internalOpportunityDecision";
 import { fetchPendingInternalOpportunityCallRequests } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
+import { careerT } from "@/lib/career/translatedCareerMessage";
 
 const POSITION_TAB_INTERACTION_SOURCE = "position_tab";
 const IMMEDIATE_FEEDBACK_FOLLOW_UP_DELAY_MS = 500;
@@ -258,27 +259,58 @@ async function notifyInternalPositionDecisionChangeSlack(args: {
   }
 }
 
-function getInternalDecisionChangeErrorMessage(errorMessage: string) {
+function getInternalDecisionChangeErrorMessage(
+  errorMessage: string,
+  locale?: string | null
+) {
   if (errorMessage.includes("internal_acceptance_revert_window_expired")) {
-    return "수락 후 24시간이 지나 되돌릴 수 없습니다.";
+    return careerT(
+      locale,
+      "career.api.opportunities.internal_revert_expired",
+      "수락 후 24시간이 지나 되돌릴 수 없습니다."
+    );
   }
   if (errorMessage.includes("internal_acceptance_already_progressed")) {
-    return "이미 회사 전달 또는 후속 단계가 시작되어 수락을 되돌릴 수 없습니다.";
+    return careerT(
+      locale,
+      "career.api.opportunities.internal_revert_progressed",
+      "이미 회사 전달 또는 후속 단계가 시작되어 수락을 되돌릴 수 없습니다."
+    );
   }
   if (errorMessage.includes("ended_internal_role_cannot_be_reverted")) {
-    return "이미 종료된 포지션이라 거절을 되돌릴 수 없습니다.";
+    return careerT(
+      locale,
+      "career.api.opportunities.ended_rejection_revert_forbidden",
+      "이미 종료된 포지션이라 거절을 되돌릴 수 없습니다."
+    );
   }
   if (errorMessage.includes("internal_process_already_closed")) {
-    return "이미 종료된 프로세스입니다.";
+    return careerT(
+      locale,
+      "career.api.opportunities.internal_process_closed",
+      "이미 종료된 프로세스입니다."
+    );
   }
   if (errorMessage.includes("only_accepted_internal_role_can_be_stopped")) {
-    return "수락하여 진행 중인 포지션만 중단할 수 있습니다.";
+    return careerT(
+      locale,
+      "career.api.opportunities.only_accepted_can_stop",
+      "수락하여 진행 중인 포지션만 중단할 수 있습니다."
+    );
   }
   if (errorMessage.includes("internal_decision_cannot_be_reverted")) {
-    return "현재 상태에서는 결정을 되돌릴 수 없습니다.";
+    return careerT(
+      locale,
+      "career.api.opportunities.internal_decision_revert_forbidden",
+      "현재 상태에서는 결정을 되돌릴 수 없습니다."
+    );
   }
   if (errorMessage.includes("internal_opportunity_not_found")) {
-    return "포지션을 찾을 수 없습니다. 새로고침 후 다시 시도해 주세요.";
+    return careerT(
+      locale,
+      "career.api.opportunities.internal_opportunity_not_found",
+      "포지션을 찾을 수 없습니다. 새로고침 후 다시 시도해 주세요."
+    );
   }
   return null;
 }
@@ -307,6 +339,8 @@ export async function GET(req: NextRequest) {
     const savedStages = parseSavedStagesParam(
       req.nextUrl.searchParams.get("savedStages")
     );
+    const latestFirst =
+      req.nextUrl.searchParams.get("sort") === "recommended_at_desc";
     const locale =
       req.nextUrl.searchParams.get("locale") ??
       req.cookies.get("NEXT_LOCALE")?.value ??
@@ -355,6 +389,7 @@ export async function GET(req: NextRequest) {
     const page = await fetchTalentOpportunityHistoryPage({
       admin,
       historyTab,
+      latestFirst,
       limit,
       locale,
       offset,
@@ -545,17 +580,35 @@ export async function PATCH(req: NextRequest) {
           internalDecisionAction === "revert" &&
           previousOpportunity.feedback === "negative" &&
           previousOpportunity.status.trim().toLowerCase() === "ended"
-            ? "이미 종료된 포지션이라 거절을 되돌릴 수 없습니다."
+            ? careerT(
+                responseLocale,
+                "career.api.opportunities.ended_rejection_revert_forbidden",
+                "이미 종료된 포지션이라 거절을 되돌릴 수 없습니다."
+              )
             : internalDecisionAction === "revert"
-              ? "수락 후 24시간이 지났거나 이미 후속 단계가 시작되어 되돌릴 수 없습니다."
-              : "현재 상태에서는 진행을 중단할 수 없습니다.";
+              ? careerT(
+                  responseLocale,
+                  "career.api.opportunities.internal_revert_unavailable",
+                  "수락 후 24시간이 지났거나 이미 후속 단계가 시작되어 되돌릴 수 없습니다."
+                )
+              : careerT(
+                  responseLocale,
+                  "career.api.opportunities.internal_stop_unavailable",
+                  "현재 상태에서는 진행을 중단할 수 없습니다."
+                );
         return NextResponse.json({ error }, { status: 409 });
       }
 
       const previousFeedback = previousOpportunity.feedback;
       if (!previousFeedback) {
         return NextResponse.json(
-          { error: "되돌리거나 중단할 결정이 없습니다." },
+          {
+            error: careerT(
+              responseLocale,
+              "career.api.opportunities.internal_decision_missing",
+              "되돌리거나 중단할 결정이 없습니다."
+            ),
+          },
           { status: 409 }
         );
       }
@@ -573,7 +626,10 @@ export async function PATCH(req: NextRequest) {
       );
       if (changeError) {
         const errorMessage = String(changeError.message ?? "");
-        const userMessage = getInternalDecisionChangeErrorMessage(errorMessage);
+        const userMessage = getInternalDecisionChangeErrorMessage(
+          errorMessage,
+          responseLocale
+        );
         if (!userMessage) {
           console.error("[career-history:internal-decision-change]", {
             action: internalDecisionAction,
@@ -586,7 +642,11 @@ export async function PATCH(req: NextRequest) {
           {
             error:
               userMessage ??
-              "상태를 변경하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+              careerT(
+                responseLocale,
+                "career.api.opportunities.internal_status_update_failed",
+                "상태를 변경하지 못했습니다. 잠시 후 다시 시도해 주세요."
+              ),
           },
           { status: userMessage ? 409 : 500 }
         );
@@ -675,7 +735,13 @@ export async function PATCH(req: NextRequest) {
       previousOpportunity.status.trim().toLowerCase() === "ended"
     ) {
       return NextResponse.json(
-        { error: "이미 종료된 포지션이라 연결을 수락할 수 없습니다." },
+        {
+          error: careerT(
+            responseLocale,
+            "career.api.opportunities.ended_acceptance_forbidden",
+            "이미 종료된 포지션이라 연결을 수락할 수 없습니다."
+          ),
+        },
         { status: 409 }
       );
     }

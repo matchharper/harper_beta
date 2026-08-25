@@ -5,6 +5,7 @@ import {
   TalentDetailSharedTabContent,
   type TalentDetailSharedTabId,
 } from "@/components/ops/career/TalentDetailSharedTabs";
+import AutoIntroSlackDebugPanel from "@/components/org/internal/AutoIntroSlackDebugPanel";
 import { InternalOnlySurface } from "@/components/org/internal/InternalOnlySurface";
 import { Badge } from "@/components/ui/badge";
 import { MuteButton } from "@/components/ui/button";
@@ -102,9 +103,11 @@ function RecommendationStats({
 }
 
 export default function OrgInternalTalentPanel({
+  roleId,
   talentId,
   workspaceId,
 }: {
+  roleId: string;
   talentId: string;
   workspaceId: string;
 }) {
@@ -148,77 +151,88 @@ export default function OrgInternalTalentPanel({
         ) : null}
 
         {activeTab === "system" ? (
-          systemQuery.isLoading ? (
-            <PaneLoading />
-          ) : systemQuery.error || !systemQuery.data ? (
-            <PaneError
-              error={systemQuery.error}
-              fallback="시스템 데이터를 불러오지 못했습니다."
+          <div className="space-y-5">
+            {systemQuery.isLoading ? <PaneLoading /> : null}
+            {systemQuery.error ||
+            (!systemQuery.isLoading && !systemQuery.data) ? (
+              <PaneError
+                error={systemQuery.error}
+                fallback="시스템 데이터를 불러오지 못했습니다."
+              />
+            ) : null}
+            {systemQuery.data ? (
+              <div className="space-y-5">
+                <div className="border-t border-neutral-1000-a05">
+                  <SystemMetricRow
+                    label="가입 날짜"
+                    value={formatDateTime(systemQuery.data.account.createdAt)}
+                  />
+                  <SystemMetricRow
+                    label="최근 로그인"
+                    value={formatDateTime(systemQuery.data.account.lastLoginAt)}
+                  />
+                  <SystemMetricRow
+                    label="최근 사용"
+                    value={formatDateTime(
+                      systemQuery.data.account.lastActiveAt
+                    )}
+                  />
+                  <SystemMetricRow
+                    label="Status"
+                    value={systemQuery.data.account.status || "-"}
+                  />
+                  <SystemMetricRow
+                    label="온보딩"
+                    value={
+                      systemQuery.data.account.isOnboardingDone
+                        ? "완료"
+                        : "진행 중"
+                    }
+                  />
+                  <SystemMetricRow
+                    label="프로필 공개"
+                    value={systemQuery.data.account.profileVisibility || "-"}
+                  />
+                </div>
+
+                <div className="grid gap-1.5 sm:grid-cols-2">
+                  <RecommendationStats
+                    label="최근 7일 External 추천"
+                    stats={systemQuery.data.recent7Days.external}
+                  />
+                  <RecommendationStats
+                    label="최근 7일 Internal 추천"
+                    stats={systemQuery.data.recent7Days.internal}
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-1.5 text-[12px] font-light text-neutral-muted">
+                  <span className="rounded-sm bg-bg-weak px-1.5 py-0.5">
+                    External 추천{" "}
+                    {systemQuery.data.account.externalRecommendationsEnabled
+                      ? "ON"
+                      : "OFF"}
+                  </span>
+                  <span className="rounded-sm bg-bg-weak px-1.5 py-0.5">
+                    Internal 추천{" "}
+                    {systemQuery.data.account.internalRecommendationsEnabled
+                      ? "ON"
+                      : "OFF"}
+                  </span>
+                  <span className="rounded-sm bg-bg-weak px-1.5 py-0.5">
+                    Status 변경{" "}
+                    {formatDateTime(systemQuery.data.account.statusUpdatedAt)}
+                  </span>
+                </div>
+              </div>
+            ) : null}
+            <AutoIntroSlackDebugPanel
+              key={`${workspaceId}:${roleId}:${talentId}`}
+              roleId={roleId}
+              talentId={talentId}
+              workspaceId={workspaceId}
             />
-          ) : (
-            <div className="space-y-5">
-              <div className="border-t border-neutral-1000-a05">
-                <SystemMetricRow
-                  label="가입 날짜"
-                  value={formatDateTime(systemQuery.data.account.createdAt)}
-                />
-                <SystemMetricRow
-                  label="최근 로그인"
-                  value={formatDateTime(systemQuery.data.account.lastLoginAt)}
-                />
-                <SystemMetricRow
-                  label="최근 사용"
-                  value={formatDateTime(systemQuery.data.account.lastActiveAt)}
-                />
-                <SystemMetricRow
-                  label="Status"
-                  value={systemQuery.data.account.status || "-"}
-                />
-                <SystemMetricRow
-                  label="온보딩"
-                  value={
-                    systemQuery.data.account.isOnboardingDone
-                      ? "완료"
-                      : "진행 중"
-                  }
-                />
-                <SystemMetricRow
-                  label="프로필 공개"
-                  value={systemQuery.data.account.profileVisibility || "-"}
-                />
-              </div>
-
-              <div className="grid gap-1.5 sm:grid-cols-2">
-                <RecommendationStats
-                  label="최근 7일 External 추천"
-                  stats={systemQuery.data.recent7Days.external}
-                />
-                <RecommendationStats
-                  label="최근 7일 Internal 추천"
-                  stats={systemQuery.data.recent7Days.internal}
-                />
-              </div>
-
-              <div className="flex flex-wrap gap-1.5 text-[12px] font-light text-neutral-muted">
-                <span className="rounded-sm bg-bg-weak px-1.5 py-0.5">
-                  External 추천{" "}
-                  {systemQuery.data.account.externalRecommendationsEnabled
-                    ? "ON"
-                    : "OFF"}
-                </span>
-                <span className="rounded-sm bg-bg-weak px-1.5 py-0.5">
-                  Internal 추천{" "}
-                  {systemQuery.data.account.internalRecommendationsEnabled
-                    ? "ON"
-                    : "OFF"}
-                </span>
-                <span className="rounded-sm bg-bg-weak px-1.5 py-0.5">
-                  Status 변경{" "}
-                  {formatDateTime(systemQuery.data.account.statusUpdatedAt)}
-                </span>
-              </div>
-            </div>
-          )
+          </div>
         ) : null}
       </div>
     </InternalOnlySurface>

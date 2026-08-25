@@ -64,6 +64,7 @@ import { normalizeHarperPublicImageUrl } from "@/lib/imageUrl";
 
 type CareerMobileJobsViewProps = {
   onChangeWorkspaceTab: (tab: CareerWorkspaceTab) => void;
+  onChangeTopBarOption?: (tab: CareerMobileTopBarOptionId) => void;
   workspaceTabOptions: CareerMobileTopBarOption[];
   statusCounts: JobsStatusCounts;
   opportunities: CareerHistoryOpportunity[];
@@ -125,6 +126,7 @@ const resetMobileScrollOnMount = (el: HTMLDivElement | null) => {
 
 export default function CareerMobileJobsView({
   onChangeWorkspaceTab,
+  onChangeTopBarOption,
   workspaceTabOptions,
   statusCounts,
   opportunities,
@@ -187,6 +189,10 @@ export default function CareerMobileJobsView({
 
   const handleTopBarChange = useCallback(
     (nextOption: CareerMobileTopBarOptionId) => {
+      if (onChangeTopBarOption) {
+        onChangeTopBarOption(nextOption);
+        return;
+      }
       if (nextOption === "inbox") {
         setTab("new");
         return;
@@ -199,7 +205,7 @@ export default function CareerMobileJobsView({
 
       onChangeWorkspaceTab(nextOption);
     },
-    [onChangeWorkspaceTab, setTab, tab]
+    [onChangeTopBarOption, onChangeWorkspaceTab, setTab, tab]
   );
 
   const handleDragEnd = useCallback(

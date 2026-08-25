@@ -2,8 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   compactOrgAgentThinkingLogs,
+  getOrgAgentThinkingLogIcon,
   upsertOrgAgentThinkingLog,
 } from "@/lib/org/agent/thinkingLogs";
+
+test("groups tool icons by user-visible operation", () => {
+  assert.equal(getOrgAgentThinkingLogIcon("web_search"), "search");
+  assert.equal(getOrgAgentThinkingLogIcon("open_url"), "link");
+  assert.equal(getOrgAgentThinkingLogIcon("read_role"), "read");
+  assert.equal(getOrgAgentThinkingLogIcon("update_role_criteria"), "write");
+  assert.equal(getOrgAgentThinkingLogIcon("contact_talent"), "send");
+  assert.equal(getOrgAgentThinkingLogIcon("start_role_creation"), "run");
+});
 
 test("updates one identified tool row from running to done", () => {
   const running = upsertOrgAgentThinkingLog([], {

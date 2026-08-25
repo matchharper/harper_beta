@@ -50,18 +50,14 @@ test("sparse-role source discovery has a dedicated no-argument one-attempt tool"
 test("role and company updates require at least one declared field", () => {
   const roleBlock = toolBlock("update_role_draft", "update_company_context");
   const companyBlock = toolBlock("update_company_context", "read_other_roles");
-  assert.match(roleBlock, /anyOf/);
-  assert.match(roleBlock, /required: \["name"\]/);
-  assert.match(roleBlock, /required: \["criteria"\]/);
-  assert.match(roleBlock, /required: \["memory"\]/);
+  assert.match(roleBlock, /minProperties: 1/);
+  assert.doesNotMatch(roleBlock, /anyOf/);
   assert.match(roleBlock, /minItems: 0/);
   assert.match(roleBlock, /maxItems: 6/);
   assert.match(roleBlock, /independently assessable/);
   assert.match(roleBlock, /minimum bar/);
-  assert.match(companyBlock, /anyOf/);
-  assert.match(companyBlock, /required: \["companyName"\]/);
-  assert.match(companyBlock, /required: \["pitch"\]/);
-  assert.match(companyBlock, /required: \["relatedLinks"\]/);
+  assert.match(companyBlock, /minProperties: 1/);
+  assert.doesNotMatch(companyBlock, /anyOf/);
   assert.doesNotMatch(companyBlock, /required: \["description"\]/);
   assert.doesNotMatch(companyBlock, /required: \["careerUrl"\]/);
   assert.doesNotMatch(companyBlock, /required: \["mainInvestors"\]/);
@@ -83,9 +79,8 @@ test("notification updates require a channel or an assignee", () => {
     "set_role_notification",
     "confirm_pending_role_creation"
   );
-  assert.match(block, /anyOf/);
-  assert.match(block, /required: \["assigneeUserId"\]/);
-  assert.match(block, /required: \["channelIds"\]/);
+  assert.match(block, /minProperties: 1/);
+  assert.doesNotMatch(block, /anyOf/);
 });
 
 test("free-form final confirmation is contextual and terminal", () => {

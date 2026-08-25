@@ -1,4 +1,5 @@
 import { MATCH_BOOKING_URL } from "@/lib/booking";
+import { normalizeLinkedinCompanyUrl } from "@/lib/companyLinkedin";
 import {
   type CompanyEventInsertClient,
   writeCompanyEvent,
@@ -80,37 +81,6 @@ function ensureNonEmptyString(value: unknown, fieldName: string) {
 
 function coerceJsonArray<T>(value: unknown) {
   return Array.isArray(value) ? (value as T[]) : [];
-}
-
-function normalizeLink(raw: string) {
-  const trimmed = raw.trim();
-  if (!trimmed) return "";
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  return `https://${trimmed}`;
-}
-
-function normalizeLinkedinCompanyUrl(raw: string): string | null {
-  try {
-    const withProtocol = normalizeLink(raw);
-    const parsed = new URL(withProtocol);
-    const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
-    if (!(host === "linkedin.com" || host.endsWith(".linkedin.com"))) {
-      return null;
-    }
-
-    const segments = parsed.pathname.split("/").filter(Boolean);
-    if (segments.length < 2) return null;
-    if (segments[0]?.toLowerCase() !== "company") return null;
-
-    const slug = decodeURIComponent(segments[1] ?? "")
-      .trim()
-      .toLowerCase();
-    if (!slug) return null;
-
-    return `https://www.linkedin.com/company/${slug}`;
-  } catch {
-    return null;
-  }
 }
 
 export async function resolveWorkspaceBrandingFromCompanyDb(

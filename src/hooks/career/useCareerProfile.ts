@@ -21,11 +21,8 @@ import { showToast } from "@/components/toast/toast";
 import {
   compactProfileLinks,
   getErrorMessage,
-  isDocxResumeFile,
   isLinkedinLink,
   isLinkedinProfileLink,
-  normalizeText,
-  readDocxResumeText,
   toProfileLinks,
   toUiMessage,
 } from "./careerHelpers";
@@ -33,6 +30,7 @@ import type { FetchWithAuth } from "./useCareerApi";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { useMessages } from "@/i18n/useMessage";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
+import { uploadTalentDocument } from "@/lib/talentOnboarding/documentUploadClient";
 
 const showProfileSaveToast = (message: string) => {
   showToast({ message, variant: "white" });
@@ -45,11 +43,6 @@ const hasInvalidLinkedinProfileInput = (links: string[] = []) => {
       isLinkedinLink(link) &&
       !isLinkedinProfileLink(link)
   );
-};
-
-const isServerParsedResumeFile = (file: File) => {
-  const fileName = file.name.toLowerCase();
-  return file.type === "application/pdf" || fileName.endsWith(".pdf");
 };
 
 type ProfileIngestionPayload = {
@@ -147,6 +140,7 @@ export const useCareerProfile = ({
   const applyTalentProfileSnapshot = useCallback(
     (snapshot: SessionResponse["talentProfile"] | undefined) => {
       if (!snapshot) return;
+      if (snapshot.documents) setTalentDocuments(snapshot.documents);
       setTalentUser(snapshot.talentUser ?? null);
       setTalentExperiences(snapshot.talentExperiences ?? []);
       setTalentEducations(snapshot.talentEducations ?? []);
@@ -157,23 +151,11 @@ export const useCareerProfile = ({
 
   const uploadResumeFile = useCallback(
     async (file: File, resumeRequestToken?: string | null) => {
-      const formData = new FormData();
-      formData.append("file", file);
-      if (resumeRequestToken) {
-        formData.append("resumeRequestToken", resumeRequestToken);
-      }
-
-      const response = await fetchWithAuth("/api/talent/resume/upload", {
-        method: "POST",
-        body: formData,
+      const payload = await uploadTalentDocument({
+        fetchWithAuth,
+        file,
+        resumeRequestToken,
       });
-      const payload = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(payload, tCareer(H.resumeUploadFailed))
-        );
-      }
 
       return {
         requestCompleted: payload?.requestCompleted === true,
@@ -183,13 +165,15 @@ export const useCareerProfile = ({
           typeof payload?.resumeDownloadUrl === "string"
             ? payload.resumeDownloadUrl
             : null,
+        resumeText:
+          typeof payload?.resumeText === "string" ? payload.resumeText : "",
         document:
           payload?.document && typeof payload.document === "object"
             ? (payload.document as CareerTalentDocument)
             : null,
       };
     },
-    [fetchWithAuth, tCareer]
+    [fetchWithAuth]
   );
 
   const handleUploadTalentDocument = useCallback(
@@ -199,19 +183,11 @@ export const useCareerProfile = ({
       setProfileSavePending(true);
       setProfileSaveError("");
       try {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("kind", "document");
-        const response = await fetchWithAuth("/api/talent/documents/upload", {
-          method: "POST",
-          body: formData,
+        const payload = await uploadTalentDocument({
+          fetchWithAuth,
+          file,
+          kind: "document",
         });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error(
-            getErrorMessage(payload, tCareer(H.documentUploadFailed))
-          );
-        }
 
         const document = payload?.document as
           | CareerTalentDocument
@@ -238,38 +214,6 @@ export const useCareerProfile = ({
       }
     },
     [fetchWithAuth, profileSavePending, tCareer, user]
-  );
-
-  const readResumeText = useCallback(
-    async (file: File) => {
-      let text = "";
-      if (isServerParsedResumeFile(file)) {
-        const formData = new FormData();
-        formData.append("file", file);
-        const response = await fetchWithAuth("/api/talent/resume/parse", {
-          method: "POST",
-          body: formData,
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error(
-            getErrorMessage(payload, tCareer(H.resumeTextReadFailed))
-          );
-        }
-        text = String(payload?.text ?? "");
-      } else if (isDocxResumeFile(file)) {
-        text = await readDocxResumeText(file);
-      } else {
-        text = await file.text();
-      }
-
-      const normalized = normalizeText(text);
-      if (!normalized) {
-        throw new Error(tCareer(H.resumeTextReadFailed));
-      }
-      return normalized.slice(0, 18000);
-    },
-    [fetchWithAuth, tCareer]
   );
 
   const applySessionProfile = useCallback(
@@ -324,18 +268,7 @@ export const useCareerProfile = ({
           nextResumeStoragePath = uploadResult.resumeStoragePath;
           resumeDocumentId = uploadResult.document?.id;
           uploadedDocument = uploadResult.document;
-
-          let parsedText = "";
-          try {
-            parsedText = await readResumeText(resumeFile);
-          } catch (error) {
-            console.warn(
-              "[CareerProfile] resume parse failed; keeping the uploaded document",
-              error
-            );
-          }
-
-          if (parsedText) resumeText = parsedText;
+          if (uploadResult.resumeText) resumeText = uploadResult.resumeText;
         }
 
         const response = await fetchWithAuth("/api/talent/onboarding/start", {
@@ -450,7 +383,6 @@ export const useCareerProfile = ({
       locale,
       profileLinks,
       profilePending,
-      readResumeText,
       resumeFile,
       savedResumeFileName,
       savedResumeStoragePath,
@@ -534,6 +466,9 @@ export const useCareerProfile = ({
           nextResumeStoragePath = uploadResult.resumeStoragePath;
           nextResumeDownloadUrl = uploadResult.resumeDownloadUrl;
           resumeDocumentId = uploadResult.document?.id;
+          if (uploadResult.resumeText) {
+            nextResumeText = uploadResult.resumeText;
+          }
 
           if (uploadResult.requestCompleted) {
             setSavedResumeFileName(nextResumeFileName ?? null);
@@ -552,17 +487,6 @@ export const useCareerProfile = ({
             return true;
           }
 
-          let parsedText = "";
-          try {
-            parsedText = await readResumeText(selectedResumeFile);
-          } catch (error) {
-            console.warn(
-              "[CareerProfile] resume parse failed; keeping the uploaded document",
-              error
-            );
-          }
-
-          if (parsedText) nextResumeText = parsedText;
         }
 
         const response = await fetchWithAuth("/api/talent/profile/update", {
@@ -664,7 +588,6 @@ export const useCareerProfile = ({
       getTranslatedProfileIngestionFailureMessage,
       profileLinks,
       profileSavePending,
-      readResumeText,
       resumeFile,
       savedProfileLinks,
       savedResumeDownloadUrl,

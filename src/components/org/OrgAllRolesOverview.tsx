@@ -29,6 +29,7 @@ import type {
   OrgStage,
   OrgStageId,
 } from "@/lib/org/server";
+import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
 import { cn } from "@/lib/utils";
 
 function getRoleStageLabel(stage: OrgStage, role: OrgRole) {
@@ -72,11 +73,13 @@ function buildCounts(items: OrgBoardItem[]) {
 }
 
 function StageCountCell({
+  compact = false,
   count,
   label,
   onClick,
   stageId,
 }: {
+  compact?: boolean;
   count: number;
   label: string;
   onClick: () => void;
@@ -98,7 +101,10 @@ function StageCountCell({
       type="button"
       onClick={onClick}
       className={cn(
-        "min-w-[136px] appearance-none border-l-4 bg-transparent py-1 pl-2.5 pr-2 text-left outline-none transition hover:bg-bg-weak focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
+        "appearance-none bg-transparent text-left outline-none transition hover:bg-bg-weak focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
+        compact
+          ? "min-w-0 border-l-2 px-2.5 py-2.5"
+          : "min-w-[136px] border-l-4 py-1 pl-2.5 pr-2",
         borderClassName
       )}
     >
@@ -155,25 +161,25 @@ function getRoleStatusMeta(status: string | null | undefined) {
   if (normalized === "top_priority") {
     return {
       className: "bg-primary-faded text-primary",
-      label: "최우선",
+      label: getOrgRoleStatusPresentation(normalized).label,
     };
   }
   if (normalized === "active" || normalized === "open") {
     return {
       className: "bg-positive-faded text-positive",
-      label: "진행중",
+      label: getOrgRoleStatusPresentation(normalized).label,
     };
   }
   if (normalized === "paused") {
     return {
       className: "bg-info-faded text-info",
-      label: "중단",
+      label: getOrgRoleStatusPresentation(normalized).label,
     };
   }
   if (normalized === "ended") {
     return {
       className: "bg-critical-faded text-critical",
-      label: "종료",
+      label: getOrgRoleStatusPresentation(normalized).label,
     };
   }
   if (normalized === "deleted") {
@@ -191,7 +197,7 @@ function getRoleStatusMeta(status: string | null | undefined) {
   if (normalized === "draft" || normalized === "pending") {
     return {
       className: "bg-neutral-100 text-neutral-800",
-      label: "작성중",
+      label: getOrgRoleStatusPresentation(normalized).label,
     };
   }
   if (normalized === "none") {
@@ -207,9 +213,9 @@ function getRoleStatusMeta(status: string | null | undefined) {
 }
 
 const ROLE_STATUS_FILTER_OPTIONS = [
-  { label: "작성중", value: "draft" },
-  { label: "진행중", value: "active" },
-  { label: "중단", value: "paused" },
+  { label: getOrgRoleStatusPresentation("draft").label, value: "draft" },
+  { label: getOrgRoleStatusPresentation("active").label, value: "active" },
+  { label: getOrgRoleStatusPresentation("paused").label, value: "paused" },
 ] as const;
 
 type RoleStatusFilterValue =
@@ -405,7 +411,7 @@ export function OrgRolesOverview({
           <div className="space-y-3">
             {filteredRoles.length === 0 ? (
               <div className="flex h-32 items-center justify-center border border-neutral-1000-a05 bg-bg-floating text-[13px] text-neutral-muted">
-                조건에 맞는 Role이 없습니다.
+                조건에 맞는 역할이 없어요.
               </div>
             ) : null}
             {filteredRoles.map((role) => {
@@ -441,7 +447,7 @@ export function OrgRolesOverview({
                     </div>
                     <div className="flex flex-wrap items-center justify-start gap-1.5">
                       <RoleMetaChip>
-                        Open{" "}
+                        Updated{" "}
                         {formatKstRelativeDate(role.updatedAt, {
                           maxRelativeDays: 365,
                         })}
@@ -465,13 +471,61 @@ export function OrgRolesOverview({
 
                   {normalizeRoleStatus(role.status) === "draft" ? (
                     <div className="flex min-h-[52px] items-center justify-between gap-4 px-3.5 py-1 text-[13px] text-neutral-muted">
-                      <span>새로운 역할 등록을 완료하세요.</span>
+                      <span>{role.name} 역할 작성을 이어가세요.</span>
                       <MuteButton onClick={() => onOpenRole(role)} size="md">
                         이어서 작성
                       </MuteButton>
                     </div>
                   ) : (
-                    <div className="flex min-h-[76px] overflow-x-auto">
+                    <div className="md:hidden">
+                      <div className="grid grid-cols-2 border-b border-neutral-1000-a05 bg-bg-weak/45 px-3.5 py-2.5 text-[12px] text-neutral-muted">
+                        <div className="flex items-center justify-between border-r border-neutral-1000-a05 pr-3">
+                          <span>전체 후보자</span>
+                          <span className="text-[14px] font-medium text-neutral-primary">
+                            {totalCount}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between pl-3">
+                          <span>중단</span>
+                          <span className="text-[14px] font-medium text-neutral-primary">
+                            {counts.get(`${role.roleId}:process_stopped`) ?? 0}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-2 gap-y-1 px-3 py-2.5">
+                        {roleStages.map((stage) => {
+                          const cell = (
+                            <StageCountCell
+                              compact
+                              count={
+                                counts.get(`${role.roleId}:${stage.id}`) ?? 0
+                              }
+                              label={getRoleStageLabel(stage, role)}
+                              onClick={() => onOpenRole(role, "pipeline")}
+                              stageId={stage.id}
+                            />
+                          );
+                          return stage.id === "accepted" ||
+                            stage.id === "archived" ? (
+                            <InternalOnlySurface
+                              className="min-w-0"
+                              key={stage.id}
+                              showLabel={false}
+                            >
+                              {cell}
+                            </InternalOnlySurface>
+                          ) : (
+                            <div className="min-w-0" key={stage.id}>
+                              {cell}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {normalizeRoleStatus(role.status) !== "draft" ? (
+                    <div className="hidden min-h-[76px] overflow-x-auto md:flex">
                       <div className="flex w-[116px] shrink-0 flex-col justify-center gap-1.5 border-r border-neutral-1000-a05 px-3 text-[12px] text-neutral-muted">
                         <div className="flex justify-between gap-2">
                           <span>총계</span>
@@ -512,7 +566,7 @@ export function OrgRolesOverview({
                         })}
                       </div>
                     </div>
-                  )}
+                  ) : null}
                 </article>
               );
             })}

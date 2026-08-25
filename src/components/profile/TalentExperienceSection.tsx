@@ -118,7 +118,7 @@ function TalentProfileDescriptionMarkdown({
   if (!trimmedValue) return null;
 
   return (
-    <div className="mt-2 max-w-none text-[13px] leading-6 text-neutral-muted">
+    <div className="mt-2 max-w-none text-[13px] leading-5 text-neutral-muted">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeSanitize]}
@@ -154,7 +154,7 @@ function ExperienceCompanyLogo({
   const normalizedLogoUrl = logoUrl?.trim();
 
   return (
-    <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-neutral-1000-a05 bg-bg-floating text-sm font-medium text-neutral-muted">
+    <div className="relative flex size-7 sm:size-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-neutral-1000-a05 bg-bg-floating text-sm font-medium text-neutral-muted">
       {<Building2 className="h-4 w-4 text-black/30" />}
       {normalizedLogoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element

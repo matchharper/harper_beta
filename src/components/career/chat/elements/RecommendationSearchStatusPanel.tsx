@@ -219,7 +219,7 @@ export const RecommendationSearchStatusPanel = memo(
     const iconToneClassName = isActive
       ? "border-primary/15 bg-primary-faded text-primary"
       : isCancelled
-        ? "border-neutral-1000-a05 bg-bg-weak text-neutral-muted"
+        ? "border-neutral-1000-a05 bg-neutral-100 text-neutral-muted"
         : isCompleted
           ? "border-positive/20 bg-positive-faded text-positive"
           : isStopped || isPartial

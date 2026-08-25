@@ -1,11 +1,16 @@
 import type { OrgStageId } from "@/lib/org/server";
 
+export const CANDIDATE_DECISION_LABELS = {
+  connect: "Connect",
+  reject: "Reject",
+} as const;
+
 export const DEFAULT_ORG_STOP_REASONS = [
-  "너무 주니어",
-  "너무 시니어",
-  "높은 연봉을 요구할 것 같음",
+  "경력이 부족함",
+  "경력이 너무 많음",
+  "연봉 기대치가 높을 것 같음",
   "이미 대화해본 후보자",
-  "위치/지역 조건 불일치",
+  "위치 조건이 맞지 않음",
 ] as const;
 
 export function isOrgInternalStage(stage: OrgStageId) {

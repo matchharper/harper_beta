@@ -974,7 +974,7 @@ async function readCompanyTalentRequestProjection(args: {
   const [historyResult, documentsResult] = await Promise.all([
     (args.admin.from("company_talent_requests" as any) as any)
       .select(
-        "id, role_id, expects_document, request_context, workflow_status, expires_at, created_at, deliveries:contact_queue(scheduled_at, sent_at, cancelled_at, status, type)"
+        "id, role_id, expects_document, request_context, workflow_status, expires_at, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, deliveries:contact_queue(scheduled_at, sent_at, cancelled_at, status, type)"
       )
       .eq("company_workspace_id", args.workspaceId)
       .eq("talent_id", args.talentId)
@@ -1006,6 +1006,7 @@ async function readCompanyTalentRequestProjection(args: {
       const expiresAt = Date.parse(text(row.expires_at));
       const blocksNewRequest =
         [
+          "draft",
           "queued",
           "failed",
           "awaiting_talent",
@@ -1014,12 +1015,19 @@ async function readCompanyTalentRequestProjection(args: {
         ].includes(workflowStatus) &&
         (!Number.isFinite(expiresAt) || expiresAt > Date.now());
       return {
+        approvedAt: formatRequestTimestamp(row.approved_at),
         at: formatRequestTimestamp(delivery?.sent_at ?? row.created_at),
         blocksNewRequest,
         cancelable:
-          ["queued", "failed"].includes(text(delivery?.status)) &&
-          ["queued", "failed"].includes(workflowStatus),
+          workflowStatus === "draft" ||
+          (["queued", "failed"].includes(text(delivery?.status)) &&
+            ["queued", "failed"].includes(workflowStatus)),
         deliveryStatus: text(delivery?.status),
+        draftBody: workflowStatus === "draft" ? text(row.delivery_body) : null,
+        draftRevision:
+          workflowStatus === "draft" ? Number(row.draft_revision ?? 0) : null,
+        draftSubject:
+          workflowStatus === "draft" ? text(row.delivery_subject) : null,
         label: row.expects_document ? "이력서 요청" : "회사 질문 확인",
         requestId: text(row.id),
         roleId: text(row.role_id),
@@ -1030,6 +1038,7 @@ async function readCompanyTalentRequestProjection(args: {
           delivery_status: text(delivery?.status),
         }),
         topic: text(row.request_context),
+        updatedAt: formatRequestTimestamp(row.updated_at),
       };
     }),
     resumeAvailability: primary

@@ -1,14 +1,9 @@
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import {
-  ChevronLeft,
-  ChevronRight,
-  CircleAlert,
-  LoaderCircle,
-  X,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, LoaderCircle, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
@@ -29,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Tabs } from "@/components/ui/tabs";
 import {
   AcceptIntroDialog,
   StopCandidateDialog,
@@ -61,7 +57,9 @@ import {
   useOrgJobsCandidateActions,
   useOrgJobsDetail,
   useOrgJobsNavigation,
+  useOptionalOrgJobsBoard,
 } from "@/hooks/org/useOrgJobs";
+import type { OrgTalentSelection } from "@/hooks/org/useOrgJobsRoute";
 import { useOrgInternalTalentSystem } from "@/hooks/org/useOrgInternalTalent";
 import { useOrgViewedRecommendations } from "@/hooks/org/useOrgViewedRecommendations";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
@@ -70,8 +68,12 @@ import { extractEmailAddress } from "@/lib/email/parse";
 import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
 import { isInternalDomainEmail } from "@/lib/internalAccess";
 import type { OrgInternalTalentSystemResponse } from "@/lib/org/internalTalentTypes";
-import { canStopOrgCandidateProcess } from "@/lib/org/candidateDecision";
+import {
+  canStopOrgCandidateProcess,
+  CANDIDATE_DECISION_LABELS,
+} from "@/lib/org/candidateDecision";
 import { getOrgTalentDetailNavigationState } from "@/lib/org/detailNavigation";
+import { humanizeOrgStage } from "@/lib/org/pipelineStage";
 import type { OrgTalentDetailResponse } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
 import Face from "../common/Face";
@@ -465,16 +467,18 @@ function ProfilePane({
         secondaryResources={secondaryResources}
       />
 
-      <CandidateDecisionActions
-        acceptDisabled={acceptDisabled}
-        candidateName={name}
-        className="lg:hidden"
-        currentStage={currentStage}
-        decisionPending={decisionPending}
-        onAcceptClick={onAcceptClick}
-        onMoveToPendingConnection={onMoveToPendingConnection}
-        onRejectClick={onRejectClick}
-      />
+      {currentStage === "pending_connection" ? null : (
+        <CandidateDecisionActions
+          acceptDisabled={acceptDisabled}
+          candidateName={name}
+          className="md:hidden"
+          currentStage={currentStage}
+          decisionPending={decisionPending}
+          onAcceptClick={onAcceptClick}
+          onMoveToPendingConnection={onMoveToPendingConnection}
+          onRejectClick={onRejectClick}
+        />
+      )}
 
       {detail.recommendation.fitReason ? (
         <ProfileSection title="">
@@ -574,7 +578,8 @@ function CandidateDecisionActions({
           진행 중인 프로세스를 종료하시겠습니까?
         </div>
         <p className="mt-1 text-[13px] font-normal leading-5">
-          프로세스 종료시, Harper가 후보자에게 적절히 안내합니다.
+          연결을 종료하면 Harper가 후보자에게 회사의 종료 결정을 안내해요. 이미
+          보이거나 전달된 안내는 회수할 수 없어요.
         </p>
         <MuteButton
           className="mt-4"
@@ -600,41 +605,37 @@ function CandidateDecisionActions({
   return (
     <section
       aria-label="후보자 연결 결정"
-      className={cn("rounded-md bg-critical-faded px-4 py-4", className)}
+      className={cn(
+        "rounded-lg border border-neutral-1000-a05 bg-bg-default px-4 py-4",
+        className
+      )}
     >
-      <div className="flex items-start gap-2.5">
-        <div className="mt-0.5 shrink-0 text-critical">
-          <CircleAlert className="size-4" />
-        </div>
-        <div className="min-w-0">
-          <div className="text-[16px] font-medium text-critical">
-            결정이 필요합니다
-          </div>
-          <p className="mt-1 text-[13px] font-normal leading-5 text-neutral-muted">
-            {candidateName} 후보자와 연결을 진행할지 결정해 주세요.
-          </p>
-        </div>
+      <div className="text-[16px] font-medium text-neutral-primary">
+        연결 여부를 결정해 주세요
       </div>
+      <p className="mt-1 text-[13px] font-normal leading-5 text-neutral-muted">
+        {candidateName}님과 연결을 진행할까요?
+      </p>
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <MuteButton
           type="button"
           size="md"
-          variant="primary"
+          variant="positive"
           onClick={onAcceptClick}
           disabled={decisionPending || acceptDisabled || !onAcceptClick}
           className="min-h-10 w-full"
         >
-          이 후보자를 만나보겠습니다
+          {CANDIDATE_DECISION_LABELS.connect}
         </MuteButton>
         <MuteButton
           type="button"
           size="md"
-          variant="warn"
+          variant="critical"
           onClick={onRejectClick}
           disabled={decisionPending || !onRejectClick}
           className="min-h-10 w-full"
         >
-          이번에는 연결받지 않겠습니다
+          {CANDIDATE_DECISION_LABELS.reject}
         </MuteButton>
       </div>
     </section>
@@ -644,10 +645,10 @@ function CandidateDecisionActions({
 function getOrgFeedTitle(kind: string) {
   if (kind === "org_note") return "메모";
   if (kind === "org_acceptance" || kind === "talent_recommendation_accepted") {
-    return "수락";
+    return "연결 시작";
   }
   if (kind === "org_rejection" || kind === "talent_recommendation_rejected") {
-    return "거절";
+    return "연결 거절";
   }
   if (kind === "org_stage_change") return "상태 변경";
   if (kind === "org_resume_opened") return "이력서 열람";
@@ -969,6 +970,71 @@ function FeedPanel({
   );
 }
 
+type TalentDetailNavigationState = NonNullable<
+  ReturnType<typeof getOrgTalentDetailNavigationState>
+>;
+
+function getTalentNavigationStageLabel(label: string, roleName: string) {
+  const normalizedLabel = label.trim();
+  const normalizedRoleName = roleName.trim();
+  const rolePrefix = normalizedRoleName ? `${normalizedRoleName} · ` : "";
+
+  return rolePrefix && normalizedLabel.startsWith(rolePrefix)
+    ? normalizedLabel.slice(rolePrefix.length)
+    : normalizedLabel;
+}
+
+function TalentDetailPager({
+  compact = false,
+  navigation,
+  onNavigate,
+}: {
+  compact?: boolean;
+  navigation: TalentDetailNavigationState;
+  onNavigate: (target: TalentDetailNavigationState["next"] | null) => void;
+}) {
+  return (
+    <div
+      aria-label={`후보자 ${navigation.position} / ${navigation.total}`}
+      className={cn(
+        "inline-flex shrink-0 overflow-hidden bg-bg-weak font-normal",
+        compact ? "rounded-full" : "rounded-sm"
+      )}
+      role="group"
+    >
+      <MuteButton
+        aria-label="이전 후보자"
+        className="rounded-none border-0 border-r border-neutral-1000-a10 shadow-none"
+        disabled={!navigation.previous}
+        onClick={() => onNavigate(navigation.previous)}
+        size={compact ? "sm" : "md"}
+        variant="transparent"
+      >
+        <ChevronLeft aria-hidden className="size-4" />
+      </MuteButton>
+      <div
+        aria-live="polite"
+        className={cn(
+          "flex items-center justify-center tabular-nums text-neutral-primary",
+          compact ? "min-w-12 px-2 text-[12px]" : "min-w-16 px-3 text-[14px]"
+        )}
+      >
+        {navigation.position} / {navigation.total}
+      </div>
+      <MuteButton
+        aria-label="다음 후보자"
+        className="rounded-none border-0 border-l border-neutral-1000-a10 shadow-none"
+        disabled={!navigation.next}
+        onClick={() => onNavigate(navigation.next)}
+        size={compact ? "sm" : "md"}
+        variant="transparent"
+      >
+        <ChevronRight aria-hidden className="size-4" />
+      </MuteButton>
+    </div>
+  );
+}
+
 export function TalentDetailSimpleView() {
   const {
     closeTalentDetail,
@@ -977,6 +1043,7 @@ export function TalentDetailSimpleView() {
     talentNavigationLabel,
     workspaceId,
   } = useOrgJobsNavigation();
+  const optionalBoard = useOptionalOrgJobsBoard();
   const {
     activeDetailRecommendationId,
     activeDetailRoleId,
@@ -1017,7 +1084,6 @@ export function TalentDetailSimpleView() {
   const error = detailQuery.error instanceof Error ? detailQuery.error : null;
   const isLoading = detailQuery.isLoading;
   const onAcceptCandidate = canManageCandidates ? acceptTalent : undefined;
-  const onClose = closeTalentDetail;
   const onRejectCandidate = canManageCandidates ? rejectTalent : undefined;
   const onRetry = () => void detailQuery.refetch();
   const open = detailOpen;
@@ -1062,6 +1128,10 @@ export function TalentDetailSimpleView() {
   const onMoveToPendingConnection = canManageCandidates
     ? () => setPendingConnectionDialogOpen(true)
     : undefined;
+  const handleClose = () => {
+    setMobileTab("profile");
+    closeTalentDetail();
+  };
 
   const handleConfirmResume = () => {
     if (!resumeRequest || !talentId) return;
@@ -1107,7 +1177,7 @@ export function TalentDetailSimpleView() {
     openResume.reset();
   };
 
-  if (!open) return null;
+  if (!open || typeof document === "undefined") return null;
 
   const title =
     detail?.talent.name ||
@@ -1116,8 +1186,27 @@ export function TalentDetailSimpleView() {
   const subtitle = detail
     ? `${companyName} · ${detail.role.name}`
     : companyName;
+  const resolvedTalentNavigationItems: readonly OrgTalentSelection[] =
+    talentNavigationItems.length > 0 || !detail
+      ? talentNavigationItems
+      : (optionalBoard?.board?.items ?? [])
+          .filter((item) => item.stage === detail.recommendation.stage)
+          .sort((left, right) =>
+            right.recommendedAt.localeCompare(left.recommendedAt)
+          );
+  const currentBoardStage = optionalBoard?.board?.stages.find(
+    (stage) => stage.id === detail?.recommendation.stage
+  );
+  const resolvedTalentNavigationLabel = detail
+    ? getTalentNavigationStageLabel(
+        talentNavigationLabel ||
+          currentBoardStage?.label ||
+          humanizeOrgStage(detail.recommendation.stage),
+        detail.role.name
+      )
+    : talentNavigationLabel;
   const detailNavigation = getOrgTalentDetailNavigationState(
-    talentNavigationItems,
+    resolvedTalentNavigationItems,
     {
       recommendationId: activeDetailRecommendationId,
       roleId: activeDetailRoleId,
@@ -1125,68 +1214,100 @@ export function TalentDetailSimpleView() {
     }
   );
   const navigateToTalent = (
-    target: (typeof talentNavigationItems)[number] | null
+    target: (typeof resolvedTalentNavigationItems)[number] | null
   ) => {
     if (!target) return;
+    setMobileTab("profile");
     markViewed(target.recommendationId);
-    selectTalent(target, talentNavigationItems, talentNavigationLabel);
+    selectTalent(
+      target,
+      resolvedTalentNavigationItems,
+      resolvedTalentNavigationLabel
+    );
   };
+  const showMobileDecisionActions = Boolean(
+    detail?.recommendation.stage === "pending_connection" && canManageCandidates
+  );
 
-  return (
+  return createPortal(
     <>
       <div className="fixed inset-0 z-[70]">
         <BareButton
           type="button"
           aria-label="닫기"
-          onClick={onClose}
+          onClick={handleClose}
           className="absolute inset-0 h-full w-full cursor-default bg-black/35"
         />
         <div
           role="dialog"
           aria-modal="true"
-          className="absolute bottom-0 right-0 top-0 flex w-full min-w-0 flex-col overflow-hidden bg-bg-default shadow-[0_24px_90px_color-mix(in_srgb,var(--color-neutral-1000)_22%,transparent)] animate-in slide-in-from-right-6 duration-200 sm:w-[92vw] lg:w-[90vw]"
+          className="absolute bottom-0 right-0 top-0 flex w-full min-w-0 flex-col overflow-hidden bg-bg-default pb-[env(safe-area-inset-bottom)] shadow-[0_24px_90px_color-mix(in_srgb,var(--color-neutral-1000)_22%,transparent)] animate-in slide-in-from-right-6 duration-200 sm:w-[92vw] md:w-[90vw] md:pb-0"
         >
-          <div className="flex shrink-0 items-center justify-between border-b border-neutral-1000-a05 bg-bg-default px-5 py-3 font-normal">
-            {detailNavigation ? (
-              <div className="flex min-w-0 items-center gap-3">
-                <div
-                  aria-label={`후보자 ${detailNavigation.position} / ${detailNavigation.total}`}
-                  className="inline-flex shrink-0 overflow-hidden rounded-sm bg-bg-weak font-normal"
-                  role="group"
+          <div className="shrink-0 border-b border-neutral-1000-a05 bg-bg-default md:hidden">
+            <div className="flex h-12 items-center w-full justify-between gap-2 px-2">
+              <div className="flex items-center gap-2">
+                <MuteButton
+                  aria-label="닫기"
+                  className="rounded-full"
+                  onClick={handleClose}
+                  size="md"
+                  type="button"
+                  variant="transparent"
                 >
+                  <ChevronLeft aria-hidden className="size-4.5" />
+                </MuteButton>
+                <div className="flex min-w-0 flex-1 justify-center">
+                  {detailNavigation ? (
+                    <TalentDetailPager
+                      compact
+                      navigation={detailNavigation}
+                      onNavigate={navigateToTalent}
+                    />
+                  ) : null}
+                </div>
+              </div>
+              {showMobileDecisionActions ? (
+                <div className="flex shrink-0 items-center gap-1">
                   <MuteButton
-                    aria-label="이전 후보자"
-                    className="rounded-none border-0 border-r border-neutral-1000-a10 shadow-none"
-                    disabled={!detailNavigation.previous}
-                    onClick={() => navigateToTalent(detailNavigation.previous)}
+                    className="min-w-11 border-critical bg-critical text-neutral-00 hover:border-critical/90 hover:bg-critical/90 hover:text-neutral-00 active:bg-critical/80"
+                    disabled={decisionPending || !onRejectCandidate}
+                    onClick={() => setRejectDialogOpen(true)}
                     size="md"
+                    type="button"
                     variant="transparent"
                   >
-                    <ChevronLeft aria-hidden className="size-4" />
+                    {CANDIDATE_DECISION_LABELS.reject}
                   </MuteButton>
-                  <div
-                    aria-live="polite"
-                    className="flex min-w-16 items-center justify-center px-3 text-[14px] font-normal tabular-nums text-neutral-primary"
-                  >
-                    {detailNavigation.position} / {detailNavigation.total}
-                  </div>
                   <MuteButton
-                    aria-label="다음 후보자"
-                    className="rounded-none border-0 border-l border-neutral-1000-a10 shadow-none"
-                    disabled={!detailNavigation.next}
-                    onClick={() => navigateToTalent(detailNavigation.next)}
+                    className="min-w-11 border-positive bg-positive text-neutral-00 hover:border-positive/90 hover:bg-positive/90 hover:text-neutral-00 active:bg-positive/80"
+                    disabled={
+                      decisionPending || !acceptStageId || !onAcceptCandidate
+                    }
+                    onClick={() => setAcceptDialogOpen(true)}
                     size="md"
+                    type="button"
                     variant="transparent"
                   >
-                    <ChevronRight aria-hidden className="size-4" />
+                    {CANDIDATE_DECISION_LABELS.connect}
                   </MuteButton>
                 </div>
-                {talentNavigationLabel ? (
+              ) : null}
+            </div>
+          </div>
+
+          <div className="hidden shrink-0 items-center justify-between border-b border-neutral-1000-a05 bg-bg-default px-5 py-3 font-normal md:flex">
+            {detailNavigation ? (
+              <div className="flex min-w-0 items-center gap-3">
+                <TalentDetailPager
+                  navigation={detailNavigation}
+                  onNavigate={navigateToTalent}
+                />
+                {resolvedTalentNavigationLabel ? (
                   <div
                     className="max-w-[min(40vw,320px)] truncate text-[13px] font-normal text-neutral-muted"
-                    title={talentNavigationLabel}
+                    title={resolvedTalentNavigationLabel}
                   >
-                    {talentNavigationLabel}
+                    {resolvedTalentNavigationLabel}
                   </div>
                 ) : null}
               </div>
@@ -1202,7 +1323,7 @@ export function TalentDetailSimpleView() {
             )}
             <MuteButton
               aria-label="닫기"
-              onClick={onClose}
+              onClick={handleClose}
               size="md"
               type="button"
               variant="transparent"
@@ -1223,41 +1344,31 @@ export function TalentDetailSimpleView() {
               onRetry={onRetry}
             />
           ) : detail ? (
-            <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_480px]">
+            <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(0,1fr)_480px]">
               <div className="min-h-0 overflow-y-auto">
-                <div className="border-b border-neutral-1000-a05 px-5 py-3 lg:hidden">
-                  <div className="flex">
-                    <BareButton
-                      type="button"
-                      onClick={() => setMobileTab("profile")}
-                      className={cn(
-                        "border-b-2 px-3.5 py-2.5 text-[13px] transition",
-                        mobileTab === "profile"
-                          ? "border-neutral-800 font-medium text-neutral-primary"
-                          : "border-transparent text-neutral-muted hover:text-neutral-primary"
-                      )}
-                    >
-                      프로필
-                    </BareButton>
-                    <BareButton
-                      type="button"
-                      onClick={() => setMobileTab("feed")}
-                      className={cn(
-                        "border-b-2 px-3.5 py-2.5 text-[13px] transition",
-                        mobileTab === "feed"
-                          ? "border-neutral-800 font-medium text-neutral-primary"
-                          : "border-transparent text-neutral-muted hover:text-neutral-primary"
-                      )}
-                    >
-                      피드
-                    </BareButton>
-                  </div>
+                <div className="bg-bg-default px-4 py-2 md:hidden">
+                  <Tabs
+                    activeValue={mobileTab}
+                    aria-label="후보자 상세 보기"
+                    className="w-fit"
+                    items={[
+                      { label: "프로필", value: "profile" },
+                      { label: "피드", value: "feed" },
+                    ]}
+                    onValueChange={(value) => {
+                      if (value === "profile" || value === "feed") {
+                        setMobileTab(value);
+                      }
+                    }}
+                    size="small"
+                    variant="pills-elevated"
+                  />
                 </div>
                 {internalOpsAccess ? (
                   <div
                     className={cn(
                       "border-b border-neutral-1000-a05 bg-bg-default px-5",
-                      mobileTab !== "profile" && "hidden lg:block"
+                      mobileTab !== "profile" && "hidden md:block"
                     )}
                   >
                     <div className="flex">
@@ -1290,9 +1401,9 @@ export function TalentDetailSimpleView() {
                     </div>
                   </div>
                 ) : null}
-                <div className="p-5">
+                <div className="p-4 sm:p-5">
                   <div
-                    className={cn(mobileTab !== "profile" && "hidden lg:block")}
+                    className={cn(mobileTab !== "profile" && "hidden md:block")}
                   >
                     {profileTab === "internal" && internalOpsAccess ? (
                       <div className="space-y-2">
@@ -1307,6 +1418,7 @@ export function TalentDetailSimpleView() {
                           memos={harperMemos}
                         />
                         <OrgInternalTalentPanel
+                          roleId={detail.role.roleId}
                           talentId={detail.talent.userId}
                           workspaceId={workspaceId}
                         />
@@ -1337,7 +1449,7 @@ export function TalentDetailSimpleView() {
                   <div
                     className={cn(
                       mobileTab !== "feed" && "hidden",
-                      "lg:hidden"
+                      "md:hidden"
                     )}
                   >
                     <FeedPanel
@@ -1351,7 +1463,7 @@ export function TalentDetailSimpleView() {
                   </div>
                 </div>
               </div>
-              <div className="hidden min-h-0 overflow-y-auto border-l border-neutral-1000-a05 bg-bg-default p-5 lg:block">
+              <div className="hidden min-h-0 overflow-y-auto border-l border-neutral-1000-a05 bg-bg-default p-5 md:block">
                 <FeedPanel
                   canManageCandidates={canManageCandidates}
                   currentUserId={currentUserId}
@@ -1433,6 +1545,7 @@ export function TalentDetailSimpleView() {
       </Dialog>
 
       <AcceptIntroDialog
+        allowContactDirectly={isInternalDomainEmail(currentUserEmail)}
         candidateEmail={detail?.talent.email}
         candidateName={title}
         companyContactName={currentUser?.name}
@@ -1484,6 +1597,7 @@ export function TalentDetailSimpleView() {
           setRejectDialogOpen(false);
         }}
       />
-    </>
+    </>,
+    document.body
   );
 }

@@ -1825,6 +1825,7 @@ export async function fetchTalentOpportunitySavedStageHistoryPages(args: {
 export async function fetchTalentOpportunityHistoryPage(args: {
   admin: AdminClient;
   historyTab?: TalentOpportunityHistoryTab;
+  latestFirst?: boolean;
   limit?: number;
   locale?: string | null;
   offset?: number;
@@ -1857,6 +1858,31 @@ export async function fetchTalentOpportunityHistoryPage(args: {
       items: [],
       limit,
       nextOffset: null,
+      offset,
+    };
+  }
+
+  if (args.latestFirst) {
+    const [items, counts] = await Promise.all([
+      fetchTalentOpportunityHistory({
+        admin: args.admin,
+        limit,
+        locale: args.locale,
+        offset,
+        userId: args.userId,
+      }),
+      fetchTalentOpportunityHistoryCountsFallback({
+        admin: args.admin,
+        userId: args.userId,
+      }),
+    ]);
+
+    return {
+      counts,
+      items,
+      limit,
+      nextOffset:
+        offset + items.length < counts.total ? offset + items.length : null,
       offset,
     };
   }

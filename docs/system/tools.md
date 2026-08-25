@@ -13,7 +13,6 @@ Career의 LLM tool schema와 실행 함수는 `src/lib/talentOnboarding/tools.ts
 | `get_role_context` | 특정 roleId의 JD/company/recommendation 상세 맥락 읽기 | chat, realtime voice |
 | `update_recommended_opportunity_feedback` | 추천 공고에 like/dislike 저장 | chat |
 | `research_company` | 특정 회사 조사 후 company snapshot 답변 생성 | chat |
-| `lookup_answer_examples` | ops가 관리하는 답변 예시 검색 | chat |
 | `read_talent_activity_events` | 최근 profile/preference/activity summary 읽기 | chat |
 | `update_setting` | 추천 발송 설정 변경 | chat |
 | `update_talent_profile` | 프로필, row memo, future matching memory 저장 | chat |
@@ -24,7 +23,7 @@ Career의 LLM tool schema와 실행 함수는 `src/lib/talentOnboarding/tools.ts
 | 상황 | LLM에 들어가는 tools |
 |---|---|
 | Text chat, onboarding 진행 중 | `web_search`, `update_talent_profile`, `open_url` |
-| Text chat, onboarding 완료 후 | `web_search`, `open_url`, `recommend_job_postings`, `read_recommended_opportunities`, `get_role_context`, `update_recommended_opportunity_feedback`, `research_company`, `lookup_answer_examples`, `read_talent_activity_events`, `update_setting`, `update_talent_profile` |
+| Text chat, onboarding 완료 후 | `web_search`, `open_url`, `recommend_job_postings`, `read_recommended_opportunities`, `get_role_context`, `update_recommended_opportunity_feedback`, `research_company`, `read_talent_activity_events`, `update_setting`, `update_talent_profile` |
 | Text chat, hidden internal fit hold 질문이 활성화된 경우 | onboarding 완료 후 tool 목록에 `record_internal_fit_reevaluation_information` 추가 |
 | `/api/talent/chat`의 voice channel onboarding | `update_talent_profile` |
 | Realtime voice call, onboarding 진행 중 | 없음 |
@@ -36,6 +35,7 @@ Career의 LLM tool schema와 실행 함수는 `src/lib/talentOnboarding/tools.ts
 
 ## 특수 동작
 
+- Career에는 Ops 답변 예시를 자동 검색하거나 LLM tool로 호출하는 경로가 없다. 기존 Career 예시는 내용을 재검토할 때까지 DB에만 보관한다.
 - `research_company`는 `stopAfterExecution` tool이다. LLM이 tool call을 만들면 route-local executor가 company snapshot을 생성하고, 일반 tool loop 후속 답변을 이어가지 않는다.
 - `allowedToolNames`가 빈 배열이면 tools가 전부 빠진다. 값이 있으면 상황별 allowlist를 통과한 tool 중 해당 이름만 남긴다.
 - `update_talent_profile`은 onboarding 중에는 profile/row memo 중심이고, onboarding 완료 후에는 future matching memory도 저장할 수 있다.

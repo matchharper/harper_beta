@@ -3,7 +3,6 @@ import test from "node:test";
 import {
   appendMissingSlackRoleCreationThreadLinks,
   buildSlackRoleCreationStartMessage,
-  buildSlackRoleCreationThreadIntro,
   buildSlackRoleCreationWebUrl,
 } from "@/lib/org/agent/slackRoleCreationMessages";
 
@@ -28,44 +27,32 @@ test("builds one web continuation URL for the linked workspace and role", () => 
 });
 
 test("Slack role-creation messages explain the dedicated thread and web continuation once", () => {
-  const webUrl =
-    "https://harper.example/org/role?orgId=workspace&roleId=role";
+  const webUrl = "https://harper.example/org/role?orgId=workspace&roleId=role";
   const root = buildSlackRoleCreationStartMessage({
-    description: "플랫폼 <리드> & 채용",
-    descriptionOrigin: "user_supplied",
-    roleTitle: "Staff Engineer",
+    roleTitle: "Staff <Engineer> & Lead",
     webUrl,
   });
-  const intro = buildSlackRoleCreationThreadIntro();
 
-  assert.match(root, /🆕 \*새 역할을 같이 정리해볼게요\*/);
-  assert.match(root, /Staff Engineer/);
-  assert.match(root, /&lt;리드&gt; &amp; 채용/);
-  assert.match(root, new RegExp(`<${webUrl.replace(/[?]/g, "\\?")}\\|웹에서 계속 작성하기>`));
+  assert.match(
+    root,
+    /\*Staff &lt;Engineer&gt; &amp; Lead 역할 작성을 시작했어요\*/
+  );
+  assert.match(root, /방금 대화에서 받은 내용을 이 스레드로 옮겼어요/);
+  assert.match(
+    root,
+    new RegExp(`<${webUrl.replace(/[?]/g, "\\?")}\\|웹에서 계속 작성하기>`)
+  );
   assert.doesNotMatch(root, /Slack과 웹은 같은 작성 중 역할/);
-  assert.match(intro, /생각해둔 내용을 편하게 전부 적거나/);
-  assert.match(intro, /JD/);
-  assert.doesNotMatch(intro, /https?:\/\//);
-  assert.equal(`${root}\n${intro}`.split(webUrl).length - 1, 1);
+  assert.equal(root.split(webUrl).length - 1, 1);
 });
 
-test("labels a Harper-authored Slack role description as a replaceable draft", () => {
+test("does not claim that transferred role input has already been organized", () => {
   const root = buildSlackRoleCreationStartMessage({
-    description: "초기 제품의 사용자 경험을 설계합니다.",
-    descriptionOrigin: "same_company_public_jd",
-    descriptionSourceUrl: "https://harper.example/careers/designer",
     roleTitle: "Founding Designer",
     webUrl: "https://harper.example/org/role?orgId=workspace&roleId=role",
   });
-  const intro = buildSlackRoleCreationThreadIntro({
-    descriptionOrigin: "same_company_public_jd",
-  });
-
-  assert.match(root, /공개 JD를 참고해 Harper가 정리한 초안/);
-  assert.match(root, /참고한 공개 JD/);
-  assert.match(root, /JD 링크·파일·텍스트/);
-  assert.match(intro, /제가 먼저 정리한 역할 설명 초안/);
-  assert.match(intro, /방향이 맞는지/);
+  assert.match(root, /정리하고 있어요/);
+  assert.doesNotMatch(root, /정리했어요|초안을 만들었어요/);
 });
 
 test("appends an exact permalink when a draft role is mentioned without its link", () => {

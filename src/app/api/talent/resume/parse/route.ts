@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import pdfFork from "pdf-parse-fork";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { sanitizeMultilineDbText } from "@/lib/textSanitization";
+import { MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES } from "@/lib/talentOnboarding/documentUploadLimits";
 
 const PDF_TEXT_READ_FAILED =
   "PDF를 읽는데 실패했습니다. 다른 형식의 파일을 올려주세요.";
@@ -55,6 +56,12 @@ export async function POST(req: NextRequest) {
     const file = formData.get("file") as File | null;
     if (!file) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
+    }
+    if (file.size > MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES) {
+      return NextResponse.json(
+        { error: "File size must not exceed 4 MB" },
+        { status: 413 }
+      );
     }
 
     const isPdf =

@@ -12,9 +12,14 @@ import {
   buildAutoIntroWorkspaceJobsUrl,
   groupAutoIntroItemsByWorkspaceAndRole,
   renderAutoIntroCandidateCopy,
+  renderAutoIntroSlackProfile,
   validateAutoIntroCandidateSentences,
   validateAutoIntroInternalReason,
 } from "./autoIntroToCompanyMessage";
+import {
+  AUTO_INTRO_RESPONSE_GUIDANCE,
+  AUTO_INTRO_WORKSPACE_OPENING,
+} from "./autoIntroToCompanyPolicy";
 
 const LINK_ARGS = {
   publicSiteUrl: "http://localhost:3000",
@@ -54,8 +59,8 @@ test("Slack candidate name link escapes the label", () => {
     ...LINK_ARGS,
     name: "Kim | R&D",
   });
-  assert.match(link, /^\*<http:\/\/localhost:3000\/org\/role\?/);
-  assert.ok(link.endsWith("|Kim &#124; R&amp;D>*"));
+  assert.match(link, /^<http:\/\/localhost:3000\/org\/role\?/);
+  assert.ok(link.endsWith("|Kim &#124; R&amp;D>"));
 });
 
 test("workspace action guidance links to the org jobs overview once", () => {
@@ -74,7 +79,27 @@ test("workspace action guidance links to the org jobs overview once", () => {
     workspaceId: "workspace-1",
   });
   assert.match(guidance, /<http:\/\/localhost:3000\/org\/jobs\?/);
-  assert.match(guidance, /연결을 수락하거나 거절하실 수 있습니다\.$/);
+  assert.match(guidance, /후보자에 대한 더 자세한 정보/);
+  assert.match(guidance, /Harper 웹에서 확인해 주세요/);
+  assert.equal((guidance.match(/<http/g) ?? []).length, 1);
+});
+
+test("new candidate guidance uses natural Slack language instead of web button labels", () => {
+  assert.deepEqual(AUTO_INTRO_WORKSPACE_OPENING, [
+    "*연결을 제안드리고 싶은 후보자가 있습니다.*",
+  ]);
+  assert.match(AUTO_INTRO_RESPONSE_GUIDANCE, /천천히 확인/);
+  assert.match(
+    AUTO_INTRO_RESPONSE_GUIDANCE,
+    /연결을 받으실지, 거절하실지 선택해 주세요/
+  );
+  assert.match(AUTO_INTRO_RESPONSE_GUIDANCE, /연결을 수락하면 .*대화를 직접/);
+  assert.match(AUTO_INTRO_RESPONSE_GUIDANCE, /거절시 .*후보자에게 .*안내/);
+  assert.match(
+    AUTO_INTRO_RESPONSE_GUIDANCE,
+    /다음에는 .*더 정확하게 찾아볼게요/
+  );
+  assert.doesNotMatch(AUTO_INTRO_RESPONSE_GUIDANCE, /Connect|Reject/);
 });
 
 test("role summary uses a native Slack table with exact role links", () => {
@@ -105,7 +130,7 @@ test("role summary uses a native Slack table with exact role links", () => {
     text,
     /^\*현재 채용 현황\*\n현재 연결 여부를 결정해야 하는 후보자를 정리했습니다\./
   );
-  assert.match(text, /FDE \(Forward Deployed Engineer\)> \| 진행중 \| 5명/);
+  assert.match(text, /FDE \(Forward Deployed Engineer\)> \| 진행 중 \| 5명/);
   const blocks = buildAutoIntroRoleSummarySlackBlocks({ summary });
   assert.deepEqual(blocks[0], {
     text: {
@@ -171,6 +196,41 @@ test("candidate copy supports readable presentation variants", () => {
   assert.ok(mixed.includes("*TL;DR* — 첫 문장입니다."));
   assert.ok(mixed.includes("• 두 번째 문장입니다."));
   assert.ok(mixed.endsWith("확인이 필요한 사항도 함께 안내합니다."));
+});
+
+test("rich candidate profile follows the recruiter-style Slack layout", () => {
+  const copy = renderAutoIntroSlackProfile({
+    currentRole: "AI Solutions Engineer @ Lendflow",
+    education: "University of Texas at Austin",
+    harperNote:
+      "Software, ML infrastructure, and hardware integration experience reinforce one another.",
+    location: "Austin, TX (open to relocation)",
+    preferences: [
+      "Industry: Defense technology",
+      "Scope: Software that directly affects hardware systems",
+    ],
+    tldr: "Defense-focused software engineer with hands-on interceptor-drone backend experience.",
+    workSummary: [
+      {
+        bullets: [
+          "Built embedded credit infrastructure for fintechs and lenders",
+        ],
+        heading: "AI Solutions Engineer @ Lendflow (current)",
+      },
+    ],
+  });
+  assert.match(copy, /^\*Role:\* AI Solutions Engineer @ Lendflow/m);
+  assert.match(copy, /^\*Location:\* Austin, TX \(open to relocation\)$/m);
+  assert.match(copy, /^\*Education:\* University of Texas at Austin$/m);
+  assert.match(copy, /^_\*PLEASE REPLY TO REQUEST AN INTRO\*_$/m);
+  assert.doesNotMatch(copy, /^>/m);
+  assert.match(copy, /\*TL;DR\* - Defense-focused software engineer/);
+  assert.match(copy, /\*Harper Note\* - Software, ML infrastructure/);
+  assert.match(copy, /^Work Summary:$/m);
+  assert.match(copy, /^\*AI Solutions Engineer @ Lendflow \(current\)\*$/m);
+  assert.doesNotMatch(copy, /\*Work Summary:\*/);
+  assert.match(copy, /• Built embedded credit infrastructure/);
+  assert.match(copy, /\*Preferences:\*/);
 });
 
 test("candidate copy rejects per-candidate questions and connection CTAs", () => {

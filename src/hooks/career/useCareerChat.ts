@@ -22,14 +22,20 @@ import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { useMessages } from "@/i18n/useMessage";
 import { normalizeLocale } from "@/i18n/localeResolution";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
+import type { CareerOpportunityMention } from "@/lib/career/opportunityMentionText";
+import type { CareerPendingActionReference } from "@/lib/career/pendingActions";
+import { uploadTalentDocument } from "@/lib/talentOnboarding/documentUploadClient";
 
 type SendChatArgs = {
   allowedToolNames?: readonly string[];
+  files?: File[];
   channel?: "chat" | "voice";
   conversationStarterId?: CareerConversationStarterId;
   text: string;
   link?: string;
   messageType?: TalentUserChatMessageType;
+  opportunityMentions?: CareerOpportunityMention[];
+  pendingAction?: CareerPendingActionReference;
   onError?: () => void;
 };
 
@@ -600,7 +606,8 @@ export const useCareerChat = ({
 
       const text = args.text.trim();
       const link = (args.link ?? "").trim();
-      if (!text) return;
+      const files = (args.files ?? []).slice(0, 5);
+      if (!text && files.length === 0) return;
 
       const explicitConversationStarterId = args.conversationStarterId;
       if (explicitConversationStarterId) {
@@ -612,9 +619,15 @@ export const useCareerChat = ({
       const activeConversationStarterId =
         explicitConversationStarterId ??
         activeConversationStarterRef.current?.starterId;
+      const visibleText = text || files.map((file) => file.name).join(", ");
+      const optimisticAttachments = files.map((file) => ({
+        mime: file.type || undefined,
+        name: file.name,
+        size: file.size,
+      }));
       const composed = link
-        ? `${text}\n\n${tCareer(H.referenceLink, { link })}`
-        : text;
+        ? `${visibleText}\n\n${tCareer(H.referenceLink, { link })}`
+        : visibleText;
       const messageType = args.messageType ?? "chat";
       const tempId = `temp-user-${Date.now()}`;
       const nowIso = new Date().toISOString();
@@ -628,6 +641,7 @@ export const useCareerChat = ({
       setLocalMessages((prev) => [
         ...prev,
         {
+          attachments: optimisticAttachments,
           id: tempId,
           role: "user",
           content: composed,
@@ -641,6 +655,25 @@ export const useCareerChat = ({
       abortControllerRef.current = abortController;
 
       try {
+        const uploadedDocumentIds: string[] = [];
+        for (const file of files) {
+          const uploadPayload = await uploadTalentDocument({
+            fetchWithAuth,
+            file,
+            signal: abortController.signal,
+            source: "chat",
+          });
+          const documentId = isRecord(uploadPayload?.document)
+            ? uploadPayload.document.id
+            : null;
+          if (typeof documentId !== "string" || !documentId.trim()) {
+            throw new Error(
+              getErrorMessage(uploadPayload, tCareer(H.documentUploadFailed))
+            );
+          }
+          uploadedDocumentIds.push(documentId.trim());
+        }
+
         const response = await fetchWithAuth("/api/talent/chat", {
           method: "POST",
           headers: {
@@ -655,6 +688,9 @@ export const useCareerChat = ({
             locale,
             message: text,
             messageType,
+            opportunityMentions: args.opportunityMentions,
+            pendingAction: args.pendingAction,
+            uploadedDocumentIds,
             link,
           }),
         });

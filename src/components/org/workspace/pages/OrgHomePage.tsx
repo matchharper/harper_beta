@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { UserPlus } from "lucide-react";
 import { useRouter } from "next/router";
 import { useMemo } from "react";
 import { OrgAgentChatSurface } from "@/components/org/agent/OrgAgentPanel";
@@ -52,19 +53,19 @@ const HIRING_ROLE_STATE_META: Record<
   }
 > = {
   active: {
-    label: "active",
+    label: "진행 중",
     summaryTooltip: "현재 채용을 진행 중인 역할 수입니다.",
   },
   paused: {
-    label: "paused",
-    summaryTooltip: "현재 채용이 일시 중지된 역할 수입니다.",
+    label: "중단",
+    summaryTooltip: "새 후보자 추천을 중단한 역할 수예요.",
   },
   ended: {
-    label: "ended",
+    label: "종료",
     summaryTooltip: "채용이 종료된 역할 수입니다.",
   },
   waiting: {
-    label: "waiting",
+    label: "연결 검토 필요",
     summaryTooltip: `연결 대기 후보자가 ${ORG_PENDING_CONNECTION_PAUSE_THRESHOLD}명 이상인 역할 수입니다.`,
   },
 };
@@ -210,41 +211,40 @@ function HomeQuickActions({
   companyLogoUrl,
   companyName,
   onOpenCompany,
+  onOpenMembers,
   onOpenSlack,
   slackChannelName,
 }: {
   companyLogoUrl: string | null;
   companyName: string;
   onOpenCompany: () => void;
+  onOpenMembers: () => void;
   onOpenSlack: () => void;
   slackChannelName: string | null;
 }) {
+  const cardCs =
+    "sm:min-h-[132px] min-w-0 w-full flex-col items-start gap-1 rounded-xl border-neutral-1000-a10 bg-bg-default p-4 sm:p-4 shadow-none hover:border-neutral-1000-a10 hover:bg-neutral-100";
+
   return (
     <div
       aria-label="Workspace 설정"
-      className="flex w-full max-w-[660px] flex-row gap-3 mt-12"
+      className="mt-20 grid w-full grid-cols-1 sm:grid-cols-3 gap-3 sm:mt-14"
     >
-      <CardButton
-        className="min-h-[104px] rounded-xl hover:bg-neutral-100 min-w-0 flex-1 items-start gap-3 border-neutral-1000-a10 bg-bg-default px-4 py-4 hover:border-neutral-1000-a20"
-        onClick={onOpenSlack}
-      >
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-bg-weak">
+      <CardButton className={cardCs} onClick={onOpenSlack}>
+        <span className="mb-3 flex size-8 shrink-0 items-center justify-center rounded-md bg-black/5">
           <Image alt="" height={18} src="/images/logos/slack.svg" width={18} />
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="truncate text-[14px] font-medium">Slack 연결</span>
-          <span className="line-clamp-2 text-[13px] font-light leading-4 text-neutral-muted">
+          <span className="truncate text-[14px] font-medium">Slack</span>
+          <span className="line-clamp-2 text-[13px] font-light leading-4 text-black/70">
             {slackChannelName
               ? `${slackChannelName} 연결됨`
               : "팀과 함께 추천 소식을 확인하세요."}
           </span>
         </span>
       </CardButton>
-      <CardButton
-        className="min-h-[104px] rounded-xl hover:bg-neutral-100 min-w-0 flex-1 items-start gap-3 border-neutral-1000-a10 bg-bg-default px-4 py-4 hover:border-neutral-1000-a20"
-        onClick={onOpenCompany}
-      >
-        <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-neutral-1000-a05 bg-bg-weak text-[12px] font-medium text-neutral-muted">
+      <CardButton className={cardCs} onClick={onOpenCompany}>
+        <span className="mb-3 flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-bg-weak text-[12px] font-medium text-neutral-muted">
           {companyLogoUrl ? (
             <Image
               alt=""
@@ -259,9 +259,20 @@ function HomeQuickActions({
           )}
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="truncate text-[14px] font-medium">회사 정보</span>
-          <span className="line-clamp-2 text-[13px] font-light leading-4 text-neutral-muted">
+          <span className="truncate text-[14px] font-medium">Company</span>
+          <span className="line-clamp-2 text-[13px] font-light leading-4 text-black/70">
             후보자에게 보여질 수 있는 회사 정보를 관리하세요.
+          </span>
+        </span>
+      </CardButton>
+      <CardButton className={cardCs} onClick={onOpenMembers}>
+        <span className="mb-3 flex size-8 shrink-0 items-center justify-center rounded-md bg-black/5">
+          <UserPlus aria-hidden="true" className="size-5" strokeWidth={1.7} />
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="truncate text-[14px] font-medium">Members</span>
+          <span className="line-clamp-2 text-[13px] font-light leading-4 text-black/70">
+            함께 후보자를 검토할 팀원을 초대하세요.
           </span>
         </span>
       </CardButton>
@@ -305,6 +316,9 @@ export function OrgHomePage() {
   };
   const openCompany = () => {
     void router.push(buildOrgHref({ orgId: workspaceId, page: "team" }));
+  };
+  const openMembers = () => {
+    void router.push(buildOrgHref({ orgId: workspaceId, page: "member" }));
   };
   const handleRoleCreated = (createdRoleId: string) => {
     void router.replace(
@@ -408,6 +422,7 @@ export function OrgHomePage() {
             companyLogoUrl={workspace.logoUrl}
             companyName={workspace.companyName}
             onOpenCompany={openCompany}
+            onOpenMembers={openMembers}
             onOpenSlack={openSlack}
             slackChannelName={slackChannelName}
           />
@@ -463,7 +478,7 @@ export function OrgHomePage() {
               })}
               {hiringRoles.length === 0 ? (
                 <div className="py-9 text-center text-sm font-light text-neutral-muted">
-                  등록된 Job이 없습니다.
+                  아직 등록된 Role이 없어요.
                 </div>
               ) : null}
             </div>
@@ -472,6 +487,7 @@ export function OrgHomePage() {
             companyLogoUrl={workspace.logoUrl}
             companyName={workspace.companyName}
             onOpenCompany={openCompany}
+            onOpenMembers={openMembers}
             onOpenSlack={openSlack}
             slackChannelName={slackChannelName}
           />

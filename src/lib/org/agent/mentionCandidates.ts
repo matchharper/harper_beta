@@ -1,7 +1,5 @@
 import type { OrgAgentMentionCandidate } from "@/lib/org/agent/types";
 
-const MENTION_CANDIDATE_GROUP_LIMIT = 12;
-
 function normalizedText(value: string | null | undefined) {
   return String(value ?? "")
     .trim()
@@ -49,9 +47,7 @@ export function filterOrgAgentMentionCandidates(args: {
       roleId && candidate.roleId === roleId
         ? currentRoleCandidates
         : otherRoleCandidates;
-    if (target.length < MENTION_CANDIDATE_GROUP_LIMIT) {
-      target.push(candidate);
-    }
+    target.push(candidate);
   }
 
   return [...currentRoleCandidates, ...otherRoleCandidates];

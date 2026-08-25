@@ -318,7 +318,7 @@ async function hydrateDecisionReviewModal(args: {
       await updateReviewModalSafely({
         token: args.token,
         view: buildSlackTalentReviewDecisionErrorView(
-          "Viewer 권한에서는 후보자를 수락하거나 거절할 수 없습니다. Owner 또는 Admin에게 결정을 요청해 주세요."
+          "후보자 정보는 볼 수 있지만 연결 여부는 결정할 수 없어요. Owner 또는 Admin에게 요청해 주세요."
         ),
         viewId: args.viewId,
       });
@@ -373,14 +373,14 @@ async function hydrateDecisionReviewModal(args: {
 function decisionErrorMessage(error: unknown) {
   if (error instanceof OrgHttpError) {
     if (error.status === 403) {
-      return "후보자를 결정할 권한이 없습니다. Owner 또는 Admin 권한을 확인해 주세요.";
+      return "후보자 정보는 볼 수 있지만 연결 여부는 결정할 수 없어요. Owner 또는 Admin에게 요청해 주세요.";
     }
     if (error.status === 409) {
-      return "이미 다른 멤버가 이 후보자를 결정했거나 현재 상태가 바뀌었습니다.";
+      return "이미 다른 멤버가 결정했거나 후보자 상태가 바뀌었어요. 이번 요청으로 추가 변경이나 안내는 발생하지 않았어요.";
     }
     if (error.status >= 400 && error.status < 500) return error.message;
   }
-  return "일시적인 오류가 발생했습니다. 잠시 후 최신 후보자 상태를 확인하고 다시 시도해 주세요.";
+  return "결정의 최종 결과를 확인하지 못했어요. 소개 이메일이나 후보자 안내가 전달됐을 수 있으니 바로 다시 시도하지 말고, 최신 후보자 상태와 메일을 먼저 확인해 주세요.";
 }
 
 async function hydrateSubmittedDecisionModal(args: {
@@ -405,11 +405,14 @@ async function hydrateSubmittedDecisionModal(args: {
     if (!member) {
       throw new OrgHttpError(
         403,
-        "Slack 이메일과 일치하는 Harper workspace 멤버를 찾지 못했습니다."
+        "Slack 이메일과 일치하는 Harper Workspace 멤버를 찾지 못했어요."
       );
     }
     if (!member.canManageCandidates) {
-      throw new OrgHttpError(403, "이 작업을 수행할 권한이 없습니다.");
+      throw new OrgHttpError(
+        403,
+        "후보자 정보는 볼 수 있지만 연결 여부는 결정할 수 없어요."
+      );
     }
     const candidateRef = source.candidates[args.candidateIndex];
     if (!candidateRef) {
@@ -434,14 +437,14 @@ async function hydrateSubmittedDecisionModal(args: {
         ) {
           throw new OrgHttpError(
             400,
-            "소개 메일 수신자는 현재 workspace 멤버 중에서 선택해 주세요."
+            "Email intro의 Recipients는 현재 Workspace 멤버 중에서 선택해 주세요."
           );
         }
       }
       if (args.submission.connectionMode === "cc_intro" && !candidate.email) {
         throw new OrgHttpError(
           422,
-          "후보자 이메일이 없어 CC 연결 메일을 보낼 수 없습니다. 직접 연락을 선택해 주세요."
+          "후보자 이메일이 없어 Email intro를 사용할 수 없어요. Direct contact를 선택해 주세요."
         );
       }
     }

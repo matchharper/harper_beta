@@ -31,7 +31,6 @@ export const ORG_AGENT_TOOL_NAMES = [
   "change_role_status",
   "manage_role_pipeline_stages",
   "contact_talent",
-  "change_talent_contact",
   "move_candidate_stage",
   "prepare_candidate_connection",
   "decide_candidate_connection",
@@ -46,7 +45,6 @@ export const ORG_AGENT_TERMINAL_TOOL_NAMES = new Set<OrgAgentToolName>([
   "change_role_status",
   "manage_role_pipeline_stages",
   "contact_talent",
-  "change_talent_contact",
   "move_candidate_stage",
   "decide_candidate_connection",
 ]);
@@ -61,32 +59,16 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "start_role_creation",
       description:
-        "Start a dedicated Slack thread for one new role. A usable title and detailed candidate-visible description are required. The description may be faithful user-supplied material, one verified public JD for this same company and role, or Harper's clearly provisional draft after the required one-time web search found no clearly matching JD. For either Harper-authored origin, web_search must already have succeeded earlier in this turn; a public-JD origin also requires open_url. This tool is Slack-only and terminal: after it succeeds, direct the user to the returned thread instead of continuing role discovery in the current conversation.",
+        "Start a dedicated Slack thread for one new role and hand the user's exact recent Slack context to the role-creation flow. Supply only the confirmed role title and the smallest number of recent messages needed to preserve the hiring request. The dedicated role-creation flow automatically continues before the user has to say anything there, including its own one-time public-JD research when the transferred input is sparse. The result provides an exact required continuation link plus guidance and an illustrative example; author the final handoff reply naturally as Harper rather than copying fixed system-status text. Do not research or draft the role description in this general turn. This tool is Slack-only and terminal.",
       parameters: {
         additionalProperties: false,
         properties: {
-          description: {
+          contextMessageCount: {
             description:
-              "A detailed candidate-visible role description. Preserve material user/source constraints. For a company-style draft, keep unsupported details broad or explicitly provisional rather than inventing them.",
-            maxLength: 12_000,
-            minLength: 1,
-            type: "string",
-          },
-          descriptionOrigin: {
-            description:
-              "Where the seeded description came from. company_style_draft means the one-time search found no clearly matching public JD and Harper drafted from company context or an analogous saved role's public structure.",
-            enum: [
-              "user_supplied",
-              "same_company_public_jd",
-              "company_style_draft",
-            ],
-            type: "string",
-          },
-          descriptionSourceUrl: {
-            description:
-              "The exact opened JD URL when the description came from a user-supplied link or same_company_public_jd. Omit when no URL was used and for company_style_draft.",
-            maxLength: 2_000,
-            type: "string",
+              "How many recent messages from this Slack thread to transfer, including the current user message. Use 1 when the current message is self-contained. Include only directly relevant user/Harper turns needed to understand the title, JD, link, file, constraints, or a clarification that established them.",
+            maximum: 12,
+            minimum: 1,
+            type: "integer",
           },
           roleTitle: {
             description:
@@ -96,7 +78,7 @@ export const ORG_AGENT_TOOLS = [
             type: "string",
           },
         },
-        required: ["roleTitle", "description", "descriptionOrigin"],
+        required: ["roleTitle", "contextMessageCount"],
         type: "object",
       },
     },
@@ -153,7 +135,7 @@ export const ORG_AGENT_TOOLS = [
         "Read one to ten company-visible candidates after resolving their exact talent IDs. Use talentIds for batch reads; the singular talentId remains available for backward-compatible one-candidate reads, and the two forms must not be combined. This is a neutral candidate read and never by itself implies preference disclosure or candidate contact. With includeProfile=false (the compact default), it still returns candidate name, email, and headline; visible workspace role and candidate-stage entries with recommendation evidence; bounded recent progress; candidate-contact history with scheduled KST time and cancellation availability; resume availability; and five safe career insights each candidate told Harper. With includeProfile=true, it returns that same base plus the longer professional profile: current profile location, bio, structured work history, education, and extras. Compensation and raw resume text are never returned; resume output remains availability-only.",
       parameters: {
         additionalProperties: false,
-        anyOf: [{ required: ["talentIds"] }, { required: ["talentId"] }],
+        minProperties: 1,
         properties: {
           includeProfile: {
             description:
@@ -328,7 +310,7 @@ export const ORG_AGENT_TOOLS = [
         "Edit or fully replace one role's optional high-level evaluation dimensions after the user explicitly asks. For one or more targeted additions, updates, or deletions, use edits and copy an existing dimension's exact name into targetName. Use criteria only for a full-list replacement. Read the role with include=criteria first when the current criteria are not visible. The final list may contain 0-6 dimensions; when useful, prefer 2-4 without adding filler. Consolidate related technical qualifications into one technical-fit dimension instead of one criterion per technology. Provide exactly one of criteria or edits. This must be the only tool call in the message and ends tool use for the turn.",
       parameters: {
         additionalProperties: false,
-        anyOf: [{ required: ["criteria"] }, { required: ["edits"] }],
+        minProperties: 2,
         properties: {
           criteria: {
             description:
@@ -519,73 +501,69 @@ Use the exact roleId from current context or a fresh read. Do not claim existing
     type: "function",
     function: {
       name: "contact_talent",
-      description: `Queue one low-pressure question or resume request to an exact candidate only on the confirmation turn of the mandatory two-turn candidate-contact flow.
-This is terminal and must be the only tool call in the message. Never call it on the initial user turn that first asks, tells, or authorizes Harper to contact the candidate, even if that message says to ask, contact, send, obtain, or request something immediately. In the initial turn, reply without this tool: present a natural confirmation containing the exact candidate, role, question or resume request, company-and-role disclosure, one email plus Harper chat delivery, the authoritative scheduling policy, optional reply/no automatic reminder, return path, and pre-delivery cancellation, then ask whether to proceed. Explicitly say that nothing has been queued or sent yet; never call the initial request accepted, received, queued, scheduled, or awaiting delivery.
-Call this tool only when the immediately previous assistant message presented that exact confirmation and the current user message explicitly approves it. A short yes is valid only immediately after that confirmation. If that same approval clearly instructs Harper to send now or immediately, set deliveryMode=immediate so the confirmed request and its timing override are recorded atomically; this does not require a third confirmation turn. A mere timing question is not authorization. If the candidate, role, question, resume request, or another material delivery detail changed, present a revised confirmation and wait for another user turn. Enforce this from the conversation meaning rather than keyword matching; the wording of the confirmation need not be templated.
-Resolve the candidate and role first, and copy their opaque IDs exactly from current context or a fresh tool result without reconstructing them.
-The candidate and role must be unambiguous in the visible conversation. Never resolve "that candidate" or a similar pronoun from a recommendation card, current workspace data, a sole available candidate, or an unrelated tool result; ask for the candidate name and role instead.
-For kind=question, preserve the company's actual question. For current job-search intent, ask whether the candidate is ready to move now and, if not, what timing and level of activity describe their search; do not substitute willingness to discuss this opportunity.
-For kind=resume, use available profile and resume evidence to understand the request. An initial message such as “if there is no resume, request one now” still requires the separate confirmation turn and never authorizes this tool by itself.
-The delivery separately discloses the current workspace company and role.
-Compensation always requires a fresh candidate authorization and must not use any stored amount.
-After a successful result, explain the accepted-but-not-delivered state; restate the exact candidate, company, role, and question or resume topic; include email and Harper chat channels, optional reply with no automatic reminder, return to this conversation, and current cancellation availability. For standard delivery include the exact scheduled KST time. For deliveryMode=immediate explain that the delay/window were bypassed but never claim delivery completed until the worker sends it. Repeat these result details even when the preceding confirmation already explained the policy. Never offer arbitrary rescheduling. If the company only later clearly instructs Harper to send an already queued request now, change_talent_contact with action=immediate can bypass the standard delay and delivery window before delivery starts.
-If the tool returns status=already_pending, no new request was queued. Explain the existing request for the same company, role, and candidate from the result. When it is cancelable, ask whether to cancel it and replace it with the newly requested question; never claim that cancellation or replacement happened before the company confirms.`,
+      description: `Manage the lifecycle of one exact candidate-contact draft and its delivery.
+This is terminal and must be the only tool call in its assistant message. A read_talent call may occur in an earlier tool loop only when candidate or role resolution genuinely requires it.
+Use action=create_draft on the company's initial request. It validates the exact candidate and Role, calls the bounded candidate-copy writer, saves the complete subject and body without queuing delivery, and returns the exact copy that must be shown verbatim for company review.
+Use action=revise_draft when the company asks to edit the currently presented draft. Copy contactId and expectedRevision from pending_candidate_contact_drafts or candidate_contact_draft message context, and pass only the company's editInstruction. The server loads the authoritative current copy, writes a new revision, and returns the full exact revised copy. Never edit a queued or sent contact.
+Use action=schedule only when the immediately previous Harper message presented the same contactId and revision verbatim and the current company message explicitly approves that exact copy. A short yes counts only in that sequence. deliveryMode=standard schedules at least 20 minutes later within 08:00–20:00 KST. deliveryMode=immediate is allowed only when the approval explicitly says to send now. Scheduling never regenerates or rewrites copy.
+Use action=cancel only for a clear cancellation instruction. It can discard a draft or cancel a queued/failed delivery that has not started. It cannot cancel processing or sent delivery.
+For create_draft, resolve opaque IDs exactly. The candidate must be in 연결 대기 for the Role and have a contact email. kind=resume is unavailable when a public primary resume is already visible. For kind=question, preserve the requested meaning in requestContext. Compensation always requires fresh candidate authorization and must never expose stored compensation.
+Do not call read_talent between normal create_draft, revise_draft, and schedule turns merely to recover an ID: use the authoritative pending draft context. If several drafts make the reference ambiguous, ask which candidate and Role the company means rather than guessing.`,
       parameters: {
         additionalProperties: false,
         properties: {
+          action: {
+            description: "Lifecycle action for this candidate contact.",
+            enum: ["create_draft", "revise_draft", "schedule", "cancel"],
+            type: "string",
+          },
+          contactId: {
+            description:
+              "Exact contact ID. Required for revise_draft, schedule, and cancel; omit for create_draft.",
+            type: "string",
+          },
           deliveryMode: {
             description:
-              "standard uses the confirmed 20-minute/KST window policy. immediate is allowed only when the current confirmation reply explicitly instructs Harper to send the exact confirmed request now; it atomically bypasses that delay and window without claiming completed delivery.",
+              "For schedule only. standard uses the 20-minute/KST window; immediate requires explicit send-now approval.",
             enum: ["standard", "immediate"],
             type: "string",
           },
+          editInstruction: {
+            description:
+              "For revise_draft only: the company's requested change to the current exact copy.",
+            maxLength: 2000,
+            minLength: 1,
+            type: "string",
+          },
+          expectedRevision: {
+            description:
+              "Exact currently presented revision. Required for revise_draft and schedule.",
+            minimum: 1,
+            type: "integer",
+          },
           kind: {
             description:
-              "question asks the candidate one focused question; resume asks them to share a current resume.",
+              "For create_draft only: question asks one focused question; resume requests a current resume.",
             enum: ["question", "resume"],
             type: "string",
           },
           requestContext: {
             description:
-              "Required for kind=question and omitted for kind=resume. Write it in the latest user's language because it becomes candidate-facing question content. State what Harper should learn about the candidate in neutral language. Preserve the requested meaning rather than weakening it. Do not add the company or role name here because the delivery supplies and discloses them separately. Do not copy hostile wording or include compensation from stored data.",
+              "For create_draft with kind=question: a neutral description of the exact information requested, in the latest user's language. Never include stored compensation.",
             maxLength: 800,
             minLength: 1,
             type: "string",
           },
-          roleId: { description: "Exact role ID.", type: "string" },
-          talentId: { description: "Exact talent ID.", type: "string" },
-        },
-        required: ["kind", "talentId", "roleId"],
-        type: "object",
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "change_talent_contact",
-      description: `Change one exact candidate-contact request that has not started delivery.
-This is terminal and must be the only tool call in the message. Choose action=cancel only when the company clearly instructs Harper to cancel; a question about whether cancellation is possible is not authorization. Choose action=immediate only when the company clearly instructs Harper to send an already queued or failed request now or immediately; a timing question is not authorization.
-First use read_talent when necessary and copy requestId, talentId, and roleId exactly from its company_contact_history and positions. Never guess a request ID or change a different request merely because it is the latest one.
-Queued and failed deliveries can be cancelled or changed to immediate delivery. Immediate delivery keeps the same request, resets a failed delivery for retry, and bypasses the standard 20-minute delay and 08:00–20:00 KST window. A delivery already processing or sent cannot be changed, and the tool will return an error rather than claim success.`,
-      parameters: {
-        additionalProperties: false,
-        properties: {
-          action: {
-            description:
-              "cancel stops the pending delivery; immediate sends the same queued or failed request as soon as the worker can claim it.",
-            enum: ["cancel", "immediate"],
+          roleId: {
+            description: "For create_draft only: exact Role ID.",
             type: "string",
           },
-          requestId: {
-            description:
-              "Exact changeable request ID returned by read_talent company_contact_history.",
+          talentId: {
+            description: "For create_draft only: exact candidate ID.",
             type: "string",
           },
-          roleId: { description: "Exact role ID.", type: "string" },
-          talentId: { description: "Exact talent ID.", type: "string" },
         },
-        required: ["action", "requestId", "talentId", "roleId"],
+        required: ["action"],
         type: "object",
       },
     },
@@ -694,13 +672,13 @@ The executor re-reads the candidate and applies compare-and-set protection. If a
     function: {
       name: "prepare_candidate_connection",
       description:
-        "Read and stage authoritative context for a possible accept or decline decision. Decline supports a candidate awaiting connection or already in a company-active process, including immediately after acceptance. Accept also supports a previously company-stopped candidate whose earlier Talent acceptance is still authoritative, and returns whether Harper already delivered the closure notice. This never changes candidate state or sends email. Use it when you need current facts to decide whether clarification or confirmation is appropriate. After the tool returns, judge the user's intent from the meaning of the full conversation and write any confirmation or clarification yourself in Harper's natural voice; the server does not provide confirmation copy.",
+        "Read and stage authoritative context for a possible accept or decline decision. Decline supports a candidate awaiting connection or already in a company-active process, including immediately after acceptance. Accept also supports a previously company-stopped candidate whose earlier Talent acceptance is still authoritative, and returns whether Harper already delivered the closure notice. This never changes candidate state or sends email. Use it when you need current facts to decide whether clarification or confirmation is appropriate. Always call it with connectionMethod=direct_contact in the turn where the company first asks to use direct contact, even if candidate facts were already read, so the exact behavior being confirmed is recorded. After the tool returns, judge the user's intent from the meaning of the full conversation and write any confirmation or clarification yourself in Harper's natural voice; the server does not provide confirmation copy.",
       parameters: {
         additionalProperties: false,
         properties: {
           connectionMethod: {
             description:
-              "For accept only, include the method when it is already clear from the conversation. Omit it when the method still needs to be discussed or clarified.",
+              "For accept only. Omit or use intro_email for the default CC introduction. Use direct_contact only when the company explicitly asked to contact the candidate itself.",
             enum: ["intro_email", "direct_contact"],
             type: "string",
           },
@@ -740,13 +718,13 @@ The executor re-reads the candidate and applies compare-and-set protection. If a
     function: {
       name: "decide_candidate_connection",
       description:
-        "Carry out an authorized accept or decline decision. Decline supports a candidate awaiting connection or already in a company-active process, including immediately after acceptance; already-sent email or direct contact cannot be withdrawn. Accept may also reactivate a previously company-stopped candidate whose Talent acceptance is still authoritative; the result says whether the earlier closure notice had already reached the candidate. This is terminal and must be the only tool call. Call it only after you have judged from the meaning of the current message and relevant conversation that the user authorizes the exact candidate, decision, connection method, and email recipients. Do not infer authorization from isolated words, a generic acknowledgement, or a previous tool call. If intent or consequences remain unclear, do not call this tool; use prepare_candidate_connection when authoritative context is needed and write your own clarification or confirmation. For accept, intro_email sends a neutral warm introduction that never mentions the previous decline or closure, and direct_contact only marks connected. Decline moves the candidate to process stopped.",
+        "Carry out an authorized accept or decline decision. Decline supports a candidate awaiting connection or already in a company-active process, including immediately after acceptance; already-sent email or direct contact cannot be withdrawn. Accept may also reactivate a previously company-stopped candidate whose Talent acceptance is still authoritative; the result says whether the earlier closure notice had already reached the candidate. This is terminal and must be the only tool call. Call it only when the immediately previous Harper message asked for approval of the exact candidate, decision, delivery behavior, and email recipients and the current message authorizes all of it; the server verifies that adjacency and otherwise returns confirmation_required without changing state. Do not infer authorization from isolated words, a generic acknowledgement, or a previous tool call. If intent or consequences remain unclear, do not call this tool; use prepare_candidate_connection when authoritative context is needed and write your own clarification or confirmation. For accept, omitted connectionMethod defaults to intro_email, which sends a neutral warm introduction that never mentions the previous decline or closure. Use direct_contact only after the company explicitly requests and authorizes contacting the candidate itself; it only marks connected. Never proactively offer direct_contact as an alternative. Decline moves the candidate to process stopped.",
       parameters: {
         additionalProperties: false,
         properties: {
           connectionMethod: {
             description:
-              "Required for accept. intro_email sends a warm introduction email, CCing authorized recipients or the requester. direct_contact changes the status without sending Harper email.",
+              "For accept, omit or use intro_email for the default warm introduction that CCs authorized recipients or the requester. Use direct_contact only after an explicit company request; it changes the status without sending Harper email.",
             enum: ["intro_email", "direct_contact"],
             type: "string",
           },

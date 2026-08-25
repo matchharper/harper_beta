@@ -44,7 +44,8 @@ export function OrgCandidateStageMenu({
   const availableStages = stages.filter(
     (stage) =>
       canDropOrgCandidateToStage(item, stage) &&
-      (internalOpsAccess || !isOrgInternalStage(stage.id))
+      (!isOrgInternalStage(stage.id) ||
+        (internalOpsAccess && stage.id === "archived"))
   );
 
   return (
@@ -55,11 +56,7 @@ export function OrgCandidateStageMenu({
     >
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <MuteButton
-            aria-label="후보자 이동"
-            size="sm"
-            variant="transparent"
-          >
+          <MuteButton aria-label="후보자 이동" size="sm" variant="transparent">
             <MoreHorizontal className="h-4 w-4" />
           </MuteButton>
         </DropdownMenuTrigger>

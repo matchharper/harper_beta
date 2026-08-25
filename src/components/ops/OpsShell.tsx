@@ -95,9 +95,16 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
     items: [
       {
         description: "회사·role 단위 매칭 관리",
-        href: "/ops/matching",
+        href: "/ops/matching?tab=harper_review",
         label: "Main",
         matchPrefix: "/ops/matching",
+      },
+      {
+        align: "end",
+        description: "모든 internal role에서 수락한 후보자 확인",
+        href: "/ops/accepted-talents",
+        label: "Accepted Talents",
+        matchPrefix: "/ops/accepted-talents",
       },
       {
         align: "end",

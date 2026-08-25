@@ -1,15 +1,8 @@
 import { FormEvent, useId, useState } from "react";
-import { ChevronDown, LoaderCircle, Plus, X } from "lucide-react";
+import { ChevronRight, LoaderCircle, Plus, X } from "lucide-react";
 import { motion } from "motion/react";
-import { Button, MuteButton } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import TalentCareerModal from "@/components/common/TalentCareerModal";
+import { MuteButton } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { OrgMember } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
@@ -31,6 +24,7 @@ function parseEmailList(value: string) {
 }
 
 export function AcceptIntroDialog({
+  allowContactDirectly = false,
   candidateEmail,
   candidateName,
   companyContactName,
@@ -43,6 +37,7 @@ export function AcceptIntroDialog({
   pending,
   roleTitle,
 }: {
+  allowContactDirectly?: boolean;
   candidateEmail?: string | null;
   candidateName: string;
   companyContactName?: string | null;
@@ -59,14 +54,18 @@ export function AcceptIntroDialog({
   pending?: boolean;
   roleTitle: string;
 }) {
+  const acceptFormId = useId();
+  const emailPreviewId = useId();
   const normalizedCandidateEmail = candidateEmail?.trim().toLowerCase() ?? "";
   const getDefaultEmailText = () => {
     const email = defaultEmail?.trim().toLowerCase() ?? "";
     return email === normalizedCandidateEmail ? "" : email;
   };
   const [contactDirectly, setContactDirectly] = useState(
-    defaultContactDirectly
+    allowContactDirectly && defaultContactDirectly
   );
+  const usesDirectContact = allowContactDirectly && contactDirectly;
+  const [emailPreviewOpen, setEmailPreviewOpen] = useState(false);
   const [error, setError] = useState("");
   const [introEmailText, setIntroEmailText] = useState(getDefaultEmailText);
   const introEmails = parseEmailList(introEmailText);
@@ -92,7 +91,8 @@ export function AcceptIntroDialog({
   } — Introduction: ${candidateName} & ${normalizedCompanyContactName}`;
 
   const resetForm = () => {
-    setContactDirectly(defaultContactDirectly);
+    setContactDirectly(allowContactDirectly && defaultContactDirectly);
+    setEmailPreviewOpen(false);
     setError("");
     setIntroEmailText(getDefaultEmailText());
   };
@@ -102,29 +102,27 @@ export function AcceptIntroDialog({
     const formData = new FormData(event.currentTarget);
     const acceptReason =
       String(formData.get("acceptReason") ?? "").trim() || null;
-    if (!contactDirectly && !normalizedCandidateEmail) {
-      setError(
-        "후보자 이메일이 없어 CC 연결 메일을 보낼 수 없습니다. 직접 연락을 선택해 주세요."
-      );
+    if (!usesDirectContact && !normalizedCandidateEmail) {
+      setError("후보자 이메일이 없어 소개 이메일을 보낼 수 없어요.");
       return;
     }
-    if (!contactDirectly && introEmails.length === 0) {
-      setError("CC로 연결하려면 회사 담당자 이메일을 1개 이상 추가해 주세요.");
+    if (!usesDirectContact && introEmails.length === 0) {
+      setError("Email intro에는 회사 담당자 이메일이 1개 이상 필요해요.");
       return;
     }
     setError("");
     try {
       await onSubmit({
         acceptReason,
-        contactDirectly,
-        introEmails: contactDirectly ? [] : introEmails,
+        contactDirectly: usesDirectContact,
+        introEmails: usesDirectContact ? [] : introEmails,
       });
       resetForm();
     } catch (submitError) {
       setError(
         submitError instanceof Error
           ? submitError.message
-          : "수락 요청을 처리하지 못했습니다. 다시 시도해 주세요."
+          : "후보자 연결 결과를 확인하지 못했어요. 바로 다시 시도하지 말고 현재 상태와 메일을 먼저 확인해 주세요."
       );
     }
   };
@@ -144,269 +142,267 @@ export function AcceptIntroDialog({
     updateIntroEmails(nextEmails);
   };
   const selectConnectionMode = (nextContactDirectly: boolean) => {
+    if (nextContactDirectly && !allowContactDirectly) return;
     setContactDirectly(nextContactDirectly);
+    if (nextContactDirectly) setEmailPreviewOpen(false);
     if (error) setError("");
   };
 
   return (
-    <Dialog
+    <TalentCareerModal
+      bodyClassName="max-h-[calc(100dvh-176px)] overflow-y-auto bg-bg-floating px-5 py-4 sm:px-6"
+      closeOnBackdrop={!pending}
+      description={
+        usesDirectContact
+          ? "후보자를 연결됨으로 표시하지만 Harper는 이메일을 보내지 않아요. 회사가 후보자에게 직접 연락해야 해요."
+          : "Harper가 후보자와 선택한 담당자에게 소개 이메일을 바로 보내요. 보낸 이메일은 회수할 수 없어요."
+      }
+      footer={
+        <div className="flex items-center justify-end gap-2">
+          <MuteButton
+            type="button"
+            variant="default"
+            size="md"
+            onClick={handleClose}
+            disabled={pending}
+          >
+            취소
+          </MuteButton>
+          <MuteButton
+            disabled={
+              pending ||
+              (!usesDirectContact &&
+                (!normalizedCandidateEmail || introEmails.length === 0))
+            }
+            form={acceptFormId}
+            size="md"
+            type="submit"
+            variant="positive"
+          >
+            {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+            {usesDirectContact ? "Mark as connected" : "Send intro & connect"}
+          </MuteButton>
+        </div>
+      }
+      footerClassName="border-t border-neutral-1000-a05 bg-bg-floating px-5 py-4 sm:px-6"
+      headerClassName="bg-bg-floating px-5 py-4 sm:px-6"
+      mobileBottomSheet
+      onClose={() => {
+        if (!pending) handleClose();
+      }}
       open={open}
-      onOpenChange={(nextOpen) => !nextOpen && !pending && handleClose()}
+      panelClassName="max-w-lg border-neutral-1000-a05 bg-bg-floating"
+      showCloseButton={!pending}
+      title="Connect candidate"
     >
-      <DialogContent
-        className="z-[90] max-h-[calc(100dvh-32px)] max-w-lg gap-4 overflow-y-auto rounded-lg p-6"
-        overlayClassName="z-[80]"
+      <form
+        className="mt-0 space-y-4"
+        id={acceptFormId}
+        onSubmit={handleSubmit}
       >
-        <DialogHeader>
-          <DialogTitle className="text-[18px]">후보자 연결</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="mt-0 space-y-4">
+        {allowContactDirectly ? (
           <div
             aria-label="연결 방식"
             className="relative grid h-10 grid-cols-2 rounded-full bg-neutral-1000-a05 p-1"
             role="tablist"
           >
             <motion.div
-              animate={{ x: contactDirectly ? "100%" : "0%" }}
+              animate={{ x: usesDirectContact ? "100%" : "0%" }}
               className="absolute bottom-1 left-1 top-1 w-[calc(50%_-_4px)] rounded-full bg-black shadow-sm"
               initial={false}
               transition={{ type: "spring", stiffness: 440, damping: 38 }}
             />
             <button
-              aria-selected={!contactDirectly}
+              aria-selected={!usesDirectContact}
               className={cn(
                 "relative z-10 rounded-full text-[13px] font-medium transition-colors",
-                contactDirectly ? "text-neutral-muted" : "text-white"
+                usesDirectContact ? "text-neutral-muted" : "text-white"
               )}
               disabled={pending}
               onClick={() => selectConnectionMode(false)}
               role="tab"
               type="button"
             >
-              CC로 연결
+              Email intro
             </button>
             <button
-              aria-selected={contactDirectly}
+              aria-selected={usesDirectContact}
               className={cn(
                 "relative z-10 rounded-full text-[13px] font-medium transition-colors",
-                contactDirectly ? "text-white" : "text-neutral-muted"
+                usesDirectContact ? "text-white" : "text-neutral-muted"
               )}
               disabled={pending}
               onClick={() => selectConnectionMode(true)}
               role="tab"
               type="button"
             >
-              직접 연락
+              Direct contact
             </button>
           </div>
+        ) : null}
 
-          {contactDirectly ? (
-            <div className="rounded-md bg-bg-basement p-3" role="tabpanel">
-              <div className="text-[13px] font-medium text-neutral-primary">
-                회사에서 직접 연락
-              </div>
-              <p className="mt-1 text-[12px] leading-5 text-neutral-muted">
-                수락 상태만 반영하고 Harper의 연결 메일은 발송하지 않습니다.
-                담당자가 후보자에게 직접 연락해 다음 단계를 진행해 주세요.
-              </p>
+        {usesDirectContact ? (
+          <div className="rounded-md bg-bg-weak p-3" role="tabpanel">
+            <div className="text-[13px] font-medium text-neutral-primary">
+              Direct contact
             </div>
-          ) : (
-            <div className="space-y-4" role="tabpanel">
-              <p className="text-[12px] leading-5 text-neutral-muted">
-                Harper가 아래 구성대로 소개 메일을 보냅니다. 이후 후보자와
-                담당자끼리 바로 대화를 이어나갈 수 있습니다.
-              </p>
-
-              <section
-                aria-label="Gmail 연결 메일 상세"
-                className="bg-white px-3 pb-0 pt-[14px] text-[#202124]"
-                style={{ fontFamily: "Arial, sans-serif" }}
-              >
-                <div className="flex items-start">
-                  <div className="flex size-[34px] shrink-0 items-center justify-center rounded-full bg-[#5634b7] text-[18px] font-normal text-white">
-                    H
-                  </div>
-                  <div className="ml-[13px] min-w-0">
-                    <div className="flex min-w-0 items-baseline gap-1">
-                      <span className="shrink-0 text-[13px] font-bold leading-[18px]">
-                        Harper
+            <p className="mt-1 text-[12px] leading-5 text-neutral-muted">
+              연결됨 상태만 저장하고 Harper는 소개 이메일을 보내지 않아요. 회사
+              담당자가 후보자에게 직접 연락해 다음 단계를 진행해 주세요.
+            </p>
+          </div>
+        ) : (
+          <section
+            aria-label="Email intro"
+            className="overflow-hidden rounded-lg border border-neutral-1000-a05 bg-bg-default"
+            role="tabpanel"
+          >
+            <div className="border-b border-neutral-1000-a05 px-4 py-3 text-[13px] font-medium text-neutral-primary">
+              Email intro
+            </div>
+            <div className="space-y-3 px-4 py-3">
+              <div className="grid grid-cols-[76px_minmax(0,1fr)] gap-3 text-[12px] leading-5 sm:grid-cols-[96px_minmax(0,1fr)]">
+                <div className="text-neutral-soft">받는 사람</div>
+                <div className="min-w-0 text-neutral-primary">
+                  {normalizedCandidateEmail ? (
+                    <>
+                      <span>{candidateName}</span>{" "}
+                      <span className="break-all text-neutral-muted">
+                        &lt;{normalizedCandidateEmail}&gt;
                       </span>
-                      <span className="min-w-0 truncate text-[13px] font-normal leading-[18px] text-[#5f6368]">
-                        &lt;hello@matchharper.com&gt;
-                      </span>
-                    </div>
-                    <div className="flex items-center text-[12px] leading-4 text-[#5f6368]">
-                      <span className="truncate">
-                        to {candidateName}
-                        {introEmails.length > 0
-                          ? `, cc ${introEmails.length}`
-                          : ""}
-                      </span>
-                      <ChevronDown className="ml-0.5 size-3 shrink-0 fill-[#5f6368] stroke-[#5f6368]" />
-                    </div>
-                  </div>
+                    </>
+                  ) : (
+                    <span className="text-critical">후보자 이메일 없음</span>
+                  )}
                 </div>
+              </div>
 
-                <div className="-mt-[3px] ml-[77px] mr-3 border border-[#c6c6c6] bg-white py-[14px] pl-[46px] pr-4 shadow-[0_2px_6px_rgba(0,0,0,0.28)]">
-                  <div className="grid grid-cols-[30px_minmax(0,1fr)] gap-x-[13px] gap-y-0.5 text-[13px] leading-[18px]">
-                    <div className="text-right text-[#5f6368]">from:</div>
-                    <div className="min-w-0 text-[#202124]">
-                      <span className="font-bold">Harper</span>{" "}
-                      <span className="text-[#5f6368]">
-                        &lt;hello@matchharper.com&gt;
-                      </span>
-                    </div>
-
-                    <div className="text-right text-[#5f6368]">to:</div>
-                    <div className="min-w-0 break-words text-[#202124]">
-                      {normalizedCandidateEmail ? (
-                        <>
-                          <span className="font-normal">{candidateName}</span>{" "}
-                          <span>&lt;{normalizedCandidateEmail}&gt;</span>
-                        </>
-                      ) : (
-                        <span className="text-critical">
-                          후보자 이메일 없음
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="text-right text-[#5f6368]">cc:</div>
-                    <div className="min-w-0 break-words text-[#202124]">
-                      {introEmails.length > 0 ? (
-                        introEmails.map((email, index) => {
-                          const memberName = memberNameByEmail.get(email);
-                          return (
-                            <span key={email}>
-                              {index > 0 ? ", " : null}
-                              {memberName ? (
-                                <>
-                                  <span>{memberName}</span>{" "}
-                                </>
-                              ) : null}
-                              <span>&lt;{email}&gt;</span>
-                            </span>
-                          );
-                        })
-                      ) : (
-                        <span className="text-critical">
-                          담당자를 1명 이상 선택해 주세요.
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="text-right text-[#5f6368]">date:</div>
-                    <div className="text-[#202124]">수락 시 즉시 발송</div>
-
-                    <div className="text-right text-[#5f6368]">subject:</div>
-                    <div
-                      className="min-w-0 truncate whitespace-nowrap text-[#202124]"
-                      title={introSubject}
+              <div className="grid grid-cols-[76px_minmax(0,1fr)] gap-3 text-[12px] leading-5 sm:grid-cols-[96px_minmax(0,1fr)]">
+                <div className="text-neutral-soft">Recipients</div>
+                <div className="flex min-w-0 flex-wrap gap-1.5">
+                  {introEmails.map((email) => (
+                    <MuteButton
+                      aria-label={`${memberNameByEmail.get(email) || email} 소개 메일에서 제외`}
+                      className="h-7 max-w-full gap-1 rounded-full"
+                      disabled={pending}
+                      key={email}
+                      onClick={() => toggleMemberEmail(email)}
+                      size="sm"
+                      title={`${memberNameByEmail.get(email) || email} · ${email}`}
+                      variant="default"
                     >
-                      {introSubject}
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              {selectableMembers.length > 0 ? (
-                <div>
-                  <div className="text-[12px] font-medium text-neutral-muted">
-                    함께 연결할 멤버
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {selectableMembers.map((member) => {
+                      <span className="max-w-24 truncate">
+                        {memberNameByEmail.get(email) || email.split("@")[0]}
+                      </span>
+                      <span className="hidden max-w-40 truncate text-[11px] text-neutral-soft sm:inline">
+                        {email}
+                      </span>
+                      <X className="size-3" />
+                    </MuteButton>
+                  ))}
+                  {selectableMembers
+                    .filter(
+                      (member) =>
+                        !selectedEmailSet.has(member.email.trim().toLowerCase())
+                    )
+                    .map((member) => {
                       const email = member.email.trim().toLowerCase();
-                      const selected = selectedEmailSet.has(email);
                       return (
                         <MuteButton
-                          aria-pressed={selected}
-                          className="h-7 max-w-full gap-1 rounded-full"
+                          aria-label={`${member.name || email} 소개 메일에 추가`}
+                          className="h-7 max-w-full gap-1 rounded-full border-dashed text-neutral-muted"
                           disabled={pending}
                           key={member.userId}
                           onClick={() => toggleMemberEmail(email)}
-                          size="md"
+                          size="sm"
                           title={`${member.name || email} · ${email}`}
-                          variant={selected ? "dark" : "default"}
+                          variant="default"
                         >
+                          <Plus className="size-3" />
                           <span className="max-w-24 truncate">
                             {member.name || email.split("@")[0]}
                           </span>
-                          <span
-                            className={cn(
-                              "max-w-40 truncate text-[11px]",
-                              selected
-                                ? "text-neutral-00/75"
-                                : "text-neutral-soft"
-                            )}
-                          >
-                            {email}
-                          </span>
-                          {selected ? (
-                            <X className="size-3" />
-                          ) : (
-                            <Plus className="size-3" />
-                          )}
                         </MuteButton>
                       );
                     })}
-                  </div>
+                  {introEmails.length === 0 ? (
+                    <span className="text-critical">
+                      담당자를 1명 이상 선택해 주세요.
+                    </span>
+                  ) : null}
                 </div>
-              ) : null}
-            </div>
-          )}
+              </div>
 
-          <label className="block">
-            <span className="text-[12px] font-medium text-neutral-muted">
-              수락 이유 (선택)
-            </span>
-            <Textarea
-              key={`${open}:acceptReason`}
-              name="acceptReason"
-              rows={3}
-              placeholder="예: 후보자의 ML infra 경험이 현재 역할과 잘 맞습니다."
-              className="mt-1.5 min-h-[84px] px-3 py-2 text-[13px] leading-5"
-              disabled={pending}
-            />
-            <p className="mt-1 text-[12px] leading-5 text-neutral-soft">
-              필수는 아니지만 이유를 적어주신다면 다음 추천에 반영할 수
-              있습니다. 후보자측에 공유되지 않습니다.
-            </p>
-          </label>
-          {error ? (
-            <div className="text-[12px] text-critical" role="alert">
-              {error}
+              <div className="grid grid-cols-[76px_minmax(0,1fr)] gap-3 text-[12px] leading-5 sm:grid-cols-[96px_minmax(0,1fr)]">
+                <div className="text-neutral-soft">제목</div>
+                <div
+                  className="line-clamp-2 min-w-0 text-neutral-primary"
+                  title={introSubject}
+                >
+                  {introSubject}
+                </div>
+              </div>
+
+              <div className="border-t border-neutral-1000-a05 pt-2">
+                <MuteButton
+                  aria-controls={emailPreviewId}
+                  aria-expanded={emailPreviewOpen}
+                  className="-ml-2 text-neutral-muted"
+                  onClick={() =>
+                    setEmailPreviewOpen((currentOpen) => !currentOpen)
+                  }
+                  size="sm"
+                  variant="transparent"
+                >
+                  메일 내용 보기
+                  <ChevronRight
+                    className={cn(
+                      "size-3.5 transition-transform",
+                      emailPreviewOpen && "rotate-90"
+                    )}
+                  />
+                </MuteButton>
+                {emailPreviewOpen ? (
+                  <div
+                    className="mt-1 rounded-md bg-bg-weak px-3 py-2.5 text-[12px] leading-5 text-neutral-muted"
+                    id={emailPreviewId}
+                  >
+                    후보자와 회사 담당자를 소개하고 역할과 추천 이유를 전하는
+                    이메일이 전송 시 작성돼요. 전송 후에는 이 이메일에서 바로
+                    대화를 이어갈 수 있으며, 보낸 이메일은 회수할 수 없어요.
+                  </div>
+                ) : null}
+              </div>
             </div>
-          ) : null}
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="secondary"
-              size="md"
-              onClick={handleClose}
-              disabled={pending}
-            >
-              취소
-            </Button>
-            <Button
-              type="submit"
-              variant="positive"
-              size="md"
-              disabled={
-                pending ||
-                (!contactDirectly &&
-                  (!normalizedCandidateEmail || introEmails.length === 0))
-              }
-            >
-              {pending ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : null}
-              확인
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+          </section>
+        )}
+
+        <label className="block">
+          <span className="text-[12px] font-medium text-neutral-primary">
+            Connection note{" "}
+            <span className="font-normal text-neutral-soft">· 선택</span>
+          </span>
+          <Textarea
+            key={`${open}:acceptReason`}
+            name="acceptReason"
+            rows={3}
+            placeholder="예: ML infra 경험이 이번 역할과 특히 잘 맞아요."
+            className="mt-1.5 min-h-24 px-3 py-2 text-[13px] leading-5"
+            disabled={pending}
+          />
+          <p className="mt-1 text-[12px] leading-5 text-neutral-soft">
+            {usesDirectContact
+              ? "작성해주시면 다음 후보 추천에 반영됩니다."
+              : "작성해주시면 소개 메일과 다음 후보 추천에 반영됩니다."}
+          </p>
+        </label>
+        {error ? (
+          <div className="text-[12px] text-critical" role="alert">
+            {error}
+          </div>
+        ) : null}
+      </form>
+    </TalentCareerModal>
   );
 }
 
@@ -426,6 +422,9 @@ export function StopCandidateDialog({
   pending?: boolean;
 }) {
   const stopNoteId = useId();
+  const stopNoteHelpId = useId();
+  const stopReasonLabelId = useId();
+  const stopFormId = useId();
   const [error, setError] = useState("");
   const [stopNote, setStopNote] = useState("");
   const savedReasons = useOrgStopReasonStore((state) => state.savedReasons);
@@ -439,6 +438,10 @@ export function StopCandidateDialog({
       .map((line) => line.trim())
       .filter(Boolean)
   );
+  const normalizedCandidateName = candidateName.trim() || "후보자";
+  const politeCandidateName = normalizedCandidateName.endsWith("님")
+    ? normalizedCandidateName
+    : `${normalizedCandidateName}님`;
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -456,7 +459,7 @@ export function StopCandidateDialog({
       setError(
         submitError instanceof Error
           ? submitError.message
-          : "요청을 처리하지 못했습니다. 다시 시도해 주세요."
+          : "종료 결과를 확인하지 못했어요. 바로 다시 시도하지 말고 후보자의 현재 상태를 먼저 확인해 주세요."
       );
     }
   };
@@ -482,95 +485,111 @@ export function StopCandidateDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && handleClose()}>
-      <DialogContent
-        className="z-[90] max-w-md gap-4 rounded-lg p-6"
-        overlayClassName="z-[80]"
-      >
-        <DialogTitle className="text-[16px]">
-          {connectionStarted ? "진행 중인 연결 종료" : "연결받지 않기"}
-        </DialogTitle>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2 text-[13px] leading-5 text-neutral-primary">
-            <div>{candidateName}</div>
-            <div className="text-neutral-muted">
-              {connectionStarted
-                ? "이미 보낸 소개 메일이나 회사에서 시작한 연락은 회수할 수 없습니다. 현재 단계에서 프로세스를 닫고, 후보자에게는 Harper가 적절한 시점에 안내합니다."
-                : "이 후보자는 이번에 연결받지 않습니다. 후보자에게는 Harper가 적절한 시점에 부드럽게 안내합니다."}
-            </div>
+    <TalentCareerModal
+      bodyClassName="bg-bg-floating px-5 py-5 sm:px-6"
+      closeOnBackdrop={!pending}
+      footer={
+        <div className="flex items-center justify-end gap-2">
+          <MuteButton
+            disabled={pending}
+            onClick={handleClose}
+            size="lg"
+            type="button"
+          >
+            취소
+          </MuteButton>
+          <MuteButton
+            disabled={pending}
+            form={stopFormId}
+            size="lg"
+            type="submit"
+            variant={connectionStarted ? "warn" : "critical"}
+          >
+            {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+            {connectionStarted ? "End connection" : "Reject candidate"}
+          </MuteButton>
+        </div>
+      }
+      mobileBottomSheet
+      onClose={() => {
+        if (!pending) handleClose();
+      }}
+      open={open}
+      panelClassName="max-w-md border-neutral-1000-a05 bg-bg-floating"
+      showCloseButton={!pending}
+      title={connectionStarted ? "End connection" : "Reject candidate"}
+    >
+      <form className="space-y-4" id={stopFormId} onSubmit={handleSubmit}>
+        <div className="space-y-2 text-[13px] leading-5 text-neutral-primary">
+          <div className="font-medium">{normalizedCandidateName}</div>
+          <div className="text-neutral-muted">
+            {connectionStarted
+              ? "이미 보낸 소개 이메일이나 회사에서 시작한 연락은 회수할 수 없어요. 현재 연결을 종료하면 Harper가 후보자에게 회사가 프로세스를 종료했다는 안내를 보내요. 이미 보이거나 전달된 안내도 회수할 수 없어요."
+              : `${politeCandidateName}에게 회사가 이번 연결을 진행하지 않기로 했다는 종료 결정이 표시되고 Harper가 이를 안내해요. 실행 후 후보자에게 보이거나 전달된 안내는 회수할 수 없어요.`}
           </div>
-          <div className="space-y-1.5">
-            <label
-              className="block text-[12px] font-medium text-neutral-muted"
-              htmlFor={stopNoteId}
-            >
-              Pass 이유 (선택)
-            </label>
-            <Textarea
-              id={stopNoteId}
-              name="stopNote"
-              value={stopNote}
-              onChange={(event) => {
-                setStopNote(event.target.value);
-                if (error) setError("");
-              }}
-              rows={5}
-              placeholder="이유를 알려주시면 다음에 더 적합한 인재를 추천하는 데 참고합니다. 후보자에게 직접 전달되지 않습니다."
-              className="mt-1 min-h-[120px] px-3 py-2 text-[13px] leading-5"
-              disabled={pending}
-            />
-            <div className="flex flex-wrap gap-1.5" role="group">
-              {stopReasonOptions.map((reason) => {
-                const selected = selectedStopReasonSet.has(reason);
+        </div>
+        <div className="space-y-2">
+          <div
+            className="text-[12px] font-medium text-neutral-primary"
+            id={stopReasonLabelId}
+          >
+            연결을 거절하는 이유{" "}
+            <span className="font-normal text-neutral-soft">· 선택</span>
+          </div>
+          <div
+            aria-labelledby={stopReasonLabelId}
+            className="flex flex-wrap gap-1.5"
+            role="group"
+          >
+            {stopReasonOptions.map((reason) => {
+              const selected = selectedStopReasonSet.has(reason);
 
-                return (
-                  <MuteButton
-                    aria-pressed={selected}
-                    className={cn(
-                      "text-[12px]",
-                      selected && "border-neutral-800"
-                    )}
-                    disabled={pending}
-                    key={reason}
-                    onClick={() => toggleStopReason(reason)}
-                    size="sm"
-                    variant={selected ? "neutral" : "default"}
-                  >
-                    {reason}
-                  </MuteButton>
-                );
-              })}
-            </div>
+              return (
+                <MuteButton
+                  aria-pressed={selected}
+                  className={cn(
+                    "text-[12px]",
+                    selected && "border-neutral-800"
+                  )}
+                  disabled={pending}
+                  key={reason}
+                  onClick={() => toggleStopReason(reason)}
+                  size="sm"
+                  variant={selected ? "neutral" : "default"}
+                >
+                  {reason}
+                </MuteButton>
+              );
+            })}
           </div>
-          {error ? (
-            <div className="text-[12px] text-critical" role="alert">
-              {error}
-            </div>
-          ) : null}
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="secondary"
-              size="md"
-              onClick={handleClose}
-              disabled={pending}
-            >
-              취소
-            </Button>
-            <Button
-              type="submit"
-              variant="critical"
-              size="md"
-              disabled={pending}
-            >
-              {pending ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : null}
-              연결받지 않기
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+          <Textarea
+            aria-describedby={stopNoteHelpId}
+            aria-labelledby={stopReasonLabelId}
+            id={stopNoteId}
+            name="stopNote"
+            value={stopNote}
+            onChange={(event) => {
+              setStopNote(event.target.value);
+              if (error) setError("");
+            }}
+            rows={4}
+            placeholder="예: 현재 찾는 역할보다 경력이 조금 주니어해요."
+            className="min-h-24 px-3 py-2 text-[13px] leading-5"
+            disabled={pending}
+          />
+          <p
+            className="text-[12px] leading-5 text-neutral-soft"
+            id={stopNoteHelpId}
+          >
+            다음 추천을 개선하는 데 참고합니다. 후보자에게는 공유되지 않아요.
+          </p>
+        </div>
+        {error ? (
+          <div className="text-[12px] text-critical" role="alert">
+            {error}
+          </div>
+        ) : null}
+      </form>
+    </TalentCareerModal>
   );
 }

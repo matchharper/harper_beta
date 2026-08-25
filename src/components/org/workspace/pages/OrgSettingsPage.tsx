@@ -19,6 +19,7 @@ import {
 } from "@/components/org/workspace/OrgSection";
 import { Badge } from "@/components/ui/badge";
 import { MuteButton } from "@/components/ui/button";
+import { Code } from "@/components/ui/code";
 import {
   Dialog,
   DialogContent,
@@ -189,12 +190,12 @@ export function OrgSettingsPage() {
     <div className="space-y-8">
       <OrgPageHeader
         description="팀이 중요한 채용 변화를 놓치지 않도록 연동과 알림을 설정하세요."
-        title="Integration"
+        title="Integrations"
       />
 
       <OrgSection>
         <OrgSectionHeader
-          description="인재 연결 제안, 역할 기준 변경, 후보자 프로세스 중단 등을 Slack 채널에서 팀원과 함께 진행하세요."
+          description="후보자 추천과 검토, 역할 기준 변경, 후보자 프로세스 종료를 Slack 채널에서 팀원과 함께 진행하세요."
           title={
             <span className="inline-flex flex-col items-start gap-3">
               <div className="border border-neutral-1000-a05 rounded-xl p-2">
@@ -206,7 +207,7 @@ export function OrgSettingsPage() {
                 />
               </div>
               <div className="text-xl font-medium text-neutral-primary">
-                Slack integration
+                Slack
               </div>
             </span>
           }
@@ -335,7 +336,7 @@ export function OrgSettingsPage() {
                 </div>
                 {permissions.canManageIntegrations ? (
                   <p className="mt-2 text-[12px] font-light leading-5 text-neutral-soft">
-                    비공개 채널은 Slack에서 먼저 <code>/invite @Harper</code>를
+                    비공개 채널은 Slack에서 먼저 <Code>/invite @Harper</Code>를
                     한 뒤 목록에서 선택해 추가할 수 있습니다.
                   </p>
                 ) : null}
@@ -373,7 +374,7 @@ export function OrgSettingsPage() {
                             </Badge>
                           </div>
                           <div className="mt-1 text-[12px] font-light text-neutral-muted">
-                            메시지 내용에서 포지션을 자동 판단
+                            메시지에서 Role 자동 선택
                             {channel.replyToHarperThreads
                               ? " · Harper 스레드 답글 활성"
                               : ""}

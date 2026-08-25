@@ -35,6 +35,7 @@ import {
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useCareerMobileChatLauncherVisibility } from "@/components/career/mobile/CareerMobileChatLauncherVisibilityContext";
+import { formatCareerDate } from "@/lib/career/dateFormat";
 import ConfirmModal from "@/components/Modal/ConfirmModal";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import {
@@ -267,15 +268,7 @@ const calculateExperienceMonths = (
 };
 
 const formatLastUpdated = (value: string | null, locale: Locale) => {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-
-  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "ko-KR", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  }).format(date);
+  return formatCareerDate(value, locale);
 };
 
 const createClientKey = (prefix: string) =>
@@ -988,11 +981,11 @@ const CareerTalentProfilePanel = ({
         start_date: trimDateText(values.startDate),
         end_date: trimDateText(values.endDate),
         months: calculateExperienceMonths(values.startDate, values.endDate),
-        company_id: null,
-        company_link: null,
+        company_id: trimSingleLine(values.companyId),
+        company_link: trimSingleLine(values.companyLinkedinUrl),
         company_name: trimSingleLine(values.companyName),
         company_location: trimSingleLine(values.companyLocation),
-        company_logo: null,
+        company_logo: trimSingleLine(values.companyLogo),
         memo: null,
       };
 

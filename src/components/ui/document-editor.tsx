@@ -401,8 +401,8 @@ export const DocumentEditor = forwardRef<
       <div className={cn("w-full", className)}>
         <div
           className={cn(
-            "group relative min-h-[260px] w-full overflow-hidden rounded-lg",
-            previewExpanded ? "max-h-none" : "max-h-[340px]",
+            "group relative min-h-[340px] w-full overflow-hidden rounded-lg",
+            previewExpanded ? "max-h-none" : "max-h-[440px]",
             disabled && "opacity-60"
           )}
         >
@@ -415,49 +415,68 @@ export const DocumentEditor = forwardRef<
             onClick={openEditor}
             type="button"
           />
-          <div className="pointer-events-none relative z-10 flex min-h-[260px] w-full flex-col justify-between px-5 py-4 text-left">
+          <div className="pointer-events-none relative z-10 flex min-h-[340px] w-full flex-col justify-between px-5 py-4 text-left">
             <div>
               <span className="shrink-0 text-[12px] font-normal text-black/60">
                 {documentTitle}
               </span>
-              <div
-                className={cn(
-                  "mt-4 min-h-20 w-full text-[15px] font-normal leading-6",
-                  previewExpanded
-                    ? "max-h-none overflow-visible"
-                    : "max-h-[188px] overflow-hidden",
-                  hasPreviewContent
-                    ? "text-neutral-primary"
-                    : "text-neutral-placeholder"
-                )}
-                id={previewContentId}
-                ref={previewContentRef}
-              >
-                {hasPreviewContent && format === "markdown" ? (
-                  <RichText content={previewContent} />
-                ) : (
-                  <span className="whitespace-pre-wrap">{previewContent}</span>
-                )}
+              <div className="relative mt-4">
+                <div
+                  className={cn(
+                    "min-h-20 w-full text-[15px] font-normal leading-6",
+                    previewExpanded
+                      ? "max-h-none overflow-visible"
+                      : "max-h-[268px] overflow-hidden",
+                    hasPreviewContent
+                      ? "text-neutral-primary"
+                      : "text-neutral-placeholder"
+                  )}
+                  id={previewContentId}
+                  ref={previewContentRef}
+                >
+                  {hasPreviewContent && format === "markdown" ? (
+                    <RichText content={previewContent} />
+                  ) : (
+                    <span className="whitespace-pre-wrap">
+                      {previewContent}
+                    </span>
+                  )}
+                </div>
+                {!previewExpanded && previewTruncated ? (
+                  <div
+                    className="pointer-events-none absolute inset-x-0 bottom-0 flex h-18 items-end bg-gradient-to-b from-transparent via-white/90 to-white group-hover:via-neutral-100/90 group-hover:to-neutral-100"
+                    data-document-editor-preview-fade=""
+                  >
+                    <MuteButton
+                      aria-controls={previewContentId}
+                      aria-expanded={false}
+                      className="pointer-events-auto w-full text-center"
+                      onClick={() => setPreviewExpanded(true)}
+                      size="sm"
+                      type="button"
+                      variant="transparent"
+                    >
+                      <ChevronDown className="size-3.5" />
+                      더보기
+                    </MuteButton>
+                  </div>
+                ) : null}
               </div>
             </div>
             <div className="mt-0 w-full shrink-0">
-              {previewTruncated || previewExpanded ? (
+              {previewExpanded ? (
                 <div className="pointer-events-auto mb-2 w-full text-center">
                   <MuteButton
                     aria-controls={previewContentId}
-                    aria-expanded={previewExpanded}
+                    aria-expanded
                     className="w-full text-center"
-                    onClick={() => setPreviewExpanded((expanded) => !expanded)}
+                    onClick={() => setPreviewExpanded(false)}
                     size="sm"
                     type="button"
                     variant="transparent"
                   >
-                    {previewExpanded ? (
-                      <ChevronUp className="size-3.5" />
-                    ) : (
-                      <ChevronDown className="size-3.5" />
-                    )}
-                    {previewExpanded ? "접기" : "더보기"}
+                    <ChevronUp className="size-3.5" />
+                    접기
                   </MuteButton>
                 </div>
               ) : null}

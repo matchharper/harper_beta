@@ -51,6 +51,9 @@ const ONBOARDING_TOOL_POLICY_ALLOWED_TOOLS = [
   "open_url",
   "read_talent_activity_events",
   "read_recommended_opportunities",
+  "list_documents",
+  "read_document",
+  "update_document",
 ] as const;
 
 function shouldIncludeToolPolicyDuringOnboarding(toolNames: string[]) {

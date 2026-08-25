@@ -33,8 +33,6 @@ export const CAREER_T_SOURCE_FILES = [
   path.join(PROJECT_ROOT, "src", "lib", "career", "opportunityFeedbackNote.ts"),
 ];
 
-const SYNC_ONLY_OPTION_NAMES = new Set(["meaningChanged", "retranslate"]);
-
 function walkFiles(dirPath) {
   if (!fs.existsSync(dirPath)) return [];
 
@@ -163,21 +161,6 @@ function getPropertyName(node) {
   return "";
 }
 
-function isBooleanTrue(node) {
-  return node?.kind === ts.SyntaxKind.TrueKeyword;
-}
-
-function getSyncOnlyOptionNames(optionsArg) {
-  if (!optionsArg || !ts.isObjectLiteralExpression(optionsArg)) return [];
-
-  return optionsArg.properties.flatMap((property) => {
-    if (!ts.isPropertyAssignment(property)) return [];
-    const name = getPropertyName(property.name);
-    if (!SYNC_ONLY_OPTION_NAMES.has(name)) return [];
-    return isBooleanTrue(property.initializer) ? [name] : [];
-  });
-}
-
 function inferCategoryFromRelativePath(relPath) {
   const normalized = relPath.replaceAll("\\", "/").toLowerCase();
   if (normalized.includes("/onboarding")) return "onboarding";
@@ -245,7 +228,6 @@ export function isCareerTCallExpression(node) {
 function parseCareerTCall(
   node,
   sourceFile,
-  sourceText,
   filePath,
   staticStrings = new Map()
 ) {
@@ -253,10 +235,8 @@ function parseCareerTCall(
 
   const keyArgIndex = node.expression.text === "careerT" ? 1 : 0;
   const sourceArgIndex = node.expression.text === "careerT" ? 2 : 1;
-  const optionsArgIndex = node.expression.text === "careerT" ? 3 : 2;
   const keyArg = node.arguments[keyArgIndex];
   const sourceArg = node.arguments[sourceArgIndex];
-  const optionsArg = node.arguments[optionsArgIndex];
   const key = getStringLiteralValue(keyArg);
   const koSource = getStaticStringValue(sourceArg, staticStrings);
   if (!key || koSource === null) return null;
@@ -273,17 +253,9 @@ function parseCareerTCall(
     keyArgStart: keyArg.getStart(sourceFile),
     koSource,
     location: `${relPath}:${line}`,
-    nodeEnd: node.getEnd(),
     nodeStart: node.getStart(sourceFile),
-    optionsArg:
-      optionsArg && ts.isObjectLiteralExpression(optionsArg)
-        ? optionsArg
-        : null,
-    retranslate: getSyncOnlyOptionNames(optionsArg).length > 0,
     sourceArgEnd: sourceArg.getEnd(),
     sourceArgStart: sourceArg.getStart(sourceFile),
-    sourceText,
-    syncOnlyOptionNames: getSyncOnlyOptionNames(optionsArg),
   };
 }
 
@@ -305,7 +277,6 @@ export function extractCareerTCalls() {
       const parsed = parseCareerTCall(
         node,
         sourceFile,
-        sourceText,
         filePath,
         staticStrings
       );
@@ -326,45 +297,6 @@ export function extractCareerTCalls() {
   );
 }
 
-function findCommaBefore(sourceText, index) {
-  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
-    const char = sourceText[cursor];
-    if (char === ",") return cursor;
-    if (!/\s/.test(char)) continue;
-  }
-  return -1;
-}
-
-function buildOptionsReplacement(call) {
-  const optionsArg = call.optionsArg;
-  if (!optionsArg || call.syncOnlyOptionNames.length === 0) return null;
-
-  const remainingProperties = optionsArg.properties.filter((property) => {
-    if (!ts.isPropertyAssignment(property)) return true;
-    return !SYNC_ONLY_OPTION_NAMES.has(getPropertyName(property.name));
-  });
-
-  if (remainingProperties.length === 0) {
-    const commaStart = findCommaBefore(
-      call.sourceText,
-      optionsArg.getFullStart()
-    );
-    return {
-      end: optionsArg.getEnd(),
-      start: commaStart >= 0 ? commaStart : optionsArg.getFullStart(),
-      text: "",
-    };
-  }
-
-  return {
-    end: optionsArg.getEnd(),
-    start: optionsArg.getStart(),
-    text: `{ ${remainingProperties
-      .map((property) => property.getText())
-      .join(", ")} }`,
-  };
-}
-
 function applyReplacements(sourceText, replacements) {
   return replacements
     .slice()
@@ -381,7 +313,6 @@ function applyReplacements(sourceText, replacements) {
 export function rewriteCareerTCalls({
   keyRewrites = new Map(),
   koSourceByKey = new Map(),
-  removeSyncOnlyOptions = false,
 } = {}) {
   const calls = extractCareerTCalls();
   const callsByFile = new Map();
@@ -414,11 +345,6 @@ export function rewriteCareerTCalls({
           start: call.sourceArgStart,
           text: JSON.stringify(nextKoSource),
         });
-      }
-
-      if (removeSyncOnlyOptions) {
-        const optionsReplacement = buildOptionsReplacement(call);
-        if (optionsReplacement) replacements.push(optionsReplacement);
       }
     }
 

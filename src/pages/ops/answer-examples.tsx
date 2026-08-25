@@ -25,6 +25,7 @@ import { Checkbox as UiCheckbox } from "@/components/ui/checkbox";
 
 type Draft = {
   answerExampleText: string;
+  audience: OpsAnswerExampleItem["audience"];
   enabled: boolean;
   id: string | null;
   notes: string;
@@ -34,6 +35,7 @@ type Draft = {
 
 const EMPTY_DRAFT: Draft = {
   answerExampleText: "",
+  audience: "company",
   enabled: true,
   id: null,
   notes: "",
@@ -44,6 +46,7 @@ const EMPTY_DRAFT: Draft = {
 function exampleToDraft(example: OpsAnswerExampleItem): Draft {
   return {
     answerExampleText: example.answerExampleText,
+    audience: example.audience,
     enabled: example.enabled,
     id: example.id,
     notes: example.notes ?? "",
@@ -55,6 +58,7 @@ function exampleToDraft(example: OpsAnswerExampleItem): Draft {
 function getDraftPayload(draft: Draft) {
   return {
     answerExampleText: draft.answerExampleText,
+    audience: draft.audience,
     enabled: draft.enabled,
     id: draft.id ?? undefined,
     notes: draft.notes,
@@ -73,6 +77,9 @@ export default function OpsAnswerExamplesPage() {
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
   const [query, setQuery] = useState("");
+  const [audienceFilter, setAudienceFilter] = useState<
+    "all" | OpsAnswerExampleItem["audience"]
+  >("all");
   const [saving, setSaving] = useState(false);
 
   const loadExamples = useCallback(async () => {
@@ -109,9 +116,13 @@ export default function OpsAnswerExamplesPage() {
 
   const filteredExamples = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return examples;
-    return examples.filter((example) =>
-      [
+    return examples.filter((example) => {
+      if (audienceFilter !== "all" && example.audience !== audienceFilter) {
+        return false;
+      }
+      if (!normalized) return true;
+      return [
+        example.audience,
         example.userExampleText,
         example.answerExampleText,
         example.notes ?? "",
@@ -119,9 +130,9 @@ export default function OpsAnswerExamplesPage() {
       ]
         .join("\n")
         .toLowerCase()
-        .includes(normalized)
-    );
-  }, [examples, query]);
+        .includes(normalized);
+    });
+  }, [audienceFilter, examples, query]);
 
   const selectExample = useCallback((example: OpsAnswerExampleItem) => {
     setDraft(exampleToDraft(example));
@@ -248,15 +259,33 @@ export default function OpsAnswerExamplesPage() {
                   {examples.length}개 등록
                 </div>
               </div>
-              <div className="relative min-w-0 sm:w-72">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
-                <UiInput
-                  unstyled
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="질문, 답변, 태그 검색"
-                  className={cx(opsTheme.input, "pl-9")}
-                />
+              <div className="flex min-w-0 gap-2 sm:w-[26rem]">
+                <select
+                  aria-label="Audience 필터"
+                  className={cx(opsTheme.input, "w-28")}
+                  value={audienceFilter}
+                  onChange={(event) =>
+                    setAudienceFilter(
+                      event.target.value as
+                        | "all"
+                        | OpsAnswerExampleItem["audience"]
+                    )
+                  }
+                >
+                  <option value="all">All</option>
+                  <option value="company">Company</option>
+                  <option value="career">Career</option>
+                </select>
+                <div className="relative min-w-0 flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-soft" />
+                  <UiInput
+                    unstyled
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="질문, 답변, 태그 검색"
+                    className={cx(opsTheme.input, "pl-9")}
+                  />
+                </div>
               </div>
             </div>
 
@@ -332,6 +361,7 @@ export default function OpsAnswerExamplesPage() {
                         <span>
                           {formatKstRelativeDateTime(example.updatedAt)}
                         </span>
+                        <span className="uppercase">{example.audience}</span>
                       </div>
                     </BareButton>
                   );
@@ -410,6 +440,27 @@ export default function OpsAnswerExamplesPage() {
             ) : null}
 
             <div className="mt-5 grid gap-4">
+              <div>
+                <label className={opsTheme.label} htmlFor="audience">
+                  Audience
+                </label>
+                <select
+                  id="audience"
+                  value={draft.audience}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      audience: event.target
+                        .value as OpsAnswerExampleItem["audience"],
+                    }))
+                  }
+                  className={cx(opsTheme.input, "mt-2")}
+                >
+                  <option value="company">Company</option>
+                  <option value="career">Career</option>
+                </select>
+              </div>
+
               <div>
                 <label className={opsTheme.label} htmlFor="user-example-text">
                   User example

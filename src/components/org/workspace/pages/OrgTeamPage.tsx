@@ -547,9 +547,11 @@ function InviteMemberDialog({
 
 export function OrgTeamPage({
   companyOnly = false,
+  readOnlyCompany = false,
   section = "company",
 }: {
   companyOnly?: boolean;
+  readOnlyCompany?: boolean;
   section?: "company" | "members";
 } = {}) {
   const {
@@ -603,6 +605,7 @@ export function OrgTeamPage({
     currentCompanyDraft.employeeCountEnd
   );
   const companyEditing = companyInfoEditing || companyEditingField !== null;
+  const canEditCompany = permissions.canManageWorkspace && !readOnlyCompany;
   const showCompany = companyOnly || section === "company";
   const showMembers = !companyOnly && section === "members";
   const companyHasChanges =
@@ -611,14 +614,14 @@ export function OrgTeamPage({
   useUnsavedChangesWarning(companyHasChanges);
 
   const startCompanyInfoEditing = () => {
-    if (!permissions.canManageWorkspace || updateWorkspace.isPending) return;
+    if (!canEditCompany || updateWorkspace.isPending) return;
     setCompanyInfoEditing(true);
     setCompanySaveError("");
     setCompanyDraft((current) => current ?? initialCompanyDraft);
   };
 
   const startCompanyEditing = (field: CompanyEditingField) => {
-    if (!permissions.canManageWorkspace || updateWorkspace.isPending) return;
+    if (!canEditCompany || updateWorkspace.isPending) return;
     setCompanyEditingField(field);
     setCompanySaveError("");
     setCompanyDraft((current) => current ?? initialCompanyDraft);
@@ -628,7 +631,7 @@ export function OrgTeamPage({
     patch: Partial<CompanyDraft>,
     field?: CompanyEditingField
   ) => {
-    if (!permissions.canManageWorkspace || updateWorkspace.isPending) return;
+    if (!canEditCompany || updateWorkspace.isPending) return;
     if (field) setCompanyEditingField(field);
     setCompanySaveError("");
     setCompanyDraft((current) => ({
@@ -652,7 +655,12 @@ export function OrgTeamPage({
   });
 
   const saveCompany = async () => {
-    if (!companyDraft || !companyHasChanges || updateWorkspace.isPending)
+    if (
+      !canEditCompany ||
+      !companyDraft ||
+      !companyHasChanges ||
+      updateWorkspace.isPending
+    )
       return;
     const companyName = companyDraft.companyName.trim();
     if (!companyName) {
@@ -833,15 +841,14 @@ export function OrgTeamPage({
       <OrgPageHeader
         actions={
           showCompany &&
-          (permissions.canManageWorkspace ||
+          (canEditCompany ||
             currentCompanyDraft.homepageUrl ||
             currentCompanyDraft.linkedinUrl) ? (
             <div className="flex flex-wrap items-center justify-end gap-2">
-              {(permissions.canManageWorkspace ||
-                currentCompanyDraft.homepageUrl) && (
+              {(canEditCompany || currentCompanyDraft.homepageUrl) && (
                 <CompanyEditableLink
                   disabled={updateWorkspace.isPending}
-                  editable={permissions.canManageWorkspace}
+                  editable={canEditCompany}
                   fieldId="org-company-homepage-url"
                   href={currentCompanyDraft.homepageUrl}
                   label="웹사이트"
@@ -851,11 +858,10 @@ export function OrgTeamPage({
                   }
                 />
               )}
-              {(permissions.canManageWorkspace ||
-                currentCompanyDraft.linkedinUrl) && (
+              {(canEditCompany || currentCompanyDraft.linkedinUrl) && (
                 <CompanyEditableLink
                   disabled={updateWorkspace.isPending}
-                  editable={permissions.canManageWorkspace}
+                  editable={canEditCompany}
                   fieldId="org-company-linkedin-url"
                   href={currentCompanyDraft.linkedinUrl}
                   label="LinkedIn"
@@ -870,7 +876,7 @@ export function OrgTeamPage({
         }
         title={
           showMembers ? (
-            "멤버"
+            "Members"
           ) : (
             <span className="flex min-w-0 items-center gap-2">
               <CompanyBrandMark
@@ -887,10 +893,9 @@ export function OrgTeamPage({
 
       <OrgSection hidden={!showCompany}>
         <div className="text-[13px] text-neutral-900 bg-neutral-100 rounded-lg p-3 mb-4">
-          아래의 정보들은 Harper가 인재에게 회사를 설명하고 설득하기위해
-          사용합니다. 모든 역할에 공통적으로 반영됩니다. 내용을 그대로 전달하지
-          않고, 인재의 관심사/니즈 등에 맞게 Harper가 말을 건넬 때 자연스럽게
-          활용하게 됩니다.
+          Harper가 후보자에게 회사를 정확히 설명할 때 사용하는 정보예요. 모든
+          역할에 공통으로 적용되며, 후보자의 관심사와 질문에 맞춰 필요한 내용을
+          자연스럽게 활용해요.
         </div>
         <form
           className="space-y-8 mt-8"
@@ -901,10 +906,10 @@ export function OrgTeamPage({
         >
           <OrgSectionHeader
             className="max-w-2xl"
-            title="회사 정보"
+            title="Company"
             actions={
               <>
-                {permissions.canManageWorkspace && !companyInfoEditing ? (
+                {canEditCompany && !companyInfoEditing ? (
                   <MuteButton
                     disabled={updateWorkspace.isPending}
                     onClick={startCompanyInfoEditing}
@@ -1119,9 +1124,9 @@ export function OrgTeamPage({
           </div>
 
           <section>
-            <OrgSectionHeader title="회사 설명" />
+            <OrgSectionHeader title="Company Description" />
             <DocumentEditor
-              aria-label="회사 설명 수정"
+              aria-label="Company Description 수정"
               className="mt-2 max-w-4xl"
               disabled={updateWorkspace.isPending}
               documentTitle="Company Description"
@@ -1132,8 +1137,8 @@ export function OrgTeamPage({
               onChange={(event) =>
                 changeCompanyDraft({ pitch: event.target.value }, "pitch")
               }
-              placeholder="인재에게 회사를 소개하고 설득할 때 강조할 내용을 작성해 주세요."
-              readOnly={!permissions.canManageWorkspace}
+              placeholder="후보자에게 회사를 소개할 때 강조할 내용을 작성해 주세요."
+              readOnly={!canEditCompany}
               rows={4}
               savedValue={workspace.pitch ?? ""}
               value={currentCompanyDraft.pitch}
@@ -1166,7 +1171,7 @@ export function OrgTeamPage({
               ) : null
             }
             description="함께 후보자를 검토할 팀원을 초대하고 역할에 맞는 권한을 부여하세요."
-            title="멤버"
+            title={<span className="sr-only sm:not-sr-only">Members</span>}
           />
 
           <div className="space-y-6">
@@ -1182,7 +1187,182 @@ export function OrgTeamPage({
                     : ""}
                 </span>
               </div>
-              <div className="overflow-x-auto rounded-sm border border-neutral-1000-a05 bg-bg-floating">
+              <div className="divide-y divide-neutral-1000-a05 border-y border-neutral-1000-a05 md:hidden">
+                {members.map((member) => (
+                  <article
+                    className="py-4"
+                    key={`mobile-member-${member.userId}`}
+                  >
+                    <div className="flex min-w-0 items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-start gap-2.5">
+                        <MemberAvatar member={member} />
+                        <div className="min-w-0">
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            <h4 className="truncate text-[14px] font-medium text-neutral-primary">
+                              {member.name || "이름 없음"}
+                            </h4>
+                            {member.userId === currentUser?.userId ? (
+                              <Badge radius="full" size="sm" variant="faded">
+                                나
+                              </Badge>
+                            ) : null}
+                          </div>
+                          <p className="mt-0.5 truncate text-[12px] text-neutral-muted">
+                            {member.email || "이메일 없음"}
+                          </p>
+                        </div>
+                      </div>
+                      {permissions.canManageMembers ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <MuteButton
+                              aria-label={`${member.name || member.email || "멤버"} 작업`}
+                              className="-mr-1 -mt-1 rounded-full"
+                              size="md"
+                              variant="transparent"
+                            >
+                              <Ellipsis className="size-4" />
+                            </MuteButton>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40">
+                            <DropdownMenuItem
+                              disabled={updateMemberProfile.isPending}
+                              onSelect={() => openMemberRoleEdit(member)}
+                            >
+                              <Pencil />
+                              직함 수정
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={removeMember.isPending}
+                              onSelect={() => setMemberToRemove(member)}
+                              tone="danger"
+                            >
+                              <Trash2 />
+                              멤버 제거
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : null}
+                    </div>
+
+                    <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg bg-bg-weak/70 px-3 py-3">
+                      <div className="min-w-0">
+                        <dt className="text-[11px] text-neutral-soft">직함</dt>
+                        <dd className="mt-1 truncate text-[13px] text-neutral-primary">
+                          {member.role || "미입력"}
+                        </dd>
+                      </div>
+                      <div className="min-w-0">
+                        <dt className="text-[11px] text-neutral-soft">
+                          가입 날짜
+                        </dt>
+                        <dd className="mt-1 truncate text-[13px] text-neutral-primary">
+                          {formatDate(member.joinedAt)}
+                        </dd>
+                      </div>
+                      <div className="col-span-2 flex min-w-0 items-center justify-between gap-3 border-t border-neutral-1000-a05 pt-3">
+                        <dt className="text-[11px] text-neutral-soft">권한</dt>
+                        <dd className="shrink-0">
+                          {permissions.canManageMembers ? (
+                            <Select
+                              disabled={
+                                updateMembershipAuthority.isPending &&
+                                updateMembershipAuthority.variables?.userId ===
+                                  member.userId
+                              }
+                              onValueChange={(value) =>
+                                void changeMemberAuthority(
+                                  member,
+                                  value as OrgMembershipRole
+                                )
+                              }
+                              value={member.authority}
+                            >
+                              <SelectTrigger
+                                className="h-8 w-[116px] bg-bg-default text-[12px]"
+                                size="sm"
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent align="end">
+                                {ORG_MEMBERSHIP_ROLE_OPTIONS.map((option) => (
+                                  <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span className="text-[12px] text-neutral-muted">
+                              {getOrgRoleLabel(member.authority)}
+                            </span>
+                          )}
+                        </dd>
+                      </div>
+                    </dl>
+                  </article>
+                ))}
+                {invitations.map((invitation) => (
+                  <article
+                    className="bg-bg-weak/30 py-4"
+                    key={`mobile-invitation-${invitation.invitationId}`}
+                  >
+                    <div className="flex min-w-0 items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-start gap-2.5">
+                        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-bg-weak text-[12px] font-medium text-neutral-muted">
+                          {invitation.email.slice(0, 1).toUpperCase()}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            <h4 className="truncate text-[14px] font-medium text-neutral-primary">
+                              {invitation.email}
+                            </h4>
+                            <Badge radius="full" size="sm" variant="faded">
+                              수락 대기
+                            </Badge>
+                          </div>
+                          <p className="mt-1 text-[12px] text-neutral-muted">
+                            {getOrgRoleLabel(invitation.role)} 권한으로 초대됨
+                          </p>
+                        </div>
+                      </div>
+                      {permissions.canManageMembers ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <MuteButton
+                              aria-label={`${invitation.email} 초대 작업`}
+                              className="-mr-1 -mt-1 rounded-full"
+                              size="md"
+                              variant="transparent"
+                            >
+                              <Ellipsis className="size-4" />
+                            </MuteButton>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40">
+                            <DropdownMenuItem
+                              disabled={sendInvitations.isPending}
+                              onSelect={() => void resendInvitation(invitation)}
+                            >
+                              다시 보내기
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={cancelInvitation.isPending}
+                              onSelect={() => setInvitationToCancel(invitation)}
+                              tone="danger"
+                            >
+                              초대 취소
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : null}
+                    </div>
+                  </article>
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto rounded-sm border border-neutral-1000-a05 bg-bg-floating md:block">
                 <table className="w-full min-w-[860px] border-collapse text-left">
                   <thead className="bg-neutral-200/35">
                     <tr className="border-b border-neutral-1000-a05 text-[12px] font-light text-neutral-soft">
@@ -1369,7 +1549,7 @@ export function OrgTeamPage({
       ) : null}
 
       {showCompany &&
-      permissions.canManageWorkspace &&
+      canEditCompany &&
       (companyInfoEditing || companyHasChanges) ? (
         <OrgUnsavedChangesBar
           canSave={companyHasChanges}

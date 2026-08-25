@@ -1,14 +1,7 @@
+import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
+
 export type OrgAgentPipelineBucket = "active" | "ended" | "waiting";
 export const ORG_AGENT_RECOMMENDATION_ID_FILTER_MAX = 100;
-
-const ROLE_STATUS_LABELS: Record<string, string> = {
-  active: "채용 중",
-  deleted: "삭제됨",
-  ended: "종료",
-  open: "채용 중",
-  paused: "일시 중지",
-  top_priority: "최우선 채용",
-};
 
 const STAGE_LABELS: Record<string, string> = {
   accepted: "내부 수락",
@@ -69,7 +62,7 @@ function fallbackLabel(value: unknown) {
 }
 
 export function humanizeOrgRoleStatus(value: unknown) {
-  return ROLE_STATUS_LABELS[normalized(value)] ?? fallbackLabel(value);
+  return getOrgRoleStatusPresentation(value).label;
 }
 
 export function humanizeOrgStage(value: unknown, customLabel?: string | null) {
