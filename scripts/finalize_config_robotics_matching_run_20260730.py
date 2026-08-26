@@ -127,6 +127,14 @@ def live_preflight(db: SupabaseReadOnly) -> dict[str, Any]:
     if role.get("source_type") != "internal":
         raise RuntimeError("role is not internal")
 
+    internal_role_rows = db.get(
+        "company_internal_roles",
+        filters={"role_id": f"eq.{ROLE_ID}"},
+    )
+    if len(internal_role_rows) != 1:
+        raise RuntimeError("internal role request is missing or not unique")
+    internal_role = internal_role_rows[0]
+
     recs = db.get(
         "talent_opportunity_recommendation",
         select="id,talent_id,role_id,feedback,processed_stage,saved_stage,dismissed_at,recommended_at,created_at",
@@ -177,12 +185,15 @@ def live_preflight(db: SupabaseReadOnly) -> dict[str, Any]:
         "fitStateHash": digest(fit_state),
     }
     role_hash = digest({
-        key: role.get(key)
-        for key in (
-            "description", "request", "location_text", "work_mode", "type",
-            "status", "is_expired", "salary_range", "salary_min", "salary_max",
-            "updated_at",
-        )
+        "role": {
+            key: role.get(key)
+            for key in (
+                "description", "location_text", "work_mode", "type", "status",
+                "is_expired", "salary_range", "salary_min", "salary_max",
+                "updated_at",
+            )
+        },
+        "internalRequest": internal_role.get("request"),
     })
     workspace_hash = digest({
         key: workspace.get(key)
@@ -191,6 +202,7 @@ def live_preflight(db: SupabaseReadOnly) -> dict[str, Any]:
     return {
         "checkedAt": now_iso(),
         "role": role,
+        "internalRole": internal_role,
         "workspace": workspace,
         "businessState": business_state,
         "selectedFitSnapshots": [
@@ -575,6 +587,7 @@ def build_evaluations(packets: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def render_consideration(preflight: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     role = preflight["role"]
+    internal_role = preflight["internalRole"]
     item = {
         "manualVersion": MANUAL_VERSION,
         "roleId": ROLE_ID,
@@ -602,7 +615,7 @@ def render_consideration(preflight: dict[str, Any]) -> tuple[str, dict[str, Any]
         "sourceUpdatedAt": role.get("updated_at"),
         "considerationFingerprint": digest({
             "roleUpdatedAt": role.get("updated_at"),
-            "roleRequest": role.get("request"),
+            "roleRequest": internal_role.get("request"),
             "manualVersion": MANUAL_VERSION,
             "hardCriteria": HARD_CRITERIA,
         }),

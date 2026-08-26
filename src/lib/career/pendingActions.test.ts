@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeCareerPendingActionReference } from "./pendingActions";
+import {
+  normalizeCareerPendingActionReference,
+  selectCareerReengagementPromptActions,
+  type CareerReengagementPendingAction,
+} from "./pendingActions";
 
 test("normalizes supported composer pending action references", () => {
   assert.deepEqual(
@@ -34,4 +38,31 @@ test("rejects call references and malformed ids from chat requests", () => {
     }),
     null
   );
+});
+
+test("selects at most one re-engagement action", () => {
+  const actions: CareerReengagementPendingAction[] = [
+    {
+      callId: "call-1",
+      companyName: "Acme",
+      kind: "talent_call",
+      reason: null,
+      resumePromptNeeded: false,
+      roleTitle: "Engineer",
+    },
+    {
+      kind: "reevaluation_question",
+      question: "영어 협업 경험이 있으신가요?",
+    },
+    {
+      companyName: "Third Company",
+      kind: "internal_opportunity",
+      recommendationSummary: null,
+      roleTitle: "Product Engineer",
+    },
+  ];
+
+  assert.deepEqual(selectCareerReengagementPromptActions(actions), [
+    actions[0],
+  ]);
 });

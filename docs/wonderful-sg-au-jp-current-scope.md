@@ -117,7 +117,6 @@ Worker scope가 적용되는 fetch:
 삭제/정리된 코드:
 
 - `src/lib/career/prompts_sg_au_jp.ts`
-- `wonderful_fde_country_roles` migration table block
 - legacy SG/AU code-only `permanent_residency` checklist branch
 - previous FDE-specific checklist keys:
   - `fde_current_base_and_authorization`

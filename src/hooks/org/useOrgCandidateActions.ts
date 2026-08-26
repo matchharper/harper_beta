@@ -56,13 +56,12 @@ export function useOrgCandidateActions(args: {
       pendingStageByCandidateKey.has(candidateKey) ||
       locallyPendingCandidateKeysRef.current.has(candidateKey)
     ) {
-      return false;
+      return null;
     }
 
     locallyPendingCandidateKeysRef.current.add(candidateKey);
     try {
-      await setStage.mutateAsync(input);
-      return true;
+      return await setStage.mutateAsync(input);
     } finally {
       locallyPendingCandidateKeysRef.current.delete(candidateKey);
     }
@@ -77,21 +76,31 @@ export function useOrgCandidateActions(args: {
     try {
       const changed = await runStageMutation({
         acceptReason: options?.acceptReason ?? null,
+        additionalMessage: options?.additionalMessage ?? null,
+        additionalMessageVisibility:
+          options?.additionalMessageVisibility ?? "both",
+        attendeeEmails: options?.attendeeEmails ?? [],
         contactDirectly: options?.contactDirectly ?? false,
+        durationMinutes: options?.durationMinutes,
         emailMode: options?.emailMode,
         introEmails: options?.introEmails ?? null,
         recommendationId: item.recommendationId,
         roleId: item.roleId,
+        scheduleInterview: options?.scheduleInterview ?? false,
         stage,
         stopNote: options?.stopNote ?? null,
         talentId: item.talentId,
+        title: options?.title ?? null,
         workspaceId: args.workspaceId,
       });
       if (!changed) return;
       addToast({
-        message: "후보자 상태를 변경했습니다.",
+        message: options?.scheduleInterview
+          ? "연결을 시작했고, 미팅 정보를 준비해두었어요."
+          : "후보자 상태를 변경했습니다.",
         variant: "success",
       });
+      return changed;
     } catch (error) {
       addToast({
         message:
@@ -106,14 +115,26 @@ export function useOrgCandidateActions(args: {
 
   const acceptTalent = async ({
     acceptReason,
+    additionalMessage,
+    additionalMessageVisibility,
+    attendeeEmails,
     contactDirectly,
+    durationMinutes,
     introEmails,
+    scheduleInterview,
     stage,
+    title,
   }: {
     acceptReason: string | null;
+    additionalMessage?: string | null;
+    additionalMessageVisibility?: "both" | "candidate" | "internal";
+    attendeeEmails?: string[];
     contactDirectly: boolean;
+    durationMinutes?: number;
     introEmails: string[];
+    scheduleInterview?: boolean;
     stage: OrgStageId;
+    title?: string | null;
   }) => {
     if (!args.canManageCandidates) return;
     const roleId = args.detail?.role.roleId ?? args.activeDetailRoleId;
@@ -124,20 +145,29 @@ export function useOrgCandidateActions(args: {
     if (!roleId || !recommendationId || !talentId) return;
     const changed = await runStageMutation({
       acceptReason,
+      additionalMessage,
+      additionalMessageVisibility,
+      attendeeEmails,
       contactDirectly,
+      durationMinutes,
       introEmails,
       recommendationId,
       roleId,
+      scheduleInterview,
       stage,
       stopNote: null,
       talentId,
+      title,
       workspaceId: args.workspaceId,
     });
     if (!changed) return;
     addToast({
-      message: "후보자 연결을 시작했어요.",
+      message: scheduleInterview
+        ? "연결을 시작했고, 미팅 정보를 준비해두었어요."
+        : "후보자 연결을 시작했어요.",
       variant: "success",
     });
+    return changed;
   };
 
   const rejectTalent = async (options: OrgStageChangeOptions) => {

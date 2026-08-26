@@ -735,6 +735,7 @@ export async function postHarperSlackMessage(args: {
   threadTs?: string | null;
   token: string;
   unfurlLinks?: boolean;
+  unfurlMedia?: boolean;
 }) {
   return slackApi<SlackApiResult>(args.token, "chat.postMessage", {
     ...(args.blocks ? { blocks: JSON.stringify(args.blocks) } : {}),
@@ -745,6 +746,9 @@ export async function postHarperSlackMessage(args: {
     ...(args.unfurlLinks === undefined
       ? {}
       : { unfurl_links: args.unfurlLinks }),
+    ...(args.unfurlMedia === undefined
+      ? {}
+      : { unfurl_media: args.unfurlMedia }),
   });
 }
 
@@ -1129,6 +1133,8 @@ export async function sendHarperWorkspaceSlackMessage(args: {
   notificationKey?: HarperSlackNotificationKey;
   roleId?: string | null;
   text: string;
+  unfurlLinks?: boolean;
+  unfurlMedia?: boolean;
   workspaceId: string;
 }) {
   const row = await installation(text(args.workspaceId));
@@ -1182,6 +1188,8 @@ export async function sendHarperWorkspaceSlackMessage(args: {
           : undefined,
         text: args.text,
         token,
+        unfurlLinks: args.unfurlLinks,
+        unfurlMedia: args.unfurlMedia,
       });
       if (posted.ts) {
         const { data: thread, error: threadError } = await (

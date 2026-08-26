@@ -1,5 +1,6 @@
 import Image from "next/image";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/router";
 import { ChevronLeft, ChevronRight, LoaderCircle, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -74,6 +75,7 @@ import {
 } from "@/lib/org/candidateDecision";
 import { getOrgTalentDetailNavigationState } from "@/lib/org/detailNavigation";
 import { humanizeOrgStage } from "@/lib/org/pipelineStage";
+import { convertSlackCandidateIntroToWebMarkdown } from "@/lib/org/agent/navigationMarkdown";
 import type { OrgTalentDetailResponse } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
 import Face from "../common/Face";
@@ -487,7 +489,11 @@ function ProfilePane({
             Harper의 추천 이유
           </div>
           <div className="mt-4 mb-10 border-l-2 border-primary px-3 text-[13px] leading-6 text-neutral-primary">
-            {detail.recommendation.fitReason}
+            <MarkdownProfile
+              value={convertSlackCandidateIntroToWebMarkdown(
+                detail.recommendation.fitReason
+              )}
+            />
           </div>
         </ProfileSection>
       ) : null}
@@ -1036,6 +1042,7 @@ function TalentDetailPager({
 }
 
 export function TalentDetailSimpleView() {
+  const router = useRouter();
   const {
     closeTalentDetail,
     selectTalent,
@@ -1089,6 +1096,22 @@ export function TalentDetailSimpleView() {
   const open = detailOpen;
   const talentId = activeDetailTalentId || null;
   const [acceptDialogOpen, setAcceptDialogOpen] = useState(false);
+  const scheduleReturnOpen = Boolean(
+    detail &&
+    router.query.candidateAction === "schedule_interview" &&
+    router.query.recommendationId === detail.recommendation.recommendationId &&
+    router.query.detailRoleId === detail.role.roleId &&
+    router.query.talentId === detail.talent.userId
+  );
+  const closeAcceptDialog = () => {
+    setAcceptDialogOpen(false);
+    if (!scheduleReturnOpen) return;
+    const query = { ...router.query };
+    delete query.candidateAction;
+    void router.replace({ pathname: router.pathname, query }, undefined, {
+      shallow: true,
+    });
+  };
   const [pendingConnectionDialogOpen, setPendingConnectionDialogOpen] =
     useState(false);
   const [mobileTab, setMobileTab] = useState<"profile" | "feed">("profile");
@@ -1545,25 +1568,53 @@ export function TalentDetailSimpleView() {
       </Dialog>
 
       <AcceptIntroDialog
+        key={`${detail?.recommendation.recommendationId ?? "accept-dialog"}:${scheduleReturnOpen ? "schedule" : "default"}`}
         allowContactDirectly={isInternalDomainEmail(currentUserEmail)}
+        availabilityReturnTarget={
+          detail
+            ? {
+                recommendationId: detail.recommendation.recommendationId,
+                roleId: detail.role.roleId,
+                talentId: detail.talent.userId,
+              }
+            : null
+        }
         candidateEmail={detail?.talent.email}
         candidateName={title}
         companyContactName={currentUser?.name}
         defaultContactDirectly={isInternalDomainEmail(currentUserEmail)}
+        defaultScheduleInterview={scheduleReturnOpen}
         defaultEmail={currentUserEmail}
         members={members}
-        open={acceptDialogOpen && Boolean(detail)}
+        open={(acceptDialogOpen || scheduleReturnOpen) && Boolean(detail)}
         pending={decisionPending}
-        onClose={() => setAcceptDialogOpen(false)}
-        onSubmit={async ({ acceptReason, contactDirectly, introEmails }) => {
+        onClose={closeAcceptDialog}
+        onSubmit={async ({
+          acceptReason,
+          additionalMessage,
+          additionalMessageVisibility,
+          attendeeEmails,
+          contactDirectly,
+          durationMinutes,
+          introEmails,
+          scheduleInterview,
+          title,
+        }) => {
           if (!acceptStageId || !onAcceptCandidate) return;
-          await onAcceptCandidate({
+          const result = await onAcceptCandidate({
             acceptReason,
+            additionalMessage,
+            additionalMessageVisibility,
+            attendeeEmails,
             contactDirectly,
+            durationMinutes,
             introEmails,
+            scheduleInterview,
             stage: acceptStageId,
+            title,
           });
-          setAcceptDialogOpen(false);
+          closeAcceptDialog();
+          return result;
         }}
         roleTitle={detail?.role.name ?? ""}
       />

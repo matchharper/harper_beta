@@ -1,6 +1,7 @@
 import { fetchRecentTalentActivitySummaries } from "@/lib/talentOnboarding/activityEvents";
 import { createHash } from "node:crypto";
 import { CAREER_LLM_CONFIG } from "@/lib/career/llm";
+import { partitionOpportunityFeedbackReasons } from "@/lib/career/opportunityFeedbackSignals";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
@@ -902,30 +903,69 @@ function compactFeedbackSignals(
   const buckets = {
     applied: [] as string[],
     negativeOrDisliked: [] as string[],
+    operational: [] as string[],
     positiveOrLiked: [] as string[],
     saved: [] as string[],
   };
   for (const item of history) {
-    const compact = compactRecentRecommendation(item, terms, false);
+    const reasonSignals = partitionOpportunityFeedbackReasons(
+      item.feedbackReason
+    );
+    const preferenceCompact = compactRecentRecommendation(
+      {
+        ...item,
+        feedbackReason:
+          reasonSignals.operationalReasons.length > 0
+            ? reasonSignals.preferenceReasons.join(" / ") || null
+            : item.feedbackReason,
+      },
+      terms,
+      false
+    );
+    const operationalCompact = compactRecentRecommendation(
+      {
+        ...item,
+        feedback: null,
+        feedbackReason: reasonSignals.operationalReasons.join(" / ") || null,
+      },
+      terms,
+      false
+    );
     const feedback = cleanText(item.feedback, 80).toLowerCase();
     const savedStage = cleanText(item.savedStage, 80).toLowerCase();
-    if (["like", "positive"].includes(feedback))
-      buckets.positiveOrLiked.push(compact);
-    if (["dislike", "negative"].includes(feedback)) {
-      buckets.negativeOrDisliked.push(compact);
+    if (!reasonSignals.isOperationalOnly) {
+      if (["like", "positive"].includes(feedback)) {
+        buckets.positiveOrLiked.push(preferenceCompact);
+      }
+      if (["dislike", "negative"].includes(feedback)) {
+        buckets.negativeOrDisliked.push(preferenceCompact);
+      }
+      if (["saved", "interested", "shortlisted"].includes(savedStage)) {
+        buckets.saved.push(preferenceCompact);
+      }
     }
-    if (["saved", "interested", "shortlisted"].includes(savedStage)) {
-      buckets.saved.push(compact);
+    if (reasonSignals.operationalReasons.length > 0) {
+      buckets.operational.push(operationalCompact);
     }
     if (["applied", "interviewing"].includes(savedStage)) {
-      buckets.applied.push(compact);
+      buckets.applied.push(
+        reasonSignals.isOperationalOnly ? operationalCompact : preferenceCompact
+      );
     }
   }
   return cleanEmptyValues({
     applied: buckets.applied.slice(0, 8),
-    instruction:
+    instruction: [
       "Use these signals to interpret the current request. Mention what liked/saved roles imply and what disliked roles suggest avoiding only when relevant.",
+      "A disliked opportunity or a role-, location-, or work-mode-specific reason may justify avoiding that exact posting or role, but not the whole company. Treat a company as excluded only when the user's explicit reason/comment unambiguously targets the company itself, its business, or its culture, or the persisted blockedCompanies setting contains it. An unexplained dislike or an ambiguous reason such as '회사 혹은 조건' is not enough for company-wide exclusion.",
+      ...(buckets.operational.length > 0
+        ? [
+            "Operational reasons ('이미 지원했던 회사/역할입니다.' and '만료된 공고에요.') describe application or posting status, not preference. Do not use those fixed reasons as positive or negative preference evidence. Any other reason or custom comment on the same item remains preference evidence.",
+          ]
+        : []),
+    ].join(" "),
     negativeOrDisliked: buckets.negativeOrDisliked.slice(0, 8),
+    operational: buckets.operational.slice(0, 8),
     positiveOrLiked: buckets.positiveOrLiked.slice(0, 8),
     saved: buckets.saved.slice(0, 8),
   }) as JsonRecord;
@@ -3804,7 +3844,9 @@ function fallbackFitSummary(card: RoleCard) {
   const company = cleanText(card.companyName, 160) || "Company";
   const title = cleanText(card.roleName, 180) || "Role";
   const lines = [`${title} at ${company}`];
-  const workLocation = [card.location, card.workMode].filter(Boolean).join(" · ");
+  const workLocation = [card.location, card.workMode]
+    .filter(Boolean)
+    .join(" · ");
   if (workLocation) lines.push(`Location/work mode: ${workLocation}`);
   if (card.salaryRange) lines.push(`Compensation: ${card.salaryRange}`);
   return lines.join("\n");
@@ -4850,9 +4892,7 @@ function formatAnswerDraft(args: {
     const concern = item.detail.tradeoffs[0];
     const roleId = cleanText(item.roleId, 120);
 
-    lines.push(
-      `${index + 1}. ${company} - ${title} (${item.score.toFixed(1)}/10)`
-    );
+    lines.push(`${index + 1}. ${company} - ${title}`);
     if (meta) {
       lines.push(
         `   ${careerT(locale, "career.job_posting_recommendations.answer.details_label", "조건")}: ${meta}`

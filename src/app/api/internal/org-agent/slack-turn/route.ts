@@ -48,6 +48,7 @@ import {
 } from "@/lib/org/slackChoiceButtons";
 import {
   decideHarperSlackThreadReply,
+  shouldRespondToSchedulingThreadReply,
   type SlackReplyRoutingMessage,
 } from "@/lib/org/slackReplyRouter";
 import {
@@ -67,6 +68,7 @@ import {
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { getPublicSiteUrlFromRequest } from "@/lib/siteUrl";
 import { COMPANY_TALENT_REQUEST_BLOCKING_STATUSES } from "@/lib/companyTalentRequests/server";
+import { convertMarkdownLinksToSlackMrkdwn } from "@/lib/org/slackMessages";
 
 export const maxDuration = 180;
 export const runtime = "nodejs";
@@ -838,22 +840,26 @@ export async function POST(req: NextRequest) {
             slackThreadId: thread.id,
             slackUserId,
           });
-          routingDecision = await decideHarperSlackThreadReply(
-            routingMessages,
-            {
-              onDebugCall: verbose
-                ? (call) => {
-                    llmUsage = summarizeLlmDebugCalls([call]);
-                    console.info("[org-agent/slack-turn:llm]", {
-                      jobId: job.id,
-                      ...llmUsage,
-                    });
-                  }
-                : undefined,
-              signal: slackTurnSignal,
-            }
-          );
-          routingMode = "model";
+          if (shouldRespondToSchedulingThreadReply(routingMessages)) {
+            routingMode = "scheduling_thread_bypass";
+          } else {
+            routingDecision = await decideHarperSlackThreadReply(
+              routingMessages,
+              {
+                onDebugCall: verbose
+                  ? (call) => {
+                      llmUsage = summarizeLlmDebugCalls([call]);
+                      console.info("[org-agent/slack-turn:llm]", {
+                        jobId: job.id,
+                        ...llmUsage,
+                      });
+                    }
+                  : undefined,
+                signal: slackTurnSignal,
+              }
+            );
+            routingMode = "model";
+          }
         }
       }
       slackTurnSignal.throwIfAborted();
@@ -1352,6 +1358,10 @@ export async function POST(req: NextRequest) {
           console.warn("[org-agent/slack-turn:role-creation-links]", error);
         }
       }
+      // A model pass may normalize a valid Slack link back to web Markdown.
+      // Slack does not render `[label](url)`, so normalize HTTP links at the
+      // final delivery boundary after every generated and appended fragment.
+      slackResponseText = convertMarkdownLinksToSlackMrkdwn(slackResponseText);
       const deliveredSlackText =
         slackResponseText || "다음 행동을 선택해 주세요.";
       const slackBlocks = buildHarperSlackChoiceBlocks({

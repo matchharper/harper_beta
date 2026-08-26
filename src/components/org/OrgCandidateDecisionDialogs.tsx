@@ -1,9 +1,32 @@
 import { FormEvent, useId, useState } from "react";
-import { ChevronRight, LoaderCircle, Plus, X } from "lucide-react";
+import {
+  CalendarClock,
+  Check,
+  ChevronRight,
+  LoaderCircle,
+  Plus,
+  X,
+} from "lucide-react";
+import { useRouter } from "next/router";
 import { motion } from "motion/react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { MuteButton } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useOrgMeetingAvailability } from "@/hooks/org/useOrgMeetingAvailability";
+import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
+import {
+  buildDefaultInterviewTitle,
+  DEFAULT_INTERVIEW_DURATION_MINUTES,
+} from "@/lib/meetings/scheduleDraft";
+import { formatMeetingAvailabilitySummary } from "@/lib/meetings/availability";
 import type { OrgMember } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
 import {
@@ -23,12 +46,20 @@ function parseEmailList(value: string) {
   );
 }
 
+type ConnectionMode = "direct_contact" | "intro_email" | "schedule_interview";
+
+type AcceptIntroSubmitResult = {
+  meetingSchedule?: { detailPath: string; scheduleId: string } | null;
+} | void;
+
 export function AcceptIntroDialog({
   allowContactDirectly = false,
+  availabilityReturnTarget,
   candidateEmail,
   candidateName,
   companyContactName,
   defaultContactDirectly = false,
+  defaultScheduleInterview = false,
   defaultEmail,
   members = [],
   onClose,
@@ -38,22 +69,36 @@ export function AcceptIntroDialog({
   roleTitle,
 }: {
   allowContactDirectly?: boolean;
+  availabilityReturnTarget?: {
+    recommendationId: string;
+    roleId: string;
+    talentId: string;
+  } | null;
   candidateEmail?: string | null;
   candidateName: string;
   companyContactName?: string | null;
   defaultContactDirectly?: boolean;
+  defaultScheduleInterview?: boolean;
   defaultEmail?: string | null;
   members?: Pick<OrgMember, "email" | "name" | "userId">[];
   onClose: () => void;
   onSubmit: (args: {
     acceptReason: string | null;
+    additionalMessage: string | null;
+    additionalMessageVisibility: "both";
+    attendeeEmails: string[];
     contactDirectly: boolean;
+    durationMinutes: number;
     introEmails: string[];
-  }) => void | Promise<void>;
+    scheduleInterview: boolean;
+    title: string;
+  }) => AcceptIntroSubmitResult | Promise<AcceptIntroSubmitResult>;
   open: boolean;
   pending?: boolean;
   roleTitle: string;
 }) {
+  const router = useRouter();
+  const { currentUser, workspace } = useOrgWorkspace();
   const acceptFormId = useId();
   const emailPreviewId = useId();
   const normalizedCandidateEmail = candidateEmail?.trim().toLowerCase() ?? "";
@@ -61,13 +106,37 @@ export function AcceptIntroDialog({
     const email = defaultEmail?.trim().toLowerCase() ?? "";
     return email === normalizedCandidateEmail ? "" : email;
   };
-  const [contactDirectly, setContactDirectly] = useState(
-    allowContactDirectly && defaultContactDirectly
+  const getDefaultConnectionMode = (): ConnectionMode =>
+    defaultScheduleInterview
+      ? "schedule_interview"
+      : allowContactDirectly && defaultContactDirectly
+        ? "direct_contact"
+        : "intro_email";
+  const [connectionMode, setConnectionMode] = useState<ConnectionMode>(
+    getDefaultConnectionMode
   );
-  const usesDirectContact = allowContactDirectly && contactDirectly;
+  const usesDirectContact = connectionMode === "direct_contact";
+  const schedulesInterview = connectionMode === "schedule_interview";
+  const availabilityQuery = useOrgMeetingAvailability({
+    enabled: open && schedulesInterview,
+    workspaceId: workspace.workspaceId,
+  });
+  const availability = availabilityQuery.data?.availability ?? null;
   const [emailPreviewOpen, setEmailPreviewOpen] = useState(false);
   const [error, setError] = useState("");
   const [introEmailText, setIntroEmailText] = useState(getDefaultEmailText);
+  const [meetingTitle, setMeetingTitle] = useState(() =>
+    buildDefaultInterviewTitle({
+      candidateName,
+      companyName: workspace.companyName,
+    })
+  );
+  const [durationMinutes, setDurationMinutes] = useState(
+    DEFAULT_INTERVIEW_DURATION_MINUTES
+  );
+  const [meetingAttendeeEmails, setMeetingAttendeeEmails] = useState(() =>
+    getDefaultEmailText() ? [getDefaultEmailText()] : []
+  );
   const introEmails = parseEmailList(introEmailText);
   const selectedEmailSet = new Set(introEmails);
   const selectableMembers = members.filter(
@@ -91,10 +160,20 @@ export function AcceptIntroDialog({
   } — Introduction: ${candidateName} & ${normalizedCompanyContactName}`;
 
   const resetForm = () => {
-    setContactDirectly(allowContactDirectly && defaultContactDirectly);
+    setConnectionMode(getDefaultConnectionMode());
     setEmailPreviewOpen(false);
     setError("");
     setIntroEmailText(getDefaultEmailText());
+    setMeetingTitle(
+      buildDefaultInterviewTitle({
+        candidateName,
+        companyName: workspace.companyName,
+      })
+    );
+    setDurationMinutes(DEFAULT_INTERVIEW_DURATION_MINUTES);
+    setMeetingAttendeeEmails(
+      getDefaultEmailText() ? [getDefaultEmailText()] : []
+    );
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -103,21 +182,42 @@ export function AcceptIntroDialog({
     const acceptReason =
       String(formData.get("acceptReason") ?? "").trim() || null;
     if (!usesDirectContact && !normalizedCandidateEmail) {
-      setError("후보자 이메일이 없어 소개 이메일을 보낼 수 없어요.");
+      setError(
+        schedulesInterview
+          ? "후보자 이메일이 없어 일정 요청을 준비할 수 없어요."
+          : "후보자 이메일이 없어 소개 이메일을 보낼 수 없어요."
+      );
       return;
     }
-    if (!usesDirectContact && introEmails.length === 0) {
+    if (!usesDirectContact && !schedulesInterview && introEmails.length === 0) {
       setError("Email intro에는 회사 담당자 이메일이 1개 이상 필요해요.");
+      return;
+    }
+    if (schedulesInterview && !availability) {
+      setError("인터뷰 가능 시간을 먼저 설정해 주세요.");
+      return;
+    }
+    if (schedulesInterview && !meetingTitle.trim()) {
+      setError("인터뷰 제목을 입력해 주세요.");
       return;
     }
     setError("");
     try {
-      await onSubmit({
+      const result = await onSubmit({
         acceptReason,
+        additionalMessage: schedulesInterview ? acceptReason : null,
+        additionalMessageVisibility: "both",
+        attendeeEmails: schedulesInterview ? meetingAttendeeEmails : [],
         contactDirectly: usesDirectContact,
-        introEmails: usesDirectContact ? [] : introEmails,
+        durationMinutes,
+        introEmails: usesDirectContact || schedulesInterview ? [] : introEmails,
+        scheduleInterview: schedulesInterview,
+        title: meetingTitle.trim(),
       });
       resetForm();
+      if (result?.meetingSchedule?.detailPath) {
+        void router.push(result.meetingSchedule.detailPath);
+      }
     } catch (submitError) {
       setError(
         submitError instanceof Error
@@ -141,11 +241,21 @@ export function AcceptIntroDialog({
       : [...introEmails, normalizedEmail];
     updateIntroEmails(nextEmails);
   };
-  const selectConnectionMode = (nextContactDirectly: boolean) => {
-    if (nextContactDirectly && !allowContactDirectly) return;
-    setContactDirectly(nextContactDirectly);
-    if (nextContactDirectly) setEmailPreviewOpen(false);
+  const selectConnectionMode = (mode: ConnectionMode) => {
+    if (mode === "direct_contact" && !allowContactDirectly) return;
+    setConnectionMode(mode);
+    if (mode !== "intro_email") setEmailPreviewOpen(false);
     if (error) setError("");
+  };
+
+  const toggleMeetingAttendee = (email: string) => {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (normalizedEmail === defaultEmail?.trim().toLowerCase()) return;
+    setMeetingAttendeeEmails((current) =>
+      current.includes(normalizedEmail)
+        ? current.filter((item) => item !== normalizedEmail)
+        : [...current, normalizedEmail]
+    );
   };
 
   return (
@@ -153,9 +263,11 @@ export function AcceptIntroDialog({
       bodyClassName="max-h-[calc(100dvh-176px)] overflow-y-auto bg-bg-floating px-5 py-4 sm:px-6"
       closeOnBackdrop={!pending}
       description={
-        usesDirectContact
-          ? "후보자를 연결됨으로 표시하지만 Harper는 이메일을 보내지 않아요. 회사가 후보자에게 직접 연락해야 해요."
-          : "Harper가 후보자와 선택한 담당자에게 소개 이메일을 바로 보내요. 보낸 이메일은 회수할 수 없어요."
+        schedulesInterview
+          ? "연결하기 전에 첫 미팅의 시간과 참석자를 확인해 주세요. 아직 후보자에게는 메일을 보내지 않아요."
+          : usesDirectContact
+            ? "후보자를 연결됨으로 표시하지만 Harper는 이메일을 보내지 않아요. 회사가 후보자에게 직접 연락해야 해요."
+            : "Harper가 후보자와 선택한 담당자에게 소개 이메일을 바로 보내요. 보낸 이메일은 회수할 수 없어요."
       }
       footer={
         <div className="flex items-center justify-end gap-2">
@@ -171,7 +283,12 @@ export function AcceptIntroDialog({
           <MuteButton
             disabled={
               pending ||
+              (schedulesInterview &&
+                (!normalizedCandidateEmail ||
+                  !availability ||
+                  !meetingTitle.trim())) ||
               (!usesDirectContact &&
+                !schedulesInterview &&
                 (!normalizedCandidateEmail || introEmails.length === 0))
             }
             form={acceptFormId}
@@ -180,7 +297,11 @@ export function AcceptIntroDialog({
             variant="positive"
           >
             {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-            {usesDirectContact ? "Mark as connected" : "Send intro & connect"}
+            {schedulesInterview
+              ? "일정 초안 저장하고 연결하기"
+              : usesDirectContact
+                ? "Mark as connected"
+                : "Send intro & connect"}
           </MuteButton>
         </div>
       }
@@ -203,23 +324,32 @@ export function AcceptIntroDialog({
         {allowContactDirectly ? (
           <div
             aria-label="연결 방식"
-            className="relative grid h-10 grid-cols-2 rounded-full bg-neutral-1000-a05 p-1"
+            className="relative grid h-10 grid-cols-3 rounded-full bg-neutral-1000-a05 p-1"
             role="tablist"
           >
             <motion.div
-              animate={{ x: usesDirectContact ? "100%" : "0%" }}
-              className="absolute bottom-1 left-1 top-1 w-[calc(50%_-_4px)] rounded-full bg-black shadow-sm"
+              animate={{
+                x:
+                  connectionMode === "intro_email"
+                    ? "0%"
+                    : connectionMode === "direct_contact"
+                      ? "100%"
+                      : "200%",
+              }}
+              className="absolute bottom-1 left-1 top-1 w-[calc(33.333%_-_2.667px)] rounded-full bg-black shadow-sm"
               initial={false}
               transition={{ type: "spring", stiffness: 440, damping: 38 }}
             />
             <button
-              aria-selected={!usesDirectContact}
+              aria-selected={connectionMode === "intro_email"}
               className={cn(
                 "relative z-10 rounded-full text-[13px] font-medium transition-colors",
-                usesDirectContact ? "text-neutral-muted" : "text-white"
+                connectionMode === "intro_email"
+                  ? "text-white"
+                  : "text-neutral-muted"
               )}
               disabled={pending}
-              onClick={() => selectConnectionMode(false)}
+              onClick={() => selectConnectionMode("intro_email")}
               role="tab"
               type="button"
             >
@@ -232,14 +362,66 @@ export function AcceptIntroDialog({
                 usesDirectContact ? "text-white" : "text-neutral-muted"
               )}
               disabled={pending}
-              onClick={() => selectConnectionMode(true)}
+              onClick={() => selectConnectionMode("direct_contact")}
               role="tab"
               type="button"
             >
               Direct contact
             </button>
+            <button
+              aria-selected={schedulesInterview}
+              className={cn(
+                "relative z-10 rounded-full text-[13px] font-medium transition-colors",
+                schedulesInterview ? "text-white" : "text-neutral-muted"
+              )}
+              disabled={pending}
+              onClick={() => selectConnectionMode("schedule_interview")}
+              role="tab"
+              type="button"
+            >
+              일정 조율
+            </button>
           </div>
-        ) : null}
+        ) : (
+          <div
+            aria-label="연결 방식"
+            className="relative grid h-10 grid-cols-2 rounded-full bg-neutral-1000-a05 p-1"
+            role="tablist"
+          >
+            <motion.div
+              animate={{ x: schedulesInterview ? "100%" : "0%" }}
+              className="absolute bottom-1 left-1 top-1 w-[calc(50%_-_4px)] rounded-full bg-black shadow-sm"
+              initial={false}
+              transition={{ type: "spring", stiffness: 440, damping: 38 }}
+            />
+            <button
+              aria-selected={!schedulesInterview}
+              className={cn(
+                "relative z-10 rounded-full text-[13px] font-medium transition-colors",
+                schedulesInterview ? "text-neutral-muted" : "text-white"
+              )}
+              disabled={pending}
+              onClick={() => selectConnectionMode("intro_email")}
+              role="tab"
+              type="button"
+            >
+              Email intro
+            </button>
+            <button
+              aria-selected={schedulesInterview}
+              className={cn(
+                "relative z-10 rounded-full text-[13px] font-medium transition-colors",
+                schedulesInterview ? "text-white" : "text-neutral-muted"
+              )}
+              disabled={pending}
+              onClick={() => selectConnectionMode("schedule_interview")}
+              role="tab"
+              type="button"
+            >
+              일정 조율
+            </button>
+          </div>
+        )}
 
         {usesDirectContact ? (
           <div className="rounded-md bg-bg-weak p-3" role="tabpanel">
@@ -251,6 +433,124 @@ export function AcceptIntroDialog({
               담당자가 후보자에게 직접 연락해 다음 단계를 진행해 주세요.
             </p>
           </div>
+        ) : schedulesInterview ? (
+          <section
+            aria-label="인터뷰 일정 조율"
+            className="space-y-4 rounded-lg border border-neutral-1000-a05 bg-bg-default p-4"
+            role="tabpanel"
+          >
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary-faded text-primary">
+                <CalendarClock className="size-4" />
+              </span>
+              <div className="min-w-0">
+                <div className="text-[13px] font-medium text-neutral-primary">
+                  {candidateName}님에게 제안할 일정
+                </div>
+                <p className="mt-1 text-[12px] leading-5 text-neutral-muted">
+                  {availabilityQuery.isLoading
+                    ? "설정한 가능 시간을 확인하고 있어요."
+                    : availabilityQuery.error
+                      ? "가능 시간을 불러오지 못했어요. 잠시 후 다시 확인해 주세요."
+                      : availability
+                        ? `${formatMeetingAvailabilitySummary(availability)} 사이에서 향후 2주 내의 일정을 제안해요.`
+                        : "먼저 평소에 미팅이 가능한 시간을 알려주세요."}
+                </p>
+              </div>
+            </div>
+
+            {!availabilityQuery.isLoading &&
+            !availabilityQuery.error &&
+            !availability ? (
+              <MuteButton
+                onClick={() =>
+                  void router.push({
+                    pathname: "/org/settings",
+                    query: {
+                      dialog: "interview-availability",
+                      orgId: workspace.workspaceId,
+                      ...(availabilityReturnTarget
+                        ? {
+                            returnRecommendationId:
+                              availabilityReturnTarget.recommendationId,
+                            returnRoleId: availabilityReturnTarget.roleId,
+                            returnTalentId: availabilityReturnTarget.talentId,
+                          }
+                        : {}),
+                    },
+                  })
+                }
+                size="sm"
+                type="button"
+                variant="default"
+              >
+                가능 시간 설정하기
+              </MuteButton>
+            ) : null}
+
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_120px]">
+              <label className="block">
+                <span className="text-[12px] text-neutral-soft">제목</span>
+                <Input
+                  className="mt-1 h-9 text-[13px]"
+                  disabled={pending}
+                  maxLength={200}
+                  onChange={(event) => setMeetingTitle(event.target.value)}
+                  value={meetingTitle}
+                />
+              </label>
+              <label className="block">
+                <span className="text-[12px] text-neutral-soft">길이</span>
+                <Select
+                  disabled={pending}
+                  onValueChange={(value) => setDurationMinutes(Number(value))}
+                  value={String(durationMinutes)}
+                >
+                  <SelectTrigger className="mt-1 h-9">
+                    <SelectValue>{durationMinutes}분</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent align="start">
+                    {[30, 45, 60, 90, 120].map((duration) => (
+                      <SelectItem key={duration} value={String(duration)}>
+                        {duration}분
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+            </div>
+
+            <div>
+              <div className="text-[12px] text-neutral-soft">참석자</div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {selectableMembers.map((member) => {
+                  const email = member.email.trim().toLowerCase();
+                  const selected = meetingAttendeeEmails.includes(email);
+                  const organizer =
+                    email === defaultEmail?.trim().toLowerCase();
+                  return (
+                    <MuteButton
+                      aria-pressed={selected}
+                      className={cn(
+                        "h-7 rounded-full",
+                        selected &&
+                          "border-primary/25 bg-primary-faded text-primary"
+                      )}
+                      disabled={pending || organizer}
+                      key={member.userId}
+                      onClick={() => toggleMeetingAttendee(email)}
+                      size="sm"
+                      type="button"
+                      variant="default"
+                    >
+                      {selected ? <Check className="size-3" /> : null}
+                      {member.name || email.split("@")[0]}
+                    </MuteButton>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
         ) : (
           <section
             aria-label="Email intro"
@@ -379,21 +679,27 @@ export function AcceptIntroDialog({
 
         <label className="block">
           <span className="text-[12px] font-medium text-neutral-primary">
-            Connection note{" "}
+            {schedulesInterview ? "추가 메시지" : "Connection note"}{" "}
             <span className="font-normal text-neutral-soft">· 선택</span>
           </span>
           <Textarea
             key={`${open}:acceptReason`}
             name="acceptReason"
             rows={3}
-            placeholder="예: ML infra 경험이 이번 역할과 특히 잘 맞아요."
+            placeholder={
+              schedulesInterview
+                ? "예: 가능하면 가장 빠른 시간으로 부탁드려요."
+                : "예: ML infra 경험이 이번 역할과 특히 잘 맞아요."
+            }
             className="mt-1.5 min-h-24 px-3 py-2 text-[13px] leading-5"
             disabled={pending}
           />
           <p className="mt-1 text-[12px] leading-5 text-neutral-soft">
-            {usesDirectContact
-              ? "작성해주시면 다음 후보 추천에 반영됩니다."
-              : "작성해주시면 소개 메일과 다음 후보 추천에 반영됩니다."}
+            {schedulesInterview
+              ? "후보자에게 보낼 이메일에 자연스럽게 담을게요. 아직 메일이 보내지는 것은 아니에요."
+              : usesDirectContact
+                ? "작성해주시면 다음 후보 추천에 반영됩니다."
+                : "작성해주시면 소개 메일과 다음 후보 추천에 반영됩니다."}
           </p>
         </label>
         {error ? (

@@ -33,6 +33,28 @@ test("candidate decisions expose LLM-judged context and terminal execution tools
     "accept",
     "decline",
   ]);
+  assert.deepEqual(prepareParameters.properties.connectionMethod.enum, [
+    "intro_email",
+    "direct_contact",
+    "schedule_interview",
+  ]);
+  assert.equal(
+    prepareParameters.properties.meetingDurationMinutes.multipleOf,
+    15
+  );
+  assert.equal(prepareParameters.properties.meetingDurationMinutes.minimum, 15);
+  assert.match(
+    prepareParameters.properties.connectionMethod.description,
+    /60-minute duration/
+  );
+  assert.match(
+    prepareParameters.properties.connectionMethod.description,
+    /\[company\] <> \[candidate\] Intro/
+  );
+  assert.match(
+    prepareParameters.properties.meetingAttendeeEmails.description,
+    /requester remains the default organizer/
+  );
   assert.equal("recommendationId" in prepareParameters.properties, false);
   assert.equal("recommendationId" in decideParameters.properties, false);
   assert.equal("confirmed" in decideParameters.properties, false);
@@ -49,6 +71,10 @@ test("candidate decisions expose LLM-judged context and terminal execution tools
     /Always call it with connectionMethod=direct_contact/
   );
   assert.match(
+    prepare?.function.description ?? "",
+    /meeting_setup_required.*without asking for approval/
+  );
+  assert.match(
     decide?.function.description ?? "",
     /current message authorizes all of it/
   );
@@ -61,6 +87,8 @@ test("candidate decisions expose LLM-judged context and terminal execution tools
     decide?.function.description ?? "",
     /omitted connectionMethod defaults to intro_email/
   );
+  assert.match(decide?.function.description ?? "", /meeting draft/);
+  assert.match(decide?.function.description ?? "", /does not contact/);
   assert.match(
     decide?.function.description ?? "",
     /Never proactively offer direct_contact/
@@ -73,6 +101,32 @@ test("candidate decisions expose LLM-judged context and terminal execution tools
     decide?.function.description ?? "",
     /matching prepare_candidate_connection confirmation must have appeared/
   );
+});
+
+test("company agent can save the current user's interview availability", () => {
+  assert.equal(isOrgAgentToolName("manage_interview_availability"), true);
+  assert.equal(
+    ORG_AGENT_TERMINAL_TOOL_NAMES.has("manage_interview_availability"),
+    true
+  );
+  const tool = ORG_AGENT_TOOLS.find(
+    (item) => item.function.name === "manage_interview_availability"
+  );
+  const parameters = tool?.function.parameters as any;
+
+  assert.ok(tool);
+  assert.equal(parameters.additionalProperties, false);
+  assert.equal(parameters.properties.weeklyUpdates.maxItems, 7);
+  assert.deepEqual(
+    parameters.properties.weeklyUpdates.items.properties.days.items.enum,
+    ["1", "2", "3", "4", "5", "6", "7"]
+  );
+  assert.match(tool?.function.description ?? "", /current company user's own/);
+  assert.match(
+    tool?.function.description ?? "",
+    /never changes another member/
+  );
+  assert.match(tool?.function.description ?? "", /must be the only tool call/);
 });
 
 test("role creation is exposed only on Slack and transfers bounded source context", () => {
@@ -92,17 +146,21 @@ test("role creation is exposed only on Slack and transfers bounded source contex
   const properties = (start?.function.parameters as any).properties;
   assert.equal(properties.contextMessageCount.minimum, 1);
   assert.equal(properties.contextMessageCount.maximum, 12);
+  assert.match(start?.function.description ?? "", /exact recent Slack context/);
   assert.match(
     start?.function.description ?? "",
-    /exact recent Slack context/
+    /exact role title established from the available context/
   );
+  assert.match(
+    start?.function.description ?? "",
+    /Do not ask the user to restate a title that is already clear/
+  );
+  assert.doesNotMatch(start?.function.description ?? "", /JD URL/);
+  assert.doesNotMatch(start?.function.description ?? "", /open_url first/);
+  assert.match(properties.roleTitle.description, /available context/);
   assert.match(
     start?.function.description ?? "",
     /automatically continues before the user has to say anything/
-  );
-  assert.match(
-    start?.function.description ?? "",
-    /Do not research or draft/
   );
   assert.match(
     start?.function.description ?? "",
@@ -203,10 +261,19 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
     "active",
     "paused",
     "ended",
+    "deleted",
   ]);
   assert.match(changeRoleStatus?.function.description ?? "", /active \(진행\)/);
   assert.match(changeRoleStatus?.function.description ?? "", /paused \(중단\)/);
   assert.match(changeRoleStatus?.function.description ?? "", /ended \(종료\)/);
+  assert.match(
+    changeRoleStatus?.function.description ?? "",
+    /deleted \(삭제\)[\s\S]*status=deleted and is_expired=true/
+  );
+  assert.match(
+    changeRoleStatus?.function.description ?? "",
+    /Do not reinterpret 종료 as deletion/
+  );
   assert.match(
     changeRoleStatus?.function.description ?? "",
     /Candidate processes and connections already in progress remain open/
@@ -367,6 +434,7 @@ test("candidate contact uses one draft-lifecycle tool", () => {
     "create_draft",
     "revise_draft",
     "schedule",
+    "immediate",
     "cancel",
   ]);
   assert.deepEqual(parameters.properties.kind.enum, ["question", "resume"]);
@@ -403,6 +471,10 @@ test("candidate contact uses one draft-lifecycle tool", () => {
     contactTalent?.function.description ?? "",
     /Scheduling never regenerates or rewrites copy/
   );
+  assert.match(
+    contactTalent?.function.description ?? "",
+    /action=immediate.*already queued.*preserves the approved subject and body/
+  );
   assert.match(contactTalent?.function.description ?? "", /action=cancel/);
   assert.match(
     contactTalent?.function.description ?? "",
@@ -425,5 +497,9 @@ test("candidate connection execution declares the server confirmation gate", () 
   assert.match(
     decision?.function.description ?? "",
     /server verifies that adjacency.*confirmation_required/
+  );
+  assert.match(
+    decision?.function.description ?? "",
+    /never after meeting_setup_required/
   );
 });

@@ -76,7 +76,12 @@ import { MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES } from "@/lib/talentOnboarding/docu
 
 const RECENT_CHAT_HISTORY_WINDOW_MS = 60 * 60 * 1000;
 const CAREER_COMPOSER_MAX_ROWS = 4;
-const readCssPixelValue = (value: string) => Number.parseFloat(value) || 0;
+const CAREER_CHAT_FILE_ACCEPT =
+  ".pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx";
+const CAREER_RESUME_FILE_ACCEPT = ".pdf,.doc,.docx,.txt,.md";
+type CareerComposerOpportunityMention = CareerOpportunityMention & {
+  isClickable?: boolean;
+};
 const createComposerTokenId = (prefix: string) => {
   const randomId = globalThis.crypto?.randomUUID?.();
   return `${prefix}:${randomId ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
@@ -105,6 +110,7 @@ const CareerComposerSection = () => {
     opportunityFeedbackFollowUpPending,
     initialChatDraft,
     initialChatDraftKey,
+    initialChatOpportunityMention,
     onboardingBeginPending,
     onboardingWrapupPending,
     callStartPending = false,
@@ -125,11 +131,6 @@ const CareerComposerSection = () => {
 
   const initialDraftText = initialChatDraft?.trim() ?? "";
   const [draft, setDraft] = useState(() => initialDraftText);
-  const [composerFocused, setComposerFocused] = useState(false);
-  const [composerSelection, setComposerSelection] = useState<{
-    end: number;
-    start: number;
-  } | null>(null);
   const [opportunityMentionSearch, setOpportunityMentionSearch] = useState<{
     query: string;
     start: number;
@@ -163,11 +164,12 @@ const CareerComposerSection = () => {
   const actionMenuFileInputRef = useRef<HTMLInputElement | null>(null);
   const pendingResumeRequestTokenRef = useRef<string | null>(null);
   const opportunityMentionHighlightRef = useRef<HTMLDivElement | null>(null);
-  const opportunityTokens = useChatComposerTokens<CareerOpportunityMention>({
-    onValueChange: setDraft,
-    textareaRef,
-    value: draft,
-  });
+  const opportunityTokens =
+    useChatComposerTokens<CareerComposerOpportunityMention>({
+      onValueChange: setDraft,
+      textareaRef,
+      value: draft,
+    });
   const isComposingRef = useRef(false);
   const initialDraftFocusKey =
     initialChatDraftKey?.trim() || initialDraftText || null;
@@ -176,6 +178,7 @@ const CareerComposerSection = () => {
     initialChatDraftKey?.trim() || initialDraftText || null
   );
   const appliedInitialDraftTextRef = useRef(initialDraftText);
+  const appliedInitialOpportunityMentionKeyRef = useRef<string | null>(null);
   const onboardingPaused = isOnboardingPaused(messages);
   const isStartingCall =
     (onboardingBeginPending && !callWrapUpPending) || callStartPending;
@@ -223,17 +226,6 @@ const CareerComposerSection = () => {
     resumeInterviewRequest.requested &&
     resumeInterviewRequest.conversationId === conversationId;
 
-  const syncComposerSelection = useCallback(
-    (textarea: HTMLTextAreaElement | null) => {
-      if (!textarea) return;
-      setComposerSelection({
-        end: textarea.selectionEnd ?? 0,
-        start: textarea.selectionStart ?? 0,
-      });
-    },
-    []
-  );
-
   const syncOpportunityMentionHighlight = useCallback(
     (textarea: HTMLTextAreaElement | null) => {
       const highlight = opportunityMentionHighlightRef.current;
@@ -242,23 +234,6 @@ const CareerComposerSection = () => {
       highlight.style.left = `${textarea.offsetLeft}px`;
       highlight.style.top = `${textarea.offsetTop}px`;
       highlight.style.width = `${textarea.clientWidth}px`;
-
-      const composer = textarea.closest<HTMLElement>("[data-expanded]");
-      if (composer?.dataset.expanded === "true") {
-        highlight.style.height = "auto";
-        const styles = window.getComputedStyle(textarea);
-        const lineHeight = readCssPixelValue(styles.lineHeight) || 20;
-        const paddingHeight =
-          readCssPixelValue(styles.paddingTop) +
-          readCssPixelValue(styles.paddingBottom);
-        const maximumHeight =
-          lineHeight * CAREER_COMPOSER_MAX_ROWS + paddingHeight;
-        const visualContentHeight = highlight.scrollHeight;
-        textarea.style.height = `${Math.min(visualContentHeight, maximumHeight)}px`;
-        textarea.style.overflowY =
-          visualContentHeight > maximumHeight ? "auto" : "hidden";
-      }
-
       highlight.style.height = `${textarea.clientHeight}px`;
       highlight.scrollTop = textarea.scrollTop;
     },
@@ -267,12 +242,7 @@ const CareerComposerSection = () => {
 
   useLayoutEffect(() => {
     syncOpportunityMentionHighlight(textareaRef.current);
-  }, [
-    composerFocused,
-    composerSelection,
-    draft,
-    syncOpportunityMentionHighlight,
-  ]);
+  }, [draft, syncOpportunityMentionHighlight]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -325,6 +295,40 @@ const CareerComposerSection = () => {
       return initialDraftText;
     });
   }, [initialChatDraftKey, initialDraftText]);
+
+  useEffect(() => {
+    const mentionLabel = initialChatOpportunityMention?.label.trim() ?? "";
+    const mentionRoleId = initialChatOpportunityMention?.roleId.trim() ?? "";
+    if (!initialDraftFocusKey || !mentionLabel || !mentionRoleId) return;
+    if (draft !== initialDraftText) return;
+
+    const mentionKey = `${initialDraftFocusKey}:${mentionRoleId}:${mentionLabel}`;
+    if (appliedInitialOpportunityMentionKeyRef.current === mentionKey) return;
+
+    const start = initialDraftText.indexOf(mentionLabel);
+    if (start < 0) return;
+
+    appliedInitialOpportunityMentionKeyRef.current = mentionKey;
+    opportunityTokens.replaceTokens([
+      {
+        data: {
+          isClickable: false,
+          label: mentionLabel,
+          roleId: mentionRoleId,
+        },
+        end: start + mentionLabel.length,
+        id: `official-job:${mentionRoleId}`,
+        start,
+        text: mentionLabel,
+      },
+    ]);
+  }, [
+    draft,
+    initialChatOpportunityMention,
+    initialDraftFocusKey,
+    initialDraftText,
+    opportunityTokens,
+  ]);
 
   const composerPlaceholder = (() => {
     if (!user) {
@@ -453,9 +457,6 @@ const CareerComposerSection = () => {
         text: label,
         value: selection.value,
       });
-      window.requestAnimationFrame(() =>
-        syncComposerSelection(textareaRef.current)
-      );
       closeOpportunityMentionPicker();
     },
     [
@@ -463,7 +464,6 @@ const CareerComposerSection = () => {
       draft,
       opportunityMentionSearch,
       opportunityTokens,
-      syncComposerSelection,
     ]
   );
   const opportunityPickerItems: ChatComposerPickerItem[] = [
@@ -590,7 +590,6 @@ const CareerComposerSection = () => {
 
   const resetDraftField = () => {
     setDraft("");
-    setComposerSelection(null);
     opportunityTokens.resetTokens();
     closeOpportunityMentionPicker();
     setTextareaResetVersion((version) => version + 1);
@@ -613,7 +612,6 @@ const CareerComposerSection = () => {
           existingToken.end,
           existingToken.end
         );
-        syncComposerSelection(textareaRef.current);
       });
       return;
     }
@@ -639,9 +637,6 @@ const CareerComposerSection = () => {
       text: label,
       value,
     });
-    window.requestAnimationFrame(() =>
-      syncComposerSelection(textareaRef.current)
-    );
     closeOpportunityMentionPicker();
   };
 
@@ -780,22 +775,16 @@ const CareerComposerSection = () => {
     }
   };
 
-  const handleComposerFocus = useCallback(
-    (event: React.FocusEvent<HTMLTextAreaElement>) => {
-      setComposerFocused(true);
-      syncComposerSelection(event.currentTarget);
-
-      window.requestAnimationFrame(() => {
-        const scrollElement = scrollRef.current;
-        if (!scrollElement) return;
-        scrollElement.scrollTo({
-          top: scrollElement.scrollHeight,
-          behavior: "smooth",
-        });
+  const handleComposerFocus = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      const scrollElement = scrollRef.current;
+      if (!scrollElement) return;
+      scrollElement.scrollTo({
+        top: scrollElement.scrollHeight,
+        behavior: "smooth",
       });
-    },
-    [scrollRef, syncComposerSelection]
-  );
+    });
+  }, [scrollRef]);
 
   const handleForceComplete = () => {
     if (!onForceCompleteOnboarding || manualCompletionDisabled) return;
@@ -866,8 +855,7 @@ const CareerComposerSection = () => {
     pendingResumeRequestTokenRef.current = null;
     const input = actionMenuFileInputRef.current;
     if (!input) return;
-    input.accept =
-      ".pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx,.png,.jpg,.jpeg";
+    input.accept = CAREER_CHAT_FILE_ACCEPT;
     input.click();
   };
 
@@ -878,7 +866,7 @@ const CareerComposerSection = () => {
     pendingResumeRequestTokenRef.current = action.resumeRequestToken;
     const input = actionMenuFileInputRef.current;
     if (!input) return;
-    input.accept = ".pdf,.doc,.docx,.txt,.md";
+    input.accept = CAREER_RESUME_FILE_ACCEPT;
     input.click();
   };
 
@@ -1156,7 +1144,7 @@ const CareerComposerSection = () => {
           <Input
             unstyled
             ref={actionMenuFileInputRef}
-            accept=".pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx,.png,.jpg,.jpeg"
+            accept={CAREER_CHAT_FILE_ACCEPT}
             className="hidden"
             onChange={(event) => void handleActionMenuFileChange(event)}
             type="file"
@@ -1220,7 +1208,6 @@ const CareerComposerSection = () => {
             onChange={(event) => {
               const value = event.target.value;
               opportunityTokens.updateValue(value);
-              syncComposerSelection(event.currentTarget);
               updateOpportunityMentionSearch(
                 value,
                 event.currentTarget.selectionStart ?? value.length
@@ -1233,15 +1220,10 @@ const CareerComposerSection = () => {
               isComposingRef.current = false;
               const value = event.currentTarget.value;
               opportunityTokens.updateValue(value);
-              syncComposerSelection(event.currentTarget);
               updateOpportunityMentionSearch(
                 value,
                 event.currentTarget.selectionStart ?? value.length
               );
-            }}
-            onBlur={() => {
-              setComposerFocused(false);
-              setComposerSelection(null);
             }}
             onFocus={handleComposerFocus}
             onBeforeInput={opportunityTokens.handleBeforeInput}
@@ -1251,7 +1233,6 @@ const CareerComposerSection = () => {
             }
             onSelect={(event) => {
               opportunityTokens.handleSelect(event);
-              syncComposerSelection(event.currentTarget);
             }}
             enterKeyHint="send"
             placeholder={composerPlaceholder}
@@ -1270,26 +1251,24 @@ const CareerComposerSection = () => {
             textareaClassName={cn(
               "min-h-12 py-3",
               opportunityTokens.tokens.length > 0 &&
-                "relative z-10 text-transparent caret-transparent"
+                "relative z-10 text-transparent caret-neutral-primary"
             )}
             overlay={
               <>
                 {opportunityTokens.tokens.length > 0 ? (
                   <ChatComposerTokenOverlay
                     ref={opportunityMentionHighlightRef}
-                    className="z-20 max-md:min-h-12 max-md:py-3"
-                    cursorOffset={
-                      composerFocused &&
-                      composerSelection?.start === composerSelection?.end
-                        ? composerSelection?.end
-                        : null
-                    }
+                    className="z-20 min-h-12 py-3"
                     getTokenAriaLabel={(token) =>
                       t(
                         "career.chat.career_composer_section.opportunity_token_aria_label",
                         "기회 상세 열기: {opportunity}",
                         { values: { opportunity: token.text } }
                       )
+                    }
+                    isTokenClickable={(token) =>
+                      (token.data as CareerComposerOpportunityMention)
+                        .isClickable !== false
                     }
                     onTokenClick={(token) => {
                       const data =
@@ -1298,7 +1277,6 @@ const CareerComposerSection = () => {
                       if (roleId) handleOpenPendingOpportunity(roleId);
                     }}
                     segments={opportunityTokens.segments}
-                    stackTokens
                   />
                 ) : null}
                 {opportunityMentionSearch && !isTextInputLocked ? (

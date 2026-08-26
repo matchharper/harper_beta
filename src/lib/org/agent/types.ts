@@ -1,4 +1,8 @@
 import type { OrgAgentModelId } from "@/lib/org/agent/modelConfig";
+import type {
+  MeetingScheduleAdditionalMessage,
+  MeetingScheduleDraftConfig,
+} from "@/lib/meetings/scheduleDraft";
 import type { ChatAttachmentPayload } from "@/types/chat";
 
 export type OrgAgentMode = "general" | "role_creation";
@@ -20,13 +24,22 @@ export type OrgAgentCandidateDecision = "accept" | "decline";
 
 export type OrgAgentCandidateConnectionMethod =
   | "intro_email"
-  | "direct_contact";
+  | "direct_contact"
+  | "schedule_interview";
+
+export type OrgAgentMeetingScheduleConfirmation = {
+  additionalMessage: MeetingScheduleAdditionalMessage | null;
+  availabilityVersion: number | null;
+  config: MeetingScheduleDraftConfig;
+  draftBlocker: "availability_missing" | "organizer_email_missing" | null;
+};
 
 export type OrgAgentCandidateDecisionConfirmation = {
   actorId: string;
   connectionMethod: OrgAgentCandidateConnectionMethod | null;
   decision: OrgAgentCandidateDecision;
   introEmails: string[];
+  meetingDraft: OrgAgentMeetingScheduleConfirmation | null;
   reason: string | null;
   recommendationId: string;
   roleId: string;

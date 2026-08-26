@@ -6,6 +6,12 @@ import {
   type OrgStageId,
 } from "@/lib/org/server";
 import type { InternalConnectionConfirmationEmailMode } from "@/lib/ops/connectionConfirmationEmail";
+import { canInitiateOrgCandidateContact } from "@/lib/org/candidateDecision";
+import {
+  createMeetingScheduleDraft,
+  prepareMeetingScheduleDraftForConnection,
+} from "@/lib/meetings/scheduleDraftServer";
+import { buildOrgMeetingSchedulePath } from "@/lib/meetings/scheduleDraft";
 
 function toErrorResponse(error: unknown) {
   if (error instanceof OrgHttpError) {
@@ -35,20 +41,74 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthenticatedUser(req);
     const body = (await req.json().catch(() => ({}))) as {
       acceptReason?: string | null;
+      attendeeEmails?: string[];
       contactDirectly?: boolean;
+      durationMinutes?: unknown;
       emailMode?: unknown;
+      additionalMessage?: unknown;
+      additionalMessageVisibility?: unknown;
       recommendationId?: string;
       introEmails?: string[] | null;
       roleId?: string;
+      scheduleInterview?: boolean;
       stage?: OrgStageId;
       stopNote?: string | null;
       talentId?: string;
+      title?: unknown;
       workspaceId?: string;
     };
     const emailMode = String(body.emailMode ?? "schedule").trim();
     if (!["schedule", "send_now", "skip"].includes(emailMode)) {
       throw new OrgHttpError(400, "이메일 전달 방식을 확인해 주세요.");
     }
+    const stage = body.stage ?? "pending_connection";
+    let schedule: {
+      alreadyExisted: boolean;
+      roundId: string;
+      scheduleId: string;
+      status: string;
+    } | null = null;
+    if (body.scheduleInterview === true) {
+      if (!canInitiateOrgCandidateContact(stage)) {
+        throw new OrgHttpError(
+          400,
+          "이 후보자 단계에서는 인터뷰 일정 조율을 시작할 수 없어요."
+        );
+      }
+      const prepared = await prepareMeetingScheduleDraftForConnection({
+        additionalMessage:
+          body.additionalMessage ?? body.acceptReason ?? undefined,
+        additionalMessageVisibility: body.additionalMessageVisibility ?? "both",
+        attendeeEmails: Array.isArray(body.attendeeEmails)
+          ? body.attendeeEmails
+          : [],
+        durationMinutes: body.durationMinutes,
+        recommendationId: body.recommendationId ?? "",
+        roleId: body.roleId ?? "",
+        talentId: body.talentId ?? "",
+        title: body.title,
+        user,
+        workspaceId: body.workspaceId ?? "",
+      });
+      if (prepared.draft.draftBlocker) {
+        throw new OrgHttpError(
+          prepared.draft.draftBlocker === "availability_missing" ? 409 : 400,
+          prepared.draft.draftBlocker === "availability_missing"
+            ? "먼저 미팅 가능한 시간을 알려주세요. 후보자에게는 아직 연락하지 않았어요."
+            : "현재 사용자의 회사 이메일을 확인한 뒤 다시 시도해 주세요."
+        );
+      }
+      schedule = await createMeetingScheduleDraft({
+        admin: prepared.admin,
+        draft: prepared.draft,
+        recommendationId: prepared.recommendationId,
+        roleId: prepared.roleId,
+        sourceCompanyMessageId: null,
+        talentId: prepared.talentId,
+        workspaceId: prepared.workspaceId,
+      });
+    }
+
     const payload = await setOrgCandidateStage({
       acceptReason: body.acceptReason ?? null,
       contactDirectly: body.contactDirectly === true,
@@ -56,13 +116,25 @@ export async function POST(req: NextRequest) {
       introEmails: body.introEmails ?? null,
       recommendationId: body.recommendationId ?? "",
       roleId: body.roleId ?? "",
-      stage: body.stage ?? "pending_connection",
+      scheduleInterview: body.scheduleInterview === true,
+      stage,
       stopNote: body.stopNote ?? null,
       talentId: body.talentId ?? "",
       user,
       workspaceId: body.workspaceId ?? "",
     });
-    return NextResponse.json(payload);
+    return NextResponse.json({
+      ...payload,
+      meetingSchedule: schedule
+        ? {
+            ...schedule,
+            detailPath: buildOrgMeetingSchedulePath({
+              scheduleId: schedule.scheduleId,
+              workspaceId: body.workspaceId ?? "",
+            }),
+          }
+        : null,
+    });
   } catch (error) {
     return toErrorResponse(error);
   }

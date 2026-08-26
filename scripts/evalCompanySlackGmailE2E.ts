@@ -73,7 +73,7 @@ async function setup() {
     admin
       .from("company_roles")
       .select(
-        "description, information, type, priority, source_type, location_text, work_mode, salary_range, seniority_level, description_summary, request, salary_min, salary_max, salary_currency, salary_period, summary"
+        "description, information, type, priority, source_type, location_text, work_mode, salary_range, seniority_level, description_summary, salary_min, salary_max, salary_currency, salary_period, summary"
       )
       .eq("role_id", SOURCE_ROLE_ID)
       .eq("company_workspace_id", WORKSPACE_ID)
@@ -341,7 +341,10 @@ async function cleanup() {
         .in("role_id", roleIds)
     ),
   ]);
-  const identifyingMessages = [...(contentMessages ?? []), ...(roleMessages ?? [])];
+  const identifyingMessages = [
+    ...(contentMessages ?? []),
+    ...(roleMessages ?? []),
+  ];
   const slackThreadIds = Array.from(
     new Set(
       identifyingMessages
@@ -370,6 +373,40 @@ async function cleanup() {
   const affectedConversationIds = Array.from(
     new Set(testMessages.map((message) => message.conversation_id))
   );
+
+  // Requests retain the originating company message for auditability. Remove
+  // their delivery queue and request rows before deleting those E2E messages.
+  const requests =
+    (await checked(
+      admin
+        .from("company_talent_requests")
+        .select("id")
+        .eq("talent_id", TALENT_ID)
+        .in("role_id", roleIds)
+    )) ?? [];
+  const requestIds = requests.map((request) => request.id);
+  await checked(
+    admin
+      .from("contact_queue")
+      .delete()
+      .in("recommendation_id", recommendationIds)
+  );
+  if (requestIds.length > 0) {
+    await checked(
+      admin
+        .from("contact_queue")
+        .delete()
+        .in("company_talent_request_id", requestIds)
+    );
+  }
+  await checked(
+    admin
+      .from("company_talent_requests")
+      .delete()
+      .eq("talent_id", TALENT_ID)
+      .in("role_id", roleIds)
+  );
+
   if (affectedConversationIds.length > 0) {
     await checked(
       admin
@@ -411,37 +448,6 @@ async function cleanup() {
         .eq("id", conversationId)
     );
   }
-
-  const requests =
-    (await checked(
-      admin
-        .from("company_talent_requests")
-        .select("id")
-        .eq("talent_id", TALENT_ID)
-        .in("role_id", roleIds)
-    )) ?? [];
-  const requestIds = requests.map((request) => request.id);
-  await checked(
-    admin
-      .from("contact_queue")
-      .delete()
-      .in("recommendation_id", recommendationIds)
-  );
-  if (requestIds.length > 0) {
-    await checked(
-      admin
-        .from("contact_queue")
-        .delete()
-        .in("company_talent_request_id", requestIds)
-    );
-  }
-  await checked(
-    admin
-      .from("company_talent_requests")
-      .delete()
-      .eq("talent_id", TALENT_ID)
-      .in("role_id", roleIds)
-  );
   await checked(
     admin
       .from("talent_progress")

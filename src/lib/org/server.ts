@@ -6,6 +6,7 @@ import {
   hasOrgWorkspaceAccessBypass,
   isOrgInvitationForUser,
 } from "@/lib/org/access";
+import { extractSentAutoIntroRecommendationBody } from "@/lib/org/autoIntroRecommendation";
 import { buildOrgIntroEmailDraft } from "@/lib/org/introEmail";
 import { buildOrgIntroCandidateProfessionalSummary } from "@/lib/org/introEmailProfessionalSummary";
 import { parseCareerPromptLocale } from "@/lib/career/promptLocale";
@@ -532,10 +533,16 @@ export type OrgResumeAccessResponse = {
 
 export type OrgStageChangeOptions = {
   acceptReason?: string | null;
+  additionalMessage?: string | null;
+  additionalMessageVisibility?: "both" | "candidate" | "internal";
+  attendeeEmails?: string[];
   contactDirectly?: boolean;
+  durationMinutes?: number;
   emailMode?: InternalConnectionConfirmationEmailMode;
   introEmails?: string[] | null;
+  scheduleInterview?: boolean;
   stopNote?: string | null;
+  title?: string | null;
 };
 
 const CUSTOM_STAGE_ID_PREFIX = "custom:";
@@ -2397,6 +2404,16 @@ async function assertOrgTalentVisibleInWorkspace(args: {
   user: User;
   workspaceId: string;
 }) {
+  const { data: activeTalent, error: activeTalentError } = await (
+    args.admin.from("talent_users" as any) as any
+  )
+    .select("user_id")
+    .eq("user_id", args.talentId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (activeTalentError) throw activeTalentError;
+  if (!activeTalent) throw new OrgHttpError(404, "Talent not found");
+
   const roleRows =
     args.roleRows ??
     (await fetchRoleRowsForWorkspace(args.admin, args.workspaceId));
@@ -2475,7 +2492,8 @@ async function fetchTalentRows(
     chunkValues(uniqueTexts(talentIds)).map(async (talentIdChunk) => {
       const { data, error } = await (admin.from("talent_users" as any) as any)
         .select("user_id, email, name, profile_picture, headline")
-        .in("user_id", talentIdChunk);
+        .in("user_id", talentIdChunk)
+        .is("deleted_at", null);
       if (error) throw error;
       return (data ?? []) as TalentUserRow[];
     })
@@ -2896,10 +2914,15 @@ export async function fetchOrgBoardProfileLabels(args: {
   const talentIds = uniqueTexts(
     recommendationResults.flat().map((row) => row.talent_id)
   );
-  const profileLabels = await fetchBoardProfileLabels({ admin, talentIds });
+  const activeTalentById = await fetchTalentRows(admin, talentIds);
+  const activeTalentIds = [...activeTalentById.keys()];
+  const profileLabels = await fetchBoardProfileLabels({
+    admin,
+    talentIds: activeTalentIds,
+  });
 
   return {
-    items: talentIds.map((talentId) => ({
+    items: activeTalentIds.map((talentId) => ({
       recentCompanies: profileLabels.recentCompanies.get(talentId) ?? [],
       recentSchools: profileLabels.recentSchools.get(talentId) ?? [],
       talentId,
@@ -2937,6 +2960,7 @@ async function fetchOrgSlackTalent(
   const { data, error } = await (admin.from("talent_users" as any) as any)
     .select("user_id, email, name")
     .eq("user_id", talentId)
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (error) throw error;
@@ -3373,6 +3397,7 @@ export async function setOrgCandidateStage(args: {
   introEmails?: string[] | null;
   recommendationId: string;
   roleId: string;
+  scheduleInterview?: boolean;
   stage: OrgStageId;
   stopNote?: string | null;
   talentId: string;
@@ -3387,9 +3412,12 @@ export async function setOrgCandidateStage(args: {
   const stage = normalizeText(args.stage) as OrgStageId;
   const acceptReason = normalizeText(args.acceptReason).slice(0, 2000);
   const canInitiateContact = canInitiateOrgCandidateContact(stage);
-  const contactDirectly = canInitiateContact && args.contactDirectly === true;
+  const scheduleInterview =
+    canInitiateContact && args.scheduleInterview === true;
+  const contactDirectly =
+    canInitiateContact && !scheduleInterview && args.contactDirectly === true;
   const requestedIntroEmails =
-    canInitiateContact && !contactDirectly
+    canInitiateContact && !contactDirectly && !scheduleInterview
       ? normalizeLooseEmailList(args.introEmails)
       : [];
   const stopNote = normalizeText(args.stopNote);
@@ -3415,7 +3443,7 @@ export async function setOrgCandidateStage(args: {
   const role = roleRows.find((row) => row.role_id === roleId);
   if (!role) throw new OrgHttpError(404, "Role not found");
   const assignedIntroEmails =
-    canInitiateContact && !contactDirectly
+    canInitiateContact && !contactDirectly && !scheduleInterview
       ? await fetchOrgRoleAssigneeEmails({ admin, roleId, workspaceId })
       : [];
   const introEmails = normalizeLooseEmailList([
@@ -3498,7 +3526,11 @@ export async function setOrgCandidateStage(args: {
   }
 
   if (
-    requiresOrgIntroEmailRecipient(previousStage, stage, contactDirectly) &&
+    requiresOrgIntroEmailRecipient(
+      previousStage,
+      stage,
+      contactDirectly || scheduleInterview
+    ) &&
     introEmails.length === 0
   ) {
     throw new OrgHttpError(
@@ -3594,9 +3626,13 @@ export async function setOrgCandidateStage(args: {
           ? previousStage === stage
             ? `직접 연락하기로 했습니다.`
             : `${nextDestinationLabel} 옮기고 직접 연락하기로 했습니다.`
-          : previousStage === stage
-            ? `${nextDestinationLabel} 표시했습니다.`
-            : `${previousLabel}에서 ${nextDestinationLabel} 옮겼습니다.`;
+          : scheduleInterview
+            ? previousStage === stage
+              ? `Harper가 후보자와의 미팅 일정을 조율하기로 했습니다.`
+              : `${nextDestinationLabel} 옮기고 Harper가 후보자와의 미팅 일정을 조율하기로 했습니다.`
+            : previousStage === stage
+              ? `${nextDestinationLabel} 표시했습니다.`
+              : `${previousLabel}에서 ${nextDestinationLabel} 옮겼습니다.`;
   const text =
     stage !== "process_stopped" && acceptReason
       ? `${baseText}\n수락 이유: ${acceptReason}`
@@ -3619,6 +3655,7 @@ export async function setOrgCandidateStage(args: {
     processClosureNotificationSentChannel:
       processClosureNotification?.sentChannel ?? null,
     reactivation,
+    scheduleInterview,
     stage,
     stopNote: stage === "process_stopped" ? stopNote : null,
     stopReason: null,
@@ -4355,6 +4392,7 @@ export async function fetchOrgTalentDetail(args: {
   const [
     talentResult,
     fitCriteriaResult,
+    autoIntroProgressResult,
     experiencesResult,
     educationsResult,
     extrasResult,
@@ -4371,12 +4409,20 @@ export async function fetchOrgTalentDetail(args: {
         "user_id, email, name, profile_picture, headline, bio, current_location, location, resume_file_name, resume_storage_path, resume_links, resume_text"
       )
       .eq("user_id", talentId)
+      .is("deleted_at", null)
       .maybeSingle(),
     (admin.from("talent_opportunity_fit" as any) as any)
       .select("reason")
       .eq("talent_id", talentId)
       .eq("opportunity_id", recommendation.role_id)
       .maybeSingle(),
+    (admin.from("talent_progress" as any) as any)
+      .select("text, metadata, created_at")
+      .eq("talent_id", talentId)
+      .eq("role_id", recommendation.role_id)
+      .eq("kind", "intro_to_company")
+      .order("created_at", { ascending: false })
+      .limit(10),
     (admin.from("talent_experiences" as any) as any)
       .select("*")
       .eq("talent_id", talentId)
@@ -4509,6 +4555,12 @@ export async function fetchOrgTalentDetail(args: {
     progressResult,
     "progress"
   );
+  const sentAutoIntroRecommendation = optionalRows<
+    Pick<TalentProgressRow, "metadata" | "text">
+  >(autoIntroProgressResult, "sent auto intro").reduce<string | null>(
+    (body, row) => body ?? extractSentAutoIntroRecommendationBody(row),
+    null
+  );
   const registeredLinks = Array.isArray(talent.resume_links)
     ? talent.resume_links.filter((link) => normalizeText(link))
     : [];
@@ -4591,7 +4643,9 @@ export async function fetchOrgTalentDetail(args: {
           : talent,
     }),
     recommendation: {
-      fitReason: normalizeNullableText(fitCriteriaResult.data?.reason),
+      fitReason:
+        sentAutoIntroRecommendation ??
+        normalizeNullableText(fitCriteriaResult.data?.reason),
       recommendedAt: recommendation.recommended_at,
       recommendationId: recommendation.id,
       stage: stageInfo.stage,
@@ -4653,6 +4707,7 @@ export async function openOrgResume(args: {
   const { data, error } = await (admin.from("talent_users" as any) as any)
     .select("user_id, resume_storage_path, resume_links, resume_file_name")
     .eq("user_id", talentId)
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (error) throw error;
@@ -5204,6 +5259,7 @@ export async function updateOrgRole(args: {
   request?: string | null;
   roleId: string;
   salaryRange?: string | null;
+  source?: "chat" | "slack" | "website";
   status?: string | null;
   user: User;
   workMode?: string | null;
@@ -5332,6 +5388,7 @@ export async function updateOrgRole(args: {
       actorLabel: getOrgCompanyEventActorLabel(args.user),
       admin,
       changes,
+      source: args.source ?? "website",
       workspaceId,
     });
   } catch (error) {

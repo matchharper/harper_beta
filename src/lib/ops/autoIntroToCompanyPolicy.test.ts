@@ -69,17 +69,21 @@ test("only successful Slack delivery metadata counts as contacted", () => {
   assert.equal(wasAutoIntroSlackSent({ deliveryStatus: "pending" }), false);
 });
 
-test("role summary runs on Monday and Thursday in Asia/Seoul", () => {
+test("role summary runs on Monday, Wednesday, and Friday in Asia/Seoul", () => {
   assert.equal(
     isAutoIntroRoleSummaryDay(new Date("2026-08-10T00:00:00.000Z")),
     true
   );
   assert.equal(
-    isAutoIntroRoleSummaryDay(new Date("2026-08-13T00:00:00.000Z")),
+    isAutoIntroRoleSummaryDay(new Date("2026-08-12T00:00:00.000Z")),
     true
   );
   assert.equal(
     isAutoIntroRoleSummaryDay(new Date("2026-08-14T00:00:00.000Z")),
+    true
+  );
+  assert.equal(
+    isAutoIntroRoleSummaryDay(new Date("2026-08-13T00:00:00.000Z")),
     false
   );
   assert.equal(

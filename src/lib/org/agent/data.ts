@@ -173,7 +173,8 @@ async function fetchTalentsById(args: {
     : "user_id, name, email, headline, current_location, location";
   const { data, error } = await (args.admin.from("talent_users" as any) as any)
     .select(fields)
-    .in("user_id", talentIds);
+    .in("user_id", talentIds)
+    .is("deleted_at", null);
   if (error) throw error;
   return new Map(
     ((data ?? []) as TalentRow[]).map((row) => [row.user_id, row])

@@ -421,6 +421,9 @@ export function useSetOrgCandidateStage() {
       });
       void queryClient.invalidateQueries({ queryKey: queryKeys.org.boardAll });
       void queryClient.invalidateQueries({ queryKey: queryKeys.org.detailAll });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.org.meetingSchedulesAll,
+      });
     },
   });
 }

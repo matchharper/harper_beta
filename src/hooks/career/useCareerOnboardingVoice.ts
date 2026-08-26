@@ -59,9 +59,6 @@ function applyCallOpeningPromptValues(
   return prompt.replace(/\{output_language\}/g, args.outputLanguage);
 }
 
-const DEFAULT_CALL_OPENING_TEXT =
-  "통화로 이야기해볼게요. 최근에 달라진 우선순위가 있으면 거기서 시작해도 좋고, 아니면 지금까지의 역할이나 경험 중 회사들이 꼭 알아야 할 부분부터 편하게 들려주세요. 정보가 많을수록 더 잘 맞는 연결 요청이나 기회를 골라드릴 수 있어요.";
-
 const CALL_OPENING_RESPONSE_INSTRUCTION = `
 통화가 방금 시작되었습니다. 사용자가 먼저 할 말을 찾지 않아도 되도록 Harper가 먼저 대화를 시작하세요.
 도구는 사용하지 마세요. 지금은 통화 시작 멘트와 첫 질문만 합니다.
@@ -75,6 +72,16 @@ const CALL_OPENING_RESPONSE_INSTRUCTION = `
 최근 대화나 활동 맥락이 보이면 구체적으로 연결하세요. 예를 들어 최근 연결 제안을 거절했거나 추천에 피드백을 남겼다면, 그 이후 달라진 점이 있는지 물어보세요.
 구체적 맥락이 약하면 최근에 달라진 우선순위, 현재 역할/경험 중 더 알려줄 부분, 개인적인 선호나 제약 중 하나를 물어보세요.
 많은 정보를 들려줄수록 회사 연결 요청이나 맞춤 기회 추천이 더 정확해진다는 취지를 한 번만 짧게 말하고, 함께 헤드헌터의 입장에서 할만한 질문을 던져도 됩니다.
+`;
+
+const INTERNAL_OPPORTUNITY_CALL_OPENING_RESPONSE_INSTRUCTION = `
+## 이번 통화의 첫 응답은 회사 연결 통화의 전용 시작 발화다.
+
+- 세션 instructions의 accepted internal opportunity connection 목적이 이번 통화의 유일한 대화 주제이며, 일반 커리어 상담·최근 추천·온보딩보다 우선한다.
+- 반드시 세션 instructions에 있는 회사명과 역할명을 직접 언급한다.
+- Harper가 회사 연결을 이미 진행 중이라고 알리고, 이 통화는 선택 사항이며 평가가 아니라 후보자를 더 잘 소개하기 위한 짧은 확인이라고 설명한다.
+- 이어서 세션 instructions의 현재 required question을 하나만 묻는다. 저장된 질문 대신 최근 추천, 일반 선호, 요즘 우선순위, 이전 외부 포지션에 관한 질문을 만들지 않는다.
+- {output_language}로 실제 전화 첫마디처럼 2-4문장으로 짧게 말한다. 도구는 사용하지 않는다.
 `;
 
 const ONBOARDING_CALL_OPENING_RESPONSE_INSTRUCTION = `
@@ -200,6 +207,7 @@ function buildCallOpeningRecentConversationContext(
 
 function buildCallOpeningResponseInstruction(args: {
   interviewProgress?: CareerInterviewProgress | null;
+  isInternalOpportunityCall?: boolean;
   isOnboardingDone?: boolean;
   isConversationStarter?: boolean;
   locale?: string | null;
@@ -210,6 +218,7 @@ function buildCallOpeningResponseInstruction(args: {
   const {
     interviewProgress,
     isConversationStarter,
+    isInternalOpportunityCall,
     isOnboardingDone,
     locale,
     openingText,
@@ -218,16 +227,19 @@ function buildCallOpeningResponseInstruction(args: {
   } = args;
   const normalizedOpeningText = openingText?.trim();
   const shouldUseNearFinishOpening =
+    !isInternalOpportunityCall &&
     !isOnboardingDone &&
     !isConversationStarter &&
     typeof interviewProgress?.percent === "number" &&
     interviewProgress.percent >= 75;
   const shouldUseOnboardingOpening =
-    !isOnboardingDone && !isConversationStarter;
+    !isInternalOpportunityCall && !isOnboardingDone && !isConversationStarter;
   const outputLanguage = getCallOpeningOutputLanguage(locale);
-  const baseOpeningInstruction = shouldUseOnboardingOpening
-    ? ONBOARDING_CALL_OPENING_RESPONSE_INSTRUCTION
-    : CALL_OPENING_RESPONSE_INSTRUCTION;
+  const baseOpeningInstruction = isInternalOpportunityCall
+    ? INTERNAL_OPPORTUNITY_CALL_OPENING_RESPONSE_INSTRUCTION
+    : shouldUseOnboardingOpening
+      ? ONBOARDING_CALL_OPENING_RESPONSE_INSTRUCTION
+      : CALL_OPENING_RESPONSE_INSTRUCTION;
 
   const sections = [
     applyCallOpeningPromptValues(baseOpeningInstruction, { outputLanguage }),
@@ -258,8 +270,11 @@ function buildCallOpeningResponseInstruction(args: {
         "career.call.opening.instruction.conversation_starter",
         "\n## Conversation starter opening\n이번 통화는 사용자가 특정 conversation starter 버튼을 눌러 시작했습니다.\n아래 starter 내용의 목적과 질문 방향을 가장 우선하세요.\n최근 우선순위, 선호 조건, 일반적인 기회 탐색 질문을 임의로 고르지 마세요."
       ),
-    recentConversationContext && ["", recentConversationContext].join("\n"),
+    !isInternalOpportunityCall &&
+      recentConversationContext &&
+      ["", recentConversationContext].join("\n"),
     normalizedOpeningText &&
+      !isInternalOpportunityCall &&
       !shouldUseOnboardingOpening &&
       ["", normalizedOpeningText].join("\n"),
   ].filter(Boolean);
@@ -522,9 +537,6 @@ export const useCareerOnboardingVoice = ({
   > | null>(null);
   const inputModeRef = useRef<string>("text");
   const generateSpeechRef = useRef<((text: string) => void) | null>(null);
-  const generateSpeechFromInstructionsRef = useRef<
-    ((instructions: string) => void) | null
-  >(null);
   const realtimeSessionRef = useRef<ReturnType<
     typeof useRealtimeSession
   > | null>(null);
@@ -1179,11 +1191,6 @@ export const useCareerOnboardingVoice = ({
   }, [realtimeSession.generateSpeech]);
 
   useEffect(() => {
-    generateSpeechFromInstructionsRef.current =
-      realtimeSession.generateSpeechFromInstructions;
-  }, [realtimeSession.generateSpeechFromInstructions]);
-
-  useEffect(() => {
     forceEndCallModeRef.current = endCallMode;
   }, [endCallMode]);
 
@@ -1422,8 +1429,13 @@ export const useCareerOnboardingVoice = ({
         lastRealtimeUserTextRef.current = "";
         clearRealtimeTurnSyncState();
 
+        const hasFocusedCallObjective = Boolean(
+          conversationStarterId || internalCallRequestId
+        );
         const shouldBeginOnboarding =
-          !customOpeningText && (showVoiceStartPrompt || forceBeginOnboarding);
+          !hasFocusedCallObjective &&
+          !customOpeningText &&
+          (showVoiceStartPrompt || forceBeginOnboarding);
         let openingAssistantMessage: CareerMessage | null = null;
         if (shouldBeginOnboarding) {
           setShowVoiceStartPrompt(false);
@@ -1439,8 +1451,30 @@ export const useCareerOnboardingVoice = ({
           openingAssistantMessage = beginResult.assistantMessage;
         }
 
+        const openingRecentConversationContext =
+          buildCallOpeningRecentConversationContext(messages, t);
+        let openingText = customOpeningText?.trim();
+        if (shouldBeginOnboarding) {
+          const greetingText = tCareer(H.callGreeting);
+          const followUpText = openingAssistantMessage?.content.trim();
+          openingText = followUpText
+            ? `${greetingText}\n\n${followUpText}`
+            : greetingText;
+        }
+        const openingInstructions = buildCallOpeningResponseInstruction({
+          interviewProgress: callInterviewProgress,
+          isInternalOpportunityCall: Boolean(internalCallRequestId),
+          isOnboardingDone,
+          isConversationStarter: Boolean(conversationStarterId),
+          locale,
+          openingText,
+          recentConversationContext: openingRecentConversationContext,
+          t,
+        });
+
         const callStarted = await startCallMode({
           conversationStarterId,
+          initialResponseInstruction: openingInstructions,
           internalCallRequestId,
         });
         if (!callStarted) {
@@ -1454,57 +1488,9 @@ export const useCareerOnboardingVoice = ({
 
         callStartedAtRef.current = Date.now();
         callStartedSuccessfully = true;
-
-        const openingRecentConversationContext =
-          buildCallOpeningRecentConversationContext(messages, t);
-
-        if (!shouldBeginOnboarding) {
-          const openingText = customOpeningText?.trim();
-
-          suppressNextAssistantDoneRef.current = true;
-          if (generateSpeechFromInstructionsRef.current) {
-            const openingInstructions = buildCallOpeningResponseInstruction({
-              interviewProgress: callInterviewProgress,
-              isOnboardingDone,
-              isConversationStarter: Boolean(conversationStarterId),
-              locale,
-              openingText,
-              recentConversationContext: openingRecentConversationContext,
-              t,
-            });
-            logCallOpeningResponseInstruction(openingInstructions);
-            generateSpeechFromInstructionsRef.current(openingInstructions);
-          } else {
-            generateSpeechRef.current?.(
-              openingText ||
-                t("career.call.opening.default_text", DEFAULT_CALL_OPENING_TEXT)
-            );
-          }
-          return true;
-        }
-
-        const greetingText = tCareer(H.callGreeting);
-        const followUpText = openingAssistantMessage?.content.trim();
-        const openingText = followUpText
-          ? `${greetingText}\n\n${followUpText}`
-          : greetingText;
-
         suppressNextAssistantDoneRef.current = true;
-        if (generateSpeechFromInstructionsRef.current) {
-          const openingInstructions = buildCallOpeningResponseInstruction({
-            interviewProgress: callInterviewProgress,
-            isOnboardingDone,
-            isConversationStarter: Boolean(conversationStarterId),
-            locale,
-            openingText,
-            recentConversationContext: openingRecentConversationContext,
-            t,
-          });
-          logCallOpeningResponseInstruction(openingInstructions);
-          generateSpeechFromInstructionsRef.current(openingInstructions);
-        } else {
-          generateSpeechRef.current?.(openingText);
-        }
+        logCallOpeningResponseInstruction(openingInstructions);
+        realtimeSession.triggerResponse();
         return true;
       } finally {
         if (!callStartedSuccessfully) {
@@ -1527,6 +1513,7 @@ export const useCareerOnboardingVoice = ({
       startCallMode,
       t,
       tCareer,
+      realtimeSession,
     ]
   );
 

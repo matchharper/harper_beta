@@ -66,6 +66,7 @@ test("mobile composer expands after release and caps textarea growth at four row
     assert.equal(composer.dataset.expanded, "false");
     assert.equal(textarea.rows, 1);
     assert.match(textarea.className, /max-md:truncate/);
+    assert.doesNotMatch(textarea.className, /transition-\[height/);
 
     Object.defineProperty(textarea, "scrollHeight", {
       configurable: true,
@@ -186,7 +187,6 @@ test("a token tap expands a collapsed mobile composer before opening the opportu
                   },
                 },
               ]}
-              stackTokens
             />
           }
           value="Harper · Applied AI Engineer"
@@ -198,7 +198,7 @@ test("a token tap expands a collapsed mobile composer before opening the opportu
     const textarea = container.querySelector("textarea");
     const tokenButton = container.querySelector(
       "[data-chat-composer-token]"
-    ) as HTMLButtonElement | null;
+    ) as HTMLElement | null;
     assert.ok(textarea);
     assert.ok(tokenButton);
     assert.equal(composer.dataset.expanded, "false");
@@ -215,6 +215,14 @@ test("a token tap expands a collapsed mobile composer before opening the opportu
     assert.equal(composer.dataset.expanded, "true");
     assert.equal(dom.window.document.activeElement, textarea);
     assert.equal(tokenClickCount, 0);
+
+    const tokenMouseDown = new dom.window.MouseEvent("mousedown", {
+      bubbles: true,
+      cancelable: true,
+    });
+    tokenButton.dispatchEvent(tokenMouseDown);
+    assert.equal(tokenMouseDown.defaultPrevented, true);
+    assert.equal(dom.window.document.activeElement, textarea);
 
     await act(async () => {
       tokenButton.dispatchEvent(

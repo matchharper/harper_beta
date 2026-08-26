@@ -904,10 +904,11 @@ export function OrgWorkspaceSidebar({
         </div>
       </aside>
 
-      {navigationTriggerHidden ? null : (
-        <header className="fixed inset-x-0 top-0 z-50 flex h-12 items-center border-b border-neutral-1000-a05 bg-bg-default px-3 md:hidden">
+      {navigationTriggerHidden || activePage === "role" ? null : (
+        <header className="fixed inset-x-0 top-0 z-50 flex h-12 items-center bg-linear-to-b from-white/30 to-white/0 px-3 md:hidden">
           <MuteButton
             aria-label="메뉴 열기"
+            className="border border-white/20 bg-white/10 backdrop-blur-xs hover:bg-white/20"
             onClick={handleOpenMobileNavigation}
             size="md"
             variant="transparent"

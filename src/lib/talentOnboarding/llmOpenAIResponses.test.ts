@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildOpenAIResponsesRequest } from "@/lib/llm/responsesChatAdapter";
 
+process.env.OPENAI_API_KEY ||= "test-openai-key";
+
 test("builds Luna Responses requests with high reasoning and JSON mode", () => {
   const requestBody = buildOpenAIResponsesRequest({
     model: "gpt-5.6-luna",
@@ -75,4 +77,101 @@ test("preserves GPT-5.6 explicit cache breakpoints and structured output", () =>
       type: "json_schema",
     },
   });
+});
+
+test("runs the talent tool loop through Luna Responses with high reasoning", async () => {
+  const [{ client }, { runTalentAssistantToolLoop }] = await Promise.all([
+    import("@/lib/llm/llm"),
+    import("@/lib/talentOnboarding/llm"),
+  ]);
+  const responsesPrototype = Object.getPrototypeOf(client.responses) as any;
+  const originalCreate = responsesPrototype.create;
+  const requests: Record<string, any>[] = [];
+  responsesPrototype.create = async (body: Record<string, any>) => {
+    requests.push(body);
+    if (requests.length === 1) {
+      return {
+        id: "resp-tool-call",
+        model: "gpt-5.6-luna",
+        output: [
+          { encrypted_content: "opaque", type: "reasoning" },
+          {
+            arguments: '{"kind":"instant","max_results":5}',
+            call_id: "call-recommend",
+            name: "recommend_job_postings",
+            type: "function_call",
+          },
+        ],
+        status: "completed",
+        usage: { input_tokens: 100, output_tokens: 20, total_tokens: 120 },
+      };
+    }
+    return {
+      id: "resp-final",
+      model: "gpt-5.6-luna",
+      output: [
+        {
+          content: [{ text: "새 기회를 찾아봤어요.", type: "output_text" }],
+          role: "assistant",
+          type: "message",
+        },
+      ],
+      status: "completed",
+      usage: { input_tokens: 120, output_tokens: 10, total_tokens: 130 },
+    };
+  };
+
+  try {
+    const result = await runTalentAssistantToolLoop({
+      executeTool: async () => ({ recommendationCount: 5 }),
+      messages: [
+        { content: "Use feedback and find roles.", role: "system" },
+        { content: "Continue now.", role: "user" },
+      ],
+      modelConfig: {
+        fallbackModel: "grok-4.3",
+        primaryModel: "gpt-5.6-luna",
+      },
+      openAIResponsesReasoningEffort: "high",
+      temperature: 0.55,
+      tools: [
+        {
+          function: {
+            description: "Find fresh recommendations.",
+            name: "recommend_job_postings",
+            parameters: {
+              additionalProperties: false,
+              properties: {
+                kind: { type: "string" },
+                max_results: { type: "number" },
+              },
+              required: ["kind", "max_results"],
+              type: "object",
+            },
+          },
+          type: "function",
+        },
+      ],
+      usageLabel: "test:feedback-followup",
+    });
+
+    assert.equal(result, "새 기회를 찾아봤어요.");
+    assert.equal(requests.length, 2);
+    assert.deepEqual(requests[0].reasoning, { effort: "high" });
+    assert.deepEqual(requests[1].reasoning, { effort: "high" });
+    assert.ok(
+      requests[1].input.some(
+        (item: Record<string, unknown>) => item.type === "reasoning"
+      )
+    );
+    assert.ok(
+      requests[1].input.some(
+        (item: Record<string, unknown>) =>
+          item.type === "function_call_output" &&
+          item.call_id === "call-recommend"
+      )
+    );
+  } finally {
+    responsesPrototype.create = originalCreate;
+  }
 });

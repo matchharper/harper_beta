@@ -24,6 +24,7 @@ export const OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE =
 
 export type OfficialJobsCareerJob = {
   companyName?: string | null;
+  roleId?: string | null;
   roleTitle?: string | null;
   slug?: string | null;
 };
@@ -142,6 +143,25 @@ export function buildOfficialJobsInitialChatDraft(
   );
 }
 
+export function buildOfficialJobsInitialChatMentionLabel(
+  roleTitle?: string | null,
+  companyName?: string | null,
+  locale: OfficialJobsLocale = "ko"
+) {
+  const normalizedRoleTitle = normalizeOfficialJobsRoleTitle(roleTitle);
+  if (!normalizedRoleTitle) return "";
+  const normalizedCompanyName = normalizeOfficialJobsCompanyName(companyName);
+  const roleAndCompany = normalizedCompanyName
+    ? `${normalizedRoleTitle} at ${normalizedCompanyName}`
+    : normalizedRoleTitle;
+
+  return locale === "ko"
+    ? `${roleAndCompany} 포지션`
+    : normalizedCompanyName
+      ? roleAndCompany
+      : `${roleAndCompany} role`;
+}
+
 export type OfficialJobRow = Tables<"official_jobs">;
 
 export type OfficialJob = {
@@ -151,6 +171,7 @@ export type OfficialJob = {
   companyName: string;
   roleTitle: string;
   location: string;
+  roleId: string | null;
   vertical: string;
   shortDescription: string;
   roleDescriptionMarkdown: string;
@@ -172,6 +193,7 @@ export type OfficialJobListItem = Pick<
   | "companyName"
   | "roleTitle"
   | "location"
+  | "roleId"
   | "vertical"
 >;
 
@@ -183,6 +205,7 @@ export type OfficialJobListRow = Pick<
   | "company_name"
   | "role_title"
   | "location"
+  | "role_id"
   | "vertical"
 >;
 
@@ -210,6 +233,7 @@ export function mapOfficialJobRow(row: OfficialJobRow): OfficialJob {
     companyName: row.company_name,
     roleTitle: row.role_title,
     location: row.location,
+    roleId: row.role_id ?? null,
     vertical: row.vertical,
     shortDescription: row.short_description,
     roleDescriptionMarkdown: row.role_description_markdown,
@@ -234,6 +258,7 @@ export function mapOfficialJobListRow(
     companyName: row.company_name,
     roleTitle: row.role_title,
     location: row.location,
+    roleId: row.role_id ?? null,
     vertical: row.vertical,
   };
 }

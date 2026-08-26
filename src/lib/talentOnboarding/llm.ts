@@ -24,6 +24,7 @@ export type TalentChatTextContentBlock = {
 };
 
 export type TalentChatMessage = {
+  _responses_output?: any[];
   content: string | TalentChatTextContentBlock[];
   name?: string;
   role: "system" | "user" | "assistant" | "tool";
@@ -128,6 +129,7 @@ async function createTalentChatCompletion(args: {
   anthropicOverloadFallbackModel?: string;
   fallbackModel?: string;
   messages: TalentChatMessage[];
+  openAIResponsesReasoningEffort?: OpenAIResponsesReasoningEffort;
   primaryModel?: string;
   temperature: number;
   toolCostAttribution?: LlmToolCostAttribution;
@@ -138,6 +140,7 @@ async function createTalentChatCompletion(args: {
     anthropicOverloadFallbackModel = DEFAULT_TALENT_ANTHROPIC_OVERLOAD_FALLBACK_MODEL,
     fallbackModel = DEFAULT_TALENT_FALLBACK_MODEL,
     messages,
+    openAIResponsesReasoningEffort,
     primaryModel = DEFAULT_TALENT_PRIMARY_MODEL,
     temperature,
     tools,
@@ -154,6 +157,13 @@ async function createTalentChatCompletion(args: {
     fallbackModel,
     model: primaryModel,
     debugLabel: usageLabel,
+    ...(openAIResponsesReasoningEffort
+      ? {
+          openAIResponses: {
+            reasoningEffort: openAIResponsesReasoningEffort,
+          },
+        }
+      : {}),
     buildRequest: () => ({
       messages: messages as any,
       temperature,
@@ -291,6 +301,7 @@ export async function runTalentAssistantToolLoop(args: {
     input: Record<string, unknown>;
     name: string;
   }) => void | Promise<void>;
+  openAIResponsesReasoningEffort?: OpenAIResponsesReasoningEffort;
   stopAfterToolNames?: string[];
   temperature?: number;
   tools: TalentChatTool[];
@@ -303,6 +314,7 @@ export async function runTalentAssistantToolLoop(args: {
     modelConfig,
     messages,
     onToolStart,
+    openAIResponsesReasoningEffort,
     stopAfterToolNames = [],
     temperature = 0.35,
     tools,
@@ -315,6 +327,7 @@ export async function runTalentAssistantToolLoop(args: {
         modelConfig?.anthropicOverloadFallbackModel,
       fallbackModel: modelConfig?.fallbackModel,
       messages,
+      openAIResponsesReasoningEffort,
       primaryModel: modelConfig?.primaryModel,
       temperature,
       usageLabel,
@@ -340,6 +353,7 @@ export async function runTalentAssistantToolLoop(args: {
         modelConfig?.anthropicOverloadFallbackModel,
       fallbackModel: modelConfig?.fallbackModel,
       messages: workingMessages,
+      openAIResponsesReasoningEffort,
       primaryModel: modelConfig?.primaryModel,
       temperature,
       toolCostAttribution,
@@ -358,6 +372,9 @@ export async function runTalentAssistantToolLoop(args: {
     }
 
     workingMessages.push({
+      ...(Array.isArray(message?._responses_output)
+        ? { _responses_output: message._responses_output }
+        : {}),
       role: "assistant",
       content: assistantContent,
       tool_calls: toolCalls.map((toolCall: any) => ({
@@ -464,6 +481,7 @@ export async function runTalentAssistantToolLoop(args: {
     anthropicOverloadFallbackModel: modelConfig?.anthropicOverloadFallbackModel,
     fallbackModel: modelConfig?.fallbackModel,
     messages: workingMessages,
+    openAIResponsesReasoningEffort,
     primaryModel: modelConfig?.primaryModel,
     temperature,
     toolCostAttribution:

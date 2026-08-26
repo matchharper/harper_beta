@@ -3,6 +3,7 @@ import test from "node:test";
 import { parseCompanyDataChanges } from "@/lib/org/agent/companyDataMutation";
 import type { OrgAgentPromptContext } from "@/lib/org/agent/context";
 import { parseReadTalentIds } from "@/lib/org/agent/readTalentInput";
+import { jsonValuesEqual } from "@/lib/jsonValue";
 import {
   createOrgAgentToolExecutionState,
   enforceOrgAgentTerminalMutationOutcome,
@@ -232,6 +233,9 @@ test("candidate decision execution is an enabled terminal tool", async () => {
   assert.doesNotThrow(() =>
     assertOrgAgentToolAvailable("decide_candidate_connection")
   );
+  assert.doesNotThrow(() =>
+    assertOrgAgentToolAvailable("manage_interview_availability")
+  );
   assert.equal(
     isOrgAgentTerminalToolName("prepare_candidate_connection"),
     false
@@ -239,9 +243,70 @@ test("candidate decision execution is an enabled terminal tool", async () => {
   assert.equal(isOrgAgentTerminalToolName("change_role_status"), true);
   assert.equal(isOrgAgentTerminalToolName("manage_role_pipeline_stages"), true);
   assert.equal(isOrgAgentTerminalToolName("move_candidate_stage"), true);
+  assert.equal(
+    isOrgAgentTerminalToolName("manage_interview_availability"),
+    true
+  );
   assert.equal(isOrgAgentTerminalToolName("decide_candidate_connection"), true);
   assert.equal(isOrgAgentTerminalToolName("contact_talent"), true);
   assert.equal(isOrgAgentTerminalToolName("change_talent_contact"), false);
+});
+
+test("meeting confirmation equality ignores JSON object key order", () => {
+  const left = {
+    additionalMessage: {
+      sourceText: "가능하면 빠르게",
+      visibility: "both" as const,
+    },
+    availabilityVersion: 2,
+    config: {
+      companyAttendees: [
+        {
+          companyUserId: "company-user-1",
+          email: "owner@example.com",
+          name: "Owner",
+        },
+      ],
+      conferenceProvider: "google_meet" as const,
+      durationMinutes: 60,
+      offerWindowDays: 14,
+      organizer: {
+        companyUserId: "company-user-1",
+        email: "owner@example.com",
+        name: "Owner",
+      },
+      title: "Test <> Candidate Intro",
+    },
+    draftBlocker: null,
+  };
+  const reordered = {
+    draftBlocker: null,
+    config: {
+      title: "Test <> Candidate Intro",
+      organizer: {
+        name: "Owner",
+        email: "owner@example.com",
+        companyUserId: "company-user-1",
+      },
+      offerWindowDays: 14,
+      durationMinutes: 60,
+      conferenceProvider: "google_meet",
+      companyAttendees: [
+        {
+          name: "Owner",
+          email: "owner@example.com",
+          companyUserId: "company-user-1",
+        },
+      ],
+    },
+    availabilityVersion: 2,
+    additionalMessage: {
+      visibility: "both",
+      sourceText: "가능하면 빠르게",
+    },
+  };
+
+  assert.equal(jsonValuesEqual(left, reordered), true);
 });
 
 test("read_talent input accepts ten unique IDs and rejects invalid batches", () => {
@@ -290,7 +355,7 @@ test("a failed Role status change cannot be presented as completed", () => {
       state,
       "역할의 채용을 종료했습니다."
     ),
-    "역할 상태를 변경하지 못했습니다. 역할과 현재 상태를 다시 확인한 뒤 시도해 주세요. 후보 추천이나 진행 중인 연결에는 변화가 없습니다."
+    "역할을 삭제하거나 상태를 변경하지 못했어요. 역할과 현재 상태를 다시 확인한 뒤 시도해 주세요. 후보자 추천이나 진행 중인 연결에는 변화가 없어요."
   );
 });
 

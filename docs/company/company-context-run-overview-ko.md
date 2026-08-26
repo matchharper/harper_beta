@@ -29,7 +29,9 @@ Context 갱신은 matching을 위한 준비 작업이 아니라 이 workflow의 
 
 이 원천을 매 평가에 그대로 모두 넣으면 신호가 중복되고 오래된 사실과 최근 변화가 뒤섞인다. 따라서 raw event를 나열하는 대신, 회사가 현재 무엇을 중요하게 보고 어떻게 판단하는지를 하나의 짧은 자연어 기억으로 관리한다.
 
-이 접근은 Netflix GenRec의 [verbalization과 context engineering](https://netflixtechblog.com/genrec-towards-llm-native-recommendation-at-netflix-f20be6f643e3)에서 가져온다. 핵심은 raw log를 단순히 문자열로 바꾸는 것이 아니다. 추천에 중요한 사건은 충분히 남기고, 의미 없는 사건은 빼고, 반복되는 과거는 압축하고, 최근의 변화나 모순은 더 자세히 설명해 LLM이 직접 상호작용과 선호를 해석할 수 있게 하는 것이다. GenRec 논문도 이를 feature engineering에서 context engineering으로의 전환으로 설명한다: [GenRec paper](https://arxiv.org/abs/2608.10257).
+이 접근은 Netflix GenRec의 [verbalization과 context engineering](https://netflixtechblog.com/genrec-towards-llm-native-recommendation-at-netflix-f20be6f643e3)에서 가져온다. 핵심은 raw log를 단순히 문자열로 바꾸는 것이 아니다. GenRec은 context window를 새로운 `feature budget`으로 보고, 추천에 중요한 고신호 사건은 충분히 남기고, 저신호 사건은 버리고, 반복 행동은 압축하며, 최근의 중요한 변화만 선택적으로 자세히 쓴다. Harper도 같은 원칙을 따른다. Evidence가 존재한다는 사실만으로 context 공간을 차지할 자격이 생기지 않으며, 다음 matching 판단에 필요한 정보만 남긴다. GenRec 논문도 이를 feature engineering에서 context engineering으로의 전환으로 설명한다: [GenRec paper](https://arxiv.org/abs/2608.10257).
+
+`company_behavior_contexts.text_context`는 검토 이력이나 사건 원장이 아니다. 다음 `[talent × role]` 평가에 직접 들어가는 compact input이다. 어떤 사건을 검토했다는 사실, 이유 없는 상태 변경, “아직 알 수 없다”는 일반론은 run 이력에는 남길 수 있지만 matching input에는 넣지 않는다.
 
 ## 3. context의 단위와 내용
 
@@ -74,12 +76,46 @@ Context는 회사 행동으로부터 새로 알게 된 정보에 집중한다.
 | --- | --- |
 | 자세히 유지 | 명시적 판단 이유, 메모, 조건 수정, 최근의 수락·거절·진행 결정 |
 | 압축 | 같은 이유로 반복된 반응, 오래 유지된 일관된 패턴 |
-| 생략 | 단순 조회, 중복 event, 이유 없는 기계적 상태 변경, 평가에 의미 없는 운영 로그 |
+| 생략 | 단순 조회, 중복 event, 이유 없는 상태 변경, 검토했다는 사실, 평가에 의미 없는 운영 로그 |
 | 선택적으로 확장 | 기존 기억과 충돌하는 최근 신호, 결과를 크게 바꿀 새 정보 |
 
 최근의 고신호 사건은 구체적으로 쓰고, 오래된 이력은 아직 유효한 패턴만 남긴다. 단일 사건은 단일 사건으로 표현하며 반복 선호처럼 과장하지 않는다.
 
-### 4.2 문서 형태
+### 4.2 필요한 정보 gate
+
+Context 후보 문장은 저장 전에 다음 질문을 통과해야 한다.
+
+> 이 문장을 빼면 다음 후보의 retrieval, label, score, reason 또는 확인 질문이 달라질 합리적인 가능성이 있는가?
+
+`아니오`이면 쓰지 않는다. `예`인 문장도 다음 중 하나를 해야 한다.
+
+- 별도 최신 입력인 JD, request, criteria에는 없는 회사의 명시적 판단 기준을 추가한다.
+- 회사가 어떤 후보를 왜 진행·중단했는지에서 반복적으로 확인된 평가축이나 trade-off를 설명한다.
+- 기존 context의 잘못된 해석을 바로잡거나, 최근 변화로 더 이상 유효하지 않은 기준을 수정·삭제한다.
+- 실제 label을 바꿀 수 있는 구체적인 불확실성과 무엇을 확인해야 하는지를 남긴다.
+
+다음은 그 자체로 필요한 정보가 아니다.
+
+- 회사 actor가 stage를 바꿨지만 이유·메모가 없는 사실
+- “관련 사례를 검토했다”, “추가 기준은 아직 모른다” 같은 검토 완료 문장
+- 후보를 몇 명 보았거나 언제 이동시켰는지에 대한 운영 통계
+- 명시적 이유 없이 후보 속성과 결과가 함께 나타났다는 상관관계
+- 이미 JD, request, criteria에 최신 상태로 들어 있는 내용
+
+회사 actor가 확인된 이유 없는 stage 변경은 그 행동이 실제 발생했다는 것만 증명한다. 그 원인, 선호, 배제 기준은 증명하지 않으며, 다른 고신호 evidence와 결합해 다음 평가를 바꾸지 않는 한 context에서 생략한다.
+
+### 4.3 Context와 검토 이력의 분리
+
+모든 evidence를 검토했지만 필요한 정보가 하나도 없을 수 있다. 이는 정상 결과다.
+
+- 기존 context가 비어 있으면 `text_context`를 빈 문자열로 유지하고 `contextChanged=false`로 처리한다.
+- 기존 context가 있고 새 evidence가 그 의미를 바꾸지 않으면 기존 text를 byte-for-byte 그대로 유지한다.
+- 기존 문장이 더 이상 위 gate를 통과하지 못하거나 근거가 사라졌으면 그 문장을 삭제한다. 결과가 빈 context여도 된다.
+- 검토 완료를 남겨야 하면 `company_context_runs.result.summary`에 `행동 evidence를 검토했으나 context에 반영할 matching-relevant 정보 없음`처럼 짧게 기록한다. 이 문장을 context에 넣지 않는다.
+
+Context의 빈 값은 실패나 미완성이 아니다. 현재 별도 입력을 보완할 회사 행동 신호가 없다는 정확한 표현이다.
+
+### 4.4 문서 형태
 
 Context는 사건 일지가 아니라 현재 판단에 바로 쓸 수 있는 메모다. 다음 구조를 기본으로 한다.
 
@@ -100,20 +136,20 @@ Context는 사건 일지가 아니라 현재 판단에 바로 쓸 수 있는 메
 - 이전 context 이후 새로 생기거나 달라진 내용
 
 ## 아직 불확실한 점
-- 근거가 충돌하거나 추가 확인이 필요한 내용
+- 실제 평가를 바꿀 수 있고 확인할 대상이 구체적인 불확실성
 ```
 
-빈 section을 억지로 채우지 않는다. 후보자 이름과 raw 대화 전문은 남기지 않고, 평가에 필요한 속성과 결정 이유로 일반화한다.
+빈 section을 억지로 채우지 않는다. 특히 쓸 내용이 없다는 이유로 `아직 불확실한 점`을 만들지 않는다. 후보자 이름과 raw 대화 전문은 남기지 않고, 평가에 필요한 속성과 결정 이유로 일반화한다.
 
-### 4.3 갱신 방식
+### 4.5 갱신 방식
 
 1. 기존 context 전체를 먼저 읽는다.
 2. 이전 성공 실행 이후의 새 evidence와, 정정·삭제된 기존 evidence를 확인한다.
-3. 여전히 유효한 문장은 유지한다.
+3. 여전히 근거가 있고 필요한 정보 gate를 통과하는 문장만 유지한다.
 4. 새 evidence가 의미를 바꾼 문장만 수정·추가·삭제한다.
 5. 새 event가 있어도 해석이 같으면 context text를 바꾸지 않는다.
 6. 오래된 판단과 최근 판단이 충돌하면 무조건 덮어쓰지 말고, 범위 차이인지 실제 변화인지 설명한다.
-7. 사실, 합리적 추론, 아직 모르는 점을 구분한다.
+7. 사실, 합리적 추론, 아직 모르는 점을 구분한다. 단, 아직 모른다는 사실도 다음 평가에 필요할 때만 남긴다.
 
 ## 5. 언제 실행하는가: 코드의 책임
 
@@ -123,14 +159,18 @@ Context는 사건 일지가 아니라 현재 판단에 바로 쓸 수 있는 메
 
 | Trigger | Queue 조건 |
 | --- | --- |
-| `role_created` | `is_auto=true`인 새로운 internal role이 등록됨 |
+| `role_created` | `is_auto=true`인 새로운 internal role이 `active`로 확정됨. Draft 생성만으로는 queue에 넣지 않음 |
 | `reactivated_after_7d` | `is_auto=true`이고 `paused` 또는 `ended` 상태가 합쳐서 연속 7일 이상 지속된 뒤 `active`로 바뀜 |
 | `weekly` | `is_auto=true`인 role이 계속 `active`이고 마지막 성공한 `company_context_run` 이후 7일이 지남 |
 | `manual` | 운영자가 특정 role의 실행을 명시적으로 요청함 |
 
-`role_created`와 `reactivated_after_7d`는 상태 변경 transaction 직후 enqueue한다. `weekly` due 판정도 코드로 구현하며, 6시간 예약 작업이 시작될 때 due-enqueue helper를 한 번 호출하면 된다.
+`role_created`와 `reactivated_after_7d`는 상태 변경 transaction 직후 enqueue한다. `weekly` due 판정도 코드로 구현하며, 예약 작업이 시작될 때 due-enqueue helper를 한 번 호출하면 된다.
 
-“즉시 실행”은 즉시 queue에 들어간다는 뜻이다. 실제 Codex 실행은 6시간마다 도는 예약 작업 때문에 최대 약 6시간 뒤 시작될 수 있다. 이미 같은 role의 `queued` 또는 `running` row가 있으면 중복 enqueue하지 않는다.
+모든 자동 queue는 enqueue 시점에 role이 internal, `active`, 미만료, `is_auto=true`여야 한다. Queue 대기 중 role이 비활성화·삭제·만료되거나 `is_auto=false`가 되면 아직 시작하지 않은 자동 row를 즉시 취소한다. `manual` row만 이 자동 조건의 예외다.
+
+“즉시 실행”은 즉시 queue에 들어간다는 뜻이다. 실제 Codex 실행 시각은 설정된 예약 주기를 따른다. 이미 같은 role의 `queued` 또는 `running` row가 있으면 중복 enqueue하지 않는다.
+
+예약 작업은 한 번 깨어날 때 현재 claim 가능한 queue를 모두 비울 때까지 순차 처리한다. 한 role을 `succeeded`, `canceled`, `failed` 중 하나의 terminal 상태로 끝낸 뒤 다음 role을 claim하며, 여러 role을 동시에 처리하지 않는다. 무효한 row를 취소한 경우에도 예약 실행을 끝내지 않고 다음 row로 진행한다.
 
 ## 6. `company_context_runs`: 6-column queue와 실행 이력
 
@@ -204,20 +244,21 @@ Codex가 role마다 SQL을 새로 작성한다. 고정 keyword query 하나를 �
 
 | Effective label | 반복 run 처리 |
 | --- | --- |
-| `fit` | matching-relevant input이 바뀌고 기존 판단에 영향을 줄 수 있을 때만 재평가 |
-| `hold` | 위와 동일 |
-| `ambiguous` | 위와 동일 |
+| `fit` | 자동 재평가에서 제외 |
+| `hold` | 마지막 실제 평가 후 21일 이상 지났을 때 재평가 pool에 포함 |
+| `ambiguous` | 마지막 실제 평가 후 21일 이상 지났을 때 재평가 pool에 포함 |
 | `dissatisfied` (40~59) | 자동 후보 검색과 자동 재평가에서 제외 |
 | `unfit` (0~39) | 자동 후보 검색과 자동 재평가에서 제외 |
 
 `effective label`은 human override가 있으면 human label, 없으면 model label이다. Human override는 이 run이 덮어쓰지 않는다.
 
-재평가는 두 단계로 줄인다.
+재평가 SQL은 effective label이 `hold` 또는 `ambiguous`이고 `last_evaluated_at <= now() - interval '21 days'`인 pair만 반환한다. 이 조건은 candidate packet 이후가 아니라 SQL 결과 단계에서 적용한다. Effective `fit`은 input 변화 여부와 무관하게 이 반복 재평가에서 제외한다.
 
-1. 코드가 talent, role, company, context의 matching fingerprint를 비교한다. 같으면 무조건 재사용한다.
-2. Fingerprint가 달라도 변경 field와 기존 평가 이유를 보고 실제 fit에 영향을 줄 수 있는지 Codex가 판정한다. 사진, 로그인, 연락처 formatting처럼 무관한 변화면 무조건 skip한다.
+재평가 후보 순서는 신규 후보와 같은 role-specific evidence와 같은 최종 `ORDER BY`로 정한다. `hold`를 `ambiguous`보다 먼저 두거나 단순히 오래된 평가부터 정렬하지 않는다. Rank는 누구부터 다시 볼지를 정할 뿐 새 label이나 score를 대신하지 않는다.
 
-영향 가능성이 있는 pair만 한 run에서 최대 100명까지 재평가한다. 100명을 채우는 것이 목표는 아니다. 초과하면 변화가 기존 판단의 핵심 근거와 직접 맞닿은 pair, `hold`·`ambiguous`, 오래된 평가 순으로 우선 처리하고 나머지는 다음 run으로 넘긴다.
+코드는 due pool을 rank 순으로 scan하면서 talent, role, company, context, evaluator의 fingerprint를 비교한다. 모두 같으면 기존 결과를 그대로 재사용하고 실제 재평가 수에 포함하지 않는다. Fingerprint가 달라 candidate index에 들어온 pair는 full-text로 다시 평가하며 별도의 `non_matching_change` 판단으로 일괄 skip하지 않는다.
+
+동일 fingerprint를 제외하고 재평가할 pair가 10명 이상이면 rank 순으로 최소 10명을 평가한다. 한 run의 최대 실제 재평가는 50명이다. 대상이 10명 미만이면 남은 전원만 평가하는 것이 정상이며, 50명을 넘는 대상은 다음 run으로 넘긴다.
 
 ## 9. 후보 텍스트와 pair 평가
 
@@ -261,8 +302,8 @@ Fit 단계가 실패해도 이미 저장한 올바른 context를 되돌리지 �
 | Trigger 판정과 enqueue | 새 evidence가 현재 회사 판단을 어떻게 바꾸는지 |
 | Atomic claim, 중복 방지, retry | Context 문장의 추가·수정·삭제 |
 | Role active 여부와 pending count | Role별 retrieval SQL 작성과 결과 점검 |
-| Evidence fetch와 실행 중 source drift 검증 | Fingerprint 변화가 fit에 실제 영향을 주는지 |
-| Label별 기계적 제외와 100명 cap | 후보별 상호 적합도, label, score, reason |
+| Evidence fetch와 실행 중 source drift 검증 | 신규·재평가 SQL의 role별 rank evidence 설계 |
+| 재평가 label·21일·fingerprint 제외와 lane별 cap | 후보별 상호 적합도, label, score, reason |
 | Candidate packet 생성과 canonical projection | Run의 짧은 결론 작성 |
 | Context·fit·run result의 검증된 write |  |
 
@@ -283,11 +324,11 @@ Due 여부, pending limit, 중복 실행, 같은 fingerprint skip처럼 결정�
 ## 13. 완료 기준
 
 - `is_auto=true`인 새 role, 7일 이상 비활성 후 재개, active 7일 경과만 코드로 정확히 enqueue된다.
-- 6시간 Codex 작업은 조건을 다시 추론하지 않고 queued role을 atomic claim한다.
+- Codex 예약 작업은 조건을 다시 추론하지 않고 queued role을 하나씩 atomic claim하며, 현재 claim 가능한 queue를 순차적으로 모두 처리한다.
 - Role당 current context 문서 하나가 실제 회사 행동을 compact하게 verbalize한다.
 - Pending limit에 도달해도 context는 갱신되고 matching만 생략된다.
 - 신규 후보는 동적 SQL과 full candidate text를 거쳐 pair별로 평가된다.
-- `dissatisfied`와 `unfit`, unchanged pair, 무관한 변경 pair는 다시 평가하지 않는다.
-- 영향 있는 기존 pair는 한 run 최대 100명까지 재평가한다.
+- Effective `fit`, `dissatisfied`, `unfit`, 평가 후 21일 미만 pair는 재평가 SQL에서 제외된다.
+- 동일 fingerprint pair는 재사용하고, 달라진 due `hold/ambiguous` pair는 가능한 경우 최소 10명·최대 50명을 같은 role rank 순으로 재평가한다.
 - Pair reason과 input fingerprint가 저장되어 다음 run이 판단을 재사용할 수 있다.
 - Queue row에 성공·실패와 짧은 실행 결론이 남는다.

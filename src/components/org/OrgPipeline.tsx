@@ -477,7 +477,17 @@ export function OrgPipeline() {
       </Dialog>
 
       <AcceptIntroDialog
+        key={acceptRequest?.item.recommendationId ?? "accept-dialog"}
         allowContactDirectly={isInternalDomainEmail(currentUserEmail)}
+        availabilityReturnTarget={
+          acceptRequest
+            ? {
+                recommendationId: acceptRequest.item.recommendationId,
+                roleId: acceptRequest.item.roleId,
+                talentId: acceptRequest.item.talentId,
+              }
+            : null
+        }
         candidateEmail={acceptRequest?.item.talent.email}
         candidateName={
           acceptRequest ? getOrgCandidateDisplayName(acceptRequest.item) : ""
@@ -491,14 +501,35 @@ export function OrgPipeline() {
           acceptRequest && isCandidateStagePending(acceptRequest.item)
         )}
         onClose={() => setAcceptRequest(null)}
-        onSubmit={async ({ acceptReason, contactDirectly, introEmails }) => {
+        onSubmit={async ({
+          acceptReason,
+          additionalMessage,
+          additionalMessageVisibility,
+          attendeeEmails,
+          contactDirectly,
+          durationMinutes,
+          introEmails,
+          scheduleInterview,
+          title,
+        }) => {
           if (!acceptRequest) return;
-          await onStageChange(acceptRequest.item, acceptRequest.stage, {
-            acceptReason,
-            contactDirectly,
-            introEmails,
-          });
+          const result = await onStageChange(
+            acceptRequest.item,
+            acceptRequest.stage,
+            {
+              acceptReason,
+              additionalMessage,
+              additionalMessageVisibility,
+              attendeeEmails,
+              contactDirectly,
+              durationMinutes,
+              introEmails,
+              scheduleInterview,
+              title,
+            }
+          );
           setAcceptRequest(null);
+          return result;
         }}
         roleTitle={acceptRequest?.item.roleName ?? ""}
       />

@@ -37,3 +37,13 @@ test("encodes Slack assistant thread status fields and preserves an empty clear 
   assert.equal(request.body.get("thread_ts"), "1724264405.531769");
   assert.equal(clearRequest.body.get("status"), "");
 });
+
+test("encodes disabled Slack link and media unfurls", () => {
+  const request = createSlackApiRequest("bot-token", {
+    unfurl_links: false,
+    unfurl_media: false,
+  });
+
+  assert.equal(request.body.get("unfurl_links"), "false");
+  assert.equal(request.body.get("unfurl_media"), "false");
+});

@@ -30,6 +30,7 @@ import {
 import { fetchLatestTalentActivityEvent } from "@/lib/talentOnboarding/activityEvents";
 import { OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE } from "@/lib/officialJobs";
 import { TALENT_TOOL_NAMES } from "@/lib/talentOnboarding/tools";
+import { shouldUseCareerRealtimeOnboarding } from "@/lib/career/realtimeCallScope";
 
 /**
  * Build realtime instructions from the shared Harper system prompt plus
@@ -112,19 +113,6 @@ export async function buildCareerRealtimeSessionInstructions(args: {
       : null,
     talentSettingStatus: talentSetting?.status ?? null,
   };
-  const onboardingChecklistCoverage = !Boolean(
-    talentSetting?.is_onboarding_done
-  )
-    ? await getCareerOnboardingChecklistCoverage({
-        admin,
-        conversationId: args.conversationId,
-        currentInsightContent,
-        userId: args.userId,
-      })
-    : null;
-  const promptToolNames = talentSetting?.is_onboarding_done
-    ? args.toolNames
-    : args.toolNames.filter((name) => name === TALENT_TOOL_NAMES.END_CALL);
   const conversationStarterId = args.conversationStarterId?.trim();
   const conversationStarter = conversationStarterId
     ? getCareerConversationStarter(
@@ -145,6 +133,23 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     isOpenInternalOpportunityCallRequestStatus(internalCallRequest.status)
       ? internalCallRequest
       : null;
+  const isOnboardingActiveForSession = shouldUseCareerRealtimeOnboarding({
+    hasConversationStarter: Boolean(conversationStarter),
+    hasInternalOpportunityCall: Boolean(openInternalCallRequest),
+    isOnboardingDone: Boolean(talentSetting?.is_onboarding_done),
+  });
+  const onboardingChecklistCoverage = isOnboardingActiveForSession
+    ? await getCareerOnboardingChecklistCoverage({
+        admin,
+        conversationId: args.conversationId,
+        currentInsightContent,
+        userId: args.userId,
+      })
+    : null;
+  const promptToolNames =
+    openInternalCallRequest || isOnboardingActiveForSession
+      ? args.toolNames.filter((name) => name === TALENT_TOOL_NAMES.END_CALL)
+      : args.toolNames;
 
   const recentConversationSection =
     buildCareerRealtimeRecentConversationSection(
@@ -160,15 +165,15 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     channel: "voice",
     currentInsightContent,
     currentPreferences,
-    isOnboardingDone: talentSetting?.is_onboarding_done,
-    officialJobSignupIntentPrompt: talentSetting?.is_onboarding_done
-      ? null
-      : officialJobSignupIntentEvent?.summary,
+    isOnboardingDone: !isOnboardingActiveForSession,
+    officialJobSignupIntentPrompt: isOnboardingActiveForSession
+      ? officialJobSignupIntentEvent?.summary
+      : null,
     onboardingChecklistCoverage,
     profile,
-    conversationMode:
-      conversationStarter?.id ??
-      (openInternalCallRequest ? "internal_opportunity_call" : "default"),
+    conversationMode: openInternalCallRequest
+      ? "internal_opportunity_call"
+      : (conversationStarter?.id ?? "default"),
     internalCallRequest,
     recentConversationSection,
     recentRecommendedOpportunitiesText,

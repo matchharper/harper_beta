@@ -330,7 +330,7 @@ export async function buildCareerTextChatDebugPrompt(args: {
   const recentMessages = await fetchRecentMessagesWithSummary({
     admin,
     conversationId,
-    recentLimit: 12,
+    recentLimit: 16,
     userId,
   });
   const messages = recentMessages
@@ -341,7 +341,9 @@ export async function buildCareerTextChatDebugPrompt(args: {
     )
     .map((item) => ({
       role: item.role as "assistant" | "user",
-      content: formatTalentMessageContentForLlmPrompt(item),
+      content: formatTalentMessageContentForLlmPrompt(item, {
+        includeCreatedAt: item.message_type !== "conversation_summary",
+      }),
     }))
     .filter((item) => item.content.trim().length > 0);
   const tools = toolSelection.tools as TalentChatTool[];

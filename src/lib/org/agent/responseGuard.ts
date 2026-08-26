@@ -36,6 +36,7 @@ const TOKEN_REPLACEMENTS: Record<string, Replacement> = {
   connected: { en: "connected", ko: "연결됨" },
   contract: { en: "contract", ko: "계약직" },
   custom: { en: "company-defined stage", ko: "회사 지정 단계" },
+  deleted: { en: "deleted", ko: "삭제됨" },
   ended: { en: "hiring ended", ko: "채용 종료" },
   final_offer: { en: "final offer stage", ko: "최종 오퍼 단계" },
   full_time: { en: "full-time", ko: "정규직" },
@@ -103,9 +104,19 @@ const UUID_EXACT_PATTERN =
 const SLACK_ID_EXACT_PATTERN = /^[UWBCDG][A-Z0-9]{8,}$/;
 const ORG_AGENT_NAVIGATION_MARKER_PATTERN =
   /\[([^\]\r\n]+)\]\((?:talent|role):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\)/gi;
+const WEB_MARKDOWN_HTTP_LINK_PATTERN =
+  /\[([^\]\r\n]+)\]\(https?:\/\/[^\s)]+\)/gi;
+const SLACK_HTTP_LINK_PATTERN = /<https?:\/\/[^>\s|]+(?:\|([^>\r\n]+))?>/gi;
+const PLAIN_HTTP_URL_PATTERN = /https?:\/\/[^\s<>)]+/gi;
 
-function withoutOrgAgentNavigationMarkers(value: string) {
-  return value.replace(ORG_AGENT_NAVIGATION_MARKER_PATTERN, "$1");
+function withoutInspectableNavigationTargets(value: string) {
+  return value
+    .replace(ORG_AGENT_NAVIGATION_MARKER_PATTERN, "$1")
+    .replace(WEB_MARKDOWN_HTTP_LINK_PATTERN, "$1")
+    .replace(SLACK_HTTP_LINK_PATTERN, (_match, label: string | undefined) =>
+      label ? label : ""
+    )
+    .replace(PLAIN_HTTP_URL_PATTERN, "");
 }
 
 function escapeRegExp(value: string) {
@@ -143,7 +154,7 @@ export function findNewOrgAgentInternalTokens(args: {
   reply: string;
   userMessage: string;
 }) {
-  const replyForInspection = withoutOrgAgentNavigationMarkers(args.reply);
+  const replyForInspection = withoutInspectableNavigationTargets(args.reply);
   const candidates = [
     ...Object.keys(TOKEN_REPLACEMENTS).filter((token) =>
       containsToken(replyForInspection, token)
@@ -170,7 +181,7 @@ export function findNewOrgAgentInternalArtifacts(args: {
     args.userMessage
   );
   if (!userAskedForId) {
-    const replyForInspection = withoutOrgAgentNavigationMarkers(args.reply);
+    const replyForInspection = withoutInspectableNavigationTargets(args.reply);
     for (const id of [
       ...findUuids(replyForInspection),
       ...findSlackIds(replyForInspection),

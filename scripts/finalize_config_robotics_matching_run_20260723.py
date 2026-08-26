@@ -235,7 +235,7 @@ def load_db() -> tuple[SupabaseReadOnly, str, str]:
 
 def source_hashes(role: dict[str, Any], workspace: dict[str, Any], internal: dict[str, Any]) -> dict[str, str]:
     return {
-        "roleHash": digest({key: role.get(key) for key in ("description", "request", "location_text", "work_mode", "type", "status", "is_expired", "salary_range", "salary_min", "salary_max")}),
+        "roleHash": digest({key: role.get(key) for key in ("description", "location_text", "work_mode", "type", "status", "is_expired", "salary_range", "salary_min", "salary_max")}),
         "internalRequestHash": digest(internal.get("request")),
         "workspaceHash": digest({key: workspace.get(key) for key in ("request", "company_description", "pitch")}),
     }

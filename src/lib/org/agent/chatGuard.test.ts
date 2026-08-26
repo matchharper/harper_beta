@@ -58,6 +58,16 @@ test("detects catalog keys, raw enums, camel-case parameters, and Slack IDs", ()
   assert.match(replaced, /채용 일시 중지/);
 });
 
+test("replaces the deleted lifecycle enum with a user-facing status", () => {
+  assert.equal(
+    replaceNewOrgAgentInternalTokens({
+      reply: "이 역할은 deleted 상태예요.",
+      userMessage: "이 역할 삭제됐어?",
+    }),
+    "이 역할은 삭제됨 상태예요."
+  );
+});
+
 test("has a deterministic human-language fallback when rewrite fails", () => {
   assert.equal(
     replaceNewOrgAgentInternalTokens({
@@ -118,5 +128,32 @@ test("preserves valid talent and role navigation markers", () => {
       userMessage: "소개 메일을 보내줘.",
     }),
     `${reply} 현재 상태는 연결 대기입니다.`
+  );
+});
+
+test("does not treat identifiers inside user-facing HTTP links as leaks", () => {
+  const workspaceId = "123e4567-e89b-42d3-a456-426614174000";
+  const slackLink = `<https://matchharper.com/org/settings?dialog=interview-availability&orgId=${workspaceId}|스케줄 열기>`;
+
+  assert.deepEqual(
+    findNewOrgAgentInternalArtifacts({
+      reply: `${slackLink}에서 가능한 시간을 알려주세요.`,
+      userMessage: "미팅 잡아줘.",
+    }),
+    []
+  );
+  assert.equal(
+    replaceNewOrgAgentInternalTokens({
+      reply: `${slackLink}에서 가능한 시간을 알려주세요.`,
+      userMessage: "미팅 잡아줘.",
+    }),
+    `${slackLink}에서 가능한 시간을 알려주세요.`
+  );
+  assert.deepEqual(
+    findNewOrgAgentInternalArtifacts({
+      reply: `${slackLink}\n내부 ID는 ${workspaceId}입니다.`,
+      userMessage: "미팅 잡아줘.",
+    }),
+    [workspaceId]
   );
 });

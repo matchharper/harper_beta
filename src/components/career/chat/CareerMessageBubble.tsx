@@ -504,17 +504,17 @@ const CareerMessageBubble = ({
         {internalCallRequestMarkers.map((marker) => (
           <div
             key={marker.callId}
-            className="mt-3 w-[94%] max-w-[400px] rounded-md border border-neutral-200 bg-bg-floating px-2 py-2 text-neutral-primary"
+            className="mt-3 w-[94%] max-w-[440px] rounded-md border border-neutral-200 bg-bg-floating px-2 py-2 text-neutral-primary"
           >
             <div className="flex flex-col items-center justify-center gap-3">
-              <div className="min-h-28 py-2 px-3 bg-neutral-100 rounded-md flex flex-col items-center justify-center">
-                <div className="text-sm font-medium leading-snug pb-4 pt-2">
+              <div className="min-h-20 flex flex-col items-start justify-center">
+                <div className="text-sm font-normal leading-snug">
                   Call for {'"'}
                   {marker.companyName} - {marker.roleTitle}
                   {'"'}
                 </div>
                 <div
-                  className="mt-1 text-[14px] md:text-[13px] text-center leading-5 text-neutral-muted"
+                  className="mt-1 text-[14px] md:text-[13px] text-left leading-5 text-neutral-muted"
                   dangerouslySetInnerHTML={{
                     __html: t(
                       "career.chat.career_message_bubble.optional_call_notice",

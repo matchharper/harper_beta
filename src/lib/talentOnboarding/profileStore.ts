@@ -449,6 +449,8 @@ export function buildTalentProfileContext(args: {
       if (includeRowIds && education.id) {
         itemText += `\n   RowID: ${education.id}`;
       }
+      const description = clampPromptText(education.description, 700);
+      if (description) itemText += `\n   Description: ${description}`;
       const memo = clampPromptText(education.memo, MEMO_MAX_CHARS);
       if (memo) itemText += `\n   Memo: ${memo}`;
       lines.push(itemText);

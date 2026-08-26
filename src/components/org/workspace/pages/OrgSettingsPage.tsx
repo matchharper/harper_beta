@@ -1,16 +1,17 @@
 import {
+  ArrowRight,
+  CalendarClock,
   ChevronDown,
   Ellipsis,
-  Hash,
   LoaderCircle,
   Plus,
-  Slack,
   SlackIcon,
   Trash2,
 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
+import { OrgInterviewAvailabilityDialog } from "@/components/org/meetings/OrgInterviewAvailabilityDialog";
 import { OrgPageHeader } from "@/components/org/workspace/OrgPageHeader";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
 import {
@@ -18,7 +19,7 @@ import {
   OrgSectionHeader,
 } from "@/components/org/workspace/OrgSection";
 import { Badge } from "@/components/ui/badge";
-import { MuteButton } from "@/components/ui/button";
+import { CardButton, MuteButton } from "@/components/ui/button";
 import { Code } from "@/components/ui/code";
 import {
   Dialog,
@@ -42,7 +43,13 @@ import {
   useOrgSlackStatus,
   useRemoveOrgSlackChannel,
 } from "@/hooks/org/useOrgSlack";
+import { useOrgMeetingAvailability } from "@/hooks/org/useOrgMeetingAvailability";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
+import {
+  formatMeetingAvailabilitySummary,
+  ISO_WEEKDAYS,
+} from "@/lib/meetings/availability";
+import { cn } from "@/lib/utils";
 import { useToastStore } from "@/store/useToastStore";
 
 function formatChannel(
@@ -59,6 +66,7 @@ export function OrgSettingsPage() {
   const router = useRouter();
   const addToast = useToastStore((state) => state.add);
   const handledSlackResult = useRef("");
+  const availabilityOpenedHere = useRef(false);
   const [disconnectOpen, setDisconnectOpen] = useState(false);
   const [removeChannelId, setRemoveChannelId] = useState<string | null>(null);
   const [newChannelId, setNewChannelId] = useState("");
@@ -70,9 +78,19 @@ export function OrgSettingsPage() {
   const disconnectSlack = useDisconnectOrgSlack(workspace.workspaceId);
   const removeSlackChannel = useRemoveOrgSlackChannel(workspace.workspaceId);
   const status = statusQuery.data;
+  const availabilityQuery = useOrgMeetingAvailability({
+    workspaceId: workspace.workspaceId,
+  });
+  const availability = availabilityQuery.data?.availability ?? null;
+  const availabilityDialogOpen =
+    router.query.dialog === "interview-availability";
   const channelToRemove = status?.channels.find(
     (channel) => channel.channelId === removeChannelId
   );
+
+  useEffect(() => {
+    if (!availabilityDialogOpen) availabilityOpenedHere.current = false;
+  }, [availabilityDialogOpen]);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -185,6 +203,75 @@ export function OrgSettingsPage() {
     addSlackChannel.error ??
     removeSlackChannel.error ??
     disconnectSlack.error;
+
+  const openAvailability = async () => {
+    availabilityOpenedHere.current = true;
+    await router.push(
+      {
+        pathname: router.pathname,
+        query: { ...router.query, dialog: "interview-availability" },
+      },
+      undefined,
+      { shallow: true }
+    );
+  };
+
+  const closeAvailability = () => {
+    const returnScheduleId =
+      typeof router.query.returnScheduleId === "string"
+        ? router.query.returnScheduleId.trim()
+        : "";
+    if (returnScheduleId) {
+      void router.push({
+        pathname: "/org/inbox",
+        query: {
+          dialog: "interview-schedule",
+          orgId: workspace.workspaceId,
+          scheduleId: returnScheduleId,
+        },
+      });
+      return;
+    }
+    const returnRecommendationId =
+      typeof router.query.returnRecommendationId === "string"
+        ? router.query.returnRecommendationId.trim()
+        : "";
+    const returnRoleId =
+      typeof router.query.returnRoleId === "string"
+        ? router.query.returnRoleId.trim()
+        : "";
+    const returnTalentId =
+      typeof router.query.returnTalentId === "string"
+        ? router.query.returnTalentId.trim()
+        : "";
+    if (returnRecommendationId && returnRoleId && returnTalentId) {
+      void router.push({
+        pathname: "/org/inbox",
+        query: {
+          candidateAction: "schedule_interview",
+          detailRoleId: returnRoleId,
+          orgId: workspace.workspaceId,
+          recommendationId: returnRecommendationId,
+          talentId: returnTalentId,
+        },
+      });
+      return;
+    }
+    if (availabilityOpenedHere.current) {
+      availabilityOpenedHere.current = false;
+      router.back();
+      return;
+    }
+    const query = { ...router.query };
+    delete query.dialog;
+    delete query.returnScheduleId;
+    delete query.returnRecommendationId;
+    delete query.returnRoleId;
+    delete query.returnTalentId;
+    void router.replace({ pathname: router.pathname, query }, undefined, {
+      shallow: true,
+    });
+  };
 
   return (
     <div className="space-y-8">
@@ -445,6 +532,80 @@ export function OrgSettingsPage() {
           ) : null}
         </div>
       </OrgSection>
+
+      <OrgSection>
+        <OrgSectionHeader
+          description="후보자에게 인터뷰 일정을 요청할 때 Harper가 제안할 수 있는 내 기본 시간을 관리하세요."
+          title="인터뷰 일정"
+        />
+        <CardButton
+          aria-label="내 인터뷰 가능 시간 설정 열기"
+          className="group min-h-[148px] flex-col items-stretch gap-5 rounded-2xl border-neutral-1000-a10 bg-bg-default p-5 shadow-none hover:border-neutral-1000-a10 hover:bg-bg-weak sm:flex-row sm:items-center sm:justify-between"
+          onClick={() => void openAvailability()}
+        >
+          <span className="flex min-w-0 flex-1 items-start gap-4">
+            <span className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-faded text-primary">
+              <CalendarClock className="size-5" strokeWidth={1.7} />
+            </span>
+            <span className="min-w-0">
+              <span className="flex flex-wrap items-center gap-2">
+                <span className="text-[16px] font-medium text-neutral-primary">
+                  내 인터뷰 가능 시간
+                </span>
+                {availability ? (
+                  <Badge
+                    radius="full"
+                    size="sm"
+                    tone="positive"
+                    variant="faded"
+                  >
+                    설정됨
+                  </Badge>
+                ) : null}
+              </span>
+              <span className="mt-1.5 block max-w-xl text-[13px] font-light leading-5 text-neutral-muted">
+                {availabilityQuery.isLoading
+                  ? "가능 시간 불러오는 중"
+                  : availabilityQuery.error
+                    ? "설정을 불러오지 못했어요. 열어서 다시 시도해 주세요."
+                    : availability
+                      ? formatMeetingAvailabilitySummary(availability)
+                      : "아직 설정되지 않았어요. 반복 가능한 시간과 날짜별 예외를 알려 주세요."}
+              </span>
+            </span>
+          </span>
+          <span className="flex shrink-0 items-center gap-4 self-stretch sm:self-auto">
+            <span
+              aria-hidden="true"
+              className="grid flex-1 grid-cols-7 gap-1 sm:flex-none"
+            >
+              {ISO_WEEKDAYS.map(({ key, shortLabel }) => {
+                const enabled = Boolean(availability?.weeklyRules[key]?.length);
+                return (
+                  <span
+                    className={cn(
+                      "flex size-7 items-center justify-center rounded-md text-[11px]",
+                      enabled
+                        ? "bg-primary-faded text-primary"
+                        : "bg-bg-weak text-neutral-soft"
+                    )}
+                    key={key}
+                  >
+                    {shortLabel}
+                  </span>
+                );
+              })}
+            </span>
+            <ArrowRight className="size-4 text-neutral-soft transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </CardButton>
+      </OrgSection>
+
+      <OrgInterviewAvailabilityDialog
+        onRequestClose={closeAvailability}
+        open={availabilityDialogOpen}
+        workspaceId={workspace.workspaceId}
+      />
 
       <Dialog open={disconnectOpen} onOpenChange={setDisconnectOpen}>
         <DialogContent className="max-w-md gap-4 rounded-lg p-6">

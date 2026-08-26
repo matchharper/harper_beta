@@ -11,7 +11,11 @@ import {
   fetchActiveCompanyTalentRequests,
 } from "@/lib/companyTalentRequests/server";
 import { fetchTalentOpportunityHistory } from "@/lib/talentOpportunity";
-import type { CareerPendingAction } from "@/lib/career/pendingActions";
+import type {
+  CareerPendingAction,
+  CareerReengagementPendingActionsSnapshot,
+} from "@/lib/career/pendingActions";
+import { fetchCareerReengagementPendingActions } from "@/lib/career/reengagementPendingActions.server";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 
 const cleanText = (value: unknown, fallback: string, maxLength = 1000) => {
@@ -46,12 +50,33 @@ export async function GET(req: NextRequest) {
 
   const admin = getTalentSupabaseAdmin();
   const setting = await fetchTalentSetting({ admin, userId: user.id });
+  const isReengagementScope =
+    req.nextUrl.searchParams.get("scope") === "reengagement";
   if (!setting?.is_onboarding_done) {
+    if (isReengagementScope) {
+      return NextResponse.json({
+        actions: [],
+        promptActions: [],
+      } satisfies CareerReengagementPendingActionsSnapshot);
+    }
     return NextResponse.json({ actions: [] satisfies CareerPendingAction[] });
   }
 
   const locale =
     req.nextUrl.searchParams.get("locale") ?? setting.preferred_locale;
+  if (isReengagementScope) {
+    return NextResponse.json(
+      await fetchCareerReengagementPendingActions({
+        admin,
+        includeReevaluationQuestion:
+          setting.profile_visibility !== "dont_share",
+        locale,
+        sourceLimit: 100,
+        userId: user.id,
+      })
+    );
+  }
+
   const [callRequests, fitQuestion, companyRequests, internalOpportunities] =
     await Promise.all([
       withPendingActionsFallback({

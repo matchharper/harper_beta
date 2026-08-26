@@ -202,7 +202,7 @@ def source_hashes(db: SupabaseRest, role_id: str) -> tuple[dict[str, Any], dict[
     internal_role = internal_rows[0] if internal_rows else {"request": None}
     workspace = db.get("company_workspace", filters={"company_workspace_id": f"eq.{role.get('company_workspace_id')}"})[0]
     hashes = {
-        "roleInputHash": digest({key: role.get(key) for key in ("description", "request", "location_text", "work_mode", "type", "status", "is_expired", "salary_range", "salary_min", "salary_max")}),
+        "roleInputHash": digest({key: role.get(key) for key in ("description", "location_text", "work_mode", "type", "status", "is_expired", "salary_range", "salary_min", "salary_max")}),
         "internalRequestHash": digest(internal_role.get("request")),
         "workspaceInputHash": digest({key: workspace.get(key) for key in ("request", "company_description", "pitch")}),
     }

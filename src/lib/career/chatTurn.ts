@@ -1,4 +1,5 @@
 import { after } from "next/server";
+import type { OpenAIResponsesReasoningEffort } from "@/lib/llm/responsesChatAdapter";
 import {
   buildCareerInsightExtractionPrompt,
   buildCareerConversationPromptPlan,
@@ -78,6 +79,7 @@ import {
   normalizePostingRoleIds,
 } from "@/lib/career/postingLinks";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
+import { resolveCareerRecentConversationLocale } from "@/lib/career/recentConversationLocale";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import {
   fetchActiveCompanyTalentRequest,
@@ -118,6 +120,9 @@ export type CareerChatTurnChannel = "chat" | "voice";
 export type RunCareerChatTurnArgs = {
   admin: TalentAdminClient;
   allowedToolNames?: readonly string[] | null;
+  assistantModel?: string;
+  assistantOpenAIResponsesReasoningEffort?: OpenAIResponsesReasoningEffort;
+  assistantTemperature?: number;
   assistantMessageType?: string;
   channel?: CareerChatTurnChannel;
   conversationId: string;
@@ -131,6 +136,8 @@ export type RunCareerChatTurnArgs = {
   proactiveContext?: string | null;
   shouldInsertAssistantMessage?: () => Promise<boolean>;
   skipConversationWrites?: boolean;
+  suppressOnboarding?: boolean;
+  transformAssistantTextBeforeInsert?: (content: string) => string;
   usageLabel?: string;
   userId: string;
   userMessage?: string | null;
@@ -390,6 +397,7 @@ export async function runCareerChatTurn(
     String(args.assistantMessageType ?? "").trim() || "chat";
   const isMobile = args.isMobile;
   const skipConversationWrites = Boolean(args.skipConversationWrites);
+  const suppressOnboarding = Boolean(args.suppressOnboarding);
   const rawUserMessage = stripPostgresUnsafeChars(
     String(args.userMessage ?? "")
   ).trim();
@@ -521,10 +529,10 @@ export async function runCareerChatTurn(
     string,
     string
   > | null;
-  const responseLocale = talentSetting?.preferred_locale ?? null;
-  const onboardingChecklistCoverage = !Boolean(
-    talentSetting?.is_onboarding_done
-  )
+  let responseLocale = talentSetting?.preferred_locale ?? null;
+  const isOnboardingActiveForTurn =
+    !Boolean(talentSetting?.is_onboarding_done) && !suppressOnboarding;
+  const onboardingChecklistCoverage = isOnboardingActiveForTurn
     ? await getCareerOnboardingChecklistCoverage({
         admin,
         conversationId,
@@ -532,7 +540,7 @@ export async function runCareerChatTurn(
         userId,
       })
     : null;
-  const shouldAutoExtractInsights = !Boolean(talentSetting?.is_onboarding_done);
+  const shouldAutoExtractInsights = isOnboardingActiveForTurn;
   const canUseInternalFitHoldQuestionTool =
     !Array.isArray(args.allowedToolNames) ||
     args.allowedToolNames.includes(
@@ -625,8 +633,12 @@ export async function runCareerChatTurn(
   const recentMessages = await fetchRecentMessagesWithSummary({
     admin,
     conversationId,
-    recentLimit: 12,
+    recentLimit: 16,
     userId,
+  });
+  responseLocale = resolveCareerRecentConversationLocale({
+    fallbackLocale: responseLocale,
+    messages: recentMessages,
   });
 
   const llmMessages = recentMessages
@@ -638,7 +650,9 @@ export async function runCareerChatTurn(
     )
     .map((item) => ({
       role: item.role as "user" | "assistant",
-      content: formatTalentMessageContentForLlmPrompt(item),
+      content: formatTalentMessageContentForLlmPrompt(item, {
+        includeCreatedAt: item.message_type !== "conversation_summary",
+      }),
     }))
     .filter((item) => item.content.trim().length > 0);
   const assistantTurnMessages = [...llmMessages];
@@ -664,7 +678,7 @@ export async function runCareerChatTurn(
     activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
     allowedToolNames: args.allowedToolNames,
     channel: requestChannel,
-    isOnboardingDone: talentSetting?.is_onboarding_done,
+    isOnboardingDone: !isOnboardingActiveForTurn,
     responseLocale,
   });
   const toolDefinitions = toolSelection.tools;
@@ -710,10 +724,10 @@ export async function runCareerChatTurn(
       ),
       currentInsightContent,
       currentPreferences,
-      isOnboardingDone: talentSetting?.is_onboarding_done,
-      officialJobSignupIntentPrompt: talentSetting?.is_onboarding_done
-        ? null
-        : officialJobSignupIntentEvent?.summary,
+      isOnboardingDone: !isOnboardingActiveForTurn,
+      officialJobSignupIntentPrompt: isOnboardingActiveForTurn
+        ? officialJobSignupIntentEvent?.summary
+        : null,
       onboardingChecklistCoverage,
       opportunityStatus,
       pendingOpportunityFeedbackContext:
@@ -1025,9 +1039,13 @@ export async function runCareerChatTurn(
       },
       isOnboardingActive,
       messages: assistantTurnMessages,
+      openAIResponsesReasoningEffort:
+        args.assistantOpenAIResponsesReasoningEffort,
+      primaryModel: args.assistantModel,
       responseLocale,
       stopAfterToolNames: toolSelection.stopAfterToolNames,
       systemBlocks,
+      temperature: args.assistantTemperature,
       tools: toolDefinitions,
       usageLabel: args.usageLabel,
     });
@@ -1228,6 +1246,14 @@ export async function runCareerChatTurn(
   } else {
     safeAssistantText = stripOpportunityRunMarkers(safeAssistantText);
   }
+  if (args.transformAssistantTextBeforeInsert) {
+    safeAssistantText = stripPostgresUnsafeChars(
+      args.transformAssistantTextBeforeInsert(safeAssistantText)
+    ).trim();
+    if (!safeAssistantText) {
+      throw new Error("Career assistant text transform returned no content.");
+    }
+  }
 
   if (shouldInsertAssistantMessage && !(await shouldInsertAssistantMessage())) {
     const profileSnapshot = await buildTalentProfileSnapshot({
@@ -1294,7 +1320,7 @@ export async function runCareerChatTurn(
   const finalAssistantThinkingLogs = thinkingLogs;
   summarizeConversationInBackground();
 
-  const latestChecklistCoverage = !Boolean(talentSetting?.is_onboarding_done)
+  const latestChecklistCoverage = isOnboardingActiveForTurn
     ? await getCareerOnboardingChecklistCoverage({
         admin,
         conversationId,

@@ -64,7 +64,7 @@ export const ORG_AGENT_FAILED_UPDATE_REPLY =
   "요청하신 변경은 적용되지 않았습니다. 내용을 다시 확인한 뒤 시도해 주세요.";
 
 export const ORG_AGENT_FAILED_ROLE_STATUS_REPLY =
-  "역할 상태를 변경하지 못했습니다. 역할과 현재 상태를 다시 확인한 뒤 시도해 주세요. 후보 추천이나 진행 중인 연결에는 변화가 없습니다.";
+  "역할을 삭제하거나 상태를 변경하지 못했어요. 역할과 현재 상태를 다시 확인한 뒤 시도해 주세요. 후보자 추천이나 진행 중인 연결에는 변화가 없어요.";
 
 export const ORG_AGENT_FAILED_CONTACT_REPLY =
   "후보자에게 요청을 보내지 못했어요. 대상 후보자와 역할, 요청 내용을 다시 확인해 주세요. 이메일이나 Harper 채팅으로 전달된 내용은 없어요.";
@@ -86,6 +86,7 @@ export function enforceOrgAgentTerminalMutationOutcome(
       "change_role_status",
       "contact_talent",
       "decide_candidate_connection",
+      "manage_interview_availability",
       "manage_role_pipeline_stages",
       "move_candidate_stage",
       "update_data",
@@ -109,10 +110,7 @@ export function enforceOrgAgentTerminalMutationOutcome(
       const [, url, label] = match;
       const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       reply = reply
-        .replace(
-          new RegExp(`<${escapedUrl}(?:\\|[^>]*)?>`, "g"),
-          requiredLink
-        )
+        .replace(new RegExp(`<${escapedUrl}(?:\\|[^>]*)?>`, "g"), requiredLink)
         .replace(
           new RegExp(`\\[[^\\]]+\\]\\(${escapedUrl}\\)`, "g"),
           requiredLink

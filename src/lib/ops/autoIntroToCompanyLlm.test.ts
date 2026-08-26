@@ -7,6 +7,19 @@ const loadAutoIntroLlmPrompt = () => import("./autoIntroToCompanyLlmPrompt");
 const loadAutoIntroPromptContext = () =>
   import("./autoIntroToCompanyPromptContext");
 
+const AUTHORED_BODY = `*TL;DR* - Taylor has owned production model-serving systems and built an inference profiler. The work directly supports Acme's need for reliable AI infrastructure.
+
+*Harper Note* - His product ownership and research-to-production interests reinforce each other.
+--------
+Work Summary:
+*AI Engineer @ Model Co (current)*
+• Owned production model-serving systems.
+• Built an open-source inference profiler.
+------------
+
+*Preferences:*
+• *Technical scope:* Wants to own systems from research handoff to production.`;
+
 const DOSSIER = {
   candidateCount: 1,
   companyContext: {
@@ -177,7 +190,7 @@ test("auto intro prompt is scoped to one role-candidate pair and removes redunda
     prompt,
     /Do not independently validate, corroborate, or fact-check them/
   );
-  assert.match(prompt, /Do not search by candidate name/);
+  assert.match(prompt, /Never search by candidate name/);
   assert.match(
     prompt,
     /Do not turn related or adjacent experience into a materially different role/
@@ -187,21 +200,44 @@ test("auto intro prompt is scoped to one role-candidate pair and removes redunda
     /followUpQuestion is addressed to the hiring company, not the candidate/
   );
   assert.match(prompt, /combines rarity, relevance to the target role/);
+  assert.match(prompt, /the capabilities that will most determine success/);
   assert.match(
     prompt,
-    /at most two capabilities that will most determine success/
+    /Return the complete narrative candidate introduction as one slackProfile\.body string/
   );
-  assert.match(prompt, /exactly two tldr sentences and at most 50 words/);
-  assert.match(prompt, /four bullets total/);
-  assert.match(prompt, /lasted fewer than 12 stored months/);
-  assert.match(prompt, /Never include citizenship or nationality anywhere/);
+  assert.match(prompt, /Never omit a section/);
+  assert.match(prompt, /TL;DR must be no more than 5 sentences/);
+  assert.match(prompt, /Harper Note must be no more than 3 sentences/);
+  assert.match(prompt, /it is not a summary of career facts/);
   assert.match(
     prompt,
-    /a minimum, target, flexibility, willingness, and acceptance are not interchangeable/
+    /saved insights, profile\/interview\/conversation notes, memos/
+  );
+  assert.match(prompt, /derive Harper's most decision-useful view/);
+  assert.match(prompt, /never imply that Harper directly observed or spoke/);
+  assert.match(prompt, /End with Harper's interpretation/);
+  assert.match(prompt, /not an instruction about what the hiring team should/);
+  assert.match(prompt, /Do not repeat resume facts or metrics/);
+  assert.match(prompt, /Choose at most 4 experiences/);
+  assert.match(prompt, /currentness or recency/);
+  assert.match(prompt, /sustained depth shown by meaningful tenure/);
+  assert.match(prompt, /never split one employment, company tenure, project/);
+  assert.match(prompt, /at most 3 bullets for any one experience/);
+  assert.match(prompt, /at most 8 bullets across the full Work Summary/);
+  assert.match(prompt, /Never include compensation, salary, pay/);
+  assert.match(prompt, /Candidate-volunteered family, marital/);
+  assert.match(prompt, /omitting it would materially mislead the company/);
+  assert.match(prompt, /only the minimum detail needed for the decision/);
+  assert.match(prompt, /Preferences must contain 1-4 concise/);
+  assert.match(prompt, /exact short tenure when useful/);
+  assert.match(prompt, /Never include citizenship or nationality/);
+  assert.match(
+    prompt,
+    /minimums, targets, flexibility, willingness, and acceptance/
   );
   assert.doesNotMatch(prompt, /DOSSIER_JSON/);
   assert.match(prompt, /BEGIN STORED ROLE-CANDIDATE BRIEFING/);
-  assert.match(prompt, /Talent ID: talent-1/);
+  assert.doesNotMatch(prompt, /(?:Workspace|Role|Talent) ID:/);
   assert.match(prompt, /Target role: AI Engineer/);
   assert.doesNotMatch(prompt, /Data Platform Engineer/);
   assert.match(prompt, /Workspace memory \(reference only\)/);
@@ -229,7 +265,11 @@ test("auto intro prompt is scoped to one role-candidate pair and removes redunda
   assert.doesNotMatch(prompt, /taylor-resume\.pdf/);
   assert.doesNotMatch(prompt, /Taylor has operated production/);
   assert.doesNotMatch(prompt, /Enjoys turning research into products/);
-  assert.doesNotMatch(prompt, /Candidate: Stav Tsechansky|Airbotics/);
+  assert.match(prompt, /REFERENCE OUTPUT EXAMPLE/);
+  assert.match(prompt, /Israeli drone defense company \(Airbotics\)/);
+  assert.match(prompt, /AI Solutions Engineer \(Backend\) @ Lendflow/);
+  assert.match(prompt, /Hardware-as-a-service startup/);
+  assert.doesNotMatch(prompt, /Candidate: Stav Tsechansky/);
   assert.doesNotMatch(prompt, /\{"next_scope"/);
   assert.doesNotMatch(prompt, /recommended opportunity history/i);
 });
@@ -258,6 +298,18 @@ test("auto intro prompt rejects a multi-candidate LLM dossier", async () => {
     () => buildAutoIntroLlmPrompt(multiCandidateDossier as never),
     /exactly one role and one candidate/
   );
+});
+
+test("submission correction asks for only the candidate payload", async () => {
+  const { buildAutoIntroLlmSubmissionCorrection } =
+    await loadAutoIntroLlmPrompt();
+  const correction = buildAutoIntroLlmSubmissionCorrection(
+    new Error("Candidate Slack body does not match the required layout"),
+    DOSSIER as never
+  );
+
+  assert.match(correction, /Candidate Slack body does not match/);
+  assert.doesNotMatch(correction, /workspaceId|roleId|talentId/);
 });
 
 test("web tool results are verbalized without transport metadata", async () => {
@@ -292,40 +344,18 @@ test("web tool results are verbalized without transport metadata", async () => {
   assert.doesNotMatch(opened, /internal-document-id|createdAt|cached/);
 });
 
-test("auto intro submission must cover every dossier candidate exactly once", async () => {
+test("auto intro submission gets application-owned dossier identifiers", async () => {
   const { parseAutoIntroLlmSubmission } = await loadAutoIntroLlmPrompt();
   const parsed = parseAutoIntroLlmSubmission(
     {
       followUpQuestion: null,
-      roles: [
-        {
-          candidates: [
-            {
-              internalReason:
-                "Taylor has directly relevant infrastructure ownership, with enough detail to preserve the recommendation rationale separately from the Slack summary.",
-              slackProfile: {
-                currentRole: "AI Engineer @ Example",
-                education: null,
-                harperNote:
-                  "The work maps directly to Acme's infrastructure scope.",
-                location: "Seoul",
-                preferences: [],
-                tldr: "Built and operated production AI infrastructure.",
-                workSummary: [
-                  {
-                    bullets: ["Owned production model-serving systems"],
-                    heading: "AI Engineer @ Example",
-                  },
-                ],
-              },
-              sources: [],
-              talentId: "talent-1",
-            },
-          ],
-          roleId: "role-1",
-        },
-      ],
-      workspaceId: "workspace-1",
+      slackProfile: {
+        body: AUTHORED_BODY,
+        currentRole: "AI Engineer @ Model Co",
+        education: "Example University — BS — Computer Science",
+        location: "Seoul",
+      },
+      sources: [],
     },
     DOSSIER as never
   );
@@ -334,13 +364,19 @@ test("auto intro submission must cover every dossier candidate exactly once", as
   const candidate = parsed.roles[0]?.candidates[0];
   assert.equal(
     candidate && "slackProfile" in candidate
+      ? candidate.slackProfile?.body
+      : null,
+    AUTHORED_BODY
+  );
+  assert.equal(
+    candidate && "slackProfile" in candidate
       ? candidate.slackProfile?.currentRole
       : null,
-    "AI Engineer @ Example"
+    "AI Engineer @ Model Co"
   );
 });
 
-test("codex fit submissions cannot overwrite the stored detailed reason", async () => {
+test("codex fit submissions return the same Slack body used as the saved reason", async () => {
   const { parseAutoIntroLlmSubmission } = await loadAutoIntroLlmPrompt();
   const codexDossier = {
     ...DOSSIER,
@@ -357,36 +393,24 @@ test("codex fit submissions cannot overwrite the stored detailed reason", async 
       },
     ],
   };
-  assert.throws(
-    () =>
-      parseAutoIntroLlmSubmission(
-        {
-          followUpQuestion: null,
-          roles: [
-            {
-              candidates: [
-                {
-                  internalReason: "Replacement is forbidden",
-                  slackProfile: {
-                    currentRole: null,
-                    education: null,
-                    harperNote: null,
-                    location: null,
-                    preferences: [],
-                    tldr: "Existing evidence summarized for Slack.",
-                    workSummary: [],
-                  },
-                  sources: [],
-                  talentId: "talent-1",
-                },
-              ],
-              roleId: "role-1",
-            },
-          ],
-          workspaceId: "workspace-1",
-        },
-        codexDossier as never
-      ),
-    /replaced the stored reason/
+  const parsed = parseAutoIntroLlmSubmission(
+    {
+      followUpQuestion: null,
+      slackProfile: {
+        body: AUTHORED_BODY,
+        currentRole: "AI Engineer @ Model Co",
+        education: "Example University",
+        location: "Seoul",
+      },
+      sources: [],
+    },
+    codexDossier as never
+  );
+  const candidate = parsed.roles[0]?.candidates[0];
+  assert.equal(
+    candidate && "slackProfile" in candidate
+      ? candidate.slackProfile?.body
+      : null,
+    AUTHORED_BODY
   );
 });

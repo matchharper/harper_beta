@@ -263,7 +263,7 @@ def source_hashes(db: SupabaseReadOnly, role_id: str) -> dict[str, str]:
         raise RuntimeError("workspace not found during final preflight")
     workspace = workspace_rows[0]
     hashes = {
-        "roleInputHash": digest({key: role.get(key) for key in ("description", "request", "location_text", "work_mode", "type", "status", "is_expired", "salary_range", "salary_min", "salary_max")}),
+        "roleInputHash": digest({key: role.get(key) for key in ("description", "location_text", "work_mode", "type", "status", "is_expired", "salary_range", "salary_min", "salary_max")}),
         "internalRequestHash": digest(internal_role.get("request")),
         "workspaceInputHash": digest({key: workspace.get(key) for key in ("request", "company_description", "pitch")}),
     }

@@ -475,7 +475,17 @@ export function OrgRoleTalentBoard({
       </div>
 
       <AcceptIntroDialog
+        key={acceptRequest?.item.recommendationId ?? "accept-dialog"}
         allowContactDirectly={isInternalDomainEmail(currentUserEmail)}
+        availabilityReturnTarget={
+          acceptRequest
+            ? {
+                recommendationId: acceptRequest.item.recommendationId,
+                roleId: acceptRequest.item.roleId,
+                talentId: acceptRequest.item.talentId,
+              }
+            : null
+        }
         candidateEmail={acceptRequest?.item.talent.email}
         candidateName={
           acceptRequest ? getOrgCandidateDisplayName(acceptRequest.item) : ""
@@ -485,14 +495,35 @@ export function OrgRoleTalentBoard({
         defaultEmail={currentUserEmail}
         members={members}
         onClose={() => setAcceptRequest(null)}
-        onSubmit={async ({ acceptReason, contactDirectly, introEmails }) => {
+        onSubmit={async ({
+          acceptReason,
+          additionalMessage,
+          additionalMessageVisibility,
+          attendeeEmails,
+          contactDirectly,
+          durationMinutes,
+          introEmails,
+          scheduleInterview,
+          title,
+        }) => {
           if (!acceptRequest) return;
-          await changeStage(acceptRequest.item, acceptRequest.stage, {
-            acceptReason,
-            contactDirectly,
-            introEmails,
-          });
+          const result = await changeStage(
+            acceptRequest.item,
+            acceptRequest.stage,
+            {
+              acceptReason,
+              additionalMessage,
+              additionalMessageVisibility,
+              attendeeEmails,
+              contactDirectly,
+              durationMinutes,
+              introEmails,
+              scheduleInterview,
+              title,
+            }
+          );
           setAcceptRequest(null);
+          return result;
         }}
         open={Boolean(acceptRequest)}
         pending={Boolean(

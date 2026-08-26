@@ -6,6 +6,7 @@ import type { CareerConversationStarterId } from "@/lib/career/prompts/conversat
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { useMessages } from "@/i18n/useMessage";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
+import { shouldSpeakRealtimeEndCallFallback } from "@/lib/career/realtimeEndCall";
 import {
   beginXaiSpeech,
   completeXaiResponse,
@@ -32,6 +33,7 @@ type UseRealtimeSessionArgs = {
 
 type RealtimeConnectOptions = {
   conversationStarterId?: CareerConversationStarterId | null;
+  initialResponseInstruction?: string | null;
   internalCallRequestId?: string | null;
 };
 
@@ -362,7 +364,9 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
 
   const hasAudioInResponseRef = useRef(false);
   const interruptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const internalResponseModeRef = useRef<"tool_preamble" | null>(null);
+  const internalResponseModeRef = useRef<
+    "end_call_closing" | "tool_preamble" | null
+  >(null);
   const pendingToolContinuationRef = useRef<(() => void) | null>(null);
   const responseInProgressRef = useRef(false);
   const responseCancelRequestedRef = useRef(false);
@@ -519,6 +523,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           body: JSON.stringify({
             conversationId,
             conversationStarterId: options?.conversationStarterId ?? undefined,
+            initialResponseInstruction:
+              options?.initialResponseInstruction ?? undefined,
             internalCallRequestId: options?.internalCallRequestId ?? undefined,
             locale,
             providerOverride: providerOverride ?? undefined,
@@ -962,26 +968,12 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             '다음 내용을 정확히 그대로 자연스럽게 말해주세요: "{text}"',
             { text }
           ),
+          tool_choice: "none",
+          tools: [],
         },
       });
     },
     [sendEvent, tCareer]
-  );
-
-  const requestSpeechFromInstructions = useCallback(
-    (instructions: string) => {
-      const normalizedInstructions = instructions.trim();
-      if (!normalizedInstructions) return;
-
-      responseTextRef.current = "";
-      sendEvent({
-        type: "response.create",
-        response: {
-          instructions: normalizedInstructions,
-        },
-      });
-    },
-    [sendEvent]
   );
 
   const markAssistantPlaybackStarted = useCallback(() => {
@@ -1556,7 +1548,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             completeRealtimeAudioTurnFromResponse({
               hadAudioInResponse,
               outputItems,
-              skipTracking: internalResponseModeRef.current === "tool_preamble",
+              skipTracking: internalResponseModeRef.current !== null,
               status,
             });
             const outputFunctionCalls = outputItems
@@ -1588,7 +1580,31 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
                 functionCall.name !== REALTIME_END_CALL_TOOL_NAME
             );
 
+            if (internalResponseModeRef.current === "end_call_closing") {
+              internalResponseModeRef.current = null;
+              if (status === "cancelled") {
+                stopNativePlayback();
+              } else {
+                runAfterCurrentPlayback(() => {
+                  setIsAssistantSpeaking(false);
+                });
+              }
+              onAssistantDoneRef.current(fullText);
+              onEndCallToolRef.current?.();
+              break;
+            }
+
             if (endCallRequested) {
+              if (
+                shouldSpeakRealtimeEndCallFallback({
+                  endCallRequested,
+                  responseText: fullText,
+                })
+              ) {
+                internalResponseModeRef.current = "end_call_closing";
+                requestExactSpeech(tCareer(H.callEndFallbackSpeech));
+                break;
+              }
               if (status === "cancelled") {
                 stopNativePlayback();
               } else {
@@ -1730,11 +1746,13 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       queueXaiAudioDelta,
       recordRealtimeAssistantOutputItem,
       recordRealtimeUserAudioItem,
+      requestExactSpeech,
       runAfterCurrentPlayback,
       scheduleXaiTranscript,
       scheduleRealtimeUsageLog,
       stopNativePlayback,
       stopXaiPlayback,
+      tCareer,
     ]
   );
 
@@ -2307,13 +2325,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     [requestExactSpeech]
   );
 
-  const generateSpeechFromInstructions = useCallback(
-    (instructions: string) => {
-      requestSpeechFromInstructions(instructions);
-    },
-    [requestSpeechFromInstructions]
-  );
-
   /** Expose the MediaStream for voice level monitoring */
   const getMediaStream = useCallback((): MediaStream | null => {
     return mediaStreamRef.current;
@@ -2346,7 +2357,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     primePlayback,
     runAfterCurrentPlayback,
     generateSpeech,
-    generateSpeechFromInstructions,
     updateSessionInstructions,
     markRealtimeAudioTurnSaved,
     getMediaStream,

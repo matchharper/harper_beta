@@ -14,7 +14,7 @@ export async function getPublicOfficialJobListItems(): Promise<
   const { data, error } = await supabaseServer
     .from("official_jobs")
     .select(
-      "ashby_job_posting_id,id,slug,company_name,role_title,location,vertical"
+      "ashby_job_posting_id,id,slug,company_name,role_title,location,vertical,role_id"
     )
     .eq("is_published", true)
     .neq("role_title", OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE)

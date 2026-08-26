@@ -512,7 +512,7 @@ async function fetchOfficialJobSignupSourceContext(args: {
 
   const { data: job, error: jobError } = await args.admin
     .from("official_jobs")
-    .select("company_name, role_title, slug")
+    .select("company_name,role_title,role_id,slug")
     .eq("slug", slug)
     .maybeSingle();
 
@@ -529,6 +529,7 @@ async function fetchOfficialJobSignupSourceContext(args: {
       job?.company_name ??
       getJsonStringField(event?.metadata, "companyName") ??
       null,
+    roleId: job?.role_id ?? null,
     roleTitle:
       job?.role_title ??
       getJsonStringField(event?.metadata, "roleTitle") ??
@@ -539,6 +540,7 @@ async function fetchOfficialJobSignupSourceContext(args: {
 
 function buildOfficialJobSignupSourcePrompt(args: {
   companyName: string | null;
+  roleId: string | null;
   roleTitle: string | null;
   slug: string;
 }) {
@@ -546,6 +548,15 @@ function buildOfficialJobSignupSourcePrompt(args: {
     .filter((value): value is string => Boolean(value))
     .join(" @ ");
   const sourceLabel = roleLabel || `/jobs/${args.slug}`;
+
+  const mappedRoleInstruction = args.roleId
+    ? [
+        `This official job is already mapped to the verified internal roleId ${args.roleId}.`,
+        `If the user says yes or clearly shows interest, call internal_role_priority_review with action=register and roleId=${args.roleId} directly. Do not call get_internal_roles for this opportunity.`,
+      ]
+    : [
+        "If the user says yes or clearly shows interest, resolve the role with get_internal_roles and then call internal_role_priority_review using action=register.",
+      ];
 
   return [
     "## Official jobs signup source follow-up",
@@ -555,7 +566,7 @@ function buildOfficialJobSignupSourcePrompt(args: {
     `Example: "${sourceLabel} 기회에 연결을 도와드릴 수 있어요. 이 포지션에 관심 있으신가요? 그렇다고하면 우선적으로 검토되실 수 있게 할게요."`,
     "If recent conversation already asked about this opportunity, do not ask again.",
     "",
-    "If the user says yes or clearly shows interest, help the user with get_internal_roles and internal_role_priority_review using action=register.",
+    ...mappedRoleInstruction,
     "The question above is optional.",
   ].join("\n");
 }
@@ -1005,7 +1016,7 @@ export async function POST(req: NextRequest) {
     const recentMessages = await fetchRecentMessagesWithSummary({
       admin,
       conversationId,
-      recentLimit: 12,
+      recentLimit: 16,
       userId: user.id,
     });
 
@@ -1018,7 +1029,9 @@ export async function POST(req: NextRequest) {
       )
       .map((item) => ({
         role: item.role as "user" | "assistant",
-        content: formatTalentMessageContentForLlmPrompt(item),
+        content: formatTalentMessageContentForLlmPrompt(item, {
+          includeCreatedAt: item.message_type !== "conversation_summary",
+        }),
       }))
       .filter((item) => item.content.trim().length > 0);
 

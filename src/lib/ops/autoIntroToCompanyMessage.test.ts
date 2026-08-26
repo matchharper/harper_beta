@@ -7,14 +7,17 @@ import {
   buildAutoIntroCandidateProfileUrl,
   buildAutoIntroRoleJobsUrl,
   buildAutoIntroRoleSummarySlackBlocks,
+  buildAutoIntroRoleSummaryReminderText,
   buildAutoIntroRoleSummaryText,
   buildAutoIntroWorkspaceActionGuidance,
   buildAutoIntroWorkspaceJobsUrl,
+  formatAutoIntroReminderKstDateTime,
   groupAutoIntroItemsByWorkspaceAndRole,
   renderAutoIntroCandidateCopy,
   renderAutoIntroSlackProfile,
   validateAutoIntroCandidateSentences,
-  validateAutoIntroInternalReason,
+  validateAutoIntroSlackBody,
+  validateAutoIntroSlackProfile,
 } from "./autoIntroToCompanyMessage";
 import {
   AUTO_INTRO_RESPONSE_GUIDANCE,
@@ -28,6 +31,24 @@ const LINK_ARGS = {
   talentId: "talent-1",
   workspaceId: "workspace-1",
 };
+
+function buildBudgetTestBody(args: {
+  harperNote?: string;
+  preferences?: string;
+  tldr?: string;
+  workSummary?: string;
+}) {
+  return `*TL;DR* - ${args.tldr ?? "Concise meeting case."}
+
+*Harper Note* - ${args.harperNote ?? "Concise synthesis."}
+--------
+Work Summary:
+${args.workSummary ?? "*Engineer @ Example*\n• Built relevant systems."}
+------------
+
+*Preferences:*
+${args.preferences ?? "• No explicit role-related preferences are recorded."}`;
+}
 
 test("candidate profile URL opens the org pipeline detail", () => {
   const url = new URL(buildAutoIntroCandidateProfileUrl(LINK_ARGS));
@@ -153,6 +174,94 @@ test("role summary uses a native Slack table with exact role links", () => {
     text: "5명",
     type: "raw_text",
   });
+  assert.doesNotMatch(text, /확인이 필요한 항목/);
+});
+
+test("role summary adds candidate-reply and upcoming-meeting reminders below the table", () => {
+  const summary = {
+    companyName: "Wonderful",
+    reminders: {
+      candidateReplies: [
+        {
+          candidateName: "Alice",
+          expectsDocument: false,
+          recommendationId: "recommendation-1",
+          roleId: "role-1",
+          roleTitle: "FDE",
+          talentId: "talent-1",
+          workspaceId: "workspace-1",
+        },
+        {
+          candidateName: "Jane",
+          expectsDocument: true,
+          recommendationId: "recommendation-3",
+          roleId: "role-1",
+          roleTitle: "FDE",
+          talentId: "talent-3",
+          workspaceId: "workspace-1",
+        },
+      ],
+      upcomingMeetings: [
+        {
+          attendeeNames: ["김호진", "Daniel님"],
+          candidateName: "Bob",
+          confirmedStartAt: "2026-08-28T05:30:00.000Z",
+          recommendationId: "recommendation-2",
+          roleId: "role-1",
+          roleTitle: "FDE",
+          talentId: "talent-2",
+          workspaceId: "workspace-1",
+        },
+      ],
+    },
+    roles: [
+      {
+        pendingDecisionCount: 1,
+        roleId: "role-1",
+        roleTitle: "FDE",
+        status: "active",
+        workspaceId: "workspace-1",
+      },
+    ],
+    workspaceId: "workspace-1",
+  };
+  const reminderText = buildAutoIntroRoleSummaryReminderText({
+    publicSiteUrl: "http://localhost:3000",
+    summary,
+  });
+  assert.match(reminderText ?? "", /^\*확인이 필요한 항목이 있습니다\.\*/);
+  assert.match(reminderText ?? "", /Alice님>께 전달했고 답변을 받았어요/);
+  assert.match(
+    reminderText ?? "",
+    /Jane님>께 이력서를 요청했고, 자료를 받았어요/
+  );
+  assert.match(reminderText ?? "", /연결을 받으실지, 거절하실지 알려 주세요/);
+  assert.match(reminderText ?? "", /8월 28일 14:30 KST/);
+  assert.match(reminderText ?? "", /Bob님>과 .*FDE> 역할의 미팅/);
+  assert.match(reminderText ?? "", /참석자: 김호진님, Daniel님/);
+
+  const text = buildAutoIntroRoleSummaryText({
+    publicSiteUrl: "http://localhost:3000",
+    summary,
+  });
+  assert.ok(
+    text.indexOf("현재 채용 현황") < text.indexOf("확인이 필요한 항목")
+  );
+  const blocks = buildAutoIntroRoleSummarySlackBlocks({
+    publicSiteUrl: "http://localhost:3000",
+    summary,
+  });
+  const tableIndex = blocks.findIndex((block) => block.type === "table");
+  assert.equal(blocks[tableIndex + 1]?.type, "divider");
+  assert.equal(blocks[tableIndex + 2]?.type, "section");
+});
+
+test("role summary reminder time uses KST and hour 00", () => {
+  assert.equal(
+    formatAutoIntroReminderKstDateTime("2026-08-28T15:00:00.000Z"),
+    "8월 29일 00:00"
+  );
+  assert.equal(formatAutoIntroReminderKstDateTime("invalid"), null);
 });
 
 test("auto intro Slack review action is appended once for the sent candidate batch", () => {
@@ -199,25 +308,23 @@ test("candidate copy supports readable presentation variants", () => {
 });
 
 test("rich candidate profile follows the recruiter-style Slack layout", () => {
+  const body = `*TL;DR* - Defense-focused software engineer with hands-on interceptor-drone backend experience.
+
+*Harper Note* - Software, ML infrastructure, and hardware integration experience reinforce one another.
+--------
+Work Summary:
+*AI Solutions Engineer @ Lendflow (current)*
+• Built embedded credit infrastructure for fintechs and lenders.
+------------
+
+*Preferences:*
+• *Industry:* Defense technology
+• *Scope:* Software that directly affects hardware systems`;
   const copy = renderAutoIntroSlackProfile({
+    body,
     currentRole: "AI Solutions Engineer @ Lendflow",
     education: "University of Texas at Austin",
-    harperNote:
-      "Software, ML infrastructure, and hardware integration experience reinforce one another.",
     location: "Austin, TX (open to relocation)",
-    preferences: [
-      "Industry: Defense technology",
-      "Scope: Software that directly affects hardware systems",
-    ],
-    tldr: "Defense-focused software engineer with hands-on interceptor-drone backend experience.",
-    workSummary: [
-      {
-        bullets: [
-          "Built embedded credit infrastructure for fintechs and lenders",
-        ],
-        heading: "AI Solutions Engineer @ Lendflow (current)",
-      },
-    ],
   });
   assert.match(copy, /^\*Role:\* AI Solutions Engineer @ Lendflow/m);
   assert.match(copy, /^\*Location:\* Austin, TX \(open to relocation\)$/m);
@@ -231,6 +338,166 @@ test("rich candidate profile follows the recruiter-style Slack layout", () => {
   assert.doesNotMatch(copy, /\*Work Summary:\*/);
   assert.match(copy, /• Built embedded credit infrastructure/);
   assert.match(copy, /\*Preferences:\*/);
+  assert.ok(copy.endsWith(body));
+});
+
+test("complete LLM body requires every section and excludes app-owned headers", () => {
+  assert.throws(
+    () => validateAutoIntroSlackBody("*TL;DR* - Only a summary."),
+    /exactly one Harper Note section/
+  );
+  assert.throws(
+    () =>
+      validateAutoIntroSlackBody(`*Role:* AI Engineer
+*TL;DR* - Summary.
+*Harper Note* - Note.
+--------
+Work Summary:
+*AI Engineer @ Example*
+• Built systems.
+------------
+*Preferences:*
+• No explicit preferences recorded.`),
+    /must not repeat application headers/
+  );
+});
+
+test("candidate Slack body normalizes harmless section spacing", () => {
+  const compact = `*TL;DR* - Concise meeting case.
+*Harper Note* - Concise synthesis.
+--------
+Work Summary:
+
+*Engineer @ Example*
+• Built relevant systems.
+
+------------
+*Preferences:*
+• No explicit role-related preferences are recorded.`;
+
+  assert.equal(validateAutoIntroSlackBody(compact), buildBudgetTestBody({}));
+});
+
+test("candidate Slack body enforces TL;DR and Harper Note length budgets", () => {
+  assert.throws(
+    () =>
+      validateAutoIntroSlackBody(
+        buildBudgetTestBody({ tldr: Array(101).fill("word").join(" ") })
+      ),
+    /TL;DR exceeds its length budget/
+  );
+  assert.throws(
+    () =>
+      validateAutoIntroSlackBody(
+        buildBudgetTestBody({
+          harperNote: Array(61).fill("word").join(" "),
+        })
+      ),
+    /Harper Note exceeds its length budget/
+  );
+});
+
+test("candidate Slack body caps Work Summary headings and bullets", () => {
+  const fiveHeadings = Array.from(
+    { length: 5 },
+    (_, index) => `*Role ${index + 1} @ Company*\n• Relevant evidence.`
+  ).join("\n");
+  assert.throws(
+    () =>
+      validateAutoIntroSlackBody(
+        buildBudgetTestBody({ workSummary: fiveHeadings })
+      ),
+    /too many headings/
+  );
+
+  const fourBullets = `*Engineer @ Example*
+• Evidence one.
+• Evidence two.
+• Evidence three.
+• Evidence four.`;
+  assert.throws(
+    () =>
+      validateAutoIntroSlackBody(
+        buildBudgetTestBody({ workSummary: fourBullets })
+      ),
+    /heading has too many bullets/
+  );
+
+  const nineBullets = Array.from(
+    { length: 3 },
+    (_, roleIndex) =>
+      `*Role ${roleIndex + 1} @ Company*\n${Array.from(
+        { length: 3 },
+        (_, bulletIndex) => `• Evidence ${roleIndex + 1}-${bulletIndex + 1}.`
+      ).join("\n")}`
+  ).join("\n");
+  assert.throws(
+    () =>
+      validateAutoIntroSlackBody(
+        buildBudgetTestBody({ workSummary: nineBullets })
+      ),
+    /Work Summary has too many bullets/
+  );
+});
+
+test("candidate Slack body caps Preferences and excludes compensation", () => {
+  assert.throws(
+    () =>
+      validateAutoIntroSlackBody(
+        buildBudgetTestBody({
+          preferences: Array.from(
+            { length: 5 },
+            (_, index) => `• Preference ${index + 1}.`
+          ).join("\n"),
+        })
+      ),
+    /Preferences must contain 1-4 bullets/
+  );
+  assert.throws(
+    () =>
+      validateAutoIntroSlackBody(
+        buildBudgetTestBody({
+          preferences: "• *Compensation:* Targets a $200K base salary.",
+        })
+      ),
+    /Preferences must not contain compensation information/
+  );
+});
+
+test("candidate Slack copy allows explicitly stated decision-critical personal constraints", () => {
+  assert.doesNotThrow(() =>
+    validateAutoIntroSlackBody(
+      buildBudgetTestBody({
+        preferences: "• 해외 이주는 가족 동반이 가능할 때만 검토합니다.",
+      })
+    )
+  );
+  assert.doesNotThrow(() =>
+    validateAutoIntroSlackBody(
+      buildBudgetTestBody({
+        harperNote: "현장 장애를 빠르게 좁혀 가는 시스템형 리더입니다.",
+      })
+    )
+  );
+  assert.doesNotThrow(() =>
+    validateAutoIntroSlackProfile({
+      body: buildBudgetTestBody({}),
+      currentRole: "Engineer @ Example",
+      education: null,
+      location: "Seoul; open to relocation only with family accompaniment",
+    })
+  );
+});
+
+test("candidate Slack body allows compensation as a profession, not a preference", () => {
+  assert.doesNotThrow(() =>
+    validateAutoIntroSlackBody(
+      buildBudgetTestBody({
+        workSummary:
+          "*Compensation Analyst @ Example*\n• Built workforce planning systems.",
+      })
+    )
+  );
 });
 
 test("candidate copy rejects per-candidate questions and connection CTAs", () => {
@@ -275,46 +542,5 @@ test("all roles and more than five candidates stay in one workspace group", () =
       ["role-a", 3],
       ["role-b", 4],
     ]
-  );
-});
-
-test("author detailed reason is required and remains separate from Slack copy", () => {
-  const sentences = ["문장 1.", "문장 2.", "문장 3.", "문장 4."];
-  assert.throws(
-    () =>
-      validateAutoIntroInternalReason({
-        internalReason: null,
-        reasonMode: "author",
-        sentences,
-      }),
-    /no detailed reason/
-  );
-  assert.throws(
-    () =>
-      validateAutoIntroInternalReason({
-        internalReason: sentences.join(" "),
-        reasonMode: "author",
-        sentences,
-      }),
-    /must differ/
-  );
-  const detailedReason =
-    "**TL;DR** - 상세 추천 이유입니다.\n\n근거와 맥락을 길게 설명합니다.";
-  assert.equal(
-    validateAutoIntroInternalReason({
-      internalReason: detailedReason,
-      reasonMode: "author",
-      sentences,
-    }),
-    detailedReason
-  );
-  assert.throws(
-    () =>
-      validateAutoIntroInternalReason({
-        internalReason: detailedReason,
-        reasonMode: "codex",
-        sentences,
-      }),
-    /must not replace stored reason/
   );
 });

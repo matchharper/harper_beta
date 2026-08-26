@@ -15,9 +15,14 @@ import {
   buildCareerSessionStartTurnInstruction,
   CAREER_SESSION_START_NO_MESSAGE_MARKER,
 } from "@/lib/career/prompts";
+import { fetchCareerReengagementPendingActions } from "@/lib/career/reengagementPendingActions.server";
+import { GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
+import { replaceReengagementCallLinkWithCardMarker } from "@/lib/talentOnboarding/internalOpportunityCallMarker";
 
 const REENGAGEMENT_IDLE_MS = 8 * 60 * 60 * 1000; // 8시간
+const REENGAGEMENT_PENDING_ACTION_PROBABILITY = 0.5;
+const REENGAGEMENT_TEMPERATURE = 0.8;
 const USER_INITIATED_REENGAGEMENT_IDLE_MS = 60 * 60 * 1000; // 1시간
 
 const parseTimestampMs = (value: string | null | undefined) => {
@@ -346,10 +351,41 @@ export async function POST(req: NextRequest) {
     };
 
     const now = new Date().toISOString();
+    const pendingActionsSnapshot = talentSetting?.is_onboarding_done
+      ? await fetchCareerReengagementPendingActions({
+          admin,
+          includeReevaluationQuestion:
+            talentSetting.profile_visibility !== "dont_share",
+          locale: talentSetting.preferred_locale,
+          userId: user.id,
+        })
+      : { actions: [], promptActions: [] };
+    const shouldIncludePendingAction =
+      pendingActionsSnapshot.actions.length > 0 &&
+      Math.random() < REENGAGEMENT_PENDING_ACTION_PROBABILITY;
+    const pendingActionsForTurn = shouldIncludePendingAction
+      ? pendingActionsSnapshot.promptActions.slice(0, 1)
+      : [];
+    const selectedCallAction = pendingActionsForTurn.find(
+      (action) => action.kind === "talent_call"
+    );
+    const transformAssistantTextBeforeInsert = selectedCallAction
+      ? (content: string) =>
+          replaceReengagementCallLinkWithCardMarker({
+            content,
+            payload: {
+              callId: selectedCallAction.callId,
+              companyName: selectedCallAction.companyName,
+              resumePromptNeeded: selectedCallAction.resumePromptNeeded,
+              roleTitle: selectedCallAction.roleTitle,
+            },
+          })
+      : undefined;
     const proactiveContext = buildCareerSessionStartTurnInstruction({
       currentAccessAt: now,
       idleMs: effectiveIdleMs,
       isOnboardingDone: Boolean(talentSetting?.is_onboarding_done),
+      pendingActions: pendingActionsForTurn,
       preferredLocale: talentSetting?.preferred_locale ?? null,
       previousChatAt: latestChatMessage?.created_at ?? null,
     });
@@ -366,6 +402,8 @@ export async function POST(req: NextRequest) {
             const result = await runCareerChatTurn({
               allowedToolNames: [],
               admin,
+              assistantModel: GPT_56_LUNA_MODEL,
+              assistantTemperature: REENGAGEMENT_TEMPERATURE,
               conversationId: conversation.id,
               isMobile,
               noMessageMarker: CAREER_SESSION_START_NO_MESSAGE_MARKER,
@@ -377,6 +415,7 @@ export async function POST(req: NextRequest) {
               },
               proactiveContext,
               shouldInsertAssistantMessage: isReengagementAnchorCurrent,
+              transformAssistantTextBeforeInsert,
               usageLabel: "career/chat:session_reengagement",
               userId: user.id,
             });
@@ -412,11 +451,14 @@ export async function POST(req: NextRequest) {
     const result = await runCareerChatTurn({
       allowedToolNames: [],
       admin,
+      assistantModel: GPT_56_LUNA_MODEL,
+      assistantTemperature: REENGAGEMENT_TEMPERATURE,
       conversationId: conversation.id,
       isMobile,
       noMessageMarker: CAREER_SESSION_START_NO_MESSAGE_MARKER,
       proactiveContext,
       shouldInsertAssistantMessage: isReengagementAnchorCurrent,
+      transformAssistantTextBeforeInsert,
       usageLabel: "career/chat:session_reengagement",
       userId: user.id,
     });

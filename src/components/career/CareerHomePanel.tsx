@@ -16,14 +16,10 @@ import {
   useCareerSidebarContext,
 } from "./CareerSidebarContext";
 import { CareerProfileSharingSettingsSection } from "./CareerProfileSettingsSection";
-import type {
-  CareerInternalOpportunityCallRequest,
-  CareerOpportunitySavedStageFilter,
-} from "./types";
+import type { CareerOpportunitySavedStageFilter } from "./types";
 import React from "react";
 import CareerCallCard from "./CareerCallCard";
 import CareerHomeDevControls from "./CareerHomeDevControls";
-import { InternalOpportunityCallActions } from "./InternalOpportunityCallActions";
 import { ConversationStarterActions } from "./ConversationStarterActions";
 import { ActionButton, InteractiveCard } from "@/components/ui/button";
 import type {
@@ -31,10 +27,7 @@ import type {
   CareerConversationStarterMode,
 } from "@/lib/career/prompts/conversationStarters";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
-import {
-  formatCareerMessage,
-  formatCareerMessageByKey,
-} from "@/i18n/careerMessage";
+import { formatCareerMessage } from "@/i18n/careerMessage";
 import { useMessages } from "@/i18n/useMessage";
 import { Text } from "@/components/ui/text";
 import {
@@ -193,7 +186,7 @@ const CareerHomePanel = ({
     onStartCallMode,
     onStartConversationStarter,
     onRequestMoreOpenPositions,
-    pendingInternalOpportunityCallRequests = [],
+    pendingInternalOpportunityCallRequest,
   } = useCareerSidebarContext();
   const { historyOpportunityCounts } = useCareerHistoryContext();
   const {
@@ -337,29 +330,16 @@ const CareerHomePanel = ({
   ] as const;
 
   const handleStartCall = () => {
-    logCareerEvent("click_home_start_call");
+    logCareerEvent(
+      pendingInternalOpportunityCallRequest
+        ? "click_home_resume_internal_opportunity_call"
+        : "click_home_start_call"
+    );
     onOpenChat();
-    void onStartCallMode?.();
-  };
-
-  const handleStartInternalOpportunityCall = (
-    callRequest: CareerInternalOpportunityCallRequest
-  ) => {
-    logCareerEvent("click_home_internal_opportunity_call");
-    onOpenChat();
-    return (
-      onStartCallMode?.({
-        internalCallRequestId: callRequest.id,
-        openingText: formatCareerMessageByKey(
-          m,
-          "career.internal_opportunity.call_opening",
-          "",
-          {
-            companyName: callRequest.companyName,
-            roleTitle: callRequest.roleTitle,
-          }
-        ),
-      }) ?? false
+    void onStartCallMode?.(
+      pendingInternalOpportunityCallRequest
+        ? { internalCallRequestId: pendingInternalOpportunityCallRequest.id }
+        : undefined
     );
   };
 
@@ -467,13 +447,6 @@ const CareerHomePanel = ({
           })
         }
         variant="desktop"
-      />
-      <InternalOpportunityCallActions
-        callRequests={pendingInternalOpportunityCallRequests}
-        callStartPending={callStartPending}
-        className="mt-2"
-        disabled={!onStartCallMode}
-        onStart={handleStartInternalOpportunityCall}
       />
       {!isOnboardingCompleted ? (
         <div className="rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-6 py-5 shadow-sm">

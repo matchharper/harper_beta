@@ -490,7 +490,7 @@ def main() -> int:
     }
     write_json(output / "source_material.json", source_material)
     source_hashes = {
-        "roleInputHash": digest({key: role.get(key) for key in ("description", "request", "location_text", "work_mode", "type", "status", "is_expired")}),
+        "roleInputHash": digest({key: role.get(key) for key in ("description", "location_text", "work_mode", "type", "status", "is_expired")}),
         "internalRequestHash": digest(internal_role.get("request")),
         "workspaceInputHash": digest({key: workspace.get(key) for key in ("request", "company_description", "pitch")}),
     }

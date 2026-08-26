@@ -11,6 +11,10 @@ import {
   isCompensationQuestion,
 } from "@/lib/companyTalentRequests/policy";
 import { candidateContactBodyWithoutTransportFooter } from "@/lib/companyTalentRequests/presentation";
+import {
+  CANDIDATE_CONTACT_RELATIONSHIP_RULES,
+  hasRedundantCandidateContactOptOut,
+} from "@/lib/companyTalentRequests/copyRules";
 
 export type CandidateContactDraftCopy = {
   body: string;
@@ -135,6 +139,7 @@ async function generateJson(
 
 function validateDraft(args: {
   body: unknown;
+  enforceConciseOptOut?: boolean;
   profileUrl: string | null;
   requestContext: unknown;
   subject: unknown;
@@ -146,6 +151,9 @@ function validateDraft(args: {
   );
   const requestContext = assertSafeProfessionalQuestion(args.requestContext);
   if (!subject || !body) throw new Error("Candidate contact copy is empty");
+  if (args.enforceConciseOptOut && hasRedundantCandidateContactOptOut(body)) {
+    throw new Error("Candidate contact copy repeats optional-response wording");
+  }
   assertSafeProfessionalQuestion(body);
   if (args.profileUrl && !body.includes(args.profileUrl)) {
     throw new Error("Resume request copy dropped the required upload URL");
@@ -181,7 +189,8 @@ export async function generateCandidateContactDraft(args: {
         content: [
           "Write the complete candidate-facing Harper email that a company will review verbatim before delivery.",
           'Return JSON only: {"subject":"...","body":"...","requestContext":"..."}.',
-          "Use the requested language, identify the company and role, and say Harper is asking on the company's behalf.",
+          "Use the requested language and identify the company and role.",
+          CANDIDATE_CONTACT_RELATIONSHIP_RULES,
           "Preserve the company's substantive request in neutral professional language. Do not invent urgency, enthusiasm, a deadline, a hiring decision, or personal history.",
           "The candidate may answer, decline, or ignore; never pressure them.",
           "For compensation, ask the candidate to provide or authorize exact wording. Never mention or guess compensation stored by Harper.",
@@ -194,6 +203,7 @@ export async function generateCandidateContactDraft(args: {
     ]);
     return validateDraft({
       body: parsed.body,
+      enforceConciseOptOut: true,
       profileUrl: args.profileUrl,
       requestContext: parsed.requestContext || args.requestContext,
       subject: parsed.subject,
@@ -222,6 +232,7 @@ export async function reviseCandidateContactDraft(args: {
           "Revise one candidate-facing Harper email using the company's edit instruction.",
           'Return JSON only: {"subject":"...","body":"...","requestContext":"..."}.',
           "Apply only the requested change and preserve every unaffected fact and meaning.",
+          CANDIDATE_CONTACT_RELATIONSHIP_RULES,
           "Keep the company and role disclosure, optional low-pressure framing, and Harper signoff.",
           "Never add sensitive or discriminatory questions, private Harper data, urgency, a deadline, or a hiring decision.",
           "For compensation, never add compensation stored by Harper; request candidate-provided or candidate-authorized wording only.",

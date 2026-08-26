@@ -9,6 +9,8 @@ import type {
   OpsCompanyActivityResponse,
   OpsCompanyConversationsResponse,
   OpsCompanyMembersResponse,
+  OpsCompanyRoleAutomationUpdateInput,
+  OpsCompanyRoleAutomationUpdateResponse,
   OpsCompanyWaitingResponse,
   OpsCompanyWorkspaceUpdateInput,
   OpsCompanyWorkspaceUpdateResponse,
@@ -18,6 +20,14 @@ import { queryKeys } from "@/lib/queryKeys";
 
 export const OPS_COMPANY_ACTIVITY_PAGE_SIZE = 20;
 export const OPS_COMPANY_CONVERSATION_PAGE_SIZE = 20;
+
+export type OpsCompanyRole = OrgRole & { isAuto: boolean };
+
+export type OpsCompanyBoardResponse = {
+  board: OrgBoardResponse;
+  roles: OpsCompanyRole[];
+  workspace: OrgWorkspace | null;
+};
 
 export function useUpdateOpsCompanyWorkspace() {
   const queryClient = useQueryClient();
@@ -117,15 +127,61 @@ export function useOpsCompanyBoard(args: {
   return useQuery({
     queryKey: queryKeys.opsCompany.board(workspaceId),
     queryFn: () =>
-      fetchWithInternalAuth<{
-        board: OrgBoardResponse;
-        roles: OrgRole[];
-        workspace: OrgWorkspace | null;
-      }>(
+      fetchWithInternalAuth<OpsCompanyBoardResponse>(
         `/api/internal/company/board?workspaceId=${encodeURIComponent(workspaceId)}`
       ),
     enabled: (args.enabled ?? true) && Boolean(workspaceId),
     staleTime: 15_000,
+  });
+}
+
+export function useUpdateOpsCompanyRoleAutomation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: OpsCompanyRoleAutomationUpdateInput) =>
+      fetchWithInternalAuth<OpsCompanyRoleAutomationUpdateResponse>(
+        "/api/internal/company/roles/automation",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        }
+      ),
+    onMutate: async (input) => {
+      const queryKey = queryKeys.opsCompany.board(input.workspaceId);
+      await queryClient.cancelQueries({ queryKey });
+      const previous =
+        queryClient.getQueryData<OpsCompanyBoardResponse>(queryKey);
+      queryClient.setQueryData<OpsCompanyBoardResponse>(queryKey, (current) =>
+        current
+          ? {
+              ...current,
+              roles: current.roles.map((role) =>
+                role.roleId === input.roleId
+                  ? { ...role, isAuto: input.isAuto }
+                  : role
+              ),
+            }
+          : current
+      );
+      return { previous, queryKey };
+    },
+    onError: (_error, _input, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(context.queryKey, context.previous);
+      }
+    },
+    onSettled: async (_data, _error, input) => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.opsCompany.board(input.workspaceId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.opsOpportunity.all,
+        }),
+      ]);
+    },
   });
 }
 

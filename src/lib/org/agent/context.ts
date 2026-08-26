@@ -292,6 +292,9 @@ function formatConversation(
             `role_id=${confirmation.roleId}`,
             `recommendation_id=${confirmation.recommendationId}`,
             `connection_method=${confirmation.connectionMethod ?? "not_selected"}`,
+            confirmation.meetingDraft
+              ? `meeting_title=${clipPromptText(confirmation.meetingDraft.config.title, 200)};meeting_duration_minutes=${confirmation.meetingDraft.config.durationMinutes}`
+              : "",
           ].join(";")
         )
         .map((value) => `candidate_decision_context{${value}}`)

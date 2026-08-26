@@ -37,6 +37,12 @@ import {
   stripPostgresUnsafeChars,
 } from "@/lib/textSanitization";
 import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
+import {
+  advanceInternalOpportunityCallRequestQuestion,
+  fetchInternalOpportunityCallRequestById,
+  isOpenInternalOpportunityCallRequestStatus,
+} from "@/lib/talentOnboarding/internalOpportunityCallRequest";
+import { shouldAdvanceInternalOpportunityCallQuestion } from "@/lib/talentOnboarding/internalOpportunityCallProgress";
 
 type Body = {
   assistantEndedOnboarding?: boolean;
@@ -91,7 +97,6 @@ export async function POST(req: NextRequest) {
       Boolean(assistantMessageText) &&
       (Boolean(body.assistantEndedOnboarding) ||
         hasTalentOnboardingCompletionMarker(assistantMessageTextWithMarkers));
-    const messageType = isCallMode ? "call_transcript" : "chat";
 
     if (!conversationId || (!userMessageText && !assistantMessageText)) {
       return NextResponse.json(
@@ -119,6 +124,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const internalCallRequest = internalCallRequestId
+      ? await fetchInternalOpportunityCallRequestById({
+          admin,
+          callId: internalCallRequestId,
+          userId: user.id,
+        })
+      : null;
+    if (internalCallRequestId && !isCallMode) {
+      return NextResponse.json(
+        { error: "internalCallRequestId requires call mode" },
+        { status: 400 }
+      );
+    }
+    if (internalCallRequestId && !internalCallRequest) {
+      return NextResponse.json(
+        { error: "Invalid internalCallRequestId" },
+        { status: 400 }
+      );
+    }
+    if (
+      internalCallRequest &&
+      !isOpenInternalOpportunityCallRequestStatus(internalCallRequest.status)
+    ) {
+      return NextResponse.json(
+        { error: "Internal call already completed" },
+        { status: 409 }
+      );
+    }
+    const isInternalOpportunityCall = Boolean(internalCallRequest);
+    const messageType = isCallMode ? "call_transcript" : "chat";
+
     const [currentInsights, talentSetting, profile] = await Promise.all([
       fetchTalentInsights({
         admin,
@@ -138,6 +174,7 @@ export async function POST(req: NextRequest) {
       string
     > | null;
     const shouldAutoExtractInsights =
+      !isInternalOpportunityCall &&
       !Boolean(talentSetting?.is_onboarding_done) &&
       Boolean(userMessageText) &&
       Boolean(assistantMessageText);
@@ -152,7 +189,8 @@ export async function POST(req: NextRequest) {
     const conversationStarter = conversationStarterId
       ? getCareerConversationStarter(conversationStarterId, responseLocale)
       : null;
-    const skipConversationWrites = Boolean(conversationStarter);
+    const skipConversationWrites =
+      Boolean(conversationStarter) || isInternalOpportunityCall;
     if (conversationStarterId && !conversationStarter) {
       return NextResponse.json(
         { error: "Invalid conversationStarterId" },
@@ -221,7 +259,7 @@ export async function POST(req: NextRequest) {
       conversationId,
       userId: user.id,
     });
-    if (activeRun) {
+    if (activeRun && !isInternalOpportunityCall) {
       return NextResponse.json(
         {
           error: careerT(
@@ -317,6 +355,38 @@ export async function POST(req: NextRequest) {
       insertedAssistantMessage = data as TalentMessageRow;
     }
 
+    if (
+      isInternalOpportunityCall &&
+      internalCallRequestId &&
+      internalCallRequest &&
+      insertedUserMessage &&
+      insertedAssistantMessage &&
+      shouldAdvanceInternalOpportunityCallQuestion({
+        assistantText: assistantMessageText,
+        progress: internalCallRequest.questionProgress,
+        questions: internalCallRequest.questions,
+        userText: userMessageText,
+      })
+    ) {
+      try {
+        await advanceInternalOpportunityCallRequestQuestion({
+          admin,
+          callId: internalCallRequestId,
+          userId: user.id,
+        });
+      } catch (error) {
+        console.error(
+          "[ChatSave] Failed to advance internal call question progress",
+          {
+            callId: internalCallRequestId,
+            conversationId,
+            error: error instanceof Error ? error.message : String(error),
+            userId: user.id,
+          }
+        );
+      }
+    }
+
     let opportunityRun: Awaited<
       ReturnType<typeof completeOnboardingAndQueueInitialOpportunityRun>
     > | null = null;
@@ -356,14 +426,15 @@ export async function POST(req: NextRequest) {
       assistantContent: assistantMessageTextWithMarkers ?? "",
       assistantEndedOnboarding,
     });
-    const latestChecklistCoverage = !Boolean(talentSetting?.is_onboarding_done)
-      ? await getCareerOnboardingChecklistCoverage({
-          admin,
-          conversationId,
-          currentInsightContent: responseTalentInsights,
-          userId: user.id,
-        })
-      : null;
+    const latestChecklistCoverage =
+      !isInternalOpportunityCall && !Boolean(talentSetting?.is_onboarding_done)
+        ? await getCareerOnboardingChecklistCoverage({
+            admin,
+            conversationId,
+            currentInsightContent: responseTalentInsights,
+            userId: user.id,
+          })
+        : null;
     const checklistCompletion =
       latestChecklistCoverage &&
       getOnboardingChecklistCoverageStats(latestChecklistCoverage, profile)
@@ -377,7 +448,9 @@ export async function POST(req: NextRequest) {
           }
         : markerCompletion;
     const isCompleted =
-      Boolean(insertedAssistantMessage) && completion.completed;
+      !isInternalOpportunityCall &&
+      Boolean(insertedAssistantMessage) &&
+      completion.completed;
     const shouldApplyCompletion = isCompleted && !skipConversationWrites;
 
     if (!skipConversationWrites) {

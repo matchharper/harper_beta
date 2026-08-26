@@ -68,6 +68,7 @@ export default function App({ Component, pageProps }: AppProps) {
   const isOrgPage =
     router.pathname === "/org" || router.pathname.startsWith("/org/");
   const isReferralPayoutPage = router.pathname === "/referral-payout";
+  const isMeetingPage = router.pathname.startsWith("/meeting/");
   const shouldHideCustomCrispLauncher =
     isCareerLandingPage ||
     isCareerPage ||
@@ -75,6 +76,7 @@ export default function App({ Component, pageProps }: AppProps) {
     isAdminCareerPage ||
     isOpsPage ||
     isOrgPage ||
+    isMeetingPage ||
     isReferralPayoutPage;
   const shouldShowCustomCrispLauncher = !shouldHideCustomCrispLauncher;
   const shouldMountCustomCrisp =

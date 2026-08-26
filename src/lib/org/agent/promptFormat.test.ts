@@ -395,6 +395,29 @@ test("pipeline mutation results state exact effects and no candidate contact", (
   assert.match(move, /candidate_contacted=false email_sent=false/);
 });
 
+test("availability mutation result cannot imply a candidate or meeting action", () => {
+  const compact = serializeOrgAgentToolResult("manage_interview_availability", {
+    availabilityVersion: 2,
+    meetingAvailabilityUrl: "/org/integrations?dialog=meeting-availability",
+    nextProcess: "Retry the candidate-specific scheduling request.",
+    responseGuidance: "Ask whether to prepare the identified meeting now.",
+    status: "updated",
+    summary: "매일 07:00-20:00",
+    timezone: "Asia/Seoul",
+  });
+
+  assert.match(compact, /organizer_hours=매일 07:00-20:00/);
+  assert.match(compact, /timezone=Asia\/Seoul/);
+  assert.match(compact, /response_guidance=.*identified meeting/);
+  assert.match(
+    compact,
+    /user_facing_state=Harper will use these organizer hours/
+  );
+  assert.match(compact, /writing_instruction=Treat this as acknowledging/);
+  assert.doesNotMatch(compact, /status=updated|availability_version|summary=/);
+  assert.doesNotMatch(compact, /meeting_draft_created|calendar_event_created/);
+});
+
 test("candidate decision preparation returns facts without server-authored confirmation copy", () => {
   const compact = serializeOrgAgentToolResult("prepare_candidate_connection", {
     candidateEmail: "candidate@example.com",
@@ -422,6 +445,69 @@ test("candidate decision preparation returns facts without server-authored confi
   assert.match(compact, /closure_notice_delivered=false/);
   assert.doesNotMatch(compact, /required_confirmation/);
   assert.doesNotMatch(compact, /이대로 진행할까요/);
+});
+
+test("schedule preparation keeps the automatic proposal in one compact confirmation", () => {
+  const compact = serializeOrgAgentToolResult("prepare_candidate_connection", {
+    candidateName: "이토",
+    connectionMethod: "schedule_interview",
+    decision: "accept",
+    directContactAvailable: true,
+    introEmailAvailable: false,
+    introEmails: [],
+    meetingDraft: {
+      config: {
+        durationMinutes: 60,
+        title: "Wonderful Japan <> 이토 Intro",
+      },
+      draftBlocker: null,
+    },
+    meetingScheduleConfirmation:
+      "이토님과의 미팅 일정 요청 기본안이에요. 향후 2주 안에서 60분 일정을 고를 수 있게 할게요.",
+    meetingAvailabilityUrl:
+      "https://matchharper.com/org/settings?dialog=interview-availability",
+    status: "decision_context_ready",
+  });
+
+  assert.match(compact, /connection_method=schedule_interview/);
+  assert.match(compact, /response_mode=meeting_coordinator_narrative/);
+  assert.match(compact, /user_facing_state=This is a proposal awaiting/);
+  assert.match(compact, /meeting_title=Wonderful Japan ‹› 이토 Intro/);
+  assert.match(compact, /meeting_duration_minutes=60/);
+  assert.match(compact, /meeting_confirmation=.*향후 2주/);
+  assert.match(
+    compact,
+    /meeting_availability_url=https:\/\/matchharper\.com\/org\/settings/
+  );
+  assert.match(compact, /writing_instruction=Preserve meeting_confirmation/);
+  assert.match(compact, /This preparation result is a preview/);
+});
+
+test("schedule decision exposes the human review destination", () => {
+  const compact = serializeOrgAgentToolResult("decide_candidate_connection", {
+    candidateName: "이토",
+    changeSummary: "이토님과 연결했고 미팅 정보를 준비해두었어요.",
+    connectionMethod: "schedule_interview",
+    decision: "accept",
+    meetingDraft: {
+      config: {
+        durationMinutes: 60,
+        title: "Wonderful Japan <> 이토 Intro",
+      },
+    },
+    meetingScheduleUrl:
+      "https://matchharper.com/org/inbox?dialog=interview-schedule",
+    roleName: "FDE",
+    stage: "connected",
+    status: "updated",
+  });
+
+  assert.match(
+    compact,
+    /meeting_schedule_url=https:\/\/matchharper\.com\/org\/inbox/
+  );
+  assert.match(compact, /user_facing_state=The candidate is connected/);
+  assert.match(compact, /change=이토님과 연결했고 미팅 정보를 준비해두었어요/);
 });
 
 test("pending candidate contact results tell the model what can be replaced", () => {

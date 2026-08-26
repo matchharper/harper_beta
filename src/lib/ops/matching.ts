@@ -26,6 +26,8 @@ type AdminClient = ReturnType<typeof getSupabaseAdmin>;
 type TalentUserRow = Pick<
   Database["public"]["Tables"]["talent_users"]["Row"],
   | "created_at"
+  | "deleted_at"
+  | "deletion_reason_code"
   | "email"
   | "headline"
   | "last_logined_at"
@@ -259,7 +261,7 @@ const MATCHING_NOT_INTERESTED_TAG = "관심없음";
 const TALENT_POOL_TAILORED_TAG = "적합";
 
 const TALENT_LIST_SELECT =
-  "user_id, name, email, profile_picture, headline, created_at, last_logined_at, resume_file_name, resume_storage_path, resume_links";
+  "user_id, name, email, profile_picture, headline, created_at, deleted_at, deletion_reason_code, last_logined_at, resume_file_name, resume_storage_path, resume_links";
 
 export type OpsMatchingCompanyOption = {
   activeRoleCount: number;
@@ -468,6 +470,8 @@ export type OpsMatchingTalentRoleTagsResponse = {
 
 export type OpsMatchingTalentItem = {
   createdAt: string | null;
+  deletedAt: string | null;
+  deletionReasonCode: string | null;
   description: string | null;
   email: string | null;
   experiences: OpsMatchingProfileExperience[];
@@ -2265,6 +2269,8 @@ async function buildOpsMatchingTalentItems(args: {
     const recentSchools = profileMaps.schoolMap.get(row.user_id) ?? [];
     return {
       createdAt: row.created_at,
+      deletedAt: row.deleted_at,
+      deletionReasonCode: row.deletion_reason_code,
       description: null,
       email: row.email,
       educations: profileMaps.educationMap.get(row.user_id) ?? [],
@@ -3193,6 +3199,8 @@ async function fetchMatchingFitSearchTargets(args: {
 function buildFallbackOpsMatchingTalentItem(talentId: string) {
   return {
     createdAt: null,
+    deletedAt: null,
+    deletionReasonCode: null,
     description: null,
     email: null,
     educations: [],

@@ -4,7 +4,6 @@ import {
   getSlackActivityDeviceLabel,
   notifySlackActivity,
 } from "@/lib/slackActivity";
-import { USER_FEEDBACK_SLACK_CHANNEL_ID } from "@/lib/userFeedbackSlack";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   TALENT_RESUME_BUCKET,
@@ -729,13 +728,14 @@ async function deleteEmailMatchedRows(
 
 async function deleteAccountData(
   admin: UntypedAdminClient,
-  context: AccountDeletionContext
+  context: AccountDeletionContext,
+  feedback: AccountDeletionFeedback | null
 ) {
   const now = new Date().toISOString();
 
   // Keep operational history (runs, recommendations, deliveries, CRM records)
-  // intact. It remains linked only to an account with all direct profile fields
-  // erased, so deleting the auth user cannot be blocked by downstream FKs.
+  // and profile data intact. The soft-delete marker preserves the link after
+  // the auth account is removed below.
   const { error: runError } = await admin
     .from("opportunity_discovery_run")
     .update({
@@ -780,37 +780,20 @@ async function deleteAccountData(
     throw dbError("email_reply_jobs", "cancel active", replyJobError);
   }
 
-  await Promise.all([
-    deleteEq(admin, "email_reply_aliases", "talent_id", context.userId),
-    deleteEq(admin, "talent_documents", "talent_id", context.userId),
-    deleteEq(admin, "talent_setting", "user_id", context.userId),
-    deleteEq(admin, "talent_insights", "talent_id", context.userId),
-    deleteEq(admin, "talent_extras", "talent_id", context.userId),
-    deleteEq(admin, "talent_educations", "talent_id", context.userId),
-    deleteEq(admin, "talent_experiences", "talent_id", context.userId),
-  ]);
-
+  // Keep the talent profile and career history intact for operational analysis.
+  // deleted_at is the single eligibility boundary for later matching and
+  // delivery; the auth account is still removed below.
   const { error: profileError } = await admin
     .from("talent_users")
     .update({
-      bio: null,
-      current_location: null,
-      email: null,
-      headline: null,
-      last_logined_at: null,
-      location: null,
-      name: null,
-      phone_number: null,
-      profile_picture: null,
-      resume_file_name: null,
-      resume_links: [],
-      resume_storage_path: null,
-      resume_text: null,
+      deleted_at: now,
+      deletion_reason_code: feedback?.reasonCode ?? null,
+      deletion_reason_detail: feedback?.detail ?? null,
       updated_at: now,
     })
     .eq("user_id", context.userId);
   if (profileError) {
-    throw dbError("talent_users", "anonymize", profileError);
+    throw dbError("talent_users", "soft delete", profileError);
   }
 }
 
@@ -833,7 +816,6 @@ async function notifyAccountDeletionSlack(
   try {
     await notifySlackActivity({
       action: "회원 탈퇴 완료",
-      channelId: USER_FEEDBACK_SLACK_CHANNEL_ID,
       details: [
         { label: "Device", value: getSlackActivityDeviceLabel(req) },
         { label: "Source", value: "/career/settings" },
@@ -1010,8 +992,7 @@ export async function DELETE(req: NextRequest) {
         );
       }
     }
-    await removeAccountStorage(admin, context);
-    await deleteAccountData(admin, context);
+    await deleteAccountData(admin, context, feedback);
 
     const { error: authDeleteError } = await admin.auth.admin.deleteUser(
       user.id,

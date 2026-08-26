@@ -9,6 +9,8 @@ type OfficialJobRow = Pick<
   | "company_description_markdown"
   | "company_website_url"
   | "id"
+  | "is_published"
+  | "role_id"
   | "seniority"
   | "short_description"
   | "slug"
@@ -360,12 +362,9 @@ function normalizeLocation(job: AshbyPublicJob) {
 
 function normalizeEmploymentType(value: string | null | undefined) {
   const normalized = String(value ?? "").trim();
-  if (!normalized) return null;
-
-  if (normalized === "FullTime") return "Full-time";
-  if (normalized === "PartTime") return "Part-time";
-  if (normalized === "Intern") return "Internship";
-  return normalized;
+  return normalized === "PartTime" || normalized === "Part-time"
+    ? "Part-time"
+    : "Full-time";
 }
 
 function getAshbyJobBoardName() {
@@ -399,7 +398,7 @@ async function fetchExistingOfficialJobs() {
   const { data, error } = await supabaseServer
     .from("official_jobs")
     .select(
-      "ashby_job_posting_id,company_description_markdown,company_website_url,id,seniority,short_description,slug,vertical"
+      "ashby_job_posting_id,company_description_markdown,company_website_url,id,is_published,role_id,seniority,short_description,slug,vertical"
     );
 
   if (error) {
@@ -481,7 +480,7 @@ async function buildPayload(
       ),
       display_order: 0,
       employment_type: normalizeEmploymentType(job.employmentType),
-      is_published: true,
+      is_published: existingRow?.is_published ?? false,
       location: normalizeLocation(job),
       published_at: normalizeOptionalString(job.publishedAt),
       role_description_markdown: roleDescriptionMarkdown || descriptionMarkdown,
@@ -548,6 +547,8 @@ export async function runAshbyOfficialJobsSync(options?: {
           built.payload.company_description_markdown,
         company_website_url: built.payload.company_website_url,
         id: data.id,
+        is_published: built.payload.is_published,
+        role_id: null,
         seniority: built.payload.seniority,
         short_description: built.payload.short_description,
         slug: data.slug,

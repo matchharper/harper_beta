@@ -32,6 +32,7 @@ export const ORG_AGENT_TOOL_NAMES = [
   "manage_role_pipeline_stages",
   "contact_talent",
   "move_candidate_stage",
+  "manage_interview_availability",
   "prepare_candidate_connection",
   "decide_candidate_connection",
 ] as const;
@@ -46,6 +47,7 @@ export const ORG_AGENT_TERMINAL_TOOL_NAMES = new Set<OrgAgentToolName>([
   "manage_role_pipeline_stages",
   "contact_talent",
   "move_candidate_stage",
+  "manage_interview_availability",
   "decide_candidate_connection",
 ]);
 
@@ -59,7 +61,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "start_role_creation",
       description:
-        "Start a dedicated Slack thread for one new role and hand the user's exact recent Slack context to the role-creation flow. Supply only the confirmed role title and the smallest number of recent messages needed to preserve the hiring request. The dedicated role-creation flow automatically continues before the user has to say anything there, including its own one-time public-JD research when the transferred input is sparse. The result provides an exact required continuation link plus guidance and an illustrative example; author the final handoff reply naturally as Harper rather than copying fixed system-status text. Do not research or draft the role description in this general turn. This tool is Slack-only and terminal.",
+        "Start a dedicated Slack thread for one new role and hand the user's exact recent Slack context to the role-creation flow. Supply the exact role title established from the available context and the smallest number of recent messages needed to preserve the hiring request. Do not ask the user to restate a title that is already clear. The dedicated role-creation flow automatically continues before the user has to say anything there. The result provides an exact required continuation link plus guidance and an illustrative example; author the final handoff reply naturally as Harper rather than copying fixed system-status text. This tool is Slack-only and terminal.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -72,7 +74,7 @@ export const ORG_AGENT_TOOLS = [
           },
           roleTitle: {
             description:
-              "The role title supplied or unambiguously established by the user, including level or qualifiers when present.",
+              "The exact role title established from the available context, including level or qualifiers when present.",
             maxLength: 200,
             minLength: 1,
             type: "string",
@@ -476,7 +478,8 @@ Status meanings and effects:
 • active (진행): keep hiring in progress and periodically receive suitable candidate connections from Harper.
 • paused (중단): keep the Role open, but stop receiving additional candidate recommendations. Candidate processes and connections already in progress remain open.
 • ended (종료): mark the Role ended and stop additional recommendations. Candidate-facing opportunity views interpret the Role as closed, but this status change alone does not atomically close every existing candidate stage or company request.
-Use the exact roleId from current context or a fresh read. Do not claim existing candidate processes or requests were closed unless a separate cleanup path actually completed and was verified.`,
+• deleted (삭제): apply the same internal-Role deletion as the web product by atomically setting status=deleted and is_expired=true. The Role is removed from active Role surfaces and additional recommendations stop, but existing candidate stages and company requests are not all closed by this deletion alone.
+Use deleted only for an explicit request to delete the exact Role. Do not reinterpret 종료 as deletion. Use the exact roleId from current context or a fresh read. Do not claim existing candidate processes or requests were closed unless a separate cleanup path actually completed and was verified.`,
       parameters: {
         additionalProperties: false,
         properties: {
@@ -487,8 +490,8 @@ Use the exact roleId from current context or a fresh read. Do not claim existing
           },
           status: {
             description:
-              "active=진행 (periodic suitable candidate connections continue); paused=중단 (Role stays open but additional recommendations stop, while existing processes stay open); ended=종료 (Role ends and additional recommendations stop; existing stages and company requests are not all closed by this status change alone).",
-            enum: ["active", "paused", "ended"],
+              "active=진행 (periodic suitable candidate connections continue); paused=중단 (Role stays open but additional recommendations stop, while existing processes stay open); ended=종료 (Role ends and additional recommendations stop); deleted=삭제 (the Role is soft-deleted exactly like the web deletion flow with status=deleted and is_expired=true). Existing stages and company requests are not all closed by ended or deleted alone.",
+            enum: ["active", "paused", "ended", "deleted"],
             type: "string",
           },
         },
@@ -506,6 +509,7 @@ This is terminal and must be the only tool call in its assistant message. A read
 Use action=create_draft on the company's initial request. It validates the exact candidate and Role, calls the bounded candidate-copy writer, saves the complete subject and body without queuing delivery, and returns the exact copy that must be shown verbatim for company review.
 Use action=revise_draft when the company asks to edit the currently presented draft. Copy contactId and expectedRevision from pending_candidate_contact_drafts or candidate_contact_draft message context, and pass only the company's editInstruction. The server loads the authoritative current copy, writes a new revision, and returns the full exact revised copy. Never edit a queued or sent contact.
 Use action=schedule only when the immediately previous Harper message presented the same contactId and revision verbatim and the current company message explicitly approves that exact copy. A short yes counts only in that sequence. deliveryMode=standard schedules at least 20 minutes later within 08:00–20:00 KST. deliveryMode=immediate is allowed only when the approval explicitly says to send now. Scheduling never regenerates or rewrites copy.
+Use action=immediate only for a clear instruction to send an already queued, still-changeable contact now. It preserves the approved subject and body and moves that existing delivery forward; do not cancel or recreate it. It is unavailable for an unapproved draft or a delivery that has started.
 Use action=cancel only for a clear cancellation instruction. It can discard a draft or cancel a queued/failed delivery that has not started. It cannot cancel processing or sent delivery.
 For create_draft, resolve opaque IDs exactly. The candidate must be in 연결 대기 for the Role and have a contact email. kind=resume is unavailable when a public primary resume is already visible. For kind=question, preserve the requested meaning in requestContext. Compensation always requires fresh candidate authorization and must never expose stored compensation.
 Do not call read_talent between normal create_draft, revise_draft, and schedule turns merely to recover an ID: use the authoritative pending draft context. If several drafts make the reference ambiguous, ask which candidate and Role the company means rather than guessing.`,
@@ -514,7 +518,13 @@ Do not call read_talent between normal create_draft, revise_draft, and schedule 
         properties: {
           action: {
             description: "Lifecycle action for this candidate contact.",
-            enum: ["create_draft", "revise_draft", "schedule", "cancel"],
+            enum: [
+              "create_draft",
+              "revise_draft",
+              "schedule",
+              "immediate",
+              "cancel",
+            ],
             type: "string",
           },
           contactId: {
@@ -670,16 +680,130 @@ The executor re-reads the candidate and applies compare-and-set protection. If a
   {
     type: "function",
     function: {
+      name: "manage_interview_availability",
+      description:
+        "Save the current company user's own interview availability after an explicit natural-language instruction such as '매주 오전 7시부터 오후 8시까지 가능해'. This is a terminal mutation and must be the only tool call in the turn. Use weeklyUpdates to replace only the named weekdays while preserving every unspecified weekday and existing date exception. An empty intervals array means unavailable. Use dateOverrides for exact-date availability or unavailability, and removeDateOverrides to return exact dates to their weekly rule. Set timezone only when the user explicitly provides it or the intended timezone is unambiguous. This tool never changes another member's availability, candidate state, meeting draft, invitation, Calendar event, or Meet link. After saving, explain what changed and ask the user to request or retry the candidate-specific scheduling proposal; do not claim that an invitation was prepared or sent.",
+      parameters: {
+        additionalProperties: false,
+        minProperties: 1,
+        properties: {
+          dateOverrides: {
+            description:
+              "Exact-date replacements. Use intervals=[] when the whole date is unavailable. Omitted dates remain unchanged.",
+            items: {
+              additionalProperties: false,
+              properties: {
+                date: {
+                  description: "Exact local calendar date in YYYY-MM-DD.",
+                  pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+                  type: "string",
+                },
+                intervals: {
+                  items: {
+                    additionalProperties: false,
+                    properties: {
+                      end: {
+                        pattern:
+                          "^(?:(?:[01]\\d|2[0-3]):(?:00|15|30|45)|24:00)$",
+                        type: "string",
+                      },
+                      start: {
+                        pattern: "^(?:[01]\\d|2[0-3]):(?:00|15|30|45)$",
+                        type: "string",
+                      },
+                    },
+                    required: ["start", "end"],
+                    type: "object",
+                  },
+                  maxItems: 8,
+                  type: "array",
+                },
+              },
+              required: ["date", "intervals"],
+              type: "object",
+            },
+            maxItems: 30,
+            type: "array",
+          },
+          removeDateOverrides: {
+            description:
+              "Exact YYYY-MM-DD dates whose exception should be removed so the weekly rule applies again.",
+            items: {
+              pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+              type: "string",
+            },
+            maxItems: 30,
+            type: "array",
+            uniqueItems: true,
+          },
+          timezone: {
+            description:
+              "IANA timezone such as Asia/Seoul. Omit unless explicitly stated or unambiguous from the request.",
+            maxLength: 128,
+            minLength: 1,
+            type: "string",
+          },
+          weeklyUpdates: {
+            description:
+              "Recurring replacements for only the named ISO weekdays: 1=Monday through 7=Sunday. To set every day, include all seven days in one item. Unspecified weekdays remain unchanged.",
+            items: {
+              additionalProperties: false,
+              properties: {
+                days: {
+                  items: {
+                    enum: ["1", "2", "3", "4", "5", "6", "7"],
+                    type: "string",
+                  },
+                  maxItems: 7,
+                  minItems: 1,
+                  type: "array",
+                  uniqueItems: true,
+                },
+                intervals: {
+                  items: {
+                    additionalProperties: false,
+                    properties: {
+                      end: {
+                        pattern:
+                          "^(?:(?:[01]\\d|2[0-3]):(?:00|15|30|45)|24:00)$",
+                        type: "string",
+                      },
+                      start: {
+                        pattern: "^(?:[01]\\d|2[0-3]):(?:00|15|30|45)$",
+                        type: "string",
+                      },
+                    },
+                    required: ["start", "end"],
+                    type: "object",
+                  },
+                  maxItems: 8,
+                  type: "array",
+                },
+              },
+              required: ["days", "intervals"],
+              type: "object",
+            },
+            maxItems: 7,
+            type: "array",
+          },
+        },
+        type: "object",
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "prepare_candidate_connection",
       description:
-        "Read and stage authoritative context for a possible accept or decline decision. Decline supports a candidate awaiting connection or already in a company-active process, including immediately after acceptance. Accept also supports a previously company-stopped candidate whose earlier Talent acceptance is still authoritative, and returns whether Harper already delivered the closure notice. This never changes candidate state or sends email. Use it when you need current facts to decide whether clarification or confirmation is appropriate. Always call it with connectionMethod=direct_contact in the turn where the company first asks to use direct contact, even if candidate facts were already read, so the exact behavior being confirmed is recorded. After the tool returns, judge the user's intent from the meaning of the full conversation and write any confirmation or clarification yourself in Harper's natural voice; the server does not provide confirmation copy.",
+        "Read and stage authoritative context for a possible accept or decline decision. Decline supports a candidate awaiting connection or already in a company-active process, including immediately after acceptance. Accept also supports a previously company-stopped candidate whose earlier Talent acceptance is still authoritative. This never changes candidate state or sends email. Use connectionMethod=schedule_interview as soon as the company asks Harper to arrange a meeting. The server prepares the concise default proposal and meeting confirmation; present its facts naturally without asking title, duration, organizer, attendees, provider, or email copy one by one. If it returns meeting_setup_required, show the schedule link and blocker without asking for approval; no decision context is staged until the blocker is fixed. Always call it with connectionMethod=direct_contact in the turn where the company first asks to use direct contact. A schedule revision calls this tool again with the complete intended overrides. After the tool returns, judge the user's intent from the meaning of the full conversation and write any confirmation or clarification yourself in Harper's natural voice, using the exact server facts.",
       parameters: {
         additionalProperties: false,
         properties: {
           connectionMethod: {
             description:
-              "For accept only. Omit or use intro_email for the default CC introduction. Use direct_contact only when the company explicitly asked to contact the candidate itself.",
-            enum: ["intro_email", "direct_contact"],
+              "For accept only. Use schedule_interview when the company asks Harper to arrange a meeting. It automatically defaults to the requester as organizer and first attendee, a 60-minute duration, a '[company] <> [candidate] Intro' title, a 14-day offer window, and Google Meet. Do not ask for those fields one by one. Omit or use intro_email for the default CC introduction. Use direct_contact only when the company explicitly asked to contact the candidate itself.",
+            enum: ["intro_email", "direct_contact", "schedule_interview"],
             type: "string",
           },
           decision: {
@@ -695,6 +819,35 @@ The executor re-reads the candidate and applies compare-and-set protection. If a
             maxItems: 10,
             type: "array",
           },
+          meetingAdditionalMessage: nullableText(
+            "For schedule_interview only. Optional exact preference or context genuinely supplied by the company. Omit rather than inventing one.",
+            2_000
+          ),
+          meetingAdditionalMessageVisibility: {
+            description:
+              "For schedule_interview only. Where an explicitly supplied additional message may be used. Defaults to both. candidate and both may later appear in the candidate's locale; internal is never shown externally.",
+            enum: ["candidate", "internal", "both"],
+            type: "string",
+          },
+          meetingAttendeeEmails: {
+            description:
+              "For schedule_interview only. Additional Workspace member emails explicitly requested by the company. The requester remains the default organizer and attendee and is added automatically. Omit when no change was requested.",
+            items: { type: "string" },
+            maxItems: 10,
+            type: "array",
+          },
+          meetingDurationMinutes: {
+            description:
+              "For schedule_interview only. Explicit company override in 15-minute increments from 15 to 240. Omit to use 60 minutes; never ask for this field merely because it was omitted.",
+            maximum: 240,
+            minimum: 15,
+            multipleOf: 15,
+            type: "integer",
+          },
+          meetingTitle: nullableText(
+            "For schedule_interview only. Explicit company override. Omit to use '[company] <> [candidate] Intro'; never ask for a title merely because it was omitted.",
+            200
+          ),
           reason: nullableText(
             "Optional accept or decline reason genuinely provided by the user. Preserve its meaning accurately and never invent one.",
             2_000
@@ -718,14 +871,14 @@ The executor re-reads the candidate and applies compare-and-set protection. If a
     function: {
       name: "decide_candidate_connection",
       description:
-        "Carry out an authorized accept or decline decision. Decline supports a candidate awaiting connection or already in a company-active process, including immediately after acceptance; already-sent email or direct contact cannot be withdrawn. Accept may also reactivate a previously company-stopped candidate whose Talent acceptance is still authoritative; the result says whether the earlier closure notice had already reached the candidate. This is terminal and must be the only tool call. Call it only when the immediately previous Harper message asked for approval of the exact candidate, decision, delivery behavior, and email recipients and the current message authorizes all of it; the server verifies that adjacency and otherwise returns confirmation_required without changing state. Do not infer authorization from isolated words, a generic acknowledgement, or a previous tool call. If intent or consequences remain unclear, do not call this tool; use prepare_candidate_connection when authoritative context is needed and write your own clarification or confirmation. For accept, omitted connectionMethod defaults to intro_email, which sends a neutral warm introduction that never mentions the previous decline or closure. Use direct_contact only after the company explicitly requests and authorizes contacting the candidate itself; it only marks connected. Never proactively offer direct_contact as an alternative. Decline moves the candidate to process stopped.",
+        "Carry out an authorized accept or decline decision. Decline supports a candidate awaiting connection or already in a company-active process, and accept may reactivate a previously company-stopped candidate. This is terminal and must be the only tool call. Call it only when the immediately previous Harper message asked for approval of the exact candidate, delivery behavior, and recipients or automatic meeting proposal and the current message authorizes all of it; the server verifies that adjacency and otherwise returns confirmation_required without changing state. Do not infer authorization from isolated words or a generic acknowledgement. Use schedule_interview only after a decision_context_ready proposal was presented, never after meeting_setup_required. A simple approval omits all meeting override fields and reuses the stored revision. If the user changes a detail, use prepare_candidate_connection again instead. The current schedule_interview action marks the candidate connected and stores a meeting draft, but does not contact the candidate, create the public scheduling link, send locale email, or create a Calendar event or Google Meet link. For accept, omitted connectionMethod defaults to intro_email, which sends a neutral warm introduction. Use direct_contact only after an explicit request. Never proactively offer direct_contact. Decline moves the candidate to process stopped.",
       parameters: {
         additionalProperties: false,
         properties: {
           connectionMethod: {
             description:
-              "For accept, omit or use intro_email for the default warm introduction that CCs authorized recipients or the requester. Use direct_contact only after an explicit company request; it changes the status without sending Harper email.",
-            enum: ["intro_email", "direct_contact"],
+              "For accept, use schedule_interview only after the immediately previous Harper message presented the automatic meeting proposal and the company approved it. Omit or use intro_email for the default warm introduction. Use direct_contact only after an explicit company request.",
+            enum: ["intro_email", "direct_contact", "schedule_interview"],
             type: "string",
           },
           decision: {
@@ -741,6 +894,35 @@ The executor re-reads the candidate and applies compare-and-set protection. If a
             maxItems: 10,
             type: "array",
           },
+          meetingAdditionalMessage: nullableText(
+            "For schedule_interview only. Repeat only when the approved proposal explicitly contained this value; otherwise omit and the server uses the immediately confirmed proposal.",
+            2_000
+          ),
+          meetingAdditionalMessageVisibility: {
+            description:
+              "For schedule_interview only. Repeat only when needed to identify the exact approved revision.",
+            enum: ["candidate", "internal", "both"],
+            type: "string",
+          },
+          meetingAttendeeEmails: {
+            description:
+              "For schedule_interview only. Repeat only when needed to identify the exact approved revision. Omit on a simple approval.",
+            items: { type: "string" },
+            maxItems: 10,
+            type: "array",
+          },
+          meetingDurationMinutes: {
+            description:
+              "For schedule_interview only. Repeat only when needed to identify the exact approved revision. Omit on a simple approval.",
+            maximum: 240,
+            minimum: 15,
+            multipleOf: 15,
+            type: "integer",
+          },
+          meetingTitle: nullableText(
+            "For schedule_interview only. Repeat only when needed to identify the exact approved revision. Omit on a simple approval.",
+            200
+          ),
           reason: nullableText(
             "Optional reason genuinely provided by the user. Preserve its meaning accurately and never invent one.",
             2_000

@@ -20,7 +20,7 @@
   5. `tool_policy`: 노출 tool이 있을 때 `buildCareerToolPolicyPrompt` 결과
   6. `dynamic_state`: 현재 채널/시간, `conversationMode` 기반 high-priority runtime instruction, saved preferences/insights, pending feedback context, recent activity, opportunity status
 - message input:
-  - 최근 conversation message를 `fetchRecentMessagesWithSummary(... recentLimit: 12)` 또는 호출별 limit으로 가져온다.
+  - 최근 conversation message를 `fetchRecentMessagesWithSummary(... recentLimit: 16)` 또는 호출별 limit으로 가져온다.
   - `opportunity_feedback_note` message는 실제 유저 발화가 아니므로 `formatTalentMessageContentForLlmPrompt`가 아래 prefix를 붙인다.
 
 ```text
@@ -348,7 +348,7 @@ Response instruction:
 - Write one short natural {outputLanguage} follow-up message for the chat after the call ends.
 - Say the connection is continuing.
 - If the call was substantial, say Harper will reflect the shared details when presenting them to the company.
-- If the call was brief/incomplete, do not ask them to continue in chat; tell them they can continue from the Home call card when convenient.
+- If the call was brief/incomplete, tell them they can continue by selecting Call from the + button in the chat when convenient.
 - No heading, no bullets, 1-3 sentences.
 ```
 

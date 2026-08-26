@@ -178,7 +178,7 @@ registry contract test로 동기화를 검사한다.
 | `workspace_research` | 회사 정보, workspace member·memory, role의 criteria·memory·description 확인 | `get_more_data`, `read_role` |
 | `conversation_history` | 현재 visible context에 없는 과거 Harper-managed Slack 대화 조회 | `read_conversation_history` |
 | `company_role_edit` | 회사·workspace·role 정보, criteria, memory의 명시적 저장·수정·삭제 | `get_more_data`, `read_role`, `update_data` |
-| `role_lifecycle` | Role 채용 진행·중단·종료 변경 | `read_role`, `change_role_status` |
+| `role_lifecycle` | Role 채용 진행·중단·종료·삭제 변경 | `read_role`, `change_role_status` |
 | `candidate_contact` | 후보자에게 질문·이력서 요청, 대기 연락 취소 또는 즉시 전달 | `get_talents`, `read_talent`, `contact_talent`, `change_talent_contact` |
 | `candidate_connection` | 연결 대기 후보 수락·거절과 소개 방식 결정 | `get_talents`, `read_talent`, `read_role`, `decide_candidate_connection` |
 
@@ -225,7 +225,7 @@ Router description은 tool 설명의 요약이 아니다. 사용자의 어떤 �
 | `workspace_research` | Read company details, workspace members, workspace memory, or role criteria, memory, and description. Read-only. Do not use for candidate profiles, old Slack history, or mutations. |
 | `conversation_history` | Retrieve older Harper-managed Slack messages when the visible conversation is insufficient or refers to an earlier discussion. Historical read only; it does not verify current stored data. |
 | `company_role_edit` | Save, change, correct, append, replace, rewrite, or delete company, workspace, or role information, criteria, and durable memory. Do not use for factual questions, lifecycle status, candidate contact, or candidate decisions. |
-| `role_lifecycle` | Continue, pause, or end hiring for an exact role and explain the operational effect. Do not use for editing role content or deciding on a candidate. |
+| `role_lifecycle` | Continue, pause, end, or explicitly delete hiring for an exact role and explain the operational effect. Deletion is distinct from ending. Do not use for editing role content or deciding on a candidate. |
 | `candidate_contact` | Ask a candidate a question, request a resume, inspect contact status, cancel a pending request, or send an existing request immediately. External action may require confirmation. Do not use for merely reading or evaluating a candidate. |
 | `candidate_connection` | Accept, decline, connect with, or stop the process for a candidate awaiting connection, including choosing introduction email or direct contact. Consequential action requiring confirmation. Do not use for general candidate evaluation or outreach questions. |
 
@@ -381,7 +381,7 @@ candidate_research: candidate and pipeline read
 workspace_research: company, member, memory, and role read
 conversation_history: older stored Slack context
 company_role_edit: company and role data mutation
-role_lifecycle: start, pause, or end hiring
+role_lifecycle: start, pause, end, or delete hiring
 candidate_contact: candidate question or resume outreach
 candidate_connection: accept or decline a pending connection
 ```

@@ -69,6 +69,35 @@ test("accepts only the three decision tokens", async () => {
   assert.equal(parseSlackReplyRoutingDecision(""), "uncertain");
 });
 
+test("keeps explicit scheduling answers in Harper's scheduling thread", async () => {
+  const { shouldRespondToSchedulingThreadReply } = await router;
+  assert.equal(
+    shouldRespondToSchedulingThreadReply([
+      {
+        content: "가능한 시간을 저장한 뒤 다시 조율해 달라고 말해 주세요.",
+        role: "assistant",
+      },
+      {
+        content: "매주 오전 7시부터 오후 8시까지 가능해.",
+        role: "user",
+        slackUserId: "U1",
+      },
+    ]),
+    true
+  );
+  assert.equal(
+    shouldRespondToSchedulingThreadReply([
+      { content: "이 후보는 B2B 경험이 있어요.", role: "assistant" },
+      {
+        content: "민수님은 어떻게 생각하세요?",
+        role: "user",
+        slackUserId: "U1",
+      },
+    ]),
+    false
+  );
+});
+
 test("propagates cancellation instead of converting it to uncertain", async () => {
   const { decideHarperSlackThreadReply } = await router;
   const reason = new Error("newer Slack message arrived");

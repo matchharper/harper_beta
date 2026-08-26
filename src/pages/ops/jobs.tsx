@@ -3,14 +3,14 @@ import {
   formatKstRelativeDate,
   formatKstRelativeDateTime,
 } from "@/components/ops/dateUtils";
-import CompanyWorkspaceCombobox from "@/components/ops/jobs/CompanyWorkspaceCombobox";
+import InternalRoleCombobox from "@/components/ops/jobs/InternalRoleCombobox";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { showToast } from "@/components/toast/toast";
 import { MarkdownRichTextEditor } from "@/components/ui/markdown-rich-text-editor";
 import { Switch } from "@/components/ui/switch";
 import {
   useOpsOfficialJobAnalytics,
-  useOpsOfficialJobCompanyOptions,
+  useOpsOfficialJobInternalRoleOptions,
   useOpsOfficialJobs,
   useSaveOpsOfficialJob,
   type OpsOfficialJobRecord,
@@ -37,7 +37,7 @@ import Head from "next/head";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
-import { BareButton } from "@/components/ui/button";
+import { BareButton, MuteButton } from "@/components/ui/button";
 import { Input as UiInput } from "@/components/ui/input";
 import {
   Select,
@@ -201,11 +201,11 @@ type OfficialJobDraft = {
   isPublished: boolean;
   location: string;
   roleDescriptionMarkdown: string;
+  roleId: string;
   roleTitle: string;
   seniority: string;
   shortDescription: string;
   slug: string;
-  sourceCompanyName: string;
   vertical: string;
 };
 
@@ -229,11 +229,11 @@ const EMPTY_DRAFT: OfficialJobDraft = {
   isPublished: false,
   location: "",
   roleDescriptionMarkdown: "",
+  roleId: "",
   roleTitle: "",
   seniority: "",
   shortDescription: "",
   slug: "",
-  sourceCompanyName: "",
   vertical: "",
 };
 
@@ -251,11 +251,11 @@ const OFFICIAL_JOB_DRAFT_FIELDS: Array<keyof OfficialJobDraft> = [
   "isPublished",
   "location",
   "roleDescriptionMarkdown",
+  "roleId",
   "roleTitle",
   "seniority",
   "shortDescription",
   "slug",
-  "sourceCompanyName",
   "vertical",
 ];
 
@@ -303,11 +303,11 @@ function jobToDraft(job: OpsOfficialJobRecord): OfficialJobDraft {
     isPublished: job.isPublished,
     location: job.location,
     roleDescriptionMarkdown: job.roleDescriptionMarkdown,
+    roleId: job.roleId ?? "",
     roleTitle: job.roleTitle,
     seniority: job.seniority ?? "",
     shortDescription: job.shortDescription,
     slug: job.slug,
-    sourceCompanyName: job.sourceCompanyName ?? "",
     vertical: job.vertical,
   };
 }
@@ -338,13 +338,13 @@ function draftToPayload(draft: OfficialJobDraft): OpsOfficialJobSaveInput {
     isPublished: isInternalCopy ? false : draft.isPublished,
     location: draft.location,
     roleDescriptionMarkdown: draft.roleDescriptionMarkdown,
+    roleId: isInternalCopy ? null : draft.roleId,
     roleTitle: isInternalCopy
       ? OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE
       : draft.roleTitle,
     seniority: draft.seniority,
     shortDescription: draft.shortDescription,
     slug: isInternalCopy ? OFFICIAL_JOBS_INTERNAL_COPY_SLUG : draft.slug,
-    sourceCompanyName: draft.sourceCompanyName,
     vertical: draft.vertical,
   };
 }
@@ -440,7 +440,8 @@ export default function OpsOfficialJobsPage() {
     key: NEW_JOB_ID,
   });
   const jobsQuery = useOpsOfficialJobs(canFetchInternal);
-  const companyOptionsQuery = useOpsOfficialJobCompanyOptions(canFetchInternal);
+  const internalRolesQuery =
+    useOpsOfficialJobInternalRoleOptions(canFetchInternal);
   const saveJob = useSaveOpsOfficialJob();
   const jobs = useMemo(
     () => jobsQuery.data?.jobs ?? [],
@@ -791,11 +792,6 @@ export default function OpsOfficialJobsPage() {
                 <h2 className="mt-1 text-xl font-medium text-neutral-primary">
                   {draft.id ? "Edit official job" : "Create official job"}
                 </h2>
-                <p className="mt-2 text-sm leading-6 text-neutral-muted">
-                  {isInternalCopyDraft
-                    ? "이 row는 public job으로 공개되지 않습니다."
-                    : "공개 상세 페이지 본문에는 Role description만 노출됩니다."}
-                </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -1037,29 +1033,43 @@ export default function OpsOfficialJobsPage() {
                 />
               </Field>
               <Field label="Employment type">
-                <UiInput
-                  unstyled
-                  value={draft.employmentType}
-                  onChange={(event) =>
-                    updateDraft("employmentType", event.target.value)
-                  }
-                  className={opsTheme.input}
-                  placeholder="Full-time"
-                />
+                <div
+                  className="flex items-center gap-2"
+                  role="radiogroup"
+                  aria-label="Employment type"
+                >
+                  {(["Full-time", "Part-time"] as const).map((option) => {
+                    const selected = draft.employmentType === option;
+                    return (
+                      <MuteButton
+                        key={option}
+                        aria-checked={selected}
+                        className={cx(
+                          "min-w-24",
+                          selected && "border-neutral-800"
+                        )}
+                        onClick={() => updateDraft("employmentType", option)}
+                        role="radio"
+                        size="lg"
+                        variant={selected ? "neutral" : "default"}
+                      >
+                        {option}
+                      </MuteButton>
+                    );
+                  })}
+                </div>
               </Field>
-              <Field label="Source company name">
-                <CompanyWorkspaceCombobox
-                  companyNames={companyOptionsQuery.data?.companyNames ?? []}
-                  disabled={!canFetchInternal}
-                  isLoading={companyOptionsQuery.isLoading}
-                  value={draft.sourceCompanyName}
-                  onValueChange={(value) =>
-                    updateDraft("sourceCompanyName", value)
-                  }
+              <Field label="Internal role">
+                <InternalRoleCombobox
+                  roles={internalRolesQuery.data?.roles ?? []}
+                  disabled={!canFetchInternal || isInternalCopyDraft}
+                  isLoading={internalRolesQuery.isLoading}
+                  value={draft.roleId}
+                  onValueChange={(value) => updateDraft("roleId", value)}
                 />
-                {companyOptionsQuery.error ? (
+                {internalRolesQuery.error ? (
                   <div className="mt-1.5 text-xs text-critical">
-                    회사 목록을 불러오지 못했습니다.
+                    Internal role 목록을 불러오지 못했습니다.
                   </div>
                 ) : null}
               </Field>
@@ -1111,37 +1121,6 @@ export default function OpsOfficialJobsPage() {
             </div>
 
             <div className="mt-5 grid gap-4 lg:grid-cols-2">
-              <div>Slug는 최초 저장 후 고정됩니다</div>
-              <Field label="Slug">
-                <div className="flex gap-2">
-                  <UiInput
-                    unstyled
-                    value={draft.slug}
-                    disabled={isSlugLocked}
-                    onChange={(event) =>
-                      updateDraft("slug", event.target.value)
-                    }
-                    className={cx(
-                      opsTheme.input,
-                      isSlugLocked &&
-                        "cursor-not-allowed bg-bg-weak text-neutral-muted"
-                    )}
-                    placeholder="Generated from company and role on first save"
-                  />
-                  <BareButton
-                    type="button"
-                    onClick={handleGenerateSlug}
-                    disabled={isSlugLocked}
-                    className={cx(
-                      opsTheme.buttonSecondary,
-                      "h-11 px-3",
-                      isSlugLocked && "cursor-not-allowed opacity-55"
-                    )}
-                  >
-                    Generate
-                  </BareButton>
-                </div>
-              </Field>
               <Field label="Display order">
                 <UiInput
                   unstyled

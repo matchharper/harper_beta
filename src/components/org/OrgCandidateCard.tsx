@@ -197,10 +197,10 @@ export function OrgCandidateCard({
           </div>
         ) : (
           <>
-            <div className="min-w-0">
+            <div className="min-w-0 mt-1">
               <ProfileLabelCell
                 isCompact={true}
-                emptyLabel="회사 없음"
+                emptyLabel="정보 없음"
                 labels={item.talent.recentCompanies}
               />
             </div>

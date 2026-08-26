@@ -56,6 +56,49 @@ export type CareerPendingAction =
   | CareerPendingFitQuestionAction
   | CareerPendingInternalOpportunityAction;
 
+export type CareerReengagementPendingAction =
+  | {
+      companyName: string;
+      kind: "company_request";
+      request: string;
+      roleTitle: string;
+    }
+  | {
+      callId: string;
+      companyName: string;
+      kind: "talent_call";
+      reason: string | null;
+      resumePromptNeeded: boolean;
+      roleTitle: string;
+    }
+  | {
+      companyName: string;
+      kind: "internal_opportunity";
+      recommendationSummary: string | null;
+      roleTitle: string;
+    }
+  | {
+      kind: "reevaluation_question";
+      question: string;
+    };
+
+export type CareerReengagementPendingActionsSnapshot = {
+  actions: CareerReengagementPendingAction[];
+  promptActions: CareerReengagementPendingAction[];
+};
+
+export function selectCareerReengagementPromptActions(
+  actions: CareerReengagementPendingAction[],
+  limit = 1
+) {
+  const selected = actions.slice(0, Math.max(0, limit));
+
+  return [
+    ...selected.filter((action) => action.kind !== "talent_call"),
+    ...selected.filter((action) => action.kind === "talent_call"),
+  ];
+}
+
 const PENDING_ACTION_REFERENCE_KINDS = new Set([
   "company_request",
   "internal_fit_question",

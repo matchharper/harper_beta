@@ -1,6 +1,7 @@
 import {
   BriefcaseBusiness,
   Columns3,
+  Menu,
   PanelRight,
   PanelRightClose,
   PanelsTopLeft,
@@ -415,7 +416,8 @@ function OrgRoleCreationDetails({
 
 export function OrgRoleCreationPage() {
   const router = useRouter();
-  const { setNavigationTriggerHidden } = useOrgMobileNavigation();
+  const { openNavigation, setNavigationTriggerHidden } =
+    useOrgMobileNavigation();
   const { page, permissions, roles, workspace } = useOrgWorkspace();
   const [companyInfoOpen, setCompanyInfoOpen] = useState(false);
   const [mobileDetailsOpen, setMobileDetailsOpen] = useState(false);
@@ -487,8 +489,24 @@ export function OrgRoleCreationPage() {
           <OrgAgentChatSurface
             header={
               <>
-                <header className="absolute inset-x-0 top-0 z-30 flex h-12 items-center gap-2 bg-linear-to-b from-bg-default from-35% via-bg-default/80 to-bg-default/0 px-3 md:hidden">
-                  <span aria-hidden className="size-8 shrink-0" />
+                <header className="absolute inset-x-0 top-0 z-30 flex h-12 items-center gap-2 bg-linear-to-b from-white/30 to-white/0 px-3 md:hidden">
+                  {isNewRolePage ? (
+                    <span aria-hidden className="size-8 shrink-0" />
+                  ) : (
+                    <MuteButton
+                      aria-label="메뉴 열기"
+                      className="border border-white/20 bg-white/10 backdrop-blur-xs hover:bg-white/20"
+                      onClick={openNavigation}
+                      size="md"
+                      variant="transparent"
+                    >
+                      <Menu
+                        aria-hidden
+                        className="size-4.5"
+                        strokeWidth={1.7}
+                      />
+                    </MuteButton>
+                  )}
                   <div className="min-w-0 flex-1 px-1 text-left">
                     <h1 className="truncate whitespace-nowrap text-[13px] font-medium text-neutral-primary">
                       {roleId
@@ -499,7 +517,7 @@ export function OrgRoleCreationPage() {
                   {roleId ? (
                     <MuteButton
                       aria-label="역할 상세 열기"
-                      className="rounded-md bg-white/20 backdrop-blur-md hover:bg-white/30 border border-neutral-1000-a05"
+                      className="border border-white/20 bg-white/10 backdrop-blur-xs hover:bg-white/20"
                       onClick={() => setMobileDetailsOpen(true)}
                       size="md"
                       variant="transparent"
@@ -570,7 +588,7 @@ export function OrgRoleCreationPage() {
           >
             <div
               aria-hidden="true"
-              className="h-full w-px bg-neutral-1000-a05 transition-colors group-hover:bg-neutral-1000-a10 group-focus-visible:bg-neutral-1000-a10"
+              className="h-full w-px bg-neutral-1000-a10 transition-colors group-hover:bg-neutral-400 group-focus-visible:bg-neutral-400"
             />
           </div>
           <OrgRoleCreationDetails

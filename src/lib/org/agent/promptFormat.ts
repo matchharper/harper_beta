@@ -775,13 +775,32 @@ function formatCandidateStageMoveResult(result: Record<string, any>) {
 }
 
 function formatCandidateConnectionDecisionResult(result: Record<string, any>) {
+  const meetingDraft = asRecord(result.meetingDraft);
+  const meetingConfig = asRecord(meetingDraft.config);
   return [
+    ...(result.connectionMethod === "schedule_interview"
+      ? [
+          "response_mode=meeting_coordinator_narrative",
+          "user_facing_state=The candidate is connected and the meeting details are ready for company review. The candidate has not received the scheduling email yet.",
+        ]
+      : []),
     `status=${formatPromptCell(result.status, 40)}`,
     `candidate=${formatPromptCell(result.candidateName, 160)}`,
     `role=${formatPromptCell(result.roleName, 200)}`,
     `change=${formatPromptCell(result.changeSummary, 500)}`,
     `decision=${formatPromptCell(result.decision, 30)}`,
     `connection_method=${formatPromptCell(result.connectionMethod, 40)}`,
+    `meeting_title=${formatPromptCell(meetingConfig.title, 240)}`,
+    `meeting_duration_minutes=${formatPromptCell(
+      meetingConfig.durationMinutes,
+      20
+    )}`,
+    `meeting_draft_blocker=${formatPromptCell(result.draftBlocker, 80)}`,
+    `meeting_availability_url=${formatPromptCell(
+      result.meetingAvailabilityUrl,
+      500
+    )}`,
+    `meeting_schedule_url=${formatPromptCell(result.meetingScheduleUrl, 500)}`,
     `stage=${formatPromptCell(humanizeOrgStage(result.stage), 100)}`,
     `reactivation=${Boolean(result.reactivation)}`,
     `closure_notice_delivered=${Boolean(result.closureNotificationDelivered)}`,
@@ -802,7 +821,17 @@ function formatCandidateConnectionDecisionResult(result: Record<string, any>) {
 function formatCandidateConnectionPreparationResult(
   result: Record<string, any>
 ) {
+  const meetingDraft = asRecord(result.meetingDraft);
+  const meetingConfig = asRecord(meetingDraft.config);
   return [
+    ...(result.connectionMethod === "schedule_interview"
+      ? [
+          "response_mode=meeting_coordinator_narrative",
+          result.status === "meeting_setup_required"
+            ? "user_facing_state=Harper can coordinate this meeting, but the organizer needs to share availability first. Nothing has been sent to the candidate."
+            : "user_facing_state=This is a proposal awaiting company confirmation. The candidate is not connected by this result, the meeting details are not saved yet, and no email has been sent.",
+        ]
+      : []),
     `status=${formatPromptCell(result.status, 40)}`,
     `candidate=${formatPromptCell(result.candidateName, 160)}`,
     `candidate_email=${formatPromptCell(result.candidateEmail, 320)}`,
@@ -829,6 +858,25 @@ function formatCandidateConnectionPreparationResult(
       Array.isArray(result.introEmails) ? result.introEmails.join(", ") : null,
       1_000
     )}`,
+    `meeting_title=${formatPromptCell(meetingConfig.title, 240)}`,
+    `meeting_duration_minutes=${formatPromptCell(
+      meetingConfig.durationMinutes,
+      20
+    )}`,
+    `meeting_draft_blocker=${formatPromptCell(meetingDraft.draftBlocker, 80)}`,
+    `meeting_availability_url=${formatPromptCell(
+      result.meetingAvailabilityUrl,
+      500
+    )}`,
+    `meeting_confirmation=${formatPromptCell(
+      result.meetingScheduleConfirmation,
+      4_000
+    )}`,
+    ...(result.connectionMethod === "schedule_interview"
+      ? [
+          "writing_instruction=Preserve meeting_confirmation's conversational paragraph order and factual state. This preparation result is a preview, including after the user revises details: use intended language such as '~로 준비할게요' or '~로 바꿔 준비하면 돼요', never completed language such as '업데이트했어요' or '반영했어요'. You may adapt the opening to the visible conversation, but do not turn it into a field list. Omit the automatic meeting title unless the user explicitly asked about or changed it.",
+        ]
+      : []),
     `reason=${formatPromptCell(result.reason, 1_000)}`,
   ].join("\n");
 }
@@ -1016,6 +1064,18 @@ export function serializeOrgAgentToolResult(
   }
   if (name === "move_candidate_stage") {
     return formatCandidateStageMoveResult(result);
+  }
+  if (name === "manage_interview_availability") {
+    return [
+      "response_mode=meeting_coordinator_narrative",
+      "user_facing_state=Harper will use these organizer hours for future meeting options. No candidate has been contacted.",
+      `organizer_hours=${formatPromptCell(result.summary, 1_000)}`,
+      `timezone=${formatPromptCell(result.timezone, 128)}`,
+      `meeting_availability_url=${formatPromptCell(result.meetingAvailabilityUrl, 1_000)}`,
+      `next_process=${formatPromptCell(result.nextProcess, 1_000)}`,
+      `response_guidance=${formatPromptCell(result.responseGuidance, 1_000)}`,
+      "writing_instruction=Treat this as acknowledging a working preference, not reporting a data operation. Open naturally with the practical effect, such as '좋아요. 앞으로 이 시간을 기준으로 일정을 찾을게요.' Do not lead with 저장, 등록, 반영, or say Harper will apply the hours later. If the visible conversation identifies one candidate, ask whether to continue with that meeting now.",
+    ].join("\n");
   }
   if (name === "contact_talent") {
     return formatCompanyTalentRequestResult(result);

@@ -23,6 +23,12 @@ import {
   isFreshInternalOpportunityCallRequest,
   isTerminalInternalOpportunityCompanyDecision,
 } from "./internalOpportunityCallRequestPolicy";
+import { buildInternalOpportunityCallRequestMarker } from "./internalOpportunityCallMarker";
+import {
+  advanceInternalOpportunityCallQuestionProgress,
+  normalizeInternalOpportunityCallQuestionProgress,
+  type InternalOpportunityCallQuestionProgress,
+} from "./internalOpportunityCallProgress";
 
 export const TALENT_CALL_KIND_INTERNAL_OPPORTUNITY_REQUEST =
   "internal_opportunity_request";
@@ -36,9 +42,6 @@ export const isOpenInternalOpportunityCallRequestStatus = (
 ) =>
   status === TALENT_CALL_STATUS_PENDING || status === TALENT_CALL_STATUS_ACTIVE;
 
-const INTERNAL_CALL_REQUEST_MARKER_PREFIX =
-  "[[INTERNAL_OPPORTUNITY_CALL_REQUEST:";
-const INTERNAL_CALL_REQUEST_MARKER_SUFFIX = "]]";
 export const INTERNAL_CALL_REQUEST_QUESTION_MIN = 3;
 export const INTERNAL_CALL_REQUEST_QUESTION_MAX = 5;
 const INTERNAL_CALL_REQUEST_LOOKBACK_LIMIT = 20;
@@ -87,6 +90,7 @@ type InternalOpportunityCallRequestState = {
   createdFrom?: string;
   opportunityId?: string;
   questions?: string[];
+  questionProgress?: InternalOpportunityCallQuestionProgress;
   reason?: string | null;
   reasoning?: string | null;
   resumePromptNeeded?: boolean;
@@ -101,19 +105,13 @@ export type InternalOpportunityCallRequest = {
   id: string;
   opportunityId: string;
   questions: string[];
+  questionProgress: InternalOpportunityCallQuestionProgress;
   reason: string | null;
   resumePromptNeeded: boolean;
   roleId: string;
   roleTitle: string;
   status: string;
   updatedAt: string;
-};
-
-export type InternalOpportunityCallRequestMarkerPayload = {
-  callId: string;
-  companyName: string;
-  resumePromptNeeded?: boolean;
-  roleTitle: string;
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -203,11 +201,16 @@ function normalizeCallState(
   value: unknown
 ): InternalOpportunityCallRequestState {
   if (!isRecord(value)) return {};
+  const questions = normalizeQuestionList(value.questions);
   return {
     companyLogoUrl: optionalString(value.companyLogoUrl),
     companyName: optionalString(value.companyName) ?? undefined,
     opportunityId: optionalString(value.opportunityId) ?? undefined,
-    questions: normalizeQuestionList(value.questions),
+    questions,
+    questionProgress: normalizeInternalOpportunityCallQuestionProgress(
+      value.questionProgress,
+      questions.length
+    ),
     reason: optionalString(value.reason),
     reasoning: optionalString(value.reasoning),
     resumePromptNeeded: value.resumePromptNeeded === true,
@@ -238,6 +241,10 @@ export function serializeInternalOpportunityCallRequest(
     id: row.id,
     opportunityId,
     questions: state.questions ?? [],
+    questionProgress: normalizeInternalOpportunityCallQuestionProgress(
+      state.questionProgress,
+      state.questions?.length ?? 0
+    ),
     reason: state.reason ?? null,
     resumePromptNeeded: Boolean(state.resumePromptNeeded),
     roleId,
@@ -245,14 +252,6 @@ export function serializeInternalOpportunityCallRequest(
     status: row.status,
     updatedAt: row.updated_at,
   };
-}
-
-export function buildInternalOpportunityCallRequestMarker(
-  payload: InternalOpportunityCallRequestMarkerPayload
-) {
-  return `${INTERNAL_CALL_REQUEST_MARKER_PREFIX}${encodeURIComponent(
-    JSON.stringify(payload)
-  )}${INTERNAL_CALL_REQUEST_MARKER_SUFFIX}`;
 }
 
 export function appendInternalOpportunityCallRequestMarker(args: {
@@ -562,6 +561,62 @@ export async function touchInternalOpportunityCallRequest(args: {
   }
 }
 
+export async function advanceInternalOpportunityCallRequestQuestion(args: {
+  admin: TalentAdminClient;
+  callId: string;
+  userId: string;
+}) {
+  const { data, error } = await args.admin
+    .from("talent_calls")
+    .select("state")
+    .eq("id", args.callId)
+    .eq("user_id", args.userId)
+    .eq("kind", TALENT_CALL_KIND_INTERNAL_OPPORTUNITY_REQUEST)
+    .in("status", [TALENT_CALL_STATUS_PENDING, TALENT_CALL_STATUS_ACTIVE])
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      error.message ?? "Failed to read internal call question progress"
+    );
+  }
+  if (!data) return null;
+
+  const rawState = isRecord(data.state) ? data.state : {};
+  const state = normalizeCallState(data.state);
+  const questions = state.questions ?? [];
+  const questionProgress = advanceInternalOpportunityCallQuestionProgress(
+    normalizeInternalOpportunityCallQuestionProgress(
+      state.questionProgress,
+      questions.length
+    ),
+    questions.length
+  );
+  const now = new Date().toISOString();
+  const { error: updateError } = await args.admin
+    .from("talent_calls")
+    .update({
+      last_active_at: now,
+      state: {
+        ...rawState,
+        questionProgress,
+      } as Json,
+      updated_at: now,
+    })
+    .eq("id", args.callId)
+    .eq("user_id", args.userId)
+    .eq("kind", TALENT_CALL_KIND_INTERNAL_OPPORTUNITY_REQUEST)
+    .in("status", [TALENT_CALL_STATUS_PENDING, TALENT_CALL_STATUS_ACTIVE]);
+
+  if (updateError) {
+    throw new Error(
+      updateError.message ?? "Failed to update internal call question progress"
+    );
+  }
+
+  return questionProgress;
+}
+
 export async function completeInternalOpportunityCallRequest(args: {
   admin: TalentAdminClient;
   callId: string;
@@ -807,6 +862,10 @@ export async function maybeCreateInternalOpportunityCallRequest(args: {
         createdFrom: "internal_opportunity_feedback",
         opportunityId: opportunity.id,
         questions: decision.questions,
+        questionProgress: {
+          candidateQuestionsAsked: false,
+          nextQuestionIndex: 0,
+        },
         reason: decision.userFacingReason,
         reasoning: decision.reasoning,
         resumePromptNeeded: decision.resumePromptNeeded,

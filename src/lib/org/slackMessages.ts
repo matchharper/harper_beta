@@ -42,6 +42,13 @@ export function formatSlackLink(url: string, label: string) {
   return safeUrl && safeLabel ? `<${safeUrl}|${safeLabel}>` : safeLabel;
 }
 
+export function convertMarkdownLinksToSlackMrkdwn(value: string) {
+  return String(value ?? "").replace(
+    /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/gi,
+    (_match, label: string, url: string) => formatSlackLink(url, label)
+  );
+}
+
 function getPublicSiteUrl() {
   const value =
     process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
@@ -61,6 +68,26 @@ export function buildOrgRoleUrl(workspaceId: string, roleId?: string | null) {
   const params = new URLSearchParams({ orgId: workspaceId });
   if (roleId) params.set("roleId", roleId);
   return `${getPublicSiteUrl()}/org/jobs?${params.toString()}`;
+}
+
+export function buildOrgMeetingAvailabilityUrl(workspaceId: string) {
+  const params = new URLSearchParams({
+    dialog: "interview-availability",
+    orgId: workspaceId,
+  });
+  return `${getPublicSiteUrl()}/org/settings?${params.toString()}`;
+}
+
+export function buildOrgMeetingScheduleUrl(
+  workspaceId: string,
+  scheduleId: string
+) {
+  const params = new URLSearchParams({
+    dialog: "interview-schedule",
+    orgId: workspaceId,
+    scheduleId,
+  });
+  return `${getPublicSiteUrl()}/org/inbox?${params.toString()}`;
 }
 
 export function formatPerson(user: OrgSlackUser) {
@@ -124,9 +151,7 @@ export function buildOrgCandidateAcceptedSlackMessage(args: {
   const politeCandidateName = rawCandidateName.endsWith("님")
     ? rawCandidateName
     : `${rawCandidateName}님`;
-  const connectionMethod = args.contactDirectly
-    ? "직접 연락"
-    : "소개 이메일";
+  const connectionMethod = args.contactDirectly ? "직접 연락" : "소개 이메일";
   const lines = [
     args.reactivated
       ? `*${escapeSlackText(politeCandidateName)}과 다시 연결해드렸어요*`

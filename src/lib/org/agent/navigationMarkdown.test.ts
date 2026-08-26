@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  convertSlackCandidateIntroToWebMarkdown,
   convertSlackMrkdwnToWebMarkdown,
   renderOrgAgentWebLinks,
 } from "@/lib/org/agent/navigationMarkdown";
@@ -40,6 +41,15 @@ test("Slack role-creation messages render as web Markdown", () => {
       "*역할*  Staff Engineer\n<https://example.com/org/role?roleId=1|웹에서 계속 작성하기>"
     ),
     "**역할**  Staff Engineer\n[웹에서 계속 작성하기](https://example.com/org/role?roleId=1)"
+  );
+});
+
+test("saved Slack candidate introductions become GFM for the web detail", () => {
+  assert.equal(
+    convertSlackCandidateIntroToWebMarkdown(
+      "*TL;DR* - 핵심 요약\n--------\nWork Summary:\n*Engineer @ Harper*\n• 제품을 만들었습니다.\n------------\n*Preferences:*\n• *Location:* Seoul"
+    ),
+    "**TL;DR** - 핵심 요약\n\n---\n\nWork Summary:\n**Engineer @ Harper**\n- 제품을 만들었습니다.\n\n---\n\n**Preferences:**\n- **Location:** Seoul"
   );
 });
 

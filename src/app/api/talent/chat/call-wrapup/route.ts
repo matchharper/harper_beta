@@ -32,6 +32,12 @@ import {
   stripPostgresUnsafeChars,
 } from "@/lib/textSanitization";
 import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
+import {
+  getInternalOpportunityCallCompletionDisposition,
+  hasAnsweredAtLeastOneInternalOpportunityCallQuestion,
+  isInternalOpportunityCallQuestionPlanComplete,
+  type InternalOpportunityCallCompletionDisposition,
+} from "@/lib/talentOnboarding/internalOpportunityCallProgress";
 
 type TranscriptEntry = {
   role: "user" | "assistant";
@@ -190,22 +196,31 @@ function buildInternalOpportunityInterruptedFollowUp(args: {
   return careerT(
     args.preferredLocale,
     "career.call.internal_interrupted_followup",
-    "{companyName} {roleTitle} 관련 통화가 중간에 끊긴 것 같아요. 연결은 계속 진행 중이고, 이어서 이야기하고 싶으시면 채팅이 아니라 Home 화면의 통화 카드에서 다시 진행해주세요.",
+    "{companyName} {roleTitle} 관련 통화가 중간에 끊긴 것 같아요. 연결은 계속 진행 중이고, 이어서 이야기하고 싶으시면 채팅창의 + 버튼을 통해 통화를 선택해서 다시 진행해주세요.",
     { values: { companyName: args.companyName, roleTitle: args.roleTitle } }
   );
 }
 
 function buildInternalOpportunityFallbackFollowUp(args: {
   companyName: string;
-  isBrief: boolean;
+  completionDisposition: InternalOpportunityCallCompletionDisposition;
   preferredLocale?: string | null;
   roleTitle: string;
 }) {
-  if (args.isBrief) {
+  if (args.completionDisposition === "unanswered") {
     return careerT(
       args.preferredLocale,
       "career.call.internal_brief_followup",
-      "{companyName} {roleTitle} 관련 통화가 조금 짧게 끝난 것 같아요. 연결은 계속 진행 중이고, 더 이야기하고 싶으시면 Home 화면의 통화 카드에서 이어서 진행해주세요.",
+      "{companyName} {roleTitle} 관련 통화가 조금 짧게 끝난 것 같아요. 연결은 계속 진행 중이고, 더 이야기하고 싶으시면 채팅창의 + 버튼을 통해 통화를 선택해서 다시 진행해주세요.",
+      { values: { companyName: args.companyName, roleTitle: args.roleTitle } }
+    );
+  }
+
+  if (args.completionDisposition === "partial_answered") {
+    return careerT(
+      args.preferredLocale,
+      "career.call.internal_partial_completed_followup",
+      "{companyName} {roleTitle} 관련 통화는 중간에 종료하셨지만, 필요한 질문에는 응답해주신 것으로 보고 여기서 닫아둘게요. 참여해주셔서 감사합니다. 연결은 계속 진행됩니다.",
       { values: { companyName: args.companyName, roleTitle: args.roleTitle } }
     );
   }
@@ -363,12 +378,10 @@ export async function POST(request: NextRequest) {
       body.locale ??
       request.cookies.get("NEXT_LOCALE")?.value;
     const conversationStarter = conversationStarterId
-      ? getCareerConversationStarter(
-          conversationStarterId,
-          responseLocale
-        )
+      ? getCareerConversationStarter(conversationStarterId, responseLocale)
       : null;
-    const skipConversationWrites = Boolean(conversationStarter);
+    const skipConversationWrites =
+      Boolean(conversationStarter) || Boolean(internalCallRequest);
     if (conversationStarterId && !conversationStarter) {
       return NextResponse.json(
         { error: "Invalid conversationStarterId" },
@@ -406,7 +419,34 @@ export async function POST(request: NextRequest) {
         ? requestTranscript
         : savedTranscript;
     const transcriptStats = summarizeTranscript(resolvedTranscript);
-    if (transcriptStats.userTurns <= 0 && !forceCompleteOnboarding) {
+    const internalQuestionPlanComplete = internalCallRequest
+      ? isInternalOpportunityCallQuestionPlanComplete(
+          internalCallRequest.questionProgress,
+          internalCallRequest.questions.length
+        )
+      : false;
+    const internalCallHasAnsweredQuestion = internalCallRequest
+      ? hasAnsweredAtLeastOneInternalOpportunityCallQuestion({
+          progress: internalCallRequest.questionProgress,
+          questions: internalCallRequest.questions,
+          transcript: resolvedTranscript,
+        })
+      : false;
+    const internalCompletionDisposition = internalCallRequest
+      ? getInternalOpportunityCallCompletionDisposition({
+          answeredAtLeastOneQuestion: internalCallHasAnsweredQuestion,
+          questionPlanComplete: internalQuestionPlanComplete,
+        })
+      : null;
+    const shouldCompleteInternalCall =
+      internalCompletionDisposition === "full" ||
+      internalCompletionDisposition === "partial_answered";
+
+    if (
+      transcriptStats.userTurns <= 0 &&
+      !forceCompleteOnboarding &&
+      !shouldCompleteInternalCall
+    ) {
       if (internalCallRequest) {
         const fallbackMessage = await insertFallbackFollowUp({
           content: buildInternalOpportunityInterruptedFollowUp({
@@ -441,10 +481,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const briefConversation = isBriefConversation(
-      transcriptStats,
-      safeDurationSeconds
-    );
+    const briefConversation = internalCallRequest
+      ? internalCompletionDisposition !== "full"
+      : isBriefConversation(transcriptStats, safeDurationSeconds);
     const currentInsightContent = (currentInsights?.content ?? null) as Record<
       string,
       string
@@ -537,7 +576,7 @@ export async function POST(request: NextRequest) {
     const fallbackFollowUpText = internalCallRequest
       ? buildInternalOpportunityFallbackFollowUp({
           companyName: internalCallRequest.companyName,
-          isBrief: briefConversation,
+          completionDisposition: internalCompletionDisposition ?? "unanswered",
           preferredLocale: responseLocale,
           roleTitle: internalCallRequest.roleTitle,
         })
@@ -549,10 +588,12 @@ export async function POST(request: NextRequest) {
     try {
       const result = await runCareerChatTurn({
         admin: supabase,
-        allowedToolNames: [
-          TALENT_TOOL_NAMES.UPDATE_SETTING,
-          TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
-        ],
+        allowedToolNames: internalCallRequest
+          ? [TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE]
+          : [
+              TALENT_TOOL_NAMES.UPDATE_SETTING,
+              TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
+            ],
         assistantMessageType: "call_wrapup",
         conversationId,
         inlineInsightExtraction: true,
@@ -560,8 +601,9 @@ export async function POST(request: NextRequest) {
         proactiveContext: internalCallRequest
           ? buildInternalOpportunityCallWrapupInstruction({
               callRequest: internalCallRequest,
+              completionDisposition:
+                internalCompletionDisposition ?? "unanswered",
               durationLabel,
-              isBrief: briefConversation,
               preferredLocale: responseLocale,
               transcript: resolvedTranscript,
             })
@@ -573,6 +615,11 @@ export async function POST(request: NextRequest) {
               transcript: resolvedTranscript,
             }),
         skipConversationWrites,
+        suppressOnboarding: Boolean(internalCallRequest),
+        transformAssistantTextBeforeInsert:
+          internalCompletionDisposition === "partial_answered"
+            ? () => fallbackFollowUpText
+            : undefined,
         usageLabel: internalCallRequest
           ? "career/chat:internal_opportunity_call_wrapup"
           : "career/chat:call_wrapup",
@@ -583,7 +630,7 @@ export async function POST(request: NextRequest) {
         result.assistantMessage?.content ?? ""
       );
       if (normalized && result.assistantMessage) {
-        if (internalCallRequest && !briefConversation) {
+        if (internalCallRequest && shouldCompleteInternalCall) {
           await completeInternalOpportunityCallRequest({
             admin: supabase,
             callId: internalCallRequest.id,
@@ -630,7 +677,7 @@ export async function POST(request: NextRequest) {
       supabase,
       userId: user.id,
     });
-    if (internalCallRequest && !briefConversation) {
+    if (internalCallRequest && shouldCompleteInternalCall) {
       await completeInternalOpportunityCallRequest({
         admin: supabase,
         callId: internalCallRequest.id,

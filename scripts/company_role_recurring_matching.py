@@ -52,9 +52,13 @@ DEFAULT_CANDIDATE_EVALUATION_LIMIT = 100
 DEFAULT_CANDIDATE_SCAN_LIMIT = 150
 MAX_EVALUATIONS_PER_RUN = 200
 MAX_DISCOVERY_EVALUATIONS_PER_RUN = 100
-MAX_REEVALUATION_EVALUATIONS_PER_RUN = 100
+MIN_REEVALUATION_EVALUATIONS_PER_RUN = 10
+MAX_REEVALUATION_EVALUATIONS_PER_RUN = 50
 MAX_CANDIDATE_SCAN_PER_LANE = 150
+MAX_REEVALUATION_CANDIDATE_SCAN_PER_LANE = 500
+REEVALUATION_MIN_AGE = timedelta(weeks=3)
 DISCOVERY_LANES = {"new", "relocation"}
+REEVALUATION_LABELS = {"hold", "ambiguous"}
 
 FIT_EVALUATION_CONTRACT_TEXT = """Label을 먼저 정하고 해당 band 안에서 score를 정한다.
 - fit 80~100: 회사-side suitability gate를 통과하고 지금 후보에게 보여 줄 가치가 있으며, 명시적 blocker나 true hold가 없다.
@@ -68,6 +72,19 @@ FIT_EVALUATION_CONTRACT_TEXT = """Label을 먼저 정하고 해당 band 안에�
 fit이 독립적으로 성립한 뒤에만 회사·role 적합도 80~90 + candidate preference 0~10으로 score를 정한다. 수행 능력을 candidate preference로 다시 더하지 않는다. Candidate-facing opportunity 정보가 없다는 말은 보상·근무형태·회사 단계처럼 후보가 판단할 기회 자체의 속성이 입력에 없다는 뜻이지, 후보가 이 role을 사전에 보지 않았다는 뜻이 아니다. 명시적 부정 신호가 없고 수락한다면 회사에 보낼 가치가 있는 후보는 사소한 preference uncertainty 때문에 ambiguous로 내리지 않는다.
 
 reevaluationCriteria는 hold에서만 {topic, question, new_information}으로 쓴다. 회사 bar 확인이나 가벼운 취향 질문에는 쓰지 않는다. companyCriteriaEvaluations는 fit이고 role criteria가 있을 때만 [{name, fitness, content}]로 쓰며 전체 fit의 평균·공식이 아니다. 현재 회사/self-match는 internal transfer 의사가 명시되지 않은 한 hold로 묻지 않는다.
+"""
+
+CONTEXT_EDIT_INSTRUCTIONS_TEXT = """이 context는 검토 이력이나 사건 원장이 아니라 다음 [talent × role] matching 평가의 compact input이다.
+각 문장은 '이 문장을 빼면 다음 후보의 retrieval, label, score, reason 또는 확인 질문이 달라질 합리적인 가능성이 있는가?'를 통과해야 한다. 아니면 쓰지 않는다.
+회사/role의 고정 정보나 JD·request·criteria를 요약하지 않는다.
+실제 회사 발화와 회사에 귀속되는 후보 검토 결과 중 다음 matching을 바꿀 반복적·중요한 행동 신호만 verbalize한다.
+회사 actor가 확인돼도 이유·메모 없는 stage 변경은 행동의 존재만 증명한다. 그 사실, '일반화할 수 없음', '추가 기준은 미확정' 같은 무정보 문장을 context에 쓰지 않는다.
+talent_opportunity_recommendation의 feedback·feedback_reason은 후보자의 공고 반응이므로 회사 선호로 사용하지 않는다.
+stage와 company_user_id 없는 progress는 actor가 확인되지 않으면 회사 선호로 사용하지 않는다.
+기존 문장도 근거가 사라졌거나 다음 평가에 불필요하면 삭제한다.
+반영할 필요한 정보가 0개이고 기존 context가 비어 있으면 빈 text를 그대로 저장한다. 기존 context가 여전히 유효하고 의미 변화가 없으면 byte-for-byte 그대로 사용한다.
+검토 완료 기록이 필요하면 run summary에 '행동 evidence를 검토했으나 context에 반영할 matching-relevant 정보 없음'처럼 남기고 context에는 넣지 않는다.
+회사 공통 신호와 이 role에만 적용되는 신호를 문서 안에서 명확히 구분한다.
 """
 
 
@@ -250,32 +267,12 @@ def validate_reevaluation_skips(
     indexed_lanes: Mapping[str, str],
     evaluated_ids: set[str],
 ) -> list[dict[str, str]]:
+    del indexed_lanes, evaluated_ids
     if raw_skips in (None, []):
         return []
-    if not isinstance(raw_skips, list):
-        raise ValueError("skippedReevaluations must be an array")
-    validated: list[dict[str, str]] = []
-    seen: set[str] = set()
-    for item in raw_skips:
-        if not isinstance(item, Mapping):
-            raise ValueError("each skipped reevaluation must be an object")
-        talent_id = compact(item.get("talentId"), 100)
-        reason = str(item.get("reason") or "").strip()
-        if not talent_id or not reason or len(reason) > 1500:
-            raise ValueError("skipped reevaluation requires talentId and a concise reason")
-        if talent_id in seen or talent_id in evaluated_ids:
-            raise ValueError("a talent cannot be covered twice in one fit input")
-        if indexed_lanes.get(talent_id) != "reevaluation":
-            raise ValueError("only the reevaluation lane may be skipped as irrelevant")
-        seen.add(talent_id)
-        validated.append(
-            {
-                "talentId": talent_id,
-                "decision": "changed_but_irrelevant",
-                "reason": reason,
-            }
-        )
-    return validated
+    raise ValueError(
+        "indexed reevaluation candidates have changed fingerprints and must be fully reevaluated"
+    )
 
 
 def next_lane_candidates(
@@ -1066,14 +1063,7 @@ def prepare_run(conn: psycopg.Connection, run: Mapping[str, Any]) -> Path:
     )
     write_text(
         path / "context_edit_instructions.md",
-        """회사/role의 고정 정보나 request·criteria를 요약하지 않는다.
-실제 회사 발화와 회사에 귀속되는 후보 검토 결과를 verbalize해 다음 매칭을 바꿀 반복적·중요한 행동 신호만 쓴다.
-talent_opportunity_recommendation의 feedback·feedback_reason은 후보자의 공고 반응이므로 회사 선호로 사용하지 않는다.
-stage와 company_user_id 없는 progress는 actor가 확인되지 않으면 회사 선호로 사용하지 않는다.
-초기에는 전체 context를 만들고, 이후에는 기존 문장 중 근거가 바뀐 줄만 고친다.
-근거가 없거나 기존 의미가 그대로면 문맥을 꾸며내지 말고 기존 text를 그대로 사용한다.
-회사 공통 신호와 이 role에만 적용되는 신호를 문서 안에서 명확히 구분한다.
-""",
+        CONTEXT_EDIT_INSTRUCTIONS_TEXT,
     )
     write_text(
         path / "fit_evaluation_contract.md",
@@ -1312,7 +1302,9 @@ def command_start(args: argparse.Namespace) -> int:
                 cur.execute(
                     """
                     update public.company_context_runs
-                    set result = result || jsonb_build_object('companyWorkspaceId', %s)
+                    set result = result || jsonb_build_object(
+                      'companyWorkspaceId', %s::text
+                    )
                     where id = %s::uuid and status = 'running'
                     """,
                     (str(role["company_workspace_id"]), run_id),
@@ -1406,7 +1398,26 @@ def validate_read_only_sql(sql: str) -> str:
     return stripped
 
 
-def validate_semantic_neutral_retrieval_sql(sql: str) -> str:
+def normalized_final_order_by(sql: str) -> str:
+    validation_sql = re.sub(r"'(?:''|[^'])*'", "''", sql)
+    validation_sql = re.sub(r"--[^\r\n]*(?:\r?\n|$)", " ", validation_sql)
+    validation_sql = re.sub(r"/\*.*?\*/", " ", validation_sql, flags=re.DOTALL)
+    order_clauses = re.findall(
+        r"\border\s+by\s+(.+?)(?=\blimit\s+\d+\b)",
+        validation_sql,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if not order_clauses:
+        return ""
+    return re.sub(r"\s+", " ", order_clauses[-1]).strip().lower()
+
+
+def validate_semantic_neutral_retrieval_sql(
+    sql: str,
+    *,
+    lane: str | None = None,
+    reference_order_by: str | None = None,
+) -> str:
     """Allow Codex-authored role-aware retrieval while enforcing execution safety."""
     stripped = validate_read_only_sql(sql)
     validation_sql = re.sub(r"'(?:''|[^'])*'", "''", stripped)
@@ -1416,25 +1427,65 @@ def validate_semantic_neutral_retrieval_sql(sql: str) -> str:
         raise ValueError("Retrieval SQL must return a talent_id column")
     if not re.search(r"\blimit\s+\d+\b", validation_sql, flags=re.IGNORECASE):
         raise ValueError("Retrieval SQL requires an explicit LIMIT")
-    order_clauses = re.findall(
-        r"\border\s+by\s+(.+?)(?=\blimit\s+\d+\b)",
-        validation_sql,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    if not order_clauses or not re.search(
-        r"\btalent_id\b", order_clauses[-1], flags=re.IGNORECASE
-    ):
+    final_order_by = normalized_final_order_by(stripped)
+    if not final_order_by or not re.search(r"\btalent_id\b", final_order_by):
         raise ValueError(
             "Retrieval SQL requires a final ORDER BY with talent_id as a stable tie-breaker"
         )
+    if lane == "reevaluation":
+        for required in (
+            "talent_opportunity_fit",
+            "effective_label",
+            "last_evaluated_at",
+        ):
+            if not re.search(rf"\b{required}\b", validation_sql, flags=re.IGNORECASE):
+                raise ValueError(f"Reevaluation SQL must reference {required}")
+        if not re.search(
+            r"\binterval\s*'\s*21\s+days?\s*'",
+            stripped,
+            flags=re.IGNORECASE,
+        ):
+            raise ValueError(
+                "Reevaluation SQL must apply a 21-day last_evaluated_at cutoff"
+            )
+        if reference_order_by and final_order_by != reference_order_by:
+            raise ValueError(
+                "Reevaluation SQL must use the same final role-ranking ORDER BY as new retrieval"
+            )
     return stripped
+
+
+def validate_retrieval_rows(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    lane: str,
+    now: datetime | None = None,
+) -> None:
+    if lane != "reevaluation":
+        return
+    cutoff = (now or utc_now()) - REEVALUATION_MIN_AGE
+    for row in rows:
+        talent_id = compact(row.get("talent_id"), 100) or "(missing talent_id)"
+        effective_label = compact(row.get("effective_label"), 40).lower()
+        if effective_label not in REEVALUATION_LABELS:
+            raise ValueError(
+                f"Reevaluation SQL returned ineligible effective label for {talent_id}: "
+                f"{effective_label or '(missing)'}"
+            )
+        last_evaluated_at = parsed_time(row.get("last_evaluated_at"))
+        if last_evaluated_at is None:
+            raise ValueError(
+                f"Reevaluation SQL returned missing last_evaluated_at for {talent_id}"
+            )
+        if last_evaluated_at > cutoff:
+            raise ValueError(
+                f"Reevaluation SQL returned a pair evaluated less than 21 days ago: {talent_id}"
+            )
 
 
 def command_run_sql(args: argparse.Namespace) -> int:
     sql_path = Path(args.sql_file).resolve()
-    sql = validate_semantic_neutral_retrieval_sql(
-        sql_path.read_text(encoding="utf-8")
-    )
+    raw_sql = sql_path.read_text(encoding="utf-8")
     with connect() as conn:
         run = assert_run_writable(conn, args.run_id)
         assert_search_allowed(conn, run)
@@ -1442,6 +1493,23 @@ def command_run_sql(args: argparse.Namespace) -> int:
             raise RuntimeError("context must be saved before retrieval SQL runs")
         conn.rollback()
         path = run_dir(run)
+        reference_order_by = None
+        if args.lane == "reevaluation":
+            new_sql_path = path / "retrieval_new.sql"
+            if not new_sql_path.exists():
+                raise RuntimeError(
+                    "new retrieval SQL must run before reevaluation so role ranking can be reused"
+                )
+            new_sql = validate_semantic_neutral_retrieval_sql(
+                new_sql_path.read_text(encoding="utf-8"),
+                lane="new",
+            )
+            reference_order_by = normalized_final_order_by(new_sql)
+        sql = validate_semantic_neutral_retrieval_sql(
+            raw_sql,
+            lane=args.lane,
+            reference_order_by=reference_order_by,
+        )
         revision = args.revision
         with conn.cursor() as cur:
             cur.execute("set transaction read only")
@@ -1454,9 +1522,21 @@ def command_run_sql(args: argparse.Namespace) -> int:
         raise RuntimeError(f"query returned more than max_rows={args.max_rows}")
     if "talent_id" not in columns:
         raise RuntimeError("retrieval query must return a talent_id column")
+    if args.lane == "reevaluation":
+        missing_columns = {
+            "effective_label",
+            "last_evaluated_at",
+        } - set(columns)
+        if missing_columns:
+            raise RuntimeError(
+                "reevaluation query must return columns: "
+                + ", ".join(sorted(missing_columns))
+            )
+    validate_retrieval_rows(rows, lane=args.lane)
     unique_ids = {str(row.get("talent_id")) for row in rows if row.get("talent_id")}
     result = {
         "revision": revision,
+        "lane": args.lane,
         "sqlFile": str(sql_path),
         "columns": columns,
         "rowCount": len(rows),
@@ -1464,6 +1544,7 @@ def command_run_sql(args: argparse.Namespace) -> int:
         "duplicateTalentRows": len(rows) - len(unique_ids),
         "rows": rows,
     }
+    write_text(path / f"retrieval_{args.lane}.sql", sql)
     write_text(path / f"retrieval_query_v{revision}.sql", sql)
     output = path / f"retrieval_result_v{revision}.json"
     write_json(output, result)
@@ -1735,8 +1816,13 @@ def candidate_exclusion(
         reasons.append("missing_prior_fit_for_reevaluation")
     if lane == "reevaluation" and fit:
         effective_label = compact(fit.get("human_label") or fit.get("label"), 40).lower()
-        if effective_label in {"dissatisfied", "unfit"}:
+        if effective_label not in REEVALUATION_LABELS:
             reasons.append(f"effective_{effective_label}_excluded_from_reevaluation")
+        last_evaluated_at = parsed_time(fit.get("last_evaluated_at"))
+        if last_evaluated_at is None:
+            reasons.append("missing_last_evaluated_at_for_reevaluation")
+        elif last_evaluated_at > utc_now() - REEVALUATION_MIN_AGE:
+            reasons.append("reevaluation_not_due_before_21_days")
     active_companies = {
         normalized_company(row.get("company_name"))
         for row in data["experiences"].get(talent_id, [])
@@ -2015,11 +2101,21 @@ def command_candidate_packet(args: argparse.Namespace) -> int:
     query_rows = query_result.get("rows") if isinstance(query_result, Mapping) else None
     if not isinstance(query_rows, list):
         raise ValueError("query result must contain rows")
+    query_lane = compact(query_result.get("lane"), 40)
+    if query_lane != args.lane:
+        raise ValueError(
+            f"query result lane {query_lane or '(missing)'} does not match {args.lane}"
+        )
     if args.limit <= 0 or args.scan_limit <= 0:
         raise ValueError("candidate packet limits must be positive")
-    if args.scan_limit > MAX_CANDIDATE_SCAN_PER_LANE:
+    max_scan_limit = (
+        MAX_REEVALUATION_CANDIDATE_SCAN_PER_LANE
+        if args.lane == "reevaluation"
+        else MAX_CANDIDATE_SCAN_PER_LANE
+    )
+    if args.scan_limit > max_scan_limit:
         raise ValueError(
-            f"a candidate lane may scan at most {MAX_CANDIDATE_SCAN_PER_LANE} talents"
+            f"the {args.lane} lane may scan at most {max_scan_limit} talents"
         )
     if args.lane in DISCOVERY_LANES and args.limit > MAX_DISCOVERY_EVALUATIONS_PER_RUN:
         raise ValueError(
@@ -2031,6 +2127,13 @@ def command_candidate_packet(args: argparse.Namespace) -> int:
     ):
         raise ValueError(
             f"a reevaluation lane may request at most {MAX_REEVALUATION_EVALUATIONS_PER_RUN} evaluations"
+        )
+    if (
+        args.lane == "reevaluation"
+        and args.limit < MIN_REEVALUATION_EVALUATIONS_PER_RUN
+    ):
+        raise ValueError(
+            f"a reevaluation lane must target at least {MIN_REEVALUATION_EVALUATIONS_PER_RUN} evaluations when eligible pairs exist"
         )
     ordered_ids = ordered_candidate_ids(query_rows, args.scan_limit)
 
@@ -2210,6 +2313,11 @@ def command_candidate_packet(args: argparse.Namespace) -> int:
         "requested": len(ordered_ids),
         "scanLimit": args.scan_limit,
         "evaluationLimit": evaluation_limit,
+        "minimumEvaluationTarget": (
+            MIN_REEVALUATION_EVALUATIONS_PER_RUN
+            if args.lane == "reevaluation"
+            else None
+        ),
         "eligible": len(index_rows),
         "excluded": excluded,
         "candidates": index_rows,
@@ -3084,6 +3192,9 @@ def build_parser() -> argparse.ArgumentParser:
     run_sql = sub.add_parser("run-sql")
     run_sql.add_argument("--run-id", required=True)
     run_sql.add_argument("--sql-file", required=True)
+    run_sql.add_argument(
+        "--lane", choices=("new", "relocation", "reevaluation"), required=True
+    )
     run_sql.add_argument("--revision", type=int, required=True)
     run_sql.add_argument("--max-rows", type=int, default=500)
     run_sql.set_defaults(func=command_run_sql)

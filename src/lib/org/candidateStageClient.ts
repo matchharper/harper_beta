@@ -9,18 +9,31 @@ import type {
 
 export type OrgCandidateStageMutationInput = {
   acceptReason?: OrgStageChangeOptions["acceptReason"];
+  additionalMessage?: OrgStageChangeOptions["additionalMessage"];
+  additionalMessageVisibility?: OrgStageChangeOptions["additionalMessageVisibility"];
+  attendeeEmails?: OrgStageChangeOptions["attendeeEmails"];
   contactDirectly?: OrgStageChangeOptions["contactDirectly"];
+  durationMinutes?: OrgStageChangeOptions["durationMinutes"];
   emailMode?: InternalConnectionConfirmationEmailMode;
   introEmails?: OrgStageChangeOptions["introEmails"];
   recommendationId: string;
   roleId: string;
+  scheduleInterview?: OrgStageChangeOptions["scheduleInterview"];
   stage: OrgStageId;
   stopNote?: OrgStageChangeOptions["stopNote"];
   talentId: string;
+  title?: OrgStageChangeOptions["title"];
   workspaceId: string;
 };
 
 export type OrgCandidateStageMutationResponse = {
+  meetingSchedule?: {
+    alreadyExisted: boolean;
+    detailPath: string;
+    roundId: string;
+    scheduleId: string;
+    status: string;
+  } | null;
   ok: true;
   roleId: string;
   stage: OrgStageId;

@@ -3,7 +3,7 @@ import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ChatComposerTokenOverlay } from "./ChatComposerTokenOverlay";
 
-test("renders an opportunity token as a detail button when a click handler is supplied", () => {
+test("renders an opportunity token as an inline detail control when a click handler is supplied", () => {
   const markup = renderToStaticMarkup(
     <ChatComposerTokenOverlay
       getTokenAriaLabel={(token) => `기회 상세 열기: ${token.text}`}
@@ -24,19 +24,43 @@ test("renders an opportunity token as a detail button when a click handler is su
     />
   );
 
-  assert.match(markup, /<button/);
+  assert.match(markup, /role="button"/);
   assert.match(markup, /data-chat-composer-token/);
   assert.match(markup, /기회 상세 열기: Harper · Applied AI Engineer/);
   assert.match(markup, /pointer-events-auto/);
-  assert.match(markup, /text-base/);
-  assert.match(markup, /font-normal/);
-  assert.match(markup, /md:text-sm/);
-  assert.match(markup, /lg:text-\[14px\]/);
-  assert.doesNotMatch(markup, /text-xs/);
-  assert.doesNotMatch(markup, /font-medium/);
+  assert.doesNotMatch(markup, /<button/);
+  assert.doesNotMatch(markup, /inline-flex|inline-block/);
 });
 
-test("allows a caller to keep long token labels on one truncated line", () => {
+test("renders a static official-job token without click semantics", () => {
+  const text = "ML/AI Engineer at Top-tier VC-backed AI Legal Tech 포지션";
+  const markup = renderToStaticMarkup(
+    <ChatComposerTokenOverlay
+      isTokenClickable={() => false}
+      onTokenClick={() => undefined}
+      segments={[
+        {
+          kind: "token",
+          text,
+          token: {
+            data: { roleId: "role_1" },
+            end: text.length,
+            id: "official-job:role_1",
+            start: 0,
+            text,
+          },
+        },
+      ]}
+    />
+  );
+
+  assert.match(markup, /ML\/AI Engineer/);
+  assert.match(markup, /aria-hidden="true"/);
+  assert.doesNotMatch(markup, /role="button"/);
+  assert.doesNotMatch(markup, /pointer-events-auto|cursor-pointer/);
+});
+
+test("keeps token and following text in the textarea's inline flow", () => {
   const markup = renderToStaticMarkup(
     <ChatComposerTokenOverlay
       onTokenClick={() => undefined}
@@ -52,25 +76,21 @@ test("allows a caller to keep long token labels on one truncated line", () => {
             text: "에스아이에이 · ML Engineer (Runtime Optimization)",
           },
         },
+        { kind: "text", text: " 질문이 있어요" },
       ]}
-      stackTokens
     />
   );
 
-  assert.match(markup, /max-w-full/);
-  assert.match(markup, /min-w-0/);
-  assert.match(markup, /truncate/);
-  assert.match(
-    markup,
-    /group-data-\[expanded=false\]\/chat-composer:whitespace-nowrap/
-  );
+  assert.match(markup, /질문이 있어요/);
+  assert.doesNotMatch(markup, /\bblock\b|w-fit|truncate/);
+  assert.doesNotMatch(markup, /font-(?:medium|semibold|bold)/);
+  assert.doesNotMatch(markup, /data-chat-composer-caret/);
 });
 
-test("renders a visual caret at the start of the line after a stacked token", () => {
+test("leaves the separator after a token visible so it matches the textarea value", () => {
   const label = "에스아이에이 · ML Engineer (Runtime Optimization)";
   const markup = renderToStaticMarkup(
     <ChatComposerTokenOverlay
-      cursorOffset={label.length + 1}
       onTokenClick={() => undefined}
       segments={[
         {
@@ -86,11 +106,12 @@ test("renders a visual caret at the start of the line after a stacked token", ()
         },
         { kind: "text", text: " " },
       ]}
-      stackTokens
     />
   );
 
-  assert.match(markup, /data-chat-composer-caret/);
-  assert.equal(markup.match(/data-chat-composer-caret/g)?.length, 1);
-  assert.doesNotMatch(markup, /> <span[^>]+data-chat-composer-caret/);
+  assert.match(
+    markup,
+    /Runtime Optimization\)<\/span><span aria-hidden="true"> <\/span>/
+  );
+  assert.doesNotMatch(markup, /data-chat-composer-caret/);
 });
