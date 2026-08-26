@@ -174,6 +174,10 @@ export const queryKeys = {
       ] as const,
     slack: (workspaceId?: string | null) =>
       ["org", "slack", workspaceId ?? ""] as const,
+    personalIntegrations: (userId: string) =>
+      ["org", "personalIntegrations", userId] as const,
+    googleCalendar: (userId: string, workspaceId: string) =>
+      ["org", "personalIntegrations", userId, "google_calendar", workspaceId] as const,
     roleNotifications: (workspaceId?: string | null, roleId?: string | null) =>
       ["org", "roleNotifications", workspaceId ?? "", roleId ?? ""] as const,
     internalTalent: (filters?: {

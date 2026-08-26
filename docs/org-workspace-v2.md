@@ -32,7 +32,7 @@ hover tooltip과 접근성 label로 제공한다.
 | Jobs | `/org/jobs` | 전체 Role 및 Role별 pipeline |
 | 새 역할 등록 | `/org/new` | 왼쪽 company-side LLM 채팅, 오른쪽 Role/Company/Setting/Calibration 상세 영역 |
 | Team | `/org/team` | 회사 정보, 초대, 멤버/권한 |
-| Settings | `/org/settings` | Slack 연결, 알림 설정 |
+| Settings | `/org/settings` | 회사 공용 Slack 연결, 개인 Google Calendar 연결, 알림 설정 |
 | Help | `/org/help` | Harper 사용 안내, FAQ |
 
 기존 `/org?orgId=...` 초대 링크는 가입 호환성을 위해 유지하고, bootstrap 후
@@ -54,7 +54,7 @@ Query 응답을 접근하기 쉽게 제공할 뿐 서버 데이터를 별도 sto
   열람/연결 대기 filter
 - Jobs: role/filter/board/detail query, 후보자/role mutation, Jobs dialog와 agent
 - Team: 회사 정보, 초대, 멤버/권한 mutation
-- Settings: Slack query와 mutation
+- Settings: Slack query와 mutation, 사용자별 Google Calendar 연결 query와 mutation
 - Help: 정적 도움말 콘텐츠
 
 Jobs 내부에서 여러 형제 컴포넌트가 함께 사용하는 값은 책임별 도메인 context로
@@ -93,12 +93,17 @@ role action을 각각의 hook으로 읽고, 모든 값을 하나의 거대한 co
 | 멤버 초대·초대 취소·재발송 | 가능 | 불가 | 불가 |
 | 멤버 권한 변경 | 가능 | 불가 | 불가 |
 | Slack 연결·해제·알림 설정 | 가능 | 가능 | 불가 |
+| 본인 Google Calendar 연결·해제 | 가능 | 가능 | 가능 |
 
 권한은 bootstrap 응답을 React Query가 캐시하고 화면에서는 그 값을 기반으로
 control을 숨기거나 비활성화한다. 같은 데이터를 Zustand에 다시 복제하면 권한
 변경 직후 두 캐시가 어긋날 수 있으므로 별도 전역 store를 두지 않는다.
 클라이언트 권한 처리는 사용성만 위한 것이고, 모든 쓰기 API가 서버에서 다시
 권한을 확인한다.
+
+`Personal integrations`는 회사 공용 연결과 별개다. 개인 Google Calendar는
+로그인한 직원에게 귀속되며, Owner/Admin도 다른 직원의 연결을 관리할 수 없다.
+현재는 연결과 해제만 제공하며 일정 조회·생성이나 company-side LLM 도구는 제공하지 않는다.
 
 내부 Harper 운영 계정은 internal workspace에서 Owner와 같은 가상 권한을 갖는다.
 기존 `member` 값은 호환 기간 동안 Admin으로 해석하고 migration에서 `admin`으로

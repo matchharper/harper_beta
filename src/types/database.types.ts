@@ -2044,6 +2044,41 @@ export type Database = {
           },
         ]
       }
+      company_user_integrations: {
+        Row: {
+          company_user_id: string
+          provider: string
+          composio_connected_account_id: string
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          company_user_id: string
+          provider: string
+          composio_connected_account_id: string
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          company_user_id?: string
+          provider?: string
+          composio_connected_account_id?: string
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_user_integrations_company_user_id_fkey"
+            columns: ["company_user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       company_user_workspace: {
         Row: {
           authority: string
