@@ -13,6 +13,7 @@ import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 import { OrgPageHeader } from "@/components/org/workspace/OrgPageHeader";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
+import { OrgGoogleCalendarIntegration } from "@/components/org/workspace/OrgGoogleCalendarIntegration";
 import {
   OrgSection,
   OrgSectionHeader,
@@ -55,7 +56,7 @@ function formatChannel(
 }
 
 export function OrgSettingsPage() {
-  const { permissions, workspace } = useOrgWorkspace();
+  const { permissions, user, workspace } = useOrgWorkspace();
   const router = useRouter();
   const addToast = useToastStore((state) => state.add);
   const handledSlackResult = useRef("");
@@ -445,6 +446,12 @@ export function OrgSettingsPage() {
           ) : null}
         </div>
       </OrgSection>
+
+      <OrgGoogleCalendarIntegration
+        key={`${user.id}:${workspace.workspaceId}`}
+        userId={user.id}
+        workspaceId={workspace.workspaceId}
+      />
 
       <Dialog open={disconnectOpen} onOpenChange={setDisconnectOpen}>
         <DialogContent className="max-w-md gap-4 rounded-lg p-6">
