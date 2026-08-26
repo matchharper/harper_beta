@@ -123,6 +123,7 @@ import {
   stripOpportunityRunMarkers,
 } from "@/lib/opportunityDiscovery/messageMarker";
 import { buildFirstTurnUploadedDocumentContext } from "@/lib/talentOnboarding/documentPromptContext";
+import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
 
 export const maxDuration = 180;
 
@@ -676,7 +677,13 @@ export async function POST(req: NextRequest) {
       );
     }
     const admin = getTalentSupabaseAdmin();
-    const talentSetting = await fetchTalentSetting({ admin, userId: user.id });
+    const [talentSetting, activeGmailIntegration] = await Promise.all([
+      fetchTalentSetting({ admin, userId: user.id }),
+      fetchActiveTalentGmailIntegration({
+        admin,
+        talentId: user.id,
+      }),
+    ]);
     const responseLocale =
       talentSetting?.preferred_locale ??
       body.locale ??
@@ -1049,9 +1056,17 @@ export async function POST(req: NextRequest) {
       activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
       allowedToolNames,
       channel: requestChannel,
+      hasActiveGmailIntegration: Boolean(activeGmailIntegration),
       isOnboardingDone: talentSetting?.is_onboarding_done,
       responseLocale,
     });
+    const gmailCapability = activeGmailIntegration
+      ? toolSelection.toolNames.includes(
+          TALENT_TOOL_NAMES.SEARCH_CONNECTED_GMAIL
+        )
+        ? ("available" as const)
+        : ("connected_but_unavailable_this_turn" as const)
+      : ("not_connected" as const);
     const toolDefinitions = toolSelection.tools;
     const currentPreferences = {
       getExternalRecommendation:
@@ -1123,6 +1138,7 @@ export async function POST(req: NextRequest) {
         onboardingChecklistCoverage,
         currentInsightContent,
         currentPreferences,
+        gmailCapability,
         isOnboardingDone: talentSetting?.is_onboarding_done,
         officialJobSignupIntentPrompt: talentSetting?.is_onboarding_done
           ? null

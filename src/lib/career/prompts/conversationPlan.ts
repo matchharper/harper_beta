@@ -38,6 +38,7 @@ import type {
   CareerPromptPlan,
   CareerPromptPreferences,
   CareerPromptProfile,
+  GmailCapability,
   OnboardingChecklistCoverage,
 } from "@/lib/career/prompts/types";
 import { getCareerInterruptHandlingPrompt } from "./initialPrompts";
@@ -62,6 +63,31 @@ function shouldIncludeToolPolicyDuringOnboarding(toolNames: string[]) {
   );
 }
 
+export function buildGmailCapabilityPrompt(capability: GmailCapability) {
+  if (capability === "available") {
+    return [
+      "## Gmail capability",
+      "The user's Gmail integration is active and the Gmail search tool is available in this turn. Use the tool when the answer depends on inbox contents.",
+      "Never claim that an email exists, was read, or contains specific information until the tool returns successfully with status=ok.",
+    ].join("\n");
+  }
+
+  if (capability === "connected_but_unavailable_this_turn") {
+    return [
+      "## Gmail capability",
+      "The user's Gmail is connected, but Gmail inbox access is not available in this turn.",
+      "Do not claim that you checked or can currently inspect the inbox.",
+    ].join("\n");
+  }
+
+  return [
+    "## Gmail capability",
+    "The user's Gmail is not connected, so you cannot access or inspect their inbox.",
+    "If the user asks for Gmail information, explain this limitation and direct them to Profile → Resume & Links → Gmail Connect.",
+    "Never imply that you checked their Gmail.",
+  ].join("\n");
+}
+
 /**
  * /career 텍스트 채팅과 실시간 voice call 프롬프트를 조립하는 핵심 함수.
  *
@@ -78,6 +104,7 @@ export function buildCareerConversationPromptPlan(args: {
   conversationMode?: CareerConversationPromptMode;
   currentInsightContent: Record<string, string> | null;
   currentPreferences?: CareerPromptPreferences | null;
+  gmailCapability?: GmailCapability;
   internalCallRequest?: InternalOpportunityCallRequest | null;
   isOnboardingDone?: boolean;
   officialJobSignupIntentPrompt?: string | null;
@@ -278,6 +305,13 @@ export function buildCareerConversationPromptPlan(args: {
       key: "tool_policy",
       text: toolPolicy,
       cacheable: true,
+    });
+  }
+
+  if (args.gmailCapability) {
+    promptBlocks.push({
+      key: "gmail_capability",
+      text: buildGmailCapabilityPrompt(args.gmailCapability),
     });
   }
 

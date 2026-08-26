@@ -8,6 +8,7 @@ import {
 } from "@/lib/talentOnboarding/tools";
 import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
 import { scopeCareerChatToolForOnboarding } from "@/lib/career/onboardingToolSchema";
+import { shouldExposeConnectedGmailTool } from "@/lib/career/gmailToolSelection";
 
 export type CareerOpenAIChatTool = ReturnType<
   typeof getOpenAIChatTools
@@ -19,6 +20,7 @@ export type CareerChatToolSelectionArgs = {
   activeInternalFitHoldQuestion?: boolean | null;
   activeCompanyTalentRequestMode?: "document" | "text" | null;
   channel?: TalentToolChannel | null;
+  hasActiveGmailIntegration?: boolean | null;
   isOnboardingDone?: boolean | null;
   responseLocale?: string | null;
 };
@@ -55,6 +57,8 @@ export const CAREER_CHAT_ONBOARDING_TOOL_NAMES = [
   TALENT_TOOL_NAMES.UPDATE_DOCUMENT,
   // 온보딩 텍스트 채팅에서 사용자가 URL을 줬을 때만 페이지 본문 확인.
   TALENT_TOOL_NAMES.OPEN_URL,
+  // 현재 사용자의 active Gmail integration이 있을 때만 아래 selector가 노출한다.
+  TALENT_TOOL_NAMES.SEARCH_CONNECTED_GMAIL,
   // 온보딩 중이라도 특정 internal role 연결/우선 검토의 등록·철회를 명시적으로 요청하면 처리.
   TALENT_TOOL_NAMES.GET_INTERNAL_ROLES,
   TALENT_TOOL_NAMES.INTERNAL_ROLE_PRIORITY_REVIEW,
@@ -168,6 +172,10 @@ function shouldExposeCareerChatTool(
     }
 
     return isListedToolName(CAREER_CHAT_ONBOARDING_TOOL_NAMES, toolName);
+  }
+
+  if (toolName === TALENT_TOOL_NAMES.SEARCH_CONNECTED_GMAIL) {
+    return shouldExposeConnectedGmailTool(args);
   }
 
   if (

@@ -37,6 +37,8 @@ import {
 import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import { showToast } from "@/components/toast/toast";
 import { useCareerT } from "@/i18n/useCareerT";
+import { fetchWithInternalAuth } from "@/lib/internalApiClient";
+import { notifyGmailIntegrationChanged } from "@/hooks/career/useGmailIntegration";
 
 const DELIVERY_EMAIL_HISTORY_LINK_ENTRY_PARAM = "entryPoint";
 const DELIVERY_EMAIL_HISTORY_LINK_ENTRY_VALUE = "delivery_email_history_link";
@@ -61,6 +63,7 @@ const CareerWorkspacePage = ({
     useState<CareerSettingsTab | null>(null);
   const deliveryEmailHistoryLinkLoggedRef = useRef(false);
   const referralCaptureKeyRef = useRef("");
+  const gmailCallbackHandledRef = useRef("");
   const isRouterReady = router.isReady;
   const inviteToken =
     isRouterReady && typeof router.query.invite === "string"
@@ -89,6 +92,15 @@ const CareerWorkspacePage = ({
       : null;
   const emailChangeResult = isRouterReady
     ? getSingleQueryParam(router.query.emailChange)
+    : null;
+  const gmailConnectCallback = isRouterReady
+    ? getSingleQueryParam(router.query.gmailConnect)
+    : null;
+  const gmailConnectStatus = isRouterReady
+    ? getSingleQueryParam(router.query.status)
+    : null;
+  const gmailConnectedAccountId = isRouterReady
+    ? getSingleQueryParam(router.query.connected_account_id)
     : null;
   const officialJobsSource = isRouterReady
     ? getSingleQueryParam(router.query.source)
@@ -249,6 +261,79 @@ const CareerWorkspacePage = ({
       { shallow: true, scroll: false }
     );
   }, [emailChangeResult, isRouterReady, router, t]);
+
+  useEffect(() => {
+    if (
+      !isRouterReady ||
+      authLoading ||
+      !user ||
+      gmailConnectCallback !== "callback"
+    ) {
+      return;
+    }
+
+    const callbackKey = `${gmailConnectStatus ?? ""}:${
+      gmailConnectedAccountId ?? ""
+    }`;
+    if (gmailCallbackHandledRef.current === callbackKey) return;
+    gmailCallbackHandledRef.current = callbackKey;
+
+    const clearCallbackQuery = () => {
+      const nextQuery = { ...router.query };
+      delete nextQuery.connected_account_id;
+      delete nextQuery.gmailConnect;
+      delete nextQuery.status;
+      void router.replace(
+        { pathname: router.pathname, query: nextQuery },
+        undefined,
+        { shallow: true, scroll: false }
+      );
+    };
+
+    const completeConnection = async () => {
+      if (gmailConnectStatus !== "success" || !gmailConnectedAccountId) {
+        throw new Error("Gmail connection callback was not successful");
+      }
+      await fetchWithInternalAuth("/api/talent/integrations/gmail/complete", {
+        body: JSON.stringify({
+          connectedAccountId: gmailConnectedAccountId,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+    };
+
+    void completeConnection()
+      .then(() => {
+        notifyGmailIntegrationChanged();
+        showToast({
+          message: t(
+            "career.profile.resume_links.gmail_connected_toast",
+            "Gmail을 연결했습니다. 이제 Harper가 요청할 때 이메일을 조회할 수 있습니다."
+          ),
+          variant: "success",
+        });
+      })
+      .catch(() => {
+        showToast({
+          message: t(
+            "career.profile.resume_links.gmail_callback_failed",
+            "Gmail 연결을 완료하지 못했습니다. 다시 시도해 주세요."
+          ),
+          variant: "error",
+        });
+      })
+      .finally(clearCallbackQuery);
+  }, [
+    authLoading,
+    gmailConnectCallback,
+    gmailConnectedAccountId,
+    gmailConnectStatus,
+    isRouterReady,
+    router,
+    t,
+    user,
+  ]);
 
   useEffect(() => {
     if (

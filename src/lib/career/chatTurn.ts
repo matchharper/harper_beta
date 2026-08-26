@@ -106,6 +106,7 @@ import {
   ensureOpportunityRunMarker,
   stripOpportunityRunMarkers,
 } from "@/lib/opportunityDiscovery/messageMarker";
+import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
 
 type TalentMessageResponse = ReturnType<typeof toTalentMessageResponse>;
 
@@ -466,6 +467,7 @@ export async function runCareerChatTurn(
     fetchedPendingOpportunityFeedbackContext,
     recentActivitySummaries,
     recentRecommendedOpportunities,
+    activeGmailIntegration,
   ] = await Promise.all([
     fetchTalentUserProfile({ admin, userId }),
     fetchTalentInsights({ admin, userId }),
@@ -498,6 +500,10 @@ export async function runCareerChatTurn(
       admin,
       limit: 10,
       userId,
+    }),
+    fetchActiveTalentGmailIntegration({
+      admin,
+      talentId: userId,
     }),
   ]);
 
@@ -664,9 +670,15 @@ export async function runCareerChatTurn(
     activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
     allowedToolNames: args.allowedToolNames,
     channel: requestChannel,
+    hasActiveGmailIntegration: Boolean(activeGmailIntegration),
     isOnboardingDone: talentSetting?.is_onboarding_done,
     responseLocale,
   });
+  const gmailCapability = activeGmailIntegration
+    ? toolSelection.toolNames.includes(TALENT_TOOL_NAMES.SEARCH_CONNECTED_GMAIL)
+      ? ("available" as const)
+      : ("connected_but_unavailable_this_turn" as const)
+    : ("not_connected" as const);
   const toolDefinitions = toolSelection.tools;
   const currentPreferences = {
     getExternalRecommendation:
@@ -710,6 +722,7 @@ export async function runCareerChatTurn(
       ),
       currentInsightContent,
       currentPreferences,
+      gmailCapability,
       isOnboardingDone: talentSetting?.is_onboarding_done,
       officialJobSignupIntentPrompt: talentSetting?.is_onboarding_done
         ? null

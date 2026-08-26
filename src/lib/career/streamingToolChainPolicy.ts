@@ -40,6 +40,7 @@ export const CAREER_STREAMING_TERMINAL_TOOL_NAMES = [
   "research_company",
   "update_document",
   "read_talent_activity_events",
+  "search_connected_gmail",
   "internal_role_priority_review",
   "record_internal_fit_reevaluation_information",
   "record_company_request_response",

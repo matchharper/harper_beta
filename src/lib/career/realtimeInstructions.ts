@@ -30,6 +30,7 @@ import {
 import { fetchLatestTalentActivityEvent } from "@/lib/talentOnboarding/activityEvents";
 import { OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE } from "@/lib/officialJobs";
 import { TALENT_TOOL_NAMES } from "@/lib/talentOnboarding/tools";
+import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
 
 /**
  * Build realtime instructions from the shared Harper system prompt plus
@@ -51,6 +52,7 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     talentSetting,
     officialJobSignupIntentEvent,
     recentRecommendedOpportunities,
+    activeGmailIntegration,
   ] = await Promise.all([
     fetchTalentUserProfile({ admin, userId: args.userId }),
     fetchTalentInsights({ admin, userId: args.userId }),
@@ -64,6 +66,10 @@ export async function buildCareerRealtimeSessionInstructions(args: {
       admin,
       limit: 10,
       userId: args.userId,
+    }),
+    fetchActiveTalentGmailIntegration({
+      admin,
+      talentId: args.userId,
     }),
   ]);
 
@@ -160,6 +166,9 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     channel: "voice",
     currentInsightContent,
     currentPreferences,
+    gmailCapability: activeGmailIntegration
+      ? "connected_but_unavailable_this_turn"
+      : "not_connected",
     isOnboardingDone: talentSetting?.is_onboarding_done,
     officialJobSignupIntentPrompt: talentSetting?.is_onboarding_done
       ? null

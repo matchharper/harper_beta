@@ -1,4 +1,13 @@
-import { Cable, Globe2, Loader2, Plus, RefreshCw, Save, X } from "lucide-react";
+import {
+  Cable,
+  Check,
+  Globe2,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Save,
+  X,
+} from "lucide-react";
 import Image from "next/image";
 import {
   useMemo,
@@ -9,11 +18,14 @@ import {
 import { useCareerProfileContext } from "@/components/career/CareerSidebarContext";
 import { getCareerLinkLabels } from "@/components/career/constants";
 import { MuteButton } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { FieldLabel } from "@/components/ui/panel";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltips } from "@/components/ui/tooltip";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerT } from "@/i18n/useCareerT";
+import { useGmailIntegration } from "@/hooks/career/useGmailIntegration";
+import { showToast } from "@/components/toast/toast";
 
 const CAREER_LINK_ITEMS = [
   {
@@ -152,6 +164,7 @@ const CareerProfileLinksSettingsSection = ({
   const t = useCareerT();
   const careerLinkLabels = useMemo(() => getCareerLinkLabels(t), [t]);
   const logCareerEvent = useCareerLogEvent();
+  const gmailIntegration = useGmailIntegration();
   const {
     profileLinks,
     profileSavePending,
@@ -159,6 +172,57 @@ const CareerProfileLinksSettingsSection = ({
     onAddProfileLink,
     onRemoveProfileLink,
   } = useCareerProfileContext();
+
+  const handleGmailConnect = async () => {
+    logCareerEvent("click_resume_links_connect_gmail");
+    try {
+      await gmailIntegration.connect();
+    } catch {
+      showToast({
+        message: t(
+          "career.profile.resume_links.gmail_connect_failed",
+          "Gmail 연결을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요."
+        ),
+        variant: "error",
+      });
+    }
+  };
+
+  const handleGmailDisconnect = async () => {
+    logCareerEvent("click_resume_links_disconnect_gmail");
+    try {
+      await gmailIntegration.disconnect();
+      showToast({
+        message: t(
+          "career.profile.resume_links.gmail_disconnected_toast",
+          "Gmail 연결을 해제했습니다."
+        ),
+        variant: "white",
+      });
+    } catch {
+      showToast({
+        message: t(
+          "career.profile.resume_links.gmail_disconnect_failed",
+          "Gmail 연결을 완전히 해제하지 못했습니다. 다시 시도해 주세요."
+        ),
+        variant: "error",
+      });
+    }
+  };
+
+  const handleGmailStatusRetry = async () => {
+    try {
+      await gmailIntegration.refresh();
+    } catch {
+      showToast({
+        message: t(
+          "career.profile.resume_links.gmail_status_failed",
+          "Gmail 연결 상태를 확인하지 못했습니다. 다시 시도해 주세요."
+        ),
+        variant: "error",
+      });
+    }
+  };
 
   return (
     <div>
@@ -255,9 +319,83 @@ const CareerProfileLinksSettingsSection = ({
             <span className="truncate">Gmail</span>
           </div>
           <div className="flex min-h-9 items-center">
-            <MuteButton type="button" size="lg">
-              {t("career.profile.resume_links.gmail_connect", "연결")}
-            </MuteButton>
+            {gmailIntegration.status === "loading" ? (
+              <span
+                className="inline-flex items-center gap-2 text-sm text-neutral-muted"
+                aria-label={t(
+                  "career.profile.resume_links.gmail_status_loading",
+                  "Gmail 연결 상태 확인 중"
+                )}
+              >
+                <Loader2 className="h-4 w-4 animate-spin" />
+              </span>
+            ) : gmailIntegration.status === "error" ? (
+              <MuteButton
+                type="button"
+                size="lg"
+                onClick={() => void handleGmailStatusRetry()}
+              >
+                <RefreshCw className="h-4 w-4" />
+                {t(
+                  "career.profile.resume_links.gmail_status_retry",
+                  "상태 다시 확인"
+                )}
+              </MuteButton>
+            ) : gmailIntegration.status === "active" ? (
+              <div className="flex items-center gap-2">
+                <Badge icon={<Check />} tone="positive" variant="faded">
+                  {t("career.profile.resume_links.gmail_connected", "연결됨")}
+                </Badge>
+                <MuteButton
+                  type="button"
+                  size="sm"
+                  variant="transparent"
+                  disabled={gmailIntegration.pendingAction !== null}
+                  onClick={() => void handleGmailDisconnect()}
+                >
+                  {gmailIntegration.pendingAction === "disconnect" ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : null}
+                  {t(
+                    "career.profile.resume_links.gmail_disconnect",
+                    "연결 해제"
+                  )}
+                </MuteButton>
+              </div>
+            ) : gmailIntegration.status === "disabled" ? (
+              <MuteButton
+                type="button"
+                size="lg"
+                variant="warn"
+                disabled={gmailIntegration.pendingAction !== null}
+                onClick={() => void handleGmailDisconnect()}
+              >
+                {gmailIntegration.pendingAction === "disconnect" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : null}
+                {t(
+                  "career.profile.resume_links.gmail_disconnect_retry",
+                  "연결 해제 재시도"
+                )}
+              </MuteButton>
+            ) : (
+              <MuteButton
+                type="button"
+                size="lg"
+                disabled={gmailIntegration.pendingAction !== null}
+                onClick={() => void handleGmailConnect()}
+              >
+                {gmailIntegration.pendingAction === "connect" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : null}
+                {gmailIntegration.status === "expired"
+                  ? t(
+                      "career.profile.resume_links.gmail_reconnect",
+                      "다시 연결"
+                    )
+                  : t("career.profile.resume_links.gmail_connect", "연결")}
+              </MuteButton>
+            )}
           </div>
         </div>
       </div>
