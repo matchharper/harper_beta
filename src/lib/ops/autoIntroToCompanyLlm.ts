@@ -525,42 +525,43 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
-function mergeGeneratedPairMessagesByWorkspace(
+function mergeGeneratedPairMessagesByWorkspaceAndRole(
   messages: CodexAuthoredWorkspaceMessage[]
 ) {
-  const byWorkspaceId = new Map<
+  const byWorkspaceAndRole = new Map<
     string,
     {
       followUpQuestion: string | null;
       messages: CodexAuthoredWorkspaceMessage[];
+      roleId: string;
+      workspaceId: string;
     }
   >();
   for (const message of messages) {
-    const current = byWorkspaceId.get(message.workspaceId) ?? {
-      followUpQuestion: null,
-      messages: [],
-    };
-    current.messages.push(message);
-    current.followUpQuestion ??= text(message.followUpQuestion) || null;
-    byWorkspaceId.set(message.workspaceId, current);
+    for (const role of message.roles) {
+      const key = `${message.workspaceId}:${role.roleId}`;
+      const current = byWorkspaceAndRole.get(key) ?? {
+        followUpQuestion: null,
+        messages: [],
+        roleId: role.roleId,
+        workspaceId: message.workspaceId,
+      };
+      current.messages.push({
+        ...message,
+        roles: [{ ...role, candidates: [...role.candidates] }],
+      });
+      current.followUpQuestion ??= text(message.followUpQuestion) || null;
+      byWorkspaceAndRole.set(key, current);
+    }
   }
 
-  return Array.from(byWorkspaceId, ([workspaceId, group]) => {
-    const roleById = new Map<
-      string,
-      CodexAuthoredWorkspaceMessage["roles"][number]
-    >();
+  return Array.from(byWorkspaceAndRole.values(), (group) => {
+    const candidates: CodexAuthoredWorkspaceMessage["roles"][number]["candidates"] =
+      [];
     for (const message of group.messages) {
-      for (const role of message.roles) {
-        const existing = roleById.get(role.roleId);
-        if (existing) {
-          existing.candidates.push(...role.candidates);
-        } else {
-          roleById.set(role.roleId, {
-            ...role,
-            candidates: [...role.candidates],
-          });
-        }
+      const role = message.roles[0];
+      if (role) {
+        candidates.push(...role.candidates);
       }
     }
     const firstGeneration = group.messages[0]?.generation;
@@ -575,8 +576,8 @@ function mergeGeneratedPairMessagesByWorkspace(
           0
         ),
       },
-      roles: Array.from(roleById.values()),
-      workspaceId,
+      roles: [{ candidates, roleId: group.roleId }],
+      workspaceId: group.workspaceId,
     } satisfies CodexAuthoredWorkspaceMessage;
   });
 }
@@ -623,7 +624,7 @@ export async function runVercelCronAutoIntroToCompany(args?: {
   );
   const delivery = await sendCodexAuthoredAutoIntroToCompanyNotifications({
     ...args,
-    groups: mergeGeneratedPairMessagesByWorkspace(
+    groups: mergeGeneratedPairMessagesByWorkspaceAndRole(
       generated.flatMap((item) => (item.message ? [item.message] : []))
     ),
   });

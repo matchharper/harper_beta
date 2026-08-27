@@ -17,6 +17,7 @@ import {
   resolveMeetingOrganizerName,
   type PreparedMeetingScheduleDraft,
 } from "@/lib/meetings/scheduleDraft";
+import { fetchMeetingCalendarDelivery } from "@/lib/meetings/meetingCalendarServer";
 import { assertOrgWorkspacePermission, OrgHttpError } from "@/lib/org/server";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type { Json } from "@/types/database.types";
@@ -445,6 +446,7 @@ export async function fetchMeetingScheduleDetail(args: {
     candidateResult,
     workspaceResult,
     availability,
+    calendar,
   ] = await Promise.all([
     (admin.from("meeting_schedule_rounds" as any) as any)
       .select(
@@ -470,6 +472,7 @@ export async function fetchMeetingScheduleDetail(args: {
       companyUserId: schedule.organizer_company_user_id,
       workspaceId,
     }),
+    fetchMeetingCalendarDelivery({ admin, scheduleId: schedule.id }),
   ]);
   for (const result of [
     roundResult,
@@ -512,6 +515,7 @@ export async function fetchMeetingScheduleDetail(args: {
     ok: true,
     schedule: {
       availability,
+      calendar,
       candidate: {
         email: cleanEmail(candidateResult.data.email) || null,
         name: clean(candidateResult.data.name) || "이름 없는 후보자",
@@ -707,8 +711,7 @@ export async function updateMeetingScheduleDraft(args: {
   }
 
   const storedOrganizer = parseStoredAttendees(schedule.company_attendees).find(
-    (attendee) =>
-      attendee.companyUserId === schedule.organizer_company_user_id
+    (attendee) => attendee.companyUserId === schedule.organizer_company_user_id
   );
 
   const { attendees, organizer } = await resolveWorkspaceAttendees({

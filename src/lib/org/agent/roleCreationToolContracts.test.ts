@@ -56,6 +56,15 @@ test("role and company updates require at least one declared field", () => {
   assert.match(roleBlock, /maxItems: 6/);
   assert.match(roleBlock, /independently assessable/);
   assert.match(roleBlock, /minimum bar/);
+  assert.match(roleBlock, /role eligibility \/ experience fit/);
+  assert.match(roleBlock, /company talent quality \/ caliber/);
+  assert.match(roleBlock, /comparative overall talent-level gate/);
+  assert.match(roleBlock, /still fall below it/);
+  assert.match(roleBlock, /Top-tier schools or programs/);
+  assert.match(roleBlock, /Top-tier companies/);
+  assert.match(roleBlock, /highly selective core teams/);
+  assert.match(roleBlock, /Do not automatically rewrite those patterns/);
+  assert.match(roleBlock, /prestigious affiliation alone as proof/);
   assert.match(companyBlock, /minProperties: 1/);
   assert.doesNotMatch(companyBlock, /anyOf/);
   assert.doesNotMatch(companyBlock, /required: \["description"\]/);
@@ -64,6 +73,14 @@ test("role and company updates require at least one declared field", () => {
   assert.doesNotMatch(
     companyBlock,
     /required: \["lastFundingRoundDescription"\]/
+  );
+});
+
+test("saved Role Descriptions strip private company-information markers", () => {
+  assert.match(stateSource, /stripOrgAgentCompanyInfoMarker/);
+  assert.match(
+    stateSource,
+    /stripOrgAgentCompanyInfoMarker\(args\.description\)/
   );
 });
 
@@ -100,4 +117,37 @@ test("final confirmation follows team-preference discovery", () => {
   const block = source.slice(start, source.indexOf("] as const", start));
   assert.match(block, /at least two distinct opportunities/);
   assert.match(block, /beyond the JD and technical must-haves/);
+  assert.match(block, /representative ideal current team member/);
+  assert.match(block, /LinkedIn profile URL/);
+  assert.match(block, /experience or strengths would be a bonus/);
+});
+
+test("the private hiring brief stores reference-profile calibration", () => {
+  const block = toolBlock("update_role_draft", "update_company_context");
+  assert.match(block, /complete private Hiring Brief/);
+  assert.match(block, /role eligibility \/ experience fit/);
+  assert.match(block, /company talent quality \/ caliber/);
+  assert.match(block, /comparative overall talent-level gate/);
+  assert.match(block, /still fall below it/);
+  assert.match(block, /below-bar boundary/);
+  assert.match(block, /exact source URLs/);
+  assert.match(
+    block,
+    /user-stated reasons, observed professional facts, and Harper's tentative interpretation/
+  );
+  assert.match(block, /Top-tier schools or programs/);
+  assert.match(block, /Top-tier companies/);
+  assert.match(block, /highly selective core teams/);
+  assert.match(block, /Do not automatically rewrite those patterns/);
+  assert.match(block, /prestigious affiliation alone as proof/);
+  assert.match(block, /Treat one profile as a tentative anchor/);
+  assert.match(
+    block,
+    /compare multiple profiles to find the smallest stable company-specific caliber rules/
+  );
+  assert.match(block, /User-stated judgment takes precedence/);
+  assert.match(
+    block,
+    /Do not use protected traits or non-job-related similarity/
+  );
 });

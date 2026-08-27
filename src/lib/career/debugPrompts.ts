@@ -264,7 +264,11 @@ export async function buildCareerTextChatDebugPrompt(args: {
     talentSetting?.is_onboarding_done &&
     talentSetting.profile_visibility !== "dont_share" &&
     canUseInternalFitHoldQuestionTool
-      ? await fetchActiveInternalFitHoldQuestion({ admin, userId })
+      ? await fetchActiveInternalFitHoldQuestion({
+          admin,
+          locale: responseLocale,
+          userId,
+        })
       : null;
 
   const toolSelection = resolveCareerChatTools({

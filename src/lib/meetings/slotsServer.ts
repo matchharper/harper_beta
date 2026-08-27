@@ -15,10 +15,37 @@ export type ExternalMeetingBusyProvider = (args: {
   windowStart: Date;
 }) => Promise<MeetingBusyRange[]>;
 
-const noExternalCalendarBusy: ExternalMeetingBusyProvider = async () => [];
-
 function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+export async function fetchSyncedGoogleCalendarBusyRanges(args: {
+  admin: AdminClient;
+  attendeeCompanyUserIds: string[];
+  windowEnd: Date;
+  windowStart: Date;
+}) {
+  const attendeeIds = Array.from(
+    new Set(args.attendeeCompanyUserIds.map(clean).filter(Boolean))
+  );
+  if (attendeeIds.length === 0) return [];
+  const { data, error } = await (
+    args.admin.from("company_user_calendar_busy_blocks" as any) as any
+  )
+    .select("start_at, end_at")
+    .in("company_user_id", attendeeIds)
+    .lt("start_at", args.windowEnd.toISOString())
+    .gt("end_at", args.windowStart.toISOString());
+  if (error) throw error;
+  return (data ?? []).flatMap(
+    (row: Record<string, unknown>): MeetingBusyRange[] => {
+      const startAt = clean(row.start_at);
+      const endAt = clean(row.end_at);
+      return startAt && endAt
+        ? [{ endAt, source: "external_calendar", startAt }]
+        : [];
+    }
+  );
 }
 
 function parseAttendeeIds(value: unknown, organizerCompanyUserId: string) {
@@ -101,10 +128,7 @@ export async function fetchConfirmedHarperBusyRanges(args: {
         .select(baseSelect)
         // supabase-js treats an Array value as a Postgres array literal. This
         // column is jsonb, so pass serialized JSON to produce `cs.[{...}]`.
-        .contains(
-          "company_attendees",
-          JSON.stringify([{ companyUserId }])
-        )
+        .contains("company_attendees", JSON.stringify([{ companyUserId }]))
     )
   );
   const [organizerResult, ...attendeeResults] = await Promise.all([
@@ -160,11 +184,18 @@ export async function computeCurrentMeetingSlots(args: {
       windowEnd: args.windowEnd,
       windowStart: args.windowStart,
     }),
-    (args.externalBusyProvider ?? noExternalCalendarBusy)({
-      attendeeCompanyUserIds,
-      windowEnd: args.windowEnd,
-      windowStart: args.windowStart,
-    }),
+    args.externalBusyProvider
+      ? args.externalBusyProvider({
+          attendeeCompanyUserIds,
+          windowEnd: args.windowEnd,
+          windowStart: args.windowStart,
+        })
+      : fetchSyncedGoogleCalendarBusyRanges({
+          admin,
+          attendeeCompanyUserIds,
+          windowEnd: args.windowEnd,
+          windowStart: args.windowStart,
+        }),
   ]);
   const busyRanges = [...harperBusy, ...externalBusy];
   return {

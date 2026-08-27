@@ -18,6 +18,10 @@ const OPERATIONAL_METADATA_PATTERNS = [
 
 const KOREAN_RECIPIENT_ROLE_LABEL_PATTERN = /후보자|담당자/;
 const KOREAN_UNNATURAL_LANGUAGE_MIX_PATTERN = /\bfirm\b/i;
+const CANDIDATE_DETRACTING_INFORMATION_PATTERNS = [
+  /현재\s*(?:쉬|휴직)|쉬는\s*중|미재직|재직\s*중이\s*아니|경력\s*공백|공백기|실직|해고|권고\s*사직|퇴사\s*(?:사유|후)|구직\s*중|이직\s*준비\s*중/i,
+  /\b(?:unemployed|jobless|between\s+(?:jobs|roles)|not\s+currently\s+(?:working|employed)|career\s+break|laid\s+off|fired|looking\s+for\s+work)\b/i,
+];
 
 export function containsOrgIntroProcessHistory(value: string) {
   return PROCESS_HISTORY_PATTERNS.some((pattern) => pattern.test(value));
@@ -27,12 +31,20 @@ export function containsOrgIntroOperationalMetadata(value: string) {
   return OPERATIONAL_METADATA_PATTERNS.some((pattern) => pattern.test(value));
 }
 
+export function containsOrgIntroCandidateDetractingInformation(value: string) {
+  return CANDIDATE_DETRACTING_INFORMATION_PATTERNS.some((pattern) =>
+    pattern.test(value)
+  );
+}
+
 export function getOrgIntroDraftSafetyIssues(args: {
   body: string;
   candidateName?: string;
   companyName?: string;
   companyUserName?: string;
+  companyUserRole?: string | null;
   locale: "en" | "ko";
+  roleTitle?: string;
   subject: string;
 }) {
   const combined = `${args.subject}\n${args.body}`;
@@ -44,9 +56,16 @@ export function getOrgIntroDraftSafetyIssues(args: {
   if (containsOrgIntroOperationalMetadata(combined)) {
     issues.push("operational_or_test_metadata");
   }
+  if (containsOrgIntroCandidateDetractingInformation(args.body)) {
+    issues.push("candidate_detracting_information");
+  }
   if (
     args.locale === "ko" &&
-    KOREAN_RECIPIENT_ROLE_LABEL_PATTERN.test(combined)
+    KOREAN_RECIPIENT_ROLE_LABEL_PATTERN.test(
+      args.companyUserRole
+        ? combined.replaceAll(args.companyUserRole, "")
+        : combined
+    )
   ) {
     issues.push("recipient_role_label");
   }
@@ -73,6 +92,39 @@ export function getOrgIntroDraftSafetyIssues(args: {
       issues.push("unqualified_company_person_reference");
     }
   }
+  if (args.candidateName && args.roleTitle) {
+    const interestSentence =
+      args.locale === "ko"
+        ? `${args.candidateName}님은 ${args.roleTitle} 역할에 관심을 가져주셨습니다.`
+        : `${args.candidateName} has expressed interest in the ${args.roleTitle} role.`;
+    if (!args.body.includes(interestSentence)) {
+      issues.push("missing_candidate_role_interest");
+    }
+  }
+  if (
+    args.locale === "ko" &&
+    args.companyName &&
+    args.companyUserName &&
+    args.companyUserRole &&
+    !args.body.includes(
+      `${args.companyName}의 ${args.companyUserRole} ${args.companyUserName}님`
+    )
+  ) {
+    issues.push("missing_company_user_role_introduction");
+  }
+  if (
+    args.locale === "en" &&
+    args.candidateName &&
+    args.companyName &&
+    args.companyUserName &&
+    !args.body.includes(
+      args.companyUserRole
+        ? `${args.candidateName}, I'd like to introduce ${args.companyName}'s ${args.companyUserRole} ${args.companyUserName}.`
+        : `${args.candidateName}, I'd like to introduce ${args.companyName}'s ${args.companyUserName}.`
+    )
+  ) {
+    issues.push("missing_company_user_role_introduction");
+  }
   if (
     args.locale === "ko" &&
     !/이후 대화는 이 메일에서 이어가 주시면 됩니다\.\n\n감사합니다\.\nHarper 드림$/.test(
@@ -81,7 +133,7 @@ export function getOrgIntroDraftSafetyIssues(args: {
   ) {
     issues.push("invalid_exact_handoff_and_closing");
   }
-  if (args.locale === "ko" && args.body.split(/\n{2,}/).length < 6) {
+  if (args.body.split(/\n{2,}/).length < 6) {
     issues.push("missing_readable_paragraph_structure");
   }
 

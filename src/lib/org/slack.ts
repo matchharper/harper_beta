@@ -35,6 +35,8 @@ async function postOrgSlackMessage(text: string) {
     body: JSON.stringify({
       channel: ORG_SLACK_CHANNEL_ID,
       text,
+      unfurl_links: false,
+      unfurl_media: false,
     }),
     headers: {
       Authorization: `Bearer ${token}`,

@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import type { User } from "@supabase/supabase-js";
+import { getIntegrationErrorDiagnostics } from "@/lib/integrations/composio";
 import {
   MAX_CANDIDATE_MEETING_OPTIONS,
   MEETING_INVITATION_LINK_MARKER,
@@ -11,6 +12,12 @@ import {
   type PublicMeetingSubmissionResponse,
 } from "@/lib/meetings/invitation";
 import { generateMeetingInvitationEmail } from "@/lib/meetings/invitationCopy";
+import {
+  ensureMeetingCalendarEvent,
+  fetchMeetingCalendarDelivery,
+  requireOrganizerGoogleCalendarConnection,
+} from "@/lib/meetings/meetingCalendarServer";
+import type { MeetingCalendarDelivery } from "@/lib/meetings/meetingCalendar";
 import {
   selectMeetingOption,
   selectMeetingOptionDeterministically,
@@ -45,6 +52,7 @@ type InvitationSnapshot = {
 
 type InvitationContext = {
   additionalMessage: unknown;
+  calendar: MeetingCalendarDelivery | null;
   companyAttendees: unknown;
   confirmedStartAt: string | null;
   expiresAt: string;
@@ -231,6 +239,10 @@ export async function prepareMeetingInvitationPreview(args: {
       "후보자의 이메일을 확인할 수 없어 일정 요청을 준비하지 못했어요."
     );
   }
+  await requireOrganizerGoogleCalendarConnection({
+    organizerCompanyUserId: schedule.config.organizer.companyUserId,
+    organizerName: schedule.config.organizer.name,
+  });
   const windowStart = new Date();
   const windowEnd = new Date(
     windowStart.getTime() + schedule.config.offerWindowDays * 86_400_000
@@ -296,6 +308,10 @@ export async function queueMeetingInvitation(args: {
       "후보자의 이메일을 확인할 수 없어 일정 요청을 보내지 못했어요."
     );
   }
+  await requireOrganizerGoogleCalendarConnection({
+    organizerCompanyUserId: schedule.config.organizer.companyUserId,
+    organizerName: schedule.config.organizer.name,
+  });
   const subject = clean(args.subject, 180).replace(/[\r\n]+/g, " ");
   const previewBody = clean(args.body, 5_000);
   const localizedCandidateMessage = clean(args.candidateMessage, 2_000) || null;
@@ -426,8 +442,13 @@ async function loadInvitationContext(
       "이 일정 선택 링크는 더 이상 사용할 수 없어요."
     );
   }
+  const calendar = await fetchMeetingCalendarDelivery({
+    admin,
+    scheduleId: schedule.id,
+  });
   return {
     additionalMessage: round.additional_message,
+    calendar,
     companyAttendees: schedule.company_attendees,
     confirmedStartAt: clean(schedule.confirmed_start_at) || null,
     expiresAt: clean(round.invitation_expires_at),
@@ -583,6 +604,7 @@ export async function fetchPublicMeetingInvitation(
 
   return {
     invitation: {
+      calendar: context.calendar,
       candidateName: snapshot.candidate.name,
       companyName: snapshot.companyName,
       confirmedAt: context.confirmedStartAt,
@@ -727,6 +749,27 @@ export async function submitPublicMeetingOptions(args: {
     );
   }
   if (error) throw error;
+  let calendar: MeetingCalendarDelivery;
+  try {
+    calendar = await ensureMeetingCalendarEvent(context.scheduleId);
+  } catch {
+    // The meeting is already confirmed transactionally at this point. A
+    // downstream Calendar/DB outage must not make the candidate think their
+    // submission failed and encourage a second submission. The company-side
+    // schedule keeps a retry action for delivery repair.
+    console.error("[meeting-schedule/calendar-after-confirmation]", {
+      scheduleId: context.scheduleId,
+      status: "failed",
+    });
+    calendar = {
+      calendarUrl: null,
+      error:
+        "Calendar 초대와 Google Meet 링크를 아직 만들지 못했어요. 회사 담당자가 다시 시도할 예정이에요.",
+      meetUrl: null,
+      status: "failed",
+      updatedAt: new Date().toISOString(),
+    };
+  }
   try {
     await notifyCompanyOfMeetingConfirmation({
       companyMessage: selection.companyMessage,
@@ -735,9 +778,13 @@ export async function submitPublicMeetingOptions(args: {
       workspaceId: context.workspaceId,
     });
   } catch (notificationError) {
-    console.error("[meeting-schedule/company-confirmation]", notificationError);
+    console.error(
+      "[meeting-schedule/company-confirmation]",
+      getIntegrationErrorDiagnostics(notificationError)
+    );
   }
   return {
+    calendar,
     confirmedAt: chosen.startAt,
     durationMinutes: context.invitationSnapshot.durationMinutes,
     ok: true,

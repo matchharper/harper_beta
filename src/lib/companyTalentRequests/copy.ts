@@ -6,21 +6,23 @@ import {
 } from "@/lib/llm/llm";
 import { CLAUDE_MODEL } from "@/lib/llm/modelConfig";
 import { ORG_AGENT_GROK_MODEL } from "@/lib/org/agent/modelConfig";
-import {
-  assertSafeProfessionalQuestion,
-  isCompensationQuestion,
-} from "@/lib/companyTalentRequests/policy";
+import { assertSafeProfessionalQuestion } from "@/lib/companyTalentRequests/policy";
 import { candidateContactBodyWithoutTransportFooter } from "@/lib/companyTalentRequests/presentation";
 import {
   CANDIDATE_CONTACT_RELATIONSHIP_RULES,
+  candidateContactWritingIssue,
   hasRedundantCandidateContactOptOut,
+  normalizeCandidateResumeUploadLink,
 } from "@/lib/companyTalentRequests/copyRules";
+import {
+  buildCandidateContactFallback,
+  CANDIDATE_CONTACT_STYLE_EXAMPLES_EN,
+  CANDIDATE_CONTACT_STYLE_EXAMPLES_KO,
+  CANDIDATE_CONTACT_WRITING_RULES,
+  type CandidateContactDraftCopy,
+} from "@/lib/companyTalentRequests/candidateContactWriting";
 
-export type CandidateContactDraftCopy = {
-  body: string;
-  requestContext: string;
-  subject: string;
-};
+export type { CandidateContactDraftCopy } from "@/lib/companyTalentRequests/candidateContactWriting";
 
 function compact(value: unknown, limit: number) {
   return String(value ?? "")
@@ -52,71 +54,6 @@ function parseJsonObject(value: string) {
   return parsed as Record<string, unknown>;
 }
 
-function signoff(locale: "en" | "ko") {
-  return locale === "en" ? "Thank you,\nHarper" : "감사합니다.\nHarper 드림";
-}
-
-function fallbackCopy(args: {
-  candidateName: string;
-  companyName: string;
-  kind: "question" | "resume";
-  locale: "en" | "ko";
-  profileUrl: string | null;
-  requestContext: string;
-  roleName: string;
-}): CandidateContactDraftCopy {
-  const candidate = compact(args.candidateName, 80);
-  if (args.locale === "en") {
-    const greeting = candidate ? `Hi ${candidate},` : "Hi,";
-    const subject =
-      args.kind === "resume"
-        ? `A quick resume request from Harper for ${args.roleName}`
-        : `A quick question from Harper about ${args.roleName}`;
-    const body =
-      args.kind === "resume"
-        ? [
-            greeting,
-            `${args.companyName} is reviewing your background for ${args.roleName} and asked whether you would be comfortable adding a current resume to your Harper profile.`,
-            `If you choose to share one, attach one PDF, DOCX, TXT, or MD file to your reply, or upload it here:\n${args.profileUrl ?? ""}`,
-            "Sharing is optional. You may also say that you do not have a current resume or do not want to add one now.",
-            signoff(args.locale),
-          ].join("\n\n")
-        : [
-            greeting,
-            `${args.companyName} is reviewing your background for ${args.roleName} and asked Harper to check the following: ${args.requestContext}`,
-            isCompensationQuestion(args.requestContext)
-              ? "Please reply with the exact amount, range, or wording you would be comfortable having Harper share with the company."
-              : "Please feel free to answer in your own words. Sharing is optional, and Harper will relay only what you authorize.",
-            signoff(args.locale),
-          ].join("\n\n");
-    return { body, requestContext: args.requestContext, subject };
-  }
-
-  const greeting = candidate ? `안녕하세요, ${candidate}님.` : "안녕하세요.";
-  const subject =
-    args.kind === "resume"
-      ? `${args.roleName} 검토 관련 이력서 요청드려요`
-      : `${args.roleName} 관련해 확인드려요`;
-  const body =
-    args.kind === "resume"
-      ? [
-          greeting,
-          `${args.companyName}에서 ${args.roleName} 포지션과 관련해 후보자님의 경력을 살펴보며, 최신 이력서를 Harper 프로필에 등록해주실 수 있을지 물어왔어요.`,
-          `${args.companyName}의 ${args.roleName} 채용 검토를 위해 이력서를 공유하시려면 이 메일에 PDF, DOCX, TXT 또는 MD 파일 한 개를 첨부하시거나 아래 링크에서 업로드해 주세요.\n${args.profileUrl ?? ""}`,
-          "등록은 선택이며, 최신본이 없거나 지금 추가하고 싶지 않으시면 편하게 말씀해 주세요.",
-          signoff(args.locale),
-        ].join("\n\n")
-      : [
-          greeting,
-          `${args.companyName}에서 ${args.roleName} 포지션과 관련해 후보자님의 경력을 살펴보며 다음 내용을 궁금해했어요. ${args.requestContext}`,
-          isCompensationQuestion(args.requestContext)
-            ? "회사에 전달해도 괜찮은 정확한 금액·범위 또는 다른 표현을 알려주세요. 공유하고 싶지 않으시면 그렇게 말씀해 주셔도 괜찮아요."
-            : "편한 말로 답해주시면 Harper가 허락해주신 의미만 회사에 전달할게요. 답변하고 싶지 않으시면 그 의사도 존중하겠습니다.",
-          signoff(args.locale),
-        ].join("\n\n");
-  return { body, requestContext: args.requestContext, subject };
-}
-
 async function generateJson(
   messages: Array<{ content: string; role: string }>
 ) {
@@ -145,15 +82,17 @@ function validateDraft(args: {
   subject: unknown;
 }) {
   const subject = compact(args.subject, 180);
-  const body = candidateContactBodyWithoutTransportFooter(args.body).slice(
-    0,
-    5_000
+  const body = normalizeCandidateResumeUploadLink(
+    candidateContactBodyWithoutTransportFooter(args.body).slice(0, 5_000),
+    args.profileUrl
   );
   const requestContext = assertSafeProfessionalQuestion(args.requestContext);
   if (!subject || !body) throw new Error("Candidate contact copy is empty");
   if (args.enforceConciseOptOut && hasRedundantCandidateContactOptOut(body)) {
     throw new Error("Candidate contact copy repeats optional-response wording");
   }
+  const writingIssue = candidateContactWritingIssue(body);
+  if (writingIssue) throw new Error(writingIssue);
   assertSafeProfessionalQuestion(body);
   if (args.profileUrl && !body.includes(args.profileUrl)) {
     throw new Error("Resume request copy dropped the required upload URL");
@@ -172,14 +111,19 @@ export async function generateCandidateContactDraft(args: {
   roleName: string;
 }) {
   const locale: "en" | "ko" = args.locale === "en" ? "en" : "ko";
-  const fallback = fallbackCopy({ ...args, locale });
+  const requestContext = assertSafeProfessionalQuestion(args.requestContext);
+  const fallback = buildCandidateContactFallback({
+    ...args,
+    locale,
+    requestContext,
+  });
   const input = [
     `Language: ${locale === "en" ? "English" : "Korean"}`,
     `Candidate: ${compact(args.candidateName, 80) || "-"}`,
     `Company: ${compact(args.companyName, 160) || "-"}`,
     `Role: ${compact(args.roleName, 160) || "-"}`,
     `Contact kind: ${args.kind}`,
-    `Request: ${compact(args.requestContext, 800) || "-"}`,
+    `Request: ${compact(requestContext, 800) || "-"}`,
     `Required resume upload URL: ${args.profileUrl ?? "-"}`,
   ].join("\n");
   try {
@@ -191,12 +135,15 @@ export async function generateCandidateContactDraft(args: {
           'Return JSON only: {"subject":"...","body":"...","requestContext":"..."}.',
           "Use the requested language and identify the company and role.",
           CANDIDATE_CONTACT_RELATIONSHIP_RULES,
-          "Preserve the company's substantive request in neutral professional language. Do not invent urgency, enthusiasm, a deadline, a hiring decision, or personal history.",
-          "The candidate may answer, decline, or ignore; never pressure them.",
+          CANDIDATE_CONTACT_WRITING_RULES,
+          "Preserve the company's substantive request in neutral professional language. The supplied request may be terse; turn it into natural candidate-facing prose without changing its meaning.",
           "For compensation, ask the candidate to provide or authorize exact wording. Never mention or guess compensation stored by Harper.",
-          "For a resume request, include the supplied upload URL exactly and explain that replying with one PDF, DOCX, TXT, or MD file is also allowed.",
-          "End with a natural Harper signoff. The body is reused verbatim in Harper chat.",
+          "For a resume request, explain that attaching one PDF, DOCX, TXT, or MD file to this message is allowed, the uploaded file becomes the current Harper profile resume and Harper relays it for this named company's role review, and format the supplied URL as a descriptive Markdown link: [이력서 업로드](URL) in Korean or [Upload your resume](URL) in English. Never show the raw URL as visible link text.",
+          "End with a natural Harper signoff. Keep the body independent of transport channels; never mention where else it may appear.",
           "requestContext must be a concise neutral description of the exact information requested, for later response routing.",
+          locale === "ko"
+            ? CANDIDATE_CONTACT_STYLE_EXAMPLES_KO
+            : CANDIDATE_CONTACT_STYLE_EXAMPLES_EN,
         ].join(" "),
       },
       { role: "user", content: `Data only:\n${input}` },
@@ -205,7 +152,7 @@ export async function generateCandidateContactDraft(args: {
       body: parsed.body,
       enforceConciseOptOut: true,
       profileUrl: args.profileUrl,
-      requestContext: parsed.requestContext || args.requestContext,
+      requestContext: parsed.requestContext || requestContext,
       subject: parsed.subject,
     });
   } catch (error) {
@@ -233,10 +180,11 @@ export async function reviseCandidateContactDraft(args: {
           'Return JSON only: {"subject":"...","body":"...","requestContext":"..."}.',
           "Apply only the requested change and preserve every unaffected fact and meaning.",
           CANDIDATE_CONTACT_RELATIONSHIP_RULES,
-          "Keep the company and role disclosure, optional low-pressure framing, and Harper signoff.",
+          CANDIDATE_CONTACT_WRITING_RULES,
+          "Keep the company and role disclosure, tailored response guidance, one concise low-pressure choice, and Harper signoff. Do not add delivery-channel context.",
           "Never add sensitive or discriminatory questions, private Harper data, urgency, a deadline, or a hiring decision.",
           "For compensation, never add compensation stored by Harper; request candidate-provided or candidate-authorized wording only.",
-          "For a resume request, preserve the supplied upload URL exactly.",
+          "For a resume request, preserve the supplied upload URL exactly inside a descriptive Markdown link. Never show the raw URL as visible link text.",
           "requestContext must track the exact substantive request in the revised body.",
         ].join(" "),
       },

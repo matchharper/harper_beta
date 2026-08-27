@@ -564,7 +564,12 @@ export function OrgRoleCreationPage() {
               setCompanyInfoOpen(true);
               if (!isDesktop) setMobileDetailsOpen(true);
             }}
-            purpose="role-creation"
+            purpose={
+              !roleId ||
+              (role && normalizeOrgRoleStatus(role.status) === "draft")
+                ? "role-creation"
+                : "role"
+            }
             roleId={roleId || null}
           />
         </div>

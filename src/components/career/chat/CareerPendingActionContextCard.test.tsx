@@ -39,6 +39,26 @@ test("question context is clamped when collapsed and scrolls within five lines w
   assert.match(expanded, /overflow-y-auto/);
 });
 
+test("English fit question context shows the localized question", () => {
+  const markup = renderCard(
+    <CareerPendingActionContextCard
+      action={{
+        id: "fit_english",
+        kind: "internal_fit_question",
+        prompt:
+          "Which countries or regions would you realistically consider, including relocation or local onsite work?",
+      }}
+      expanded={false}
+      {...handlers}
+    />,
+    "en"
+  );
+
+  assert.match(markup, /Information needed/);
+  assert.match(markup, /Which countries or regions/);
+  assert.doesNotMatch(markup, /[가-힣]/);
+});
+
 test("company request context clearly identifies its company and role", () => {
   const markup = renderCard(
     <CareerPendingActionContextCard

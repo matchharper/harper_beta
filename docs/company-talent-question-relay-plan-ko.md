@@ -279,7 +279,8 @@ is_public = true
 - web 정책·compact context: `src/lib/companyTalentRequests/`
 - company-side LLM tools: `src/lib/org/agent/tools.ts`, `toolExecution.ts`
 - 후보자 이메일/회사 relay prompt: `harper_worker/email_reply/talent_request_copy.py`
-- outbox 처리: `harper_worker/email_reply/contact_queue.py`
+- outbox 처리: `harper-email-reply-worker.service` 내부의
+  `harper_worker/email_reply/contact_queue.py`
 - 후보자 email reply context/tool: `harper_worker/email_reply/db.py`, `prompt.py`, `tools.py`
 - 이력서 업로드: `src/app/api/talent/resume/upload/route.ts`
 - 이메일 첨부 ingest: `src/app/api/internal/company-talent-requests/ingest-resume/route.ts`

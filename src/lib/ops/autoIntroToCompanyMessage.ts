@@ -1,4 +1,8 @@
 import { buildOrgHref } from "@/lib/org/routes";
+import {
+  HARPER_ROLE_QUICK_ACTION_PREFIX,
+  ORG_ROLE_QUICK_ACTIONS,
+} from "@/lib/org/roleQuickActions";
 import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
 
 const DEFAULT_PUBLIC_SITE_URL = "https://matchharper.com";
@@ -475,6 +479,20 @@ export function buildAutoIntroRoleSummarySlackBlocks(args: {
     ...(reminderBlocks.length > 0
       ? [{ type: "divider" }, ...reminderBlocks]
       : []),
+    { type: "divider" },
+    {
+      block_id: "harper_role_quick_actions",
+      elements: ORG_ROLE_QUICK_ACTIONS.map((action) => ({
+        action_id: `${HARPER_ROLE_QUICK_ACTION_PREFIX}${action.id}`,
+        text: {
+          text: action.label,
+          type: "plain_text",
+        },
+        type: "button",
+        value: action.id,
+      })),
+      type: "actions",
+    },
   ];
 }
 

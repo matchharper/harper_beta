@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { getIntegrationErrorDiagnostics } from "@/lib/integrations/composio";
 import {
   fetchPublicMeetingInvitation,
   MeetingInvitationHttpError,
@@ -14,7 +15,10 @@ function errorResponse(error: unknown) {
       { status: error.status }
     );
   }
-  console.error("[meeting/public-invitation]", error);
+  console.error(
+    "[meeting/public-invitation]",
+    getIntegrationErrorDiagnostics(error)
+  );
   return NextResponse.json(
     {
       error: "일정 선택 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",

@@ -89,6 +89,9 @@ export type PublicMeetingSlot = {
 };
 
 export type PublicMeetingInvitation = {
+  calendar:
+    | import("@/lib/meetings/meetingCalendar").MeetingCalendarDelivery
+    | null;
   candidateName: string;
   companyName: string;
   confirmedAt: string | null;
@@ -110,6 +113,7 @@ export type PublicMeetingInvitationResponse = {
 };
 
 export type PublicMeetingSubmissionResponse = {
+  calendar: import("@/lib/meetings/meetingCalendar").MeetingCalendarDelivery;
   confirmedAt: string;
   durationMinutes: number;
   ok: true;

@@ -24,7 +24,7 @@
 | 후보자 시간 선택 | LLM이 아니라 `/meeting/{token}` 공개 페이지 |
 | 여러 시간 중 최종 선택 | 제출 시 유효한 option이 2개 이상이면 내부 `gpt-5.6-luna` 1회 호출, 회사의 수동 선택 없음 |
 | 회사 확정 알림 | 설정된 Slack 채널에 한 번, 개인별 DM·메일 없음 |
-| Google Calendar·Meet | `google_meet`을 기본 방식으로 저장하되 event·링크 생성은 후속 단계 |
+| Google Calendar·Meet | 향후 14일 busy sync, 확정 event·양측 초대·Meet 생성과 재시도 상태를 지원 |
 
 1차에서 `meeting_availability`와 Integrations 편집 흐름을 만들었고, 2차에서 실제 연결 수락
 대화가 쓰는 `meeting_schedules`와 `meeting_schedule_rounds` draft를 추가했다. 3차에서는 웹 연결
@@ -1611,10 +1611,11 @@ open 또는 예약된 reminder 검사에서 round를 만료하고 회사 action�
 provider event를 지원하지 않는 v1 환경에서는 `provider accepted`를 발송 완료 경계로 삼고, 실제
 반송을 확인하지 못한다는 운영 제한을 명시한다.
 
-## 15. Google Calendar와 Meet 확장 경계
+## 15. Google Calendar와 Meet 실행 계약
 
-이번 구현에서는 Composio, provider connection, Calendar event용 새 테이블이나 빈 컬럼을 만들지
-않는다. 계산기 입력에 다음 interface만 둔다.
+Composio personal connection을 사용해 모든 visible calendar의 향후 14일 blocking event를
+`company_user_calendar_busy_blocks`에 privacy-minimal range로 저장한다. 계산기 입력은 다음
+interface를 유지한다.
 
 ```ts
 type BusyInterval = {
@@ -1624,25 +1625,24 @@ type BusyInterval = {
 };
 ```
 
-현재는 Harper의 다른 schedule 중 현재 회사 participant가 organizer 또는 attendee인 confirmed
-시간을 전달한다. 향후 Google Calendar adapter가 external busy를 추가하면 계산기와 후보자 UI는
-바꾸지 않아도 된다. v1의 외부 Calendar 연결 범위는 organizer부터 시작할 수 있지만 Harper 내부
-confirmed busy는 이미 모든 회사 attendee에 적용한다.
+Harper confirmed busy와 sync된 external busy는 organizer와 모든 회사 attendee에 적용한다.
+`Calendar Sync`는 recurring instance를 펼치고 취소·transparent·birthday·working location·본인 거절
+event를 제외한다. provider event ID 단위로 중복을 막고 시간이 이동한 event는 기존 range를 갱신한다.
+calendar·event ID는 domain-separated SHA-256 값으로 저장하고, event title, description,
+attendee와 원본 calendar ID는 저장하거나 후보자에게 노출하지 않는다.
+연결 token이 만료되어도 이미 가져온 향후 busy는 끝날 때까지 유지해 갑작스러운 중복 예약을 막는다.
+사용자가 연결 해제를 시작하면 저장된 busy는 즉시 제거하며, 이후 동기화에는 재연결이 필요하다.
 
-향후 기본 sync 정책은 다음과 같다.
+후보자 일정 요청의 미리보기와 실제 발송은 organizer의 활성 Google Calendar 연결을 각각 확인한다.
+이미 연결이 없거나 만료된 상태에서는 Meet 전달을 약속하는 후보자 메일을 보내지 않는다. 발송 뒤
+연결이 만료되거나 provider가 일시 실패한 경우에는 확정 시간은 유지하고 회사 일정 상세의 재시도로
+같은 Calendar event를 복구한다.
 
-- availability modal을 열 때 마지막 성공 sync가 10분보다 오래됐으면 background refresh
-- 회사 UI에 수동 `동기화` button과 마지막 성공 시각
-- Calendar busy는 붉은 상태와 `Calendar 일정` label
-- 후보자에게 event title이나 참석자를 절대 노출하지 않고 slot만 제거
-- 후보자 페이지 GET, submit 1차 검사와 최종 확정 transaction 직전에 fresh busy check
-- provider가 실패하고 cache가 허용 freshness를 넘으면 잠재 충돌 slot을 확정하지 않음
-
-Google Meet를 구현하면 새 시간이 확정된 뒤 provider event를 만들고 후보자와 각 company attendee
-이메일로 Calendar invitation과 접속 링크가 전달되게 한다. 이 attendee별 Calendar 메일은 실제
-미팅 참여 정보이고, 회사 확정 push 알림은 계속 Slack 채널 한 건만 유지한다. 그때도
-`meeting_schedules`가 Harper의 업무 원장이고 provider event reference는 실제 adapter 요구가 정해진
-뒤 추가한다.
+후보자 제출의 최종 DB transaction과 busy sync는 같은 attendee advisory lock을 사용한다. 확정 뒤에는
+organizer primary calendar에 private schedule marker를 가진 event를 만들고 후보자와 각 company
+attendee에게 `send_updates=all`로 invitation을 보낸다. 외부 성공 뒤 로컬 저장이 실패해도 marker 검색으로
+같은 event를 복구한다. `meeting_schedule_calendar_events`가 생성/실패/Meet 미생성 상태와 재시도를
+기록하며 `meeting_schedules`는 계속 Harper의 업무 원장이다.
 
 ## 16. 권한과 보안
 
@@ -1713,7 +1713,8 @@ src/components/meeting/
 - `src/lib/career/pendingActions.ts`
 - `src/app/api/talent/pending-actions/route.ts`
 - `src/app/api/talent/chat/route.ts`
-- `harper_worker/email_reply/contact_queue.py`
+- `harper-email-reply-worker.service` 내부 contact queue 처리기:
+  `harper_worker/email_reply/contact_queue.py`
 
 ### 17.2 구현 단계
 
@@ -1754,7 +1755,7 @@ src/components/meeting/
 1. [완료] locale별 email generator와 fallback
 2. [완료] 추가 메시지 source/visibility/localized text 생성과 공개 범위별 정확한 preview
 3. [완료] 이메일·추가 메시지 승인 snapshot
-4. [완료] `contact_queue` delivery와 worker 재시도
+4. [완료] `contact_queue` delivery와 email reply worker 내부 처리기 재시도
 5. [완료] public token page와 signed slot
 6. [완료] one-time submit과 제출 후 read-only 상태
 
@@ -2318,8 +2319,8 @@ company-side 연결 결정 흐름은 pending/stopped 경계의 연결 수락을 
 - 후보자 무응답 자동 reminder와 회사 pending action
 - 2차·3차 인터뷰 생성
 - 후보자 확정 안내 메일
-- Google Calendar busy sync, Calendar event, Google Meet link 생성·양측 발송
-- delivery 실패를 회사가 직접 복구하는 재전송 UI
+- Google Calendar에서 사라지거나 취소된 기존 busy range를 즉시 제거하는 full mirror sync
+- 생성된 Calendar event의 취소·재조율을 Harper에서 다시 provider에 반영하는 흐름
 
 ### 22.13 코드 경로별 점검표
 
@@ -2329,10 +2330,11 @@ company-side 연결 결정 흐름은 pending/stopped 경계의 연결 수락을 
 | 기본안·확인 | `scheduleDraft.ts`, `scheduleDraftServer.ts`, company-side agent prompt/executor | 60분·기본 title·현재 사용자 참석자, availability 없으면 무변경 |
 | 웹 연결 수락 | `OrgCandidateDecisionDialogs.tsx`, `/api/org/stage` | 설정 modal 복귀, 승인 전 무변경 |
 | draft 편집 | `/api/org/meeting-schedules/*`, `OrgMeetingScheduleDialog.tsx` | version compare-and-set, 외부 발송 전 preview |
-| slot 계산 | `slotsServer.ts`, `slots.ts` | organizer와 모든 회사 참석자의 confirmed Harper busy 제외 |
+| slot 계산 | `slotsServer.ts`, `slots.ts`, `calendarSyncServer.ts` | organizer와 모든 회사 참석자의 Harper busy와 향후 14일 Calendar busy 제외 |
 | invitation 발송 | `invitationServer.ts`, `contact_queue.py` | durable outbox, 발송 직전 eligibility, 실패 시 round와 queue 정합성 |
-| 후보자 제출 | `invitationServer.ts`, `selection.ts`, DB submit RPC | 최신 재계산, Luna 최대 1회, deterministic fallback, attendee lock |
-| 회사 결과 확인 | `scheduleDraftServer.ts`, `OrgMeetingScheduleDialog.tsx` | 원래 option, 자동 선택 메시지, 확정 timezone 표시 |
+| 후보자 제출 | `invitationServer.ts`, `selection.ts`, DB submit RPC | 최신 재계산, Luna 최대 1회, deterministic fallback, Calendar sync와 공유하는 attendee lock |
+| Calendar·Meet 전달 | `meetingCalendarServer.ts`, Calendar retry API | private marker 중복 방지, 양측 초대, Meet 미생성/실패 상태와 재시도 |
+| 회사 결과 확인 | `scheduleDraftServer.ts`, `OrgMeetingScheduleDialog.tsx` | 원래 option, 자동 선택 메시지, 확정 timezone, Calendar·Meet 전달 상태 표시 |
 
 현재 구조에서 새 테이블을 추가해야 해결되는 점검 결함은 없었다. 채팅 availability는 기존
 `meeting_availability`에 저장하고, delivery 실패는 기존 round와 `contact_queue`, timezone audit는 기존

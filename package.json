@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@10.0.0",
   "scripts": {
-    "dev": "next dev",
+    "dev": "HARPER_E2E_DIST_DIR=.next-e2e next dev",
     "dev:slack-socket": "node --env-file=.env.local scripts/slackLocalSocketBridge.mjs",
     "dev:slack-review-post": "node --env-file=.env.local --import tsx scripts/postLocalSlackTalentReview.ts",
     "build": "next build",

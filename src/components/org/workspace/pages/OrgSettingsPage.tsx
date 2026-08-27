@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import { OrgInterviewAvailabilityDialog } from "@/components/org/meetings/OrgInterviewAvailabilityDialog";
 import { OrgPageHeader } from "@/components/org/workspace/OrgPageHeader";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
+import { OrgGoogleCalendarIntegration } from "@/components/org/workspace/OrgGoogleCalendarIntegration";
 import {
   OrgSection,
   OrgSectionHeader,
@@ -62,7 +63,7 @@ function formatChannel(
 }
 
 export function OrgSettingsPage() {
-  const { permissions, workspace } = useOrgWorkspace();
+  const { permissions, user, workspace } = useOrgWorkspace();
   const router = useRouter();
   const addToast = useToastStore((state) => state.add);
   const handledSlackResult = useRef("");
@@ -533,6 +534,12 @@ export function OrgSettingsPage() {
         </div>
       </OrgSection>
 
+      <OrgGoogleCalendarIntegration
+        key={`${user.id}:${workspace.workspaceId}`}
+        userId={user.id}
+        workspaceId={workspace.workspaceId}
+      />
+
       <OrgSection>
         <OrgSectionHeader
           description="후보자에게 인터뷰 일정을 요청할 때 Harper가 제안할 수 있는 내 기본 시간을 관리하세요."
@@ -604,6 +611,7 @@ export function OrgSettingsPage() {
       <OrgInterviewAvailabilityDialog
         onRequestClose={closeAvailability}
         open={availabilityDialogOpen}
+        userId={user.id}
         workspaceId={workspace.workspaceId}
       />
 

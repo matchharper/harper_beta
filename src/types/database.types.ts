@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -1463,6 +1463,7 @@ export type Database = {
           opportunity_search_tsv: unknown
           posted_at: string | null
           priority: number | null
+          request: string | null
           role_id: string
           salary_currency: string | null
           salary_max: number | null
@@ -1494,6 +1495,7 @@ export type Database = {
           opportunity_search_tsv?: unknown
           posted_at?: string | null
           priority?: number | null
+          request?: string | null
           role_id?: string
           salary_currency?: string | null
           salary_max?: number | null
@@ -1525,6 +1527,7 @@ export type Database = {
           opportunity_search_tsv?: unknown
           posted_at?: string | null
           priority?: number | null
+          request?: string | null
           role_id?: string
           salary_currency?: string | null
           salary_max?: number | null
@@ -1961,6 +1964,41 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "talent_messages"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_user_integrations: {
+        Row: {
+          company_user_id: string
+          composio_connected_account_id: string
+          created_at: string
+          provider: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          company_user_id: string
+          composio_connected_account_id: string
+          created_at?: string
+          provider: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          company_user_id?: string
+          composio_connected_account_id?: string
+          created_at?: string
+          provider?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_user_integrations_company_user_id_fkey"
+            columns: ["company_user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -3872,61 +3910,6 @@ export type Database = {
         }
         Relationships: []
       }
-      messages: {
-        Row: {
-          candid_id: string | null
-          content: string | null
-          created_at: string
-          id: number
-          latency: number | null
-          query_id: string | null
-          role: number | null
-          user_id: string | null
-        }
-        Insert: {
-          candid_id?: string | null
-          content?: string | null
-          created_at?: string
-          id?: number
-          latency?: number | null
-          query_id?: string | null
-          role?: number | null
-          user_id?: string | null
-        }
-        Update: {
-          candid_id?: string | null
-          content?: string | null
-          created_at?: string
-          id?: number
-          latency?: number | null
-          query_id?: string | null
-          role?: number | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "messages_candid_id_fkey"
-            columns: ["candid_id"]
-            isOneToOne: false
-            referencedRelation: "candid"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "messages_query_id_fkey"
-            columns: ["query_id"]
-            isOneToOne: false
-            referencedRelation: "queries"
-            referencedColumns: ["query_id"]
-          },
-          {
-            foreignKeyName: "messages_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "company_users"
-            referencedColumns: ["user_id"]
-          },
-        ]
-      }
       meeting_availability: {
         Row: {
           company_user_id: string
@@ -3986,7 +3969,7 @@ export type Database = {
           round_number: number
           schedule_id: string
           selection_snapshot: Json | null
-          source_company_message_id: number | null
+          source_company_message_id: number
           status: string
           submitted_at: string | null
           updated_at: string
@@ -4005,7 +3988,7 @@ export type Database = {
           round_number?: number
           schedule_id: string
           selection_snapshot?: Json | null
-          source_company_message_id?: number | null
+          source_company_message_id: number
           status?: string
           submitted_at?: string | null
           updated_at?: string
@@ -4024,7 +4007,7 @@ export type Database = {
           round_number?: number
           schedule_id?: string
           selection_snapshot?: Json | null
-          source_company_message_id?: number | null
+          source_company_message_id?: number
           status?: string
           submitted_at?: string | null
           updated_at?: string
@@ -4154,6 +4137,61 @@ export type Database = {
           },
         ]
       }
+      messages: {
+        Row: {
+          candid_id: string | null
+          content: string | null
+          created_at: string
+          id: number
+          latency: number | null
+          query_id: string | null
+          role: number | null
+          user_id: string | null
+        }
+        Insert: {
+          candid_id?: string | null
+          content?: string | null
+          created_at?: string
+          id?: number
+          latency?: number | null
+          query_id?: string | null
+          role?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          candid_id?: string | null
+          content?: string | null
+          created_at?: string
+          id?: number
+          latency?: number | null
+          query_id?: string | null
+          role?: number | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_candid_id_fkey"
+            columns: ["candid_id"]
+            isOneToOne: false
+            referencedRelation: "candid"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_query_id_fkey"
+            columns: ["query_id"]
+            isOneToOne: false
+            referencedRelation: "queries"
+            referencedColumns: ["query_id"]
+          },
+          {
+            foreignKeyName: "messages_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       official_job_events: {
         Row: {
           anonymous_id: string | null
@@ -4226,8 +4264,8 @@ export type Database = {
           is_published: boolean
           location: string
           published_at: string | null
-          role_id: string | null
           role_description_markdown: string
+          role_id: string | null
           role_title: string
           seniority: string | null
           short_description: string
@@ -4251,8 +4289,8 @@ export type Database = {
           is_published?: boolean
           location: string
           published_at?: string | null
-          role_id?: string | null
           role_description_markdown?: string
+          role_id?: string | null
           role_title: string
           seniority?: string | null
           short_description?: string
@@ -4276,8 +4314,8 @@ export type Database = {
           is_published?: boolean
           location?: string
           published_at?: string | null
-          role_id?: string | null
           role_description_markdown?: string
+          role_id?: string | null
           role_title?: string
           seniority?: string | null
           short_description?: string
@@ -6453,6 +6491,41 @@ export type Database = {
           },
         ]
       }
+      talent_integrations: {
+        Row: {
+          composio_connected_account_id: string
+          created_at: string
+          provider: string
+          status: string
+          talent_id: string
+          updated_at: string
+        }
+        Insert: {
+          composio_connected_account_id: string
+          created_at?: string
+          provider: string
+          status?: string
+          talent_id: string
+          updated_at?: string
+        }
+        Update: {
+          composio_connected_account_id?: string
+          created_at?: string
+          provider?: string
+          status?: string
+          talent_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_integrations_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       talent_messages: {
         Row: {
           content: string
@@ -7526,7 +7599,9 @@ export type Database = {
         Relationships: []
       }
     }
-    Views: {}
+    Views: {
+      [_ in never]: never
+    }
     Functions: {
       activate_slack_company_agent_update_proposal_v1: {
         Args: {
@@ -7913,54 +7988,18 @@ export type Database = {
       }
       create_meeting_schedule_draft_v1: {
         Args: {
-          p_additional_message: Json | null
+          p_additional_message: Json
           p_company_attendees: Json
           p_company_workspace_id: string
-          p_draft_blocker: string | null
+          p_draft_blocker: string
           p_duration_minutes: number
           p_idempotency_key: string
           p_meeting_config_snapshot: Json
           p_organizer_company_user_id: string
           p_recommendation_id: string
           p_role_id: string
-          p_source_company_message_id: number | null
+          p_source_company_message_id: number
           p_talent_id: string
-          p_title: string
-        }
-        Returns: Json
-      }
-      queue_meeting_schedule_invitation_v1: {
-        Args: {
-          p_company_workspace_id: string
-          p_expected_schedule_version: number
-          p_invitation_expires_at: string
-          p_invitation_snapshot: Json
-          p_public_token_hash: string
-          p_queue_payload: Json
-          p_schedule_id: string
-        }
-        Returns: Json
-      }
-      submit_meeting_schedule_options_v1: {
-        Args: {
-          p_candidate_options: Json
-          p_confirmed_end_at: string
-          p_confirmed_start_at: string
-          p_expected_availability_version: number
-          p_public_token_hash: string
-          p_selection_snapshot: Json
-        }
-        Returns: Json
-      }
-      update_meeting_schedule_draft_v1: {
-        Args: {
-          p_additional_message: Json | null
-          p_company_attendees: Json
-          p_company_workspace_id: string
-          p_duration_minutes: number
-          p_expected_version: number
-          p_meeting_config_snapshot: Json
-          p_schedule_id: string
           p_title: string
         }
         Returns: Json
@@ -8231,6 +8270,18 @@ export type Database = {
         }
         Returns: Json
       }
+      queue_meeting_schedule_invitation_v1: {
+        Args: {
+          p_company_workspace_id: string
+          p_expected_schedule_version: number
+          p_invitation_expires_at: string
+          p_invitation_snapshot: Json
+          p_public_token_hash: string
+          p_queue_payload: Json
+          p_schedule_id: string
+        }
+        Returns: Json
+      }
       reassociate_company_workspace_db_v1: {
         Args: {
           p_changes: Json
@@ -8382,6 +8433,17 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      submit_meeting_schedule_options_v1: {
+        Args: {
+          p_candidate_options: Json
+          p_confirmed_end_at: string
+          p_confirmed_start_at: string
+          p_expected_availability_version: number
+          p_public_token_hash: string
+          p_selection_snapshot: Json
+        }
+        Returns: Json
+      }
       try_enqueue_talent_behavior_context_change: {
         Args: {
           p_change_summary?: string
@@ -8403,6 +8465,19 @@ export type Database = {
           p_role_id: string
           p_source: string
           p_workspace_id: string
+        }
+        Returns: Json
+      }
+      update_meeting_schedule_draft_v1: {
+        Args: {
+          p_additional_message: Json
+          p_company_attendees: Json
+          p_company_workspace_id: string
+          p_duration_minutes: number
+          p_expected_version: number
+          p_meeting_config_snapshot: Json
+          p_schedule_id: string
+          p_title: string
         }
         Returns: Json
       }

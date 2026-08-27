@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
   usePrepareOrgMeetingInvitation,
+  useRetryOrgMeetingCalendar,
   useOrgMeetingSchedule,
   useSendOrgMeetingInvitation,
   useUpdateOrgMeetingSchedule,
@@ -107,6 +108,10 @@ export function OrgMeetingScheduleDialog({
     scheduleId,
     workspaceId: workspace.workspaceId,
   });
+  const retryCalendar = useRetryOrgMeetingCalendar({
+    scheduleId,
+    workspaceId: workspace.workspaceId,
+  });
   const schedule = scheduleQuery.data?.schedule ?? null;
   const [editorDraft, setEditorDraft] =
     useState<MeetingScheduleEditorDraft | null>(null);
@@ -182,7 +187,8 @@ export function OrgMeetingScheduleDialog({
   const isBusy =
     updateSchedule.isPending ||
     prepareInvitation.isPending ||
-    sendInvitation.isPending;
+    sendInvitation.isPending ||
+    retryCalendar.isPending;
 
   const toggleAttendee = (email: string) => {
     if (email === organizerEmail || !draft) return;
@@ -253,6 +259,29 @@ export function OrgMeetingScheduleDialog({
           ? sendError.message
           : "일정 요청 전달을 시작하지 못했어요."
       );
+    }
+  };
+
+  const handleRetryCalendar = async () => {
+    try {
+      const result = await retryCalendar.mutateAsync();
+      addToast({
+        message:
+          result.calendar.status === "created"
+            ? "Calendar 초대와 Google Meet 링크를 만들었어요."
+            : result.calendar.status === "created_without_meet"
+              ? "Calendar 초대는 보냈지만 Google Meet 링크는 만들지 못했어요."
+              : "Calendar 초대 전달 상태를 다시 확인하고 있어요.",
+        variant: result.calendar.status === "created" ? "success" : "default",
+      });
+    } catch (retryError) {
+      addToast({
+        message:
+          retryError instanceof Error
+            ? retryError.message
+            : "Calendar 초대를 다시 만들지 못했어요.",
+        variant: "error",
+      });
     }
   };
 
@@ -492,8 +521,9 @@ export function OrgMeetingScheduleDialog({
               />
             </label>
             <p className="rounded-lg bg-bg-weak p-3 text-[12px] leading-5 text-neutral-muted">
-              이메일을 보내면 후보자가 가능한 시간을 고를 수 있어요. 아직 Google
-              Calendar 일정이나 Meet 링크는 만들지 않아요.
+              이메일을 보내면 후보자가 가능한 시간을 고를 수 있어요. 후보자가
+              시간을 제출해 확정되면 담당자의 Google Calendar에서 양측 초대와
+              Google Meet 링크를 만들어요.
             </p>
           </section>
           {error ? (
@@ -550,10 +580,77 @@ export function OrgMeetingScheduleDialog({
               </div>
             </section>
           ) : null}
-          <p className="rounded-lg bg-bg-weak p-3 text-[12px] leading-5 text-neutral-muted">
-            확정된 시간만 저장했어요. Google Calendar 일정과 Meet 링크는 아직
-            만들거나 보내지 않았어요.
-          </p>
+          {schedule.calendar?.status === "created" ? (
+            <div className="rounded-lg bg-positive-faded p-3 text-[12px] leading-5 text-neutral-muted">
+              후보자와 회사 참석자에게 Calendar 초대를 보냈고 Google Meet 링크를
+              만들었어요.
+              <div className="mt-2 flex flex-wrap gap-3">
+                {schedule.calendar.meetUrl ? (
+                  <a
+                    className="text-link underline underline-offset-2"
+                    href={schedule.calendar.meetUrl}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Google Meet 열기
+                  </a>
+                ) : null}
+                {schedule.calendar.calendarUrl ? (
+                  <a
+                    className="text-link underline underline-offset-2"
+                    href={schedule.calendar.calendarUrl}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Calendar 일정 열기
+                  </a>
+                ) : null}
+              </div>
+            </div>
+          ) : schedule.calendar?.status === "created_without_meet" ? (
+            <div className="rounded-lg bg-info-faded p-3 text-[12px] leading-5 text-neutral-muted">
+              Calendar 초대는 보냈지만 연결된 Google 계정에서 Meet 링크를 만들지
+              못했어요. Calendar 일정에서 화상회의 링크를 직접 추가해 주세요.
+              {schedule.calendar.calendarUrl ? (
+                <div className="mt-2">
+                  <a
+                    className="text-link underline underline-offset-2"
+                    href={schedule.calendar.calendarUrl}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Calendar 일정 열기
+                  </a>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div className="rounded-lg bg-bg-weak p-3 text-[12px] leading-5 text-neutral-muted">
+              <p>
+                {schedule.calendar?.status === "creating"
+                  ? "미팅 시간은 확정되어 있고, Calendar 초대와 Google Meet 링크를 만들고 있어요."
+                  : `미팅 시간은 그대로 확정되어 있어요. ${
+                      schedule.calendar?.error ??
+                      "Calendar 초대와 Google Meet 링크를 아직 만들지 못했어요."
+                    }`}
+              </p>
+              {permissions.canManageCandidates ? (
+                <MuteButton
+                  className="mt-2"
+                  disabled={retryCalendar.isPending}
+                  onClick={() => void handleRetryCalendar()}
+                  size="sm"
+                >
+                  {retryCalendar.isPending ? (
+                    <LoaderCircle className="size-4 animate-spin" />
+                  ) : null}
+                  {schedule.calendar?.status === "creating"
+                    ? "전달 상태 다시 확인"
+                    : "Calendar 초대 다시 만들기"}
+                </MuteButton>
+              ) : null}
+            </div>
+          )}
         </div>
       ) : schedule?.status === "awaiting_talent" ? (
         <div className="space-y-5">

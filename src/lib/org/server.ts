@@ -2974,17 +2974,32 @@ async function fetchOrgSlackTalent(
     : null;
 }
 
-async function fetchOrgCompanyUser(admin: SupabaseAdminClient, user: User) {
-  const { data, error } = await (admin.from("company_users" as any) as any)
-    .select("user_id, email, name")
-    .eq("user_id", user.id)
-    .maybeSingle();
+async function fetchOrgCompanyUser(
+  admin: SupabaseAdminClient,
+  user: User,
+  workspaceId: string
+) {
+  const [userResult, membershipResult] = await Promise.all([
+    (admin.from("company_users" as any) as any)
+      .select("user_id, email, name, role")
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    (admin.from("company_user_workspace" as any) as any)
+      .select("role")
+      .eq("company_user_id", user.id)
+      .eq("company_workspace_id", workspaceId)
+      .maybeSingle(),
+  ]);
 
-  if (error) throw error;
-  const row = data as CompanyUserRow | null;
+  if (userResult.error) throw userResult.error;
+  if (membershipResult.error) throw membershipResult.error;
+  const row = userResult.data as CompanyUserRow | null;
   return {
     email: normalizeText(row?.email ?? user.email).toLowerCase() || null,
     name: normalizeNullableText(row?.name) ?? getUserName(user),
+    role:
+      normalizeNullableText(membershipResult.data?.role) ??
+      normalizeNullableText(row?.role),
     userId: user.id,
   };
 }
@@ -3090,6 +3105,7 @@ async function sendOrgIntroEmail(args: {
   companyUser: {
     email: string | null;
     name: string;
+    role: string | null;
     userId: string;
   };
   introEmails: string[];
@@ -3192,20 +3208,10 @@ async function sendOrgIntroEmail(args: {
           candidateName:
             normalizeText(args.candidate.name) || candidateEmail.split("@")[0],
           candidateProfessionalSummary,
-          companyDescription:
-            normalizeNullableText(args.workspace.company_description)?.slice(
-              0,
-              3_000
-            ) ?? null,
           companyName: args.workspace.company_name,
           companyUserName: args.companyUser.name,
+          companyUserRole: args.companyUser.role,
           locale: introLocale,
-          pitch:
-            normalizeNullableText(args.workspace.pitch)?.slice(0, 3_000) ??
-            null,
-          roleDescription:
-            normalizeNullableText(args.role.description)?.slice(0, 4_000) ??
-            null,
           roleTitle: args.role.name,
           senderName: "Harper",
         });
@@ -3219,6 +3225,7 @@ async function sendOrgIntroEmail(args: {
     cc,
     companyUserId: args.companyUser.userId,
     companyUserName: args.companyUser.name,
+    companyUserRole: args.companyUser.role,
     emailKind: "orgIntro",
     idempotencyKey: identity.idempotencyKey,
     model,
@@ -3552,7 +3559,7 @@ export async function setOrgCandidateStage(args: {
     const [workspace, candidate, companyUser] = await Promise.all([
       fetchWorkspaceById(admin, workspaceId),
       fetchOrgSlackTalent(admin, talentId),
-      fetchOrgCompanyUser(admin, args.user),
+      fetchOrgCompanyUser(admin, args.user, workspaceId),
     ]);
     if (!workspace) throw new OrgHttpError(404, "Workspace not found");
     if (!candidate) throw new OrgHttpError(404, "Candidate not found");

@@ -35,7 +35,10 @@ import {
 import { buildHarperSlackWelcomeMessage } from "@/lib/org/slackWelcome";
 import { stripSlackSentUsingAttribution } from "@/lib/org/slackMessageText";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
-import { createSlackApiRequest } from "./slackApiRequest";
+import {
+  applyHarperSlackApiMessagePolicy,
+  createSlackApiRequest,
+} from "./slackApiRequest";
 
 const CALLBACK_PATH = "/api/org/slack/callback";
 const STATE_TTL_MS = 10 * 60 * 1000;
@@ -299,7 +302,7 @@ export async function slackApi<T extends SlackApiResult>(
 ) {
   const response = await fetch(
     `https://slack.com/api/${method}`,
-    createSlackApiRequest(token, body)
+    createSlackApiRequest(token, applyHarperSlackApiMessagePolicy(method, body))
   );
   const payload = (await response.json().catch(() => null)) as T | null;
   if (!response.ok || !payload?.ok) {
@@ -819,7 +822,10 @@ export async function setHarperSlackThreadStatus(args: {
   });
 }
 
-function slackClientMessageId(idempotencyKey: string, channelId: string) {
+export function buildHarperSlackClientMessageId(
+  idempotencyKey: string,
+  channelId: string
+) {
   const hex = createHash("sha256")
     .update(["harper-slack", idempotencyKey, channelId].join("\u001f"))
     .digest("hex")
@@ -1131,6 +1137,8 @@ export async function sendHarperWorkspaceSlackMessage(args: {
   messageMetadata?: OrgAgentMessageMetadata;
   mentions?: OrgAgentMention[];
   notificationKey?: HarperSlackNotificationKey;
+  /** Skip persisting the Slack post in /org when another atomic writer saves it. */
+  recordConversationMessage?: boolean;
   roleId?: string | null;
   text: string;
   unfurlLinks?: boolean;
@@ -1181,7 +1189,7 @@ export async function sendHarperWorkspaceSlackMessage(args: {
         blocks: args.blocks,
         channelId: channel.slack_channel_id,
         clientMessageId: text(args.idempotencyKey)
-          ? slackClientMessageId(
+          ? buildHarperSlackClientMessageId(
               text(args.idempotencyKey),
               channel.slack_channel_id
             )
@@ -1208,8 +1216,10 @@ export async function sendHarperWorkspaceSlackMessage(args: {
           .select("id")
           .single();
         if (threadError) throw threadError;
+        if (args.recordConversationMessage === false) return;
         const conversation = await ensureSlackConversation({
           admin,
+          roleId: roleId || null,
           workspaceId: row.company_workspace_id,
         });
         await insertOrgAgentMessage({
@@ -1223,6 +1233,7 @@ export async function sendHarperWorkspaceSlackMessage(args: {
           },
           mentions: args.mentions,
           role: "assistant",
+          roleId: roleId || null,
           slackMessageTs: posted.ts,
           slackThreadId: thread.id,
           slackUserId: row.slack_bot_user_id,
@@ -1267,7 +1278,7 @@ export async function sendHarperSlackThreadReply(args: {
   }
   const posted = await postHarperSlackMessage({
     channelId: text(channel.slack_channel_id),
-    clientMessageId: slackClientMessageId(
+    clientMessageId: buildHarperSlackClientMessageId(
       args.idempotencyKey,
       text(channel.slack_channel_id)
     ),

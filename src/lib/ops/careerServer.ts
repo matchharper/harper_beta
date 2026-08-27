@@ -24,6 +24,7 @@ import { buildReplySubject, normalizeEmailAddress } from "@/lib/email/parse";
 import { sendResendEmail } from "@/lib/email/send";
 import type { MergedChecklistItem } from "@/lib/talentOnboarding/server";
 import { normalizeTalentMessageThinkingLogs } from "@/lib/talentOnboarding/models";
+import { isTestOnlyInternalRole } from "@/lib/internalRoleSafety";
 import type { Database } from "@/types/database.types";
 
 type TalentUserRow = Database["public"]["Tables"]["talent_users"]["Row"];
@@ -2387,9 +2388,12 @@ type ManualInternalRoleRow = {
   company_workspace_id?: string | null;
   description?: string | null;
   description_summary?: string | null;
+  information?: unknown;
   location_text?: string | null;
   name?: string | null;
   role_id?: string | null;
+  source_job_id?: string | null;
+  source_provider?: string | null;
   source_type?: string | null;
   status?: string | null;
   updated_at?: string | null;
@@ -2415,6 +2419,7 @@ function mapManualInternalRoleRow(
   const isActive = status === "active" || status === "top_priority";
   if (!roleId || !roleName || !companyWorkspaceId) return null;
   if (roleSourceType !== "internal") return null;
+  if (isTestOnlyInternalRole(row)) return null;
   if (!options.includeInactive && !isActive) return null;
 
   return {
@@ -2459,9 +2464,12 @@ async function loadManualInternalRoleRows(args: {
     name,
     description,
     description_summary,
+    information,
     location_text,
     status,
     source_type,
+    source_provider,
+    source_job_id,
     updated_at,
     company_workspace:company_workspace!inner (
       company_workspace_id,
@@ -2504,9 +2512,12 @@ async function loadManualInternalRoleById(args: {
         name,
         description,
         description_summary,
+        information,
         location_text,
         status,
         source_type,
+        source_provider,
+        source_job_id,
         updated_at,
         company_workspace:company_workspace (
           company_workspace_id,

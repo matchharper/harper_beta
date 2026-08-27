@@ -86,8 +86,11 @@ import {
   generateCandidateContactDraft,
   reviseCandidateContactDraft,
 } from "@/lib/companyTalentRequests/copy";
-import { candidateContactDraftPresentation } from "@/lib/companyTalentRequests/presentation";
-import { formatOrgAgentKstDateTime } from "@/lib/org/agent/dateTime";
+import {
+  candidateContactDraftFallbackReply,
+  candidateContactDraftPresentation,
+  candidateContactScheduledReply,
+} from "@/lib/companyTalentRequests/presentation";
 import {
   executeSharedOpenUrl,
   executeSharedWebSearch,
@@ -145,11 +148,6 @@ function meetingAvailabilityActionLink(args: {
   return args.source === "slack"
     ? formatSlackLink(url, "스케줄 열기")
     : `[스케줄 열기](${url})`;
-}
-
-function formatKstDateTime(value: unknown) {
-  const formatted = formatOrgAgentKstDateTime(value, { includeYear: true });
-  return formatted ? `${formatted} KST` : "예정 시각 확인 중";
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -1534,14 +1532,11 @@ async function executeCompanyTalentRequest(args: {
     throw error;
   }
 
-  const deliveryCopy =
-    deliveryMode === "immediate"
-      ? "요청하신 대로 대기 시간과 KST 발송 시간 제한 없이 이메일과 Harper 채팅 전달을 바로 시작해요. 아직 전달 완료를 의미하지 않으며, 처리가 시작되면 취소하지 못할 수 있어요."
-      : `${formatKstDateTime(request.candidateDeliveryScheduledAt)}에 이메일과 Harper 채팅으로 한 번 전달할 예정이며, 그전에는 취소할 수 있어요.`;
-  args.state.terminalReply =
-    kind === "resume"
-      ? `${text(talent.candidate.name) || "후보자분"}께 ${text(args.state.company.companyName) || "회사"}의 ${role.name} 역할 검토를 위한 최신 이력서 공유 요청을 준비했어요. ${deliveryCopy} 아직 업로드가 끝난 것은 아니에요. 후보자가 이력서를 올리면 이 대화로 알려드릴게요. 답변이나 업로드는 선택이며, Harper가 자동으로 재촉하지 않아요.`
-      : `${text(talent.candidate.name) || "후보자분"}께 ${text(args.state.company.companyName) || "회사"}에서 ${role.name} 역할과 관련해 확인하는 질문이라고 밝히고, “${requestContext}”를 대신 전달하도록 준비했어요. ${deliveryCopy} 아직 후보자가 답한 것은 아니에요. 답이 오면 이 대화로 알려드릴게요. 답변은 후보자의 선택이며, Harper가 자동으로 재촉하지 않아요.`;
+  args.state.terminalReply = candidateContactScheduledReply({
+    candidateName: text(talent.candidate.name) || "후보자",
+    immediate: deliveryMode === "immediate",
+    scheduledAt: request.candidateDeliveryScheduledAt,
+  });
   recordResult(args.state, {
     callId: args.callId,
     name: args.name,
@@ -1666,13 +1661,16 @@ async function executeChangeTalentContact(args: {
   if (action === "immediate") {
     args.state.terminalReply =
       pendingRequest.deliveryStatus === "failed"
-        ? `${text(talent.candidate.name) || "후보자분"}께 드릴 ${role.name} 역할 관련 문의를 바로 다시 전달하도록 바꿨어요. 이메일과 Harper 채팅 전달을 곧 시작하지만 아직 완료된 것은 아니에요. 이전 시도가 실제로 전달된 뒤 기록만 실패했을 수도 있어 중복 전달 가능성이 있어요. 답이 오면 이 대화로 알려드릴게요.`
-        : `${text(talent.candidate.name) || "후보자분"}께 드릴 ${role.name} 역할 관련 문의를 바로 전달하도록 바꿨어요. 이메일과 Harper 채팅 전달을 곧 시작하지만 아직 완료된 것은 아니에요. 답이 오면 이 대화로 알려드릴게요.`;
+        ? `${text(talent.candidate.name) || "후보자"}님께 다시 물어볼게요. 앞서 보낸 내용과 겹칠 수 있어요. 답이 오면 여기로 알려드릴게요.`
+        : candidateContactScheduledReply({
+            candidateName: text(talent.candidate.name) || "후보자",
+            immediate: true,
+          });
   } else {
     args.state.terminalReply =
       pendingRequest.deliveryStatus === "failed"
-        ? `${text(talent.candidate.name) || "후보자분"}께 보낸 ${role.name} 역할 관련 문의의 남은 전달을 중단했어요. 이 요청으로 추가 이메일이나 Harper 채팅을 보내지 않아요. 다만 이전 시도가 실제로 전달된 뒤 기록만 실패했을 수도 있어, 이전 전달 여부는 별도로 확인해야 해요.`
-        : `${text(talent.candidate.name) || "후보자분"}께 보낼 예정이던 ${role.name} 역할 관련 문의를 취소했어요. 후보자에게 이메일이나 Harper 채팅으로 전달되지 않아요.`;
+        ? `${text(talent.candidate.name) || "후보자"}님께 드린 요청을 더 진행하지 않도록 했어요. 다만 앞선 전달이 기록보다 먼저 끝났을 가능성은 있어요.`
+        : `${text(talent.candidate.name) || "후보자"}님께 드리려던 요청을 취소했어요.`;
   }
   recordResult(args.state, {
     callId: args.callId,
@@ -1717,15 +1715,25 @@ function candidateResumeUploadUrl(args: {
 }
 
 function candidateResumeUploadUrlFromDraft(body: string) {
-  const match = body.match(
-    /https?:\/\/[^\s<>"']+\/career\/profile\?[^\s<>"']*resumeRequest=[^\s<>"']+/
+  const profileUrl = (body.match(/https?:\/\/[^\s<>"')\]]+/g) ?? []).find(
+    (value) => {
+      try {
+        const url = new URL(value);
+        return (
+          url.pathname === "/career/profile" &&
+          Boolean(url.searchParams.get("resumeRequest"))
+        );
+      } catch {
+        return false;
+      }
+    }
   );
-  if (!match) {
+  if (!profileUrl) {
     throw new OrgAgentToolInputError(
       "이력서 요청 초안에 필수 업로드 링크가 없어 수정할 수 없습니다. 현재 요청을 취소하고 새 초안을 만들어 주세요."
     );
   }
-  return match[0];
+  return profileUrl;
 }
 
 async function wasContactDraftImmediatelyPresented(args: {
@@ -2042,14 +2050,12 @@ async function executeCandidateContactLifecycle(args: {
         args.state.requiredPresentationText = candidateContactDraftPresentation(
           {
             body: String(existingRequest.draftBody),
-            candidateName: text(talent.candidate.name),
-            revision,
-            roleName: text(existingRequest.roleName) || role.name,
-            subject: String(existingRequest.draftSubject),
+            source: args.source,
           }
         );
-        args.state.terminalReply =
-          "이 후보자와 역할에 이미 확인 중인 문구가 있어 새 초안을 만들지 않고 현재 문구를 다시 보여드려요.";
+        args.state.terminalReply = candidateContactDraftFallbackReply(
+          text(talent.candidate.name)
+        );
         recordResult(args.state, {
           callId: args.callId,
           name: args.name,
@@ -2058,6 +2064,7 @@ async function executeCandidateContactLifecycle(args: {
         });
         return {
           contactId,
+          candidateName: text(talent.candidate.name),
           revision,
           status: "draft",
           userMessage: args.state.terminalReply,
@@ -2157,13 +2164,11 @@ async function executeCandidateContactLifecycle(args: {
     args.state.contactDraftRef = { contactId, revision };
     args.state.requiredPresentationText = candidateContactDraftPresentation({
       body: String(draft.delivery_body),
-      candidateName: text(talent.candidate.name),
-      revision,
-      roleName: role.name,
-      subject: String(draft.delivery_subject),
+      source: args.source,
     });
-    args.state.terminalReply =
-      "후보자에게 보낼 전체 문구를 초안으로 저장했어요. 아직 후보자에게 보내지 않았어요.";
+    args.state.terminalReply = candidateContactDraftFallbackReply(
+      text(talent.candidate.name)
+    );
     recordResult(args.state, {
       callId: args.callId,
       name: args.name,
@@ -2172,6 +2177,7 @@ async function executeCandidateContactLifecycle(args: {
     });
     return {
       contactId,
+      candidateName: text(talent.candidate.name),
       revision,
       status: "draft",
       userMessage: args.state.terminalReply,
@@ -2244,13 +2250,10 @@ async function executeCandidateContactLifecycle(args: {
     };
     args.state.requiredPresentationText = candidateContactDraftPresentation({
       body: String(revised.delivery_body),
-      candidateName,
-      revision: revised.draft_revision,
-      roleName,
-      subject: String(revised.delivery_subject),
+      source: args.source,
     });
     args.state.terminalReply =
-      "요청하신 수정을 초안에 저장했어요. 아직 후보자에게 보내지 않았어요.";
+      "말씀해 주신 내용으로 문구를 고쳤어요. 아직 후보자에게 보내지는 않았어요. 아래 내용을 한 번만 다시 확인해 주시겠어요?";
     recordResult(args.state, {
       callId: args.callId,
       name: args.name,
@@ -2259,6 +2262,7 @@ async function executeCandidateContactLifecycle(args: {
     });
     return {
       contactId: revised.id,
+      candidateName,
       revision: revised.draft_revision,
       status: "draft_revised",
       userMessage: args.state.terminalReply,
@@ -2302,13 +2306,10 @@ async function executeCandidateContactLifecycle(args: {
       };
       args.state.requiredPresentationText = candidateContactDraftPresentation({
         body: String(contact.delivery_body ?? ""),
-        candidateName,
-        revision: contact.draft_revision,
-        roleName,
-        subject: String(contact.delivery_subject ?? ""),
+        source: args.source,
       });
       args.state.terminalReply =
-        "직전 Harper 답변에서 보여드린 최신 문구에 대한 확인이 아니어서 보내지 않았어요. 현재 문구를 다시 보여드려요.";
+        "방금 확인하신 문구와 현재 저장된 문구가 달라서 아직 보내지 않았어요. 아래 내용을 한 번만 다시 확인해 주시겠어요.";
       recordResult(args.state, {
         callId: args.callId,
         name: args.name,
@@ -2317,6 +2318,7 @@ async function executeCandidateContactLifecycle(args: {
       });
       return {
         contactId: contact.id,
+        candidateName,
         revision: contact.draft_revision,
         status: "confirmation_required",
         userMessage: args.state.terminalReply,
@@ -2335,10 +2337,11 @@ async function executeCandidateContactLifecycle(args: {
       contactId: contact.id,
       revision: contact.draft_revision,
     };
-    args.state.terminalReply =
-      deliveryModeValue === "immediate"
-        ? `${candidateName}님께 확인하신 ${roleName} 관련 문구를 바로 보내도록 준비했어요. 이메일과 Harper 채팅 전달을 곧 시작하지만 아직 완료된 것은 아니에요.\n\n후보자는 답하거나, 답하기 어렵다고 하거나, 답하지 않을 수 있어요. Harper가 자동으로 재촉하지는 않으며, 답변이 오면 의미를 바꾸지 않고 정리해 이 대화에서 알려드릴게요.`
-        : `${candidateName}님께 확인하신 ${roleName} 관련 문구를 ${formatKstDateTime(scheduled.scheduledAt)}에 보낼 예정이에요. 이메일과 Harper 채팅으로 한 번 전달하며, 아직 전달이 끝난 것은 아니에요.\n\n후보자는 답하거나, 답하기 어렵다고 하거나, 답하지 않을 수 있어요. Harper가 자동으로 재촉하지는 않으며, 답변이 오면 의미를 바꾸지 않고 정리해 이 대화에서 알려드릴게요.`;
+    args.state.terminalReply = candidateContactScheduledReply({
+      candidateName,
+      immediate: deliveryModeValue === "immediate",
+      scheduledAt: scheduled.scheduledAt,
+    });
     recordResult(args.state, {
       callId: args.callId,
       name: args.name,
@@ -2405,7 +2408,10 @@ async function executeCandidateContactLifecycle(args: {
       contactId: contact.id,
       revision: contact.draft_revision,
     };
-    args.state.terminalReply = `${candidateName}님께 보낼 예정이던 ${roleName} 관련 요청을 지금 바로 전달하도록 바꿨어요. 확인하신 제목과 본문은 그대로 유지되며, 이메일과 Harper 채팅 전달을 곧 시작하지만 아직 완료된 것은 아니에요. 답변이 오면 의미를 바꾸지 않고 정리해 이 대화에서 알려드릴게요.`;
+    args.state.terminalReply = candidateContactScheduledReply({
+      candidateName,
+      immediate: true,
+    });
     recordResult(args.state, {
       callId: args.callId,
       name: args.name,
@@ -2423,7 +2429,7 @@ async function executeCandidateContactLifecycle(args: {
   args.state.terminalReply =
     contact.workflow_status === "draft"
       ? `${candidateName}님께 보낼 ${roleName} 관련 초안을 취소했어요. 후보자에게 전달된 내용은 없어요.`
-      : `${candidateName}님께 보낼 예정이던 ${roleName} 관련 요청을 취소했어요. 이 요청으로 추가 이메일이나 Harper 채팅을 보내지 않아요.`;
+      : `${candidateName}님께 드리려던 ${roleName} 관련 요청을 취소했어요.`;
   recordResult(args.state, {
     callId: args.callId,
     name: args.name,

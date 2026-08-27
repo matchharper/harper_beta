@@ -31,6 +31,11 @@ import {
   isOrgAgentModelId,
   type OrgAgentModelId,
 } from "@/lib/org/agent/modelConfig";
+import {
+  ORG_ROLE_QUICK_ACTION_IDLE_MS,
+  ORG_ROLE_QUICK_ACTIONS,
+  shouldShowOrgRoleQuickActions,
+} from "@/lib/org/roleQuickActions";
 import { splitRoleCreationCompletionSentences } from "@/lib/org/agent/roleCreationCompletionMessage";
 import { cn } from "@/lib/utils";
 
@@ -85,13 +90,18 @@ export function OrgAgentChatSurface({
   onClose?: () => void;
   onCompanyInfoClick?: () => void;
   onRoleCreated?: (roleId: string) => void;
-  purpose?: "general" | "role-creation";
+  purpose?: "general" | "role" | "role-creation";
   roleId?: string | null;
   header?: ReactNode;
 }) {
   const { bootstrap, currentUser, user, workspace } = useOrgWorkspace();
   const workspaceId = workspace.workspaceId;
-  const mode = purpose === "role-creation" ? "role_creation" : "general";
+  const mode =
+    purpose === "role-creation"
+      ? "role_creation"
+      : purpose === "role"
+        ? "role"
+        : "general";
   const initialRoleCreation = purpose === "role-creation" && !roleId;
   const history = useOrgAgentMessageHistory({
     enabled: Boolean(workspaceId) && (mode === "general" || Boolean(roleId)),
@@ -115,6 +125,7 @@ export function OrgAgentChatSurface({
     ORG_AGENT_COMPOSER_DEFAULT_HEIGHT_PX
   );
   const [stickToBottom, setStickToBottom] = useState(true);
+  const [quickActionClock, setQuickActionClock] = useState(0);
   const [completionReveal, setCompletionReveal] = useState<{
     content: string;
     messageId: number;
@@ -123,6 +134,22 @@ export function OrgAgentChatSurface({
   const completionRevealChunks = completionReveal
     ? splitRoleCreationCompletionSentences(completionReveal.content)
     : [];
+  const latestUserMessageAt =
+    chat.optimisticUserMessage?.createdAt ??
+    history.latestUserMessageAt ??
+    history.messages.findLast((message) => message.role === "user")
+      ?.createdAt ??
+    null;
+  const showRoleQuickActions = Boolean(
+    purpose === "role" &&
+    roleId &&
+    !history.isLoading &&
+    shouldShowOrgRoleQuickActions({
+      isStreaming: chat.isStreaming,
+      latestUserMessageAt,
+      now: quickActionClock,
+    })
+  );
 
   const handleModelChange = (nextModel: OrgAgentModelId) => {
     setModel(nextModel);
@@ -135,6 +162,18 @@ export function OrgAgentChatSurface({
     const frame = window.requestAnimationFrame(() => setModel(savedModel));
     return () => window.cancelAnimationFrame(frame);
   }, []);
+
+  useEffect(() => {
+    const now = Date.now();
+    const sentAt = Date.parse(latestUserMessageAt ?? "");
+    if (!Number.isFinite(sentAt)) return;
+    const delay = sentAt + ORG_ROLE_QUICK_ACTION_IDLE_MS - now;
+    const timer = window.setTimeout(
+      () => setQuickActionClock(Date.now()),
+      Math.max(0, Math.min(delay + 50, ORG_ROLE_QUICK_ACTION_IDLE_MS))
+    );
+    return () => window.clearTimeout(timer);
+  }, [latestUserMessageAt]);
 
   const syncScrollState = useCallback(() => {
     const node = scrollRef.current;
@@ -298,10 +337,8 @@ export function OrgAgentChatSurface({
             !chat.optimisticUserMessage &&
             purpose !== "role-creation" ? (
             <div className="flex min-h-[260px] items-center justify-center px-8">
-              <p className="max-w-[320px] text-center leading-5 text-neutral-muted">
-                역할이나 후보자에 대해 물어보세요. 정보를 바꾸거나 외부 연락이
-                <br />
-                필요한 요청은 실행 전에 확인할게요.
+              <p className="max-w-[320px] text-center leading-5 text-neutral-muted text-base text-normal">
+                역할이나 후보자에 대해 물어보거나 원하시는 사항을 요청해주세요.
               </p>
             </div>
           ) : (
@@ -443,6 +480,30 @@ export function OrgAgentChatSurface({
               <br />
               JD 링크 혹은 파일로 시작하거나, 편하게 설명해주셔도 좋습니다.
             </p>
+          ) : null}
+          {showRoleQuickActions ? (
+            <div className="mx-auto mb-3 flex w-full max-w-[1120px] flex-wrap gap-2 px-4 pt-2 md:px-5 md:pt-0">
+              {ORG_ROLE_QUICK_ACTIONS.map((action) => (
+                <MuteButton
+                  className="border-white bg-white text-black shadow-sm hover:border-white hover:bg-white/90 active:border-white active:bg-white/80"
+                  key={action.id}
+                  onClick={() => {
+                    setStickToBottom(true);
+                    void chat.sendMessage({
+                      attachments: [],
+                      mentions: [],
+                      message: action.message,
+                      model,
+                    });
+                  }}
+                  size="sm"
+                  type="button"
+                  variant="default"
+                >
+                  {action.label}
+                </MuteButton>
+              ))}
+            </div>
           ) : null}
           <OrgAgentComposer
             allowAttachments={purpose === "role-creation"}

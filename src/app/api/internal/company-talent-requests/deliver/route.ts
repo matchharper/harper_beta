@@ -3,7 +3,13 @@ import {
   requireInternalWorkerSecret,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
-import { sendHarperSlackThreadReply } from "@/lib/org/slackHarper";
+import {
+  sendHarperSlackThreadReply,
+  sendHarperWorkspaceSlackMessage,
+} from "@/lib/org/slackHarper";
+import {
+  getCompanyTalentRelaySlackDestination,
+} from "@/lib/companyTalentRequests/slackDelivery";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 
 export const runtime = "nodejs";
@@ -214,18 +220,26 @@ export async function POST(req: NextRequest) {
     const sourceMessage = Array.isArray(request.source_message)
       ? request.source_message[0]
       : request.source_message;
-    const sourceSlackThreadId = String(
-      sourceMessage?.slack_thread_id ?? ""
-    ).trim();
-    if (sourceSlackThreadId) {
+    const slackDestination = getCompanyTalentRelaySlackDestination(
+      sourceMessage?.slack_thread_id
+    );
+    if (slackDestination.kind === "thread") {
       const posted = await sendHarperSlackThreadReply({
         idempotencyKey: request.id,
         text: relayBody,
-        threadId: sourceSlackThreadId,
+        threadId: slackDestination.threadId,
         workspaceId: request.company_workspace_id,
       });
       slackMessageTs = posted.slackMessageTs;
       slackBotUserId = posted.botUserId;
+    } else {
+      await sendHarperWorkspaceSlackMessage({
+        idempotencyKey: request.id,
+        recordConversationMessage: false,
+        roleId: request.role_id,
+        text: relayBody,
+        workspaceId: request.company_workspace_id,
+      });
     }
 
     const { data: finalized, error: finalizeError } = await (admin.rpc as any)(

@@ -107,6 +107,7 @@ export async function fetchCareerReengagementPendingActions(args: {
         promise: args.includeReevaluationQuestion
           ? fetchActiveInternalFitHoldQuestion({
               admin: args.admin,
+              locale: args.locale,
               userId: args.userId,
             })
           : Promise.resolve(null),

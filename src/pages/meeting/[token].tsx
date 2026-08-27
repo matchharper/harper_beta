@@ -21,11 +21,14 @@ type Copy = {
   confirmed: string;
   expired: string;
   expiredDescription: string;
-  linkLater: string;
+  calendarPending: string;
+  calendarReady: string;
+  calendarWithoutMeet: string;
   loadError: string;
   loading: string;
   noSlots: string;
   noSlotsDescription: string;
+  openMeet: string;
   retry: string;
   selected: (count: number) => string;
   slotsChanged: string;
@@ -49,14 +52,19 @@ const COPY: Record<"en" | "ko", Copy> = {
     expired: "This link has expired",
     expiredDescription:
       "Please contact Harper or the company if you still need to share your availability.",
-    linkLater:
-      "The Google Meet link and calendar invitation will be sent separately.",
+    calendarPending:
+      "Your time is saved. Harper is checking the calendar invitation delivery.",
+    calendarReady:
+      "The calendar invitation has been sent to both sides with the Google Meet link.",
+    calendarWithoutMeet:
+      "The calendar invitation was sent, but a Google Meet link could not be created. Please contact Harper or the company before the meeting.",
     loadError:
       "We couldn't load this scheduling link. Please check the link and try again.",
     loading: "Loading available times",
     noSlots: "There are no available times right now",
     noSlotsDescription:
       "The company's availability may have changed. Harper will need to request new times.",
+    openMeet: "Open Google Meet",
     retry: "Try again",
     selected: (count) => `${count} selected`,
     slotsChanged:
@@ -79,20 +87,25 @@ const COPY: Record<"en" | "ko", Copy> = {
     expired: "이 링크는 만료됐어요",
     expiredDescription:
       "가능한 시간을 다시 전달해야 한다면 Harper 또는 회사 담당자에게 알려 주세요.",
-    linkLater: "Google Meet 링크와 Calendar 일정은 이후 별도로 안내드릴게요.",
+    calendarPending:
+      "확정된 시간은 저장됐어요. Harper가 Calendar 초대 전달 상태를 확인하고 있어요.",
+    calendarReady:
+      "양측에 Calendar 초대를 보냈고 Google Meet 링크도 함께 전달했어요.",
+    calendarWithoutMeet:
+      "Calendar 초대는 보냈지만 Google Meet 링크를 만들지 못했어요. 미팅 전에 Harper 또는 회사 담당자에게 알려 주세요.",
     loadError:
       "일정 선택 정보를 불러오지 못했어요. 링크를 확인하고 다시 시도해 주세요.",
     loading: "가능한 시간을 불러오는 중",
     noSlots: "지금 선택할 수 있는 시간이 없어요",
     noSlotsDescription:
       "회사 측 일정이 바뀌었을 수 있어요. Harper가 새로운 가능 시간을 다시 받아야 해요.",
+    openMeet: "Google Meet 열기",
     retry: "다시 불러오기",
     selected: (count) => `${count}개 선택`,
     slotsChanged:
       "선택한 시간 중 하나가 방금 불가능해졌어요. 최신 가능 시간에서 다시 골라 주세요.",
     submit: "가능한 시간 제출하기",
-    submitError:
-      "가능한 시간을 제출하지 못했어요. 잠시 후 다시 시도해 주세요.",
+    submitError: "가능한 시간을 제출하지 못했어요. 잠시 후 다시 시도해 주세요.",
     submitting: "제출하는 중",
     title: "인터뷰 가능 시간",
   },
@@ -142,9 +155,11 @@ async function fetchInvitation(token: string) {
 }
 
 function StateCard({
+  action,
   description,
   title,
 }: {
+  action?: { href: string; label: string };
   description: string;
   title: string;
 }) {
@@ -159,6 +174,16 @@ function StateCard({
       <p className="mt-2 whitespace-pre-line text-[13px] leading-6 text-neutral-muted">
         {description}
       </p>
+      {action ? (
+        <a
+          className="mt-4 inline-flex text-[13px] font-medium text-link underline underline-offset-2"
+          href={action.href}
+          rel="noreferrer"
+          target="_blank"
+        >
+          {action.label}
+        </a>
+      ) : null}
     </div>
   );
 }
@@ -309,6 +334,11 @@ export default function MeetingInvitationPage() {
         <StateCard description={copy.noSlotsDescription} title={copy.noSlots} />
       ) : invitation?.state === "submitted" ? (
         <StateCard
+          action={
+            invitation.calendar?.meetUrl
+              ? { href: invitation.calendar.meetUrl, label: copy.openMeet }
+              : undefined
+          }
           description={
             invitation.confirmedAt
               ? `${formatDate(invitation.confirmedAt, locale, invitation.timezone)} · ${formatTimeRange(
@@ -323,7 +353,13 @@ export default function MeetingInvitationPage() {
                   },
                   locale,
                   invitation.timezone
-                )}\n\n${copy.alreadySubmitted}\n${copy.linkLater}`
+                )}\n\n${copy.alreadySubmitted}\n${
+                  invitation.calendar?.status === "created"
+                    ? copy.calendarReady
+                    : invitation.calendar?.status === "created_without_meet"
+                      ? copy.calendarWithoutMeet
+                      : copy.calendarPending
+                }`
               : copy.alreadySubmitted
           }
           title={copy.confirmed}

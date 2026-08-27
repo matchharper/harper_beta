@@ -984,7 +984,7 @@ export async function POST(req: NextRequest) {
             channelId,
             currentMessageTs: messageTs,
             currentSlackUserId: slackUserId,
-            roleId: draftRoleCreation?.roleId,
+            roleId: draftRoleCreation?.roleId || clean(thread.role_id) || null,
             scopes: integration.scopes,
             threadId: thread.id,
             threadTs,
@@ -1236,6 +1236,7 @@ export async function POST(req: NextRequest) {
                 messageType: "slack",
                 messageUserId: null,
                 model: getSlackOrgAgentModel(),
+                roleId: clean(thread.role_id) || null,
                 slackAssistantUserId: integration.slack_bot_user_id,
                 slackExecutionContext: {
                   channelDbId: channel.id,

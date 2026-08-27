@@ -34,6 +34,9 @@ export type PreparedMeetingScheduleDraft = {
 
 export type MeetingScheduleDetail = {
   availability: SavedMeetingAvailability | null;
+  calendar:
+    | import("@/lib/meetings/meetingCalendar").MeetingCalendarDelivery
+    | null;
   candidate: {
     email: string | null;
     name: string;

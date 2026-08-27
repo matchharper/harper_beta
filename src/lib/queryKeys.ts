@@ -176,6 +176,16 @@ export const queryKeys = {
       ] as const,
     slack: (workspaceId?: string | null) =>
       ["org", "slack", workspaceId ?? ""] as const,
+    personalIntegrations: (userId: string) =>
+      ["org", "personalIntegrations", userId] as const,
+    googleCalendar: (userId: string, workspaceId: string) =>
+      [
+        "org",
+        "personalIntegrations",
+        userId,
+        "google_calendar",
+        workspaceId,
+      ] as const,
     meetingAvailability: (workspaceId?: string | null) =>
       ["org", "meetingAvailability", workspaceId ?? ""] as const,
     meetingSchedule: (
@@ -196,7 +206,7 @@ export const queryKeys = {
         filters?.talentId ?? "",
       ] as const,
     agentMessages: (filters?: {
-      mode?: "general" | "role_creation";
+      mode?: "general" | "role" | "role_creation";
       roleId?: string | null;
       workspaceId?: string | null;
     }) =>

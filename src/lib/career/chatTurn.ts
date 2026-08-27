@@ -80,7 +80,7 @@ import {
 } from "@/lib/career/postingLinks";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import { resolveCareerRecentConversationLocale } from "@/lib/career/recentConversationLocale";
-import { careerT } from "@/lib/career/translatedCareerMessage";
+import { getCareerToolStartThinkingLog } from "@/lib/career/toolThinkingLog";
 import {
   fetchActiveCompanyTalentRequest,
   serializeTalentPendingRequest,
@@ -99,7 +99,6 @@ import {
 } from "@/lib/textSanitization";
 import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
 import { OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE } from "@/lib/officialJobs";
-import { getCareerLanguageSettingToolStatus } from "@/lib/talentOnboarding/languageSettingTool";
 import {
   extractRecommendJobPostingsReceipt,
   type RecommendJobPostingsReceipt,
@@ -211,49 +210,6 @@ function appendRecommendationStatusLog(
   status: RecommendJobPostingStatus
 ) {
   return appendThinkingLog(logs, createRecommendJobPostingStatusLog(status));
-}
-
-function getToolStartThinkingLog(
-  toolName: string,
-  locale?: string | null,
-  input?: Record<string, unknown>
-) {
-  switch (toolName) {
-    case TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING:
-      return getCareerLanguageSettingToolStatus(input?.language);
-    case TALENT_TOOL_NAMES.UPDATE_SETTING:
-      return careerT(
-        locale,
-        "career.chat.tool.update_setting.start",
-        "추천 발송 설정을 업데이트하고 있습니다."
-      );
-    case TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE:
-      return careerT(
-        locale,
-        "career.chat.tool.update_talent_profile.start",
-        "프로필 정보를 업데이트하고 있습니다."
-      );
-    case TALENT_TOOL_NAMES.OPEN_URL:
-      return careerT(
-        locale,
-        "career.chat.tool.open_url.start",
-        "공유된 링크 내용을 확인하고 있습니다."
-      );
-    case TALENT_TOOL_NAMES.RESEARCH_COMPANY:
-      return careerT(
-        locale,
-        "career.chat.tool.research_company.start",
-        "회사 정보를 확인하고 있습니다."
-      );
-    case TALENT_TOOL_NAMES.INTERNAL_ROLE_PRIORITY_REVIEW:
-      return careerT(
-        locale,
-        "career.chat.tool.internal_role_priority_review.start",
-        "포지션 우선 검토 요청을 처리하고 있습니다."
-      );
-    default:
-      return "";
-  }
 }
 
 async function attachPostingPreviewsToMessages(args: {
@@ -550,7 +506,11 @@ export async function runCareerChatTurn(
     talentSetting?.is_onboarding_done &&
     talentSetting.profile_visibility !== "dont_share" &&
     canUseInternalFitHoldQuestionTool
-      ? await fetchActiveInternalFitHoldQuestion({ admin, userId })
+      ? await fetchActiveInternalFitHoldQuestion({
+          admin,
+          locale: responseLocale,
+          userId,
+        })
       : null;
   const activeCompanyTalentRequest = talentSetting?.is_onboarding_done
     ? await fetchActiveCompanyTalentRequest({
@@ -883,7 +843,11 @@ export async function runCareerChatTurn(
           return;
         }
 
-        const status = getToolStartThinkingLog(name, responseLocale, input);
+        const status = getCareerToolStartThinkingLog(
+          name,
+          responseLocale,
+          input
+        );
         if (status) {
           recordThinkingLog(status);
         }

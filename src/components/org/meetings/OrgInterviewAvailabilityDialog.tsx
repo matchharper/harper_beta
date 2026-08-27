@@ -1,4 +1,12 @@
-import { ArrowLeft, Check, LoaderCircle, Plus, Trash2, X } from "lucide-react";
+import {
+  ArrowLeft,
+  CalendarDays,
+  Check,
+  LoaderCircle,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { format, getISODay } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -47,7 +55,9 @@ import {
 import {
   useOrgMeetingAvailability,
   useSaveOrgMeetingAvailability,
+  useSyncOrgGoogleCalendar,
 } from "@/hooks/org/useOrgMeetingAvailability";
+import { useOrgGoogleCalendar } from "@/hooks/org/useOrgGoogleCalendar";
 import { useToastStore } from "@/store/useToastStore";
 
 type PresetDays = "all" | "weekdays" | "weekends";
@@ -426,11 +436,12 @@ function DateOverridePanel({
         <ArrowLeft className="size-4" />
         돌아가기
       </MuteButton>
-      <div className="mt-3">
-        <p className="text-[12px] text-neutral-muted">
-          {format(date, "yyyy년 M월 d일 EEEE", { locale: ko })}
-        </p>
-      </div>
+      <h3 className="mt-4 text-[16px] font-medium text-neutral-primary">
+        {format(date, "M월 d일 EEEE", { locale: ko })}
+      </h3>
+      <p className="mt-1 text-[12px] leading-5 text-neutral-muted">
+        이 날짜에만 적용할 가능 시간을 설정하세요.
+      </p>
 
       <div className="mt-5 flex items-center justify-between gap-3">
         <Checkbox
@@ -524,10 +535,13 @@ function WeeklyEditor({
 
   return (
     <div className="min-h-full p-5 sm:p-6">
-      <p className="mb-2.5 text-[12px] font-medium text-neutral-primary">
-        주기 설정
+      <h3 className="text-[16px] font-medium text-neutral-primary">
+        반복 가능 시간
+      </h3>
+      <p className="mt-1 text-[12px] leading-5 text-neutral-muted">
+        기본적으로 제안할 요일과 시간을 설정하세요.
       </p>
-      <div className="rounded-lg bg-bg-weak p-3">
+      <div className="mt-4 rounded-lg bg-bg-weak p-3">
         <div className="flex flex-wrap items-center gap-2">
           <Select
             modal={false}
@@ -609,16 +623,24 @@ function WeeklyEditor({
 export function OrgInterviewAvailabilityDialog({
   onRequestClose,
   open,
+  userId,
   workspaceId,
 }: {
   onRequestClose: () => void;
   open: boolean;
+  userId: string;
   workspaceId: string;
 }) {
   const router = useRouter();
   const addToast = useToastStore((state) => state.add);
   const availabilityQuery = useOrgMeetingAvailability({ workspaceId });
   const saveAvailability = useSaveOrgMeetingAvailability(workspaceId);
+  const calendar = useOrgGoogleCalendar({
+    enabled: open,
+    userId,
+    workspaceId,
+  });
+  const syncCalendar = useSyncOrgGoogleCalendar(workspaceId);
   const allowPopNavigationRef = useRef(false);
   const initializedRef = useRef(false);
   const [baseline, setBaseline] = useState<MeetingAvailabilityDocument | null>(
@@ -630,6 +652,7 @@ export function OrgInterviewAvailabilityDialog({
     createDefaultMeetingAvailabilityDocument()
   );
   const [editorError, setEditorError] = useState("");
+  const [syncMessage, setSyncMessage] = useState("");
   const [expectedVersion, setExpectedVersion] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const timezoneOptions = useMemo(
@@ -654,6 +677,7 @@ export function OrgInterviewAvailabilityDialog({
     setSelectedDate(null);
     setConflict(false);
     setEditorError("");
+    setSyncMessage("");
     initializedRef.current = true;
   }, [availabilityQuery.data, availabilityQuery.isSuccess, open]);
 
@@ -688,7 +712,7 @@ export function OrgInterviewAvailabilityDialog({
   }, [dirty, open]);
 
   const requestClose = () => {
-    if (saveAvailability.isPending) return;
+    if (saveAvailability.isPending || syncCalendar.isPending) return;
     if (dirty) {
       setDiscardOpen(true);
       return;
@@ -758,6 +782,30 @@ export function OrgInterviewAvailabilityDialog({
     setConflict(false);
   };
 
+  const syncGoogleCalendar = async () => {
+    setSyncMessage("");
+    try {
+      const result = await syncCalendar.mutateAsync(draft.timezone);
+      const changes = [
+        result.addedCount > 0 ? `새 일정 ${result.addedCount}개` : "",
+        result.updatedCount > 0 ? `시간 변경 ${result.updatedCount}개` : "",
+      ].filter(Boolean);
+      const message =
+        changes.length > 0
+          ? `${changes.join(", ")}를 미팅 불가 시간으로 반영했어요.`
+          : "새로 반영할 일정이 없어요.";
+      setSyncMessage(`${message} 향후 2주 안의 일정만 확인했어요.`);
+      addToast({ message, variant: "success" });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Google Calendar 일정을 불러오지 못했어요.";
+      setSyncMessage(message);
+      addToast({ message, variant: "error" });
+    }
+  };
+
   const selectedDateKey = selectedDate ? dateKey(selectedDate) : null;
   const today = calendarDateInTimezone(draft.timezone);
   const isPastDate = (date: Date) => date.getTime() < today.getTime();
@@ -789,9 +837,11 @@ export function OrgInterviewAvailabilityDialog({
         >
           <header className="flex min-h-[68px] items-center justify-between gap-4 border-b border-neutral-1000-a05 px-5 py-4 sm:px-6">
             <div className="min-w-0">
-              <DialogTitle className="text-[18px]">미팅 일정 정보</DialogTitle>
+              <DialogTitle className="text-[18px]">
+                인터뷰 가능 시간
+              </DialogTitle>
               <DialogDescription className="mt-1 text-[12px]">
-                미팅이 가능한 시간을 설정하세요.
+                반복 시간과 날짜별 예외를 설정하세요.
               </DialogDescription>
             </div>
             <MuteButton
@@ -827,10 +877,18 @@ export function OrgInterviewAvailabilityDialog({
               <LoaderCircle className="size-5 animate-spin text-neutral-muted" />
             </div>
           ) : (
-            <div className="grid min-h-0 grid-rows-[minmax(440px,0.88fr)_minmax(0,1.12fr)] overflow-hidden md:grid-cols-[minmax(330px,0.88fr)_minmax(480px,1.12fr)] md:grid-rows-1">
-              <aside className="overflow-y-auto border-b border-neutral-1000-a05 bg-bg-default p-5 md:border-b-0 md:border-r md:p-6">
+            <div className="min-h-0 overflow-y-auto md:grid md:grid-cols-[minmax(330px,0.88fr)_minmax(480px,1.12fr)] md:grid-rows-1 md:overflow-hidden">
+              <aside className="border-b border-neutral-1000-a05 bg-bg-default p-5 md:overflow-y-auto md:border-b-0 md:border-r md:p-6">
+                <div className="mx-auto max-w-[280px]">
+                  <h3 className="text-[16px] font-medium text-neutral-primary">
+                    날짜별 예외
+                  </h3>
+                  <p className="mt-1 text-[12px] leading-5 text-neutral-muted">
+                    날짜를 선택하면 그날의 가능 시간만 바꿀 수 있어요.
+                  </p>
+                </div>
                 <Calendar
-                  className="mx-auto mt-4 max-w-[280px] rounded-xl bg-bg-default p-0 [--cell-size:1.95rem] sm:[--cell-size:2.3rem]"
+                  className="mx-auto mt-3 max-w-[280px] rounded-xl bg-bg-default p-0 [--cell-size:1.95rem] sm:[--cell-size:2.3rem]"
                   disabled={{ before: today }}
                   locale={ko}
                   mode="single"
@@ -854,7 +912,13 @@ export function OrgInterviewAvailabilityDialog({
                   showOutsideDays={false}
                 />
 
-                <div className="mt-6 border-t border-neutral-1000-a05 pt-5">
+                <div className="mt-5 border-t border-neutral-1000-a05 pt-4">
+                  <label
+                    className="text-[12px] font-medium text-neutral-primary"
+                    htmlFor="availability-timezone"
+                  >
+                    시간대
+                  </label>
                   <Combobox
                     autoHighlight
                     items={timezoneOptions}
@@ -885,7 +949,7 @@ export function OrgInterviewAvailabilityDialog({
                 </div>
               </aside>
 
-              <section className="relative min-h-0 overflow-y-auto bg-bg-floating">
+              <section className="relative min-h-0 bg-bg-floating md:overflow-y-auto">
                 {selectedDate && selectedDateKey ? (
                   <DateOverridePanel
                     availability={draft}
@@ -902,7 +966,38 @@ export function OrgInterviewAvailabilityDialog({
           )}
 
           <footer className="flex min-h-[70px] flex-col gap-3 border-t border-neutral-1000-a05 bg-bg-floating px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <div className="min-w-0">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              <MuteButton
+                disabled={
+                  calendar.statusQuery.data?.status !== "active" ||
+                  calendar.statusQuery.isPending ||
+                  syncCalendar.isPending
+                }
+                onClick={() => void syncGoogleCalendar()}
+                size="md"
+                variant="neutral"
+              >
+                {syncCalendar.isPending ? (
+                  <LoaderCircle className="size-4 animate-spin" />
+                ) : (
+                  <CalendarDays className="size-4" />
+                )}
+                Calendar Sync
+              </MuteButton>
+              {syncMessage ? (
+                <span
+                  className={`text-[12px] leading-5 ${
+                    syncCalendar.error ? "text-critical" : "text-neutral-muted"
+                  }`}
+                >
+                  {syncMessage}
+                </span>
+              ) : calendar.statusQuery.data?.status !== "active" &&
+                !calendar.statusQuery.isPending ? (
+                <span className="text-[12px] leading-5 text-neutral-muted">
+                  Google Calendar를 연결하면 향후 2주 일정을 가져올 수 있어요.
+                </span>
+              ) : null}
               {editorError ? (
                 <div className="flex flex-wrap items-center gap-2 text-[12px] text-critical">
                   <span>{editorError}</span>
@@ -920,14 +1015,14 @@ export function OrgInterviewAvailabilityDialog({
             </div>
             <div className="flex shrink-0 justify-end gap-2">
               <MuteButton
-                disabled={saveAvailability.isPending}
+                disabled={saveAvailability.isPending || syncCalendar.isPending}
                 onClick={requestClose}
                 size="lg"
               >
                 닫기
               </MuteButton>
               <MuteButton
-                disabled={!canSave}
+                disabled={!canSave || syncCalendar.isPending}
                 onClick={() => void save()}
                 size="lg"
                 variant="primary"

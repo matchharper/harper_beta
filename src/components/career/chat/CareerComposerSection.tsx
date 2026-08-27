@@ -12,6 +12,7 @@ import {
   AudioLines,
   BriefcaseBusiness,
   Building2,
+  CircleHelp,
   Clock3,
   FileText,
   FileUp,
@@ -62,6 +63,7 @@ import {
   toCareerPendingActionReference,
   type CareerPendingAction,
   type CareerPendingCompanyRequestAction,
+  type CareerPendingFitQuestionAction,
   type CareerPendingInternalOpportunityAction,
 } from "@/lib/career/pendingActions";
 import { useCareerPendingActions } from "@/hooks/career/useCareerPendingActions";
@@ -147,7 +149,9 @@ const CareerComposerSection = () => {
   const [mobileActionMenuOpen, setMobileActionMenuOpen] = useState(false);
   const [desktopActionMenuOpen, setDesktopActionMenuOpen] = useState(false);
   const [selectedPendingAction, setSelectedPendingAction] =
-    useState<CareerPendingCompanyRequestAction | null>(null);
+    useState<
+      CareerPendingCompanyRequestAction | CareerPendingFitQuestionAction | null
+    >(null);
   const [pendingQuestionExpanded, setPendingQuestionExpanded] = useState(false);
   const [recentChatCutoffMs] = useState(
     () => Date.now() - RECENT_CHAT_HISTORY_WINDOW_MS
@@ -681,8 +685,6 @@ const CareerComposerSection = () => {
       insertPendingOpportunityMention(action);
       return;
     }
-    if (action.kind === "internal_fit_question") return;
-
     logCareerEvent("click_chat_composer_pending_action", {
       actionId: action.id,
       actionKind: action.kind,
@@ -926,14 +928,7 @@ const CareerComposerSection = () => {
     isComposerActionLocked;
   const resolvedPendingActions =
     pendingActionsOverride ?? pendingActions.data ?? [];
-  const visiblePendingActions = resolvedPendingActions.filter(
-    (
-      action
-    ): action is Exclude<
-      CareerPendingAction,
-      { kind: "internal_fit_question" }
-    > => action.kind !== "internal_fit_question"
-  );
+  const visiblePendingActions = resolvedPendingActions;
   const pendingActionMenuItems: ChatComposerActionMenuItem[] = !isOnboardingDone
     ? []
     : !pendingActionsOverride && pendingActions.isPending
@@ -1045,6 +1040,28 @@ const CareerComposerSection = () => {
                         "career.chat.career_composer_section.pending_company_request_question",
                         "질문"
                       ),
+              };
+            }
+            if (action.kind === "internal_fit_question") {
+              return {
+                disabled: isComposerActionLocked,
+                icon: <CircleHelp />,
+                id: `pending-${action.kind}-${action.id}`,
+                label: t(
+                  "career.chat.pending_action_context.fit_question_label",
+                  "정보가 필요합니다"
+                ),
+                onSelect: () => handleSelectPendingAction(action),
+                sectionLabel: t(
+                  "career.chat.career_composer_section.pending_actions_section_label",
+                  "처리할 항목"
+                ),
+                subtext: action.prompt,
+                subtextLayout: "stacked" as const,
+                trailingText: t(
+                  "career.chat.career_composer_section.pending_company_request_question",
+                  "질문"
+                ),
               };
             }
             return {

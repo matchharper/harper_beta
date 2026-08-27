@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
       mentions: Array.isArray(body.mentions) ? body.mentions : [],
       message: body.message ?? "",
       model: body.model ?? null,
+      roleId: body.mode === "role" ? (body.roleId ?? null) : null,
       user,
       workspaceId: body.workspaceId ?? "",
     };

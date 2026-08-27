@@ -3,6 +3,7 @@ const supabaseStorageHostname = "zzojrniuppueizhnmqfd.supabase.co";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  distDir: process.env.HARPER_E2E_DIST_DIR || ".next",
   images: {
     remotePatterns: [
       // Google auth avatar

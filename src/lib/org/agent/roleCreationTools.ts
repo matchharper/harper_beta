@@ -63,11 +63,15 @@ export const ROLE_CREATION_TOOLS = [
         minProperties: 1,
         properties: {
           name: { type: "string" },
-          description: { type: ["string", "null"] },
+          description: {
+            type: ["string", "null"],
+            description:
+              "The complete candidate-visible Role Description in Markdown. Write the actual company introduction from companyInformationDocument as natural prose when usable. Never put [[company_info]], [company_info], or any placeholder or acknowledgement token in this field.",
+          },
           request: {
             type: ["string", "null"],
             description:
-              "A compact private hiring brief in Markdown. Group related hard requirements, then capture team-specific preferences, evidence, tradeoffs, and decision rules. Do not reduce it to a technology checklist copied from the JD.",
+              "The complete private Hiring Brief in Markdown. Preserve existing content and keep role eligibility / experience fit, company talent quality / caliber, and team-specific bonus preferences in clearly separate sections. Caliber is the company's comparative overall talent-level gate, not another summary of job experience: a candidate may match the stack, domain, Agent, customer, or 0-to-1 requirements and still fall below it. For opened reference or current-team-member LinkedIn profiles, keep exact source URLs and distinguish user-stated reasons, observed professional facts, and Harper's tentative interpretation. Preserve every supported caliber signal explicitly, including repeated selection by Top-tier schools or programs, Top-tier companies, or highly selective core teams; actual program, team, and role selectivity; trajectory; rare achievement; and exceptional alternative outcomes. Do not automatically rewrite those patterns as generic ownership or impact, and do not treat prestigious affiliation alone as proof. Treat one profile as a tentative anchor; compare multiple profiles to find the smallest stable company-specific caliber rules, below-bar boundary, equivalents, tradeoffs, and uncertainty. User-stated judgment takes precedence. Do not use protected traits or non-job-related similarity.",
           },
           criteria: {
             type: "array",
@@ -197,7 +201,7 @@ export const ROLE_CREATION_TOOLS = [
     function: {
       name: "request_role_creation_confirmation",
       description:
-        "Use only when the saved role is ready for final review and the user has had at least two distinct opportunities to explain team-specific candidate preferences beyond the JD and technical must-haves. When set_role_notification just saved the single available Slack channel and active current author as transparent final defaults, call this immediately afterward in the same assistant turn; do not insert a separate yes/no question about those unambiguous defaults. The server checks the current state and attaches Create role / Keep editing choices; this tool itself does not activate the role.",
+        "Use only when the saved role is ready for final review and the user has had at least two distinct opportunities to explain team-specific candidate preferences beyond the JD and technical must-haves, including at least one explicit invitation to share a concrete strong-match person or representative ideal current team member with a LinkedIn profile URL and the reasons that person's experience or strengths would be a bonus. Do not repeat that invitation if the user already supplied usable examples and reasons. When set_role_notification just saved the single available Slack channel and active current author as transparent final defaults, call this immediately afterward in the same assistant turn; do not insert a separate yes/no question about those unambiguous defaults. The server checks the current state and attaches Create role / Keep editing choices; this tool itself does not activate the role.",
       parameters: {
         type: "object",
         properties: {},

@@ -67,7 +67,7 @@ export const ORG_AGENT_FAILED_ROLE_STATUS_REPLY =
   "역할을 삭제하거나 상태를 변경하지 못했어요. 역할과 현재 상태를 다시 확인한 뒤 시도해 주세요. 후보자 추천이나 진행 중인 연결에는 변화가 없어요.";
 
 export const ORG_AGENT_FAILED_CONTACT_REPLY =
-  "후보자에게 요청을 보내지 못했어요. 대상 후보자와 역할, 요청 내용을 다시 확인해 주세요. 이메일이나 Harper 채팅으로 전달된 내용은 없어요.";
+  "후보자에게 요청을 보내지 못했어요. 대상 후보자와 역할, 요청 내용을 다시 확인해 주세요. 후보자에게 전달된 내용은 없어요.";
 
 export const ORG_AGENT_FAILED_CANDIDATE_DECISION_REPLY =
   "후보자 연결 결정의 최종 결과를 확인하지 못했어요. 소개 이메일이나 후보자 안내가 전달됐을 수 있으니 바로 다시 시도하지 말고, 후보자의 현재 상태와 메일을 먼저 확인해 주세요.";
@@ -145,13 +145,6 @@ export function enforceOrgAgentTerminalMutationOutcome(
   }
   if (
     finalTerminalResult.name === "decide_candidate_connection" &&
-    state.terminalReply
-  ) {
-    return state.terminalReply;
-  }
-  if (
-    finalTerminalResult.name === "contact_talent" &&
-    state.requiredPresentationText &&
     state.terminalReply
   ) {
     return state.terminalReply;

@@ -542,6 +542,37 @@ test("pending candidate contact results tell the model what can be replaced", ()
   assert.match(compact, /cancel and replace/);
 });
 
+test("scheduled candidate contact keeps timing data without transport details", () => {
+  const compact = serializeOrgAgentToolResult("contact_talent", {
+    scheduledAt: "2026-08-27T23:00:00.000Z",
+    status: "queued",
+    userMessage:
+      "지금은 시간이 늦어서, 김호진님께 내일 아침에 제가 대신 물어볼게요. 답이 오면 여기로 알려드릴게요.",
+  });
+
+  assert.match(compact, /scheduled_at=2026-08-27T23:00:00.000Z/);
+  assert.match(compact, /내일 아침에/);
+  assert.doesNotMatch(compact, /이메일|Harper 채팅|worker/i);
+});
+
+test("candidate contact drafts ask the model to write the confirmation", () => {
+  const compact = serializeOrgAgentToolResult("contact_talent", {
+    candidateName: "김호진",
+    status: "draft",
+    userMessage: "이 고정 fallback은 정상 응답에 복사하지 않습니다.",
+  });
+
+  assert.match(compact, /candidate=김호진/);
+  assert.match(compact, /nothing_sent=true/);
+  assert.match(compact, /exact_body_appended_by_server=true/);
+  assert.match(compact, /Write the surrounding confirmation yourself/);
+  assert.match(compact, /only one question mark/);
+  assert.match(compact, /must not repeat the company name, Role title/);
+  assert.match(compact, /prescribe exact reply words/);
+  assert.match(compact, /copy a fixed template/);
+  assert.doesNotMatch(compact, /이 고정 fallback/);
+});
+
 test("get_more_data serialization is bounded and keeps completeness markers", () => {
   const compact = serializeOrgAgentMoreData({
     companyDetails: {

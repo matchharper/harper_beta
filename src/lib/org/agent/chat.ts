@@ -38,6 +38,7 @@ import {
 import { maybeSummarizeOrgAgentConversation } from "@/lib/org/agent/summary";
 import {
   ensureOrgAgentConversation,
+  ensureOrgRoleCreationConversation,
   insertOrgAgentMessage,
   toOrgAgentMessage,
   type OrgAgentMessageRow,
@@ -967,7 +968,6 @@ export async function runOrgAgentChat(args: {
   mentions?: OrgAgentMention[];
   message: string;
   model?: unknown;
-  /** @deprecated Ignored. The conversation is workspace-scoped. */
   roleId?: string | null;
   slackAssistantUserId?: string | null;
   slackExecutionContext?: SlackRoleCreationExecutionContext | null;
@@ -984,7 +984,17 @@ export async function runOrgAgentChat(args: {
   if (userMessageText.length > 8_000) {
     throw new OrgHttpError(400, "message is too long");
   }
-  const llmUserMessage = normalizeText(args.llmUserMessage) || userMessageText;
+  const requestedRoleId = normalizeText(args.roleId);
+  const baseLlmUserMessage =
+    normalizeText(args.llmUserMessage) || userMessageText;
+  const llmUserMessage = requestedRoleId
+    ? [
+        `<CURRENT_ROLE_CONTEXT role_id="${requestedRoleId}">`,
+        "This turn is scoped to this exact Role. Resolve relative references such as '현재 역할' against this Role and use read_role when pipeline details are needed.",
+        "</CURRENT_ROLE_CONTEXT>",
+        baseLlmUserMessage,
+      ].join("\n")
+    : baseLlmUserMessage;
   const serviceAnswerExamplesPromise = lookupAnswerExamples(llmUserMessage, {
     audience: "company",
   });
@@ -996,10 +1006,18 @@ export async function runOrgAgentChat(args: {
     thinkingLogs = upsertOrgAgentThinkingLog(thinkingLogs, log);
     args.emit?.("tool_status", log);
   };
-  const { admin, conversation } = await ensureOrgAgentConversation({
-    user: args.user,
-    workspaceId: args.workspaceId,
-  });
+  const { admin, conversation } = requestedRoleId
+    ? await ensureOrgRoleCreationConversation({
+        allowCompletedRole: true,
+        roleId: requestedRoleId,
+        user: args.user,
+        workspaceId: args.workspaceId,
+      })
+    : await ensureOrgAgentConversation({
+        user: args.user,
+        workspaceId: args.workspaceId,
+      });
+  const roleId = conversation.role_id;
 
   let mentions: OrgAgentMention[] = [];
   try {
@@ -1028,6 +1046,7 @@ export async function runOrgAgentChat(args: {
     },
     messageType: args.messageType,
     role: "user",
+    roleId,
     slackMessageTs: args.slackUserMessageTs,
     slackThreadId: args.slackThreadId,
     slackUserId: args.slackUserId,
@@ -1225,6 +1244,7 @@ export async function runOrgAgentChat(args: {
       messageType: args.messageType,
       model: llmResult.model,
       role: "assistant",
+      roleId,
       slackThreadId: args.slackThreadId,
       slackUserId: args.slackAssistantUserId,
       thinkingLogs,
@@ -1267,6 +1287,7 @@ export async function runOrgAgentChat(args: {
       messageType: args.messageType,
       model: modelConfig.model,
       role: "assistant",
+      roleId,
       slackThreadId: args.slackThreadId,
       slackUserId: args.slackAssistantUserId,
       status: "failed",

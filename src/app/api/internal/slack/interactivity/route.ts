@@ -6,9 +6,11 @@ import {
   parseHarperSlackChoiceMarkers,
 } from "@/lib/org/slackChoiceButtons";
 import {
+  buildHarperSlackClientMessageId,
   getHarperSlackUserEmail,
   isHarperSlackAppId,
   openHarperSlackModal,
+  postHarperSlackMessage,
   pushHarperSlackModal,
   resolveHarperSlackInteractionContext,
   updateHarperSlackModal,
@@ -52,6 +54,10 @@ import {
   type SlackTalentReviewDecisionSubmission,
   type SlackTalentReviewViewState,
 } from "@/lib/org/slackTalentReviewView";
+import {
+  getOrgRoleQuickAction,
+  HARPER_ROLE_QUICK_ACTION_PREFIX,
+} from "@/lib/org/roleQuickActions";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { OrgHttpError, setOrgCandidateStage } from "@/lib/org/server";
 
@@ -619,6 +625,130 @@ export async function POST(req: NextRequest) {
     const parsed = Number(match?.[1]);
     return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
   })();
+  const roleQuickAction = actionId.startsWith(HARPER_ROLE_QUICK_ACTION_PREFIX)
+    ? getOrgRoleQuickAction(
+        actionId.slice(HARPER_ROLE_QUICK_ACTION_PREFIX.length)
+      )
+    : null;
+  if (payload.type === "block_actions" && roleQuickAction) {
+    const channelId = clean(
+      payload.container?.channel_id || payload.channel?.id
+    );
+    const sourceMessageTs = clean(
+      payload.container?.message_ts || payload.message?.ts
+    );
+    const slackTeamId = clean(payload.team?.id);
+    const slackUserId = clean(payload.user?.id);
+    const actionTs = clean(action?.action_ts);
+    if (
+      !channelId ||
+      !sourceMessageTs ||
+      !slackTeamId ||
+      !slackUserId ||
+      !actionTs
+    ) {
+      return NextResponse.json({ ignored: true, ok: true });
+    }
+
+    const context = await resolveHarperSlackInteractionContext({
+      channelId,
+      slackTeamId,
+    });
+    const slackAccess = await resolveHarperSlackWorkspaceAccess({
+      slackUserId,
+      token: context.token,
+      workspaceId: context.workspaceId,
+    });
+    if (!slackAccess.allowed || !slackAccess.member.canManageCandidates) {
+      const denialReason = slackAccess.allowed
+        ? "insufficient_role"
+        : slackAccess.reason;
+      await postHarperSlackAccessDenied({
+        access: slackAccess,
+        channelId,
+        reason: denialReason,
+        slackUserId,
+        token: context.token,
+      }).catch((error) =>
+        console.warn(
+          "[harper-slack/interactivity:role-quick-action-access]",
+          error
+        )
+      );
+      return NextResponse.json({
+        accessDenied: true,
+        ok: true,
+        status: "access_denied",
+      });
+    }
+
+    const admin = getSupabaseAdmin();
+    const { data: channel, error: channelError } = await (
+      admin.from("company_slack_channels" as any) as any
+    )
+      .select("id")
+      .eq("company_workspace_id", context.workspaceId)
+      .eq("slack_team_id", slackTeamId)
+      .eq("slack_channel_id", channelId)
+      .eq("is_enabled", true)
+      .maybeSingle();
+    if (channelError) throw channelError;
+    const { data: thread, error: threadError } = await (
+      admin.from("company_slack_threads" as any) as any
+    )
+      .select("id, role_id")
+      .eq("channel_id", channel?.id ?? "")
+      .eq("slack_thread_ts", sourceMessageTs)
+      .maybeSingle();
+    if (threadError) throw threadError;
+    if (!thread) {
+      return NextResponse.json({ ignored: true, ok: true });
+    }
+
+    const promptPostKey = [
+      "role-quick-action",
+      thread.id,
+      slackUserId,
+      actionTs,
+      roleQuickAction.id,
+    ].join(":");
+    const posted = await postHarperSlackMessage({
+      channelId,
+      clientMessageId: buildHarperSlackClientMessageId(
+        promptPostKey,
+        channelId
+      ),
+      text: `<@${slackUserId}>님이 요청했어요.\n>${roleQuickAction.message}`,
+      threadTs: sourceMessageTs,
+      token: context.token,
+      unfurlLinks: false,
+      unfurlMedia: false,
+    });
+    const promptMessageTs = clean(posted.ts);
+    if (!promptMessageTs) {
+      throw new Error("Slack quick action prompt has no timestamp");
+    }
+
+    const { data, error } = await (admin.rpc as any)(
+      "enqueue_slack_reply_job_v2",
+      {
+        p_prompt: roleQuickAction.message,
+        p_slack_event_id: promptPostKey,
+        p_slack_files: [],
+        p_slack_message_ts: promptMessageTs,
+        p_slack_user_id: slackUserId,
+        p_thread_id: thread.id,
+        p_trigger_kind: "button_choice",
+      }
+    );
+    if (error) throw error;
+    const result =
+      data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+    return NextResponse.json({
+      ok: true,
+      status: result.duplicate === true ? "duplicate" : "queued",
+    });
+  }
   if (
     payload.type === "block_actions" &&
     actionId === HARPER_TALENT_REVIEW_CONNECTION_MODE_ACTION_ID

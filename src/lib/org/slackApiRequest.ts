@@ -1,3 +1,15 @@
+export function applyHarperSlackApiMessagePolicy(
+  method: string,
+  body: Record<string, unknown> = {}
+) {
+  if (method !== "chat.postMessage") return body;
+  return {
+    ...body,
+    unfurl_links: false,
+    unfurl_media: false,
+  };
+}
+
 export function createSlackApiRequest(
   token: string,
   body: Record<string, unknown> = {}

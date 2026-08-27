@@ -1,14 +1,21 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { getIntegrationErrorDiagnostics } from "@/lib/integrations/composio";
 import { queueMeetingInvitation } from "@/lib/meetings/invitationServer";
 import { OrgHttpError } from "@/lib/org/server";
-import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 import { getPublicSiteUrlFromRequest } from "@/lib/siteUrl";
+import { getFreshRequestUser } from "@/lib/supabaseServer";
 
 type RouteContext = { params: Promise<{ scheduleId: string }> };
 
 export async function POST(req: NextRequest, context: RouteContext) {
   try {
-    const user = await requireAuthenticatedUser(req);
+    const user = await getFreshRequestUser(req);
+    if (!user) {
+      return NextResponse.json(
+        { error: "로그인이 필요해요." },
+        { status: 401 }
+      );
+    }
     const { scheduleId } = await context.params;
     const body = (await req.json().catch(() => ({}))) as {
       body?: unknown;
@@ -36,13 +43,10 @@ export async function POST(req: NextRequest, context: RouteContext) {
         { status: error.status }
       );
     }
-    if (error instanceof Error && error.message === "Unauthorized") {
-      return NextResponse.json(
-        { error: "로그인이 필요해요." },
-        { status: 401 }
-      );
-    }
-    console.error("[org/meeting-schedules/send]", error);
+    console.error(
+      "[org/meeting-schedules/send]",
+      getIntegrationErrorDiagnostics(error)
+    );
     return NextResponse.json(
       {
         error:

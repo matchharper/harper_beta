@@ -200,9 +200,9 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.doesNotMatch(prompt, /named candidate/);
   assert.match(prompt, /replace requires one exact oldValue/);
   assert.match(prompt, /read it fully and update in the same turn/);
-  assert.match(prompt, /email and Harper chat/);
+  assert.match(prompt, /Do not mention delivery channels/);
   assert.match(prompt, /ready to move now/);
-  assert.match(prompt, /workspace company name and role/);
+  assert.match(prompt, /what Harper can ask.*answer will come back/);
   assert.match(prompt, /read_talent as a neutral read operation/);
   assert.match(prompt, /never means the user asked about preference/);
   assert.match(prompt, /includeProfile=false is the compact default/);
@@ -230,21 +230,21 @@ test("organization-agent system prompt keeps runtime data out", () => {
     prompt,
     /server independently verifies the previous-message confirmation/
   );
+  assert.match(prompt, /Candidate contact is a saved-body approval flow/);
+  assert.match(prompt, /action=create_draft in that same turn/);
+  assert.match(prompt, /complete candidate-contact body/);
   assert.match(
     prompt,
-    /Candidate contact is an exact-copy draft approval flow/
+    /must not repeat the company name, Role title, email subject, or body/
   );
-  assert.match(prompt, /action=create_draft in that same turn/);
-  assert.match(prompt, /complete candidate-contact subject and body verbatim/);
-  assert.match(prompt, /exact contact copy/);
   assert.doesNotMatch(prompt, /fixed Harper service footer/);
-  assert.match(prompt, /nothing is queued or sent yet/);
+  assert.match(prompt, /creates a saved draft only/);
   assert.match(prompt, /pending_candidate_contact_drafts/);
   assert.match(prompt, /action=revise_draft/);
   assert.match(prompt, /Repeat this revision loop as many times as requested/);
   assert.match(
     prompt,
-    /action=schedule when the immediately previous Harper message presented that same contactId and revision verbatim/
+    /action=schedule when the immediately previous Harper message presented that same contactId and revision body/
   );
   assert.match(prompt, /server independently verifies this adjacency/);
   assert.match(prompt, /Scheduling uses the stored subject and body unchanged/);
@@ -261,8 +261,10 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.match(prompt, /if no matching entry exists/);
   assert.match(
     prompt,
-    /After contact_talent action=schedule succeeds.*delivery has not completed yet/
+    /After contact_talent action=schedule succeeds.*respond like a human assistant taking ownership/
   );
+  assert.match(prompt, /Express that timing conversationally/);
+  assert.match(prompt, /Do not expose delivery-channel or queue mechanics/);
   assert.match(
     prompt,
     /Never describe create_draft or revise_draft as accepted/

@@ -23,6 +23,10 @@ import {
   AUTO_INTRO_RESPONSE_GUIDANCE,
   AUTO_INTRO_WORKSPACE_OPENING,
 } from "./autoIntroToCompanyPolicy";
+import {
+  HARPER_ROLE_QUICK_ACTION_PREFIX,
+  ORG_ROLE_QUICK_ACTIONS,
+} from "../org/roleQuickActions";
 
 const LINK_ARGS = {
   publicSiteUrl: "http://localhost:3000",
@@ -174,6 +178,26 @@ test("role summary uses a native Slack table with exact role links", () => {
     text: "5명",
     type: "raw_text",
   });
+  const actions = blocks.find((block) => block.type === "actions") as {
+    elements: Array<{
+      action_id: string;
+      text: { text: string; type: string };
+      type: string;
+      value: string;
+    }>;
+  };
+  assert.deepEqual(
+    actions.elements.map((element) => ({
+      actionId: element.action_id,
+      label: element.text.text,
+      value: element.value,
+    })),
+    ORG_ROLE_QUICK_ACTIONS.map((action) => ({
+      actionId: `${HARPER_ROLE_QUICK_ACTION_PREFIX}${action.id}`,
+      label: action.label,
+      value: action.id,
+    }))
+  );
   assert.doesNotMatch(text, /확인이 필요한 항목/);
 });
 

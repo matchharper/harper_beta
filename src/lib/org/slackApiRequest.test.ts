@@ -1,6 +1,25 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSlackApiRequest } from "./slackApiRequest";
+import {
+  applyHarperSlackApiMessagePolicy,
+  createSlackApiRequest,
+} from "./slackApiRequest";
+
+test("disables every company-side Slack message unfurl", () => {
+  assert.deepEqual(
+    applyHarperSlackApiMessagePolicy("chat.postMessage", {
+      text: "https://example.com",
+      unfurl_links: true,
+      unfurl_media: true,
+    }),
+    {
+      text: "https://example.com",
+      unfurl_links: false,
+      unfurl_media: false,
+    }
+  );
+  assert.deepEqual(applyHarperSlackApiMessagePolicy("chat.update", {}), {});
+});
 
 test("encodes conversations.list filters as form data", () => {
   const request = createSlackApiRequest("bot-token", {

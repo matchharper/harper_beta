@@ -3,17 +3,14 @@ import { supabaseServer } from "@/lib/supabaseServer";
 const BATCH_SIZE = 1_000;
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const ACTIVE_ROLE_STATUSES = new Set(["active", "top_priority"]);
+const DETAIL_ROLE_STATUSES = new Set(["active", "paused"]);
 const ACCEPTED_FEEDBACK_VALUES = new Set([
   "accepted",
   "like",
   "liked",
   "positive",
 ]);
-const REJECTED_FEEDBACK_VALUES = new Set([
-  "dislike",
-  "negative",
-  "rejected",
-]);
+const REJECTED_FEEDBACK_VALUES = new Set(["dislike", "negative", "rejected"]);
 
 type CompanyWorkspaceRow = {
   company_name: string;
@@ -124,6 +121,12 @@ export type DailyCompanyToolRow = {
   name: string;
 };
 
+export type DailyCompanyRoleStatsRow = DailyCompanyCandidateStats & {
+  roleId: string;
+  roleName: string;
+  roleStatus: string;
+};
+
 export type DailyCompanyStatsRow = {
   acceptedCount: number;
   acceptedTodayCount: number;
@@ -147,6 +150,7 @@ export type DailyCompanyStatsRow = {
   rejectedCount: number;
   rejectedTodayCount: number;
   roleLifecycleEvents: DailyCompanyRoleLifecycleEvent[];
+  roleStats: DailyCompanyRoleStatsRow[];
   slackTodayCount: number;
 };
 
@@ -276,9 +280,10 @@ function lifecycleActionFromEventContent(
   if (!role) return null;
 
   if (
-    new RegExp(`${role}\\.is_expired:\\s*-\\s*(?:false|"false")\\s*\\+\\s*(?:true|"true")`, "i").test(
-      content
-    )
+    new RegExp(
+      `${role}\\.is_expired:\\s*-\\s*(?:false|"false")\\s*\\+\\s*(?:true|"true")`,
+      "i"
+    ).test(content)
   ) {
     return "deleted";
   }
@@ -347,7 +352,11 @@ function buildRoleLifecycleEvents(args: {
       addEvent({ action, occurredAt: event.created_at, roleName });
     }
 
-    if (matchingEvents.some((event) => lifecycleActionFromEventContent(event.content, roleName))) {
+    if (
+      matchingEvents.some((event) =>
+        lifecycleActionFromEventContent(event.content, roleName)
+      )
+    ) {
       continue;
     }
     const statusChangedAt = getRoleStatusChangedAt(role);
@@ -558,10 +567,12 @@ function resolveRecommendationStage(args: {
   if (currentTagStage) return currentTagStage;
 
   const savedStage = normalized(recommendation.saved_stage);
-  if (savedStage === "connected") return "connected";
   if (savedStage === "pending_connection") return "pending_connection";
   if (savedStage === "closed" || savedStage === "hidden") return null;
-  if (savedStage === "rejected" || isRejectedFeedback(recommendation.feedback)) {
+  if (
+    savedStage === "rejected" ||
+    isRejectedFeedback(recommendation.feedback)
+  ) {
     return "rejected";
   }
   if (
@@ -572,6 +583,7 @@ function resolveRecommendationStage(args: {
       ? "connected"
       : "accepted";
   }
+  if (savedStage === "connected") return "connected";
   return null;
 }
 
@@ -579,6 +591,19 @@ function sortCompanyRows(rows: DailyCompanyStatsRow[]) {
   return rows.sort((left, right) =>
     left.companyName.localeCompare(right.companyName, "ko")
   );
+}
+
+function sortRoleStats(rows: DailyCompanyRoleStatsRow[]) {
+  const statusRank = new Map([
+    ["active", 0],
+    ["paused", 1],
+  ]);
+  return rows.sort((left, right) => {
+    const byStatus =
+      (statusRank.get(left.roleStatus) ?? 2) -
+      (statusRank.get(right.roleStatus) ?? 2);
+    return byStatus || left.roleName.localeCompare(right.roleName, "ko");
+  });
 }
 
 export function compileDailyCompanyStatsReport(args: {
@@ -679,6 +704,7 @@ export function compileDailyCompanyStatsReport(args: {
     string,
     CurrentCandidateStage
   >();
+  const candidateStageByTalentRole = new Map<string, CurrentCandidateStage>();
   const acceptedTodayByWorkspaceId = new Map<string, Set<string>>();
   const rejectedTodayByWorkspaceId = new Map<string, Set<string>>();
   const rolling7DayAcceptedByWorkspaceId = new Map<string, Set<string>>();
@@ -694,10 +720,18 @@ export function compileDailyCompanyStatsReport(args: {
       tagsByTalentRole,
     });
     if (stage) {
-      const key = workspaceTalentKey(workspaceId, talentId);
+      const workspaceKey = workspaceTalentKey(workspaceId, talentId);
       candidateStageByWorkspaceTalent.set(
-        key,
-        chooseCandidateStage(candidateStageByWorkspaceTalent.get(key), stage)
+        workspaceKey,
+        chooseCandidateStage(
+          candidateStageByWorkspaceTalent.get(workspaceKey),
+          stage
+        )
+      );
+      const roleKey = talentRoleKey(talentId, text(recommendation.role_id));
+      candidateStageByTalentRole.set(
+        roleKey,
+        chooseCandidateStage(candidateStageByTalentRole.get(roleKey), stage)
       );
     }
 
@@ -708,9 +742,7 @@ export function compileDailyCompanyStatsReport(args: {
         acceptedToday.add(talentId);
         acceptedTodayByWorkspaceId.set(workspaceId, acceptedToday);
       }
-      if (
-        isInRange(recommendation.feedback_at, rolling7DayStartIso, endIso)
-      ) {
+      if (isInRange(recommendation.feedback_at, rolling7DayStartIso, endIso)) {
         const rolling7DayAccepted =
           rolling7DayAcceptedByWorkspaceId.get(workspaceId) ??
           new Set<string>();
@@ -725,9 +757,7 @@ export function compileDailyCompanyStatsReport(args: {
         rejectedToday.add(talentId);
         rejectedTodayByWorkspaceId.set(workspaceId, rejectedToday);
       }
-      if (
-        isInRange(recommendation.feedback_at, rolling7DayStartIso, endIso)
-      ) {
+      if (isInRange(recommendation.feedback_at, rolling7DayStartIso, endIso)) {
         const rolling7DayRejected =
           rolling7DayRejectedByWorkspaceId.get(workspaceId) ??
           new Set<string>();
@@ -865,6 +895,49 @@ export function compileDailyCompanyStatsReport(args: {
     candidateCountsByWorkspaceId.set(workspaceId, counts);
   }
 
+  const acceptedTalentIdsByWorkspaceId = new Map<string, Set<string>>();
+  const candidateCountsByRoleId = new Map<
+    string,
+    { accepted: number; connected: number; pending: number; rejected: number }
+  >();
+  for (const [key, stage] of candidateStageByTalentRole) {
+    const separator = key.lastIndexOf(":");
+    const talentId = key.slice(0, separator);
+    const roleId = key.slice(separator + 1);
+    const workspaceId = roleWorkspaceId.get(roleId);
+    if (!workspaceId) continue;
+
+    if (stage === "accepted") {
+      const acceptedTalents =
+        acceptedTalentIdsByWorkspaceId.get(workspaceId) ?? new Set<string>();
+      acceptedTalents.add(talentId);
+      acceptedTalentIdsByWorkspaceId.set(workspaceId, acceptedTalents);
+    }
+
+    const counts = candidateCountsByRoleId.get(roleId) ?? {
+      accepted: 0,
+      connected: 0,
+      pending: 0,
+      rejected: 0,
+    };
+    if (stage === "accepted") counts.accepted += 1;
+    else if (stage === "pending_connection") counts.pending += 1;
+    else if (stage === "rejected") counts.rejected += 1;
+    else counts.connected += 1;
+    candidateCountsByRoleId.set(roleId, counts);
+  }
+
+  for (const [workspaceId, acceptedTalents] of acceptedTalentIdsByWorkspaceId) {
+    const counts = candidateCountsByWorkspaceId.get(workspaceId) ?? {
+      accepted: 0,
+      connected: 0,
+      pending: 0,
+      rejected: 0,
+    };
+    counts.accepted = acceptedTalents.size;
+    candidateCountsByWorkspaceId.set(workspaceId, counts);
+  }
+
   const allCompanies = args.rows.workspaces.map((workspace) => {
     const workspaceId = text(workspace.company_workspace_id);
     const memberCount = membersByWorkspaceId.get(workspaceId)?.size ?? 0;
@@ -901,8 +974,7 @@ export function compileDailyCompanyStatsReport(args: {
       memberCount,
       newMemberTodayCount:
         newMembersTodayByWorkspaceId.get(workspaceId)?.size ?? 0,
-      newRoleTodayCount:
-        newRolesTodayByWorkspaceId.get(workspaceId)?.size ?? 0,
+      newRoleTodayCount: newRolesTodayByWorkspaceId.get(workspaceId)?.size ?? 0,
       pendingConnectionCount: counts.pending,
       pendingConnectionTodayCount:
         pendingConnectionTodayByWorkspaceId.get(workspaceId)?.size ?? 0,
@@ -916,6 +988,34 @@ export function compileDailyCompanyStatsReport(args: {
         startIso,
         workspaceId,
       }),
+      roleStats: sortRoleStats(
+        internalRoles
+          .filter(
+            (role) =>
+              text(role.company_workspace_id) === workspaceId &&
+              !role.is_expired &&
+              DETAIL_ROLE_STATUSES.has(normalized(role.status))
+          )
+          .map((role) => {
+            const roleCounts = candidateCountsByRoleId.get(
+              text(role.role_id)
+            ) ?? {
+              accepted: 0,
+              connected: 0,
+              pending: 0,
+              rejected: 0,
+            };
+            return {
+              acceptedCount: roleCounts.accepted,
+              connectedCount: roleCounts.connected,
+              pendingConnectionCount: roleCounts.pending,
+              rejectedCount: roleCounts.rejected,
+              roleId: text(role.role_id),
+              roleName: text(role.name) || "이름 없는 역할",
+              roleStatus: normalized(role.status),
+            } satisfies DailyCompanyRoleStatsRow;
+          })
+      ),
       slackTodayCount: chatsToday.slack,
     } satisfies DailyCompanyStatsRow;
   });
@@ -928,7 +1028,8 @@ export function compileDailyCompanyStatsReport(args: {
   const totals = allCompanies.reduce<DailyCompanyStatsTotals>(
     (current, company) => ({
       acceptedCount: current.acceptedCount + company.acceptedCount,
-      acceptedTodayCount: current.acceptedTodayCount + company.acceptedTodayCount,
+      acceptedTodayCount:
+        current.acceptedTodayCount + company.acceptedTodayCount,
       activeRoleCount: current.activeRoleCount + company.activeRoleCount,
       chatTodayCount: current.chatTodayCount + company.chatTodayCount,
       connectedCount: current.connectedCount + company.connectedCount,
@@ -944,7 +1045,8 @@ export function compileDailyCompanyStatsReport(args: {
         current.pendingConnectionTodayCount +
         company.pendingConnectionTodayCount,
       rejectedCount: current.rejectedCount + company.rejectedCount,
-      rejectedTodayCount: current.rejectedTodayCount + company.rejectedTodayCount,
+      rejectedTodayCount:
+        current.rejectedTodayCount + company.rejectedTodayCount,
       rolling7Day: {
         acceptedCount:
           current.rolling7Day.acceptedCount +
@@ -1131,6 +1233,7 @@ export async function buildDailyCompanyStatsReport(
             .from("talent_opportunity_recommendation")
             .select("id,talent_id,role_id,feedback,feedback_at,saved_stage")
             .in("role_id", roleIds)
+            .order("id", { ascending: true })
             .range(from, to)
         )
       : Promise.resolve([]),
@@ -1196,10 +1299,10 @@ function escapeSlackText(value: string) {
     .replace(/>/g, "&gt;");
 }
 
-function companyJobsUrl(companyWorkspaceId: string) {
+function companyJobsUrl(companyWorkspaceId: string, roleId = "all") {
   return `https://matchharper.com/org/jobs?orgId=${encodeURIComponent(
     companyWorkspaceId
-  )}&roleId=all`;
+  )}&roleId=${encodeURIComponent(roleId)}`;
 }
 
 function companyConversationsUrl(companyWorkspaceId: string) {
@@ -1221,6 +1324,25 @@ function formatCompanyLine(company: DailyCompanyStatsRow) {
     `거절 ${company.rejectedCount}`,
   ];
   return `${prefix}${details.join(" · ")}`;
+}
+
+function formatRoleStatsLine(
+  company: DailyCompanyStatsRow,
+  role: DailyCompanyRoleStatsRow
+) {
+  const acceptedLink = `<${companyJobsUrl(
+    company.companyWorkspaceId,
+    role.roleId
+  )}|수락 ${role.acceptedCount}>`;
+  const details = [
+    acceptedLink,
+    `연결 대기 ${role.pendingConnectionCount}`,
+    `진행 중 ${role.connectedCount}`,
+    `거절 ${role.rejectedCount}`,
+  ];
+  return `  • ${escapeSlackText(role.roleName)} (${escapeSlackText(
+    role.roleStatus
+  )}) — ${details.join(" · ")}`;
 }
 
 export function formatDailyCompanyStatsSlackMessage(
@@ -1300,6 +1422,12 @@ function formatCompanyDetailLines(company: DailyCompanyStatsRow) {
       `- <${companyJobsUrl(
         company.companyWorkspaceId
       )}|새로 등록된 수락자 ${company.acceptedTodayCount}명>`
+    );
+  }
+  if (company.roleStats.length > 0) {
+    lines.push("- 역할별 후보 상태");
+    lines.push(
+      ...company.roleStats.map((role) => formatRoleStatsLine(company, role))
     );
   }
   return lines;

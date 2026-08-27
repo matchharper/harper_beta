@@ -357,8 +357,8 @@ export async function ensureOrgAgentConversation(args: {
 
 /**
  * Returns the conversation owned by one role. It contains /org/role chat and
- * only the dedicated Slack role-creation thread; ordinary web and Slack chat
- * remain in the role_id-null workspace conversation.
+ * role-scoped Slack notifications and thread replies. Workspace-wide chat and
+ * cross-role Slack summaries remain in the role_id-null conversation.
  */
 export async function ensureOrgRoleCreationConversation(args: {
   allowCompletedRole?: boolean;
@@ -454,13 +454,13 @@ export async function ensureOrgRoleCreationConversation(args: {
 export async function fetchOrgAgentMessages(args: {
   beforeMessageId?: number | null;
   limit?: number | null;
-  mode?: "general" | "role_creation";
+  mode?: "general" | "role" | "role_creation";
   roleId?: string | null;
   user: User;
   workspaceId: string;
 }) {
   const scoped =
-    args.mode === "role_creation"
+    args.mode === "role_creation" || args.mode === "role"
       ? await ensureOrgRoleCreationConversation({
           allowCompletedRole: true,
           roleId: normalizeText(args.roleId),
@@ -479,7 +479,7 @@ export async function fetchOrgAgentMessages(args: {
     .limit(limit + 1);
 
   query =
-    args.mode === "role_creation"
+    args.mode === "role_creation" || args.mode === "role"
       ? query.in("message_type", ["chat", "slack"])
       : query.eq("message_type", "chat");
 
@@ -489,6 +489,19 @@ export async function fetchOrgAgentMessages(args: {
 
   const { data, error } = await query;
   if (error) throw error;
+  let latestUserMessageQuery = (admin.from("company_messages" as any) as any)
+    .select("created_at")
+    .eq("conversation_id", conversation.id)
+    .eq("role", "user")
+    .order("id", { ascending: false })
+    .limit(1);
+  latestUserMessageQuery =
+    args.mode === "role_creation" || args.mode === "role"
+      ? latestUserMessageQuery.in("message_type", ["chat", "slack"])
+      : latestUserMessageQuery.eq("message_type", "chat");
+  const { data: latestUserMessage, error: latestUserMessageError } =
+    await latestUserMessageQuery.maybeSingle();
+  if (latestUserMessageError) throw latestUserMessageError;
   const rows = ((data ?? []) as OrgAgentMessageRow[]).slice(0, limit);
   const messages = rows.reverse().map(toOrgAgentMessage);
   const hasMore = (data ?? []).length > limit;
@@ -496,6 +509,7 @@ export async function fetchOrgAgentMessages(args: {
   return {
     conversation: toOrgAgentConversation(conversation),
     hasMore,
+    latestUserMessageAt: normalizeText(latestUserMessage?.created_at) || null,
     messages,
     nextCursor: hasMore ? (messages[0]?.id ?? null) : null,
     ok: true as const,

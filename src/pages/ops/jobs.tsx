@@ -30,13 +30,12 @@ import {
   LockKeyhole,
   Plus,
   RefreshCw,
-  Save,
   Search,
 } from "lucide-react";
 import Head from "next/head";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BareButton, MuteButton } from "@/components/ui/button";
 import { Input as UiInput } from "@/components/ui/input";
 import {
@@ -53,6 +52,7 @@ type JobFilter = "all" | "published" | "draft";
 type LinkedinFilter = "all" | "published" | "unpublished";
 type LocationFilter = "all" | "kr" | "jp" | "us" | "uk" | "sg" | "th" | "au";
 const NEW_JOB_ID = "__new_official_job__";
+const AUTO_SAVE_DELAY_MS = 1_000;
 
 const JOB_FILTER_OPTIONS: ReadonlyArray<{
   label: string;
@@ -215,6 +215,10 @@ type OfficialJobDraftState = {
   key: string;
 };
 
+type OfficialJobAutoSaveState =
+  | { key: string; status: "waiting" | "saving" | "saved" }
+  | { error: string; key: string; status: "error" };
+
 const EMPTY_DRAFT: OfficialJobDraft = {
   ashbyJobPostingId: "",
   companyDescriptionMarkdown: "",
@@ -349,6 +353,31 @@ function draftToPayload(draft: OfficialJobDraft): OpsOfficialJobSaveInput {
   };
 }
 
+function getAutoSaveBlockReason(draft: OfficialJobDraft) {
+  if (isOfficialJobsInternalCopyIdentity(draft)) return null;
+  if (!draft.roleTitle.trim()) return "Job title을 입력하면 자동 저장됩니다.";
+  if (!draft.companyName.trim())
+    return "Company name을 입력하면 자동 저장됩니다.";
+  if (!draft.location.trim()) return "Location을 입력하면 자동 저장됩니다.";
+  if (draft.isPublished && !draft.roleId.trim()) {
+    return "공개하려면 Internal role을 선택해 주세요.";
+  }
+  return null;
+}
+
+function rebaseOfficialJobDraft(
+  savedDraft: OfficialJobDraft,
+  persistedDraft: OfficialJobDraft,
+  currentDraft: OfficialJobDraft
+) {
+  return OFFICIAL_JOB_DRAFT_FIELDS.reduce<OfficialJobDraft>((next, field) => {
+    if (field !== "id" && currentDraft[field] !== persistedDraft[field]) {
+      return { ...next, [field]: currentDraft[field] };
+    }
+    return next;
+  }, savedDraft);
+}
+
 function createSlug(value: string) {
   const slug = value
     .trim()
@@ -439,10 +468,14 @@ export default function OpsOfficialJobsPage() {
     initialDraft: EMPTY_DRAFT,
     key: NEW_JOB_ID,
   });
+  const [autoSaveState, setAutoSaveState] =
+    useState<OfficialJobAutoSaveState | null>(null);
+  const saveRequestInFlightRef = useRef(false);
   const jobsQuery = useOpsOfficialJobs(canFetchInternal);
   const internalRolesQuery =
     useOpsOfficialJobInternalRoleOptions(canFetchInternal);
-  const saveJob = useSaveOpsOfficialJob();
+  const { isPending: isSavePending, mutateAsync: saveJob } =
+    useSaveOpsOfficialJob();
   const jobs = useMemo(
     () => jobsQuery.data?.jobs ?? [],
     [jobsQuery.data?.jobs]
@@ -454,6 +487,7 @@ export default function OpsOfficialJobsPage() {
   const selectedJob = jobs.find((job) => job.id === activeJobId) ?? null;
   const activeDraftKey =
     selectedJobId === NEW_JOB_ID ? NEW_JOB_ID : activeJobId;
+  const currentDraftKey = activeDraftKey ?? NEW_JOB_ID;
   const draftStateMatchesActive = draftState.key === activeDraftKey;
   const selectedJobDraft = selectedJob ? jobToDraft(selectedJob) : null;
   const draft = draftStateMatchesActive
@@ -463,6 +497,9 @@ export default function OpsOfficialJobsPage() {
     ? draftState.initialDraft
     : (selectedJobDraft ?? EMPTY_DRAFT);
   const hasUnsavedChanges = !areOfficialJobDraftsEqual(draft, initialDraft);
+  const autoSaveBlockReason = getAutoSaveBlockReason(draft);
+  const currentAutoSaveFailed =
+    autoSaveState?.key === currentDraftKey && autoSaveState.status === "error";
   const isInternalCopyDraft = isOfficialJobsInternalCopyIdentity(draft);
   const effectiveIsPublished = isInternalCopyDraft ? false : draft.isPublished;
   const isSlugLocked = Boolean(draft.id) || isInternalCopyDraft;
@@ -495,14 +532,94 @@ export default function OpsOfficialJobsPage() {
     key: Key,
     value: OfficialJobDraft[Key]
   ) => {
+    if (selectedJobId === null && currentDraftKey !== NEW_JOB_ID) {
+      setSelectedJobId(currentDraftKey);
+    }
     setDraftState({
       draft: { ...draft, [key]: value },
       initialDraft,
-      key: activeDraftKey ?? NEW_JOB_ID,
+      key: currentDraftKey,
     });
+    setAutoSaveState({ key: currentDraftKey, status: "waiting" });
   };
 
-  const startNewJob = () => {
+  const persistDraft = useCallback(
+    async (draftToSave: OfficialJobDraft, draftKey: string) => {
+      if (saveRequestInFlightRef.current) return false;
+      saveRequestInFlightRef.current = true;
+      setAutoSaveState({ key: draftKey, status: "saving" });
+
+      try {
+        const result = await saveJob(draftToPayload(draftToSave));
+        const savedDraft = jobToDraft(result.job);
+
+        setSelectedJobId((currentJobId) =>
+          currentJobId === draftKey ? result.job.id : currentJobId
+        );
+        setDraftState((currentState) => {
+          if (currentState.key !== draftKey) return currentState;
+
+          return {
+            draft: rebaseOfficialJobDraft(
+              savedDraft,
+              draftToSave,
+              currentState.draft
+            ),
+            initialDraft: savedDraft,
+            key: result.job.id,
+          };
+        });
+        setAutoSaveState({ key: result.job.id, status: "saved" });
+        return true;
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Official job 저장 실패";
+        setAutoSaveState({ error: message, key: draftKey, status: "error" });
+        showToast({ message, variant: "error" });
+        return false;
+      } finally {
+        saveRequestInFlightRef.current = false;
+      }
+    },
+    [saveJob]
+  );
+
+  useEffect(() => {
+    if (
+      !canFetchInternal ||
+      !hasUnsavedChanges ||
+      autoSaveBlockReason ||
+      currentAutoSaveFailed ||
+      isSavePending
+    ) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      void persistDraft(draft, currentDraftKey);
+    }, AUTO_SAVE_DELAY_MS);
+
+    return () => window.clearTimeout(timeout);
+  }, [
+    autoSaveBlockReason,
+    canFetchInternal,
+    currentDraftKey,
+    currentAutoSaveFailed,
+    draft,
+    hasUnsavedChanges,
+    persistDraft,
+    isSavePending,
+  ]);
+
+  const saveBeforeChangingJob = async () => {
+    if (!hasUnsavedChanges || autoSaveBlockReason) return true;
+    return persistDraft(draft, currentDraftKey);
+  };
+
+  const startNewJob = async () => {
+    if (saveRequestInFlightRef.current) return;
+    if (!(await saveBeforeChangingJob())) return;
+
     const maxDisplayOrder = jobs.reduce(
       (max, job) => Math.max(max, job.displayOrder),
       0
@@ -519,6 +636,19 @@ export default function OpsOfficialJobsPage() {
     });
   };
 
+  const selectJob = async (job: OpsOfficialJobRecord) => {
+    if (job.id === activeJobId || saveRequestInFlightRef.current) return;
+    if (!(await saveBeforeChangingJob())) return;
+
+    const nextDraft = jobToDraft(job);
+    setSelectedJobId(job.id);
+    setDraftState({
+      draft: nextDraft,
+      initialDraft: nextDraft,
+      key: job.id,
+    });
+  };
+
   const handleGenerateSlug = () => {
     if (isInternalCopyDraft) {
       updateDraft("slug", OFFICIAL_JOBS_INTERNAL_COPY_SLUG);
@@ -527,26 +657,6 @@ export default function OpsOfficialJobsPage() {
 
     const slug = createSlug(`${draft.companyName} ${draft.roleTitle}`);
     updateDraft("slug", slug);
-  };
-
-  const handleSave = async () => {
-    try {
-      const result = await saveJob.mutateAsync(draftToPayload(draft));
-      const savedDraft = jobToDraft(result.job);
-      setSelectedJobId(result.job.id);
-      setDraftState({
-        draft: savedDraft,
-        initialDraft: savedDraft,
-        key: result.job.id,
-      });
-      showToast({ message: "Official job 저장 완료", variant: "success" });
-    } catch (error) {
-      showToast({
-        message:
-          error instanceof Error ? error.message : "Official job 저장 실패",
-        variant: "error",
-      });
-    }
   };
 
   const handleAddRoleDescriptionTemplate = (
@@ -604,7 +714,8 @@ export default function OpsOfficialJobsPage() {
                 </h2>
                 <BareButton
                   type="button"
-                  onClick={startNewJob}
+                  onClick={() => void startNewJob()}
+                  disabled={isSavePending}
                   className={cx(opsTheme.buttonPrimary, "h-10 px-3")}
                 >
                   <Plus className="h-4 w-4" />
@@ -718,17 +829,10 @@ export default function OpsOfficialJobsPage() {
                   <BareButton
                     key={job.id}
                     type="button"
-                    onClick={() => {
-                      const nextDraft = jobToDraft(job);
-                      setSelectedJobId(job.id);
-                      setDraftState({
-                        draft: nextDraft,
-                        initialDraft: nextDraft,
-                        key: job.id,
-                      });
-                    }}
+                    onClick={() => void selectJob(job)}
+                    disabled={isSavePending}
                     className={cx(
-                      "block w-full border-b border-l-4 border-neutral-1000-a05 border-l-transparent px-4 py-3 text-left transition",
+                      "block w-full border-b border-l-4 border-neutral-1000-a05 border-l-transparent px-4 py-3 text-left transition disabled:cursor-wait disabled:opacity-60",
                       activeJobId === job.id
                         ? "bg-bg-floating"
                         : "hover:bg-bg-default/60"
@@ -813,20 +917,47 @@ export default function OpsOfficialJobsPage() {
                   <RefreshCw className="h-4 w-4" />
                   Refresh
                 </BareButton>
-                {hasUnsavedChanges ? (
-                  <BareButton
-                    type="button"
-                    onClick={handleSave}
-                    disabled={saveJob.isPending}
-                    className={cx(opsTheme.buttonPrimary, "h-10 px-4")}
+                {hasUnsavedChanges && autoSaveBlockReason ? (
+                  <div
+                    className="max-w-56 text-right text-xs text-neutral-muted"
+                    role="status"
                   >
-                    {saveJob.isPending ? (
-                      <LoaderCircle className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Save className="h-4 w-4" />
-                    )}
-                    Save
-                  </BareButton>
+                    {autoSaveBlockReason}
+                  </div>
+                ) : hasUnsavedChanges &&
+                  autoSaveState?.key === currentDraftKey &&
+                  autoSaveState.status === "error" ? (
+                  <MuteButton
+                    type="button"
+                    onClick={() => void persistDraft(draft, currentDraftKey)}
+                    disabled={isSavePending}
+                    className="h-10 px-4"
+                    size="lg"
+                    title={autoSaveState.error}
+                    variant="neutral"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    다시 저장
+                  </MuteButton>
+                ) : hasUnsavedChanges ? (
+                  <div
+                    aria-live="polite"
+                    className={cx(opsTheme.buttonPrimary, "h-10 px-4")}
+                    role="status"
+                  >
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                    저장 중...
+                  </div>
+                ) : autoSaveState?.key === currentDraftKey &&
+                  autoSaveState.status === "saved" ? (
+                  <div
+                    aria-live="polite"
+                    className="inline-flex h-10 items-center gap-2 px-2 text-sm font-medium text-positive"
+                    role="status"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    저장됨
+                  </div>
                 ) : null}
               </div>
             </div>

@@ -89,10 +89,10 @@ export function parseOrgAgentCompanyInfoMarker(message: string): {
     text: cleanRenderedText(
       segments
         .filter(
-          (segment): segment is Extract<
-            OrgAgentCompanyInfoSegment,
-            { kind: "text" }
-          > => segment.kind === "text"
+          (
+            segment
+          ): segment is Extract<OrgAgentCompanyInfoSegment, { kind: "text" }> =>
+            segment.kind === "text"
         )
         .map((segment) => segment.text)
         .join("\n\n")
@@ -111,6 +111,20 @@ export function ensureOrgAgentCompanyInfoMarker(message: string) {
     return source;
   }
   return `${source}\n\n${ORG_AGENT_COMPANY_INFO_MARKER}`;
+}
+
+/**
+ * Removes private rendering markers from candidate-visible persisted copy.
+ * Unlike the reply parser, this deliberately strips inline and fenced
+ * occurrences too: the token is never meaningful inside a saved description.
+ */
+export function stripOrgAgentCompanyInfoMarker(message: string) {
+  return cleanRenderedText(
+    String(message ?? "").replace(
+      /[ \t]*(?:\[\[company_info\]\]|\[company_info\])[ \t]*/g,
+      " "
+    )
+  );
 }
 
 /**
@@ -133,7 +147,7 @@ export function renderOrgAgentCompanyInfoSlackLink(
       segments
         .flatMap((segment) => {
           if (segment.kind === "text") return [segment.text];
-          return url ? [`<${url}|회사 정보>를 반영했습니다.`] : [];
+          return url ? [`<${url}|회사 정보>를 작성에 참고했어요.`] : [];
         })
         .join("\n\n")
     ),

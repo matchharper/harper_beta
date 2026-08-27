@@ -4,6 +4,7 @@ import type {
   MeetingScheduleListResponse,
   MeetingScheduleMutationResponse,
 } from "@/lib/meetings/scheduleDraft";
+import type { MeetingCalendarRetryResponse } from "@/lib/meetings/meetingCalendar";
 import type { MeetingInvitationPreviewResponse } from "@/lib/meetings/invitation";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { queryKeys } from "@/lib/queryKeys";
@@ -122,5 +123,30 @@ export function useSendOrgMeetingInvitation(args: {
         queryKey: queryKeys.org.meetingSchedule(args.workspaceId, "all"),
       });
     },
+  });
+}
+
+export function useRetryOrgMeetingCalendar(args: {
+  scheduleId: string;
+  workspaceId: string;
+}) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      fetchWithInternalAuth<MeetingCalendarRetryResponse>(
+        `/api/org/meeting-schedules/${encodeURIComponent(args.scheduleId)}/calendar/retry`,
+        {
+          body: JSON.stringify({ workspaceId: args.workspaceId }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        }
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.org.meetingSchedule(
+          args.workspaceId,
+          args.scheduleId
+        ),
+      }),
   });
 }

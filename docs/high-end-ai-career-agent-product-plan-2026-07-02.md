@@ -3,6 +3,8 @@
 작성일: 2026-07-02  
 범위: Harper `/career` 제품, Supabase DB 대화/행동 집계, 외부 시장/경쟁 제품 리서치
 
+> 후속 계획: 사용자의 명시적 요청에 따라 Harper가 외부 지원서 제출과 확인까지 책임지는 범용 실행 구조는 [Career Harper 범용 대리 지원 실행 계획](./career-universal-application-execution-plan-ko.md)에서 다룬다. 이 문서에서 경계하는 `full auto-apply`는 사용자 요청·범위·품질 통제 없이 대량 지원하는 방식이며, 사용자 요청에 따른 고적합 기회의 대리 실행과는 구분한다.
+
 ## 1. 결론
 
 Harper가 유저에게 "나의 이직을 완전히 도와주는 High-end AI Career Agent"처럼 느껴지려면, 공고 추천 정확도를 조금 더 올리는 것만으로는 부족하다. 유저가 체감하는 고급감은 추천 자체보다 **Harper가 내 이직 전체를 운영하고 있다는 확신**에서 나온다.
@@ -529,4 +531,3 @@ Quality metric:
 핵심 메시지는 이것이다.
 
 > Harper is not here to help you apply to more jobs. Harper is here to help you make better moves, with better evidence, better timing, and better representation.
-

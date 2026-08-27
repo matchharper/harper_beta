@@ -928,10 +928,28 @@ function formatCompanyTalentRequestResult(result: Record<string, any>) {
       `fallback_message=${formatPromptCell(result.userMessage, 1_200)}`,
     ].join("\n");
   }
+  if (
+    result.status === "draft" ||
+    result.status === "draft_revised" ||
+    result.status === "confirmation_required"
+  ) {
+    return [
+      `status=${formatPromptCell(result.status, 40)}`,
+      `candidate=${formatPromptCell(result.candidateName, 160)}`,
+      "nothing_sent=true",
+      "exact_body_appended_by_server=true",
+      "writing_instruction=Write the surrounding confirmation yourself in the latest user's language as two or three short, conversational sentences. Lead with the help Harper will provide for this specific candidate, not a report that a draft or message was prepared. Naturally convey all three facts: Harper will ask the candidate and bring the answer back here; nothing has been sent yet; the company should check the body once. Ask exactly one natural confirmation question, with only one question mark in the whole reply. The appended body already owns the request context, so the surrounding prose may name the candidate but must not repeat the company name, Role title, subject, or body. Do not copy a fixed template, prescribe exact reply words such as '보내줘', or use workflow language such as 승인, 화면에 표시된, draft, revision, or status.",
+    ].join("\n");
+  }
   return [
     `status=${formatPromptCell(result.status, 40)}`,
+    result.scheduledAt
+      ? `scheduled_at=${formatPromptCell(result.scheduledAt, 100)}`
+      : null,
     `message=${formatPromptCell(result.userMessage, 800)}`,
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function formatConversationHistoryResult(result: Record<string, any>) {

@@ -371,15 +371,15 @@ test("a failed candidate contact lifecycle action cannot be presented as complet
 
   assert.equal(
     enforceOrgAgentTerminalMutationOutcome(state, "문의를 취소했습니다."),
-    "후보자에게 요청을 보내지 못했어요. 대상 후보자와 역할, 요청 내용을 다시 확인해 주세요. 이메일이나 Harper 채팅으로 전달된 내용은 없어요."
+    "후보자에게 요청을 보내지 못했어요. 대상 후보자와 역할, 요청 내용을 다시 확인해 주세요. 후보자에게 전달된 내용은 없어요."
   );
 });
 
-test("a successful candidate contact action keeps the model reply", () => {
+test("a successful candidate contact action keeps the model-written reply", () => {
   const state = createOrgAgentToolExecutionState(minimalContext());
   state.terminalMutationUsed = true;
   state.terminalReply =
-    "김후보님께 드릴 문의를 즉시 발송하도록 변경했습니다. 아직 전달 완료 단계는 아닙니다.";
+    "김후보님께 제가 대신 바로 물어볼게요. 답이 오면 여기로 알려드릴게요.";
   state.toolResults.push({
     callId: "immediate-contact-1",
     name: "contact_talent",
@@ -583,7 +583,7 @@ test("a failed candidate contact is not mislabeled as a data change", () => {
       state,
       "후보자분께 확인 요청을 보냈습니다."
     ),
-    "후보자에게 요청을 보내지 못했어요. 대상 후보자와 역할, 요청 내용을 다시 확인해 주세요. 이메일이나 Harper 채팅으로 전달된 내용은 없어요."
+    "후보자에게 요청을 보내지 못했어요. 대상 후보자와 역할, 요청 내용을 다시 확인해 주세요. 후보자에게 전달된 내용은 없어요."
   );
 });
 
@@ -607,11 +607,11 @@ test("an existing candidate request keeps the model's replacement question", () 
   );
 });
 
-test("a successful candidate contact keeps the model-authored explanation", () => {
+test("a successful candidate contact does not replace model prose", () => {
   const state = createOrgAgentToolExecutionState(minimalContext());
   state.terminalMutationUsed = true;
   state.terminalReply =
-    "후보자분께 확인 요청을 접수했습니다. 이메일과 Harper 채팅으로 한 번 전달할 예정이며, 답이 오면 이 대화로 알려드리겠습니다.";
+    "후보자분께 제가 대신 조금 뒤에 물어볼게요. 답이 오면 여기로 알려드릴게요.";
   state.toolResults.push({
     callId: "contact-2",
     name: "contact_talent",
@@ -628,12 +628,12 @@ test("a successful candidate contact keeps the model-authored explanation", () =
   );
 });
 
-test("a candidate draft keeps the server status beside the exact presentation", () => {
+test("a candidate draft keeps model prose while the exact body stays separate", () => {
   const state = createOrgAgentToolExecutionState(minimalContext());
   state.terminalMutationUsed = true;
   state.terminalReply =
-    "후보자에게 보낼 전체 문구를 작성해 초안으로 저장했습니다. 아직 발송하지 않았습니다.";
-  state.requiredPresentationText = "제목과 본문 전체";
+    "네, 제가 대신 민수님께 여쭤보고, 답이 오면 여기로 알려드릴게요. 보내기 전에 한 번만 확인해 주시겠어요?";
+  state.requiredPresentationText = "후보자에게 보낼 본문 전체";
   state.toolResults.push({
     callId: "contact-draft",
     name: "contact_talent",
@@ -644,9 +644,9 @@ test("a candidate draft keeps the server status beside the exact presentation", 
   assert.equal(
     enforceOrgAgentTerminalMutationOutcome(
       state,
-      "이번 결과에는 본문이 표시되지 않았습니다."
+      "민수님께 제가 대신 여쭤볼게요. 아래 내용을 한 번 확인해 주시겠어요?"
     ),
-    state.terminalReply
+    "민수님께 제가 대신 여쭤볼게요. 아래 내용을 한 번 확인해 주시겠어요?"
   );
 });
 

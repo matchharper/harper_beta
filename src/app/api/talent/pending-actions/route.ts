@@ -96,6 +96,7 @@ export async function GET(req: NextRequest) {
             ? Promise.resolve(null)
             : fetchActiveInternalFitHoldQuestion({
                 admin,
+                locale,
                 userId: user.id,
               }),
         userId: user.id,
