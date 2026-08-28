@@ -454,7 +454,7 @@ export function OrgRoleCreationPage() {
     return () => setNavigationTriggerHidden(false);
   }, [mobileDetailsOpen, setNavigationTriggerHidden]);
 
-  if (!permissions.canManageCandidates) {
+  if (isNewRolePage && !permissions.canManageCandidates) {
     return (
       <div className="flex h-full items-center justify-center px-6 text-sm text-neutral-muted">
         역할을 등록할 권한이 없습니다.
@@ -564,6 +564,7 @@ export function OrgRoleCreationPage() {
               setCompanyInfoOpen(true);
               if (!isDesktop) setMobileDetailsOpen(true);
             }}
+            readOnly={!permissions.canManageCandidates}
             purpose={
               !roleId ||
               (role && normalizeOrgRoleStatus(role.status) === "draft")

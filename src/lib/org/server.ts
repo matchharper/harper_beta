@@ -5639,13 +5639,14 @@ export async function updateOrgRoleRequestOnly(args: {
 
 export async function assertOrgRoleAccess(args: {
   admin: SupabaseAdminClient;
+  permission?: "manage_candidates" | "view";
   roleId: string;
   user: User;
   workspaceId: string;
 }) {
   await assertOrgWorkspacePermission({
     admin: args.admin,
-    permission: "manage_candidates",
+    permission: args.permission ?? "manage_candidates",
     user: args.user,
     workspaceId: args.workspaceId,
   });

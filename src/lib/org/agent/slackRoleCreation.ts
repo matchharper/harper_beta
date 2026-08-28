@@ -22,6 +22,7 @@ import {
   buildSlackRoleCreationStartMessage,
   buildSlackRoleCreationWebUrl,
 } from "@/lib/org/agent/slackRoleCreationMessages";
+import { dispatchSlackReplyJob } from "@/lib/org/slackQueueDispatch";
 import { stripSlackSentUsingAttribution } from "@/lib/org/slackMessageText";
 import type { ChatAttachmentPayload } from "@/types/chat";
 
@@ -210,7 +211,7 @@ async function ensureSlackRoleCreationBootstrap(args: {
   if (!bootstrapMessageTs || !bootstrapPrompt) {
     throw new Error("Slack role creation bootstrap message is unavailable");
   }
-  const { error: enqueueError } = await (args.admin.rpc as any)(
+  const { data: enqueueData, error: enqueueError } = await (args.admin.rpc as any)(
     "enqueue_slack_reply_job_v2",
     {
       p_prompt: bootstrapPrompt,
@@ -226,6 +227,22 @@ async function ensureSlackRoleCreationBootstrap(args: {
     }
   );
   if (enqueueError) throw enqueueError;
+  const enqueueResult =
+    enqueueData && typeof enqueueData === "object"
+      ? (enqueueData as Record<string, unknown>)
+      : {};
+  const jobId = text(enqueueResult.job_id);
+  if (!jobId) throw new Error("Slack role creation bootstrap did not create a reply job");
+  await dispatchSlackReplyJob({
+    admin: args.admin,
+    jobId,
+    source: "role_creation_bootstrap",
+  }).catch((dispatchError) => {
+    // The committed job remains pending for the queue-dispatch Cron. Role
+    // creation must not be rolled back just because the immediate publish
+    // attempt had a transient Queue error.
+    console.error("[harper-slack/role-bootstrap:queue-dispatch]", dispatchError);
+  });
 }
 
 async function fetchExistingStartedThread(args: {

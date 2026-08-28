@@ -5651,6 +5651,12 @@ export type Database = {
           locked_by: string | null
           next_attempt_at: string
           prompt: string
+          queue_dispatch_attempt_count: number
+          queue_dispatch_status: string
+          queue_dispatched_at: string | null
+          queue_last_error: string | null
+          queue_next_attempt_at: string
+          queue_source: string | null
           response_message_id: number | null
           response_proposal_id: string | null
           response_text: string | null
@@ -5684,6 +5690,12 @@ export type Database = {
           locked_by?: string | null
           next_attempt_at?: string
           prompt: string
+          queue_dispatch_attempt_count?: number
+          queue_dispatch_status?: string
+          queue_dispatched_at?: string | null
+          queue_last_error?: string | null
+          queue_next_attempt_at?: string
+          queue_source?: string | null
           response_message_id?: number | null
           response_proposal_id?: string | null
           response_text?: string | null
@@ -5717,6 +5729,12 @@ export type Database = {
           locked_by?: string | null
           next_attempt_at?: string
           prompt?: string
+          queue_dispatch_attempt_count?: number
+          queue_dispatch_status?: string
+          queue_dispatched_at?: string | null
+          queue_last_error?: string | null
+          queue_next_attempt_at?: string
+          queue_source?: string | null
           response_message_id?: number | null
           response_proposal_id?: string | null
           response_text?: string | null
@@ -7849,6 +7867,22 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "email_reply_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_slack_reply_job_v3: {
+        Args: {
+          p_job_id: string
+          p_max_concurrency?: number
+          p_max_retry_count?: number
+          p_stale_after_seconds?: number
+          p_worker_id: string
+        }
+        Returns: Database["public"]["Tables"]["slack_reply_jobs"]["Row"][]
+        SetofOptions: {
+          from: "*"
+          to: "slack_reply_jobs"
           isOneToOne: false
           isSetofReturn: true
         }

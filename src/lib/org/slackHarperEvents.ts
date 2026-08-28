@@ -201,8 +201,18 @@ export async function queueHarperSlackEvent(envelope: SlackEventEnvelope) {
     enqueueData && typeof enqueueData === "object"
       ? (enqueueData as Record<string, unknown>)
       : {};
-  if (enqueueResult.duplicate === true) return { duplicate: true };
+  const jobId = clean(enqueueResult.job_id) || null;
+  if (enqueueResult.duplicate === true) {
+    return { duplicate: true, jobId };
+  }
+  if (enqueueResult.ignored === true) {
+    return {
+      ignored: clean(enqueueResult.last_error) || "superseded_by_newer_thread_message",
+      jobId,
+    };
+  }
   return {
+    jobId,
     loadingStatus:
       triggerKind === "mention" && clean(integration.bot_token_ciphertext)
         ? {

@@ -33,13 +33,18 @@ function isVercelOrigin(origin: string) {
   return hostname === "vercel.app" || hostname.endsWith(".vercel.app");
 }
 
+export function getConfiguredPublicSiteUrl() {
+  const configured = normalizeSiteOrigin(process.env.NEXT_PUBLIC_SITE_URL);
+  return configured && !isVercelOrigin(configured)
+    ? configured
+    : DEFAULT_PUBLIC_SITE_URL;
+}
+
 export function getPublicSiteUrlFromRequest(
   req: Pick<Request, "headers" | "url">
 ) {
   const configured = normalizeSiteOrigin(process.env.NEXT_PUBLIC_SITE_URL);
-  if (configured && !isVercelOrigin(configured)) {
-    return configured;
-  }
+  if (configured && !isVercelOrigin(configured)) return configured;
 
   const requestOrigin = normalizeSiteOrigin(req.url);
   if (requestOrigin && isLocalhostOrigin(requestOrigin)) {

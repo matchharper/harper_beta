@@ -1,11 +1,9 @@
-import { after, NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
-  decryptHarperSlackToken,
   isHarperSlackAppId,
-  setHarperSlackThreadStatus,
   verifyHarperSlackSignature,
 } from "@/lib/org/slackHarper";
-import { queueHarperSlackEvent } from "@/lib/org/slackHarperEvents";
+import { publishHarperSlackEvent } from "@/lib/org/slackTurnQueue";
 
 export const runtime = "nodejs";
 
@@ -28,29 +26,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "wrong_app" }, { status: 403 });
 
   try {
-    const result = await queueHarperSlackEvent(body);
-    const loadingStatus =
-      "loadingStatus" in result ? result.loadingStatus : null;
-    if (loadingStatus) {
-      after(async () => {
-        try {
-          await setHarperSlackThreadStatus({
-            channelId: loadingStatus.channelId,
-            status: loadingStatus.status,
-            threadTs: loadingStatus.threadTs,
-            token: decryptHarperSlackToken(
-              loadingStatus.botTokenCiphertext
-            ),
-          });
-        } catch (error) {
-          // Slack event acknowledgement and durable job processing must not
-          // depend on this best-effort progress indicator.
-          console.warn("[harper-slack/events:set-mention-status]", error);
-        }
-      });
-    }
+    await publishHarperSlackEvent(body);
   } catch (error) {
-    console.error("[harper-slack/events]", error);
+    console.error("[harper-slack/events:publish]", error);
     return NextResponse.json({ error: "queue_failed" }, { status: 500 });
   }
   return NextResponse.json({ ok: true });

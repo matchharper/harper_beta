@@ -247,6 +247,8 @@ const RECOMMEND_JOB_POSTINGS_FULL_JD_SCORING_MODEL =
 
 const DEBUG_RECOMMEND_JOB_POSTINGS =
   process.env.DEBUG_RECOMMEND_JOB_POSTINGS === "1";
+const RECOMMEND_JOB_POSTINGS_SQL_FAILURE_LOG_TYPE =
+  "career_tool_sql_failed:recommend_job_postings";
 
 const PLAN_SYSTEM_PROMPT = `You are Harper's external job-posting search planner.
 Return JSON only.
@@ -275,9 +277,11 @@ Output schema:
 Rules:
 - role_titles are the first DB retrieval gate over company_roles.name. ftsKeywords are applied only after title/type/location filtering narrows the candidate pool.
 - Use ftsKeywords for role titles, role description, companies, domain, skills, methods, and problem area. Use only important keywords, not broad terms.
+- Return at most 4 ftsKeywords groups, with 4-8 terms in each group. Put only true synonyms or near-equivalent aliases in the same group; do not use extra groups for weak supporting context.
 - 만약 한국의 공고도 검색한다면, terms에 영어 뿐만 아니라 한글 동의어도 포함해라. ex) "Research Engineer", "Machine leaning", "리서치 엔지니어", "머신러닝", "개발자", "Developer"
 - Avoid standalone broad terms such as "AI", "data", "software".
-- Do not put pure preferences in ftsKeywords: company stage, company size, funding, investors, location, remote/hybrid/onsite, salary, culture, brand prestige, "startup", "Series A", "YC", "a16z", "global", or "Seoul" unless that word is literally part of the work domain.
+- Do not put pure preferences in ftsKeywords: company stage, company size, funding, investors, location, remote/hybrid/onsite, salary, culture, brand prestige, "startup", "Series A", "global", or "Seoul" unless that word is literally part of the work domain.
+- 과하게 일반적인 단어는 절대 ftsKeywords에 넣지마라. ex: ai, data, software, LLM, etc
 - locations: Geographic location filters or preferences only. Never put "remote" here. Keep empty if location preference is unknown.
   - Examples: "Seoul", "Korea", ", CA", "United States",  "Japan", "New York"
   - 유저가 명시적으로 한국만을 원한다고 하지 않은 경우에는 기본적으로 한국과 미국 둘다 열어둬라. 
@@ -331,6 +335,7 @@ Return exactly this shape:
 role_titles is a hard ILIKE gate over the posting title, so return 1-12 broad title fragments and useful Korean/English aliases. Recall matters more than precision. Do not put company names, skills, location, stage, or prestige in role_titles.
 
 ftsKeywords may cover title, responsibilities, domain, skills, and problem area. Group Korean/English synonyms when useful. Avoid generic standalone terms and do not put company stage, funding, investors, salary, culture, brand prestige, location, or work mode in ftsKeywords. Use weights 1-5 to express relevance, not exclusion.
+Return at most 4 ftsKeywords groups, with 4-8 terms per group. A group must contain only true synonyms or near-equivalent aliases; do not spend groups on weak supporting context.
 
 Only use locations when the current request or an explicit setting makes geography a real constraint. Leave locations empty for an inferred profile location or a mild preference. Never put remote in locations. Set remoteOnly only for an explicit remote-only requirement. includeRemote controls whether otherwise matching remote roles are allowed.
 
@@ -459,6 +464,42 @@ function infoJson(label: string, payload: Record<string, unknown>) {
     `[recommend_job_postings] ${label}`,
     JSON.stringify(payload, null, 2)
   );
+}
+
+async function persistRoleSqlFailure(args: {
+  admin: AdminClient;
+  durationMs: number;
+  errorMessage?: string | null;
+  searchMode: RoleSearchMode;
+  sql: string;
+  userId: string;
+}) {
+  const metadata = {
+    durationMs: args.durationMs,
+    error: cleanText(args.errorMessage, 1_000) || "Failed to search company roles",
+    searchMode: args.searchMode,
+    sql: args.sql,
+    sqlSha256: createHash("sha256").update(args.sql).digest("hex"),
+  };
+
+  try {
+    const { error } = await args.admin.from("logs").insert({
+      type: RECOMMEND_JOB_POSTINGS_SQL_FAILURE_LOG_TYPE,
+      user_id: args.userId,
+      meta_data: metadata,
+    });
+    if (!error) return;
+
+    console.error("[recommend_job_postings:sql_failure] log insert failed", {
+      logInsertError: error.message,
+      ...metadata,
+    });
+  } catch (error) {
+    console.error("[recommend_job_postings:sql_failure] log insert failed", {
+      logInsertError: error instanceof Error ? error.message : String(error),
+      ...metadata,
+    });
+  }
 }
 
 function asRecord(value: unknown): JsonRecord | null {
@@ -2431,7 +2472,7 @@ function previouslyRecommendedRoleExclusionSql(
   )`;
 }
 
-function buildRoleSearchSql(args: {
+export function buildRoleSearchSql(args: {
   blockedCompanies: string[];
   asOf?: string | null;
   plan: ExternalSearchPlan;
@@ -2464,30 +2505,11 @@ title_candidates AS MATERIALIZED (
     cr.role_id::text AS role_id,
     cr.company_workspace_id::text AS company_workspace_id,
     cr.name AS role_name,
-    cr.description,
     cr.opportunity_search_tsv,
-    cr.external_jd_url,
-    cr.location_text,
-    cr.work_mode,
-    cr.type,
     cr.posted_at,
-    cr.salary_min,
-    cr.salary_max,
-    cr.salary_currency,
-    cr.salary_period,
-    cr.salary_range,
     cr.seniority_level,
-    cr.summary AS role_summary,
     cr.updated_at AS role_updated_at,
-    cw.company_name,
-    cw.company_description,
-    cw.test_score AS company_test_score,
-    cd.name AS company_db_name,
-    cd.description AS company_db_description,
-    cd.short_description AS company_db_short_description,
-    cd.location AS company_db_location,
-    cd.founded_year AS company_db_founded_year,
-    cd.employee_count_range AS company_db_employee_count_range
+    cw.test_score AS company_test_score
   FROM public.company_roles cr
   JOIN public.company_workspace cw
     ON cw.company_workspace_id = cr.company_workspace_id
@@ -2500,29 +2522,10 @@ candidates AS (
     tc.role_id,
     tc.company_workspace_id,
     tc.role_name,
-    tc.description,
-    tc.external_jd_url,
-    tc.location_text,
-    tc.work_mode,
-    tc.type,
     tc.posted_at,
-    tc.salary_min,
-    tc.salary_max,
-    tc.salary_currency,
-    tc.salary_period,
-    tc.salary_range,
     tc.seniority_level,
-    tc.role_summary,
     tc.role_updated_at,
-    tc.company_name,
-    tc.company_description,
     tc.company_test_score,
-    tc.company_db_name,
-    tc.company_db_description,
-    tc.company_db_short_description,
-    tc.company_db_location,
-    tc.company_db_founded_year,
-    tc.company_db_employee_count_range,
     ${searchRankSql} AS search_rank
   FROM title_candidates tc
   JOIN fts
@@ -2542,39 +2545,45 @@ ranked_candidates AS (
   FROM candidates
 )
 SELECT
-  role_id,
-  company_workspace_id,
-  role_name,
-  description,
-  external_jd_url,
-  location_text,
-  work_mode,
-  type,
-  posted_at,
-  salary_min,
-  salary_max,
-  salary_currency,
-  salary_period,
-  salary_range,
-  seniority_level,
-  role_summary,
-  company_name,
-  company_description,
-  company_test_score,
-  company_db_name,
-  company_db_description,
-  company_db_short_description,
-  company_db_location,
-  company_db_founded_year,
-  company_db_employee_count_range,
-  search_rank
-FROM ranked_candidates
-WHERE company_workspace_role_rank <= ${SEARCH_COMPANY_WORKSPACE_ROLE_CAP}
+  ranked.role_id,
+  ranked.company_workspace_id,
+  cr.name AS role_name,
+  cr.description,
+  cr.external_jd_url,
+  cr.location_text,
+  cr.work_mode,
+  cr.type,
+  ranked.posted_at,
+  cr.salary_min,
+  cr.salary_max,
+  cr.salary_currency,
+  cr.salary_period,
+  cr.salary_range,
+  ranked.seniority_level,
+  cr.summary AS role_summary,
+  cw.company_name,
+  cw.company_description,
+  ranked.company_test_score,
+  cd.name AS company_db_name,
+  cd.description AS company_db_description,
+  cd.short_description AS company_db_short_description,
+  cd.location AS company_db_location,
+  cd.founded_year AS company_db_founded_year,
+  cd.employee_count_range AS company_db_employee_count_range,
+  ranked.search_rank
+FROM ranked_candidates ranked
+JOIN public.company_roles cr
+  ON cr.role_id = ranked.role_id::uuid
+JOIN public.company_workspace cw
+  ON cw.company_workspace_id = cr.company_workspace_id
+LEFT JOIN public.company_db cd
+  ON cd.id = cw.company_db_id
+WHERE ranked.company_workspace_role_rank <= ${SEARCH_COMPANY_WORKSPACE_ROLE_CAP}
 ORDER BY
-  search_rank DESC,
-  company_test_score DESC NULLS LAST,
-  posted_at DESC NULLS LAST,
-  role_updated_at DESC NULLS LAST
+  ranked.search_rank DESC,
+  ranked.company_test_score DESC NULLS LAST,
+  ranked.posted_at DESC NULLS LAST,
+  ranked.role_updated_at DESC NULLS LAST
 `.trim();
 }
 
@@ -2754,11 +2763,13 @@ async function executeRoleSql(args: {
   }>);
 
   if (error) {
-    debugLog("role sql error", {
+    await persistRoleSqlFailure({
+      admin: args.admin,
       durationMs: Date.now() - startedAt,
-      message: error.message,
+      errorMessage: error.message,
       searchMode: args.searchMode,
       sql,
+      userId: args.userId,
     });
     throw new Error(
       `[${args.searchMode} role sql] ${

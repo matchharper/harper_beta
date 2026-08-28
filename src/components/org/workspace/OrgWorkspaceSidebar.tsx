@@ -795,7 +795,7 @@ export function OrgWorkspaceSidebar({
                   ))}
                 </nav>
 
-                {!compact && permissions.canManageCandidates ? (
+                {!compact ? (
                   <RecentRolesSection
                     activePage={activePage}
                     activeRoleId={activeRoleId}
@@ -1049,7 +1049,7 @@ export function OrgWorkspaceSidebar({
                   })}
                 </nav>
 
-                {permissions.canManageCandidates ? (
+                {!compact ? (
                   <RecentRolesSection
                     activePage={activePage}
                     activeRoleId={activeRoleId}

@@ -57,6 +57,7 @@ import {
   HARPER_ROLE_QUICK_ACTION_BLOCK_ID,
   HARPER_ROLE_QUICK_ACTION_PREFIX,
 } from "@/lib/org/roleQuickActions";
+import { dispatchSlackReplyJob } from "@/lib/org/slackQueueDispatch";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { OrgHttpError, setOrgCandidateStage } from "@/lib/org/server";
 
@@ -726,6 +727,23 @@ export async function POST(req: NextRequest) {
     if (error) throw error;
     const result =
       data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+    const jobId = clean(result.job_id);
+    if (!jobId) throw new Error("Slack role quick action did not create a reply job");
+    // Slack expects this interaction endpoint to ACK within three seconds.
+    // The job and its durable outbox state are already committed, so publish
+    // just after the ACK rather than making Queue latency part of that SLA.
+    after(async () => {
+      await dispatchSlackReplyJob({
+        admin,
+        jobId,
+        source: "interactivity",
+      }).catch((dispatchError) => {
+        // The job-row outbox is now marked retry and the Cron reconciler will
+        // republish it. Do not turn a committed Slack button action into a
+        // client-visible retry solely because Queue publish is transiently down.
+        console.error("[harper-slack/interactivity:queue-dispatch]", dispatchError);
+      });
+    });
     const originalText = clean(payload.message?.text);
     const blocks = buildSelectedHarperSlackChoiceBlocks({
       actionBlockPrefixes: [HARPER_ROLE_QUICK_ACTION_BLOCK_ID],
@@ -1033,6 +1051,22 @@ export async function POST(req: NextRequest) {
   if (clean(result.status) !== "queued") {
     return NextResponse.json({ ok: true, status: clean(result.status) });
   }
+
+  const jobId = clean(result.job_id);
+  if (!jobId) throw new Error("Slack button choice did not create a reply job");
+  // Slack expects this interaction endpoint to ACK within three seconds.
+  // The committed job row is the durable source of truth if this publish
+  // fails, so keep Queue latency out of the interactive ACK path.
+  after(async () => {
+    await dispatchSlackReplyJob({
+      admin,
+      jobId,
+      source: "interactivity",
+    }).catch((dispatchError) => {
+      // The committed job is durable and will be recovered by the dispatch Cron.
+      console.error("[harper-slack/interactivity:queue-dispatch]", dispatchError);
+    });
+  });
 
   const workspaceId = clean(result.workspace_id);
   const originalText = clean(payload.message?.text) || parsed.text;

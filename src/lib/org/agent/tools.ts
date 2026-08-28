@@ -8,6 +8,7 @@ import {
   OPEN_URL_TOOL_DEFINITION,
   WEB_SEARCH_TOOL_DEFINITION,
 } from "@/lib/agentTools/web";
+import { COMPANY_MEETING_SCHEDULING_ENABLED } from "@/lib/companyMeetingScheduling";
 import { COMPANY_SIDE_LLM_DATA_KEYS } from "@/lib/org/agent/companyDataCatalog";
 function nullableText(description: string, maxLength: number) {
   return {
@@ -242,7 +243,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "calibrate_role_hiring_brief",
       description:
-        "Run a dedicated company-talent calibration agent for one existing Role when the user semantically presents one or more real people as examples of the level the company wants to hire or work alongside. The evidence can appear in any source or combination of sources: conversation text, a resolved internal candidate mention, LinkedIn, GitHub, a personal/portfolio/company bio page, resume/CV, article, paper, project page, or another professional source. Source type, URL presence, a filename, a person's name, and keywords never determine intent. A brief follow-up such as '이런 사람?' counts when Harper's preceding context asked for a concrete ideal reference. Do not call for identity/profile summaries, ordinary candidate evaluation, a JD, or unrelated material. This terminal tool must be the only tool call in its assistant message. It receives the current company-side context, autonomously reads the relevant supplied sources with its own batch read tools, and uses gpt-5.6-terra at max reasoning to write the complete Hiring Brief and final user reply. Do not pre-open sources or combine it with another writer.",
+        "Calibrate one existing Role's company-level talent bar from real people the user presents as examples. Evidence may come from conversation text, internal candidate mentions, professional URLs, or attachments. Reference people represent caliber rather than Role fit unless the user explicitly connects them to both. Use this tool for calibration intent, including a contextual reply such as '이런 사람?', and not for identity questions, profile summaries, or ordinary candidate assessments. It returns the finalized Hiring Brief and user reply, so call it alone.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -818,14 +819,16 @@ The executor re-reads the candidate and applies compare-and-set protection. If a
     function: {
       name: "prepare_candidate_connection",
       description:
-        "Read and stage authoritative context for a possible accept or decline decision. Decline supports a candidate awaiting connection or already in a company-active process, including immediately after acceptance. Accept also supports a previously company-stopped candidate whose earlier Talent acceptance is still authoritative. This never changes candidate state or sends email. Use connectionMethod=schedule_interview as soon as the company asks Harper to arrange a meeting. The server prepares the concise default proposal and meeting confirmation; present its facts naturally without asking title, duration, organizer, attendees, provider, or email copy one by one. If it returns meeting_setup_required, show the schedule link and blocker without asking for approval; no decision context is staged until the blocker is fixed. Always call it with connectionMethod=direct_contact in the turn where the company first asks to use direct contact. A schedule revision calls this tool again with the complete intended overrides. After the tool returns, judge the user's intent from the meaning of the full conversation and write any confirmation or clarification yourself in Harper's natural voice, using the exact server facts.",
+        "Read and stage authoritative context for a possible accept or decline decision. Decline supports a candidate awaiting connection or already in a company-active process, including immediately after acceptance. Accept also supports a previously company-stopped candidate whose earlier Talent acceptance is still authoritative. This never changes candidate state or sends email. Always call it with connectionMethod=direct_contact in the turn where the company first asks to use direct contact. After the tool returns, judge the user's intent from the meaning of the full conversation and write any confirmation or clarification yourself in Harper's natural voice, using the exact server facts.",
       parameters: {
         additionalProperties: false,
         properties: {
           connectionMethod: {
             description:
-              "For accept only. Use schedule_interview when the company asks Harper to arrange a meeting. It automatically defaults to the requester as organizer and first attendee, a 60-minute duration, a '[company] <> [candidate] Intro' title, a 14-day offer window, and Google Meet. Do not ask for those fields one by one. Omit or use intro_email for the default CC introduction. Use direct_contact only when the company explicitly asked to contact the candidate itself.",
-            enum: ["intro_email", "direct_contact", "schedule_interview"],
+              "For accept only. Omit or use intro_email for the default CC introduction. Use direct_contact only when the company explicitly asked to contact the candidate itself.",
+            enum: COMPANY_MEETING_SCHEDULING_ENABLED
+              ? ["intro_email", "direct_contact", "schedule_interview"]
+              : ["intro_email", "direct_contact"],
             type: "string",
           },
           decision: {
@@ -841,35 +844,39 @@ The executor re-reads the candidate and applies compare-and-set protection. If a
             maxItems: 10,
             type: "array",
           },
-          meetingAdditionalMessage: nullableText(
-            "For schedule_interview only. Optional exact preference or context genuinely supplied by the company. Omit rather than inventing one.",
-            2_000
-          ),
-          meetingAdditionalMessageVisibility: {
-            description:
-              "For schedule_interview only. Where an explicitly supplied additional message may be used. Defaults to both. candidate and both may later appear in the candidate's locale; internal is never shown externally.",
-            enum: ["candidate", "internal", "both"],
-            type: "string",
-          },
-          meetingAttendeeEmails: {
-            description:
-              "For schedule_interview only. Additional Workspace member emails explicitly requested by the company. The requester remains the default organizer and attendee and is added automatically. Omit when no change was requested.",
-            items: { type: "string" },
-            maxItems: 10,
-            type: "array",
-          },
-          meetingDurationMinutes: {
-            description:
-              "For schedule_interview only. Explicit company override in 15-minute increments from 15 to 240. Omit to use 60 minutes; never ask for this field merely because it was omitted.",
-            maximum: 240,
-            minimum: 15,
-            multipleOf: 15,
-            type: "integer",
-          },
-          meetingTitle: nullableText(
-            "For schedule_interview only. Explicit company override. Omit to use '[company] <> [candidate] Intro'; never ask for a title merely because it was omitted.",
-            200
-          ),
+          ...(COMPANY_MEETING_SCHEDULING_ENABLED
+            ? {
+                meetingAdditionalMessage: nullableText(
+                  "For schedule_interview only. Optional exact preference or context genuinely supplied by the company. Omit rather than inventing one.",
+                  2_000
+                ),
+                meetingAdditionalMessageVisibility: {
+                  description:
+                    "For schedule_interview only. Where an explicitly supplied additional message may be used. Defaults to both. candidate and both may later appear in the candidate's locale; internal is never shown externally.",
+                  enum: ["candidate", "internal", "both"],
+                  type: "string",
+                },
+                meetingAttendeeEmails: {
+                  description:
+                    "For schedule_interview only. Additional Workspace member emails explicitly requested by the company. The requester remains the default organizer and attendee and is added automatically. Omit when no change was requested.",
+                  items: { type: "string" },
+                  maxItems: 10,
+                  type: "array",
+                },
+                meetingDurationMinutes: {
+                  description:
+                    "For schedule_interview only. Explicit company override in 15-minute increments from 15 to 240. Omit to use 60 minutes; never ask for this field merely because it was omitted.",
+                  maximum: 240,
+                  minimum: 15,
+                  multipleOf: 15,
+                  type: "integer",
+                },
+                meetingTitle: nullableText(
+                  "For schedule_interview only. Explicit company override. Omit to use '[company] <> [candidate] Intro'; never ask for a title merely because it was omitted.",
+                  200
+                ),
+              }
+            : {}),
           reason: nullableText(
             "Optional accept or decline reason genuinely provided by the user. Preserve its meaning accurately and never invent one.",
             2_000
@@ -893,14 +900,16 @@ The executor re-reads the candidate and applies compare-and-set protection. If a
     function: {
       name: "decide_candidate_connection",
       description:
-        "Carry out an authorized accept or decline decision. Decline supports a candidate awaiting connection or already in a company-active process, and accept may reactivate a previously company-stopped candidate. This is terminal and must be the only tool call. Call it only when the immediately previous Harper message asked for approval of the exact candidate, delivery behavior, and recipients or automatic meeting proposal and the current message authorizes all of it; the server verifies that adjacency and otherwise returns confirmation_required without changing state. Do not infer authorization from isolated words or a generic acknowledgement. Use schedule_interview only after a decision_context_ready proposal was presented, never after meeting_setup_required. A simple approval omits all meeting override fields and reuses the stored revision. If the user changes a detail, use prepare_candidate_connection again instead. The current schedule_interview action marks the candidate connected and stores a meeting draft, but does not contact the candidate, create the public scheduling link, send locale email, or create a Calendar event or Google Meet link. For accept, omitted connectionMethod defaults to intro_email, which sends a neutral warm introduction. Use direct_contact only after an explicit request. Never proactively offer direct_contact. Decline moves the candidate to process stopped.",
+        "Carry out an authorized accept or decline decision. Decline supports a candidate awaiting connection or already in a company-active process, and accept may reactivate a previously company-stopped candidate. This is terminal and must be the only tool call. Call it only when the immediately previous Harper message asked for approval of the exact candidate, delivery behavior, and recipients and the current message authorizes all of it; the server verifies that adjacency and otherwise returns confirmation_required without changing state. Do not infer authorization from isolated words or a generic acknowledgement. For accept, omitted connectionMethod defaults to intro_email, which sends a neutral warm introduction. Use direct_contact only after an explicit request. Never proactively offer direct_contact. Decline moves the candidate to process stopped.",
       parameters: {
         additionalProperties: false,
         properties: {
           connectionMethod: {
             description:
-              "For accept, use schedule_interview only after the immediately previous Harper message presented the automatic meeting proposal and the company approved it. Omit or use intro_email for the default warm introduction. Use direct_contact only after an explicit company request.",
-            enum: ["intro_email", "direct_contact", "schedule_interview"],
+              "For accept, omit or use intro_email for the default warm introduction. Use direct_contact only after an explicit company request.",
+            enum: COMPANY_MEETING_SCHEDULING_ENABLED
+              ? ["intro_email", "direct_contact", "schedule_interview"]
+              : ["intro_email", "direct_contact"],
             type: "string",
           },
           decision: {
@@ -916,35 +925,39 @@ The executor re-reads the candidate and applies compare-and-set protection. If a
             maxItems: 10,
             type: "array",
           },
-          meetingAdditionalMessage: nullableText(
-            "For schedule_interview only. Repeat only when the approved proposal explicitly contained this value; otherwise omit and the server uses the immediately confirmed proposal.",
-            2_000
-          ),
-          meetingAdditionalMessageVisibility: {
-            description:
-              "For schedule_interview only. Repeat only when needed to identify the exact approved revision.",
-            enum: ["candidate", "internal", "both"],
-            type: "string",
-          },
-          meetingAttendeeEmails: {
-            description:
-              "For schedule_interview only. Repeat only when needed to identify the exact approved revision. Omit on a simple approval.",
-            items: { type: "string" },
-            maxItems: 10,
-            type: "array",
-          },
-          meetingDurationMinutes: {
-            description:
-              "For schedule_interview only. Repeat only when needed to identify the exact approved revision. Omit on a simple approval.",
-            maximum: 240,
-            minimum: 15,
-            multipleOf: 15,
-            type: "integer",
-          },
-          meetingTitle: nullableText(
-            "For schedule_interview only. Repeat only when needed to identify the exact approved revision. Omit on a simple approval.",
-            200
-          ),
+          ...(COMPANY_MEETING_SCHEDULING_ENABLED
+            ? {
+                meetingAdditionalMessage: nullableText(
+                  "For schedule_interview only. Repeat only when the approved proposal explicitly contained this value; otherwise omit and the server uses the immediately confirmed proposal.",
+                  2_000
+                ),
+                meetingAdditionalMessageVisibility: {
+                  description:
+                    "For schedule_interview only. Repeat only when needed to identify the exact approved revision.",
+                  enum: ["candidate", "internal", "both"],
+                  type: "string",
+                },
+                meetingAttendeeEmails: {
+                  description:
+                    "For schedule_interview only. Repeat only when needed to identify the exact approved revision. Omit on a simple approval.",
+                  items: { type: "string" },
+                  maxItems: 10,
+                  type: "array",
+                },
+                meetingDurationMinutes: {
+                  description:
+                    "For schedule_interview only. Repeat only when needed to identify the exact approved revision. Omit on a simple approval.",
+                  maximum: 240,
+                  minimum: 15,
+                  multipleOf: 15,
+                  type: "integer",
+                },
+                meetingTitle: nullableText(
+                  "For schedule_interview only. Repeat only when needed to identify the exact approved revision. Omit on a simple approval.",
+                  200
+                ),
+              }
+            : {}),
           reason: nullableText(
             "Optional reason genuinely provided by the user. Preserve its meaning accurately and never invent one.",
             2_000
@@ -966,11 +979,14 @@ The executor re-reads the candidate and applies compare-and-set protection. If a
 ] as const;
 
 export function getEnabledOrgAgentTools(surface: "chat" | "slack" = "chat") {
+  const tools = ORG_AGENT_TOOLS.filter(
+    (tool) =>
+      COMPANY_MEETING_SCHEDULING_ENABLED ||
+      tool.function.name !== "manage_interview_availability"
+  );
   return surface === "slack"
-    ? ORG_AGENT_TOOLS
-    : ORG_AGENT_TOOLS.filter(
-        (tool) => tool.function.name !== "start_role_creation"
-      );
+    ? tools
+    : tools.filter((tool) => tool.function.name !== "start_role_creation");
 }
 
 export function isOrgAgentToolName(value: unknown): value is OrgAgentToolName {

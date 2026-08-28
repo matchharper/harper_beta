@@ -451,6 +451,61 @@ export async function ensureOrgRoleCreationConversation(args: {
   return { admin, conversation: raced as OrgAgentConversationRow };
 }
 
+async function findOrgRoleConversationForRead(args: {
+  roleId: string;
+  user: User;
+  workspaceId: string;
+}): Promise<{
+  admin: SupabaseAdminClient;
+  conversation: OrgAgentConversationRow | null;
+  roleId: string;
+  workspaceId: string;
+}> {
+  const admin = getSupabaseAdmin();
+  const workspaceId = normalizeText(args.workspaceId);
+  const roleId = normalizeText(args.roleId);
+  if (!workspaceId || !roleId) {
+    throw new OrgHttpError(400, "workspaceId and roleId are required");
+  }
+
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "view",
+    user: args.user,
+    workspaceId,
+  });
+
+  const { data: role, error: roleError } = await (
+    admin.from("company_roles" as any) as any
+  )
+    .select("role_id")
+    .eq("company_workspace_id", workspaceId)
+    .eq("role_id", roleId)
+    .eq("source_type", "internal")
+    .not("is_expired", "is", true)
+    .maybeSingle();
+  if (roleError) throw roleError;
+  if (!role) throw new OrgHttpError(404, "Role not found");
+
+  const { data: conversation, error: conversationError } = await (
+    admin.from("company_conversations" as any) as any
+  )
+    .select(
+      "id, company_workspace_id, role_id, title, last_message_at, last_message_id, summary_cursor_message_id, metadata, created_at, updated_at"
+    )
+    .eq("company_workspace_id", workspaceId)
+    .eq("role_id", roleId)
+    .maybeSingle();
+  if (conversationError) throw conversationError;
+
+  return {
+    admin,
+    conversation: (conversation as OrgAgentConversationRow | null) ?? null,
+    roleId,
+    workspaceId,
+  };
+}
+
 export async function fetchOrgAgentMessages(args: {
   beforeMessageId?: number | null;
   limit?: number | null;
@@ -459,16 +514,30 @@ export async function fetchOrgAgentMessages(args: {
   user: User;
   workspaceId: string;
 }) {
-  const scoped =
-    args.mode === "role_creation" || args.mode === "role"
-      ? await ensureOrgRoleCreationConversation({
-          allowCompletedRole: true,
-          roleId: normalizeText(args.roleId),
-          user: args.user,
-          workspaceId: args.workspaceId,
-        })
-      : await ensureOrgAgentConversation(args);
+  const roleScoped = args.mode === "role_creation" || args.mode === "role";
+  const scoped = roleScoped
+    ? await findOrgRoleConversationForRead({
+        roleId: normalizeText(args.roleId),
+        user: args.user,
+        workspaceId: args.workspaceId,
+      })
+    : await ensureOrgAgentConversation(args);
   const { admin, conversation } = scoped;
+  if (!conversation) {
+    return {
+      conversation: {
+        conversationId: "",
+        roleId: roleScoped ? normalizeText(args.roleId) || null : null,
+        title: null,
+        workspaceId: normalizeText(args.workspaceId),
+      },
+      hasMore: false,
+      latestUserMessageAt: null,
+      messages: [],
+      nextCursor: null,
+      ok: true as const,
+    };
+  }
   const limit = Math.min(Math.max(args.limit ?? 30, 1), 80);
   let query = (admin.from("company_messages" as any) as any)
     .select(

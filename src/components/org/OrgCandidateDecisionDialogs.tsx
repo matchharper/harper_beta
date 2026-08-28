@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { useOrgMeetingAvailability } from "@/hooks/org/useOrgMeetingAvailability";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
+import { COMPANY_MEETING_SCHEDULING_ENABLED } from "@/lib/companyMeetingScheduling";
 import {
   buildDefaultInterviewTitle,
   DEFAULT_INTERVIEW_DURATION_MINUTES,
@@ -107,7 +108,7 @@ export function AcceptIntroDialog({
     return email === normalizedCandidateEmail ? "" : email;
   };
   const getDefaultConnectionMode = (): ConnectionMode =>
-    defaultScheduleInterview
+    COMPANY_MEETING_SCHEDULING_ENABLED && defaultScheduleInterview
       ? "schedule_interview"
       : allowContactDirectly && defaultContactDirectly
         ? "direct_contact"
@@ -116,7 +117,9 @@ export function AcceptIntroDialog({
     getDefaultConnectionMode
   );
   const usesDirectContact = connectionMode === "direct_contact";
-  const schedulesInterview = connectionMode === "schedule_interview";
+  const schedulesInterview =
+    COMPANY_MEETING_SCHEDULING_ENABLED &&
+    connectionMode === "schedule_interview";
   const availabilityQuery = useOrgMeetingAvailability({
     enabled: open && schedulesInterview,
     workspaceId: workspace.workspaceId,
@@ -243,6 +246,9 @@ export function AcceptIntroDialog({
   };
   const selectConnectionMode = (mode: ConnectionMode) => {
     if (mode === "direct_contact" && !allowContactDirectly) return;
+    if (mode === "schedule_interview" && !COMPANY_MEETING_SCHEDULING_ENABLED) {
+      return;
+    }
     setConnectionMode(mode);
     if (mode !== "intro_email") setEmailPreviewOpen(false);
     if (error) setError("");
@@ -324,19 +330,27 @@ export function AcceptIntroDialog({
         {allowContactDirectly ? (
           <div
             aria-label="연결 방식"
-            className="relative grid h-10 grid-cols-3 rounded-full bg-neutral-1000-a05 p-1"
+            className={cn(
+              "relative grid h-10 rounded-full bg-neutral-1000-a05 p-1",
+              COMPANY_MEETING_SCHEDULING_ENABLED ? "grid-cols-3" : "grid-cols-2"
+            )}
             role="tablist"
           >
             <motion.div
               animate={{
                 x:
-                  connectionMode === "intro_email"
-                    ? "0%"
+                  COMPANY_MEETING_SCHEDULING_ENABLED && schedulesInterview
+                    ? "200%"
                     : connectionMode === "direct_contact"
                       ? "100%"
-                      : "200%",
+                      : "0%",
               }}
-              className="absolute bottom-1 left-1 top-1 w-[calc(33.333%_-_2.667px)] rounded-full bg-black shadow-sm"
+              className={cn(
+                "absolute bottom-1 left-1 top-1 rounded-full bg-black shadow-sm",
+                COMPANY_MEETING_SCHEDULING_ENABLED
+                  ? "w-[calc(33.333%_-_2.667px)]"
+                  : "w-[calc(50%_-_4px)]"
+              )}
               initial={false}
               transition={{ type: "spring", stiffness: 440, damping: 38 }}
             />
@@ -368,21 +382,23 @@ export function AcceptIntroDialog({
             >
               Direct contact
             </button>
-            <button
-              aria-selected={schedulesInterview}
-              className={cn(
-                "relative z-10 rounded-full text-[13px] font-medium transition-colors",
-                schedulesInterview ? "text-white" : "text-neutral-muted"
-              )}
-              disabled={pending}
-              onClick={() => selectConnectionMode("schedule_interview")}
-              role="tab"
-              type="button"
-            >
-              일정 조율
-            </button>
+            {COMPANY_MEETING_SCHEDULING_ENABLED ? (
+              <button
+                aria-selected={schedulesInterview}
+                className={cn(
+                  "relative z-10 rounded-full text-[13px] font-medium transition-colors",
+                  schedulesInterview ? "text-white" : "text-neutral-muted"
+                )}
+                disabled={pending}
+                onClick={() => selectConnectionMode("schedule_interview")}
+                role="tab"
+                type="button"
+              >
+                일정 조율
+              </button>
+            ) : null}
           </div>
-        ) : (
+        ) : COMPANY_MEETING_SCHEDULING_ENABLED ? (
           <div
             aria-label="연결 방식"
             className="relative grid h-10 grid-cols-2 rounded-full bg-neutral-1000-a05 p-1"
@@ -421,7 +437,7 @@ export function AcceptIntroDialog({
               일정 조율
             </button>
           </div>
-        )}
+        ) : null}
 
         {usesDirectContact ? (
           <div className="rounded-md bg-bg-weak p-3" role="tabpanel">

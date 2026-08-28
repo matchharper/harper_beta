@@ -28,7 +28,7 @@ const MAX_OPEN_URLS_PER_CALL = 8;
 const MAX_OPEN_URLS_PER_TURN = 12;
 const MAX_INTERNAL_TALENTS_PER_CALL = 5;
 const MAX_REFERENCE_MARKDOWN_CHARS = 18_000;
-const MAX_ONE_REFERENCE_NET_GROWTH_CHARS = 500;
+const MAX_ONE_REFERENCE_NET_GROWTH_CHARS = 700;
 const MAX_ONE_REFERENCE_EMPTY_BRIEF_CHARS = 1_600;
 // Terra max reasoning tokens share this budget with tool planning and the
 // structured answer. Smaller budgets can be exhausted before JSON is emitted.
@@ -277,12 +277,11 @@ export async function generateRoleHiringBriefCalibration(args: {
           messages.push({ content: responseText, role: "assistant" });
           messages.push({
             content: [
-              "Your proposed complete Hiring Brief is too expansive for one reference person.",
-              `The existing brief is ${currentLength} characters; the replacement must be at most ${maximumLength} characters.`,
-              "Do not call tools again. Preserve unaffected existing wording and structure nearly verbatim.",
-              "Add only one compact reference bullet and, only if the user's stated judgment requires it, one narrowly scoped provisional sentence.",
-              "Do not introduce new equivalents, below-bar rules, bonuses, hard requirements, company values, or incidental profile achievements.",
-              "Return a corrected final JSON object.",
+              "Revise the final JSON so the policy change matches the evidence available from one reference person.",
+              `Preserve the existing ${currentLength}-character Hiring Brief and keep the complete replacement within ${maximumLength} characters.`,
+              "Keep Role eligibility unchanged. Add only the small set of distinct bonus rules supported by the reference, using concrete peer groups and direct future-candidate language.",
+              "Keep the reference identity, URL, source facts, and evidence-to-rule explanation in userReply rather than the Hiring Brief. Preserve the full explanation even while shortening the Hiring Brief.",
+              "Return the corrected final JSON object without additional tool calls.",
             ].join("\n"),
             role: "user",
           });

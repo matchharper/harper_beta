@@ -4,6 +4,7 @@ import {
   ChevronDown,
   Ellipsis,
   LoaderCircle,
+  Lock,
   Plus,
   SlackIcon,
   Trash2,
@@ -645,7 +646,7 @@ export function OrgSettingsPage() {
         </div>
       </OrgSection>
 
-      <OrgGoogleCalendarIntegration
+      {/* <OrgGoogleCalendarIntegration
         key={`${user.id}:${workspace.workspaceId}`}
         userId={user.id}
         workspaceId={workspace.workspaceId}
@@ -653,7 +654,7 @@ export function OrgSettingsPage() {
 
       <OrgSection>
         <OrgSectionHeader
-          description="후보자에게 인터뷰 일정을 요청할 때 Harper가 제안할 수 있는 내 기본 시간을 관리하세요."
+          description="후보자에게 인터뷰 일정을 요청할 때 Harper가 제안할 수 있는 내 일정을 관리하세요."
           title="인터뷰 일정"
         />
         <CardButton
@@ -724,7 +725,7 @@ export function OrgSettingsPage() {
         open={availabilityDialogOpen}
         userId={user.id}
         workspaceId={workspace.workspaceId}
-      />
+      /> */}
 
       <Dialog
         open={createChannelOpen}
@@ -743,9 +744,7 @@ export function OrgSettingsPage() {
                 Slack 채널 만들기
               </DialogTitle>
               <DialogDescription className="text-[13px] leading-5">
-                채널을 만들면 Harper가 바로 참여하고 이 Organization의 채널로
-                연결돼요. Slack 계정이 확인되면 지금 로그인한 팀원도 함께
-                초대해요.
+                채널을 만들면 Harper가 바로 참여하고 연결돼요.
               </DialogDescription>
             </DialogHeader>
 
@@ -787,19 +786,20 @@ export function OrgSettingsPage() {
               </p>
             </div>
 
-            <div className="flex items-center justify-between gap-4 rounded-md bg-bg-weak px-3 py-3">
+            <div className="flex items-center justify-between gap-4 rounded-md bg-neutral-100 px-3 py-3">
               <div>
                 <div
-                  className="text-[13px] font-medium text-neutral-primary"
+                  className="text-[13px] font-medium text-neutral-primary flex flex-row items-center gap-1"
                   id="slack-channel-private-label"
                 >
+                  <Lock className="size-3" />
                   비공개 채널
                 </div>
                 <p
                   className="mt-1 text-[12px] font-light leading-5 text-neutral-muted"
                   id="slack-channel-private-description"
                 >
-                  켜면 초대된 Slack 멤버와 Harper만 채널을 볼 수 있어요.
+                  제한된 Slack 멤버만 참여를 허용합니다.
                 </p>
               </div>
               <Switch
@@ -815,7 +815,7 @@ export function OrgSettingsPage() {
               <MuteButton
                 disabled={createSlackChannel.isPending}
                 onClick={() => handleCreateChannelOpenChange(false)}
-                size="lg"
+                size="md"
                 type="button"
               >
                 취소
@@ -824,7 +824,7 @@ export function OrgSettingsPage() {
                 disabled={
                   createSlackChannel.isPending || !creatingChannelName.trim()
                 }
-                size="lg"
+                size="md"
                 type="submit"
                 variant="primary"
               >

@@ -130,8 +130,15 @@ async function hasActiveCandidateWorkflowInSlackThread(args: {
 }
 
 type SlackTurnPhase = "all" | "respond" | "route";
+export type ProcessSlackTurnArgs = {
+  jobId: string;
+  phase?: SlackTurnPhase;
+  publicSiteUrl?: string;
+  verbose?: boolean;
+};
 const SLACK_JOB_CANCELLATION_POLL_MS = 500;
 const SLACK_JOB_SUPERSEDED_REASON = "superseded_by_new_thread_message";
+const SLACK_TURN_TIME_BUDGET_MS = 270_000;
 
 class SlackReplyJobSupersededError extends Error {
   constructor() {
@@ -551,32 +558,32 @@ async function recoverPersistedSlackReply(args: {
   return null;
 }
 
-export async function POST(req: NextRequest) {
+export async function processSlackTurn(args: ProcessSlackTurnArgs) {
   const requestStartedAt = performance.now();
   const toolCalls: OrgAgentToolDebugEvent[] = [];
   let llmUsage: LlmDebugSummary | null = null;
-  let verbose = false;
+  const verbose = args.verbose === true;
+  const publicSiteUrl = clean(args.publicSiteUrl) || "https://matchharper.com";
   let pendingSlackStatus: {
     channelId: string;
     threadTs: string;
     token: string;
   } | null = null;
+  let pendingSlackStatusStage: "checking" | "responding" | null = null;
   let slackTurnSignal: AbortSignal | null = null;
+  let slackTurnTimeBudgetExpired = false;
+  const slackTurnTimeBudget = AbortSignal.timeout(SLACK_TURN_TIME_BUDGET_MS);
+  slackTurnTimeBudget.addEventListener("abort", () => {
+    slackTurnTimeBudgetExpired = true;
+  });
   let stopSlackJobWatch: (() => void) | null = null;
   let activeAdmin: ReturnType<typeof getSupabaseAdmin> | null = null;
   let activeJobId = "";
   let slackStatusUpdateChain: Promise<void> = Promise.resolve();
 
   try {
-    requireInternalWorkerSecret(req);
-    const body = (await req.json().catch(() => ({}))) as {
-      jobId?: string;
-      phase?: string;
-      verbose?: boolean;
-    };
-    verbose = body.verbose === true;
-    const jobId = clean(body.jobId);
-    const phase = (clean(body.phase) || "all") as SlackTurnPhase;
+    const jobId = clean(args.jobId);
+    const phase = (clean(args.phase) || "all") as SlackTurnPhase;
     if (!jobId)
       return NextResponse.json({ error: "jobId is required" }, { status: 400 });
     if (phase !== "all" && phase !== "route" && phase !== "respond") {
@@ -651,7 +658,10 @@ export async function POST(req: NextRequest) {
     }
 
     const jobWatch = watchSlackReplyJob({ admin, jobId: job.id });
-    slackTurnSignal = jobWatch.signal;
+    slackTurnSignal = AbortSignal.any([
+      jobWatch.signal,
+      slackTurnTimeBudget,
+    ]);
     stopSlackJobWatch = jobWatch.stop;
 
     const { data: thread, error: threadError } = await (
@@ -753,27 +763,32 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const shouldPrimeDirectMentionStatus =
-      phase === "respond" &&
-      clean(job.trigger_kind) === "mention" &&
+    const isThreadReply = clean(job.trigger_kind) === "thread_reply";
+    const responseStatus = draftRoleCreation
+      ? "역할 정보를 정리 중입니다…"
+      : "답변 작성 중";
+    const shouldPrimeSlackStatus =
       !clean(job.response_text) &&
       !Number(job.response_message_id || 0) &&
       !clean(job.response_proposal_id) &&
       !clean(job.slack_response_ts);
-    if (shouldPrimeDirectMentionStatus) {
+    if (shouldPrimeSlackStatus) {
+      const isRoutingThreadReply =
+        isThreadReply && phase !== "respond" && !draftRoleCreation;
       try {
         await setHarperSlackThreadStatus({
           channelId,
-          status: draftRoleCreation
-            ? "역할 정보를 정리 중입니다…"
-            : "답변 작성 중",
+          status: isRoutingThreadReply ? "메시지 확인 중" : responseStatus,
           threadTs,
           token,
         });
         pendingSlackStatus = { channelId, threadTs, token };
+        pendingSlackStatusStage = isRoutingThreadReply
+          ? "checking"
+          : "responding";
       } catch (error) {
         // A loading-state failure must not block the company-side LLM reply.
-        console.warn("[org-agent/slack-turn:set-early-mention-status]", error);
+        console.warn("[org-agent/slack-turn:set-initial-status]", error);
       }
     }
 
@@ -794,6 +809,7 @@ export async function POST(req: NextRequest) {
           )
         );
         pendingSlackStatus = null;
+        pendingSlackStatusStage = null;
       }
       const denialReason = slackAccess.allowed
         ? "insufficient_role"
@@ -904,6 +920,19 @@ export async function POST(req: NextRequest) {
 
       const routingElapsedSeconds = elapsedSeconds(requestStartedAt);
       if (routingDecision !== "respond") {
+        if (pendingSlackStatus) {
+          await setHarperSlackThreadStatus({
+            ...pendingSlackStatus,
+            status: "",
+          }).catch((statusError) =>
+            console.warn(
+              "[org-agent/slack-turn:clear-routing-status]",
+              statusError
+            )
+          );
+          pendingSlackStatus = null;
+          pendingSlackStatusStage = null;
+        }
         await markSlackReplyJobIgnored({ admin, jobId: job.id });
         return NextResponse.json({
           ignored: true,
@@ -915,6 +944,18 @@ export async function POST(req: NextRequest) {
           routingMode,
           ...verboseLlmUsagePayload(verbose, llmUsage),
         });
+      }
+      if (pendingSlackStatusStage === "checking" && pendingSlackStatus) {
+        try {
+          await setHarperSlackThreadStatus({
+            ...pendingSlackStatus,
+            status: responseStatus,
+          });
+          pendingSlackStatusStage = "responding";
+        } catch (error) {
+          // Retried just before the reply is generated below.
+          console.warn("[org-agent/slack-turn:set-responding-status]", error);
+        }
       }
       if (phase === "route") {
         return NextResponse.json({
@@ -937,17 +978,19 @@ export async function POST(req: NextRequest) {
         responseProposalId = recovered.responseProposalId;
         userMessageId = recovered.userMessageId;
       } else {
-        if (!pendingSlackStatus) {
+        if (
+          !pendingSlackStatus ||
+          pendingSlackStatusStage !== "responding"
+        ) {
           try {
             await setHarperSlackThreadStatus({
               channelId,
-              status: isRoleCreationBootstrap
-                ? "역할 정보를 정리 중입니다…"
-                : "답변 작성 중",
+              status: responseStatus,
               threadTs,
               token,
             });
             pendingSlackStatus = { channelId, threadTs, token };
+            pendingSlackStatusStage = "responding";
           } catch (error) {
             // A loading-state failure must not block the company-side LLM reply.
             console.warn("[org-agent/slack-turn:set-status]", error);
@@ -1314,7 +1357,7 @@ export async function POST(req: NextRequest) {
                 slackExecutionContext: {
                   channelDbId: channel.id,
                   channelId,
-                  publicSiteUrl: getPublicSiteUrlFromRequest(req),
+                  publicSiteUrl,
                   slackUserId,
                   sourceKey: job.id,
                   token,
@@ -1372,7 +1415,7 @@ export async function POST(req: NextRequest) {
       const parsedSlackResponse = parseHarperSlackChoiceMarkers(responseText);
       const companyInfoUrl = buildSlackWorkspacePageUrl({
         page: "team",
-        publicSiteUrl: getPublicSiteUrlFromRequest(req),
+        publicSiteUrl,
         workspaceId: channel.company_workspace_id,
       });
       let slackResponseText: string;
@@ -1400,7 +1443,7 @@ export async function POST(req: NextRequest) {
         });
         slackResponseText = renderSlackOrgLinks({
           message: parsedSlackResponse.text,
-          publicSiteUrl: getPublicSiteUrlFromRequest(req),
+          publicSiteUrl,
           ...targets,
           workspaceId: channel.company_workspace_id,
         });
@@ -1410,7 +1453,7 @@ export async function POST(req: NextRequest) {
         console.warn("[org-agent/slack-turn:org-links]", error);
         slackResponseText = renderSlackOrgLinks({
           message: parsedSlackResponse.text,
-          publicSiteUrl: getPublicSiteUrlFromRequest(req),
+          publicSiteUrl,
           roleTargets: [],
           talentTargets: [],
           workspaceId: channel.company_workspace_id,
@@ -1460,6 +1503,7 @@ export async function POST(req: NextRequest) {
       slackResponseTs = clean(posted.ts);
       // Slack automatically clears the thread status after the app replies.
       pendingSlackStatus = null;
+      pendingSlackStatusStage = null;
     }
     if (!slackResponseTs) throw new Error("Slack response has no timestamp");
     const now = new Date().toISOString();
@@ -1562,7 +1606,7 @@ export async function POST(req: NextRequest) {
     }
     if (
       error instanceof SlackReplyJobSupersededError ||
-      slackTurnSignal?.aborted
+      (slackTurnSignal?.aborted && !slackTurnTimeBudgetExpired)
     ) {
       if (activeAdmin && activeJobId) {
         await discardSupersededSlackReply({
@@ -1581,5 +1625,24 @@ export async function POST(req: NextRequest) {
     return toInternalApiErrorResponse(error, "Failed to run Slack agent turn");
   } finally {
     stopSlackJobWatch?.();
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    requireInternalWorkerSecret(req);
+    const body = (await req.json().catch(() => ({}))) as {
+      jobId?: string;
+      phase?: SlackTurnPhase;
+      verbose?: boolean;
+    };
+    return processSlackTurn({
+      jobId: clean(body.jobId),
+      phase: body.phase,
+      publicSiteUrl: getPublicSiteUrlFromRequest(req),
+      verbose: body.verbose === true,
+    });
+  } catch (error) {
+    return toInternalApiErrorResponse(error, "Failed to run Slack agent turn");
   }
 }

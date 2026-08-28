@@ -26,6 +26,7 @@ function text(value: unknown) {
 
 async function fetchRoleNotificationChannels(args: {
   admin: AdminClient;
+  permission: "manage_candidates" | "view";
   roleId: string;
   user: User;
   workspaceId: string;
@@ -58,6 +59,7 @@ export async function fetchOrgRoleNotificationSettings(args: {
 
   const channels = await fetchRoleNotificationChannels({
     admin,
+    permission: "view",
     roleId,
     user: args.user,
     workspaceId,
@@ -207,6 +209,7 @@ export async function updateOrgRoleNotificationSettings(
 
   const channels = await fetchRoleNotificationChannels({
     admin,
+    permission: "manage_candidates",
     roleId,
     user: args.user,
     workspaceId,

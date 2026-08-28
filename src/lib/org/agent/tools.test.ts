@@ -36,25 +36,9 @@ test("candidate decisions expose LLM-judged context and terminal execution tools
   assert.deepEqual(prepareParameters.properties.connectionMethod.enum, [
     "intro_email",
     "direct_contact",
-    "schedule_interview",
   ]);
-  assert.equal(
-    prepareParameters.properties.meetingDurationMinutes.multipleOf,
-    15
-  );
-  assert.equal(prepareParameters.properties.meetingDurationMinutes.minimum, 15);
-  assert.match(
-    prepareParameters.properties.connectionMethod.description,
-    /60-minute duration/
-  );
-  assert.match(
-    prepareParameters.properties.connectionMethod.description,
-    /\[company\] <> \[candidate\] Intro/
-  );
-  assert.match(
-    prepareParameters.properties.meetingAttendeeEmails.description,
-    /requester remains the default organizer/
-  );
+  assert.equal("meetingDurationMinutes" in prepareParameters.properties, false);
+  assert.equal("meetingAttendeeEmails" in prepareParameters.properties, false);
   assert.equal("recommendationId" in prepareParameters.properties, false);
   assert.equal("recommendationId" in decideParameters.properties, false);
   assert.equal("confirmed" in decideParameters.properties, false);
@@ -71,10 +55,6 @@ test("candidate decisions expose LLM-judged context and terminal execution tools
     /Always call it with connectionMethod=direct_contact/
   );
   assert.match(
-    prepare?.function.description ?? "",
-    /meeting_setup_required.*without asking for approval/
-  );
-  assert.match(
     decide?.function.description ?? "",
     /current message authorizes all of it/
   );
@@ -87,8 +67,11 @@ test("candidate decisions expose LLM-judged context and terminal execution tools
     decide?.function.description ?? "",
     /omitted connectionMethod defaults to intro_email/
   );
-  assert.match(decide?.function.description ?? "", /meeting draft/);
-  assert.match(decide?.function.description ?? "", /does not contact/);
+  assert.doesNotMatch(
+    prepare?.function.description ?? "",
+    /schedule_interview/
+  );
+  assert.doesNotMatch(decide?.function.description ?? "", /schedule_interview/);
   assert.match(
     decide?.function.description ?? "",
     /Never proactively offer direct_contact/
@@ -103,30 +86,24 @@ test("candidate decisions expose LLM-judged context and terminal execution tools
   );
 });
 
-test("company agent can save the current user's interview availability", () => {
+test("company agent keeps interview scheduling code unavailable during rollout", () => {
   assert.equal(isOrgAgentToolName("manage_interview_availability"), true);
   assert.equal(
     ORG_AGENT_TERMINAL_TOOL_NAMES.has("manage_interview_availability"),
     true
   );
-  const tool = ORG_AGENT_TOOLS.find(
-    (item) => item.function.name === "manage_interview_availability"
+  assert.equal(
+    getEnabledOrgAgentTools().some(
+      (tool) => tool.function.name === "manage_interview_availability"
+    ),
+    false
   );
-  const parameters = tool?.function.parameters as any;
-
-  assert.ok(tool);
-  assert.equal(parameters.additionalProperties, false);
-  assert.equal(parameters.properties.weeklyUpdates.maxItems, 7);
-  assert.deepEqual(
-    parameters.properties.weeklyUpdates.items.properties.days.items.enum,
-    ["1", "2", "3", "4", "5", "6", "7"]
+  assert.equal(
+    getEnabledOrgAgentTools("slack").some(
+      (tool) => tool.function.name === "manage_interview_availability"
+    ),
+    false
   );
-  assert.match(tool?.function.description ?? "", /current company user's own/);
-  assert.match(
-    tool?.function.description ?? "",
-    /never changes another member/
-  );
-  assert.match(tool?.function.description ?? "", /must be the only tool call/);
 });
 
 test("role creation is exposed only on Slack and transfers bounded source context", () => {
@@ -202,12 +179,12 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
   assert.deepEqual(Object.keys(calibrationParameters.properties), ["roleId"]);
   assert.match(
     calibration?.function.description ?? "",
-    /keywords never determine intent/
+    /company-level talent bar/
   );
-  assert.match(calibration?.function.description ?? "", /gpt-5\.6-terra/);
-  assert.match(calibration?.function.description ?? "", /max reasoning/);
-  assert.match(calibration?.function.description ?? "", /GitHub/);
-  assert.match(calibration?.function.description ?? "", /batch read tools/);
+  assert.match(calibration?.function.description ?? "", /represent caliber rather than Role fit/);
+  assert.match(calibration?.function.description ?? "", /returns the finalized Hiring Brief and user reply/);
+  assert.doesNotMatch(calibration?.function.description ?? "", /gpt-5\.6-terra/);
+  assert.doesNotMatch(calibration?.function.description ?? "", /pre-open/);
 
   const updateRoleCriteria = ORG_AGENT_TOOLS.find(
     (item) => item.function.name === "update_role_criteria"
@@ -540,8 +517,8 @@ test("candidate connection execution declares the server confirmation gate", () 
     decision?.function.description ?? "",
     /server verifies that adjacency.*confirmation_required/
   );
-  assert.match(
+  assert.doesNotMatch(
     decision?.function.description ?? "",
-    /never after meeting_setup_required/
+    /schedule_interview/
   );
 });

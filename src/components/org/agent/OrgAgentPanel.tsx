@@ -82,6 +82,7 @@ export function OrgAgentChatSurface({
   onCompanyInfoClick,
   onRoleCreated,
   purpose = "general",
+  readOnly = false,
   roleId,
   header = null,
 }: {
@@ -91,6 +92,7 @@ export function OrgAgentChatSurface({
   onCompanyInfoClick?: () => void;
   onRoleCreated?: (roleId: string) => void;
   purpose?: "general" | "role" | "role-creation";
+  readOnly?: boolean;
   roleId?: string | null;
   header?: ReactNode;
 }) {
@@ -143,6 +145,7 @@ export function OrgAgentChatSurface({
   const showRoleQuickActions = Boolean(
     purpose === "role" &&
     roleId &&
+    !readOnly &&
     !history.isLoading &&
     shouldShowOrgRoleQuickActions({
       isStreaming: chat.isStreaming,
@@ -375,41 +378,45 @@ export function OrgAgentChatSurface({
                         : undefined
                     }
                     authorName={authorName}
-                    choicePending={confirmRoleCreation.isPending}
+                    choicePending={readOnly || confirmRoleCreation.isPending}
                     currentUserId={user.id}
                     message={message}
                     onCompanyInfoClick={onCompanyInfoClick}
-                    onRoleCreationChoice={({
-                      actionId,
-                      decision,
-                      messageId,
-                    }) => {
-                      if (!roleId) return;
-                      confirmRoleCreation.mutate(
-                        {
-                          actionId,
-                          decision,
-                          messageId,
-                          roleId,
-                          workspaceId,
-                        },
-                        {
-                          onSuccess: (result) => {
-                            if (result.completed && result.assistantMessage) {
-                              history.appendMessagesToCache([
-                                result.assistantMessage,
-                              ]);
-                              setStickToBottom(true);
-                              setCompletionReveal({
-                                content: result.assistantMessage.content,
-                                messageId: result.assistantMessage.id,
-                                revealedSentenceCount: 1,
-                              });
-                            }
-                          },
-                        }
-                      );
-                    }}
+                    onRoleCreationChoice={
+                      readOnly
+                        ? undefined
+                        : ({ actionId, decision, messageId }) => {
+                            if (!roleId) return;
+                            confirmRoleCreation.mutate(
+                              {
+                                actionId,
+                                decision,
+                                messageId,
+                                roleId,
+                                workspaceId,
+                              },
+                              {
+                                onSuccess: (result) => {
+                                  if (
+                                    result.completed &&
+                                    result.assistantMessage
+                                  ) {
+                                    history.appendMessagesToCache([
+                                      result.assistantMessage,
+                                    ]);
+                                    setStickToBottom(true);
+                                    setCompletionReveal({
+                                      content: result.assistantMessage.content,
+                                      messageId: result.assistantMessage.id,
+                                      revealedSentenceCount: 1,
+                                    });
+                                  }
+                                },
+                              }
+                            );
+                          }
+                    }
+                    readOnly={readOnly}
                     roleId={roleId}
                     showUserAttribution={purpose === "role-creation"}
                     workspaceId={workspaceId}
@@ -432,6 +439,7 @@ export function OrgAgentChatSurface({
                 currentUserId={user.id}
                 message={chat.optimisticUserMessage}
                 onCompanyInfoClick={onCompanyInfoClick}
+                readOnly={readOnly}
                 roleId={roleId}
                 showUserAttribution={purpose === "role-creation"}
                 workspaceId={workspaceId}
@@ -509,7 +517,7 @@ export function OrgAgentChatSurface({
             allowAttachments
             autoFocus={autoFocus}
             compactWidth={initialRoleCreation}
-            disabled={!workspaceId}
+            disabled={readOnly || !workspaceId}
             isStreaming={chat.isStreaming}
             model={model}
             onModelChange={handleModelChange}

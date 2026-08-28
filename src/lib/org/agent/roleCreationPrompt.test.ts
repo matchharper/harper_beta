@@ -134,65 +134,27 @@ test("calibrates the company selection bar from people supplied through any prof
   );
   assert.match(prompt, /Phrase the invitation naturally from the conversation/);
   assert.match(prompt, /LinkedIn or GitHub profile/);
-  assert.match(prompt, /LinkedIn is one possible source, not a requirement|Source format is irrelevant/);
   assert.match(prompt, /the company's caliber bar is still uncalibrated/);
   assert.match(
     prompt,
     /prioritize this invitation over another generic question/
   );
   assert.match(prompt, /call calibrate_role_hiring_brief as the only tool/);
-  assert.match(prompt, /never from keywords, source type, URL presence/);
-  assert.match(prompt, /gpt-5\.6-terra at max reasoning/);
-  assert.match(prompt, /do not pre-open sources or pair it with update_role_draft/);
-  assert.match(prompt, /Keep two independent gates explicit/);
-  assert.match(prompt, /ROLE ELIGIBILITY \/ EXPERIENCE FIT/);
-  assert.match(prompt, /COMPANY TALENT QUALITY \/ CALIBER/);
-  assert.match(prompt, /Agent or domain experience/);
-  assert.match(prompt, /0-to-1 experience normally belong to role fit/);
-  assert.match(prompt, /Derive the company's caliber dimensions bottom-up/);
-  assert.match(
-    prompt,
-    /Separate the user's explicit judgments from observed profile facts/
-  );
-  assert.match(
-    prompt,
-    /Top-tier schools or programs, Top-tier companies, or highly selective core teams/
-  );
-  assert.match(prompt, /actual program, team, and role/);
-  assert.match(prompt, /exceptional independently demonstrated outcomes/);
-  assert.match(prompt, /not a menu from which the user must choose/);
-  assert.match(prompt, /Do not automatically erase a supported school/);
-  assert.match(prompt, /generic ownership, impact, leadership, or experience/);
-  assert.match(prompt, /preserve it explicitly in the provisional caliber bar/);
-  assert.match(prompt, /do not declare pedigree irrelevant/);
-  assert.match(prompt, /Treat one profile as a tentative anchor/);
-  assert.match(
-    prompt,
-    /keep incidental biography and unconfirmed correlations out of the hiring bar/
-  );
-  assert.match(prompt, /With multiple profiles/);
-  assert.match(prompt, /smallest stable set of company-specific caliber rules/);
-  assert.match(prompt, /remain visible as a provisional signal/);
-  assert.match(
-    prompt,
-    /Calibrate an interview-likelihood bar, not a similarity target/
-  );
-  assert.match(prompt, /still be below the company's caliber bar/);
-  assert.match(
-    prompt,
-    /genuinely different evidence could demonstrate equivalent caliber/
-  );
-  assert.match(prompt, /Candidate interest cannot compensate/);
-  assert.match(prompt, /replaces the complete request/);
-  assert.match(prompt, /clearly separate sections for role eligibility/);
-  assert.match(prompt, /every supported selectivity or achievement signal/);
-  assert.match(
-    prompt,
-    /primary private calibration of the company's selection level/
-  );
-  assert.match(prompt, /highest-value unresolved boundary/);
-  assert.match(prompt, /not about a preset menu of attributes/);
-  assert.match(prompt, /Use only job-related professional evidence/);
+  assert.match(prompt, /Recognize the intent from the conversation/);
+  assert.match(prompt, /evidence for the company's caliber, not as candidates/);
+  assert.match(prompt, /Role eligibility changes only when the user explicitly connects/);
+  assert.match(prompt, /turns reference evidence into direct candidate-evaluation rules/);
+  assert.match(prompt, /small set of non-exclusive bonuses/);
+  assert.match(prompt, /concrete peer groups rather than the person's exact biography/);
+  assert.match(prompt, /varied examples can establish stronger shared rules/);
+  assert.match(prompt, /User-stated reasons remain strongest/);
+  assert.match(prompt, /narrowest useful bonuses from the profile's strongest distinctive professional signals/);
+  assert.match(prompt, /explains that reasoning to the user/);
+  assert.match(prompt, /Ask at most one follow-up question/);
+  assert.match(prompt, /professional, job-related evidence/);
+  assert.doesNotMatch(prompt, /gpt-5\.6-terra at max reasoning/);
+  assert.doesNotMatch(prompt, /pre-open sources/);
+  assert.doesNotMatch(prompt, /another model/i);
 });
 
 test("includes the durable one-attempt source-research marker in role state", () => {

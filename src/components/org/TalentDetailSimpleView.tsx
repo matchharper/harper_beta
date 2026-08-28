@@ -68,6 +68,7 @@ import type { CareerTalentOpsProfileMemo } from "@/lib/ops/careerServer";
 import { extractEmailAddress } from "@/lib/email/parse";
 import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
 import { isInternalDomainEmail } from "@/lib/internalAccess";
+import { COMPANY_MEETING_SCHEDULING_ENABLED } from "@/lib/companyMeetingScheduling";
 import type { OrgInternalTalentSystemResponse } from "@/lib/org/internalTalentTypes";
 import {
   canStopOrgCandidateProcess,
@@ -1096,13 +1097,16 @@ export function TalentDetailSimpleView() {
   const open = detailOpen;
   const talentId = activeDetailTalentId || null;
   const [acceptDialogOpen, setAcceptDialogOpen] = useState(false);
-  const scheduleReturnOpen = Boolean(
-    detail &&
-    router.query.candidateAction === "schedule_interview" &&
-    router.query.recommendationId === detail.recommendation.recommendationId &&
-    router.query.detailRoleId === detail.role.roleId &&
-    router.query.talentId === detail.talent.userId
-  );
+  const scheduleReturnOpen =
+    COMPANY_MEETING_SCHEDULING_ENABLED &&
+    Boolean(
+      detail &&
+      router.query.candidateAction === "schedule_interview" &&
+      router.query.recommendationId ===
+        detail.recommendation.recommendationId &&
+      router.query.detailRoleId === detail.role.roleId &&
+      router.query.talentId === detail.talent.userId
+    );
   const closeAcceptDialog = () => {
     setAcceptDialogOpen(false);
     if (!scheduleReturnOpen) return;
