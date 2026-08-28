@@ -236,19 +236,24 @@ function escapeSlackMrkdwnText(value: string) {
 }
 
 export function buildSelectedHarperSlackChoiceBlocks(args: {
+  actionBlockPrefixes?: string[];
   choiceLabel: string;
   originalBlocks: unknown;
   originalText: string;
   slackUserId: string;
 }): HarperSlackBlock[] {
+  const actionBlockPrefixes = [
+    HARPER_SLACK_CHOICE_BLOCK_PREFIX,
+    ...(args.actionBlockPrefixes ?? []),
+  ];
   const originalBlocks = Array.isArray(args.originalBlocks)
     ? (args.originalBlocks.filter((block) => {
         if (!block || typeof block !== "object") return false;
         const record = block as Record<string, unknown>;
         return !(
           record.type === "actions" &&
-          String(record.block_id ?? "").startsWith(
-            HARPER_SLACK_CHOICE_BLOCK_PREFIX
+          actionBlockPrefixes.some((prefix) =>
+            String(record.block_id ?? "").startsWith(prefix)
           )
         );
       }) as HarperSlackBlock[])

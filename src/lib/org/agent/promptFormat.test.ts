@@ -544,14 +544,14 @@ test("pending candidate contact results tell the model what can be replaced", ()
 
 test("scheduled candidate contact keeps timing data without transport details", () => {
   const compact = serializeOrgAgentToolResult("contact_talent", {
-    scheduledAt: "2026-08-27T23:00:00.000Z",
+    scheduledAt: "2026-08-27T15:10:00.000Z",
     status: "queued",
     userMessage:
-      "지금은 시간이 늦어서, 김호진님께 내일 아침에 제가 대신 물어볼게요. 답이 오면 여기로 알려드릴게요.",
+      "김호진님께 제가 대신 조금 뒤에 물어볼게요. 답이 오면 여기로 알려드릴게요.",
   });
 
-  assert.match(compact, /scheduled_at=2026-08-27T23:00:00.000Z/);
-  assert.match(compact, /내일 아침에/);
+  assert.match(compact, /scheduled_at=2026-08-27T15:10:00.000Z/);
+  assert.match(compact, /조금 뒤에/);
   assert.doesNotMatch(compact, /이메일|Harper 채팅|worker/i);
 });
 
@@ -749,4 +749,23 @@ test("start_role_creation exposes the required continuation link and writing gui
   assert.match(compact, /example is illustrative/i);
   assert.doesNotMatch(compact, /private-role-id/);
   assert.doesNotMatch(compact, /harper\.example/);
+});
+
+test("role calibration returns only compact user-facing outcome fields", () => {
+  const compact = serializeOrgAgentToolResult("calibrate_role_hiring_brief", {
+    failedReferenceUrls: [],
+    followUpQuestion: "이 기준을 필수로 볼까요?",
+    hiringBrief: "private complete hiring brief must not be returned",
+    referenceCount: 2,
+    roleName: "Founding Engineer",
+    status: "updated",
+    summary: "회사 caliber 경계를 수정했습니다.",
+    userReply: "사용자에게 이미 작성된 답변",
+  });
+
+  assert.match(compact, /reference_count=2/);
+  assert.match(compact, /회사 caliber 경계를 수정했습니다/);
+  assert.match(compact, /이 기준을 필수로 볼까요/);
+  assert.doesNotMatch(compact, /private complete hiring brief/);
+  assert.doesNotMatch(compact, /사용자에게 이미 작성된 답변/);
 });

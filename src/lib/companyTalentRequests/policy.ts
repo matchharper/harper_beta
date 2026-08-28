@@ -9,8 +9,8 @@ function normalizeRelayContext(value: unknown) {
 }
 
 const SENSITIVE_QUESTION_PATTERNS = [
-  /나이|연령|생년|성별|남성|여성|국적|출신\s*국가|인종|민족|결혼|임신|출산|가족|자녀|종교|정치|장애|질병|건강|병력|성적\s*지향|군필/i,
-  /\bage\b|birth\s*(?:date|year)|gender|sex\b|nationality|citizenship|race|ethnicity|marital|pregnan|child|family|religion|politic|disabilit|medical|health|sexual\s+orientation|military\s+service/i,
+  /성별|남성|여성|인종|민족|결혼|임신|출산|가족|자녀|종교|정치|장애|질병|건강|병력|성적\s*지향|군필/i,
+  /gender|sex\b|race|ethnicity|marital|pregnan|child|family|religion|politic|disabilit|medical|health|sexual\s+orientation|military\s+service/i,
 ];
 export const COMPANY_TALENT_COMPENSATION_PATTERN =
   /연봉|급여|보상|희망\s*금액|salary|compensation|base\s*pay|total\s*comp|pay\s*(?:range|expectation)|₩|\$|만원|억원/i;

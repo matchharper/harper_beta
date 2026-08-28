@@ -143,7 +143,7 @@ export function naturalCandidateContactTiming(
   const minutesUntil = Math.round(
     (scheduled.getTime() - now.getTime()) / 60_000
   );
-  if (dayDifference === 0 && minutesUntil >= 0 && minutesUntil <= 90) {
+  if (minutesUntil >= 0 && minutesUntil <= 90) {
     return "조금 뒤에";
   }
 

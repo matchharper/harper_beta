@@ -176,6 +176,7 @@ test("role creation is exposed only on Slack and transfers bounded source contex
 
 test("company-side tools separate lifecycle changes from the batch writer", () => {
   const toolNames = ORG_AGENT_TOOLS.map((item) => item.function.name);
+  assert.equal(toolNames.includes("calibrate_role_hiring_brief"), true);
   assert.equal(toolNames.includes("get_more_data"), true);
   assert.equal(toolNames.includes("update_role_criteria"), true);
   assert.equal(toolNames.includes("update_data"), true);
@@ -186,6 +187,27 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
   assert.equal(isOrgAgentToolName("update_role_criteria"), true);
   assert.equal(isOrgAgentToolName("update_data"), true);
   assert.equal(isOrgAgentToolName("change_role_status"), true);
+  assert.equal(isOrgAgentToolName("calibrate_role_hiring_brief"), true);
+
+  const calibration = ORG_AGENT_TOOLS.find(
+    (item) => item.function.name === "calibrate_role_hiring_brief"
+  );
+  const calibrationParameters = calibration?.function.parameters as any;
+  assert.ok(calibration);
+  assert.equal(
+    ORG_AGENT_TERMINAL_TOOL_NAMES.has("calibrate_role_hiring_brief"),
+    true
+  );
+  assert.deepEqual(calibrationParameters.required, ["roleId"]);
+  assert.deepEqual(Object.keys(calibrationParameters.properties), ["roleId"]);
+  assert.match(
+    calibration?.function.description ?? "",
+    /keywords never determine intent/
+  );
+  assert.match(calibration?.function.description ?? "", /gpt-5\.6-terra/);
+  assert.match(calibration?.function.description ?? "", /max reasoning/);
+  assert.match(calibration?.function.description ?? "", /GitHub/);
+  assert.match(calibration?.function.description ?? "", /batch read tools/);
 
   const updateRoleCriteria = ORG_AGENT_TOOLS.find(
     (item) => item.function.name === "update_role_criteria"
@@ -473,12 +495,32 @@ test("candidate contact uses one draft-lifecycle tool", () => {
   );
   assert.match(
     contactTalent?.function.description ?? "",
+    /standard schedules exactly 20 minutes later at any time of day/
+  );
+  assert.match(
+    parameters.properties.deliveryMode.description,
+    /20 minutes after approval at any time of day/
+  );
+  assert.doesNotMatch(
+    contactTalent?.function.description ?? "",
+    /within 08:00–20:00 KST/
+  );
+  assert.match(
+    contactTalent?.function.description ?? "",
     /action=immediate.*already queued.*preserves the approved subject and body/
+  );
+  assert.match(
+    contactTalent?.function.description ?? "",
+    /already said the request would be sent later, today, or tomorrow, never call schedule again/
+  );
+  assert.match(
+    parameters.properties.contactId.description,
+    /schedule, immediate, and cancel/
   );
   assert.match(contactTalent?.function.description ?? "", /action=cancel/);
   assert.match(
     contactTalent?.function.description ?? "",
-    /pending_candidate_contact_drafts/
+    /pending draft context or candidate_contact_ref/
   );
   assert.equal(enabled.includes("change_talent_contact"), false);
   assert.equal(isOrgAgentToolName("change_talent_contact"), false);

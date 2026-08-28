@@ -122,7 +122,7 @@ function buildRecommendationTimelineItems(args: {
         delivery: null,
         id: `viewed:${recommendation.recommendationId}`,
         kind: "viewed",
-        text: "추천된 역할을 확인했습니다.",
+        text: "추천된 역할을 열람했습니다.",
         title: "추천 확인",
       });
     }

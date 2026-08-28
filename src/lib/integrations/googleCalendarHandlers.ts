@@ -102,11 +102,19 @@ async function readBody(req: NextRequest, allowed: string[]) {
 }
 
 function errorResponse(operation: Operation, error: unknown) {
-  console.error("[GoogleCalendarIntegration] failed", {
-    stage: operation,
-    ...getIntegrationErrorDiagnostics(error),
-    ...(error instanceof GoogleCalendarError ? { code: error.code } : {}),
-  });
+  // An unauthenticated status read can happen while the browser is completing
+  // an auth redirect. It is an expected client state, not a server failure.
+  const silentUnauthenticatedStatusRead =
+    operation === "read_status" &&
+    error instanceof GoogleCalendarError &&
+    error.status === 401;
+  if (!silentUnauthenticatedStatusRead) {
+    console.error("[GoogleCalendarIntegration] failed", {
+      stage: operation,
+      ...getIntegrationErrorDiagnostics(error),
+      ...(error instanceof GoogleCalendarError ? { code: error.code } : {}),
+    });
+  }
   if (error instanceof GoogleCalendarError) {
     return json({ error: error.message, code: error.code }, error.status);
   }

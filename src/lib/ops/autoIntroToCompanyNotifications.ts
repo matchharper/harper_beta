@@ -850,7 +850,17 @@ async function fetchCurrentRoleSummaries(
       })),
       workspaceId,
     } satisfies AutoIntroRoleSummary;
-  }).sort((left, right) => left.workspaceId.localeCompare(right.workspaceId));
+  })
+    .filter((summary) => {
+      const pendingDecisionCount = summary.roles.reduce(
+        (count, role) => count + role.pendingDecisionCount,
+        0
+      );
+      const upcomingMeetingCount =
+        summary.reminders?.upcomingMeetings.length ?? 0;
+      return pendingDecisionCount > 0 || upcomingMeetingCount > 0;
+    })
+    .sort((left, right) => left.workspaceId.localeCompare(right.workspaceId));
 }
 
 async function fetchTags(
@@ -1195,7 +1205,7 @@ async function fetchTalents(admin: AdminClient, talentIds: string[]) {
   for (const talentIdChunk of chunkValues(talentIds)) {
     const { data, error } = await (admin.from("talent_users" as any) as any)
       .select(
-        "user_id, name, headline, bio, current_location, location, resume_links"
+        "user_id, name, headline, bio, location, current_location, resume_links"
       )
       .in("user_id", talentIdChunk);
     if (error) throw new Error(error.message || "Failed to load talents");
@@ -1272,6 +1282,7 @@ async function fetchCandidateProfiles(
     const talent = talentById.get(talentId);
     profiles.set(talentId, {
       bio: normalizeMultiline(talent?.bio) || null,
+      location: normalizeText(talent?.location) || null,
       currentLocation: normalizeText(talent?.current_location) || null,
       educations: educations
         .filter((row) => row.talent_id === talentId)
@@ -1301,7 +1312,6 @@ async function fetchCandidateProfiles(
       extras: extras.get(talentId) ?? null,
       headline: normalizeText(talent?.headline) || null,
       insights: insights.get(talentId) ?? null,
-      location: normalizeText(talent?.location) || null,
       resumeLinks: uniqueTexts(talent?.resume_links ?? []),
     });
   }

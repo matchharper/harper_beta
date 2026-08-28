@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { parseCompanyDataChanges } from "@/lib/org/agent/companyDataMutation";
 import type { OrgAgentPromptContext } from "@/lib/org/agent/context";
+import { resolveCandidateContactLifecycleAction } from "@/lib/org/agent/candidateContactAction";
 import { parseReadTalentIds } from "@/lib/org/agent/readTalentInput";
 import { jsonValuesEqual } from "@/lib/jsonValue";
 import {
@@ -38,6 +39,41 @@ function minimalContext(
     },
   } satisfies OrgAgentPromptContext;
 }
+
+test("a repeated immediate schedule request advances an existing queued contact", () => {
+  assert.equal(
+    resolveCandidateContactLifecycleAction({
+      action: "schedule",
+      deliveryMode: "immediate",
+      workflowStatus: "queued",
+    }),
+    "immediate"
+  );
+  assert.equal(
+    resolveCandidateContactLifecycleAction({
+      action: "schedule",
+      deliveryMode: "immediate",
+      workflowStatus: "failed",
+    }),
+    "immediate"
+  );
+  assert.equal(
+    resolveCandidateContactLifecycleAction({
+      action: "schedule",
+      deliveryMode: "immediate",
+      workflowStatus: "draft",
+    }),
+    "schedule"
+  );
+  assert.equal(
+    resolveCandidateContactLifecycleAction({
+      action: "schedule",
+      deliveryMode: "standard",
+      workflowStatus: "queued",
+    }),
+    "schedule"
+  );
+});
 
 test("role request reads become writable only after the tool batch", () => {
   const context = {

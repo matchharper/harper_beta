@@ -95,7 +95,7 @@ function TalentAllFeedTab({
       <section className="rounded-md border border-neutral-1000-a05 bg-bg-floating p-4">
         <div className="mb-4">
           <div className="text-sm font-semibold text-neutral-primary">
-            전체 Progress
+            전체 기록
           </div>
         </div>
         <TalentProgressFeed talentId={userId} showRoleContext />

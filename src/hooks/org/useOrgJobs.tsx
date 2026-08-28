@@ -107,7 +107,7 @@ function OrgJobsRouteProvider({
   routePage,
 }: {
   children: ReactNode;
-  routePage: Extract<OrgWorkspacePageId, "all" | "inbox" | "jobs" | "role">;
+  routePage: Extract<OrgWorkspacePageId, "inbox" | "jobs" | "role">;
 }) {
   const { roles } = useOrgWorkspace();
   const route = useOrgJobsRoute({ page: routePage });
@@ -229,7 +229,7 @@ export function OrgJobsProvider({
 }: {
   children: ReactNode;
   includeBoard?: boolean;
-  routePage?: Extract<OrgWorkspacePageId, "all" | "inbox" | "jobs" | "role">;
+  routePage?: Extract<OrgWorkspacePageId, "inbox" | "jobs" | "role">;
 }) {
   const detailProviders = (
     <OrgJobsDetailProvider>

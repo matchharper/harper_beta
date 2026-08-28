@@ -83,6 +83,7 @@ export function enforceOrgAgentTerminalMutationOutcome(
   const finalTerminalResult = state.toolResults.findLast((result) =>
     [
       "start_role_creation",
+      "calibrate_role_hiring_brief",
       "change_role_status",
       "contact_talent",
       "decide_candidate_connection",

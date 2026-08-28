@@ -78,6 +78,11 @@ test("organization-agent system prompt keeps runtime data out", () => {
     /Do not reduce this judgment to isolated words or phrases/
   );
   assert.match(prompt, /Its result is context, not wording to repeat/);
+  assert.match(prompt, /call calibrate_role_hiring_brief as the only tool/);
+  assert.match(prompt, /never from keywords, source type, URL presence/);
+  assert.match(prompt, /uses gpt-5\.6-terra at max reasoning/);
+  assert.match(prompt, /resolved internal candidate mention/);
+  assert.match(prompt, /autonomously reads the relevant supplied sources/);
   assert.match(prompt, /write it yourself in Harper's natural voice/);
   assert.match(prompt, /semantic reading of the current message/);
   assert.match(prompt, /If the message is ambiguous/);
@@ -250,10 +255,24 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.match(prompt, /Scheduling uses the stored subject and body unchanged/);
   assert.match(
     prompt,
+    /standard schedule exactly 20 minutes after exact-copy approval at any time of day/
+  );
+  assert.doesNotMatch(prompt, /only between 08:00 and 20:00 KST/);
+  assert.match(
+    prompt,
+    /Once Harper has said the request will be sent later, today, or tomorrow, it is already queued: never call schedule again/
+  );
+  assert.match(
+    prompt,
     /action=cancel only for a clear cancellation instruction/
   );
   assert.match(prompt, /in-place editing is unsupported/);
   assert.match(prompt, /write requestContext in the latest user's language/);
+  assert.match(
+    prompt,
+    /Age, date or year of birth, nationality, citizenship, residency, and work-authorization questions are allowed/
+  );
+  assert.match(prompt, /instead of refusing, moralizing, inferring the answer/);
   assert.match(prompt, /Recognize compensation questions by their meaning/);
   assert.match(prompt, /base salary or total compensation/);
   assert.match(prompt, /three milestones in human terms/);
@@ -263,7 +282,7 @@ test("organization-agent system prompt keeps runtime data out", () => {
     prompt,
     /After contact_talent action=schedule succeeds.*respond like a human assistant taking ownership/
   );
-  assert.match(prompt, /Express that timing conversationally/);
+  assert.match(prompt, /Express that short delay conversationally/);
   assert.match(prompt, /Do not expose delivery-channel or queue mechanics/);
   assert.match(
     prompt,
@@ -273,6 +292,10 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.match(
     prompt,
     /contact_talent with action=immediate.*preserves the already approved subject and body/
+  );
+  assert.match(
+    prompt,
+    /including a correction such as "not later, send it now"/
   );
   assert.match(
     prompt,
@@ -295,6 +318,10 @@ test("organization-agent Slack prompt enables sparse private choice markers", ()
   const regularPrompt = buildOrgAgentSystemPrompt();
 
   assert.match(prompt, /Slack mrkdwn/);
+  assert.match(
+    prompt,
+    /굵게 표시하는 별표 사이에는 공백이나 문장부호 없이 한 단어만 넣는다/
+  );
   assert.match(prompt, /굵게: \*텍스트\*/);
   assert.doesNotMatch(prompt, /표준 Markdown\/GFM/);
   assert.match(prompt, /\[짧은 버튼 라벨\]\(button:/);

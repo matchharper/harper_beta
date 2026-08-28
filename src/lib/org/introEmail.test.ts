@@ -140,7 +140,7 @@ test("warm intro output guard blocks candidate details that can create a negativ
 
 test("warm intro output guard requires role interest and the company member title", () => {
   const body =
-    "SBVA의 김호진님, 박민서님 안녕하세요.\n\n두 분을 소개해 드리게 되어 반갑습니다.\n\nSBVA의 김호진님께, 현재 Harper에서 Co-founder로 재직 중인 박민서님을 소개드립니다. 박민서님은 Portfolio Operations Lead 역할에 관심을 가져주셨습니다.\n\n박민서님께 SBVA의 Investment Manager 김호진님을 소개드립니다.\n\n이후 대화는 이 메일에서 이어가 주시면 됩니다.\n\n감사합니다.\nHarper 드림";
+    "SBVA의 Investment Manager 김호진님, 박민서님 안녕하세요.\n\n두 분을 소개해 드리게 되어 반갑습니다.\n\nSBVA의 Investment Manager 김호진님께, 현재 Harper에서 Co-founder로 재직 중인 박민서님을 소개드립니다. 박민서님은 Portfolio Operations Lead 역할에 관심을 가져주셨습니다.\n\n박민서님께 SBVA의 Investment Manager 김호진님을 소개드립니다.\n\n이후 대화는 이 메일에서 이어가 주시면 됩니다.\n\n감사합니다.\nHarper 드림";
   const args = {
     body,
     candidateName: "박민서",
@@ -156,7 +156,7 @@ test("warm intro output guard requires role interest and the company member titl
   assert.deepEqual(
     getOrgIntroDraftSafetyIssues({
       ...args,
-      body: body.replace("Investment Manager", "채용 담당자"),
+      body: body.replaceAll("Investment Manager", "채용 담당자"),
       companyUserRole: "채용 담당자",
     }),
     []
@@ -170,6 +170,32 @@ test("warm intro output guard requires role interest and the company member titl
       ),
     }),
     ["missing_candidate_role_interest"]
+  );
+});
+
+test("warm intro output guard accepts a localized English company title and rejects leaked Korean", () => {
+  const base = {
+    candidateName: "Alex Kim",
+    companyName: "SBVA",
+    companyUserName: "Jamie Lee",
+    companyUserRole: "채용 담당자",
+    locale: "en" as const,
+    roleTitle: "Backend Engineer",
+    subject: "Backend Engineer introduction — SBVA Jamie Lee & Alex Kim",
+  };
+  const localizedBody =
+    "Hi SBVA's Recruiting Manager Jamie Lee and Alex Kim,\n\nIt's a pleasure to introduce you both.\n\nJamie, I'd like to introduce Alex Kim. Alex Kim has expressed interest in the Backend Engineer role.\n\nAlex Kim, I'd like to introduce SBVA's Recruiting Manager Jamie Lee.\n\nPlease continue the conversation in this email thread.\n\nBest regards,\nHarper";
+
+  assert.deepEqual(
+    getOrgIntroDraftSafetyIssues({ ...base, body: localizedBody }),
+    []
+  );
+  assert.deepEqual(
+    getOrgIntroDraftSafetyIssues({
+      ...base,
+      body: localizedBody.replaceAll("Recruiting Manager", "채용 담당자"),
+    }),
+    ["unlocalized_company_user_role"]
   );
 });
 

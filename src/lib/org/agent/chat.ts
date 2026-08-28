@@ -15,6 +15,7 @@ import {
   DEFAULT_ORG_AGENT_MODEL,
   getOrgAgentFallbackModel,
   ORG_AGENT_GROK_MODEL,
+  ORG_AGENT_TERRA_MODEL,
   isOrgAgentModelId,
   resolveOrgAgentModel,
   type OrgAgentModelId,
@@ -89,6 +90,13 @@ import {
   buildServiceAnswerExamplesPromptBlock,
   lookupAnswerExamples,
 } from "@/lib/serviceAnswerExamples";
+import {
+  formatCurrentReferenceAttachmentsForPrompt,
+  referenceAttachmentMetadata,
+  referenceAttachmentsFromMetadata,
+  validateOrgAgentReferenceAttachments,
+} from "@/lib/org/agent/referenceAttachments";
+import type { ChatAttachmentPayload } from "@/types/chat";
 
 export type OrgAgentChatEventName =
   | "assistant_message"
@@ -335,15 +343,23 @@ async function runCompletion(args: {
   maxTokens: number;
   messages: OrgAgentLlmMessage[];
   model: OrgAgentModelId;
+  reasoningEffort?: "high" | "max";
   signal?: AbortSignal;
+  strictModel?: boolean;
   surface?: "chat" | "slack";
 }) {
+  const maxTokens =
+    args.reasoningEffort === "max"
+      ? Math.max(args.maxTokens, 12_000)
+      : args.maxTokens;
   return createChatCompletionWithFallback({
-    anthropicOverloadFallbackModel: ORG_AGENT_GROK_MODEL,
+    ...(args.strictModel
+      ? {}
+      : { anthropicOverloadFallbackModel: ORG_AGENT_GROK_MODEL }),
     buildRequest: (model) => ({
       ...(usesMaxCompletionTokensForModel(model)
-        ? { max_completion_tokens: args.maxTokens }
-        : { max_tokens: args.maxTokens }),
+        ? { max_completion_tokens: maxTokens }
+        : { max_tokens: maxTokens }),
       messages: args.messages as any,
       temperature: 0.1,
       ...(args.allowTools
@@ -354,10 +370,12 @@ async function runCompletion(args: {
         : {}),
     }),
     debugLabel: "org/agent:chat",
-    deepSeekThinking: { reasoningEffort: "high" },
-    fallbackModel: getOrgAgentFallbackModel(args.model),
+    deepSeekThinking: { reasoningEffort: args.reasoningEffort ?? "high" },
+    ...(args.strictModel
+      ? {}
+      : { fallbackModel: getOrgAgentFallbackModel(args.model) }),
     model: args.model,
-    openAIResponses: { reasoningEffort: "high" },
+    openAIResponses: { reasoningEffort: args.reasoningEffort ?? "high" },
     signal: args.signal,
   });
 }
@@ -365,8 +383,10 @@ async function runCompletion(args: {
 async function correctOrgAgentInternalTokenLeak(args: {
   debugCalls: LlmDebugCall[];
   model: OrgAgentModelId;
+  reasoningEffort?: "high" | "max";
   reply: string;
   signal?: AbortSignal;
+  strictModel?: boolean;
   usage: OrgAgentTurnUsage;
   userMessage: string;
 }) {
@@ -390,7 +410,9 @@ async function correctOrgAgentInternalTokenLeak(args: {
         },
       ],
       model: args.model,
+      reasoningEffort: args.reasoningEffort,
       signal: args.signal,
+      strictModel: args.strictModel,
     });
     addCompletionUsage({
       debugCalls: args.debugCalls,
@@ -443,6 +465,7 @@ async function runOrgAgentToolLoop(args: {
   mentions: OrgAgentMention[];
   model: OrgAgentModelId;
   readAudience: "caller" | "company_safe";
+  referenceAttachments?: ChatAttachmentPayload[];
   scopeKey: string;
   serviceAnswerExamplesText?: string | null;
   signal?: AbortSignal;
@@ -453,6 +476,13 @@ async function runOrgAgentToolLoop(args: {
   userLabel?: string | null;
   userMessage: string;
 }) {
+  const companySideUserPrompt = buildOrgAgentUserPrompt({
+    context: args.context,
+    mentions: args.mentions,
+    serviceAnswerExamplesText: args.serviceAnswerExamplesText,
+    userLabel: args.userLabel,
+    userMessage: args.userMessage,
+  });
   const messages: OrgAgentLlmMessage[] = [
     {
       content: buildOrgAgentSystemPrompt({
@@ -462,18 +492,14 @@ async function runOrgAgentToolLoop(args: {
       role: "system",
     },
     {
-      content: buildOrgAgentUserPrompt({
-        context: args.context,
-        mentions: args.mentions,
-        serviceAnswerExamplesText: args.serviceAnswerExamplesText,
-        userLabel: args.userLabel,
-        userMessage: args.userMessage,
-      }),
+      content: companySideUserPrompt,
       role: "user",
     },
   ];
   const state = createOrgAgentToolExecutionState(args.context);
   let activeModel = args.model;
+  let activeReasoningEffort: "high" | "max" = "high";
+  let calibrationCompleted = false;
   let fallbackReason: ChatCompletionFallbackReason | null = null;
   let totalToolCalls = 0;
   let totalToolResultChars = 0;
@@ -489,7 +515,9 @@ async function runOrgAgentToolLoop(args: {
         maxTokens: getOrgAgentToolCompletionMaxTokens(state),
         messages,
         model: activeModel,
+        reasoningEffort: activeReasoningEffort,
         signal: args.signal,
+        strictModel: calibrationCompleted,
         surface: args.source,
       });
     } catch (error) {
@@ -650,6 +678,14 @@ async function runOrgAgentToolLoop(args: {
         args.emit?.("tool_status", log);
         args.onToolStatus?.(log);
       };
+      const emitToolProgress = (label: string) => {
+        const log = nowLog(label, "running", {
+          icon: getOrgAgentThinkingLogIcon(toolName),
+          id: toolCall.id,
+        });
+        args.emit?.("tool_status", log);
+        args.onToolStatus?.(log);
+      };
       emitToolStatus("running");
 
       const completeBefore = new Set(state.completeLongTextTargets);
@@ -664,10 +700,13 @@ async function runOrgAgentToolLoop(args: {
           admin: args.admin,
           audience: args.readAudience,
           callId: toolCall.id,
+          companySideContext: companySideUserPrompt,
           conversation: args.conversation,
           currentUserMessageId: args.currentUserMessageId,
           input: toolInput,
           name: toolName,
+          onToolProgress: emitToolProgress,
+          referenceAttachments: args.referenceAttachments,
           scopeKey: args.scopeKey,
           slackExecutionContext: args.slackExecutionContext,
           slackThreadId: args.slackThreadId,
@@ -676,6 +715,11 @@ async function runOrgAgentToolLoop(args: {
           user: args.user,
           userMessage: args.userMessage,
         });
+        if (toolName === "calibrate_role_hiring_brief") {
+          activeModel = ORG_AGENT_TERRA_MODEL;
+          activeReasoningEffort = "max";
+          calibrationCompleted = true;
+        }
         emitToolStatus("done");
         const serializedResult = serializeOrgAgentToolResult(toolName, result);
         const remainingResultChars = Math.max(
@@ -782,6 +826,17 @@ async function runOrgAgentToolLoop(args: {
     if (terminalReached) break;
   }
 
+  if (calibrationCompleted && state.terminalReply) {
+    return {
+      debugCalls,
+      fallbackReason,
+      model: activeModel,
+      reply: enforceOrgAgentTerminalMutationOutcome(state, state.terminalReply),
+      state,
+      usage,
+    };
+  }
+
   let finalCompletion: Awaited<ReturnType<typeof runCompletion>>;
   try {
     finalCompletion = await runCompletion({
@@ -796,7 +851,9 @@ async function runOrgAgentToolLoop(args: {
         },
       ],
       model: activeModel,
+      reasoningEffort: activeReasoningEffort,
       signal: args.signal,
+      strictModel: calibrationCompleted,
     });
   } catch (error) {
     args.signal?.throwIfAborted();
@@ -960,6 +1017,7 @@ async function presentStagedProposal(args: {
 
 export async function runOrgAgentChat(args: {
   assistantMessageMetadata?: OrgAgentMessageMetadata;
+  attachments?: ChatAttachmentPayload[];
   debug?: boolean;
   emit?: OrgAgentChatEmitter;
   messageType?: string;
@@ -979,14 +1037,29 @@ export async function runOrgAgentChat(args: {
   user: User;
   workspaceId: string;
 }): Promise<OrgAgentChatResult> {
-  const userMessageText = normalizeText(args.message);
-  if (!userMessageText) throw new OrgHttpError(400, "message is required");
+  const referenceAttachments = validateOrgAgentReferenceAttachments(
+    Array.isArray(args.attachments) && args.attachments.length > 0
+      ? args.attachments
+      : referenceAttachmentsFromMetadata(args.userMessageMetadata)
+  );
+  const userMessageText =
+    normalizeText(args.message) ||
+    (referenceAttachments.length > 0
+      ? "첨부한 자료를 이 역할의 인재 기준에 반영해 주세요."
+      : "");
+  if (!userMessageText) {
+    throw new OrgHttpError(400, "message or attachment is required");
+  }
   if (userMessageText.length > 8_000) {
     throw new OrgHttpError(400, "message is too long");
   }
   const requestedRoleId = normalizeText(args.roleId);
-  const baseLlmUserMessage =
-    normalizeText(args.llmUserMessage) || userMessageText;
+  const baseLlmUserMessage = [
+    normalizeText(args.llmUserMessage) || userMessageText,
+    formatCurrentReferenceAttachmentsForPrompt(referenceAttachments),
+  ]
+    .filter(Boolean)
+    .join("\n");
   const llmUserMessage = requestedRoleId
     ? [
         `<CURRENT_ROLE_CONTEXT role_id="${requestedRoleId}">`,
@@ -1043,6 +1116,12 @@ export async function runOrgAgentChat(args: {
       model: modelConfig.model,
       source: "org_agent_user",
       ...args.userMessageMetadata,
+      ...(referenceAttachments.length > 0
+        ? {
+            attachments: referenceAttachmentMetadata(referenceAttachments),
+            roleCreationAttachments: referenceAttachments,
+          }
+        : {}),
     },
     messageType: args.messageType,
     role: "user",
@@ -1116,6 +1195,7 @@ export async function runOrgAgentChat(args: {
         thinkingLogs = upsertOrgAgentThinkingLog(thinkingLogs, log);
       },
       readAudience: args.slackThreadId ? "company_safe" : "caller",
+      referenceAttachments,
       scopeKey: args.slackThreadId
         ? `slack:${args.slackThreadId}`
         : `chat:${conversation.id}`,
@@ -1143,8 +1223,20 @@ export async function runOrgAgentChat(args: {
     const corrected = await correctOrgAgentInternalTokenLeak({
       debugCalls: llmResult.debugCalls,
       model: llmResult.model,
+      reasoningEffort: llmResult.state.toolResults.some(
+        (result) =>
+          result.name === "calibrate_role_hiring_brief" &&
+          result.status === "success"
+      )
+        ? "max"
+        : "high",
       reply: draftProse,
       signal: args.signal,
+      strictModel: llmResult.state.toolResults.some(
+        (result) =>
+          result.name === "calibrate_role_hiring_brief" &&
+          result.status === "success"
+      ),
       usage: llmResult.usage,
       userMessage: llmUserMessage,
     });

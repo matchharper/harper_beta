@@ -17,7 +17,7 @@ function getQueryText(value: string | string[] | undefined) {
 export function useOrgJobsRoute({
   page = "jobs",
 }: {
-  page?: Extract<OrgWorkspacePageId, "all" | "inbox" | "jobs" | "role">;
+  page?: Extract<OrgWorkspacePageId, "inbox" | "jobs" | "role">;
 } = {}) {
   const router = useRouter();
   const { roles, workspace } = useOrgWorkspace();
@@ -33,11 +33,7 @@ export function useOrgJobsRoute({
   const detailRoleId = router.isReady
     ? getQueryText(router.query.detailRoleId)
     : "";
-  const detailWorkspaceId = router.isReady
-    ? getQueryText(router.query.detailWorkspaceId)
-    : "";
-  const workspaceId =
-    page === "all" && detailWorkspaceId ? detailWorkspaceId : baseWorkspaceId;
+  const workspaceId = baseWorkspaceId;
   const [talentNavigationItems, setTalentNavigationItems] = useState<
     OrgTalentSelection[]
   >([]);

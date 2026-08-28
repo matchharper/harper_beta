@@ -6,11 +6,9 @@ import {
   parseHarperSlackChoiceMarkers,
 } from "@/lib/org/slackChoiceButtons";
 import {
-  buildHarperSlackClientMessageId,
   getHarperSlackUserEmail,
   isHarperSlackAppId,
   openHarperSlackModal,
-  postHarperSlackMessage,
   pushHarperSlackModal,
   resolveHarperSlackInteractionContext,
   updateHarperSlackModal,
@@ -56,6 +54,7 @@ import {
 } from "@/lib/org/slackTalentReviewView";
 import {
   getOrgRoleQuickAction,
+  HARPER_ROLE_QUICK_ACTION_BLOCK_ID,
   HARPER_ROLE_QUICK_ACTION_PREFIX,
 } from "@/lib/org/roleQuickActions";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
@@ -705,37 +704,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ignored: true, ok: true });
     }
 
-    const promptPostKey = [
+    const promptActionKey = [
       "role-quick-action",
       thread.id,
       slackUserId,
       actionTs,
       roleQuickAction.id,
     ].join(":");
-    const posted = await postHarperSlackMessage({
-      channelId,
-      clientMessageId: buildHarperSlackClientMessageId(
-        promptPostKey,
-        channelId
-      ),
-      text: `<@${slackUserId}>님이 요청했어요.\n>${roleQuickAction.message}`,
-      threadTs: sourceMessageTs,
-      token: context.token,
-      unfurlLinks: false,
-      unfurlMedia: false,
-    });
-    const promptMessageTs = clean(posted.ts);
-    if (!promptMessageTs) {
-      throw new Error("Slack quick action prompt has no timestamp");
-    }
-
     const { data, error } = await (admin.rpc as any)(
       "enqueue_slack_reply_job_v2",
       {
         p_prompt: roleQuickAction.message,
-        p_slack_event_id: promptPostKey,
+        p_slack_event_id: promptActionKey,
         p_slack_files: [],
-        p_slack_message_ts: promptMessageTs,
+        p_slack_message_ts: sourceMessageTs,
         p_slack_user_id: slackUserId,
         p_thread_id: thread.id,
         p_trigger_kind: "button_choice",
@@ -744,6 +726,32 @@ export async function POST(req: NextRequest) {
     if (error) throw error;
     const result =
       data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+    const originalText = clean(payload.message?.text);
+    const blocks = buildSelectedHarperSlackChoiceBlocks({
+      actionBlockPrefixes: [HARPER_ROLE_QUICK_ACTION_BLOCK_ID],
+      choiceLabel: roleQuickAction.label,
+      originalBlocks: payload.message?.blocks,
+      originalText,
+      slackUserId,
+    });
+    after(async () => {
+      try {
+        await updateHarperSlackMessage({
+          blocks,
+          channelId,
+          messageTs: sourceMessageTs,
+          text: `${originalText}\n\n✓ ${escapeSlackText(
+            roleQuickAction.label
+          )}`.trim(),
+          workspaceId: context.workspaceId,
+        });
+      } catch (updateError) {
+        console.warn(
+          "[harper-slack/interactivity:update-role-quick-action]",
+          updateError
+        );
+      }
+    });
     return NextResponse.json({
       ok: true,
       status: result.duplicate === true ? "duplicate" : "queued",

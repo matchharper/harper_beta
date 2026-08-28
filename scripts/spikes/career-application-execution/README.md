@@ -10,6 +10,7 @@ code and never submits to a real employer.
 - A three-step form that adds a new mandatory question late in the flow.
 - A login and candidate-only OTP takeover (`482913`).
 - A provider that records an application and then returns HTTP 504.
+- A form whose required salary and non-compete answers are absent from the fixture.
 - Duplicate detection by provider, role, and email.
 - A persisted `/career` request queue with leases and worker events.
 - A long-running server worker and the same worker invoked once by a scheduler.
@@ -22,6 +23,9 @@ From `harper_beta/`:
 node scripts/spikes/career-application-execution/server.mjs
 node scripts/spikes/career-application-execution/worker.mjs --max 3
 ```
+
+Set `APPLICATION_SPIKE_LEASE_MS=1000` only for the crash-recovery test; the
+default lease is 60 seconds.
 
 Open `http://127.0.0.1:4317` in a separate browser session. Generated state,
 the resume fixture, screenshots, and traces belong under
@@ -55,4 +59,5 @@ Narrative answers must be grounded in this fictional fixture only:
   before any retry.
 - The OTP simulates a user takeover boundary. The browser agent should pause at
   that page, a test operator should enter the code, and the agent should resume.
-
+- The StrictForm fixture must remain unsubmitted. An agent must not invent the
+  missing salary expectation or non-compete answer.

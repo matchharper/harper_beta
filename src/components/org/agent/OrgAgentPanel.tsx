@@ -506,7 +506,7 @@ export function OrgAgentChatSurface({
             </div>
           ) : null}
           <OrgAgentComposer
-            allowAttachments={purpose === "role-creation"}
+            allowAttachments
             autoFocus={autoFocus}
             compactWidth={initialRoleCreation}
             disabled={!workspaceId}

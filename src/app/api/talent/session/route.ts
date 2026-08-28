@@ -178,8 +178,8 @@ const createFallbackTalentProfile = (
         profile_picture: profile.profile_picture,
         headline: profile.headline,
         bio: profile.bio,
-        current_location: profile.current_location,
         location: profile.location,
+        current_location: profile.current_location,
       }
     : null,
   talentExperiences: [],

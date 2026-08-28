@@ -118,8 +118,9 @@ test("final confirmation follows team-preference discovery", () => {
   assert.match(block, /at least two distinct opportunities/);
   assert.match(block, /beyond the JD and technical must-haves/);
   assert.match(block, /representative ideal current team member/);
-  assert.match(block, /LinkedIn profile URL/);
-  assert.match(block, /experience or strengths would be a bonus/);
+  assert.match(block, /any useful professional source/);
+  assert.match(block, /LinkedIn is one possible source, not a requirement/);
+  assert.match(block, /why that person is a strong reference/);
 });
 
 test("the private hiring brief stores reference-profile calibration", () => {

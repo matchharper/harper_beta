@@ -24,7 +24,7 @@ export default function OfficialJobsHeader({
             src="/svgs/logov2.svg"
             alt="Harper"
             width={64}
-            height={33}
+            height={29}
             priority
           />
         </Link>

@@ -1,5 +1,6 @@
 import { buildOrgHref } from "@/lib/org/routes";
 import {
+  HARPER_ROLE_QUICK_ACTION_BLOCK_ID,
   HARPER_ROLE_QUICK_ACTION_PREFIX,
   ORG_ROLE_QUICK_ACTIONS,
 } from "@/lib/org/roleQuickActions";
@@ -325,11 +326,7 @@ export function buildAutoIntroRoleSummaryText(args: {
     ...(String(args.introBody ?? "").trim()
       ? [String(args.introBody).trim()]
       : []),
-    [
-      "*현재 채용 현황*",
-      "현재 연결 여부를 결정해야 하는 후보자를 정리했습니다.",
-      ...rows,
-    ].join("\n"),
+    ["*현재 채용 현황*", ...rows].join("\n"),
     ...(reminderText ? [reminderText] : []),
   ].join("\n\n");
 }
@@ -430,7 +427,7 @@ export function buildAutoIntroRoleSummarySlackBlocks(args: {
     ...(introBlocks.length > 0 ? [{ type: "divider" }] : []),
     {
       text: {
-        text: "*현재 채용 현황*\n현재 연결 여부를 결정해야 하는 후보자를 정리했습니다.",
+        text: "*현재 채용 현황*",
         type: "mrkdwn",
       },
       type: "section",
@@ -476,12 +473,8 @@ export function buildAutoIntroRoleSummarySlackBlocks(args: {
       ],
       type: "table",
     },
-    ...(reminderBlocks.length > 0
-      ? [{ type: "divider" }, ...reminderBlocks]
-      : []),
-    { type: "divider" },
     {
-      block_id: "harper_role_quick_actions",
+      block_id: HARPER_ROLE_QUICK_ACTION_BLOCK_ID,
       elements: ORG_ROLE_QUICK_ACTIONS.map((action) => ({
         action_id: `${HARPER_ROLE_QUICK_ACTION_PREFIX}${action.id}`,
         text: {

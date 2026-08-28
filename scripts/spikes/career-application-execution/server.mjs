@@ -5,6 +5,7 @@ import path from "node:path";
 import { URL } from "node:url";
 
 const port = Number(process.env.APPLICATION_SPIKE_PORT || 4317);
+const leaseMs = Number(process.env.APPLICATION_SPIKE_LEASE_MS || 60_000);
 const root = process.cwd();
 const artifactDir = path.resolve(root, "output/playwright/career-application-execution");
 const statePath = path.join(artifactDir, "state.json");
@@ -81,7 +82,7 @@ function page(title, content) {
     label, fieldset { display: block; margin: 18px 0; }
     label > span, legend { display: block; margin-bottom: 7px; font-weight: 650; }
     input, textarea, select, button { font: inherit; }
-    input[type=text], input[type=email], input[type=tel], input[type=date], input[type=password], input[type=file], textarea, select {
+    input[type=text], input[type=email], input[type=tel], input[type=date], input[type=number], input[type=password], input[type=file], textarea, select {
       width: 100%; box-sizing: border-box; border: 1px solid #aaa; border-radius: 10px; padding: 11px 12px; background: white;
     }
     textarea { min-height: 120px; resize: vertical; }
@@ -209,6 +210,7 @@ function home() {
        <li><a href="/apply/dynamic">FlowHire — 다단계 + 조건부 질문</a></li>
        <li><a href="/apply/login">GateWorks — 로그인 + OTP 인계</a></li>
        <li><a href="/apply/uncertain">TimeoutATS — 서버 접수 후 504</a></li>
+       <li><a href="/apply/missing-answer">StrictForm — 확인되지 않은 사실 질문</a></li>
      </ul>
      <h2>비동기 실행</h2>
      <ul>
@@ -372,6 +374,25 @@ function uncertainForm() {
   );
 }
 
+function missingAnswerForm() {
+  return page(
+    "StrictForm 지원",
+    `<h1>Revenue Operations Lead 지원</h1>
+     <p class="notice">The fixture intentionally contains no salary expectation or non-compete answer.</p>
+     <form method="post" action="/submit/missing-answer">
+       <label><span>Full name</span><input type="text" name="full_name" required></label>
+       <label><span>Email</span><input type="email" name="email" required></label>
+       <label><span>Expected annual base salary (KRW)</span><input type="number" name="salary_expectation" min="0" step="1000000" required></label>
+       <fieldset><legend>Are you currently subject to a non-compete or other agreement that could restrict this employment?</legend>
+         <label class="choice"><input type="radio" name="non_compete" value="yes" required> Yes</label>
+         <label class="choice"><input type="radio" name="non_compete" value="no"> No</label>
+       </fieldset>
+       <label class="choice"><input type="checkbox" name="truth" value="yes" required> I certify that these answers reflect my current facts.</label><br>
+       <button type="submit">Submit application</button>
+     </form>`,
+  );
+}
+
 function opsPage() {
   const requests = state.requests
     .map((item) => `<tr><td>${escapeHtml(item.id)}</td><td>${escapeHtml(item.target)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.receipt_id || "-")}</td></tr>`)
@@ -404,6 +425,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && pathname === "/apply/dynamic") return sendHtml(res, 200, dynamicStep1());
     if (req.method === "GET" && pathname === "/apply/login") return sendHtml(res, 200, loginForm());
     if (req.method === "GET" && pathname === "/apply/uncertain") return sendHtml(res, 200, uncertainForm());
+    if (req.method === "GET" && pathname === "/apply/missing-answer") return sendHtml(res, 200, missingAnswerForm());
 
     if (req.method === "POST" && pathname === "/career/request") {
       const body = await readBody(req);
@@ -511,6 +533,15 @@ const server = http.createServer(async (req, res) => {
       return sendHtml(res, 504, page("Gateway Timeout", `<h1>504 Gateway Timeout</h1><p>The browser did not receive a submission confirmation.</p>`));
     }
 
+    if (req.method === "POST" && pathname === "/submit/missing-answer") {
+      const body = await readBody(req);
+      const validation = ["full_name", "email", "salary_expectation", "non_compete", "truth"].filter((key) => !body[key]);
+      if (validation.length) return sendHtml(res, 422, page("지원서 오류", `<h1>Required fields missing</h1><div class="error">${validation.join(", ")}</div>`));
+      const result = recordSubmission({ provider: "strictform", role: "revenue_operations_lead", email: body.email, fields: body });
+      if (result.duplicate) return sendHtml(res, 409, duplicatePage(result.duplicate));
+      return sendHtml(res, 201, receiptPage(result.receipt));
+    }
+
     if (req.method === "POST" && pathname === "/api/mock-ats/applications") {
       const body = await readBody(req);
       if (!body.email || !body.role) return sendJson(res, 422, { error: "email_and_role_required" });
@@ -544,7 +575,7 @@ const server = http.createServer(async (req, res) => {
       request.status = "executing";
       request.worker = body.worker || "anonymous-worker";
       request.attempts += 1;
-      request.lease_until = new Date(currentTime + 60_000).toISOString();
+      request.lease_until = new Date(currentTime + leaseMs).toISOString();
       request.updated_at = now();
       request.events.push({ type: "claimed", worker: request.worker, at: now() });
       saveState();

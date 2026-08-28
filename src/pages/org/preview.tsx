@@ -168,6 +168,7 @@ const previewInbox: OrgBoardResponse = {
 
 const previewSlack: OrgSlackStatus = {
   availableChannels: [],
+  canCreateChannels: true,
   channels: [
     {
       channelId: "preview-channel",

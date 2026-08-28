@@ -39,6 +39,11 @@ import {
   applyHarperSlackApiMessagePolicy,
   createSlackApiRequest,
 } from "./slackApiRequest";
+import {
+  getSlackChannelNameError,
+  normalizeSlackChannelName,
+  SLACK_CHANNEL_CREATION_SCOPES,
+} from "./slackChannelCreation";
 
 const CALLBACK_PATH = "/api/org/slack/callback";
 const STATE_TTL_MS = 10 * 60 * 1000;
@@ -46,6 +51,7 @@ const BOT_SCOPE_LIST = [
   "app_mentions:read",
   "channels:history",
   "channels:join",
+  ...SLACK_CHANNEL_CREATION_SCOPES,
   "channels:read",
   "chat:write",
   "files:read",
@@ -126,10 +132,12 @@ export type HarperSlackNotificationKey =
   | "memberJoined";
 
 export class HarperSlackError extends Error {
+  code: string | null;
   status: number;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code: string | null = null) {
     super(message);
+    this.code = code;
     this.status = status;
   }
 }
@@ -312,7 +320,8 @@ export async function slackApi<T extends SlackApiResult>(
       .join("; ");
     throw new HarperSlackError(
       502,
-      `Slack API ${method} 실패: ${payload?.error || response.status}${validationDetails ? ` (${validationDetails})` : ""}`
+      `Slack API ${method} 실패: ${payload?.error || response.status}${validationDetails ? ` (${validationDetails})` : ""}`,
+      text(payload?.error) || null
     );
   }
   return payload;
@@ -578,6 +587,7 @@ export async function getHarperSlackStatus(args: {
     return {
       availableChannels: [] as HarperSlackChannel[],
       channels: [] as HarperSlackChannel[],
+      canCreateChannels: false,
       connected: false,
       needsReinstall: false,
       teamId: null,
@@ -620,16 +630,53 @@ export async function getHarperSlackStatus(args: {
   } catch (error) {
     console.error("[harper-slack] channel list", error);
   }
+  const grantedScopes = (Array.isArray(row.scopes) ? row.scopes : []).map(text);
   return {
     availableChannels,
     channels,
+    canCreateChannels: SLACK_CHANNEL_CREATION_SCOPES.every((scope) =>
+      grantedScopes.includes(scope)
+    ),
     connected: true,
     needsReinstall: !["files:read", "users:read.email"].every((scope) =>
-      (Array.isArray(row.scopes) ? row.scopes : []).map(text).includes(scope)
+      grantedScopes.includes(scope)
     ),
     teamId: row.slack_team_id,
     teamName: row.slack_team_name,
   };
+}
+
+async function persistHarperSlackChannel(args: {
+  channelId: string;
+  channelName: string | null;
+  isPrivate: boolean;
+  slackTeamId: string;
+  workspaceId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const { error } = await (
+    admin.from("company_slack_channels" as any) as any
+  ).upsert(
+    {
+      default_role_id: null,
+      company_workspace_id: args.workspaceId,
+      is_enabled: true,
+      is_private: args.isPrivate,
+      reply_to_harper_threads: true,
+      slack_channel_id: args.channelId,
+      slack_channel_name: args.channelName,
+      slack_team_id: args.slackTeamId,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "company_workspace_id,slack_channel_id" }
+  );
+  if ((error as { code?: string } | null)?.code === "23505") {
+    throw new HarperSlackError(
+      409,
+      "이 Slack 채널은 다른 Harper Workspace에 연결되어 있어요."
+    );
+  }
+  if (error) throw error;
 }
 
 export async function addHarperSlackChannel(args: {
@@ -648,30 +695,13 @@ export async function addHarperSlackChannel(args: {
   const isPrivate = Boolean(channel.is_private);
   if (!isPrivate)
     await slackApi(token, "conversations.join", { channel: args.channelId });
-  const admin = getSupabaseAdmin();
-  const { error } = await (
-    admin.from("company_slack_channels" as any) as any
-  ).upsert(
-    {
-      default_role_id: null,
-      company_workspace_id: args.workspaceId,
-      is_enabled: true,
-      is_private: isPrivate,
-      reply_to_harper_threads: true,
-      slack_channel_id: args.channelId,
-      slack_channel_name: text(channel.name) || null,
-      slack_team_id: row.slack_team_id,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "company_workspace_id,slack_channel_id" }
-  );
-  if ((error as { code?: string } | null)?.code === "23505") {
-    throw new HarperSlackError(
-      409,
-      "이 Slack 채널은 다른 Harper workspace에 연결되어 있습니다."
-    );
-  }
-  if (error) throw error;
+  await persistHarperSlackChannel({
+    channelId: args.channelId,
+    channelName: text(channel.name) || null,
+    isPrivate,
+    slackTeamId: row.slack_team_id,
+    workspaceId: args.workspaceId,
+  });
 
   await postHarperSlackMessage({
     channelId: args.channelId,
@@ -687,6 +717,180 @@ export async function addHarperSlackChannel(args: {
   });
 
   return { ok: true as const };
+}
+
+function toHarperSlackChannelCreationError(error: unknown) {
+  if (!(error instanceof HarperSlackError)) return error;
+  if (error.code === "name_taken") {
+    return new HarperSlackError(
+      409,
+      "같은 이름의 Slack 채널이 이미 있어요. 다른 이름을 입력해 주세요."
+    );
+  }
+  if (error.code === "missing_scope") {
+    return new HarperSlackError(
+      409,
+      "채널 생성 권한이 없어요. Slack을 다시 연결해 새 권한을 승인해 주세요."
+    );
+  }
+  if (
+    error.code === "restricted_action" ||
+    error.code === "cannot_create_channel"
+  ) {
+    return new HarperSlackError(
+      403,
+      "이 Slack Workspace에서는 Harper가 채널을 만들 수 없어요. Slack 관리자에게 채널 생성 설정을 확인해 주세요."
+    );
+  }
+  if (error.code?.startsWith("invalid_name") || error.code === "no_channel") {
+    return new HarperSlackError(
+      400,
+      "채널 이름을 사용할 수 없어요. 영문 소문자, 숫자, 하이픈(-), 밑줄(_)만 입력해 주세요."
+    );
+  }
+  if (error.code === "ratelimited") {
+    return new HarperSlackError(
+      429,
+      "Slack 요청이 많아 채널을 만들지 못했어요. 잠시 후 다시 시도해 주세요."
+    );
+  }
+  return error;
+}
+
+export async function createHarperSlackChannel(args: {
+  channelName: string;
+  isPrivate: boolean;
+  user: User;
+  workspaceId: string;
+}) {
+  await assertAccess(args.user, args.workspaceId, true);
+  const channelName = normalizeSlackChannelName(args.channelName);
+  const nameError = getSlackChannelNameError(channelName);
+  if (nameError) throw new HarperSlackError(400, nameError);
+
+  const row = await installation(args.workspaceId);
+  if (!row) throw new HarperSlackError(404, "Slack을 먼저 연결해 주세요.");
+  const grantedScopes = (Array.isArray(row.scopes) ? row.scopes : []).map(text);
+  const requiredScope = args.isPrivate ? "groups:write" : "channels:manage";
+  if (!grantedScopes.includes(requiredScope)) {
+    throw new HarperSlackError(
+      409,
+      "채널 생성 권한이 없어요. Slack을 다시 연결해 새 권한을 승인해 주세요."
+    );
+  }
+
+  const token = decryptHarperSlackToken(row.bot_token_ciphertext);
+  let created: SlackApiResult;
+  try {
+    created = await slackApi<SlackApiResult>(token, "conversations.create", {
+      is_private: args.isPrivate,
+      name: channelName,
+    });
+  } catch (error) {
+    throw toHarperSlackChannelCreationError(error);
+  }
+
+  const channel = created.channel ?? {};
+  const channelId = text(channel.id);
+  if (!channelId) {
+    throw new HarperSlackError(
+      502,
+      "Slack 채널은 만들었지만 채널 정보를 확인하지 못했어요. Slack에서 채널을 확인해 주세요."
+    );
+  }
+  const storedChannelName = text(channel.name) || channelName;
+  const isPrivate = Boolean(channel.is_private ?? args.isPrivate);
+  try {
+    await persistHarperSlackChannel({
+      channelId,
+      channelName: storedChannelName,
+      isPrivate,
+      slackTeamId: row.slack_team_id,
+      workspaceId: args.workspaceId,
+    });
+  } catch (error) {
+    if (error instanceof HarperSlackError) throw error;
+    console.error("[harper-slack] created channel persistence", {
+      channelId,
+      error,
+      workspaceId: args.workspaceId,
+    });
+    throw new HarperSlackError(
+      502,
+      `#${storedChannelName} 채널은 Slack에 만들었지만 Harper 연결을 완료하지 못했어요. 이 화면의 기존 채널 목록에서 추가해 주세요.`
+    );
+  }
+
+  let welcomeMessageSent = true;
+  let creatingUserInvited = false;
+  const creatingUserEmail = text(args.user.email).toLowerCase();
+  if (creatingUserEmail) {
+    try {
+      const slackUser = await slackApi<SlackApiResult>(
+        token,
+        "users.lookupByEmail",
+        { email: creatingUserEmail }
+      );
+      const slackUserId = text(slackUser.user?.id);
+      if (slackUserId) {
+        await slackApi<SlackApiResult>(token, "conversations.invite", {
+          channel: channelId,
+          users: slackUserId,
+        });
+        creatingUserInvited = true;
+      }
+    } catch (error) {
+      if (
+        error instanceof HarperSlackError &&
+        error.code === "already_in_channel"
+      ) {
+        creatingUserInvited = true;
+      } else {
+        console.error("[harper-slack] created channel user invite", {
+          channelId,
+          error,
+          workspaceId: args.workspaceId,
+        });
+      }
+    }
+  }
+
+  try {
+    await postHarperSlackMessage({
+      channelId,
+      text: buildHarperSlackWelcomeMessage({
+        botUserId: row.slack_bot_user_id,
+        publicSiteUrl:
+          text(process.env.NEXT_PUBLIC_SITE_URL) ||
+          text(process.env.NEXT_PUBLIC_APP_URL) ||
+          text(process.env.APP_BASE_URL),
+        workspaceId: args.workspaceId,
+      }),
+      token,
+    });
+  } catch (error) {
+    welcomeMessageSent = false;
+    console.error("[harper-slack] created channel welcome message", {
+      channelId,
+      error,
+      workspaceId: args.workspaceId,
+    });
+  }
+
+  return {
+    channel: {
+      channelId,
+      channelName: storedChannelName,
+      defaultRoleId: null,
+      isEnabled: true,
+      isPrivate,
+      replyToHarperThreads: true,
+      respondToMentions: true,
+    } satisfies HarperSlackChannel,
+    creatingUserInvited,
+    ok: true as const,
+    welcomeMessageSent,
+  };
 }
 
 export async function removeHarperSlackChannel(args: {

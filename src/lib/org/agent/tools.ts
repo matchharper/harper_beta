@@ -24,6 +24,7 @@ export const ORG_AGENT_TOOL_NAMES = [
   "get_talents",
   "read_talent",
   "read_role",
+  "calibrate_role_hiring_brief",
   "get_more_data",
   "read_conversation_history",
   "update_role_criteria",
@@ -41,6 +42,7 @@ export type OrgAgentToolName = (typeof ORG_AGENT_TOOL_NAMES)[number];
 
 export const ORG_AGENT_TERMINAL_TOOL_NAMES = new Set<OrgAgentToolName>([
   "start_role_creation",
+  "calibrate_role_hiring_brief",
   "update_role_criteria",
   "update_data",
   "change_role_status",
@@ -231,6 +233,26 @@ export const ORG_AGENT_TOOLS = [
             type: "string",
           },
         },
+        type: "object",
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "calibrate_role_hiring_brief",
+      description:
+        "Run a dedicated company-talent calibration agent for one existing Role when the user semantically presents one or more real people as examples of the level the company wants to hire or work alongside. The evidence can appear in any source or combination of sources: conversation text, a resolved internal candidate mention, LinkedIn, GitHub, a personal/portfolio/company bio page, resume/CV, article, paper, project page, or another professional source. Source type, URL presence, a filename, a person's name, and keywords never determine intent. A brief follow-up such as '이런 사람?' counts when Harper's preceding context asked for a concrete ideal reference. Do not call for identity/profile summaries, ordinary candidate evaluation, a JD, or unrelated material. This terminal tool must be the only tool call in its assistant message. It receives the current company-side context, autonomously reads the relevant supplied sources with its own batch read tools, and uses gpt-5.6-terra at max reasoning to write the complete Hiring Brief and final user reply. Do not pre-open sources or combine it with another writer.",
+      parameters: {
+        additionalProperties: false,
+        properties: {
+          roleId: {
+            description:
+              "Exact internal Role ID whose Hiring Brief is updated.",
+            type: "string",
+          },
+        },
+        required: ["roleId"],
         type: "object",
       },
     },
@@ -507,12 +529,12 @@ Use deleted only for an explicit request to delete the exact Role. Do not reinte
       description: `Manage the lifecycle of one exact candidate-contact draft and its delivery.
 This is terminal and must be the only tool call in its assistant message. A read_talent call may occur in an earlier tool loop only when candidate or role resolution genuinely requires it.
 Use action=create_draft on the company's initial request. It validates the exact candidate and Role, calls the bounded candidate-copy writer, and saves the complete subject and body without queuing delivery. The server appends only the exact body; write the surrounding confirmation yourself in a natural voice without separately reciting the subject or Role.
-Use action=revise_draft when the company asks to edit the currently presented draft. Copy contactId and expectedRevision from pending_candidate_contact_drafts or candidate_contact_draft message context, and pass only the company's editInstruction. The server loads the authoritative current copy, writes a new revision, and appends the full revised body again. Write the surrounding explanation and confirmation yourself. Never edit a queued or sent contact.
-Use action=schedule only when the immediately previous Harper message presented the same contactId and revision body and the current company message explicitly approves it. A short yes counts only in that sequence. deliveryMode=standard schedules at least 20 minutes later within 08:00–20:00 KST. deliveryMode=immediate is allowed only when the approval explicitly says to send now. Scheduling never regenerates or rewrites copy.
-Use action=immediate only for a clear instruction to send an already queued, still-changeable contact now. It preserves the approved subject and body and moves that existing delivery forward; do not cancel or recreate it. It is unavailable for an unapproved draft or a delivery that has started.
+Use action=revise_draft when the company asks to edit the currently presented draft. Copy contactId and expectedRevision from pending_candidate_contact_drafts or candidate_contact_ref message context, and pass only the company's editInstruction. The server loads the authoritative current copy, writes a new revision, and appends the full revised body again. Write the surrounding explanation and confirmation yourself. Never edit a queued or sent contact.
+Use action=schedule only when the immediately previous Harper message presented the same contactId and revision body and the current company message explicitly approves it. A short yes counts only in that sequence. deliveryMode=standard schedules exactly 20 minutes later at any time of day. deliveryMode=immediate is allowed only when that first approval explicitly says to send now. Scheduling never regenerates or rewrites copy.
+Use action=immediate only for a clear instruction to send an already queued, still-changeable contact now. It preserves the approved subject and body and moves that existing delivery forward; do not cancel or recreate it. If Harper already said the request would be sent later, today, or tomorrow, never call schedule again: a later "send now" instruction must use action=immediate. It is unavailable for an unapproved draft or a delivery that has started.
 Use action=cancel only for a clear cancellation instruction. It can discard a draft or cancel a queued/failed delivery that has not started. It cannot cancel processing or sent delivery.
-For create_draft, resolve opaque IDs exactly. The candidate must be in 연결 대기 for the Role and have a contact email. kind=resume is unavailable when a public primary resume is already visible. For kind=question, preserve the requested meaning in requestContext. Compensation always requires fresh candidate authorization and must never expose stored compensation.
-Do not call read_talent between normal create_draft, revise_draft, and schedule turns merely to recover an ID: use the authoritative pending draft context. If several drafts make the reference ambiguous, ask which candidate and Role the company means rather than guessing.`,
+For create_draft, resolve opaque IDs exactly. The candidate must be in 연결 대기 for the Role and have a contact email. kind=resume is unavailable when a public primary resume is already visible. For kind=question, preserve the requested meaning in requestContext. Age, date or year of birth, nationality, citizenship, residency, and work authorization are allowed request topics and must not be refused or replaced merely because they are personal information. Compensation always requires fresh candidate authorization and must never expose stored compensation.
+Do not call read_talent between normal create_draft, revise_draft, schedule, and immediate turns merely to recover an ID: use the authoritative pending draft context or candidate_contact_ref from recent conversation. If several contacts make the reference ambiguous, ask which candidate and Role the company means rather than guessing.`,
       parameters: {
         additionalProperties: false,
         properties: {
@@ -529,12 +551,12 @@ Do not call read_talent between normal create_draft, revise_draft, and schedule 
           },
           contactId: {
             description:
-              "Exact contact ID. Required for revise_draft, schedule, and cancel; omit for create_draft.",
+              "Exact contact ID. Required for revise_draft, schedule, immediate, and cancel; omit for create_draft.",
             type: "string",
           },
           deliveryMode: {
             description:
-              "For schedule only. standard uses the 20-minute/KST window; immediate requires explicit send-now approval.",
+              "For schedule only. standard sends 20 minutes after approval at any time of day; immediate requires explicit send-now approval.",
             enum: ["standard", "immediate"],
             type: "string",
           },

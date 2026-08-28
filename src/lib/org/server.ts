@@ -67,6 +67,7 @@ import {
 import type { Database, Json } from "@/types/database.types";
 import { getCompanyInternalRoleRecord } from "@/lib/companyInternalRole";
 import { fetchOrgProcessClosureNotifications } from "@/lib/org/processClosureNotification";
+import { resolveTalentLocation } from "@/lib/talentLocation";
 
 type SupabaseAdminClient = ReturnType<typeof getSupabaseAdmin>;
 type CompanyUserRow = Database["public"]["Tables"]["company_users"]["Row"];
@@ -372,10 +373,17 @@ export type OrgAcceptedTalentItem = {
   acceptedAt: string;
   companyName: string;
   currentStage: OrgStageId | null;
+  currentStageLabel: string;
   isAwaitingStageMove: boolean;
+  memoPreview: string | null;
   recommendationId: string;
+  roleDescription: string | null;
+  roleDescriptionSummary: string | null;
   roleId: string;
+  roleLocationText: string | null;
   roleName: string | null;
+  roleStatus: string;
+  roleUpdatedAt: string;
   talent: {
     headline: string | null;
     name: string | null;
@@ -1078,6 +1086,16 @@ function buildStageLabel(stage: OrgStageId, customStages: RoleStageRow[]) {
   if (stage === "process_stopped") return "프로세스 중단";
   const stageId = getCustomStageDbId(stage);
   return customStages.find((item) => item.id === stageId)?.label ?? "단계";
+}
+
+function buildAcceptedTalentStageLabel(
+  stage: OrgStageId | null,
+  customStages: RoleStageRow[]
+) {
+  if (!stage) return "단계 확인 필요";
+  if (stage === "accepted") return "수락 후 대기";
+  if (stage === "process_stopped") return "프로세스 종료";
+  return buildStageLabel(stage, customStages);
 }
 
 function buildStageDestinationLabel(label: string) {
@@ -2741,28 +2759,63 @@ export async function fetchOrgBoard(args: {
   };
 }
 
+async function fetchLatestOpsProfileMemoPreviews(args: {
+  admin: ReturnType<typeof getSupabaseAdmin>;
+  talentIds: string[];
+}) {
+  const memoPreviewByTalentId = new Map<string, string>();
+  if (args.talentIds.length === 0) return memoPreviewByTalentId;
+
+  const { data, error } = await args.admin
+    .from("talent_ops_profile_memos")
+    .select("talent_id, content, updated_at, created_at")
+    .in("talent_id", args.talentIds)
+    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  for (const row of data ?? []) {
+    const talentId = normalizeText(row.talent_id);
+    const content = normalizeText(row.content);
+    if (!talentId || !content || memoPreviewByTalentId.has(talentId)) continue;
+    memoPreviewByTalentId.set(talentId, content.slice(0, 240));
+  }
+
+  return memoPreviewByTalentId;
+}
+
 export async function fetchOrgAcceptedTalents(args: {
   offset?: number;
   user: User;
+  workspaceIds?: string[];
 }): Promise<OrgAcceptedTalentsResponse> {
   const admin = getSupabaseAdmin();
   const offset = Math.max(0, Math.floor(Number(args.offset) || 0));
+  const workspaceIds = uniqueTexts(args.workspaceIds ?? []);
 
   if (!hasOrgAllWorkspaceAccess(args.user)) {
     throw new OrgHttpError(403, "내부 계정에서만 접근할 수 있습니다.");
   }
 
-  const { count, data, error } = await (
+  let acceptedTalentsQuery = (
     admin.from("talent_opportunity_recommendation" as any) as any
   )
     .select(
-      "id, talent_id, role_id, feedback, feedback_at, saved_stage, role:company_roles!inner(role_id, name, source_type, company_workspace_id, workspace:company_workspace!inner(company_workspace_id, company_name))",
+      "id, talent_id, role_id, feedback, feedback_at, saved_stage, role:company_roles!inner(role_id, name, description, description_summary, location_text, source_type, status, updated_at, company_workspace_id, workspace:company_workspace!inner(company_workspace_id, company_name))",
       { count: "exact" }
     )
     .in("feedback", ["like", "positive"])
     .not("feedback_at", "is", null)
     .eq("role.source_type", "internal")
-    .eq("role.is_expired", false)
+    .eq("role.is_expired", false);
+  if (workspaceIds.length > 0) {
+    acceptedTalentsQuery = acceptedTalentsQuery.in(
+      "role.company_workspace_id",
+      workspaceIds
+    );
+  }
+  const { count, data, error } = await acceptedTalentsQuery
     .order("feedback_at", { ascending: false })
     .order("id", { ascending: false })
     .range(offset, offset + ORG_ACCEPTED_TALENTS_PAGE_SIZE - 1);
@@ -2770,7 +2823,15 @@ export async function fetchOrgAcceptedTalents(args: {
 
   type AcceptedRoleRow = Pick<
     CompanyRoleRow,
-    "company_workspace_id" | "name" | "role_id" | "source_type"
+    | "company_workspace_id"
+    | "description"
+    | "description_summary"
+    | "location_text"
+    | "name"
+    | "role_id"
+    | "source_type"
+    | "status"
+    | "updated_at"
   > & {
     workspace:
       | Pick<CompanyWorkspaceRow, "company_name" | "company_workspace_id">
@@ -2794,16 +2855,22 @@ export async function fetchOrgAcceptedTalents(args: {
     if (role) roleById.set(role.role_id, role);
   }
   const roleIds = [...roleById.keys()];
-  const [customStages, connectedRecommendationIds, tagsByKey, talentById] =
-    await Promise.all([
-      fetchCustomStages(admin, roleIds),
-      fetchOrgConnectedRecommendationIdsForPage({
-        admin,
-        recommendationIds,
-      }),
-      fetchTagsForBoard({ admin, roleIds, talentIds }),
-      fetchTalentRows(admin, talentIds),
-    ]);
+  const [
+    customStages,
+    connectedRecommendationIds,
+    tagsByKey,
+    talentById,
+    memoPreviewByTalentId,
+  ] = await Promise.all([
+    fetchCustomStages(admin, roleIds),
+    fetchOrgConnectedRecommendationIdsForPage({
+      admin,
+      recommendationIds,
+    }),
+    fetchTagsForBoard({ admin, roleIds, talentIds }),
+    fetchTalentRows(admin, talentIds),
+    fetchLatestOpsProfileMemoPreviews({ admin, talentIds }),
+  ]);
   const customStageByTagKey = new Map(
     customStages.map((row) => [
       customTagKeyFromStageRow(row),
@@ -2838,10 +2905,20 @@ export async function fetchOrgAcceptedTalents(args: {
         acceptedAt,
         companyName: workspace.company_name,
         currentStage,
+        currentStageLabel: buildAcceptedTalentStageLabel(
+          currentStage,
+          customStages
+        ),
         isAwaitingStageMove: currentStage === "accepted",
+        memoPreview: memoPreviewByTalentId.get(row.talent_id) ?? null,
         recommendationId: row.id,
+        roleDescription: role.description ?? null,
+        roleDescriptionSummary: role.description_summary ?? null,
         roleId: row.role_id,
+        roleLocationText: role.location_text ?? null,
         roleName: role.name,
+        roleStatus: role.status,
+        roleUpdatedAt: role.updated_at,
         talent: {
           headline: talent.headline ?? null,
           name: talent.name ?? null,
@@ -4413,7 +4490,7 @@ export async function fetchOrgTalentDetail(args: {
   ] = await Promise.all([
     (admin.from("talent_users" as any) as any)
       .select(
-        "user_id, email, name, profile_picture, headline, bio, current_location, location, resume_file_name, resume_storage_path, resume_links, resume_text"
+        "user_id, email, name, profile_picture, headline, bio, location, current_location, resume_file_name, resume_storage_path, resume_links, resume_text"
       )
       .eq("user_id", talentId)
       .is("deleted_at", null)
@@ -4637,7 +4714,7 @@ export async function fetchOrgTalentDetail(args: {
         startDate: experience.start_date ?? null,
       })),
       extras: buildProfileExtras(extras),
-      location: talent.current_location ?? talent.location ?? null,
+      location: resolveTalentLocation(talent),
       registeredLinks,
     },
     profileMarkdown: buildProfileMarkdown({
@@ -5459,6 +5536,7 @@ export async function updateOrgRoleRequestOnly(args: {
   expectedRequest?: string | null;
   request?: string | null;
   roleId: string;
+  source?: "chat" | "slack" | "website";
   user: User;
   workspaceId: string;
 }) {
@@ -5531,7 +5609,7 @@ export async function updateOrgRoleRequestOnly(args: {
           value: args.request ?? null,
         },
       ],
-      source: "chat",
+      source: args.source ?? "chat",
       workspaceId,
     });
   } catch (error) {

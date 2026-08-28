@@ -32,6 +32,7 @@ from prepare_internal_role_matching_agent_review import (
     jsonable,
     normalized_company,
     parse_date,
+    resolve_profile_location,
     safe_metadata,
 )
 
@@ -147,7 +148,8 @@ def searchable(
     educations: Sequence[Mapping[str, Any]],
     extras: Sequence[Mapping[str, Any]],
 ) -> str:
-    parts = [profile.get(key) for key in ("headline", "bio", "resume_text", "current_location", "location")]
+    parts = [profile.get(key) for key in ("headline", "bio", "resume_text")]
+    parts.append(resolve_profile_location(profile))
     for row in experiences:
         parts.extend(row.get(key) for key in ("company_name", "role", "description", "memo"))
     for row in educations:
@@ -457,7 +459,7 @@ def main() -> int:
             "target_progress": executor.submit(db.get, "talent_progress", filters={"role_id": f"eq.{args.role_id}"}),
             "target_tags": executor.submit(db.get, "talent_opportunity_tag", filters={"opportunity_id": f"eq.{args.role_id}"}),
             "target_reviews": executor.submit(db.get, "talent_opportunity_matching_review", filters={"opportunity_id": f"eq.{args.role_id}"}),
-            "profiles": executor.submit(db.get, "talent_users", select="user_id,name,headline,bio,current_location,location,resume_text,resume_links,last_logined_at,created_at,updated_at"),
+            "profiles": executor.submit(db.get, "talent_users", select="user_id,name,headline,bio,location,current_location,resume_text,resume_links,last_logined_at,created_at,updated_at"),
             "settings": executor.submit(db.get, "talent_setting", select="user_id,profile_visibility,get_internal_recommendation,blocked_companies,engagement_types,status,is_onboarding_done,updated_at"),
             "experiences": executor.submit(db.get, "talent_experiences", select="id,talent_id,company_name,role,start_date,end_date,months,description,memo,employment_type"),
             "educations": executor.submit(db.get, "talent_educations", select="id,talent_id,school,degree,field,start_date,end_date,description,memo"),
@@ -536,7 +538,7 @@ def main() -> int:
     for talent_id in unchanged_role_review_ids:
         profile = profiles.get(talent_id) or {}
         setting = settings.get(talent_id) or {}
-        candidate_fp = digest({"version": "2.1-config-robotics-1", "profile": {key_name: profile.get(key_name) for key_name in ("headline", "bio", "current_location", "location", "resume_text", "resume_links")}, "experiences": sorted(experiences.get(talent_id) or [], key=lambda row: compact(row.get("id"), 100)), "educations": sorted(educations.get(talent_id) or [], key=lambda row: compact(row.get("id"), 100)), "extras": extras.get(talent_id) or [], "setting": {key_name: setting.get(key_name) for key_name in ("blocked_companies", "engagement_types", "profile_visibility", "get_internal_recommendation")}, "recommendations": recs.get(talent_id) or [], "tags": tags.get(talent_id) or []})
+        candidate_fp = digest({"version": "2.1-config-robotics-1", "profile": {key_name: profile.get(key_name) for key_name in ("headline", "bio", "location", "current_location", "resume_text", "resume_links")}, "experiences": sorted(experiences.get(talent_id) or [], key=lambda row: compact(row.get("id"), 100)), "educations": sorted(educations.get(talent_id) or [], key=lambda row: compact(row.get("id"), 100)), "extras": extras.get(talent_id) or [], "setting": {key_name: setting.get(key_name) for key_name in ("blocked_companies", "engagement_types", "profile_visibility", "get_internal_recommendation")}, "recommendations": recs.get(talent_id) or [], "tags": tags.get(talent_id) or []})
         if candidate_fp == active_review_rows[talent_id].get("candidate_fingerprint"):
             unchanged_cooldown_ids.add(talent_id)
         else:
@@ -578,7 +580,7 @@ def main() -> int:
         text = searchable(profile, candidate_exp, candidate_edu, extras.get(talent_id) or [])
         education_text = " ".join(" ".join(str(row.get(key_name) or "") for key_name in ("school", "degree", "field", "description", "memo")) for row in candidate_edu)
         months = relevant_months(candidate_exp)
-        location = " ".join(str(profile.get(key_name) or "") for key_name in ("current_location", "location"))
+        location = resolve_profile_location(profile)
         features = feature_scores(text, education_text, months, location)
         groups = features["matchedCoreGroups"]
         role_adjacent = (
@@ -710,7 +712,7 @@ def main() -> int:
         common = {
             "rank": rank,
             "retrieval": pool_row,
-            "profile": {"talentId": talent_id, "name": profile.get("name"), "headline": profile.get("headline"), "bio": compact(profile.get("bio"), 3000), "currentLocation": profile.get("current_location"), "location": profile.get("location"), "lastLoginedAt": profile.get("last_logined_at"), "publicProfileLinks": as_list(profile.get("resume_links"))[:8]},
+            "profile": {"talentId": talent_id, "name": profile.get("name"), "headline": profile.get("headline"), "bio": compact(profile.get("bio"), 3000), "location": resolve_profile_location(profile), "signupLocation": profile.get("current_location"), "lastLoginedAt": profile.get("last_logined_at"), "publicProfileLinks": as_list(profile.get("resume_links"))[:8]},
             "experiences": [{"id": row.get("id"), "company": row.get("company_name"), "role": row.get("role"), "start": row.get("start_date"), "end": row.get("end_date"), "months": row.get("months"), "employmentType": row.get("employment_type"), "description": row.get("description"), "memo": row.get("memo")} for row in candidate_exp],
             "educations": [{"id": row.get("id"), "school": row.get("school"), "degree": row.get("degree"), "field": row.get("field"), "start": row.get("start_date"), "end": row.get("end_date"), "description": row.get("description"), "memo": row.get("memo")} for row in candidate_edu],
             "extras": [row.get("content") for row in extras.get(talent_id) or []],
@@ -723,7 +725,7 @@ def main() -> int:
             "opsMemos": [{"id": row.get("id"), "content": row.get("content"), "updatedAt": row.get("updated_at")} for row in sorted(memos.get(talent_id) or [], key=lambda item: compact(item.get("updated_at"), 80), reverse=True)],
             "existingFit": jsonable((fits.get(talent_id) or [None])[0]),
         }
-        candidate_fingerprint = digest({"version": "2.1-config-robotics-1", "profile": {key_name: profile.get(key_name) for key_name in ("headline", "bio", "current_location", "location", "resume_text", "resume_links")}, "experiences": common["experiences"], "educations": common["educations"], "extras": common["extras"], "insights": common["insights"], "conversationSummaries": common["conversationSummaries"], "setting": {key_name: (settings.get(talent_id) or {}).get(key_name) for key_name in ("blocked_companies", "engagement_types", "profile_visibility", "get_internal_recommendation")}, "recommendations": common["recentRecommendations"], "tags": common["tags"], "progress": common["progress"], "opsMemos": common["opsMemos"]})
+        candidate_fingerprint = digest({"version": "2.1-config-robotics-1", "profile": {key_name: profile.get(key_name) for key_name in ("headline", "bio", "location", "current_location", "resume_text", "resume_links")}, "experiences": common["experiences"], "educations": common["educations"], "extras": common["extras"], "insights": common["insights"], "conversationSummaries": common["conversationSummaries"], "setting": {key_name: (settings.get(talent_id) or {}).get(key_name) for key_name in ("blocked_companies", "engagement_types", "profile_visibility", "get_internal_recommendation")}, "recommendations": common["recentRecommendations"], "tags": common["tags"], "progress": common["progress"], "opsMemos": common["opsMemos"]})
         common["candidateFingerprint"] = candidate_fingerprint
         full_packet = {**common, "resumeText": profile.get("resume_text")}
         artifact_packet = {**common, "resumeEvidenceExcerpt": relevant_excerpt(full_text)}
@@ -747,7 +749,7 @@ def main() -> int:
             profile = packet["profile"]
             lines.extend([
                 f"## {packet['rank']}. {profile.get('name')} (`{profile.get('talentId')}`)",
-                f"- Headline/location: {compact(profile.get('headline'), 320)} | {compact(profile.get('currentLocation') or profile.get('location'), 180)}",
+                f"- Headline/location: {compact(profile.get('headline'), 320)} | {compact(profile.get('location') or profile.get('signupLocation'), 180)}",
                 f"- Retrieval: role {retrieval['features']['roleRelevance']}, system {retrieval['systemScore']}, relevant months {retrieval['relevantMonths']}, groups {', '.join(retrieval['features']['matchedCoreGroups'])}, lanes {', '.join(retrieval['retrievalLanes'])}",
                 f"- Evidence excerpt: {compact(packet.get('resumeEvidenceExcerpt'), 3500)}",
                 "- Experience: " + " | ".join(f"{row.get('start') or '?'}~{row.get('end') or 'present'} {compact(row.get('company'), 90)} / {compact(row.get('role'), 110)}: {compact(row.get('description'), 700)}" for row in packet["experiences"][:8]),

@@ -99,6 +99,12 @@ def compact(value: Any, limit: int = 1200) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()[:limit]
 
 
+def resolve_profile_location(profile: Mapping[str, Any], limit: int = 300) -> str:
+    return compact(profile.get("location"), limit) or compact(
+        profile.get("current_location"), limit
+    )
+
+
 def jsonable(value: Any) -> Any:
     if isinstance(value, Mapping):
         return {str(key): jsonable(item) for key, item in value.items()}
@@ -300,7 +306,7 @@ def write_text(path: Path, value: str) -> None:
 
 
 def searchable(profile: Mapping[str, Any], experiences: Sequence[Mapping[str, Any]], educations: Sequence[Mapping[str, Any]], extras: Sequence[Mapping[str, Any]]) -> str:
-    parts = [profile.get("headline"), profile.get("bio"), profile.get("resume_text"), profile.get("current_location"), profile.get("location")]
+    parts = [profile.get("headline"), profile.get("bio"), profile.get("resume_text"), resolve_profile_location(profile)]
     for row in experiences:
         parts.extend(row.get(key) for key in ("company_name", "role", "description", "memo"))
     for row in educations:
@@ -465,7 +471,7 @@ def main() -> int:
             "target_recs": executor.submit(db.get, "talent_opportunity_recommendation", filters={"role_id": f"eq.{args.role_id}"}),
             "target_progress": executor.submit(db.get, "talent_progress", filters={"role_id": f"eq.{args.role_id}"}),
             "target_tags": executor.submit(db.get, "talent_opportunity_tag", filters={"opportunity_id": f"eq.{args.role_id}"}),
-            "profiles": executor.submit(db.get, "talent_users", select="user_id,name,headline,bio,current_location,location,resume_text,resume_links,last_logined_at,updated_at"),
+            "profiles": executor.submit(db.get, "talent_users", select="user_id,name,headline,bio,location,current_location,resume_text,resume_links,last_logined_at,updated_at"),
             "settings": executor.submit(db.get, "talent_setting", select="user_id,profile_visibility,get_internal_recommendation,blocked_companies,engagement_types,status,is_onboarding_done,updated_at"),
             "experiences": executor.submit(db.get, "talent_experiences", select="id,talent_id,company_name,role,start_date,end_date,months,description,memo,employment_type"),
             "educations": executor.submit(db.get, "talent_educations", select="id,talent_id,school,degree,field,start_date,end_date,description,memo"),
@@ -561,7 +567,7 @@ def main() -> int:
             continue
         text = searchable(profile, candidate_exp, educations.get(talent_id) or [], extras.get(talent_id) or [])
         months = engineering_months(candidate_exp)
-        location = " ".join(compact(profile.get(key), 300) for key in ("current_location", "location"))
+        location = resolve_profile_location(profile)
         features = retrieval_features(text, months, location)
         other_internal_tags = [item for item in tags.get(talent_id) or [] if compact(item.get("opportunity_id"), 100) in internal_role_ids and compact(item.get("opportunity_id"), 100) != args.role_id]
         stage_bonus = 8 if any(compact(item.get("tag"), 100) == "내부:최종오퍼" for item in other_internal_tags) else 6 if any(compact(item.get("tag"), 100) in {"내부:연결대기", "내부:프로세스중"} or compact(item.get("tag"), 100).startswith("내부단계:") for item in other_internal_tags) else 0
@@ -684,7 +690,7 @@ def main() -> int:
         packet = {
             "rank": rank,
             "retrieval": pool_row,
-            "profile": {"talentId": talent_id, "name": profile.get("name"), "headline": profile.get("headline"), "bio": compact(profile.get("bio"), 1600), "currentLocation": profile.get("current_location"), "location": profile.get("location"), "lastLoginedAt": profile.get("last_logined_at"), "publicProfileLinks": as_list(profile.get("resume_links"))[:6]},
+            "profile": {"talentId": talent_id, "name": profile.get("name"), "headline": profile.get("headline"), "bio": compact(profile.get("bio"), 1600), "location": resolve_profile_location(profile), "signupLocation": profile.get("current_location"), "lastLoginedAt": profile.get("last_logined_at"), "publicProfileLinks": as_list(profile.get("resume_links"))[:6]},
             "keywordEvidenceExcerpt": keyword_excerpts(full_search),
             "resumeExcerpt": compact(profile.get("resume_text"), 5000),
             "experiences": [{"id": item.get("id"), "company": item.get("company_name"), "role": item.get("role"), "start": item.get("start_date"), "end": item.get("end_date"), "employmentType": item.get("employment_type"), "description": compact(item.get("description"), 1600), "memo": compact(item.get("memo"), 400)} for item in candidate_exp[:15]],
@@ -711,7 +717,7 @@ def main() -> int:
             profile = packet["profile"]
             lines.extend([
                 f"## {packet['rank']}. {profile.get('name')} (`{profile.get('talentId')}`)",
-                f"- Headline/location: {compact(profile.get('headline'), 300)} | {compact(profile.get('currentLocation') or profile.get('location'), 160)}",
+                f"- Headline/location: {compact(profile.get('headline'), 300)} | {compact(profile.get('location') or profile.get('signupLocation'), 160)}",
                 f"- Retrieval: relevance {retrieval['features']['roleRelevance']}, system {retrieval['systemScore']}, months {retrieval['engineeringMonths']}, lanes {', '.join(retrieval['retrievalLanes'])}, existing fit {retrieval.get('existingFitLabel') or '-'} {retrieval.get('existingFitScore') if retrieval.get('existingFitScore') is not None else ''}",
                 f"- Bio: {compact(profile.get('bio'), 700)}",
                 f"- Evidence excerpt: {compact(packet.get('keywordEvidenceExcerpt'), 2400)}",

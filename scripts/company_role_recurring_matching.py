@@ -133,6 +133,22 @@ def compact(value: Any, limit: int = 1000) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()[:limit]
 
 
+def resolve_profile_location(profile: Mapping[str, Any], limit: int = 300) -> str:
+    return compact(profile.get("location"), limit) or compact(
+        profile.get("current_location"), limit
+    )
+
+
+def matching_profile_payload(profile: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    if not profile:
+        return None
+    payload = dict(profile)
+    signup_location = payload.pop("current_location", None)
+    payload["location"] = resolve_profile_location(profile) or None
+    payload["signup_location"] = signup_location
+    return payload
+
+
 def normalize_context_text(value: str) -> str:
     """Canonicalize inconsequential whitespace while preserving wording/structure."""
     lines = [re.sub(r"[ \t]+", " ", line).strip() for line in value.splitlines()]
@@ -1834,7 +1850,7 @@ def candidate_exclusion(
 
 def talent_packet_payload(data: Mapping[str, Any], talent_id: str) -> dict[str, Any]:
     return {
-        "profile": data["profiles"].get(talent_id),
+        "profile": matching_profile_payload(data["profiles"].get(talent_id)),
         "setting": data["settings"].get(talent_id),
         "experiences": data["experiences"].get(talent_id, []),
         "educations": data["educations"].get(talent_id, []),

@@ -37,6 +37,10 @@ export function containsOrgIntroCandidateDetractingInformation(value: string) {
   );
 }
 
+function escapeOrgIntroRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export function getOrgIntroDraftSafetyIssues(args: {
   body: string;
   candidateName?: string;
@@ -49,6 +53,13 @@ export function getOrgIntroDraftSafetyIssues(args: {
 }) {
   const combined = `${args.subject}\n${args.body}`;
   const issues: string[] = [];
+  const koreanCompanyPersonPatternSource =
+    args.locale === "ko" &&
+    args.companyUserRole &&
+    args.companyName &&
+    args.companyUserName
+      ? `${escapeOrgIntroRegex(args.companyName)}의\\s+[^,\\n]{1,160}?\\s+${escapeOrgIntroRegex(args.companyUserName)}님`
+      : null;
 
   if (containsOrgIntroProcessHistory(combined)) {
     issues.push("company_process_history");
@@ -62,8 +73,11 @@ export function getOrgIntroDraftSafetyIssues(args: {
   if (
     args.locale === "ko" &&
     KOREAN_RECIPIENT_ROLE_LABEL_PATTERN.test(
-      args.companyUserRole
-        ? combined.replaceAll(args.companyUserRole, "")
+      koreanCompanyPersonPatternSource
+        ? combined.replace(
+            new RegExp(koreanCompanyPersonPatternSource, "g"),
+            `${args.companyName}의 ${args.companyUserName}님`
+          )
         : combined
     )
   ) {
@@ -82,14 +96,36 @@ export function getOrgIntroDraftSafetyIssues(args: {
     args.companyUserName
   ) {
     const companyPersonLabel = `${args.companyName}의 ${args.companyUserName}님`;
-    const expectedGreeting = `${companyPersonLabel}, ${args.candidateName}님 안녕하세요.`;
-    const companyPersonMentions =
-      args.body.split(companyPersonLabel).length - 1;
-    if (!args.body.startsWith(expectedGreeting)) {
+    const hasExpectedGreeting = args.companyUserRole
+      ? new RegExp(
+          `^${koreanCompanyPersonPatternSource ?? "(?!)"}, ${escapeOrgIntroRegex(args.candidateName)}님 안녕하세요\\.`
+        ).test(args.body)
+      : args.body.startsWith(
+          `${companyPersonLabel}, ${args.candidateName}님 안녕하세요.`
+        );
+    const companyPersonMentions = args.companyUserRole
+      ? (args.body.match(
+          new RegExp(koreanCompanyPersonPatternSource ?? "(?!)", "g")
+        )?.length ?? 0)
+      : args.body.split(companyPersonLabel).length - 1;
+    if (!hasExpectedGreeting) {
       issues.push("invalid_recipient_greeting");
     }
     if (companyPersonMentions < 2) {
       issues.push("unqualified_company_person_reference");
+    }
+    if (args.companyUserRole && koreanCompanyPersonPatternSource) {
+      const localizedRoles = [
+        ...args.body.matchAll(
+          new RegExp(
+            `${escapeOrgIntroRegex(args.companyName)}의\\s+([^,\\n]{1,160}?)\\s+${escapeOrgIntroRegex(args.companyUserName)}님`,
+            "g"
+          )
+        ),
+      ].map((match) => match[1]?.trim());
+      if (new Set(localizedRoles).size > 1) {
+        issues.push("inconsistent_company_user_role");
+      }
     }
   }
   if (args.candidateName && args.roleTitle) {
@@ -102,28 +138,40 @@ export function getOrgIntroDraftSafetyIssues(args: {
     }
   }
   if (
-    args.locale === "ko" &&
-    args.companyName &&
-    args.companyUserName &&
-    args.companyUserRole &&
-    !args.body.includes(
-      `${args.companyName}의 ${args.companyUserRole} ${args.companyUserName}님`
-    )
-  ) {
-    issues.push("missing_company_user_role_introduction");
-  }
-  if (
     args.locale === "en" &&
     args.candidateName &&
     args.companyName &&
-    args.companyUserName &&
-    !args.body.includes(
-      args.companyUserRole
-        ? `${args.candidateName}, I'd like to introduce ${args.companyName}'s ${args.companyUserRole} ${args.companyUserName}.`
-        : `${args.candidateName}, I'd like to introduce ${args.companyName}'s ${args.companyUserName}.`
-    )
+    args.companyUserName
   ) {
-    issues.push("missing_company_user_role_introduction");
+    const companyRoleFragment = args.companyUserRole
+      ? "([^,\\n]{1,160}?)\\s+"
+      : "";
+    const englishGreetingPattern = new RegExp(
+      `^Hi ${escapeOrgIntroRegex(args.companyName)}'s\\s+${companyRoleFragment}${escapeOrgIntroRegex(args.companyUserName)} and ${escapeOrgIntroRegex(args.candidateName)},`
+    );
+    const englishCompanyIntroPattern = new RegExp(
+      `${escapeOrgIntroRegex(args.candidateName)}, I'd like to introduce ${escapeOrgIntroRegex(args.companyName)}'s\\s+${companyRoleFragment}${escapeOrgIntroRegex(args.companyUserName)}\\.`
+    );
+    const englishGreetingMatch = args.body.match(englishGreetingPattern);
+    const englishCompanyIntroMatch = args.body.match(
+      englishCompanyIntroPattern
+    );
+    if (!englishGreetingMatch) {
+      issues.push("invalid_recipient_greeting");
+    }
+    if (!englishCompanyIntroMatch) {
+      issues.push("missing_company_user_role_introduction");
+    }
+    if (args.companyUserRole && englishGreetingMatch) {
+      const localizedGreetingRole = englishGreetingMatch[1]?.trim() ?? "";
+      const localizedIntroRole = englishCompanyIntroMatch?.[1]?.trim() ?? "";
+      if (/[\uac00-\ud7a3]/.test(localizedGreetingRole + localizedIntroRole)) {
+        issues.push("unlocalized_company_user_role");
+      }
+      if (localizedIntroRole && localizedGreetingRole !== localizedIntroRole) {
+        issues.push("inconsistent_company_user_role");
+      }
+    }
   }
   if (
     args.locale === "ko" &&

@@ -36,10 +36,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import {
   useAddOrgSlackChannel,
   useConnectOrgSlack,
+  useCreateOrgSlackChannel,
   useDisconnectOrgSlack,
   useOrgSlackStatus,
   useRemoveOrgSlackChannel,
@@ -50,6 +53,11 @@ import {
   formatMeetingAvailabilitySummary,
   ISO_WEEKDAYS,
 } from "@/lib/meetings/availability";
+import {
+  getSlackChannelNameError,
+  normalizeSlackChannelName,
+  SLACK_CHANNEL_NAME_MAX_LENGTH,
+} from "@/lib/org/slackChannelCreation";
 import { cn } from "@/lib/utils";
 import { useToastStore } from "@/store/useToastStore";
 
@@ -68,6 +76,13 @@ export function OrgSettingsPage() {
   const addToast = useToastStore((state) => state.add);
   const handledSlackResult = useRef("");
   const availabilityOpenedHere = useRef(false);
+  const [createChannelOpen, setCreateChannelOpen] = useState(false);
+  const [creatingChannelIsPrivate, setCreatingChannelIsPrivate] =
+    useState(false);
+  const [creatingChannelName, setCreatingChannelName] = useState("");
+  const [creatingChannelNameError, setCreatingChannelNameError] = useState<
+    string | null
+  >(null);
   const [disconnectOpen, setDisconnectOpen] = useState(false);
   const [removeChannelId, setRemoveChannelId] = useState<string | null>(null);
   const [newChannelId, setNewChannelId] = useState("");
@@ -76,6 +91,7 @@ export function OrgSettingsPage() {
   });
   const connectSlack = useConnectOrgSlack();
   const addSlackChannel = useAddOrgSlackChannel(workspace.workspaceId);
+  const createSlackChannel = useCreateOrgSlackChannel(workspace.workspaceId);
   const disconnectSlack = useDisconnectOrgSlack(workspace.workspaceId);
   const removeSlackChannel = useRemoveOrgSlackChannel(workspace.workspaceId);
   const status = statusQuery.data;
@@ -107,7 +123,7 @@ export function OrgSettingsPage() {
     addToast({
       message:
         result === "connected"
-          ? "Slack 채널을 연결했습니다."
+          ? "Slack을 연결했어요."
           : message || "Slack 연결을 완료하지 못했습니다.",
       variant: result === "connected" ? "success" : "error",
     });
@@ -164,6 +180,53 @@ export function OrgSettingsPage() {
     }
   };
 
+  const handleCreateChannelOpenChange = (open: boolean) => {
+    if (!open && createSlackChannel.isPending) return;
+    setCreateChannelOpen(open);
+    if (!open) {
+      setCreatingChannelIsPrivate(false);
+      setCreatingChannelName("");
+      setCreatingChannelNameError(null);
+    }
+  };
+
+  const createChannel = async () => {
+    const channelName = normalizeSlackChannelName(creatingChannelName);
+    const nameError = getSlackChannelNameError(channelName);
+    if (nameError) {
+      setCreatingChannelNameError(nameError);
+      return;
+    }
+    try {
+      const payload = await createSlackChannel.mutateAsync({
+        channelName,
+        isPrivate: creatingChannelIsPrivate,
+      });
+      handleCreateChannelOpenChange(false);
+      const formattedChannel = formatChannel(
+        payload.channel.channelName,
+        payload.channel.channelId
+      );
+      const followUp = !payload.creatingUserInvited
+        ? " Slack 계정을 찾지 못해 본인은 자동으로 초대하지 못했어요. Slack 관리자에게 채널 초대를 요청해 주세요."
+        : !payload.welcomeMessageSent
+          ? " Harper의 첫 안내 메시지는 보내지 못했지만 채널 연결은 유지돼요."
+          : "";
+      addToast({
+        message: `${formattedChannel} 채널을 만들고 Harper에 연결했어요.${followUp}`,
+        variant: "success",
+      });
+    } catch (error) {
+      addToast({
+        message:
+          error instanceof Error
+            ? error.message
+            : "Slack 채널을 만들지 못했어요. 잠시 후 다시 시도해 주세요.",
+        variant: "error",
+      });
+    }
+  };
+
   const removeChannel = async () => {
     if (!removeChannelId) return;
     try {
@@ -202,6 +265,7 @@ export function OrgSettingsPage() {
   const mutationError =
     connectSlack.error ??
     addSlackChannel.error ??
+    createSlackChannel.error ??
     removeSlackChannel.error ??
     disconnectSlack.error;
 
@@ -325,7 +389,8 @@ export function OrgSettingsPage() {
                   aria-hidden="true"
                   className="pointer-events-none absolute inset-0 size-full object-cover"
                   fill
-                  sizes="100vw"
+                  loading="eager"
+                  sizes="(min-width: 1216px) 912px, (min-width: 768px) calc(100vw - 304px), calc(100vw - 32px)"
                   src="/images/bluesky.jpg"
                 />
                 <div className="relative flex flex-col gap-4 rounded-2xl bg-white/70 backdrop-blur-sm px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:w-[60%]">
@@ -378,55 +443,101 @@ export function OrgSettingsPage() {
                 </div>
               </div>
 
+              {permissions.canManageIntegrations &&
+              !status.canCreateChannels ? (
+                <div className="flex flex-col gap-3 rounded-md bg-info-faded px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="text-[13px] font-medium text-neutral-primary">
+                      Slack 채널 생성 권한이 필요해요
+                    </div>
+                    <p className="mt-1 text-[12px] font-light leading-5 text-neutral-muted">
+                      Slack을 다시 연결해 공개·비공개 채널 생성 권한을 승인해
+                      주세요. 기존 채널 연결은 유지돼요.
+                    </p>
+                  </div>
+                  <MuteButton
+                    className="shrink-0 self-start sm:self-auto"
+                    disabled={connectSlack.isPending}
+                    onClick={() => void connect()}
+                    size="md"
+                  >
+                    {connectSlack.isPending ? (
+                      <LoaderCircle className="size-4 animate-spin" />
+                    ) : null}
+                    Slack 다시 연결
+                  </MuteButton>
+                </div>
+              ) : null}
+
               <div>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h3 className="text-[14px] font-medium text-neutral-primary">
                     연결된 채널
                   </h3>
-                  {permissions.canManageIntegrations &&
-                  status.availableChannels.length > 0 ? (
+                  {permissions.canManageIntegrations ? (
                     <div className="flex flex-wrap items-center gap-2">
-                      <select
-                        className="h-9 rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-[13px]"
-                        onChange={(event) =>
-                          setNewChannelId(event.target.value)
-                        }
-                        value={newChannelId}
-                      >
-                        <option value="">채널 선택</option>
-                        {status.availableChannels.map((channel) => (
-                          <option
-                            key={channel.channelId}
-                            value={channel.channelId}
+                      {status.availableChannels.length > 0 ? (
+                        <>
+                          <select
+                            aria-label="기존 Slack 채널"
+                            className="h-9 rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-[13px]"
+                            onChange={(event) =>
+                              setNewChannelId(event.target.value)
+                            }
+                            value={newChannelId}
                           >
-                            {formatChannel(
-                              channel.channelName,
-                              channel.channelId
-                            )}
-                            {channel.isPrivate ? " (private)" : ""}
-                          </option>
-                        ))}
-                      </select>
-                      <MuteButton
-                        disabled={addSlackChannel.isPending || !newChannelId}
-                        onClick={() => void addChannel()}
-                        size="md"
-                      >
-                        {addSlackChannel.isPending ? (
-                          <LoaderCircle className="size-4 animate-spin" />
-                        ) : (
-                          <Plus className="size-4" />
-                        )}
-                        추가
-                      </MuteButton>
+                            <option value="">채널 선택</option>
+                            {status.availableChannels.map((channel) => (
+                              <option
+                                key={channel.channelId}
+                                value={channel.channelId}
+                              >
+                                {formatChannel(
+                                  channel.channelName,
+                                  channel.channelId
+                                )}
+                                {channel.isPrivate ? " (private)" : ""}
+                              </option>
+                            ))}
+                          </select>
+                          <MuteButton
+                            disabled={
+                              addSlackChannel.isPending || !newChannelId
+                            }
+                            onClick={() => void addChannel()}
+                            size="md"
+                          >
+                            {addSlackChannel.isPending ? (
+                              <LoaderCircle className="size-4 animate-spin" />
+                            ) : null}
+                            선택된 채널 연결
+                          </MuteButton>
+                          <MuteButton
+                            disabled={
+                              createSlackChannel.isPending ||
+                              !status.canCreateChannels
+                            }
+                            onClick={() => setCreateChannelOpen(true)}
+                            size="sm"
+                            variant="primary"
+                            className="md:mt-0 mt-4 flex"
+                          >
+                            <Plus className="size-4" />
+                            Slack 채널 만들기
+                          </MuteButton>
+                        </>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
                 {permissions.canManageIntegrations ? (
-                  <p className="mt-2 text-[12px] font-light leading-5 text-neutral-soft">
-                    비공개 채널은 Slack에서 먼저 <Code>/invite @Harper</Code>를
-                    한 뒤 목록에서 선택해 추가할 수 있습니다.
-                  </p>
+                  <div className="mt-3 w-full flex flex-col md:flex-row items-center justify-between">
+                    <p className="text-[12px] font-light leading-5 text-neutral-soft">
+                      비공개 채널에 연결하려면 Slack의 해당 채널에서 먼저{" "}
+                      <Code>/invite @Harper</Code>를 한 뒤 현재 페이지에서
+                      새로고침 후 목록에서 선택해 주세요.
+                    </p>
+                  </div>
                 ) : null}
                 <div className="mt-4 border-t border-neutral-1000-a05">
                   {status.channels.map((channel) => (
@@ -614,6 +725,118 @@ export function OrgSettingsPage() {
         userId={user.id}
         workspaceId={workspace.workspaceId}
       />
+
+      <Dialog
+        open={createChannelOpen}
+        onOpenChange={handleCreateChannelOpenChange}
+      >
+        <DialogContent className="max-w-md gap-0 rounded-lg p-6">
+          <form
+            className="space-y-5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void createChannel();
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle className="text-[18px]">
+                Slack 채널 만들기
+              </DialogTitle>
+              <DialogDescription className="text-[13px] leading-5">
+                채널을 만들면 Harper가 바로 참여하고 이 Organization의 채널로
+                연결돼요. Slack 계정이 확인되면 지금 로그인한 팀원도 함께
+                초대해요.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2">
+              <label
+                className="text-[13px] font-medium text-neutral-primary"
+                htmlFor="slack-channel-name"
+              >
+                채널 이름
+              </label>
+              <Input
+                aria-describedby="slack-channel-name-message"
+                aria-invalid={Boolean(creatingChannelNameError)}
+                autoCapitalize="none"
+                autoComplete="off"
+                autoFocus
+                disabled={createSlackChannel.isPending}
+                id="slack-channel-name"
+                maxLength={SLACK_CHANNEL_NAME_MAX_LENGTH}
+                onChange={(event) => {
+                  setCreatingChannelName(event.target.value);
+                  setCreatingChannelNameError(null);
+                }}
+                placeholder="예: hiring-team"
+                spellCheck={false}
+                value={creatingChannelName}
+              />
+              <p
+                className={cn(
+                  "text-[12px] font-light leading-5",
+                  creatingChannelNameError
+                    ? "text-critical"
+                    : "text-neutral-muted"
+                )}
+                id="slack-channel-name-message"
+              >
+                {creatingChannelNameError ??
+                  "영문 소문자, 숫자, 하이픈(-), 밑줄(_)을 사용할 수 있어요."}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between gap-4 rounded-md bg-bg-weak px-3 py-3">
+              <div>
+                <div
+                  className="text-[13px] font-medium text-neutral-primary"
+                  id="slack-channel-private-label"
+                >
+                  비공개 채널
+                </div>
+                <p
+                  className="mt-1 text-[12px] font-light leading-5 text-neutral-muted"
+                  id="slack-channel-private-description"
+                >
+                  켜면 초대된 Slack 멤버와 Harper만 채널을 볼 수 있어요.
+                </p>
+              </div>
+              <Switch
+                aria-describedby="slack-channel-private-description"
+                aria-labelledby="slack-channel-private-label"
+                checked={creatingChannelIsPrivate}
+                disabled={createSlackChannel.isPending}
+                onCheckedChange={setCreatingChannelIsPrivate}
+              />
+            </div>
+
+            <DialogFooter>
+              <MuteButton
+                disabled={createSlackChannel.isPending}
+                onClick={() => handleCreateChannelOpenChange(false)}
+                size="lg"
+                type="button"
+              >
+                취소
+              </MuteButton>
+              <MuteButton
+                disabled={
+                  createSlackChannel.isPending || !creatingChannelName.trim()
+                }
+                size="lg"
+                type="submit"
+                variant="primary"
+              >
+                {createSlackChannel.isPending ? (
+                  <LoaderCircle className="size-4 animate-spin" />
+                ) : null}
+                채널 만들고 연결하기
+              </MuteButton>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={disconnectOpen} onOpenChange={setDisconnectOpen}>
         <DialogContent className="max-w-md gap-4 rounded-lg p-6">

@@ -41,7 +41,7 @@ function OrgEntryAppBar({ isAuthenticated }: { isAuthenticated: boolean }) {
             src="/svgs/logov2.svg"
             alt="Harper"
             width={68}
-            height={29}
+            height={31}
             priority
           />
         </Link>

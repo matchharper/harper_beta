@@ -274,6 +274,7 @@ const invalidateOpsCareerMemoQueries = (
   queryClient.invalidateQueries({ queryKey: opsCareerDetailKey(userId) });
   queryClient.invalidateQueries({ queryKey: opsCareerListKey });
   queryClient.invalidateQueries({ queryKey: queryKeys.opsMatching.all });
+  queryClient.invalidateQueries({ queryKey: queryKeys.org.acceptedTalents });
 };
 
 export function useCreateOpsCareerProfileMemo(userId: string) {

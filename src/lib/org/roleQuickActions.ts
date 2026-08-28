@@ -15,6 +15,7 @@ export type OrgRoleQuickActionId =
   (typeof ORG_ROLE_QUICK_ACTIONS)[number]["id"];
 
 export const HARPER_ROLE_QUICK_ACTION_PREFIX = "harper_role_quick_action:";
+export const HARPER_ROLE_QUICK_ACTION_BLOCK_ID = "harper_role_quick_actions";
 
 export function getOrgRoleQuickAction(value: unknown) {
   const id = String(value ?? "").trim();

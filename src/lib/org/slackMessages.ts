@@ -123,14 +123,10 @@ export function buildOrgRoleCreatedSlackMessage(args: {
     `지금부터 ${escapeSlackText(args.workspace.companyName)}의 *${formatSlackLink(roleUrl, args.roleName)}* 역할의 매칭을 시작합니다.`,
     "🔥 앞으로 Harper가 해당 역할의 기준과 팀의 선호도에 맞는 후보자를 찾아 추천할게요.",
     "추천되는 후보자는 단순히 기준에 맞는 사람을 찾아 알려드리는 게 아니에요. Harper 인재풀을 검토하고 부족한 정보가 있다면 후보자에게 먼저 물어본 뒤, 회사와 역할을 충분히 소개하고 만나보고 싶다고 응한 분들만 알려드려요.",
+    "",
     "따라서 당장 많은 연결 제안을 드리기보다는, 천천히 정말 적합한 분들만 연결해드릴게요.",
+    "",
     "Inbox의 연결 대기 후보자를 검토한 뒤 연결을 수락하거나 거절하면 그 결정에 맞춰 다음 단계를 진행해요. 연결을 수락하면 소개 이메일로 양측을 연결하고, 연결을 거절하면 회사가 더 진행하지 않기로 했다는 종료 결정을 후보자에게 안내해요. 평소에도 어떤 점을 선호하시는지, 특정 후보자가 왜 기준에 맞지 않았는지 자세히 알려주실수록 더 정확한 매칭에 반영할게요.",
-    `- *등록한 분*: ${escapeSlackText(
-      args.actor.name ||
-        args.actor.email ||
-        args.actor.userId ||
-        "확인할 수 없음"
-    )}`,
   ].join("\n");
 }
 

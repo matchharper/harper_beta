@@ -122,7 +122,7 @@ test("requires a settings link when no Slack channel is available", () => {
   assert.match(prompt, /Do not request final role-creation confirmation/);
 });
 
-test("calibrates the company selection bar from one or more LinkedIn examples", () => {
+test("calibrates the company selection bar from people supplied through any professional source", () => {
   const prompt = buildRoleCreationSystemPrompt({ surface: "chat" });
   const slackPrompt = buildRoleCreationSystemPrompt({ surface: "slack" });
 
@@ -133,13 +133,17 @@ test("calibrates the company selection bar from one or more LinkedIn examples", 
     /representative ideal profiles among current team members/
   );
   assert.match(prompt, /Phrase the invitation naturally from the conversation/);
+  assert.match(prompt, /LinkedIn or GitHub profile/);
+  assert.match(prompt, /LinkedIn is one possible source, not a requirement|Source format is irrelevant/);
   assert.match(prompt, /the company's caliber bar is still uncalibrated/);
   assert.match(
     prompt,
     /prioritize this invitation over another generic question/
   );
-  assert.match(prompt, /Open every supplied profile URL with open_url/);
-  assert.match(prompt, /professional facts actually returned by the tool/);
+  assert.match(prompt, /call calibrate_role_hiring_brief as the only tool/);
+  assert.match(prompt, /never from keywords, source type, URL presence/);
+  assert.match(prompt, /gpt-5\.6-terra at max reasoning/);
+  assert.match(prompt, /do not pre-open sources or pair it with update_role_draft/);
   assert.match(prompt, /Keep two independent gates explicit/);
   assert.match(prompt, /ROLE ELIGIBILITY \/ EXPERIENCE FIT/);
   assert.match(prompt, /COMPANY TALENT QUALITY \/ CALIBER/);
@@ -179,7 +183,7 @@ test("calibrates the company selection bar from one or more LinkedIn examples", 
     /genuinely different evidence could demonstrate equivalent caliber/
   );
   assert.match(prompt, /Candidate interest cannot compensate/);
-  assert.match(prompt, /merging it into update_role_draft\.request/);
+  assert.match(prompt, /replaces the complete request/);
   assert.match(prompt, /clearly separate sections for role eligibility/);
   assert.match(prompt, /every supported selectivity or achievement signal/);
   assert.match(

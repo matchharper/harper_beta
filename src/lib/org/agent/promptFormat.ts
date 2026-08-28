@@ -1065,6 +1065,17 @@ export function serializeOrgAgentToolResult(
   if (name === "get_talents") return formatTalentSearchResult(result);
   if (name === "read_talent") return formatTalentResult(result);
   if (name === "read_role") return formatRoleResult(result);
+  if (name === "calibrate_role_hiring_brief") {
+    return [
+      `status=${formatPromptCell(result.status, 30)}`,
+      `role_name=${formatPromptCell(result.roleName, 200)}`,
+      `reference_count=${formatPromptCell(result.referenceCount, 20)}`,
+      `summary=${formatPromptCell(result.summary, 600)}`,
+      `follow_up_question=${formatPromptCell(result.followUpQuestion, 1_000)}`,
+      `failed_reference_urls=${formatPromptCell(result.failedReferenceUrls, 2_000)}`,
+      "instruction=Explain the updated decision boundary concisely. Do not reproduce profile biographies or the full Hiring Brief. Ask follow_up_question only when it is not empty.",
+    ].join("\n");
+  }
   if (name === "get_more_data") {
     return serializeOrgAgentMoreData(value as OrgAgentMoreDataResult);
   }

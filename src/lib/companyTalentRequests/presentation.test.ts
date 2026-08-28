@@ -94,19 +94,33 @@ test("Slack candidate contact preview renders a hidden clickable resume URL", ()
 });
 
 test("candidate contact completion turns schedule data into conversational timing", () => {
-  const lateNight = new Date("2026-08-27T13:30:00.000Z");
+  const afternoon = new Date("2026-08-27T05:00:00.000Z");
   assert.equal(
-    naturalCandidateContactTiming("2026-08-27T23:00:00.000Z", lateNight),
-    "지금은 시간이 늦어서 내일 아침에"
+    naturalCandidateContactTiming("2026-08-27T05:20:00.000Z", afternoon),
+    "조금 뒤에"
+  );
+  assert.equal(
+    candidateContactScheduledReply({
+      candidateName: "김호진",
+      immediate: false,
+      now: afternoon,
+      scheduledAt: "2026-08-27T05:20:00.000Z",
+    }),
+    "김호진님께 제가 대신 조금 뒤에 물어볼게요. 답이 오면 여기로 알려드릴게요."
+  );
+  const lateNight = new Date("2026-08-27T14:50:00.000Z");
+  assert.equal(
+    naturalCandidateContactTiming("2026-08-27T15:10:00.000Z", lateNight),
+    "조금 뒤에"
   );
   assert.equal(
     candidateContactScheduledReply({
       candidateName: "김호진",
       immediate: false,
       now: lateNight,
-      scheduledAt: "2026-08-27T23:00:00.000Z",
+      scheduledAt: "2026-08-27T15:10:00.000Z",
     }),
-    "지금은 시간이 늦어서, 김호진님께 내일 아침에 제가 대신 물어볼게요. 답이 오면 여기로 알려드릴게요."
+    "김호진님께 제가 대신 조금 뒤에 물어볼게요. 답이 오면 여기로 알려드릴게요."
   );
   assert.equal(
     candidateContactScheduledReply({

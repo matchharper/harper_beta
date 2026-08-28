@@ -1080,7 +1080,7 @@ candidate pool과 개별 평가 artifact에는 최소 다음을 남긴다.
     {
       "type": "current_residence",
       "countryCode": "KR",
-      "source": "talent_users.current_location",
+      "source": "talent_users.location (없을 때만 current_location)",
       "sourceId": "<talent_id>",
       "observedAt": "timestamp or unknown",
       "fact": "현재 서울 거주"
@@ -1321,8 +1321,8 @@ base AS (
     tu.name,
     tu.headline,
     tu.bio,
-    tu.current_location,
     tu.location,
+    tu.current_location,
     tu.resume_text,
     tu.resume_links,
     tu.last_logined_at,

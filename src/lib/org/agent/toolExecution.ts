@@ -24,7 +24,10 @@ import {
   resolveCompanyDataMutation,
   type ResolvedCompanyDataChange,
 } from "@/lib/org/agent/companyDataMutation";
-import type { OrgAgentConversationRow } from "@/lib/org/agent/store";
+import {
+  fetchRoleForOrgAgent,
+  type OrgAgentConversationRow,
+} from "@/lib/org/agent/store";
 import {
   fetchOrgAgentConversationHistory,
   OrgAgentConversationHistoryCursorError,
@@ -60,6 +63,7 @@ import {
   updateOrgRoleCriteria,
   updateOrgRoleReviewStage,
   updateOrgRole,
+  updateOrgRoleRequestOnly,
   type OrgStageId,
 } from "@/lib/org/server";
 import { canStopOrgCandidateProcess } from "@/lib/org/candidateDecision";
@@ -92,6 +96,10 @@ import {
   candidateContactScheduledReply,
 } from "@/lib/companyTalentRequests/presentation";
 import {
+  resolveCandidateContactLifecycleAction,
+  type CandidateContactLifecycleAction,
+} from "@/lib/org/agent/candidateContactAction";
+import {
   executeSharedOpenUrl,
   executeSharedWebSearch,
 } from "@/lib/agentTools/web";
@@ -123,6 +131,11 @@ import {
   fetchMeetingAvailability,
   saveMeetingAvailability,
 } from "@/lib/meetings/availabilityServer";
+import {
+  formatOtherRoleCalibrationContext,
+  generateRoleHiringBriefCalibration,
+} from "@/lib/org/agent/roleCalibration";
+import type { ChatAttachmentPayload } from "@/types/chat";
 
 export { createOrgAgentToolExecutionState, promoteOrgAgentToolReadVisibility };
 export { OrgAgentToolInputError };
@@ -436,6 +449,11 @@ export function getOrgAgentToolStatusLabel(args: {
       "역할과 진행 현황을 읽는 중",
       "역할 확인 완료",
       "역할을 읽지 못했습니다",
+    ],
+    calibrate_role_hiring_brief: [
+      "참고 인물을 바탕으로 Hiring Brief를 정리하는 중",
+      "Hiring Brief 기준 정리 완료",
+      "Hiring Brief 기준을 정리하지 못했습니다",
     ],
     read_talent: [
       "후보자와 진행 현황을 읽는 중",
@@ -987,6 +1005,125 @@ async function executeUpdateRoleCriteria(args: {
     mode: editCounts ? "edits" : "replace",
     status: result.status,
     summary,
+  };
+}
+
+async function executeCalibrateRoleHiringBrief(args: {
+  admin: OrgAgentAdminClient;
+  callId: string;
+  companySideContext: string;
+  input: Record<string, unknown>;
+  name: OrgAgentToolName;
+  onProgress?: (label: string) => void;
+  referenceAttachments?: ChatAttachmentPayload[];
+  readAudience: OrgAgentReadAudience;
+  source: "chat" | "slack";
+  state: OrgAgentToolExecutionState;
+  user: User;
+  userMessage: string;
+  workspaceId: string;
+}) {
+  if (args.state.terminalMutationUsed) {
+    throw new OrgAgentToolInputError(
+      "calibrate_role_hiring_brief may be called only once and must be the only mutation in this turn"
+    );
+  }
+  args.state.terminalMutationUsed = true;
+  const visibleRole = roleOrThrow(args.state, args.input.roleId);
+  const role = await fetchRoleForOrgAgent({
+    admin: args.admin,
+    roleId: visibleRole.roleId,
+    workspaceId: args.workspaceId,
+  });
+  const otherRoleCalibrationContext = formatOtherRoleCalibrationContext(
+    [...args.state.roleById.values()]
+      .filter((item) => item.roleId !== role.roleId)
+      .map((item) => ({ name: item.name, request: item.request }))
+  );
+  const calibration = await generateRoleHiringBriefCalibration({
+    admin: args.admin as unknown as TalentAdminClient,
+    companyContext: [
+      args.state.company.companyName,
+      text(args.state.company.pitch),
+      text(args.state.company.companyDescription),
+      text(args.state.company.request),
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    companySideContext: args.companySideContext,
+    currentHiringBrief: role.request,
+    onProgress: (progress) => args.onProgress?.(progress.label),
+    otherRoleCalibrationContext,
+    readAudience: args.readAudience,
+    referenceAttachments: args.referenceAttachments,
+    roleDescription: role.description,
+    roleId: role.roleId,
+    roleName: role.name,
+    user: args.user,
+    userMessage: args.userMessage,
+    workspaceId: args.workspaceId,
+  });
+  if (!calibration.shouldUpdate || !calibration.hiringBrief) {
+    args.state.terminalReply = calibration.userReply;
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "unchanged",
+      summary: calibration.summary,
+    });
+    return {
+      failedReferenceUrls: calibration.failedReferenceUrls,
+      followUpQuestion: calibration.followUpQuestion,
+      referenceCount: calibration.referenceCount,
+      referenceUrls: calibration.referenceUrls,
+      roleId: role.roleId,
+      roleName: role.name,
+      status: "needs_more_information",
+      summary: calibration.summary,
+      userReply: calibration.userReply,
+    };
+  }
+  await updateOrgRoleRequestOnly({
+    expectedRequest: role.request,
+    request: calibration.hiringBrief,
+    roleId: role.roleId,
+    source: args.source,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+  const current = args.state.roleById.get(role.roleId);
+  if (current) current.request = calibration.hiringBrief;
+  args.state.fullRoleRequestIds.add(role.roleId);
+  args.state.requestChanges.push({
+    after: calibration.hiringBrief,
+    before: role.request,
+    changeSummary: calibration.summary,
+    scope: "role",
+  });
+  args.state.updateSummaries.push(calibration.summary);
+  args.state.terminalReply = calibration.userReply;
+  markOrgAgentLongTextComplete({
+    key: "role_request",
+    observedValue: calibration.hiringBrief,
+    roleId: role.roleId,
+    state: args.state,
+  });
+  recordResult(args.state, {
+    callId: args.callId,
+    name: args.name,
+    status: "success",
+    summary: calibration.summary,
+  });
+  return {
+    failedReferenceUrls: calibration.failedReferenceUrls,
+    followUpQuestion: calibration.followUpQuestion,
+    referenceCount: calibration.referenceCount,
+    referenceUrls: calibration.referenceUrls,
+    roleId: role.roleId,
+    roleName: role.name,
+    status: "updated",
+    summary: calibration.summary,
+    userReply: calibration.userReply,
   };
 }
 
@@ -1952,7 +2089,11 @@ async function executeCandidateContactLifecycle(args: {
   }
   args.state.terminalMutationUsed = true;
 
-  const action = requiredText(args.input.action, "action", 30);
+  let action = requiredText(
+    args.input.action,
+    "action",
+    30
+  ) as CandidateContactLifecycleAction;
   if (
     action !== "create_draft" &&
     action !== "revise_draft" &&
@@ -2270,94 +2411,109 @@ async function executeCandidateContactLifecycle(args: {
   }
 
   if (action === "schedule") {
-    const expectedRevision = requiredPositiveInteger(
-      args.input.expectedRevision,
-      "expectedRevision"
-    );
     const deliveryModeValue = text(args.input.deliveryMode) || "standard";
     if (deliveryModeValue !== "standard" && deliveryModeValue !== "immediate") {
       throw new OrgAgentToolInputError(
         "deliveryMode must be standard or immediate"
       );
     }
-    if (contact.workflow_status !== "draft") {
+    action = resolveCandidateContactLifecycleAction({
+      action,
+      deliveryMode: deliveryModeValue,
+      workflowStatus: contact.workflow_status,
+    });
+    if (action === "schedule" && contact.workflow_status !== "draft") {
       throw new OrgAgentToolInputError(
         "초안 상태의 연락만 발송 등록할 수 있습니다. 이 요청의 현재 상태를 확인해 주세요."
       );
     }
-    if (contact.draft_revision !== expectedRevision) {
-      throw new OrgAgentToolInputError(
-        "확인하신 뒤 초안이 바뀌었어요. 최신 문구를 다시 보여드린 뒤 확인받아야 해요."
+    if (action === "schedule") {
+      const expectedRevision = requiredPositiveInteger(
+        args.input.expectedRevision,
+        "expectedRevision"
       );
-    }
-    const immediatelyPresented = await wasContactDraftImmediatelyPresented({
-      admin: args.admin,
-      contactId: contact.id,
-      conversationId: args.conversation.id,
-      currentUserMessageId: args.currentUserMessageId,
-      revision: contact.draft_revision,
-      slackThreadId: args.slackThreadId,
-      source: args.source,
-    });
-    if (!immediatelyPresented) {
+      if (contact.draft_revision !== expectedRevision) {
+        throw new OrgAgentToolInputError(
+          "확인하신 뒤 초안이 바뀌었어요. 최신 문구를 다시 보여드린 뒤 확인받아야 해요."
+        );
+      }
+      const immediatelyPresented = await wasContactDraftImmediatelyPresented({
+        admin: args.admin,
+        contactId: contact.id,
+        conversationId: args.conversation.id,
+        currentUserMessageId: args.currentUserMessageId,
+        revision: contact.draft_revision,
+        slackThreadId: args.slackThreadId,
+        source: args.source,
+      });
+      if (!immediatelyPresented) {
+        args.state.contactDraftRef = {
+          contactId: contact.id,
+          revision: contact.draft_revision,
+        };
+        args.state.requiredPresentationText = candidateContactDraftPresentation(
+          {
+            body: String(contact.delivery_body ?? ""),
+            source: args.source,
+          }
+        );
+        args.state.terminalReply =
+          "방금 확인하신 문구와 현재 저장된 문구가 달라서 아직 보내지 않았어요. 아래 내용을 한 번만 다시 확인해 주시겠어요.";
+        recordResult(args.state, {
+          callId: args.callId,
+          name: args.name,
+          status: "unchanged",
+          summary: "정확한 초안 재확인 필요",
+        });
+        return {
+          contactId: contact.id,
+          candidateName,
+          revision: contact.draft_revision,
+          status: "confirmation_required",
+          userMessage: args.state.terminalReply,
+        };
+      }
+      const scheduled = await scheduleCompanyTalentContact({
+        admin: args.admin as any,
+        deliveryMode: deliveryModeValue,
+        expectedRevision,
+        requestId: contact.id,
+        roleId: contact.role_id,
+        talentId: contact.talent_id,
+        workspaceId: args.workspaceId,
+      });
       args.state.contactDraftRef = {
         contactId: contact.id,
         revision: contact.draft_revision,
       };
-      args.state.requiredPresentationText = candidateContactDraftPresentation({
-        body: String(contact.delivery_body ?? ""),
-        source: args.source,
+      args.state.terminalReply = candidateContactScheduledReply({
+        candidateName,
+        immediate: deliveryModeValue === "immediate",
+        scheduledAt: scheduled.scheduledAt,
       });
-      args.state.terminalReply =
-        "방금 확인하신 문구와 현재 저장된 문구가 달라서 아직 보내지 않았어요. 아래 내용을 한 번만 다시 확인해 주시겠어요.";
       recordResult(args.state, {
         callId: args.callId,
         name: args.name,
-        status: "unchanged",
-        summary: "정확한 초안 재확인 필요",
+        status: "success",
+        summary:
+          deliveryModeValue === "immediate"
+            ? "후보자 연락 즉시 발송 등록"
+            : "후보자 연락 발송 등록",
       });
       return {
         contactId: contact.id,
-        candidateName,
         revision: contact.draft_revision,
-        status: "confirmation_required",
+        scheduledAt: scheduled.scheduledAt,
+        status: scheduled.status,
         userMessage: args.state.terminalReply,
       };
     }
-    const scheduled = await scheduleCompanyTalentContact({
-      admin: args.admin as any,
-      deliveryMode: deliveryModeValue,
-      expectedRevision,
-      requestId: contact.id,
-      roleId: contact.role_id,
-      talentId: contact.talent_id,
-      workspaceId: args.workspaceId,
-    });
-    args.state.contactDraftRef = {
-      contactId: contact.id,
-      revision: contact.draft_revision,
-    };
-    args.state.terminalReply = candidateContactScheduledReply({
-      candidateName,
-      immediate: deliveryModeValue === "immediate",
-      scheduledAt: scheduled.scheduledAt,
-    });
-    recordResult(args.state, {
-      callId: args.callId,
-      name: args.name,
-      status: "success",
-      summary:
-        deliveryModeValue === "immediate"
-          ? "후보자 연락 즉시 발송 등록"
-          : "후보자 연락 발송 등록",
-    });
-    return {
-      contactId: contact.id,
-      revision: contact.draft_revision,
-      scheduledAt: scheduled.scheduledAt,
-      status: scheduled.status,
-      userMessage: args.state.terminalReply,
-    };
+  }
+
+  if (action !== "immediate" && action !== "cancel") {
+    throw new OrgAgentToolInputError(
+      "candidate contact action is unavailable for the current state"
+    );
   }
 
   if (action === "immediate" && contact.workflow_status === "draft") {
@@ -3523,10 +3679,13 @@ export async function executeOrgAgentTool(args: {
   admin: OrgAgentAdminClient;
   audience: OrgAgentReadAudience;
   callId: string;
+  companySideContext?: string;
   conversation: OrgAgentConversationRow;
   currentUserMessageId: number;
   input: unknown;
   name: OrgAgentToolName;
+  onToolProgress?: (label: string) => void;
+  referenceAttachments?: ChatAttachmentPayload[];
   scopeKey: string;
   slackExecutionContext?: SlackRoleCreationExecutionContext | null;
   slackThreadId: string | null;
@@ -3653,6 +3812,22 @@ export async function executeOrgAgentTool(args: {
       input,
       state: args.state,
       user: args.user,
+      workspaceId,
+    });
+  } else if (args.name === "calibrate_role_hiring_brief") {
+    return executeCalibrateRoleHiringBrief({
+      admin: args.admin,
+      callId: args.callId,
+      companySideContext: args.companySideContext ?? args.userMessage ?? "",
+      input,
+      name: args.name,
+      onProgress: args.onToolProgress,
+      referenceAttachments: args.referenceAttachments,
+      readAudience: args.audience,
+      source: args.source,
+      state: args.state,
+      user: args.user,
+      userMessage: args.userMessage ?? "",
       workspaceId,
     });
   } else if (args.name === "get_more_data") {

@@ -11,7 +11,7 @@ import type {
 type MatchingTalentDrawerProps = {
   onClose: () => void;
   role?: OpsMatchingRoleOption | null;
-  talent: OpsMatchingTalentItem | null;
+  talent: Pick<OpsMatchingTalentItem, "email" | "fit" | "name" | "userId"> | null;
 };
 
 export function MatchingTalentDrawer({

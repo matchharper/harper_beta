@@ -19,11 +19,13 @@ oauth_config:
       - app_mentions:read
       - channels:history
       - channels:join
+      - channels:manage
       - channels:read
       - chat:write
       - files:read
       - groups:history
       - groups:read
+      - groups:write
       - users:read
       - users:read.email
 

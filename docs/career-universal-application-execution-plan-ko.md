@@ -5,10 +5,14 @@
 범위: Harper `/career`에서 사용자의 명시적 요청을 받아 외부 채용 기회에 실제 지원서를 제출하고, 제출 결과까지 관리하는 기능
 
 > 이 문서는 배포된 기능을 설명하지 않는다. 현재 `/career`는 외부 채용 사이트에 지원서를 대신 제출하지 않으며, 이 문서는 그 기능을 넓은 범위에서 가능하게 만들기 위한 계획이다.
+>
+> 2026-08-27에 로컬 모의 지원 환경에서 LLM 브라우저 제출, `/career` 영속 큐, 상시·1회 워커, 사용자 인계, 중복 방지, 504 복구, 워커 crash 복구를 실행했다. Greenhouse, Lever, Ashby, Workday의 공개 폼도 제출 없이 구조 조사했다. 결과와 증거는 [대리 지원 실행 검증 보고서](./career-application-execution-spike-report-2026-08-27-ko.md)에 기록한다.
 
 ## 1. 결론
 
-특정 ATS와의 개별 API 연동만으로 범용 대리 지원을 만들 수는 없지만, **지원 실행을 하나의 채널에 의존하지 않고 여러 실행 경로와 폴백을 조합하면 넓은 범위의 외부 채용 사이트에서 Harper가 실제 제출까지 책임지는 제품을 만들 수 있다.**
+**문자 그대로 모든 역할을 Harper가 100% 무인으로 대신 제출하는 것은 불가능하다.** 웹 지원 경로가 없거나, 후보자 본인만의 작성·제출을 요구하거나, 정책상 자동화가 금지되거나, 확인되지 않은 법적 사실을 필수로 묻는 공고가 있기 때문이다.
+
+그러나 특정 ATS와의 개별 API 연동만으로 범위를 제한할 필요도 없다. **지원 실행을 하나의 채널에 의존하지 않고 여러 실행 경로와 폴백을 조합하면, 기술적으로 실행 가능하고 정책상 허용된 넓은 범위의 외부 채용 사이트에서 Harper가 실제 제출과 확인까지 책임지는 제품을 만들 수 있다.**
 
 핵심 전제는 다음과 같다.
 
@@ -21,9 +25,9 @@
 
 이 구조에서 “Harper가 대신 지원한다”는 의미는 모든 단계가 100% 무인이라는 뜻이 아니다. **지원 요청을 받은 뒤 대상 확인, 문서와 답변 준비, 폼 작성, 예외 처리, 제출, 영수증 확인, 파이프라인 기록까지 Harper가 주도하고, 사용자만 해결할 수 있는 단계에서만 최소한의 행동을 요청한다**는 뜻이다.
 
-따라서 제품 목표는 다음처럼 정의한다.
+따라서 제품 목표는 “모든 공고 무인 제출”이 아니라 다음처럼 정의한다.
 
-> 사용자가 `/career`에서 특정 기회에 “지원해줘”라고 명시하면 Harper가 실행을 소유한다. 지원 가능한 경로를 스스로 선택하고, 필요한 답변과 문서를 준비하고, 외부 사이트에 제출한 뒤, 제출이 확인될 때까지 상태를 추적한다.
+> 사용자가 `/career`에서 특정 기회에 “지원해줘”라고 명시하면 Harper가 실행을 소유한다. 지원 가능한 경로를 스스로 선택하고, 필요한 답변과 문서를 준비하고, 외부 사이트에 제출한 뒤, 제출이 확인될 때까지 상태를 추적한다. 자동 대리가 불가능한 경우에는 그 이유와 필요한 사용자 행동을 정확히 기록하고, 해결된 동일 실행을 이어서 완료한다.
 
 ## 2. 범위와 성공 정의
 
@@ -63,15 +67,11 @@
 
 초기부터 가장 중요하게 볼 지표는 무인 완료율이 아니라 **Harper 주도 완료율**이다. 무인 완료율은 반복되는 폼을 자동화하면서 점진적으로 높인다.
 
-초기 목표는 다음과 같이 둔다. 분모에서 공고 종료, 중복 지원, 정책상 대리 실행 금지, 웹 지원 경로 자체가 없는 역할을 임의로 빼지 않고 각각 별도 실패·제외 사유로 공개한다.
+현재는 실행 경로 보유율이나 완료율 목표 숫자를 두지 않는다. 로컬 모의 폼 5종의 성공 결과는 실제 인터넷 전체의 커버리지 근거가 아니기 때문이다.
 
-| 단계 | 실행 경로 보유율 목표 | Harper 주도 제출 확인율 목표 | 사용자 blocking action 목표 |
-| --- | ---: | ---: | ---: |
-| Concierge 파일럿 | 90% 이상 | 80% 이상 | 지원 건당 중앙값 2회 이하 |
-| 범용 브라우저 + 사용자 기기 실행 | 95% 이상 | 90% 이상 | 지원 건당 중앙값 1회 이하 |
-| 안정화 이후 | 98% 이상 | 95% 이상 | 반복 지원은 대부분 0회 |
+Phase 0에서 최근 30일 Harper 활성 외부 기회의 canonical apply URL을 수집하고, provider·국가·로그인·계정 생성·CAPTCHA·AI 정책·long-tail 여부로 층화한다. 공개 사이트는 제출 직전까지 shadow run하고, 실제 제출은 sandbox·Harper 소유 테스트 회사·승인된 파트너 공고에서만 수행한다. 이 표본의 전체 요청 분모와 사유별 결과를 얻은 뒤 목표를 확정한다.
 
-숫자는 Phase 0의 실제 공고 지형 측정 후 다시 확정하되, 특정 ATS만 지원해서 높은 성공률을 만드는 대신 long-tail 공고를 포함한 전체 요청 기준으로 측정한다.
+공고 종료, 중복 지원, 정책상 대리 실행 금지, 웹 지원 경로 없음도 분모에서 임의로 빼지 않고 각각 `closed`, `duplicate`, `policy_blocked`, `no_supported_channel`로 공개한다.
 
 ## 3. 현재 상태와 필요한 변화
 
@@ -141,7 +141,37 @@ Harper가 지원서 작성 중 CAPTCHA/MFA 발견
 
 사용자 인계는 “직접 지원하세요”라는 포기가 아니다. Harper가 실행을 잠시 멈추고 사용자가 해결해야 할 최소 단계만 요청한 뒤 같은 작업을 계속 소유한다.
 
-### 4.4 여러 공고 지원
+### 4.4 직접 지원이 필요한 흐름
+
+모든 공고를 억지로 자동화하지 않는다. 다음 경우에는 Harper가 **“이 공고는 직접 지원이 필요하다”**고 명확히 전환한다.
+
+- 개별 공고가 후보자 본인의 작성 또는 제출만 허용한다.
+- 사이트 정책이 제3자 자동 제출을 허용하지 않는다.
+- 관리 브라우저가 차단되고 사용자 기기 executor도 연결할 수 없다.
+- 지원이 네이티브 앱, 오프라인, 전화 등 Harper가 지원하지 않는 채널에서만 가능하다.
+- 사용자 계정 생성·인증 뒤에도 사이트가 자동 submit을 허용하지 않는다.
+
+직접 지원 전환은 일반 실패와 구분한다.
+
+```text
+Harper가 자동 제출 불가 사유 확인
+  -> direct_apply_required와 근거 기록
+  -> 정확한 지원 URL, 사용할 이력서, 답변 초안, 남은 필수 항목 제공
+  -> 가능하면 사용자 브라우저에서 해당 단계까지 열어 둠
+  -> 사용자가 직접 제출
+  -> 확인 페이지·지원 ID·확인 이메일 또는 사용자 확인으로 파이프라인 기록
+```
+
+사용자에게는 아래 중 하나로 답한다.
+
+- “제가 바로 지원할 수 있어요. 제출을 진행할게요.”
+- “로그인만 직접 해주세요. 완료되면 제가 이어서 제출할게요.”
+- “이 공고는 사이트 정책/접근 제한 때문에 직접 지원이 필요해요. 사용할 이력서와 답변을 준비했고 지원 페이지를 열어드릴게요.”
+- “이 공고는 종료됐거나 현재 지원 페이지가 없어 지금은 지원할 수 없어요.”
+
+`direct_apply_required`를 `harper_failed`로 표현하지 않는다. Harper가 제출 주체가 될 수 없는 공고를 정확히 분류하고 사용자의 직접 지원을 끝까지 보조한 정상적인 제품 결과다.
+
+### 4.5 여러 공고 지원
 
 사용자가 여러 기회에 지원을 요청할 수는 있지만, 기본값은 기회별 고품질 지원이다.
 
@@ -163,6 +193,15 @@ Application Command Service
   - 대상 역할 확정
   - 지원 권한/mandate 확인
   - 중복 지원 확인
+  - application ID와 명령 영속 저장
+          |
+          v
+Outbox Event / Durable Application Queue
+          |
+          v
+Application Orchestration Worker
+  - lease와 idempotency 획득
+  - 실행 경로 선택·재개·인계
           |
           v
 Application Preparation Service
@@ -191,7 +230,29 @@ Submission Verifier
 Career Pipeline / Activity Log / Follow-up
 ```
 
-### 5.2 실행 라우터 원칙
+`/career` 요청을 받은 대화 프로세스가 외부 사이트에서 긴 브라우저 작업을 직접 수행하지 않는다. 대화 계층은 명령과 application ID를 영속 저장한 뒤 즉시 진행 상태를 반환한다. 별도 상시 워커가 큐를 소비하고, API·관리 브라우저·사용자 기기·운영자 executor를 호출하며, 상태 이벤트를 다시 `/career`에 전달한다.
+
+이 분리는 다음 이유로 필수다.
+
+- 사용자가 `/career` 탭을 닫아도 실행이 지속되어야 한다.
+- 계정 생성, 사용자 인계, 운영자 확인 때문에 지원이 수 분에서 수 시간 멈출 수 있다.
+- 워커가 죽으면 lease 만료 뒤 다른 워커가 같은 application ID로 재개해야 한다.
+- submit timeout 뒤 불확실 상태를 별도 verifier가 재조회해야 한다.
+- 대화 재시도와 외부 제출 재시도가 결합되면 중복 지원 위험이 생긴다.
+
+### 5.2 런타임 선택
+
+| 런타임 | 용도 | 결정 |
+| --- | --- | --- |
+| `/career` 요청 프로세스 | 명령 해석, 대상 확정, application 생성, 상태 표시 | 외부 제출 실행은 하지 않음 |
+| Harper 상시 서버 워커 | queue consume, routing, retry, handoff, receipt verification | 프로덕션 기본 런타임 |
+| 관리 브라우저 워커 | 익명·관리 가능한 웹 폼 실행 | long-tail 기본 executor |
+| 사용자 기기 워커 | 기존 로그인, MFA, 패스키, 로컬 세션 사용 | 인증 필요 사이트 executor |
+| cron 또는 Codex Scheduled | stuck job 탐지, 영수증 재조회, 파일럿 polling | 핵심 consumer가 아닌 reconciliation |
+
+Codex Scheduled의 데스크톱 로컬 작업은 컴퓨터가 켜져 있고 앱이 실행 중이어야 하므로 요청 직후 실행과 가용성을 보장하는 프로덕션 consumer로 사용하지 않는다. 로컬 spike에서는 동일 워커의 1회 polling 실행과 상시 실행을 모두 검증했다. 상세 결과는 검증 보고서에 기록한다.
+
+### 5.3 실행 라우터 원칙
 
 라우터는 공고를 수집한 `source_provider`만 보고 결정하지 않는다. LinkedIn에서 발견한 공고가 실제로는 회사의 Workday 또는 Greenhouse로 이동할 수 있기 때문이다.
 
@@ -640,6 +701,11 @@ intent_received
   -> executing
   -> submitted_unverified
   -> submitted_verified
+
+executing
+  -> direct_apply_required
+  -> direct_apply_in_progress
+  -> direct_apply_completed
 ```
 
 종료·예외 상태:
@@ -648,6 +714,9 @@ intent_received
 - `posting_closed`
 - `duplicate_detected`
 - `policy_blocked`
+- `direct_apply_required`
+- `direct_apply_in_progress`
+- `direct_apply_completed`
 - `failed_retryable`
 - `failed_terminal`
 - `submission_uncertain`
@@ -658,6 +727,8 @@ intent_received
 - `user_reported`: 사용자가 직접 지원했다고 기록
 - `harper_submitted_verified`: Harper 실행과 영수증 확인 완료
 - `harper_submission_uncertain`: 제출 가능성은 있으나 성공 확인 불가
+- `user_direct_verified`: Harper가 준비·인계했고 사용자가 직접 제출한 뒤 영수증까지 확인
+- `user_direct_reported`: 사용자가 직접 제출했다고 보고했지만 외부 영수증은 확인하지 못함
 
 `submission_uncertain`은 절대로 자동으로 `applied`로 확정하거나 동일 폼을 재제출하지 않는다.
 
@@ -786,10 +857,23 @@ Harper가 사용자를 대리해 지원하고 수익을 받는 구조가 국내�
 
 목표: Harper 추천 공고 기준으로 범용 실행의 실제 난이도와 경로 분포를 파악한다.
 
+선행 spike에서 확인한 범위:
+
+- 모의 단일 폼, 동적 다단계 폼, PDF 업로드의 LLM 브라우저 제출
+- 로그인·OTP 사용자 인계와 동일 세션 재개
+- 접수 후 HTTP 504에서 영수증 별도 조회와 재제출 방지
+- 답변이 없는 연봉·경업금지 질문에서 제출 중단
+- `/career` 요청 저장 후 API·브라우저 worker 처리
+- 1회 polling, 상시 worker, duplicate, lease 만료 crash 복구, 동시 worker 분리
+- 공개 Greenhouse, Lever, Ashby, Workday 폼의 읽기 전용 구조 조사
+
+이는 구조의 실행 가능성을 확인한 것이며 실제 공고 전체 성공률을 뜻하지 않는다.
+
 작업:
 
 - 활성 외부 추천의 최종 canonical apply URL과 도메인 집계
-- 상위 도메인 및 long-tail 표본의 지원 흐름 분류
+- 최근 30일 전체 요청을 기준으로 상위 도메인과 무작위 long-tail 층화 표본 구성
+- 상위 트래픽 provider만으로 커버리지 수치를 만들지 않고 전체 요청 분모 유지
 - 익명, 로그인, 계정 생성, 이메일 인증, MFA, CAPTCHA 비율 측정
 - 질문 taxonomy와 파일 요구사항 수집
 - 도메인별 자동화 정책 registry 초안
@@ -811,10 +895,12 @@ Harper가 사용자를 대리해 지원하고 수익을 받는 구조가 국내�
 작업:
 
 - application, revision, mandate, attempt, receipt 데이터 모델
+- outbox event, durable queue, lease, idempotency 모델
 - application profile과 answer vault
 - 정확한 이력서·문서 versioning 연결
 - `/career`의 `request_application_execution` 도구
 - 비동기 실행 job과 상태 이벤트
+- 상시 orchestration worker와 별도 scheduled reconciler
 - 운영자 console
 - 수동 브라우저 세션 연결과 영수증 기록
 - 중복 제출 방지와 uncertain 상태
@@ -917,8 +1003,21 @@ standing mandate는 추천 품질과 별개로 자동 확장하지 않는다. �
 - revision 생성
 - execution routing
 - retry·timeout·lease
+- durable queue와 outbox event 소비
 - 사용자/운영자 인계
 - 제출 검증과 후속 확인
+
+이 워커는 `/career` 웹 요청이나 LLM 대화 turn과 별도 프로세스로 운영한다. 여러 인스턴스가 동시에 동작하되 한 application attempt의 submit lease는 하나만 획득한다.
+
+### scheduled reconciler
+
+- 오래 `queued` 또는 `executing`인 application 탐지
+- 만료 lease 회수
+- `submission_uncertain` 영수증 재조회
+- 확인 이메일·provider status 후속 동기화
+- SLA 알림과 운영 리포트
+
+cron 또는 Codex Scheduled는 이 역할의 파일럿 구현에는 사용할 수 있지만, 실시간 queue consumer를 대체하지 않는다.
 
 ### browser execution service
 
@@ -1003,7 +1102,8 @@ standing mandate는 추천 품질과 별개로 자동 확장하지 않는다. �
 
 - 지원 요청 대비 Harper 주도 제출 확인율
 - 요청부터 verified submission까지 걸린 시간
-- 지원 요청 중 사용자에게 직접 지원을 포기하게 한 비율
+- `direct_apply_required` 전환율과 사유 분포
+- 직접 지원 전환 후 `user_direct_verified` 완료율과 중도 이탈률
 - 사용자 blocking action 수와 소요 시간
 - 운영자 개입률과 건당 처리 시간
 - 지원 후 interview 전환율
@@ -1046,7 +1146,7 @@ standing mandate는 추천 품질과 별개로 자동 확장하지 않는다. �
 ## 21. 하지 않을 것
 
 - 특정 ATS 목록을 모두 연동한 뒤에야 출시하려는 접근
-- Career LLM이 브라우저 submit 버튼을 직접 누르는 구조
+- `/career` 대화 turn의 수명 안에서 Career LLM이 외부 브라우저 제출까지 직접 붙잡고 있는 구조. 별도 browser worker 안에서 LLM이 폼을 조작하는 것은 허용한다.
 - 사용자 확인 없이 법적·민감 답변 추론
 - 성공 여부가 불확실한 제출의 자동 재시도
 - 사용자의 비밀번호·MFA secret을 prompt나 일반 DB에 저장
@@ -1059,18 +1159,23 @@ standing mandate는 추천 품질과 별개로 자동 확장하지 않는다. �
 
 ## 22. 최종 제품 결정
 
-1. `/career`의 명시적 “이 역할에 지원해줘”는 실제 실행 명령이다.
-2. Harper는 ATS API가 있는 역할에만 대리 지원을 제한하지 않는다.
-3. 범용 브라우저 실행과 운영자 폴백을 통해 long-tail 회사 채용 페이지까지 지원한다.
-4. 사용자 인계가 있어도 지원 작업의 소유권은 Harper에 남는다.
-5. 사용자 개입은 대상 모호성, 새로운 사실·법적 답변, 문서 변경, 로그인/MFA/CAPTCHA처럼 사용자만 해결할 수 있는 경우에만 요청한다.
-6. 제출 완료는 클릭이 아니라 영수증 검증으로 판정한다.
-7. 공식 API와 사이트 recipe는 커버리지의 전제조건이 아니라 속도·신뢰도·비용을 개선하는 최적화 경로다.
-8. 초기에는 운영자 폴백으로 넓은 실행 범위를 먼저 확보하고, 반복되는 흐름을 순차적으로 자동화한다.
-9. 정책상 대리 실행이 금지된 사이트는 공식 제휴 또는 사용자 직접 submit 경로로 처리한다.
-10. 최종 목표는 “지원서를 만들어주는 Harper”가 아니라 **“지원 요청을 받아 실제 제출과 확인까지 끝내는 Harper”**다.
+1. **모든 역할의 100% 무인 제출은 제품 약속으로 만들지 않는다.** 기술·정책·후보자 본인 확인 때문에 불가능한 범주가 실제로 존재한다.
+2. `/career`의 명시적 “이 역할에 지원해줘”는 실제 실행 명령이다.
+3. `/career`는 application과 revision을 영속 저장하고 즉시 반환한다. 외부 제출은 durable queue를 소비하는 별도 상시 서버 워커가 소유한다.
+4. Codex Scheduled 또는 cron은 파일럿 polling과 reconciliation에만 사용하고 프로덕션 핵심 executor로 사용하지 않는다.
+5. Harper는 ATS API가 있는 역할에만 대리 지원을 제한하지 않는다.
+6. 범용 브라우저 실행과 운영자 폴백을 통해 기술적으로 가능하고 정책상 허용된 long-tail 회사 채용 페이지까지 지원한다.
+7. 사용자 인계가 있어도 지원 작업의 소유권과 application ID는 Harper에 남는다.
+8. 사용자 개입은 대상 모호성, 새로운 사실·법적 답변, 문서 변경, 로그인/MFA/CAPTCHA처럼 사용자만 해결할 수 있는 경우에만 요청한다.
+9. 제출 완료는 클릭이 아니라 영수증 검증으로 판정한다.
+10. 공식 API와 사이트 recipe는 커버리지의 전제조건이 아니라 속도·신뢰도·비용을 개선하는 최적화 경로다.
+11. 초기에는 운영자 폴백으로 넓은 실행 범위를 먼저 확보하고, 반복되는 흐름을 순차적으로 자동화한다.
+12. 정책상 대리 실행이 금지되거나 접근 제한을 해결할 수 없는 사이트는 `direct_apply_required`로 전환하고, 정확한 링크·문서·답변·남은 행동을 제공한다. 사용자의 직접 제출이 확인되면 `user_direct_verified`로 기록한다.
+13. 실제 커버리지 수치는 로컬 모의 폼이 아니라 Harper 공고의 층화 표본과 승인된 실접수 환경에서 측정한 뒤 정한다.
+14. 최종 목표는 “지원서를 만들어주는 Harper”가 아니라 **“지원 가능한 요청의 제출과 확인을 끝내고, 불가능한 요청은 정확한 이유와 다음 행동까지 책임지는 Harper”**다.
 
 ## 23. 관련 문서
 
+- [Career Harper 대리 지원 실행 검증 보고서](./career-application-execution-spike-report-2026-08-27-ko.md): 로컬 모의 제출, queue·worker 복구, 공개 ATS 구조 조사와 한계
 - [Career 생성 이력서 버전 관리 구현 계획](./career-generated-resume-versioning-plan-ko.md): 실제 제출에 사용할 immutable resume version의 선행 계획
 - [Harper High-end AI Career Agent 제품 제안](./high-end-ai-career-agent-product-plan-2026-07-02.md): `/career` 전체 제품 방향과 application packet, pipeline agent의 상위 맥락

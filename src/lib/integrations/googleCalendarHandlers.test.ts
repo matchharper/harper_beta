@@ -264,6 +264,21 @@ test("unauthenticated users and non-members never reach the integration service"
   assert.deepEqual(f.calls, []);
 });
 
+test("an unauthenticated status read returns 401 without logging a server failure", async (t) => {
+  const logger = t.mock.method(console, "error", () => {});
+  const f = fixture();
+  const response = await f.handlers.GET(
+    f.req("GET", null, {
+      identity: "",
+      path: `?workspaceId=${workspaceId}`,
+    })
+  );
+
+  assert.equal(response.status, 401);
+  assert.equal(logger.mock.calls.length, 0);
+  assert.deepEqual(f.calls, []);
+});
+
 test("a save failure preserves the cookie for retry and does not expose database details", async (t) => {
   const logger = t.mock.method(console, "error", () => {});
   const f = fixture();

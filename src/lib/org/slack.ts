@@ -154,8 +154,7 @@ export async function notifyOrgMemberJoinedSlack(args: {
   workspace: OrgSlackWorkspace;
 }) {
   const lines = [
-    "*새로운 멤버 가입*",
-    `- *이름*: ${escapeSlackText(args.user.name) || "Unknown"}`,
+    `*새로운 멤버 가입* : ${escapeSlackText(args.user.name) || "Unknown"}`,
   ];
 
   await postWorkspaceScopedOrgSlackMessage(

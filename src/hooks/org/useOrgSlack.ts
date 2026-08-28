@@ -7,26 +7,50 @@ import {
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { queryKeys } from "@/lib/queryKeys";
 
+export type OrgSlackChannel = {
+  channelId: string;
+  channelName: string | null;
+  defaultRoleId: string | null;
+  isEnabled: boolean;
+  isPrivate: boolean;
+  replyToHarperThreads: boolean;
+  respondToMentions: boolean;
+};
+
 export type OrgSlackStatus = {
-  availableChannels: Array<{
-    channelId: string;
-    channelName: string | null;
-    isPrivate: boolean;
-  }>;
-  channels: Array<{
-    channelId: string;
-    channelName: string | null;
-    defaultRoleId: string | null;
-    isEnabled: boolean;
-    isPrivate: boolean;
-    replyToHarperThreads: boolean;
-    respondToMentions: boolean;
-  }>;
+  availableChannels: OrgSlackChannel[];
+  channels: OrgSlackChannel[];
+  canCreateChannels: boolean;
   connected: boolean;
   needsReinstall: boolean;
   teamId: string | null;
   teamName: string | null;
 };
+
+export function useCreateOrgSlackChannel(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { channelName: string; isPrivate: boolean }) =>
+      fetchWithInternalAuth<{
+        channel: OrgSlackChannel;
+        creatingUserInvited: boolean;
+        ok: true;
+        welcomeMessageSent: boolean;
+      }>("/api/org/slack", {
+        body: JSON.stringify({
+          action: "create_channel",
+          ...args,
+          workspaceId,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }),
+    onSettled: () =>
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.org.slack(workspaceId),
+      }),
+  });
+}
 
 export function useAddOrgSlackChannel(workspaceId: string) {
   const queryClient = useQueryClient();

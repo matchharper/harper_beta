@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   addHarperSlackChannel,
+  createHarperSlackChannel,
   createHarperSlackAuthorizeUrl,
   getHarperSlackStatus,
   HarperSlackError,
@@ -42,8 +43,10 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthenticatedUser(req);
     const body = (await req.json().catch(() => ({}))) as {
-      action?: "add_channel" | "connect";
+      action?: "add_channel" | "connect" | "create_channel";
       channelId?: string | null;
+      channelName?: string | null;
+      isPrivate?: boolean;
       returnTo?: string;
       workspaceId?: string;
     };
@@ -61,6 +64,16 @@ export async function POST(req: NextRequest) {
     if (body.action === "add_channel") {
       const payload = await addHarperSlackChannel({
         channelId: body.channelId ?? "",
+        user,
+        workspaceId: body.workspaceId ?? "",
+      });
+      return NextResponse.json(payload);
+    }
+
+    if (body.action === "create_channel") {
+      const payload = await createHarperSlackChannel({
+        channelName: body.channelName ?? "",
+        isPrivate: body.isPrivate === true,
         user,
         workspaceId: body.workspaceId ?? "",
       });

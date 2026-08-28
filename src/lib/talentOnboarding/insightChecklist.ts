@@ -1,4 +1,5 @@
 import { careerT } from "@/lib/career/translatedCareerMessage";
+import { resolveTalentLocation } from "@/lib/talentLocation";
 export type InsightChecklistItem = {
   /** Normalized key for talent_insights.content, e.g. "recent_achievement_hook" */
   key: string;
@@ -57,9 +58,7 @@ function getOnboardingLocationContextText(
 ) {
   if (typeof context === "string") return context;
   if (!context || typeof context !== "object") return "";
-  return [context.current_location, context.currentLocation, context.location]
-    .filter((value): value is string => Boolean(value))
-    .join(", ");
+  return resolveTalentLocation(context) ?? "";
 }
 
 export function getCountryScopedOnboardingCountry(

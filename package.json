@@ -16,6 +16,7 @@
     "ops:company-role-matching": "python3 scripts/company_role_recurring_matching.py",
     "org-agent:live-eval": "tsx --tsconfig scripts/tsconfig.json scripts/evalOrgAgentLive.ts",
     "org-role-creation:llm-eval": "tsx --tsconfig scripts/tsconfig.json scripts/evalOrgRoleCreationLlm.ts",
+    "org-role-calibration:terra-eval": "tsx --tsconfig scripts/tsconfig.json scripts/evalRoleHiringBriefCalibrationTerra.ts",
     "org-role-creation:live-smoke": "tsx --tsconfig scripts/tsconfig.json scripts/smokeOrgRoleCreationLive.ts",
     "org-agent:prompt-snapshot": "tsx --tsconfig scripts/tsconfig.json scripts/exportOrgAgentPromptSnapshot.ts",
     "org-agent:prompt-benchmark": "tsx scripts/benchmarkOrgAgentPrompt.ts",

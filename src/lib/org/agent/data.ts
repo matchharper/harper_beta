@@ -27,6 +27,7 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { humanizeCompanyTalentRequestStatus } from "@/lib/companyTalentRequests/server";
 import { normalizeOrgRoleCriteria } from "@/lib/org/roleCriteria";
 import { fetchOrgProcessClosureNotifications } from "@/lib/org/processClosureNotification";
+import { resolveTalentLocation } from "@/lib/talentLocation";
 
 export { serializeOrgAgentMoreData } from "@/lib/org/agent/promptFormat";
 
@@ -169,8 +170,8 @@ async function fetchTalentsById(args: {
   const talentIds = unique(args.talentIds);
   if (talentIds.length === 0) return new Map<string, TalentRow>();
   const fields = args.includeProfile
-    ? "user_id, name, email, headline, bio, current_location, location"
-    : "user_id, name, email, headline, current_location, location";
+    ? "user_id, name, email, headline, bio, location, current_location"
+    : "user_id, name, email, headline, location, current_location";
   const { data, error } = await (args.admin.from("talent_users" as any) as any)
     .select(fields)
     .in("user_id", talentIds)
@@ -944,7 +945,7 @@ function hasSensitiveCompensationText(value: string) {
 }
 
 function hasSensitivePersonalText(value: string) {
-  return /나이|연령|생년|성별|남성|여성|국적|시민권|영주권|인종|민족|결혼|임신|출산|가족|자녀|종교|정치|장애|질병|건강|병력|성적\s*지향|\bage\b|birth\s*(?:date|year)|gender|sex\b|nationality|citizenship|residen(?:cy|t)|race|ethnicity|marital|pregnan|child|family|religion|politic|disabilit|medical|health|sexual\s+orientation/i.test(
+  return /성별|남성|여성|인종|민족|결혼|임신|출산|가족|자녀|종교|정치|장애|질병|건강|병력|성적\s*지향|gender|sex\b|race|ethnicity|marital|pregnan|child|family|religion|politic|disabilit|medical|health|sexual\s+orientation/i.test(
     value
   );
 }
@@ -1294,7 +1295,7 @@ export async function readOrgAgentTalent(args: {
         description: clip(item.description, 800) || null,
       })),
       extras: compactTalentExtras(extrasResult.data?.content),
-      location: talent.current_location ?? talent.location ?? null,
+      location: resolveTalentLocation(talent),
     };
   }
 

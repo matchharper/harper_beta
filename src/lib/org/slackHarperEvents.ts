@@ -71,7 +71,7 @@ export async function queueHarperSlackEvent(envelope: SlackEventEnvelope) {
   const { data: integration, error: integrationError } = await (
     admin.from("company_slack_integrations" as any) as any
   )
-    .select("company_workspace_id, slack_bot_user_id")
+    .select("bot_token_ciphertext, company_workspace_id, slack_bot_user_id")
     .eq("company_workspace_id", channel.company_workspace_id)
     .eq("slack_team_id", teamId)
     .eq("status", "active")
@@ -203,6 +203,17 @@ export async function queueHarperSlackEvent(envelope: SlackEventEnvelope) {
       : {};
   if (enqueueResult.duplicate === true) return { duplicate: true };
   return {
+    loadingStatus:
+      triggerKind === "mention" && clean(integration.bot_token_ciphertext)
+        ? {
+            botTokenCiphertext: clean(integration.bot_token_ciphertext),
+            channelId,
+            status: draftRoleCreation
+              ? "역할 정보를 정리 중입니다…"
+              : "답변 작성 중",
+            threadTs,
+          }
+        : null,
     queued: true,
     supersededJobId: clean(enqueueResult.superseded_job_id) || null,
   };

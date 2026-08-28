@@ -9,11 +9,29 @@ import { cn } from "@/lib/utils";
 
 export type OrgTalentTableStatusTone = "muted" | "primary" | "action";
 
+// Desktop table column widths. `memo: "auto"` fills the remaining width;
+// every other value is a fixed pixel width shared by the header and body.
+const DESKTOP_TABLE_WIDTH = {
+  minWithCompany: 1040,
+  minWithoutCompany: 860,
+  photo: 48,
+  name: 176,
+  role: 408,
+  compactRole: 448,
+  company: 204,
+  compactCompany: 206,
+  memo: "auto",
+  viewed: 112,
+  status: 104,
+  date: 112,
+} as const;
+
 export type OrgTalentTableRow<Item> = {
   companyName?: string | null;
   date: string;
   item: Item;
   key: string;
+  memoPreview?: string | null;
   name: string;
   profilePicture?: string | null;
   roleName?: string | null;
@@ -105,12 +123,14 @@ function StatusLabel({
 
 function OrgTalentMobileList<Item>({
   dateHeader,
+  middleColumn,
   onSelect,
   onSelectRole,
   roleHeader,
   rows,
 }: {
   dateHeader: string;
+  middleColumn: "memo" | "viewed";
   onSelect: (item: Item) => void;
   onSelectRole?: (item: Item) => void;
   roleHeader: string;
@@ -139,11 +159,12 @@ function OrgTalentMobileList<Item>({
               <span className="truncate text-[15px] font-medium text-neutral-primary">
                 {row.name}
               </span>
-              {!row.viewed ? (
+              {middleColumn === "memo" && !row.viewed ? (
                 <span
-                  aria-label="미열람"
+                  aria-label="미검토"
                   className="size-1.5 shrink-0 rounded-full bg-primary"
                   role="status"
+                  title="미검토"
                 />
               ) : null}
             </div>
@@ -167,15 +188,25 @@ function OrgTalentMobileList<Item>({
                 </span>
               )}
             </div>
+            {middleColumn === "memo" ? (
+              <div
+                className="mt-1 truncate text-[12px] text-neutral-soft"
+                title={row.memoPreview ?? undefined}
+              >
+                {row.memoPreview || "메모 없음"}
+              </div>
+            ) : null}
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
               <StatusLabel tone={row.statusTone}>{row.statusLabel}</StatusLabel>
               <span className="text-[11px] tabular-nums text-neutral-soft">
                 <span className="sr-only">{dateHeader}: </span>
                 {formatTableDate(row.date)}
               </span>
-              <span className="text-[11px] text-neutral-soft">
-                {row.viewed ? "열람" : "미열람"}
-              </span>
+              {middleColumn === "viewed" ? (
+                <span className="text-[11px] text-neutral-soft">
+                  {row.viewed ? "검토" : "미검토"}
+                </span>
+              ) : null}
             </div>
           </div>
           <ChevronRight
@@ -191,7 +222,9 @@ function OrgTalentMobileList<Item>({
 
 export function OrgTalentTable<Item>({
   companyHeader = "회사",
+  compactRoleCompanyColumns = false,
   dateHeader,
+  middleColumn = "viewed",
   onSelect,
   onSelectRole,
   roleHeader = "포지션",
@@ -199,7 +232,9 @@ export function OrgTalentTable<Item>({
   statusHeader,
 }: {
   companyHeader?: string | null;
+  compactRoleCompanyColumns?: boolean;
   dateHeader: string;
+  middleColumn?: "memo" | "viewed";
   onSelect: (item: Item) => void;
   onSelectRole?: (item: Item) => void;
   roleHeader?: string;
@@ -207,11 +242,28 @@ export function OrgTalentTable<Item>({
   statusHeader: string;
 }) {
   const showCompany = companyHeader !== null;
+  const desktopColumnWidths = {
+    company: compactRoleCompanyColumns
+      ? DESKTOP_TABLE_WIDTH.compactCompany
+      : DESKTOP_TABLE_WIDTH.company,
+    date: DESKTOP_TABLE_WIDTH.date,
+    name: DESKTOP_TABLE_WIDTH.name,
+    photo: DESKTOP_TABLE_WIDTH.photo,
+    role: compactRoleCompanyColumns
+      ? DESKTOP_TABLE_WIDTH.compactRole
+      : DESKTOP_TABLE_WIDTH.role,
+    status: DESKTOP_TABLE_WIDTH.status,
+    viewed: DESKTOP_TABLE_WIDTH.viewed,
+  };
+  const desktopColumnStyle = (width: number) => ({
+    width,
+  });
 
   return (
     <>
       <OrgTalentMobileList
         dateHeader={dateHeader}
+        middleColumn={middleColumn}
         onSelect={onSelect}
         onSelectRole={onSelectRole}
         roleHeader={roleHeader}
@@ -219,22 +271,45 @@ export function OrgTalentTable<Item>({
       />
       <div className="hidden overflow-x-auto rounded-sm border border-neutral-1000-a05 bg-bg-floating md:block">
         <table
-          className={cn(
-            "w-full border-collapse text-left",
-            showCompany ? "min-w-[1040px]" : "min-w-[860px]"
-          )}
+          className="w-full table-fixed border-collapse text-left"
+          style={{
+            minWidth: showCompany
+              ? DESKTOP_TABLE_WIDTH.minWithCompany
+              : DESKTOP_TABLE_WIDTH.minWithoutCompany,
+          }}
         >
+          <colgroup>
+            <col style={desktopColumnStyle(desktopColumnWidths.photo)} />
+            <col style={desktopColumnStyle(desktopColumnWidths.name)} />
+            <col style={desktopColumnStyle(desktopColumnWidths.role)} />
+            {showCompany ? (
+              <col style={desktopColumnStyle(desktopColumnWidths.company)} />
+            ) : null}
+            <col
+              style={
+                middleColumn === "memo"
+                  ? { width: DESKTOP_TABLE_WIDTH.memo }
+                  : desktopColumnStyle(desktopColumnWidths.viewed)
+              }
+            />
+            <col style={desktopColumnStyle(desktopColumnWidths.status)} />
+            <col style={desktopColumnStyle(desktopColumnWidths.date)} />
+          </colgroup>
           <thead className="bg-neutral-200/35">
             <tr className="border-b border-neutral-1000-a05 text-[12px] font-light text-neutral-soft">
-              <th className="w-16 py-2.5 pl-4 pr-2 font-normal">사진</th>
+              <th className="py-2.5 pl-4 pr-2 font-normal">사진</th>
               <th className="px-3 py-2.5 font-normal">이름</th>
               <th className="px-3 py-2.5 font-normal">{roleHeader}</th>
               {showCompany ? (
                 <th className="px-3 py-2.5 font-normal">{companyHeader}</th>
               ) : null}
-              <th className="w-28 px-3 py-2.5 font-normal">열람 여부</th>
-              <th className="w-36 px-3 py-2.5 font-normal">{statusHeader}</th>
-              <th className="w-28 px-3 py-2.5 pr-4 text-right font-normal">
+              {middleColumn === "memo" ? (
+                <th className="px-3 py-2.5 font-normal">메모</th>
+              ) : (
+                <th className="px-3 py-2.5 font-normal">검토 여부</th>
+              )}
+              <th className="px-3 py-2.5 font-normal">{statusHeader}</th>
+              <th className="px-3 py-2.5 pr-4 text-right font-normal">
                 {dateHeader}
               </th>
             </tr>
@@ -255,15 +330,25 @@ export function OrgTalentTable<Item>({
                 role="button"
                 tabIndex={0}
               >
-                <td className="w-16 py-3 pl-4 pr-2">
+                <td className="py-3 pl-4 pr-2">
                   <TalentAvatar name={row.name} src={row.profilePicture} />
                 </td>
-                <td className="min-w-44 px-3 py-3">
-                  <span className="block truncate text-[14px] font-medium text-neutral-primary">
-                    {row.name}
-                  </span>
+                <td className="px-3 py-3">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className="truncate text-[14px] font-medium text-neutral-primary">
+                      {row.name}
+                    </span>
+                    {middleColumn === "memo" && !row.viewed ? (
+                      <span
+                        aria-label="미검토"
+                        className="size-1.5 shrink-0 rounded-full bg-primary"
+                        role="status"
+                        title="미검토"
+                      />
+                    ) : null}
+                  </div>
                 </td>
-                <td className="min-w-52 px-3 py-3 text-[13px] font-normal text-neutral-primary">
+                <td className="px-3 py-3 text-[13px] font-normal text-neutral-primary">
                   {onSelectRole ? (
                     <button
                       className="line-clamp-2 max-w-full text-left underline-offset-2 outline-none hover:underline focus-visible:underline"
@@ -283,23 +368,34 @@ export function OrgTalentTable<Item>({
                   )}
                 </td>
                 {showCompany ? (
-                  <td className="min-w-44 px-3 py-3 text-[13px] font-light text-neutral-muted">
+                  <td className="px-3 py-3 text-[13px] font-light text-neutral-muted">
                     <span className="line-clamp-2">
                       {row.companyName || "-"}
                     </span>
                   </td>
                 ) : null}
-                <td className="w-28 px-3 py-3">
-                  <StatusLabel tone={row.viewed ? "muted" : "primary"}>
-                    {row.viewed ? "열람" : "미열람"}
-                  </StatusLabel>
-                </td>
-                <td className="w-36 px-3 py-3">
+                {middleColumn === "memo" ? (
+                  <td className="px-3 py-3 text-[13px] font-light text-neutral-muted">
+                    <span
+                      className="block truncate"
+                      title={row.memoPreview ?? undefined}
+                    >
+                      {row.memoPreview || "-"}
+                    </span>
+                  </td>
+                ) : (
+                  <td className="px-3 py-3">
+                    <StatusLabel tone={row.viewed ? "muted" : "primary"}>
+                      {row.viewed ? "검토" : "미검토"}
+                    </StatusLabel>
+                  </td>
+                )}
+                <td className="px-3 py-3">
                   <StatusLabel tone={row.statusTone}>
                     {row.statusLabel}
                   </StatusLabel>
                 </td>
-                <td className="w-28 px-3 py-3 pr-4 text-right text-[13px] tabular-nums text-neutral-muted">
+                <td className="px-3 py-3 pr-4 text-right text-[13px] tabular-nums text-neutral-muted">
                   {formatTableDate(row.date)}
                 </td>
               </tr>

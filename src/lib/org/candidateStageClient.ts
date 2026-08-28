@@ -6,6 +6,7 @@ import type {
   OrgStageId,
   OrgTalentDetailResponse,
 } from "@/lib/org/server";
+import { humanizeOrgStage } from "@/lib/org/pipelineStage";
 
 export type OrgCandidateStageMutationInput = {
   acceptReason?: OrgStageChangeOptions["acceptReason"];
@@ -129,6 +130,10 @@ export function applyOrgCandidateStageToAcceptedTalents(
         ? {
             ...item,
             currentStage: update.stage,
+            currentStageLabel:
+              update.stage === "accepted"
+                ? "수락 후 대기"
+                : humanizeOrgStage(update.stage),
             isAwaitingStageMove: update.stage === "accepted",
           }
         : item

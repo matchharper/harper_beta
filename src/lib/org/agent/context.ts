@@ -300,7 +300,7 @@ function formatConversation(
         .map((value) => `candidate_decision_context{${value}}`)
         .join(","),
       message.metadata.contactDraftRef
-        ? `candidate_contact_draft{contact_id=${message.metadata.contactDraftRef.contactId};revision=${message.metadata.contactDraftRef.revision}}`
+        ? `candidate_contact_ref{contact_id=${message.metadata.contactDraftRef.contactId};revision=${message.metadata.contactDraftRef.revision}}`
         : "",
     ].filter(Boolean);
     const speaker =

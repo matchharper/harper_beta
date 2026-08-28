@@ -265,7 +265,7 @@ def fetch_sources(db: SupabaseReadOnly) -> dict[str, Any]:
 
 
 def fetch_candidate_packets(db: SupabaseReadOnly, ids: list[str], fits: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    profiles = {row["user_id"]: row for row in db.by_ids("talent_users", "user_id", ids, select="user_id,name,headline,bio,current_location,location,resume_links,last_logined_at,updated_at")}
+    profiles = {row["user_id"]: row for row in db.by_ids("talent_users", "user_id", ids, select="user_id,name,headline,bio,location,current_location,resume_links,last_logined_at,updated_at")}
     settings = {row["user_id"]: row for row in db.by_ids("talent_setting", "user_id", ids, select="user_id,profile_visibility,get_internal_recommendation,blocked_companies,engagement_types,status,is_onboarding_done,updated_at")}
     experiences = index_many(db.by_ids("talent_experiences", "talent_id", ids, select="id,talent_id,company_name,role,start_date,end_date,months,description,memo,employment_type"), "talent_id")
     educations = index_many(db.by_ids("talent_educations", "talent_id", ids, select="id,talent_id,school,degree,field,start_date,end_date,description,memo"), "talent_id")
@@ -284,8 +284,8 @@ def fetch_candidate_packets(db: SupabaseReadOnly, ids: list[str], fits: list[dic
                 "name": profile.get("name") or retrieval["name"],
                 "headline": profile.get("headline") or retrieval["headline"],
                 "bio": compact(profile.get("bio"), 900),
-                "currentLocation": profile.get("current_location"),
-                "location": profile.get("location"),
+                "location": profile.get("location") or profile.get("current_location"),
+                "signupLocation": profile.get("current_location"),
                 "lastLoginedAt": profile.get("last_logined_at"),
                 "updatedAt": profile.get("updated_at"),
             },

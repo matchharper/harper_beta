@@ -39,6 +39,16 @@ test("encodes conversations.list filters as form data", () => {
   assert.equal(request.body.get("limit"), "200");
 });
 
+test("encodes public and private channel creation arguments", () => {
+  const request = createSlackApiRequest("bot-token", {
+    is_private: true,
+    name: "hiring-team",
+  });
+
+  assert.equal(request.body.get("name"), "hiring-team");
+  assert.equal(request.body.get("is_private"), "true");
+});
+
 test("encodes Slack assistant thread status fields and preserves an empty clear status", () => {
   const request = createSlackApiRequest("bot-token", {
     channel_id: "C123",

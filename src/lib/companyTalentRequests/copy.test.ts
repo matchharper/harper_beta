@@ -119,6 +119,22 @@ test("candidate contact fallback invites coordination for working conditions", (
   assert.equal(candidateContactWritingIssue(draft.body), null);
 });
 
+test("candidate contact fallback preserves allowed age and nationality questions", () => {
+  const draft = buildCandidateContactFallback({
+    candidateName: "Chris Heo",
+    companyName: "SBVA",
+    kind: "question",
+    locale: "ko",
+    profileUrl: null,
+    requestContext: "현재 나이와 국적을 알려주실 수 있나요?",
+    roleName: "FDE",
+  });
+
+  assert.equal(draft.requestContext, "현재 나이와 국적을 알려주실 수 있나요?");
+  assert.match(draft.body, /현재 나이와 국적/);
+  assert.equal(candidateContactWritingIssue(draft.body), null);
+});
+
 test("candidate resume fallback explains purpose, handling, and choice", () => {
   const url =
     "https://matchharper.com/career/profile?profileSection=links&resumeRequest=signed";

@@ -34,6 +34,8 @@ const TALENT_REQUEST_IMMEDIATE_ENQUEUE_MIGRATION =
   "20260807120000_company_talent_request_immediate_enqueue.sql";
 const TALENT_CONTACT_DRAFT_MIGRATION =
   "20260819110000_company_talent_contact_drafts.sql";
+const TALENT_CONTACT_ROUND_THE_CLOCK_MIGRATION =
+  "20260827210000_company_talent_contact_round_the_clock.sql";
 const COMPANY_ROLE_RECURRING_MATCHING_MIGRATION =
   "20260812150000_company_role_behavior_context_matching.sql";
 const COMPANY_INTERNAL_ROLE_MATCHING_LIFECYCLE_MIGRATION =
@@ -1072,6 +1074,7 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
   await applyMigration(sql, TALENT_REQUEST_DELIVERY_CONSISTENCY_MIGRATION);
   await applyMigration(sql, TALENT_REQUEST_IMMEDIATE_ENQUEUE_MIGRATION);
   await applyMigration(sql, TALENT_CONTACT_DRAFT_MIGRATION);
+  await applyMigration(sql, TALENT_CONTACT_ROUND_THE_CLOCK_MIGRATION);
   const scopedQueueIndex = firstRow(
     await sql`
       select indexdef
@@ -1116,11 +1119,8 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
   const schedule = firstRow(
     await sql`
       select
-        queue.scheduled_at >= request.created_at + interval '20 minutes'
-          as delayed,
-        (queue.scheduled_at at time zone 'Asia/Seoul')::time >= time '08:00'
-          and (queue.scheduled_at at time zone 'Asia/Seoul')::time < time '20:00'
-          as inside_window
+        queue.scheduled_at = request.created_at + interval '20 minutes'
+          as exact_delay
       from public.company_talent_requests request
       join public.contact_queue queue
         on queue.company_talent_request_id = request.id
@@ -1129,8 +1129,8 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
     `
   );
   assert(
-    schedule.delayed === true && schedule.inside_window === true,
-    "candidate contact was not delayed into the 08:00-20:00 KST window"
+    schedule.exact_delay === true,
+    "candidate contact was not scheduled exactly 20 minutes after creation"
   );
   const repeated = firstRow(
     await sql`
@@ -1697,6 +1697,8 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
     await sql`
       select request.workflow_status, request.approved_at,
              queue.status as queue_status,
+             queue.scheduled_at = request.approved_at + interval '20 minutes'
+               as exact_standard_delay,
              queue.payload -> 'delivery' ->> 'subject' as queued_subject,
              queue.payload -> 'delivery' ->> 'chatText' as queued_body,
              (queue.payload -> 'delivery' ->> 'draftRevision')::int
@@ -1713,6 +1715,7 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
       scheduledDraftState.workflow_status === "queued" &&
       scheduledDraftState.approved_at !== null &&
       scheduledDraftState.queue_status === "queued" &&
+      scheduledDraftState.exact_standard_delay === true &&
       scheduledDraftState.queued_subject === "Draft subject revision 2" &&
       scheduledDraftState.queued_body === "Draft body revision 2" &&
       scheduledDraftState.queued_revision === 2,

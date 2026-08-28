@@ -23,6 +23,7 @@ from company_role_recurring_matching import (
     MIN_REEVALUATION_EVALUATIONS_PER_RUN,
     MAX_REEVALUATION_EVALUATIONS_PER_RUN,
     REEVALUATION_MIN_AGE,
+    matching_profile_payload,
     candidate_exclusion,
     build_parser,
     clear_generated_files,
@@ -392,6 +393,19 @@ class RoleScopeContractTests(unittest.TestCase):
 
 
 class EvaluationDocumentTests(unittest.TestCase):
+    def test_matching_profile_prefers_maintained_location(self) -> None:
+        profile = matching_profile_payload(
+            {
+                "current_location": "South Korea",
+                "location": "San Francisco, USA",
+                "name": "Chris Heo",
+            }
+        )
+        self.assertIsNotNone(profile)
+        self.assertEqual(profile["location"], "San Francisco, USA")
+        self.assertEqual(profile["signup_location"], "South Korea")
+        self.assertNotIn("current_location", profile)
+
     def test_candidate_page_can_be_empty_and_is_stably_deduplicated(self) -> None:
         self.assertEqual(ordered_candidate_ids([], 150), [])
         self.assertEqual(

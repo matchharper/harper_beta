@@ -19,13 +19,19 @@ import {
 } from "@/lib/org/agent/roleCreationState";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
-import { OrgHttpError } from "@/lib/org/server";
+import { OrgHttpError, updateOrgRoleRequestOnly } from "@/lib/org/server";
 import { parseOrgRoleCriteria } from "@/lib/org/roleCriteria";
+import {
+  formatOtherRoleCalibrationContext,
+  generateRoleHiringBriefCalibration,
+} from "@/lib/org/agent/roleCalibration";
+import type { ChatAttachmentPayload } from "@/types/chat";
 
 export const ROLE_CREATION_TOOL_NAMES = [
   "open_url",
   "web_search",
   "research_role_description_sources",
+  "calibrate_role_hiring_brief",
   "update_role_draft",
   "update_company_context",
   "read_other_roles",
@@ -55,6 +61,19 @@ export const ROLE_CREATION_TOOLS = [
   {
     type: "function" as const,
     function: {
+      name: "calibrate_role_hiring_brief",
+      description:
+        "Run the dedicated company-talent calibration agent when the user semantically presents one or more real people as examples of the level the company wants to hire or work alongside for this Role. Evidence may be in conversation text, a resolved internal candidate mention, LinkedIn, GitHub, a personal/portfolio/company bio page, resume/CV, article, paper, project page, or another professional source. Source type, URL presence, filename, name, and keywords never determine intent. A brief '이런 사람?' counts when Harper just asked for a concrete ideal reference. Do not call for identity/profile summaries, ordinary candidate evaluation, a JD, or unrelated material. This must be the only tool call in its assistant message. It receives the complete current role-creation context, reads relevant supplied sources itself with batch read tools, and uses gpt-5.6-terra at max reasoning to write the complete Hiring Brief and user reply. Do not pre-open sources or combine it with update_role_draft.",
+      parameters: {
+        type: "object",
+        properties: {},
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "update_role_draft",
       description:
         "Best suited to saving role facts the user has supplied, confirmed, or asked Harper to extract from a source in this turn. Partial updates are welcome.",
@@ -71,7 +90,7 @@ export const ROLE_CREATION_TOOLS = [
           request: {
             type: ["string", "null"],
             description:
-              "The complete private Hiring Brief in Markdown. Preserve existing content and keep role eligibility / experience fit, company talent quality / caliber, and team-specific bonus preferences in clearly separate sections. Caliber is the company's comparative overall talent-level gate, not another summary of job experience: a candidate may match the stack, domain, Agent, customer, or 0-to-1 requirements and still fall below it. For opened reference or current-team-member LinkedIn profiles, keep exact source URLs and distinguish user-stated reasons, observed professional facts, and Harper's tentative interpretation. Preserve every supported caliber signal explicitly, including repeated selection by Top-tier schools or programs, Top-tier companies, or highly selective core teams; actual program, team, and role selectivity; trajectory; rare achievement; and exceptional alternative outcomes. Do not automatically rewrite those patterns as generic ownership or impact, and do not treat prestigious affiliation alone as proof. Treat one profile as a tentative anchor; compare multiple profiles to find the smallest stable company-specific caliber rules, below-bar boundary, equivalents, tradeoffs, and uncertainty. User-stated judgment takes precedence. Do not use protected traits or non-job-related similarity.",
+              "The complete private Hiring Brief in Markdown for ordinary requirement edits. Preserve existing content and keep role eligibility / experience fit, company talent quality / caliber, and team-specific bonus preferences separate. Company caliber is a comparative overall talent-level gate: someone can satisfy the Role and still fall below it. Preserve the below-bar boundary, accepted equivalents, tradeoffs, exact source URLs, user-stated reasons, observed professional facts, and Harper's tentative interpretation. Supported evidence may explicitly include Top-tier schools or programs, Top-tier companies, and highly selective core teams. Do not automatically rewrite those patterns into generic ownership or impact, but never treat a prestigious affiliation alone as proof. Treat one profile as a tentative anchor; compare multiple profiles to find the smallest stable company-specific caliber rules. User-stated judgment takes precedence. Do not use protected traits or non-job-related similarity. Never use this field to interpret real reference people from any source; calibrate_role_hiring_brief is the exclusive path for that task.",
           },
           criteria: {
             type: "array",
@@ -201,7 +220,7 @@ export const ROLE_CREATION_TOOLS = [
     function: {
       name: "request_role_creation_confirmation",
       description:
-        "Use only when the saved role is ready for final review and the user has had at least two distinct opportunities to explain team-specific candidate preferences beyond the JD and technical must-haves, including at least one explicit invitation to share a concrete strong-match person or representative ideal current team member with a LinkedIn profile URL and the reasons that person's experience or strengths would be a bonus. Do not repeat that invitation if the user already supplied usable examples and reasons. When set_role_notification just saved the single available Slack channel and active current author as transparent final defaults, call this immediately afterward in the same assistant turn; do not insert a separate yes/no question about those unambiguous defaults. The server checks the current state and attaches Create role / Keep editing choices; this tool itself does not activate the role.",
+        "Use only when the saved role is ready for final review and the user has had at least two distinct opportunities to explain team-specific candidate preferences beyond the JD and technical must-haves, including at least one explicit invitation to share a concrete strong-match person or representative ideal current team member through any useful professional source and explain why that person is a strong reference. LinkedIn is one possible source, not a requirement. Do not repeat that invitation if the user already supplied usable examples and reasons. When set_role_notification just saved the single available Slack channel and active current author as transparent final defaults, call this immediately afterward in the same assistant turn; do not insert a separate yes/no question about those unambiguous defaults. The server checks the current state and attaches Create role / Keep editing choices; this tool itself does not activate the role.",
       parameters: {
         type: "object",
         properties: {},
@@ -301,9 +320,13 @@ export function isRoleCreationToolName(
 export async function executeRoleCreationTool(args: {
   actorLabel: string;
   allowCompletedRole?: boolean;
+  companySideContext?: string;
   input: Record<string, unknown>;
   name: RoleCreationToolName;
+  onToolProgress?: (label: string) => void;
   previousAssistantMessage: string;
+  readAudience?: "caller" | "company_safe";
+  referenceAttachments?: ChatAttachmentPayload[];
   roleId: string;
   user: User;
   userMessage: string;
@@ -403,6 +426,70 @@ export async function executeRoleCreationTool(args: {
   if (args.name === "read_other_roles") {
     assertOnlyKeys(args.input, [], args.name);
     return { result: await fetchOtherRoleCriteria(args) };
+  }
+  if (args.name === "calibrate_role_hiring_brief") {
+    assertOnlyKeys(args.input, [], args.name);
+    const state = await fetchRoleCreationState(args);
+    const otherRoles = await fetchOtherRoleCriteria(args);
+    const calibration = await generateRoleHiringBriefCalibration({
+      admin: getSupabaseAdmin() as unknown as TalentAdminClient,
+      companyContext: [
+        state.workspace.companyName,
+        text(state.workspace.pitch),
+        text(state.workspace.request),
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      companySideContext: args.companySideContext ?? args.userMessage,
+      currentHiringBrief: state.role.request,
+      onProgress: (progress) => args.onToolProgress?.(progress.label),
+      otherRoleCalibrationContext: formatOtherRoleCalibrationContext(
+        otherRoles.roles
+      ),
+      readAudience: args.readAudience ?? "caller",
+      referenceAttachments: args.referenceAttachments,
+      roleDescription: state.role.description,
+      roleId: args.roleId,
+      roleName: state.role.name,
+      user: args.user,
+      userMessage: args.userMessage,
+      workspaceId: args.workspaceId,
+    });
+    if (!calibration.shouldUpdate || !calibration.hiringBrief) {
+      return {
+        result: {
+          failedReferenceUrls: calibration.failedReferenceUrls,
+          followUpQuestion: calibration.followUpQuestion,
+          referenceCount: calibration.referenceCount,
+          referenceUrls: calibration.referenceUrls,
+          roleName: state.role.name,
+          status: "needs_more_information",
+          summary: calibration.summary,
+          userReply: calibration.userReply,
+        },
+        updateSummary: calibration.summary,
+      };
+    }
+    await updateOrgRoleRequestOnly({
+      expectedRequest: state.role.request,
+      request: calibration.hiringBrief,
+      roleId: args.roleId,
+      user: args.user,
+      workspaceId: args.workspaceId,
+    });
+    return {
+      result: {
+        failedReferenceUrls: calibration.failedReferenceUrls,
+        followUpQuestion: calibration.followUpQuestion,
+        referenceCount: calibration.referenceCount,
+        referenceUrls: calibration.referenceUrls,
+        roleName: state.role.name,
+        status: "updated",
+        summary: calibration.summary,
+        userReply: calibration.userReply,
+      },
+      updateSummary: calibration.summary,
+    };
   }
   if (args.name === "update_role_draft") {
     const allowedKeys = [

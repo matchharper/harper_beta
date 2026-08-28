@@ -91,6 +91,33 @@ test("builds Slack actions with opaque job references and removes them after sel
   assert.match(JSON.stringify(selected.at(-1)), /진행해주세요/);
 });
 
+test("removes an additional action block when its choice is selected", () => {
+  const selected = buildSelectedHarperSlackChoiceBlocks({
+    actionBlockPrefixes: ["harper_role_quick_actions"],
+    choiceLabel: "Pipeline summary",
+    originalBlocks: [
+      { type: "section", text: { type: "mrkdwn", text: "현재 채용 현황" } },
+      {
+        block_id: "harper_role_quick_actions",
+        elements: [],
+        type: "actions",
+      },
+    ],
+    originalText: "현재 채용 현황",
+    slackUserId: "U123",
+  });
+
+  assert.equal(
+    selected.some(
+      (block) =>
+        block.type === "actions" &&
+        block.block_id === "harper_role_quick_actions"
+    ),
+    false
+  );
+  assert.match(JSON.stringify(selected.at(-1)), /Pipeline summary/);
+});
+
 test("removes unsupported language labels from Slack code fences", () => {
   const blocks = buildHarperSlackChoiceBlocks({
     choices: [],
@@ -117,6 +144,9 @@ test("keeps inline company-information links inside the normal Slack reply", () 
 
   assert.equal(message.type, "section");
   assert.equal(message.expand, true);
-  assert.match(message.text.text, /<https:\/\/matchharper\.com\/org\/team\?orgId=workspace-1\|회사 정보>를 반영했습니다\./);
+  assert.match(
+    message.text.text,
+    /<https:\/\/matchharper\.com\/org\/team\?orgId=workspace-1\|회사 정보>를 반영했습니다\./
+  );
   assert.equal(blocks[1].type, "actions");
 });

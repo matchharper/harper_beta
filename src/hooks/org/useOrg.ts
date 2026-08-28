@@ -283,13 +283,24 @@ export function useOrgInbox(args: {
   });
 }
 
-export function useOrgAcceptedTalents(args: { enabled?: boolean }) {
+export function useOrgAcceptedTalents(args: {
+  enabled?: boolean;
+  workspaceIds?: string[];
+}) {
+  const workspaceIds = Array.from(
+    new Set(
+      (args.workspaceIds ?? []).map((value) => value.trim()).filter(Boolean)
+    )
+  ).sort();
   return useInfiniteQuery({
-    queryKey: queryKeys.org.acceptedTalents,
+    queryKey: [...queryKeys.org.acceptedTalents, workspaceIds.join(",")],
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams({
         offset: String(pageParam),
       });
+      for (const workspaceId of workspaceIds) {
+        params.append("workspaceId", workspaceId);
+      }
       return fetchWithInternalAuth<OrgAcceptedTalentsResponse>(
         `/api/org/accepted-talents?${params.toString()}`
       );
