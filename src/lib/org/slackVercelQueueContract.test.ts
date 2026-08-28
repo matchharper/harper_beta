@@ -52,15 +52,15 @@ test("a concurrent duplicate delivery stays retryable while the original owns th
   assert.match(queueConsumer, /error instanceof SlackQueueInFlightError/);
 });
 
-test("only the consumer that claimed a new mention turn can set its loading status", () => {
+test("the turn processor exclusively owns a claimed turn's Slack status", () => {
   const claim = queueConsumer.indexOf("const claim = await claimSlackReplyJob");
-  const loadingStatus = queueConsumer.indexOf("await setLoadingStatus(loadingStatus)");
   const processor = queueConsumer.indexOf("processSlackTurn({");
 
   assert.ok(claim >= 0);
-  assert.ok(loadingStatus > claim);
-  assert.ok(processor > loadingStatus);
-  assert.doesNotMatch(queueConsumer, /await setLoadingStatus\(result\)/);
+  assert.ok(processor > claim);
+  assert.doesNotMatch(queueConsumer, /setLoadingStatus/);
+  assert.doesNotMatch(queueConsumer, /setHarperSlackThreadStatus/);
+  assert.match(turnProcessor, /status: responseStatus/);
 });
 
 test("reply-job publish recovery uses the existing job ledger and a 20-turn claim cap", () => {

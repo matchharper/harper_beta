@@ -1,8 +1,4 @@
 import { handleCallback, type MessageMetadata } from "@vercel/queue";
-import {
-  decryptHarperSlackToken,
-  setHarperSlackThreadStatus,
-} from "@/lib/org/slackHarper";
 import { queueHarperSlackEvent } from "@/lib/org/slackHarperEvents";
 import { markSlackReplyJobQueueDispatched } from "@/lib/org/slackQueueDispatch";
 import { processSlackTurn } from "@/app/api/internal/org-agent/slack-turn/route";
@@ -45,13 +41,6 @@ class SlackQueueRetryError extends Error {
   }
 }
 
-type SlackLoadingStatus = {
-  botTokenCiphertext: string;
-  channelId: string;
-  status: string;
-  threadTs: string;
-};
-
 function clean(value: unknown) {
   return String(value ?? "").trim();
 }
@@ -64,36 +53,12 @@ function nextRetryAt(seconds: number) {
   return new Date(Date.now() + seconds * 1_000).toISOString();
 }
 
-async function setLoadingStatus(loadingStatus: SlackLoadingStatus | null) {
-  if (!loadingStatus) return;
-  await setHarperSlackThreadStatus({
-    channelId: loadingStatus.channelId,
-    status: loadingStatus.status,
-    threadTs: loadingStatus.threadTs,
-    token: decryptHarperSlackToken(loadingStatus.botTokenCiphertext),
-  }).catch((error) =>
-    console.warn("[harper-slack/queue:set-mention-status]", error)
-  );
-}
-
-async function clearLoadingStatus(loadingStatus: SlackLoadingStatus | null) {
-  if (!loadingStatus) return;
-  await setHarperSlackThreadStatus({
-    channelId: loadingStatus.channelId,
-    status: "",
-    threadTs: loadingStatus.threadTs,
-    token: decryptHarperSlackToken(loadingStatus.botTokenCiphertext),
-  }).catch((error) =>
-    console.warn("[harper-slack/queue:clear-mention-status]", error)
-  );
-}
-
 async function resolveJobId(args: {
   message: HarperSlackTurnQueueMessage;
   metadata: MessageMetadata;
 }) {
   if (args.message.kind === "reply_job") {
-    return { jobId: args.message.jobId, loadingStatus: null };
+    return { jobId: args.message.jobId };
   }
 
   const result = await queueHarperSlackEvent(
@@ -104,14 +69,7 @@ async function resolveJobId(args: {
       jobId: clean(result.jobId),
       source: "event",
     });
-    const loadingStatus =
-      "queued" in result &&
-      result.queued === true &&
-      "loadingStatus" in result &&
-      result.loadingStatus
-        ? result.loadingStatus
-        : null;
-    return { jobId: clean(result.jobId), loadingStatus };
+    return { jobId: clean(result.jobId) };
   }
   if ("queued" in result || "duplicate" in result) {
     throw new SlackQueueRetryError(
@@ -206,9 +164,7 @@ async function handleClaimedSlackTurnFailure(args: {
   attemptCount: number;
   error: unknown;
   jobId: string;
-  loadingStatus: SlackLoadingStatus | null;
 }) {
-  await clearLoadingStatus(args.loadingStatus);
   const failure =
     args.error instanceof SlackQueueRetryError
       ? args.error
@@ -240,7 +196,7 @@ async function processQueueMessage(
 
   const resolved = await resolveJobId({ message, metadata });
   if (!resolved) return;
-  const { jobId, loadingStatus } = resolved;
+  const { jobId } = resolved;
 
   console.info("[harper-slack/queue:delivery]", {
     deliveryCount: metadata.deliveryCount,
@@ -267,7 +223,6 @@ async function processQueueMessage(
     return;
   }
 
-  await setLoadingStatus(loadingStatus);
   let response: Response;
   try {
     response = await processSlackTurn({
@@ -280,7 +235,6 @@ async function processQueueMessage(
       attemptCount: Number(claim.job.attempt_count ?? 0),
       error,
       jobId,
-      loadingStatus,
     });
   }
   if (response.ok) {
@@ -301,7 +255,6 @@ async function processQueueMessage(
     attemptCount: Number(claim.job.attempt_count ?? 0),
     error: failure,
     jobId,
-    loadingStatus,
   });
 }
 

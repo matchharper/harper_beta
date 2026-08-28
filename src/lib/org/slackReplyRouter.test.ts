@@ -57,16 +57,16 @@ test("keeps only the latest ten messages and caps each message", async () => {
   );
 });
 
-test("accepts only the three decision tokens", async () => {
+test("accepts only explicit ignore and otherwise defaults to responding", async () => {
   const { parseSlackReplyRoutingDecision } = await router;
   assert.equal(parseSlackReplyRoutingDecision("respond\n"), "respond");
   assert.equal(parseSlackReplyRoutingDecision("IGNORE"), "ignore");
-  assert.equal(parseSlackReplyRoutingDecision("uncertain"), "uncertain");
+  assert.equal(parseSlackReplyRoutingDecision("uncertain"), "respond");
   assert.equal(
     parseSlackReplyRoutingDecision("respond because asked"),
-    "uncertain"
+    "respond"
   );
-  assert.equal(parseSlackReplyRoutingDecision(""), "uncertain");
+  assert.equal(parseSlackReplyRoutingDecision(""), "respond");
 });
 
 test("keeps explicit scheduling answers in Harper's scheduling thread", async () => {
@@ -98,7 +98,7 @@ test("keeps explicit scheduling answers in Harper's scheduling thread", async ()
   );
 });
 
-test("propagates cancellation instead of converting it to uncertain", async () => {
+test("propagates cancellation instead of converting it to a routing decision", async () => {
   const { decideHarperSlackThreadReply } = await router;
   const reason = new Error("newer Slack message arrived");
   const signal = AbortSignal.abort(reason);
