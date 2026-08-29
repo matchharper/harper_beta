@@ -9,6 +9,7 @@ import {
   DEFAULT_ORG_AGENT_MODEL,
   getOrgAgentFallbackModel,
   ORG_AGENT_GROK_MODEL,
+  ORG_AGENT_TERRA_MODEL,
   isOrgAgentModelId,
   resolveOrgAgentModel,
   type OrgAgentModelId,
@@ -43,20 +44,15 @@ import { filterOrgAgentMentionsForWorkspace } from "@/lib/org/agent/context";
 import type {
   OrgAgentMention,
   OrgAgentMessage,
-  OrgAgentMessageAttachment,
   OrgAgentMessageMetadata,
   OrgAgentThinkingLog,
 } from "@/lib/org/agent/types";
 import type { ChatAttachmentPayload } from "@/types/chat";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import {
-  MAX_ROLE_CREATION_FILE_BYTES,
-  MAX_ROLE_CREATION_FILES,
-  MAX_ROLE_CREATION_TOTAL_FILE_BYTES,
-  isRoleCreationFileMimeAllowed,
-  isRoleCreationFileNameAllowed,
-  isRoleCreationMediaMime,
-} from "@/lib/org/agent/roleCreationDocumentTypes";
+  referenceAttachmentMetadata,
+  validateOrgAgentReferenceAttachments,
+} from "@/lib/org/agent/referenceAttachments";
 import { ensureOrgAgentCompanyInfoMarker } from "@/lib/org/agent/companyInfoMarker";
 import { shouldAttachRoleCreationConfirmation } from "@/lib/org/agent/roleCreationCadence";
 import {
@@ -91,7 +87,6 @@ type LlmMessage = {
 
 const MAX_TOOL_LOOPS = 5;
 const MAX_TOOL_CALLS = 7;
-const MAX_ATTACHMENT_TEXT_CHARS = 18_000;
 const ROLE_CREATION_MAX_OUTPUT_TOKENS = 4_800;
 
 function text(value: unknown) {
@@ -159,70 +154,6 @@ function parseArguments(value: string) {
   return parsed as Record<string, unknown>;
 }
 
-function validateAttachments(value: ChatAttachmentPayload[] | undefined) {
-  const attachments = Array.isArray(value) ? value : [];
-  if (attachments.length > MAX_ROLE_CREATION_FILES) {
-    throw new Error("한 번에 파일을 3개까지만 첨부할 수 있습니다.");
-  }
-  const totalBytes = attachments.reduce(
-    (total, attachment) => total + Number(attachment.size ?? 0),
-    0
-  );
-  if (
-    !Number.isFinite(totalBytes) ||
-    totalBytes > MAX_ROLE_CREATION_TOTAL_FILE_BYTES
-  ) {
-    throw new Error("첨부 파일의 전체 크기는 25MB 이하여야 합니다.");
-  }
-  return attachments.map((attachment) => {
-    const name = text(attachment.name).slice(0, 240);
-    const content = text(attachment.text);
-    const size = Number(attachment.size ?? 0);
-    if (
-      attachment.kind !== "file" ||
-      !name ||
-      !isRoleCreationFileNameAllowed(name) ||
-      !isRoleCreationFileMimeAllowed(name, attachment.mime) ||
-      isRoleCreationMediaMime(attachment.mime)
-    ) {
-      throw new Error("지원하지 않는 첨부 파일입니다.");
-    }
-    if (
-      !Number.isFinite(size) ||
-      size <= 0 ||
-      size > MAX_ROLE_CREATION_FILE_BYTES
-    ) {
-      throw new Error("파일은 10MB 이하여야 합니다.");
-    }
-    if (!content) {
-      throw new Error("첨부 파일에 읽을 수 있는 텍스트가 없습니다.");
-    }
-    return {
-      kind: "file" as const,
-      mime: text(attachment.mime) || undefined,
-      name,
-      size,
-      text: content.slice(0, MAX_ATTACHMENT_TEXT_CHARS),
-      truncated:
-        Boolean(attachment.truncated) ||
-        content.length > MAX_ATTACHMENT_TEXT_CHARS,
-    };
-  });
-}
-
-function attachmentMetadata(
-  attachments: ChatAttachmentPayload[]
-): OrgAgentMessageAttachment[] {
-  return attachments.map((attachment) => ({
-    kind: attachment.kind,
-    mime: attachment.mime,
-    name: attachment.name,
-    size: attachment.size,
-    truncated: attachment.truncated,
-    url: attachment.url,
-  }));
-}
-
 function statusLabel(
   status: NonNullable<OrgAgentThinkingLog["status"]>,
   labels: { done: string; error: string; running: string }
@@ -260,6 +191,13 @@ function toolLabel(
       done: "이전 역할 기준 확인 완료",
       error: "이전 역할 기준 확인 실패",
       running: "이전 역할 기준을 살펴보는 중",
+    });
+  }
+  if (name === "calibrate_role_hiring_brief") {
+    return statusLabel(status, {
+      done: "Hiring Brief 기준 정리 완료",
+      error: "Hiring Brief 기준 정리 실패",
+      running: "참고 인물을 바탕으로 Hiring Brief를 정리하는 중",
     });
   }
   if (name === "set_role_notification") {
@@ -308,13 +246,21 @@ async function completion(args: {
   allowTools: boolean;
   messages: LlmMessage[];
   model: OrgAgentModelId;
+  reasoningEffort?: "high" | "max";
+  strictModel?: boolean;
 }) {
+  const maxTokens =
+    args.reasoningEffort === "max"
+      ? Math.max(ROLE_CREATION_MAX_OUTPUT_TOKENS, 12_000)
+      : ROLE_CREATION_MAX_OUTPUT_TOKENS;
   return createChatCompletionWithFallback({
-    anthropicOverloadFallbackModel: ORG_AGENT_GROK_MODEL,
+    ...(args.strictModel
+      ? {}
+      : { anthropicOverloadFallbackModel: ORG_AGENT_GROK_MODEL }),
     buildRequest: (model) => ({
       ...(usesMaxCompletionTokensForModel(model)
-        ? { max_completion_tokens: ROLE_CREATION_MAX_OUTPUT_TOKENS }
-        : { max_tokens: ROLE_CREATION_MAX_OUTPUT_TOKENS }),
+        ? { max_completion_tokens: maxTokens }
+        : { max_tokens: maxTokens }),
       messages: args.messages,
       temperature: 0.15,
       ...(args.allowTools
@@ -331,9 +277,11 @@ async function completion(args: {
     }),
     debugLabel: "org/agent:role-creation",
     deepSeekThinking: { reasoningEffort: "high" },
-    fallbackModel: getOrgAgentFallbackModel(args.model),
+    ...(args.strictModel
+      ? {}
+      : { fallbackModel: getOrgAgentFallbackModel(args.model) }),
     model: args.model,
-    openAIResponses: { reasoningEffort: "high" },
+    openAIResponses: { reasoningEffort: args.reasoningEffort ?? "high" },
   });
 }
 
@@ -403,7 +351,7 @@ export async function runOrgRoleCreationChat(args: {
   userMessageMetadata?: OrgAgentMessageMetadata;
   workspaceId: string;
 }) {
-  const attachments = validateAttachments(args.attachments);
+  const attachments = validateOrgAgentReferenceAttachments(args.attachments);
   const requestedRoleId = text(args.roleId);
   const persistedMessage =
     text(args.message) ||
@@ -455,7 +403,7 @@ export async function runOrgRoleCreationChat(args: {
     ? args.model
     : resolveOrgAgentModel(DEFAULT_ORG_AGENT_MODEL).model;
   const userMetadata: OrgAgentMessageMetadata = {
-    attachments: attachmentMetadata(attachments),
+    attachments: referenceAttachmentMetadata(attachments),
     roleCreationAttachments: attachments,
     ...args.userMessageMetadata,
     source:
@@ -551,6 +499,20 @@ export async function runOrgRoleCreationChat(args: {
     audience: "company",
     examples: serviceAnswerExamples.examples,
   });
+  const companySideUserPrompt = buildRoleCreationUserPrompt({
+    attachments,
+    history: historyPage.messages
+      .filter((item) => item.id !== userMessage.id)
+      .map((item) => ({
+        attachments: item.metadata.roleCreationAttachments,
+        content: item.content,
+        role: item.role,
+      })),
+    mentions,
+    serviceAnswerExamplesText,
+    state,
+    userMessage: message,
+  });
   const messages: LlmMessage[] = [
     {
       content: buildRoleCreationSystemPrompt({
@@ -560,25 +522,15 @@ export async function runOrgRoleCreationChat(args: {
       role: "system",
     },
     {
-      content: buildRoleCreationUserPrompt({
-        attachments,
-        history: historyPage.messages
-          .filter((item) => item.id !== userMessage.id)
-          .map((item) => ({
-            attachments: item.metadata.roleCreationAttachments,
-            content: item.content,
-            role: item.role,
-          })),
-        mentions,
-        serviceAnswerExamplesText,
-        state,
-        userMessage: message,
-      }),
+      content: companySideUserPrompt,
       role: "user",
     },
   ];
 
   let activeModel = selectedModel;
+  let activeReasoningEffort: "high" | "max" = "high";
+  let calibrationAttempted = false;
+  let calibrationCompleted = false;
   let totalCalls = 0;
   let reply = "";
   let lastAssistantText = "";
@@ -597,9 +549,11 @@ export async function runOrgRoleCreationChat(args: {
   for (let loop = 0; loop < MAX_TOOL_LOOPS; loop += 1) {
     const result = await completion({
       allowPendingConfirmation: canConfirmPendingRole,
-      allowTools: !confirmationRequested,
+      allowTools: !confirmationRequested && !calibrationAttempted,
       messages,
       model: activeModel,
+      reasoningEffort: activeReasoningEffort,
+      strictModel: calibrationCompleted,
     });
     activeModel = result.model as OrgAgentModelId;
     const responseMessage = getResponseMessage(result.response);
@@ -648,13 +602,38 @@ export async function runOrgRoleCreationChat(args: {
             "Final role confirmation must be the only tool call in this turn"
           );
         }
+        if (
+          call.function.name === "calibrate_role_hiring_brief" &&
+          calls.length !== 1
+        ) {
+          throw new Error(
+            "Role calibration must be the only tool call in this turn"
+          );
+        }
+        if (call.function.name === "calibrate_role_hiring_brief") {
+          calibrationAttempted = true;
+        }
         const toolInput = parseArguments(call.function.arguments);
         const execution = await executeRoleCreationTool({
           actorLabel: state.currentUser.name,
           allowCompletedRole: true,
+          companySideContext: companySideUserPrompt,
           input: toolInput,
           name: call.function.name,
+          onToolProgress: (label) => {
+            const progressLog = {
+              at: new Date().toISOString(),
+              id: call.id,
+              icon: getOrgAgentThinkingLogIcon(call.function.name),
+              label,
+              status: "running" as const,
+            };
+            logs = upsertOrgAgentThinkingLog(logs, progressLog);
+            args.emit?.("tool_status", progressLog);
+          },
           previousAssistantMessage,
+          readAudience: surface === "slack" ? "company_safe" : "caller",
+          referenceAttachments: attachments,
           roleId,
           user: args.user,
           userMessage: message,
@@ -674,6 +653,16 @@ export async function runOrgRoleCreationChat(args: {
         }
         if (call.function.name === "set_role_notification") {
           notificationSaved = true;
+        }
+        if (call.function.name === "calibrate_role_hiring_brief") {
+          activeModel = ORG_AGENT_TERRA_MODEL;
+          activeReasoningEffort = "max";
+          calibrationCompleted = true;
+          reply =
+            "userReply" in execution.result
+              ? text(execution.result.userReply)
+              : "";
+          if (reply) lastAssistantText = reply;
         }
         confirmationRequested =
           confirmationRequested || Boolean(execution.confirmationRequested);
@@ -730,7 +719,7 @@ export async function runOrgRoleCreationChat(args: {
       }
       if (confirmationRequested || pendingConfirmationAccepted) break;
     }
-    if (pendingConfirmationAccepted) break;
+    if (pendingConfirmationAccepted || calibrationCompleted) break;
   }
 
   if (
@@ -816,6 +805,8 @@ export async function runOrgRoleCreationChat(args: {
         allowTools: false,
         messages,
         model: activeModel,
+        reasoningEffort: activeReasoningEffort,
+        strictModel: calibrationCompleted,
       });
       activeModel = result.model as OrgAgentModelId;
       reply = assistantText(getResponseMessage(result.response));

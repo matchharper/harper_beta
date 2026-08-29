@@ -24,6 +24,12 @@ import { buildReplySubject, normalizeEmailAddress } from "@/lib/email/parse";
 import { sendResendEmail } from "@/lib/email/send";
 import type { MergedChecklistItem } from "@/lib/talentOnboarding/server";
 import { normalizeTalentMessageThinkingLogs } from "@/lib/talentOnboarding/models";
+import { isTestOnlyInternalRole } from "@/lib/internalRoleSafety";
+import {
+  buildMatchingRecommendationDeliveryKey,
+  fetchMatchingRecommendationEmailOpenedAtMap,
+  getEarliestMatchingViewedAt,
+} from "@/lib/ops/matchingViewedAt";
 import type { Database } from "@/types/database.types";
 
 type TalentUserRow = Database["public"]["Tables"]["talent_users"]["Row"];
@@ -239,6 +245,7 @@ export type CareerTalentRecommendationItem = {
   clickedAt: string | null;
   companyName: string;
   createdAt: string;
+  discoveryRunId: string | null;
   effectiveStage: string;
   externalJdUrl: string | null;
   feedback: string | null;
@@ -1964,6 +1971,7 @@ type CareerRecommendationRow = {
     | CareerRecommendationRoleRow[]
     | null;
   created_at?: string | null;
+  discovery_run_id?: string | null;
   feedback?: string | null;
   feedback_at?: string | null;
   feedback_reason?: string | null;
@@ -2044,6 +2052,7 @@ function mapCareerRecommendationRow(
     clickedAt: row.clicked_at ?? null,
     companyName: String(workspace?.company_name ?? "회사명 없음"),
     createdAt,
+    discoveryRunId: row.discovery_run_id ?? null,
     effectiveStage: getEffectiveRecommendationStage(row),
     externalJdUrl: role.external_jd_url ?? null,
     feedback: row.feedback ?? null,
@@ -2187,12 +2196,26 @@ async function fetchCareerRecommendationFitMap(args: {
   return fitMap;
 }
 
-async function attachCareerRecommendationFitSummaries(args: {
+async function attachCareerRecommendationDetails(args: {
   admin: UntypedAdminClient;
   recommendations: CareerTalentRecommendationItem[];
 }) {
   if (args.recommendations.length === 0) return args.recommendations;
-  const fitMap = await fetchCareerRecommendationFitMap(args);
+  const [fitMap, emailOpenedAtByDeliveryKey] = await Promise.all([
+    fetchCareerRecommendationFitMap(args),
+    fetchMatchingRecommendationEmailOpenedAtMap({
+      admin: args.admin,
+      targets: args.recommendations.map((item) => ({
+        discoveryRunId: item.discoveryRunId,
+        talentId: item.talentId,
+      })),
+    }).catch((error) => {
+      console.warn("[ops-career] recommendation email open lookup failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return new Map<string, string>();
+    }),
+  ]);
   return args.recommendations.map((item) => ({
     ...item,
     matchingFit:
@@ -2202,6 +2225,15 @@ async function attachCareerRecommendationFitSummaries(args: {
           talentId: item.talentId,
         })
       ) ?? null,
+    viewedAt: getEarliestMatchingViewedAt(
+      item.viewedAt,
+      emailOpenedAtByDeliveryKey.get(
+        buildMatchingRecommendationDeliveryKey(
+          item.talentId,
+          item.discoveryRunId
+        )
+      )
+    ),
   }));
 }
 
@@ -2209,6 +2241,7 @@ const CAREER_RECOMMENDATION_SELECT = `
   id,
   talent_id,
   role_id,
+  discovery_run_id,
   opportunity_type,
   feedback,
   feedback_at,
@@ -2334,7 +2367,7 @@ export async function fetchCareerTalentRecommendations(args: {
       .slice(0, limit)
       .map(mapCareerRecommendationRow)
       .filter((item): item is CareerTalentRecommendationItem => item !== null);
-    const recommendationsWithFit = await attachCareerRecommendationFitSummaries(
+    const recommendationsWithDetails = await attachCareerRecommendationDetails(
       {
         admin,
         recommendations,
@@ -2342,7 +2375,7 @@ export async function fetchCareerTalentRecommendations(args: {
     );
 
     return {
-      recommendations: recommendationsWithFit,
+      recommendations: recommendationsWithDetails,
       limit,
       offset,
       hasMore,
@@ -2359,13 +2392,13 @@ export async function fetchCareerTalentRecommendations(args: {
   });
   const hasMore = filteredItems.length > limit;
   const recommendations = filteredItems.slice(0, limit);
-  const recommendationsWithFit = await attachCareerRecommendationFitSummaries({
+  const recommendationsWithDetails = await attachCareerRecommendationDetails({
     admin,
     recommendations,
   });
 
   return {
-    recommendations: recommendationsWithFit,
+    recommendations: recommendationsWithDetails,
     limit,
     offset,
     hasMore,
@@ -2387,9 +2420,12 @@ type ManualInternalRoleRow = {
   company_workspace_id?: string | null;
   description?: string | null;
   description_summary?: string | null;
+  information?: unknown;
   location_text?: string | null;
   name?: string | null;
   role_id?: string | null;
+  source_job_id?: string | null;
+  source_provider?: string | null;
   source_type?: string | null;
   status?: string | null;
   updated_at?: string | null;
@@ -2415,6 +2451,7 @@ function mapManualInternalRoleRow(
   const isActive = status === "active" || status === "top_priority";
   if (!roleId || !roleName || !companyWorkspaceId) return null;
   if (roleSourceType !== "internal") return null;
+  if (isTestOnlyInternalRole(row)) return null;
   if (!options.includeInactive && !isActive) return null;
 
   return {
@@ -2459,9 +2496,12 @@ async function loadManualInternalRoleRows(args: {
     name,
     description,
     description_summary,
+    information,
     location_text,
     status,
     source_type,
+    source_provider,
+    source_job_id,
     updated_at,
     company_workspace:company_workspace!inner (
       company_workspace_id,
@@ -2504,9 +2544,12 @@ async function loadManualInternalRoleById(args: {
         name,
         description,
         description_summary,
+        information,
         location_text,
         status,
         source_type,
+        source_provider,
+        source_job_id,
         updated_at,
         company_workspace:company_workspace (
           company_workspace_id,

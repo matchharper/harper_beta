@@ -223,6 +223,11 @@ export const TALENT_TOOL_COMMON_ASSISTANT_INSTRUCTION = [
   "Do not answer only one-line confirmation. Do not mention tool names, system field names.",
 ].join(" ");
 
+const RECOMMEND_JOB_POSTINGS_ASSISTANT_INSTRUCTION = [
+  "After `recommend_job_postings`, use `answerDraft` for the answer. Preserve its details about the active request, whether a new run was created, the maximum count, and next step.",
+  "단순히 나열하며 설명하지 말고, 실제 사람이 사람에게 공고를 추천해주는 것처럼 다양한 형태로 설명 및 작성해.",
+].join(" ");
+
 const optionalToolString = (value: unknown) => {
   const text = typeof value === "string" ? value.trim() : "";
   return text || null;
@@ -274,6 +279,14 @@ export function withTalentToolAssistantInstruction(
     assistantInstruction: buildCommonTalentToolAssistantInstruction(null),
     ok: true,
     result,
+  };
+}
+
+function withRecommendJobPostingsAssistantInstruction(result: unknown) {
+  return {
+    ...(isTalentToolResultRecord(result) ? result : { ok: true, result }),
+    assistantInstruction: RECOMMEND_JOB_POSTINGS_ASSISTANT_INSTRUCTION,
+    skipCommonAssistantInstruction: true,
   };
 }
 
@@ -1019,6 +1032,8 @@ async function updateInternalRolePriorityReview(args: {
         name,
         source_type,
         status,
+        is_expired,
+        expires_at,
         company_workspace:company_workspace (
           company_name
         )
@@ -1050,6 +1065,23 @@ async function updateInternalRolePriorityReview(args: {
       status: "not_internal_role",
       roleId,
       assistantInstruction: `Tell the user Harper could not ${args.action === "register" ? "save" : "withdraw"} this priority internal-role review request because it is not verified as a Harper-connected role. Do not promise a connection, interview, referral, company introduction, or specific timeline.`,
+    };
+  }
+
+  const roleStatus = optionalToolString(roleRecord.status)?.toLowerCase();
+  const expiresAt = optionalToolString(roleRecord.expires_at);
+  const expiresAtMs = expiresAt ? Date.parse(expiresAt) : Number.NaN;
+  if (
+    !roleStatus ||
+    !["active", "paused"].includes(roleStatus) ||
+    roleRecord.is_expired === true ||
+    (Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now())
+  ) {
+    return {
+      ok: false,
+      status: "role_not_available",
+      roleId,
+      assistantInstruction: `Tell the user this Harper-connected role is not currently active or paused, so the priority-review request was not ${args.action === "register" ? "saved" : "withdrawn"}. Do not promise a connection, interview, referral, company introduction, or specific timeline.`,
     };
   }
 
@@ -2340,7 +2372,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         rowMemos: {
           type: "array",
           description:
-            "Memo mutations for visible profile rows. Use append for genuinely new detail that should follow the current memo. Use update to replace the entire current memo with a complete final memo when the user corrects or asks to revise it. Never use update with only a partial delta. rowId must be a verbatim RowID from the profile listing. Omit ambiguous or generic mentions.",
+            "Memo mutations for visible profile rows. Use append for genuinely new detail that should follow the current memo. Use update to replace the entire current memo with a complete final memo when the user corrects or asks to revise it. Never use update with only a partial delta. Never store overly sensitive personal information, even if disclosed. If related context must be retained, record only the generalized consequence and omit the sensitive cause and details. rowId must be a verbatim RowID from the profile listing. Omit ambiguous or generic mentions.",
           items: {
             type: "object",
             properties: {
@@ -3199,8 +3231,11 @@ export async function executeTalentTool(args: {
   }
   const startedAt = Date.now();
   try {
+    const rawResult = await tool.execute(args.input, args.context);
     const result = withTalentToolAssistantInstruction(
-      await tool.execute(args.input, args.context)
+      tool.name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS
+        ? withRecommendJobPostingsAssistantInstruction(rawResult)
+        : rawResult
     );
     if (shouldLog) {
       logTalentToolResult({

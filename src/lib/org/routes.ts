@@ -1,5 +1,4 @@
 export type OrgWorkspacePageId =
-  | "all"
   | "home"
   | "inbox"
   | "jobs"
@@ -15,7 +14,6 @@ export type OrgRoleTab = "pipeline" | "matching" | "role" | "settings";
 export type OrgPipelineDisplay = "pipeline" | "board";
 
 const ORG_PAGE_PATHS: Record<OrgWorkspacePageId, string> = {
-  all: "/org/all",
   documents: "/org/documents",
   home: "/org/home",
   inbox: "/org/inbox",

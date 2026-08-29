@@ -13,6 +13,7 @@ import {
 } from "@/lib/career/prompts/rawPrompts";
 import { CAREER_VOICE_CALL_MODE_PROMPT } from "@/lib/career/prompts/cases/voicePrompts";
 import {
+  formatCareerPromptKoreanDateTime,
   interpolateCareerPromptText,
   normalizeToolNames,
 } from "@/lib/career/prompts/promptUtils";
@@ -364,7 +365,9 @@ export function buildCareerConversationPromptPlan(args: {
 
   const dynamicStateLines = [
     // 항상 포함: 현재 채널, 현재 시각, 활성 runtime instruction.
-    `## Runtime context\n현재 후보자와 ${channelType}을 통해 소통하고 있습니다.\n현재 시각: ${new Date().toLocaleString()}`,
+    `## Runtime context\n현재 후보자와 ${channelType}을 통해 소통하고 있습니다.\n현재 시각: ${formatCareerPromptKoreanDateTime(
+      new Date().toISOString()
+    )}\n이 prompt와 최근 메시지에 표시되는 모든 시각은 한국 시간(UTC+9) 기준이다.`,
     runtimeOneTimeInstruction,
     args.companyTalentRequestText?.trim() ?? "",
     officialJobSignupIntentPrompt,

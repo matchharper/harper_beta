@@ -54,6 +54,10 @@ export const CAREER_HOOK_MESSAGES = {
     "career.common.career_hook_messages.0jhqb6p",
     "좋은 이야기 들려주셔서 감사합니다. 말씀해주신 내용을 바탕으로 잘 맞는 기회를 찾아볼게요. 오늘 대화는 여기까지 할게요."
   ),
+  callEndFallbackSpeech: t(
+    "career.common.career_hook_messages.end_call_fallback",
+    "답변 감사합니다. 말씀해주신 내용은 잘 반영할게요. 그럼 통화는 여기서 마무리하겠습니다."
+  ),
   callGreeting: t(
     "career.common.career_hook_messages.0c68jwx",
     "안녕하세요, 직접 통화로 이야기하게 되어 좋네요. 제가 먼저 하나씩 여쭤볼게요. 편하게 답해주시면 더 잘 맞는 기회를 찾는 데 도움이 됩니다."

@@ -47,6 +47,7 @@ import {
   buildCareerSessionStartTurnInstruction,
   CAREER_SESSION_START_NO_MESSAGE_MARKER,
 } from "@/lib/career/prompts";
+import { resolveCareerReengagementActionKeys } from "@/lib/career/reengagementActions";
 import { fetchPendingInternalOpportunityCallRequests } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 import { syncVerifiedTalentAccountEmail } from "@/lib/talentOnboarding/accountEmail";
@@ -178,8 +179,8 @@ const createFallbackTalentProfile = (
         profile_picture: profile.profile_picture,
         headline: profile.headline,
         bio: profile.bio,
-        current_location: profile.current_location,
         location: profile.location,
+        current_location: profile.current_location,
       }
     : null,
   talentExperiences: [],
@@ -260,6 +261,11 @@ async function generateSessionStartGreeting(args: {
       preferredLocale: args.preferredLocale,
       previousChatAt,
     }),
+    transformAssistantTextBeforeInsert: (content) =>
+      resolveCareerReengagementActionKeys({
+        content,
+        resolvePendingActionRef: () => null,
+      }),
     usageLabel: "career/chat:session_start_greeting",
     userId,
   });

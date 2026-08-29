@@ -31,6 +31,7 @@ import {
   hasCompleteOrgRoleCriteria,
   type OrgRoleCriterion,
 } from "@/lib/org/roleCriteria";
+import { stripOrgAgentCompanyInfoMarker } from "@/lib/org/agent/companyInfoMarker";
 
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
 
@@ -123,9 +124,7 @@ export function parseRoleCreationConversationMetadata(
   );
   const lastConfirmationMessageId = Number(source.lastConfirmationMessageId);
   const rawSlackRoleCreationThread = record(source.slackRoleCreationThread);
-  const rawDescriptionSourceResearch = record(
-    source.descriptionSourceResearch
-  );
+  const rawDescriptionSourceResearch = record(source.descriptionSourceResearch);
   const descriptionSourceResearch =
     text(rawDescriptionSourceResearch.attemptedAt) &&
     text(rawDescriptionSourceResearch.query) &&
@@ -427,7 +426,10 @@ export async function updateRoleCreationDraft(args: {
     changes.push({
       key: "role_description",
       roleId: args.roleId,
-      value: args.description,
+      value:
+        args.description === null
+          ? null
+          : stripOrgAgentCompanyInfoMarker(args.description) || null,
     });
   }
   if (args.request !== undefined) {

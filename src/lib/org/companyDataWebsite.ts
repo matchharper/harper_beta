@@ -436,7 +436,7 @@ export async function applyWebsiteCompanyDataChanges(args: {
   actorLabel: string;
   admin: AdminClient;
   changes: WebsiteCompanyDataChange[];
-  source?: "chat" | "website";
+  source?: "chat" | "slack" | "website";
   targetCompanyDbId?: number | null;
   workspaceId: string;
 }) {

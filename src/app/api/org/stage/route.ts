@@ -35,34 +35,56 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthenticatedUser(req);
     const body = (await req.json().catch(() => ({}))) as {
       acceptReason?: string | null;
+      attendeeEmails?: string[];
       contactDirectly?: boolean;
+      durationMinutes?: unknown;
       emailMode?: unknown;
+      additionalMessage?: unknown;
+      additionalMessageVisibility?: unknown;
+      meetingCandidateMessage?: unknown;
+      meetingPurpose?: unknown;
       recommendationId?: string;
       introEmails?: string[] | null;
       roleId?: string;
+      scheduleInterview?: boolean;
+      sourceStage?: OrgStageId;
       stage?: OrgStageId;
       stopNote?: string | null;
       talentId?: string;
+      title?: unknown;
       workspaceId?: string;
     };
     const emailMode = String(body.emailMode ?? "schedule").trim();
     if (!["schedule", "send_now", "skip"].includes(emailMode)) {
       throw new OrgHttpError(400, "이메일 전달 방식을 확인해 주세요.");
     }
+    const stage = body.stage ?? "pending_connection";
+    if (body.scheduleInterview === true) {
+      throw new OrgHttpError(
+        410,
+        "인터뷰 일정 조율은 Harper에게 채팅으로 요청해 주세요."
+      );
+    }
+
     const payload = await setOrgCandidateStage({
       acceptReason: body.acceptReason ?? null,
       contactDirectly: body.contactDirectly === true,
       emailMode: emailMode as InternalConnectionConfirmationEmailMode,
+      expectedPreviousStage: body.sourceStage,
       introEmails: body.introEmails ?? null,
       recommendationId: body.recommendationId ?? "",
       roleId: body.roleId ?? "",
-      stage: body.stage ?? "pending_connection",
+      scheduleInterview: false,
+      stage,
       stopNote: body.stopNote ?? null,
       talentId: body.talentId ?? "",
       user,
       workspaceId: body.workspaceId ?? "",
     });
-    return NextResponse.json(payload);
+    return NextResponse.json({
+      ...payload,
+      meetingSchedule: null,
+    });
   } catch (error) {
     return toErrorResponse(error);
   }

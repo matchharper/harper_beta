@@ -6,7 +6,7 @@ import type { OrgAgentChatBody } from "@/lib/org/agent/types";
 import { OrgHttpError } from "@/lib/org/server";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 
-export const maxDuration = 180;
+export const maxDuration = 300;
 
 function getVisibleErrorMessage(error: unknown) {
   const detail = getLlmErrorMessage(error);
@@ -50,9 +50,11 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthenticatedUser(req);
     const body = (await req.json().catch(() => ({}))) as OrgAgentChatBody;
     const args = {
+      attachments: Array.isArray(body.attachments) ? body.attachments : [],
       mentions: Array.isArray(body.mentions) ? body.mentions : [],
       message: body.message ?? "",
       model: body.model ?? null,
+      roleId: body.mode === "role" ? (body.roleId ?? null) : null,
       user,
       workspaceId: body.workspaceId ?? "",
     };

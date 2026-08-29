@@ -5,6 +5,8 @@ const PRIVATE_NAVIGATION_LINK_PATTERN =
   /\]\((home|roles|team|role:[^)\s]+|talent:[^)\s]+)\)/g;
 const SLACK_LABELED_LINK_PATTERN = /<(https?:\/\/[^|>]+)\|([^>]+)>/g;
 const SLACK_BOLD_PATTERN = /(^|[\s(])\*([^*\n]+)\*/g;
+const SLACK_BULLET_PATTERN = /^(\s*)•\s+/gm;
+const SLACK_DIVIDER_PATTERN = /^-{3,}\s*$/gm;
 
 export function convertSlackMrkdwnToWebMarkdown(value: string) {
   return value
@@ -14,6 +16,13 @@ export function convertSlackMrkdwnToWebMarkdown(value: string) {
         `[${label.replaceAll("]", "\\]")}](${href})`
     )
     .replace(SLACK_BOLD_PATTERN, "$1**$2**");
+}
+
+/** Converts a saved Slack candidate-introduction body for the web Markdown renderer. */
+export function convertSlackCandidateIntroToWebMarkdown(value: string) {
+  return convertSlackMrkdwnToWebMarkdown(value)
+    .replace(SLACK_BULLET_PATTERN, "$1- ")
+    .replace(SLACK_DIVIDER_PATTERN, "\n---\n");
 }
 
 function toHarperWebUrl(args: { target: string; workspaceId: string }) {

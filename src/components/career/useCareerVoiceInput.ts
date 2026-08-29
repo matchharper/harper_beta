@@ -15,6 +15,7 @@ type RealtimeControls = {
   connectionStatus: "connected" | "reconnecting" | "disconnected";
   connect: (options?: {
     conversationStarterId?: CareerConversationStarterId | null;
+    initialResponseInstruction?: string | null;
     internalCallRequestId?: string | null;
   }) => Promise<boolean>;
   disconnect: () => void;
@@ -396,6 +397,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   const startCallMode = useCallback(
     async (options?: {
       conversationStarterId?: CareerConversationStarterId | null;
+      initialResponseInstruction?: string | null;
       internalCallRequestId?: string | null;
     }) => {
       void logEnvironmentSnapshot();
@@ -410,6 +412,8 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
         realtimeControls.disconnect();
         const connected = await realtimeControls.connect({
           conversationStarterId: options?.conversationStarterId ?? null,
+          initialResponseInstruction:
+            options?.initialResponseInstruction ?? null,
           internalCallRequestId: options?.internalCallRequestId ?? null,
         });
         if (connected) {

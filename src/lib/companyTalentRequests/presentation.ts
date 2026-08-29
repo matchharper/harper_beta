@@ -44,7 +44,9 @@ export function serializeTalentPendingRequest(
       `company: ${company}`,
       `role: ${role}`,
       "The company asked whether the talent can share a current resume.",
-      "Use record_company_request_response only when the talent declines or has no current resume. An upload is completed by the document service, never by a chat claim.",
+      "If the latest user message explicitly declines or says that no current resume is available, you MUST call record_company_request_response before the final reply. An upload is completed by the document service, never by a chat claim.",
+      "Use only the latest user message as response evidence. Never say or imply that Harper accepted, saved, queued, relayed, shared, or delivered the response unless record_company_request_response returned ok=true in this turn.",
+      "After ok=true, say only that Harper received the response and will relay it; do not claim that the company has already received it.",
     ].join("\n");
   }
   return [
@@ -53,6 +55,9 @@ export function serializeTalentPendingRequest(
     `company: ${company}`,
     `role: ${role}`,
     `neutral question: ${requestContext}`,
+    "If the latest user message substantively answers or explicitly declines this request, you MUST call record_company_request_response before the final reply.",
+    "Use only the latest user message as response evidence. Never say or imply that Harper accepted, saved, queued, relayed, shared, or delivered the response unless record_company_request_response returned ok=true in this turn.",
+    "After ok=true, say only that Harper received the response and will relay it; do not claim that the company has already received it.",
     isCompensationQuestion(request.request_context)
       ? "Compensation is never shared from stored profile/insight. Record a response only when the talent explicitly provides an amount/range/wording to share, or clearly approves the wording Harper showed them. Otherwise ask one clarification question."
       : "The candidate may answer, decline, or ignore. Never pressure them.",
@@ -61,27 +66,111 @@ export function serializeTalentPendingRequest(
 
 export function candidateContactDraftPresentation(args: {
   body: string;
-  candidateName: string;
-  revision: number;
-  roleName: string;
-  subject: string;
+  source?: "chat" | "slack";
 }) {
   const body = candidateContactBodyWithoutTransportFooter(args.body);
-  return [
-    `*${args.candidateName || "후보자"}님에게 보낼 문구*`,
-    `- *Role*: ${args.roleName || "해당 역할"}`,
-    "",
-    `제목: ${args.subject}`,
-    "",
-    "본문:",
-    "```text",
-    body,
-    "```",
-    "",
-    "승인하면 위 제목과 본문을 수정·요약하지 않고 후보자 이메일과 Harper 채팅으로 한 번 전달해요. 아직 보내지 않았어요.",
-    "",
-    "후보자는 답하거나, 답하기 어렵다고 하거나, 답하지 않을 수 있어요. Harper가 자동으로 재촉하지는 않으며, 답변이 오면 의미를 바꾸지 않고 정리해 이 대화에서 알려드릴게요.",
-    "",
-    "이대로 보낼까요, 아니면 고칠 내용을 알려주시겠어요?",
-  ].join("\n");
+  const renderedBody =
+    args.source === "slack"
+      ? body.replace(/\[([^\]\n]{1,120})\]\((https?:\/\/[^\s)]+)\)/g, "<$2|$1>")
+      : body;
+  const quotedBody = renderedBody
+    .split("\n")
+    .map((line) => (line ? `> ${line}` : ">"))
+    .join("\n");
+  return quotedBody;
+}
+
+/**
+ * Emergency copy for a failed final LLM completion. Successful contact-draft
+ * turns keep the company-side model's prose and never use this text.
+ */
+export function candidateContactDraftFallbackReply(candidateName: unknown) {
+  const candidate = normalizedText(candidateName, 160) || "후보자";
+  return `네, 제가 대신 ${candidate}님께 여쭤보고, 답이 오면 여기로 알려드릴게요. 우선 아래 내용으로 연락드리려고 해요. 보내기 전에 한 번만 확인해 주시겠어요?`;
+}
+
+type KstParts = {
+  day: number;
+  hour: number;
+  month: number;
+  year: number;
+};
+
+function kstParts(value: Date): KstParts | null {
+  if (!Number.isFinite(value.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "numeric",
+    hour: "numeric",
+    hourCycle: "h23",
+    month: "numeric",
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+  }).formatToParts(value);
+  const numberPart = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value);
+  const result = {
+    day: numberPart("day"),
+    hour: numberPart("hour"),
+    month: numberPart("month"),
+    year: numberPart("year"),
+  };
+  return Object.values(result).every(Number.isFinite) ? result : null;
+}
+
+function calendarDayNumber(parts: KstParts) {
+  return Math.floor(
+    Date.UTC(parts.year, parts.month - 1, parts.day) / 86_400_000
+  );
+}
+
+function koreanDayPeriod(hour: number) {
+  if (hour < 12) return "아침";
+  if (hour < 18) return "오후";
+  return "저녁";
+}
+
+export function naturalCandidateContactTiming(
+  scheduledAt: unknown,
+  now = new Date()
+) {
+  const scheduled = new Date(String(scheduledAt ?? "").trim());
+  const scheduledParts = kstParts(scheduled);
+  const nowParts = kstParts(now);
+  if (!scheduledParts || !nowParts) return null;
+
+  const dayDifference =
+    calendarDayNumber(scheduledParts) - calendarDayNumber(nowParts);
+  const minutesUntil = Math.round(
+    (scheduled.getTime() - now.getTime()) / 60_000
+  );
+  if (minutesUntil >= 0 && minutesUntil <= 90) {
+    return "조금 뒤에";
+  }
+
+  const period = koreanDayPeriod(scheduledParts.hour);
+  if (dayDifference === 0) return `오늘 ${period}에`;
+  if (dayDifference === 1) {
+    return nowParts.hour >= 20
+      ? `지금은 시간이 늦어서 내일 ${period}에`
+      : `내일 ${period}에`;
+  }
+  return `${scheduledParts.month}월 ${scheduledParts.day}일 ${period}에`;
+}
+
+export function candidateContactScheduledReply(args: {
+  candidateName: string;
+  immediate: boolean;
+  now?: Date;
+  scheduledAt?: unknown;
+}) {
+  const candidate = `${normalizedText(args.candidateName, 160) || "후보자"}님께`;
+  if (args.immediate) {
+    return `${candidate} 제가 대신 바로 물어볼게요. 답이 오면 여기로 알려드릴게요.`;
+  }
+  const timing = naturalCandidateContactTiming(args.scheduledAt, args.now);
+  if (timing?.startsWith("지금은 시간이 늦어서 ")) {
+    const later = timing.slice("지금은 시간이 늦어서 ".length);
+    return `지금은 시간이 늦어서, ${candidate} ${later} 제가 대신 물어볼게요. 답이 오면 여기로 알려드릴게요.`;
+  }
+  return `${candidate} 제가 대신 ${timing || "조금 뒤에"} 물어볼게요. 답이 오면 여기로 알려드릴게요.`;
 }

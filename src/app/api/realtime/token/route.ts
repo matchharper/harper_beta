@@ -19,6 +19,7 @@ import {
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
 import { canUseCareerDevControls } from "@/lib/internalAccess";
+import { appendRealtimeInitialResponseInstruction } from "@/lib/career/realtimeInitialResponse";
 
 const TOKEN_RATE_LIMIT = new Map<string, { count: number; resetAt: number }>();
 const MAX_TOKENS_PER_MINUTE = 10;
@@ -210,12 +211,14 @@ export async function POST(req: NextRequest) {
     const {
       conversationId: rawConversationId,
       conversationStarterId: rawConversationStarterId,
+      initialResponseInstruction: rawInitialResponseInstruction,
       internalCallRequestId: rawInternalCallRequestId,
       locale: rawLocale,
       providerOverride: rawProviderOverride,
     } = body as {
       conversationId?: string;
       conversationStarterId?: string;
+      initialResponseInstruction?: string;
       internalCallRequestId?: string;
       locale?: string;
       providerOverride?: string;
@@ -228,6 +231,10 @@ export async function POST(req: NextRequest) {
     const internalCallRequestId =
       typeof rawInternalCallRequestId === "string"
         ? rawInternalCallRequestId.trim()
+        : "";
+    const initialResponseInstruction =
+      typeof rawInitialResponseInstruction === "string"
+        ? rawInitialResponseInstruction
         : "";
     const providerOverride =
       canUseCareerDevControls(user.email) &&
@@ -295,7 +302,10 @@ export async function POST(req: NextRequest) {
       toolNames: realtimeToolCandidates.map((tool) => tool.name),
       userId: user.id,
     });
-    const instructions = realtimePromptPlan.instructions;
+    const instructions = appendRealtimeInitialResponseInstruction({
+      initialResponseInstruction,
+      instructions: realtimePromptPlan.instructions,
+    });
     if (process.env.NODE_ENV !== "production") {
       console.log("[RealtimeToken] final instructions", {
         conversationId,

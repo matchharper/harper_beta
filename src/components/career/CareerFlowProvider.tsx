@@ -159,6 +159,7 @@ export const CareerFlowProvider = ({
   emailOnboardingToken,
   initialChatDraft,
   initialChatDraftKey,
+  initialChatOpportunityMention,
   inviteToken,
   mail,
   onOpenSettings,
@@ -169,6 +170,7 @@ export const CareerFlowProvider = ({
   emailOnboardingToken?: string | null;
   initialChatDraft?: string | null;
   initialChatDraftKey?: string | null;
+  initialChatOpportunityMention?: CareerOpportunityMention | null;
   inviteToken?: string | null;
   mail?: string | null;
   onOpenSettings: () => void;
@@ -691,8 +693,8 @@ export const CareerFlowProvider = ({
           profile_picture: talentUser?.profile_picture ?? null,
           headline: talentUser?.headline ?? null,
           bio: talentUser?.bio ?? null,
-          current_location: talentUser?.current_location ?? null,
           location: talentUser?.location ?? null,
+          current_location: talentUser?.current_location ?? null,
         },
         talentExperiences,
         talentEducations,
@@ -1648,6 +1650,8 @@ export const CareerFlowProvider = ({
       onCancelActiveRecommendationSearch: cancelActiveRecommendationSearch,
       initialChatDraft: initialChatDraft?.trim() || undefined,
       initialChatDraftKey: initialChatDraftKey?.trim() || undefined,
+      initialChatOpportunityMention:
+        initialChatOpportunityMention ?? undefined,
       onboardingWrapupPending,
       thinkingLogsByMessageId,
       chatPending,
@@ -1730,6 +1734,7 @@ export const CareerFlowProvider = ({
       inputMode,
       initialChatDraft,
       initialChatDraftKey,
+      initialChatOpportunityMention,
       forceCompletePending,
       isOnboardingDone,
       interviewProgress,

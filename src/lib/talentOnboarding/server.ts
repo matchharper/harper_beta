@@ -197,6 +197,7 @@ async function claimTalentUserFromMailAlias(args: {
     .from("talent_users")
     .select("user_id")
     .ilike("email", mail)
+    .is("deleted_at", null)
     .limit(2);
 
   if (matchesError) {

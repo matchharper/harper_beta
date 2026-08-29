@@ -6,6 +6,7 @@ import {
   parseOrgAgentCompanyInfoMarker,
   renderOrgAgentCompanyInfoSlackLink,
   splitOrgAgentCompanyInfoMarker,
+  stripOrgAgentCompanyInfoMarker,
 } from "@/lib/org/agent/companyInfoMarker";
 
 test("adds a missing company-information marker once", () => {
@@ -18,6 +19,21 @@ test("adds a missing company-information marker once", () => {
       `회사 맥락을 바탕으로 초안을 작성했어요.\n\n${ORG_AGENT_COMPANY_INFO_MARKER}`
     ),
     `회사 맥락을 바탕으로 초안을 작성했어요.\n\n${ORG_AGENT_COMPANY_INFO_MARKER}`
+  );
+});
+
+test("strips private company-information markers from persisted copy", () => {
+  assert.equal(
+    stripOrgAgentCompanyInfoMarker(
+      `SBVA를 소개합니다.\n\n${ORG_AGENT_COMPANY_INFO_MARKER}\n\nPR 담당자의 주요 업무입니다.`
+    ),
+    "SBVA를 소개합니다.\n\nPR 담당자의 주요 업무입니다."
+  );
+  assert.equal(
+    stripOrgAgentCompanyInfoMarker(
+      "회사 소개 [company_info] 뒤에 역할 설명이 이어집니다."
+    ),
+    "회사 소개 뒤에 역할 설명이 이어집니다."
   );
 });
 
@@ -41,7 +57,7 @@ test("renders one inline Slack company-information link at the marker", () => {
     ),
     {
       hasCompanyInfo: true,
-      text: "역할 설명을 저장했습니다.\n\n<https://matchharper.com/org/team?orgId=workspace-1|회사 정보>를 반영했습니다.\n\n다음 질문입니다.",
+      text: "역할 설명을 저장했습니다.\n\n<https://matchharper.com/org/team?orgId=workspace-1|회사 정보>를 작성에 참고했어요.\n\n다음 질문입니다.",
     }
   );
 });

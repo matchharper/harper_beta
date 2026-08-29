@@ -24,7 +24,10 @@ import {
   resolveCompanyDataMutation,
   type ResolvedCompanyDataChange,
 } from "@/lib/org/agent/companyDataMutation";
-import type { OrgAgentConversationRow } from "@/lib/org/agent/store";
+import {
+  fetchRoleForOrgAgent,
+  type OrgAgentConversationRow,
+} from "@/lib/org/agent/store";
 import {
   fetchOrgAgentConversationHistory,
   OrgAgentConversationHistoryCursorError,
@@ -42,6 +45,7 @@ import type {
   OrgAgentCandidateConnectionMethod,
   OrgAgentCandidateDecision,
   OrgAgentCandidateDecisionConfirmation,
+  OrgAgentMeetingScheduleConfirmation,
   OrgAgentReadAudience,
 } from "@/lib/org/agent/types";
 import {
@@ -58,11 +62,16 @@ import {
   setOrgCandidateStage,
   updateOrgRoleCriteria,
   updateOrgRoleReviewStage,
+  updateOrgRole,
+  updateOrgRoleRequestOnly,
   type OrgStageId,
 } from "@/lib/org/server";
 import { canStopOrgCandidateProcess } from "@/lib/org/candidateDecision";
 import { humanizeOrgStage } from "@/lib/org/pipelineStage";
-import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
+import {
+  getOrgRoleLifecycleUpdate,
+  getOrgRoleStatusPresentation,
+} from "@/lib/org/roleStatus";
 import {
   applyOrgRoleCriteriaEdits,
   parseOrgRoleCriteria,
@@ -81,8 +90,15 @@ import {
   generateCandidateContactDraft,
   reviseCandidateContactDraft,
 } from "@/lib/companyTalentRequests/copy";
-import { candidateContactDraftPresentation } from "@/lib/companyTalentRequests/presentation";
-import { formatOrgAgentKstDateTime } from "@/lib/org/agent/dateTime";
+import {
+  candidateContactDraftFallbackReply,
+  candidateContactDraftPresentation,
+  candidateContactScheduledReply,
+} from "@/lib/companyTalentRequests/presentation";
+import {
+  resolveCandidateContactLifecycleAction,
+  type CandidateContactLifecycleAction,
+} from "@/lib/org/agent/candidateContactAction";
 import {
   executeSharedOpenUrl,
   executeSharedWebSearch,
@@ -92,6 +108,40 @@ import {
   startSlackRoleCreation,
   type SlackRoleCreationExecutionContext,
 } from "@/lib/org/agent/slackRoleCreation";
+import {
+  formatPreparedMeetingScheduleConfirmation,
+  type PreparedMeetingScheduleDraft,
+} from "@/lib/meetings/scheduleDraft";
+import {
+  createMeetingScheduleDraft,
+  fetchMeetingScheduleDetail,
+  prepareMeetingScheduleDraftForStage,
+} from "@/lib/meetings/scheduleDraftServer";
+import {
+  buildOrgMeetingAvailabilityUrl,
+  getOrgPublicSiteUrl,
+} from "@/lib/org/slackMessages";
+import {
+  expediteQueuedMeetingInvitation,
+  MEETING_INVITATION_DELIVERY_DELAY_MINUTES,
+  queueGeneratedMeetingInvitation,
+  reviseQueuedMeetingInvitation,
+} from "@/lib/meetings/invitationServer";
+import { jsonValuesEqual } from "@/lib/jsonValue";
+import {
+  formatMeetingAvailabilitySummary,
+  MeetingAvailabilityValidationError,
+} from "@/lib/meetings/availability";
+import { applyMeetingAvailabilityEdits } from "@/lib/meetings/availabilityEdits";
+import {
+  fetchMeetingAvailability,
+  saveMeetingAvailability,
+} from "@/lib/meetings/availabilityServer";
+import {
+  formatOtherRoleCalibrationContext,
+  generateRoleHiringBriefCalibration,
+} from "@/lib/org/agent/roleCalibration";
+import type { ChatAttachmentPayload } from "@/types/chat";
 
 export { createOrgAgentToolExecutionState, promoteOrgAgentToolReadVisibility };
 export { OrgAgentToolInputError };
@@ -107,11 +157,6 @@ function externalQueryKey(value: unknown) {
 
 function externalUrlKey(value: unknown) {
   return text(value);
-}
-
-function formatKstDateTime(value: unknown) {
-  const formatted = formatOrgAgentKstDateTime(value, { includeYear: true });
-  return formatted ? `${formatted} KST` : "예정 시각 확인 중";
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -212,15 +257,19 @@ function candidateConnectionMethod(
 ): OrgAgentCandidateConnectionMethod | null {
   const method = text(value);
   if (!method) return null;
-  if (method !== "intro_email" && method !== "direct_contact") {
+  if (
+    method !== "intro_email" &&
+    method !== "direct_contact" &&
+    method !== "schedule_interview"
+  ) {
     throw new OrgAgentToolInputError(
-      "connectionMethod must be intro_email or direct_contact"
+      "connectionMethod must be intro_email, direct_contact, or schedule_interview"
     );
   }
   return method;
 }
 
-type OrgAgentRoleLifecycleStatus = "active" | "paused" | "ended";
+type OrgAgentRoleLifecycleStatus = "active" | "paused" | "ended" | "deleted";
 
 const ORG_AGENT_ROLE_STATUS_COPY: Record<
   OrgAgentRoleLifecycleStatus,
@@ -249,12 +298,26 @@ const ORG_AGENT_ROLE_STATUS_COPY: Record<
     nextProcess:
       "남아 있는 후보자나 요청을 함께 정리하고 싶다면 말씀해 주세요. 현재 상태를 확인해 다음 결정을 도와드릴게요.",
   },
+  deleted: {
+    effect: "역할을 삭제하고 새 후보자 추천을 멈춰요.",
+    expectation:
+      "Roles와 후보자 기회 화면에서 더 이상 진행 중인 역할로 보이지 않아요. 기존 후보자 단계와 회사 요청은 자동으로 모두 종료되지 않아요.",
+    nextProcess:
+      "남아 있는 후보자나 요청이 있다면 각각의 실제 결과에 맞게 마무리해 주세요.",
+  },
 };
 
 function roleLifecycleStatus(value: unknown): OrgAgentRoleLifecycleStatus {
   const status = requiredText(value, "status", 20);
-  if (status !== "active" && status !== "paused" && status !== "ended") {
-    throw new OrgAgentToolInputError("status must be active, paused, or ended");
+  if (
+    status !== "active" &&
+    status !== "paused" &&
+    status !== "ended" &&
+    status !== "deleted"
+  ) {
+    throw new OrgAgentToolInputError(
+      "status must be active, paused, ended, or deleted"
+    );
   }
   return status;
 }
@@ -383,6 +446,11 @@ export function getOrgAgentToolStatusLabel(args: {
       "역할 확인 완료",
       "역할을 읽지 못했습니다",
     ],
+    calibrate_role_hiring_brief: [
+      "참고 인물을 바탕으로 Hiring Brief를 정리하는 중",
+      "Hiring Brief 기준 정리 완료",
+      "Hiring Brief 기준을 정리하지 못했습니다",
+    ],
     read_talent: [
       "후보자와 진행 현황을 읽는 중",
       "후보자 확인 완료",
@@ -427,6 +495,11 @@ export function getOrgAgentToolStatusLabel(args: {
       "후보자 파이프라인 단계를 변경하는 중",
       "후보자 파이프라인 단계 변경 완료",
       "후보자 파이프라인 단계를 변경하지 못했습니다",
+    ],
+    manage_interview_availability: [
+      "인터뷰 가능 시간을 저장하는 중",
+      "인터뷰 가능 시간 저장 완료",
+      "인터뷰 가능 시간을 저장하지 못했습니다",
     ],
     prepare_candidate_connection: [
       "후보자 연결 결정 정보를 확인하는 중",
@@ -931,6 +1004,125 @@ async function executeUpdateRoleCriteria(args: {
   };
 }
 
+async function executeCalibrateRoleHiringBrief(args: {
+  admin: OrgAgentAdminClient;
+  callId: string;
+  companySideContext: string;
+  input: Record<string, unknown>;
+  name: OrgAgentToolName;
+  onProgress?: (label: string) => void;
+  referenceAttachments?: ChatAttachmentPayload[];
+  readAudience: OrgAgentReadAudience;
+  source: "chat" | "slack";
+  state: OrgAgentToolExecutionState;
+  user: User;
+  userMessage: string;
+  workspaceId: string;
+}) {
+  if (args.state.terminalMutationUsed) {
+    throw new OrgAgentToolInputError(
+      "calibrate_role_hiring_brief may be called only once and must be the only mutation in this turn"
+    );
+  }
+  args.state.terminalMutationUsed = true;
+  const visibleRole = roleOrThrow(args.state, args.input.roleId);
+  const role = await fetchRoleForOrgAgent({
+    admin: args.admin,
+    roleId: visibleRole.roleId,
+    workspaceId: args.workspaceId,
+  });
+  const otherRoleCalibrationContext = formatOtherRoleCalibrationContext(
+    [...args.state.roleById.values()]
+      .filter((item) => item.roleId !== role.roleId)
+      .map((item) => ({ name: item.name, request: item.request }))
+  );
+  const calibration = await generateRoleHiringBriefCalibration({
+    admin: args.admin as unknown as TalentAdminClient,
+    companyContext: [
+      args.state.company.companyName,
+      text(args.state.company.pitch),
+      text(args.state.company.companyDescription),
+      text(args.state.company.request),
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    companySideContext: args.companySideContext,
+    currentHiringBrief: role.request,
+    onProgress: (progress) => args.onProgress?.(progress.label),
+    otherRoleCalibrationContext,
+    readAudience: args.readAudience,
+    referenceAttachments: args.referenceAttachments,
+    roleDescription: role.description,
+    roleId: role.roleId,
+    roleName: role.name,
+    user: args.user,
+    userMessage: args.userMessage,
+    workspaceId: args.workspaceId,
+  });
+  if (!calibration.shouldUpdate || !calibration.hiringBrief) {
+    args.state.terminalReply = calibration.userReply;
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "unchanged",
+      summary: calibration.summary,
+    });
+    return {
+      failedReferenceUrls: calibration.failedReferenceUrls,
+      followUpQuestion: calibration.followUpQuestion,
+      referenceCount: calibration.referenceCount,
+      referenceUrls: calibration.referenceUrls,
+      roleId: role.roleId,
+      roleName: role.name,
+      status: "needs_more_information",
+      summary: calibration.summary,
+      userReply: calibration.userReply,
+    };
+  }
+  await updateOrgRoleRequestOnly({
+    expectedRequest: role.request,
+    request: calibration.hiringBrief,
+    roleId: role.roleId,
+    source: args.source,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+  const current = args.state.roleById.get(role.roleId);
+  if (current) current.request = calibration.hiringBrief;
+  args.state.fullRoleRequestIds.add(role.roleId);
+  args.state.requestChanges.push({
+    after: calibration.hiringBrief,
+    before: role.request,
+    changeSummary: calibration.summary,
+    scope: "role",
+  });
+  args.state.updateSummaries.push(calibration.summary);
+  args.state.terminalReply = calibration.userReply;
+  markOrgAgentLongTextComplete({
+    key: "role_request",
+    observedValue: calibration.hiringBrief,
+    roleId: role.roleId,
+    state: args.state,
+  });
+  recordResult(args.state, {
+    callId: args.callId,
+    name: args.name,
+    status: "success",
+    summary: calibration.summary,
+  });
+  return {
+    failedReferenceUrls: calibration.failedReferenceUrls,
+    followUpQuestion: calibration.followUpQuestion,
+    referenceCount: calibration.referenceCount,
+    referenceUrls: calibration.referenceUrls,
+    roleId: role.roleId,
+    roleName: role.name,
+    status: "updated",
+    summary: calibration.summary,
+    userReply: calibration.userReply,
+  };
+}
+
 async function executeUpdateData(args: {
   actorLabel: string;
   admin: OrgAgentAdminClient;
@@ -1148,6 +1340,7 @@ async function executeChangeRoleStatus(args: {
   name: OrgAgentToolName;
   source: "chat" | "slack";
   state: OrgAgentToolExecutionState;
+  user: User;
   workspaceId: string;
 }) {
   if (args.state.terminalMutationUsed) {
@@ -1162,6 +1355,46 @@ async function executeChangeRoleStatus(args: {
   const copy = ORG_AGENT_ROLE_STATUS_COPY[status];
   const statusLabel = getOrgRoleStatusPresentation(status).label;
   const summary = `${role.name} 역할 상태: ${statusLabel}`;
+
+  if (status === "deleted") {
+    const lifecycle = getOrgRoleLifecycleUpdate("delete");
+    await updateOrgRole({
+      isExpired: lifecycle.isExpired,
+      roleId: role.roleId,
+      source: args.source,
+      status: lifecycle.status,
+      user: args.user,
+      workspaceId: args.workspaceId,
+    });
+    const currentRole = args.state.roleById.get(role.roleId);
+    if (currentRole) {
+      args.state.roleById.set(role.roleId, { ...currentRole, status });
+    }
+    args.state.terminalReply = `${role.name} 역할을 삭제했어요. ${copy.effect}\n\n${copy.expectation}\n\n${copy.nextProcess}`;
+    args.state.updateSummaries.push(summary);
+    args.state.actions.push({
+      id: crypto.randomUUID(),
+      kind: "entity_updated",
+      label: "역할 삭제 완료",
+      payload: { changeSummary: summary, scope: "role" },
+    });
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "success",
+      summary,
+    });
+    return {
+      effect: copy.effect,
+      expectation: copy.expectation,
+      nextProcess: copy.nextProcess,
+      roleName: role.name,
+      roleStatus: status,
+      status: "updated",
+      summary,
+    };
+  }
+
   const parsed = parseCompanyDataChanges({
     changes: [
       {
@@ -1432,14 +1665,11 @@ async function executeCompanyTalentRequest(args: {
     throw error;
   }
 
-  const deliveryCopy =
-    deliveryMode === "immediate"
-      ? "요청하신 대로 대기 시간과 KST 발송 시간 제한 없이 이메일과 Harper 채팅 전달을 바로 시작해요. 아직 전달 완료를 의미하지 않으며, 처리가 시작되면 취소하지 못할 수 있어요."
-      : `${formatKstDateTime(request.candidateDeliveryScheduledAt)}에 이메일과 Harper 채팅으로 한 번 전달할 예정이며, 그전에는 취소할 수 있어요.`;
-  args.state.terminalReply =
-    kind === "resume"
-      ? `${text(talent.candidate.name) || "후보자분"}께 ${text(args.state.company.companyName) || "회사"}의 ${role.name} 역할 검토를 위한 최신 이력서 공유 요청을 준비했어요. ${deliveryCopy} 아직 업로드가 끝난 것은 아니에요. 후보자가 이력서를 올리면 이 대화로 알려드릴게요. 답변이나 업로드는 선택이며, Harper가 자동으로 재촉하지 않아요.`
-      : `${text(talent.candidate.name) || "후보자분"}께 ${text(args.state.company.companyName) || "회사"}에서 ${role.name} 역할과 관련해 확인하는 질문이라고 밝히고, “${requestContext}”를 대신 전달하도록 준비했어요. ${deliveryCopy} 아직 후보자가 답한 것은 아니에요. 답이 오면 이 대화로 알려드릴게요. 답변은 후보자의 선택이며, Harper가 자동으로 재촉하지 않아요.`;
+  args.state.terminalReply = candidateContactScheduledReply({
+    candidateName: text(talent.candidate.name) || "후보자",
+    immediate: deliveryMode === "immediate",
+    scheduledAt: request.candidateDeliveryScheduledAt,
+  });
   recordResult(args.state, {
     callId: args.callId,
     name: args.name,
@@ -1564,13 +1794,16 @@ async function executeChangeTalentContact(args: {
   if (action === "immediate") {
     args.state.terminalReply =
       pendingRequest.deliveryStatus === "failed"
-        ? `${text(talent.candidate.name) || "후보자분"}께 드릴 ${role.name} 역할 관련 문의를 바로 다시 전달하도록 바꿨어요. 이메일과 Harper 채팅 전달을 곧 시작하지만 아직 완료된 것은 아니에요. 이전 시도가 실제로 전달된 뒤 기록만 실패했을 수도 있어 중복 전달 가능성이 있어요. 답이 오면 이 대화로 알려드릴게요.`
-        : `${text(talent.candidate.name) || "후보자분"}께 드릴 ${role.name} 역할 관련 문의를 바로 전달하도록 바꿨어요. 이메일과 Harper 채팅 전달을 곧 시작하지만 아직 완료된 것은 아니에요. 답이 오면 이 대화로 알려드릴게요.`;
+        ? `${text(talent.candidate.name) || "후보자"}님께 다시 물어볼게요. 앞서 보낸 내용과 겹칠 수 있어요. 답이 오면 여기로 알려드릴게요.`
+        : candidateContactScheduledReply({
+            candidateName: text(talent.candidate.name) || "후보자",
+            immediate: true,
+          });
   } else {
     args.state.terminalReply =
       pendingRequest.deliveryStatus === "failed"
-        ? `${text(talent.candidate.name) || "후보자분"}께 보낸 ${role.name} 역할 관련 문의의 남은 전달을 중단했어요. 이 요청으로 추가 이메일이나 Harper 채팅을 보내지 않아요. 다만 이전 시도가 실제로 전달된 뒤 기록만 실패했을 수도 있어, 이전 전달 여부는 별도로 확인해야 해요.`
-        : `${text(talent.candidate.name) || "후보자분"}께 보낼 예정이던 ${role.name} 역할 관련 문의를 취소했어요. 후보자에게 이메일이나 Harper 채팅으로 전달되지 않아요.`;
+        ? `${text(talent.candidate.name) || "후보자"}님께 드린 요청을 더 진행하지 않도록 했어요. 다만 앞선 전달이 기록보다 먼저 끝났을 가능성은 있어요.`
+        : `${text(talent.candidate.name) || "후보자"}님께 드리려던 요청을 취소했어요.`;
   }
   recordResult(args.state, {
     callId: args.callId,
@@ -1615,15 +1848,25 @@ function candidateResumeUploadUrl(args: {
 }
 
 function candidateResumeUploadUrlFromDraft(body: string) {
-  const match = body.match(
-    /https?:\/\/[^\s<>"']+\/career\/profile\?[^\s<>"']*resumeRequest=[^\s<>"']+/
+  const profileUrl = (body.match(/https?:\/\/[^\s<>"')\]]+/g) ?? []).find(
+    (value) => {
+      try {
+        const url = new URL(value);
+        return (
+          url.pathname === "/career/profile" &&
+          Boolean(url.searchParams.get("resumeRequest"))
+        );
+      } catch {
+        return false;
+      }
+    }
   );
-  if (!match) {
+  if (!profileUrl) {
     throw new OrgAgentToolInputError(
       "이력서 요청 초안에 필수 업로드 링크가 없어 수정할 수 없습니다. 현재 요청을 취소하고 새 초안을 만들어 주세요."
     );
   }
-  return match[0];
+  return profileUrl;
 }
 
 async function wasContactDraftImmediatelyPresented(args: {
@@ -1675,6 +1918,27 @@ function sameDecisionEmails(left: unknown, right: unknown) {
   );
 }
 
+function meetingDraftConfirmation(
+  draft: PreparedMeetingScheduleDraft
+): OrgAgentMeetingScheduleConfirmation {
+  return {
+    additionalMessage: draft.additionalMessage,
+    availabilityVersion: draft.availability?.version ?? null,
+    config: draft.config,
+    draftBlocker: draft.draftBlocker,
+    meetingStage: draft.meetingStage,
+  };
+}
+
+function sameMeetingDraft(
+  left: OrgAgentMeetingScheduleConfirmation | null,
+  right: unknown
+) {
+  if (!left) return right === null || right === undefined;
+  const parsed = record(right);
+  return jsonValuesEqual(left, parsed);
+}
+
 async function immediatelyPresentedCandidateDecision(args: {
   actorId: string;
   admin: OrgAgentAdminClient;
@@ -1682,6 +1946,8 @@ async function immediatelyPresentedCandidateDecision(args: {
   currentUserMessageId: number;
   decision: OrgAgentCandidateDecision;
   introEmails: string[] | null;
+  meetingDraft: OrgAgentMeetingScheduleConfirmation | null | undefined;
+  processStageId: string | null | undefined;
   reason: string | null | undefined;
   recommendationId: string;
   requestedConnectionMethod: OrgAgentCandidateConnectionMethod | null;
@@ -1737,6 +2003,19 @@ async function immediatelyPresentedCandidateDecision(args: {
       ) {
         return false;
       }
+      if (
+        args.meetingDraft !== undefined &&
+        !sameMeetingDraft(args.meetingDraft, value.meetingDraft)
+      ) {
+        return false;
+      }
+      if (
+        args.processStageId !== undefined &&
+        (text(args.processStageId) || null) !==
+          (text(value.processStageId) || null)
+      ) {
+        return false;
+      }
       const confirmationReason = text(value.reason) || null;
       return (
         args.reason === undefined ||
@@ -1751,6 +2030,11 @@ async function immediatelyPresentedCandidateDecision(args: {
   return {
     connectionMethod,
     introEmails: normalizedDecisionEmails(confirmation.introEmails),
+    meetingDraft:
+      connectionMethod === "schedule_interview"
+        ? (confirmation.meetingDraft as unknown as OrgAgentMeetingScheduleConfirmation)
+        : null,
+    processStageId: text(confirmation.processStageId) || null,
     reason: confirmationReason,
   };
 }
@@ -1761,6 +2045,8 @@ function candidateDecisionConfirmationText(args: {
   connectionMethod: OrgAgentCandidateConnectionMethod | null;
   decision: OrgAgentCandidateDecision;
   introEmails: string[];
+  meetingDraft: PreparedMeetingScheduleDraft | null;
+  processStageName?: string | null;
   previousStage: string;
   roleName: string;
 }) {
@@ -1771,7 +2057,13 @@ function candidateDecisionConfirmationText(args: {
     return `${args.candidateName}님과 ${args.roleName} 역할의 연결을 이번에는 진행하지 않으시려는 것으로 이해했어요.\n\n연결을 거절하면 회사가 더 진행하지 않기로 했다는 종료 결정이 후보자에게 표시되고, Harper가 후보자에게 배려 있게 안내해요. 이후 이 후보자는 해당 역할의 연결 과정에서 더 이상 진행되지 않으며, 후보자에게 보이거나 전달된 안내는 회수할 수 없어요.\n\n연결 거절 이유는 후보자에게 그대로 전하지 않고 다음 추천을 더 정확하게 하는 데 참고할게요. ${args.candidateName}님과의 연결을 거절할까요?`;
   }
   if (args.connectionMethod === "direct_contact") {
-    return `${args.candidateName}님과 ${args.roleName} 역할의 연결을 시작할게요.\n\n직접 연락 방식을 선택하면 후보자를 연결됨 상태로 바꾸지만 Harper가 소개 이메일을 보내지는 않아요. 회사에서 후보자에게 직접 연락해 인사하고 다음 일정을 조율해 주셔야 해요.\n\n직접 연락 방식으로 연결할까요?`;
+    return `${args.candidateName}님과 ${args.roleName} 역할의 연결을 ${args.processStageName || "다음 프로세스"} 단계로 이어갈게요.\n\n직접 연락 방식을 선택하면 Harper가 소개 이메일을 보내지는 않아요. 회사에서 후보자에게 직접 연락해 인사하고 다음 일정을 조율해 주셔야 해요.\n\n이 방식으로 진행할까요?`;
+  }
+  if (args.connectionMethod === "schedule_interview" && args.meetingDraft) {
+    return formatPreparedMeetingScheduleConfirmation({
+      candidateName: args.candidateName,
+      draft: args.meetingDraft,
+    });
   }
   const recipients = args.introEmails.filter(
     (email) => email !== args.candidateEmail.toLowerCase()
@@ -1779,7 +2071,7 @@ function candidateDecisionConfirmationText(args: {
   if (recipients.length === 0) {
     return `${args.candidateName}님과 ${args.roleName} 역할의 연결을 시작하면 Harper가 후보자와 회사 담당자에게 소개 이메일을 보내고, 양측이 같은 이메일에서 인사와 다음 일정을 이어갈 수 있게 도와드려요.\n\n현재 함께 연결할 회사 수신자가 없어 아직 진행할 수 없어요. 소개 이메일을 받을 회사 담당자 이메일을 알려 주세요.`;
   }
-  return `${args.candidateName}님과 ${args.roleName} 역할의 연결을 시작할게요.\n\n소개 이메일 방식을 선택하면 Harper가 후보자와 ${recipients.join(", ")}에게 소개 이메일을 바로 보내고, 서로 인사한 뒤 같은 이메일에서 다음 일정을 조율할 수 있게 연결해요. 보낸 이메일은 회수할 수 없어요.\n\n소개 이메일을 보내고 연결할까요?`;
+  return `${args.candidateName}님과 ${args.roleName} 역할의 연결을 ${args.processStageName || "다음 프로세스"} 단계로 이어갈게요.\n\n소개 이메일 방식을 선택하면 Harper가 후보자와 ${recipients.join(", ")}에게 소개 이메일을 바로 보내고, 서로 인사한 뒤 같은 이메일에서 다음 일정을 조율할 수 있게 연결해요. 보낸 이메일은 회수할 수 없어요.\n\n소개 이메일을 보내고 진행할까요?`;
 }
 
 async function executeCandidateContactLifecycle(args: {
@@ -1802,15 +2094,20 @@ async function executeCandidateContactLifecycle(args: {
   }
   args.state.terminalMutationUsed = true;
 
-  const action = requiredText(args.input.action, "action", 30);
+  let action = requiredText(
+    args.input.action,
+    "action",
+    30
+  ) as CandidateContactLifecycleAction;
   if (
     action !== "create_draft" &&
     action !== "revise_draft" &&
     action !== "schedule" &&
+    action !== "immediate" &&
     action !== "cancel"
   ) {
     throw new OrgAgentToolInputError(
-      "action must be create_draft, revise_draft, schedule, or cancel"
+      "action must be create_draft, revise_draft, schedule, immediate, or cancel"
     );
   }
 
@@ -1899,14 +2196,12 @@ async function executeCandidateContactLifecycle(args: {
         args.state.requiredPresentationText = candidateContactDraftPresentation(
           {
             body: String(existingRequest.draftBody),
-            candidateName: text(talent.candidate.name),
-            revision,
-            roleName: text(existingRequest.roleName) || role.name,
-            subject: String(existingRequest.draftSubject),
+            source: args.source,
           }
         );
-        args.state.terminalReply =
-          "이 후보자와 역할에 이미 확인 중인 문구가 있어 새 초안을 만들지 않고 현재 문구를 다시 보여드려요.";
+        args.state.terminalReply = candidateContactDraftFallbackReply(
+          text(talent.candidate.name)
+        );
         recordResult(args.state, {
           callId: args.callId,
           name: args.name,
@@ -1915,6 +2210,7 @@ async function executeCandidateContactLifecycle(args: {
         });
         return {
           contactId,
+          candidateName: text(talent.candidate.name),
           revision,
           status: "draft",
           userMessage: args.state.terminalReply,
@@ -2014,13 +2310,11 @@ async function executeCandidateContactLifecycle(args: {
     args.state.contactDraftRef = { contactId, revision };
     args.state.requiredPresentationText = candidateContactDraftPresentation({
       body: String(draft.delivery_body),
-      candidateName: text(talent.candidate.name),
-      revision,
-      roleName: role.name,
-      subject: String(draft.delivery_subject),
+      source: args.source,
     });
-    args.state.terminalReply =
-      "후보자에게 보낼 전체 문구를 초안으로 저장했어요. 아직 후보자에게 보내지 않았어요.";
+    args.state.terminalReply = candidateContactDraftFallbackReply(
+      text(talent.candidate.name)
+    );
     recordResult(args.state, {
       callId: args.callId,
       name: args.name,
@@ -2029,6 +2323,7 @@ async function executeCandidateContactLifecycle(args: {
     });
     return {
       contactId,
+      candidateName: text(talent.candidate.name),
       revision,
       status: "draft",
       userMessage: args.state.terminalReply,
@@ -2101,13 +2396,10 @@ async function executeCandidateContactLifecycle(args: {
     };
     args.state.requiredPresentationText = candidateContactDraftPresentation({
       body: String(revised.delivery_body),
-      candidateName,
-      revision: revised.draft_revision,
-      roleName,
-      subject: String(revised.delivery_subject),
+      source: args.source,
     });
     args.state.terminalReply =
-      "요청하신 수정을 초안에 저장했어요. 아직 후보자에게 보내지 않았어요.";
+      "말씀해 주신 내용으로 문구를 고쳤어요. 아직 후보자에게 보내지는 않았어요. 아래 내용을 한 번만 다시 확인해 주시겠어요?";
     recordResult(args.state, {
       callId: args.callId,
       name: args.name,
@@ -2116,6 +2408,7 @@ async function executeCandidateContactLifecycle(args: {
     });
     return {
       contactId: revised.id,
+      candidateName,
       revision: revised.draft_revision,
       status: "draft_revised",
       userMessage: args.state.terminalReply,
@@ -2123,101 +2416,122 @@ async function executeCandidateContactLifecycle(args: {
   }
 
   if (action === "schedule") {
-    const expectedRevision = requiredPositiveInteger(
-      args.input.expectedRevision,
-      "expectedRevision"
-    );
     const deliveryModeValue = text(args.input.deliveryMode) || "standard";
     if (deliveryModeValue !== "standard" && deliveryModeValue !== "immediate") {
       throw new OrgAgentToolInputError(
         "deliveryMode must be standard or immediate"
       );
     }
-    if (contact.workflow_status !== "draft") {
+    action = resolveCandidateContactLifecycleAction({
+      action,
+      deliveryMode: deliveryModeValue,
+      workflowStatus: contact.workflow_status,
+    });
+    if (action === "schedule" && contact.workflow_status !== "draft") {
       throw new OrgAgentToolInputError(
         "초안 상태의 연락만 발송 등록할 수 있습니다. 이 요청의 현재 상태를 확인해 주세요."
       );
     }
-    if (contact.draft_revision !== expectedRevision) {
-      throw new OrgAgentToolInputError(
-        "확인하신 뒤 초안이 바뀌었어요. 최신 문구를 다시 보여드린 뒤 확인받아야 해요."
+    if (action === "schedule") {
+      const expectedRevision = requiredPositiveInteger(
+        args.input.expectedRevision,
+        "expectedRevision"
       );
-    }
-    const immediatelyPresented = await wasContactDraftImmediatelyPresented({
-      admin: args.admin,
-      contactId: contact.id,
-      conversationId: args.conversation.id,
-      currentUserMessageId: args.currentUserMessageId,
-      revision: contact.draft_revision,
-      slackThreadId: args.slackThreadId,
-      source: args.source,
-    });
-    if (!immediatelyPresented) {
+      if (contact.draft_revision !== expectedRevision) {
+        throw new OrgAgentToolInputError(
+          "확인하신 뒤 초안이 바뀌었어요. 최신 문구를 다시 보여드린 뒤 확인받아야 해요."
+        );
+      }
+      const immediatelyPresented = await wasContactDraftImmediatelyPresented({
+        admin: args.admin,
+        contactId: contact.id,
+        conversationId: args.conversation.id,
+        currentUserMessageId: args.currentUserMessageId,
+        revision: contact.draft_revision,
+        slackThreadId: args.slackThreadId,
+        source: args.source,
+      });
+      if (!immediatelyPresented) {
+        args.state.contactDraftRef = {
+          contactId: contact.id,
+          revision: contact.draft_revision,
+        };
+        args.state.requiredPresentationText = candidateContactDraftPresentation(
+          {
+            body: String(contact.delivery_body ?? ""),
+            source: args.source,
+          }
+        );
+        args.state.terminalReply =
+          "방금 확인하신 문구와 현재 저장된 문구가 달라서 아직 보내지 않았어요. 아래 내용을 한 번만 다시 확인해 주시겠어요.";
+        recordResult(args.state, {
+          callId: args.callId,
+          name: args.name,
+          status: "unchanged",
+          summary: "정확한 초안 재확인 필요",
+        });
+        return {
+          contactId: contact.id,
+          candidateName,
+          revision: contact.draft_revision,
+          status: "confirmation_required",
+          userMessage: args.state.terminalReply,
+        };
+      }
+      const scheduled = await scheduleCompanyTalentContact({
+        admin: args.admin as any,
+        deliveryMode: deliveryModeValue,
+        expectedRevision,
+        requestId: contact.id,
+        roleId: contact.role_id,
+        talentId: contact.talent_id,
+        workspaceId: args.workspaceId,
+      });
       args.state.contactDraftRef = {
         contactId: contact.id,
         revision: contact.draft_revision,
       };
-      args.state.requiredPresentationText = candidateContactDraftPresentation({
-        body: String(contact.delivery_body ?? ""),
+      args.state.terminalReply = candidateContactScheduledReply({
         candidateName,
-        revision: contact.draft_revision,
-        roleName,
-        subject: String(contact.delivery_subject ?? ""),
+        immediate: deliveryModeValue === "immediate",
+        scheduledAt: scheduled.scheduledAt,
       });
-      args.state.terminalReply =
-        "직전 Harper 답변에서 보여드린 최신 문구에 대한 확인이 아니어서 보내지 않았어요. 현재 문구를 다시 보여드려요.";
       recordResult(args.state, {
         callId: args.callId,
         name: args.name,
-        status: "unchanged",
-        summary: "정확한 초안 재확인 필요",
+        status: "success",
+        summary:
+          deliveryModeValue === "immediate"
+            ? "후보자 연락 즉시 발송 등록"
+            : "후보자 연락 발송 등록",
       });
       return {
         contactId: contact.id,
         revision: contact.draft_revision,
-        status: "confirmation_required",
+        scheduledAt: scheduled.scheduledAt,
+        status: scheduled.status,
         userMessage: args.state.terminalReply,
       };
     }
-    const scheduled = await scheduleCompanyTalentContact({
-      admin: args.admin as any,
-      deliveryMode: deliveryModeValue,
-      expectedRevision,
-      requestId: contact.id,
-      roleId: contact.role_id,
-      talentId: contact.talent_id,
-      workspaceId: args.workspaceId,
-    });
-    args.state.contactDraftRef = {
-      contactId: contact.id,
-      revision: contact.draft_revision,
-    };
-    args.state.terminalReply =
-      deliveryModeValue === "immediate"
-        ? `${candidateName}님께 확인하신 ${roleName} 관련 문구를 바로 보내도록 준비했어요. 이메일과 Harper 채팅 전달을 곧 시작하지만 아직 완료된 것은 아니에요.\n\n후보자는 답하거나, 답하기 어렵다고 하거나, 답하지 않을 수 있어요. Harper가 자동으로 재촉하지는 않으며, 답변이 오면 의미를 바꾸지 않고 정리해 이 대화에서 알려드릴게요.`
-        : `${candidateName}님께 확인하신 ${roleName} 관련 문구를 ${formatKstDateTime(scheduled.scheduledAt)}에 보낼 예정이에요. 이메일과 Harper 채팅으로 한 번 전달하며, 아직 전달이 끝난 것은 아니에요.\n\n후보자는 답하거나, 답하기 어렵다고 하거나, 답하지 않을 수 있어요. Harper가 자동으로 재촉하지는 않으며, 답변이 오면 의미를 바꾸지 않고 정리해 이 대화에서 알려드릴게요.`;
-    recordResult(args.state, {
-      callId: args.callId,
-      name: args.name,
-      status: "success",
-      summary:
-        deliveryModeValue === "immediate"
-          ? "후보자 연락 즉시 발송 등록"
-          : "후보자 연락 발송 등록",
-    });
-    return {
-      contactId: contact.id,
-      revision: contact.draft_revision,
-      scheduledAt: scheduled.scheduledAt,
-      status: scheduled.status,
-      userMessage: args.state.terminalReply,
-    };
   }
 
+  if (action !== "immediate" && action !== "cancel") {
+    throw new OrgAgentToolInputError(
+      "candidate contact action is unavailable for the current state"
+    );
+  }
+
+  if (action === "immediate" && contact.workflow_status === "draft") {
+    throw new OrgAgentToolInputError(
+      "아직 확인받지 않은 초안은 바로 보낼 수 없습니다. 먼저 전체 문구를 보여드리고 명시적인 승인을 받아야 합니다."
+    );
+  }
+
+  const changeAction = action === "immediate" ? "immediate" : "cancel";
   let changed: Awaited<ReturnType<typeof changeCompanyTalentRequest>>;
   try {
     changed = await changeCompanyTalentRequest({
-      action: "cancel",
+      action: changeAction,
       admin: args.admin as any,
       requestId: contact.id,
       roleId: contact.role_id,
@@ -2231,12 +2545,17 @@ async function executeCandidateContactLifecycle(args: {
       message.includes("company_talent_request_not_changeable")
     ) {
       args.state.terminalReply =
-        "확인하는 사이 발송 처리가 시작되어 이 요청은 취소하지 못했습니다.";
+        action === "immediate"
+          ? "확인하는 사이 발송 처리가 시작되어 이 요청의 발송 시간을 앞당기지 못했습니다. 현재 전달 상태를 다시 확인해 주세요."
+          : "확인하는 사이 발송 처리가 시작되어 이 요청은 취소하지 못했습니다.";
       recordResult(args.state, {
         callId: args.callId,
         name: args.name,
         status: "error",
-        summary: "후보자 연락 취소 불가",
+        summary:
+          action === "immediate"
+            ? "후보자 연락 즉시 발송 변경 불가"
+            : "후보자 연락 취소 불가",
       });
       return {
         status: "not_changeable",
@@ -2245,11 +2564,33 @@ async function executeCandidateContactLifecycle(args: {
     }
     throw error;
   }
+  if (action === "immediate") {
+    args.state.contactDraftRef = {
+      contactId: contact.id,
+      revision: contact.draft_revision,
+    };
+    args.state.terminalReply = candidateContactScheduledReply({
+      candidateName,
+      immediate: true,
+    });
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "success",
+      summary: "후보자 연락 즉시 발송 변경",
+    });
+    return {
+      contactId: contact.id,
+      scheduledAt: "scheduledAt" in changed ? changed.scheduledAt : null,
+      status: changed.status,
+      userMessage: args.state.terminalReply,
+    };
+  }
   args.state.contactDraftRef = null;
   args.state.terminalReply =
     contact.workflow_status === "draft"
       ? `${candidateName}님께 보낼 ${roleName} 관련 초안을 취소했어요. 후보자에게 전달된 내용은 없어요.`
-      : `${candidateName}님께 보낼 예정이던 ${roleName} 관련 요청을 취소했어요. 이 요청으로 추가 이메일이나 Harper 채팅을 보내지 않아요.`;
+      : `${candidateName}님께 드리려던 ${roleName} 관련 요청을 취소했어요.`;
   recordResult(args.state, {
     callId: args.callId,
     name: args.name,
@@ -2274,6 +2615,38 @@ function customPipelineStageDbId(value: unknown) {
   return stage.startsWith("custom:") ? stage.slice("custom:".length) : "";
 }
 
+async function readCompanyProcessStages(args: {
+  admin: OrgAgentAdminClient;
+  roleId: string;
+}): Promise<Array<{ id: string; label: string }>> {
+  const { data, error } = await (
+    args.admin.from("ops_matching_role_stages" as any) as any
+  )
+    .select("id, label, sort_order")
+    .eq("role_id", args.roleId)
+    .order("sort_order", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({
+    id: text(row.id),
+    label: normalizePipelineStageLabel(row.label),
+  }));
+}
+
+function processStageRequiredReply(args: {
+  candidateName: string;
+  scheduleInterview: boolean;
+  stages: Array<{ id: string; label: string }>;
+}) {
+  if (args.stages.length === 0) {
+    return args.scheduleInterview
+      ? `${args.candidateName}님과의 다음 과정을 먼저 정해둘게요. 1차 기술 인터뷰나 커피챗처럼 어떤 프로세스로 등록할까요? 미팅도 잡는다면 그 자리에서 어떤 이야기를 나누고 몇 분 정도 진행할지도 함께 알려주세요.`
+      : `${args.candidateName}님과의 다음 과정을 먼저 정해둘게요. 1차 기술 인터뷰나 커피챗처럼 어떤 프로세스로 등록할까요?`;
+  }
+  return args.scheduleInterview
+    ? `${args.candidateName}님을 어떤 다음 프로세스로 안내할까요? 아래에 있는 단계를 고르거나, 새 단계 이름과 미팅 주제·시간을 알려주시면 그 기준으로 준비할게요.`
+    : `${args.candidateName}님을 어떤 다음 프로세스로 안내할까요? 아래에 있는 단계를 고르거나, 새 단계 이름을 알려주시면 그 기준으로 이어갈게요.`;
+}
+
 function activeCompanyPipelineStage(value: unknown, field: string): OrgStageId {
   const stage = requiredText(value, field, 100) as OrgStageId;
   if (
@@ -2288,6 +2661,24 @@ function activeCompanyPipelineStage(value: unknown, field: string): OrgStageId {
   return stage;
 }
 
+function moveableCompanyPipelineStage(
+  value: unknown,
+  field: string
+): OrgStageId {
+  const stage = requiredText(value, field, 100) as OrgStageId;
+  if (
+    stage !== "pending_connection" &&
+    stage !== "connected" &&
+    stage !== "final_offer" &&
+    !stage.startsWith("custom:")
+  ) {
+    throw new OrgAgentToolInputError(
+      `${field} must be pending_connection, connected, final_offer, or an exact custom:<id> stage`
+    );
+  }
+  return stage;
+}
+
 async function executeManageRolePipelineStages(args: {
   admin: OrgAgentAdminClient;
   callId: string;
@@ -2297,19 +2688,13 @@ async function executeManageRolePipelineStages(args: {
   user: User;
   workspaceId: string;
 }) {
-  if (args.state.terminalMutationUsed) {
-    throw new OrgAgentToolInputError(
-      "manage_role_pipeline_stages may be called only once and must be the only tool in this turn"
-    );
-  }
-  args.state.terminalMutationUsed = true;
   const role = roleOrThrow(args.state, args.input.roleId);
   const action = requiredText(args.input.action, "action", 20);
   if (action !== "add" && action !== "rename" && action !== "delete") {
     throw new OrgAgentToolInputError("action must be add, rename, or delete");
   }
 
-  let stages: Array<{ label: string; status: string }> = [];
+  let stages: Array<{ id?: string; label: string; status: string }> = [];
   let summary = "";
   if (action === "add") {
     if (!Array.isArray(args.input.labels)) {
@@ -2335,13 +2720,38 @@ async function executeManageRolePipelineStages(args: {
       }
       return label;
     });
+    const meetingPurpose = nullableTextField(args.input, "meetingPurpose", 600);
+    const meetingCandidateMessage = nullableTextField(
+      args.input,
+      "meetingCandidateMessage",
+      2_000
+    );
+    const hasMeetingDuration = has(args.input, "meetingDurationMinutes");
+    const hasMeetingDefaults =
+      meetingPurpose.present ||
+      meetingCandidateMessage.present ||
+      hasMeetingDuration;
+    if (hasMeetingDefaults && labels.length !== 1) {
+      throw new OrgAgentToolInputError(
+        "Meeting guidance may be saved only when action=add creates exactly one process stage"
+      );
+    }
+    if (hasMeetingDefaults && (!meetingPurpose.value || !hasMeetingDuration)) {
+      throw new OrgAgentToolInputError(
+        "A scheduled process stage needs both meetingPurpose and meetingDurationMinutes"
+      );
+    }
     const result = await createOrgRoleReviewStages({
       labels,
+      meetingCandidateMessage: meetingCandidateMessage.value,
+      meetingDurationMinutes: args.input.meetingDurationMinutes,
+      meetingPurpose: meetingPurpose.value,
       roleId: role.roleId,
       user: args.user,
       workspaceId: args.workspaceId,
     });
     stages = result.stages.map((stage) => ({
+      id: `custom:${stage.id}`,
       label: stage.label,
       status: stage.status,
     }));
@@ -2411,7 +2821,6 @@ async function executeManageRolePipelineStages(args: {
     }
   }
 
-  args.state.terminalReply = `${summary}. 후보자 단계와 연락 상태, 역할 정보는 변경하지 않았습니다.`;
   args.state.updateSummaries.push(summary);
   args.state.actions.push({
     id: crypto.randomUUID(),
@@ -2441,8 +2850,10 @@ async function executeManageRolePipelineStages(args: {
 async function executeMoveCandidateStage(args: {
   admin: OrgAgentAdminClient;
   callId: string;
+  currentUserMessageId: number;
   input: Record<string, unknown>;
   name: OrgAgentToolName;
+  source: "chat" | "slack";
   state: OrgAgentToolExecutionState;
   user: User;
   workspaceId: string;
@@ -2455,11 +2866,11 @@ async function executeMoveCandidateStage(args: {
   args.state.terminalMutationUsed = true;
   const role = roleOrThrow(args.state, args.input.roleId);
   const talentId = requiredText(args.input.talentId, "talentId", 100);
-  const expectedCurrentStage = activeCompanyPipelineStage(
+  const expectedCurrentStage = moveableCompanyPipelineStage(
     args.input.expectedCurrentStageId,
     "expectedCurrentStageId"
   );
-  const targetStage = activeCompanyPipelineStage(
+  const targetStage = moveableCompanyPipelineStage(
     args.input.targetStageId,
     "targetStageId"
   );
@@ -2486,12 +2897,13 @@ async function executeMoveCandidateStage(args: {
       "The candidate is not visible in this Role's pipeline"
     );
   }
-  const currentStage = activeCompanyPipelineStage(
+  const currentStage = moveableCompanyPipelineStage(
     position.stage,
     "currentStageId"
   );
   const candidateName = text(talent.candidate.name) || "후보자";
-  if (currentStage === targetStage) {
+  const scheduleInterview = args.input.scheduleInterview === true;
+  if (currentStage === targetStage && !scheduleInterview) {
     const stageLabel = position.stageLabel || humanizeOrgStage(targetStage);
     const summary = `${candidateName} 후보자는 이미 ${stageLabel} 단계`;
     args.state.terminalReply = `${summary}입니다. 후보자에게 별도 연락은 보내지 않았습니다.`;
@@ -2535,22 +2947,236 @@ async function executeMoveCandidateStage(args: {
   }
   const previousStageLabel =
     position.stageLabel || humanizeOrgStage(currentStage);
-  await setOrgCandidateStage({
-    expectedPreviousStage: expectedCurrentStage,
-    recommendationId: position.recommendationId,
-    roleId: role.roleId,
-    stage: targetStage,
-    talentId,
-    user: args.user,
-    workspaceId: args.workspaceId,
-  });
-  const summary = `${candidateName} 후보자: ${previousStageLabel} → ${targetStageLabel}`;
-  args.state.terminalReply = `${summary}로 옮겼습니다. 후보자에게 이메일이나 Harper 메시지를 보내거나 인터뷰를 예약하지는 않았습니다.`;
+  if (currentStage === "pending_connection" && !targetCustomStageId) {
+    throw new OrgAgentToolInputError(
+      "A candidate awaiting connection must move into an exact custom:<id> process stage, not the legacy connected or final offer stage."
+    );
+  }
+  if (targetStage === "final_offer" && args.input.confirmFinalOffer !== true) {
+    args.state.terminalReply =
+      "설정된 다음 프로세스가 없습니다. 최종 오퍼로 옮길까요?";
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "unchanged",
+      summary: `${candidateName} 후보자 최종 오퍼 이동 확인 필요`,
+    });
+    return {
+      candidateName,
+      previousStageLabel,
+      roleName: role.name,
+      stageLabel: targetStageLabel,
+      status: "final_offer_confirmation_required",
+      userMessage: args.state.terminalReply,
+    };
+  }
+
+  let schedule: Awaited<ReturnType<typeof createMeetingScheduleDraft>> | null =
+    null;
+  let preparedMeeting: PreparedMeetingScheduleDraft | null = null;
+  let queuedMeeting: Awaited<
+    ReturnType<typeof queueGeneratedMeetingInvitation>
+  > | null = null;
+  let meetingDeliveryChange:
+    | "already_scheduled"
+    | "expedited"
+    | "revised"
+    | "revised_and_expedited"
+    | "scheduled" = "scheduled";
+  const meetingDeliveryMode =
+    text(args.input.meetingDeliveryMode) || "standard";
+  if (
+    scheduleInterview &&
+    meetingDeliveryMode !== "standard" &&
+    meetingDeliveryMode !== "immediate"
+  ) {
+    throw new OrgAgentToolInputError(
+      "meetingDeliveryMode must be standard or immediate"
+    );
+  }
+  const candidateFacingRevisionRequested =
+    scheduleInterview &&
+    has(args.input, "meetingAdditionalMessage") &&
+    text(args.input.meetingAdditionalMessage).length > 0 &&
+    text(args.input.meetingAdditionalMessageVisibility) !== "internal";
+  if (scheduleInterview) {
+    if (!targetCustomStageId) {
+      throw new OrgAgentToolInputError(
+        "A meeting may be scheduled only for an exact custom:<id> process stage."
+      );
+    }
+    const prepared = await prepareMeetingScheduleDraftForStage({
+      additionalMessage: args.input.meetingAdditionalMessage,
+      additionalMessageVisibility:
+        args.input.meetingAdditionalMessageVisibility,
+      attendeeEmails: has(args.input, "meetingAttendeeEmails")
+        ? emailArray(args.input.meetingAttendeeEmails, 10)
+        : [],
+      durationMinutes: args.input.meetingDurationMinutes,
+      meetingCandidateMessage: args.input.meetingCandidateMessage,
+      meetingPurpose: args.input.meetingPurpose,
+      recommendationId: position.recommendationId,
+      roleId: role.roleId,
+      sourceStage: currentStage,
+      stageId: targetCustomStageId,
+      talentId,
+      title: args.input.meetingTitle,
+      user: args.user,
+      workspaceId: args.workspaceId,
+    });
+    if (prepared.draft.draftBlocker) {
+      recordResult(args.state, {
+        callId: args.callId,
+        name: args.name,
+        status: "unchanged",
+        summary: "인터뷰 일정 요청 전 선행 설정 필요",
+      });
+      return {
+        candidateName,
+        draftBlocker: prepared.draft.draftBlocker,
+        meetingDraft: meetingDraftConfirmation(prepared.draft),
+        previousStageLabel,
+        roleName: role.name,
+        stageLabel: targetStageLabel,
+        status: "meeting_setup_required",
+      };
+    }
+    preparedMeeting = prepared.draft;
+    if (currentStage === targetStage) {
+      const { data: scheduleRows, error: scheduleRowsError } = await (
+        prepared.admin.from("meeting_schedules" as any) as any
+      )
+        .select("id")
+        .eq("company_workspace_id", prepared.workspaceId)
+        .eq("role_id", prepared.roleId)
+        .eq("recommendation_id", prepared.recommendationId)
+        .eq("talent_id", prepared.talentId)
+        .eq("status", "awaiting_talent")
+        .order("updated_at", { ascending: false })
+        .limit(5);
+      if (scheduleRowsError) throw scheduleRowsError;
+      for (const row of scheduleRows ?? []) {
+        const existing = await fetchMeetingScheduleDetail({
+          scheduleId: text(row.id),
+          user: args.user,
+          workspaceId: prepared.workspaceId,
+        });
+        if (existing.schedule.config.processStageId !== targetCustomStageId) {
+          continue;
+        }
+        queuedMeeting = candidateFacingRevisionRequested
+          ? await reviseQueuedMeetingInvitation({
+              additionalMessage: preparedMeeting.additionalMessage,
+              scheduleId: existing.schedule.scheduleId,
+              user: args.user,
+              workspaceId: prepared.workspaceId,
+            })
+          : existing;
+        meetingDeliveryChange = candidateFacingRevisionRequested
+          ? "revised"
+          : "already_scheduled";
+        schedule = {
+          alreadyExisted: true,
+          roundId: existing.schedule.round.id,
+          scheduleId: existing.schedule.scheduleId,
+          status: existing.schedule.status,
+        };
+        break;
+      }
+    }
+    if (!schedule) {
+      schedule = await createMeetingScheduleDraft({
+        admin: prepared.admin,
+        draft: prepared.draft,
+        recommendationId: prepared.recommendationId,
+        roleId: prepared.roleId,
+        sourceCompanyMessageId: args.currentUserMessageId,
+        talentId: prepared.talentId,
+        workspaceId: prepared.workspaceId,
+      });
+    }
+  }
+
+  if (currentStage !== targetStage) {
+    await setOrgCandidateStage({
+      expectedPreviousStage: expectedCurrentStage,
+      recommendationId: position.recommendationId,
+      roleId: role.roleId,
+      scheduleInterview,
+      skipAutomaticContact:
+        currentStage === "pending_connection" && !scheduleInterview,
+      stage: targetStage,
+      talentId,
+      user: args.user,
+      workspaceId: args.workspaceId,
+    });
+  }
+
+  if (schedule && !queuedMeeting) {
+    try {
+      if (schedule.alreadyExisted && schedule.status !== "preparing") {
+        const existing = await fetchMeetingScheduleDetail({
+          scheduleId: schedule.scheduleId,
+          user: args.user,
+          workspaceId: args.workspaceId,
+        });
+        if (candidateFacingRevisionRequested) {
+          queuedMeeting = await reviseQueuedMeetingInvitation({
+            additionalMessage: preparedMeeting?.additionalMessage ?? null,
+            scheduleId: schedule.scheduleId,
+            user: args.user,
+            workspaceId: args.workspaceId,
+          });
+          meetingDeliveryChange = "revised";
+        } else {
+          queuedMeeting = existing;
+          meetingDeliveryChange = "already_scheduled";
+        }
+      } else {
+        queuedMeeting = await queueGeneratedMeetingInvitation({
+          baseUrl: getOrgPublicSiteUrl(),
+          scheduleId: schedule.scheduleId,
+          user: args.user,
+          workspaceId: args.workspaceId,
+        });
+      }
+    } catch (error) {
+      const movedSummary =
+        currentStage === targetStage
+          ? `${candidateName}님의 ${targetStageLabel} 미팅은 준비했어요.`
+          : `${candidateName}님을 ${targetStageLabel} 단계로 옮겼어요.`;
+      args.state.terminalReply = `${movedSummary} 다만 후보자에게 보낼 일정 선택 안내의 전달 상태를 확인하지 못했어요. 중복 연락을 피하기 위해 바로 다시 요청하지 말고, 이 대화에서 현재 일정을 먼저 확인해 주세요.`;
+      throw error;
+    }
+  }
+  if (
+    scheduleInterview &&
+    meetingDeliveryMode === "immediate" &&
+    schedule &&
+    queuedMeeting
+  ) {
+    queuedMeeting = await expediteQueuedMeetingInvitation({
+      scheduleId: schedule.scheduleId,
+      user: args.user,
+      workspaceId: args.workspaceId,
+    });
+    meetingDeliveryChange =
+      meetingDeliveryChange === "revised"
+        ? "revised_and_expedited"
+        : "expedited";
+  }
+  const summary =
+    currentStage === targetStage
+      ? `${candidateName} 후보자의 ${targetStageLabel} 미팅 정보 준비`
+      : `${candidateName} 후보자: ${previousStageLabel} → ${targetStageLabel}`;
   args.state.updateSummaries.push(summary);
   args.state.actions.push({
     id: crypto.randomUUID(),
     kind: "entity_updated",
-    label: "후보자 단계 업데이트됨",
+    label:
+      currentStage === targetStage
+        ? "미팅 정보 준비됨"
+        : "후보자 단계 업데이트됨",
     payload: { changeSummary: summary, scope: "role" },
   });
   recordResult(args.state, {
@@ -2561,6 +3187,48 @@ async function executeMoveCandidateStage(args: {
   });
   return {
     candidateName,
+    ...(schedule && preparedMeeting && queuedMeeting
+      ? {
+          calendarAvailability: {
+            refreshesWhenCandidateOpens: true,
+            respectsOrganizerOverrides: true,
+          },
+          delivery: {
+            change: meetingDeliveryChange,
+            delayMinutes:
+              meetingDeliveryMode === "immediate"
+                ? 0
+                : MEETING_INVITATION_DELIVERY_DELAY_MINUTES,
+            scheduledAt:
+              queuedMeeting.schedule.round.delivery?.scheduledAt ?? null,
+            sentAt: queuedMeeting.schedule.round.delivery?.sentAt ?? null,
+          },
+          meeting: {
+            candidateMessage:
+              queuedMeeting.schedule.round.additionalMessage?.visibility ===
+              "internal"
+                ? null
+                : (queuedMeeting.schedule.round.additionalMessage?.sourceText ??
+                  null),
+            durationMinutes: queuedMeeting.schedule.config.durationMinutes,
+            offerWindowDays: queuedMeeting.schedule.config.offerWindowDays,
+            purpose: queuedMeeting.schedule.config.meetingPurpose,
+            stageName: queuedMeeting.schedule.config.processStageName,
+          },
+          organizerAvailability: {
+            summary: queuedMeeting.schedule.availability
+              ? formatMeetingAvailabilitySummary(
+                  queuedMeeting.schedule.availability
+                )
+              : null,
+            timezone: queuedMeeting.schedule.availability?.timezone ?? null,
+          },
+          scheduleId: schedule.scheduleId,
+          schedulingSettingsUrl: buildOrgMeetingAvailabilityUrl(
+            args.workspaceId
+          ),
+        }
+      : {}),
     previousStageLabel,
     roleName: role.name,
     stageLabel: targetStageLabel,
@@ -2626,6 +3294,8 @@ function stageCandidateDecisionContext(args: {
   connectionMethod: OrgAgentCandidateConnectionMethod | null;
   decision: OrgAgentCandidateDecision;
   introEmails: string[];
+  meetingDraft: OrgAgentMeetingScheduleConfirmation | null;
+  processStageId: string | null;
   reason: string | null;
   recommendationId: string;
   roleId: string;
@@ -2638,6 +3308,8 @@ function stageCandidateDecisionContext(args: {
     connectionMethod: args.connectionMethod,
     decision: args.decision,
     introEmails: args.introEmails,
+    meetingDraft: args.meetingDraft,
+    processStageId: args.processStageId,
     reason: args.reason,
     recommendationId: args.recommendationId,
     roleId: args.roleId,
@@ -2648,13 +3320,96 @@ function stageCandidateDecisionContext(args: {
   return context;
 }
 
+async function executeManageInterviewAvailability(args: {
+  callId: string;
+  input: Record<string, unknown>;
+  name: OrgAgentToolName;
+  source: "chat" | "slack";
+  state: OrgAgentToolExecutionState;
+  user: User;
+  workspaceId: string;
+}) {
+  const currentResult = await fetchMeetingAvailability({
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+  let next;
+  try {
+    next = applyMeetingAvailabilityEdits({
+      current: currentResult.availability,
+      input: args.input,
+    });
+  } catch (error) {
+    if (error instanceof MeetingAvailabilityValidationError) {
+      throw new OrgAgentToolInputError(error.message);
+    }
+    throw error;
+  }
+
+  const comparableCurrent = currentResult.availability
+    ? {
+        dateOverrides: currentResult.availability.dateOverrides,
+        timezone: currentResult.availability.timezone,
+        weeklyRules: currentResult.availability.weeklyRules,
+      }
+    : null;
+  const unchanged = Boolean(
+    comparableCurrent && jsonValuesEqual(comparableCurrent, next)
+  );
+  const saved = unchanged
+    ? currentResult
+    : await saveMeetingAvailability({
+        availability: next,
+        expectedVersion: currentResult.availability?.version ?? null,
+        user: args.user,
+        workspaceId: args.workspaceId,
+      });
+  if (!saved.availability) {
+    throw new OrgAgentToolInputError(
+      "인터뷰 가능 시간을 저장한 뒤 다시 불러오지 못했습니다."
+    );
+  }
+
+  const summary = formatMeetingAvailabilitySummary(saved.availability);
+  const changeSummary = unchanged
+    ? `미팅 가능 시간 유지: ${summary}`
+    : `미팅 가능 시간 설정: ${summary}`;
+  if (!unchanged) {
+    args.state.updateSummaries.push(changeSummary);
+    args.state.actions.push({
+      id: crypto.randomUUID(),
+      kind: "entity_updated",
+      label: "인터뷰 가능 시간 저장 완료",
+      payload: { changeSummary, scope: "company" },
+    });
+  }
+  recordResult(args.state, {
+    callId: args.callId,
+    name: args.name,
+    status: unchanged ? "unchanged" : "success",
+    summary: changeSummary,
+  });
+  return {
+    availabilityVersion: saved.availability.version,
+    nextProcess:
+      "If the same visible request already identifies one candidate, the exact current and target stages, and an explicit meeting request, continue that request now. Otherwise finish with the effect of the saved availability only.",
+    responseGuidance:
+      "Connect the organizer's latest instruction to how Harper will find future meeting choices. Continue a candidate-specific action only when its candidate, stage, and scheduling intent were already established in this conversation.",
+    status: unchanged ? "unchanged" : "updated",
+    summary,
+    timezone: saved.availability.timezone,
+  };
+}
+
 async function executePrepareCandidateConnection(args: {
   actorId: string;
+  actorLabel: string;
   admin: OrgAgentAdminClient;
   callId: string;
   input: Record<string, unknown>;
   name: OrgAgentToolName;
   slackThreadId: string | null;
+  source: "chat" | "slack";
   state: OrgAgentToolExecutionState;
   user: User;
   workspaceId: string;
@@ -2678,7 +3433,7 @@ async function executePrepareCandidateConnection(args: {
     );
   }
   if (
-    requestedConnectionMethod === "direct_contact" &&
+    requestedConnectionMethod !== "intro_email" &&
     has(args.input, "introEmails")
   ) {
     throw new OrgAgentToolInputError(
@@ -2710,24 +3465,111 @@ async function executePrepareCandidateConnection(args: {
             : []
         ).filter((email) => email !== candidateEmail)
       : [];
-  stageCandidateDecisionContext({
-    actorId: args.actorId,
-    connectionMethod,
-    decision,
-    introEmails,
-    reason: reason.present ? reason.value : null,
-    recommendationId: position.recommendationId,
-    roleId: current.roleId,
-    slackThreadId: args.slackThreadId,
-    state: args.state,
-    talentId,
-  });
+  const requestedProcessStageId = customPipelineStageDbId(
+    args.input.processStageId
+  );
+  if (has(args.input, "processStageId") && !requestedProcessStageId) {
+    throw new OrgAgentToolInputError(
+      "processStageId must be an exact custom:<id> process stage from read_role"
+    );
+  }
+  const requiresProcessStage =
+    decision === "accept" &&
+    Boolean(connectionMethod) &&
+    (position.stage === "pending_connection" ||
+      connectionMethod === "schedule_interview");
+  const processStages =
+    requiresProcessStage || requestedProcessStageId
+      ? await readCompanyProcessStages({
+          admin: args.admin,
+          roleId: current.roleId,
+        })
+      : [];
+  const processStage = requestedProcessStageId
+    ? (processStages.find((stage) => stage.id === requestedProcessStageId) ??
+      null)
+    : null;
+  if (requestedProcessStageId && !processStage) {
+    throw new OrgAgentToolInputError(
+      "The selected process stage no longer exists for this Role. Read the Role pipeline again before retrying."
+    );
+  }
+  if (requiresProcessStage && !processStage) {
+    const stages = processStages.map((stage) => ({
+      id: `custom:${stage.id}`,
+      label: stage.label,
+    }));
+    const candidateName = text(talent.candidate.name) || "후보자";
+    args.state.terminalReply = processStageRequiredReply({
+      candidateName,
+      scheduleInterview: connectionMethod === "schedule_interview",
+      stages,
+    });
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "unchanged",
+      summary: "다음 프로세스 단계 선택 필요",
+    });
+    return {
+      availableProcessStages: stages,
+      candidateName: talent.candidate.name,
+      connectionMethod,
+      currentStage: position.stage,
+      decision,
+      status: "process_stage_required",
+      userMessage: args.state.terminalReply,
+    };
+  }
+  const preparedMeeting =
+    connectionMethod === "schedule_interview" && processStage
+      ? await prepareMeetingScheduleDraftForStage({
+          additionalMessage: args.input.meetingAdditionalMessage,
+          additionalMessageVisibility:
+            args.input.meetingAdditionalMessageVisibility,
+          attendeeEmails: has(args.input, "meetingAttendeeEmails")
+            ? emailArray(args.input.meetingAttendeeEmails, 10)
+            : [],
+          durationMinutes: args.input.meetingDurationMinutes,
+          meetingCandidateMessage: args.input.meetingCandidateMessage,
+          meetingPurpose: args.input.meetingPurpose,
+          recommendationId: position.recommendationId,
+          roleId: current.roleId,
+          sourceStage: position.stage,
+          stageId: processStage.id,
+          talentId,
+          title: args.input.meetingTitle,
+          user: args.user,
+          workspaceId: args.workspaceId,
+        })
+      : null;
+  const preparedMeetingDraft = preparedMeeting?.draft ?? null;
+  const meetingDraftBlocked = Boolean(preparedMeetingDraft?.draftBlocker);
+  if (!meetingDraftBlocked) {
+    stageCandidateDecisionContext({
+      actorId: args.actorId,
+      connectionMethod,
+      decision,
+      introEmails,
+      meetingDraft: preparedMeetingDraft
+        ? meetingDraftConfirmation(preparedMeetingDraft)
+        : null,
+      processStageId: processStage ? `custom:${processStage.id}` : null,
+      reason: reason.present ? reason.value : null,
+      recommendationId: position.recommendationId,
+      roleId: current.roleId,
+      slackThreadId: args.slackThreadId,
+      state: args.state,
+      talentId,
+    });
+  }
   recordResult(args.state, {
     callId: args.callId,
     name: args.name,
     status: "success",
-    summary:
-      decision === "accept"
+    summary: meetingDraftBlocked
+      ? "인터뷰 일정 요청 전 선행 설정 필요"
+      : decision === "accept"
         ? "후보자 연결 수락 판단 컨텍스트 조회"
         : "후보자 연결 거절 판단 컨텍스트 조회",
   });
@@ -2749,15 +3591,30 @@ async function executePrepareCandidateConnection(args: {
       Boolean(text(talent.candidate.email)) &&
       introEmails.length > 0,
     introEmails,
+    meetingDraft: preparedMeetingDraft
+      ? meetingDraftConfirmation(preparedMeetingDraft)
+      : null,
+    meetingScheduleConfirmation: preparedMeetingDraft
+      ? formatPreparedMeetingScheduleConfirmation({
+          candidateName: text(talent.candidate.name) || "후보자",
+          draft: preparedMeetingDraft,
+          roleName: current.name,
+        })
+      : null,
+    processStageId: processStage ? `custom:${processStage.id}` : null,
+    processStageName: processStage?.label ?? null,
     reason: reason.present ? reason.value : null,
     requesterEmail,
     reactivation,
-    status: "decision_context_ready",
+    status: meetingDraftBlocked
+      ? "meeting_setup_required"
+      : "decision_context_ready",
   };
 }
 
 async function executeCandidateConnectionDecision(args: {
   actorId: string;
+  actorLabel: string;
   admin: OrgAgentAdminClient;
   callId: string;
   conversation: OrgAgentConversationRow;
@@ -2790,7 +3647,7 @@ async function executeCandidateConnectionDecision(args: {
     );
   }
   if (
-    requestedConnectionMethod === "direct_contact" &&
+    requestedConnectionMethod !== "intro_email" &&
     has(args.input, "introEmails")
   ) {
     throw new OrgAgentToolInputError(
@@ -2822,6 +3679,82 @@ async function executeCandidateConnectionDecision(args: {
         ).filter((email) => email !== candidateEmail)
       : [];
   const proposedReason = reason.present ? reason.value : null;
+  const hasMeetingDraftInput = [
+    "meetingAdditionalMessage",
+    "meetingAdditionalMessageVisibility",
+    "meetingAttendeeEmails",
+    "meetingCandidateMessage",
+    "meetingDurationMinutes",
+    "meetingPurpose",
+    "meetingTitle",
+    "processStageId",
+  ].some((key) => has(args.input, key));
+  const requestedProcessStageId = customPipelineStageDbId(
+    args.input.processStageId
+  );
+  if (has(args.input, "processStageId") && !requestedProcessStageId) {
+    throw new OrgAgentToolInputError(
+      "processStageId must be an exact custom:<id> process stage from read_role"
+    );
+  }
+  const requestedProcessStage = requestedProcessStageId
+    ? ((
+        await readCompanyProcessStages({
+          admin: args.admin,
+          roleId: current.roleId,
+        })
+      ).find((stage) => stage.id === requestedProcessStageId) ?? null)
+    : null;
+  if (requestedProcessStageId && !requestedProcessStage) {
+    throw new OrgAgentToolInputError(
+      "The selected process stage no longer exists for this Role. Read the Role pipeline again before retrying."
+    );
+  }
+  const proposedMeeting =
+    proposedConnectionMethod === "schedule_interview" && requestedProcessStage
+      ? await prepareMeetingScheduleDraftForStage({
+          additionalMessage: args.input.meetingAdditionalMessage,
+          additionalMessageVisibility:
+            args.input.meetingAdditionalMessageVisibility,
+          attendeeEmails: has(args.input, "meetingAttendeeEmails")
+            ? emailArray(args.input.meetingAttendeeEmails, 10)
+            : [],
+          durationMinutes: args.input.meetingDurationMinutes,
+          meetingCandidateMessage: args.input.meetingCandidateMessage,
+          meetingPurpose: args.input.meetingPurpose,
+          recommendationId: position.recommendationId,
+          roleId: current.roleId,
+          sourceStage: position.stage,
+          stageId: requestedProcessStage.id,
+          talentId,
+          title: args.input.meetingTitle,
+          user: args.user,
+          workspaceId: args.workspaceId,
+        })
+      : null;
+  const proposedMeetingDraft = proposedMeeting?.draft ?? null;
+  if (proposedMeetingDraft?.draftBlocker) {
+    args.state.terminalReply = formatPreparedMeetingScheduleConfirmation({
+      candidateName: text(talent.candidate.name) || "후보자",
+      draft: proposedMeetingDraft,
+      roleName: current.name,
+    });
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "unchanged",
+      summary: "인터뷰 일정 요청 전 선행 설정 필요",
+    });
+    return {
+      candidateName: talent.candidate.name,
+      connectionMethod: proposedConnectionMethod,
+      decision,
+      draftBlocker: proposedMeetingDraft.draftBlocker,
+      meetingDraft: meetingDraftConfirmation(proposedMeetingDraft),
+      status: "meeting_setup_required",
+      userMessage: args.state.terminalReply,
+    };
+  }
   const confirmed = await immediatelyPresentedCandidateDecision({
     actorId: args.actorId,
     admin: args.admin,
@@ -2834,6 +3767,17 @@ async function executeCandidateConnectionDecision(args: {
         : proposedConnectionMethod === "intro_email"
           ? proposedIntroEmails
           : [],
+    meetingDraft:
+      proposedConnectionMethod === "schedule_interview" && !hasMeetingDraftInput
+        ? undefined
+        : proposedMeetingDraft
+          ? meetingDraftConfirmation(proposedMeetingDraft)
+          : null,
+    processStageId: has(args.input, "processStageId")
+      ? requestedProcessStage
+        ? `custom:${requestedProcessStage.id}`
+        : null
+      : undefined,
     reason: reason.present ? proposedReason : undefined,
     recommendationId: position.recommendationId,
     requestedConnectionMethod,
@@ -2843,11 +3787,49 @@ async function executeCandidateConnectionDecision(args: {
     talentId,
   });
   if (!confirmed) {
+    if (decision === "accept" && position.stage === "pending_connection") {
+      const stages = await readCompanyProcessStages({
+        admin: args.admin,
+        roleId: current.roleId,
+      });
+      const candidateName = text(talent.candidate.name) || "후보자";
+      args.state.terminalReply = processStageRequiredReply({
+        candidateName,
+        scheduleInterview: proposedConnectionMethod === "schedule_interview",
+        stages: stages.map((stage) => ({
+          id: `custom:${stage.id}`,
+          label: stage.label,
+        })),
+      });
+      recordResult(args.state, {
+        callId: args.callId,
+        name: args.name,
+        status: "unchanged",
+        summary: "다음 프로세스 단계 선택 필요",
+      });
+      return {
+        availableProcessStages: stages.map((stage) => ({
+          id: `custom:${stage.id}`,
+          label: stage.label,
+        })),
+        candidateName,
+        connectionMethod: proposedConnectionMethod,
+        decision,
+        status: "process_stage_required",
+        userMessage: args.state.terminalReply,
+      };
+    }
     stageCandidateDecisionContext({
       actorId: args.actorId,
       connectionMethod: proposedConnectionMethod,
       decision,
       introEmails: proposedIntroEmails,
+      meetingDraft: proposedMeetingDraft
+        ? meetingDraftConfirmation(proposedMeetingDraft)
+        : null,
+      processStageId: requestedProcessStage
+        ? `custom:${requestedProcessStage.id}`
+        : null,
       reason: proposedReason,
       recommendationId: position.recommendationId,
       roleId: current.roleId,
@@ -2861,6 +3843,8 @@ async function executeCandidateConnectionDecision(args: {
       connectionMethod: proposedConnectionMethod,
       decision,
       introEmails: proposedIntroEmails,
+      meetingDraft: proposedMeetingDraft,
+      processStageName: requestedProcessStage?.label ?? null,
       previousStage: position.stage,
       roleName: current.name,
     });
@@ -2927,6 +3911,153 @@ async function executeCandidateConnectionDecision(args: {
     };
   }
 
+  if (connectionMethod === "schedule_interview") {
+    const confirmedDraft = confirmed.meetingDraft;
+    if (!confirmedDraft) {
+      args.state.terminalReply =
+        "앞서 확인한 미팅 정보를 다시 찾지 못했어요. 후보자에게는 아직 연락하지 않았으니, 미팅 조율을 한 번만 다시 요청해 주세요.";
+      throw new OrgAgentToolInputError(
+        "확인된 인터뷰 일정 기본안을 찾지 못했어요. 현재 설정을 다시 확인해 주세요."
+      );
+    }
+    let draftWriteStarted = false;
+    try {
+      const preparedCurrentMeeting = await prepareMeetingScheduleDraftForStage({
+        additionalMessage: confirmedDraft.additionalMessage?.sourceText,
+        additionalMessageVisibility:
+          confirmedDraft.additionalMessage?.visibility ?? "both",
+        attendeeEmails: confirmedDraft.config.companyAttendees.map(
+          (attendee) => attendee.email
+        ),
+        durationMinutes: confirmedDraft.config.durationMinutes,
+        meetingCandidateMessage: confirmedDraft.meetingStage?.candidateMessage,
+        meetingPurpose: confirmedDraft.config.meetingPurpose,
+        recommendationId: position.recommendationId,
+        roleId: current.roleId,
+        sourceStage: position.stage,
+        stageId: text(confirmedDraft.config.processStageId),
+        talentId,
+        title: confirmedDraft.config.title,
+        user: args.user,
+        workspaceId: args.workspaceId,
+      });
+      const currentDraft = preparedCurrentMeeting.draft;
+      if (currentDraft.draftBlocker) {
+        args.state.terminalReply = formatPreparedMeetingScheduleConfirmation({
+          candidateName,
+          draft: currentDraft,
+          roleName: current.name,
+        });
+        recordResult(args.state, {
+          callId: args.callId,
+          name: args.name,
+          status: "unchanged",
+          summary: "인터뷰 일정 요청 전 선행 설정 필요",
+        });
+        return {
+          candidateName,
+          connectionMethod,
+          decision,
+          draftBlocker: currentDraft.draftBlocker,
+          meetingDraft: meetingDraftConfirmation(currentDraft),
+          status: "meeting_setup_required",
+        };
+      }
+
+      draftWriteStarted = true;
+      const schedule = await createMeetingScheduleDraft({
+        admin: args.admin,
+        draft: currentDraft,
+        recommendationId: position.recommendationId,
+        roleId: current.roleId,
+        sourceCompanyMessageId: args.currentUserMessageId,
+        talentId,
+        workspaceId: args.workspaceId,
+      });
+      const result = await setOrgCandidateStage({
+        acceptReason: finalReason,
+        expectedPreviousStage: position.stage,
+        recommendationId: position.recommendationId,
+        roleId: current.roleId,
+        scheduleInterview: true,
+        stage:
+          `custom:${text(currentDraft.config.processStageId)}` as OrgStageId,
+        talentId,
+        user: args.user,
+        workspaceId: args.workspaceId,
+      });
+      const queuedMeeting = await queueGeneratedMeetingInvitation({
+        baseUrl: getOrgPublicSiteUrl(),
+        scheduleId: schedule.scheduleId,
+        user: args.user,
+        workspaceId: args.workspaceId,
+      });
+      const changeSummary = `${candidateName} 후보자: ${currentDraft.config.processStageName} 단계 이동 및 미팅 일정 선택 안내 예약`;
+      args.state.updateSummaries.push(changeSummary);
+      recordResult(args.state, {
+        callId: args.callId,
+        name: args.name,
+        status: "success",
+        summary: changeSummary,
+      });
+      return {
+        candidateName,
+        changeSummary,
+        connectionMethod,
+        decision,
+        draftBlocker: null,
+        calendarAvailability: {
+          refreshesWhenCandidateOpens: true,
+          respectsOrganizerOverrides: true,
+        },
+        delivery: {
+          change: "scheduled",
+          delayMinutes: MEETING_INVITATION_DELIVERY_DELAY_MINUTES,
+          scheduledAt:
+            queuedMeeting.schedule.round.delivery?.scheduledAt ?? null,
+          sentAt: queuedMeeting.schedule.round.delivery?.sentAt ?? null,
+        },
+        meeting: {
+          candidateMessage:
+            queuedMeeting.schedule.round.additionalMessage?.visibility ===
+            "internal"
+              ? null
+              : (queuedMeeting.schedule.round.additionalMessage?.sourceText ??
+                null),
+          durationMinutes: queuedMeeting.schedule.config.durationMinutes,
+          offerWindowDays: queuedMeeting.schedule.config.offerWindowDays,
+          purpose: queuedMeeting.schedule.config.meetingPurpose,
+          stageName: queuedMeeting.schedule.config.processStageName,
+        },
+        nextProcess:
+          "후보자가 가능한 시간을 고르면 Harper가 확정된 Google Meet 일정을 양쪽에 전달해요.",
+        organizerAvailability: {
+          summary: queuedMeeting.schedule.availability
+            ? formatMeetingAvailabilitySummary(
+                queuedMeeting.schedule.availability
+              )
+            : null,
+          timezone: queuedMeeting.schedule.availability?.timezone ?? null,
+        },
+        roleId: result.roleId,
+        roleName: current.name,
+        scheduleAlreadyExisted: schedule.alreadyExisted,
+        scheduleId: schedule.scheduleId,
+        schedulingSettingsUrl: buildOrgMeetingAvailabilityUrl(args.workspaceId),
+        stage: result.stage,
+        status: "updated",
+        talentId: result.talentId,
+      };
+    } catch (error) {
+      if (!args.state.terminalReply) {
+        args.state.terminalReply = draftWriteStarted
+          ? "미팅 정보를 준비하던 중 결과를 끝까지 확인하지 못했어요. 중복 연락을 막기 위해 바로 다시 시도하지 말고, 이 대화에서 현재 일정을 먼저 확인해 주세요. 후보자에게 메일이 보내졌다는 확인은 없어요."
+          : "미팅 정보를 다시 확인하지 못했어요. 후보자에게는 아직 연락하지 않았으니, 가능 시간과 참석자를 확인한 뒤 다시 요청해 주세요.";
+      }
+      throw error;
+    }
+  }
+
   const introEmails =
     connectionMethod === "intro_email" ? confirmed.introEmails : null;
   if (connectionMethod === "intro_email" && !candidateEmail) {
@@ -2940,6 +4071,27 @@ async function executeCandidateConnectionDecision(args: {
     );
   }
 
+  const confirmedProcessStageId = customPipelineStageDbId(
+    confirmed.processStageId
+  );
+  if (position.stage === "pending_connection" && !confirmedProcessStageId) {
+    const stages = await readCompanyProcessStages({
+      admin: args.admin,
+      roleId: current.roleId,
+    });
+    args.state.terminalReply = processStageRequiredReply({
+      candidateName,
+      scheduleInterview: false,
+      stages: stages.map((stage) => ({
+        id: `custom:${stage.id}`,
+        label: stage.label,
+      })),
+    });
+    throw new OrgAgentToolInputError(
+      "연결 대기 다음에는 정확한 사용자 정의 프로세스 단계를 먼저 정해 주세요."
+    );
+  }
+
   const result = await setOrgCandidateStage({
     acceptReason: finalReason,
     contactDirectly: connectionMethod === "direct_contact",
@@ -2947,7 +4099,10 @@ async function executeCandidateConnectionDecision(args: {
     introEmails,
     recommendationId: position.recommendationId,
     roleId: current.roleId,
-    stage: "connected",
+    stage:
+      position.stage === "pending_connection"
+        ? (`custom:${confirmedProcessStageId}` as OrgStageId)
+        : "connected",
     talentId,
     user: args.user,
     workspaceId: args.workspaceId,
@@ -3010,10 +4165,13 @@ export async function executeOrgAgentTool(args: {
   admin: OrgAgentAdminClient;
   audience: OrgAgentReadAudience;
   callId: string;
+  companySideContext?: string;
   conversation: OrgAgentConversationRow;
   currentUserMessageId: number;
   input: unknown;
   name: OrgAgentToolName;
+  onToolProgress?: (label: string) => void;
+  referenceAttachments?: ChatAttachmentPayload[];
   scopeKey: string;
   slackExecutionContext?: SlackRoleCreationExecutionContext | null;
   slackThreadId: string | null;
@@ -3142,6 +4300,22 @@ export async function executeOrgAgentTool(args: {
       user: args.user,
       workspaceId,
     });
+  } else if (args.name === "calibrate_role_hiring_brief") {
+    return executeCalibrateRoleHiringBrief({
+      admin: args.admin,
+      callId: args.callId,
+      companySideContext: args.companySideContext ?? args.userMessage ?? "",
+      input,
+      name: args.name,
+      onProgress: args.onToolProgress,
+      referenceAttachments: args.referenceAttachments,
+      readAudience: args.audience,
+      source: args.source,
+      state: args.state,
+      user: args.user,
+      userMessage: args.userMessage ?? "",
+      workspaceId,
+    });
   } else if (args.name === "get_more_data") {
     result = await executeGetMoreData({
       admin: args.admin,
@@ -3200,6 +4374,7 @@ export async function executeOrgAgentTool(args: {
         name: args.name,
         source: args.source,
         state: args.state,
+        user: args.user,
         workspaceId,
       });
     } catch (error) {
@@ -3236,8 +4411,20 @@ export async function executeOrgAgentTool(args: {
     return executeMoveCandidateStage({
       admin: args.admin,
       callId: args.callId,
+      currentUserMessageId: args.currentUserMessageId,
       input,
       name: args.name,
+      source: args.source,
+      state: args.state,
+      user: args.user,
+      workspaceId,
+    });
+  } else if (args.name === "manage_interview_availability") {
+    return executeManageInterviewAvailability({
+      callId: args.callId,
+      input,
+      name: args.name,
+      source: args.source,
       state: args.state,
       user: args.user,
       workspaceId,
@@ -3245,11 +4432,13 @@ export async function executeOrgAgentTool(args: {
   } else if (args.name === "prepare_candidate_connection") {
     return executePrepareCandidateConnection({
       actorId: args.actorId,
+      actorLabel: args.actorLabel,
       admin: args.admin,
       callId: args.callId,
       input,
       name: args.name,
       slackThreadId: args.slackThreadId,
+      source: args.source,
       state: args.state,
       user: args.user,
       workspaceId,
@@ -3257,6 +4446,7 @@ export async function executeOrgAgentTool(args: {
   } else {
     return executeCandidateConnectionDecision({
       actorId: args.actorId,
+      actorLabel: args.actorLabel,
       admin: args.admin,
       callId: args.callId,
       conversation: args.conversation,

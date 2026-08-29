@@ -1,7 +1,11 @@
 import type { OrgAgentModelId } from "@/lib/org/agent/modelConfig";
+import type {
+  MeetingScheduleAdditionalMessage,
+  MeetingScheduleDraftConfig,
+} from "@/lib/meetings/scheduleDraft";
 import type { ChatAttachmentPayload } from "@/types/chat";
 
-export type OrgAgentMode = "general" | "role_creation";
+export type OrgAgentMode = "general" | "role" | "role_creation";
 
 export type OrgAgentMessageAttachment = Pick<
   ChatAttachmentPayload,
@@ -20,13 +24,30 @@ export type OrgAgentCandidateDecision = "accept" | "decline";
 
 export type OrgAgentCandidateConnectionMethod =
   | "intro_email"
-  | "direct_contact";
+  | "direct_contact"
+  | "schedule_interview";
+
+export type OrgAgentMeetingScheduleConfirmation = {
+  additionalMessage: MeetingScheduleAdditionalMessage | null;
+  availabilityVersion: number | null;
+  config: MeetingScheduleDraftConfig;
+  draftBlocker:
+    | "availability_missing"
+    | "meeting_stage_missing"
+    | "organizer_email_missing"
+    | null;
+  meetingStage:
+    | import("@/lib/meetings/scheduleDraft").MeetingScheduleStageProfile
+    | null;
+};
 
 export type OrgAgentCandidateDecisionConfirmation = {
   actorId: string;
   connectionMethod: OrgAgentCandidateConnectionMethod | null;
   decision: OrgAgentCandidateDecision;
   introEmails: string[];
+  meetingDraft: OrgAgentMeetingScheduleConfirmation | null;
+  processStageId: string | null;
   reason: string | null;
   recommendationId: string;
   roleId: string;
@@ -210,7 +231,7 @@ export type OrgAgentMessage = {
 
 export type OrgAgentConversation = {
   conversationId: string;
-  /** Null for general chat; the owning role for role-creation chat. */
+  /** Null for workspace chat; otherwise the owning role for role-scoped chat. */
   roleId: string | null;
   title: string | null;
   workspaceId: string;
@@ -219,6 +240,7 @@ export type OrgAgentConversation = {
 export type OrgAgentMessagesResponse = {
   conversation: OrgAgentConversation;
   hasMore: boolean;
+  latestUserMessageAt: string | null;
   messages: OrgAgentMessage[];
   nextCursor: number | null;
   ok: true;
@@ -253,7 +275,7 @@ export type OrgAgentChatBody = {
   message?: string;
   mode?: OrgAgentMode;
   model?: OrgAgentModelId | string | null;
-  /** Required only for the isolated role_creation conversation. */
+  /** Required for role and role_creation conversations. */
   roleId?: string;
   workspaceId?: string;
 };

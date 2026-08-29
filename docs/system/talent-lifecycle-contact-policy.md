@@ -56,7 +56,7 @@ failed
 N = random integer between 1 and 3
 ```
 
-queue worker는 전체 유저를 훑지 않는다. `contact_queue`에서 아래 조건만 본다.
+`harper-email-reply-worker.service` 내부의 contact queue 처리기는 전체 유저를 훑지 않는다. `contact_queue`에서 아래 조건만 본다.
 
 ```text
 status = 'queued'

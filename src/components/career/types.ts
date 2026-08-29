@@ -362,6 +362,10 @@ export type CareerInternalOpportunityCallRequest = {
   id: string;
   opportunityId: string;
   questions: string[];
+  questionProgress: {
+    candidateQuestionsAsked: boolean;
+    nextQuestionIndex: number;
+  };
   reason: string | null;
   resumePromptNeeded: boolean;
   roleId: string;

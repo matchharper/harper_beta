@@ -1522,7 +1522,7 @@ async function main() {
           speaker: "Daniel",
         },
         {
-          message: `현재 정보만으로는 확답하기 어렵습니다. 원하시면 제가 대신 ${founderRecommendation.candidate.name}님께 현재 바로 이직하실 생각이 있는지, 아니라면 어느 시기부터 얼마나 적극적으로 새 기회를 찾아보고 계신지 물어볼 수 있어요. 이때 ${context.workspace.companyName}에서 ${founderRecommendation.role.name} 포지션과 관련해 확인한다는 점을 공개하고, 최소 20분 뒤 KST 08:00–20:00 사이에 이메일과 Harper 채팅으로 한 번 전달합니다. 답변은 선택이며 자동으로 재촉하지 않고, 답이 오면 이 대화로 알려드려요. 발송 전에는 취소할 수 있습니다. 이 내용으로 확인 요청할까요?`,
+          message: `현재 정보만으로는 확답하기 어렵습니다. 원하시면 제가 대신 ${founderRecommendation.candidate.name}님께 현재 바로 이직하실 생각이 있는지, 아니라면 어느 시기부터 얼마나 적극적으로 새 기회를 찾아보고 계신지 물어볼 수 있어요. 이때 ${context.workspace.companyName}에서 ${founderRecommendation.role.name} 포지션과 관련해 확인한다는 점을 공개하고, 정확히 20분 뒤에 이메일과 Harper 채팅으로 한 번 전달합니다. 답변은 선택이며 자동으로 재촉하지 않고, 답이 오면 이 대화로 알려드려요. 발송 전에는 취소할 수 있습니다. 이 내용으로 확인 요청할까요?`,
           speaker: "Harper",
         },
       ],
@@ -1587,7 +1587,7 @@ async function main() {
           speaker: "Daniel",
         },
         {
-          message: `보상 정보는 후보자 확인 없이 공유하지 않습니다. 원하시면 ${founderRecommendation.candidate.name}님께 현재 희망 보상과 회사에 공유해도 되는 표현을 확인할 수 있어요. ${context.workspace.companyName}의 ${founderRecommendation.role.name} 포지션 검토와 관련된 질문임을 밝히고, 최소 20분 뒤 KST 08:00–20:00 사이에 이메일과 Harper 채팅으로 한 번 전달합니다. 답변은 선택이며 자동으로 재촉하지 않고, 답이 오면 이 대화로 알려드려요. 발송 전에는 취소할 수 있습니다. 이 내용으로 진행할까요?`,
+          message: `보상 정보는 후보자 확인 없이 공유하지 않습니다. 원하시면 ${founderRecommendation.candidate.name}님께 현재 희망 보상과 회사에 공유해도 되는 표현을 확인할 수 있어요. ${context.workspace.companyName}의 ${founderRecommendation.role.name} 포지션 검토와 관련된 질문임을 밝히고, 정확히 20분 뒤에 이메일과 Harper 채팅으로 한 번 전달합니다. 답변은 선택이며 자동으로 재촉하지 않고, 답이 오면 이 대화로 알려드려요. 발송 전에는 취소할 수 있습니다. 이 내용으로 진행할까요?`,
           speaker: "Harper",
         },
       ],
@@ -1640,7 +1640,7 @@ async function main() {
           speaker: "Daniel",
         },
         {
-          message: `현재 후보자 프로필에서 회사가 열람할 수 있는 이력서 파일은 확인되지 않습니다. 원하시면 ${founderRecommendation.candidate.name}님께 ${context.workspace.companyName}의 ${founderRecommendation.role.name} 검토를 위한 최신 이력서 공유가 가능한지, 최소 20분 뒤 KST 08:00–20:00 사이에 이메일과 Harper 채팅으로 한 번 요청할 수 있어요. 공유 여부는 후보자의 선택이고 자동으로 재촉하지 않으며, 업로드되면 이 대화로 알려드립니다. 발송 전에는 취소할 수 있습니다. 이 내용으로 요청할까요?`,
+          message: `현재 후보자 프로필에서 회사가 열람할 수 있는 이력서 파일은 확인되지 않습니다. 원하시면 ${founderRecommendation.candidate.name}님께 ${context.workspace.companyName}의 ${founderRecommendation.role.name} 검토를 위한 최신 이력서 공유가 가능한지, 정확히 20분 뒤에 이메일과 Harper 채팅으로 한 번 요청할 수 있어요. 공유 여부는 후보자의 선택이고 자동으로 재촉하지 않으며, 업로드되면 이 대화로 알려드립니다. 발송 전에는 취소할 수 있습니다. 이 내용으로 요청할까요?`,
           speaker: "Harper",
         },
       ],
@@ -2055,7 +2055,7 @@ async function main() {
           speaker: "Daniel",
         },
         {
-          message: `${recommendations[0].candidate.name}님의 현재 이직 의향은 확인된 정보만으로 단정하기 어렵습니다. 원하시면 지금 이동을 고려하는지와 예상 시점을 확인할 수 있어요. ${context.workspace.companyName}의 ${recommendations[0].role.name} 포지션 검토와 관련된 질문임을 밝히고, 최소 20분 뒤 KST 08:00–20:00 사이에 이메일과 Harper 채팅으로 한 번 전달합니다. 답변은 선택이며 자동으로 재촉하지 않고, 답이 오면 이 대화로 알려드려요. 발송 전에는 취소할 수 있습니다. 이 내용으로 확인 요청할까요?`,
+          message: `${recommendations[0].candidate.name}님의 현재 이직 의향은 확인된 정보만으로 단정하기 어렵습니다. 원하시면 지금 이동을 고려하는지와 예상 시점을 확인할 수 있어요. ${context.workspace.companyName}의 ${recommendations[0].role.name} 포지션 검토와 관련된 질문임을 밝히고, 정확히 20분 뒤에 이메일과 Harper 채팅으로 한 번 전달합니다. 답변은 선택이며 자동으로 재촉하지 않고, 답이 오면 이 대화로 알려드려요. 발송 전에는 취소할 수 있습니다. 이 내용으로 확인 요청할까요?`,
           speaker: "Harper",
         },
       ],
@@ -2095,7 +2095,7 @@ async function main() {
           speaker: "Daniel",
         },
         {
-          message: `저장된 보상은 공유하지 않습니다. 원하시면 ${recommendations[0].candidate.name}님께 현재 희망 보상과 회사에 공유해도 되는 표현을 확인할 수 있어요. ${context.workspace.companyName}의 ${recommendations[0].role.name} 포지션 검토와 관련된 질문임을 밝히고, 최소 20분 뒤 KST 08:00–20:00 사이에 이메일과 Harper 채팅으로 한 번 전달합니다. 답변은 선택이며 자동으로 재촉하지 않고, 답이 오면 이 대화로 알려드려요. 발송 전에는 취소할 수 있습니다. 이 내용으로 진행할까요?`,
+          message: `저장된 보상은 공유하지 않습니다. 원하시면 ${recommendations[0].candidate.name}님께 현재 희망 보상과 회사에 공유해도 되는 표현을 확인할 수 있어요. ${context.workspace.companyName}의 ${recommendations[0].role.name} 포지션 검토와 관련된 질문임을 밝히고, 정확히 20분 뒤에 이메일과 Harper 채팅으로 한 번 전달합니다. 답변은 선택이며 자동으로 재촉하지 않고, 답이 오면 이 대화로 알려드려요. 발송 전에는 취소할 수 있습니다. 이 내용으로 진행할까요?`,
           speaker: "Harper",
         },
       ],
@@ -2141,7 +2141,7 @@ async function main() {
           speaker: "Daniel",
         },
         {
-          message: `현재 회사가 볼 수 있는 이력서 파일은 없습니다. 원하시면 ${recommendations[0].candidate.name}님께 ${context.workspace.companyName}의 ${recommendations[0].role.name} 검토를 위한 최신 이력서 공유가 가능한지, 최소 20분 뒤 KST 08:00–20:00 사이에 이메일과 Harper 채팅으로 한 번 요청할 수 있어요. 공유 여부는 후보자의 선택이고 자동으로 재촉하지 않으며, 업로드되면 이 대화로 알려드립니다. 발송 전에는 취소할 수 있습니다. 이 내용으로 요청할까요?`,
+          message: `현재 회사가 볼 수 있는 이력서 파일은 없습니다. 원하시면 ${recommendations[0].candidate.name}님께 ${context.workspace.companyName}의 ${recommendations[0].role.name} 검토를 위한 최신 이력서 공유가 가능한지, 정확히 20분 뒤에 이메일과 Harper 채팅으로 한 번 요청할 수 있어요. 공유 여부는 후보자의 선택이고 자동으로 재촉하지 않으며, 업로드되면 이 대화로 알려드립니다. 발송 전에는 취소할 수 있습니다. 이 내용으로 요청할까요?`,
           speaker: "Harper",
         },
       ],

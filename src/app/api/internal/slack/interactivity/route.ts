@@ -52,6 +52,12 @@ import {
   type SlackTalentReviewDecisionSubmission,
   type SlackTalentReviewViewState,
 } from "@/lib/org/slackTalentReviewView";
+import {
+  getOrgRoleQuickAction,
+  HARPER_ROLE_QUICK_ACTION_BLOCK_ID,
+  HARPER_ROLE_QUICK_ACTION_PREFIX,
+} from "@/lib/org/roleQuickActions";
+import { dispatchSlackReplyJob } from "@/lib/org/slackQueueDispatch";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { OrgHttpError, setOrgCandidateStage } from "@/lib/org/server";
 
@@ -619,6 +625,156 @@ export async function POST(req: NextRequest) {
     const parsed = Number(match?.[1]);
     return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
   })();
+  const roleQuickAction = actionId.startsWith(HARPER_ROLE_QUICK_ACTION_PREFIX)
+    ? getOrgRoleQuickAction(
+        actionId.slice(HARPER_ROLE_QUICK_ACTION_PREFIX.length)
+      )
+    : null;
+  if (payload.type === "block_actions" && roleQuickAction) {
+    const channelId = clean(
+      payload.container?.channel_id || payload.channel?.id
+    );
+    const sourceMessageTs = clean(
+      payload.container?.message_ts || payload.message?.ts
+    );
+    const slackTeamId = clean(payload.team?.id);
+    const slackUserId = clean(payload.user?.id);
+    const actionTs = clean(action?.action_ts);
+    if (
+      !channelId ||
+      !sourceMessageTs ||
+      !slackTeamId ||
+      !slackUserId ||
+      !actionTs
+    ) {
+      return NextResponse.json({ ignored: true, ok: true });
+    }
+
+    const context = await resolveHarperSlackInteractionContext({
+      channelId,
+      slackTeamId,
+    });
+    const slackAccess = await resolveHarperSlackWorkspaceAccess({
+      slackUserId,
+      token: context.token,
+      workspaceId: context.workspaceId,
+    });
+    if (!slackAccess.allowed || !slackAccess.member.canManageCandidates) {
+      const denialReason = slackAccess.allowed
+        ? "insufficient_role"
+        : slackAccess.reason;
+      await postHarperSlackAccessDenied({
+        access: slackAccess,
+        channelId,
+        reason: denialReason,
+        slackUserId,
+        token: context.token,
+      }).catch((error) =>
+        console.warn(
+          "[harper-slack/interactivity:role-quick-action-access]",
+          error
+        )
+      );
+      return NextResponse.json({
+        accessDenied: true,
+        ok: true,
+        status: "access_denied",
+      });
+    }
+
+    const admin = getSupabaseAdmin();
+    const { data: channel, error: channelError } = await (
+      admin.from("company_slack_channels" as any) as any
+    )
+      .select("id")
+      .eq("company_workspace_id", context.workspaceId)
+      .eq("slack_team_id", slackTeamId)
+      .eq("slack_channel_id", channelId)
+      .eq("is_enabled", true)
+      .maybeSingle();
+    if (channelError) throw channelError;
+    const { data: thread, error: threadError } = await (
+      admin.from("company_slack_threads" as any) as any
+    )
+      .select("id, role_id")
+      .eq("channel_id", channel?.id ?? "")
+      .eq("slack_thread_ts", sourceMessageTs)
+      .maybeSingle();
+    if (threadError) throw threadError;
+    if (!thread) {
+      return NextResponse.json({ ignored: true, ok: true });
+    }
+
+    const promptActionKey = [
+      "role-quick-action",
+      thread.id,
+      slackUserId,
+      actionTs,
+      roleQuickAction.id,
+    ].join(":");
+    const { data, error } = await (admin.rpc as any)(
+      "enqueue_slack_reply_job_v2",
+      {
+        p_prompt: roleQuickAction.message,
+        p_slack_event_id: promptActionKey,
+        p_slack_files: [],
+        p_slack_message_ts: sourceMessageTs,
+        p_slack_user_id: slackUserId,
+        p_thread_id: thread.id,
+        p_trigger_kind: "button_choice",
+      }
+    );
+    if (error) throw error;
+    const result =
+      data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+    const jobId = clean(result.job_id);
+    if (!jobId) throw new Error("Slack role quick action did not create a reply job");
+    // Slack expects this interaction endpoint to ACK within three seconds.
+    // The job and its durable outbox state are already committed, so publish
+    // just after the ACK rather than making Queue latency part of that SLA.
+    after(async () => {
+      await dispatchSlackReplyJob({
+        admin,
+        jobId,
+        source: "interactivity",
+      }).catch((dispatchError) => {
+        // The job-row outbox is now marked retry and the Cron reconciler will
+        // republish it. Do not turn a committed Slack button action into a
+        // client-visible retry solely because Queue publish is transiently down.
+        console.error("[harper-slack/interactivity:queue-dispatch]", dispatchError);
+      });
+    });
+    const originalText = clean(payload.message?.text);
+    const blocks = buildSelectedHarperSlackChoiceBlocks({
+      actionBlockPrefixes: [HARPER_ROLE_QUICK_ACTION_BLOCK_ID],
+      choiceLabel: roleQuickAction.label,
+      originalBlocks: payload.message?.blocks,
+      originalText,
+      slackUserId,
+    });
+    after(async () => {
+      try {
+        await updateHarperSlackMessage({
+          blocks,
+          channelId,
+          messageTs: sourceMessageTs,
+          text: `${originalText}\n\n✓ ${escapeSlackText(
+            roleQuickAction.label
+          )}`.trim(),
+          workspaceId: context.workspaceId,
+        });
+      } catch (updateError) {
+        console.warn(
+          "[harper-slack/interactivity:update-role-quick-action]",
+          updateError
+        );
+      }
+    });
+    return NextResponse.json({
+      ok: true,
+      status: result.duplicate === true ? "duplicate" : "queued",
+    });
+  }
   if (
     payload.type === "block_actions" &&
     actionId === HARPER_TALENT_REVIEW_CONNECTION_MODE_ACTION_ID
@@ -895,6 +1051,22 @@ export async function POST(req: NextRequest) {
   if (clean(result.status) !== "queued") {
     return NextResponse.json({ ok: true, status: clean(result.status) });
   }
+
+  const jobId = clean(result.job_id);
+  if (!jobId) throw new Error("Slack button choice did not create a reply job");
+  // Slack expects this interaction endpoint to ACK within three seconds.
+  // The committed job row is the durable source of truth if this publish
+  // fails, so keep Queue latency out of the interactive ACK path.
+  after(async () => {
+    await dispatchSlackReplyJob({
+      admin,
+      jobId,
+      source: "interactivity",
+    }).catch((dispatchError) => {
+      // The committed job is durable and will be recovered by the dispatch Cron.
+      console.error("[harper-slack/interactivity:queue-dispatch]", dispatchError);
+    });
+  });
 
   const workspaceId = clean(result.workspace_id);
   const originalText = clean(payload.message?.text) || parsed.text;

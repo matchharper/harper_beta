@@ -208,11 +208,13 @@ function OrgAssistantContent({
 function MessageActionView({
   action,
   message,
+  readOnly = false,
   roleId,
   workspaceId,
 }: {
   action: OrgAgentMessageAction;
   message: OrgAgentMessage;
+  readOnly?: boolean;
   roleId?: string | null;
   workspaceId: string;
 }) {
@@ -233,7 +235,7 @@ function MessageActionView({
       <MuteButton
         type="button"
         size="sm"
-        disabled={!roleId || sent || meetingRequest.isPending}
+        disabled={readOnly || !roleId || sent || meetingRequest.isPending}
         onClick={() => {
           if (!roleId) return;
           meetingRequest.mutate({
@@ -267,6 +269,7 @@ export function OrgAgentMessageBubble({
   message,
   onCompanyInfoClick,
   onRoleCreationChoice,
+  readOnly = false,
   roleId,
   showUserAttribution = false,
   workspaceId,
@@ -282,6 +285,7 @@ export function OrgAgentMessageBubble({
     decision: "no" | "yes";
     messageId: number;
   }) => void;
+  readOnly?: boolean;
   roleId?: string | null;
   showUserAttribution?: boolean;
   workspaceId: string;
@@ -331,6 +335,7 @@ export function OrgAgentMessageBubble({
             key={action.id}
             action={action}
             message={message}
+            readOnly={readOnly}
             roleId={roleId}
             workspaceId={workspaceId}
           />
@@ -420,6 +425,7 @@ export function OrgAgentMessageBubble({
               value: choice.value,
             }))}
             disabled={
+              readOnly ||
               choicePending ||
               roleChoices.every((choice) => choice.status !== "pending")
             }
@@ -444,6 +450,7 @@ export function OrgAgentMessageBubble({
             key={action.id}
             action={action}
             message={message}
+            readOnly={readOnly}
             roleId={roleId}
             workspaceId={workspaceId}
           />

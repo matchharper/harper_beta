@@ -34,14 +34,20 @@ const TALENT_REQUEST_IMMEDIATE_ENQUEUE_MIGRATION =
   "20260807120000_company_talent_request_immediate_enqueue.sql";
 const TALENT_CONTACT_DRAFT_MIGRATION =
   "20260819110000_company_talent_contact_drafts.sql";
+const TALENT_CONTACT_ROUND_THE_CLOCK_MIGRATION =
+  "20260827210000_company_talent_contact_round_the_clock.sql";
 const COMPANY_ROLE_RECURRING_MATCHING_MIGRATION =
   "20260812150000_company_role_behavior_context_matching.sql";
 const COMPANY_INTERNAL_ROLE_MATCHING_LIFECYCLE_MIGRATION =
   "20260814100000_company_internal_role_matching_lifecycle.sql";
 const COMPANY_CONTEXT_RUN_QUEUE_MIGRATION =
   "20260814180000_company_context_run_queue.sql";
+const COMPANY_CONTEXT_RUN_ACTIVE_QUEUE_ONLY_MIGRATION =
+  "20260824163000_company_context_run_active_queue_only.sql";
 const COMPANY_BEHAVIOR_CONTEXT_CURRENT_MIGRATION =
   "20260814200000_company_behavior_contexts_role_current.sql";
+const DROP_COMPANY_ROLES_REQUEST_MIGRATION =
+  "20260826130000_drop_company_roles_request.sql";
 
 const IDS = {
   workspaceA: "00000000-0000-4000-8000-000000000001",
@@ -56,6 +62,7 @@ const IDS = {
   oversizedRole: "00000000-0000-4000-8000-000000000107",
   recurringAutoRole: "00000000-0000-4000-8000-000000000108",
   recurringLegacyPausedRole: "00000000-0000-4000-8000-000000000109",
+  recurringDraftRole: "00000000-0000-4000-8000-000000000110",
   conversation: "00000000-0000-4000-8000-000000000201",
   slackChannel: "00000000-0000-4000-8000-000000000301",
   slackThread: "00000000-0000-4000-8000-000000000302",
@@ -775,7 +782,87 @@ async function applyRemainingMigrations(sql: Db) {
 
   await sql`drop trigger if exists company_roles_test_search on public.company_roles`;
   await sql`drop function if exists public.test_refresh_company_role_search()`;
-  await sql`alter table public.company_roles drop column request`;
+
+  await sql`
+    update public.company_internal_roles
+    set request = 'conflicting canonical request'
+    where role_id = ${IDS.legacyRole}::uuid
+  `;
+  await expectDbError(
+    "final request-store conflict guard",
+    () => applyMigration(sql, DROP_COMPANY_ROLES_REQUEST_MIGRATION),
+    /conflict with company_internal_roles\.request/i
+  );
+  assert(
+    value<boolean>(
+      await sql`
+        select exists (
+          select 1
+          from information_schema.columns
+          where table_schema = 'public'
+            and table_name = 'company_roles'
+            and column_name = 'request'
+        ) as present
+      `,
+      "present"
+    ),
+    "failed final request migration dropped the parent column"
+  );
+
+  await sql`
+    update public.company_internal_roles
+    set request = null
+    where role_id = ${IDS.legacyRole}::uuid
+  `;
+  await sql`
+    update public.company_roles
+    set request = null
+    where lower(btrim(coalesce(source_type, ''))) <> 'internal'
+  `;
+  await applyMigration(sql, DROP_COMPANY_ROLES_REQUEST_MIGRATION);
+
+  const requestStore = firstRow(
+    await sql`
+      select
+        not exists (
+          select 1
+          from information_schema.columns
+          where table_schema = 'public'
+            and table_name = 'company_roles'
+            and column_name = 'request'
+        ) as parent_dropped,
+        (
+          select request
+          from public.company_internal_roles
+          where role_id = ${IDS.legacyRole}::uuid
+        ) as canonical_request,
+        to_regprocedure(
+          'public.sync_legacy_company_role_request_to_internal_v1()'
+        ) is null as bridge_removed,
+        to_regprocedure(
+          'public.guard_internal_company_role_legacy_request_v1()'
+        ) is null as guard_removed,
+        (
+          select opportunity_search_tsv @@ plainto_tsquery(
+            'simple',
+            'old writer returned internal'
+          )
+          from public.company_roles
+          where role_id = ${IDS.legacyRole}::uuid
+        ) as canonical_request_searchable
+    `
+  );
+  assert(
+    requestStore.parent_dropped === true &&
+      requestStore.canonical_request === "old writer returned internal" &&
+      requestStore.bridge_removed === true &&
+      requestStore.guard_removed === true &&
+      requestStore.canonical_request_searchable === true,
+    "final request migration did not preserve the canonical request and remove the legacy store"
+  );
+  logPass(
+    "company_roles.request drops only after conflict checks and lossless canonical backfill"
+  );
 }
 
 async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
@@ -987,6 +1074,7 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
   await applyMigration(sql, TALENT_REQUEST_DELIVERY_CONSISTENCY_MIGRATION);
   await applyMigration(sql, TALENT_REQUEST_IMMEDIATE_ENQUEUE_MIGRATION);
   await applyMigration(sql, TALENT_CONTACT_DRAFT_MIGRATION);
+  await applyMigration(sql, TALENT_CONTACT_ROUND_THE_CLOCK_MIGRATION);
   const scopedQueueIndex = firstRow(
     await sql`
       select indexdef
@@ -1031,11 +1119,8 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
   const schedule = firstRow(
     await sql`
       select
-        queue.scheduled_at >= request.created_at + interval '20 minutes'
-          as delayed,
-        (queue.scheduled_at at time zone 'Asia/Seoul')::time >= time '08:00'
-          and (queue.scheduled_at at time zone 'Asia/Seoul')::time < time '20:00'
-          as inside_window
+        queue.scheduled_at = request.created_at + interval '20 minutes'
+          as exact_delay
       from public.company_talent_requests request
       join public.contact_queue queue
         on queue.company_talent_request_id = request.id
@@ -1044,8 +1129,8 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
     `
   );
   assert(
-    schedule.delayed === true && schedule.inside_window === true,
-    "candidate contact was not delayed into the 08:00-20:00 KST window"
+    schedule.exact_delay === true,
+    "candidate contact was not scheduled exactly 20 minutes after creation"
   );
   const repeated = firstRow(
     await sql`
@@ -1612,6 +1697,8 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
     await sql`
       select request.workflow_status, request.approved_at,
              queue.status as queue_status,
+             queue.scheduled_at = request.approved_at + interval '20 minutes'
+               as exact_standard_delay,
              queue.payload -> 'delivery' ->> 'subject' as queued_subject,
              queue.payload -> 'delivery' ->> 'chatText' as queued_body,
              (queue.payload -> 'delivery' ->> 'draftRevision')::int
@@ -1628,6 +1715,7 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
       scheduledDraftState.workflow_status === "queued" &&
       scheduledDraftState.approved_at !== null &&
       scheduledDraftState.queue_status === "queued" &&
+      scheduledDraftState.exact_standard_delay === true &&
       scheduledDraftState.queued_subject === "Draft subject revision 2" &&
       scheduledDraftState.queued_body === "Draft body revision 2" &&
       scheduledDraftState.queued_revision === 2,
@@ -1666,6 +1754,7 @@ async function testCompanyRoleRecurringMatchingMigration(sql: Db) {
   await applyMigration(sql, COMPANY_INTERNAL_ROLE_MATCHING_LIFECYCLE_MIGRATION);
   await applyMigration(sql, COMPANY_CONTEXT_RUN_QUEUE_MIGRATION);
   await applyMigration(sql, COMPANY_BEHAVIOR_CONTEXT_CURRENT_MIGRATION);
+  await applyMigration(sql, COMPANY_CONTEXT_RUN_ACTIVE_QUEUE_ONLY_MIGRATION);
 
   const schema = firstRow(
     await sql`
@@ -1726,6 +1815,78 @@ async function testCompanyRoleRecurringMatchingMigration(sql: Db) {
   assert(
     Object.values(schema).every((present) => present === true),
     "recurring company-role matching schema is incomplete"
+  );
+
+  await sql`
+    insert into public.company_roles(
+      role_id, company_workspace_id, name, source_type, status, is_expired
+    ) values (
+      ${IDS.recurringDraftRole}::uuid,
+      ${IDS.workspaceA}::uuid,
+      'Draft Queue Guard Role',
+      'internal',
+      'draft',
+      false
+    )
+  `;
+  await sql`
+    insert into public.company_internal_roles(
+      role_id, request, is_auto, max_pending_talents
+    ) values (
+      ${IDS.recurringDraftRole}::uuid,
+      'Draft queue guard test',
+      true,
+      5
+    )
+  `;
+  assert(
+    Number(
+      value<number>(
+        await sql`
+          select count(*)::integer as count
+          from public.company_context_runs
+          where role_id = ${IDS.recurringDraftRole}::uuid
+        `,
+        "count"
+      )
+    ) === 0,
+    "a draft internal role was queued before activation"
+  );
+  await sql`
+    update public.company_roles
+    set status = 'active'
+    where role_id = ${IDS.recurringDraftRole}::uuid
+  `;
+  assert(
+    value<string>(
+      await sql`
+        select trigger_reason
+        from public.company_context_runs
+        where role_id = ${IDS.recurringDraftRole}::uuid
+          and status = 'queued'
+      `,
+      "trigger_reason"
+    ) === "role_created",
+    "a newly activated internal role did not receive its role_created run"
+  );
+  await sql`
+    update public.company_roles
+    set status = 'paused'
+    where role_id = ${IDS.recurringDraftRole}::uuid
+  `;
+  const canceledDraftRun = firstRow(
+    await sql`
+      select status, result->>'resultReason' as result_reason
+      from public.company_context_runs
+      where role_id = ${IDS.recurringDraftRole}::uuid
+      order by available_at desc, id desc
+      limit 1
+    `
+  );
+  assert(
+    canceledDraftRun.status === "canceled" &&
+      canceledDraftRun.result_reason === "role_not_active",
+    "an automatic run remained queued after its role became inactive"
   );
 
   await sql`

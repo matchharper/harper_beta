@@ -1,5 +1,29 @@
 [
   {
+    "date": "2026-08-27",
+    "tag": "IMPROVED",
+    "ko": "Harper와의 통화 시작과 통화 도중의 퀄리티를 개선했습니다.",
+    "en": "We've improved how calls with Harper start and the quality of the conversation while you're on a call."
+  },
+  {
+    "date": "2026-08-27",
+    "tag": "IMPROVED",
+    "ko": "Harper 내부 기회를 Jobs 페이지를 통해 요청하는 방식을 개선했습니다. 이제 정확히 원하시는 공고에 더 쉽게 요청하실 수 있습니다.",
+    "en": "We've improved how you request internal opportunities through the Jobs page. You can now more easily request the exact job posting you're interested in."
+  },
+  {
+    "date": "2026-08-27",
+    "tag": "IMPROVED",
+    "ko": "하루 뒤 돌아오면, Harper가 현재 가장 먼저 처리할 연결 요청·통화·추가 질문 중 하나를 안내합니다.",
+    "en": "When you return after a day away, Harper will point you to one of the most important things to handle first: a connection request, call, or follow-up question."
+  },
+  {
+    "date": "2026-08-27",
+    "tag": "IMPROVED",
+    "ko": "“이미 지원함”·“공고 마감”은 비선호가 아닌 상태 정보로 처리하고, 한 공고를 제외했다고 회사 전체를 비선호 처리하지 않도록 했습니다.",
+    "en": "We now treat “Already applied” and “Posting expired” as status information rather than dislike signals, and excluding one posting no longer marks the entire company as not preferred."
+  },
+  {
     "date": "2026-08-24",
     "tag": "IMPROVED",
     "ko": "모바일 채팅 화면의 읽기와 작성 흐름을 다듬었습니다. 메시지를 더 편안하게 읽고, 입력한 내용을 더 쉽게 보낼 수 있습니다.",

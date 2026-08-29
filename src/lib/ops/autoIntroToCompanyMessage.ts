@@ -1,4 +1,9 @@
 import { buildOrgHref } from "@/lib/org/routes";
+import {
+  HARPER_ROLE_QUICK_ACTION_BLOCK_ID,
+  HARPER_ROLE_QUICK_ACTION_PREFIX,
+  ORG_ROLE_QUICK_ACTIONS,
+} from "@/lib/org/roleQuickActions";
 import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
 
 const DEFAULT_PUBLIC_SITE_URL = "https://matchharper.com";
@@ -11,16 +16,10 @@ export type AutoIntroPresentation =
   | "tldr_bullets";
 
 export type AutoIntroSlackProfile = {
+  body: string;
   currentRole: string | null;
   education: string | null;
-  harperNote: string | null;
   location: string | null;
-  preferences: string[];
-  tldr: string;
-  workSummary: Array<{
-    bullets: string[];
-    heading: string;
-  }>;
 };
 
 export type AutoIntroRoleSummaryItem = {
@@ -31,8 +30,33 @@ export type AutoIntroRoleSummaryItem = {
   workspaceId: string;
 };
 
+export type AutoIntroCandidateReplyReminder = {
+  candidateName: string;
+  expectsDocument: boolean;
+  recommendationId: string | null;
+  roleId: string;
+  roleTitle: string;
+  talentId: string;
+  workspaceId: string;
+};
+
+export type AutoIntroUpcomingMeetingReminder = {
+  attendeeNames: string[];
+  candidateName: string;
+  confirmedStartAt: string;
+  recommendationId: string | null;
+  roleId: string;
+  roleTitle: string;
+  talentId: string;
+  workspaceId: string;
+};
+
 export type AutoIntroRoleSummary = {
   companyName: string;
+  reminders?: {
+    candidateReplies: AutoIntroCandidateReplyReminder[];
+    upcomingMeetings: AutoIntroUpcomingMeetingReminder[];
+  };
   roles: AutoIntroRoleSummaryItem[];
   workspaceId: string;
 };
@@ -175,6 +199,113 @@ export function autoIntroRoleStatusLabel(value: unknown) {
   return getOrgRoleStatusPresentation(value).label;
 }
 
+function honorificName(value: unknown, fallback: string) {
+  const name = String(value ?? "").trim() || fallback;
+  return name.endsWith("님") ? name : `${name}님`;
+}
+
+function autoIntroReminderRoleLink(args: {
+  publicSiteUrl?: string | null;
+  roleId: string;
+  roleTitle: string;
+  workspaceId: string;
+}) {
+  return `<${buildAutoIntroRoleJobsUrl(args)}|${escapeSlackLinkLabel(
+    args.roleTitle
+  )}>`;
+}
+
+function autoIntroReminderCandidateLink(args: {
+  candidateName: string;
+  publicSiteUrl?: string | null;
+  recommendationId: string | null;
+  roleId: string;
+  talentId: string;
+  workspaceId: string;
+}) {
+  return buildAutoIntroCandidateNameLink({
+    ...args,
+    name: honorificName(args.candidateName, "후보자"),
+  });
+}
+
+export function formatAutoIntroReminderKstDateTime(value: unknown) {
+  const date = new Date(String(value ?? "").trim());
+  if (!Number.isFinite(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("ko-KR", {
+    day: "numeric",
+    hour: "2-digit",
+    hourCycle: "h23",
+    minute: "2-digit",
+    month: "numeric",
+    timeZone: "Asia/Seoul",
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value;
+  const month = part("month");
+  const day = part("day");
+  const hour = part("hour");
+  const minute = part("minute");
+  return month && day && hour && minute
+    ? `${month}월 ${day}일 ${hour}:${minute}`
+    : null;
+}
+
+export function buildAutoIntroRoleSummaryReminderText(args: {
+  publicSiteUrl?: string | null;
+  summary: AutoIntroRoleSummary;
+}) {
+  const replyLines = (args.summary.reminders?.candidateReplies ?? []).map(
+    (reminder) => {
+      const roleLink = autoIntroReminderRoleLink({
+        ...reminder,
+        publicSiteUrl: args.publicSiteUrl,
+      });
+      const candidateLink = autoIntroReminderCandidateLink({
+        ...reminder,
+        publicSiteUrl: args.publicSiteUrl,
+      });
+      const receivedCopy = reminder.expectsDocument
+        ? `${candidateLink}께 이력서를 요청했고, 자료를 받았어요.`
+        : `질문하신 내용을 ${candidateLink}께 전달했고 답변을 받았어요.`;
+      return `• ${roleLink} 역할과 관련해 ${receivedCopy} 연결을 받으실지, 거절하실지 알려 주세요.`;
+    }
+  );
+  const meetingLines = (args.summary.reminders?.upcomingMeetings ?? []).flatMap(
+    (reminder) => {
+      const scheduledAt = formatAutoIntroReminderKstDateTime(
+        reminder.confirmedStartAt
+      );
+      if (!scheduledAt) return [];
+      const roleLink = autoIntroReminderRoleLink({
+        ...reminder,
+        publicSiteUrl: args.publicSiteUrl,
+      });
+      const candidateLink = autoIntroReminderCandidateLink({
+        ...reminder,
+        publicSiteUrl: args.publicSiteUrl,
+      });
+      const attendeeNames = Array.from(
+        new Set(
+          reminder.attendeeNames
+            .map((name) => honorificName(name, ""))
+            .filter((name) => name !== "님")
+        )
+      );
+      const attendees = attendeeNames.length
+        ? attendeeNames.map(escapeSlackText).join(", ")
+        : "일정 담당자";
+      return [
+        `• ${scheduledAt} KST에 ${candidateLink}과 ${roleLink} 역할의 미팅이 예정되어 있어요. 참석자: ${attendees}`,
+      ];
+    }
+  );
+  const lines = [...replyLines, ...meetingLines];
+  return lines.length
+    ? ["*확인이 필요한 항목이 있습니다.*", ...lines].join("\n")
+    : null;
+}
+
 export function buildAutoIntroRoleSummaryText(args: {
   introBody?: string | null;
   publicSiteUrl?: string | null;
@@ -190,15 +321,13 @@ export function buildAutoIntroRoleSummaryText(args: {
         role.status
       )} | ${role.pendingDecisionCount}명`
   );
+  const reminderText = buildAutoIntroRoleSummaryReminderText(args);
   return [
     ...(String(args.introBody ?? "").trim()
       ? [String(args.introBody).trim()]
       : []),
-    [
-      "*현재 채용 현황*",
-      "현재 연결 여부를 결정해야 하는 후보자를 정리했습니다.",
-      ...rows,
-    ].join("\n"),
+    ["*현재 채용 현황*", ...rows].join("\n"),
+    ...(reminderText ? [reminderText] : []),
   ].join("\n\n");
 }
 
@@ -286,12 +415,19 @@ export function buildAutoIntroRoleSummarySlackBlocks(args: {
         type: "section",
       }))
     : [];
+  const reminderText = buildAutoIntroRoleSummaryReminderText(args);
+  const reminderBlocks = reminderText
+    ? splitSlackSectionText(reminderText).map((text) => ({
+        text: { text, type: "mrkdwn" },
+        type: "section",
+      }))
+    : [];
   return [
     ...introBlocks,
     ...(introBlocks.length > 0 ? [{ type: "divider" }] : []),
     {
       text: {
-        text: "*현재 채용 현황*\n현재 연결 여부를 결정해야 하는 후보자를 정리했습니다.",
+        text: "*현재 채용 현황*",
         type: "mrkdwn",
       },
       type: "section",
@@ -336,6 +472,19 @@ export function buildAutoIntroRoleSummarySlackBlocks(args: {
         ]),
       ],
       type: "table",
+    },
+    {
+      block_id: HARPER_ROLE_QUICK_ACTION_BLOCK_ID,
+      elements: ORG_ROLE_QUICK_ACTIONS.map((action) => ({
+        action_id: `${HARPER_ROLE_QUICK_ACTION_PREFIX}${action.id}`,
+        text: {
+          text: action.label,
+          type: "plain_text",
+        },
+        type: "button",
+        value: action.id,
+      })),
+      type: "actions",
     },
   ];
 }
@@ -385,44 +534,179 @@ function normalizedSlackProfileText(value: unknown, maxLength: number) {
   return normalized ? normalized.slice(0, maxLength) : null;
 }
 
+function normalizedSlackBodyText(value: unknown) {
+  const normalized = String(value ?? "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .trim();
+  return normalized || null;
+}
+
+export const AUTO_INTRO_TLDR_MAX_CHARACTERS = 700;
+export const AUTO_INTRO_TLDR_MAX_WORDS = 100;
+export const AUTO_INTRO_HARPER_NOTE_MAX_CHARACTERS = 320;
+export const AUTO_INTRO_HARPER_NOTE_MAX_WORDS = 60;
+export const AUTO_INTRO_WORK_SUMMARY_MAX_HEADINGS = 4;
+export const AUTO_INTRO_WORK_SUMMARY_MAX_BULLETS_PER_HEADING = 3;
+export const AUTO_INTRO_WORK_SUMMARY_MAX_BULLETS = 8;
+export const AUTO_INTRO_WORK_SUMMARY_MAX_BULLET_CHARACTERS = 180;
+export const AUTO_INTRO_PREFERENCES_MAX_BULLETS = 4;
+
+const AUTO_INTRO_BODY_MAX_CHARACTERS = 12_000;
+const AUTO_INTRO_COMPENSATION_PATTERN =
+  /\b(?:salary|base pay|base salary|total comp(?:ensation)?|compensation|pay expectations?|pay range|equity package|equity compensation|remuneration)\b|(?:연봉|급여|희망\s*보상|보상\s*(?:조건|수준|패키지)|스톡\s*옵션)/iu;
+
+const AUTO_INTRO_BODY_SECTIONS = [
+  { label: "TL;DR", pattern: /^\*TL;DR\*\s*-\s*\S/m },
+  { label: "Harper Note", pattern: /^\*Harper Note\*\s*-\s*\S/m },
+  { label: "Work Summary", pattern: /^--------\n+Work Summary:\n+\S/m },
+  {
+    label: "Preferences",
+    pattern: /^------------\n+\*Preferences:\*\n+\S/m,
+  },
+] as const;
+
+export function validateAutoIntroSlackBody(value: unknown) {
+  const body = normalizedSlackBodyText(value);
+  if (!body) throw new Error("Candidate Slack body is empty");
+  if (body.length > AUTO_INTRO_BODY_MAX_CHARACTERS) {
+    throw new Error("Candidate Slack body exceeds the maximum length");
+  }
+  if (body.includes("**")) {
+    throw new Error("Candidate Slack body must use Slack mrkdwn, not GFM bold");
+  }
+  if (/^\*(?:Candidate|Role|Location|Education):\*/m.test(body)) {
+    throw new Error("Candidate Slack body must not repeat application headers");
+  }
+  if (/PLEASE REPLY(?:-ALL)? TO REQUEST AN INTRO/i.test(body)) {
+    throw new Error("Candidate Slack body must not repeat the application CTA");
+  }
+  if (/<(?:!|@|#)/.test(body)) {
+    throw new Error("Candidate Slack body must not contain Slack mentions");
+  }
+
+  let previousIndex = -1;
+  for (const section of AUTO_INTRO_BODY_SECTIONS) {
+    const matches = body.match(new RegExp(section.pattern.source, "gm")) ?? [];
+    if (matches.length !== 1) {
+      throw new Error(
+        `Candidate Slack body requires exactly one ${section.label} section`
+      );
+    }
+    const index = body.search(section.pattern);
+    if (index <= previousIndex) {
+      throw new Error("Candidate Slack body sections are out of order");
+    }
+    previousIndex = index;
+  }
+
+  const layout = body.match(
+    /^\*TL;DR\*\s*-\s*(\S[\s\S]*?)\n+\*Harper Note\*\s*-\s*(\S[\s\S]*?)\n+--------\n+Work Summary:\n+(\S[\s\S]*?)\n+------------\n+\*Preferences:\*\n+(\S[\s\S]*)$/
+  );
+  if (!layout) {
+    throw new Error("Candidate Slack body does not match the required layout");
+  }
+  const [, tldr, harperNote, workSummary, preferences] = layout;
+  const wordCount = (text: string) => text.trim().split(/\s+/u).length;
+  if (
+    tldr.length > AUTO_INTRO_TLDR_MAX_CHARACTERS ||
+    wordCount(tldr) > AUTO_INTRO_TLDR_MAX_WORDS
+  ) {
+    throw new Error("Candidate Slack TL;DR exceeds its length budget");
+  }
+  if (
+    harperNote.length > AUTO_INTRO_HARPER_NOTE_MAX_CHARACTERS ||
+    wordCount(harperNote) > AUTO_INTRO_HARPER_NOTE_MAX_WORDS
+  ) {
+    throw new Error("Candidate Slack Harper Note exceeds its length budget");
+  }
+
+  const workLines = workSummary
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  let workHeadingCount = 0;
+  let workBulletCount = 0;
+  let currentHeadingBulletCount = 0;
+  for (const line of workLines) {
+    if (/^\*[^*\n]+\*$/.test(line)) {
+      if (workHeadingCount > 0 && currentHeadingBulletCount === 0) {
+        throw new Error("Candidate Slack work heading has no bullets");
+      }
+      workHeadingCount += 1;
+      currentHeadingBulletCount = 0;
+      continue;
+    }
+    const bullet = line.match(/^•\s+(\S.*)$/u);
+    if (!bullet || workHeadingCount === 0) {
+      throw new Error(
+        "Candidate Slack Work Summary must contain only headings and bullets"
+      );
+    }
+    const bulletText = bullet[1];
+    if (bulletText.length > AUTO_INTRO_WORK_SUMMARY_MAX_BULLET_CHARACTERS) {
+      throw new Error("Candidate Slack work bullet exceeds its length budget");
+    }
+    currentHeadingBulletCount += 1;
+    workBulletCount += 1;
+    if (
+      currentHeadingBulletCount >
+      AUTO_INTRO_WORK_SUMMARY_MAX_BULLETS_PER_HEADING
+    ) {
+      throw new Error("Candidate Slack work heading has too many bullets");
+    }
+  }
+  if (workHeadingCount === 0 || currentHeadingBulletCount === 0) {
+    throw new Error("Candidate Slack Work Summary requires headed evidence");
+  }
+  if (workHeadingCount > AUTO_INTRO_WORK_SUMMARY_MAX_HEADINGS) {
+    throw new Error("Candidate Slack Work Summary has too many headings");
+  }
+  if (workBulletCount > AUTO_INTRO_WORK_SUMMARY_MAX_BULLETS) {
+    throw new Error("Candidate Slack Work Summary has too many bullets");
+  }
+
+  const preferenceLines = preferences
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (
+    preferenceLines.length === 0 ||
+    preferenceLines.length > AUTO_INTRO_PREFERENCES_MAX_BULLETS ||
+    preferenceLines.some((line) => !/^•\s+\S/u.test(line))
+  ) {
+    throw new Error("Candidate Slack Preferences must contain 1-4 bullets");
+  }
+  if (AUTO_INTRO_COMPENSATION_PATTERN.test(preferences)) {
+    throw new Error(
+      "Candidate Slack Preferences must not contain compensation information"
+    );
+  }
+  return [
+    `*TL;DR* - ${tldr.trim()}`,
+    "",
+    `*Harper Note* - ${harperNote.trim()}`,
+    "--------",
+    "Work Summary:",
+    workLines.join("\n"),
+    "------------",
+    "",
+    "*Preferences:*",
+    preferenceLines.join("\n"),
+  ].join("\n");
+}
+
 export function validateAutoIntroSlackProfile(
   value: AutoIntroSlackProfile
 ): AutoIntroSlackProfile {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("Candidate Slack profile must be an object");
   }
-  const tldr = normalizedSlackProfileText(value.tldr, 2_400);
-  if (!tldr) throw new Error("Candidate Slack profile requires a TL;DR");
-
-  const workSummary = Array.isArray(value.workSummary)
-    ? value.workSummary.slice(0, 10).flatMap((raw) => {
-        if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
-        const heading = normalizedSlackProfileText(raw.heading, 320);
-        if (!heading) return [];
-        const bullets = Array.isArray(raw.bullets)
-          ? raw.bullets
-              .map((bullet) => normalizedSlackProfileText(bullet, 700))
-              .filter((bullet): bullet is string => Boolean(bullet))
-              .slice(0, 8)
-          : [];
-        return [{ bullets, heading }];
-      })
-    : [];
-  const preferences = Array.isArray(value.preferences)
-    ? value.preferences
-        .map((item) => normalizedSlackProfileText(item, 700))
-        .filter((item): item is string => Boolean(item))
-        .slice(0, 8)
-    : [];
-
   return {
+    body: validateAutoIntroSlackBody(value.body),
     currentRole: normalizedSlackProfileText(value.currentRole, 500),
     education: normalizedSlackProfileText(value.education, 500),
-    harperNote: normalizedSlackProfileText(value.harperNote, 2_000),
     location: normalizedSlackProfileText(value.location, 500),
-    preferences,
-    tldr,
-    workSummary,
   };
 }
 
@@ -441,29 +725,8 @@ export function renderAutoIntroSlackProfile(value: AutoIntroSlackProfile) {
     "",
     "_*PLEASE REPLY TO REQUEST AN INTRO*_",
     "",
-    `*TL;DR* - ${escapeSlackText(profile.tldr)}`,
-    ...(profile.harperNote
-      ? ["", `*Harper Note* - ${escapeSlackText(profile.harperNote)}`]
-      : []),
+    profile.body,
   ];
-
-  if (profile.workSummary.length > 0) {
-    lines.push("", "--------", "Work Summary:");
-    for (const item of profile.workSummary) {
-      lines.push(`*${escapeSlackText(item.heading)}*`);
-      lines.push(
-        ...item.bullets.map((bullet) => `• ${escapeSlackText(bullet)}`)
-      );
-    }
-  }
-  if (profile.preferences.length > 0) {
-    lines.push(
-      "",
-      "------------",
-      "*Preferences:*",
-      ...profile.preferences.map((item) => `• ${escapeSlackText(item)}`)
-    );
-  }
 
   return lines.join("\n").trim();
 }
@@ -481,36 +744,6 @@ export function validateAutoIntroCandidateSentences(sentences: string[]) {
     );
   }
   return sentences;
-}
-
-export function validateAutoIntroInternalReason(args: {
-  internalReason?: string | null;
-  reasonMode: "author" | "codex";
-  sentences?: string[];
-  slackSummary?: string | null;
-}) {
-  const internalReason = String(args.internalReason ?? "")
-    .replace(/\r/g, "")
-    .trim();
-  if (args.reasonMode === "author") {
-    if (!internalReason) {
-      throw new Error("Author candidate has no detailed reason");
-    }
-    const compactReason = internalReason.replace(/\s+/g, " ").trim();
-    const compactSlackSummary = String(
-      args.slackSummary ?? args.sentences?.join(" ") ?? ""
-    )
-      .replace(/\s+/g, " ")
-      .trim();
-    if (compactSlackSummary && compactReason === compactSlackSummary) {
-      throw new Error("Detailed reason must differ from Slack summary");
-    }
-    return internalReason;
-  }
-  if (internalReason) {
-    throw new Error("Codex candidate must not replace stored reason");
-  }
-  return null;
 }
 
 export function escapeAutoIntroSlackHeading(value: unknown) {

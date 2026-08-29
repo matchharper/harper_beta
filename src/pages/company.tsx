@@ -1172,6 +1172,7 @@ export default function TestCompanyPage({ locale }: TestCompanyPageProps) {
           <meta name="application-name" content="Harper" />
           <meta name="author" content="Harper" />
           <meta key="theme-color" name="theme-color" content="#f7f6f1" />
+          <link rel="icon" href="/images/logo.ico" />
           <link rel="canonical" href={COMPANY_PAGE_URLS.canonicalUrl} />
           <link
             rel="alternate"

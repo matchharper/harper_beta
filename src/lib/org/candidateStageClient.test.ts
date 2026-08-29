@@ -114,6 +114,7 @@ test("keeps detail and accepted-list caches aligned with a stage response", () =
     items: [
       {
         currentStage: "accepted",
+        currentStageLabel: "수락 후 대기",
         isAwaitingStageMove: true,
         roleId: variables.roleId,
         talentId: variables.talentId,
@@ -131,5 +132,6 @@ test("keeps detail and accepted-list caches aligned with a stage response", () =
 
   assert.equal(nextDetail?.recommendation.stage, "connected");
   assert.equal(nextAccepted?.items[0]?.currentStage, "connected");
+  assert.equal(nextAccepted?.items[0]?.currentStageLabel, "연결됨");
   assert.equal(nextAccepted?.items[0]?.isAwaitingStageMove, false);
 });

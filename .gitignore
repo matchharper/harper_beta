@@ -13,6 +13,8 @@ output/
 
 # next.js
 /.next/
+/.next-e2e/
+/.next-local-slack/
 /out/
 
 # production

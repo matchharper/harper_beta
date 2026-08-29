@@ -11,6 +11,8 @@ export const CONTACT_QUEUE_TYPE_COMPANY_REQUEST_CANDIDATE_DELIVERY =
   "company_request_candidate_delivery";
 export const CONTACT_QUEUE_TYPE_COMPANY_REQUEST_COMPANY_DELIVERY =
   "company_request_company_delivery";
+export const CONTACT_QUEUE_TYPE_MEETING_SCHEDULE_CANDIDATE_INVITATION =
+  "meeting_schedule_candidate_invitation";
 
 export type ContactQueueType =
   | typeof CONTACT_QUEUE_TYPE_SIGNUP_NO_PROFILE_SUBMIT
@@ -18,6 +20,7 @@ export type ContactQueueType =
   | typeof CONTACT_QUEUE_TYPE_INTERNAL_CONNECTION_CONFIRMED
   | typeof CONTACT_QUEUE_TYPE_COMPANY_REQUEST_CANDIDATE_DELIVERY
   | typeof CONTACT_QUEUE_TYPE_COMPANY_REQUEST_COMPANY_DELIVERY
+  | typeof CONTACT_QUEUE_TYPE_MEETING_SCHEDULE_CANDIDATE_INVITATION
   | "internal_recommendation_call_abandoned";
 
 const RESCHEDULABLE_STATUSES = ["queued", "processing", "failed"] as const;

@@ -271,7 +271,6 @@ copy 대상:
 - `salary_range`와 구조화 salary 필드
 - `seniority_level`
 - `description_summary`
-- `request`
 - `company_internal_roles.request`
 
 copy하지 않거나 초기화할 값:
@@ -296,7 +295,7 @@ copy하지 않거나 초기화할 값:
 - `source_provider`와 deterministic `source_job_id`로 기존 clone을 찾는다.
 - 없으면 생성하고, 있으면 source 원문으로 update한다.
 - 같은 `source_job_id`가 두 개 이상이면 중단한다.
-- update 후 description·request·type·location의 content hash가 source와 같은지 확인한다.
+- update 후 description·canonical internal request·type·location의 content hash가 source와 같은지 확인한다.
 - clone은 항상 `paused`로 되돌린다.
 
 ### 8.2 clone SQL 골격
@@ -360,7 +359,7 @@ INSERT INTO public.company_roles (
   company_workspace_id, name, external_jd_url, description, information,
   type, status, priority, source_type, source_provider, source_job_id,
   posted_at, expires_at, location_text, work_mode, salary_range,
-  seniority_level, description_summary, is_expired, request,
+  seniority_level, description_summary, is_expired,
   salary_min, salary_max, salary_currency, salary_period, summary
 )
 SELECT
@@ -392,7 +391,6 @@ SELECT
   source.seniority_level,
   source.description_summary,
   false,
-  source.request,
   source.salary_min,
   source.salary_max,
   source.salary_currency,
@@ -436,7 +434,6 @@ SET
   seniority_level = source.seniority_level,
   description_summary = source.description_summary,
   is_expired = false,
-  request = source.request,
   salary_min = source.salary_min,
   salary_max = source.salary_max,
   salary_currency = source.salary_currency,
@@ -473,7 +470,7 @@ ON CONFLICT (role_id) DO UPDATE SET
 COMMIT;
 ```
 
-`UPDATE` 구현은 insert와 같은 source field 목록을 사용해야 한다. 일부 필드만 갱신해 stale request·location이 남지 않도록 한다.
+`UPDATE` 구현은 insert와 같은 source field 목록을 사용해야 한다. 일부 필드만 갱신해 stale canonical request·location이 남지 않도록 한다.
 
 ## 9. Phase B: 테스트 시작 전 후보 연결 데이터 완전 초기화
 

@@ -20,9 +20,18 @@ test("relay policy does not reject a request merely because it has related quest
   );
 });
 
-test("relay policy blocks sensitive questions without requiring a question enum", () => {
+test("relay policy allows age and nationality questions", () => {
+  for (const request of [
+    "후보자의 나이와 생년월일, 국적, 출신 국가, 시민권, 영주권 확인",
+    "Confirm the candidate's age, birth date, nationality, citizenship, and residency",
+  ]) {
+    assert.equal(assertSafeProfessionalQuestion(request), request);
+  }
+});
+
+test("relay policy blocks remaining sensitive questions without requiring a question enum", () => {
   assert.throws(() =>
-    assertSafeProfessionalQuestion("후보자의 나이와 결혼 여부 확인")
+    assertSafeProfessionalQuestion("후보자의 결혼 여부와 건강 상태 확인")
   );
   assert.equal(
     assertSafeProfessionalQuestion(

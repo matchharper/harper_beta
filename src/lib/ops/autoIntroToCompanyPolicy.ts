@@ -22,9 +22,9 @@ export const AUTO_INTRO_WORKSPACE_OPENING = [
 
 export const AUTO_INTRO_RESPONSE_GUIDANCE = [
   "프로필과 Harper의 추천 이유를 천천히 확인한 뒤 연결을 받으실지, 거절하실지 선택해 주세요.",
-  "연결을 수락하면 후보자와의 대화를 직접 이어나가실 수 있게 연결해드려요.",
-  "거절시 연결이 진행되지 않는다는 내용을 Harper가 후보자에게 적절한 타이밍에 가볍게 안내해요.",
-  "이번 추천에서 좋았던 점이나 맞지 않았던 점을 알려주시면 다음에는 팀이 원하는 분을 더 정확하게 찾아볼게요.",
+  "\n- 연결을 수락하면 후보자와의 대화를 직접 이어나가실 수 있게 연결해드려요.",
+  "\n- 거절시 연결이 진행되지 않는다는 내용을 Harper가 후보자에게 적절한 타이밍에 가볍게 안내해요.",
+  "\n이번 추천에서 좋았던 점이나 맞지 않았던 점을 알려주시면 다음에는 팀이 원하는 분을 더 정확하게 찾아볼게요.",
 ].join(" ");
 
 export type AutoIntroStageTag = {
@@ -106,7 +106,7 @@ export function getAutoIntroRoleSummaryDateKey(now = new Date()) {
 
 export function isAutoIntroRoleSummaryDay(now = new Date()) {
   const day = kstShiftedDate(now).getUTCDay();
-  return day === 1 || day === 4;
+  return day === 1 || day === 3 || day === 5;
 }
 
 export function buildAutoIntroFollowUpPostscript(question: unknown) {
@@ -115,5 +115,5 @@ export function buildAutoIntroFollowUpPostscript(question: unknown) {
   const questionText = /[?？]$/.test(normalized)
     ? normalized
     : `${normalized.replace(/[.!。！]+$/, "")}?`;
-  return ["*다음 추천을 위한 질문*", questionText].join(" ");
+  return ["*알려주시면 좋은 질문*", questionText].join(" ");
 }

@@ -357,8 +357,8 @@ export async function ensureOrgAgentConversation(args: {
 
 /**
  * Returns the conversation owned by one role. It contains /org/role chat and
- * only the dedicated Slack role-creation thread; ordinary web and Slack chat
- * remain in the role_id-null workspace conversation.
+ * role-scoped Slack notifications and thread replies. Workspace-wide chat and
+ * cross-role Slack summaries remain in the role_id-null conversation.
  */
 export async function ensureOrgRoleCreationConversation(args: {
   allowCompletedRole?: boolean;
@@ -451,24 +451,93 @@ export async function ensureOrgRoleCreationConversation(args: {
   return { admin, conversation: raced as OrgAgentConversationRow };
 }
 
+async function findOrgRoleConversationForRead(args: {
+  roleId: string;
+  user: User;
+  workspaceId: string;
+}): Promise<{
+  admin: SupabaseAdminClient;
+  conversation: OrgAgentConversationRow | null;
+  roleId: string;
+  workspaceId: string;
+}> {
+  const admin = getSupabaseAdmin();
+  const workspaceId = normalizeText(args.workspaceId);
+  const roleId = normalizeText(args.roleId);
+  if (!workspaceId || !roleId) {
+    throw new OrgHttpError(400, "workspaceId and roleId are required");
+  }
+
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "view",
+    user: args.user,
+    workspaceId,
+  });
+
+  const { data: role, error: roleError } = await (
+    admin.from("company_roles" as any) as any
+  )
+    .select("role_id")
+    .eq("company_workspace_id", workspaceId)
+    .eq("role_id", roleId)
+    .eq("source_type", "internal")
+    .not("is_expired", "is", true)
+    .maybeSingle();
+  if (roleError) throw roleError;
+  if (!role) throw new OrgHttpError(404, "Role not found");
+
+  const { data: conversation, error: conversationError } = await (
+    admin.from("company_conversations" as any) as any
+  )
+    .select(
+      "id, company_workspace_id, role_id, title, last_message_at, last_message_id, summary_cursor_message_id, metadata, created_at, updated_at"
+    )
+    .eq("company_workspace_id", workspaceId)
+    .eq("role_id", roleId)
+    .maybeSingle();
+  if (conversationError) throw conversationError;
+
+  return {
+    admin,
+    conversation: (conversation as OrgAgentConversationRow | null) ?? null,
+    roleId,
+    workspaceId,
+  };
+}
+
 export async function fetchOrgAgentMessages(args: {
   beforeMessageId?: number | null;
   limit?: number | null;
-  mode?: "general" | "role_creation";
+  mode?: "general" | "role" | "role_creation";
   roleId?: string | null;
   user: User;
   workspaceId: string;
 }) {
-  const scoped =
-    args.mode === "role_creation"
-      ? await ensureOrgRoleCreationConversation({
-          allowCompletedRole: true,
-          roleId: normalizeText(args.roleId),
-          user: args.user,
-          workspaceId: args.workspaceId,
-        })
-      : await ensureOrgAgentConversation(args);
+  const roleScoped = args.mode === "role_creation" || args.mode === "role";
+  const scoped = roleScoped
+    ? await findOrgRoleConversationForRead({
+        roleId: normalizeText(args.roleId),
+        user: args.user,
+        workspaceId: args.workspaceId,
+      })
+    : await ensureOrgAgentConversation(args);
   const { admin, conversation } = scoped;
+  if (!conversation) {
+    return {
+      conversation: {
+        conversationId: "",
+        roleId: roleScoped ? normalizeText(args.roleId) || null : null,
+        title: null,
+        workspaceId: normalizeText(args.workspaceId),
+      },
+      hasMore: false,
+      latestUserMessageAt: null,
+      messages: [],
+      nextCursor: null,
+      ok: true as const,
+    };
+  }
   const limit = Math.min(Math.max(args.limit ?? 30, 1), 80);
   let query = (admin.from("company_messages" as any) as any)
     .select(
@@ -479,7 +548,7 @@ export async function fetchOrgAgentMessages(args: {
     .limit(limit + 1);
 
   query =
-    args.mode === "role_creation"
+    args.mode === "role_creation" || args.mode === "role"
       ? query.in("message_type", ["chat", "slack"])
       : query.eq("message_type", "chat");
 
@@ -489,6 +558,19 @@ export async function fetchOrgAgentMessages(args: {
 
   const { data, error } = await query;
   if (error) throw error;
+  let latestUserMessageQuery = (admin.from("company_messages" as any) as any)
+    .select("created_at")
+    .eq("conversation_id", conversation.id)
+    .eq("role", "user")
+    .order("id", { ascending: false })
+    .limit(1);
+  latestUserMessageQuery =
+    args.mode === "role_creation" || args.mode === "role"
+      ? latestUserMessageQuery.in("message_type", ["chat", "slack"])
+      : latestUserMessageQuery.eq("message_type", "chat");
+  const { data: latestUserMessage, error: latestUserMessageError } =
+    await latestUserMessageQuery.maybeSingle();
+  if (latestUserMessageError) throw latestUserMessageError;
   const rows = ((data ?? []) as OrgAgentMessageRow[]).slice(0, limit);
   const messages = rows.reverse().map(toOrgAgentMessage);
   const hasMore = (data ?? []).length > limit;
@@ -496,6 +578,7 @@ export async function fetchOrgAgentMessages(args: {
   return {
     conversation: toOrgAgentConversation(conversation),
     hasMore,
+    latestUserMessageAt: normalizeText(latestUserMessage?.created_at) || null,
     messages,
     nextCursor: hasMore ? (messages[0]?.id ?? null) : null,
     ok: true as const,

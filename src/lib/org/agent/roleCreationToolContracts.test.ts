@@ -56,6 +56,12 @@ test("role and company updates require at least one declared field", () => {
   assert.match(roleBlock, /maxItems: 6/);
   assert.match(roleBlock, /independently assessable/);
   assert.match(roleBlock, /minimum bar/);
+  assert.match(roleBlock, /Role eligibility/);
+  assert.match(roleBlock, /company talent quality \/ caliber/);
+  assert.match(roleBlock, /independent interview threshold/);
+  assert.match(roleBlock, /may satisfy the Role and remain below/);
+  assert.match(roleBlock, /Top-tier school, company, program, or core-team evidence/);
+  assert.match(roleBlock, /actual role and contribution/);
   assert.match(companyBlock, /minProperties: 1/);
   assert.doesNotMatch(companyBlock, /anyOf/);
   assert.doesNotMatch(companyBlock, /required: \["description"\]/);
@@ -64,6 +70,14 @@ test("role and company updates require at least one declared field", () => {
   assert.doesNotMatch(
     companyBlock,
     /required: \["lastFundingRoundDescription"\]/
+  );
+});
+
+test("saved Role Descriptions strip private company-information markers", () => {
+  assert.match(stateSource, /stripOrgAgentCompanyInfoMarker/);
+  assert.match(
+    stateSource,
+    /stripOrgAgentCompanyInfoMarker\(args\.description\)/
   );
 });
 
@@ -100,4 +114,21 @@ test("final confirmation follows team-preference discovery", () => {
   const block = source.slice(start, source.indexOf("] as const", start));
   assert.match(block, /at least two distinct opportunities/);
   assert.match(block, /beyond the JD and technical must-haves/);
+  assert.match(block, /representative ideal current team member/);
+  assert.match(block, /any useful professional source/);
+  assert.match(block, /LinkedIn is one possible source, not a requirement/);
+  assert.match(block, /why that person is a strong reference/);
+});
+
+test("the ordinary Hiring Brief writer preserves the independent caliber gate", () => {
+  const block = toolBlock("update_role_draft", "update_company_context");
+  assert.match(block, /complete private Hiring Brief/);
+  assert.match(block, /Role eligibility/);
+  assert.match(block, /company talent quality \/ caliber/);
+  assert.match(block, /independent interview threshold/);
+  assert.match(block, /may satisfy the Role and remain below/);
+  assert.match(block, /Top-tier school/);
+  assert.match(block, /company, program, or core-team evidence/);
+  assert.match(block, /actual role and contribution/);
+  assert.match(block, /Real-person calibration belongs in calibrate_role_hiring_brief/);
 });

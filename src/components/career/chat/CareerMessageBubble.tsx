@@ -1,6 +1,14 @@
 import React, { type ReactNode } from "react";
 import { useRouter } from "next/router";
-import { AudioLines, FileText, Mail, Phone, PhoneOutgoing } from "lucide-react";
+import {
+  ArrowUpRight,
+  AudioLines,
+  FileText,
+  Mail,
+  MessageCircleMore,
+  Phone,
+  PhoneOutgoing,
+} from "lucide-react";
 import type {
   CareerCallStartRequest,
   CareerMessage,
@@ -34,6 +42,11 @@ import {
   ChatChoiceList,
   ChatMessageBubbleFrame,
 } from "@/components/chat/ChatTimeline";
+import {
+  extractCareerReengagementActions,
+  type CareerReengagementAction,
+} from "@/lib/career/reengagementActions";
+import Image from "next/image";
 
 // User bubble 색상을 바꾸려면 이 클래스를 수정하세요.
 export const USER_BUBBLE_CLASS = CHAT_USER_BUBBLE_CLASS;
@@ -65,6 +78,13 @@ export type CareerAssistantChoiceSelection = {
   choiceIndex: number;
 };
 
+export type CareerReengagementActionSelection = {
+  action: CareerReengagementAction;
+  actionCount: number;
+  actionIndex: number;
+  assistantMessageId: string;
+};
+
 type InternalCallRequestMarker = {
   callId: string;
   companyName: string;
@@ -80,6 +100,9 @@ type Props = {
   isCallStartPending?: boolean;
   onSelectAssistantChoice?: (
     selection: CareerAssistantChoiceSelection
+  ) => void | Promise<void>;
+  onSelectReengagementAction?: (
+    selection: CareerReengagementActionSelection
   ) => void | Promise<void>;
   onStartCallMode?: (args?: CareerCallStartRequest) => void | Promise<void>;
 };
@@ -341,6 +364,7 @@ const CareerMessageBubble = ({
   choiceActionsDisabled = false,
   isCallStartPending = false,
   onSelectAssistantChoice,
+  onSelectReengagementAction,
   onStartCallMode,
 }: Props) => {
   const t = useCareerT();
@@ -375,10 +399,14 @@ const CareerMessageBubble = ({
   const choiceBlockExtraction = !isUser
     ? extractAssistantChoiceBlocks(internalCallRequestExtraction.content)
     : { content: internalCallRequestExtraction.content, choices: [] };
+  const reengagementActionExtraction = !isUser
+    ? extractCareerReengagementActions(choiceBlockExtraction.content)
+    : { actions: [], content: choiceBlockExtraction.content };
   const displayContent = !isUser
-    ? stripOpportunityRunMarkers(choiceBlockExtraction.content)
-    : choiceBlockExtraction.content;
+    ? stripOpportunityRunMarkers(reengagementActionExtraction.content)
+    : reengagementActionExtraction.content;
   const assistantChoices = choiceBlockExtraction.choices;
+  const reengagementActions = reengagementActionExtraction.actions;
   const internalCallRequestMarkers = internalCallRequestExtraction.markers;
   const assistantContent =
     !isUser && (message.opportunityPreview?.length ?? 0) > 0
@@ -481,6 +509,56 @@ const CareerMessageBubble = ({
             typographyClassName={careerTimelineMetaTextClassName}
           />
         )}
+        {!isUser && !message.typing && reengagementActions.length > 0 && (
+          <div className="mt-4 flex flex-col max-w-[640px] flex-wrap gap-2">
+            {reengagementActions.map((item, index) => {
+              const ActionIcon =
+                item.action.type === "send_message" ? (
+                  <Image
+                    src="/svgs/face.svg"
+                    alt=""
+                    aria-hidden="true"
+                    width={14}
+                    height={14}
+                  />
+                ) : item.action.type === "open_pending_action" ? (
+                  <MessageCircleMore aria-hidden="true" className="size-4" />
+                ) : (
+                  <ArrowUpRight aria-hidden="true" className="size-4" />
+                );
+              const actionKey =
+                item.action.type === "send_message"
+                  ? item.action.message
+                  : item.action.type === "open_path"
+                    ? item.action.path
+                    : item.action.ref;
+
+              return (
+                <button
+                  type="button"
+                  key={`${message.id}-reengagement-${index}-${actionKey}`}
+                  className="flex flex-row items-center gap-2 max-w-full text-sm text-black/50 hover:text-black py-0.5  min-w-0 justify-start"
+                  disabled={
+                    choiceActionsDisabled || !onSelectReengagementAction
+                  }
+                  onClick={() =>
+                    void onSelectReengagementAction?.({
+                      action: item,
+                      actionCount: reengagementActions.length,
+                      actionIndex: index,
+                      assistantMessageId: String(message.id),
+                    })
+                  }
+                >
+                  {ActionIcon}
+                  <span className="min-w-0 whitespace-normal text-left">
+                    {item.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         {hasCallAction && (
           <BareButton
             type="button"
@@ -504,17 +582,17 @@ const CareerMessageBubble = ({
         {internalCallRequestMarkers.map((marker) => (
           <div
             key={marker.callId}
-            className="mt-3 w-[94%] max-w-[400px] rounded-md border border-neutral-200 bg-bg-floating px-2 py-2 text-neutral-primary"
+            className="mt-3 w-[94%] max-w-[440px] rounded-md border border-neutral-200 bg-bg-floating px-2 py-2 text-neutral-primary"
           >
             <div className="flex flex-col items-center justify-center gap-3">
-              <div className="min-h-28 py-2 px-3 bg-neutral-100 rounded-md flex flex-col items-center justify-center">
-                <div className="text-sm font-medium leading-snug pb-4 pt-2">
+              <div className="min-h-20 flex flex-col items-start justify-center">
+                <div className="text-sm font-normal leading-snug">
                   Call for {'"'}
                   {marker.companyName} - {marker.roleTitle}
                   {'"'}
                 </div>
                 <div
-                  className="mt-1 text-[14px] md:text-[13px] text-center leading-5 text-neutral-muted"
+                  className="mt-1 text-[14px] md:text-[13px] text-left leading-5 text-neutral-muted"
                   dangerouslySetInnerHTML={{
                     __html: t(
                       "career.chat.career_message_bubble.optional_call_notice",

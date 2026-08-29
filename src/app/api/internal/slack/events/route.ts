@@ -3,7 +3,7 @@ import {
   isHarperSlackAppId,
   verifyHarperSlackSignature,
 } from "@/lib/org/slackHarper";
-import { queueHarperSlackEvent } from "@/lib/org/slackHarperEvents";
+import { publishHarperSlackEvent } from "@/lib/org/slackTurnQueue";
 
 export const runtime = "nodejs";
 
@@ -26,9 +26,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "wrong_app" }, { status: 403 });
 
   try {
-    await queueHarperSlackEvent(body);
+    await publishHarperSlackEvent(body);
   } catch (error) {
-    console.error("[harper-slack/events]", error);
+    console.error("[harper-slack/events:publish]", error);
     return NextResponse.json({ error: "queue_failed" }, { status: 500 });
   }
   return NextResponse.json({ ok: true });

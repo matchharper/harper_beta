@@ -54,7 +54,7 @@ export const ORG_DOCUMENTS_MARKDOWN_STYLES = {
   h4: "scroll-mt-36 mt-9 text-[16px] font-semibold leading-7 text-[#272321] xl:scroll-mt-12",
   hr: "my-12 border-[#e9e6e4]",
   image: "mt-6 h-auto max-w-full rounded-xl border border-[#ebe7e4]",
-  lead: "mt-2 text-[18px] font-normal leading-7 text-[#504a46]",
+  lead: "mt-2 text-[16px] font-normal leading-7 text-black",
   link: "text-[#7c4f35] underline decoration-[#c9a994] decoration-1 underline-offset-4 transition-colors hover:text-[#573824] hover:decoration-current focus-visible:outline-none focus-visible:decoration-current",
   list: "mt-3 list-disc space-y-2 pl-[19px] text-[16px] font-normal leading-7 text-[#403f3f] marker:text-[#a39b96] [&>li]:pl-1",
   orderedList:

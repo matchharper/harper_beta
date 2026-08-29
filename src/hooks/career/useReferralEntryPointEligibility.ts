@@ -13,9 +13,9 @@ export const referralEntryPointEligibilityKey = (userId?: string | null) =>
   ["referral-entry-point-eligibility", userId ?? "anonymous"] as const;
 
 export function useReferralEntryPointEligibility({
-  currentLocation,
   enabled = true,
   location,
+  currentLocation,
   preferredLocale,
   user,
 }: {
@@ -29,11 +29,11 @@ export function useReferralEntryPointEligibility({
   const locallyEligible = useMemo(
     () =>
       canShowReferralEntryPoints({
-        currentLocation,
         location,
+        currentLocation,
         preferredLocale,
       }),
-    [currentLocation, location, preferredLocale]
+    [location, currentLocation, preferredLocale]
   );
 
   const query = useQuery({

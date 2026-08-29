@@ -250,6 +250,7 @@ export function OrgRolesOverview({
   onOpenRole,
   onPauseRole,
   onResumeRole,
+  renderRoleControl,
   roleActionPending = false,
   roles,
 }: {
@@ -260,6 +261,7 @@ export function OrgRolesOverview({
   onOpenRole: (role: OrgRole, view?: "pipeline" | "role") => void;
   onPauseRole?: (role: OrgRole) => void;
   onResumeRole?: (role: OrgRole) => void;
+  renderRoleControl?: (role: OrgRole) => ReactNode;
   roleActionPending?: boolean;
   roles: OrgRole[];
 }) {
@@ -417,6 +419,9 @@ export function OrgRolesOverview({
             {filteredRoles.map((role) => {
               const roleStages = buildRoleStages(board, role);
               const totalCount = totalByRole.get(role.roleId) ?? 0;
+              const roleControl = renderRoleControl?.(role);
+              const showRoleActions =
+                canManageRole && normalizeRoleStatus(role.status) !== "draft";
               return (
                 <article
                   key={role.roleId}
@@ -433,16 +438,22 @@ export function OrgRolesOverview({
                           {role.name}
                         </button>
                       </div>
-                      {canManageRole &&
-                      normalizeRoleStatus(role.status) !== "draft" ? (
-                        <OrgRoleActionsMenu
-                          role={role}
-                          pending={roleActionPending}
-                          onEdit={(selectedRole) => onOpenRole(selectedRole)}
-                          onPause={onPauseRole!}
-                          onResume={onResumeRole!}
-                          onDelete={onDeleteRole!}
-                        />
+                      {roleControl || showRoleActions ? (
+                        <div className="flex shrink-0 items-center gap-2">
+                          {roleControl}
+                          {showRoleActions ? (
+                            <OrgRoleActionsMenu
+                              role={role}
+                              pending={roleActionPending}
+                              onEdit={(selectedRole) =>
+                                onOpenRole(selectedRole)
+                              }
+                              onPause={onPauseRole!}
+                              onResume={onResumeRole!}
+                              onDelete={onDeleteRole!}
+                            />
+                          ) : null}
+                        </div>
                       ) : null}
                     </div>
                     <div className="flex flex-wrap items-center justify-start gap-1.5">

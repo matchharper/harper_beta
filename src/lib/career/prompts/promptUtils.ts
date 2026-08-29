@@ -81,10 +81,10 @@ const rawIsoTimestampPattern =
 
 const compactPromptKstDateTimeFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: CAREER_PROFILE_PROMPT_TIME_ZONE,
-  year: "numeric",
   month: "2-digit",
   day: "2-digit",
   hour: "2-digit",
+  minute: "2-digit",
   hourCycle: "h23",
 });
 
@@ -121,10 +121,18 @@ export function formatCareerPromptCompactDateTime(value: unknown) {
             160
           );
   if (!text) return "";
-  if (/^\d{4}-\d{2}-\d{2} \d{1,2}시(?:\s*KST)?$/.test(text)) {
-    return text.replace(/\s*KST$/, "");
+  const existingKstHourMatch = text.match(
+    /^\d{4}-(\d{2})-(\d{2}) (\d{1,2})시(?:\s*KST)?$/
+  );
+  if (existingKstHourMatch) {
+    return `${Number(existingKstHourMatch[1])}월 ${Number(
+      existingKstHourMatch[2]
+    )}일 ${String(Number(existingKstHourMatch[3])).padStart(2, "0")}:00`;
   }
-  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const dateOnlyMatch = text.match(/^\d{4}-(\d{2})-(\d{2})$/);
+  if (dateOnlyMatch) {
+    return `${Number(dateOnlyMatch[1])}월 ${Number(dateOnlyMatch[2])}일`;
+  }
 
   const date = new Date(normalizeTimestampForDateParse(text));
   if (Number.isNaN(date.getTime())) {
@@ -134,14 +142,14 @@ export function formatCareerPromptCompactDateTime(value: unknown) {
   const parts = compactPromptKstDateTimeFormatter.formatToParts(date);
   const partValue = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((part) => part.type === type)?.value;
-  const year = partValue("year");
   const month = partValue("month");
   const day = partValue("day");
   const hour = partValue("hour");
-  if (!year || !month || !day || !hour) {
+  const minute = partValue("minute");
+  if (!month || !day || !hour || !minute) {
     return text.slice(0, 10);
   }
-  return `${year}-${month}-${day} ${hour}시`;
+  return `${Number(month)}월 ${Number(day)}일 ${hour}:${minute}`;
 }
 
 export function sanitizeCareerPromptDateValues(text: string) {
@@ -151,50 +159,9 @@ export function sanitizeCareerPromptDateValues(text: string) {
   });
 }
 
-const careerPromptKstDateTimeFormatter = new Intl.DateTimeFormat("ko-KR", {
-  timeZone: CAREER_PROFILE_PROMPT_TIME_ZONE,
-  year: "numeric",
-  month: "numeric",
-  day: "numeric",
-  hour: "numeric",
-  minute: "numeric",
-  hourCycle: "h23",
-});
-
 export function formatCareerPromptKoreanDateTime(
   value: string | null | undefined
 ) {
   if (!value) return "(없음)";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-
-  const parts = careerPromptKstDateTimeFormatter.formatToParts(date);
-  const partValue = (type: Intl.DateTimeFormatPartTypes) => {
-    const part = parts.find((item) => item.type === type);
-    if (!part) return null;
-
-    const numberValue = Number(part.value);
-    return Number.isFinite(numberValue) ? numberValue : null;
-  };
-
-  const year = partValue("year");
-  const month = partValue("month");
-  const day = partValue("day");
-  const hour = partValue("hour");
-  const minute = partValue("minute");
-
-  if (
-    year === null ||
-    month === null ||
-    day === null ||
-    hour === null ||
-    minute === null
-  ) {
-    return careerPromptKstDateTimeFormatter.format(date);
-  }
-
-  const hourLabel = String(hour).padStart(2, "0");
-  const minuteLabel = String(minute).padStart(2, "0");
-  return `${year}년 ${month}월 ${day}일 ${hourLabel}:${minuteLabel} KST`;
+  return formatCareerPromptCompactDateTime(value) || "(인식할 수 없는 시각)";
 }

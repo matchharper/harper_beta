@@ -128,6 +128,8 @@ export function OrgRoleSettingsContent({
   const initialStatus = normalizeOrgRoleStatus(role.status);
   const lifecycleStatus =
     initialStatus === "top_priority" ? "active" : initialStatus;
+  const showRoleDeletion =
+    layout === "panel" && (roleCreation || lifecycleStatus === "ended");
   const statusMeta = roleCreation
     ? {
         description: "아직 채용을 시작하지 않았습니다.",
@@ -546,7 +548,7 @@ export function OrgRoleSettingsContent({
         </OrgSection>
       ) : null} */}
 
-      {roleCreation && layout === "panel" ? (
+      {showRoleDeletion ? (
         <OrgSection>
           <OrgSectionHeader title="역할 삭제" />
           <MuteButton

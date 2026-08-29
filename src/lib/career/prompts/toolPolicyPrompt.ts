@@ -192,31 +192,10 @@ export function buildCareerToolPolicyPrompt(args: {
             ? "- Use `read_document` only when the answer needs saved document content. For a current-turn upload that already includes content_excerpt, start from its next_offset; for an earlier saved document, start with offset=0. Use max_chars=4000, then continue from nextOffset only when hasMore is true and the missing portion matters. A binary-only file may have textAvailable=false."
             : "",
           hasUpdateDocumentTool
-            ? '- Use `update_document` to correct resume/document kind, primary/public state, or soft-delete status only when the user\'s request or the current-turn upload context supports that change. Document content cannot be edited; if the user asks to change it, say "내용 수정은 불가능하며, 새로 업로드 해야한다." Never expose internal field names in the user-facing reply.'
+            ? `- Use 'update_document' to correct resume/document kind, primary/public state, or soft-delete status only when the user\'s request or the current-turn upload context supports that change. Document content cannot be edited; if the user asks to change it, say "내용 수정은 불가능하며, 새로 업로드 해야한다." Never expose internal field names in the user-facing reply.
+  - For a newly uploaded file, correct an obviously wrong filename-based kind. Soft-delete it when it is clearly transient third-party reference material and the user did not ask to keep it. If ownership or retention intent is ambiguous, ask before changing or deleting it.
+  - Setting is_deleted=true is a soft delete only; do not claim that the underlying storage object was permanently erased. Set is_primary=true only for a resume and only when the user clearly wants that file to be their primary resume.`
             : "",
-          hasUpdateDocumentTool
-            ? "- For a newly uploaded file, correct an obviously wrong filename-based kind. Soft-delete it when it is clearly transient third-party reference material and the user did not ask to keep it. If ownership or retention intent is ambiguous, ask before changing or deleting it."
-            : "",
-          hasUpdateDocumentTool
-            ? "- Setting is_deleted=true is a soft delete only; do not claim that the underlying storage object was permanently erased. Set is_primary=true only for a resume and only when the user clearly wants that file to be their primary resume."
-            : "",
-          "",
-        ]
-      : []),
-    ...(hasJobPostingRecommendationTool
-      ? [
-          "- Use `recommend_job_postings` when the user asks you to find, recommend, or match new job postings, open roles, positions, or opportunities. This includes requests with specific constraints like role family, LLM/AI domain, location, work mode, seniority, or company type.",
-          "- If the latest message combines search with a durable hard filter or future-matching command (e.g. '~로만', '~만 보내줘', '앞으로', '다음부터', '~ 조건을 반영'), call `update_talent_profile` first; search only if the user also asked to find postings now.",
-          "- Before searching, triage aligned search vs off-profile/aspirational vs one-off browsing. For clearly off-profile requests, explain the mismatch and ask one clarifier first. For one-off browsing, include that in `request` and do not update memory.",
-          "- If you run `recommend_job_postings` for an ambiguous search condition before saving it, end the answer by asking one short question about whether Harper should reflect that condition in future matching. If the user says yes, call `update_talent_profile` on the next turn.",
-          "- If the requested role is unrealistic for the profile, prefer an adjacent realistic query around the same company/domain unless the user explicitly insists on the original role.",
-          "- Always choose the search kind deliberately. Use `kind=instant` by default. Instant uses Harper's original immediate recommendation flow and returns up to 5 postings in the current conversation; pass `max_results=5`.",
-          "- Use `kind=bulk` only when the user explicitly asks for roughly 10-20 postings, explicitly asks for a deeper/high-accuracy search, or explicitly accepts your offer to run bulk. An ordinary request to find or recommend jobs is not bulk permission.",
-          "- Before calling with `kind=bulk`, briefly tell the user that it takes longer because Harper searches and evaluates more postings, and that Harper will notify them by email when it finishes. If the user did not specify a count, pass `max_results=15`; preserve an explicit count up to the service maximum of 20.",
-          "- Never silently change a bulk request into instant. If the bulk result says it could not be scheduled, explain that outcome from `answerDraft` and let the user explicitly request instant instead.",
-          "- A `kind=bulk` call schedules a background search instead of returning postings immediately. Treat `answerDraft` as the factual source of truth: do not claim that queued work already searched, found, selected, or saved roles, and do not claim new criteria were merged when the result says they were not applied.",
-          "- After `recommend_job_postings`, use `answerDraft` directly. Preserve its details about the active request, whether a new run was created, the maximum count, delivery channels, and next step.",
-          "- Preserve every standalone `[posting](role_id)` line from `answerDraft` exactly. These lines drive the chat posting-card carousel, so do not remove or rewrite them.",
         ]
       : []),
     ...(hasUpdateSettingTool
@@ -259,6 +238,8 @@ export function buildCareerToolPolicyPrompt(args: {
           "1) talentUser.bio: explicit final Summary/About/Bio replacement, correction, or clear request; never infer it from assistant-only summaries.",
           "2) talentUser.location: explicit current primary base/residence only; not travel, past/target job location, desired work location, or relocation preference.",
           `3) rowMemos: when the user's latest statement clearly maps to one specific visible experience/education/extra row, use operation=append for genuinely new detail that should follow the existing memo, or operation=update when the user corrects or asks to revise the existing memo. For update, send the complete final ${outputLanguage} memo, not only the changed fragment. Use the visible RowID, omit if ambiguous/no row/generic, update to empty string to delete it and do not duplicate it into talentInsights.`,
+          "- Never store overly sensitive personal information in rowMemos, even if the user discloses it.",
+          "- If related context must be retained, record only the generalized consequence and omit the sensitive cause and details.",
           args.isOnboardingActive
             ? "- Use only talentUser.bio, talentUser.location, profileLinks, and rowMemos. Do NOT call this tool during onboarding for general answers that only update user preference or future matching memory. Those are handled outside this tool until onboarding completes."
             : `4) talentInsights: opportunity preference/memory patch; merge existing axes, use English snake_case keys and complete ${outputLanguage} sentence values. Do not write information about rowMemos here. Things to remember for opportunity recommendation.`,

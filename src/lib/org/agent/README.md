@@ -30,7 +30,7 @@
   문서다. 모든 서술형 회사 정보와 후보자에게 전달할 회사 설명은 이 Markdown
   문서에 저장한다. 홈페이지·LinkedIn 외의 회사 URL은 `related_links`에 저장한다.
 - company-side LLM의 일반 정보 write 진입점은 `update_data`다. 한 번에 최대 12개를
-  `append`, `replace`, `rewrite`로 처리한다. Role의 진행·중단·종료는 별도 terminal
+  `append`, `replace`, `rewrite`로 처리한다. Role의 진행·중단·종료·삭제는 별도 terminal
   tool `change_role_status`가 담당하고, structured criteria의 전체 교체와 이름 기반
   선택 추가·수정·삭제는 `update_role_criteria`가 담당한다.
 - request/memory 계열 변경은 즉시 쓰지 않고 저장된 preview를 보여준 뒤 다음

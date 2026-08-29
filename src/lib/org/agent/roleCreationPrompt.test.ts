@@ -122,6 +122,41 @@ test("requires a settings link when no Slack channel is available", () => {
   assert.match(prompt, /Do not request final role-creation confirmation/);
 });
 
+test("calibrates the company selection bar from people supplied through any professional source", () => {
+  const prompt = buildRoleCreationSystemPrompt({ surface: "chat" });
+  const slackPrompt = buildRoleCreationSystemPrompt({ surface: "slack" });
+
+  assert.match(prompt, /REFERENCE-PROFILE CALIBRATION FOR A NEW DRAFT/);
+  assert.match(slackPrompt, /REFERENCE-PROFILE CALIBRATION FOR A NEW DRAFT/);
+  assert.match(
+    prompt,
+    /representative ideal profiles among current team members/
+  );
+  assert.match(prompt, /Phrase the invitation naturally from the conversation/);
+  assert.match(prompt, /LinkedIn or GitHub profile/);
+  assert.match(prompt, /the company's caliber bar is still uncalibrated/);
+  assert.match(
+    prompt,
+    /prioritize this invitation over another generic question/
+  );
+  assert.match(prompt, /call calibrate_role_hiring_brief as the only tool/);
+  assert.match(prompt, /Recognize the intent from the conversation/);
+  assert.match(prompt, /evidence for the company's caliber, not as candidates/);
+  assert.match(prompt, /Role eligibility changes only when the user explicitly connects/);
+  assert.match(prompt, /turns reference evidence into direct candidate-evaluation rules/);
+  assert.match(prompt, /small set of non-exclusive bonuses/);
+  assert.match(prompt, /concrete peer groups rather than the person's exact biography/);
+  assert.match(prompt, /varied examples can establish stronger shared rules/);
+  assert.match(prompt, /User-stated reasons remain strongest/);
+  assert.match(prompt, /narrowest useful bonuses from the profile's strongest distinctive professional signals/);
+  assert.match(prompt, /explains that reasoning to the user/);
+  assert.match(prompt, /Ask at most one follow-up question/);
+  assert.match(prompt, /professional, job-related evidence/);
+  assert.doesNotMatch(prompt, /gpt-5\.6-terra at max reasoning/);
+  assert.doesNotMatch(prompt, /pre-open sources/);
+  assert.doesNotMatch(prompt, /another model/i);
+});
+
 test("includes the durable one-attempt source-research marker in role state", () => {
   const prompt = buildRoleCreationUserPrompt({
     attachments: [],
@@ -263,13 +298,18 @@ test("signals when Harper should proactively draft structured criteria", () => {
   assert.match(prompt, /"maxItems": 6/);
 });
 
-test("prioritizes a supplied JD while requiring a company introduction and usage marker", () => {
+test("writes company information as prose and keeps its marker out of saved fields", () => {
   const prompt = buildRoleCreationSystemPrompt({ surface: "chat" });
 
   assert.match(prompt, /JD remains the primary source/);
   assert.match(prompt, /first paragraph a concise company introduction/);
+  assert.match(prompt, /actual candidate-visible company introduction/);
+  assert.match(prompt, /Never put it in a tool argument or saved Role field/);
   assert.match(prompt, /exact standalone marker \[\[company_info\]\]/);
   assert.match(prompt, /Do not add a separate sentence, heading, card label/);
-  assert.match(prompt, /compact linked sentence "회사 정보를 반영했습니다\."/);
+  assert.match(
+    prompt,
+    /compact linked sentence "회사 정보를 작성에 참고했어요\."/
+  );
   assert.match(prompt, /only when company information was actually used/);
 });

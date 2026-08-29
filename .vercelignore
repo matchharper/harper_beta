@@ -1,0 +1,20 @@
+# Local dependency installs and generated build output are recreated by Vercel.
+node_modules/
+.next/
+.next-e2e/
+.next-local-slack/
+out/
+output/
+coverage/
+
+# Local Vercel state, developer-only artifacts, and local credentials must
+# never become part of a deployment upload.
+.vercel/
+.env*.local
+.local/
+.playwright-cli/
+.playwright*/
+*.tsbuildinfo
+
+# Git history is not needed for a direct CLI deployment upload.
+.git/

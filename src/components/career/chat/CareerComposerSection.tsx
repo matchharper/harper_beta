@@ -12,6 +12,7 @@ import {
   AudioLines,
   BriefcaseBusiness,
   Building2,
+  CircleHelp,
   Clock3,
   FileText,
   FileUp,
@@ -60,8 +61,10 @@ import type { CareerOpportunityMention } from "@/lib/career/opportunityMentionTe
 import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
 import {
   toCareerPendingActionReference,
+  type CareerComposerPendingAction,
   type CareerPendingAction,
   type CareerPendingCompanyRequestAction,
+  type CareerPendingFitQuestionAction,
   type CareerPendingInternalOpportunityAction,
 } from "@/lib/career/pendingActions";
 import { useCareerPendingActions } from "@/hooks/career/useCareerPendingActions";
@@ -76,13 +79,31 @@ import { MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES } from "@/lib/talentOnboarding/docu
 
 const RECENT_CHAT_HISTORY_WINDOW_MS = 60 * 60 * 1000;
 const CAREER_COMPOSER_MAX_ROWS = 4;
-const readCssPixelValue = (value: string) => Number.parseFloat(value) || 0;
+const CAREER_CHAT_FILE_ACCEPT =
+  ".pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx";
+const CAREER_RESUME_FILE_ACCEPT = ".pdf,.doc,.docx,.txt,.md";
+type CareerComposerOpportunityMention = CareerOpportunityMention & {
+  isClickable?: boolean;
+};
+
+export type CareerComposerPendingActionHandler = (
+  action: CareerComposerPendingAction
+) => void;
+
+type CareerComposerSectionProps = {
+  onPendingActionHandlerChange?: (
+    handler: CareerComposerPendingActionHandler | null
+  ) => void;
+};
+
 const createComposerTokenId = (prefix: string) => {
   const randomId = globalThis.crypto?.randomUUID?.();
   return `${prefix}:${randomId ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
 };
 
-const CareerComposerSection = () => {
+const CareerComposerSection = ({
+  onPendingActionHandlerChange,
+}: CareerComposerSectionProps) => {
   const t = useCareerT();
   const router = useRouter();
   const opportunityMentionListId = useId();
@@ -105,6 +126,7 @@ const CareerComposerSection = () => {
     opportunityFeedbackFollowUpPending,
     initialChatDraft,
     initialChatDraftKey,
+    initialChatOpportunityMention,
     onboardingBeginPending,
     onboardingWrapupPending,
     callStartPending = false,
@@ -125,11 +147,6 @@ const CareerComposerSection = () => {
 
   const initialDraftText = initialChatDraft?.trim() ?? "";
   const [draft, setDraft] = useState(() => initialDraftText);
-  const [composerFocused, setComposerFocused] = useState(false);
-  const [composerSelection, setComposerSelection] = useState<{
-    end: number;
-    start: number;
-  } | null>(null);
   const [opportunityMentionSearch, setOpportunityMentionSearch] = useState<{
     query: string;
     start: number;
@@ -145,12 +162,15 @@ const CareerComposerSection = () => {
     useState(false);
   const [mobileActionMenuOpen, setMobileActionMenuOpen] = useState(false);
   const [desktopActionMenuOpen, setDesktopActionMenuOpen] = useState(false);
-  const [selectedPendingAction, setSelectedPendingAction] =
-    useState<CareerPendingCompanyRequestAction | null>(null);
+  const [selectedPendingAction, setSelectedPendingAction] = useState<
+    CareerPendingCompanyRequestAction | CareerPendingFitQuestionAction | null
+  >(null);
   const [pendingQuestionExpanded, setPendingQuestionExpanded] = useState(false);
   const [recentChatCutoffMs] = useState(
     () => Date.now() - RECENT_CHAT_HISTORY_WINDOW_MS
   );
+  const pendingActionHandlerRef =
+    useRef<CareerComposerPendingActionHandler | null>(null);
   const [resumeInterviewRequest, setResumeInterviewRequest] = useState<{
     conversationId: string | null;
     requested: boolean;
@@ -163,11 +183,12 @@ const CareerComposerSection = () => {
   const actionMenuFileInputRef = useRef<HTMLInputElement | null>(null);
   const pendingResumeRequestTokenRef = useRef<string | null>(null);
   const opportunityMentionHighlightRef = useRef<HTMLDivElement | null>(null);
-  const opportunityTokens = useChatComposerTokens<CareerOpportunityMention>({
-    onValueChange: setDraft,
-    textareaRef,
-    value: draft,
-  });
+  const opportunityTokens =
+    useChatComposerTokens<CareerComposerOpportunityMention>({
+      onValueChange: setDraft,
+      textareaRef,
+      value: draft,
+    });
   const isComposingRef = useRef(false);
   const initialDraftFocusKey =
     initialChatDraftKey?.trim() || initialDraftText || null;
@@ -176,6 +197,7 @@ const CareerComposerSection = () => {
     initialChatDraftKey?.trim() || initialDraftText || null
   );
   const appliedInitialDraftTextRef = useRef(initialDraftText);
+  const appliedInitialOpportunityMentionKeyRef = useRef<string | null>(null);
   const onboardingPaused = isOnboardingPaused(messages);
   const isStartingCall =
     (onboardingBeginPending && !callWrapUpPending) || callStartPending;
@@ -223,17 +245,6 @@ const CareerComposerSection = () => {
     resumeInterviewRequest.requested &&
     resumeInterviewRequest.conversationId === conversationId;
 
-  const syncComposerSelection = useCallback(
-    (textarea: HTMLTextAreaElement | null) => {
-      if (!textarea) return;
-      setComposerSelection({
-        end: textarea.selectionEnd ?? 0,
-        start: textarea.selectionStart ?? 0,
-      });
-    },
-    []
-  );
-
   const syncOpportunityMentionHighlight = useCallback(
     (textarea: HTMLTextAreaElement | null) => {
       const highlight = opportunityMentionHighlightRef.current;
@@ -242,23 +253,6 @@ const CareerComposerSection = () => {
       highlight.style.left = `${textarea.offsetLeft}px`;
       highlight.style.top = `${textarea.offsetTop}px`;
       highlight.style.width = `${textarea.clientWidth}px`;
-
-      const composer = textarea.closest<HTMLElement>("[data-expanded]");
-      if (composer?.dataset.expanded === "true") {
-        highlight.style.height = "auto";
-        const styles = window.getComputedStyle(textarea);
-        const lineHeight = readCssPixelValue(styles.lineHeight) || 20;
-        const paddingHeight =
-          readCssPixelValue(styles.paddingTop) +
-          readCssPixelValue(styles.paddingBottom);
-        const maximumHeight =
-          lineHeight * CAREER_COMPOSER_MAX_ROWS + paddingHeight;
-        const visualContentHeight = highlight.scrollHeight;
-        textarea.style.height = `${Math.min(visualContentHeight, maximumHeight)}px`;
-        textarea.style.overflowY =
-          visualContentHeight > maximumHeight ? "auto" : "hidden";
-      }
-
       highlight.style.height = `${textarea.clientHeight}px`;
       highlight.scrollTop = textarea.scrollTop;
     },
@@ -267,12 +261,7 @@ const CareerComposerSection = () => {
 
   useLayoutEffect(() => {
     syncOpportunityMentionHighlight(textareaRef.current);
-  }, [
-    composerFocused,
-    composerSelection,
-    draft,
-    syncOpportunityMentionHighlight,
-  ]);
+  }, [draft, syncOpportunityMentionHighlight]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -325,6 +314,40 @@ const CareerComposerSection = () => {
       return initialDraftText;
     });
   }, [initialChatDraftKey, initialDraftText]);
+
+  useEffect(() => {
+    const mentionLabel = initialChatOpportunityMention?.label.trim() ?? "";
+    const mentionRoleId = initialChatOpportunityMention?.roleId.trim() ?? "";
+    if (!initialDraftFocusKey || !mentionLabel || !mentionRoleId) return;
+    if (draft !== initialDraftText) return;
+
+    const mentionKey = `${initialDraftFocusKey}:${mentionRoleId}:${mentionLabel}`;
+    if (appliedInitialOpportunityMentionKeyRef.current === mentionKey) return;
+
+    const start = initialDraftText.indexOf(mentionLabel);
+    if (start < 0) return;
+
+    appliedInitialOpportunityMentionKeyRef.current = mentionKey;
+    opportunityTokens.replaceTokens([
+      {
+        data: {
+          isClickable: false,
+          label: mentionLabel,
+          roleId: mentionRoleId,
+        },
+        end: start + mentionLabel.length,
+        id: `official-job:${mentionRoleId}`,
+        start,
+        text: mentionLabel,
+      },
+    ]);
+  }, [
+    draft,
+    initialChatOpportunityMention,
+    initialDraftFocusKey,
+    initialDraftText,
+    opportunityTokens,
+  ]);
 
   const composerPlaceholder = (() => {
     if (!user) {
@@ -453,9 +476,6 @@ const CareerComposerSection = () => {
         text: label,
         value: selection.value,
       });
-      window.requestAnimationFrame(() =>
-        syncComposerSelection(textareaRef.current)
-      );
       closeOpportunityMentionPicker();
     },
     [
@@ -463,7 +483,6 @@ const CareerComposerSection = () => {
       draft,
       opportunityMentionSearch,
       opportunityTokens,
-      syncComposerSelection,
     ]
   );
   const opportunityPickerItems: ChatComposerPickerItem[] = [
@@ -590,60 +609,56 @@ const CareerComposerSection = () => {
 
   const resetDraftField = () => {
     setDraft("");
-    setComposerSelection(null);
     opportunityTokens.resetTokens();
     closeOpportunityMentionPicker();
     setTextareaResetVersion((version) => version + 1);
   };
 
-  const focusComposerAfterMenuSelection = () => {
+  const focusComposerAfterMenuSelection = useCallback(() => {
     window.setTimeout(() => textareaRef.current?.focus(), 0);
-  };
+  }, []);
 
-  const insertPendingOpportunityMention = (
-    action: CareerPendingInternalOpportunityAction
-  ) => {
-    const existingToken = opportunityTokens.tokens.find(
-      (token) => token.data.roleId === action.roleId
-    );
-    if (existingToken) {
-      window.requestAnimationFrame(() => {
-        textareaRef.current?.focus();
-        textareaRef.current?.setSelectionRange(
-          existingToken.end,
-          existingToken.end
-        );
-        syncComposerSelection(textareaRef.current);
+  const insertPendingOpportunityMention = useCallback(
+    (action: CareerPendingInternalOpportunityAction) => {
+      const existingToken = opportunityTokens.tokens.find(
+        (token) => token.data.roleId === action.roleId
+      );
+      if (existingToken) {
+        window.requestAnimationFrame(() => {
+          textareaRef.current?.focus();
+          textareaRef.current?.setSelectionRange(
+            existingToken.end,
+            existingToken.end
+          );
+        });
+        return;
+      }
+
+      const textarea = textareaRef.current;
+      const currentDraft = textarea?.value ?? draft;
+      const cursor = textarea?.selectionStart ?? currentDraft.length;
+      const before = currentDraft.slice(0, cursor);
+      const after = currentDraft.slice(cursor);
+      const leadingSpace = before && !/\s$/u.test(before) ? " " : "";
+      const trailingSpace = after && /^\s/u.test(after) ? "" : " ";
+      const label = `${action.companyName} · ${action.roleTitle}`;
+      const selectedStart = before.length + leadingSpace.length;
+      const selectedEnd = selectedStart + label.length;
+      const value = `${before}${leadingSpace}${label}${trailingSpace}${after}`;
+
+      opportunityTokens.insertToken({
+        cursor: selectedEnd + trailingSpace.length,
+        data: { label, roleId: action.roleId },
+        end: selectedEnd,
+        id: createComposerTokenId(action.id),
+        start: selectedStart,
+        text: label,
+        value,
       });
-      return;
-    }
-
-    const textarea = textareaRef.current;
-    const currentDraft = textarea?.value ?? draft;
-    const cursor = textarea?.selectionStart ?? currentDraft.length;
-    const before = currentDraft.slice(0, cursor);
-    const after = currentDraft.slice(cursor);
-    const leadingSpace = before && !/\s$/u.test(before) ? " " : "";
-    const trailingSpace = after && /^\s/u.test(after) ? "" : " ";
-    const label = `${action.companyName} · ${action.roleTitle}`;
-    const selectedStart = before.length + leadingSpace.length;
-    const selectedEnd = selectedStart + label.length;
-    const value = `${before}${leadingSpace}${label}${trailingSpace}${after}`;
-
-    opportunityTokens.insertToken({
-      cursor: selectedEnd + trailingSpace.length,
-      data: { label, roleId: action.roleId },
-      end: selectedEnd,
-      id: createComposerTokenId(action.id),
-      start: selectedStart,
-      text: label,
-      value,
-    });
-    window.requestAnimationFrame(() =>
-      syncComposerSelection(textareaRef.current)
-    );
-    closeOpportunityMentionPicker();
-  };
+      closeOpportunityMentionPicker();
+    },
+    [closeOpportunityMentionPicker, draft, opportunityTokens]
+  );
 
   const handleOpenPendingOpportunity = (roleId: string) => {
     const normalizedRoleId = roleId.trim();
@@ -667,35 +682,55 @@ const CareerComposerSection = () => {
     });
   };
 
-  const handleSelectPendingAction = (action: CareerPendingAction) => {
-    if (action.kind === "internal_opportunity_call") {
-      logCareerEvent("click_chat_composer_pending_call", {
-        callId: action.callRequest.id,
-        roleId: action.callRequest.roleId,
-      });
-      void onStartCallMode?.({
-        internalCallRequestId: action.callRequest.id,
-      });
-      return;
-    }
-    if (action.kind === "internal_opportunity") {
+  const handleSelectPendingAction = useCallback(
+    (action: CareerPendingAction) => {
+      if (action.kind === "internal_opportunity_call") {
+        logCareerEvent("click_chat_composer_pending_call", {
+          callId: action.callRequest.id,
+          roleId: action.callRequest.roleId,
+        });
+        void onStartCallMode?.({
+          internalCallRequestId: action.callRequest.id,
+        });
+        return;
+      }
+      if (action.kind === "internal_opportunity") {
+        logCareerEvent("click_chat_composer_pending_action", {
+          actionId: action.id,
+          actionKind: action.kind,
+        });
+        insertPendingOpportunityMention(action);
+        return;
+      }
       logCareerEvent("click_chat_composer_pending_action", {
         actionId: action.id,
         actionKind: action.kind,
       });
-      insertPendingOpportunityMention(action);
-      return;
-    }
-    if (action.kind === "internal_fit_question") return;
+      setSelectedPendingAction(action);
+      setPendingQuestionExpanded(false);
+      focusComposerAfterMenuSelection();
+    },
+    [
+      focusComposerAfterMenuSelection,
+      insertPendingOpportunityMention,
+      logCareerEvent,
+      onStartCallMode,
+    ]
+  );
 
-    logCareerEvent("click_chat_composer_pending_action", {
-      actionId: action.id,
-      actionKind: action.kind,
-    });
-    setSelectedPendingAction(action);
-    setPendingQuestionExpanded(false);
-    focusComposerAfterMenuSelection();
-  };
+  useLayoutEffect(() => {
+    pendingActionHandlerRef.current = handleSelectPendingAction;
+  }, [handleSelectPendingAction]);
+  const handleExternalPendingAction = useCallback(
+    (action: CareerComposerPendingAction) =>
+      pendingActionHandlerRef.current?.(action),
+    []
+  );
+
+  useEffect(() => {
+    onPendingActionHandlerChange?.(handleExternalPendingAction);
+    return () => onPendingActionHandlerChange?.(null);
+  }, [handleExternalPendingAction, onPendingActionHandlerChange]);
 
   const handleSend = async () => {
     const text = (textareaRef.current?.value ?? draft).trim();
@@ -780,22 +815,16 @@ const CareerComposerSection = () => {
     }
   };
 
-  const handleComposerFocus = useCallback(
-    (event: React.FocusEvent<HTMLTextAreaElement>) => {
-      setComposerFocused(true);
-      syncComposerSelection(event.currentTarget);
-
-      window.requestAnimationFrame(() => {
-        const scrollElement = scrollRef.current;
-        if (!scrollElement) return;
-        scrollElement.scrollTo({
-          top: scrollElement.scrollHeight,
-          behavior: "smooth",
-        });
+  const handleComposerFocus = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      const scrollElement = scrollRef.current;
+      if (!scrollElement) return;
+      scrollElement.scrollTo({
+        top: scrollElement.scrollHeight,
+        behavior: "smooth",
       });
-    },
-    [scrollRef, syncComposerSelection]
-  );
+    });
+  }, [scrollRef]);
 
   const handleForceComplete = () => {
     if (!onForceCompleteOnboarding || manualCompletionDisabled) return;
@@ -866,8 +895,7 @@ const CareerComposerSection = () => {
     pendingResumeRequestTokenRef.current = null;
     const input = actionMenuFileInputRef.current;
     if (!input) return;
-    input.accept =
-      ".pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx,.png,.jpg,.jpeg";
+    input.accept = CAREER_CHAT_FILE_ACCEPT;
     input.click();
   };
 
@@ -878,7 +906,7 @@ const CareerComposerSection = () => {
     pendingResumeRequestTokenRef.current = action.resumeRequestToken;
     const input = actionMenuFileInputRef.current;
     if (!input) return;
-    input.accept = ".pdf,.doc,.docx,.txt,.md";
+    input.accept = CAREER_RESUME_FILE_ACCEPT;
     input.click();
   };
 
@@ -938,14 +966,7 @@ const CareerComposerSection = () => {
     isComposerActionLocked;
   const resolvedPendingActions =
     pendingActionsOverride ?? pendingActions.data ?? [];
-  const visiblePendingActions = resolvedPendingActions.filter(
-    (
-      action
-    ): action is Exclude<
-      CareerPendingAction,
-      { kind: "internal_fit_question" }
-    > => action.kind !== "internal_fit_question"
-  );
+  const visiblePendingActions = resolvedPendingActions;
   const pendingActionMenuItems: ChatComposerActionMenuItem[] = !isOnboardingDone
     ? []
     : !pendingActionsOverride && pendingActions.isPending
@@ -1059,6 +1080,28 @@ const CareerComposerSection = () => {
                       ),
               };
             }
+            if (action.kind === "internal_fit_question") {
+              return {
+                disabled: isComposerActionLocked,
+                icon: <CircleHelp />,
+                id: `pending-${action.kind}-${action.id}`,
+                label: t(
+                  "career.chat.pending_action_context.fit_question_label",
+                  "정보가 필요합니다"
+                ),
+                onSelect: () => handleSelectPendingAction(action),
+                sectionLabel: t(
+                  "career.chat.career_composer_section.pending_actions_section_label",
+                  "처리할 항목"
+                ),
+                subtext: action.prompt,
+                subtextLayout: "stacked" as const,
+                trailingText: t(
+                  "career.chat.career_composer_section.pending_company_request_question",
+                  "질문"
+                ),
+              };
+            }
             return {
               disabled: isComposerActionLocked,
               icon: <Handshake />,
@@ -1156,7 +1199,7 @@ const CareerComposerSection = () => {
           <Input
             unstyled
             ref={actionMenuFileInputRef}
-            accept=".pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx,.png,.jpg,.jpeg"
+            accept={CAREER_CHAT_FILE_ACCEPT}
             className="hidden"
             onChange={(event) => void handleActionMenuFileChange(event)}
             type="file"
@@ -1220,7 +1263,6 @@ const CareerComposerSection = () => {
             onChange={(event) => {
               const value = event.target.value;
               opportunityTokens.updateValue(value);
-              syncComposerSelection(event.currentTarget);
               updateOpportunityMentionSearch(
                 value,
                 event.currentTarget.selectionStart ?? value.length
@@ -1233,15 +1275,10 @@ const CareerComposerSection = () => {
               isComposingRef.current = false;
               const value = event.currentTarget.value;
               opportunityTokens.updateValue(value);
-              syncComposerSelection(event.currentTarget);
               updateOpportunityMentionSearch(
                 value,
                 event.currentTarget.selectionStart ?? value.length
               );
-            }}
-            onBlur={() => {
-              setComposerFocused(false);
-              setComposerSelection(null);
             }}
             onFocus={handleComposerFocus}
             onBeforeInput={opportunityTokens.handleBeforeInput}
@@ -1251,7 +1288,6 @@ const CareerComposerSection = () => {
             }
             onSelect={(event) => {
               opportunityTokens.handleSelect(event);
-              syncComposerSelection(event.currentTarget);
             }}
             enterKeyHint="send"
             placeholder={composerPlaceholder}
@@ -1270,26 +1306,24 @@ const CareerComposerSection = () => {
             textareaClassName={cn(
               "min-h-12 py-3",
               opportunityTokens.tokens.length > 0 &&
-                "relative z-10 text-transparent caret-transparent"
+                "relative z-10 text-transparent caret-neutral-primary"
             )}
             overlay={
               <>
                 {opportunityTokens.tokens.length > 0 ? (
                   <ChatComposerTokenOverlay
                     ref={opportunityMentionHighlightRef}
-                    className="z-20 max-md:min-h-12 max-md:py-3"
-                    cursorOffset={
-                      composerFocused &&
-                      composerSelection?.start === composerSelection?.end
-                        ? composerSelection?.end
-                        : null
-                    }
+                    className="z-20 min-h-12 py-3"
                     getTokenAriaLabel={(token) =>
                       t(
                         "career.chat.career_composer_section.opportunity_token_aria_label",
                         "기회 상세 열기: {opportunity}",
                         { values: { opportunity: token.text } }
                       )
+                    }
+                    isTokenClickable={(token) =>
+                      (token.data as CareerComposerOpportunityMention)
+                        .isClickable !== false
                     }
                     onTokenClick={(token) => {
                       const data =
@@ -1298,7 +1332,6 @@ const CareerComposerSection = () => {
                       if (roleId) handleOpenPendingOpportunity(roleId);
                     }}
                     segments={opportunityTokens.segments}
-                    stackTokens
                   />
                 ) : null}
                 {opportunityMentionSearch && !isTextInputLocked ? (

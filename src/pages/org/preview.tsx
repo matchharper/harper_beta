@@ -157,6 +157,7 @@ const previewInbox: OrgBoardResponse = {
         userId: "preview-talent",
       },
       talentId: "preview-talent",
+      upcomingMeeting: null,
       updatedAt: PREVIEW_NOW,
     },
   ],
@@ -168,6 +169,7 @@ const previewInbox: OrgBoardResponse = {
 
 const previewSlack: OrgSlackStatus = {
   availableChannels: [],
+  canCreateChannels: true,
   channels: [
     {
       channelId: "preview-channel",

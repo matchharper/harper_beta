@@ -34,6 +34,36 @@ test("organization-agent system prompt keeps runtime data out", () => {
     prompt,
     /prepare_candidate_connection with connectionMethod=direct_contact/
   );
+  assert.match(prompt, /삭제 is distinct from 종료/);
+  assert.match(prompt, /status=deleted and is_expired=true together/);
+  assert.match(prompt, /explicitly asks to delete the exact Role/);
+  assert.match(prompt, /\[이름\]\(talent:\) 같은 링크를 만들지 않는다/);
+  assert.match(prompt, /<meeting_coordination_contract>/);
+  assert.match(prompt, /Role[\s\S]*Goal[\s\S]*Success criteria/);
+  assert.match(prompt, /Evidence[\s\S]*Tools[\s\S]*Output responsibility/);
+  assert.match(prompt, /Stop conditions/);
+  assert.match(prompt, /manage_interview_availability/);
+  assert.match(
+    prompt,
+    /Continue an already-authorized candidate-specific meeting request/i
+  );
+  assert.match(
+    prompt,
+    /requester as the default organizer and first company attendee/
+  );
+  assert.match(
+    prompt,
+    /time-selection message follows the standard delayed-delivery policy/
+  );
+  assert.match(
+    prompt,
+    /candidate-facing context supplied in the conversation should revise the same invitation/
+  );
+  assert.match(
+    prompt,
+    /Write the final response from the latest user message and the verified results/
+  );
+  assert.doesNotMatch(prompt, /김호진|Product Engineer|E2E-MEET/);
   assert.match(
     prompt,
     /a reason is optional, helps improve later recommendations/
@@ -47,6 +77,16 @@ test("organization-agent system prompt keeps runtime data out", () => {
     /Do not reduce this judgment to isolated words or phrases/
   );
   assert.match(prompt, /Its result is context, not wording to repeat/);
+  assert.match(prompt, /call calibrate_role_hiring_brief as the only tool/);
+  assert.match(prompt, /Recognize this intent from the conversation/);
+  assert.match(prompt, /evidence for the company's caliber/);
+  assert.match(prompt, /internal candidate mention/);
+  assert.match(
+    prompt,
+    /returns the finalized Hiring Brief update and user reply/
+  );
+  assert.doesNotMatch(prompt, /uses gpt-5\.6-terra at max reasoning/);
+  assert.doesNotMatch(prompt, /pre-open sources/);
   assert.match(prompt, /write it yourself in Harper's natural voice/);
   assert.match(prompt, /semantic reading of the current message/);
   assert.match(prompt, /If the message is ambiguous/);
@@ -60,6 +100,12 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.match(prompt, /natural, considerate conversational voice/);
   assert.match(prompt, /may be using Harper for the first time/);
   assert.match(prompt, /a one-line acknowledgement is incomplete/);
+  assert.match(
+    prompt,
+    /Do not turn those state boundaries into a system checklist/
+  );
+  assert.match(prompt, /Do not write simple proposals or results as receipts/);
+  assert.match(prompt, /never force the same greeting/);
   assert.match(prompt, /what does not happen automatically/);
   assert.match(prompt, /Important lifecycle milestones may intentionally/);
   assert.match(prompt, /what the user should expect/);
@@ -70,8 +116,14 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.match(prompt, /in Korean use "연결 수락", "연결 거절"/);
   assert.match(prompt, /Never conjugate the raw labels/);
   assert.match(prompt, /notice already seen or delivered cannot be recalled/);
-  assert.match(prompt, /server-side confirmation_required result is the non-mutating preview/);
-  assert.match(prompt, /instead of writing an untracked free-standing approval question/);
+  assert.match(
+    prompt,
+    /server-side confirmation_required result is the non-mutating preview/
+  );
+  assert.match(
+    prompt,
+    /instead of writing an untracked free-standing approval question/
+  );
   assert.doesNotMatch(prompt, /do not mix writing systems/);
   assert.match(prompt, /proactively useful rather than merely correct/);
   assert.match(prompt, /bare list or one-line result is usually incomplete/);
@@ -93,6 +145,14 @@ test("organization-agent system prompt keeps runtime data out", () => {
   );
   assert.match(prompt, /copy its calendar date and time exactly/);
   assert.match(prompt, /Do not replace it with a relative day/);
+  assert.match(
+    prompt,
+    /what Harper sent, what answer arrived, or which meeting was confirmed/
+  );
+  assert.match(
+    prompt,
+    /do not turn meeting confirmation into a claim about Calendar or Google Meet delivery/
+  );
   assert.match(prompt, /one decision-relevant recommendation reason/);
   assert.match(prompt, /names and headlines alone/);
   assert.match(
@@ -157,9 +217,9 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.doesNotMatch(prompt, /named candidate/);
   assert.match(prompt, /replace requires one exact oldValue/);
   assert.match(prompt, /read it fully and update in the same turn/);
-  assert.match(prompt, /email and Harper chat/);
+  assert.match(prompt, /Do not mention delivery channels/);
   assert.match(prompt, /ready to move now/);
-  assert.match(prompt, /workspace company name and role/);
+  assert.match(prompt, /what Harper can ask.*answer will come back/);
   assert.match(prompt, /read_talent as a neutral read operation/);
   assert.match(prompt, /never means the user asked about preference/);
   assert.match(prompt, /includeProfile=false is the compact default/);
@@ -187,44 +247,76 @@ test("organization-agent system prompt keeps runtime data out", () => {
     prompt,
     /server independently verifies the previous-message confirmation/
   );
+  assert.match(prompt, /Candidate contact is a saved-body approval flow/);
+  assert.match(prompt, /action=create_draft in that same turn/);
+  assert.match(prompt, /complete candidate-contact body/);
   assert.match(
     prompt,
-    /Candidate contact is an exact-copy draft approval flow/
+    /must not repeat the company name, Role title, email subject, or body/
   );
-  assert.match(prompt, /action=create_draft in that same turn/);
-  assert.match(prompt, /complete candidate-contact subject and body verbatim/);
-  assert.match(prompt, /exact contact copy/);
   assert.doesNotMatch(prompt, /fixed Harper service footer/);
-  assert.match(prompt, /nothing is queued or sent yet/);
+  assert.match(prompt, /creates a saved draft only/);
   assert.match(prompt, /pending_candidate_contact_drafts/);
   assert.match(prompt, /action=revise_draft/);
   assert.match(prompt, /Repeat this revision loop as many times as requested/);
   assert.match(
     prompt,
-    /action=schedule when the immediately previous Harper message presented that same contactId and revision verbatim/
+    /action=schedule when the immediately previous Harper message presented that same contactId and revision body/
   );
   assert.match(prompt, /server independently verifies this adjacency/);
   assert.match(prompt, /Scheduling uses the stored subject and body unchanged/);
+  assert.match(
+    prompt,
+    /standard schedule exactly 20 minutes after exact-copy approval at any time of day/
+  );
+  assert.doesNotMatch(prompt, /only between 08:00 and 20:00 KST/);
+  assert.match(
+    prompt,
+    /Once Harper has said the request will be sent later, today, or tomorrow, it is already queued: never call schedule again/
+  );
   assert.match(
     prompt,
     /action=cancel only for a clear cancellation instruction/
   );
   assert.match(prompt, /in-place editing is unsupported/);
   assert.match(prompt, /write requestContext in the latest user's language/);
+  assert.match(
+    prompt,
+    /Age, date or year of birth, nationality, citizenship, residency, and work-authorization questions are allowed/
+  );
+  assert.match(prompt, /instead of refusing, moralizing, inferring the answer/);
   assert.match(prompt, /Recognize compensation questions by their meaning/);
   assert.match(prompt, /base salary or total compensation/);
   assert.match(prompt, /three milestones in human terms/);
+  assert.match(
+    prompt,
+    /meetingDeliveryMode=immediate.*Preserve the existing invitation/
+  );
   assert.match(prompt, /Do not call an older or different queued request/);
   assert.match(prompt, /if no matching entry exists/);
   assert.match(
     prompt,
-    /After contact_talent action=schedule succeeds.*delivery has not completed yet/
+    /After contact_talent action=schedule succeeds.*respond like a human assistant taking ownership/
   );
+  assert.match(prompt, /Express that short delay conversationally/);
+  assert.match(prompt, /Do not expose delivery-channel or queue mechanics/);
   assert.match(
     prompt,
     /Never describe create_draft or revise_draft as accepted/
   );
   assert.match(prompt, /contact_talent with action=cancel/);
+  assert.match(
+    prompt,
+    /contact_talent with action=immediate.*preserves the already approved subject and body/
+  );
+  assert.match(
+    prompt,
+    /including a correction such as "not later, send it now"/
+  );
+  assert.match(
+    prompt,
+    /never tell the company it must cancel and recreate merely to move a still-changeable queued delivery forward/
+  );
   assert.match(
     prompt,
     /initial request that says "now" still creates a draft only/
@@ -242,6 +334,10 @@ test("organization-agent Slack prompt enables sparse private choice markers", ()
   const regularPrompt = buildOrgAgentSystemPrompt();
 
   assert.match(prompt, /Slack mrkdwn/);
+  assert.match(
+    prompt,
+    /굵게 표시하는 별표 사이에는 공백이나 문장부호 없이 한 단어만 넣는다/
+  );
   assert.match(prompt, /굵게: \*텍스트\*/);
   assert.doesNotMatch(prompt, /표준 Markdown\/GFM/);
   assert.match(prompt, /\[짧은 버튼 라벨\]\(button:/);
@@ -267,7 +363,12 @@ test("role creation entry differs between web general chat and Slack", () => {
   assert.match(web, /왼쪽 사이드바의 \*New role\* 버튼/);
   assert.doesNotMatch(web, /start_role_creation을 호출/);
   assert.match(slack, /start_role_creation을 바로 호출/);
-  assert.match(slack, /JD를 검색하거나 읽거나 초안을 쓰지 말고/);
+  assert.match(slack, /현재 대화와 사용 가능한 자료/);
+  assert.match(slack, /title이 명확하면 같은 제목을 다시 확인하지 말고/);
+  assert.match(slack, /그래도 title을 특정할 수 없을 때만/);
+  assert.doesNotMatch(slack, /JD URL을 제공했지만/);
+  assert.doesNotMatch(slack, /open_url로 그 URL을 읽고/);
+  assert.doesNotMatch(slack, /JD를 검색하거나 읽거나 초안을 쓰지 말고/);
   assert.match(slack, /contextMessageCount/);
   assert.match(slack, /현재 메시지만으로 충분하면 1/);
   assert.match(slack, /최대 12개/);

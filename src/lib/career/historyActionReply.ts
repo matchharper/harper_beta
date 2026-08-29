@@ -1,8 +1,11 @@
 import { runCareerChatTurn } from "@/lib/career/chatTurn";
+import { CAREER_LLM_CONFIG } from "@/lib/career/llm";
 import {
   buildCareerOpportunityFeedbackFollowUpTurnInstruction,
+  CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER,
   type CareerOpportunityFeedbackFollowUpTrigger,
 } from "@/lib/career/prompts";
+import { partitionOpportunityFeedbackReasons } from "@/lib/career/opportunityFeedbackSignals";
 import {
   buildOpportunityFeedbackActivitySummary,
   fetchPendingOpportunityFeedbackActivityItems,
@@ -13,7 +16,10 @@ import {
   fetchTalentSetting,
   type TalentAdminClient,
 } from "@/lib/talentOnboarding/server";
-import type { TalentOpportunityHistoryItem } from "@/lib/talentOpportunity";
+import {
+  fetchTalentOpportunityHistoryByIds,
+  type TalentOpportunityHistoryItem,
+} from "@/lib/talentOpportunity";
 
 type TalentOpportunityFeedbackAction = "negative" | "positive";
 
@@ -45,10 +51,18 @@ function toFeedbackActivityItem(args: {
   feedbackReason?: string | null;
   opportunity: TalentOpportunityHistoryItem;
 }): TalentOpportunityFeedbackActivityItem {
+  const reasonSignals = partitionOpportunityFeedbackReasons(
+    args.feedbackReason
+  );
   return {
     action: args.action,
     createdAt: new Date().toISOString(),
     eventId: `current:${args.opportunity.id}`,
+    fitSummary: reasonSignals.isOperationalOnly
+      ? null
+      : args.opportunity.recommendationSummary,
+    hasFeedbackReason: reasonSignals.hasReason,
+    operationalFeedbackKinds: reasonSignals.operationalKinds,
     summary: buildOpportunityFeedbackActivitySummary({
       action: args.action,
       feedbackReason: args.feedbackReason,
@@ -65,6 +79,7 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
   feedbackReason?: string | null;
   isMobile?: boolean | null;
   opportunity?: TalentOpportunityHistoryItem | null;
+  opportunityId?: string | null;
   trigger: TalentOpportunityFeedbackReplyTrigger;
   userId: string;
 }) {
@@ -89,23 +104,46 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
       userId: args.userId,
     }),
   ]);
+  const requestedOpportunityId = String(args.opportunityId ?? "").trim();
+  const opportunity =
+    args.opportunity ??
+    (requestedOpportunityId
+      ? ((
+          await fetchTalentOpportunityHistoryByIds({
+            admin: args.admin,
+            ids: [requestedOpportunityId],
+            locale: talentSetting?.preferred_locale ?? null,
+            userId: args.userId,
+          })
+        )[0] ?? null)
+      : null);
   const fallbackItem =
-    args.opportunity && args.action
+    opportunity && args.action
       ? toFeedbackActivityItem({
           action: args.action,
           feedbackReason: args.feedbackReason,
-          opportunity: args.opportunity,
+          opportunity,
         })
       : null;
-  const hasFallbackInPending =
-    fallbackItem &&
-    pendingItems.some((item) => item.summary === fallbackItem.summary);
+  let fallbackPendingIndex = -1;
+  if (fallbackItem) {
+    for (let index = pendingItems.length - 1; index >= 0; index -= 1) {
+      if (pendingItems[index]?.summary === fallbackItem.summary) {
+        fallbackPendingIndex = index;
+        break;
+      }
+    }
+  }
   const usingFallbackOnly = pendingItems.length === 0 && Boolean(fallbackItem);
   const items =
     pendingItems.length > 0
-      ? fallbackItem && !hasFallbackInPending
+      ? fallbackItem && fallbackPendingIndex < 0
         ? [...pendingItems, fallbackItem]
-        : pendingItems
+        : fallbackItem
+          ? pendingItems.map((item, index) =>
+              index === fallbackPendingIndex ? fallbackItem : item
+            )
+          : pendingItems
       : fallbackItem
         ? [fallbackItem]
         : [];
@@ -125,6 +163,17 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
     isMobile: args.isMobile,
     pendingOpportunityFeedbackContext: feedbackContext,
     proactiveContext,
+    ...(args.trigger ===
+      CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER.DelayedExternalFeedback ||
+    args.trigger ===
+      CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER.AllRecommendedOpportunitiesCleared
+      ? {
+          assistantModel:
+            CAREER_LLM_CONFIG.chat.opportunityFeedbackFollowUp.model,
+          assistantOpenAIResponsesReasoningEffort:
+            CAREER_LLM_CONFIG.chat.opportunityFeedbackFollowUp.reasoningEffort,
+        }
+      : {}),
     usageLabel: "career/chat:opportunity_feedback_followup",
     shouldInsertAssistantMessage: usingFallbackOnly
       ? undefined

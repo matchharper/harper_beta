@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { InternalApiError } from "@/lib/internalApi";
 import { applyWebsiteCompanyDataChanges } from "@/lib/org/companyDataWebsite";
 import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
 import {
@@ -214,6 +215,25 @@ export type OpsCompanyWorkspaceUpdateResponse = {
     pitch: string | null;
     publishedName: string | null;
     request: string | null;
+    updatedAt: string;
+    workspaceId: string;
+  };
+};
+
+export type OpsCompanyRoleAutomationState = {
+  isAuto: boolean;
+  roleId: string;
+};
+
+export type OpsCompanyRoleAutomationUpdateInput = {
+  isAuto: boolean;
+  roleId: string;
+  workspaceId: string;
+};
+
+export type OpsCompanyRoleAutomationUpdateResponse = {
+  ok: true;
+  role: OpsCompanyRoleAutomationState & {
     updatedAt: string;
     workspaceId: string;
   };
@@ -967,6 +987,89 @@ export async function updateOpsCompanyWorkspace(
       request: data.request ?? null,
       updatedAt: String(data.updated_at ?? ""),
       workspaceId: String(data.company_workspace_id ?? ""),
+    },
+  };
+}
+
+export async function fetchOpsCompanyRoleAutomationStates(args: {
+  roleIds: string[];
+}): Promise<OpsCompanyRoleAutomationState[]> {
+  const roleIds = Array.from(
+    new Set(args.roleIds.map(normalizeText).filter(Boolean))
+  );
+  if (roleIds.length === 0) return [];
+
+  const admin = getSupabaseAdmin();
+  const { data, error } = await (
+    admin.from("company_internal_roles" as any) as any
+  )
+    .select("role_id, is_auto")
+    .in("role_id", roleIds);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load role automation states");
+  }
+
+  return coerceJsonArray<{ is_auto: boolean | null; role_id: string }>(data)
+    .map((row) => ({
+      isAuto: row.is_auto === true,
+      roleId: normalizeText(row.role_id),
+    }))
+    .filter((row) => Boolean(row.roleId));
+}
+
+export async function updateOpsCompanyRoleAutomation(
+  args: OpsCompanyRoleAutomationUpdateInput & { admin?: AdminClient }
+): Promise<OpsCompanyRoleAutomationUpdateResponse> {
+  const admin = args.admin ?? getSupabaseAdmin();
+  const roleId = normalizeText(args.roleId);
+  const workspaceId = normalizeText(args.workspaceId);
+
+  if (!workspaceId) throw new InternalApiError(400, "workspaceId is required");
+  if (!roleId) throw new InternalApiError(400, "roleId is required");
+  if (typeof args.isAuto !== "boolean") {
+    throw new InternalApiError(400, "isAuto must be a boolean");
+  }
+
+  const { data: role, error: roleError } = await (
+    admin.from("company_roles" as any) as any
+  )
+    .select("role_id")
+    .eq("role_id", roleId)
+    .eq("company_workspace_id", workspaceId)
+    .eq("source_type", "internal")
+    .maybeSingle();
+
+  if (roleError) {
+    throw new Error(roleError.message ?? "Failed to load role");
+  }
+  if (!role) {
+    throw new InternalApiError(404, "Internal role not found in workspace");
+  }
+
+  const now = new Date().toISOString();
+  const { data, error } = await (
+    admin.from("company_internal_roles" as any) as any
+  )
+    .update({ is_auto: args.isAuto, updated_at: now })
+    .eq("role_id", roleId)
+    .select("role_id, is_auto, updated_at")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to update role automation");
+  }
+  if (!data) {
+    throw new InternalApiError(404, "Internal role settings not found");
+  }
+
+  return {
+    ok: true,
+    role: {
+      isAuto: data.is_auto === true,
+      roleId: normalizeText(data.role_id),
+      updatedAt: String(data.updated_at ?? now),
+      workspaceId,
     },
   };
 }

@@ -45,8 +45,20 @@ const FEEDBACK_LABELS: Record<string, string> = {
 
 const PROGRESS_KIND_LABELS: Record<string, string> = {
   internal_process_stopped_notified: "후보자 프로세스 종료 안내 발송",
+  org_candidate_activity: "후보자 진행",
   org_note: "회사 메모",
   org_stage_change: "채용 단계 변경",
+};
+
+const CANDIDATE_ACTIVITY_LABELS: Record<string, string> = {
+  candidate_contact_sent: "후보자에게 요청 전달",
+  candidate_response_received: "후보자 답변 수신",
+  meeting_confirmed: "미팅 확정",
+};
+
+const CANDIDATE_REQUEST_KIND_LABELS: Record<string, string> = {
+  question: "질문",
+  resume: "이력서 요청",
 };
 
 function normalized(value: unknown) {
@@ -95,6 +107,57 @@ export function humanizeOrgProgressKind(value: unknown) {
   const kind = normalized(value);
   if (!kind) return "활동 기록";
   return PROGRESS_KIND_LABELS[kind] ?? "활동 기록";
+}
+
+export function humanizeOrgCandidateActivity(value: unknown) {
+  const eventType = normalized(value);
+  if (!eventType) return "후보자 진행";
+  return CANDIDATE_ACTIVITY_LABELS[eventType] ?? "후보자 진행";
+}
+
+export function humanizeOrgCandidateRequestKind(value: unknown) {
+  const requestKind = normalized(value);
+  if (!requestKind) return "후보자 요청";
+  return CANDIDATE_REQUEST_KIND_LABELS[requestKind] ?? "후보자 요청";
+}
+
+export function compactOrgProgressMetadata(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const compact: Record<string, unknown> = {};
+  for (const key of [
+    "stage",
+    "fromStage",
+    "acceptReason",
+    "stopNote",
+    "reason",
+  ]) {
+    if (record[key] !== undefined) {
+      compact[key] =
+        key === "stage" || key === "fromStage"
+          ? humanizeOrgStage(record[key])
+          : record[key];
+    }
+  }
+  if (record.eventType !== undefined) {
+    compact.activity = humanizeOrgCandidateActivity(record.eventType);
+  }
+  if (record.requestKind !== undefined) {
+    compact.requestType = humanizeOrgCandidateRequestKind(record.requestKind);
+  }
+  for (const key of [
+    "requestContext",
+    "scheduledAt",
+    "scheduledEndAt",
+    "durationMinutes",
+    "title",
+    "timezone",
+  ]) {
+    if (record[key] !== undefined) {
+      compact[key] = record[key];
+    }
+  }
+  return Object.keys(compact).length > 0 ? compact : null;
 }
 
 export function getOrgAgentPipelineBucket(

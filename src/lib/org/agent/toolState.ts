@@ -64,10 +64,10 @@ export const ORG_AGENT_FAILED_UPDATE_REPLY =
   "요청하신 변경은 적용되지 않았습니다. 내용을 다시 확인한 뒤 시도해 주세요.";
 
 export const ORG_AGENT_FAILED_ROLE_STATUS_REPLY =
-  "역할 상태를 변경하지 못했습니다. 역할과 현재 상태를 다시 확인한 뒤 시도해 주세요. 후보 추천이나 진행 중인 연결에는 변화가 없습니다.";
+  "역할을 삭제하거나 상태를 변경하지 못했어요. 역할과 현재 상태를 다시 확인한 뒤 시도해 주세요. 후보자 추천이나 진행 중인 연결에는 변화가 없어요.";
 
 export const ORG_AGENT_FAILED_CONTACT_REPLY =
-  "후보자에게 요청을 보내지 못했어요. 대상 후보자와 역할, 요청 내용을 다시 확인해 주세요. 이메일이나 Harper 채팅으로 전달된 내용은 없어요.";
+  "후보자에게 요청을 보내지 못했어요. 대상 후보자와 역할, 요청 내용을 다시 확인해 주세요. 후보자에게 전달된 내용은 없어요.";
 
 export const ORG_AGENT_FAILED_CANDIDATE_DECISION_REPLY =
   "후보자 연결 결정의 최종 결과를 확인하지 못했어요. 소개 이메일이나 후보자 안내가 전달됐을 수 있으니 바로 다시 시도하지 말고, 후보자의 현재 상태와 메일을 먼저 확인해 주세요.";
@@ -76,17 +76,17 @@ export const ORG_AGENT_FAILED_CANDIDATE_DECISION_REPLY =
  * A failed mutation is a server-authoritative outcome. Do not let a
  * model-authored final message accidentally turn it into a success claim.
  */
-export function enforceOrgAgentTerminalMutationOutcome(
+function enforceOrgAgentTerminalMutationOutcomeRaw(
   state: OrgAgentToolExecutionState,
   modelReply: string
 ) {
   const finalTerminalResult = state.toolResults.findLast((result) =>
     [
       "start_role_creation",
+      "calibrate_role_hiring_brief",
       "change_role_status",
       "contact_talent",
       "decide_candidate_connection",
-      "manage_role_pipeline_stages",
       "move_candidate_stage",
       "update_data",
       "update_role_criteria",
@@ -109,10 +109,7 @@ export function enforceOrgAgentTerminalMutationOutcome(
       const [, url, label] = match;
       const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       reply = reply
-        .replace(
-          new RegExp(`<${escapedUrl}(?:\\|[^>]*)?>`, "g"),
-          requiredLink
-        )
+        .replace(new RegExp(`<${escapedUrl}(?:\\|[^>]*)?>`, "g"), requiredLink)
         .replace(
           new RegExp(`\\[[^\\]]+\\]\\(${escapedUrl}\\)`, "g"),
           requiredLink
@@ -146,14 +143,9 @@ export function enforceOrgAgentTerminalMutationOutcome(
     return reply;
   }
   if (
-    finalTerminalResult.name === "decide_candidate_connection" &&
-    state.terminalReply
-  ) {
-    return state.terminalReply;
-  }
-  if (
-    finalTerminalResult.name === "contact_talent" &&
-    state.requiredPresentationText &&
+    (finalTerminalResult.name === "decide_candidate_connection" ||
+      finalTerminalResult.name === "move_candidate_stage") &&
+    finalTerminalResult.status !== "success" &&
     state.terminalReply
   ) {
     return state.terminalReply;
@@ -171,6 +163,41 @@ export function enforceOrgAgentTerminalMutationOutcome(
     return ORG_AGENT_FAILED_ROLE_STATUS_REPLY;
   }
   return ORG_AGENT_FAILED_UPDATE_REPLY;
+}
+
+function enforceVerifiedWorkspaceLinkOrgId(
+  state: OrgAgentToolExecutionState,
+  reply: string
+) {
+  const workspaceId = state.company.workspaceId;
+  if (!workspaceId || !reply.includes("https://matchharper.com/org/")) {
+    return reply;
+  }
+
+  return reply.replace(
+    /https:\/\/matchharper\.com\/org\/[^\s<>|)]+/g,
+    (url) =>
+      url.replace(
+        /([?&](?:amp;)?orgId=)[^&\s<>|)]+/,
+        `$1${workspaceId}`
+      )
+  );
+}
+
+/**
+ * Preserve model-authored prose, while preventing a workspace-scoped Harper
+ * link from silently pointing at a hallucinated organization. Links are not
+ * added or required here; only an orgId already present in a Harper org URL is
+ * replaced with the authoritative workspace id.
+ */
+export function enforceOrgAgentTerminalMutationOutcome(
+  state: OrgAgentToolExecutionState,
+  modelReply: string
+) {
+  return enforceVerifiedWorkspaceLinkOrgId(
+    state,
+    enforceOrgAgentTerminalMutationOutcomeRaw(state, modelReply)
+  );
 }
 
 export function createOrgAgentToolExecutionState(

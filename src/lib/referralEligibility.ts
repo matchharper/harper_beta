@@ -1,3 +1,5 @@
+import { resolveTalentLocation } from "@/lib/talentLocation";
+
 export type ReferralEntryPointEligibilityInput = {
   currentLocation?: string | null;
   location?: string | null;
@@ -55,7 +57,6 @@ export function canShowReferralEntryPoints(
 ) {
   return (
     isKoreanPreferredLocale(input.preferredLocale) ||
-    isKoreaLocation(input.location) ||
-    isKoreaLocation(input.currentLocation)
+    isKoreaLocation(resolveTalentLocation(input))
   );
 }

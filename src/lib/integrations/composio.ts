@@ -1,47 +1,57 @@
+// Server-only transport. UI code must import the public integration types only.
 const COMPOSIO_API_BASE_URL = "https://backend.composio.dev/api/v3.1";
 const COMPOSIO_REQUEST_TIMEOUT_MS = 20_000;
 
-export const COMPOSIO_GMAIL_TOOLKIT_SLUG = "gmail";
-export const COMPOSIO_GMAIL_TOOL_VERSION = "20260817_00";
-
-type FetchLike = typeof fetch;
-
 export type ComposioConnectedAccount = {
-  auth_config?: {
-    id?: string | null;
-  } | null;
-  id?: string | null;
-  is_disabled?: boolean | null;
-  status?: string | null;
-  toolkit?: {
-    slug?: string | null;
-  } | null;
-  user_id?: string | null;
+  id?: string;
+  user_id?: string;
+  auth_config?: { id?: string; is_disabled?: boolean };
+  toolkit?: { slug?: string };
+  status?: string;
+  is_disabled?: boolean;
 };
 
-type ComposioConnectedAccountList = {
-  items?: ComposioConnectedAccount[] | null;
+export type ComposioToolExecution<T> = {
+  data?: T;
+  error?: string;
+  successful?: boolean;
 };
 
-type ComposioConnectLink = {
-  connected_account_id?: string | null;
-  expires_at?: string | null;
-  redirect_url?: string | null;
-};
-
-type ComposioErrorDetails = {
+type ErrorDetails = {
   code?: string | number;
   slug?: string;
   requestId?: string;
-  providerMessage?: string;
-  suggestedFix?: string;
-  causeCode?: string;
 };
 
+export class ComposioApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly details: ErrorDetails = {}
+  ) {
+    super(message);
+    this.name = "ComposioApiError";
+  }
+}
+
+export function readComposioEnv(name: string): string {
+  if (typeof window !== "undefined") {
+    throw new Error("Composio credentials are server-only");
+  }
+  const value = process.env[name]?.trim();
+  if (!value) {
+    throw new ComposioApiError(`${name} is required`, 503, {
+      code: "MISSING_ENV",
+    });
+  }
+  return value;
+}
+
+// Keep the safe diagnostics from the Gmail integration without logging raw
+// responses, credentials, connection objects, or provider content.
 function safeErrorText(value: unknown): string | undefined {
   if (typeof value !== "string" || !value.trim()) return undefined;
   let text = value;
-  // Redact known server credentials even if a provider echoes one in prose.
   for (const [name, secret] of Object.entries(process.env)) {
     if (/(?:KEY|TOKEN|SECRET|PASSWORD)/i.test(name) && secret?.trim()) {
       text = text.split(secret.trim()).join("[redacted]");
@@ -63,251 +73,228 @@ function safeErrorText(value: unknown): string | undefined {
     .slice(0, 600);
 }
 
-export class ComposioApiError extends Error {
-  status: number;
-  details: ComposioErrorDetails;
-
-  constructor(
-    message: string,
-    status: number,
-    details: ComposioErrorDetails = {}
-  ) {
-    super(message);
-    this.name = "ComposioApiError";
-    this.status = status;
-    this.details = details;
-  }
-}
-
 export function getIntegrationErrorDiagnostics(error: unknown) {
-  const record =
-    error && typeof error === "object"
-      ? (error as Record<string, unknown>)
-      : {};
-  const details = error instanceof ComposioApiError ? error.details : {};
-  return {
-    name: safeErrorText(record.name) ?? "Error",
-    message: safeErrorText(record.message) ?? "Unknown integration error",
-    ...(error instanceof ComposioApiError ? { status: error.status } : {}),
-    code:
-      typeof details.code === "number"
-        ? details.code
-        : safeErrorText(details.code ?? record.code),
-    slug: safeErrorText(details.slug),
-    requestId: safeErrorText(details.requestId),
-    providerMessage: safeErrorText(details.providerMessage),
-    suggestedFix: safeErrorText(details.suggestedFix),
-    causeCode: safeErrorText(details.causeCode),
-  };
-}
-
-async function readConnectionErrorDetails(
-  response: Response
-): Promise<ComposioErrorDetails> {
-  const payload = await response.json().catch(() => null);
-  const error = payload?.error;
-  if (!error || typeof error !== "object" || Array.isArray(error)) return {};
-  // Never retain raw responses, headers, connection data, or tool results.
-  return {
-    code:
-      typeof error.code === "number" ? error.code : safeErrorText(error.code),
-    slug: safeErrorText(error.slug),
-    requestId: safeErrorText(error.request_id),
-    providerMessage: safeErrorText(error.message),
-    suggestedFix: safeErrorText(error.suggested_fix),
-  };
-}
-
-function readServerEnv(name: string) {
-  const value = process.env[name]?.trim();
-  if (!value) {
-    throw new ComposioApiError(`${name} is required`, 500, {
-      code: "MISSING_ENV",
-    });
-  }
-  return value;
-}
-
-export function getComposioGmailAuthConfigId() {
-  return readServerEnv("COMPOSIO_GMAIL_AUTH_CONFIG_ID");
-}
-
-function normalizeConnectedAccountId(value: string) {
-  const normalized = value.trim();
-  if (!/^ca_[A-Za-z0-9_-]+$/.test(normalized) || normalized.length > 160) {
-    throw new ComposioApiError("Invalid connected account ID", 400);
-  }
-  return normalized;
-}
-
-async function composioRequest<T>(
-  path: string,
-  init: RequestInit = {},
-  fetchFn: FetchLike = fetch
-): Promise<T> {
-  const controller = new AbortController();
-  const timeout = setTimeout(
-    () => controller.abort(),
-    COMPOSIO_REQUEST_TIMEOUT_MS
-  );
-
-  try {
-    const response = await fetchFn(`${COMPOSIO_API_BASE_URL}${path}`, {
-      ...init,
-      cache: "no-store",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "x-api-key": readServerEnv("COMPOSIO_API_KEY"),
-        ...(init.headers ?? {}),
-      },
-      signal: init.signal ?? controller.signal,
-    });
-
-    if (!response.ok) {
-      // Connection errors contain setup diagnostics. Tool errors can echo
-      // private email content, so do not read their bodies for logging.
-      const details = path.startsWith("/connected_accounts")
-        ? await readConnectionErrorDetails(response)
-        : {};
-      throw new ComposioApiError(
-        `Composio request failed with status ${response.status}`,
-        response.status,
-        details
-      );
-    }
-
-    if (response.status === 204) return undefined as T;
-
-    try {
-      return (await response.json()) as T;
-    } catch {
-      throw new ComposioApiError("Composio returned invalid JSON", 502);
-    }
-  } catch (error) {
-    if (error instanceof ComposioApiError) throw error;
-    if (error instanceof Error && error.name === "AbortError") {
-      throw new ComposioApiError("Composio request timed out", 504);
-    }
-    const cause = error instanceof Error ? error.cause : null;
-    const causeCode =
-      cause && typeof cause === "object" && "code" in cause
-        ? safeErrorText(cause.code)
+  if (!(error instanceof ComposioApiError)) {
+    // Database messages can include row contents. Do not serialize them.
+    const code =
+      error && typeof error === "object" && "code" in error
+        ? error.code
         : undefined;
-    throw new ComposioApiError("Composio request failed", 502, { causeCode });
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-export async function createComposioGmailConnectLink(args: {
-  callbackUrl: string;
-  userId: string;
-}) {
-  const response = await composioRequest<ComposioConnectLink>(
-    "/connected_accounts/link",
-    {
-      body: JSON.stringify({
-        auth_config_id: getComposioGmailAuthConfigId(),
-        callback_url: args.callbackUrl,
-        user_id: args.userId,
-      }),
-      method: "POST",
-    }
-  );
-  const redirectUrl = response.redirect_url?.trim();
-  if (!redirectUrl) {
-    throw new ComposioApiError("Composio did not return a connect URL", 502);
+    return {
+      name: "IntegrationError",
+      ...(typeof code === "string" && /^(?:[A-Z0-9]{5}|PGRST[0-9]+)$/.test(code)
+        ? { code: safeErrorText(code) }
+        : {}),
+    };
   }
   return {
-    connectedAccountId: response.connected_account_id?.trim() || null,
-    expiresAt: response.expires_at?.trim() || null,
-    redirectUrl,
+    name: error.name,
+    status: error.status,
+    code:
+      typeof error.details.code === "number"
+        ? error.details.code
+        : safeErrorText(error.details.code),
+    slug: safeErrorText(error.details.slug),
+    requestId: safeErrorText(error.details.requestId),
   };
 }
 
-export async function listActiveComposioGmailAccounts(userId: string) {
-  const params = new URLSearchParams();
-  params.set("auth_config_ids", getComposioGmailAuthConfigId());
-  params.set("limit", "10");
-  params.set("statuses", "ACTIVE");
-  params.set("toolkit_slugs", COMPOSIO_GMAIL_TOOLKIT_SLUG);
-  params.set("user_ids", userId);
-  const response = await composioRequest<ComposioConnectedAccountList>(
-    `/connected_accounts?${params.toString()}`
-  );
-  return Array.isArray(response.items) ? response.items : [];
+export function isComposioAccountId(value: unknown): value is string {
+  return typeof value === "string" && /^ca_[A-Za-z0-9_-]{1,157}$/.test(value);
 }
 
-export async function getComposioConnectedAccount(connectedAccountId: string) {
-  const accountId = normalizeConnectedAccountId(connectedAccountId);
-  return composioRequest<ComposioConnectedAccount>(
-    `/connected_accounts/${encodeURIComponent(accountId)}`
-  );
-}
-
-export function isOwnedComposioGmailAccount(
-  account: ComposioConnectedAccount,
-  userId: string
+export function createComposioClient(
+  options: {
+    fetch?: typeof fetch;
+    timeoutMs?: number;
+  } = {}
 ) {
-  return (
-    account.user_id === userId &&
-    account.toolkit?.slug?.toLowerCase() === COMPOSIO_GMAIL_TOOLKIT_SLUG &&
-    account.auth_config?.id === getComposioGmailAuthConfigId()
-  );
-}
+  const fetchFn = options.fetch ?? fetch;
 
-export function getComposioAccountStatus(account: ComposioConnectedAccount) {
-  if (account.is_disabled === true) return "INACTIVE";
-  return String(account.status ?? "")
-    .trim()
-    .toUpperCase();
-}
-
-export async function executeComposioGmailFetchEmails(args: {
-  arguments: Record<string, unknown>;
-  connectedAccountId: string;
-  userId: string;
-}) {
-  const response = await composioRequest<Record<string, unknown>>(
-    "/tools/execute/GMAIL_FETCH_EMAILS",
-    {
-      body: JSON.stringify({
-        arguments: args.arguments,
-        connected_account_id: normalizeConnectedAccountId(
-          args.connectedAccountId
-        ),
-        user_id: args.userId,
-        version: COMPOSIO_GMAIL_TOOL_VERSION,
-      }),
-      method: "POST",
+  async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+    const apiKey = readComposioEnv("COMPOSIO_API_KEY");
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      options.timeoutMs ?? COMPOSIO_REQUEST_TIMEOUT_MS
+    );
+    try {
+      const response = await fetchFn(`${COMPOSIO_API_BASE_URL}${path}`, {
+        ...init,
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+        },
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        const detail = payload?.error;
+        throw new ComposioApiError(
+          `Composio request failed with status ${response.status}`,
+          response.status,
+          {
+            code:
+              typeof detail?.code === "number"
+                ? detail.code
+                : safeErrorText(detail?.code),
+            slug: safeErrorText(detail?.slug),
+            requestId: safeErrorText(detail?.request_id),
+          }
+        );
+      }
+      if (response.status === 204) return undefined as T;
+      return (await response.json().catch(() => {
+        throw new ComposioApiError("Composio returned invalid JSON", 502);
+      })) as T;
+    } catch (error) {
+      if (error instanceof ComposioApiError) throw error;
+      if (controller.signal.aborted) {
+        throw new ComposioApiError("Composio request timed out", 504);
+      }
+      throw new ComposioApiError("Composio request failed", 502);
+    } finally {
+      clearTimeout(timeout);
     }
-  );
-
-  if (response.successful === false || response.error) {
-    throw new ComposioApiError("Composio Gmail tool execution failed", 502);
   }
-  return response;
-}
 
-export async function revokeComposioConnectedAccount(
-  connectedAccountId: string
-) {
-  const accountId = normalizeConnectedAccountId(connectedAccountId);
-  await composioRequest(
-    `/connected_accounts/${encodeURIComponent(accountId)}/revoke`,
-    { method: "POST" }
-  );
-}
-
-export async function deleteComposioConnectedAccount(
-  connectedAccountId: string
-) {
-  const accountId = normalizeConnectedAccountId(connectedAccountId);
-  await composioRequest(
-    `/connected_accounts/${encodeURIComponent(accountId)}`,
-    {
-      method: "DELETE",
+  function accountPath(accountId: string) {
+    if (!isComposioAccountId(accountId)) {
+      throw new ComposioApiError("Invalid connected account ID", 400);
     }
-  );
+    return `/connected_accounts/${encodeURIComponent(accountId)}`;
+  }
+
+  return {
+    async createLink(args: {
+      authConfigId: string;
+      userId: string;
+      callbackUrl: string;
+    }) {
+      const response = await request<{
+        connected_account_id?: string;
+        redirect_url?: string;
+        expires_at?: string;
+      }>("/connected_accounts/link", {
+        method: "POST",
+        body: JSON.stringify({
+          auth_config_id: args.authConfigId,
+          user_id: args.userId,
+          callback_url: args.callbackUrl,
+        }),
+      });
+      let url: URL;
+      try {
+        url = new URL(response.redirect_url ?? "");
+      } catch {
+        throw new ComposioApiError(
+          "Composio returned an invalid connect URL",
+          502
+        );
+      }
+      if (
+        url.protocol !== "https:" ||
+        url.hostname !== "connect.composio.dev" ||
+        url.username ||
+        url.password ||
+        url.port ||
+        !isComposioAccountId(response.connected_account_id)
+      ) {
+        throw new ComposioApiError(
+          "Composio returned an invalid connect link",
+          502
+        );
+      }
+      return {
+        accountId: response.connected_account_id,
+        authorizeUrl: url.toString(),
+      };
+    },
+    async getAccount(accountId: string): Promise<ComposioConnectedAccount> {
+      const account = await request<ComposioConnectedAccount>(
+        accountPath(accountId)
+      );
+      if (!account || typeof account !== "object" || Array.isArray(account)) {
+        throw new ComposioApiError("Composio returned an invalid account", 502);
+      }
+      // The full vendor object can contain OAuth state/credentials. Retain
+      // only metadata used for ownership and lifecycle checks.
+      return {
+        id: account.id,
+        user_id: account.user_id,
+        toolkit: { slug: account.toolkit?.slug },
+        auth_config: {
+          id: account.auth_config?.id,
+          is_disabled: account.auth_config?.is_disabled,
+        },
+        status: account.status,
+        is_disabled: account.is_disabled,
+      };
+    },
+    async revokeAccount(accountId: string) {
+      const result = await request<{
+        connected_account?: { id?: string; status?: string };
+      }>(`${accountPath(accountId)}/revoke`, { method: "POST" });
+      if (
+        result?.connected_account?.id !== accountId ||
+        result.connected_account.status !== "REVOKED"
+      ) {
+        throw new ComposioApiError("Composio did not confirm revocation", 502);
+      }
+    },
+    async deleteAccount(accountId: string) {
+      const result = await request<{ success?: boolean } | undefined>(
+        accountPath(accountId),
+        { method: "DELETE" }
+      );
+      if (result !== undefined && result.success !== true) {
+        throw new ComposioApiError("Composio did not confirm deletion", 502);
+      }
+    },
+    async executeTool<T>(args: {
+      accountId: string;
+      arguments: Record<string, unknown>;
+      slug: string;
+      userId: string;
+      version: string;
+    }): Promise<T> {
+      if (!isComposioAccountId(args.accountId)) {
+        throw new ComposioApiError("Invalid connected account ID", 400);
+      }
+      if (!/^[A-Z][A-Z0-9_]{1,127}$/.test(args.slug)) {
+        throw new ComposioApiError("Invalid tool slug", 400);
+      }
+      if (!/^\d{8}_\d{2}$/.test(args.version)) {
+        throw new ComposioApiError("Invalid tool version", 400);
+      }
+      if (!args.userId.trim()) {
+        throw new ComposioApiError("Invalid tool user ID", 400);
+      }
+      const result = await request<ComposioToolExecution<T>>(
+        `/tools/execute/${encodeURIComponent(args.slug)}`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            arguments: args.arguments,
+            connected_account_id: args.accountId,
+            user_id: args.userId,
+            version: args.version,
+          }),
+        }
+      );
+      if (result?.successful !== true || result.data === undefined) {
+        // Provider errors can contain calendar titles, attendees, or event
+        // descriptions. Keep them out of logs and client-facing errors.
+        throw new ComposioApiError("Composio tool execution failed", 502, {
+          code: "TOOL_EXECUTION_FAILED",
+          slug: args.slug,
+        });
+      }
+      return result.data;
+    },
+  };
 }
+
+export type ComposioClient = ReturnType<typeof createComposioClient>;

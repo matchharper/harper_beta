@@ -4,11 +4,7 @@ import type { TalentOpportunityFeedbackReplyTrigger } from "@/lib/career/history
 import { getRequestUser } from "@/lib/supabaseServer";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 import { isMobileRequest } from "@/lib/requestDevice";
-import {
-  fetchTalentOpportunityHistoryByIds,
-  type TalentOpportunityFeedback,
-  type TalentOpportunityHistoryItem,
-} from "@/lib/talentOpportunity";
+import type { TalentOpportunityFeedback } from "@/lib/talentOpportunity";
 import { TALENT_TOOL_NAMES } from "@/lib/talentOnboarding/tools";
 import {
   CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER,
@@ -67,16 +63,6 @@ export async function POST(req: NextRequest) {
     const feedbackReason = String(body.feedbackReason ?? "").trim() || null;
     const requestIsMobile = isMobileRequest(req);
     const opportunityId = String(body.opportunityId ?? "").trim();
-    let opportunity: TalentOpportunityHistoryItem | null = null;
-
-    if (opportunityId && feedback) {
-      const [matchedOpportunity] = await fetchTalentOpportunityHistoryByIds({
-        admin,
-        ids: [opportunityId],
-        userId: user.id,
-      });
-      opportunity = matchedOpportunity ?? null;
-    }
 
     const assistantMessage = await createTalentOpportunityFeedbackFollowUpReply(
       {
@@ -86,7 +72,7 @@ export async function POST(req: NextRequest) {
         conversationId,
         feedbackReason,
         isMobile: requestIsMobile,
-        opportunity,
+        opportunityId: opportunityId && feedback ? opportunityId : null,
         trigger,
         userId: user.id,
       }

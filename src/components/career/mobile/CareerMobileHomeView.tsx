@@ -13,23 +13,16 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import CareerCallCard from "@/components/career/CareerCallCard";
-import { InternalOpportunityCallActions } from "@/components/career/InternalOpportunityCallActions";
 import {
   useCareerHistoryContext,
   useCareerProfileContext,
   useCareerSidebarContext,
 } from "@/components/career/CareerSidebarContext";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
-import {
-  formatCareerMessage,
-  formatCareerMessageByKey,
-} from "@/i18n/careerMessage";
+import { formatCareerMessage } from "@/i18n/careerMessage";
 import { useMessages } from "@/i18n/useMessage";
 import { ConversationStarterActions } from "@/components/career/ConversationStarterActions";
-import type {
-  CareerInternalOpportunityCallRequest,
-  CareerOpportunitySavedStageFilter,
-} from "@/components/career/types";
+import type { CareerOpportunitySavedStageFilter } from "@/components/career/types";
 import type {
   CareerConversationStarterId,
   CareerConversationStarterMode,
@@ -284,7 +277,7 @@ const CareerMobileHomeView = ({
     onStartCallMode,
     onStartConversationStarter,
     onRequestMoreOpenPositions,
-    pendingInternalOpportunityCallRequests = [],
+    pendingInternalOpportunityCallRequest,
   } = useCareerSidebarContext();
   const { historyOpportunityCounts } = useCareerHistoryContext();
   const { talentProfile } = useCareerProfileContext();
@@ -347,29 +340,16 @@ const CareerMobileHomeView = ({
   );
 
   const handleStartCall = () => {
-    logCareerEvent("click_mobile_home_start_call");
+    logCareerEvent(
+      pendingInternalOpportunityCallRequest
+        ? "click_mobile_home_resume_internal_opportunity_call"
+        : "click_mobile_home_start_call"
+    );
     onOpenChat();
-    void onStartCallMode?.();
-  };
-
-  const handleStartInternalOpportunityCall = (
-    callRequest: CareerInternalOpportunityCallRequest
-  ) => {
-    logCareerEvent("click_mobile_home_internal_opportunity_call");
-    onOpenChat();
-    return (
-      onStartCallMode?.({
-        internalCallRequestId: callRequest.id,
-        openingText: formatCareerMessageByKey(
-          m,
-          "career.internal_opportunity.call_opening",
-          "",
-          {
-            companyName: callRequest.companyName,
-            roleTitle: callRequest.roleTitle,
-          }
-        ),
-      }) ?? false
+    void onStartCallMode?.(
+      pendingInternalOpportunityCallRequest
+        ? { internalCallRequestId: pendingInternalOpportunityCallRequest.id }
+        : undefined
     );
   };
 
@@ -411,19 +391,10 @@ const CareerMobileHomeView = ({
         callStartPending={callStartPending}
         compact={historyOpportunityCounts.newInternal > 0}
         description={callCardDescription}
+        extraComponent={null}
         isOnboardingCompleted={callCardUsesCompletedLayout}
         onStartCall={handleStartCall}
         title={callCardTitle}
-        extraComponent={
-          <InternalOpportunityCallActions
-            callRequests={pendingInternalOpportunityCallRequests}
-            callStartPending={callStartPending}
-            className="mt-1"
-            disabled={!onStartCallMode}
-            onStart={handleStartInternalOpportunityCall}
-            variant="mobile"
-          />
-        }
       />
 
       <div className="px-1 text-center">

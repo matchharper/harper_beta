@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildOfficialJobsCareerHref,
   buildOfficialJobsInitialChatDraft,
+  buildOfficialJobsInitialChatMentionLabel,
   buildOfficialJobsLoginHref,
 } from "@/lib/officialJobs";
 
@@ -61,5 +62,24 @@ test("legacy official job links retain the role-only chat draft", () => {
   assert.equal(
     buildOfficialJobsInitialChatDraft("Forward Deployed Engineer", null, "ko"),
     "Harper 내부 기회인 Forward Deployed Engineer 포지션에 관심 있어요."
+  );
+});
+
+test("official job chat mention wraps the full visible opportunity phrase", () => {
+  assert.equal(
+    buildOfficialJobsInitialChatMentionLabel(
+      JOB.roleTitle,
+      JOB.companyName,
+      "ko"
+    ),
+    "Forward Deployed Engineer at [Harper] 포지션"
+  );
+  assert.equal(
+    buildOfficialJobsInitialChatMentionLabel(
+      JOB.roleTitle,
+      JOB.companyName,
+      "en"
+    ),
+    "Forward Deployed Engineer at [Harper]"
   );
 });

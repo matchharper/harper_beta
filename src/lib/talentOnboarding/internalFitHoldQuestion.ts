@@ -2,22 +2,35 @@ import {
   getChatClientForModel,
   supportsResponseFormatForModel,
 } from "@/lib/llm/llm";
+import { GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
+import { isTestOnlyInternalRole } from "@/lib/internalRoleSafety";
 import type { TalentAdminClient } from "./admin";
+import {
+  groupInternalFitHoldQuestionCandidates,
+  hasExplicitInternalFitReevaluationTopic,
+  normalizeInternalFitReevaluationTopic,
+  type InternalFitReevaluationTopic,
+} from "./internalFitQuestionTopics";
 
 export type ActiveInternalFitHoldQuestion = {
   fitId: string;
+  fitIds: string[];
   summary: string;
+  topic: InternalFitReevaluationTopic;
 };
 
 const ACTIVE_HOLD_CANDIDATE_LIMIT = 20;
 const NEW_INFORMATION_MAX_CHARS = 700;
-const PROPAGATION_MODEL = "grok-4.3";
+const PROPAGATION_MODEL = GPT_56_LUNA_MODEL;
 const PROPAGATION_TEMPERATURE = 0.3;
 const PROPAGATION_METHOD = "llm_criteria_match_v1";
 
-type InternalFitHoldQuestionCandidate = ActiveInternalFitHoldQuestion & {
+type InternalFitHoldQuestionCandidate = {
   criteria: unknown;
+  fitId: string;
   roleId: string;
+  summary: string;
+  topic: InternalFitReevaluationTopic;
 };
 
 function cleanText(value: unknown, maxChars: number) {
@@ -105,6 +118,10 @@ async function fetchUnansweredInternalFitHoldQuestionCandidates(args: {
             fitId,
             roleId,
             summary,
+            topic: normalizeInternalFitReevaluationTopic(
+              row.reevaluation_criteria,
+              summary
+            ),
           };
         })
         .filter((row): row is InternalFitHoldQuestionCandidate => Boolean(row))
@@ -115,7 +132,9 @@ async function fetchUnansweredInternalFitHoldQuestionCandidates(args: {
   const roleIds = candidates.map((row) => row.roleId);
   const [rolesResponse, recommendationResponse] = await Promise.all([
     (args.admin.from("company_roles" as any) as any)
-      .select("role_id, source_type, status, is_expired")
+      .select(
+        "role_id, source_type, source_provider, source_job_id, name, information, status, is_expired"
+      )
       .in("role_id", roleIds),
     (args.admin.from("talent_opportunity_recommendation" as any) as any)
       .select("role_id")
@@ -146,7 +165,8 @@ async function fetchUnansweredInternalFitHoldQuestionCandidates(args: {
         return (
           sourceType === "internal" &&
           status === "active" &&
-          row.is_expired !== true
+          row.is_expired !== true &&
+          !isTestOnlyInternalRole(row)
         );
       })
       .map((row: Record<string, unknown>) => normalizeRoleId(row.role_id))
@@ -161,18 +181,18 @@ async function fetchUnansweredInternalFitHoldQuestionCandidates(args: {
 
 export async function fetchActiveInternalFitHoldQuestion(args: {
   admin: TalentAdminClient;
+  locale?: string | null;
   userId: string;
 }): Promise<ActiveInternalFitHoldQuestion | null> {
-  const active = (
-    await fetchUnansweredInternalFitHoldQuestionCandidates(args)
-  )[0];
-
-  return active
-    ? {
-        fitId: active.fitId,
-        summary: active.summary,
-      }
-    : null;
+  const candidates = await fetchUnansweredInternalFitHoldQuestionCandidates(args);
+  const explicitTopicCandidates = candidates.filter((candidate) =>
+    hasExplicitInternalFitReevaluationTopic(candidate.criteria)
+  );
+  return (
+    groupInternalFitHoldQuestionCandidates(explicitTopicCandidates, args.locale).find(
+      (group) => group.fitIds.length > 1
+    ) ?? null
+  );
 }
 
 function extractPropagationFitIds(
@@ -406,62 +426,79 @@ export async function recordInternalFitReevaluationInformation(args: {
     };
   }
 
-  const { data: row, error: fetchError } = await (
+  const { data: rows, error: fetchError } = await (
     args.admin.from("talent_opportunity_fit" as any) as any
   )
     .select("id, reevaluation_criteria")
-    .eq("id", args.fitId)
+    .in("id", active.fitIds)
     .eq("talent_id", args.userId)
     .eq("label", "hold")
-    .is("human_label", null)
-    .maybeSingle();
+    .is("human_label", null);
 
   if (fetchError) {
     throw new Error(
       fetchError.message ?? "Failed to load internal fit hold question."
     );
   }
-  if (!row) {
+  const activeRows = Array.isArray(rows)
+    ? rows.filter((row: Record<string, unknown>) =>
+        active.fitIds.includes(cleanText(row.id, 120))
+      )
+    : [];
+  if (!activeRows.some((row: Record<string, unknown>) => row.id === args.fitId)) {
     return {
       ok: false,
       reason: "fit_not_found",
     };
   }
 
-  const previousCriteria = asRecord(row.reevaluation_criteria);
-  const nextCriteria = {
-    ...(previousCriteria ?? {}),
-    summary:
-      cleanText(previousCriteria?.summary, 1000) ||
-      extractHoldQuestionSummary(row.reevaluation_criteria) ||
-      active.summary,
-    new_information: newInformation,
-    answered_at: new Date().toISOString(),
-  };
+  const answeredAt = new Date().toISOString();
+  const updatedFitIds: string[] = [];
+  for (const row of activeRows as Record<string, unknown>[]) {
+    const rowFitId = cleanText(row.id, 120);
+    const previousCriteria = asRecord(row.reevaluation_criteria);
+    const nextCriteria = {
+      ...(previousCriteria ?? {}),
+      topic: active.topic,
+      summary:
+        cleanText(previousCriteria?.summary, 1000) ||
+        extractHoldQuestionSummary(row.reevaluation_criteria) ||
+        active.summary,
+      new_information: newInformation,
+      answered_at: answeredAt,
+      ...(rowFitId === args.fitId
+        ? {}
+        : {
+            propagated_from_fit_id: args.fitId,
+            propagation_method: "same_topic_group_v1",
+          }),
+    };
 
-  const { error: updateError } = await (
-    args.admin.from("talent_opportunity_fit" as any) as any
-  )
-    .update({
-      reevaluation_criteria: nextCriteria,
-      reevaluation_checked_at: null,
-    })
-    .eq("id", args.fitId)
-    .eq("talent_id", args.userId)
-    .eq("label", "hold")
-    .is("human_label", null);
+    const { error: updateError } = await (
+      args.admin.from("talent_opportunity_fit" as any) as any
+    )
+      .update({
+        reevaluation_criteria: nextCriteria,
+        reevaluation_checked_at: null,
+      })
+      .eq("id", rowFitId)
+      .eq("talent_id", args.userId)
+      .eq("label", "hold")
+      .is("human_label", null);
 
-  if (updateError) {
-    throw new Error(
-      updateError.message ??
-        "Failed to save internal fit reevaluation information."
-    );
+    if (updateError) {
+      throw new Error(
+        updateError.message ??
+          "Failed to save internal fit reevaluation information."
+      );
+    }
+    updatedFitIds.push(rowFitId);
   }
 
   const propagatedFitIds = await propagateInternalFitReevaluationInformation({
     admin: args.admin,
     changedFitId: args.fitId,
-    changedSummary: nextCriteria.summary,
+    changedSummary: active.summary,
     conversationId: args.conversationId,
     newInformation,
     userId: args.userId,
@@ -470,6 +507,7 @@ export async function recordInternalFitReevaluationInformation(args: {
   return {
     ok: true,
     fitId: args.fitId,
+    groupedFitIds: updatedFitIds,
     newInformation,
     propagatedFitIds,
   };

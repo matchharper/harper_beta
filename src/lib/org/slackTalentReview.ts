@@ -10,6 +10,7 @@ import {
   findHarperSlackWorkspaceMember,
   type HarperSlackWorkspaceMember,
 } from "@/lib/org/slackMemberAccess";
+import { resolveTalentLocation } from "@/lib/talentLocation";
 
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
 
@@ -209,7 +210,7 @@ export async function loadSlackTalentReviewCandidate(args: {
   ] = await Promise.all([
     (admin.from("talent_users" as any) as any)
       .select(
-        "user_id, email, name, profile_picture, bio, current_location, location, resume_file_name, resume_storage_path, resume_links"
+        "user_id, email, name, profile_picture, bio, location, current_location, resume_file_name, resume_storage_path, resume_links"
       )
       .eq("user_id", args.candidate.talentId)
       .maybeSingle(),
@@ -314,7 +315,7 @@ export async function loadSlackTalentReviewCandidate(args: {
       startDate: nullable(item.start_date),
     })),
     extras: profileExtras(extrasResult.data ?? []),
-    location: nullable(talent.current_location ?? talent.location),
+    location: resolveTalentLocation(talent),
     name: nullable(talent.name) || args.candidate.displayName,
     profilePicture: nullable(talent.profile_picture),
     reason: nullable(

@@ -114,8 +114,12 @@ test("Career adapters use shared presentation without enabling org attachments",
     careerComposer,
     /onStartConversationStarter\(\{ mode: "call", starterId \}\)/
   );
-  assert.match(careerComposer, /action\.kind !== "internal_fit_question"/);
-  assert.doesNotMatch(careerComposer, /label: "매칭 재평가 질문"/);
+  assert.match(
+    careerComposer,
+    /const visiblePendingActions = resolvedPendingActions/
+  );
+  assert.match(careerComposer, /action\.kind === "internal_fit_question"/);
+  assert.match(careerComposer, /"매칭 재평가 질문"/);
   assert.equal(
     careerComposer.match(/subtextLayout: "stacked" as const/g)?.length,
     5

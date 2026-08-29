@@ -264,7 +264,11 @@ export async function buildCareerTextChatDebugPrompt(args: {
     talentSetting?.is_onboarding_done &&
     talentSetting.profile_visibility !== "dont_share" &&
     canUseInternalFitHoldQuestionTool
-      ? await fetchActiveInternalFitHoldQuestion({ admin, userId })
+      ? await fetchActiveInternalFitHoldQuestion({
+          admin,
+          locale: responseLocale,
+          userId,
+        })
       : null;
 
   const toolSelection = resolveCareerChatTools({
@@ -330,7 +334,7 @@ export async function buildCareerTextChatDebugPrompt(args: {
   const recentMessages = await fetchRecentMessagesWithSummary({
     admin,
     conversationId,
-    recentLimit: 12,
+    recentLimit: 16,
     userId,
   });
   const messages = recentMessages
@@ -341,7 +345,9 @@ export async function buildCareerTextChatDebugPrompt(args: {
     )
     .map((item) => ({
       role: item.role as "assistant" | "user",
-      content: formatTalentMessageContentForLlmPrompt(item),
+      content: formatTalentMessageContentForLlmPrompt(item, {
+        includeCreatedAt: item.message_type !== "conversation_summary",
+      }),
     }))
     .filter((item) => item.content.trim().length > 0);
   const tools = toolSelection.tools as TalentChatTool[];

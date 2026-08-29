@@ -33,7 +33,7 @@ Singapore, Japan, Australia 유저에게 남기는 제품 차이는 두 가지�
 
 대상 판별:
 
-- `current_location`, `currentLocation`, `location`의 normalized token을 본다.
+- `location`의 normalized token을 먼저 보고, 값이 없을 때만 `current_location`/`currentLocation`을 fallback으로 본다.
 - `singapore`, `japan`, `australia`만 target으로 본다.
 - `sg`, `jp`, `au` 같은 code-only token은 target으로 보지 않는다.
 - substring match를 하지 않는다.
@@ -117,7 +117,6 @@ Worker scope가 적용되는 fetch:
 삭제/정리된 코드:
 
 - `src/lib/career/prompts_sg_au_jp.ts`
-- `wonderful_fde_country_roles` migration table block
 - legacy SG/AU code-only `permanent_residency` checklist branch
 - previous FDE-specific checklist keys:
   - `fde_current_base_and_authorization`

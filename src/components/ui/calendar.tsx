@@ -17,11 +17,15 @@ function Calendar({
   showOutsideDays = true,
   captionLayout = "label",
   buttonVariant = "secondary",
+  navigationButtonClassName,
+  navigationHeaderClassName,
   formatters,
   components,
   ...props
 }: React.ComponentProps<typeof DayPicker> & {
   buttonVariant?: React.ComponentProps<typeof Button>["variant"];
+  navigationButtonClassName?: string;
+  navigationHeaderClassName?: string;
 }) {
   const defaultClassNames = getDefaultClassNames();
 
@@ -54,16 +58,19 @@ function Calendar({
         button_previous: cn(
           buttonVariants({ variant: buttonVariant }),
           "h-[--cell-size] w-[--cell-size] select-none p-0 aria-disabled:opacity-50",
-          defaultClassNames.button_previous
+          defaultClassNames.button_previous,
+          navigationButtonClassName
         ),
         button_next: cn(
           buttonVariants({ variant: buttonVariant }),
           "h-[--cell-size] w-[--cell-size] select-none p-0 aria-disabled:opacity-50",
-          defaultClassNames.button_next
+          defaultClassNames.button_next,
+          navigationButtonClassName
         ),
         month_caption: cn(
           "flex h-[--cell-size] w-full items-center justify-center px-[--cell-size]",
-          defaultClassNames.month_caption
+          defaultClassNames.month_caption,
+          navigationHeaderClassName
         ),
         dropdowns: cn(
           "flex h-[--cell-size] w-full items-center justify-center gap-1.5 text-sm font-medium",

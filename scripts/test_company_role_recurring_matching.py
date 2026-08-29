@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timedelta, timezone
 import inspect
 import json
 import tempfile
@@ -13,11 +14,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from company_role_recurring_matching import (
     DEFAULT_CANDIDATE_EVALUATION_LIMIT,
     DEFAULT_CANDIDATE_SCAN_LIMIT,
+    CONTEXT_EDIT_INSTRUCTIONS_TEXT,
     FIT_EVALUATION_CONTRACT_TEXT,
     MAX_EVALUATIONS_PER_RUN,
     MAX_DISCOVERY_EVALUATIONS_PER_RUN,
     MAX_CANDIDATE_SCAN_PER_LANE,
+    MAX_REEVALUATION_CANDIDATE_SCAN_PER_LANE,
+    MIN_REEVALUATION_EVALUATIONS_PER_RUN,
     MAX_REEVALUATION_EVALUATIONS_PER_RUN,
+    REEVALUATION_MIN_AGE,
+    matching_profile_payload,
     candidate_exclusion,
     build_parser,
     clear_generated_files,
@@ -33,6 +39,7 @@ from company_role_recurring_matching import (
     ordered_candidate_ids,
     next_lane_candidates,
     normalize_context_text,
+    normalized_final_order_by,
     pair_inputs_reusable,
     role_matching_fingerprint,
     render_candidate_evaluation_document,
@@ -41,6 +48,7 @@ from company_role_recurring_matching import (
     validate_context_structure,
     validate_reevaluation_skips,
     validate_read_only_sql,
+    validate_retrieval_rows,
     validate_semantic_neutral_retrieval_sql,
     workflow_schema_status,
     assert_run_writable,
@@ -111,6 +119,88 @@ class RetrievalSqlTests(unittest.TestCase):
             validate_semantic_neutral_retrieval_sql(
                 "select talent_id from public.opportunity_discovery_run "
                 "order by talent_id limit 10"
+            )
+
+    def test_reevaluation_sql_requires_due_fit_fields_and_same_role_rank(self) -> None:
+        new_sql = """
+        select user_id as talent_id, true as has_role_depth
+        from public.talent_users
+        order by has_role_depth desc, talent_id
+        limit 150
+        """
+        reevaluation_sql = """
+        select
+          fit.talent_id,
+          coalesce(fit.human_label, fit.label) as effective_label,
+          fit.last_evaluated_at,
+          true as has_role_depth
+        from public.talent_opportunity_fit fit
+        where coalesce(fit.human_label, fit.label) in ('hold', 'ambiguous')
+          and fit.last_evaluated_at <= now() - interval '21 days'
+        order by has_role_depth desc, talent_id
+        limit 150
+        """
+        reference_order = normalized_final_order_by(new_sql)
+        self.assertEqual(
+            validate_semantic_neutral_retrieval_sql(
+                reevaluation_sql,
+                lane="reevaluation",
+                reference_order_by=reference_order,
+            ),
+            reevaluation_sql.strip(),
+        )
+        with self.assertRaisesRegex(ValueError, "same final role-ranking"):
+            validate_semantic_neutral_retrieval_sql(
+                reevaluation_sql.replace(
+                    "has_role_depth desc, talent_id",
+                    "last_evaluated_at, talent_id",
+                ),
+                lane="reevaluation",
+                reference_order_by=reference_order,
+            )
+        with self.assertRaisesRegex(ValueError, "21-day"):
+            validate_semantic_neutral_retrieval_sql(
+                reevaluation_sql.replace("interval '21 days'", "interval '7 days'"),
+                lane="reevaluation",
+                reference_order_by=reference_order,
+            )
+
+    def test_reevaluation_rows_reject_fit_and_recent_evaluations(self) -> None:
+        now = datetime(2026, 8, 24, tzinfo=timezone.utc)
+        validate_retrieval_rows(
+            [
+                {
+                    "talent_id": TALENT_ID,
+                    "effective_label": "hold",
+                    "last_evaluated_at": now - timedelta(days=21),
+                }
+            ],
+            lane="reevaluation",
+            now=now,
+        )
+        with self.assertRaisesRegex(ValueError, "ineligible effective label"):
+            validate_retrieval_rows(
+                [
+                    {
+                        "talent_id": TALENT_ID,
+                        "effective_label": "fit",
+                        "last_evaluated_at": now - timedelta(days=30),
+                    }
+                ],
+                lane="reevaluation",
+                now=now,
+            )
+        with self.assertRaisesRegex(ValueError, "less than 21 days"):
+            validate_retrieval_rows(
+                [
+                    {
+                        "talent_id": TALENT_ID,
+                        "effective_label": "ambiguous",
+                        "last_evaluated_at": now - timedelta(days=20),
+                    }
+                ],
+                lane="reevaluation",
+                now=now,
             )
 
 
@@ -202,6 +292,16 @@ class SchemaPreflightTests(unittest.TestCase):
 
 
 class RoleScopeContractTests(unittest.TestCase):
+    def test_context_instructions_keep_only_decision_useful_information(self) -> None:
+        for required in (
+            "검토 이력이나 사건 원장이 아니라",
+            "이 문장을 빼면 다음 후보의 retrieval, label, score, reason 또는 확인 질문이 달라질",
+            "이유·메모 없는 stage 변경",
+            "반영할 필요한 정보가 0개이고 기존 context가 비어 있으면 빈 text",
+            "검토 완료 기록이 필요하면 run summary",
+        ):
+            self.assertIn(required, CONTEXT_EDIT_INSTRUCTIONS_TEXT)
+
     def test_context_sources_cover_company_workspace_and_keep_role_ids(self) -> None:
         source = inspect.getsource(source_cursor) + inspect.getsource(context_source_packet)
         for condition in (
@@ -224,6 +324,10 @@ class RoleScopeContractTests(unittest.TestCase):
         queue_migration = (
             Path(__file__).resolve().parents[1]
             / "supabase/migrations/20260814180000_company_context_run_queue.sql"
+        ).read_text(encoding="utf-8")
+        active_queue_migration = (
+            Path(__file__).resolve().parents[1]
+            / "supabase/migrations/20260824163000_company_context_run_active_queue_only.sql"
         ).read_text(encoding="utf-8")
         context_migration = (
             Path(__file__).resolve().parents[1]
@@ -248,6 +352,14 @@ class RoleScopeContractTests(unittest.TestCase):
         self.assertIn("automatic company context run requires is_auto=true", queue_migration)
         self.assertIn("company_internal_roles_cancel_context_run_v1", queue_migration)
         self.assertNotIn("interval '72 hours'", queue_migration)
+        self.assertIn(
+            "automatic company context run requires an active, unexpired internal role",
+            active_queue_migration,
+        )
+        self.assertIn("v_old_status = 'draft'", active_queue_migration)
+        self.assertIn("v_new_status = 'active'", active_queue_migration)
+        self.assertIn("run.status = 'queued'", active_queue_migration)
+        self.assertIn("run.trigger_reason <> 'manual'", active_queue_migration)
         self.assertIn("create table if not exists public.company_behavior_contexts", context_migration)
         self.assertIn("drop table public.company_role_behavior_contexts", context_migration)
         self.assertIn("drop column if exists context_version", context_migration)
@@ -281,6 +393,19 @@ class RoleScopeContractTests(unittest.TestCase):
 
 
 class EvaluationDocumentTests(unittest.TestCase):
+    def test_matching_profile_prefers_maintained_location(self) -> None:
+        profile = matching_profile_payload(
+            {
+                "current_location": "South Korea",
+                "location": "San Francisco, USA",
+                "name": "Chris Heo",
+            }
+        )
+        self.assertIsNotNone(profile)
+        self.assertEqual(profile["location"], "San Francisco, USA")
+        self.assertEqual(profile["signup_location"], "South Korea")
+        self.assertNotIn("current_location", profile)
+
     def test_candidate_page_can_be_empty_and_is_stably_deduplicated(self) -> None:
         self.assertEqual(ordered_candidate_ids([], 150), [])
         self.assertEqual(
@@ -402,8 +527,11 @@ class EvaluationContractTests(unittest.TestCase):
         self.assertEqual(DEFAULT_CANDIDATE_SCAN_LIMIT, 150)
         self.assertEqual(MAX_EVALUATIONS_PER_RUN, 200)
         self.assertEqual(MAX_DISCOVERY_EVALUATIONS_PER_RUN, 100)
-        self.assertEqual(MAX_REEVALUATION_EVALUATIONS_PER_RUN, 100)
+        self.assertEqual(MIN_REEVALUATION_EVALUATIONS_PER_RUN, 10)
+        self.assertEqual(MAX_REEVALUATION_EVALUATIONS_PER_RUN, 50)
+        self.assertEqual(REEVALUATION_MIN_AGE, timedelta(days=21))
         self.assertEqual(MAX_CANDIDATE_SCAN_PER_LANE, 150)
+        self.assertEqual(MAX_REEVALUATION_CANDIDATE_SCAN_PER_LANE, 500)
 
     def test_candidate_packet_defaults_to_one_hundred_of_one_hundred_fifty(self) -> None:
         args = build_parser().parse_args(
@@ -420,6 +548,22 @@ class EvaluationContractTests(unittest.TestCase):
         self.assertEqual(args.limit, 100)
         self.assertEqual(args.scan_limit, 150)
 
+    def test_run_sql_requires_an_explicit_lane(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "run-sql",
+                "--run-id",
+                "00000000-0000-4000-8000-000000000001",
+                "--sql-file",
+                "/tmp/result.sql",
+                "--lane",
+                "reevaluation",
+                "--revision",
+                "2",
+            ]
+        )
+        self.assertEqual(args.lane, "reevaluation")
+
     def test_exact_role_prior_interest_is_not_required_for_fit(self) -> None:
         self.assertIn(
             "정확한 회사·역할을 사전에 알고 있거나 role-specific 의향을 밝힌 적이 있는지는 fit의 선행 조건이 아니다",
@@ -434,7 +578,7 @@ class EvaluationContractTests(unittest.TestCase):
             FIT_EVALUATION_CONTRACT_TEXT,
         )
 
-    def test_reevaluation_fingerprint_reuse_and_irrelevant_skip_contract(self) -> None:
+    def test_reevaluation_reuses_identical_fingerprints(self) -> None:
         metadata = {
             "candidateFingerprint": "candidate",
             "roleMatchingFingerprint": "role-source",
@@ -514,21 +658,15 @@ class EvaluationContractTests(unittest.TestCase):
             candidate_input_fingerprint(talent),
             candidate_input_fingerprint(semantic_change),
         )
-        skips = validate_reevaluation_skips(
-            [
-                {
-                    "talentId": TALENT_ID,
-                    "reason": "Only the profile photo and login timestamp changed.",
-                }
-            ],
-            {TALENT_ID: "reevaluation"},
-            set(),
-        )
-        self.assertEqual(skips[0]["decision"], "changed_but_irrelevant")
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "must be fully reevaluated"):
             validate_reevaluation_skips(
-                [{"talentId": TALENT_ID, "reason": "Skip a new candidate."}],
-                {TALENT_ID: "new"},
+                [
+                    {
+                        "talentId": TALENT_ID,
+                        "reason": "Only the profile photo and login timestamp changed.",
+                    }
+                ],
+                {TALENT_ID: "reevaluation"},
                 set(),
             )
 
@@ -746,10 +884,14 @@ class CandidateEligibilityTests(unittest.TestCase):
         )
         self.assertEqual(reasons, ["existing_same_role_fit_evaluation"])
 
-    def test_low_effective_labels_are_excluded_from_recurring_reevaluation(self) -> None:
-        for label in ("dissatisfied", "unfit"):
+    def test_only_due_hold_and_ambiguous_are_eligible_for_reevaluation(self) -> None:
+        for label in ("fit", "dissatisfied", "unfit"):
             data = self.base_data()
-            data["fits"][TALENT_ID] = {"label": "fit", "human_label": label}
+            data["fits"][TALENT_ID] = {
+                "label": "hold",
+                "human_label": label,
+                "last_evaluated_at": "2020-01-01T00:00:00Z",
+            }
             reasons, _ = candidate_exclusion(
                 TALENT_ID,
                 data,
@@ -761,6 +903,35 @@ class CandidateEligibilityTests(unittest.TestCase):
                 f"effective_{label}_excluded_from_reevaluation",
                 reasons,
             )
+
+        recent = self.base_data()
+        recent["fits"][TALENT_ID] = {
+            "label": "hold",
+            "last_evaluated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        reasons, _ = candidate_exclusion(
+            TALENT_ID,
+            recent,
+            role_id=ROLE_ID,
+            company_name="Acme",
+            lane="reevaluation",
+        )
+        self.assertIn("reevaluation_not_due_before_21_days", reasons)
+
+        for label in ("hold", "ambiguous"):
+            due = self.base_data()
+            due["fits"][TALENT_ID] = {
+                "label": label,
+                "last_evaluated_at": "2020-01-01T00:00:00Z",
+            }
+            reasons, _ = candidate_exclusion(
+                TALENT_ID,
+                due,
+                role_id=ROLE_ID,
+                company_name="Acme",
+                lane="reevaluation",
+            )
+            self.assertEqual(reasons, [])
 
     def test_current_company_is_flagged_for_direct_judgment(self) -> None:
         data = self.base_data()

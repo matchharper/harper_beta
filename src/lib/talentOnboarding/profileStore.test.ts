@@ -103,6 +103,37 @@ test("exposes row memos to the LLM context up to 2000 characters", () => {
   assert.match(context, new RegExp(`Memo: ${memo}$`));
 });
 
+test("exposes education descriptions to the LLM context", () => {
+  const context = buildTalentProfileContext({
+    profile: null,
+    structuredProfile: {
+      talentUser: null,
+      talentExperiences: [],
+      talentEducations: [
+        {
+          created_at: "2026-08-26T00:00:00.000Z",
+          degree: "학사",
+          description: "분산 시스템 연구실에서 학부 연구생으로 활동했습니다.",
+          end_date: "2024-02",
+          field: "컴퓨터공학",
+          id: 42,
+          memo: null,
+          school: "하퍼대학교",
+          start_date: "2020-03",
+          talent_id: "talent-1",
+          url: null,
+        },
+      ],
+      talentExtras: [],
+    },
+  });
+
+  assert.match(
+    context,
+    /Description: 분산 시스템 연구실에서 학부 연구생으로 활동했습니다\./
+  );
+});
+
 test("does not split a styled Unicode character in profile context", () => {
   const prefix = "a".repeat(1199);
   const context = buildTalentProfileContext({

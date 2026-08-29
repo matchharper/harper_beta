@@ -14,6 +14,11 @@ import {
   type InternalConnectionConfirmationEmailMode,
   type OpsMatchingConnectionConfirmationEmail,
 } from "@/lib/ops/connectionConfirmationEmail";
+import {
+  buildMatchingRecommendationDeliveryKey,
+  fetchMatchingRecommendationEmailOpenedAtMap,
+  getEarliestMatchingViewedAt,
+} from "@/lib/ops/matchingViewedAt";
 import type {
   OpportunityEmploymentType,
   OpportunitySourceType,
@@ -26,6 +31,8 @@ type AdminClient = ReturnType<typeof getSupabaseAdmin>;
 type TalentUserRow = Pick<
   Database["public"]["Tables"]["talent_users"]["Row"],
   | "created_at"
+  | "deleted_at"
+  | "deletion_reason_code"
   | "email"
   | "headline"
   | "last_logined_at"
@@ -259,7 +266,7 @@ const MATCHING_NOT_INTERESTED_TAG = "관심없음";
 const TALENT_POOL_TAILORED_TAG = "적합";
 
 const TALENT_LIST_SELECT =
-  "user_id, name, email, profile_picture, headline, created_at, last_logined_at, resume_file_name, resume_storage_path, resume_links";
+  "user_id, name, email, profile_picture, headline, created_at, deleted_at, deletion_reason_code, last_logined_at, resume_file_name, resume_storage_path, resume_links";
 
 export type OpsMatchingCompanyOption = {
   activeRoleCount: number;
@@ -468,6 +475,8 @@ export type OpsMatchingTalentRoleTagsResponse = {
 
 export type OpsMatchingTalentItem = {
   createdAt: string | null;
+  deletedAt: string | null;
+  deletionReasonCode: string | null;
   description: string | null;
   email: string | null;
   experiences: OpsMatchingProfileExperience[];
@@ -2265,6 +2274,8 @@ async function buildOpsMatchingTalentItems(args: {
     const recentSchools = profileMaps.schoolMap.get(row.user_id) ?? [];
     return {
       createdAt: row.created_at,
+      deletedAt: row.deleted_at,
+      deletionReasonCode: row.deletion_reason_code,
       description: null,
       email: row.email,
       educations: profileMaps.educationMap.get(row.user_id) ?? [],
@@ -3193,6 +3204,8 @@ async function fetchMatchingFitSearchTargets(args: {
 function buildFallbackOpsMatchingTalentItem(talentId: string) {
   return {
     createdAt: null,
+    deletedAt: null,
+    deletionReasonCode: null,
     description: null,
     email: null,
     educations: [],
@@ -3876,6 +3889,33 @@ async function fetchManualInternalRecommendationRunIds(args: {
   return manualRunIds;
 }
 
+async function fetchRecommendationEmailOpenedAtMap(args: {
+  admin: AdminClient;
+  rows: TalentRecommendationRow[];
+}) {
+  return fetchMatchingRecommendationEmailOpenedAtMap({
+    admin: args.admin,
+    targets: args.rows.map((row) => ({
+      discoveryRunId: row.discovery_run_id,
+      talentId: row.talent_id,
+    })),
+  });
+}
+
+async function fetchRecommendationEmailOpenedAtMapSafely(args: {
+  admin: AdminClient;
+  rows: TalentRecommendationRow[];
+}) {
+  try {
+    return await fetchRecommendationEmailOpenedAtMap(args);
+  } catch (error) {
+    console.warn("[ops-matching] recommendation email open lookup failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return new Map<string, string>();
+  }
+}
+
 function buildOpsMatchingRoleReviewStage(
   row: OpsMatchingRoleStageRow
 ): OpsMatchingRoleReviewStage {
@@ -4188,10 +4228,21 @@ export async function fetchOpsMatchingReviewBoard(args: {
     if (recommendationRows.length >= MAX_MATCHING_REVIEW_ITEMS) break;
   }
 
-  const talentRowMap = await fetchTalentRowMap({
-    admin,
-    talentIds: recommendationRows.map((row) => row.talent_id),
-  });
+  const [talentRowMap, manualRunIds, emailOpenedAtByDeliveryKey] =
+    await Promise.all([
+      fetchTalentRowMap({
+        admin,
+        talentIds: recommendationRows.map((row) => row.talent_id),
+      }),
+      fetchManualInternalRecommendationRunIds({
+        admin,
+        runIds: recommendationRows.map((row) => row.discovery_run_id ?? ""),
+      }),
+      fetchRecommendationEmailOpenedAtMapSafely({
+        admin,
+        rows: recommendationRows,
+      }),
+    ]);
   const talentRows = recommendationRows
     .map((row) => talentRowMap.get(row.talent_id))
     .filter((row): row is TalentUserRow => Boolean(row));
@@ -4203,16 +4254,15 @@ export async function fetchOpsMatchingReviewBoard(args: {
   const talentItemMap = new Map(
     talentItems.map((talent) => [talent.userId, talent])
   );
-  const manualRunIds = await fetchManualInternalRecommendationRunIds({
-    admin,
-    runIds: recommendationRows.map((row) => row.discovery_run_id ?? ""),
-  });
-
   const items = recommendationRows
     .map((row): OpsMatchingReviewItem | null => {
       const talent = talentItemMap.get(row.talent_id);
       if (!talent) return null;
       const discoveryRunId = row.discovery_run_id ?? null;
+      const deliveryKey = buildMatchingRecommendationDeliveryKey(
+        row.talent_id,
+        discoveryRunId
+      );
       const stage = getOpsMatchingReviewStage({
         customStageByTagKey,
         feedback: row.feedback,
@@ -4234,7 +4284,10 @@ export async function fetchOpsMatchingReviewBoard(args: {
         stageTag: stage.stageTag,
         talent,
         updatedAt: row.updated_at,
-        viewedAt: row.viewed_at,
+        viewedAt: getEarliestMatchingViewedAt(
+          row.viewed_at,
+          emailOpenedAtByDeliveryKey.get(deliveryKey)
+        ),
       };
     })
     .filter((item): item is OpsMatchingReviewItem => item !== null);

@@ -1,7 +1,7 @@
 # Company Context Run: Codex 반복 실행 런북
 
 - 작성일: 2026-08-14
-- 용도: 6시간마다 실행되는 Codex 예약 작업이 queued role을 처리할 때 읽는 문서
+- 용도: Codex 예약 작업이 현재 claim 가능한 queued role을 모두 순차 처리할 때 읽는 문서
 - 기능·구현 계약: [Company Context Run 개요](./company-context-run-overview-ko.md)
 
 이 문서는 migration, 최초 배포, 테스트 계획을 설명하지 않는다. 이미 queue에 들어온 role 하나의 context를 올바르게 갱신하고 연결 후보를 평가하는 데만 집중한다.
@@ -15,7 +15,8 @@
 3. `available_at <= now()`인 `queued` row 하나를 atomic claim한다.
 4. Claim할 row가 없으면 아무 write 없이 종료한다.
 5. Claim한 `run_id`와 `role_id` 하나의 전체 작업을 끝낸다.
-6. 시간이 충분하면 다음 row를 claim할 수 있지만, 동시에 여러 role을 처리하지 않는다.
+6. 해당 row가 `succeeded`, `canceled`, `failed` 중 하나의 terminal 상태가 된 뒤 다음 row를 claim한다.
+7. Claim할 row가 없을 때까지 3~6을 반복한다. 동시에 여러 role을 claim하거나 처리하지 않는다.
 
 직접 table을 임의 update하지 말고 enqueue, claim, save, finish, fail을 담당하는 repository helper를 사용한다.
 
@@ -33,7 +34,16 @@ python3 scripts/company_role_recurring_matching.py start \
   --runner codex-scheduled
 ```
 
-`start` JSON의 `started=false`이면 정상 no-op이다. `started=true`이면 출력된 `runId`, `artifactPath`, `sourcePacket`을 이후 명령에 그대로 사용한다. 예시에서는 반복되는 값을 다음처럼 표시한다.
+첫 claim에서만 `--enqueue-due`를 사용한다. 한 row를 terminal 상태로 끝낸 뒤 다음 claim부터는 아래 명령을 반복한다.
+
+```bash
+python3 scripts/company_role_recurring_matching.py start \
+  --runner codex-scheduled
+```
+
+`start` JSON의 `started=false`이고 reason이 `no_queued_run`이면 현재 claim 가능한 queue가 빈 것이므로 전체 예약 실행을 정상 종료한다. Inactive, expired, missing, non-internal, auto-disabled 등의 이유로 row가 즉시 `canceled`로 닫히면 그 row만 terminal 처리된 것이다. 여기서 예약 실행을 멈추지 않고 다음 row를 claim한다.
+
+`started=true`이면 출력된 `runId`, `artifactPath`, `sourcePacket`을 이후 명령에 그대로 사용한다. 해당 row를 terminal 상태로 끝내기 전에는 다음 row를 claim하지 않는다. 예시에서는 반복되는 값을 다음처럼 표시한다.
 
 ```bash
 RUN_ID='<start가 반환한 runId>'
@@ -101,15 +111,52 @@ Claim 뒤 role이 더 이상 active가 아니거나 자동 run의 `is_auto`가 �
 
 ### 4.1 편집 순서
 
-1. 기존 문장마다 지금도 근거가 유효한지 본다.
-2. 최근 명시적 이유·메모·결정은 충분한 detail로 남긴다.
-3. 반복되는 같은 반응은 하나의 패턴으로 압축한다.
-4. 단순 조회, 중복 event, 이유 없는 운영 event는 생략한다.
-5. 최근 신호가 과거 판단과 충돌하면 범위 차이인지 기준 변화인지 설명한다.
-6. 근거가 약한 단일 사건은 확정 선호로 쓰지 않는다.
-7. 수정할 의미가 없으면 text를 그대로 유지하고 `UNCHANGED`로 저장한다.
+1. 먼저 context가 검토 이력이 아니라 다음 `[talent × role]` 평가의 입력임을 확인한다.
+2. 기존 문장마다 근거가 유효한지와 다음 평가에 여전히 필요한지를 각각 본다.
+3. 최근의 명시적 이유·메모·결정 중 retrieval, label, score, reason 또는 확인 질문을 바꿀 정보만 충분한 detail로 남긴다.
+4. 같은 이유의 반복 반응은 하나의 판단 패턴으로 압축한다.
+5. 단순 조회, 중복 event, 이유 없는 stage 변경, 검토했다는 사실과 일반적인 “아직 모름”은 생략한다.
+6. 최근 신호가 과거 판단과 충돌하면 범위 차이인지 기준 변화인지 설명한다.
+7. 근거가 약한 단일 사건이나 이유 없는 결과에서 후보 선호를 추론하지 않는다.
+8. 새로 반영할 필요한 정보가 없으면 기존 text를 그대로 사용한다. 기존 text도 비어 있으면 빈 파일을 그대로 저장한다.
+9. 기존 문장이 더 이상 유효하지 않거나 필요한 정보가 아니면 삭제한다. 삭제 결과가 빈 context여도 된다.
 
-### 4.2 기본 형태
+### 4.2 입력 효용성 gate
+
+각 문장에 아래 제거 검사를 적용한다.
+
+> 이 문장을 제거했을 때 다음 후보 평가가 달라질 합리적인 가능성이 있는가?
+
+가능성이 없으면 context에 쓰지 않는다. 다음 항목은 evidence 검토 대상일 수는 있어도 context가 아니다.
+
+- 회사 actor가 확인됐지만 이유·메모가 없는 stage 변경
+- “이 역할에서 이런 조치가 있었다”는 사건 요약
+- “명시적 이유가 없어 일반화하지 않는다”는 방어 문장
+- “추가 판단 기준은 미확정이다” 같은 일반적인 무정보 문장
+- 후보 수, 검토 수, 날짜 등 실행·감사 정보
+
+이유 없는 stage 변경은 행동의 존재만 증명하고 판단 원인은 증명하지 않는다. 후보 속성과 함께 보이더라도 명시적 이유나 충분히 반복된 고신호 근거 없이 선호로 만들지 않는다.
+
+반대로 다음은 context가 될 수 있다.
+
+- 회사가 진행·중단 이유로 직접 설명한, 다음 후보에도 적용할 판단 기준
+- 같은 명시적 이유로 반복된 반응에서 확인된 기준과 허용 가능한 trade-off
+- 기존 판단을 바꾸는 최근의 명시적 설명
+- 그대로 두면 다음 평가를 잘못 이끌 기존 context의 정정·삭제
+- 실제 label을 바꿀 수 있으며 확인 질문이 구체적인 불확실성
+
+### 4.3 반영할 정보가 없을 때
+
+필요한 문장이 0개인 것은 정상적인 성공 결과다.
+
+- `context_before.md`가 비어 있으면 `context_after_draft.md`도 빈 파일로 만든다. DB에는 빈 `text_context`를 유지하고 receipt의 `contextChanged`가 `false`인지 확인한다.
+- 기존 context가 있고 새 evidence가 의미를 바꾸지 않으면 기존 파일을 그대로 사용한다.
+- 기존 context의 모든 문장이 무효하거나 불필요해졌으면 모두 삭제하고 빈 context를 저장한다. 이 경우 정리 자체가 변화이므로 `contextChanged=true`일 수 있다.
+- 검토 완료 사실은 context가 아니라 run summary에 `행동 evidence를 검토했으나 context에 반영할 matching-relevant 정보 없음`처럼 남긴다.
+
+예를 들어 회사 사용자가 `수락 → 아카이브`, `연결 대기 → 아카이브`로 이동시켰더라도 두 건 모두 이유와 메모가 없다면, 그 사실만으로 context 문장을 만들지 않는다. 기존 context가 비어 있다면 계속 비워 둔다.
+
+### 4.4 기본 형태
 
 ```markdown
 ## 현재 채용 판단
@@ -128,18 +175,20 @@ Claim 뒤 role이 더 이상 active가 아니거나 자동 run의 `is_auto`가 �
 - ...
 
 ## 아직 불확실한 점
-- ...
+- 실제 평가를 바꿀 수 있고 확인할 대상이 구체적인 불확실성
 ```
 
-빈 section은 생략할 수 있다. Context는 짧고 현재형이어야 하며, 사건을 날짜별로 전부 나열하지 않는다. 후보자 이름, 연락처, raw resume, 대화 전문을 넣지 않는다. “몇 명을 봤다”보다 “어떤 근거 때문에 어떤 유형을 진행하거나 거절했다”가 중요하다.
+빈 section은 생략한다. 쓸 내용이 없다는 이유로 `아직 불확실한 점`을 만들지 않는다. Context는 짧고 현재형이어야 하며, 사건을 날짜별로 전부 나열하지 않는다. 후보자 이름, 연락처, raw resume, 대화 전문을 넣지 않는다. “몇 명을 봤다”보다 “어떤 근거 때문에 어떤 유형을 진행하거나 거절했고 그 판단이 다음 후보에게 어떻게 적용되는가”가 중요하다.
 
-### 4.3 저장 전 질문
+### 4.5 저장 전 질문
 
 - 이 문장은 request/criteria/JD의 중복이 아니라 행동에서 새로 배운 사실인가?
 - 명시적 근거와 추론을 구분했는가?
 - 최근 변화와 오래된 패턴의 관계가 드러나는가?
 - 이 문장이 다음 `[talent × role]` 평가를 더 정확하게 만드는가?
+- 이 문장을 삭제해도 다음 평가가 같다면 왜 저장하려 하는가?
 - 낮은 신호 여러 개로 강한 결론을 만들지 않았는가?
+- 검토 완료나 무정보 상태를 context에 잘못 기록하지 않았는가?
 
 Context를 먼저 저장하고 `company_behavior_contexts`의 해당 `role_id`에 current text가 그대로 저장됐는지 다시 읽어 확인한다. 이 table은 `role_id`, `text_context`만 사용하며 version, hash, cursor, `changed_domains`를 저장하지 않는다. 새 evidence가 있지만 의미 변화가 없으면 기존 text를 그대로 저장한다.
 
@@ -151,7 +200,7 @@ python3 scripts/company_role_recurring_matching.py save-context \
   --context-file "$RUN_DIR/context_after_draft.md"
 ```
 
-의미 변화가 없으면 `context_before.md`를 그대로 `--context-file`로 사용한다. Source가 중간에 바뀌었다는 오류가 나면 임의로 우회하지 말고 packet을 새로 만든 뒤 다시 읽는다.
+의미 변화가 없으면 빈 파일을 포함해 `context_before.md`를 그대로 `--context-file`로 사용한다. “검토했으나 반영할 정보 없음”은 finish의 `--summary`에만 쓰고 context 파일에는 쓰지 않는다. Source가 중간에 바뀌었다는 오류가 나면 임의로 우회하지 말고 packet을 새로 만든 뒤 다시 읽는다.
 
 ```bash
 python3 scripts/company_role_recurring_matching.py refresh-packet --run-id "$RUN_ID"
@@ -192,6 +241,7 @@ SQL은 다음을 만족해야 한다.
 - 안정적인 tie-breaker
 - Role에 맞는 recall signal과 필요한 hard constraint
 - 신규 lane과 재평가 lane을 구분할 수 있는 결과
+- 재평가 SQL은 신규 SQL과 같은 role evidence와 최종 `ORDER BY`를 사용해 같은 rank 기준을 적용
 - 핵심 기술 신호는 가능하면 같은 경력·프로젝트 안에서 함께 나타나는지 확인한다. 서로 무관한 학력의 `robotics`와 다른 직장의 `control`을 합쳐 강한 후보로 만들지 않는다.
 - Experience와 education을 동시에 join해 기간이나 evidence count가 중복 증폭되지 않게 `exists`, 별도 aggregate 또는 먼저 talent 단위로 집계한다.
 
@@ -203,11 +253,12 @@ SQL을 `$RUN_DIR/retrieval_new.sql`과 필요하면 `$RUN_DIR/retrieval_reevalua
 python3 scripts/company_role_recurring_matching.py run-sql \
   --run-id "$RUN_ID" \
   --sql-file "$RUN_DIR/retrieval_new.sql" \
+  --lane new \
   --revision 1 \
   --max-rows 500
 ```
 
-명령이 반환한 `result` 경로를 candidate packet 생성에 사용한다. 신규·재평가 lane 모두 SQL 순서대로 최대 150명을 scan하고, 안전 제외를 통과한 최대 100명의 packet을 만든다. SQL 결과가 100명 이하라면 중복·안전 제외를 뺀 전원을 평가해야 하며 임의로 20명 같은 더 작은 상한을 두지 않는다.
+명령이 반환한 `result` 경로를 candidate packet 생성에 사용한다. 신규 lane은 SQL 순서대로 최대 150명을 scan하고 안전 제외를 통과한 최대 100명의 packet을 만든다. SQL 결과가 100명 이하라면 중복·안전 제외를 뺀 전원을 평가해야 하며 임의로 20명 같은 더 작은 상한을 두지 않는다.
 
 `scan-limit=150`은 packet 후보를 검토하는 범위이고 `limit=100`은 실제 full-text 평가 상한이다. `150 → 100`은 fit threshold가 아니라 실행 상한이므로, 평가하지 않은 나머지를 평가한 것처럼 보고하면 안 된다. SQL이 80명을 반환했다면 최대 80명을 scan해 제외되지 않은 전원을 평가한다.
 
@@ -219,12 +270,19 @@ python3 scripts/company_role_recurring_matching.py candidate-packet \
   --limit 100 \
   --scan-limit 150
 
+python3 scripts/company_role_recurring_matching.py run-sql \
+  --run-id "$RUN_ID" \
+  --sql-file "$RUN_DIR/retrieval_reevaluation.sql" \
+  --lane reevaluation \
+  --revision 2 \
+  --max-rows 500
+
 python3 scripts/company_role_recurring_matching.py candidate-packet \
   --run-id "$RUN_ID" \
   --query-result '<재평가 SQL result 경로>' \
   --lane reevaluation \
-  --limit 100 \
-  --scan-limit 150
+  --limit 50 \
+  --scan-limit 500
 ```
 
 신규 후보가 0명이고 재평가할 변경 pair도 없으면 빈 discovery index가 생성됐는지 확인하고 다음처럼 정상 완료한다.
@@ -244,22 +302,20 @@ python3 scripts/company_role_recurring_matching.py finish \
 
 ### 6.2 재평가 lane
 
-기존 effective label이 `fit`, `hold`, `ambiguous`인 pair만 검토한다.
+재평가 SQL은 아래 조건을 **SQL 결과 단계에서 모두** 적용한다.
 
-- Fingerprint가 같으면 즉시 skip: `unchanged_input`
-- Fingerprint가 달라도 평가와 무관한 변화면 반드시 skip: `non_matching_change`
-- 실제 판단에 영향을 줄 수 있을 때만 재평가 대상
-- 한 run 최대 100명
+- 기존 effective label이 `hold` 또는 `ambiguous`
+- `last_evaluated_at`이 null이 아니고 현재 시각보다 21일 이상 과거
+- 같은 role의 recommendation 이력이 없음
+- 결과 column에 `talent_id`, `effective_label`, `last_evaluated_at` 포함
 
-`dissatisfied`(40~59)와 `unfit`(0~39)은 이 반복 workflow의 retrieval과 재평가에서 제외한다. Human override가 있으면 그것을 effective label로 사용하며 덮어쓰지 않는다.
+Effective label은 `coalesce(human_label, label)`로 계산한다. `fit`, `dissatisfied`, `unfit`은 재평가 SQL 결과에 들어오면 안 된다. Human override는 effective label 판정에 사용하고 fit write에서 덮어쓰지 않는다.
 
-100명을 넘으면 다음 순서로 고른다.
+재평가 SQL은 신규 SQL의 후보 evidence CTE와 최종 `ORDER BY`를 그대로 재사용한다. 즉, label 종류나 평가가 오래된 순서가 아니라 해당 role에서 신규 후보를 rank한 것과 같은 기준으로 정렬한다. Helper가 두 SQL의 최종 `ORDER BY`가 다르면 실행을 거부한다. SQL rank는 처리 순서일 뿐 새 label이나 score의 근거가 아니다.
 
-1. 바뀐 context·role·talent 정보가 기존 `reason`의 핵심 근거를 직접 바꾸는 pair
-2. `hold` 또는 `ambiguous` pair
-3. 마지막 평가가 오래된 pair
+재평가 SQL은 rank 순으로 최대 500명을 반환할 수 있다. Helper는 이 순서로 scan하면서 이전 평가 metadata의 candidate·role·context·evaluator fingerprint가 모두 같은 pair를 `unchanged_input_fingerprint`로 즉시 제외한다. 이 pair는 다시 평가하지 않으며 최소 10명에 포함하지 않는다.
 
-나머지는 이번에 억지로 평가하지 않는다.
+Fingerprint가 달라 candidate index에 들어온 pair는 full-text로 실제 재평가한다. `skippedReevaluations`로 다시 건너뛰지 않는다. Rank 순으로 가능한 경우 최소 10명, 최대 50명을 평가한다. 동일 fingerprint 제외 후 대상이 10명 미만이면 남은 전원만 평가하면 정상이다. 50명을 넘는 대상은 다음 run으로 넘긴다.
 
 ## 7. Candidate 문서 만들기
 
@@ -337,16 +393,11 @@ Candidate packet이 불완전하거나 context 저장 이후 source가 바뀌었
       "companyCriteriaEvaluations": null
     }
   ],
-  "skippedReevaluations": [
-    {
-      "talentId": "...",
-      "reason": "non_matching_change"
-    }
-  ]
+  "skippedReevaluations": []
 }
 ```
 
-`skippedReevaluations`는 `reevaluation` index에 실제 들어온 pair 중 변경이 평가에 영향을 주지 않는 경우에만 사용한다. 신규 candidate를 skip 처리해서는 안 된다.
+동일 fingerprint pair는 candidate index 생성 전에 이미 제외된다. 따라서 재평가 index에 들어온 pair는 모두 실제 평가해야 하며 `skippedReevaluations`는 항상 빈 배열이다. Helper는 non-empty 값을 거부한다.
 
 ## 9. 저장과 검증
 
@@ -363,7 +414,7 @@ Candidate packet이 불완전하거나 context 저장 이후 source가 바뀌었
 저장 후 다시 읽어 다음을 확인한다.
 
 - 평가한 모든 pair가 같은 값으로 저장됨
-- Skip한 pair의 기존 평가가 바뀌지 않음
+- 동일 fingerprint로 index 전에 제외된 pair의 기존 평가가 바뀌지 않음
 - Human override가 유지됨
 - 저장된 current context와 평가 metadata의 context fingerprint가 일치함
 - Pending limit skip run에는 fit write가 없음
@@ -384,7 +435,7 @@ python3 scripts/company_role_recurring_matching.py upsert-fits \
 
 재평가 lane이 있으면 같은 두 명령을 `evaluations_reevaluation.json`과 `candidate_packet_index_reevaluation.json`에 반복한다.
 
-모든 index candidate가 저장 또는 허용된 재평가 skip으로 덮였을 때만 완료한다.
+모든 index candidate가 실제 평가되어 저장됐을 때만 완료한다.
 
 ```bash
 python3 scripts/company_role_recurring_matching.py finish \
@@ -448,8 +499,10 @@ Claim 뒤 `is_auto=false`가 된 자동 run은 `--result-reason auto_disabled`�
 - [ ] Context를 pending gate보다 먼저 저장했다.
 - [ ] Pending limit 도달 시 matching만 생략했다.
 - [ ] SQL rank가 아니라 candidate 전체 문서로 pair를 평가했다.
-- [ ] `dissatisfied`, `unfit`, unchanged, 무관한 변경 pair를 재평가하지 않았다.
-- [ ] 영향 있는 재평가는 최대 100명이었다.
+- [ ] 재평가 SQL이 effective `hold/ambiguous`, 21일 이상 경과 pair만 반환했다.
+- [ ] 재평가 SQL에 신규 SQL과 같은 role rank와 tie-breaker를 적용했다.
+- [ ] Effective `fit`, `dissatisfied`, `unfit`과 동일 fingerprint pair를 재평가하지 않았다.
+- [ ] 동일 fingerprint 제외 후 재평가 대상이 10명 이상이면 최소 10명, 최대 50명을 실제 평가했다.
 - [ ] Pair `reason`과 fingerprint를 저장했다.
 - [ ] Human override를 보존했다.
 - [ ] Queue status와 짧은 결론을 기록했다.

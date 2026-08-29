@@ -616,7 +616,7 @@ def main() -> int:
 
     snapshot = json.loads((run_dir / "source_snapshot.json").read_text(encoding="utf-8"))
     current_hashes = {
-        "roleInputHash": digest({key_name: role.get(key_name) for key_name in ("description", "request", "location_text", "work_mode", "type", "status", "is_expired")}),
+        "roleInputHash": digest({key_name: role.get(key_name) for key_name in ("description", "location_text", "work_mode", "type", "status", "is_expired")}),
         "internalRequestHash": digest(internal_role.get("request")),
         "workspaceInputHash": digest({key_name: workspace.get(key_name) for key_name in ("request", "company_description", "pitch")}),
     }

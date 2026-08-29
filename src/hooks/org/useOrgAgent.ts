@@ -17,6 +17,7 @@ import {
 import type { OrgAgentModelId } from "@/lib/org/agent/modelConfig";
 import type {
   OrgAgentMeetingRequestResponse,
+  OrgAgentMode,
   OrgAgentMention,
   OrgAgentMentionCandidate,
   OrgAgentMentionsResponse,
@@ -78,7 +79,7 @@ function mergeMessages(
 export function appendOrgAgentMessagesToCache(
   queryClient: QueryClient,
   args: {
-    mode: "general" | "role_creation";
+    mode: OrgAgentMode;
     roleId?: string | null;
     workspaceId: string;
   },
@@ -105,12 +106,18 @@ export function appendOrgAgentMessagesToCache(
           workspaceId: args.workspaceId,
         },
         hasMore: false,
+        latestUserMessageAt: null,
         messages: [],
         nextCursor: null,
         ok: true as const,
       };
       pages[0] = {
         ...latestPage,
+        latestUserMessageAt:
+          [...incomingMessages]
+            .reverse()
+            .find((message) => message.role === "user")?.createdAt ??
+          latestPage.latestUserMessageAt,
         messages: mergeMessages(latestPage.messages, incomingMessages),
       };
       return { pageParams, pages };
@@ -177,7 +184,7 @@ function sanitizeVisibleAgentError(value: unknown) {
 
 export function orgAgentMessageHistoryQueryOptions(args: {
   enabled?: boolean;
-  mode?: "general" | "role_creation";
+  mode?: OrgAgentMode;
   roleId?: string | null;
   workspaceId?: string | null;
 }) {
@@ -211,7 +218,7 @@ export function orgAgentMessageHistoryQueryOptions(args: {
 
 export function useOrgAgentMessageHistory(args: {
   enabled?: boolean;
-  mode?: "general" | "role_creation";
+  mode?: OrgAgentMode;
   roleId?: string | null;
   workspaceId?: string | null;
 }) {
@@ -248,6 +255,7 @@ export function useOrgAgentMessageHistory(args: {
     hasOlderMessages: Boolean(infinite.hasNextPage),
     loadOlderMessages: infinite.fetchNextPage,
     loadingOlderMessages: infinite.isFetchingNextPage,
+    latestUserMessageAt: infinite.data?.pages[0]?.latestUserMessageAt ?? null,
     messages,
   };
 }
@@ -312,7 +320,7 @@ export function useOrgAgentMentionCandidates(args: {
 export function useOrgAgentChat(args: {
   appendMessagesToCache: (messages: OrgAgentMessage[]) => void;
   currentUserId?: string | null;
-  mode?: "general" | "role_creation";
+  mode?: OrgAgentMode;
   onRoleCreated?: (roleId: string) => void;
   roleId?: string | null;
   workspaceId?: string | null;

@@ -45,10 +45,13 @@ the five report sections:
    current confidence rather than converting uncertainty into a fact.
 
 After the Notion page is created, it must send exactly one compact summary DM
-to the configured Harper Daily QA Slack destination through
-`harper_worker/scripts/send_daily_conversation_qa_slack.py`. These are the
-only permitted external writes: no channel post, reply, follow-up message, or
-raw data export is allowed.
+through Codex's connected Slack workspace. Use the signed-in workspace user's
+self-DM by default (currently `Daniel(나)`), unless the operator explicitly
+selects another DM. Do not use the legacy Harper bot token, a configured
+channel ID, or `harper_worker/scripts/send_daily_conversation_qa_slack.py` for
+the daily delivery. Confirm that the intended DM is visibly open before
+sending. These are the only permitted external writes: no channel post, reply,
+follow-up message, or raw data export is allowed.
 
 The Slack DM is a concise alert, not a second report:
 

@@ -72,6 +72,7 @@ export async function fetchOrgInternalTalentSystem(args: {
     (admin.from("talent_users" as any) as any)
       .select("user_id, created_at, updated_at, last_logined_at")
       .eq("user_id", talentId)
+      .is("deleted_at", null)
       .maybeSingle(),
     (admin.from("talent_setting" as any) as any)
       .select(

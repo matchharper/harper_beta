@@ -4,6 +4,7 @@ import type {
   AshbyOfficialJobsSyncSummary,
   OpsOfficialJobAnalyticsResponse,
   OpsOfficialJobCompanyOptionsResponse,
+  OpsOfficialJobInternalRoleOptionsResponse,
   OpsOfficialJobRecord,
   OpsOfficialJobSaveInput,
   OpsOfficialJobSaveResponse,
@@ -13,6 +14,9 @@ import type {
 export const opsOfficialJobsKey = ["ops-official-jobs"] as const;
 export const opsOfficialJobCompanyOptionsKey = [
   "ops-official-job-company-options",
+] as const;
+export const opsOfficialJobInternalRoleOptionsKey = [
+  "ops-official-job-internal-role-options",
 ] as const;
 
 export function opsOfficialJobAnalyticsKey(jobId: string | null | undefined) {
@@ -41,6 +45,20 @@ export function useOpsOfficialJobCompanyOptions(enabled = true) {
     enabled,
     gcTime: 2 * 60 * 60_000,
     staleTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useOpsOfficialJobInternalRoleOptions(enabled = true) {
+  return useQuery({
+    queryKey: opsOfficialJobInternalRoleOptionsKey,
+    queryFn: () =>
+      fetchWithInternalAuth<OpsOfficialJobInternalRoleOptionsResponse>(
+        "/api/internal/official-jobs/internal-roles"
+      ),
+    enabled,
+    gcTime: 2 * 60 * 60_000,
+    staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
   });
 }

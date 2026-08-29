@@ -5,31 +5,116 @@ const SOURCE_ROLE_ID = "5168d8b5-4cbd-461f-9a31-84ed80a078b7";
 const SOURCE_ROLE_NAME = "[E2E 2026-08-21] Portfolio Operations Lead";
 const TALENT_ID = "111fe5c4-8f66-4392-9a27-e81fb8dfa7dd";
 const COMPANY_USER_ID = TALENT_ID;
+const SLACK_CHANNEL_ID = "C0BNG2HAU8H";
+const LOCAL_WORKER_TARGET = "codex-e2e-20260827";
+const TEST_FIXTURE_KEY = "company-slack-gmail-e2e";
+
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function isMarkedTestOnly(value: unknown) {
+  return objectValue(value).testOnly === true;
+}
 
 const FIXTURES = [
   {
-    key: "question",
-    name: "[E2E 2026-08-22 질문] Portfolio Operations Lead",
-    recommendationId: "e2e62200-0000-4000-8000-000000000011",
-    roleId: "e2e62200-0000-4000-8000-000000000001",
+    candidateReply: "네, 주 2회 서울 오피스 출근 가능합니다.",
+    companyPrompt:
+      "포트폴리오 운영 리드 역할 김호진 님한테 주 2회 서울 출근 괜찮은지 물어봐줘.",
+    key: "office",
+    name: "Portfolio Operations Lead",
+    recommendationId: "e2e82700-0000-4000-8000-000000000011",
+    roleId: "e2e82700-0000-4000-8000-000000000001",
   },
   {
-    key: "connect-a",
-    name: "[E2E 2026-08-22 연결 A] Portfolio Operations Lead",
-    recommendationId: "e2e62200-0000-4000-8000-000000000012",
-    roleId: "e2e62200-0000-4000-8000-000000000002",
+    candidateReply: "9월 15일부터 시작할 수 있습니다.",
+    companyPrompt:
+      "그 프로덕트 운영 매니저 역할에 김호진 님 있지? 9월 중순부터 시작할 수 있는지 물어봐줘.",
+    key: "start-date",
+    name: "Product Operations Manager",
+    recommendationId: "e2e82700-0000-4000-8000-000000000012",
+    roleId: "e2e82700-0000-4000-8000-000000000002",
   },
   {
-    key: "connect-b",
-    name: "[E2E 2026-08-22 연결 B] Portfolio Operations Lead",
-    recommendationId: "e2e62200-0000-4000-8000-000000000013",
-    roleId: "e2e62200-0000-4000-8000-000000000003",
+    candidateReply:
+      "네. B2B SaaS 포트폴리오사 CEO와 주간 운영지표 체계를 만들고 고객 이탈 원인을 줄였습니다.",
+    companyPrompt:
+      "전략 운영 리드 쪽 김호진 님한테 포트폴리오사 CEO랑 직접 일해본 경험 있는지, 어떤 문제 풀었는지 물어봐줘.",
+    key: "experience",
+    name: "Strategy & Operations Lead",
+    recommendationId: "e2e82700-0000-4000-8000-000000000013",
+    roleId: "e2e82700-0000-4000-8000-000000000003",
   },
   {
-    key: "reject",
-    name: "[E2E 2026-08-22 거절] Portfolio Operations Lead",
-    recommendationId: "e2e62200-0000-4000-8000-000000000014",
-    roleId: "e2e62200-0000-4000-8000-000000000004",
+    candidateReply:
+      "네, 영어로 임원 미팅을 진행할 수 있고 해외 파트너와 정기 미팅을 맡아왔습니다.",
+    companyPrompt:
+      "Chief of Staff 역할 김호진 님한테 영어로 임원 미팅 진행 가능한지 물어봐줘.",
+    key: "english",
+    name: "Chief of Staff",
+    recommendationId: "e2e82700-0000-4000-8000-000000000014",
+    roleId: "e2e82700-0000-4000-8000-000000000004",
+  },
+  {
+    candidateReply: "네, 월 1~2회 해외출장 가능합니다.",
+    companyPrompt:
+      "Business Operations 역할 김호진 님한테 한 달에 한두 번 해외출장 가능한지 확인해줘.",
+    key: "travel",
+    name: "Business Operations Manager",
+    recommendationId: "e2e82700-0000-4000-8000-000000000015",
+    roleId: "e2e82700-0000-4000-8000-000000000005",
+  },
+  {
+    candidateReply:
+      "총보상 기준 1억 2천만 원에서 1억 4천만 원 범위라면 검토 가능하다고 회사에 전달해 주세요.",
+    companyPrompt:
+      "Investment Operations 역할 김호진 님한테 지금 기대하는 보상 범위를 회사에 공유 가능한 표현으로 물어봐줘.",
+    key: "compensation",
+    name: "Investment Operations Lead",
+    recommendationId: "e2e82700-0000-4000-8000-000000000016",
+    roleId: "e2e82700-0000-4000-8000-000000000006",
+  },
+  {
+    candidateReply:
+      "서울 이전은 가능하지만 입사 후 한 달 정도 준비 기간이 필요합니다.",
+    companyPrompt:
+      "Platform Operations 역할 김호진 님한테 서울 이전 가능한지, 어렵다면 어느 지역까지 가능한지 물어봐줘.",
+    key: "relocation",
+    name: "Platform Operations Lead",
+    recommendationId: "e2e82700-0000-4000-8000-000000000017",
+    roleId: "e2e82700-0000-4000-8000-000000000007",
+  },
+  {
+    candidateReply:
+      "현재 공유할 최신 이력서가 없어서 이번에는 전달하기 어렵습니다.",
+    companyPrompt:
+      "Founder Success 역할 김호진 님 최신 이력서 받아봐줘.",
+    key: "resume",
+    name: "Founder Success Lead",
+    recommendationId: "e2e82700-0000-4000-8000-000000000018",
+    roleId: "e2e82700-0000-4000-8000-000000000008",
+  },
+  {
+    candidateReply: "네, 월 1회 정도 주말 행사 대응 가능합니다.",
+    companyPrompt:
+      "Portfolio Support 역할 김호진 님한테 주말 행사 대응이 월 1회 정도 가능한지 물어봐줘.",
+    key: "weekend",
+    name: "Portfolio Support Manager",
+    recommendationId: "e2e82700-0000-4000-8000-000000000019",
+    roleId: "e2e82700-0000-4000-8000-000000000009",
+  },
+  {
+    candidateReply:
+      "고객지원 티켓 분류와 주간 리포트를 자동화해 처리 시간을 약 40% 줄였습니다.",
+    companyPrompt:
+      "GTM Operations 역할 김호진 님한테 최근 운영 자동화 프로젝트 하나만 간단히 설명해달라고 물어봐줘.",
+    key: "automation",
+    name: "GTM Operations Lead",
+    recommendationId: "e2e82700-0000-4000-8000-000000000020",
+    roleId: "e2e82700-0000-4000-8000-000000000010",
   },
 ] as const;
 
@@ -55,7 +140,7 @@ async function setup() {
     (await checked(
       admin
         .from("company_roles")
-        .select("role_id, name, company_workspace_id")
+        .select("role_id, name, company_workspace_id, information")
         .in("role_id", fixtureRoleIds)
     )) ?? [];
   for (const role of existing) {
@@ -63,7 +148,8 @@ async function setup() {
     if (
       !fixture ||
       role.name !== fixture.name ||
-      role.company_workspace_id !== WORKSPACE_ID
+      role.company_workspace_id !== WORKSPACE_ID ||
+      !isMarkedTestOnly(role.information)
     ) {
       throw new Error(`Refusing setup: ${JSON.stringify(role)}`);
     }
@@ -73,7 +159,7 @@ async function setup() {
     admin
       .from("company_roles")
       .select(
-        "description, information, type, priority, source_type, location_text, work_mode, salary_range, seniority_level, description_summary, request, salary_min, salary_max, salary_currency, salary_period, summary"
+        "description, information, type, priority, source_type, location_text, work_mode, salary_range, seniority_level, description_summary, salary_min, salary_max, salary_currency, salary_period, summary"
       )
       .eq("role_id", SOURCE_ROLE_ID)
       .eq("company_workspace_id", WORKSPACE_ID)
@@ -88,6 +174,9 @@ async function setup() {
       .eq("role_id", SOURCE_ROLE_ID)
       .single()
   );
+  if (!sourceRole || !sourceInternalRole) {
+    throw new Error("Refusing setup: source E2E role is missing");
+  }
 
   const now = new Date().toISOString();
   const existingIds = new Set(existing.map((role) => role.role_id));
@@ -101,6 +190,12 @@ async function setup() {
           ...sourceRole,
           company_workspace_id: WORKSPACE_ID,
           created_at: now,
+          information: {
+            ...objectValue(sourceRole.information),
+            testFixture: TEST_FIXTURE_KEY,
+            testOnly: true,
+            testTalentIds: [TALENT_ID],
+          },
           is_expired: false,
           name: fixture.name,
           role_id: fixture.roleId,
@@ -271,7 +366,7 @@ async function status() {
       admin
         .from("company_talent_requests")
         .select(
-          "id, role_id, recommendation_id, workflow_status, request_context, delivery_subject, draft_revision, approved_at, updated_at"
+          "id, role_id, recommendation_id, workflow_status, request_context, delivery_subject, delivery_body, draft_revision, talent_source_message_id, approved_at, updated_at"
         )
         .eq("talent_id", TALENT_ID)
         .in("role_id", roleIds)
@@ -292,9 +387,18 @@ async function status() {
         )
       : queueQuery.in("recommendation_id", recommendationIds);
   const queue = await checked(queueQuery);
+  const slackJobs = await checked(
+    admin
+      .from("slack_reply_jobs")
+      .select(
+        "id, thread_id, prompt, status, response_text, slack_response_ts, last_error, attempt_count, updated_at"
+      )
+      .eq("worker_target", LOCAL_WORKER_TARGET)
+      .order("created_at")
+  );
   console.log(
     JSON.stringify(
-      { progress, queue, recommendations, requests, roles, tags },
+      { progress, queue, recommendations, requests, roles, slackJobs, tags },
       null,
       2
     )
@@ -327,21 +431,13 @@ async function cleanup() {
   // their Slack thread rows before deleting the fixture roles so no test
   // message is orphaned and no role conversation is coerced into the single
   // workspace-wide conversation by ON DELETE SET NULL.
-  const [contentMessages, roleMessages] = await Promise.all([
-    checked(
-      admin
-        .from("company_messages")
-        .select("id, conversation_id, slack_thread_id")
-        .ilike("content", "%E2E 2026-08-22%")
-    ),
-    checked(
+  const roleMessages = await checked(
       admin
         .from("company_messages")
         .select("id, conversation_id, slack_thread_id")
         .in("role_id", roleIds)
-    ),
-  ]);
-  const identifyingMessages = [...(contentMessages ?? []), ...(roleMessages ?? [])];
+    );
+  const identifyingMessages = [...(roleMessages ?? [])];
   const slackThreadIds = Array.from(
     new Set(
       identifyingMessages
@@ -370,6 +466,40 @@ async function cleanup() {
   const affectedConversationIds = Array.from(
     new Set(testMessages.map((message) => message.conversation_id))
   );
+
+  // Requests retain the originating company message for auditability. Remove
+  // their delivery queue and request rows before deleting those E2E messages.
+  const requests =
+    (await checked(
+      admin
+        .from("company_talent_requests")
+        .select("id")
+        .eq("talent_id", TALENT_ID)
+        .in("role_id", roleIds)
+    )) ?? [];
+  const requestIds = requests.map((request) => request.id);
+  await checked(
+    admin
+      .from("contact_queue")
+      .delete()
+      .in("recommendation_id", recommendationIds)
+  );
+  if (requestIds.length > 0) {
+    await checked(
+      admin
+        .from("contact_queue")
+        .delete()
+        .in("company_talent_request_id", requestIds)
+    );
+  }
+  await checked(
+    admin
+      .from("company_talent_requests")
+      .delete()
+      .eq("talent_id", TALENT_ID)
+      .in("role_id", roleIds)
+  );
+
   if (affectedConversationIds.length > 0) {
     await checked(
       admin
@@ -411,37 +541,6 @@ async function cleanup() {
         .eq("id", conversationId)
     );
   }
-
-  const requests =
-    (await checked(
-      admin
-        .from("company_talent_requests")
-        .select("id")
-        .eq("talent_id", TALENT_ID)
-        .in("role_id", roleIds)
-    )) ?? [];
-  const requestIds = requests.map((request) => request.id);
-  await checked(
-    admin
-      .from("contact_queue")
-      .delete()
-      .in("recommendation_id", recommendationIds)
-  );
-  if (requestIds.length > 0) {
-    await checked(
-      admin
-        .from("contact_queue")
-        .delete()
-        .in("company_talent_request_id", requestIds)
-    );
-  }
-  await checked(
-    admin
-      .from("company_talent_requests")
-      .delete()
-      .eq("talent_id", TALENT_ID)
-      .in("role_id", roleIds)
-  );
   await checked(
     admin
       .from("talent_progress")
@@ -515,11 +614,119 @@ async function cleanup() {
   );
 }
 
+async function route(workerTarget: string) {
+  const [workspace, channel, talent, companyUser] = await Promise.all([
+    checked(
+      admin
+        .from("company_workspace")
+        .select("company_name, is_internal")
+        .eq("company_workspace_id", WORKSPACE_ID)
+        .single()
+    ),
+    checked(
+      admin
+        .from("company_slack_channels")
+        .select(
+          "company_workspace_id, slack_channel_id, worker_target, reply_to_harper_threads"
+        )
+        .eq("company_workspace_id", WORKSPACE_ID)
+        .eq("slack_channel_id", SLACK_CHANNEL_ID)
+        .single()
+    ),
+    checked(
+      admin
+        .from("talent_users")
+        .select("email")
+        .eq("user_id", TALENT_ID)
+        .single()
+    ),
+    checked(
+      admin
+        .from("company_users")
+        .select("email")
+        .eq("user_id", COMPANY_USER_ID)
+        .single()
+    ),
+  ]);
+  if (
+    !workspace ||
+    !channel ||
+    !talent ||
+    !companyUser ||
+    workspace.company_name !== "SBVA" ||
+    workspace.is_internal !== true ||
+    channel.company_workspace_id !== WORKSPACE_ID ||
+    channel.slack_channel_id !== SLACK_CHANNEL_ID ||
+    channel.reply_to_harper_threads !== true ||
+    talent.email !== "khj605123@gmail.com" ||
+    companyUser.email !== "khj605123@gmail.com"
+  ) {
+    throw new Error(
+      `Refusing Slack route because the authorized scope changed: ${JSON.stringify({
+        channel,
+        companyUser,
+        talent,
+        workspace,
+      })}`
+    );
+  }
+  const routed = await checked(
+    admin.rpc("set_slack_agent_worker_target_v1", {
+      p_company_workspace_id: WORKSPACE_ID,
+      p_slack_channel_id: SLACK_CHANNEL_ID,
+      p_worker_target: workerTarget,
+    })
+  );
+  console.log(JSON.stringify({ routed, workerTarget }, null, 2));
+}
+
+async function retryLocalSlackJobs() {
+  const failedJobs = await checked(
+    admin
+      .from("slack_reply_jobs")
+      .select("id, status, attempt_count, response_text")
+      .eq("worker_target", LOCAL_WORKER_TARGET)
+      .in("status", ["failed", "retry", "processing"])
+      .is("response_text", null)
+  );
+  const retryableJobs = failedJobs ?? [];
+  if (retryableJobs.length !== FIXTURES.length) {
+    throw new Error(
+      `Refusing retry because exactly ${FIXTURES.length} unsent local jobs were expected: ${JSON.stringify(
+        retryableJobs
+      )}`
+    );
+  }
+  const now = new Date().toISOString();
+  const retried = await checked(
+    admin
+      .from("slack_reply_jobs")
+      .update({
+        attempt_count: 0,
+        last_error: null,
+        locked_at: null,
+        locked_by: null,
+        next_attempt_at: now,
+        status: "queued",
+        updated_at: now,
+      })
+      .in(
+        "id",
+        retryableJobs.map((job) => job.id)
+      )
+      .select("id, status, attempt_count")
+  );
+  console.log(JSON.stringify({ retried }, null, 2));
+}
+
 async function main() {
   const command = process.argv[2] || "status";
   if (command === "setup") await setup();
   else if (command === "status") await status();
   else if (command === "cleanup") await cleanup();
+  else if (command === "route-local") await route(LOCAL_WORKER_TARGET);
+  else if (command === "route-production") await route("production");
+  else if (command === "retry-slack") await retryLocalSlackJobs();
   else throw new Error(`Unknown command: ${command}`);
 }
 

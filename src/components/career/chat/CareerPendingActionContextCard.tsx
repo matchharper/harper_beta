@@ -1,10 +1,10 @@
 "use client";
 
 import {
+  CircleHelp,
   FileText,
   Loader2,
   MessageSquareText,
-  Sparkles,
   Upload,
   X,
 } from "lucide-react";
@@ -42,7 +42,7 @@ export function CareerPendingActionContextCard({
     action.kind === "internal_fit_question"
       ? t(
           "career.chat.pending_action_context.fit_question_label",
-          "매칭 재평가 질문"
+          "정보가 필요합니다"
         )
       : action.requestMode === "resume"
         ? t(
@@ -55,7 +55,7 @@ export function CareerPendingActionContextCard({
           );
   const Icon =
     action.kind === "internal_fit_question"
-      ? Sparkles
+      ? CircleHelp
       : action.kind === "company_request" && action.requestMode === "resume"
         ? FileText
         : MessageSquareText;
@@ -77,7 +77,7 @@ export function CareerPendingActionContextCard({
         }
         onClick={onToggleExpanded}
         className={cn(
-          "group min-h-0 rounded-[14px] border-neutral-1000-a05 bg-bg-weak px-3 py-3 pr-11 shadow-none hover:border-neutral-1000-a10 hover:bg-bg-weak",
+          "group min-h-0 rounded-[14px] border-none bg-neutral-100 px-3 py-3 pr-11 shadow-none hover:border-neutral-1000-a10",
           canUploadResume && onUploadResume && "pb-12"
         )}
       >
@@ -87,7 +87,7 @@ export function CareerPendingActionContextCard({
           </span>
           <span className="min-w-0 flex-1">
             <span className="mb-1 flex min-w-0 items-center gap-2">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-neutral-soft">
+              <span className="text-[11px] font-normal uppercase text-neutral-soft">
                 {eyebrow}
               </span>
             </span>
@@ -106,7 +106,7 @@ export function CareerPendingActionContextCard({
             >
               {action.prompt}
             </span>
-            <span className="mt-2 block text-[11px] leading-4 text-neutral-soft">
+            <span className="mt-2 block text-[11px] font-normal leading-4 text-neutral-soft">
               {expanded
                 ? t(
                     "career.chat.pending_action_context.expanded_help",

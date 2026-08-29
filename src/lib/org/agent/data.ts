@@ -8,6 +8,7 @@ import {
 import { fetchRoleForOrgAgent } from "@/lib/org/agent/store";
 import { buildReadTalentResponseGuide } from "@/lib/org/agent/talentResponseGuide";
 import {
+  compactOrgProgressMetadata,
   getOrgAgentPipelineBucket,
   humanizeOrgEmploymentType,
   humanizeOrgMembershipRole,
@@ -27,6 +28,7 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { humanizeCompanyTalentRequestStatus } from "@/lib/companyTalentRequests/server";
 import { normalizeOrgRoleCriteria } from "@/lib/org/roleCriteria";
 import { fetchOrgProcessClosureNotifications } from "@/lib/org/processClosureNotification";
+import { resolveTalentLocation } from "@/lib/talentLocation";
 
 export { serializeOrgAgentMoreData } from "@/lib/org/agent/promptFormat";
 
@@ -129,6 +131,10 @@ function clip(value: unknown, maxLength: number) {
     : valueText;
 }
 
+function compactProgressText(row: Pick<ProgressRow, "kind" | "text">) {
+  return clip(row.text, row.kind === "org_candidate_activity" ? 2_000 : 700);
+}
+
 function integer(value: unknown, fallback: number, min: number, max: number) {
   const parsed = Number(value);
   return Number.isFinite(parsed)
@@ -169,11 +175,12 @@ async function fetchTalentsById(args: {
   const talentIds = unique(args.talentIds);
   if (talentIds.length === 0) return new Map<string, TalentRow>();
   const fields = args.includeProfile
-    ? "user_id, name, email, headline, bio, current_location, location"
-    : "user_id, name, email, headline, current_location, location";
+    ? "user_id, name, email, headline, bio, location, current_location"
+    : "user_id, name, email, headline, location, current_location";
   const { data, error } = await (args.admin.from("talent_users" as any) as any)
     .select(fields)
-    .in("user_id", talentIds);
+    .in("user_id", talentIds)
+    .is("deleted_at", null);
   if (error) throw error;
   return new Map(
     ((data ?? []) as TalentRow[]).map((row) => [row.user_id, row])
@@ -907,27 +914,6 @@ export async function getOrgAgentTalents(args: {
   };
 }
 
-function compactProgressMetadata(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const record = value as Record<string, unknown>;
-  const compact: Record<string, unknown> = {};
-  for (const key of [
-    "stage",
-    "fromStage",
-    "acceptReason",
-    "stopNote",
-    "reason",
-  ]) {
-    if (record[key] !== undefined) {
-      compact[key] =
-        key === "stage" || key === "fromStage"
-          ? humanizeOrgStage(record[key])
-          : record[key];
-    }
-  }
-  return Object.keys(compact).length > 0 ? compact : null;
-}
-
 const HARPER_SHARED_INFORMATION_FIELDS = [
   { key: "next_scope", label: "원하는 다음 역할" },
   { key: "location", label: "선호 근무 지역·방식" },
@@ -943,7 +929,7 @@ function hasSensitiveCompensationText(value: string) {
 }
 
 function hasSensitivePersonalText(value: string) {
-  return /나이|연령|생년|성별|남성|여성|국적|시민권|영주권|인종|민족|결혼|임신|출산|가족|자녀|종교|정치|장애|질병|건강|병력|성적\s*지향|\bage\b|birth\s*(?:date|year)|gender|sex\b|nationality|citizenship|residen(?:cy|t)|race|ethnicity|marital|pregnan|child|family|religion|politic|disabilit|medical|health|sexual\s+orientation/i.test(
+  return /성별|남성|여성|인종|민족|결혼|임신|출산|가족|자녀|종교|정치|장애|질병|건강|병력|성적\s*지향|gender|sex\b|race|ethnicity|marital|pregnan|child|family|religion|politic|disabilit|medical|health|sexual\s+orientation/i.test(
     value
   );
 }
@@ -1058,6 +1044,109 @@ async function readCompanyTalentRequestProjection(args: {
             "현재 후보자 프로필에서 확인 가능한 이력서 파일이 없습니다.",
         },
   };
+}
+
+async function readMeetingScheduleProjection(args: {
+  admin: OrgAgentAdminClient;
+  roleById: Map<string, OrgAgentRole>;
+  roleIds: string[];
+  talentId: string;
+  workspaceId: string;
+}) {
+  if (args.roleIds.length === 0) return [];
+  const scheduleResult = await (
+    args.admin.from("meeting_schedules" as any) as any
+  )
+    .select(
+      "id,role_id,active_round_id,status,title,duration_minutes,confirmed_start_at,confirmed_end_at,updated_at"
+    )
+    .eq("company_workspace_id", args.workspaceId)
+    .eq("talent_id", args.talentId)
+    .in("role_id", args.roleIds)
+    .order("updated_at", { ascending: false })
+    .limit(5);
+  if (scheduleResult.error) throw scheduleResult.error;
+  const schedules = (scheduleResult.data ?? []) as Array<
+    Record<string, unknown>
+  >;
+  const activeRoundIds = unique(
+    schedules.map((row) => text(row.active_round_id))
+  );
+  const roundResult = activeRoundIds.length
+    ? await (args.admin.from("meeting_schedule_rounds" as any) as any)
+        .select(
+          "id,status,delivery_queue_id,submitted_at,meeting_config_snapshot,updated_at"
+        )
+        .in("id", activeRoundIds)
+    : { data: [], error: null };
+  if (roundResult.error) throw roundResult.error;
+  const rounds = (roundResult.data ?? []) as Array<Record<string, unknown>>;
+  const roundById = new Map(rounds.map((row) => [text(row.id), row]));
+  const deliveryIds = unique(rounds.map((row) => text(row.delivery_queue_id)));
+  const deliveryResult = deliveryIds.length
+    ? await (args.admin.from("contact_queue" as any) as any)
+        .select("id,scheduled_at,sent_at,cancelled_at,status")
+        .in("id", deliveryIds)
+    : { data: [], error: null };
+  if (deliveryResult.error) throw deliveryResult.error;
+  const deliveryById = new Map(
+    ((deliveryResult.data ?? []) as Array<Record<string, unknown>>).map(
+      (row) => [text(row.id), row]
+    )
+  );
+
+  return schedules.map((schedule) => {
+    const round = roundById.get(text(schedule.active_round_id));
+    const delivery = deliveryById.get(text(round?.delivery_queue_id));
+    const config =
+      round?.meeting_config_snapshot &&
+      typeof round.meeting_config_snapshot === "object" &&
+      !Array.isArray(round.meeting_config_snapshot)
+        ? (round.meeting_config_snapshot as Record<string, unknown>)
+        : {};
+    const sentAt = formatRequestTimestamp(delivery?.sent_at);
+    const scheduledAt = formatRequestTimestamp(delivery?.scheduled_at);
+    const cancelled = Boolean(delivery?.cancelled_at);
+    const deliveryStatus = text(delivery?.status);
+    const invitationState = sentAt
+      ? "후보자에게 일정 선택 안내를 보냄"
+      : cancelled || deliveryStatus === "cancelled"
+        ? "일정 선택 안내를 보내기 전에 취소함"
+        : deliveryStatus === "failed"
+          ? "일정 선택 안내를 보내지 못함"
+          : deliveryStatus === "processing"
+            ? "후보자에게 일정 선택 안내를 보내는 중"
+            : scheduledAt
+              ? "후보자에게 일정 선택 안내를 보낼 예정"
+              : "후보자에게 보낼 일정 선택 안내를 준비 중";
+    const confirmedStartAt = formatRequestTimestamp(
+      schedule.confirmed_start_at
+    );
+    const coordinationState = confirmedStartAt
+      ? "미팅 시간이 확정됨"
+      : round?.submitted_at
+        ? "후보자가 가능한 시간을 선택함"
+        : sentAt
+          ? "후보자의 시간 선택을 기다리는 중"
+          : scheduledAt
+            ? "일정 선택 안내 발송을 기다리는 중"
+            : "일정 조율을 준비 중";
+    return {
+      canReviseCandidateContext:
+        !sentAt && !cancelled && ["queued", "failed"].includes(deliveryStatus),
+      confirmedEndAt: formatRequestTimestamp(schedule.confirmed_end_at),
+      confirmedStartAt,
+      coordinationState,
+      durationMinutes: Number(schedule.duration_minutes ?? 0) || null,
+      invitationScheduledAt: scheduledAt,
+      invitationSentAt: sentAt,
+      invitationState,
+      meetingPurpose: text(config.meetingPurpose) || null,
+      processStageName: text(config.processStageName) || null,
+      roleName: args.roleById.get(text(schedule.role_id))?.name ?? null,
+      title: text(schedule.title) || null,
+    };
+  });
 }
 
 async function readHarperSharedInformation(args: {
@@ -1216,6 +1305,7 @@ export async function readOrgAgentTalent(args: {
   const [
     progressResult,
     requestProjection,
+    meetingHistory,
     harperSharedInformation,
     processClosureNotifications,
   ] = await Promise.all([
@@ -1230,6 +1320,13 @@ export async function readOrgAgentTalent(args: {
     readCompanyTalentRequestProjection({
       admin: args.admin,
       roleById,
+      talentId,
+      workspaceId: args.workspaceId,
+    }),
+    readMeetingScheduleProjection({
+      admin: args.admin,
+      roleById,
+      roleIds: visibleRoleIds,
       talentId,
       workspaceId: args.workspaceId,
     }),
@@ -1293,7 +1390,7 @@ export async function readOrgAgentTalent(args: {
         description: clip(item.description, 800) || null,
       })),
       extras: compactTalentExtras(extrasResult.data?.content),
-      location: talent.current_location ?? talent.location ?? null,
+      location: resolveTalentLocation(talent),
     };
   }
 
@@ -1347,14 +1444,15 @@ export async function readOrgAgentTalent(args: {
       talentId,
     }),
     harperSharedInformation,
+    meetingHistory,
     recentProgress: visibleProgress.map((row) => ({
       at: row.created_at,
       kind: humanizeOrgProgressKind(row.kind),
-      metadata: compactProgressMetadata(row.metadata),
+      metadata: compactOrgProgressMetadata(row.metadata),
       recommendationId: row.recommendation_id,
       roleId: row.role_id,
       roleName: roleById.get(row.role_id)?.name ?? null,
-      text: clip(row.text, 700) || null,
+      text: compactProgressText(row) || null,
     })),
     requestHistory: requestProjection.requestHistory,
     resumeAvailability: requestProjection.resumeAvailability,
@@ -1749,9 +1847,9 @@ export async function readOrgAgentRole(args: {
         updateTalentById.get(row.talent_id)?.email ??
         row.talent_id,
       kind: humanizeOrgProgressKind(row.kind),
-      metadata: compactProgressMetadata(row.metadata),
+      metadata: compactOrgProgressMetadata(row.metadata),
       talentId: row.talent_id,
-      text: clip(row.text, 700) || null,
+      text: compactProgressText(row) || null,
     })),
     stageCounts: [
       { count: bucketCounts.waiting, stage: "연결 대기" },

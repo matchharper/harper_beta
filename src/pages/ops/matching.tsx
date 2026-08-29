@@ -452,10 +452,10 @@ export default function OpsMatchingPage() {
   const handleCompanyChange = (companyId: string) => {
     setSelectedCompanyId(companyId);
     setSelectedRoleId("");
-    setActiveTab("all");
+    setActiveTab("harper_review");
     setViewMode("role");
     replaceUrlState({
-      activeTab: "all",
+      activeTab: "harper_review",
       selectedCompanyId: companyId,
       selectedRoleId: "",
       selectedTalentId: "",

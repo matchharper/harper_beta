@@ -6,21 +6,38 @@ import type {
   OrgStageId,
   OrgTalentDetailResponse,
 } from "@/lib/org/server";
+import { humanizeOrgStage } from "@/lib/org/pipelineStage";
 
 export type OrgCandidateStageMutationInput = {
   acceptReason?: OrgStageChangeOptions["acceptReason"];
+  additionalMessage?: OrgStageChangeOptions["additionalMessage"];
+  additionalMessageVisibility?: OrgStageChangeOptions["additionalMessageVisibility"];
+  attendeeEmails?: OrgStageChangeOptions["attendeeEmails"];
   contactDirectly?: OrgStageChangeOptions["contactDirectly"];
+  durationMinutes?: OrgStageChangeOptions["durationMinutes"];
   emailMode?: InternalConnectionConfirmationEmailMode;
   introEmails?: OrgStageChangeOptions["introEmails"];
+  meetingCandidateMessage?: OrgStageChangeOptions["meetingCandidateMessage"];
+  meetingPurpose?: OrgStageChangeOptions["meetingPurpose"];
   recommendationId: string;
   roleId: string;
+  scheduleInterview?: OrgStageChangeOptions["scheduleInterview"];
+  sourceStage?: OrgStageChangeOptions["sourceStage"];
   stage: OrgStageId;
   stopNote?: OrgStageChangeOptions["stopNote"];
   talentId: string;
+  title?: OrgStageChangeOptions["title"];
   workspaceId: string;
 };
 
 export type OrgCandidateStageMutationResponse = {
+  meetingSchedule?: {
+    alreadyExisted: boolean;
+    detailPath: string;
+    roundId: string;
+    scheduleId: string;
+    status: string;
+  } | null;
   ok: true;
   roleId: string;
   stage: OrgStageId;
@@ -116,6 +133,10 @@ export function applyOrgCandidateStageToAcceptedTalents(
         ? {
             ...item,
             currentStage: update.stage,
+            currentStageLabel:
+              update.stage === "accepted"
+                ? "수락 후 대기"
+                : humanizeOrgStage(update.stage),
             isAwaitingStageMove: update.stage === "accepted",
           }
         : item

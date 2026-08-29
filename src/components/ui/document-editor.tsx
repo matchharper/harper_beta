@@ -13,7 +13,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Copy } from "lucide-react";
 import { CardButton, MuteButton } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,6 +25,7 @@ import { MarkdownRichTextEditor } from "@/components/ui/markdown-rich-text-edito
 import RichText from "@/components/ui/rich-text";
 import { Textarea, type TextareaProps } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useToastStore } from "@/store/useToastStore";
 
 export type DocumentEditorProps = Omit<
   TextareaProps,
@@ -136,6 +137,18 @@ export function isDocumentPreviewOverflowing(
   return scrollHeight > clientHeight + 1;
 }
 
+export async function copyDocumentText(
+  value: string,
+  clipboard: Pick<Clipboard, "writeText"> | null | undefined =
+    typeof navigator === "undefined" ? undefined : navigator.clipboard
+) {
+  if (!clipboard?.writeText) {
+    throw new Error("Clipboard API is unavailable");
+  }
+
+  await clipboard.writeText(value);
+}
+
 function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
   if (typeof ref === "function") {
     ref(value);
@@ -173,6 +186,7 @@ function DocumentEditingSurface({
   forwardedRef,
   onBack,
   onChange,
+  onCopy,
   onValueChange,
   textareaProps,
   value,
@@ -187,6 +201,7 @@ function DocumentEditingSurface({
   forwardedRef: Ref<HTMLTextAreaElement> | undefined;
   onBack: () => void;
   onChange: (event: ChangeEvent<HTMLTextAreaElement>) => void;
+  onCopy: () => void;
   onValueChange: (value: string) => void;
   textareaProps: Omit<TextareaProps, "onChange" | "value">;
   value: string;
@@ -205,13 +220,24 @@ function DocumentEditingSurface({
       className="flex h-full min-h-0 flex-col bg-bg-default text-neutral-primary"
       data-inline-editable-interaction=""
     >
-      <header className="flex h-14 shrink-0 items-center border-b border-neutral-1000-a05 px-3">
+      <header className="flex h-14 flex-row items-center justify-between shrink-0 border-b border-neutral-1000-a05 px-3">
         <MuteButton onClick={onBack} type="button" variant="transparent">
           <ArrowLeft className="size-4" />
-          <span className="text-[14px] font-normal">{documentTitle}</span>
+          <span className="text-[14px] font-normal text-black/50">
+            {documentTitle}
+          </span>
+        </MuteButton>
+        <MuteButton
+          aria-label="문서 전체 내용 복사"
+          className="text-black"
+          onClick={onCopy}
+          type="button"
+          variant="transparent"
+        >
+          <Copy className="size-4" strokeWidth={1.8} />
         </MuteButton>
       </header>
-      <div className="min-h-0 flex-1 px-5 sm:px-6">
+      <div className="min-h-0 flex-1 px-5 py-4 sm:px-6">
         {format === "markdown" ? (
           <MarkdownRichTextEditor
             ariaLabel={
@@ -292,6 +318,7 @@ export const DocumentEditor = forwardRef<
     const previewContentId = `${documentId}-preview-content`;
     const previewContentRef = useRef<HTMLDivElement | null>(null);
     const panelContext = useContext(DocumentEditorPanelContext);
+    const addToast = useToastStore((state) => state.add);
     const [overlayOpen, setOverlayOpen] = useState(false);
     const [localChangedAt, setLocalChangedAt] = useState<string | null>(null);
     const [previewExpanded, setPreviewExpanded] = useState(false);
@@ -323,6 +350,21 @@ export const DocumentEditor = forwardRef<
     const handleValueChange = (nextValue: string) => {
       setLocalChangedAt(new Date().toISOString());
       onValueChange?.(nextValue);
+    };
+    const handleCopy = () => {
+      void copyDocumentText(value)
+        .then(() => {
+          addToast({
+            message: "문서 내용을 복사했어요.",
+            variant: "success",
+          });
+        })
+        .catch(() => {
+          addToast({
+            message: "문서 내용을 복사하지 못했어요. 다시 시도해 주세요.",
+            variant: "error",
+          });
+        });
     };
     const openEditor = () => {
       if (disabled) return;
@@ -391,6 +433,7 @@ export const DocumentEditor = forwardRef<
           else setOverlayOpen(false);
         }}
         onChange={handleChange}
+        onCopy={handleCopy}
         onValueChange={handleValueChange}
         textareaProps={textareaProps}
         value={value}

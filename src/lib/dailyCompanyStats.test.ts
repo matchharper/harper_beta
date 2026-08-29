@@ -100,7 +100,7 @@ test("company stats count current candidate stages and daily additions by unique
       feedback_at: "2026-08-16T02:00:00.000Z",
       id: "accepted",
       role_id: "role",
-      saved_stage: null,
+      saved_stage: "connected",
       talent_id: "talent-accepted",
     },
     {
@@ -198,6 +198,87 @@ test("company stats count current candidate stages and daily additions by unique
   assert.equal(report.totals.connectedCount, 2);
   assert.equal(report.totals.connectedTodayCount, 1);
   assert.equal(report.totals.rolling7Day.connectedCount, 1);
+});
+
+test("company stats keep Harper acceptances separate from another role's later stage", async () => {
+  const { compileDailyCompanyStatsReport } =
+    await import("@/lib/dailyCompanyStats");
+  const rows = baseRows();
+  rows.workspaces = [
+    { company_name: "Company", company_workspace_id: "workspace" },
+  ];
+  rows.roles = [
+    {
+      company_internal_roles: { is_auto: false },
+      company_workspace_id: "workspace",
+      is_expired: false,
+      name: "Accepted Role",
+      role_id: "role-accepted",
+      source_type: "internal",
+      status: "active",
+    },
+    {
+      company_internal_roles: { is_auto: false },
+      company_workspace_id: "workspace",
+      is_expired: false,
+      name: "Connected Role",
+      role_id: "role-connected",
+      source_type: "internal",
+      status: "paused",
+    },
+  ];
+  rows.recommendations = [
+    {
+      feedback: "like",
+      feedback_at: "2026-08-16T02:00:00.000Z",
+      id: "recommendation-accepted",
+      role_id: "role-accepted",
+      saved_stage: "connected",
+      talent_id: "talent-shared",
+    },
+    {
+      feedback: "like",
+      feedback_at: "2026-08-15T02:00:00.000Z",
+      id: "recommendation-connected",
+      role_id: "role-connected",
+      saved_stage: "connected",
+      talent_id: "talent-shared",
+    },
+  ];
+  rows.tags = [
+    {
+      id: "tag-connected",
+      opportunity_id: "role-connected",
+      tag: "내부:연결됨",
+      talent_id: "talent-shared",
+      updated_at: "2026-08-16T03:00:00.000Z",
+    },
+  ];
+
+  const report = compileDailyCompanyStatsReport({ date: "2026-08-16", rows });
+  const company = report.otherCompanies[0];
+
+  assert.equal(company.acceptedCount, 1);
+  assert.equal(company.connectedCount, 1);
+  assert.deepEqual(
+    company.roleStats.map((role) => ({
+      acceptedCount: role.acceptedCount,
+      connectedCount: role.connectedCount,
+      roleId: role.roleId,
+    })),
+    [
+      {
+        acceptedCount: 1,
+        connectedCount: 0,
+        roleId: "role-accepted",
+      },
+      {
+        acceptedCount: 0,
+        connectedCount: 1,
+        roleId: "role-connected",
+      },
+    ]
+  );
 });
 
 test("company stats choose the latest use and login and format one company per line", async () => {
@@ -518,6 +599,17 @@ test("company stats include daily totals, linked acceptances, and thread details
     detail,
     /<https:\/\/matchharper\.com\/org\/jobs\?orgId=workspace-main&roleId=all\|새로 등록된 수락자 1명>/
   );
+  assert.match(detail, /- 역할별 후보 상태/);
+  assert.match(
+    detail,
+    /• Platform \(active\) — <https:\/\/matchharper\.com\/org\/jobs\?orgId=workspace-main&roleId=role-new\|수락 1> · 연결 대기 1 · 진행 중 0 · 거절 1/
+  );
+  assert.match(
+    detail,
+    /• API \(paused\) — <https:\/\/matchharper\.com\/org\/jobs\?orgId=workspace-main&roleId=role-paused\|수락 0> · 연결 대기 0 · 진행 중 0 · 거절 0/
+  );
+  assert.doesNotMatch(detail, /• Legacy \(ended\)/);
+  assert.doesNotMatch(detail, /• Deleted \(ended\)/);
   assert.match(detail, /- get_roles: 2 calls \/ error 0/);
   assert.match(detail, /- open_url: 1 calls \/ error 1/);
   assert.match(detail, /- 실패한 tool call: 2개/);

@@ -108,13 +108,6 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
       },
       {
         align: "end",
-        description: "모든 internal role과 매칭 진행 현황",
-        href: "/ops/all-roles",
-        label: "All Roles",
-        matchPrefix: "/ops/all-roles",
-      },
-      {
-        align: "end",
         description: "사람 단위 talent pool 관리",
         href: "/ops/talent-pool",
         label: "Talent Pool",

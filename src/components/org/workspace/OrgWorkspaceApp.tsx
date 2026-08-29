@@ -45,7 +45,6 @@ export function OrgWorkspaceApp({
   //   Boolean(router.query.roleId.trim());
 
   const useWideLayout =
-    page === "all" ||
     page === "documents" ||
     page === "inbox" ||
     page === "jobs" ||

@@ -42,3 +42,16 @@ test("Slack choice buttons check membership before enqueueing a new turn", () =>
   assert.ok(enqueue > accessCheck);
   assert.match(interactivityRoute, /status: "access_denied"/);
 });
+
+test("role quick actions replace their buttons instead of posting a proxy prompt", () => {
+  assert.match(
+    interactivityRoute,
+    /p_slack_message_ts: sourceMessageTs[\s\S]*p_trigger_kind: "button_choice"/
+  );
+  assert.match(
+    interactivityRoute,
+    /actionBlockPrefixes: \[HARPER_ROLE_QUICK_ACTION_BLOCK_ID\]/
+  );
+  assert.match(interactivityRoute, /messageTs: sourceMessageTs/);
+  assert.doesNotMatch(interactivityRoute, /님이 요청했어요/);
+});

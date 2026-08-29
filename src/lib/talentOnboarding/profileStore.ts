@@ -213,7 +213,7 @@ export async function fetchTalentUserProfile(args: {
   const { data, error } = await admin
     .from("talent_users")
     .select(
-      "user_id, email, phone_number, name, profile_picture, headline, bio, current_location, location, last_logined_at, resume_file_name, resume_storage_path, resume_text, resume_links, created_at, updated_at"
+      "user_id, email, phone_number, name, profile_picture, headline, bio, location, current_location, last_logined_at, resume_file_name, resume_storage_path, resume_text, resume_links, created_at, updated_at"
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -278,7 +278,7 @@ export async function fetchTalentStructuredProfile(args: {
         : admin
             .from("talent_users")
             .select(
-              "user_id, email, phone_number, name, profile_picture, headline, bio, current_location, location"
+              "user_id, email, phone_number, name, profile_picture, headline, bio, location, current_location"
             )
             .eq("user_id", userId)
             .maybeSingle(),
@@ -449,6 +449,8 @@ export function buildTalentProfileContext(args: {
       if (includeRowIds && education.id) {
         itemText += `\n   RowID: ${education.id}`;
       }
+      const description = clampPromptText(education.description, 700);
+      if (description) itemText += `\n   Description: ${description}`;
       const memo = clampPromptText(education.memo, MEMO_MAX_CHARS);
       if (memo) itemText += `\n   Memo: ${memo}`;
       lines.push(itemText);

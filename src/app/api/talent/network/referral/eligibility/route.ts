@@ -46,12 +46,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       eligible: canShowReferralEntryPoints({
-        currentLocation,
         location,
+        currentLocation,
         preferredLocale,
       }),
-      currentLocation,
       location,
+      currentLocation,
       preferredLocale,
     });
   } catch (error) {

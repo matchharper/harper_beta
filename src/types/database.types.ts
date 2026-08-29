@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -802,13 +802,6 @@ export type Database = {
             referencedRelation: "company_workspace"
             referencedColumns: ["company_workspace_id"]
           },
-          {
-            foreignKeyName: "company_agent_update_proposals_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "ops_company_workspace_with_label"
-            referencedColumns: ["company_workspace_id"]
-          },
         ]
       }
       company_behavior_contexts: {
@@ -918,13 +911,6 @@ export type Database = {
             referencedColumns: ["company_workspace_id"]
           },
           {
-            foreignKeyName: "company_conversation_summaries_company_workspace_id_fkey"
-            columns: ["company_workspace_id"]
-            isOneToOne: false
-            referencedRelation: "ops_company_workspace_with_label"
-            referencedColumns: ["company_workspace_id"]
-          },
-          {
             foreignKeyName: "company_conversation_summaries_conversation_id_fkey"
             columns: ["conversation_id"]
             isOneToOne: false
@@ -986,13 +972,6 @@ export type Database = {
             referencedColumns: ["company_workspace_id"]
           },
           {
-            foreignKeyName: "company_conversations_company_workspace_id_fkey"
-            columns: ["company_workspace_id"]
-            isOneToOne: false
-            referencedRelation: "ops_company_workspace_with_label"
-            referencedColumns: ["company_workspace_id"]
-          },
-          {
             foreignKeyName: "company_conversations_role_id_fkey"
             columns: ["role_id"]
             isOneToOne: false
@@ -1050,13 +1029,6 @@ export type Database = {
             columns: ["company_workspace_id"]
             isOneToOne: true
             referencedRelation: "company_workspace"
-            referencedColumns: ["company_workspace_id"]
-          },
-          {
-            foreignKeyName: "company_data_company_workspace_id_fkey"
-            columns: ["company_workspace_id"]
-            isOneToOne: true
-            referencedRelation: "ops_company_workspace_with_label"
             referencedColumns: ["company_workspace_id"]
           },
         ]
@@ -1160,13 +1132,6 @@ export type Database = {
             referencedRelation: "company_workspace"
             referencedColumns: ["company_workspace_id"]
           },
-          {
-            foreignKeyName: "company_events_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "ops_company_workspace_with_label"
-            referencedColumns: ["company_workspace_id"]
-          },
         ]
       }
       company_internal_roles: {
@@ -1259,13 +1224,6 @@ export type Database = {
             referencedColumns: ["company_workspace_id"]
           },
           {
-            foreignKeyName: "company_memories_company_workspace_id_fkey"
-            columns: ["company_workspace_id"]
-            isOneToOne: false
-            referencedRelation: "ops_company_workspace_with_label"
-            referencedColumns: ["company_workspace_id"]
-          },
-          {
             foreignKeyName: "company_memories_role_id_fkey"
             columns: ["role_id"]
             isOneToOne: false
@@ -1345,13 +1303,6 @@ export type Database = {
             columns: ["company_workspace_id"]
             isOneToOne: false
             referencedRelation: "company_workspace"
-            referencedColumns: ["company_workspace_id"]
-          },
-          {
-            foreignKeyName: "company_messages_company_workspace_id_fkey"
-            columns: ["company_workspace_id"]
-            isOneToOne: false
-            referencedRelation: "ops_company_workspace_with_label"
             referencedColumns: ["company_workspace_id"]
           },
           {
@@ -1601,13 +1552,6 @@ export type Database = {
             referencedRelation: "company_workspace"
             referencedColumns: ["company_workspace_id"]
           },
-          {
-            foreignKeyName: "company_roles_company_workspace_id_fkey"
-            columns: ["company_workspace_id"]
-            isOneToOne: false
-            referencedRelation: "ops_company_workspace_with_label"
-            referencedColumns: ["company_workspace_id"]
-          },
         ]
       }
       company_roles_archive: {
@@ -1809,13 +1753,6 @@ export type Database = {
             referencedColumns: ["company_workspace_id"]
           },
           {
-            foreignKeyName: "company_slack_integrations_company_workspace_id_fkey"
-            columns: ["company_workspace_id"]
-            isOneToOne: true
-            referencedRelation: "ops_company_workspace_with_label"
-            referencedColumns: ["company_workspace_id"]
-          },
-          {
             foreignKeyName: "company_slack_integrations_installed_by_user_id_fkey"
             columns: ["installed_by_user_id"]
             isOneToOne: false
@@ -1915,13 +1852,6 @@ export type Database = {
             referencedRelation: "company_workspace"
             referencedColumns: ["company_workspace_id"]
           },
-          {
-            foreignKeyName: "company_snapshot_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "ops_company_workspace_with_label"
-            referencedColumns: ["company_workspace_id"]
-          },
         ]
       }
       company_talent_requests: {
@@ -1994,13 +1924,6 @@ export type Database = {
             referencedColumns: ["company_workspace_id"]
           },
           {
-            foreignKeyName: "company_talent_requests_company_workspace_id_fkey"
-            columns: ["company_workspace_id"]
-            isOneToOne: false
-            referencedRelation: "ops_company_workspace_with_label"
-            referencedColumns: ["company_workspace_id"]
-          },
-          {
             foreignKeyName: "company_talent_requests_document_id_fkey"
             columns: ["document_id"]
             isOneToOne: false
@@ -2041,6 +1964,97 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "talent_messages"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_user_integrations: {
+        Row: {
+          company_user_id: string
+          composio_connected_account_id: string
+          created_at: string
+          last_sync_window_end_at: string | null
+          last_synced_at: string | null
+          provider: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          company_user_id: string
+          composio_connected_account_id: string
+          created_at?: string
+          last_sync_window_end_at?: string | null
+          last_synced_at?: string | null
+          provider: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          company_user_id?: string
+          composio_connected_account_id?: string
+          created_at?: string
+          last_sync_window_end_at?: string | null
+          last_synced_at?: string | null
+          provider?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_user_integrations_company_user_id_fkey"
+            columns: ["company_user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      company_user_calendar_busy_blocks: {
+        Row: {
+          all_day: boolean
+          company_user_id: string
+          created_at: string
+          end_at: string
+          external_calendar_id: string
+          external_event_id: string
+          id: string
+          is_blocking: boolean
+          last_seen_at: string
+          provider: string
+          start_at: string
+        }
+        Insert: {
+          all_day?: boolean
+          company_user_id: string
+          created_at?: string
+          end_at: string
+          external_calendar_id: string
+          external_event_id: string
+          id?: string
+          is_blocking?: boolean
+          last_seen_at?: string
+          provider?: string
+          start_at: string
+        }
+        Update: {
+          all_day?: boolean
+          company_user_id?: string
+          created_at?: string
+          end_at?: string
+          external_calendar_id?: string
+          external_event_id?: string
+          id?: string
+          is_blocking?: boolean
+          last_seen_at?: string
+          provider?: string
+          start_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_user_calendar_busy_blocks_company_user_id_fkey"
+            columns: ["company_user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -2085,13 +2099,6 @@ export type Database = {
             columns: ["company_workspace_id"]
             isOneToOne: false
             referencedRelation: "company_workspace"
-            referencedColumns: ["company_workspace_id"]
-          },
-          {
-            foreignKeyName: "company_user_workspace_company_workspace_id_fkey"
-            columns: ["company_workspace_id"]
-            isOneToOne: false
-            referencedRelation: "ops_company_workspace_with_label"
             referencedColumns: ["company_workspace_id"]
           },
         ]
@@ -2252,13 +2259,6 @@ export type Database = {
             referencedColumns: ["company_workspace_id"]
           },
           {
-            foreignKeyName: "company_workspace_invitations_company_workspace_id_fkey"
-            columns: ["company_workspace_id"]
-            isOneToOne: false
-            referencedRelation: "ops_company_workspace_with_label"
-            referencedColumns: ["company_workspace_id"]
-          },
-          {
             foreignKeyName: "company_workspace_invitations_invited_by_user_id_fkey"
             columns: ["invited_by_user_id"]
             isOneToOne: false
@@ -2358,13 +2358,6 @@ export type Database = {
             columns: ["company_workspace_id"]
             isOneToOne: true
             referencedRelation: "company_workspace"
-            referencedColumns: ["company_workspace_id"]
-          },
-          {
-            foreignKeyName: "company_workspace_quality_label_company_workspace_id_fkey"
-            columns: ["company_workspace_id"]
-            isOneToOne: true
-            referencedRelation: "ops_company_workspace_with_label"
             referencedColumns: ["company_workspace_id"]
           },
         ]
@@ -3597,13 +3590,6 @@ export type Database = {
             referencedRelation: "company_workspace"
             referencedColumns: ["company_workspace_id"]
           },
-          {
-            foreignKeyName: "jobposting_company_identity_company_workspace_id_fkey"
-            columns: ["company_workspace_id"]
-            isOneToOne: false
-            referencedRelation: "ops_company_workspace_with_label"
-            referencedColumns: ["company_workspace_id"]
-          },
         ]
       }
       jobposting_company_status: {
@@ -3653,13 +3639,6 @@ export type Database = {
             columns: ["company_workspace_id"]
             isOneToOne: false
             referencedRelation: "company_workspace"
-            referencedColumns: ["company_workspace_id"]
-          },
-          {
-            foreignKeyName: "jobposting_company_status_company_workspace_id_fkey"
-            columns: ["company_workspace_id"]
-            isOneToOne: false
-            referencedRelation: "ops_company_workspace_with_label"
             referencedColumns: ["company_workspace_id"]
           },
         ]
@@ -3741,13 +3720,6 @@ export type Database = {
             referencedColumns: ["company_workspace_id"]
           },
           {
-            foreignKeyName: "jobposting_crawl_log_company_workspace_id_fkey"
-            columns: ["company_workspace_id"]
-            isOneToOne: false
-            referencedRelation: "ops_company_workspace_with_label"
-            referencedColumns: ["company_workspace_id"]
-          },
-          {
             foreignKeyName: "jobposting_crawl_log_ingestion_run_id_fkey"
             columns: ["ingestion_run_id"]
             isOneToOne: false
@@ -3814,13 +3786,6 @@ export type Database = {
             columns: ["company_workspace_id"]
             isOneToOne: false
             referencedRelation: "company_workspace"
-            referencedColumns: ["company_workspace_id"]
-          },
-          {
-            foreignKeyName: "jobs_companies_sources_company_workspace_id_fkey"
-            columns: ["company_workspace_id"]
-            isOneToOne: false
-            referencedRelation: "ops_company_workspace_with_label"
             referencedColumns: ["company_workspace_id"]
           },
         ]
@@ -4001,6 +3966,233 @@ export type Database = {
         }
         Relationships: []
       }
+      meeting_availability: {
+        Row: {
+          company_user_id: string
+          company_workspace_id: string
+          date_overrides: Json
+          timezone: string
+          updated_at: string
+          version: number
+          weekly_rules: Json
+        }
+        Insert: {
+          company_user_id: string
+          company_workspace_id: string
+          date_overrides?: Json
+          timezone: string
+          updated_at?: string
+          version?: number
+          weekly_rules?: Json
+        }
+        Update: {
+          company_user_id?: string
+          company_workspace_id?: string
+          date_overrides?: Json
+          timezone?: string
+          updated_at?: string
+          version?: number
+          weekly_rules?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_availability_company_user_id_fkey"
+            columns: ["company_user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "meeting_availability_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+        ]
+      }
+      meeting_schedule_rounds: {
+        Row: {
+          additional_message: Json | null
+          candidate_options: Json | null
+          delivery_queue_id: string | null
+          draft_blocker: string | null
+          id: string
+          invitation_expires_at: string | null
+          invitation_snapshot: Json | null
+          meeting_config_snapshot: Json
+          public_token_hash: string | null
+          round_number: number
+          schedule_id: string
+          selection_snapshot: Json | null
+          source_company_message_id: number
+          status: string
+          submitted_at: string | null
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          additional_message?: Json | null
+          candidate_options?: Json | null
+          delivery_queue_id?: string | null
+          draft_blocker?: string | null
+          id?: string
+          invitation_expires_at?: string | null
+          invitation_snapshot?: Json | null
+          meeting_config_snapshot: Json
+          public_token_hash?: string | null
+          round_number?: number
+          schedule_id: string
+          selection_snapshot?: Json | null
+          source_company_message_id: number
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          additional_message?: Json | null
+          candidate_options?: Json | null
+          delivery_queue_id?: string | null
+          draft_blocker?: string | null
+          id?: string
+          invitation_expires_at?: string | null
+          invitation_snapshot?: Json | null
+          meeting_config_snapshot?: Json
+          public_token_hash?: string | null
+          round_number?: number
+          schedule_id?: string
+          selection_snapshot?: Json | null
+          source_company_message_id?: number
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_schedule_rounds_delivery_queue_id_fkey"
+            columns: ["delivery_queue_id"]
+            isOneToOne: false
+            referencedRelation: "contact_queue"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_schedule_rounds_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_schedules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_schedule_rounds_source_company_message_id_fkey"
+            columns: ["source_company_message_id"]
+            isOneToOne: false
+            referencedRelation: "company_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_schedules: {
+        Row: {
+          active_round_id: string | null
+          company_attendees: Json
+          company_workspace_id: string
+          confirmed_end_at: string | null
+          confirmed_start_at: string | null
+          duration_minutes: number
+          id: string
+          idempotency_key: string
+          organizer_company_user_id: string
+          recommendation_id: string
+          role_id: string
+          status: string
+          talent_id: string
+          title: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          active_round_id?: string | null
+          company_attendees?: Json
+          company_workspace_id: string
+          confirmed_end_at?: string | null
+          confirmed_start_at?: string | null
+          duration_minutes?: number
+          id?: string
+          idempotency_key: string
+          organizer_company_user_id: string
+          recommendation_id: string
+          role_id: string
+          status?: string
+          talent_id: string
+          title: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          active_round_id?: string | null
+          company_attendees?: Json
+          company_workspace_id?: string
+          confirmed_end_at?: string | null
+          confirmed_start_at?: string | null
+          duration_minutes?: number
+          id?: string
+          idempotency_key?: string
+          organizer_company_user_id?: string
+          recommendation_id?: string
+          role_id?: string
+          status?: string
+          talent_id?: string
+          title?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_schedules_active_round_id_fkey"
+            columns: ["id", "active_round_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_schedule_rounds"
+            referencedColumns: ["schedule_id", "id"]
+          },
+          {
+            foreignKeyName: "meeting_schedules_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+          {
+            foreignKeyName: "meeting_schedules_organizer_company_user_id_fkey"
+            columns: ["organizer_company_user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "meeting_schedules_recommendation_id_fkey"
+            columns: ["recommendation_id"]
+            isOneToOne: false
+            referencedRelation: "talent_opportunity_recommendation"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_schedules_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "company_roles"
+            referencedColumns: ["role_id"]
+          },
+          {
+            foreignKeyName: "meeting_schedules_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           candid_id: string | null
@@ -4129,6 +4321,7 @@ export type Database = {
           location: string
           published_at: string | null
           role_description_markdown: string
+          role_id: string | null
           role_title: string
           seniority: string | null
           short_description: string
@@ -4153,6 +4346,7 @@ export type Database = {
           location: string
           published_at?: string | null
           role_description_markdown?: string
+          role_id?: string | null
           role_title: string
           seniority?: string | null
           short_description?: string
@@ -4177,6 +4371,7 @@ export type Database = {
           location?: string
           published_at?: string | null
           role_description_markdown?: string
+          role_id?: string | null
           role_title?: string
           seniority?: string | null
           short_description?: string
@@ -4185,7 +4380,15 @@ export type Database = {
           updated_at?: string
           vertical?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "official_jobs_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "company_roles"
+            referencedColumns: ["role_id"]
+          },
+        ]
       }
       opportunity_discovery_run: {
         Row: {
@@ -4405,6 +4608,29 @@ export type Database = {
           },
         ]
       }
+      opportunity_scheduler_state: {
+        Row: {
+          next_check_at: string
+          talent_id: string
+        }
+        Insert: {
+          next_check_at: string
+          talent_id: string
+        }
+        Update: {
+          next_check_at?: string
+          talent_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opportunity_scheduler_state_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: true
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       opportunity_source_document: {
         Row: {
           content_hash: string | null
@@ -4541,13 +4767,6 @@ export type Database = {
             referencedColumns: ["company_workspace_id"]
           },
           {
-            foreignKeyName: "opportunity_source_registry_company_workspace_id_fkey"
-            columns: ["company_workspace_id"]
-            isOneToOne: false
-            referencedRelation: "ops_company_workspace_with_label"
-            referencedColumns: ["company_workspace_id"]
-          },
-          {
             foreignKeyName: "opportunity_source_registry_created_from_run_id_fkey"
             columns: ["created_from_run_id"]
             isOneToOne: false
@@ -4560,18 +4779,27 @@ export type Database = {
         Row: {
           id: string
           label: string
+          meeting_candidate_message: string | null
+          meeting_duration_minutes: number | null
+          meeting_purpose: string | null
           role_id: string
           sort_order: number
         }
         Insert: {
           id?: string
           label: string
+          meeting_candidate_message?: string | null
+          meeting_duration_minutes?: number | null
+          meeting_purpose?: string | null
           role_id: string
           sort_order?: number
         }
         Update: {
           id?: string
           label?: string
+          meeting_candidate_message?: string | null
+          meeting_duration_minutes?: number | null
+          meeting_purpose?: string | null
           role_id?: string
           sort_order?: number
         }
@@ -4637,13 +4865,6 @@ export type Database = {
             columns: ["company_workspace_id"]
             isOneToOne: false
             referencedRelation: "company_workspace"
-            referencedColumns: ["company_workspace_id"]
-          },
-          {
-            foreignKeyName: "org_intro_email_threads_company_workspace_id_fkey"
-            columns: ["company_workspace_id"]
-            isOneToOne: false
-            referencedRelation: "ops_company_workspace_with_label"
             referencedColumns: ["company_workspace_id"]
           },
           {
@@ -5495,6 +5716,12 @@ export type Database = {
           locked_by: string | null
           next_attempt_at: string
           prompt: string
+          queue_dispatch_attempt_count: number
+          queue_dispatch_status: string
+          queue_dispatched_at: string | null
+          queue_last_error: string | null
+          queue_next_attempt_at: string
+          queue_source: string | null
           response_message_id: number | null
           response_proposal_id: string | null
           response_text: string | null
@@ -5528,6 +5755,12 @@ export type Database = {
           locked_by?: string | null
           next_attempt_at?: string
           prompt: string
+          queue_dispatch_attempt_count?: number
+          queue_dispatch_status?: string
+          queue_dispatched_at?: string | null
+          queue_last_error?: string | null
+          queue_next_attempt_at?: string
+          queue_source?: string | null
           response_message_id?: number | null
           response_proposal_id?: string | null
           response_text?: string | null
@@ -5561,6 +5794,12 @@ export type Database = {
           locked_by?: string | null
           next_attempt_at?: string
           prompt?: string
+          queue_dispatch_attempt_count?: number
+          queue_dispatch_status?: string
+          queue_dispatched_at?: string | null
+          queue_last_error?: string | null
+          queue_next_attempt_at?: string
+          queue_source?: string | null
           response_message_id?: number | null
           response_proposal_id?: string | null
           response_text?: string | null
@@ -5958,13 +6197,6 @@ export type Database = {
             referencedColumns: ["company_workspace_id"]
           },
           {
-            foreignKeyName: "talent_company_follow_company_workspace_id_fkey"
-            columns: ["company_workspace_id"]
-            isOneToOne: false
-            referencedRelation: "ops_company_workspace_with_label"
-            referencedColumns: ["company_workspace_id"]
-          },
-          {
             foreignKeyName: "talent_company_follow_conversation_id_fkey"
             columns: ["conversation_id"]
             isOneToOne: false
@@ -6342,6 +6574,41 @@ export type Database = {
           },
         ]
       }
+      talent_integrations: {
+        Row: {
+          composio_connected_account_id: string
+          created_at: string
+          provider: string
+          status: string
+          talent_id: string
+          updated_at: string
+        }
+        Insert: {
+          composio_connected_account_id: string
+          created_at?: string
+          provider: string
+          status?: string
+          talent_id: string
+          updated_at?: string
+        }
+        Update: {
+          composio_connected_account_id?: string
+          created_at?: string
+          provider?: string
+          status?: string
+          talent_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_integrations_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       talent_messages: {
         Row: {
           content: string
@@ -6577,6 +6844,7 @@ export type Database = {
           company_criteria_evaluations: Json | null
           company_side_evaluation_metadata: Json | null
           created_at: string
+          history: Json | null
           human_label: string | null
           human_reason: string | null
           human_reviewed_at: string | null
@@ -6597,6 +6865,7 @@ export type Database = {
           company_criteria_evaluations?: Json | null
           company_side_evaluation_metadata?: Json | null
           created_at?: string
+          history?: Json | null
           human_label?: string | null
           human_reason?: string | null
           human_reviewed_at?: string | null
@@ -6617,6 +6886,7 @@ export type Database = {
           company_criteria_evaluations?: Json | null
           company_side_evaluation_metadata?: Json | null
           created_at?: string
+          history?: Json | null
           human_label?: string | null
           human_reason?: string | null
           human_reviewed_at?: string | null
@@ -7277,6 +7547,9 @@ export type Database = {
           bio: string | null
           created_at: string
           current_location: string | null
+          deleted_at: string | null
+          deletion_reason_code: string | null
+          deletion_reason_detail: string | null
           email: string | null
           headline: string | null
           last_logined_at: string | null
@@ -7295,6 +7568,9 @@ export type Database = {
           bio?: string | null
           created_at?: string
           current_location?: string | null
+          deleted_at?: string | null
+          deletion_reason_code?: string | null
+          deletion_reason_detail?: string | null
           email?: string | null
           headline?: string | null
           last_logined_at?: string | null
@@ -7313,6 +7589,9 @@ export type Database = {
           bio?: string | null
           created_at?: string
           current_location?: string | null
+          deleted_at?: string | null
+          deletion_reason_code?: string | null
+          deletion_reason_detail?: string | null
           email?: string | null
           headline?: string | null
           last_logined_at?: string | null
@@ -7404,38 +7683,6 @@ export type Database = {
           },
         ]
       }
-      wonderful_fde_country_roles: {
-        Row: {
-          country_code: string
-          created_at: string
-          location_text: string
-          role_id: string
-          updated_at: string
-        }
-        Insert: {
-          country_code: string
-          created_at?: string
-          location_text: string
-          role_id: string
-          updated_at?: string
-        }
-        Update: {
-          country_code?: string
-          created_at?: string
-          location_text?: string
-          role_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "wonderful_fde_country_roles_role_id_fkey"
-            columns: ["role_id"]
-            isOneToOne: true
-            referencedRelation: "company_roles"
-            referencedColumns: ["role_id"]
-          },
-        ]
-      }
       worker_runtime_settings: {
         Row: {
           created_at: string
@@ -7471,59 +7718,7 @@ export type Database = {
       }
     }
     Views: {
-      behavior_context_experiment_metrics: {
-        Row: {
-          assigned_variant: string | null
-          average_elapsed_seconds: number | null
-          average_estimated_cost_usd: number | null
-          average_input_tokens: number | null
-          average_output_tokens: number | null
-          completed_run_count: number | null
-          context_variant: string | null
-          fallback_run_count: number | null
-          feedback_count: number | null
-          feedback_rate: number | null
-          negative_count: number | null
-          positive_count: number | null
-          positive_feedback_rate: number | null
-          recommendation_count: number | null
-          run_count: number | null
-          sent_run_count: number | null
-        }
-        Relationships: []
-      }
-      ops_company_workspace_with_label: {
-        Row: {
-          brief: string | null
-          career_url: string | null
-          company_db_id: number | null
-          company_description: string | null
-          company_name: string | null
-          company_workspace_id: string | null
-          created_at: string | null
-          cwql_human_quality_label: number | null
-          cwql_llm_quality_label: number | null
-          has_career_page: boolean | null
-          homepage_url: string | null
-          is_internal: boolean | null
-          is_scrape_original: boolean | null
-          linkedin_url: string | null
-          logo_url: string | null
-          pitch: string | null
-          request: string | null
-          test_score: number | null
-          updated_at: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "company_workspace_company_db_id_fkey"
-            columns: ["company_db_id"]
-            isOneToOne: false
-            referencedRelation: "company_db"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
+      [_ in never]: never
     }
     Functions: {
       activate_slack_company_agent_update_proposal_v1: {
@@ -7776,6 +7971,22 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      claim_slack_reply_job_v3: {
+        Args: {
+          p_job_id: string
+          p_max_concurrency?: number
+          p_max_retry_count?: number
+          p_stale_after_seconds?: number
+          p_worker_id: string
+        }
+        Returns: Database["public"]["Tables"]["slack_reply_jobs"]["Row"][]
+        SetofOptions: {
+          from: "*"
+          to: "slack_reply_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       claim_slack_reply_jobs: {
         Args: {
           p_batch_size?: number
@@ -7909,6 +8120,24 @@ export type Database = {
         }
         Returns: Json
       }
+      create_meeting_schedule_draft_v1: {
+        Args: {
+          p_additional_message: Json
+          p_company_attendees: Json
+          p_company_workspace_id: string
+          p_draft_blocker: string
+          p_duration_minutes: number
+          p_idempotency_key: string
+          p_meeting_config_snapshot: Json
+          p_organizer_company_user_id: string
+          p_recommendation_id: string
+          p_role_id: string
+          p_source_company_message_id: number
+          p_talent_id: string
+          p_title: string
+        }
+        Returns: Json
+      }
       deduct_user_credits: {
         Args: { amount_to_deduct: number }
         Returns: number
@@ -7945,9 +8174,13 @@ export type Database = {
               p_workspace_id: string
             }
             Returns: {
+              approved_at: string | null
               company_workspace_id: string
               created_at: string
+              delivery_body: string | null
+              delivery_subject: string | null
               document_id: string | null
+              draft_revision: number
               expects_document: boolean
               expires_at: string
               id: string
@@ -7957,6 +8190,7 @@ export type Database = {
               source_company_message_id: number
               talent_id: string
               talent_source_message_id: number | null
+              updated_at: string
               workflow_status: string
             }
             SetofOptions: {
@@ -7978,9 +8212,13 @@ export type Database = {
               p_workspace_id: string
             }
             Returns: {
+              approved_at: string | null
               company_workspace_id: string
               created_at: string
+              delivery_body: string | null
+              delivery_subject: string | null
               document_id: string | null
+              draft_revision: number
               expects_document: boolean
               expires_at: string
               id: string
@@ -7990,6 +8228,7 @@ export type Database = {
               source_company_message_id: number
               talent_id: string
               talent_source_message_id: number | null
+              updated_at: string
               workflow_status: string
             }
             SetofOptions: {
@@ -8165,6 +8404,18 @@ export type Database = {
         }
         Returns: Json
       }
+      queue_meeting_schedule_invitation_v1: {
+        Args: {
+          p_company_workspace_id: string
+          p_expected_schedule_version: number
+          p_invitation_expires_at: string
+          p_invitation_snapshot: Json
+          p_public_token_hash: string
+          p_queue_payload: Json
+          p_schedule_id: string
+        }
+        Returns: Json
+      }
       reassociate_company_workspace_db_v1: {
         Args: {
           p_changes: Json
@@ -8179,6 +8430,10 @@ export type Database = {
         Args: { p_role_id: string; p_talent_id: string }
         Returns: undefined
       }
+      record_career_email_first_open_v1: {
+        Args: { p_opened_at: string; p_resend_email_id: string }
+        Returns: number
+      }
       record_company_talent_response_v1: {
         Args: {
           p_request_id: string
@@ -8186,9 +8441,13 @@ export type Database = {
           p_talent_id: string
         }
         Returns: {
+          approved_at: string | null
           company_workspace_id: string
           created_at: string
+          delivery_body: string | null
+          delivery_subject: string | null
           document_id: string | null
+          draft_revision: number
           expects_document: boolean
           expires_at: string
           id: string
@@ -8198,6 +8457,7 @@ export type Database = {
           source_company_message_id: number
           talent_id: string
           talent_source_message_id: number | null
+          updated_at: string
           workflow_status: string
         }
         SetofOptions: {
@@ -8226,6 +8486,13 @@ export type Database = {
         }
         Returns: Json
       }
+      reveal_candidate_profile: {
+        Args: { target_candid_id: string }
+        Returns: {
+          already_revealed: boolean
+          new_balance: number
+        }[]
+      }
       schedule_company_talent_request_v1: {
         Args: {
           p_delivery_mode: string
@@ -8237,12 +8504,13 @@ export type Database = {
         }
         Returns: Json
       }
-      reveal_candidate_profile: {
-        Args: { target_candid_id: string }
-        Returns: {
-          already_revealed: boolean
-          new_balance: number
-        }[]
+      set_google_calendar_busy_block_blocking_v1: {
+        Args: {
+          p_busy_block_id: string
+          p_company_user_id: string
+          p_is_blocking: boolean
+        }
+        Returns: Json
       }
       set_slack_agent_worker_target_v1: {
         Args: {
@@ -8281,9 +8549,13 @@ export type Database = {
       store_company_talent_relay_body_v1: {
         Args: { p_body: string; p_request_id: string }
         Returns: {
+          approved_at: string | null
           company_workspace_id: string
           created_at: string
+          delivery_body: string | null
+          delivery_subject: string | null
           document_id: string | null
+          draft_revision: number
           expects_document: boolean
           expires_at: string
           id: string
@@ -8293,6 +8565,7 @@ export type Database = {
           source_company_message_id: number
           talent_id: string
           talent_source_message_id: number | null
+          updated_at: string
           workflow_status: string
         }
         SetofOptions: {
@@ -8301,6 +8574,17 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      submit_meeting_schedule_options_v1: {
+        Args: {
+          p_candidate_options: Json
+          p_confirmed_end_at: string
+          p_confirmed_start_at: string
+          p_expected_availability_version: number
+          p_public_token_hash: string
+          p_selection_snapshot: Json
+        }
+        Returns: Json
       }
       try_enqueue_talent_behavior_context_change: {
         Args: {
@@ -8326,7 +8610,30 @@ export type Database = {
         }
         Returns: Json
       }
+      update_meeting_schedule_draft_v1: {
+        Args: {
+          p_additional_message: Json
+          p_company_attendees: Json
+          p_company_workspace_id: string
+          p_duration_minutes: number
+          p_expected_version: number
+          p_meeting_config_snapshot: Json
+          p_schedule_id: string
+          p_title: string
+        }
+        Returns: Json
+      }
       update_repo_ids: { Args: never; Returns: undefined }
+      upsert_google_calendar_busy_blocks_v1: {
+        Args: {
+          p_blocks: Json
+          p_company_user_id: string
+          p_connected_account_id: string
+          p_window_end: string
+          p_window_start: string
+        }
+        Returns: Json
+      }
       upsert_talent_document_by_hash_v1: {
         Args: {
           p_content_sha256: string

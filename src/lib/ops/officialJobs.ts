@@ -41,6 +41,7 @@ export type OpsOfficialJobRecord = {
   isPublished: boolean;
   location: string;
   publishedAt: string | null;
+  roleId: string | null;
   roleDescriptionMarkdown: string;
   roleTitle: string;
   seniority: string | null;
@@ -63,6 +64,19 @@ export type OpsOfficialJobsResponse = {
 
 export type OpsOfficialJobCompanyOptionsResponse = {
   companyNames: string[];
+};
+
+export type OpsOfficialJobInternalRoleOption = {
+  companyName: string;
+  label: string;
+  location: string | null;
+  roleId: string;
+  roleName: string;
+  status: "active" | "paused";
+};
+
+export type OpsOfficialJobInternalRoleOptionsResponse = {
+  roles: OpsOfficialJobInternalRoleOption[];
 };
 
 export type OpsOfficialJobAnalytics = {
@@ -88,6 +102,7 @@ export type OpsOfficialJobSaveInput = {
   isOnLinkedin?: boolean | null;
   isPublished?: boolean | null;
   location?: string | null;
+  roleId?: string | null;
   roleDescriptionMarkdown?: string | null;
   roleTitle?: string | null;
   seniority?: string | null;
@@ -122,6 +137,7 @@ function mapOpsOfficialJob(row: OfficialJobRow): OpsOfficialJobRecord {
     isPublished: row.is_published,
     location: row.location,
     publishedAt: row.published_at,
+    roleId: row.role_id ?? null,
     roleDescriptionMarkdown: row.role_description_markdown,
     roleTitle: row.role_title,
     seniority: row.seniority,
@@ -160,6 +176,42 @@ function normalizeDisplayOrder(value: unknown) {
   const numberValue = Number(value ?? 0);
   if (!Number.isFinite(numberValue)) return 0;
   return Math.trunc(numberValue);
+}
+
+function normalizeOfficialJobEmploymentType(value: unknown) {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-");
+  return normalized === "part-time" || normalized === "parttime"
+    ? "Part-time"
+    : "Full-time";
+}
+
+async function validateOfficialJobInternalRoleId(value: unknown) {
+  const roleId = normalizeOptionalString(value);
+  if (!roleId) return null;
+
+  const { data, error } = await (supabaseServer.from("company_roles") as any)
+    .select("role_id,source_type,status,is_expired,expires_at")
+    .eq("role_id", roleId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to verify internal role");
+  }
+  if (!data || String(data.source_type ?? "").toLowerCase() !== "internal") {
+    throw new Error("선택한 role은 Harper internal role이 아닙니다.");
+  }
+  if (
+    !["active", "paused"].includes(String(data.status ?? "")) ||
+    data.is_expired === true ||
+    (data.expires_at && new Date(data.expires_at).getTime() <= Date.now())
+  ) {
+    throw new Error("active 또는 paused 상태의 유효한 internal role을 선택해주세요.");
+  }
+
+  return roleId;
 }
 
 function createOfficialJobSlug(value: string) {
@@ -286,6 +338,48 @@ export async function fetchOpsOfficialJobCompanyOptions(): Promise<OpsOfficialJo
       a.localeCompare(b, "ko")
     ),
   };
+}
+
+export async function fetchOpsOfficialJobInternalRoleOptions(): Promise<OpsOfficialJobInternalRoleOptionsResponse> {
+  const { data, error } = await (supabaseServer.from("company_roles") as any)
+    .select(
+      "role_id,name,status,location_text,company_workspace!inner(company_name)"
+    )
+    .eq("source_type", "internal")
+    .in("status", ["active", "paused"])
+    .eq("is_expired", false)
+    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load internal roles");
+  }
+
+  const roles: OpsOfficialJobInternalRoleOption[] = (data ?? []).flatMap(
+    (row: any) => {
+      const roleId = String(row.role_id ?? "").trim();
+      const roleName = String(row.name ?? "").trim();
+      const workspace = row.company_workspace;
+      const companyName = String(workspace?.company_name ?? "").trim();
+      if (!roleId || !roleName || !companyName) return [];
+
+      return [
+        {
+          companyName,
+          label: `${companyName} / ${roleName}`,
+          location: normalizeOptionalString(row.location_text),
+          roleId,
+          roleName,
+          status: row.status === "paused" ? "paused" : "active",
+        } satisfies OpsOfficialJobInternalRoleOption,
+      ];
+    }
+  );
+
+  roles.sort((first, second) =>
+    first.label.localeCompare(second.label, "ko")
+  );
+
+  return { roles };
 }
 
 function getKstYesterdayRange(now = new Date()) {
@@ -447,6 +541,14 @@ export async function saveOpsOfficialJob(
       slug: input.slug,
     });
   const isPublished = isInternalCopy ? false : Boolean(input.isPublished);
+  const roleId = isInternalCopy
+    ? null
+    : await validateOfficialJobInternalRoleId(
+        input.roleId === undefined ? existing?.role_id : input.roleId
+      );
+  if (isPublished && !roleId) {
+    throw new Error("공개하려면 연결할 internal role을 선택해주세요.");
+  }
   const publishedAt = isInternalCopy
     ? null
     : isPublished && !existing?.published_at
@@ -484,13 +586,16 @@ export async function saveOpsOfficialJob(
     display_order: isInternalCopy
       ? -1000
       : normalizeDisplayOrder(input.displayOrder),
-    employment_type: normalizeOptionalString(input.employmentType),
+    employment_type: isInternalCopy
+      ? null
+      : normalizeOfficialJobEmploymentType(input.employmentType),
     is_on_linkedin: isInternalCopy ? false : Boolean(input.isOnLinkedin),
     is_published: isPublished,
     location: isInternalCopy
       ? (normalizeOptionalString(input.location) ?? INTERNAL_COPY_LOCATION)
       : normalizeRequiredString(input.location, "location"),
     published_at: publishedAt,
+    role_id: roleId,
     role_description_markdown: normalizeMarkdown(input.roleDescriptionMarkdown),
     role_title: roleTitle,
     seniority: normalizeOptionalString(input.seniority),
@@ -498,7 +603,11 @@ export async function saveOpsOfficialJob(
       ? shortDescription || INTERNAL_COPY_SHORT_DESCRIPTION
       : shortDescription,
     slug,
-    source_company_name: normalizeOptionalString(input.sourceCompanyName),
+    source_company_name: normalizeOptionalString(
+      input.sourceCompanyName === undefined
+        ? existing?.source_company_name
+        : input.sourceCompanyName
+    ),
     vertical: isInternalCopy
       ? (normalizeOptionalString(input.vertical) ?? INTERNAL_COPY_VERTICAL)
       : normalizeMarkdown(input.vertical),

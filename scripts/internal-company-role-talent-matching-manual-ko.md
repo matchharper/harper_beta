@@ -152,7 +152,8 @@ requested_by=<운영자 식별자>
 - 회사 행동을 role별 current context로 verbalize한 뒤 신규·변경 후보를 pair별로 평가한다.
 - Pending limit은 후보 검색만 막으며 context 갱신은 계속한다.
 - 실제 평가하거나 재평가한 pair의 current fit을 저장하지만 추천·발송·연결 대기 전환은 만들지 않는다.
-- `dissatisfied`, `unfit`, unchanged input, 평가와 무관한 변경은 반복 재평가하지 않는다.
+- 주기 재평가는 effective `hold/ambiguous`이면서 마지막 평가 후 21일 이상 지난 pair만 신규 후보와 같은 role rank로 조회한다. Effective `fit`, `dissatisfied`, `unfit`은 제외한다.
+- 동일 fingerprint는 재사용하고, 달라진 due pair는 가능한 경우 최소 10명·최대 50명을 실제 재평가한다.
 - Human override를 보존하고, 올바른 제외 뒤 후보가 0명이면 정상 결과로 처리한다.
 
 ### 2.2 외부 모델 호출·판단 위임 금지
@@ -1079,7 +1080,7 @@ candidate pool과 개별 평가 artifact에는 최소 다음을 남긴다.
     {
       "type": "current_residence",
       "countryCode": "KR",
-      "source": "talent_users.current_location",
+      "source": "talent_users.location (없을 때만 current_location)",
       "sourceId": "<talent_id>",
       "observedAt": "timestamp or unknown",
       "fact": "현재 서울 거주"
@@ -1320,8 +1321,8 @@ base AS (
     tu.name,
     tu.headline,
     tu.bio,
-    tu.current_location,
     tu.location,
+    tu.current_location,
     tu.resume_text,
     tu.resume_links,
     tu.last_logined_at,
@@ -2117,7 +2118,7 @@ role_margin = best_role_mutual_score - second_role_mutual_score
 
 이 절은 회사-facing `internal_reason` 작성 계약이다. 후보자 화면용 recommendation 상세 필드는 수동 matching agent가 작성하지 않으며, 이 매뉴얼의 필수 산출물·완료 조건·품질 감사 대상이 아니다. audience가 다른 필드를 서로 섞지 않는다.
 
-연결대기 후보자를 회사 Slack에 자동 소개하는 workflow에서도 이 절의 `internal_reason`은 짧은 알림 문구가 아니다. `kind=null` fit은 이 절의 전체 계약에 따라 상세 추천 이유를 먼저 작성해 `talent_opportunity_fit.reason`에 저장하고, Slack에는 그 상세 reason에서 핵심만 다시 고른 별도의 4~6문장 요약을 보낸다. Slack 요약을 `talent_opportunity_fit.reason`에 저장하거나 상세 reason과 동일한 문구로 취급하지 않는다. workspace 단위 Slack 형식과 요약 규칙은 `docs/auto-intro-to-company-slack-notification-ko.md` 4~6장을 따른다.
+이 절의 `internal_reason`은 수동 matching이 연결대기 전까지 사용하는 상세 추천 이유다. 이후 Vercel Cron이 연결대기 후보자를 회사 Slack에 실제 소개할 때는 현재 dossier로 새 소개글을 작성하고, Slack에 보내는 `slackProfile.body`를 `talent_opportunity_fit.reason`에도 그대로 저장한다. 이 시점부터 `/org` 후보자 상세와 Slack 소개글은 같은 회사-facing 추천 문구를 사용한다. workspace 단위 Slack 형식과 저장 규칙은 `docs/auto-intro-to-company-slack-notification-ko.md` 4~6장을 따른다.
 
 ### 14.1 내부 판단 이유 `internal_reason`
 

@@ -182,7 +182,9 @@ rewrite가 필요할 때 최대 32,000 tokens, tool-free final에서는 최대 2
 
 일반 정보 write tool은 `update_data`다. 최대 12개 변경을 하나의 batch로 받고
 `append`, `replace`, `rewrite`를 지원한다. Role lifecycle은 별도 terminal tool
-`change_role_status`가 `active`(진행), `paused`(중단), `ended`(종료)만 받는다.
+`change_role_status`가 `active`(진행), `paused`(중단), `ended`(종료),
+`deleted`(삭제)를 받는다. `deleted`는 명시적인 역할 삭제 요청에서만 사용하며,
+웹 삭제와 같이 `status=deleted`와 `is_expired=true`를 함께 저장한다.
 중단은 기존 프로세스를 유지한 채 새 추천만 멈춘다. 종료는 Role 상태를 `ended`로
 바꾸고 종료 시각을 기록해 새 추천을 막는다. 현재 구현에서 이 상태 변경 하나가 모든
 기존 후보 stage와 회사 요청을 원자적으로 닫지는 않는다. 후보자 기회 화면은 종료된

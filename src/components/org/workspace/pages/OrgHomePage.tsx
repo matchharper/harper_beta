@@ -228,7 +228,7 @@ function HomeQuickActions({
   return (
     <div
       aria-label="Workspace 설정"
-      className="mt-20 grid w-full grid-cols-1 sm:grid-cols-3 gap-3 sm:mt-14"
+      className="mt-20 grid w-full grid-cols-1 sm:grid-cols-3 gap-3 sm:mt-32"
     >
       <CardButton className={cardCs} onClick={onOpenSlack}>
         <span className="mb-3 flex size-8 shrink-0 items-center justify-center rounded-md bg-black/5">

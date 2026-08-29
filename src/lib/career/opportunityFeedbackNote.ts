@@ -2,6 +2,11 @@ import { careerT } from "@/lib/career/translatedCareerMessage";
 import { stripOpportunityRunMarkers } from "@/lib/opportunityDiscovery/messageMarker";
 import { formatCareerOpportunityMentionsForLlm } from "@/lib/career/opportunityMentionText";
 import { formatCareerMessageAttachmentsForLlm } from "@/lib/career/messageAttachments";
+import {
+  formatCareerPromptKoreanDateTime,
+  sanitizeCareerPromptDateValues,
+} from "@/lib/career/prompts/promptUtils";
+import { stripCareerReengagementActions } from "@/lib/career/reengagementActions";
 export const TALENT_MESSAGE_TYPE_OPPORTUNITY_FEEDBACK_NOTE =
   "opportunity_feedback_note";
 export const TALENT_MESSAGE_TYPE_RESUME_UPLOAD_NOTE = "resume_upload_note";
@@ -54,29 +59,44 @@ export function isOpportunityFeedbackNoteMessageType(
   return messageType === TALENT_MESSAGE_TYPE_OPPORTUNITY_FEEDBACK_NOTE;
 }
 
-export function formatTalentMessageContentForLlmPrompt(message: {
-  content: string | null | undefined;
-  messageType?: string | null;
-  message_type?: string | null;
-}) {
-  const content = formatCareerMessageAttachmentsForLlm(
-    formatCareerOpportunityMentionsForLlm(
-      stripOpportunityRunMarkers(String(message.content ?? ""))
+export function formatTalentMessageContentForLlmPrompt(
+  message: {
+    content: string | null | undefined;
+    createdAt?: string | null;
+    created_at?: string | null;
+    messageType?: string | null;
+    message_type?: string | null;
+  },
+  options?: { includeCreatedAt?: boolean }
+) {
+  const content = sanitizeCareerPromptDateValues(
+    formatCareerMessageAttachmentsForLlm(
+      formatCareerOpportunityMentionsForLlm(
+        stripCareerReengagementActions(
+          stripOpportunityRunMarkers(String(message.content ?? ""))
+        )
+      )
     )
   );
   const messageType = message.message_type ?? message.messageType;
+  let formattedContent: string;
   if (messageType === TALENT_MESSAGE_TYPE_RESUME_UPLOAD_NOTE) {
     const normalizedContent = content.replace(/\s+/g, " ").trim();
-    return normalizedContent
+    formattedContent = normalizedContent
       ? `${RESUME_UPLOAD_SYSTEM_ACTION_LOG_PREFIX}\nAction note: ${normalizedContent}`
       : RESUME_UPLOAD_SYSTEM_ACTION_LOG_PREFIX;
-  }
-  if (!isOpportunityFeedbackNoteMessageType(messageType)) {
-    return content;
+  } else if (isOpportunityFeedbackNoteMessageType(messageType)) {
+    const normalizedContent = content.replace(/\s+/g, " ").trim();
+    formattedContent = normalizedContent
+      ? `${OPPORTUNITY_FEEDBACK_SYSTEM_ACTION_LOG_PREFIX}\nAction note: ${normalizedContent}`
+      : OPPORTUNITY_FEEDBACK_SYSTEM_ACTION_LOG_PREFIX;
+  } else {
+    formattedContent = content;
   }
 
-  const normalizedContent = content.replace(/\s+/g, " ").trim();
-  return normalizedContent
-    ? `${OPPORTUNITY_FEEDBACK_SYSTEM_ACTION_LOG_PREFIX}\nAction note: ${normalizedContent}`
-    : OPPORTUNITY_FEEDBACK_SYSTEM_ACTION_LOG_PREFIX;
+  const createdAt = message.created_at ?? message.createdAt;
+  if (!options?.includeCreatedAt || !createdAt) return formattedContent;
+
+  const createdAtLabel = formatCareerPromptKoreanDateTime(createdAt);
+  return `[${createdAtLabel}]\n${formattedContent}`;
 }

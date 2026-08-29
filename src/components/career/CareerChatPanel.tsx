@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/router";
 import { useCareerChatPanelContext } from "./CareerChatPanelContext";
 import CareerCallScreen from "./chat/CareerCallScreen";
 import CareerCallEnvironmentNotice from "./chat/CareerCallEnvironmentNotice";
-import CareerComposerSection from "./chat/CareerComposerSection";
+import CareerComposerSection, {
+  type CareerComposerPendingActionHandler,
+} from "./chat/CareerComposerSection";
 import CareerTimelineSection from "./chat/CareerTimelineSection";
 import CareerWelcomeScreen from "./chat/CareerWelcomeScreen";
 import { cn } from "@/lib/utils";
@@ -10,6 +13,9 @@ import { useCareerAutoStart } from "@/hooks/career/useCareerAutoStart";
 import React from "react";
 import { useCareerT } from "@/i18n/useCareerT";
 import Face from "../common/Face";
+import { useCareerApi } from "@/hooks/career/useCareerApi";
+import { showToast } from "@/components/toast/toast";
+import type { CareerPendingActionOpenTarget } from "@/lib/career/pendingActions";
 
 const DEFAULT_COMPOSER_OVERLAY_HEIGHT_PX = 168;
 // Extra empty space after the last timeline item, on top of the composer height.
@@ -76,10 +82,18 @@ const CallSessionView = ({
 };
 
 const CareerChatPanel = () => {
+  const t = useCareerT();
+  const router = useRouter();
+  const { fetchWithAuth } = useCareerApi();
   const composerOverlayRef = useRef<HTMLDivElement | null>(null);
+  const composerPendingActionHandlerRef =
+    useRef<CareerComposerPendingActionHandler | null>(null);
+  const pendingActionActivationPendingRef = useRef(false);
   const [composerOverlayHeight, setComposerOverlayHeight] = useState(
     DEFAULT_COMPOSER_OVERLAY_HEIGHT_PX
   );
+  const [pendingActionActivationPending, setPendingActionActivationPending] =
+    useState(false);
   const {
     user,
     inputMode,
@@ -96,6 +110,64 @@ const CareerChatPanel = () => {
   } = useCareerChatPanelContext();
 
   const autoStartReady = !sessionPending && !isOnboardingDone;
+
+  const handleOpenPendingAction = useCallback(
+    async (ref: string) => {
+      if (pendingActionActivationPendingRef.current) return;
+      pendingActionActivationPendingRef.current = true;
+      setPendingActionActivationPending(true);
+      try {
+        const response = await fetchWithAuth(
+          "/api/talent/pending-actions/resolve",
+          {
+            method: "POST",
+            body: JSON.stringify({ ref }),
+          }
+        );
+        const payload = (await response.json().catch(() => ({}))) as {
+          target?: CareerPendingActionOpenTarget;
+        };
+        if (!response.ok || !payload.target) {
+          showToast({
+            message: t(
+              "career.chat.career_composer_section.pending_actions_error_subtext",
+              "목록을 불러오지 못했어요. 눌러서 다시 시도해 주세요."
+            ),
+            variant: "white",
+          });
+          return;
+        }
+        if (payload.target.type === "open_path") {
+          await router.push(payload.target.path);
+          return;
+        }
+        const pendingActionHandler = composerPendingActionHandlerRef.current;
+        if (!pendingActionHandler) {
+          throw new Error("Career pending action handler is unavailable");
+        }
+        pendingActionHandler(payload.target.action);
+      } catch {
+        showToast({
+          message: t(
+            "career.chat.career_composer_section.pending_actions_error_subtext",
+            "목록을 불러오지 못했어요. 눌러서 다시 시도해 주세요."
+          ),
+          variant: "white",
+        });
+      } finally {
+        pendingActionActivationPendingRef.current = false;
+        setPendingActionActivationPending(false);
+      }
+    },
+    [fetchWithAuth, router, t]
+  );
+
+  const handlePendingActionHandlerChange = useCallback(
+    (handler: CareerComposerPendingActionHandler | null) => {
+      composerPendingActionHandlerRef.current = handler;
+    },
+    []
+  );
 
   useCareerAutoStart({
     user: autoStartReady ? user : null,
@@ -176,13 +248,18 @@ const CareerChatPanel = () => {
       className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
       style={chatLayoutStyle}
     >
-      <CareerTimelineSection />
+      <CareerTimelineSection
+        onOpenPendingAction={handleOpenPendingAction}
+        pendingActionActivationPending={pendingActionActivationPending}
+      />
       <div
         ref={composerOverlayRef}
         className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-linear-to-t from-bg-basement via-bg-basement/10 to-transparent"
       >
         <div className="pointer-events-auto">
-          <CareerComposerSection />
+          <CareerComposerSection
+            onPendingActionHandlerChange={handlePendingActionHandlerChange}
+          />
         </div>
       </div>
     </div>

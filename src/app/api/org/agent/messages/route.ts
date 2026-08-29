@@ -36,10 +36,10 @@ export async function GET(req: NextRequest) {
         ? beforeMessageId
         : null,
       limit: Number.isFinite(limit) ? limit : null,
-      mode:
-        req.nextUrl.searchParams.get("mode") === "role_creation"
-          ? "role_creation"
-          : "general",
+      mode: (() => {
+        const mode = req.nextUrl.searchParams.get("mode");
+        return mode === "role" || mode === "role_creation" ? mode : "general";
+      })(),
       roleId: req.nextUrl.searchParams.get("roleId"),
       user,
       workspaceId: req.nextUrl.searchParams.get("workspaceId") ?? "",

@@ -30,6 +30,7 @@ import {
 } from "@/lib/talentNetworkReferral";
 import {
   buildOfficialJobsInitialChatDraft,
+  buildOfficialJobsInitialChatMentionLabel,
   OFFICIAL_JOBS_ONBOARDING_COMPANY_PARAM,
   OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
   OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM,
@@ -37,8 +38,13 @@ import {
 import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import { showToast } from "@/components/toast/toast";
 import { useCareerT } from "@/i18n/useCareerT";
-import { fetchWithInternalAuth } from "@/lib/internalApiClient";
-import { notifyGmailIntegrationChanged } from "@/hooks/career/useGmailIntegration";
+import { useQuery } from "@tanstack/react-query";
+import {
+  fetchOfficialJobs,
+  OFFICIAL_JOBS_QUERY_GC_TIME_MS,
+  OFFICIAL_JOBS_QUERY_STALE_TIME_MS,
+  officialJobsQueryKey,
+} from "@/hooks/officialJobs/useOfficialJobs";
 
 const DELIVERY_EMAIL_HISTORY_LINK_ENTRY_PARAM = "entryPoint";
 const DELIVERY_EMAIL_HISTORY_LINK_ENTRY_VALUE = "delivery_email_history_link";
@@ -75,7 +81,7 @@ const CareerWorkspacePage = ({
       : null;
   const emailOnboardingToken =
     isRouterReady &&
-    typeof router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM] === "string"
+      typeof router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM] === "string"
       ? router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM]
       : null;
   const requestedPanel =
@@ -84,10 +90,10 @@ const CareerWorkspacePage = ({
       : null;
   const requestedSettingsTab =
     isRouterReady &&
-    (router.query.settingsTab === "profile" ||
-      router.query.settingsTab === "resume" ||
-      router.query.settingsTab === "referral" ||
-      router.query.settingsTab === "account")
+      (router.query.settingsTab === "profile" ||
+        router.query.settingsTab === "resume" ||
+        router.query.settingsTab === "referral" ||
+        router.query.settingsTab === "account")
       ? router.query.settingsTab
       : null;
   const emailChangeResult = isRouterReady
@@ -114,15 +120,49 @@ const CareerWorkspacePage = ({
   const officialJobsRoleSlug = isRouterReady
     ? getSingleQueryParam(router.query[OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM])
     : null;
+  const officialJobsQuery = useQuery({
+    queryKey: officialJobsQueryKey,
+    queryFn: fetchOfficialJobs,
+    enabled:
+      officialJobsSource === OFFICIAL_JOBS_LANDING_SOURCE &&
+      Boolean(officialJobsRoleSlug?.trim()),
+    staleTime: OFFICIAL_JOBS_QUERY_STALE_TIME_MS,
+    gcTime: OFFICIAL_JOBS_QUERY_GC_TIME_MS,
+  });
+  const mappedOfficialJob = useMemo(
+    () =>
+      officialJobsQuery.data?.find(
+        (job) => job.slug === officialJobsRoleSlug?.trim()
+      ) ?? null,
+    [officialJobsQuery.data, officialJobsRoleSlug]
+  );
   const officialJobsChatDraftSeed = useMemo(() => {
     if (officialJobsSource !== OFFICIAL_JOBS_LANDING_SOURCE) return null;
+    if (
+      officialJobsRoleSlug?.trim() &&
+      !officialJobsQuery.data &&
+      !officialJobsQuery.isError
+    ) {
+      return null;
+    }
+
+    const publicRoleTitle =
+      mappedOfficialJob?.roleTitle?.trim() ??
+      officialJobsRoleTitle?.trim() ??
+      "";
+    const roleId = mappedOfficialJob?.roleId?.trim() ?? "";
 
     const draft = buildOfficialJobsInitialChatDraft(
-      officialJobsRoleTitle,
+      publicRoleTitle,
       officialJobsCompanyName,
       locale
     );
     if (!draft) return null;
+    const mentionLabel = buildOfficialJobsInitialChatMentionLabel(
+      publicRoleTitle,
+      officialJobsCompanyName,
+      locale
+    );
 
     const keySource =
       officialJobsRoleSlug?.trim() ||
@@ -133,10 +173,15 @@ const CareerWorkspacePage = ({
     return {
       draft,
       key: `official_jobs:${locale}:${keySource}`,
+      opportunityMention:
+        mentionLabel && roleId ? { label: mentionLabel, roleId } : undefined,
     };
   }, [
     locale,
+    mappedOfficialJob,
     officialJobsCompanyName,
+    officialJobsQuery.data,
+    officialJobsQuery.isError,
     officialJobsRoleSlug,
     officialJobsRoleTitle,
     officialJobsSource,
@@ -272,9 +317,8 @@ const CareerWorkspacePage = ({
       return;
     }
 
-    const callbackKey = `${gmailConnectStatus ?? ""}:${
-      gmailConnectedAccountId ?? ""
-    }`;
+    const callbackKey = `${gmailConnectStatus ?? ""}:${gmailConnectedAccountId ?? ""
+      }`;
     if (gmailCallbackHandledRef.current === callbackKey) return;
     gmailCallbackHandledRef.current = callbackKey;
 
@@ -467,8 +511,7 @@ const CareerWorkspacePage = ({
 
       if (historyTarget) {
         logCareerEvent(
-          `click_open_history_${historyTarget.historyTab}${
-            historyTarget.savedStage ? `_${historyTarget.savedStage}` : ""
+          `click_open_history_${historyTarget.historyTab}${historyTarget.savedStage ? `_${historyTarget.savedStage}` : ""
           }`
         );
       } else {
@@ -502,6 +545,9 @@ const CareerWorkspacePage = ({
         emailOnboardingToken={emailOnboardingToken}
         initialChatDraft={officialJobsChatDraftSeed?.draft}
         initialChatDraftKey={officialJobsChatDraftSeed?.key}
+        initialChatOpportunityMention={
+          officialJobsChatDraftSeed?.opportunityMention
+        }
         inviteToken={inviteToken}
         mail={mail}
         onOpenSettings={handleOpenSettings}

@@ -477,6 +477,7 @@ export function OrgPipeline() {
       </Dialog>
 
       <AcceptIntroDialog
+        key={acceptRequest?.item.recommendationId ?? "accept-dialog"}
         allowContactDirectly={isInternalDomainEmail(currentUserEmail)}
         candidateEmail={acceptRequest?.item.talent.email}
         candidateName={
@@ -488,18 +489,60 @@ export function OrgPipeline() {
         members={members}
         open={Boolean(acceptRequest)}
         pending={Boolean(
-          acceptRequest && isCandidateStagePending(acceptRequest.item)
+          createCustomStage.isPending ||
+            (acceptRequest && isCandidateStagePending(acceptRequest.item))
         )}
         onClose={() => setAcceptRequest(null)}
-        onSubmit={async ({ acceptReason, contactDirectly, introEmails }) => {
+        onSubmit={async ({
+          acceptReason,
+          additionalMessage,
+          additionalMessageVisibility,
+          attendeeEmails,
+          contactDirectly,
+          durationMinutes,
+          introEmails,
+          meetingCandidateMessage,
+          meetingPurpose,
+          processStageLabel,
+          scheduleInterview,
+          title,
+        }) => {
           if (!acceptRequest) return;
-          await onStageChange(acceptRequest.item, acceptRequest.stage, {
-            acceptReason,
-            contactDirectly,
-            introEmails,
-          });
+          const stage =
+            acceptRequest.item.stage === "pending_connection" &&
+            acceptRequest.stage === "connected"
+              ? (
+                  await createCustomStage.mutateAsync({
+                    label: processStageLabel ?? "",
+                    roleId: acceptRequest.item.roleId,
+                    workspaceId,
+                  })
+                ).stage.stage
+              : acceptRequest.stage;
+          const result = await onStageChange(
+            acceptRequest.item,
+            stage,
+            {
+              acceptReason,
+              additionalMessage,
+              additionalMessageVisibility,
+              attendeeEmails,
+              contactDirectly,
+              durationMinutes,
+              introEmails,
+              meetingCandidateMessage,
+              meetingPurpose,
+              scheduleInterview,
+              title,
+            }
+          );
           setAcceptRequest(null);
+          return result;
         }}
+        requiresProcessStage={
+          acceptRequest?.item.stage === "pending_connection" &&
+          acceptRequest.stage === "connected"
+        }
         roleTitle={acceptRequest?.item.roleName ?? ""}
       />
 

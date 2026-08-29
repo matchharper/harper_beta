@@ -11,6 +11,10 @@ test("groups tool icons by user-visible operation", () => {
   assert.equal(getOrgAgentThinkingLogIcon("open_url"), "link");
   assert.equal(getOrgAgentThinkingLogIcon("read_role"), "read");
   assert.equal(getOrgAgentThinkingLogIcon("update_role_criteria"), "write");
+  assert.equal(
+    getOrgAgentThinkingLogIcon("manage_interview_availability"),
+    "write"
+  );
   assert.equal(getOrgAgentThinkingLogIcon("contact_talent"), "send");
   assert.equal(getOrgAgentThinkingLogIcon("start_role_creation"), "run");
 });

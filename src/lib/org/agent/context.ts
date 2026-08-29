@@ -292,12 +292,15 @@ function formatConversation(
             `role_id=${confirmation.roleId}`,
             `recommendation_id=${confirmation.recommendationId}`,
             `connection_method=${confirmation.connectionMethod ?? "not_selected"}`,
+            confirmation.meetingDraft
+              ? `meeting_title=${clipPromptText(confirmation.meetingDraft.config.title, 200)};meeting_duration_minutes=${confirmation.meetingDraft.config.durationMinutes};meeting_purpose=${clipPromptText(confirmation.meetingDraft.config.meetingPurpose, 600)}`
+              : "",
           ].join(";")
         )
         .map((value) => `candidate_decision_context{${value}}`)
         .join(","),
       message.metadata.contactDraftRef
-        ? `candidate_contact_draft{contact_id=${message.metadata.contactDraftRef.contactId};revision=${message.metadata.contactDraftRef.revision}}`
+        ? `candidate_contact_ref{contact_id=${message.metadata.contactDraftRef.contactId};revision=${message.metadata.contactDraftRef.revision}}`
         : "",
     ].filter(Boolean);
     const speaker =

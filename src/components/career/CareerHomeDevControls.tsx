@@ -19,7 +19,9 @@ import { Text } from "@/components/ui/text";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
+import { useCareerReengagementPendingActions } from "@/hooks/career/useCareerReengagementPendingActions";
 import { canUseCareerDevControls } from "@/lib/internalAccess";
+import type { CareerReengagementPendingAction } from "@/lib/career/pendingActions";
 import { DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT } from "@/lib/opportunityDiscovery/types";
 import { useCareerDevSqlPromptHistoryStore } from "@/store/useCareerDevSqlPromptHistoryStore";
 import {
@@ -69,6 +71,42 @@ type CareerDevPromptDebugPayload = {
 };
 
 type CareerDevPromptLogKind = "text" | "voice";
+
+const getReengagementPendingActionKey = (
+  action: CareerReengagementPendingAction
+) => JSON.stringify(action);
+
+const getReengagementPendingActionLabel = (
+  action: CareerReengagementPendingAction
+) => {
+  switch (action.kind) {
+    case "company_request":
+      return "회사 요청";
+    case "internal_opportunity":
+      return "Internal 연결 제안";
+    case "meeting_schedule":
+      return "meeting_schedule";
+    case "reevaluation_question":
+      return "Reevaluation criteria";
+  }
+};
+
+const getReengagementPendingActionDescription = (
+  action: CareerReengagementPendingAction
+) => {
+  switch (action.kind) {
+    case "company_request":
+      return `${action.companyName} · ${action.roleTitle} · ${action.request}`;
+    case "internal_opportunity":
+      return `${action.companyName} · ${action.roleTitle}${
+        action.recommendationSummary ? ` · ${action.recommendationSummary}` : ""
+      }`;
+    case "meeting_schedule":
+      return `${action.companyName} · ${action.roleTitle}`;
+    case "reevaluation_question":
+      return action.question;
+  }
+};
 
 export default function CareerHomeDevControls({
   onOpenChat,
@@ -121,6 +159,10 @@ export default function CareerHomeDevControls({
   const [devRoleFtsStatus, setDevRoleFtsStatus] = React.useState("");
 
   const showDevRunControls = canUseCareerDevControls(user?.email);
+  const reengagementPendingActions = useCareerReengagementPendingActions({
+    enabled: showDevRunControls,
+    userId: user?.id,
+  });
   const showLocalWorkerRunControls = process.env.NODE_ENV !== "production";
   const devAgentVariant = DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT;
   const opportunityRunLocked =
@@ -137,6 +179,12 @@ export default function CareerHomeDevControls({
         `python3.11 opportunity_worker.py discovery --run-id ${devManualRunId}`,
       ].join("\n")
     : "";
+  const currentPendingActions = reengagementPendingActions.data?.actions ?? [];
+  const promptPendingActionCandidateKeys = new Set(
+    (reengagementPendingActions.data?.promptActions ?? []).map(
+      getReengagementPendingActionKey
+    )
+  );
 
   const handleLogDevPrompt = React.useCallback(
     async (kind: CareerDevPromptLogKind) => {
@@ -570,7 +618,7 @@ export default function CareerHomeDevControls({
           ) : (
             <RefreshCw className="h-3.5 w-3.5" />
           )}
-          최근 메시지 삭제 + 6시간 인사
+          최근 메시지 삭제 + 12시간 인사
         </MuteButton>
         <MuteButton
           onClick={() => {
@@ -586,8 +634,78 @@ export default function CareerHomeDevControls({
           ) : (
             <Clock3 className="h-3.5 w-3.5" />
           )}
-          6시간 인사만
+          12시간 인사만
         </MuteButton>
+      </div>
+      <div className="mt-4 rounded-xl border border-neutral-1000-a05 bg-bg-weak px-3 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <Text as="div" type="subtle" className="mt-1">
+              전체 {currentPendingActions.length}개 · 아래 우선 후보 최대 1개를
+              LLM에 전달
+            </Text>
+          </div>
+          <MuteButton
+            onClick={() => void reengagementPendingActions.refetch()}
+            disabled={reengagementPendingActions.isFetching}
+            size="sm"
+            variant="default"
+          >
+            {reengagementPendingActions.isFetching ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
+            새로고침
+          </MuteButton>
+        </div>
+        {reengagementPendingActions.isPending ? (
+          <Text as="div" type="subtle" className="mt-3">
+            pending action을 불러오는 중...
+          </Text>
+        ) : reengagementPendingActions.isError ? (
+          <Text as="div" type="subtle" className="mt-3 text-critical">
+            {reengagementPendingActions.error instanceof Error
+              ? reengagementPendingActions.error.message
+              : "pending action을 불러오지 못했습니다."}
+          </Text>
+        ) : currentPendingActions.length === 0 ? (
+          <Text as="div" type="subtle" className="mt-3">
+            현재 pending action이 없습니다.
+          </Text>
+        ) : (
+          <div className="mt-3 max-h-72 space-y-2 overflow-y-auto overscroll-contain pr-1">
+            {currentPendingActions.map((action, index) => {
+              const isPromptCandidate = promptPendingActionCandidateKeys.has(
+                getReengagementPendingActionKey(action)
+              );
+              return (
+                <div
+                  key={`${action.kind}-${index}`}
+                  className="rounded-lg border border-neutral-1000-a05 bg-bg-floating px-3 py-2"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Text as="span" type="label">
+                      {getReengagementPendingActionLabel(action)}
+                    </Text>
+                    {isPromptCandidate ? (
+                      <Text as="span" type="subtle" className="text-primary">
+                        우선 후보
+                      </Text>
+                    ) : null}
+                  </div>
+                  <Text
+                    as="div"
+                    type="subtle"
+                    className="mt-1 whitespace-pre-wrap break-words"
+                  >
+                    {getReengagementPendingActionDescription(action)}
+                  </Text>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
       {devRoleFtsStatus ? (
         <Text as="div" type="subtle" className="mt-2">

@@ -120,6 +120,8 @@ export const queryKeys = {
     bootstrapAll: ["org", "bootstrap"] as const,
     boardAll: ["org", "board"] as const,
     detailAll: ["org", "detail"] as const,
+    meetingAvailabilityAll: ["org", "meetingAvailability"] as const,
+    meetingSchedulesAll: ["org", "meetingSchedules"] as const,
     roleNotificationsAll: ["org", "roleNotifications"] as const,
     slackAll: ["org", "slack"] as const,
     bootstrap: (orgId?: string | null) =>
@@ -174,6 +176,23 @@ export const queryKeys = {
       ] as const,
     slack: (workspaceId?: string | null) =>
       ["org", "slack", workspaceId ?? ""] as const,
+    personalIntegrations: (userId: string) =>
+      ["org", "personalIntegrations", userId] as const,
+    googleCalendar: (userId: string, workspaceId: string) =>
+      [
+        "org",
+        "personalIntegrations",
+        userId,
+        "google_calendar",
+        workspaceId,
+      ] as const,
+    meetingAvailability: (workspaceId?: string | null) =>
+      ["org", "meetingAvailability", workspaceId ?? ""] as const,
+    meetingSchedule: (
+      workspaceId?: string | null,
+      scheduleId?: string | null
+    ) =>
+      ["org", "meetingSchedules", workspaceId ?? "", scheduleId ?? ""] as const,
     roleNotifications: (workspaceId?: string | null, roleId?: string | null) =>
       ["org", "roleNotifications", workspaceId ?? "", roleId ?? ""] as const,
     internalTalent: (filters?: {
@@ -187,7 +206,7 @@ export const queryKeys = {
         filters?.talentId ?? "",
       ] as const,
     agentMessages: (filters?: {
-      mode?: "general" | "role_creation";
+      mode?: "general" | "role" | "role_creation";
       roleId?: string | null;
       workspaceId?: string | null;
     }) =>

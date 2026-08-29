@@ -48,6 +48,7 @@ function SelectTrigger({
     >
       {children}
       <SelectPrimitive.Icon
+        data-slot="select-icon"
         render={
           <ChevronDown className="size-4 text-neutral-muted" aria-hidden />
         }
@@ -62,6 +63,7 @@ function SelectContent({
   alignOffset = 0,
   children,
   className,
+  container,
   side = "bottom",
   sideOffset = 4,
   ...props
@@ -69,16 +71,17 @@ function SelectContent({
   Pick<
     SelectPrimitive.Positioner.Props,
     "align" | "alignItemWithTrigger" | "alignOffset" | "side" | "sideOffset"
-  >) {
+  > &
+  Pick<SelectPrimitive.Portal.Props, "container">) {
   return (
-    <SelectPrimitive.Portal>
+    <SelectPrimitive.Portal container={container}>
       <SelectPrimitive.Positioner
         align={align}
         alignItemWithTrigger={alignItemWithTrigger}
         alignOffset={alignOffset}
         side={side}
         sideOffset={sideOffset}
-        className="isolate z-120"
+        className="pointer-events-auto isolate z-120"
       >
         <SelectPrimitive.Popup
           data-slot="select-content"

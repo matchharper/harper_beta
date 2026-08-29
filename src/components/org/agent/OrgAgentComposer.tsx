@@ -206,7 +206,7 @@ export function OrgAgentComposer({
   } | null>(null);
   const mentionQuery = mentionSearch?.query ?? "";
   const mentionCandidates = useOrgAgentMentionCandidates({
-    enabled: Boolean(workspaceId),
+    enabled: Boolean(workspaceId) && !disabled,
     query: mentionQuery,
     roleId,
     workspaceId,

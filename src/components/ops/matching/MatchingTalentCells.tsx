@@ -103,6 +103,11 @@ export function TalentStatusBadges({
 
   return (
     <div className="mt-2 flex flex-wrap gap-1">
+      {talent.deletedAt ? (
+        <span className="rounded bg-critical-faded px-1.5 py-0.5 text-[10px] font-medium leading-4 text-critical">
+          탈퇴
+        </span>
+      ) : null}
       {talent.hasSubmittedMaterial ? (
         <span className="rounded bg-info-faded px-1.5 py-0.5 text-[10px] font-medium leading-4 text-info">
           제출 완료

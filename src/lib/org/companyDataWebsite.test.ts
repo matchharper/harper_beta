@@ -97,14 +97,36 @@ function createWebsiteMutationAdminFixture(args: {
 test("website keys stay within the SQL mutation allowlist", () => {
   const sql = readFileSync(
     new URL(
-      "../../../supabase/migrations/20260805030000_company_data_changes_rpc.sql",
+      "../../../supabase/migrations/20260811110000_company_internal_role_request_only.sql",
       import.meta.url
     ),
     "utf8"
   );
+  const allowlist = sql.match(
+    /if v_key is null or v_key not in \(([\s\S]*?)\) then/
+  )?.[1];
+  assert.ok(allowlist, "SQL mutation allowlist is missing");
   for (const key of WEBSITE_COMPANY_DATA_KEYS) {
-    assert.match(sql, new RegExp(`when '${key}'`), `${key} missing from SQL`);
+    assert.match(allowlist, new RegExp(`'${key}'`), `${key} missing from SQL`);
   }
+});
+
+test("role request SQL writes only the canonical internal-role store", () => {
+  const sql = readFileSync(
+    new URL(
+      "../../../supabase/migrations/20260811110000_company_internal_role_request_only.sql",
+      import.meta.url
+    ),
+    "utf8"
+  );
+  assert.match(
+    sql,
+    /update\s+public\.company_internal_roles\s+set\s+request\b/i
+  );
+  assert.doesNotMatch(
+    sql,
+    /update\s+public\.company_roles(?:\s+\w+)?\s+set\s+request\b/i
+  );
 });
 
 test("only treats commas and newlines as stored company-list delimiters", () => {
@@ -320,6 +342,54 @@ test("records an association-only change and supports a null detach target", asy
         p_workspace_id: "workspace-1",
       },
       name: "reassociate_company_workspace_db_v1",
+    },
+  ]);
+});
+
+test("applies Slack role deletion status and expiry in one atomic RPC", async () => {
+  const fixture = createWebsiteMutationAdminFixture({
+    roles: {
+      "role-1": {
+        is_expired: false,
+        name: "Backend Engineer",
+        role_id: "role-1",
+        source_type: "internal",
+        status: "active",
+      },
+    },
+    workspace: {
+      company_db_id: null,
+      company_name: "Harper",
+      company_workspace_id: "workspace-1",
+    },
+  });
+
+  await applyWebsiteCompanyDataChanges({
+    actorLabel: "Daniel",
+    admin: fixture.admin as never,
+    changes: [
+      { key: "role_status", roleId: "role-1", value: "deleted" },
+      { key: "role_is_expired", roleId: "role-1", value: true },
+    ],
+    source: "slack",
+    workspaceId: "workspace-1",
+  });
+
+  assert.equal(fixture.rpcCalls.length, 1);
+  assert.equal(fixture.rpcCalls[0]?.name, "apply_company_data_changes_v1");
+  assert.equal(fixture.rpcCalls[0]?.args.p_source, "slack");
+  assert.deepEqual(fixture.rpcCalls[0]?.args.p_changes, [
+    {
+      expected: "active",
+      key: "role_status",
+      role_id: "role-1",
+      value: "deleted",
+    },
+    {
+      expected: false,
+      key: "role_is_expired",
+      role_id: "role-1",
+      value: true,
     },
   ]);
 });

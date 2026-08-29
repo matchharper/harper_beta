@@ -47,6 +47,7 @@ import {
 import { useOpsCareerDetail } from "@/hooks/ops/useOpsCareer";
 import {
   useCancelOrgCompanyTalentRequest,
+  useCreateOrgReviewStage,
   useCreateOrgFeedItem,
   useDeleteOrgFeedItem,
   useOpenOrgResume,
@@ -74,6 +75,7 @@ import {
 } from "@/lib/org/candidateDecision";
 import { getOrgTalentDetailNavigationState } from "@/lib/org/detailNavigation";
 import { humanizeOrgStage } from "@/lib/org/pipelineStage";
+import { convertSlackCandidateIntroToWebMarkdown } from "@/lib/org/agent/navigationMarkdown";
 import type { OrgTalentDetailResponse } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
 import Face from "../common/Face";
@@ -487,7 +489,11 @@ function ProfilePane({
             Harper의 추천 이유
           </div>
           <div className="mt-4 mb-10 border-l-2 border-primary px-3 text-[13px] leading-6 text-neutral-primary">
-            {detail.recommendation.fitReason}
+            <MarkdownProfile
+              value={convertSlackCandidateIntroToWebMarkdown(
+                detail.recommendation.fitReason
+              )}
+            />
           </div>
         </ProfileSection>
       ) : null}
@@ -770,6 +776,18 @@ function FeedPanel({
           id: item.id,
           text: item.text,
           title: getOrgFeedTitle(item.kind),
+        })),
+        ...detail.meetingEvents.map((item) => ({
+          createdAt: item.createdAt,
+          icon:
+            item.kind === "meeting_confirmed"
+              ? ("check" as const)
+              : ("note" as const),
+          id: item.id,
+          text: item.scheduledAt
+            ? `${formatKst(item.scheduledAt)} · ${item.text}`
+            : item.text,
+          title: item.title,
         })),
         ...detail.connectionConfirmationEmails.map((item) => {
           const pendingAction =
@@ -1069,6 +1087,7 @@ export function TalentDetailSimpleView() {
   } = useOrgWorkspace();
   const detail = detailQuery.data;
   const members = detail?.members ?? bootstrap.members;
+  const createCustomStage = useCreateOrgReviewStage();
   const acceptStageId = selectedAcceptStageId;
   const canManageCandidates = permissions.canManageCandidates;
   const companyName = detail?.workspace.companyName ?? workspace.companyName;
@@ -1089,6 +1108,9 @@ export function TalentDetailSimpleView() {
   const open = detailOpen;
   const talentId = activeDetailTalentId || null;
   const [acceptDialogOpen, setAcceptDialogOpen] = useState(false);
+  const closeAcceptDialog = () => {
+    setAcceptDialogOpen(false);
+  };
   const [pendingConnectionDialogOpen, setPendingConnectionDialogOpen] =
     useState(false);
   const [mobileTab, setMobileTab] = useState<"profile" | "feed">("profile");
@@ -1545,6 +1567,7 @@ export function TalentDetailSimpleView() {
       </Dialog>
 
       <AcceptIntroDialog
+        key={detail?.recommendation.recommendationId ?? "accept-dialog"}
         allowContactDirectly={isInternalDomainEmail(currentUserEmail)}
         candidateEmail={detail?.talent.email}
         candidateName={title}
@@ -1553,18 +1576,55 @@ export function TalentDetailSimpleView() {
         defaultEmail={currentUserEmail}
         members={members}
         open={acceptDialogOpen && Boolean(detail)}
-        pending={decisionPending}
-        onClose={() => setAcceptDialogOpen(false)}
-        onSubmit={async ({ acceptReason, contactDirectly, introEmails }) => {
+        pending={decisionPending || createCustomStage.isPending}
+        onClose={closeAcceptDialog}
+        onSubmit={async ({
+          acceptReason,
+          additionalMessage,
+          additionalMessageVisibility,
+          attendeeEmails,
+          contactDirectly,
+          durationMinutes,
+          introEmails,
+          meetingCandidateMessage,
+          meetingPurpose,
+          processStageLabel,
+          scheduleInterview,
+          title,
+        }) => {
           if (!acceptStageId || !onAcceptCandidate) return;
-          await onAcceptCandidate({
+          const stage =
+            detail?.recommendation.stage === "pending_connection" &&
+            acceptStageId === "connected"
+              ? (
+                  await createCustomStage.mutateAsync({
+                    label: processStageLabel ?? "",
+                    roleId: detail.role.roleId,
+                    workspaceId,
+                  })
+                ).stage.stage
+              : acceptStageId;
+          const result = await onAcceptCandidate({
             acceptReason,
+            additionalMessage,
+            additionalMessageVisibility,
+            attendeeEmails,
             contactDirectly,
+            durationMinutes,
             introEmails,
-            stage: acceptStageId,
+            meetingCandidateMessage,
+            meetingPurpose,
+            scheduleInterview,
+            stage,
+            title,
           });
-          setAcceptDialogOpen(false);
+          closeAcceptDialog();
+          return result;
         }}
+        requiresProcessStage={
+          detail?.recommendation.stage === "pending_connection" &&
+          acceptStageId === "connected"
+        }
         roleTitle={detail?.role.name ?? ""}
       />
 

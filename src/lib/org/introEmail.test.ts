@@ -7,6 +7,7 @@ import {
   ORG_INTRO_CAPTURE_DISCLOSURE,
 } from "./introEmailDisclosure";
 import {
+  containsOrgIntroCandidateDetractingInformation,
   containsOrgIntroOperationalMetadata,
   containsOrgIntroProcessHistory,
   getOrgIntroDraftSafetyIssues,
@@ -51,17 +52,20 @@ test("warm intro prompt supports natural Korean and disambiguates recipient role
     /사람을 "후보자", "담당자"라고 부르거나 설명하지 마세요/
   );
   assert.match(source, /candidateProfessionalSummary만 경력 근거로/);
+  assert.match(source, /현재 쉬는 중, 미재직, 경력 공백/);
+  assert.match(source, /역할에 관심을 가져주셨습니다/);
+  assert.match(source, /companyUserRole/);
   assert.match(source, /테스트, 검증 과정, 테스트 케이스, Slack, Gmail/);
   assert.match(source, /이후 대화는 이 메일에서 이어가 주시면 됩니다/);
-  assert.match(source, /역할명만으로는 업무나 책임 범위를 추론할 수 없습니다/);
-  assert.match(source, /A role title alone is not evidence of duties or scope/);
+  assert.match(source, /Do not describe the company, the Role, its duties/);
   assert.match(source, /buildOrgIntroSystemPrompt\(context\.locale\)/);
   assert.match(serverSource, /preferred_locale, setting_locale/);
   assert.match(serverSource, /parseCareerPromptLocale/);
   assert.match(serverSource, /locale: introLocale/);
-  assert.match(serverSource, /args\.role\.description/);
   assert.match(serverSource, /talent_experiences/);
   assert.match(serverSource, /candidateProfessionalSummary/);
+  assert.match(serverSource, /company_user_workspace/);
+  assert.match(serverSource, /companyUserRole: args\.companyUser\.role/);
   assert.doesNotMatch(serverSource, /acceptanceReason: args\.acceptReason/);
 });
 
@@ -111,6 +115,87 @@ test("warm intro output guard detects company-process history in English and Kor
       "I'm pleased to introduce you both regarding the Founding Engineer opportunity."
     ),
     false
+  );
+});
+
+test("warm intro output guard blocks candidate details that can create a negative impression", () => {
+  for (const unsafe of [
+    "김호진님은 현재 쉬는 중입니다.",
+    "Alex is currently unemployed and available immediately.",
+    "박민서님은 경력 공백 후 이직을 준비 중입니다.",
+  ]) {
+    assert.equal(
+      containsOrgIntroCandidateDetractingInformation(unsafe),
+      true,
+      unsafe
+    );
+  }
+  assert.equal(
+    containsOrgIntroCandidateDetractingInformation(
+      "현재 Harper에서 Co-founder로 재직 중입니다."
+    ),
+    false
+  );
+});
+
+test("warm intro output guard requires role interest and the company member title", () => {
+  const body =
+    "SBVA의 Investment Manager 김호진님, 박민서님 안녕하세요.\n\n두 분을 소개해 드리게 되어 반갑습니다.\n\nSBVA의 Investment Manager 김호진님께, 현재 Harper에서 Co-founder로 재직 중인 박민서님을 소개드립니다. 박민서님은 Portfolio Operations Lead 역할에 관심을 가져주셨습니다.\n\n박민서님께 SBVA의 Investment Manager 김호진님을 소개드립니다.\n\n이후 대화는 이 메일에서 이어가 주시면 됩니다.\n\n감사합니다.\nHarper 드림";
+  const args = {
+    body,
+    candidateName: "박민서",
+    companyName: "SBVA",
+    companyUserName: "김호진",
+    companyUserRole: "Investment Manager",
+    locale: "ko" as const,
+    roleTitle: "Portfolio Operations Lead",
+    subject: "Portfolio Operations Lead 포지션 소개 — SBVA 김호진님 · 박민서님",
+  };
+
+  assert.deepEqual(getOrgIntroDraftSafetyIssues(args), []);
+  assert.deepEqual(
+    getOrgIntroDraftSafetyIssues({
+      ...args,
+      body: body.replaceAll("Investment Manager", "채용 담당자"),
+      companyUserRole: "채용 담당자",
+    }),
+    []
+  );
+  assert.deepEqual(
+    getOrgIntroDraftSafetyIssues({
+      ...args,
+      body: body.replace(
+        "박민서님은 Portfolio Operations Lead 역할에 관심을 가져주셨습니다.",
+        ""
+      ),
+    }),
+    ["missing_candidate_role_interest"]
+  );
+});
+
+test("warm intro output guard accepts a localized English company title and rejects leaked Korean", () => {
+  const base = {
+    candidateName: "Alex Kim",
+    companyName: "SBVA",
+    companyUserName: "Jamie Lee",
+    companyUserRole: "채용 담당자",
+    locale: "en" as const,
+    roleTitle: "Backend Engineer",
+    subject: "Backend Engineer introduction — SBVA Jamie Lee & Alex Kim",
+  };
+  const localizedBody =
+    "Hi SBVA's Recruiting Manager Jamie Lee and Alex Kim,\n\nIt's a pleasure to introduce you both.\n\nJamie, I'd like to introduce Alex Kim. Alex Kim has expressed interest in the Backend Engineer role.\n\nAlex Kim, I'd like to introduce SBVA's Recruiting Manager Jamie Lee.\n\nPlease continue the conversation in this email thread.\n\nBest regards,\nHarper";
+
+  assert.deepEqual(
+    getOrgIntroDraftSafetyIssues({ ...base, body: localizedBody }),
+    []
+  );
+  assert.deepEqual(
+    getOrgIntroDraftSafetyIssues({
+      ...base,
+      body: localizedBody.replaceAll("Recruiting Manager", "채용 담당자"),
+    }),
+    ["unlocalized_company_user_role"]
   );
 });
 

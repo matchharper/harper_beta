@@ -92,7 +92,7 @@ role request/memory/JD 본문과 큰 회사 정보는 기본으로 넣지 않는
 | `get_more_data` | workspace optional data 읽기 | 없음 |
 | `update_role_criteria` | structured role criteria 전체 교체 또는 선택 편집 | 있음 |
 | `update_data` | 회사·role 정보를 단일 atomic batch로 변경/확인 | 있음 |
-| `change_role_status` | Role의 진행·중단·종료 lifecycle 변경 | 있음 |
+| `change_role_status` | Role의 진행·중단·종료·삭제 lifecycle 변경 | 있음 |
 | `decide_candidate_connection` | 연결 대기 후보자의 수락·거절과 연락 방식 결정 | 있음 |
 | `manage_role_pipeline_stages` | Role의 custom 단계 추가·이름 변경·빈 단계 삭제 | 있음 |
 | `move_candidate_stage` | 연결 이후 후보자를 활성 pipeline 단계 사이에서 이동 | 있음 |
@@ -407,10 +407,12 @@ proposal로 간다.
 | `active` | 진행 | 채용을 진행하며 Harper가 주기적으로 적합한 인재를 연결한다. |
 | `paused` | 중단 | Role은 열어두되 추가 후보 추천만 중단한다. 이미 진행 중인 후보자와 연결은 유지한다. |
 | `ended` | 종료 | Role 상태를 종료로 바꾸고 종료 시각을 기록해 추가 추천을 막는다. 후보자 기회 화면은 종료로 해석하며, 미응답 내부 추천은 이력 조회 시 보관된다. 이 변경 하나가 모든 기존 후보 stage와 회사 요청을 원자적으로 닫지는 않는다. |
+| `deleted` | 삭제 | 웹의 역할 삭제와 같이 `status=deleted`와 `is_expired=true`를 하나의 atomic RPC로 저장한다. Role은 활성 Roles와 후보자 기회 화면에서 제외되고 추가 추천이 멈추지만, 기존 후보 stage와 회사 요청은 자동으로 모두 종료되지 않는다. |
 
 argument는 exact `roleId`와 `status` 두 개다. `paused`를 기존 후보 프로세스까지
 끝내는 의미로 사용하거나, 단순히 새 추천만 잠시 멈추려는 요청에 `ended`를 사용하면
-안 된다. 상태 변경은 기존 atomic company-data RPC와 event 기록 경로를 공유하지만,
+안 된다. `deleted`는 사용자가 정확한 Role을 명시적으로 삭제해 달라고 요청한 경우에만 사용하고,
+종료 요청을 삭제로 해석하지 않는다. 상태 변경은 기존 atomic company-data RPC와 event 기록 경로를 공유하지만,
 기존 후보 stage와 회사 요청의 종료가 필요하면 별도 stage·요청 정리 경로를 실행하고
 그 결과를 확인해야 한다.
 

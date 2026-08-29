@@ -4,6 +4,12 @@
 작성일: 2026-08-05
 대상: Harper의 /org 웹 채팅과 /org-Slack에서 공통으로 사용하는 회사 측 LLM
 
+> 2026-08-26 현재 계약: internal role의 hiring brief는
+> `company_internal_roles.request`만 사용한다. `company_roles.request` mirror와
+> compatibility bridge를 설명하는 아래 내용은 당시 rolling migration 기록이며,
+> 현재 runtime 계약이 아니다. 최종 마이그레이션은 남은 값을 충돌 없이 이관한
+> 뒤 legacy 칼럼과 bridge를 제거한다.
+
 ## 1. 결론
 
 이번 변경의 핵심은 Markdown 파일을 별도 파일 시스템에 쌓는 것이 아니다.
@@ -16,9 +22,8 @@ Postgres는 계속 source of truth이고, Markdown은 Postgres의 text 칼럼 �
    company_data, company_roles에 계속 저장한다.
 2. 포지션별 후보 매칭 기준은 company_internal_roles.request를 company-side LLM의
    기준 저장소로 사용한다.
-3. 기존 worker와 사이트의 호환성을 위해 company_roles.request를 지우지 않고,
-   steady state에서는 internal request에서 legacy request로 단방향 mirror한다.
-   기존 internal-role write 경로는 모두 canonical field를 쓰도록 함께 전환한다.
+3. internal role의 request는 company_internal_roles.request에만 저장한다.
+   company_roles의 legacy request mirror와 compatibility bridge는 제거한다.
 4. 후보 매칭 기준이 아닌 장기 기억은 company_memories의 Markdown text로 저장한다.
 5. 오래된 대화 압축은 company_conversation_summaries가 계속 담당한다.
 6. 값이 바뀐 사실은 company_events에 짧은 한 줄로 누적한다. 이 테이블은 첫
@@ -1091,9 +1096,11 @@ normalized change로 바꾸면 물리 payload에서는 role_id를 쓴다.
 | role_request | company_internal_roles.request |
 | role_memory | company_memories, 해당 role_id |
 
-사이트의 기존 role 삭제/보관 동작은 status = ended와 is_expired = true를 함께
-쓴다. 이를 깨뜨리지 않도록 RPC catalog에는 role_is_expired를 site-only key로
-추가한다. ops의 source_type 전환도 6.5 invariant와 event adapter를 지나도록
+사이트의 기존 role 삭제 동작은 status = deleted와 is_expired = true를 함께
+쓴다. company-side LLM의 `change_role_status(status=deleted)`도 같은 website adapter를
+재사용해 두 값을 하나의 atomic RPC로 저장한다. 일반 `update_data` 입력으로
+`is_expired`를 별도 조작하지 못하게 RPC catalog의 role_is_expired는 site-only key로
+유지한다. ops의 source_type 전환도 6.5 invariant와 event adapter를 지나도록
 role_source_type을 site-only key로 둔다. 두 key 모두 company-side LLM의
 update_data enum에는 노출하지 않는다.
 

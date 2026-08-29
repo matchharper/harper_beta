@@ -133,12 +133,51 @@ test("gets uncached LinkedIn content from Exa and saves it under the canonical U
     getInserted()?.url,
     "https://www.linkedin.com/jobs/view/4452474383"
   );
-  assert.equal(
-    getInserted()?.markdown,
-    "Full LinkedIn job text from Exa"
-  );
+  assert.equal(getInserted()?.markdown, "Full LinkedIn job text from Exa");
   assert.equal(result.cached, false);
   assert.equal(result.markdown, "Full LinkedIn job text from Exa");
+});
+
+test("reads an Ashby JD's official title and description directly before Exa", async () => {
+  const { admin, getInserted } = createOpenUrlAdmin();
+  let requestedUrl = "";
+  const result = await openUrlWithDocumentsCache({
+    admin,
+    exa: {
+      getContents: async () => {
+        throw new Error("Exa should not be called for a readable Ashby JD");
+      },
+    } as never,
+    fetcher: async (input) => {
+      requestedUrl = String(input);
+      return new Response(
+        `<html><head><script type="application/ld+json">${JSON.stringify({
+          "@context": "https://schema.org/",
+          "@type": "JobPosting",
+          description:
+            "<h2>About the role</h2><p>Own customer AI agent launches.</p>",
+          hiringOrganization: {
+            "@type": "Organization",
+            name: "Sierra",
+          },
+          title: "Agent Strategist",
+        })}</script></head><body></body></html>`,
+        {
+          headers: { "content-type": "text/html; charset=utf-8" },
+          status: 200,
+        }
+      );
+    },
+    url: "https://jobs.ashbyhq.com/Sierra/posting-id",
+  });
+
+  assert.equal(requestedUrl, "https://jobs.ashbyhq.com/Sierra/posting-id");
+  assert.equal(result.title, "Agent Strategist");
+  assert.match(result.markdown, /^# Agent Strategist/);
+  assert.match(result.markdown, /Company: Sierra/);
+  assert.match(result.markdown, /Own customer AI agent launches\./);
+  assert.equal(getInserted()?.title, "Agent Strategist");
+  assert.match(String(getInserted()?.markdown ?? ""), /# Agent Strategist/);
 });
 
 test("updates an existing URL by id without requiring a unique URL constraint", async () => {

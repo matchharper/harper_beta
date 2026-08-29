@@ -1018,7 +1018,7 @@ const CareerLoginContent = () => {
                 href={`/privacy?lang=${locale}`}
                 target="_blank"
                 rel="noreferrer"
-                className="text-link underline underline-offset-2"
+                className="text-neutral-primary underline underline-offset-2"
               >
                 {copy.privacyPolicyLabel}
               </Link>

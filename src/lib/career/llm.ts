@@ -5,11 +5,16 @@ import {
   supportsSamplingParametersForModel,
   supportsResponseFormatForModel,
 } from "@/lib/llm/llm";
+import type { OpenAIResponsesReasoningEffort } from "@/lib/llm/responsesChatAdapter";
 import {
   logLlmTokenUsage,
   logLlmTokenUsageForToolCalls,
 } from "@/lib/llm/usageLogging";
-import { CLAUDE_MODEL, GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
+import {
+  CLAUDE_MODEL,
+  GPT_56_LUNA_MODEL,
+  GPT_56_TERRA_MODEL,
+} from "@/lib/llm/modelConfig";
 import {
   runTalentAssistantCompletion,
   runTalentAssistantToolLoop,
@@ -37,11 +42,10 @@ export const CAREER_LLM_CONFIG = {
   // 사용처: 일반 커리어 채팅, kickoff, onboarding defer,
   // profile ingestion, refresh insights, ops 요약/추천, additional question selector.
   assistant: {
-    anthropicOverloadFallbackModel: "grok-4.3",
-    // primaryModel: "grok-4.3",
-    // fallbackModel: CLAUDE_MODEL,
+    anthropicOverloadFallbackModel: GPT_56_TERRA_MODEL,
+    openAIResponsesReasoningEffort: "xhigh" as const,
     primaryModel: CLAUDE_MODEL,
-    fallbackModel: "grok-4.3",
+    fallbackModel: GPT_56_TERRA_MODEL,
   },
   // 일반 텍스트 커리어 채팅 설정. Realtime 전화/음성 응답에는 적용되지 않는다.
   // prompt에는 structured profile, 최근 activity, 최근 추천 기회 10개 compact summary,
@@ -50,19 +54,29 @@ export const CAREER_LLM_CONFIG = {
   // onboarding completion wrapup에서 유저 메시지에 답하거나 tool loop를 돌릴 때.
   chat: {
     maxTokens: 4096,
+    opportunityFeedbackFollowUp: {
+      model: GPT_56_LUNA_MODEL,
+      reasoningEffort: "high" as const,
+    },
+    recommendationFinalizer: {
+      model: GPT_56_LUNA_MODEL,
+      reasoningEffort: "high" as const,
+    },
     temperature: 0.55,
   },
   // 대화 저장/응답 이후 assistant 답변에서 structured insight JSON을 뽑을 때.
   // 사용처: /api/talent/chat, /api/talent/chat/save.
   insightExtraction: {
     fallbackModel: CLAUDE_MODEL,
-    model: "grok-4-fast-reasoning",
+    model: GPT_56_LUNA_MODEL,
+    reasoningEffort: "high" as const,
     temperature: 0.2,
   },
   // 긴 talent chat history를 rolling summary로 압축할 때.
   // 사용처: maybeSummarizeTalentConversation.
   conversationSummary: {
-    model: "grok-4-fast-reasoning",
+    model: GPT_56_LUNA_MODEL,
+    reasoningEffort: "high" as const,
     temperature: 0.2,
   },
   // 온보딩을 지금 끝내지 않고 나중으로 미룰 때 닫는 응답을 생성한다.
@@ -1268,6 +1282,8 @@ async function recoverVisibleTextFromAnthropicMessages(args: {
         systemBlocks: args.systemBlocks,
       }),
       model: args.modelConfig.fallbackModel,
+      reasoningEffort:
+        args.modelConfig.openAIResponsesReasoningEffort ?? "xhigh",
       temperature: CAREER_LLM_CONFIG.chat.temperature,
       usageLabel: args.usageLabel
         ? `${args.usageLabel}:visible-text-recovery`
@@ -1290,9 +1306,12 @@ async function recoverVisibleTextFromAnthropicMessages(args: {
 async function runDirectTextCompletion(args: {
   fallbackModel?: string | null;
   jsonMode?: boolean;
+  maxTokens?: number;
   messages: DirectOpenAIMessage[];
   model: string;
+  reasoningEffort?: OpenAIResponsesReasoningEffort;
   temperature: number;
+  toolCostAttribution?: LlmToolCostAttribution;
   usageLabel?: string;
 }) {
   const { model, response } = await createChatCompletionWithFallback({
@@ -1300,6 +1319,14 @@ async function runDirectTextCompletion(args: {
       CAREER_LLM_CONFIG.assistant.anthropicOverloadFallbackModel,
     fallbackModel: args.fallbackModel,
     model: args.model,
+    debugLabel: args.usageLabel,
+    ...(args.reasoningEffort
+      ? {
+          openAIResponses: {
+            reasoningEffort: args.reasoningEffort,
+          },
+        }
+      : {}),
     buildRequest: (model) => {
       const responseFormat =
         args.jsonMode && supportsResponseFormatForModel(model)
@@ -1308,6 +1335,7 @@ async function runDirectTextCompletion(args: {
       return {
         messages: args.messages,
         temperature: args.temperature,
+        ...(args.maxTokens ? { max_tokens: args.maxTokens } : {}),
         ...(responseFormat && { response_format: responseFormat }),
       };
     },
@@ -1317,13 +1345,60 @@ async function runDirectTextCompletion(args: {
     model,
     response,
   });
+  if (args.toolCostAttribution) {
+    logLlmTokenUsageForToolCalls({
+      baseLabel: args.usageLabel,
+      model,
+      response,
+      step: args.toolCostAttribution.step,
+      toolNames: args.toolCostAttribution.toolNames,
+    });
+  }
 
   return cleanModelText(response.choices[0]?.message?.content ?? "");
+}
+
+function shouldUseRecommendationFinalizer(toolNames: readonly string[]) {
+  return toolNames.includes("recommend_job_postings");
+}
+
+async function createRecommendationToolResultFinalText(args: {
+  fallbackModel: string;
+  messages: AnthropicMessage[];
+  systemBlocks: CareerChatSystemBlock[];
+  toolCostAttribution?: LlmToolCostAttribution;
+  usageLabel: string;
+}) {
+  return runDirectTextCompletion({
+    fallbackModel: args.fallbackModel,
+    maxTokens: CAREER_LLM_CONFIG.chat.maxTokens,
+    messages: [
+      {
+        role: "system",
+        content: flattenCareerSystemBlocks(args.systemBlocks),
+      },
+      ...args.messages
+        .map(
+          (message): DirectOpenAIMessage => ({
+            role: message.role,
+            content: stringifyAnthropicContent(message.content),
+          })
+        )
+        .filter((message) => message.content.trim().length > 0),
+    ],
+    model: CAREER_LLM_CONFIG.chat.recommendationFinalizer.model,
+    reasoningEffort:
+      CAREER_LLM_CONFIG.chat.recommendationFinalizer.reasoningEffort,
+    temperature: CAREER_LLM_CONFIG.chat.temperature,
+    toolCostAttribution: args.toolCostAttribution,
+    usageLabel: `${args.usageLabel}:recommendation-finalizer`,
+  });
 }
 
 type CareerAssistantModelConfig = {
   anthropicOverloadFallbackModel: string;
   fallbackModel: string;
+  openAIResponsesReasoningEffort?: OpenAIResponsesReasoningEffort;
   primaryModel: string;
 };
 
@@ -1332,6 +1407,8 @@ function assistantModelConfig(): CareerAssistantModelConfig {
     anthropicOverloadFallbackModel:
       CAREER_LLM_CONFIG.assistant.anthropicOverloadFallbackModel,
     fallbackModel: CAREER_LLM_CONFIG.assistant.fallbackModel,
+    openAIResponsesReasoningEffort:
+      CAREER_LLM_CONFIG.assistant.openAIResponsesReasoningEffort,
     primaryModel: CAREER_LLM_CONFIG.assistant.primaryModel,
   };
 }
@@ -1373,11 +1450,22 @@ export async function runCareerChatAssistant(args: {
     name: string;
   }) => void | Promise<void>;
   modelConfig?: CareerAssistantModelConfig;
+  openAIResponsesReasoningEffort?: OpenAIResponsesReasoningEffort;
+  primaryModel?: string;
   responseLocale?: string | null;
+  temperature?: number;
   usageLabel?: string;
 }) {
-  const modelConfig = args.modelConfig ?? assistantModelConfig();
+  const modelConfig = {
+    ...(args.modelConfig ?? assistantModelConfig()),
+    ...(args.primaryModel ? { primaryModel: args.primaryModel } : {}),
+  };
   const usageLabel = args.usageLabel ?? "career/chat:assistant";
+  const temperature = args.temperature ?? CAREER_LLM_CONFIG.chat.temperature;
+  const openAIResponsesReasoningEffort =
+    args.openAIResponsesReasoningEffort ??
+    modelConfig.openAIResponsesReasoningEffort ??
+    "xhigh";
   const outputLanguage = getCareerPromptLanguageName(args.responseLocale);
   const fallbackWithExistingClient = (
     activeModelConfig: CareerAssistantModelConfig = modelConfig
@@ -1394,8 +1482,9 @@ export async function runCareerChatAssistant(args: {
         messages: fallbackMessages,
         modelConfig: activeModelConfig,
         onToolStart: args.onToolStart,
+        openAIResponsesReasoningEffort,
         stopAfterToolNames: args.stopAfterToolNames,
-        temperature: CAREER_LLM_CONFIG.chat.temperature,
+        temperature,
         tools: args.tools,
         usageLabel,
       });
@@ -1404,7 +1493,8 @@ export async function runCareerChatAssistant(args: {
     return runTalentAssistantCompletion({
       ...activeModelConfig,
       messages: fallbackMessages,
-      temperature: CAREER_LLM_CONFIG.chat.temperature,
+      openAIResponsesReasoningEffort,
+      temperature,
       usageLabel,
     });
   };
@@ -1430,7 +1520,7 @@ export async function runCareerChatAssistant(args: {
         messages: workingMessages,
         model: modelConfig.primaryModel,
         systemBlocks: args.systemBlocks,
-        temperature: CAREER_LLM_CONFIG.chat.temperature,
+        temperature,
         usageLabel,
       });
       if (text) return text;
@@ -1468,7 +1558,7 @@ export async function runCareerChatAssistant(args: {
         messages: workingMessages,
         model: modelConfig.primaryModel,
         systemBlocks: systemBlocksForStep,
-        temperature: CAREER_LLM_CONFIG.chat.temperature,
+        temperature,
         toolCostAttribution,
         tools: args.tools,
         usageLabel,
@@ -1613,20 +1703,31 @@ export async function runCareerChatAssistant(args: {
       responseLocale: args.responseLocale,
       systemBlocks: args.systemBlocks,
     });
-    const finalText = await createAnthropicMessageText({
-      messages: finalMessages,
-      model: modelConfig.primaryModel,
-      systemBlocks: finalSystemBlocks,
-      temperature: CAREER_LLM_CONFIG.chat.temperature,
-      toolCostAttribution:
-        pendingToolResultAttribution.length > 0
-          ? {
-              step: "tool_result_response",
-              toolNames: pendingToolResultAttribution,
-            }
-          : undefined,
-      usageLabel,
-    });
+    const finalToolCostAttribution =
+      pendingToolResultAttribution.length > 0
+        ? {
+            step: "tool_result_response",
+            toolNames: pendingToolResultAttribution,
+          }
+        : undefined;
+    const finalText = shouldUseRecommendationFinalizer(
+      pendingToolResultAttribution
+    )
+      ? await createRecommendationToolResultFinalText({
+          fallbackModel: modelConfig.fallbackModel,
+          messages: finalMessages,
+          systemBlocks: finalSystemBlocks,
+          toolCostAttribution: finalToolCostAttribution,
+          usageLabel,
+        })
+      : await createAnthropicMessageText({
+          messages: finalMessages,
+          model: modelConfig.primaryModel,
+          systemBlocks: finalSystemBlocks,
+          temperature,
+          toolCostAttribution: finalToolCostAttribution,
+          usageLabel,
+        });
     if (finalText) return finalText;
     return recoverVisibleTextFromAnthropicMessages({
       messages: finalMessages,
@@ -1998,21 +2099,36 @@ export async function runCareerChatAssistantStream(args: {
       systemBlocks: args.systemBlocks,
     });
     activeSystemBlocksForRecovery = finalSystemBlocks;
-    const finalText = await createAnthropicMessageStream({
-      messages: workingMessages,
-      model: modelConfig.primaryModel,
-      onTextDelta: forwardTextDelta,
-      systemBlocks: finalSystemBlocks,
-      temperature: CAREER_LLM_CONFIG.chat.temperature,
-      toolCostAttribution:
-        pendingToolResultAttribution.length > 0
-          ? {
-              step: "tool_result_response",
-              toolNames: pendingToolResultAttribution,
-            }
-          : undefined,
-      usageLabel,
-    });
+    const finalToolCostAttribution =
+      pendingToolResultAttribution.length > 0
+        ? {
+            step: "tool_result_response",
+            toolNames: pendingToolResultAttribution,
+          }
+        : undefined;
+    const useRecommendationFinalizer = shouldUseRecommendationFinalizer(
+      pendingToolResultAttribution
+    );
+    const finalText = useRecommendationFinalizer
+      ? await createRecommendationToolResultFinalText({
+          fallbackModel: modelConfig.fallbackModel,
+          messages: workingMessages,
+          systemBlocks: finalSystemBlocks,
+          toolCostAttribution: finalToolCostAttribution,
+          usageLabel,
+        })
+      : await createAnthropicMessageStream({
+          messages: workingMessages,
+          model: modelConfig.primaryModel,
+          onTextDelta: forwardTextDelta,
+          systemBlocks: finalSystemBlocks,
+          temperature: CAREER_LLM_CONFIG.chat.temperature,
+          toolCostAttribution: finalToolCostAttribution,
+          usageLabel,
+        });
+    if (useRecommendationFinalizer && finalText) {
+      await forwardTextDelta(finalText);
+    }
     if (finalText) return getForwardedVisibleText() || finalText;
     const recoveredText = await recoverVisibleTextFromAnthropicMessages({
       messages: workingMessages,
@@ -2093,6 +2209,7 @@ export async function runCareerInsightExtraction(args: {
       ...args.conversationMessages,
     ],
     model: args.model ?? CAREER_LLM_CONFIG.insightExtraction.model,
+    reasoningEffort: CAREER_LLM_CONFIG.insightExtraction.reasoningEffort,
     temperature: CAREER_LLM_CONFIG.insightExtraction.temperature,
     usageLabel: args.usageLabel ?? "career/chat:insight_extraction",
   });
@@ -2109,6 +2226,7 @@ export async function runCareerConversationSummary(args: {
       { role: "user", content: args.userPrompt },
     ],
     model: CAREER_LLM_CONFIG.conversationSummary.model,
+    reasoningEffort: CAREER_LLM_CONFIG.conversationSummary.reasoningEffort,
     temperature: CAREER_LLM_CONFIG.conversationSummary.temperature,
     usageLabel: "career/chat:conversation_summary",
   });

@@ -25,6 +25,7 @@ import type {
 import {
   AUTO_INTRO_LLM_MAX_WEB_TOOL_CALLS,
   buildAutoIntroLlmInput,
+  buildAutoIntroLlmSubmissionCorrection,
   parseAutoIntroLlmSubmission,
 } from "@/lib/ops/autoIntroToCompanyLlmPrompt";
 import { verbalizeAutoIntroWebToolResult } from "@/lib/ops/autoIntroToCompanyPromptContext";
@@ -54,7 +55,7 @@ const SUBMIT_AUTO_INTRO_TOOL = {
   function: {
     name: "submit_auto_intro",
     description:
-      "Submit the complete, structured Slack candidate-introduction copy for this workspace. Call exactly once after any useful research is complete.",
+      "Submit the complete Slack introduction for the one candidate in this request. Call exactly once after any useful research is complete.",
     parameters: {
       type: "object",
       properties: {
@@ -63,96 +64,47 @@ const SUBMIT_AUTO_INTRO_TOOL = {
           description:
             "One concise question addressed to the hiring company about its role requirements or priorities, or null. Never ask the candidate about their preferences.",
         },
-        roles: {
+        slackProfile: {
+          type: "object",
+          properties: {
+            body: {
+              type: "string",
+              description:
+                "The complete candidate-introduction body in Slack mrkdwn. It must contain TL;DR (<=700 characters), Harper Note (<=320 characters), Work Summary (<=4 headings, <=3 bullets per heading, <=8 bullets total), and Preferences (1-4 bullets, never compensation) in the required order and format. Do not include Candidate, Role, Location, Education, or the reply CTA; the application renders those headers.",
+            },
+            currentRole: {
+              type: ["string", "null"],
+              description:
+                "The candidate's verified current title and employer, faithfully stated without upgrading or reclassifying the role, or null.",
+            },
+            education: {
+              type: ["string", "null"],
+              description:
+                "Decision-useful stored education, faithfully stated, or null.",
+            },
+            location: {
+              type: ["string", "null"],
+              description:
+                "The candidate's stored location and explicitly supported relocation context, or null.",
+            },
+          },
+          required: ["body", "currentRole", "education", "location"],
+          additionalProperties: false,
+        },
+        sources: {
           type: "array",
           items: {
             type: "object",
             properties: {
-              candidates: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    internalReason: { type: ["string", "null"] },
-                    slackProfile: {
-                      type: "object",
-                      properties: {
-                        currentRole: {
-                          type: ["string", "null"],
-                          description:
-                            "The candidate's verified current title and employer, faithfully stated without upgrading or reclassifying the role, or null.",
-                        },
-                        education: { type: ["string", "null"] },
-                        harperNote: { type: ["string", "null"] },
-                        location: { type: ["string", "null"] },
-                        preferences: {
-                          type: "array",
-                          items: { type: "string" },
-                        },
-                        tldr: { type: "string" },
-                        workSummary: {
-                          type: "array",
-                          items: {
-                            type: "object",
-                            properties: {
-                              bullets: {
-                                type: "array",
-                                items: { type: "string" },
-                              },
-                              heading: {
-                                type: "string",
-                                description:
-                                  "Plain text in the form Role @ Company, optionally followed by (current) when supported. Do not add Slack formatting.",
-                              },
-                            },
-                            required: ["heading", "bullets"],
-                            additionalProperties: false,
-                          },
-                        },
-                      },
-                      required: [
-                        "currentRole",
-                        "education",
-                        "harperNote",
-                        "location",
-                        "preferences",
-                        "tldr",
-                        "workSummary",
-                      ],
-                      additionalProperties: false,
-                    },
-                    sources: {
-                      type: "array",
-                      items: {
-                        type: "object",
-                        properties: {
-                          title: { type: ["string", "null"] },
-                          url: { type: "string" },
-                        },
-                        required: ["title", "url"],
-                        additionalProperties: false,
-                      },
-                    },
-                    talentId: { type: "string" },
-                  },
-                  required: [
-                    "talentId",
-                    "internalReason",
-                    "slackProfile",
-                    "sources",
-                  ],
-                  additionalProperties: false,
-                },
-              },
-              roleId: { type: "string" },
+              title: { type: ["string", "null"] },
+              url: { type: "string" },
             },
-            required: ["roleId", "candidates"],
+            required: ["title", "url"],
             additionalProperties: false,
           },
         },
-        workspaceId: { type: "string" },
       },
-      required: ["workspaceId", "roles", "followUpQuestion"],
+      required: ["followUpQuestion", "slackProfile", "sources"],
       additionalProperties: false,
     },
     strict: true,
@@ -375,9 +327,7 @@ export async function generateAutoIntroWorkspaceMessage(
           );
         } catch (error) {
           messages.push({
-            content: `Your response was not a valid complete submission: ${
-              error instanceof Error ? error.message : String(error)
-            }. Call submit_auto_intro now.`,
+            content: buildAutoIntroLlmSubmissionCorrection(error, group),
             role: "user",
           });
           continue;
@@ -433,9 +383,7 @@ export async function generateAutoIntroWorkspaceMessage(
       } catch (error) {
         await addToolResult(
           submitCall,
-          `Submission error: ${
-            error instanceof Error ? error.message : String(error)
-          }\nCorrect the complete payload and call submit_auto_intro again.`
+          buildAutoIntroLlmSubmissionCorrection(error, group)
         );
         continue;
       }
@@ -577,42 +525,43 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
-function mergeGeneratedPairMessagesByWorkspace(
+function mergeGeneratedPairMessagesByWorkspaceAndRole(
   messages: CodexAuthoredWorkspaceMessage[]
 ) {
-  const byWorkspaceId = new Map<
+  const byWorkspaceAndRole = new Map<
     string,
     {
       followUpQuestion: string | null;
       messages: CodexAuthoredWorkspaceMessage[];
+      roleId: string;
+      workspaceId: string;
     }
   >();
   for (const message of messages) {
-    const current = byWorkspaceId.get(message.workspaceId) ?? {
-      followUpQuestion: null,
-      messages: [],
-    };
-    current.messages.push(message);
-    current.followUpQuestion ??= text(message.followUpQuestion) || null;
-    byWorkspaceId.set(message.workspaceId, current);
+    for (const role of message.roles) {
+      const key = `${message.workspaceId}:${role.roleId}`;
+      const current = byWorkspaceAndRole.get(key) ?? {
+        followUpQuestion: null,
+        messages: [],
+        roleId: role.roleId,
+        workspaceId: message.workspaceId,
+      };
+      current.messages.push({
+        ...message,
+        roles: [{ ...role, candidates: [...role.candidates] }],
+      });
+      current.followUpQuestion ??= text(message.followUpQuestion) || null;
+      byWorkspaceAndRole.set(key, current);
+    }
   }
 
-  return Array.from(byWorkspaceId, ([workspaceId, group]) => {
-    const roleById = new Map<
-      string,
-      CodexAuthoredWorkspaceMessage["roles"][number]
-    >();
+  return Array.from(byWorkspaceAndRole.values(), (group) => {
+    const candidates: CodexAuthoredWorkspaceMessage["roles"][number]["candidates"] =
+      [];
     for (const message of group.messages) {
-      for (const role of message.roles) {
-        const existing = roleById.get(role.roleId);
-        if (existing) {
-          existing.candidates.push(...role.candidates);
-        } else {
-          roleById.set(role.roleId, {
-            ...role,
-            candidates: [...role.candidates],
-          });
-        }
+      const role = message.roles[0];
+      if (role) {
+        candidates.push(...role.candidates);
       }
     }
     const firstGeneration = group.messages[0]?.generation;
@@ -627,8 +576,8 @@ function mergeGeneratedPairMessagesByWorkspace(
           0
         ),
       },
-      roles: Array.from(roleById.values()),
-      workspaceId,
+      roles: [{ candidates, roleId: group.roleId }],
+      workspaceId: group.workspaceId,
     } satisfies CodexAuthoredWorkspaceMessage;
   });
 }
@@ -675,7 +624,7 @@ export async function runVercelCronAutoIntroToCompany(args?: {
   );
   const delivery = await sendCodexAuthoredAutoIntroToCompanyNotifications({
     ...args,
-    groups: mergeGeneratedPairMessagesByWorkspace(
+    groups: mergeGeneratedPairMessagesByWorkspaceAndRole(
       generated.flatMap((item) => (item.message ? [item.message] : []))
     ),
   });

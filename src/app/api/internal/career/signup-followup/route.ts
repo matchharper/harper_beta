@@ -192,7 +192,7 @@ async function loadCandidates(args: {
   const { data, error } = await args.admin
     .from("talent_users")
     .select(
-      "user_id, email, name, created_at, current_location, location, resume_file_name, resume_storage_path, resume_text, resume_links"
+      "user_id, email, name, created_at, location, current_location, resume_file_name, resume_storage_path, resume_text, resume_links"
     )
     .not("email", "is", null)
     .lte("created_at", args.cutoffIso)

@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { parseCompanyDataChanges } from "@/lib/org/agent/companyDataMutation";
 import type { OrgAgentPromptContext } from "@/lib/org/agent/context";
+import { resolveCandidateContactLifecycleAction } from "@/lib/org/agent/candidateContactAction";
 import { parseReadTalentIds } from "@/lib/org/agent/readTalentInput";
+import { jsonValuesEqual } from "@/lib/jsonValue";
 import {
   createOrgAgentToolExecutionState,
   enforceOrgAgentTerminalMutationOutcome,
@@ -37,6 +39,41 @@ function minimalContext(
     },
   } satisfies OrgAgentPromptContext;
 }
+
+test("a repeated immediate schedule request advances an existing queued contact", () => {
+  assert.equal(
+    resolveCandidateContactLifecycleAction({
+      action: "schedule",
+      deliveryMode: "immediate",
+      workflowStatus: "queued",
+    }),
+    "immediate"
+  );
+  assert.equal(
+    resolveCandidateContactLifecycleAction({
+      action: "schedule",
+      deliveryMode: "immediate",
+      workflowStatus: "failed",
+    }),
+    "immediate"
+  );
+  assert.equal(
+    resolveCandidateContactLifecycleAction({
+      action: "schedule",
+      deliveryMode: "immediate",
+      workflowStatus: "draft",
+    }),
+    "schedule"
+  );
+  assert.equal(
+    resolveCandidateContactLifecycleAction({
+      action: "schedule",
+      deliveryMode: "standard",
+      workflowStatus: "queued",
+    }),
+    "schedule"
+  );
+});
 
 test("role request reads become writable only after the tool batch", () => {
   const context = {
@@ -221,7 +258,7 @@ test("pending proposal lookup ignores expired rows at the query boundary", async
   assert.ok(expiry >= before && expiry <= after);
 });
 
-test("candidate decision execution is an enabled terminal tool", async () => {
+test("candidate execution remains terminal while setup steps may continue", async () => {
   const { assertOrgAgentToolAvailable } =
     await import("@/lib/org/agent/toolAvailability");
   const { isOrgAgentTerminalToolName } = await import("@/lib/org/agent/tools");
@@ -232,16 +269,83 @@ test("candidate decision execution is an enabled terminal tool", async () => {
   assert.doesNotThrow(() =>
     assertOrgAgentToolAvailable("decide_candidate_connection")
   );
+  assert.doesNotThrow(() =>
+    assertOrgAgentToolAvailable("manage_interview_availability")
+  );
   assert.equal(
     isOrgAgentTerminalToolName("prepare_candidate_connection"),
     false
   );
   assert.equal(isOrgAgentTerminalToolName("change_role_status"), true);
-  assert.equal(isOrgAgentTerminalToolName("manage_role_pipeline_stages"), true);
+  assert.equal(
+    isOrgAgentTerminalToolName("manage_role_pipeline_stages"),
+    false
+  );
   assert.equal(isOrgAgentTerminalToolName("move_candidate_stage"), true);
+  assert.equal(
+    isOrgAgentTerminalToolName("manage_interview_availability"),
+    false
+  );
   assert.equal(isOrgAgentTerminalToolName("decide_candidate_connection"), true);
   assert.equal(isOrgAgentTerminalToolName("contact_talent"), true);
   assert.equal(isOrgAgentTerminalToolName("change_talent_contact"), false);
+});
+
+test("meeting confirmation equality ignores JSON object key order", () => {
+  const left = {
+    additionalMessage: {
+      sourceText: "가능하면 빠르게",
+      visibility: "both" as const,
+    },
+    availabilityVersion: 2,
+    config: {
+      companyAttendees: [
+        {
+          companyUserId: "company-user-1",
+          email: "owner@example.com",
+          name: "Owner",
+        },
+      ],
+      conferenceProvider: "google_meet" as const,
+      durationMinutes: 60,
+      offerWindowDays: 14,
+      organizer: {
+        companyUserId: "company-user-1",
+        email: "owner@example.com",
+        name: "Owner",
+      },
+      title: "Test <> Candidate Intro",
+    },
+    draftBlocker: null,
+  };
+  const reordered = {
+    draftBlocker: null,
+    config: {
+      title: "Test <> Candidate Intro",
+      organizer: {
+        name: "Owner",
+        email: "owner@example.com",
+        companyUserId: "company-user-1",
+      },
+      offerWindowDays: 14,
+      durationMinutes: 60,
+      conferenceProvider: "google_meet",
+      companyAttendees: [
+        {
+          name: "Owner",
+          email: "owner@example.com",
+          companyUserId: "company-user-1",
+        },
+      ],
+    },
+    availabilityVersion: 2,
+    additionalMessage: {
+      visibility: "both",
+      sourceText: "가능하면 빠르게",
+    },
+  };
+
+  assert.equal(jsonValuesEqual(left, reordered), true);
 });
 
 test("read_talent input accepts ten unique IDs and rejects invalid batches", () => {
@@ -290,7 +394,20 @@ test("a failed Role status change cannot be presented as completed", () => {
       state,
       "역할의 채용을 종료했습니다."
     ),
-    "역할 상태를 변경하지 못했습니다. 역할과 현재 상태를 다시 확인한 뒤 시도해 주세요. 후보 추천이나 진행 중인 연결에는 변화가 없습니다."
+    "역할을 삭제하거나 상태를 변경하지 못했어요. 역할과 현재 상태를 다시 확인한 뒤 시도해 주세요. 후보자 추천이나 진행 중인 연결에는 변화가 없어요."
+  );
+});
+
+test("workspace-scoped Harper links keep model prose but use the verified org id", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  const reply = enforceOrgAgentTerminalMutationOutcome(
+    state,
+    "필요하면 <https://matchharper.com/org/settings?dialog=interview-availability&amp;orgId=hallucinated-workspace|가능 시간 설정>에서 조정할 수 있어요."
+  );
+
+  assert.equal(
+    reply,
+    `필요하면 <https://matchharper.com/org/settings?dialog=interview-availability&amp;orgId=${state.company.workspaceId}|가능 시간 설정>에서 조정할 수 있어요.`
   );
 });
 
@@ -306,15 +423,15 @@ test("a failed candidate contact lifecycle action cannot be presented as complet
 
   assert.equal(
     enforceOrgAgentTerminalMutationOutcome(state, "문의를 취소했습니다."),
-    "후보자에게 요청을 보내지 못했어요. 대상 후보자와 역할, 요청 내용을 다시 확인해 주세요. 이메일이나 Harper 채팅으로 전달된 내용은 없어요."
+    "후보자에게 요청을 보내지 못했어요. 대상 후보자와 역할, 요청 내용을 다시 확인해 주세요. 후보자에게 전달된 내용은 없어요."
   );
 });
 
-test("a successful candidate contact action keeps the model reply", () => {
+test("a successful candidate contact action keeps the model-written reply", () => {
   const state = createOrgAgentToolExecutionState(minimalContext());
   state.terminalMutationUsed = true;
   state.terminalReply =
-    "김후보님께 드릴 문의를 즉시 발송하도록 변경했습니다. 아직 전달 완료 단계는 아닙니다.";
+    "김후보님께 제가 대신 바로 물어볼게요. 답이 오면 여기로 알려드릴게요.";
   state.toolResults.push({
     callId: "immediate-contact-1",
     name: "contact_talent",
@@ -328,6 +445,26 @@ test("a successful candidate contact action keeps the model reply", () => {
       "안녕하세요. 후보자께 보낼 이메일 본문입니다."
     ),
     "안녕하세요. 후보자께 보낼 이메일 본문입니다."
+  );
+});
+
+test("availability updates allow one already-authorized scheduling flow to continue", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  state.terminalReply =
+    "좋아요. 앞으로 이 시간을 기준으로 가능한 일정을 찾을게요.\n\n이 시간을 바탕으로 누구와 미팅을 잡으면 될지 말씀해 주시면 바로 이어갈게요.";
+  state.toolResults.push({
+    callId: "availability-1",
+    name: "manage_interview_availability",
+    status: "success",
+    summary: "미팅 가능 시간 설정: 평일 10:00-17:00",
+  });
+
+  assert.equal(
+    enforceOrgAgentTerminalMutationOutcome(
+      state,
+      "이 시간을 기준으로 김후보님 미팅을 바로 준비해서 진행할게요."
+    ),
+    "이 시간을 기준으로 김후보님 미팅을 바로 준비해서 진행할게요."
   );
 });
 
@@ -518,7 +655,7 @@ test("a failed candidate contact is not mislabeled as a data change", () => {
       state,
       "후보자분께 확인 요청을 보냈습니다."
     ),
-    "후보자에게 요청을 보내지 못했어요. 대상 후보자와 역할, 요청 내용을 다시 확인해 주세요. 이메일이나 Harper 채팅으로 전달된 내용은 없어요."
+    "후보자에게 요청을 보내지 못했어요. 대상 후보자와 역할, 요청 내용을 다시 확인해 주세요. 후보자에게 전달된 내용은 없어요."
   );
 });
 
@@ -542,11 +679,11 @@ test("an existing candidate request keeps the model's replacement question", () 
   );
 });
 
-test("a successful candidate contact keeps the model-authored explanation", () => {
+test("a successful candidate contact does not replace model prose", () => {
   const state = createOrgAgentToolExecutionState(minimalContext());
   state.terminalMutationUsed = true;
   state.terminalReply =
-    "후보자분께 확인 요청을 접수했습니다. 이메일과 Harper 채팅으로 한 번 전달할 예정이며, 답이 오면 이 대화로 알려드리겠습니다.";
+    "후보자분께 제가 대신 조금 뒤에 물어볼게요. 답이 오면 여기로 알려드릴게요.";
   state.toolResults.push({
     callId: "contact-2",
     name: "contact_talent",
@@ -563,12 +700,12 @@ test("a successful candidate contact keeps the model-authored explanation", () =
   );
 });
 
-test("a candidate draft keeps the server status beside the exact presentation", () => {
+test("a candidate draft keeps model prose while the exact body stays separate", () => {
   const state = createOrgAgentToolExecutionState(minimalContext());
   state.terminalMutationUsed = true;
   state.terminalReply =
-    "후보자에게 보낼 전체 문구를 작성해 초안으로 저장했습니다. 아직 발송하지 않았습니다.";
-  state.requiredPresentationText = "제목과 본문 전체";
+    "네, 제가 대신 민수님께 여쭤보고, 답이 오면 여기로 알려드릴게요. 보내기 전에 한 번만 확인해 주시겠어요?";
+  state.requiredPresentationText = "후보자에게 보낼 본문 전체";
   state.toolResults.push({
     callId: "contact-draft",
     name: "contact_talent",
@@ -579,9 +716,9 @@ test("a candidate draft keeps the server status beside the exact presentation", 
   assert.equal(
     enforceOrgAgentTerminalMutationOutcome(
       state,
-      "이번 결과에는 본문이 표시되지 않았습니다."
+      "민수님께 제가 대신 여쭤볼게요. 아래 내용을 한 번 확인해 주시겠어요?"
     ),
-    state.terminalReply
+    "민수님께 제가 대신 여쭤볼게요. 아래 내용을 한 번 확인해 주시겠어요?"
   );
 });
 
@@ -616,6 +753,41 @@ test("an unconfirmed candidate decision keeps the server confirmation copy", () 
   assert.equal(
     enforceOrgAgentTerminalMutationOutcome(state, "후보자를 연결했습니다."),
     state.terminalReply
+  );
+});
+
+test("a blocked scheduled stage move can use the model-authored coordinator reply", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  state.toolResults.push({
+    callId: "scheduled-stage-move-blocked",
+    name: "move_candidate_stage",
+    status: "unchanged",
+    summary: "인터뷰 일정 요청 전 선행 설정 필요",
+  });
+
+  const modelReply =
+    "1차 인터뷰 단계를 추가했고, 이어서 미팅을 준비하려면 회사 담당자의 가능 시간만 알려주세요.";
+  assert.equal(
+    enforceOrgAgentTerminalMutationOutcome(state, modelReply),
+    modelReply
+  );
+});
+
+test("a successful scheduled stage move keeps the model-authored explanation", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  state.terminalReply = "서버가 만든 한 줄 완료 문구";
+  state.toolResults.push({
+    callId: "scheduled-stage-move-success",
+    name: "move_candidate_stage",
+    status: "success",
+    summary: "후보자 단계 이동과 미팅 요청 예약",
+  });
+
+  const modelReply =
+    "알려주신 가능 시간을 앞으로의 기준으로 저장했고, 이어서 후보자 미팅 요청도 준비했어요. 후보자에게는 아직 전달 전이라 추가로 전할 내용이 있으면 말씀해 주세요.";
+  assert.equal(
+    enforceOrgAgentTerminalMutationOutcome(state, modelReply),
+    modelReply
   );
 });
 

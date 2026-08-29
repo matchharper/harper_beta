@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
     const payload = await fetchOrgAcceptedTalents({
       offset: Number(req.nextUrl.searchParams.get("offset") ?? 0),
       user,
+      workspaceIds: req.nextUrl.searchParams.getAll("workspaceId"),
     });
     return NextResponse.json(payload);
   } catch (error) {

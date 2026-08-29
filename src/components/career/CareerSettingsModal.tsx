@@ -868,8 +868,8 @@ const CareerSettingsModal = ({
   const { onUpdateAccountProfile, preferredLocale, talentProfile, user } =
     useCareerProfileContext();
   const showReferralEntryPoints = useReferralEntryPointEligibility({
-    currentLocation: talentProfile.talentUser?.current_location,
     location: talentProfile.talentUser?.location,
+    currentLocation: talentProfile.talentUser?.current_location,
     preferredLocale,
     user,
   });
