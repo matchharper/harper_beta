@@ -7507,41 +7507,6 @@ export type Database = {
           },
         ]
       }
-      talent_integrations: {
-        Row: {
-          composio_connected_account_id: string
-          created_at: string
-          provider: string
-          status: string
-          talent_id: string
-          updated_at: string
-        }
-        Insert: {
-          composio_connected_account_id: string
-          created_at?: string
-          provider: string
-          status?: string
-          talent_id: string
-          updated_at?: string
-        }
-        Update: {
-          composio_connected_account_id?: string
-          created_at?: string
-          provider?: string
-          status?: string
-          talent_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "talent_integrations_talent_id_fkey"
-            columns: ["talent_id"]
-            isOneToOne: false
-            referencedRelation: "talent_users"
-            referencedColumns: ["user_id"]
-          },
-        ]
-      }
       talent_users: {
         Row: {
           bio: string | null

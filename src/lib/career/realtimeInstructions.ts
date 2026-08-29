@@ -31,6 +31,7 @@ import { fetchLatestTalentActivityEvent } from "@/lib/talentOnboarding/activityE
 import { OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE } from "@/lib/officialJobs";
 import { TALENT_TOOL_NAMES } from "@/lib/talentOnboarding/tools";
 import { shouldUseCareerRealtimeOnboarding } from "@/lib/career/realtimeCallScope";
+import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
 
 /**
  * Build realtime instructions from the shared Harper system prompt plus
@@ -170,6 +171,9 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     channel: "voice",
     currentInsightContent,
     currentPreferences,
+    gmailCapability: activeGmailIntegration
+      ? "connected_but_unavailable_this_turn"
+      : "not_connected",
     isOnboardingDone: !isOnboardingActiveForSession,
     officialJobSignupIntentPrompt: isOnboardingActiveForSession
       ? officialJobSignupIntentEvent?.summary

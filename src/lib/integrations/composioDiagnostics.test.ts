@@ -5,6 +5,7 @@ import {
   createComposioGmailConnectLink,
   executeComposioGmailFetchEmails,
   getIntegrationErrorDiagnostics,
+  listActiveComposioGmailAccounts,
 } from "./composio";
 
 function useTestEnv(t: TestContext) {
@@ -197,11 +198,51 @@ test("successful connection requests preserve the localhost callback", async (t)
         user_id: "talent-a",
       });
       return Response.json(
-        { redirect_url: "https://connect.example.test/session" },
+        {
+          connected_account_id: "ca_test",
+          redirect_url: "https://connect.composio.dev/session",
+        },
         { status: 201 }
       );
     }
   );
   const result = await createComposioGmailConnectLink(connectArgs);
-  assert.equal(result.redirectUrl, "https://connect.example.test/session");
+  assert.equal(result.redirectUrl, "https://connect.composio.dev/session");
+});
+
+test("Gmail account discovery is scoped to the authenticated Composio user", async (t) => {
+  useTestEnv(t);
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
+    const url = new URL(String(input));
+    assert.equal(url.pathname, "/api/v3.1/connected_accounts");
+    assert.equal(url.searchParams.get("user_ids"), "talent-a");
+    assert.equal(url.searchParams.get("toolkit_slugs"), "gmail");
+    assert.equal(url.searchParams.get("auth_config_ids"), "ac_gmail_test");
+    assert.equal(url.searchParams.get("statuses"), "ACTIVE");
+    return Response.json({
+      items: [
+        {
+          id: "ca_test",
+          user_id: "talent-a",
+          toolkit: { slug: "gmail" },
+          auth_config: { id: "ac_gmail_test" },
+          status: "ACTIVE",
+          credentials: { refresh_token: "must-not-escape" },
+        },
+      ],
+    });
+  });
+
+  const accounts = await listActiveComposioGmailAccounts("talent-a");
+  assert.deepEqual(accounts, [
+    {
+      id: "ca_test",
+      user_id: "talent-a",
+      toolkit: { slug: "gmail" },
+      auth_config: { id: "ac_gmail_test", is_disabled: undefined },
+      status: "ACTIVE",
+      is_disabled: undefined,
+    },
+  ]);
+  assert.equal(JSON.stringify(accounts).includes("must-not-escape"), false);
 });

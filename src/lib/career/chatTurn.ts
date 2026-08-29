@@ -645,6 +645,7 @@ export async function runCareerChatTurn(
     activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
     allowedToolNames: args.allowedToolNames,
     channel: requestChannel,
+    hasActiveGmailIntegration: Boolean(activeGmailIntegration),
     isOnboardingDone: !isOnboardingActiveForTurn,
     responseLocale,
   });
@@ -696,6 +697,7 @@ export async function runCareerChatTurn(
       ),
       currentInsightContent,
       currentPreferences,
+      gmailCapability,
       isOnboardingDone: !isOnboardingActiveForTurn,
       officialJobSignupIntentPrompt: isOnboardingActiveForTurn
         ? officialJobSignupIntentEvent?.summary

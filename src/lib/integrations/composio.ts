@@ -2,13 +2,20 @@
 const COMPOSIO_API_BASE_URL = "https://backend.composio.dev/api/v3.1";
 const COMPOSIO_REQUEST_TIMEOUT_MS = 20_000;
 
+export const COMPOSIO_GMAIL_TOOLKIT_SLUG = "gmail";
+export const COMPOSIO_GMAIL_TOOL_VERSION = "20260817_00";
+
 export type ComposioConnectedAccount = {
-  id?: string;
-  user_id?: string;
-  auth_config?: { id?: string; is_disabled?: boolean };
-  toolkit?: { slug?: string };
-  status?: string;
-  is_disabled?: boolean;
+  id?: string | null;
+  user_id?: string | null;
+  auth_config?: { id?: string | null; is_disabled?: boolean | null } | null;
+  toolkit?: { slug?: string | null } | null;
+  status?: string | null;
+  is_disabled?: boolean | null;
+};
+
+type ComposioConnectedAccountList = {
+  items?: ComposioConnectedAccount[] | null;
 };
 
 export type ComposioToolExecution<T> = {
@@ -21,6 +28,9 @@ type ErrorDetails = {
   code?: string | number;
   slug?: string;
   requestId?: string;
+  providerMessage?: string;
+  suggestedFix?: string;
+  causeCode?: string;
 };
 
 export class ComposioApiError extends Error {
@@ -89,6 +99,7 @@ export function getIntegrationErrorDiagnostics(error: unknown) {
   }
   return {
     name: error.name,
+    message: safeErrorText(error.message) ?? "Unknown integration error",
     status: error.status,
     code:
       typeof error.details.code === "number"
@@ -96,6 +107,9 @@ export function getIntegrationErrorDiagnostics(error: unknown) {
         : safeErrorText(error.details.code),
     slug: safeErrorText(error.details.slug),
     requestId: safeErrorText(error.details.requestId),
+    providerMessage: safeErrorText(error.details.providerMessage),
+    suggestedFix: safeErrorText(error.details.suggestedFix),
+    causeCode: safeErrorText(error.details.causeCode),
   };
 }
 
@@ -132,6 +146,9 @@ export function createComposioClient(
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         const detail = payload?.error;
+        const includeConnectionDiagnostics = path.startsWith(
+          "/connected_accounts"
+        );
         throw new ComposioApiError(
           `Composio request failed with status ${response.status}`,
           response.status,
@@ -142,6 +159,12 @@ export function createComposioClient(
                 : safeErrorText(detail?.code),
             slug: safeErrorText(detail?.slug),
             requestId: safeErrorText(detail?.request_id),
+            ...(includeConnectionDiagnostics
+              ? {
+                  providerMessage: safeErrorText(detail?.message),
+                  suggestedFix: safeErrorText(detail?.suggested_fix),
+                }
+              : {}),
           }
         );
       }
@@ -154,7 +177,14 @@ export function createComposioClient(
       if (controller.signal.aborted) {
         throw new ComposioApiError("Composio request timed out", 504);
       }
-      throw new ComposioApiError("Composio request failed", 502);
+      const cause = error instanceof Error ? error.cause : null;
+      const causeCode =
+        cause && typeof cause === "object" && "code" in cause
+          ? safeErrorText(cause.code)
+          : undefined;
+      throw new ComposioApiError("Composio request failed", 502, {
+        causeCode,
+      });
     } finally {
       clearTimeout(timeout);
     }
@@ -165,6 +195,22 @@ export function createComposioClient(
       throw new ComposioApiError("Invalid connected account ID", 400);
     }
     return `/connected_accounts/${encodeURIComponent(accountId)}`;
+  }
+
+  function sanitizeAccount(
+    account: ComposioConnectedAccount
+  ): ComposioConnectedAccount {
+    return {
+      id: account.id,
+      user_id: account.user_id,
+      toolkit: { slug: account.toolkit?.slug },
+      auth_config: {
+        id: account.auth_config?.id,
+        is_disabled: account.auth_config?.is_disabled,
+      },
+      status: account.status,
+      is_disabled: account.is_disabled,
+    };
   }
 
   return {
@@ -221,17 +267,28 @@ export function createComposioClient(
       }
       // The full vendor object can contain OAuth state/credentials. Retain
       // only metadata used for ownership and lifecycle checks.
-      return {
-        id: account.id,
-        user_id: account.user_id,
-        toolkit: { slug: account.toolkit?.slug },
-        auth_config: {
-          id: account.auth_config?.id,
-          is_disabled: account.auth_config?.is_disabled,
-        },
-        status: account.status,
-        is_disabled: account.is_disabled,
-      };
+      return sanitizeAccount(account);
+    },
+    async listAccounts(filters: {
+      authConfigId: string;
+      limit?: number;
+      status?: string;
+      toolkitSlug: string;
+      userId: string;
+    }): Promise<ComposioConnectedAccount[]> {
+      const params = new URLSearchParams({
+        auth_config_ids: filters.authConfigId,
+        limit: String(Math.min(100, Math.max(1, filters.limit ?? 10))),
+        statuses: filters.status ?? "ACTIVE",
+        toolkit_slugs: filters.toolkitSlug,
+        user_ids: filters.userId,
+      });
+      const response = await request<ComposioConnectedAccountList>(
+        `/connected_accounts?${params.toString()}`
+      );
+      return Array.isArray(response.items)
+        ? response.items.map(sanitizeAccount)
+        : [];
     },
     async revokeAccount(accountId: string) {
       const result = await request<{
@@ -297,4 +354,89 @@ export function createComposioClient(
   };
 }
 
-export type ComposioClient = ReturnType<typeof createComposioClient>;
+// Product services depend only on the shared connection/tool lifecycle surface.
+// Gmail account discovery stays an adapter detail so existing service fakes do
+// not need to implement a provider-specific listing method.
+export type ComposioClient = Omit<
+  ReturnType<typeof createComposioClient>,
+  "listAccounts"
+>;
+
+export function getComposioGmailAuthConfigId() {
+  return readComposioEnv("COMPOSIO_GMAIL_AUTH_CONFIG_ID");
+}
+
+export async function createComposioGmailConnectLink(args: {
+  callbackUrl: string;
+  userId: string;
+}) {
+  const result = await createComposioClient().createLink({
+    authConfigId: getComposioGmailAuthConfigId(),
+    callbackUrl: args.callbackUrl,
+    userId: args.userId,
+  });
+  return {
+    connectedAccountId: result.accountId,
+    expiresAt: null,
+    redirectUrl: result.authorizeUrl,
+  };
+}
+
+export async function listActiveComposioGmailAccounts(userId: string) {
+  return createComposioClient().listAccounts({
+    authConfigId: getComposioGmailAuthConfigId(),
+    status: "ACTIVE",
+    toolkitSlug: COMPOSIO_GMAIL_TOOLKIT_SLUG,
+    userId,
+  });
+}
+
+export async function getComposioConnectedAccount(
+  connectedAccountId: string
+) {
+  return createComposioClient().getAccount(connectedAccountId);
+}
+
+export function isOwnedComposioGmailAccount(
+  account: ComposioConnectedAccount,
+  userId: string
+) {
+  return (
+    account.user_id === userId &&
+    account.toolkit?.slug?.toLowerCase() === COMPOSIO_GMAIL_TOOLKIT_SLUG &&
+    account.auth_config?.id === getComposioGmailAuthConfigId()
+  );
+}
+
+export function getComposioAccountStatus(account: ComposioConnectedAccount) {
+  if (account.is_disabled === true) return "INACTIVE";
+  return String(account.status ?? "")
+    .trim()
+    .toUpperCase();
+}
+
+export async function executeComposioGmailFetchEmails(args: {
+  arguments: Record<string, unknown>;
+  connectedAccountId: string;
+  userId: string;
+}) {
+  return createComposioClient().executeTool<Record<string, unknown>>({
+    accountId: args.connectedAccountId,
+    arguments: args.arguments,
+    slug: "GMAIL_FETCH_EMAILS",
+    userId: args.userId,
+    version: COMPOSIO_GMAIL_TOOL_VERSION,
+  });
+}
+
+export async function revokeComposioConnectedAccount(
+  connectedAccountId: string
+) {
+  await createComposioClient().revokeAccount(connectedAccountId);
+}
+
+export async function deleteComposioConnectedAccount(
+  connectedAccountId: string
+) {
+  await createComposioClient().deleteAccount(connectedAccountId);
+}

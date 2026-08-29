@@ -1,14 +1,32 @@
 import assert from "node:assert/strict";
-<<<<<<< HEAD
-import test from "node:test";
-
+import test, { after, before } from "node:test";
 import {
+  ComposioApiError,
+  createComposioClient,
   getComposioAccountStatus,
+  getIntegrationErrorDiagnostics,
   isOwnedComposioGmailAccount,
 } from "./composio";
 
-test("requires exact Gmail user and auth config ownership", () => {
+const priorKey = process.env.COMPOSIO_API_KEY;
+before(() => {
+  process.env.COMPOSIO_API_KEY = "test-project-key-never-log";
+});
+after(() => {
+  if (priorKey === undefined) delete process.env.COMPOSIO_API_KEY;
+  else process.env.COMPOSIO_API_KEY = priorKey;
+});
+
+test("requires exact Gmail user and auth config ownership", (t) => {
+  const priorAuthConfig = process.env.COMPOSIO_GMAIL_AUTH_CONFIG_ID;
   process.env.COMPOSIO_GMAIL_AUTH_CONFIG_ID = "ac_gmail_test";
+  t.after(() => {
+    if (priorAuthConfig === undefined) {
+      delete process.env.COMPOSIO_GMAIL_AUTH_CONFIG_ID;
+    } else {
+      process.env.COMPOSIO_GMAIL_AUTH_CONFIG_ID = priorAuthConfig;
+    }
+  });
   const account = {
     auth_config: { id: "ac_gmail_test" },
     id: "ca_test",
@@ -41,21 +59,6 @@ test("treats a disabled Composio account as inactive", () => {
     "INACTIVE"
   );
   assert.equal(getComposioAccountStatus({ status: "expired" }), "EXPIRED");
-=======
-import test, { after, before } from "node:test";
-import {
-  ComposioApiError,
-  createComposioClient,
-  getIntegrationErrorDiagnostics,
-} from "./composio";
-
-const priorKey = process.env.COMPOSIO_API_KEY;
-before(() => {
-  process.env.COMPOSIO_API_KEY = "test-project-key-never-log";
-});
-after(() => {
-  if (priorKey === undefined) delete process.env.COMPOSIO_API_KEY;
-  else process.env.COMPOSIO_API_KEY = priorKey;
 });
 
 test("creates a private connection using the server's user and auth config, not an event tool", async () => {
@@ -113,7 +116,7 @@ test("rejects untrusted redirect destinations and missing connection IDs", async
   }
 });
 
-test("retains safe vendor error diagnostics but never credentials or raw account data", async () => {
+test("retains sanitized connection diagnostics but never credentials or raw account data", async () => {
   const client = createComposioClient({
     fetch: async () =>
       Response.json(
@@ -137,9 +140,11 @@ test("retains safe vendor error diagnostics but never credentials or raw account
     const diagnostics = getIntegrationErrorDiagnostics(error);
     assert.equal("code" in diagnostics && diagnostics.code, 812);
     assert.match(JSON.stringify(diagnostics), /request-test/);
-    assert.equal("message" in diagnostics, false);
-    assert.equal("providerMessage" in diagnostics, false);
-    assert.equal("suggestedFix" in diagnostics, false);
+    assert.equal(
+      diagnostics.suggestedFix,
+      "Grant connected_accounts write access"
+    );
+    assert.match(diagnostics.providerMessage ?? "", /\[redacted\]/);
     assert.doesNotMatch(
       JSON.stringify(diagnostics),
       /test-project-key-never-log|oauth-secret|alice@example.com|secret.test|raw-credential/
@@ -297,5 +302,4 @@ test("executes a pinned tool for the verified connected account without exposing
       return true;
     }
   );
->>>>>>> f818f651e7a7d2aa65c327a9dabc5282d0c7a838
 });

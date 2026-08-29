@@ -45,6 +45,8 @@ import {
   OFFICIAL_JOBS_QUERY_STALE_TIME_MS,
   officialJobsQueryKey,
 } from "@/hooks/officialJobs/useOfficialJobs";
+import { fetchWithInternalAuth } from "@/lib/internalApiClient";
+import { notifyGmailIntegrationChanged } from "@/hooks/career/useGmailIntegration";
 
 const DELIVERY_EMAIL_HISTORY_LINK_ENTRY_PARAM = "entryPoint";
 const DELIVERY_EMAIL_HISTORY_LINK_ENTRY_VALUE = "delivery_email_history_link";
