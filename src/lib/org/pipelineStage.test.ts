@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  compactOrgProgressMetadata,
   getOrgAgentPipelineBucket,
+  humanizeOrgCandidateActivity,
+  humanizeOrgCandidateRequestKind,
   humanizeOrgFeedback,
   humanizeOrgProgressKind,
   humanizeOrgRoleStatus,
@@ -19,7 +22,52 @@ test("company-side labels never expose common database enums", () => {
   assert.equal(humanizeOrgWorkMode("remote"), "원격 근무");
   assert.equal(humanizeOrgFeedback("positive"), "긍정 평가");
   assert.equal(humanizeOrgProgressKind("org_stage_change"), "채용 단계 변경");
+  assert.equal(
+    humanizeOrgProgressKind("org_candidate_activity"),
+    "후보자 진행"
+  );
+  assert.equal(
+    humanizeOrgCandidateActivity("candidate_response_received"),
+    "후보자 답변 수신"
+  );
+  assert.equal(humanizeOrgCandidateActivity("meeting_confirmed"), "미팅 확정");
+  assert.equal(humanizeOrgCandidateRequestKind("resume"), "이력서 요청");
   assert.equal(humanizeOrgStage("custom:123", "기술 인터뷰"), "기술 인터뷰");
+});
+
+test("candidate progress metadata keeps review details without exposing raw enums or IDs", () => {
+  assert.deepEqual(
+    compactOrgProgressMetadata({
+      contactQueueId: "queue-1",
+      eventType: "candidate_response_received",
+      requestContext: "현재 합류 가능 시점을 알려 주세요.",
+      requestKind: "question",
+      sourceId: "request-1",
+    }),
+    {
+      activity: "후보자 답변 수신",
+      requestContext: "현재 합류 가능 시점을 알려 주세요.",
+      requestType: "질문",
+    }
+  );
+  assert.deepEqual(
+    compactOrgProgressMetadata({
+      durationMinutes: 30,
+      eventType: "meeting_confirmed",
+      scheduledAt: "2026-08-31T01:00:00Z",
+      scheduledEndAt: "2026-08-31T01:30:00Z",
+      timezone: "Asia/Seoul",
+      title: "1차 인터뷰",
+    }),
+    {
+      activity: "미팅 확정",
+      durationMinutes: 30,
+      scheduledAt: "2026-08-31T01:00:00Z",
+      scheduledEndAt: "2026-08-31T01:30:00Z",
+      timezone: "Asia/Seoul",
+      title: "1차 인터뷰",
+    }
+  );
 });
 
 test("company-side pipeline summary uses the three documented buckets", () => {

@@ -1,5 +1,9 @@
 # Harper Repository Instructions
 
+## Production deployment
+
+- Pushing the intended release commit to `origin/main` automatically triggers the production Vercel deployment. For the ordinary production path, do not run a separate manual Vercel deploy; verify the Git-triggered deployment and released commit after the push.
+
 ## Domain terminology
 
 - The LLM that responds to companies in `/org` and Slack is called the
@@ -29,6 +33,20 @@
 - Validate the generalized behavior with cases beyond the example when tests or
   verification are part of the task.
 - Agent-system data must accommodate diverse inputs an LLM may generate; avoid overly restrictive database constraints that reject otherwise valid variations.
+
+## Prompt and context design
+
+- Treat a prompt as a general decision and writing contract, not a collection of answers for the current fixture, entity, role, interview type, or E2E scenario. Define the agent's role, goal, observable success criteria, evidence hierarchy, tool policy, output responsibility, and stop conditions. Examples illustrate judgment only; never make their names, values, length, paragraph count, or wording the rule.
+- Prefer positive outcome criteria over accumulating prohibitions or exact phrases. Describe what the user must understand after the answer: how their latest message was interpreted and applied, what actually changed, what Harper will do next, what has not happened yet, and whether the user has a concrete next action. Let the LLM choose natural wording and proportional length for the current conversation.
+- Apply context minimization before prompt instructions. If the final-writing LLM must not expose an internal value, do not provide that raw value and then tell it not to mention it. Omit unnecessary implementation data entirely; when a fact is needed, transform internal IDs, enums, booleans, queue states, tool names, and provider diagnostics into the smallest user-safe semantic fact before it enters the final-generation context.
+- Keep code and prompt responsibilities separate. Code owns authorization, state transitions, verified facts, exact user-authored content, and required links. The LLM owns the surrounding explanation and conversational judgment. On successful actions, do not replace the whole LLM response with a deterministic success narrative. Deterministic text may be appended only for exact content or verified links that must not be changed. Server-authoritative failure and uncertainty boundaries may still override unsupported success claims.
+- Tool descriptions define when a tool is appropriate, required inputs, effects, and continuation rules. They must not carry final-answer templates, hidden implementation vocabulary, or wording instructions that belong to the final-writing contract. Tool results for final generation should contain user-safe facts that are sufficient to write an accurate answer, including timing and incomplete states when they materially affect the experience.
+
+## Conversational E2E quality
+
+- A Slack, web-chat, demo, or E2E run is not successful merely because tools completed, data changed, or no exception occurred. Read the exact user-visible response in its full conversation and evaluate whether a capable first-time user can understand how their latest message was applied, what happened, what Harper will do next, what has not happened yet, and what they can do now.
+- Reject an E2E result before handoff when the response is a mechanical receipt, loses the latest user context, exposes implementation vocabulary, overfits a fixture, repeats confirmation without a real decision, makes an unsupported delivery or Calendar claim, omits an important next step, or has an obviously poor tone. Fix the underlying prompt, context, data, or control-flow cause and rerun the scenario; do not report the run as satisfactory first and wait for the user to identify the UX defect.
+- When a task explicitly asks for direct Slack or browser testing, inspect the rendered message and interaction experience as product output. Record the exact fixture scope and state transitions for safety, but judge completion primarily from the user's experience rather than logs alone.
 
 ## Career translations
 

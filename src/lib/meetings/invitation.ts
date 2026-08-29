@@ -23,20 +23,34 @@ export function buildMeetingInvitationFallback(args: {
   candidateName: string;
   companyName: string;
   durationMinutes: number;
+  invitationKind?: "first_company_conversation" | "process_stage";
   locale: "en" | "ko";
+  meetingPurpose?: string;
   organizerName: string;
+  processStageName?: string | null;
   roleName: string;
 }): MeetingInvitationEmailDraft {
+  const meetingPurpose =
+    args.meetingPurpose?.trim() || "서로의 기대와 경험을 편하게 나누는 첫 대화";
+  const isFirstCompanyConversation =
+    args.invitationKind !== "process_stage";
+  const processStageName = args.processStageName?.trim() || "다음 단계";
   if (args.locale === "ko") {
     return {
       body: [
-        `안녕하세요 ${args.candidateName}님, 좋은 소식이 있어요.`,
-        `앞서 연결 의사를 확인했던 ${args.companyName}의 ${args.roleName} 역할과 관련해 ${args.organizerName}님이 직접 이야기를 나누고 싶어 하셔서 첫 미팅을 연결해드리려고 해요.`,
-        `첫 만남은 Google Meet으로 진행할 예정이고, ${args.durationMinutes}분 정도 여유 있게 잡아둘게요. 아래 링크에서 가능한 시간을 선택해 주세요. 원활한 일정 조율을 위해 가능하면 2~3개의 선택지를 보내주시면 감사하겠습니다.`,
+        isFirstCompanyConversation
+          ? `안녕하세요 ${args.candidateName}님, 좋은 소식이 있어요.`
+          : `안녕하세요 ${args.candidateName}님, ${args.companyName}의 ${args.roleName} 역할과 관련해 다음 대화를 준비하고 있어요.`,
+        isFirstCompanyConversation
+          ? `이전에 연결 의사를 전해주셨던 ${args.companyName}의 ${args.roleName} 역할과 관련해 ${args.organizerName}님이 전달드린 정보를 확인하고 직접 이야기 나누고 싶다는 뜻을 전해주셨어요.`
+          : `${processStageName} 단계에서는 ${meetingPurpose}를 주제로 ${args.durationMinutes}분 정도 이야기 나누고 싶다고 해요.`,
+        isFirstCompanyConversation
+          ? `첫 미팅은 ${meetingPurpose}를 주제로 ${args.durationMinutes}분 정도 진행하고 싶다고 해요. 회사에서 가능한 시간을 공유해주셔서, 바로 만나보실 수 있게 아래 링크에서 편한 시간을 선택해주시면 Google Meet으로 초대해드릴게요. 가능하면 2~3개의 선택지를 보내주시면 일정 조율에 도움이 됩니다.`
+          : `회사에서 가능한 시간을 공유해주셔서, 아래 링크에서 편한 시간 2~3개를 선택해주시면 Google Meet으로 초대해드릴게요.`,
         args.candidateMessage,
         MEETING_INVITATION_LINK_MARKER,
         "제출하신 시간 중 하나가 자동으로 확정되며, 이후 Google Meet 링크와 Calendar 초대를 보내드릴게요.",
-        "좋은 연결이 되길 바라겠습니다 :)",
+        "이번 대화가 서로에게 좋은 기회가 되길 바라요.",
         "감사합니다.\nHarper",
       ]
         .filter(Boolean)
@@ -48,9 +62,15 @@ export function buildMeetingInvitationFallback(args: {
   }
   return {
     body: [
-      `Hi ${args.candidateName}, I have some good news.`,
-      `Following your earlier interest in the ${args.roleName} role at ${args.companyName}, ${args.organizerName} would like to speak with you, and Harper would be glad to coordinate an initial meeting.`,
-      `The first conversation will be held over Google Meet, and we will allow ${args.durationMinutes} minutes so there is plenty of time. Please choose the times that work for you using the link below. If possible, sharing two or three options will make coordination easier.`,
+      isFirstCompanyConversation
+        ? `Hi ${args.candidateName}, I have some good news.`
+        : `Hi ${args.candidateName}, we are preparing the next conversation for the ${args.roleName} role at ${args.companyName}.`,
+      isFirstCompanyConversation
+        ? `Following your earlier interest in the ${args.roleName} role at ${args.companyName}, ${args.organizerName} reviewed the information you shared and would like to meet you.`
+        : `For the ${processStageName} stage, the team would like to spend about ${args.durationMinutes} minutes discussing ${meetingPurpose}.`,
+      isFirstCompanyConversation
+        ? `They would like to spend about ${args.durationMinutes} minutes discussing ${meetingPurpose}. The company has shared its availability; choose the times that work for you using the link below and Harper will send a Google Meet invitation. If possible, sharing two or three options will make coordination easier.`
+        : `The company has shared its availability; choose two or three times that work for you using the link below and Harper will send a Google Meet invitation.`,
       args.candidateMessage,
       MEETING_INVITATION_LINK_MARKER,
       "One of the times you submit will be confirmed automatically. We will then send the Google Meet link and calendar invitation.",

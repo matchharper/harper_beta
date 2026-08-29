@@ -513,7 +513,7 @@ begin
   ) values (
     v_schedule.talent_id,
     'meeting_schedule_candidate_invitation',
-    timezone('utc', now()),
+    timezone('utc', now()) + interval '20 minutes',
     'queued',
     p_queue_payload,
     v_schedule.recommendation_id,

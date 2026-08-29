@@ -12,6 +12,7 @@ import {
 } from "@/components/org/OrgCandidateDecisionDialogs";
 import {
   getOrgCandidateDisplayName,
+  formatOrgUpcomingMeetingTime,
   OrgCandidateStageMenu,
 } from "@/components/org/OrgCandidateCard";
 import { CardButton, MuteButton } from "@/components/ui/button";
@@ -21,6 +22,7 @@ import {
   useOrgJobsCandidateActions,
   useOrgJobsNavigation,
 } from "@/hooks/org/useOrgJobs";
+import { useCreateOrgReviewStage } from "@/hooks/org/useOrg";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import {
   getDisplayableCompanyLogoUrl,
@@ -309,6 +311,13 @@ export function OrgRoleTalentBoardCard({
 
         <TalentExperienceList item={item} />
 
+        {item.upcomingMeeting ? (
+          <div className="-mx-4 -mb-4 mt-5 bg-positive px-4 py-1.5 text-[12px] font-medium text-neutral-00 sm:-mx-5 sm:-mb-5 sm:px-5">
+            {formatOrgUpcomingMeetingTime(item.upcomingMeeting.startAt)}{" "}
+            Interview 예정
+          </div>
+        ) : null}
+
         {showDecisionActions ? (
           <div className="pointer-events-auto mt-6 grid grid-cols-[108px_minmax(0,1fr)] gap-2">
             <MuteButton
@@ -343,7 +352,7 @@ export function OrgRoleTalentBoard({
 }) {
   const { board, boardQuery } = useOrgJobsBoard();
   const { changeStage, isCandidateStagePending } = useOrgJobsCandidateActions();
-  const { activeRole, selectTalent } = useOrgJobsNavigation();
+  const { activeRole, selectTalent, workspaceId } = useOrgJobsNavigation();
   const {
     bootstrap,
     currentUser,
@@ -352,6 +361,7 @@ export function OrgRoleTalentBoard({
     permissions,
   } = useOrgWorkspace();
   const members = bootstrap.members;
+  const createCustomStage = useCreateOrgReviewStage();
   const [activeStageId, setActiveStageId] = useState("");
   const [acceptRequest, setAcceptRequest] = useState<{
     item: OrgBoardItem;
@@ -477,15 +487,6 @@ export function OrgRoleTalentBoard({
       <AcceptIntroDialog
         key={acceptRequest?.item.recommendationId ?? "accept-dialog"}
         allowContactDirectly={isInternalDomainEmail(currentUserEmail)}
-        availabilityReturnTarget={
-          acceptRequest
-            ? {
-                recommendationId: acceptRequest.item.recommendationId,
-                roleId: acceptRequest.item.roleId,
-                talentId: acceptRequest.item.talentId,
-              }
-            : null
-        }
         candidateEmail={acceptRequest?.item.talent.email}
         candidateName={
           acceptRequest ? getOrgCandidateDisplayName(acceptRequest.item) : ""
@@ -503,32 +504,49 @@ export function OrgRoleTalentBoard({
           contactDirectly,
           durationMinutes,
           introEmails,
+          meetingCandidateMessage,
+          meetingPurpose,
+          processStageLabel,
           scheduleInterview,
           title,
         }) => {
           if (!acceptRequest) return;
-          const result = await changeStage(
-            acceptRequest.item,
-            acceptRequest.stage,
-            {
-              acceptReason,
-              additionalMessage,
-              additionalMessageVisibility,
-              attendeeEmails,
-              contactDirectly,
-              durationMinutes,
-              introEmails,
-              scheduleInterview,
-              title,
-            }
-          );
+          const stage =
+            acceptRequest.item.stage === "pending_connection" &&
+            acceptRequest.stage === "connected"
+              ? (
+                  await createCustomStage.mutateAsync({
+                    label: processStageLabel ?? "",
+                    roleId: acceptRequest.item.roleId,
+                    workspaceId,
+                  })
+                ).stage.stage
+              : acceptRequest.stage;
+          const result = await changeStage(acceptRequest.item, stage, {
+            acceptReason,
+            additionalMessage,
+            additionalMessageVisibility,
+            attendeeEmails,
+            contactDirectly,
+            durationMinutes,
+            introEmails,
+            meetingCandidateMessage,
+            meetingPurpose,
+            scheduleInterview,
+            title,
+          });
           setAcceptRequest(null);
           return result;
         }}
         open={Boolean(acceptRequest)}
         pending={Boolean(
-          acceptRequest && isCandidateStagePending(acceptRequest.item)
+          createCustomStage.isPending ||
+          (acceptRequest && isCandidateStagePending(acceptRequest.item))
         )}
+        requiresProcessStage={
+          acceptRequest?.item.stage === "pending_connection" &&
+          acceptRequest.stage === "connected"
+        }
         roleTitle={acceptRequest?.item.roleName ?? ""}
       />
 

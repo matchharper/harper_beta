@@ -12,6 +12,8 @@ import {
   type MeetingScheduleListResponse,
   type MeetingScheduleAdditionalMessage,
   type MeetingScheduleAttendee,
+  type MeetingScheduleInvitationKind,
+  type MeetingScheduleStageProfile,
   normalizeInterviewDuration,
   resolveMeetingOrganizerEmail,
   resolveMeetingOrganizerName,
@@ -63,6 +65,93 @@ function normalizeAdditionalMessage(args: {
     sourceText,
     visibility: visibility as MeetingScheduleAdditionalMessage["visibility"],
   };
+}
+
+function normalizeMeetingPurpose(value: unknown) {
+  return clean(value).slice(0, 600);
+}
+
+function hasProvidedValue(value: unknown) {
+  return value !== undefined;
+}
+
+function combineCandidateMessages(
+  defaultMessage: string | null,
+  additionalMessage: MeetingScheduleAdditionalMessage | null
+) {
+  if (!defaultMessage) return additionalMessage;
+  if (!additionalMessage) {
+    return { sourceText: defaultMessage, visibility: "candidate" as const };
+  }
+  // A single round message has one visibility. Keep a saved candidate-facing
+  // process-stage note rather than combining it with a one-off internal instruction,
+  // which could otherwise expose the internal instruction in the invitation.
+  if (additionalMessage.visibility === "internal") {
+    return { sourceText: defaultMessage, visibility: "candidate" as const };
+  }
+  if (
+    additionalMessage.sourceText === defaultMessage ||
+    additionalMessage.sourceText
+      .split("\n")
+      .map((value) => value.trim())
+      .includes(defaultMessage)
+  ) {
+    return additionalMessage;
+  }
+  return {
+    sourceText: [defaultMessage, additionalMessage.sourceText]
+      .filter(Boolean)
+      .join("\n")
+      .slice(0, 2_000),
+    visibility: additionalMessage.visibility,
+  };
+}
+
+async function fetchStageMeetingDefaults(args: {
+  admin: OrgAgentAdminClient;
+  roleId: string;
+  stageId: string;
+}) {
+  const { data, error } = await (
+    args.admin.from("ops_matching_role_stages" as any) as any
+  )
+    .select(
+      "id, label, meeting_purpose, meeting_duration_minutes, meeting_candidate_message"
+    )
+    .eq("role_id", args.roleId)
+    .eq("id", args.stageId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const meetingPurpose = normalizeMeetingPurpose(data.meeting_purpose);
+  const durationMinutes = Number(data.meeting_duration_minutes);
+  if (!meetingPurpose || !Number.isSafeInteger(durationMinutes)) return null;
+  return {
+    candidateMessage:
+      clean(data.meeting_candidate_message).slice(0, 2_000) || null,
+    durationMinutes: normalizeDurationOrThrow(durationMinutes),
+    meetingPurpose,
+    stageId: clean(data.id),
+    stageName: clean(data.label) || "다음 단계",
+  };
+}
+
+export async function saveStageMeetingDefaults(args: {
+  admin: OrgAgentAdminClient;
+  meetingStage: MeetingScheduleStageProfile;
+  roleId: string;
+}) {
+  const { error } = await (
+    args.admin.from("ops_matching_role_stages" as any) as any
+  )
+    .update({
+      meeting_candidate_message: args.meetingStage.candidateMessage,
+      meeting_duration_minutes: args.meetingStage.durationMinutes,
+      meeting_purpose: args.meetingStage.meetingPurpose,
+    })
+    .eq("id", args.meetingStage.stageId)
+    .eq("role_id", args.roleId);
+  if (error) throw error;
 }
 
 async function resolveWorkspaceAttendees(args: {
@@ -156,6 +245,12 @@ export async function prepareMeetingScheduleDraft(args: {
   candidateName: string;
   companyName: string;
   durationMinutes?: unknown;
+  invitationKind?: MeetingScheduleInvitationKind;
+  meetingStage?: MeetingScheduleStageProfile | null;
+  meetingStageRequired?: boolean;
+  meetingPurpose?: unknown;
+  processStageId?: string | null;
+  processStageName?: string | null;
   title?: unknown;
   user: User;
   workspaceId: string;
@@ -173,19 +268,27 @@ export async function prepareMeetingScheduleDraft(args: {
   });
   const explicitTitle = clean(args.title);
   const durationMinutes = normalizeDurationOrThrow(args.durationMinutes);
+  const meetingPurpose = normalizeMeetingPurpose(args.meetingPurpose);
   const availability = availabilityResult.availability;
   return {
-    additionalMessage: normalizeAdditionalMessage({
-      sourceText: args.additionalMessage,
-      visibility: args.additionalMessageVisibility ?? "both",
-    }),
+    additionalMessage: combineCandidateMessages(
+      args.meetingStage?.candidateMessage ?? null,
+      normalizeAdditionalMessage({
+        sourceText: args.additionalMessage,
+        visibility: args.additionalMessageVisibility ?? "both",
+      })
+    ),
     availability,
     config: {
       companyAttendees: attendees,
       conferenceProvider: DEFAULT_MEETING_PROVIDER,
       durationMinutes,
+      invitationKind: args.invitationKind ?? "process_stage",
+      meetingPurpose,
       offerWindowDays: DEFAULT_MEETING_OFFER_WINDOW_DAYS,
       organizer,
+      processStageId: clean(args.processStageId) || null,
+      processStageName: clean(args.processStageName) || null,
       title:
         explicitTitle.slice(0, 200) ||
         buildDefaultInterviewTitle({
@@ -193,11 +296,15 @@ export async function prepareMeetingScheduleDraft(args: {
           companyName: args.companyName,
         }),
     },
-    draftBlocker: !organizer.email
-      ? "organizer_email_missing"
-      : availability
-        ? null
-        : "availability_missing",
+    draftBlocker:
+      args.meetingStageRequired || !meetingPurpose
+        ? "meeting_stage_missing"
+        : !organizer.email
+          ? "organizer_email_missing"
+          : availability
+            ? null
+            : "availability_missing",
+    meetingStage: args.meetingStage ?? null,
   };
 }
 
@@ -215,14 +322,17 @@ export async function createMeetingScheduleDraft(args: {
       400,
       args.draft.draftBlocker === "organizer_email_missing"
         ? "미팅에 참석할 회사 사용자의 이메일을 확인해 주세요. 후보자에게는 아직 연락하지 않았어요."
-        : "먼저 미팅 가능한 시간을 알려주세요. 후보자에게는 아직 연락하지 않았어요."
+        : args.draft.draftBlocker === "meeting_stage_missing"
+          ? "이 단계에서 나눌 주제와 시간을 먼저 알려주세요. 후보자에게는 아직 연락하지 않았어요."
+          : "먼저 미팅 가능한 시간을 알려주세요. 후보자에게는 아직 연락하지 않았어요."
     );
   }
   const { config } = args.draft;
   const idempotencyKey = [
-    "connection_schedule",
+    "stage_schedule",
     args.workspaceId,
     args.recommendationId,
+    config.processStageId ?? "legacy_connection",
   ].join(":");
   const { data, error } = await (args.admin.rpc as any)(
     "create_meeting_schedule_draft_v1",
@@ -257,13 +367,18 @@ export async function createMeetingScheduleDraft(args: {
   };
 }
 
-export async function prepareMeetingScheduleDraftForConnection(args: {
+export async function prepareMeetingScheduleDraftForStage(args: {
   additionalMessage?: unknown;
   additionalMessageVisibility?: unknown;
   attendeeEmails?: string[];
   durationMinutes?: unknown;
+  invitationKind?: MeetingScheduleInvitationKind;
+  meetingCandidateMessage?: unknown;
+  meetingPurpose?: unknown;
   recommendationId: string;
   roleId: string;
+  sourceStage?: string | null;
+  stageId: string;
   talentId: string;
   title?: unknown;
   user: User;
@@ -272,9 +387,10 @@ export async function prepareMeetingScheduleDraftForConnection(args: {
   const admin = getSupabaseAdmin();
   const workspaceId = clean(args.workspaceId);
   const roleId = clean(args.roleId);
+  const stageId = clean(args.stageId);
   const talentId = clean(args.talentId);
   const recommendationId = clean(args.recommendationId);
-  if (!workspaceId || !roleId || !talentId || !recommendationId) {
+  if (!workspaceId || !roleId || !stageId || !talentId || !recommendationId) {
     throw new OrgHttpError(400, "일정 요청 대상을 확인해 주세요.");
   }
 
@@ -285,33 +401,46 @@ export async function prepareMeetingScheduleDraftForConnection(args: {
     workspaceId,
   });
 
-  const [workspaceResult, roleResult, recommendationResult, candidateResult] =
-    await Promise.all([
-      (admin.from("company_workspace" as any) as any)
-        .select("company_workspace_id, company_name")
-        .eq("company_workspace_id", workspaceId)
-        .maybeSingle(),
-      (admin.from("company_roles" as any) as any)
-        .select("role_id, company_workspace_id")
-        .eq("role_id", roleId)
-        .eq("company_workspace_id", workspaceId)
-        .maybeSingle(),
-      (admin.from("talent_opportunity_recommendation" as any) as any)
-        .select("id")
-        .eq("id", recommendationId)
-        .eq("role_id", roleId)
-        .eq("talent_id", talentId)
-        .maybeSingle(),
-      (admin.from("talent_users" as any) as any)
-        .select("user_id, name")
-        .eq("user_id", talentId)
-        .maybeSingle(),
-    ]);
+  const [
+    workspaceResult,
+    roleResult,
+    recommendationResult,
+    candidateResult,
+    stageResult,
+  ] = await Promise.all([
+    (admin.from("company_workspace" as any) as any)
+      .select("company_workspace_id, company_name")
+      .eq("company_workspace_id", workspaceId)
+      .maybeSingle(),
+    (admin.from("company_roles" as any) as any)
+      .select("role_id, company_workspace_id")
+      .eq("role_id", roleId)
+      .eq("company_workspace_id", workspaceId)
+      .maybeSingle(),
+    (admin.from("talent_opportunity_recommendation" as any) as any)
+      .select("id")
+      .eq("id", recommendationId)
+      .eq("role_id", roleId)
+      .eq("talent_id", talentId)
+      .maybeSingle(),
+    (admin.from("talent_users" as any) as any)
+      .select("user_id, name")
+      .eq("user_id", talentId)
+      .maybeSingle(),
+    (admin.from("ops_matching_role_stages" as any) as any)
+      .select(
+        "id, label, meeting_purpose, meeting_duration_minutes, meeting_candidate_message"
+      )
+      .eq("id", stageId)
+      .eq("role_id", roleId)
+      .maybeSingle(),
+  ]);
   for (const result of [
     workspaceResult,
     roleResult,
     recommendationResult,
     candidateResult,
+    stageResult,
   ]) {
     if (result.error) throw result.error;
   }
@@ -323,6 +452,54 @@ export async function prepareMeetingScheduleDraftForConnection(args: {
   }
   if (!candidateResult.data) {
     throw new OrgHttpError(404, "후보자를 찾지 못했어요.");
+  }
+  if (!stageResult.data) {
+    throw new OrgHttpError(
+      400,
+      "일정을 잡을 프로세스 단계를 먼저 선택해 주세요."
+    );
+  }
+
+  const storedStage = await fetchStageMeetingDefaults({
+    admin,
+    roleId,
+    stageId,
+  });
+  const suppliedPurpose = normalizeMeetingPurpose(args.meetingPurpose);
+  const stageCandidateMessageProvided = hasProvidedValue(
+    args.meetingCandidateMessage
+  );
+  const suppliedCandidateMessage = stageCandidateMessageProvided
+    ? clean(args.meetingCandidateMessage).slice(0, 2_000) || null
+    : null;
+  const hasDurationOverride = hasProvidedValue(args.durationMinutes);
+  const needsMeetingStage =
+    !storedStage && (!suppliedPurpose || !hasDurationOverride);
+  const meetingStage = needsMeetingStage
+    ? null
+    : {
+        candidateMessage: stageCandidateMessageProvided
+          ? suppliedCandidateMessage
+          : storedStage?.candidateMessage ||
+            clean(stageResult.data.meeting_candidate_message).slice(0, 2_000) ||
+            null,
+        durationMinutes: hasDurationOverride
+          ? normalizeDurationOrThrow(args.durationMinutes)
+          : (storedStage?.durationMinutes ??
+            normalizeDurationOrThrow(args.durationMinutes)),
+        meetingPurpose: suppliedPurpose || storedStage?.meetingPurpose || "",
+        source:
+          storedStage &&
+          !suppliedPurpose &&
+          !hasDurationOverride &&
+          !stageCandidateMessageProvided
+            ? ("stage_default" as const)
+            : ("new" as const),
+        stageId,
+        stageName: clean(stageResult.data.label) || "다음 단계",
+      };
+  if (meetingStage?.source === "new") {
+    await saveStageMeetingDefaults({ admin, meetingStage, roleId });
   }
 
   const draft = await prepareMeetingScheduleDraft({
@@ -337,7 +514,17 @@ export async function prepareMeetingScheduleDraftForConnection(args: {
     attendeeEmails: args.attendeeEmails,
     candidateName: clean(candidateResult.data.name) || "Candidate",
     companyName: clean(workspaceResult.data.company_name) || "Company",
-    durationMinutes: args.durationMinutes,
+    durationMinutes: meetingStage?.durationMinutes ?? args.durationMinutes,
+    invitationKind:
+      args.invitationKind ??
+      (clean(args.sourceStage) === "pending_connection"
+        ? "first_company_conversation"
+        : "process_stage"),
+    meetingStage,
+    meetingStageRequired: needsMeetingStage,
+    meetingPurpose: meetingStage?.meetingPurpose,
+    processStageId: stageId,
+    processStageName: meetingStage?.stageName ?? clean(stageResult.data.label),
     title: args.title,
     user: args.user,
     workspaceId,
@@ -489,7 +676,7 @@ export async function fetchMeetingScheduleDetail(args: {
   const deliveryQueueId = clean(roundResult.data.delivery_queue_id);
   const deliveryResult = deliveryQueueId
     ? await (admin.from("contact_queue" as any) as any)
-        .select("id, status, sent_at, last_error")
+        .select("id, status, scheduled_at, sent_at, last_error")
         .eq("id", deliveryQueueId)
         .maybeSingle()
     : { data: null, error: null };
@@ -528,9 +715,17 @@ export async function fetchMeetingScheduleDetail(args: {
         companyAttendees: attendees.length > 0 ? attendees : [organizer],
         conferenceProvider: DEFAULT_MEETING_PROVIDER,
         durationMinutes: Number(schedule.duration_minutes),
+        invitationKind:
+          clean(snapshot.invitationKind) === "process_stage"
+            ? "process_stage"
+            : "first_company_conversation",
+        meetingPurpose:
+          normalizeMeetingPurpose(snapshot.meetingPurpose) || "첫 대화",
         offerWindowDays:
           Number(snapshot.offerWindowDays) || DEFAULT_MEETING_OFFER_WINDOW_DAYS,
         organizer,
+        processStageId: clean(snapshot.processStageId) || null,
+        processStageName: clean(snapshot.processStageName) || null,
         title: clean(schedule.title),
       },
       recommendationId: schedule.recommendation_id,
@@ -548,6 +743,7 @@ export async function fetchMeetingScheduleDetail(args: {
         delivery: deliveryResult.data
           ? {
               error: clean(deliveryResult.data.last_error) || null,
+              scheduledAt: clean(deliveryResult.data.scheduled_at) || null,
               sentAt: clean(deliveryResult.data.sent_at) || null,
               status: clean(deliveryResult.data.status),
             }
@@ -697,7 +893,9 @@ export async function updateMeetingScheduleDraft(args: {
   const { data: schedule, error: scheduleError } = await (
     admin.from("meeting_schedules" as any) as any
   )
-    .select("id, organizer_company_user_id, company_attendees, status")
+    .select(
+      "id, organizer_company_user_id, company_attendees, status, active_round_id"
+    )
     .eq("id", scheduleId)
     .eq("company_workspace_id", workspaceId)
     .maybeSingle();
@@ -709,6 +907,18 @@ export async function updateMeetingScheduleDraft(args: {
       "이미 후보자 요청 단계로 넘어간 일정은 이 화면에서 수정할 수 없어요."
     );
   }
+
+  const roundResult = schedule.active_round_id
+    ? await (admin.from("meeting_schedule_rounds" as any) as any)
+        .select("meeting_config_snapshot")
+        .eq("id", schedule.active_round_id)
+        .eq("schedule_id", schedule.id)
+        .maybeSingle()
+    : { data: null, error: null };
+  if (roundResult.error) throw roundResult.error;
+  const existingSnapshot = isRecord(roundResult.data?.meeting_config_snapshot)
+    ? roundResult.data.meeting_config_snapshot
+    : {};
 
   const storedOrganizer = parseStoredAttendees(schedule.company_attendees).find(
     (attendee) => attendee.companyUserId === schedule.organizer_company_user_id
@@ -744,8 +954,16 @@ export async function updateMeetingScheduleDraft(args: {
     companyAttendees: attendees,
     conferenceProvider: DEFAULT_MEETING_PROVIDER,
     durationMinutes,
+    invitationKind:
+      clean(existingSnapshot.invitationKind) === "process_stage"
+        ? "process_stage"
+        : "first_company_conversation",
+    meetingPurpose:
+      normalizeMeetingPurpose(existingSnapshot.meetingPurpose) || "첫 대화",
     offerWindowDays: DEFAULT_MEETING_OFFER_WINDOW_DAYS,
     organizer,
+    processStageId: clean(existingSnapshot.processStageId) || null,
+    processStageName: clean(existingSnapshot.processStageName) || null,
     title,
   };
   const { error } = await (admin.rpc as any)(

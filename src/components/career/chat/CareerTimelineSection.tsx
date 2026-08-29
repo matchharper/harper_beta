@@ -54,6 +54,7 @@ import { InlinePanel } from "@/components/ui/panel";
 import { cn } from "@/lib/utils";
 import CareerMessageBubble, {
   type CareerAssistantChoiceSelection,
+  type CareerReengagementActionSelection,
 } from "./CareerMessageBubble";
 import { useRouter } from "next/router";
 import React from "react";
@@ -243,6 +244,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
   isStartingCall,
   assistantChoiceActionsDisabled,
   onSelectAssistantChoice,
+  onSelectReengagementAction,
 }: {
   messages: CareerMessage[];
   assistantTyping: boolean;
@@ -251,6 +253,9 @@ const TimelineMessageList = memo(function TimelineMessageList({
   assistantChoiceActionsDisabled: boolean;
   onSelectAssistantChoice?: (
     selection: CareerAssistantChoiceSelection
+  ) => void | Promise<void>;
+  onSelectReengagementAction?: (
+    selection: CareerReengagementActionSelection
   ) => void | Promise<void>;
   onRegenerateOnboardingWrapup?: () => void | Promise<void>;
   onCancelActiveRecommendationSearch?: () => void;
@@ -370,6 +375,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
                   choiceActionsDisabled={disableAssistantChoiceActions}
                   isCallStartPending={isStartingCall}
                   onSelectAssistantChoice={onSelectAssistantChoice}
+                  onSelectReengagementAction={onSelectReengagementAction}
                   onStartCallMode={
                     onStartCallMode
                       ? (openingText) => {
@@ -394,6 +400,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
                     choiceActionsDisabled={disableAssistantChoiceActions}
                     isCallStartPending={isStartingCall}
                     onSelectAssistantChoice={onSelectAssistantChoice}
+                    onSelectReengagementAction={onSelectReengagementAction}
                     onStartCallMode={
                       onStartCallMode
                         ? (openingText) => {
@@ -421,6 +428,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
                   choiceActionsDisabled={disableAssistantChoiceActions}
                   isCallStartPending={isStartingCall}
                   onSelectAssistantChoice={onSelectAssistantChoice}
+                  onSelectReengagementAction={onSelectReengagementAction}
                   onStartCallMode={
                     onStartCallMode
                       ? (openingText) => {
@@ -480,7 +488,15 @@ const TimelineMessageList = memo(function TimelineMessageList({
   );
 });
 
-const CareerTimelineSection = () => {
+type CareerTimelineSectionProps = {
+  onOpenPendingAction?: (ref: string) => void | Promise<void>;
+  pendingActionActivationPending?: boolean;
+};
+
+const CareerTimelineSection = ({
+  onOpenPendingAction,
+  pendingActionActivationPending = false,
+}: CareerTimelineSectionProps) => {
   const t = useCareerT();
 
   const router = useRouter();
@@ -587,6 +603,7 @@ const CareerTimelineSection = () => {
     onboardingPausePending ||
     profilePending ||
     sessionPending ||
+    pendingActionActivationPending ||
     inputMode === "call";
   const showSessionReengagementPending =
     sessionReengagementPending &&
@@ -881,6 +898,42 @@ const CareerTimelineSection = () => {
     [assistantChoiceActionsDisabled, logCareerEvent, onSendChatMessage]
   );
 
+  const handleSelectReengagementAction = useCallback(
+    async (selection: CareerReengagementActionSelection) => {
+      if (assistantChoiceActionsDisabled) return;
+
+      logCareerEvent("click_chat_reengagement_action", {
+        actionCount: selection.actionCount,
+        actionIndex: selection.actionIndex,
+        actionType: selection.action.action.type,
+        assistantMessageId: selection.assistantMessageId,
+        label: selection.action.label,
+      });
+
+      if (selection.action.action.type === "open_path") {
+        await router.push(selection.action.action.path);
+        return;
+      }
+
+      if (selection.action.action.type === "open_pending_action") {
+        await onOpenPendingAction?.(selection.action.action.ref);
+        return;
+      }
+
+      await onSendChatMessage({
+        channel: "chat",
+        text: selection.action.action.message,
+      });
+    },
+    [
+      assistantChoiceActionsDisabled,
+      logCareerEvent,
+      onOpenPendingAction,
+      onSendChatMessage,
+      router,
+    ]
+  );
+
   if (!user) {
     return (
       <div
@@ -1042,6 +1095,7 @@ const CareerTimelineSection = () => {
             thinkingLogsByMessageId={thinkingLogsByMessageId}
             assistantChoiceActionsDisabled={assistantChoiceActionsDisabled}
             onSelectAssistantChoice={handleSelectAssistantChoice}
+            onSelectReengagementAction={handleSelectReengagementAction}
             onRegenerateOnboardingWrapup={onRegenerateOnboardingWrapup}
             onCancelActiveRecommendationSearch={
               onCancelActiveRecommendationSearch

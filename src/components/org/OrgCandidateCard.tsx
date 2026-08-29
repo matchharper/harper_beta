@@ -21,6 +21,30 @@ export function getOrgCandidateDisplayName(item: OrgBoardItem) {
   return item.talent.name || item.talent.email || "이름 없음";
 }
 
+export function formatOrgUpcomingMeetingTime(startAt: string) {
+  const parts = new Intl.DateTimeFormat("ko-KR", {
+    day: "numeric",
+    hour: "numeric",
+    hour12: true,
+    minute: "2-digit",
+    month: "numeric",
+    timeZone: "Asia/Seoul",
+  }).formatToParts(new Date(startAt));
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+  const month = value("month");
+  const day = value("day");
+  const dayPeriod = value("dayPeriod");
+  const hour = value("hour");
+  const minute = value("minute");
+  const date = month && day ? `${month}월 ${day}일` : "";
+  const time = [dayPeriod, hour && minute ? `${hour}:${minute}` : hour]
+    .filter(Boolean)
+    .join(" ");
+
+  return [date, time].filter(Boolean).join(" ");
+}
+
 export function canDropOrgCandidateToStage(
   item: OrgBoardItem,
   stage: OrgStage
@@ -213,7 +237,12 @@ export function OrgCandidateCard({
           </>
         )}
       </div>
-      {item.stage === "pending_connection" ? (
+      {item.upcomingMeeting ? (
+        <div className="-mx-3 mt-3 bg-positive px-3 py-1 text-[12px] font-medium text-neutral-00">
+          {formatOrgUpcomingMeetingTime(item.upcomingMeeting.startAt)} Interview
+          예정
+        </div>
+      ) : item.stage === "pending_connection" ? (
         <div className="-mx-3 mt-3 bg-critical px-3 py-1 text-[12px] font-medium text-neutral-00">
           결정이 필요합니다
         </div>

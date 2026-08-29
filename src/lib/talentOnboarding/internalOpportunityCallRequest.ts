@@ -792,6 +792,8 @@ async function decideInternalOpportunityCallRequest(args: {
         }),
       },
     ],
+    openAIResponsesReasoningEffort:
+      CAREER_LLM_CONFIG.assistant.openAIResponsesReasoningEffort,
     primaryModel: CAREER_LLM_CONFIG.assistant.primaryModel,
     temperature: CAREER_LLM_CONFIG.internalOpportunityCallRequest.temperature,
     usageLabel: "career/internal-opportunity-call-request:decision",

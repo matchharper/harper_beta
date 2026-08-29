@@ -47,10 +47,8 @@ export const ORG_AGENT_TERMINAL_TOOL_NAMES = new Set<OrgAgentToolName>([
   "update_role_criteria",
   "update_data",
   "change_role_status",
-  "manage_role_pipeline_stages",
   "contact_talent",
   "move_candidate_stage",
-  "manage_interview_availability",
   "decide_candidate_connection",
 ]);
 
@@ -137,14 +135,14 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "read_talent",
       description:
-        "Read one to ten company-visible candidates after resolving their exact talent IDs. Use talentIds for batch reads; the singular talentId remains available for backward-compatible one-candidate reads, and the two forms must not be combined. This is a neutral candidate read and never by itself implies preference disclosure or candidate contact. With includeProfile=false (the compact default), it still returns candidate name, email, and headline; visible workspace role and candidate-stage entries with recommendation evidence; bounded recent progress; candidate-contact history with scheduled KST time and cancellation availability; resume availability; and five safe career insights each candidate told Harper. With includeProfile=true, it returns that same base plus the longer professional profile: current profile location, bio, structured work history, education, and extras. Compensation and raw resume text are never returned; resume output remains availability-only.",
+        "Read one to ten company-visible candidates after resolving their exact talent IDs. Use talentIds for batch reads; the singular talentId remains available for backward-compatible one-candidate reads, and the two forms must not be combined. This is a neutral candidate read and never by itself implies preference disclosure or candidate contact. With includeProfile=false (the compact default), it still returns candidate name, email, and headline; visible workspace role and candidate-stage entries with recommendation evidence; bounded recent progress; current meeting-coordination state with exact KST invitation and confirmed-meeting times; candidate-contact history with scheduled KST time and cancellation availability; resume availability; and five safe career insights each candidate told Harper. With includeProfile=true, it returns that same base plus the longer professional profile: current profile location, bio, structured work history, education, and extras. Compensation and raw resume text are never returned; resume output remains availability-only.",
       parameters: {
         additionalProperties: false,
         minProperties: 1,
         properties: {
           includeProfile: {
             description:
-              "Choose response detail. false (default) returns the compact base with identity, visible workspace role/candidate stage and recommendation evidence, progress, contact history, resume availability, and safe career insights. true returns the same base plus current profile location, bio, structured work history, education, and extras. Use true whenever the question needs career background, companies or roles worked at, schools or education, current profile location, or a detailed identity/profile overview. Raw resume text is never included.",
+              "Choose response detail. false (default) returns the compact base with identity, visible workspace role/candidate stage and recommendation evidence, progress, meeting coordination, contact history, resume availability, and safe career insights. true returns the same base plus current profile location, bio, structured work history, education, and extras. Use true whenever the question needs career background, companies or roles worked at, schools or education, current profile location, or a detailed identity/profile overview. Raw resume text is never included.",
             type: "boolean",
           },
           progressLimit: {
@@ -606,8 +604,8 @@ Do not call read_talent between normal create_draft, revise_draft, schedule, and
     function: {
       name: "manage_role_pipeline_stages",
       description: `Add, rename, or delete company-defined pipeline stages for one exact Role after an explicit user request.
-This is terminal and must be the only tool call in the message. Read the Role with include=pipeline first unless the complete ordered stage list and exact stage IDs are already visible in this conversation.
-For action=add, provide labels in the exact requested order. Existing exact normalized labels are left unchanged and missing labels are appended after the current company-defined stages. Do not invent interview stages or silently merge semantically similar names.
+This may be followed in the same user request by a candidate move, but it never moves or contacts a candidate itself. Read the Role with include=pipeline first unless the complete ordered stage list and exact stage IDs are already visible in this conversation.
+For action=add, provide labels in the exact requested order. Existing exact normalized labels are left unchanged and missing labels are appended after the current company-defined stages. Do not invent interview stages or silently merge semantically similar names. When the company is creating one process stage in order to schedule a meeting, include its explicitly supplied meeting purpose, duration, and optional candidate note so that stage can reuse the guidance later.
 For action=rename, copy one exact custom stageId from read_role and provide the requested new label.
 For action=delete, copy one exact custom stageId from read_role. Deletion is allowed only when no candidate currently occupies that stage; otherwise the tool fails without moving candidates or deleting the stage. Built-in stages can never be renamed or deleted.
 This operation changes only the Role's pipeline structure. It does not move candidates, contact candidates, send email, or change Role criteria, request, memory, or lifecycle status.`,
@@ -637,6 +635,22 @@ This operation changes only the Role's pipeline structure. It does not move cand
             minItems: 1,
             type: "array",
           },
+          meetingCandidateMessage: nullableText(
+            "For action=add with one label only. Optional candidate-facing note to save on that new process stage; omit rather than inventing one.",
+            2_000
+          ),
+          meetingDurationMinutes: {
+            description:
+              "For action=add with one label only. Required with meetingPurpose when the company is defining a scheduled process stage.",
+            maximum: 240,
+            minimum: 15,
+            multipleOf: 15,
+            type: "integer",
+          },
+          meetingPurpose: nullableText(
+            "For action=add with one label only. Candidate-friendly topic to save on the new scheduled process stage.",
+            600
+          ),
           roleId: {
             description: "Exact internal Role ID.",
             type: "string",
@@ -658,10 +672,9 @@ This operation changes only the Role's pipeline structure. It does not move cand
     type: "function",
     function: {
       name: "move_candidate_stage",
-      description: `Move one exact candidate between already-active company pipeline stages after the user explicitly asks for that stage change.
-This is terminal and must be the only tool call in the message. Read the Role with include=pipeline first unless the candidate's exact currentStageId and the complete ordered stage list with exact stage IDs are already visible. For “next stage”, select the immediate next active stage in that authoritative order; never infer a generic recruiting sequence from labels alone.
-Both expectedCurrentStageId and targetStageId must be connected, final_offer, or a custom:<id> stage belonging to this Role. This tool deliberately cannot move a candidate from or to pending_connection, process_stopped, accepted, or archived. Use the existing candidate connection decision flow for starting, stopping, or reactivating a connection.
-The executor re-reads the candidate and applies compare-and-set protection. If another user changed the stage, it fails instead of overwriting the newer state. A successful move records pipeline progress only: it does not contact the candidate, send email or Slack messages, schedule an interview, or alter Role data.`,
+      description: `Move one exact candidate between company pipeline stages after the user explicitly asks for that stage change.
+This is terminal and must be the only tool call in the message. Read the Role with include=pipeline first unless the candidate's exact currentStageId and the complete ordered stage list with exact stage IDs are already visible. For “next stage”, select the immediate next company-defined process stage in that authoritative order; never treat the legacy connected column as a future process stage or infer a generic recruiting sequence from labels alone.
+	A candidate in pending_connection may move only to a custom:<id> company-defined process stage, never directly to connected. If no custom stage exists, do not call this tool: ask the company to name and configure the next process first. targetStageId may be a custom:<id> stage or final_offer. A final_offer target returns a confirmation question unless confirmFinalOffer=true after Harper has just asked the exact question. The executor re-reads the candidate and applies compare-and-set protection. If scheduleInterview=true, targetStageId may equal the current custom stage when the company only asks to arrange that stage's meeting; it prepares the meeting without moving the candidate again. The same-stage form may also revise candidate-facing context on that meeting while its invitation is still queued; it preserves the scheduled delivery and never creates a duplicate. meetingDeliveryMode defaults to the standard delayed-delivery policy; use immediate only when the company explicitly instructs Harper to send this invitation now. An immediate update preserves the existing body, public link, and delivery identity. Otherwise it moves the candidate only after the meeting request is ready. With scheduling disabled, this operation never contacts the candidate. With scheduling enabled, it creates, revises, or expedites the time-selection request and returns the verified delivery facts for the final response.`,
       parameters: {
         additionalProperties: false,
         properties: {
@@ -684,11 +697,64 @@ The executor re-reads the candidate and applies compare-and-set protection. If a
           },
           targetStageId: {
             description:
-              "Exact destination stage ID from the ordered read_role pipeline result.",
+              "Exact destination stage ID from the ordered read_role pipeline result. For scheduleInterview only, this may equal expectedCurrentStageId when the company wants to arrange a meeting for the current custom stage without moving the candidate.",
             maxLength: 100,
             minLength: 1,
             type: "string",
           },
+          confirmFinalOffer: {
+            description:
+              "Set true only when the immediately previous Harper message asked whether to move this exact candidate to final offer and the user explicitly confirmed it.",
+            type: "boolean",
+          },
+          ...(COMPANY_MEETING_SCHEDULING_ENABLED
+            ? {
+                scheduleInterview: {
+                  description:
+                    "Set true only when the company explicitly asked Harper to arrange the meeting for this selected custom process stage.",
+                  type: "boolean",
+                },
+                meetingDurationMinutes: {
+                  description:
+                    "For scheduleInterview only. Explicit stage meeting duration in 15-minute increments; omit to reuse the stage default.",
+                  maximum: 240,
+                  minimum: 15,
+                  multipleOf: 15,
+                  type: "integer",
+                },
+                meetingDeliveryMode: {
+                  description:
+                    "For scheduleInterview only. Omit or use standard for the normal 20-minute delay. Use immediate only after an explicit instruction to send now; it preserves an existing queued invitation instead of creating another one.",
+                  enum: ["standard", "immediate"],
+                  type: "string",
+                },
+                meetingPurpose: nullableText(
+                  "For scheduleInterview only. Explicit candidate-friendly purpose for this process stage; omit to reuse the stage default.",
+                  600
+                ),
+                meetingCandidateMessage: nullableText(
+                  "For scheduleInterview only. Optional candidate-facing note saved on this process stage; omit rather than inventing one.",
+                  2_000
+                ),
+                meetingAdditionalMessage: nullableText(
+                  "For scheduleInterview only. Optional one-off context for this candidate, not a stage default.",
+                  2_000
+                ),
+                meetingAdditionalMessageVisibility: {
+                  enum: ["candidate", "internal", "both"],
+                  type: "string",
+                },
+                meetingAttendeeEmails: {
+                  items: { type: "string" },
+                  maxItems: 10,
+                  type: "array",
+                },
+                meetingTitle: nullableText(
+                  "For scheduleInterview only. Explicit override; omit to use the normal default title.",
+                  200
+                ),
+              }
+            : {}),
         },
         required: [
           "roleId",
@@ -705,7 +771,7 @@ The executor re-reads the candidate and applies compare-and-set protection. If a
     function: {
       name: "manage_interview_availability",
       description:
-        "Save the current company user's own interview availability after an explicit natural-language instruction such as '매주 오전 7시부터 오후 8시까지 가능해'. This is a terminal mutation and must be the only tool call in the turn. Use weeklyUpdates to replace only the named weekdays while preserving every unspecified weekday and existing date exception. An empty intervals array means unavailable. Use dateOverrides for exact-date availability or unavailability, and removeDateOverrides to return exact dates to their weekly rule. Set timezone only when the user explicitly provides it or the intended timezone is unambiguous. This tool never changes another member's availability, candidate state, meeting draft, invitation, Calendar event, or Meet link. After saving, explain what changed and ask the user to request or retry the candidate-specific scheduling proposal; do not claim that an invitation was prepared or sent.",
+        "Save the current company user's own interview availability after an explicit natural-language instruction. Replace only the named weekly rules while preserving unspecified weekdays and existing date exceptions. An empty interval list means unavailable; exact-date changes may add, remove, or restore an exception. Set timezone only from unambiguous conversation evidence. This operation never selects or contacts a candidate by itself. When the visible conversation already establishes one candidate, the exact destination stage, and a request to arrange that meeting, continue the same authorized request with move_candidate_stage in the next tool loop. Otherwise finish with the practical effect of the saved availability.",
       parameters: {
         additionalProperties: false,
         minProperties: 1,
@@ -819,16 +885,14 @@ The executor re-reads the candidate and applies compare-and-set protection. If a
     function: {
       name: "prepare_candidate_connection",
       description:
-        "Read and stage authoritative context for a possible accept or decline decision. Decline supports a candidate awaiting connection or already in a company-active process, including immediately after acceptance. Accept also supports a previously company-stopped candidate whose earlier Talent acceptance is still authoritative. This never changes candidate state or sends email. Always call it with connectionMethod=direct_contact in the turn where the company first asks to use direct contact. After the tool returns, judge the user's intent from the meaning of the full conversation and write any confirmation or clarification yourself in Harper's natural voice, using the exact server facts.",
+        "Read and stage authoritative context for an ordinary accept by CC introduction or direct company contact, or for a decline. Decline supports a candidate awaiting connection or already in a company-active process, including immediately after acceptance. Accept also supports a previously company-stopped candidate whose earlier Talent acceptance is still authoritative. This never changes candidate state or sends email. A pending_connection candidate must select one custom process stage before an accept can move them forward; the legacy connected column is not a new next step. This tool is not used for meeting scheduling or an explicit process-stage move; use move_candidate_stage for those requests. Always call it with connectionMethod=direct_contact in the turn where the company first asks to use direct contact. After the tool returns, judge the user's intent from the meaning of the full conversation and write any confirmation or clarification yourself in Harper's natural voice, using the exact server facts.",
       parameters: {
         additionalProperties: false,
         properties: {
           connectionMethod: {
             description:
-              "For accept only. Omit or use intro_email for the default CC introduction. Use direct_contact only when the company explicitly asked to contact the candidate itself.",
-            enum: COMPANY_MEETING_SCHEDULING_ENABLED
-              ? ["intro_email", "direct_contact", "schedule_interview"]
-              : ["intro_email", "direct_contact"],
+              "For accept only. Omit or use intro_email for the default CC introduction. Use direct_contact only when the company explicitly asked to contact the candidate itself. Meeting scheduling uses move_candidate_stage instead.",
+            enum: ["intro_email", "direct_contact"],
             type: "string",
           },
           decision: {
@@ -846,35 +910,13 @@ The executor re-reads the candidate and applies compare-and-set protection. If a
           },
           ...(COMPANY_MEETING_SCHEDULING_ENABLED
             ? {
-                meetingAdditionalMessage: nullableText(
-                  "For schedule_interview only. Optional exact preference or context genuinely supplied by the company. Omit rather than inventing one.",
-                  2_000
-                ),
-                meetingAdditionalMessageVisibility: {
+                processStageId: {
                   description:
-                    "For schedule_interview only. Where an explicitly supplied additional message may be used. Defaults to both. candidate and both may later appear in the candidate's locale; internal is never shown externally.",
-                  enum: ["candidate", "internal", "both"],
+                    "For accept by introduction or direct company contact. Exact custom:<id> process stage ID from read_role. A candidate leaving pending_connection needs this next process stage. Omit only when the company has not yet chosen or created a process stage; the server will ask for one instead of using connected.",
+                  maxLength: 100,
+                  minLength: 1,
                   type: "string",
                 },
-                meetingAttendeeEmails: {
-                  description:
-                    "For schedule_interview only. Additional Workspace member emails explicitly requested by the company. The requester remains the default organizer and attendee and is added automatically. Omit when no change was requested.",
-                  items: { type: "string" },
-                  maxItems: 10,
-                  type: "array",
-                },
-                meetingDurationMinutes: {
-                  description:
-                    "For schedule_interview only. Explicit company override in 15-minute increments from 15 to 240. Omit to use 60 minutes; never ask for this field merely because it was omitted.",
-                  maximum: 240,
-                  minimum: 15,
-                  multipleOf: 15,
-                  type: "integer",
-                },
-                meetingTitle: nullableText(
-                  "For schedule_interview only. Explicit company override. Omit to use '[company] <> [candidate] Intro'; never ask for a title merely because it was omitted.",
-                  200
-                ),
               }
             : {}),
           reason: nullableText(
@@ -900,16 +942,14 @@ The executor re-reads the candidate and applies compare-and-set protection. If a
     function: {
       name: "decide_candidate_connection",
       description:
-        "Carry out an authorized accept or decline decision. Decline supports a candidate awaiting connection or already in a company-active process, and accept may reactivate a previously company-stopped candidate. This is terminal and must be the only tool call. Call it only when the immediately previous Harper message asked for approval of the exact candidate, delivery behavior, and recipients and the current message authorizes all of it; the server verifies that adjacency and otherwise returns confirmation_required without changing state. Do not infer authorization from isolated words or a generic acknowledgement. For accept, omitted connectionMethod defaults to intro_email, which sends a neutral warm introduction. Use direct_contact only after an explicit request. Never proactively offer direct_contact. Decline moves the candidate to process stopped.",
+        "Carry out an authorized ordinary connection accept or decline decision. Decline supports a candidate awaiting connection or already in a company-active process, and accept may reactivate a previously company-stopped candidate. This is terminal and must be the only tool call. Call it only when the immediately previous Harper message asked for approval of the exact candidate, delivery behavior, and recipients and the current message authorizes all of it; the server verifies that adjacency and otherwise returns confirmation_required without changing state. Do not infer authorization from isolated words or a generic acknowledgement. Meeting scheduling and explicit process-stage moves use move_candidate_stage instead. For accept, omitted connectionMethod defaults to intro_email, which sends a neutral warm introduction. Use direct_contact only after an explicit request. Never proactively offer direct_contact. Decline moves the candidate to process stopped.",
       parameters: {
         additionalProperties: false,
         properties: {
           connectionMethod: {
             description:
-              "For accept, omit or use intro_email for the default warm introduction. Use direct_contact only after an explicit company request.",
-            enum: COMPANY_MEETING_SCHEDULING_ENABLED
-              ? ["intro_email", "direct_contact", "schedule_interview"]
-              : ["intro_email", "direct_contact"],
+              "For accept, omit or use intro_email for the default warm introduction. Use direct_contact only after an explicit company request. Meeting scheduling uses move_candidate_stage instead.",
+            enum: ["intro_email", "direct_contact"],
             type: "string",
           },
           decision: {
@@ -927,35 +967,13 @@ The executor re-reads the candidate and applies compare-and-set protection. If a
           },
           ...(COMPANY_MEETING_SCHEDULING_ENABLED
             ? {
-                meetingAdditionalMessage: nullableText(
-                  "For schedule_interview only. Repeat only when the approved proposal explicitly contained this value; otherwise omit and the server uses the immediately confirmed proposal.",
-                  2_000
-                ),
-                meetingAdditionalMessageVisibility: {
+                processStageId: {
                   description:
-                    "For schedule_interview only. Repeat only when needed to identify the exact approved revision.",
-                  enum: ["candidate", "internal", "both"],
+                    "For accept by introduction or direct company contact. Repeat only when needed to identify the exact approved custom:<id> process stage; omit on a simple approval because the confirmed proposal retains it.",
+                  maxLength: 100,
+                  minLength: 1,
                   type: "string",
                 },
-                meetingAttendeeEmails: {
-                  description:
-                    "For schedule_interview only. Repeat only when needed to identify the exact approved revision. Omit on a simple approval.",
-                  items: { type: "string" },
-                  maxItems: 10,
-                  type: "array",
-                },
-                meetingDurationMinutes: {
-                  description:
-                    "For schedule_interview only. Repeat only when needed to identify the exact approved revision. Omit on a simple approval.",
-                  maximum: 240,
-                  minimum: 15,
-                  multipleOf: 15,
-                  type: "integer",
-                },
-                meetingTitle: nullableText(
-                  "For schedule_interview only. Repeat only when needed to identify the exact approved revision. Omit on a simple approval.",
-                  200
-                ),
               }
             : {}),
           reason: nullableText(

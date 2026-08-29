@@ -157,6 +157,7 @@ const previewInbox: OrgBoardResponse = {
         userId: "preview-talent",
       },
       talentId: "preview-talent",
+      upcomingMeeting: null,
       updatedAt: PREVIEW_NOW,
     },
   ],

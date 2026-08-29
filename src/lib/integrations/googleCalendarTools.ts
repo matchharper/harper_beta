@@ -222,6 +222,9 @@ export function buildGoogleCalendarEventLookupArguments(args: {
 export function buildGoogleCalendarCreateEventArguments(args: {
   attendees: string[];
   endAt: Date;
+  invitationKind?: "first_company_conversation" | "process_stage" | null;
+  meetingPurpose?: string | null;
+  processStageName?: string | null;
   scheduleId: string;
   startAt: Date;
   summary: string;
@@ -231,11 +234,18 @@ export function buildGoogleCalendarCreateEventArguments(args: {
   if (!isValidCalendarTimezone(args.timezone) || args.attendees.length === 0) {
     throw new Error("Invalid meeting calendar attendees or timezone");
   }
+  const meetingPurpose = clean(args.meetingPurpose, 600);
+  const processStageName = clean(args.processStageName, 80);
+  const isProcessStage = args.invitationKind === "process_stage";
   return {
     attendees: Array.from(new Set(args.attendees)),
     calendar_id: "primary",
     create_meeting_room: true,
-    description: "Harper가 회사와 후보자 사이의 인터뷰 일정으로 조율했어요.",
+    description: meetingPurpose
+      ? isProcessStage && processStageName
+        ? `${processStageName} 단계에서 “${meetingPurpose}”를 주제로 이야기 나누는 자리예요.`
+        : `미팅의 주제는 “${meetingPurpose}”예요. 서로의 기대와 경험을 편하게 나눠보는 자리예요.`
+      : "서로의 기대와 경험을 편하게 나눠보는 자리예요.",
     end_datetime: formatCalendarLocalDateTime(args.endAt, args.timezone),
     eventType: "default",
     exclude_organizer: false,
@@ -271,44 +281,75 @@ function safeGoogleUrl(value: unknown, kind: "calendar" | "meet") {
 
 function parseEventResult(event: unknown, displayUrl?: unknown) {
   if (!isRecord(event)) return null;
-  const eventId = clean(event.id, 1_024);
+  const eventId = clean(event.id, 1_024) || clean(event.event_id, 1_024);
   if (!eventId) return null;
   const conferenceData = isRecord(event.conferenceData)
     ? event.conferenceData
-    : null;
+    : isRecord(event.conference_data)
+      ? event.conference_data
+      : null;
   const createRequest = isRecord(conferenceData?.createRequest)
     ? conferenceData.createRequest
-    : null;
-  const createStatus = isRecord(createRequest?.status)
-    ? clean(createRequest.status.statusCode, 40).toLowerCase()
-    : "";
-  const entryPointMeetUrl = Array.isArray(conferenceData?.entryPoints)
-    ? (conferenceData.entryPoints.flatMap((entryPoint) => {
-        if (!isRecord(entryPoint)) return [];
-        const url = safeGoogleUrl(entryPoint.uri, "meet");
-        return url ? [url] : [];
-      })[0] ?? null)
-    : null;
+    : isRecord(conferenceData?.create_request)
+      ? conferenceData.create_request
+      : null;
+  const createStatusValue = isRecord(createRequest?.status)
+    ? clean(
+        createRequest.status.statusCode ?? createRequest.status.status_code,
+        40
+      )
+    : clean(createRequest?.status, 40);
+  const createStatus = createStatusValue.toLowerCase();
+  const entryPoints = Array.isArray(conferenceData?.entryPoints)
+    ? conferenceData.entryPoints
+    : Array.isArray(conferenceData?.entry_points)
+      ? conferenceData.entry_points
+      : [];
+  const entryPointMeetUrl =
+    entryPoints.flatMap((entryPoint) => {
+      if (!isRecord(entryPoint)) return [];
+      const url = safeGoogleUrl(entryPoint.uri ?? entryPoint.url, "meet");
+      return url ? [url] : [];
+    })[0] ?? null;
   return {
     calendarUrl:
       safeGoogleUrl(displayUrl, "calendar") ??
       safeGoogleUrl(event.display_url, "calendar") ??
-      safeGoogleUrl(event.htmlLink, "calendar"),
+      safeGoogleUrl(event.displayUrl, "calendar") ??
+      safeGoogleUrl(event.htmlLink, "calendar") ??
+      safeGoogleUrl(event.html_link, "calendar"),
     conferencePending: createStatus === "pending",
     eventId,
-    meetUrl: safeGoogleUrl(event.hangoutLink, "meet") ?? entryPointMeetUrl,
+    // Composio's Calendar toolkit returns hangout_link, while the Google API
+    // response itself uses hangoutLink. Accept both so a generated Meet link is
+    // persisted and shown to both parties instead of being treated as missing.
+    meetUrl:
+      safeGoogleUrl(event.hangoutLink, "meet") ??
+      safeGoogleUrl(event.hangout_link, "meet") ??
+      entryPointMeetUrl,
   } satisfies GoogleCalendarEventResult;
 }
 
 export function parseCreatedGoogleCalendarEvent(payload: unknown) {
   if (!isRecord(payload)) return null;
-  return parseEventResult(payload.response_data, payload.display_url);
+  return parseEventResult(
+    payload.response_data ?? payload.responseData ?? payload.data ?? payload,
+    payload.display_url ?? payload.displayUrl
+  );
 }
 
 export function parseExistingGoogleCalendarEvent(payload: unknown) {
-  if (!isRecord(payload) || !Array.isArray(payload.items)) return null;
-  for (const item of payload.items) {
-    const parsed = parseEventResult(item);
+  if (!isRecord(payload)) return null;
+  const nested = isRecord(payload.response_data)
+    ? payload.response_data
+    : isRecord(payload.data)
+      ? payload.data
+      : payload;
+  if (!Array.isArray(nested.items)) return null;
+  for (const item of nested.items) {
+    const parsed = parseEventResult(
+      isRecord(item) && isRecord(item.event) ? item.event : item
+    );
     if (parsed) return parsed;
   }
   return null;

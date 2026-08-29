@@ -28,10 +28,7 @@ test("meeting migration can resume after an earlier manual application", () => {
     migration,
     /add column if not exists confirmed_start_at timestamptz/
   );
-  assert.match(
-    migration,
-    /add column if not exists public_token_hash text/
-  );
+  assert.match(migration, /add column if not exists public_token_hash text/);
   assert.match(
     migration,
     /add column if not exists delivery_queue_id uuid[\s\S]*?references public\.contact_queue/
@@ -105,6 +102,7 @@ test("candidate invitation queueing stores one hashed token and one durable outb
   assert.ok(queueFunction);
   assert.match(queueFunction, /insert into public\.contact_queue/);
   assert.match(queueFunction, /meeting_schedule_candidate_invitation/);
+  assert.match(queueFunction, /interval '20 minutes'/);
   assert.match(queueFunction, /public_token_hash = p_public_token_hash/);
   assert.match(queueFunction, /status = 'awaiting_talent'/);
   assert.match(

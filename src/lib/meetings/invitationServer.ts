@@ -17,13 +17,18 @@ import {
   fetchMeetingCalendarDelivery,
   requireOrganizerGoogleCalendarConnection,
 } from "@/lib/meetings/meetingCalendarServer";
-import type { MeetingCalendarDelivery } from "@/lib/meetings/meetingCalendar";
+import {
+  buildMeetingCalendarDeliveryNotice,
+  type MeetingCalendarDelivery,
+} from "@/lib/meetings/meetingCalendar";
 import {
   selectMeetingOption,
   selectMeetingOptionDeterministically,
 } from "@/lib/meetings/selection";
+import type { MeetingScheduleAdditionalMessage } from "@/lib/meetings/scheduleDraft";
 import { fetchMeetingScheduleDetail } from "@/lib/meetings/scheduleDraftServer";
 import { computeCurrentMeetingSlots } from "@/lib/meetings/slotsServer";
+import { syncGoogleCalendarBusyBlocksForCompanyUser } from "@/lib/meetings/calendarSyncServer";
 import { insertOrgAgentMessage } from "@/lib/org/agent/store";
 import { OrgHttpError } from "@/lib/org/server";
 import { sendHarperSlackThreadReply } from "@/lib/org/slackHarper";
@@ -31,6 +36,7 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type { Json } from "@/types/database.types";
 
 const INVITATION_QUEUE_TYPE = "meeting_schedule_candidate_invitation";
+export const MEETING_INVITATION_DELIVERY_DELAY_MINUTES = 20;
 
 type InvitationSnapshot = {
   availabilityVersion: number;
@@ -183,6 +189,12 @@ function renderInvitationLink(args: {
   return `${args.body}\n\n${markdownLink}`.trim();
 }
 
+function invitationUrlFromQueuedBody(value: unknown) {
+  const body = clean(value, 10_000);
+  const match = body.match(/https?:\/\/[^\s)>]+\/meeting\/[^\s)>]+/i);
+  return match?.[0] ?? "";
+}
+
 async function candidateLocale(talentId: string) {
   const admin = getSupabaseAdmin();
   const { data, error } = await (admin.from("talent_setting" as any) as any)
@@ -258,8 +270,11 @@ export async function prepareMeetingInvitationPreview(args: {
     candidateName: schedule.candidate.name,
     companyName: schedule.companyName,
     durationMinutes: schedule.config.durationMinutes,
+    invitationKind: schedule.config.invitationKind,
     locale,
+    meetingPurpose: schedule.config.meetingPurpose,
     organizerName: schedule.config.organizer.name,
+    processStageName: schedule.config.processStageName,
     roleName: schedule.role.name,
   });
   return {
@@ -372,7 +387,7 @@ export async function queueMeetingInvitation(args: {
     to: schedule.candidate.email,
   };
   const admin = getSupabaseAdmin();
-  const { error } = await (admin.rpc as any)(
+  const { data, error } = await (admin.rpc as any)(
     "queue_meeting_schedule_invitation_v1",
     {
       p_company_workspace_id: schedule.workspaceId,
@@ -394,6 +409,295 @@ export async function queueMeetingInvitation(args: {
     throw new OrgHttpError(409, "이미 후보자에게 전달을 시작한 일정이에요.");
   }
   if (error) throw error;
+  const queued = isRecord(data) ? data : {};
+  const queueId = clean(queued.queueId, 100);
+  if (!queueId) {
+    throw new OrgHttpError(
+      500,
+      "일정 선택 안내의 예약 정보를 확인하지 못했어요."
+    );
+  }
+  const scheduledAt = new Date(
+    windowStart.getTime() + MEETING_INVITATION_DELIVERY_DELAY_MINUTES * 60_000
+  ).toISOString();
+  const { data: delayed, error: delayError } = await (
+    admin.from("contact_queue" as any) as any
+  )
+    .update({ scheduled_at: scheduledAt })
+    .eq("id", queueId)
+    .eq("type", INVITATION_QUEUE_TYPE)
+    .eq("status", "queued")
+    .is("sent_at", null)
+    .select("id")
+    .maybeSingle();
+  if (delayError) throw delayError;
+  if (!delayed) {
+    throw new OrgHttpError(
+      409,
+      "일정 선택 안내의 예약 상태가 바뀌었어요. 중복 연락을 피하기 위해 현재 상태를 먼저 확인해 주세요."
+    );
+  }
+  return fetchMeetingScheduleDetail({
+    scheduleId: schedule.scheduleId,
+    user: args.user,
+    workspaceId: schedule.workspaceId,
+  });
+}
+
+/**
+ * Company chat is the scheduling surface. Generate the invitation from the
+ * authoritative stage configuration and queue it in the same mutation that
+ * creates the schedule, rather than requiring a second review screen.
+ */
+export async function queueGeneratedMeetingInvitation(args: {
+  baseUrl: string;
+  scheduleId: string;
+  user: User;
+  workspaceId: string;
+}) {
+  const preview = await prepareMeetingInvitationPreview({
+    scheduleId: args.scheduleId,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+  const detail = await fetchMeetingScheduleDetail({
+    scheduleId: args.scheduleId,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+  return queueMeetingInvitation({
+    baseUrl: args.baseUrl,
+    body: preview.email.body,
+    candidateMessage: detail.schedule.round.additionalMessage,
+    expectedVersion: detail.schedule.version,
+    scheduleId: args.scheduleId,
+    subject: preview.email.subject,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+}
+
+/**
+ * A scheduled invitation remains changeable until delivery starts. The
+ * company-side LLM supplies the complete candidate-visible note assembled from
+ * the stage default and the latest one-off instruction; this function rewrites
+ * the generated email around that note while preserving the existing private
+ * invitation URL and queue time.
+ */
+export async function reviseQueuedMeetingInvitation(args: {
+  additionalMessage: MeetingScheduleAdditionalMessage | null;
+  scheduleId: string;
+  user: User;
+  workspaceId: string;
+}) {
+  const detail = await fetchMeetingScheduleDetail({
+    scheduleId: args.scheduleId,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+  const { schedule } = detail;
+  const delivery = schedule.round.delivery;
+  const scheduledAt = delivery?.scheduledAt
+    ? new Date(delivery.scheduledAt)
+    : null;
+  if (
+    schedule.status !== "awaiting_talent" ||
+    schedule.round.status !== "queued" ||
+    delivery?.status !== "queued" ||
+    delivery.sentAt ||
+    !scheduledAt ||
+    !Number.isFinite(scheduledAt.getTime()) ||
+    scheduledAt.getTime() <= Date.now()
+  ) {
+    throw new OrgHttpError(
+      409,
+      "후보자 안내의 발송이 이미 시작되어 내용을 바꿀 수 없어요. 새 안내를 만들기 전에 현재 전달 상태를 먼저 확인해 주세요."
+    );
+  }
+
+  const admin = getSupabaseAdmin();
+  const { data: round, error: roundError } = await (
+    admin.from("meeting_schedule_rounds" as any) as any
+  )
+    .select("id, delivery_queue_id, invitation_snapshot, version")
+    .eq("id", schedule.round.id)
+    .eq("schedule_id", schedule.scheduleId)
+    .maybeSingle();
+  if (roundError) throw roundError;
+  const queueId = clean(round?.delivery_queue_id, 100);
+  const invitationSnapshot = parseSnapshot(round?.invitation_snapshot);
+  if (!round || !queueId || !invitationSnapshot) {
+    throw new OrgHttpError(
+      409,
+      "예약된 일정 안내의 현재 내용을 확인하지 못했어요. 중복 연락을 피하기 위해 새로 만들지는 않았습니다."
+    );
+  }
+
+  const { data: queue, error: queueError } = await (
+    admin.from("contact_queue" as any) as any
+  )
+    .select("id, payload, scheduled_at, sent_at, status")
+    .eq("id", queueId)
+    .eq("type", INVITATION_QUEUE_TYPE)
+    .maybeSingle();
+  if (queueError) throw queueError;
+  const queuePayload = isRecord(queue?.payload) ? queue.payload : null;
+  const invitationUrl = invitationUrlFromQueuedBody(queuePayload?.body);
+  if (!queue || queue.status !== "queued" || queue.sent_at || !invitationUrl) {
+    throw new OrgHttpError(
+      409,
+      "후보자 안내의 발송 상태가 바뀌어 내용을 수정하지 않았어요. 현재 상태를 먼저 확인해 주세요."
+    );
+  }
+
+  const sourceCandidateMessage = candidateVisibleMessage(
+    args.additionalMessage
+  );
+  const email = await generateMeetingInvitationEmail({
+    candidateMessage: sourceCandidateMessage,
+    candidateName: schedule.candidate.name,
+    companyName: schedule.companyName,
+    durationMinutes: schedule.config.durationMinutes,
+    invitationKind: schedule.config.invitationKind,
+    locale: invitationSnapshot.locale,
+    meetingPurpose: schedule.config.meetingPurpose,
+    organizerName: schedule.config.organizer.name,
+    processStageName: schedule.config.processStageName,
+    roleName: schedule.role.name,
+  });
+  const nextPayload = {
+    ...queuePayload,
+    body: renderInvitationLink({
+      body: email.body,
+      locale: email.locale,
+      url: invitationUrl,
+    }),
+    locale: email.locale,
+    subject: email.subject,
+  };
+  const now = new Date().toISOString();
+  const { data: updatedQueue, error: updateQueueError } = await (
+    admin.from("contact_queue" as any) as any
+  )
+    .update({ payload: nextPayload as unknown as Json })
+    .eq("id", queueId)
+    .eq("type", INVITATION_QUEUE_TYPE)
+    .eq("status", "queued")
+    .is("sent_at", null)
+    .gt("scheduled_at", now)
+    .select("id")
+    .maybeSingle();
+  if (updateQueueError) throw updateQueueError;
+  if (!updatedQueue) {
+    throw new OrgHttpError(
+      409,
+      "후보자 안내의 발송이 시작되어 내용을 수정하지 않았어요. 현재 전달 상태를 먼저 확인해 주세요."
+    );
+  }
+
+  const nextSnapshot: InvitationSnapshot = {
+    ...invitationSnapshot,
+    candidateMessage: email.candidateMessage,
+    email: {
+      body: email.body,
+      subject: email.subject,
+      to: invitationSnapshot.email.to,
+    },
+  };
+  const { data: updatedRound, error: updateRoundError } = await (
+    admin.from("meeting_schedule_rounds" as any) as any
+  )
+    .update({
+      additional_message: args.additionalMessage as unknown as Json | null,
+      invitation_snapshot: nextSnapshot as unknown as Json,
+      updated_at: now,
+      version: Number(round.version) + 1,
+    })
+    .eq("id", schedule.round.id)
+    .eq("schedule_id", schedule.scheduleId)
+    .eq("status", "queued")
+    .eq("version", Number(round.version))
+    .select("id")
+    .maybeSingle();
+  if (updateRoundError) throw updateRoundError;
+  if (!updatedRound) {
+    throw new OrgHttpError(
+      409,
+      "예약 메일은 수정했지만 일정 기록의 반영 여부를 확인하지 못했어요. 중복 연락을 피하기 위해 다시 수정하지 말고 현재 상태를 확인해 주세요."
+    );
+  }
+  await (admin.from("meeting_schedules" as any) as any)
+    .update({ updated_at: now })
+    .eq("id", schedule.scheduleId)
+    .eq("company_workspace_id", schedule.workspaceId);
+
+  return fetchMeetingScheduleDetail({
+    scheduleId: schedule.scheduleId,
+    user: args.user,
+    workspaceId: schedule.workspaceId,
+  });
+}
+
+/**
+ * Move one still-queued meeting invitation to the front of the delivery
+ * window without changing its approved body, public URL, or queue identity.
+ */
+export async function expediteQueuedMeetingInvitation(args: {
+  scheduleId: string;
+  user: User;
+  workspaceId: string;
+}) {
+  const detail = await fetchMeetingScheduleDetail({
+    scheduleId: args.scheduleId,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+  const { schedule } = detail;
+  if (
+    schedule.status !== "awaiting_talent" ||
+    schedule.round.status !== "queued" ||
+    schedule.round.delivery?.status !== "queued" ||
+    schedule.round.delivery.sentAt
+  ) {
+    throw new OrgHttpError(
+      409,
+      "후보자 안내의 발송이 이미 시작되었거나 끝나서 지금으로 앞당길 수 없어요. 현재 전달 상태를 다시 확인해 주세요."
+    );
+  }
+  const admin = getSupabaseAdmin();
+  const { data: round, error: roundError } = await (
+    admin.from("meeting_schedule_rounds" as any) as any
+  )
+    .select("delivery_queue_id")
+    .eq("id", schedule.round.id)
+    .eq("schedule_id", schedule.scheduleId)
+    .maybeSingle();
+  if (roundError) throw roundError;
+  const queueId = clean(round?.delivery_queue_id, 100);
+  if (!queueId) {
+    throw new OrgHttpError(
+      409,
+      "예약된 일정 안내의 전달 정보를 확인하지 못해 발송 시각을 바꾸지 않았어요."
+    );
+  }
+  const scheduledAt = new Date().toISOString();
+  const { data: changed, error: changeError } = await (
+    admin.from("contact_queue" as any) as any
+  )
+    .update({ scheduled_at: scheduledAt })
+    .eq("id", queueId)
+    .eq("type", INVITATION_QUEUE_TYPE)
+    .eq("status", "queued")
+    .is("sent_at", null)
+    .select("id")
+    .maybeSingle();
+  if (changeError) throw changeError;
+  if (!changed) {
+    throw new OrgHttpError(
+      409,
+      "후보자 안내의 발송 상태가 바뀌어 시각을 앞당기지 않았어요. 현재 전달 상태를 다시 확인해 주세요."
+    );
+  }
   return fetchMeetingScheduleDetail({
     scheduleId: schedule.scheduleId,
     user: args.user,
@@ -566,6 +870,14 @@ async function availablePublicSlots(token: string, context: InvitationContext) {
   };
 }
 
+async function refreshInvitationOrganizerCalendar(context: InvitationContext) {
+  await syncGoogleCalendarBusyBlocksForCompanyUser({
+    companyUserId: context.organizerCompanyUserId,
+    timezone: context.invitationSnapshot.timezone,
+    workspaceId: context.workspaceId,
+  });
+}
+
 export async function fetchPublicMeetingInvitation(
   tokenValue: string
 ): Promise<PublicMeetingInvitationResponse> {
@@ -596,6 +908,7 @@ export async function fetchPublicMeetingInvitation(
   ) {
     state = "expired";
   } else {
+    await refreshInvitationOrganizerCalendar(context);
     const available = await availablePublicSlots(token, context);
     slots = available.slots;
     timezone = available.timezone;
@@ -660,6 +973,7 @@ export async function submitPublicMeetingOptions(args: {
     );
   }
 
+  await refreshInvitationOrganizerCalendar(context);
   let available = await availablePublicSlots(token, context);
   const selected = requestedSlotIds.flatMap((id) => {
     const slot = available.slots.find((candidate) => candidate.slotId === id);
@@ -764,7 +1078,7 @@ export async function submitPublicMeetingOptions(args: {
     calendar = {
       calendarUrl: null,
       error:
-        "Calendar 초대와 Google Meet 링크를 아직 만들지 못했어요. 회사 담당자가 다시 시도할 예정이에요.",
+        "Calendar 초대와 Google Meet 링크를 아직 만들지 못했어요. 회사 담당자가 일정 화면에서 다시 시도할 수 있어요.",
       meetUrl: null,
       status: "failed",
       updatedAt: new Date().toISOString(),
@@ -772,7 +1086,10 @@ export async function submitPublicMeetingOptions(args: {
   }
   try {
     await notifyCompanyOfMeetingConfirmation({
-      companyMessage: selection.companyMessage,
+      companyMessage: buildMeetingCalendarDeliveryNotice({
+        calendar,
+        companyMessage: selection.companyMessage,
+      }),
       roundId: context.roundId,
       sourceCompanyMessageId: context.sourceCompanyMessageId,
       workspaceId: context.workspaceId,

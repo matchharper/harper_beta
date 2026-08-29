@@ -108,6 +108,7 @@ test("candidate details always label the five insights as information told to Ha
     positions: [],
     profileIncluded: false,
     recentProgress: [],
+    meetingHistory: [],
     requestHistory: [],
     resumeAvailability: { available: false, guidance: "없음" },
   });
@@ -119,6 +120,39 @@ test("candidate details always label the five insights as information told to Ha
   assert.match(compact, /선호하는 회사·팀 조건\t작은 팀을 선호합니다/);
   assert.doesNotMatch(compact, /professional_preferences/);
   assert.doesNotMatch(compact, /company_consent|stale|180/);
+});
+
+test("candidate meeting coordination exposes exact user-safe delivery facts", () => {
+  const compact = serializeOrgAgentToolResult("read_talent", {
+    candidate: { name: "Person", talentId: "talent-1" },
+    harperSharedInformation: [],
+    meetingHistory: [
+      {
+        canReviseCandidateContext: true,
+        confirmedEndAt: null,
+        confirmedStartAt: null,
+        coordinationState: "일정 선택 안내 발송을 기다리는 중",
+        durationMinutes: 30,
+        invitationScheduledAt: "2026. 8. 29. 00:01 KST",
+        invitationSentAt: null,
+        invitationState: "후보자에게 일정 선택 안내를 보낼 예정",
+        meetingPurpose: "팀의 문제를 풀어가는 방식을 이야기하는 자리",
+        processStageName: "1차 기술 인터뷰",
+        roleName: "Product Engineer",
+      },
+    ],
+    positions: [],
+    profileIncluded: false,
+    recentProgress: [],
+    requestHistory: [],
+    resumeAvailability: { available: false, guidance: "없음" },
+  });
+
+  assert.match(compact, /<meeting_coordination>/);
+  assert.match(compact, /2026\. 8\. 29\. 00:01 KST/);
+  assert.match(compact, /후보자에게 일정 선택 안내를 보낼 예정/);
+  assert.match(compact, /candidate_context_changeable/);
+  assert.doesNotMatch(compact, /queue|delivery_queue_id|schedule_id/);
 });
 
 test("candidate details expose whether the current company closure notice was sent", () => {
@@ -354,18 +388,14 @@ test("candidate connection decisions return a compact outcome", () => {
     warmClosing: "서로에게 좋은 기회가 되길 바랄게요 :)",
   });
 
-  assert.match(compact, /decision=accept/);
-  assert.match(compact, /connection_method=intro_email/);
-  assert.match(compact, /stage=연결됨/);
-  assert.match(compact, /reactivation=true/);
-  assert.match(compact, /closure_notice_delivered=true/);
-  assert.match(compact, /closure_notice_channel=chat,email/);
-  assert.match(compact, /candidate=김후보/);
-  assert.match(compact, /role=Backend Engineer/);
-  assert.match(compact, /next_process=.*다음 일정을 조율합니다/);
-  assert.match(compact, /warm_closing=서로에게 좋은 기회가 되길 바랄게요/);
-  assert.doesNotMatch(compact, /stage=connected/);
-  assert.doesNotMatch(compact, /talent-1/);
+  assert.match(compact, /김후보.*Backend Engineer hiring process/);
+  assert.match(compact, /소개 메일을 보내 연결을 시작했습니다/);
+  assert.match(compact, /previously been closed/);
+  assert.match(compact, /같은 이메일에서 다음 일정을 조율합니다/);
+  assert.doesNotMatch(
+    compact,
+    /role-1|talent-1|decision=|connection_method=|reactivation=|closure_notice/
+  );
 });
 
 test("pipeline mutation results state exact effects and no candidate contact", () => {
@@ -390,9 +420,9 @@ test("pipeline mutation results state exact effects and no candidate contact", (
   assert.match(structure, /기술 면접\tcreated/);
   assert.match(structure, /컬처핏 인터뷰\talready_exists/);
   assert.match(structure, /candidate_moved=false candidate_contacted=false/);
-  assert.match(move, /from=1차 인터뷰/);
-  assert.match(move, /to=2차 인터뷰/);
-  assert.match(move, /candidate_contacted=false email_sent=false/);
+  assert.match(move, /stage changed from 1차 인터뷰 to 2차 인터뷰/);
+  assert.match(move, /No candidate message or meeting request was created/);
+  assert.doesNotMatch(move, /candidate_contacted|email_sent|status=updated/);
 });
 
 test("availability mutation result cannot imply a candidate or meeting action", () => {
@@ -406,16 +436,124 @@ test("availability mutation result cannot imply a candidate or meeting action", 
     timezone: "Asia/Seoul",
   });
 
-  assert.match(compact, /organizer_hours=매일 07:00-20:00/);
-  assert.match(compact, /timezone=Asia\/Seoul/);
-  assert.match(compact, /response_guidance=.*identified meeting/);
+  assert.match(compact, /working meeting availability is now 매일 07:00-20:00/);
+  assert.match(compact, /in Asia\/Seoul/);
+  assert.match(compact, /Retry the candidate-specific scheduling request/);
+  assert.match(compact, /does not move or contact a candidate/);
+  assert.doesNotMatch(
+    compact,
+    /status=updated|availability_version|organizer_hours|response_mode/
+  );
+  assert.doesNotMatch(compact, /meeting_draft_created|calendar_event_created/);
+});
+
+test("scheduled stage movement gives the writer user-safe coordination facts", () => {
+  const compact = serializeOrgAgentToolResult("move_candidate_stage", {
+    candidateName: "김하퍼",
+    calendarAvailability: { refreshesWhenCandidateOpens: true },
+    delivery: {
+      delayMinutes: 20,
+      scheduledAt: "2026-08-28T13:40:00.000Z",
+      sentAt: null,
+    },
+    meeting: {
+      candidateMessage: "궁금한 점도 편하게 물어보셔도 됩니다.",
+      durationMinutes: 30,
+      offerWindowDays: 14,
+      purpose: "서로의 경험과 팀의 과제를 이야기하는 자리",
+      stageName: "첫 대화",
+    },
+    organizerAvailability: {
+      summary: "평일 10:00-17:00",
+      timezone: "Asia/Seoul",
+    },
+    previousStageLabel: "연결 대기",
+    roleName: "Product",
+    scheduleId: "schedule-private-id",
+    schedulingSettingsUrl:
+      "https://matchharper.com/org/settings?orgId=workspace",
+    stageLabel: "첫 대화",
+    status: "updated",
+  });
+
+  assert.match(compact, /saved availability.*평일 10:00-17:00/);
+  assert.match(compact, /candidate has not received/);
+  assert.match(compact, /standard delivery delay is 20 minutes/);
+  assert.match(compact, /opening the selection link refreshes/);
+  assert.match(compact, /before choices are shown/);
+  assert.match(compact, /verified optional scheduling settings page/);
+  assert.doesNotMatch(
+    compact,
+    /schedule-private-id|invitation_delivery_started|candidate_stage_moved|response_mode/
+  );
+});
+
+test("an expedited meeting invitation reports the action without claiming delivery", () => {
+  const compact = serializeOrgAgentToolResult("move_candidate_stage", {
+    candidateName: "김하퍼",
+    delivery: {
+      change: "expedited",
+      delayMinutes: 0,
+      scheduledAt: "2026-08-28T14:46:00.000Z",
+      sentAt: null,
+    },
+    meeting: {
+      durationMinutes: 30,
+      offerWindowDays: 14,
+      purpose: "서로의 경험을 이야기하는 자리",
+      stageName: "첫 대화",
+    },
+    organizerAvailability: {
+      summary: "평일 10:00-17:00",
+      timezone: "Asia/Seoul",
+    },
+    previousStageLabel: "첫 대화",
+    roleName: "Product",
+    scheduleId: "private-schedule-id",
+    stageLabel: "첫 대화",
+    status: "updated",
+  });
+
+  assert.match(compact, /moved forward for immediate delivery/);
+  assert.match(compact, /completed delivery is not yet verified/);
+  assert.doesNotMatch(compact, /standard delivery delay is 0 minutes/);
+  assert.doesNotMatch(compact, /private-schedule-id/);
+});
+
+test("blocked scheduled movement identifies company organizer availability without fixed copy", () => {
+  const compact = serializeOrgAgentToolResult("move_candidate_stage", {
+    candidateName: "김하퍼",
+    draftBlocker: "availability_missing",
+    meetingDraft: {
+      config: {
+        durationMinutes: 30,
+        meetingPurpose: "제품 경험과 팀의 문제 해결 방식을 이야기하는 자리",
+      },
+      draftBlocker: "availability_missing",
+      meetingStage: {
+        candidateMessage: "궁금한 점도 편하게 질문해 주세요.",
+      },
+    },
+    previousStageLabel: "연결 대기",
+    roleName: "Product Engineer",
+    stageLabel: "1차 기술 인터뷰",
+    status: "meeting_setup_required",
+  });
+
+  assert.match(compact, /company organizer's reusable working availability/);
+  assert.match(compact, /remains in the 연결 대기 stage/);
   assert.match(
     compact,
-    /user_facing_state=Harper will use these organizer hours/
+    /No candidate message or meeting request has been created/
   );
-  assert.match(compact, /writing_instruction=Treat this as acknowledging/);
-  assert.doesNotMatch(compact, /status=updated|availability_version|summary=/);
-  assert.doesNotMatch(compact, /meeting_draft_created|calendar_event_created/);
+  assert.match(
+    compact,
+    /continue this already-authorized candidate meeting request/
+  );
+  assert.doesNotMatch(
+    compact,
+    /draftBlocker|availability_missing|user_facing_state=/
+  );
 });
 
 test("candidate decision preparation returns facts without server-authored confirmation copy", () => {
@@ -464,8 +602,6 @@ test("schedule preparation keeps the automatic proposal in one compact confirmat
     },
     meetingScheduleConfirmation:
       "이토님과의 미팅 일정 요청 기본안이에요. 향후 2주 안에서 60분 일정을 고를 수 있게 할게요.",
-    meetingAvailabilityUrl:
-      "https://matchharper.com/org/settings?dialog=interview-availability",
     status: "decision_context_ready",
   });
 
@@ -475,39 +611,52 @@ test("schedule preparation keeps the automatic proposal in one compact confirmat
   assert.match(compact, /meeting_title=Wonderful Japan ‹› 이토 Intro/);
   assert.match(compact, /meeting_duration_minutes=60/);
   assert.match(compact, /meeting_confirmation=.*향후 2주/);
-  assert.match(
-    compact,
-    /meeting_availability_url=https:\/\/matchharper\.com\/org\/settings/
-  );
+  assert.doesNotMatch(compact, /meeting_availability_url=/);
   assert.match(compact, /writing_instruction=Preserve meeting_confirmation/);
   assert.match(compact, /This preparation result is a preview/);
 });
 
-test("schedule decision exposes the human review destination", () => {
+test("schedule decision keeps the company in the chat-only scheduling flow", () => {
   const compact = serializeOrgAgentToolResult("decide_candidate_connection", {
     candidateName: "이토",
     changeSummary: "이토님과 연결했고 미팅 정보를 준비해두었어요.",
     connectionMethod: "schedule_interview",
     decision: "accept",
-    meetingDraft: {
-      config: {
-        durationMinutes: 60,
-        title: "Wonderful Japan <> 이토 Intro",
-      },
+    delivery: {
+      delayMinutes: 20,
+      scheduledAt: "2026-08-28T13:40:00.000Z",
+      sentAt: null,
     },
-    meetingScheduleUrl:
-      "https://matchharper.com/org/inbox?dialog=interview-schedule",
+    meeting: {
+      candidateMessage: "궁금한 점도 편하게 물어보셔도 됩니다.",
+      durationMinutes: 60,
+      offerWindowDays: 14,
+      purpose: "제품과 팀에 대해 서로 이야기하는 자리",
+      stageName: "첫 대화",
+    },
+    organizerAvailability: {
+      summary: "평일 10:00-17:00",
+      timezone: "Asia/Seoul",
+    },
     roleName: "FDE",
+    scheduleId: "private-schedule-id",
+    schedulingSettingsUrl:
+      "https://matchharper.com/org/settings?dialog=interview-availability",
     stage: "connected",
     status: "updated",
   });
 
-  assert.match(
+  assert.match(compact, /이토.*FDE hiring process/);
+  assert.match(compact, /saved availability.*평일 10:00-17:00/);
+  assert.match(compact, /candidate has not received/);
+  assert.match(compact, /standard delivery delay is 20 minutes/);
+  assert.match(compact, /opening the selection link refreshes/);
+  assert.match(compact, /before choices are shown/);
+  assert.match(compact, /verified optional page/);
+  assert.doesNotMatch(
     compact,
-    /meeting_schedule_url=https:\/\/matchharper\.com\/org\/inbox/
+    /private-schedule-id|meeting_schedule_url|user_facing_state|response_mode/
   );
-  assert.match(compact, /user_facing_state=The candidate is connected/);
-  assert.match(compact, /change=이토님과 연결했고 미팅 정보를 준비해두었어요/);
 });
 
 test("pending candidate contact results tell the model what can be replaced", () => {

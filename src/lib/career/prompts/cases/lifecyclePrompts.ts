@@ -1,5 +1,9 @@
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import type { CareerReengagementPendingAction } from "@/lib/career/pendingActions";
+import {
+  CAREER_REENGAGEMENT_ACTIONS_END,
+  CAREER_REENGAGEMENT_ACTIONS_START,
+} from "@/lib/career/reengagementActions";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import { formatCareerPromptKoreanDateTime } from "@/lib/career/prompts/promptUtils";
 import {
@@ -18,18 +22,15 @@ function formatReengagementPendingAction(
 ) {
   switch (action.kind) {
     case "company_request":
-      return `[회사 요청] ${action.companyName} · ${action.roleTitle}: ${action.request}`;
-    case "talent_call":
-      return `[call](callId:${action.callId}) ${action.companyName} · ${action.roleTitle}: ${
-        action.reason ||
-        "이 기회를 주제로 이야기할 수 있는 통화 요청이 열려 있음"
-      }`;
+      return `[actionKey:${action.actionKey}] [회사 요청] ${action.companyName} · ${action.roleTitle}: ${action.request}`;
     case "internal_opportunity":
-      return `[internal 연결 제안] ${action.companyName} · ${action.roleTitle}: 아직 사용자의 피드백이 없음${
+      return `[actionKey:${action.actionKey}] [internal 연결 제안] ${action.companyName} · ${action.roleTitle}: 아직 사용자의 피드백이 없음${
         action.recommendationSummary ? ` · ${action.recommendationSummary}` : ""
       }`;
+    case "meeting_schedule":
+      return `[actionKey:${action.actionKey}] [미팅 일정 요청] ${action.companyName} · ${action.roleTitle}: 회사가 가능한 시간 선택을 기다리고 있음`;
     case "reevaluation_question":
-      return `[reevaluation_criteria] ${action.question}`;
+      return `[actionKey:${action.actionKey}] [reevaluation_criteria] ${action.question}`;
   }
 }
 
@@ -76,57 +77,41 @@ export function buildCareerSessionStartTurnInstruction(args: {
     ].join("\n");
   }
 
-  const pendingActions = (args.pendingActions ?? []).slice(0, 1);
-  const pendingActionContext =
-    pendingActions.length > 0
-      ? [
-          "현재 사용자가 처리하면 좋은 작업:",
-          ...pendingActions.map(
-            (action) => `- ${formatReengagementPendingAction(action)}`
-          ),
-          "",
-          "위 목록이 있으면 이번 답변에서 해당 작업 1개를 자연스럽게 언급한다. 시스템 목록을 그대로 읽듯 말하지 말고 현재 대화에 이어지는 말로 작성한다.",
-          ...(pendingActions.some((action) => action.kind === "talent_call")
-            ? [
-                "talent_call은 답변의 마지막 문장에서 언급하되 재촉하지 않는다. 통화 요청만 단독 알림처럼 말하지 말고, 항상 자연스러운 인사나 이전 대화를 잇는 다른 내용과 함께 말한다. 마지막 문장 끝에 목록의 [call](callId:...)를 정확히 한 번 그대로 붙인다.",
-              ]
-            : []),
-          ...(pendingActions.some(
-            (action) => action.kind === "reevaluation_question"
-          )
-            ? [
-                "reevaluation_criteria 질문을 꺼낼 때는 '알려주시면 앞으로의 연결에 도움이 되는 질문이 있어요'와 같은 맥락을 자연스럽게 붙인다.",
-              ]
-            : []),
-        ].join("\n")
-      : "";
-  const openingGuidance =
-    pendingActions.length > 0
-      ? "가벼운 인사로 시작해도 좋지만, 위 작업을 현재 대화에 자연스럽게 연결하는 것을 우선한다."
-      : "가벼운 인사와 자연스럽게 질문을 하면 좋다. 아무 말도 하지 않는게 좋다고 판단되면 하지 않아도 된다.";
-
-  return `
-## Session-start assistant turn
-Write in ${outputLanguage}, using markdown.
-사용자가 방금 사이트에 다시 접속했다. 아직 아무런 말이 없지만, Harper가 먼저 짧게 말을 건넬 수 있는 차례다.
-- currentAccessAt: ${currentAccessAtLabel}
-- previousChatAt: ${previousChatAtLabel}
-
-위 시각과 최근 메시지 내역은 모두 한국 시간 기준 24시간제다.
-'방금'은 현재 화면 접속만 뜻한다. 이전 대화 시각과 혼동하지 말고, 이전 대화가 오늘이 아니면 그 대화를 '방금' 또는 '조금 전'이라고 표현하지 마라.
-
-중요: 위의 정확한 날짜/시각과 경과 시간은 내부 판단용 정보다. 사용자에게 정확한 날짜, 시각, 경과 시간, 시각 비교를 구체적으로 말하지 마라.
-${pendingActionContext}
-${openingGuidance}
-질문 예시:
-ex. 안녕하세요 {{name}}님, 다시 오셨네요! 지난 대화 이후 상황이 달라진 게 있으신가요?
-ex. mismatch case) Cursor 포지션을 저장해주셨는데 근무위치가 미국이에요. 한국과 일본 근무를 선호한다고 해주셨는데, 좋은 기회라면 미국에도 열려있으신걸까요?
-혹은 피드백 요청, 부족한 정보(profile gap 등) 질문, 다음 추천에 반영할만한 사항이 있는지 질문 등을 해도 좋다.
-안좋은 예시: 이 중에 특히 더 끌리는 회사 있으세요? - 이유: 더 끌리는 회사를 받아도 추천이나 연결에 도움이 되는 정보가 아니다.
-이전에 저장/좋아요한 추천들을 묶어 '그중 뭐가 제일 끌리냐', '어느 회사가 더 좋냐', '실제로 지원 중인 곳이 있냐'처럼 묻지 마라. 이런 질문은 추천/연결 품질을 어짜피 거의 개선하지 못한다.
-User feedback:none이면 Harper가 추천을 했지만 유저가 좋아요/싫어요 반응을 하지 않은 경우이다.
-이전 저장/좋아요/제외됨 신호를 사용해야 한다면, 특정 선택의 이유나 명확한 mismatch 하나만 물어라. 그런 구체성이 없으면 추천 이력 질문 대신 프로필 gap, 최근 변화, 통화 제안 중 하나로 이어가라.
-이미 명확한 다음 액션이 진행 중이라 사용자의 답이 필요 없거나, 질문이 오히려 어색하면 질문 없이 짧은 상태 공유로 닫아도 된다.`;
+  const primaryPendingAction = (args.pendingActions ?? [])[0];
+  const pendingActionLines = primaryPendingAction
+    ? [
+        "사용자가 지금 처리하면 결과가 달라지는 작업이 있다. 답변에서 가장 먼저 자연스럽게 다룬다:",
+        `- ${formatReengagementPendingAction(primaryPendingAction)}`,
+      ]
+    : [];
+  return [
+    "## Session re-engagement",
+    `Write one brief, natural ${outputLanguage} message using markdown. The user just returned to Career without sending a new message.`,
+    `- currentAccessAt: ${currentAccessAtLabel}`,
+    `- previousChatAt: ${previousChatAtLabel}`,
+    "시각은 한국 시간 기준 24시간제이며 내부 판단용이다. 사용자에게 날짜·시각·경과 시간을 말하거나 이전 대화를 방금 일처럼 표현하지 마라.",
+    ...pendingActionLines,
+    "답변은 짧고 자연스러운 인사말로 시작한다. 인사만 하거나 막연한 근황을 묻지 말고, 최근 대화·프로필·활동의 실제 사실에서 지금 가장 유용한 내용 1~2가지만 골라 같은 사실을 반복하지 않는다.",
+    "사용자가 놓친 중요한 작업, 최신 상황과 현재 추천·연결 설정의 불일치, 새로 생긴 추천이나 결과, 최근 추천 피드백, 더 많은 공고 탐색, 알려주면 결과가 달라질 맥락을 살핀다. 사용자가 명확히 말한 변화는 다시 확인하지 않고, 이미 안내한 사용자 직접 작업은 새로운 가치가 없으면 반복하지 않는다. 내부 설정명·전달 방식·지원 여부가 불명확한 기능은 추측하지 않는다.",
+    "사용자가 무엇을 부탁할지 고민하지 않도록 Harper가 지금 바로 대신할 수 있는 선택지를 중심에 둔다. 상황 변화와 추천 설정이 어긋나면 설정을 맞추는 선택을 먼저 제안한다. 계속 탐색하는 선택도 유용하면 현재 설정 유지나 공고 더 찾기로 함께 열어두되 새로운 세부 모드를 만들지 않는다. 사용자가 직접 해야 하는 프로필 수정은 주제로 삼지 말고 꼭 필요할 때만 보조 선택지로 둔다. 설정 변경은 영향과 다시 되돌리는 방법까지 짧게 알려준다.",
+    primaryPendingAction?.kind === "reevaluation_question"
+      ? "reevaluation_criteria는 답이 앞으로의 연결에 왜 도움이 되는지 짧게 설명한다."
+      : "",
+    primaryPendingAction?.kind === "internal_opportunity"
+      ? "internal 연결 제안에는 사용자의 관심과 피드백만 요청한다. 관심 표현만으로 프로필 공유·회사 소개·연결이 진행됐거나 확정됐다고 말하지 말고, Harper가 다음 단계를 확인할 수 있다고 설명한다."
+      : "",
+    primaryPendingAction?.kind === "meeting_schedule"
+      ? "미팅 일정 요청은 사용자가 가능한 시간을 골라야 진행되는 실제 대기 작업으로 다루고, 일정 선택 액션을 가장 먼저 제안한다."
+      : "",
+    `맥락에 맞는 유용한 메시지를 만들 수 없으면 정확히 ${CAREER_SESSION_START_NO_MESSAGE_MARKER}만 출력한다.`,
+    "보이는 일반 메시지가 답변의 핵심이다. 본문에서 사용자가 바로 실행할 수 있는 선택을 제안했다면 각각에 대응하는 액션을 아래 raw JSON 블록에 반드시 붙인다. 실행 선택이 없을 때만 블록을 생략하고 일반 CAREER_CHOICE_BUTTONS는 쓰지 않는다. 마커와 JSON은 코드 펜스 없이 출력한다.",
+    CAREER_REENGAGEMENT_ACTIONS_START,
+    '{"actions":[{"label":"사용자에게 보일 짧은 문구","action":{"type":"send_message","message":"클릭하면 사용자가 Harper에게 보낼 완전한 메시지"}},{"label":"사용자에게 보일 짧은 문구","action":{"type":"open_path","path":"/career/profile"}},{"label":"처리할 항목에 답하기","action":{"type":"open_pending_action","actionKey":"위에 제공된 정확한 actionKey"}}]}',
+    CAREER_REENGAGEMENT_ACTIONS_END,
+    "액션은 본문에 맞는 1~3개만 만든다. label과 실제 action의 대상·범위·전달 채널을 정확히 맞추고 서로 다른 설정 변경을 한 액션에 묶지 않는다. send_message는 즉시 전송돼도 자연스러운 완전한 문장으로 쓴다. 사용자가 제공된 질문·이력서·미팅 일정 요청 등을 직접 처리해야 하면 '답할게요'를 전송하지 말고 open_pending_action과 해당 항목의 정확한 actionKey를 쓴다. open_path는 /career, /career/profile, /career/history, /career/watchlist와 그 하위 query만 쓴다.",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export function buildCareerCallWrapupTurnInstruction(args: {

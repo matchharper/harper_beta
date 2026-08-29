@@ -71,24 +71,25 @@ function availability(overrides: Partial<PreparedMeetingScheduleDraft> = {}) {
       companyAttendees: [organizer],
       conferenceProvider: "google_meet" as const,
       durationMinutes: 60,
+      invitationKind: "first_company_conversation" as const,
+      meetingPurpose: "가벼운 기술적인 이야기와 서로의 기대 확인",
       offerWindowDays: 14,
       organizer,
+      processStageId: "a6db8dd1-15ed-4ea7-b4f9-9d369b7ed3b2",
+      processStageName: "1차 기술 인터뷰",
       title: "Wonderful <> 김호진 Intro",
     },
     draftBlocker: null,
+    meetingStage: null,
     ...overrides,
   } satisfies PreparedMeetingScheduleDraft;
 }
-
-const availabilityLink =
-  "<https://matchharper.com/org/settings?dialog=interview-availability|스케줄 열기>";
 
 const readyConfirmation = formatPreparedMeetingScheduleConfirmation({
   candidateName: "김호진",
   draft: availability(),
 });
 const missingConfirmation = formatPreparedMeetingScheduleConfirmation({
-  availabilityActionLink: availabilityLink,
   candidateName: "김호진",
   draft: availability({
     availability: null,

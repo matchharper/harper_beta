@@ -61,6 +61,7 @@ import type { CareerOpportunityMention } from "@/lib/career/opportunityMentionTe
 import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
 import {
   toCareerPendingActionReference,
+  type CareerComposerPendingAction,
   type CareerPendingAction,
   type CareerPendingCompanyRequestAction,
   type CareerPendingFitQuestionAction,
@@ -84,12 +85,25 @@ const CAREER_RESUME_FILE_ACCEPT = ".pdf,.doc,.docx,.txt,.md";
 type CareerComposerOpportunityMention = CareerOpportunityMention & {
   isClickable?: boolean;
 };
+
+export type CareerComposerPendingActionHandler = (
+  action: CareerComposerPendingAction
+) => void;
+
+type CareerComposerSectionProps = {
+  onPendingActionHandlerChange?: (
+    handler: CareerComposerPendingActionHandler | null
+  ) => void;
+};
+
 const createComposerTokenId = (prefix: string) => {
   const randomId = globalThis.crypto?.randomUUID?.();
   return `${prefix}:${randomId ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
 };
 
-const CareerComposerSection = () => {
+const CareerComposerSection = ({
+  onPendingActionHandlerChange,
+}: CareerComposerSectionProps) => {
   const t = useCareerT();
   const router = useRouter();
   const opportunityMentionListId = useId();
@@ -148,14 +162,15 @@ const CareerComposerSection = () => {
     useState(false);
   const [mobileActionMenuOpen, setMobileActionMenuOpen] = useState(false);
   const [desktopActionMenuOpen, setDesktopActionMenuOpen] = useState(false);
-  const [selectedPendingAction, setSelectedPendingAction] =
-    useState<
-      CareerPendingCompanyRequestAction | CareerPendingFitQuestionAction | null
-    >(null);
+  const [selectedPendingAction, setSelectedPendingAction] = useState<
+    CareerPendingCompanyRequestAction | CareerPendingFitQuestionAction | null
+  >(null);
   const [pendingQuestionExpanded, setPendingQuestionExpanded] = useState(false);
   const [recentChatCutoffMs] = useState(
     () => Date.now() - RECENT_CHAT_HISTORY_WINDOW_MS
   );
+  const pendingActionHandlerRef =
+    useRef<CareerComposerPendingActionHandler | null>(null);
   const [resumeInterviewRequest, setResumeInterviewRequest] = useState<{
     conversationId: string | null;
     requested: boolean;
@@ -599,50 +614,51 @@ const CareerComposerSection = () => {
     setTextareaResetVersion((version) => version + 1);
   };
 
-  const focusComposerAfterMenuSelection = () => {
+  const focusComposerAfterMenuSelection = useCallback(() => {
     window.setTimeout(() => textareaRef.current?.focus(), 0);
-  };
+  }, []);
 
-  const insertPendingOpportunityMention = (
-    action: CareerPendingInternalOpportunityAction
-  ) => {
-    const existingToken = opportunityTokens.tokens.find(
-      (token) => token.data.roleId === action.roleId
-    );
-    if (existingToken) {
-      window.requestAnimationFrame(() => {
-        textareaRef.current?.focus();
-        textareaRef.current?.setSelectionRange(
-          existingToken.end,
-          existingToken.end
-        );
+  const insertPendingOpportunityMention = useCallback(
+    (action: CareerPendingInternalOpportunityAction) => {
+      const existingToken = opportunityTokens.tokens.find(
+        (token) => token.data.roleId === action.roleId
+      );
+      if (existingToken) {
+        window.requestAnimationFrame(() => {
+          textareaRef.current?.focus();
+          textareaRef.current?.setSelectionRange(
+            existingToken.end,
+            existingToken.end
+          );
+        });
+        return;
+      }
+
+      const textarea = textareaRef.current;
+      const currentDraft = textarea?.value ?? draft;
+      const cursor = textarea?.selectionStart ?? currentDraft.length;
+      const before = currentDraft.slice(0, cursor);
+      const after = currentDraft.slice(cursor);
+      const leadingSpace = before && !/\s$/u.test(before) ? " " : "";
+      const trailingSpace = after && /^\s/u.test(after) ? "" : " ";
+      const label = `${action.companyName} · ${action.roleTitle}`;
+      const selectedStart = before.length + leadingSpace.length;
+      const selectedEnd = selectedStart + label.length;
+      const value = `${before}${leadingSpace}${label}${trailingSpace}${after}`;
+
+      opportunityTokens.insertToken({
+        cursor: selectedEnd + trailingSpace.length,
+        data: { label, roleId: action.roleId },
+        end: selectedEnd,
+        id: createComposerTokenId(action.id),
+        start: selectedStart,
+        text: label,
+        value,
       });
-      return;
-    }
-
-    const textarea = textareaRef.current;
-    const currentDraft = textarea?.value ?? draft;
-    const cursor = textarea?.selectionStart ?? currentDraft.length;
-    const before = currentDraft.slice(0, cursor);
-    const after = currentDraft.slice(cursor);
-    const leadingSpace = before && !/\s$/u.test(before) ? " " : "";
-    const trailingSpace = after && /^\s/u.test(after) ? "" : " ";
-    const label = `${action.companyName} · ${action.roleTitle}`;
-    const selectedStart = before.length + leadingSpace.length;
-    const selectedEnd = selectedStart + label.length;
-    const value = `${before}${leadingSpace}${label}${trailingSpace}${after}`;
-
-    opportunityTokens.insertToken({
-      cursor: selectedEnd + trailingSpace.length,
-      data: { label, roleId: action.roleId },
-      end: selectedEnd,
-      id: createComposerTokenId(action.id),
-      start: selectedStart,
-      text: label,
-      value,
-    });
-    closeOpportunityMentionPicker();
-  };
+      closeOpportunityMentionPicker();
+    },
+    [closeOpportunityMentionPicker, draft, opportunityTokens]
+  );
 
   const handleOpenPendingOpportunity = (roleId: string) => {
     const normalizedRoleId = roleId.trim();
@@ -666,33 +682,55 @@ const CareerComposerSection = () => {
     });
   };
 
-  const handleSelectPendingAction = (action: CareerPendingAction) => {
-    if (action.kind === "internal_opportunity_call") {
-      logCareerEvent("click_chat_composer_pending_call", {
-        callId: action.callRequest.id,
-        roleId: action.callRequest.roleId,
-      });
-      void onStartCallMode?.({
-        internalCallRequestId: action.callRequest.id,
-      });
-      return;
-    }
-    if (action.kind === "internal_opportunity") {
+  const handleSelectPendingAction = useCallback(
+    (action: CareerPendingAction) => {
+      if (action.kind === "internal_opportunity_call") {
+        logCareerEvent("click_chat_composer_pending_call", {
+          callId: action.callRequest.id,
+          roleId: action.callRequest.roleId,
+        });
+        void onStartCallMode?.({
+          internalCallRequestId: action.callRequest.id,
+        });
+        return;
+      }
+      if (action.kind === "internal_opportunity") {
+        logCareerEvent("click_chat_composer_pending_action", {
+          actionId: action.id,
+          actionKind: action.kind,
+        });
+        insertPendingOpportunityMention(action);
+        return;
+      }
       logCareerEvent("click_chat_composer_pending_action", {
         actionId: action.id,
         actionKind: action.kind,
       });
-      insertPendingOpportunityMention(action);
-      return;
-    }
-    logCareerEvent("click_chat_composer_pending_action", {
-      actionId: action.id,
-      actionKind: action.kind,
-    });
-    setSelectedPendingAction(action);
-    setPendingQuestionExpanded(false);
-    focusComposerAfterMenuSelection();
-  };
+      setSelectedPendingAction(action);
+      setPendingQuestionExpanded(false);
+      focusComposerAfterMenuSelection();
+    },
+    [
+      focusComposerAfterMenuSelection,
+      insertPendingOpportunityMention,
+      logCareerEvent,
+      onStartCallMode,
+    ]
+  );
+
+  useLayoutEffect(() => {
+    pendingActionHandlerRef.current = handleSelectPendingAction;
+  }, [handleSelectPendingAction]);
+  const handleExternalPendingAction = useCallback(
+    (action: CareerComposerPendingAction) =>
+      pendingActionHandlerRef.current?.(action),
+    []
+  );
+
+  useEffect(() => {
+    onPendingActionHandlerChange?.(handleExternalPendingAction);
+    return () => onPendingActionHandlerChange?.(null);
+  }, [handleExternalPendingAction, onPendingActionHandlerChange]);
 
   const handleSend = async () => {
     const text = (textareaRef.current?.value ?? draft).trim();

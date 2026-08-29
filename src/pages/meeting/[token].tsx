@@ -3,6 +3,8 @@ import Image from "next/image";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
 import { CalendarCheck, Check, Clock, LoaderCircle } from "lucide-react";
+import { OrgPageHeader } from "@/components/org/workspace/OrgPageHeader";
+import { OrgSection } from "@/components/org/workspace/OrgSection";
 import { Calendar } from "@/components/ui/calendar";
 import { MuteButton } from "@/components/ui/button";
 import type {
@@ -14,8 +16,6 @@ import { cn } from "@/lib/utils";
 
 type Copy = {
   alreadySubmitted: string;
-  availableTimes: string;
-  chooseDate: string;
   chooseHint: string;
   companyRequested: (company: string, organizer: string) => string;
   confirmed: string;
@@ -42,10 +42,7 @@ const COPY: Record<"en" | "ko", Copy> = {
   en: {
     alreadySubmitted:
       "This link has already been submitted and cannot be edited.",
-    availableTimes: "Available times",
-    chooseDate: "Choose a date",
-    chooseHint:
-      "Select 1–5 times. Choosing two or three is helpful when possible.",
+    chooseHint: "Choosing two or three times is helpful when possible.",
     companyRequested: (company, organizer) =>
       `${organizer} from ${company} would like to arrange a meeting with you.`,
     confirmed: "Your meeting time is confirmed",
@@ -77,10 +74,7 @@ const COPY: Record<"en" | "ko", Copy> = {
   },
   ko: {
     alreadySubmitted: "이미 제출한 링크이며 선택한 시간은 수정할 수 없어요.",
-    availableTimes: "가능한 시간",
-    chooseDate: "날짜를 선택해 주세요",
-    chooseHint:
-      "가능한 시간을 1~5개 골라 주세요. 가능하면 2~3개를 선택해 주시면 좋아요.",
+    chooseHint: "만약을 대비해 2~3개의 일정을 선택해주신다면 더 좋습니다.",
     companyRequested: (company, organizer) =>
       `${company}의 ${organizer}님이 미팅 일정을 요청했어요.`,
     confirmed: "미팅 시간이 확정됐어요",
@@ -298,7 +292,7 @@ export default function MeetingInvitationPage() {
   return (
     <main className="min-h-screen bg-bg-basement px-4 py-8 text-neutral-primary sm:px-6 sm:py-12">
       <Head>
-        <title>{copy.title} · Harper</title>
+        <title>{`${copy.title} · Harper`}</title>
         <meta name="robots" content="noindex,nofollow" />
       </Head>
       <div className="mx-auto mb-6 flex max-w-5xl items-center gap-2">
@@ -365,125 +359,113 @@ export default function MeetingInvitationPage() {
           title={copy.confirmed}
         />
       ) : invitation ? (
-        <div className="mx-auto max-w-5xl overflow-hidden rounded-2xl border border-neutral-1000-a05 bg-bg-floating shadow-sm">
-          <header className="border-b border-neutral-1000-a05 px-5 py-5 sm:px-7">
-            <p className="text-[12px] font-medium text-primary">{copy.title}</p>
-            <h1 className="mt-1 text-[22px] font-medium tracking-tight text-neutral-primary">
-              {invitation.title}
-            </h1>
-            <p className="mt-2 text-[13px] leading-6 text-neutral-muted">
-              {copy.companyRequested(
-                invitation.companyName,
-                invitation.organizerName
-              )}{" "}
-              {invitation.durationMinutes} min · {invitation.timezone}
+        <div className="mx-auto max-w-5xl">
+          <OrgPageHeader
+            description={`${copy.companyRequested(
+              invitation.companyName,
+              invitation.organizerName
+            )} ${invitation.durationMinutes} min · ${invitation.timezone}`}
+            title={invitation.title}
+          />
+          {invitation.message ? (
+            <p className="mt-2 max-w-3xl text-[14px] leading-6 text-neutral-muted">
+              {invitation.message}
             </p>
-            {invitation.message ? (
-              <p className="mt-3 rounded-lg bg-bg-weak px-3 py-2 text-[13px] leading-6 text-neutral-muted">
-                {invitation.message}
-              </p>
-            ) : null}
-          </header>
+          ) : null}
 
-          <div className="grid min-h-[520px] md:grid-cols-[minmax(320px,0.9fr)_minmax(360px,1.1fr)]">
-            <section className="border-b border-neutral-1000-a05 p-5 sm:p-7 md:border-b-0 md:border-r">
-              <h2 className="text-[13px] font-medium text-neutral-primary">
-                {copy.chooseDate}
-              </h2>
-              <Calendar
-                className="mt-4 bg-bg-floating p-0 [--cell-size:2.5rem]"
-                disabled={(date) =>
-                  !availableDateKeys.includes(dateKeyFromLocalDate(date))
-                }
-                mode="single"
-                modifiers={{ available: availableDateKeys.map(dateFromKey) }}
-                modifiersClassNames={{
-                  available:
-                    "[&_button]:bg-primary-faded [&_button]:text-primary hover:[&_button]:bg-primary-faded",
-                }}
-                month={selectedDate}
-                onMonthChange={(date) => {
-                  const sameMonth = availableDateKeys.find((dateKey) => {
-                    const candidate = dateFromKey(dateKey);
-                    return (
-                      candidate.getFullYear() === date.getFullYear() &&
-                      candidate.getMonth() === date.getMonth()
-                    );
-                  });
-                  if (sameMonth) setSelectedDateKey(sameMonth);
-                }}
-                onSelect={(date) => {
-                  if (date) setSelectedDateKey(dateKeyFromLocalDate(date));
-                }}
-                selected={selectedDate}
-                showOutsideDays={false}
-              />
-            </section>
+          <OrgSection className="mt-8 pb-0">
+            <div className="grid min-h-[500px] border-y border-neutral-1000-a05 md:grid-cols-[minmax(320px,0.9fr)_minmax(360px,1.1fr)]">
+              <section className="border-b border-neutral-1000-a05 py-5 pr-0 sm:py-7 md:border-b-0 md:border-r md:pr-7">
+                <Calendar
+                  className="mt-1 bg-bg-default p-0 [--cell-size:2.5rem]"
+                  disabled={(date) =>
+                    !availableDateKeys.includes(dateKeyFromLocalDate(date))
+                  }
+                  mode="single"
+                  modifiers={{ available: availableDateKeys.map(dateFromKey) }}
+                  modifiersClassNames={{
+                    available:
+                      "[&_button]:bg-primary-faded [&_button]:text-primary hover:[&_button]:bg-primary-faded",
+                  }}
+                  month={selectedDate}
+                  onMonthChange={(date) => {
+                    const sameMonth = availableDateKeys.find((dateKey) => {
+                      const candidate = dateFromKey(dateKey);
+                      return (
+                        candidate.getFullYear() === date.getFullYear() &&
+                        candidate.getMonth() === date.getMonth()
+                      );
+                    });
+                    if (sameMonth) setSelectedDateKey(sameMonth);
+                  }}
+                  onSelect={(date) => {
+                    if (date) setSelectedDateKey(dateKeyFromLocalDate(date));
+                  }}
+                  selected={selectedDate}
+                  showOutsideDays={false}
+                />
+              </section>
 
-            <section className="flex min-h-0 flex-col p-5 sm:p-7">
-              <div>
-                <h2 className="text-[13px] font-medium text-neutral-primary">
-                  {copy.availableTimes}
-                </h2>
-                <p className="mt-1 text-[12px] leading-5 text-neutral-muted">
+              <section className="flex min-h-0 flex-col py-5 pl-0 sm:py-7 md:pl-7">
+                <p className="text-[13px] leading-5 text-neutral-muted">
                   {copy.chooseHint}
                 </p>
-              </div>
-              <div className="mt-4 grid max-h-[340px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-                {slotsForDate.map((slot) => {
-                  const selected = selectedSlotIds.includes(slot.slotId);
-                  return (
-                    <MuteButton
-                      aria-pressed={selected}
-                      className={cn(
-                        "w-full justify-start",
-                        selected &&
-                          "border-primary/30 bg-primary-faded text-primary"
-                      )}
-                      key={slot.slotId}
-                      onClick={() => toggleSlot(slot.slotId)}
-                      size="lg"
-                      type="button"
-                      variant="default"
-                    >
-                      {selected ? (
-                        <Check className="size-4" />
-                      ) : (
-                        <Clock className="size-4" />
-                      )}
-                      {formatTimeRange(slot, locale, invitation.timezone)}
-                    </MuteButton>
-                  );
-                })}
-              </div>
-              <div className="mt-auto border-t border-neutral-1000-a05 pt-5">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[12px] text-neutral-muted">
-                    {copy.selected(selectedSlotIds.length)}
-                  </span>
-                  <MuteButton
-                    disabled={selectedSlotIds.length === 0 || submitting}
-                    onClick={() => void submit()}
-                    size="lg"
-                    variant="primary"
-                  >
-                    {submitting ? (
-                      <LoaderCircle className="size-4 animate-spin" />
-                    ) : null}
-                    {submitting ? copy.submitting : copy.submit}
-                  </MuteButton>
+                <div className="mt-4 grid max-h-[340px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                  {slotsForDate.map((slot) => {
+                    const selected = selectedSlotIds.includes(slot.slotId);
+                    return (
+                      <MuteButton
+                        aria-pressed={selected}
+                        className={cn(
+                          "w-full justify-start",
+                          selected &&
+                            "border-primary/30 bg-primary-faded text-primary"
+                        )}
+                        key={slot.slotId}
+                        onClick={() => toggleSlot(slot.slotId)}
+                        size="lg"
+                        type="button"
+                        variant="default"
+                      >
+                        {selected ? (
+                          <Check className="size-4" />
+                        ) : (
+                          <Clock className="size-4" />
+                        )}
+                        {formatTimeRange(slot, locale, invitation.timezone)}
+                      </MuteButton>
+                    );
+                  })}
                 </div>
-                {error ? (
-                  <p
-                    className="mt-3 text-[12px] leading-5 text-critical"
-                    role="alert"
-                  >
-                    {error}
-                  </p>
-                ) : null}
-              </div>
-            </section>
-          </div>
+                <div className="mt-auto border-t border-neutral-1000-a05 pt-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[12px] text-neutral-muted">
+                      {copy.selected(selectedSlotIds.length)}
+                    </span>
+                    <MuteButton
+                      disabled={selectedSlotIds.length === 0 || submitting}
+                      onClick={() => void submit()}
+                      size="lg"
+                      variant="primary"
+                    >
+                      {submitting ? (
+                        <LoaderCircle className="size-4 animate-spin" />
+                      ) : null}
+                      {submitting ? copy.submitting : copy.submit}
+                    </MuteButton>
+                  </div>
+                  {error ? (
+                    <p
+                      className="mt-3 text-[12px] leading-5 text-critical"
+                      role="alert"
+                    >
+                      {error}
+                    </p>
+                  ) : null}
+                </div>
+              </section>
+            </div>
+          </OrgSection>
         </div>
       ) : null}
     </main>

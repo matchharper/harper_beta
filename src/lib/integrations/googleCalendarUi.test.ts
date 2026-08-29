@@ -74,10 +74,11 @@ for (const [state, expected] of [
       )
     );
     assert.ok(html.includes(expected), html);
-    assert.ok(html.includes("Personal integrations"));
-    assert.ok(html.includes("향후 2주 일정을 가져오고"));
-    assert.ok(html.includes("Calendar 초대와 Google Meet 링크를 만들어요."));
-    assert.ok(html.includes("다른 팀원과 공유되지 않아요."));
+    assert.ok(html.includes("Google Calendar"));
+    assert.ok(html.includes("미팅 가능 시간을 확인하고,"));
+    assert.ok(
+      html.includes("인터뷰 링크를 만들고 초대하기 위해 연결이 필요해요.")
+    );
     client.clear();
   });
 }

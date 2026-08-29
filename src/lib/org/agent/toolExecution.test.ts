@@ -258,7 +258,7 @@ test("pending proposal lookup ignores expired rows at the query boundary", async
   assert.ok(expiry >= before && expiry <= after);
 });
 
-test("candidate decision execution is an enabled terminal tool", async () => {
+test("candidate execution remains terminal while setup steps may continue", async () => {
   const { assertOrgAgentToolAvailable } =
     await import("@/lib/org/agent/toolAvailability");
   const { isOrgAgentTerminalToolName } = await import("@/lib/org/agent/tools");
@@ -277,11 +277,14 @@ test("candidate decision execution is an enabled terminal tool", async () => {
     false
   );
   assert.equal(isOrgAgentTerminalToolName("change_role_status"), true);
-  assert.equal(isOrgAgentTerminalToolName("manage_role_pipeline_stages"), true);
+  assert.equal(
+    isOrgAgentTerminalToolName("manage_role_pipeline_stages"),
+    false
+  );
   assert.equal(isOrgAgentTerminalToolName("move_candidate_stage"), true);
   assert.equal(
     isOrgAgentTerminalToolName("manage_interview_availability"),
-    true
+    false
   );
   assert.equal(isOrgAgentTerminalToolName("decide_candidate_connection"), true);
   assert.equal(isOrgAgentTerminalToolName("contact_talent"), true);
@@ -395,6 +398,19 @@ test("a failed Role status change cannot be presented as completed", () => {
   );
 });
 
+test("workspace-scoped Harper links keep model prose but use the verified org id", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  const reply = enforceOrgAgentTerminalMutationOutcome(
+    state,
+    "필요하면 <https://matchharper.com/org/settings?dialog=interview-availability&amp;orgId=hallucinated-workspace|가능 시간 설정>에서 조정할 수 있어요."
+  );
+
+  assert.equal(
+    reply,
+    `필요하면 <https://matchharper.com/org/settings?dialog=interview-availability&amp;orgId=${state.company.workspaceId}|가능 시간 설정>에서 조정할 수 있어요.`
+  );
+});
+
 test("a failed candidate contact lifecycle action cannot be presented as completed", () => {
   const state = createOrgAgentToolExecutionState(minimalContext());
   state.terminalMutationUsed = true;
@@ -429,6 +445,26 @@ test("a successful candidate contact action keeps the model-written reply", () =
       "안녕하세요. 후보자께 보낼 이메일 본문입니다."
     ),
     "안녕하세요. 후보자께 보낼 이메일 본문입니다."
+  );
+});
+
+test("availability updates allow one already-authorized scheduling flow to continue", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  state.terminalReply =
+    "좋아요. 앞으로 이 시간을 기준으로 가능한 일정을 찾을게요.\n\n이 시간을 바탕으로 누구와 미팅을 잡으면 될지 말씀해 주시면 바로 이어갈게요.";
+  state.toolResults.push({
+    callId: "availability-1",
+    name: "manage_interview_availability",
+    status: "success",
+    summary: "미팅 가능 시간 설정: 평일 10:00-17:00",
+  });
+
+  assert.equal(
+    enforceOrgAgentTerminalMutationOutcome(
+      state,
+      "이 시간을 기준으로 김후보님 미팅을 바로 준비해서 진행할게요."
+    ),
+    "이 시간을 기준으로 김후보님 미팅을 바로 준비해서 진행할게요."
   );
 });
 
@@ -717,6 +753,41 @@ test("an unconfirmed candidate decision keeps the server confirmation copy", () 
   assert.equal(
     enforceOrgAgentTerminalMutationOutcome(state, "후보자를 연결했습니다."),
     state.terminalReply
+  );
+});
+
+test("a blocked scheduled stage move can use the model-authored coordinator reply", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  state.toolResults.push({
+    callId: "scheduled-stage-move-blocked",
+    name: "move_candidate_stage",
+    status: "unchanged",
+    summary: "인터뷰 일정 요청 전 선행 설정 필요",
+  });
+
+  const modelReply =
+    "1차 인터뷰 단계를 추가했고, 이어서 미팅을 준비하려면 회사 담당자의 가능 시간만 알려주세요.";
+  assert.equal(
+    enforceOrgAgentTerminalMutationOutcome(state, modelReply),
+    modelReply
+  );
+});
+
+test("a successful scheduled stage move keeps the model-authored explanation", () => {
+  const state = createOrgAgentToolExecutionState(minimalContext());
+  state.terminalReply = "서버가 만든 한 줄 완료 문구";
+  state.toolResults.push({
+    callId: "scheduled-stage-move-success",
+    name: "move_candidate_stage",
+    status: "success",
+    summary: "후보자 단계 이동과 미팅 요청 예약",
+  });
+
+  const modelReply =
+    "알려주신 가능 시간을 앞으로의 기준으로 저장했고, 이어서 후보자 미팅 요청도 준비했어요. 후보자에게는 아직 전달 전이라 추가로 전할 내용이 있으면 말씀해 주세요.";
+  assert.equal(
+    enforceOrgAgentTerminalMutationOutcome(state, modelReply),
+    modelReply
   );
 });
 

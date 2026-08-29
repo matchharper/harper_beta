@@ -1,5 +1,6 @@
 import type { User } from "@supabase/supabase-js";
 import {
+  type MeetingCalendarBusyBlock,
   type MeetingAvailabilityDocument,
   type MeetingAvailabilityResponse,
   MeetingAvailabilityValidationError,
@@ -13,8 +14,14 @@ import type { Database, Json } from "@/types/database.types";
 type MeetingAvailabilityRow =
   Database["public"]["Tables"]["meeting_availability"]["Row"];
 
+const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+
 function normalizeText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
 function parseStoredDocument(row: MeetingAvailabilityRow) {
@@ -45,6 +52,42 @@ function toSavedAvailability(
     updatedAt: row.updated_at,
     version: row.version,
   };
+}
+
+function toCalendarBusyBlock(row: unknown): MeetingCalendarBusyBlock | null {
+  if (!isRecord(row)) return null;
+  const id = normalizeText(row.id);
+  const startAt = normalizeText(row.start_at);
+  const endAt = normalizeText(row.end_at);
+  if (!id || !startAt || !endAt) return null;
+  return {
+    allDay: row.all_day === true,
+    endAt,
+    id,
+    isBlocking: row.is_blocking !== false,
+    startAt,
+  };
+}
+
+async function fetchCalendarBusyBlocksForCompanyUser(args: {
+  admin: ReturnType<typeof getSupabaseAdmin>;
+  companyUserId: string;
+}) {
+  const windowStart = new Date();
+  const windowEnd = new Date(windowStart.getTime() + 14 * 86_400_000);
+  const { data, error } = await args.admin
+    .from("company_user_calendar_busy_blocks")
+    .select("id, start_at, end_at, all_day, is_blocking")
+    .eq("company_user_id", args.companyUserId)
+    .eq("provider", "google_calendar")
+    .lt("start_at", windowEnd.toISOString())
+    .gt("end_at", windowStart.toISOString())
+    .order("start_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).flatMap((row) => {
+    const block = toCalendarBusyBlock(row);
+    return block ? [block] : [];
+  });
 }
 
 export async function fetchMeetingAvailabilityForCompanyUser(args: {
@@ -86,13 +129,20 @@ export async function fetchMeetingAvailability(args: {
   workspaceId: string;
 }): Promise<MeetingAvailabilityResponse> {
   const { admin, workspaceId } = await assertAvailabilityAccess(args);
-  const availability = await fetchMeetingAvailabilityForCompanyUser({
-    admin,
-    companyUserId: args.user.id,
-    workspaceId,
-  });
+  const [availability, calendarBusyBlocks] = await Promise.all([
+    fetchMeetingAvailabilityForCompanyUser({
+      admin,
+      companyUserId: args.user.id,
+      workspaceId,
+    }),
+    fetchCalendarBusyBlocksForCompanyUser({
+      admin,
+      companyUserId: args.user.id,
+    }),
+  ]);
   return {
     availability,
+    calendarBusyBlocks,
     ok: true,
   };
 }
@@ -150,7 +200,14 @@ export async function saveMeetingAvailability(args: {
       );
     }
     if (error) throw error;
-    return { availability: toSavedAvailability(data), ok: true };
+    return {
+      availability: toSavedAvailability(data),
+      calendarBusyBlocks: await fetchCalendarBusyBlocksForCompanyUser({
+        admin,
+        companyUserId: args.user.id,
+      }),
+      ok: true,
+    };
   }
 
   const { data, error } = await admin
@@ -174,5 +231,45 @@ export async function saveMeetingAvailability(args: {
       "다른 화면에서 가능 시간이 바뀌었어요. 최신 설정을 다시 불러와 주세요."
     );
   }
-  return { availability: toSavedAvailability(data), ok: true };
+  return {
+    availability: toSavedAvailability(data),
+    calendarBusyBlocks: await fetchCalendarBusyBlocksForCompanyUser({
+      admin,
+      companyUserId: args.user.id,
+    }),
+    ok: true,
+  };
+}
+
+export async function updateMeetingCalendarBusyBlock(args: {
+  busyBlockId: string;
+  isBlocking: boolean;
+  user: User;
+  workspaceId: string;
+}): Promise<MeetingCalendarBusyBlock> {
+  const { admin } = await assertAvailabilityAccess(args);
+  const busyBlockId = normalizeText(args.busyBlockId);
+  if (!UUID_PATTERN.test(busyBlockId)) {
+    throw new OrgHttpError(400, "Google Calendar 일정을 확인해 주세요.");
+  }
+  const { data, error } = await admin.rpc(
+    "set_google_calendar_busy_block_blocking_v1",
+    {
+      p_busy_block_id: busyBlockId,
+      p_company_user_id: args.user.id,
+      p_is_blocking: args.isBlocking,
+    }
+  );
+  if (error?.code === "P0002") {
+    throw new OrgHttpError(404, "Google Calendar 일정을 찾지 못했어요.");
+  }
+  if (error?.code === "22023") {
+    throw new OrgHttpError(400, "Google Calendar 일정을 확인해 주세요.");
+  }
+  if (error) throw error;
+  const busyBlock = data ? toCalendarBusyBlock(data) : null;
+  if (!busyBlock) {
+    throw new OrgHttpError(404, "Google Calendar 일정을 찾지 못했어요.");
+  }
+  return busyBlock;
 }

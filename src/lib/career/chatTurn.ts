@@ -79,6 +79,7 @@ import {
   normalizePostingRoleIds,
 } from "@/lib/career/postingLinks";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
+import { stripCareerReengagementActions } from "@/lib/career/reengagementActions";
 import { resolveCareerRecentConversationLocale } from "@/lib/career/recentConversationLocale";
 import { getCareerToolStartThinkingLog } from "@/lib/career/toolThinkingLog";
 import {
@@ -1278,7 +1279,9 @@ export async function runCareerChatTurn(
   }
 
   await scheduleInsightExtractionForAssistantMessage({
-    content: stripOpportunityRunMarkers(safeAssistantText),
+    content: stripCareerReengagementActions(
+      stripOpportunityRunMarkers(safeAssistantText)
+    ),
     messageId: insertedAssistantMessage.id,
   });
   const finalAssistantThinkingLogs = thinkingLogs;

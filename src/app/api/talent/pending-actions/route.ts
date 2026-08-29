@@ -65,16 +65,17 @@ export async function GET(req: NextRequest) {
   const locale =
     req.nextUrl.searchParams.get("locale") ?? setting.preferred_locale;
   if (isReengagementScope) {
-    return NextResponse.json(
-      await fetchCareerReengagementPendingActions({
-        admin,
-        includeReevaluationQuestion:
-          setting.profile_visibility !== "dont_share",
-        locale,
-        sourceLimit: 100,
-        userId: user.id,
-      })
-    );
+    const snapshot = await fetchCareerReengagementPendingActions({
+      admin,
+      includeReevaluationQuestion: setting.profile_visibility !== "dont_share",
+      locale,
+      sourceLimit: 100,
+      userId: user.id,
+    });
+    return NextResponse.json({
+      actions: snapshot.actions,
+      promptActions: snapshot.promptActions,
+    } satisfies CareerReengagementPendingActionsSnapshot);
   }
 
   const [callRequests, fitQuestion, companyRequests, internalOpportunities] =

@@ -6,6 +6,7 @@ import {
   formatCareerPromptKoreanDateTime,
   sanitizeCareerPromptDateValues,
 } from "@/lib/career/prompts/promptUtils";
+import { stripCareerReengagementActions } from "@/lib/career/reengagementActions";
 export const TALENT_MESSAGE_TYPE_OPPORTUNITY_FEEDBACK_NOTE =
   "opportunity_feedback_note";
 export const TALENT_MESSAGE_TYPE_RESUME_UPLOAD_NOTE = "resume_upload_note";
@@ -71,7 +72,9 @@ export function formatTalentMessageContentForLlmPrompt(
   const content = sanitizeCareerPromptDateValues(
     formatCareerMessageAttachmentsForLlm(
       formatCareerOpportunityMentionsForLlm(
-        stripOpportunityRunMarkers(String(message.content ?? ""))
+        stripCareerReengagementActions(
+          stripOpportunityRunMarkers(String(message.content ?? ""))
+        )
       )
     )
   );

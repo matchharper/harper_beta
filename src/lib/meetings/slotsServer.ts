@@ -29,11 +29,11 @@ export async function fetchSyncedGoogleCalendarBusyRanges(args: {
     new Set(args.attendeeCompanyUserIds.map(clean).filter(Boolean))
   );
   if (attendeeIds.length === 0) return [];
-  const { data, error } = await (
-    args.admin.from("company_user_calendar_busy_blocks" as any) as any
-  )
+  const { data, error } = await args.admin
+    .from("company_user_calendar_busy_blocks")
     .select("start_at, end_at")
     .in("company_user_id", attendeeIds)
+    .eq("is_blocking", true)
     .lt("start_at", args.windowEnd.toISOString())
     .gt("end_at", args.windowStart.toISOString());
   if (error) throw error;

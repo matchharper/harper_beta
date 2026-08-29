@@ -306,9 +306,9 @@ export function OrgDocumentsPage({ markdown }: { markdown: string }) {
         />
       </div>
 
-      <div className="xl:grid xl:grid-cols-[minmax(0,600px)_200px] xl:justify-between xl:gap-12 xl:pl-24 2xl:pl-32">
+      <div className="xl:grid xl:grid-cols-[minmax(0,680px)_200px] xl:justify-between xl:gap-12 xl:pl-24 2xl:pl-32">
         <article
-          className="mx-auto w-full max-w-[680px] xl:mx-0 xl:max-w-[600px]"
+          className="mx-auto w-full max-w-[720px] xl:mx-0 xl:max-w-[680px]"
           data-documents-copy-source
         >
           <OrgDocumentsMarkdown
@@ -320,25 +320,20 @@ export function OrgDocumentsPage({ markdown }: { markdown: string }) {
           />
 
           <section className="scroll-mt-36 mt-20 xl:scroll-mt-12" id="faq">
-            <Text
-              as="p"
-              className="normal-case text-primary"
-              data-documents-copy-exclude
-              type="eyebrow"
-            >
-              {ORG_DOCUMENTS_SECTION_EYEBROWS.faq}
-            </Text>
             <h2 className="mt-2 text-[23px] font-medium leading-8 tracking-[-0.025em] text-[#181717] sm:text-[24px]">
               자주 묻는 질문
             </h2>
-            <div className="mt-6 divide-y divide-[#e9e6e4] border-y border-[#e9e6e4]">
+            <div className="mt-6 divide-y divide-[#e9e6e4] border-y border-neutral-100">
               {COMPANY_SERVICE_FAQ_ITEMS.map((item) => (
-                <details className="group py-4.5" key={item.question}>
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-5 text-[16px] font-medium leading-7 text-[#272321] outline-none marker:hidden focus-visible:underline">
+                <details
+                  className="group py-6 font-normal text-black"
+                  key={item.question}
+                >
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-5 text-[15px] font-normal leading-7 text-[#272321] outline-none marker:hidden focus-visible:underline">
                     {item.question}
                     <ChevronDown className="size-4 shrink-0 text-[#8d8580] transition-transform group-open:rotate-180 motion-reduce:transition-none" />
                   </summary>
-                  <p className="mt-3 mr-8 rounded-lg bg-[#f8f6f4] px-4 py-3.5 text-[15px] font-normal leading-[1.7] text-[#504a46]">
+                  <p className="mt-3 mr-8 text-[15px] font-normal leading-[1.7] text-black/70">
                     {item.answer}
                   </p>
                 </details>

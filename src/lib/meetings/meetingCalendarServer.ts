@@ -147,7 +147,9 @@ async function loadConfirmedSchedule(admin: AdminClient, scheduleId: string) {
   }
   const [roundResult, candidateResult] = await Promise.all([
     (admin.from("meeting_schedule_rounds" as any) as any)
-      .select("id, invitation_snapshot, selection_snapshot")
+      .select(
+        "id, invitation_snapshot, meeting_config_snapshot, selection_snapshot"
+      )
       .eq("id", schedule.active_round_id)
       .eq("schedule_id", schedule.id)
       .maybeSingle(),
@@ -260,6 +262,9 @@ export async function ensureMeetingCalendarEvent(scheduleIdValue: string) {
         "후보자의 이메일을 확인할 수 없어 Calendar 초대를 보내지 못했어요."
       );
     }
+    const meetingConfig = isRecord(round.meeting_config_snapshot)
+      ? round.meeting_config_snapshot
+      : null;
 
     const { service, vendor } = createCalendarRuntime(admin);
     const accountId = await service.requireActiveAccountId(
@@ -283,6 +288,13 @@ export async function ensureMeetingCalendarEvent(scheduleIdValue: string) {
         arguments: buildGoogleCalendarCreateEventArguments({
           attendees,
           endAt,
+          invitationKind:
+            clean(meetingConfig?.invitationKind, 80) === "process_stage"
+              ? "process_stage"
+              : "first_company_conversation",
+          meetingPurpose: clean(meetingConfig?.meetingPurpose, 600) || null,
+          processStageName:
+            clean(meetingConfig?.processStageName, 80) || null,
           scheduleId: schedule.id,
           startAt,
           summary: schedule.title,

@@ -49,7 +49,7 @@ export function convertMarkdownLinksToSlackMrkdwn(value: string) {
   );
 }
 
-function getPublicSiteUrl() {
+export function getOrgPublicSiteUrl() {
   const value =
     process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
     process.env.NEXT_PUBLIC_APP_URL?.trim() ||
@@ -67,7 +67,7 @@ function getPublicSiteUrl() {
 export function buildOrgRoleUrl(workspaceId: string, roleId?: string | null) {
   const params = new URLSearchParams({ orgId: workspaceId });
   if (roleId) params.set("roleId", roleId);
-  return `${getPublicSiteUrl()}/org/jobs?${params.toString()}`;
+  return `${getOrgPublicSiteUrl()}/org/jobs?${params.toString()}`;
 }
 
 export function buildOrgMeetingAvailabilityUrl(workspaceId: string) {
@@ -75,7 +75,7 @@ export function buildOrgMeetingAvailabilityUrl(workspaceId: string) {
     dialog: "interview-availability",
     orgId: workspaceId,
   });
-  return `${getPublicSiteUrl()}/org/settings?${params.toString()}`;
+  return `${getOrgPublicSiteUrl()}/org/settings?${params.toString()}`;
 }
 
 export function buildOrgMeetingScheduleUrl(
@@ -87,7 +87,7 @@ export function buildOrgMeetingScheduleUrl(
     orgId: workspaceId,
     scheduleId,
   });
-  return `${getPublicSiteUrl()}/org/inbox?${params.toString()}`;
+  return `${getOrgPublicSiteUrl()}/org/inbox?${params.toString()}`;
 }
 
 export function formatPerson(user: OrgSlackUser) {

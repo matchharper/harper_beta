@@ -84,9 +84,12 @@ export function useOrgCandidateActions(args: {
         durationMinutes: options?.durationMinutes,
         emailMode: options?.emailMode,
         introEmails: options?.introEmails ?? null,
+        meetingCandidateMessage: options?.meetingCandidateMessage ?? null,
+        meetingPurpose: options?.meetingPurpose ?? null,
         recommendationId: item.recommendationId,
         roleId: item.roleId,
         scheduleInterview: options?.scheduleInterview ?? false,
+        sourceStage: item.stage,
         stage,
         stopNote: options?.stopNote ?? null,
         talentId: item.talentId,
@@ -121,6 +124,8 @@ export function useOrgCandidateActions(args: {
     contactDirectly,
     durationMinutes,
     introEmails,
+    meetingCandidateMessage,
+    meetingPurpose,
     scheduleInterview,
     stage,
     title,
@@ -132,6 +137,8 @@ export function useOrgCandidateActions(args: {
     contactDirectly: boolean;
     durationMinutes?: number;
     introEmails: string[];
+    meetingCandidateMessage?: string | null;
+    meetingPurpose?: string | null;
     scheduleInterview?: boolean;
     stage: OrgStageId;
     title?: string | null;
@@ -151,9 +158,12 @@ export function useOrgCandidateActions(args: {
       contactDirectly,
       durationMinutes,
       introEmails,
+      meetingCandidateMessage,
+      meetingPurpose,
       recommendationId,
       roleId,
       scheduleInterview,
+      sourceStage: args.detail?.recommendation.stage,
       stage,
       stopNote: null,
       talentId,

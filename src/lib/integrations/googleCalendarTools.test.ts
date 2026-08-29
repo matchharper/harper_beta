@@ -136,6 +136,21 @@ test("event creation uses the requested local timezone and trusts only Google UR
     })?.calendarUrl,
     null
   );
+  assert.deepEqual(
+    parseCreatedGoogleCalendarEvent({
+      data: {
+        event_id: "event-3",
+        hangout_link: "https://meet.google.com/snake-case-link",
+        html_link: "https://calendar.google.com/calendar/event?eid=snake",
+      },
+    }),
+    {
+      calendarUrl: "https://calendar.google.com/calendar/event?eid=snake",
+      conferencePending: false,
+      eventId: "event-3",
+      meetUrl: "https://meet.google.com/snake-case-link",
+    }
+  );
 });
 
 test("event arguments invite both sides, request Meet, notify guests, and remain idempotent", () => {
@@ -164,6 +179,7 @@ test("event arguments invite both sides, request Meet, notify guests, and remain
       "candidate@example.com",
     ],
     endAt,
+    meetingPurpose: "가벼운 기술적인 이야기와 서로의 기대 확인",
     scheduleId: "schedule-1",
     startAt,
     summary: "Company <> Candidate Intro",
@@ -175,11 +191,27 @@ test("event arguments invite both sides, request Meet, notify guests, and remain
   ]);
   assert.equal(create.create_meeting_room, true);
   assert.equal(create.send_updates, "all");
+  assert.match(create.description, /가벼운 기술적인 이야기/);
+  assert.match(create.description, /서로의 기대와 경험을 편하게 나눠보는 자리/);
   assert.equal(create.start_datetime, "2026-08-28T10:30:00");
   assert.equal(create.end_datetime, "2026-08-28T11:30:00");
   assert.deepEqual(create.extended_properties, {
     private: { harperScheduleId: "schedule-1" },
   });
+
+  const processStageCreate = buildGoogleCalendarCreateEventArguments({
+    attendees: ["candidate@example.com"],
+    endAt,
+    invitationKind: "process_stage",
+    meetingPurpose: "기술 과제와 협업 방식을 함께 이야기하기",
+    processStageName: "1차 기술 인터뷰",
+    scheduleId: "schedule-2",
+    startAt,
+    summary: "Company <> Candidate Intro",
+    timezone: "Asia/Seoul",
+  });
+  assert.match(processStageCreate.description, /1차 기술 인터뷰 단계/);
+  assert.doesNotMatch(processStageCreate.description, /서로의 기대와 경험/);
 });
 
 test("conference entry points and pending creation are preserved", () => {

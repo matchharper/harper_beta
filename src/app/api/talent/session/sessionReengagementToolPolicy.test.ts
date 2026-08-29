@@ -22,6 +22,13 @@ const debugPrompts = readFileSync(
   new URL("../../../../lib/career/debugPrompts.ts", import.meta.url),
   "utf8"
 );
+const reengagementPendingActions = readFileSync(
+  new URL(
+    "../../../../lib/career/reengagementPendingActions.server.ts",
+    import.meta.url
+  ),
+  "utf8"
+);
 
 test("session start and re-engagement turns expose no career tools", () => {
   assert.match(sessionRoute, /allowedToolNames:\s*\[\]/);
@@ -46,33 +53,51 @@ test("dedicated re-engagement configures temperature 0.8", () => {
   assert.doesNotMatch(sessionRoute, /REENGAGEMENT_TEMPERATURE/);
 });
 
+test("session and dedicated re-engagement both require 12 idle hours", () => {
+  for (const source of [sessionRoute, reengagementRoute]) {
+    assert.match(
+      source,
+      /REENGAGEMENT_IDLE_MS\s*=\s*12\s*\*\s*60\s*\*\s*60\s*\*\s*1000/
+    );
+  }
+});
+
 test("dedicated re-engagement loads fresh pending actions into the turn instruction", () => {
   assert.match(reengagementRoute, /fetchCareerReengagementPendingActions\s*\(/);
   assert.match(reengagementRoute, /pendingActions:\s*pendingActionsForTurn/);
 });
 
-test("dedicated re-engagement makes one 50 percent decision and includes at most one action", () => {
-  assert.match(
+test("dedicated re-engagement does not load talent calls", () => {
+  assert.doesNotMatch(
     reengagementRoute,
-    /REENGAGEMENT_PENDING_ACTION_PROBABILITY\s*=\s*0\.5/
+    /REENGAGEMENT_TALENT_CALL_PROBABILITY/
   );
-  assert.equal((reengagementRoute.match(/Math\.random\(\)/g) ?? []).length, 1);
+  assert.doesNotMatch(reengagementRoute, /Math\.random\(\)/);
   assert.match(
     reengagementRoute,
-    /pendingActionsSnapshot\.promptActions\.slice\(0, 1\)/
+    /pendingActionsForTurn\s*=\s*pendingActionsSnapshot\.promptActions/
+  );
+  assert.doesNotMatch(reengagementRoute, /selectedCallAction/);
+  assert.doesNotMatch(
+    reengagementRoute,
+    /replaceReengagementCallLinkWithCardMarker/
+  );
+  assert.doesNotMatch(
+    reengagementPendingActions,
+    /fetchPendingInternalOpportunityCallRequests|talent_call/
   );
 });
 
-test("dedicated re-engagement converts a call link into the rendered call-card marker", () => {
-  assert.match(
-    reengagementRoute,
-    /replaceReengagementCallLinkWithCardMarker\s*\(/
-  );
+test("dedicated re-engagement resolves prompt action keys to signed refs before insert", () => {
+  assert.match(reengagementRoute, /resolveCareerReengagementActionKeys\s*\(/);
+  assert.match(sessionRoute, /resolveCareerReengagementActionKeys\s*\(/);
+  assert.match(reengagementRoute, /createCareerPendingActionRef\s*\(/);
   assert.equal(
     (reengagementRoute.match(/transformAssistantTextBeforeInsert,/g) ?? [])
       .length,
     2
   );
+  assert.match(chatTurn, /stripCareerReengagementActions\s*\(/);
 });
 
 test("normal career and re-engagement LLM context both keep at least 16 recent messages", () => {

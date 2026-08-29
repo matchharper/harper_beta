@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/select";
 import { useOrgMeetingAvailability } from "@/hooks/org/useOrgMeetingAvailability";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
-import { COMPANY_MEETING_SCHEDULING_ENABLED } from "@/lib/companyMeetingScheduling";
 import {
   buildDefaultInterviewTitle,
   DEFAULT_INTERVIEW_DURATION_MINUTES,
@@ -47,7 +46,7 @@ function parseEmailList(value: string) {
   );
 }
 
-type ConnectionMode = "direct_contact" | "intro_email" | "schedule_interview";
+type ConnectionMode = "direct_contact" | "intro_email";
 
 type AcceptIntroSubmitResult = {
   meetingSchedule?: { detailPath: string; scheduleId: string } | null;
@@ -55,31 +54,24 @@ type AcceptIntroSubmitResult = {
 
 export function AcceptIntroDialog({
   allowContactDirectly = false,
-  availabilityReturnTarget,
   candidateEmail,
   candidateName,
   companyContactName,
   defaultContactDirectly = false,
-  defaultScheduleInterview = false,
   defaultEmail,
   members = [],
   onClose,
   onSubmit,
   open,
   pending,
+  requiresProcessStage = false,
   roleTitle,
 }: {
   allowContactDirectly?: boolean;
-  availabilityReturnTarget?: {
-    recommendationId: string;
-    roleId: string;
-    talentId: string;
-  } | null;
   candidateEmail?: string | null;
   candidateName: string;
   companyContactName?: string | null;
   defaultContactDirectly?: boolean;
-  defaultScheduleInterview?: boolean;
   defaultEmail?: string | null;
   members?: Pick<OrgMember, "email" | "name" | "userId">[];
   onClose: () => void;
@@ -91,11 +83,15 @@ export function AcceptIntroDialog({
     contactDirectly: boolean;
     durationMinutes: number;
     introEmails: string[];
+    meetingCandidateMessage: string | null;
+    meetingPurpose: string;
+    processStageLabel: string | null;
     scheduleInterview: boolean;
     title: string;
   }) => AcceptIntroSubmitResult | Promise<AcceptIntroSubmitResult>;
   open: boolean;
   pending?: boolean;
+  requiresProcessStage?: boolean;
   roleTitle: string;
 }) {
   const router = useRouter();
@@ -108,18 +104,22 @@ export function AcceptIntroDialog({
     return email === normalizedCandidateEmail ? "" : email;
   };
   const getDefaultConnectionMode = (): ConnectionMode =>
-    COMPANY_MEETING_SCHEDULING_ENABLED && defaultScheduleInterview
-      ? "schedule_interview"
-      : allowContactDirectly && defaultContactDirectly
-        ? "direct_contact"
-        : "intro_email";
+    allowContactDirectly && defaultContactDirectly
+      ? "direct_contact"
+      : "intro_email";
   const [connectionMode, setConnectionMode] = useState<ConnectionMode>(
     getDefaultConnectionMode
   );
   const usesDirectContact = connectionMode === "direct_contact";
-  const schedulesInterview =
-    COMPANY_MEETING_SCHEDULING_ENABLED &&
-    connectionMode === "schedule_interview";
+  // Meeting scheduling is intentionally chat-only. This dialog only covers
+  // direct contact and the existing email-introduction flow.
+  const schedulesInterview = false;
+  const processDestinationLabel = requiresProcessStage
+    ? "선택한 다음 프로세스"
+    : "연결됨";
+  const processDestinationDirection = requiresProcessStage
+    ? "선택한 다음 프로세스로"
+    : "연결됨으로";
   const availabilityQuery = useOrgMeetingAvailability({
     enabled: open && schedulesInterview,
     workspaceId: workspace.workspaceId,
@@ -137,6 +137,9 @@ export function AcceptIntroDialog({
   const [durationMinutes, setDurationMinutes] = useState(
     DEFAULT_INTERVIEW_DURATION_MINUTES
   );
+  const [meetingPurpose, setMeetingPurpose] = useState("");
+  const [meetingCandidateMessage, setMeetingCandidateMessage] = useState("");
+  const [processStageLabel, setProcessStageLabel] = useState("");
   const [meetingAttendeeEmails, setMeetingAttendeeEmails] = useState(() =>
     getDefaultEmailText() ? [getDefaultEmailText()] : []
   );
@@ -174,6 +177,9 @@ export function AcceptIntroDialog({
       })
     );
     setDurationMinutes(DEFAULT_INTERVIEW_DURATION_MINUTES);
+    setMeetingPurpose("");
+    setMeetingCandidateMessage("");
+    setProcessStageLabel("");
     setMeetingAttendeeEmails(
       getDefaultEmailText() ? [getDefaultEmailText()] : []
     );
@@ -204,6 +210,14 @@ export function AcceptIntroDialog({
       setError("인터뷰 제목을 입력해 주세요.");
       return;
     }
+    if (schedulesInterview && !meetingPurpose.trim()) {
+      setError("미팅에서 나눌 주제를 알려주세요.");
+      return;
+    }
+    if (requiresProcessStage && !processStageLabel.trim()) {
+      setError("다음 프로세스 이름을 입력해 주세요.");
+      return;
+    }
     setError("");
     try {
       const result = await onSubmit({
@@ -214,6 +228,13 @@ export function AcceptIntroDialog({
         contactDirectly: usesDirectContact,
         durationMinutes,
         introEmails: usesDirectContact || schedulesInterview ? [] : introEmails,
+        meetingCandidateMessage: schedulesInterview
+          ? meetingCandidateMessage.trim() || null
+          : null,
+        meetingPurpose: schedulesInterview ? meetingPurpose.trim() : "",
+        processStageLabel: requiresProcessStage
+          ? processStageLabel.trim()
+          : null,
         scheduleInterview: schedulesInterview,
         title: meetingTitle.trim(),
       });
@@ -246,9 +267,6 @@ export function AcceptIntroDialog({
   };
   const selectConnectionMode = (mode: ConnectionMode) => {
     if (mode === "direct_contact" && !allowContactDirectly) return;
-    if (mode === "schedule_interview" && !COMPANY_MEETING_SCHEDULING_ENABLED) {
-      return;
-    }
     setConnectionMode(mode);
     if (mode !== "intro_email") setEmailPreviewOpen(false);
     if (error) setError("");
@@ -270,9 +288,9 @@ export function AcceptIntroDialog({
       closeOnBackdrop={!pending}
       description={
         schedulesInterview
-          ? "연결하기 전에 첫 미팅의 시간과 참석자를 확인해 주세요. 아직 후보자에게는 메일을 보내지 않아요."
+          ? `${processDestinationDirection} 옮기기 전에 미팅의 시간과 참석자를 확인해 주세요. 아직 후보자에게는 메일을 보내지 않아요.`
           : usesDirectContact
-            ? "후보자를 연결됨으로 표시하지만 Harper는 이메일을 보내지 않아요. 회사가 후보자에게 직접 연락해야 해요."
+            ? `후보자를 ${processDestinationDirection} 표시하지만 Harper는 이메일을 보내지 않아요. 회사가 후보자에게 직접 연락해야 해요.`
             : "Harper가 후보자와 선택한 담당자에게 소개 이메일을 바로 보내요. 보낸 이메일은 회수할 수 없어요."
       }
       footer={
@@ -292,7 +310,9 @@ export function AcceptIntroDialog({
               (schedulesInterview &&
                 (!normalizedCandidateEmail ||
                   !availability ||
-                  !meetingTitle.trim())) ||
+                  !meetingTitle.trim() ||
+                  !meetingPurpose.trim())) ||
+              (requiresProcessStage && !processStageLabel.trim()) ||
               (!usesDirectContact &&
                 !schedulesInterview &&
                 (!normalizedCandidateEmail || introEmails.length === 0))
@@ -304,10 +324,16 @@ export function AcceptIntroDialog({
           >
             {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
             {schedulesInterview
-              ? "일정 초안 저장하고 연결하기"
+              ? requiresProcessStage
+                ? "일정 초안 저장하고 다음 단계로"
+                : "일정 초안 저장하고 연결하기"
               : usesDirectContact
-                ? "Mark as connected"
-                : "Send intro & connect"}
+                ? requiresProcessStage
+                  ? "다음 프로세스로 이동"
+                  : "Mark as connected"
+                : requiresProcessStage
+                  ? "소개 메일 보내고 다음 단계로"
+                  : "Send intro & connect"}
           </MuteButton>
         </div>
       }
@@ -320,36 +346,49 @@ export function AcceptIntroDialog({
       open={open}
       panelClassName="max-w-lg border-neutral-1000-a05 bg-bg-floating"
       showCloseButton={!pending}
-      title="Connect candidate"
+      title={requiresProcessStage ? "다음 프로세스 시작" : "Connect candidate"}
     >
       <form
         className="mt-0 space-y-4"
         id={acceptFormId}
         onSubmit={handleSubmit}
       >
+        {requiresProcessStage ? (
+          <section className="space-y-2 rounded-lg border border-neutral-1000-a05 bg-bg-default p-4">
+            <div className="text-[13px] font-medium text-neutral-primary">
+              다음 프로세스
+            </div>
+            <p className="text-[12px] leading-5 text-neutral-muted">
+              연결 대기 다음에는 1차 기술 인터뷰나 커피챗처럼 진행할 단계를 먼저
+              만들어둘게요.
+            </p>
+            <Input
+              aria-label="다음 프로세스 이름"
+              className="h-9 text-[13px]"
+              disabled={pending}
+              maxLength={40}
+              onChange={(event) => setProcessStageLabel(event.target.value)}
+              placeholder="예: 1차 기술 인터뷰"
+              value={processStageLabel}
+            />
+          </section>
+        ) : null}
         {allowContactDirectly ? (
           <div
             aria-label="연결 방식"
             className={cn(
               "relative grid h-10 rounded-full bg-neutral-1000-a05 p-1",
-              COMPANY_MEETING_SCHEDULING_ENABLED ? "grid-cols-3" : "grid-cols-2"
+              "grid-cols-2"
             )}
             role="tablist"
           >
             <motion.div
               animate={{
-                x:
-                  COMPANY_MEETING_SCHEDULING_ENABLED && schedulesInterview
-                    ? "200%"
-                    : connectionMode === "direct_contact"
-                      ? "100%"
-                      : "0%",
+                x: connectionMode === "direct_contact" ? "100%" : "0%",
               }}
               className={cn(
                 "absolute bottom-1 left-1 top-1 rounded-full bg-black shadow-sm",
-                COMPANY_MEETING_SCHEDULING_ENABLED
-                  ? "w-[calc(33.333%_-_2.667px)]"
-                  : "w-[calc(50%_-_4px)]"
+                "w-[calc(50%_-_4px)]"
               )}
               initial={false}
               transition={{ type: "spring", stiffness: 440, damping: 38 }}
@@ -382,60 +421,6 @@ export function AcceptIntroDialog({
             >
               Direct contact
             </button>
-            {COMPANY_MEETING_SCHEDULING_ENABLED ? (
-              <button
-                aria-selected={schedulesInterview}
-                className={cn(
-                  "relative z-10 rounded-full text-[13px] font-medium transition-colors",
-                  schedulesInterview ? "text-white" : "text-neutral-muted"
-                )}
-                disabled={pending}
-                onClick={() => selectConnectionMode("schedule_interview")}
-                role="tab"
-                type="button"
-              >
-                일정 조율
-              </button>
-            ) : null}
-          </div>
-        ) : COMPANY_MEETING_SCHEDULING_ENABLED ? (
-          <div
-            aria-label="연결 방식"
-            className="relative grid h-10 grid-cols-2 rounded-full bg-neutral-1000-a05 p-1"
-            role="tablist"
-          >
-            <motion.div
-              animate={{ x: schedulesInterview ? "100%" : "0%" }}
-              className="absolute bottom-1 left-1 top-1 w-[calc(50%_-_4px)] rounded-full bg-black shadow-sm"
-              initial={false}
-              transition={{ type: "spring", stiffness: 440, damping: 38 }}
-            />
-            <button
-              aria-selected={!schedulesInterview}
-              className={cn(
-                "relative z-10 rounded-full text-[13px] font-medium transition-colors",
-                schedulesInterview ? "text-neutral-muted" : "text-white"
-              )}
-              disabled={pending}
-              onClick={() => selectConnectionMode("intro_email")}
-              role="tab"
-              type="button"
-            >
-              Email intro
-            </button>
-            <button
-              aria-selected={schedulesInterview}
-              className={cn(
-                "relative z-10 rounded-full text-[13px] font-medium transition-colors",
-                schedulesInterview ? "text-white" : "text-neutral-muted"
-              )}
-              disabled={pending}
-              onClick={() => selectConnectionMode("schedule_interview")}
-              role="tab"
-              type="button"
-            >
-              일정 조율
-            </button>
           </div>
         ) : null}
 
@@ -445,8 +430,9 @@ export function AcceptIntroDialog({
               Direct contact
             </div>
             <p className="mt-1 text-[12px] leading-5 text-neutral-muted">
-              연결됨 상태만 저장하고 Harper는 소개 이메일을 보내지 않아요. 회사
-              담당자가 후보자에게 직접 연락해 다음 단계를 진행해 주세요.
+              {processDestinationLabel} 상태만 저장하고 Harper는 소개 이메일을
+              보내지 않아요. 회사 담당자가 후보자에게 직접 연락해 다음 단계를
+              진행해 주세요.
             </p>
           </div>
         ) : schedulesInterview ? (
@@ -485,14 +471,6 @@ export function AcceptIntroDialog({
                     query: {
                       dialog: "interview-availability",
                       orgId: workspace.workspaceId,
-                      ...(availabilityReturnTarget
-                        ? {
-                            returnRecommendationId:
-                              availabilityReturnTarget.recommendationId,
-                            returnRoleId: availabilityReturnTarget.roleId,
-                            returnTalentId: availabilityReturnTarget.talentId,
-                          }
-                        : {}),
                     },
                   })
                 }
@@ -535,6 +513,38 @@ export function AcceptIntroDialog({
                 </Select>
               </label>
             </div>
+
+            <label className="block">
+              <span className="text-[12px] text-neutral-soft">미팅 주제</span>
+              <Input
+                className="mt-1 h-9 text-[13px]"
+                disabled={pending}
+                maxLength={600}
+                onChange={(event) => setMeetingPurpose(event.target.value)}
+                placeholder="예: 가벼운 기술적인 이야기와 서로의 기대 확인"
+                value={meetingPurpose}
+              />
+              <span className="mt-1 block text-[12px] leading-5 text-neutral-soft">
+                후보자에게도 이 내용과 미팅 길이를 함께 안내해요.
+              </span>
+            </label>
+
+            <label className="block">
+              <span className="text-[12px] text-neutral-soft">
+                함께 전할 내용 <span className="font-normal">· 선택</span>
+              </span>
+              <Textarea
+                className="mt-1 min-h-[72px] text-[13px]"
+                disabled={pending}
+                maxLength={2000}
+                onChange={(event) =>
+                  setMeetingCandidateMessage(event.target.value)
+                }
+                placeholder="예: 팀과 현재 풀고 있는 문제를 가볍게 소개드리고 싶어요."
+                rows={3}
+                value={meetingCandidateMessage}
+              />
+            </label>
 
             <div>
               <div className="text-[12px] text-neutral-soft">참석자</div>

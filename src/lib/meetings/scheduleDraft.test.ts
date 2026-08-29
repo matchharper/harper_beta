@@ -40,11 +40,16 @@ function draft(
       companyAttendees: [organizer],
       conferenceProvider: "google_meet",
       durationMinutes: 60,
+      invitationKind: "first_company_conversation",
+      meetingPurpose: "가벼운 기술적인 이야기와 서로의 기대 확인",
       offerWindowDays: 14,
       organizer,
+      processStageId: "a6db8dd1-15ed-4ea7-b4f9-9d369b7ed3b2",
+      processStageName: "1차 기술 인터뷰",
       title: "Wonderful Japan <> Ito Intro",
     },
     draftBlocker: null,
+    meetingStage: null,
     ...overrides,
   };
 }
@@ -167,17 +172,33 @@ test("confirmation distinguishes internal notes from candidate-facing copy", () 
 
 test("missing availability asks for one prerequisite without staging approval", () => {
   const confirmation = formatPreparedMeetingScheduleConfirmation({
-    availabilityActionLink:
-      "[스케줄 열기](https://matchharper.com/org/settings?dialog=interview-availability)",
     candidateName: "Ito",
     draft: draft({ availability: null, draftBlocker: "availability_missing" }),
   });
 
-  assert.match(confirmation, /보통 언제 가능하신지 알려주세요/);
+  assert.match(confirmation, /평소 가능 시간이 필요해요/);
   assert.match(confirmation, /60분/);
-  assert.match(confirmation, /스케줄 열기/);
+  assert.match(confirmation, /“1차 기술 인터뷰” 단계로 옮기면서/);
+  assert.doesNotMatch(confirmation, /스케줄 열기/);
   assert.match(confirmation, /아직 Ito님께는 아무 연락도 보내지 않았어요/);
   assert.match(confirmation, /이 대화에서 편하게 알려주세요/);
   assert.doesNotMatch(confirmation, /연결 상태|초안/);
   assert.doesNotMatch(confirmation, /저장할까요/);
+});
+
+test("a process stage asks for its meeting guidance before availability", () => {
+  const confirmation = formatPreparedMeetingScheduleConfirmation({
+    candidateName: "Ito",
+    draft: draft({
+      availability: null,
+      config: { ...draft().config, meetingPurpose: "" },
+      draftBlocker: "meeting_stage_missing",
+    }),
+    roleName: "FDE",
+  });
+
+  assert.match(confirmation, /1차 기술 인터뷰 단계에서/);
+  assert.match(confirmation, /어떤 주제로, 몇 분 정도/);
+  assert.match(confirmation, /함께 말씀해 주세요/);
+  assert.doesNotMatch(confirmation, /가능 시간을 정해주시면/);
 });

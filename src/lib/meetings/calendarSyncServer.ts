@@ -32,19 +32,34 @@ function nonNegativeInteger(value: unknown) {
   return Number.isSafeInteger(number) && number >= 0 ? number : 0;
 }
 
-export async function syncGoogleCalendarBusyBlocks(args: {
+type AdminClient = ReturnType<typeof getSupabaseAdmin>;
+
+export async function syncGoogleCalendarBusyBlocksForCompanyUser(args: {
+  admin?: AdminClient;
+  companyUserId: string;
   timezone: string;
-  user: User;
   workspaceId: string;
 }): Promise<GoogleCalendarSyncResponse> {
+  const admin = args.admin ?? getSupabaseAdmin();
+  const companyUserId = clean(args.companyUserId);
   const workspaceId = clean(args.workspaceId);
   const timezone = clean(args.timezone);
-  if (!workspaceId) throw new OrgHttpError(400, "Workspace를 확인해 주세요.");
+  if (!companyUserId || !workspaceId) {
+    throw new OrgHttpError(400, "Calendar를 동기화할 사용자를 확인해 주세요.");
+  }
   if (!isValidCalendarTimezone(timezone)) {
     throw new OrgHttpError(400, "시간대를 확인해 주세요.");
   }
-  const admin = getSupabaseAdmin();
-  await assertOrgWorkspaceAccess({ admin, user: args.user, workspaceId });
+  const { data: membership, error: membershipError } = await admin
+    .from("company_user_workspace")
+    .select("id")
+    .eq("company_workspace_id", workspaceId)
+    .eq("company_user_id", companyUserId)
+    .maybeSingle();
+  if (membershipError) throw membershipError;
+  if (!membership) {
+    throw new OrgHttpError(404, "Calendar 일정 담당자를 찾지 못했어요.");
+  }
 
   const vendor = createComposioClient();
   const service = createGoogleCalendarService({
@@ -53,7 +68,7 @@ export async function syncGoogleCalendarBusyBlocks(args: {
     getAuthConfigId: () =>
       readComposioEnv("COMPOSIO_GOOGLE_CALENDAR_AUTH_CONFIG_ID"),
   });
-  const accountId = await service.requireActiveAccountId(args.user.id);
+  const accountId = await service.requireActiveAccountId(companyUserId);
   const windowStart = new Date();
   const windowEnd = new Date(
     windowStart.getTime() + GOOGLE_CALENDAR_SYNC_WINDOW_DAYS * 86_400_000
@@ -69,7 +84,7 @@ export async function syncGoogleCalendarBusyBlocks(args: {
       time_min: windowStart.toISOString(),
     },
     slug: GOOGLE_CALENDAR_LIST_ALL_EVENTS_TOOL,
-    userId: args.user.id,
+    userId: companyUserId,
     version: GOOGLE_CALENDAR_TOOL_VERSION,
   });
   if (hasGoogleCalendarListErrors(payload)) {
@@ -85,11 +100,11 @@ export async function syncGoogleCalendarBusyBlocks(args: {
     windowEnd,
     windowStart,
   });
-  const { data, error } = await (admin.rpc as any)(
+  const { data, error } = await admin.rpc(
     "upsert_google_calendar_busy_blocks_v1",
     {
       p_blocks: blocks as unknown as Json,
-      p_company_user_id: args.user.id,
+      p_company_user_id: companyUserId,
       p_connected_account_id: accountId,
       p_window_end: windowEnd.toISOString(),
       p_window_start: windowStart.toISOString(),
@@ -98,7 +113,7 @@ export async function syncGoogleCalendarBusyBlocks(args: {
   if (error?.code === "40001") {
     throw new OrgHttpError(
       409,
-      "동기화하는 동안 Calendar 연결이 바뀌었어요. 연결 상태를 확인한 뒤 다시 시도해 주세요."
+      "동기화하는 동안 더 최신 Sync가 완료됐거나 Calendar 연결이 바뀌었어요. 최신 일정을 다시 확인해 주세요."
     );
   }
   if (error?.code === "55000") {
@@ -110,8 +125,25 @@ export async function syncGoogleCalendarBusyBlocks(args: {
     addedCount: nonNegativeInteger(result?.addedCount),
     lastSyncedAt: clean(result?.lastSyncedAt) || new Date().toISOString(),
     ok: true,
+    removedCount: nonNegativeInteger(result?.removedCount),
     totalBusyCount: nonNegativeInteger(result?.totalBusyCount),
     updatedCount: nonNegativeInteger(result?.updatedCount),
     windowEnd: clean(result?.windowEnd) || windowEnd.toISOString(),
   };
+}
+
+export async function syncGoogleCalendarBusyBlocks(args: {
+  timezone: string;
+  user: User;
+  workspaceId: string;
+}): Promise<GoogleCalendarSyncResponse> {
+  const workspaceId = clean(args.workspaceId);
+  const admin = getSupabaseAdmin();
+  await assertOrgWorkspaceAccess({ admin, user: args.user, workspaceId });
+  return syncGoogleCalendarBusyBlocksForCompanyUser({
+    admin,
+    companyUserId: args.user.id,
+    timezone: args.timezone,
+    workspaceId,
+  });
 }

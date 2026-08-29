@@ -121,31 +121,61 @@ export async function generateMeetingInvitationEmail(
     candidateName: string;
     companyName: string;
     durationMinutes: number;
+    invitationKind?: "first_company_conversation" | "process_stage";
     locale: string | null;
+    meetingPurpose?: string;
     organizerName: string;
+    processStageName?: string | null;
     roleName: string;
     signal?: AbortSignal;
   },
   options: { model?: string } = {}
 ) {
   const locale = normalizeLocale(args.locale);
+  const invitationKind =
+    args.invitationKind === "process_stage"
+      ? "process_stage"
+      : "first_company_conversation";
   const fallback = buildMeetingInvitationFallback({ ...args, locale });
   const subject = clean(
     buildMeetingInvitationSubject({ ...args, locale }),
     180
   ).replace(/[\r\n]+/g, " ");
+  const relationshipContext =
+    invitationKind === "first_company_conversation"
+      ? {
+          meaning:
+            "The candidate previously said they wanted to connect about this exact company and role. The organizer reviewed the information Harper shared and now wants to meet the candidate.",
+          moment:
+            "the first company-candidate conversation after mutual interest",
+        }
+      : {
+          meaning:
+            "The candidate is already in the company's hiring process. The company now wants to arrange the named next conversation.",
+          moment:
+            "a later conversation in an ongoing company-candidate process",
+        };
   const input = JSON.stringify(
     {
-      candidate: clean(args.candidateName, 80),
-      candidateNote: clean(args.candidateMessage, 2_000) || null,
-      company: clean(args.companyName, 160),
-      durationMinutes: args.durationMinutes,
-      linkMarker: MEETING_INVITATION_LINK_MARKER,
-      organizer: clean(args.organizerName, 80),
-      priorContext:
-        "The candidate previously confirmed that they would like to connect regarding this exact company and role.",
-      requestedLanguage: locale === "ko" ? "Korean" : "English",
-      role: clean(args.roleName, 160),
+      audience: {
+        language: locale === "ko" ? "Korean" : "English",
+        recipientName: clean(args.candidateName, 80),
+      },
+      meeting: {
+        durationMinutes: args.durationMinutes,
+        purpose:
+          clean(args.meetingPurpose, 600) ||
+          "a first conversation about mutual expectations and experience",
+        stageName: clean(args.processStageName, 80) || "the next conversation",
+      },
+      optionalCandidateContext: clean(args.candidateMessage, 2_000) || null,
+      relationship: {
+        companyName: clean(args.companyName, 160),
+        context: relationshipContext,
+        organizerName: clean(args.organizerName, 80),
+        roleName: clean(args.roleName, 160),
+      },
+      requiredLinkMarker: MEETING_INVITATION_LINK_MARKER,
     },
     null,
     2
@@ -162,21 +192,15 @@ export async function generateMeetingInvitationEmail(
           {
             role: "system",
             content: [
-              "You are Harper's recruiting coordinator writing a personal scheduling email after a candidate and company have already expressed mutual interest.",
-              "The email should feel like a thoughtful handoff into a first conversation, not a notification or a summary of meeting settings.",
-              "Write the body in this narrative order:",
-              "1. Greet the candidate naturally, using the supplied candidate name exactly at least once. Do not shorten a Korean full name to a guessed given name.",
-              "2. Reconnect to the supplied priorContext, company, and role, then share the positive next step that the supplied organizer would also like to meet them. The natural Korean meaning is close to '앞서 [company]의 [role] 역할에 대해 연결 의사를 전해주셨는데, [organizer]님도 직접 이야기 나누고 싶어 하세요.' Adapt it to the sentence rhythm rather than copying it mechanically. If using '좋은 소식이 있어요', make it a clean standalone sentence at the start of this paragraph.",
-              "3. Explain that the first conversation is remote over Google Meet, give the duration, and ask the candidate to select two or three suitable times. Call these 시간, 시간대, or 선택지—not 후보.",
-              "4. If candidateNote exists, rewrite shorthand into one concise candidate-facing sentence without changing or amplifying its meaning, and place it here. For example, '최대한 빠른 시간으로 잡아주기를 요청함' should become no stronger than '가능하면 가장 빠른 시간으로 부탁드린다고 합니다.' Do not add a reason or a second instruction.",
-              `5. Put ${MEETING_INVITATION_LINK_MARKER} alone in its own paragraph exactly once.`,
-              "6. Explain that one submitted option will be confirmed automatically and that the Google Meet link and calendar invitation will follow.",
-              "7. Close with a brief, warm wish for a good conversation, then thank the candidate and sign as Harper.",
-              "Use the requested language and short connected paragraphs. In Korean, prefer 역할 over 포지션, describe the prior step as the candidate having shared their intent to connect, and attach 님 to the supplied organizer's name. Say that the organizer wants to 이야기 나누다 or 만나고 싶어 하다; do not use the self-humbling phrase 만나 뵙고 싶어 하다 on the organizer's behalf. Write with the restrained warmth of a considerate recruiter. Do not invent the organizer's title, relationship to the role, deadlines, interview stages, travel, or personal history.",
-              "Return JSON only with body and candidateMessage. candidateMessage is the exact final localized note paragraph included in body, or null when candidateNote is null.",
+              "Role: Write as Harper, a considerate recruiting coordinator who protects the relationship and momentum between a candidate and a company.",
+              "Goal: Help the recipient understand why this meeting is being proposed now, what kind of conversation the company hopes to have, and how to choose a convenient time without making the email feel like a workflow notice.",
+              "Evidence: Use only the supplied relationship, meeting, audience, and optional candidate context. The relationship context already describes whether this is a first conversation or a later process step; preserve that meaning instead of importing language from another moment in the hiring process.",
+              "Successful body: It greets the recipient naturally; connects the request to the current relationship moment, company, role, and organizer; explains the purpose and duration in candidate-friendly language; weaves optional candidate context into that explanation as one coherent passage; asks for two or three convenient options; places the required link marker alone in one paragraph; explains that a submitted option will be confirmed before the Calendar invitation and Google Meet link follow; and ends like an ongoing one-to-one recruiting correspondence, with concise encouragement grounded in this opportunity and Harper's signature.",
+              "Voice: Personal, calm, and genuinely helpful. In Korean, keep full names intact, use 역할 for the role, add 님 naturally to people, describe the organizer as wanting to 이야기 나누다 or 만나고 싶어 하다, and sign off with Harper 드림. Choose connected paragraphs and wording appropriate to the supplied situation.",
+              `Required output: Return JSON only with body and candidateMessage. The body must contain ${MEETING_INVITATION_LINK_MARKER} exactly once. candidateMessage is the exact localized paragraph used for optionalCandidateContext, or null when no such context was supplied.`,
             ].join("\n"),
           },
-          { role: "user", content: `Scheduling facts:\n${input}` },
+          { role: "user", content: `Email context:\n${input}` },
         ],
         ...(supportsResponseFormatForModel(model) && {
           response_format: { type: "json_object" },

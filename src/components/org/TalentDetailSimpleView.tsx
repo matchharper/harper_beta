@@ -1,6 +1,5 @@
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { useRouter } from "next/router";
 import { ChevronLeft, ChevronRight, LoaderCircle, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -48,6 +47,7 @@ import {
 import { useOpsCareerDetail } from "@/hooks/ops/useOpsCareer";
 import {
   useCancelOrgCompanyTalentRequest,
+  useCreateOrgReviewStage,
   useCreateOrgFeedItem,
   useDeleteOrgFeedItem,
   useOpenOrgResume,
@@ -68,7 +68,6 @@ import type { CareerTalentOpsProfileMemo } from "@/lib/ops/careerServer";
 import { extractEmailAddress } from "@/lib/email/parse";
 import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
 import { isInternalDomainEmail } from "@/lib/internalAccess";
-import { COMPANY_MEETING_SCHEDULING_ENABLED } from "@/lib/companyMeetingScheduling";
 import type { OrgInternalTalentSystemResponse } from "@/lib/org/internalTalentTypes";
 import {
   canStopOrgCandidateProcess,
@@ -778,6 +777,18 @@ function FeedPanel({
           text: item.text,
           title: getOrgFeedTitle(item.kind),
         })),
+        ...detail.meetingEvents.map((item) => ({
+          createdAt: item.createdAt,
+          icon:
+            item.kind === "meeting_confirmed"
+              ? ("check" as const)
+              : ("note" as const),
+          id: item.id,
+          text: item.scheduledAt
+            ? `${formatKst(item.scheduledAt)} · ${item.text}`
+            : item.text,
+          title: item.title,
+        })),
         ...detail.connectionConfirmationEmails.map((item) => {
           const pendingAction =
             updateConnectionEmail.isPending &&
@@ -1043,7 +1054,6 @@ function TalentDetailPager({
 }
 
 export function TalentDetailSimpleView() {
-  const router = useRouter();
   const {
     closeTalentDetail,
     selectTalent,
@@ -1077,6 +1087,7 @@ export function TalentDetailSimpleView() {
   } = useOrgWorkspace();
   const detail = detailQuery.data;
   const members = detail?.members ?? bootstrap.members;
+  const createCustomStage = useCreateOrgReviewStage();
   const acceptStageId = selectedAcceptStageId;
   const canManageCandidates = permissions.canManageCandidates;
   const companyName = detail?.workspace.companyName ?? workspace.companyName;
@@ -1097,24 +1108,8 @@ export function TalentDetailSimpleView() {
   const open = detailOpen;
   const talentId = activeDetailTalentId || null;
   const [acceptDialogOpen, setAcceptDialogOpen] = useState(false);
-  const scheduleReturnOpen =
-    COMPANY_MEETING_SCHEDULING_ENABLED &&
-    Boolean(
-      detail &&
-      router.query.candidateAction === "schedule_interview" &&
-      router.query.recommendationId ===
-        detail.recommendation.recommendationId &&
-      router.query.detailRoleId === detail.role.roleId &&
-      router.query.talentId === detail.talent.userId
-    );
   const closeAcceptDialog = () => {
     setAcceptDialogOpen(false);
-    if (!scheduleReturnOpen) return;
-    const query = { ...router.query };
-    delete query.candidateAction;
-    void router.replace({ pathname: router.pathname, query }, undefined, {
-      shallow: true,
-    });
   };
   const [pendingConnectionDialogOpen, setPendingConnectionDialogOpen] =
     useState(false);
@@ -1572,26 +1567,16 @@ export function TalentDetailSimpleView() {
       </Dialog>
 
       <AcceptIntroDialog
-        key={`${detail?.recommendation.recommendationId ?? "accept-dialog"}:${scheduleReturnOpen ? "schedule" : "default"}`}
+        key={detail?.recommendation.recommendationId ?? "accept-dialog"}
         allowContactDirectly={isInternalDomainEmail(currentUserEmail)}
-        availabilityReturnTarget={
-          detail
-            ? {
-                recommendationId: detail.recommendation.recommendationId,
-                roleId: detail.role.roleId,
-                talentId: detail.talent.userId,
-              }
-            : null
-        }
         candidateEmail={detail?.talent.email}
         candidateName={title}
         companyContactName={currentUser?.name}
         defaultContactDirectly={isInternalDomainEmail(currentUserEmail)}
-        defaultScheduleInterview={scheduleReturnOpen}
         defaultEmail={currentUserEmail}
         members={members}
-        open={(acceptDialogOpen || scheduleReturnOpen) && Boolean(detail)}
-        pending={decisionPending}
+        open={acceptDialogOpen && Boolean(detail)}
+        pending={decisionPending || createCustomStage.isPending}
         onClose={closeAcceptDialog}
         onSubmit={async ({
           acceptReason,
@@ -1601,10 +1586,24 @@ export function TalentDetailSimpleView() {
           contactDirectly,
           durationMinutes,
           introEmails,
+          meetingCandidateMessage,
+          meetingPurpose,
+          processStageLabel,
           scheduleInterview,
           title,
         }) => {
           if (!acceptStageId || !onAcceptCandidate) return;
+          const stage =
+            detail?.recommendation.stage === "pending_connection" &&
+            acceptStageId === "connected"
+              ? (
+                  await createCustomStage.mutateAsync({
+                    label: processStageLabel ?? "",
+                    roleId: detail.role.roleId,
+                    workspaceId,
+                  })
+                ).stage.stage
+              : acceptStageId;
           const result = await onAcceptCandidate({
             acceptReason,
             additionalMessage,
@@ -1613,13 +1612,19 @@ export function TalentDetailSimpleView() {
             contactDirectly,
             durationMinutes,
             introEmails,
+            meetingCandidateMessage,
+            meetingPurpose,
             scheduleInterview,
-            stage: acceptStageId,
+            stage,
             title,
           });
           closeAcceptDialog();
           return result;
         }}
+        requiresProcessStage={
+          detail?.recommendation.stage === "pending_connection" &&
+          acceptStageId === "connected"
+        }
         roleTitle={detail?.role.name ?? ""}
       />
 

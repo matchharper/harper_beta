@@ -15,9 +15,26 @@ export type MeetingScheduleDraftConfig = {
   companyAttendees: MeetingScheduleAttendee[];
   conferenceProvider: typeof DEFAULT_MEETING_PROVIDER;
   durationMinutes: number;
+  invitationKind: MeetingScheduleInvitationKind;
+  meetingPurpose: string;
   offerWindowDays: number;
   organizer: MeetingScheduleAttendee;
+  processStageId: string | null;
+  processStageName: string | null;
   title: string;
+};
+
+export type MeetingScheduleInvitationKind =
+  | "first_company_conversation"
+  | "process_stage";
+
+export type MeetingScheduleStageProfile = {
+  candidateMessage: string | null;
+  durationMinutes: number;
+  meetingPurpose: string;
+  source: "new" | "stage_default";
+  stageId: string;
+  stageName: string;
 };
 
 export type MeetingScheduleAdditionalMessage = {
@@ -29,7 +46,12 @@ export type PreparedMeetingScheduleDraft = {
   additionalMessage: MeetingScheduleAdditionalMessage | null;
   availability: SavedMeetingAvailability | null;
   config: MeetingScheduleDraftConfig;
-  draftBlocker: "availability_missing" | "organizer_email_missing" | null;
+  draftBlocker:
+    | "availability_missing"
+    | "meeting_stage_missing"
+    | "organizer_email_missing"
+    | null;
+  meetingStage: MeetingScheduleStageProfile | null;
 };
 
 export type MeetingScheduleDetail = {
@@ -60,6 +82,7 @@ export type MeetingScheduleDetail = {
     }>;
     delivery: {
       error: string | null;
+      scheduledAt: string | null;
       sentAt: string | null;
       status: string;
     } | null;
@@ -179,11 +202,11 @@ export function normalizeInterviewDuration(value: unknown) {
 }
 
 export function formatPreparedMeetingScheduleConfirmation(args: {
-  availabilityActionLink?: string;
   candidateName: string;
   draft: PreparedMeetingScheduleDraft;
+  roleName?: string;
 }) {
-  const { availabilityActionLink, candidateName, draft } = args;
+  const { candidateName, draft, roleName } = args;
   const { config } = draft;
   const attendeeText = config.companyAttendees
     .map((attendee) => `${attendee.name}님 (${attendee.email})`)
@@ -193,16 +216,21 @@ export function formatPreparedMeetingScheduleConfirmation(args: {
     return `${candidateName}님과의 미팅을 조율하려면 ${config.organizer.name}님의 회사 이메일이 필요해요. [Members](team)에서 이메일을 확인한 뒤 다시 말씀해 주세요. 아직 ${candidateName}님께는 연락하지 않았어요.`;
   }
 
+  if (draft.draftBlocker === "meeting_stage_missing") {
+    const stageText = draft.config.processStageName || roleName || "다음 단계";
+    return `${stageText} 단계에서 ${candidateName}님과 어떤 주제로, 몇 분 정도 이야기 나누고 싶으신지 알려주세요. 후보자도 미리 알면 좋을 내용이 있다면 함께 말씀해 주세요. 그 내용을 이 단계의 안내로 남겨 다음에도 자연스럽게 이어갈게요.`;
+  }
+
   if (draft.draftBlocker === "availability_missing") {
-    const scheduleAction = availabilityActionLink
-      ? `${availabilityActionLink}에서`
-      : "Integrations의 인터뷰 일정에서";
+    const stageText = config.processStageName
+      ? `“${config.processStageName}” 단계로 옮기면서 `
+      : "";
     return [
-      `${candidateName}님과의 미팅, 조율해드릴게요. 먼저 ${config.organizer.name}님이 보통 언제 가능하신지 알려주세요.`,
+      `${candidateName}님과의 미팅을 조율하려면 먼저 ${config.organizer.name}님의 평소 가능 시간이 필요해요.`,
       "",
-      `가능 시간을 정해주시면 미팅은 ${config.durationMinutes}분으로 잡고, 참석자는 우선 ${attendeeText}로 둘게요. 향후 ${config.offerWindowDays / 7}주 안에서 가능한 선택지를 추려 ${candidateName}님께 보내드릴게요.`,
+      `시간을 알려주시면 ${stageText}“${config.meetingPurpose}”를 주제로 ${config.durationMinutes}분 동안 이야기 나눌 수 있게 준비할게요. 참석자는 우선 ${attendeeText}로 두고, 향후 ${config.offerWindowDays / 7}주 안에서 가능한 선택지를 추려 ${candidateName}님께 보내드릴 예정이에요.`,
       "",
-      `아직 ${candidateName}님께는 아무 연락도 보내지 않았어요. ${scheduleAction} 설정하거나 “평일 오전 8시부터 오후 7시까지 가능해”처럼 이 대화에서 편하게 알려주세요.`,
+      `아직 ${candidateName}님께는 아무 연락도 보내지 않았어요. “평일 오전 8시부터 오후 7시까지 가능해”처럼 이 대화에서 편하게 알려주세요.`,
     ].join("\n");
   }
 
@@ -218,8 +246,8 @@ export function formatPreparedMeetingScheduleConfirmation(args: {
   return [
     `설정해두신 시간을 보면 ${availabilitySummary} 사이에서 향후 ${config.offerWindowDays / 7}주 안의 선택지를 추릴 수 있어요. 날짜별로 빼둔 시간과 그사이에 새로 잡히는 Harper 미팅은 후보자가 고를 수 없게 할게요.`,
     "",
-    `첫 미팅은 ${config.durationMinutes}분으로 넉넉히 잡고, 참석자는 우선 ${attendeeText}로 둘게요. 미팅은 Google Meet으로 진행할 예정이에요.${additionalMessage}`,
+    `${draft.meetingStage?.source === "stage_default" ? "이 단계에 정해둔 방식대로 " : ""}${config.processStageName ? `“${config.processStageName}” 단계의 미팅은 ` : "미팅은 "}“${config.meetingPurpose}”를 주제로 ${config.durationMinutes}분 동안 진행하고, 참석자는 우선 ${attendeeText}로 둘게요. Google Meet으로 진행할 예정이에요.${additionalMessage}`,
     "",
-    `이대로 ${candidateName}님과 연결하고, 가능한 시간을 물어볼 메일을 준비할까요? 참석자나 미팅 길이, 전하고 싶은 말을 바꾸고 싶다면 지금 편하게 말씀해 주세요. 아직 ${candidateName}님께 메일이 보내지는 것은 아니에요.`,
+    `이대로 ${candidateName}님과 연결하고, 가능한 시간을 물어볼 메일을 준비할까요? 미팅 주제나 길이, 함께 전할 말을 바꾸고 싶다면 지금 편하게 말씀해 주세요. 아직 ${candidateName}님께 메일이 보내지는 것은 아니에요.`,
   ].join("\n");
 }

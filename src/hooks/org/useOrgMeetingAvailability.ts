@@ -5,6 +5,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import type {
+  MeetingCalendarBusyBlock,
   MeetingAvailabilityDocument,
   MeetingAvailabilityResponse,
 } from "@/lib/meetings/availability";
@@ -71,8 +72,48 @@ export function useSyncOrgGoogleCalendar(workspaceId: string) {
         }
       ),
     onSuccess: () =>
-      queryClient.invalidateQueries({
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.org.meetingAvailabilityAll,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.org.meetingSchedulesAll,
+        }),
+      ]),
+  });
+}
+
+export function useUpdateOrgGoogleCalendarBusyBlock(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { busyBlockId: string; isBlocking: boolean }) =>
+      fetchWithInternalAuth<{ busyBlock: MeetingCalendarBusyBlock; ok: true }>(
+        `/api/org/meeting-availability/calendar-busy-blocks/${encodeURIComponent(args.busyBlockId)}`,
+        {
+          body: JSON.stringify({ isBlocking: args.isBlocking, workspaceId }),
+          headers: { "Content-Type": "application/json" },
+          method: "PUT",
+        }
+      ),
+    onSuccess: (payload) => {
+      queryClient.setQueriesData<MeetingAvailabilityResponse>(
+        { queryKey: queryKeys.org.meetingAvailabilityAll },
+        (current) =>
+          current
+            ? {
+                ...current,
+                calendarBusyBlocks: (current.calendarBusyBlocks ?? []).map(
+                  (block) =>
+                    block.id === payload.busyBlock.id
+                      ? payload.busyBlock
+                      : block
+                ),
+              }
+            : current
+      );
+      return queryClient.invalidateQueries({
         queryKey: queryKeys.org.meetingSchedulesAll,
-      }),
+      });
+    },
   });
 }

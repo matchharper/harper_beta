@@ -3,6 +3,7 @@ import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   DocumentEditor,
+  copyDocumentText,
   formatDocumentLastChangedAt,
   isDocumentPreviewOverflowing,
 } from "@/components/ui/document-editor";
@@ -40,6 +41,22 @@ test("detects preview overflow from its rendered height", () => {
   assert.equal(isDocumentPreviewOverflowing(170, 168), true);
   assert.equal(isDocumentPreviewOverflowing(169, 168), false);
   assert.equal(isDocumentPreviewOverflowing(168, 168), false);
+});
+
+test("copies the complete document value", async () => {
+  let copied = "";
+
+  await copyDocumentText("첫 문장\n\n**두 번째 문장**", {
+    writeText: async (value) => {
+      copied = value;
+    },
+  });
+
+  assert.equal(copied, "첫 문장\n\n**두 번째 문장**");
+});
+
+test("fails when clipboard access is unavailable", async () => {
+  await assert.rejects(() => copyDocumentText("내용", null));
 });
 
 test("renders the placeholder for empty and whitespace-only documents", () => {

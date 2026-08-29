@@ -274,6 +274,9 @@ function formatSingleTalentResult(result: Record<string, any>) {
   const requestHistory = Array.isArray(result.requestHistory)
     ? result.requestHistory
     : [];
+  const meetingHistory = Array.isArray(result.meetingHistory)
+    ? result.meetingHistory
+    : [];
   return [
     "status=ok",
     formatPromptSection(
@@ -341,7 +344,7 @@ function formatSingleTalentResult(result: Record<string, any>) {
           item?.text,
           item?.metadata,
         ]),
-        [10, 100, 160, 100, 700, 500]
+        [10, 100, 160, 100, 2_000, 500]
       )
     ),
     formatPromptSection(
@@ -380,6 +383,38 @@ function formatSingleTalentResult(result: Record<string, any>) {
           item?.cancelable,
         ]),
         [100, 40, 40, 40, 40, 160, 180, 800, 160, 10]
+      )
+    ),
+    formatPromptSection(
+      "meeting_coordination",
+      formatPromptTable(
+        [
+          "role",
+          "process",
+          "purpose",
+          "duration_minutes",
+          "coordination_state",
+          "candidate_invitation",
+          "invitation_scheduled_kst",
+          "invitation_sent_kst",
+          "candidate_context_changeable",
+          "confirmed_start_kst",
+          "confirmed_end_kst",
+        ],
+        meetingHistory.map((item: any) => [
+          item?.roleName,
+          item?.processStageName,
+          item?.meetingPurpose,
+          item?.durationMinutes,
+          item?.coordinationState,
+          item?.invitationState,
+          item?.invitationScheduledAt,
+          item?.invitationSentAt,
+          item?.canReviseCandidateContext,
+          item?.confirmedStartAt,
+          item?.confirmedEndAt,
+        ]),
+        [160, 120, 700, 20, 180, 220, 40, 40, 10, 40, 40]
       )
     ),
     "Harper에게 말해준 정보. 후보자가 Harper에게 공유한 직업 관련 정보이며, 없는 내용은 추정하지 마세요. 보상 정보는 이 목록에 포함되지 않습니다.",
@@ -752,9 +787,13 @@ function formatRolePipelineStageChangeResult(result: Record<string, any>) {
           formatPromptSection(
             "affected_stages",
             formatPromptTable(
-              ["label", "status"],
-              stages.map((stage: any) => [stage?.label, stage?.status]),
-              [120, 40]
+              ["stage_id", "label", "status"],
+              stages.map((stage: any) => [
+                stage?.id,
+                stage?.label,
+                stage?.status,
+              ]),
+              [100, 120, 40]
             )
           ),
         ]
@@ -764,58 +803,141 @@ function formatRolePipelineStageChangeResult(result: Record<string, any>) {
 }
 
 function formatCandidateStageMoveResult(result: Record<string, any>) {
-  return [
-    `status=${formatPromptCell(result.status, 60)}`,
-    `candidate=${formatPromptCell(result.candidateName, 160)}`,
-    `role=${formatPromptCell(result.roleName, 200)}`,
-    `from=${formatPromptCell(result.previousStageLabel, 120)}`,
-    `to=${formatPromptCell(result.stageLabel, 120)}`,
-    "candidate_contacted=false email_sent=false interview_scheduled=false",
-  ].join("\n");
+  const meeting = asRecord(result.meeting);
+  const meetingDraft = asRecord(result.meetingDraft);
+  const meetingConfig = asRecord(meetingDraft.config);
+  const meetingStage = asRecord(meetingDraft.meetingStage);
+  const availability = asRecord(result.organizerAvailability);
+  const delivery = asRecord(result.delivery);
+  const candidateName = formatPromptCell(result.candidateName, 160);
+  const from = formatPromptCell(result.previousStageLabel, 120);
+  const to = formatPromptCell(result.stageLabel, 120);
+  const roleName = formatPromptCell(result.roleName, 200);
+  if (result.status === "meeting_setup_required") {
+    const facts = [
+      `${candidateName} remains in the ${from} stage of the ${roleName} hiring process. The intended next stage is ${to}.`,
+      "No candidate message or meeting request has been created, and the candidate has not been moved.",
+    ];
+    if (meetingDraft.draftBlocker === "availability_missing") {
+      facts.push(
+        "The next required input is the company organizer's reusable working availability. Ask the Slack user to describe the days, time range, and timezone if it is not already clear from the workspace.",
+        "After the organizer supplies it, save that availability and continue this already-authorized candidate meeting request in the same tool loop. Move the candidate to the intended stage and arrange the time-selection invitation without asking for another approval."
+      );
+    } else if (meetingDraft.draftBlocker === "organizer_email_missing") {
+      facts.push(
+        "The next required input is a verified company email address for the meeting organizer. Explain where the company can correct it and that the candidate remains untouched."
+      );
+    } else {
+      facts.push(
+        "The next required input is reusable guidance for this process stage: what the meeting is for, how long it lasts, and any context that would help the candidate."
+      );
+    }
+    if (meetingConfig.meetingPurpose || meetingConfig.durationMinutes) {
+      facts.push(
+        `The intended meeting purpose is ${formatPromptCell(meetingConfig.meetingPurpose, 700)} and the intended duration is ${formatPromptCell(meetingConfig.durationMinutes, 20)} minutes.`
+      );
+    }
+    if (meetingStage.candidateMessage) {
+      facts.push(
+        `The saved candidate-facing context for this stage is: ${formatPromptCell(meetingStage.candidateMessage, 1_500)}`
+      );
+    }
+    facts.push(
+      "Write a natural recruiting-coordinator response that acknowledges what was completed in earlier tool calls during this turn, explains the one remaining prerequisite and the continuation that will follow, and preserves the verified no-contact boundary."
+    );
+    return facts.join("\n");
+  }
+  const facts = [
+    from === to
+      ? `${candidateName} remains in the ${to} stage of the ${roleName} hiring process.`
+      : `${candidateName} is in the ${roleName} hiring process. The stage changed from ${from} to ${to}.`,
+  ];
+
+  if (result.scheduleId) {
+    const deliveryChange = String(delivery.change ?? "");
+    facts.push(
+      `The organizer's saved availability now used for this and future meeting choices is ${formatPromptCell(availability.summary, 800)} in ${formatPromptCell(availability.timezone, 120)}.`,
+      `This meeting is for ${formatPromptCell(meeting.purpose, 700)}, lasts ${formatPromptCell(meeting.durationMinutes, 20)} minutes, and belongs to the ${formatPromptCell(meeting.stageName, 120)} stage. The candidate may choose among times in the next ${formatPromptCell(meeting.offerWindowDays, 20)} days.`,
+      deliveryChange === "revised"
+        ? "The candidate-facing context on the existing scheduled invitation was revised without creating another delivery."
+        : deliveryChange === "revised_and_expedited"
+          ? "The candidate-facing context on the existing invitation was revised and that same invitation was moved forward for immediate delivery without creating another delivery."
+          : deliveryChange === "expedited"
+            ? "The same existing invitation was moved forward for immediate delivery without creating another delivery."
+            : deliveryChange === "already_scheduled"
+              ? "The same meeting invitation was already scheduled, so Harper did not create a duplicate delivery."
+              : "Harper created one candidate time-selection invitation for this meeting.",
+      delivery.sentAt
+        ? "The candidate's time-selection message has already been delivered."
+        : deliveryChange === "expedited" ||
+            deliveryChange === "revised_and_expedited"
+          ? `Immediate delivery has been requested for the existing invitation, but completed delivery is not yet verified. Its current scheduled time is ${formatPromptCell(delivery.scheduledAt, 100)}.`
+          : `The candidate has not received the time-selection message yet. The standard delivery delay is ${formatPromptCell(delivery.delayMinutes, 20)} minutes, and this invitation is scheduled for ${formatPromptCell(delivery.scheduledAt, 100)}. Until delivery starts, candidate-facing context added in this conversation can revise this same scheduled invitation.`,
+      "Preserve this verified sequence when explaining Calendar behavior: (1) opening the selection link refreshes the company's connected organizer Google Calendar; (2) blocking events and times outside saved availability are removed before choices are shown; (3) the candidate selects from the remaining choices; (4) only then are the Calendar event and Google Meet created."
+    );
+    if (meeting.candidateMessage) {
+      facts.push(
+        `The candidate-facing context included with this request is: ${formatPromptCell(meeting.candidateMessage, 2_000)}`
+      );
+    }
+    if (result.schedulingSettingsUrl) {
+      facts.push(
+        `If the company wants to refine allowed or blocked times before delivery, the verified optional scheduling settings page is ${formatPromptCell(result.schedulingSettingsUrl, 2_000)}.`
+      );
+    }
+    facts.push(
+      "Write the final response as the recruiting coordinator continuing from the user's latest message. Explain its practical effect, the candidate-specific action that followed, and the current delivery boundary. While delivery is still queued, treat adding candidate-facing context to this same invitation as the most immediate optional next action; the settings page is a secondary availability adjustment. Choose the wording and length for this conversation; do not reproduce these sentences as a receipt."
+    );
+  } else {
+    facts.push(
+      "No candidate message or meeting request was created by this stage-only change. Explain the result naturally from the user's latest request."
+    );
+  }
+  return facts.join("\n");
 }
 
 function formatCandidateConnectionDecisionResult(result: Record<string, any>) {
-  const meetingDraft = asRecord(result.meetingDraft);
-  const meetingConfig = asRecord(meetingDraft.config);
-  return [
-    ...(result.connectionMethod === "schedule_interview"
-      ? [
-          "response_mode=meeting_coordinator_narrative",
-          "user_facing_state=The candidate is connected and the meeting details are ready for company review. The candidate has not received the scheduling email yet.",
-        ]
-      : []),
-    `status=${formatPromptCell(result.status, 40)}`,
-    `candidate=${formatPromptCell(result.candidateName, 160)}`,
-    `role=${formatPromptCell(result.roleName, 200)}`,
-    `change=${formatPromptCell(result.changeSummary, 500)}`,
-    `decision=${formatPromptCell(result.decision, 30)}`,
-    `connection_method=${formatPromptCell(result.connectionMethod, 40)}`,
-    `meeting_title=${formatPromptCell(meetingConfig.title, 240)}`,
-    `meeting_duration_minutes=${formatPromptCell(
-      meetingConfig.durationMinutes,
-      20
-    )}`,
-    `meeting_draft_blocker=${formatPromptCell(result.draftBlocker, 80)}`,
-    `meeting_availability_url=${formatPromptCell(
-      result.meetingAvailabilityUrl,
-      500
-    )}`,
-    `meeting_schedule_url=${formatPromptCell(result.meetingScheduleUrl, 500)}`,
-    `stage=${formatPromptCell(humanizeOrgStage(result.stage), 100)}`,
-    `reactivation=${Boolean(result.reactivation)}`,
-    `closure_notice_delivered=${Boolean(result.closureNotificationDelivered)}`,
-    `closure_notice_delivered_at=${formatPromptCell(
-      result.closureNotificationDeliveredAt,
-      40
-    )}`,
-    `closure_notice_channel=${formatPromptCell(
-      result.closureNotificationSentChannel,
-      40
-    )}`,
-    `next_process=${formatPromptCell(result.nextProcess, 1_000)}`,
-    `response_guidance=${formatPromptCell(result.responseGuidance, 1_000)}`,
-    `warm_closing=${formatPromptCell(result.warmClosing, 500)}`,
-  ].join("\n");
+  const candidateName = formatPromptCell(result.candidateName, 160);
+  const roleName = formatPromptCell(result.roleName, 200);
+  const facts = [
+    `${candidateName}'s ${roleName} hiring process changed as follows: ${formatPromptCell(result.changeSummary, 800)}.`,
+  ];
+  if (result.reactivation) {
+    facts.push(
+      "This action reopened a process that had previously been closed for this candidate and role."
+    );
+  }
+
+  if (result.connectionMethod === "schedule_interview") {
+    const meeting = asRecord(result.meeting);
+    const availability = asRecord(result.organizerAvailability);
+    const delivery = asRecord(result.delivery);
+    facts.push(
+      `The organizer's saved availability used for this and future meeting choices is ${formatPromptCell(availability.summary, 800)} in ${formatPromptCell(availability.timezone, 120)}.`,
+      `This meeting is for ${formatPromptCell(meeting.purpose, 700)}, lasts ${formatPromptCell(meeting.durationMinutes, 20)} minutes, and belongs to the ${formatPromptCell(meeting.stageName, 120)} stage. The candidate may choose among times in the next ${formatPromptCell(meeting.offerWindowDays, 20)} days.`,
+      delivery.sentAt
+        ? "The candidate's time-selection message has already been delivered."
+        : `The candidate has not received the time-selection message yet. The standard delivery delay is ${formatPromptCell(delivery.delayMinutes, 20)} minutes, and this invitation is scheduled for ${formatPromptCell(delivery.scheduledAt, 100)}. Until delivery starts, candidate-facing context added in this conversation can revise this same scheduled invitation.`,
+      "Preserve this verified sequence when explaining Calendar behavior: (1) opening the selection link refreshes the company's connected organizer Google Calendar; (2) blocking events and times outside saved availability are removed before choices are shown; (3) the candidate selects from the remaining choices; (4) only then are the Calendar event and Google Meet created."
+    );
+    if (meeting.candidateMessage) {
+      facts.push(
+        `The candidate-facing context included with this request is: ${formatPromptCell(meeting.candidateMessage, 2_000)}`
+      );
+    }
+    if (result.schedulingSettingsUrl) {
+      facts.push(
+        `The verified optional page for refining allowed or blocked times is ${formatPromptCell(result.schedulingSettingsUrl, 2_000)}.`
+      );
+    }
+  } else if (result.nextProcess) {
+    facts.push(formatPromptCell(result.nextProcess, 1_000));
+  }
+
+  facts.push(
+    "Write the final response from the latest company message and these verified effects. Use natural recruiting-coordinator judgment rather than turning the facts into a status receipt."
+  );
+  return facts.join("\n");
 }
 
 function formatCandidateConnectionPreparationResult(
@@ -823,12 +945,15 @@ function formatCandidateConnectionPreparationResult(
 ) {
   const meetingDraft = asRecord(result.meetingDraft);
   const meetingConfig = asRecord(meetingDraft.config);
+  const meetingStage = asRecord(meetingDraft.meetingStage);
   return [
     ...(result.connectionMethod === "schedule_interview"
       ? [
           "response_mode=meeting_coordinator_narrative",
           result.status === "meeting_setup_required"
-            ? "user_facing_state=Harper can coordinate this meeting, but the organizer needs to share availability first. Nothing has been sent to the candidate."
+            ? meetingDraft.draftBlocker === "meeting_stage_missing"
+              ? "user_facing_state=Harper can coordinate this meeting, but first needs this process stage's topic, duration, and any candidate-facing context. Nothing has been sent to the candidate."
+              : "user_facing_state=Harper can coordinate this meeting, but the organizer needs to share availability first. Nothing has been sent to the candidate."
             : "user_facing_state=This is a proposal awaiting company confirmation. The candidate is not connected by this result, the meeting details are not saved yet, and no email has been sent.",
         ]
       : []),
@@ -852,6 +977,21 @@ function formatCandidateConnectionPreparationResult(
       40
     )}`,
     `connection_method=${formatPromptCell(result.connectionMethod, 40)}`,
+    `process_stage=${formatPromptCell(result.processStageName, 120)}`,
+    formatPromptSection(
+      "available_process_stages",
+      Array.isArray(result.availableProcessStages) &&
+        result.availableProcessStages.length > 0
+        ? formatPromptTable(
+            ["stage_id", "label"],
+            result.availableProcessStages.map((stage: Record<string, any>) => [
+              stage.id,
+              stage.label,
+            ]),
+            [100, 160]
+          )
+        : "none"
+    ),
     `intro_email_available=${Boolean(result.introEmailAvailable)}`,
     `direct_contact_available=${Boolean(result.directContactAvailable)}`,
     `intro_recipients=${formatPromptCell(
@@ -863,11 +1003,10 @@ function formatCandidateConnectionPreparationResult(
       meetingConfig.durationMinutes,
       20
     )}`,
+    `meeting_purpose=${formatPromptCell(meetingConfig.meetingPurpose, 700)}`,
+    `meeting_stage=${formatPromptCell(meetingConfig.processStageName, 120)}`,
+    `meeting_stage_source=${formatPromptCell(meetingStage.source, 40)}`,
     `meeting_draft_blocker=${formatPromptCell(meetingDraft.draftBlocker, 80)}`,
-    `meeting_availability_url=${formatPromptCell(
-      result.meetingAvailabilityUrl,
-      500
-    )}`,
     `meeting_confirmation=${formatPromptCell(
       result.meetingScheduleConfirmation,
       4_000
@@ -1096,14 +1235,11 @@ export function serializeOrgAgentToolResult(
   }
   if (name === "manage_interview_availability") {
     return [
-      "response_mode=meeting_coordinator_narrative",
-      "user_facing_state=Harper will use these organizer hours for future meeting options. No candidate has been contacted.",
-      `organizer_hours=${formatPromptCell(result.summary, 1_000)}`,
-      `timezone=${formatPromptCell(result.timezone, 128)}`,
-      `meeting_availability_url=${formatPromptCell(result.meetingAvailabilityUrl, 1_000)}`,
-      `next_process=${formatPromptCell(result.nextProcess, 1_000)}`,
-      `response_guidance=${formatPromptCell(result.responseGuidance, 1_000)}`,
-      "writing_instruction=Treat this as acknowledging a working preference, not reporting a data operation. Open naturally with the practical effect, such as '좋아요. 앞으로 이 시간을 기준으로 일정을 찾을게요.' Do not lead with 저장, 등록, 반영, or say Harper will apply the hours later. If the visible conversation identifies one candidate, ask whether to continue with that meeting now.",
+      `The current organizer's working meeting availability is now ${formatPromptCell(result.summary, 1_000)} in ${formatPromptCell(result.timezone, 128)}. Harper will use it as the basis for future meeting choices.`,
+      "This availability change alone does not move or contact a candidate.",
+      formatPromptCell(result.nextProcess, 1_000),
+      formatPromptCell(result.responseGuidance, 1_000),
+      "Continue a fully identified candidate meeting request in this tool loop. Otherwise explain the practical effect of the organizer's latest instruction in a natural final response.",
     ].join("\n");
   }
   if (name === "contact_talent") {

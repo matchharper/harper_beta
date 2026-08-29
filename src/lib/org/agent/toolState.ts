@@ -76,7 +76,7 @@ export const ORG_AGENT_FAILED_CANDIDATE_DECISION_REPLY =
  * A failed mutation is a server-authoritative outcome. Do not let a
  * model-authored final message accidentally turn it into a success claim.
  */
-export function enforceOrgAgentTerminalMutationOutcome(
+function enforceOrgAgentTerminalMutationOutcomeRaw(
   state: OrgAgentToolExecutionState,
   modelReply: string
 ) {
@@ -87,8 +87,6 @@ export function enforceOrgAgentTerminalMutationOutcome(
       "change_role_status",
       "contact_talent",
       "decide_candidate_connection",
-      "manage_interview_availability",
-      "manage_role_pipeline_stages",
       "move_candidate_stage",
       "update_data",
       "update_role_criteria",
@@ -145,7 +143,9 @@ export function enforceOrgAgentTerminalMutationOutcome(
     return reply;
   }
   if (
-    finalTerminalResult.name === "decide_candidate_connection" &&
+    (finalTerminalResult.name === "decide_candidate_connection" ||
+      finalTerminalResult.name === "move_candidate_stage") &&
+    finalTerminalResult.status !== "success" &&
     state.terminalReply
   ) {
     return state.terminalReply;
@@ -163,6 +163,41 @@ export function enforceOrgAgentTerminalMutationOutcome(
     return ORG_AGENT_FAILED_ROLE_STATUS_REPLY;
   }
   return ORG_AGENT_FAILED_UPDATE_REPLY;
+}
+
+function enforceVerifiedWorkspaceLinkOrgId(
+  state: OrgAgentToolExecutionState,
+  reply: string
+) {
+  const workspaceId = state.company.workspaceId;
+  if (!workspaceId || !reply.includes("https://matchharper.com/org/")) {
+    return reply;
+  }
+
+  return reply.replace(
+    /https:\/\/matchharper\.com\/org\/[^\s<>|)]+/g,
+    (url) =>
+      url.replace(
+        /([?&](?:amp;)?orgId=)[^&\s<>|)]+/,
+        `$1${workspaceId}`
+      )
+  );
+}
+
+/**
+ * Preserve model-authored prose, while preventing a workspace-scoped Harper
+ * link from silently pointing at a hallucinated organization. Links are not
+ * added or required here; only an orgId already present in a Harper org URL is
+ * replaced with the authoritative workspace id.
+ */
+export function enforceOrgAgentTerminalMutationOutcome(
+  state: OrgAgentToolExecutionState,
+  modelReply: string
+) {
+  return enforceVerifiedWorkspaceLinkOrgId(
+    state,
+    enforceOrgAgentTerminalMutationOutcomeRaw(state, modelReply)
+  );
 }
 
 export function createOrgAgentToolExecutionState(

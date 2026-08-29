@@ -16,12 +16,12 @@ import {
   CAREER_SESSION_START_NO_MESSAGE_MARKER,
 } from "@/lib/career/prompts";
 import { fetchCareerReengagementPendingActions } from "@/lib/career/reengagementPendingActions.server";
+import { resolveCareerReengagementActionKeys } from "@/lib/career/reengagementActions";
+import { createCareerPendingActionRef } from "@/lib/career/pendingActionRef.server";
 import { GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
-import { replaceReengagementCallLinkWithCardMarker } from "@/lib/talentOnboarding/internalOpportunityCallMarker";
 
-const REENGAGEMENT_IDLE_MS = 8 * 60 * 60 * 1000; // 8시간
-const REENGAGEMENT_PENDING_ACTION_PROBABILITY = 0.5;
+const REENGAGEMENT_IDLE_MS = 12 * 60 * 60 * 1000; // 12시간
 const REENGAGEMENT_TEMPERATURE = 0.8;
 const USER_INITIATED_REENGAGEMENT_IDLE_MS = 60 * 60 * 1000; // 1시간
 
@@ -359,28 +359,21 @@ export async function POST(req: NextRequest) {
           locale: talentSetting.preferred_locale,
           userId: user.id,
         })
-      : { actions: [], promptActions: [] };
-    const shouldIncludePendingAction =
-      pendingActionsSnapshot.actions.length > 0 &&
-      Math.random() < REENGAGEMENT_PENDING_ACTION_PROBABILITY;
-    const pendingActionsForTurn = shouldIncludePendingAction
-      ? pendingActionsSnapshot.promptActions.slice(0, 1)
-      : [];
-    const selectedCallAction = pendingActionsForTurn.find(
-      (action) => action.kind === "talent_call"
-    );
-    const transformAssistantTextBeforeInsert = selectedCallAction
-      ? (content: string) =>
-          replaceReengagementCallLinkWithCardMarker({
-            content,
-            payload: {
-              callId: selectedCallAction.callId,
-              companyName: selectedCallAction.companyName,
-              resumePromptNeeded: selectedCallAction.resumePromptNeeded,
-              roleTitle: selectedCallAction.roleTitle,
-            },
-          })
-      : undefined;
+      : { actionReferences: {}, actions: [], promptActions: [] };
+    const pendingActionsForTurn = pendingActionsSnapshot.promptActions;
+    const transformAssistantTextBeforeInsert = (content: string) =>
+      resolveCareerReengagementActionKeys({
+        content,
+        resolvePendingActionRef: (actionKey) => {
+          const reference = pendingActionsSnapshot.actionReferences[actionKey];
+          return reference
+            ? createCareerPendingActionRef({
+                reference,
+                talentId: user.id,
+              })
+            : null;
+        },
+      });
     const proactiveContext = buildCareerSessionStartTurnInstruction({
       currentAccessAt: now,
       idleMs: effectiveIdleMs,

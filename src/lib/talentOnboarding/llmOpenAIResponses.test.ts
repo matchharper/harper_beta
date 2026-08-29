@@ -23,6 +23,52 @@ test("builds Luna Responses requests with high reasoning and JSON mode", () => {
   ]);
 });
 
+test("runs career insight extraction and conversation summaries through Luna high", async () => {
+  const [{ client }, { runCareerConversationSummary, runCareerInsightExtraction }] =
+    await Promise.all([
+      import("@/lib/llm/llm"),
+      import("@/lib/career/llm"),
+    ]);
+  const responsesPrototype = Object.getPrototypeOf(client.responses) as any;
+  const originalCreate = responsesPrototype.create;
+  const requests: Record<string, any>[] = [];
+  responsesPrototype.create = async (body: Record<string, any>) => {
+    requests.push(body);
+    return {
+      model: "gpt-5.6-luna",
+      output: [
+        {
+          content: [{ text: '{"ok":true}', type: "output_text" }],
+          role: "assistant",
+          type: "message",
+        },
+      ],
+      status: "completed",
+      usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
+    };
+  };
+
+  try {
+    await runCareerInsightExtraction({
+      conversationMessages: [{ content: "I prefer Seoul.", role: "user" }],
+      systemPrompt: "Extract JSON.",
+    });
+    await runCareerConversationSummary({
+      systemPrompt: "Summarize JSON.",
+      userPrompt: "Conversation.",
+    });
+
+    assert.equal(requests.length, 2);
+    for (const request of requests) {
+      assert.equal(request.model, "gpt-5.6-luna");
+      assert.deepEqual(request.reasoning, { effort: "high" });
+      assert.deepEqual(request.text, { format: { type: "json_object" } });
+    }
+  } finally {
+    responsesPrototype.create = originalCreate;
+  }
+});
+
 test("preserves GPT-5.6 explicit cache breakpoints and structured output", () => {
   const schema = {
     properties: { evaluations: { items: {}, type: "array" } },

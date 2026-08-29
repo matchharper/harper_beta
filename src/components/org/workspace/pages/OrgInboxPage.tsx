@@ -1,16 +1,7 @@
-import {
-  ArrowRight,
-  CalendarClock,
-  Check,
-  ChevronDown,
-  Search,
-  X,
-} from "lucide-react";
-import { useRouter } from "next/router";
+import { Check, ChevronDown, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { InternalOnlyHatch } from "@/components/org/internal/InternalOnlySurface";
-import { OrgMeetingScheduleDialog } from "@/components/org/meetings/OrgMeetingScheduleDialog";
 import { TalentDetailSimpleView } from "@/components/org/TalentDetailSimpleView";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
 import { OrgPageHeader } from "@/components/org/workspace/OrgPageHeader";
@@ -18,7 +9,7 @@ import {
   OrgTalentTable,
   OrgTalentTableLoading,
 } from "@/components/org/workspace/OrgTalentTable";
-import { CardButton, MuteButton } from "@/components/ui/button";
+import { MuteButton } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -29,7 +20,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useOrgInbox } from "@/hooks/org/useOrg";
-import { useOrgMeetingSchedules } from "@/hooks/org/useOrgMeetingSchedules";
 import { OrgJobsProvider, useOrgJobsNavigation } from "@/hooks/org/useOrgJobs";
 import { useOrgViewedRecommendations } from "@/hooks/org/useOrgViewedRecommendations";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
@@ -43,7 +33,6 @@ const INBOX_FILTERS = [
 ] as const;
 
 function OrgInboxMain() {
-  const router = useRouter();
   const [activeFilters, setActiveFilters] = useState<InboxFilter[]>([]);
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
   const [searchDraft, setSearchDraft] = useState("");
@@ -54,8 +43,6 @@ function OrgInboxMain() {
     useOrgWorkspace();
   const workspaceId = workspace.workspaceId;
   const inboxQuery = useOrgInbox({ workspaceId });
-  const meetingSchedulesQuery = useOrgMeetingSchedules({ workspaceId });
-  const meetingSchedules = meetingSchedulesQuery.data?.items ?? [];
   const { hasHydrated, isViewed, markViewed } = useOrgViewedRecommendations({
     currentUserEmail,
     workspaceId,
@@ -168,53 +155,6 @@ function OrgInboxMain() {
         description="최근 추천된 후보자를 확인해요."
         title="Inbox"
       />
-
-      {meetingSchedules.length > 0 ? (
-        <section aria-labelledby="meeting-schedule-actions-title">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <h2
-              className="text-[13px] font-medium text-neutral-primary"
-              id="meeting-schedule-actions-title"
-            >
-              일정 조율
-            </h2>
-            <span className="text-[12px] tabular-nums text-neutral-soft">
-              {meetingSchedules.length}건
-            </span>
-          </div>
-          <div className="grid gap-2 lg:grid-cols-2">
-            {meetingSchedules.slice(0, 4).map((schedule) => (
-              <CardButton
-                className="group gap-3 px-4 py-3"
-                key={schedule.scheduleId}
-                onClick={() =>
-                  void router.push({
-                    pathname: "/org/inbox",
-                    query: {
-                      dialog: "interview-schedule",
-                      orgId: workspaceId,
-                      scheduleId: schedule.scheduleId,
-                    },
-                  })
-                }
-              >
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-faded text-primary">
-                  <CalendarClock className="size-4" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-medium text-neutral-primary">
-                    {schedule.candidateName} · {schedule.roleName}
-                  </span>
-                  <span className="mt-0.5 block truncate text-[12px] font-light text-neutral-muted">
-                    후보자에게 보낼 일정과 이메일을 확인해 주세요.
-                  </span>
-                </span>
-                <ArrowRight className="size-4 shrink-0 text-neutral-soft transition-transform group-hover:translate-x-0.5" />
-              </CardButton>
-            ))}
-          </div>
-        </section>
-      ) : null}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div
@@ -452,31 +392,10 @@ function OrgInboxMain() {
 }
 
 export function OrgInboxPage() {
-  const router = useRouter();
-  const scheduleId =
-    typeof router.query.scheduleId === "string"
-      ? router.query.scheduleId.trim()
-      : "";
-  const scheduleDialogOpen =
-    router.query.dialog === "interview-schedule" && Boolean(scheduleId);
-  const closeSchedule = () => {
-    const query = { ...router.query };
-    delete query.dialog;
-    delete query.scheduleId;
-    void router.replace({ pathname: router.pathname, query }, undefined, {
-      shallow: true,
-    });
-  };
-
   return (
     <OrgJobsProvider includeBoard={false} routePage="inbox">
       <OrgInboxMain />
       <TalentDetailSimpleView />
-      <OrgMeetingScheduleDialog
-        onRequestClose={closeSchedule}
-        open={scheduleDialogOpen}
-        scheduleId={scheduleId}
-      />
     </OrgJobsProvider>
   );
 }

@@ -82,10 +82,10 @@ const getReengagementPendingActionLabel = (
   switch (action.kind) {
     case "company_request":
       return "회사 요청";
-    case "talent_call":
-      return "talent_call";
     case "internal_opportunity":
       return "Internal 연결 제안";
+    case "meeting_schedule":
+      return "meeting_schedule";
     case "reevaluation_question":
       return "Reevaluation criteria";
   }
@@ -97,14 +97,12 @@ const getReengagementPendingActionDescription = (
   switch (action.kind) {
     case "company_request":
       return `${action.companyName} · ${action.roleTitle} · ${action.request}`;
-    case "talent_call":
-      return `${action.companyName} · ${action.roleTitle}${
-        action.reason ? ` · ${action.reason}` : ""
-      }`;
     case "internal_opportunity":
       return `${action.companyName} · ${action.roleTitle}${
         action.recommendationSummary ? ` · ${action.recommendationSummary}` : ""
       }`;
+    case "meeting_schedule":
+      return `${action.companyName} · ${action.roleTitle}`;
     case "reevaluation_question":
       return action.question;
   }
@@ -620,7 +618,7 @@ export default function CareerHomeDevControls({
           ) : (
             <RefreshCw className="h-3.5 w-3.5" />
           )}
-          최근 메시지 삭제 + 6시간 인사
+          최근 메시지 삭제 + 12시간 인사
         </MuteButton>
         <MuteButton
           onClick={() => {
@@ -636,15 +634,15 @@ export default function CareerHomeDevControls({
           ) : (
             <Clock3 className="h-3.5 w-3.5" />
           )}
-          6시간 인사만
+          12시간 인사만
         </MuteButton>
       </div>
       <div className="mt-4 rounded-xl border border-neutral-1000-a05 bg-bg-weak px-3 py-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <Text as="div" type="subtle" className="mt-1">
-              전체 {currentPendingActions.length}개 · 호출마다 50% 확률로 아래
-              우선 후보 최대 1개를 LLM에 전달
+              전체 {currentPendingActions.length}개 · 아래 우선 후보 최대 1개를
+              LLM에 전달
             </Text>
           </div>
           <MuteButton

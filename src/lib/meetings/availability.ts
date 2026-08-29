@@ -36,8 +36,17 @@ export type SavedMeetingAvailability = MeetingAvailabilityDocument & {
   version: number;
 };
 
+export type MeetingCalendarBusyBlock = {
+  allDay: boolean;
+  endAt: string;
+  id: string;
+  isBlocking: boolean;
+  startAt: string;
+};
+
 export type MeetingAvailabilityResponse = {
   availability: SavedMeetingAvailability | null;
+  calendarBusyBlocks: MeetingCalendarBusyBlock[];
   ok: true;
 };
 

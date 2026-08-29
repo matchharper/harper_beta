@@ -31,7 +31,14 @@ export type OrgAgentMeetingScheduleConfirmation = {
   additionalMessage: MeetingScheduleAdditionalMessage | null;
   availabilityVersion: number | null;
   config: MeetingScheduleDraftConfig;
-  draftBlocker: "availability_missing" | "organizer_email_missing" | null;
+  draftBlocker:
+    | "availability_missing"
+    | "meeting_stage_missing"
+    | "organizer_email_missing"
+    | null;
+  meetingStage:
+    | import("@/lib/meetings/scheduleDraft").MeetingScheduleStageProfile
+    | null;
 };
 
 export type OrgAgentCandidateDecisionConfirmation = {
@@ -40,6 +47,7 @@ export type OrgAgentCandidateDecisionConfirmation = {
   decision: OrgAgentCandidateDecision;
   introEmails: string[];
   meetingDraft: OrgAgentMeetingScheduleConfirmation | null;
+  processStageId: string | null;
   reason: string | null;
   recommendationId: string;
   roleId: string;

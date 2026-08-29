@@ -38,7 +38,18 @@ test("candidate decisions expose LLM-judged context and terminal execution tools
     "direct_contact",
   ]);
   assert.equal("meetingDurationMinutes" in prepareParameters.properties, false);
+  assert.equal("meetingPurpose" in prepareParameters.properties, false);
+  assert.equal(
+    "meetingCandidateMessage" in prepareParameters.properties,
+    false
+  );
   assert.equal("meetingAttendeeEmails" in prepareParameters.properties, false);
+  assert.equal("processStageId" in prepareParameters.properties, true);
+  assert.equal("processStageId" in decideParameters.properties, true);
+  assert.deepEqual(decideParameters.properties.connectionMethod.enum, [
+    "intro_email",
+    "direct_contact",
+  ]);
   assert.equal("recommendationId" in prepareParameters.properties, false);
   assert.equal("recommendationId" in decideParameters.properties, false);
   assert.equal("confirmed" in decideParameters.properties, false);
@@ -67,11 +78,14 @@ test("candidate decisions expose LLM-judged context and terminal execution tools
     decide?.function.description ?? "",
     /omitted connectionMethod defaults to intro_email/
   );
-  assert.doesNotMatch(
+  assert.match(
     prepare?.function.description ?? "",
-    /schedule_interview/
+    /not used for meeting scheduling/
   );
-  assert.doesNotMatch(decide?.function.description ?? "", /schedule_interview/);
+  assert.match(
+    decide?.function.description ?? "",
+    /use move_candidate_stage instead/
+  );
   assert.match(
     decide?.function.description ?? "",
     /Never proactively offer direct_contact/
@@ -86,23 +100,50 @@ test("candidate decisions expose LLM-judged context and terminal execution tools
   );
 });
 
-test("company agent keeps interview scheduling code unavailable during rollout", () => {
+test("company agent exposes interview scheduling tools", () => {
+  const availability = ORG_AGENT_TOOLS.find(
+    (tool) => tool.function.name === "manage_interview_availability"
+  );
   assert.equal(isOrgAgentToolName("manage_interview_availability"), true);
   assert.equal(
     ORG_AGENT_TERMINAL_TOOL_NAMES.has("manage_interview_availability"),
-    true
+    false
   );
   assert.equal(
     getEnabledOrgAgentTools().some(
       (tool) => tool.function.name === "manage_interview_availability"
     ),
-    false
+    true
   );
   assert.equal(
     getEnabledOrgAgentTools("slack").some(
       (tool) => tool.function.name === "manage_interview_availability"
     ),
-    false
+    true
+  );
+  assert.match(
+    availability?.function.description ?? "",
+    /continue the same authorized request/
+  );
+});
+
+test("stage scheduling can prepare a meeting without moving an already-staged candidate", () => {
+  const move = ORG_AGENT_TOOLS.find(
+    (item) => item.function.name === "move_candidate_stage"
+  );
+  const parameters = move?.function.parameters as any;
+
+  assert.match(
+    move?.function.description ?? "",
+    /targetStageId may equal the current custom stage/
+  );
+  assert.match(
+    move?.function.description ?? "",
+    /standard delayed-delivery policy/
+  );
+  assert.match(
+    parameters.properties.targetStageId.description,
+    /may equal expectedCurrentStageId/
   );
 });
 
@@ -181,9 +222,18 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
     calibration?.function.description ?? "",
     /company-level talent bar/
   );
-  assert.match(calibration?.function.description ?? "", /represent caliber rather than Role fit/);
-  assert.match(calibration?.function.description ?? "", /returns the finalized Hiring Brief and user reply/);
-  assert.doesNotMatch(calibration?.function.description ?? "", /gpt-5\.6-terra/);
+  assert.match(
+    calibration?.function.description ?? "",
+    /represent caliber rather than Role fit/
+  );
+  assert.match(
+    calibration?.function.description ?? "",
+    /returns the finalized Hiring Brief and user reply/
+  );
+  assert.doesNotMatch(
+    calibration?.function.description ?? "",
+    /gpt-5\.6-terra/
+  );
   assert.doesNotMatch(calibration?.function.description ?? "", /pre-open/);
 
   const updateRoleCriteria = ORG_AGENT_TOOLS.find(
@@ -287,7 +337,7 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
   );
 });
 
-test("pipeline management exposes separate terminal structure and candidate movement tools", () => {
+test("pipeline management can continue into one terminal candidate movement", () => {
   const manage = ORG_AGENT_TOOLS.find(
     (item) => item.function.name === "manage_role_pipeline_stages"
   );
@@ -300,7 +350,7 @@ test("pipeline management exposes separate terminal structure and candidate move
   assert.equal(isOrgAgentToolName("move_candidate_stage"), true);
   assert.equal(
     ORG_AGENT_TERMINAL_TOOL_NAMES.has("manage_role_pipeline_stages"),
-    true
+    false
   );
   assert.equal(ORG_AGENT_TERMINAL_TOOL_NAMES.has("move_candidate_stage"), true);
 
@@ -323,7 +373,19 @@ test("pipeline management exposes separate terminal structure and candidate move
     "targetStageId",
   ]);
   assert.match(move.function.description, /compare-and-set/);
-  assert.match(move.function.description, /cannot move.*pending_connection/);
+  assert.match(
+    move.function.description,
+    /pending_connection may move only to a custom/
+  );
+  assert.match(
+    move.function.description,
+    /final_offer target returns a confirmation question/
+  );
+  assert.deepEqual(moveParameters.properties.meetingDeliveryMode.enum, [
+    "standard",
+    "immediate",
+  ]);
+  assert.match(move.function.description, /preserves the existing body/);
   assert.doesNotMatch(JSON.stringify(moveParameters), /recommendationId/);
 });
 
@@ -504,9 +566,12 @@ test("candidate contact uses one draft-lifecycle tool", () => {
   assert.equal(isOrgAgentToolName("cancel_talent_contact"), false);
 });
 
-test("candidate connection execution declares the server confirmation gate", () => {
+test("ordinary candidate connection keeps scheduling on the stage-move path", () => {
   const decision = ORG_AGENT_TOOLS.find(
     (item) => item.function.name === "decide_candidate_connection"
+  );
+  const prepare = ORG_AGENT_TOOLS.find(
+    (item) => item.function.name === "prepare_candidate_connection"
   );
 
   assert.match(
@@ -517,8 +582,24 @@ test("candidate connection execution declares the server confirmation gate", () 
     decision?.function.description ?? "",
     /server verifies that adjacency.*confirmation_required/
   );
-  assert.doesNotMatch(
+  assert.match(
     decision?.function.description ?? "",
+    /Meeting scheduling and explicit process-stage moves use move_candidate_stage/
+  );
+  assert.deepEqual(
+    (decision?.function.parameters as any).properties.connectionMethod.enum,
+    ["intro_email", "direct_contact"]
+  );
+  assert.deepEqual(
+    (prepare?.function.parameters as any).properties.connectionMethod.enum,
+    ["intro_email", "direct_contact"]
+  );
+  assert.doesNotMatch(
+    JSON.stringify(decision?.function.parameters),
+    /schedule_interview/
+  );
+  assert.doesNotMatch(
+    JSON.stringify(prepare?.function.parameters),
     /schedule_interview/
   );
 });

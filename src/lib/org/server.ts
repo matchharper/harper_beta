@@ -344,6 +344,11 @@ export type OrgBoardItem = {
   stageTag: string | null;
   talent: OrgBoardTalent;
   talentId: string;
+  upcomingMeeting: {
+    endAt: string;
+    startAt: string;
+    title: string;
+  } | null;
   updatedAt: string;
 };
 
@@ -469,9 +474,12 @@ export type OrgCompanyTalentRequestFeedItem = {
   label: string;
   lastError: string | null;
   requestContext: string;
+  requestKind: "question" | "resume";
+  responseMessage: string | null;
   roleId: string;
   roleName: string | null;
   scheduledAt: string;
+  sentMessage: string | null;
   sentAt: string | null;
   status: string;
 };
@@ -481,6 +489,14 @@ export type OrgTalentDetailResponse = {
   connectionConfirmationEmails: OpsMatchingConnectionConfirmationEmail[];
   feed: OrgFeedItem[];
   introEmails: OrgIntroEmailFeedItem[];
+  meetingEvents: Array<{
+    createdAt: string;
+    id: string;
+    kind: "meeting_requested" | "meeting_slots_selected" | "meeting_confirmed";
+    scheduledAt?: string | null;
+    text: string;
+    title: string;
+  }>;
   members: OrgMember[];
   processClosureNotification: {
     deliveredAt: string | null;
@@ -548,7 +564,10 @@ export type OrgStageChangeOptions = {
   durationMinutes?: number;
   emailMode?: InternalConnectionConfirmationEmailMode;
   introEmails?: string[] | null;
+  meetingCandidateMessage?: string | null;
+  meetingPurpose?: string | null;
   scheduleInterview?: boolean;
+  sourceStage?: OrgStageId;
   stopNote?: string | null;
   title?: string | null;
 };
@@ -2519,6 +2538,44 @@ async function fetchTalentRows(
   return new Map(results.flat().map((row) => [row.user_id, row] as const));
 }
 
+async function fetchUpcomingMeetingsByRecommendation(args: {
+  admin: ReturnType<typeof getSupabaseAdmin>;
+  recommendationIds: string[];
+  workspaceId: string;
+}) {
+  const meetingsByRecommendation = new Map<
+    string,
+    { endAt: string; startAt: string; title: string }
+  >();
+  if (args.recommendationIds.length === 0) return meetingsByRecommendation;
+
+  const { data, error } = await (
+    args.admin.from("meeting_schedules" as any) as any
+  )
+    .select("recommendation_id, title, confirmed_start_at, confirmed_end_at")
+    .eq("company_workspace_id", args.workspaceId)
+    .in("recommendation_id", args.recommendationIds)
+    .eq("status", "confirmed")
+    .gte("confirmed_start_at", new Date().toISOString())
+    .order("confirmed_start_at", { ascending: true });
+  if (error) throw error;
+
+  for (const row of data ?? []) {
+    const recommendationId = normalizeText(row.recommendation_id);
+    const startAt = normalizeText(row.confirmed_start_at);
+    const endAt = normalizeText(row.confirmed_end_at);
+    if (!recommendationId || !startAt || !endAt) continue;
+    if (!meetingsByRecommendation.has(recommendationId)) {
+      meetingsByRecommendation.set(recommendationId, {
+        endAt,
+        startAt,
+        title: normalizeText(row.title) || "Interview",
+      });
+    }
+  }
+  return meetingsByRecommendation;
+}
+
 export async function fetchOrgBoard(args: {
   /**
    * Reserved for API routes already protected by `requireInternalApiUser`.
@@ -2658,6 +2715,7 @@ export async function fetchOrgBoard(args: {
     profileLabels,
     connectedRecommendationIds,
     criteriaEvaluationsByKey,
+    upcomingMeetingsByRecommendation,
   ] = await Promise.all([
     fetchTalentRows(admin, talentIds),
     fetchTagsForBoard({ admin, roleIds, talentIds }),
@@ -2674,6 +2732,11 @@ export async function fetchOrgBoard(args: {
         })
       : fetchOrgConnectedRecommendationIds({ admin, roleIds }),
     fetchCriteriaEvaluationsForBoard({ admin, recommendationRows }),
+    fetchUpcomingMeetingsByRecommendation({
+      admin,
+      recommendationIds: recommendationRows.map((row) => row.id),
+      workspaceId,
+    }),
   ]);
   const customStageByTagKey = new Map(
     customStages.map((row) => [
@@ -2740,6 +2803,7 @@ export async function fetchOrgBoard(args: {
         stageTag: stageInfo.stageTag,
         talent: toBoardTalent(talent, { recentCompanies, recentSchools }),
         talentId: row.talent_id,
+        upcomingMeeting: upcomingMeetingsByRecommendation.get(row.id) ?? null,
         updatedAt: row.updated_at,
       },
     ];
@@ -3457,7 +3521,9 @@ async function fetchStageRowsForRole(
   const { data, error } = await (
     admin.from("ops_matching_role_stages" as any) as any
   )
-    .select("id, role_id, label, sort_order")
+    .select(
+      "id, role_id, label, sort_order, meeting_purpose, meeting_duration_minutes, meeting_candidate_message"
+    )
     .eq("role_id", roleId)
     .order("sort_order", { ascending: true });
 
@@ -3473,6 +3539,28 @@ function validateStageForRole(stage: OrgStageId, stageRows: RoleStageRow[]) {
   }
 }
 
+async function upsertRecommendationProcessedStage(args: {
+  admin: SupabaseAdminClient;
+  recommendationId: string;
+  roleId: string;
+  stage: OrgStageId;
+  talentId: string;
+}) {
+  const { error } = await (
+    args.admin.from("talent_opportunity_recommendation" as any) as any
+  ).upsert(
+    {
+      id: args.recommendationId,
+      processed_stage: args.stage,
+      role_id: args.roleId,
+      talent_id: args.talentId,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "id" }
+  );
+  if (error) throw error;
+}
+
 export async function setOrgCandidateStage(args: {
   acceptReason?: string | null;
   contactDirectly?: boolean;
@@ -3482,6 +3570,7 @@ export async function setOrgCandidateStage(args: {
   recommendationId: string;
   roleId: string;
   scheduleInterview?: boolean;
+  skipAutomaticContact?: boolean;
   stage: OrgStageId;
   stopNote?: string | null;
   talentId: string;
@@ -3498,10 +3587,18 @@ export async function setOrgCandidateStage(args: {
   const canInitiateContact = canInitiateOrgCandidateContact(stage);
   const scheduleInterview =
     canInitiateContact && args.scheduleInterview === true;
+  const skipAutomaticContact =
+    canInitiateContact && args.skipAutomaticContact === true;
   const contactDirectly =
-    canInitiateContact && !scheduleInterview && args.contactDirectly === true;
+    canInitiateContact &&
+    !scheduleInterview &&
+    !skipAutomaticContact &&
+    args.contactDirectly === true;
   const requestedIntroEmails =
-    canInitiateContact && !contactDirectly && !scheduleInterview
+    canInitiateContact &&
+    !contactDirectly &&
+    !scheduleInterview &&
+    !skipAutomaticContact
       ? normalizeLooseEmailList(args.introEmails)
       : [];
   const stopNote = normalizeText(args.stopNote);
@@ -3527,7 +3624,10 @@ export async function setOrgCandidateStage(args: {
   const role = roleRows.find((row) => row.role_id === roleId);
   if (!role) throw new OrgHttpError(404, "Role not found");
   const assignedIntroEmails =
-    canInitiateContact && !contactDirectly && !scheduleInterview
+    canInitiateContact &&
+    !contactDirectly &&
+    !scheduleInterview &&
+    !skipAutomaticContact
       ? await fetchOrgRoleAssigneeEmails({ admin, roleId, workspaceId })
       : [];
   const introEmails = normalizeLooseEmailList([
@@ -3609,11 +3709,18 @@ export async function setOrgCandidateStage(args: {
     );
   }
 
+  if (previousStage === "pending_connection" && stage === "connected") {
+    throw new OrgHttpError(
+      409,
+      "연결 대기 다음에는 1차 기술 인터뷰나 커피챗처럼 다음 프로세스 단계를 먼저 추가해 주세요. 기존 연결됨 칼럼은 이미 진행 중인 후보자를 위한 상태예요."
+    );
+  }
+
   if (
     requiresOrgIntroEmailRecipient(
       previousStage,
       stage,
-      contactDirectly || scheduleInterview
+      contactDirectly || scheduleInterview || skipAutomaticContact
     ) &&
     introEmails.length === 0
   ) {
@@ -3682,6 +3789,14 @@ export async function setOrgCandidateStage(args: {
 
   if (insertError) throw insertError;
 
+  await upsertRecommendationProcessedStage({
+    admin,
+    recommendationId,
+    roleId,
+    stage,
+    talentId,
+  });
+
   if (reactivation) {
     const { error: reopenError } = await (
       admin.from("talent_opportunity_recommendation" as any) as any
@@ -3740,6 +3855,7 @@ export async function setOrgCandidateStage(args: {
       processClosureNotification?.sentChannel ?? null,
     reactivation,
     scheduleInterview,
+    skipAutomaticContact,
     stage,
     stopNote: stage === "process_stopped" ? stopNote : null,
     stopReason: null,
@@ -4481,11 +4597,13 @@ export async function fetchOrgTalentDetail(args: {
     educationsResult,
     extrasResult,
     progressResult,
+    candidateActivityProgressResult,
     primaryResumeResult,
     documentsResult,
     companyRequestHistoryResult,
     connectionConfirmationEmails,
     introEmails,
+    meetingSchedulesResult,
     processClosureNotifications,
   ] = await Promise.all([
     (admin.from("talent_users" as any) as any)
@@ -4527,6 +4645,17 @@ export async function fetchOrgTalentDetail(args: {
       .in("kind", ["org_stage_change", "org_note"])
       .order("created_at", { ascending: false })
       .limit(50),
+    (admin.from("talent_progress" as any) as any)
+      .select("text, kind, metadata")
+      .eq("talent_id", talentId)
+      .eq("role_id", recommendation.role_id)
+      .eq("kind", "org_candidate_activity")
+      .in("metadata->>eventType", [
+        "candidate_contact_sent",
+        "candidate_response_received",
+      ])
+      .order("created_at", { ascending: false })
+      .limit(100),
     (admin.from("talent_documents" as any) as any)
       .select("id, file_name, storage_path, is_public")
       .eq("talent_id", talentId)
@@ -4559,6 +4688,16 @@ export async function fetchOrgTalentDetail(args: {
           talentId,
         })
       : Promise.resolve([] as OrgIntroEmailFeedItem[]),
+    (admin.from("meeting_schedules" as any) as any)
+      .select(
+        "id, active_round_id, status, title, duration_minutes, confirmed_start_at, updated_at"
+      )
+      .eq("company_workspace_id", workspaceId)
+      .eq("recommendation_id", recommendation.id)
+      .eq("role_id", recommendation.role_id)
+      .eq("talent_id", talentId)
+      .order("updated_at", { ascending: false })
+      .limit(20),
     stageInfo.stage === "process_stopped"
       ? fetchOrgProcessClosureNotifications({
           admin,
@@ -4588,6 +4727,37 @@ export async function fetchOrgTalentDetail(args: {
         TalentDocumentRow,
         "id" | "file_name" | "storage_path" | "is_public"
       > | null);
+  const progressRows = optionalRows<TalentProgressRow>(
+    progressResult,
+    "progress"
+  );
+  const candidateActivityRows = optionalRows<
+    Pick<TalentProgressRow, "kind" | "metadata" | "text">
+  >(candidateActivityProgressResult, "candidate activity progress");
+  const candidateActivityByRequestId = new Map<
+    string,
+    { responseMessage: string | null; sentMessage: string | null }
+  >();
+  for (const progress of candidateActivityRows) {
+    const metadata = getJsonRecord(progress.metadata);
+    const requestId = normalizeText(metadata.requestId);
+    const eventType = normalizeText(metadata.eventType);
+    if (!requestId) continue;
+    const current = candidateActivityByRequestId.get(requestId) ?? {
+      responseMessage: null,
+      sentMessage: null,
+    };
+    if (eventType === "candidate_contact_sent" && !current.sentMessage) {
+      current.sentMessage = progress.text;
+    }
+    if (
+      eventType === "candidate_response_received" &&
+      !current.responseMessage
+    ) {
+      current.responseMessage = progress.text;
+    }
+    candidateActivityByRequestId.set(requestId, current);
+  }
   const companyRequestHistory = optionalRows<{
     created_at: string;
     deliveries: Array<{
@@ -4605,6 +4775,7 @@ export async function fetchOrgTalentDetail(args: {
     role_id: string;
     workflow_status: string;
   }>(companyRequestHistoryResult, "company request history").map((row) => {
+    const activity = candidateActivityByRequestId.get(row.id);
     const delivery = row.deliveries?.find(
       (item) => item.type === "company_request_candidate_delivery"
     );
@@ -4620,10 +4791,15 @@ export async function fetchOrgTalentDetail(args: {
       label: row.expects_document ? "이력서 요청" : "회사 질문 확인",
       lastError: delivery?.last_error ?? null,
       requestContext: row.request_context,
+      requestKind: row.expects_document ? "resume" : "question",
+      responseMessage: row.expects_document
+        ? null
+        : (activity?.responseMessage ?? null),
       roleId: row.role_id,
       roleName:
         roleRows.find((role) => role.role_id === row.role_id)?.name ?? null,
       scheduledAt: delivery?.scheduled_at ?? row.created_at,
+      sentMessage: activity?.sentMessage ?? null,
       sentAt: delivery?.sent_at ?? null,
       status: humanizeCompanyTalentRequestStatus({
         ...row,
@@ -4635,10 +4811,76 @@ export async function fetchOrgTalentDetail(args: {
   const documents = optionalRows<
     Pick<TalentDocumentRow, "id" | "file_name" | "content_type" | "created_at">
   >(documentsResult, "documents");
-  const progressRows = optionalRows<TalentProgressRow>(
-    progressResult,
-    "progress"
+  const meetingSchedules = optionalRows<{
+    active_round_id: string | null;
+    confirmed_start_at: string | null;
+    duration_minutes: number;
+    id: string;
+    status: string;
+    title: string;
+    updated_at: string;
+  }>(meetingSchedulesResult, "meeting schedules");
+  const meetingScheduleIds = meetingSchedules.map((item) => item.id);
+  const { data: meetingRoundRows, error: meetingRoundsError } =
+    meetingScheduleIds.length > 0
+      ? await (admin.from("meeting_schedule_rounds" as any) as any)
+          .select("id, schedule_id, status, submitted_at, updated_at")
+          .in("schedule_id", meetingScheduleIds)
+      : { data: [], error: null };
+  if (meetingRoundsError) throw meetingRoundsError;
+  type MeetingRoundFeedRow = {
+    id: string;
+    status: string;
+    submitted_at: string | null;
+    updated_at: string;
+  };
+  const meetingRoundById = new Map<string, MeetingRoundFeedRow>(
+    (meetingRoundRows ?? []).map((row: MeetingRoundFeedRow) => [row.id, row])
   );
+  const meetingEvents: OrgTalentDetailResponse["meetingEvents"] =
+    meetingSchedules.flatMap<OrgTalentDetailResponse["meetingEvents"][number]>(
+      (schedule) => {
+        const round = schedule.active_round_id
+          ? meetingRoundById.get(schedule.active_round_id)
+          : null;
+        const label = `${schedule.title} · ${schedule.duration_minutes}분`;
+        if (schedule.status === "confirmed" && schedule.confirmed_start_at) {
+          return [
+            ...(round?.submitted_at
+              ? [
+                  {
+                    createdAt: round.submitted_at,
+                    id: `meeting-slots:${round.id}`,
+                    kind: "meeting_slots_selected" as const,
+                    text: label,
+                    title: "후보자가 가능한 시간을 선택했어요",
+                  },
+                ]
+              : []),
+            {
+              createdAt: schedule.updated_at,
+              id: `meeting-confirmed:${schedule.id}`,
+              kind: "meeting_confirmed" as const,
+              scheduledAt: schedule.confirmed_start_at,
+              text: label,
+              title: "인터뷰가 확정됐어요",
+            },
+          ];
+        }
+        if (round && ["queued", "sent", "confirmed"].includes(round.status)) {
+          return [
+            {
+              createdAt: round.updated_at ?? schedule.updated_at,
+              id: `meeting-requested:${round.id}`,
+              kind: "meeting_requested" as const,
+              text: label,
+              title: "인터뷰 가능 시간을 요청했어요",
+            },
+          ];
+        }
+        return [];
+      }
+    );
   const sentAutoIntroRecommendation = optionalRows<
     Pick<TalentProgressRow, "metadata" | "text">
   >(autoIntroProgressResult, "sent auto intro").reduce<string | null>(
@@ -4674,6 +4916,7 @@ export async function fetchOrgTalentDetail(args: {
     connectionConfirmationEmails,
     feed: sortOrgFeedItems(progressFeedItems).slice(0, 50),
     introEmails,
+    meetingEvents,
     members,
     processClosureNotification:
       stageInfo.stage === "process_stopped"
@@ -5724,6 +5967,9 @@ export async function createOrgRoleReviewStage(args: {
 
 export async function createOrgRoleReviewStages(args: {
   labels: unknown;
+  meetingCandidateMessage?: unknown;
+  meetingDurationMinutes?: unknown;
+  meetingPurpose?: unknown;
   roleId: string;
   user: User;
   workspaceId: string;
@@ -5760,6 +6006,32 @@ export async function createOrgRoleReviewStages(args: {
     requestedLabelKeys.add(key);
     requestedLabels.push(label);
   }
+  const meetingPurpose = normalizeText(args.meetingPurpose).slice(0, 600);
+  const meetingCandidateMessage = normalizeText(
+    args.meetingCandidateMessage
+  ).slice(0, 2_000);
+  const meetingDurationMinutes =
+    args.meetingDurationMinutes === undefined ||
+    args.meetingDurationMinutes === null ||
+    args.meetingDurationMinutes === ""
+      ? null
+      : Number(args.meetingDurationMinutes);
+  const hasMeetingDefaults =
+    Boolean(meetingPurpose) ||
+    meetingDurationMinutes !== null ||
+    Boolean(meetingCandidateMessage);
+  const hasValidMeetingDuration =
+    meetingDurationMinutes !== null &&
+    Number.isSafeInteger(meetingDurationMinutes) &&
+    meetingDurationMinutes >= 15 &&
+    meetingDurationMinutes <= 240 &&
+    meetingDurationMinutes % 15 === 0;
+  if (hasMeetingDefaults && (!meetingPurpose || !hasValidMeetingDuration)) {
+    throw new OrgHttpError(
+      400,
+      "단계의 미팅 안내를 저장하려면 후보자에게 전달할 주제와 15분 단위의 시간을 함께 알려주세요."
+    );
+  }
 
   await assertOrgRoleAccess({ admin, roleId, user: args.user, workspaceId });
   const currentRows = await fetchStageRowsForRole(admin, roleId);
@@ -5786,6 +6058,13 @@ export async function createOrgRoleReviewStages(args: {
       .insert(
         missingLabels.map((label, index) => ({
           label,
+          ...(hasMeetingDefaults
+            ? {
+                meeting_candidate_message: meetingCandidateMessage || null,
+                meeting_duration_minutes: meetingDurationMinutes,
+                meeting_purpose: meetingPurpose,
+              }
+            : {}),
           role_id: roleId,
           sort_order: latestSortOrder + index + 1,
         }))
@@ -5881,44 +6160,10 @@ export async function deleteOrgRoleReviewStage(args: {
   user: User;
   workspaceId: string;
 }): Promise<OrgRoleReviewStageDeleteResponse> {
-  const admin = getSupabaseAdmin();
-  const workspaceId = normalizeText(args.workspaceId);
-  const roleId = normalizeText(args.roleId);
-  const stageId = normalizeText(args.stageId);
-  if (!workspaceId || !roleId || !stageId) {
-    throw new OrgHttpError(400, "Missing required fields");
-  }
-
-  await assertOrgRoleAccess({
-    admin,
-    roleId,
-    user: args.user,
-    workspaceId,
-  });
-
-  const { error: stageError } = await (
-    admin.from("ops_matching_role_stages" as any) as any
-  )
-    .delete()
-    .eq("id", stageId)
-    .eq("role_id", roleId);
-
-  if (stageError) throw stageError;
-
-  const { error: tagError } = await (
-    admin.from("talent_opportunity_tag" as any) as any
-  )
-    .delete()
-    .eq("opportunity_id", roleId)
-    .eq("tag", buildCustomStageTag(stageId));
-
-  if (tagError) throw tagError;
-
-  return {
-    ok: true,
-    roleId,
-    stageId,
-  };
+  // A stage with candidates may not be removed: deleting its tags would silently
+  // move those candidates back to the fallback stage without synchronizing their
+  // recommendation.processed_stage. Move them explicitly through setOrgCandidateStage first.
+  return deleteEmptyOrgRoleReviewStage(args);
 }
 
 export async function deleteEmptyOrgRoleReviewStage(args: {

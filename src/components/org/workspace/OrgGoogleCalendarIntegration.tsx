@@ -2,10 +2,7 @@ import { LoaderCircle } from "lucide-react";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
-import {
-  OrgSection,
-  OrgSectionHeader,
-} from "@/components/org/workspace/OrgSection";
+import { OrgSection } from "@/components/org/workspace/OrgSection";
 import { Badge } from "@/components/ui/badge";
 import { MuteButton } from "@/components/ui/button";
 import {
@@ -23,11 +20,14 @@ import {
   withoutCalendarCallback,
 } from "@/lib/integrations/googleCalendarCallback";
 import { useToastStore } from "@/store/useToastStore";
+import Image from "next/image";
 
 export function OrgGoogleCalendarIntegration({
+  className,
   userId,
   workspaceId,
 }: {
+  className?: string;
   userId: string;
   workspaceId: string;
 }) {
@@ -46,18 +46,18 @@ export function OrgGoogleCalendarIntegration({
   const handledCallback = useRef("");
   const { mutateAsync: completeAsync } = complete;
 
-  const clearCallback = useCallback(
-    () =>
-      router.replace(
-        {
-          pathname: router.pathname,
-          query: withoutCalendarCallback(router.query),
-        },
-        undefined,
-        { shallow: true }
-      ),
-    [router]
-  );
+  const clearCallback = useCallback(() => {
+    const query = withoutCalendarCallback(router.query);
+    query.tab = "calendar";
+    return router.replace(
+      {
+        pathname: router.pathname,
+        query,
+      },
+      undefined,
+      { shallow: true }
+    );
+  }, [router]);
 
   const finishConnection = useCallback(async () => {
     setCallbackError(null);
@@ -159,23 +159,36 @@ export function OrgGoogleCalendarIntegration({
   const mutationError = connect.error ?? disconnect.error;
 
   return (
-    <OrgSection>
-      <OrgSectionHeader
-        description="개인 계정으로 사용하는 연동이에요. 연결한 계정과 일정의 상세 내용은 다른 팀원과 공유되지 않아요."
-        title="Personal integrations"
-      />
-      <div className="border-t border-neutral-1000-a05">
-        <div className="flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <OrgSection className={className}>
+      <div className="">
+        <div className="flex flex-row gap-4 w-fit">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-white border border-black/5">
+            <Image
+              alt=""
+              height={32}
+              src="/images/logos/calendar.png"
+              width={32}
+            />
+          </div>
           <div className="min-w-0">
-            <h3 className="text-[14px] font-medium text-neutral-primary">
+            <h3 className="text-[14px] font-normal flex items-center gap-2 text-neutral-primary">
               Google Calendar
+              {state === "active" && (
+                <Badge size="sm" tone="positive" variant="faded">
+                  연결됨
+                </Badge>
+              )}
             </h3>
             <p className="mt-1 max-w-2xl text-[13px] font-light leading-5 text-neutral-muted">
-              Calendar Sync로 향후 2주 일정을 가져오고, 미팅이 확정되면 Calendar
-              초대와 Google Meet 링크를 만들어요.
+              미팅 가능 시간을 확인하고,
+              <br />
+              인터뷰 링크를 만들고 초대하기 위해 연결이 필요해요.
             </p>
           </div>
-          <div aria-live="polite" className="flex shrink-0 items-center gap-3">
+          <div
+            aria-live="polite"
+            className="flex shrink-0 items-center gap-3 ml-2"
+          >
             {busy || (hasCallback && !callbackError) ? (
               <MuteButton disabled size="md">
                 <LoaderCircle
@@ -207,19 +220,16 @@ export function OrgGoogleCalendarIntegration({
               <MuteButton
                 onClick={() => setDisconnectOpen(true)}
                 size="md"
-                variant="transparent"
+                variant="default"
               >
                 연결 해제
               </MuteButton>
             ) : state === "active" ? (
               <>
-                <Badge size="sm" tone="positive" variant="faded">
-                  연결됨
-                </Badge>
                 <MuteButton
                   onClick={() => setDisconnectOpen(true)}
                   size="md"
-                  variant="transparent"
+                  variant="default"
                 >
                   연결 해제
                 </MuteButton>

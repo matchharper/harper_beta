@@ -50,10 +50,7 @@ import {
 } from "@/hooks/org/useOrgSlack";
 import { useOrgMeetingAvailability } from "@/hooks/org/useOrgMeetingAvailability";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
-import {
-  formatMeetingAvailabilitySummary,
-  ISO_WEEKDAYS,
-} from "@/lib/meetings/availability";
+import { ISO_WEEKDAYS } from "@/lib/meetings/availability";
 import {
   getSlackChannelNameError,
   normalizeSlackChannelName,
@@ -74,9 +71,18 @@ function formatChannel(
 export function OrgSettingsPage() {
   const { permissions, user, workspace } = useOrgWorkspace();
   const router = useRouter();
+  const isCalendarCallback =
+    router.isReady && router.query.googleCalendar === "callback";
+  const availabilityDialogOpen =
+    router.isReady && router.query.dialog === "interview-availability";
+  const activeIntegration =
+    isCalendarCallback ||
+    availabilityDialogOpen ||
+    (router.isReady && router.query.tab === "calendar")
+      ? "calendar"
+      : "slack";
   const addToast = useToastStore((state) => state.add);
   const handledSlackResult = useRef("");
-  const availabilityOpenedHere = useRef(false);
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
   const [creatingChannelIsPrivate, setCreatingChannelIsPrivate] =
     useState(false);
@@ -88,6 +94,7 @@ export function OrgSettingsPage() {
   const [removeChannelId, setRemoveChannelId] = useState<string | null>(null);
   const [newChannelId, setNewChannelId] = useState("");
   const statusQuery = useOrgSlackStatus({
+    enabled: activeIntegration === "slack",
     workspaceId: workspace.workspaceId,
   });
   const connectSlack = useConnectOrgSlack();
@@ -97,18 +104,13 @@ export function OrgSettingsPage() {
   const removeSlackChannel = useRemoveOrgSlackChannel(workspace.workspaceId);
   const status = statusQuery.data;
   const availabilityQuery = useOrgMeetingAvailability({
+    enabled: activeIntegration === "calendar",
     workspaceId: workspace.workspaceId,
   });
   const availability = availabilityQuery.data?.availability ?? null;
-  const availabilityDialogOpen =
-    router.query.dialog === "interview-availability";
   const channelToRemove = status?.channels.find(
     (channel) => channel.channelId === removeChannelId
   );
-
-  useEffect(() => {
-    if (!availabilityDialogOpen) availabilityOpenedHere.current = false;
-  }, [availabilityDialogOpen]);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -270,83 +272,86 @@ export function OrgSettingsPage() {
     removeSlackChannel.error ??
     disconnectSlack.error;
 
-  const openAvailability = async () => {
-    availabilityOpenedHere.current = true;
-    await router.push(
-      {
-        pathname: router.pathname,
-        query: { ...router.query, dialog: "interview-availability" },
-      },
-      undefined,
-      { shallow: true }
-    );
+  const openAvailability = () => {
+    const query = {
+      ...router.query,
+      dialog: "interview-availability",
+      tab: "calendar",
+    };
+    void router.push({ pathname: router.pathname, query }, undefined, {
+      shallow: true,
+    });
+  };
+
+  const selectIntegration = (integration: "slack" | "calendar") => {
+    if (integration === activeIntegration) return;
+    const query = { ...router.query };
+    if (integration === "calendar") {
+      query.tab = "calendar";
+    } else {
+      delete query.tab;
+      delete query.dialog;
+    }
+    void router.push({ pathname: router.pathname, query }, undefined, {
+      shallow: true,
+    });
   };
 
   const closeAvailability = () => {
-    const returnScheduleId =
-      typeof router.query.returnScheduleId === "string"
-        ? router.query.returnScheduleId.trim()
-        : "";
-    if (returnScheduleId) {
-      void router.push({
-        pathname: "/org/inbox",
-        query: {
-          dialog: "interview-schedule",
-          orgId: workspace.workspaceId,
-          scheduleId: returnScheduleId,
-        },
-      });
-      return;
-    }
-    const returnRecommendationId =
-      typeof router.query.returnRecommendationId === "string"
-        ? router.query.returnRecommendationId.trim()
-        : "";
-    const returnRoleId =
-      typeof router.query.returnRoleId === "string"
-        ? router.query.returnRoleId.trim()
-        : "";
-    const returnTalentId =
-      typeof router.query.returnTalentId === "string"
-        ? router.query.returnTalentId.trim()
-        : "";
-    if (returnRecommendationId && returnRoleId && returnTalentId) {
-      void router.push({
-        pathname: "/org/inbox",
-        query: {
-          candidateAction: "schedule_interview",
-          detailRoleId: returnRoleId,
-          orgId: workspace.workspaceId,
-          recommendationId: returnRecommendationId,
-          talentId: returnTalentId,
-        },
-      });
-      return;
-    }
-    if (availabilityOpenedHere.current) {
-      availabilityOpenedHere.current = false;
-      router.back();
-      return;
-    }
     const query = { ...router.query };
     delete query.dialog;
-    delete query.returnScheduleId;
-    delete query.returnRecommendationId;
-    delete query.returnRoleId;
-    delete query.returnTalentId;
     void router.replace({ pathname: router.pathname, query }, undefined, {
       shallow: true,
     });
   };
 
   return (
-    <div className="space-y-8">
+    <div className="flex flex-col gap-4">
       <OrgPageHeader
         description="팀이 중요한 채용 변화를 놓치지 않도록 연동과 알림을 설정하세요."
         title="Integrations"
       />
 
-      <OrgSection>
+      <div
+        aria-label="연동 선택"
+        className="w-full flex flex-row gap-2 mb-8"
+        role="group"
+      >
+        <SettingCardButton
+          activeIntegration={activeIntegration}
+          selectIntegration={selectIntegration}
+          title="Slack"
+          description="팀과 함께 추천 소식과 채용 결정을 확인하세요."
+          icon={
+            <Image
+              alt=""
+              height={24}
+              src="/images/logos/slack.svg"
+              width={24}
+            />
+          }
+          currentIntegration="slack"
+        />
+        <SettingCardButton
+          activeIntegration={activeIntegration}
+          selectIntegration={selectIntegration}
+          title="Calendar"
+          description="미팅이 가능한 일정을 관리하세요."
+          icon={
+            <Image
+              alt=""
+              height={32}
+              src="/images/logos/calendar.png"
+              width={32}
+            />
+          }
+          currentIntegration="calendar"
+        />
+      </div>
+
+      <OrgSection
+        className={activeIntegration === "slack" ? undefined : "hidden"}
+      >
         <OrgSectionHeader
           description="후보자 추천과 검토, 역할 기준 변경, 후보자 프로세스 종료를 Slack 채널에서 팀원과 함께 진행하세요."
           title={
@@ -646,86 +651,88 @@ export function OrgSettingsPage() {
         </div>
       </OrgSection>
 
-      {/* <OrgGoogleCalendarIntegration
-        key={`${user.id}:${workspace.workspaceId}`}
-        userId={user.id}
-        workspaceId={workspace.workspaceId}
-      />
-
-      <OrgSection>
-        <OrgSectionHeader
-          description="후보자에게 인터뷰 일정을 요청할 때 Harper가 제안할 수 있는 내 일정을 관리하세요."
-          title="인터뷰 일정"
-        />
-        <CardButton
-          aria-label="내 인터뷰 가능 시간 설정 열기"
-          className="group min-h-[148px] flex-col items-stretch gap-5 rounded-2xl border-neutral-1000-a10 bg-bg-default p-5 shadow-none hover:border-neutral-1000-a10 hover:bg-bg-weak sm:flex-row sm:items-center sm:justify-between"
-          onClick={() => void openAvailability()}
-        >
-          <span className="flex min-w-0 flex-1 items-start gap-4">
-            <span className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-faded text-primary">
-              <CalendarClock className="size-5" strokeWidth={1.7} />
-            </span>
-            <span className="min-w-0">
-              <span className="flex flex-wrap items-center gap-2">
-                <span className="text-[16px] font-medium text-neutral-primary">
-                  내 인터뷰 가능 시간
-                </span>
-                {availability ? (
-                  <Badge
-                    radius="full"
-                    size="sm"
-                    tone="positive"
-                    variant="faded"
-                  >
-                    설정됨
-                  </Badge>
-                ) : null}
-              </span>
-              <span className="mt-1.5 block max-w-xl text-[13px] font-light leading-5 text-neutral-muted">
-                {availabilityQuery.isLoading
-                  ? "가능 시간 불러오는 중"
-                  : availabilityQuery.error
-                    ? "설정을 불러오지 못했어요. 열어서 다시 시도해 주세요."
-                    : availability
-                      ? formatMeetingAvailabilitySummary(availability)
-                      : "아직 설정되지 않았어요. 반복 가능한 시간과 날짜별 예외를 알려 주세요."}
-              </span>
-            </span>
-          </span>
-          <span className="flex shrink-0 items-center gap-4 self-stretch sm:self-auto">
-            <span
-              aria-hidden="true"
-              className="grid flex-1 grid-cols-7 gap-1 sm:flex-none"
-            >
-              {ISO_WEEKDAYS.map(({ key, shortLabel }) => {
-                const enabled = Boolean(availability?.weeklyRules[key]?.length);
-                return (
-                  <span
-                    className={cn(
-                      "flex size-7 items-center justify-center rounded-md text-[11px]",
-                      enabled
-                        ? "bg-primary-faded text-primary"
-                        : "bg-bg-weak text-neutral-soft"
-                    )}
-                    key={key}
-                  >
-                    {shortLabel}
+      {activeIntegration === "calendar" ? (
+        <>
+          <div className="grid gap-8 lg:grid-cols-2 lg:gap-10">
+            <OrgGoogleCalendarIntegration
+              className="border-b-0 pb-0"
+              key={`${user.id}:${workspace.workspaceId}`}
+              userId={user.id}
+              workspaceId={workspace.workspaceId}
+            />
+            <OrgSection className="border-b-0 pb-0">
+              <div
+                aria-label="내 인터뷰 가능 시간 설정 열기"
+                className="min-h-[88px] flex flex-row items-center gap-4 text-left"
+              >
+                <span className="flex min-w-0 items-start gap-4">
+                  <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary-faded text-primary">
+                    <CalendarClock className="size-5" strokeWidth={1.7} />
                   </span>
-                );
-              })}
-            </span>
-            <ArrowRight className="size-4 text-neutral-soft transition-transform group-hover:translate-x-0.5" />
-          </span>
-        </CardButton>
-      </OrgSection>
+                  <span className="min-w-0">
+                    <span className="flex flex-wrap items-center gap-2 text-[14px] font-normal text-neutral-primary">
+                      인터뷰 일정
+                      {availability ? (
+                        <Badge
+                          radius="full"
+                          size="sm"
+                          tone="positive"
+                          variant="faded"
+                        >
+                          설정됨
+                        </Badge>
+                      ) : null}
+                    </span>
+                    <span className="mt-1 block text-[13px] font-light leading-5 text-neutral-muted">
+                      후보자에게 인터뷰 일정을 요청할 때 Harper가 제안할 수 있는
+                      내 일정을 관리하세요.
+                    </span>
+                  </span>
+                </span>
+                <MuteButton
+                  type="button"
+                  variant="default"
+                  className="w-[80px]"
+                  onClick={() => void openAvailability()}
+                >
+                  열기
+                  <ArrowRight className="size-3" />
+                </MuteButton>
+              </div>
+              <div
+                aria-hidden="true"
+                className="flex flex-row gap-1 mt-2 ml-14"
+              >
+                {ISO_WEEKDAYS.map(({ key, shortLabel }) => {
+                  const enabled = Boolean(
+                    availability?.weeklyRules[key]?.length
+                  );
+                  return (
+                    <span
+                      className={cn(
+                        "flex size-6 items-center justify-center rounded-sm text-[11px]",
+                        enabled
+                          ? "bg-primary-faded text-primary"
+                          : "bg-bg-weak text-neutral-soft"
+                      )}
+                      key={key}
+                    >
+                      {shortLabel}
+                    </span>
+                  );
+                })}
+              </div>
+            </OrgSection>
+          </div>
+        </>
+      ) : null}
 
       <OrgInterviewAvailabilityDialog
         onRequestClose={closeAvailability}
         open={availabilityDialogOpen}
         userId={user.id}
         workspaceId={workspace.workspaceId}
-      /> */}
+      />
 
       <Dialog
         open={createChannelOpen}
@@ -915,3 +922,43 @@ export function OrgSettingsPage() {
     </div>
   );
 }
+
+const SettingCardButton = ({
+  activeIntegration,
+  selectIntegration,
+  title,
+  description,
+  icon,
+  currentIntegration,
+}: {
+  activeIntegration: "slack" | "calendar";
+  selectIntegration: (integration: "slack" | "calendar") => void;
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  currentIntegration: "slack" | "calendar";
+}) => {
+  return (
+    <CardButton
+      aria-pressed={activeIntegration === currentIntegration}
+      className={cn(
+        "w-[380px] border-black/4 bg-white flex flex-row gap-3 items-center rounded-xl p-4 shadow-xs py-2 h-[80px]",
+        activeIntegration === currentIntegration
+          ? "hover:border-black/4 bg-neutral-100"
+          : "hover:border-black/10"
+      )}
+      onClick={() => selectIntegration(currentIntegration)}
+      selected={activeIntegration === currentIntegration}
+    >
+      <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-white border border-black/5">
+        {icon}
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="truncate text-[14px] font-medium">{title}</span>
+        <span className="line-clamp-2 text-[13px] font-light leading-4 text-neutral-muted">
+          {description}
+        </span>
+      </span>
+    </CardButton>
+  );
+};

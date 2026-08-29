@@ -1972,6 +1972,8 @@ export type Database = {
           company_user_id: string
           composio_connected_account_id: string
           created_at: string
+          last_sync_window_end_at: string | null
+          last_synced_at: string | null
           provider: string
           status: string
           updated_at: string
@@ -1980,6 +1982,8 @@ export type Database = {
           company_user_id: string
           composio_connected_account_id: string
           created_at?: string
+          last_sync_window_end_at?: string | null
+          last_synced_at?: string | null
           provider: string
           status?: string
           updated_at?: string
@@ -1988,6 +1992,8 @@ export type Database = {
           company_user_id?: string
           composio_connected_account_id?: string
           created_at?: string
+          last_sync_window_end_at?: string | null
+          last_synced_at?: string | null
           provider?: string
           status?: string
           updated_at?: string
@@ -1995,6 +2001,56 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "company_user_integrations_company_user_id_fkey"
+            columns: ["company_user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      company_user_calendar_busy_blocks: {
+        Row: {
+          all_day: boolean
+          company_user_id: string
+          created_at: string
+          end_at: string
+          external_calendar_id: string
+          external_event_id: string
+          id: string
+          is_blocking: boolean
+          last_seen_at: string
+          provider: string
+          start_at: string
+        }
+        Insert: {
+          all_day?: boolean
+          company_user_id: string
+          created_at?: string
+          end_at: string
+          external_calendar_id: string
+          external_event_id: string
+          id?: string
+          is_blocking?: boolean
+          last_seen_at?: string
+          provider?: string
+          start_at: string
+        }
+        Update: {
+          all_day?: boolean
+          company_user_id?: string
+          created_at?: string
+          end_at?: string
+          external_calendar_id?: string
+          external_event_id?: string
+          id?: string
+          is_blocking?: boolean
+          last_seen_at?: string
+          provider?: string
+          start_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_user_calendar_busy_blocks_company_user_id_fkey"
             columns: ["company_user_id"]
             isOneToOne: false
             referencedRelation: "company_users"
@@ -4723,18 +4779,27 @@ export type Database = {
         Row: {
           id: string
           label: string
+          meeting_candidate_message: string | null
+          meeting_duration_minutes: number | null
+          meeting_purpose: string | null
           role_id: string
           sort_order: number
         }
         Insert: {
           id?: string
           label: string
+          meeting_candidate_message?: string | null
+          meeting_duration_minutes?: number | null
+          meeting_purpose?: string | null
           role_id: string
           sort_order?: number
         }
         Update: {
           id?: string
           label?: string
+          meeting_candidate_message?: string | null
+          meeting_duration_minutes?: number | null
+          meeting_purpose?: string | null
           role_id?: string
           sort_order?: number
         }
@@ -8404,6 +8469,14 @@ export type Database = {
         }
         Returns: Json
       }
+      set_google_calendar_busy_block_blocking_v1: {
+        Args: {
+          p_busy_block_id: string
+          p_company_user_id: string
+          p_is_blocking: boolean
+        }
+        Returns: Json
+      }
       set_slack_agent_worker_target_v1: {
         Args: {
           p_company_workspace_id?: string
@@ -8516,6 +8589,16 @@ export type Database = {
         Returns: Json
       }
       update_repo_ids: { Args: never; Returns: undefined }
+      upsert_google_calendar_busy_blocks_v1: {
+        Args: {
+          p_blocks: Json
+          p_company_user_id: string
+          p_connected_account_id: string
+          p_window_end: string
+          p_window_start: string
+        }
+        Returns: Json
+      }
       upsert_talent_document_by_hash_v1: {
         Args: {
           p_content_sha256: string

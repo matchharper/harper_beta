@@ -17,9 +17,12 @@ export type OrgCandidateStageMutationInput = {
   durationMinutes?: OrgStageChangeOptions["durationMinutes"];
   emailMode?: InternalConnectionConfirmationEmailMode;
   introEmails?: OrgStageChangeOptions["introEmails"];
+  meetingCandidateMessage?: OrgStageChangeOptions["meetingCandidateMessage"];
+  meetingPurpose?: OrgStageChangeOptions["meetingPurpose"];
   recommendationId: string;
   roleId: string;
   scheduleInterview?: OrgStageChangeOptions["scheduleInterview"];
+  sourceStage?: OrgStageChangeOptions["sourceStage"];
   stage: OrgStageId;
   stopNote?: OrgStageChangeOptions["stopNote"];
   talentId: string;

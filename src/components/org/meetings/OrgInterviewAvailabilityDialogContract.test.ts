@@ -12,10 +12,10 @@ test("meeting availability dropdowns use viewport portal coordinates below their
   assert.equal(source.match(/alignItemWithTrigger=\{false\}/g)?.length, 2);
 });
 
-test("large calendar navigation reserves matching header space", () => {
+test("compact calendar navigation fits within the reserved header space", () => {
   assert.match(
     source,
-    /navigationButtonClassName="size-10[^\n]+sm:size-11[^\n]+"/
+    /navigationButtonClassName="size-10[^\n]+sm:size-10[^\n]+"/
   );
   assert.match(
     source,
@@ -34,4 +34,12 @@ test("date override hours use two columns from the small breakpoint", () => {
   const timeline = source.slice(timelineStart, timelineEnd);
 
   assert.match(timeline, /grid gap-1\.5 pb-1 sm:grid-cols-2/);
+});
+
+test("synced Google Calendar blocks are shown on the date picker and can be made available again", () => {
+  assert.match(source, /calendarBusy: isCalendarBusyDate/);
+  assert.match(source, /after:bg-info/);
+  assert.match(source, /Google Calendar에서 가져온 일정/);
+  assert.match(source, /미팅 가능으로 설정/);
+  assert.match(source, /useUpdateOrgGoogleCalendarBusyBlock/);
 });

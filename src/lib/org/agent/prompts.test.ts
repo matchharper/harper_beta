@@ -38,12 +38,32 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.match(prompt, /status=deleted and is_expired=true together/);
   assert.match(prompt, /explicitly asks to delete the exact Role/);
   assert.match(prompt, /\[이름\]\(talent:\) 같은 링크를 만들지 않는다/);
-  assert.doesNotMatch(
+  assert.match(prompt, /<meeting_coordination_contract>/);
+  assert.match(prompt, /Role[\s\S]*Goal[\s\S]*Success criteria/);
+  assert.match(prompt, /Evidence[\s\S]*Tools[\s\S]*Output responsibility/);
+  assert.match(prompt, /Stop conditions/);
+  assert.match(prompt, /manage_interview_availability/);
+  assert.match(
     prompt,
-    /prepare_candidate_connection with connectionMethod=schedule_interview/
+    /Continue an already-authorized candidate-specific meeting request/i
   );
-  assert.doesNotMatch(prompt, /manage_interview_availability/);
-  assert.doesNotMatch(prompt, /Google Meet is the intended meeting format/);
+  assert.match(
+    prompt,
+    /requester as the default organizer and first company attendee/
+  );
+  assert.match(
+    prompt,
+    /time-selection message follows the standard delayed-delivery policy/
+  );
+  assert.match(
+    prompt,
+    /candidate-facing context supplied in the conversation should revise the same invitation/
+  );
+  assert.match(
+    prompt,
+    /Write the final response from the latest user message and the verified results/
+  );
+  assert.doesNotMatch(prompt, /김호진|Product Engineer|E2E-MEET/);
   assert.match(
     prompt,
     /a reason is optional, helps improve later recommendations/
@@ -61,7 +81,10 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.match(prompt, /Recognize this intent from the conversation/);
   assert.match(prompt, /evidence for the company's caliber/);
   assert.match(prompt, /internal candidate mention/);
-  assert.match(prompt, /returns the finalized Hiring Brief update and user reply/);
+  assert.match(
+    prompt,
+    /returns the finalized Hiring Brief update and user reply/
+  );
   assert.doesNotMatch(prompt, /uses gpt-5\.6-terra at max reasoning/);
   assert.doesNotMatch(prompt, /pre-open sources/);
   assert.match(prompt, /write it yourself in Harper's natural voice/);
@@ -122,6 +145,14 @@ test("organization-agent system prompt keeps runtime data out", () => {
   );
   assert.match(prompt, /copy its calendar date and time exactly/);
   assert.match(prompt, /Do not replace it with a relative day/);
+  assert.match(
+    prompt,
+    /what Harper sent, what answer arrived, or which meeting was confirmed/
+  );
+  assert.match(
+    prompt,
+    /do not turn meeting confirmation into a claim about Calendar or Google Meet delivery/
+  );
   assert.match(prompt, /one decision-relevant recommendation reason/);
   assert.match(prompt, /names and headlines alone/);
   assert.match(
@@ -257,6 +288,10 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.match(prompt, /Recognize compensation questions by their meaning/);
   assert.match(prompt, /base salary or total compensation/);
   assert.match(prompt, /three milestones in human terms/);
+  assert.match(
+    prompt,
+    /meetingDeliveryMode=immediate.*Preserve the existing invitation/
+  );
   assert.match(prompt, /Do not call an older or different queued request/);
   assert.match(prompt, /if no matching entry exists/);
   assert.match(

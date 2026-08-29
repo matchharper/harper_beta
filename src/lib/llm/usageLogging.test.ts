@@ -36,6 +36,21 @@ test("accounts for GPT-5.6 cache writes included in input tokens", () => {
   assert.equal(cost?.cacheReadInputTokens, 300);
 });
 
+test("prices GPT-5.6 Terra fallback usage", () => {
+  const usage = extractLlmTokenUsage({
+    usage: {
+      input_tokens: 1_000_000,
+      output_tokens: 1_000_000,
+      total_tokens: 2_000_000,
+    },
+  });
+
+  const cost = estimateLlmUsageCost("gpt-5.6-terra", usage);
+  assert.equal(cost?.inputCostUsd, 2);
+  assert.equal(cost?.outputCostUsd, 12);
+  assert.equal(cost?.estimatedCostUsd, 14);
+});
+
 test("prices xAI realtime audio by sent and received duration", () => {
   const cost = estimateXaiRealtimeUsageCost("grok-voice-think-fast-2.0", {
     inputAudioSeconds: 60,

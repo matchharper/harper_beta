@@ -114,13 +114,19 @@ import {
 } from "@/lib/meetings/scheduleDraft";
 import {
   createMeetingScheduleDraft,
-  prepareMeetingScheduleDraft,
+  fetchMeetingScheduleDetail,
+  prepareMeetingScheduleDraftForStage,
 } from "@/lib/meetings/scheduleDraftServer";
 import {
   buildOrgMeetingAvailabilityUrl,
-  buildOrgMeetingScheduleUrl,
-  formatSlackLink,
+  getOrgPublicSiteUrl,
 } from "@/lib/org/slackMessages";
+import {
+  expediteQueuedMeetingInvitation,
+  MEETING_INVITATION_DELIVERY_DELAY_MINUTES,
+  queueGeneratedMeetingInvitation,
+  reviseQueuedMeetingInvitation,
+} from "@/lib/meetings/invitationServer";
 import { jsonValuesEqual } from "@/lib/jsonValue";
 import {
   formatMeetingAvailabilitySummary,
@@ -151,16 +157,6 @@ function externalQueryKey(value: unknown) {
 
 function externalUrlKey(value: unknown) {
   return text(value);
-}
-
-function meetingAvailabilityActionLink(args: {
-  source: "chat" | "slack";
-  workspaceId: string;
-}) {
-  const url = buildOrgMeetingAvailabilityUrl(args.workspaceId);
-  return args.source === "slack"
-    ? formatSlackLink(url, "스케줄 열기")
-    : `[스케줄 열기](${url})`;
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -1930,6 +1926,7 @@ function meetingDraftConfirmation(
     availabilityVersion: draft.availability?.version ?? null,
     config: draft.config,
     draftBlocker: draft.draftBlocker,
+    meetingStage: draft.meetingStage,
   };
 }
 
@@ -1950,6 +1947,7 @@ async function immediatelyPresentedCandidateDecision(args: {
   decision: OrgAgentCandidateDecision;
   introEmails: string[] | null;
   meetingDraft: OrgAgentMeetingScheduleConfirmation | null | undefined;
+  processStageId: string | null | undefined;
   reason: string | null | undefined;
   recommendationId: string;
   requestedConnectionMethod: OrgAgentCandidateConnectionMethod | null;
@@ -2011,6 +2009,13 @@ async function immediatelyPresentedCandidateDecision(args: {
       ) {
         return false;
       }
+      if (
+        args.processStageId !== undefined &&
+        (text(args.processStageId) || null) !==
+          (text(value.processStageId) || null)
+      ) {
+        return false;
+      }
       const confirmationReason = text(value.reason) || null;
       return (
         args.reason === undefined ||
@@ -2029,18 +2034,19 @@ async function immediatelyPresentedCandidateDecision(args: {
       connectionMethod === "schedule_interview"
         ? (confirmation.meetingDraft as unknown as OrgAgentMeetingScheduleConfirmation)
         : null,
+    processStageId: text(confirmation.processStageId) || null,
     reason: confirmationReason,
   };
 }
 
 function candidateDecisionConfirmationText(args: {
-  availabilityActionLink: string;
   candidateEmail: string;
   candidateName: string;
   connectionMethod: OrgAgentCandidateConnectionMethod | null;
   decision: OrgAgentCandidateDecision;
   introEmails: string[];
   meetingDraft: PreparedMeetingScheduleDraft | null;
+  processStageName?: string | null;
   previousStage: string;
   roleName: string;
 }) {
@@ -2051,11 +2057,10 @@ function candidateDecisionConfirmationText(args: {
     return `${args.candidateName}님과 ${args.roleName} 역할의 연결을 이번에는 진행하지 않으시려는 것으로 이해했어요.\n\n연결을 거절하면 회사가 더 진행하지 않기로 했다는 종료 결정이 후보자에게 표시되고, Harper가 후보자에게 배려 있게 안내해요. 이후 이 후보자는 해당 역할의 연결 과정에서 더 이상 진행되지 않으며, 후보자에게 보이거나 전달된 안내는 회수할 수 없어요.\n\n연결 거절 이유는 후보자에게 그대로 전하지 않고 다음 추천을 더 정확하게 하는 데 참고할게요. ${args.candidateName}님과의 연결을 거절할까요?`;
   }
   if (args.connectionMethod === "direct_contact") {
-    return `${args.candidateName}님과 ${args.roleName} 역할의 연결을 시작할게요.\n\n직접 연락 방식을 선택하면 후보자를 연결됨 상태로 바꾸지만 Harper가 소개 이메일을 보내지는 않아요. 회사에서 후보자에게 직접 연락해 인사하고 다음 일정을 조율해 주셔야 해요.\n\n직접 연락 방식으로 연결할까요?`;
+    return `${args.candidateName}님과 ${args.roleName} 역할의 연결을 ${args.processStageName || "다음 프로세스"} 단계로 이어갈게요.\n\n직접 연락 방식을 선택하면 Harper가 소개 이메일을 보내지는 않아요. 회사에서 후보자에게 직접 연락해 인사하고 다음 일정을 조율해 주셔야 해요.\n\n이 방식으로 진행할까요?`;
   }
   if (args.connectionMethod === "schedule_interview" && args.meetingDraft) {
     return formatPreparedMeetingScheduleConfirmation({
-      availabilityActionLink: args.availabilityActionLink,
       candidateName: args.candidateName,
       draft: args.meetingDraft,
     });
@@ -2066,7 +2071,7 @@ function candidateDecisionConfirmationText(args: {
   if (recipients.length === 0) {
     return `${args.candidateName}님과 ${args.roleName} 역할의 연결을 시작하면 Harper가 후보자와 회사 담당자에게 소개 이메일을 보내고, 양측이 같은 이메일에서 인사와 다음 일정을 이어갈 수 있게 도와드려요.\n\n현재 함께 연결할 회사 수신자가 없어 아직 진행할 수 없어요. 소개 이메일을 받을 회사 담당자 이메일을 알려 주세요.`;
   }
-  return `${args.candidateName}님과 ${args.roleName} 역할의 연결을 시작할게요.\n\n소개 이메일 방식을 선택하면 Harper가 후보자와 ${recipients.join(", ")}에게 소개 이메일을 바로 보내고, 서로 인사한 뒤 같은 이메일에서 다음 일정을 조율할 수 있게 연결해요. 보낸 이메일은 회수할 수 없어요.\n\n소개 이메일을 보내고 연결할까요?`;
+  return `${args.candidateName}님과 ${args.roleName} 역할의 연결을 ${args.processStageName || "다음 프로세스"} 단계로 이어갈게요.\n\n소개 이메일 방식을 선택하면 Harper가 후보자와 ${recipients.join(", ")}에게 소개 이메일을 바로 보내고, 서로 인사한 뒤 같은 이메일에서 다음 일정을 조율할 수 있게 연결해요. 보낸 이메일은 회수할 수 없어요.\n\n소개 이메일을 보내고 진행할까요?`;
 }
 
 async function executeCandidateContactLifecycle(args: {
@@ -2610,6 +2615,38 @@ function customPipelineStageDbId(value: unknown) {
   return stage.startsWith("custom:") ? stage.slice("custom:".length) : "";
 }
 
+async function readCompanyProcessStages(args: {
+  admin: OrgAgentAdminClient;
+  roleId: string;
+}): Promise<Array<{ id: string; label: string }>> {
+  const { data, error } = await (
+    args.admin.from("ops_matching_role_stages" as any) as any
+  )
+    .select("id, label, sort_order")
+    .eq("role_id", args.roleId)
+    .order("sort_order", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({
+    id: text(row.id),
+    label: normalizePipelineStageLabel(row.label),
+  }));
+}
+
+function processStageRequiredReply(args: {
+  candidateName: string;
+  scheduleInterview: boolean;
+  stages: Array<{ id: string; label: string }>;
+}) {
+  if (args.stages.length === 0) {
+    return args.scheduleInterview
+      ? `${args.candidateName}님과의 다음 과정을 먼저 정해둘게요. 1차 기술 인터뷰나 커피챗처럼 어떤 프로세스로 등록할까요? 미팅도 잡는다면 그 자리에서 어떤 이야기를 나누고 몇 분 정도 진행할지도 함께 알려주세요.`
+      : `${args.candidateName}님과의 다음 과정을 먼저 정해둘게요. 1차 기술 인터뷰나 커피챗처럼 어떤 프로세스로 등록할까요?`;
+  }
+  return args.scheduleInterview
+    ? `${args.candidateName}님을 어떤 다음 프로세스로 안내할까요? 아래에 있는 단계를 고르거나, 새 단계 이름과 미팅 주제·시간을 알려주시면 그 기준으로 준비할게요.`
+    : `${args.candidateName}님을 어떤 다음 프로세스로 안내할까요? 아래에 있는 단계를 고르거나, 새 단계 이름을 알려주시면 그 기준으로 이어갈게요.`;
+}
+
 function activeCompanyPipelineStage(value: unknown, field: string): OrgStageId {
   const stage = requiredText(value, field, 100) as OrgStageId;
   if (
@@ -2624,6 +2661,24 @@ function activeCompanyPipelineStage(value: unknown, field: string): OrgStageId {
   return stage;
 }
 
+function moveableCompanyPipelineStage(
+  value: unknown,
+  field: string
+): OrgStageId {
+  const stage = requiredText(value, field, 100) as OrgStageId;
+  if (
+    stage !== "pending_connection" &&
+    stage !== "connected" &&
+    stage !== "final_offer" &&
+    !stage.startsWith("custom:")
+  ) {
+    throw new OrgAgentToolInputError(
+      `${field} must be pending_connection, connected, final_offer, or an exact custom:<id> stage`
+    );
+  }
+  return stage;
+}
+
 async function executeManageRolePipelineStages(args: {
   admin: OrgAgentAdminClient;
   callId: string;
@@ -2633,19 +2688,13 @@ async function executeManageRolePipelineStages(args: {
   user: User;
   workspaceId: string;
 }) {
-  if (args.state.terminalMutationUsed) {
-    throw new OrgAgentToolInputError(
-      "manage_role_pipeline_stages may be called only once and must be the only tool in this turn"
-    );
-  }
-  args.state.terminalMutationUsed = true;
   const role = roleOrThrow(args.state, args.input.roleId);
   const action = requiredText(args.input.action, "action", 20);
   if (action !== "add" && action !== "rename" && action !== "delete") {
     throw new OrgAgentToolInputError("action must be add, rename, or delete");
   }
 
-  let stages: Array<{ label: string; status: string }> = [];
+  let stages: Array<{ id?: string; label: string; status: string }> = [];
   let summary = "";
   if (action === "add") {
     if (!Array.isArray(args.input.labels)) {
@@ -2671,13 +2720,38 @@ async function executeManageRolePipelineStages(args: {
       }
       return label;
     });
+    const meetingPurpose = nullableTextField(args.input, "meetingPurpose", 600);
+    const meetingCandidateMessage = nullableTextField(
+      args.input,
+      "meetingCandidateMessage",
+      2_000
+    );
+    const hasMeetingDuration = has(args.input, "meetingDurationMinutes");
+    const hasMeetingDefaults =
+      meetingPurpose.present ||
+      meetingCandidateMessage.present ||
+      hasMeetingDuration;
+    if (hasMeetingDefaults && labels.length !== 1) {
+      throw new OrgAgentToolInputError(
+        "Meeting guidance may be saved only when action=add creates exactly one process stage"
+      );
+    }
+    if (hasMeetingDefaults && (!meetingPurpose.value || !hasMeetingDuration)) {
+      throw new OrgAgentToolInputError(
+        "A scheduled process stage needs both meetingPurpose and meetingDurationMinutes"
+      );
+    }
     const result = await createOrgRoleReviewStages({
       labels,
+      meetingCandidateMessage: meetingCandidateMessage.value,
+      meetingDurationMinutes: args.input.meetingDurationMinutes,
+      meetingPurpose: meetingPurpose.value,
       roleId: role.roleId,
       user: args.user,
       workspaceId: args.workspaceId,
     });
     stages = result.stages.map((stage) => ({
+      id: `custom:${stage.id}`,
       label: stage.label,
       status: stage.status,
     }));
@@ -2747,7 +2821,6 @@ async function executeManageRolePipelineStages(args: {
     }
   }
 
-  args.state.terminalReply = `${summary}. 후보자 단계와 연락 상태, 역할 정보는 변경하지 않았습니다.`;
   args.state.updateSummaries.push(summary);
   args.state.actions.push({
     id: crypto.randomUUID(),
@@ -2777,8 +2850,10 @@ async function executeManageRolePipelineStages(args: {
 async function executeMoveCandidateStage(args: {
   admin: OrgAgentAdminClient;
   callId: string;
+  currentUserMessageId: number;
   input: Record<string, unknown>;
   name: OrgAgentToolName;
+  source: "chat" | "slack";
   state: OrgAgentToolExecutionState;
   user: User;
   workspaceId: string;
@@ -2791,11 +2866,11 @@ async function executeMoveCandidateStage(args: {
   args.state.terminalMutationUsed = true;
   const role = roleOrThrow(args.state, args.input.roleId);
   const talentId = requiredText(args.input.talentId, "talentId", 100);
-  const expectedCurrentStage = activeCompanyPipelineStage(
+  const expectedCurrentStage = moveableCompanyPipelineStage(
     args.input.expectedCurrentStageId,
     "expectedCurrentStageId"
   );
-  const targetStage = activeCompanyPipelineStage(
+  const targetStage = moveableCompanyPipelineStage(
     args.input.targetStageId,
     "targetStageId"
   );
@@ -2822,12 +2897,13 @@ async function executeMoveCandidateStage(args: {
       "The candidate is not visible in this Role's pipeline"
     );
   }
-  const currentStage = activeCompanyPipelineStage(
+  const currentStage = moveableCompanyPipelineStage(
     position.stage,
     "currentStageId"
   );
   const candidateName = text(talent.candidate.name) || "후보자";
-  if (currentStage === targetStage) {
+  const scheduleInterview = args.input.scheduleInterview === true;
+  if (currentStage === targetStage && !scheduleInterview) {
     const stageLabel = position.stageLabel || humanizeOrgStage(targetStage);
     const summary = `${candidateName} 후보자는 이미 ${stageLabel} 단계`;
     args.state.terminalReply = `${summary}입니다. 후보자에게 별도 연락은 보내지 않았습니다.`;
@@ -2871,22 +2947,236 @@ async function executeMoveCandidateStage(args: {
   }
   const previousStageLabel =
     position.stageLabel || humanizeOrgStage(currentStage);
-  await setOrgCandidateStage({
-    expectedPreviousStage: expectedCurrentStage,
-    recommendationId: position.recommendationId,
-    roleId: role.roleId,
-    stage: targetStage,
-    talentId,
-    user: args.user,
-    workspaceId: args.workspaceId,
-  });
-  const summary = `${candidateName} 후보자: ${previousStageLabel} → ${targetStageLabel}`;
-  args.state.terminalReply = `${summary}로 옮겼습니다. 후보자에게 이메일이나 Harper 메시지를 보내거나 인터뷰를 예약하지는 않았습니다.`;
+  if (currentStage === "pending_connection" && !targetCustomStageId) {
+    throw new OrgAgentToolInputError(
+      "A candidate awaiting connection must move into an exact custom:<id> process stage, not the legacy connected or final offer stage."
+    );
+  }
+  if (targetStage === "final_offer" && args.input.confirmFinalOffer !== true) {
+    args.state.terminalReply =
+      "설정된 다음 프로세스가 없습니다. 최종 오퍼로 옮길까요?";
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "unchanged",
+      summary: `${candidateName} 후보자 최종 오퍼 이동 확인 필요`,
+    });
+    return {
+      candidateName,
+      previousStageLabel,
+      roleName: role.name,
+      stageLabel: targetStageLabel,
+      status: "final_offer_confirmation_required",
+      userMessage: args.state.terminalReply,
+    };
+  }
+
+  let schedule: Awaited<ReturnType<typeof createMeetingScheduleDraft>> | null =
+    null;
+  let preparedMeeting: PreparedMeetingScheduleDraft | null = null;
+  let queuedMeeting: Awaited<
+    ReturnType<typeof queueGeneratedMeetingInvitation>
+  > | null = null;
+  let meetingDeliveryChange:
+    | "already_scheduled"
+    | "expedited"
+    | "revised"
+    | "revised_and_expedited"
+    | "scheduled" = "scheduled";
+  const meetingDeliveryMode =
+    text(args.input.meetingDeliveryMode) || "standard";
+  if (
+    scheduleInterview &&
+    meetingDeliveryMode !== "standard" &&
+    meetingDeliveryMode !== "immediate"
+  ) {
+    throw new OrgAgentToolInputError(
+      "meetingDeliveryMode must be standard or immediate"
+    );
+  }
+  const candidateFacingRevisionRequested =
+    scheduleInterview &&
+    has(args.input, "meetingAdditionalMessage") &&
+    text(args.input.meetingAdditionalMessage).length > 0 &&
+    text(args.input.meetingAdditionalMessageVisibility) !== "internal";
+  if (scheduleInterview) {
+    if (!targetCustomStageId) {
+      throw new OrgAgentToolInputError(
+        "A meeting may be scheduled only for an exact custom:<id> process stage."
+      );
+    }
+    const prepared = await prepareMeetingScheduleDraftForStage({
+      additionalMessage: args.input.meetingAdditionalMessage,
+      additionalMessageVisibility:
+        args.input.meetingAdditionalMessageVisibility,
+      attendeeEmails: has(args.input, "meetingAttendeeEmails")
+        ? emailArray(args.input.meetingAttendeeEmails, 10)
+        : [],
+      durationMinutes: args.input.meetingDurationMinutes,
+      meetingCandidateMessage: args.input.meetingCandidateMessage,
+      meetingPurpose: args.input.meetingPurpose,
+      recommendationId: position.recommendationId,
+      roleId: role.roleId,
+      sourceStage: currentStage,
+      stageId: targetCustomStageId,
+      talentId,
+      title: args.input.meetingTitle,
+      user: args.user,
+      workspaceId: args.workspaceId,
+    });
+    if (prepared.draft.draftBlocker) {
+      recordResult(args.state, {
+        callId: args.callId,
+        name: args.name,
+        status: "unchanged",
+        summary: "인터뷰 일정 요청 전 선행 설정 필요",
+      });
+      return {
+        candidateName,
+        draftBlocker: prepared.draft.draftBlocker,
+        meetingDraft: meetingDraftConfirmation(prepared.draft),
+        previousStageLabel,
+        roleName: role.name,
+        stageLabel: targetStageLabel,
+        status: "meeting_setup_required",
+      };
+    }
+    preparedMeeting = prepared.draft;
+    if (currentStage === targetStage) {
+      const { data: scheduleRows, error: scheduleRowsError } = await (
+        prepared.admin.from("meeting_schedules" as any) as any
+      )
+        .select("id")
+        .eq("company_workspace_id", prepared.workspaceId)
+        .eq("role_id", prepared.roleId)
+        .eq("recommendation_id", prepared.recommendationId)
+        .eq("talent_id", prepared.talentId)
+        .eq("status", "awaiting_talent")
+        .order("updated_at", { ascending: false })
+        .limit(5);
+      if (scheduleRowsError) throw scheduleRowsError;
+      for (const row of scheduleRows ?? []) {
+        const existing = await fetchMeetingScheduleDetail({
+          scheduleId: text(row.id),
+          user: args.user,
+          workspaceId: prepared.workspaceId,
+        });
+        if (existing.schedule.config.processStageId !== targetCustomStageId) {
+          continue;
+        }
+        queuedMeeting = candidateFacingRevisionRequested
+          ? await reviseQueuedMeetingInvitation({
+              additionalMessage: preparedMeeting.additionalMessage,
+              scheduleId: existing.schedule.scheduleId,
+              user: args.user,
+              workspaceId: prepared.workspaceId,
+            })
+          : existing;
+        meetingDeliveryChange = candidateFacingRevisionRequested
+          ? "revised"
+          : "already_scheduled";
+        schedule = {
+          alreadyExisted: true,
+          roundId: existing.schedule.round.id,
+          scheduleId: existing.schedule.scheduleId,
+          status: existing.schedule.status,
+        };
+        break;
+      }
+    }
+    if (!schedule) {
+      schedule = await createMeetingScheduleDraft({
+        admin: prepared.admin,
+        draft: prepared.draft,
+        recommendationId: prepared.recommendationId,
+        roleId: prepared.roleId,
+        sourceCompanyMessageId: args.currentUserMessageId,
+        talentId: prepared.talentId,
+        workspaceId: prepared.workspaceId,
+      });
+    }
+  }
+
+  if (currentStage !== targetStage) {
+    await setOrgCandidateStage({
+      expectedPreviousStage: expectedCurrentStage,
+      recommendationId: position.recommendationId,
+      roleId: role.roleId,
+      scheduleInterview,
+      skipAutomaticContact:
+        currentStage === "pending_connection" && !scheduleInterview,
+      stage: targetStage,
+      talentId,
+      user: args.user,
+      workspaceId: args.workspaceId,
+    });
+  }
+
+  if (schedule && !queuedMeeting) {
+    try {
+      if (schedule.alreadyExisted && schedule.status !== "preparing") {
+        const existing = await fetchMeetingScheduleDetail({
+          scheduleId: schedule.scheduleId,
+          user: args.user,
+          workspaceId: args.workspaceId,
+        });
+        if (candidateFacingRevisionRequested) {
+          queuedMeeting = await reviseQueuedMeetingInvitation({
+            additionalMessage: preparedMeeting?.additionalMessage ?? null,
+            scheduleId: schedule.scheduleId,
+            user: args.user,
+            workspaceId: args.workspaceId,
+          });
+          meetingDeliveryChange = "revised";
+        } else {
+          queuedMeeting = existing;
+          meetingDeliveryChange = "already_scheduled";
+        }
+      } else {
+        queuedMeeting = await queueGeneratedMeetingInvitation({
+          baseUrl: getOrgPublicSiteUrl(),
+          scheduleId: schedule.scheduleId,
+          user: args.user,
+          workspaceId: args.workspaceId,
+        });
+      }
+    } catch (error) {
+      const movedSummary =
+        currentStage === targetStage
+          ? `${candidateName}님의 ${targetStageLabel} 미팅은 준비했어요.`
+          : `${candidateName}님을 ${targetStageLabel} 단계로 옮겼어요.`;
+      args.state.terminalReply = `${movedSummary} 다만 후보자에게 보낼 일정 선택 안내의 전달 상태를 확인하지 못했어요. 중복 연락을 피하기 위해 바로 다시 요청하지 말고, 이 대화에서 현재 일정을 먼저 확인해 주세요.`;
+      throw error;
+    }
+  }
+  if (
+    scheduleInterview &&
+    meetingDeliveryMode === "immediate" &&
+    schedule &&
+    queuedMeeting
+  ) {
+    queuedMeeting = await expediteQueuedMeetingInvitation({
+      scheduleId: schedule.scheduleId,
+      user: args.user,
+      workspaceId: args.workspaceId,
+    });
+    meetingDeliveryChange =
+      meetingDeliveryChange === "revised"
+        ? "revised_and_expedited"
+        : "expedited";
+  }
+  const summary =
+    currentStage === targetStage
+      ? `${candidateName} 후보자의 ${targetStageLabel} 미팅 정보 준비`
+      : `${candidateName} 후보자: ${previousStageLabel} → ${targetStageLabel}`;
   args.state.updateSummaries.push(summary);
   args.state.actions.push({
     id: crypto.randomUUID(),
     kind: "entity_updated",
-    label: "후보자 단계 업데이트됨",
+    label:
+      currentStage === targetStage
+        ? "미팅 정보 준비됨"
+        : "후보자 단계 업데이트됨",
     payload: { changeSummary: summary, scope: "role" },
   });
   recordResult(args.state, {
@@ -2897,6 +3187,48 @@ async function executeMoveCandidateStage(args: {
   });
   return {
     candidateName,
+    ...(schedule && preparedMeeting && queuedMeeting
+      ? {
+          calendarAvailability: {
+            refreshesWhenCandidateOpens: true,
+            respectsOrganizerOverrides: true,
+          },
+          delivery: {
+            change: meetingDeliveryChange,
+            delayMinutes:
+              meetingDeliveryMode === "immediate"
+                ? 0
+                : MEETING_INVITATION_DELIVERY_DELAY_MINUTES,
+            scheduledAt:
+              queuedMeeting.schedule.round.delivery?.scheduledAt ?? null,
+            sentAt: queuedMeeting.schedule.round.delivery?.sentAt ?? null,
+          },
+          meeting: {
+            candidateMessage:
+              queuedMeeting.schedule.round.additionalMessage?.visibility ===
+              "internal"
+                ? null
+                : (queuedMeeting.schedule.round.additionalMessage?.sourceText ??
+                  null),
+            durationMinutes: queuedMeeting.schedule.config.durationMinutes,
+            offerWindowDays: queuedMeeting.schedule.config.offerWindowDays,
+            purpose: queuedMeeting.schedule.config.meetingPurpose,
+            stageName: queuedMeeting.schedule.config.processStageName,
+          },
+          organizerAvailability: {
+            summary: queuedMeeting.schedule.availability
+              ? formatMeetingAvailabilitySummary(
+                  queuedMeeting.schedule.availability
+                )
+              : null,
+            timezone: queuedMeeting.schedule.availability?.timezone ?? null,
+          },
+          scheduleId: schedule.scheduleId,
+          schedulingSettingsUrl: buildOrgMeetingAvailabilityUrl(
+            args.workspaceId
+          ),
+        }
+      : {}),
     previousStageLabel,
     roleName: role.name,
     stageLabel: targetStageLabel,
@@ -2963,6 +3295,7 @@ function stageCandidateDecisionContext(args: {
   decision: OrgAgentCandidateDecision;
   introEmails: string[];
   meetingDraft: OrgAgentMeetingScheduleConfirmation | null;
+  processStageId: string | null;
   reason: string | null;
   recommendationId: string;
   roleId: string;
@@ -2976,6 +3309,7 @@ function stageCandidateDecisionContext(args: {
     decision: args.decision,
     introEmails: args.introEmails,
     meetingDraft: args.meetingDraft,
+    processStageId: args.processStageId,
     reason: args.reason,
     recommendationId: args.recommendationId,
     roleId: args.roleId,
@@ -2995,13 +3329,6 @@ async function executeManageInterviewAvailability(args: {
   user: User;
   workspaceId: string;
 }) {
-  if (args.state.terminalMutationUsed) {
-    throw new OrgAgentToolInputError(
-      "manage_interview_availability may be called only once and must be the only mutation in this turn"
-    );
-  }
-  args.state.terminalMutationUsed = true;
-
   const currentResult = await fetchMeetingAvailability({
     user: args.user,
     workspaceId: args.workspaceId,
@@ -3044,20 +3371,9 @@ async function executeManageInterviewAvailability(args: {
   }
 
   const summary = formatMeetingAvailabilitySummary(saved.availability);
-  const actionLink = meetingAvailabilityActionLink({
-    source: args.source,
-    workspaceId: args.workspaceId,
-  });
   const changeSummary = unchanged
     ? `미팅 가능 시간 유지: ${summary}`
     : `미팅 가능 시간 설정: ${summary}`;
-  args.state.terminalReply = [
-    unchanged
-      ? `말씀하신 시간은 이미 그대로 설정되어 있어요. 앞으로도 설정된 시간(${summary})을 기준으로 가능한 일정을 찾을게요.`
-      : `좋아요. 앞으로 다음 시간을 기준으로 가능한 일정을 찾을게요: ${summary}`,
-    "",
-    `날짜별로 빼둘 시간이 있다면 ${actionLink}에서 정할 수 있어요. 이 시간을 바탕으로 누구와 미팅을 잡으면 될지 말씀해 주시면 바로 이어갈게요. 아직 후보자에게 연락한 것은 없어요.`,
-  ].join("\n");
   if (!unchanged) {
     args.state.updateSummaries.push(changeSummary);
     args.state.actions.push({
@@ -3075,11 +3391,10 @@ async function executeManageInterviewAvailability(args: {
   });
   return {
     availabilityVersion: saved.availability.version,
-    meetingAvailabilityUrl: buildOrgMeetingAvailabilityUrl(args.workspaceId),
     nextProcess:
-      "If one candidate and Role are clear from the visible conversation, ask whether Harper should prepare that person's meeting options now. Otherwise ask who the user would like to meet.",
+      "If the same visible request already identifies one candidate, the exact current and target stages, and an explicit meeting request, continue that request now. Otherwise finish with the effect of the saved availability only.",
     responseGuidance:
-      "Acknowledge the hours as the times Harper will use. Do not say availability was saved, do not enumerate internal non-actions, and do not require a magic retry phrase. The only useful boundary is that no candidate has been contacted yet.",
+      "Connect the organizer's latest instruction to how Harper will find future meeting choices. Continue a candidate-specific action only when its candidate, stage, and scheduling intent were already established in this conversation.",
     status: unchanged ? "unchanged" : "updated",
     summary,
     timezone: saved.availability.timezone,
@@ -3150,28 +3465,85 @@ async function executePrepareCandidateConnection(args: {
             : []
         ).filter((email) => email !== candidateEmail)
       : [];
-  const preparedMeetingDraft =
-    connectionMethod === "schedule_interview"
-      ? await prepareMeetingScheduleDraft({
-          actorLabel: args.actorLabel,
+  const requestedProcessStageId = customPipelineStageDbId(
+    args.input.processStageId
+  );
+  if (has(args.input, "processStageId") && !requestedProcessStageId) {
+    throw new OrgAgentToolInputError(
+      "processStageId must be an exact custom:<id> process stage from read_role"
+    );
+  }
+  const requiresProcessStage =
+    decision === "accept" &&
+    Boolean(connectionMethod) &&
+    (position.stage === "pending_connection" ||
+      connectionMethod === "schedule_interview");
+  const processStages =
+    requiresProcessStage || requestedProcessStageId
+      ? await readCompanyProcessStages({
+          admin: args.admin,
+          roleId: current.roleId,
+        })
+      : [];
+  const processStage = requestedProcessStageId
+    ? (processStages.find((stage) => stage.id === requestedProcessStageId) ??
+      null)
+    : null;
+  if (requestedProcessStageId && !processStage) {
+    throw new OrgAgentToolInputError(
+      "The selected process stage no longer exists for this Role. Read the Role pipeline again before retrying."
+    );
+  }
+  if (requiresProcessStage && !processStage) {
+    const stages = processStages.map((stage) => ({
+      id: `custom:${stage.id}`,
+      label: stage.label,
+    }));
+    const candidateName = text(talent.candidate.name) || "후보자";
+    args.state.terminalReply = processStageRequiredReply({
+      candidateName,
+      scheduleInterview: connectionMethod === "schedule_interview",
+      stages,
+    });
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "unchanged",
+      summary: "다음 프로세스 단계 선택 필요",
+    });
+    return {
+      availableProcessStages: stages,
+      candidateName: talent.candidate.name,
+      connectionMethod,
+      currentStage: position.stage,
+      decision,
+      status: "process_stage_required",
+      userMessage: args.state.terminalReply,
+    };
+  }
+  const preparedMeeting =
+    connectionMethod === "schedule_interview" && processStage
+      ? await prepareMeetingScheduleDraftForStage({
           additionalMessage: args.input.meetingAdditionalMessage,
           additionalMessageVisibility:
             args.input.meetingAdditionalMessageVisibility,
-          admin: args.admin,
           attendeeEmails: has(args.input, "meetingAttendeeEmails")
             ? emailArray(args.input.meetingAttendeeEmails, 10)
             : [],
-          candidateName: text(talent.candidate.name) || "후보자",
-          companyName: text(args.state.company.companyName) || "Company",
           durationMinutes: args.input.meetingDurationMinutes,
+          meetingCandidateMessage: args.input.meetingCandidateMessage,
+          meetingPurpose: args.input.meetingPurpose,
+          recommendationId: position.recommendationId,
+          roleId: current.roleId,
+          sourceStage: position.stage,
+          stageId: processStage.id,
+          talentId,
           title: args.input.meetingTitle,
           user: args.user,
           workspaceId: args.workspaceId,
         })
       : null;
-  const meetingAvailabilityUrl = buildOrgMeetingAvailabilityUrl(
-    args.workspaceId
-  );
+  const preparedMeetingDraft = preparedMeeting?.draft ?? null;
   const meetingDraftBlocked = Boolean(preparedMeetingDraft?.draftBlocker);
   if (!meetingDraftBlocked) {
     stageCandidateDecisionContext({
@@ -3182,6 +3554,7 @@ async function executePrepareCandidateConnection(args: {
       meetingDraft: preparedMeetingDraft
         ? meetingDraftConfirmation(preparedMeetingDraft)
         : null,
+      processStageId: processStage ? `custom:${processStage.id}` : null,
       reason: reason.present ? reason.value : null,
       recommendationId: position.recommendationId,
       roleId: current.roleId,
@@ -3223,15 +3596,13 @@ async function executePrepareCandidateConnection(args: {
       : null,
     meetingScheduleConfirmation: preparedMeetingDraft
       ? formatPreparedMeetingScheduleConfirmation({
-          availabilityActionLink: meetingAvailabilityActionLink({
-            source: args.source,
-            workspaceId: args.workspaceId,
-          }),
           candidateName: text(talent.candidate.name) || "후보자",
           draft: preparedMeetingDraft,
+          roleName: current.name,
         })
       : null,
-    meetingAvailabilityUrl,
+    processStageId: processStage ? `custom:${processStage.id}` : null,
+    processStageName: processStage?.label ?? null,
     reason: reason.present ? reason.value : null,
     requesterEmail,
     reactivation,
@@ -3312,36 +3683,61 @@ async function executeCandidateConnectionDecision(args: {
     "meetingAdditionalMessage",
     "meetingAdditionalMessageVisibility",
     "meetingAttendeeEmails",
+    "meetingCandidateMessage",
     "meetingDurationMinutes",
+    "meetingPurpose",
     "meetingTitle",
+    "processStageId",
   ].some((key) => has(args.input, key));
-  const proposedMeetingDraft =
-    proposedConnectionMethod === "schedule_interview"
-      ? await prepareMeetingScheduleDraft({
-          actorLabel: args.actorLabel,
+  const requestedProcessStageId = customPipelineStageDbId(
+    args.input.processStageId
+  );
+  if (has(args.input, "processStageId") && !requestedProcessStageId) {
+    throw new OrgAgentToolInputError(
+      "processStageId must be an exact custom:<id> process stage from read_role"
+    );
+  }
+  const requestedProcessStage = requestedProcessStageId
+    ? ((
+        await readCompanyProcessStages({
+          admin: args.admin,
+          roleId: current.roleId,
+        })
+      ).find((stage) => stage.id === requestedProcessStageId) ?? null)
+    : null;
+  if (requestedProcessStageId && !requestedProcessStage) {
+    throw new OrgAgentToolInputError(
+      "The selected process stage no longer exists for this Role. Read the Role pipeline again before retrying."
+    );
+  }
+  const proposedMeeting =
+    proposedConnectionMethod === "schedule_interview" && requestedProcessStage
+      ? await prepareMeetingScheduleDraftForStage({
           additionalMessage: args.input.meetingAdditionalMessage,
           additionalMessageVisibility:
             args.input.meetingAdditionalMessageVisibility,
-          admin: args.admin,
           attendeeEmails: has(args.input, "meetingAttendeeEmails")
             ? emailArray(args.input.meetingAttendeeEmails, 10)
             : [],
-          candidateName: text(talent.candidate.name) || "후보자",
-          companyName: text(args.state.company.companyName) || "Company",
           durationMinutes: args.input.meetingDurationMinutes,
+          meetingCandidateMessage: args.input.meetingCandidateMessage,
+          meetingPurpose: args.input.meetingPurpose,
+          recommendationId: position.recommendationId,
+          roleId: current.roleId,
+          sourceStage: position.stage,
+          stageId: requestedProcessStage.id,
+          talentId,
           title: args.input.meetingTitle,
           user: args.user,
           workspaceId: args.workspaceId,
         })
       : null;
+  const proposedMeetingDraft = proposedMeeting?.draft ?? null;
   if (proposedMeetingDraft?.draftBlocker) {
     args.state.terminalReply = formatPreparedMeetingScheduleConfirmation({
-      availabilityActionLink: meetingAvailabilityActionLink({
-        source: args.source,
-        workspaceId: args.workspaceId,
-      }),
       candidateName: text(talent.candidate.name) || "후보자",
       draft: proposedMeetingDraft,
+      roleName: current.name,
     });
     recordResult(args.state, {
       callId: args.callId,
@@ -3354,7 +3750,6 @@ async function executeCandidateConnectionDecision(args: {
       connectionMethod: proposedConnectionMethod,
       decision,
       draftBlocker: proposedMeetingDraft.draftBlocker,
-      meetingAvailabilityUrl: buildOrgMeetingAvailabilityUrl(args.workspaceId),
       meetingDraft: meetingDraftConfirmation(proposedMeetingDraft),
       status: "meeting_setup_required",
       userMessage: args.state.terminalReply,
@@ -3378,6 +3773,11 @@ async function executeCandidateConnectionDecision(args: {
         : proposedMeetingDraft
           ? meetingDraftConfirmation(proposedMeetingDraft)
           : null,
+    processStageId: has(args.input, "processStageId")
+      ? requestedProcessStage
+        ? `custom:${requestedProcessStage.id}`
+        : null
+      : undefined,
     reason: reason.present ? proposedReason : undefined,
     recommendationId: position.recommendationId,
     requestedConnectionMethod,
@@ -3387,6 +3787,38 @@ async function executeCandidateConnectionDecision(args: {
     talentId,
   });
   if (!confirmed) {
+    if (decision === "accept" && position.stage === "pending_connection") {
+      const stages = await readCompanyProcessStages({
+        admin: args.admin,
+        roleId: current.roleId,
+      });
+      const candidateName = text(talent.candidate.name) || "후보자";
+      args.state.terminalReply = processStageRequiredReply({
+        candidateName,
+        scheduleInterview: proposedConnectionMethod === "schedule_interview",
+        stages: stages.map((stage) => ({
+          id: `custom:${stage.id}`,
+          label: stage.label,
+        })),
+      });
+      recordResult(args.state, {
+        callId: args.callId,
+        name: args.name,
+        status: "unchanged",
+        summary: "다음 프로세스 단계 선택 필요",
+      });
+      return {
+        availableProcessStages: stages.map((stage) => ({
+          id: `custom:${stage.id}`,
+          label: stage.label,
+        })),
+        candidateName,
+        connectionMethod: proposedConnectionMethod,
+        decision,
+        status: "process_stage_required",
+        userMessage: args.state.terminalReply,
+      };
+    }
     stageCandidateDecisionContext({
       actorId: args.actorId,
       connectionMethod: proposedConnectionMethod,
@@ -3394,6 +3826,9 @@ async function executeCandidateConnectionDecision(args: {
       introEmails: proposedIntroEmails,
       meetingDraft: proposedMeetingDraft
         ? meetingDraftConfirmation(proposedMeetingDraft)
+        : null,
+      processStageId: requestedProcessStage
+        ? `custom:${requestedProcessStage.id}`
         : null,
       reason: proposedReason,
       recommendationId: position.recommendationId,
@@ -3403,16 +3838,13 @@ async function executeCandidateConnectionDecision(args: {
       talentId,
     });
     args.state.terminalReply = candidateDecisionConfirmationText({
-      availabilityActionLink: meetingAvailabilityActionLink({
-        source: args.source,
-        workspaceId: args.workspaceId,
-      }),
       candidateEmail,
       candidateName: text(talent.candidate.name) || "후보자",
       connectionMethod: proposedConnectionMethod,
       decision,
       introEmails: proposedIntroEmails,
       meetingDraft: proposedMeetingDraft,
+      processStageName: requestedProcessStage?.label ?? null,
       previousStage: position.stage,
       roleName: current.name,
     });
@@ -3490,30 +3922,31 @@ async function executeCandidateConnectionDecision(args: {
     }
     let draftWriteStarted = false;
     try {
-      const currentDraft = await prepareMeetingScheduleDraft({
-        actorLabel: args.actorLabel,
+      const preparedCurrentMeeting = await prepareMeetingScheduleDraftForStage({
         additionalMessage: confirmedDraft.additionalMessage?.sourceText,
         additionalMessageVisibility:
           confirmedDraft.additionalMessage?.visibility ?? "both",
-        admin: args.admin,
         attendeeEmails: confirmedDraft.config.companyAttendees.map(
           (attendee) => attendee.email
         ),
-        candidateName,
-        companyName: text(args.state.company.companyName) || "Company",
         durationMinutes: confirmedDraft.config.durationMinutes,
+        meetingCandidateMessage: confirmedDraft.meetingStage?.candidateMessage,
+        meetingPurpose: confirmedDraft.config.meetingPurpose,
+        recommendationId: position.recommendationId,
+        roleId: current.roleId,
+        sourceStage: position.stage,
+        stageId: text(confirmedDraft.config.processStageId),
+        talentId,
         title: confirmedDraft.config.title,
         user: args.user,
         workspaceId: args.workspaceId,
       });
+      const currentDraft = preparedCurrentMeeting.draft;
       if (currentDraft.draftBlocker) {
         args.state.terminalReply = formatPreparedMeetingScheduleConfirmation({
-          availabilityActionLink: meetingAvailabilityActionLink({
-            source: args.source,
-            workspaceId: args.workspaceId,
-          }),
           candidateName,
           draft: currentDraft,
+          roleName: current.name,
         });
         recordResult(args.state, {
           callId: args.callId,
@@ -3526,9 +3959,6 @@ async function executeCandidateConnectionDecision(args: {
           connectionMethod,
           decision,
           draftBlocker: currentDraft.draftBlocker,
-          meetingAvailabilityUrl: buildOrgMeetingAvailabilityUrl(
-            args.workspaceId
-          ),
           meetingDraft: meetingDraftConfirmation(currentDraft),
           status: "meeting_setup_required",
         };
@@ -3550,12 +3980,19 @@ async function executeCandidateConnectionDecision(args: {
         recommendationId: position.recommendationId,
         roleId: current.roleId,
         scheduleInterview: true,
-        stage: "connected",
+        stage:
+          `custom:${text(currentDraft.config.processStageId)}` as OrgStageId,
         talentId,
         user: args.user,
         workspaceId: args.workspaceId,
       });
-      const changeSummary = `${candidateName}님과 연결했고, ${currentDraft.config.durationMinutes}분 미팅 정보를 준비해두었어요. 아직 ${candidateName}님께 일정 선택 메일은 보내지 않았어요.`;
+      const queuedMeeting = await queueGeneratedMeetingInvitation({
+        baseUrl: getOrgPublicSiteUrl(),
+        scheduleId: schedule.scheduleId,
+        user: args.user,
+        workspaceId: args.workspaceId,
+      });
+      const changeSummary = `${candidateName} 후보자: ${currentDraft.config.processStageName} 단계 이동 및 미팅 일정 선택 안내 예약`;
       args.state.updateSummaries.push(changeSummary);
       recordResult(args.state, {
         callId: args.callId,
@@ -3569,19 +4006,44 @@ async function executeCandidateConnectionDecision(args: {
         connectionMethod,
         decision,
         draftBlocker: null,
-        meetingDraft: meetingDraftConfirmation(currentDraft),
+        calendarAvailability: {
+          refreshesWhenCandidateOpens: true,
+          respectsOrganizerOverrides: true,
+        },
+        delivery: {
+          change: "scheduled",
+          delayMinutes: MEETING_INVITATION_DELIVERY_DELAY_MINUTES,
+          scheduledAt:
+            queuedMeeting.schedule.round.delivery?.scheduledAt ?? null,
+          sentAt: queuedMeeting.schedule.round.delivery?.sentAt ?? null,
+        },
+        meeting: {
+          candidateMessage:
+            queuedMeeting.schedule.round.additionalMessage?.visibility ===
+            "internal"
+              ? null
+              : (queuedMeeting.schedule.round.additionalMessage?.sourceText ??
+                null),
+          durationMinutes: queuedMeeting.schedule.config.durationMinutes,
+          offerWindowDays: queuedMeeting.schedule.config.offerWindowDays,
+          purpose: queuedMeeting.schedule.config.meetingPurpose,
+          stageName: queuedMeeting.schedule.config.processStageName,
+        },
         nextProcess:
-          "일정 화면에서 후보자에게 보낼 이메일을 확인하고 보내면, 후보자가 가능한 시간을 고를 수 있어요.",
-        responseGuidance:
-          "Say naturally that the candidate is connected and the meeting details are ready. Include the schedule link and explain that the user can review the candidate email there before sending it. Do not use the words 일정 요청 초안, 연결 상태, locale, public link, or enumerate everything that has not been created. State only that the candidate has not received the email yet.",
+          "후보자가 가능한 시간을 고르면 Harper가 확정된 Google Meet 일정을 양쪽에 전달해요.",
+        organizerAvailability: {
+          summary: queuedMeeting.schedule.availability
+            ? formatMeetingAvailabilitySummary(
+                queuedMeeting.schedule.availability
+              )
+            : null,
+          timezone: queuedMeeting.schedule.availability?.timezone ?? null,
+        },
         roleId: result.roleId,
         roleName: current.name,
         scheduleAlreadyExisted: schedule.alreadyExisted,
         scheduleId: schedule.scheduleId,
-        meetingScheduleUrl: buildOrgMeetingScheduleUrl(
-          args.workspaceId,
-          schedule.scheduleId
-        ),
+        schedulingSettingsUrl: buildOrgMeetingAvailabilityUrl(args.workspaceId),
         stage: result.stage,
         status: "updated",
         talentId: result.talentId,
@@ -3589,7 +4051,7 @@ async function executeCandidateConnectionDecision(args: {
     } catch (error) {
       if (!args.state.terminalReply) {
         args.state.terminalReply = draftWriteStarted
-          ? "미팅 정보를 준비하던 중 결과를 끝까지 확인하지 못했어요. 중복 연락을 막기 위해 바로 다시 시도하지 말고, Inbox에서 현재 일정을 먼저 확인해 주세요. 후보자에게 메일이 보내졌다는 확인은 없어요."
+          ? "미팅 정보를 준비하던 중 결과를 끝까지 확인하지 못했어요. 중복 연락을 막기 위해 바로 다시 시도하지 말고, 이 대화에서 현재 일정을 먼저 확인해 주세요. 후보자에게 메일이 보내졌다는 확인은 없어요."
           : "미팅 정보를 다시 확인하지 못했어요. 후보자에게는 아직 연락하지 않았으니, 가능 시간과 참석자를 확인한 뒤 다시 요청해 주세요.";
       }
       throw error;
@@ -3609,6 +4071,27 @@ async function executeCandidateConnectionDecision(args: {
     );
   }
 
+  const confirmedProcessStageId = customPipelineStageDbId(
+    confirmed.processStageId
+  );
+  if (position.stage === "pending_connection" && !confirmedProcessStageId) {
+    const stages = await readCompanyProcessStages({
+      admin: args.admin,
+      roleId: current.roleId,
+    });
+    args.state.terminalReply = processStageRequiredReply({
+      candidateName,
+      scheduleInterview: false,
+      stages: stages.map((stage) => ({
+        id: `custom:${stage.id}`,
+        label: stage.label,
+      })),
+    });
+    throw new OrgAgentToolInputError(
+      "연결 대기 다음에는 정확한 사용자 정의 프로세스 단계를 먼저 정해 주세요."
+    );
+  }
+
   const result = await setOrgCandidateStage({
     acceptReason: finalReason,
     contactDirectly: connectionMethod === "direct_contact",
@@ -3616,7 +4099,10 @@ async function executeCandidateConnectionDecision(args: {
     introEmails,
     recommendationId: position.recommendationId,
     roleId: current.roleId,
-    stage: "connected",
+    stage:
+      position.stage === "pending_connection"
+        ? (`custom:${confirmedProcessStageId}` as OrgStageId)
+        : "connected",
     talentId,
     user: args.user,
     workspaceId: args.workspaceId,
@@ -3925,8 +4411,10 @@ export async function executeOrgAgentTool(args: {
     return executeMoveCandidateStage({
       admin: args.admin,
       callId: args.callId,
+      currentUserMessageId: args.currentUserMessageId,
       input,
       name: args.name,
+      source: args.source,
       state: args.state,
       user: args.user,
       workspaceId,

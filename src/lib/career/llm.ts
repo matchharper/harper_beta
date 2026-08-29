@@ -10,7 +10,11 @@ import {
   logLlmTokenUsage,
   logLlmTokenUsageForToolCalls,
 } from "@/lib/llm/usageLogging";
-import { CLAUDE_MODEL, GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
+import {
+  CLAUDE_MODEL,
+  GPT_56_LUNA_MODEL,
+  GPT_56_TERRA_MODEL,
+} from "@/lib/llm/modelConfig";
 import {
   runTalentAssistantCompletion,
   runTalentAssistantToolLoop,
@@ -38,11 +42,10 @@ export const CAREER_LLM_CONFIG = {
   // 사용처: 일반 커리어 채팅, kickoff, onboarding defer,
   // profile ingestion, refresh insights, ops 요약/추천, additional question selector.
   assistant: {
-    anthropicOverloadFallbackModel: "grok-4.3",
-    // primaryModel: "grok-4.3",
-    // fallbackModel: CLAUDE_MODEL,
+    anthropicOverloadFallbackModel: GPT_56_TERRA_MODEL,
+    openAIResponsesReasoningEffort: "xhigh" as const,
     primaryModel: CLAUDE_MODEL,
-    fallbackModel: "grok-4.3",
+    fallbackModel: GPT_56_TERRA_MODEL,
   },
   // 일반 텍스트 커리어 채팅 설정. Realtime 전화/음성 응답에는 적용되지 않는다.
   // prompt에는 structured profile, 최근 activity, 최근 추천 기회 10개 compact summary,
@@ -65,13 +68,15 @@ export const CAREER_LLM_CONFIG = {
   // 사용처: /api/talent/chat, /api/talent/chat/save.
   insightExtraction: {
     fallbackModel: CLAUDE_MODEL,
-    model: "grok-4-fast-reasoning",
+    model: GPT_56_LUNA_MODEL,
+    reasoningEffort: "high" as const,
     temperature: 0.2,
   },
   // 긴 talent chat history를 rolling summary로 압축할 때.
   // 사용처: maybeSummarizeTalentConversation.
   conversationSummary: {
-    model: "grok-4-fast-reasoning",
+    model: GPT_56_LUNA_MODEL,
+    reasoningEffort: "high" as const,
     temperature: 0.2,
   },
   // 온보딩을 지금 끝내지 않고 나중으로 미룰 때 닫는 응답을 생성한다.
@@ -1277,6 +1282,8 @@ async function recoverVisibleTextFromAnthropicMessages(args: {
         systemBlocks: args.systemBlocks,
       }),
       model: args.modelConfig.fallbackModel,
+      reasoningEffort:
+        args.modelConfig.openAIResponsesReasoningEffort ?? "xhigh",
       temperature: CAREER_LLM_CONFIG.chat.temperature,
       usageLabel: args.usageLabel
         ? `${args.usageLabel}:visible-text-recovery`
@@ -1391,6 +1398,7 @@ async function createRecommendationToolResultFinalText(args: {
 type CareerAssistantModelConfig = {
   anthropicOverloadFallbackModel: string;
   fallbackModel: string;
+  openAIResponsesReasoningEffort?: OpenAIResponsesReasoningEffort;
   primaryModel: string;
 };
 
@@ -1399,6 +1407,8 @@ function assistantModelConfig(): CareerAssistantModelConfig {
     anthropicOverloadFallbackModel:
       CAREER_LLM_CONFIG.assistant.anthropicOverloadFallbackModel,
     fallbackModel: CAREER_LLM_CONFIG.assistant.fallbackModel,
+    openAIResponsesReasoningEffort:
+      CAREER_LLM_CONFIG.assistant.openAIResponsesReasoningEffort,
     primaryModel: CAREER_LLM_CONFIG.assistant.primaryModel,
   };
 }
@@ -1452,6 +1462,10 @@ export async function runCareerChatAssistant(args: {
   };
   const usageLabel = args.usageLabel ?? "career/chat:assistant";
   const temperature = args.temperature ?? CAREER_LLM_CONFIG.chat.temperature;
+  const openAIResponsesReasoningEffort =
+    args.openAIResponsesReasoningEffort ??
+    modelConfig.openAIResponsesReasoningEffort ??
+    "xhigh";
   const outputLanguage = getCareerPromptLanguageName(args.responseLocale);
   const fallbackWithExistingClient = (
     activeModelConfig: CareerAssistantModelConfig = modelConfig
@@ -1468,7 +1482,7 @@ export async function runCareerChatAssistant(args: {
         messages: fallbackMessages,
         modelConfig: activeModelConfig,
         onToolStart: args.onToolStart,
-        openAIResponsesReasoningEffort: args.openAIResponsesReasoningEffort,
+        openAIResponsesReasoningEffort,
         stopAfterToolNames: args.stopAfterToolNames,
         temperature,
         tools: args.tools,
@@ -1479,7 +1493,7 @@ export async function runCareerChatAssistant(args: {
     return runTalentAssistantCompletion({
       ...activeModelConfig,
       messages: fallbackMessages,
-      openAIResponsesReasoningEffort: args.openAIResponsesReasoningEffort,
+      openAIResponsesReasoningEffort,
       temperature,
       usageLabel,
     });
@@ -2195,6 +2209,7 @@ export async function runCareerInsightExtraction(args: {
       ...args.conversationMessages,
     ],
     model: args.model ?? CAREER_LLM_CONFIG.insightExtraction.model,
+    reasoningEffort: CAREER_LLM_CONFIG.insightExtraction.reasoningEffort,
     temperature: CAREER_LLM_CONFIG.insightExtraction.temperature,
     usageLabel: args.usageLabel ?? "career/chat:insight_extraction",
   });
@@ -2211,6 +2226,7 @@ export async function runCareerConversationSummary(args: {
       { role: "user", content: args.userPrompt },
     ],
     model: CAREER_LLM_CONFIG.conversationSummary.model,
+    reasoningEffort: CAREER_LLM_CONFIG.conversationSummary.reasoningEffort,
     temperature: CAREER_LLM_CONFIG.conversationSummary.temperature,
     usageLabel: "career/chat:conversation_summary",
   });
