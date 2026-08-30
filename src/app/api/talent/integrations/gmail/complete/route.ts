@@ -7,6 +7,10 @@ import {
   isOwnedComposioGmailAccount,
 } from "@/lib/integrations/composio";
 import { upsertTalentGmailIntegration } from "@/lib/integrations/gmail";
+import { scheduleGmailCareerHistoryAnalysis } from "@/lib/integrations/gmailCareerHistoryQueue";
+
+export const runtime = "nodejs";
+export const maxDuration = 300;
 
 type CompleteBody = {
   connectedAccountId?: string;
@@ -43,13 +47,28 @@ export async function POST(req: NextRequest) {
     }
 
     const admin = getTalentSupabaseAdmin();
-    await upsertTalentGmailIntegration({
+    const integration = await upsertTalentGmailIntegration({
       admin,
       connectedAccountId,
       talentId: user.id,
     });
 
+    let analysis: "queued" | "enqueue_failed" = "queued";
+    try {
+      await scheduleGmailCareerHistoryAnalysis({
+        admin,
+        integrationUpdatedAt: integration.updated_at,
+        talentId: user.id,
+      });
+    } catch (error) {
+      analysis = "enqueue_failed";
+      console.error("[GmailConnect] career history enqueue failed", {
+        message: error instanceof Error ? error.message : "Unknown queue error",
+      });
+    }
+
     return NextResponse.json({
+      analysis,
       connected: true,
       ok: true,
       status: "active",

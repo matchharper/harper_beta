@@ -20,9 +20,12 @@ function createDocument(
     is_primary: false,
     is_public: false,
     kind: "document",
+    origin_id: null,
+    origin_type: null,
     size_bytes: 5,
     storage_path: "user/notes.txt",
     talent_id: "user-1",
+    updated_at: "2026-08-21T00:00:00.000Z",
     ...overrides,
   };
 }

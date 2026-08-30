@@ -6339,9 +6339,12 @@ export type Database = {
           is_primary: boolean
           is_public: boolean
           kind: string
+          origin_id: string | null
+          origin_type: string | null
           size_bytes: number | null
           storage_path: string
           talent_id: string
+          updated_at: string
         }
         Insert: {
           content_sha256?: string | null
@@ -6354,9 +6357,12 @@ export type Database = {
           is_primary?: boolean
           is_public?: boolean
           kind?: string
+          origin_id?: string | null
+          origin_type?: string | null
           size_bytes?: number | null
           storage_path: string
           talent_id: string
+          updated_at?: string
         }
         Update: {
           content_sha256?: string | null
@@ -6369,9 +6375,12 @@ export type Database = {
           is_primary?: boolean
           is_public?: boolean
           kind?: string
+          origin_id?: string | null
+          origin_type?: string | null
           size_bytes?: number | null
           storage_path?: string
           talent_id?: string
+          updated_at?: string
         }
         Relationships: [
           {

@@ -13,6 +13,10 @@ export type ClientGmailIntegrationStatus =
   | "not_connected";
 
 type GmailIntegrationStatusPayload = {
+  analysis: {
+    status: "completed" | "not_started" | "unavailable";
+    updatedAt: string | null;
+  };
   connected: boolean;
   status: Exclude<ClientGmailIntegrationStatus, "loading" | "error">;
 };
@@ -30,8 +34,14 @@ export function notifyGmailIntegrationChanged() {
 export function useGmailIntegration() {
   const [status, setStatus] = useState<ClientGmailIntegrationStatus>("loading");
   const [pendingAction, setPendingAction] = useState<
-    "connect" | "disconnect" | null
+    "analyze" | "connect" | "disconnect" | null
   >(null);
+  const [analysisStatus, setAnalysisStatus] = useState<
+    "completed" | "not_started" | "unavailable"
+  >("not_started");
+  const [analysisUpdatedAt, setAnalysisUpdatedAt] = useState<string | null>(
+    null
+  );
 
   const refresh = useCallback(async () => {
     setStatus("loading");
@@ -41,6 +51,8 @@ export function useGmailIntegration() {
           "/api/talent/integrations/gmail"
         );
       setStatus(payload.status);
+      setAnalysisStatus(payload.analysis.status);
+      setAnalysisUpdatedAt(payload.analysis.updatedAt);
       return payload;
     } catch (error) {
       setStatus("error");
@@ -102,7 +114,22 @@ export function useGmailIntegration() {
     }
   }, []);
 
+  const analyze = useCallback(async () => {
+    setPendingAction("analyze");
+    try {
+      await fetchWithInternalAuth<{ ok: true; status: "queued" }>(
+        "/api/talent/integrations/gmail/analyze",
+        { method: "POST" }
+      );
+    } finally {
+      setPendingAction(null);
+    }
+  }, []);
+
   return {
+    analysisStatus,
+    analysisUpdatedAt,
+    analyze,
     connect,
     disconnect,
     pendingAction,

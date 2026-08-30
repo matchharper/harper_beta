@@ -15,11 +15,45 @@ import {
   type GmailIntegrationStatus,
   updateTalentGmailIntegrationStatus,
 } from "@/lib/integrations/gmail";
+import {
+  GMAIL_CAREER_HISTORY_ORIGIN_ID,
+  GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
+} from "@/lib/integrations/gmailCareerHistoryCore";
 
-const statusPayload = (status: GmailIntegrationStatus) => ({
+const statusPayload = (
+  status: GmailIntegrationStatus,
+  analysis?: {
+    status: "completed" | "not_started" | "unavailable";
+    updatedAt: string | null;
+  }
+) => ({
+  analysis: analysis ?? { status: "not_started", updatedAt: null },
   connected: status === "active",
   status,
 });
+
+async function fetchGmailCareerHistoryStatus(
+  admin: ReturnType<typeof getTalentSupabaseAdmin>,
+  talentId: string
+) {
+  const { data, error } = await admin
+    .from("talent_documents")
+    .select("updated_at")
+    .eq("talent_id", talentId)
+    .eq("origin_type", GMAIL_CAREER_HISTORY_ORIGIN_TYPE)
+    .eq("origin_id", GMAIL_CAREER_HISTORY_ORIGIN_ID)
+    .eq("is_deleted", false)
+    .maybeSingle();
+  if (error) {
+    console.warn("[GmailIntegration] career history status unavailable", {
+      code: error.code,
+    });
+    return { status: "unavailable" as const, updatedAt: null };
+  }
+  return data
+    ? { status: "completed" as const, updatedAt: data.updated_at }
+    : { status: "not_started" as const, updatedAt: null };
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -33,13 +67,14 @@ export async function GET(req: NextRequest) {
       admin,
       talentId: user.id,
     });
+    const analysis = await fetchGmailCareerHistoryStatus(admin, user.id);
     if (!integration) {
-      return NextResponse.json(statusPayload("not_connected"));
+      return NextResponse.json(statusPayload("not_connected", analysis));
     }
     if (integration.status !== "active") {
       const status: GmailIntegrationStatus =
         integration.status === "expired" ? "expired" : "disabled";
-      return NextResponse.json(statusPayload(status));
+      return NextResponse.json(statusPayload(status, analysis));
     }
 
     try {
@@ -52,12 +87,12 @@ export async function GET(req: NextRequest) {
           status: "disabled",
           talentId: user.id,
         });
-        return NextResponse.json(statusPayload("disabled"));
+        return NextResponse.json(statusPayload("disabled", analysis));
       }
 
       const remoteStatus = getComposioAccountStatus(account);
       if (remoteStatus === "ACTIVE") {
-        return NextResponse.json(statusPayload("active"));
+        return NextResponse.json(statusPayload("active", analysis));
       }
 
       const status: GmailIntegrationStatus =
@@ -67,12 +102,12 @@ export async function GET(req: NextRequest) {
         status,
         talentId: user.id,
       });
-      return NextResponse.json(statusPayload(status));
+      return NextResponse.json(statusPayload(status, analysis));
     } catch {
       // A temporary Composio outage should not make a healthy local
       // connection appear disconnected in settings.
       return NextResponse.json({
-        ...statusPayload("active"),
+        ...statusPayload("active", analysis),
         temporarilyUnavailable: true,
       });
     }

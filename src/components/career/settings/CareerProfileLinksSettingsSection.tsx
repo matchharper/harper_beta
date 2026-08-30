@@ -224,6 +224,28 @@ const CareerProfileLinksSettingsSection = ({
     }
   };
 
+  const handleGmailAnalyze = async () => {
+    logCareerEvent("click_resume_links_analyze_gmail");
+    try {
+      await gmailIntegration.analyze();
+      showToast({
+        message: t(
+          "career.profile.resume_links.gmail_analysis_queued_toast",
+          "Gmail 커리어 이력 분석을 시작했습니다. 완료되면 내 문서에 추가됩니다."
+        ),
+        variant: "white",
+      });
+    } catch {
+      showToast({
+        message: t(
+          "career.profile.resume_links.gmail_analysis_failed",
+          "Gmail 커리어 이력 분석을 시작하지 못했습니다. 다시 시도해 주세요."
+        ),
+        variant: "error",
+      });
+    }
+  };
+
   return (
     <div>
       <FieldLabel
@@ -342,10 +364,27 @@ const CareerProfileLinksSettingsSection = ({
                 )}
               </MuteButton>
             ) : gmailIntegration.status === "active" ? (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge icon={<Check />} tone="positive" variant="faded">
                   {t("career.profile.resume_links.gmail_connected", "연결됨")}
                 </Badge>
+                {gmailIntegration.analysisStatus === "not_started" ? (
+                  <MuteButton
+                    type="button"
+                    size="sm"
+                    variant="transparent"
+                    disabled={gmailIntegration.pendingAction !== null}
+                    onClick={() => void handleGmailAnalyze()}
+                  >
+                    {gmailIntegration.pendingAction === "analyze" ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : null}
+                    {t(
+                      "career.profile.resume_links.gmail_analyze",
+                      "커리어 이력 분석"
+                    )}
+                  </MuteButton>
+                ) : null}
                 <MuteButton
                   type="button"
                   size="sm"
