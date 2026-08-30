@@ -1547,6 +1547,8 @@ export const ko = {
     "career.profile.recruiter_profile.named": "채용 담당자가 보는 {name}의 프로필",
     "career.profile.resume_links.gmail_connect": "연결",
     "career.profile.resume_links.gmail_analyze": "커리어 이력 분석",
+    "career.profile.resume_links.gmail_resync": "새로고침",
+    "career.profile.resume_links.gmail_last_synced": "마지막 동기화 {time}",
     "career.profile.resume_links.gmail_analysis_failed": "Gmail 커리어 이력 분석을 시작하지 못했습니다. 다시 시도해 주세요.",
     "career.profile.resume_links.gmail_analysis_queued_toast": "Gmail 커리어 이력 분석을 시작했습니다. 완료되면 내 문서에 추가됩니다.",
     "career.profile.resume_links.gmail_callback_failed": "Gmail 연결을 완료하지 못했습니다. 다시 시도해 주세요.",

@@ -1519,6 +1519,8 @@ export const en = {
     "career.profile.recruiter_profile.named": "How companies see your profile",
     "career.profile.resume_links.gmail_connect": "Connect",
     "career.profile.resume_links.gmail_analyze": "Analyze career history",
+    "career.profile.resume_links.gmail_resync": "Resync",
+    "career.profile.resume_links.gmail_last_synced": "Last synced {time}",
     "career.profile.resume_links.gmail_analysis_failed": "We couldn't start analyzing your Gmail career history. Please try again.",
     "career.profile.resume_links.gmail_analysis_queued_toast": "Harper started analyzing your Gmail career history. It will appear in My Documents when it's ready.",
     "career.profile.resume_links.gmail_callback_failed": "We couldn't finish connecting Gmail. Please try again.",

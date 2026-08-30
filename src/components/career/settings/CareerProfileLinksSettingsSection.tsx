@@ -25,6 +25,8 @@ import { Tooltips } from "@/components/ui/tooltip";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useGmailIntegration } from "@/hooks/career/useGmailIntegration";
+import { useMessages } from "@/i18n/useMessage";
+import { formatRelativeTime } from "@/lib/utils";
 import { showToast } from "@/components/toast/toast";
 
 const CAREER_LINK_ITEMS = [
@@ -162,6 +164,7 @@ const CareerProfileLinksSettingsSection = ({
   onSave,
 }: CareerProfileLinksSettingsSectionProps) => {
   const t = useCareerT();
+  const { locale } = useMessages();
   const careerLinkLabels = useMemo(() => getCareerLinkLabels(t), [t]);
   const logCareerEvent = useCareerLogEvent();
   const gmailIntegration = useGmailIntegration();
@@ -368,22 +371,42 @@ const CareerProfileLinksSettingsSection = ({
                 <Badge icon={<Check />} tone="positive" variant="faded">
                   {t("career.profile.resume_links.gmail_connected", "연결됨")}
                 </Badge>
-                {gmailIntegration.analysisStatus === "not_started" ? (
-                  <MuteButton
-                    type="button"
-                    size="sm"
-                    variant="transparent"
-                    disabled={gmailIntegration.pendingAction !== null}
-                    onClick={() => void handleGmailAnalyze()}
-                  >
-                    {gmailIntegration.pendingAction === "analyze" ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : null}
+                <MuteButton
+                  type="button"
+                  size="sm"
+                  variant="transparent"
+                  disabled={gmailIntegration.pendingAction !== null}
+                  onClick={() => void handleGmailAnalyze()}
+                >
+                  {gmailIntegration.pendingAction === "analyze" ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : gmailIntegration.analysisStatus === "completed" ? (
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  ) : null}
+                  {gmailIntegration.analysisStatus === "completed"
+                    ? t(
+                        "career.profile.resume_links.gmail_resync",
+                        "새로고침"
+                      )
+                    : t(
+                        "career.profile.resume_links.gmail_analyze",
+                        "커리어 이력 분석"
+                      )}
+                </MuteButton>
+                {gmailIntegration.analysisStatus === "completed" &&
+                gmailIntegration.analysisUpdatedAt ? (
+                  <span className="text-xs text-neutral-soft">
                     {t(
-                      "career.profile.resume_links.gmail_analyze",
-                      "커리어 이력 분석"
+                      "career.profile.resume_links.gmail_last_synced",
+                      "마지막 동기화 {time}"
+                    ).replace(
+                      "{time}",
+                      formatRelativeTime(
+                        gmailIntegration.analysisUpdatedAt,
+                        locale
+                      ) ?? ""
                     )}
-                  </MuteButton>
+                  </span>
                 ) : null}
                 <MuteButton
                   type="button"
