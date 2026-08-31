@@ -12,6 +12,7 @@ import {
   type LlmDebugCall,
 } from "@/lib/llm/debugUsage";
 import {
+  DEFAULT_ORG_AGENT_REASONING_EFFORT,
   DEFAULT_ORG_AGENT_MODEL,
   getOrgAgentFallbackModel,
   ORG_AGENT_GROK_MODEL,
@@ -19,6 +20,7 @@ import {
   isOrgAgentModelId,
   resolveOrgAgentModel,
   type OrgAgentModelId,
+  type OrgAgentReasoningEffort,
 } from "@/lib/org/agent/modelConfig";
 import {
   buildOrgAgentPromptContext,
@@ -343,7 +345,7 @@ async function runCompletion(args: {
   maxTokens: number;
   messages: OrgAgentLlmMessage[];
   model: OrgAgentModelId;
-  reasoningEffort?: "high" | "max";
+  reasoningEffort?: OrgAgentReasoningEffort;
   signal?: AbortSignal;
   strictModel?: boolean;
   surface?: "chat" | "slack";
@@ -370,12 +372,17 @@ async function runCompletion(args: {
         : {}),
     }),
     debugLabel: "org/agent:chat",
-    deepSeekThinking: { reasoningEffort: args.reasoningEffort ?? "high" },
+    deepSeekThinking: {
+      reasoningEffort: args.reasoningEffort === "max" ? "max" : "high",
+    },
     ...(args.strictModel
       ? {}
       : { fallbackModel: getOrgAgentFallbackModel(args.model) }),
     model: args.model,
-    openAIResponses: { reasoningEffort: args.reasoningEffort ?? "high" },
+    openAIResponses: {
+      reasoningEffort:
+        args.reasoningEffort ?? DEFAULT_ORG_AGENT_REASONING_EFFORT,
+    },
     signal: args.signal,
   });
 }
@@ -383,7 +390,7 @@ async function runCompletion(args: {
 async function correctOrgAgentInternalTokenLeak(args: {
   debugCalls: LlmDebugCall[];
   model: OrgAgentModelId;
-  reasoningEffort?: "high" | "max";
+  reasoningEffort?: OrgAgentReasoningEffort;
   reply: string;
   signal?: AbortSignal;
   strictModel?: boolean;
@@ -498,7 +505,8 @@ async function runOrgAgentToolLoop(args: {
   ];
   const state = createOrgAgentToolExecutionState(args.context);
   let activeModel = args.model;
-  let activeReasoningEffort: "high" | "max" = "high";
+  let activeReasoningEffort: OrgAgentReasoningEffort =
+    DEFAULT_ORG_AGENT_REASONING_EFFORT;
   let calibrationCompleted = false;
   let fallbackReason: ChatCompletionFallbackReason | null = null;
   let totalToolCalls = 0;
@@ -1229,7 +1237,7 @@ export async function runOrgAgentChat(args: {
           result.status === "success"
       )
         ? "max"
-        : "high",
+        : DEFAULT_ORG_AGENT_REASONING_EFFORT,
       reply: draftProse,
       signal: args.signal,
       strictModel: llmResult.state.toolResults.some(
