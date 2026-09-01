@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildKnownFutureMatchingInsightsSection } from "./conversationSections";
+import {
+  buildKnownFutureMatchingInsightsSection,
+  buildMatchedInternalRoleCompanyIndexSection,
+} from "./conversationSections";
 
 test("does not mark an already saved good-to-remember insight as empty", () => {
   const section = buildKnownFutureMatchingInsightsSection({
@@ -28,4 +31,15 @@ test("omits good-to-remember nudges when both values are already saved", () => {
   });
 
   assert.doesNotMatch(section, /## Good to remember insights/);
+});
+
+test("matched internal company index is conditional and contains no role state", () => {
+  assert.equal(buildMatchedInternalRoleCompanyIndexSection([]), "");
+
+  const section = buildMatchedInternalRoleCompanyIndexSection([
+    { company: "Example AI", roleCount: 2 },
+  ]);
+  assert.match(section, /Example AI: 2 active role/);
+  assert.match(section, /matchedOnly=true/);
+  assert.doesNotMatch(section, /hold|reason|score|recommend=false/i);
 });

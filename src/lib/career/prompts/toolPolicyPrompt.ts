@@ -138,8 +138,12 @@ export function buildCareerToolPolicyPrompt(args: {
       : []),
     ...(hasInternalRolesTool
       ? [
-          "- Use `get_internal_roles` when the user directly asks to look up internal Harper-connected roles by role title or company name. This is not a personalized recommendation or fit-ranking tool.",
-          "- Pass 1-2 concrete FTS keywords only, taken from the user's role title or company name request. Do not pass broad preference paragraphs.",
+          "- Use `get_internal_roles` in ordinary lookup mode when the user directly asks to find a Harper-connected role by role title or company name. Pass 1-2 concrete keywords and do not treat ordinary lookup results as personalized recommendations.",
+          "- Use `get_internal_roles` with `matchedOnly=true` when the user asks whether Harper has other credible roles for them, compares another function with a prior recommendation, or asks for another viable role at the same company. This mode reads stored fit; it must never trigger a new fit evaluation.",
+          "- In matched mode, pass `company` only when the conversation identifies a specific company. Keywords are optional and should narrow by role direction, not repeat broad preference paragraphs.",
+          "- Matched results are a small set Harper has already considered, not a list to dump. Make a judgment, normally mention no more than two useful options, and keep Harper's prior recommendation as the default unless the user's evidence supports another direction.",
+          "- If private company context influenced Harper's view, you may acknowledge that Harper has additional company context but must not reveal, quote, or infer its contents.",
+          "- Pass 1-2 concrete FTS keywords only in ordinary lookup mode, taken from the user's role title or company name request. Do not pass broad preference paragraphs.",
           "- Multi-word keywords are AND-matched. If the user says something like 'Site CTO' but the distinctive role term is CTO, pass `CTO` rather than one keyword `Site CTO`.",
           "- Never use this for listing all roles. This is only for looking up a specific role by role title or company name. If user wants listing all, say it's not possible because of the company's request.",
           "- `[Harper]` means the company Harper, not Harper-connected roles in general. When it appears, include `Harper` in the FTS keywords.",
@@ -148,7 +152,7 @@ export function buildCareerToolPolicyPrompt(args: {
       : []),
     ...(hasInternalRolePriorityReviewTool
       ? [
-          "- Use `internal_role_priority_review` with `action=register` when the user explicitly asks Harper to connect, prioritize, review, or consider them for a specific internal Harper-connected role. Use `action=withdraw` when the user explicitly asks to withdraw, cancel, or remove that priority-review request. If the roleId is unknown, use `get_internal_roles` first; if the role remains ambiguous, ask one clarifying question. This is only for internal role.",
+          "- Use `internal_role_priority_review` with `action=register` only when the user explicitly asks Harper to connect, prioritize, review, or consider them for a specific active role returned by `get_internal_roles` with mode=matched. Use `action=withdraw` when the user explicitly asks to withdraw, cancel, or remove that priority-review request. If the roleId is unknown, use matched mode first; if the role remains ambiguous, ask one clarifying question. This never reruns fit evaluation and is not the response path for a formal recommendation.",
         ]
       : []),
     ...(hasUpdateRecommendedOpportunityFeedbackTool

@@ -36,6 +36,20 @@ test("keeps language setting tool policy minimal", () => {
   assert.doesNotMatch(prompt, /### update_language_setting/);
 });
 
+test("matched internal role policy uses stored fit without rerunning it", () => {
+  const prompt = buildCareerToolPolicyPrompt({
+    channel: "chat",
+    isOnboardingActive: false,
+    preferredLocale: "ko",
+    toolNames: ["get_internal_roles", "internal_role_priority_review"],
+  });
+
+  assert.match(prompt, /matchedOnly=true/);
+  assert.match(prompt, /must never trigger a new fit evaluation/);
+  assert.match(prompt, /normally mention no more than two useful options/);
+  assert.match(prompt, /returned by `get_internal_roles` with mode=matched/);
+});
+
 test("defaults job search to instant and requires explicit bulk permission", () => {
   const prompt = buildCareerToolPolicyPrompt({
     channel: "chat",

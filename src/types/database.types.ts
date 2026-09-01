@@ -6925,6 +6925,7 @@ export type Database = {
           last_evaluated_at: string
           opportunity_id: string
           reason: string
+          recommend: boolean
           reevaluation_checked_at: string | null
           reevaluation_criteria: Json | null
           score: number
@@ -6946,6 +6947,7 @@ export type Database = {
           last_evaluated_at?: string
           opportunity_id: string
           reason?: string
+          recommend?: boolean
           reevaluation_checked_at?: string | null
           reevaluation_criteria?: Json | null
           score: number
@@ -6967,6 +6969,7 @@ export type Database = {
           last_evaluated_at?: string
           opportunity_id?: string
           reason?: string
+          recommend?: boolean
           reevaluation_checked_at?: string | null
           reevaluation_criteria?: Json | null
           score?: number
@@ -8198,6 +8201,10 @@ export type Database = {
         Returns: Json
       }
       company_talent_request_stage_is_pending_v1: {
+        Args: { p_request_id: string }
+        Returns: boolean
+      }
+      company_talent_request_target_is_active_v1: {
         Args: { p_request_id: string }
         Returns: boolean
       }

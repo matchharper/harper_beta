@@ -41,6 +41,11 @@ export type InternalRoleSearchResultRole = {
   role: string;
 };
 
+export type MatchedInternalRoleCompanyIndexItem = {
+  company: string;
+  roleCount: number;
+};
+
 export type InternalRoleSearchResult = {
   assistantInstruction: string;
   fallbackKeywords?: string[];
@@ -49,6 +54,7 @@ export type InternalRoleSearchResult = {
   requestedKeywords: string[];
   returnedCount: number;
   roles: InternalRoleSearchResultRole[];
+  mode: "lookup" | "matched";
 };
 
 let internalRoleSearchClient: ReturnType<typeof postgres> | null = null;
@@ -225,6 +231,14 @@ async function searchInternalRoleRows(args: {
           AND cr.status IN ('active', 'paused')
           AND COALESCE(cr.is_expired, false) = false
           AND (cr.expires_at IS NULL OR cr.expires_at > now())
+          AND lower(COALESCE(cr.information->>'testOnly', 'false')) <> 'true'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM public.talent_opportunity_fit hidden_fit
+            WHERE hidden_fit.talent_id = ${args.userId}::uuid
+              AND hidden_fit.opportunity_id = cr.role_id
+              AND COALESCE(hidden_fit.human_label, hidden_fit.label) = 'hold'
+          )
       ),
       ranked AS MATERIALIZED (
         SELECT
@@ -316,26 +330,125 @@ async function searchInternalRoleRows(args: {
   })) as InternalRoleSearchSqlRow[];
 }
 
+async function searchMatchedInternalRoleRows(args: {
+  company: string;
+  db: ReturnType<typeof getInternalRoleSearchClient>;
+  keywords: string[];
+  userId: string;
+}) {
+  return (await args.db.begin(async (tx) => {
+    await tx.unsafe(
+      `set local statement_timeout = '${INTERNAL_ROLE_SEARCH_STATEMENT_TIMEOUT_MS}ms'`
+    );
+    return tx<InternalRoleSearchSqlRow[]>`
+      WITH keyword_terms AS (
+        SELECT trim(term) AS keyword
+        FROM unnest(${args.keywords}::text[]) AS term
+        WHERE trim(term) <> ''
+      ),
+      combined_query AS (
+        SELECT string_agg(
+          format('(%s)', websearch_to_tsquery('simple', keyword)::text),
+          ' | '
+        )::tsquery AS query
+        FROM keyword_terms
+      )
+      SELECT
+        role.role_id::text AS role_id,
+        role.name AS role_title,
+        role.work_mode,
+        role.type,
+        workspace.company_name,
+        workspace.published_name,
+        role.location_text,
+        role.description_summary,
+        true AS is_internal,
+        EXISTS (
+          SELECT 1
+          FROM public.talent_opportunity_recommendation recommendation
+          WHERE recommendation.talent_id = ${args.userId}::uuid
+            AND recommendation.role_id = role.role_id
+        ) AS has_been_recommended,
+        EXISTS (
+          SELECT 1
+          FROM public.talent_progress progress
+          WHERE progress.talent_id = ${args.userId}::uuid
+            AND progress.role_id = role.role_id
+            AND progress.kind = ${INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND}
+        ) AS has_priority_review_request
+      FROM public.company_roles role
+      JOIN public.company_workspace workspace
+        ON workspace.company_workspace_id = role.company_workspace_id
+      JOIN public.talent_opportunity_fit fit
+        ON fit.opportunity_id = role.role_id
+       AND fit.talent_id = ${args.userId}::uuid
+      CROSS JOIN combined_query query
+      WHERE role.source_type = 'internal'
+        AND role.status = 'active'
+        AND COALESCE(role.is_expired, false) = false
+        AND (role.expires_at IS NULL OR role.expires_at > now())
+        AND lower(COALESCE(role.information->>'testOnly', 'false')) <> 'true'
+        AND (
+          fit.human_label = 'fit'
+          OR (fit.human_label IS NULL AND fit.label = 'fit')
+        )
+        AND (
+          cardinality(${args.keywords}::text[]) = 0
+          OR (
+            query.query IS NOT NULL
+            AND role.opportunity_search_tsv @@ query.query
+          )
+        )
+        AND (
+          btrim(${args.company}) = ''
+          OR position(lower(btrim(${args.company})) in lower(COALESCE(workspace.published_name, ''))) > 0
+          OR position(lower(COALESCE(workspace.published_name, '')) in lower(btrim(${args.company}))) > 0
+          OR position(lower(btrim(${args.company})) in lower(COALESCE(workspace.company_name, ''))) > 0
+          OR position(lower(COALESCE(workspace.company_name, '')) in lower(btrim(${args.company}))) > 0
+        )
+      ORDER BY
+        fit.recommend DESC,
+        CASE WHEN fit.human_label = 'fit' THEN 0 ELSE 1 END,
+        fit.score DESC,
+        fit.last_evaluated_at DESC,
+        role.updated_at DESC NULLS LAST,
+        role.role_id
+      LIMIT ${INTERNAL_ROLE_SEARCH_LIMIT}
+    `;
+  })) as InternalRoleSearchSqlRow[];
+}
+
 export async function searchInternalRolesForCareerTool(args: {
-  keywords: unknown;
+  company?: unknown;
+  keywords?: unknown;
+  matchedOnly?: unknown;
   userId: string;
 }): Promise<InternalRoleSearchResult> {
   const requestedKeywords = normalizeKeywords(args.keywords);
-  if (requestedKeywords.length === 0) {
+  const matchedOnly = args.matchedOnly === true;
+  const company = formatText(String(args.company ?? ""), "", 120);
+  if (!matchedOnly && requestedKeywords.length === 0) {
     throw new Error("get_internal_roles requires 1-2 keywords.");
   }
 
   const db = getInternalRoleSearchClient();
   let searchedKeywords = requestedKeywords;
-  let rows = await searchInternalRoleRows({
-    db,
-    keywords: searchedKeywords,
-    userId: args.userId,
-  });
+  let rows = matchedOnly
+    ? await searchMatchedInternalRoleRows({
+        company,
+        db,
+        keywords: searchedKeywords,
+        userId: args.userId,
+      })
+    : await searchInternalRoleRows({
+        db,
+        keywords: searchedKeywords,
+        userId: args.userId,
+      });
   let fallbackKeywords: string[] | undefined;
   let fallbackUsed = false;
 
-  if (rows.length === 0) {
+  if (!matchedOnly && rows.length === 0) {
     const splitKeywords = splitKeywordsForFallback(requestedKeywords);
     if (
       splitKeywords.length > 0 &&
@@ -359,6 +472,9 @@ export async function searchInternalRolesForCareerTool(args: {
 
   return {
     assistantInstruction:
+      (matchedOnly
+        ? "These are active roles already judged credible enough to discuss with this user. They are not all formal recommendations. Compare thoughtfully, keep the previously recommended role as Harper's default unless the evidence supports a different preference, and register a priority review only after the user clearly asks to proceed. "
+        : "") +
       "The Company fields in get_internal_roles results are public-safe aliases, not raw company names. Use those aliases exactly in the final reply. Never reveal, infer, or repeat raw internal company names, including names from the user's search keywords.",
     ...(fallbackKeywords
       ? {
@@ -369,6 +485,7 @@ export async function searchInternalRolesForCareerTool(args: {
         }
       : {}),
     fallbackUsed,
+    mode: matchedOnly ? "matched" : "lookup",
     keywords: maskInternalRoleSearchKeywords(
       searchedKeywords,
       companyNameSources
@@ -383,4 +500,50 @@ export async function searchInternalRolesForCareerTool(args: {
       role: formatInternalRole(row),
     })),
   };
+}
+
+export async function fetchMatchedInternalRoleCompanyIndex(args: {
+  userId: string;
+}): Promise<MatchedInternalRoleCompanyIndexItem[]> {
+  const db = getInternalRoleSearchClient();
+  try {
+    const rows = await db<
+      { published_name: string | null; role_count: number }[]
+    >`
+      SELECT
+        workspace.published_name,
+        count(*)::int AS role_count
+      FROM public.talent_opportunity_fit fit
+      JOIN public.company_roles role
+        ON role.role_id = fit.opportunity_id
+      JOIN public.company_workspace workspace
+        ON workspace.company_workspace_id = role.company_workspace_id
+      WHERE fit.talent_id = ${args.userId}::uuid
+        AND (
+          fit.human_label = 'fit'
+          OR (fit.human_label IS NULL AND fit.label = 'fit')
+        )
+        AND role.source_type = 'internal'
+        AND role.status = 'active'
+        AND COALESCE(role.is_expired, false) = false
+        AND (role.expires_at IS NULL OR role.expires_at > now())
+        AND lower(COALESCE(role.information->>'testOnly', 'false')) <> 'true'
+      GROUP BY workspace.company_workspace_id, workspace.published_name
+      ORDER BY
+        bool_or(fit.recommend) DESC,
+        count(*) DESC,
+        workspace.company_workspace_id
+      LIMIT 8
+    `;
+    return rows.map((row) => ({
+      company: getInternalRolePublishedName(row.published_name),
+      roleCount: Number(row.role_count) || 0,
+    }));
+  } catch (error) {
+    console.error("[Career] Failed to load matched internal role index", {
+      error: error instanceof Error ? error.message : String(error),
+      userId: args.userId,
+    });
+    return [];
+  }
 }

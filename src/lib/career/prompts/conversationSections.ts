@@ -25,6 +25,7 @@ import type {
   CareerPromptProfile,
   OnboardingChecklistCoverage,
 } from "@/lib/career/prompts/types";
+import type { MatchedInternalRoleCompanyIndexItem } from "@/lib/career/internalRoleSearch";
 
 /** 현재 대화 채널을 모델 prompt에 넣을 사람이 읽는 라벨로 바꾼다. */
 export function getCareerChannelType(channel: CareerPromptChannel) {
@@ -516,6 +517,22 @@ export function buildRecentActivitySummariesSection(
         .join("\n"),
     ].join("\n")
   );
+}
+
+export function buildMatchedInternalRoleCompanyIndexSection(
+  items?: readonly MatchedInternalRoleCompanyIndexItem[] | null
+) {
+  const lines = (items ?? [])
+    .slice(0, 8)
+    .filter((item) => item.company.trim() && item.roleCount > 0)
+    .map((item) => `- ${item.company}: ${item.roleCount} active role(s)`);
+  if (lines.length === 0) return "";
+
+  return [
+    "## Harper-connected roles already credible for this user",
+    "This is only a compact company-level index. It is not a list to recite. When the user asks for other credible roles or compares roles at one company, use get_internal_roles with matchedOnly=true to inspect the relevant small set before answering.",
+    ...lines,
+  ].join("\n");
 }
 
 /** 이력서 파일/텍스트/링크 중 하나라도 있으면 true를 반환한다. */

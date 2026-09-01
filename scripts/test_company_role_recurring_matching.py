@@ -692,6 +692,7 @@ class EvaluationContractTests(unittest.TestCase):
                                 "talentId": TALENT_ID,
                                 "score": 20,
                                 "label": "unfit",
+                                "recommend": False,
                                 "reason": "The function conflicts with the role.",
                             }
                         ]
@@ -717,6 +718,7 @@ class EvaluationContractTests(unittest.TestCase):
                 "talentId": TALENT_ID,
                 "score": 72,
                 "label": "hold",
+                "recommend": False,
                 "reason": "The role is strong, but relocation is decision-critical.",
                 "reevaluationCriteria": {
                     "topic": "location_or_relocation",
@@ -736,6 +738,7 @@ class EvaluationContractTests(unittest.TestCase):
                     "talentId": TALENT_ID,
                     "score": 82,
                     "label": "ambiguous",
+                    "recommend": False,
                     "reason": "Plausible but not sufficiently supported.",
                 },
                 [],
@@ -746,6 +749,7 @@ class EvaluationContractTests(unittest.TestCase):
             "talentId": TALENT_ID,
             "score": 68,
             "label": "ambiguous",
+            "recommend": False,
             "reason": "The absolute fit remains uncertain but has no hard blocker.",
             "explorationRecommendable": True,
         }
@@ -763,6 +767,7 @@ class EvaluationContractTests(unittest.TestCase):
                     "talentId": TALENT_ID,
                     "score": 70,
                     "label": "hold",
+                    "recommend": False,
                     "reason": "The company may not like this profile.",
                     "reevaluationCriteria": {
                         "topic": "company_bar",
@@ -779,6 +784,7 @@ class EvaluationContractTests(unittest.TestCase):
                 "talentId": TALENT_ID,
                 "score": 88,
                 "label": "fit",
+                "recommend": True,
                 "reason": "Strong evidence on both company suitability and candidate interest.",
                 "companyCriteriaEvaluations": [
                     {
@@ -797,6 +803,7 @@ class EvaluationContractTests(unittest.TestCase):
                     "talentId": TALENT_ID,
                     "score": 70,
                     "label": "ambiguous",
+                    "recommend": False,
                     "reason": "Plausible but incomplete.",
                     "companyCriteriaEvaluations": [
                         {

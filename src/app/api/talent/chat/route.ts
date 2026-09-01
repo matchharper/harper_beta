@@ -123,6 +123,7 @@ import {
   stripOpportunityRunMarkers,
 } from "@/lib/opportunityDiscovery/messageMarker";
 import { buildFirstTurnUploadedDocumentContext } from "@/lib/talentOnboarding/documentPromptContext";
+import { fetchMatchedInternalRoleCompanyIndex } from "@/lib/career/internalRoleSearch";
 
 export const maxDuration = 180;
 
@@ -742,6 +743,7 @@ export async function POST(req: NextRequest) {
       pendingOpportunityFeedbackContext,
       recentActivitySummaries,
       recentRecommendedOpportunities,
+      matchedInternalRoleCompanyIndex,
     ] = await Promise.all([
       fetchTalentUserProfile({ admin, userId: user.id }),
       fetchTalentInsights({ admin, userId: user.id }),
@@ -772,6 +774,9 @@ export async function POST(req: NextRequest) {
         limit: 10,
         userId: user.id,
       }),
+      talentSetting?.is_onboarding_done
+        ? fetchMatchedInternalRoleCompanyIndex({ userId: user.id })
+        : Promise.resolve([]),
     ]);
     const structuredProfile = await fetchTalentStructuredProfile({
       admin,
@@ -1096,6 +1101,7 @@ export async function POST(req: NextRequest) {
         currentInsightContent,
         currentPreferences,
         isOnboardingDone: talentSetting?.is_onboarding_done,
+        matchedInternalRoleCompanyIndex,
         officialJobSignupIntentPrompt: talentSetting?.is_onboarding_done
           ? null
           : officialJobSignupIntentEvent?.summary,

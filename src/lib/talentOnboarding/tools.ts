@@ -492,13 +492,16 @@ const ROLE_CONTEXT_ROLE_SELECT = `
   seniority_level,
   salary_range,
   status,
+  is_expired,
   posted_at,
   expires_at,
   source_type,
+  information,
   company_internal_roles (
     request
   ),
   company_workspace:company_workspace!inner (
+    published_name,
     company_db:company_db (
       name,
       short_description,
@@ -588,7 +591,7 @@ async function runGetRoleContext(args: {
   roleIds: string[];
   userId: string;
 }) {
-  const [roleResponse, recommendationResponse] = await Promise.all([
+  const [roleResponse, recommendationResponse, fitResponse] = await Promise.all([
     (args.admin.from("company_roles" as any) as any)
       .select(ROLE_CONTEXT_ROLE_SELECT)
       .in("role_id", args.roleIds),
@@ -597,6 +600,10 @@ async function runGetRoleContext(args: {
       .eq("talent_id", args.userId)
       .in("role_id", args.roleIds)
       .order("created_at", { ascending: false }),
+    (args.admin.from("talent_opportunity_fit" as any) as any)
+      .select("opportunity_id, label, human_label")
+      .eq("talent_id", args.userId)
+      .in("opportunity_id", args.roleIds),
   ]);
 
   if (roleResponse.error) {
@@ -610,9 +617,15 @@ async function runGetRoleContext(args: {
         "Failed to load role recommendation context."
     );
   }
+  if (fitResponse.error) {
+    throw new TalentToolError(
+      fitResponse.error.message ?? "Failed to verify internal role access."
+    );
+  }
 
   const roleRows = asToolRecordArray(roleResponse.data);
   const recommendationRows = asToolRecordArray(recommendationResponse.data);
+  const fitRows = asToolRecordArray(fitResponse.data);
   const roleById = new Map(
     roleRows
       .map((row) => [optionalToolString(row.role_id), row] as const)
@@ -621,6 +634,17 @@ async function runGetRoleContext(args: {
       )
   );
   const recommendationsByRoleId = new Map<string, Record<string, unknown>[]>();
+  const effectiveFitByRoleId = new Map<string, string>();
+
+  for (const row of fitRows) {
+    const roleId = optionalToolString(row.opportunity_id);
+    const effectiveLabel =
+      optionalToolString(row.human_label)?.toLowerCase() ??
+      optionalToolString(row.label)?.toLowerCase();
+    if (roleId && effectiveLabel) {
+      effectiveFitByRoleId.set(roleId, effectiveLabel);
+    }
+  }
 
   for (const row of recommendationRows) {
     const roleId = optionalToolString(row.role_id);
@@ -666,6 +690,38 @@ async function runGetRoleContext(args: {
     const workspace = asToolRecord(row.company_workspace);
     const companyDb = asToolRecord(workspace?.company_db);
     const latestRecommendation = latestRecommendationByRoleId.get(roleId);
+    const sourceType = optionalToolString(row.source_type)?.toLowerCase();
+    const isInternalRole = sourceType === "internal";
+    const roleInformation = asToolRecord(row.information);
+    const isTestOnly =
+      roleInformation?.testOnly === true ||
+      optionalToolString(roleInformation?.testOnly)?.toLowerCase() === "true";
+    const testTalentIds = Array.isArray(roleInformation?.testTalentIds)
+      ? roleInformation.testTalentIds
+          .map(optionalToolString)
+          .filter((id): id is string => Boolean(id))
+      : [];
+    const testRoleAllowed = !isTestOnly || testTalentIds.includes(args.userId);
+    const roleStatus = optionalToolString(row.status)?.toLowerCase();
+    const expiresAt = optionalToolString(row.expires_at);
+    const expiresAtMs = expiresAt ? Date.parse(expiresAt) : Number.NaN;
+    const isActiveMatchedInternalRole =
+      isInternalRole &&
+      !isTestOnly &&
+      roleStatus === "active" &&
+      row.is_expired !== true &&
+      (!Number.isFinite(expiresAtMs) || expiresAtMs > Date.now()) &&
+      effectiveFitByRoleId.get(roleId) === "fit";
+    if (
+      isInternalRole &&
+      (!testRoleAllowed || (!latestRecommendation && !isActiveMatchedInternalRole))
+    ) {
+      return {
+        found: false,
+        roleId,
+      };
+    }
+
     const detailedRecommendation = latestRecommendation
       ? detailedRecommendationById.get(
           optionalToolString(latestRecommendation.id) ?? ""
@@ -678,6 +734,9 @@ async function runGetRoleContext(args: {
       detailedRecommendation?.talentRoleActivities,
       10
     );
+    const publishedCompanyName =
+      optionalToolString(workspace?.published_name) ??
+      "Undisclosed internal company";
 
     return {
       found: true,
@@ -708,7 +767,9 @@ async function runGetRoleContext(args: {
         ),
       },
       companyDb: {
-        name: optionalToolString(companyDb?.name),
+        name: isInternalRole
+          ? publishedCompanyName
+          : optionalToolString(companyDb?.name),
         shortDescription: optionalToolString(companyDb?.short_description),
         description: optionalClippedToolString(
           companyDb?.description,
@@ -1070,8 +1131,10 @@ async function updateInternalRolePriorityReview(args: {
         status,
         is_expired,
         expires_at,
+        information,
         company_workspace:company_workspace (
-          company_name
+          company_name,
+          published_name
         )
       `
     )
@@ -1107,23 +1170,88 @@ async function updateInternalRolePriorityReview(args: {
   const roleStatus = optionalToolString(roleRecord.status)?.toLowerCase();
   const expiresAt = optionalToolString(roleRecord.expires_at);
   const expiresAtMs = expiresAt ? Date.parse(expiresAt) : Number.NaN;
+  const roleInformation = asToolRecord(roleRecord.information);
   if (
-    !roleStatus ||
-    !["active", "paused"].includes(roleStatus) ||
-    roleRecord.is_expired === true ||
-    (Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now())
+    roleInformation?.testOnly === true ||
+    optionalToolString(roleInformation?.testOnly)?.toLowerCase() === "true"
+  ) {
+    return {
+      ok: false,
+      status: "role_not_found",
+      roleId,
+      assistantInstruction:
+        "Tell the user Harper could not verify the exact role. Do not expose or infer any test-only role details.",
+    };
+  }
+  if (
+    args.action === "register" &&
+    (!roleStatus ||
+      roleStatus !== "active" ||
+      roleRecord.is_expired === true ||
+      (Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now()))
   ) {
     return {
       ok: false,
       status: "role_not_available",
       roleId,
-      assistantInstruction: `Tell the user this Harper-connected role is not currently active or paused, so the priority-review request was not ${args.action === "register" ? "saved" : "withdrawn"}. Do not promise a connection, interview, referral, company introduction, or specific timeline.`,
+      assistantInstruction:
+        "Tell the user this Harper-connected role is not currently active, so the priority-review request was not saved. Do not promise a connection, interview, referral, company introduction, or specific timeline.",
     };
   }
 
   const workspace = asToolRecord(roleRecord.company_workspace);
-  const companyName = optionalToolString(workspace?.company_name);
+  const rawCompanyName = optionalToolString(workspace?.company_name);
+  const companyName =
+    optionalToolString(workspace?.published_name) ??
+    "Undisclosed internal company";
   const roleTitle = optionalToolString(roleRecord.name);
+
+  if (args.action === "register") {
+    const [fitResult, recommendationResult] = await Promise.all([
+      ((args.admin.from("talent_opportunity_fit" as any) as any)
+        .select("label, human_label")
+        .eq("talent_id", args.userId)
+        .eq("opportunity_id", roleId)
+        .maybeSingle() as any),
+      ((args.admin.from("talent_opportunity_recommendation" as any) as any)
+        .select("id")
+        .eq("talent_id", args.userId)
+        .eq("role_id", roleId)
+        .limit(1) as any),
+    ]);
+    if (fitResult.error || recommendationResult.error) {
+      throw new TalentToolError(
+        fitResult.error?.message ??
+          recommendationResult.error?.message ??
+          "Failed to verify the matched internal role."
+      );
+    }
+    const fitRecord = asToolRecord(fitResult.data);
+    const effectiveFitLabel = optionalToolString(
+      fitRecord?.human_label ?? fitRecord?.label
+    )?.toLowerCase();
+    if (effectiveFitLabel !== "fit") {
+      return {
+        ok: false,
+        status: "role_not_matched",
+        roleId,
+        assistantInstruction:
+          "Tell the user Harper does not currently have this role cleared as an already-matched option for them, so no priority-review request was saved. Do not mention fit labels or hidden evaluation state.",
+      };
+    }
+    if (
+      Array.isArray(recommendationResult.data) &&
+      recommendationResult.data.length > 0
+    ) {
+      return {
+        ok: false,
+        status: "already_formally_recommended",
+        roleId,
+        assistantInstruction:
+          "This role was already formally recommended. Use the existing recommendation response flow instead of creating a separate priority-review request.",
+      };
+    }
+  }
 
   const { data: existingRows, error: existingError } = await ((
     args.admin.from("talent_progress" as any) as any
@@ -1238,7 +1366,7 @@ async function updateInternalRolePriorityReview(args: {
 
   const createdAt = optionalToolString(inserted?.created_at) ?? now;
 
-  if (isHarperInternalRoleCompany(companyName)) {
+  if (isHarperInternalRoleCompany(rawCompanyName)) {
     try {
       await notifyHarperInternalRolePriorityReviewSlack({
         admin: args.admin as TalentAdminClient,
@@ -1829,7 +1957,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.GET_INTERNAL_ROLES]: {
     name: TALENT_TOOL_NAMES.GET_INTERNAL_ROLES,
     description:
-      "Find current internal Harper-connected roles by direct role-title or company-name keywords. This is lookup, not personalized recommendation or fit ranking.",
+      "Find current internal Harper-connected roles. Default mode is direct title/company lookup. With matchedOnly=true, return only active roles already judged credible for the current user, optionally narrowed to one company.",
     parameters: {
       type: "object",
       properties: {
@@ -1843,8 +1971,17 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           minItems: 1,
           maxItems: 2,
         },
+        matchedOnly: {
+          type: "boolean",
+          description:
+            "Set true only when the user asks about other roles Harper already considers credible for them, wants to compare adjacent roles, or needs another viable role at the same company. Omit or use false for ordinary public lookup.",
+        },
+        company: {
+          type: "string",
+          description:
+            "Optional company name or public alias used to narrow matchedOnly results to that company. Do not provide this merely for ordinary keyword lookup.",
+        },
       },
-      required: ["keywords"],
       additionalProperties: false,
     },
     channels: ["chat"],
@@ -1855,7 +1992,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       }
 
       return searchInternalRolesForCareerTool({
+        company: input.company,
         keywords: input.keywords,
+        matchedOnly: input.matchedOnly,
         userId,
       });
     },
@@ -1863,7 +2002,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.INTERNAL_ROLE_PRIORITY_REVIEW]: {
     name: TALENT_TOOL_NAMES.INTERNAL_ROLE_PRIORITY_REVIEW,
     description:
-      "Register or withdraw the candidate's explicit priority-review request for a specific internal role. Requires action and roleId. If roleId is unknown, call get_internal_roles first to resolve it.",
+      "Register or withdraw the candidate's explicit priority-review request for a specific active internal role already returned by get_internal_roles with mode=matched. Requires action and roleId. It never reruns fit evaluation or accepts an existing formal recommendation.",
     parameters: {
       type: "object",
       properties: {
@@ -1919,7 +2058,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.GET_ROLE_CONTEXT]: {
     name: TALENT_TOOL_NAMES.GET_ROLE_CONTEXT,
     description:
-      "Get detailed context for up to 3 specific job posting roles by roleId. Use only when the user asks about, recalls, or gives feedback on specific already-shown posting cards/roles and the current context does not contain enough detail. Do not use while finding or presenting fresh recommendations; recommend_job_postings already returns the context needed for that answer. Includes role details, company context, the latest user-specific recommendation context, up to 10 recent role activities as compact text, and any upcoming Harper-connected meeting. Set include_jd true only when the job description/JD text is needed; when false, role.description is omitted. Treat any private company-side notes in the result as reasoning-only context; never quote or expose them to the user.",
+      "Get detailed context for up to 3 specific roles by roleId. For an internal role, details are returned only when it was formally recommended to this user or is an active role already verified as their stored fit; hidden hold and other unverified internal roles are returned as missing. Use when the user asks about, recalls, compares, or gives feedback on a specific role and the current context is insufficient. Do not use while finding fresh external recommendations. Includes role details, public-safe company context, the latest user-specific recommendation context, up to 10 recent role activities as compact text, and any upcoming Harper-connected meeting. Set include_jd true only when the job description/JD text is needed; when false, role.description is omitted. Treat private company-side notes as reasoning-only context; never quote or expose them to the user.",
     parameters: {
       type: "object",
       properties: {

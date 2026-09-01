@@ -133,13 +133,14 @@ async function fetchUnansweredInternalFitHoldQuestionCandidates(args: {
   const [rolesResponse, recommendationResponse] = await Promise.all([
     (args.admin.from("company_roles" as any) as any)
       .select(
-        "role_id, source_type, source_provider, source_job_id, name, information, status, is_expired"
+        "role_id, company_workspace_id, source_type, source_provider, source_job_id, name, information, status, is_expired"
       )
       .in("role_id", roleIds),
     (args.admin.from("talent_opportunity_recommendation" as any) as any)
-      .select("role_id")
-      .eq("talent_id", args.userId)
-      .in("role_id", roleIds),
+      .select(
+        "role_id, company_role:company_roles!inner(company_workspace_id)"
+      )
+      .eq("talent_id", args.userId),
   ]);
 
   if (rolesResponse.error || recommendationResponse.error) {
@@ -151,31 +152,36 @@ async function fetchUnansweredInternalFitHoldQuestionCandidates(args: {
     return [];
   }
 
-  const recommendedRoleIds = new Set(
+  const recommendedCompanyWorkspaceIds = new Set(
     (Array.isArray(recommendationResponse.data)
       ? recommendationResponse.data
       : []
-    ).map((row: Record<string, unknown>) => normalizeRoleId(row.role_id))
+    )
+      .map((row: Record<string, unknown>) => {
+        const companyRole = asRecord(row.company_role);
+        return cleanText(companyRole?.company_workspace_id, 120);
+      })
+      .filter(Boolean)
   );
   const activeInternalRoleIds = new Set(
     (Array.isArray(rolesResponse.data) ? rolesResponse.data : [])
       .filter((row: Record<string, unknown>) => {
         const sourceType = cleanText(row.source_type, 80).toLowerCase();
         const status = cleanText(row.status, 80).toLowerCase();
+        const companyWorkspaceId = cleanText(row.company_workspace_id, 120);
         return (
           sourceType === "internal" &&
           status === "active" &&
           row.is_expired !== true &&
-          !isTestOnlyInternalRole(row)
+          !isTestOnlyInternalRole(row) &&
+          !recommendedCompanyWorkspaceIds.has(companyWorkspaceId)
         );
       })
       .map((row: Record<string, unknown>) => normalizeRoleId(row.role_id))
   );
 
   return candidates.filter(
-    (candidate) =>
-      activeInternalRoleIds.has(candidate.roleId) &&
-      !recommendedRoleIds.has(candidate.roleId)
+    (candidate) => activeInternalRoleIds.has(candidate.roleId)
   );
 }
 

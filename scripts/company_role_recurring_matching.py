@@ -1500,6 +1500,12 @@ def validate_retrieval_rows(
 
 
 def command_run_sql(args: argparse.Namespace) -> int:
+    if args.lane == "reevaluation" and not getattr(
+        args, "allow_manual_reevaluation", False
+    ):
+        raise ValueError(
+            "reevaluation is disabled for automatic runs; an explicit manual override is required"
+        )
     sql_path = Path(args.sql_file).resolve()
     raw_sql = sql_path.read_text(encoding="utf-8")
     with connect() as conn:
@@ -1589,6 +1595,48 @@ def by_talent(rows: Iterable[Mapping[str, Any]]) -> dict[str, list[dict[str, Any
         if talent_id:
             grouped[talent_id].append(dict(row))
     return grouped
+
+
+def format_same_company_role_history(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    max_chars: int = 2000,
+) -> str:
+    lines = ["Existing history between this talent and the same company:"]
+    for index, row in enumerate(rows):
+        if compact(row.get("effective_label"), 40).lower() == "hold":
+            continue
+        parts = [compact(row.get("role_name"), 240) or "Unnamed role"]
+        label = compact(row.get("effective_label"), 40)
+        if label:
+            parts.append(f"stored {label}")
+        if row.get("recommended_at"):
+            parts.append(f"recommended {str(row['recommended_at'])[:10]}")
+        elif label == "fit":
+            parts.append(
+                "selected for delivery"
+                if row.get("recommend") is True
+                else "fit but not selected"
+            )
+        feedback = compact(row.get("feedback"), 80)
+        if feedback:
+            parts.append(f"talent response: {feedback}")
+        feedback_reason = compact(row.get("feedback_reason"), 240)
+        if feedback_reason:
+            parts.append(f"talent reason: {feedback_reason}")
+        stage = compact(row.get("processed_stage") or row.get("saved_stage"), 100)
+        if stage:
+            parts.append(f"process stage: {stage}")
+        reason = compact(row.get("fit_reason"), 280)
+        if reason:
+            parts.append(f"stored judgment: {reason}")
+        line = "- " + " | ".join(parts)
+        remaining = len(rows) - index
+        if len("\n".join([*lines, line])) + 60 > max_chars:
+            lines.append(f"- {remaining} additional historical role(s) omitted")
+            break
+        lines.append(line)
+    return "\n".join(lines)[:max_chars] if len(lines) > 1 else ""
 
 
 def candidate_rows(conn: psycopg.Connection, talent_ids: list[str], role_id: str) -> dict[str, Any]:
@@ -1779,6 +1827,54 @@ def candidate_rows(conn: psycopg.Connection, talent_ids: list[str], role_id: str
         """,
         (ids, role_id),
     )
+    same_company_role_history_rows = fetch_all(
+        conn,
+        """
+        select
+          fit.talent_id,
+          sibling.name as role_name,
+          coalesce(fit.human_label, fit.label) as effective_label,
+          fit.recommend,
+          coalesce(nullif(btrim(fit.human_reason), ''), fit.reason) as fit_reason,
+          latest_recommendation.recommended_at,
+          latest_recommendation.feedback,
+          latest_recommendation.feedback_reason,
+          latest_recommendation.saved_stage,
+          latest_recommendation.processed_stage
+        from public.talent_opportunity_fit fit
+        join public.company_roles sibling
+          on sibling.role_id = fit.opportunity_id
+        join public.company_roles target
+          on target.role_id = %s::uuid
+         and target.company_workspace_id = sibling.company_workspace_id
+        left join lateral (
+          select recommendation.recommended_at,
+                 recommendation.feedback,
+                 recommendation.feedback_reason,
+                 recommendation.saved_stage,
+                 recommendation.processed_stage
+          from public.talent_opportunity_recommendation recommendation
+          where recommendation.talent_id = fit.talent_id
+            and recommendation.role_id = sibling.role_id
+          order by recommendation.recommended_at desc, recommendation.id desc
+          limit 1
+        ) latest_recommendation on true
+        where fit.talent_id = any(%s::uuid[])
+          and sibling.role_id <> %s::uuid
+          and sibling.source_type = 'internal'
+          and lower(coalesce(sibling.information->>'testOnly', 'false')) <> 'true'
+          and coalesce(fit.human_label, fit.label) <> 'hold'
+        order by fit.talent_id,
+                 latest_recommendation.recommended_at desc nulls last,
+                 fit.last_evaluated_at desc,
+                 sibling.role_id
+        """,
+        (role_id, ids, role_id),
+    )
+    same_company_role_history = {
+        talent_id: format_same_company_role_history(rows)
+        for talent_id, rows in by_talent(same_company_role_history_rows).items()
+    }
     return {
         "profiles": {str(row["talent_id"]): row for row in profiles},
         "settings": {str(row["talent_id"]): row for row in settings},
@@ -1797,6 +1893,7 @@ def candidate_rows(conn: psycopg.Connection, talent_ids: list[str], role_id: str
         "currentRoleProgress": by_talent(progress),
         "currentRoleTags": by_talent(tags),
         "fits": {str(row["talent_id"]): row for row in fits},
+        "sameCompanyRoleHistory": same_company_role_history,
     }
 
 
@@ -1864,6 +1961,9 @@ def talent_packet_payload(data: Mapping[str, Any], talent_id: str) -> dict[str, 
         "currentRoleProgress": data["currentRoleProgress"].get(talent_id, []),
         "currentRoleTags": data["currentRoleTags"].get(talent_id, []),
         "currentRoleFit": data["fits"].get(talent_id),
+        "sameCompanyRoleHistory": data.get("sameCompanyRoleHistory", {}).get(
+            talent_id, ""
+        ),
     }
 
 
@@ -1874,7 +1974,7 @@ def candidate_input_fingerprint(talent_payload: Mapping[str, Any]) -> str:
         {
             key: value
             for key, value in talent_payload.items()
-            if key != "currentRoleFit"
+            if key not in {"currentRoleFit", "sameCompanyRoleHistory"}
         }
     )
     profile = inputs.get("profile") or {}
@@ -2094,6 +2194,18 @@ def render_candidate_evaluation_document(packet: Mapping[str, Any]) -> str:
                 "",
             ]
         )
+    same_company_history = compact(talent.get("sameCompanyRoleHistory"), 2000)
+    if same_company_history:
+        lines.extend(
+            [
+                "## 같은 회사의 다른 역할 기록",
+                "",
+                same_company_history,
+                "",
+                "이 기록은 현재 역할의 fit을 낮추기 위한 상한이 아니다. 역할별 결과나 더 강한 형제 역할은 현재 역할의 fit을 내리는 이유가 아니다. 다만 명시적인 회사 전체 판단이나 현재에도 적용되는 후보자의 회사 단위 선호처럼 역할을 넘어 실제로 이어지는 근거는 현재 label에 참고할 수 있다. recommend와 reason의 상대 판단에는 항상 사용한다.",
+                "",
+            ]
+        )
     safety = packet.get("safety") or {}
     lines.extend(
         [
@@ -2105,7 +2217,8 @@ def render_candidate_evaluation_document(packet: Mapping[str, Any]) -> str:
             "",
             "## Codex가 작성할 결과",
             "",
-            "문서 전체를 읽은 뒤 `label`, `score`, 핵심 근거를 설명하는 `reason`, hold일 때만 하나의 `reevaluationCriteria`, 해당할 때만 `companyCriteriaEvaluations`를 작성한다.",
+            "문서 전체를 읽은 뒤 `label`, `score`, `recommend`, 핵심 근거를 설명하는 `reason`, hold일 때만 하나의 `reevaluationCriteria`, 해당할 때만 `companyCriteriaEvaluations`를 작성한다.",
+            "fit은 역할별로 독립 판단한다. recommend=true는 fit 중 지금 먼저 능동적으로 제안할 역할이라는 뜻이다. 같은 회사의 다른 역할이 더 적절하거나 이미 진행 중이면 현재 역할은 fit을 유지하면서 recommend=false일 수 있다. 보통 하나가 먼저 제안되지만 정확히 하나를 강제하지 않는다. fit이 아니면 recommend는 반드시 false다.",
             "`reason`은 이 후보의 구체적인 역할·성과·현재 의향 또는 결정적 부족 근거를 적어도 하나 포함해야 한다. 여러 후보에게 같은 문장 틀을 적용하거나 한 필드만 바꿔 끼우면 미완료다.",
         ]
     )
@@ -2113,6 +2226,12 @@ def render_candidate_evaluation_document(packet: Mapping[str, Any]) -> str:
 
 
 def command_candidate_packet(args: argparse.Namespace) -> int:
+    if args.lane == "reevaluation" and not getattr(
+        args, "allow_manual_reevaluation", False
+    ):
+        raise ValueError(
+            "reevaluation is disabled for automatic runs; an explicit manual override is required"
+        )
     query_result = read_json(Path(args.query_result).resolve())
     query_rows = query_result.get("rows") if isinstance(query_result, Mapping) else None
     if not isinstance(query_rows, list):
@@ -2447,6 +2566,10 @@ def validate_evaluation(
     reason = str(item.get("reason") or "").strip()
     if not reason or len(reason) > 3000:
         raise ValueError(f"reason for {talent_id} must contain 1..3000 characters")
+    raw_recommend = item.get("recommend")
+    if not isinstance(raw_recommend, bool):
+        raise ValueError(f"recommend for {talent_id} must be boolean")
+    recommend = bool(raw_recommend and label == "fit")
     reevaluation = item.get("reevaluationCriteria")
     if label != "hold" and reevaluation not in (None, {}, [], ""):
         raise ValueError("reevaluationCriteria must be null unless label is hold")
@@ -2500,6 +2623,7 @@ def validate_evaluation(
         "score": score,
         "label": label,
         "reason": reason,
+        "recommend": recommend,
         "reevaluationCriteria": reevaluation if label == "hold" else None,
         "companyCriteriaEvaluations": criteria if label == "fit" else None,
         "explorationRecommendable": exploration,
@@ -2647,6 +2771,7 @@ def command_upsert_fits(args: argparse.Namespace) -> int:
                         "opportunity_id": str(run["role_id"]),
                         "score": item["score"],
                         "label": item["label"],
+                        "recommend": item["recommend"],
                         "kind": "codex",
                         **{
                             field: previous.get(field)
@@ -2687,12 +2812,12 @@ def command_upsert_fits(args: argparse.Namespace) -> int:
                     cur.execute(
                         """
                         insert into public.talent_opportunity_fit (
-                          talent_id, opportunity_id, kind, score, label, reason,
+                          talent_id, opportunity_id, kind, score, label, reason, recommend,
                           reevaluation_criteria, company_criteria_evaluations,
                           company_side_evaluation_metadata, behavior_context_version,
                           last_evaluated_at, reevaluation_checked_at
                         ) values (
-                          %s::uuid, %s::uuid, 'codex', %s, %s, %s,
+                          %s::uuid, %s::uuid, 'codex', %s, %s, %s, %s,
                           %s::jsonb, %s::jsonb, %s::jsonb, %s,
                           timezone('utc', now()), timezone('utc', now())
                         )
@@ -2701,13 +2826,14 @@ def command_upsert_fits(args: argparse.Namespace) -> int:
                           score = excluded.score,
                           label = excluded.label,
                           reason = excluded.reason,
+                          recommend = excluded.recommend,
                           reevaluation_criteria = excluded.reevaluation_criteria,
                           company_criteria_evaluations = excluded.company_criteria_evaluations,
                           company_side_evaluation_metadata = excluded.company_side_evaluation_metadata,
                           behavior_context_version = excluded.behavior_context_version,
                           last_evaluated_at = excluded.last_evaluated_at,
                           reevaluation_checked_at = excluded.reevaluation_checked_at
-                        returning talent_id, opportunity_id, score, label, kind,
+                        returning talent_id, opportunity_id, score, label, recommend, kind,
                                   human_label, human_reason, human_reviewed_by, human_reviewed_at
                         """,
                         (
@@ -2716,6 +2842,7 @@ def command_upsert_fits(args: argparse.Namespace) -> int:
                             item["score"],
                             item["label"],
                             item["reason"],
+                            item["recommend"],
                             json.dumps(item["reevaluationCriteria"]),
                             json.dumps(item["companyCriteriaEvaluations"]),
                             json.dumps(metadata),
@@ -3213,6 +3340,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_sql.add_argument("--revision", type=int, required=True)
     run_sql.add_argument("--max-rows", type=int, default=500)
+    run_sql.add_argument(
+        "--allow-manual-reevaluation",
+        action="store_true",
+        help="Required to run the legacy reevaluation lane intentionally; automatic runs must omit it.",
+    )
     run_sql.set_defaults(func=command_run_sql)
 
     packet = sub.add_parser("candidate-packet")
@@ -3223,6 +3355,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     packet.add_argument("--limit", type=int, default=DEFAULT_CANDIDATE_EVALUATION_LIMIT)
     packet.add_argument("--scan-limit", type=int, default=DEFAULT_CANDIDATE_SCAN_LIMIT)
+    packet.add_argument(
+        "--allow-manual-reevaluation",
+        action="store_true",
+        help="Required to continue an intentionally manual legacy reevaluation lane.",
+    )
     packet.set_defaults(func=command_candidate_packet)
 
     save_context = sub.add_parser("save-context")

@@ -75,7 +75,7 @@ class FakeQuery {
       return { data: this.admin.roles, error: null };
     }
     if (this.table === "talent_opportunity_recommendation") {
-      return { data: [], error: null };
+      return { data: this.admin.recommendations, error: null };
     }
     if (this.table !== "talent_opportunity_fit") {
       return { data: [], error: null };
@@ -106,6 +106,8 @@ class FakeQuery {
 }
 
 class FakeAdmin {
+  recommendations: Array<Record<string, unknown>> = [];
+
   fits: FitRow[] = [
     {
       created_at: "2026-08-01T00:00:00.000Z",
@@ -138,6 +140,7 @@ class FakeAdmin {
       information: {},
       is_expired: false,
       role_id: "role-thailand",
+      company_workspace_id: "company-1",
       source_type: "internal",
       status: "active",
     },
@@ -145,6 +148,7 @@ class FakeAdmin {
       information: {},
       is_expired: false,
       role_id: "role-singapore",
+      company_workspace_id: "company-1",
       source_type: "internal",
       status: "active",
     },
@@ -205,6 +209,24 @@ test("career does not expose legacy criteria without an explicit topic", async (
   for (const fit of admin.fits) {
     delete fit.reevaluation_criteria.topic;
   }
+
+  const active = await fetchActiveInternalFitHoldQuestion({
+    admin: admin as never,
+    locale: "ko",
+    userId: "talent-1",
+  });
+
+  assert.equal(active, null);
+});
+
+test("career suppresses sibling hold questions after a recommendation at the company", async () => {
+  const admin = new FakeAdmin();
+  admin.recommendations = [
+    {
+      role_id: "another-role",
+      company_role: { company_workspace_id: "company-1" },
+    },
+  ];
 
   const active = await fetchActiveInternalFitHoldQuestion({
     admin: admin as never,
