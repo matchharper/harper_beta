@@ -234,3 +234,13 @@ test("profile menu Documents items navigate explicitly", () => {
     /<DropdownMenuItem asChild>\s*<Link href=\{navHref\("documents"\)\}>/
   );
 });
+
+test("profile menus link to Calendar settings directly below Documents", () => {
+  const documentsItem = /Documents\s*<\/DropdownMenuItem>/g;
+  const calendarNavigation =
+    /onSelect=\{\(\) => void router\.push\(calendarSettingsHref\)\}/g;
+  assert.equal(sidebar.match(documentsItem)?.length, 2);
+  assert.equal(sidebar.match(calendarNavigation)?.length, 2);
+  assert.match(sidebar, /src="\/images\/logos\/calendar\.png"/);
+  assert.match(sidebar, /Documents\s*<\/DropdownMenuItem>[\s\S]*?일정 저장/);
+});

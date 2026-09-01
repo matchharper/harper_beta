@@ -62,6 +62,7 @@ type UseCareerChatArgs = {
     updatedAt: unknown
   ) => void;
   onTalentInsightsRefreshed?: (insights: unknown, updatedAt: unknown) => void;
+  onOnboardingChecklistProgressRefreshed?: (progress: unknown) => void;
   onTalentProfileRefreshed?: (
     profile: SessionResponse["talentProfile"] | undefined
   ) => void;
@@ -226,6 +227,7 @@ export const useCareerChat = ({
   onOpportunityRecommendationsChanged,
   onTalentPreferencesRefreshed,
   onTalentInsightsRefreshed,
+  onOnboardingChecklistProgressRefreshed,
   onTalentProfileRefreshed,
   persistedMessages,
   onMessagesChanged,
@@ -1037,6 +1039,11 @@ export const useCareerChat = ({
                     data.insightUpdatedAt
                   );
                 }
+                if ("onboardingChecklistProgress" in data) {
+                  onOnboardingChecklistProgressRefreshed?.(
+                    data.onboardingChecklistProgress
+                  );
+                }
                 if ("talentProfile" in data) {
                   onTalentProfileRefreshed?.(
                     data.talentProfile as SessionResponse["talentProfile"]
@@ -1141,6 +1148,11 @@ export const useCareerChat = ({
           onTalentInsightsRefreshed?.(
             payload.talentInsights,
             payload.insightUpdatedAt
+          );
+        }
+        if (isRecord(payload) && "onboardingChecklistProgress" in payload) {
+          onOnboardingChecklistProgressRefreshed?.(
+            payload.onboardingChecklistProgress
           );
         }
         if (isRecord(payload) && "talentProfile" in payload) {
@@ -1256,6 +1268,7 @@ export const useCareerChat = ({
       onMessagesChanged,
       onOpportunityRunChanged,
       onOpportunityRecommendationsChanged,
+      onOnboardingChecklistProgressRefreshed,
       onTalentInsightsRefreshed,
       onTalentPreferencesRefreshed,
       onTalentProfileRefreshed,

@@ -15,6 +15,7 @@ import { useCareerT } from "@/i18n/useCareerT";
 import { formatCareerLocation } from "@/lib/career/locationDisplay";
 import { InternalOpportunityDecisionMenu } from "./InternalOpportunityDecisionActions";
 import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
+import UpcomingMeetingStrip from "./UpcomingMeetingStrip";
 
 type SavedOpportunityBoardProps = {
   columnLoadState: Record<
@@ -146,6 +147,10 @@ const SavedOpportunityBoardCard = ({
             <div className="mt-3 line-clamp-2 text-[14px] font-normal leading-5 text-neutral-primary">
               {item.title}
             </div>
+            <UpcomingMeetingStrip
+              meeting={item.upcomingMeeting}
+              className="-mx-3 mt-2 rounded-none px-3 py-1 text-[11px] leading-4"
+            />
             {recommendedAgo ? (
               <div className="mt-2 truncate text-[12px] leading-4 text-neutral-muted">
                 {recommendedAgo}

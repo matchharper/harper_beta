@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   calendarBusyBlockOverlapsDate,
+  calendarBusyBlockOverlapsTimeRange,
   formatCalendarBusyBlockTimeForDate,
 } from "./calendarBusyBlocks";
 
@@ -63,5 +64,68 @@ test("keeps all-day blocks privacy-minimal in the UI", () => {
       timezone: "Asia/Seoul",
     }),
     "하루 종일"
+  );
+});
+
+test("matches only the local hour ranges overlapped by a busy block", () => {
+  const partialHourBlock = {
+    ...overnightBlock,
+    endAt: "2026-08-29T02:30:00.000Z",
+    startAt: "2026-08-29T01:30:00.000Z",
+  };
+  for (const range of [
+    { rangeEnd: "11:00", rangeStart: "10:00" },
+    { rangeEnd: "12:00", rangeStart: "11:00" },
+  ]) {
+    assert.equal(
+      calendarBusyBlockOverlapsTimeRange({
+        busyBlock: partialHourBlock,
+        dateKey: "2026-08-29",
+        ...range,
+        timezone: "Asia/Seoul",
+      }),
+      true
+    );
+  }
+
+  assert.equal(
+    calendarBusyBlockOverlapsTimeRange({
+      busyBlock: overnightBlock,
+      dateKey: "2026-08-29",
+      rangeEnd: "23:00",
+      rangeStart: "22:00",
+      timezone: "Asia/Seoul",
+    }),
+    false
+  );
+  assert.equal(
+    calendarBusyBlockOverlapsTimeRange({
+      busyBlock: overnightBlock,
+      dateKey: "2026-08-29",
+      rangeEnd: "24:00",
+      rangeStart: "23:00",
+      timezone: "Asia/Seoul",
+    }),
+    true
+  );
+  assert.equal(
+    calendarBusyBlockOverlapsTimeRange({
+      busyBlock: overnightBlock,
+      dateKey: "2026-08-30",
+      rangeEnd: "01:00",
+      rangeStart: "00:00",
+      timezone: "Asia/Seoul",
+    }),
+    true
+  );
+  assert.equal(
+    calendarBusyBlockOverlapsTimeRange({
+      busyBlock: overnightBlock,
+      dateKey: "2026-08-30",
+      rangeEnd: "02:00",
+      rangeStart: "01:00",
+      timezone: "Asia/Seoul",
+    }),
+    false
   );
 });

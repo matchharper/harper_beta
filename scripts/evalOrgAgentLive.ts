@@ -27,7 +27,7 @@ type EvalHistoryMessage = {
 
 type RunCaseOptions = {
   history?: EvalHistoryMessage[];
-  mockTerminalWrites?: boolean;
+  mockWrites?: boolean;
 };
 
 function buildSyntheticFixture(now: string) {
@@ -244,11 +244,11 @@ function includesAll(value: string, expected: string[]) {
   );
 }
 
-function terminalCallIsAlone(result: EvalResult, name: string) {
-  const terminal = result.calls.find((call) => call.name === name);
+function callHasExclusiveReasoningStep(result: EvalResult, name: string) {
+  const targetCall = result.calls.find((call) => call.name === name);
   return Boolean(
-    terminal &&
-    result.calls.filter((call) => call.batch === terminal.batch).length === 1
+    targetCall &&
+    result.calls.filter((call) => call.batch === targetCall.batch).length === 1
   );
 }
 
@@ -301,14 +301,18 @@ async function main() {
       resolveOrgAgentModel,
     },
     { buildOrgAgentSystemPrompt, buildOrgAgentUserPrompt },
-    { serializeOrgAgentToolError, serializeOrgAgentToolResult },
+    {
+      serializeOrgAgentDeferredToolCall,
+      serializeOrgAgentToolError,
+      serializeOrgAgentToolResult,
+    },
     { getSupabaseAdmin },
     {
       createOrgAgentToolExecutionState,
       executeOrgAgentTool,
       promoteOrgAgentToolReadVisibility,
     },
-    { enforceOrgAgentTerminalMutationOutcome },
+    { enforceOrgAgentReplyInvariants },
     { isOrgAgentToolName, ORG_AGENT_TOOLS },
   ] = await Promise.all([
     import("../src/lib/org/agent/context"),
@@ -513,12 +517,13 @@ async function main() {
     let activeModel = evalModel;
     let totalToolCalls = 0;
 
-    for (let loop = 0; loop < 5; loop += 1) {
+    for (let loop = 0; loop < 10; loop += 1) {
       const completion = await createChatCompletionWithFallback({
         anthropicOverloadFallbackModel: ORG_AGENT_GROK_MODEL,
         buildRequest: () => ({
           max_tokens: 4_000,
           messages,
+          parallel_tool_calls: false,
           temperature: 0.1,
           tool_choice: "auto",
           tools: ORG_AGENT_TOOLS,
@@ -557,7 +562,7 @@ async function main() {
       });
       if (toolCalls.length === 0) {
         return {
-          answer: enforceOrgAgentTerminalMutationOutcome(
+          answer: enforceOrgAgentReplyInvariants(
             state,
             text(responseMessage.content)
           ),
@@ -567,15 +572,18 @@ async function main() {
         };
       }
 
-      for (const call of toolCalls) {
+      const deferredCalls = toolCalls.slice(1);
+      for (const call of toolCalls.slice(0, 1)) {
         const name = text(call?.function?.name);
         const callId = text(call?.id) || randomUUID();
         const input = parseArguments(call?.function?.arguments);
-        if (totalToolCalls >= 5) {
+        if (totalToolCalls >= 10) {
           messages.push({
-            content: serializeOrgAgentToolError(
-              "Tool call budget reached. Continue with a final answer."
-            ),
+            content: serializeOrgAgentToolError({
+              kind: "budget",
+              message: "Tool call budget reached.",
+              name,
+            }),
             name,
             role: "tool",
             tool_call_id: callId,
@@ -587,7 +595,11 @@ async function main() {
 
         if (!isOrgAgentToolName(name)) {
           messages.push({
-            content: serializeOrgAgentToolError("Unknown tool"),
+            content: serializeOrgAgentToolError({
+              kind: "unknown_tool",
+              message: "Unknown tool",
+              name,
+            }),
             name,
             role: "tool",
             tool_call_id: callId,
@@ -631,8 +643,7 @@ async function main() {
                         : roleStatus === "paused"
                           ? "역할은 열어두지만 추가 후보 추천을 중단합니다. 현재 진행 중인 후보자와 연결은 그대로 유지합니다."
                           : "역할의 채용과 추가 추천을 종료합니다. 현재 프로세스의 후보자에게 역할 종료 소식을 자연스럽게 안내하고 연결을 닫습니다.";
-                    state.terminalMutationUsed = true;
-                    state.terminalReply = `${roleName} 역할 상태 변경을 반영했습니다. ${effect}`;
+                    state.fallbackReply = `${roleName} 역할 상태 변경을 반영했습니다. ${effect}`;
                     state.toolResults.push({
                       callId,
                       name,
@@ -646,7 +657,7 @@ async function main() {
                       status: "updated",
                     };
                   })()
-                : options.mockTerminalWrites && name === "contact_talent"
+                : options.mockWrites && name === "contact_talent"
                   ? (() => {
                       const talentId = text(input.talentId);
                       const roleId = text(input.roleId);
@@ -656,8 +667,7 @@ async function main() {
                         roleNameById.get(roleId) || "해당 포지션";
                       const isResumeRequest = input.kind === "resume";
                       const scheduledForKst = "2026-08-07 09:20 KST";
-                      state.terminalMutationUsed = true;
-                      state.terminalReply = isResumeRequest
+                      state.fallbackReply = isResumeRequest
                         ? `${candidateName}께 ${context.workspace.companyName}의 ${roleName} 포지션 검토를 위한 최신 이력서 공유 요청임을 밝히고 전달할 수 있도록 접수했습니다. ${scheduledForKst}에 이메일과 Harper 채팅으로 한 번 전달할 예정이며, 아직 전달 완료나 업로드 완료를 의미하는 단계는 아닙니다. 후보자분이 이력서를 올리면 이 대화로 알려드리겠습니다. 답변이나 업로드는 선택이며, Harper가 자동으로 재촉하지는 않습니다. 발송 전에는 취소할 수 있습니다.`
                         : `${candidateName}께 ${context.workspace.companyName}에서 ${roleName} 포지션과 관련해 확인하는 질문이라는 점을 공개하고, “${text(input.requestContext)}”라는 질문을 대신 전달할 수 있도록 접수했습니다. ${scheduledForKst}에 이메일과 Harper 채팅으로 한 번 전달할 예정이며, 아직 전달 완료나 후보자 답변을 의미하는 단계는 아닙니다. 답이 오면 이 대화로 전달드리겠습니다. 답변은 후보자분의 선택이며, Harper가 자동으로 재촉하지는 않습니다. 발송 전에는 취소할 수 있습니다.`;
                       state.toolResults.push({
@@ -672,7 +682,7 @@ async function main() {
                         cancelable: true,
                         scheduledForKst,
                         status: "queued",
-                        userMessage: state.terminalReply,
+                        userMessage: state.fallbackReply,
                       };
                     })()
                   : syntheticMode && name === "read_talent"
@@ -1111,19 +1121,66 @@ async function main() {
           });
         } catch (error) {
           messages.push({
-            content: serializeOrgAgentToolError(
-              error instanceof Error ? error.message : error
-            ),
+            content: serializeOrgAgentToolError({
+              kind: "execution",
+              message: error instanceof Error ? error.message : error,
+              name,
+            }),
             name,
             role: "tool",
             tool_call_id: callId,
           });
         }
       }
+      for (const deferredCall of deferredCalls) {
+        messages.push({
+          content: serializeOrgAgentDeferredToolCall(),
+          name: text(deferredCall?.function?.name),
+          role: "tool",
+          tool_call_id: text(deferredCall?.id) || randomUUID(),
+        });
+      }
       promoteOrgAgentToolReadVisibility(state);
     }
 
-    return { answer: "", calls, model: activeModel, usage };
+    const finalCompletion = await createChatCompletionWithFallback({
+      anthropicOverloadFallbackModel: ORG_AGENT_GROK_MODEL,
+      buildRequest: () => ({
+        max_tokens: 4_000,
+        messages: [
+          ...messages,
+          {
+            content:
+              "Tool use is finished for this turn. Explain completed and incomplete work without claiming an unverified action.",
+            role: "user",
+          },
+        ],
+        temperature: 0.1,
+      }),
+      debugLabel: "org/agent:live-eval:final",
+      deepSeekThinking: { reasoningEffort: "high" },
+      fallbackModel: getOrgAgentFallbackModel(activeModel),
+      model: activeModel,
+      openAIResponses: { reasoningEffort: "high" },
+    });
+    activeModel = finalCompletion.model as typeof DEFAULT_ORG_AGENT_MODEL;
+    const finalUsage = finalCompletion.response?.usage ?? {};
+    usage.inputTokens += Number(
+      finalUsage.prompt_tokens ?? finalUsage.input_tokens ?? 0
+    );
+    usage.outputTokens += Number(
+      finalUsage.completion_tokens ?? finalUsage.output_tokens ?? 0
+    );
+    usage.totalTokens += Number(finalUsage.total_tokens ?? 0);
+    return {
+      answer: enforceOrgAgentReplyInvariants(
+        state,
+        text(finalCompletion.response?.choices?.[0]?.message?.content)
+      ),
+      calls,
+      model: activeModel,
+      usage,
+    };
   }
 
   const cases = [
@@ -1528,7 +1585,7 @@ async function main() {
       ],
       id: "C2",
       message: "물어봐봐",
-      mockTerminalWrites: true,
+      mockWrites: true,
       pass: (result: EvalResult) =>
         result.calls.filter(
           (call) =>
@@ -1538,7 +1595,7 @@ async function main() {
             call.arguments.roleId === founderRecommendation.role.roleId &&
             call.arguments.kind === "question"
         ).length === 1 &&
-        terminalCallIsAlone(result, "contact_talent") &&
+        callHasExclusiveReasoningStep(result, "contact_talent") &&
         /바로.*이직|이직.*바로/.test(
           text(
             result.calls.find((call) => call.name === "contact_talent")
@@ -1593,14 +1650,14 @@ async function main() {
       ],
       id: "C4",
       message: "응, 현재 희망 보상을 어떻게 공유해도 되는지 물어봐줘.",
-      mockTerminalWrites: true,
+      mockWrites: true,
       pass: (result: EvalResult) => {
         const contact = result.calls.find(
           (call) => call.name === "contact_talent"
         );
         return Boolean(
           contact &&
-          terminalCallIsAlone(result, "contact_talent") &&
+          callHasExclusiveReasoningStep(result, "contact_talent") &&
           contact.arguments.talentId ===
             founderRecommendation.candidate.talentId &&
           contact.arguments.roleId === founderRecommendation.role.roleId &&
@@ -1646,7 +1703,7 @@ async function main() {
       ],
       id: "C6",
       message: "응, 최신 이력서 요청해줘.",
-      mockTerminalWrites: true,
+      mockWrites: true,
       pass: (result: EvalResult) =>
         result.calls.filter(
           (call) =>
@@ -1656,7 +1713,7 @@ async function main() {
               founderRecommendation.candidate.talentId &&
             call.arguments.roleId === founderRecommendation.role.roleId
         ).length === 1 &&
-        terminalCallIsAlone(result, "contact_talent") &&
+        callHasExclusiveReasoningStep(result, "contact_talent") &&
         /접수/.test(result.answer) &&
         /전달 완료.*아니|아직.*(?:전달.*(?:않|아니|전)|완료)/.test(
           result.answer
@@ -2061,7 +2118,7 @@ async function main() {
       ],
       id: "D22",
       message: "응, 지금 이직 생각이 있는지 물어봐줘.",
-      mockTerminalWrites: true,
+      mockWrites: true,
       pass: (result: EvalResult) =>
         result.calls.filter(
           (call) =>
@@ -2101,7 +2158,7 @@ async function main() {
       ],
       id: "D24",
       message: "그럼 희망 보상을 어떻게 공유해도 되는지 물어봐줘.",
-      mockTerminalWrites: true,
+      mockWrites: true,
       pass: (result: EvalResult) => {
         const contact = result.calls.find(
           (call) => call.name === "contact_talent"
@@ -2147,7 +2204,7 @@ async function main() {
       ],
       id: "D26",
       message: "응, 최신 이력서 요청해줘.",
-      mockTerminalWrites: true,
+      mockWrites: true,
       pass: (result: EvalResult) =>
         result.calls.some(
           (call) =>
@@ -2267,9 +2324,9 @@ async function main() {
     console.error(`[live-eval] ${testCase.id} running`);
     const result = await runCase(testCase.message, {
       history: "history" in testCase ? testCase.history : undefined,
-      mockTerminalWrites:
-        "mockTerminalWrites" in testCase
-          ? testCase.mockTerminalWrites
+      mockWrites:
+        "mockWrites" in testCase
+          ? testCase.mockWrites
           : undefined,
     });
     const passed =

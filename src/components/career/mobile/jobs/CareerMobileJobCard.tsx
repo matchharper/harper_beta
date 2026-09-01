@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import React from "react";
-import { Building2, Dot, MapPin } from "lucide-react";
+import { Building2, MapPin } from "lucide-react";
 import type {
   CareerHistoryOpportunity,
   CareerOpportunityType,
@@ -29,6 +29,8 @@ import { formatCareerLocation } from "@/lib/career/locationDisplay";
 import { InternalOpportunityDecisionMenu } from "@/components/career/history/InternalOpportunityDecisionActions";
 import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
 import { normalizeHarperPublicImageUrl } from "@/lib/imageUrl";
+import OpportunityRecommendationPreview from "@/components/career/history/OpportunityRecommendationPreview";
+import UpcomingMeetingStrip from "@/components/career/history/UpcomingMeetingStrip";
 
 type CareerMobileJobCardProps = {
   item: CareerHistoryOpportunity;
@@ -56,12 +58,6 @@ export const CareerMobileJobCard = React.memo(function CareerMobileJobCard({
   const t = useCareerT();
   const { locale } = useMessages();
   const postingStatus = getOpportunityPostingStatus(item, locale, t);
-  const recommendationSummary = item.recommendationSummary?.trim() ?? "";
-  const recommendationReasons = item.recommendationReasons.slice(0, 2);
-  const recommendationConcerns = (item.recommendationConcerns ?? []).slice(
-    0,
-    1
-  );
   const companyInfoLink = item.companyHomepageUrl ?? item.companyLinkedinUrl;
   const companyLogoSrc = normalizeHarperPublicImageUrl(item.companyLogoUrl);
   const canChangeStatus = canChangeCareerOpportunityManagementStatus(item);
@@ -189,42 +185,14 @@ export const CareerMobileJobCard = React.memo(function CareerMobileJobCard({
             </div>
           </div>
 
-          {recommendationSummary ||
-          recommendationReasons.length > 0 ||
-          recommendationConcerns.length > 0 ? (
-            <div className="mt-4 space-y-3 text-[13px] leading-5 text-neutral-primary">
-              {recommendationSummary ? (
-                <div>{recommendationSummary}</div>
-              ) : null}
-              {recommendationReasons.map((reason, index) => (
-                <div
-                  key={`${item.id}-mobile-reason-${index}`}
-                  className="flex items-start gap-1"
-                >
-                  <Dot className="mt-1 h-4 w-4 min-w-4 text-neutral-soft" />
-                  <div
-                    className="line-clamp-2 min-w-0"
-                    dangerouslySetInnerHTML={{ __html: reason }}
-                  />
-                </div>
-              ))}
-              {recommendationConcerns.map((concern, index) => (
-                <div
-                  key={`${item.id}-mobile-concern-${index}`}
-                  className="flex items-start gap-1"
-                >
-                  <Dot className="mt-1 h-4 w-4 min-w-4 text-neutral-soft" />
-                  <div className="min-w-0 text-neutral-muted">
-                    {t(
-                      "career.history.opportunity_list_card.0l12x89",
-                      "주의 요소 :"
-                    )}{" "}
-                    {concern}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : null}
+          <OpportunityRecommendationPreview
+            item={item}
+            className="text-[13px] leading-5"
+          />
+          <UpcomingMeetingStrip
+            meeting={item.upcomingMeeting}
+            className="-mx-4 mt-3 rounded-none px-4"
+          />
         </article>
       </ClickablePanel>
     </InlinePanel>

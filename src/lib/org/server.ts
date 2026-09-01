@@ -16,6 +16,7 @@ import {
   canInitiateOrgCandidateContact,
   isOrgInternalStage,
   requiresOrgIntroEmailRecipient,
+  shouldSendOrgIntroEmail,
 } from "@/lib/org/candidateDecision";
 import { buildOrgInviteEmail } from "@/lib/org/inviteEmail";
 import {
@@ -44,6 +45,7 @@ import {
   type OrgRoleCriterion,
 } from "@/lib/org/roleCriteria";
 import { normalizeOrgAgentRecommendationIdFilter } from "@/lib/org/pipelineStage";
+import { chunkOrgBoardFilterValues as chunkValues } from "@/lib/org/chunking";
 import {
   ConnectionConfirmationEmailError,
   fetchInternalConnectionConfirmationEmails,
@@ -414,9 +416,21 @@ export type OrgFeedActor = {
 };
 
 export type OrgFeedItem = {
+  activity: {
+    eventType: "candidate_contact_sent" | "candidate_response_received";
+    requestContext: string | null;
+    requestId: string;
+    requestKind: "question" | "resume";
+  } | null;
   actor: OrgFeedActor | null;
   companyUserId: string | null;
   createdAt: string;
+  delivery: {
+    bodyText: string | null;
+    disclosureLabel: string;
+    id: string;
+    subject: string | null;
+  } | null;
   id: string;
   kind: string;
   recommendationId: string | null;
@@ -542,6 +556,56 @@ export type OrgTalentDetailResponse = {
   workspace: Pick<OrgWorkspace, "companyName" | "workspaceId">;
 };
 
+export type OrgOtherRoleFeedItem = {
+  createdAt: string;
+  id: string;
+  kind:
+    | "company_request"
+    | "connection_notice"
+    | "intro_email"
+    | "meeting"
+    | "progress";
+  roleId: string;
+  roleName: string;
+  text: string;
+  title: string;
+};
+
+export type OrgOtherRoleFeedResponse = {
+  items: OrgOtherRoleFeedItem[];
+};
+
+export type MoveOrgCandidateToRoleResult = {
+  activeMeetingCount: number;
+  candidateName: string | null;
+  idempotentReplay?: boolean;
+  openQuestionCount: number;
+  sourceRecommendationId: string | null;
+  sourceRoleId: string | null;
+  sourceRoleName: string | null;
+  sourceStageId: string | null;
+  sourceStageLabel: string | null;
+  status:
+    | "already_in_target_pipeline"
+    | "moved"
+    | "permission_denied"
+    | "same_role"
+    | "source_candidate_not_found"
+    | "target_role_unavailable"
+    | "target_stage_not_found"
+    | "target_stage_not_supported"
+    | "test_only_target_blocked";
+  targetExistingStageId: string | null;
+  targetExistingStageLabel: string | null;
+  targetRecommendationId: string | null;
+  targetRoleId: string | null;
+  targetRoleName: string | null;
+  targetRoleStatus: string | null;
+  targetStageId: string | null;
+  targetStageLabel: string | null;
+  transferId: string | null;
+};
+
 export type OrgFeedCreateResponse = {
   ok: true;
 };
@@ -574,7 +638,6 @@ export type OrgStageChangeOptions = {
 
 const CUSTOM_STAGE_ID_PREFIX = "custom:";
 const CUSTOM_STAGE_TAG_PREFIX = "내부단계:";
-const ORG_BOARD_ID_FILTER_CHUNK_SIZE = 150;
 const ORG_BOARD_MAX_RECOMMENDATION_COUNT = 800;
 const ORG_BOARD_STAGE_DEPENDENCY_CAP = 1_000;
 export const ORG_ACCEPTED_TALENTS_PAGE_SIZE = 20;
@@ -633,14 +696,6 @@ function uniqueTexts(values: string[]) {
   return Array.from(
     new Set(values.map((value) => value.trim()).filter(Boolean))
   );
-}
-
-function chunkValues<T>(values: T[], size = ORG_BOARD_ID_FILTER_CHUNK_SIZE) {
-  const chunks: T[][] = [];
-  for (let index = 0; index < values.length; index += size) {
-    chunks.push(values.slice(index, index + size));
-  }
-  return chunks;
 }
 
 function getUserName(user: User) {
@@ -2549,18 +2604,36 @@ async function fetchUpcomingMeetingsByRecommendation(args: {
   >();
   if (args.recommendationIds.length === 0) return meetingsByRecommendation;
 
-  const { data, error } = await (
-    args.admin.from("meeting_schedules" as any) as any
-  )
-    .select("recommendation_id, title, confirmed_start_at, confirmed_end_at")
-    .eq("company_workspace_id", args.workspaceId)
-    .in("recommendation_id", args.recommendationIds)
-    .eq("status", "confirmed")
-    .gte("confirmed_start_at", new Date().toISOString())
-    .order("confirmed_start_at", { ascending: true });
-  if (error) throw error;
+  const nowIso = new Date().toISOString();
+  const resultChunks = await Promise.all(
+    chunkValues(uniqueTexts(args.recommendationIds)).map(
+      async (recommendationIdChunk) => {
+        const { data, error } = await (
+          args.admin.from("meeting_schedules" as any) as any
+        )
+          .select(
+            "recommendation_id, title, confirmed_start_at, confirmed_end_at"
+          )
+          .eq("company_workspace_id", args.workspaceId)
+          .in("recommendation_id", recommendationIdChunk)
+          .eq("status", "confirmed")
+          .gte("confirmed_start_at", nowIso)
+          .order("confirmed_start_at", { ascending: true });
+        if (error) {
+          console.error("[org/board] upcoming meeting query failed", {
+            code: error.code ?? null,
+            message: error.message ?? String(error),
+            recommendationIdCount: recommendationIdChunk.length,
+            workspaceId: args.workspaceId,
+          });
+          throw error;
+        }
+        return data ?? [];
+      }
+    )
+  );
 
-  for (const row of data ?? []) {
+  for (const row of resultChunks.flat()) {
     const recommendationId = normalizeText(row.recommendation_id);
     const startAt = normalizeText(row.confirmed_start_at);
     const endAt = normalizeText(row.confirmed_end_at);
@@ -3561,6 +3634,115 @@ async function upsertRecommendationProcessedStage(args: {
   if (error) throw error;
 }
 
+const ORG_CANDIDATE_ROLE_MOVE_STATUSES = new Set<
+  MoveOrgCandidateToRoleResult["status"]
+>([
+  "already_in_target_pipeline",
+  "moved",
+  "permission_denied",
+  "same_role",
+  "source_candidate_not_found",
+  "target_role_unavailable",
+  "target_stage_not_found",
+  "target_stage_not_supported",
+  "test_only_target_blocked",
+]);
+
+function normalizeCandidateRoleMoveResult(
+  value: unknown
+): MoveOrgCandidateToRoleResult {
+  const result = getJsonRecord(value);
+  const rawStatus = normalizeText(result.status) as
+    | MoveOrgCandidateToRoleResult["status"]
+    | "";
+  if (
+    !ORG_CANDIDATE_ROLE_MOVE_STATUSES.has(
+      rawStatus as MoveOrgCandidateToRoleResult["status"]
+    )
+  ) {
+    throw new OrgHttpError(500, "Invalid candidate role move result");
+  }
+  const status = rawStatus as MoveOrgCandidateToRoleResult["status"];
+  const nullable = (key: string) => normalizeNullableText(result[key]);
+  const count = (key: string) => {
+    const parsed = Number(result[key]);
+    return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
+  };
+  return {
+    activeMeetingCount: count("activeMeetingCount"),
+    candidateName: nullable("candidateName"),
+    ...(result.idempotentReplay === true ? { idempotentReplay: true } : {}),
+    openQuestionCount: count("openQuestionCount"),
+    sourceRecommendationId: nullable("sourceRecommendationId"),
+    sourceRoleId: nullable("sourceRoleId"),
+    sourceRoleName: nullable("sourceRoleName"),
+    sourceStageId: nullable("sourceStageId"),
+    sourceStageLabel: nullable("sourceStageLabel"),
+    status,
+    targetExistingStageId: nullable("targetExistingStageId"),
+    targetExistingStageLabel: nullable("targetExistingStageLabel"),
+    targetRecommendationId: nullable("targetRecommendationId"),
+    targetRoleId: nullable("targetRoleId"),
+    targetRoleName: nullable("targetRoleName"),
+    targetRoleStatus: nullable("targetRoleStatus"),
+    targetStageId: nullable("targetStageId"),
+    targetStageLabel: nullable("targetStageLabel"),
+    transferId: nullable("transferId"),
+  };
+}
+
+export async function moveOrgCandidateToRole(args: {
+  companyMessageId: number;
+  sourceRoleId: string;
+  talentId: string;
+  targetRoleId: string;
+  targetStageId: string;
+  user: User;
+  workspaceId: string;
+}): Promise<MoveOrgCandidateToRoleResult> {
+  const admin = getSupabaseAdmin();
+  const workspaceId = normalizeText(args.workspaceId);
+  const talentId = normalizeText(args.talentId);
+  const sourceRoleId = normalizeText(args.sourceRoleId);
+  const targetRoleId = normalizeText(args.targetRoleId);
+  const targetStageId = normalizeText(args.targetStageId).toLowerCase();
+  const companyMessageId = Math.floor(Number(args.companyMessageId));
+  if (
+    !workspaceId ||
+    !talentId ||
+    !sourceRoleId ||
+    !targetRoleId ||
+    !targetStageId ||
+    !Number.isSafeInteger(companyMessageId) ||
+    companyMessageId <= 0
+  ) {
+    throw new OrgHttpError(400, "Missing required candidate role move fields");
+  }
+
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "manage_candidates",
+    user: args.user,
+    workspaceId,
+  });
+  await upsertOrgCompanyUser(admin, args.user);
+
+  const { data, error } = await (admin.rpc as any)(
+    "move_company_candidate_to_role_v1",
+    {
+      p_company_user_id: args.user.id,
+      p_company_workspace_id: workspaceId,
+      p_source_company_message_id: companyMessageId,
+      p_source_role_id: sourceRoleId,
+      p_talent_id: talentId,
+      p_target_role_id: targetRoleId,
+      p_target_stage_id: targetStageId,
+    }
+  );
+  if (error) throw error;
+  return normalizeCandidateRoleMoveResult(data);
+}
+
 export async function setOrgCandidateStage(args: {
   acceptReason?: string | null;
   contactDirectly?: boolean;
@@ -3730,8 +3912,14 @@ export async function setOrgCandidateStage(args: {
     );
   }
 
-  const isIntroRequested =
-    canInitiateContact && !contactDirectly && introEmails.length > 0;
+  const isIntroRequested = shouldSendOrgIntroEmail({
+    contactDirectly,
+    currentStage: previousStage,
+    nextStage: stage,
+    recipientCount: introEmails.length,
+    scheduleInterview,
+    skipAutomaticContact,
+  });
   let introDelivery: {
     cc: string[];
     messageId: string;
@@ -4521,6 +4709,290 @@ async function fetchOrgIntroEmailFeed(args: {
   });
 }
 
+export async function fetchOrgTalentOtherRoleFeed(args: {
+  excludeRoleId: string;
+  talentId: string;
+  user: User;
+  workspaceId: string;
+}): Promise<OrgOtherRoleFeedResponse> {
+  const admin = getSupabaseAdmin();
+  const workspaceId = normalizeText(args.workspaceId);
+  const talentId = normalizeText(args.talentId);
+  const excludeRoleId = normalizeText(args.excludeRoleId);
+  if (!workspaceId || !talentId || !excludeRoleId) {
+    throw new OrgHttpError(400, "Missing required fields");
+  }
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "view",
+    user: args.user,
+    workspaceId,
+  });
+  await assertOrgTalentVisibleInWorkspace({
+    admin,
+    talentId,
+    user: args.user,
+    workspaceId,
+  });
+
+  const { data: roleData, error: roleError } = await (
+    admin.from("company_roles" as any) as any
+  )
+    .select("role_id, name")
+    .eq("company_workspace_id", workspaceId)
+    .eq("source_type", "internal");
+  if (roleError) throw roleError;
+  const otherRoles = (
+    (roleData ?? []) as Array<{ name: string; role_id: string }>
+  ).filter((role) => role.role_id !== excludeRoleId);
+  const roleIds = otherRoles.map((role) => role.role_id);
+  if (roleIds.length === 0) return { items: [] };
+  const roleNameById = new Map(
+    otherRoles.map((role) => [role.role_id, role.name] as const)
+  );
+
+  const [
+    progressResult,
+    requestsResult,
+    meetingsResult,
+    noticesResult,
+    recommendationsResult,
+  ] = await Promise.all([
+    (admin.from("talent_progress" as any) as any)
+      .select(
+        "id, talent_id, role_id, recommendation_id, text, kind, metadata, company_user_id, user_id, created_at"
+      )
+      .eq("talent_id", talentId)
+      .in("role_id", roleIds)
+      .in("kind", [
+        "org_stage_change",
+        "org_note",
+        "org_candidate_activity",
+        "org_candidate_role_move",
+      ])
+      .order("created_at", { ascending: false })
+      .limit(200),
+    (admin.from("company_talent_requests" as any) as any)
+      .select(
+        "id, role_id, expects_document, request_context, workflow_status, created_at"
+      )
+      .eq("company_workspace_id", workspaceId)
+      .eq("talent_id", talentId)
+      .in("role_id", roleIds)
+      .order("created_at", { ascending: false })
+      .limit(100),
+    (admin.from("meeting_schedules" as any) as any)
+        .select(
+          "id, role_id, status, title, duration_minutes, updated_at"
+      )
+      .eq("company_workspace_id", workspaceId)
+      .eq("talent_id", talentId)
+      .in("role_id", roleIds)
+      .order("updated_at", { ascending: false })
+      .limit(100),
+    (admin.from("contact_queue" as any) as any)
+      .select("id, role_id, status, sent_at, created_at")
+      .eq("user_id", talentId)
+      .eq("type", "internal_connection_confirmed")
+      .in("role_id", roleIds)
+      .order("created_at", { ascending: false })
+      .limit(100),
+    (admin.from("talent_opportunity_recommendation" as any) as any)
+      .select("id, role_id")
+      .eq("talent_id", talentId)
+      .in("role_id", roleIds),
+  ]);
+
+  const progressRows = optionalRows<TalentProgressRow>(
+    progressResult,
+    "other role progress"
+  );
+  const progressItems: OrgOtherRoleFeedItem[] = progressRows.flatMap((row) => {
+    const roleName = roleNameById.get(row.role_id);
+    if (!roleName) return [];
+    const metadata = getJsonRecord(row.metadata);
+    const eventType = normalizeText(metadata.eventType);
+    let title = "활동";
+    if (row.kind === "org_note") title = "메모";
+    else if (row.kind === "org_candidate_role_move") title = "역할 변경";
+    else if (row.kind === "org_stage_change") title = "상태 변경";
+    else if (eventType === "candidate_contact_sent") {
+      title =
+        normalizeText(metadata.requestKind) === "resume"
+          ? "후보자에게 이력서를 요청했어요"
+          : "후보자에게 질문을 보냈어요";
+    } else if (eventType === "candidate_response_received") {
+      title = "후보자의 답변이 도착했어요";
+    }
+    return [
+      {
+        createdAt: row.created_at,
+        id: `progress:${row.id}`,
+        kind: "progress" as const,
+        roleId: row.role_id,
+        roleName,
+        text: getOrgProgressFeedText(row),
+        title,
+      },
+    ];
+  });
+
+  const progressRequestIds = new Set(
+    progressRows.flatMap((row) => {
+      const requestId = normalizeNullableText(
+        getJsonRecord(row.metadata).requestId
+      );
+      return requestId ? [requestId] : [];
+    })
+  );
+  const requestItems = optionalRows<{
+    created_at: string;
+    expects_document: boolean;
+    id: string;
+    request_context: string;
+    role_id: string;
+    workflow_status: string;
+  }>(requestsResult, "other role requests").flatMap((row) => {
+    const roleName = roleNameById.get(row.role_id);
+    if (!roleName || progressRequestIds.has(row.id)) return [];
+    return [
+      {
+        createdAt: row.created_at,
+        id: `request:${row.id}`,
+        kind: "company_request" as const,
+        roleId: row.role_id,
+        roleName,
+        text: row.request_context,
+        title: row.expects_document ? "이력서 요청" : "회사 질문",
+      },
+    ];
+  });
+
+  const meetingItems = optionalRows<{
+    duration_minutes: number;
+    id: string;
+    role_id: string;
+    status: string;
+    title: string;
+    updated_at: string;
+  }>(meetingsResult, "other role meetings").flatMap((row) => {
+    const roleName = roleNameById.get(row.role_id);
+    if (!roleName) return [];
+    return [
+      {
+        createdAt: row.updated_at,
+        id: `meeting:${row.id}`,
+        kind: "meeting" as const,
+        roleId: row.role_id,
+        roleName,
+        text: [row.title, `${row.duration_minutes}분`]
+          .filter(Boolean)
+          .join(" · "),
+        title:
+          row.status === "confirmed"
+            ? "인터뷰가 확정됐어요"
+            : "인터뷰 가능 시간을 요청했어요",
+      },
+    ];
+  });
+
+  const noticeItems = optionalRows<{
+    created_at: string;
+    id: string;
+    role_id: string | null;
+    sent_at: string | null;
+    status: string;
+  }>(noticesResult, "other role connection notices").flatMap((row) => {
+    const roleId = normalizeText(row.role_id);
+    const roleName = roleNameById.get(roleId);
+    if (!roleId || !roleName) return [];
+    return [
+      {
+        createdAt: row.sent_at ?? row.created_at,
+        id: `connection-notice:${row.id}`,
+        kind: "connection_notice" as const,
+        roleId,
+        roleName,
+        text:
+          row.status === "sent"
+            ? "후보자에게 전달됨"
+            : ["queued", "processing"].includes(row.status)
+              ? "후보자에게 전달 예정"
+              : row.status === "cancelled"
+                ? "후보자에게 전달하지 않음"
+                : "전달 여부를 확인하지 못함",
+        title: "연결 안내",
+      },
+    ];
+  });
+
+  const recommendationRoleById = new Map(
+    optionalRows<{ id: string; role_id: string }>(
+      recommendationsResult,
+      "other role recommendations"
+    ).map((row) => [row.id, row.role_id] as const)
+  );
+  let introItems: OrgOtherRoleFeedItem[] = [];
+  if (hasOrgAllWorkspaceAccess(args.user) && recommendationRoleById.size > 0) {
+    const { data, error } = await (
+      admin.from("career_email_messages" as any) as any
+    )
+      .select("id, subject, body_text, occurred_at, metadata")
+      .eq("talent_id", talentId)
+      .in("mail_type", ["org_intro", "org_intro_reply"])
+      .in("status", ["sent", "received"])
+      .order("occurred_at", { ascending: false })
+      .limit(200);
+    if (error) throw error;
+    introItems = (
+      (data ?? []) as Array<{
+        body_text: string | null;
+        id: string;
+        metadata: Json;
+        occurred_at: string;
+        subject: string | null;
+      }>
+    ).flatMap((row) => {
+      const metadata = getJsonRecord(row.metadata);
+      const roleId =
+        normalizeNullableText(metadata.roleId) ??
+        recommendationRoleById.get(normalizeText(metadata.recommendationId));
+      const roleName = roleId ? roleNameById.get(roleId) : null;
+      if (!roleId || !roleName) return [];
+      return [
+        {
+          createdAt: row.occurred_at,
+          id: `intro-email:${row.id}`,
+          kind: "intro_email" as const,
+          roleId,
+          roleName,
+          text: row.body_text ?? "",
+          title: row.subject || "소개 이메일",
+        },
+      ];
+    });
+  }
+
+  return {
+    items: [
+      ...progressItems,
+      ...requestItems,
+      ...meetingItems,
+      ...noticeItems,
+      ...introItems,
+    ]
+      .sort((left, right) => {
+        const leftTime = Date.parse(left.createdAt);
+        const rightTime = Date.parse(right.createdAt);
+        return (
+          (Number.isFinite(rightTime) ? rightTime : 0) -
+          (Number.isFinite(leftTime) ? leftTime : 0)
+        );
+      })
+      .slice(0, 100),
+  };
+}
+
 export async function fetchOrgTalentDetail(args: {
   recommendationId?: string | null;
   roleId?: string | null;
@@ -4642,11 +5114,13 @@ export async function fetchOrgTalentDetail(args: {
       )
       .eq("talent_id", talentId)
       .eq("role_id", recommendation.role_id)
-      .in("kind", ["org_stage_change", "org_note"])
+      .in("kind", ["org_stage_change", "org_note", "org_candidate_role_move"])
       .order("created_at", { ascending: false })
       .limit(50),
     (admin.from("talent_progress" as any) as any)
-      .select("text, kind, metadata")
+      .select(
+        "id, talent_id, role_id, recommendation_id, text, kind, metadata, company_user_id, user_id, created_at"
+      )
       .eq("talent_id", talentId)
       .eq("role_id", recommendation.role_id)
       .eq("kind", "org_candidate_activity")
@@ -4670,10 +5144,11 @@ export async function fetchOrgTalentDetail(args: {
       .order("created_at", { ascending: false }),
     (admin.from("company_talent_requests" as any) as any)
       .select(
-        "id, role_id, expects_document, request_context, workflow_status, expires_at, created_at, deliveries:contact_queue(scheduled_at, sent_at, cancelled_at, status, last_error, type)"
+        "id, role_id, expects_document, request_context, delivery_subject, workflow_status, expires_at, created_at, deliveries:contact_queue(scheduled_at, sent_at, cancelled_at, status, last_error, payload, type)"
       )
       .eq("company_workspace_id", workspaceId)
       .eq("talent_id", talentId)
+      .eq("role_id", recommendation.role_id)
       .order("created_at", { ascending: false })
       .limit(50),
     fetchInternalConnectionConfirmationEmails({
@@ -4731,9 +5206,10 @@ export async function fetchOrgTalentDetail(args: {
     progressResult,
     "progress"
   );
-  const candidateActivityRows = optionalRows<
-    Pick<TalentProgressRow, "kind" | "metadata" | "text">
-  >(candidateActivityProgressResult, "candidate activity progress");
+  const candidateActivityRows = optionalRows<TalentProgressRow>(
+    candidateActivityProgressResult,
+    "candidate activity progress"
+  );
   const candidateActivityByRequestId = new Map<
     string,
     { responseMessage: string | null; sentMessage: string | null }
@@ -4760,9 +5236,11 @@ export async function fetchOrgTalentDetail(args: {
   }
   const companyRequestHistory = optionalRows<{
     created_at: string;
+    delivery_subject: string | null;
     deliveries: Array<{
       cancelled_at: string | null;
       last_error: string | null;
+      payload: Json;
       scheduled_at: string;
       sent_at: string | null;
       status: string;
@@ -4807,6 +5285,33 @@ export async function fetchOrgTalentDetail(args: {
       }),
     } satisfies OrgCompanyTalentRequestFeedItem;
   });
+  const candidateDeliveryByRequestId = new Map(
+    optionalRows<{
+      delivery_subject: string | null;
+      deliveries: Array<{
+        payload: Json;
+        type: string;
+      }> | null;
+      id: string;
+    }>(companyRequestHistoryResult, "candidate delivery snapshots").map(
+      (request) => {
+        const deliveryRow = request.deliveries?.find(
+          (item) => item.type === "company_request_candidate_delivery"
+        );
+        const deliveryPayload = getJsonRecord(
+          getJsonRecord(deliveryRow?.payload).delivery
+        );
+        return [
+          request.id,
+          {
+            subject:
+              normalizeNullableText(deliveryPayload.subject) ??
+              normalizeNullableText(request.delivery_subject),
+          },
+        ] as const;
+      }
+    )
+  );
   const visiblePrimaryResume = primaryResume?.is_public ? primaryResume : null;
   const documents = optionalRows<
     Pick<TalentDocumentRow, "id" | "file_name" | "content_type" | "created_at">
@@ -4890,19 +5395,22 @@ export async function fetchOrgTalentDetail(args: {
   const registeredLinks = Array.isArray(talent.resume_links)
     ? talent.resume_links.filter((link) => normalizeText(link))
     : [];
-  const actorById = await fetchProgressActors(admin, progressRows).catch(
-    (error) => {
-      console.error("[org/detail] progress actors", error);
-      return new Map<string, OrgFeedActor>();
-    }
-  );
+  const actorById = await fetchProgressActors(admin, [
+    ...progressRows,
+    ...candidateActivityRows,
+  ]).catch((error) => {
+    console.error("[org/detail] progress actors", error);
+    return new Map<string, OrgFeedActor>();
+  });
 
   const progressFeedItems: OrgFeedItem[] = progressRows.map((row) => {
     const actorKey = row.company_user_id;
     return {
+      activity: null,
       actor: actorKey ? (actorById.get(actorKey) ?? null) : null,
       companyUserId: row.company_user_id ?? null,
       createdAt: row.created_at,
+      delivery: null,
       id: row.id,
       kind: getOrgStageChangeFeedKind(row),
       recommendationId: row.recommendation_id ?? null,
@@ -4911,10 +5419,64 @@ export async function fetchOrgTalentDetail(args: {
       text: getOrgProgressFeedText(row),
     };
   });
+  const candidateActivityFeedItems: OrgFeedItem[] =
+    candidateActivityRows.flatMap((row) => {
+      const metadata = getJsonRecord(row.metadata);
+      const requestId = normalizeText(metadata.requestId);
+      const eventType = normalizeText(metadata.eventType);
+      if (
+        !requestId ||
+        (eventType !== "candidate_contact_sent" &&
+          eventType !== "candidate_response_received")
+      ) {
+        return [];
+      }
+      const requestKind =
+        normalizeText(metadata.requestKind) === "resume"
+          ? "resume"
+          : "question";
+      const requestContext = normalizeNullableText(metadata.requestContext);
+      const actorKey = row.company_user_id;
+      return [
+        {
+          activity: {
+            eventType,
+            requestContext,
+            requestId,
+            requestKind,
+          },
+          actor: actorKey ? (actorById.get(actorKey) ?? null) : null,
+          companyUserId: row.company_user_id ?? null,
+          createdAt: row.created_at,
+          delivery: {
+            bodyText: normalizeNullableText(row.text),
+            disclosureLabel:
+              eventType === "candidate_contact_sent"
+                ? "메일 내용"
+                : "Harper가 전달한 내용",
+            id: `${requestId}:${eventType}`,
+            subject:
+              eventType === "candidate_contact_sent"
+                ? (candidateDeliveryByRequestId.get(requestId)?.subject ??
+                  normalizeNullableText(metadata.emailSubject))
+                : null,
+          },
+          id: row.id,
+          kind: row.kind,
+          recommendationId: row.recommendation_id ?? null,
+          roleId: row.role_id,
+          roleName: roleRow.name,
+          text: requestContext ? `요청 내용 · ${requestContext}` : "",
+        },
+      ];
+    });
   return {
     companyRequestHistory,
     connectionConfirmationEmails,
-    feed: sortOrgFeedItems(progressFeedItems).slice(0, 50),
+    feed: sortOrgFeedItems([
+      ...progressFeedItems,
+      ...candidateActivityFeedItems,
+    ]).slice(0, 50),
     introEmails,
     meetingEvents,
     members,

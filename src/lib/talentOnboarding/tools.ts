@@ -8,6 +8,8 @@ import {
   fetchTalentOpportunityHistory,
   fetchTalentOpportunityHistoryByIds,
   fetchTalentOpportunityHistoryByRoleIds,
+  formatTalentRoleActivitiesForPrompt,
+  formatUpcomingHarperMeetingForPrompt,
   updateTalentOpportunityHistoryItem,
   type TalentOpportunityFeedback,
   type TalentOpportunityHistoryItem,
@@ -509,6 +511,7 @@ const ROLE_CONTEXT_ROLE_SELECT = `
 `;
 
 const ROLE_CONTEXT_RECOMMENDATION_SELECT = `
+  id,
   role_id,
   opportunity_type,
   fit_summary,
@@ -627,6 +630,30 @@ async function runGetRoleContext(args: {
     recommendationsByRoleId.set(roleId, current);
   }
 
+  const latestRecommendationByRoleId = new Map<
+    string,
+    Record<string, unknown>
+  >();
+  for (const roleId of args.roleIds) {
+    const latestRecommendation = pickLatestRoleContextRecommendation(
+      recommendationsByRoleId.get(roleId) ?? []
+    );
+    if (latestRecommendation) {
+      latestRecommendationByRoleId.set(roleId, latestRecommendation);
+    }
+  }
+  const detailedRecommendations = await fetchTalentOpportunityHistoryByIds({
+    admin: args.admin,
+    ids: Array.from(latestRecommendationByRoleId.values())
+      .map((row) => optionalToolString(row.id))
+      .filter((id): id is string => Boolean(id)),
+    includeActivityTimeline: true,
+    userId: args.userId,
+  });
+  const detailedRecommendationById = new Map(
+    detailedRecommendations.map((item) => [item.id, item] as const)
+  );
+
   const roles = args.roleIds.map((roleId) => {
     const row = roleById.get(roleId);
     if (!row) {
@@ -638,8 +665,18 @@ async function runGetRoleContext(args: {
 
     const workspace = asToolRecord(row.company_workspace);
     const companyDb = asToolRecord(workspace?.company_db);
-    const latestRecommendation = pickLatestRoleContextRecommendation(
-      recommendationsByRoleId.get(roleId) ?? []
+    const latestRecommendation = latestRecommendationByRoleId.get(roleId);
+    const detailedRecommendation = latestRecommendation
+      ? detailedRecommendationById.get(
+          optionalToolString(latestRecommendation.id) ?? ""
+        )
+      : undefined;
+    const upcomingMeeting = formatUpcomingHarperMeetingForPrompt(
+      detailedRecommendation?.upcomingMeeting?.startAt
+    );
+    const recentActivity = formatTalentRoleActivitiesForPrompt(
+      detailedRecommendation?.talentRoleActivities,
+      10
     );
 
     return {
@@ -699,6 +736,8 @@ async function runGetRoleContext(args: {
               latestRecommendation.feedback_reason
             ),
             savedStage: optionalToolString(latestRecommendation.saved_stage),
+            ...(upcomingMeeting ? { upcomingMeeting } : {}),
+            ...(recentActivity ? { recentActivity } : {}),
           }
         : null,
     };
@@ -1626,7 +1665,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES]: {
     name: TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
     description:
-      "Read the user's existing recommended opportunities so the assistant can answer questions about previously recommended companies, roles, links, reasons, user feedback, and connection/review status. Treat feedback=negative and rejected as Talent-side rejection records, not company rejections. For archived and stopped processes, follow progress.message and treat progress.stopReason as authoritative.",
+      "Read the user's existing recommended opportunities so the assistant can answer questions about previously recommended companies, roles, links, reasons, user feedback, recent role activity, upcoming Harper-connected meetings, and connection/review status. Treat feedback=negative and rejected as Talent-side rejection records, not company rejections. For archived and stopped processes, follow progress.message and treat progress.stopReason as authoritative.",
     parameters: {
       type: "object",
       properties: {
@@ -1640,7 +1679,8 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         },
         limit: {
           type: "integer",
-          description: "Maximum number of opportunities to return.",
+          description:
+            "Base maximum number of opportunities to return. Matching roles with an upcoming Harper-connected meeting are added outside this limit.",
           minimum: 1,
           maximum: 20,
           default: 8,
@@ -1694,7 +1734,14 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         }
         return true;
       });
-      const displayedItems = filtered.slice(0, limit);
+      const baseItems = filtered.slice(0, limit);
+      const baseItemIds = new Set(baseItems.map((item) => item.id));
+      const displayedItems = [
+        ...baseItems,
+        ...filtered.filter(
+          (item) => item.upcomingMeeting && !baseItemIds.has(item.id)
+        ),
+      ];
       const itemsToClose = displayedItems.filter(
         shouldCloseRecommendedOpportunityFromProgress
       );
@@ -1705,6 +1752,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
               action: "saved_stage",
               admin: admin as any,
               opportunityId: item.id,
+              recordTalentRoleActivity: false,
               savedStage: "closed",
               userId,
             })
@@ -1721,6 +1769,15 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
               )
               .join(" ")
           : undefined;
+      const detailedItems = await fetchTalentOpportunityHistoryByIds({
+        admin: admin as any,
+        ids: displayedItems.map((item) => item.id),
+        includeActivityTimeline: true,
+        userId,
+      });
+      const detailedItemById = new Map(
+        detailedItems.map((item) => [item.id, item] as const)
+      );
 
       return {
         ...(assistantInstruction ? { assistantInstruction } : {}),
@@ -1729,12 +1786,20 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           limit,
           only_internal: onlyInternal,
         },
-        returnedCount: Math.min(filtered.length, limit),
+        returnedCount: displayedItems.length,
         totalMatchingCount: filtered.length,
         opportunities: displayedItems.map((item) => {
+          const detailedItem = detailedItemById.get(item.id) ?? item;
           const feedbackReason = optionalToolString(item.feedbackReason);
           const progress = formatRecommendedOpportunityProgress(item);
           const userMemo = optionalToolString(item.talentMemo);
+          const upcomingMeeting = formatUpcomingHarperMeetingForPrompt(
+            detailedItem.upcomingMeeting?.startAt
+          );
+          const recentActivity = formatTalentRoleActivitiesForPrompt(
+            detailedItem.talentRoleActivities,
+            10
+          );
           const savedStage = closedOpportunityIds.has(item.id)
             ? "closed"
             : item.savedStage;
@@ -1748,9 +1813,11 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
               formatCompactToolDate(item.recommendedAt) ?? item.recommendedAt,
             recommendationReasons: item.recommendationReasons.slice(0, 5),
             feedback: item.feedback,
-            ...(userMemo ? { userMemo } : {}),
+            ...(!recentActivity && userMemo ? { userMemo } : {}),
             ...(feedbackReason ? { feedbackReason } : {}),
             ...(progress ? { progress } : {}),
+            ...(upcomingMeeting ? { upcomingMeeting } : {}),
+            ...(recentActivity ? { recentActivity } : {}),
             savedStage,
             status: item.status,
             summary: item.recommendationSummary,
@@ -1852,7 +1919,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.GET_ROLE_CONTEXT]: {
     name: TALENT_TOOL_NAMES.GET_ROLE_CONTEXT,
     description:
-      "Get detailed context for up to 3 specific job posting roles by roleId. Use only when the user asks about, recalls, or gives feedback on specific already-shown posting cards/roles and the current context does not contain enough detail. Do not use while finding or presenting fresh recommendations; recommend_job_postings already returns the context needed for that answer. Includes role details, company context, and the latest user-specific recommendation context for each role. Set include_jd true only when the job description/JD text is needed; when false, role.description is omitted. Treat any private company-side notes in the result as reasoning-only context; never quote or expose them to the user.",
+      "Get detailed context for up to 3 specific job posting roles by roleId. Use only when the user asks about, recalls, or gives feedback on specific already-shown posting cards/roles and the current context does not contain enough detail. Do not use while finding or presenting fresh recommendations; recommend_job_postings already returns the context needed for that answer. Includes role details, company context, the latest user-specific recommendation context, up to 10 recent role activities as compact text, and any upcoming Harper-connected meeting. Set include_jd true only when the job description/JD text is needed; when false, role.description is omitted. Treat any private company-side notes in the result as reasoning-only context; never quote or expose them to the user.",
     parameters: {
       type: "object",
       properties: {

@@ -806,7 +806,7 @@ const CareerWorkspaceMobileHistoryView = ({
     if (
       !router.isReady ||
       !requestedRoleId ||
-      requestedOpportunity ||
+      requestedOpportunity?.activityTimelineLoaded ||
       historyLoading ||
       loadingRoleIdRef.current === requestedRoleId
     ) {

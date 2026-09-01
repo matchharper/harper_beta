@@ -62,4 +62,6 @@
 ## UI and design
 
 - Before implementing or reviewing UI and design changes, read and follow `src/styles/Design.md`.
-- Reuse components from `src/components/ui/` wherever possible. Check for a suitable shared component there before creating raw controls, local one-off UI components, or duplicated interaction and styling logic.
+- Before creating UI markup or a local component, search in this order: `src/components/ui/`, `src/components/common/`, then the relevant domain directory under `src/components/`. Reuse a suitable component or established composition before creating a new primitive.
+- Never reimplement modal infrastructure such as portals, overlays, focus management, Escape handling, outside-click handling, or ARIA dialog wiring in a feature component. For `/career`, use `src/components/common/TalentCareerModal.tsx`; for generic Radix dialogs, use `src/components/ui/dialog.tsx`. A local wrapper may own domain content and actions, but not modal infrastructure.
+- Keep the shared-component catalog and discovery rules in `src/styles/Design.md` current whenever a new reusable UI primitive or preferred composition is introduced.

@@ -18,6 +18,7 @@ const workspaceId = "workspace-a";
 function fixture() {
   const calls: string[] = [];
   let callbackUrl = "";
+  let automaticSyncError: Error | null = null;
   const service: GoogleCalendarService = {
     async requireActiveAccountId(userId) {
       calls.push(`require:${userId}`);
@@ -45,6 +46,10 @@ function fixture() {
   };
   const handlers = createGoogleCalendarHandlers({
     getStateSecret: () => secret,
+    async onActiveConnection(args) {
+      calls.push(`sync:${args.userId}:${args.workspaceId}:${args.timezone}`);
+      if (automaticSyncError) throw automaticSyncError;
+    },
     async getContext(req, workspace) {
       const identity = req.headers.get("authorization");
       if (!identity)
@@ -72,6 +77,7 @@ function fixture() {
     state: nonce,
     connectedAccountId: "ca_alice",
     status: "success",
+    timezone: "Asia/Seoul",
   };
   function req(
     method: string,
@@ -105,6 +111,9 @@ function fixture() {
     body,
     req,
     callback: () => callbackUrl,
+    setAutomaticSyncError(error: Error | null) {
+      automaticSyncError = error;
+    },
   };
 }
 
@@ -133,7 +142,33 @@ test("successful completion uses the cookie's account ID and clears the callback
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { status: "active" });
   assert.match(response.headers.get("set-cookie") ?? "", /Max-Age=0/i);
-  assert.deepEqual(f.calls, ["complete:alice:ca_alice"]);
+  assert.deepEqual(f.calls, [
+    "complete:alice:ca_alice",
+    "sync:alice:workspace-a:Asia/Seoul",
+  ]);
+});
+
+test("an already active connection refreshes Calendar without opening OAuth", async () => {
+  const f = fixture();
+  f.service.connect = async () => ({ status: "active" });
+  const response = await f.handlers.connect(
+    f.req("POST", { timezone: "Asia/Seoul", workspaceId })
+  );
+  assert.deepEqual(await response.json(), { status: "active" });
+  assert.deepEqual(f.calls, ["sync:alice:workspace-a:Asia/Seoul"]);
+});
+
+test("a first automatic read failure does not turn an active connection into a failure", async (t) => {
+  t.mock.method(console, "error", () => {});
+  const f = fixture();
+  f.setAutomaticSyncError(new Error("temporary read failure"));
+  const response = await f.handlers.complete(f.req("POST", f.body));
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { status: "active" });
+  assert.deepEqual(f.calls, [
+    "complete:alice:ca_alice",
+    "sync:alice:workspace-a:Asia/Seoul",
+  ]);
 });
 
 test("an OAuth failure returns cancelled without storing or executing anything", async () => {

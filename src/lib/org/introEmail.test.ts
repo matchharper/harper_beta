@@ -53,10 +53,12 @@ test("warm intro prompt supports natural Korean and disambiguates recipient role
   );
   assert.match(source, /candidateProfessionalSummary만 경력 근거로/);
   assert.match(source, /현재 쉬는 중, 미재직, 경력 공백/);
-  assert.match(source, /역할에 관심을 가져주셨습니다/);
+  assert.match(source, /이 포지션에 관심을 보였다는 확인된 사실/);
   assert.match(source, /companyUserRole/);
   assert.match(source, /테스트, 검증 과정, 테스트 케이스, Slack, Gmail/);
-  assert.match(source, /이후 대화는 이 메일에서 이어가 주시면 됩니다/);
+  assert.match(source, /현재 이메일에서 대화를 이어가면 된다는 점/);
+  assert.doesNotMatch(source, /must start exactly|must include exactly/i);
+  assert.doesNotMatch(source, /반드시 정확히/);
   assert.match(source, /Do not describe the company, the Role, its duties/);
   assert.match(source, /buildOrgIntroSystemPrompt\(context\.locale\)/);
   assert.match(serverSource, /preferred_locale, setting_locale/);
@@ -138,9 +140,9 @@ test("warm intro output guard blocks candidate details that can create a negativ
   );
 });
 
-test("warm intro output guard requires role interest and the company member title", () => {
+test("warm intro output guard allows natural greeting, interest, handoff, and closing variants", () => {
   const body =
-    "SBVA의 Investment Manager 김호진님, 박민서님 안녕하세요.\n\n두 분을 소개해 드리게 되어 반갑습니다.\n\nSBVA의 Investment Manager 김호진님께, 현재 Harper에서 Co-founder로 재직 중인 박민서님을 소개드립니다. 박민서님은 Portfolio Operations Lead 역할에 관심을 가져주셨습니다.\n\n박민서님께 SBVA의 Investment Manager 김호진님을 소개드립니다.\n\n이후 대화는 이 메일에서 이어가 주시면 됩니다.\n\n감사합니다.\nHarper 드림";
+    "안녕하세요, 박민서님과 SBVA의 Investment Manager 김호진님.\n\n서로 인사 나누실 수 있도록 두 분을 연결해 드립니다.\n\n현재 Harper에서 Co-founder로 재직 중인 박민서님이 Portfolio Operations Lead 역할에 관심을 보여 이번에 소개드립니다.\n\nSBVA의 Investment Manager 김호진님과 이 이메일에서 편하게 대화를 이어가 주세요.\n\n고맙습니다.\nHarper";
   const args = {
     body,
     candidateName: "박민서",
@@ -160,16 +162,6 @@ test("warm intro output guard requires role interest and the company member titl
       companyUserRole: "채용 담당자",
     }),
     []
-  );
-  assert.deepEqual(
-    getOrgIntroDraftSafetyIssues({
-      ...args,
-      body: body.replace(
-        "박민서님은 Portfolio Operations Lead 역할에 관심을 가져주셨습니다.",
-        ""
-      ),
-    }),
-    ["missing_candidate_role_interest"]
   );
 });
 
@@ -225,7 +217,7 @@ test("warm intro output guard blocks operational metadata and Korean recipient l
       locale: "ko",
       subject: "Backend Engineer 포지션 소개 — SBVA 이지훈님 · 박민서님",
     }),
-    ["unqualified_company_person_reference"]
+    []
   );
   assert.deepEqual(
     getOrgIntroDraftSafetyIssues({
@@ -233,11 +225,6 @@ test("warm intro output guard blocks operational metadata and Korean recipient l
       locale: "ko",
       subject: "후보자 소개",
     }),
-    [
-      "operational_or_test_metadata",
-      "recipient_role_label",
-      "invalid_exact_handoff_and_closing",
-      "missing_readable_paragraph_structure",
-    ]
+    ["operational_or_test_metadata", "recipient_role_label"]
   );
 });

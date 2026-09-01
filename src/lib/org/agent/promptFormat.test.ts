@@ -2,15 +2,26 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   formatPromptDate,
+  formatPromptKstDateTime,
   formatPromptMarkdown,
   formatPromptTable,
   serializeOrgAgentMoreData,
+  serializeOrgAgentDeferredToolCall,
+  serializeOrgAgentToolError,
   serializeOrgAgentToolResult,
 } from "@/lib/org/agent/promptFormat";
 
 test("organization-agent prompt dates keep only day precision", () => {
   assert.equal(formatPromptDate("2026-07-30T10:23:45.123Z"), "2026-07-30");
   assert.equal(formatPromptDate(null), "-");
+});
+
+test("Slack history timestamps are explicit KST date-times", () => {
+  assert.equal(
+    formatPromptKstDateTime("2026-08-31T05:30:00.000Z"),
+    "2026년 8월 31일 14:30 KST"
+  );
+  assert.equal(formatPromptKstDateTime(null), "-");
 });
 
 test("organization-agent tables write their schema once and sanitize cells", () => {
@@ -299,6 +310,18 @@ test("organization-agent update results contain only acknowledgement fields", ()
   assert.doesNotMatch(compact, new RegExp("x".repeat(100)));
 });
 
+test("proposal results leave the exact preview and confirmation to server presentation", () => {
+  const compact = serializeOrgAgentToolResult("update_data", {
+    preview: "[추가] 역할 메모\n+ enterprise integration 경험 우선 확인",
+    status: "confirmation_required",
+    summary: "역할 메모 추가",
+  });
+
+  assert.match(compact, /exact_change_preview/);
+  assert.match(compact, /server appends the exact change presentation/);
+  assert.match(compact, /do not ask a second confirmation question/);
+});
+
 test("Role status changes explain the candidate-facing lifecycle effect", () => {
   const compact = serializeOrgAgentToolResult("change_role_status", {
     effect:
@@ -323,48 +346,83 @@ test("Role status changes explain the candidate-facing lifecycle effect", () => 
   assert.doesNotMatch(compact, /lifecycle=ended/);
 });
 
-test("stored Slack history is serialized as a bounded thread-aware table", () => {
+test("stored Slack history lists thread previews with precise dates and first messages", () => {
   const compact = serializeOrgAgentToolResult("read_conversation_history", {
     hasMore: true,
     limit: 2,
-    messages: [
+    nextCursor: "opaque-cursor",
+    threads: [
       {
         channelName: "채용",
-        content: "첫 메시지\n두 번째 줄",
-        createdAt: "2026-08-06T01:00:00.000Z",
         currentThread: false,
-        metadata: { slackUserName: "김호진" },
-        role: "user",
-        slackThreadId: "internal-thread-id",
-        slackUserId: "U123",
+        firstMessages: [
+          {
+            content: "첫 메시지\n두 번째 줄",
+            createdAt: "2026-08-06T01:00:00.000Z",
+            metadata: { slackUserName: "김호진" },
+            role: "user",
+            slackUserId: "U123",
+          },
+        ],
+        lastMessageAt: "2026-08-06T02:00:00.000Z",
+        messageCount: 12,
+        threadId: "internal-thread-id",
         threadStartedAt: "2026-08-05T01:00:00.000Z",
       },
-      {
-        channelName: "채용",
-        content: "확인했습니다.",
-        createdAt: "2026-08-06T01:01:00.000Z",
-        currentThread: true,
-        metadata: {},
-        role: "assistant",
-        slackThreadId: "current-internal-thread-id",
-        slackUserId: "BOT",
-        threadStartedAt: "2026-08-06T00:30:00.000Z",
-      },
     ],
-    nextCursor: "opaque-cursor",
-    scope: "workspace",
+    type: "all",
   });
 
-  assert.match(compact, /scope=workspace/);
+  assert.match(compact, /type=all/);
   assert.match(compact, /has_more=true/);
   assert.match(compact, /next_cursor=opaque-cursor/);
-  assert.match(compact, /channel\tthread\tthread_started_at\tsent_at\tspeaker/);
-  assert.match(compact, /채용\tthread_1/);
-  assert.match(compact, /current_thread/);
+  assert.match(compact, /thread_id=internal-thread-id/);
+  assert.match(compact, /started_at=2026년 8월 5일 10:00 KST/);
+  assert.match(compact, /last_message_at=2026년 8월 6일 11:00 KST/);
+  assert.match(compact, /message_count=12/);
   assert.match(compact, /김호진/);
-  assert.match(compact, /Harper/);
   assert.match(compact, /첫 메시지 두 번째 줄/);
-  assert.doesNotMatch(compact, /internal-thread-id/);
+});
+
+test("selected Slack history returns a rolling summary and newer messages", () => {
+  const compact = serializeOrgAgentToolResult("read_conversation_history", {
+    missingThreadIds: [],
+    threads: [
+      {
+        channelName: "채용",
+        currentThread: true,
+        hasMoreMessages: true,
+        lastMessageAt: "2026-08-06T01:01:00.000Z",
+        messageCount: 31,
+        messages: [
+          {
+            content: "최근 조건을 수정했어요.",
+            createdAt: "2026-08-06T01:01:00.000Z",
+            metadata: {},
+            role: "assistant",
+            slackUserId: "BOT",
+          },
+        ],
+        messagesAfterSummary: true,
+        nextCursor: "thread-message-cursor",
+        rollingSummary: "Backend 역할의 속도와 오너십 기준을 논의했어요.",
+        summarizedMessageCount: 30,
+        summarizedThroughAt: "2026-08-06T01:00:00.000Z",
+        threadId: "thread-1",
+        threadStartedAt: "2026-08-05T01:00:00.000Z",
+      },
+    ],
+    type: "thread",
+  });
+
+  assert.match(compact, /type=thread/);
+  assert.match(compact, /summary_available=true/);
+  assert.match(compact, /summarized_through=2026년 8월 6일 10:00 KST/);
+  assert.match(compact, /Backend 역할의 속도와 오너십 기준/);
+  assert.match(compact, /최근 조건을 수정했어요/);
+  assert.match(compact, /messages_complete=false/);
+  assert.match(compact, /next_cursor=thread-message-cursor/);
+  assert.match(compact, /exact next_cursor/);
 });
 
 test("candidate connection decisions return a compact outcome", () => {
@@ -423,6 +481,30 @@ test("pipeline mutation results state exact effects and no candidate contact", (
   assert.match(move, /stage changed from 1차 인터뷰 to 2차 인터뷰/);
   assert.match(move, /No candidate message or meeting request was created/);
   assert.doesNotMatch(move, /candidate_contacted|email_sent|status=updated/);
+});
+
+test("cross-Role move serialization omits candidate delivery state", () => {
+  const compact = serializeOrgAgentToolResult("move_candidate_to_role", {
+    candidateName: "김하퍼",
+    preservedActivity: {
+      activeMeetingCount: 1,
+      openQuestionCount: 2,
+    },
+    sourceRoleName: "Backend Engineer",
+    sourceStageLabel: "1차 인터뷰",
+    status: "moved",
+    targetRoleName: "AI Engineer",
+    targetRoleStatus: "paused",
+    targetStageLabel: "2차 인터뷰",
+    transferId: "private-transfer-id",
+  });
+
+  assert.match(compact, /source_role=Backend Engineer/);
+  assert.match(compact, /target_role=AI Engineer/);
+  assert.match(compact, /preserved_open_questions=2/);
+  assert.match(compact, /preserved_active_meetings=1/);
+  assert.doesNotMatch(compact, /candidate_notice|delivery|notice|queue/i);
+  assert.doesNotMatch(compact, /private-transfer-id/);
 });
 
 test("availability mutation result cannot imply a candidate or meeting action", () => {
@@ -704,7 +786,7 @@ test("scheduled candidate contact keeps timing data without transport details", 
   assert.doesNotMatch(compact, /이메일|Harper 채팅|worker/i);
 });
 
-test("candidate contact drafts ask the model to write the confirmation", () => {
+test("candidate contact drafts expose only the approval state and next decision", () => {
   const compact = serializeOrgAgentToolResult("contact_talent", {
     candidateName: "김호진",
     status: "draft",
@@ -712,13 +794,12 @@ test("candidate contact drafts ask the model to write the confirmation", () => {
   });
 
   assert.match(compact, /candidate=김호진/);
-  assert.match(compact, /nothing_sent=true/);
+  assert.match(compact, /approval_state=awaiting_company_confirmation/);
+  assert.match(compact, /candidate_contact_state=not_sent/);
   assert.match(compact, /exact_body_appended_by_server=true/);
-  assert.match(compact, /Write the surrounding confirmation yourself/);
-  assert.match(compact, /only one question mark/);
-  assert.match(compact, /must not repeat the company name, Role title/);
-  assert.match(compact, /prescribe exact reply words/);
-  assert.match(compact, /copy a fixed template/);
+  assert.match(compact, /company reviews the appended exact body/);
+  assert.match(compact, /bring any candidate answer back to this conversation/);
+  assert.doesNotMatch(compact, /writing_instruction/);
   assert.doesNotMatch(compact, /이 고정 fallback/);
 });
 
@@ -794,6 +875,25 @@ test("organization-agent role results expose whole-pipeline stage counts", () =>
   assert.match(compact, /recommended\t3/);
   assert.match(compact, /saved\t2/);
   assert.match(compact, /salary\t연봉 7,000만–9,000만원 \+ 스톡옵션/);
+});
+
+test("read_role preserves the already humanized role lifecycle and work fields", () => {
+  const compact = serializeOrgAgentToolResult("read_role", {
+    fieldCompleteness: {},
+    included: [],
+    role: {
+      employmentTypes: ["정규직"],
+      name: "Founding Engineer",
+      roleId: "role-paused",
+      status: "중단",
+      workMode: "오피스 근무",
+    },
+  });
+
+  assert.match(compact, /status\t중단/);
+  assert.doesNotMatch(compact, /status\t진행 중/);
+  assert.match(compact, /work_mode\t오피스 근무/);
+  assert.match(compact, /employment\t정규직/);
 });
 
 test("role pipeline reads expose ordered stage and current-stage IDs for safe mutations", () => {
@@ -917,4 +1017,42 @@ test("role calibration returns only compact user-facing outcome fields", () => {
   assert.match(compact, /이 기준을 필수로 볼까요/);
   assert.doesNotMatch(compact, /private complete hiring brief/);
   assert.doesNotMatch(compact, /사용자에게 이미 작성된 답변/);
+});
+
+test("tool errors give the model action-specific recovery guidance", () => {
+  const inputError = serializeOrgAgentToolError({
+    kind: "input",
+    message: "candidate and Role must be exact",
+    name: "contact_talent",
+  });
+  const executionError = serializeOrgAgentToolError({
+    kind: "execution",
+    message: "The tool could not be completed.",
+    name: "move_candidate_stage",
+  });
+  const readError = serializeOrgAgentToolError({
+    kind: "execution",
+    message: "The read could not be completed.",
+    name: "read_talent",
+  });
+
+  assert.match(inputError, /executed=false/);
+  assert.match(inputError, /current contact history/);
+  assert.match(inputError, /Continue other independently requested candidates/);
+  assert.match(executionError, /effect_status=unknown/);
+  assert.match(executionError, /Re-read the exact candidate/);
+  assert.match(executionError, /only after a later result verifies it/);
+  assert.match(readError, /corrected or narrower retry is safe/);
+  assert.match(readError, /Use the verified error and recovery facts/);
+  assert.doesNotMatch(readError, /effect_status/);
+  assert.doesNotMatch(readError, /final effect is uncertain/);
+});
+
+test("extra provider tool calls are deferred instead of cancelling the batch", () => {
+  const result = serializeOrgAgentDeferredToolCall();
+
+  assert.match(result, /status=deferred/);
+  assert.match(result, /executed=false/);
+  assert.match(result, /request it again as the next single tool call/);
+  assert.doesNotMatch(result, /error/);
 });

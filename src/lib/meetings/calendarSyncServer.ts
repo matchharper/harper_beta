@@ -1,6 +1,5 @@
 import "server-only";
 
-import type { User } from "@supabase/supabase-js";
 import {
   ComposioApiError,
   createComposioClient,
@@ -16,10 +15,12 @@ import {
   parseGoogleCalendarBusyBlocks,
 } from "@/lib/integrations/googleCalendarTools";
 import {
+  GOOGLE_CALENDAR_AUTO_SYNC_INTERVAL_MS,
   GOOGLE_CALENDAR_SYNC_WINDOW_DAYS,
   type GoogleCalendarSyncResponse,
+  isFreshGoogleCalendarSync,
 } from "@/lib/meetings/calendarSync";
-import { assertOrgWorkspaceAccess, OrgHttpError } from "@/lib/org/server";
+import { OrgHttpError } from "@/lib/org/server";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type { Json } from "@/types/database.types";
 
@@ -33,6 +34,98 @@ function nonNegativeInteger(value: unknown) {
 }
 
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
+
+export type GoogleCalendarAutomaticSyncResult =
+  | { lastSyncedAt: null; status: "inactive" }
+  | { lastSyncedAt: string; status: "fresh" | "synced" };
+
+const inFlightAutomaticSyncs = new Map<
+  string,
+  Promise<GoogleCalendarSyncResponse>
+>();
+
+async function readCalendarSyncState(args: {
+  admin: AdminClient;
+  companyUserId: string;
+}) {
+  return createGoogleCalendarStore(args.admin).find(args.companyUserId);
+}
+
+export async function syncGoogleCalendarBusyBlocksIfStaleForCompanyUser(args: {
+  admin?: AdminClient;
+  companyUserId: string;
+  minimumIntervalMs?: number;
+  skipIfNotActive?: boolean;
+  timezone: string;
+  workspaceId: string;
+}): Promise<GoogleCalendarAutomaticSyncResult> {
+  const admin = args.admin ?? getSupabaseAdmin();
+  const companyUserId = clean(args.companyUserId);
+  const minimumIntervalMs = Math.max(
+    0,
+    args.minimumIntervalMs ?? GOOGLE_CALENDAR_AUTO_SYNC_INTERVAL_MS
+  );
+  const state = await readCalendarSyncState({ admin, companyUserId });
+  if (!state || state.status !== "active") {
+    if (args.skipIfNotActive) {
+      return { lastSyncedAt: null, status: "inactive" };
+    }
+    const result = await syncGoogleCalendarBusyBlocksForCompanyUser({
+      admin,
+      companyUserId,
+      timezone: args.timezone,
+      workspaceId: args.workspaceId,
+    });
+    return { lastSyncedAt: result.lastSyncedAt, status: "synced" };
+  }
+  if (
+    isFreshGoogleCalendarSync(
+      state.last_synced_at,
+      Date.now(),
+      minimumIntervalMs
+    )
+  ) {
+    return { lastSyncedAt: state.last_synced_at!, status: "fresh" };
+  }
+
+  const running = inFlightAutomaticSyncs.get(companyUserId);
+  if (running) {
+    const result = await running;
+    return { lastSyncedAt: result.lastSyncedAt, status: "synced" };
+  }
+
+  const sync = syncGoogleCalendarBusyBlocksForCompanyUser({
+    admin,
+    companyUserId,
+    timezone: args.timezone,
+    workspaceId: args.workspaceId,
+  });
+  inFlightAutomaticSyncs.set(companyUserId, sync);
+  try {
+    const result = await sync;
+    return { lastSyncedAt: result.lastSyncedAt, status: "synced" };
+  } catch (error) {
+    // Separate serverless instances may race after observing the same stale
+    // timestamp. If another request completed while this one failed, callers
+    // can safely use that newly refreshed mirror.
+    const latest = await readCalendarSyncState({ admin, companyUserId });
+    if (
+      latest?.status === "active" &&
+      isFreshGoogleCalendarSync(
+        latest.last_synced_at,
+        Date.now(),
+        minimumIntervalMs
+      )
+    ) {
+      return { lastSyncedAt: latest.last_synced_at!, status: "fresh" };
+    }
+    throw error;
+  } finally {
+    if (inFlightAutomaticSyncs.get(companyUserId) === sync) {
+      inFlightAutomaticSyncs.delete(companyUserId);
+    }
+  }
+}
 
 export async function syncGoogleCalendarBusyBlocksForCompanyUser(args: {
   admin?: AdminClient;
@@ -130,20 +223,4 @@ export async function syncGoogleCalendarBusyBlocksForCompanyUser(args: {
     updatedCount: nonNegativeInteger(result?.updatedCount),
     windowEnd: clean(result?.windowEnd) || windowEnd.toISOString(),
   };
-}
-
-export async function syncGoogleCalendarBusyBlocks(args: {
-  timezone: string;
-  user: User;
-  workspaceId: string;
-}): Promise<GoogleCalendarSyncResponse> {
-  const workspaceId = clean(args.workspaceId);
-  const admin = getSupabaseAdmin();
-  await assertOrgWorkspaceAccess({ admin, user: args.user, workspaceId });
-  return syncGoogleCalendarBusyBlocksForCompanyUser({
-    admin,
-    companyUserId: args.user.id,
-    timezone: args.timezone,
-    workspaceId,
-  });
 }

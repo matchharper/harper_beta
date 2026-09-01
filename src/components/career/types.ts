@@ -169,6 +169,7 @@ export type CareerInternalRecommendationProgressCode =
   | "company_acknowledged_awaiting_response"
   | "company_next_process"
   | "no_company_response_closed"
+  | "moved_to_another_role"
   | "rejected_by_talent"
   | "stopped_by_candidate"
   | "waiting_to_share";
@@ -210,6 +211,26 @@ export type CareerOpportunityCompanyData = {
   totalFundingRaised?: string | null;
 };
 
+export type CareerOpportunityUpcomingMeeting = {
+  endAt: string;
+  startAt: string;
+  title: string | null;
+};
+
+export type CareerOpportunityMeeting = CareerOpportunityUpcomingMeeting & {
+  confirmedAt: string | null;
+  id: string;
+};
+
+export type CareerTalentRoleActivity = {
+  content: string | null;
+  createdAt: string;
+  id: string;
+  kind: string;
+  previousStage: CareerOpportunitySavedStage | null;
+  savedStage: CareerOpportunitySavedStage | null;
+};
+
 export type CareerHistoryOpportunityPageFilter = {
   historyTab: CareerHistoryTabId;
   savedStage?: CareerOpportunitySavedStageFilter;
@@ -246,6 +267,7 @@ export type CareerPreferenceFitItem = {
 };
 
 export type CareerHistoryOpportunity = {
+  activityTimelineLoaded?: boolean;
   clickedAt: string | null;
   companyData?: CareerOpportunityCompanyData | null;
   companyDescription: string | null;
@@ -254,6 +276,7 @@ export type CareerHistoryOpportunity = {
   companyLinkedinUrl: string | null;
   companyLogoUrl: string | null;
   companyName: string;
+  confirmedMeetings?: CareerOpportunityMeeting[];
   description: string | null;
   employmentTypes: string[];
   externalJdUrl: string | null;
@@ -282,8 +305,10 @@ export type CareerHistoryOpportunity = {
   sourceProvider: string | null;
   sourceType: "internal" | "external";
   status: string;
+  talentRoleActivities?: CareerTalentRoleActivity[];
   talentMemo?: string | null;
   title: string;
+  upcomingMeeting?: CareerOpportunityUpcomingMeeting | null;
   viewedAt: string | null;
   workMode: string | null;
 };

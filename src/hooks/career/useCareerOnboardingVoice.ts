@@ -18,6 +18,7 @@ import type {
   CareerInternalOpportunityCallRequest,
   CareerMessage,
   CareerMessagePayload,
+  CareerOnboardingChecklistProgress,
   CareerOpportunityRun,
   CareerStage,
   SessionResponse,
@@ -40,8 +41,7 @@ import {
 } from "@/lib/talentOnboarding/completion";
 import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
 import type { TalentUserChatMessageType } from "@/lib/talentOnboarding/onboarding";
-import { INSIGHT_CHECKLIST } from "@/lib/talentOnboarding/insightChecklist";
-import { TALENT_INTERVIEW_FINAL_STEP } from "@/lib/talentOnboarding/progress";
+import { resolveCareerInterviewProgress } from "@/lib/career/onboardingInterviewProgress";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
@@ -318,6 +318,8 @@ type UseCareerOnboardingVoiceArgs = {
   fetchWithAuth: FetchWithAuth;
   isVoiceInteractionLocked: boolean;
   isOnboardingDone?: boolean;
+  canForceCompleteOnboarding?: boolean;
+  onboardingChecklistProgress?: CareerOnboardingChecklistProgress | null;
   onSendChatMessage: (args: SendChatArgs) => void | Promise<void>;
   onOpportunityRunChanged?: (run: CareerOpportunityRun | null) => void;
   onTalentPreferencesRefreshed?: (
@@ -325,6 +327,7 @@ type UseCareerOnboardingVoiceArgs = {
     updatedAt: unknown
   ) => void;
   onTalentInsightsRefreshed?: (insights: unknown, updatedAt: unknown) => void;
+  onOnboardingChecklistProgressRefreshed?: (progress: unknown) => void;
   onTalentProfileRefreshed?: (
     profile: SessionResponse["talentProfile"] | undefined
   ) => void;
@@ -357,10 +360,13 @@ export const useCareerOnboardingVoice = ({
   fetchWithAuth,
   isVoiceInteractionLocked,
   isOnboardingDone,
+  canForceCompleteOnboarding = false,
+  onboardingChecklistProgress = null,
   onSendChatMessage,
   onOpportunityRunChanged,
   onTalentPreferencesRefreshed,
   onTalentInsightsRefreshed,
+  onOnboardingChecklistProgressRefreshed,
   onTalentProfileRefreshed,
   onPendingInternalOpportunityCallRequestChanged,
   onPendingInternalOpportunityCallRequestsChanged,
@@ -386,48 +392,24 @@ export const useCareerOnboardingVoice = ({
   const [liveUserTranscriptPlacement, setLiveUserTranscriptPlacement] =
     useState<CallLiveTranscriptPlacement>("beforeCurrentAssistant");
   const callInterviewProgress = useMemo<CareerInterviewProgress>(() => {
-    const totalCount = INSIGHT_CHECKLIST.length;
-    const filledCount = INSIGHT_CHECKLIST.reduce((count, item) => {
-      const value = talentInsights?.[item.key];
-      return String(value ?? "").trim().length > 0 ? count + 1 : count;
-    }, 0);
-    const insightPercent =
-      totalCount > 0
-        ? Math.min(100, Math.round((filledCount / totalCount) * 100))
-        : 0;
     const userChatCount = messages.filter(
       (message) =>
         message.role === "user" && (message.messageType ?? "chat") === "chat"
     ).length;
-    const turnPercent = Math.round(
-      (Math.min(userChatCount, TALENT_INTERVIEW_FINAL_STEP) /
-        TALENT_INTERVIEW_FINAL_STEP) *
-        100
-    );
-    const turnFilledCount = Math.min(
+    return resolveCareerInterviewProgress({
+      canForceComplete: canForceCompleteOnboarding,
+      checklistProgress: onboardingChecklistProgress,
+      isOnboardingDone: Boolean(isOnboardingDone),
+      talentInsights: talentInsights ?? null,
       userChatCount,
-      TALENT_INTERVIEW_FINAL_STEP
-    );
-    const displayProgress =
-      turnPercent > insightPercent
-        ? {
-            filledCount: turnFilledCount,
-            percent: turnPercent,
-            totalCount: TALENT_INTERVIEW_FINAL_STEP,
-          }
-        : { filledCount, percent: insightPercent, totalCount };
-
-    return {
-      canForceComplete: !isOnboardingDone && insightPercent >= 85,
-      filledCount: displayProgress.filledCount,
-      percent: displayProgress.percent,
-      remainingCount: Math.max(
-        displayProgress.totalCount - displayProgress.filledCount,
-        0
-      ),
-      totalCount: displayProgress.totalCount,
-    };
-  }, [isOnboardingDone, messages, talentInsights]);
+    });
+  }, [
+    canForceCompleteOnboarding,
+    isOnboardingDone,
+    messages,
+    onboardingChecklistProgress,
+    talentInsights,
+  ]);
 
   const beginOnboardingConversation = useCallback(
     async (options?: {
@@ -722,6 +704,16 @@ export const useCareerOnboardingVoice = ({
               "insightUpdatedAt" in payload ? payload.insightUpdatedAt : null
             );
           }
+          if (
+            response.ok &&
+            payload &&
+            typeof payload === "object" &&
+            "onboardingChecklistProgress" in payload
+          ) {
+            onOnboardingChecklistProgressRefreshed?.(
+              payload.onboardingChecklistProgress
+            );
+          }
           if (response.ok && payload?.progress?.completed) {
             setStage("completed" as CareerStage);
             if (args.isCallMode && !pendingCallEndRef.current) {
@@ -783,6 +775,7 @@ export const useCareerOnboardingVoice = ({
       fetchWithAuth,
       locale,
       onMessagesChanged,
+      onOnboardingChecklistProgressRefreshed,
       onTalentInsightsRefreshed,
       onOpportunityRunChanged,
       setStage,
@@ -1338,6 +1331,15 @@ export const useCareerOnboardingVoice = ({
             "insightUpdatedAt" in payload ? payload.insightUpdatedAt : null
           );
         }
+        if (
+          payload &&
+          typeof payload === "object" &&
+          "onboardingChecklistProgress" in payload
+        ) {
+          onOnboardingChecklistProgressRefreshed?.(
+            payload.onboardingChecklistProgress
+          );
+        }
         if (payload?.userMessage) {
           appendMessage(toUiMessage(payload.userMessage));
         }
@@ -1374,6 +1376,7 @@ export const useCareerOnboardingVoice = ({
       locale,
       onboardingPausePending,
       onMessagesChanged,
+      onOnboardingChecklistProgressRefreshed,
       onTalentInsightsRefreshed,
       setChatError,
       setStage,
@@ -1640,6 +1643,15 @@ export const useCareerOnboardingVoice = ({
           if (
             payload &&
             typeof payload === "object" &&
+            "onboardingChecklistProgress" in payload
+          ) {
+            onOnboardingChecklistProgressRefreshed?.(
+              payload.onboardingChecklistProgress
+            );
+          }
+          if (
+            payload &&
+            typeof payload === "object" &&
             "talentProfile" in payload
           ) {
             onTalentProfileRefreshed?.(
@@ -1726,6 +1738,7 @@ export const useCareerOnboardingVoice = ({
       fetchWithAuth,
       locale,
       onMessagesChanged,
+      onOnboardingChecklistProgressRefreshed,
       onOpportunityRunChanged,
       onTalentPreferencesRefreshed,
       onTalentInsightsRefreshed,

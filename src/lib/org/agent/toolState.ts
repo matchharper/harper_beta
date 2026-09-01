@@ -34,6 +34,7 @@ export type OrgAgentToolExecutionState = {
   contactDraftRef: NonNullable<
     OrgAgentMessageMetadata["contactDraftRef"]
   > | null;
+  contactDraftRefs: NonNullable<OrgAgentMessageMetadata["contactDraftRefs"]>;
   company: OrgWorkspace;
   completeLongTextTargets: Set<string>;
   fullRoleRequestIds: Set<string>;
@@ -44,6 +45,11 @@ export type OrgAgentToolExecutionState = {
   preferredRoleId: string | null;
   requestChanges: RequestChange[];
   requiredPresentationText: string | null;
+  requiredPresentationTexts: string[];
+  requiredContactPresentations: Array<{
+    contactId: string;
+    text: string;
+  }>;
   requiredSlackContinuationLink: string | null;
   roleById: Map<string, OrgRole>;
   stagedProposal: null | {
@@ -52,57 +58,30 @@ export type OrgAgentToolExecutionState = {
     preview: string;
     summary: string;
   };
-  terminalReply: string | null;
-  terminalMutationUsed: boolean;
+  fallbackReply: string | null;
   toolResults: OrgAgentToolResultMetadata[];
   successfulWebSearchQueries: Set<string>;
   updateProposalRef: null | { proposalId: string; summary: string };
   updateSummaries: string[];
 };
 
-export const ORG_AGENT_FAILED_UPDATE_REPLY =
-  "요청하신 변경은 적용되지 않았습니다. 내용을 다시 확인한 뒤 시도해 주세요.";
-
-export const ORG_AGENT_FAILED_ROLE_STATUS_REPLY =
-  "역할을 삭제하거나 상태를 변경하지 못했어요. 역할과 현재 상태를 다시 확인한 뒤 시도해 주세요. 후보자 추천이나 진행 중인 연결에는 변화가 없어요.";
-
-export const ORG_AGENT_FAILED_CONTACT_REPLY =
-  "후보자에게 요청을 보내지 못했어요. 대상 후보자와 역할, 요청 내용을 다시 확인해 주세요. 후보자에게 전달된 내용은 없어요.";
-
-export const ORG_AGENT_FAILED_CANDIDATE_DECISION_REPLY =
-  "후보자 연결 결정의 최종 결과를 확인하지 못했어요. 소개 이메일이나 후보자 안내가 전달됐을 수 있으니 바로 다시 시도하지 말고, 후보자의 현재 상태와 메일을 먼저 확인해 주세요.";
-
-/**
- * A failed mutation is a server-authoritative outcome. Do not let a
- * model-authored final message accidentally turn it into a success claim.
- */
-function enforceOrgAgentTerminalMutationOutcomeRaw(
+function enforceOrgAgentReplyInvariantsRaw(
   state: OrgAgentToolExecutionState,
   modelReply: string
 ) {
-  const finalTerminalResult = state.toolResults.findLast((result) =>
-    [
-      "start_role_creation",
-      "calibrate_role_hiring_brief",
-      "change_role_status",
-      "contact_talent",
-      "decide_candidate_connection",
-      "move_candidate_stage",
-      "update_data",
-      "update_role_criteria",
-    ].includes(result.name)
+  const roleCreationResult = state.toolResults.findLast(
+    (result) => result.name === "start_role_creation"
   );
-  if (!finalTerminalResult) {
+  if (!roleCreationResult) {
     return modelReply;
   }
   if (
-    finalTerminalResult.name === "start_role_creation" &&
-    finalTerminalResult.status === "success" &&
+    roleCreationResult.status === "success" &&
     state.requiredSlackContinuationLink
   ) {
     const requiredLink = state.requiredSlackContinuationLink;
     const match = requiredLink.match(/^<([^|>]+)\|([^>]+)>$/);
-    const fallback = state.terminalReply?.trim() ?? "";
+    const fallback = state.fallbackReply?.trim() ?? "";
     let reply = modelReply.trim() || fallback;
 
     if (match) {
@@ -142,27 +121,7 @@ function enforceOrgAgentTerminalMutationOutcomeRaw(
     }
     return reply;
   }
-  if (
-    (finalTerminalResult.name === "decide_candidate_connection" ||
-      finalTerminalResult.name === "move_candidate_stage") &&
-    finalTerminalResult.status !== "success" &&
-    state.terminalReply
-  ) {
-    return state.terminalReply;
-  }
-  if (finalTerminalResult.status !== "error") return modelReply;
-  const failedResult = finalTerminalResult;
-  if (state.terminalReply) return state.terminalReply;
-  if (failedResult.name === "contact_talent") {
-    return ORG_AGENT_FAILED_CONTACT_REPLY;
-  }
-  if (failedResult.name === "decide_candidate_connection") {
-    return ORG_AGENT_FAILED_CANDIDATE_DECISION_REPLY;
-  }
-  if (failedResult.name === "change_role_status") {
-    return ORG_AGENT_FAILED_ROLE_STATUS_REPLY;
-  }
-  return ORG_AGENT_FAILED_UPDATE_REPLY;
+  return modelReply;
 }
 
 function enforceVerifiedWorkspaceLinkOrgId(
@@ -174,13 +133,8 @@ function enforceVerifiedWorkspaceLinkOrgId(
     return reply;
   }
 
-  return reply.replace(
-    /https:\/\/matchharper\.com\/org\/[^\s<>|)]+/g,
-    (url) =>
-      url.replace(
-        /([?&](?:amp;)?orgId=)[^&\s<>|)]+/,
-        `$1${workspaceId}`
-      )
+  return reply.replace(/https:\/\/matchharper\.com\/org\/[^\s<>|)]+/g, (url) =>
+    url.replace(/([?&](?:amp;)?orgId=)[^&\s<>|)]+/, `$1${workspaceId}`)
   );
 }
 
@@ -190,14 +144,111 @@ function enforceVerifiedWorkspaceLinkOrgId(
  * added or required here; only an orgId already present in a Harper org URL is
  * replaced with the authoritative workspace id.
  */
-export function enforceOrgAgentTerminalMutationOutcome(
+export function enforceOrgAgentReplyInvariants(
   state: OrgAgentToolExecutionState,
   modelReply: string
 ) {
   return enforceVerifiedWorkspaceLinkOrgId(
     state,
-    enforceOrgAgentTerminalMutationOutcomeRaw(state, modelReply)
+    enforceOrgAgentReplyInvariantsRaw(state, modelReply)
   );
+}
+
+export function getOrgAgentRequiredPresentationTexts(
+  state: OrgAgentToolExecutionState
+) {
+  return Array.from(
+    new Set(
+      [
+        ...state.requiredPresentationTexts,
+        ...state.requiredContactPresentations.map((item) => item.text),
+        state.requiredPresentationText,
+      ].filter((value): value is string => Boolean(value))
+    )
+  );
+}
+
+export function getOrgAgentContactDraftReferences(metadata: unknown) {
+  const source =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? (metadata as Record<string, unknown>)
+      : {};
+  const candidates = [
+    ...(Array.isArray(source.contactDraftRefs) ? source.contactDraftRefs : []),
+    source.contactDraftRef,
+  ];
+  const byContactAndRevision = new Map<
+    string,
+    { contactId: string; revision: number }
+  >();
+  for (const candidate of candidates) {
+    if (
+      !candidate ||
+      typeof candidate !== "object" ||
+      Array.isArray(candidate)
+    ) {
+      continue;
+    }
+    const item = candidate as Record<string, unknown>;
+    const contactId = String(item.contactId ?? "").trim();
+    const revision = Number(item.revision);
+    if (!contactId || !Number.isInteger(revision) || revision < 1) continue;
+    byContactAndRevision.set(`${contactId}:${revision}`, {
+      contactId,
+      revision,
+    });
+  }
+  return Array.from(byContactAndRevision.values());
+}
+
+export function hasOrgAgentContactDraftReference(args: {
+  contactId: string;
+  metadata: unknown;
+  revision: number;
+}) {
+  return getOrgAgentContactDraftReferences(args.metadata).some(
+    (ref) => ref.contactId === args.contactId && ref.revision === args.revision
+  );
+}
+
+export function captureOrgAgentContactDraftState(args: {
+  input: Record<string, unknown>;
+  state: OrgAgentToolExecutionState;
+}) {
+  const ref = args.state.contactDraftRef;
+  if (ref) {
+    const existingRef = args.state.contactDraftRefs.findIndex(
+      (item) => item.contactId === ref.contactId
+    );
+    if (existingRef >= 0) args.state.contactDraftRefs[existingRef] = ref;
+    else args.state.contactDraftRefs.push(ref);
+    if (args.state.requiredPresentationText) {
+      const presentation = {
+        contactId: ref.contactId,
+        text: args.state.requiredPresentationText,
+      };
+      const existingPresentation =
+        args.state.requiredContactPresentations.findIndex(
+          (item) => item.contactId === ref.contactId
+        );
+      if (existingPresentation >= 0) {
+        args.state.requiredContactPresentations[existingPresentation] =
+          presentation;
+      } else {
+        args.state.requiredContactPresentations.push(presentation);
+      }
+    }
+    return;
+  }
+  const cancelledContactId = String(args.input.contactId ?? "").trim();
+  if (!cancelledContactId || args.input.action !== "cancel") return;
+  args.state.contactDraftRefs = args.state.contactDraftRefs.filter(
+    (item) => item.contactId !== cancelledContactId
+  );
+  args.state.requiredContactPresentations =
+    args.state.requiredContactPresentations.filter(
+      (item) => item.contactId !== cancelledContactId
+    );
 }
 
 export function createOrgAgentToolExecutionState(
@@ -253,6 +304,7 @@ export function createOrgAgentToolExecutionStateFromSnapshot(args: {
     actions: [],
     candidateConnectionConfirmations: [],
     contactDraftRef: null,
+    contactDraftRefs: [],
     company: { ...args.workspace },
     completeLongTextTargets: new Set(),
     fullRoleRequestIds: new Set(args.completeRoleRequestIds ?? []),
@@ -263,11 +315,12 @@ export function createOrgAgentToolExecutionStateFromSnapshot(args: {
     preferredRoleId: null,
     requestChanges: [],
     requiredPresentationText: null,
+    requiredPresentationTexts: [],
+    requiredContactPresentations: [],
     requiredSlackContinuationLink: null,
     roleById: new Map(args.roles.map((role) => [role.roleId, { ...role }])),
     stagedProposal: null,
-    terminalReply: null,
-    terminalMutationUsed: false,
+    fallbackReply: null,
     toolResults: [],
     successfulWebSearchQueries: new Set(),
     updateProposalRef: null,
@@ -319,11 +372,7 @@ export function isOrgAgentLongTextComplete(args: {
   );
 }
 
-/**
- * read_role and update_data may be emitted in one parallel tool batch. Promote
- * visibility only between model completions so a write cannot pretend the
- * model has already seen a sibling read result.
- */
+/** Promote a completed read only after its result is ready for the next model step. */
 export function promoteOrgAgentToolReadVisibility(
   state: OrgAgentToolExecutionState
 ) {

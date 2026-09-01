@@ -31,7 +31,7 @@ import {
 import {
   fetchOrgAgentConversationHistory,
   OrgAgentConversationHistoryCursorError,
-  type OrgAgentConversationHistoryScope,
+  type OrgAgentConversationHistoryType,
 } from "@/lib/org/agent/conversationHistory";
 import { hasPendingOrgAgentUpdateProposal } from "@/lib/org/agent/proposals";
 import { parseReadTalentIds } from "@/lib/org/agent/readTalentInput";
@@ -50,6 +50,7 @@ import type {
 } from "@/lib/org/agent/types";
 import {
   createOrgAgentToolExecutionState,
+  hasOrgAgentContactDraftReference,
   isOrgAgentLongTextComplete,
   markOrgAgentLongTextComplete,
   promoteOrgAgentToolReadVisibility,
@@ -59,6 +60,7 @@ import {
 import {
   createOrgRoleReviewStages,
   deleteEmptyOrgRoleReviewStage,
+  moveOrgCandidateToRole,
   setOrgCandidateStage,
   updateOrgRoleCriteria,
   updateOrgRoleReviewStage,
@@ -383,7 +385,7 @@ function existingCompanyTalentRequestResult(args: {
     ? `${existingRoleName} 역할 관련${existingTopic ? ` “${existingTopic}”` : ""} 요청이 ${existingStatus} 상태로 남아 있어요.`
     : "이미 다른 확인 요청이 진행 중이에요.";
   const conflictSummary = `${candidateName}께 ${existingDescription}`;
-  args.state.terminalReply = cancelable
+  args.state.fallbackReply = cancelable
     ? `${conflictSummary} 새 요청은 접수하지 않았습니다. 기존 요청을 취소하고 이번 요청으로 새로 접수할까요?`
     : `${conflictSummary} 새 요청은 접수하지 않았습니다. 기존 요청은 이미 발송이 시작됐거나 답변을 처리 중이어서 지금 취소하거나 교체할 수 없습니다.`;
   recordResult(args.state, {
@@ -416,7 +418,7 @@ function existingCompanyTalentRequestResult(args: {
       topic: args.requestContext,
     },
     status: "already_pending",
-    userMessage: args.state.terminalReply,
+    userMessage: args.state.fallbackReply,
   };
 }
 
@@ -495,6 +497,11 @@ export function getOrgAgentToolStatusLabel(args: {
       "후보자 파이프라인 단계를 변경하는 중",
       "후보자 파이프라인 단계 변경 완료",
       "후보자 파이프라인 단계를 변경하지 못했습니다",
+    ],
+    move_candidate_to_role: [
+      "후보자의 진행 역할을 변경하는 중",
+      "후보자 진행 역할 변경 완료",
+      "후보자 진행 역할을 변경하지 못했습니다",
     ],
     manage_interview_availability: [
       "인터뷰 가능 시간을 저장하는 중",
@@ -601,9 +608,8 @@ async function executeReadRole(args: {
     user: args.user,
     workspaceId: args.workspaceId,
   });
-  // A read and a write can appear in the same parallel tool-call batch. The
-  // model has not seen this result yet, so chat.ts promotes this ID only after
-  // the whole batch finishes and before the next completion.
+  // Promote long-text visibility only after this result is returned to the
+  // model; a later write must be based on content the model actually saw.
   if (!result.role?.roleId) return result;
   const resolvedRoleId = result.role.roleId;
   if (result.fieldCompleteness.role_request.complete) {
@@ -641,19 +647,30 @@ async function executeReadConversationHistory(args: {
   input: Record<string, unknown>;
   slackThreadId: string | null;
 }): Promise<Record<string, unknown>> {
-  const scope = text(args.input.scope) as OrgAgentConversationHistoryScope;
-  if (scope !== "current_thread" && scope !== "workspace") {
-    throw new OrgAgentToolInputError(
-      "scope must be current_thread or workspace"
-    );
+  const type = text(args.input.type) as OrgAgentConversationHistoryType;
+  if (type !== "all" && type !== "thread") {
+    throw new OrgAgentToolInputError("type must be all or thread");
   }
   const cursor = text(args.input.cursor) || null;
   if (cursor && cursor.length > 500) {
     throw new OrgAgentToolInputError("cursor exceeds 500 characters");
   }
-  if (scope === "current_thread" && !cursor) {
+  const threadIds = Array.isArray(args.input.threadIds)
+    ? Array.from(new Set(args.input.threadIds.map(text).filter(Boolean)))
+    : [];
+  if (type === "thread" && (threadIds.length < 1 || threadIds.length > 3)) {
     throw new OrgAgentToolInputError(
-      "current_thread requires the exact next_cursor from recent_conversation or the previous result"
+      "type=thread requires one to three exact threadIds"
+    );
+  }
+  if (type === "all" && threadIds.length > 0) {
+    throw new OrgAgentToolInputError(
+      "threadIds are available only for type=thread"
+    );
+  }
+  if (type === "thread" && cursor && threadIds.length !== 1) {
+    throw new OrgAgentToolInputError(
+      "A thread cursor requires exactly one selected threadId"
     );
   }
   try {
@@ -663,8 +680,9 @@ async function executeReadConversationHistory(args: {
       currentSlackThreadId: args.slackThreadId,
       currentUserMessageId: args.currentUserMessageId,
       cursor,
-      limit: boundedInteger(args.input.limit, 20, 1, 30),
-      scope,
+      limit: boundedInteger(args.input.limit, 5, 1, 10),
+      threadIds,
+      type,
       workspaceId: args.conversation.company_workspace_id,
     })) as unknown as Record<string, unknown>;
   } catch (error) {
@@ -813,7 +831,7 @@ async function executeProposalAction(args: {
   }
   if (status === "applied") {
     const summary = text(result.summary) || "확인한 변경 반영";
-    args.state.terminalReply = `변경 내용을 저장했어요. ${summary}`;
+    args.state.fallbackReply = `변경 내용을 저장했어요. ${summary}`;
     args.state.updateSummaries.push(summary);
     args.state.actions.push({
       id: crypto.randomUUID(),
@@ -823,20 +841,20 @@ async function executeProposalAction(args: {
     });
   }
   if (status === "rejected") {
-    args.state.terminalReply = "알겠습니다. 변경안은 적용하지 않았습니다.";
+    args.state.fallbackReply = "알겠습니다. 변경안은 적용하지 않았습니다.";
   } else if (status === "preview" || status === "needs_repreview") {
-    args.state.terminalReply =
+    args.state.fallbackReply =
       text(result.presentation_text) ||
       text(result.preview) ||
       "확인 대기 중인 변경안을 다시 보여드릴게요.";
   } else if (status === "expired") {
-    args.state.terminalReply =
+    args.state.fallbackReply =
       "변경안의 확인 시간이 지나 적용하지 않았습니다. 원하시면 현재 내용을 다시 확인해 새 변경안을 만들게요.";
   } else if (status === "stale") {
-    args.state.terminalReply =
+    args.state.fallbackReply =
       "그 사이 정보가 바뀌어 이전 변경안은 적용하지 않았습니다. 최신 내용을 다시 확인해 주세요.";
   } else if (status === "not_found") {
-    args.state.terminalReply =
+    args.state.fallbackReply =
       "확인 대기 중인 변경안을 찾지 못했습니다. 변경 내용을 다시 말씀해 주세요.";
   }
   recordResult(args.state, {
@@ -907,12 +925,6 @@ async function executeUpdateRoleCriteria(args: {
   user: User;
   workspaceId: string;
 }) {
-  if (args.state.terminalMutationUsed) {
-    throw new OrgAgentToolInputError(
-      "update_role_criteria may be called only once and must be the only mutation in this turn"
-    );
-  }
-  args.state.terminalMutationUsed = true;
   const role = roleOrThrow(args.state, args.input.roleId);
   const hasReplacement = has(args.input, "criteria");
   const hasEdits = has(args.input, "edits");
@@ -977,7 +989,7 @@ async function executeUpdateRoleCriteria(args: {
         .join(", ")
     : "전체 교체";
   const summary = `${role.name} 역할 평가 기준 ${editSummary} (총 ${criteria.length}개)`;
-  args.state.terminalReply = changed
+  args.state.fallbackReply = changed
     ? `${role.name} 역할의 Evaluation Criteria를 저장했어요. ${editSummary}, 총 ${criteria.length}개예요. Hiring Brief와 Context for Harper는 바꾸지 않았어요.`
     : "이미 같은 Evaluation Criteria가 저장되어 있어 바뀐 내용은 없어요.";
   if (changed) {
@@ -1019,12 +1031,6 @@ async function executeCalibrateRoleHiringBrief(args: {
   userMessage: string;
   workspaceId: string;
 }) {
-  if (args.state.terminalMutationUsed) {
-    throw new OrgAgentToolInputError(
-      "calibrate_role_hiring_brief may be called only once and must be the only mutation in this turn"
-    );
-  }
-  args.state.terminalMutationUsed = true;
   const visibleRole = roleOrThrow(args.state, args.input.roleId);
   const role = await fetchRoleForOrgAgent({
     admin: args.admin,
@@ -1060,7 +1066,7 @@ async function executeCalibrateRoleHiringBrief(args: {
     workspaceId: args.workspaceId,
   });
   if (!calibration.shouldUpdate || !calibration.hiringBrief) {
-    args.state.terminalReply = calibration.userReply;
+    args.state.fallbackReply = calibration.userReply;
     recordResult(args.state, {
       callId: args.callId,
       name: args.name,
@@ -1097,7 +1103,7 @@ async function executeCalibrateRoleHiringBrief(args: {
     scope: "role",
   });
   args.state.updateSummaries.push(calibration.summary);
-  args.state.terminalReply = calibration.userReply;
+  args.state.fallbackReply = calibration.userReply;
   markOrgAgentLongTextComplete({
     key: "role_request",
     observedValue: calibration.hiringBrief,
@@ -1135,13 +1141,7 @@ async function executeUpdateData(args: {
   state: OrgAgentToolExecutionState;
   workspaceId: string;
 }) {
-  if (args.state.terminalMutationUsed) {
-    throw new OrgAgentToolInputError(
-      "update_data may be called only once per user turn"
-    );
-  }
   const mode = resolveOrgAgentUpdateDataMode(args.input);
-  args.state.terminalMutationUsed = true;
   if (mode === "proposal") {
     return executeProposalAction(args);
   }
@@ -1242,7 +1242,7 @@ async function executeUpdateData(args: {
     }
   }
   if (changes.length === 0) {
-    args.state.terminalReply = "이미 같은 내용으로 반영되어 있습니다.";
+    args.state.fallbackReply = "이미 같은 내용으로 반영되어 있습니다.";
     recordResult(args.state, {
       callId: args.callId,
       name: args.name,
@@ -1257,7 +1257,7 @@ async function executeUpdateData(args: {
   });
   if (resolved.confirmationRequired || baseProposal) {
     if (!baseProposalId && (await hasPendingOrgAgentUpdateProposal(args))) {
-      args.state.terminalReply =
+      args.state.fallbackReply =
         "이미 확인을 기다리는 변경안이 있습니다. 그 변경안을 고칠지, 취소하고 새로 만들지 알려주세요.";
       return {
         status: "pending_proposal_exists",
@@ -1271,7 +1271,7 @@ async function executeUpdateData(args: {
       preview,
       summary,
     };
-    args.state.terminalReply = `알겠습니다. ${summary} 내용을 아래와 같이 수정할까요?`;
+    args.state.fallbackReply = `알겠습니다. ${summary} 내용을 아래와 같이 수정할까요?`;
     recordResult(args.state, {
       callId: args.callId,
       name: args.name,
@@ -1303,7 +1303,7 @@ async function executeUpdateData(args: {
     );
   }
   if (status === "updated") {
-    args.state.terminalReply = `변경 내용을 저장했어요. ${summary}`;
+    args.state.fallbackReply = `변경 내용을 저장했어요. ${summary}`;
     args.state.updateSummaries.push(summary);
     args.state.actions.push({
       id: crypto.randomUUID(),
@@ -1318,7 +1318,7 @@ async function executeUpdateData(args: {
     });
   }
   if (status === "already_reflected") {
-    args.state.terminalReply = "이미 같은 내용으로 반영되어 있습니다.";
+    args.state.fallbackReply = "이미 같은 내용으로 반영되어 있습니다.";
   }
   if (status !== "updated" && status !== "already_reflected") {
     throw new Error("Unexpected company data update result");
@@ -1343,13 +1343,6 @@ async function executeChangeRoleStatus(args: {
   user: User;
   workspaceId: string;
 }) {
-  if (args.state.terminalMutationUsed) {
-    throw new OrgAgentToolInputError(
-      "change_role_status may be called only once and must be the only tool in this turn"
-    );
-  }
-  args.state.terminalMutationUsed = true;
-
   const role = roleOrThrow(args.state, args.input.roleId);
   const status = roleLifecycleStatus(args.input.status);
   const copy = ORG_AGENT_ROLE_STATUS_COPY[status];
@@ -1370,7 +1363,7 @@ async function executeChangeRoleStatus(args: {
     if (currentRole) {
       args.state.roleById.set(role.roleId, { ...currentRole, status });
     }
-    args.state.terminalReply = `${role.name} 역할을 삭제했어요. ${copy.effect}\n\n${copy.expectation}\n\n${copy.nextProcess}`;
+    args.state.fallbackReply = `${role.name} 역할을 삭제했어요. ${copy.effect}\n\n${copy.expectation}\n\n${copy.nextProcess}`;
     args.state.updateSummaries.push(summary);
     args.state.actions.push({
       id: crypto.randomUUID(),
@@ -1418,7 +1411,7 @@ async function executeChangeRoleStatus(args: {
   });
 
   if (resolved.changes.length === 0) {
-    args.state.terminalReply = `${role.name} 역할은 이미 ${statusLabel} 상태예요. ${copy.effect}\n\n${copy.expectation}\n\n${copy.nextProcess}`;
+    args.state.fallbackReply = `${role.name} 역할은 이미 ${statusLabel} 상태예요. ${copy.effect}\n\n${copy.expectation}\n\n${copy.nextProcess}`;
     recordResult(args.state, {
       callId: args.callId,
       name: args.name,
@@ -1465,7 +1458,7 @@ async function executeChangeRoleStatus(args: {
   if (currentRole) {
     args.state.roleById.set(role.roleId, { ...currentRole, status });
   }
-  args.state.terminalReply = changed
+  args.state.fallbackReply = changed
     ? `${role.name} 역할을 ${statusLabel} 상태로 바꿨어요. ${copy.effect}\n\n${copy.expectation}\n\n${copy.nextProcess}`
     : `${role.name} 역할은 이미 ${statusLabel} 상태예요. ${copy.effect}\n\n${copy.expectation}\n\n${copy.nextProcess}`;
   if (changed) {
@@ -1506,13 +1499,6 @@ async function executeCompanyTalentRequest(args: {
   user: User;
   workspaceId: string;
 }) {
-  if (args.state.terminalMutationUsed) {
-    throw new OrgAgentToolInputError(
-      `${args.name} may be called only once and must be the only tool in this turn`
-    );
-  }
-  args.state.terminalMutationUsed = true;
-
   const kindValue = requiredText(args.input.kind, "kind", 20);
   if (kindValue !== "question" && kindValue !== "resume") {
     throw new OrgAgentToolInputError("kind must be question or resume");
@@ -1549,7 +1535,7 @@ async function executeCompanyTalentRequest(args: {
     );
   }
   if (!text(talent.candidate.email)) {
-    args.state.terminalReply =
+    args.state.fallbackReply =
       "현재 Harper가 후보자분께 연락할 수 있는 이메일을 확인하지 못해 대신 문의를 보내지 못했습니다. 후보자 상세의 프로필 정보를 먼저 확인해 주시고, 가능한 다른 연락 경로가 있다면 직접 연락해 주세요.";
     recordResult(args.state, {
       callId: args.callId,
@@ -1559,7 +1545,7 @@ async function executeCompanyTalentRequest(args: {
     });
     return {
       status: "contact_unavailable",
-      userMessage: args.state.terminalReply,
+      userMessage: args.state.fallbackReply,
     };
   }
 
@@ -1665,7 +1651,7 @@ async function executeCompanyTalentRequest(args: {
     throw error;
   }
 
-  args.state.terminalReply = candidateContactScheduledReply({
+  args.state.fallbackReply = candidateContactScheduledReply({
     candidateName: text(talent.candidate.name) || "후보자",
     immediate: deliveryMode === "immediate",
     scheduledAt: request.candidateDeliveryScheduledAt,
@@ -1687,7 +1673,7 @@ async function executeCompanyTalentRequest(args: {
     requestId: request.id,
     scheduledAt: request.candidateDeliveryScheduledAt,
     status: deliveryMode === "immediate" ? "immediate" : "queued",
-    userMessage: args.state.terminalReply,
+    userMessage: args.state.fallbackReply,
   };
 }
 
@@ -1700,13 +1686,6 @@ async function executeChangeTalentContact(args: {
   user: User;
   workspaceId: string;
 }) {
-  if (args.state.terminalMutationUsed) {
-    throw new OrgAgentToolInputError(
-      `${args.name} may be called only once and must be the only tool in this turn`
-    );
-  }
-  args.state.terminalMutationUsed = true;
-
   const action = requiredText(args.input.action, "action", 20);
   if (action !== "cancel" && action !== "immediate") {
     throw new OrgAgentToolInputError("action must be cancel or immediate");
@@ -1732,7 +1711,7 @@ async function executeChangeTalentContact(args: {
     );
   }
   if (!pendingRequest.cancelable) {
-    args.state.terminalReply =
+    args.state.fallbackReply =
       action === "cancel"
         ? "이 문의는 이미 발송 처리가 시작됐거나 종료되어 취소할 수 없습니다. 현재 상태를 다시 확인해 주세요."
         : "이 문의는 이미 발송 처리가 시작됐거나 종료되어 즉시 발송으로 변경할 수 없습니다. 현재 상태를 다시 확인해 주세요.";
@@ -1747,7 +1726,7 @@ async function executeChangeTalentContact(args: {
     });
     return {
       status: "not_changeable",
-      userMessage: args.state.terminalReply,
+      userMessage: args.state.fallbackReply,
     };
   }
 
@@ -1770,7 +1749,7 @@ async function executeChangeTalentContact(args: {
       message.includes("company_talent_request_not_cancellable") ||
       message.includes("company_talent_request_not_changeable")
     ) {
-      args.state.terminalReply =
+      args.state.fallbackReply =
         action === "cancel"
           ? "확인하는 사이 발송 처리가 시작되어 이 문의는 취소하지 못했습니다. 현재 상태를 다시 확인해 주세요."
           : "확인하는 사이 발송 처리가 시작되어 이 문의를 즉시 발송으로 변경하지 못했습니다. 현재 상태를 다시 확인해 주세요.";
@@ -1785,14 +1764,14 @@ async function executeChangeTalentContact(args: {
       });
       return {
         status: "not_changeable",
-        userMessage: args.state.terminalReply,
+        userMessage: args.state.fallbackReply,
       };
     }
     throw error;
   }
 
   if (action === "immediate") {
-    args.state.terminalReply =
+    args.state.fallbackReply =
       pendingRequest.deliveryStatus === "failed"
         ? `${text(talent.candidate.name) || "후보자"}님께 다시 물어볼게요. 앞서 보낸 내용과 겹칠 수 있어요. 답이 오면 여기로 알려드릴게요.`
         : candidateContactScheduledReply({
@@ -1800,7 +1779,7 @@ async function executeChangeTalentContact(args: {
             immediate: true,
           });
   } else {
-    args.state.terminalReply =
+    args.state.fallbackReply =
       pendingRequest.deliveryStatus === "failed"
         ? `${text(talent.candidate.name) || "후보자"}님께 드린 요청을 더 진행하지 않도록 했어요. 다만 앞선 전달이 기록보다 먼저 끝났을 가능성은 있어요.`
         : `${text(talent.candidate.name) || "후보자"}님께 드리려던 요청을 취소했어요.`;
@@ -1818,7 +1797,7 @@ async function executeChangeTalentContact(args: {
     requestId,
     scheduledAt: changed.status === "immediate" ? changed.scheduledAt : null,
     status: changed.status,
-    userMessage: args.state.terminalReply,
+    userMessage: args.state.fallbackReply,
   };
 }
 
@@ -1894,12 +1873,11 @@ async function wasContactDraftImmediatelyPresented(args: {
       : query.eq("message_type", "chat");
   const { data, error } = await query.maybeSingle();
   if (error) throw error;
-  const ref = record(record(data).metadata).contactDraftRef;
-  const parsedRef = record(ref);
-  return (
-    text(parsedRef.contactId) === args.contactId &&
-    Number(parsedRef.revision) === args.revision
-  );
+  return hasOrgAgentContactDraftReference({
+    contactId: args.contactId,
+    metadata: record(data).metadata,
+    revision: args.revision,
+  });
 }
 
 function normalizedDecisionEmails(value: unknown) {
@@ -2087,13 +2065,6 @@ async function executeCandidateContactLifecycle(args: {
   user: User;
   workspaceId: string;
 }) {
-  if (args.state.terminalMutationUsed) {
-    throw new OrgAgentToolInputError(
-      "contact_talent may be called only once and must be the only terminal tool in this turn"
-    );
-  }
-  args.state.terminalMutationUsed = true;
-
   let action = requiredText(
     args.input.action,
     "action",
@@ -2143,7 +2114,7 @@ async function executeCandidateContactLifecycle(args: {
       );
     }
     if (!text(talent.candidate.email)) {
-      args.state.terminalReply =
+      args.state.fallbackReply =
         "현재 Harper가 후보자분께 연락할 수 있는 이메일을 확인하지 못해 초안을 만들지 못했습니다. 아직 접수되거나 발송된 내용은 없습니다.";
       recordResult(args.state, {
         callId: args.callId,
@@ -2153,7 +2124,7 @@ async function executeCandidateContactLifecycle(args: {
       });
       return {
         status: "contact_unavailable",
-        userMessage: args.state.terminalReply,
+        userMessage: args.state.fallbackReply,
       };
     }
     if (kind === "resume") {
@@ -2199,7 +2170,7 @@ async function executeCandidateContactLifecycle(args: {
             source: args.source,
           }
         );
-        args.state.terminalReply = candidateContactDraftFallbackReply(
+        args.state.fallbackReply = candidateContactDraftFallbackReply(
           text(talent.candidate.name)
         );
         recordResult(args.state, {
@@ -2213,7 +2184,7 @@ async function executeCandidateContactLifecycle(args: {
           candidateName: text(talent.candidate.name),
           revision,
           status: "draft",
-          userMessage: args.state.terminalReply,
+          userMessage: args.state.fallbackReply,
         };
       }
       return existingCompanyTalentRequestResult({
@@ -2312,7 +2283,7 @@ async function executeCandidateContactLifecycle(args: {
       body: String(draft.delivery_body),
       source: args.source,
     });
-    args.state.terminalReply = candidateContactDraftFallbackReply(
+    args.state.fallbackReply = candidateContactDraftFallbackReply(
       text(talent.candidate.name)
     );
     recordResult(args.state, {
@@ -2326,7 +2297,7 @@ async function executeCandidateContactLifecycle(args: {
       candidateName: text(talent.candidate.name),
       revision,
       status: "draft",
-      userMessage: args.state.terminalReply,
+      userMessage: args.state.fallbackReply,
     };
   }
 
@@ -2398,7 +2369,7 @@ async function executeCandidateContactLifecycle(args: {
       body: String(revised.delivery_body),
       source: args.source,
     });
-    args.state.terminalReply =
+    args.state.fallbackReply =
       "말씀해 주신 내용으로 문구를 고쳤어요. 아직 후보자에게 보내지는 않았어요. 아래 내용을 한 번만 다시 확인해 주시겠어요?";
     recordResult(args.state, {
       callId: args.callId,
@@ -2411,7 +2382,7 @@ async function executeCandidateContactLifecycle(args: {
       candidateName,
       revision: revised.draft_revision,
       status: "draft_revised",
-      userMessage: args.state.terminalReply,
+      userMessage: args.state.fallbackReply,
     };
   }
 
@@ -2462,7 +2433,7 @@ async function executeCandidateContactLifecycle(args: {
             source: args.source,
           }
         );
-        args.state.terminalReply =
+        args.state.fallbackReply =
           "방금 확인하신 문구와 현재 저장된 문구가 달라서 아직 보내지 않았어요. 아래 내용을 한 번만 다시 확인해 주시겠어요.";
         recordResult(args.state, {
           callId: args.callId,
@@ -2475,7 +2446,7 @@ async function executeCandidateContactLifecycle(args: {
           candidateName,
           revision: contact.draft_revision,
           status: "confirmation_required",
-          userMessage: args.state.terminalReply,
+          userMessage: args.state.fallbackReply,
         };
       }
       const scheduled = await scheduleCompanyTalentContact({
@@ -2491,7 +2462,7 @@ async function executeCandidateContactLifecycle(args: {
         contactId: contact.id,
         revision: contact.draft_revision,
       };
-      args.state.terminalReply = candidateContactScheduledReply({
+      args.state.fallbackReply = candidateContactScheduledReply({
         candidateName,
         immediate: deliveryModeValue === "immediate",
         scheduledAt: scheduled.scheduledAt,
@@ -2510,7 +2481,7 @@ async function executeCandidateContactLifecycle(args: {
         revision: contact.draft_revision,
         scheduledAt: scheduled.scheduledAt,
         status: scheduled.status,
-        userMessage: args.state.terminalReply,
+        userMessage: args.state.fallbackReply,
       };
     }
   }
@@ -2544,7 +2515,7 @@ async function executeCandidateContactLifecycle(args: {
       message.includes("company_talent_request_not_cancellable") ||
       message.includes("company_talent_request_not_changeable")
     ) {
-      args.state.terminalReply =
+      args.state.fallbackReply =
         action === "immediate"
           ? "확인하는 사이 발송 처리가 시작되어 이 요청의 발송 시간을 앞당기지 못했습니다. 현재 전달 상태를 다시 확인해 주세요."
           : "확인하는 사이 발송 처리가 시작되어 이 요청은 취소하지 못했습니다.";
@@ -2559,7 +2530,7 @@ async function executeCandidateContactLifecycle(args: {
       });
       return {
         status: "not_changeable",
-        userMessage: args.state.terminalReply,
+        userMessage: args.state.fallbackReply,
       };
     }
     throw error;
@@ -2569,7 +2540,7 @@ async function executeCandidateContactLifecycle(args: {
       contactId: contact.id,
       revision: contact.draft_revision,
     };
-    args.state.terminalReply = candidateContactScheduledReply({
+    args.state.fallbackReply = candidateContactScheduledReply({
       candidateName,
       immediate: true,
     });
@@ -2583,11 +2554,11 @@ async function executeCandidateContactLifecycle(args: {
       contactId: contact.id,
       scheduledAt: "scheduledAt" in changed ? changed.scheduledAt : null,
       status: changed.status,
-      userMessage: args.state.terminalReply,
+      userMessage: args.state.fallbackReply,
     };
   }
   args.state.contactDraftRef = null;
-  args.state.terminalReply =
+  args.state.fallbackReply =
     contact.workflow_status === "draft"
       ? `${candidateName}님께 보낼 ${roleName} 관련 초안을 취소했어요. 후보자에게 전달된 내용은 없어요.`
       : `${candidateName}님께 드리려던 ${roleName} 관련 요청을 취소했어요.`;
@@ -2600,7 +2571,7 @@ async function executeCandidateContactLifecycle(args: {
   return {
     contactId: contact.id,
     status: changed.status,
-    userMessage: args.state.terminalReply,
+    userMessage: args.state.fallbackReply,
   };
 }
 
@@ -2858,12 +2829,6 @@ async function executeMoveCandidateStage(args: {
   user: User;
   workspaceId: string;
 }) {
-  if (args.state.terminalMutationUsed) {
-    throw new OrgAgentToolInputError(
-      "move_candidate_stage may be called only once and must be the only tool in this turn"
-    );
-  }
-  args.state.terminalMutationUsed = true;
   const role = roleOrThrow(args.state, args.input.roleId);
   const talentId = requiredText(args.input.talentId, "talentId", 100);
   const expectedCurrentStage = moveableCompanyPipelineStage(
@@ -2906,7 +2871,7 @@ async function executeMoveCandidateStage(args: {
   if (currentStage === targetStage && !scheduleInterview) {
     const stageLabel = position.stageLabel || humanizeOrgStage(targetStage);
     const summary = `${candidateName} 후보자는 이미 ${stageLabel} 단계`;
-    args.state.terminalReply = `${summary}입니다. 후보자에게 별도 연락은 보내지 않았습니다.`;
+    args.state.fallbackReply = `${summary}입니다. 후보자에게 별도 연락은 보내지 않았습니다.`;
     recordResult(args.state, {
       callId: args.callId,
       name: args.name,
@@ -2953,7 +2918,7 @@ async function executeMoveCandidateStage(args: {
     );
   }
   if (targetStage === "final_offer" && args.input.confirmFinalOffer !== true) {
-    args.state.terminalReply =
+    args.state.fallbackReply =
       "설정된 다음 프로세스가 없습니다. 최종 오퍼로 옮길까요?";
     recordResult(args.state, {
       callId: args.callId,
@@ -2967,7 +2932,7 @@ async function executeMoveCandidateStage(args: {
       roleName: role.name,
       stageLabel: targetStageLabel,
       status: "final_offer_confirmation_required",
-      userMessage: args.state.terminalReply,
+      userMessage: args.state.fallbackReply,
     };
   }
 
@@ -3145,7 +3110,7 @@ async function executeMoveCandidateStage(args: {
         currentStage === targetStage
           ? `${candidateName}님의 ${targetStageLabel} 미팅은 준비했어요.`
           : `${candidateName}님을 ${targetStageLabel} 단계로 옮겼어요.`;
-      args.state.terminalReply = `${movedSummary} 다만 후보자에게 보낼 일정 선택 안내의 전달 상태를 확인하지 못했어요. 중복 연락을 피하기 위해 바로 다시 요청하지 말고, 이 대화에서 현재 일정을 먼저 확인해 주세요.`;
+      args.state.fallbackReply = `${movedSummary} 다만 후보자에게 보낼 일정 선택 안내의 전달 상태를 확인하지 못했어요. 중복 연락을 피하기 위해 바로 다시 요청하지 말고, 이 대화에서 현재 일정을 먼저 확인해 주세요.`;
       throw error;
     }
   }
@@ -3233,6 +3198,66 @@ async function executeMoveCandidateStage(args: {
     roleName: role.name,
     stageLabel: targetStageLabel,
     status: "updated",
+  };
+}
+
+async function executeMoveCandidateToRole(args: {
+  callId: string;
+  currentUserMessageId: number;
+  input: Record<string, unknown>;
+  name: OrgAgentToolName;
+  state: OrgAgentToolExecutionState;
+  user: User;
+  workspaceId: string;
+}) {
+  const sourceRole = roleOrThrow(args.state, args.input.sourceRoleId);
+  const targetRole = roleOrThrow(args.state, args.input.targetRoleId);
+  const talentId = requiredText(args.input.talentId, "talentId", 100);
+  const targetStageId = moveableCompanyPipelineStage(
+    args.input.targetStageId,
+    "targetStageId"
+  );
+  const result = await moveOrgCandidateToRole({
+    companyMessageId: args.currentUserMessageId,
+    sourceRoleId: sourceRole.roleId,
+    talentId,
+    targetRoleId: targetRole.roleId,
+    targetStageId,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+
+  const candidateName = result.candidateName || "후보자";
+  if (result.status === "moved") {
+    const summary = `${candidateName} 후보자: ${result.sourceRoleName || sourceRole.name} → ${result.targetRoleName || targetRole.name} (${result.targetStageLabel || humanizeOrgStage(targetStageId)})`;
+    args.state.updateSummaries.push(summary);
+    args.state.actions.push({
+      id: crypto.randomUUID(),
+      kind: "entity_updated",
+      label: "후보자 역할 업데이트됨",
+      payload: { changeSummary: summary, scope: "role" },
+    });
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "success",
+      summary,
+    });
+  } else {
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "unchanged",
+      summary: `${candidateName} 후보자 역할 이동 미적용: ${result.status}`,
+    });
+  }
+
+  return {
+    ...result,
+    preservedActivity: {
+      activeMeetingCount: result.activeMeetingCount,
+      openQuestionCount: result.openQuestionCount,
+    },
   };
 }
 
@@ -3500,7 +3525,7 @@ async function executePrepareCandidateConnection(args: {
       label: stage.label,
     }));
     const candidateName = text(talent.candidate.name) || "후보자";
-    args.state.terminalReply = processStageRequiredReply({
+    args.state.fallbackReply = processStageRequiredReply({
       candidateName,
       scheduleInterview: connectionMethod === "schedule_interview",
       stages,
@@ -3518,7 +3543,7 @@ async function executePrepareCandidateConnection(args: {
       currentStage: position.stage,
       decision,
       status: "process_stage_required",
-      userMessage: args.state.terminalReply,
+      userMessage: args.state.fallbackReply,
     };
   }
   const preparedMeeting =
@@ -3627,7 +3652,6 @@ async function executeCandidateConnectionDecision(args: {
   user: User;
   workspaceId: string;
 }) {
-  args.state.terminalMutationUsed = true;
   const current = roleOrThrow(args.state, args.input.roleId);
   args.state.preferredRoleId = current.roleId;
   const decision = candidateDecision(args.input.decision);
@@ -3734,7 +3758,7 @@ async function executeCandidateConnectionDecision(args: {
       : null;
   const proposedMeetingDraft = proposedMeeting?.draft ?? null;
   if (proposedMeetingDraft?.draftBlocker) {
-    args.state.terminalReply = formatPreparedMeetingScheduleConfirmation({
+    args.state.fallbackReply = formatPreparedMeetingScheduleConfirmation({
       candidateName: text(talent.candidate.name) || "후보자",
       draft: proposedMeetingDraft,
       roleName: current.name,
@@ -3752,7 +3776,7 @@ async function executeCandidateConnectionDecision(args: {
       draftBlocker: proposedMeetingDraft.draftBlocker,
       meetingDraft: meetingDraftConfirmation(proposedMeetingDraft),
       status: "meeting_setup_required",
-      userMessage: args.state.terminalReply,
+      userMessage: args.state.fallbackReply,
     };
   }
   const confirmed = await immediatelyPresentedCandidateDecision({
@@ -3793,7 +3817,7 @@ async function executeCandidateConnectionDecision(args: {
         roleId: current.roleId,
       });
       const candidateName = text(talent.candidate.name) || "후보자";
-      args.state.terminalReply = processStageRequiredReply({
+      args.state.fallbackReply = processStageRequiredReply({
         candidateName,
         scheduleInterview: proposedConnectionMethod === "schedule_interview",
         stages: stages.map((stage) => ({
@@ -3816,7 +3840,7 @@ async function executeCandidateConnectionDecision(args: {
         connectionMethod: proposedConnectionMethod,
         decision,
         status: "process_stage_required",
-        userMessage: args.state.terminalReply,
+        userMessage: args.state.fallbackReply,
       };
     }
     stageCandidateDecisionContext({
@@ -3837,7 +3861,7 @@ async function executeCandidateConnectionDecision(args: {
       state: args.state,
       talentId,
     });
-    args.state.terminalReply = candidateDecisionConfirmationText({
+    args.state.fallbackReply = candidateDecisionConfirmationText({
       candidateEmail,
       candidateName: text(talent.candidate.name) || "후보자",
       connectionMethod: proposedConnectionMethod,
@@ -3863,7 +3887,7 @@ async function executeCandidateConnectionDecision(args: {
       decision,
       introEmails: proposedIntroEmails,
       status: "confirmation_required",
-      userMessage: args.state.terminalReply,
+      userMessage: args.state.fallbackReply,
     };
   }
   const connectionMethod =
@@ -3914,7 +3938,7 @@ async function executeCandidateConnectionDecision(args: {
   if (connectionMethod === "schedule_interview") {
     const confirmedDraft = confirmed.meetingDraft;
     if (!confirmedDraft) {
-      args.state.terminalReply =
+      args.state.fallbackReply =
         "앞서 확인한 미팅 정보를 다시 찾지 못했어요. 후보자에게는 아직 연락하지 않았으니, 미팅 조율을 한 번만 다시 요청해 주세요.";
       throw new OrgAgentToolInputError(
         "확인된 인터뷰 일정 기본안을 찾지 못했어요. 현재 설정을 다시 확인해 주세요."
@@ -3943,7 +3967,7 @@ async function executeCandidateConnectionDecision(args: {
       });
       const currentDraft = preparedCurrentMeeting.draft;
       if (currentDraft.draftBlocker) {
-        args.state.terminalReply = formatPreparedMeetingScheduleConfirmation({
+        args.state.fallbackReply = formatPreparedMeetingScheduleConfirmation({
           candidateName,
           draft: currentDraft,
           roleName: current.name,
@@ -4049,8 +4073,8 @@ async function executeCandidateConnectionDecision(args: {
         talentId: result.talentId,
       };
     } catch (error) {
-      if (!args.state.terminalReply) {
-        args.state.terminalReply = draftWriteStarted
+      if (!args.state.fallbackReply) {
+        args.state.fallbackReply = draftWriteStarted
           ? "미팅 정보를 준비하던 중 결과를 끝까지 확인하지 못했어요. 중복 연락을 막기 위해 바로 다시 시도하지 말고, 이 대화에서 현재 일정을 먼저 확인해 주세요. 후보자에게 메일이 보내졌다는 확인은 없어요."
           : "미팅 정보를 다시 확인하지 못했어요. 후보자에게는 아직 연락하지 않았으니, 가능 시간과 참석자를 확인한 뒤 다시 요청해 주세요.";
       }
@@ -4079,7 +4103,7 @@ async function executeCandidateConnectionDecision(args: {
       admin: args.admin,
       roleId: current.roleId,
     });
-    args.state.terminalReply = processStageRequiredReply({
+    args.state.fallbackReply = processStageRequiredReply({
       candidateName,
       scheduleInterview: false,
       stages: stages.map((stage) => ({
@@ -4191,12 +4215,6 @@ export async function executeOrgAgentTool(args: {
         "start_role_creation is available only in an active Slack turn"
       );
     }
-    if (args.state.terminalMutationUsed) {
-      throw new OrgAgentToolInputError(
-        "start_role_creation may be called only once and must be the only tool in this turn"
-      );
-    }
-    args.state.terminalMutationUsed = true;
     const roleTitle = requiredText(
       args.input && input.roleTitle,
       "roleTitle",
@@ -4224,7 +4242,7 @@ export async function executeOrgAgentTool(args: {
       workspaceId,
     });
     args.state.requiredSlackContinuationLink = `<${started.threadPermalink}|새로운 채용 등록 이어가기>`;
-    args.state.terminalReply = [
+    args.state.fallbackReply = [
       `${started.roleTitle} 역할 등록을 함께 시작할게요.`,
       "",
       "보내주신 내용은 새 역할 대화로 옮겨 두었어요. 역할 정보와 원하는 매칭 기준은 그곳에서 이어서 정리해요.",
@@ -4415,6 +4433,16 @@ export async function executeOrgAgentTool(args: {
       input,
       name: args.name,
       source: args.source,
+      state: args.state,
+      user: args.user,
+      workspaceId,
+    });
+  } else if (args.name === "move_candidate_to_role") {
+    return executeMoveCandidateToRole({
+      callId: args.callId,
+      currentUserMessageId: args.currentUserMessageId,
+      input,
+      name: args.name,
       state: args.state,
       user: args.user,
       workspaceId,

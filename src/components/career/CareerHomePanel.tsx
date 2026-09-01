@@ -15,6 +15,7 @@ import {
   useCareerProfileContext,
   useCareerSidebarContext,
 } from "./CareerSidebarContext";
+import { useCareerChatPanelContext } from "./CareerChatPanelContext";
 import { CareerProfileSharingSettingsSection } from "./CareerProfileSettingsSection";
 import type { CareerOpportunitySavedStageFilter } from "./types";
 import React from "react";
@@ -188,6 +189,15 @@ const CareerHomePanel = ({
     onRequestMoreOpenPositions,
     pendingInternalOpportunityCallRequest,
   } = useCareerSidebarContext();
+  const {
+    assistantTyping,
+    chatPending,
+    forceCompletePending = false,
+    interviewProgress,
+    onboardingWrapupPending,
+    opportunityFeedbackFollowUpPending,
+    onForceCompleteOnboarding,
+  } = useCareerChatPanelContext();
   const { historyOpportunityCounts } = useCareerHistoryContext();
   const {
     talentProfile,
@@ -343,6 +353,12 @@ const CareerHomePanel = ({
     );
   };
 
+  const handleForceComplete = () => {
+    if (!onForceCompleteOnboarding) return;
+    logCareerEvent("click_home_force_complete");
+    void onForceCompleteOnboarding();
+  };
+
   const handleStartConversationStarter = ({
     mode,
     starterId,
@@ -435,7 +451,23 @@ const CareerHomePanel = ({
         callDisabled={!onStartCallMode}
         callStartPending={callStartPending}
         description={callCardDescription}
+        forceCompleteDisabled={
+          forceCompletePending ||
+          onboardingWrapupPending ||
+          chatPending ||
+          assistantTyping ||
+          opportunityFeedbackFollowUpPending
+        }
+        forceCompletePending={forceCompletePending || onboardingWrapupPending}
         isOnboardingCompleted={callCardUsesCompletedLayout}
+        onForceComplete={
+          !isOnboardingCompleted &&
+          interviewProgress.canForceComplete &&
+          onForceCompleteOnboarding
+            ? handleForceComplete
+            : undefined
+        }
+        progressPercent={interviewProgress.percent}
         onStartCall={handleStartCall}
         title={callCardTitle}
       />

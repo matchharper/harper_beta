@@ -71,6 +71,7 @@ type RawRecommendationRow = {
 type RawRecentRecommendationPromptRow = {
   feedback: string | null;
   feedback_reason: string | null;
+  id: string;
   role_id: string | null;
   saved_stage: string | null;
   company_role: {
@@ -206,6 +207,7 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
 `;
 
 const TALENT_RECENT_RECOMMENDATION_PROMPT_SELECT = `
+  id,
   feedback,
   feedback_reason,
   role_id,
@@ -310,6 +312,7 @@ export type TalentInternalRecommendationProgressCode =
   | "company_acknowledged_awaiting_response"
   | "company_next_process"
   | "no_company_response_closed"
+  | "moved_to_another_role"
   | "rejected_by_talent"
   | "stopped_by_candidate"
   | "waiting_to_share";
@@ -357,7 +360,28 @@ export type TalentOpportunityCompanyData = {
   totalFundingRaised: string | null;
 };
 
+export type TalentOpportunityUpcomingMeeting = {
+  endAt: string;
+  startAt: string;
+  title: string | null;
+};
+
+export type TalentOpportunityMeeting = TalentOpportunityUpcomingMeeting & {
+  confirmedAt: string | null;
+  id: string;
+};
+
+export type TalentRoleActivityItem = {
+  content: string | null;
+  createdAt: string;
+  id: string;
+  kind: string;
+  previousStage: TalentOpportunitySavedStage | null;
+  savedStage: TalentOpportunitySavedStage | null;
+};
+
 export type TalentOpportunityHistoryItem = {
+  activityTimelineLoaded?: boolean;
   clickedAt: string | null;
   companyData: TalentOpportunityCompanyData | null;
   companyDescription: string | null;
@@ -366,6 +390,7 @@ export type TalentOpportunityHistoryItem = {
   companyLinkedinUrl: string | null;
   companyLogoUrl: string | null;
   companyName: string;
+  confirmedMeetings?: TalentOpportunityMeeting[];
   description: string | null;
   employmentTypes: string[];
   externalJdUrl: string | null;
@@ -394,8 +419,10 @@ export type TalentOpportunityHistoryItem = {
   sourceProvider: string | null;
   sourceType: "internal" | "external";
   status: string;
+  talentRoleActivities?: TalentRoleActivityItem[];
   talentMemo: string | null;
   title: string;
+  upcomingMeeting?: TalentOpportunityUpcomingMeeting | null;
   viewedAt: string | null;
   workMode: string | null;
 };
@@ -407,10 +434,12 @@ export type TalentRecentRecommendationPromptItem = {
   feedback: TalentOpportunityFeedback | null;
   feedbackReason: string | null;
   location: string | null;
+  recommendationId: string;
   roleId: string | null;
   savedStage: TalentOpportunitySavedStage | null;
   sourceType: "internal" | "external";
   title: string;
+  upcomingMeetingAt: string | null;
   workMode: string | null;
 };
 
@@ -538,6 +567,8 @@ const INTERNAL_RECOMMENDATION_PROGRESS_MESSAGES: Record<
     "회사에서 다음 프로세스를 진행하겠다고 알렸습니다. 혹시 아직 다른 연락을 받지 못하셨나요?",
   no_company_response_closed:
     "회사에게서 응답이 없습니다. 더 이상 프로세스를 진행할 의사가 없는 것으로 판단됩니다. 프로세스를 종료하고 더이상 트래킹 하지 않겠습니다. 불편을 드려 죄송합니다.",
+  moved_to_another_role:
+    "회사 요청에 따라 진행 포지션이 다른 역할로 변경되었습니다. 안내받은 내용과 다르다면 Harper에 알려 주세요.",
   rejected_by_talent:
     "현재 기록에는 회원님이 이 연결 제안을 거절한 것으로 표시되어 있습니다. 수락하신 것이 맞다면 기록이 서로 일치하지 않아 확인이 필요합니다.",
   stopped_by_candidate: "요청하신 대로 이 포지션의 진행을 종료했습니다.",
@@ -694,11 +725,20 @@ export function buildInternalRecommendationProgress(args: {
   const isWithinTerminalStageGrace =
     daysSinceStageChanged !== null &&
     daysSinceStageChanged < INTERNAL_RECOMMENDATION_TERMINAL_STAGE_GRACE_DAYS;
+  const roleMoveOutEvent = (args.events ?? []).find((event) => {
+    const metadata = getJsonRecord(event.metadata);
+    return (
+      String(metadata?.eventType ?? "") === "candidate_role_moved" &&
+      String(metadata?.direction ?? "") === "out"
+    );
+  });
 
   if (effectiveStage === "process_stopped" && stopReason === "candidate") {
     code = "stopped_by_candidate";
   } else if (effectiveStage === "rejected") {
     code = "rejected_by_talent";
+  } else if (effectiveStage === "archived" && roleMoveOutEvent) {
+    code = "moved_to_another_role";
   } else if (isEndedRole) {
     code = "closed_by_company";
   } else if (effectiveStage === "pending_connection") {
@@ -736,7 +776,9 @@ export function buildInternalRecommendationProgress(args: {
         ? effectiveStage === "accepted"
           ? INTERNAL_ENDED_ROLE_PROGRESS_MESSAGE_AT_ACCEPTANCE
           : INTERNAL_ENDED_ROLE_PROGRESS_MESSAGE_AFTER_ACCEPTANCE
-        : INTERNAL_RECOMMENDATION_PROGRESS_MESSAGES[code],
+        : code === "moved_to_another_role" && roleMoveOutEvent
+          ? `진행 포지션이 ${String(getJsonRecord(roleMoveOutEvent.metadata)?.targetRoleName ?? "다른 역할")}로 변경되었습니다. 안내받은 내용과 다르다면 Harper에 알려 주세요.`
+          : INTERNAL_RECOMMENDATION_PROGRESS_MESSAGES[code],
     stage,
     stageChangedAt,
     stageTag,
@@ -795,11 +837,13 @@ function compactEmployeeCountRangeForPrompt(value: Json | null | undefined) {
 }
 
 function mapRecentRecommendationPromptRow(
-  row: RawRecentRecommendationPromptRow
+  row: RawRecentRecommendationPromptRow,
+  upcomingMeetingAt: string | null = null
 ): TalentRecentRecommendationPromptItem | null {
   const role = row.company_role;
   const workspace = role?.company_workspace;
-  if (!role || !workspace) return null;
+  const recommendationId = String(row.id ?? "").trim();
+  if (!role || !workspace || !recommendationId) return null;
 
   return {
     companyName: normalizeOpportunityPromptText(
@@ -813,12 +857,119 @@ function mapRecentRecommendationPromptRow(
     feedback: normalizeFeedback(row.feedback),
     feedbackReason: normalizePromptTextOrNull(row.feedback_reason),
     location: normalizePromptTextOrNull(role.location_text),
+    recommendationId,
     roleId: normalizePromptTextOrNull(row.role_id),
     savedStage: normalizeSavedStage(row.saved_stage),
     sourceType: normalizeSourceType(role.source_type),
     title: normalizeOpportunityPromptText(role.name, "Unknown role"),
+    upcomingMeetingAt,
     workMode: normalizePromptTextOrNull(role.work_mode),
   };
+}
+
+const promptKstDateTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  day: "2-digit",
+  hour: "2-digit",
+  hourCycle: "h23",
+  minute: "2-digit",
+  month: "short",
+  timeZone: "Asia/Seoul",
+  year: "numeric",
+});
+const promptMonthNumberByShortName: Record<string, string> = {
+  Apr: "04",
+  Aug: "08",
+  Dec: "12",
+  Feb: "02",
+  Jan: "01",
+  Jul: "07",
+  Jun: "06",
+  Mar: "03",
+  May: "05",
+  Nov: "11",
+  Oct: "10",
+  Sep: "09",
+};
+
+function getPromptKstDateTimeParts(value: string | null | undefined) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = promptKstDateTimeFormatter.formatToParts(date);
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value;
+  const year = get("year");
+  const month = get("month");
+  const day = get("day");
+  const hour = get("hour");
+  const minute = get("minute");
+  return year && month && day && hour && minute
+    ? { day: Number(day), hour, minute, month, year }
+    : null;
+}
+
+export function formatUpcomingHarperMeetingForPrompt(
+  value: string | null | undefined,
+  now = new Date()
+) {
+  const parts = getPromptKstDateTimeParts(value);
+  if (!parts) return "";
+  const currentYear = getPromptKstDateTimeParts(now.toISOString())?.year;
+  const date = `${parts.month} ${parts.day}${
+    currentYear && parts.year !== currentYear ? `, ${parts.year}` : ""
+  }, ${parts.hour}:${parts.minute} KST`;
+  return `Upcoming Harper-connected meeting: ${date}`;
+}
+
+function compactTalentRoleActivityContent(
+  value: string | null | undefined,
+  maxLength = 240
+) {
+  const text = normalizePromptTextOrNull(value);
+  if (!text || text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
+export function formatTalentRoleActivitiesForPrompt(
+  items: readonly TalentRoleActivityItem[] | null | undefined,
+  maxItems = 10
+) {
+  const limit =
+    typeof maxItems === "number" && Number.isFinite(maxItems)
+      ? Math.max(0, Math.min(Math.floor(maxItems), 10))
+      : 10;
+
+  return [...(items ?? [])]
+    .sort(
+      (left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt)
+    )
+    .slice(0, limit)
+    .map((item) => {
+      const parts = getPromptKstDateTimeParts(item.createdAt);
+      if (!parts) return "";
+      const month = promptMonthNumberByShortName[parts.month];
+      if (!month) return "";
+      const timestamp = `${parts.year}-${month}-${String(parts.day).padStart(
+        2,
+        "0"
+      )} ${parts.hour}:${parts.minute} KST`;
+      const content = compactTalentRoleActivityContent(item.content);
+      if (item.kind === "memo") {
+        return content ? `${timestamp} memo: ${content}` : "";
+      }
+      if (item.kind === "saved_stage_changed") {
+        const transition = [item.previousStage, item.savedStage]
+          .filter((stage): stage is TalentOpportunitySavedStage =>
+            Boolean(stage)
+          )
+          .join("→");
+        return transition ? `${timestamp} stage: ${transition}` : "";
+      }
+      const kind = item.kind.replace(/_/g, " ");
+      return `${timestamp} ${kind}${content ? `: ${content}` : ""}`;
+    })
+    .filter(Boolean)
+    .join("\n");
 }
 
 export function formatRecentRecommendedOpportunitiesForPrompt(
@@ -830,8 +981,17 @@ export function formatRecentRecommendedOpportunitiesForPrompt(
       ? Math.max(0, Math.min(Math.floor(maxItems), 10))
       : 10;
 
-  return (items ?? [])
-    .slice(0, limit)
+  const baseItems = (items ?? []).slice(0, limit);
+  const includedRecommendationIds = new Set(
+    baseItems.map((item) => item.recommendationId)
+  );
+  const upcomingMeetingItems = (items ?? []).filter(
+    (item) =>
+      item.upcomingMeetingAt &&
+      !includedRecommendationIds.has(item.recommendationId)
+  );
+
+  return [...baseItems, ...upcomingMeetingItems]
     .map((item) => {
       const sourceType =
         item.sourceType === "external" ? "external" : "internal";
@@ -852,10 +1012,14 @@ export function formatRecentRecommendedOpportunitiesForPrompt(
                 ? `feedback reason: ${item.feedbackReason}`
                 : "",
             ].filter(Boolean);
+      const upcomingMeeting = formatUpcomingHarperMeetingForPrompt(
+        item.upcomingMeetingAt
+      );
 
       return [
         `(${sourceType}) ${item.title} at ${item.companyName} - ${roleIdPrefix}User feedback: ${feedback}, saved stage: ${savedStage}`,
         ...details,
+        upcomingMeeting,
       ]
         .filter(Boolean)
         .join(", \n");
@@ -1055,22 +1219,95 @@ export async function fetchRecentRecommendedOpportunitiesForPrompt(args: {
       ? Math.max(1, Math.min(Math.floor(args.limit), 10))
       : 10;
 
-  const { data, error } = await ((
-    args.admin.from("talent_opportunity_recommendation" as any) as any
-  )
-    .select(TALENT_RECENT_RECOMMENDATION_PROMPT_SELECT)
-    .eq("talent_id", args.userId)
-    .order("created_at", { ascending: false })
-    .limit(limit) as any);
+  const [recommendationResponse, meetingResponse] = await Promise.all([
+    (args.admin.from("talent_opportunity_recommendation" as any) as any)
+      .select(TALENT_RECENT_RECOMMENDATION_PROMPT_SELECT)
+      .eq("talent_id", args.userId)
+      .order("created_at", { ascending: false })
+      .limit(limit) as any,
+    (args.admin.from("meeting_schedules" as any) as any)
+      .select("recommendation_id,confirmed_start_at")
+      .eq("talent_id", args.userId)
+      .eq("status", "confirmed")
+      .gte("confirmed_start_at", new Date().toISOString())
+      .order("confirmed_start_at", { ascending: true }) as any,
+  ]);
 
-  if (error) {
+  if (recommendationResponse.error) {
     throw new Error(
-      error.message ?? "Failed to load recent recommended opportunities"
+      recommendationResponse.error.message ??
+        "Failed to load recent recommended opportunities"
+    );
+  }
+  if (meetingResponse.error) {
+    throw new Error(
+      meetingResponse.error.message ??
+        "Failed to load upcoming recommended opportunity meetings"
     );
   }
 
-  return coerceJsonArray<RawRecentRecommendationPromptRow>(data)
-    .map(mapRecentRecommendationPromptRow)
+  const upcomingMeetingAtByRecommendationId = new Map<string, string>();
+  for (const row of coerceJsonArray<{
+    confirmed_start_at: string | null;
+    recommendation_id: string | null;
+  }>(meetingResponse.data)) {
+    const recommendationId = String(row.recommendation_id ?? "").trim();
+    const startAt = String(row.confirmed_start_at ?? "").trim();
+    if (
+      recommendationId &&
+      startAt &&
+      !upcomingMeetingAtByRecommendationId.has(recommendationId)
+    ) {
+      upcomingMeetingAtByRecommendationId.set(recommendationId, startAt);
+    }
+  }
+
+  const recentRows = coerceJsonArray<RawRecentRecommendationPromptRow>(
+    recommendationResponse.data
+  );
+  const recentRecommendationIds = new Set(
+    recentRows.map((row) => String(row.id ?? "").trim()).filter(Boolean)
+  );
+  const extraMeetingRecommendationIds = Array.from(
+    upcomingMeetingAtByRecommendationId.keys()
+  ).filter(
+    (recommendationId) => !recentRecommendationIds.has(recommendationId)
+  );
+
+  let extraRows: RawRecentRecommendationPromptRow[] = [];
+  if (extraMeetingRecommendationIds.length > 0) {
+    const { data: extraData, error: extraError } = await ((
+      args.admin.from("talent_opportunity_recommendation" as any) as any
+    )
+      .select(TALENT_RECENT_RECOMMENDATION_PROMPT_SELECT)
+      .eq("talent_id", args.userId)
+      .in("id", extraMeetingRecommendationIds) as any);
+    if (extraError) {
+      throw new Error(
+        extraError.message ??
+          "Failed to load recommended opportunities with upcoming meetings"
+      );
+    }
+    const extraRowById = new Map(
+      coerceJsonArray<RawRecentRecommendationPromptRow>(extraData).map(
+        (row) => [String(row.id ?? "").trim(), row] as const
+      )
+    );
+    extraRows = extraMeetingRecommendationIds
+      .map((recommendationId) => extraRowById.get(recommendationId))
+      .filter(
+        (row): row is RawRecentRecommendationPromptRow => row !== undefined
+      );
+  }
+
+  return [...recentRows, ...extraRows]
+    .map((row) =>
+      mapRecentRecommendationPromptRow(
+        row,
+        upcomingMeetingAtByRecommendationId.get(String(row.id ?? "").trim()) ??
+          null
+      )
+    )
     .filter(
       (item): item is TalentRecentRecommendationPromptItem => item !== null
     );
@@ -1618,35 +1855,294 @@ async function fetchInternalProgressEventsForHistoryItems(args: {
   return eventsByRoleId;
 }
 
+async function fetchUpcomingMeetingsForHistoryItems(args: {
+  admin: AdminClient;
+  items: TalentOpportunityHistoryItem[];
+  userId: string;
+}) {
+  const recommendationIds = Array.from(
+    new Set(args.items.map((item) => item.id).filter(Boolean))
+  );
+  const meetingsByRecommendationId = new Map<
+    string,
+    TalentOpportunityUpcomingMeeting
+  >();
+  if (recommendationIds.length === 0) return meetingsByRecommendationId;
+
+  const { data, error } = await ((
+    args.admin.from("meeting_schedules" as any) as any
+  )
+    .select("recommendation_id,title,confirmed_start_at,confirmed_end_at")
+    .eq("talent_id", args.userId)
+    .eq("status", "confirmed")
+    .in("recommendation_id", recommendationIds)
+    .gte("confirmed_start_at", new Date().toISOString())
+    .order("confirmed_start_at", { ascending: true }) as any);
+
+  if (error) {
+    console.warn("[TalentOpportunity] failed to load upcoming meetings", {
+      error: error.message ?? "Unknown error",
+      userId: args.userId,
+    });
+    return meetingsByRecommendationId;
+  }
+
+  for (const row of coerceJsonArray<{
+    confirmed_end_at: string | null;
+    confirmed_start_at: string | null;
+    recommendation_id: string | null;
+    title: string | null;
+  }>(data)) {
+    const recommendationId = String(row.recommendation_id ?? "").trim();
+    const startAt = String(row.confirmed_start_at ?? "").trim();
+    const endAt = String(row.confirmed_end_at ?? "").trim();
+    if (
+      !recommendationId ||
+      !startAt ||
+      !endAt ||
+      meetingsByRecommendationId.has(recommendationId)
+    ) {
+      continue;
+    }
+    meetingsByRecommendationId.set(recommendationId, {
+      endAt,
+      startAt,
+      title: String(row.title ?? "").trim() || null,
+    });
+  }
+
+  return meetingsByRecommendationId;
+}
+
+async function fetchConfirmedMeetingsForHistoryItems(args: {
+  admin: AdminClient;
+  items: TalentOpportunityHistoryItem[];
+  userId: string;
+}) {
+  const recommendationIds = Array.from(
+    new Set(args.items.map((item) => item.id).filter(Boolean))
+  );
+  const meetingsByRecommendationId = new Map<
+    string,
+    TalentOpportunityMeeting[]
+  >();
+  if (recommendationIds.length === 0) return meetingsByRecommendationId;
+
+  const { data, error } = await ((
+    args.admin.from("meeting_schedules" as any) as any
+  )
+    .select(
+      "id,recommendation_id,title,active_round_id,confirmed_start_at,confirmed_end_at,updated_at"
+    )
+    .eq("talent_id", args.userId)
+    .eq("status", "confirmed")
+    .in("recommendation_id", recommendationIds)
+    .order("confirmed_start_at", { ascending: false }) as any);
+
+  if (error) {
+    console.warn("[TalentOpportunity] failed to load confirmed meetings", {
+      error: error.message ?? "Unknown error",
+      userId: args.userId,
+    });
+    return meetingsByRecommendationId;
+  }
+
+  const meetingRows = coerceJsonArray<{
+    active_round_id: string | null;
+    confirmed_end_at: string | null;
+    confirmed_start_at: string | null;
+    id: string | null;
+    recommendation_id: string | null;
+    title: string | null;
+    updated_at: string | null;
+  }>(data);
+  const activeRoundIds = Array.from(
+    new Set(
+      meetingRows
+        .map((row) => String(row.active_round_id ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+  const confirmedAtByRoundId = new Map<string, string>();
+  if (activeRoundIds.length > 0) {
+    const { data: roundData, error: roundError } = await ((
+      args.admin.from("meeting_schedule_rounds" as any) as any
+    )
+      .select("id,submitted_at")
+      .in("id", activeRoundIds) as any);
+
+    if (roundError) {
+      console.warn(
+        "[TalentOpportunity] failed to load meeting confirmation times",
+        {
+          error: roundError.message ?? "Unknown error",
+          userId: args.userId,
+        }
+      );
+    } else {
+      for (const row of coerceJsonArray<{
+        id: string | null;
+        submitted_at: string | null;
+      }>(roundData)) {
+        const roundId = String(row.id ?? "").trim();
+        const submittedAt = String(row.submitted_at ?? "").trim();
+        if (roundId && submittedAt) {
+          confirmedAtByRoundId.set(roundId, submittedAt);
+        }
+      }
+    }
+  }
+
+  for (const row of meetingRows) {
+    const id = String(row.id ?? "").trim();
+    const recommendationId = String(row.recommendation_id ?? "").trim();
+    const startAt = String(row.confirmed_start_at ?? "").trim();
+    const endAt = String(row.confirmed_end_at ?? "").trim();
+    const activeRoundId = String(row.active_round_id ?? "").trim();
+    if (!id || !recommendationId || !startAt || !endAt) continue;
+
+    const meetings = meetingsByRecommendationId.get(recommendationId) ?? [];
+    meetings.push({
+      confirmedAt:
+        confirmedAtByRoundId.get(activeRoundId) ??
+        (String(row.updated_at ?? "").trim() || null),
+      endAt,
+      id,
+      startAt,
+      title: String(row.title ?? "").trim() || null,
+    });
+    meetingsByRecommendationId.set(recommendationId, meetings);
+  }
+
+  return meetingsByRecommendationId;
+}
+
+function normalizeTalentOpportunitySavedStageValue(value: unknown) {
+  return value === "saved" ||
+    value === "applied" ||
+    value === "connected" ||
+    value === "closed" ||
+    value === "hidden"
+    ? value
+    : null;
+}
+
+async function fetchTalentRoleActivitiesForHistoryItems(args: {
+  admin: AdminClient;
+  items: TalentOpportunityHistoryItem[];
+}) {
+  const recommendationIds = Array.from(
+    new Set(args.items.map((item) => item.id).filter(Boolean))
+  );
+  const activitiesByRecommendationId = new Map<
+    string,
+    TalentRoleActivityItem[]
+  >();
+  if (recommendationIds.length === 0) return activitiesByRecommendationId;
+
+  const { data, error } = await ((
+    args.admin.from("talent_role_activity" as any) as any
+  )
+    .select("id,recommendation_id,kind,content,metadata,created_at")
+    .in("recommendation_id", recommendationIds)
+    .order("created_at", { ascending: false }) as any);
+
+  if (error) {
+    console.warn("[TalentOpportunity] failed to load talent role activities", {
+      error: error.message ?? "Unknown error",
+    });
+    return activitiesByRecommendationId;
+  }
+
+  for (const row of coerceJsonArray<{
+    content: string | null;
+    created_at: string | null;
+    id: string | null;
+    kind: string | null;
+    metadata: Json | null;
+    recommendation_id: string | null;
+  }>(data)) {
+    const id = String(row.id ?? "").trim();
+    const recommendationId = String(row.recommendation_id ?? "").trim();
+    const kind = String(row.kind ?? "").trim();
+    const createdAt = String(row.created_at ?? "").trim();
+    if (!id || !recommendationId || !kind || !createdAt) continue;
+    const metadata =
+      row.metadata &&
+      typeof row.metadata === "object" &&
+      !Array.isArray(row.metadata)
+        ? row.metadata
+        : {};
+    const activities = activitiesByRecommendationId.get(recommendationId) ?? [];
+    activities.push({
+      content: String(row.content ?? "").trim() || null,
+      createdAt,
+      id,
+      kind,
+      previousStage: normalizeTalentOpportunitySavedStageValue(
+        metadata.previousStage
+      ),
+      savedStage: normalizeTalentOpportunitySavedStageValue(
+        metadata.savedStage
+      ),
+    });
+    activitiesByRecommendationId.set(recommendationId, activities);
+  }
+
+  return activitiesByRecommendationId;
+}
+
 async function enrichTalentOpportunityHistoryItems(args: {
   admin: AdminClient;
+  includeActivityTimeline?: boolean;
   items: TalentOpportunityHistoryItem[];
   userId: string;
 }) {
   if (args.items.length === 0) return args.items;
 
-  const [tagsByRoleId, eventsByRoleId] = await Promise.all([
+  const [
+    tagsByRoleId,
+    eventsByRoleId,
+    meetingsByRecommendationId,
+    confirmedMeetingsByRecommendationId,
+    activitiesByRecommendationId,
+  ] = await Promise.all([
     fetchInternalProgressTagsForHistoryItems(args),
     fetchInternalProgressEventsForHistoryItems(args),
+    fetchUpcomingMeetingsForHistoryItems(args),
+    args.includeActivityTimeline
+      ? fetchConfirmedMeetingsForHistoryItems(args)
+      : Promise.resolve(new Map<string, TalentOpportunityMeeting[]>()),
+    args.includeActivityTimeline
+      ? fetchTalentRoleActivitiesForHistoryItems(args)
+      : Promise.resolve(new Map<string, TalentRoleActivityItem[]>()),
   ]);
   if (tagsByRoleId.size === 0) {
     return args.items.map((item) => ({
       ...item,
+      activityTimelineLoaded: Boolean(args.includeActivityTimeline),
+      confirmedMeetings: confirmedMeetingsByRecommendationId.get(item.id) ?? [],
       internalProgress: buildInternalRecommendationProgress({
         events: eventsByRoleId.get(item.roleId) ?? [],
         item,
         tags: [],
       }),
+      talentRoleActivities: activitiesByRecommendationId.get(item.id) ?? [],
+      upcomingMeeting: meetingsByRecommendationId.get(item.id) ?? null,
     }));
   }
 
   return args.items.map((item) => ({
     ...item,
+    activityTimelineLoaded: Boolean(args.includeActivityTimeline),
+    confirmedMeetings: confirmedMeetingsByRecommendationId.get(item.id) ?? [],
     internalProgress: buildInternalRecommendationProgress({
       events: eventsByRoleId.get(item.roleId) ?? [],
       item,
       tags: tagsByRoleId.get(item.roleId) ?? [],
     }),
+    talentRoleActivities: activitiesByRecommendationId.get(item.id) ?? [],
+    upcomingMeeting: meetingsByRecommendationId.get(item.id) ?? null,
   }));
 }
 
@@ -1942,6 +2438,7 @@ export async function fetchTalentOpportunityHistoryPage(args: {
 export async function fetchTalentOpportunityHistoryByIds(args: {
   admin: AdminClient;
   ids: string[];
+  includeActivityTimeline?: boolean;
   locale?: string | null;
   userId: string;
 }) {
@@ -1966,6 +2463,7 @@ export async function fetchTalentOpportunityHistoryByIds(args: {
     .filter((item): item is TalentOpportunityHistoryItem => item !== null);
   return enrichTalentOpportunityHistoryItems({
     admin: args.admin,
+    includeActivityTimeline: args.includeActivityTimeline,
     items,
     userId: args.userId,
   });
@@ -1973,6 +2471,7 @@ export async function fetchTalentOpportunityHistoryByIds(args: {
 
 export async function fetchTalentOpportunityHistoryByRoleIds(args: {
   admin: AdminClient;
+  includeActivityTimeline?: boolean;
   locale?: string | null;
   roleIds: string[];
   userId: string;
@@ -1996,6 +2495,7 @@ export async function fetchTalentOpportunityHistoryByRoleIds(args: {
 
   const items = await enrichTalentOpportunityHistoryItems({
     admin: args.admin,
+    includeActivityTimeline: args.includeActivityTimeline,
     items: coerceJsonArray<RawRecommendationRow>(data)
       .map((row) => mapRecommendationRow(row, args.locale))
       .filter((item): item is TalentOpportunityHistoryItem => item !== null),
@@ -2166,6 +2666,7 @@ export async function updateTalentOpportunityHistoryItem(args: {
   feedback?: TalentOpportunityFeedback | null;
   feedbackReason?: string | null;
   opportunityId: string;
+  recordTalentRoleActivity?: boolean;
   savedStage?: TalentOpportunitySavedStage | null;
   talentMemo?: string | null;
   userId: string;
@@ -2184,15 +2685,43 @@ export async function updateTalentOpportunityHistoryItem(args: {
   }
 
   const now = new Date().toISOString();
-  const payload: Record<string, unknown> = {};
+
+  if (args.action === "memo") {
+    const content = String(args.talentMemo ?? "").trim();
+    if (!content) throw new Error("Memo content is required");
+    const { error } = await (args.admin.rpc as any)(
+      "append_talent_role_memo_activity_v1",
+      {
+        p_content: content,
+        p_recommendation_id: opportunityId,
+        p_talent_id: args.userId,
+      }
+    );
+    if (error) {
+      throw new Error(error.message ?? "Failed to add talent role memo");
+    }
+    return { ok: true, opportunityId, updatedAt: now };
+  }
+
+  if (args.action === "saved_stage") {
+    if (!args.savedStage) throw new Error("savedStage is required");
+    const { error } = await (args.admin.rpc as any)(
+      "move_talent_role_saved_stage_v1",
+      {
+        p_record_activity: args.recordTalentRoleActivity !== false,
+        p_recommendation_id: opportunityId,
+        p_saved_stage: args.savedStage,
+        p_talent_id: args.userId,
+      }
+    );
+    if (error) {
+      throw new Error(error.message ?? "Failed to move talent role stage");
+    }
+    return { ok: true, opportunityId, updatedAt: now };
+  }
 
   if (args.action === "feedback") {
-    payload.feedback = toDatabaseFeedback(args.feedback);
-    payload.feedback_at = args.feedback ? now : null;
-    payload.feedback_reason = args.feedback
-      ? String(args.feedbackReason ?? "").trim() || null
-      : null;
-    payload.saved_stage =
+    const savedStage =
       args.feedback === "positive"
         ? await resolvePositiveFeedbackSavedStage({
             admin: args.admin,
@@ -2201,12 +2730,51 @@ export async function updateTalentOpportunityHistoryItem(args: {
             userId: args.userId,
           })
         : null;
-  } else if (args.action === "saved_stage") {
-    payload.saved_stage = args.savedStage ?? null;
-  } else if (args.action === "view") {
+    const { error } = await (args.admin.rpc as any)(
+      "update_talent_role_feedback_v1",
+      {
+        p_feedback: toDatabaseFeedback(args.feedback),
+        p_feedback_at: args.feedback ? now : null,
+        p_feedback_reason: args.feedback
+          ? String(args.feedbackReason ?? "").trim() || null
+          : null,
+        p_recommendation_id: opportunityId,
+        p_saved_stage: savedStage,
+        p_talent_id: args.userId,
+      }
+    );
+    if (error) {
+      throw new Error(error.message ?? "Failed to update opportunity feedback");
+    }
+
+    if (args.clearEmailAcceptanceConfirmation) {
+      const { error: confirmationError } = await ((
+        args.admin.from("talent_opportunity_recommendation" as any) as any
+      )
+        .update({ email_acceptance_confirmation: {} })
+        .eq("talent_id", args.userId)
+        .eq("id", opportunityId) as any);
+      if (confirmationError) {
+        console.warn(
+          "[TalentOpportunity] failed to clear email acceptance confirmation",
+          {
+            error:
+              confirmationError.message ??
+              "Failed to clear email acceptance confirmation",
+            opportunityId,
+            userId: args.userId,
+          }
+        );
+      }
+    }
+
+    return { ok: true, opportunityId, updatedAt: now };
+  }
+
+  const payload: Record<string, unknown> = {};
+
+  if (args.action === "view") {
     payload.viewed_at = now;
-  } else if (args.action === "memo") {
-    payload.talent_memo = String(args.talentMemo ?? "").trim() || null;
   } else {
     payload.clicked_at = now;
   }
@@ -2220,28 +2788,6 @@ export async function updateTalentOpportunityHistoryItem(args: {
 
   if (error) {
     throw new Error(error.message ?? "Failed to update opportunity state");
-  }
-
-  if (args.action === "feedback" && args.clearEmailAcceptanceConfirmation) {
-    const { error: confirmationError } = await ((
-      args.admin.from("talent_opportunity_recommendation" as any) as any
-    )
-      .update({ email_acceptance_confirmation: {} })
-      .eq("talent_id", args.userId)
-      .eq("id", opportunityId) as any);
-
-    if (confirmationError) {
-      console.warn(
-        "[TalentOpportunity] failed to clear email acceptance confirmation",
-        {
-          error:
-            confirmationError.message ??
-            "Failed to clear email acceptance confirmation",
-          opportunityId,
-          userId: args.userId,
-        }
-      );
-    }
   }
 
   return { ok: true, opportunityId, updatedAt: now };

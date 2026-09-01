@@ -35,6 +35,7 @@ test("enables DeepSeek high thinking and preserves tool reasoning", async () => 
             tool_calls: [],
           },
         ],
+        parallel_tool_calls: false,
         temperature: 0.1,
       }),
       deepSeekThinking: { reasoningEffort: "high" },
@@ -49,6 +50,7 @@ test("enables DeepSeek high thinking and preserves tool reasoning", async () => 
   assert.equal(requestBody.reasoning_effort, "high");
   assert.deepEqual(requestBody.thinking, { type: "enabled" });
   assert.equal(requestBody.temperature, undefined);
+  assert.equal(requestBody.parallel_tool_calls, false);
   assert.equal(
     requestBody.messages[0].reasoning_content,
     "private tool reasoning"

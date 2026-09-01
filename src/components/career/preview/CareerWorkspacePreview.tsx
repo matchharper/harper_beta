@@ -1192,6 +1192,25 @@ const CareerWorkspacePreview = ({
         setEngagementTypes(savedEngagementTypes);
         setBlockedCompanies(savedBlockedCompanies);
       },
+      onAccountSubscriptionsUpdated: ({
+        harperEnabled,
+        preferences,
+        preferencesUpdatedAt,
+      }) => {
+        const nextProfileVisibility = harperEnabled
+          ? profileVisibility === "dont_share"
+            ? "exceptional_only"
+            : profileVisibility
+          : "dont_share";
+        setProfileVisibility(nextProfileVisibility);
+        setSavedProfileVisibility(nextProfileVisibility);
+        setTalentPreferences(preferences);
+        setSavedTalentPreferences(preferences);
+        setTalentPreferencesUpdatedAt(
+          preferencesUpdatedAt ?? new Date().toISOString()
+        );
+        setSettingsUpdatedAt(new Date().toISOString());
+      },
       onReloadTalentSettings: () => undefined,
     }),
     [

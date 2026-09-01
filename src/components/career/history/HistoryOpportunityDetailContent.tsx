@@ -19,9 +19,7 @@ import {
   EllipsisVertical,
   FileText,
   HeartHandshake,
-  Loader2,
   MapPin,
-  StickyNote,
   TrendingUp,
 } from "lucide-react";
 import { InlinePanel } from "@/components/ui/panel";
@@ -39,7 +37,6 @@ import {
   ActionDropdown,
   ActionDropdownItem,
 } from "@/components/ui/action-dropdown";
-import { Textarea as UiTextarea } from "@/components/ui/textarea";
 import { formatCareerLocation } from "@/lib/career/locationDisplay";
 import {
   getKnownCompanyDataText,
@@ -51,6 +48,8 @@ import {
   getCareerOpportunityManagementStatusOptions,
   type CareerOpportunityManagementStatus,
 } from "./savedOpportunityStatus";
+import UpcomingMeetingStrip from "./UpcomingMeetingStrip";
+import TalentRoleActivityTimeline from "./TalentRoleActivityTimeline";
 
 export { getKnownCompanyDataText, parseFundingStageLabel };
 
@@ -521,115 +520,6 @@ const OpportunityManagementStatusDropdown = ({
   );
 };
 
-const HistoryOpportunityMemoSection = ({
-  item,
-  onUpdateTalentMemo,
-  pending,
-}: {
-  item: CareerHistoryOpportunity;
-  onUpdateTalentMemo?: (
-    item: CareerHistoryOpportunity,
-    talentMemo: string | null
-  ) => void | Promise<void>;
-  pending: boolean;
-}) => {
-  const t = useCareerT();
-  const [editState, setEditState] = useState<{
-    draft: string;
-    itemId: string;
-  } | null>(null);
-  const talentMemo = item.talentMemo?.trim() ?? "";
-  const canEdit = Boolean(onUpdateTalentMemo);
-  const editing = editState?.itemId === item.id;
-  const draft = editing ? editState.draft : (item.talentMemo ?? "");
-
-  if (!canEdit && !talentMemo) return null;
-
-  const handleSubmit = () => {
-    if (!onUpdateTalentMemo) return;
-    const nextMemo = draft.trim() || null;
-    void Promise.resolve(onUpdateTalentMemo(item, nextMemo)).then(() => {
-      setEditState(null);
-    });
-  };
-
-  return (
-    <section className="mt-6 border-t border-neutral-1000-a05 pt-5">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-[14px] font-medium leading-5 text-neutral-primary">
-          <StickyNote className="h-4 w-4" />
-          <span>
-            {t("career.history.opportunity_detail_content.memo", "내 메모")}
-          </span>
-        </div>
-        {canEdit && !editing && (
-          <BareButton
-            type="button"
-            onClick={() =>
-              setEditState({ draft: item.talentMemo ?? "", itemId: item.id })
-            }
-            disabled={pending}
-            className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-neutral-1000-a05 bg-bg-floating px-2.5 text-[13px] font-medium text-neutral-primary transition-colors hover:border-neutral-400 hover:bg-bg-weak disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <StickyNote className="h-3.5 w-3.5" />
-            {talentMemo
-              ? t(
-                  "career.history.opportunity_detail_content.edit_memo",
-                  "메모 수정"
-                )
-              : t(
-                  "career.history.opportunity_detail_content.add_memo",
-                  "메모 추가하기"
-                )}
-          </BareButton>
-        )}
-      </div>
-
-      {editing ? (
-        <div className="mt-3 space-y-2">
-          <UiTextarea
-            value={draft}
-            onChange={(event) =>
-              setEditState({ draft: event.target.value, itemId: item.id })
-            }
-            disabled={pending}
-            placeholder={t(
-              "career.history.feedback_modal.12volkp",
-              "이 포지션에 대해 기억해둘 내용이나 확인할 점을 적어주세요."
-            )}
-            className="min-h-[128px]"
-          />
-          <div className="flex items-center justify-end gap-2">
-            <BareButton
-              type="button"
-              onClick={() => {
-                setEditState(null);
-              }}
-              disabled={pending}
-              className="inline-flex min-h-8 items-center rounded-md px-3 text-[13px] font-medium text-neutral-muted transition-colors hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {t("career.settings.career_settings_modal.0jiry9t", "취소")}
-            </BareButton>
-            <BareButton
-              type="button"
-              onClick={handleSubmit}
-              disabled={pending}
-              className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-md bg-black px-3 text-[13px] font-medium text-neutral-00 transition-colors hover:bg-neutral-900 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              {t("career.history.feedback_modal.1xp6hfy", "저장")}
-            </BareButton>
-          </div>
-        </div>
-      ) : talentMemo ? (
-        <div className="mt-3 whitespace-pre-wrap text-[14px] leading-6 text-neutral-primary">
-          {talentMemo}
-        </div>
-      ) : null}
-    </section>
-  );
-};
-
 export const HistoryOpportunityInlinePage = ({
   className,
   item,
@@ -708,6 +598,8 @@ export const HistoryOpportunityInlinePage = ({
         ) : null}
       </div>
 
+      <UpcomingMeetingStrip meeting={item.upcomingMeeting} className="mb-4" />
+
       <HistoryOpportunityOverview
         item={item}
         onOpenCompanyInfo={onOpenCompanyInfo}
@@ -715,10 +607,10 @@ export const HistoryOpportunityInlinePage = ({
         onOpenOpportunityInfo={onOpenOpportunityInfo}
       />
 
-      <HistoryOpportunityMemoSection
+      <TalentRoleActivityTimeline
         item={item}
         pending={pending}
-        onUpdateTalentMemo={onUpdateTalentMemo}
+        onAddTalentMemo={onUpdateTalentMemo}
       />
 
       <div className="mt-6 border-t border-neutral-1000-a05 pt-5">

@@ -1626,8 +1626,12 @@ type BusyInterval = {
 ```
 
 Harper confirmed busy와 sync된 external busy는 organizer와 모든 회사 attendee에 적용한다.
-`Calendar Sync`는 recurring instance를 펼치고 취소·transparent·birthday·working location·본인 거절
-event를 제외한다. provider event ID 단위로 중복을 막고 시간이 이동한 event는 기존 range를 갱신한다.
+연결이 활성화되는 즉시 첫 sync를 실행하고, 일정 요청 준비·발송 전에도 다시 확인한다. 후보자가
+선택 페이지를 열거나 회사 사용자가 가능 시간 dialog를 열 때는 기존 `last_synced_at` 기준으로 이전
+성공 sync에서 5분이 지난 경우에만 갱신하며, 후보자의 최종 제출 직전에는 항상 한 번 더 확인한다.
+별도 수동 Sync action이나 새 table·column은 사용하지 않는다. sync는 recurring instance를 펼치고
+취소·transparent·birthday·working location·본인 거절 event를 제외한다. provider event ID 단위로
+중복을 막고 시간이 이동한 event는 기존 range를 갱신한다.
 calendar·event ID는 domain-separated SHA-256 값으로 저장하고, event title, description,
 attendee와 원본 calendar ID는 저장하거나 후보자에게 노출하지 않는다.
 연결 token이 만료되어도 이미 가져온 향후 busy는 끝날 때까지 유지해 갑작스러운 중복 예약을 막는다.

@@ -1,7 +1,7 @@
 # Harper Daily Conversation QA Rubric
 
-- Version: 1.9
-- Last updated: 2026-08-10
+- Version: 2.0
+- Last updated: 2026-08-31
 - Applies to: `Harper Daily Conversation QA`
 - Default audit window: the previous complete KST calendar day
 
@@ -17,13 +17,17 @@ The audit has two distinct goals:
 2. Evaluate external and internal recommendation quality separately and derive
    evidence-backed improvements.
 
-The audit is read-only. It must not modify production data or repository files.
-After the final report is fixed, it must create exactly one Notion page in the
+The audit is read-only except for the narrowly scoped expired-posting
+remediation in Section 3.5. It must not otherwise modify production data or
+repository files. After the final report is fixed, it must create exactly one
+Notion page in the
 `Debugging Logs` database (`collection://3b87277d-26df-80d5-b777-000b8d7b67bb`)
 with the title determined in Section 3.1 and the complete five-section report
 as its body. It must fetch the database schema before each creation and use
 only its `Name` property; never overwrite or update an earlier daily page.
 
+The only permitted production writes are the exact `company_roles` field
+changes authorized by Section 3.5, the one Notion page, and the one Slack DM.
 The top of every Notion page must be a small, problem-level checklist before
 the five report sections:
 
@@ -204,7 +208,9 @@ proof that a posting is open. Confirm an invalid posting from explicit user
 evidence or a live check of the original URL. When network access is available,
 live-check up to 20 high-risk URLs selected from complaints, negative feedback,
 old posting dates, and source inconsistencies. If live checking is unavailable
-or blocked, label availability as `Needs verification`.
+or blocked, label availability as `Needs verification`. The complete cohort of
+explicit expired-posting reports in Section 3.5 is mandatory and does not count
+against this 20-URL quality-sample limit.
 
 ### 3.3 Evidence-query safety
 
@@ -223,6 +229,193 @@ or blocked, label availability as `Needs verification`.
   other PII.
 - Use a name only in a separate, explicit follow-up request from an authorized
   operator.
+
+### 3.5 Expired-posting report remediation
+
+This is the audit's only production-data remediation. Process every target-window
+recommendation whose current feedback is dislike and whose selected reason is the
+stable external-feedback value `만료된 공고에요.`. Do not sample this cohort.
+Keep every qualifying recommendation in the audit ledger, but deduplicate the
+network check and database mutation by `role_id` when several users reported the
+same role.
+
+#### 3.5.1 Read the report cohort
+
+Convert the KST audit boundaries to exact UTC timestamptz values and bind them as
+`window_start_utc` inclusive and `window_end_utc` exclusive. Use
+`talent_opportunity_recommendation.feedback_at`, not `updated_at`, as the report
+time. Read only the allowlisted scalar fields below; do not select `talent_id`,
+profile data, or unrelated recommendation text.
+
+```sql
+select
+  recommendation.id::text as recommendation_id,
+  recommendation.role_id::text as role_id,
+  recommendation.feedback_at,
+  role.name as role_name,
+  role.source_type,
+  role.source_provider,
+  role.source_job_id,
+  role.external_jd_url,
+  role.status,
+  coalesce(role.is_expired, false) as is_expired,
+  role.expired_at,
+  role.expires_at,
+  role.updated_at as role_updated_at
+from public.talent_opportunity_recommendation recommendation
+join public.company_roles role on role.role_id = recommendation.role_id
+where recommendation.feedback_at >= :window_start_utc::timestamptz
+  and recommendation.feedback_at < :window_end_utc::timestamptz
+  and lower(btrim(coalesce(recommendation.feedback, ''))) in
+      ('dislike', 'negative')
+  and (
+    btrim(coalesce(recommendation.feedback_reason, '')) in
+      ('만료된 공고에요.', '만료된 공고에요')
+    or coalesce(recommendation.feedback_reason, '') ~
+      '"selectedOptions"[[:space:]]*:[[:space:]]*\[[^]]*"만료된 공고에요\.?"'
+  )
+order by recommendation.feedback_at, recommendation.id;
+```
+
+The plain-text branch supports legacy rows and the `selectedOptions` branch
+supports the current JSON-serialized feedback value. Do not match a custom
+comment that merely mentions expiry unless the stable option itself was selected.
+Record full IDs only in the private execution ledger needed for exact reads and
+writes; expose at most eight-character prefixes in the report.
+
+#### 3.5.2 Re-read and check every unique role
+
+Before opening a URL, read the role again by its exact `role_id`:
+
+```sql
+select
+  role_id::text,
+  name,
+  source_type,
+  source_provider,
+  source_job_id,
+  external_jd_url,
+  status,
+  coalesce(is_expired, false) as is_expired,
+  expired_at,
+  expires_at,
+  updated_at
+from public.company_roles
+where role_id = :role_id::uuid;
+```
+
+Do not keep a database transaction or row lock open during network access. Skip
+the mutation when the role does not exist, is not `source_type = 'external'`, or
+is already unavailable (`is_expired = true` or status is `ended`, `expired`,
+`closed`, `inactive`, or `archived`), but record that disposition. A missing URL
+is `Needs verification`, never proof of expiry.
+
+Open each remaining `external_jd_url` individually, follow redirects, and read
+the resulting posting. A mutation requires a high-confidence current closure:
+
+- HTTP `404` or `410` for the exact posting;
+- a provider's authoritative job endpoint says the exact job ID is missing or
+  unavailable; or
+- the final page explicitly says that the exact role is closed, removed, no
+  longer available, or no longer accepting applications; or
+- the same stored posting URL is checked with at least two independent fresh
+  requests and every attempt redirects to the same generic company careers
+  page instead of the exact role. Redirect hops within one request count as one
+  attempt, not several. Record each attempt's final URL and require matching
+  results before treating the posting as expired.
+
+Do not expire a role because of a timeout, DNS/network failure, `401`, `403`,
+`429`, bot challenge, login wall, a generic careers-page redirect observed only
+once, blank JavaScript shell, temporary provider error, missing metadata, old
+`posted_at`, or the user's report alone. Those cases remain `Needs
+verification`. If the two fresh redirect checks disagree, do not mutate the
+role. Confirm that the checked page belongs to the stored role/job ID; a live
+but different role or a suspicious redirect that does not satisfy the repeated
+redirect rule is a mapping issue to report, not automatic proof that this row
+is expired.
+
+#### 3.5.3 Write only after definite confirmation
+
+For a confirmed closure, start a short new transaction, lock the exact role,
+and compare its current URL and `updated_at` with the snapshot that was actually
+checked. Also require that a qualifying target-window report still exists. The
+authorized mutation is limited to `status`, `is_expired`, `expired_at`, and
+`updated_at`; do not change `expires_at`, recommendation feedback, summaries,
+or any other role data.
+
+```sql
+begin;
+
+select
+  role_id::text,
+  source_type,
+  external_jd_url,
+  status,
+  coalesce(is_expired, false) as is_expired,
+  updated_at
+from public.company_roles
+where role_id = :role_id::uuid
+for update;
+
+update public.company_roles role
+set status = 'ended',
+    is_expired = true,
+    expired_at = coalesce(role.expired_at, now()),
+    updated_at = now()
+where role.role_id = :role_id::uuid
+  and role.source_type = 'external'
+  and coalesce(role.is_expired, false) = false
+  and lower(coalesce(role.status, '')) not in
+      ('ended', 'expired', 'closed', 'inactive', 'archived')
+  and role.external_jd_url is not distinct from :checked_url
+  and role.updated_at is not distinct from :checked_role_updated_at::timestamptz
+  and exists (
+    select 1
+    from public.talent_opportunity_recommendation recommendation
+    where recommendation.role_id = role.role_id
+      and recommendation.feedback_at >= :window_start_utc::timestamptz
+      and recommendation.feedback_at < :window_end_utc::timestamptz
+      and lower(btrim(coalesce(recommendation.feedback, ''))) in
+          ('dislike', 'negative')
+      and (
+        btrim(coalesce(recommendation.feedback_reason, '')) in
+          ('만료된 공고에요.', '만료된 공고에요')
+        or coalesce(recommendation.feedback_reason, '') ~
+          '"selectedOptions"[[:space:]]*:[[:space:]]*\[[^]]*"만료된 공고에요\.?"'
+      )
+  )
+returning role_id::text, status, is_expired, expired_at, updated_at;
+
+commit;
+```
+
+If the locked row no longer matches the checked URL or timestamp, roll back and
+classify it as `concurrent_change`; do not blindly retry. Re-read the row and
+live-check the new URL before any later attempt. If the `update ... returning`
+produces no row, roll back, establish which guard failed, and report it.
+
+After every committed mutation, perform an independent exact-ID verification:
+
+```sql
+select role_id::text, status, is_expired, expired_at, updated_at
+from public.company_roles
+where role_id = :role_id::uuid;
+```
+
+Count the mutation as successful only when this re-read shows `status = 'ended'`,
+`is_expired = true`, and a non-null `expired_at`. A write failure must be rolled
+back and listed with the next diagnostic action; never hide it or compensate by
+editing another row.
+
+#### 3.5.4 Reporting boundary
+
+Report qualifying feedback rows, unique roles, already-unavailable roles,
+newly expired roles, confirmed-still-live roles, needs-verification roles,
+concurrent changes, and failed writes as separate counts. List only eight-character
+ID prefixes and non-PII evidence summaries. Treat the cleanup as a current
+operational remediation. Whether the original recommendation was invalid when
+sent remains a separate incident-time judgment under Section 2.1; a current live
+check does not retroactively prove the posting's earlier state.
 
 ## 4. Severity and confidence
 

@@ -2,8 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildInternalRecommendationProgress,
+  formatRecentRecommendedOpportunitiesForPrompt,
+  formatTalentRoleActivitiesForPrompt,
+  formatUpcomingHarperMeetingForPrompt,
   type TalentInternalRecommendationProgressEvent,
   type TalentOpportunityHistoryItem,
+  type TalentRecentRecommendationPromptItem,
+  type TalentRoleActivityItem,
 } from "./talentOpportunity";
 
 const baseItem = {
@@ -125,6 +130,36 @@ test("keeps archived in the existing company-closure flow after grace", () => {
   assert.match(progress?.message ?? "", /^회사 측에서/);
 });
 
+test("explains an archived source Position as a Role move", () => {
+  const movedAt = "2026-07-11T05:42:24.000Z";
+  const progress = buildInternalRecommendationProgress({
+    events: [
+      {
+        createdAt: movedAt,
+        metadata: {
+          direction: "out",
+          eventType: "candidate_role_moved",
+          targetRoleName: "AI Engineer",
+        },
+        text: "Backend Engineer 역할에서 AI Engineer 역할로 이동되었습니다.",
+      },
+    ],
+    item: baseItem,
+    tags: [
+      {
+        opportunity_id: "role-1",
+        tag: "내부:아카이브",
+        updated_at: movedAt,
+      },
+    ],
+  });
+
+  assert.equal(progress?.code, "moved_to_another_role");
+  assert.equal(progress?.stage, "archived");
+  assert.match(progress?.message ?? "", /AI Engineer로 변경되었습니다/);
+  assert.doesNotMatch(progress?.message ?? "", /더 이상 진행하지 않기로/);
+});
+
 test("keeps a recently archived opportunity in the existing grace period", () => {
   const now = new Date().toISOString();
   const progress = buildInternalRecommendationProgress({
@@ -206,4 +241,81 @@ test("keeps an explicit candidate stop authoritative when the role is ended", ()
     progress?.message,
     "요청하신 대로 이 포지션의 진행을 종료했습니다."
   );
+});
+
+function buildPromptOpportunity(
+  index: number,
+  upcomingMeetingAt: string | null = null
+): TalentRecentRecommendationPromptItem {
+  return {
+    companyName: `Company ${index}`,
+    companySize: null,
+    employmentTypes: [],
+    feedback: null,
+    feedbackReason: null,
+    location: null,
+    recommendationId: `recommendation-${index}`,
+    roleId: `role-${index}`,
+    savedStage: null,
+    sourceType: "external",
+    title: `Role ${index}`,
+    upcomingMeetingAt,
+    workMode: null,
+  };
+}
+
+test("adds upcoming-meeting roles outside the recent opportunity limit", () => {
+  const opportunities = Array.from({ length: 11 }, (_, index) =>
+    buildPromptOpportunity(
+      index,
+      index === 10 ? "2026-09-07T05:00:00.000Z" : null
+    )
+  );
+
+  const text = formatRecentRecommendedOpportunitiesForPrompt(opportunities, 10);
+
+  assert.match(text, /Role 9 at Company 9/);
+  assert.match(text, /Role 10 at Company 10/);
+  assert.match(text, /Upcoming Harper-connected meeting: Sep 7, 14:00 KST/);
+});
+
+test("formats upcoming meetings in compact English KST text", () => {
+  assert.equal(
+    formatUpcomingHarperMeetingForPrompt(
+      "2026-09-07T05:00:00.000Z",
+      new Date("2026-08-31T00:00:00.000Z")
+    ),
+    "Upcoming Harper-connected meeting: Sep 7, 14:00 KST"
+  );
+});
+
+test("formats only the latest 10 role activities as compact text", () => {
+  const activities: TalentRoleActivityItem[] = Array.from(
+    { length: 11 },
+    (_, index) => ({
+      content: `memo-${index}\nsecond line`,
+      createdAt: new Date(Date.UTC(2026, 7, 31, 12 - index)).toISOString(),
+      id: `activity-${index}`,
+      kind: "memo",
+      previousStage: null,
+      savedStage: null,
+    })
+  );
+  activities.push({
+    content: null,
+    createdAt: "2026-08-31T13:00:00.000Z",
+    id: "stage-activity",
+    kind: "saved_stage_changed",
+    previousStage: "saved",
+    savedStage: "connected",
+  });
+
+  const text = formatTalentRoleActivitiesForPrompt(activities, 10);
+  const lines = text.split("\n");
+
+  assert.equal(lines.length, 10);
+  assert.equal(lines[0], "2026-08-31 22:00 KST stage: saved→connected");
+  assert.match(text, /memo-0 second line/);
+  assert.doesNotMatch(text, /memo-9|memo-10/);
+  assert.doesNotMatch(text, /\{|\"kind\"|\"metadata\"/);
 });

@@ -1,4 +1,7 @@
-import type { MeetingCalendarBusyBlock } from "@/lib/meetings/availability";
+import {
+  meetingTimeToMinutes,
+  type MeetingCalendarBusyBlock,
+} from "@/lib/meetings/availability";
 import { meetingLocalTimeToUtc } from "@/lib/meetings/slots";
 
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -51,6 +54,46 @@ export function calendarBusyBlockOverlapsDate(args: {
   timezone: string;
 }) {
   return Boolean(busyBlockRangeForDate(args));
+}
+
+export function calendarBusyBlockOverlapsTimeRange(args: {
+  busyBlock: MeetingCalendarBusyBlock;
+  dateKey: string;
+  rangeEnd: string;
+  rangeStart: string;
+  timezone: string;
+}) {
+  const nextDateKey = addDaysToDateKey(args.dateKey, 1);
+  const rangeStartMinutes = meetingTimeToMinutes(args.rangeStart);
+  const rangeEndMinutes = meetingTimeToMinutes(args.rangeEnd, true);
+  if (
+    !nextDateKey ||
+    rangeStartMinutes === null ||
+    rangeEndMinutes === null ||
+    rangeStartMinutes >= rangeEndMinutes
+  ) {
+    return false;
+  }
+  const rangeStart = meetingLocalTimeToUtc({
+    dateKey: args.dateKey,
+    minutes: rangeStartMinutes,
+    timezone: args.timezone,
+  });
+  const rangeEnd = meetingLocalTimeToUtc({
+    dateKey: rangeEndMinutes === 24 * 60 ? nextDateKey : args.dateKey,
+    minutes: rangeEndMinutes === 24 * 60 ? 0 : rangeEndMinutes,
+    timezone: args.timezone,
+  });
+  const blockStart = new Date(args.busyBlock.startAt);
+  const blockEnd = new Date(args.busyBlock.endAt);
+  return Boolean(
+    rangeStart &&
+    rangeEnd &&
+    !Number.isNaN(blockStart.getTime()) &&
+    !Number.isNaN(blockEnd.getTime()) &&
+    blockStart < rangeEnd &&
+    blockEnd > rangeStart
+  );
 }
 
 export function formatCalendarBusyBlockTimeForDate(args: {

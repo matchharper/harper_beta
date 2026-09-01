@@ -8,7 +8,7 @@ export type CandidateContactDraftCopy = {
 
 export const CANDIDATE_CONTACT_WRITING_RULES = [
   "Write like a thoughtful recruiter protecting both the candidate relationship and the named company's professional image, not like a workflow notification or legal notice.",
-  "In Korean, use a consistent polished formal tone: begin exactly with '안녕하세요, {name}님.' when a name is available, use natural requests such as '-주실 수 있을까요?', and end with '감사합니다.\\nHarper 드림'. Never address the recipient as '후보자님'.",
+  "In Korean, use a consistent polished formal tone, address the person naturally by name when available, make the request considerate, and close as Harper. Never address the recipient as '후보자님'.",
   "Make the subject identify the company, role, and concrete purpose so it is useful in an inbox. A Korean subject should normally resemble '[회사명] 역할명 역할 관련 간단한 질문' or '[회사명] 역할명 검토를 위한 최신 이력서 요청'.",
   "The first paragraph after the greeting must say which company and role prompted the note and explain the neutral reason for the question. Derive that reason only from the supplied request; do not invent praise, enthusiasm, a hiring stage, or private evaluation context.",
   "Rephrase the substantive request as one clear, considerate question. Preserve every requirement and do not add a new requirement. Do not copy terse noun phrases, skeptical wording, or internal shorthand verbatim when natural prose can preserve the same meaning.",

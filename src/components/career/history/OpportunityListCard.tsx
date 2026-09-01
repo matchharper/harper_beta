@@ -18,6 +18,8 @@ import { BareButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import { InternalOpportunityDecisionMenu } from "./InternalOpportunityDecisionActions";
 import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
+import OpportunityRecommendationPreview from "./OpportunityRecommendationPreview";
+import UpcomingMeetingStrip from "./UpcomingMeetingStrip";
 
 const stopCardActivation = (event: React.SyntheticEvent) => {
   event.stopPropagation();
@@ -92,14 +94,6 @@ const OpportunityListCard = ({
     action: CareerInternalOpportunityDecisionAction
   ) => void;
 }) => {
-  const t = useCareerT();
-
-  const recommendationReasons = item.recommendationReasons.slice(0, 2);
-  const recommendationSummary = item.recommendationSummary?.trim() ?? "";
-  const recommendationConcerns = (item.recommendationConcerns ?? []).slice(
-    0,
-    1
-  );
   const hasActionArea = Boolean(
     (savedStatus &&
       onSavedStatusChange &&
@@ -108,7 +102,7 @@ const OpportunityListCard = ({
   );
 
   return (
-    <InlinePanel className="relative rounded-[8px] border border-neutral-1000-a05 bg-bg-floating p-2 transition-colors hover:bg-neutral-100">
+    <InlinePanel className="group relative rounded-[8px] border border-neutral-1000-a05 bg-bg-floating p-2 transition-colors hover:bg-bg-weak">
       {hasActionArea && (
         <div className="absolute right-2 top-2 z-10">
           {item.isInternal && onInternalDecisionAction ? (
@@ -140,38 +134,11 @@ const OpportunityListCard = ({
           extraComponent={<></>}
         />
 
-        <div className="mt-4 space-y-3 text-sm text-neutral-primary">
-          {recommendationSummary && <div>{recommendationSummary}</div>}
-          {recommendationReasons.length > 0 &&
-            recommendationReasons.map((reason, index) => (
-              <div
-                key={`${item.id}-reason-${index}`}
-                className="flex items-start gap-2 text-sm"
-              >
-                <span className="mt-[10px] h-1 w-1 shrink-0 rounded-full bg-black/40" />
-                <div
-                  className="line-clamp-2 min-w-0"
-                  dangerouslySetInnerHTML={{ __html: reason }}
-                />
-              </div>
-            ))}
-          {recommendationConcerns.length > 0 &&
-            recommendationConcerns.map((concern, index) => (
-              <div
-                key={`${item.id}-concern-${index}`}
-                className="flex items-start gap-2 text-sm"
-              >
-                <span className="mt-[10px] h-1 w-1 shrink-0 rounded-full bg-black" />
-                <div className="text-sm leading-6 text-neutral-muted">
-                  {t(
-                    "career.history.opportunity_list_card.0l12x89",
-                    "주의 요소 :"
-                  )}{" "}
-                  {concern}
-                </div>
-              </div>
-            ))}
-        </div>
+        <OpportunityRecommendationPreview item={item} />
+        <UpcomingMeetingStrip
+          meeting={item.upcomingMeeting}
+          className="-mx-3 mt-3 rounded-none px-3"
+        />
       </ClickablePanel>
     </InlinePanel>
   );

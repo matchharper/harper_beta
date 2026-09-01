@@ -342,13 +342,15 @@ Slack post가 실패하면 draft는 적용 불가능한 상태로 남는다. pos
 
 ## Tool loop와 result budget
 
-- tool-enabled completion 최대 4회
-- 실제 tool call 합계 최대 5개
+- tool-enabled completion 최대 10회
+- completion마다 `parallel_tool_calls=false`, 실제 tool call은 한 번에 하나씩 최대 10개
+- provider가 여러 call을 반환해도 첫 call만 실행하고 나머지는 `deferred` result로
+  돌려준 뒤 다음 completion에서 다시 판단
 - 한 turn tool result 합계 최대 48,000자
 - 일반 completion output 최대 4,000 tokens
 - complete long text를 읽은 뒤 큰 rewrite completion 최대 32,000 tokens
 - tool-free final completion 최대 2,000 tokens
-- `update_data`와 `change_role_status`는 단독·1회·terminal mutation
+- 각 tool result를 다음 completion에 돌려준 뒤 모델이 재시도·추가 실행·최종 답변을 결정
 
 tool result가 남은 문자 budget을 넘으면 `status=truncated`를 붙이고 그 result가
 열어 준 complete-read state를 취소한다. loop가 끝났는데 final text가 없으면 tools를
@@ -359,8 +361,16 @@ Tool use is finished for this turn. Give the final concise user-facing answer no
 Do not claim success for failed tools.
 ```
 
-잘못된 argument와 허용되지 않은 tool은 safe error result가 된다. mutation 성공 후
-후속 completion이 실패해도 서버가 deterministic fallback 답변을 만든다.
+잘못된 argument, 허용되지 않은 tool, 실행 실패는 복구 지침이 포함된 safe error
+result가 된다. 읽기·준비 호출의 실패는 회사 상태나 후보자 연락을 바꾸지 않았다고
+표시해 좁은 재시도를 허용하고, mutation 실행 실패만 효과 불명으로 표시해 상태 확인을
+먼저 요구한다. mutation 성공 후 후속 completion 자체가 실패하면 서버가 저장된 검증
+결과를 바탕으로 fallback 답변을 만든다.
+
+한 user turn에서 여러 후보자의 연락 초안을 순차 생성·수정하면 후보자별 최신 body와
+contact reference를 모두 보존한다. 최종 답변에는 각 exact body를 서버가 빠짐없이
+붙이고, 다음 확인 turn에도 모든 reference를 다시 제공한다. 직전 답변에 여러 초안이
+함께 있었다면 각 contact/revision 모두 독립적으로 직전 확인 조건을 충족한다.
 
 ## 사람용 답변 guard
 

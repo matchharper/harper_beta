@@ -7,6 +7,8 @@ export const CONTACT_QUEUE_TYPE_PROFILE_SUBMITTED_NO_ANSWER =
   "career_profile_submitted_no_answer";
 export const CONTACT_QUEUE_TYPE_INTERNAL_CONNECTION_CONFIRMED =
   "internal_connection_confirmed";
+export const CONTACT_QUEUE_TYPE_INTERNAL_CANDIDATE_ROLE_CHANGED =
+  "internal_candidate_role_changed";
 export const CONTACT_QUEUE_TYPE_COMPANY_REQUEST_CANDIDATE_DELIVERY =
   "company_request_candidate_delivery";
 export const CONTACT_QUEUE_TYPE_COMPANY_REQUEST_COMPANY_DELIVERY =
@@ -18,6 +20,7 @@ export type ContactQueueType =
   | typeof CONTACT_QUEUE_TYPE_SIGNUP_NO_PROFILE_SUBMIT
   | typeof CONTACT_QUEUE_TYPE_PROFILE_SUBMITTED_NO_ANSWER
   | typeof CONTACT_QUEUE_TYPE_INTERNAL_CONNECTION_CONFIRMED
+  | typeof CONTACT_QUEUE_TYPE_INTERNAL_CANDIDATE_ROLE_CHANGED
   | typeof CONTACT_QUEUE_TYPE_COMPANY_REQUEST_CANDIDATE_DELIVERY
   | typeof CONTACT_QUEUE_TYPE_COMPANY_REQUEST_COMPANY_DELIVERY
   | typeof CONTACT_QUEUE_TYPE_MEETING_SCHEDULE_CANDIDATE_INVITATION
@@ -71,19 +74,18 @@ export async function enqueueSignupNoProfileSubmit(args: {
 }) {
   if (await isOnboardingDone(args)) return;
 
-  const { error } = await args.admin.from("contact_queue").upsert(
-    {
-      payload: args.payload ?? {},
-      scheduled_at: scheduledAtAfterRandomDelay(),
-      status: "queued",
-      type: CONTACT_QUEUE_TYPE_SIGNUP_NO_PROFILE_SUBMIT,
-      user_id: args.userId,
-    },
-    {
-      ignoreDuplicates: true,
-      onConflict: "user_id,type",
-    }
-  );
+  // Production enforces this legacy reminder with a partial unique index.
+  // PostgREST cannot infer that index from `onConflict=user_id,type`, so an
+  // upsert fails before it can apply ignoreDuplicates. A plain insert plus
+  // duplicate-key handling preserves the intended idempotency and works with
+  // the partial index.
+  const { error } = await args.admin.from("contact_queue").insert({
+    payload: args.payload ?? {},
+    scheduled_at: scheduledAtAfterRandomDelay(),
+    status: "queued",
+    type: CONTACT_QUEUE_TYPE_SIGNUP_NO_PROFILE_SUBMIT,
+    user_id: args.userId,
+  });
 
   if (error && !isUniqueViolation(error)) {
     throw new Error(error.message ?? "Failed to enqueue signup contact");

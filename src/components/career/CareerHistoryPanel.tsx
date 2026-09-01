@@ -1006,7 +1006,13 @@ const CareerHistoryPanel = () => {
   );
 
   useEffect(() => {
-    if (!router.isReady || !requestedRoleId || requestedOpportunity) return;
+    if (
+      !router.isReady ||
+      !requestedRoleId ||
+      requestedOpportunity?.activityTimelineLoaded
+    ) {
+      return;
+    }
     if (historyLoading) return;
 
     if (missingRoleIdRef.current === requestedRoleId) {
@@ -1644,7 +1650,7 @@ const CareerHistoryPanel = () => {
           "saved",
           getSavedOpportunityManagementStatus(item),
           {
-            mode: "replace",
+            mode: "push",
             roleId,
           }
         );
@@ -1653,7 +1659,7 @@ const CareerHistoryPanel = () => {
 
       if (isArchivedOpportunity(item)) {
         updateHistoryLocation("archived", activeSavedStatus, {
-          mode: "replace",
+          mode: "push",
           roleId,
         });
       }

@@ -63,7 +63,7 @@ export const ROLE_CREATION_TOOLS = [
     function: {
       name: "calibrate_role_hiring_brief",
       description:
-        "Calibrate this draft Role's company-level talent bar from real people the user presents as examples. Evidence may come from conversation text, internal candidate mentions, professional URLs, or attachments. Reference people represent caliber rather than Role fit unless the user explicitly connects them to both. Use this tool for calibration intent, including a contextual reply such as '이런 사람?', and not for identity questions, profile summaries, or ordinary candidate assessments. It returns the finalized Hiring Brief and user reply, so call it alone.",
+        "Calibrate this draft Role's company-level talent bar from real people the user presents as examples. Evidence may come from conversation text, internal candidate mentions, professional URLs, or attachments. Reference people represent caliber rather than Role fit unless the user explicitly connects them to both. Use this tool for calibration intent, including a contextual reply such as '이런 사람?', and not for identity questions, profile summaries, or ordinary candidate assessments. It returns the finalized Hiring Brief and user reply; review that result before choosing the next step.",
       parameters: {
         type: "object",
         properties: {},
@@ -190,7 +190,7 @@ export const ROLE_CREATION_TOOLS = [
     function: {
       name: "set_role_notification",
       description:
-        "Save the Slack channel and primary assignee selected or accepted by the user. For a new draft's final review only, Harper may also save the single available Slack channel and the active current author as transparent defaults; name both defaults clearly and make them easy to change. In that unambiguous-default case, do not use this as the final tool and do not ask a separate setup-confirmation question: call request_role_creation_confirmation later in the same assistant turn so the final settings and Create role / Keep editing choices arrive together. Omitted fields are preserved.",
+        "Save the Slack channel and primary assignee selected or accepted by the user. For a new draft's final review only, Harper may also save the single available Slack channel and the active current author as transparent defaults; name both defaults clearly and make them easy to change. In that unambiguous-default case, do not stop or ask a separate setup-confirmation question: review this result, then call request_role_creation_confirmation in the same user turn so the final settings and Create role / Keep editing choices arrive together. Omitted fields are preserved.",
       parameters: {
         type: "object",
         minProperties: 1,
@@ -207,7 +207,7 @@ export const ROLE_CREATION_TOOLS = [
     function: {
       name: "confirm_pending_role_creation",
       description:
-        "Activate the saved draft after the immediately preceding Harper message asked for final role-creation confirmation and the user's current free-form reply clearly authorizes registering that exact role now. Natural affirmative replies such as '응', '좋아요, 진행해 주세요', or equivalent wording count when their conversational meaning is clear. This is terminal: do not call it when the user asks a question, is ambiguous, merely reacts positively, or adds, removes, or changes any role detail; apply changes first and present a fresh confirmation instead.",
+        "Activate the saved draft after the immediately preceding Harper message asked for final role-creation confirmation and the user's current free-form reply clearly authorizes registering that exact role now. Natural affirmative replies such as '응', '좋아요, 진행해 주세요', or equivalent wording count when their conversational meaning is clear. Do not call it when the user asks a question, is ambiguous, merely reacts positively, or adds, removes, or changes any role detail; apply changes first and present a fresh confirmation instead.",
       parameters: {
         type: "object",
         properties: {},
@@ -220,7 +220,7 @@ export const ROLE_CREATION_TOOLS = [
     function: {
       name: "request_role_creation_confirmation",
       description:
-        "Use only when the saved role is ready for final review and the user has had at least two distinct opportunities to explain team-specific candidate preferences beyond the JD and technical must-haves, including at least one explicit invitation to share a concrete strong-match person or representative ideal current team member through any useful professional source and explain why that person is a strong reference. LinkedIn is one possible source, not a requirement. Do not repeat that invitation if the user already supplied usable examples and reasons. When set_role_notification just saved the single available Slack channel and active current author as transparent final defaults, call this immediately afterward in the same assistant turn; do not insert a separate yes/no question about those unambiguous defaults. The server checks the current state and attaches Create role / Keep editing choices; this tool itself does not activate the role.",
+        "Use only when the saved role is ready for final review and the user has had at least two distinct opportunities to explain team-specific candidate preferences beyond the JD and technical must-haves, including at least one explicit invitation to share a concrete strong-match person or representative ideal current team member through any useful professional source and explain why that person is a strong reference. LinkedIn is one possible source, not a requirement. When set_role_notification just saved the single available Slack channel and active current author as transparent final defaults, call this after reviewing that result in the same user turn; do not insert a separate yes/no question about those unambiguous defaults. The server checks the current state and attaches Create role / Keep editing choices; this tool itself does not activate the role.",
       parameters: {
         type: "object",
         properties: {},
@@ -256,7 +256,9 @@ function stringList(value: unknown) {
 function optionalNumber(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
-  if (!Number.isFinite(parsed)) throw new Error("Expected a finite number");
+  if (!Number.isFinite(parsed)) {
+    throw new OrgHttpError(400, "Expected a finite number");
+  }
   return Math.floor(parsed);
 }
 
@@ -669,7 +671,7 @@ export async function executeRoleCreationTool(args: {
     }
     return {
       confirmationAccepted: true,
-      result: { ok: true, terminal: true },
+      result: { activated: true, ok: true },
     };
   }
 

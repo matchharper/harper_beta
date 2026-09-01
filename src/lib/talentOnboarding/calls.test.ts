@@ -3,8 +3,43 @@ import test from "node:test";
 import type { TalentAdminClient } from "./admin";
 import {
   getCareerOnboardingChecklistCoverage,
+  getOnboardingChecklistCoverageStats,
   getOrCreateCareerOnboardingCall,
+  serializeOnboardingChecklistProgress,
 } from "./calls";
+
+test("serializes checklist coverage into the canonical client progress shape", () => {
+  const progress = serializeOnboardingChecklistProgress(
+    getOnboardingChecklistCoverageStats({
+      compensation: "covered",
+      location: "covered",
+      search_intensity: "covered",
+    })
+  );
+
+  assert.equal(progress.coveredCount, 3);
+  assert.equal(progress.totalCount, 10);
+  assert.equal(progress.percent, 30);
+  assert.equal(progress.completed, false);
+});
+
+test("excludes final confirmation from both sides of displayed progress", () => {
+  const beforeFinalConfirmation = serializeOnboardingChecklistProgress(
+    getOnboardingChecklistCoverageStats({ compensation: "covered" })
+  );
+  const afterFinalConfirmation = serializeOnboardingChecklistProgress(
+    getOnboardingChecklistCoverageStats({
+      compensation: "covered",
+      final_priority_confirmation: "covered",
+    })
+  );
+
+  assert.equal(afterFinalConfirmation.coveredCount, 1);
+  assert.equal(afterFinalConfirmation.totalCount, 10);
+  assert.equal(afterFinalConfirmation.percent, 10);
+  assert.equal(afterFinalConfirmation.finalConfirmationCovered, true);
+  assert.equal(afterFinalConfirmation.percent, beforeFinalConfirmation.percent);
+});
 
 function createSettingQuery(result: {
   data: { is_onboarding_done: boolean } | null;

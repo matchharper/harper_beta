@@ -77,7 +77,14 @@ test("organization-agent system prompt keeps runtime data out", () => {
     /Do not reduce this judgment to isolated words or phrases/
   );
   assert.match(prompt, /Its result is context, not wording to repeat/);
-  assert.match(prompt, /call calibrate_role_hiring_brief as the only tool/);
+  assert.match(prompt, /<tool_policy>/);
+  assert.match(prompt, /Tools run one at a time/);
+  assert.match(prompt, /After every result, decide from that new evidence/);
+  assert.match(prompt, /multi-target or multi-step requests in the same user turn/);
+  assert.match(prompt, /A successful write does not by itself end the turn/);
+  assert.match(prompt, /Never claim an unconfirmed action succeeded/);
+  assert.match(prompt, /call calibrate_role_hiring_brief/);
+  assert.doesNotMatch(prompt, /calibrate_role_hiring_brief as the only tool/);
   assert.match(prompt, /Recognize this intent from the conversation/);
   assert.match(prompt, /evidence for the company's caliber/);
   assert.match(prompt, /internal candidate mention/);
@@ -99,14 +106,10 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.match(prompt, /latest user's language/);
   assert.match(prompt, /natural, considerate conversational voice/);
   assert.match(prompt, /may be using Harper for the first time/);
-  assert.match(prompt, /a one-line acknowledgement is incomplete/);
-  assert.match(
-    prompt,
-    /Do not turn those state boundaries into a system checklist/
-  );
+  assert.match(prompt, /briefly explain the verified result/);
+  assert.match(prompt, /distinguish lifecycle states when that distinction matters/);
   assert.match(prompt, /Do not write simple proposals or results as receipts/);
   assert.match(prompt, /never force the same greeting/);
-  assert.match(prompt, /what does not happen automatically/);
   assert.match(prompt, /Important lifecycle milestones may intentionally/);
   assert.match(prompt, /what the user should expect/);
   assert.match(prompt, /appropriate anticipation about what comes next/);
@@ -170,13 +173,16 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.match(prompt, /workspace-wide memory inventory/);
   assert.match(prompt, /concrete interview questions/);
   assert.match(prompt, /clearly distinguish what someone discussed/);
-  assert.match(prompt, /nothing was saved or changed/);
+  assert.match(prompt, /Only mutate data when the user explicitly asks/);
   assert.match(prompt, /Do not turn a stated priority or urgency/);
   assert.match(prompt, /do not choose either category for them/);
   assert.match(prompt, /observable work behavior or an evaluable level/);
-  assert.match(prompt, /closely related fields left unchanged/);
-  assert.match(prompt, /direct-change response is incomplete/);
-  assert.match(prompt, /existing value remains unchanged/);
+  assert.match(prompt, /exact target, verified result, and practical effect/);
+  assert.match(prompt, /help the user produce the missing input or a draft/);
+  assert.doesNotMatch(
+    prompt,
+    /nothing was saved or changed|nothing was changed or sent|append routine assurances|generic inventory/
+  );
   assert.match(prompt, /practical next step in the introduction email thread/);
   assert.match(prompt, /reactivate a candidate in 프로세스 종료/);
   assert.match(
@@ -211,6 +217,12 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.match(prompt, /absence, completeness, or comparison claims/);
   assert.match(prompt, /not a complete candidate directory/);
   assert.match(prompt, /use read_conversation_history/);
+  assert.match(prompt, /type=all/);
+  assert.match(prompt, /type=all with limit=5 first/);
+  assert.match(prompt, /only when those five previews do not identify/);
+  assert.match(prompt, /type=thread/);
+  assert.match(prompt, /exact KST start\/latest times/);
+  assert.match(prompt, /Never expose opaque thread IDs/);
   assert.match(prompt, /not the company's full Slack history/);
   assert.match(prompt, /identifiers are opaque/);
   assert.match(prompt, /never shorten, normalize, infer, or reconstruct an ID/);

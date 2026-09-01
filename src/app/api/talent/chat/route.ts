@@ -1,4 +1,4 @@
-import { after, NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   buildTalentProfileContext,
@@ -11,6 +11,7 @@ import {
   TalentMessageRow,
   fetchTalentUserProfile,
   getCareerOnboardingChecklistCoverage,
+  getCareerOnboardingChecklistProgress,
   getTalentSupabaseAdmin,
   normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
@@ -223,6 +224,7 @@ function startOpportunityDiscoveryInBackground(runId: string) {
 
 async function buildTalentProfileSnapshot(args: {
   admin: ReturnType<typeof getTalentSupabaseAdmin>;
+  conversationId: string;
   includeDocuments?: boolean;
   userId: string;
 }) {
@@ -237,7 +239,21 @@ async function buildTalentProfileSnapshot(args: {
         )
       : null,
   ]);
+  const normalizedInsights = normalizeTalentInsightContent(
+    insights?.content ?? null
+  );
+  const onboardingChecklistProgress = !Boolean(setting?.is_onboarding_done)
+    ? await getCareerOnboardingChecklistProgress({
+        admin: args.admin,
+        context: talentProfile.talentUser,
+        conversationId: args.conversationId,
+        currentInsightContent: normalizedInsights,
+        userId: args.userId,
+      })
+    : null;
+
   return {
+    onboardingChecklistProgress,
     preferredLocale: setting?.preferred_locale ?? null,
     talentPreferences: {
       engagementTypes: normalizeTalentEngagementTypes(
@@ -253,7 +269,7 @@ async function buildTalentProfileSnapshot(args: {
         setting?.recommendation_batch_size
       ),
     },
-    talentInsights: normalizeTalentInsightContent(insights?.content ?? null),
+    talentInsights: normalizedInsights,
     talentProfile: documents
       ? {
           ...talentProfile,
@@ -1149,7 +1165,7 @@ export async function POST(req: NextRequest) {
         thinkingLogs = appendRecommendationStatusLog(thinkingLogs, status);
       }
     };
-    const scheduleInsightExtractionForAssistantMessage = (args: {
+    const persistInsightExtractionForAssistantMessage = async (args: {
       content: string;
       messageId: number | string | null | undefined;
     }) => {
@@ -1157,29 +1173,21 @@ export async function POST(req: NextRequest) {
         return;
       }
 
-      const runBackgroundInsightExtraction = async () => {
-        try {
-          const changedKeysCount = await extractTurnInsights(args.content);
-          console.info("[TalentChat] background insight done", {
-            changedKeysCount,
-            conversationId,
-            messageId: args.messageId ?? null,
-            userId: user.id,
-          });
-        } catch (error) {
-          console.error("[TalentChat] Failed to extract background insights", {
-            conversationId,
-            error: error instanceof Error ? error.message : String(error),
-            messageId: args.messageId ?? null,
-            userId: user.id,
-          });
-        }
-      };
-
       try {
-        after(runBackgroundInsightExtraction);
-      } catch {
-        void runBackgroundInsightExtraction();
+        const changedKeysCount = await extractTurnInsights(args.content);
+        console.info("[TalentChat] insight extraction done", {
+          changedKeysCount,
+          conversationId,
+          messageId: args.messageId ?? null,
+          userId: user.id,
+        });
+      } catch (error) {
+        console.error("[TalentChat] Failed to extract insights", {
+          conversationId,
+          error: error instanceof Error ? error.message : String(error),
+          messageId: args.messageId ?? null,
+          userId: user.id,
+        });
       }
     };
     const rememberRecommendationPostingRoleIds = (result: unknown) => {
@@ -1585,7 +1593,7 @@ export async function POST(req: NextRequest) {
                 thinkingLogs,
                 userId: user.id,
               });
-              scheduleInsightExtractionForAssistantMessage({
+              await persistInsightExtractionForAssistantMessage({
                 content: preparedAssistantText,
                 messageId: preparedMessageId,
               });
@@ -1608,6 +1616,7 @@ export async function POST(req: NextRequest) {
               });
               const profileSnapshot = await buildTalentProfileSnapshot({
                 admin,
+                conversationId,
                 includeDocuments: documentsChanged,
                 userId: user.id,
               });
@@ -1739,7 +1748,7 @@ export async function POST(req: NextRequest) {
               );
             }
 
-            scheduleInsightExtractionForAssistantMessage({
+            await persistInsightExtractionForAssistantMessage({
               content: stripOpportunityRunMarkers(safeAssistantText),
               messageId: insertedAssistantMessage.id,
             });
@@ -1879,6 +1888,7 @@ export async function POST(req: NextRequest) {
             });
             const profileSnapshot = await buildTalentProfileSnapshot({
               admin,
+              conversationId,
               includeDocuments: documentsChanged,
               userId: user.id,
             });
@@ -2113,7 +2123,7 @@ export async function POST(req: NextRequest) {
         preparedCompanySnapshot.messages[
           preparedCompanySnapshot.messages.length - 1
         ]?.id;
-      scheduleInsightExtractionForAssistantMessage({
+      await persistInsightExtractionForAssistantMessage({
         content: preparedAssistantText,
         messageId: preparedMessageId,
       });
@@ -2134,6 +2144,7 @@ export async function POST(req: NextRequest) {
       summarizeConversationInBackground();
       const profileSnapshot = await buildTalentProfileSnapshot({
         admin,
+        conversationId,
         includeDocuments: documentsChanged,
         userId: user.id,
       });
@@ -2279,7 +2290,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    scheduleInsightExtractionForAssistantMessage({
+    await persistInsightExtractionForAssistantMessage({
       content: stripOpportunityRunMarkers(safeAssistantText),
       messageId: insertedAssistantMessage.id,
     });
@@ -2321,6 +2332,7 @@ export async function POST(req: NextRequest) {
 
     const profileSnapshot = await buildTalentProfileSnapshot({
       admin,
+      conversationId,
       includeDocuments: documentsChanged,
       userId: user.id,
     });

@@ -5,6 +5,7 @@ import {
   canStopOrgCandidateProcess,
   isOrgInternalStage,
   requiresOrgIntroEmailRecipient,
+  shouldSendOrgIntroEmail,
   shouldOpenOrgAcceptIntroDialog,
   shouldOpenOrgStopCandidateDialog,
 } from "./candidateDecision";
@@ -69,6 +70,55 @@ test("requires at least one company recipient only for an emailed connection", (
   assert.equal(
     requiresOrgIntroEmailRecipient("process_stopped", "connected", false),
     true
+  );
+});
+
+test("sends an intro only when a connection starts or resumes", () => {
+  const shouldSend = (
+    currentStage: Parameters<typeof shouldSendOrgIntroEmail>[0]["currentStage"],
+    nextStage: Parameters<typeof shouldSendOrgIntroEmail>[0]["nextStage"],
+    overrides: Partial<Parameters<typeof shouldSendOrgIntroEmail>[0]> = {}
+  ) =>
+    shouldSendOrgIntroEmail({
+      contactDirectly: false,
+      currentStage,
+      nextStage,
+      recipientCount: 1,
+      scheduleInterview: false,
+      skipAutomaticContact: false,
+      ...overrides,
+    });
+
+  assert.equal(shouldSend("pending_connection", "custom:first-interview"), true);
+  assert.equal(shouldSend("process_stopped", "connected"), true);
+  assert.equal(
+    shouldSend("custom:first-interview", "custom:second-interview"),
+    false
+  );
+  assert.equal(shouldSend("connected", "final_offer"), false);
+  assert.equal(
+    shouldSend("pending_connection", "custom:first-interview", {
+      scheduleInterview: true,
+    }),
+    false
+  );
+  assert.equal(
+    shouldSend("pending_connection", "custom:first-interview", {
+      skipAutomaticContact: true,
+    }),
+    false
+  );
+  assert.equal(
+    shouldSend("pending_connection", "custom:first-interview", {
+      contactDirectly: true,
+    }),
+    false
+  );
+  assert.equal(
+    shouldSend("pending_connection", "custom:first-interview", {
+      recipientCount: 0,
+    }),
+    false
   );
 });
 

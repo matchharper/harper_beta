@@ -26,7 +26,7 @@ export function buildOrgInviteEmail(args: OrgInviteEmailArgs) {
     inviterEmail && inviterEmail.toLowerCase() !== inviterName.toLowerCase()
       ? `${inviterName} (${inviterEmail})`
       : inviterName;
-  const subject = `${companyName}의 Harper Organization에 초대되었어요`;
+  const subject = `${companyName}의 Harper Workspace에 초대되었어요`;
   const text = `안녕하세요.
 
 ${inviterLabel}님이 ${companyName}의 Harper Organization 워크스페이스에 초대했습니다.
@@ -52,13 +52,13 @@ ${args.inviteUrl}
             </tr>
             <tr>
               <td style="padding:12px 32px 36px;">
-                <h1 style="margin:0 0 18px;font-size:20px;font-weight:600;line-height:1.35;letter-spacing:-0.035em;">${safeCompanyName}의 워크스페이스에<br>함께 참여해 주세요.</h1>
+                <h1 style="margin:0 0 18px;font-size:20px;font-weight:600;line-height:1.35;letter-spacing:-0.035em;">${safeCompanyName}의 Workspace에<br>함께 참여해 주세요.</h1>
                 <p style="margin:0 0 10px;font-size:15px;line-height:1.7;color:#454542;">${safeInviterLabel}님이 Harper Workspace에 초대했습니다.</p>
                 <p style="margin:0 0 26px;font-size:15px;line-height:1.7;color:#73736f;">팀과 함께 추천 인재를 검토하고 채용 진행 상황을 한곳에서 관리할 수 있습니다.</p>
                 <table role="presentation" cellspacing="0" cellpadding="0">
                   <tr>
                     <td style="border-radius:8px;background:#171717;">
-                      <a href="${safeInviteUrl}" style="display:inline-block;padding:13px 20px;color:#ffffff;font-size:14px;font-weight:500;text-decoration:none;">Workspace 참여하기</a>
+                      <a href="${safeInviteUrl}" style="display:inline-block;padding:13px 20px;color:#ffffff;font-size:14px;font-weight:400;text-decoration:none;">Workspace 참여하기</a>
                     </td>
                   </tr>
                 </table>

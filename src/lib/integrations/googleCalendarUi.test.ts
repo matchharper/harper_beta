@@ -109,19 +109,11 @@ test("runtime integration paths keep auth and tool execution server-only", () =>
   );
   assert.match(vendor, /tools\/execute/);
   assert.doesNotMatch(vendor, /NEXT_PUBLIC_COMPOSIO/);
-  const syncRoute = readFileSync(
-    new URL(
-      "../../app/api/org/meeting-availability/calendar-sync/route.ts",
-      import.meta.url
-    ),
-    "utf8"
-  );
-  assert.match(syncRoute, /await getFreshRequestUser\(req\)/);
   const syncServer = readFileSync(
     new URL("../meetings/calendarSyncServer.ts", import.meta.url),
     "utf8"
   );
-  assert.match(syncServer, /await assertOrgWorkspaceAccess\(/);
+  assert.match(syncServer, /\.from\("company_user_workspace"\)/);
   const ui = readFileSync(
     new URL(
       "../../components/org/workspace/OrgGoogleCalendarIntegration.tsx",

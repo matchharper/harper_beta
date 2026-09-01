@@ -78,8 +78,10 @@ test("company stats separate Slack or auto-member workspaces from other companie
 });
 
 test("company stats count current candidate stages and daily additions by unique talent", async () => {
-  const { compileDailyCompanyStatsReport } =
-    await import("@/lib/dailyCompanyStats");
+  const {
+    compileDailyCompanyStatsReport,
+    formatDailyCompanyStatsSlackMessage,
+  } = await import("@/lib/dailyCompanyStats");
   const rows = baseRows();
   rows.workspaces = [
     { company_name: "Company", company_workspace_id: "workspace" },
@@ -198,6 +200,10 @@ test("company stats count current candidate stages and daily additions by unique
   assert.equal(report.totals.connectedCount, 2);
   assert.equal(report.totals.connectedTodayCount, 1);
   assert.equal(report.totals.rolling7Day.connectedCount, 1);
+  assert.match(
+    formatDailyCompanyStatsSlackMessage(report),
+    /\|수락 1> \(\+ 오늘 2명\) · 연결 대기 1 · 진행 중 2 \(\+ 오늘 1명\) · 거절 0/
+  );
 });
 
 test("company stats keep Harper acceptances separate from another role's later stage", async () => {
@@ -577,7 +583,7 @@ test("company stats include daily totals, linked acceptances, and thread details
   ]);
   assert.match(
     message,
-    /<https:\/\/matchharper\.com\/org\/jobs\?orgId=workspace-main&roleId=all\|수락 1> · 연결 대기 1 · 진행 중 0 · 거절 1/
+    /<https:\/\/matchharper\.com\/org\/jobs\?orgId=workspace-main&roleId=all\|수락 1> \(\+ 오늘 1명\) · 연결 대기 1 \(\+ 오늘 1명\) · 진행 중 0 · 거절 1 \(\+ 오늘 1명\)/
   );
   assert.match(message, /- 채팅 수: Slack 1개 · web 1개/);
   assert.match(

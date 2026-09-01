@@ -2488,6 +2488,7 @@ export function buildRoleSearchSql(args: {
     "(cr.expires_at IS NULL OR cr.expires_at > now())",
     "cr.status NOT IN ('expired', 'closed', 'inactive', 'archived')",
     "cr.source_type = 'external'",
+    "cw.external_roles_enabled = true",
     previouslyRecommendedRoleExclusionSql(args.userId, args.asOf),
     ...buildBlockedCompanySql(args.blockedCompanies),
     ...buildEmploymentTypeSql(args.plan),

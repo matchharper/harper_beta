@@ -75,6 +75,12 @@ function workspaceId(value: unknown) {
   return value.trim();
 }
 
+function timezone(value: unknown) {
+  return typeof value === "string" && value.trim().length <= 128
+    ? value.trim()
+    : "";
+}
+
 async function readBody(req: NextRequest, allowed: string[]) {
   const origin = req.headers.get("origin");
   if (origin && origin !== req.nextUrl.origin) {
@@ -154,7 +160,31 @@ export function createGoogleCalendarHandlers(deps: {
     workspaceId: string
   ): Promise<{ userId: string; service: GoogleCalendarService }>;
   getStateSecret(): string;
+  onActiveConnection?(args: {
+    timezone: string;
+    userId: string;
+    workspaceId: string;
+  }): Promise<void>;
 }) {
+  const syncAfterConnection = async (args: {
+    timezone: string;
+    userId: string;
+    workspaceId: string;
+  }) => {
+    if (!args.timezone || !deps.onActiveConnection) return;
+    try {
+      await deps.onActiveConnection(args);
+    } catch (error) {
+      // The OAuth connection is already active. A transient Calendar read must
+      // not turn a successful connection into a false failure; later
+      // request-time refresh paths will retry it automatically.
+      console.error("[GoogleCalendarIntegration] automatic sync failed", {
+        stage: "complete_connection",
+        ...getIntegrationErrorDiagnostics(error),
+      });
+    }
+  };
+
   return {
     async GET(req: NextRequest) {
       try {
@@ -171,7 +201,7 @@ export function createGoogleCalendarHandlers(deps: {
     },
     async connect(req: NextRequest) {
       try {
-        const body = await readBody(req, ["workspaceId"]);
+        const body = await readBody(req, ["timezone", "workspaceId"]);
         const workspace = workspaceId(body.workspaceId);
         const context = await deps.getContext(req, workspace);
         const secret = deps.getStateSecret();
@@ -180,8 +210,14 @@ export function createGoogleCalendarHandlers(deps: {
           context.userId,
           buildCalendarCallbackUrl(req.nextUrl.origin, workspace, nonce)
         );
-        if (result.status === "active")
+        if (result.status === "active") {
+          await syncAfterConnection({
+            timezone: timezone(body.timezone),
+            userId: context.userId,
+            workspaceId: workspace,
+          });
           return clearCookie(req, json({ status: "active" }));
+        }
         const response = json({
           status: "redirect",
           authorizeUrl: result.authorizeUrl,
@@ -211,6 +247,7 @@ export function createGoogleCalendarHandlers(deps: {
           "state",
           "connectedAccountId",
           "status",
+          "timezone",
         ]);
         const workspace = workspaceId(body.workspaceId);
         const context = await deps.getContext(req, workspace);
@@ -244,6 +281,11 @@ export function createGoogleCalendarHandlers(deps: {
           );
         }
         await context.service.complete(context.userId, state.accountId);
+        await syncAfterConnection({
+          timezone: timezone(body.timezone),
+          userId: context.userId,
+          workspaceId: workspace,
+        });
         return clearCookie(req, json({ status: "active" }));
       } catch (error) {
         // Keep the cookie on transient vendor/DB failures so saving can be retried.

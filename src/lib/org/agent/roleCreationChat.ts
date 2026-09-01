@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { User } from "@supabase/supabase-js";
+import { after } from "next/server";
 import {
   createChatCompletionWithFallback,
   usesMaxCompletionTokensForModel,
@@ -35,9 +36,11 @@ import {
 import {
   fetchRecentOrgAgentSlackThreadPromptMessages,
   fetchRecentOrgAgentPromptMessages,
+  fetchRecentOrgAgentSummaries,
   findOrgAgentSlackUserMessage,
   insertOrgAgentMessage,
 } from "@/lib/org/agent/store";
+import { maybeSummarizeOrgAgentConversation } from "@/lib/org/agent/summary";
 import {
   getOrgAgentThinkingLogIcon,
   upsertOrgAgentThinkingLog,
@@ -56,11 +59,22 @@ import {
   validateOrgAgentReferenceAttachments,
 } from "@/lib/org/agent/referenceAttachments";
 import { ensureOrgAgentCompanyInfoMarker } from "@/lib/org/agent/companyInfoMarker";
-import { shouldAttachRoleCreationConfirmation } from "@/lib/org/agent/roleCreationCadence";
 import {
   buildServiceAnswerExamplesPromptBlock,
   lookupAnswerExamples,
 } from "@/lib/serviceAnswerExamples";
+import { OrgHttpError } from "@/lib/org/server";
+
+function scheduleRoleCreationSummary(
+  args: Parameters<typeof maybeSummarizeOrgAgentConversation>[0]
+) {
+  const task = () => maybeSummarizeOrgAgentConversation(args);
+  try {
+    after(task);
+  } catch {
+    void task();
+  }
+}
 
 type RoleCreationChatEventName =
   | "assistant_message"
@@ -81,14 +95,15 @@ type LlmToolCall = {
 };
 
 type LlmMessage = {
+  _responses_output?: any[];
   content: string;
   role: "assistant" | "system" | "tool" | "user";
   tool_call_id?: string;
   tool_calls?: LlmToolCall[];
 };
 
-const MAX_TOOL_LOOPS = 5;
-const MAX_TOOL_CALLS = 7;
+const MAX_TOOL_LOOPS = 10;
+const MAX_TOOL_CALLS = 10;
 const ROLE_CREATION_MAX_OUTPUT_TOKENS = 4_800;
 
 function text(value: unknown) {
@@ -148,12 +163,56 @@ function toolCalls(message: Record<string, unknown>): LlmToolCall[] {
   });
 }
 
+class RoleCreationToolInputError extends Error {}
+
 function parseArguments(value: string) {
-  const parsed = JSON.parse(value || "{}") as unknown;
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("Tool arguments must be an object");
+  try {
+    const parsed = JSON.parse(value || "{}") as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new RoleCreationToolInputError("Tool arguments must be an object");
+    }
+    return parsed as Record<string, unknown>;
+  } catch (error) {
+    if (error instanceof RoleCreationToolInputError) throw error;
+    throw new RoleCreationToolInputError("Tool arguments are not valid JSON");
   }
-  return parsed as Record<string, unknown>;
+}
+
+function roleCreationToolErrorResult(args: { error: unknown; name: string }) {
+  const inputError =
+    args.error instanceof RoleCreationToolInputError ||
+    (args.error instanceof OrgHttpError && args.error.status < 500);
+  const message =
+    inputError && args.error instanceof Error
+      ? args.error.message
+      : "The tool could not be completed.";
+  const recovery =
+    args.name === "confirm_pending_role_creation"
+      ? "Do not claim the Role was activated. If the result is uncertain, do not activate again until the current Role status is verified; otherwise explain the missing or stale confirmation and ask for the smallest necessary next action."
+      : args.name === "calibrate_role_hiring_brief"
+        ? inputError
+          ? "Correct missing reference evidence and retry once when useful. Otherwise explain what evidence is missing and ask at most one focused question."
+          : "The saved Hiring Brief may have changed. Do not immediately repeat calibration or claim it succeeded; explain the uncertainty and ask the user to retry after the current Role state can be refreshed."
+        : inputError
+          ? "Correct the arguments from the saved Role state and retry when the user's intent is still clear. Continue any independent unfinished part of the request."
+          : "Do not claim the save or external effect succeeded and do not blindly repeat the action. Use the next step to verify current saved state when possible, continue independent work, or explain the blocker.";
+  return JSON.stringify({
+    effectStatus: inputError ? "not_executed" : "unknown",
+    error: message,
+    instruction: `${recovery} Write user-facing explanations without tool names or internal diagnostics.`,
+    ok: false,
+  });
+}
+
+function deferredRoleCreationToolResult() {
+  return JSON.stringify({
+    executed: false,
+    instruction:
+      "Review the first tool result. If this action is still needed and authorized, request it again as the next single tool call. Do not claim it ran.",
+    reason:
+      "Only one tool is executed per reasoning step so its result can inform the next decision.",
+    status: "deferred",
+  });
 }
 
 function statusLabel(
@@ -267,6 +326,7 @@ async function completion(args: {
       temperature: 0.15,
       ...(args.allowTools
         ? {
+            parallel_tool_calls: false,
             tool_choice: "auto" as const,
             tools: args.allowPendingConfirmation
               ? ROLE_CREATION_TOOLS
@@ -468,16 +528,25 @@ export async function runOrgRoleCreationChat(args: {
     surface === "slack" && args.slackThreadId
       ? await fetchRecentOrgAgentSlackThreadPromptMessages({
           admin,
-          limit: 20,
+          limit: 25,
           slackThreadId: args.slackThreadId,
           workspaceId: args.workspaceId,
         })
       : await fetchRecentOrgAgentPromptMessages({
           admin,
           conversationId: state.conversation.id,
-          limit: 20,
+          limit: 25,
           scope: { kind: "chat" },
         });
+  const summaries = await fetchRecentOrgAgentSummaries({
+    admin,
+    conversationId: state.conversation.id,
+    limit: 1,
+    scope:
+      surface === "slack" && args.slackThreadId
+        ? { kind: "slack", slackThreadId: args.slackThreadId }
+        : { kind: "chat" },
+  });
   const previousAssistantMessage =
     historyPage.messages
       .filter((item) => item.id !== userMessage.id && item.role === "assistant")
@@ -515,6 +584,7 @@ export async function runOrgRoleCreationChat(args: {
         content: item.content,
         role: item.role,
       })),
+    olderSummary: summaries.at(-1)?.content ?? null,
     mentions,
     serviceAnswerExamplesText,
     state,
@@ -537,7 +607,6 @@ export async function runOrgRoleCreationChat(args: {
   let activeModel = selectedModel;
   let activeReasoningEffort: OrgAgentReasoningEffort =
     DEFAULT_ORG_AGENT_REASONING_EFFORT;
-  let calibrationAttempted = false;
   let calibrationCompleted = false;
   let totalCalls = 0;
   let reply = "";
@@ -546,7 +615,6 @@ export async function runOrgRoleCreationChat(args: {
   let pendingConfirmationAccepted = false;
   let confirmationNarrativeGenerated = false;
   let companyInfoDescriptionUpdated = false;
-  let notificationSaved = false;
   let confirmationState: Awaited<
     ReturnType<typeof fetchRoleCreationState>
   > | null = null;
@@ -557,7 +625,7 @@ export async function runOrgRoleCreationChat(args: {
   for (let loop = 0; loop < MAX_TOOL_LOOPS; loop += 1) {
     const result = await completion({
       allowPendingConfirmation: canConfirmPendingRole,
-      allowTools: !confirmationRequested && !calibrationAttempted,
+      allowTools: !confirmationRequested,
       messages,
       model: activeModel,
       reasoningEffort: activeReasoningEffort,
@@ -574,15 +642,25 @@ export async function runOrgRoleCreationChat(args: {
       break;
     }
     messages.push({
+      _responses_output: Array.isArray(responseMessage._responses_output)
+        ? responseMessage._responses_output
+        : undefined,
       content: responseText,
       role: "assistant",
       tool_calls: calls,
     });
 
-    for (const call of calls) {
+    const deferredCalls = calls.slice(1);
+    for (const call of calls.slice(0, 1)) {
       if (totalCalls >= MAX_TOOL_CALLS) {
         messages.push({
-          content: JSON.stringify({ error: "tool_budget_reached" }),
+          content: JSON.stringify({
+            error: "tool_budget_reached",
+            executed: false,
+            instruction:
+              "Explain completed and incomplete work without claiming this action ran.",
+            ok: false,
+          }),
           role: "tool",
           tool_call_id: call.id,
         });
@@ -600,26 +678,7 @@ export async function runOrgRoleCreationChat(args: {
       args.emit?.("tool_status", startedLog);
       try {
         if (!isRoleCreationToolName(call.function.name)) {
-          throw new Error("Unknown role creation tool");
-        }
-        if (
-          call.function.name === "confirm_pending_role_creation" &&
-          calls.length !== 1
-        ) {
-          throw new Error(
-            "Final role confirmation must be the only tool call in this turn"
-          );
-        }
-        if (
-          call.function.name === "calibrate_role_hiring_brief" &&
-          calls.length !== 1
-        ) {
-          throw new Error(
-            "Role calibration must be the only tool call in this turn"
-          );
-        }
-        if (call.function.name === "calibrate_role_hiring_brief") {
-          calibrationAttempted = true;
+          throw new RoleCreationToolInputError("Unknown role creation tool");
         }
         const toolInput = parseArguments(call.function.arguments);
         const execution = await executeRoleCreationTool({
@@ -659,18 +718,15 @@ export async function runOrgRoleCreationChat(args: {
         ) {
           companyInfoDescriptionUpdated = true;
         }
-        if (call.function.name === "set_role_notification") {
-          notificationSaved = true;
-        }
         if (call.function.name === "calibrate_role_hiring_brief") {
           activeModel = ORG_AGENT_TERRA_MODEL;
           activeReasoningEffort = "max";
           calibrationCompleted = true;
-          reply =
+          const calibrationReply =
             "userReply" in execution.result
               ? text(execution.result.userReply)
               : "";
-          if (reply) lastAssistantText = reply;
+          if (calibrationReply) lastAssistantText = calibrationReply;
         }
         confirmationRequested =
           confirmationRequested || Boolean(execution.confirmationRequested);
@@ -680,6 +736,12 @@ export async function runOrgRoleCreationChat(args: {
             "confirmationAccepted" in execution &&
             execution.confirmationAccepted
           );
+        const executionResult = record(execution.result);
+        const executionStatus =
+          executionResult.ok === false ||
+          executionResult.status === "needs_more_information"
+            ? ("unchanged" as const)
+            : ("success" as const);
         const doneLog = {
           at: new Date().toISOString(),
           id: call.id,
@@ -692,7 +754,7 @@ export async function runOrgRoleCreationChat(args: {
         toolResults.push({
           callId: call.id,
           name: call.function.name,
-          status: "success",
+          status: executionStatus,
           summary: execution.updateSummary ?? doneLog.label,
         });
         messages.push({
@@ -717,9 +779,9 @@ export async function runOrgRoleCreationChat(args: {
           summary: failedLog.label,
         });
         messages.push({
-          content: JSON.stringify({
-            error: error instanceof Error ? error.message : "tool_failed",
-            ok: false,
+          content: roleCreationToolErrorResult({
+            error,
+            name: call.function.name,
           }),
           role: "tool",
           tool_call_id: call.id,
@@ -727,40 +789,35 @@ export async function runOrgRoleCreationChat(args: {
       }
       if (confirmationRequested || pendingConfirmationAccepted) break;
     }
-    if (pendingConfirmationAccepted || calibrationCompleted) break;
-  }
-
-  if (
-    shouldAttachRoleCreationConfirmation({
-      assistantText: reply || lastAssistantText,
-      confirmationRequested,
-      notificationSaved,
-      roleWasDraft: state.role.status === "draft",
-      surface,
-    })
-  ) {
-    const callId = `server_final_review_${crypto.randomUUID()}`;
-    const execution = await executeRoleCreationTool({
-      actorLabel: state.currentUser.name,
-      allowCompletedRole: true,
-      input: {},
-      name: "request_role_creation_confirmation",
-      previousAssistantMessage,
-      roleId,
-      user: args.user,
-      userMessage: message,
-      workspaceId: args.workspaceId,
-    });
-    if (execution.confirmationRequested) {
-      confirmationRequested = true;
-      confirmationNarrativeGenerated = true;
-      toolResults.push({
-        callId,
-        name: "request_role_creation_confirmation",
-        status: "success",
-        summary: "등록 조건 확인 완료",
+    for (const deferredCall of deferredCalls) {
+      messages.push({
+        content: deferredRoleCreationToolResult(),
+        role: "tool",
+        tool_call_id: deferredCall.id,
       });
     }
+    if (pendingConfirmationAccepted) break;
+  }
+
+  if (!pendingConfirmationAccepted && !confirmationRequested && !reply) {
+    const result = await completion({
+      allowPendingConfirmation: false,
+      allowTools: false,
+      messages: [
+        ...messages,
+        {
+          content:
+            "Tool use is finished for this turn. Explain what was completed, what remains incomplete, and the most useful next step. Do not claim an unverified save or activation.",
+          role: "user",
+        },
+      ],
+      model: activeModel,
+      reasoningEffort: activeReasoningEffort,
+      strictModel: calibrationCompleted,
+    });
+    activeModel = result.model as OrgAgentModelId;
+    reply = assistantText(getResponseMessage(result.response));
+    if (reply) lastAssistantText = reply;
   }
 
   if (
@@ -789,6 +846,12 @@ export async function runOrgRoleCreationChat(args: {
     }
     emitText(args.emit, confirmed.assistantMessage.content);
     args.emit?.("assistant_message", confirmed.assistantMessage);
+    scheduleRoleCreationSummary({
+      admin,
+      conversation: state.conversation,
+      model: activeModel,
+      slackThreadId: args.slackThreadId ?? null,
+    });
     return {
       assistantMessage: confirmed.assistantMessage,
       conversationId: state.conversation.id,
@@ -900,6 +963,12 @@ export async function runOrgRoleCreationChat(args: {
     });
   }
   args.emit?.("assistant_message", assistantMessage);
+  scheduleRoleCreationSummary({
+    admin,
+    conversation: state.conversation,
+    model: activeModel,
+    slackThreadId: args.slackThreadId ?? null,
+  });
   return {
     assistantMessage,
     conversationId: state.conversation.id,

@@ -13,6 +13,7 @@ test("builds a stateless high-reasoning Responses request", () => {
     requestBody: {
       max_tokens: 4_000,
       messages: [{ content: "Hello", role: "user" }],
+      parallel_tool_calls: false,
       response_format: { type: "json_object" },
       tools: [
         {
@@ -31,6 +32,7 @@ test("builds a stateless high-reasoning Responses request", () => {
   assert.equal(request.store, false);
   assert.deepEqual(request.include, ["reasoning.encrypted_content"]);
   assert.equal(request.max_output_tokens, 4_000);
+  assert.equal(request.parallel_tool_calls, false);
 });
 
 test("maps Responses function calls into the existing chat tool shape", () => {

@@ -44,6 +44,8 @@ const COMPANY_CONTEXT_RUN_QUEUE_MIGRATION =
   "20260814180000_company_context_run_queue.sql";
 const COMPANY_CONTEXT_RUN_ACTIVE_QUEUE_ONLY_MIGRATION =
   "20260824163000_company_context_run_active_queue_only.sql";
+const TEST_ONLY_COMPANY_CONTEXT_RUN_GUARD_MIGRATION =
+  "20260831160000_test_only_company_context_run_guard.sql";
 const COMPANY_BEHAVIOR_CONTEXT_CURRENT_MIGRATION =
   "20260814200000_company_behavior_contexts_role_current.sql";
 const DROP_COMPANY_ROLES_REQUEST_MIGRATION =
@@ -63,6 +65,7 @@ const IDS = {
   recurringAutoRole: "00000000-0000-4000-8000-000000000108",
   recurringLegacyPausedRole: "00000000-0000-4000-8000-000000000109",
   recurringDraftRole: "00000000-0000-4000-8000-000000000110",
+  recurringTestOnlyRole: "00000000-0000-4000-8000-000000000111",
   conversation: "00000000-0000-4000-8000-000000000201",
   slackChannel: "00000000-0000-4000-8000-000000000301",
   slackThread: "00000000-0000-4000-8000-000000000302",
@@ -1755,6 +1758,117 @@ async function testCompanyRoleRecurringMatchingMigration(sql: Db) {
   await applyMigration(sql, COMPANY_CONTEXT_RUN_QUEUE_MIGRATION);
   await applyMigration(sql, COMPANY_BEHAVIOR_CONTEXT_CURRENT_MIGRATION);
   await applyMigration(sql, COMPANY_CONTEXT_RUN_ACTIVE_QUEUE_ONLY_MIGRATION);
+
+  await sql`
+    insert into public.company_roles(
+      role_id, company_workspace_id, name, information,
+      source_type, status, is_expired
+    ) values (
+      ${IDS.recurringTestOnlyRole}::uuid,
+      ${IDS.workspaceA}::uuid,
+      'Test-only Context Queue Guard',
+      ${JSON.stringify({
+        testFixture: "company-context-run-guard-db-test",
+        testOnly: true,
+        testTalentIds: [IDS.talent],
+      })}::jsonb,
+      'internal',
+      'active',
+      false
+    )
+  `;
+  await sql`
+    insert into public.company_internal_roles(
+      role_id, request, is_auto, max_pending_talents
+    ) values (
+      ${IDS.recurringTestOnlyRole}::uuid,
+      'Test-only queue guard',
+      true,
+      5
+    )
+  `;
+  assert(
+    value<string>(
+      await sql`
+        select status
+        from public.company_context_runs
+        where role_id = ${IDS.recurringTestOnlyRole}::uuid
+      `,
+      "status"
+    ) === "queued",
+    "the pre-guard fixture did not reproduce the test-only queue leak"
+  );
+
+  await applyMigration(sql, TEST_ONLY_COMPANY_CONTEXT_RUN_GUARD_MIGRATION);
+  const canceledTestOnlyRun = firstRow(
+    await sql`
+      select status, result->>'resultReason' as result_reason
+      from public.company_context_runs
+      where role_id = ${IDS.recurringTestOnlyRole}::uuid
+    `
+  );
+  assert(
+    canceledTestOnlyRun.status === "canceled" &&
+      canceledTestOnlyRun.result_reason === "test_only_role",
+    "the test-only queue guard did not cancel an existing queued run"
+  );
+  const manualTestOnlyRun = value<unknown>(
+    await sql`
+      select public.enqueue_company_context_run_v1(
+        ${IDS.recurringTestOnlyRole}::uuid,
+        'manual',
+        timezone('utc', now())
+      ) as run_id
+    `,
+    "run_id"
+  );
+  assert(
+    manualTestOnlyRun === null,
+    "manual enqueue created a context run for a test-only Role"
+  );
+  await sql`select public.enqueue_due_company_context_runs_v1(timezone('utc', now()))`;
+  assert(
+    Number(
+      value<number>(
+        await sql`
+          select count(*)::integer as count
+          from public.company_context_runs
+          where role_id = ${IDS.recurringTestOnlyRole}::uuid
+            and status in ('queued', 'running')
+        `,
+        "count"
+      )
+    ) === 0,
+    "the periodic enqueue path recreated a test-only context run"
+  );
+  assert(
+    (
+      await sql`
+      select *
+      from public.claim_company_context_run_v1(
+        'db-test',
+        ${IDS.recurringTestOnlyRole}::uuid
+      )
+    `
+    ).length === 0,
+    "the claim path returned a test-only context run"
+  );
+  await expectDbError(
+    "direct test-only company context run insert",
+    () => sql`
+      insert into public.company_context_runs(
+        role_id, status, trigger_reason, available_at, result
+      ) values (
+        ${IDS.recurringTestOnlyRole}::uuid,
+        'queued',
+        'manual',
+        timezone('utc', now()),
+        '{}'::jsonb
+      )
+    `,
+    /test-only internal roles cannot have company context runs/i
+  );
+  logPass("test-only Roles never enter or leave the company context-run queue");
 
   const schema = firstRow(
     await sql`

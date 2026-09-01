@@ -18,7 +18,7 @@ export function resolveOrgAgentUpdateDataMode(
   if (hasProposalId && hasProposalAction) return "proposal";
   if (hasProposalId || hasProposalAction) {
     throw new OrgAgentToolInputError(
-      "proposalId and proposalAction must be provided together"
+      "proposalId and proposalAction must be provided together for an existing proposal. To create a new preview, omit both proposal fields and send changes."
     );
   }
   if (hasChanges) return "changes";

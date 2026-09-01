@@ -50,12 +50,12 @@ import {
 } from "@/hooks/career/useCareerSessionReengagement";
 import { showOpportunityDiscoveryStartedToast } from "@/hooks/career/opportunityDiscoveryToast";
 import { extractOpportunityRunMarkers } from "@/lib/opportunityDiscovery/messageMarker";
-import { INSIGHT_CHECKLIST } from "@/lib/talentOnboarding/insightChecklist";
 import {
   TALENT_MESSAGE_TYPE_OPEN_POSITION_RECOMMENDATION_REQUEST,
   type TalentUserChatMessageType,
 } from "@/lib/talentOnboarding/onboarding";
 import { TALENT_INTERVIEW_FINAL_STEP } from "@/lib/talentOnboarding/progress";
+import { resolveCareerInterviewProgress } from "@/lib/career/onboardingInterviewProgress";
 import {
   getCareerConversationStarter,
   type CareerConversationStarterId,
@@ -202,6 +202,21 @@ export const CareerFlowProvider = ({
   >([]);
   const [onboardingChecklistProgress, setOnboardingChecklistProgress] =
     useState<CareerOnboardingChecklistProgress | null>(null);
+  const handleOnboardingChecklistProgressRefreshed = useCallback(
+    (progress: unknown) => {
+      setOnboardingChecklistProgress(
+        normalizeOnboardingChecklistProgress(progress)
+      );
+    },
+    []
+  );
+  const hasMinimumOnboardingChecklistCoverage = Boolean(
+    onboardingChecklistProgress &&
+    onboardingChecklistProgress.minCoveredCount > 0 &&
+    onboardingChecklistProgress.coveredCount +
+      (onboardingChecklistProgress.finalConfirmationCovered ? 1 : 0) >=
+      onboardingChecklistProgress.minCoveredCount
+  );
   const [
     pendingInternalOpportunityCallRequest,
     setPendingInternalOpportunityCallRequest,
@@ -379,6 +394,8 @@ export const CareerFlowProvider = ({
       handleOpportunityRecommendationsChanged,
     onTalentPreferencesRefreshed: handleTalentPreferencesRefreshedFromChat,
     onTalentInsightsRefreshed: handleTalentInsightsRefreshedFromChat,
+    onOnboardingChecklistProgressRefreshed:
+      handleOnboardingChecklistProgressRefreshed,
     onTalentProfileRefreshed: handleTalentProfileRefreshedFromChat,
     onMessagesChanged: appendLatestMessagesToCache,
   });
@@ -665,6 +682,8 @@ export const CareerFlowProvider = ({
     resetTalentInsightsState,
   } = useCareerTalentInsights({
     fetchWithAuth,
+    onOnboardingChecklistProgressRefreshed:
+      handleOnboardingChecklistProgressRefreshed,
     user,
   });
 
@@ -734,6 +753,21 @@ export const CareerFlowProvider = ({
     authLoading,
     fetchWithAuth,
   });
+
+  const handleAccountSubscriptionsUpdated = useCallback(
+    (args: {
+      harperEnabled: boolean;
+      preferences: Parameters<typeof applyPersistedTalentPreferences>[0];
+      preferencesUpdatedAt: string | null;
+    }) => {
+      applyPersistedTalentPreferences(
+        args.preferences,
+        args.preferencesUpdatedAt
+      );
+      void onReloadTalentSettings();
+    },
+    [applyPersistedTalentPreferences, onReloadTalentSettings]
+  );
 
   const isVoiceInteractionLocked =
     !user ||
@@ -967,10 +1001,14 @@ export const CareerFlowProvider = ({
     isVoiceInteractionLocked,
     isOnboardingDone:
       stage === "completed" || Boolean(talentPreferences?.isOnboardingDone),
+    canForceCompleteOnboarding: hasMinimumOnboardingChecklistCoverage,
+    onboardingChecklistProgress,
     onSendChatMessage: sendChatMessage,
     onOpportunityRunChanged: setOpportunityRun,
     onTalentPreferencesRefreshed: handleTalentPreferencesRefreshedFromChat,
     onTalentInsightsRefreshed: handleTalentInsightsRefreshedFromChat,
+    onOnboardingChecklistProgressRefreshed:
+      handleOnboardingChecklistProgressRefreshed,
     onTalentProfileRefreshed: handleTalentProfileRefreshedFromChat,
     onPendingInternalOpportunityCallRequestChanged:
       replacePendingInternalOpportunityCallRequest,
@@ -1556,71 +1594,25 @@ export const CareerFlowProvider = ({
   const progressPercent = Math.round(
     (answeredCount / TALENT_INTERVIEW_FINAL_STEP) * 100
   );
-  const interviewProgress: CareerInterviewProgress = useMemo(() => {
-    const insightTotalCount = INSIGHT_CHECKLIST.length;
-    const insightFilledCount = INSIGHT_CHECKLIST.reduce((count, item) => {
-      const value = talentInsights?.[item.key];
-      return String(value ?? "").trim().length > 0 ? count + 1 : count;
-    }, 0);
-    const insightPercent =
-      insightTotalCount > 0
-        ? Math.min(
-            100,
-            Math.round((insightFilledCount / insightTotalCount) * 100)
-          )
-        : 0;
-    const checklistPercent = onboardingChecklistProgress?.percent ?? 0;
-    const displayProgressCandidates = [
-      {
-        filledCount: insightFilledCount,
-        percent: insightPercent,
-        totalCount: insightTotalCount,
-      },
-      onboardingChecklistProgress
-        ? {
-            filledCount: onboardingChecklistProgress.coveredCount,
-            percent: checklistPercent,
-            totalCount: onboardingChecklistProgress.totalCount,
-          }
-        : null,
-      {
-        filledCount: answeredCount,
-        percent: progressPercent,
-        totalCount: TALENT_INTERVIEW_FINAL_STEP,
-      },
-    ].filter(
-      (
-        item
-      ): item is {
-        filledCount: number;
-        percent: number;
-        totalCount: number;
-      } => item !== null
-    );
-    const displayProgress = displayProgressCandidates.reduce((best, item) =>
-      item.percent > best.percent ? item : best
-    );
-    const forceCompletePercent = Math.max(insightPercent, checklistPercent);
-
-    return {
-      canForceComplete:
-        !isOnboardingDone && stage === "chat" && forceCompletePercent >= 85,
-      filledCount: displayProgress.filledCount,
-      percent: displayProgress.percent,
-      remainingCount: Math.max(
-        displayProgress.totalCount - displayProgress.filledCount,
-        0
-      ),
-      totalCount: displayProgress.totalCount,
-    };
-  }, [
-    answeredCount,
-    isOnboardingDone,
-    onboardingChecklistProgress,
-    progressPercent,
-    stage,
-    talentInsights,
-  ]);
+  const interviewProgress: CareerInterviewProgress = useMemo(
+    () =>
+      resolveCareerInterviewProgress({
+        canForceComplete:
+          stage === "chat" && hasMinimumOnboardingChecklistCoverage,
+        checklistProgress: onboardingChecklistProgress,
+        isOnboardingDone,
+        talentInsights,
+        userChatCount,
+      }),
+    [
+      hasMinimumOnboardingChecklistCoverage,
+      isOnboardingDone,
+      onboardingChecklistProgress,
+      stage,
+      talentInsights,
+      userChatCount,
+    ]
+  );
 
   const chatPanelContextValue: CareerChatPanelCoreContextValue = useMemo(
     () => ({
@@ -1650,8 +1642,7 @@ export const CareerFlowProvider = ({
       onCancelActiveRecommendationSearch: cancelActiveRecommendationSearch,
       initialChatDraft: initialChatDraft?.trim() || undefined,
       initialChatDraftKey: initialChatDraftKey?.trim() || undefined,
-      initialChatOpportunityMention:
-        initialChatOpportunityMention ?? undefined,
+      initialChatOpportunityMention: initialChatOpportunityMention ?? undefined,
       onboardingWrapupPending,
       thinkingLogsByMessageId,
       chatPending,
@@ -1951,6 +1942,7 @@ export const CareerFlowProvider = ({
       onTalentPreferencesChange,
       onSaveTalentPreferences,
       onResetTalentPreferences,
+      onAccountSubscriptionsUpdated: handleAccountSubscriptionsUpdated,
       onTalentInsightsChange,
       onSaveTalentInsights,
       onResetTalentInsights,
@@ -1975,6 +1967,7 @@ export const CareerFlowProvider = ({
       blockedCompanies,
       engagementTypes,
       handleAddProfileLink,
+      handleAccountSubscriptionsUpdated,
       handleDeleteTalentDocument,
       handleProfileLinkChange,
       handleRemoveProfileLink,

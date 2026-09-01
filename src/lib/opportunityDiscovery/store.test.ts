@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { serializeOpportunityRun } from "./store";
+import { createOpportunityDiscoveryRun, serializeOpportunityRun } from "./store";
 import type { OpportunityRunRow } from "./types";
 
 const createRun = (
@@ -25,6 +25,132 @@ const createRun = (
   trigger_payload: {},
   updated_at: "2026-08-13T00:00:00.000Z",
   ...overrides,
+});
+
+test("stores an explicit run recommendation target without the user-setting clamp", async () => {
+  let insertedPayload: Record<string, unknown> | null = null;
+  const admin = {
+    from(table: string) {
+      if (table === "talent_setting") {
+        return {
+          select() {
+            return {
+              eq() {
+                return {
+                  async maybeSingle() {
+                    return {
+                      data: {
+                        get_external_recommendation: true,
+                        profile_visibility: "anonymous",
+                        recommendation_batch_size: 3,
+                      },
+                      error: null,
+                    };
+                  },
+                };
+              },
+            };
+          },
+        };
+      }
+      if (table === "opportunity_discovery_run") {
+        return {
+          insert(payload: Record<string, unknown>) {
+            insertedPayload = payload;
+            return {
+              select() {
+                return {
+                  async single() {
+                    return { data: { id: "run-1", ...payload }, error: null };
+                  },
+                };
+              },
+            };
+          },
+        };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    },
+  };
+
+  await createOpportunityDiscoveryRun({
+    admin: admin as never,
+    conversationId: "conversation-1",
+    runMode: "initial",
+    talentId: "talent-1",
+    targetRecommendationCount: 15,
+    trigger: "conversation_completed",
+    triggerPayload: { entryPoint: "first_onboarding_batch" },
+  });
+
+  const savedPayload = insertedPayload as Record<string, unknown> | null;
+  assert.ok(savedPayload);
+  assert.equal(savedPayload.target_recommendation_count, 15);
+  assert.deepEqual(savedPayload.settings_snapshot, {
+    getExternalRecommendation: true,
+    profileVisibility: "exceptional_only",
+    recommendationBatchSize: 15,
+  });
+});
+
+test("does not add a target column to runs without an explicit target", async () => {
+  let insertedPayload: Record<string, unknown> | null = null;
+  const admin = {
+    from(table: string) {
+      if (table === "talent_setting") {
+        return {
+          select() {
+            return {
+              eq() {
+                return {
+                  async maybeSingle() {
+                    return {
+                      data: { recommendation_batch_size: 3 },
+                      error: null,
+                    };
+                  },
+                };
+              },
+            };
+          },
+        };
+      }
+      if (table === "opportunity_discovery_run") {
+        return {
+          insert(payload: Record<string, unknown>) {
+            insertedPayload = payload;
+            return {
+              select() {
+                return {
+                  async single() {
+                    return { data: { id: "run-2", ...payload }, error: null };
+                  },
+                };
+              },
+            };
+          },
+        };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    },
+  };
+
+  await createOpportunityDiscoveryRun({
+    admin: admin as never,
+    conversationId: "conversation-2",
+    talentId: "talent-2",
+    trigger: "immediate_opportunity_requested",
+    triggerPayload: { request: { maxResults: 20 } },
+  });
+
+  const savedPayload = insertedPayload as Record<string, unknown> | null;
+  assert.ok(savedPayload);
+  assert.equal("target_recommendation_count" in savedPayload, false);
+  assert.equal(
+    (savedPayload.settings_snapshot as Record<string, unknown>)
+      .recommendationBatchSize,
+    3
+  );
 });
 
 test("serializes a career chat run as active without locking conversation input", () => {

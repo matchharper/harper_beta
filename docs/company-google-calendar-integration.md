@@ -4,9 +4,14 @@
 
 `/org/settings` → **Personal integrations** connects the signed-in employee's
 Google Calendar through Composio. The interview availability modal can import
-blocking events from every visible calendar for the next 14 days. Repeated syncs
-add only new provider event IDs and update a stored range when the same event
-moves; they do not store event titles, descriptions, or attendee lists.
+blocking events from every visible calendar for the next 14 days. The first read
+runs as soon as the connection becomes active. Later reads run while preparing
+and sending an interview scheduling request, when the candidate opens the
+selection page, and when the employee opens interview availability settings.
+Page-triggered reads reuse `last_synced_at` and skip another provider request
+within five minutes. Repeated reads add only new provider event IDs and update a
+stored range when the same event moves; they do not store event titles,
+descriptions, or attendee lists.
 Calendar and event identifiers are domain-separated SHA-256 values in storage,
 so a calendar ID that is also an email address is not retained verbatim.
 
@@ -28,7 +33,7 @@ checked independently on every request.
 2. Set the agreed scopes for future calendar features:
    `https://www.googleapis.com/auth/calendar.readonly` and
    `https://www.googleapis.com/auth/calendar.events`. The first scope lets
-   `Calendar Sync` read the user's visible calendars; the second lets Harper
+   Harper automatically read the user's visible calendars; the second lets Harper
    create the confirmed event and send attendee updates. The broader
    `https://www.googleapis.com/auth/calendar` scope is also compatible, but is
    not required when both narrower scopes are granted.
@@ -105,10 +110,16 @@ connection and is saved automatically after validation.
 
 ## Scheduling behavior
 
-- `Calendar Sync` calls `GOOGLECALENDAR_EVENTS_LIST_ALL_CALENDARS` for now through
-  14 days later, expands recurring instances, and rejects partial-calendar
-  failures instead of saving an incomplete success. Cancelled, transparent,
-  birthday, working-location, and self-declined events do not block slots.
+- An active connection has no manual Sync action. Harper calls
+  `GOOGLECALENDAR_EVENTS_LIST_ALL_CALENDARS` from now through 14 days later when
+  the connection first activates, before invitation preview/send, and from the
+  candidate or availability page when the previous successful read is at least
+  five minutes old. Candidate submission always performs a final read before
+  accepting the selected slots. Existing `last_synced_at` state provides the
+  throttle, so this behavior needs no additional table or column.
+- Each read expands recurring instances and rejects partial-calendar failures
+  instead of saving an incomplete success. Cancelled, transparent, birthday,
+  working-location, and self-declined events do not block slots.
 - Busy rows share the same per-attendee database lock as meeting confirmation.
   A sync and candidate submission racing for the same time cannot both commit.
 - Meeting confirmation writes a `pending` delivery row in the same database
@@ -139,9 +150,12 @@ npx tsc --noEmit --incremental false
 
 With real config values, log in as a company member, open Integrations, connect,
 approve Google consent, and verify that the row has your Harper user ID and
-`provider=google_calendar`. Run `Calendar Sync` twice and confirm the second run
-adds no duplicate rows. In a non-production calendar, complete one candidate
-selection and verify one event, one Meet URL, and invitations for both sides.
+`provider=google_calendar`. Confirm that the first busy ranges appear without a
+manual action. Reopen interview availability within five minutes and confirm it
+does not make another provider read; reopen it after five minutes and confirm it
+refreshes without duplicate rows. In a non-production calendar, complete one
+candidate selection and verify one event, one Meet URL, and invitations for both
+sides.
 
 Safe diagnostics are labeled `[GoogleCalendarIntegration] failed` with the
 stage and error type/status/code/slug/request ID, never provider message bodies. A scoped

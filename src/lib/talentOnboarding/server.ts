@@ -50,9 +50,11 @@ import {
 import {
   completeActiveCareerOnboardingCall,
   getCareerOnboardingChecklistCoverage,
+  getCareerOnboardingChecklistProgress,
   getOnboardingChecklistCoverageStats,
   getOrCreateCareerOnboardingCall,
   mergeCareerOnboardingChecklistCoverage,
+  serializeOnboardingChecklistProgress,
 } from "@/lib/talentOnboarding/calls";
 import {
   TALENT_PENDING_QUESTION_PREFIX,
@@ -94,6 +96,7 @@ export {
   completeActiveCareerOnboardingCall,
   getEmptyInsightKeys,
   getCareerOnboardingChecklistCoverage,
+  getCareerOnboardingChecklistProgress,
   getMergedChecklist,
   getOnboardingChecklistCoverageStats,
   getOrCreateCareerOnboardingCall,
@@ -116,6 +119,7 @@ export {
   toTalentMessageResponse,
   toTalentDisplayName,
   mergeCareerOnboardingChecklistCoverage,
+  serializeOnboardingChecklistProgress,
   upsertTalentInsights,
   upsertTalentSetting,
   updateTalentDocumentExtractedText,

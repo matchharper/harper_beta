@@ -55,3 +55,23 @@ export function requiresOrgIntroEmailRecipient(
     !contactDirectly && shouldOpenOrgAcceptIntroDialog(currentStage, nextStage)
   );
 }
+
+export function shouldSendOrgIntroEmail(args: {
+  currentStage: OrgStageId;
+  nextStage: OrgStageId;
+  contactDirectly: boolean;
+  scheduleInterview: boolean;
+  skipAutomaticContact: boolean;
+  recipientCount: number;
+}) {
+  return (
+    args.recipientCount > 0 &&
+    requiresOrgIntroEmailRecipient(
+      args.currentStage,
+      args.nextStage,
+      args.contactDirectly ||
+        args.scheduleInterview ||
+        args.skipAutomaticContact
+    )
+  );
+}

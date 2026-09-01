@@ -32,6 +32,10 @@ test("role search materializes only ranking fields before FTS", async () => {
 
   assert.ok(ftsJoin > materializedBoundary);
   assert.match(sql, /title_candidates AS MATERIALIZED[\s\S]*cr\.seniority_level/);
+  assert.match(
+    sql,
+    /cr\.source_type = 'external'[\s\S]*cw\.external_roles_enabled = true/
+  );
   assert.doesNotMatch(
     sql.slice(0, materializedBoundary),
     /cr\.description|cr\.summary|cw\.company_description/

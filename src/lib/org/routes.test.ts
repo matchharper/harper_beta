@@ -40,3 +40,14 @@ test("builds the role pipeline tab URL separately from the all-roles page", () =
     "/org/role?orgId=workspace-id&roleId=role-id&tab=pipeline&view=board"
   );
 });
+
+test("builds the Calendar settings tab URL", () => {
+  assert.equal(
+    buildOrgHref({
+      orgId: "workspace-id",
+      page: "settings",
+      tab: "calendar",
+    }),
+    "/org/settings?orgId=workspace-id&tab=calendar"
+  );
+});

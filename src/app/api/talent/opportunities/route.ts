@@ -354,6 +354,7 @@ export async function GET(req: NextRequest) {
       });
       const items = await fetchTalentOpportunityHistoryByRoleIds({
         admin,
+        includeActivityTimeline: true,
         locale,
         roleIds: [roleId],
         userId: user.id,
@@ -474,6 +475,17 @@ export async function PATCH(req: NextRequest) {
     ) {
       return NextResponse.json(
         { error: "Invalid savedStage" },
+        { status: 400 }
+      );
+    }
+
+    if (
+      action === "memo" &&
+      (!String(body.talentMemo ?? "").trim() ||
+        String(body.talentMemo ?? "").trim().length > 10_000)
+    ) {
+      return NextResponse.json(
+        { error: "Memo must be between 1 and 10,000 characters." },
         { status: 400 }
       );
     }
@@ -768,6 +780,8 @@ export async function PATCH(req: NextRequest) {
     const [updatedOpportunity] = await fetchTalentOpportunityHistoryByIds({
       admin,
       ids: [result.opportunityId ?? opportunityId],
+      includeActivityTimeline:
+        action === "memo" || action === "saved_stage" || action === "feedback",
       locale: responseLocale,
       userId: user.id,
     });

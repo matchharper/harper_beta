@@ -11,12 +11,14 @@ import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 
 type UseCareerTalentInsightsArgs = {
   fetchWithAuth: FetchWithAuth;
+  onOnboardingChecklistProgressRefreshed?: (progress: unknown) => void;
   user: User | null;
 };
 
 type TalentInsightsPayload = {
   talentInsights?: unknown;
   insightUpdatedAt?: string | null;
+  onboardingChecklistProgress?: unknown;
   error?: string;
 };
 
@@ -49,6 +51,7 @@ const toStableSignature = (insights: CareerTalentInsights | null) =>
 
 export const useCareerTalentInsights = ({
   fetchWithAuth,
+  onOnboardingChecklistProgressRefreshed,
   user,
 }: UseCareerTalentInsightsArgs) => {
   const tCareer = useCareerMessageFormatter();
@@ -145,6 +148,11 @@ export const useCareerTalentInsights = ({
         payload.talentInsights ?? {},
         payload.insightUpdatedAt
       );
+      if ("onboardingChecklistProgress" in payload) {
+        onOnboardingChecklistProgressRefreshed?.(
+          payload.onboardingChecklistProgress
+        );
+      }
       setTalentInsightsSaveInfo(tCareer(H.harperInsightSaved));
       return true;
     } catch (error) {
@@ -160,6 +168,7 @@ export const useCareerTalentInsights = ({
   }, [
     applyPersistedTalentInsights,
     fetchWithAuth,
+    onOnboardingChecklistProgressRefreshed,
     talentInsights,
     talentInsightsSavePending,
     tCareer,

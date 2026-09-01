@@ -4,7 +4,7 @@
 
 ## 핵심 원칙
 
-1. 배경은 `bg-bg-*`, 텍스트는 `text-neutral-*`, 상태는 `positive/info/critical`, 브랜드 포인트는 `primary`를 먼저 쓴다.
+1. 배경은 `bg-bg-*`, 텍스트는 `text-neutral-*`, 상태와 강조는 `positive/info/action/critical`, 브랜드 포인트는 `primary`를 먼저 쓴다. `info`는 노란색이고 `action`은 파란색이다.
 2. `gray-*`, `paper`, `layer-*`, `fg-*`, `stroke-*`, `status-*`는 새 코드에서 쓰지 않는다.
 3. 클릭 가능한 기본 표면은 배경보다 어두워지지 않는다. 버튼, input, dropdown, 카드 컨텐츠는 기본적으로 `bg-bg-floating`을 쓴다.
 4. 어두운 채움은 명확한 CTA나 상태 표현에만 쓴다. 일반 카드, input, dropdown, 탭의 resting state에는 쓰지 않는다.
@@ -30,9 +30,12 @@ Palette token은 색상 자체를 정의한다. 직접 써도 되지만, 레이�
 | `neutral-1000-a05` | 아주 약한 stroke/fill |
 | `neutral-1000-a10` | 기본 control stroke/focus ring |
 | `accent-100/200/300/500` | 브랜드 warm accent. `accent-500`은 `primary` |
-| `blue-100/500/700` | 링크나 정보성 UI의 원색 |
+| `blue-100/500/700` | 링크 등에 쓰는 파란색 원색 |
 | `green-100/500/700` | 긍정/완료성 UI의 원색 |
-| `positive-100/500`, `info-100/500`, `critical-100/500` | 상태 색상의 source palette |
+| `positive-100/500` | 긍정 상태의 초록색 source palette |
+| `info-100/500` | 안내·주의 상태의 노란색 source palette |
+| `action-100/500` | 행동·진행 강조의 파란색 source palette |
+| `critical-100/500` | 위험·오류 상태의 빨간색 source palette |
 | `black`, `white` | 고대비 특수 상황 |
 | `beige*` | legacy. 기존 화면 호환용이며 새 코드에서는 우선 사용하지 않는다 |
 
@@ -75,12 +78,14 @@ Palette token은 색상 자체를 정의한다. 직접 써도 되지만, 레이�
 | `primary-faded` | `primary`의 연한 배경. callout, subtle selected surface |
 | `positive` | 성공, 완료, active, 좋은 fit |
 | `positive-faded` | 긍정 상태의 연한 배경 |
-| `info` | 안내, 링크와 가까운 정보성 상태 |
-| `info-faded` | 정보성 callout의 연한 배경 |
+| `info` | 노란색. 안내, 주의, 대기, 추가 확인이 필요한 상태 |
+| `info-faded` | 노란색 정보·주의 callout의 연한 배경 |
+| `action` | 파란색. 다음 행동, 진행 중 상태, 일정처럼 눈에 띄어야 하는 실행 정보 |
+| `action-faded` | 파란색 action 강조의 연한 배경 |
 | `critical` | 삭제, 오류, 위험, 되돌릴 수 없는 액션 |
 | `critical-faded` | critical 상태의 연한 배경 |
 
-상태 토큰은 실제 상태를 말할 때만 쓴다. 단순히 예쁜 강조가 필요하면 `primary` 또는 `primary-faded`를 쓴다.
+`info`를 파란색 정보 강조로 사용하지 않는다. 파란색이 필요하면 의미에 따라 `action`, `action-faded`, 또는 링크 전용 `text-link`를 쓴다. 상태 토큰은 실제 상태를 말할 때만 쓰고, 단순히 예쁜 강조가 필요하면 `primary` 또는 `primary-faded`를 쓴다.
 
 ## Shared Input And Textarea
 
@@ -199,7 +204,21 @@ Status:
 
 ## Component Rules
 
-Use shared UI components before writing raw markup:
+Before writing raw UI markup or a local component, search in this order:
+
+1. `src/components/ui/` for generic controls and primitives.
+2. `src/components/common/` for product-wide compositions.
+3. The relevant domain folder such as `src/components/career/` or
+   `src/components/org/` for an established domain composition.
+
+Use `rg` to search by interaction and component names, not only by the exact
+feature name. A local wrapper may contain domain-specific content, state, and
+actions, but it must not rebuild shared infrastructure such as a modal portal,
+overlay, focus trapping, Escape handling, outside-click handling, or ARIA dialog
+wiring. If no suitable component exists, create the primitive at the narrowest
+shared level that has multiple realistic consumers and add it to this catalog.
+
+Shared component catalog:
 
 | Need | Component |
 | --- | --- |
@@ -214,6 +233,16 @@ Use shared UI components before writing raw markup:
 | Form fields | `Input`, `Textarea`, `Select`, `Checkbox`, `Switch`, `Radio` |
 | Menu | `ActionDropdown`, `DropdownMenu` |
 | Page section copy | `SectionHeader`, `SectionTitle`, `SectionDescription` |
+| Interview availability calendar, split panel, and time option | `MeetingAvailabilityCalendar`, `MeetingAvailabilitySplitLayout`, `MeetingAvailabilityTimeButton` from `src/components/meetings/MeetingAvailabilityLayout.tsx` |
+| `/career` modal, confirmation, or bottom sheet | `TalentCareerModal` from `src/components/common/TalentCareerModal.tsx` |
+| Generic Radix dialog composition | `Dialog`, `DialogContent`, `DialogTitle`, and `DialogDescription` from `src/components/ui/dialog.tsx` |
+
+For a `/career` confirmation, compose the title, description, body feedback,
+and `MuteButton` actions through `TalentCareerModal` props. Use
+`closeOnBackdrop`, `showCloseButton`, and a guarded `onClose` for pending states;
+do not attach a separate `keydown` listener or render a custom full-screen
+backdrop. Use `mobileBottomSheet` when the confirmation should follow the Career
+mobile modal pattern.
 
 새 UI의 button-shaped control에는 `MuteButton`만 쓴다. `Button`,
 `IconButton`, `ActionButton`은 기존 화면 호환을 위한 legacy component로
@@ -316,7 +345,7 @@ When touching old UI:
 1. Replace `paper` and `layer-*` with `bg-bg-floating`, `bg-bg-default`, `bg-bg-basement`, or `bg-bg-weak`.
 2. Replace `fg-*` with `neutral-primary`, `neutral-muted`, `neutral-soft`, `neutral-placeholder`, or `neutral-disabled`.
 3. Replace `stroke-*` with `neutral-1000-a05`, `neutral-1000-a10`, `neutral-400`, or `neutral-800`.
-4. Replace `status-*` with `positive/info/critical` and their `*-faded` backgrounds.
+4. Replace `status-*` with `positive/info/action/critical` and their `*-faded` backgrounds. Remember that `info` is yellow and `action` is blue.
 5. Replace `gray-*` design aliases with `neutral-*` or `black`.
 6. Prefer `MuteButton`, `CardButton`, `Badge`, `Input`, `Select`, `Tabs`, and `Text` over local one-off components. Replace touched `Button`, `IconButton`, and `ActionButton` usages with `MuteButton` when practical.
 7. Replace touched `TextField` usages with an external label/message and `Input` or `Textarea`.

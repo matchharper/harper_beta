@@ -2,12 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   getEnabledOrgAgentTools,
-  ORG_AGENT_TERMINAL_TOOL_NAMES,
   ORG_AGENT_TOOLS,
   isOrgAgentToolName,
 } from "@/lib/org/agent/tools";
 
-test("candidate decisions expose LLM-judged context and terminal execution tools", () => {
+test("candidate decisions expose LLM-judged preparation and execution tools", () => {
   assert.equal(isOrgAgentToolName("prepare_candidate_connection"), true);
   const toolNames: string[] = ORG_AGENT_TOOLS.map((item) => item.function.name);
 
@@ -106,10 +105,6 @@ test("company agent exposes interview scheduling tools", () => {
   );
   assert.equal(isOrgAgentToolName("manage_interview_availability"), true);
   assert.equal(
-    ORG_AGENT_TERMINAL_TOOL_NAMES.has("manage_interview_availability"),
-    false
-  );
-  assert.equal(
     getEnabledOrgAgentTools().some(
       (tool) => tool.function.name === "manage_interview_availability"
     ),
@@ -144,6 +139,39 @@ test("stage scheduling can prepare a meeting without moving an already-staged ca
   assert.match(
     parameters.properties.targetStageId.description,
     /may equal expectedCurrentStageId/
+  );
+});
+
+test("cross-Role candidate movement uses one exact call per candidate", () => {
+  const tools = ORG_AGENT_TOOLS.filter(
+    (item) => item.function.name === "move_candidate_to_role"
+  );
+  assert.equal(tools.length, 1);
+  assert.equal(isOrgAgentToolName("move_candidate_to_role"), true);
+  const parameters = tools[0]?.function.parameters as any;
+  assert.deepEqual(parameters.required, [
+    "talentId",
+    "sourceRoleId",
+    "targetRoleId",
+    "targetStageId",
+  ]);
+  assert.deepEqual(Object.keys(parameters.properties).sort(), [
+    "sourceRoleId",
+    "talentId",
+    "targetRoleId",
+    "targetStageId",
+  ]);
+  assert.match(
+    tools[0]?.function.description ?? "",
+    /existing contact_talent flow/
+  );
+  assert.match(
+    tools[0]?.function.description ?? "",
+    /confirmed meetings[\s\S]*never block/
+  );
+  assert.doesNotMatch(
+    tools[0]?.function.description ?? "",
+    /candidate (notice|notification)|delivery/i
   );
 });
 
@@ -189,7 +217,7 @@ test("role creation is exposed only on Slack and transfers bounded source contex
     /author the final handoff reply naturally as Harper/
   );
   assert.equal(parameters.additionalProperties, false);
-  assert.equal(ORG_AGENT_TERMINAL_TOOL_NAMES.has("start_role_creation"), true);
+  assert.doesNotMatch(start?.function.description ?? "", /terminal/i);
 });
 
 test("company-side tools separate lifecycle changes from the batch writer", () => {
@@ -212,10 +240,6 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
   );
   const calibrationParameters = calibration?.function.parameters as any;
   assert.ok(calibration);
-  assert.equal(
-    ORG_AGENT_TERMINAL_TOOL_NAMES.has("calibrate_role_hiring_brief"),
-    true
-  );
   assert.deepEqual(calibrationParameters.required, ["roleId"]);
   assert.deepEqual(Object.keys(calibrationParameters.properties), ["roleId"]);
   assert.match(
@@ -228,7 +252,7 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
   );
   assert.match(
     calibration?.function.description ?? "",
-    /returns the finalized Hiring Brief and user reply/
+    /finalized Hiring Brief and a suggested user reply/
   );
   assert.doesNotMatch(
     calibration?.function.description ?? "",
@@ -337,7 +361,7 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
   );
 });
 
-test("pipeline management can continue into one terminal candidate movement", () => {
+test("pipeline management can continue into one sequential candidate movement", () => {
   const manage = ORG_AGENT_TOOLS.find(
     (item) => item.function.name === "manage_role_pipeline_stages"
   );
@@ -348,11 +372,8 @@ test("pipeline management can continue into one terminal candidate movement", ()
   assert.ok(move);
   assert.equal(isOrgAgentToolName("manage_role_pipeline_stages"), true);
   assert.equal(isOrgAgentToolName("move_candidate_stage"), true);
-  assert.equal(
-    ORG_AGENT_TERMINAL_TOOL_NAMES.has("manage_role_pipeline_stages"),
-    false
-  );
-  assert.equal(ORG_AGENT_TERMINAL_TOOL_NAMES.has("move_candidate_stage"), true);
+  assert.doesNotMatch(manage.function.description, /terminal/i);
+  assert.doesNotMatch(move.function.description, /terminal/i);
 
   const manageParameters = manage.function.parameters as any;
   assert.deepEqual(manageParameters.required, ["action", "roleId"]);
@@ -389,22 +410,24 @@ test("pipeline management can continue into one terminal candidate movement", ()
   assert.doesNotMatch(JSON.stringify(moveParameters), /recommendationId/);
 });
 
-test("conversation history uses one bounded scope-and-cursor reader", () => {
+test("conversation history lists threads before reading selected contexts", () => {
   const history = ORG_AGENT_TOOLS.find(
     (item) => item.function.name === "read_conversation_history"
   );
   const parameters = history?.function.parameters as any;
 
   assert.equal(isOrgAgentToolName("read_conversation_history"), true);
-  assert.deepEqual(parameters.required, ["scope", "limit"]);
-  assert.deepEqual(parameters.properties.scope.enum, [
-    "current_thread",
-    "workspace",
-  ]);
-  assert.equal(parameters.properties.limit.maximum, 30);
+  assert.deepEqual(parameters.required, ["type"]);
+  assert.deepEqual(parameters.properties.type.enum, ["all", "thread"]);
+  assert.equal(parameters.properties.limit.maximum, 10);
+  assert.match(parameters.properties.limit.description, /default 5/);
+  assert.match(history?.function.description ?? "", /limit=5 first/);
+  assert.equal(parameters.properties.threadIds.maxItems, 3);
   assert.equal(parameters.properties.cursor.maxLength, 500);
   assert.equal("query" in parameters.properties, false);
   assert.match(history?.function.description ?? "", /already stored by Harper/);
+  assert.match(history?.function.description ?? "", /first three messages/);
+  assert.match(history?.function.description ?? "", /rolling summary/);
   assert.match(history?.function.description ?? "", /not access.*full Slack/);
 });
 

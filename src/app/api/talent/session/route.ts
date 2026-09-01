@@ -17,6 +17,7 @@ import {
   normalizeTalentInsightContent,
   pickLatestResumeDocument,
   serializeTalentDocuments,
+  serializeOnboardingChecklistProgress,
   type TalentConversationRow,
   type TalentMessageRow,
   type TalentStructuredProfile,
@@ -101,26 +102,6 @@ const parseOffsetParam = (value: string | null) => {
 
 const normalizeProfileSignalText = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
-
-const serializeOnboardingChecklistProgress = (
-  stats: ReturnType<typeof getOnboardingChecklistCoverageStats>
-) => {
-  const percent =
-    stats.totalCount > 0
-      ? Math.min(100, Math.round((stats.coveredCount / stats.totalCount) * 100))
-      : 0;
-
-  return {
-    additionalCoveredCount: stats.additionalCoveredCount,
-    completed: stats.isComplete,
-    coveredCount: stats.coveredCount,
-    finalConfirmationCovered: stats.finalConfirmationCovered,
-    minCoveredCount: stats.minCoveredCount,
-    percent,
-    requiredQuestionsCovered: stats.requiredQuestionsCovered,
-    totalCount: stats.totalCount,
-  };
-};
 
 const hasProfileResumeLink = (value: unknown) =>
   Array.isArray(value) &&
