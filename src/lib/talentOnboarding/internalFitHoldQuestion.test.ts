@@ -224,7 +224,10 @@ test("career suppresses sibling hold questions after a recommendation at the com
   admin.recommendations = [
     {
       role_id: "another-role",
-      company_role: { company_workspace_id: "company-1" },
+      company_role: {
+        company_workspace_id: "company-1",
+        source_type: "internal",
+      },
     },
   ];
 
@@ -235,4 +238,49 @@ test("career suppresses sibling hold questions after a recommendation at the com
   });
 
   assert.equal(active, null);
+});
+
+test("a test-only recommendation does not suppress real company questions", async () => {
+  const admin = new FakeAdmin();
+  admin.recommendations = [
+    {
+      role_id: "test-role",
+      company_role: {
+        company_workspace_id: "company-1",
+        information: { testOnly: true },
+        source_type: "internal",
+      },
+    },
+  ];
+
+  const active = await fetchActiveInternalFitHoldQuestion({
+    admin: admin as never,
+    locale: "ko",
+    userId: "talent-1",
+  });
+
+  assert.equal(active?.topic, "location");
+  assert.deepEqual(active?.fitIds, ["fit-thailand", "fit-singapore"]);
+});
+
+test("an external recommendation at the company does not suppress internal questions", async () => {
+  const admin = new FakeAdmin();
+  admin.recommendations = [
+    {
+      role_id: "public-role",
+      company_role: {
+        company_workspace_id: "company-1",
+        information: {},
+        source_type: "external",
+      },
+    },
+  ];
+
+  const active = await fetchActiveInternalFitHoldQuestion({
+    admin: admin as never,
+    locale: "ko",
+    userId: "talent-1",
+  });
+
+  assert.equal(active?.topic, "location");
 });

@@ -41,13 +41,21 @@ test("matched internal role policy uses stored fit without rerunning it", () => 
     channel: "chat",
     isOnboardingActive: false,
     preferredLocale: "ko",
-    toolNames: ["get_internal_roles", "internal_role_priority_review"],
+    toolNames: [
+      "get_internal_roles",
+      "get_role_context",
+      "internal_role_priority_review",
+    ],
   });
 
   assert.match(prompt, /matchedOnly=true/);
   assert.match(prompt, /must never trigger a new fit evaluation/);
   assert.match(prompt, /normally mention no more than two useful options/);
   assert.match(prompt, /returned by `get_internal_roles` with mode=matched/);
+  assert.match(prompt, /asking '더 있어\?'/);
+  assert.match(prompt, /best one or two rather than dumping every result/);
+  assert.match(prompt, /valid prior tool result for a later detail or comparison/);
+  assert.doesNotMatch(prompt, /If user wants listing all, say it's not possible/);
 });
 
 test("defaults job search to instant and requires explicit bulk permission", () => {

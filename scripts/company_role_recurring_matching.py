@@ -1602,10 +1602,13 @@ def format_same_company_role_history(
     *,
     max_chars: int = 2000,
 ) -> str:
+    eligible_rows = [
+        row
+        for row in rows
+        if compact(row.get("effective_label"), 40).lower() != "hold"
+    ]
     lines = ["Existing history between this talent and the same company:"]
-    for index, row in enumerate(rows):
-        if compact(row.get("effective_label"), 40).lower() == "hold":
-            continue
+    for index, row in enumerate(eligible_rows):
         parts = [compact(row.get("role_name"), 240) or "Unnamed role"]
         label = compact(row.get("effective_label"), 40)
         if label:
@@ -1631,7 +1634,7 @@ def format_same_company_role_history(
         if reason:
             parts.append(f"stored judgment: {reason}")
         line = "- " + " | ".join(parts)
-        remaining = len(rows) - index
+        remaining = len(eligible_rows) - index
         if len("\n".join([*lines, line])) + 60 > max_chars:
             lines.append(f"- {remaining} additional historical role(s) omitted")
             break
@@ -2849,7 +2852,42 @@ def command_upsert_fits(args: argparse.Namespace) -> int:
                             (behavior_version or {}).get("context_version"),
                         ),
                     )
-                    stored.append(dict(cur.fetchone()))
+                    stored_row = dict(cur.fetchone())
+                    effective_label = compact(
+                        stored_row.get("human_label") or stored_row.get("label"),
+                        40,
+                    ).lower()
+                    if item["recommend"] is True and effective_label == "fit":
+                        cur.execute(
+                            """
+                            update public.talent_opportunity_fit sibling_fit
+                            set recommend = false
+                            from public.company_roles selected_role,
+                                 public.company_roles sibling_role
+                            where selected_role.role_id = %s::uuid
+                              and selected_role.source_type = 'internal'
+                              and lower(coalesce(selected_role.information->>'testOnly', 'false')) <> 'true'
+                              and sibling_role.company_workspace_id = selected_role.company_workspace_id
+                              and sibling_role.source_type = 'internal'
+                              and lower(coalesce(sibling_role.information->>'testOnly', 'false')) <> 'true'
+                              and sibling_fit.opportunity_id = sibling_role.role_id
+                              and sibling_fit.talent_id = %s::uuid
+                              and sibling_fit.recommend = true
+                              and sibling_fit.opportunity_id <> %s::uuid
+                              and not exists (
+                                select 1
+                                from public.talent_opportunity_recommendation delivered
+                                where delivered.talent_id = sibling_fit.talent_id
+                                  and delivered.role_id = sibling_fit.opportunity_id
+                              )
+                            """,
+                            (
+                                str(run["role_id"]),
+                                item["talentId"],
+                                str(run["role_id"]),
+                            ),
+                        )
+                    stored.append(stored_row)
         for row in stored:
             previous = before_human_map.get(str(row["talent_id"])) or {}
             for field in ("human_label", "human_reason", "human_reviewed_by", "human_reviewed_at"):

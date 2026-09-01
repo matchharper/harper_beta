@@ -127,8 +127,8 @@ export function buildCareerToolPolicyPrompt(args: {
       ? [
           "- Use `get_role_context` only when the user asks about, recalls, or gives feedback on specific already-shown role/posting cards and you have one or more roleIds from `[posting](roleId)` lines or prior tool results. Pass at most 3 roleIds. Pass `include_jd=true` when the answer needs JD text such as responsibilities, requirements, or detailed role description; otherwise pass `include_jd=false`.",
           "- If the user refers to a specific recommended role by company/title/order but no roleId is visible in the current context, use `read_recommended_opportunities` first to recover candidate roleIds. If multiple candidates remain, ask one user-friendly clarifying question about the company name, role title, or when Harper recommended it. Never ask the user for a roleId.",
-          "- Do NOT call `get_role_context` while finding, ranking, or presenting fresh recommendations. After `recommend_job_postings`, use its `answerDraft` directly and do not fetch extra role context unless the user asks a follow-up about specific returned roles.",
-          "- Use the returned role/company/recommendation context to answer accurately. Treat private company-side/request context as reasoning-only; never quote it, paraphrase it as a user-facing promise, or mention that such private context exists.",
+          "- Do NOT call `get_role_context` while finding, ranking, or presenting fresh external recommendations. After `recommend_job_postings`, use its `answerDraft` directly and do not fetch extra role context unless the user asks a follow-up about specific returned roles. A specific role returned by `get_internal_roles` is a valid prior tool result for a later detail or comparison request.",
+          "- Use the returned role/company/recommendation context to answer accurately. Treat private company-side/request context as reasoning-only; never quote it, paraphrase its contents, or turn it into a user-facing promise. For an internal-role comparison, you may say only that Harper considered additional context shared by the company when that helps explain Harper's judgment.",
           ...(args.channel === "chat"
             ? [
                 "- When showing a returned role in chat, include a standalone `[posting](roleId)` line for each returned role you mention.",
@@ -145,7 +145,7 @@ export function buildCareerToolPolicyPrompt(args: {
           "- If private company context influenced Harper's view, you may acknowledge that Harper has additional company context but must not reveal, quote, or infer its contents.",
           "- Pass 1-2 concrete FTS keywords only in ordinary lookup mode, taken from the user's role title or company name request. Do not pass broad preference paragraphs.",
           "- Multi-word keywords are AND-matched. If the user says something like 'Site CTO' but the distinctive role term is CTO, pass `CTO` rather than one keyword `Site CTO`.",
-          "- Never use this for listing all roles. This is only for looking up a specific role by role title or company name. If user wants listing all, say it's not possible because of the company's request.",
+          "- Ordinary lookup mode is not a browse-all tool. In matched mode, a user asking '더 있어?' is a valid request: inspect the stored credible set, make a judgment, and mention only the best one or two rather than dumping every result or claiming that listing is forbidden by the company.",
           "- `[Harper]` means the company Harper, not Harper-connected roles in general. When it appears, include `Harper` in the FTS keywords.",
           "",
         ]
@@ -167,7 +167,7 @@ export function buildCareerToolPolicyPrompt(args: {
           "### record_internal_fit_reevaluation_information",
           "- Use only when the latest user message clearly provides information that answers the current internal opportunity clarification in Optional follow-up opportunities.",
           "- Save a concise `newInformation` summary of the user-provided evidence. Do not infer beyond what the user said.",
-          "- This tool does not recommend, reveal, or decide the role. After the tool returns, continue naturally without mentioning internal fit, hold labels, or reevaluation.",
+          "- This tool does not recommend, reveal, or decide the role. After the tool returns, continue naturally without mentioning internal matching labels or the internal review process.",
           "",
         ]
       : []),

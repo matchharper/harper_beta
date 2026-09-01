@@ -138,7 +138,7 @@ async function fetchUnansweredInternalFitHoldQuestionCandidates(args: {
       .in("role_id", roleIds),
     (args.admin.from("talent_opportunity_recommendation" as any) as any)
       .select(
-        "role_id, company_role:company_roles!inner(company_workspace_id)"
+        "role_id, company_role:company_roles!inner(company_workspace_id, information, source_type, source_provider, source_job_id, name)"
       )
       .eq("talent_id", args.userId),
   ]);
@@ -159,6 +159,13 @@ async function fetchUnansweredInternalFitHoldQuestionCandidates(args: {
     )
       .map((row: Record<string, unknown>) => {
         const companyRole = asRecord(row.company_role);
+        if (
+          !companyRole ||
+          cleanText(companyRole.source_type, 80).toLowerCase() !== "internal" ||
+          isTestOnlyInternalRole(companyRole)
+        ) {
+          return "";
+        }
         return cleanText(companyRole?.company_workspace_id, 120);
       })
       .filter(Boolean)

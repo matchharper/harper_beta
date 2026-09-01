@@ -937,6 +937,25 @@ async function updateRecommendedOpportunityFeedback(args: {
     };
   }
 
+  if (
+    args.feedback === "like" &&
+    resolved.opportunity?.sourceType === "internal" &&
+    resolved.opportunity.isExpired
+  ) {
+    const opportunity = resolved.opportunity!;
+    return {
+      ok: false,
+      blocked: true,
+      reason: "internal_opportunity_role_ended",
+      opportunity: compactOpportunityForTool(opportunity),
+      assistantInstruction: [
+        "Tell the user clearly that this Harper-connected role is no longer active and that their acceptance was not saved as an active connection request.",
+        "Apologize briefly. If the user wants another path at the same company, use get_internal_roles with matchedOnly=true and the returned company name, then judge whether at most one active alternative is worth proposing.",
+        "Do not run or promise a new fit evaluation, and do not guess why hiring ended.",
+      ].join(" "),
+    };
+  }
+
   const feedback = toTalentOpportunityFeedback(args.feedback);
   const savedStage =
     feedback === "positive" && resolved.opportunity?.sourceType === "internal"
@@ -1392,8 +1411,8 @@ async function updateInternalRolePriorityReview(args: {
     createdAt,
     createdDate: formatKstDate(createdAt),
     assistantInstruction: [
-      "Tell the user Harper saved this role so it can be reviewed with highest priority in detail. 다음은 기다리면 핏이 맞는걸 찾아서 메일로 연결 제안이 간다는걸 자세히 안내해라.",
-      "Do not promise a connection, interview, referral, company introduction, or specific timeline.",
+      "Tell the user Harper recorded their explicit interest in this exact role and will review this role with priority using the context Harper already has.",
+      "Make clear that this is not yet a formal connection acceptance or company share. Do not tell them Harper still needs to discover whether the role is a fit, and do not promise a connection, interview, referral, company introduction, or specific timeline.",
     ].join(" "),
   };
 }
@@ -2058,7 +2077,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.GET_ROLE_CONTEXT]: {
     name: TALENT_TOOL_NAMES.GET_ROLE_CONTEXT,
     description:
-      "Get detailed context for up to 3 specific roles by roleId. For an internal role, details are returned only when it was formally recommended to this user or is an active role already verified as their stored fit; hidden hold and other unverified internal roles are returned as missing. Use when the user asks about, recalls, compares, or gives feedback on a specific role and the current context is insufficient. Do not use while finding fresh external recommendations. Includes role details, public-safe company context, the latest user-specific recommendation context, up to 10 recent role activities as compact text, and any upcoming Harper-connected meeting. Set include_jd true only when the job description/JD text is needed; when false, role.description is omitted. Treat private company-side notes as reasoning-only context; never quote or expose them to the user.",
+      "Get detailed context for up to 3 specific roles by roleId. For an internal role, details are returned only when it was formally recommended to this user or is an active role already verified as presentable for them; other internal roles are returned as missing. Use when the user asks about, recalls, compares, or gives feedback on a specific role and the current context is insufficient. Do not use while finding fresh external recommendations. Includes role details, public-safe company context, the latest user-specific recommendation context, up to 10 recent role activities as compact text, and any upcoming Harper-connected meeting. Set include_jd true only when the job description/JD text is needed; when false, role.description is omitted. Treat private company-side notes as reasoning-only context; never quote or expose their contents to the user.",
     parameters: {
       type: "object",
       properties: {
@@ -2107,19 +2126,19 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION]: {
     name: TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION,
     description:
-      "Private writer for one active hidden internal fit hold question. Use only when the user's latest message clearly answers that hidden question. It saves the new evidence for later reevaluation and does not reveal or recommend the internal role.",
+      "Private writer for one active internal-opportunity profile clarification. Use only when the user's latest message clearly answers that private question. It saves the user's new evidence for later review and does not reveal or recommend the internal role.",
     parameters: {
       type: "object",
       properties: {
         fitId: {
           type: "string",
           description:
-            "The fitId from the current hidden hold question prompt block.",
+            "The fitId from the current private profile clarification block.",
         },
         newInformation: {
           type: "string",
           description:
-            "A concise summary of the newly provided user evidence that answers the hidden hold question.",
+            "A concise summary of the newly provided user evidence that answers the private profile clarification.",
         },
       },
       required: ["fitId", "newInformation"],

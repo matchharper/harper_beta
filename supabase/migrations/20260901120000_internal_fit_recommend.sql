@@ -16,8 +16,12 @@ where (
   and exists (
     select 1
     from public.talent_opportunity_recommendation recommendation
+    join public.company_roles delivered_role
+      on delivered_role.role_id = recommendation.role_id
     where recommendation.talent_id = fit.talent_id
       and recommendation.role_id = fit.opportunity_id
+      and delivered_role.source_type = 'internal'
+      and lower(coalesce(delivered_role.information ->> 'testOnly', 'false')) <> 'true'
   );
 
 -- Give existing, never-delivered company groups one conservative starting
@@ -53,6 +57,8 @@ with ranked as (
         on recommended_role.role_id = recommendation.role_id
       where recommendation.talent_id = fit.talent_id
         and recommended_role.company_workspace_id = role.company_workspace_id
+        and recommended_role.source_type = 'internal'
+        and lower(coalesce(recommended_role.information ->> 'testOnly', 'false')) <> 'true'
     )
 )
 update public.talent_opportunity_fit fit

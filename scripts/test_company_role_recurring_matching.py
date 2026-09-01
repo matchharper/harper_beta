@@ -31,11 +31,13 @@ from company_role_recurring_matching import (
     command_finish,
     command_start,
     command_skip,
+    command_upsert_fits,
     command_validate_fits,
     candidate_input_fingerprint,
     candidate_rows,
     clear_private_run_artifacts,
     context_source_packet,
+    format_same_company_role_history,
     ordered_candidate_ids,
     next_lane_candidates,
     normalize_context_text,
@@ -81,6 +83,47 @@ class RetrievalSqlTests(unittest.TestCase):
     def test_forbidden_words_inside_literals_and_comments_are_not_commands(self) -> None:
         sql = "-- update history\nselect 'call center' as domain"
         self.assertEqual(validate_read_only_sql(sql), sql)
+
+    def test_hidden_question_roles_do_not_enter_text_or_omitted_count(self) -> None:
+        history = format_same_company_role_history(
+            [
+                {
+                    "role_name": "Private role",
+                    "effective_label": "hold",
+                    "fit_reason": "Needs a private answer.",
+                },
+                {
+                    "role_name": "FDE",
+                    "effective_label": "fit",
+                    "recommend": False,
+                    "fit_reason": "Strong adjacent fit.",
+                },
+            ],
+            max_chars=300,
+        )
+
+        self.assertNotIn("Private role", history)
+        self.assertNotIn("additional historical role", history)
+        self.assertIn("FDE", history)
+        self.assertEqual(
+            format_same_company_role_history(
+                [
+                    {
+                        "role_name": "Private role",
+                        "effective_label": "hold",
+                    }
+                ]
+            ),
+            "",
+        )
+
+    def test_new_recommendation_supersedes_only_undelivered_sibling_selection(self) -> None:
+        source = inspect.getsource(command_upsert_fits)
+
+        self.assertIn("set recommend = false", source)
+        self.assertIn("sibling_fit.opportunity_id <> %s::uuid", source)
+        self.assertIn("talent_opportunity_recommendation delivered", source)
+        self.assertIn("item[\"recommend\"] is True", source)
 
     def test_semantic_retrieval_allows_dynamic_role_aware_sql(self) -> None:
         allowed = """

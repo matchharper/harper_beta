@@ -27,6 +27,7 @@ export const CAREER_STREAMING_TOOL_CHAIN = {
     "get_role_context",
     "update_recommended_opportunity_feedback",
   ],
+  update_recommended_opportunity_feedback: ["get_internal_roles"],
   update_talent_profile: ["recommend_job_postings", "get_internal_roles"],
 } as const satisfies Partial<Record<TalentToolName, readonly TalentToolName[]>>;
 
@@ -43,7 +44,6 @@ export const CAREER_STREAMING_TERMINAL_TOOL_NAMES = [
   "internal_role_priority_review",
   "record_internal_fit_reevaluation_information",
   "record_company_request_response",
-  "update_recommended_opportunity_feedback",
   "update_setting",
   "update_language_setting",
 ] as const satisfies readonly TalentToolName[];

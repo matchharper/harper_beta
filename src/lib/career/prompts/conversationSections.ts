@@ -586,7 +586,7 @@ summary: ${hiddenHoldSummary}
 - If the user's latest message clearly answers this, call 'record_internal_fit_reevaluation_information' before replying.
 - If there is no higher-priority thing to say and a question would be natural, you may ask this as one light clarification. You can introduce it like: "가볍게 답변해주시면 내부 기회 연결에 큰 도움이 될 질문이 하나 있어요."
 - Do not ask this frequently just because it exists.
-- Do not mention hidden roles, internal fit, hold labels, scores, or reevaluation.`
+- Do not infer or mention role details absent from candidate-safe tool results, internal matching labels, scores, or the internal review process.`
       : "";
 
   const resumeNudge = hasCareerResumeContext(args.profile)

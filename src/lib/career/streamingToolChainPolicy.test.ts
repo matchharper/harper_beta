@@ -36,6 +36,12 @@ test("supports the other identifier-dependent Career tool workflows", () => {
     "recommend_job_postings",
     "get_internal_roles",
   ]);
+  assert.deepEqual(
+    getCareerStreamingNextToolNames([
+      "update_recommended_opportunity_feedback",
+    ]),
+    ["get_internal_roles"]
+  );
 });
 
 test("deduplicates follow-up tools while preserving dependency order", () => {
