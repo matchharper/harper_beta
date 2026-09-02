@@ -357,10 +357,10 @@ const CareerProfileLinksSettingsSection = ({
             ) : gmailIntegration.status === "error" ? (
               <MuteButton
                 type="button"
-                size="lg"
+                size="sm"
                 onClick={() => void handleGmailStatusRetry()}
               >
-                <RefreshCw className="h-4 w-4" />
+                <RefreshCw className="h-3.5 w-3.5" />
                 {t(
                   "career.profile.resume_links.gmail_status_retry",
                   "상태 다시 확인"
@@ -427,13 +427,13 @@ const CareerProfileLinksSettingsSection = ({
             ) : gmailIntegration.status === "disabled" ? (
               <MuteButton
                 type="button"
-                size="lg"
+                size="sm"
                 variant="warn"
                 disabled={gmailIntegration.pendingAction !== null}
                 onClick={() => void handleGmailDisconnect()}
               >
                 {gmailIntegration.pendingAction === "disconnect" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : null}
                 {t(
                   "career.profile.resume_links.gmail_disconnect_retry",
@@ -443,12 +443,12 @@ const CareerProfileLinksSettingsSection = ({
             ) : (
               <MuteButton
                 type="button"
-                size="lg"
+                size="sm"
                 disabled={gmailIntegration.pendingAction !== null}
                 onClick={() => void handleGmailConnect()}
               >
                 {gmailIntegration.pendingAction === "connect" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : null}
                 {gmailIntegration.status === "expired"
                   ? t(
