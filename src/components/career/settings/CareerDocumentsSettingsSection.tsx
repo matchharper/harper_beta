@@ -106,7 +106,7 @@ const CareerDocumentsSettingsSection = ({
                       variant="transparent"
                       size="sm"
                       onClick={() => onEditDocument(document)}
-                      className="min-w-0 truncate text-link underline underline-offset-2"
+                      className="h-auto min-h-0 min-w-0 px-0 py-0 text-sm font-normal leading-normal text-link underline underline-offset-2 hover:bg-transparent hover:text-link active:bg-transparent"
                     >
                       {document.fileName}
                     </MuteButton>

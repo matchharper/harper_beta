@@ -476,6 +476,7 @@ const CareerGmailHistoryEditModalContent = ({
       )}
       mobileBottomSheet
       panelClassName="max-w-[760px] bg-bg-floating"
+      descriptionClassName="max-w-none"
       bodyClassName="px-5 py-5"
       footer={
         <div className="flex justify-end gap-2">
