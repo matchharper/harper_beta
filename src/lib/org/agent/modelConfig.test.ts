@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  DEFAULT_ORG_AGENT_REASONING_EFFORT,
   DEFAULT_ORG_AGENT_MODEL,
   DEFAULT_SLACK_ORG_AGENT_MODEL,
   getSlackOrgAgentModel,
@@ -24,9 +25,10 @@ test("exposes every supported company-side LLM", () => {
   ]);
 });
 
-test("uses GPT-5.6 Luna for web and Claude for Slack by default", () => {
-  assert.equal(DEFAULT_ORG_AGENT_MODEL, ORG_AGENT_LUNA_MODEL);
-  assert.equal(DEFAULT_SLACK_ORG_AGENT_MODEL, ORG_AGENT_CLAUDE_MODEL);
+test("uses GPT-5.6 Terra with xhigh reasoning for web and Slack by default", () => {
+  assert.equal(DEFAULT_ORG_AGENT_MODEL, ORG_AGENT_TERRA_MODEL);
+  assert.equal(DEFAULT_SLACK_ORG_AGENT_MODEL, ORG_AGENT_TERRA_MODEL);
+  assert.equal(DEFAULT_ORG_AGENT_REASONING_EFFORT, "xhigh");
 
   const original = process.env.SLACK_ORG_AGENT_MODEL;
   const originalShared = process.env.ORG_AGENT_MODEL;
@@ -34,8 +36,8 @@ test("uses GPT-5.6 Luna for web and Claude for Slack by default", () => {
   delete process.env.ORG_AGENT_MODEL;
 
   try {
-    assert.equal(getSlackOrgAgentModel(), ORG_AGENT_CLAUDE_MODEL);
-    assert.equal(resolveOrgAgentModel(null).model, ORG_AGENT_LUNA_MODEL);
+    assert.equal(getSlackOrgAgentModel(), ORG_AGENT_TERRA_MODEL);
+    assert.equal(resolveOrgAgentModel(null).model, ORG_AGENT_TERRA_MODEL);
   } finally {
     if (original === undefined) delete process.env.SLACK_ORG_AGENT_MODEL;
     else process.env.SLACK_ORG_AGENT_MODEL = original;
@@ -73,14 +75,14 @@ test("uses the shared model setting for web and Slack", () => {
   }
 });
 
-test("falls back to Claude for an unsupported Slack override", () => {
+test("falls back to Terra for an unsupported Slack override", () => {
   const original = process.env.SLACK_ORG_AGENT_MODEL;
   const originalShared = process.env.ORG_AGENT_MODEL;
   process.env.SLACK_ORG_AGENT_MODEL = "not-a-model";
   delete process.env.ORG_AGENT_MODEL;
 
   try {
-    assert.equal(getSlackOrgAgentModel(), ORG_AGENT_CLAUDE_MODEL);
+    assert.equal(getSlackOrgAgentModel(), ORG_AGENT_TERRA_MODEL);
   } finally {
     if (original === undefined) delete process.env.SLACK_ORG_AGENT_MODEL;
     else process.env.SLACK_ORG_AGENT_MODEL = original;

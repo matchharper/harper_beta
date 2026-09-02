@@ -6,6 +6,7 @@ import {
   usesMaxCompletionTokensForModel,
 } from "@/lib/llm/llm";
 import {
+  DEFAULT_ORG_AGENT_REASONING_EFFORT,
   DEFAULT_ORG_AGENT_MODEL,
   getOrgAgentFallbackModel,
   ORG_AGENT_GROK_MODEL,
@@ -13,6 +14,7 @@ import {
   isOrgAgentModelId,
   resolveOrgAgentModel,
   type OrgAgentModelId,
+  type OrgAgentReasoningEffort,
 } from "@/lib/org/agent/modelConfig";
 import {
   buildRoleCreationOutcomePrompt,
@@ -246,7 +248,7 @@ async function completion(args: {
   allowTools: boolean;
   messages: LlmMessage[];
   model: OrgAgentModelId;
-  reasoningEffort?: "high" | "max";
+  reasoningEffort?: OrgAgentReasoningEffort;
   strictModel?: boolean;
 }) {
   const maxTokens =
@@ -281,7 +283,10 @@ async function completion(args: {
       ? {}
       : { fallbackModel: getOrgAgentFallbackModel(args.model) }),
     model: args.model,
-    openAIResponses: { reasoningEffort: args.reasoningEffort ?? "high" },
+    openAIResponses: {
+      reasoningEffort:
+        args.reasoningEffort ?? DEFAULT_ORG_AGENT_REASONING_EFFORT,
+    },
   });
 }
 
@@ -321,7 +326,9 @@ export async function generateRoleCreationOutcomeReply(args: {
     deepSeekThinking: { reasoningEffort: "high" },
     fallbackModel: getOrgAgentFallbackModel(selectedModel),
     model: selectedModel,
-    openAIResponses: { reasoningEffort: "high" },
+    openAIResponses: {
+      reasoningEffort: DEFAULT_ORG_AGENT_REASONING_EFFORT,
+    },
   });
   const content = assistantText(getResponseMessage(result.response));
   if (!content) {
@@ -528,7 +535,8 @@ export async function runOrgRoleCreationChat(args: {
   ];
 
   let activeModel = selectedModel;
-  let activeReasoningEffort: "high" | "max" = "high";
+  let activeReasoningEffort: OrgAgentReasoningEffort =
+    DEFAULT_ORG_AGENT_REASONING_EFFORT;
   let calibrationAttempted = false;
   let calibrationCompleted = false;
   let totalCalls = 0;

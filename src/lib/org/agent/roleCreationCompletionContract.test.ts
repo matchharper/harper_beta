@@ -98,8 +98,9 @@ test("role creation gives high-reasoning models enough output budget", () => {
     )?.length,
     4
   );
-  assert.equal(
-    chat.match(/openAIResponses: \{ reasoningEffort: "high" \}/g)?.length,
-    2
+  assert.match(
+    chat,
+    /args\.reasoningEffort \?\? DEFAULT_ORG_AGENT_REASONING_EFFORT/
   );
+  assert.match(chat, /reasoningEffort: DEFAULT_ORG_AGENT_REASONING_EFFORT/);
 });
