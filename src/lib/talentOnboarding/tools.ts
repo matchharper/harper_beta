@@ -1473,7 +1473,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.LIST_DOCUMENTS]: {
     name: TALENT_TOOL_NAMES.LIST_DOCUMENTS,
     description:
-      "List this user's active saved documents as paginated metadata. Use it to resolve references to earlier uploads or answer which documents are saved. It never returns document text and never returns soft-deleted rows.",
+      "List this user's active saved documents and generated context documents as paginated metadata. Use it to resolve earlier document references, discover a saved context named in the system prompt, or answer which documents are saved. It never returns document text and never returns soft-deleted rows.",
     parameters: {
       type: "object",
       properties: {
@@ -1516,7 +1516,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.READ_DOCUMENT]: {
     name: TALENT_TOOL_NAMES.READ_DOCUMENT,
     description:
-      "Read one bounded excerpt from one active saved document's extracted text. Use the exact document_id from current upload context or list_documents. If current upload context already includes content_excerpt, continue from its next_offset instead of rereading offset 0. Binary-only files can be saved but return textAvailable=false.",
+      "Read one bounded excerpt from one active saved or generated document's extracted text. Use the exact document_id from current upload context or list_documents. This reads extracted text directly and does not require a downloadable file. If current upload context already includes content_excerpt, continue from its next_offset instead of rereading offset 0. Binary-only files can be saved but return textAvailable=false.",
     parameters: {
       type: "object",
       properties: {

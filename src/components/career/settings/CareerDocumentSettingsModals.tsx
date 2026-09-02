@@ -1,5 +1,5 @@
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import ResumeDropzone from "@/components/career/ResumeDropzone";
 import { useCareerProfileContext } from "@/components/career/CareerSidebarContext";
@@ -8,7 +8,9 @@ import { showToast } from "@/components/toast/toast";
 import { MuteButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Radio } from "@/components/ui/radio";
+import { Textarea } from "@/components/ui/textarea";
 import { useCareerT } from "@/i18n/useCareerT";
+import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 
 export type CareerDocumentUploadResult =
   | { type: "profile_apply" }
@@ -347,6 +349,202 @@ const CareerDocumentRenameModalContent = ({
 
 export const CareerDocumentRenameModal = (props: CareerDocumentModalProps) => (
   <CareerDocumentRenameModalContent
+    key={props.document?.id ?? "closed"}
+    {...props}
+  />
+);
+
+type GmailCareerHistoryContentPayload = {
+  content: string;
+  documentId: string;
+  fileName: string;
+  updatedAt: string;
+};
+
+const MAX_GMAIL_CAREER_HISTORY_CONTENT_CHARS = 50_000;
+
+const CareerGmailHistoryEditModalContent = ({
+  document,
+  onClose,
+}: CareerDocumentModalProps) => {
+  const t = useCareerT();
+  const [content, setContent] = useState("");
+  const [originalContent, setOriginalContent] = useState("");
+  const [updatedAt, setUpdatedAt] = useState("");
+  const [loading, setLoading] = useState(document !== null);
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+
+  const loadContent = useCallback(async () => {
+    if (!document) return;
+    try {
+      const payload =
+        await fetchWithInternalAuth<GmailCareerHistoryContentPayload>(
+          `/api/talent/documents/${encodeURIComponent(document.id)}/content`,
+          { cache: "no-store" }
+        );
+      setContent(payload.content);
+      setOriginalContent(payload.content);
+      setUpdatedAt(payload.updatedAt);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [document]);
+
+  useEffect(() => {
+    // The modal is keyed by document ID, so this asynchronous fetch initializes
+    // a fresh modal instance rather than synchronously deriving state from props.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadContent();
+  }, [loadContent]);
+
+  const handleRetryLoad = () => {
+    setLoading(true);
+    setLoadError(false);
+    void loadContent();
+  };
+
+  const handleClose = () => {
+    if (!saving) onClose();
+  };
+
+  const handleSave = async () => {
+    if (!document || !updatedAt || saving) return;
+    setSaving(true);
+    try {
+      const payload = await fetchWithInternalAuth<{
+        ok: true;
+        updatedAt: string;
+      }>(`/api/talent/documents/${encodeURIComponent(document.id)}/content`, {
+        body: JSON.stringify({ content, expectedUpdatedAt: updatedAt }),
+        method: "PATCH",
+      });
+      setOriginalContent(content);
+      setUpdatedAt(payload.updatedAt);
+      showToast({
+        message: t(
+          "career.profile.documents.gmail_history_saved",
+          "Gmail 커리어 이력을 저장했습니다."
+        ),
+        variant: "white",
+      });
+      onClose();
+    } catch (error) {
+      const isConflict =
+        error instanceof Error && error.message.includes("changed after");
+      showToast({
+        message: isConflict
+          ? t(
+              "career.profile.documents.gmail_history_conflict",
+              "다른 변경사항이 먼저 저장되었습니다. 문서를 다시 열어 주세요."
+            )
+          : t(
+              "career.profile.documents.gmail_history_save_failed",
+              "Gmail 커리어 이력을 저장하지 못했습니다. 다시 시도해 주세요."
+            ),
+        variant: "error",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const contentTooLong =
+    content.length > MAX_GMAIL_CAREER_HISTORY_CONTENT_CHARS;
+  const canSave =
+    !loading &&
+    !loadError &&
+    !saving &&
+    Boolean(content.trim()) &&
+    !contentTooLong &&
+    content !== originalContent;
+
+  return (
+    <TalentCareerModal
+      open={document !== null}
+      onClose={handleClose}
+      closeOnBackdrop={!saving}
+      title={t(
+        "career.profile.documents.gmail_history_edit_title",
+        "Gmail 커리어 이력 수정"
+      )}
+      description={t(
+        "career.profile.documents.gmail_history_edit_description",
+        "Harper가 이메일에서 정리한 커리어 이력입니다. 필요한 내용을 직접 수정할 수 있습니다."
+      )}
+      mobileBottomSheet
+      panelClassName="max-w-[760px] bg-bg-floating"
+      bodyClassName="px-5 py-5"
+      footer={
+        <div className="flex justify-end gap-2">
+          <MuteButton onClick={handleClose} disabled={saving}>
+            {t("career.common.cancel", "취소")}
+          </MuteButton>
+          <MuteButton
+            variant="dark"
+            onClick={() => void handleSave()}
+            disabled={!canSave}
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {t("career.common.save", "저장")}
+          </MuteButton>
+        </div>
+      }
+    >
+      {loading ? (
+        <div className="flex min-h-64 items-center justify-center">
+          <Loader2
+            className="h-5 w-5 animate-spin text-neutral-muted"
+            aria-label={t(
+              "career.profile.documents.gmail_history_loading",
+              "Gmail 커리어 이력 불러오는 중"
+            )}
+          />
+        </div>
+      ) : loadError ? (
+        <div className="rounded-md bg-critical-faded p-4 text-sm text-critical">
+          <p>
+            {t(
+              "career.profile.documents.gmail_history_load_failed",
+              "Gmail 커리어 이력을 불러오지 못했습니다."
+            )}
+          </p>
+          <MuteButton
+            className="mt-3"
+            size="sm"
+            onClick={handleRetryLoad}
+          >
+            {t("career.profile.documents.gmail_history_retry", "다시 시도")}
+          </MuteButton>
+        </div>
+      ) : (
+        <div>
+          <Textarea
+            aria-label={t(
+              "career.profile.documents.gmail_history_content",
+              "Gmail 커리어 이력 내용"
+            )}
+            className="min-h-[420px] font-mono text-[13px]"
+            maxLength={MAX_GMAIL_CAREER_HISTORY_CONTENT_CHARS}
+            onChange={(event) => setContent(event.target.value)}
+            value={content}
+          />
+          <p className="mt-2 text-right text-xs text-neutral-soft">
+            {content.length.toLocaleString()} /{" "}
+            {MAX_GMAIL_CAREER_HISTORY_CONTENT_CHARS.toLocaleString()}
+          </p>
+        </div>
+      )}
+    </TalentCareerModal>
+  );
+};
+
+export const CareerGmailHistoryEditModal = (
+  props: CareerDocumentModalProps
+) => (
+  <CareerGmailHistoryEditModalContent
     key={props.document?.id ?? "closed"}
     {...props}
   />

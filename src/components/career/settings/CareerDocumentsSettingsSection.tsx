@@ -36,6 +36,7 @@ type CareerDocumentsSettingsSectionProps = {
   documents: CareerTalentDocument[];
   onAddDocument: () => void;
   onDeleteDocument: (documentId: string) => void;
+  onEditDocument: (document: CareerTalentDocument) => void;
   onRenameDocument: (document: CareerTalentDocument) => void;
 };
 
@@ -60,6 +61,7 @@ const CareerDocumentsSettingsSection = ({
   documents,
   onAddDocument,
   onDeleteDocument,
+  onEditDocument,
   onRenameDocument,
 }: CareerDocumentsSettingsSectionProps) => {
   const t = useCareerT();
@@ -86,7 +88,11 @@ const CareerDocumentsSettingsSection = ({
       </div>
       {documents.length > 0 ? (
         <div className="mt-2 grid gap-2">
-          {documents.map((document) => (
+          {documents.map((document) => {
+            const isGmailCareerHistory =
+              document.originType === "gmail_career_history" &&
+              document.originId === "singleton";
+            return (
             <div
               key={document.id}
               className="flex items-center gap-3 rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 py-3 shadow-sm"
@@ -94,7 +100,17 @@ const CareerDocumentsSettingsSection = ({
               <CareerDocumentFormatIcon fileName={document.fileName} />
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
-                  {document.downloadUrl ? (
+                  {isGmailCareerHistory ? (
+                    <MuteButton
+                      type="button"
+                      variant="transparent"
+                      size="sm"
+                      onClick={() => onEditDocument(document)}
+                      className="min-w-0 truncate text-link underline underline-offset-2"
+                    >
+                      {document.fileName}
+                    </MuteButton>
+                  ) : document.downloadUrl ? (
                     <a
                       href={document.downloadUrl}
                       target="_blank"
@@ -125,7 +141,12 @@ const CareerDocumentsSettingsSection = ({
                   )}
                 </div>
                 <p className="mt-1 text-xs text-neutral-soft">
-                  {formatCareerDate(document.createdAt, locale)}
+                  {formatCareerDate(
+                    isGmailCareerHistory
+                      ? document.updatedAt
+                      : document.createdAt,
+                    locale
+                  )}
                 </p>
               </div>
               <ActionDropdown
@@ -159,7 +180,7 @@ const CareerDocumentsSettingsSection = ({
                       "대표 이력서로 지정"
                     )}
                   </ActionDropdownItem>
-                ) : (
+                ) : !isGmailCareerHistory ? (
                   <ActionDropdownItem
                     onSelect={() =>
                       void onUpdateTalentDocument(document.id, {
@@ -179,7 +200,7 @@ const CareerDocumentsSettingsSection = ({
                         )
                       : t("career.profile.documents.make_public", "공개하기")}
                   </ActionDropdownItem>
-                )}
+                ) : null}
                 <ActionDropdownItem onSelect={() => onRenameDocument(document)}>
                   <Pencil className="h-4 w-4" />
                   {t("career.profile.documents.rename", "이름 수정")}
@@ -194,7 +215,8 @@ const CareerDocumentsSettingsSection = ({
                 </ActionDropdownItem>
               </ActionDropdown>
             </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <p className="mt-2 text-sm leading-6 text-neutral-soft">

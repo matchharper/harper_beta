@@ -12,6 +12,7 @@ import { normalizeNoMessageContent } from "@/lib/career/noMessageContent";
 import {
   buildTalentProfileContext,
   countUserChatTurns,
+  fetchActiveTalentDocumentByOrigin,
   fetchTalentInsights,
   fetchTalentSetting,
   fetchTalentStructuredProfile,
@@ -109,6 +110,10 @@ import {
   stripOpportunityRunMarkers,
 } from "@/lib/opportunityDiscovery/messageMarker";
 import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
+import {
+  GMAIL_CAREER_HISTORY_ORIGIN_ID,
+  GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
+} from "@/lib/integrations/gmailCareerHistoryCore";
 
 type TalentMessageResponse = ReturnType<typeof toTalentMessageResponse>;
 
@@ -433,6 +438,7 @@ export async function runCareerChatTurn(
     recentActivitySummaries,
     recentRecommendedOpportunities,
     activeGmailIntegration,
+    savedGmailCareerHistoryDocument,
   ] = await Promise.all([
     fetchTalentUserProfile({ admin, userId }),
     fetchTalentInsights({ admin, userId }),
@@ -470,6 +476,19 @@ export async function runCareerChatTurn(
       admin,
       talentId: userId,
     }),
+    requestChannel === "chat"
+      ? fetchActiveTalentDocumentByOrigin({
+        admin,
+        originId: GMAIL_CAREER_HISTORY_ORIGIN_ID,
+        originType: GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
+        userId,
+      }).catch((error) => {
+        console.warn("[TalentChatTurn] Gmail history context unavailable", {
+          message: error instanceof Error ? error.message : "Unknown error",
+        });
+        return null;
+      })
+      : Promise.resolve(null),
   ]);
 
   const structuredProfile = await fetchTalentStructuredProfile({
@@ -698,6 +717,7 @@ export async function runCareerChatTurn(
       currentInsightContent,
       currentPreferences,
       gmailCapability,
+      hasSavedGmailCareerHistory: Boolean(savedGmailCareerHistoryDocument),
       isOnboardingDone: !isOnboardingActiveForTurn,
       officialJobSignupIntentPrompt: isOnboardingActiveForTurn
         ? officialJobSignupIntentEvent?.summary

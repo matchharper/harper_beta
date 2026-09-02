@@ -8,6 +8,7 @@ import ProfileSourceApplyConfirmModal, {
 import {
   CareerAddDocumentModal,
   CareerDocumentDeleteModal,
+  CareerGmailHistoryEditModal,
   CareerDocumentRenameModal,
   type CareerDocumentUploadResult,
   CareerDocumentVisibilityModal,
@@ -48,6 +49,9 @@ const CareerResumeLinksSettingsSection = () => {
     string | null
   >(null);
   const [documentPendingRenameId, setDocumentPendingRenameId] = useState<
+    string | null
+  >(null);
+  const [documentPendingEditId, setDocumentPendingEditId] = useState<
     string | null
   >(null);
   const [pendingPostUploadDialog, setPendingPostUploadDialog] =
@@ -122,6 +126,10 @@ const CareerResumeLinksSettingsSection = () => {
     () => findDocumentById(talentDocuments, documentPendingRenameId),
     [documentPendingRenameId, talentDocuments]
   );
+  const documentPendingEdit = useMemo(
+    () => findDocumentById(talentDocuments, documentPendingEditId),
+    [documentPendingEditId, talentDocuments]
+  );
 
   const handleSaveLinks = async () => {
     logCareerEvent("click_resume_links_save");
@@ -177,6 +185,7 @@ const CareerResumeLinksSettingsSection = () => {
       <CareerDocumentsSettingsSection
         documents={remainingDocuments}
         onAddDocument={() => setAddDocumentOpen(true)}
+        onEditDocument={(document) => setDocumentPendingEditId(document.id)}
         onRenameDocument={openDocumentRename}
         onDeleteDocument={setDocumentPendingDeleteId}
       />
@@ -200,6 +209,10 @@ const CareerResumeLinksSettingsSection = () => {
       <CareerDocumentRenameModal
         document={documentPendingRename}
         onClose={() => setDocumentPendingRenameId(null)}
+      />
+      <CareerGmailHistoryEditModal
+        document={documentPendingEdit}
+        onClose={() => setDocumentPendingEditId(null)}
       />
       <CareerDocumentDeleteModal
         document={documentPendingDelete}

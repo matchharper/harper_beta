@@ -5090,6 +5090,9 @@ export async function openOrgResume(args: {
       "id" | "file_name" | "storage_path"
     > | null;
     if (!document) throw new OrgHttpError(404, "Document not found");
+    if (!document.storage_path) {
+      throw new OrgHttpError(404, "Document file not found");
+    }
     const { data: signed, error: signedError } = await admin.storage
       .from(TALENT_RESUME_BUCKET)
       .createSignedUrl(document.storage_path, 10 * 60);

@@ -4,6 +4,7 @@ import {
   buildTalentProfileContext,
   countUserChatTurns,
   fetchTalentDocuments,
+  fetchActiveTalentDocumentByOrigin,
   fetchTalentDocumentsByIds,
   fetchTalentInsights,
   fetchTalentSetting,
@@ -123,6 +124,10 @@ import {
 } from "@/lib/opportunityDiscovery/messageMarker";
 import { buildFirstTurnUploadedDocumentContext } from "@/lib/talentOnboarding/documentPromptContext";
 import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
+import {
+  GMAIL_CAREER_HISTORY_ORIGIN_ID,
+  GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
+} from "@/lib/integrations/gmailCareerHistoryCore";
 
 export const maxDuration = 180;
 
@@ -626,12 +631,29 @@ export async function POST(req: NextRequest) {
       );
     }
     const admin = getTalentSupabaseAdmin();
-    const [talentSetting, activeGmailIntegration] = await Promise.all([
+    const [
+      talentSetting,
+      activeGmailIntegration,
+      savedGmailCareerHistoryDocument,
+    ] = await Promise.all([
       fetchTalentSetting({ admin, userId: user.id }),
       fetchActiveTalentGmailIntegration({
         admin,
         talentId: user.id,
       }),
+      requestChannel === "chat"
+        ? fetchActiveTalentDocumentByOrigin({
+            admin,
+            originId: GMAIL_CAREER_HISTORY_ORIGIN_ID,
+            originType: GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
+            userId: user.id,
+          }).catch((error) => {
+            console.warn("[TalentChat] Gmail history context unavailable", {
+              message: error instanceof Error ? error.message : "Unknown error",
+            });
+            return null;
+          })
+        : Promise.resolve(null),
     ]);
     const responseLocale =
       talentSetting?.preferred_locale ??
@@ -1095,6 +1117,7 @@ export async function POST(req: NextRequest) {
         currentInsightContent,
         currentPreferences,
         gmailCapability,
+        hasSavedGmailCareerHistory: Boolean(savedGmailCareerHistoryDocument),
         isOnboardingDone: talentSetting?.is_onboarding_done,
         officialJobSignupIntentPrompt: talentSetting?.is_onboarding_done
           ? null

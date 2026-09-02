@@ -103,12 +103,15 @@ export type CareerTalentDocument = {
   id: string;
   kind: string;
   fileName: string;
-  storagePath: string;
+  storagePath: string | null;
   contentType: string | null;
   sizeBytes: number | null;
   isPublic: boolean;
   isPrimary: boolean;
   createdAt: string;
+  updatedAt: string;
+  originType: string | null;
+  originId: string | null;
   downloadUrl: string | null;
 };
 

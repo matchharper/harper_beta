@@ -3,10 +3,7 @@ import "server-only";
 import { createHash } from "crypto";
 import { CLAUDE_MODEL, GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
-import {
-  TALENT_RESUME_BUCKET,
-  type TalentAdminClient,
-} from "@/lib/talentOnboarding/server";
+import { type TalentAdminClient } from "@/lib/talentOnboarding/server";
 import {
   executeConnectedGmailSearch,
   fetchActiveTalentGmailIntegration,
@@ -233,7 +230,6 @@ export async function analyzeGmailCareerHistory(args: {
   const markdown = renderGmailCareerHistoryMarkdown({ analyzedAt, entries });
   const bytes = Buffer.from(markdown, "utf8");
   const contentSha256 = createHash("sha256").update(bytes).digest("hex");
-  const storagePath = `${args.talentId}/generated/gmail-career-history.md`;
 
   const currentIntegration = await fetchActiveTalentGmailIntegration({
     admin: args.admin,
@@ -243,19 +239,6 @@ export async function analyzeGmailCareerHistory(args: {
     !integrationMatches(currentIntegration, args.expectedIntegrationUpdatedAt)
   ) {
     return { reason: "stale_integration", status: "skipped" };
-  }
-
-  const { error: uploadError } = await args.admin.storage
-    .from(TALENT_RESUME_BUCKET)
-    .upload(storagePath, bytes, {
-      cacheControl: "0",
-      contentType: "text/markdown",
-      upsert: true,
-    });
-  if (uploadError) {
-    throw new GmailCareerHistoryRetryableError(
-      uploadError.message || "Failed to store Gmail career history"
-    );
   }
 
   const { data: document, error: documentError } = await args.admin
@@ -273,7 +256,7 @@ export async function analyzeGmailCareerHistory(args: {
         origin_id: GMAIL_CAREER_HISTORY_ORIGIN_ID,
         origin_type: GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
         size_bytes: bytes.byteLength,
-        storage_path: storagePath,
+        storage_path: null,
         talent_id: args.talentId,
       },
       { onConflict: "talent_id,origin_type,origin_id" }

@@ -11,6 +11,7 @@ import {
 import Image from "next/image";
 import {
   useMemo,
+  useState,
   type ChangeEvent,
   type FocusEvent,
   type KeyboardEvent,
@@ -28,6 +29,7 @@ import { useGmailIntegration } from "@/hooks/career/useGmailIntegration";
 import { useMessages } from "@/i18n/useMessage";
 import { formatRelativeTime } from "@/lib/utils";
 import { showToast } from "@/components/toast/toast";
+import TalentCareerModal from "@/components/common/TalentCareerModal";
 
 const CAREER_LINK_ITEMS = [
   {
@@ -168,6 +170,7 @@ const CareerProfileLinksSettingsSection = ({
   const careerLinkLabels = useMemo(() => getCareerLinkLabels(t), [t]);
   const logCareerEvent = useCareerLogEvent();
   const gmailIntegration = useGmailIntegration();
+  const [gmailResyncConfirmOpen, setGmailResyncConfirmOpen] = useState(false);
   const {
     profileLinks,
     profileSavePending,
@@ -228,6 +231,7 @@ const CareerProfileLinksSettingsSection = ({
   };
 
   const handleGmailAnalyze = async () => {
+    setGmailResyncConfirmOpen(false);
     logCareerEvent("click_resume_links_analyze_gmail");
     try {
       await gmailIntegration.analyze();
@@ -247,6 +251,14 @@ const CareerProfileLinksSettingsSection = ({
         variant: "error",
       });
     }
+  };
+
+  const handleGmailAnalyzeClick = () => {
+    if (gmailIntegration.analysisStatus === "completed") {
+      setGmailResyncConfirmOpen(true);
+      return;
+    }
+    void handleGmailAnalyze();
   };
 
   return (
@@ -376,7 +388,7 @@ const CareerProfileLinksSettingsSection = ({
                   size="sm"
                   variant="transparent"
                   disabled={gmailIntegration.pendingAction !== null}
-                  onClick={() => void handleGmailAnalyze()}
+                  onClick={handleGmailAnalyzeClick}
                 >
                   {gmailIntegration.pendingAction === "analyze" ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -384,10 +396,7 @@ const CareerProfileLinksSettingsSection = ({
                     <RefreshCw className="h-3.5 w-3.5" />
                   ) : null}
                   {gmailIntegration.analysisStatus === "completed"
-                    ? t(
-                        "career.profile.resume_links.gmail_resync",
-                        "새로고침"
-                      )
+                    ? t("career.profile.resume_links.gmail_resync", "새로고침")
                     : t(
                         "career.profile.resume_links.gmail_analyze",
                         "커리어 이력 분석"
@@ -398,7 +407,7 @@ const CareerProfileLinksSettingsSection = ({
                   <span className="text-xs text-neutral-soft">
                     {t(
                       "career.profile.resume_links.gmail_last_synced",
-                      "마지막 동기화 {time}"
+                      "마지막 업데이트 {time}"
                     ).replace(
                       "{time}",
                       formatRelativeTime(
@@ -497,6 +506,56 @@ const CareerProfileLinksSettingsSection = ({
           </MuteButton>
         ) : null}
       </div>
+
+      <TalentCareerModal
+        open={gmailResyncConfirmOpen}
+        onClose={() => {
+          if (gmailIntegration.pendingAction !== "analyze") {
+            setGmailResyncConfirmOpen(false);
+          }
+        }}
+        closeOnBackdrop={gmailIntegration.pendingAction !== "analyze"}
+        title={t(
+          "career.profile.resume_links.gmail_resync_confirm_title",
+          "Gmail 커리어 이력을 새로 분석할까요?"
+        )}
+        description={t(
+          "career.profile.resume_links.gmail_resync_confirm_description",
+          "현재 문서에서 직접 수정한 내용도 새 분석 결과로 대체됩니다."
+        )}
+        panelClassName="max-w-[480px] bg-bg-floating"
+        bodyClassName="px-5 py-5"
+        footer={
+          <div className="flex justify-end gap-2">
+            <MuteButton
+              onClick={() => setGmailResyncConfirmOpen(false)}
+              disabled={gmailIntegration.pendingAction === "analyze"}
+            >
+              {t("career.common.cancel", "취소")}
+            </MuteButton>
+            <MuteButton
+              variant="warn"
+              onClick={() => void handleGmailAnalyze()}
+              disabled={gmailIntegration.pendingAction === "analyze"}
+            >
+              {gmailIntegration.pendingAction === "analyze" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : null}
+              {t(
+                "career.profile.resume_links.gmail_resync_confirm_action",
+                "새로 분석"
+              )}
+            </MuteButton>
+          </div>
+        }
+      >
+        <p className="text-sm leading-6 text-neutral-muted">
+          {t(
+            "career.profile.resume_links.gmail_resync_confirm_help",
+            "저장된 Gmail 커리어 이력 문서는 유지되지만 내용은 새 분석 결과로 덮어씁니다."
+          )}
+        </p>
+      </TalentCareerModal>
     </div>
   );
 };

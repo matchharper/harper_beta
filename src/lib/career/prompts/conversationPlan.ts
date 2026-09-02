@@ -89,6 +89,25 @@ export function buildGmailCapabilityPrompt(capability: GmailCapability) {
   ].join("\n");
 }
 
+export function buildSavedGmailCareerHistoryPrompt(args: {
+  canReadDocument: boolean;
+}) {
+  if (!args.canReadDocument) {
+    return [
+      "## Saved Gmail career history",
+      "A saved Gmail career-history document exists, but document reading is not available in this turn.",
+      "Do not claim that you read the saved document or inspected the current inbox.",
+    ].join("\n");
+  }
+
+  return [
+    "## Saved Gmail career history",
+    "A saved, user-editable Gmail career-history document is available.",
+    "When the answer depends on the user's past applications, interviews, or recruiting history, use list_documents and then read_document.",
+    "This document is a saved snapshot, not proof of the current inbox state. Distinguish reading it from checking Gmail with search_connected_gmail.",
+  ].join("\n");
+}
+
 /**
  * /career 텍스트 채팅과 실시간 voice call 프롬프트를 조립하는 핵심 함수.
  *
@@ -106,6 +125,7 @@ export function buildCareerConversationPromptPlan(args: {
   currentInsightContent: Record<string, string> | null;
   currentPreferences?: CareerPromptPreferences | null;
   gmailCapability?: GmailCapability;
+  hasSavedGmailCareerHistory?: boolean;
   internalCallRequest?: InternalOpportunityCallRequest | null;
   isOnboardingDone?: boolean;
   officialJobSignupIntentPrompt?: string | null;
@@ -313,6 +333,17 @@ export function buildCareerConversationPromptPlan(args: {
     promptBlocks.push({
       key: "gmail_capability",
       text: buildGmailCapabilityPrompt(args.gmailCapability),
+    });
+  }
+
+  if (args.hasSavedGmailCareerHistory) {
+    promptBlocks.push({
+      key: "saved_gmail_career_history",
+      text: buildSavedGmailCareerHistoryPrompt({
+        canReadDocument:
+          normalizedToolNames.includes("list_documents") &&
+          normalizedToolNames.includes("read_document"),
+      }),
     });
   }
 

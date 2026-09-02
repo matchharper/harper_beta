@@ -186,7 +186,7 @@ export function buildCareerToolPolicyPrompt(args: {
           "",
           "### Saved documents",
           hasListDocumentsTool
-            ? "- Use `list_documents` for earlier or ambiguous saved-file references. Start with offset=0 and limit=10; fetch nextOffset only when the user needs more. The list is metadata-only and excludes soft-deleted documents."
+            ? "- Use `list_documents` for earlier or ambiguous saved-document references and to locate a generated context document identified by the system prompt. Start with offset=0 and limit=10; fetch nextOffset only when the user needs more. The list is metadata-only and excludes soft-deleted documents."
             : "",
           hasReadDocumentTool
             ? "- Use `read_document` only when the answer needs saved document content. For a current-turn upload that already includes content_excerpt, start from its next_offset; for an earlier saved document, start with offset=0. Use max_chars=4000, then continue from nextOffset only when hasMore is true and the missing portion matters. A binary-only file may have textAvailable=false."
