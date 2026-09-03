@@ -2,6 +2,16 @@
 const COMPOSIO_API_BASE_URL = "https://backend.composio.dev/api/v3.1";
 const COMPOSIO_REQUEST_TIMEOUT_MS = 20_000;
 
+// Connect Link uses connect.composio.dev. A self-hosted OAuth configuration
+// can instead return Composio's short hand-off URL or Google's authorization
+// URL directly. These are the only browser destinations this integration
+// accepts from Composio.
+const TRUSTED_CONNECT_HOSTS = new Set([
+  "connect.composio.dev",
+  "backend.composio.dev",
+  "accounts.google.com",
+]);
+
 export const COMPOSIO_GMAIL_TOOLKIT_SLUG = "gmail";
 export const COMPOSIO_GMAIL_TOOL_VERSION = "20260817_00";
 
@@ -213,6 +223,35 @@ export function createComposioClient(
     };
   }
 
+  function parseAuthorizeUrl(args: {
+    accountId: unknown;
+    redirectUrl: unknown;
+  }) {
+    let url: URL;
+    try {
+      url = new URL(typeof args.redirectUrl === "string" ? args.redirectUrl : "");
+    } catch {
+      throw new ComposioApiError(
+        "Composio returned an invalid connect URL",
+        502
+      );
+    }
+    if (
+      url.protocol !== "https:" ||
+      !TRUSTED_CONNECT_HOSTS.has(url.hostname) ||
+      url.username ||
+      url.password ||
+      url.port ||
+      !isComposioAccountId(args.accountId)
+    ) {
+      throw new ComposioApiError(
+        "Composio returned an invalid connect link",
+        502
+      );
+    }
+    return { accountId: args.accountId, authorizeUrl: url.toString() };
+  }
+
   return {
     async createLink(args: {
       authConfigId: string;
@@ -231,32 +270,45 @@ export function createComposioClient(
           callback_url: args.callbackUrl,
         }),
       });
-      let url: URL;
-      try {
-        url = new URL(response.redirect_url ?? "");
-      } catch {
-        throw new ComposioApiError(
-          "Composio returned an invalid connect URL",
-          502
-        );
-      }
-      if (
-        url.protocol !== "https:" ||
-        url.hostname !== "connect.composio.dev" ||
-        url.username ||
-        url.password ||
-        url.port ||
-        !isComposioAccountId(response.connected_account_id)
-      ) {
-        throw new ComposioApiError(
-          "Composio returned an invalid connect link",
-          502
-        );
-      }
-      return {
+      return parseAuthorizeUrl({
         accountId: response.connected_account_id,
-        authorizeUrl: url.toString(),
-      };
+        redirectUrl: response.redirect_url,
+      });
+    },
+    async createDirectOAuthConnection(args: {
+      authConfigId: string;
+      callbackUrl: string;
+      userId: string;
+    }) {
+      const response = await request<{
+        connection_data?: { val?: { redirect_url?: string } };
+        connectionData?: { val?: { redirectUrl?: string } };
+        id?: string;
+        redirect_url?: string;
+      }>("/connected_accounts", {
+        method: "POST",
+        body: JSON.stringify({
+          auth_config: { id: args.authConfigId },
+          connection: {
+            callback_url: args.callbackUrl,
+            state: {
+              authScheme: "OAUTH2",
+              val: {
+                long_redirect_url: true,
+                status: "INITIALIZING",
+              },
+            },
+            user_id: args.userId,
+          },
+        }),
+      });
+      return parseAuthorizeUrl({
+        accountId: response.id,
+        redirectUrl:
+          response.redirect_url ??
+          response.connection_data?.val?.redirect_url ??
+          response.connectionData?.val?.redirectUrl,
+      });
     },
     async getAccount(accountId: string): Promise<ComposioConnectedAccount> {
       const account = await request<ComposioConnectedAccount>(
@@ -359,7 +411,7 @@ export function createComposioClient(
 // not need to implement a provider-specific listing method.
 export type ComposioClient = Omit<
   ReturnType<typeof createComposioClient>,
-  "listAccounts"
+  "createDirectOAuthConnection" | "listAccounts"
 >;
 
 export function getComposioGmailAuthConfigId() {
@@ -370,11 +422,15 @@ export async function createComposioGmailConnectLink(args: {
   callbackUrl: string;
   userId: string;
 }) {
-  const result = await createComposioClient().createLink({
+  const client = createComposioClient();
+  const connectionArgs = {
     authConfigId: getComposioGmailAuthConfigId(),
     callbackUrl: args.callbackUrl,
     userId: args.userId,
-  });
+  };
+  // Gmail uses Harper-owned OAuth credentials. Send the browser straight to
+  // Google so neither a Composio Connect Link page nor its branding is shown.
+  const result = await client.createDirectOAuthConnection(connectionArgs);
   return {
     connectedAccountId: result.accountId,
     expiresAt: null,

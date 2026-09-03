@@ -108,7 +108,10 @@ const CareerWorkspacePage = ({
     ? getSingleQueryParam(router.query.status)
     : null;
   const gmailConnectedAccountId = isRouterReady
-    ? getSingleQueryParam(router.query.connected_account_id)
+    ? (getSingleQueryParam(router.query.connected_account_id) ??
+      // Composio Connect Link returns snake_case; direct OAuth initiation
+      // returns this camelCase callback field.
+      getSingleQueryParam(router.query.connectedAccountId))
     : null;
   const officialJobsSource = isRouterReady
     ? getSingleQueryParam(router.query.source)
@@ -327,6 +330,8 @@ const CareerWorkspacePage = ({
     const clearCallbackQuery = () => {
       const nextQuery = { ...router.query };
       delete nextQuery.connected_account_id;
+      delete nextQuery.connectedAccountId;
+      delete nextQuery.appName;
       delete nextQuery.gmailConnect;
       delete nextQuery.status;
       void router.replace(
