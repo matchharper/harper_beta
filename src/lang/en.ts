@@ -499,6 +499,8 @@ export const en = {
     "career.api.email_change.request_missing": "We couldn't find an email change request to resend. Please enter your email again.",
     "career.api.opportunities.ended_acceptance_forbidden": "This position has already closed, so you can no longer accept the introduction.",
     "career.api.opportunities.ended_rejection_revert_forbidden": "This position has already closed, so the rejection cannot be undone.",
+    "career.api.opportunities.inactive_acceptance_forbidden": "This position is no longer available, so you cannot accept the introduction.",
+    "career.api.opportunities.inactive_rejection_revert_forbidden": "This position is no longer available, so the rejection cannot be undone.",
     "career.api.opportunities.internal_decision_missing": "There is no decision to undo or process to stop.",
     "career.api.opportunities.internal_decision_revert_forbidden": "This decision cannot be undone in its current state.",
     "career.api.opportunities.internal_opportunity_not_found": "We couldn't find this position. Refresh the page and try again.",

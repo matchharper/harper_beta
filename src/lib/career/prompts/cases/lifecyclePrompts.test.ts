@@ -164,15 +164,20 @@ test("feedback follow-up forbids unsupported saved-filter claims", () => {
   assert.match(prompt, /explicit feedback reason.*direct evidence/i);
 });
 
-test("internal acceptance explains timing without exposing human confirmation", () => {
+test("internal acceptance promises a thoughtful company introduction without exposing internals", () => {
   const prompt = buildCareerOpportunityFeedbackFollowUpTurnInstruction({
     preferredLocale: "ko",
     trigger:
       CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback,
   });
 
-  assert.match(prompt, /appropriate context at a thoughtful time/);
-  assert.match(prompt, /ask the user to wait/);
-  assert.match(prompt, /Never mention an internal human review/);
-  assert.match(prompt, /Do not imply.*instantly sends/);
+  assert.match(prompt, /introduce them to the company at an appropriate time/);
+  assert.match(prompt, /preparing a thoughtful introduction/);
+  assert.match(prompt, /Do not imply the profile was already shared/);
+  assert.match(prompt, /Never expose Harper's internal confirmation/);
+  assert.match(prompt, /If the internal opportunity was disliked/);
+  assert.match(prompt, /Follow any rejection-specific context provided for this turn/);
+  assert.match(prompt, /keep the reply proportional to the user's stated reason/);
+  assert.doesNotMatch(prompt, /다음에 어떤 과정이 진행되는지 최대한 자세히 안내해라/);
+  assert.doesNotMatch(prompt, /same company/i);
 });

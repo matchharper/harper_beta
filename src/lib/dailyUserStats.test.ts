@@ -463,7 +463,7 @@ test("daily Slack stats compare counts by percent and rates by percentage point"
   );
 });
 
-test("daily Slack stats show the current signup-flow allocation", async () => {
+test("daily Slack stats omit the retired landing A/B test section", async () => {
   process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:54321";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-key";
   const { formatDailyUserStatsSlackMessages } =
@@ -494,10 +494,8 @@ test("daily Slack stats show the current signup-flow allocation", async () => {
 
   const { details } = formatDailyUserStatsSlackMessages(report);
 
-  assert.match(
-    details,
-    /현재 배정 비율: Email first 0% \/ Login first 100%/
-  );
+  assert.doesNotMatch(details, /랜딩페이지 A\/B Test/);
+  assert.doesNotMatch(details, /Email first|Login first/);
 });
 
 test("weekly Slack stats compare against the previous week", async () => {

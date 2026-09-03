@@ -12,11 +12,7 @@ import {
   type OfficialJobsLocale,
 } from "@/lib/officialJobs/copy";
 import { getOfficialJobsAnonymousId } from "@/lib/officialJobs/events";
-import {
-  getOfficialJobsApplyHelpExperimentAbtestType,
-  OFFICIAL_JOBS_APPLY_HELP_CONTROL_COPY_CLASS,
-  OFFICIAL_JOBS_APPLY_HELP_TREATMENT_COPY_CLASS,
-} from "@/lib/officialJobs/experiment";
+import { getOfficialJobsApplyHelpExperimentAbtestType } from "@/lib/officialJobs/experiment";
 import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import {
   CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
@@ -125,16 +121,7 @@ export default function OfficialJobsCtaLink({
       onClick={handleClick}
       className={cn(ctaLinkVariants({ fullWidth, size, variant }), className)}
     >
-      {children ?? (
-        <span>
-          <span className={OFFICIAL_JOBS_APPLY_HELP_CONTROL_COPY_CLASS}>
-            {copy.cta.control}
-          </span>
-          <span className={OFFICIAL_JOBS_APPLY_HELP_TREATMENT_COPY_CLASS}>
-            {copy.cta.treatment}
-          </span>
-        </span>
-      )}
+      {children ?? copy.cta.control}
     </Link>
   );
 }

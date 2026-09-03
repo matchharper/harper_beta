@@ -42,6 +42,7 @@ import {
   formatRecentRecommendedOpportunitiesForPrompt,
 } from "@/lib/talentOpportunity";
 import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
+import { hasActiveConversationCompletedOpportunityRun } from "@/lib/opportunityDiscovery/store";
 
 const FALLBACK_WRAPUP_CONTENT_KO = [
   "좋은 대화였습니다. 말씀해주신 내용을 바탕으로 다음 기회 탐색 기준을 정리했습니다.",
@@ -407,6 +408,7 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
     structuredProfile,
     recentMessages,
     recentRecommendedOpportunities,
+    isConversationCompletedOpportunityRunActive,
   ] = await Promise.all([
     fetchTalentUserProfile({ admin: args.admin, userId: args.userId }),
     fetchTalentSetting({ admin: args.admin, userId: args.userId }),
@@ -427,6 +429,10 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
       limit: 10,
       userId: args.userId,
     }),
+    hasActiveConversationCompletedOpportunityRun({
+      admin: args.admin,
+      userId: args.userId,
+    }),
   ]);
 
   const structuredProfileText = buildTalentProfileContext({
@@ -445,6 +451,7 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
       insights?.content ?? null
     ),
     currentPreferences: buildCurrentPreferences(setting),
+    isConversationCompletedOpportunityRunActive,
     isOnboardingDone: true,
     profile,
     recentRecommendedOpportunitiesText,

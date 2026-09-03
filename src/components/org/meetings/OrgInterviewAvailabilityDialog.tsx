@@ -1158,22 +1158,17 @@ export function OrgInterviewAvailabilityDialog({
               {calendar.statusQuery.data?.status === "active" ? (
                 <Tooltips
                   side="top"
-                  text="5분 단위로, 그리고 일정 선택을 요청받은 사람이 달력을 열 때 자동으로 일정을 읽어와 불가능한 시간을 처리합니다."
+                  text="자동으로 일정을 읽어와 불가능한 시간을 처리합니다."
                 >
-                  <Badge
-                    aria-label="Google Calendar 연동됨"
-                    className="bg-black/5 text-neutral-primary"
-                    size="md"
-                    tabIndex={0}
-                  >
+                  <div className="flex flex-row items-center gap-1.5 rounded-md bg-black/5 px-2 py-1 text-neutral-primary">
                     <Image
                       src="/images/logos/calendar.png"
                       alt=""
                       width={16}
                       height={16}
                     />
-                    연동됨
-                  </Badge>
+                    <span className="text-[12px] leading-5">연동됨</span>
+                  </div>
                 </Tooltips>
               ) : !calendar.statusQuery.isPending ? (
                 <span className="inline-flex items-center gap-1.5 text-[12px] leading-5 text-neutral-muted">

@@ -49,6 +49,11 @@ import {
   type AccountSubscriptionConfirmationKind,
   type AccountSubscriptionSettings,
 } from "@/lib/career/accountSubscriptions";
+import CareerReferralAttentionDot from "./referral/CareerReferralAttentionDot";
+import {
+  markCareerReferralSeen,
+  useCareerReferralAttention,
+} from "@/hooks/career/useCareerReferralAttention";
 
 export type CareerSettingsTab = "profile" | "resume" | "referral" | "account";
 type MobileSettingsView = "menu" | CareerSettingsTab;
@@ -969,7 +974,7 @@ const AccountSectionContent = ({
           )}
           desc={t(
             "career.settings.career_settings_modal.harper_enabled_description",
-            "끄면 계정과 데이터는 그대로 두고 새로운 매칭과 연결 기회 안내를 잠시 멈춥니다."
+            "off시 계정과 데이터는 그대로 두고 새로운 매칭과 연결 기회 안내를 멈춥니다."
           )}
           action={
             <div className="flex min-h-9 items-center gap-2 sm:justify-end">
@@ -1228,6 +1233,8 @@ const CareerSettingsModal = ({
   const [activeTab, setActiveTab] = useState<CareerSettingsTab>("profile");
   const [mobileView, setMobileView] = useState<MobileSettingsView>("menu");
   const [snap, setSnap] = useState<number | string | null>(MENU_SNAP);
+  const hasUnseenReferral = useCareerReferralAttention(user?.id);
+  const showReferralAttention = showReferralEntryPoints && hasUnseenReferral;
 
   const resetMobileSettings = useCallback(() => {
     setMobileView("menu");
@@ -1253,12 +1260,13 @@ const CareerSettingsModal = ({
     if (!open || !initialTab) return;
     const timer = window.setTimeout(() => {
       setActiveTab(initialTab);
+      if (initialTab === "referral") markCareerReferralSeen(user?.id);
       if (!isMobile) return;
       setMobileView(initialTab);
       setSnap(FULL_SNAP);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [initialTab, isMobile, open]);
+  }, [initialTab, isMobile, open, user?.id]);
 
   const accountEmail =
     user?.email ??
@@ -1301,6 +1309,7 @@ const CareerSettingsModal = ({
 
     const handleSelectTab = (tab: CareerSettingsTab) => {
       logCareerEvent(`click_settings_tab_${tab}`);
+      if (tab === "referral") markCareerReferralSeen(user?.id);
       setActiveTab(tab);
       setMobileView(tab);
       setSnap(FULL_SNAP);
@@ -1370,7 +1379,12 @@ const CareerSettingsModal = ({
                         <tab.Icon className="h-5 w-5 text-neutral-muted" />
                         {tab.label}
                       </span>
-                      <ChevronRight className="h-4 w-4 text-neutral-soft" />
+                      <span className="flex shrink-0 items-center gap-3">
+                        {tab.key === "referral" && showReferralAttention ? (
+                          <CareerReferralAttentionDot />
+                        ) : null}
+                        <ChevronRight className="h-4 w-4 text-neutral-soft" />
+                      </span>
                     </BareButton>
                   ))}
                 </nav>
@@ -1445,6 +1459,9 @@ const CareerSettingsModal = ({
                     type="button"
                     onClick={() => {
                       logCareerEvent(`click_settings_tab_${tab.key}`);
+                      if (tab.key === "referral") {
+                        markCareerReferralSeen(user?.id);
+                      }
                       setActiveTab(tab.key);
                     }}
                     className={[
@@ -1455,7 +1472,10 @@ const CareerSettingsModal = ({
                     ].join(" ")}
                   >
                     <tab.Icon className="h-4 w-4" />
-                    {tab.label}
+                    <span className="min-w-0 flex-1">{tab.label}</span>
+                    {tab.key === "referral" && showReferralAttention ? (
+                      <CareerReferralAttentionDot />
+                    ) : null}
                   </BareButton>
                 );
               })}

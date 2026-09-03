@@ -1,0 +1,313 @@
+{
+  "version": "internal_fit_recommendation_gold_v1",
+  "task": "internal_fit_recommendation",
+  "createdAt": "2026-09-02T20:21:57+09:00",
+  "containsProductionPII": false,
+  "caseCount": 13,
+  "basedOn": {
+    "dataset": "internal_fit_abc_gold_v3",
+    "path": "gold-v3.json",
+    "sha256": "0d223a4dbc1ad56b64958ead9aa1e5bf551702c496d2f18a964e9e3ffd9a9ead"
+  },
+  "decisionContract": {
+    "outputField": "recommend",
+    "question": "동일 후보×role이 아직 추천·진행되지 않은 fresh opportunity라면 Harper가 이 기회를 후보자에게 적극적으로 제안할 가치가 있는가?",
+    "positiveMeaning": "완벽한 match나 회사 합격 보장이 아니라, 후보자가 진지하게 검토할 만해 Harper가 선제적으로 제안해야 하는 기회다.",
+    "negativeMeaning": "현재 근거로는 제안하면 안 된다. hold는 질문 후 재평가하는 defer이며 hard rejection과 구분한다.",
+    "inputView": "fresh_decision",
+    "futureOutcomeIsolation": "ABC01-ABC07의 추천 이후 pipeline outcome과 동일 pair의 이미 추천됨 상태는 모델 입력에서 제거하고 gold provenance로만 사용한다.",
+    "hardGuard": "recommend=true is allowed only when roleFit=fit, candidateFit in {fit,middle}, and companyFit in {fit,ambiguous}.",
+    "prefilterDependency": "A positive anchor must survive first-stage pass. A hold negative may also pass so that the second stage can return recommend=false and preserve the question path.",
+    "batchUnit": "각 case는 서로 독립적인 talent×company call의 anchor role이다. 13개 case를 한 회사의 후보 13개로 취급하지 않는다."
+  },
+  "labelDistribution": {
+    "recommend": 9,
+    "doNotRecommend": 4,
+    "negativeSubtypes": {
+      "defer_for_candidate_answer": 1,
+      "hard_veto": 3
+    },
+    "softPositive": 2
+  },
+  "positiveCaseIds": [
+    "ABC01",
+    "ABC02",
+    "ABC03",
+    "ABC04",
+    "ABC05",
+    "ABC06",
+    "ABC07",
+    "ABC09",
+    "ABC10"
+  ],
+  "negativeCaseIds": [
+    "ABC08",
+    "ABC11",
+    "ABC12",
+    "ABC13"
+  ],
+  "cases": [
+    {
+      "caseId": "ABC01",
+      "talent": "T-1e71e3d78eec",
+      "company": "Config",
+      "role": "Head of Robotics Systems",
+      "sourceAxes": {"a": "fit", "b": "fit", "c": "fit"},
+      "expectedPrefilterPass": true,
+      "expectedRecommend": true,
+      "decisionClass": "recommend",
+      "decisionSubtype": "observed_outcome_positive",
+      "rationale": "직접적인 robotics production ownership, hands-on 조직 리딩과 Physical AI·서울 선호가 모두 맞으며, 실제 동일 pair가 연결 대기까지 진행했다.",
+      "outcomeProvenance": "explicit_pending_connection",
+      "capturedLifecycle": {
+        "alreadyInPipeline": true,
+        "expectedRecommendWhenIncluded": false,
+        "reason": "이미 진행 중인 동일 pair의 중복 추천은 막아야 한다."
+      },
+      "criticalError": "fresh-decision 입력에서 recommend=false"
+    },
+    {
+      "caseId": "ABC02",
+      "talent": "T-3b4f1daa9797",
+      "company": "Config",
+      "role": "Robotics Systems Engineer",
+      "sourceAxes": {"a": "fit", "b": "fit", "c": "fit"},
+      "expectedPrefilterPass": true,
+      "expectedRecommend": true,
+      "decisionClass": "recommend",
+      "decisionSubtype": "observed_outcome_positive",
+      "rationale": "humanoid middleware, 실시간 제어, ROS2, teleoperation과 대규모 AMR 운영 경험이 역할의 핵심과 직접 맞고 실제 동일 pair가 연결 대기까지 진행했다.",
+      "outcomeProvenance": "explicit_pending_connection",
+      "capturedLifecycle": {
+        "alreadyInPipeline": true,
+        "expectedRecommendWhenIncluded": false,
+        "reason": "이미 진행 중인 동일 pair의 중복 추천은 막아야 한다."
+      },
+      "criticalError": "fresh-decision 입력에서 recommend=false"
+    },
+    {
+      "caseId": "ABC03",
+      "talent": "T-0eadf128ce87",
+      "company": "Wonderful",
+      "role": "Field CTO - Australia",
+      "sourceAxes": {"a": "fit", "b": "fit", "c": "fit"},
+      "expectedPrefilterPass": true,
+      "expectedRecommend": true,
+      "decisionClass": "recommend",
+      "decisionSubtype": "observed_outcome_positive",
+      "rationale": "enterprise AI architecture, technical sales, POC와 대형 deal 경험 및 호주 근무 조건·Site CTO 선호가 맞고 실제 동일 pair가 연결 대기까지 진행했다.",
+      "outcomeProvenance": "explicit_pending_connection",
+      "capturedLifecycle": {
+        "alreadyInPipeline": true,
+        "expectedRecommendWhenIncluded": false,
+        "reason": "이미 진행 중인 동일 pair의 중복 추천은 막아야 한다."
+      },
+      "criticalError": "fresh-decision 입력에서 recommend=false"
+    },
+    {
+      "caseId": "ABC04",
+      "talent": "T-402f53ded2cd",
+      "company": "Wonderful",
+      "role": "Forward Deployed Engineer (FDE)",
+      "sourceAxes": {"a": "fit", "b": "fit", "c": "fit"},
+      "expectedPrefilterPass": true,
+      "expectedRecommend": true,
+      "decisionClass": "recommend",
+      "decisionSubtype": "observed_outcome_positive",
+      "rationale": "embedded부터 cloud·full-stack·LLM agent까지 모호한 문제를 production product로 만든 breadth가 한국 FDE와 맞고 실제 후속 company stage까지 진행했다.",
+      "outcomeProvenance": "advanced_custom_stage",
+      "capturedLifecycle": {
+        "alreadyInPipeline": true,
+        "expectedRecommendWhenIncluded": false,
+        "reason": "이미 진행 중인 동일 pair의 중복 추천은 막아야 한다."
+      },
+      "criticalError": "fresh-decision 입력에서 recommend=false"
+    },
+    {
+      "caseId": "ABC05",
+      "talent": "T-83574ee151cc",
+      "company": "Wonderful",
+      "role": "Forward Deployed Engineer (FDE) - Australia",
+      "sourceAxes": {"a": "fit", "b": "fit", "c": "fit"},
+      "expectedPrefilterPass": true,
+      "expectedRecommend": true,
+      "decisionClass": "recommend",
+      "decisionSubtype": "observed_outcome_positive",
+      "rationale": "Google·Azure의 production ownership, AI/LLM hands-on 경험과 Sydney·FDE 선호가 직접 맞고 실제 동일 pair가 final offer까지 진행했다.",
+      "outcomeProvenance": "advanced_final_offer",
+      "capturedLifecycle": {
+        "alreadyInPipeline": true,
+        "expectedRecommendWhenIncluded": false,
+        "reason": "이미 진행 중인 동일 pair의 중복 추천은 막아야 한다."
+      },
+      "criticalError": "fresh-decision 입력에서 recommend=false"
+    },
+    {
+      "caseId": "ABC06",
+      "talent": "T-a816bff17fa2",
+      "company": "Wonderful",
+      "role": "Forward Deployed Engineer (FDE) - Japan",
+      "sourceAxes": {"a": "fit", "b": "fit", "c": "fit"},
+      "expectedPrefilterPass": true,
+      "expectedRecommend": true,
+      "decisionClass": "recommend",
+      "decisionSubtype": "observed_outcome_positive",
+      "rationale": "고신뢰 distributed production system, ML integration, 0→1 제품 경험과 일본어·영어·Tokyo FDE 선호가 맞고 실제 후속 company stage까지 진행했다.",
+      "outcomeProvenance": "advanced_custom_stage",
+      "capturedLifecycle": {
+        "alreadyInPipeline": true,
+        "expectedRecommendWhenIncluded": false,
+        "reason": "이미 진행 중인 동일 pair의 중복 추천은 막아야 한다."
+      },
+      "criticalError": "fresh-decision 입력에서 recommend=false"
+    },
+    {
+      "caseId": "ABC07",
+      "talent": "T-0a368c9d7182",
+      "company": "Wonderful",
+      "role": "Forward Deployed Engineer (FDE) - Singapore",
+      "sourceAxes": {"a": "fit", "b": "fit", "c": "fit"},
+      "expectedPrefilterPass": true,
+      "expectedRecommend": true,
+      "decisionClass": "recommend",
+      "decisionSubtype": "observed_outcome_positive",
+      "rationale": "enterprise platform delivery, full-stack/cloud와 GenAI workflow 경험 및 Singapore·FDE 선호가 맞고 실제 후속 company stage까지 진행했다.",
+      "outcomeProvenance": "advanced_custom_stage",
+      "capturedLifecycle": {
+        "alreadyInPipeline": true,
+        "expectedRecommendWhenIncluded": false,
+        "reason": "이미 진행 중인 동일 pair의 중복 추천은 막아야 한다."
+      },
+      "criticalError": "fresh-decision 입력에서 recommend=false"
+    },
+    {
+      "caseId": "ABC08",
+      "talent": "T-d6dc1ba500ae",
+      "company": "Config",
+      "role": "Forward-Deployed Engineer",
+      "sourceAxes": {"a": "hold", "b": "fit", "c": "ambiguous"},
+      "expectedPrefilterPass": true,
+      "expectedRecommend": false,
+      "decisionClass": "do_not_recommend",
+      "decisionSubtype": "defer_for_candidate_answer",
+      "nextAction": "한국어 기술 협업 가능 여부를 질문하고 A를 다시 평가",
+      "rationale": "기술과 후보 선호는 강하지만 역할의 한국어 업무 요건을 충족하는지 한 가지 결정 사실이 비어 있어, 답을 받기 전에는 추천하면 안 된다.",
+      "outcomeProvenance": "expert_adjudicated_no_observed_positive",
+      "capturedLifecycle": {
+        "alreadyInPipeline": false,
+        "expectedRecommendWhenIncluded": false
+      },
+      "criticalError": "recommend=true 또는 hard rejection으로 처리"
+    },
+    {
+      "caseId": "ABC09",
+      "talent": "T-f4702bd979f3",
+      "company": "Mistral AI",
+      "role": "Applied AI Engineer, Fullstack",
+      "sourceAxes": {"a": "fit", "b": "fit", "c": "ambiguous"},
+      "expectedPrefilterPass": true,
+      "expectedRecommend": true,
+      "decisionClass": "recommend",
+      "decisionSubtype": "soft_positive_company_uncertain",
+      "rationale": "TypeScript exact keyword보다 React·JavaScript·Node.js end-to-end ownership과 고객 adoption이 중요한 역할이다. A/B가 강하고 C의 불확실성은 명시적 반대가 아닌 일반적인 outcome 부재이므로 추천할 가치가 있다.",
+      "outcomeProvenance": "expert_adjudicated_no_observed_positive",
+      "capturedLifecycle": {
+        "alreadyInPipeline": false,
+        "expectedRecommendWhenIncluded": true
+      },
+      "criticalError": "C=ambiguous라는 이유만으로 recommend=false"
+    },
+    {
+      "caseId": "ABC10",
+      "talent": "T-4cc195037ed0",
+      "company": "Wonderful",
+      "role": "Head of Partnerships, APAC",
+      "sourceAxes": {"a": "fit", "b": "middle", "c": "ambiguous"},
+      "expectedPrefilterPass": true,
+      "expectedRecommend": true,
+      "decisionClass": "recommend",
+      "decisionSubtype": "soft_positive_candidate_and_company_uncertain",
+      "rationale": "30년 이상의 APAC enterprise sales, partner ecosystem, GTM, CEO/P&L과 major deal ownership이 역할에 매우 직접적이다. B/C의 불확실성은 명시적 충돌이 아니며 역할 upside가 커서 넉넉한 추천 정책상 제안할 가치가 있다.",
+      "outcomeProvenance": "expert_adjudicated_no_observed_positive",
+      "capturedLifecycle": {
+        "alreadyInPipeline": false,
+        "expectedRecommendWhenIncluded": true
+      },
+      "criticalError": "B=middle과 C=ambiguous를 기계적으로 AND 처리해 recommend=false"
+    },
+    {
+      "caseId": "ABC11",
+      "talent": "T-abf6c85b43d2",
+      "company": "Wonderful",
+      "role": "Forward Deployed Engineer (FDE) - Thailand",
+      "sourceAxes": {"a": "unfit", "b": "unfit", "c": "unfit"},
+      "expectedPrefilterPass": false,
+      "expectedRecommend": false,
+      "decisionClass": "do_not_recommend",
+      "decisionSubtype": "hard_veto",
+      "nextAction": "suppress",
+      "rationale": "communications/editorial 경력은 software engineering·production AI·systems integration 중심 FDE와 핵심 기능이 명백히 다르다.",
+      "outcomeProvenance": "expert_adjudicated_negative",
+      "capturedLifecycle": {
+        "alreadyInPipeline": false,
+        "expectedRecommendWhenIncluded": false
+      },
+      "criticalError": "recommend=true 또는 부차적 질문으로 hold 처리"
+    },
+    {
+      "caseId": "ABC12",
+      "talent": "T-47769c67fc2b",
+      "company": "Sierra",
+      "role": "Software Engineer, Agent",
+      "sourceAxes": {"a": "fit", "b": "fit", "c": "unfit"},
+      "expectedPrefilterPass": false,
+      "expectedRecommend": false,
+      "decisionClass": "do_not_recommend",
+      "decisionSubtype": "hard_veto",
+      "nextAction": "suppress",
+      "rationale": "직무 수행과 후보 선호는 맞지만 Sierra가 명시한 별도의 최상위 회사 선별 bar를 충족하지 못하므로 회사 측 hard veto가 적용된다.",
+      "outcomeProvenance": "expert_adjudicated_negative",
+      "capturedLifecycle": {
+        "alreadyInPipeline": false,
+        "expectedRecommendWhenIncluded": false
+      },
+      "criticalError": "A/B fit만 보고 recommend=true"
+    },
+    {
+      "caseId": "ABC13",
+      "talent": "T-0f1e66f570b3",
+      "company": "Config",
+      "role": "Forward-Deployed Engineer",
+      "sourceAxes": {"a": "unfit", "b": "fit", "c": "unfit"},
+      "expectedPrefilterPass": false,
+      "expectedRecommend": false,
+      "decisionClass": "do_not_recommend",
+      "decisionSubtype": "hard_veto",
+      "nextAction": "suppress",
+      "rationale": "산업 자동화·IT-OT 경험은 강하지만 Config가 요구하는 직접 robot control·ROS·sensor/calibration과 robotics-system deployment의 핵심 근거가 없다.",
+      "outcomeProvenance": "expert_adjudicated_negative",
+      "capturedLifecycle": {
+        "alreadyInPipeline": false,
+        "expectedRecommendWhenIncluded": false
+      },
+      "criticalError": "인접 산업 경험이나 한국어 질문으로 robotics hard gap을 덮고 recommend=true"
+    }
+  ],
+  "adjudication": {
+    "type": "unblinded_product_semantics_adjudication",
+    "reviewedBy": "Codex following owner decision",
+    "basis": "별도 recommend 판단을 사용하고 deterministic hard guard만 코드로 강제하며, 추천은 완전 fit보다 넉넉하게 한다는 제품 결정",
+    "notes": [
+      "ABC01-ABC07은 추천 이후 실제 동일-pair outcome을 positive label provenance로 사용한다.",
+      "ABC09와 ABC10은 별도 recommend 변수가 3축 완전 fit 규칙보다 넓게 작동하는지를 검증하는 soft positive다.",
+      "ABC08은 추천하지 않지만 폐기하지 않고 질문 후 재평가한다.",
+      "gold-v3.json의 policy.recommendNow는 캡처 시점 delivery suppression을 포함한 이전 policy label이며 이 fresh-decision recommend gold를 대체하지 않는다."
+    ]
+  },
+  "warnings": [
+    "13개 challenge/regression case이므로 production 전체 precision/recall을 추정할 수 없다.",
+    "ABC01-ABC07의 미래 pipeline outcome을 모델 입력에 노출하면 label leakage가 된다.",
+    "현재 private/fixture-v3.json을 그대로 쓰면 이미 추천된 lifecycle이 포함될 수 있으므로 recommendation runner에는 검토된 fresh-decision fixture가 필요하다.",
+    "soft positive 두 건은 실제 company acceptance가 관측된 positive와 분리해 metric을 보고해야 한다."
+  ]
+}

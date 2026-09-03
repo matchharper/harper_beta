@@ -334,6 +334,29 @@ export async function getActiveOpportunityRun(args: {
   return run;
 }
 
+/** 온보딩 종료로 생성된 최초 탐색 run이 DB상 queued/running인 동안만 true를 반환한다. */
+export async function hasActiveConversationCompletedOpportunityRun(args: {
+  admin: AdminClient;
+  userId: string;
+}) {
+  const { count, error } = await ((
+    args.admin.from("opportunity_discovery_run" as any) as any
+  )
+    .select("id", { count: "exact", head: true })
+    .eq("talent_id", args.userId)
+    .eq("trigger", "conversation_completed")
+    .in("status", ["queued", "running"]) as any);
+
+  if (error) {
+    throw new Error(
+      error.message ??
+        "Failed to check active conversation-completed opportunity run"
+    );
+  }
+
+  return Number(count ?? 0) > 0;
+}
+
 async function fetchActiveOpportunityRunForTalent(args: {
   admin: AdminClient;
   includeExpired?: boolean;

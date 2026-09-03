@@ -134,6 +134,14 @@ test("stage scheduling can prepare a meeting without moving an already-staged ca
   );
   assert.match(
     move?.function.description ?? "",
+    /available from any company-visible active stage/
+  );
+  assert.match(
+    move?.function.description ?? "",
+    /Never restrict it to pending_connection/
+  );
+  assert.match(
+    move?.function.description ?? "",
     /standard delayed-delivery policy/
   );
   assert.match(
@@ -583,6 +591,18 @@ test("candidate contact uses one draft-lifecycle tool", () => {
   assert.match(
     contactTalent?.function.description ?? "",
     /pending draft context or candidate_contact_ref/
+  );
+  assert.match(
+    contactTalent?.function.description ?? "",
+    /available throughout the active company process/
+  );
+  assert.match(
+    contactTalent?.function.description ?? "",
+    /never restrict it to 연결 대기/
+  );
+  assert.doesNotMatch(
+    contactTalent?.function.description ?? "",
+    /must be in 연결 대기 for the Role/
   );
   assert.equal(enabled.includes("change_talent_contact"), false);
   assert.equal(isOrgAgentToolName("change_talent_contact"), false);

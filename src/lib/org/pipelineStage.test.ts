@@ -27,10 +27,18 @@ test("company-side labels never expose common database enums", () => {
     "후보자 진행"
   );
   assert.equal(
+    humanizeOrgProgressKind("company_request_followup_sent"),
+    "회사 요청 팔로업 발송"
+  );
+  assert.equal(
     humanizeOrgCandidateActivity("candidate_response_received"),
     "후보자 답변 수신"
   );
   assert.equal(humanizeOrgCandidateActivity("meeting_confirmed"), "미팅 확정");
+  assert.equal(
+    humanizeOrgCandidateActivity("company_request_followup_sent"),
+    "회사 요청 팔로업 발송"
+  );
   assert.equal(humanizeOrgCandidateRequestKind("resume"), "이력서 요청");
   assert.equal(humanizeOrgStage("custom:123", "기술 인터뷰"), "기술 인터뷰");
 });

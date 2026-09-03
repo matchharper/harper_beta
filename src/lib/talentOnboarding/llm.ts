@@ -1,7 +1,9 @@
 import {
+  createChatCompletionStreamWithFallback,
   createChatCompletionWithFallback,
   getLlmChatProviderForModel,
   supportsResponseFormatForModel,
+  type ChatCompletionReasoningEffort,
   usesMaxCompletionTokensForModel,
 } from "@/lib/llm/llm";
 import type { OpenAIResponsesReasoningEffort } from "@/lib/llm/responsesChatAdapter";
@@ -27,6 +29,9 @@ export type TalentChatMessage = {
   _responses_output?: any[];
   content: string | TalentChatTextContentBlock[];
   name?: string;
+  reasoning?: string;
+  reasoning_content?: string;
+  reasoning_details?: unknown[];
   role: "system" | "user" | "assistant" | "tool";
   tool_call_id?: string;
   tool_calls?: Array<{
@@ -62,6 +67,7 @@ export type TalentChatTool = {
 
 type TalentAssistantModelConfig = {
   anthropicOverloadFallbackModel?: string;
+  chatCompletionReasoningEffort?: ChatCompletionReasoningEffort;
   fallbackModel?: string;
   primaryModel?: string;
 };
@@ -127,8 +133,10 @@ function getOpenAiResponseToolCallNames(response: any) {
 
 async function createTalentChatCompletion(args: {
   anthropicOverloadFallbackModel?: string;
+  chatCompletionReasoningEffort?: ChatCompletionReasoningEffort;
   fallbackModel?: string;
   messages: TalentChatMessage[];
+  onTextDelta?: (delta: string) => void | Promise<void>;
   openAIResponsesReasoningEffort?: OpenAIResponsesReasoningEffort;
   primaryModel?: string;
   temperature: number;
@@ -138,8 +146,10 @@ async function createTalentChatCompletion(args: {
 }) {
   const {
     anthropicOverloadFallbackModel = DEFAULT_TALENT_ANTHROPIC_OVERLOAD_FALLBACK_MODEL,
+    chatCompletionReasoningEffort,
     fallbackModel = DEFAULT_TALENT_FALLBACK_MODEL,
     messages,
+    onTextDelta,
     openAIResponsesReasoningEffort,
     primaryModel = DEFAULT_TALENT_PRIMARY_MODEL,
     temperature,
@@ -152,8 +162,15 @@ async function createTalentChatCompletion(args: {
       ? ({ tools: tools as any, tool_choice: "auto" as const } as const)
       : undefined;
 
-  const { model, response } = await createChatCompletionWithFallback({
+  const completionArgs = {
     anthropicOverloadFallbackModel,
+    ...(chatCompletionReasoningEffort
+      ? {
+          chatCompletionReasoning: {
+            reasoningEffort: chatCompletionReasoningEffort,
+          },
+        }
+      : {}),
     fallbackModel,
     model: primaryModel,
     debugLabel: usageLabel,
@@ -169,7 +186,13 @@ async function createTalentChatCompletion(args: {
       temperature,
       ...(toolPayload ?? {}),
     }),
-  });
+  };
+  const { model, response } = onTextDelta
+    ? await createChatCompletionStreamWithFallback({
+        ...completionArgs,
+        onTextDelta,
+      })
+    : await createChatCompletionWithFallback(completionArgs);
   logLlmTokenUsage({
     label: usageLabel,
     model,
@@ -199,6 +222,7 @@ async function createTalentChatCompletion(args: {
 export async function runTalentAssistantCompletion(args: {
   abortSignal?: AbortSignal;
   anthropicOverloadFallbackModel?: string;
+  chatCompletionReasoningEffort?: ChatCompletionReasoningEffort;
   fallbackModel?: string;
   jsonSchema?: TalentJsonSchema;
   maxTokens?: number;
@@ -213,6 +237,7 @@ export async function runTalentAssistantCompletion(args: {
   const {
     abortSignal,
     anthropicOverloadFallbackModel = DEFAULT_TALENT_ANTHROPIC_OVERLOAD_FALLBACK_MODEL,
+    chatCompletionReasoningEffort,
     fallbackModel = DEFAULT_TALENT_FALLBACK_MODEL,
     jsonSchema,
     maxTokens,
@@ -226,6 +251,13 @@ export async function runTalentAssistantCompletion(args: {
   } = args;
   const { model, response } = await createChatCompletionWithFallback({
     anthropicOverloadFallbackModel,
+    ...(chatCompletionReasoningEffort
+      ? {
+          chatCompletionReasoning: {
+            reasoningEffort: chatCompletionReasoningEffort,
+          },
+        }
+      : {}),
     fallbackModel,
     model: primaryModel,
     debugLabel: usageLabel,
@@ -298,9 +330,16 @@ export async function runTalentAssistantToolLoop(args: {
   modelConfig?: TalentAssistantModelConfig;
   messages: TalentChatMessage[];
   onToolStart?: (args: {
+    id: string;
     input: Record<string, unknown>;
     name: string;
   }) => void | Promise<void>;
+  onStopToolStart?: (args: {
+    id: string;
+    input: Record<string, unknown>;
+    name: string;
+  }) => void | Promise<void>;
+  onTextDelta?: (delta: string) => void | Promise<void>;
   openAIResponsesReasoningEffort?: OpenAIResponsesReasoningEffort;
   stopAfterToolNames?: string[];
   temperature?: number;
@@ -313,6 +352,8 @@ export async function runTalentAssistantToolLoop(args: {
     maxTotalToolCalls = 4,
     modelConfig,
     messages,
+    onStopToolStart,
+    onTextDelta,
     onToolStart,
     openAIResponsesReasoningEffort,
     stopAfterToolNames = [],
@@ -321,10 +362,11 @@ export async function runTalentAssistantToolLoop(args: {
     usageLabel,
   } = args;
 
-  if (tools.length === 0) {
+  if (tools.length === 0 && !onTextDelta) {
     return runTalentAssistantCompletion({
       anthropicOverloadFallbackModel:
         modelConfig?.anthropicOverloadFallbackModel,
+      chatCompletionReasoningEffort: modelConfig?.chatCompletionReasoningEffort,
       fallbackModel: modelConfig?.fallbackModel,
       messages,
       openAIResponsesReasoningEffort,
@@ -332,6 +374,22 @@ export async function runTalentAssistantToolLoop(args: {
       temperature,
       usageLabel,
     });
+  }
+
+  if (tools.length === 0) {
+    const response = await createTalentChatCompletion({
+      anthropicOverloadFallbackModel:
+        modelConfig?.anthropicOverloadFallbackModel,
+      chatCompletionReasoningEffort: modelConfig?.chatCompletionReasoningEffort,
+      fallbackModel: modelConfig?.fallbackModel,
+      messages,
+      onTextDelta,
+      openAIResponsesReasoningEffort,
+      primaryModel: modelConfig?.primaryModel,
+      temperature,
+      usageLabel,
+    });
+    return cleanModelText(getMessageContent(response.choices[0]?.message));
   }
 
   const workingMessages = [...messages];
@@ -351,8 +409,10 @@ export async function runTalentAssistantToolLoop(args: {
     const response = await createTalentChatCompletion({
       anthropicOverloadFallbackModel:
         modelConfig?.anthropicOverloadFallbackModel,
+      chatCompletionReasoningEffort: modelConfig?.chatCompletionReasoningEffort,
       fallbackModel: modelConfig?.fallbackModel,
       messages: workingMessages,
+      onTextDelta,
       openAIResponsesReasoningEffort,
       primaryModel: modelConfig?.primaryModel,
       temperature,
@@ -374,6 +434,15 @@ export async function runTalentAssistantToolLoop(args: {
     workingMessages.push({
       ...(Array.isArray(message?._responses_output)
         ? { _responses_output: message._responses_output }
+        : {}),
+      ...(typeof message?.reasoning === "string"
+        ? { reasoning: message.reasoning }
+        : {}),
+      ...(typeof message?.reasoning_content === "string"
+        ? { reasoning_content: message.reasoning_content }
+        : {}),
+      ...(Array.isArray(message?.reasoning_details)
+        ? { reasoning_details: message.reasoning_details }
         : {}),
       role: "assistant",
       content: assistantContent,
@@ -431,9 +500,17 @@ export async function runTalentAssistantToolLoop(args: {
       const toolStartedAt = Date.now();
       try {
         await onToolStart?.({
+          id: toolCallId,
           name: toolName,
           input: parsedArguments,
         });
+        if (stopAfterToolNameSet.has(toolName)) {
+          await onStopToolStart?.({
+            id: toolCallId,
+            name: toolName,
+            input: parsedArguments,
+          });
+        }
         const result = await executeTool({
           name: toolName,
           input: parsedArguments,
@@ -479,8 +556,10 @@ export async function runTalentAssistantToolLoop(args: {
 
   const fallback = await createTalentChatCompletion({
     anthropicOverloadFallbackModel: modelConfig?.anthropicOverloadFallbackModel,
+    chatCompletionReasoningEffort: modelConfig?.chatCompletionReasoningEffort,
     fallbackModel: modelConfig?.fallbackModel,
     messages: workingMessages,
+    onTextDelta,
     openAIResponsesReasoningEffort,
     primaryModel: modelConfig?.primaryModel,
     temperature,

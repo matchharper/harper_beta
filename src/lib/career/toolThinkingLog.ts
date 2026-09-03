@@ -58,6 +58,7 @@ export function getCareerToolStartThinkingLog(
         "포지션 우선 검토 요청을 처리하고 있습니다."
       );
     case "record_internal_fit_reevaluation_information":
+    case "request_internal_role_reconsideration":
       return careerT(
         locale,
         "career.chat.tool.record_internal_fit_reevaluation_information.start",

@@ -9,6 +9,7 @@ import {
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CareerChatPanel from "@/components/career/CareerChatPanel";
+import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
 import CareerHistoryPanel from "@/components/career/CareerHistoryPanel";
 import CareerHomePanel from "@/components/career/CareerHomePanel";
 import CareerProfileWorkspace from "@/components/career/profile/CareerProfileWorkspace";
@@ -344,6 +345,7 @@ const CareerWorkspaceRoot = ({
   ) => void;
 }) => {
   const t = useCareerT();
+  const { inputMode } = useCareerChatPanelContext();
 
   const [activeTabState, setActiveTabState] =
     useState<CareerWorkspaceTab>("home");
@@ -400,6 +402,7 @@ const CareerWorkspaceRoot = ({
   }, []);
   const pendingInternalRoleFeedbackCount = historyOpportunityCounts.newInternal;
   const navItems = useMemo(() => getWorkspaceTabOptions(t), [t]);
+  const isCallInProgress = inputMode === "call";
 
   const detectedMobileViewport = useIsMobile();
   const isMobileViewport =
@@ -430,7 +433,7 @@ const CareerWorkspaceRoot = ({
       <div
         ref={workspaceRef}
         className={cn(
-          "flex w-full flex-col md:min-h-0 md:flex-1 md:flex-row md:overflow-hidden",
+          "relative flex w-full flex-col md:min-h-0 md:flex-1 md:flex-row md:overflow-hidden",
           fillParent && "min-h-0 flex-1 overflow-hidden",
           forceDesktopLayout && "min-h-0 flex-1 flex-row overflow-hidden"
         )}
@@ -439,6 +442,9 @@ const CareerWorkspaceRoot = ({
           id="career-chat-panel"
           className={cn(
             "flex min-h-0 min-w-0 flex-col border-b border-neutral-1000-a05 bg-bg-default md:flex-none md:border-b-0",
+            isCallInProgress
+              ? "transition-[flex-basis] duration-500 ease-in-out motion-reduce:transition-none"
+              : "transition-none",
             forceDesktopLayout
               ? "h-auto flex-none border-b-0"
               : fillParent
@@ -448,9 +454,11 @@ const CareerWorkspaceRoot = ({
           style={
             isDesktop
               ? {
-                  flexBasis: `calc(${chatPanelWidth}% - ${
-                    CHAT_PANEL_RESIZE_HANDLE_WIDTH_PX / 2
-                  }px)`,
+                  flexBasis: isCallInProgress
+                    ? "100%"
+                    : `calc(${chatPanelWidth}% - ${
+                        CHAT_PANEL_RESIZE_HANDLE_WIDTH_PX / 2
+                      }px)`,
                 }
               : undefined
           }
@@ -461,73 +469,92 @@ const CareerWorkspaceRoot = ({
         </section>
 
         <div
-          role="separator"
-          tabIndex={isDesktop ? 0 : -1}
-          aria-label={"채팅 패널 너비 조절"}
-          aria-orientation="vertical"
-          onPointerDown={(event) => {
-            event.preventDefault();
-            handleResizeStart(event.clientX);
+          aria-hidden={isCallInProgress}
+          inert={isCallInProgress ? true : undefined}
+          style={{
+            width: `calc(${100 - chatPanelWidth}% + ${
+              CHAT_PANEL_RESIZE_HANDLE_WIDTH_PX / 2
+            }px)`,
           }}
-          onKeyDown={handleResizeKeyDown}
           className={cn(
-            "hidden cursor-col-resize items-center justify-center bg-bg-basement outline-none transition-colors hover:bg-bg-weak focus:bg-bg-weak md:flex md:w-2 md:shrink-0",
-            forceDesktopLayout && "flex w-2 shrink-0"
-          )}
-        >
-          <div className="flex h-16 w-1 items-center justify-center rounded-full">
-            <div className="h-10 w-[3px] rounded-full bg-black/20" />
-          </div>
-        </div>
-
-        <section
-          className={cn(
-            "min-w-0 flex-1 bg-bg-basement md:min-h-0",
-            forceDesktopLayout && "min-h-0"
+            "absolute inset-y-0 right-0 z-10 flex min-w-0 will-change-transform",
+            isCallInProgress
+              ? "transition-[opacity,translate] duration-500 ease-in-out motion-reduce:transition-none"
+              : "transition-none",
+            isCallInProgress
+              ? "pointer-events-none translate-x-full opacity-0"
+              : "translate-x-0 opacity-100"
           )}
         >
           <div
+            role="separator"
+            tabIndex={isDesktop && !isCallInProgress ? 0 : -1}
+            aria-label={"채팅 패널 너비 조절"}
+            aria-orientation="vertical"
+            onPointerDown={(event) => {
+              event.preventDefault();
+              handleResizeStart(event.clientX);
+            }}
+            onKeyDown={handleResizeKeyDown}
             className={cn(
-              "flex h-full min-h-[45svh] flex-col md:min-h-0",
+              "hidden w-2 shrink-0 cursor-col-resize items-center justify-center bg-bg-basement outline-none transition-colors hover:bg-bg-weak focus:bg-bg-weak md:flex",
+              forceDesktopLayout && "flex"
+            )}
+          >
+            <div className="flex h-16 w-1 items-center justify-center rounded-full">
+              <div className="h-10 w-[3px] rounded-full bg-black/20" />
+            </div>
+          </div>
+
+          <section
+            className={cn(
+              "min-w-0 flex-1 overflow-hidden bg-bg-basement md:min-h-0",
               forceDesktopLayout && "min-h-0"
             )}
           >
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-8">
-              <nav className="flex shrink-0 flex-wrap items-center justify-center gap-2 border-b border-neutral-1000-a05 px-3 py-3.5">
-                {navItems.map((item) => {
-                  const Icon = item.icon;
-                  const active = item.id === activeTab;
+            <div
+              className={cn(
+                "flex h-full min-h-[45svh] flex-col md:min-h-0",
+                forceDesktopLayout && "min-h-0"
+              )}
+            >
+              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-8">
+                <nav className="flex shrink-0 flex-wrap items-center justify-center gap-2 border-b border-neutral-1000-a05 px-3 py-3.5">
+                  {navItems.map((item) => {
+                    const Icon = item.icon;
+                    const active = item.id === activeTab;
 
-                  return (
-                    <ActionButton
-                      key={item.id}
-                      onClick={() => handleChangeTab(item.id)}
-                      active={active}
-                      actionVariant="secondary"
-                      className="px-6"
-                    >
-                      <Icon className="h-4 w-4" />
-                      {item.label}
-                      {item.id === "history" &&
-                      pendingInternalRoleFeedbackCount > 0 ? (
-                        <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-lg bg-sky-600 px-2.5 text-[11px] leading-none text-neutral-00">
-                          {pendingInternalRoleFeedbackCount}
-                        </span>
-                      ) : null}
-                    </ActionButton>
-                  );
-                })}
-              </nav>
-              <div className="mx-auto flex w-full max-w-[1120px] flex-1 flex-col">
-                <CareerWorkspaceContent
-                  activeTab={activeTab}
-                  onChangeTab={handleChangeTab}
-                  onRequestChatFocus={handleRequestChatFocus}
-                />
+                    return (
+                      <ActionButton
+                        key={item.id}
+                        onClick={() => handleChangeTab(item.id)}
+                        active={active}
+                        actionVariant="secondary"
+                        className="px-6"
+                      >
+                        <Icon className="h-4 w-4" />
+                        {item.label}
+                        {item.id === "history" &&
+                        pendingInternalRoleFeedbackCount > 0 ? (
+                          <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-lg bg-sky-600 px-2.5 text-[11px] leading-none text-neutral-00">
+                            {pendingInternalRoleFeedbackCount}
+                          </span>
+                        ) : null}
+                      </ActionButton>
+                    );
+                  })}
+                </nav>
+                <div className="mx-auto flex w-full max-w-[1120px] flex-1 flex-col">
+                  <CareerWorkspaceContent
+                    activeTab={activeTab}
+                    onChangeTab={handleChangeTab}
+                    onRequestChatFocus={handleRequestChatFocus}
+                  />
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </div>
       </div>
     </div>
   );

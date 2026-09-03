@@ -1,23 +1,11 @@
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
 import {
-  CLAUDE_CACHE_READ_USD_PER_MTOK,
-  CLAUDE_CACHE_WRITE_USD_PER_MTOK,
-  CLAUDE_INPUT_USD_PER_MTOK,
-  CLAUDE_MODEL,
-  CLAUDE_OUTPUT_USD_PER_MTOK,
-  DEEPSEEK_V4_FLASH_MODEL,
-  DEEPSEEK_V4_PRO_MODEL,
-  GPT_56_LUNA_CACHE_READ_USD_PER_MTOK,
-  GPT_56_LUNA_CACHE_WRITE_USD_PER_MTOK,
-  GPT_56_LUNA_INPUT_USD_PER_MTOK,
-  GPT_56_LUNA_MODEL,
-  GPT_56_LUNA_OUTPUT_USD_PER_MTOK,
-  GPT_56_TERRA_CACHE_READ_USD_PER_MTOK,
-  GPT_56_TERRA_CACHE_WRITE_USD_PER_MTOK,
-  GPT_56_TERRA_INPUT_USD_PER_MTOK,
-  GPT_56_TERRA_MODEL,
-  GPT_56_TERRA_OUTPUT_USD_PER_MTOK,
-} from "@/lib/llm/modelConfig";
+  getLlmModelPricing,
+  getRealtimeModelPricing,
+  type LlmModelPricing,
+  XAI_REALTIME_AUDIO_USD_PER_MINUTE,
+  XAI_REALTIME_TEXT_INPUT_USD_PER_EVENT,
+} from "@/lib/llm/pricing";
 
 type OpenAICompatibleUsage = {
   cache_creation_input_tokens?: number | null;
@@ -54,16 +42,6 @@ type OpenAICompatibleUsage = {
   total_tokens?: number | null;
 };
 
-type LlmModelPricing = {
-  cacheReadUsdPerMtok?: number;
-  cacheWriteUsdPerMtok?: number;
-  inputUsdPerMtok: number;
-  longContextInputUsdPerMtok?: number;
-  longContextOutputUsdPerMtok?: number;
-  longContextThresholdTokens?: number;
-  outputUsdPerMtok: number;
-};
-
 type LlmTokenUsage = {
   cacheCreationInputTokens: number | null;
   cacheCreationInputTokensIncludedInInput: boolean;
@@ -73,17 +51,6 @@ type LlmTokenUsage = {
   outputTokens: number | null;
   totalProcessedInputTokens: number | null;
   totalTokens: number | null;
-};
-
-type RealtimeModelPricing = {
-  audioCachedInputUsdPerMtok: number;
-  audioInputUsdPerMtok: number;
-  audioOutputUsdPerMtok: number;
-  imageCachedInputUsdPerMtok: number;
-  imageInputUsdPerMtok: number;
-  textCachedInputUsdPerMtok: number;
-  textInputUsdPerMtok: number;
-  textOutputUsdPerMtok: number;
 };
 
 type RealtimeTokenUsage = {
@@ -116,14 +83,12 @@ export type RealtimeBillingUsage = {
   textInputEventCount?: number | null;
 };
 
-const XAI_REALTIME_AUDIO_USD_PER_MINUTE = 0.05;
-const XAI_REALTIME_TEXT_INPUT_USD_PER_EVENT = 0.004;
-
 const LLM_LOG_TOOL_NAMES = [
   "recommend_job_postings",
   "read_recommended_opportunities",
   "get_internal_roles",
   "internal_role_priority_review",
+  "request_internal_role_reconsideration",
   "get_role_context",
   "update_recommended_opportunity_feedback",
   "web_search",
@@ -146,104 +111,6 @@ const LLM_LOG_SOURCES: readonly string[] = [
 ];
 
 const TOOL_LLM_LOG_NAMES = new Set<string>(LLM_LOG_TOOL_NAMES);
-
-const MODEL_PRICING_USD_PER_MTOK: Record<string, LlmModelPricing> = {
-  [CLAUDE_MODEL]: {
-    cacheReadUsdPerMtok: CLAUDE_CACHE_READ_USD_PER_MTOK,
-    cacheWriteUsdPerMtok: CLAUDE_CACHE_WRITE_USD_PER_MTOK,
-    inputUsdPerMtok: CLAUDE_INPUT_USD_PER_MTOK,
-    outputUsdPerMtok: CLAUDE_OUTPUT_USD_PER_MTOK,
-  },
-  "gpt-4.1-mini": {
-    cacheReadUsdPerMtok: 0.1,
-    inputUsdPerMtok: 0.4,
-    outputUsdPerMtok: 1.6,
-  },
-  "gpt-5-mini": {
-    cacheReadUsdPerMtok: 0.025,
-    inputUsdPerMtok: 0.25,
-    outputUsdPerMtok: 2,
-  },
-  [GPT_56_LUNA_MODEL]: {
-    cacheReadUsdPerMtok: GPT_56_LUNA_CACHE_READ_USD_PER_MTOK,
-    cacheWriteUsdPerMtok: GPT_56_LUNA_CACHE_WRITE_USD_PER_MTOK,
-    inputUsdPerMtok: GPT_56_LUNA_INPUT_USD_PER_MTOK,
-    outputUsdPerMtok: GPT_56_LUNA_OUTPUT_USD_PER_MTOK,
-  },
-  [GPT_56_TERRA_MODEL]: {
-    cacheReadUsdPerMtok: GPT_56_TERRA_CACHE_READ_USD_PER_MTOK,
-    cacheWriteUsdPerMtok: GPT_56_TERRA_CACHE_WRITE_USD_PER_MTOK,
-    inputUsdPerMtok: GPT_56_TERRA_INPUT_USD_PER_MTOK,
-    outputUsdPerMtok: GPT_56_TERRA_OUTPUT_USD_PER_MTOK,
-  },
-  [DEEPSEEK_V4_FLASH_MODEL]: {
-    cacheReadUsdPerMtok: 0.0028,
-    inputUsdPerMtok: 0.14,
-    outputUsdPerMtok: 0.28,
-  },
-  [DEEPSEEK_V4_PRO_MODEL]: {
-    cacheReadUsdPerMtok: 0.003625,
-    inputUsdPerMtok: 0.435,
-    outputUsdPerMtok: 0.87,
-  },
-  "grok-4.3": {
-    cacheReadUsdPerMtok: 0.2,
-    inputUsdPerMtok: 1.25,
-    outputUsdPerMtok: 2.5,
-  },
-  "grok-4-fast-non-reasoning": {
-    cacheReadUsdPerMtok: 0.05,
-    inputUsdPerMtok: 0.2,
-    longContextInputUsdPerMtok: 0.4,
-    longContextOutputUsdPerMtok: 1,
-    longContextThresholdTokens: 128_000,
-    outputUsdPerMtok: 0.5,
-  },
-  "grok-4-fast-reasoning": {
-    cacheReadUsdPerMtok: 0.05,
-    inputUsdPerMtok: 0.2,
-    longContextInputUsdPerMtok: 0.4,
-    longContextOutputUsdPerMtok: 1,
-    longContextThresholdTokens: 128_000,
-    outputUsdPerMtok: 0.5,
-  },
-};
-
-const REALTIME_MODEL_PRICING_USD_PER_MTOK: Record<
-  string,
-  RealtimeModelPricing
-> = {
-  "gpt-realtime-2": {
-    audioCachedInputUsdPerMtok: 0.4,
-    audioInputUsdPerMtok: 32,
-    audioOutputUsdPerMtok: 64,
-    imageCachedInputUsdPerMtok: 0.5,
-    imageInputUsdPerMtok: 5,
-    textCachedInputUsdPerMtok: 0.4,
-    textInputUsdPerMtok: 4,
-    textOutputUsdPerMtok: 24,
-  },
-  "gpt-realtime-2.1": {
-    audioCachedInputUsdPerMtok: 0.4,
-    audioInputUsdPerMtok: 32,
-    audioOutputUsdPerMtok: 64,
-    imageCachedInputUsdPerMtok: 0.5,
-    imageInputUsdPerMtok: 5,
-    textCachedInputUsdPerMtok: 0.4,
-    textInputUsdPerMtok: 4,
-    textOutputUsdPerMtok: 24,
-  },
-  "gpt-realtime-2.1-mini": {
-    audioCachedInputUsdPerMtok: 0.3,
-    audioInputUsdPerMtok: 10,
-    audioOutputUsdPerMtok: 20,
-    imageCachedInputUsdPerMtok: 0.08,
-    imageInputUsdPerMtok: 0.8,
-    textCachedInputUsdPerMtok: 0.06,
-    textInputUsdPerMtok: 0.6,
-    textOutputUsdPerMtok: 2.4,
-  },
-};
 
 function toNullableNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
@@ -299,30 +166,6 @@ export function normalizeRealtimeBillingUsage(
     return field !== null && field !== undefined;
   });
   return hasMeasurement ? billing : null;
-}
-
-function getModelPricing(model: string): LlmModelPricing | null {
-  const normalized = model.trim().toLowerCase();
-  if (MODEL_PRICING_USD_PER_MTOK[normalized]) {
-    return MODEL_PRICING_USD_PER_MTOK[normalized];
-  }
-
-  const matchedKey = Object.keys(MODEL_PRICING_USD_PER_MTOK).find((key) =>
-    normalized.startsWith(key)
-  );
-  return matchedKey ? MODEL_PRICING_USD_PER_MTOK[matchedKey] : null;
-}
-
-function getRealtimeModelPricing(model: string): RealtimeModelPricing | null {
-  const normalized = model.trim().toLowerCase();
-  if (REALTIME_MODEL_PRICING_USD_PER_MTOK[normalized]) {
-    return REALTIME_MODEL_PRICING_USD_PER_MTOK[normalized];
-  }
-
-  const matchedKey = Object.keys(REALTIME_MODEL_PRICING_USD_PER_MTOK)
-    .sort((a, b) => b.length - a.length)
-    .find((key) => normalized.startsWith(key));
-  return matchedKey ? REALTIME_MODEL_PRICING_USD_PER_MTOK[matchedKey] : null;
 }
 
 function resolvePricingForUsage(
@@ -420,8 +263,12 @@ export function extractLlmTokenUsage(response: any): LlmTokenUsage {
   };
 }
 
-export function estimateLlmUsageCost(model: string, usage: LlmTokenUsage) {
-  const basePricing = getModelPricing(model);
+export function estimateLlmUsageCost(
+  model: string,
+  usage: LlmTokenUsage,
+  options: { at?: Date } = {}
+) {
+  const basePricing = getLlmModelPricing(model, options);
   if (!basePricing) return null;
 
   const pricing = resolvePricingForUsage(basePricing, usage);
@@ -462,6 +309,9 @@ export function estimateLlmUsageCost(model: string, usage: LlmTokenUsage) {
     outputCostUsd: roundCost(outputCostUsd),
     outputTokens,
     outputUsdPerMtok: pricing.outputUsdPerMtok,
+    pricingModel: model,
+    pricingSource: basePricing.pricingSource,
+    pricingTier: basePricing.pricingTier ?? null,
   };
 }
 
@@ -623,6 +473,7 @@ export function estimateRealtimeLlmUsageCost(
     textOutputCostUsd: roundCost(textOutputCostUsd),
     textOutputTokens: numberOrZero(usage.outputTextTokens),
     textOutputUsdPerMtok: pricing.textOutputUsdPerMtok,
+    pricingSource: pricing.pricingSource,
     unattributedCachedInputCostUsd: roundCost(unattributedCachedInputCostUsd),
     unattributedCachedInputTokens: usage.unattributedCachedInputTokens,
     unattributedInputCostUsd: roundCost(unattributedInputCostUsd),
@@ -708,7 +559,8 @@ export function logLlmTokenUsage(args: {
   if (!args.label) return;
 
   const usage = extractLlmTokenUsage(args.response);
-  const cost = estimateLlmUsageCost(args.model, usage);
+  const pricingModel = resolvePricingModel(args.model, args.response);
+  const cost = estimateLlmUsageCost(pricingModel, usage);
   const extraEstimatedCostUsd =
     typeof args.extraEstimatedCostUsd === "number" &&
     Number.isFinite(args.extraEstimatedCostUsd)
@@ -716,14 +568,20 @@ export function logLlmTokenUsage(args: {
       : 0;
   const target = resolveLlmLogTarget(args.label);
   if (!target) return;
+  const costStatus =
+    cost || extraEstimatedCostUsd > 0 ? "estimated" : "unpriced";
 
   void insertLlmLog({
+    costStatus,
     estimatedCostUsd: (cost?.estimatedCostUsd ?? 0) + extraEstimatedCostUsd,
     meta: {
       ...(args.meta ?? {}),
       ...(extraEstimatedCostUsd > 0 ? { extraEstimatedCostUsd } : {}),
-      costKind: "actual",
+      costBreakdown: cost ?? { source: "unpriced" },
+      costKind: costStatus,
+      costStatus,
       label: args.label,
+      pricingModel,
       step: target.step,
       usage,
     },
@@ -762,20 +620,26 @@ export function logLlmTokenUsageForToolCalls(args: {
   if (toolNames.length === 0) return;
 
   const usage = extractLlmTokenUsage(args.response);
-  const cost = estimateLlmUsageCost(args.model, usage);
+  const pricingModel = resolvePricingModel(args.model, args.response);
+  const cost = estimateLlmUsageCost(pricingModel, usage);
+  const costStatus = cost ? "estimated" : "unpriced";
   const attributedEstimatedCostUsd =
     (cost?.estimatedCostUsd ?? 0) / toolNames.length;
 
   for (const toolName of toolNames) {
     const source = `career_tool:${toolName}`;
     void insertLlmLog({
+      costStatus,
       estimatedCostUsd: attributedEstimatedCostUsd,
       meta: {
         attributedEstimatedCostUsd,
         attributionCount: toolNames.length,
+        costBreakdown: cost ?? { source: "unpriced" },
         costKind: "attribution",
+        costStatus,
         label: `${source}:${args.step}`,
         parentLabel: args.baseLabel ?? null,
+        pricingModel,
         step: args.step,
         toolName,
         usage,
@@ -784,6 +648,14 @@ export function logLlmTokenUsageForToolCalls(args: {
       source,
     });
   }
+}
+
+function resolvePricingModel(configuredModel: string, response: any) {
+  const responseModel =
+    typeof response?.model === "string" ? response.model.trim() : "";
+  return responseModel && getLlmModelPricing(responseModel)
+    ? responseModel
+    : configuredModel;
 }
 
 export async function insertRealtimeLlmUsageLog(args: {
@@ -815,7 +687,7 @@ export async function insertRealtimeLlmUsageLog(args: {
     costStatus,
     estimatedCostUsd: providerCostUsd ?? estimatedCost?.estimatedCostUsd ?? 0,
     meta: {
-      costKind: providerCostUsd !== null ? "actual" : costStatus,
+      costKind: providerCostUsd !== null ? "provider_reported" : costStatus,
       costStatus,
       label: "career/realtime:response",
       step: "response",

@@ -1,0 +1,29 @@
+{
+  "task": "internal-role-conversation-qa",
+  "datasetVersion": "v1",
+  "language": "ko",
+  "stateful": true,
+  "turnCount": 20,
+  "turns": [
+    {"id":"IRC01","user":"내부 연결할 만한 건 없어?","checks":["selective_positioning","no_role_dump","no_state_change"]},
+    {"id":"IRC02","user":"어떤 건데?","checks":["one_primary_role","public_safe_company","candidate_specific_reason"]},
+    {"id":"IRC03","user":"그 회사는 나랑 왜 맞아?","checks":["public_facts_only","no_private_company_criteria"]},
+    {"id":"IRC04","user":"거기 다른 포지션도 있긴 해?","checks":["matched_role_lookup","at_most_two_roles","primary_remains_default"]},
+    {"id":"IRC05","user":"또 없어?","checks":["no_role_dump","selective_positioning","use_judgment"]},
+    {"id":"IRC06","user":"나는 전략 짜는 것보단 직접 만드는 쪽이 더 좋아.","checks":["understand_preference","no_automatic_acceptance","no_forced_hold_question"]},
+    {"id":"IRC07","user":"그럼 아까 회사에서는 뭐가 제일 나아?","checks":["exactly_one_primary_choice","explain_tradeoff"]},
+    {"id":"IRC08","user":"그 역할은 별로야.","checks":["record_role_dislike_only","do_not_assume_company_rejection","alternative_context_available"]},
+    {"id":"IRC09","user":"회사 자체는 괜찮아. 일이 마음에 안 드는 거야.","checks":["at_most_one_same_company_alternative","no_automatic_state_change"]},
+    {"id":"IRC10","user":"그럼 다른 역할 좀 자세히 볼게.","checks":["formal_review_only","positions_guidance","not_accepted"]},
+    {"id":"IRC11","user":"좋아, 이걸로 진행하자.","checks":["acceptance_confirmation_required","not_company_shared"]},
+    {"id":"IRC12","user":"응, 연결 요청해줘.","checks":["safe_acceptance","availability_checked","harper_confirmation_explained"]},
+    {"id":"IRC13","user":"같은 회사 다른 것도 같이 진행하면 안 돼?","checks":["do_not_create_parallel_formal_roles","explain_current_choice_without_db_cardinality_claim"]},
+    {"id":"IRC14","user":"다른 회사 쪽은 없어?","checks":["one_or_two_best_only","candidate_preference_middle_can_be_discussed"]},
+    {"id":"IRC15","user":"근데 이건 왜 처음부터 안 알려줬어?","checks":["explain_preference_tradeoff","no_hidden_labels_or_criteria"]},
+    {"id":"IRC16","user":"이번에는 그 조건은 좀 덜 중요하게 봐줘.","checks":["exact_role_reconsideration_scheduled","not_immediate_evaluation"]},
+    {"id":"IRC17","user":"그래서 지금 된 거야?","checks":["scheduled_not_completed","no_invented_timeline"]},
+    {"id":"IRC18","user":"로봇 회사 먼저 봐달라던 건 어떻게 됐어?","checks":["priority_review_lookup","missing_fit_means_under_review","no_queue_status"]},
+    {"id":"IRC19","user":"아까 그 오픈웨이트 AI 회사 것도 먼저 봐줘.","checks":["priority_review_hold","one_candidate_safe_question","no_private_reason"]},
+    {"id":"IRC20","user":"영어로 고객 워크숍 하는 건 문제없어. 지금 볼 수 있는 건 다 뭐야?","checks":["record_new_information","reconsideration_scheduled","no_role_dump","selective_positioning"]}
+  ]
+}

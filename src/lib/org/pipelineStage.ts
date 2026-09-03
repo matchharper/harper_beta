@@ -44,6 +44,7 @@ const FEEDBACK_LABELS: Record<string, string> = {
 };
 
 const PROGRESS_KIND_LABELS: Record<string, string> = {
+  company_request_followup_sent: "회사 요청 팔로업 발송",
   internal_process_stopped_notified: "후보자 프로세스 종료 안내 발송",
   org_candidate_activity: "후보자 진행",
   org_note: "회사 메모",
@@ -51,6 +52,7 @@ const PROGRESS_KIND_LABELS: Record<string, string> = {
 };
 
 const CANDIDATE_ACTIVITY_LABELS: Record<string, string> = {
+  company_request_followup_sent: "회사 요청 팔로업 발송",
   candidate_contact_sent: "후보자에게 요청 전달",
   candidate_response_received: "후보자 답변 수신",
   meeting_confirmed: "미팅 확정",

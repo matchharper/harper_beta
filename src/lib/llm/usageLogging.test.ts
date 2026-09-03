@@ -51,6 +51,32 @@ test("prices GPT-5.6 Terra fallback usage", () => {
   assert.equal(cost?.estimatedCostUsd, 14);
 });
 
+test("prices retired Grok Fast slugs as redirected Grok 4.3", () => {
+  const usage = extractLlmTokenUsage({
+    usage: { input_tokens: 1_000, output_tokens: 500 },
+  });
+
+  const cost = estimateLlmUsageCost("grok-4-fast-reasoning", usage);
+  assert.equal(cost?.inputUsdPerMtok, 1.25);
+  assert.equal(cost?.outputUsdPerMtok, 2.5);
+  assert.equal(cost?.pricingSource, "xai_retired_slug_redirect_2026_05_15");
+  assert.equal(cost?.estimatedCostUsd, 0.0025);
+});
+
+test("uses the DeepSeek V4 peak tier effective at the logged call time", () => {
+  const usage = extractLlmTokenUsage({
+    usage: { input_tokens: 1_000, output_tokens: 500 },
+  });
+
+  const cost = estimateLlmUsageCost("deepseek-v4-pro", usage, {
+    at: new Date("2026-09-01T02:30:00Z"),
+  });
+  assert.equal(cost?.inputUsdPerMtok, 1.32);
+  assert.equal(cost?.outputUsdPerMtok, 3.96);
+  assert.equal(cost?.pricingTier, "peak");
+  assert.equal(cost?.estimatedCostUsd, 0.0033);
+});
+
 test("prices xAI realtime audio by sent and received duration", () => {
   const cost = estimateXaiRealtimeUsageCost("grok-voice-think-fast-2.0", {
     inputAudioSeconds: 60,

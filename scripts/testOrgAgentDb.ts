@@ -1506,7 +1506,7 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
       ${IDS.talent}::uuid, ${IDS.legacyRole}::uuid
     )
   `;
-  const cancelledBeforeSend = firstRow(
+  const continuedAcrossActiveStage = firstRow(
     await sql`
       select request.workflow_status, queue.status as queue_status,
              queue.sent_at, queue.cancelled_at, queue.last_error
@@ -1518,12 +1518,42 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
     `
   );
   assert(
-    cancelledBeforeSend.workflow_status === "closed" &&
-      cancelledBeforeSend.queue_status === "cancelled" &&
-      cancelledBeforeSend.sent_at === null &&
-      cancelledBeforeSend.cancelled_at !== null &&
-      cancelledBeforeSend.last_error === "stage_changed_before_send",
-    "a pre-provider stage change did not cancel the unsent request"
+    continuedAcrossActiveStage.workflow_status === "queued" &&
+      continuedAcrossActiveStage.queue_status === "queued" &&
+      continuedAcrossActiveStage.sent_at === null &&
+      continuedAcrossActiveStage.cancelled_at === null,
+    "an active company-stage move cancelled the candidate request"
+  );
+
+  await sql`
+    update public.talent_opportunity_tag
+    set tag = '내부:프로세스중단', updated_at = now()
+    where opportunity_id = ${IDS.legacyRole}::uuid
+      and talent_id = ${IDS.talent}::uuid
+  `;
+  await sql`
+    select public.reconcile_company_talent_requests_for_stage_v1(
+      ${IDS.talent}::uuid, ${IDS.legacyRole}::uuid
+    )
+  `;
+  const cancelledAfterProcessEnded = firstRow(
+    await sql`
+      select request.workflow_status, queue.status as queue_status,
+             queue.sent_at, queue.cancelled_at, queue.last_error
+      from public.company_talent_requests request
+      join public.contact_queue queue
+        on queue.company_talent_request_id = request.id
+       and queue.type = 'company_request_candidate_delivery'
+      where request.id = ${String(createdAfterCancellation.id)}::uuid
+    `
+  );
+  assert(
+    cancelledAfterProcessEnded.workflow_status === "closed" &&
+      cancelledAfterProcessEnded.queue_status === "cancelled" &&
+      cancelledAfterProcessEnded.sent_at === null &&
+      cancelledAfterProcessEnded.cancelled_at !== null &&
+      cancelledAfterProcessEnded.last_error === "stage_changed_before_send",
+    "an ended company process did not cancel the unsent request"
   );
 
   await sql`
@@ -1581,7 +1611,7 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
   const answerAfterStageChange = firstRow(
     await sql`
       select request.workflow_status,
-             public.company_talent_request_stage_is_pending_v1(request.id) as may_continue
+             public.company_talent_request_target_is_active_v1(request.id) as may_continue
       from public.company_talent_requests request
       where request.id = ${String(otherRoleRequest.id)}::uuid
     `
@@ -1589,7 +1619,7 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
   assert(
     answerAfterStageChange.workflow_status === "awaiting_talent" &&
       answerAfterStageChange.may_continue === true,
-    "a committed candidate delivery stopped being answerable after a stage change"
+    "a committed candidate delivery stopped being answerable in an active company stage"
   );
 
   const recordedAfterStageChange = firstRow(

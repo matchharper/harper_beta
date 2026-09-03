@@ -61,6 +61,7 @@ import {
   completeOnboardingAndQueueInitialOpportunityRun,
   fetchSerializedOpportunityRunForTalent,
   getActiveOpportunityRun,
+  hasActiveConversationCompletedOpportunityRun,
   serializeOpportunityRun,
 } from "@/lib/opportunityDiscovery/store";
 import {
@@ -123,7 +124,8 @@ import {
   stripOpportunityRunMarkers,
 } from "@/lib/opportunityDiscovery/messageMarker";
 import { buildFirstTurnUploadedDocumentContext } from "@/lib/talentOnboarding/documentPromptContext";
-import { fetchMatchedInternalRoleCompanyIndex } from "@/lib/career/internalRoleSearch";
+import { canUseCareerDevControls } from "@/lib/internalAccess";
+import { resolveCareerTextChatModelForRequest } from "@/lib/career/textChatModelConfig";
 
 export const maxDuration = 180;
 
@@ -137,6 +139,7 @@ type Body = {
   messageType?: unknown;
   opportunityMentions?: unknown;
   pendingAction?: unknown;
+  textChatModel?: unknown;
   uploadedDocumentIds?: unknown;
   link?: string;
 };
@@ -608,6 +611,10 @@ export async function POST(req: NextRequest) {
     const link = sanitizeSingleLineDbText(body.link, 2000);
     const userMessageType = normalizeUserChatMessageType(body.messageType);
     const requestChannel = body.channel === "voice" ? "voice" : "chat";
+    const textChatModel = resolveCareerTextChatModelForRequest(
+      body.textChatModel,
+      requestChannel === "chat" && canUseCareerDevControls(user.email)
+    );
     const allowedToolNames = normalizeAllowedToolNames(body.allowedToolNames);
     const canUseInternalFitHoldQuestionTool =
       !Array.isArray(allowedToolNames) ||
@@ -743,7 +750,7 @@ export async function POST(req: NextRequest) {
       pendingOpportunityFeedbackContext,
       recentActivitySummaries,
       recentRecommendedOpportunities,
-      matchedInternalRoleCompanyIndex,
+      isConversationCompletedOpportunityRunActive,
     ] = await Promise.all([
       fetchTalentUserProfile({ admin, userId: user.id }),
       fetchTalentInsights({ admin, userId: user.id }),
@@ -775,8 +782,11 @@ export async function POST(req: NextRequest) {
         userId: user.id,
       }),
       talentSetting?.is_onboarding_done
-        ? fetchMatchedInternalRoleCompanyIndex({ userId: user.id })
-        : Promise.resolve([]),
+        ? hasActiveConversationCompletedOpportunityRun({
+            admin,
+            userId: user.id,
+          })
+        : Promise.resolve(false),
     ]);
     const structuredProfile = await fetchTalentStructuredProfile({
       admin,
@@ -1100,8 +1110,8 @@ export async function POST(req: NextRequest) {
         onboardingChecklistCoverage,
         currentInsightContent,
         currentPreferences,
+        isConversationCompletedOpportunityRunActive,
         isOnboardingDone: talentSetting?.is_onboarding_done,
-        matchedInternalRoleCompanyIndex,
         officialJobSignupIntentPrompt: talentSetting?.is_onboarding_done
           ? null
           : officialJobSignupIntentEvent?.summary,
@@ -1278,25 +1288,28 @@ export async function POST(req: NextRequest) {
         name: toolArgs.name,
         input: toolInput,
       });
+      rememberRecommendationPostingRoleIds(result);
 
       if (toolArgs.name === TALENT_TOOL_NAMES.UPDATE_DOCUMENT) {
         documentsChanged = true;
       }
 
-      if (
+      const resultRecord = isRecord(result) ? result : null;
+      const changedRecommendedOpportunity =
         toolArgs.name ===
           TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK &&
-        isRecord(result) &&
-        result.ok === true
-      ) {
+        resultRecord?.ok === true;
+      if (changedRecommendedOpportunity) {
         opportunityRecommendationsChanged = true;
-        const opportunity = isRecord(result.opportunity)
-          ? result.opportunity
+        const opportunity = isRecord(resultRecord?.opportunity)
+          ? resultRecord.opportunity
           : null;
         changedOpportunityRoleId =
-          typeof opportunity?.roleId === "string"
-            ? opportunity.roleId.trim() || null
-            : null;
+          typeof resultRecord?.targetRoleId === "string"
+            ? resultRecord.targetRoleId.trim() || null
+            : typeof opportunity?.roleId === "string"
+              ? opportunity.roleId.trim() || null
+              : null;
         emitOpportunityRecommendationsChanged?.(changedOpportunityRoleId);
       }
 
@@ -1401,6 +1414,8 @@ export async function POST(req: NextRequest) {
             let assistantText: string;
             try {
               assistantText = await runCareerChatAssistantStream({
+                chatCompletionReasoningEffort:
+                  textChatModel.chatCompletionReasoningEffort,
                 messages: llmMessages,
                 tools: toolDefinitions,
                 isOnboardingActive,
@@ -1430,6 +1445,9 @@ export async function POST(req: NextRequest) {
                 onStopToolStart: () => {
                   clearStopToolPreamble();
                 },
+                openAIResponsesReasoningEffort:
+                  textChatModel.openAIResponsesReasoningEffort,
+                primaryModel: textChatModel.model,
                 executeTool: async ({ name, input }) => {
                   const { status, toolInput } = splitToolUiStatus(input);
                   if (name === TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING) {
@@ -1942,12 +1960,17 @@ export async function POST(req: NextRequest) {
     let assistantText: string;
     try {
       assistantText = await runCareerChatAssistant({
+        chatCompletionReasoningEffort:
+          textChatModel.chatCompletionReasoningEffort,
         messages: llmMessages,
         tools: toolDefinitions,
         isOnboardingActive,
         stopAfterToolNames: toolSelection.stopAfterToolNames,
         systemBlocks,
         responseLocale,
+        openAIResponsesReasoningEffort:
+          textChatModel.openAIResponsesReasoningEffort,
+        primaryModel: textChatModel.model,
         onToolStart: ({ name, input }) => {
           const status = getCareerToolStartThinkingLog(
             name,

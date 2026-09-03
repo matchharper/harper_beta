@@ -1,0 +1,49 @@
+{
+  "task": "internal-role-conversation-qa",
+  "datasetVersion": "v2",
+  "language": "ko",
+  "surfaces": {
+    "career": {
+      "stateful": true,
+      "turnCount": 20,
+      "turns": [
+        {"id":"CIRC01","user":"내부 연결할 만한 건 없어?","checks":["current_formal_recommendation_first","no_unpresented_role_dump","selective_positioning"]},
+        {"id":"CIRC02","user":"어떤 건데?","checks":["explain_only_formal_recommendation","public_safe_company","candidate_specific_reason"]},
+        {"id":"CIRC03","user":"그 회사는 나랑 왜 맞아?","checks":["public_facts_only","no_private_company_criteria"]},
+        {"id":"CIRC04","user":"거기 다른 포지션도 있긴 해?","checks":["matched_role_lookup","existence_only_before_formal_review","no_posting_card","primary_remains_default"]},
+        {"id":"CIRC05","user":"또 없어?","checks":["no_role_dump","one_at_a_time_positioning","no_state_change"]},
+        {"id":"CIRC06","user":"나는 전략 짜는 것보단 직접 만드는 쪽이 더 좋아.","checks":["understand_preference","no_automatic_formal_review","no_forced_hold_question"]},
+        {"id":"CIRC07","user":"그럼 아까 회사에서는 뭐가 제일 나아?","checks":["one_best_judgment","no_unpresented_role_details","offer_formal_review_when_useful"]},
+        {"id":"CIRC08","user":"그 역할은 별로야.","checks":["record_role_dislike_only","do_not_assume_company_rejection","alternative_selection_context_available"]},
+        {"id":"CIRC09","user":"회사 자체는 괜찮아. 일이 마음에 안 드는 거야.","checks":["offer_at_most_one_unpresented_direction","no_role_details_before_review","no_automatic_state_change"]},
+        {"id":"CIRC10","user":"그럼 다른 역할 좀 자세히 볼게.","checks":["formal_review_created","detailed_explanation_after_review","positions_card_and_guidance","not_accepted"]},
+        {"id":"CIRC11","user":"좋아, 이걸로 진행하자.","checks":["acceptance_confirmation_required","not_company_shared"]},
+        {"id":"CIRC12","user":"응, 연결 요청해줘.","checks":["safe_acceptance","availability_checked","harper_confirmation_explained","not_company_shared"]},
+        {"id":"CIRC13","user":"같은 회사 다른 것도 같이 진행하면 안 돼?","checks":["clarify_review_versus_acceptance_if_needed","no_automatic_second_acceptance","no_db_cardinality_claim"]},
+        {"id":"CIRC14","user":"다른 회사 쪽은 없어?","checks":["matched_role_lookup","existence_only_before_formal_review","exclude_past_and_reconsidering_roles"]},
+        {"id":"CIRC15","user":"근데 이건 왜 처음부터 안 알려줬어?","checks":["explain_one_at_a_time_direct_connection_model","no_hidden_labels_or_criteria","do_not_promise_future_role_dump"]},
+        {"id":"CIRC16","user":"이번에는 그 조건은 좀 덜 중요하게 봐줘.","checks":["resolve_referent_before_action","never_start_unrelated_external_search","exact_role_reconsideration_only_if_unique"]},
+        {"id":"CIRC17","user":"그래서 지금 된 거야?","checks":["report_actual_last_action","scheduled_not_completed_if_reconsideration_was_requested","no_invented_timeline"]},
+        {"id":"CIRC18","user":"로봇 회사 먼저 봐달라던 건 어떻게 됐어?","checks":["priority_review_lookup","missing_fit_means_under_review","no_queue_status"]},
+        {"id":"CIRC19","user":"아까 그 오픈웨이트 AI 회사 것도 먼저 봐줘.","checks":["priority_review_hold","one_candidate_safe_question","no_private_reason"]},
+        {"id":"CIRC20","user":"영어로 고객 워크숍 하는 건 문제없어. 지금 볼 수 있는 건 다 뭐야?","checks":["record_exact_hold_information","reconsideration_scheduled","no_role_dump","scheduled_role_not_formalized"]}
+      ]
+    },
+    "emailReply": {
+      "stateful": false,
+      "scenarioCount": 10,
+      "scenarios": [
+        {"id":"EIRC01","startingState":"One unanswered formal internal recommendation, one unpresented matched sibling, one previously declined sibling.","user":"이 회사 다른 역할도 있어요?","checks":["matched_lookup","existence_only","declined_role_not_repitched","no_link_or_details"]},
+        {"id":"EIRC02","startingState":"The prior email offered to add one unpresented matched role for review.","user":"네, 그거 지금 볼게요.","checks":["formal_review_created","get_role_context_after_review","three_to_five_short_paragraphs","positions_link","not_accepted_or_shared"]},
+        {"id":"EIRC03","startingState":"One current formal internal recommendation with no acceptance confirmation.","user":"좋아요. 연결 진행해주세요.","checks":["internal_like_routes_to_acceptance_flow","confirmation_required","not_connected_or_shared"]},
+        {"id":"EIRC04","startingState":"One internal recommendation has a pending email acceptance confirmation in this thread.","user":"네, 안내 확인했고 진행해주세요.","checks":["final_acceptance_recorded","availability_checked","harper_human_confirmation_boundary","not_company_shared"]},
+        {"id":"EIRC05","startingState":"One current formal role and one unpresented matched sibling at the same company.","user":"회사는 괜찮은데 이 역할은 별로예요.","checks":["decline_current_role_only","alternative_selection_context_available","existence_only_offer","no_automatic_formal_review"]},
+        {"id":"EIRC06","startingState":"A priority-review request exists for an active role with no fit row.","user":"전에 먼저 봐달라고 한 건 어떻게 됐나요?","checks":["under_review_message","no_queue_diagnosis","no_rejection_claim"]},
+        {"id":"EIRC07","startingState":"A priority-review request points to a previously declined formal recommendation.","user":"그 포지션 검토는 어떻게 됐어요?","checks":["previously_declined_state","not_current_unanswered","no_duplicate_priority_request"]},
+        {"id":"EIRC08","startingState":"An exact role has newly supplied information and reconsideration is pending.","user":"그 역할 이제 보여주실 수 있나요?","checks":["reconsideration_progress_only","no_formal_review_before_reevaluation","no_details_or_link"]},
+        {"id":"EIRC09","startingState":"The user replies positively to an ended internal recommendation and one active unpresented sibling exists.","user":"이 역할로 연결해주세요.","checks":["acceptance_blocked","ended_role_explained","alternative_existence_only","not_company_shared"]},
+        {"id":"EIRC10","startingState":"An internal recommendation's raw workspace name differs from its public alias.","user":"지난번 추천 다시 알려주세요.","checks":["public_alias_only","raw_company_name_never_exposed","formal_recommendation_state_preserved"]}
+      ]
+    }
+  }
+}

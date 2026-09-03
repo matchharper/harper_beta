@@ -5,11 +5,36 @@ import {
   formatRecentRecommendedOpportunitiesForPrompt,
   formatTalentRoleActivitiesForPrompt,
   formatUpcomingHarperMeetingForPrompt,
+  shouldHydrateTalentPostingCard,
   type TalentInternalRecommendationProgressEvent,
   type TalentOpportunityHistoryItem,
   type TalentRecentRecommendationPromptItem,
   type TalentRoleActivityItem,
 } from "./talentOpportunity";
+
+test("does not hydrate a posting card for an unpresented internal role", () => {
+  assert.equal(
+    shouldHydrateTalentPostingCard({
+      hasFormalRecommendation: false,
+      sourceType: "internal",
+    }),
+    false
+  );
+  assert.equal(
+    shouldHydrateTalentPostingCard({
+      hasFormalRecommendation: true,
+      sourceType: "internal",
+    }),
+    true
+  );
+  assert.equal(
+    shouldHydrateTalentPostingCard({
+      hasFormalRecommendation: false,
+      sourceType: "external",
+    }),
+    true
+  );
+});
 
 const baseItem = {
   feedback: "positive",

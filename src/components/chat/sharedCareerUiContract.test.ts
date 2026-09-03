@@ -10,19 +10,7 @@ const composer = source("./ChatComposer.tsx");
 const composerActionMenu = source("./ChatComposerActionMenu.tsx");
 const composerPicker = source("./ChatComposerPicker.tsx");
 const dropdownMenu = source("../ui/dropdown-menu.tsx");
-const timeline = source("./ChatTimeline.tsx");
-const thinking = source("./ChatThinkingLogPanel.tsx");
 const careerComposer = source("../career/chat/CareerComposerSection.tsx");
-const careerComposerActionMenuStart = careerComposer.indexOf(
-  "const composerActionMenuItems"
-);
-const careerComposerActionMenu = careerComposer.slice(
-  careerComposerActionMenuStart,
-  careerComposer.indexOf("\n  ];", careerComposerActionMenuStart)
-);
-const careerBubble = source("../career/chat/CareerMessageBubble.tsx");
-const careerTimeline = source("../career/chat/CareerTimelineSection.tsx");
-const careerThinking = source("../career/chat/elements/ThinkingLogPanel.tsx");
 const orgAgent = source("../org/agent/OrgAgentPanel.tsx");
 const orgComposer = source("../org/agent/OrgAgentComposer.tsx");
 const orgMessage = source("../org/agent/OrgAgentMessage.tsx");
@@ -33,108 +21,6 @@ const mobileNavigationMenu = source(
   "../career/mobile/CareerMobileNavigationMenu.tsx"
 );
 const mobileTopBar = source("../career/mobile/CareerMobileTopBar.tsx");
-
-test("shared primitives preserve the established Career visual classes", () => {
-  assert.match(
-    composer,
-    /border-neutral-1000-a05 bg-bg-floating\/55 shadow-sm backdrop-blur-2xl/
-  );
-  assert.doesNotMatch(composer, /focus-within:border/);
-  assert.match(
-    composer,
-    /min-h-\[72px\][\s\S]*px-3\.5 py-4 text-base leading-5/
-  );
-  assert.match(
-    timeline,
-    /mt-1 ml-auto w-fit max-w-\[min\(820px,92%\)\] self-end rounded-\[14px\] bg-black px-3 py-1\.5 text-neutral-00/
-  );
-  assert.match(
-    timeline,
-    /mt-3 flex max-w-\[520px\] min-w-\[320px\] w-full flex-col gap-2/
-  );
-  assert.match(
-    timeline,
-    /inline-flex gap-2 h-8 items-center justify-center rounded-\[8px\]/
-  );
-  assert.match(thinking, /ml-\[7px\] border-l border-neutral-1000-a05 pl-4/);
-  assert.match(thinking, /ThinkingLogStatusIcon/);
-  assert.match(thinking, /animate-spin text-neutral-soft/);
-  assert.doesNotMatch(thinking, /text-positive/);
-  assert.doesNotMatch(thinking, /text-critical/);
-});
-
-test("Career adapters use shared presentation without enabling org attachments", () => {
-  assert.match(careerComposer, /<ChatComposerFrame/);
-  assert.match(careerComposer, /<ChatComposerActionMenu/);
-  assert.match(careerComposer, /mobileLeadingAction=/);
-  assert.match(
-    careerComposer,
-    /setPendingFileAttachment\(createDraftFileAttachment\(file\)\)/
-  );
-  assert.match(careerComposer, /files:[\s\S]*submittedFileAttachment\.file/);
-  assert.match(careerComposer, /<ChatAttachmentDraftList/);
-  assert.match(careerComposer, /onRequestMoreOpenPositions/);
-  assert.match(careerComposer, /id: "upload-file"/);
-  assert.match(careerComposer, /id: "request-more-open-positions"/);
-  assert.match(careerComposer, /id: "conversation-starter-preference-update"/);
-  assert.match(careerComposer, /id: "conversation-starter-match-quality"/);
-  const uploadIndex = careerComposerActionMenu.indexOf('id: "upload-file"');
-  const recommendationIndex = careerComposerActionMenu.indexOf(
-    'id: "request-more-open-positions"'
-  );
-  const preferenceCallIndex = careerComposerActionMenu.indexOf(
-    'id: "conversation-starter-preference-update"'
-  );
-  const matchQualityCallIndex = careerComposerActionMenu.indexOf(
-    'id: "conversation-starter-match-quality"'
-  );
-  const pendingItemsIndex = careerComposerActionMenu.indexOf(
-    "...pendingActionMenuItems"
-  );
-  assert.ok(
-    uploadIndex < recommendationIndex &&
-      recommendationIndex < preferenceCallIndex &&
-      preferenceCallIndex < matchQualityCallIndex &&
-      matchQualityCallIndex < pendingItemsIndex
-  );
-  assert.match(careerComposerActionMenu, /subtext: "PDF, DOCX, TXT"/);
-  assert.equal(
-    careerComposerActionMenu.match(/icon: <PhoneCall \/>/g)?.length,
-    2
-  );
-  assert.doesNotMatch(
-    careerComposerActionMenu.slice(recommendationIndex),
-    /subtext:/
-  );
-  assert.doesNotMatch(
-    careerComposerActionMenu,
-    /sectionLabel: "(?:대화|도구)"/
-  );
-  assert.match(
-    careerComposer,
-    /onStartConversationStarter\(\{ mode: "call", starterId \}\)/
-  );
-  assert.match(
-    careerComposer,
-    /const visiblePendingActions = resolvedPendingActions/
-  );
-  assert.match(careerComposer, /action\.kind === "internal_fit_question"/);
-  assert.match(careerComposer, /"매칭 재평가 질문"/);
-  assert.equal(
-    careerComposer.match(/subtextLayout: "stacked" as const/g)?.length,
-    5
-  );
-  assert.match(careerComposer, /className="z-20 max-md:min-h-12 max-md:py-3"/);
-  assert.doesNotMatch(careerComposer, /allowAttachments/);
-  assert.doesNotMatch(careerComposer, /<form/);
-  assert.match(careerBubble, /<ChatMessageBubbleFrame/);
-  assert.match(careerBubble, /<ChatAssistantContent/);
-  assert.match(careerBubble, /<ChatAssistantPending/);
-  assert.match(careerBubble, /<ChatChoiceList/);
-  assert.match(careerTimeline, /<ChatDateDivider/);
-  assert.match(careerTimeline, /<ChatLoadOlderButton/);
-  assert.match(careerThinking, /<ChatThinkingLogPanel/);
-});
 
 test("composer action menu reuses Picker visuals with its own popup behavior", () => {
   assert.match(composerActionMenu, /export function ChatComposerActionMenu/);

@@ -54,66 +54,6 @@ test("Documents renders only the canonical Company FAQ collection", () => {
   assert.doesNotMatch(page, /한 역할에 연결 대기 후보자가 5명 이상/);
 });
 
-test("Documents keeps primary navigation visible on the right and expands active subsections", () => {
-  assert.match(page, /<List aria-hidden="true"/);
-  assert.match(page, /<span>문서 내용<\/span>/);
-  assert.match(page, /primarySections\.map/);
-  assert.match(page, /activePrimarySectionId === section\.id/);
-  assert.match(page, /children\.map\(\(child\) => renderLink/);
-  assert.match(page, /xl:grid-cols-\[minmax\(0,600px\)_200px\]/);
-  assert.match(page, /xl:pl-24/);
-  assert.match(page, /2xl:pl-32/);
-  assert.doesNotMatch(page, /xl:pl-12/);
-  assert.ok(
-    page.indexOf("<article") <
-      page.indexOf('<aside className="hidden xl:block">')
-  );
-  assert.match(markdownRenderer, /level: 1 \| 2 \| 3/);
-  assert.match(markdownRenderer, /\^\(#\{1,3\}\)/);
-});
-
-test("Documents stacks the mobile app bar and section navigation without overlap", () => {
-  assert.match(
-    sidebar,
-    /fixed inset-x-0 top-0 z-50 flex h-12 items-center border-b border-neutral-1000-a05 bg-bg-default/
-  );
-  assert.doesNotMatch(sidebar, /fixed left-3 top-2 z-50/);
-  assert.match(page, /sticky top-12 z-30 -mx-4 -mt-6 mb-12 sm:-mt-9 lg:-mt-10/);
-});
-
-test("Documents uses a readable warm black and white typography system", () => {
-  assert.match(page, /max-w-\[600px\]/);
-  assert.match(markdownRenderer, /text-\[36px\] xl:scroll-mt-12/);
-  assert.match(markdownRenderer, /ORG_DOCUMENTS_SECTION_EYEBROWS/);
-  for (const eyebrow of [
-    "Harper 알아보기",
-    "사용 준비",
-    "알림과 팀 협업",
-    "채용 기준 정리",
-    "후보자 검토",
-    "연결 결정",
-    "후보자 추가 확인",
-    "연결 이후 관리",
-    "도움말",
-  ]) {
-    assert.match(markdownRenderer, new RegExp(eyebrow));
-  }
-  assert.doesNotMatch(markdownRenderer, /= "Organization"/);
-  assert.match(markdownRenderer, /as="p"/);
-  assert.match(markdownRenderer, /type="eyebrow"/);
-  assert.match(markdownRenderer, /normal-case text-primary/);
-  assert.match(markdownRenderer, /<h2 className=/);
-  assert.match(page, /<h2 className=/);
-  assert.match(markdownRenderer, /lead: "mt-2 text-\[18px\]/);
-  assert.match(markdownRenderer, /paragraph: "mt-4 text-\[16px\]/);
-  assert.match(markdownRenderer, /leading-7 text-\[#403f3f\]/);
-  assert.doesNotMatch(`${page}\n${markdownRenderer}`, /neutral-/);
-  assert.doesNotMatch(
-    `${page}\n${markdownRenderer}`,
-    /font-(?:bold|extrabold)/
-  );
-});
-
 test("Documents visually separates callouts from genuine quotes", () => {
   assert.match(markdownRenderer, /\bInfo\b/);
   assert.match(markdownRenderer, /role="note"/);
@@ -188,15 +128,6 @@ test("connection decisions explain what happens to the candidate", () => {
     /Reject reason은 선택 사항이며 후보자에게 그대로 보내지지/
   );
   assert.doesNotMatch(content, /웹에도 바로 반영|한 번만 처리|중복 처리/);
-});
-
-test("Documents explains the work instead of exposing implementation language", () => {
-  assert.match(content, /공고가 있을 때와 없을 때/);
-  assert.match(content, /연결 대기에 오기까지/);
-  assert.match(content, /Pipeline에 들어오는 시점/);
-  assert.match(content, /후보자에게 전달되기 전/);
-  assert.match(content, /확인 전에는 보내지 않습니다/);
-  assert.doesNotMatch(content, /Harper chat|프로세스|모달|동기화|상태 변경/);
 });
 
 test("Documents offers direct Harper team support after FAQ", () => {

@@ -22,23 +22,11 @@ const DEFAULT_COMPOSER_OVERLAY_HEIGHT_PX = 168;
 // Increase this when the final chat should sit farther above the composer.
 const TIMELINE_BOTTOM_VISIBLE_GAP_PX = 120;
 
-const CareerCallLoadingScreen = ({
-  noticeCollapsed,
-  onToggleNotice,
-}: {
-  noticeCollapsed: boolean;
-  onToggleNotice: () => void;
-}) => {
+const CareerCallLoadingScreen = () => {
   const t = useCareerT();
 
   return (
     <div className="animate-in fade-in zoom-in-95 absolute inset-0 z-10 flex flex-col items-center justify-center bg-bg-default/95 text-neutral-primary duration-500">
-      <div className="absolute inset-x-4 top-4 flex justify-center">
-        <CareerCallEnvironmentNotice
-          collapsed={noticeCollapsed}
-          onToggle={onToggleNotice}
-        />
-      </div>
       <div
         role="status"
         aria-live="polite"
@@ -65,20 +53,32 @@ const CallSessionView = ({
   const [collapsed, setCollapsed] = useState(false);
   const toggle = useCallback(() => setCollapsed((prev) => !prev), []);
 
-  if (inputMode === "call") {
-    return (
-      <CareerCallScreen noticeCollapsed={collapsed} onToggleNotice={toggle} />
-    );
-  }
-  if (callStartPending) {
-    return (
-      <CareerCallLoadingScreen
-        noticeCollapsed={collapsed}
-        onToggleNotice={toggle}
-      />
-    );
-  }
-  return null;
+  return (
+    <>
+      <div
+        aria-hidden={!callStartPending}
+        inert={!callStartPending ? true : undefined}
+        className={cn(
+          "absolute inset-x-4 top-4 z-30 grid transition-[grid-template-rows,opacity,translate] duration-300 ease-out motion-reduce:transition-none",
+          callStartPending
+            ? "grid-rows-[1fr] translate-y-0 opacity-100"
+            : "pointer-events-none grid-rows-[0fr] -translate-y-2 opacity-0"
+        )}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <CareerCallEnvironmentNotice
+            collapsed={collapsed}
+            onToggle={toggle}
+          />
+        </div>
+      </div>
+      {inputMode === "call" ? (
+        <CareerCallScreen />
+      ) : callStartPending ? (
+        <CareerCallLoadingScreen />
+      ) : null}
+    </>
+  );
 };
 
 const CareerChatPanel = () => {

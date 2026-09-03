@@ -7,10 +7,10 @@ const checklistProgress = {
   completed: false,
   coveredCount: 3,
   finalConfirmationCovered: false,
-  minCoveredCount: 8,
-  percent: 30,
+  minCoveredCount: 10,
+  percent: 33,
   requiredQuestionsCovered: false,
-  totalCount: 10,
+  totalCount: 9,
 };
 
 test("uses the authoritative checklist snapshot when it is available", () => {
@@ -33,9 +33,9 @@ test("uses the authoritative checklist snapshot when it is available", () => {
   assert.deepEqual(progress, {
     canForceComplete: false,
     filledCount: 3,
-    percent: 30,
-    remainingCount: 7,
-    totalCount: 10,
+    percent: 33,
+    remainingCount: 6,
+    totalCount: 9,
   });
 });
 
@@ -45,7 +45,7 @@ test("reflects each newer checklist snapshot without a page reload", () => {
     checklistProgress: {
       ...checklistProgress,
       coveredCount: 4,
-      percent: 40,
+      percent: 44,
     },
     isOnboardingDone: false,
     talentInsights: null,
@@ -53,8 +53,8 @@ test("reflects each newer checklist snapshot without a page reload", () => {
   });
 
   assert.equal(progress.filledCount, 4);
-  assert.equal(progress.percent, 40);
-  assert.equal(progress.remainingCount, 6);
+  assert.equal(progress.percent, 44);
+  assert.equal(progress.remainingCount, 5);
 });
 
 test("falls back to live client signals only before a checklist snapshot exists", () => {
@@ -67,6 +67,6 @@ test("falls back to live client signals only before a checklist snapshot exists"
   });
 
   assert.equal(progress.filledCount, 4);
-  assert.equal(progress.percent, 40);
-  assert.equal(progress.totalCount, 10);
+  assert.equal(progress.percent, 44);
+  assert.equal(progress.totalCount, 9);
 });

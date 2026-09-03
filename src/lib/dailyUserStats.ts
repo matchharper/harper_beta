@@ -14,7 +14,6 @@ import {
   OFFICIAL_JOBS_INTERNAL_COPY_SLUG,
 } from "@/lib/officialJobs";
 import {
-  CAREER_SIGNUP_FLOW_EMAIL_FIRST_ALLOCATION_PERCENT,
   CAREER_SIGNUP_FLOW_CONTROL_ABTEST_TYPE,
   CAREER_SIGNUP_FLOW_EMAIL_FIRST_ABTEST_TYPE,
 } from "@/lib/careerEmailOnboarding/constants";
@@ -2398,29 +2397,6 @@ function formatInternalConnectionResponseStats(
   ].join("\n");
 }
 
-function formatLandingAbtestRows(rows: DailyUserStatsLandingAbtestRow[]) {
-  const loginFirstAllocationPercent =
-    100 - CAREER_SIGNUP_FLOW_EMAIL_FIRST_ALLOCATION_PERCENT;
-
-  return [
-    formatSlackSectionTitle("랜딩페이지 A/B Test"),
-    "career signup-flow 실험의 신규 가입 대상 unique visitor 대비 (전체 신규 방문자와 별도)",
-    `현재 배정 비율: Email first ${CAREER_SIGNUP_FLOW_EMAIL_FIRST_ALLOCATION_PERCENT}% / Login first ${loginFirstAllocationPercent}%`,
-    ...rows.map(
-      (row) =>
-        `- ${row.label}: 회원가입+제출완료 ${formatCount(
-          row.signupSubmittedCount
-        )}/${formatCount(row.entryCount)}명 (${formatPercent(
-          row.signupSubmittedRateFromEntry
-        )}), 온보딩 완료 ${formatCount(
-          row.onboardingCompletedCount
-        )}/${formatCount(row.entryCount)}명 (${formatPercent(
-          row.onboardingCompletedRateFromEntry
-        )})`
-    ),
-  ].join("\n");
-}
-
 function formatReferralFunnelStats(stats: DailyUserStatsReferralFunnelStats) {
   return [
     formatSlackSectionTitle("레퍼럴 링크"),
@@ -2554,10 +2530,6 @@ export function formatDailyUserStatsSlackMessages(
     formatSlackSectionTitle("내부 기회 추천"),
     internalOpportunityRecommendations,
   ].join("\n");
-  const landingAbtestMessage =
-    report.period === "daily"
-      ? formatLandingAbtestRows(report.landingAbtestRows)
-      : null;
   const referralFunnelMessage = formatReferralFunnelStats(
     report.referralFunnelStats
   );
@@ -2573,7 +2545,6 @@ export function formatDailyUserStatsSlackMessages(
     jobsMessage,
     "",
     internalOpportunityRecommendationsMessage,
-    ...(landingAbtestMessage ? ["", landingAbtestMessage] : []),
     "",
     referralFunnelMessage,
     ...(externalNegativeFeedbackReasonMessage

@@ -658,6 +658,9 @@ function CandidateDecisionActions({
 }
 
 function getOrgFeedTitle(item: OrgTalentDetailResponse["feed"][number]) {
+  if (item.kind === "company_request_followup_sent") {
+    return "후보자에게 회사 요청을 다시 안내했어요";
+  }
   if (item.activity?.eventType === "candidate_contact_sent") {
     return item.activity.requestKind === "resume"
       ? "후보자에게 이력서를 요청했어요"
@@ -683,6 +686,7 @@ function getOrgFeedTitle(item: OrgTalentDetailResponse["feed"][number]) {
 function getOrgFeedIcon(
   item: OrgTalentDetailResponse["feed"][number]
 ): ProgressFeedIcon {
+  if (item.kind === "company_request_followup_sent") return "mail";
   if (item.activity?.eventType === "candidate_contact_sent") return "mail";
   if (item.activity?.eventType === "candidate_response_received") {
     return "sparkles";
@@ -763,15 +767,12 @@ function FeedPanel({
   >(null);
   const otherRoleFeedScope = `${workspaceId}:${talentId ?? detail.talent.userId}:${detail.role.roleId}`;
   const scopedOtherRoleFeed =
-    otherRoleFeed?.scope === otherRoleFeedScope
-      ? otherRoleFeed.payload
-      : null;
+    otherRoleFeed?.scope === otherRoleFeedScope ? otherRoleFeed.payload : null;
   const scopedOtherRoleFeedError =
     otherRoleFeedError?.scope === otherRoleFeedScope
       ? otherRoleFeedError.message
       : null;
-  const otherRoleFeedLoading =
-    otherRoleFeedLoadingScope === otherRoleFeedScope;
+  const otherRoleFeedLoading = otherRoleFeedLoadingScope === otherRoleFeedScope;
   const scopedOtherRolesOpen =
     otherRolesOpen && otherRoleFeedOpenScope === otherRoleFeedScope;
   const createFeed = useCreateOrgFeedItem();

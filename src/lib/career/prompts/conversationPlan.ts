@@ -21,7 +21,6 @@ import {
   buildCareerChannelContextRules,
   buildKnownFutureMatchingInsightsSection,
   buildKnownPreferencesSection,
-  buildMatchedInternalRoleCompanyIndexSection,
   buildOnboardingRuntimeStateSection,
   buildOptionalFollowUpOpportunitiesSection,
   buildOpportunityStatusSection,
@@ -45,7 +44,6 @@ import type {
 import { getCareerInterruptHandlingPrompt } from "./initialPrompts";
 import { buildInternalOpportunityRealtimeInstruction } from "./cases/lifecyclePrompts";
 import type { InternalOpportunityCallRequest } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
-import type { MatchedInternalRoleCompanyIndexItem } from "@/lib/career/internalRoleSearch";
 
 const ONBOARDING_TOOL_POLICY_ALLOWED_TOOLS = [
   "update_language_setting",
@@ -81,8 +79,8 @@ export function buildCareerConversationPromptPlan(args: {
   conversationMode?: CareerConversationPromptMode;
   currentInsightContent: Record<string, string> | null;
   currentPreferences?: CareerPromptPreferences | null;
+  isConversationCompletedOpportunityRunActive?: boolean;
   internalCallRequest?: InternalOpportunityCallRequest | null;
-  matchedInternalRoleCompanyIndex?: readonly MatchedInternalRoleCompanyIndexItem[] | null;
   isOnboardingDone?: boolean;
   officialJobSignupIntentPrompt?: string | null;
   onboardingChecklistCoverage?: OnboardingChecklistCoverage | null;
@@ -307,6 +305,8 @@ export function buildCareerConversationPromptPlan(args: {
         "record_internal_fit_reevaluation_information"
       ),
       currentInsightContent: args.currentInsightContent,
+      isConversationCompletedOpportunityRunActive:
+        args.isConversationCompletedOpportunityRunActive,
       isOnboardingActive,
       profile: args.profile,
     });
@@ -319,12 +319,6 @@ export function buildCareerConversationPromptPlan(args: {
   const opportunityStatusSection = buildOpportunityStatusSection(
     args.opportunityStatus
   );
-  const matchedInternalRoleCompanyIndexSection = isOnboardingActive
-    ? ""
-    : buildMatchedInternalRoleCompanyIndexSection(
-        args.matchedInternalRoleCompanyIndex
-      );
-
   const existingPreferencesSection = buildKnownPreferencesSection(
     args.currentPreferences
   );
@@ -347,7 +341,6 @@ export function buildCareerConversationPromptPlan(args: {
     officialJobSignupIntentPrompt,
     onboardingRuntimeStateSection,
     existingPreferencesSection,
-    matchedInternalRoleCompanyIndexSection,
     optionalFollowUpOpportunitiesSection,
     // text chat에만 포함:
     args.channel === "chat"

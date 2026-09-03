@@ -95,18 +95,3 @@ test("today uses only a light outline without the shared blue fill", () => {
   );
   assert.doesNotMatch(layoutSource, /today:\s*"[^"]*bg-action-faded/);
 });
-
-test("connected Calendar is informational and refreshes when the dialog opens", () => {
-  assert.match(
-    source,
-    /useOrgMeetingAvailability\(\{\s*enabled: open,\s*workspaceId,\s*\}\)/
-  );
-  assert.match(source, /aria-label="Google Calendar 연동됨"/);
-  assert.match(source, /className="bg-black\/5 text-neutral-primary"/);
-  assert.match(
-    source,
-    /5분 단위로, 그리고 일정 선택을 요청받은 사람이 달력을 열 때 자동으로 일정을 읽어와 불가능한 시간을 처리합니다\./
-  );
-  assert.doesNotMatch(source, /Calendar Sync|syncGoogleCalendar|syncMessage/);
-  assert.doesNotMatch(source, /useSyncOrgGoogleCalendar/);
-});

@@ -39,7 +39,8 @@ export const OFFICIAL_JOBS_COPY = {
   ko: {
     cta: {
       control: "Talk to Harper",
-      treatment: "Apply with Harper",
+      treatmentMessage:
+        "이 역할에서 시작해, Harper와 다음 커리어 기회까지 함께 살펴보세요.",
     },
     initialChatDraft: "Harper 내부 기회인 {role} 포지션에 관심 있어요.",
     initialChatDraftWithCompany:
@@ -94,7 +95,8 @@ export const OFFICIAL_JOBS_COPY = {
   en: {
     cta: {
       control: "Talk to Harper",
-      treatment: "Apply with Harper",
+      treatmentMessage:
+        "Start with this role, then explore what’s next in your career with Harper.",
     },
     initialChatDraft:
       "I'm interested in the Harper internal opportunity : {role} role.",

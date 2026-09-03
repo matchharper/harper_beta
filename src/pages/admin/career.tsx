@@ -1,6 +1,7 @@
 import AdminAccessGuard from "@/components/admin/AdminAccessGuard";
 import AdminMetricsNavigation from "@/components/admin/AdminMetricsNavigation";
 import AdminCareerAbtestPanel from "@/components/admin/career/AdminCareerAbtestPanel";
+import AdminCareerActivityTab from "@/components/admin/career/AdminCareerActivityTab";
 import AdminCareerDateRangeFilter from "@/components/admin/career/AdminCareerDateRangeFilter";
 import AdminCareerDeviceComparisonPanel from "@/components/admin/career/AdminCareerDeviceComparisonPanel";
 import AdminCareerExperimentTab from "@/components/admin/career/AdminCareerExperimentTab";
@@ -30,9 +31,16 @@ import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
 
-type CareerAdminTab = "overview" | "experiment" | "utm" | "jobs" | "company";
+type CareerAdminTab =
+  | "overview"
+  | "activity"
+  | "experiment"
+  | "utm"
+  | "jobs"
+  | "company";
 const CAREER_ADMIN_TABS: CareerAdminTab[] = [
   "overview",
+  "activity",
   "experiment",
   "utm",
   "jobs",
@@ -51,6 +59,12 @@ const CAREER_ADMIN_TAB_META: Record<
     label: "Overview",
     title: "Career Analytics",
     subtitle: "랜딩부터 온보딩, 추천 소비와 피드백까지 봅니다.",
+  },
+  activity: {
+    label: "Users & Activity",
+    title: "Career Users & Activity",
+    subtitle:
+      "Signup, Career 방문, Live DB와 사용자 activity를 일·주·월로 봅니다.",
   },
   experiment: {
     label: "Experiment",
@@ -343,46 +357,47 @@ function AdminCareerContent() {
               >
                 Excluded emails ({excludedEmails.length})
               </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
-                onClick={() => void handleSendSlackSummary()}
-                disabled={
-                  activeTab !== "overview" ||
-                  isSendingSlackSummary ||
-                  !hasHydratedDateRange ||
-                  query.isLoading
-                }
-              >
-                {isSendingSlackSummary ? (
-                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Send className="h-3.5 w-3.5" />
-                )}
-                Slack 요약
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
-                onClick={() => query.refetch()}
-                disabled={
-                  activeTab !== "overview" ||
-                  !hasHydratedDateRange ||
-                  query.isFetching
-                }
-              >
-                Refresh
-              </Button>
+              {activeTab === "overview" ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
+                    onClick={() => void handleSendSlackSummary()}
+                    disabled={
+                      isSendingSlackSummary ||
+                      !hasHydratedDateRange ||
+                      query.isLoading
+                    }
+                  >
+                    {isSendingSlackSummary ? (
+                      <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Send className="h-3.5 w-3.5" />
+                    )}
+                    Slack 요약
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="h-8 rounded-none border-black/15 bg-white text-[12px] text-black shadow-none"
+                    onClick={() => query.refetch()}
+                    disabled={!hasHydratedDateRange || query.isFetching}
+                  >
+                    Refresh
+                  </Button>
+                </>
+              ) : null}
             </>
           }
         />
 
         <div className="mx-auto w-full max-w-[1180px] space-y-4 px-4 py-5 md:px-6">
-          {activeTab === "utm" ? (
+          {activeTab === "activity" ? (
+            <AdminCareerActivityTab excludedEmails={excludedEmails} />
+          ) : activeTab === "utm" ? (
             <AdminCareerUtmTab excludedEmails={excludedEmails} />
           ) : activeTab === "experiment" ? (
             <AdminCareerExperimentTab excludedEmails={excludedEmails} />

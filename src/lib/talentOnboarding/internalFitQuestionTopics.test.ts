@@ -5,7 +5,6 @@ import {
   groupInternalFitHoldQuestionCandidates,
   hasExplicitInternalFitReevaluationTopic,
   INTERNAL_FIT_REEVALUATION_TOPICS,
-  normalizeInternalFitReevaluationTopic,
 } from "./internalFitQuestionTopics";
 
 test("the topic contract has nine topics and one combined location topic", () => {
@@ -19,22 +18,6 @@ test("the topic contract has nine topics and one combined location topic", () =>
   assert.equal(
     INTERNAL_FIT_REEVALUATION_TOPICS.includes("location_feasibility" as never),
     false
-  );
-});
-
-test("legacy location topics normalize into location", () => {
-  assert.equal(
-    normalizeInternalFitReevaluationTopic({
-      topic: "location_feasibility",
-      summary: "Confirm relocation to Singapore.",
-    }),
-    "location"
-  );
-  assert.equal(
-    normalizeInternalFitReevaluationTopic({
-      summary: "한국 외에 취업 비자나 sponsorship이 가능한 국가가 있나요?",
-    }),
-    "work_authorization"
   );
 });
 
@@ -63,14 +46,14 @@ const locationCandidates = [
   "Singapore",
 ].map((country, index) => ({
   criteria: {
-    topic: index === 0 ? "location_scope" : "location",
-    summary: `Confirm whether ${country} is in scope.`,
+    topic: "location",
+    question: `Would you consider working in ${country}?`,
   },
   fitId: `fit-${index}`,
-  summary: `Confirm whether ${country} is in scope.`,
+  summary: `Would you consider working in ${country}?`,
 }));
 
-test("country-specific holds become one Korean location question and answer group", () => {
+test("country-specific holds keep the first LLM question and one answer group", () => {
   const grouped = groupInternalFitHoldQuestionCandidates(
     locationCandidates,
     "ko-KR"
@@ -85,53 +68,54 @@ test("country-specific holds become one Korean location question and answer grou
     "fit-3",
     "fit-4",
   ]);
-  assert.match(grouped[0].summary, /국가·지역/);
-  assert.match(grouped[0].summary, /알려주실 수 있나요\?/);
+  assert.equal(grouped[0].summary, "Would you consider working in Indonesia?");
 });
 
-test("English locale receives the English grouped location question", () => {
+test("locale does not rewrite an LLM-authored question", () => {
   const [grouped] = groupInternalFitHoldQuestionCandidates(
     locationCandidates,
     "en-US"
   );
 
-  assert.match(grouped.summary, /which countries or regions/i);
-  assert.doesNotMatch(grouped.summary, /국가|지역/);
+  assert.equal(grouped.summary, "Would you consider working in Indonesia?");
 });
 
-test("a single criterion also becomes a localized user-facing question", () => {
+test("a single criterion keeps the LLM-authored question verbatim", () => {
+  const question = "현재 일본에서 근무할 수 있는 취업 자격이 있으신가요?";
   const [grouped] = groupInternalFitHoldQuestionCandidates(
     [
       {
         criteria: {
           topic: "work_authorization",
-          summary: "Confirm the candidate's legal work status.",
+          question,
         },
         fitId: "fit-authorization",
-        summary: "Confirm the candidate's legal work status.",
+        summary: question,
       },
     ],
     "ko"
   );
 
-  assert.match(grouped.summary, /알려주실 수 있나요\?/);
-  assert.doesNotMatch(grouped.summary, /Confirm the candidate/);
+  assert.equal(grouped.summary, question);
 });
 
 test("location and work authorization remain separate groups", () => {
   const grouped = groupInternalFitHoldQuestionCandidates([
     {
-      criteria: { topic: "location", summary: "Confirm Japan interest." },
+      criteria: {
+        topic: "location",
+        question: "Would you consider working in Japan?",
+      },
       fitId: "fit-location",
-      summary: "Confirm Japan interest.",
+      summary: "Would you consider working in Japan?",
     },
     {
       criteria: {
         topic: "work_authorization",
-        summary: "Confirm Japan work authorization.",
+        question: "Do you have authorization to work in Japan?",
       },
       fitId: "fit-authorization",
-      summary: "Confirm Japan work authorization.",
+      summary: "Do you have authorization to work in Japan?",
     },
   ]);
 

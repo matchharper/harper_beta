@@ -68,7 +68,10 @@ import {
   updateOrgRoleRequestOnly,
   type OrgStageId,
 } from "@/lib/org/server";
-import { canStopOrgCandidateProcess } from "@/lib/org/candidateDecision";
+import {
+  canStopOrgCandidateProcess,
+  currentOrgActiveCompanyPosition,
+} from "@/lib/org/candidateDecision";
 import { humanizeOrgStage } from "@/lib/org/pipelineStage";
 import {
   getOrgRoleLifecycleUpdate,
@@ -1526,12 +1529,13 @@ async function executeCompanyTalentRequest(args: {
     user: args.user,
     workspaceId: args.workspaceId,
   });
-  const position = talent.positions.find(
-    (item) => item.roleId === role.roleId && item.stage === "pending_connection"
+  const position = currentOrgActiveCompanyPosition(
+    talent.positions,
+    role.roleId
   );
   if (!position) {
     throw new OrgAgentToolInputError(
-      "후보자가 현재 이 역할의 연결 대기 상태가 아니어서 대신 연락할 수 없어요."
+      "후보자가 현재 이 역할에서 회사와 진행 중인 상태가 아니어서 대신 연락할 수 없어요."
     );
   }
   if (!text(talent.candidate.email)) {
@@ -2104,13 +2108,13 @@ async function executeCandidateContactLifecycle(args: {
       user: args.user,
       workspaceId: args.workspaceId,
     });
-    const position = talent.positions.find(
-      (item) =>
-        item.roleId === role.roleId && item.stage === "pending_connection"
+    const position = currentOrgActiveCompanyPosition(
+      talent.positions,
+      role.roleId
     );
     if (!position) {
       throw new OrgAgentToolInputError(
-        "후보자가 현재 이 역할의 연결 대기 상태가 아니어서 대신 연락할 수 없어요."
+        "후보자가 현재 이 역할에서 회사와 진행 중인 상태가 아니어서 대신 연락할 수 없어요."
       );
     }
     if (!text(talent.candidate.email)) {
@@ -2449,15 +2453,32 @@ async function executeCandidateContactLifecycle(args: {
           userMessage: args.state.fallbackReply,
         };
       }
-      const scheduled = await scheduleCompanyTalentContact({
-        admin: args.admin as any,
-        deliveryMode: deliveryModeValue,
-        expectedRevision,
-        requestId: contact.id,
-        roleId: contact.role_id,
-        talentId: contact.talent_id,
-        workspaceId: args.workspaceId,
-      });
+      let scheduled: Awaited<ReturnType<typeof scheduleCompanyTalentContact>>;
+      try {
+        scheduled = await scheduleCompanyTalentContact({
+          admin: args.admin as any,
+          deliveryMode: deliveryModeValue,
+          expectedRevision,
+          requestId: contact.id,
+          roleId: contact.role_id,
+          talentId: contact.talent_id,
+          workspaceId: args.workspaceId,
+        });
+      } catch (error) {
+        const message =
+          error && typeof error === "object" && "message" in error
+            ? String(error.message)
+            : String(error);
+        if (
+          message.includes("company_talent_request_target_not_active") ||
+          message.includes("company_talent_request_stage_not_pending")
+        ) {
+          throw new OrgAgentToolInputError(
+            "후보자가 현재 이 역할에서 회사와 진행 중인 상태가 아니어서 연락을 보내지 않았어요."
+          );
+        }
+        throw error;
+      }
       args.state.contactDraftRef = {
         contactId: contact.id,
         revision: contact.draft_revision,
@@ -2848,18 +2869,13 @@ async function executeMoveCandidateStage(args: {
     user: args.user,
     workspaceId: args.workspaceId,
   });
-  const position = talent.positions
-    .filter((item) => item.roleId === role.roleId)
-    .sort(
-      (left, right) =>
-        String(right.updatedAt).localeCompare(String(left.updatedAt)) ||
-        String(right.recommendationId).localeCompare(
-          String(left.recommendationId)
-        )
-    )[0];
+  const position = currentOrgActiveCompanyPosition(
+    talent.positions,
+    role.roleId
+  );
   if (!position) {
     throw new OrgAgentToolInputError(
-      "The candidate is not visible in this Role's pipeline"
+      "The candidate is not currently active in this Role's company pipeline"
     );
   }
   const currentStage = moveableCompanyPipelineStage(

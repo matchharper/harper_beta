@@ -535,6 +535,10 @@ export const ko = {
       "이미 종료된 포지션이라 연결을 수락할 수 없습니다.",
     "career.api.opportunities.ended_rejection_revert_forbidden":
       "이미 종료된 포지션이라 거절을 되돌릴 수 없습니다.",
+    "career.api.opportunities.inactive_acceptance_forbidden":
+      "현재 종료되었거나 이용할 수 없는 포지션이라 연결을 수락할 수 없습니다.",
+    "career.api.opportunities.inactive_rejection_revert_forbidden":
+      "현재 종료되었거나 이용할 수 없는 포지션이라 거절을 되돌릴 수 없습니다.",
     "career.api.opportunities.internal_decision_missing":
       "되돌리거나 중단할 결정이 없습니다.",
     "career.api.opportunities.internal_decision_revert_forbidden":

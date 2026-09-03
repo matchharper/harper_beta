@@ -87,6 +87,11 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
       changefreq: "daily",
       priority: 0.9,
     },
+    {
+      loc: `${SITE_URL}/refer`,
+      changefreq: "monthly",
+      priority: 0.7,
+    },
   ];
 
   const postEntries: SitemapEntry[] = posts.map((post) => ({

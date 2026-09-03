@@ -352,7 +352,10 @@ const TimelineMessageList = memo(function TimelineMessageList({
           <div className="flex flex-col gap-2">
             {!isUser && textLogs.length > 0 && (
               <ThinkingLogPanel
-                active={isAssistantStreamActive || isOnboardingCompletionWrapup}
+                active={
+                  isAssistantStreamActive ||
+                  (isOnboardingCompletionWrapup && onboardingWrapupPending)
+                }
                 logs={textLogs}
               />
             )}

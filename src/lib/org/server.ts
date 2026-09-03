@@ -4769,6 +4769,7 @@ export async function fetchOrgTalentOtherRoleFeed(args: {
         "org_note",
         "org_candidate_activity",
         "org_candidate_role_move",
+        "company_request_followup_sent",
       ])
       .order("created_at", { ascending: false })
       .limit(200),
@@ -4782,9 +4783,7 @@ export async function fetchOrgTalentOtherRoleFeed(args: {
       .order("created_at", { ascending: false })
       .limit(100),
     (admin.from("meeting_schedules" as any) as any)
-        .select(
-          "id, role_id, status, title, duration_minutes, updated_at"
-      )
+      .select("id, role_id, status, title, duration_minutes, updated_at")
       .eq("company_workspace_id", workspaceId)
       .eq("talent_id", talentId)
       .in("role_id", roleIds)
@@ -4816,7 +4815,9 @@ export async function fetchOrgTalentOtherRoleFeed(args: {
     if (row.kind === "org_note") title = "메모";
     else if (row.kind === "org_candidate_role_move") title = "역할 변경";
     else if (row.kind === "org_stage_change") title = "상태 변경";
-    else if (eventType === "candidate_contact_sent") {
+    else if (row.kind === "company_request_followup_sent") {
+      title = "후보자에게 회사 요청을 다시 안내했어요";
+    } else if (eventType === "candidate_contact_sent") {
       title =
         normalizeText(metadata.requestKind) === "resume"
           ? "후보자에게 이력서를 요청했어요"
@@ -5114,7 +5115,12 @@ export async function fetchOrgTalentDetail(args: {
       )
       .eq("talent_id", talentId)
       .eq("role_id", recommendation.role_id)
-      .in("kind", ["org_stage_change", "org_note", "org_candidate_role_move"])
+      .in("kind", [
+        "org_stage_change",
+        "org_note",
+        "org_candidate_role_move",
+        "company_request_followup_sent",
+      ])
       .order("created_at", { ascending: false })
       .limit(50),
     (admin.from("talent_progress" as any) as any)

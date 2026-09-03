@@ -58,6 +58,7 @@ import {
   completeOnboardingAndQueueInitialOpportunityRun,
   fetchSerializedOpportunityRunForTalent,
   getActiveOpportunityRun,
+  hasActiveConversationCompletedOpportunityRun,
   serializeOpportunityRun,
 } from "@/lib/opportunityDiscovery/store";
 import {
@@ -449,6 +450,7 @@ export async function runCareerChatTurn(
     fetchedPendingOpportunityFeedbackContext,
     recentActivitySummaries,
     recentRecommendedOpportunities,
+    isConversationCompletedOpportunityRunActive,
   ] = await Promise.all([
     fetchTalentUserProfile({ admin, userId }),
     fetchTalentInsights({ admin, userId }),
@@ -482,6 +484,7 @@ export async function runCareerChatTurn(
       limit: 10,
       userId,
     }),
+    hasActiveConversationCompletedOpportunityRun({ admin, userId }),
   ]);
 
   const structuredProfile = await fetchTalentStructuredProfile({
@@ -703,6 +706,7 @@ export async function runCareerChatTurn(
       ),
       currentInsightContent,
       currentPreferences,
+      isConversationCompletedOpportunityRunActive,
       isOnboardingDone: !isOnboardingActiveForTurn,
       officialJobSignupIntentPrompt: isOnboardingActiveForTurn
         ? officialJobSignupIntentEvent?.summary
@@ -838,7 +842,7 @@ export async function runCareerChatTurn(
       return executeRecommendJobPostings(toolArgs.input);
     }
 
-    return executeTalentTool({
+    const result = await executeTalentTool({
       context: {
         admin,
         conversationId,
@@ -851,6 +855,8 @@ export async function runCareerChatTurn(
       name: toolArgs.name,
       input: toolArgs.input,
     });
+    rememberRecommendationPostingRoleIds(result);
+    return result;
   };
 
   let assistantText: string;

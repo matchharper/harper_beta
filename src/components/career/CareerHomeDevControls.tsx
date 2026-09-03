@@ -22,12 +22,19 @@ import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerReengagementPendingActions } from "@/hooks/career/useCareerReengagementPendingActions";
 import { canUseCareerDevControls } from "@/lib/internalAccess";
 import type { CareerReengagementPendingAction } from "@/lib/career/pendingActions";
+import type { CareerTextChatModelId } from "@/lib/career/textChatModelConfig";
+import {
+  CLAUDE_MODEL,
+  GPT_56_LUNA_MODEL,
+  OPENROUTER_GLM_53_FLASH_MODEL,
+} from "@/lib/llm/modelConfig";
 import { DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT } from "@/lib/opportunityDiscovery/types";
 import { useCareerDevSqlPromptHistoryStore } from "@/store/useCareerDevSqlPromptHistoryStore";
 import {
   useCareerRealtimeProviderOverrideStore,
   type CareerRealtimeProviderOverride,
 } from "@/store/useCareerRealtimeProviderOverrideStore";
+import { useCareerTextChatModelStore } from "@/store/useCareerTextChatModelStore";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 
 const devVoiceProviderOptions: Array<{
@@ -37,6 +44,24 @@ const devVoiceProviderOptions: Array<{
   { label: "Auto", value: null },
   { label: "OpenAI", value: "openai" },
   { label: "xAI", value: "xai" },
+];
+
+const devTextChatModelOptions: Array<{
+  eventKey: string;
+  label: string;
+  value: CareerTextChatModelId;
+}> = [
+  { eventKey: "sonnet_5", label: "Sonnet 5", value: CLAUDE_MODEL },
+  {
+    eventKey: "glm_5_3_flash_high",
+    label: "OpenRouter · GLM 5.3 Flash · high",
+    value: OPENROUTER_GLM_53_FLASH_MODEL,
+  },
+  {
+    eventKey: "gpt_5_6_luna_xhigh",
+    label: "GPT-5.6 Luna · xhigh",
+    value: GPT_56_LUNA_MODEL,
+  },
 ];
 
 type CareerDevSqlDraft = {
@@ -126,6 +151,10 @@ export default function CareerHomeDevControls({
   );
   const setVoiceProviderOverride = useCareerRealtimeProviderOverrideStore(
     (state) => state.setProviderOverride
+  );
+  const textChatModel = useCareerTextChatModelStore((state) => state.model);
+  const setTextChatModel = useCareerTextChatModelStore(
+    (state) => state.setModel
   );
   const {
     user,
@@ -441,6 +470,29 @@ export default function CareerHomeDevControls({
             worker 처리 대기 중
           </Text>
         ) : null}
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Text as="span" type="subtle">
+          Text LLM
+        </Text>
+        {devTextChatModelOptions.map((option) => {
+          const selected = option.value === textChatModel;
+          return (
+            <MuteButton
+              key={option.value}
+              onClick={() => {
+                logCareerEvent(`click_home_dev_text_model_${option.eventKey}`);
+                setTextChatModel(option.value);
+              }}
+              variant={selected ? "dark" : "default"}
+            >
+              {option.label}
+            </MuteButton>
+          );
+        })}
+        <Text as="span" type="subtle" className="ml-1">
+          다음 텍스트 메시지부터 적용
+        </Text>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Text as="span" type="subtle">

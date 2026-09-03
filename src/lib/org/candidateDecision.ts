@@ -21,6 +21,28 @@ export function canInitiateOrgCandidateContact(stage: OrgStageId) {
   return !isOrgInternalStage(stage) && stage !== "process_stopped";
 }
 
+type OrgActiveCompanyPosition = {
+  recommendationId: string;
+  roleId: string;
+  stage: OrgStageId;
+  updatedAt: string | null;
+};
+
+export function currentOrgActiveCompanyPosition<
+  T extends OrgActiveCompanyPosition,
+>(positions: readonly T[], roleId: string): T | null {
+  const latest =
+    positions
+      .filter((position) => position.roleId === roleId)
+      .sort(
+        (left, right) =>
+          (right.updatedAt ?? "").localeCompare(left.updatedAt ?? "") ||
+          right.recommendationId.localeCompare(left.recommendationId)
+      )[0] ?? null;
+
+  return latest && canInitiateOrgCandidateContact(latest.stage) ? latest : null;
+}
+
 export function canStopOrgCandidateProcess(stage: OrgStageId) {
   return !isOrgInternalStage(stage) && stage !== "process_stopped";
 }

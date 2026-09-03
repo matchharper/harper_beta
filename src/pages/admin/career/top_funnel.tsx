@@ -66,6 +66,11 @@ const careerTabs = [
   },
   {
     active: false,
+    href: "/admin/career?tab=activity",
+    label: "Users & Activity",
+  },
+  {
+    active: false,
     href: "/admin/career?tab=utm",
     label: "UTM",
   },

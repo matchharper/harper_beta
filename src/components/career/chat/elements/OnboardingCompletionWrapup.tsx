@@ -24,7 +24,7 @@ export const OnboardingCompletionWrapup = memo(
       process.env.NEXT_PUBLIC_ENABLE_ONBOARDING_WRAPUP_REGENERATE === "1";
 
     return (
-      <div className="w-full max-w-[760px] overflow-hidden rounded-[8px] border border-neutral-800/25 bg-linear-to-br from-bg-floating via-bg-floating to-bg-basement/75 shadow-[0_18px_60px_color-mix(in_srgb,var(--color-neutral-1000)_8%,transparent)]">
+      <div className="w-full max-w-[760px] overflow-hidden rounded-xl pb-2 border-3 border-neutral-500/20 bg-linear-to-br from-bg-floating via-bg-floating to-bg-basement/75">
         <div className="flex items-center justify-between gap-3 border-b border-neutral-1000-a05 px-4 py-3">
           <div className="flex min-w-0 items-center gap-3">
             <CheckCircle2 className="h-[18px] w-[18px] shrink-0 text-neutral-muted" />
@@ -32,7 +32,7 @@ export const OnboardingCompletionWrapup = memo(
               {t("career.common.career.1lzad2w", "대화 요약")}
             </div>
           </div>
-          {showRegenerateButton && onRegenerate ? (
+          {/* {showRegenerateButton && onRegenerate ? (
             <BareButton
               type="button"
               onClick={() => void onRegenerate()}
@@ -46,7 +46,7 @@ export const OnboardingCompletionWrapup = memo(
               )}
               Regenerate
             </BareButton>
-          ) : null}
+          ) : null} */}
         </div>
         <div className="px-4 py-4">
           <RichText

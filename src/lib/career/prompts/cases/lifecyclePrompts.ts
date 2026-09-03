@@ -226,21 +226,22 @@ export function buildCareerOpportunityFeedbackFollowUpTurnInstruction(
       triggerGuidance = [
         "Immediate internal feedback trigger:",
         "- The user liked or disliked an internal connection/request opportunity.",
-        "다음에 어떤 과정이 진행되는지 최대한 자세히 안내해라.",
+        "- If the internal opportunity was disliked, acknowledge that decision and do not use the acceptance guidance below. Follow any rejection-specific context provided for this turn.",
+        "- For a dislike, keep the reply proportional to the user's stated reason and the recorded outcome. Do not explain a future process unless the user needs a concrete next step.",
         "- If the internal opportunity was liked, treat it as confirmed acceptance. Thank them briefly and do not ask whether to connect/proceed again.",
-        "- Say Harper will deliver the introduction to the company with the appropriate context at a thoughtful time. It may not be immediate, so ask the user to wait; follow-up will arrive by email and can take up to 5-10 days.",
-        "- Never mention an internal human review, approval, final-confirmation, or manual handoff step. Do not imply that accepting the opportunity instantly sends the user's information to the company.",
+        "- Say the acceptance is recorded and Harper will prepare the candidate's relevant background and fit context and introduce them to the company at an appropriate time.",
+        "- Do not imply the profile was already shared or the company was already contacted. Explain that preparing a thoughtful introduction and coordinating with the company can take some time and that updates will arrive by email, without promising a fixed number of days. Never expose Harper's internal confirmation or handoff process.",
         "- Frame the process as Harper mediating a better-fit connection, not as a normal application.",
         "- If the profile context shows no resume file/link, mention that a resume usually improves review and companies often ask for it. Ask whether Harper should tell the company there is no updated resume yet, and invite them to upload one if they have it.",
         "- If the accepted opportunity visibly conflicts with known preferences or needs, ask one focused question about that mismatch. Example: current location vs role location, company/domain, role scope, or timing.",
         "예시 (실제 답변에서는 사용자 이름/회사명/역할명과 맥락에 맞게 자연스럽게 변형해라. markdown 강조와 줄바꿈을 적절히 사용해라.)",
         "[이름]님, **[회사명] [역할명]** 연결 제안 수락해주셔서 감사해요.",
         "",
-        "이 건은 일반적인 공고 지원이라기보다, Harper가 [이름]님의 경험과 역할 핏을 정리해서 회사 쪽에 전달하고, 양쪽의 관심이 잘 맞는지 조율하는 연결에 가까워요.",
+        "이 건은 일반적인 공고 지원이라기보다, Harper가 양쪽의 관심이 잘 맞는지 확인하고 소개를 조율하는 연결에 가까워요.",
         "",
-        "이제 Harper가 적절한 타이밍에 [이름]님의 경험과 역할 핏을 잘 정리해 회사 쪽에 전달할게요. 바로 전달되거나 답변이 오지는 않을 수 있으니 조금만 기다려주세요. 보통 **5~10일 정도** 걸릴 수 있어요.",
+        "지금은 [이름]님의 수락 의사가 기록됐어요. Harper가 [이름]님의 경험과 역할 핏을 잘 정리해서, 가장 적절한 타이밍에 회사에 소개드릴게요.",
         "",
-        "다음 과정이나 추가로 확인할 내용이 생기면 이메일로 안내드릴게요. 그동안은 따로 지원서를 다시 넣으실 필요는 없고, Harper가 이 연결 건을 이어서 챙길게요.",
+        "소개 내용을 잘 준비하고 회사 쪽 일정을 조율하는 데에는 시간이 조금 걸릴 수 있어요. 진행 상황이나 추가로 확인할 내용이 생기면 이메일로 안내드릴게요. 따로 지원서를 다시 넣으실 필요는 없습니다.",
       ];
       break;
   }

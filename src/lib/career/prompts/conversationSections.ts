@@ -3,6 +3,7 @@ import {
   ONBOARDING_QUESTION_MIN_COVERED_COUNT,
   getInsightChecklist,
   getOnboardingAdditionalQuestionKeys,
+  getOnboardingQuestionInsightKeys,
   getOnboardingQuestionChecklist,
   getOnboardingRequiredQuestionKeys,
   type OnboardingChecklistLocationContext,
@@ -25,7 +26,6 @@ import type {
   CareerPromptProfile,
   OnboardingChecklistCoverage,
 } from "@/lib/career/prompts/types";
-import type { MatchedInternalRoleCompanyIndexItem } from "@/lib/career/internalRoleSearch";
 
 /** 현재 대화 채널을 모델 prompt에 넣을 사람이 읽는 라벨로 바꾼다. */
 export function getCareerChannelType(channel: CareerPromptChannel) {
@@ -153,7 +153,7 @@ export function buildOnboardingRuntimeStateSection(args: {
   }).length;
   const missingRequiredAdditionalQuestionKeys =
     requiredAdditionalQuestionKeys.filter((key) => coverage[key] !== "covered");
-  const missingCountryRequiredQuestionKeys = requiredQuestionKeys.filter(
+  const missingRequiredQuestionKeys = requiredQuestionKeys.filter(
     (key) => coverage[key] !== "covered"
   );
   const isMinimumCoverageMet =
@@ -166,14 +166,17 @@ export function buildOnboardingRuntimeStateSection(args: {
   const checklistLines = [...onboardingChecklist]
     .sort((left, right) => left.priority - right.priority)
     .map((item) => {
-      const value = currentContent[item.insightKey ?? item.key]?.trim();
+      const insightKeys = getOnboardingQuestionInsightKeys(item);
+      const currentValueLines = insightKeys.map((insightKey) => {
+        const value = currentContent[insightKey]?.trim();
+        return `  - current ${insightKey} insight value: ${value || "(아직 없음)"}`;
+      });
       return [
         `- ${renderInsightKey(item.key, quoteKeys)} (${item.label})`,
         `  - status: ${coverage[item.key] === "covered" ? "covered" : "missing"}`,
         coverage[item.key] !== "covered" &&
           `  - promptHint: ${item.promptHint}`,
-        item.insightKey &&
-          `  - current insight value: ${value || "(아직 없음)"}`,
+        ...currentValueLines,
       ].join("\n");
     });
 
@@ -197,14 +200,14 @@ export function buildOnboardingRuntimeStateSection(args: {
     "### Closing conditions",
     `- Minimum covered checklist items: ${coveredChecklistItems.length}/${ONBOARDING_QUESTION_MIN_COVERED_COUNT} (${isMinimumCoverageMet ? "satisfied" : "not yet"})`,
     `- Language checklist key: ${isLanguageCovered ? "covered" : "missing"}`,
-    `- Required country-specific keys: ${
+    `- Required checklist keys: ${
       requiredQuestionKeys.length > 0
         ? requiredQuestionKeys.join(", ")
         : "(none)"
     }`,
-    `- Missing country-specific keys: ${
-      missingCountryRequiredQuestionKeys.length > 0
-        ? missingCountryRequiredQuestionKeys.join(", ")
+    `- Missing required checklist keys: ${
+      missingRequiredQuestionKeys.length > 0
+        ? missingRequiredQuestionKeys.join(", ")
         : "(none)"
     }`,
     `- Required additional_question keys: ${requiredAdditionalQuestionKeysText}`,
@@ -285,15 +288,23 @@ export function buildExtractionInsightChecklistSection(args: {
   const onboardingChecklistLines = [...onboardingChecklist]
     .sort((left, right) => left.priority - right.priority)
     .map((item) => {
-      const currentValue = item.insightKey
-        ? currentContent[item.insightKey]?.trim()
-        : "";
+      const insightKeys = getOnboardingQuestionInsightKeys(item);
+      const currentValueLines = insightKeys
+        .map((insightKey) => {
+          const currentValue = currentContent[insightKey]?.trim();
+          return currentValue
+            ? `  current_${insightKey}_value: "${currentValue}"`
+            : "";
+        })
+        .filter(Boolean);
       return [
         `- "${item.key}" (${item.label})`,
         `  kind: ${item.kind}`,
-        item.insightKey ? `  insight_key: "${item.insightKey}"` : "",
+        insightKeys.length > 0
+          ? `  insight_keys: ${insightKeys.map((key) => `"${key}"`).join(", ")}`
+          : "",
         `  current_status: ${coverage[item.key] === "covered" ? "covered" : "missing"}`,
-        currentValue ? `  current_insight_value: "${currentValue}"` : "",
+        ...currentValueLines,
         `  question hint: ${item.promptHint}`,
       ]
         .filter((line) => line.trim().length > 0)
@@ -313,7 +324,7 @@ export function buildExtractionInsightChecklistSection(args: {
     checklistLines.join("\n"),
     "## Onboarding question checklist coverage",
     "Only output checklist keys that became covered in the given transcript and are not already covered.",
-    "A single user reply can cover multiple checklist keys. If Harper asked final_priority_confirmation and the user answers with an additional must-have condition to remember for future matching, include both final_priority_confirmation and must_haves, and extract the condition under the must_haves insight key.",
+    "A single user reply can cover multiple checklist keys. The next_scope checklist question intentionally covers both next_scope and must_haves; mark next_scope covered when the user substantively answers that combined question, and extract the two insight values separately when both are present. If Harper asked final_priority_confirmation and the user answers with an additional must-have condition, mark final_priority_confirmation covered and extract the condition under the must_haves insight key; must_haves is an insight key, not a separate checklist key.",
     onboardingChecklistLines.join("\n"),
     extraLines.length > 0
       ? ["## Other current insights", extraLines.join("\n")].join("\n")
@@ -519,22 +530,6 @@ export function buildRecentActivitySummariesSection(
   );
 }
 
-export function buildMatchedInternalRoleCompanyIndexSection(
-  items?: readonly MatchedInternalRoleCompanyIndexItem[] | null
-) {
-  const lines = (items ?? [])
-    .slice(0, 8)
-    .filter((item) => item.company.trim() && item.roleCount > 0)
-    .map((item) => `- ${item.company}: ${item.roleCount} active role(s)`);
-  if (lines.length === 0) return "";
-
-  return [
-    "## Harper-connected roles already credible for this user",
-    "This is only a compact company-level index. It is not a list to recite. When the user asks for other credible roles or compares roles at one company, use get_internal_roles with matchedOnly=true to inspect the relevant small set before answering.",
-    ...lines,
-  ].join("\n");
-}
-
 /** 이력서 파일/텍스트/링크 중 하나라도 있으면 true를 반환한다. */
 function hasCareerResumeContext(profile: CareerPromptProfile | null) {
   const hasResumeFile = Boolean(profile?.resume_file_name?.trim());
@@ -551,6 +546,7 @@ export function buildOptionalFollowUpOpportunitiesSection(args: {
   activeInternalFitHoldQuestion?: ActiveInternalFitHoldQuestion | null;
   canRecordInternalFitHoldQuestion: boolean;
   currentInsightContent: Record<string, string> | null;
+  isConversationCompletedOpportunityRunActive?: boolean;
   isOnboardingActive: boolean;
   profile: CareerPromptProfile | null;
 }) {
@@ -608,10 +604,23 @@ ${insightSlotLines.join("\n")}
 `
       : "";
 
+  const initialSearchWaitingGuidance =
+    args.isConversationCompletedOpportunityRunActive === true
+      ? `### While Harper's initial post-onboarding opportunity search is running
+- Onboarding is complete, and Harper is still finishing the initial opportunity search started from that completed conversation. Treat this as optional enrichment while the candidate waits, not a second onboarding flow. This phase ends when that search run ends, even if it produces no opportunity or sends no recommendation email.
+- The numbered optional priorities in this section still take precedence. Use this guidance only within the one optional follow-up allowed for the response.
+- Address the latest message and every higher-priority instruction first. Do not append this guidance automatically to every reply.
+- When there is a natural opening, inspect the full profile and conversation and choose at most one candidate-specific detail whose answer would materially improve future opportunity selection or how Harper represents the candidate to a company. Ask from something already known rather than saying only "tell me more." The model decides what is useful; examples such as ownership, impact, products, collaboration, constraints, or ambitions are illustrative, not a checklist or trigger list.
+- Briefly explain why the detail could help. Make it clear the candidate may simply wait for the recommendation instead. Do not promise that newly shared information will affect an initial search that is already running; it can improve future recommendations and company introductions.
+- If a higher-priority instruction already requires a question, do not add another question. A short, non-question invitation to share more later is enough. If no genuinely useful detail is apparent, ask nothing.
+- Optional referral-program mention: only when it fits the conversation naturally, has not already been mentioned in the conversation, and does not compete with a more useful candidate-focused follow-up, you may briefly explain that the Settings tab lets the user invite an acquaintance. If the invited person signs up through the invitation and later changes jobs through Harper, the inviter may receive approximately KRW 5,000,000–15,000,000 from Harper's fee, depending on the actual hiring, contract, and program terms. Present this as an optional program, never as guaranteed compensation or as something that improves the user's own matching. Do not combine the referral mention with another optional question.`
+      : "";
+
   return [
     "## Optional follow-up opportunities",
     "Use this section only when there is no higher-priority instruction, no required onboarding/checklist question, and the conversation has a natural opening.",
     "Ask at most one optional follow-up. Do not combine multiple optional questions in one response.",
+    initialSearchWaitingGuidance,
     hiddenHoldLines,
     resumeNudge,
     questionOpportunitiesLines,

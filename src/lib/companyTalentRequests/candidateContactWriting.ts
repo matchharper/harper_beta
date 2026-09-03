@@ -7,40 +7,30 @@ export type CandidateContactDraftCopy = {
 };
 
 export const CANDIDATE_CONTACT_WRITING_RULES = [
-  "Write like a thoughtful recruiter protecting both the candidate relationship and the named company's professional image, not like a workflow notification or legal notice.",
-  "In Korean, use a consistent polished formal tone, address the person naturally by name when available, make the request considerate, and close as Harper. Never address the recipient as '후보자님'.",
-  "Make the subject identify the company, role, and concrete purpose so it is useful in an inbox. A Korean subject should normally resemble '[회사명] 역할명 역할 관련 간단한 질문' or '[회사명] 역할명 검토를 위한 최신 이력서 요청'.",
-  "The first paragraph after the greeting must say which company and role prompted the note and explain the neutral reason for the question. Derive that reason only from the supplied request; do not invent praise, enthusiasm, a hiring stage, or private evaluation context.",
-  "Rephrase the substantive request as one clear, considerate question. Preserve every requirement and do not add a new requirement. Do not copy terse noun phrases, skeptical wording, or internal shorthand verbatim when natural prose can preserve the same meaning.",
-  "Help the candidate answer without making the email longer than necessary. Explain the useful dimensions or conditions only when they are inherent in the request: for an experience question, name the requested aspects; for availability or working conditions, invite any condition that would need coordination; for compensation, ask for the exact amount, range, or wording they authorize Harper to share.",
-  "After the question, say that a brief or unpolished answer is acceptable and that Harper will preserve the candidate's meaning and relay only what they authorize. Include one concise low-pressure sentence for a candidate who cannot or does not want to answer now. Do not repeat this choice in multiple paragraphs.",
-  "Avoid empty pleasantries, generic wellbeing questions, repeated words such as '문의 요청', bureaucratic phrases such as '답변 여부는 편하신 대로 결정해 주시면 됩니다', and phrases that make the company sound indifferent such as '답변 주시지 않으셔도 괜찮습니다'.",
-  "Use short readable paragraphs. A normal question email should have a greeting, a contextual opening, the question, one response-guidance paragraph, and the Harper signoff. Do not collapse it to a greeting plus one sentence.",
-  "For a resume request, explain the purpose first, then the two upload methods, what happens to the uploaded file, and the candidate's choice. Keep the supplied Markdown upload link and supported file formats exact.",
+  "Write like a thoughtful recruiter protecting the candidate relationship and the named company's professional image—not like a workflow notification or legal notice.",
+  "In Korean, use a consistently polished formal tone, address the person naturally by name when available, make the request considerate, and close as Harper; never use '후보자님'.",
+  "Use an inbox-useful subject naming the company, role, and concrete purpose. A Korean subject should normally resemble '[회사명] 역할명 역할 관련 간단한 질문' or '[회사명] 역할명 검토를 위한 최신 이력서 요청'.",
+  "The first paragraph after the greeting must name the company and role behind the note and neutrally explain the reason for the question using only the supplied request; never invent praise, enthusiasm, a hiring stage, or private evaluation context.",
+  "Turn the substantive request into one clear, considerate question, preserving every requirement without adding any. Replace terse noun phrases, skeptical wording, or internal shorthand with natural prose that preserves the same meaning.",
+  "Help the candidate answer without unnecessary length. Include useful dimensions or conditions only when inherent in the request: for experience, name the requested aspects; for availability or working conditions, invite conditions needing coordination; for compensation, ask for the exact amount, range, or wording they authorize Harper to share.",
+  "After the question, say that a brief or unpolished answer is acceptable and Harper will preserve the candidate's meaning and relay only what they authorize. Add one concise low-pressure sentence if they cannot or do not want to answer now, and do not repeat that choice.",
+  "Avoid empty pleasantries, generic wellbeing questions, repeated wording such as '문의 요청', bureaucratic phrases such as '답변 여부는 편하신 대로 결정해 주시면 됩니다', or indifferent-sounding phrases such as '답변 주시지 않으셔도 괜찮습니다'.",
+  "Use short, readable paragraphs. A normal question email should include a greeting, contextual opening, question, one response-guidance paragraph, and Harper signoff; do not collapse it to a greeting plus one sentence.",
+  "For a resume request, explain in order: the purpose, both upload methods, what happens to the uploaded file, and the candidate's choice. Keep the supplied Markdown upload link and supported file formats exact.",
 ].join(" ");
 
 export const CANDIDATE_CONTACT_STYLE_EXAMPLES_KO = `아래 예시는 문장 복사본이 아니라 문체와 정보 순서의 기준이다.
 
-[경력 질문]
-안녕하세요, {이름}님.
-
-{회사}에서 {역할} 역할을 검토하며, {질문의 대상이 되는 경험}을 조금 더 구체적으로 이해하고 싶어 Harper에 질문을 부탁했습니다.
-
-{회사가 요청한 내용을 한 가지 분명한 질문으로 작성} 길게 정리하지 않으셔도 됩니다.
-
-답변해 주신 내용은 의미가 달라지지 않도록 정리해 {회사}에 전달하겠습니다. 지금 답변하기 어렵다면 이번에는 넘어가셔도 괜찮습니다.
-
-감사합니다.
-Harper 드림
-
 [근무 조건 질문]
 안녕하세요, {이름}님.
 
-{회사}에서 {역할} 역할을 검토하며, 근무 조건과 관련해 한 가지 확인을 부탁했습니다.
+얼마전에 연결을 수락하셨던 {회사}의 {역할}에 관해서, 제가 {이름}님을 {회사}에 잘 소개해드렸어요.
+
+그리고 긍정적으로 검토하던 와중에 {회사}에서 근무 조건과 관련해 한 가지 확인을 부탁해서 제가 대신해서 여쭤봅니다.
 
 {빈도와 조건을 포함한 회사의 질문} 가능 여부와 함께 미리 고려하거나 조율해야 할 조건이 있다면 알려주세요.
 
-바로 확답하기 어려우시면 가능한 범위나 조율이 필요한 부분만 말씀해 주셔도 괜찮습니다. 답변은 의미가 달라지지 않도록 정리해 {회사}에 전달하겠습니다.
+바로 확답하기 어려우시면 가능한 범위나 조율이 필요한 부분만 말씀해 주셔도 괜찮아요. 편하게 답변해주셔도, 의미가 달라지지 않는 선에서 잘 정리해 {회사}에 전달할게요. 가볍게 공유해주시면 감사하겠습니다.
 
 감사합니다.
 Harper 드림
@@ -54,33 +44,37 @@ Harper 드림
 
 [이력서 업로드]({필수 URL})
 
-업로드한 파일은 Harper 프로필의 최신 이력서로 등록되고, Harper가 이번 역할 검토를 위해 {회사}에 전달합니다. 최신본이 없거나 지금 공유하고 싶지 않으시다면 이번에는 업데이트하지 않으셔도 괜찮습니다.
+업로드한 파일은 Harper 프로필의 최신 이력서로 등록되고, Harper가 이번 역할 검토를 위해 {회사}에 전달합니다. 최신본이 없거나 지금 공유하고 싶지 않으시다면 이번에는 업데이트하지 않으셔도 괜찮습니다. 제가 해당 내용을 회사에 잘 전달할게요.
 
 감사합니다.
 Harper 드림`;
 
 export const CANDIDATE_CONTACT_STYLE_EXAMPLES_EN = `These are style and information-order references, not templates to copy.
 
-[Professional experience question]
+[Working-condition question]
 Hi {name},
 
-{Company} is reviewing your background for the {Role} role and asked Harper to understand {the relevant experience} in a little more detail.
+Regarding the {Role} role at {Company}, which you recently agreed to be introduced for, I've now introduced you to the team at {Company}.
 
-{Write the company's request as one clear question.} There is no need to prepare a long or polished response.
+As they continue their positive review, {Company} asked me to confirm one working condition with you, so I'm reaching out to ask you directly.
 
-Harper will preserve your meaning and relay only what you authorize to {Company}. If now is not a good time to answer, it is fine to skip this request.
+{Write the company's question, including the frequency and condition.} Please let me know whether it would be possible and whether there are any conditions we should consider or coordinate in advance.
+
+If it is difficult to confirm right away, feel free to share only what may be workable or what would need coordination. You can reply informally, and I'll preserve your meaning when I summarize it for {Company}. Even a brief response would be appreciated.
 
 Thank you,
 Harper
 
-[Working-condition question]
+[Resume request]
 Hi {name},
 
-{Company} is reviewing your background for the {Role} role and asked Harper to confirm one working condition.
+{Company} is reviewing your background for the {Role} role and asked Harper whether you would be comfortable sharing a current resume.
 
-{Write the frequency and condition as one clear question.} Please include any condition that would need advance coordination.
+If you are able to share one, attach one file in a supported format to your reply or upload it using the link below.
 
-If you cannot confirm right away, you may share only what is workable for you. Harper will preserve your meaning and relay only what you authorize.
+[Upload your resume]({Required URL})
+
+The uploaded file will become the current resume on your Harper profile, and Harper will share it with {Company} for this role review. If you do not have a current version or do not want to share one now, it is fine not to update it this time. I'll make sure the company receives what you choose to share.
 
 Thank you,
 Harper`;

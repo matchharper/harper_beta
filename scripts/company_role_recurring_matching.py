@@ -41,12 +41,15 @@ FIT_LABEL_BANDS = {
     "unfit": (0, 39),
 }
 TRUE_HOLD_TOPICS = {
-    "location_or_relocation",
-    "material_compensation_mismatch",
-    "company_size_or_stage_conflict",
-    "engagement_type",
-    "major_function_transition",
-    "critical_ability_evidence",
+    "location",
+    "work_authorization",
+    "employment_type",
+    "availability_or_timing",
+    "compensation_requirement",
+    "required_language",
+    "required_qualification",
+    "license_or_clearance",
+    "other_candidate_fact",
 }
 DEFAULT_CANDIDATE_EVALUATION_LIMIT = 100
 DEFAULT_CANDIDATE_SCAN_LIMIT = 150
@@ -63,7 +66,7 @@ REEVALUATION_LABELS = {"hold", "ambiguous"}
 FIT_EVALUATION_CONTRACT_TEXT = """Label을 먼저 정하고 해당 band 안에서 score를 정한다.
 - fit 80~100: 회사-side suitability gate를 통과하고 지금 후보에게 보여 줄 가치가 있으며, 명시적 blocker나 true hold가 없다.
 - ambiguous 60~79: 역할은 plausible하고 blocker는 없지만 회사-side 수행 근거 또는 상호 적합 근거가 불완전·혼재됐거나 아직 충분히 강하지 않다.
-- hold 60~79: location/relocation, material compensation, explicit company size/stage conflict, engagement type, major function transition, critical ability evidence 중 하나의 decision-critical candidate-side 사실이 빠졌다.
+- hold 60~79: location, work authorization, employment type, availability/timing, compensation requirement, required language/qualification, license/clearance, 그 밖의 candidate fact 중 하나의 decision-critical candidate-side 사실이 빠졌다.
 - dissatisfied 40~59: 한쪽이 의미 있게 불만족할 가능성이 높은 soft mismatch다.
 - unfit 0~39: 명시 조건·필수 역량·위치/work authorization·고용형태·seniority·언어·working style 등의 hard mismatch다.
 
@@ -71,7 +74,7 @@ FIT_EVALUATION_CONTRACT_TEXT = """Label을 먼저 정하고 해당 band 안에�
 
 fit이 독립적으로 성립한 뒤에만 회사·role 적합도 80~90 + candidate preference 0~10으로 score를 정한다. 수행 능력을 candidate preference로 다시 더하지 않는다. Candidate-facing opportunity 정보가 없다는 말은 보상·근무형태·회사 단계처럼 후보가 판단할 기회 자체의 속성이 입력에 없다는 뜻이지, 후보가 이 role을 사전에 보지 않았다는 뜻이 아니다. 명시적 부정 신호가 없고 수락한다면 회사에 보낼 가치가 있는 후보는 사소한 preference uncertainty 때문에 ambiguous로 내리지 않는다.
 
-reevaluationCriteria는 hold에서만 {topic, question, new_information}으로 쓴다. 회사 bar 확인이나 가벼운 취향 질문에는 쓰지 않는다. companyCriteriaEvaluations는 fit이고 role criteria가 있을 때만 [{name, fitness, content}]로 쓰며 전체 fit의 평균·공식이 아니다. 현재 회사/self-match는 internal transfer 의사가 명시되지 않은 한 hold로 묻지 않는다.
+reevaluationCriteria는 hold에서만 {topic, question, new_information}으로 쓴다. topic은 location, work_authorization, employment_type, availability_or_timing, compensation_requirement, required_language, required_qualification, license_or_clearance, other_candidate_fact 중 정확히 하나다. question은 후보자에게 그대로 보여도 되는 한 문장의 완성형 질문이어야 한다. "후보자에게 X를 확인한다" 같은 내부 지시·설명문이 아니라 후보자에게 직접 묻는 자연스러운 의문문으로 쓰고 물음표로 끝낸다. talent settings의 preferred_locale이 있으면 그 언어를 쓰고, 없으면 후보자 자신의 최근 명시적 발화 언어를 따르며, 둘 다 불분명하면 영어를 쓴다. 숨겨진 회사명·역할명·점수·내부 기준은 드러내지 않는다. 회사 bar 확인이나 가벼운 취향 질문에는 쓰지 않는다. companyCriteriaEvaluations는 fit이고 role criteria가 있을 때만 [{name, fitness, content}]로 쓰며 전체 fit의 평균·공식이 아니다. 현재 회사/self-match는 internal transfer 의사가 명시되지 않은 한 hold로 묻지 않는다.
 """
 
 CONTEXT_EDIT_INSTRUCTIONS_TEXT = """이 context는 검토 이력이나 사건 원장이 아니라 다음 [talent × role] matching 평가의 compact input이다.
@@ -1500,12 +1503,6 @@ def validate_retrieval_rows(
 
 
 def command_run_sql(args: argparse.Namespace) -> int:
-    if args.lane == "reevaluation" and not getattr(
-        args, "allow_manual_reevaluation", False
-    ):
-        raise ValueError(
-            "reevaluation is disabled for automatic runs; an explicit manual override is required"
-        )
     sql_path = Path(args.sql_file).resolve()
     raw_sql = sql_path.read_text(encoding="utf-8")
     with connect() as conn:
@@ -1605,34 +1602,75 @@ def format_same_company_role_history(
     eligible_rows = [
         row
         for row in rows
-        if compact(row.get("effective_label"), 40).lower() != "hold"
+        if compact(row.get("recommendation_id"), 100)
+        or row.get("recommended_at")
     ]
     lines = ["Existing history between this talent and the same company:"]
     for index, row in enumerate(eligible_rows):
         parts = [compact(row.get("role_name"), 240) or "Unnamed role"]
-        label = compact(row.get("effective_label"), 40)
-        if label:
-            parts.append(f"stored {label}")
         if row.get("recommended_at"):
             parts.append(f"recommended {str(row['recommended_at'])[:10]}")
-        elif label == "fit":
-            parts.append(
-                "selected for delivery"
-                if row.get("recommend") is True
-                else "fit but not selected"
-            )
         feedback = compact(row.get("feedback"), 80)
         if feedback:
             parts.append(f"talent response: {feedback}")
         feedback_reason = compact(row.get("feedback_reason"), 240)
         if feedback_reason:
             parts.append(f"talent reason: {feedback_reason}")
-        stage = compact(row.get("processed_stage") or row.get("saved_stage"), 100)
+        stage_tag = compact(row.get("stage_tag"), 100)
+        role_move_target = compact(row.get("role_move_target_role_name"), 240)
+        stop_reason = compact(row.get("stage_stop_reason"), 80).lower()
+        role_status = compact(row.get("role_status"), 80).lower()
+        processed_stage = compact(row.get("processed_stage"), 100).lower()
+        saved_stage = compact(row.get("saved_stage"), 100).lower()
+        stage = ""
+        if stage_tag == "내부:아카이브":
+            stage = (
+                f"moved to another same-company role ({role_move_target}); this role is closed and not active"
+                if role_move_target
+                else "company-side rejection/closure; this hiring process is not active"
+            )
+        elif stage_tag == "내부:프로세스중단":
+            if stop_reason == "candidate":
+                stage = "talent ended this hiring process; not active"
+            elif stop_reason == "company":
+                stage = "company ended this hiring process; not active"
+            else:
+                stage = "company/Harper-side hiring process stop; not active"
+        elif stage_tag == "내부:거절":
+            stage = "talent declined this opportunity; not active"
+        elif role_status == "ended":
+            stage = "company closed this role; this hiring process is not active"
+        elif stage_tag == "내부:보류":
+            stage = "company hiring process is on hold"
+        elif stage_tag == "내부:최종오퍼":
+            stage = "company hiring process reached final offer"
+        elif stage_tag == "내부:연결됨":
+            stage = "connected with the company; company process is active"
+        elif stage_tag == "내부:연결대기":
+            stage = "Harper-confirmed company connection is pending"
+        elif stage_tag == "내부:수락":
+            stage = "talent accepted the recommendation; this is not company acceptance"
+        elif stage_tag == "내부:추천":
+            stage = "recommended to the talent; awaiting talent response"
+        elif stage_tag.startswith("내부단계:"):
+            custom_stage = compact(row.get("custom_stage_label"), 160)
+            stage = (
+                f"active company hiring stage: {custom_stage}"
+                if custom_stage
+                else "active custom company hiring stage"
+            )
+        elif processed_stage in {"archived", "아카이브"}:
+            stage = "company-side rejection/closure; this hiring process is not active"
+        elif processed_stage in {"process_stopped", "프로세스중단", "프로세스 중단"}:
+            stage = "company/Harper-side hiring process stop; not active"
+        elif processed_stage:
+            stage = f"recorded company process stage: {processed_stage}"
+        elif saved_stage in {"connected", "accepted"}:
+            stage = "talent accepted the recommendation; current company stage is unavailable"
+        elif saved_stage == "closed":
+            stage = "talent-side recommendation record is closed; company outcome unavailable"
         if stage:
             parts.append(f"process stage: {stage}")
-        reason = compact(row.get("fit_reason"), 280)
-        if reason:
-            parts.append(f"stored judgment: {reason}")
         line = "- " + " | ".join(parts)
         remaining = len(eligible_rows) - index
         if len("\n".join([*lines, line])) + 60 > max_chars:
@@ -1834,45 +1872,113 @@ def candidate_rows(conn: psycopg.Connection, talent_ids: list[str], role_id: str
         conn,
         """
         select
-          fit.talent_id,
+          delivered.talent_id,
           sibling.name as role_name,
-          coalesce(fit.human_label, fit.label) as effective_label,
-          fit.recommend,
-          coalesce(nullif(btrim(fit.human_reason), ''), fit.reason) as fit_reason,
+          sibling.status as role_status,
+          latest_recommendation.id::text as recommendation_id,
           latest_recommendation.recommended_at,
           latest_recommendation.feedback,
           latest_recommendation.feedback_reason,
           latest_recommendation.saved_stage,
-          latest_recommendation.processed_stage
-        from public.talent_opportunity_fit fit
+          latest_recommendation.processed_stage,
+          latest_stage.stage_tag,
+          latest_stage.custom_stage_label,
+          latest_role_move.target_role_name as role_move_target_role_name,
+          latest_stop.stage_stop_reason
+        from (
+          select distinct recommendation.talent_id, recommendation.role_id
+          from public.talent_opportunity_recommendation recommendation
+          where recommendation.talent_id = any(%s::uuid[])
+        ) delivered
         join public.company_roles sibling
-          on sibling.role_id = fit.opportunity_id
+          on sibling.role_id = delivered.role_id
         join public.company_roles target
           on target.role_id = %s::uuid
          and target.company_workspace_id = sibling.company_workspace_id
-        left join lateral (
-          select recommendation.recommended_at,
+        join lateral (
+          select recommendation.id,
+                 recommendation.recommended_at,
                  recommendation.feedback,
                  recommendation.feedback_reason,
                  recommendation.saved_stage,
                  recommendation.processed_stage
           from public.talent_opportunity_recommendation recommendation
-          where recommendation.talent_id = fit.talent_id
+          where recommendation.talent_id = delivered.talent_id
             and recommendation.role_id = sibling.role_id
           order by recommendation.recommended_at desc, recommendation.id desc
           limit 1
         ) latest_recommendation on true
-        where fit.talent_id = any(%s::uuid[])
-          and sibling.role_id <> %s::uuid
+        left join lateral (
+          select btrim(tag_row.tag) as stage_tag,
+                 custom_stage.label as custom_stage_label
+          from public.talent_opportunity_tag tag_row
+          left join public.ops_matching_role_stages custom_stage
+            on tag_row.tag like '내부단계:%%'
+           and custom_stage.role_id = sibling.role_id
+           and replace(lower(custom_stage.id::text), '-', '') = lower(
+                 substring(btrim(tag_row.tag) from length('내부단계:') + 1)
+               )
+          where tag_row.talent_id = delivered.talent_id
+            and tag_row.opportunity_id = sibling.role_id
+            and (
+              btrim(tag_row.tag) in (
+                '내부:수락', '내부:아카이브', '내부:최종오퍼',
+                '내부:보류', '내부:연결대기', '내부:프로세스중단',
+                '내부:거절', '내부:추천', '내부:연결됨'
+              )
+              or btrim(tag_row.tag) like '내부단계:%%'
+            )
+          order by tag_row.updated_at desc nulls last,
+                   tag_row.created_at desc nulls last,
+                   tag_row.id desc
+          limit 1
+        ) latest_stage on true
+        left join lateral (
+          select coalesce(
+            nullif(btrim(progress.metadata->>'targetRoleName'), ''),
+            moved_target.name
+          ) as target_role_name
+          from public.talent_progress progress
+          left join public.company_roles moved_target
+            on moved_target.role_id::text = progress.metadata->>'targetRoleId'
+          where progress.talent_id = delivered.talent_id
+            and (
+              (
+                progress.role_id = sibling.role_id
+                and progress.metadata->>'eventType' = 'candidate_role_moved'
+                and progress.metadata->>'direction' = 'out'
+              )
+              or (
+                progress.kind = 'candidate_role_recommendation_accepted'
+                and progress.metadata->>'sourceRoleId' = sibling.role_id::text
+                and nullif(btrim(progress.metadata->>'targetRoleId'), '') is not null
+              )
+            )
+          order by progress.created_at desc, progress.id desc
+          limit 1
+        ) latest_role_move on true
+        left join lateral (
+          select progress.metadata->>'stopReason' as stage_stop_reason
+          from public.talent_progress progress
+          where progress.talent_id = delivered.talent_id
+            and progress.role_id = sibling.role_id
+            and (
+              progress.metadata->>'stage' = 'process_stopped'
+              or progress.metadata->>'tag' = '내부:프로세스중단'
+              or progress.text like '%%프로세스 중단%%'
+              or progress.text like '%%진행을 중단%%'
+            )
+          order by progress.created_at desc, progress.id desc
+          limit 1
+        ) latest_stop on true
+        where sibling.role_id <> %s::uuid
           and sibling.source_type = 'internal'
           and lower(coalesce(sibling.information->>'testOnly', 'false')) <> 'true'
-          and coalesce(fit.human_label, fit.label) <> 'hold'
-        order by fit.talent_id,
+        order by delivered.talent_id,
                  latest_recommendation.recommended_at desc nulls last,
-                 fit.last_evaluated_at desc,
                  sibling.role_id
         """,
-        (role_id, ids, role_id),
+        (ids, role_id, role_id),
     )
     same_company_role_history = {
         talent_id: format_same_company_role_history(rows)
@@ -2229,12 +2335,6 @@ def render_candidate_evaluation_document(packet: Mapping[str, Any]) -> str:
 
 
 def command_candidate_packet(args: argparse.Namespace) -> int:
-    if args.lane == "reevaluation" and not getattr(
-        args, "allow_manual_reevaluation", False
-    ):
-        raise ValueError(
-            "reevaluation is disabled for automatic runs; an explicit manual override is required"
-        )
     query_result = read_json(Path(args.query_result).resolve())
     query_rows = query_result.get("rows") if isinstance(query_result, Mapping) else None
     if not isinstance(query_rows, list):
@@ -2580,12 +2680,10 @@ def validate_evaluation(
         if not isinstance(reevaluation, Mapping):
             raise ValueError("hold requires one structured reevaluationCriteria object")
         topic = compact(reevaluation.get("topic"), 100)
-        question = compact(
-            reevaluation.get("question") or reevaluation.get("summary"), 1000
-        )
+        question = compact(reevaluation.get("question"), 1000)
         if topic not in TRUE_HOLD_TOPICS or not question:
             raise ValueError(
-                "hold reevaluationCriteria requires an allowed candidate-side topic and exact question"
+                "hold reevaluationCriteria requires a current candidate-side topic and a verbatim talent-facing question"
             )
         reevaluation = {
             "topic": topic,
@@ -3378,11 +3476,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_sql.add_argument("--revision", type=int, required=True)
     run_sql.add_argument("--max-rows", type=int, default=500)
-    run_sql.add_argument(
-        "--allow-manual-reevaluation",
-        action="store_true",
-        help="Required to run the legacy reevaluation lane intentionally; automatic runs must omit it.",
-    )
     run_sql.set_defaults(func=command_run_sql)
 
     packet = sub.add_parser("candidate-packet")
@@ -3393,11 +3486,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     packet.add_argument("--limit", type=int, default=DEFAULT_CANDIDATE_EVALUATION_LIMIT)
     packet.add_argument("--scan-limit", type=int, default=DEFAULT_CANDIDATE_SCAN_LIMIT)
-    packet.add_argument(
-        "--allow-manual-reevaluation",
-        action="store_true",
-        help="Required to continue an intentionally manual legacy reevaluation lane.",
-    )
     packet.set_defaults(func=command_candidate_packet)
 
     save_context = sub.add_parser("save-context")

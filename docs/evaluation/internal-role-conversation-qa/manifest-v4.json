@@ -1,0 +1,65 @@
+{
+  "task": "internal-role-conversation-qa",
+  "datasetVersion": "v4",
+  "datasetKind": "career-post-decline-alternative-handling-challenge-set",
+  "createdAt": "2026-09-03T18:00:00+09:00",
+  "source": {
+    "repository": "harper_beta",
+    "baseRevision": "bc2b83628dd3b89dcb34c7519a893c576855e59e",
+    "dirtyWorktree": true,
+    "databaseMode": "authorized-single-talent-write",
+    "productionRoleWrites": false,
+    "otherTalentWrites": false,
+    "derivedFrom": "cases-v3.json",
+    "changeReason": "Added five isolated challenge scenarios for a role-specific rejection with a same-company or cross-company alternative, company rejection, ambiguous rejection, and explicit review of one next role."
+  },
+  "artifacts": {
+    "cases": {
+      "path": "cases-v4.json",
+      "sha256": "9672fe1b26ad9f4bb51db83575a8863d4e35e0bf943c428ca840894983aa95a8",
+      "containsProductionPII": false,
+      "tracked": true
+    },
+    "privateFixture": {
+      "path": "private/fixture-v4.json",
+      "containsProductionPII": true,
+      "tracked": false,
+      "requiredMode": "0600"
+    },
+    "rawRuns": {
+      "path": "runs/<run-id>/",
+      "containsProductionPII": true,
+      "tracked": false,
+      "requiredMode": "0600"
+    }
+  },
+  "caseCount": {
+    "careerScenarios": 5
+  },
+  "runner": {
+    "status": "manual-runtime-e2e",
+    "canonicalPath": "docs/evaluation/internal-role-conversation-qa/README.md#canonical-procedure와-설정",
+    "career": {
+      "surface": "logged-in Chrome extension",
+      "url": "http://localhost:3000/career"
+    }
+  },
+  "model": {
+    "provider": "openrouter",
+    "model": "z-ai/glm-5.3-flash",
+    "reasoningEffort": "high",
+    "sampling": "production Career configuration"
+  },
+  "releaseGate": {
+    "criticalFailureCount": 0,
+    "minimumQualityPasses": 5,
+    "stateTransitionContractPassRate": "100%"
+  },
+  "latestRun": {
+    "runId": "v4-20260903T215216+0900",
+    "executedAt": "2026-09-03T21:52:16+09:00",
+    "rawResultPath": "runs/v4-20260903T215216+0900/results.json",
+    "result": "state transitions passed in all five scenarios; one raw-company-name critical failure was fixed and rechecked; three quality-contract failures remain for prompt/product review."
+  },
+  "runStatus": "completed_with_quality_follow_up"
+}

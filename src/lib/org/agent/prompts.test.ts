@@ -80,7 +80,10 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.match(prompt, /<tool_policy>/);
   assert.match(prompt, /Tools run one at a time/);
   assert.match(prompt, /After every result, decide from that new evidence/);
-  assert.match(prompt, /multi-target or multi-step requests in the same user turn/);
+  assert.match(
+    prompt,
+    /multi-target or multi-step requests in the same user turn/
+  );
   assert.match(prompt, /A successful write does not by itself end the turn/);
   assert.match(prompt, /Never claim an unconfirmed action succeeded/);
   assert.match(prompt, /call calibrate_role_hiring_brief/);
@@ -107,7 +110,10 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.match(prompt, /natural, considerate conversational voice/);
   assert.match(prompt, /may be using Harper for the first time/);
   assert.match(prompt, /briefly explain the verified result/);
-  assert.match(prompt, /distinguish lifecycle states when that distinction matters/);
+  assert.match(
+    prompt,
+    /distinguish lifecycle states when that distinction matters/
+  );
   assert.match(prompt, /Do not write simple proposals or results as receipts/);
   assert.match(prompt, /never force the same greeting/);
   assert.match(prompt, /Important lifecycle milestones may intentionally/);
@@ -260,7 +266,19 @@ test("organization-agent system prompt keeps runtime data out", () => {
     /server independently verifies the previous-message confirmation/
   );
   assert.match(prompt, /Candidate contact is a saved-body approval flow/);
+  assert.match(
+    prompt,
+    /Meeting requests are available throughout a candidate's company-visible active process/
+  );
   assert.match(prompt, /action=create_draft in that same turn/);
+  assert.match(
+    prompt,
+    /available for any candidate who is currently in a company-visible active stage/
+  );
+  assert.match(
+    prompt,
+    /Do not limit questions or resume requests to candidates awaiting the initial connection decision/
+  );
   assert.match(prompt, /complete candidate-contact body/);
   assert.match(
     prompt,
@@ -300,6 +318,12 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.match(prompt, /Recognize compensation questions by their meaning/);
   assert.match(prompt, /base salary or total compensation/);
   assert.match(prompt, /three milestones in human terms/);
+  assert.match(
+    prompt,
+    /one considerate follow-up only after at least 72 hours/
+  );
+  assert.match(prompt, /at most one light follow-up/);
+  assert.match(prompt, /Do not promise an exact follow-up time/);
   assert.match(
     prompt,
     /meetingDeliveryMode=immediate.*Preserve the existing invitation/

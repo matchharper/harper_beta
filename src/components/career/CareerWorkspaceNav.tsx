@@ -15,6 +15,9 @@ import {
   getCareerMenuProfileImageUrl,
 } from "@/components/career/profileAvatar";
 import MessageTextIcon from "@/assets/icons/messagetext.svg";
+import { useReferralEntryPointEligibility } from "@/hooks/career/useReferralEntryPointEligibility";
+import { useCareerReferralAttention } from "@/hooks/career/useCareerReferralAttention";
+import CareerReferralAttentionDot from "./referral/CareerReferralAttentionDot";
 
 export type CareerWorkspaceTab = "home" | "profile" | "history" | "watchlist";
 
@@ -53,6 +56,13 @@ const CareerWorkspaceNav = () => {
   const logCareerEvent = useCareerLogEvent();
   const { onLogout, onOpenSettings } = useCareerSidebarContext();
   const { preferredLocale, talentProfile, user } = useCareerProfileContext();
+  const showReferralEntryPoints = useReferralEntryPointEligibility({
+    location: talentProfile.talentUser?.location,
+    currentLocation: talentProfile.talentUser?.current_location,
+    preferredLocale,
+    user,
+  });
+  const hasUnseenReferral = useCareerReferralAttention(user?.id);
 
   const authDisplayName =
     user?.user_metadata?.full_name ??
@@ -89,8 +99,12 @@ const CareerWorkspaceNav = () => {
               type="button"
               onClick={onOpenSettings}
               aria-label={"설정"}
+              className="relative"
             >
               <Settings className="h-4 w-4" />
+              {showReferralEntryPoints && hasUnseenReferral ? (
+                <CareerReferralAttentionDot className="absolute right-0.5 top-0.5" />
+              ) : null}
             </MuteButton>
             <div></div>
             <CareerProfileMenu
@@ -98,11 +112,7 @@ const CareerWorkspaceNav = () => {
               profileImageUrl={profileImageUrl}
               profileName={String(profileName ?? "Candidate")}
               profileEmail={profileEmail}
-              profileLocation={talentProfile.talentUser?.location}
-              profileCurrentLocation={
-                talentProfile.talentUser?.current_location
-              }
-              preferredLocale={preferredLocale}
+              showReferralEntryPoints={showReferralEntryPoints}
               onLogout={onLogout}
               onSuggestUpdate={() => setInquiryOpen(true)}
             />

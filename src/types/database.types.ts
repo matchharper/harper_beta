@@ -2625,6 +2625,54 @@ export type Database = {
           },
         ]
       }
+      crm_email_broadcasts: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          html_content: string
+          id: string
+          name: string
+          queued_at: string | null
+          recipient_onboarding_done_only: boolean
+          recipient_preferred_locale: string | null
+          scheduled_at: string | null
+          status: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          html_content: string
+          id?: string
+          name: string
+          queued_at?: string | null
+          recipient_onboarding_done_only?: boolean
+          recipient_preferred_locale?: string | null
+          scheduled_at?: string | null
+          status?: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          html_content?: string
+          id?: string
+          name?: string
+          queued_at?: string | null
+          recipient_onboarding_done_only?: boolean
+          recipient_preferred_locale?: string | null
+          scheduled_at?: string | null
+          status?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       crm_email_campaigns: {
         Row: {
           created_at: string
@@ -6409,9 +6457,12 @@ export type Database = {
           is_primary: boolean
           is_public: boolean
           kind: string
+          origin_id: string | null
+          origin_type: string | null
           size_bytes: number | null
           storage_path: string
           talent_id: string
+          updated_at: string
         }
         Insert: {
           content_sha256?: string | null
@@ -6424,9 +6475,12 @@ export type Database = {
           is_primary?: boolean
           is_public?: boolean
           kind?: string
+          origin_id?: string | null
+          origin_type?: string | null
           size_bytes?: number | null
           storage_path: string
           talent_id: string
+          updated_at?: string
         }
         Update: {
           content_sha256?: string | null
@@ -6439,9 +6493,12 @@ export type Database = {
           is_primary?: boolean
           is_public?: boolean
           kind?: string
+          origin_id?: string | null
+          origin_type?: string | null
           size_bytes?: number | null
           storage_path?: string
           talent_id?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -6911,7 +6968,9 @@ export type Database = {
       talent_opportunity_fit: {
         Row: {
           behavior_context_version: number | null
+          candidate_fit: string | null
           company_criteria_evaluations: Json | null
+          company_fit: string | null
           company_side_evaluation_metadata: Json | null
           created_at: string
           history: Json | null
@@ -6928,12 +6987,15 @@ export type Database = {
           recommend: boolean
           reevaluation_checked_at: string | null
           reevaluation_criteria: Json | null
+          role_fit: string | null
           score: number
           talent_id: string
         }
         Insert: {
           behavior_context_version?: number | null
+          candidate_fit?: string | null
           company_criteria_evaluations?: Json | null
+          company_fit?: string | null
           company_side_evaluation_metadata?: Json | null
           created_at?: string
           history?: Json | null
@@ -6950,12 +7012,15 @@ export type Database = {
           recommend?: boolean
           reevaluation_checked_at?: string | null
           reevaluation_criteria?: Json | null
+          role_fit?: string | null
           score: number
           talent_id: string
         }
         Update: {
           behavior_context_version?: number | null
+          candidate_fit?: string | null
           company_criteria_evaluations?: Json | null
+          company_fit?: string | null
           company_side_evaluation_metadata?: Json | null
           created_at?: string
           history?: Json | null
@@ -6972,6 +7037,7 @@ export type Database = {
           recommend?: boolean
           reevaluation_checked_at?: string | null
           reevaluation_criteria?: Json | null
+          role_fit?: string | null
           score?: number
           talent_id?: string
         }
@@ -7508,6 +7574,41 @@ export type Database = {
           },
         ]
       }
+      talent_role_activity: {
+        Row: {
+          content: string | null
+          created_at: string
+          id: string
+          kind: string
+          metadata: Json
+          recommendation_id: string
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          metadata?: Json
+          recommendation_id: string
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          metadata?: Json
+          recommendation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_role_activity_recommendation_id_fkey"
+            columns: ["recommendation_id"]
+            isOneToOne: false
+            referencedRelation: "talent_opportunity_recommendation"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       talent_setting: {
         Row: {
           blocked_companies: string[]
@@ -7759,18 +7860,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      move_company_candidate_to_role_v1: {
-        Args: {
-          p_company_user_id: string
-          p_company_workspace_id: string
-          p_source_company_message_id: number
-          p_source_role_id: string
-          p_talent_id: string
-          p_target_role_id: string
-          p_target_stage_id: string
-        }
-        Returns: Json
-      }
       activate_slack_company_agent_update_proposal_v1: {
         Args: {
           p_proposal_id: string
@@ -7778,6 +7867,14 @@ export type Database = {
           p_slack_message_ts: string
         }
         Returns: Json
+      }
+      append_talent_role_memo_activity_v1: {
+        Args: {
+          p_content: string
+          p_recommendation_id: string
+          p_talent_id: string
+        }
+        Returns: string
       }
       apply_company_data_changes_internal_v1: {
         Args: {
@@ -7986,6 +8083,13 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      count_crm_email_broadcast_recipients: {
+        Args: {
+          p_onboarding_done_only?: boolean
+          p_preferred_locale?: string | null
+        }
+        Returns: number
       }
       claim_email_reply_jobs: {
         Args: {
@@ -8201,10 +8305,6 @@ export type Database = {
         Returns: Json
       }
       company_talent_request_stage_is_pending_v1: {
-        Args: { p_request_id: string }
-        Returns: boolean
-      }
-      company_talent_request_target_is_active_v1: {
         Args: { p_request_id: string }
         Returns: boolean
       }
@@ -8457,6 +8557,30 @@ export type Database = {
         Args: { p_tag: string }
         Returns: boolean
       }
+      list_crm_email_broadcasts: {
+        Args: { p_broadcast_id?: string }
+        Returns: {
+          cancelled_count: number
+          completed_at: string | null
+          created_at: string
+          failed_count: number
+          html_content: string
+          id: string
+          name: string
+          paused_count: number
+          processing_count: number
+          queued_at: string | null
+          queued_count: number
+          recipient_onboarding_done_only: boolean
+          recipient_preferred_locale: string | null
+          scheduled_at: string | null
+          sent_count: number
+          status: string
+          subject: string
+          total_count: number
+          updated_at: string
+        }[]
+      }
       list_company_agent_slack_threads_v1: {
         Args: {
           p_before_last_message_id?: number
@@ -8465,7 +8589,7 @@ export type Database = {
           p_max_message_id: number
         }
         Returns: {
-          channel_name: string | null
+          channel_name: string
           first_messages: Json
           last_message_at: string
           last_message_id: number
@@ -8510,6 +8634,63 @@ export type Database = {
           tags: string[]
           user_example_text: string
         }[]
+      }
+      move_company_candidate_to_role_v1: {
+        Args: {
+          p_company_user_id: string
+          p_company_workspace_id: string
+          p_source_company_message_id: number
+          p_source_role_id: string
+          p_talent_id: string
+          p_target_role_id: string
+          p_target_stage_id: string
+        }
+        Returns: Json
+      }
+      move_talent_role_saved_stage_v1: {
+        Args: {
+          p_recommendation_id: string
+          p_record_activity: boolean
+          p_saved_stage: string
+          p_talent_id: string
+        }
+        Returns: Json
+      }
+      present_talent_internal_role_recommendation_for_review_v1: {
+        Args: {
+          p_context?: Json
+          p_source_role_id: string | null
+          p_talent_id: string
+          p_target_role_id: string
+        }
+        Returns: Json
+      }
+      request_talent_internal_role_reconsideration_v1: {
+        Args: {
+          p_context?: Json
+          p_new_information: string
+          p_role_id: string
+          p_talent_id: string
+        }
+        Returns: Json
+      }
+      queue_crm_email_broadcast: {
+        Args: { p_broadcast_id: string }
+        Returns: number
+      }
+      set_crm_email_broadcast_paused: {
+        Args: { p_broadcast_id: string; p_paused: boolean }
+        Returns: undefined
+      }
+      set_talent_internal_role_recommendation_before_company_share_v1: {
+        Args: {
+          p_accept?: boolean
+          p_context?: Json
+          p_source_role_id: string
+          p_talent_id: string
+          p_target_role_id: string
+        }
+        Returns: Json
       }
       present_company_agent_update_proposal_v1: {
         Args: {
@@ -8749,6 +8930,17 @@ export type Database = {
         Returns: Json
       }
       update_repo_ids: { Args: never; Returns: undefined }
+      update_talent_role_feedback_v1: {
+        Args: {
+          p_feedback: string
+          p_feedback_at: string
+          p_feedback_reason: string
+          p_recommendation_id: string
+          p_saved_stage: string
+          p_talent_id: string
+        }
+        Returns: Json
+      }
       upsert_google_calendar_busy_blocks_v1: {
         Args: {
           p_blocks: Json

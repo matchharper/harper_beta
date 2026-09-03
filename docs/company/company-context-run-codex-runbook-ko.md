@@ -3,6 +3,7 @@
 - 작성일: 2026-08-14
 - 용도: Codex 예약 작업이 현재 claim 가능한 queued role을 모두 순차 처리할 때 읽는 문서
 - 기능·구현 계약: [Company Context Run 개요](./company-context-run-overview-ko.md)
+- 기존 non-fit의 제한적 재발견 감사: [Company Role Fit Recovery Audit 런북](./company-role-fit-recovery-audit-codex-runbook-ko.md)
 
 이 문서는 migration, 최초 배포, 테스트 계획을 설명하지 않는다. 이미 queue에 들어온 role 하나의 context를 올바르게 갱신하고 연결 후보를 평가하는 데만 집중한다.
 
@@ -425,13 +426,13 @@ python3 scripts/company_role_recurring_matching.py finish \
 성공 시 queue row를 `succeeded`로 바꾸고 `result`에 다음만 간결하게 남긴다.
 
 - Context changed 여부
-- Matching skip 이유 또는 retrieval·신규 평가·재평가 count
+- Matching skip 이유 또는 retrieval·신규 평가 count
 - Label별 저장 count
 - 가장 중요한 context 변화와 결과를 합친 한두 문장
 
 좋은 summary 예:
 
-> 최근 진행 메모에서 고객 현장 배포 ownership이 핵심 기준으로 확인되어 context를 갱신했다. 신규 41명과 변경 영향이 있는 기존 18명을 평가해 fit 6명을 확인했다.
+> 최근 진행 메모에서 고객 현장 배포 ownership이 핵심 기준으로 확인되어 context를 갱신했다. 신규 41명을 평가해 fit 6명을 확인했다.
 
 Context가 바뀌지 않은 것도 정상이다. 후보가 0명인 것도 정상이다. 결과를 만들기 위해 context 문장, SQL 범위, label 기준을 억지로 완화하지 않는다.
 

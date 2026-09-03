@@ -45,6 +45,7 @@ type RawRecommendationRow = {
         logo: string | null;
       } | null;
       company_name: string;
+      published_name: string | null;
       homepage_url: string | null;
       linkedin_url: string | null;
       logo_url: string | null;
@@ -82,6 +83,7 @@ type RawRecentRecommendationPromptRow = {
     work_mode: string | null;
     company_workspace: {
       company_name: string;
+      published_name: string | null;
       company_db: {
         employee_count_range: Json | null;
       } | null;
@@ -131,6 +133,7 @@ type RawPostingRoleRow = {
       logo: string | null;
     } | null;
     company_name: string;
+    published_name: string | null;
     homepage_url: string | null;
     linkedin_url: string | null;
     logo_url: string | null;
@@ -185,6 +188,7 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
     source_job_id,
     company_workspace:company_workspace!inner (
       company_name,
+      published_name,
       company_description,
       company_db_id,
       homepage_url,
@@ -220,6 +224,7 @@ const TALENT_RECENT_RECOMMENDATION_PROMPT_SELECT = `
     source_type,
     company_workspace:company_workspace!inner (
       company_name,
+      published_name,
       company_db:company_db (
         employee_count_range
       )
@@ -245,6 +250,7 @@ const TALENT_POSTING_ROLE_SELECT = `
   source_job_id,
   company_workspace:company_workspace!inner (
     company_name,
+    published_name,
     company_description,
     company_db_id,
     homepage_url,
@@ -800,6 +806,18 @@ function normalizeOpportunityPromptText(value: unknown, fallback: string) {
   return text || fallback;
 }
 
+function getCandidateVisibleOpportunityCompanyName(args: {
+  sourceType: TalentOpportunitySourceType;
+  workspace: { company_name: string; published_name?: string | null };
+}) {
+  return args.sourceType === "internal"
+    ? normalizeOpportunityPromptText(
+        args.workspace.published_name,
+        "Undisclosed internal company"
+      )
+    : normalizeOpportunityPromptText(args.workspace.company_name, "Unknown company");
+}
+
 function normalizePromptTextOrNull(value: unknown) {
   const text =
     typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
@@ -844,12 +862,13 @@ function mapRecentRecommendationPromptRow(
   const workspace = role?.company_workspace;
   const recommendationId = String(row.id ?? "").trim();
   if (!role || !workspace || !recommendationId) return null;
+  const sourceType = normalizeSourceType(role.source_type);
 
   return {
-    companyName: normalizeOpportunityPromptText(
-      workspace.company_name,
-      "Unknown company"
-    ),
+    companyName: getCandidateVisibleOpportunityCompanyName({
+      sourceType,
+      workspace,
+    }),
     companySize: compactEmployeeCountRangeForPrompt(
       workspace.company_db?.employee_count_range ?? null
     ),
@@ -860,7 +879,7 @@ function mapRecentRecommendationPromptRow(
     recommendationId,
     roleId: normalizePromptTextOrNull(row.role_id),
     savedStage: normalizeSavedStage(row.saved_stage),
-    sourceType: normalizeSourceType(role.source_type),
+    sourceType,
     title: normalizeOpportunityPromptText(role.name, "Unknown role"),
     upcomingMeetingAt,
     workMode: normalizePromptTextOrNull(role.work_mode),
@@ -1518,7 +1537,7 @@ function normalizeCompanyDataNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function getLocalizedRoleSummaryContent(
+export function getLocalizedRoleSummaryContent(
   value: unknown,
   locale?: string | null
 ) {
@@ -1603,7 +1622,10 @@ function mapRecommendationRow(
       companyDbLogoUrl: workspace.company_db?.logo,
       workspaceLogoUrl: workspace.logo_url,
     }),
-    companyName: String(workspace.company_name ?? ""),
+    companyName: getCandidateVisibleOpportunityCompanyName({
+      sourceType,
+      workspace,
+    }),
     description: role.description ?? null,
     employmentTypes: Array.isArray(role.type) ? role.type : [],
     externalJdUrl,
@@ -1661,6 +1683,13 @@ function pickLatestPostingRecommendation(
   })[0];
 }
 
+export function shouldHydrateTalentPostingCard(args: {
+  hasFormalRecommendation: boolean;
+  sourceType: "internal" | "external";
+}) {
+  return args.sourceType !== "internal" || args.hasFormalRecommendation;
+}
+
 function mapPostingRoleRow(
   row: RawPostingRoleRow,
   fallbackRecommendedAt: string,
@@ -1673,6 +1702,14 @@ function mapPostingRoleRow(
   const existingRecommendation = pickLatestPostingRecommendation(
     row.talent_opportunity_recommendation
   );
+  if (
+    !shouldHydrateTalentPostingCard({
+      hasFormalRecommendation: Boolean(existingRecommendation),
+      sourceType,
+    })
+  ) {
+    return null;
+  }
   const opportunityType = normalizeOpportunityType({
     sourceType,
     value: existingRecommendation?.opportunity_type,
@@ -1701,7 +1738,10 @@ function mapPostingRoleRow(
       companyDbLogoUrl: workspace.company_db?.logo,
       workspaceLogoUrl: workspace.logo_url,
     }),
-    companyName: String(workspace.company_name ?? ""),
+    companyName: getCandidateVisibleOpportunityCompanyName({
+      sourceType,
+      workspace,
+    }),
     description: row.description ?? null,
     employmentTypes: Array.isArray(row.type) ? row.type : [],
     externalJdUrl,
@@ -2555,6 +2595,7 @@ export async function fetchTalentPostingCardsByRoleIds(args: {
 
 async function ensureTalentOpportunityRecommendationForPostingRole(args: {
   admin: AdminClient;
+  allowInternalRecommendationCreation?: boolean;
   roleId: string;
   userId: string;
 }) {
@@ -2597,6 +2638,12 @@ async function ensureTalentOpportunityRecommendationForPostingRole(args: {
   }
 
   const sourceType = normalizeSourceType(role.source_type);
+  if (
+    sourceType === "internal" &&
+    args.allowInternalRecommendationCreation !== true
+  ) {
+    throw new Error("internal_role_review_required");
+  }
   const opportunityType =
     sourceType === "internal"
       ? OpportunityType.InternalRecommendation
@@ -2659,10 +2706,93 @@ async function resolvePositiveFeedbackSavedStage(args: {
   return relation?.source_type === "internal" ? "connected" : null;
 }
 
+export class InternalRoleAcceptanceError extends Error {
+  reason: string;
+
+  constructor(reason: string) {
+    super(`Internal role recommendation acceptance was not applied: ${reason}`);
+    this.name = "InternalRoleAcceptanceError";
+    this.reason = reason;
+  }
+}
+
+async function acceptInternalRoleRecommendation(args: {
+  admin: AdminClient;
+  clearEmailAcceptanceConfirmation?: boolean;
+  emailAcceptanceConfirmation?: Json | null;
+  feedbackReason?: string | null;
+  recommendationId: string;
+  userId: string;
+}) {
+  const { data: progress, error: progressError } = await ((
+    args.admin.from("talent_progress" as any) as any
+  )
+    .select("metadata")
+    .eq("talent_id", args.userId)
+    .eq("recommendation_id", args.recommendationId)
+    .eq("kind", "candidate_role_recommendation_presented")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle() as any);
+  if (progressError) {
+    throw new Error(
+      progressError.message ??
+        "Failed to verify the pending internal role recommendation"
+    );
+  }
+
+  const metadata = getJsonRecord(progress?.metadata as Json | null);
+  const sourceRoleId = normalizePostingRoleId(metadata?.sourceRoleId);
+  const targetRoleId = normalizePostingRoleId(metadata?.targetRoleId);
+  const hasSameCompanySource =
+    isPostingRoleId(sourceRoleId) &&
+    isPostingRoleId(targetRoleId) &&
+    sourceRoleId !== targetRoleId;
+  const emailAcceptanceConfirmation =
+    args.emailAcceptanceConfirmation !== undefined
+      ? args.emailAcceptanceConfirmation ?? {}
+      : args.clearEmailAcceptanceConfirmation
+        ? {}
+        : null;
+
+  const { data, error } = await (args.admin.rpc as any)(
+    "accept_talent_internal_role_recommendation_v1",
+    {
+      p_context: {},
+      p_email_acceptance_confirmation: emailAcceptanceConfirmation,
+      p_feedback_reason:
+        String(args.feedbackReason ?? "").trim().slice(0, 1000) || null,
+      p_recommendation_id: args.recommendationId,
+      p_source_role_id: hasSameCompanySource ? sourceRoleId : null,
+      p_talent_id: args.userId,
+    }
+  );
+  if (error) {
+    throw new Error(
+      error.message ?? "Failed to accept the internal role recommendation"
+    );
+  }
+
+  const result = getJsonRecord(data as Json | null);
+  const status = String(result?.status ?? "").trim();
+  const reason = String(result?.reason ?? "").trim() || status || "unknown";
+  if (status === "not_internal" && reason === "not_internal_role") {
+    return false;
+  }
+  if (
+    status === "accepted" ||
+    (status === "no_change" && result?.targetAccepted === true)
+  ) {
+    return true;
+  }
+  throw new InternalRoleAcceptanceError(reason);
+}
+
 export async function updateTalentOpportunityHistoryItem(args: {
   action: "feedback" | "saved_stage" | "view" | "click" | "memo";
   admin: AdminClient;
   clearEmailAcceptanceConfirmation?: boolean;
+  emailAcceptanceConfirmation?: Json | null;
   feedback?: TalentOpportunityFeedback | null;
   feedbackReason?: string | null;
   opportunityId: string;
@@ -2676,6 +2806,9 @@ export async function updateTalentOpportunityHistoryItem(args: {
   const opportunityId = postingRoleId
     ? await ensureTalentOpportunityRecommendationForPostingRole({
         admin: args.admin,
+        allowInternalRecommendationCreation: !(
+          args.action === "feedback" && args.feedback === "positive"
+        ),
         roleId: postingRoleId,
         userId: args.userId,
       })
@@ -2721,6 +2854,20 @@ export async function updateTalentOpportunityHistoryItem(args: {
   }
 
   if (args.action === "feedback") {
+    if (
+      args.feedback === "positive" &&
+      (await acceptInternalRoleRecommendation({
+        admin: args.admin,
+        clearEmailAcceptanceConfirmation: args.clearEmailAcceptanceConfirmation,
+        emailAcceptanceConfirmation: args.emailAcceptanceConfirmation,
+        feedbackReason: args.feedbackReason,
+        recommendationId: opportunityId,
+        userId: args.userId,
+      }))
+    ) {
+      return { ok: true, opportunityId, updatedAt: now };
+    }
+
     const savedStage =
       args.feedback === "positive"
         ? await resolvePositiveFeedbackSavedStage({
@@ -2747,11 +2894,16 @@ export async function updateTalentOpportunityHistoryItem(args: {
       throw new Error(error.message ?? "Failed to update opportunity feedback");
     }
 
-    if (args.clearEmailAcceptanceConfirmation) {
+    if (
+      args.emailAcceptanceConfirmation !== undefined ||
+      args.clearEmailAcceptanceConfirmation
+    ) {
       const { error: confirmationError } = await ((
         args.admin.from("talent_opportunity_recommendation" as any) as any
       )
-        .update({ email_acceptance_confirmation: {} })
+        .update({
+          email_acceptance_confirmation: args.emailAcceptanceConfirmation ?? {},
+        })
         .eq("talent_id", args.userId)
         .eq("id", opportunityId) as any);
       if (confirmationError) {

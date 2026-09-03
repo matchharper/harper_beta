@@ -25,6 +25,7 @@ import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 import type { CareerOpportunityMention } from "@/lib/career/opportunityMentionText";
 import type { CareerPendingActionReference } from "@/lib/career/pendingActions";
 import { uploadTalentDocument } from "@/lib/talentOnboarding/documentUploadClient";
+import { useCareerTextChatModelStore } from "@/store/useCareerTextChatModelStore";
 
 type SendChatArgs = {
   allowedToolNames?: readonly string[];
@@ -234,6 +235,7 @@ export const useCareerChat = ({
 }: UseCareerChatArgs) => {
   const tCareer = useCareerMessageFormatter();
   const { locale, setLocale } = useMessages();
+  const textChatModel = useCareerTextChatModelStore((state) => state.model);
   const [stage, setStage] = useState<CareerStage>("profile");
   const [localMessages, setLocalMessages] = useState<CareerMessage[]>([]);
   const [chatPending, setChatPending] = useState(false);
@@ -395,15 +397,24 @@ export const useCareerChat = ({
 
     if (stoppedUserMessage) {
       activeUserMessageRef.current = stoppedUserMessage;
-      setLocalMessages((prev) =>
-        replaceMessageById(
-          prev.filter(
-            (item) => String(item.id) !== String(streamAssistantId ?? "")
-          ),
+      setLocalMessages((prev) => {
+        const withStoppedUser = replaceMessageById(
+          prev,
           stoppedUserMessage.id,
           toUiMessage(stoppedUserMessage)
-        )
-      );
+        );
+        if (!streamAssistantId) return withStoppedUser;
+        return withStoppedUser.map((item) =>
+          String(item.id) === streamAssistantId
+            ? {
+                ...item,
+                content: tCareer(H.opportunitySearchStopped),
+                thinkingLogs: logs,
+                typing: false,
+              }
+            : item
+        );
+      });
     } else if (streamAssistantId) {
       setLocalMessages((prev) =>
         prev.map((item) =>
@@ -423,12 +434,13 @@ export const useCareerChat = ({
     setOnboardingWrapupPending(false);
     setScrollTick((t) => t + 1);
     return stoppedUserMessage;
-  }, [appendRecommendationStatusToActiveLogs]);
+  }, [appendRecommendationStatusToActiveLogs, tCareer]);
 
   const cancelActiveRecommendationSearch = useCallback(() => {
     if (cancelRequestedRef.current) return;
     cancelRequestedRef.current = true;
     cancellationSavePendingRef.current = true;
+    const stoppedAssistantMessageId = activeStreamAssistantIdRef.current;
     const stoppedUserMessage = markActiveRecommendationSearchStopped();
     abortControllerRef.current?.abort();
 
@@ -444,6 +456,7 @@ export const useCareerChat = ({
           method: "POST",
           body: JSON.stringify({
             conversationId,
+            locale,
             userMessageId: stoppedUserMessage.id,
           }),
         });
@@ -460,17 +473,35 @@ export const useCareerChat = ({
           throw new Error(tCareer(H.messageSendFailed));
         }
 
+        const updatedAssistantMessage = isRecord(payload)
+          ? toStreamMessagePayload(payload.assistantMessage)
+          : null;
         activeUserMessageRef.current = updatedUserMessage;
-        setLocalMessages((prev) =>
-          replaceMessageById(
-            prev,
+        setLocalMessages((prev) => {
+          const withoutStoppedPlaceholder = stoppedAssistantMessageId
+            ? prev.filter(
+                (item) => String(item.id) !== stoppedAssistantMessageId
+              )
+            : prev;
+          const withStoppedUser = replaceMessageById(
+            withoutStoppedPlaceholder,
             updatedUserMessage.id,
             toUiMessage(updatedUserMessage)
-          )
-        );
-        await Promise.resolve(onMessagesChanged?.([updatedUserMessage])).catch(
-          () => undefined
-        );
+          );
+          return updatedAssistantMessage
+            ? replaceMessageById(
+                withStoppedUser,
+                updatedAssistantMessage.id,
+                toUiMessage(updatedAssistantMessage)
+              )
+            : withStoppedUser;
+        });
+        await Promise.resolve(
+          onMessagesChanged?.([
+            updatedUserMessage,
+            ...(updatedAssistantMessage ? [updatedAssistantMessage] : []),
+          ])
+        ).catch(() => undefined);
       } catch (error) {
         setChatError(
           error instanceof Error
@@ -486,6 +517,7 @@ export const useCareerChat = ({
   }, [
     conversationId,
     fetchWithAuth,
+    locale,
     markActiveRecommendationSearchStopped,
     onMessagesChanged,
     tCareer,
@@ -692,6 +724,7 @@ export const useCareerChat = ({
             messageType,
             opportunityMentions: args.opportunityMentions,
             pendingAction: args.pendingAction,
+            textChatModel,
             uploadedDocumentIds,
             link,
           }),
@@ -1274,6 +1307,7 @@ export const useCareerChat = ({
       onTalentProfileRefreshed,
       resetActiveThinkingLogs,
       tCareer,
+      textChatModel,
     ]
   );
 

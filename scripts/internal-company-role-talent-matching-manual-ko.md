@@ -331,7 +331,6 @@ SQL에서 약 200명을 가져온 뒤 초반에 `M`명의 좋은 후보를 찾�
 1. `company_internal_roles`는 `company_roles.role_id`와 1:1이고 `request`, `considerations`를 가진다.
 2. 자동 internal fit evaluator는 `company_internal_roles.request`를 읽는다. `considerations`는 자동 worker에 반영된다고 가정하면 안 된다.
 3. 이 매뉴얼을 실행하는 agent는 role description, 세 request source, 기존 consideration을 직접 읽고 아래 우선순위로 통합해야 한다.
-4. `talent_opportunity_fit.score`는 0~100 정수이고 기존 prompt 계약상 `fit`은 80~100이다.
 5. `talent_opportunity_recommendation.score`는 저장 경로에서 0~1 numeric으로 정규화된다. 두 score scale을 혼동하지 않는다.
 6. 수동 internal recommendation API는 forced single role run을 만들고, 추천 탭·채팅·이메일 발송을 수행할 수 있다.
 7. 현재 수동 경로는 `allowRepeat: true`를 사용한다. 따라서 호출 전 중복 검사는 선택 사항이 아니라 필수다.
@@ -348,7 +347,6 @@ SQL에서 약 200명을 가져온 뒤 초반에 `M`명의 좋은 후보를 찾�
 - 선발 gate: 각 양면 점수와 mutual score가 70 이상
 - DB persistence: 최종 선정자를 production rubric으로 80~100에 재보정해 `label='fit'`으로 저장
 - 70~79 수준의 불확실성이 실제로 남아 있으면 최종 발송하지 않고 `ambiguous` 또는 `hold`로 남김
-- exact 70을 별도 운영 marker로 쓰고 싶다면 `talent_opportunity_fit.score`를 오용하지 말고 별도 필드 또는 schema 계약을 먼저 만든다
 
 이 구분은 인원 채우기를 막고 기존 worker·audit와 일관성을 유지하기 위한 것이다.
 

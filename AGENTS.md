@@ -10,6 +10,19 @@
   **company-side LLM**. Use this term consistently in code comments,
   documentation, and implementation discussions.
 
+## Company role fit recovery audit
+
+- Before planning, changing, or running a Wonderful Role non-fit review,
+  missing-fit review, or Company Role Fit Recovery Audit, read and follow all
+  three canonical documents:
+  - `docs/company/company-role-fit-recovery-audit-overview-ko.md`
+  - `docs/company/company-role-fit-recovery-audit-codex-runbook-ko.md`
+  - `docs/company/company-role-fit-recovery-audit-calibration-ko.md`
+- Treat the overview as the product and data contract, the Codex runbook as the
+  execution contract, and the calibration document as the source of current
+  evaluator and retrieval changes. Do not substitute the Company Context Run
+  documents for this audit's existing-non-fit workflow.
+
 ## Company-side UX writing
 
 - Before creating, changing, or reviewing any user-facing wording for the

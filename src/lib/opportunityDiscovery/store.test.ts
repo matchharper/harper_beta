@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createOpportunityDiscoveryRun, serializeOpportunityRun } from "./store";
+import {
+  createOpportunityDiscoveryRun,
+  hasActiveConversationCompletedOpportunityRun,
+  serializeOpportunityRun,
+} from "./store";
 import type { OpportunityRunRow } from "./types";
 
 const createRun = (
@@ -25,6 +29,77 @@ const createRun = (
   trigger_payload: {},
   updated_at: "2026-08-13T00:00:00.000Z",
   ...overrides,
+});
+
+test("uses the active conversation-completed run as the waiting-period boundary", async () => {
+  const filters: Array<{
+    field: string;
+    operation: "eq" | "in";
+    value: unknown;
+  }> = [];
+  const query = {
+    select(columns: string, options: Record<string, unknown>) {
+      assert.equal(columns, "id");
+      assert.deepEqual(options, { count: "exact", head: true });
+      return query;
+    },
+    eq(field: string, value: unknown) {
+      filters.push({ field, operation: "eq", value });
+      return query;
+    },
+    async in(field: string, value: unknown) {
+      filters.push({ field, operation: "in", value });
+      return { count: 1, error: null };
+    },
+  };
+  const admin = {
+    from(table: string) {
+      assert.equal(table, "opportunity_discovery_run");
+      return query;
+    },
+  };
+
+  const active = await hasActiveConversationCompletedOpportunityRun({
+    admin: admin as never,
+    userId: "talent-1",
+  });
+
+  assert.equal(active, true);
+  assert.deepEqual(filters, [
+    { field: "talent_id", operation: "eq", value: "talent-1" },
+    { field: "trigger", operation: "eq", value: "conversation_completed" },
+    {
+      field: "status",
+      operation: "in",
+      value: ["queued", "running"],
+    },
+  ]);
+});
+
+test("ends the waiting period when the conversation-completed run is terminal", async () => {
+  const query = {
+    select() {
+      return query;
+    },
+    eq() {
+      return query;
+    },
+    async in() {
+      return { count: 0, error: null };
+    },
+  };
+  const admin = {
+    from() {
+      return query;
+    },
+  };
+
+  const active = await hasActiveConversationCompletedOpportunityRun({
+    admin: admin as never,
+    userId: "talent-1",
+  });
+
+  assert.equal(active, false);
 });
 
 test("stores an explicit run recommendation target without the user-setting clamp", async () => {
