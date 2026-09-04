@@ -6460,7 +6460,7 @@ export type Database = {
           origin_id: string | null
           origin_type: string | null
           size_bytes: number | null
-          storage_path: string
+          storage_path: string | null
           talent_id: string
           updated_at: string
         }
@@ -6478,7 +6478,7 @@ export type Database = {
           origin_id?: string | null
           origin_type?: string | null
           size_bytes?: number | null
-          storage_path: string
+          storage_path?: string | null
           talent_id: string
           updated_at?: string
         }
@@ -6496,7 +6496,7 @@ export type Database = {
           origin_id?: string | null
           origin_type?: string | null
           size_bytes?: number | null
-          storage_path?: string
+          storage_path?: string | null
           talent_id?: string
           updated_at?: string
         }

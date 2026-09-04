@@ -82,4 +82,9 @@ test("keeps chain sources, terminal tools, and follow-up targets consistent", ()
       );
     }
   }
+
+  assert.ok(
+    terminalToolNames.includes("search_connected_gmail"),
+    "Gmail search should end the streaming tool chain"
+  );
 });

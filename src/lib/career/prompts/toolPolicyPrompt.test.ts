@@ -98,3 +98,24 @@ test("document tools use paginated metadata, bounded reads, and soft delete", ()
   assert.match(prompt, /is_deleted=true is a soft delete only/);
   assert.match(prompt, /transient third-party reference material/);
 });
+
+test("adds Gmail truthfulness rules only when the Gmail tool is present", () => {
+  const gmailPrompt = buildCareerToolPolicyPrompt({
+    channel: "chat",
+    isOnboardingActive: false,
+    preferredLocale: "ko",
+    toolNames: ["search_connected_gmail"],
+  });
+  const noGmailPrompt = buildCareerToolPolicyPrompt({
+    channel: "chat",
+    isOnboardingActive: false,
+    preferredLocale: "ko",
+    toolNames: ["web_search"],
+  });
+
+  assert.match(gmailPrompt, /actual inbox/);
+  assert.match(gmailPrompt, /status=ok/);
+  assert.match(gmailPrompt, /Never invent inbox findings/);
+  assert.doesNotMatch(noGmailPrompt, /search_connected_gmail/);
+  assert.doesNotMatch(noGmailPrompt, /actual inbox/);
+});
