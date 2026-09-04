@@ -20,6 +20,7 @@ import {
   fetchTalentOpportunityHistoryByIds,
   type TalentOpportunityHistoryItem,
 } from "@/lib/talentOpportunity";
+import { searchInternalRolesForCareerTool } from "@/lib/career/internalRoleSearch";
 
 type TalentOpportunityFeedbackAction = "negative" | "positive";
 
@@ -149,7 +150,46 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
         : [];
   if (items.length === 0) return null;
 
-  const feedbackContext = formatOpportunityFeedbackPromptContext(items);
+  let internalOpportunityRejectionContext = "";
+  if (
+    args.action === "negative" &&
+    opportunity?.sourceType === "internal"
+  ) {
+    let hasSameCompanyReviewedAlternative = false;
+    try {
+      const matchedRoles = await searchInternalRolesForCareerTool({
+        company: opportunity.companyName,
+        matchedOnly: true,
+        userId: args.userId,
+      });
+      hasSameCompanyReviewedAlternative =
+        (matchedRoles.newOptionCount ?? 0) > 0;
+    } catch (error) {
+      console.error(
+        "[Career] Failed to load other roles for internal feedback follow-up",
+        {
+          error: error instanceof Error ? error.message : String(error),
+          roleId: opportunity.roleId,
+          userId: args.userId,
+        }
+      );
+    }
+    internalOpportunityRejectionContext = [
+      "## Internal opportunity rejection follow-up",
+      "The rejection is recorded. Use the candidate's stated reason, if any, to decide whether another role belongs in this reply. Do not treat an unclear or company-level rejection as a role-level preference. Only when that reason could make one unpresented reviewed role materially more suitable, use get_internal_roles with matchedOnly=true to inspect current matches; if one is found, offer to show it without naming or describing it. Otherwise acknowledge briefly; ask one neutral question only if its answer would affect future recommendations.",
+      ...(hasSameCompanyReviewedAlternative
+        ? [
+            "One unpresented reviewed role at the same company is also available. This is availability context, not a reason to mention it.",
+          ]
+        : []),
+    ].join("\n");
+  }
+  const feedbackContext = [
+    formatOpportunityFeedbackPromptContext(items),
+    internalOpportunityRejectionContext,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
   const proactiveContext =
     buildCareerOpportunityFeedbackFollowUpTurnInstruction({
       preferredLocale: talentSetting?.preferred_locale ?? null,

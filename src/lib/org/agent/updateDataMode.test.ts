@@ -30,7 +30,19 @@ test("incomplete proposal confirmation remains retryable input error", () => {
       }),
     (error: unknown) =>
       error instanceof OrgAgentToolInputError &&
-      error.message ===
+      error.message.includes(
         "proposalId and proposalAction must be provided together"
+      )
+  );
+});
+
+test("a lone proposal action explains how to create a new preview", () => {
+  assert.throws(
+    () =>
+      resolveOrgAgentUpdateDataMode({
+        changes: [{ key: "workspace_memory", kind: "append", value: "note" }],
+        proposalAction: "preview",
+      }),
+    /To create a new preview, omit both proposal fields and send changes/
   );
 });

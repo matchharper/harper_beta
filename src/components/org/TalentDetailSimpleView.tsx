@@ -1,6 +1,12 @@
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { ChevronLeft, ChevronRight, LoaderCircle, X } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  LoaderCircle,
+  X,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
@@ -76,7 +82,10 @@ import {
 import { getOrgTalentDetailNavigationState } from "@/lib/org/detailNavigation";
 import { humanizeOrgStage } from "@/lib/org/pipelineStage";
 import { convertSlackCandidateIntroToWebMarkdown } from "@/lib/org/agent/navigationMarkdown";
-import type { OrgTalentDetailResponse } from "@/lib/org/server";
+import type {
+  OrgOtherRoleFeedResponse,
+  OrgTalentDetailResponse,
+} from "@/lib/org/server";
 import { cn } from "@/lib/utils";
 import Face from "../common/Face";
 
@@ -648,7 +657,19 @@ function CandidateDecisionActions({
   );
 }
 
-function getOrgFeedTitle(kind: string) {
+function getOrgFeedTitle(item: OrgTalentDetailResponse["feed"][number]) {
+  if (item.kind === "company_request_followup_sent") {
+    return "후보자에게 회사 요청을 다시 안내했어요";
+  }
+  if (item.activity?.eventType === "candidate_contact_sent") {
+    return item.activity.requestKind === "resume"
+      ? "후보자에게 이력서를 요청했어요"
+      : "후보자에게 질문을 보냈어요";
+  }
+  if (item.activity?.eventType === "candidate_response_received") {
+    return "후보자의 답변이 도착했어요";
+  }
+  const { kind } = item;
   if (kind === "org_note") return "메모";
   if (kind === "org_acceptance" || kind === "talent_recommendation_accepted") {
     return "연결 시작";
@@ -657,11 +678,20 @@ function getOrgFeedTitle(kind: string) {
     return "연결 거절";
   }
   if (kind === "org_stage_change") return "상태 변경";
+  if (kind === "org_candidate_role_move") return "역할 변경";
   if (kind === "org_resume_opened") return "이력서 열람";
   return "활동";
 }
 
-function getOrgFeedIcon(kind: string): ProgressFeedIcon {
+function getOrgFeedIcon(
+  item: OrgTalentDetailResponse["feed"][number]
+): ProgressFeedIcon {
+  if (item.kind === "company_request_followup_sent") return "mail";
+  if (item.activity?.eventType === "candidate_contact_sent") return "mail";
+  if (item.activity?.eventType === "candidate_response_received") {
+    return "sparkles";
+  }
+  const { kind } = item;
   if (kind === "org_acceptance" || kind === "talent_recommendation_accepted") {
     return "check";
   }
@@ -669,6 +699,7 @@ function getOrgFeedIcon(kind: string): ProgressFeedIcon {
     return "x";
   }
   if (kind === "org_stage_change") return "note";
+  if (kind === "org_candidate_role_move") return "note";
   if (kind === "org_resume_opened") return "eye";
   return "note";
 }
@@ -719,6 +750,31 @@ function FeedPanel({
   const { detailQuery } = useOrgJobsDetail();
   const [draft, setDraft] = useState("");
   const [pollingQueueId, setPollingQueueId] = useState<string | null>(null);
+  const [otherRolesOpen, setOtherRolesOpen] = useState(false);
+  const [otherRoleFeedOpenScope, setOtherRoleFeedOpenScope] = useState<
+    string | null
+  >(null);
+  const [otherRoleFeed, setOtherRoleFeed] = useState<{
+    payload: OrgOtherRoleFeedResponse;
+    scope: string;
+  } | null>(null);
+  const [otherRoleFeedError, setOtherRoleFeedError] = useState<{
+    message: string;
+    scope: string;
+  } | null>(null);
+  const [otherRoleFeedLoadingScope, setOtherRoleFeedLoadingScope] = useState<
+    string | null
+  >(null);
+  const otherRoleFeedScope = `${workspaceId}:${talentId ?? detail.talent.userId}:${detail.role.roleId}`;
+  const scopedOtherRoleFeed =
+    otherRoleFeed?.scope === otherRoleFeedScope ? otherRoleFeed.payload : null;
+  const scopedOtherRoleFeedError =
+    otherRoleFeedError?.scope === otherRoleFeedScope
+      ? otherRoleFeedError.message
+      : null;
+  const otherRoleFeedLoading = otherRoleFeedLoadingScope === otherRoleFeedScope;
+  const scopedOtherRolesOpen =
+    otherRolesOpen && otherRoleFeedOpenScope === otherRoleFeedScope;
   const createFeed = useCreateOrgFeedItem();
   const updateFeed = useUpdateOrgFeedItem();
   const deleteFeed = useDeleteOrgFeedItem();
@@ -758,85 +814,140 @@ function FeedPanel({
   const pendingConnectionAction =
     updateConnectionEmail.variables?.action ?? null;
   const updateConnectionEmailMutate = updateConnectionEmail.mutate;
-  const feedItems = useMemo<ProgressFeedItem[]>(
-    () =>
-      [
-        ...detail.feed.map((item) => ({
-          actor: item.actor,
-          createdAt: item.createdAt,
-          deletable:
-            canManageCandidates &&
-            item.kind === "org_note" &&
-            item.companyUserId === currentUserId,
-          editable:
-            canManageCandidates &&
-            item.kind === "org_note" &&
-            item.companyUserId === currentUserId,
-          icon: getOrgFeedIcon(item.kind),
-          id: item.id,
-          text: item.text,
-          title: getOrgFeedTitle(item.kind),
-        })),
-        ...detail.meetingEvents.map((item) => ({
-          createdAt: item.createdAt,
-          icon:
-            item.kind === "meeting_confirmed"
-              ? ("check" as const)
-              : ("note" as const),
-          id: item.id,
-          text: item.scheduledAt
-            ? `${formatKst(item.scheduledAt)} · ${item.text}`
-            : item.text,
-          title: item.title,
-        })),
-        ...detail.connectionConfirmationEmails.map((item) => {
-          const pendingAction =
-            updateConnectionEmail.isPending &&
-            pendingConnectionQueueId === item.id
-              ? pendingConnectionAction
-              : null;
-          return {
-            createdAt: item.sentAt ?? item.createdAt,
-            customContent: (
-              <ConnectionConfirmationEmailFeedCard
-                item={item}
-                onCancel={
-                  canManageCandidates
-                    ? () =>
-                        updateConnectionEmailMutate({
-                          action: "cancel",
+  const loadOtherRoleFeed = async () => {
+    if (otherRoleFeedLoading || scopedOtherRoleFeed) return;
+    const requestedScope = otherRoleFeedScope;
+    setOtherRoleFeedLoadingScope(requestedScope);
+    setOtherRoleFeedError(null);
+    try {
+      const params = new URLSearchParams({
+        excludeRoleId: detail.role.roleId,
+        talentId: talentId ?? detail.talent.userId,
+        workspaceId,
+      });
+      const response = await fetch(
+        `/api/org/detail/other-role-feed?${params.toString()}`
+      );
+      const payload = (await response.json().catch(() => ({}))) as
+        | OrgOtherRoleFeedResponse
+        | { error?: string };
+      if (!response.ok || !("items" in payload)) {
+        throw new Error(
+          "error" in payload && payload.error
+            ? payload.error
+            : "다른 역할의 기록을 불러오지 못했습니다."
+        );
+      }
+      setOtherRoleFeed({ payload, scope: requestedScope });
+    } catch (error) {
+      setOtherRoleFeedError({
+        message:
+          error instanceof Error
+            ? error.message
+            : "다른 역할의 기록을 불러오지 못했습니다.",
+        scope: requestedScope,
+      });
+    } finally {
+      setOtherRoleFeedLoadingScope((current) =>
+        current === requestedScope ? null : current
+      );
+    }
+  };
+  const feedItems = useMemo<ProgressFeedItem[]>(() => {
+    const requestsWithContactProgress = new Set(
+      detail.feed.flatMap((item) =>
+        item.activity?.eventType === "candidate_contact_sent"
+          ? [item.activity.requestId]
+          : []
+      )
+    );
+    return [
+      ...detail.feed.map((item) => ({
+        actor: item.actor,
+        createdAt: item.createdAt,
+        deletable:
+          canManageCandidates &&
+          item.kind === "org_note" &&
+          item.companyUserId === currentUserId,
+        editable:
+          canManageCandidates &&
+          item.kind === "org_note" &&
+          item.companyUserId === currentUserId,
+        delivery: item.delivery
+          ? {
+              bodyText: item.delivery.bodyText,
+              id: item.delivery.id,
+              label: item.delivery.disclosureLabel,
+              subject: item.delivery.subject,
+            }
+          : null,
+        icon: getOrgFeedIcon(item),
+        id: item.id,
+        text: item.text,
+        title: getOrgFeedTitle(item),
+      })),
+      ...detail.meetingEvents.map((item) => ({
+        createdAt: item.createdAt,
+        icon:
+          item.kind === "meeting_confirmed"
+            ? ("check" as const)
+            : ("note" as const),
+        id: item.id,
+        text: item.scheduledAt
+          ? `${formatKst(item.scheduledAt)} · ${item.text}`
+          : item.text,
+        title: item.title,
+      })),
+      ...detail.connectionConfirmationEmails.map((item) => {
+        const pendingAction =
+          updateConnectionEmail.isPending &&
+          pendingConnectionQueueId === item.id
+            ? pendingConnectionAction
+            : null;
+        return {
+          createdAt: item.sentAt ?? item.createdAt,
+          customContent: (
+            <ConnectionConfirmationEmailFeedCard
+              item={item}
+              onCancel={
+                canManageCandidates
+                  ? () =>
+                      updateConnectionEmailMutate({
+                        action: "cancel",
+                        queueId: item.id,
+                        roleId: item.roleId ?? detail.role.roleId,
+                        talentId: item.talentId,
+                        workspaceId,
+                      })
+                  : undefined
+              }
+              onSendNow={
+                canManageCandidates
+                  ? () =>
+                      updateConnectionEmailMutate(
+                        {
+                          action: "send_now",
                           queueId: item.id,
                           roleId: item.roleId ?? detail.role.roleId,
                           talentId: item.talentId,
                           workspaceId,
-                        })
-                    : undefined
-                }
-                onSendNow={
-                  canManageCandidates
-                    ? () =>
-                        updateConnectionEmailMutate(
-                          {
-                            action: "send_now",
-                            queueId: item.id,
-                            roleId: item.roleId ?? detail.role.roleId,
-                            talentId: item.talentId,
-                            workspaceId,
-                          },
-                          {
-                            onSuccess: () => setPollingQueueId(item.id),
-                          }
-                        )
-                    : undefined
-                }
-                pendingAction={pendingAction}
-              />
-            ),
-            id: `connection-email:${item.id}`,
-            text: "",
-          };
-        }),
-        ...detail.companyRequestHistory.map((item) => ({
+                        },
+                        {
+                          onSuccess: () => setPollingQueueId(item.id),
+                        }
+                      )
+                  : undefined
+              }
+              pendingAction={pendingAction}
+            />
+          ),
+          id: `connection-email:${item.id}`,
+          text: "",
+        };
+      }),
+      ...detail.companyRequestHistory
+        .filter((item) => !requestsWithContactProgress.has(item.id))
+        .map((item) => ({
           createdAt: item.sentAt ?? item.cancelledAt ?? item.createdAt,
           customContent: (
             <CompanyTalentRequestFeedCard
@@ -861,46 +972,45 @@ function FeedPanel({
           id: `company-request:${item.id}`,
           text: "",
         })),
-        ...(internalOpsAccess
-          ? detail.introEmails.map((item) => ({
-              createdAt: item.createdAt,
-              customContent: (
-                <OrgIntroEmailFeedCard
-                  item={item}
-                  recipientLabels={item.toEmails.map((email) =>
-                    getOrgEmailAddressLabel(email, detail)
-                  )}
-                  senderLabel={getOrgEmailAddressLabel(item.fromEmail, detail)}
-                />
-              ),
-              id: `org-intro-email:${item.id}`,
-              text: "",
-            }))
-          : []),
-      ].sort((left, right) => {
-        const leftTime = Date.parse(left.createdAt);
-        const rightTime = Date.parse(right.createdAt);
-        return (
-          (Number.isFinite(rightTime) ? rightTime : 0) -
-          (Number.isFinite(leftTime) ? leftTime : 0)
-        );
-      }),
-    [
-      canManageCandidates,
-      cancelCompanyRequest.isPending,
-      cancelCompanyRequestMutate,
-      currentUserId,
-      detail,
-      internalOpsAccess,
-      pendingCompanyRequestId,
-      pendingConnectionAction,
-      pendingConnectionQueueId,
-      updateConnectionEmail.isPending,
-      updateConnectionEmailMutate,
-      talentId,
-      workspaceId,
-    ]
-  );
+      ...(internalOpsAccess
+        ? detail.introEmails.map((item) => ({
+            createdAt: item.createdAt,
+            customContent: (
+              <OrgIntroEmailFeedCard
+                item={item}
+                recipientLabels={item.toEmails.map((email) =>
+                  getOrgEmailAddressLabel(email, detail)
+                )}
+                senderLabel={getOrgEmailAddressLabel(item.fromEmail, detail)}
+              />
+            ),
+            id: `org-intro-email:${item.id}`,
+            text: "",
+          }))
+        : []),
+    ].sort((left, right) => {
+      const leftTime = Date.parse(left.createdAt);
+      const rightTime = Date.parse(right.createdAt);
+      return (
+        (Number.isFinite(rightTime) ? rightTime : 0) -
+        (Number.isFinite(leftTime) ? leftTime : 0)
+      );
+    });
+  }, [
+    canManageCandidates,
+    cancelCompanyRequest.isPending,
+    cancelCompanyRequestMutate,
+    currentUserId,
+    detail,
+    internalOpsAccess,
+    pendingCompanyRequestId,
+    pendingConnectionAction,
+    pendingConnectionQueueId,
+    updateConnectionEmail.isPending,
+    updateConnectionEmailMutate,
+    talentId,
+    workspaceId,
+  ]);
 
   return (
     <div className="min-w-0 space-y-2.5">
@@ -970,6 +1080,78 @@ function FeedPanel({
           createFeed.error instanceof Error ? createFeed.error : null
         }
       />
+      <div className="border-t border-neutral-1000-a05 pt-2">
+        <MuteButton
+          aria-expanded={scopedOtherRolesOpen}
+          className="w-full justify-between"
+          onClick={() => {
+            const nextOpen = !scopedOtherRolesOpen;
+            setOtherRolesOpen(nextOpen);
+            setOtherRoleFeedOpenScope(otherRoleFeedScope);
+            if (nextOpen) void loadOtherRoleFeed();
+          }}
+          size="sm"
+          type="button"
+          variant="transparent"
+        >
+          다른 역할에서 기록된 내용 보기
+          <ChevronDown
+            aria-hidden
+            className={cn(
+              "size-4 transition-transform",
+              scopedOtherRolesOpen && "rotate-180"
+            )}
+          />
+        </MuteButton>
+        {scopedOtherRolesOpen ? (
+          <div className="mt-2">
+            {otherRoleFeedLoading ? (
+              <div className="flex items-center gap-2 py-4 text-[12px] text-neutral-muted">
+                <LoaderCircle aria-hidden className="size-4 animate-spin" />
+                다른 역할의 기록을 불러오는 중
+              </div>
+            ) : scopedOtherRoleFeedError ? (
+              <div className="rounded-md bg-critical-faded p-3 text-[12px] text-critical">
+                <div>{scopedOtherRoleFeedError}</div>
+                <MuteButton
+                  className="mt-2"
+                  onClick={() => {
+                    setOtherRoleFeed(null);
+                    setOtherRoleFeedError(null);
+                    void loadOtherRoleFeed();
+                  }}
+                  size="sm"
+                  type="button"
+                  variant="transparent"
+                >
+                  다시 시도
+                </MuteButton>
+              </div>
+            ) : scopedOtherRoleFeed && scopedOtherRoleFeed.items.length > 0 ? (
+              <ProgressFeed
+                emptyLabel="이 Workspace의 다른 역할에는 기록이 없어요."
+                items={scopedOtherRoleFeed.items.map((item) => ({
+                  createdAt: item.createdAt,
+                  icon:
+                    item.kind === "connection_notice" || item.kind === "meeting"
+                      ? "check"
+                      : item.kind === "intro_email"
+                        ? "mail"
+                        : "note",
+                  id: item.id,
+                  roleContext: item.roleName,
+                  text: item.text,
+                  title: item.title,
+                }))}
+              />
+            ) : (
+              <div className="py-4 text-[12px] text-neutral-muted">
+                이 Workspace의 다른 역할에는 기록이 없어요.
+              </div>
+            )}
+          </div>
+        ) : null}
+      </div>
       {updateConnectionEmail.error ? (
         <div className={opsTheme.errorNotice}>
           {updateConnectionEmail.error instanceof Error
@@ -1485,7 +1667,7 @@ export function TalentDetailSimpleView() {
                   </div>
                 </div>
               </div>
-              <div className="hidden min-h-0 overflow-y-auto border-l border-neutral-1000-a05 bg-bg-default p-5 md:block">
+              <div className="hidden min-h-0 overflow-y-auto border-l border-neutral-1000-a05 bg-bg-default px-5 pt-5 pb-20 md:block">
                 <FeedPanel
                   canManageCandidates={canManageCandidates}
                   currentUserId={currentUserId}

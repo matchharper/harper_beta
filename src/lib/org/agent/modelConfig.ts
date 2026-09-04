@@ -24,9 +24,9 @@ export const ORG_AGENT_MODEL_IDS = [
 
 export type OrgAgentModelId = (typeof ORG_AGENT_MODEL_IDS)[number];
 
-export const DEFAULT_ORG_AGENT_MODEL: OrgAgentModelId = ORG_AGENT_TERRA_MODEL;
+export const DEFAULT_ORG_AGENT_MODEL: OrgAgentModelId = ORG_AGENT_LUNA_MODEL;
 export const DEFAULT_SLACK_ORG_AGENT_MODEL: OrgAgentModelId =
-  ORG_AGENT_TERRA_MODEL;
+  ORG_AGENT_LUNA_MODEL;
 export const DEFAULT_ORG_AGENT_REASONING_EFFORT = "xhigh" as const;
 export type OrgAgentReasoningEffort = "high" | "xhigh" | "max";
 

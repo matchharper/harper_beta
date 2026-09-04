@@ -161,6 +161,49 @@ export const normalizeHistoryOpportunities = (
     if (typeof item.talentMemo !== "string") {
       item.talentMemo = null;
     }
+    item.activityTimelineLoaded = item.activityTimelineLoaded === true;
+    item.confirmedMeetings = Array.isArray(item.confirmedMeetings)
+      ? item.confirmedMeetings
+          .filter(
+            (meeting) =>
+              Boolean(meeting) &&
+              typeof meeting.id === "string" &&
+              typeof meeting.startAt === "string" &&
+              !Number.isNaN(Date.parse(meeting.startAt)) &&
+              typeof meeting.endAt === "string" &&
+              !Number.isNaN(Date.parse(meeting.endAt))
+          )
+          .map((meeting) => ({
+            ...meeting,
+            confirmedAt:
+              typeof meeting.confirmedAt === "string" &&
+              !Number.isNaN(Date.parse(meeting.confirmedAt))
+                ? meeting.confirmedAt
+                : null,
+          }))
+      : [];
+    item.talentRoleActivities = Array.isArray(item.talentRoleActivities)
+      ? item.talentRoleActivities.filter(
+          (activity) =>
+            Boolean(activity) &&
+            typeof activity.id === "string" &&
+            typeof activity.kind === "string" &&
+            typeof activity.createdAt === "string" &&
+            !Number.isNaN(Date.parse(activity.createdAt))
+        )
+      : [];
+    if (
+      !item.upcomingMeeting ||
+      typeof item.upcomingMeeting !== "object" ||
+      typeof item.upcomingMeeting.startAt !== "string" ||
+      Number.isNaN(Date.parse(item.upcomingMeeting.startAt)) ||
+      typeof item.upcomingMeeting.endAt !== "string" ||
+      Number.isNaN(Date.parse(item.upcomingMeeting.endAt))
+    ) {
+      item.upcomingMeeting = null;
+    } else if (typeof item.upcomingMeeting.title !== "string") {
+      item.upcomingMeeting.title = null;
+    }
     return true;
   });
 };

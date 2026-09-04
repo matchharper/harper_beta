@@ -106,7 +106,8 @@ test("guides adaptive role discovery without turning it into a fixed script", ()
     /only once the saved state looks ready and the required team-preference discovery/
   );
   assert.match(prompt, /short contextual “응”/);
-  assert.match(prompt, /as the only tool in the turn/);
+  assert.match(prompt, /call confirm_pending_role_creation/);
+  assert.doesNotMatch(prompt, /as the only tool in the turn/);
   assert.match(prompt, /do not merely acknowledge/);
   assert.match(prompt, /adds, removes, or changes role details/);
 });
@@ -139,16 +140,31 @@ test("calibrates the company selection bar from people supplied through any prof
     prompt,
     /prioritize this invitation over another generic question/
   );
-  assert.match(prompt, /call calibrate_role_hiring_brief as the only tool/);
+  assert.match(prompt, /call calibrate_role_hiring_brief/);
+  assert.doesNotMatch(prompt, /calibrate_role_hiring_brief as the only tool/);
+  assert.match(prompt, /Tools run one at a time/);
+  assert.match(prompt, /A successful save does not by itself end the turn/);
   assert.match(prompt, /Recognize the intent from the conversation/);
   assert.match(prompt, /evidence for the company's caliber, not as candidates/);
-  assert.match(prompt, /Role eligibility changes only when the user explicitly connects/);
-  assert.match(prompt, /turns reference evidence into direct candidate-evaluation rules/);
+  assert.match(
+    prompt,
+    /Role eligibility changes only when the user explicitly connects/
+  );
+  assert.match(
+    prompt,
+    /turns reference evidence into direct candidate-evaluation rules/
+  );
   assert.match(prompt, /small set of non-exclusive bonuses/);
-  assert.match(prompt, /concrete peer groups rather than the person's exact biography/);
+  assert.match(
+    prompt,
+    /concrete peer groups rather than the person's exact biography/
+  );
   assert.match(prompt, /varied examples can establish stronger shared rules/);
   assert.match(prompt, /User-stated reasons remain strongest/);
-  assert.match(prompt, /narrowest useful bonuses from the profile's strongest distinctive professional signals/);
+  assert.match(
+    prompt,
+    /narrowest useful bonuses from the profile's strongest distinctive professional signals/
+  );
   assert.match(prompt, /explains that reasoning to the user/);
   assert.match(prompt, /Ask at most one follow-up question/);
   assert.match(prompt, /professional, job-related evidence/);
@@ -217,6 +233,39 @@ test("keeps long pasted descriptions beyond the old twelve-thousand-character cu
   });
 
   assert.match(prompt, new RegExp(tailMarker));
+});
+
+test("role creation keeps 24 recent messages plus its rolling summary", () => {
+  const prompt = buildRoleCreationUserPrompt({
+    attachments: [],
+    history: Array.from({ length: 30 }, (_, index) => ({
+      content: `history-${index + 1}`,
+      role: index % 2 === 0 ? "user" : "assistant",
+    })),
+    mentions: [],
+    olderSummary: "오래된 역할 논의 요약",
+    state: {
+      assigneeUserIds: [],
+      channels: [],
+      currentUser: { name: "채용 담당자" },
+      members: [],
+      metadata: {},
+      role: { criteria: [], name: "Backend Engineer" },
+      workspace: {
+        companyName: "Harper",
+        pitch: null,
+        relatedLinks: [],
+        request: null,
+      },
+    } as any,
+    userMessage: "이어서 정리해 주세요.",
+  });
+
+  assert.match(prompt, /<OLDER_ROLE_CHAT_SUMMARY>/);
+  assert.match(prompt, /오래된 역할 논의 요약/);
+  assert.doesNotMatch(prompt, /history-6"/);
+  assert.match(prompt, /history-7/);
+  assert.match(prompt, /history-30/);
 });
 
 test("includes server-resolved talent mentions in role creation context", () => {

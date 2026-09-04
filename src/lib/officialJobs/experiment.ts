@@ -7,13 +7,9 @@ import {
 } from "@/lib/officialJobs/landingLogs";
 
 export const OFFICIAL_JOBS_APPLY_HELP_STORAGE_KEY =
-  "harper_official_jobs_apply_help_variant_v1";
+  "harper_official_jobs_apply_help_variant_v2";
 export const OFFICIAL_JOBS_APPLY_HELP_DATA_ATTRIBUTE =
   "data-official-jobs-apply-help-variant";
-export const OFFICIAL_JOBS_APPLY_HELP_CONTROL_COPY_CLASS =
-  "official-jobs-apply-help-control-copy";
-export const OFFICIAL_JOBS_APPLY_HELP_TREATMENT_COPY_CLASS =
-  "official-jobs-apply-help-treatment-copy";
 export const OFFICIAL_JOBS_APPLY_HELP_TREATMENT_ONLY_CLASS =
   "official-jobs-apply-help-treatment-only";
 
@@ -156,23 +152,8 @@ export const OFFICIAL_JOBS_APPLY_HELP_BOOTSTRAP_SCRIPT = `
 `;
 
 export const OFFICIAL_JOBS_APPLY_HELP_EXPERIMENT_CSS = `
-  .${OFFICIAL_JOBS_APPLY_HELP_CONTROL_COPY_CLASS} {
-    display: inline;
-  }
-
-  .${OFFICIAL_JOBS_APPLY_HELP_TREATMENT_COPY_CLASS},
   .${OFFICIAL_JOBS_APPLY_HELP_TREATMENT_ONLY_CLASS} {
     display: none;
-  }
-
-  html[${OFFICIAL_JOBS_APPLY_HELP_DATA_ATTRIBUTE}="b"]
-    .${OFFICIAL_JOBS_APPLY_HELP_CONTROL_COPY_CLASS} {
-    display: none;
-  }
-
-  html[${OFFICIAL_JOBS_APPLY_HELP_DATA_ATTRIBUTE}="b"]
-    .${OFFICIAL_JOBS_APPLY_HELP_TREATMENT_COPY_CLASS} {
-    display: inline;
   }
 
   html[${OFFICIAL_JOBS_APPLY_HELP_DATA_ATTRIBUTE}="b"]

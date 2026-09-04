@@ -653,6 +653,7 @@ export async function POST(request: NextRequest) {
           insightUpdatedAt: result.insightUpdatedAt,
           opportunityDiscoveryQueued: result.opportunityDiscoveryQueued,
           opportunityRun: result.opportunityRun,
+          onboardingChecklistProgress: result.onboardingChecklistProgress,
           pendingInternalOpportunityCallRequest: internalCallRequest
             ? (pendingInternalOpportunityCallRequests?.[0] ?? null)
             : undefined,

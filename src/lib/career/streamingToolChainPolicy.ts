@@ -17,16 +17,23 @@ export const CAREER_STREAMING_TOOL_CHAIN = {
     "get_role_context",
     "update_recommended_opportunity_feedback",
     "internal_role_priority_review",
+    "request_internal_role_reconsideration",
   ],
   get_internal_roles: [
     "internal_role_priority_review",
-    "get_role_context",
+    "request_internal_role_reconsideration",
     "get_internal_roles",
+    "update_recommended_opportunity_feedback",
   ],
   get_role_context: [
     "get_role_context",
     "update_recommended_opportunity_feedback",
   ],
+  update_recommended_opportunity_feedback: [
+    "get_role_context",
+    "get_internal_roles",
+  ],
+  internal_role_priority_review: ["request_internal_role_reconsideration"],
   update_talent_profile: ["recommend_job_postings", "get_internal_roles"],
 } as const satisfies Partial<Record<TalentToolName, readonly TalentToolName[]>>;
 
@@ -42,9 +49,9 @@ export const CAREER_STREAMING_TERMINAL_TOOL_NAMES = [
   "read_talent_activity_events",
   "search_connected_gmail",
   "internal_role_priority_review",
+  "request_internal_role_reconsideration",
   "record_internal_fit_reevaluation_information",
   "record_company_request_response",
-  "update_recommended_opportunity_feedback",
   "update_setting",
   "update_language_setting",
 ] as const satisfies readonly TalentToolName[];

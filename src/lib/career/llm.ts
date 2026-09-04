@@ -4,6 +4,7 @@ import {
   resolveChatCompletionFallbackModelForError,
   supportsSamplingParametersForModel,
   supportsResponseFormatForModel,
+  type ChatCompletionReasoningEffort,
 } from "@/lib/llm/llm";
 import type { OpenAIResponsesReasoningEffort } from "@/lib/llm/responsesChatAdapter";
 import {
@@ -1397,6 +1398,7 @@ async function createRecommendationToolResultFinalText(args: {
 
 type CareerAssistantModelConfig = {
   anthropicOverloadFallbackModel: string;
+  chatCompletionReasoningEffort?: ChatCompletionReasoningEffort;
   fallbackModel: string;
   openAIResponsesReasoningEffort?: OpenAIResponsesReasoningEffort;
   primaryModel: string;
@@ -1433,6 +1435,7 @@ function resolveNativeAnthropicFallbackModelConfig(
 }
 
 export async function runCareerChatAssistant(args: {
+  chatCompletionReasoningEffort?: ChatCompletionReasoningEffort;
   executeTool: (args: {
     input: Record<string, unknown>;
     name: string;
@@ -1459,6 +1462,16 @@ export async function runCareerChatAssistant(args: {
   const modelConfig = {
     ...(args.modelConfig ?? assistantModelConfig()),
     ...(args.primaryModel ? { primaryModel: args.primaryModel } : {}),
+    ...(args.chatCompletionReasoningEffort
+      ? {
+          chatCompletionReasoningEffort: args.chatCompletionReasoningEffort,
+        }
+      : {}),
+    ...(args.openAIResponsesReasoningEffort
+      ? {
+          openAIResponsesReasoningEffort: args.openAIResponsesReasoningEffort,
+        }
+      : {}),
   };
   const usageLabel = args.usageLabel ?? "career/chat:assistant";
   const temperature = args.temperature ?? CAREER_LLM_CONFIG.chat.temperature;
@@ -1791,6 +1804,7 @@ export async function recoverCareerChatAssistantText(args: {
 }
 
 export async function runCareerChatAssistantStream(args: {
+  chatCompletionReasoningEffort?: ChatCompletionReasoningEffort;
   executeTool: (args: {
     input: Record<string, unknown>;
     name: string;
@@ -1807,30 +1821,48 @@ export async function runCareerChatAssistantStream(args: {
   tools: TalentChatTool[];
   isOnboardingActive?: boolean;
   modelConfig?: CareerAssistantModelConfig;
+  openAIResponsesReasoningEffort?: OpenAIResponsesReasoningEffort;
+  primaryModel?: string;
   responseLocale?: string | null;
   usageLabel?: string;
 }) {
-  const modelConfig = args.modelConfig ?? assistantModelConfig();
+  const modelConfig = {
+    ...(args.modelConfig ?? assistantModelConfig()),
+    ...(args.primaryModel ? { primaryModel: args.primaryModel } : {}),
+    ...(args.chatCompletionReasoningEffort
+      ? {
+          chatCompletionReasoningEffort: args.chatCompletionReasoningEffort,
+        }
+      : {}),
+    ...(args.openAIResponsesReasoningEffort
+      ? {
+          openAIResponsesReasoningEffort: args.openAIResponsesReasoningEffort,
+        }
+      : {}),
+  };
   const usageLabel = args.usageLabel ?? "career/chat:assistant";
   if (!shouldUseAnthropicNativeMessages(modelConfig.primaryModel)) {
-    const text = await runCareerChatAssistant({
+    const systemPrompt = flattenCareerSystemBlocks(args.systemBlocks);
+    return runTalentAssistantToolLoop({
       executeTool: args.executeTool,
-      messages: args.messages,
+      messages: [{ role: "system", content: systemPrompt }, ...args.messages],
       modelConfig,
-      onToolStart: args.onToolStart
-        ? ({ name }) => args.onToolStart?.({ id: "", name })
+      onStopToolStart: args.onStopToolStart
+        ? ({ id, name }) => args.onStopToolStart?.({ id, name })
         : undefined,
+      onTextDelta: args.onTextDelta,
+      onToolStart: args.onToolStart
+        ? ({ id, name }) => args.onToolStart?.({ id, name })
+        : undefined,
+      openAIResponsesReasoningEffort:
+        args.openAIResponsesReasoningEffort ??
+        modelConfig.openAIResponsesReasoningEffort ??
+        "xhigh",
       stopAfterToolNames: args.stopAfterToolNames,
-      systemBlocks: args.systemBlocks,
+      temperature: CAREER_LLM_CONFIG.chat.temperature,
       tools: args.tools,
-      isOnboardingActive: args.isOnboardingActive,
-      responseLocale: args.responseLocale,
       usageLabel,
     });
-    if (text) {
-      await args.onTextDelta(text);
-    }
-    return text;
   }
 
   const workingMessages: AnthropicMessage[] = args.messages

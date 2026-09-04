@@ -18,6 +18,7 @@ import {
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
   getCareerOnboardingChecklistCoverage,
+  getCareerOnboardingChecklistProgress,
   getOnboardingChecklistCoverageStats,
   normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
@@ -25,6 +26,7 @@ import {
   type TalentAdminClient,
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/server";
+import type { OnboardingChecklistProgress } from "@/lib/talentOnboarding/calls";
 import {
   normalizeTalentPeriodicIntervalDays,
   normalizeTalentRecommendationBatchSize,
@@ -57,6 +59,7 @@ import {
   completeOnboardingAndQueueInitialOpportunityRun,
   fetchSerializedOpportunityRunForTalent,
   getActiveOpportunityRun,
+  hasActiveConversationCompletedOpportunityRun,
   serializeOpportunityRun,
 } from "@/lib/opportunityDiscovery/store";
 import {
@@ -157,6 +160,7 @@ export type CareerChatTurnResult = {
   ok: true;
   opportunityDiscoveryQueued: boolean;
   opportunityRun: ReturnType<typeof serializeOpportunityRun>;
+  onboardingChecklistProgress: OnboardingChecklistProgress | null;
   progress: {
     answeredCount: number;
     completed: boolean;
@@ -307,6 +311,7 @@ function attachThinkingLogsToLastMessage<T extends { thinkingLogs?: string[] }>(
 
 async function buildTalentProfileSnapshot(args: {
   admin: TalentAdminClient;
+  conversationId: string;
   userId: string;
 }) {
   const [setting, insights, talentProfile] = await Promise.all([
@@ -314,7 +319,21 @@ async function buildTalentProfileSnapshot(args: {
     fetchTalentInsights({ admin: args.admin, userId: args.userId }),
     fetchTalentStructuredProfile({ admin: args.admin, userId: args.userId }),
   ]);
+  const normalizedInsights = normalizeTalentInsightContent(
+    insights?.content ?? null
+  );
+  const onboardingChecklistProgress = !Boolean(setting?.is_onboarding_done)
+    ? await getCareerOnboardingChecklistProgress({
+      admin: args.admin,
+      context: talentProfile.talentUser,
+      conversationId: args.conversationId,
+      currentInsightContent: normalizedInsights,
+      userId: args.userId,
+    })
+    : null;
+
   return {
+    onboardingChecklistProgress,
     talentPreferences: {
       engagementTypes: normalizeTalentEngagementTypes(
         setting?.engagement_types ?? []
@@ -329,7 +348,7 @@ async function buildTalentProfileSnapshot(args: {
         setting?.recommendation_batch_size
       ),
     },
-    talentInsights: normalizeTalentInsightContent(insights?.content ?? null),
+    talentInsights: normalizedInsights,
     talentProfile,
     preferencesUpdatedAt: setting?.updated_at ?? null,
     insightUpdatedAt: insights?.last_updated_at ?? null,
@@ -439,6 +458,7 @@ export async function runCareerChatTurn(
     recentRecommendedOpportunities,
     activeGmailIntegration,
     savedGmailCareerHistoryDocument,
+    isConversationCompletedOpportunityRunActive,
   ] = await Promise.all([
     fetchTalentUserProfile({ admin, userId }),
     fetchTalentInsights({ admin, userId }),
@@ -489,6 +509,7 @@ export async function runCareerChatTurn(
         return null;
       })
       : Promise.resolve(null),
+    hasActiveConversationCompletedOpportunityRun({ admin, userId }),
   ]);
 
   const structuredProfile = await fetchTalentStructuredProfile({
@@ -718,6 +739,7 @@ export async function runCareerChatTurn(
       currentPreferences,
       gmailCapability,
       hasSavedGmailCareerHistory: Boolean(savedGmailCareerHistoryDocument),
+      isConversationCompletedOpportunityRunActive,
       isOnboardingDone: !isOnboardingActiveForTurn,
       officialJobSignupIntentPrompt: isOnboardingActiveForTurn
         ? officialJobSignupIntentEvent?.summary
@@ -853,7 +875,7 @@ export async function runCareerChatTurn(
       return executeRecommendJobPostings(toolArgs.input);
     }
 
-    return executeTalentTool({
+    const result = await executeTalentTool({
       context: {
         admin,
         conversationId,
@@ -866,6 +888,8 @@ export async function runCareerChatTurn(
       name: toolArgs.name,
       input: toolArgs.input,
     });
+    rememberRecommendationPostingRoleIds(result);
+    return result;
   };
 
   let assistantText: string;
@@ -1081,6 +1105,7 @@ export async function runCareerChatTurn(
   ): Promise<CareerChatTurnResult> => {
     const profileSnapshot = await buildTalentProfileSnapshot({
       admin,
+      conversationId,
       userId,
     });
     const completed = options?.completed === true;
@@ -1176,6 +1201,7 @@ export async function runCareerChatTurn(
   if (!normalizedNoMessageContent && noMessageMarker) {
     const profileSnapshot = await buildTalentProfileSnapshot({
       admin,
+      conversationId,
       userId,
     });
     return {
@@ -1256,6 +1282,7 @@ export async function runCareerChatTurn(
   if (shouldInsertAssistantMessage && !(await shouldInsertAssistantMessage())) {
     const profileSnapshot = await buildTalentProfileSnapshot({
       admin,
+      conversationId,
       userId,
     });
     return {

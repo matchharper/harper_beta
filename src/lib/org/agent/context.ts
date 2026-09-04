@@ -1,6 +1,5 @@
 import type { User } from "@supabase/supabase-js";
 import { getLlmErrorMessage } from "@/lib/llm/llm";
-import { createOrgAgentConversationHistoryCursor } from "@/lib/org/agent/conversationHistory";
 import {
   fetchOrgAgentPipelineSnapshot,
   fetchOrgAgentRoles,
@@ -85,7 +84,8 @@ export type OrgAgentPromptContext = {
 export const DEFAULT_DATA_CONTEXT_MAX_CHARS = 18_000;
 export const DEFAULT_ROLE_INDEX_MAX_ITEMS = 100;
 export const DEFAULT_ROLE_INDEX_MAX_CHARS = 10_000;
-export const CONVERSATION_CONTEXT_MAX_CHARS = 12_000;
+export const RECENT_CONVERSATION_MESSAGE_LIMIT = 24;
+export const CONVERSATION_CONTEXT_MAX_CHARS = 24_000;
 export {
   enforceOrgAgentContextBudget,
   formatRecentRecommendations,
@@ -267,7 +267,7 @@ function formatConversation(
   const messages = page.messages;
   if (messages.length === 0) {
     return slackThreadId
-      ? "scope=current_thread returned_items=0 has_more=false next_cursor=-"
+      ? `scope=current_thread thread_id=${slackThreadId} returned_items=0 has_more=false`
       : "-";
   }
   const slackAliasById = new Map<string, string>();
@@ -299,9 +299,15 @@ function formatConversation(
         )
         .map((value) => `candidate_decision_context{${value}}`)
         .join(","),
-      message.metadata.contactDraftRef
-        ? `candidate_contact_ref{contact_id=${message.metadata.contactDraftRef.contactId};revision=${message.metadata.contactDraftRef.revision}}`
-        : "",
+      ...(message.metadata.contactDraftRefs?.length
+        ? message.metadata.contactDraftRefs
+        : message.metadata.contactDraftRef
+          ? [message.metadata.contactDraftRef]
+          : []
+      ).map(
+        (ref) =>
+          `candidate_contact_ref{contact_id=${ref.contactId};revision=${ref.revision}}`
+      ),
     ].filter(Boolean);
     const speaker =
       message.role === "assistant"
@@ -358,20 +364,11 @@ function formatConversation(
   const table = formatPromptTable(
     ["speaker", "references", "message"],
     selected.map((row) => row.cells),
-    [140, 500, 900]
+    [140, 500, 4_000]
   );
   if (!slackThreadId) return table;
   const hasMore = page.hasMore || selected.length < messages.length;
-  const oldestVisible = selected[0];
-  const nextCursor =
-    hasMore && oldestVisible
-      ? createOrgAgentConversationHistoryCursor({
-          beforeId: oldestVisible.id,
-          scope: "current_thread",
-          slackThreadId,
-        })
-      : null;
-  const pageMetadata = `scope=current_thread returned_items=${selected.length} has_more=${hasMore} next_cursor=${nextCursor ?? "-"}`;
+  const pageMetadata = `scope=current_thread thread_id=${slackThreadId} returned_items=${selected.length} has_more=${hasMore}`;
   return `${pageMetadata}\n${table}`;
 }
 
@@ -380,7 +377,7 @@ function formatSummaries(
 ) {
   if (summaries.length === 0) return "-";
   return summaries
-    .map((summary) => formatPromptCell(summary.content, 1_200))
+    .map((summary) => formatPromptCell(summary.content, 4_000))
     .filter(Boolean)
     .join("\n---\n");
 }
@@ -473,7 +470,8 @@ export async function buildOrgAgentPromptContext(args: {
         fetchRecentOrgAgentSummaries({
           admin: args.admin,
           conversationId: args.conversation.id,
-          limit: 2,
+          limit: 1,
+          scope,
         }),
     }),
     optionalContext({
@@ -488,7 +486,7 @@ export async function buildOrgAgentPromptContext(args: {
           admin: args.admin,
           beforeMessageId: currentUserMessageId,
           conversationId: args.conversation.id,
-          limit: 14,
+          limit: RECENT_CONVERSATION_MESSAGE_LIMIT,
           scope,
         }),
     }),

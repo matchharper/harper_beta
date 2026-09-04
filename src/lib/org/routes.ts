@@ -11,6 +11,7 @@ export type OrgWorkspacePageId =
 
 export type OrgJobsView = "pipeline" | "role";
 export type OrgRoleTab = "pipeline" | "matching" | "role" | "settings";
+export type OrgSettingsTab = "calendar";
 export type OrgPipelineDisplay = "pipeline" | "board";
 
 const ORG_PAGE_PATHS: Record<OrgWorkspacePageId, string> = {
@@ -35,7 +36,7 @@ export function buildOrgHref(args: {
   orgId?: string | null;
   page?: OrgWorkspacePageId;
   roleId?: string | null;
-  tab?: OrgRoleTab | null;
+  tab?: OrgRoleTab | OrgSettingsTab | null;
   view?: OrgJobsView | OrgPipelineDisplay | null;
 }) {
   const params = new URLSearchParams();
@@ -48,14 +49,13 @@ export function buildOrgHref(args: {
   if (orgId) params.set("orgId", orgId);
   if (
     roleId &&
-    (args.page === "jobs" ||
-      args.page === "new-role" ||
-      args.page === "role")
+    (args.page === "jobs" || args.page === "new-role" || args.page === "role")
   ) {
     params.set("roleId", roleId);
   }
   if (roleId && roleId !== "all" && args.page === "jobs") {
-    const view = args.view === "pipeline" || args.view === "role" ? args.view : null;
+    const view =
+      args.view === "pipeline" || args.view === "role" ? args.view : null;
     if (view) params.set("view", view);
   }
   if (roleId && args.page === "role" && args.tab) {
@@ -66,6 +66,9 @@ export function buildOrgHref(args: {
         ? args.view
         : null;
     if (view) params.set("view", view);
+  }
+  if (args.page === "settings" && args.tab === "calendar") {
+    params.set("tab", args.tab);
   }
   if (detailTalentId) params.set("talentId", detailTalentId);
   if (detailRecommendationId) {

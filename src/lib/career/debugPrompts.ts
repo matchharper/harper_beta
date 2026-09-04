@@ -41,6 +41,7 @@ import {
 } from "@/lib/talentOpportunity";
 import {
   getActiveOpportunityRun,
+  hasActiveConversationCompletedOpportunityRun,
   serializeOpportunityRun,
 } from "@/lib/opportunityDiscovery/store";
 import type { TalentChatTool } from "@/lib/talentOnboarding/llm";
@@ -197,6 +198,7 @@ export async function buildCareerTextChatDebugPrompt(args: {
     recentActivitySummaries,
     recentRecommendedOpportunities,
     activeRun,
+    isConversationCompletedOpportunityRunActive,
   ] = await Promise.all([
     fetchTalentUserProfile({ admin, userId }),
     fetchTalentInsights({ admin, userId }),
@@ -220,6 +222,7 @@ export async function buildCareerTextChatDebugPrompt(args: {
       userId,
     }),
     getActiveOpportunityRun({ admin, conversationId, userId }),
+    hasActiveConversationCompletedOpportunityRun({ admin, userId }),
   ]);
 
   const responseLocale =
@@ -319,6 +322,7 @@ export async function buildCareerTextChatDebugPrompt(args: {
     channel: "chat",
     currentInsightContent,
     currentPreferences,
+    isConversationCompletedOpportunityRunActive,
     isOnboardingDone: talentSetting?.is_onboarding_done,
     onboardingChecklistCoverage,
     opportunityStatus,

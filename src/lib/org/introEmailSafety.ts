@@ -90,99 +90,12 @@ export function getOrgIntroDraftSafetyIssues(args: {
     issues.push("unnatural_korean_language_mix");
   }
   if (
-    args.locale === "ko" &&
-    args.candidateName &&
-    args.companyName &&
-    args.companyUserName
-  ) {
-    const companyPersonLabel = `${args.companyName}의 ${args.companyUserName}님`;
-    const hasExpectedGreeting = args.companyUserRole
-      ? new RegExp(
-          `^${koreanCompanyPersonPatternSource ?? "(?!)"}, ${escapeOrgIntroRegex(args.candidateName)}님 안녕하세요\\.`
-        ).test(args.body)
-      : args.body.startsWith(
-          `${companyPersonLabel}, ${args.candidateName}님 안녕하세요.`
-        );
-    const companyPersonMentions = args.companyUserRole
-      ? (args.body.match(
-          new RegExp(koreanCompanyPersonPatternSource ?? "(?!)", "g")
-        )?.length ?? 0)
-      : args.body.split(companyPersonLabel).length - 1;
-    if (!hasExpectedGreeting) {
-      issues.push("invalid_recipient_greeting");
-    }
-    if (companyPersonMentions < 2) {
-      issues.push("unqualified_company_person_reference");
-    }
-    if (args.companyUserRole && koreanCompanyPersonPatternSource) {
-      const localizedRoles = [
-        ...args.body.matchAll(
-          new RegExp(
-            `${escapeOrgIntroRegex(args.companyName)}의\\s+([^,\\n]{1,160}?)\\s+${escapeOrgIntroRegex(args.companyUserName)}님`,
-            "g"
-          )
-        ),
-      ].map((match) => match[1]?.trim());
-      if (new Set(localizedRoles).size > 1) {
-        issues.push("inconsistent_company_user_role");
-      }
-    }
-  }
-  if (args.candidateName && args.roleTitle) {
-    const interestSentence =
-      args.locale === "ko"
-        ? `${args.candidateName}님은 ${args.roleTitle} 역할에 관심을 가져주셨습니다.`
-        : `${args.candidateName} has expressed interest in the ${args.roleTitle} role.`;
-    if (!args.body.includes(interestSentence)) {
-      issues.push("missing_candidate_role_interest");
-    }
-  }
-  if (
     args.locale === "en" &&
-    args.candidateName &&
-    args.companyName &&
-    args.companyUserName
+    args.companyUserRole &&
+    /[\uac00-\ud7a3]/.test(args.companyUserRole) &&
+    combined.includes(args.companyUserRole)
   ) {
-    const companyRoleFragment = args.companyUserRole
-      ? "([^,\\n]{1,160}?)\\s+"
-      : "";
-    const englishGreetingPattern = new RegExp(
-      `^Hi ${escapeOrgIntroRegex(args.companyName)}'s\\s+${companyRoleFragment}${escapeOrgIntroRegex(args.companyUserName)} and ${escapeOrgIntroRegex(args.candidateName)},`
-    );
-    const englishCompanyIntroPattern = new RegExp(
-      `${escapeOrgIntroRegex(args.candidateName)}, I'd like to introduce ${escapeOrgIntroRegex(args.companyName)}'s\\s+${companyRoleFragment}${escapeOrgIntroRegex(args.companyUserName)}\\.`
-    );
-    const englishGreetingMatch = args.body.match(englishGreetingPattern);
-    const englishCompanyIntroMatch = args.body.match(
-      englishCompanyIntroPattern
-    );
-    if (!englishGreetingMatch) {
-      issues.push("invalid_recipient_greeting");
-    }
-    if (!englishCompanyIntroMatch) {
-      issues.push("missing_company_user_role_introduction");
-    }
-    if (args.companyUserRole && englishGreetingMatch) {
-      const localizedGreetingRole = englishGreetingMatch[1]?.trim() ?? "";
-      const localizedIntroRole = englishCompanyIntroMatch?.[1]?.trim() ?? "";
-      if (/[\uac00-\ud7a3]/.test(localizedGreetingRole + localizedIntroRole)) {
-        issues.push("unlocalized_company_user_role");
-      }
-      if (localizedIntroRole && localizedGreetingRole !== localizedIntroRole) {
-        issues.push("inconsistent_company_user_role");
-      }
-    }
-  }
-  if (
-    args.locale === "ko" &&
-    !/이후 대화는 이 메일에서 이어가 주시면 됩니다\.\n\n감사합니다\.\nHarper 드림$/.test(
-      args.body
-    )
-  ) {
-    issues.push("invalid_exact_handoff_and_closing");
-  }
-  if (args.body.split(/\n{2,}/).length < 6) {
-    issues.push("missing_readable_paragraph_structure");
+    issues.push("unlocalized_company_user_role");
   }
 
   return issues;

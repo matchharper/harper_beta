@@ -16,6 +16,7 @@ const buildState = (
   feedback: "positive",
   feedbackAt: "2026-07-23T12:00:01.000Z",
   internalProgress: null,
+  isExpired: false,
   isInternal: true,
   savedStage: "connected",
   sourceType: "internal",
@@ -83,7 +84,7 @@ test("treats a connected role as a post-acceptance stage", () => {
   );
 });
 
-test("allows rejection reversal only while the role is not ended", () => {
+test("allows rejection reversal only while the role is active and unexpired", () => {
   assert.deepEqual(
     getInternalOpportunityDecisionAvailability(
       buildState({ feedback: "negative", status: "active" }),
@@ -94,6 +95,20 @@ test("allows rejection reversal only while the role is not ended", () => {
   assert.deepEqual(
     getInternalOpportunityDecisionAvailability(
       buildState({ feedback: "negative", status: "ENDED" }),
+      NOW
+    ),
+    { canRevert: false, canStopProcess: false }
+  );
+  assert.deepEqual(
+    getInternalOpportunityDecisionAvailability(
+      buildState({ feedback: "negative", status: "paused" }),
+      NOW
+    ),
+    { canRevert: false, canStopProcess: false }
+  );
+  assert.deepEqual(
+    getInternalOpportunityDecisionAvailability(
+      buildState({ feedback: "negative", isExpired: true }),
       NOW
     ),
     { canRevert: false, canStopProcess: false }

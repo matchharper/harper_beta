@@ -12,11 +12,11 @@ import { useRouter } from "next/router";
 import type { ParsedUrlQuery } from "querystring";
 import { Copy, ExternalLink, Loader2, MailCheck } from "lucide-react";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
-import OfficialJobsApplicationHelp from "@/components/jobs/OfficialJobsApplicationHelp";
 import {
   OfficialJobsApplyHelpExperimentHead,
   OfficialJobsApplyHelpTreatmentOnly,
 } from "@/components/jobs/OfficialJobsApplyHelpExperiment";
+import OfficialJobsTreatmentMessage from "@/components/jobs/OfficialJobsTreatmentMessage";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 import {
   CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
@@ -385,7 +385,7 @@ const CareerLoginContent = () => {
       officialJobsRoleTitleFromLoginQuery(router.query),
     [nextPath, router.query]
   );
-  const showOfficialJobsApplicationHelp = Boolean(
+  const showOfficialJobsTreatmentMessage = Boolean(
     (sourceParam === OFFICIAL_JOBS_LANDING_SOURCE && officialJobSlugParam) ||
     officialJobSlugFromNext
   );
@@ -743,13 +743,12 @@ const CareerLoginContent = () => {
               </span>
             ))}
           </Text>
-          {showOfficialJobsApplicationHelp ? (
+          {showOfficialJobsTreatmentMessage ? (
             <OfficialJobsApplyHelpTreatmentOnly>
               <div className="mt-3 flex w-full max-w-[420px] justify-center">
-                <OfficialJobsApplicationHelp
-                  className="md:flex md:justify-center"
+                <OfficialJobsTreatmentMessage
+                  className="text-center text-sm leading-5"
                   locale={locale}
-                  triggerClassName="text-neutral-muted hover:text-neutral-primary"
                 />
               </div>
             </OfficialJobsApplyHelpTreatmentOnly>

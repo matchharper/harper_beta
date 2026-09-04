@@ -331,7 +331,6 @@ SQL에서 약 200명을 가져온 뒤 초반에 `M`명의 좋은 후보를 찾�
 1. `company_internal_roles`는 `company_roles.role_id`와 1:1이고 `request`, `considerations`를 가진다.
 2. 자동 internal fit evaluator는 `company_internal_roles.request`를 읽는다. `considerations`는 자동 worker에 반영된다고 가정하면 안 된다.
 3. 이 매뉴얼을 실행하는 agent는 role description, 세 request source, 기존 consideration을 직접 읽고 아래 우선순위로 통합해야 한다.
-4. `talent_opportunity_fit.score`는 0~100 정수이고 기존 prompt 계약상 `fit`은 80~100이다.
 5. `talent_opportunity_recommendation.score`는 저장 경로에서 0~1 numeric으로 정규화된다. 두 score scale을 혼동하지 않는다.
 6. 수동 internal recommendation API는 forced single role run을 만들고, 추천 탭·채팅·이메일 발송을 수행할 수 있다.
 7. 현재 수동 경로는 `allowRepeat: true`를 사용한다. 따라서 호출 전 중복 검사는 선택 사항이 아니라 필수다.
@@ -348,7 +347,6 @@ SQL에서 약 200명을 가져온 뒤 초반에 `M`명의 좋은 후보를 찾�
 - 선발 gate: 각 양면 점수와 mutual score가 70 이상
 - DB persistence: 최종 선정자를 production rubric으로 80~100에 재보정해 `label='fit'`으로 저장
 - 70~79 수준의 불확실성이 실제로 남아 있으면 최종 발송하지 않고 `ambiguous` 또는 `hold`로 남김
-- exact 70을 별도 운영 marker로 쓰고 싶다면 `talent_opportunity_fit.score`를 오용하지 말고 별도 필드 또는 schema 계약을 먼저 만든다
 
 이 구분은 인원 채우기를 막고 기존 worker·audit와 일관성을 유지하기 위한 것이다.
 
@@ -2382,6 +2380,8 @@ persisted_fit_score = clamp(80 + round((mutual_score - 70) * 2 / 3), 80, 100)
 - 이 문서에 따른 Codex 수동 matching이 insert 또는 update한 row는 `kind='codex'`로 저장한다. 기존 row의 `kind`가 `NULL`이거나 다른 자동 evaluator 값이어도 이번 Codex 판단으로 실제 갱신했다면 `codex`로 바꾼다.
 - `human_label`이 있으면 별도 사람 승인 없이 변경하지 않는다.
 - `last_evaluated_at`을 갱신한다.
+- 이 workflow에서 최종 선택한 fit은 실제 제안 대상으로 준비하는 것이므로 `recommend=true`를 명시한다. 같은 회사의 다른 fit을 함께 저장하더라도 제안 대상으로 고르지 않았다면 그 row는 `recommend=false`여야 한다. 기본값에 기대지 않는다.
+- 새 역할을 `recommend=true`로 저장해 과거의 아직 미발송인 같은 회사 선택을 대체하는 경우, 과거 sibling fit은 그대로 유지하되 `recommend=false`로 바꾼다. 이미 실제 추천된 row의 과거 선택 기록은 바꾸지 않는다.
 - `reevaluation_criteria`는 최종 fit이면 `null`이다.
 - DB `reason`은 현재 evaluator 저장 한도에 맞춰 2,400자 이내의 회사-facing Markdown 추천 이유로 만들고, 운영자 전용 전체 판단과 source mapping은 artifact에 둔다.
 
@@ -2394,6 +2394,7 @@ INSERT INTO public.talent_opportunity_fit (
   kind,
   score,
   label,
+  recommend,
   reason,
   reevaluation_criteria,
   last_evaluated_at,
@@ -2405,6 +2406,7 @@ VALUES (
   'codex',
   :persisted_fit_score,
   'fit',
+  TRUE,
   :internal_reason,
   NULL,
   timezone('utc', now()),
@@ -2414,6 +2416,7 @@ ON CONFLICT (talent_id, opportunity_id) DO UPDATE SET
   kind = 'codex',
   score = EXCLUDED.score,
   label = EXCLUDED.label,
+  recommend = EXCLUDED.recommend,
   reason = EXCLUDED.reason,
   reevaluation_criteria = NULL,
   last_evaluated_at = EXCLUDED.last_evaluated_at,

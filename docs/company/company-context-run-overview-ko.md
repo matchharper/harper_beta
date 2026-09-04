@@ -3,6 +3,7 @@
 - 작성일: 2026-08-14
 - 상태: 구현 기준 설계
 - 반복 실행 절차: [Company Context Run Codex 런북](./company-context-run-codex-runbook-ko.md)
+- 기존 non-fit의 제한적 재발견 감사: [Company Role Fit Recovery Audit](./company-role-fit-recovery-audit-overview-ko.md)
 
 ## 1. 한 문장으로 설명
 
@@ -11,7 +12,7 @@
 이 작업의 산출물은 다음 세 가지다.
 
 1. Role별로 관리되는 최신 `context` 문서 하나
-2. 새로 평가하거나 다시 평가한 `[talent × role]`의 `talent_opportunity_fit`
+2. 이번 run에서 새로 평가한 `[talent × role]`의 `talent_opportunity_fit`
 3. 이번 실행의 상태와 짧은 결론이 담긴 `company_context_runs` row
 
 Context 갱신은 matching을 위한 준비 작업이 아니라 이 workflow의 핵심 결과다. 현재 run의 후보 평가에 즉시 사용하고, 앞으로 `harper_worker`의 new agent v2가 internal matching을 할 때도 같은 회사 기억을 사용할 수 있게 한다.
@@ -228,7 +229,7 @@ Column을 늘리지 않고도 다음은 index와 RPC/helper로 구현한다.
 
 Pending limit은 matching만 막는다. 일주일마다 context를 새로 확인하는 목적은 유지되므로 context 갱신까지 건너뛰지 않는다.
 
-## 8. 신규 후보와 재평가 후보
+## 8. 신규 후보와 기존 평가
 
 ### 8.1 신규 후보
 
@@ -238,27 +239,13 @@ Codex가 role마다 SQL을 새로 작성한다. 고정 keyword query 하나를 �
 
 한 run의 신규 lane은 SQL 순서대로 최대 150명을 scan하고, 안전 제외를 통과한 최대 100명을 full-text 평가한다. SQL 결과가 100명 이하이면 제외되지 않은 전원을 평가하며 임의로 더 작은 상한을 두지 않는다. Scan된 수, 제외된 수, 실제 평가한 수를 결과에서 서로 구분한다.
 
-### 8.2 기존 평가의 재사용과 재평가
+### 8.2 기존 평가의 재사용
 
-기존 label별 기본 정책은 다음과 같다.
+현재 자동 Company Context Run은 기존 fit row를 시간 경과, profile 변경, 대화, 회사 기록 또는 fingerprint 변화만으로 다시 계산하지 않는다. 이 workflow의 matching 대상은 해당 role의 fit row가 아직 없는 신규 후보다.
 
-| Effective label | 반복 run 처리 |
-| --- | --- |
-| `fit` | 자동 재평가에서 제외 |
-| `hold` | 마지막 실제 평가 후 21일 이상 지났을 때 재평가 pool에 포함 |
-| `ambiguous` | 마지막 실제 평가 후 21일 이상 지났을 때 재평가 pool에 포함 |
-| `dissatisfied` (40~59) | 자동 후보 검색과 자동 재평가에서 제외 |
-| `unfit` (0~39) | 자동 후보 검색과 자동 재평가에서 제외 |
+후보자가 실제 `hold_role_question`에 답한 경우의 재검사는 질문과 답을 보유한 Worker 경로가 담당한다. Role 중심 Company Context Run이 그 답을 추정하거나 대신 처리하지 않는다.
 
-`effective label`은 human override가 있으면 human label, 없으면 model label이다. Human override는 이 run이 덮어쓰지 않는다.
-
-재평가 SQL은 effective label이 `hold` 또는 `ambiguous`이고 `last_evaluated_at <= now() - interval '21 days'`인 pair만 반환한다. 이 조건은 candidate packet 이후가 아니라 SQL 결과 단계에서 적용한다. Effective `fit`은 input 변화 여부와 무관하게 이 반복 재평가에서 제외한다.
-
-재평가 후보 순서는 신규 후보와 같은 role-specific evidence와 같은 최종 `ORDER BY`로 정한다. `hold`를 `ambiguous`보다 먼저 두거나 단순히 오래된 평가부터 정렬하지 않는다. Rank는 누구부터 다시 볼지를 정할 뿐 새 label이나 score를 대신하지 않는다.
-
-코드는 due pool을 rank 순으로 scan하면서 talent, role, company, context, evaluator의 fingerprint를 비교한다. 모두 같으면 기존 결과를 그대로 재사용하고 실제 재평가 수에 포함하지 않는다. Fingerprint가 달라 candidate index에 들어온 pair는 full-text로 다시 평가하며 별도의 `non_matching_change` 판단으로 일괄 skip하지 않는다.
-
-동일 fingerprint를 제외하고 재평가할 pair가 10명 이상이면 rank 순으로 최소 10명을 평가한다. 한 run의 최대 실제 재평가는 50명이다. 대상이 10명 미만이면 남은 전원만 평가하는 것이 정상이며, 50명을 넘는 대상은 다음 run으로 넘긴다.
+기존 effective non-fit에서 자동 평가가 놓친 추천 가능 후보를 제한된 비용으로 다시 찾는 일은 별도의 [Company Role Fit Recovery Audit](./company-role-fit-recovery-audit-overview-ko.md)이 담당한다. Recovery Audit은 전체 pair 재계산이 아니라 한 실행당 50~150명의 unique talent만 Codex가 직접 읽는 bounded audit이며, local read-only 단계부터 시작한다.
 
 ## 9. 후보 텍스트와 pair 평가
 
@@ -302,8 +289,8 @@ Fit 단계가 실패해도 이미 저장한 올바른 context를 되돌리지 �
 | Trigger 판정과 enqueue | 새 evidence가 현재 회사 판단을 어떻게 바꾸는지 |
 | Atomic claim, 중복 방지, retry | Context 문장의 추가·수정·삭제 |
 | Role active 여부와 pending count | Role별 retrieval SQL 작성과 결과 점검 |
-| Evidence fetch와 실행 중 source drift 검증 | 신규·재평가 SQL의 role별 rank evidence 설계 |
-| 재평가 label·21일·fingerprint 제외와 lane별 cap | 후보별 상호 적합도, label, score, reason |
+| Evidence fetch와 실행 중 source drift 검증 | 신규 SQL의 role별 rank evidence 설계 |
+| 기존 fit row, recommendation·progress·privacy 안전 제외 | 후보별 상호 적합도, label, score, reason |
 | Candidate packet 생성과 canonical projection | Run의 짧은 결론 작성 |
 | Context·fit·run result의 검증된 write |  |
 
@@ -328,7 +315,7 @@ Due 여부, pending limit, 중복 실행, 같은 fingerprint skip처럼 결정�
 - Role당 current context 문서 하나가 실제 회사 행동을 compact하게 verbalize한다.
 - Pending limit에 도달해도 context는 갱신되고 matching만 생략된다.
 - 신규 후보는 동적 SQL과 full candidate text를 거쳐 pair별로 평가된다.
-- Effective `fit`, `dissatisfied`, `unfit`, 평가 후 21일 미만 pair는 재평가 SQL에서 제외된다.
-- 동일 fingerprint pair는 재사용하고, 달라진 due `hold/ambiguous` pair는 가능한 경우 최소 10명·최대 50명을 같은 role rank 순으로 재평가한다.
-- Pair reason과 input fingerprint가 저장되어 다음 run이 판단을 재사용할 수 있다.
+- 기존 fit row는 자동 Company Context Run에서 다시 계산하지 않는다.
+- 기존 effective non-fit의 제한적 재발견은 별도 Recovery Audit의 unique-talent 예산과 cache 계약을 따른다.
+- Pair reason과 input fingerprint가 저장되어 사람이 판단 근거를 확인할 수 있다.
 - Queue row에 성공·실패와 짧은 실행 결론이 남는다.

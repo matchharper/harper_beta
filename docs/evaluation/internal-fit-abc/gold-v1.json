@@ -1,0 +1,858 @@
+{
+  "axisDefinitions": {
+    "a": {
+      "definition": "객관적 직무 수행 가능성과 JD hard requirement. 결정적 후보 사실 하나가 없으면 hold, 증거가 넓게 혼재하면 ambiguous, 명시적 충돌이면 unfit.",
+      "labels": [
+        "fit",
+        "hold",
+        "ambiguous",
+        "unfit"
+      ],
+      "name": "role_fit"
+    },
+    "b": {
+      "definition": "후보의 명시·행동 기반 선호와 현재 만족 가능성. 역할 scope/level, 회사·보상·위치·근무 방식·검색 상태를 포함.",
+      "labels": [
+        "fit",
+        "middle",
+        "unfit"
+      ],
+      "name": "candidate_fit"
+    },
+    "c": {
+      "definition": "회사별 품질·선별성·선호 기준에 비춘 인터뷰 의향. A의 직무 가능성과 분리해 판단.",
+      "labels": [
+        "fit",
+        "ambiguous",
+        "unfit"
+      ],
+      "name": "company_fit"
+    }
+  },
+  "capturedAt": "2026-09-02T06:10:55.095113+00:00",
+  "caseCount": 13,
+  "cases": [
+    {
+      "anchorRole": "R-44b0b05aa5bd",
+      "baseline": {
+        "label": "fit",
+        "lastEvaluatedAt": "2026-09-02T04:39:00.395771+00:00",
+        "recommend": false,
+        "score": 89
+      },
+      "caseId": "ABC01",
+      "company": "Wonderful",
+      "gold": {
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "hold"
+            },
+            {
+              "axis": "b",
+              "label": "unfit"
+            },
+            {
+              "axis": "c",
+              "label": "unfit"
+            }
+          ],
+          "policyTrue": [
+            "recommendNow",
+            "mustAskHoldQuestion"
+          ]
+        },
+        "deliverySuppressionReason": "already_connected",
+        "evidence": [
+          "Cisco 엔터프라이즈 매출·딜 오너십과 Systems Engineer 프리세일즈 이력",
+          "직접 AI 앱을 설계·개발·출시한 hands-on 증거",
+          "Sydney 선호와 호주 영주권/시민권, 해당 역할 liked+connected 이력"
+        ],
+        "expected": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "holdQuestion": null,
+        "policy": {
+          "candidateMentionable": false,
+          "mustAskHoldQuestion": false,
+          "recommendNow": false
+        },
+        "rationale": "호주 근무 자격, Sydney 위치, 엔터프라이즈 기술영업·프리세일즈, 직접 제품 개발이 모두 확인된다. 다만 동일 역할에 이미 수락·연결된 상태이므로 다시 추천하거나 질문하면 안 된다.",
+        "slice": "all_fit_but_already_connected"
+      },
+      "inputFingerprint": "f9a8d72d37d555bf8641003fc3ebc33136d2e3d735bbb46f36886607096062a8",
+      "role": "Field CTO - Australia",
+      "roleCountInFrozenCompanyBatch": 14,
+      "talent": "T-a7fb390ec581",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-b193ae08a4a1",
+      "baseline": {
+        "label": "fit",
+        "lastEvaluatedAt": "2026-09-01T13:33:29.387027+00:00",
+        "recommend": true,
+        "score": 85
+      },
+      "caseId": "ABC02",
+      "company": "Mel",
+      "gold": {
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "hold"
+            },
+            {
+              "axis": "b",
+              "label": "unfit"
+            },
+            {
+              "axis": "c",
+              "label": "unfit"
+            }
+          ],
+          "policyFalse": [
+            "recommendNow"
+          ],
+          "policyTrue": [
+            "mustAskHoldQuestion"
+          ]
+        },
+        "deliverySuppressionReason": null,
+        "evidence": [
+          "SEO 자연유입 4배, YouTube 0→10.4만, Instagram 0→1.2만, 광고 CTR 개선",
+          "디지털 광고·콘텐츠·인플루언서 마케팅을 직접 운영한 4년+ 경력",
+          "Seoul 기반이며 최근 추천도 brand/content/product marketing에 집중"
+        ],
+        "expected": {
+          "a": "fit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "holdQuestion": null,
+        "policy": {
+          "candidateMentionable": true,
+          "mustAskHoldQuestion": false,
+          "recommendNow": true
+        },
+        "rationale": "4년 이상의 디지털·콘텐츠·퍼포먼스 마케팅 경력, 실제 광고 집행과 SNS 성장 성과, Seoul 근무가 역할의 핵심과 직접 맞는다. 현재 추천 이력도 유사 마케팅 역할 중심이라 후보 측 방향도 일치한다.",
+        "slice": "clean_recommend"
+      },
+      "inputFingerprint": "e321ad2d0ce3b28cdf367bd9fbc75ab19b7cc5f3dea19c2facb605897b79496e",
+      "role": "Marketing Manager",
+      "roleCountInFrozenCompanyBatch": 2,
+      "talent": "T-fbc24578f98f",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-a422587d1c0a",
+      "baseline": {
+        "label": "hold",
+        "lastEvaluatedAt": "2026-09-02T05:56:17.792511+00:00",
+        "recommend": false,
+        "score": 68
+      },
+      "caseId": "ABC03",
+      "company": "Mistral AI",
+      "gold": {
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "fit"
+            },
+            {
+              "axis": "a",
+              "label": "unfit"
+            },
+            {
+              "axis": "c",
+              "label": "unfit"
+            }
+          ],
+          "policyFalse": [
+            "mustAskHoldQuestion"
+          ],
+          "policyTrue": [
+            "recommendNow"
+          ]
+        },
+        "deliverySuppressionReason": null,
+        "evidence": [
+          "Cupix에서 고객 요구를 제품·데이터 모델로 바꾸고 실제 채택·지표 개선까지 소유",
+          "TYLin에서 Python 기반 운영 시스템을 설계해 장기 사용으로 전환",
+          "최근 TypeScript 기반 end-to-end production 구현 증거는 현재 snapshot에 없음"
+        ],
+        "expected": {
+          "a": "hold",
+          "b": "fit",
+          "c": "fit"
+        },
+        "holdQuestion": "최근 2년 안에 TypeScript로 프런트엔드와 백엔드가 연결된 프로덕션 기능을 직접 구현·배포한 사례가 있나요? 있다면 본인이 맡은 범위를 알려주세요.",
+        "policy": {
+          "candidateMentionable": true,
+          "mustAskHoldQuestion": true,
+          "recommendNow": false
+        },
+        "rationale": "고객 문제 정의, 데이터/AI 제품 설계·배포, Python 자동화 경험과 FDE 지향은 강하다. 그러나 이 역할의 필수인 최근 Python+TypeScript 풀스택 IC 구현 범위가 현재 자료에서 결정적으로 확인되지 않아, 추정하거나 탈락시키지 말고 한 가지 사실 질문으로 해소해야 한다.",
+        "slice": "hold_missing_recent_fullstack_evidence"
+      },
+      "inputFingerprint": "5d705b8b4083e904b1465872113d27eb04f60eef503612954d516b73fed1c370",
+      "role": "Applied AI Engineer, Fullstack",
+      "roleCountInFrozenCompanyBatch": 3,
+      "talent": "T-f4702bd979f3",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-198259bebf92",
+      "baseline": {
+        "label": "hold",
+        "lastEvaluatedAt": "2026-09-01T13:28:16.917366+00:00",
+        "recommend": false,
+        "score": 77
+      },
+      "caseId": "ABC04",
+      "company": "Config",
+      "gold": {
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "fit"
+            },
+            {
+              "axis": "a",
+              "label": "unfit"
+            },
+            {
+              "axis": "c",
+              "label": "unfit"
+            }
+          ],
+          "policyFalse": [
+            "mustAskHoldQuestion"
+          ],
+          "policyTrue": [
+            "recommendNow"
+          ]
+        },
+        "deliverySuppressionReason": null,
+        "evidence": [
+          "Google에서 RAG/MCP 및 대규모 데이터 파이프라인과 직접 client feedback loop 소유",
+          "Morgan Stanley에서 모호한 요구를 full-stack production 시스템으로 구현·배포",
+          "영어·Hindi 업무 능력만 명시되고 한국어 업무 증거는 없음"
+        ],
+        "expected": {
+          "a": "hold",
+          "b": "fit",
+          "c": "fit"
+        },
+        "holdQuestion": "한국 고객이나 동료와 기술 요구사항, 설계 결정, 장애 대응을 한국어로 진행할 수 있는 업무 수준인가요?",
+        "policy": {
+          "candidateMentionable": true,
+          "mustAskHoldQuestion": true,
+          "recommendNow": false
+        },
+        "rationale": "Google AI Foundry와 Morgan Stanley에서 production 시스템, 고객 요구사항, 배포를 직접 소유했고 FDE를 명시적으로 원한다. Config 회사 bar를 통과할 강한 독립 신호는 충분하지만 한국어 업무 능력만 관측되지 않았으므로 이 사실을 반드시 물어야 한다.",
+        "slice": "hold_missing_required_language_fact"
+      },
+      "inputFingerprint": "0e8a2d80b220f1dad1b6312b0b25cd9e97ed155bd7f7f91a07519fc491d643db",
+      "role": "Forward-Deployed Engineer",
+      "roleCountInFrozenCompanyBatch": 3,
+      "talent": "T-d6dc1ba500ae",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-1abc450110f8",
+      "baseline": {
+        "label": "ambiguous",
+        "lastEvaluatedAt": "2026-09-02T03:32:47.473829+00:00",
+        "recommend": false,
+        "score": 68
+      },
+      "caseId": "ABC05",
+      "company": "Sierra",
+      "gold": {
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "fit"
+            },
+            {
+              "axis": "a",
+              "label": "hold"
+            },
+            {
+              "axis": "c",
+              "label": "fit"
+            }
+          ],
+          "policyTrue": [
+            "recommendNow",
+            "mustAskHoldQuestion",
+            "candidateMentionable"
+          ]
+        },
+        "deliverySuppressionReason": null,
+        "evidence": [
+          "Korea University 연구와 AI evaluation 실무, ACL shared task 성과",
+          "후보가 hands-on Applied AI/Agent/Evaluation 역할을 명시적으로 선호",
+          "production-grade agent를 고객 환경에서 end-to-end 출시·운영한 증거와 두 번째 강한 caliber 신호는 불충분"
+        ],
+        "expected": {
+          "a": "ambiguous",
+          "b": "fit",
+          "c": "ambiguous"
+        },
+        "holdQuestion": null,
+        "policy": {
+          "candidateMentionable": false,
+          "mustAskHoldQuestion": false,
+          "recommendNow": false
+        },
+        "rationale": "AI agent 평가·RAG·안전성 연구 방향과 후보 선호는 잘 맞지만, Sierra가 요구하는 production agent 소유권과 복수의 강한 선별 신호는 아직 혼재돼 있다. 한 가지 후보 답변으로 뒤집히는 문제가 아니므로 hold 질문으로 축소하면 안 된다.",
+        "slice": "diffuse_role_and_company_uncertainty_not_hold"
+      },
+      "inputFingerprint": "293a9124f9d273a606586ce2fe9dfd2aa56d8cf3abfb598965112cb2560fd988",
+      "role": "Software Engineer, Agent",
+      "roleCountInFrozenCompanyBatch": 3,
+      "talent": "T-643cca90f5be",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-b5c97df75faa",
+      "baseline": {
+        "label": "ambiguous",
+        "lastEvaluatedAt": "2026-08-29T22:25:25.646162+00:00",
+        "recommend": false,
+        "score": 71
+      },
+      "caseId": "ABC06",
+      "company": "Blockit AI",
+      "gold": {
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "unfit"
+            },
+            {
+              "axis": "b",
+              "label": "fit"
+            },
+            {
+              "axis": "c",
+              "label": "fit"
+            }
+          ],
+          "policyTrue": [
+            "recommendNow",
+            "mustAskHoldQuestion",
+            "candidateMentionable"
+          ]
+        },
+        "deliverySuppressionReason": null,
+        "evidence": [
+          "상용 SaaS를 처음부터 만들고 운영한 장기 full-stack 경력",
+          "고객 검증을 거쳐 production roadmap으로 이어진 agentic workflow를 직접 주도",
+          "SF onsite와 AI 업무에는 열려 있으나 tech-lead 선호 및 회사 pedigree bar 불확실"
+        ],
+        "expected": {
+          "a": "fit",
+          "b": "middle",
+          "c": "ambiguous"
+        },
+        "holdQuestion": null,
+        "policy": {
+          "candidateMentionable": false,
+          "mustAskHoldQuestion": false,
+          "recommendNow": false
+        },
+        "rationale": "14년 full-stack과 실제 LangGraph/AWS Agent Core production workflow는 역할 수행 역량을 충족한다. 다만 후보는 hands-on tech lead를 1순위로 두고 이 역할은 IC이며, 회사의 매우 높은 학교·회사 caliber 기준 통과 여부는 불확실하다.",
+        "slice": "role_fit_candidate_middle_company_ambiguous"
+      },
+      "inputFingerprint": "c9bcc5a0c7e0cb37c0f733ad1cc5b148dbd488862a0281b7f1398e16fd8b9f6b",
+      "role": "Software Engineer, AI Agents",
+      "roleCountInFrozenCompanyBatch": 2,
+      "talent": "T-fd7c72c60108",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-da3045353cb0",
+      "baseline": {
+        "label": "ambiguous",
+        "lastEvaluatedAt": "2026-06-29T11:28:18.987475+00:00",
+        "recommend": false,
+        "score": 78
+      },
+      "caseId": "ABC07",
+      "company": "Wonderful",
+      "gold": {
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "hold"
+            },
+            {
+              "axis": "b",
+              "label": "fit"
+            },
+            {
+              "axis": "b",
+              "label": "unfit"
+            },
+            {
+              "axis": "c",
+              "label": "unfit"
+            }
+          ],
+          "policyFalse": [
+            "candidateMentionable"
+          ],
+          "policyTrue": [
+            "recommendNow",
+            "mustAskHoldQuestion"
+          ]
+        },
+        "deliverySuppressionReason": "better_same_company_role_already_connected",
+        "evidence": [
+          "Singapore 기반 work pass와 현지 기회 선호",
+          "billion-dollar 물류사의 agentic AI 시스템을 data integration부터 RAG 평가·배포·도입까지 직접 소유",
+          "Wonderful Field CTO Singapore liked+connected, Australia variant는 위치 이유로 dislike"
+        ],
+        "expected": {
+          "a": "fit",
+          "b": "middle",
+          "c": "fit"
+        },
+        "holdQuestion": null,
+        "policy": {
+          "candidateMentionable": true,
+          "mustAskHoldQuestion": false,
+          "recommendNow": false
+        },
+        "rationale": "Singapore 기반·work pass, production AI/RAG·고객 도입·hands-on 리더십으로 FDE 수행과 회사 bar는 충족한다. 그러나 현재 AI & Data Lead보다 역할 레벨이 낮을 수 있고 SGD 15k 최저 기대가 미확인인 데다, 같은 회사의 더 적합한 Field CTO Singapore에 이미 liked+connected라 이 역할을 함께 추천하지 않는다.",
+        "slice": "role_and_company_fit_but_candidate_middle_sibling_priority"
+      },
+      "inputFingerprint": "e4355c6e2af9ea454b323bc68798233a7444733ed2adcdbc0909d6231d8fe84f",
+      "role": "Forward Deployed Engineer (FDE) - Singapore",
+      "roleCountInFrozenCompanyBatch": 14,
+      "talent": "T-d88dcb0230e9",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-ef8a052fa3bd",
+      "baseline": {
+        "label": "dissatisfied",
+        "lastEvaluatedAt": "2026-08-29T18:38:40.415060+00:00",
+        "recommend": false,
+        "score": 55
+      },
+      "caseId": "ABC08",
+      "company": "Wonderful",
+      "gold": {
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "unfit"
+            },
+            {
+              "axis": "b",
+              "label": "fit"
+            },
+            {
+              "axis": "b",
+              "label": "middle"
+            },
+            {
+              "axis": "c",
+              "label": "unfit"
+            }
+          ],
+          "policyTrue": [
+            "recommendNow",
+            "mustAskHoldQuestion",
+            "candidateMentionable"
+          ]
+        },
+        "deliverySuppressionReason": "explicitly_off_market_until_year_end",
+        "evidence": [
+          "APAC OEM 파트너 관계, reseller·vendor ecosystem, enterprise deal 및 GTM 리더십",
+          "CEO·Group Leader로 다수 사업 P&L, 전략, 주요 deal 실행을 소유",
+          "2026-07-03 search_intensity에 연말까지 off-market을 명시"
+        ],
+        "expected": {
+          "a": "fit",
+          "b": "unfit",
+          "c": "fit"
+        },
+        "holdQuestion": null,
+        "policy": {
+          "candidateMentionable": false,
+          "mustAskHoldQuestion": false,
+          "recommendNow": false
+        },
+        "rationale": "30년+ APAC enterprise sales·partner·CEO/P&L 경험은 Head of Partnerships의 직무와 회사 기대를 강하게 충족한다. 하지만 후보가 새 assignment 때문에 연말까지 off-market이라고 가장 최근에 명시했으므로 현재 시점 B는 unfit이며 추천·확인 질문 모두 금지한다.",
+        "slice": "role_and_company_fit_but_candidate_explicitly_unavailable"
+      },
+      "inputFingerprint": "339be460e73d565d46b9baa85d4c1861213d2a3764564f4fa7a2819b4a2807e5",
+      "role": "Head of Partnerships, APAC",
+      "roleCountInFrozenCompanyBatch": 14,
+      "talent": "T-4cc195037ed0",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-1abc450110f8",
+      "baseline": {
+        "label": "unfit",
+        "lastEvaluatedAt": "2026-09-02T04:53:18.199770+00:00",
+        "recommend": false,
+        "score": 15
+      },
+      "caseId": "ABC09",
+      "company": "Sierra",
+      "gold": {
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "fit"
+            },
+            {
+              "axis": "c",
+              "label": "fit"
+            },
+            {
+              "axis": "c",
+              "label": "ambiguous"
+            }
+          ],
+          "policyTrue": [
+            "recommendNow",
+            "mustAskHoldQuestion",
+            "candidateMentionable"
+          ]
+        },
+        "deliverySuppressionReason": "company_side_rejection_dominates",
+        "evidence": [
+          "4년 full-stack, live single-shot RAG, 즉시 시작 의향과 AI-driven product 관심",
+          "production autonomous multi-step agent 경험은 본인이 없다고 확인",
+          "Sierra의 최상위 학교/회사/검증된 founding 성과 중 두 개 이상 강한 신호가 없음"
+        ],
+        "expected": {
+          "a": "hold",
+          "b": "middle",
+          "c": "unfit"
+        },
+        "holdQuestion": null,
+        "policy": {
+          "candidateMentionable": false,
+          "mustAskHoldQuestion": false,
+          "recommendNow": false
+        },
+        "rationale": "일반 full-stack/RAG 경험과 AI 제품 방향은 인접하지만 한국어·South Korea onsite 수용과 production autonomous-agent 깊이는 확인이 필요해 A만 보면 hold다. 그러나 Sierra의 두 개 이상 강한 caliber 신호 기준을 명확히 충족하지 못하므로 C가 unfit이고, 어차피 추천 불가한 상태에서 후보에게 hold 질문을 보내면 안 된다.",
+        "slice": "a_hold_but_company_unfit_so_no_question"
+      },
+      "inputFingerprint": "990f0707ab2077498ca5fd398aabef2b591bdd1374e736200199041df7be2fc6",
+      "role": "Software Engineer, Agent",
+      "roleCountInFrozenCompanyBatch": 3,
+      "talent": "T-dced4ccf37f1",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-e20944bcfd6c",
+      "baseline": {
+        "label": "unfit",
+        "lastEvaluatedAt": "2026-09-02T04:52:34.266442+00:00",
+        "recommend": false,
+        "score": 5
+      },
+      "caseId": "ABC10",
+      "company": "Wonderful",
+      "gold": {
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "hold"
+            },
+            {
+              "axis": "b",
+              "label": "fit"
+            },
+            {
+              "axis": "b",
+              "label": "middle"
+            },
+            {
+              "axis": "c",
+              "label": "fit"
+            },
+            {
+              "axis": "c",
+              "label": "ambiguous"
+            }
+          ],
+          "policyTrue": [
+            "recommendNow",
+            "mustAskHoldQuestion",
+            "candidateMentionable"
+          ]
+        },
+        "deliverySuppressionReason": "hard_function_mismatch",
+        "evidence": [
+          "communications, editorial writing, audience research 중심의 일관된 경력",
+          "software engineering, production AI, systems integration 경력 없음",
+          "후보 선호 지역·업무도 Bangkok onsite FDE와 불일치"
+        ],
+        "expected": {
+          "a": "unfit",
+          "b": "unfit",
+          "c": "unfit"
+        },
+        "holdQuestion": null,
+        "policy": {
+          "candidateMentionable": false,
+          "mustAskHoldQuestion": false,
+          "recommendNow": false
+        },
+        "rationale": "후보는 communications/editorial 전문가이고 FDE의 software engineering·AI deployment 증거가 전혀 없다. Thailand 근무 자격도 없지만 그 사실을 묻기 전에 이미 직무가 명백히 불일치하므로, work authorization 누락만 보고 hold로 보내는 것이 가장 위험한 오답이다.",
+        "slice": "obvious_function_mismatch_must_not_become_hold"
+      },
+      "inputFingerprint": "24d1fde5555aad8d04fb71cbdbf6c24ac0937b5e6ef734622a15889cc16b98ac",
+      "role": "Forward Deployed Engineer (FDE) - Thailand",
+      "roleCountInFrozenCompanyBatch": 14,
+      "talent": "T-abf6c85b43d2",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-1abc450110f8",
+      "baseline": {
+        "label": "dissatisfied",
+        "lastEvaluatedAt": "2026-08-28T04:58:50.399703+00:00",
+        "recommend": false,
+        "score": 55
+      },
+      "caseId": "ABC11",
+      "company": "Sierra",
+      "gold": {
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "hold"
+            },
+            {
+              "axis": "a",
+              "label": "unfit"
+            },
+            {
+              "axis": "b",
+              "label": "middle"
+            },
+            {
+              "axis": "b",
+              "label": "unfit"
+            },
+            {
+              "axis": "c",
+              "label": "fit"
+            },
+            {
+              "axis": "c",
+              "label": "ambiguous"
+            }
+          ],
+          "policyTrue": [
+            "recommendNow",
+            "mustAskHoldQuestion",
+            "candidateMentionable"
+          ]
+        },
+        "deliverySuppressionReason": "company_side_caliber_rejection",
+        "evidence": [
+          "의료 고객의 보험 청구 AI agent를 10명 팀과 구축해 하루 약 1만 건을 처리하고 고객 요구를 roadmap으로 전환",
+          "Python backend, 40TB/day data pipeline, production LLM 도구 및 FDE 경력",
+          "영어·한국어 professional bilingual, 한국 이전과 SWE/FDE 역할을 명시적으로 희망",
+          "Sierra 기준상 Dartmouth는 강한 한 신호지만 Thrasio/현 startup 이력은 독립된 두 번째 최상위 신호로 부족"
+        ],
+        "expected": {
+          "a": "fit",
+          "b": "fit",
+          "c": "unfit"
+        },
+        "holdQuestion": null,
+        "policy": {
+          "candidateMentionable": false,
+          "mustAskHoldQuestion": false,
+          "recommendNow": false
+        },
+        "rationale": "영한 이중언어, 한국 이전, 실제 FDE와 production AI-agent 구축·고객 delivery가 모두 확인돼 A와 B는 fit이다. 하지만 Sierra가 요구하는 두 개 이상의 독립된 최상위 선별 신호 중 Dartmouth 외 두 번째 신호가 부족해 C는 unfit이며 추천하면 안 된다.",
+        "slice": "role_and_candidate_fit_but_company_caliber_unfit"
+      },
+      "inputFingerprint": "65d5694672864df0a9cd82a43684b4d09bd770d7b1186aa90a90c0397ac49d3a",
+      "role": "Software Engineer, Agent",
+      "roleCountInFrozenCompanyBatch": 3,
+      "talent": "T-47769c67fc2b",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-198259bebf92",
+      "baseline": {
+        "label": "unfit",
+        "lastEvaluatedAt": "2026-08-24T07:39:40.055333+00:00",
+        "recommend": false,
+        "score": 39
+      },
+      "caseId": "ABC12",
+      "company": "Config",
+      "gold": {
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "fit"
+            },
+            {
+              "axis": "a",
+              "label": "hold"
+            },
+            {
+              "axis": "b",
+              "label": "unfit"
+            },
+            {
+              "axis": "c",
+              "label": "fit"
+            },
+            {
+              "axis": "c",
+              "label": "ambiguous"
+            }
+          ],
+          "policyTrue": [
+            "recommendNow",
+            "mustAskHoldQuestion",
+            "candidateMentionable"
+          ]
+        },
+        "deliverySuppressionReason": "verified_robotics_domain_mismatch",
+        "evidence": [
+          "AbbVie에서 MES/SAP/Dataiku와 agentic AI를 실제 운영에 배포하고 다수 FDE 역할에 긍정 반응",
+          "Config가 요구하는 robotics, robot control, sensors, hardware integration 경험은 없음",
+          "단순히 FDE title과 deployment 키워드가 겹친다는 이유로 robotics-specific role fit을 추정할 수 없음"
+        ],
+        "expected": {
+          "a": "unfit",
+          "b": "fit",
+          "c": "unfit"
+        },
+        "holdQuestion": null,
+        "policy": {
+          "candidateMentionable": false,
+          "mustAskHoldQuestion": false,
+          "recommendNow": false
+        },
+        "rationale": "후보는 FDE를 명시적으로 원하고 production 산업 시스템·AI 자동화를 직접 배포했으므로 B는 fit이다. 그러나 Config 역할의 핵심인 로봇 제어, 센서, hardware-software integration 경험이 검증된 전체 이력에 없고, 회사도 관련 산업·연구 신호를 필수로 두므로 A와 C는 unfit이다.",
+        "slice": "candidate_wants_fde_but_role_domain_is_hard_unfit"
+      },
+      "inputFingerprint": "e523f59bde76798f165c28df898fda7f127a53f95e740066d33ee38daeeb2468",
+      "role": "Forward-Deployed Engineer",
+      "roleCountInFrozenCompanyBatch": 3,
+      "talent": "T-0f1e66f570b3",
+      "task": "internal_fit_abc"
+    },
+    {
+      "anchorRole": "R-4bdab961e023",
+      "baseline": {
+        "label": "unfit",
+        "lastEvaluatedAt": "2026-08-25T23:02:18.264045+00:00",
+        "recommend": false,
+        "score": 35
+      },
+      "caseId": "ABC13",
+      "company": "Mistral AI",
+      "gold": {
+        "criticalForbidden": {
+          "axisAssignments": [
+            {
+              "axis": "a",
+              "label": "fit"
+            },
+            {
+              "axis": "a",
+              "label": "hold"
+            },
+            {
+              "axis": "b",
+              "label": "unfit"
+            },
+            {
+              "axis": "c",
+              "label": "unfit"
+            }
+          ],
+          "policyTrue": [
+            "recommendNow",
+            "mustAskHoldQuestion",
+            "candidateMentionable"
+          ]
+        },
+        "deliverySuppressionReason": "explicit_required_english_mismatch",
+        "evidence": [
+          "Allganize에서 production RAG·agent·tool calling·LangGraph·vLLM과 평가 체계를 end-to-end 운영",
+          "Seoul 기반, full-time, 적극 구직 중이며 AI Agent/RAG engineering을 명시적으로 희망",
+          "영어 업무 소통 경험이 없다는 명시적 사실과 역할의 한국어·영어 stakeholder communication 필수 조건이 충돌"
+        ],
+        "expected": {
+          "a": "unfit",
+          "b": "fit",
+          "c": "fit"
+        },
+        "holdQuestion": null,
+        "policy": {
+          "candidateMentionable": false,
+          "mustAskHoldQuestion": false,
+          "recommendNow": false
+        },
+        "rationale": "100여 고객사의 production RAG·agent, LLM fine-tuning, 평가·회귀 gate와 Seoul/AI Agent 역할 선호는 역할 내용과 회사 기대에 강하게 맞는다. 하지만 후보가 업무 영어 소통 경험이 없다고 명시했고 역할은 영어 고객·이해관계자 소통을 필수로 하므로 A는 hold가 아니라 unfit이다.",
+        "slice": "technical_and_company_fit_but_explicit_required_language_unfit"
+      },
+      "inputFingerprint": "edc8024defda91ef4114c14feb2bf6fc9f1446204f8f5b175dd204cc705e3365",
+      "role": "Applied AI Engineer",
+      "roleCountInFrozenCompanyBatch": 3,
+      "talent": "T-99d853ecfb39",
+      "task": "internal_fit_abc"
+    }
+  ],
+  "containsProductionPII": false,
+  "evaluationContract": {
+    "criticalForbiddenAssignmentsMustBeZero": true,
+    "exactAxisMatch": true,
+    "holdQuestionAllowedOnlyWhenMustAskHoldQuestionIsTrue": true,
+    "policyBooleansMustMatch": true,
+    "questionTextIsSemanticNotExactString": true
+  },
+  "revisionHistory": [
+    {
+      "at": "2026-09-02T06:45:24.138999+00:00",
+      "change": "ABC11-ABC13 추가: company-caliber unfit, robotics-domain hard unfit, explicit required-language unfit"
+    }
+  ],
+  "updatedAt": "2026-09-02T06:45:24.138999+00:00",
+  "version": "internal_fit_abc_gold_v1",
+  "warnings": [
+    "의도적으로 구성한 13개 challenge set이므로 전체 모집단 성능 추정용이 아니다.",
+    "현재 production context를 고정한 snapshot regression fixture이며 과거 판단 시점의 causal backtest가 아니다.",
+    "일부 context에는 이미 발생한 추천/반응이 포함된다. 이는 delivery-state 회귀를 검증하기 위해 의도적으로 보존했다.",
+    "owner/domain review를 거쳐 label 변경 이력을 남긴 뒤 배포 gate로 승격해야 한다."
+  ],
+  "workerRevision": "53448d179c1a73427688d6d89a923d7942ad37c4"
+}

@@ -28,7 +28,6 @@ import {
   mergeOrgAgentMessageMetadata,
   resolveAdoptableSlackUserMessageIdentity,
 } from "@/lib/org/agent/messageIdempotency";
-import { createOrgAgentConversationHistoryCursor } from "@/lib/org/agent/conversationHistory";
 import { stripSlackSentUsingAttribution } from "@/lib/org/slackMessageText";
 
 export {
@@ -122,6 +121,7 @@ export type OrgAgentSummaryRow = {
   metadata: Json;
   model: string | null;
   role_id: string | null;
+  slack_thread_id: string | null;
   source_end_message_id: number;
   source_start_message_id: number;
 };
@@ -765,19 +765,11 @@ export async function fetchRecentOrgAgentPromptMessages(args: {
     slack_user_id: string | null;
   }>;
   const selected = rows.slice(0, limit);
-  const oldest = selected.at(-1);
   const hasMore = rows.length > limit;
   return {
     hasMore,
     messages: selected.reverse().map(toPromptMessageView),
-    nextCursor:
-      hasMore && oldest && scope.kind === "slack"
-        ? createOrgAgentConversationHistoryCursor({
-            beforeId: Number(oldest.id),
-            scope: "current_thread",
-            slackThreadId: scope.slackThreadId,
-          })
-        : null,
+    nextCursor: null,
   };
 }
 
@@ -1023,16 +1015,24 @@ export async function fetchRecentOrgAgentSummaries(args: {
   admin: SupabaseAdminClient;
   conversationId: string;
   limit?: number;
+  scope?: OrgAgentPromptMessageScope;
 }) {
-  const { data, error } = await (
-    args.admin.from("company_conversation_summaries" as any) as any
-  )
+  const scope = args.scope ?? { kind: "chat" };
+  let query = (args.admin.from("company_conversation_summaries" as any) as any)
     .select(
-      "id, conversation_id, company_workspace_id, role_id, source_start_message_id, source_end_message_id, message_count, content, model, metadata, created_at"
+      "id, conversation_id, company_workspace_id, role_id, slack_thread_id, source_start_message_id, source_end_message_id, message_count, content, model, metadata, created_at"
     )
     .eq("conversation_id", args.conversationId)
-    .order("source_end_message_id", { ascending: false })
-    .limit(args.limit ?? 3);
+    .order("source_end_message_id", { ascending: false });
+
+  query =
+    scope.kind === "slack"
+      ? query.eq("slack_thread_id", scope.slackThreadId)
+      : query
+          .is("slack_thread_id", null)
+          .contains("metadata", { scope: "chat" });
+
+  const { data, error } = await query.limit(args.limit ?? 3);
 
   if (error) throw error;
   return ((data ?? []) as OrgAgentSummaryRow[]).reverse();

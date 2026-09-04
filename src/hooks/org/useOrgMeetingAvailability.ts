@@ -9,7 +9,6 @@ import type {
   MeetingAvailabilityDocument,
   MeetingAvailabilityResponse,
 } from "@/lib/meetings/availability";
-import type { GoogleCalendarSyncResponse } from "@/lib/meetings/calendarSync";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { queryKeys } from "@/lib/queryKeys";
 
@@ -56,30 +55,6 @@ export function useSaveOrgMeetingAvailability(workspaceId: string) {
         payload
       );
     },
-  });
-}
-
-export function useSyncOrgGoogleCalendar(workspaceId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (timezone: string) =>
-      fetchWithInternalAuth<GoogleCalendarSyncResponse>(
-        "/api/org/meeting-availability/calendar-sync",
-        {
-          body: JSON.stringify({ timezone, workspaceId }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-        }
-      ),
-    onSuccess: () =>
-      Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.org.meetingAvailabilityAll,
-        }),
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.org.meetingSchedulesAll,
-        }),
-      ]),
   });
 }
 

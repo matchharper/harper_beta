@@ -69,6 +69,7 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { getPublicSiteUrlFromRequest } from "@/lib/siteUrl";
 import { COMPANY_TALENT_REQUEST_BLOCKING_STATUSES } from "@/lib/companyTalentRequests/server";
 import { convertMarkdownLinksToSlackMrkdwn } from "@/lib/org/slackMessages";
+import { getOrgAgentContactDraftReferences } from "@/lib/org/agent/toolState";
 
 export const maxDuration = 300;
 export const runtime = "nodejs";
@@ -109,8 +110,10 @@ async function hasActiveCandidateWorkflowInSlackThread(args: {
   const contactIds = Array.from(
     new Set(
       metadataRows
-        .map((metadata: Record<string, any>) =>
-          clean(object(metadata.contactDraftRef).contactId)
+        .flatMap((metadata: Record<string, any>) =>
+          getOrgAgentContactDraftReferences(metadata).map((ref) =>
+            clean(ref.contactId)
+          )
         )
         .filter(Boolean)
     )

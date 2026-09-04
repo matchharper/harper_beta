@@ -31,7 +31,7 @@ function getAllowedToolNamesForFeedbackFollowUp(
   trigger: TalentOpportunityFeedbackReplyTrigger
 ): readonly string[] | null {
   return trigger === FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback
-    ? []
+    ? [TALENT_TOOL_NAMES.GET_INTERNAL_ROLES]
     : [TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS];
 }
 

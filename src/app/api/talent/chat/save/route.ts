@@ -9,6 +9,7 @@ import {
   getOnboardingChecklistCoverageStats,
   getTalentSupabaseAdmin,
   normalizeTalentInsightContent,
+  serializeOnboardingChecklistProgress,
   toTalentMessageResponse,
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/server";
@@ -435,10 +436,12 @@ export async function POST(req: NextRequest) {
             userId: user.id,
           })
         : null;
-    const checklistCompletion =
-      latestChecklistCoverage &&
-      getOnboardingChecklistCoverageStats(latestChecklistCoverage, profile)
-        .isComplete;
+    const onboardingChecklistProgress = latestChecklistCoverage
+      ? serializeOnboardingChecklistProgress(
+          getOnboardingChecklistCoverageStats(latestChecklistCoverage, profile)
+        )
+      : null;
+    const checklistCompletion = onboardingChecklistProgress?.completed === true;
     const completion = markerCompletion.completed
       ? markerCompletion
       : checklistCompletion
@@ -543,6 +546,7 @@ export async function POST(req: NextRequest) {
       shouldEndCall: false,
       insightUpdatedAt: responseInsightUpdatedAt,
       nextStepInstructions,
+      onboardingChecklistProgress,
       talentInsights: responseTalentInsights,
       progress: {
         answeredCount: userTurnCount,

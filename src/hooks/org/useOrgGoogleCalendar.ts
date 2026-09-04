@@ -16,6 +16,14 @@ import type {
 const ENDPOINT = "/api/org/integrations/google-calendar";
 type PersonalIntegrationContext = { userId: string; workspaceId: string };
 
+function browserTimezone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Seoul";
+  } catch {
+    return "Asia/Seoul";
+  }
+}
+
 export function orgGoogleCalendarQueryOptions(
   args: PersonalIntegrationContext & { enabled?: boolean }
 ) {
@@ -37,9 +45,17 @@ export function useOrgGoogleCalendar(
 ) {
   const queryClient = useQueryClient();
   const invalidate = () =>
-    queryClient.invalidateQueries({
-      queryKey: queryKeys.org.personalIntegrations(args.userId),
-    });
+    Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.org.personalIntegrations(args.userId),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.org.meetingAvailabilityAll,
+      }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.org.meetingSchedulesAll,
+      }),
+    ]);
   const statusQuery = useQuery(orgGoogleCalendarQueryOptions(args));
   const connect = useMutation({
     mutationFn: () =>
@@ -48,20 +64,29 @@ export function useOrgGoogleCalendar(
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ workspaceId: args.workspaceId }),
+          body: JSON.stringify({
+            timezone: browserTimezone(),
+            workspaceId: args.workspaceId,
+          }),
         }
       ),
     retry: false,
     onSettled: invalidate,
   });
   const complete = useMutation({
-    mutationFn: (input: Omit<GoogleCalendarCompleteInput, "workspaceId">) =>
+    mutationFn: (
+      input: Omit<GoogleCalendarCompleteInput, "timezone" | "workspaceId">
+    ) =>
       fetchWithInternalAuth<GoogleCalendarCompleteResult>(
         `${ENDPOINT}/complete`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...input, workspaceId: args.workspaceId }),
+          body: JSON.stringify({
+            ...input,
+            timezone: browserTimezone(),
+            workspaceId: args.workspaceId,
+          }),
         }
       ),
     retry: false,

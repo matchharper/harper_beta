@@ -3,6 +3,7 @@ import {
   OFFICIAL_JOBS_INTERNAL_COPY_SLUG,
   isOfficialJobsInternalCopyIdentity,
 } from "@/lib/officialJobs";
+import { normalizeOfficialJobMarkdown } from "@/lib/officialJobs/markdown";
 import {
   DEFAULT_ADMIN_EXCLUDED_EMAILS,
   isEmailExcluded,
@@ -169,7 +170,7 @@ function normalizeOptionalString(value: unknown) {
 }
 
 function normalizeMarkdown(value: unknown) {
-  return String(value ?? "").trim();
+  return normalizeOfficialJobMarkdown(value);
 }
 
 function normalizeDisplayOrder(value: unknown) {

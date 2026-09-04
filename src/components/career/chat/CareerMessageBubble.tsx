@@ -408,10 +408,9 @@ const CareerMessageBubble = ({
   const assistantChoices = choiceBlockExtraction.choices;
   const reengagementActions = reengagementActionExtraction.actions;
   const internalCallRequestMarkers = internalCallRequestExtraction.markers;
-  const assistantContent =
-    !isUser && (message.opportunityPreview?.length ?? 0) > 0
-      ? stripStandalonePostingLinksFromText(displayContent)
-      : displayContent;
+  const assistantContent = !isUser
+    ? stripStandalonePostingLinksFromText(displayContent)
+    : displayContent;
   return (
     <>
       {isUser && (message.attachments?.length ?? 0) > 0 ? (

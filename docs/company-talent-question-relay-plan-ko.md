@@ -1,14 +1,18 @@
 # 회사 질문 ↔ 후보자 전달 구현 문서
 
 상태: 구현 기준 문서
-최종 점검: 2026-08-05
+최종 점검: 2026-09-01
 
 ## 1. 목표
 
-연결 대기 후보자를 검토하는 회사가 Harper에게 추가 질문이나 이력서 요청을 할 수 있다.
+회사와 진행 중인 후보자를 검토하는 회사가 Harper에게 추가 질문이나 이력서 요청을 할 수 있다.
 Harper는 이미 안전하게 공유 가능한 정보로 먼저 답하고, 확답할 수 없을 때만 회사의 명시적
 확인을 받아 후보자에게 연락한다. 후보자의 답변이나 실제 이력서 업로드가 도착하면 원래
 회사 대화 또는 Slack thread로 돌아가 결과를 전달한다.
+
+이 기능은 `연결 대기`에만 한정하지 않는다. 연결 대기, 연결됨, 최종 오퍼와 회사가 정의한
+모든 진행 중 프로세스 단계에서 같은 범용 질문·자료 요청 흐름을 사용한다. 회사 내부 전용,
+아카이브, 프로세스 종료 상태는 새 연락 대상이 아니다.
 
 핵심 원칙은 다음과 같다.
 
@@ -25,7 +29,7 @@ Harper는 이미 안전하게 공유 가능한 정보로 먼저 답하고, 확�
 
 ### 2.1 회사 질문
 
-1. 회사가 연결 대기 후보자에 관해 묻는다.
+1. 회사가 현재 회사 프로세스에서 진행 중인 후보자에 관해 묻는다.
 2. company-side LLM은 프로필과 후보자가 Harper에게 말해준 다섯 가지 직업 관련 정보
    (`next_scope`, `location`, `team_style_fit`, `must_haves`, `deal_breakers`)로 답할 수 있는지
    판단한다. 이 정보는 회사별 동의나 작성 시점으로 제한하지 않고 항상 함께 읽으며, 보상
@@ -64,7 +68,7 @@ Harper는 이미 안전하게 공유 가능한 정보로 먼저 답하고, 확�
 |---|---|
 | `id` | 요청 식별자 |
 | `company_workspace_id` | 회사 범위와 조회 |
-| `role_id` | 포지션 및 연결 대기 상태 검증 |
+| `role_id` | 역할 및 회사 진행 중 상태 검증 |
 | `recommendation_id` | 후보자 상세 링크와 추천 대상을 고정 |
 | `talent_id` | 후보자 및 활성 요청 매칭 |
 | `source_company_message_id` | 원래 회사 대화와 Slack thread를 역참조하는 단일 source |
@@ -245,8 +249,9 @@ is_public = true
   개수를 제한하는 unique를 두지 않는다.
 - 모든 요청의 `expires_at`은 생성 시점 + 14일이다. 활성 요청 조회·답변·업로드·발송 경계는
   이 시각을 지난 요청을 거부하고 `closed` 처리한다.
-- 연결 대기 stage가 후보자 연락 전에 바뀌면 `closed`, 답변 후 바뀌면
-  `review_required`로 둔다.
+- 후보자가 하나의 진행 중 단계에서 다른 진행 중 단계로 이동해도 요청은 유지한다.
+- 후보자 연락 전에 회사 프로세스가 종료·아카이브되거나 내부 전용 상태가 되면 `closed`,
+  답변 후 더 이상 진행 중이 아니게 되면 `review_required`로 둔다.
 - resume는 storage 검증과 DB transaction이 성공한 후에만 `document_id`를 기록한다.
 - DB transaction 실패 시 새 storage object를 제거한다.
 - copy generation 또는 provider 오류는 queue 재시도 정책을 사용하고, 한도 초과 시에만
@@ -270,7 +275,7 @@ is_public = true
 - 이메일 첨부와 profile link가 동일한 finalize transaction을 사용하는가
 - 일반 profile upload가 요청을 우연히 완료하지 않는가
 - 원래 web conversation 및 Slack thread로 돌아가는가
-- stage 변경, 중복 provider call, DB rollback 시 안전한가
+- 진행 중 단계 사이의 이동, 프로세스 종료, 중복 provider call, DB rollback 시 안전한가
 
 ## 12. 구현 위치
 

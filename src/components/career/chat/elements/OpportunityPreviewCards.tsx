@@ -1,5 +1,5 @@
 import { Building2 } from "lucide-react";
-import { Fragment, memo } from "react";
+import { memo } from "react";
 
 import type { CareerHistoryOpportunity } from "@/components/career/types";
 import { ClickablePanel } from "@/components/ui/clickable-panel";
@@ -104,17 +104,15 @@ export const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
                       {item.companyName}
                     </div>
                     {(metaItems.length > 0 || postingStatus) && (
-                      <div className="mt-0.5 flex flex-col flex-wrap items-start gap-x-1 gap-y-0.5 text-[13px] text-neutral-muted">
-                        <div className="line-clamp-1 gap-x-1 flex flex-row">
-                          {metaItems.map((meta, index) => (
-                            <Fragment key={`${item.id}-${meta}`}>
-                              {index > 0 && (
-                                <span className="whitespace-nowrap">·</span>
-                              )}
-                              <span className="whitespace-nowrap">{meta}</span>
-                            </Fragment>
-                          ))}
-                        </div>
+                      <div className="mt-0.5 flex w-full min-w-0 flex-col items-start gap-y-0.5 text-[13px] text-neutral-muted">
+                        {metaItems.length > 0 && (
+                          <div
+                            className="w-full min-w-0 truncate"
+                            title={metaItems.join(" · ")}
+                          >
+                            {metaItems.join(" · ")}
+                          </div>
+                        )}
 
                         {postingStatus && (
                           <span

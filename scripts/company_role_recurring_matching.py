@@ -41,12 +41,15 @@ FIT_LABEL_BANDS = {
     "unfit": (0, 39),
 }
 TRUE_HOLD_TOPICS = {
-    "location_or_relocation",
-    "material_compensation_mismatch",
-    "company_size_or_stage_conflict",
-    "engagement_type",
-    "major_function_transition",
-    "critical_ability_evidence",
+    "location",
+    "work_authorization",
+    "employment_type",
+    "availability_or_timing",
+    "compensation_requirement",
+    "required_language",
+    "required_qualification",
+    "license_or_clearance",
+    "other_candidate_fact",
 }
 DEFAULT_CANDIDATE_EVALUATION_LIMIT = 100
 DEFAULT_CANDIDATE_SCAN_LIMIT = 150
@@ -63,7 +66,7 @@ REEVALUATION_LABELS = {"hold", "ambiguous"}
 FIT_EVALUATION_CONTRACT_TEXT = """Label을 먼저 정하고 해당 band 안에서 score를 정한다.
 - fit 80~100: 회사-side suitability gate를 통과하고 지금 후보에게 보여 줄 가치가 있으며, 명시적 blocker나 true hold가 없다.
 - ambiguous 60~79: 역할은 plausible하고 blocker는 없지만 회사-side 수행 근거 또는 상호 적합 근거가 불완전·혼재됐거나 아직 충분히 강하지 않다.
-- hold 60~79: location/relocation, material compensation, explicit company size/stage conflict, engagement type, major function transition, critical ability evidence 중 하나의 decision-critical candidate-side 사실이 빠졌다.
+- hold 60~79: location, work authorization, employment type, availability/timing, compensation requirement, required language/qualification, license/clearance, 그 밖의 candidate fact 중 하나의 decision-critical candidate-side 사실이 빠졌다.
 - dissatisfied 40~59: 한쪽이 의미 있게 불만족할 가능성이 높은 soft mismatch다.
 - unfit 0~39: 명시 조건·필수 역량·위치/work authorization·고용형태·seniority·언어·working style 등의 hard mismatch다.
 
@@ -71,7 +74,7 @@ FIT_EVALUATION_CONTRACT_TEXT = """Label을 먼저 정하고 해당 band 안에�
 
 fit이 독립적으로 성립한 뒤에만 회사·role 적합도 80~90 + candidate preference 0~10으로 score를 정한다. 수행 능력을 candidate preference로 다시 더하지 않는다. Candidate-facing opportunity 정보가 없다는 말은 보상·근무형태·회사 단계처럼 후보가 판단할 기회 자체의 속성이 입력에 없다는 뜻이지, 후보가 이 role을 사전에 보지 않았다는 뜻이 아니다. 명시적 부정 신호가 없고 수락한다면 회사에 보낼 가치가 있는 후보는 사소한 preference uncertainty 때문에 ambiguous로 내리지 않는다.
 
-reevaluationCriteria는 hold에서만 {topic, question, new_information}으로 쓴다. 회사 bar 확인이나 가벼운 취향 질문에는 쓰지 않는다. companyCriteriaEvaluations는 fit이고 role criteria가 있을 때만 [{name, fitness, content}]로 쓰며 전체 fit의 평균·공식이 아니다. 현재 회사/self-match는 internal transfer 의사가 명시되지 않은 한 hold로 묻지 않는다.
+reevaluationCriteria는 hold에서만 {topic, question, new_information}으로 쓴다. topic은 location, work_authorization, employment_type, availability_or_timing, compensation_requirement, required_language, required_qualification, license_or_clearance, other_candidate_fact 중 정확히 하나다. question은 후보자에게 그대로 보여도 되는 한 문장의 완성형 질문이어야 한다. "후보자에게 X를 확인한다" 같은 내부 지시·설명문이 아니라 후보자에게 직접 묻는 자연스러운 의문문으로 쓰고 물음표로 끝낸다. talent settings의 preferred_locale이 있으면 그 언어를 쓰고, 없으면 후보자 자신의 최근 명시적 발화 언어를 따르며, 둘 다 불분명하면 영어를 쓴다. 숨겨진 회사명·역할명·점수·내부 기준은 드러내지 않는다. 회사 bar 확인이나 가벼운 취향 질문에는 쓰지 않는다. companyCriteriaEvaluations는 fit이고 role criteria가 있을 때만 [{name, fitness, content}]로 쓰며 전체 fit의 평균·공식이 아니다. 현재 회사/self-match는 internal transfer 의사가 명시되지 않은 한 hold로 묻지 않는다.
 """
 
 CONTEXT_EDIT_INSTRUCTIONS_TEXT = """이 context는 검토 이력이나 사건 원장이 아니라 다음 [talent × role] matching 평가의 compact input이다.
@@ -1591,6 +1594,92 @@ def by_talent(rows: Iterable[Mapping[str, Any]]) -> dict[str, list[dict[str, Any
     return grouped
 
 
+def format_same_company_role_history(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    max_chars: int = 2000,
+) -> str:
+    eligible_rows = [
+        row
+        for row in rows
+        if compact(row.get("recommendation_id"), 100)
+        or row.get("recommended_at")
+    ]
+    lines = ["Existing history between this talent and the same company:"]
+    for index, row in enumerate(eligible_rows):
+        parts = [compact(row.get("role_name"), 240) or "Unnamed role"]
+        if row.get("recommended_at"):
+            parts.append(f"recommended {str(row['recommended_at'])[:10]}")
+        feedback = compact(row.get("feedback"), 80)
+        if feedback:
+            parts.append(f"talent response: {feedback}")
+        feedback_reason = compact(row.get("feedback_reason"), 240)
+        if feedback_reason:
+            parts.append(f"talent reason: {feedback_reason}")
+        stage_tag = compact(row.get("stage_tag"), 100)
+        role_move_target = compact(row.get("role_move_target_role_name"), 240)
+        stop_reason = compact(row.get("stage_stop_reason"), 80).lower()
+        role_status = compact(row.get("role_status"), 80).lower()
+        processed_stage = compact(row.get("processed_stage"), 100).lower()
+        saved_stage = compact(row.get("saved_stage"), 100).lower()
+        stage = ""
+        if stage_tag == "내부:아카이브":
+            stage = (
+                f"moved to another same-company role ({role_move_target}); this role is closed and not active"
+                if role_move_target
+                else "company-side rejection/closure; this hiring process is not active"
+            )
+        elif stage_tag == "내부:프로세스중단":
+            if stop_reason == "candidate":
+                stage = "talent ended this hiring process; not active"
+            elif stop_reason == "company":
+                stage = "company ended this hiring process; not active"
+            else:
+                stage = "company/Harper-side hiring process stop; not active"
+        elif stage_tag == "내부:거절":
+            stage = "talent declined this opportunity; not active"
+        elif role_status == "ended":
+            stage = "company closed this role; this hiring process is not active"
+        elif stage_tag == "내부:보류":
+            stage = "company hiring process is on hold"
+        elif stage_tag == "내부:최종오퍼":
+            stage = "company hiring process reached final offer"
+        elif stage_tag == "내부:연결됨":
+            stage = "connected with the company; company process is active"
+        elif stage_tag == "내부:연결대기":
+            stage = "Harper-confirmed company connection is pending"
+        elif stage_tag == "내부:수락":
+            stage = "talent accepted the recommendation; this is not company acceptance"
+        elif stage_tag == "내부:추천":
+            stage = "recommended to the talent; awaiting talent response"
+        elif stage_tag.startswith("내부단계:"):
+            custom_stage = compact(row.get("custom_stage_label"), 160)
+            stage = (
+                f"active company hiring stage: {custom_stage}"
+                if custom_stage
+                else "active custom company hiring stage"
+            )
+        elif processed_stage in {"archived", "아카이브"}:
+            stage = "company-side rejection/closure; this hiring process is not active"
+        elif processed_stage in {"process_stopped", "프로세스중단", "프로세스 중단"}:
+            stage = "company/Harper-side hiring process stop; not active"
+        elif processed_stage:
+            stage = f"recorded company process stage: {processed_stage}"
+        elif saved_stage in {"connected", "accepted"}:
+            stage = "talent accepted the recommendation; current company stage is unavailable"
+        elif saved_stage == "closed":
+            stage = "talent-side recommendation record is closed; company outcome unavailable"
+        if stage:
+            parts.append(f"process stage: {stage}")
+        line = "- " + " | ".join(parts)
+        remaining = len(eligible_rows) - index
+        if len("\n".join([*lines, line])) + 60 > max_chars:
+            lines.append(f"- {remaining} additional historical role(s) omitted")
+            break
+        lines.append(line)
+    return "\n".join(lines)[:max_chars] if len(lines) > 1 else ""
+
+
 def candidate_rows(conn: psycopg.Connection, talent_ids: list[str], role_id: str) -> dict[str, Any]:
     ids = talent_ids
     profiles = fetch_all(
@@ -1779,6 +1868,122 @@ def candidate_rows(conn: psycopg.Connection, talent_ids: list[str], role_id: str
         """,
         (ids, role_id),
     )
+    same_company_role_history_rows = fetch_all(
+        conn,
+        """
+        select
+          delivered.talent_id,
+          sibling.name as role_name,
+          sibling.status as role_status,
+          latest_recommendation.id::text as recommendation_id,
+          latest_recommendation.recommended_at,
+          latest_recommendation.feedback,
+          latest_recommendation.feedback_reason,
+          latest_recommendation.saved_stage,
+          latest_recommendation.processed_stage,
+          latest_stage.stage_tag,
+          latest_stage.custom_stage_label,
+          latest_role_move.target_role_name as role_move_target_role_name,
+          latest_stop.stage_stop_reason
+        from (
+          select distinct recommendation.talent_id, recommendation.role_id
+          from public.talent_opportunity_recommendation recommendation
+          where recommendation.talent_id = any(%s::uuid[])
+        ) delivered
+        join public.company_roles sibling
+          on sibling.role_id = delivered.role_id
+        join public.company_roles target
+          on target.role_id = %s::uuid
+         and target.company_workspace_id = sibling.company_workspace_id
+        join lateral (
+          select recommendation.id,
+                 recommendation.recommended_at,
+                 recommendation.feedback,
+                 recommendation.feedback_reason,
+                 recommendation.saved_stage,
+                 recommendation.processed_stage
+          from public.talent_opportunity_recommendation recommendation
+          where recommendation.talent_id = delivered.talent_id
+            and recommendation.role_id = sibling.role_id
+          order by recommendation.recommended_at desc, recommendation.id desc
+          limit 1
+        ) latest_recommendation on true
+        left join lateral (
+          select btrim(tag_row.tag) as stage_tag,
+                 custom_stage.label as custom_stage_label
+          from public.talent_opportunity_tag tag_row
+          left join public.ops_matching_role_stages custom_stage
+            on tag_row.tag like '내부단계:%%'
+           and custom_stage.role_id = sibling.role_id
+           and replace(lower(custom_stage.id::text), '-', '') = lower(
+                 substring(btrim(tag_row.tag) from length('내부단계:') + 1)
+               )
+          where tag_row.talent_id = delivered.talent_id
+            and tag_row.opportunity_id = sibling.role_id
+            and (
+              btrim(tag_row.tag) in (
+                '내부:수락', '내부:아카이브', '내부:최종오퍼',
+                '내부:보류', '내부:연결대기', '내부:프로세스중단',
+                '내부:거절', '내부:추천', '내부:연결됨'
+              )
+              or btrim(tag_row.tag) like '내부단계:%%'
+            )
+          order by tag_row.updated_at desc nulls last,
+                   tag_row.created_at desc nulls last,
+                   tag_row.id desc
+          limit 1
+        ) latest_stage on true
+        left join lateral (
+          select coalesce(
+            nullif(btrim(progress.metadata->>'targetRoleName'), ''),
+            moved_target.name
+          ) as target_role_name
+          from public.talent_progress progress
+          left join public.company_roles moved_target
+            on moved_target.role_id::text = progress.metadata->>'targetRoleId'
+          where progress.talent_id = delivered.talent_id
+            and (
+              (
+                progress.role_id = sibling.role_id
+                and progress.metadata->>'eventType' = 'candidate_role_moved'
+                and progress.metadata->>'direction' = 'out'
+              )
+              or (
+                progress.kind = 'candidate_role_recommendation_accepted'
+                and progress.metadata->>'sourceRoleId' = sibling.role_id::text
+                and nullif(btrim(progress.metadata->>'targetRoleId'), '') is not null
+              )
+            )
+          order by progress.created_at desc, progress.id desc
+          limit 1
+        ) latest_role_move on true
+        left join lateral (
+          select progress.metadata->>'stopReason' as stage_stop_reason
+          from public.talent_progress progress
+          where progress.talent_id = delivered.talent_id
+            and progress.role_id = sibling.role_id
+            and (
+              progress.metadata->>'stage' = 'process_stopped'
+              or progress.metadata->>'tag' = '내부:프로세스중단'
+              or progress.text like '%%프로세스 중단%%'
+              or progress.text like '%%진행을 중단%%'
+            )
+          order by progress.created_at desc, progress.id desc
+          limit 1
+        ) latest_stop on true
+        where sibling.role_id <> %s::uuid
+          and sibling.source_type = 'internal'
+          and lower(coalesce(sibling.information->>'testOnly', 'false')) <> 'true'
+        order by delivered.talent_id,
+                 latest_recommendation.recommended_at desc nulls last,
+                 sibling.role_id
+        """,
+        (ids, role_id, role_id),
+    )
+    same_company_role_history = {
+        talent_id: format_same_company_role_history(rows)
+        for talent_id, rows in by_talent(same_company_role_history_rows).items()
+    }
     return {
         "profiles": {str(row["talent_id"]): row for row in profiles},
         "settings": {str(row["talent_id"]): row for row in settings},
@@ -1797,6 +2002,7 @@ def candidate_rows(conn: psycopg.Connection, talent_ids: list[str], role_id: str
         "currentRoleProgress": by_talent(progress),
         "currentRoleTags": by_talent(tags),
         "fits": {str(row["talent_id"]): row for row in fits},
+        "sameCompanyRoleHistory": same_company_role_history,
     }
 
 
@@ -1864,6 +2070,9 @@ def talent_packet_payload(data: Mapping[str, Any], talent_id: str) -> dict[str, 
         "currentRoleProgress": data["currentRoleProgress"].get(talent_id, []),
         "currentRoleTags": data["currentRoleTags"].get(talent_id, []),
         "currentRoleFit": data["fits"].get(talent_id),
+        "sameCompanyRoleHistory": data.get("sameCompanyRoleHistory", {}).get(
+            talent_id, ""
+        ),
     }
 
 
@@ -1874,7 +2083,7 @@ def candidate_input_fingerprint(talent_payload: Mapping[str, Any]) -> str:
         {
             key: value
             for key, value in talent_payload.items()
-            if key != "currentRoleFit"
+            if key not in {"currentRoleFit", "sameCompanyRoleHistory"}
         }
     )
     profile = inputs.get("profile") or {}
@@ -2094,6 +2303,18 @@ def render_candidate_evaluation_document(packet: Mapping[str, Any]) -> str:
                 "",
             ]
         )
+    same_company_history = compact(talent.get("sameCompanyRoleHistory"), 2000)
+    if same_company_history:
+        lines.extend(
+            [
+                "## 같은 회사의 다른 역할 기록",
+                "",
+                same_company_history,
+                "",
+                "이 기록은 현재 역할의 fit을 낮추기 위한 상한이 아니다. 역할별 결과나 더 강한 형제 역할은 현재 역할의 fit을 내리는 이유가 아니다. 다만 명시적인 회사 전체 판단이나 현재에도 적용되는 후보자의 회사 단위 선호처럼 역할을 넘어 실제로 이어지는 근거는 현재 label에 참고할 수 있다. recommend와 reason의 상대 판단에는 항상 사용한다.",
+                "",
+            ]
+        )
     safety = packet.get("safety") or {}
     lines.extend(
         [
@@ -2105,7 +2326,8 @@ def render_candidate_evaluation_document(packet: Mapping[str, Any]) -> str:
             "",
             "## Codex가 작성할 결과",
             "",
-            "문서 전체를 읽은 뒤 `label`, `score`, 핵심 근거를 설명하는 `reason`, hold일 때만 하나의 `reevaluationCriteria`, 해당할 때만 `companyCriteriaEvaluations`를 작성한다.",
+            "문서 전체를 읽은 뒤 `label`, `score`, `recommend`, 핵심 근거를 설명하는 `reason`, hold일 때만 하나의 `reevaluationCriteria`, 해당할 때만 `companyCriteriaEvaluations`를 작성한다.",
+            "fit은 역할별로 독립 판단한다. recommend=true는 fit 중 지금 먼저 능동적으로 제안할 역할이라는 뜻이다. 같은 회사의 다른 역할이 더 적절하거나 이미 진행 중이면 현재 역할은 fit을 유지하면서 recommend=false일 수 있다. 보통 하나가 먼저 제안되지만 정확히 하나를 강제하지 않는다. fit이 아니면 recommend는 반드시 false다.",
             "`reason`은 이 후보의 구체적인 역할·성과·현재 의향 또는 결정적 부족 근거를 적어도 하나 포함해야 한다. 여러 후보에게 같은 문장 틀을 적용하거나 한 필드만 바꿔 끼우면 미완료다.",
         ]
     )
@@ -2447,6 +2669,10 @@ def validate_evaluation(
     reason = str(item.get("reason") or "").strip()
     if not reason or len(reason) > 3000:
         raise ValueError(f"reason for {talent_id} must contain 1..3000 characters")
+    raw_recommend = item.get("recommend")
+    if not isinstance(raw_recommend, bool):
+        raise ValueError(f"recommend for {talent_id} must be boolean")
+    recommend = bool(raw_recommend and label == "fit")
     reevaluation = item.get("reevaluationCriteria")
     if label != "hold" and reevaluation not in (None, {}, [], ""):
         raise ValueError("reevaluationCriteria must be null unless label is hold")
@@ -2454,12 +2680,10 @@ def validate_evaluation(
         if not isinstance(reevaluation, Mapping):
             raise ValueError("hold requires one structured reevaluationCriteria object")
         topic = compact(reevaluation.get("topic"), 100)
-        question = compact(
-            reevaluation.get("question") or reevaluation.get("summary"), 1000
-        )
+        question = compact(reevaluation.get("question"), 1000)
         if topic not in TRUE_HOLD_TOPICS or not question:
             raise ValueError(
-                "hold reevaluationCriteria requires an allowed candidate-side topic and exact question"
+                "hold reevaluationCriteria requires a current candidate-side topic and a verbatim talent-facing question"
             )
         reevaluation = {
             "topic": topic,
@@ -2500,6 +2724,7 @@ def validate_evaluation(
         "score": score,
         "label": label,
         "reason": reason,
+        "recommend": recommend,
         "reevaluationCriteria": reevaluation if label == "hold" else None,
         "companyCriteriaEvaluations": criteria if label == "fit" else None,
         "explorationRecommendable": exploration,
@@ -2647,6 +2872,7 @@ def command_upsert_fits(args: argparse.Namespace) -> int:
                         "opportunity_id": str(run["role_id"]),
                         "score": item["score"],
                         "label": item["label"],
+                        "recommend": item["recommend"],
                         "kind": "codex",
                         **{
                             field: previous.get(field)
@@ -2687,12 +2913,12 @@ def command_upsert_fits(args: argparse.Namespace) -> int:
                     cur.execute(
                         """
                         insert into public.talent_opportunity_fit (
-                          talent_id, opportunity_id, kind, score, label, reason,
+                          talent_id, opportunity_id, kind, score, label, reason, recommend,
                           reevaluation_criteria, company_criteria_evaluations,
                           company_side_evaluation_metadata, behavior_context_version,
                           last_evaluated_at, reevaluation_checked_at
                         ) values (
-                          %s::uuid, %s::uuid, 'codex', %s, %s, %s,
+                          %s::uuid, %s::uuid, 'codex', %s, %s, %s, %s,
                           %s::jsonb, %s::jsonb, %s::jsonb, %s,
                           timezone('utc', now()), timezone('utc', now())
                         )
@@ -2701,13 +2927,14 @@ def command_upsert_fits(args: argparse.Namespace) -> int:
                           score = excluded.score,
                           label = excluded.label,
                           reason = excluded.reason,
+                          recommend = excluded.recommend,
                           reevaluation_criteria = excluded.reevaluation_criteria,
                           company_criteria_evaluations = excluded.company_criteria_evaluations,
                           company_side_evaluation_metadata = excluded.company_side_evaluation_metadata,
                           behavior_context_version = excluded.behavior_context_version,
                           last_evaluated_at = excluded.last_evaluated_at,
                           reevaluation_checked_at = excluded.reevaluation_checked_at
-                        returning talent_id, opportunity_id, score, label, kind,
+                        returning talent_id, opportunity_id, score, label, recommend, kind,
                                   human_label, human_reason, human_reviewed_by, human_reviewed_at
                         """,
                         (
@@ -2716,13 +2943,49 @@ def command_upsert_fits(args: argparse.Namespace) -> int:
                             item["score"],
                             item["label"],
                             item["reason"],
+                            item["recommend"],
                             json.dumps(item["reevaluationCriteria"]),
                             json.dumps(item["companyCriteriaEvaluations"]),
                             json.dumps(metadata),
                             (behavior_version or {}).get("context_version"),
                         ),
                     )
-                    stored.append(dict(cur.fetchone()))
+                    stored_row = dict(cur.fetchone())
+                    effective_label = compact(
+                        stored_row.get("human_label") or stored_row.get("label"),
+                        40,
+                    ).lower()
+                    if item["recommend"] is True and effective_label == "fit":
+                        cur.execute(
+                            """
+                            update public.talent_opportunity_fit sibling_fit
+                            set recommend = false
+                            from public.company_roles selected_role,
+                                 public.company_roles sibling_role
+                            where selected_role.role_id = %s::uuid
+                              and selected_role.source_type = 'internal'
+                              and lower(coalesce(selected_role.information->>'testOnly', 'false')) <> 'true'
+                              and sibling_role.company_workspace_id = selected_role.company_workspace_id
+                              and sibling_role.source_type = 'internal'
+                              and lower(coalesce(sibling_role.information->>'testOnly', 'false')) <> 'true'
+                              and sibling_fit.opportunity_id = sibling_role.role_id
+                              and sibling_fit.talent_id = %s::uuid
+                              and sibling_fit.recommend = true
+                              and sibling_fit.opportunity_id <> %s::uuid
+                              and not exists (
+                                select 1
+                                from public.talent_opportunity_recommendation delivered
+                                where delivered.talent_id = sibling_fit.talent_id
+                                  and delivered.role_id = sibling_fit.opportunity_id
+                              )
+                            """,
+                            (
+                                str(run["role_id"]),
+                                item["talentId"],
+                                str(run["role_id"]),
+                            ),
+                        )
+                    stored.append(stored_row)
         for row in stored:
             previous = before_human_map.get(str(row["talent_id"])) or {}
             for field in ("human_label", "human_reason", "human_reviewed_by", "human_reviewed_at"):

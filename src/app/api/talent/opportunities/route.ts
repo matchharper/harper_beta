@@ -15,6 +15,7 @@ import {
   fetchTalentOpportunityHistoryCounts,
   fetchTalentOpportunityHistoryPage,
   fetchTalentOpportunitySavedStageHistoryPages,
+  InternalRoleAcceptanceError,
   type TalentOpportunityHistoryTab,
   type TalentOpportunitySavedStageFilter,
   type TalentOpportunitySavedStage,
@@ -284,6 +285,13 @@ function getInternalDecisionChangeErrorMessage(
       "이미 종료된 포지션이라 거절을 되돌릴 수 없습니다."
     );
   }
+  if (errorMessage.includes("inactive_internal_role_cannot_be_reverted")) {
+    return careerT(
+      locale,
+      "career.api.opportunities.inactive_rejection_revert_forbidden",
+      "현재 종료되었거나 이용할 수 없는 포지션이라 거절을 되돌릴 수 없습니다."
+    );
+  }
   if (errorMessage.includes("internal_process_already_closed")) {
     return careerT(
       locale,
@@ -354,6 +362,7 @@ export async function GET(req: NextRequest) {
       });
       const items = await fetchTalentOpportunityHistoryByRoleIds({
         admin,
+        includeActivityTimeline: true,
         locale,
         roleIds: [roleId],
         userId: user.id,
@@ -406,6 +415,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  let responseLocale: string | null =
+    req.cookies.get("NEXT_LOCALE")?.value ?? null;
   try {
     const user = await getRequestUser(req);
     if (!user) {
@@ -479,6 +490,17 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (
+      action === "memo" &&
+      (!String(body.talentMemo ?? "").trim() ||
+        String(body.talentMemo ?? "").trim().length > 10_000)
+    ) {
+      return NextResponse.json(
+        { error: "Memo must be between 1 and 10,000 characters." },
+        { status: 400 }
+      );
+    }
+
+    if (
       action === "internal_decision_change" &&
       body.internalDecisionAction !== "revert" &&
       body.internalDecisionAction !== "stop_process"
@@ -497,10 +519,10 @@ export async function PATCH(req: NextRequest) {
             userId: user.id,
           })
         : null;
-    const responseLocale =
+    responseLocale =
       talentSetting?.preferred_locale ??
       body.locale ??
-      req.cookies.get("NEXT_LOCALE")?.value ??
+      responseLocale ??
       null;
     let previousOpportunity: TalentOpportunityHistoryItem | null = null;
     if (
@@ -579,11 +601,12 @@ export async function PATCH(req: NextRequest) {
         const error =
           internalDecisionAction === "revert" &&
           previousOpportunity.feedback === "negative" &&
-          previousOpportunity.status.trim().toLowerCase() === "ended"
+          (previousOpportunity.status.trim().toLowerCase() !== "active" ||
+            previousOpportunity.isExpired)
             ? careerT(
                 responseLocale,
-                "career.api.opportunities.ended_rejection_revert_forbidden",
-                "이미 종료된 포지션이라 거절을 되돌릴 수 없습니다."
+                "career.api.opportunities.inactive_rejection_revert_forbidden",
+                "현재 종료되었거나 이용할 수 없는 포지션이라 거절을 되돌릴 수 없습니다."
               )
             : internalDecisionAction === "revert"
               ? careerT(
@@ -614,8 +637,8 @@ export async function PATCH(req: NextRequest) {
       }
 
       const changedAt = new Date().toISOString();
-      const { error: changeError } = await admin.rpc(
-        "change_internal_talent_opportunity_decision",
+      const { error: changeError } = await (admin.rpc as any)(
+        "change_internal_talent_opportunity_decision_v2",
         {
           p_action: internalDecisionAction,
           p_changed_at: changedAt,
@@ -732,14 +755,15 @@ export async function PATCH(req: NextRequest) {
       action === "feedback" &&
       body.feedback === "positive" &&
       previousOpportunity?.sourceType === "internal" &&
-      previousOpportunity.status.trim().toLowerCase() === "ended"
+      (previousOpportunity.status.trim().toLowerCase() !== "active" ||
+        previousOpportunity.isExpired)
     ) {
       return NextResponse.json(
         {
           error: careerT(
             responseLocale,
-            "career.api.opportunities.ended_acceptance_forbidden",
-            "이미 종료된 포지션이라 연결을 수락할 수 없습니다."
+            "career.api.opportunities.inactive_acceptance_forbidden",
+            "현재 종료되었거나 이용할 수 없는 포지션이라 연결을 수락할 수 없습니다."
           ),
         },
         { status: 409 }
@@ -768,6 +792,8 @@ export async function PATCH(req: NextRequest) {
     const [updatedOpportunity] = await fetchTalentOpportunityHistoryByIds({
       admin,
       ids: [result.opportunityId ?? opportunityId],
+      includeActivityTimeline:
+        action === "memo" || action === "saved_stage" || action === "feedback",
       locale: responseLocale,
       userId: user.id,
     });
@@ -951,6 +977,21 @@ export async function PATCH(req: NextRequest) {
       userMessage,
     });
   } catch (error) {
+    if (
+      error instanceof InternalRoleAcceptanceError &&
+      error.reason === "target_role_unavailable"
+    ) {
+      return NextResponse.json(
+        {
+          error: careerT(
+            responseLocale,
+            "career.api.opportunities.inactive_acceptance_forbidden",
+            "현재 종료되었거나 이용할 수 없는 포지션이라 연결을 수락할 수 없습니다."
+          ),
+        },
+        { status: 409 }
+      );
+    }
     const message =
       error instanceof Error ? error.message : "Failed to update opportunity";
     return NextResponse.json({ error: message }, { status: 500 });

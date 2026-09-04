@@ -3,7 +3,7 @@ import type { GoogleCalendarCompleteInput } from "./googleCalendarTypes";
 
 export function readCalendarCallback(
   query: ParsedUrlQuery
-): Omit<GoogleCalendarCompleteInput, "workspaceId"> | null {
+): Omit<GoogleCalendarCompleteInput, "timezone" | "workspaceId"> | null {
   if (query.googleCalendar !== "callback") return null;
   if (
     typeof query.calendarState !== "string" ||

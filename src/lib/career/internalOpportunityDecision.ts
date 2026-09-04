@@ -16,6 +16,7 @@ type InternalOpportunityDecisionState = Pick<
   CareerHistoryOpportunity,
   | "feedback"
   | "feedbackAt"
+  | "isExpired"
   | "isInternal"
   | "savedStage"
   | "sourceType"
@@ -39,8 +40,10 @@ export function getInternalOpportunityDecisionAvailability(
   }
 
   if (item.feedback === "negative") {
+    const roleIsAvailable =
+      item.status.trim().toLowerCase() === "active" && !item.isExpired;
     return {
-      canRevert: item.status.trim().toLowerCase() !== "ended",
+      canRevert: roleIsAvailable,
       canStopProcess: false,
     };
   }

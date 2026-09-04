@@ -3,6 +3,7 @@
 - 작성일: 2026-08-14
 - 용도: Codex 예약 작업이 현재 claim 가능한 queued role을 모두 순차 처리할 때 읽는 문서
 - 기능·구현 계약: [Company Context Run 개요](./company-context-run-overview-ko.md)
+- 기존 non-fit의 제한적 재발견 감사: [Company Role Fit Recovery Audit 런북](./company-role-fit-recovery-audit-codex-runbook-ko.md)
 
 이 문서는 migration, 최초 배포, 테스트 계획을 설명하지 않는다. 이미 queue에 들어온 role 하나의 context를 올바르게 갱신하고 연결 후보를 평가하는 데만 집중한다.
 
@@ -240,14 +241,13 @@ SQL은 다음을 만족해야 한다.
 - 명시적인 `LIMIT`
 - 안정적인 tie-breaker
 - Role에 맞는 recall signal과 필요한 hard constraint
-- 신규 lane과 재평가 lane을 구분할 수 있는 결과
-- 재평가 SQL은 신규 SQL과 같은 role evidence와 최종 `ORDER BY`를 사용해 같은 rank 기준을 적용
+- 아직 이 role에 fit row가 없는 신규 후보만 반환하는 결과
 - 핵심 기술 신호는 가능하면 같은 경력·프로젝트 안에서 함께 나타나는지 확인한다. 서로 무관한 학력의 `robotics`와 다른 직장의 `control`을 합쳐 강한 후보로 만들지 않는다.
 - Experience와 education을 동시에 join해 기간이나 evidence count가 중복 증폭되지 않게 `exists`, 별도 aggregate 또는 먼저 talent 단위로 집계한다.
 
 검색 결과의 count, 상위 표본, 경계 표본을 읽는다. 지나치게 넓거나 좁으면 SQL을 고쳐 다시 실행한다. 숫자를 채우기 위해 무관한 후보를 넣지 않는다.
 
-SQL을 `$RUN_DIR/retrieval_new.sql`과 필요하면 `$RUN_DIR/retrieval_reevaluation.sql`에 작성한다. 각 수정본은 revision을 올려 실행한다.
+SQL을 `$RUN_DIR/retrieval_new.sql`에 작성한다. 각 수정본은 revision을 올려 실행한다.
 
 ```bash
 python3 scripts/company_role_recurring_matching.py run-sql \
@@ -270,22 +270,9 @@ python3 scripts/company_role_recurring_matching.py candidate-packet \
   --limit 100 \
   --scan-limit 150
 
-python3 scripts/company_role_recurring_matching.py run-sql \
-  --run-id "$RUN_ID" \
-  --sql-file "$RUN_DIR/retrieval_reevaluation.sql" \
-  --lane reevaluation \
-  --revision 2 \
-  --max-rows 500
-
-python3 scripts/company_role_recurring_matching.py candidate-packet \
-  --run-id "$RUN_ID" \
-  --query-result '<재평가 SQL result 경로>' \
-  --lane reevaluation \
-  --limit 50 \
-  --scan-limit 500
 ```
 
-신규 후보가 0명이고 재평가할 변경 pair도 없으면 빈 discovery index가 생성됐는지 확인하고 다음처럼 정상 완료한다.
+신규 후보가 0명이면 빈 discovery index가 생성됐는지 확인하고 다음처럼 정상 완료한다.
 
 ```bash
 python3 scripts/company_role_recurring_matching.py finish \
@@ -300,22 +287,11 @@ python3 scripts/company_role_recurring_matching.py finish \
 - 같은 role의 연결 흐름에 이미 들어가거나 명시적으로 종료된 pair가 아님
 - Canonical identity dedupe를 통과함
 
-### 6.2 재평가 lane
+### 6.2 재검사 금지
 
-재평가 SQL은 아래 조건을 **SQL 결과 단계에서 모두** 적용한다.
+이 자동 운영 흐름은 기존 fit을 시간 경과, 프로필 변경, 대화, 회사 기록 변경, fingerprint 차이 등의 이유로 다시 계산하지 않는다. 이 단계에서 평가하는 대상은 해당 role의 fit row가 아직 없는 신규 후보뿐이다.
 
-- 기존 effective label이 `hold` 또는 `ambiguous`
-- `last_evaluated_at`이 null이 아니고 현재 시각보다 21일 이상 과거
-- 같은 role의 recommendation 이력이 없음
-- 결과 column에 `talent_id`, `effective_label`, `last_evaluated_at` 포함
-
-Effective label은 `coalesce(human_label, label)`로 계산한다. `fit`, `dissatisfied`, `unfit`은 재평가 SQL 결과에 들어오면 안 된다. Human override는 effective label 판정에 사용하고 fit write에서 덮어쓰지 않는다.
-
-재평가 SQL은 신규 SQL의 후보 evidence CTE와 최종 `ORDER BY`를 그대로 재사용한다. 즉, label 종류나 평가가 오래된 순서가 아니라 해당 role에서 신규 후보를 rank한 것과 같은 기준으로 정렬한다. Helper가 두 SQL의 최종 `ORDER BY`가 다르면 실행을 거부한다. SQL rank는 처리 순서일 뿐 새 label이나 score의 근거가 아니다.
-
-재평가 SQL은 rank 순으로 최대 500명을 반환할 수 있다. Helper는 이 순서로 scan하면서 이전 평가 metadata의 candidate·role·context·evaluator fingerprint가 모두 같은 pair를 `unchanged_input_fingerprint`로 즉시 제외한다. 이 pair는 다시 평가하지 않으며 최소 10명에 포함하지 않는다.
-
-Fingerprint가 달라 candidate index에 들어온 pair는 full-text로 실제 재평가한다. `skippedReevaluations`로 다시 건너뛰지 않는다. Rank 순으로 가능한 경우 최소 10명, 최대 50명을 평가한다. 동일 fingerprint 제외 후 대상이 10명 미만이면 남은 전원만 평가하면 정상이다. 50명을 넘는 대상은 다음 run으로 넘긴다.
+후보자가 실제 `hold_role_question`에 답한 경우의 재검사는 질문과 답을 보유한 Worker 경로에서만 처리한다. 이 role 중심 실행 흐름이 그 답변을 추정하거나 대신 재검사해서는 안 된다.
 
 ## 7. Candidate 문서 만들기
 
@@ -328,10 +304,10 @@ Helper가 SQL 결과의 각 talent를 `harper_worker` internal fit과 같은 can
 - Talent Behavior Context와 current interaction delta
 - 관련된 최근 추천 반응과 활동
 - 이 role의 기존 progress·fit·human override
+- 같은 회사의 다른 역할에 대한 최근 기록을 짧게 압축한 text. 이미 추천한 역할, 추천하지 않은 fit 역할, 후보 반응과 이유, 회사 진행 단계만 판단에 필요한 만큼 포함하고 sibling hold 역할은 제외한다.
 - 회사와 role의 최신 정보
 - `request`, `criteria`
 - 이번 run에서 저장한 context
-- 기존 pair `reason`과 무엇이 바뀌었는지에 대한 change summary
 
 Candidate packet이 불완전하거나 context 저장 이후 source가 바뀌었으면 그 pair를 평가·저장하지 말고 packet을 새로 만든다.
 
@@ -349,13 +325,17 @@ Candidate packet이 불완전하거나 context 저장 이후 source가 바뀌었
 
 후보자가 아직 보지 못한 새 역할에 대해 role-specific 의향 기록이 없는 것은 당연하다. “현재 이 역할에 대한 의향 정보가 없음”만으로 `ambiguous`나 `hold`를 주지 않는다. 정확한 회사·역할에 대한 사전 관심 표시도 `fit`의 필수 조건이 아니다.
 
-`harper_worker/opp/utils/internal_fit.py`의 recommend-first 원칙을 그대로 적용한다.
+`harper_worker/opp/utils/internal_fit.py`와 같은 `fit`·`recommend` 분리 원칙을 적용한다.
 
 - 회사-side 수행 bar를 통과하고 후보의 일반적인 직무·레벨·지역·근무형태 선호, 최근 반응, 경력 선택과 충돌하지 않으며 보여 줄 가치가 있으면 `fit`이 가능하다.
 - 알려진 후보 선호가 적으면 `fit`의 candidate-preference 점수를 0~2로 낮춘다. 그 이유만으로 label을 자동으로 `ambiguous`로 내리지 않는다.
 - `ambiguous`는 회사-side 수행 근거 또는 상호 적합 근거가 실제로 불완전·혼재됐거나, 명시적 blocker는 없지만 추천할 만큼 강하지 않을 때 쓴다.
 - `hold`는 위치, 보상, 회사 단계, 고용형태, 큰 직무 전환, 핵심 역량처럼 결과를 바꿀 구체적인 candidate-side 사실 하나가 빠졌을 때만 쓴다.
 - Candidate-facing opportunity 정보 부족은 보상·근무형태·회사 단계 등 기회 자체의 속성이 입력에 없다는 뜻이다. 후보가 이 새 역할을 사전에 몰랐다는 뜻이 아니다.
+- `fit`은 이 역할을 후보에게 보여 줄 수 있을 만큼 적합한지이고, `recommend`는 같은 회사 기록과 현재 타이밍까지 고려해 지금 먼저 제안할지다.
+- 같은 회사에 여러 `fit`이 있어도 모두 `fit`으로 남을 수 있다. 일반적으로 가장 설득력 있는 하나만 `recommend=true`가 되지만, 개수를 코드로 강제하지 않는다.
+- 이미 추천된 역할에 답이 없더라도 새 역할이 더 적합하면 새 역할을 `recommend=true`로 판단할 수 있다. 반대로 기존 추천을 유지하는 편이 낫다면 새 역할은 `fit=true`, `recommend=false`로 두고 `reason`에 짧게 남긴다.
+- `fit=false`인 결과는 항상 `recommend=false`다.
 
 평가마다 다음을 작성한다.
 
@@ -364,6 +344,7 @@ Candidate packet이 불완전하거나 context 저장 이후 source가 바뀌었
   "talentId": "...",
   "score": 0,
   "label": "fit|hold|ambiguous|dissatisfied|unfit",
+  "recommend": false,
   "reason": "이 pair의 핵심 적합 근거, 중요한 차이, 불확실성을 담은 짧은 text-context",
   "reevaluationCriteria": null,
   "companyCriteriaEvaluations": null
@@ -376,7 +357,7 @@ Candidate packet이 불완전하거나 context 저장 이후 source가 바뀌었
 - 회사가 이 talent를 원할 이유와 talent가 이 기회를 고려할 이유를 구분한다.
 - Context에서 사용한 회사의 실제 행동 신호를 필요한 만큼 연결한다.
 - 부족한 정보와 실제 불일치를 구분한다.
-- 다음 run이 변경 영향 여부를 판단할 수 있을 만큼 구체적으로 쓴다.
+- 같은 회사의 다른 fit을 먼저 추천하기로 했다면 그 상대 판단을 한 문장으로 남긴다.
 - `hold`가 아니면 `reevaluationCriteria`를 만들지 않는다.
 
 각 index의 `evaluationDocument`를 모두 읽는다. 결과는 lane별 JSON 파일에 다음 형태로 모은다.
@@ -388,6 +369,7 @@ Candidate packet이 불완전하거나 context 저장 이후 source가 바뀌었
       "talentId": "...",
       "score": 86,
       "label": "fit",
+      "recommend": true,
       "reason": "...",
       "reevaluationCriteria": null,
       "companyCriteriaEvaluations": null
@@ -397,8 +379,6 @@ Candidate packet이 불완전하거나 context 저장 이후 source가 바뀌었
 }
 ```
 
-동일 fingerprint pair는 candidate index 생성 전에 이미 제외된다. 따라서 재평가 index에 들어온 pair는 모두 실제 평가해야 하며 `skippedReevaluations`는 항상 빈 배열이다. Helper는 non-empty 값을 거부한다.
-
 ## 9. 저장과 검증
 
 이번 run에서 실제 평가한 pair만 upsert한다.
@@ -406,20 +386,19 @@ Candidate packet이 불완전하거나 context 저장 이후 source가 바뀌었
 저장할 핵심 값:
 
 - `talent_id`, `opportunity_id`
-- `score`, `label`, `reason`
+- `score`, `label`, `recommend`, `reason`
 - 필요한 `reevaluation_criteria`, `company_criteria_evaluations`
 - `last_evaluated_at`
-- run ID와 talent/role/context fingerprint
+- run ID와 실행 당시 talent/role/context 식별 정보
 
 저장 후 다시 읽어 다음을 확인한다.
 
 - 평가한 모든 pair가 같은 값으로 저장됨
-- 동일 fingerprint로 index 전에 제외된 pair의 기존 평가가 바뀌지 않음
 - Human override가 유지됨
 - 저장된 current context와 평가 metadata의 context fingerprint가 일치함
 - Pending limit skip run에는 fit write가 없음
 
-평가 JSON을 먼저 검증한 다음 저장한다. 여러 lane이 있으면 각 lane의 JSON과 index를 한 쌍으로 검증하고, 저장은 같은 run ID로 나누어 실행한다.
+평가 JSON을 먼저 검증한 다음 저장한다.
 
 ```bash
 python3 scripts/company_role_recurring_matching.py validate-fits \
@@ -432,8 +411,6 @@ python3 scripts/company_role_recurring_matching.py upsert-fits \
   --run-id "$RUN_ID" \
   --input "$RUN_DIR/evaluations_new.json"
 ```
-
-재평가 lane이 있으면 같은 두 명령을 `evaluations_reevaluation.json`과 `candidate_packet_index_reevaluation.json`에 반복한다.
 
 모든 index candidate가 실제 평가되어 저장됐을 때만 완료한다.
 
@@ -449,13 +426,13 @@ python3 scripts/company_role_recurring_matching.py finish \
 성공 시 queue row를 `succeeded`로 바꾸고 `result`에 다음만 간결하게 남긴다.
 
 - Context changed 여부
-- Matching skip 이유 또는 retrieval·신규 평가·재평가 count
+- Matching skip 이유 또는 retrieval·신규 평가 count
 - Label별 저장 count
 - 가장 중요한 context 변화와 결과를 합친 한두 문장
 
 좋은 summary 예:
 
-> 최근 진행 메모에서 고객 현장 배포 ownership이 핵심 기준으로 확인되어 context를 갱신했다. 신규 41명과 변경 영향이 있는 기존 18명을 평가해 fit 6명을 확인했다.
+> 최근 진행 메모에서 고객 현장 배포 ownership이 핵심 기준으로 확인되어 context를 갱신했다. 신규 41명을 평가해 fit 6명을 확인했다.
 
 Context가 바뀌지 않은 것도 정상이다. 후보가 0명인 것도 정상이다. 결과를 만들기 위해 context 문장, SQL 범위, label 기준을 억지로 완화하지 않는다.
 
@@ -499,10 +476,7 @@ Claim 뒤 `is_auto=false`가 된 자동 run은 `--result-reason auto_disabled`�
 - [ ] Context를 pending gate보다 먼저 저장했다.
 - [ ] Pending limit 도달 시 matching만 생략했다.
 - [ ] SQL rank가 아니라 candidate 전체 문서로 pair를 평가했다.
-- [ ] 재평가 SQL이 effective `hold/ambiguous`, 21일 이상 경과 pair만 반환했다.
-- [ ] 재평가 SQL에 신규 SQL과 같은 role rank와 tie-breaker를 적용했다.
-- [ ] Effective `fit`, `dissatisfied`, `unfit`과 동일 fingerprint pair를 재평가하지 않았다.
-- [ ] 동일 fingerprint 제외 후 재평가 대상이 10명 이상이면 최소 10명, 최대 50명을 실제 평가했다.
-- [ ] Pair `reason`과 fingerprint를 저장했다.
+- [ ] 기존 fit을 시간 경과, 입력 변경, 대화, 회사 기록 또는 fingerprint 변화 때문에 다시 계산하지 않았다.
+- [ ] Pair `reason`을 저장했다.
 - [ ] Human override를 보존했다.
 - [ ] Queue status와 짧은 결론을 기록했다.

@@ -25,17 +25,29 @@ test("supports the other identifier-dependent Career tool workflows", () => {
       "get_role_context",
       "update_recommended_opportunity_feedback",
       "internal_role_priority_review",
+      "request_internal_role_reconsideration",
     ]
   );
   assert.deepEqual(getCareerStreamingNextToolNames(["get_internal_roles"]), [
     "internal_role_priority_review",
-    "get_role_context",
+    "request_internal_role_reconsideration",
     "get_internal_roles",
+    "update_recommended_opportunity_feedback",
   ]);
+  assert.deepEqual(
+    getCareerStreamingNextToolNames(["internal_role_priority_review"]),
+    ["request_internal_role_reconsideration"]
+  );
   assert.deepEqual(getCareerStreamingNextToolNames(["update_talent_profile"]), [
     "recommend_job_postings",
     "get_internal_roles",
   ]);
+  assert.deepEqual(
+    getCareerStreamingNextToolNames([
+      "update_recommended_opportunity_feedback",
+    ]),
+    ["get_role_context", "get_internal_roles"]
+  );
 });
 
 test("deduplicates follow-up tools while preserving dependency order", () => {

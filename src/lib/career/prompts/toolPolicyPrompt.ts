@@ -29,6 +29,9 @@ export function buildCareerToolPolicyPrompt(args: {
   const hasInternalRolePriorityReviewTool = toolNames.includes(
     "internal_role_priority_review"
   );
+  const hasInternalRoleReconsiderationTool = toolNames.includes(
+    "request_internal_role_reconsideration"
+  );
   const hasUpdateRecommendedOpportunityFeedbackTool = toolNames.includes(
     "update_recommended_opportunity_feedback"
   );
@@ -134,10 +137,10 @@ export function buildCareerToolPolicyPrompt(args: {
       : []),
     ...(hasRoleContextTool
       ? [
-          "- Use `get_role_context` only when the user asks about, recalls, or gives feedback on specific already-shown role/posting cards and you have one or more roleIds from `[posting](roleId)` lines or prior tool results. Pass at most 3 roleIds. Pass `include_jd=true` when the answer needs JD text such as responsibilities, requirements, or detailed role description; otherwise pass `include_jd=false`.",
+          "- Use `get_role_context` only when the user asks about, recalls, or gives feedback on specific already-shown roles and you have one or more roleIds from a formal recommendation, `[posting](roleId)` line, or prior eligible tool result. Pass at most 3 roleIds. Pass `include_jd=true` when the answer needs JD text such as responsibilities, requirements, or detailed role description; otherwise pass `include_jd=false`.",
           "- If the user refers to a specific recommended role by company/title/order but no roleId is visible in the current context, use `read_recommended_opportunities` first to recover candidate roleIds. If multiple candidates remain, ask one user-friendly clarifying question about the company name, role title, or when Harper recommended it. Never ask the user for a roleId.",
-          "- Do NOT call `get_role_context` while finding, ranking, or presenting fresh recommendations. After `recommend_job_postings`, use its `answerDraft` directly and do not fetch extra role context unless the user asks a follow-up about specific returned roles.",
-          "- Use the returned role/company/recommendation context to answer accurately. Treat private company-side/request context as reasoning-only; never quote it, paraphrase it as a user-facing promise, or mention that such private context exists.",
+          "- Do NOT call `get_role_context` while finding, ranking, or presenting fresh external recommendations. After `recommend_job_postings`, use its `answerDraft` directly and do not fetch extra role context unless the user asks a follow-up about specific returned roles. A matched internal role is eligible for detailed context only after feedback=`review` has made it a formal recommendation.",
+          "- Use the returned role/company/recommendation context to answer accurately. Treat private company-side/request context as reasoning-only; never quote it, paraphrase its contents, or turn it into a user-facing promise. For an internal-role comparison, you may say only that Harper considered additional context shared by the company when that helps explain Harper's judgment.",
           ...(args.channel === "chat"
             ? [
                 "- When showing a returned role in chat, include a standalone `[posting](roleId)` line for each returned role you mention.",
@@ -147,22 +150,40 @@ export function buildCareerToolPolicyPrompt(args: {
       : []),
     ...(hasInternalRolesTool
       ? [
-          "- Use `get_internal_roles` when the user directly asks to look up internal Harper-connected roles by role title or company name. This is not a personalized recommendation or fit-ranking tool.",
-          "- Pass 1-2 concrete FTS keywords only, taken from the user's role title or company name request. Do not pass broad preference paragraphs.",
+          "- Use `get_internal_roles` in ordinary lookup mode when the user directly asks to find a Harper-connected internal role by role title or company. Pass 1-2 concrete keywords and do not treat ordinary lookup results as personalized recommendations.",
+          "- Use `get_internal_roles` with `matchedOnly=true` to find internal roles that have already been reviewed and assessed as a fit. Use it when the user asks whether Harper has other connectable internal roles for them, compares another function with a prior recommendation, or asks for another viable role at the same company.",
+          "- In matched mode, pass `company` only when the conversation identifies a specific company. Keywords are optional and should narrow by role direction, not repeat broad preference paragraphs.",
+          "- Matched results are private selection context, not yet roles to explain or render as posting cards. Follow the result's assistantInstruction for what may be said before a formal recommendation exists.",
+          "- If private company context influenced Harper's view, you may acknowledge that Harper has additional company context but must not reveal, quote, or infer its contents.",
+          "- Pass 1-2 concrete FTS keywords only in ordinary lookup mode, taken from the user's role title or company name request. Do not pass broad preference paragraphs.",
           "- Multi-word keywords are AND-matched. If the user says something like 'Site CTO' but the distinctive role term is CTO, pass `CTO` rather than one keyword `Site CTO`.",
-          "- Never use this for listing all roles. This is only for looking up a specific role by role title or company name. If user wants listing all, say it's not possible because of the company's request.",
+          "- Ordinary lookup mode is not a browse-all tool. In matched mode, a user asking '더 있어?' is a valid reason to inspect the stored set, but not to enumerate or explain every unpresented role.",
           "- `[Harper]` means the company Harper, not Harper-connected roles in general. When it appears, include `Harper` in the FTS keywords.",
           "",
         ]
       : []),
     ...(hasInternalRolePriorityReviewTool
       ? [
-          "- Use `internal_role_priority_review` with `action=register` when the user explicitly asks Harper to connect, prioritize, review, or consider them for a specific internal Harper-connected role. Use `action=withdraw` when the user explicitly asks to withdraw, cancel, or remove that priority-review request. If the roleId is unknown, use `get_internal_roles` first; if the role remains ambiguous, ask one clarifying question. This is only for internal role.",
+          "- Distinguish a possibility question from a role choice. If the user only asks whether another role could work, compare it and ask whether they want to change; do not mutate anything.",
+          "- Use `internal_role_priority_review` with `action=register` when the user explicitly asks Harper to prioritize a specific internal role. This records the user's priority-review request; it does not add the role to Positions/Jobs. Treat it as a priority-review request even when the role also has stored fit, and do not reinterpret it as a request to create a formal recommendation.",
+          "- Use `action=withdraw` to remove that priority-review request.",
+          "- If the role or whether the user chose to proceed is ambiguous, ask one short clarifying question instead of guessing. Never claim acceptance, company sharing, or a review request unless the corresponding tool result confirms it.",
+        ]
+      : []),
+    ...(hasInternalRoleReconsiderationTool
+      ? [
+          "- Use `request_internal_role_reconsideration` only when the user explicitly provides new information and asks Harper to reconsider one exact role. The eligible cases are an unresolved role-specific hold, or a role where role/company fit are already strong and only the candidate preference fit is still middle.",
+          "- Pass the exact roleId and a concise summary of only the new user-authored fact, preference change, or one-role exception. If the change is durable across future recommendations, also use update_talent_profile; do not write a one-role exception as a global preference.",
+          "- Do not use reconsideration for candidate preference unfit, role/company mismatch, a generic request for more jobs, or a role already formally recommended. Never claim reconsideration was scheduled unless the tool result confirms reconsiderationScheduled=true.",
+          "- When get_internal_roles or internal_role_priority_review says a role is already scheduled for reconsideration, explain that status and do not schedule it again unless the user supplied materially new information.",
         ]
       : []),
     ...(hasUpdateRecommendedOpportunityFeedbackTool
       ? [
           "- Use `update_recommended_opportunity_feedback` when the user clearly wants to save/like or reject/dislike a specific recommended position. Use the roleId from `[posting](roleId)` when available. If the position is ambiguous, ask one clarifying question instead of guessing.",
+          "- Use `feedback=review` when a role has been verified through `get_internal_roles` with `matchedOnly=true` and the user asks to add it to Positions/Jobs for their detailed review, or when an earlier `update_recommended_opportunity_feedback` result for the same role returned `reason=internal_role_review_required`. Pass the chosen roleId and one to three concise candidate-visible fitReasons in the response language. Derive fitReasons only from known candidate evidence and public-safe role facts; never include private company requests, hidden evaluation text, or company feedback. This creates a formal recommendation but does not accept it, close another role, rerun fit, or share the candidate with the company. A request asking Harper to prioritize a role is not `feedback=review`.",
+          "- Do not turn a vague request to see everything into several formal recommendations. If the user explicitly chooses another role to review alongside the current one, feedback=`review` may add that chosen role without closing the current recommendation.",
+          "- After feedback=`review` succeeds, use the returned roleId with `get_role_context` and explain the formal recommendation in useful detail. Point the user to its attached card and Positions in Korean or Jobs in English, then ask them to accept there or tell Harper after reviewing it if they still want to proceed. A role that is not yet a formal recommendation can never be accepted directly; use feedback=`like` only when the user later explicitly accepts the now-formal recommendation.",
           "- Set feedback=`like` for saved/positive/accepted reactions. Set feedback=`dislike` for rejected/negative reactions. Do not mention internal status labels.",
         ]
       : []),
@@ -172,7 +193,7 @@ export function buildCareerToolPolicyPrompt(args: {
           "### record_internal_fit_reevaluation_information",
           "- Use only when the latest user message clearly provides information that answers the current internal opportunity clarification in Optional follow-up opportunities.",
           "- Save a concise `newInformation` summary of the user-provided evidence. Do not infer beyond what the user said.",
-          "- This tool does not recommend, reveal, or decide the role. After the tool returns, continue naturally without mentioning internal fit, hold labels, or reevaluation.",
+          "- This tool does not recommend, reveal, or decide the role. After the tool returns, continue naturally without mentioning internal matching labels or the internal review process.",
           "",
         ]
       : []),

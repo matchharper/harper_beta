@@ -36,20 +36,48 @@ test("keeps language setting tool policy minimal", () => {
   assert.doesNotMatch(prompt, /### update_language_setting/);
 });
 
-test("defaults job search to instant and requires explicit bulk permission", () => {
+test("matched internal role policy describes already-reviewed fit roles", () => {
   const prompt = buildCareerToolPolicyPrompt({
     channel: "chat",
     isOnboardingActive: false,
     preferredLocale: "ko",
-    toolNames: ["recommend_job_postings"],
+    toolNames: [
+      "get_internal_roles",
+      "get_role_context",
+      "internal_role_priority_review",
+      "update_recommended_opportunity_feedback",
+    ],
   });
 
-  assert.match(prompt, /kind=instant.*default/);
-  assert.match(prompt, /kind=bulk.*only when the user explicitly/);
-  assert.match(prompt, /takes longer/);
-  assert.match(prompt, /notify them by email/);
-  assert.match(prompt, /max_results=15/);
-  assert.match(prompt, /maximum of 20/);
+  assert.match(prompt, /matchedOnly=true/);
+  assert.match(prompt, /already been reviewed and assessed as a fit/);
+  assert.match(prompt, /private selection context/);
+  assert.match(prompt, /not yet roles to explain or render as posting cards/);
+  assert.match(prompt, /feedback=`review`/);
+  assert.match(prompt, /review alongside the current one/);
+  assert.match(prompt, /does not accept it, close another role, rerun fit/);
+  assert.doesNotMatch(prompt, /sourceRoleId|replacesRoleId/);
+  assert.match(
+    prompt,
+    /use feedback=`like` only when the user later explicitly accepts/
+  );
+  assert.match(
+    prompt,
+    /one to three concise candidate-visible fitReasons/
+  );
+  assert.match(prompt, /reason=internal_role_review_required/);
+  assert.match(prompt, /never include private company requests/);
+  assert.match(prompt, /records the user's priority-review request/);
+  assert.match(prompt, /even when the role also has stored fit/);
+  assert.match(prompt, /asks to add it to Positions\/Jobs/);
+  assert.match(prompt, /prioritize a role is not `feedback=review`/);
+  assert.match(prompt, /asking '더 있어\?'/);
+  assert.match(prompt, /not to enumerate or explain every unpresented role/);
+  assert.match(prompt, /only after feedback=`review` has made it a formal recommendation/);
+  assert.doesNotMatch(
+    prompt,
+    /If user wants listing all, say it's not possible/
+  );
 });
 
 test("document tools use paginated metadata, bounded reads, and soft delete", () => {

@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import type { User } from "@supabase/supabase-js";
 import { isInternalEmail } from "@/lib/internalAccess";
+import { buildTalentNetworkReferralUrl } from "@/lib/talentNetworkReferralUrl";
 
 const REFERRAL_TOKEN_BYTES = 24;
 const TOKEN_RETRY_LIMIT = 4;
@@ -154,9 +155,11 @@ export function normalizeReferralToken(value: unknown) {
 }
 
 export function buildReferralUrl(args: { baseUrl: string; token: string }) {
-  const url = new URL("/", args.baseUrl);
-  url.searchParams.set("ref", args.token);
-  return url.toString();
+  return buildTalentNetworkReferralUrl({
+    baseUrl: args.baseUrl,
+    pagePath: "/",
+    token: args.token,
+  });
 }
 
 export function getRequestBaseUrl(req: Request) {

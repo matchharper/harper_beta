@@ -10,8 +10,6 @@ import { assertSafeProfessionalQuestion } from "@/lib/companyTalentRequests/poli
 import { candidateContactBodyWithoutTransportFooter } from "@/lib/companyTalentRequests/presentation";
 import {
   CANDIDATE_CONTACT_RELATIONSHIP_RULES,
-  candidateContactWritingIssue,
-  hasRedundantCandidateContactOptOut,
   normalizeCandidateResumeUploadLink,
 } from "@/lib/companyTalentRequests/copyRules";
 import {
@@ -76,7 +74,6 @@ async function generateJson(
 
 function validateDraft(args: {
   body: unknown;
-  enforceConciseOptOut?: boolean;
   profileUrl: string | null;
   requestContext: unknown;
   subject: unknown;
@@ -88,11 +85,6 @@ function validateDraft(args: {
   );
   const requestContext = assertSafeProfessionalQuestion(args.requestContext);
   if (!subject || !body) throw new Error("Candidate contact copy is empty");
-  if (args.enforceConciseOptOut && hasRedundantCandidateContactOptOut(body)) {
-    throw new Error("Candidate contact copy repeats optional-response wording");
-  }
-  const writingIssue = candidateContactWritingIssue(body);
-  if (writingIssue) throw new Error(writingIssue);
   assertSafeProfessionalQuestion(body);
   if (args.profileUrl && !body.includes(args.profileUrl)) {
     throw new Error("Resume request copy dropped the required upload URL");
@@ -151,7 +143,6 @@ export async function generateCandidateContactDraft(args: {
     ]);
     return validateDraft({
       body: parsed.body,
-      enforceConciseOptOut: true,
       profileUrl: args.profileUrl,
       requestContext: parsed.requestContext || requestContext,
       subject: parsed.subject,

@@ -1,7 +1,7 @@
 export const OFFICIAL_JOBS_LANDING_SOURCE = "official_jobs";
 export const OFFICIAL_JOBS_LANDING_ABTEST_TYPE = "official_jobs_landing_v1";
 export const OFFICIAL_JOBS_APPLY_HELP_EXPERIMENT_ID =
-  "official_jobs_apply_help_v1";
+  "official_jobs_apply_help_v2";
 export const OFFICIAL_JOBS_APPLY_HELP_CONTROL_ABTEST_TYPE = `${OFFICIAL_JOBS_APPLY_HELP_EXPERIMENT_ID}_a`;
 export const OFFICIAL_JOBS_APPLY_HELP_TREATMENT_ABTEST_TYPE = `${OFFICIAL_JOBS_APPLY_HELP_EXPERIMENT_ID}_b`;
 export const OFFICIAL_JOBS_LANDING_LAST_VISIT_AT_KEY =
@@ -20,7 +20,7 @@ export const OFFICIAL_JOBS_APPLY_HELP_VARIANTS = [
   },
   {
     abtestType: OFFICIAL_JOBS_APPLY_HELP_TREATMENT_ABTEST_TYPE,
-    ctaLabel: "Apply with Harper",
+    ctaLabel: "Talk to Harper",
     helpVisible: true,
     label: "B",
     variant: "b",

@@ -145,21 +145,12 @@ export function buildOfficialJobsInitialChatDraft(
 
 export function buildOfficialJobsInitialChatMentionLabel(
   roleTitle?: string | null,
-  companyName?: string | null,
-  locale: OfficialJobsLocale = "ko"
+  _companyName?: string | null,
+  _locale: OfficialJobsLocale = "ko"
 ) {
   const normalizedRoleTitle = normalizeOfficialJobsRoleTitle(roleTitle);
   if (!normalizedRoleTitle) return "";
-  const normalizedCompanyName = normalizeOfficialJobsCompanyName(companyName);
-  const roleAndCompany = normalizedCompanyName
-    ? `${normalizedRoleTitle} at ${normalizedCompanyName}`
-    : normalizedRoleTitle;
-
-  return locale === "ko"
-    ? `${roleAndCompany} 포지션`
-    : normalizedCompanyName
-      ? roleAndCompany
-      : `${roleAndCompany} role`;
+  return normalizedRoleTitle;
 }
 
 export type OfficialJobRow = Tables<"official_jobs">;

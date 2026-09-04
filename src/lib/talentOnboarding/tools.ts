@@ -8,6 +8,9 @@ import {
   fetchTalentOpportunityHistory,
   fetchTalentOpportunityHistoryByIds,
   fetchTalentOpportunityHistoryByRoleIds,
+  formatTalentRoleActivitiesForPrompt,
+  formatUpcomingHarperMeetingForPrompt,
+  InternalRoleAcceptanceError,
   updateTalentOpportunityHistoryItem,
   type TalentOpportunityFeedback,
   type TalentOpportunityHistoryItem,
@@ -62,10 +65,25 @@ import {
   insertTalentToolUsageLog,
 } from "./toolUsageLog";
 import { recordInternalFitReevaluationInformation } from "./internalFitHoldQuestion";
+import {
+  groupInternalFitHoldQuestionCandidates,
+  hasExplicitInternalFitReevaluationTopic,
+  normalizeInternalFitQuestionText,
+} from "./internalFitQuestionTopics";
+import {
+  buildInternalRolePriorityReviewAssistantInstruction,
+  hasPriorityReviewReachedFourteenDays,
+} from "./internalRolePriorityReviewGuidance";
 import type { TalentAdminClient } from "./admin";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import { formatCareerPromptCompactDateTime } from "@/lib/career/prompts/promptUtils";
 import { searchInternalRolesForCareerTool } from "@/lib/career/internalRoleSearch";
+import {
+  hasPendingInternalRoleReconsideration,
+  isInternalRoleCandidateReadable,
+  isInternalRoleReconsiderationEligible,
+  isInternalRoleCandidateVisible,
+} from "@/lib/career/internalRoleEligibility";
 import { IncomingWebhook } from "@slack/webhook";
 import { notifyInternalOpportunityDecisionSlack } from "@/lib/internalOpportunityDecisionSlack";
 import { recordCompanyTalentResponse } from "@/lib/companyTalentRequests/server";
@@ -169,6 +187,8 @@ export const TALENT_TOOL_NAMES = {
   READ_RECOMMENDED_OPPORTUNITIES: "read_recommended_opportunities",
   GET_INTERNAL_ROLES: "get_internal_roles",
   INTERNAL_ROLE_PRIORITY_REVIEW: "internal_role_priority_review",
+  REQUEST_INTERNAL_ROLE_RECONSIDERATION:
+    "request_internal_role_reconsideration",
   GET_ROLE_CONTEXT: "get_role_context",
   UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK:
     "update_recommended_opportunity_feedback",
@@ -200,6 +220,7 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
   TALENT_TOOL_NAMES.GET_INTERNAL_ROLES,
   TALENT_TOOL_NAMES.INTERNAL_ROLE_PRIORITY_REVIEW,
+  TALENT_TOOL_NAMES.REQUEST_INTERNAL_ROLE_RECONSIDERATION,
   TALENT_TOOL_NAMES.GET_ROLE_CONTEXT,
   TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK,
   TALENT_TOOL_NAMES.RESEARCH_COMPANY,
@@ -378,9 +399,10 @@ function normalizeSinceDate(input: Record<string, unknown>) {
   ).toISOString();
 }
 
-type RecommendedOpportunityToolFeedback = "like" | "dislike";
+type RecommendedOpportunityToolFeedback = "review" | "like" | "dislike";
 
 const RECOMMENDED_OPPORTUNITY_TOOL_FEEDBACK = new Set<string>([
+  "review",
   "like",
   "dislike",
 ]);
@@ -395,9 +417,26 @@ function normalizeRecommendedOpportunityToolFeedback(
 }
 
 function toTalentOpportunityFeedback(
-  feedback: RecommendedOpportunityToolFeedback
+  feedback: Exclude<RecommendedOpportunityToolFeedback, "review">
 ): TalentOpportunityFeedback {
   return feedback === "like" ? "positive" : "negative";
+}
+
+const INTERNAL_ROLE_REVIEW_FIT_REASON_LIMIT = 3;
+const INTERNAL_ROLE_REVIEW_FIT_REASON_MAX_CHARS = 500;
+
+function normalizeInternalRoleReviewFitReasons(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) =>
+      item
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, INTERNAL_ROLE_REVIEW_FIT_REASON_MAX_CHARS)
+    )
+    .filter(Boolean)
+    .slice(0, INTERNAL_ROLE_REVIEW_FIT_REASON_LIMIT);
 }
 
 function compactOpportunityForTool(item: TalentOpportunityHistoryItem) {
@@ -493,13 +532,16 @@ const ROLE_CONTEXT_ROLE_SELECT = `
   seniority_level,
   salary_range,
   status,
+  is_expired,
   posted_at,
   expires_at,
   source_type,
+  information,
   company_internal_roles (
     request
   ),
   company_workspace:company_workspace!inner (
+    published_name,
     company_db:company_db (
       name,
       short_description,
@@ -512,6 +554,7 @@ const ROLE_CONTEXT_ROLE_SELECT = `
 `;
 
 const ROLE_CONTEXT_RECOMMENDATION_SELECT = `
+  id,
   role_id,
   opportunity_type,
   fit_summary,
@@ -588,16 +631,24 @@ async function runGetRoleContext(args: {
   roleIds: string[];
   userId: string;
 }) {
-  const [roleResponse, recommendationResponse] = await Promise.all([
-    (args.admin.from("company_roles" as any) as any)
-      .select(ROLE_CONTEXT_ROLE_SELECT)
-      .in("role_id", args.roleIds),
-    (args.admin.from("talent_opportunity_recommendation" as any) as any)
-      .select(ROLE_CONTEXT_RECOMMENDATION_SELECT)
-      .eq("talent_id", args.userId)
-      .in("role_id", args.roleIds)
-      .order("created_at", { ascending: false }),
-  ]);
+  const [roleResponse, recommendationResponse, fitResponse] = await Promise.all(
+    [
+      (args.admin.from("company_roles" as any) as any)
+        .select(ROLE_CONTEXT_ROLE_SELECT)
+        .in("role_id", args.roleIds),
+      (args.admin.from("talent_opportunity_recommendation" as any) as any)
+        .select(ROLE_CONTEXT_RECOMMENDATION_SELECT)
+        .eq("talent_id", args.userId)
+        .in("role_id", args.roleIds)
+        .order("created_at", { ascending: false }),
+      (args.admin.from("talent_opportunity_fit" as any) as any)
+        .select(
+          "opportunity_id, label, human_label, recommend, role_fit, candidate_fit, company_fit, reevaluation_criteria, reevaluation_checked_at"
+        )
+        .eq("talent_id", args.userId)
+        .in("opportunity_id", args.roleIds),
+    ]
+  );
 
   if (roleResponse.error) {
     throw new TalentToolError(
@@ -610,9 +661,15 @@ async function runGetRoleContext(args: {
         "Failed to load role recommendation context."
     );
   }
+  if (fitResponse.error) {
+    throw new TalentToolError(
+      fitResponse.error.message ?? "Failed to verify internal role access."
+    );
+  }
 
   const roleRows = asToolRecordArray(roleResponse.data);
   const recommendationRows = asToolRecordArray(recommendationResponse.data);
+  const fitRows = asToolRecordArray(fitResponse.data);
   const roleById = new Map(
     roleRows
       .map((row) => [optionalToolString(row.role_id), row] as const)
@@ -621,6 +678,14 @@ async function runGetRoleContext(args: {
       )
   );
   const recommendationsByRoleId = new Map<string, Record<string, unknown>[]>();
+  const readableFitByRoleId = new Map<string, Record<string, unknown>>();
+
+  for (const row of fitRows) {
+    const roleId = optionalToolString(row.opportunity_id);
+    if (roleId && isInternalRoleCandidateReadable(row)) {
+      readableFitByRoleId.set(roleId, row);
+    }
+  }
 
   for (const row of recommendationRows) {
     const roleId = optionalToolString(row.role_id);
@@ -629,6 +694,30 @@ async function runGetRoleContext(args: {
     current.push(row);
     recommendationsByRoleId.set(roleId, current);
   }
+
+  const latestRecommendationByRoleId = new Map<
+    string,
+    Record<string, unknown>
+  >();
+  for (const roleId of args.roleIds) {
+    const latestRecommendation = pickLatestRoleContextRecommendation(
+      recommendationsByRoleId.get(roleId) ?? []
+    );
+    if (latestRecommendation) {
+      latestRecommendationByRoleId.set(roleId, latestRecommendation);
+    }
+  }
+  const detailedRecommendations = await fetchTalentOpportunityHistoryByIds({
+    admin: args.admin,
+    ids: Array.from(latestRecommendationByRoleId.values())
+      .map((row) => optionalToolString(row.id))
+      .filter((id): id is string => Boolean(id)),
+    includeActivityTimeline: true,
+    userId: args.userId,
+  });
+  const detailedRecommendationById = new Map(
+    detailedRecommendations.map((item) => [item.id, item] as const)
+  );
 
   const roles = args.roleIds.map((roleId) => {
     const row = roleById.get(roleId);
@@ -641,9 +730,41 @@ async function runGetRoleContext(args: {
 
     const workspace = asToolRecord(row.company_workspace);
     const companyDb = asToolRecord(workspace?.company_db);
-    const latestRecommendation = pickLatestRoleContextRecommendation(
-      recommendationsByRoleId.get(roleId) ?? []
+    const latestRecommendation = latestRecommendationByRoleId.get(roleId);
+    const sourceType = optionalToolString(row.source_type)?.toLowerCase();
+    const isInternalRole = sourceType === "internal";
+    const roleInformation = asToolRecord(row.information);
+    const isTestOnly =
+      roleInformation?.testOnly === true ||
+      optionalToolString(roleInformation?.testOnly)?.toLowerCase() === "true";
+    const testTalentIds = Array.isArray(roleInformation?.testTalentIds)
+      ? roleInformation.testTalentIds
+          .map(optionalToolString)
+          .filter((id): id is string => Boolean(id))
+      : [];
+    const testRoleAllowed = !isTestOnly || testTalentIds.includes(args.userId);
+    if (isInternalRole && (!testRoleAllowed || !latestRecommendation)) {
+      return {
+        found: false,
+        roleId,
+      };
+    }
+
+    const detailedRecommendation = latestRecommendation
+      ? detailedRecommendationById.get(
+          optionalToolString(latestRecommendation.id) ?? ""
+        )
+      : undefined;
+    const upcomingMeeting = formatUpcomingHarperMeetingForPrompt(
+      detailedRecommendation?.upcomingMeeting?.startAt
     );
+    const recentActivity = formatTalentRoleActivitiesForPrompt(
+      detailedRecommendation?.talentRoleActivities,
+      10
+    );
+    const publishedCompanyName =
+      optionalToolString(workspace?.published_name) ??
+      "Undisclosed internal company";
 
     return {
       found: true,
@@ -674,7 +795,9 @@ async function runGetRoleContext(args: {
         ),
       },
       companyDb: {
-        name: optionalToolString(companyDb?.name),
+        name: isInternalRole
+          ? publishedCompanyName
+          : optionalToolString(companyDb?.name),
         shortDescription: optionalToolString(companyDb?.short_description),
         description: optionalClippedToolString(
           companyDb?.description,
@@ -702,8 +825,13 @@ async function runGetRoleContext(args: {
               latestRecommendation.feedback_reason
             ),
             savedStage: optionalToolString(latestRecommendation.saved_stage),
+            ...(upcomingMeeting ? { upcomingMeeting } : {}),
+            ...(recentActivity ? { recentActivity } : {}),
           }
         : null,
+      reconsiderationScheduled: hasPendingInternalRoleReconsideration(
+        readableFitByRoleId.get(roleId)
+      ),
     };
   });
 
@@ -810,18 +938,136 @@ async function resolveRecommendedOpportunityForFeedbackUpdate(args: {
   };
 }
 
+async function verifyUnrecommendedInternalRoleChoice(args: {
+  admin: any;
+  roleId: string;
+  userId: string;
+}) {
+  const [roleResult, fitResult] = await Promise.all([
+    (args.admin.from("company_roles" as any) as any)
+      .select(
+        "role_id, source_type, status, is_expired, expires_at, information"
+      )
+      .eq("role_id", args.roleId)
+      .maybeSingle() as any,
+    (args.admin.from("talent_opportunity_fit" as any) as any)
+      .select(
+        "id, label, human_label, recommend, role_fit, candidate_fit, company_fit, reevaluation_criteria, reevaluation_checked_at"
+      )
+      .eq("talent_id", args.userId)
+      .eq("opportunity_id", args.roleId)
+      .maybeSingle() as any,
+  ]);
+  if (roleResult.error || fitResult.error) {
+    throw new TalentToolError(
+      roleResult.error?.message ??
+        fitResult.error?.message ??
+        "Failed to verify the internal role choice."
+    );
+  }
+
+  const role = asToolRecord(roleResult.data);
+  if (!role) {
+    return {
+      allowed: false as const,
+      isInternal: false as const,
+      result: {
+        ok: false,
+        blocked: true,
+        reason: "role_not_found",
+        assistantInstruction:
+          "Tell the user Harper could not verify this exact role. Do not say acceptance was recorded.",
+      },
+    };
+  }
+  if (optionalToolString(role?.source_type)?.toLowerCase() !== "internal") {
+    return { allowed: true as const, isInternal: false as const };
+  }
+
+  const roleInformation = asToolRecord(role?.information);
+  const expiresAt = optionalToolString(role?.expires_at);
+  const expiresAtMs = expiresAt ? Date.parse(expiresAt) : Number.NaN;
+  const roleUnavailable =
+    optionalToolString(role?.status)?.toLowerCase() !== "active" ||
+    role?.is_expired === true ||
+    (Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now()) ||
+    roleInformation?.testOnly === true ||
+    optionalToolString(roleInformation?.testOnly)?.toLowerCase() === "true";
+  const fit = asToolRecord(fitResult.data);
+  const reconsiderationScheduled = hasPendingInternalRoleReconsideration(fit);
+  if (roleUnavailable || !isInternalRoleCandidateVisible(fit)) {
+    return {
+      allowed: false as const,
+      isInternal: true as const,
+      result: {
+        ok: false,
+        blocked: true,
+        reason: roleUnavailable
+          ? "internal_role_not_available"
+          : "internal_role_not_current_matched_option",
+        assistantInstruction:
+          "Tell the user Harper could not record acceptance for this exact role because it is not a currently available, already-reviewed option for them. Do not mention fit labels, hidden evaluation state, or promise a new evaluation.",
+      },
+    };
+  }
+
+  if (reconsiderationScheduled) {
+    return {
+      allowed: false as const,
+      isInternal: true as const,
+      result: {
+        ok: false,
+        blocked: true,
+        reason: "internal_role_reconsideration_pending",
+        assistantInstruction:
+          "Tell the user their new information is already scheduled to be reconsidered for this exact role. Do not add, explain, or accept it as a formal recommendation until that review finishes.",
+      },
+    };
+  }
+
+  return { allowed: true as const, isInternal: true as const };
+}
+
 async function updateRecommendedOpportunityFeedback(args: {
   admin: any;
   companyName: string | null;
   feedback: RecommendedOpportunityToolFeedback;
   feedbackReason: string | null;
+  fitReasons: string[];
   opportunityId: string | null;
+  replacesRoleId: string | null;
+  responseLocale?: string | null;
   roleId: string | null;
   roleTitle: string | null;
   userId: string;
   conversationId?: string | null;
   isMobile?: boolean | null;
+  userMessageId?: number | string | null;
 }) {
+  if (args.replacesRoleId && args.feedback !== "review") {
+    throw new TalentToolError(
+      "replacesRoleId requires feedback=review and the exact target roleId."
+    );
+  }
+
+  if (args.feedback === "review") {
+    if (!args.roleId) {
+      throw new TalentToolError(
+        "feedback=review requires the exact target roleId."
+      );
+    }
+    return presentInternalRoleRecommendationForReview({
+      admin: args.admin,
+      conversationId: args.conversationId,
+      fitReasons: args.fitReasons,
+      responseLocale: args.responseLocale,
+      roleId: args.roleId,
+      sourceRoleId: args.replacesRoleId ?? null,
+      userId: args.userId,
+      userMessageId: args.userMessageId,
+    });
+  }
+
   const resolved = await resolveRecommendedOpportunityForFeedbackUpdate({
     admin: args.admin,
     companyName: args.companyName,
@@ -840,22 +1086,90 @@ async function updateRecommendedOpportunityFeedback(args: {
     };
   }
 
+  const requestedRoleId =
+    args.roleId ??
+    (args.opportunityId
+      ? getPostingRoleIdFromOpportunityId(args.opportunityId)
+      : null);
+  const hasFormalRecommendation =
+    resolved.opportunity !== null &&
+    !getPostingRoleIdFromOpportunityId(resolved.opportunity.id);
+  if (args.feedback === "like" && !hasFormalRecommendation && requestedRoleId) {
+    const verification = await verifyUnrecommendedInternalRoleChoice({
+      admin: args.admin,
+      roleId: requestedRoleId,
+      userId: args.userId,
+    });
+    if (!verification.allowed) return verification.result;
+    if (verification.isInternal) {
+      return {
+        ok: false,
+        blocked: true,
+        reason: "internal_role_review_required",
+        assistantInstruction:
+          "This matched internal role is not yet a formal recommendation, so acceptance was not recorded. Call update_recommended_opportunity_feedback again with feedback=review, the same roleId, and one to three candidate-safe fitReasons. After the user can read it in Positions/Jobs, only a later explicit acceptance may use feedback=like.",
+      };
+    }
+  }
+
+  if (
+    args.feedback === "like" &&
+    resolved.opportunity?.sourceType === "internal" &&
+    resolved.opportunity.isExpired
+  ) {
+    const opportunity = resolved.opportunity!;
+    return {
+      ok: false,
+      blocked: true,
+      reason: "internal_opportunity_role_ended",
+      opportunity: compactOpportunityForTool(opportunity),
+      assistantInstruction: [
+        "Tell the user clearly that this Harper-connected role is no longer active and that their acceptance was not saved as an active connection request.",
+        "Apologize briefly. If the user wants another path at the same company, use get_internal_roles with matchedOnly=true and the returned company name. If a useful option exists, say only that Harper has another reviewed option and ask whether they want it added for review; do not explain, link, or show a card before it becomes a formal recommendation.",
+        "Do not run or promise a new fit evaluation, and do not guess why hiring ended.",
+      ].join(" "),
+    };
+  }
+
   const feedback = toTalentOpportunityFeedback(args.feedback);
   const savedStage =
     feedback === "positive" && resolved.opportunity?.sourceType === "internal"
       ? "connected"
       : undefined;
-  const result = await updateTalentOpportunityHistoryItem({
-    action: "feedback",
-    admin: args.admin,
-    clearEmailAcceptanceConfirmation:
-      resolved.opportunity?.sourceType === "internal",
-    feedback,
-    feedbackReason: args.feedbackReason,
-    opportunityId: resolved.updateOpportunityId,
-    savedStage,
-    userId: args.userId,
-  });
+  let result: Awaited<ReturnType<typeof updateTalentOpportunityHistoryItem>>;
+  try {
+    result = await updateTalentOpportunityHistoryItem({
+      action: "feedback",
+      admin: args.admin,
+      clearEmailAcceptanceConfirmation:
+        resolved.opportunity?.sourceType === "internal",
+      feedback,
+      feedbackReason: args.feedbackReason,
+      opportunityId: resolved.updateOpportunityId,
+      savedStage,
+      userId: args.userId,
+    });
+  } catch (error) {
+    if (
+      error instanceof InternalRoleAcceptanceError &&
+      error.reason === "target_role_unavailable"
+    ) {
+      return {
+        ok: false,
+        blocked: true,
+        reason: "internal_opportunity_role_unavailable",
+        opportunity: resolved.opportunity
+          ? compactOpportunityForTool(resolved.opportunity)
+          : null,
+        assistantInstruction: [
+          "Tell the user clearly that this Harper-connected role is no longer active and that their acceptance was not recorded.",
+          "Apologize briefly and offer to keep looking for other suitable opportunities.",
+          "Do not guess why hiring ended or claim that anything was shared with the company.",
+        ].join(" "),
+      };
+    }
+    throw error;
+  }
   const [updatedOpportunity] = await fetchTalentOpportunityHistoryByIds({
     admin: args.admin,
     ids: [result.opportunityId],
@@ -888,6 +1202,31 @@ async function updateRecommendedOpportunityFeedback(args: {
     });
   }
 
+  const isInternalRejection =
+    args.feedback === "dislike" &&
+    updatedOpportunity?.sourceType === "internal";
+  let hasSameCompanyReviewedAlternative = false;
+  if (isInternalRejection) {
+    try {
+      const matchedRoles = await searchInternalRolesForCareerTool({
+        company: updatedOpportunity.companyName,
+        matchedOnly: true,
+        userId: args.userId,
+      });
+      hasSameCompanyReviewedAlternative =
+        (matchedRoles.newOptionCount ?? 0) > 0;
+    } catch (error) {
+      console.error(
+        "[recommended-opportunity-feedback] failed to read other roles at company",
+        {
+          error: error instanceof Error ? error.message : String(error),
+          roleId: updatedOpportunity.roleId,
+          userId: args.userId,
+        }
+      );
+    }
+  }
+
   return {
     ok: true,
     feedback: args.feedback,
@@ -895,6 +1234,18 @@ async function updateRecommendedOpportunityFeedback(args: {
     opportunity: updatedOpportunity
       ? compactOpportunityForTool(updatedOpportunity)
       : null,
+    ...(isInternalRejection
+      ? {
+          assistantInstruction: [
+            "The rejection is recorded. Use the candidate's stated reason, if any, to decide whether another role belongs in this reply. Do not treat an unclear or company-level rejection as a role-level preference. Only when that reason could make one unpresented reviewed role materially more suitable, use get_internal_roles with matchedOnly=true to inspect current matches; if one is found, offer to show it without naming or describing it. Otherwise acknowledge briefly; ask one neutral question only if its answer would affect future recommendations.",
+            ...(hasSameCompanyReviewedAlternative
+              ? [
+                  "One unpresented reviewed role at the same company is also available. This is availability context, not a reason to mention it.",
+                ]
+              : []),
+          ].join(" "),
+        }
+      : {}),
   };
 }
 
@@ -902,6 +1253,112 @@ const INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND =
   "candidate_requested_connection";
 const HARPER_INTERNAL_ROLE_COMPANY_NAME = "Harper";
 const OPS_CAREER_URL = "https://matchharper.com/ops/career";
+
+type InternalRolePriorityReviewAvailability =
+  | "active"
+  | "hiring_ended"
+  | "hiring_paused"
+  | "role_not_active";
+
+function getInternalRolePriorityReviewAvailability(args: {
+  expiresAt: string | null;
+  isExpired: unknown;
+  status: string | null;
+}): InternalRolePriorityReviewAvailability {
+  const expiresAtMs = args.expiresAt ? Date.parse(args.expiresAt) : Number.NaN;
+  const hiringEnded =
+    args.status === "ended" ||
+    args.isExpired === true ||
+    (Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now());
+
+  if (hiringEnded) return "hiring_ended";
+  if (args.status === "active") return "active";
+  if (args.status === "paused") return "hiring_paused";
+  return "role_not_active";
+}
+
+function getUnavailableInternalRolePriorityReviewStatus(args: {
+  availability: Exclude<InternalRolePriorityReviewAvailability, "active">;
+  hasExistingRequest: boolean;
+}) {
+  const prefix = args.hasExistingRequest ? "existing_request_" : "";
+  return `${prefix}${args.availability}`;
+}
+
+function buildUnavailableInternalRolePriorityReviewInstruction(args: {
+  availability: Exclude<InternalRolePriorityReviewAvailability, "active">;
+  hasExistingRequest: boolean;
+}) {
+  const roleAvailability =
+    args.availability === "hiring_ended"
+      ? "Hiring for this exact role has ended."
+      : args.availability === "hiring_paused"
+        ? "Hiring for this exact role is currently paused."
+        : "This exact role is not currently active.";
+  const requestState = args.hasExistingRequest
+    ? "The existing priority-review request remains recorded; do not imply that a duplicate request was created."
+    : "The priority-review request was not saved.";
+
+  return [
+    `Tell the user: ${roleAvailability}`,
+    `Explain that this availability change is about the role, not a negative decision about the candidate. ${requestState}`,
+    ...(args.hasExistingRequest
+      ? [
+          "Say Harper will continue checking other suitable connected opportunities.",
+        ]
+      : []),
+    "Do not promise a connection, interview, referral, company introduction, or specific timeline.",
+  ].join(" ");
+}
+
+function buildPriorityReviewHoldQuestion(args: {
+  fitRecord: Record<string, unknown> | null;
+  locale?: string | null;
+}) {
+  const fitId = optionalToolString(args.fitRecord?.id);
+  const criteria = args.fitRecord?.reevaluation_criteria;
+  const criteriaRecord = asToolRecord(criteria);
+  if (
+    !fitId ||
+    !criteriaRecord ||
+    !hasExplicitInternalFitReevaluationTopic(criteria) ||
+    optionalToolString(criteriaRecord.new_information)
+  ) {
+    return null;
+  }
+
+  const summary = normalizeInternalFitQuestionText(criteriaRecord.question);
+  if (!summary) return null;
+  const [question] = groupInternalFitHoldQuestionCandidates(
+    [{ criteria, fitId, summary }],
+    args.locale
+  );
+  return question?.summary ?? null;
+}
+
+async function fetchEarliestInternalRolePriorityReview(args: {
+  admin: any;
+  roleId: string;
+  userId: string;
+}) {
+  const { data, error } = await ((
+    args.admin.from("talent_progress" as any) as any
+  )
+    .select("id, created_at")
+    .eq("talent_id", args.userId)
+    .eq("role_id", args.roleId)
+    .eq("kind", INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND)
+    .order("created_at", { ascending: true })
+    .limit(1) as any);
+
+  if (error) {
+    throw new TalentToolError(
+      error.message ?? "Failed to check existing priority request."
+    );
+  }
+
+  return asToolRecord(Array.isArray(data) ? data[0] : null);
+}
 
 function formatKstDate(value: string | null | undefined) {
   if (!value) return null;
@@ -923,6 +1380,54 @@ function formatKstDate(value: string | null | undefined) {
 
 function isHarperInternalRoleCompany(companyName: string | null | undefined) {
   return companyName === HARPER_INTERNAL_ROLE_COMPANY_NAME;
+}
+
+function suppressPriorityReviewHiringNotification(
+  roleInformation: Record<string, unknown> | null
+) {
+  return (
+    roleInformation?.suppressPriorityReviewHiringNotification === true ||
+    optionalToolString(
+      roleInformation?.suppressPriorityReviewHiringNotification
+    )?.toLowerCase() === "true"
+  );
+}
+
+function getPriorityReviewGroupName(
+  roleInformation: Record<string, unknown> | null
+) {
+  return optionalClippedToolString(
+    roleInformation?.priorityReviewGroupName,
+    160
+  );
+}
+
+async function fetchPublishedOfficialJobCompanyName(args: {
+  admin: any;
+  roleId: string;
+}) {
+  const { data, error } = await ((
+    args.admin.from("official_jobs" as any) as any
+  )
+    .select("company_name")
+    .eq("role_id", args.roleId)
+    .eq("is_published", true)
+    .order("updated_at", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle() as any);
+
+  if (error) {
+    console.error(
+      "[internal-role-priority-review] official job company lookup failed",
+      {
+        error: error.message ?? String(error),
+        roleId: args.roleId,
+      }
+    );
+    return null;
+  }
+
+  return optionalToolString(asToolRecord(data)?.company_name);
 }
 
 function getHiringSlackWebhookUrl() {
@@ -1008,10 +1513,172 @@ async function notifyHarperInternalRolePriorityReviewSlack(args: {
   return true;
 }
 
+async function presentInternalRoleRecommendationForReview(args: {
+  admin: any;
+  conversationId?: string | null;
+  fitReasons: string[];
+  responseLocale?: string | null;
+  roleId: string;
+  sourceRoleId?: string | null;
+  userId: string;
+  userMessageId?: number | string | null;
+}) {
+  const roleId = normalizePostingRoleId(args.roleId);
+  if (!isPostingRoleId(roleId)) {
+    throw new TalentToolError(
+      "update_recommended_opportunity_feedback requires a valid roleId."
+    );
+  }
+
+  const sourceRoleId = normalizePostingRoleId(args.sourceRoleId);
+  if (args.sourceRoleId && !isPostingRoleId(sourceRoleId)) {
+    throw new TalentToolError(
+      "update_recommended_opportunity_feedback requires a valid replacesRoleId."
+    );
+  }
+
+  const fitReasons = normalizeInternalRoleReviewFitReasons(args.fitReasons);
+  if (fitReasons.length === 0) {
+    throw new TalentToolError(
+      "feedback=review requires one to three candidate-safe fitReasons."
+    );
+  }
+
+  const verification = await verifyUnrecommendedInternalRoleChoice({
+    admin: args.admin,
+    roleId,
+    userId: args.userId,
+  });
+  if (!verification.allowed) return verification.result;
+  if (!verification.isInternal) {
+    throw new TalentToolError(
+      "feedback=review is available only for a verified internal role."
+    );
+  }
+
+  const { data, error } = await (args.admin.rpc as any)(
+    "present_talent_internal_role_recommendation_for_review_v1",
+    {
+      p_context: {
+        conversationId: args.conversationId ?? null,
+        fitReasons,
+        responseLocale: args.responseLocale ?? "en",
+        userMessageId: args.userMessageId ?? null,
+      },
+      p_source_role_id: sourceRoleId || null,
+      p_talent_id: args.userId,
+      p_target_role_id: roleId,
+    }
+  );
+  if (error) {
+    throw new TalentToolError(
+      error.message ?? "Failed to update the selected internal role."
+    );
+  }
+
+  const result = asToolRecord(data) ?? {};
+  const status = optionalToolString(result.status) ?? "action_unavailable";
+  const targetRoleName = optionalToolString(result.targetRoleName);
+  const targetRecommendationId = optionalToolString(
+    result.targetRecommendationId
+  );
+  const reason = optionalToolString(result.reason);
+
+  if (status === "recommended") {
+    let updatedOpportunity = null;
+    if (targetRecommendationId) {
+      [updatedOpportunity] = await fetchTalentOpportunityHistoryByIds({
+        admin: args.admin,
+        ids: [targetRecommendationId],
+        userId: args.userId,
+      });
+    }
+
+    return {
+      ok: true,
+      status,
+      targetRoleId: roleId,
+      targetRoleName,
+      companyShared: false,
+      recommendedAt: optionalToolString(result.recommendedAt),
+      postingRoleIds: [roleId],
+      opportunity: updatedOpportunity
+        ? compactOpportunityForTool(updatedOpportunity)
+        : null,
+      assistantInstruction: [
+        `This role is now formally available for review. Before answering, call get_role_context with roleId=${roleId} and include_jd=true, then give a substantive explanation of the company, the role's actual scope, why ${targetRoleName ?? "the requested role"} may fit, and any meaningful public-safe tradeoff.`,
+        "Say the role has been added as a formal recommendation, but it has not been accepted and nothing has been sent to the company.",
+        "This is an internal Harper-connected role. Never describe it as an external or public opportunity, and do not attribute information limits to it being external.",
+        "Tell the user they can read the full role in the Positions tab in Korean or the Jobs tab in English, and ask them to accept there or tell Harper after reviewing it if they still want to proceed.",
+        "Do not say the role was switched, selected, accepted, connected, or sent to the company.",
+      ].join(" "),
+    };
+  }
+
+  if (status === "no_change") {
+    return {
+      ok: true,
+      status: "no_change",
+      reason,
+      targetRoleId: roleId,
+      targetRoleName,
+      targetAccepted: result.targetAccepted === true,
+      companyShared: result.companyShared === true,
+      ...(result.targetAccepted === true ? {} : { postingRoleIds: [roleId] }),
+      assistantInstruction:
+        result.targetAccepted === true
+          ? "Tell the user this role has already been accepted. Accurately state whether the company has received their information using companyShared."
+          : `Before answering, call get_role_context with roleId=${roleId} and include_jd=true. Explain this current formal recommendation in useful detail, say it is available in the Positions tab in Korean or the Jobs tab in English, and ask the user to accept there or tell Harper after reviewing it if they still want to proceed. It has not been accepted. Never describe it as an external or public opportunity.`,
+    };
+  }
+
+  if (status === "required_next_step") {
+    return {
+      ok: false,
+      status: "required_next_step",
+      reason,
+      targetRoleId: roleId,
+      assistantInstruction:
+        reason === "onboarding_required"
+          ? "Tell the user Harper needs them to finish the current career onboarding step before adding this role for review. Do not say the role was recommended or accepted."
+          : "Tell the user their current profile-sharing setting prevents Harper from adding this role for review. Ask whether they want to enable sharing for Harper-connected opportunities. Do not change the setting or say the role was recommended or accepted.",
+    };
+  }
+
+  if (status === "unavailable") {
+    return {
+      ok: false,
+      status: "unavailable",
+      reason,
+      targetRoleId: roleId,
+      targetRoleName,
+      assistantInstruction:
+        "Tell the user Harper could not add or accept this exact role because it is no longer a currently available, already-reviewed option. Do not mention fit labels or promise a new evaluation.",
+    };
+  }
+
+  return {
+    ok: false,
+    status: "action_unavailable",
+    reason,
+    targetRoleId: roleId,
+    targetRoleName,
+    companyShared: result.companyShared === true,
+    assistantInstruction: [
+      "Tell the user the role was not added or accepted in this conversation.",
+      result.companyShared === true
+        ? "Explain that the company-side process has already started, so Harper needs to verify the role change without altering the current process."
+        : "Explain that the existing role history needs to be checked before Harper can change it.",
+      "Do not claim that a review request was recorded unless a separate register action actually succeeded.",
+    ].join(" "),
+  };
+}
+
 async function updateInternalRolePriorityReview(args: {
   action: "register" | "withdraw";
   admin: any;
   conversationId?: string | null;
+  responseLocale?: string | null;
   roleId: string;
   userId: string;
   userMessageId?: number | string | null;
@@ -1034,8 +1701,10 @@ async function updateInternalRolePriorityReview(args: {
         status,
         is_expired,
         expires_at,
+        information,
         company_workspace:company_workspace (
-          company_name
+          company_name,
+          published_name
         )
       `
     )
@@ -1070,45 +1739,47 @@ async function updateInternalRolePriorityReview(args: {
 
   const roleStatus = optionalToolString(roleRecord.status)?.toLowerCase();
   const expiresAt = optionalToolString(roleRecord.expires_at);
-  const expiresAtMs = expiresAt ? Date.parse(expiresAt) : Number.NaN;
+  const roleAvailability = getInternalRolePriorityReviewAvailability({
+    expiresAt,
+    isExpired: roleRecord.is_expired,
+    status: roleStatus ?? null,
+  });
+  const roleInformation = asToolRecord(roleRecord.information);
   if (
-    !roleStatus ||
-    !["active", "paused"].includes(roleStatus) ||
-    roleRecord.is_expired === true ||
-    (Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now())
+    roleInformation?.testOnly === true ||
+    optionalToolString(roleInformation?.testOnly)?.toLowerCase() === "true"
   ) {
     return {
       ok: false,
-      status: "role_not_available",
+      status: "role_not_found",
       roleId,
-      assistantInstruction: `Tell the user this Harper-connected role is not currently active or paused, so the priority-review request was not ${args.action === "register" ? "saved" : "withdrawn"}. Do not promise a connection, interview, referral, company introduction, or specific timeline.`,
+      assistantInstruction:
+        "Tell the user Harper could not verify the exact role. Do not expose or infer any test-only role details.",
     };
   }
-
+  const priorityReviewGroupName = getPriorityReviewGroupName(roleInformation);
+  const roleIsAvailable =
+    roleAvailability === "active" || roleAvailability === "hiring_paused";
   const workspace = asToolRecord(roleRecord.company_workspace);
-  const companyName = optionalToolString(workspace?.company_name);
+  const rawCompanyName = optionalToolString(workspace?.company_name);
+  const officialJobCompanyName = await fetchPublishedOfficialJobCompanyName({
+    admin: args.admin,
+    roleId,
+  });
+  const companyName =
+    officialJobCompanyName ??
+    priorityReviewGroupName ??
+    optionalToolString(workspace?.published_name) ??
+    "Undisclosed internal company";
   const roleTitle = optionalToolString(roleRecord.name);
 
-  const { data: existingRows, error: existingError } = await ((
-    args.admin.from("talent_progress" as any) as any
-  )
-    .select("id, created_at")
-    .eq("talent_id", args.userId)
-    .eq("role_id", roleId)
-    .eq("kind", INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND)
-    .order("created_at", { ascending: true })
-    .limit(1) as any);
-
-  if (existingError) {
-    throw new TalentToolError(
-      existingError.message ?? "Failed to check existing priority request."
-    );
-  }
-
-  const existing = Array.isArray(existingRows) ? existingRows[0] : null;
-  const existingCreatedAt = optionalToolString(existing?.created_at);
-
   if (args.action === "withdraw") {
+    const existing = await fetchEarliestInternalRolePriorityReview({
+      admin: args.admin,
+      roleId,
+      userId: args.userId,
+    });
+    const existingCreatedAt = optionalToolString(existing?.created_at);
     if (!existingCreatedAt) {
       return {
         ok: true,
@@ -1155,82 +1826,411 @@ async function updateInternalRolePriorityReview(args: {
     };
   }
 
-  if (existingCreatedAt) {
-    const existingCreatedDate = formatKstDate(existingCreatedAt);
+  const [existing, fitResult, recommendationResult, progressTagResult] =
+    await Promise.all([
+      fetchEarliestInternalRolePriorityReview({
+        admin: args.admin,
+        roleId,
+        userId: args.userId,
+      }),
+      (args.admin.from("talent_opportunity_fit" as any) as any)
+        .select(
+          "id, label, human_label, recommend, reason, role_fit, candidate_fit, company_fit, reevaluation_criteria, reevaluation_checked_at"
+        )
+        .eq("talent_id", args.userId)
+        .eq("opportunity_id", roleId)
+        .maybeSingle() as any,
+      (args.admin.from("talent_opportunity_recommendation" as any) as any)
+        .select("id, created_at, feedback, saved_stage")
+        .eq("talent_id", args.userId)
+        .eq("role_id", roleId)
+        .order("updated_at", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(1) as any,
+      (args.admin.from("talent_opportunity_tag" as any) as any)
+        .select("tag, updated_at, created_at")
+        .eq("talent_id", args.userId)
+        .eq("opportunity_id", roleId)
+        .order("updated_at", { ascending: false })
+        .order("created_at", { ascending: false }) as any,
+    ]);
+  if (
+    fitResult.error ||
+    recommendationResult.error ||
+    progressTagResult.error
+  ) {
+    throw new TalentToolError(
+      fitResult.error?.message ??
+        recommendationResult.error?.message ??
+        progressTagResult.error?.message ??
+        "Failed to verify the internal role review state."
+    );
+  }
+
+  const existingCreatedAt = optionalToolString(existing?.created_at);
+  const fitRecord = asToolRecord(fitResult.data);
+  const effectiveFitLabel = (
+    optionalToolString(fitRecord?.human_label) ??
+    optionalToolString(fitRecord?.label)
+  )?.toLowerCase();
+  const candidatePreferenceState = optionalToolString(
+    fitRecord?.candidate_fit
+  )?.toLowerCase();
+  const candidatePreferenceMismatch =
+    !optionalToolString(fitRecord?.human_label) &&
+    optionalToolString(fitRecord?.role_fit)?.toLowerCase() === "fit" &&
+    optionalToolString(fitRecord?.company_fit)?.toLowerCase() === "fit" &&
+    (candidatePreferenceState === "middle" ||
+      candidatePreferenceState === "unfit");
+  const reconsiderationAvailable =
+    isInternalRoleReconsiderationEligible(fitRecord);
+  const reasoningOnlyCandidatePreferenceContext = candidatePreferenceMismatch
+    ? optionalClippedToolString(fitRecord?.reason, 700)
+    : null;
+  const reconsiderationScheduled =
+    hasPendingInternalRoleReconsideration(fitRecord);
+  const latestRecommendation = Array.isArray(recommendationResult.data)
+    ? asToolRecord(recommendationResult.data[0])
+    : null;
+  const latestProgressTag = (
+    Array.isArray(progressTagResult.data) ? progressTagResult.data : []
+  )
+    .map((row: unknown) => optionalToolString(asToolRecord(row)?.tag))
+    .filter((tag: string | null): tag is string => Boolean(tag))
+    .find(
+      (tag: string) => tag.startsWith("내부:") || tag.startsWith("내부단계:")
+    );
+  if (!roleIsAvailable) {
+    const unavailableAvailability = roleAvailability as Exclude<
+      InternalRolePriorityReviewAvailability,
+      "active"
+    >;
+    if (existingCreatedAt) {
+      return {
+        ok: true,
+        status: getUnavailableInternalRolePriorityReviewStatus({
+          availability: unavailableAvailability,
+          hasExistingRequest: true,
+        }),
+        roleId,
+        roleTitle,
+        companyName,
+        requestedAt: existingCreatedAt,
+        requestedDate: formatKstDate(existingCreatedAt),
+        assistantInstruction:
+          buildUnavailableInternalRolePriorityReviewInstruction({
+            availability: unavailableAvailability,
+            hasExistingRequest: true,
+          }),
+      };
+    }
+    return {
+      ok: false,
+      status: getUnavailableInternalRolePriorityReviewStatus({
+        availability: unavailableAvailability,
+        hasExistingRequest: false,
+      }),
+      roleId,
+      assistantInstruction:
+        buildUnavailableInternalRolePriorityReviewInstruction({
+          availability: unavailableAvailability,
+          hasExistingRequest: false,
+        }),
+    };
+  }
+
+  if (latestRecommendation) {
+    const recommendationFeedback = optionalToolString(
+      latestRecommendation.feedback
+    )?.toLowerCase();
+    const recommendationSavedStage = optionalToolString(
+      latestRecommendation.saved_stage
+    )?.toLowerCase();
+    const recommendationState =
+      recommendationSavedStage === "closed" ||
+      latestProgressTag === "내부:프로세스중단" ||
+      latestProgressTag === "내부:아카이브"
+        ? "closed"
+        : recommendationFeedback === "dislike" ||
+            recommendationFeedback === "negative" ||
+            latestProgressTag === "내부:거절"
+          ? "declined"
+          : recommendationFeedback === "like" ||
+              recommendationFeedback === "positive" ||
+              recommendationSavedStage === "connected"
+            ? "accepted"
+            : "current";
+    const status =
+      recommendationState === "closed"
+        ? "previous_process_closed"
+        : recommendationState === "declined"
+          ? "previously_declined"
+          : recommendationState === "accepted"
+            ? "already_accepted"
+            : "already_formally_recommended";
     return {
       ok: true,
-      status: "already_exists",
+      status,
       roleId,
       roleTitle,
       companyName,
-      existingCreatedAt,
-      existingCreatedDate,
+      recommendationId: optionalToolString(latestRecommendation.id),
+      recommendationState,
+      ...(recommendationState === "current"
+        ? { postingRoleIds: [roleId] }
+        : {}),
+      assistantInstruction: buildInternalRolePriorityReviewAssistantInstruction(
+        {
+          alreadyRecommended: true,
+          candidatePreferenceMismatch: false,
+          candidatePreferenceReconsiderationAvailable: false,
+          effectiveFitLabel,
+          hasClarificationQuestion: false,
+          recommendationFeedback,
+          recommendationState,
+          recommendationSavedStage,
+          reconsiderationScheduled: false,
+          priorityReviewGroupName,
+          requestCreated: false,
+          requestReachedFourteenDays: hasPriorityReviewReachedFourteenDays({
+            requestedAt: existingCreatedAt,
+          }),
+        }
+      ),
+    };
+  }
+
+  let requestedAt = existingCreatedAt;
+  let requestCreated = false;
+  if (!requestedAt) {
+    const now = new Date().toISOString();
+    const { data: inserted, error: insertError } = await ((
+      args.admin.from("talent_progress" as any) as any
+    )
+      .insert({
+        kind: INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND,
+        metadata: {
+          conversationId: args.conversationId ?? null,
+          priority: "high",
+          source: "career_chat",
+          status: "requested",
+          userMessageId: args.userMessageId ?? null,
+        },
+        role_id: roleId,
+        talent_id: args.userId,
+        text: "User requested priority review for connection to this role.",
+        user_id: args.userId,
+      })
+      .select("id, created_at")
+      .single() as any);
+
+    if (insertError) {
+      if (optionalToolString(insertError.code) === "23505") {
+        const racedRequest = await fetchEarliestInternalRolePriorityReview({
+          admin: args.admin,
+          roleId,
+          userId: args.userId,
+        });
+        requestedAt = optionalToolString(racedRequest?.created_at);
+        if (!requestedAt) {
+          throw new TalentToolError(
+            insertError.message ??
+              "Failed to resolve the existing priority review request."
+          );
+        }
+      } else {
+        throw new TalentToolError(
+          insertError.message ?? "Failed to save priority review request."
+        );
+      }
+    } else {
+      requestedAt = optionalToolString(inserted?.created_at) ?? now;
+      requestCreated = true;
+    }
+
+    if (
+      requestCreated &&
+      isHarperInternalRoleCompany(rawCompanyName) &&
+      !suppressPriorityReviewHiringNotification(roleInformation)
+    ) {
+      try {
+        await notifyHarperInternalRolePriorityReviewSlack({
+          admin: args.admin as TalentAdminClient,
+          roleId,
+          roleTitle,
+          userId: args.userId,
+        });
+      } catch (error) {
+        console.error("[internal-role-priority-review] slack notify failed", {
+          error: error instanceof Error ? error.message : String(error),
+          roleId,
+          userId: args.userId,
+        });
+      }
+    }
+  }
+
+  const clarification =
+    effectiveFitLabel === "hold"
+      ? buildPriorityReviewHoldQuestion({
+          fitRecord,
+          locale: args.responseLocale,
+        })
+      : null;
+
+  return {
+    ok: true,
+    status: requestCreated ? "created" : "already_exists",
+    roleId,
+    roleTitle,
+    companyName,
+    requestedAt,
+    requestedDate: formatKstDate(requestedAt),
+    ...(clarification
+      ? {
+          clarificationQuestion: clarification,
+        }
+      : {}),
+    candidatePreferenceMismatch,
+    candidatePreferenceState: candidatePreferenceMismatch
+      ? candidatePreferenceState
+      : null,
+    reasoningOnlyCandidatePreferenceContext,
+    reconsiderationAvailable,
+    reconsiderationScheduled,
+    reviewState: reconsiderationScheduled
+      ? "reconsideration_scheduled"
+      : candidatePreferenceMismatch
+        ? "candidate_preference_mismatch"
+        : fitRecord
+          ? "reviewed"
+          : "fit_review_in_progress",
+    assistantInstruction: buildInternalRolePriorityReviewAssistantInstruction({
+      alreadyRecommended: false,
+      candidatePreferenceMismatch,
+      candidatePreferenceReconsiderationAvailable:
+        reconsiderationAvailable && candidatePreferenceState === "middle",
+      effectiveFitLabel,
+      hasClarificationQuestion: Boolean(clarification),
+      priorityReviewGroupName,
+      reconsiderationScheduled,
+      requestCreated,
+      requestReachedFourteenDays: hasPriorityReviewReachedFourteenDays({
+        requestedAt,
+      }),
+    }),
+  };
+}
+
+async function requestInternalRoleReconsideration(args: {
+  admin: any;
+  conversationId?: string | null;
+  newInformation: string;
+  roleId: string;
+  source: string;
+  userId: string;
+  userMessageId?: number | string | null;
+}) {
+  const roleId = normalizePostingRoleId(args.roleId);
+  const newInformation = optionalClippedToolString(args.newInformation, 700);
+  if (!isPostingRoleId(roleId) || !newInformation) {
+    throw new TalentToolError(
+      "request_internal_role_reconsideration requires roleId and newInformation."
+    );
+  }
+
+  const { data, error } = await (args.admin.rpc as any)(
+    "request_talent_internal_role_reconsideration_v1",
+    {
+      p_context: {
+        conversationId: args.conversationId ?? null,
+        source: args.source,
+        userMessageId: args.userMessageId ?? null,
+      },
+      p_new_information: newInformation,
+      p_role_id: roleId,
+      p_talent_id: args.userId,
+    }
+  );
+  if (error) {
+    throw new TalentToolError(
+      error.message ?? "Failed to schedule internal role reconsideration."
+    );
+  }
+
+  const result = asToolRecord(data) ?? {};
+  const status = optionalToolString(result.status) ?? "unavailable";
+  const reason = optionalToolString(result.reason);
+  const reconsiderationScheduled = result.reconsiderationScheduled === true;
+
+  if (reconsiderationScheduled) {
+    if (status !== "already_scheduled") {
+      try {
+        await insertTalentActivityEvent({
+          admin: args.admin,
+          changedDomains: ["internal_opportunity_response"],
+          conversationId: args.conversationId ?? null,
+          eventType: "opportunity_feedback",
+          impactLevel: "high",
+          messageId: args.userMessageId ?? null,
+          source: args.source,
+          summary:
+            "User provided new information and requested reconsideration of one internal role.",
+          userId: args.userId,
+        });
+      } catch (activityError) {
+        console.error("[internal-role-reconsideration] activity log failed", {
+          error:
+            activityError instanceof Error
+              ? activityError.message
+              : String(activityError),
+          roleId,
+          userId: args.userId,
+        });
+      }
+    }
+
+    return {
+      ok: true,
+      status,
+      reason,
+      fitId: optionalToolString(result.fitId),
+      roleId,
+      roleTitle: optionalToolString(result.roleName),
+      companyName: optionalToolString(result.company),
+      reconsiderationKind: optionalToolString(result.reconsiderationKind),
+      reconsiderationScheduled: true,
+      requestedAt: optionalToolString(result.requestedAt),
       assistantInstruction: [
-        `Tell the user this role was already saved for priority review on ${existingCreatedDate ?? existingCreatedAt}.`,
-        "Say Harper will keep this preference reflected in review priority.",
-        "Do not promise a connection, interview, referral, company introduction, or specific timeline.",
+        status === "already_scheduled"
+          ? "Say this exact role was already scheduled for reconsideration and the newly confirmed information remains attached to that review."
+          : "Say Harper saved the new information and scheduled this exact role for reconsideration.",
+        "Explain that Harper will reassess whether it should become a formal recommendation; do not promise the result or a timeline.",
+        "Make clear that this action did not formally recommend or accept the role and did not share anything with the company.",
       ].join(" "),
     };
   }
 
-  const now = new Date().toISOString();
-  const { data: inserted, error: insertError } = await ((
-    args.admin.from("talent_progress" as any) as any
-  )
-    .insert({
-      kind: INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND,
-      metadata: {
-        conversationId: args.conversationId ?? null,
-        priority: "high",
-        source: "career_chat",
-        status: "requested",
-        userMessageId: args.userMessageId ?? null,
-      },
-      role_id: roleId,
-      talent_id: args.userId,
-      text: "User requested priority review for connection to this role.",
-      user_id: args.userId,
-    })
-    .select("id, created_at")
-    .single() as any);
-
-  if (insertError) {
-    throw new TalentToolError(
-      insertError.message ?? "Failed to save priority review request."
-    );
-  }
-
-  const createdAt = optionalToolString(inserted?.created_at) ?? now;
-
-  if (isHarperInternalRoleCompany(companyName)) {
-    try {
-      await notifyHarperInternalRolePriorityReviewSlack({
-        admin: args.admin as TalentAdminClient,
-        roleId,
-        roleTitle,
-        userId: args.userId,
-      });
-    } catch (error) {
-      console.error("[internal-role-priority-review] slack notify failed", {
-        error: error instanceof Error ? error.message : String(error),
-        roleId,
-        userId: args.userId,
-      });
-    }
-  }
+  const assistantInstruction =
+    reason === "fit_review_in_progress"
+      ? "Say this role is already in Harper's review even though there is no completed fit result yet. Do not claim a separate reconsideration was scheduled, and do not diagnose a backend error."
+      : reason === "already_formally_recommended"
+        ? "Say this role is already available as a formal recommendation, so a separate reconsideration was not scheduled. Ask the user to review that recommendation and respond to it directly."
+        : reason === "candidate_preference_unfit"
+          ? "Say Harper did not schedule reconsideration because the user's current explicit preference still conflicts with this role. Do not expose an internal label. If the user is explicitly changing that durable preference, save the new preference first and ask them to confirm the exact new direction before retrying."
+          : reason === "human_review_required"
+            ? "Say Harper needs to review the existing decision before this role can be reconsidered, and do not claim an automated reconsideration was scheduled."
+            : "Say this role is not currently eligible for the requested reconsideration. Do not mention internal labels, hidden criteria, or claim that anything was scheduled.";
 
   return {
-    ok: true,
-    status: "created",
+    ok: false,
+    status,
+    reason,
     roleId,
-    roleTitle,
-    companyName,
-    createdAt,
-    createdDate: formatKstDate(createdAt),
-    assistantInstruction: [
-      "Tell the user Harper saved this role so it can be reviewed with highest priority in detail. 다음은 기다리면 핏이 맞는걸 찾아서 메일로 연결 제안이 간다는걸 자세히 안내해라.",
-      "Do not promise a connection, interview, referral, company introduction, or specific timeline.",
-    ].join(" "),
+    roleTitle: optionalToolString(result.roleName),
+    companyName: optionalToolString(result.company),
+    reconsiderationScheduled: false,
+    assistantInstruction,
   };
 }
 
@@ -1689,7 +2689,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES]: {
     name: TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
     description:
-      "Read the user's existing recommended opportunities so the assistant can answer questions about previously recommended companies, roles, links, reasons, user feedback, and connection/review status. Treat feedback=negative and rejected as Talent-side rejection records, not company rejections. For archived and stopped processes, follow progress.message and treat progress.stopReason as authoritative.",
+      "Read the user's existing recommended opportunities so the assistant can answer questions about previously recommended companies, roles, links, reasons, user feedback, recent role activity, upcoming Harper-connected meetings, and connection/review status. Treat feedback=negative and rejected as Talent-side rejection records, not company rejections. For archived and stopped processes, follow progress.message and treat progress.stopReason as authoritative.",
     parameters: {
       type: "object",
       properties: {
@@ -1703,7 +2703,8 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         },
         limit: {
           type: "integer",
-          description: "Maximum number of opportunities to return.",
+          description:
+            "Base maximum number of opportunities to return. Matching roles with an upcoming Harper-connected meeting are added outside this limit.",
           minimum: 1,
           maximum: 20,
           default: 8,
@@ -1757,7 +2758,14 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         }
         return true;
       });
-      const displayedItems = filtered.slice(0, limit);
+      const baseItems = filtered.slice(0, limit);
+      const baseItemIds = new Set(baseItems.map((item) => item.id));
+      const displayedItems = [
+        ...baseItems,
+        ...filtered.filter(
+          (item) => item.upcomingMeeting && !baseItemIds.has(item.id)
+        ),
+      ];
       const itemsToClose = displayedItems.filter(
         shouldCloseRecommendedOpportunityFromProgress
       );
@@ -1768,6 +2776,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
               action: "saved_stage",
               admin: admin as any,
               opportunityId: item.id,
+              recordTalentRoleActivity: false,
               savedStage: "closed",
               userId,
             })
@@ -1784,6 +2793,15 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
               )
               .join(" ")
           : undefined;
+      const detailedItems = await fetchTalentOpportunityHistoryByIds({
+        admin: admin as any,
+        ids: displayedItems.map((item) => item.id),
+        includeActivityTimeline: true,
+        userId,
+      });
+      const detailedItemById = new Map(
+        detailedItems.map((item) => [item.id, item] as const)
+      );
 
       return {
         ...(assistantInstruction ? { assistantInstruction } : {}),
@@ -1792,12 +2810,20 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           limit,
           only_internal: onlyInternal,
         },
-        returnedCount: Math.min(filtered.length, limit),
+        returnedCount: displayedItems.length,
         totalMatchingCount: filtered.length,
         opportunities: displayedItems.map((item) => {
+          const detailedItem = detailedItemById.get(item.id) ?? item;
           const feedbackReason = optionalToolString(item.feedbackReason);
           const progress = formatRecommendedOpportunityProgress(item);
           const userMemo = optionalToolString(item.talentMemo);
+          const upcomingMeeting = formatUpcomingHarperMeetingForPrompt(
+            detailedItem.upcomingMeeting?.startAt
+          );
+          const recentActivity = formatTalentRoleActivitiesForPrompt(
+            detailedItem.talentRoleActivities,
+            10
+          );
           const savedStage = closedOpportunityIds.has(item.id)
             ? "closed"
             : item.savedStage;
@@ -1811,9 +2837,11 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
               formatCompactToolDate(item.recommendedAt) ?? item.recommendedAt,
             recommendationReasons: item.recommendationReasons.slice(0, 5),
             feedback: item.feedback,
-            ...(userMemo ? { userMemo } : {}),
+            ...(!recentActivity && userMemo ? { userMemo } : {}),
             ...(feedbackReason ? { feedbackReason } : {}),
             ...(progress ? { progress } : {}),
+            ...(upcomingMeeting ? { upcomingMeeting } : {}),
+            ...(recentActivity ? { recentActivity } : {}),
             savedStage,
             status: item.status,
             summary: item.recommendationSummary,
@@ -1825,7 +2853,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.GET_INTERNAL_ROLES]: {
     name: TALENT_TOOL_NAMES.GET_INTERNAL_ROLES,
     description:
-      "Find current internal Harper-connected roles by direct role-title or company-name keywords. This is lookup, not personalized recommendation or fit ranking.",
+      "Find current internal Harper-connected roles. Default mode is direct title/company lookup. With matchedOnly=true, return active roles supported by recommend=true, an effective fit label, or both role and company fit while candidate preference fit is not unfit. Candidate preference unfit is always excluded. Results can be narrowed by a public company name and identify roles already scheduled for reconsideration. This only reads stored decisions and never reruns fit.",
     parameters: {
       type: "object",
       properties: {
@@ -1839,8 +2867,17 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           minItems: 1,
           maxItems: 2,
         },
+        matchedOnly: {
+          type: "boolean",
+          description:
+            "Set true only when the user asks about other roles supported by Harper's stored fit signals, wants to compare adjacent roles, or needs another viable role at the same company. This includes role-and-company fit when candidate preference fit is middle, but always excludes candidate preference unfit. Omit or use false for ordinary public lookup.",
+        },
+        company: {
+          type: "string",
+          description:
+            "Optional company name or public alias used to narrow matchedOnly results to that company. Do not provide this merely for ordinary keyword lookup.",
+        },
       },
-      required: ["keywords"],
       additionalProperties: false,
     },
     channels: ["chat"],
@@ -1851,7 +2888,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       }
 
       return searchInternalRolesForCareerTool({
+        company: input.company,
         keywords: input.keywords,
+        matchedOnly: input.matchedOnly,
         userId,
       });
     },
@@ -1859,7 +2898,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.INTERNAL_ROLE_PRIORITY_REVIEW]: {
     name: TALENT_TOOL_NAMES.INTERNAL_ROLE_PRIORITY_REVIEW,
     description:
-      "Register or withdraw the candidate's explicit priority-review request for a specific internal role. Requires action and roleId. If roleId is unknown, call get_internal_roles first to resolve it.",
+      "Register or withdraw a priority-review request for a specific Harper internal role when the user explicitly asks Harper to prioritize it. This remains a priority-review request even when the role has stored fit; it does not add the role to Positions/Jobs. Register is idempotent: when the request already exists, call register again to read its current review progress without creating a duplicate. This does not accept a role, share the candidate with a company, replace an existing recommendation, or rerun fit.",
     parameters: {
       type: "object",
       properties: {
@@ -1867,12 +2906,11 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           type: "string",
           enum: ["register", "withdraw"],
           description:
-            "Use register to save the candidate's priority-review request. Use withdraw to remove that request.",
+            "Use register to save a priority-review request and withdraw to remove it.",
         },
         roleId: {
           type: "string",
-          description:
-            "Internal role id whose priority-review request should be registered or withdrawn.",
+          description: "Internal role id for the priority-review request.",
         },
       },
       required: ["action", "roleId"],
@@ -1902,11 +2940,65 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         );
       }
 
-      return updateInternalRolePriorityReview({
+      const result = await updateInternalRolePriorityReview({
         action,
         admin: admin as any,
         conversationId: context?.conversationId ?? null,
+        responseLocale: context?.responseLocale ?? null,
         roleId,
+        userId,
+        userMessageId: context?.userMessageId ?? null,
+      });
+      return {
+        ...result,
+        skipCommonAssistantInstruction: true,
+      };
+    },
+  },
+  [TALENT_TOOL_NAMES.REQUEST_INTERNAL_ROLE_RECONSIDERATION]: {
+    name: TALENT_TOOL_NAMES.REQUEST_INTERNAL_ROLE_RECONSIDERATION,
+    description:
+      "Schedule a fresh review of one exact active internal role using new information the user explicitly provided. The server permits this only for an unresolved hold or when role fit and company fit are both fit while candidate preference fit is middle. Candidate preference unfit, other role/company mismatches, completed formal recommendations, test roles, and inactive roles are rejected. This does not create or accept a recommendation and does not share anything with the company.",
+    parameters: {
+      type: "object",
+      properties: {
+        roleId: {
+          type: "string",
+          description:
+            "Exact internal role id from get_internal_roles or internal_role_priority_review.",
+        },
+        newInformation: {
+          type: "string",
+          description:
+            "Concise user-authored fact, preference change, or one-role exception that should be used in the fresh review. Do not infer facts the user did not state.",
+        },
+      },
+      required: ["roleId", "newInformation"],
+      additionalProperties: false,
+    },
+    channels: ["chat"],
+    async execute(input, context) {
+      const admin = context?.admin;
+      const userId = context?.userId;
+      const roleId = optionalToolString(input.roleId);
+      const newInformation = optionalToolString(input.newInformation);
+      if (!admin || !userId) {
+        throw new TalentToolError(
+          "request_internal_role_reconsideration requires user context."
+        );
+      }
+      if (!roleId || !newInformation) {
+        throw new TalentToolError(
+          "request_internal_role_reconsideration requires roleId and newInformation."
+        );
+      }
+
+      return requestInternalRoleReconsideration({
+        admin,
+        conversationId: context?.conversationId ?? null,
+        newInformation,
+        roleId,
+        source: "career_chat",
         userId,
         userMessageId: context?.userMessageId ?? null,
       });
@@ -1915,7 +3007,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.GET_ROLE_CONTEXT]: {
     name: TALENT_TOOL_NAMES.GET_ROLE_CONTEXT,
     description:
-      "Get detailed context for up to 3 specific job posting roles by roleId. Use only when the user asks about, recalls, or gives feedback on specific already-shown posting cards/roles and the current context does not contain enough detail. Do not use while finding or presenting fresh recommendations; recommend_job_postings already returns the context needed for that answer. Includes role details, company context, and the latest user-specific recommendation context for each role. Set include_jd true only when the job description/JD text is needed; when false, role.description is omitted. Treat any private company-side notes in the result as reasoning-only context; never quote or expose them to the user.",
+      "Get detailed context for up to 3 specific roles by roleId. For an internal role, details are returned only after it has been formally recommended to this user; matched or reconsideration state alone is not enough. Use when the user asks about, recalls, compares, or gives feedback on a specific role and the current context is insufficient. Do not use while finding fresh external recommendations. Includes role details, public-safe company context, the latest user-specific recommendation context, up to 10 recent role activities as compact text, and any upcoming Harper-connected meeting. Set include_jd true only when the job description/JD text is needed; when false, role.description is omitted. Treat private company-side notes as reasoning-only context; never quote or expose their contents to the user.",
     parameters: {
       type: "object",
       properties: {
@@ -1964,19 +3056,19 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION]: {
     name: TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION,
     description:
-      "Private writer for one active hidden internal fit hold question. Use only when the user's latest message clearly answers that hidden question. It saves the new evidence for later reevaluation and does not reveal or recommend the internal role.",
+      "Private writer for one active internal-opportunity profile clarification. Use only when the user's latest message clearly answers that private question. It saves the user's new evidence for later review and does not reveal or recommend the internal role.",
     parameters: {
       type: "object",
       properties: {
         fitId: {
           type: "string",
           description:
-            "The fitId from the current hidden hold question prompt block.",
+            "The fitId from the current private profile clarification block.",
         },
         newInformation: {
           type: "string",
           description:
-            "A concise summary of the newly provided user evidence that answers the hidden hold question.",
+            "A concise summary of the newly provided user evidence that answers the private profile clarification.",
         },
       },
       required: ["fitId", "newInformation"],
@@ -2058,14 +3150,15 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK]: {
     name: TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK,
     description:
-      "Set one recommended opportunity's feedback to like or dislike.",
+      "Add a verified matched internal role to Positions/Jobs for the user's detailed review, or set one formal recommendation's feedback to like or dislike. Use review when the user asks to add the chosen matched role to Positions/Jobs, or when an earlier call for the same role returned reason=internal_role_review_required. A request asking Harper to prioritize a role is not feedback=review. For review, write one to three candidate-visible fitReasons using only public role facts and candidate-safe context. Acceptance requires a later explicit like.",
     parameters: {
       type: "object",
       properties: {
         feedback: {
           type: "string",
-          enum: ["like", "dislike"],
-          description: "Use like for saved/positive, dislike for rejected.",
+          enum: ["review", "like", "dislike"],
+          description:
+            "Use review to add a verified matched internal role for detailed review without acceptance; like only for explicit acceptance/positive feedback; dislike for rejection.",
         },
         opportunityId: {
           type: "string",
@@ -2090,6 +3183,14 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           type: "string",
           description:
             "Optional short reason from the user's message, if they gave one.",
+        },
+        fitReasons: {
+          type: "array",
+          items: { type: "string" },
+          minItems: 1,
+          maxItems: 3,
+          description:
+            "Required only for feedback=review. Write 1-3 concise reasons in the reply language connecting the candidate's known experience or preferences to public-safe facts about this role. These are stored and shown in Positions/Jobs. Never include private company requests, hidden evaluation text, company feedback, or facts that cannot be said directly to the candidate.",
         },
       },
       required: ["feedback"],
@@ -2121,6 +3222,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           "update_recommended_opportunity_feedback received an invalid roleId."
         );
       }
+      const fitReasons = normalizeInternalRoleReviewFitReasons(
+        input.fitReasons
+      );
 
       return updateRecommendedOpportunityFeedback({
         admin: admin as any,
@@ -2128,11 +3232,15 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         conversationId: context?.conversationId ?? null,
         feedback,
         feedbackReason: optionalToolString(input.feedbackReason),
+        fitReasons,
         opportunityId,
+        replacesRoleId: null,
+        responseLocale: context?.responseLocale ?? null,
         roleId,
         roleTitle: optionalToolString(input.roleTitle),
         userId,
         isMobile: context?.isMobile,
+        userMessageId: context?.userMessageId ?? null,
       });
     },
   },

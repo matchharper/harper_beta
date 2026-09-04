@@ -25,6 +25,7 @@ import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 import type { CareerOpportunityMention } from "@/lib/career/opportunityMentionText";
 import type { CareerPendingActionReference } from "@/lib/career/pendingActions";
 import { uploadTalentDocument } from "@/lib/talentOnboarding/documentUploadClient";
+import { useCareerTextChatModelStore } from "@/store/useCareerTextChatModelStore";
 
 type SendChatArgs = {
   allowedToolNames?: readonly string[];
@@ -62,6 +63,7 @@ type UseCareerChatArgs = {
     updatedAt: unknown
   ) => void;
   onTalentInsightsRefreshed?: (insights: unknown, updatedAt: unknown) => void;
+  onOnboardingChecklistProgressRefreshed?: (progress: unknown) => void;
   onTalentProfileRefreshed?: (
     profile: SessionResponse["talentProfile"] | undefined
   ) => void;
@@ -226,12 +228,14 @@ export const useCareerChat = ({
   onOpportunityRecommendationsChanged,
   onTalentPreferencesRefreshed,
   onTalentInsightsRefreshed,
+  onOnboardingChecklistProgressRefreshed,
   onTalentProfileRefreshed,
   persistedMessages,
   onMessagesChanged,
 }: UseCareerChatArgs) => {
   const tCareer = useCareerMessageFormatter();
   const { locale, setLocale } = useMessages();
+  const textChatModel = useCareerTextChatModelStore((state) => state.model);
   const [stage, setStage] = useState<CareerStage>("profile");
   const [localMessages, setLocalMessages] = useState<CareerMessage[]>([]);
   const [chatPending, setChatPending] = useState(false);
@@ -393,15 +397,24 @@ export const useCareerChat = ({
 
     if (stoppedUserMessage) {
       activeUserMessageRef.current = stoppedUserMessage;
-      setLocalMessages((prev) =>
-        replaceMessageById(
-          prev.filter(
-            (item) => String(item.id) !== String(streamAssistantId ?? "")
-          ),
+      setLocalMessages((prev) => {
+        const withStoppedUser = replaceMessageById(
+          prev,
           stoppedUserMessage.id,
           toUiMessage(stoppedUserMessage)
-        )
-      );
+        );
+        if (!streamAssistantId) return withStoppedUser;
+        return withStoppedUser.map((item) =>
+          String(item.id) === streamAssistantId
+            ? {
+                ...item,
+                content: tCareer(H.opportunitySearchStopped),
+                thinkingLogs: logs,
+                typing: false,
+              }
+            : item
+        );
+      });
     } else if (streamAssistantId) {
       setLocalMessages((prev) =>
         prev.map((item) =>
@@ -421,12 +434,13 @@ export const useCareerChat = ({
     setOnboardingWrapupPending(false);
     setScrollTick((t) => t + 1);
     return stoppedUserMessage;
-  }, [appendRecommendationStatusToActiveLogs]);
+  }, [appendRecommendationStatusToActiveLogs, tCareer]);
 
   const cancelActiveRecommendationSearch = useCallback(() => {
     if (cancelRequestedRef.current) return;
     cancelRequestedRef.current = true;
     cancellationSavePendingRef.current = true;
+    const stoppedAssistantMessageId = activeStreamAssistantIdRef.current;
     const stoppedUserMessage = markActiveRecommendationSearchStopped();
     abortControllerRef.current?.abort();
 
@@ -442,6 +456,7 @@ export const useCareerChat = ({
           method: "POST",
           body: JSON.stringify({
             conversationId,
+            locale,
             userMessageId: stoppedUserMessage.id,
           }),
         });
@@ -458,17 +473,35 @@ export const useCareerChat = ({
           throw new Error(tCareer(H.messageSendFailed));
         }
 
+        const updatedAssistantMessage = isRecord(payload)
+          ? toStreamMessagePayload(payload.assistantMessage)
+          : null;
         activeUserMessageRef.current = updatedUserMessage;
-        setLocalMessages((prev) =>
-          replaceMessageById(
-            prev,
+        setLocalMessages((prev) => {
+          const withoutStoppedPlaceholder = stoppedAssistantMessageId
+            ? prev.filter(
+                (item) => String(item.id) !== stoppedAssistantMessageId
+              )
+            : prev;
+          const withStoppedUser = replaceMessageById(
+            withoutStoppedPlaceholder,
             updatedUserMessage.id,
             toUiMessage(updatedUserMessage)
-          )
-        );
-        await Promise.resolve(onMessagesChanged?.([updatedUserMessage])).catch(
-          () => undefined
-        );
+          );
+          return updatedAssistantMessage
+            ? replaceMessageById(
+                withStoppedUser,
+                updatedAssistantMessage.id,
+                toUiMessage(updatedAssistantMessage)
+              )
+            : withStoppedUser;
+        });
+        await Promise.resolve(
+          onMessagesChanged?.([
+            updatedUserMessage,
+            ...(updatedAssistantMessage ? [updatedAssistantMessage] : []),
+          ])
+        ).catch(() => undefined);
       } catch (error) {
         setChatError(
           error instanceof Error
@@ -484,6 +517,7 @@ export const useCareerChat = ({
   }, [
     conversationId,
     fetchWithAuth,
+    locale,
     markActiveRecommendationSearchStopped,
     onMessagesChanged,
     tCareer,
@@ -519,6 +553,26 @@ export const useCareerChat = ({
     setLocalMessages((prev) => [...prev, message]);
     setScrollTick((t) => t + 1);
   }, []);
+
+  const removeMessages = useCallback(
+    (messageIds: Array<string | number>) => {
+      if (messageIds.length === 0) return;
+
+      const idsToRemove = new Set(messageIds.map((id) => String(id)));
+      setLocalMessages((current) =>
+        current.filter((message) => !idsToRemove.has(String(message.id)))
+      );
+      setThinkingLogsByMessageId((current) => {
+        const next = { ...current };
+        for (const messageId of idsToRemove) {
+          delete next[messageId];
+        }
+        return next;
+      });
+      setScrollTick((t) => t + 1);
+    },
+    []
+  );
 
   const regenerateOnboardingWrapup = useCallback(async () => {
     if (!user || !conversationId || onboardingWrapupPending) return;
@@ -690,6 +744,7 @@ export const useCareerChat = ({
             messageType,
             opportunityMentions: args.opportunityMentions,
             pendingAction: args.pendingAction,
+            textChatModel,
             uploadedDocumentIds,
             link,
           }),
@@ -1037,6 +1092,11 @@ export const useCareerChat = ({
                     data.insightUpdatedAt
                   );
                 }
+                if ("onboardingChecklistProgress" in data) {
+                  onOnboardingChecklistProgressRefreshed?.(
+                    data.onboardingChecklistProgress
+                  );
+                }
                 if ("talentProfile" in data) {
                   onTalentProfileRefreshed?.(
                     data.talentProfile as SessionResponse["talentProfile"]
@@ -1141,6 +1201,11 @@ export const useCareerChat = ({
           onTalentInsightsRefreshed?.(
             payload.talentInsights,
             payload.insightUpdatedAt
+          );
+        }
+        if (isRecord(payload) && "onboardingChecklistProgress" in payload) {
+          onOnboardingChecklistProgressRefreshed?.(
+            payload.onboardingChecklistProgress
           );
         }
         if (isRecord(payload) && "talentProfile" in payload) {
@@ -1256,11 +1321,13 @@ export const useCareerChat = ({
       onMessagesChanged,
       onOpportunityRunChanged,
       onOpportunityRecommendationsChanged,
+      onOnboardingChecklistProgressRefreshed,
       onTalentInsightsRefreshed,
       onTalentPreferencesRefreshed,
       onTalentProfileRefreshed,
       resetActiveThinkingLogs,
       tCareer,
+      textChatModel,
     ]
   );
 
@@ -1289,6 +1356,7 @@ export const useCareerChat = ({
     messages,
     scrollTick,
     appendMessage,
+    removeMessages,
     chatPending,
     toolStatusMessage,
     activeThinkingLogs,

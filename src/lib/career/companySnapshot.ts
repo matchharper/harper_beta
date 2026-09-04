@@ -7,6 +7,7 @@ import {
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 import { client } from "@/lib/llm/llm";
+import { OPENAI_WEB_SEARCH_USD_PER_CALL } from "@/lib/llm/pricing";
 import { logLlmTokenUsage } from "@/lib/llm/usageLogging";
 
 /**
@@ -36,8 +37,6 @@ export type CompanySnapshotRow = {
   status: CompanySnapshotStatus;
   updated_at: string;
 };
-
-const OPENAI_WEB_SEARCH_COST_USD_PER_CALL = 0.01;
 
 export function normalizeCompanySnapshotName(value: string) {
   return value
@@ -246,12 +245,12 @@ export async function runCompanySnapshotResearch(args: {
     const webSearchCallCount = countOpenAiWebSearchCalls(response);
     logLlmTokenUsage({
       extraEstimatedCostUsd:
-        webSearchCallCount * OPENAI_WEB_SEARCH_COST_USD_PER_CALL,
+        webSearchCallCount * OPENAI_WEB_SEARCH_USD_PER_CALL,
       label: "career_tool:research_company:company_snapshot_research",
       meta: {
         openaiWebSearchCallCount: webSearchCallCount,
         openaiWebSearchCostUsd:
-          webSearchCallCount * OPENAI_WEB_SEARCH_COST_USD_PER_CALL,
+          webSearchCallCount * OPENAI_WEB_SEARCH_USD_PER_CALL,
       },
       model: modelUsed,
       response,

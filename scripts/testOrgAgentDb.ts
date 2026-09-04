@@ -44,6 +44,8 @@ const COMPANY_CONTEXT_RUN_QUEUE_MIGRATION =
   "20260814180000_company_context_run_queue.sql";
 const COMPANY_CONTEXT_RUN_ACTIVE_QUEUE_ONLY_MIGRATION =
   "20260824163000_company_context_run_active_queue_only.sql";
+const TEST_ONLY_COMPANY_CONTEXT_RUN_GUARD_MIGRATION =
+  "20260831160000_test_only_company_context_run_guard.sql";
 const COMPANY_BEHAVIOR_CONTEXT_CURRENT_MIGRATION =
   "20260814200000_company_behavior_contexts_role_current.sql";
 const DROP_COMPANY_ROLES_REQUEST_MIGRATION =
@@ -63,6 +65,7 @@ const IDS = {
   recurringAutoRole: "00000000-0000-4000-8000-000000000108",
   recurringLegacyPausedRole: "00000000-0000-4000-8000-000000000109",
   recurringDraftRole: "00000000-0000-4000-8000-000000000110",
+  recurringTestOnlyRole: "00000000-0000-4000-8000-000000000111",
   conversation: "00000000-0000-4000-8000-000000000201",
   slackChannel: "00000000-0000-4000-8000-000000000301",
   slackThread: "00000000-0000-4000-8000-000000000302",
@@ -1503,7 +1506,7 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
       ${IDS.talent}::uuid, ${IDS.legacyRole}::uuid
     )
   `;
-  const cancelledBeforeSend = firstRow(
+  const continuedAcrossActiveStage = firstRow(
     await sql`
       select request.workflow_status, queue.status as queue_status,
              queue.sent_at, queue.cancelled_at, queue.last_error
@@ -1515,12 +1518,42 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
     `
   );
   assert(
-    cancelledBeforeSend.workflow_status === "closed" &&
-      cancelledBeforeSend.queue_status === "cancelled" &&
-      cancelledBeforeSend.sent_at === null &&
-      cancelledBeforeSend.cancelled_at !== null &&
-      cancelledBeforeSend.last_error === "stage_changed_before_send",
-    "a pre-provider stage change did not cancel the unsent request"
+    continuedAcrossActiveStage.workflow_status === "queued" &&
+      continuedAcrossActiveStage.queue_status === "queued" &&
+      continuedAcrossActiveStage.sent_at === null &&
+      continuedAcrossActiveStage.cancelled_at === null,
+    "an active company-stage move cancelled the candidate request"
+  );
+
+  await sql`
+    update public.talent_opportunity_tag
+    set tag = '내부:프로세스중단', updated_at = now()
+    where opportunity_id = ${IDS.legacyRole}::uuid
+      and talent_id = ${IDS.talent}::uuid
+  `;
+  await sql`
+    select public.reconcile_company_talent_requests_for_stage_v1(
+      ${IDS.talent}::uuid, ${IDS.legacyRole}::uuid
+    )
+  `;
+  const cancelledAfterProcessEnded = firstRow(
+    await sql`
+      select request.workflow_status, queue.status as queue_status,
+             queue.sent_at, queue.cancelled_at, queue.last_error
+      from public.company_talent_requests request
+      join public.contact_queue queue
+        on queue.company_talent_request_id = request.id
+       and queue.type = 'company_request_candidate_delivery'
+      where request.id = ${String(createdAfterCancellation.id)}::uuid
+    `
+  );
+  assert(
+    cancelledAfterProcessEnded.workflow_status === "closed" &&
+      cancelledAfterProcessEnded.queue_status === "cancelled" &&
+      cancelledAfterProcessEnded.sent_at === null &&
+      cancelledAfterProcessEnded.cancelled_at !== null &&
+      cancelledAfterProcessEnded.last_error === "stage_changed_before_send",
+    "an ended company process did not cancel the unsent request"
   );
 
   await sql`
@@ -1578,7 +1611,7 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
   const answerAfterStageChange = firstRow(
     await sql`
       select request.workflow_status,
-             public.company_talent_request_stage_is_pending_v1(request.id) as may_continue
+             public.company_talent_request_target_is_active_v1(request.id) as may_continue
       from public.company_talent_requests request
       where request.id = ${String(otherRoleRequest.id)}::uuid
     `
@@ -1586,7 +1619,7 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
   assert(
     answerAfterStageChange.workflow_status === "awaiting_talent" &&
       answerAfterStageChange.may_continue === true,
-    "a committed candidate delivery stopped being answerable after a stage change"
+    "a committed candidate delivery stopped being answerable in an active company stage"
   );
 
   const recordedAfterStageChange = firstRow(
@@ -1755,6 +1788,117 @@ async function testCompanyRoleRecurringMatchingMigration(sql: Db) {
   await applyMigration(sql, COMPANY_CONTEXT_RUN_QUEUE_MIGRATION);
   await applyMigration(sql, COMPANY_BEHAVIOR_CONTEXT_CURRENT_MIGRATION);
   await applyMigration(sql, COMPANY_CONTEXT_RUN_ACTIVE_QUEUE_ONLY_MIGRATION);
+
+  await sql`
+    insert into public.company_roles(
+      role_id, company_workspace_id, name, information,
+      source_type, status, is_expired
+    ) values (
+      ${IDS.recurringTestOnlyRole}::uuid,
+      ${IDS.workspaceA}::uuid,
+      'Test-only Context Queue Guard',
+      ${JSON.stringify({
+        testFixture: "company-context-run-guard-db-test",
+        testOnly: true,
+        testTalentIds: [IDS.talent],
+      })}::jsonb,
+      'internal',
+      'active',
+      false
+    )
+  `;
+  await sql`
+    insert into public.company_internal_roles(
+      role_id, request, is_auto, max_pending_talents
+    ) values (
+      ${IDS.recurringTestOnlyRole}::uuid,
+      'Test-only queue guard',
+      true,
+      5
+    )
+  `;
+  assert(
+    value<string>(
+      await sql`
+        select status
+        from public.company_context_runs
+        where role_id = ${IDS.recurringTestOnlyRole}::uuid
+      `,
+      "status"
+    ) === "queued",
+    "the pre-guard fixture did not reproduce the test-only queue leak"
+  );
+
+  await applyMigration(sql, TEST_ONLY_COMPANY_CONTEXT_RUN_GUARD_MIGRATION);
+  const canceledTestOnlyRun = firstRow(
+    await sql`
+      select status, result->>'resultReason' as result_reason
+      from public.company_context_runs
+      where role_id = ${IDS.recurringTestOnlyRole}::uuid
+    `
+  );
+  assert(
+    canceledTestOnlyRun.status === "canceled" &&
+      canceledTestOnlyRun.result_reason === "test_only_role",
+    "the test-only queue guard did not cancel an existing queued run"
+  );
+  const manualTestOnlyRun = value<unknown>(
+    await sql`
+      select public.enqueue_company_context_run_v1(
+        ${IDS.recurringTestOnlyRole}::uuid,
+        'manual',
+        timezone('utc', now())
+      ) as run_id
+    `,
+    "run_id"
+  );
+  assert(
+    manualTestOnlyRun === null,
+    "manual enqueue created a context run for a test-only Role"
+  );
+  await sql`select public.enqueue_due_company_context_runs_v1(timezone('utc', now()))`;
+  assert(
+    Number(
+      value<number>(
+        await sql`
+          select count(*)::integer as count
+          from public.company_context_runs
+          where role_id = ${IDS.recurringTestOnlyRole}::uuid
+            and status in ('queued', 'running')
+        `,
+        "count"
+      )
+    ) === 0,
+    "the periodic enqueue path recreated a test-only context run"
+  );
+  assert(
+    (
+      await sql`
+      select *
+      from public.claim_company_context_run_v1(
+        'db-test',
+        ${IDS.recurringTestOnlyRole}::uuid
+      )
+    `
+    ).length === 0,
+    "the claim path returned a test-only context run"
+  );
+  await expectDbError(
+    "direct test-only company context run insert",
+    () => sql`
+      insert into public.company_context_runs(
+        role_id, status, trigger_reason, available_at, result
+      ) values (
+        ${IDS.recurringTestOnlyRole}::uuid,
+        'queued',
+        'manual',
+        timezone('utc', now()),
+        '{}'::jsonb
+      )
+    `,
+    /test-only internal roles cannot have company context runs/i
+  );
+  logPass("test-only Roles never enter or leave the company context-run queue");
 
   const schema = firstRow(
     await sql`

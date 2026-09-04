@@ -11,7 +11,7 @@ export function OrgPageHeader({
   title,
 }: {
   actions?: ReactNode;
-  description?: string;
+  description?: ReactNode;
   title: ReactNode;
 }) {
   return (

@@ -13,6 +13,7 @@ export type GoogleCalendarCompleteInput = {
   state: string;
   connectedAccountId?: string;
   status: "success" | "failed";
+  timezone: string;
 };
 
 export type GoogleCalendarCompleteResult = {

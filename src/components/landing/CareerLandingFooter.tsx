@@ -8,8 +8,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { openCustomCrispWidget } from "@/lib/feedback/customCrispEvents";
-import { useAuthStore } from "@/store/useAuthStore";
-import { useReferralEntryPointEligibility } from "@/hooks/career/useReferralEntryPointEligibility";
 import { persistLocalePreference } from "@/i18n/useMessage";
 import Face from "../common/Face";
 // import { useCareerT } from "@/i18n/useCareerT";
@@ -183,8 +181,6 @@ export default function CareerLandingFooter({
 }: CareerLandingFooterProps) {
   const resolvedLocale = locale ?? "ko";
   const labels = FOOTER_COPY[resolvedLocale];
-  const user = useAuthStore((state) => state.user);
-  const showReferralEntryPoints = useReferralEntryPointEligibility({ user });
   const openSupportChat = () => {
     openCustomCrispWidget();
   };
@@ -237,14 +233,12 @@ export default function CareerLandingFooter({
                 <Link href="/#voices" className={liStyle}>
                   {labels.successStories}
                 </Link>
-                {showReferralEntryPoints ? (
-                  <Link
-                    href="/career_login?next=%2Fcareer%3Fintent%3Dreferral"
-                    className={liStyle}
-                  >
-                    {labels.referAndEarn}
-                  </Link>
-                ) : null}
+                <Link
+                  href={{ pathname: "/refer", query: { lang: resolvedLocale } }}
+                  className={liStyle}
+                >
+                  {labels.referAndEarn}
+                </Link>
               </div>
             </div>
 
@@ -296,17 +290,15 @@ export default function CareerLandingFooter({
                 {/* <Link href="/privacy" className={liStyle}>
                   {labels.privacy}
                 </Link> */}
-                {showReferralEntryPoints ? (
-                  <Link
-                    href={{
-                      pathname: "/referral-terms",
-                      query: { lang: resolvedLocale },
-                    }}
-                    className={liStyle}
-                  >
-                    {labels.referralTerms}
-                  </Link>
-                ) : null}
+                <Link
+                  href={{
+                    pathname: "/referral-terms",
+                    query: { lang: resolvedLocale },
+                  }}
+                  className={liStyle}
+                >
+                  {labels.referralTerms}
+                </Link>
               </div>
             </div>
           </div>

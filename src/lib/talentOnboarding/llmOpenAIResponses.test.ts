@@ -4,6 +4,12 @@ import { buildOpenAIResponsesRequest } from "@/lib/llm/responsesChatAdapter";
 
 process.env.OPENAI_API_KEY ||= "test-openai-key";
 
+function asyncStream(items: unknown[]) {
+  return (async function* () {
+    for (const item of items) yield item;
+  })();
+}
+
 test("builds Luna Responses requests with high reasoning and JSON mode", () => {
   const requestBody = buildOpenAIResponsesRequest({
     model: "gpt-5.6-luna",
@@ -24,11 +30,10 @@ test("builds Luna Responses requests with high reasoning and JSON mode", () => {
 });
 
 test("runs career insight extraction and conversation summaries through Luna high", async () => {
-  const [{ client }, { runCareerConversationSummary, runCareerInsightExtraction }] =
-    await Promise.all([
-      import("@/lib/llm/llm"),
-      import("@/lib/career/llm"),
-    ]);
+  const [
+    { client },
+    { runCareerConversationSummary, runCareerInsightExtraction },
+  ] = await Promise.all([import("@/lib/llm/llm"), import("@/lib/career/llm")]);
   const responsesPrototype = Object.getPrototypeOf(client.responses) as any;
   const originalCreate = responsesPrototype.create;
   const requests: Record<string, any>[] = [];
@@ -220,4 +225,123 @@ test("runs the talent tool loop through Luna Responses with high reasoning", asy
   } finally {
     responsesPrototype.create = originalCreate;
   }
+});
+
+test("streams Luna text while preserving Responses tool and reasoning output", async () => {
+  const [{ client }, { runTalentAssistantToolLoop }] = await Promise.all([
+    import("@/lib/llm/llm"),
+    import("@/lib/talentOnboarding/llm"),
+  ]);
+  const responsesPrototype = Object.getPrototypeOf(client.responses) as any;
+  const originalCreate = responsesPrototype.create;
+  const requests: Record<string, any>[] = [];
+  responsesPrototype.create = async (body: Record<string, any>) => {
+    requests.push(body);
+    if (requests.length === 1) {
+      return asyncStream([
+        {
+          delta: '{"kind":',
+          item_id: "function-item",
+          output_index: 1,
+          type: "response.function_call_arguments.delta",
+        },
+        {
+          delta: '"instant"}',
+          item_id: "function-item",
+          output_index: 1,
+          type: "response.function_call_arguments.delta",
+        },
+        {
+          response: {
+            id: "resp-tool-call",
+            model: "gpt-5.6-luna",
+            output: [
+              {
+                encrypted_content: "opaque",
+                id: "reasoning-1",
+                type: "reasoning",
+              },
+              {
+                arguments: '{"kind":"instant"}',
+                call_id: "call-recommend",
+                id: "function-item",
+                name: "recommend_job_postings",
+                type: "function_call",
+              },
+            ],
+            status: "completed",
+            usage: { input_tokens: 100, output_tokens: 20, total_tokens: 120 },
+          },
+          type: "response.completed",
+        },
+      ]);
+    }
+    return asyncStream([
+      { delta: "새 기회를 ", type: "response.output_text.delta" },
+      { delta: "찾았어요.", type: "response.output_text.delta" },
+      {
+        response: {
+          id: "resp-final",
+          model: "gpt-5.6-luna",
+          output: [
+            {
+              content: [{ text: "새 기회를 찾았어요.", type: "output_text" }],
+              role: "assistant",
+              type: "message",
+            },
+          ],
+          status: "completed",
+          usage: { input_tokens: 120, output_tokens: 10, total_tokens: 130 },
+        },
+        type: "response.completed",
+      },
+    ]);
+  };
+  const textDeltas: string[] = [];
+
+  try {
+    const result = await runTalentAssistantToolLoop({
+      executeTool: async () => ({ recommendationCount: 5 }),
+      messages: [{ content: "Find roles.", role: "user" }],
+      modelConfig: {
+        primaryModel: "gpt-5.6-luna",
+      },
+      onTextDelta: (delta) => {
+        textDeltas.push(delta);
+      },
+      openAIResponsesReasoningEffort: "xhigh",
+      tools: [
+        {
+          function: {
+            description: "Find fresh recommendations.",
+            name: "recommend_job_postings",
+            parameters: { type: "object" },
+          },
+          type: "function",
+        },
+      ],
+    });
+
+    assert.equal(result, "새 기회를 찾았어요.");
+  } finally {
+    responsesPrototype.create = originalCreate;
+  }
+
+  assert.deepEqual(textDeltas, ["새 기회를 ", "찾았어요."]);
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0].stream, true);
+  assert.deepEqual(requests[0].reasoning, { effort: "xhigh" });
+  assert.ok(
+    requests[1].input.some(
+      (item: Record<string, unknown>) =>
+        item.type === "reasoning" && item.encrypted_content === "opaque"
+    )
+  );
+  assert.ok(
+    requests[1].input.some(
+      (item: Record<string, unknown>) =>
+        item.type === "function_call_output" &&
+        item.call_id === "call-recommend"
+    )
+  );
 });

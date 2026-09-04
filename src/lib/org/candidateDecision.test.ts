@@ -4,7 +4,9 @@ import {
   canInitiateOrgCandidateContact,
   canStopOrgCandidateProcess,
   isOrgInternalStage,
+  currentOrgActiveCompanyPosition,
   requiresOrgIntroEmailRecipient,
+  shouldSendOrgIntroEmail,
   shouldOpenOrgAcceptIntroDialog,
   shouldOpenOrgStopCandidateDialog,
 } from "./candidateDecision";
@@ -28,6 +30,66 @@ test("marks accepted and archived as Harper-internal stages", () => {
   assert.equal(isOrgInternalStage("archived"), true);
   assert.equal(isOrgInternalStage("pending_connection"), false);
   assert.equal(isOrgInternalStage("connected"), false);
+});
+
+test("allows candidate contact throughout an active company process", () => {
+  assert.equal(canInitiateOrgCandidateContact("pending_connection"), true);
+  assert.equal(canInitiateOrgCandidateContact("connected"), true);
+  assert.equal(canInitiateOrgCandidateContact("custom:first-interview"), true);
+  assert.equal(canInitiateOrgCandidateContact("final_offer"), true);
+  assert.equal(canInitiateOrgCandidateContact("process_stopped"), false);
+  assert.equal(canInitiateOrgCandidateContact("accepted"), false);
+  assert.equal(canInitiateOrgCandidateContact("archived"), false);
+});
+
+test("selects the current active company position in one Role", () => {
+  const position = currentOrgActiveCompanyPosition(
+    [
+      {
+        recommendationId: "recommendation-old",
+        roleId: "role-1",
+        stage: "pending_connection" as const,
+        updatedAt: "2026-08-01T00:00:00.000Z",
+      },
+      {
+        recommendationId: "recommendation-other-role",
+        roleId: "role-2",
+        stage: "custom:first-interview" as const,
+        updatedAt: "2026-08-04T00:00:00.000Z",
+      },
+      {
+        recommendationId: "recommendation-current",
+        roleId: "role-1",
+        stage: "custom:second-interview" as const,
+        updatedAt: "2026-08-02T00:00:00.000Z",
+      },
+    ],
+    "role-1"
+  );
+
+  assert.equal(position?.recommendationId, "recommendation-current");
+});
+
+test("does not fall back to an older position after the process ends", () => {
+  const position = currentOrgActiveCompanyPosition(
+    [
+      {
+        recommendationId: "recommendation-old",
+        roleId: "role-1",
+        stage: "connected" as const,
+        updatedAt: "2026-08-01T00:00:00.000Z",
+      },
+      {
+        recommendationId: "recommendation-stopped",
+        roleId: "role-1",
+        stage: "process_stopped" as const,
+        updatedAt: "2026-08-03T00:00:00.000Z",
+      },
+    ],
+    "role-1"
+  );
+
+  assert.equal(position, null);
 });
 
 test("requests an intro for an active stage after pending connection", () => {
@@ -69,6 +131,55 @@ test("requires at least one company recipient only for an emailed connection", (
   assert.equal(
     requiresOrgIntroEmailRecipient("process_stopped", "connected", false),
     true
+  );
+});
+
+test("sends an intro only when a connection starts or resumes", () => {
+  const shouldSend = (
+    currentStage: Parameters<typeof shouldSendOrgIntroEmail>[0]["currentStage"],
+    nextStage: Parameters<typeof shouldSendOrgIntroEmail>[0]["nextStage"],
+    overrides: Partial<Parameters<typeof shouldSendOrgIntroEmail>[0]> = {}
+  ) =>
+    shouldSendOrgIntroEmail({
+      contactDirectly: false,
+      currentStage,
+      nextStage,
+      recipientCount: 1,
+      scheduleInterview: false,
+      skipAutomaticContact: false,
+      ...overrides,
+    });
+
+  assert.equal(shouldSend("pending_connection", "custom:first-interview"), true);
+  assert.equal(shouldSend("process_stopped", "connected"), true);
+  assert.equal(
+    shouldSend("custom:first-interview", "custom:second-interview"),
+    false
+  );
+  assert.equal(shouldSend("connected", "final_offer"), false);
+  assert.equal(
+    shouldSend("pending_connection", "custom:first-interview", {
+      scheduleInterview: true,
+    }),
+    false
+  );
+  assert.equal(
+    shouldSend("pending_connection", "custom:first-interview", {
+      skipAutomaticContact: true,
+    }),
+    false
+  );
+  assert.equal(
+    shouldSend("pending_connection", "custom:first-interview", {
+      contactDirectly: true,
+    }),
+    false
+  );
+  assert.equal(
+    shouldSend("pending_connection", "custom:first-interview", {
+      recipientCount: 0,
+    }),
+    false
   );
 });
 

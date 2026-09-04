@@ -704,7 +704,18 @@ export function useCareerHistoryState(args: {
             for (const candidate of page.items) {
               if (matchesItem(candidate)) {
                 if (!inserted) {
-                  nextItems.push(item);
+                  nextItems.push(
+                    !item.activityTimelineLoaded &&
+                      candidate.activityTimelineLoaded
+                      ? {
+                          ...item,
+                          activityTimelineLoaded: true,
+                          confirmedMeetings: candidate.confirmedMeetings,
+                          talentRoleActivities:
+                            candidate.talentRoleActivities,
+                        }
+                      : item
+                  );
                   inserted = true;
                 }
                 continue;
@@ -1113,6 +1124,19 @@ export function useCareerHistoryState(args: {
         ...previousItem,
         feedback: "positive",
         savedStage,
+        talentRoleActivities: previousItem.activityTimelineLoaded
+          ? [
+              {
+                content: null,
+                createdAt: new Date().toISOString(),
+                id: `optimistic-stage-${normalizedOpportunityId}-${Date.now()}`,
+                kind: "saved_stage_changed",
+                previousStage: previousItem.savedStage,
+                savedStage,
+              },
+              ...(previousItem.talentRoleActivities ?? []),
+            ]
+          : previousItem.talentRoleActivities,
       };
       const previousCounts = historyOpportunityCounts;
 
@@ -1167,10 +1191,23 @@ export function useCareerHistoryState(args: {
       const previousItem = historyOpportunityById.get(normalizedOpportunityId);
       if (!previousItem) return;
 
-      const nextMemo = String(talentMemo ?? "").trim() || null;
+      const nextMemo = String(talentMemo ?? "").trim();
+      if (!nextMemo) return;
+      const optimisticActivity = {
+        content: nextMemo,
+        createdAt: new Date().toISOString(),
+        id: `optimistic-memo-${normalizedOpportunityId}-${Date.now()}`,
+        kind: "memo",
+        previousStage: null,
+        savedStage: null,
+      };
       const nextItem: CareerHistoryOpportunity = {
         ...previousItem,
         talentMemo: nextMemo,
+        talentRoleActivities: [
+          optimisticActivity,
+          ...(previousItem.talentRoleActivities ?? []),
+        ],
       };
 
       beginHistoryUpdate(normalizedOpportunityId);
@@ -1195,6 +1232,7 @@ export function useCareerHistoryState(args: {
         setHistoryUpdateError(
           error instanceof Error ? error.message : tCareer(H.memoSaveFailed)
         );
+        throw error;
       } finally {
         endHistoryUpdate(normalizedOpportunityId);
       }

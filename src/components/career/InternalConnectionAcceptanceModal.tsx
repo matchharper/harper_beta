@@ -55,12 +55,12 @@ export default function InternalConnectionAcceptanceModal({
   const t = useCareerT();
   const formId = useId();
   const feedbackReasonRef = useRef<HTMLTextAreaElement>(null);
-  const [acknowledged, setAcknowledged] = useState(false);
+  const [acknowledged, setAcknowledged] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [openMoreWarning, setOpenMoreWarning] = useState(false);
 
   const closeModal = () => {
-    setAcknowledged(false);
+    setAcknowledged(true);
     onClose();
   };
 
@@ -300,12 +300,6 @@ export default function InternalConnectionAcceptanceModal({
             {t(
               "career.common.internal_connection_acceptance_modal.pre_share_confirmation",
               "회사에 전달되기 직전, 확인 메일을 한 번 더 드립니다. 그 전까지는 언제든 취소할 수 있어요."
-            )}
-          </div>
-          <div>
-            {t(
-              "career.common.internal_connection_acceptance_modal.0emad1t",
-              "전달 이후에는 회사 측에서 다음 일정에 대한 안내를 받게 됩니다."
             )}
           </div>
           <p className="mt-5 text-neutral-muted">

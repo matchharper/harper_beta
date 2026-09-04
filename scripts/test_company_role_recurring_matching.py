@@ -31,11 +31,13 @@ from company_role_recurring_matching import (
     command_finish,
     command_start,
     command_skip,
+    command_upsert_fits,
     command_validate_fits,
     candidate_input_fingerprint,
     candidate_rows,
     clear_private_run_artifacts,
     context_source_packet,
+    format_same_company_role_history,
     ordered_candidate_ids,
     next_lane_candidates,
     normalize_context_text,
@@ -81,6 +83,67 @@ class RetrievalSqlTests(unittest.TestCase):
     def test_forbidden_words_inside_literals_and_comments_are_not_commands(self) -> None:
         sql = "-- update history\nselect 'call center' as domain"
         self.assertEqual(validate_read_only_sql(sql), sql)
+
+    def test_same_company_history_contains_only_actual_recommendations(self) -> None:
+        history = format_same_company_role_history(
+            [
+                {
+                    "role_name": "Recommended role now on hold",
+                    "effective_label": "hold",
+                    "recommendation_id": "rec-1",
+                    "recommended_at": "2026-08-01T00:00:00Z",
+                },
+                {
+                    "role_name": "Evaluated but never recommended",
+                    "effective_label": "fit",
+                    "recommend": False,
+                    "fit_reason": "Strong adjacent fit.",
+                },
+            ],
+            max_chars=300,
+        )
+
+        self.assertIn("Recommended role now on hold", history)
+        self.assertNotIn("additional historical role", history)
+        self.assertNotIn("Evaluated but never recommended", history)
+        self.assertNotIn("stored hold", history)
+        self.assertNotIn("stored judgment", history)
+        self.assertEqual(
+            format_same_company_role_history(
+                [
+                    {
+                        "role_name": "Private role",
+                        "effective_label": "hold",
+                    }
+                ]
+            ),
+            "",
+        )
+
+    def test_same_company_history_uses_authoritative_archive_stage(self) -> None:
+        history = format_same_company_role_history(
+            [
+                {
+                    "role_name": "FDE",
+                    "recommendation_id": "rec-1",
+                    "recommended_at": "2026-08-01T00:00:00Z",
+                    "saved_stage": "connected",
+                    "processed_stage": "pending",
+                    "stage_tag": "내부:아카이브",
+                }
+            ]
+        )
+
+        self.assertIn("company-side rejection/closure", history)
+        self.assertNotIn("process stage: pending", history)
+
+    def test_new_recommendation_supersedes_only_undelivered_sibling_selection(self) -> None:
+        source = inspect.getsource(command_upsert_fits)
+
+        self.assertIn("set recommend = false", source)
+        self.assertIn("sibling_fit.opportunity_id <> %s::uuid", source)
+        self.assertIn("talent_opportunity_recommendation delivered", source)
+        self.assertIn("item[\"recommend\"] is True", source)
 
     def test_semantic_retrieval_allows_dynamic_role_aware_sql(self) -> None:
         allowed = """
@@ -548,7 +611,7 @@ class EvaluationContractTests(unittest.TestCase):
         self.assertEqual(args.limit, 100)
         self.assertEqual(args.scan_limit, 150)
 
-    def test_run_sql_requires_an_explicit_lane(self) -> None:
+    def test_reevaluation_lane_does_not_require_a_manual_override(self) -> None:
         args = build_parser().parse_args(
             [
                 "run-sql",
@@ -563,6 +626,7 @@ class EvaluationContractTests(unittest.TestCase):
             ]
         )
         self.assertEqual(args.lane, "reevaluation")
+        self.assertFalse(hasattr(args, "allow_manual_reevaluation"))
 
     def test_exact_role_prior_interest_is_not_required_for_fit(self) -> None:
         self.assertIn(
@@ -692,6 +756,7 @@ class EvaluationContractTests(unittest.TestCase):
                                 "talentId": TALENT_ID,
                                 "score": 20,
                                 "label": "unfit",
+                                "recommend": False,
                                 "reason": "The function conflicts with the role.",
                             }
                         ]
@@ -717,18 +782,35 @@ class EvaluationContractTests(unittest.TestCase):
                 "talentId": TALENT_ID,
                 "score": 72,
                 "label": "hold",
+                "recommend": False,
                 "reason": "The role is strong, but relocation is decision-critical.",
                 "reevaluationCriteria": {
-                    "topic": "location_or_relocation",
-                    "question": "Confirm whether the talent is open to relocating to Singapore.",
+                    "topic": "location",
+                    "question": "싱가포르 이주 또는 현지 근무를 고려하고 계신가요?",
                 },
             },
             [],
         )
         self.assertEqual(hold["label"], "hold")
         self.assertEqual(
-            hold["reevaluationCriteria"]["topic"], "location_or_relocation"
+            hold["reevaluationCriteria"]["topic"], "location"
         )
+
+        with self.assertRaises(ValueError):
+            validate_evaluation(
+                {
+                    "talentId": TALENT_ID,
+                    "score": 72,
+                    "label": "hold",
+                    "recommend": False,
+                    "reason": "The role is strong, but relocation is decision-critical.",
+                    "reevaluationCriteria": {
+                        "topic": "location",
+                        "summary": "Confirm whether the talent is open to relocating to Singapore.",
+                    },
+                },
+                [],
+            )
 
         with self.assertRaises(ValueError):
             validate_evaluation(
@@ -736,6 +818,7 @@ class EvaluationContractTests(unittest.TestCase):
                     "talentId": TALENT_ID,
                     "score": 82,
                     "label": "ambiguous",
+                    "recommend": False,
                     "reason": "Plausible but not sufficiently supported.",
                 },
                 [],
@@ -746,6 +829,7 @@ class EvaluationContractTests(unittest.TestCase):
             "talentId": TALENT_ID,
             "score": 68,
             "label": "ambiguous",
+            "recommend": False,
             "reason": "The absolute fit remains uncertain but has no hard blocker.",
             "explorationRecommendable": True,
         }
@@ -763,6 +847,7 @@ class EvaluationContractTests(unittest.TestCase):
                     "talentId": TALENT_ID,
                     "score": 70,
                     "label": "hold",
+                    "recommend": False,
                     "reason": "The company may not like this profile.",
                     "reevaluationCriteria": {
                         "topic": "company_bar",
@@ -779,6 +864,7 @@ class EvaluationContractTests(unittest.TestCase):
                 "talentId": TALENT_ID,
                 "score": 88,
                 "label": "fit",
+                "recommend": True,
                 "reason": "Strong evidence on both company suitability and candidate interest.",
                 "companyCriteriaEvaluations": [
                     {
@@ -797,6 +883,7 @@ class EvaluationContractTests(unittest.TestCase):
                     "talentId": TALENT_ID,
                     "score": 70,
                     "label": "ambiguous",
+                    "recommend": False,
                     "reason": "Plausible but incomplete.",
                     "companyCriteriaEvaluations": [
                         {

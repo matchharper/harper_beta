@@ -249,6 +249,8 @@ const DEBUG_RECOMMEND_JOB_POSTINGS =
   process.env.DEBUG_RECOMMEND_JOB_POSTINGS === "1";
 const RECOMMEND_JOB_POSTINGS_SQL_FAILURE_LOG_TYPE =
   "career_tool_sql_failed:recommend_job_postings";
+const ROLE_SQL_TIMEOUT_RETRY_INSTRUCTION =
+  "위 쿼리의 범위가 너무 넓어서 timeout이 발생했다. 어느정도 더 좁혀서 작성해라.";
 
 const PLAN_SYSTEM_PROMPT = `You are Harper's external job-posting search planner.
 Return JSON only.
@@ -449,6 +451,23 @@ function cleanText(value: unknown, maxLength = 4000) {
 function normalizeMultiline(value: unknown, maxLength = 4000) {
   const text = typeof value === "string" ? value.replace(/\r/g, "").trim() : "";
   return text ? text.slice(0, maxLength) : "";
+}
+
+export function appendRoleSqlTimeoutRetryContext(
+  prompt: string,
+  previousTimedOutSql?: string
+) {
+  const sql = String(previousTimedOutSql ?? "").trim();
+  if (!sql) return prompt;
+
+  return [
+    prompt,
+    "",
+    "[이전 SQL]",
+    sql,
+    "",
+    ROLE_SQL_TIMEOUT_RETRY_INSTRUCTION,
+  ].join("\n");
 }
 
 function debugLog(label: string, payload: Record<string, unknown>) {
@@ -2103,10 +2122,25 @@ function normalizeExternalSearchPlan(
 async function buildSearchPlan(args: {
   llmUserProfile: JsonRecord;
   outputLanguage: string;
+  previousTimedOutSql?: string;
   previousDeliveryTexts: string[];
   recentDeliveryMeta: string[];
   request: string;
+  usageLabel?: string;
 }) {
+  const userPrompt = appendRoleSqlTimeoutRetryContext(
+    JSON.stringify({
+      config: {
+        externalSearchLimit: MAX_SEARCH_RESULTS,
+        sourceType: "external_only",
+      },
+      previousDeliveryTexts: args.previousDeliveryTexts,
+      recentDeliveryMeta: args.recentDeliveryMeta,
+      request: args.request,
+      user_profile: args.llmUserProfile,
+    }),
+    args.previousTimedOutSql
+  );
   const raw = await runTalentAssistantCompletion({
     anthropicOverloadFallbackModel:
       RECOMMEND_JOB_POSTINGS_ANTHROPIC_OVERLOAD_FALLBACK_MODEL,
@@ -2120,21 +2154,13 @@ async function buildSearchPlan(args: {
       },
       {
         role: "user",
-        content: JSON.stringify({
-          config: {
-            externalSearchLimit: MAX_SEARCH_RESULTS,
-            sourceType: "external_only",
-          },
-          previousDeliveryTexts: args.previousDeliveryTexts,
-          recentDeliveryMeta: args.recentDeliveryMeta,
-          request: args.request,
-          user_profile: args.llmUserProfile,
-        }),
+        content: userPrompt,
       },
     ],
     primaryModel: RECOMMEND_JOB_POSTINGS_PLAN_MODEL,
     temperature: CAREER_LLM_CONFIG.recommendJobPostings.planTemperature,
-    usageLabel: "career_tool:recommend_job_postings:plan",
+    usageLabel:
+      args.usageLabel ?? "career_tool:recommend_job_postings:plan",
   });
 
   return normalizeExternalSearchPlan(
@@ -2146,6 +2172,7 @@ async function buildSearchPlan(args: {
 
 async function buildFullJdSearchPlan(args: {
   outputLanguage: string;
+  previousTimedOutSql?: string;
   previousDeliveryTexts: string[];
   recentDeliveryMeta: string[];
   request: string;
@@ -2162,16 +2189,19 @@ async function buildFullJdSearchPlan(args: {
         `delivery meta ${index + 1}: ${normalizeMultiline(item, 500)}`
     ),
   ].filter(Boolean);
-  const userPrompt = [
-    "[USER AND CURRENT REQUEST CONTEXT]",
-    args.searchContextText,
-    deliveryLines.length > 0
-      ? `\n[RECENT DELIVERY CONTEXT]\n${deliveryLines.join("\n")}`
-      : "",
-    "\nReturn only the search-plan JSON object from the schema in the system prompt.",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const userPrompt = appendRoleSqlTimeoutRetryContext(
+    [
+      "[USER AND CURRENT REQUEST CONTEXT]",
+      args.searchContextText,
+      deliveryLines.length > 0
+        ? `\n[RECENT DELIVERY CONTEXT]\n${deliveryLines.join("\n")}`
+        : "",
+      "\nReturn only the search-plan JSON object from the schema in the system prompt.",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    args.previousTimedOutSql
+  );
   try {
     const raw = await runTalentAssistantCompletion({
       anthropicOverloadFallbackModel:
@@ -2488,6 +2518,7 @@ export function buildRoleSearchSql(args: {
     "(cr.expires_at IS NULL OR cr.expires_at > now())",
     "cr.status NOT IN ('expired', 'closed', 'inactive', 'archived')",
     "cr.source_type = 'external'",
+    "cw.external_roles_enabled = true",
     previouslyRecommendedRoleExclusionSql(args.userId, args.asOf),
     ...buildBlockedCompanySql(args.blockedCompanies),
     ...buildEmploymentTypeSql(args.plan),
@@ -2739,6 +2770,18 @@ function hasRoleData(row: RawRoleRow | null): row is RawRoleRow {
   );
 }
 
+class RoleSqlExecutionError extends Error {
+  readonly sql: string;
+  readonly timedOut: boolean;
+
+  constructor(args: { message: string; sql: string }) {
+    super(args.message);
+    this.name = "RoleSqlExecutionError";
+    this.sql = args.sql;
+    this.timedOut = /statement timeout/i.test(args.message);
+  }
+}
+
 async function executeRoleSql(args: {
   admin: AdminClient;
   asOf?: string | null;
@@ -2763,19 +2806,19 @@ async function executeRoleSql(args: {
   }>);
 
   if (error) {
+    const errorMessage = error.message ?? "Failed to search company roles";
     await persistRoleSqlFailure({
       admin: args.admin,
       durationMs: Date.now() - startedAt,
-      errorMessage: error.message,
+      errorMessage,
       searchMode: args.searchMode,
       sql,
       userId: args.userId,
     });
-    throw new Error(
-      `[${args.searchMode} role sql] ${
-        error.message ?? "Failed to search company roles"
-      }`
-    );
+    throw new RoleSqlExecutionError({
+      message: `[${args.searchMode} role sql] ${errorMessage}`,
+      sql,
+    });
   }
   const rawRows = flattenRpcRows(data);
   const rows = rawRows.map(normalizeRoleRow).filter(hasRoleData);
@@ -5106,23 +5149,31 @@ export async function runCareerJobPostingRecommendations(args: {
   const blockedCompanies = normalizeTalentBlockedCompanies(
     (asRecord(setting)?.blocked_companies as unknown) ?? []
   );
-  const plan =
+  const createSearchPlan = (previousTimedOutSql?: string) =>
     recommendationStrategy === "full_jd"
-      ? await buildFullJdSearchPlan({
+      ? buildFullJdSearchPlan({
           outputLanguage,
           previousDeliveryTexts: deliveryContext.previousDeliveryTexts,
+          previousTimedOutSql,
           recentDeliveryMeta: deliveryContext.recentDeliveryMeta,
           request,
           searchContextText: fullJdSearchContextText,
-          usageLabel: fullJdPlanUsageLabel,
+          usageLabel: previousTimedOutSql
+            ? `${fullJdPlanUsageLabel}.timeout_retry`
+            : fullJdPlanUsageLabel,
         })
-      : await buildSearchPlan({
+      : buildSearchPlan({
           llmUserProfile,
           outputLanguage,
           previousDeliveryTexts: deliveryContext.previousDeliveryTexts,
+          previousTimedOutSql,
           recentDeliveryMeta: deliveryContext.recentDeliveryMeta,
           request,
+          usageLabel: previousTimedOutSql
+            ? "career_tool:recommend_job_postings:plan.timeout_retry"
+            : undefined,
         });
+  let plan = await createSearchPlan();
   throwIfRecommendationSearchAborted(args.abortSignal);
   infoJson("external search plan", {
     ftsKeywords: plan.ftsKeywords,
@@ -5140,14 +5191,54 @@ export async function runCareerJobPostingRecommendations(args: {
     targetRecommendationCount,
   });
 
-  const strictSearch = await executeRoleSql({
-    admin: args.admin,
-    asOf: evaluationAsOf,
-    blockedCompanies,
-    plan,
-    searchMode: "strict",
-    userId: args.userId,
-  });
+  let strictSearch: Awaited<ReturnType<typeof executeRoleSql>>;
+  try {
+    strictSearch = await executeRoleSql({
+      admin: args.admin,
+      asOf: evaluationAsOf,
+      blockedCompanies,
+      plan,
+      searchMode: "strict",
+      userId: args.userId,
+    });
+  } catch (error) {
+    if (!(error instanceof RoleSqlExecutionError) || !error.timedOut) {
+      throw error;
+    }
+
+    throwIfRecommendationSearchAborted(args.abortSignal);
+    infoJson("role sql timed out; rebuilding search plan once", {
+      previousSqlSha256: createHash("sha256")
+        .update(error.sql)
+        .digest("hex"),
+      recommendationStrategy,
+    });
+    plan = await createSearchPlan(error.sql);
+    throwIfRecommendationSearchAborted(args.abortSignal);
+    infoJson("external search plan after sql timeout", {
+      ftsKeywords: plan.ftsKeywords,
+      include_contract: plan.includeContract,
+      include_intern: plan.includeIntern,
+      include_parttime: plan.includeParttime,
+      includeRemote: plan.includeRemote,
+      is_prefer_entry: plan.isPreferEntry,
+      locations: plan.locations,
+      postingRecency: plan.postingRecency,
+      remoteOnly: plan.remoteOnly,
+      role_titles: plan.roleTitles,
+      searchIntentSummary: plan.searchIntentSummary,
+      recommendationStrategy,
+      targetRecommendationCount,
+    });
+    strictSearch = await executeRoleSql({
+      admin: args.admin,
+      asOf: evaluationAsOf,
+      blockedCompanies,
+      plan,
+      searchMode: "strict",
+      userId: args.userId,
+    });
+  }
   throwIfRecommendationSearchAborted(args.abortSignal);
   let rows = strictSearch.rows;
   rows = filterPreviouslyRecommendedExternalRows(

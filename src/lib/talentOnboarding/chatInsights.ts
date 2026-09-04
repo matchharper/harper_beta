@@ -190,7 +190,6 @@ function normalizeAdditionalQuestionChecklistAlias(
     return getFirstMissingAdditionalQuestionKey(options);
   }
   if (key === "additional_question_1") return "additional_question_one";
-  if (key === "additional_question_2") return "additional_question_two";
   return null;
 }
 

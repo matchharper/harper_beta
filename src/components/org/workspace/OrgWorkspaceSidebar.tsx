@@ -644,6 +644,11 @@ export function OrgWorkspaceSidebar({
     typeof router.query.roleId === "string" ? router.query.roleId.trim() : "";
   const navHref = (page: OrgWorkspacePageId) =>
     buildOrgHref({ orgId: workspace.workspaceId, page });
+  const calendarSettingsHref = buildOrgHref({
+    orgId: workspace.workspaceId,
+    page: "settings",
+    tab: "calendar",
+  });
   const organizationMode =
     activePage === "team" ||
     activePage === "member" ||
@@ -890,6 +895,18 @@ export function OrgWorkspaceSidebar({
                 <BookOpenText />
                 Documents
               </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => void router.push(calendarSettingsHref)}
+              >
+                <Image
+                  alt=""
+                  aria-hidden="true"
+                  height={16}
+                  src="/images/logos/calendar.png"
+                  width={16}
+                />
+                일정 저장
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 disabled={signOutPending}
@@ -1103,6 +1120,18 @@ export function OrgWorkspaceSidebar({
                   >
                     <BookOpenText />
                     Documents
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => void router.push(calendarSettingsHref)}
+                  >
+                    <Image
+                      alt=""
+                      aria-hidden="true"
+                      height={16}
+                      src="/images/logos/calendar.png"
+                      width={16}
+                    />
+                    일정 저장
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem

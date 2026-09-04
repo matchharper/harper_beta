@@ -1311,17 +1311,29 @@ function companyConversationsUrl(companyWorkspaceId: string) {
   )}&tab=conversations`;
 }
 
+function formatTodayIncrease(count: number) {
+  return count > 0 ? ` (+ 오늘 ${count}명)` : "";
+}
+
 function formatAcceptedLink(company: DailyCompanyStatsRow) {
-  return `<${companyJobsUrl(company.companyWorkspaceId)}|수락 ${company.acceptedCount}>`;
+  return `<${companyJobsUrl(company.companyWorkspaceId)}|수락 ${
+    company.acceptedCount
+  }>${formatTodayIncrease(company.acceptedTodayCount)}`;
 }
 
 function formatCompanyLine(company: DailyCompanyStatsRow) {
   const prefix = `• ${escapeSlackText(company.companyName)} — `;
   const details = [
     formatAcceptedLink(company),
-    `연결 대기 ${company.pendingConnectionCount}`,
-    `진행 중 ${company.connectedCount}`,
-    `거절 ${company.rejectedCount}`,
+    `연결 대기 ${company.pendingConnectionCount}${formatTodayIncrease(
+      company.pendingConnectionTodayCount
+    )}`,
+    `진행 중 ${company.connectedCount}${formatTodayIncrease(
+      company.connectedTodayCount
+    )}`,
+    `거절 ${company.rejectedCount}${formatTodayIncrease(
+      company.rejectedTodayCount
+    )}`,
   ];
   return `${prefix}${details.join(" · ")}`;
 }

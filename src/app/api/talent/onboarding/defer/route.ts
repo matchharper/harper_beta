@@ -22,7 +22,9 @@ import {
   fetchTalentInsights,
   fetchTalentSetting,
   fetchTalentUserProfile,
+  getCareerOnboardingChecklistProgress,
   getTalentSupabaseAdmin,
+  normalizeTalentInsightContent,
 } from "@/lib/talentOnboarding/server";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 
@@ -335,6 +337,20 @@ export async function POST(req: NextRequest) {
       admin,
       userId: user.id,
     });
+    const normalizedLatestInsights = normalizeTalentInsightContent(
+      latestInsights?.content ?? null
+    );
+    const onboardingChecklistProgress = !Boolean(
+      talentSetting?.is_onboarding_done
+    )
+      ? await getCareerOnboardingChecklistProgress({
+          admin,
+          context: profile,
+          conversationId,
+          currentInsightContent: normalizedLatestInsights,
+          userId: user.id,
+        })
+      : null;
 
     return NextResponse.json({
       ok: true,
@@ -343,7 +359,8 @@ export async function POST(req: NextRequest) {
         stage: "chat",
       },
       insightUpdatedAt: latestInsights?.last_updated_at ?? null,
-      talentInsights: latestInsights?.content ?? null,
+      onboardingChecklistProgress,
+      talentInsights: normalizedLatestInsights,
       userMessage: toResponseMessage(userMessage),
       assistantMessage: toResponseMessage(assistantMessage),
     });

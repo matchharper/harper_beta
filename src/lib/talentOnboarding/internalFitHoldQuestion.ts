@@ -8,7 +8,7 @@ import type { TalentAdminClient } from "./admin";
 import {
   groupInternalFitHoldQuestionCandidates,
   hasExplicitInternalFitReevaluationTopic,
-  normalizeInternalFitReevaluationTopic,
+  normalizeInternalFitQuestionText,
   type InternalFitReevaluationTopic,
 } from "./internalFitQuestionTopics";
 
@@ -24,13 +24,15 @@ const NEW_INFORMATION_MAX_CHARS = 700;
 const PROPAGATION_MODEL = GPT_56_LUNA_MODEL;
 const PROPAGATION_TEMPERATURE = 0.3;
 const PROPAGATION_METHOD = "llm_criteria_match_v1";
+const INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND =
+  "candidate_requested_connection";
 
 type InternalFitHoldQuestionCandidate = {
   criteria: unknown;
   fitId: string;
+  priorityReviewRequested: boolean;
   roleId: string;
   summary: string;
-  topic: InternalFitReevaluationTopic;
 };
 
 function cleanText(value: unknown, maxChars: number) {
@@ -55,14 +57,8 @@ function hasSavedNewInformation(criteria: unknown) {
 
 function extractHoldQuestionSummary(criteria: unknown) {
   const record = asRecord(criteria);
-  if (record) {
-    for (const key of ["summary", "question", "wouldChangeIf", "reason"]) {
-      const text = cleanText(record[key], 1000);
-      if (text) return text;
-    }
-  }
-  const text = cleanText(criteria, 1000);
-  return text || null;
+  if (!record) return null;
+  return normalizeInternalFitQuestionText(record.question) || null;
 }
 
 function normalizeRoleId(value: unknown) {
@@ -78,54 +74,106 @@ async function fetchUnansweredInternalFitHoldQuestionCandidates(args: {
   limit?: number;
   userId: string;
 }): Promise<InternalFitHoldQuestionCandidate[]> {
-  const { data, error } = await (
-    args.admin.from("talent_opportunity_fit" as any) as any
-  )
-    .select(
-      "id, opportunity_id, score, reevaluation_criteria, last_evaluated_at, created_at"
-    )
-    .eq("talent_id", args.userId)
-    .eq("label", "hold")
-    .is("human_label", null)
-    .order("score", { ascending: false })
-    .order("last_evaluated_at", { ascending: true })
-    .limit(args.limit ?? ACTIVE_HOLD_CANDIDATE_LIMIT);
+  const holdFitSelect =
+    "id, opportunity_id, score, label, reevaluation_criteria, last_evaluated_at, created_at";
+  const [fitResponse, priorityReviewResponse] = await Promise.all([
+    (args.admin.from("talent_opportunity_fit" as any) as any)
+      .select(holdFitSelect)
+      .eq("talent_id", args.userId)
+      .eq("label", "hold")
+      .order("score", { ascending: false })
+      .order("last_evaluated_at", { ascending: true })
+      .limit(args.limit ?? ACTIVE_HOLD_CANDIDATE_LIMIT),
+    (args.admin.from("talent_progress" as any) as any)
+      .select("role_id")
+      .eq("talent_id", args.userId)
+      .eq("kind", INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND),
+  ]);
 
-  if (error) {
+  if (fitResponse.error || priorityReviewResponse.error) {
     console.error("[InternalFitHoldQuestion] Failed to load hold fits", {
-      error: error.message,
+      fitError: fitResponse.error?.message,
+      priorityReviewError: priorityReviewResponse.error?.message,
       userId: args.userId,
     });
     return [];
   }
 
-  const candidates = Array.isArray(data)
-    ? data
-        .map((row: Record<string, unknown>) => {
-          const fitId = cleanText(row.id, 120);
-          const roleId = normalizeRoleId(row.opportunity_id);
-          const summary = extractHoldQuestionSummary(row.reevaluation_criteria);
-          if (
-            !fitId ||
-            !roleId ||
-            !summary ||
-            hasSavedNewInformation(row.reevaluation_criteria)
-          ) {
-            return null;
-          }
-          return {
-            criteria: row.reevaluation_criteria,
-            fitId,
-            roleId,
-            summary,
-            topic: normalizeInternalFitReevaluationTopic(
-              row.reevaluation_criteria,
-              summary
-            ),
-          };
-        })
-        .filter((row): row is InternalFitHoldQuestionCandidate => Boolean(row))
+  const priorityReviewRows: Record<string, unknown>[] = Array.isArray(
+    priorityReviewResponse.data
+  )
+    ? (priorityReviewResponse.data as Record<string, unknown>[])
     : [];
+  const priorityReviewRoleIds = new Set(
+    priorityReviewRows
+      .map((row) => normalizeRoleId(row.role_id))
+      .filter((roleId): roleId is string => Boolean(roleId))
+  );
+  let fitRows: Record<string, unknown>[] = Array.isArray(fitResponse.data)
+    ? (fitResponse.data as Record<string, unknown>[])
+    : [];
+  const loadedRoleIds = new Set(
+    fitRows
+      .map((row: Record<string, unknown>) =>
+        normalizeRoleId(row.opportunity_id)
+      )
+      .filter(Boolean)
+  );
+  const missingPriorityRoleIds = Array.from(priorityReviewRoleIds).filter(
+    (roleId) => !loadedRoleIds.has(roleId)
+  );
+  if (missingPriorityRoleIds.length > 0) {
+    const { data: priorityFitRows, error: priorityFitError } = await (
+      args.admin.from("talent_opportunity_fit" as any) as any
+    )
+      .select(holdFitSelect)
+      .eq("talent_id", args.userId)
+      .in("opportunity_id", missingPriorityRoleIds)
+      .eq("label", "hold");
+    if (priorityFitError) {
+      console.error(
+        "[InternalFitHoldQuestion] Failed to load priority-review hold fits",
+        {
+          error: priorityFitError.message,
+          userId: args.userId,
+        }
+      );
+      return [];
+    }
+    fitRows = [
+      ...fitRows,
+      ...(Array.isArray(priorityFitRows)
+        ? (priorityFitRows as Record<string, unknown>[])
+        : []),
+    ];
+  }
+
+  const seenFitIds = new Set<string>();
+  const candidates = fitRows
+    .map((row: Record<string, unknown>) => {
+      const fitId = cleanText(row.id, 120);
+      const roleId = normalizeRoleId(row.opportunity_id);
+      const summary = extractHoldQuestionSummary(row.reevaluation_criteria);
+      if (
+        !fitId ||
+        !roleId ||
+        !summary ||
+        !hasExplicitInternalFitReevaluationTopic(row.reevaluation_criteria) ||
+        hasSavedNewInformation(row.reevaluation_criteria)
+      ) {
+        return null;
+      }
+      if (seenFitIds.has(fitId)) return null;
+      seenFitIds.add(fitId);
+      return {
+        criteria: row.reevaluation_criteria,
+        fitId,
+        priorityReviewRequested: priorityReviewRoleIds.has(roleId),
+        roleId,
+        summary,
+      };
+    })
+    .filter((row): row is InternalFitHoldQuestionCandidate => Boolean(row));
 
   if (candidates.length === 0) return [];
 
@@ -133,13 +181,17 @@ async function fetchUnansweredInternalFitHoldQuestionCandidates(args: {
   const [rolesResponse, recommendationResponse] = await Promise.all([
     (args.admin.from("company_roles" as any) as any)
       .select(
-        "role_id, source_type, source_provider, source_job_id, name, information, status, is_expired"
+        "role_id, company_workspace_id, source_type, source_provider, source_job_id, name, information, status, is_expired, expires_at"
       )
       .in("role_id", roleIds),
     (args.admin.from("talent_opportunity_recommendation" as any) as any)
-      .select("role_id")
+      .select(
+        "id, role_id, feedback, saved_stage, processed_stage, updated_at, created_at, company_role:company_roles!inner(company_workspace_id, information, source_type, source_provider, source_job_id, name, status, is_expired, expires_at)"
+      )
       .eq("talent_id", args.userId)
-      .in("role_id", roleIds),
+      .eq("company_role.source_type", "internal")
+      .order("updated_at", { ascending: false })
+      .order("created_at", { ascending: false }),
   ]);
 
   if (rolesResponse.error || recommendationResponse.error) {
@@ -151,32 +203,148 @@ async function fetchUnansweredInternalFitHoldQuestionCandidates(args: {
     return [];
   }
 
-  const recommendedRoleIds = new Set(
-    (Array.isArray(recommendationResponse.data)
+  const latestInternalRecommendationByRoleId = new Map<
+    string,
+    Record<string, unknown>
+  >();
+  for (const row of (
+    Array.isArray(recommendationResponse.data)
       ? recommendationResponse.data
       : []
-    ).map((row: Record<string, unknown>) => normalizeRoleId(row.role_id))
+  ) as Record<string, unknown>[]) {
+    const companyRole = asRecord(row.company_role);
+    const roleId = normalizeRoleId(row.role_id);
+    if (
+      roleId &&
+      companyRole &&
+      cleanText(companyRole.source_type, 80).toLowerCase() === "internal" &&
+      !isTestOnlyInternalRole(companyRole)
+    ) {
+      if (!latestInternalRecommendationByRoleId.has(roleId)) {
+        latestInternalRecommendationByRoleId.set(roleId, row);
+      }
+    }
+  }
+
+  const recommendationRoleIds = Array.from(
+    latestInternalRecommendationByRoleId.keys()
+  );
+  const latestStageTagByRoleId = new Map<string, string>();
+  if (recommendationRoleIds.length > 0) {
+    const { data: stageRows, error: stageError } = await (
+      args.admin.from("talent_opportunity_tag" as any) as any
+    )
+      .select("id, opportunity_id, tag, updated_at, created_at")
+      .eq("talent_id", args.userId)
+      .in("opportunity_id", recommendationRoleIds)
+      .order("updated_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
+    if (stageError) {
+      console.error("[InternalFitHoldQuestion] Failed to load current stages", {
+        error: stageError.message,
+        userId: args.userId,
+      });
+      return [];
+    }
+    for (const rawStage of Array.isArray(stageRows) ? stageRows : []) {
+      const stage = rawStage as Record<string, unknown>;
+      const roleId = normalizeRoleId(stage.opportunity_id);
+      const tag = cleanText(stage.tag, 120);
+      if (
+        roleId &&
+        tag &&
+        (tag.startsWith("내부:") || tag.startsWith("내부단계:")) &&
+        !latestStageTagByRoleId.has(roleId)
+      ) {
+        latestStageTagByRoleId.set(roleId, tag);
+      }
+    }
+  }
+
+  const terminalFeedback = new Set(["dislike", "negative"]);
+  const terminalSavedStage = new Set([
+    "closed",
+    "declined",
+    "not_interested",
+    "hidden",
+  ]);
+  const terminalProcessedStage = new Set([
+    "archived",
+    "process_stopped",
+    "rejected",
+    "아카이브",
+    "프로세스중단",
+    "프로세스_중단",
+    "거절",
+  ]);
+  const terminalStageTag = new Set([
+    "내부:거절",
+    "내부:아카이브",
+    "내부:프로세스중단",
+  ]);
+  const internalRecommendationRows = Array.from(
+    latestInternalRecommendationByRoleId.values()
+  ).filter((row) => {
+    const companyRole = asRecord(row.company_role);
+    const roleId = normalizeRoleId(row.role_id);
+    const expiresAtMs = Date.parse(cleanText(companyRole?.expires_at, 120));
+    return Boolean(
+      companyRole &&
+        roleId &&
+        cleanText(companyRole.status, 80).toLowerCase() === "active" &&
+        companyRole.is_expired !== true &&
+        (!Number.isFinite(expiresAtMs) || expiresAtMs > Date.now()) &&
+        !terminalFeedback.has(cleanText(row.feedback, 80).toLowerCase()) &&
+        !terminalSavedStage.has(
+          cleanText(row.saved_stage, 80).toLowerCase()
+        ) &&
+        !terminalProcessedStage.has(
+          cleanText(row.processed_stage, 80).toLowerCase()
+        ) &&
+        !terminalStageTag.has(latestStageTagByRoleId.get(roleId) ?? "")
+    );
+  });
+  const recommendedInternalRoleIds = new Set(
+    internalRecommendationRows
+      .map((row: Record<string, unknown>) => normalizeRoleId(row.role_id))
+      .filter(Boolean)
+  );
+  const recommendedCompanyWorkspaceIds = new Set(
+    internalRecommendationRows
+      .map((row: Record<string, unknown>) => {
+        const companyRole = asRecord(row.company_role);
+        return cleanText(companyRole?.company_workspace_id, 120);
+      })
+      .filter(Boolean)
   );
   const activeInternalRoleIds = new Set(
     (Array.isArray(rolesResponse.data) ? rolesResponse.data : [])
       .filter((row: Record<string, unknown>) => {
         const sourceType = cleanText(row.source_type, 80).toLowerCase();
         const status = cleanText(row.status, 80).toLowerCase();
+        const expiresAtMs = Date.parse(cleanText(row.expires_at, 120));
+        const companyWorkspaceId = cleanText(row.company_workspace_id, 120);
+        const roleId = normalizeRoleId(row.role_id);
         return (
           sourceType === "internal" &&
           status === "active" &&
           row.is_expired !== true &&
-          !isTestOnlyInternalRole(row)
+          (!Number.isFinite(expiresAtMs) || expiresAtMs > Date.now()) &&
+          !isTestOnlyInternalRole(row) &&
+          !recommendedInternalRoleIds.has(roleId) &&
+          !recommendedCompanyWorkspaceIds.has(companyWorkspaceId)
         );
       })
       .map((row: Record<string, unknown>) => normalizeRoleId(row.role_id))
   );
 
-  return candidates.filter(
-    (candidate) =>
-      activeInternalRoleIds.has(candidate.roleId) &&
-      !recommendedRoleIds.has(candidate.roleId)
-  );
+  return candidates
+    .filter((candidate) => activeInternalRoleIds.has(candidate.roleId))
+    .map((candidate) => ({
+      ...candidate,
+      priorityReviewRequested: priorityReviewRoleIds.has(candidate.roleId),
+    }));
 }
 
 export async function fetchActiveInternalFitHoldQuestion(args: {
@@ -184,14 +352,32 @@ export async function fetchActiveInternalFitHoldQuestion(args: {
   locale?: string | null;
   userId: string;
 }): Promise<ActiveInternalFitHoldQuestion | null> {
-  const candidates = await fetchUnansweredInternalFitHoldQuestionCandidates(args);
-  const explicitTopicCandidates = candidates.filter((candidate) =>
-    hasExplicitInternalFitReevaluationTopic(candidate.criteria)
+  const candidates =
+    await fetchUnansweredInternalFitHoldQuestionCandidates(args);
+  const explicitTopicCandidates = candidates
+    .filter((candidate) =>
+      hasExplicitInternalFitReevaluationTopic(candidate.criteria)
+    )
+    .sort(
+      (left, right) =>
+        Number(right.priorityReviewRequested) -
+        Number(left.priorityReviewRequested)
+    );
+  const groups = groupInternalFitHoldQuestionCandidates(
+    explicitTopicCandidates,
+    args.locale
+  );
+  const priorityRequestedFitIds = new Set(
+    explicitTopicCandidates
+      .filter((candidate) => candidate.priorityReviewRequested)
+      .map((candidate) => candidate.fitId)
   );
   return (
-    groupInternalFitHoldQuestionCandidates(explicitTopicCandidates, args.locale).find(
-      (group) => group.fitIds.length > 1
-    ) ?? null
+    groups.find((group) =>
+      group.fitIds.some((fitId) => priorityRequestedFitIds.has(fitId))
+    ) ??
+    groups.find((group) => group.fitIds.length > 1) ??
+    null
   );
 }
 
@@ -379,8 +565,7 @@ async function propagateInternalFitReevaluationInformation(args: {
       })
       .eq("id", candidate.fitId)
       .eq("talent_id", args.userId)
-      .eq("label", "hold")
-      .is("human_label", null);
+      .eq("label", "hold");
 
     if (error) {
       console.error("[InternalFitHoldQuestion] Failed to propagate answer", {
@@ -432,8 +617,7 @@ export async function recordInternalFitReevaluationInformation(args: {
     .select("id, reevaluation_criteria")
     .in("id", active.fitIds)
     .eq("talent_id", args.userId)
-    .eq("label", "hold")
-    .is("human_label", null);
+    .eq("label", "hold");
 
   if (fetchError) {
     throw new Error(
@@ -445,7 +629,9 @@ export async function recordInternalFitReevaluationInformation(args: {
         active.fitIds.includes(cleanText(row.id, 120))
       )
     : [];
-  if (!activeRows.some((row: Record<string, unknown>) => row.id === args.fitId)) {
+  if (
+    !activeRows.some((row: Record<string, unknown>) => row.id === args.fitId)
+  ) {
     return {
       ok: false,
       reason: "fit_not_found",
@@ -483,8 +669,7 @@ export async function recordInternalFitReevaluationInformation(args: {
       })
       .eq("id", rowFitId)
       .eq("talent_id", args.userId)
-      .eq("label", "hold")
-      .is("human_label", null);
+      .eq("label", "hold");
 
     if (updateError) {
       throw new Error(

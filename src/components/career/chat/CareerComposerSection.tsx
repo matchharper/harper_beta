@@ -447,7 +447,7 @@ const CareerComposerSection = ({
     opportunityFeedbackFollowUpPending;
   const forceCompleteTooltip = t(
     "career.chat.career_call_screen.0n1pl8k",
-    "커리어 인터뷰를 임의로 종료할 수 있어요. 거의 다 왔으니 2~3개의 질문에만 추가로 대답해주시면 자동으로 종료됩니다!"
+    "커리어 인터뷰를 임의로 종료할 수 있어요. 거의 다 왔으니 2~3개의 질문에만 추가로 대답해주시면 자동으로 종료됩니다"
   );
 
   const closeOpportunityMentionPicker = useCallback(

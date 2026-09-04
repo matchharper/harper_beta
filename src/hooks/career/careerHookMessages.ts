@@ -175,6 +175,10 @@ export const CAREER_HOOK_MESSAGES = {
     "career.onboarding.onboarding.0hobsv6",
     "기회 검색을 시작했습니다."
   ),
+  opportunitySearchStopped: t(
+    "career.common.career.1clmbsb",
+    "요청한 검색을 중지했습니다."
+  ),
   opportunityListLoadFailed: t(
     "career.common.career_hook_messages.0r1cfx7",
     "기회 목록을 불러오지 못했습니다."

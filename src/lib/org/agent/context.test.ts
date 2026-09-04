@@ -162,15 +162,15 @@ test("total context truncation revokes every retained completeness marker", asyn
   assert.equal(retainedMoreData.members.complete, false);
 });
 
-test("conversation truncation preserves the opaque older-history cursor", async () => {
+test("conversation truncation preserves the current Slack thread ID", async () => {
   const { enforceOrgAgentContextBudget } =
     await import("@/lib/org/agent/contextBudget");
-  const cursor = "opaque-next-cursor";
+  const threadId = "thread-1";
   const context = {
     companyText: "c".repeat(47_500),
     contextNotesText: "-",
     conversationText: [
-      `scope=current_thread returned_items=14 has_more=true next_cursor=${cursor}`,
+      `scope=current_thread thread_id=${threadId} returned_items=24 has_more=true`,
       "speaker\treferences\tmessage",
       `user\t-\t${"m".repeat(3_000)}`,
     ].join("\n"),
@@ -182,5 +182,5 @@ test("conversation truncation preserves the opaque older-history cursor", async 
   enforceOrgAgentContextBudget(context);
 
   assert.match(context.conversationText, /older_conversation_truncated=true/);
-  assert.match(context.conversationText, new RegExp(`next_cursor=${cursor}`));
+  assert.match(context.conversationText, new RegExp(`thread_id=${threadId}`));
 });

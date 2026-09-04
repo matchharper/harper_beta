@@ -6,19 +6,12 @@ import {
   ORG_AGENT_MAX_TOTAL_TOOL_RESULT_CHARS,
   isOrgAgentDebugToolName,
 } from "@/lib/ops/orgAgentToolDebugger";
-import { ORG_AGENT_TERMINAL_TOOL_NAMES } from "@/lib/org/agent/tools";
 import { createOrgAgentToolExecutionStateFromSnapshot } from "@/lib/org/agent/toolState";
 
 test("company-side LLM tool debugger exposes only non-mutating tools", () => {
   assert.deepEqual(
     ORG_AGENT_DEBUG_TOOLS.map((tool) => tool.name),
     ORG_AGENT_DEBUG_TOOL_NAMES
-  );
-  assert.equal(
-    ORG_AGENT_DEBUG_TOOL_NAMES.some((name) =>
-      ORG_AGENT_TERMINAL_TOOL_NAMES.has(name)
-    ),
-    false
   );
   assert.equal(isOrgAgentDebugToolName("read_role"), true);
   assert.equal(isOrgAgentDebugToolName("update_data"), false);

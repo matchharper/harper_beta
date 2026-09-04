@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { getFreshRequestUser } from "@/lib/supabaseServer";
 import { assertOrgWorkspaceAccess, OrgHttpError } from "@/lib/org/server";
+import { syncGoogleCalendarBusyBlocksIfStaleForCompanyUser } from "@/lib/meetings/calendarSyncServer";
 import { createComposioClient, readComposioEnv } from "./composio";
 import { createGoogleCalendarService } from "./googleCalendar";
 import { GoogleCalendarError } from "./googleCalendarError";
@@ -9,6 +10,14 @@ import { createGoogleCalendarStore } from "./googleCalendarStore";
 
 export const googleCalendarHandlers = createGoogleCalendarHandlers({
   getStateSecret: () => readComposioEnv("COMPOSIO_API_KEY"),
+  async onActiveConnection({ timezone, userId, workspaceId }) {
+    await syncGoogleCalendarBusyBlocksIfStaleForCompanyUser({
+      companyUserId: userId,
+      skipIfNotActive: true,
+      timezone,
+      workspaceId,
+    });
+  },
   async getContext(req, workspaceId) {
     // Personal credentials must never use the development-only, decoded-JWT
     // fallback of getRequestUser. Verify the bearer token with Supabase Auth.

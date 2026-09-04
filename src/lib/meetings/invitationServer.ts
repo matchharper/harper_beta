@@ -28,7 +28,11 @@ import {
 import type { MeetingScheduleAdditionalMessage } from "@/lib/meetings/scheduleDraft";
 import { fetchMeetingScheduleDetail } from "@/lib/meetings/scheduleDraftServer";
 import { computeCurrentMeetingSlots } from "@/lib/meetings/slotsServer";
-import { syncGoogleCalendarBusyBlocksForCompanyUser } from "@/lib/meetings/calendarSyncServer";
+import { fetchMeetingAvailabilityForCompanyUser } from "@/lib/meetings/availabilityServer";
+import {
+  syncGoogleCalendarBusyBlocksForCompanyUser,
+  syncGoogleCalendarBusyBlocksIfStaleForCompanyUser,
+} from "@/lib/meetings/calendarSyncServer";
 import { insertOrgAgentMessage } from "@/lib/org/agent/store";
 import { OrgHttpError } from "@/lib/org/server";
 import { sendHarperSlackThreadReply } from "@/lib/org/slackHarper";
@@ -93,6 +97,26 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function normalizeLocale(value: unknown): "en" | "ko" {
   return clean(value).toLowerCase().startsWith("ko") ? "ko" : "en";
+}
+
+async function fetchPublicCompanyLogoUrl(workspaceId: string) {
+  try {
+    const admin = getSupabaseAdmin();
+    const { data, error } = await (
+      admin.from("company_workspace" as any) as any
+    )
+      .select("logo_url")
+      .eq("company_workspace_id", workspaceId)
+      .maybeSingle();
+    if (error) throw error;
+    return clean(data?.logo_url, 2_000) || null;
+  } catch (error) {
+    console.error(
+      "[meeting/public-company-logo]",
+      getIntegrationErrorDiagnostics(error)
+    );
+    return null;
+  }
 }
 
 function tokenHash(token: string) {
@@ -211,6 +235,23 @@ async function calculateCompanyPreviewSlots(args: {
   windowStart: Date;
 }) {
   const admin = getSupabaseAdmin();
+  const availability = await fetchMeetingAvailabilityForCompanyUser({
+    admin,
+    companyUserId: args.schedule.config.organizer.companyUserId,
+    workspaceId: args.schedule.workspaceId,
+  });
+  if (!availability) {
+    throw new OrgHttpError(
+      409,
+      "일정 담당자의 가능 시간을 먼저 설정해 주세요. 후보자에게는 아직 메일을 보내지 않았어요."
+    );
+  }
+  await syncGoogleCalendarBusyBlocksIfStaleForCompanyUser({
+    admin,
+    companyUserId: args.schedule.config.organizer.companyUserId,
+    timezone: availability.timezone,
+    workspaceId: args.schedule.workspaceId,
+  });
   const result = await computeCurrentMeetingSlots({
     admin,
     companyAttendees: args.schedule.config.companyAttendees,
@@ -221,12 +262,7 @@ async function calculateCompanyPreviewSlots(args: {
     windowStart: args.windowStart,
     workspaceId: args.schedule.workspaceId,
   });
-  if (!result.availability) {
-    throw new OrgHttpError(
-      409,
-      "일정 담당자의 가능 시간을 먼저 설정해 주세요. 후보자에게는 아직 메일을 보내지 않았어요."
-    );
-  }
+  if (!result.availability) throw new Error("Meeting availability disappeared");
   if (result.slots.length === 0) {
     throw new OrgHttpError(
       409,
@@ -870,12 +906,20 @@ async function availablePublicSlots(token: string, context: InvitationContext) {
   };
 }
 
-async function refreshInvitationOrganizerCalendar(context: InvitationContext) {
-  await syncGoogleCalendarBusyBlocksForCompanyUser({
+async function refreshInvitationOrganizerCalendar(
+  context: InvitationContext,
+  force = false
+) {
+  const input = {
     companyUserId: context.organizerCompanyUserId,
     timezone: context.invitationSnapshot.timezone,
     workspaceId: context.workspaceId,
-  });
+  };
+  if (force) {
+    await syncGoogleCalendarBusyBlocksForCompanyUser(input);
+    return;
+  }
+  await syncGoogleCalendarBusyBlocksIfStaleForCompanyUser(input);
 }
 
 export async function fetchPublicMeetingInvitation(
@@ -889,6 +933,7 @@ export async function fetchPublicMeetingInvitation(
     );
   }
   const context = await loadInvitationContext(token);
+  const companyLogoUrlPromise = fetchPublicCompanyLogoUrl(context.workspaceId);
   const snapshot = context.invitationSnapshot;
   const submitted = Boolean(
     context.submittedAt || context.scheduleStatus === "confirmed"
@@ -919,6 +964,7 @@ export async function fetchPublicMeetingInvitation(
     invitation: {
       calendar: context.calendar,
       candidateName: snapshot.candidate.name,
+      companyLogoUrl: await companyLogoUrlPromise,
       companyName: snapshot.companyName,
       confirmedAt: context.confirmedStartAt,
       durationMinutes: snapshot.durationMinutes,
@@ -973,7 +1019,7 @@ export async function submitPublicMeetingOptions(args: {
     );
   }
 
-  await refreshInvitationOrganizerCalendar(context);
+  await refreshInvitationOrganizerCalendar(context, true);
   let available = await availablePublicSlots(token, context);
   const selected = requestedSlotIds.flatMap((id) => {
     const slot = available.slots.find((candidate) => candidate.slotId === id);

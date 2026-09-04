@@ -65,7 +65,7 @@ export default function OfficialJobMarkdown({
   if (!trimmedContent) return null;
 
   return (
-    <div className={cn("max-w-none", className)}>
+    <div className={cn("max-w-none break-words", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeSanitize]}

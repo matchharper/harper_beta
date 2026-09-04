@@ -54,11 +54,9 @@ import {
 } from "@/lib/career/utm";
 import { CAREER_EMAIL_ONBOARDING_VARIANT } from "@/lib/careerEmailOnboarding/constants";
 import { useRouter } from "next/router";
-import {
-  captureTalentNetworkReferralFromCurrentLocation,
-  TALENT_NETWORK_REFERRAL_SOURCE_LANDING_PAGE,
-} from "@/lib/talentNetworkReferral";
+import { TALENT_NETWORK_REFERRAL_SOURCE_LANDING_PAGE } from "@/lib/talentNetworkReferral";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useTalentNetworkReferralCapture } from "@/hooks/useTalentNetworkReferralCapture";
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://matchharper.com")
   .trim()
@@ -2034,6 +2032,7 @@ export default function LandingKoVfPage({
     trackingEnabled: signupFlowExperiment.ready,
   });
   const emailCaptureRef = useRef<HTMLDivElement | null>(null);
+  useTalentNetworkReferralCapture(TALENT_NETWORK_REFERRAL_SOURCE_LANDING_PAGE);
   const emailCaptureHref = "#email-capture";
   const handleEmailCaptureFocus = useCallback(
     (event: React.MouseEvent<HTMLAnchorElement>) => {
@@ -2056,15 +2055,6 @@ export default function LandingKoVfPage({
   const effectiveCareerStartClick = isEmailFirstTreatment
     ? handleEmailCaptureFocus
     : handleCareerStartClick;
-  useEffect(() => {
-    if (!router.isReady || typeof window === "undefined") return;
-
-    void captureTalentNetworkReferralFromCurrentLocation({
-      source: TALENT_NETWORK_REFERRAL_SOURCE_LANDING_PAGE,
-    }).catch((error) => {
-      console.warn("[landing] referral capture failed:", error);
-    });
-  }, [router.asPath, router.isReady]);
   const handleLandingLocaleChange = (nextLocale: Locale) => {
     setLandingLocale(nextLocale);
     void router.push(LANDING_LOCALE_PATHS[nextLocale]);

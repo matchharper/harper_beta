@@ -5,6 +5,10 @@ import {
   toChatCompletionFromOpenAIResponse,
   type OpenAIResponsesReasoningEffort,
 } from "@/lib/llm/responsesChatAdapter";
+import {
+  isOpenRouterGlm53FlashModel,
+  OPENROUTER_ZAI_PROVIDER_SLUG,
+} from "@/lib/llm/modelConfig";
 
 export function sseAsyncIterableToReadableStream(
   sseStream: AsyncIterable<any>
@@ -64,13 +68,47 @@ export const deepseekClient = new OpenAI({
   baseURL: "https://api.deepseek.com",
 });
 
-export type LlmChatProvider = "anthropic" | "deepseek" | "openai" | "xai";
+export const openrouterClient = new OpenAI({
+  apiKey: process.env.OPENROUTER_API_KEY ?? "missing-openrouter-api-key",
+  dangerouslyAllowBrowser: true,
+  baseURL: "https://openrouter.ai/api/v1",
+});
+
+export type LlmChatProvider =
+  | "anthropic"
+  | "deepseek"
+  | "openai"
+  | "openrouter"
+  | "xai";
+
+export type ChatCompletionReasoningEffort =
+  | "none"
+  | "minimal"
+  | "low"
+  | "medium"
+  | "high"
+  | "xhigh"
+  | "max";
+
+type ChatCompletionRequestConfig = {
+  buildRequest: (model: string) => Record<string, unknown>;
+  chatCompletionReasoning?: {
+    reasoningEffort: ChatCompletionReasoningEffort;
+  };
+  deepSeekThinking?: {
+    reasoningEffort: "high" | "max";
+  };
+  openAIResponses?: {
+    reasoningEffort: OpenAIResponsesReasoningEffort;
+  };
+};
 
 export function getLlmChatProviderForModel(model: string): LlmChatProvider {
   const normalized = model.trim().toLowerCase();
   if (normalized.startsWith("grok-")) return "xai";
   if (normalized.startsWith("claude-")) return "anthropic";
   if (normalized.startsWith("deepseek-")) return "deepseek";
+  if (normalized.startsWith("z-ai/")) return "openrouter";
   return "openai";
 }
 
@@ -79,12 +117,17 @@ export function getChatClientForModel(model: string) {
   if (provider === "xai") return xaiClient;
   if (provider === "anthropic") return anthropicClient;
   if (provider === "deepseek") return deepseekClient;
+  if (provider === "openrouter") return openrouterClient;
   return client;
 }
 
 export function supportsResponseFormatForModel(model: string) {
   const provider = getLlmChatProviderForModel(model);
-  return provider === "deepseek" || provider === "openai";
+  return (
+    provider === "deepseek" ||
+    provider === "openai" ||
+    provider === "openrouter"
+  );
 }
 
 export function supportsSamplingParametersForModel(model: string) {
@@ -159,6 +202,240 @@ async function createOpenAIResponsesCompletion(args: {
     { signal: args.signal }
   );
   return toChatCompletionFromOpenAIResponse(response);
+}
+
+async function createOpenAIResponsesCompletionStream(args: {
+  llmClient: OpenAI;
+  model: string;
+  onTextDelta: (delta: string) => void | Promise<void>;
+  reasoningEffort: OpenAIResponsesReasoningEffort;
+  requestBody: Record<string, unknown>;
+  signal?: AbortSignal;
+}) {
+  const stream = await args.llmClient.responses.create(
+    {
+      ...buildOpenAIResponsesRequest(args),
+      stream: true,
+    } as any,
+    { signal: args.signal }
+  );
+  let finalResponse: any = null;
+
+  for await (const event of stream as any) {
+    args.signal?.throwIfAborted();
+    if (
+      event?.type === "response.output_text.delta" &&
+      typeof event.delta === "string" &&
+      event.delta
+    ) {
+      await args.onTextDelta(event.delta);
+      continue;
+    }
+    if (
+      event?.type === "response.completed" ||
+      event?.type === "response.incomplete"
+    ) {
+      finalResponse = event.response;
+      continue;
+    }
+    if (event?.type === "error") {
+      throw new Error(event.message || "OpenAI Responses stream failed");
+    }
+    if (event?.type === "response.failed") {
+      throw new Error(
+        event.response?.error?.message || "OpenAI Responses stream failed"
+      );
+    }
+  }
+
+  if (!finalResponse) {
+    throw new Error("OpenAI Responses stream ended without a final response");
+  }
+  return toChatCompletionFromOpenAIResponse(finalResponse);
+}
+
+function buildChatCompletionRequestParts(
+  args: ChatCompletionRequestConfig,
+  model: string
+) {
+  const llmClient = getChatClientForModel(model);
+  const provider = getLlmChatProviderForModel(model);
+  const rawRequestBody: Record<string, unknown> = {
+    ...args.buildRequest(model),
+    model,
+  };
+  if (provider === "deepseek" && args.deepSeekThinking) {
+    rawRequestBody.reasoning_effort = args.deepSeekThinking.reasoningEffort;
+    rawRequestBody.thinking = { type: "enabled" };
+  }
+  if (provider === "openrouter" && args.chatCompletionReasoning) {
+    rawRequestBody.reasoning = {
+      effort: args.chatCompletionReasoning.reasoningEffort,
+    };
+  }
+  if (provider === "openrouter" && isOpenRouterGlm53FlashModel(model)) {
+    const existingProvider = rawRequestBody.provider;
+    rawRequestBody.provider = {
+      ...(existingProvider &&
+      typeof existingProvider === "object" &&
+      !Array.isArray(existingProvider)
+        ? existingProvider
+        : {}),
+      allow_fallbacks: false,
+      only: [OPENROUTER_ZAI_PROVIDER_SLUG],
+    };
+  }
+  const requestBody = omitUnsupportedSamplingParameters(model, {
+    ...rawRequestBody,
+    messages: Array.isArray(rawRequestBody.messages)
+      ? rawRequestBody.messages.map((message: any) => {
+          const { _responses_output: _ignored, ...chatMessage } = message;
+          if (provider === "deepseek" || provider === "openrouter") {
+            return chatMessage;
+          }
+          const {
+            reasoning_content: _ignoredReasoningContent,
+            ...portableChatMessage
+          } = chatMessage;
+          return portableChatMessage;
+        })
+      : rawRequestBody.messages,
+  });
+
+  return { llmClient, provider, rawRequestBody, requestBody };
+}
+
+async function createChatCompletionStream(args: {
+  llmClient: OpenAI;
+  model: string;
+  onTextDelta: (delta: string) => void | Promise<void>;
+  provider: LlmChatProvider;
+  requestBody: Record<string, unknown>;
+  signal?: AbortSignal;
+}) {
+  const stream = await args.llmClient.chat.completions.create(
+    {
+      ...args.requestBody,
+      stream: true,
+      ...(args.provider === "openrouter"
+        ? { stream_options: { include_usage: true } }
+        : {}),
+    } as any,
+    { signal: args.signal }
+  );
+  const toolCalls = new Map<
+    number,
+    {
+      arguments: string;
+      id: string;
+      name: string;
+    }
+  >();
+  const reasoningDetails: unknown[] = [];
+  let content = "";
+  let created: number | undefined;
+  let finishReason: string | null = null;
+  let id: string | undefined;
+  let model = args.model;
+  let reasoning = "";
+  let reasoningContent = "";
+  let receivedChoice = false;
+  let usage: any = undefined;
+
+  for await (const chunk of stream as any) {
+    args.signal?.throwIfAborted();
+    if (chunk?.error) {
+      throw new Error(chunk.error?.message || "Chat completion stream failed");
+    }
+    id = typeof chunk?.id === "string" ? chunk.id : id;
+    model = typeof chunk?.model === "string" ? chunk.model : model;
+    created = typeof chunk?.created === "number" ? chunk.created : created;
+    usage = chunk?.usage ?? usage;
+
+    const choice = chunk?.choices?.[0];
+    if (!choice) continue;
+    receivedChoice = true;
+    finishReason = choice.finish_reason ?? finishReason;
+    const delta = choice.delta ?? {};
+    if (typeof delta.content === "string" && delta.content) {
+      content += delta.content;
+      await args.onTextDelta(delta.content);
+    }
+    if (typeof delta.reasoning === "string") {
+      reasoning += delta.reasoning;
+    }
+    if (typeof delta.reasoning_content === "string") {
+      reasoningContent += delta.reasoning_content;
+    }
+    if (Array.isArray(delta.reasoning_details)) {
+      reasoningDetails.push(...delta.reasoning_details);
+    }
+    if (!Array.isArray(delta.tool_calls)) continue;
+
+    for (const toolCallDelta of delta.tool_calls) {
+      const index = Number.isInteger(toolCallDelta?.index)
+        ? toolCallDelta.index
+        : toolCalls.size;
+      const existing = toolCalls.get(index) ?? {
+        arguments: "",
+        id: "",
+        name: "",
+      };
+      if (typeof toolCallDelta?.id === "string" && toolCallDelta.id) {
+        existing.id = toolCallDelta.id;
+      }
+      if (typeof toolCallDelta?.function?.name === "string") {
+        existing.name += toolCallDelta.function.name;
+      }
+      if (typeof toolCallDelta?.function?.arguments === "string") {
+        existing.arguments += toolCallDelta.function.arguments;
+      }
+      toolCalls.set(index, existing);
+    }
+  }
+
+  if (!receivedChoice) {
+    throw new Error("Chat completion stream ended without a response");
+  }
+
+  const normalizedToolCalls = [...toolCalls.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([, toolCall]) => ({
+      function: {
+        arguments: toolCall.arguments || "{}",
+        name: toolCall.name,
+      },
+      id: toolCall.id || crypto.randomUUID(),
+      type: "function" as const,
+    }));
+
+  return {
+    choices: [
+      {
+        finish_reason:
+          finishReason ??
+          (normalizedToolCalls.length > 0 ? "tool_calls" : "stop"),
+        index: 0,
+        message: {
+          content: content || null,
+          role: "assistant",
+          ...(reasoning ? { reasoning } : {}),
+          ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
+          ...(reasoningDetails.length > 0
+            ? { reasoning_details: reasoningDetails }
+            : {}),
+          ...(normalizedToolCalls.length > 0
+            ? { tool_calls: normalizedToolCalls }
+            : {}),
+        },
+      },
+    ],
+    created,
+    id,
+    model,
+    object: "chat.completion",
+    usage,
+  };
 }
 
 export type ChatCompletionFallbackReason =
@@ -328,6 +605,9 @@ export function resolveChatCompletionFallbackModelForError(args: {
 export async function createChatCompletionWithFallback(args: {
   anthropicOverloadFallbackModel?: string | null;
   buildRequest: (model: string) => Record<string, unknown>;
+  chatCompletionReasoning?: {
+    reasoningEffort: ChatCompletionReasoningEffort;
+  };
   debugLabel?: string | null;
   deepSeekThinking?: {
     reasoningEffort: "high" | "max";
@@ -345,16 +625,8 @@ export async function createChatCompletionWithFallback(args: {
 }> {
   const createForModel = async (model: string) => {
     args.signal?.throwIfAborted();
-    const llmClient = getChatClientForModel(model);
-    const provider = getLlmChatProviderForModel(model);
-    const rawRequestBody: Record<string, unknown> = {
-      ...args.buildRequest(model),
-      model,
-    };
-    if (provider === "deepseek" && args.deepSeekThinking) {
-      rawRequestBody.reasoning_effort = args.deepSeekThinking.reasoningEffort;
-      rawRequestBody.thinking = { type: "enabled" };
-    }
+    const { llmClient, provider, rawRequestBody, requestBody } =
+      buildChatCompletionRequestParts(args, model);
     if (args.openAIResponses && provider === "openai") {
       return createOpenAIResponsesCompletion({
         llmClient,
@@ -364,20 +636,6 @@ export async function createChatCompletionWithFallback(args: {
         signal: args.signal,
       });
     }
-    const requestBody = omitUnsupportedSamplingParameters(model, {
-      ...rawRequestBody,
-      messages: Array.isArray(rawRequestBody.messages)
-        ? rawRequestBody.messages.map((message: any) => {
-            const { _responses_output: _ignored, ...chatMessage } = message;
-            if (provider === "deepseek") return chatMessage;
-            const {
-              reasoning_content: _ignoredReasoningContent,
-              ...portableChatMessage
-            } = chatMessage;
-            return portableChatMessage;
-          })
-        : rawRequestBody.messages,
-    });
     // if (args.debugLabel?.startsWith("career/chat:assistant")) {
     //   console.info(
     //     "[career-chat:llm-request-body:chat-completions]",
@@ -465,34 +723,139 @@ export async function createChatCompletionWithFallback(args: {
   }
 }
 
-export type OnToken = (token: string) => void;
+export async function createChatCompletionStreamWithFallback(args: {
+  anthropicOverloadFallbackModel?: string | null;
+  buildRequest: (model: string) => Record<string, unknown>;
+  chatCompletionReasoning?: {
+    reasoningEffort: ChatCompletionReasoningEffort;
+  };
+  debugLabel?: string | null;
+  deepSeekThinking?: {
+    reasoningEffort: "high" | "max";
+  };
+  fallbackModel?: string | null;
+  model: string;
+  onTextDelta: (delta: string) => void | Promise<void>;
+  openAIResponses?: {
+    reasoningEffort: OpenAIResponsesReasoningEffort;
+  };
+  signal?: AbortSignal;
+}): Promise<{
+  fallbackReason?: ChatCompletionFallbackReason;
+  model: string;
+  response: any;
+}> {
+  let streamedVisibleText = false;
+  const createForModel = async (model: string) => {
+    args.signal?.throwIfAborted();
+    const { llmClient, provider, rawRequestBody, requestBody } =
+      buildChatCompletionRequestParts(args, model);
+    const onTextDelta = async (delta: string) => {
+      if (!delta) return;
+      streamedVisibleText = true;
+      await args.onTextDelta(delta);
+    };
 
-const pricingTable = {
-  "grok-4-fast-reasoning": {
-    input: 0.2 / 1_000_000,
-    output: 0.5 / 1_000_000,
-  },
-  "grok-4.3": {
-    input: 1.25 / 1_000_000,
-    output: 2.5 / 1_000_000,
-  },
-  "grok-4-fast-non-reasoning": {
-    input: 0.2 / 1_000_000,
-    output: 0.5 / 1_000_000,
-  },
-  "gpt-5-mini": {
-    input: 0.25 / 1_000_000,
-    output: 2 / 1_000_000,
-  },
-  "gpt-5.6-luna": {
-    input: 0.2 / 1_000_000,
-    output: 1.2 / 1_000_000,
-  },
-  "gemini-3-flash-preview": {
-    input: 0.5 / 1_000_000,
-    output: 3 / 1_000_000,
-  },
-};
+    if (args.openAIResponses && provider === "openai") {
+      return createOpenAIResponsesCompletionStream({
+        llmClient,
+        model,
+        onTextDelta,
+        reasoningEffort: args.openAIResponses.reasoningEffort,
+        requestBody: rawRequestBody,
+        signal: args.signal,
+      });
+    }
+    return createChatCompletionStream({
+      llmClient,
+      model,
+      onTextDelta,
+      provider,
+      requestBody,
+      signal: args.signal,
+    });
+  };
+  const createForModelWithTransientRetry = async (model: string) => {
+    let attempt = 0;
+
+    for (;;) {
+      try {
+        args.signal?.throwIfAborted();
+        return await createForModel(model);
+      } catch (error) {
+        args.signal?.throwIfAborted();
+        const delayMs = CHAT_COMPLETION_TRANSIENT_RETRY_DELAYS_MS[attempt];
+        if (
+          streamedVisibleText ||
+          delayMs === undefined ||
+          !shouldRetryLlmErrorForModel(error, model)
+        ) {
+          throw error;
+        }
+
+        attempt += 1;
+        console.warn("[llm:chat-completion-stream-retry]", {
+          attempt,
+          debugLabel: args.debugLabel ?? null,
+          delayMs,
+          error: getLlmErrorMessage(error),
+          model,
+          provider: getLlmChatProviderForModel(model),
+        });
+        await sleep(delayMs);
+        args.signal?.throwIfAborted();
+      }
+    }
+  };
+
+  try {
+    return {
+      model: args.model,
+      response: await createForModelWithTransientRetry(args.model),
+    };
+  } catch (error) {
+    args.signal?.throwIfAborted();
+    if (streamedVisibleText) throw error;
+    const fallbackCandidates = getChatCompletionFallbackCandidates({
+      anthropicOverloadFallbackModel: args.anthropicOverloadFallbackModel,
+      error,
+      fallbackModel: args.fallbackModel,
+      model: args.model,
+    });
+    if (fallbackCandidates.length === 0) throw error;
+
+    let lastError: unknown = error;
+    for (const fallback of fallbackCandidates) {
+      console.warn("[llm:chat-completion-stream-fallback]", {
+        error: getLlmErrorMessage(error),
+        fromModel: args.model,
+        reason: fallback.reason,
+        toModel: fallback.model,
+      });
+      try {
+        args.signal?.throwIfAborted();
+        return {
+          fallbackReason: fallback.reason,
+          model: fallback.model,
+          response: await createForModelWithTransientRetry(fallback.model),
+        };
+      } catch (fallbackError) {
+        lastError = fallbackError;
+        if (streamedVisibleText) throw fallbackError;
+        console.warn("[llm:chat-completion-stream-fallback-failed]", {
+          error: getLlmErrorMessage(fallbackError),
+          fromModel: args.model,
+          reason: fallback.reason,
+          toModel: fallback.model,
+        });
+      }
+    }
+
+    throw lastError;
+  }
+}
+
+export type OnToken = (token: string) => void;
 
 export const xaiInference = async (
   model:
@@ -526,30 +889,10 @@ export const xaiInference = async (
   } as any);
   const content = response.choices[0]?.message?.content;
 
-  const usage = response.usage ?? {
-    prompt_tokens: 0,
-    completion_tokens: 0,
-    total_tokens: 0,
-  };
-
-  // grok-4-fast pricing (USD)
-  const inputTokenPrice = pricingTable[model].input;
-  const outputTokenPrice = pricingTable[model].output;
-
-  const cost =
-    usage.prompt_tokens * inputTokenPrice +
-    usage.completion_tokens * outputTokenPrice +
-    (usage.completion_tokens_details?.reasoning_tokens ?? 0) * outputTokenPrice;
-
-  // logger.log("cost ", cost * 1450, "원");
-
   return content ?? "";
 };
 
 import { GoogleGenAI, ThinkingLevel } from "@google/genai";
-const gemini = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-});
 
 export async function openaiInference({
   model,
@@ -581,7 +924,9 @@ export async function geminiInference(
   temperature: number = 0.7,
   thinkingLevel: ThinkingLevel = ThinkingLevel.LOW
 ): Promise<string | object> {
-  const response = await xaiInference(
+  void model;
+  void thinkingLevel;
+  return xaiInference(
     "grok-4-fast-reasoning",
     systemPrompt,
     userPrompt,
@@ -590,64 +935,6 @@ export async function geminiInference(
     false,
     "geminiInferenceError"
   );
-  return response;
-
-  try {
-    const response = await gemini.models.generateContent({
-      model: model,
-      contents: systemPrompt + "\n\n" + userPrompt,
-      config: {
-        thinkingConfig: {
-          thinkingLevel: thinkingLevel,
-        },
-        temperature: temperature,
-      },
-    });
-    // logger.log("response ", response);
-    // logger.log("response ", response.usageMetadata?.promptTokensDetails);
-
-    const cost =
-      (response.usageMetadata?.promptTokenCount ?? 0) *
-        pricingTable[model].input +
-      (response.usageMetadata?.candidatesTokenCount ?? 0) *
-        pricingTable[model].output;
-
-    logger.log("[GEMINI] cost ", cost * 1450, "원");
-
-    const text =
-      response?.text
-        ?.trim()
-        ?.replace(/^```\w*\s*/, "")
-        ?.replace(/\s*```$/, "")
-        ?.trim() ?? "";
-    if (text.length === 0) {
-      throw new Error("Gemini inference returned empty text");
-    }
-    return text;
-  } catch (e) {
-    logger.log("🚨 geminiInference error:", e, "\nSo, use openai instead.");
-    // await supabase.from("landing_logs").insert({
-    //   type: JSON.stringify(e),
-    // });
-    const response = await xaiInference(
-      "grok-4-fast-reasoning",
-      systemPrompt,
-      userPrompt,
-      temperature,
-      1,
-      false,
-      "geminiInferenceError"
-    );
-    return response;
-
-    // const response = await openaiInference({
-    //   model: "gpt-5.2",
-    //   systemPrompt: systemPrompt,
-    //   userPrompt: userPrompt,
-    //   temperature: temperature,
-    // });
-    // return response;
-  }
 }
 
 const inference = async (

@@ -66,7 +66,7 @@ Action note: ...
 
 | 상황 | 호출/파일 | Streaming | Runtime prompt | Tools | internal/external 차이 |
 | --- | --- | --- | --- | --- | --- |
-| Opportunity feedback follow-up | `/api/talent/opportunities/feedback-followup` -> `createTalentOpportunityFeedbackFollowUpReply` -> `runCareerChatTurn` | No | `buildCareerOpportunityFeedbackFollowUpTurnInstruction` + `pendingOpportunityFeedbackContext` | `immediate_internal_feedback`이면 `[]`; 그 외 trigger는 `recommend_job_postings` only | Yes. internal immediate feedback은 tool 없음. external/delayed/all-cleared는 `recommend_job_postings`만 쓴다. |
+| Opportunity feedback follow-up | `/api/talent/opportunities/feedback-followup` -> `createTalentOpportunityFeedbackFollowUpReply` -> `runCareerChatTurn` | No | `buildCareerOpportunityFeedbackFollowUpTurnInstruction` + `pendingOpportunityFeedbackContext` | `immediate_internal_feedback`이면 `get_internal_roles`; 그 외 trigger는 `recommend_job_postings` only | Yes. internal immediate feedback은 live internal-role lookup만 할 수 있다. external/delayed/all-cleared는 `recommend_job_postings`만 쓴다. |
 | Internal call request follow-up | `/api/talent/opportunities/internal-call-request-followup` -> `createInternalOpportunityCallRequestFollowUp` | No | Deterministic assistant template after JSON-only call-request decision | none | Internal accepted opportunity only |
 | Company watchlist follow follow-up | `/api/talent/company-watchlist/follow-followup` -> `createTalentCompanyFollowFollowUpReply` -> `runCareerChatTurn` | No | `buildCompanyFollowUpInstruction` | `[]` | No |
 | Session start greeting/re-engagement | `/api/talent/session`, `/api/talent/session/reengagement` -> `runCareerChatTurn` | Endpoint wrapper may stream status, but LLM turn itself is non-streaming | `buildCareerSessionStartTurnInstruction` | `recommend_job_postings` only | No internal/external branch |
@@ -94,7 +94,9 @@ Tool selection:
 
 ```ts
 function getAllowedToolNamesForFeedbackFollowUp(trigger) {
-  return trigger === "immediate_internal_feedback" ? [] : ["recommend_job_postings"];
+  return trigger === "immediate_internal_feedback"
+    ? ["get_internal_roles"]
+    : ["recommend_job_postings"];
 }
 ```
 

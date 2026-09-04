@@ -1,4 +1,5 @@
 import { CAREER_LANDING_LOCAL_ID_STORAGE_KEY } from "@/lib/career/utm";
+import { buildTalentNetworkReferralUrl } from "@/lib/talentNetworkReferralUrl";
 
 export const TALENT_NETWORK_REFERRAL_QUERY_KEY = "ref";
 
@@ -10,6 +11,7 @@ export const TALENT_NETWORK_REFERRAL_SOURCE_ONBOARDING_STEP6 =
   "onboarding_step6";
 export const TALENT_NETWORK_REFERRAL_SOURCE_LANDING_PAGE = "landing_page";
 export const TALENT_NETWORK_REFERRAL_SOURCE_LANDING_FOOTER = "landing_footer";
+export const TALENT_NETWORK_REFERRAL_SOURCE_OFFICIAL_JOB = "official_jobs";
 export const TALENT_NETWORK_REFERRAL_SOURCE_CAREER_LOGIN = "career_login";
 export const TALENT_NETWORK_REFERRAL_SOURCE_CAREER_PROFILE_MENU =
   "career_profile_menu";
@@ -18,6 +20,7 @@ export type TalentNetworkReferralSource =
   | typeof TALENT_NETWORK_REFERRAL_SOURCE_ONBOARDING_STEP6
   | typeof TALENT_NETWORK_REFERRAL_SOURCE_LANDING_PAGE
   | typeof TALENT_NETWORK_REFERRAL_SOURCE_LANDING_FOOTER
+  | typeof TALENT_NETWORK_REFERRAL_SOURCE_OFFICIAL_JOB
   | typeof TALENT_NETWORK_REFERRAL_SOURCE_CAREER_LOGIN
   | typeof TALENT_NETWORK_REFERRAL_SOURCE_CAREER_PROFILE_MENU;
 
@@ -109,6 +112,7 @@ export function isTalentNetworkReferralSource(
     value === TALENT_NETWORK_REFERRAL_SOURCE_ONBOARDING_STEP6 ||
     value === TALENT_NETWORK_REFERRAL_SOURCE_LANDING_PAGE ||
     value === TALENT_NETWORK_REFERRAL_SOURCE_LANDING_FOOTER ||
+    value === TALENT_NETWORK_REFERRAL_SOURCE_OFFICIAL_JOB ||
     value === TALENT_NETWORK_REFERRAL_SOURCE_CAREER_LOGIN ||
     value === TALENT_NETWORK_REFERRAL_SOURCE_CAREER_PROFILE_MENU
   );
@@ -353,6 +357,30 @@ export async function fetchTalentNetworkReferralSummary(
     token: String(json?.token ?? "").trim(),
     url: String(json?.url ?? "").trim(),
   };
+}
+
+export async function copyTalentNetworkReferralLinkForPath(args: {
+  baseUrl: string;
+  fetchWithAuth: (url: string, init?: RequestInit) => Promise<Response>;
+  messages?: Pick<
+    TalentNetworkReferralClientMessages,
+    "linkCreateFailed" | "summaryLoadFailed"
+  >;
+  pagePath: string;
+  writeText?: (text: string) => Promise<void>;
+}) {
+  const summary = await fetchTalentNetworkReferralSummary(args.fetchWithAuth, {
+    summaryLoadFailed:
+      args.messages?.summaryLoadFailed ?? args.messages?.linkCreateFailed,
+  });
+  const url = buildTalentNetworkReferralUrl({
+    baseUrl: args.baseUrl,
+    pagePath: args.pagePath,
+    token: summary.token,
+  });
+
+  await (args.writeText ?? copyTextToClipboard)(url);
+  return url;
 }
 
 export async function fetchTalentNetworkReferralList(

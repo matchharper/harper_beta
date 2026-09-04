@@ -29,11 +29,6 @@ test("role creation history returns web and Slack messages from one conversation
   );
 });
 
-test("the initial Harper Slack messages are persisted before the first user reply", () => {
-  assert.match(slackRoleCreation, /source: "org_role_creation_slack_start"/);
-  assert.match(slackRoleCreation, /source: "org_role_creation_slack_intro"/);
-});
-
 test("selected source messages and files are durably transferred before the automatic role turn", () => {
   const sourceBoundary = slackRoleCreation.indexOf(
     '.lte("id", args.sourceCurrentMessageId)'

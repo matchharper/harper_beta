@@ -1,4 +1,4 @@
-import { after, NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   buildTalentProfileContext,
@@ -12,6 +12,7 @@ import {
   TalentMessageRow,
   fetchTalentUserProfile,
   getCareerOnboardingChecklistCoverage,
+  getCareerOnboardingChecklistProgress,
   getTalentSupabaseAdmin,
   normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
@@ -61,6 +62,7 @@ import {
   completeOnboardingAndQueueInitialOpportunityRun,
   fetchSerializedOpportunityRunForTalent,
   getActiveOpportunityRun,
+  hasActiveConversationCompletedOpportunityRun,
   serializeOpportunityRun,
 } from "@/lib/opportunityDiscovery/store";
 import {
@@ -113,6 +115,7 @@ import {
 } from "@/lib/textSanitization";
 import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
 import { OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE } from "@/lib/officialJobs";
+import { isOfficialJobFollowUpRoleAvailable } from "@/lib/officialJobs/followUpAvailability";
 import { normalizeCareerPendingActionReference } from "@/lib/career/pendingActions";
 import {
   extractRecommendJobPostingsReceipt,
@@ -123,11 +126,16 @@ import {
   stripOpportunityRunMarkers,
 } from "@/lib/opportunityDiscovery/messageMarker";
 import { buildFirstTurnUploadedDocumentContext } from "@/lib/talentOnboarding/documentPromptContext";
+<<<<<<< HEAD
 import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
 import {
   GMAIL_CAREER_HISTORY_ORIGIN_ID,
   GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
 } from "@/lib/integrations/gmailCareerHistoryCore";
+=======
+import { canUseCareerDevControls } from "@/lib/internalAccess";
+import { resolveCareerTextChatModelForRequest } from "@/lib/career/textChatModelConfig";
+>>>>>>> 2df90ecd2a46f25e633f3f633c62f1864a32eae6
 
 export const maxDuration = 180;
 
@@ -141,6 +149,7 @@ type Body = {
   messageType?: unknown;
   opportunityMentions?: unknown;
   pendingAction?: unknown;
+  textChatModel?: unknown;
   uploadedDocumentIds?: unknown;
   link?: string;
 };
@@ -229,6 +238,7 @@ function startOpportunityDiscoveryInBackground(runId: string) {
 
 async function buildTalentProfileSnapshot(args: {
   admin: ReturnType<typeof getTalentSupabaseAdmin>;
+  conversationId: string;
   includeDocuments?: boolean;
   userId: string;
 }) {
@@ -243,7 +253,21 @@ async function buildTalentProfileSnapshot(args: {
         )
       : null,
   ]);
+  const normalizedInsights = normalizeTalentInsightContent(
+    insights?.content ?? null
+  );
+  const onboardingChecklistProgress = !Boolean(setting?.is_onboarding_done)
+    ? await getCareerOnboardingChecklistProgress({
+        admin: args.admin,
+        context: talentProfile.talentUser,
+        conversationId: args.conversationId,
+        currentInsightContent: normalizedInsights,
+        userId: args.userId,
+      })
+    : null;
+
   return {
+    onboardingChecklistProgress,
     preferredLocale: setting?.preferred_locale ?? null,
     talentPreferences: {
       engagementTypes: normalizeTalentEngagementTypes(
@@ -259,7 +283,7 @@ async function buildTalentProfileSnapshot(args: {
         setting?.recommendation_batch_size
       ),
     },
-    talentInsights: normalizeTalentInsightContent(insights?.content ?? null),
+    talentInsights: normalizedInsights,
     talentProfile: documents
       ? {
           ...talentProfile,
@@ -468,6 +492,38 @@ async function fetchOfficialJobSignupSourceContext(args: {
     });
   }
 
+  if (job?.role_id) {
+    const { data: role, error: roleError } = await args.admin
+      .from("company_roles")
+      .select("status,is_expired,expires_at")
+      .eq("role_id", job.role_id)
+      .maybeSingle();
+
+    if (roleError) {
+      console.warn(
+        "[TalentChat] Failed to verify official job role availability",
+        {
+          error: roleError.message,
+          roleId: job.role_id,
+          slug,
+          userId: args.userId,
+        }
+      );
+      return null;
+    }
+
+    if (
+      !role ||
+      !isOfficialJobFollowUpRoleAvailable({
+        expiresAt: role.expires_at,
+        isExpired: role.is_expired,
+        status: role.status,
+      })
+    ) {
+      return null;
+    }
+  }
+
   return {
     companyName:
       job?.company_name ??
@@ -597,6 +653,10 @@ export async function POST(req: NextRequest) {
     const link = sanitizeSingleLineDbText(body.link, 2000);
     const userMessageType = normalizeUserChatMessageType(body.messageType);
     const requestChannel = body.channel === "voice" ? "voice" : "chat";
+    const textChatModel = resolveCareerTextChatModelForRequest(
+      body.textChatModel,
+      requestChannel === "chat" && canUseCareerDevControls(user.email)
+    );
     const allowedToolNames = normalizeAllowedToolNames(body.allowedToolNames);
     const canUseInternalFitHoldQuestionTool =
       !Array.isArray(allowedToolNames) ||
@@ -755,6 +815,7 @@ export async function POST(req: NextRequest) {
       pendingOpportunityFeedbackContext,
       recentActivitySummaries,
       recentRecommendedOpportunities,
+      isConversationCompletedOpportunityRunActive,
     ] = await Promise.all([
       fetchTalentUserProfile({ admin, userId: user.id }),
       fetchTalentInsights({ admin, userId: user.id }),
@@ -785,6 +846,12 @@ export async function POST(req: NextRequest) {
         limit: 10,
         userId: user.id,
       }),
+      talentSetting?.is_onboarding_done
+        ? hasActiveConversationCompletedOpportunityRun({
+            admin,
+            userId: user.id,
+          })
+        : Promise.resolve(false),
     ]);
     const structuredProfile = await fetchTalentStructuredProfile({
       admin,
@@ -1116,8 +1183,12 @@ export async function POST(req: NextRequest) {
         onboardingChecklistCoverage,
         currentInsightContent,
         currentPreferences,
+<<<<<<< HEAD
         gmailCapability,
         hasSavedGmailCareerHistory: Boolean(savedGmailCareerHistoryDocument),
+=======
+        isConversationCompletedOpportunityRunActive,
+>>>>>>> 2df90ecd2a46f25e633f3f633c62f1864a32eae6
         isOnboardingDone: talentSetting?.is_onboarding_done,
         officialJobSignupIntentPrompt: talentSetting?.is_onboarding_done
           ? null
@@ -1188,7 +1259,7 @@ export async function POST(req: NextRequest) {
         thinkingLogs = appendRecommendationStatusLog(thinkingLogs, status);
       }
     };
-    const scheduleInsightExtractionForAssistantMessage = (args: {
+    const persistInsightExtractionForAssistantMessage = async (args: {
       content: string;
       messageId: number | string | null | undefined;
     }) => {
@@ -1196,29 +1267,21 @@ export async function POST(req: NextRequest) {
         return;
       }
 
-      const runBackgroundInsightExtraction = async () => {
-        try {
-          const changedKeysCount = await extractTurnInsights(args.content);
-          console.info("[TalentChat] background insight done", {
-            changedKeysCount,
-            conversationId,
-            messageId: args.messageId ?? null,
-            userId: user.id,
-          });
-        } catch (error) {
-          console.error("[TalentChat] Failed to extract background insights", {
-            conversationId,
-            error: error instanceof Error ? error.message : String(error),
-            messageId: args.messageId ?? null,
-            userId: user.id,
-          });
-        }
-      };
-
       try {
-        after(runBackgroundInsightExtraction);
-      } catch {
-        void runBackgroundInsightExtraction();
+        const changedKeysCount = await extractTurnInsights(args.content);
+        console.info("[TalentChat] insight extraction done", {
+          changedKeysCount,
+          conversationId,
+          messageId: args.messageId ?? null,
+          userId: user.id,
+        });
+      } catch (error) {
+        console.error("[TalentChat] Failed to extract insights", {
+          conversationId,
+          error: error instanceof Error ? error.message : String(error),
+          messageId: args.messageId ?? null,
+          userId: user.id,
+        });
       }
     };
     const rememberRecommendationPostingRoleIds = (result: unknown) => {
@@ -1303,25 +1366,28 @@ export async function POST(req: NextRequest) {
         name: toolArgs.name,
         input: toolInput,
       });
+      rememberRecommendationPostingRoleIds(result);
 
       if (toolArgs.name === TALENT_TOOL_NAMES.UPDATE_DOCUMENT) {
         documentsChanged = true;
       }
 
-      if (
+      const resultRecord = isRecord(result) ? result : null;
+      const changedRecommendedOpportunity =
         toolArgs.name ===
           TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK &&
-        isRecord(result) &&
-        result.ok === true
-      ) {
+        resultRecord?.ok === true;
+      if (changedRecommendedOpportunity) {
         opportunityRecommendationsChanged = true;
-        const opportunity = isRecord(result.opportunity)
-          ? result.opportunity
+        const opportunity = isRecord(resultRecord?.opportunity)
+          ? resultRecord.opportunity
           : null;
         changedOpportunityRoleId =
-          typeof opportunity?.roleId === "string"
-            ? opportunity.roleId.trim() || null
-            : null;
+          typeof resultRecord?.targetRoleId === "string"
+            ? resultRecord.targetRoleId.trim() || null
+            : typeof opportunity?.roleId === "string"
+              ? opportunity.roleId.trim() || null
+              : null;
         emitOpportunityRecommendationsChanged?.(changedOpportunityRoleId);
       }
 
@@ -1426,6 +1492,8 @@ export async function POST(req: NextRequest) {
             let assistantText: string;
             try {
               assistantText = await runCareerChatAssistantStream({
+                chatCompletionReasoningEffort:
+                  textChatModel.chatCompletionReasoningEffort,
                 messages: llmMessages,
                 tools: toolDefinitions,
                 isOnboardingActive,
@@ -1455,6 +1523,9 @@ export async function POST(req: NextRequest) {
                 onStopToolStart: () => {
                   clearStopToolPreamble();
                 },
+                openAIResponsesReasoningEffort:
+                  textChatModel.openAIResponsesReasoningEffort,
+                primaryModel: textChatModel.model,
                 executeTool: async ({ name, input }) => {
                   const { status, toolInput } = splitToolUiStatus(input);
                   if (name === TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING) {
@@ -1624,7 +1695,7 @@ export async function POST(req: NextRequest) {
                 thinkingLogs,
                 userId: user.id,
               });
-              scheduleInsightExtractionForAssistantMessage({
+              await persistInsightExtractionForAssistantMessage({
                 content: preparedAssistantText,
                 messageId: preparedMessageId,
               });
@@ -1647,6 +1718,7 @@ export async function POST(req: NextRequest) {
               });
               const profileSnapshot = await buildTalentProfileSnapshot({
                 admin,
+                conversationId,
                 includeDocuments: documentsChanged,
                 userId: user.id,
               });
@@ -1778,7 +1850,7 @@ export async function POST(req: NextRequest) {
               );
             }
 
-            scheduleInsightExtractionForAssistantMessage({
+            await persistInsightExtractionForAssistantMessage({
               content: stripOpportunityRunMarkers(safeAssistantText),
               messageId: insertedAssistantMessage.id,
             });
@@ -1918,6 +1990,7 @@ export async function POST(req: NextRequest) {
             });
             const profileSnapshot = await buildTalentProfileSnapshot({
               admin,
+              conversationId,
               includeDocuments: documentsChanged,
               userId: user.id,
             });
@@ -1965,12 +2038,17 @@ export async function POST(req: NextRequest) {
     let assistantText: string;
     try {
       assistantText = await runCareerChatAssistant({
+        chatCompletionReasoningEffort:
+          textChatModel.chatCompletionReasoningEffort,
         messages: llmMessages,
         tools: toolDefinitions,
         isOnboardingActive,
         stopAfterToolNames: toolSelection.stopAfterToolNames,
         systemBlocks,
         responseLocale,
+        openAIResponsesReasoningEffort:
+          textChatModel.openAIResponsesReasoningEffort,
+        primaryModel: textChatModel.model,
         onToolStart: ({ name, input }) => {
           const status = getCareerToolStartThinkingLog(
             name,
@@ -2152,7 +2230,7 @@ export async function POST(req: NextRequest) {
         preparedCompanySnapshot.messages[
           preparedCompanySnapshot.messages.length - 1
         ]?.id;
-      scheduleInsightExtractionForAssistantMessage({
+      await persistInsightExtractionForAssistantMessage({
         content: preparedAssistantText,
         messageId: preparedMessageId,
       });
@@ -2173,6 +2251,7 @@ export async function POST(req: NextRequest) {
       summarizeConversationInBackground();
       const profileSnapshot = await buildTalentProfileSnapshot({
         admin,
+        conversationId,
         includeDocuments: documentsChanged,
         userId: user.id,
       });
@@ -2318,7 +2397,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    scheduleInsightExtractionForAssistantMessage({
+    await persistInsightExtractionForAssistantMessage({
       content: stripOpportunityRunMarkers(safeAssistantText),
       messageId: insertedAssistantMessage.id,
     });
@@ -2360,6 +2439,7 @@ export async function POST(req: NextRequest) {
 
     const profileSnapshot = await buildTalentProfileSnapshot({
       admin,
+      conversationId,
       includeDocuments: documentsChanged,
       userId: user.id,
     });

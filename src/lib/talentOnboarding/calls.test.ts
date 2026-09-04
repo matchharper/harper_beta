@@ -3,8 +3,61 @@ import test from "node:test";
 import type { TalentAdminClient } from "./admin";
 import {
   getCareerOnboardingChecklistCoverage,
+  getOnboardingChecklistCoverageStats,
   getOrCreateCareerOnboardingCall,
+  serializeOnboardingChecklistProgress,
 } from "./calls";
+import { ONBOARDING_QUESTION_CHECKLIST } from "./insightChecklist";
+
+test("serializes checklist coverage into the canonical client progress shape", () => {
+  const progress = serializeOnboardingChecklistProgress(
+    getOnboardingChecklistCoverageStats({
+      compensation: "covered",
+      location: "covered",
+      search_intensity: "covered",
+    })
+  );
+
+  assert.equal(progress.coveredCount, 3);
+  assert.equal(progress.totalCount, 9);
+  assert.equal(progress.percent, 33);
+  assert.equal(progress.completed, false);
+});
+
+test("excludes final confirmation from both sides of displayed progress", () => {
+  const beforeFinalConfirmation = serializeOnboardingChecklistProgress(
+    getOnboardingChecklistCoverageStats({ compensation: "covered" })
+  );
+  const afterFinalConfirmation = serializeOnboardingChecklistProgress(
+    getOnboardingChecklistCoverageStats({
+      compensation: "covered",
+      final_priority_confirmation: "covered",
+    })
+  );
+
+  assert.equal(afterFinalConfirmation.coveredCount, 1);
+  assert.equal(afterFinalConfirmation.totalCount, 9);
+  assert.equal(afterFinalConfirmation.percent, 11);
+  assert.equal(afterFinalConfirmation.finalConfirmationCovered, true);
+  assert.equal(afterFinalConfirmation.percent, beforeFinalConfirmation.percent);
+});
+
+test("requires every common checklist item for completion", () => {
+  const completeCoverage = Object.fromEntries(
+    ONBOARDING_QUESTION_CHECKLIST.map((item) => [item.key, "covered" as const])
+  );
+  assert.equal(
+    getOnboardingChecklistCoverageStats(completeCoverage).isComplete,
+    true
+  );
+
+  const withoutTeamStyle = { ...completeCoverage };
+  delete withoutTeamStyle.team_style_fit;
+  assert.equal(
+    getOnboardingChecklistCoverageStats(withoutTeamStyle).isComplete,
+    false
+  );
+});
 
 function createSettingQuery(result: {
   data: { is_onboarding_done: boolean } | null;

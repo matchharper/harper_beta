@@ -1,5 +1,4 @@
 import { careerT } from "@/lib/career/translatedCareerMessage";
-import { resolveTalentLocation } from "@/lib/talentLocation";
 export type InsightChecklistItem = {
   /** Normalized key for talent_insights.content, e.g. "recent_achievement_hook" */
   key: string;
@@ -23,6 +22,8 @@ export type OnboardingQuestionChecklistItem = {
   key: string;
   /** talent_insights.content key to fill when this item stores durable matching memory */
   insightKey?: string;
+  /** Other durable insight keys intentionally covered by the same user question */
+  relatedInsightKeys?: readonly string[];
   /** Korean display label for prompts/UI */
   label: string;
   /** One-line description for LLM extraction and next-question guidance */
@@ -42,53 +43,25 @@ export type OnboardingChecklistLocationContext =
   | null
   | undefined;
 
-type CountryScopedOnboardingCountry = "SG" | "JP" | "AU";
+const MUST_HAVES_INSIGHT_ITEM = {
+  key: "must_haves",
+  label: "꼭 있어야 하는 조건",
+  promptHint:
+    "다음 역할과 함께 확인한, 이후 기회를 연결할 때 반드시 반영해야 하는 조건이나 특별 요청",
+  priority: 3.1,
+} satisfies InsightChecklistItem;
 
-const COUNTRY_SCOPED_ONBOARDING_COUNTRY_TOKENS: Record<
-  CountryScopedOnboardingCountry,
-  Set<string>
-> = {
-  SG: new Set(["singapore"]),
-  JP: new Set(["japan"]),
-  AU: new Set(["australia"]),
-};
+const CROSS_BORDER_WORK_AUTHORIZATION_ONBOARDING_ITEM = {
+  key: "cross_border_work_authorization",
+  insightKey: "cross_border_work_authorization",
+  label: "거주국 외 국가의 근무 자격",
+  promptHint:
+    "Use the user's explicit current location to determine its country, then confirm nationality with the assertive wording '[location-country] 국적이신 거죠?' Do not soften this into an open-ended nationality question. Continue by asking whether the user already has citizenship, permanent residency, or another valid work authorization in any country other than that location country. Briefly explain that Harper also explores global opportunities and some roles require existing local work authorization. A natural Korean example is: '현재 [location-country]에 계신 것으로 확인되는데, [location-country] 국적이신 거죠? 하퍼가 글로벌 기회도 함께 살펴보고 있고 일부 역할은 현지 근무 자격이 필요해요. 혹시 [location-country] 외에 시민권이나 영주권처럼 이미 일할 수 있는 자격을 가진 나라가 있다면 알려주세요.' If the current location is unavailable, ask the user's nationality directly before asking about other countries. Keep it factual and do not expand into broad visa advice unless the user asks.",
+  priority: 5,
+  kind: "question",
+} satisfies OnboardingQuestionChecklistItem;
 
-function getOnboardingLocationContextText(
-  context: OnboardingChecklistLocationContext
-) {
-  if (typeof context === "string") return context;
-  if (!context || typeof context !== "object") return "";
-  return resolveTalentLocation(context) ?? "";
-}
-
-export function getCountryScopedOnboardingCountry(
-  context: OnboardingChecklistLocationContext
-): CountryScopedOnboardingCountry | null {
-  const text = getOnboardingLocationContextText(context)
-    .toLocaleLowerCase("en-US")
-    .trim();
-  if (!text) return null;
-
-  const tokens = text.split(/[^a-z]+/i).filter(Boolean);
-  for (const [country, countryTokens] of Object.entries(
-    COUNTRY_SCOPED_ONBOARDING_COUNTRY_TOKENS
-  ) as Array<[CountryScopedOnboardingCountry, Set<string>]>) {
-    if (tokens.some((token) => countryTokens.has(token))) return country;
-  }
-
-  return null;
-}
-
-export function isCountryScopedOnboardingCountry(
-  context: OnboardingChecklistLocationContext
-) {
-  return Boolean(getCountryScopedOnboardingCountry(context));
-}
-
-/**
- * 10 data slots aligned with the Harper career system prompt.
- * Each slot maps to a conversation topic the AI should naturally explore.
- */
+/** Common onboarding topics. Every location receives this same checklist. */
 const INSIGHT_BACKED_ONBOARDING_ITEMS = [
   {
     key: "search_intensity",
@@ -109,25 +82,13 @@ const INSIGHT_BACKED_ONBOARDING_ITEMS = [
     kind: "question",
   },
   {
-    key: "language",
-    insightKey: "language",
-    label: "외국어 능력",
-    promptHint:
-      "Ask which languages the user can use in work conversations, the level for each language, and concrete situations where they can communicate at that level. Ask for examples such as 1:1 meetings, team meetings, interviews, technical/product discussions, negotiation, client communication, or async writing. Briefly explain that Harper asks because many opportunities involve global teams.",
-    priority: 3,
-    kind: "question",
-  },
-  {
     key: "next_scope",
     insightKey: "next_scope",
-    label: careerT(
-      "ko",
-      "career.profile.career_talent_profile_panel.1axs5u2",
-      "다음 역할"
-    ),
+    relatedInsightKeys: [MUST_HAVES_INSIGHT_ITEM.key],
+    label: "다음 역할과 꼭 필요한 조건",
     promptHint:
-      "The Role the user wants in the next role, such as current-past role, people leadership(Team manager or C-level), other role if possible, opened to any role",
-    priority: 4,
+      "Ask in one natural question what role, responsibility, or direction the user wants next and whether there are any non-negotiable requirements or special requests that Harper must apply when exploring opportunities. Keep the desired role in next_scope and any separate hard requirement in must_haves.",
+    priority: 3,
     kind: "question",
   },
   {
@@ -136,7 +97,17 @@ const INSIGHT_BACKED_ONBOARDING_ITEMS = [
     label: "기대 보상 조건",
     promptHint:
       "Whether the user has a minimum acceptable compensation level or 'this much would make sense' expectation for the next opportunity",
-    priority: 5,
+    priority: 4,
+    kind: "question",
+  },
+  CROSS_BORDER_WORK_AUTHORIZATION_ONBOARDING_ITEM,
+  {
+    key: "language",
+    insightKey: "language",
+    label: "외국어 능력",
+    promptHint:
+      "Ask which languages the user can use in work conversations, the level for each language, and concrete situations where they can communicate at that level. Ask for examples such as 1:1 meetings, team meetings, interviews, technical/product discussions, negotiation, client communication, or async writing. Briefly explain that Harper asks because many opportunities involve global teams. If the user's explicit current residence is Hong Kong or Indonesia, explicitly cover English and Chinese rather than treating 'Chinese' as one language: distinguish Mandarin/Putonghua and Cantonese, and for Indonesia also ask about Indonesian when it is not already clear. Never infer proficiency from residence, nationality, education, or employer.",
+    priority: 6,
     kind: "question",
   },
   {
@@ -145,7 +116,7 @@ const INSIGHT_BACKED_ONBOARDING_ITEMS = [
     label: "피하고 싶은 조건",
     promptHint:
       "Clear deal-breakers or conditions that would make the user reject an opportunity even if other parts look attractive",
-    priority: 6,
+    priority: 7,
     kind: "question",
   },
   {
@@ -154,16 +125,7 @@ const INSIGHT_BACKED_ONBOARDING_ITEMS = [
     label: "선호하는 회사의 조건",
     promptHint:
       "Preferred company type or conditions, such as startup vs. big tech, investment stage, company-team size, team working style, etc.",
-    priority: 7,
-    kind: "question",
-  },
-  {
-    key: "must_haves",
-    insightKey: "must_haves",
-    label: "꼭 있어야 하는 조건",
-    promptHint:
-      "앞서 확인한 역할, 지역/근무 방식, 보상, 피하고 싶은 조건, 회사/팀 스타일과 별개로 다음 기회를 연결받을 때 반드시 반영해야 하는 조건이나 특별 요청",
-    priority: 10,
+    priority: 8,
     kind: "question",
   },
 ] satisfies OnboardingQuestionChecklistItem[];
@@ -173,15 +135,6 @@ const ADDITIONAL_QUESTION_ONE_ITEM = {
   label: "추가 질문 1",
   promptHint:
     "Insight checklist와 별개로 프로필 gap, 직무 depth/preference, 이력 전환/타임라인 등 헤드헌트가 보통 인재측에 물어보는 추가적인 질문",
-  priority: 8,
-  kind: "additional_question",
-} satisfies OnboardingQuestionChecklistItem;
-
-const ADDITIONAL_QUESTION_TWO_ITEM = {
-  key: "additional_question_two",
-  label: "추가 질문 2",
-  promptHint:
-    "첫 번째 additional question과 다른 프로필 gap, 직무 depth/preference, 이력 전환/타임라인 등 헤드헌트가 보통 인재측에 물어보는 추가적인 질문",
   priority: 9,
   kind: "additional_question",
 } satisfies OnboardingQuestionChecklistItem;
@@ -191,27 +144,8 @@ const FINAL_PRIORITY_CONFIRMATION_ITEM = {
   label: "마지막 우선순위 확인 혹은 종료 확인",
   promptHint:
     "지금까지의 우선순위와 제약을 짧게 정리한 뒤 빠진 것이 있는지 물었고 사용자가 그 확인에 답했는지 혹은 사용자가 종료를 요청했는지",
-  priority: 11,
+  priority: 10,
   kind: "final_confirmation",
-} satisfies OnboardingQuestionChecklistItem;
-
-const PERMANENT_RESIDENCY_ONBOARDING_ITEM = {
-  key: "permanent_residency",
-  insightKey: "permanent_residency",
-  label: "영주권 여부",
-  promptHint:
-    "For Singapore/Australia onboarding only: ask whether the user has permanent residency in their current country. Keep it factual and do not expand into broad visa advice unless the user volunteers related context.",
-  priority: 6,
-  kind: "question",
-} satisfies OnboardingQuestionChecklistItem;
-
-const CURRENT_OR_RECENT_WORK_DETAIL_ITEM = {
-  key: "current_or_recent_work_detail",
-  label: "현재/직전 업무 상세",
-  promptHint:
-    "For Singapore/Japan/Australia onboarding only: if the visible profile, resume, or recent conversation does not clearly explain what the user currently does or most recently did, ask them to describe their current or immediately previous work in a bit more detail. If that work is already clear enough, do not force this question.",
-  priority: 7,
-  kind: "question",
 } satisfies OnboardingQuestionChecklistItem;
 
 export const ONBOARDING_QUESTION_CHECKLIST: OnboardingQuestionChecklistItem[] =
@@ -226,64 +160,17 @@ export const ONBOARDING_QUESTION_CHECKLIST: OnboardingQuestionChecklistItem[] =
     //   kind: "additional_question",
     // },
     ADDITIONAL_QUESTION_ONE_ITEM,
-    ADDITIONAL_QUESTION_TWO_ITEM,
     FINAL_PRIORITY_CONFIRMATION_ITEM,
   ];
 
-const COUNTRY_SCOPED_ONBOARDING_REMOVED_KEYS = new Set([
-  "deal_breakers",
-  "team_style_fit",
-]);
+export const ONBOARDING_QUESTION_MIN_COVERED_COUNT =
+  ONBOARDING_QUESTION_CHECKLIST.length;
 
-const COUNTRY_SCOPED_ONBOARDING_QUESTION_CHECKLIST_BY_COUNTRY: Record<
-  CountryScopedOnboardingCountry,
-  OnboardingQuestionChecklistItem[]
-> = {
-  SG: [
-    ...INSIGHT_BACKED_ONBOARDING_ITEMS.filter(
-      (item) => !COUNTRY_SCOPED_ONBOARDING_REMOVED_KEYS.has(item.key)
-    ),
-    PERMANENT_RESIDENCY_ONBOARDING_ITEM,
-    CURRENT_OR_RECENT_WORK_DETAIL_ITEM,
-    ADDITIONAL_QUESTION_ONE_ITEM,
-    FINAL_PRIORITY_CONFIRMATION_ITEM,
-  ],
-  JP: [
-    ...INSIGHT_BACKED_ONBOARDING_ITEMS.filter(
-      (item) => !COUNTRY_SCOPED_ONBOARDING_REMOVED_KEYS.has(item.key)
-    ),
-    CURRENT_OR_RECENT_WORK_DETAIL_ITEM,
-    ADDITIONAL_QUESTION_ONE_ITEM,
-    FINAL_PRIORITY_CONFIRMATION_ITEM,
-  ],
-  AU: [
-    ...INSIGHT_BACKED_ONBOARDING_ITEMS.filter(
-      (item) => !COUNTRY_SCOPED_ONBOARDING_REMOVED_KEYS.has(item.key)
-    ),
-    PERMANENT_RESIDENCY_ONBOARDING_ITEM,
-    CURRENT_OR_RECENT_WORK_DETAIL_ITEM,
-    ADDITIONAL_QUESTION_ONE_ITEM,
-    FINAL_PRIORITY_CONFIRMATION_ITEM,
-  ],
-};
-
-export const ONBOARDING_QUESTION_MIN_COVERED_COUNT = 8;
-
-const ALL_ONBOARDING_QUESTION_CHECKLIST: OnboardingQuestionChecklistItem[] = [
-  ...ONBOARDING_QUESTION_CHECKLIST,
-  ...COUNTRY_SCOPED_ONBOARDING_QUESTION_CHECKLIST_BY_COUNTRY.SG,
-  ...COUNTRY_SCOPED_ONBOARDING_QUESTION_CHECKLIST_BY_COUNTRY.JP,
-  ...COUNTRY_SCOPED_ONBOARDING_QUESTION_CHECKLIST_BY_COUNTRY.AU,
-];
+const ALL_ONBOARDING_QUESTION_CHECKLIST = ONBOARDING_QUESTION_CHECKLIST;
 
 export function getOnboardingQuestionChecklist(
-  context?: OnboardingChecklistLocationContext
+  _context?: OnboardingChecklistLocationContext
 ): OnboardingQuestionChecklistItem[] {
-  const country = getCountryScopedOnboardingCountry(context);
-  if (country) {
-    return COUNTRY_SCOPED_ONBOARDING_QUESTION_CHECKLIST_BY_COUNTRY[country];
-  }
-
   return ONBOARDING_QUESTION_CHECKLIST;
 }
 
@@ -296,23 +183,28 @@ export function getOnboardingAdditionalQuestionKeys(
 }
 
 export function getOnboardingRequiredQuestionKeys(
-  context?: OnboardingChecklistLocationContext
+  _context?: OnboardingChecklistLocationContext
 ) {
-  const country = getCountryScopedOnboardingCountry(context);
-  if (country === "SG" || country === "AU") {
-    return [PERMANENT_RESIDENCY_ONBOARDING_ITEM.key];
-  }
+  return [CROSS_BORDER_WORK_AUTHORIZATION_ONBOARDING_ITEM.key];
+}
 
-  return [];
+export function getOnboardingQuestionInsightKeys(
+  item: OnboardingQuestionChecklistItem
+) {
+  return [item.insightKey, ...(item.relatedInsightKeys ?? [])].filter(
+    (key): key is string => Boolean(key)
+  );
 }
 
 export function getOnboardingQuestionByInsightKey(
   context?: OnboardingChecklistLocationContext
 ) {
   return new Map(
-    getOnboardingQuestionChecklist(context)
-      .filter((item) => item.insightKey)
-      .map((item) => [item.insightKey as string, item.key])
+    getOnboardingQuestionChecklist(context).flatMap((item) =>
+      getOnboardingQuestionInsightKeys(item).map(
+        (insightKey) => [insightKey, item.key] as const
+      )
+    )
   );
 }
 
@@ -328,44 +220,43 @@ export const ONBOARDING_QUESTION_CHECKLIST_KEY_SET = new Set(
 );
 
 export const ONBOARDING_QUESTION_BY_INSIGHT_KEY = new Map(
-  ALL_ONBOARDING_QUESTION_CHECKLIST.filter((item) => item.insightKey).map(
-    (item) => [item.insightKey as string, item.key]
+  ALL_ONBOARDING_QUESTION_CHECKLIST.flatMap((item) =>
+    getOnboardingQuestionInsightKeys(item).map(
+      (insightKey) => [insightKey, item.key] as const
+    )
   )
 );
 
 export function getInsightChecklist(
-  context?: OnboardingChecklistLocationContext
+  _context?: OnboardingChecklistLocationContext
 ): InsightChecklistItem[] {
-  const country = getCountryScopedOnboardingCountry(context);
-  const items = country
-    ? COUNTRY_SCOPED_ONBOARDING_QUESTION_CHECKLIST_BY_COUNTRY[country].filter(
-        (item) => item.insightKey
-      )
-    : INSIGHT_BACKED_ONBOARDING_ITEMS;
-  return items.map((item) => ({
-    key: item.insightKey ?? item.key,
-    label: item.label,
-    promptHint: item.promptHint,
-    priority: item.priority,
-  }));
+  return INSIGHT_CHECKLIST;
 }
 
 /** Backward-compatible view of durable insight-backed onboarding items. */
-export const INSIGHT_CHECKLIST: InsightChecklistItem[] =
-  INSIGHT_BACKED_ONBOARDING_ITEMS.map((item) => ({
+export const INSIGHT_CHECKLIST: InsightChecklistItem[] = [
+  ...INSIGHT_BACKED_ONBOARDING_ITEMS.map((item) => ({
     key: item.insightKey ?? item.key,
-    label: item.label,
-    promptHint: item.promptHint,
+    label:
+      item.key === "next_scope"
+        ? careerT(
+            "ko",
+            "career.profile.career_talent_profile_panel.1axs5u2",
+            "다음 역할"
+          )
+        : item.label,
+    promptHint:
+      item.key === "next_scope"
+        ? "사용자가 다음 기회에서 원하는 역할, 책임 범위, 직무 방향"
+        : item.promptHint,
     priority: item.priority,
-  }));
+  })),
+  MUST_HAVES_INSIGHT_ITEM,
+].sort((left, right) => left.priority - right.priority);
 
 /** Map of checklist key -> Korean label for UI display */
 export const INSIGHT_CHECKLIST_LABEL_MAP = new Map([
   ...INSIGHT_CHECKLIST.map((item) => [item.key, item.label] as const),
-  [
-    PERMANENT_RESIDENCY_ONBOARDING_ITEM.insightKey,
-    PERMANENT_RESIDENCY_ONBOARDING_ITEM.label,
-  ] as const,
 ]);
 
 /** Map of checklist key -> priority index for UI ordering */

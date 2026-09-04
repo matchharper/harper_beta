@@ -10,6 +10,7 @@ import type { Locale } from "@/i18n/useMessage";
 type DocumentPageShellProps = {
   aside?: ReactNode;
   children: ReactNode;
+  contentWidth?: "wide" | "reading";
   description?: string;
   landingChrome?: boolean;
   locale: Locale;
@@ -19,6 +20,7 @@ type DocumentPageShellProps = {
 export default function DocumentPageShell({
   aside,
   children,
+  contentWidth = "wide",
   description,
   landingChrome = false,
   locale,
@@ -60,7 +62,9 @@ export default function DocumentPageShell({
       )}
 
       <div
-        className={`mx-auto flex max-w-[1240px] flex-col gap-20 px-4 sm:px-6 ${
+        className={`mx-auto flex flex-col gap-20 px-4 sm:px-6 ${
+          contentWidth === "reading" ? "max-w-[960px]" : "max-w-[1240px]"
+        } ${
           landingChrome ? "pt-24 lg:pt-38" : "pt-10 lg:pt-14"
         }`}
       >

@@ -198,6 +198,11 @@ export function buildOpenAIResponsesRequest(args: {
     ...(text ? { text } : {}),
     ...(tools && tools.length > 0
       ? {
+          ...(typeof args.requestBody.parallel_tool_calls === "boolean"
+            ? {
+                parallel_tool_calls: args.requestBody.parallel_tool_calls,
+              }
+            : {}),
           tool_choice: toOpenAIResponsesToolChoice(
             args.requestBody.tool_choice
           ),

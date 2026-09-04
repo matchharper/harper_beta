@@ -1,4 +1,5 @@
 import type { User } from "@supabase/supabase-js";
+import { syncGoogleCalendarBusyBlocksIfStaleForCompanyUser } from "@/lib/meetings/calendarSyncServer";
 import {
   type MeetingCalendarBusyBlock,
   type MeetingAvailabilityDocument,
@@ -129,17 +130,35 @@ export async function fetchMeetingAvailability(args: {
   workspaceId: string;
 }): Promise<MeetingAvailabilityResponse> {
   const { admin, workspaceId } = await assertAvailabilityAccess(args);
-  const [availability, calendarBusyBlocks] = await Promise.all([
-    fetchMeetingAvailabilityForCompanyUser({
-      admin,
-      companyUserId: args.user.id,
-      workspaceId,
-    }),
-    fetchCalendarBusyBlocksForCompanyUser({
-      admin,
-      companyUserId: args.user.id,
-    }),
-  ]);
+  const availability = await fetchMeetingAvailabilityForCompanyUser({
+    admin,
+    companyUserId: args.user.id,
+    workspaceId,
+  });
+  if (availability) {
+    try {
+      await syncGoogleCalendarBusyBlocksIfStaleForCompanyUser({
+        admin,
+        companyUserId: args.user.id,
+        skipIfNotActive: true,
+        timezone: availability.timezone,
+        workspaceId,
+      });
+    } catch (error) {
+      // Availability remains editable during a transient provider outage. The
+      // last successful mirror is safer than hiding the whole settings dialog.
+      console.error("[meeting-availability/automatic-calendar-sync]", {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Google Calendar sync failed",
+      });
+    }
+  }
+  const calendarBusyBlocks = await fetchCalendarBusyBlocksForCompanyUser({
+    admin,
+    companyUserId: args.user.id,
+  });
   return {
     availability,
     calendarBusyBlocks,
@@ -262,9 +281,6 @@ export async function updateMeetingCalendarBusyBlock(args: {
   );
   if (error?.code === "P0002") {
     throw new OrgHttpError(404, "Google Calendar 일정을 찾지 못했어요.");
-  }
-  if (error?.code === "22023") {
-    throw new OrgHttpError(400, "Google Calendar 일정을 확인해 주세요.");
   }
   if (error) throw error;
   const busyBlock = data ? toCalendarBusyBlock(data) : null;

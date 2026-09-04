@@ -195,12 +195,12 @@ export async function POST(req: NextRequest) {
         { status: 409 }
       );
     }
-    const { data: stagePending, error: stageError } = await (admin.rpc as any)(
-      "company_talent_request_stage_is_pending_v1",
+    const { data: targetActive, error: targetError } = await (admin.rpc as any)(
+      "company_talent_request_target_is_active_v1",
       { p_request_id: request.id }
     );
-    if (stageError) throw stageError;
-    if (stagePending !== true) {
+    if (targetError) throw targetError;
+    if (targetActive !== true) {
       const { data: held, error: holdError } = await (admin.rpc as any)(
         "store_company_talent_relay_body_v1",
         {

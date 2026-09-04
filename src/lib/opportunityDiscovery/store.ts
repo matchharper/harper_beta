@@ -45,6 +45,7 @@ const DEFAULT_SETTINGS: RecommendationSettings = {
 };
 
 const OPPORTUNITY_RUN_LOCK_TIMEOUT_MS = 3 * 60 * 1000;
+const INITIAL_ONBOARDING_RECOMMENDATION_COUNT = 15;
 const CAREER_CHAT_EXTERNAL_SEARCH_RUN_CONTRACT =
   "career_chat_external_search_v1";
 
@@ -261,6 +262,7 @@ export type CreateDiscoveryRunArgs = {
   initialStatus?: "queued" | "running";
   runMode?: OpportunityRunMode;
   talentId: string;
+  targetRecommendationCount?: number;
   trigger: OpportunityDiscoveryTrigger;
   triggerPayload?: Record<string, unknown>;
 };
@@ -330,6 +332,29 @@ export async function getActiveOpportunityRun(args: {
   const run = (data ?? null) as OpportunityRunRow | null;
   if (run && isOpportunityRunLockExpired(run)) return null;
   return run;
+}
+
+/** 온보딩 종료로 생성된 최초 탐색 run이 DB상 queued/running인 동안만 true를 반환한다. */
+export async function hasActiveConversationCompletedOpportunityRun(args: {
+  admin: AdminClient;
+  userId: string;
+}) {
+  const { count, error } = await ((
+    args.admin.from("opportunity_discovery_run" as any) as any
+  )
+    .select("id", { count: "exact", head: true })
+    .eq("talent_id", args.userId)
+    .eq("trigger", "conversation_completed")
+    .in("status", ["queued", "running"]) as any);
+
+  if (error) {
+    throw new Error(
+      error.message ??
+        "Failed to check active conversation-completed opportunity run"
+    );
+  }
+
+  return Number(count ?? 0) > 0;
 }
 
 async function fetchActiveOpportunityRunForTalent(args: {
@@ -447,6 +472,7 @@ export async function completeOnboardingAndQueueInitialOpportunityRun(args: {
     conversationId: args.conversationId,
     runMode: "initial",
     talentId: args.userId,
+    targetRecommendationCount: INITIAL_ONBOARDING_RECOMMENDATION_COUNT,
     trigger: "conversation_completed",
     triggerPayload: {
       completionReason: args.completionReason,
@@ -665,6 +691,8 @@ export async function createOpportunityDiscoveryRun(
     opportunityAgentVariant:
       requestedAgentVariant ?? DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT,
   };
+  const recommendationBatchSizeForRun =
+    args.targetRecommendationCount ?? settings.recommendationBatchSize;
 
   const payload = {
     conversation_id: args.conversationId ?? null,
@@ -672,13 +700,16 @@ export async function createOpportunityDiscoveryRun(
     settings_snapshot: {
       getExternalRecommendation: settings.getExternalRecommendation,
       profileVisibility: settings.profileVisibility,
-      recommendationBatchSize: settings.recommendationBatchSize,
+      recommendationBatchSize: recommendationBatchSizeForRun,
     },
     status: args.initialStatus ?? "queued",
     ...(args.initialStatus === "running"
       ? { started_at: new Date().toISOString() }
       : {}),
     talent_id: args.talentId,
+    ...(args.targetRecommendationCount !== undefined
+      ? { target_recommendation_count: args.targetRecommendationCount }
+      : {}),
     trigger: args.trigger,
     trigger_payload: triggerPayload,
   };

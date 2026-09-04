@@ -148,6 +148,10 @@ export type OrgAgentMessageMetadata = {
     contactId: string;
     revision: number;
   };
+  contactDraftRefs?: Array<{
+    contactId: string;
+    revision: number;
+  }>;
   fallbackReason?: string | null;
   historyTruncated?: boolean;
   internalTokenCorrectionCount?: number;

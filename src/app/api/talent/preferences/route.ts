@@ -5,6 +5,8 @@ import {
   ensureTalentUserRecord,
   fetchTalentInsights,
   fetchTalentSetting,
+  fetchTalentUserProfile,
+  getCareerOnboardingChecklistProgress,
   getTalentSupabaseAdmin,
   normalizeTalentBlockedCompanies,
   normalizeTalentEngagementTypes,
@@ -27,6 +29,10 @@ import {
   isSameActivityValue,
   type TalentActivityChange,
 } from "@/lib/talentOnboarding/activityEvents";
+import {
+  resolveAccountSubscriptionUpdate,
+  toAccountSubscriptionSettings,
+} from "@/lib/career/accountSubscriptions";
 
 const getLatestUpdatedAt = (...values: Array<string | null | undefined>) => {
   const timestamps = values
@@ -49,6 +55,7 @@ const getLatestUpdatedAt = (...values: Array<string | null | undefined>) => {
 type Body = {
   engagementTypes?: string[];
   getExternalRecommendation?: boolean;
+  harperEnabled?: boolean;
   recommendationBatchSize?: number;
   insightContent?: Record<string, unknown> | null;
 };
@@ -84,10 +91,27 @@ const toResponsePreferences = (
 const toResponseInsights = (insights?: { content?: unknown } | null) =>
   normalizeTalentInsightContent(insights?.content);
 
+const toResponseAccountSubscriptions = (
+  setting?: {
+    get_external_recommendation?: boolean | null;
+    profile_visibility?: string | null;
+  } | null
+) =>
+  toAccountSubscriptionSettings({
+    getExternalRecommendation: normalizeTalentRecommendationToggle(
+      setting?.get_external_recommendation
+    ),
+    profileVisibility: sanitizeTalentProfileVisibility(
+      setting?.profile_visibility ?? DEFAULT_TALENT_PROFILE_VISIBILITY
+    ),
+  });
+
 function getPreferenceActivityChanges(args: {
   body: Body;
   from: ReturnType<typeof toResponsePreferences>;
+  fromProfileVisibility: string;
   to: ReturnType<typeof toResponsePreferences>;
+  toProfileVisibility: string;
 }) {
   const changes: TalentActivityChange[] = [];
   if (args.body.engagementTypes !== undefined) {
@@ -102,6 +126,13 @@ function getPreferenceActivityChanges(args: {
       field: "getExternalRecommendation",
       from: args.from.getExternalRecommendation,
       to: args.to.getExternalRecommendation,
+    });
+  }
+  if (args.body.harperEnabled !== undefined) {
+    changes.push({
+      field: "profileVisibility",
+      from: args.fromProfileVisibility,
+      to: args.toProfileVisibility,
     });
   }
   if (args.body.recommendationBatchSize !== undefined) {
@@ -140,15 +171,27 @@ export async function GET(req: NextRequest) {
     const admin = getTalentSupabaseAdmin();
     await ensureTalentUserRecord({ admin, user });
 
-    const [setting, insights] = await Promise.all([
+    const [setting, insights, profile] = await Promise.all([
       fetchTalentSetting({ admin, userId: user.id }),
       fetchTalentInsights({ admin, userId: user.id }),
+      fetchTalentUserProfile({ admin, userId: user.id }),
     ]);
+    const talentInsights = toResponseInsights(insights);
+    const onboardingChecklistProgress = !Boolean(setting?.is_onboarding_done)
+      ? await getCareerOnboardingChecklistProgress({
+          admin,
+          context: profile,
+          currentInsightContent: talentInsights,
+          userId: user.id,
+        })
+      : null;
 
     return NextResponse.json({
       ok: true,
+      accountSubscriptions: toResponseAccountSubscriptions(setting),
+      onboardingChecklistProgress,
       preferences: toResponsePreferences(setting),
-      talentInsights: toResponseInsights(insights),
+      talentInsights,
       preferencesUpdatedAt: setting?.updated_at ?? null,
       insightUpdatedAt: insights?.last_updated_at ?? null,
       updatedAt: getLatestUpdatedAt(
@@ -171,38 +214,61 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json().catch(() => ({}))) as Body;
+    if (
+      (body.getExternalRecommendation !== undefined &&
+        typeof body.getExternalRecommendation !== "boolean") ||
+      (body.harperEnabled !== undefined &&
+        typeof body.harperEnabled !== "boolean")
+    ) {
+      return NextResponse.json(
+        { error: "Invalid account subscription settings" },
+        { status: 400 }
+      );
+    }
     const admin = getTalentSupabaseAdmin();
     await ensureTalentUserRecord({ admin, user });
 
-    const [existingSetting, existingInsights] = await Promise.all([
+    const [existingSetting, existingInsights, profile] = await Promise.all([
       fetchTalentSetting({ admin, userId: user.id }),
       fetchTalentInsights({ admin, userId: user.id }),
+      fetchTalentUserProfile({ admin, userId: user.id }),
     ]);
 
     const hasPreferenceUpdate =
       body.engagementTypes !== undefined ||
       body.getExternalRecommendation !== undefined ||
+      body.harperEnabled !== undefined ||
       body.recommendationBatchSize !== undefined;
     const hasInsightUpdate = body.insightContent !== undefined;
+
+    const accountSubscriptionUpdate = resolveAccountSubscriptionUpdate({
+      currentGetExternalRecommendation: normalizeTalentRecommendationToggle(
+        existingSetting?.get_external_recommendation
+      ),
+      currentProfileVisibility: sanitizeTalentProfileVisibility(
+        existingSetting?.profile_visibility ?? DEFAULT_TALENT_PROFILE_VISIBILITY
+      ),
+      ...(body.getExternalRecommendation === undefined
+        ? {}
+        : { getExternalRecommendation: body.getExternalRecommendation }),
+      ...(body.harperEnabled === undefined
+        ? {}
+        : { harperEnabled: body.harperEnabled }),
+    });
 
     const savedSetting = hasPreferenceUpdate
       ? await upsertTalentSetting({
           admin,
           userId: user.id,
-          profileVisibility: sanitizeTalentProfileVisibility(
-            existingSetting?.profile_visibility ??
-              DEFAULT_TALENT_PROFILE_VISIBILITY
-          ),
+          profileVisibility: accountSubscriptionUpdate.profileVisibility,
           blockedCompanies: normalizeTalentBlockedCompanies(
             existingSetting?.blocked_companies ?? []
           ),
           engagementTypes: normalizeTalentEngagementTypes(
             body.engagementTypes ?? existingSetting?.engagement_types ?? []
           ),
-          getExternalRecommendation: normalizeTalentRecommendationToggle(
-            body.getExternalRecommendation ??
-              existingSetting?.get_external_recommendation
-          ),
+          getExternalRecommendation:
+            accountSubscriptionUpdate.getExternalRecommendation,
           recommendationBatchSize: normalizeTalentRecommendationBatchSize(
             body.recommendationBatchSize ??
               existingSetting?.recommendation_batch_size
@@ -220,11 +286,21 @@ export async function POST(req: NextRequest) {
 
     const previousPreferences = toResponsePreferences(existingSetting);
     const nextPreferences = toResponsePreferences(savedSetting);
+    const nextAccountSubscriptions =
+      toResponseAccountSubscriptions(savedSetting);
     const preferenceChanges = hasPreferenceUpdate
       ? getPreferenceActivityChanges({
           body,
           from: previousPreferences,
+          fromProfileVisibility: sanitizeTalentProfileVisibility(
+            existingSetting?.profile_visibility ??
+              DEFAULT_TALENT_PROFILE_VISIBILITY
+          ),
           to: nextPreferences,
+          toProfileVisibility: sanitizeTalentProfileVisibility(
+            savedSetting?.profile_visibility ??
+              DEFAULT_TALENT_PROFILE_VISIBILITY
+          ),
         })
       : [];
     const preferenceSummary = buildPreferenceActivitySummary(preferenceChanges);
@@ -237,7 +313,8 @@ export async function POST(req: NextRequest) {
         ],
         eventType: "preferences_changed",
         impactLevel: getPreferenceActivityImpact(preferenceChanges),
-        source: "profile_tab",
+        source:
+          body.harperEnabled === undefined ? "profile_tab" : "account_settings",
         summary: preferenceSummary,
         userId: user.id,
       });
@@ -268,13 +345,26 @@ export async function POST(req: NextRequest) {
         userId: user.id,
       });
     }
+    const responseInsights = toResponseInsights(savedInsights);
+    const onboardingChecklistProgress = !Boolean(
+      savedSetting?.is_onboarding_done
+    )
+      ? await getCareerOnboardingChecklistProgress({
+          admin,
+          context: profile,
+          currentInsightContent: responseInsights,
+          userId: user.id,
+        })
+      : null;
 
     return NextResponse.json({
       ok: true,
+      accountSubscriptions: nextAccountSubscriptions,
+      onboardingChecklistProgress,
       opportunityDiscoveryQueued: false,
       opportunityRunId: null,
       preferences: toResponsePreferences(savedSetting),
-      talentInsights: toResponseInsights(savedInsights),
+      talentInsights: responseInsights,
       preferencesUpdatedAt: savedSetting?.updated_at ?? null,
       insightUpdatedAt: savedInsights?.last_updated_at ?? null,
       updatedAt: getLatestUpdatedAt(

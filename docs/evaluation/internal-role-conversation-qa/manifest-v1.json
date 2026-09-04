@@ -1,0 +1,65 @@
+{
+  "task": "internal-role-conversation-qa",
+  "datasetVersion": "v1",
+  "datasetKind": "stateful-production-account-e2e-challenge-set",
+  "createdAt": "2026-09-03T15:20:00+09:00",
+  "source": {
+    "repository": "harper_beta",
+    "baseRevision": "bc2b83628dd3b89dcb34c7519a893c576855e59e",
+    "dirtyWorktree": true,
+    "databaseMode": "authorized-single-talent-write",
+    "productionRoleWrites": false,
+    "otherTalentWrites": false
+  },
+  "artifacts": {
+    "cases": {
+      "path": "cases-v1.json",
+      "sha256": "0633f78b1bc64f9da138e0270a50f8139d6e6e50bd80aa945277d0a6d37bb2b3",
+      "containsProductionPII": false,
+      "tracked": true
+    },
+    "privateFixture": {
+      "path": "private/fixture-v1.json",
+      "containsProductionPII": true,
+      "tracked": false,
+      "requiredMode": "0600"
+    },
+    "rawRuns": {
+      "path": "runs/<run-id>/",
+      "containsProductionPII": true,
+      "tracked": false,
+      "requiredMode": "0600"
+    }
+  },
+  "caseCount": 20,
+  "runner": {
+    "status": "manual-dom-e2e",
+    "canonicalPath": "docs/evaluation/internal-role-conversation-qa/README.md#canonical-procedure와-설정",
+    "browser": "logged-in Chrome extension",
+    "url": "http://localhost:3000/career"
+  },
+  "model": {
+    "provider": "openrouter",
+    "model": "z-ai/glm-5.3-flash",
+    "reasoningEffort": "high",
+    "sampling": "production Career configuration"
+  },
+  "releaseGate": {
+    "criticalFailureCount": 0,
+    "minimumQualityPasses": 18,
+    "stateTransitionContractPassRate": "100%"
+  },
+  "latestRun": {
+    "id": "2026-09-03-glm-v1",
+    "surface": "career-local-chrome",
+    "userTurns": 20,
+    "assistantTurns": 18,
+    "passes": 7,
+    "criticalFailures": 3,
+    "stateTransitionPasses": 4,
+    "stateTransitionChecks": 7,
+    "report": "phase1-report-20260903.md",
+    "baselineRestored": true
+  },
+  "runStatus": "phase1_completed_gate_failed"
+}

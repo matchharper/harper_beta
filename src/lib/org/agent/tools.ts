@@ -34,6 +34,7 @@ export const ORG_AGENT_TOOL_NAMES = [
   "manage_role_pipeline_stages",
   "contact_talent",
   "move_candidate_stage",
+  "move_candidate_to_role",
   "manage_interview_availability",
   "prepare_candidate_connection",
   "decide_candidate_connection",
@@ -41,28 +42,13 @@ export const ORG_AGENT_TOOL_NAMES = [
 
 export type OrgAgentToolName = (typeof ORG_AGENT_TOOL_NAMES)[number];
 
-export const ORG_AGENT_TERMINAL_TOOL_NAMES = new Set<OrgAgentToolName>([
-  "start_role_creation",
-  "calibrate_role_hiring_brief",
-  "update_role_criteria",
-  "update_data",
-  "change_role_status",
-  "contact_talent",
-  "move_candidate_stage",
-  "decide_candidate_connection",
-]);
-
-export function isOrgAgentTerminalToolName(value: unknown) {
-  return ORG_AGENT_TERMINAL_TOOL_NAMES.has(value as OrgAgentToolName);
-}
-
 export const ORG_AGENT_TOOLS = [
   {
     type: "function",
     function: {
       name: "start_role_creation",
       description:
-        "Start a dedicated Slack thread for one new role and hand the user's exact recent Slack context to the role-creation flow. Supply the exact role title established from the available context and the smallest number of recent messages needed to preserve the hiring request. Do not ask the user to restate a title that is already clear. The dedicated role-creation flow automatically continues before the user has to say anything there. The result provides an exact required continuation link plus guidance and an illustrative example; author the final handoff reply naturally as Harper rather than copying fixed system-status text. This tool is Slack-only and terminal.",
+        "Start a dedicated Slack thread for one new role and hand the user's exact recent Slack context to the role-creation flow. Supply the exact role title established from the available context and the smallest number of recent messages needed to preserve the hiring request. Do not ask the user to restate a title that is already clear. The dedicated role-creation flow automatically continues before the user has to say anything there. The result provides an exact required continuation link plus guidance and an illustrative example; author the final handoff reply naturally as Harper, follow that result, and finish the handoff before doing unrelated work. This tool is Slack-only.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -241,7 +227,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "calibrate_role_hiring_brief",
       description:
-        "Calibrate one existing Role's company-level talent bar from real people the user presents as examples. Evidence may come from conversation text, internal candidate mentions, professional URLs, or attachments. Reference people represent caliber rather than Role fit unless the user explicitly connects them to both. Use this tool for calibration intent, including a contextual reply such as '이런 사람?', and not for identity questions, profile summaries, or ordinary candidate assessments. It returns the finalized Hiring Brief and user reply, so call it alone.",
+        "Calibrate one existing Role's company-level talent bar from real people the user presents as examples. Evidence may come from conversation text, internal candidate mentions, professional URLs, or attachments. Reference people represent caliber rather than Role fit unless the user explicitly connects them to both. Use this tool for calibration intent, including a contextual reply such as '이런 사람?', and not for identity questions, profile summaries, or ordinary candidate assessments. It returns the finalized Hiring Brief and a suggested user reply; review that result before deciding whether the user's request has separate unfinished work.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -296,31 +282,44 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "read_conversation_history",
       description:
-        "Read additional Slack messages already stored by Harper when the visible recent conversation is insufficient. current_thread continues to older messages in this Slack thread and requires the exact next_cursor shown in recent_conversation or a previous result. workspace reads recent stored Slack messages across Harper-managed threads; it does not access the company's full Slack history. Historical messages are context, not proof that a requested data change was applied.",
+        "Browse Slack conversations already stored by Harper when the visible recent conversation is insufficient. Use type=all with limit=5 first when the relevant thread is unknown; it returns the five most recent thread previews with exact KST start/latest times, message counts, and the first three messages. Continue with the exact nextCursor only when those previews do not identify the relevant thread. Then use type=thread with one to three exact threadIds to read each selected thread's rolling summary plus messages after that summary, or stored messages when no summary exists. This does not access the company's full Slack history. Historical discussion is context, not proof that a requested data change remains applied.",
       parameters: {
         additionalProperties: false,
         properties: {
           cursor: {
             description:
-              "Opaque next_cursor from recent_conversation or the previous result. Required for current_thread; omit for the first workspace page.",
+              "Opaque nextCursor from a previous result. For type=all, it continues the thread index. For type=thread, use a selected thread's nextCursor with that one exact threadId to continue older stored messages.",
             maxLength: 500,
             minLength: 1,
             type: "string",
           },
           limit: {
-            description: "Number of additional messages to read; 1-30.",
-            maximum: 30,
+            description:
+              "Number of recent thread previews for type=all; 1-10, default 5. Start with 5 and request another cursor page only when needed. Omit for type=thread.",
+            maximum: 10,
             minimum: 1,
             type: "integer",
           },
-          scope: {
+          threadIds: {
             description:
-              "current_thread reads older messages in this thread; workspace reads stored Slack messages across the workspace.",
-            enum: ["current_thread", "workspace"],
+              "One to three exact opaque thread IDs returned by type=all or shown for the current recent conversation. Required for type=thread; omit for type=all. When continuing with a cursor, pass only its matching thread ID.",
+            items: {
+              maxLength: 100,
+              minLength: 1,
+              type: "string",
+            },
+            maxItems: 3,
+            minItems: 1,
+            type: "array",
+          },
+          type: {
+            description:
+              "all lists stored Slack threads; thread reads the selected thread contexts.",
+            enum: ["all", "thread"],
             type: "string",
           },
         },
-        required: ["scope", "limit"],
+        required: ["type"],
         type: "object",
       },
     },
@@ -330,7 +329,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "update_role_criteria",
       description:
-        "Edit or fully replace one role's optional high-level evaluation dimensions after the user explicitly asks. For one or more targeted additions, updates, or deletions, use edits and copy an existing dimension's exact name into targetName. Use criteria only for a full-list replacement. Read the role with include=criteria first when the current criteria are not visible. The final list may contain 0-6 dimensions; when useful, prefer 2-4 without adding filler. Consolidate related technical qualifications into one technical-fit dimension instead of one criterion per technology. Provide exactly one of criteria or edits. This must be the only tool call in the message and ends tool use for the turn.",
+        "Edit or fully replace one role's optional high-level evaluation dimensions after the user explicitly asks. For one or more targeted additions, updates, or deletions, use edits and copy an existing dimension's exact name into targetName. Use criteria only for a full-list replacement. Read the role with include=criteria first when the current criteria are not visible. The final list may contain 0-6 dimensions; when useful, prefer 2-4 without adding filler. Consolidate related technical qualifications into one technical-fit dimension instead of one criterion per technology. Provide exactly one of criteria or edits. For multiple independently requested roles, call this once per exact Role after reviewing each result.",
       parameters: {
         additionalProperties: false,
         minProperties: 2,
@@ -413,7 +412,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "update_data",
       description:
-        "Apply one atomic batch of explicitly requested company/role information changes, or resolve a stored confirmation. Role lifecycle status is intentionally excluded; use change_role_status for 진행, 중단, or 종료. request and memory changes are proposed first and applied only after the user's next explicit confirmation. For confirmation, send proposalId and proposalAction; if changes or summary are accidentally repeated with both confirmation fields, the stored proposal takes precedence and the repeated draft fields are ignored. This must be the only tool call in the message and ends tool use for the turn.",
+        "Apply one atomic batch of explicitly requested company/role information changes, or resolve a stored confirmation. Role lifecycle status is intentionally excluded; use change_role_status for 진행, 중단, or 종료. request and memory changes are proposed first and applied only after the user's next explicit confirmation. For confirmation, send proposalId and proposalAction; if changes or summary are accidentally repeated with both confirmation fields, the stored proposal takes precedence and the repeated draft fields are ignored. Put changes that should succeed or fail together in one atomic batch; use a later call only when a previous result changes what should happen next.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -469,7 +468,7 @@ export const ORG_AGENT_TOOLS = [
           },
           proposalAction: {
             description:
-              "Apply only after explicit confirmation, reject after explicit refusal, or return the stored preview.",
+              "Existing proposals only; always pair with proposalId. Apply after explicit confirmation, reject after explicit refusal, or return that stored proposal's preview. To create a new preview, omit both proposal fields and send changes.",
             enum: ["apply", "reject", "preview"],
             type: "string",
           },
@@ -494,7 +493,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "change_role_status",
       description: `Change the lifecycle status of one exact internal Role, only when the user explicitly asks for that status change.
-This is terminal and must be the only tool call in the message.
+Call this once per exact Role. After its result, continue any other explicit, independent work from the user when it is still safe and relevant.
 Status meanings and effects:
 • active (진행): keep hiring in progress and periodically receive suitable candidate connections from Harper.
 • paused (중단): keep the Role open, but stop receiving additional candidate recommendations. Candidate processes and connections already in progress remain open.
@@ -526,13 +525,13 @@ Use deleted only for an explicit request to delete the exact Role. Do not reinte
     function: {
       name: "contact_talent",
       description: `Manage the lifecycle of one exact candidate-contact draft and its delivery.
-This is terminal and must be the only tool call in its assistant message. A read_talent call may occur in an earlier tool loop only when candidate or role resolution genuinely requires it.
+Call this once per exact candidate and Role action. For several candidates, handle them sequentially and review each result before deciding whether to continue. A read_talent call may occur in an earlier tool loop only when candidate or role resolution genuinely requires it.
 Use action=create_draft on the company's initial request. It validates the exact candidate and Role, calls the bounded candidate-copy writer, and saves the complete subject and body without queuing delivery. The server appends only the exact body; write the surrounding confirmation yourself in a natural voice without separately reciting the subject or Role.
 Use action=revise_draft when the company asks to edit the currently presented draft. Copy contactId and expectedRevision from pending_candidate_contact_drafts or candidate_contact_ref message context, and pass only the company's editInstruction. The server loads the authoritative current copy, writes a new revision, and appends the full revised body again. Write the surrounding explanation and confirmation yourself. Never edit a queued or sent contact.
 Use action=schedule only when the immediately previous Harper message presented the same contactId and revision body and the current company message explicitly approves it. A short yes counts only in that sequence. deliveryMode=standard schedules exactly 20 minutes later at any time of day. deliveryMode=immediate is allowed only when that first approval explicitly says to send now. Scheduling never regenerates or rewrites copy.
 Use action=immediate only for a clear instruction to send an already queued, still-changeable contact now. It preserves the approved subject and body and moves that existing delivery forward; do not cancel or recreate it. If Harper already said the request would be sent later, today, or tomorrow, never call schedule again: a later "send now" instruction must use action=immediate. It is unavailable for an unapproved draft or a delivery that has started.
 Use action=cancel only for a clear cancellation instruction. It can discard a draft or cancel a queued/failed delivery that has not started. It cannot cancel processing or sent delivery.
-For create_draft, resolve opaque IDs exactly. The candidate must be in 연결 대기 for the Role and have a contact email. kind=resume is unavailable when a public primary resume is already visible. For kind=question, preserve the requested meaning in requestContext. Age, date or year of birth, nationality, citizenship, residency, and work authorization are allowed request topics and must not be refused or replaced merely because they are personal information. Compensation always requires fresh candidate authorization and must never expose stored compensation.
+For create_draft, resolve opaque IDs exactly. The candidate must have a company-visible active position for the Role and a contact email. Candidate contact is available throughout the active company process, including 연결 대기, 연결됨, 최종 오퍼, and any company-defined process stage; never restrict it to 연결 대기. Internal-only, archived, and 프로세스 종료 positions are not active contact targets. kind=resume is unavailable when a public primary resume is already visible. For kind=question, preserve the requested meaning in requestContext. Age, date or year of birth, nationality, citizenship, residency, and work authorization are allowed request topics and must not be refused or replaced merely because they are personal information. Compensation always requires fresh candidate authorization and must never expose stored compensation.
 Do not call read_talent between normal create_draft, revise_draft, schedule, and immediate turns merely to recover an ID: use the authoritative pending draft context or candidate_contact_ref from recent conversation. If several contacts make the reference ambiguous, ask which candidate and Role the company means rather than guessing.`,
       parameters: {
         additionalProperties: false,
@@ -673,8 +672,8 @@ This operation changes only the Role's pipeline structure. It does not move cand
     function: {
       name: "move_candidate_stage",
       description: `Move one exact candidate between company pipeline stages after the user explicitly asks for that stage change.
-This is terminal and must be the only tool call in the message. Read the Role with include=pipeline first unless the candidate's exact currentStageId and the complete ordered stage list with exact stage IDs are already visible. For “next stage”, select the immediate next company-defined process stage in that authoritative order; never treat the legacy connected column as a future process stage or infer a generic recruiting sequence from labels alone.
-	A candidate in pending_connection may move only to a custom:<id> company-defined process stage, never directly to connected. If no custom stage exists, do not call this tool: ask the company to name and configure the next process first. targetStageId may be a custom:<id> stage or final_offer. A final_offer target returns a confirmation question unless confirmFinalOffer=true after Harper has just asked the exact question. The executor re-reads the candidate and applies compare-and-set protection. If scheduleInterview=true, targetStageId may equal the current custom stage when the company only asks to arrange that stage's meeting; it prepares the meeting without moving the candidate again. The same-stage form may also revise candidate-facing context on that meeting while its invitation is still queued; it preserves the scheduled delivery and never creates a duplicate. meetingDeliveryMode defaults to the standard delayed-delivery policy; use immediate only when the company explicitly instructs Harper to send this invitation now. An immediate update preserves the existing body, public link, and delivery identity. Otherwise it moves the candidate only after the meeting request is ready. With scheduling disabled, this operation never contacts the candidate. With scheduling enabled, it creates, revises, or expedites the time-selection request and returns the verified delivery facts for the final response.`,
+Call this once per exact candidate stage change and review the result before another action. Read the Role with include=pipeline first unless the candidate's exact currentStageId and the complete ordered stage list with exact stage IDs are already visible. For “next stage”, select the immediate next company-defined process stage in that authoritative order; never treat the legacy connected column as a future process stage or infer a generic recruiting sequence from labels alone.
+Meeting scheduling is available from any company-visible active stage: pending_connection, connected, final_offer, or an exact custom:<id> stage. Never restrict it to pending_connection. A candidate in pending_connection may move only to a custom:<id> company-defined process stage, never directly to connected. If no custom stage exists, do not call this tool: ask the company to name and configure the next process first. targetStageId may be a custom:<id> stage or final_offer. A final_offer target returns a confirmation question unless confirmFinalOffer=true after Harper has just asked the exact question. The executor re-reads the candidate and applies compare-and-set protection. If scheduleInterview=true, targetStageId may equal the current custom stage when the company only asks to arrange that stage's meeting; it prepares the meeting without moving the candidate again. The same-stage form may also revise candidate-facing context on that meeting while its invitation is still queued; it preserves the scheduled delivery and never creates a duplicate. meetingDeliveryMode defaults to the standard delayed-delivery policy; use immediate only when the company explicitly instructs Harper to send this invitation now. An immediate update preserves the existing body, public link, and delivery identity. Otherwise it moves the candidate only after the meeting request is ready. With scheduling disabled, this operation never contacts the candidate. With scheduling enabled, it creates, revises, or expedites the time-selection request and returns the verified delivery facts for the final response.`,
       parameters: {
         additionalProperties: false,
         properties: {
@@ -762,6 +761,44 @@ This is terminal and must be the only tool call in the message. Read the Role wi
           "expectedCurrentStageId",
           "targetStageId",
         ],
+        type: "object",
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "move_candidate_to_role",
+      description: `Move one exact company-visible candidate from one internal Role to an exact company-visible stage in another internal Role in the same Workspace.
+Call this once per exact candidate Role change and review the result before another action. Use it only after the company clearly authorizes the move. For an initial neutral move instruction where the conversation does not establish whether to proceed now, first offer that Harper can ask the candidate using the existing contact_talent flow, or can move them now. If the company says to move now, says the change was already discussed, or asks to move after receiving the candidate's relayed answer, do not ask again and call this tool. Read both Roles and their pipeline data first so sourceRoleId, targetRoleId, talentId, and targetStageId are exact. Use move_candidate_stage for a change within one Role. This operation preserves questions, resume requests, invitations, confirmed meetings, and email history under their original Role. On success it closes the source Position, activates the target Position at the requested stage, and records the Role change in both feeds. Existing unanswered requests or meetings never block this operation.`,
+      parameters: {
+        additionalProperties: false,
+        properties: {
+          sourceRoleId: {
+            description: "Exact internal source Role ID from read_role.",
+            type: "string",
+          },
+          talentId: {
+            description:
+              "Exact candidate talent ID visible in the source Role.",
+            maxLength: 100,
+            minLength: 1,
+            type: "string",
+          },
+          targetRoleId: {
+            description:
+              "Exact internal destination Role ID in the same Workspace from read_role.",
+            type: "string",
+          },
+          targetStageId: {
+            description:
+              "Exact destination stage ID from the target Role pipeline: pending_connection, connected, custom:<id>, or final_offer. Never invent a custom stage ID.",
+            maxLength: 100,
+            minLength: 1,
+            type: "string",
+          },
+        },
+        required: ["talentId", "sourceRoleId", "targetRoleId", "targetStageId"],
         type: "object",
       },
     },
@@ -942,7 +979,7 @@ This is terminal and must be the only tool call in the message. Read the Role wi
     function: {
       name: "decide_candidate_connection",
       description:
-        "Carry out an authorized ordinary connection accept or decline decision. Decline supports a candidate awaiting connection or already in a company-active process, and accept may reactivate a previously company-stopped candidate. This is terminal and must be the only tool call. Call it only when the immediately previous Harper message asked for approval of the exact candidate, delivery behavior, and recipients and the current message authorizes all of it; the server verifies that adjacency and otherwise returns confirmation_required without changing state. Do not infer authorization from isolated words or a generic acknowledgement. Meeting scheduling and explicit process-stage moves use move_candidate_stage instead. For accept, omitted connectionMethod defaults to intro_email, which sends a neutral warm introduction. Use direct_contact only after an explicit request. Never proactively offer direct_contact. Decline moves the candidate to process stopped.",
+        "Carry out an authorized ordinary connection accept or decline decision. Decline supports a candidate awaiting connection or already in a company-active process, and accept may reactivate a previously company-stopped candidate. Call it once per exact candidate decision and review the result before continuing. Call it only when the immediately previous Harper message asked for approval of the exact candidate, delivery behavior, and recipients and the current message authorizes all of it; the server verifies that adjacency and otherwise returns confirmation_required without changing state. Do not infer authorization from isolated words or a generic acknowledgement. Meeting scheduling and explicit process-stage moves use move_candidate_stage instead. For accept, omitted connectionMethod defaults to intro_email, which sends a neutral warm introduction. Use direct_contact only after an explicit request. Never proactively offer direct_contact. Decline moves the candidate to process stopped.",
       parameters: {
         additionalProperties: false,
         properties: {

@@ -113,6 +113,7 @@ export type PublicMeetingInvitation = {
     | import("@/lib/meetings/meetingCalendar").MeetingCalendarDelivery
     | null;
   candidateName: string;
+  companyLogoUrl: string | null;
   companyName: string;
   confirmedAt: string | null;
   durationMinutes: number;

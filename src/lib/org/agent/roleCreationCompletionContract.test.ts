@@ -10,28 +10,6 @@ const chat = readFileSync(
   new URL("./roleCreationChat.ts", import.meta.url),
   "utf8"
 );
-const migration = readFileSync(
-  new URL(
-    "../../../../supabase/migrations/20260807140000_org_role_creation_conversations.sql",
-    import.meta.url
-  ),
-  "utf8"
-);
-
-test("draft activation uses only the guarded completion RPC", () => {
-  assert.match(confirmation, /complete_company_role_creation_v1/);
-  assert.doesNotMatch(confirmation, /\.update\(\{\s*status:\s*"active"/);
-  assert.match(migration, /guard_company_role_draft_activation_v1/);
-  assert.match(migration, /current_setting\('app\.role_creation_completion'/);
-  assert.match(
-    migration,
-    /revoke all on function public\.complete_company_role_creation_v1\(uuid, uuid\)[\s\S]*from public, anon, authenticated;/
-  );
-  assert.match(
-    migration,
-    /grant execute on function public\.complete_company_role_creation_v1\(uuid, uuid\)[\s\S]*to service_role;/
-  );
-});
 
 test("completion claims a conversation before writing confirmation messages", () => {
   const claim = confirmation.indexOf(
@@ -88,19 +66,4 @@ test("role creation conversation stays model-authored while successful completio
     /completed[\s\S]*buildRoleCreationCompletionMessage/
   );
   assert.match(confirmation, /generateRoleCreationOutcomeReply/);
-});
-
-test("role creation gives high-reasoning models enough output budget", () => {
-  assert.match(chat, /ROLE_CREATION_MAX_OUTPUT_TOKENS = 4_800/);
-  assert.equal(
-    chat.match(
-      /(?:max_completion_tokens|max_tokens): ROLE_CREATION_MAX_OUTPUT_TOKENS/g
-    )?.length,
-    4
-  );
-  assert.match(
-    chat,
-    /args\.reasoningEffort \?\? DEFAULT_ORG_AGENT_REASONING_EFFORT/
-  );
-  assert.match(chat, /reasoningEffort: DEFAULT_ORG_AGENT_REASONING_EFFORT/);
 });

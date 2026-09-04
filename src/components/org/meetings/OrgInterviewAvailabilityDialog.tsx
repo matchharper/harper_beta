@@ -10,9 +10,15 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { format, getISODay } from "date-fns";
 import { ko } from "date-fns/locale";
+import Image from "next/image";
 import { useRouter } from "next/router";
 import * as Popover from "@radix-ui/react-popover";
-import { Calendar } from "@/components/ui/calendar";
+import {
+  MeetingAvailabilityCalendar,
+  MeetingAvailabilitySplitLayout,
+  MeetingAvailabilityTimeButton,
+} from "@/components/meetings/MeetingAvailabilityLayout";
+import { Badge } from "@/components/ui/badge";
 import { MuteButton } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -38,6 +44,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tooltips } from "@/components/ui/tooltip";
 import {
   createDefaultMeetingAvailabilityDocument,
   getMeetingAvailabilityIntervalsForDate,
@@ -56,18 +63,16 @@ import {
 } from "@/lib/meetings/availability";
 import {
   calendarBusyBlockOverlapsDate,
-  formatCalendarBusyBlockTimeForDate,
+  calendarBusyBlockOverlapsTimeRange,
 } from "@/lib/meetings/calendarBusyBlocks";
 import {
   useOrgMeetingAvailability,
   useSaveOrgMeetingAvailability,
-  useSyncOrgGoogleCalendar,
   useUpdateOrgGoogleCalendarBusyBlock,
 } from "@/hooks/org/useOrgMeetingAvailability";
 import { useOrgGoogleCalendar } from "@/hooks/org/useOrgGoogleCalendar";
 import { cn } from "@/lib/utils";
 import { useToastStore } from "@/store/useToastStore";
-import Image from "next/image";
 
 type PresetDays = "all" | "weekdays" | "weekends";
 
@@ -184,12 +189,14 @@ function TimeSelect({
   endOfDay = false,
   label,
   onChange,
+  portalContainer,
   value,
 }: {
   className?: string;
   endOfDay?: boolean;
   label: string;
   onChange: (value: string) => void;
+  portalContainer: HTMLElement | null;
   value: string;
 }) {
   const options = endOfDay ? END_TIME_OPTIONS : START_TIME_OPTIONS;
@@ -209,7 +216,11 @@ function TimeSelect({
       >
         <SelectValue />
       </SelectTrigger>
-      <SelectContent align="start" alignItemWithTrigger={false}>
+      <SelectContent
+        align="start"
+        alignItemWithTrigger={false}
+        container={portalContainer}
+      >
         {options.map((option) => (
           <SelectItem key={option} value={option}>
             {option}
@@ -223,9 +234,11 @@ function TimeSelect({
 function IntervalEditor({
   intervals,
   onChange,
+  portalContainer,
 }: {
   intervals: MeetingAvailabilityInterval[];
   onChange: (intervals: MeetingAvailabilityInterval[]) => void;
+  portalContainer: HTMLElement | null;
 }) {
   const updateInterval = (
     index: number,
@@ -257,6 +270,7 @@ function IntervalEditor({
           <TimeSelect
             label={`시작 시간 ${index + 1}`}
             onChange={(value) => updateInterval(index, "start", value)}
+            portalContainer={portalContainer}
             value={interval.start}
           />
           <span className="text-[12px] text-neutral-soft">–</span>
@@ -264,6 +278,7 @@ function IntervalEditor({
             endOfDay
             label={`종료 시간 ${index + 1}`}
             onChange={(value) => updateInterval(index, "end", value)}
+            portalContainer={portalContainer}
             value={interval.end}
           />
           <MuteButton
@@ -302,10 +317,12 @@ function WeekdayRow({
   intervals,
   label,
   onChange,
+  portalContainer,
 }: {
   intervals: MeetingAvailabilityInterval[];
   label: string;
   onChange: (intervals: MeetingAvailabilityInterval[]) => void;
+  portalContainer: HTMLElement | null;
 }) {
   return (
     <div className="grid gap-3 border-t border-neutral-1000-a05 py-3 sm:grid-cols-[112px_minmax(0,1fr)]">
@@ -315,7 +332,11 @@ function WeekdayRow({
         </span>
       </div>
       {intervals.length > 0 ? (
-        <IntervalEditor intervals={intervals} onChange={onChange} />
+        <IntervalEditor
+          intervals={intervals}
+          onChange={onChange}
+          portalContainer={portalContainer}
+        />
       ) : (
         <div className="flex min-h-8 items-center justify-between gap-3">
           <p className="text-[13px] text-neutral-soft">가능한 시간 없음</p>
@@ -334,11 +355,23 @@ function WeekdayRow({
 }
 
 function HourTimeline({
+  calendarBusyBlocks,
+  calendarBusyUpdatePending,
+  dateKey,
   intervals,
+  onMakeCalendarBusyBlocksAvailable,
   onToggle,
+  timezone,
 }: {
+  calendarBusyBlocks: MeetingCalendarBusyBlock[];
+  calendarBusyUpdatePending: boolean;
+  dateKey: string;
   intervals: MeetingAvailabilityInterval[];
+  onMakeCalendarBusyBlocksAvailable: (
+    busyBlocks: MeetingCalendarBusyBlock[]
+  ) => void;
   onToggle: (block: MeetingAvailabilityInterval, available: boolean) => void;
+  timezone: string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -356,7 +389,7 @@ function HourTimeline({
 
   return (
     <div
-      className="max-h-[420px] overflow-y-auto pr-1 [scrollbar-gutter:stable]"
+      className="max-h-[380px] overflow-y-auto pr-1 [scrollbar-gutter:stable]"
       ref={scrollRef}
     >
       <div className="grid gap-1.5 pb-1 sm:grid-cols-2">
@@ -366,24 +399,64 @@ function HourTimeline({
             rangeEnd: block.end,
             rangeStart: block.start,
           });
+          const blockingCalendarBusyBlocks = available
+            ? calendarBusyBlocks.filter(
+                (busyBlock) =>
+                  busyBlock.isBlocking &&
+                  calendarBusyBlockOverlapsTimeRange({
+                    busyBlock,
+                    dateKey,
+                    rangeEnd: block.end,
+                    rangeStart: block.start,
+                    timezone,
+                  })
+              )
+            : [];
+          const calendarBlocked = blockingCalendarBusyBlocks.length > 0;
+          const effectivelyAvailable = available && !calendarBlocked;
+          const actionLabel = calendarBlocked
+            ? "Google Calendar 일정에서 제외됨. 가능한 시간으로 변경"
+            : available
+              ? "가능 시간에서 빼기"
+              : "가능 시간으로 추가";
           return (
-            <MuteButton
-              aria-label={`${block.start}부터 ${block.end}까지 ${
-                available ? "가능 시간에서 빼기" : "가능 시간으로 추가"
-              }`}
-              aria-pressed={available}
-              className={`w-full justify-between tabular-nums text-neutral-primary min-h-9 ${available ? "bg-primary-faded/50" : ""}`}
+            <MeetingAvailabilityTimeButton
+              aria-label={`${block.start}부터 ${block.end}까지 ${actionLabel}`}
+              aria-pressed={effectivelyAvailable}
+              className={cn(
+                calendarBlocked
+                  ? "bg-action-faded hover:bg-action-faded/80"
+                  : available && "bg-primary-faded/50"
+              )}
               data-hour-start={block.start}
+              disabled={calendarBlocked && calendarBusyUpdatePending}
               key={block.start}
-              onClick={() => onToggle(block, available)}
-              size="md"
-              variant="default"
+              onClick={() => {
+                if (calendarBlocked) {
+                  onMakeCalendarBusyBlocksAvailable(blockingCalendarBusyBlocks);
+                  return;
+                }
+                onToggle(block, available);
+              }}
             >
               <span>
                 {block.start}–{block.end}
               </span>
-              {available ? <Check className="text-primary size-4" /> : null}
-            </MuteButton>
+              {calendarBlocked ? (
+                <span className="flex items-center gap-1.5 text-[10px] font-normal text-neutral-muted">
+                  <Image
+                    alt=""
+                    aria-hidden="true"
+                    height={14}
+                    src="/images/logos/calendar.png"
+                    width={14}
+                  />
+                  자동 불가 처리
+                </span>
+              ) : available ? (
+                <Check className="size-4 text-primary" />
+              ) : null}
+            </MeetingAvailabilityTimeButton>
           );
         })}
       </div>
@@ -398,7 +471,7 @@ function DateOverridePanel({
   date,
   onBack,
   onChange,
-  onToggleCalendarBusyBlock,
+  onMakeCalendarBusyBlocksAvailable,
 }: {
   availability: MeetingAvailabilityDocument;
   calendarBusyBlocks: MeetingCalendarBusyBlock[];
@@ -406,7 +479,9 @@ function DateOverridePanel({
   date: Date;
   onBack: () => void;
   onChange: (availability: MeetingAvailabilityDocument) => void;
-  onToggleCalendarBusyBlock: (busyBlock: MeetingCalendarBusyBlock) => void;
+  onMakeCalendarBusyBlocksAvailable: (
+    busyBlocks: MeetingCalendarBusyBlock[]
+  ) => void;
 }) {
   const key = dateKey(date);
   const weekdayKey = isoWeekdayKey(date);
@@ -510,7 +585,11 @@ function DateOverridePanel({
           </span> */}
         </div>
         <HourTimeline
+          calendarBusyBlocks={calendarBusyBlocksForDate}
+          calendarBusyUpdatePending={calendarBusyUpdatePending}
+          dateKey={key}
           intervals={intervals}
+          onMakeCalendarBusyBlocksAvailable={onMakeCalendarBusyBlocksAvailable}
           onToggle={(block, available) => {
             setDateIntervals(
               setMeetingTimeRangeAvailability({
@@ -521,65 +600,9 @@ function DateOverridePanel({
               })
             );
           }}
+          timezone={availability.timezone}
         />
       </div>
-
-      {calendarBusyBlocksForDate.length > 0 ? (
-        <section className="mt-6 border-t border-neutral-1000-a05 pt-5">
-          <div className="flex items-start gap-2">
-            <span
-              aria-hidden="true"
-              className="mt-1.5 size-1.5 shrink-0 rounded-full bg-info"
-            />
-            <div>
-              <p className="text-[13px] font-medium text-neutral-primary">
-                Google Calendar에서 가져온 일정
-              </p>
-              <p className="mt-1 text-[12px] leading-5 text-neutral-muted">
-                미팅 불가 시간은 후보자에게 제안하지 않아요. 기본 가능 시간 안의
-                일정은 여기서 다시 미팅 가능으로 설정할 수 있어요.
-              </p>
-            </div>
-          </div>
-          <div className="mt-3 grid gap-2">
-            {calendarBusyBlocksForDate.map((busyBlock) => (
-              <div
-                className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-bg-weak px-3 py-2"
-                key={busyBlock.id}
-              >
-                <div className="flex items-center gap-2 text-[12px] text-neutral-primary">
-                  <span
-                    aria-hidden="true"
-                    className={`size-1.5 rounded-full ${
-                      busyBlock.isBlocking ? "bg-info" : "bg-neutral-400"
-                    }`}
-                  />
-                  <span>
-                    {formatCalendarBusyBlockTimeForDate({
-                      busyBlock,
-                      dateKey: key,
-                      timezone: availability.timezone,
-                    })}
-                  </span>
-                  <span className="text-neutral-muted">
-                    {busyBlock.isBlocking
-                      ? "미팅 불가"
-                      : "미팅 가능으로 변경됨"}
-                  </span>
-                </div>
-                <MuteButton
-                  disabled={calendarBusyUpdatePending}
-                  onClick={() => onToggleCalendarBusyBlock(busyBlock)}
-                  size="sm"
-                  variant={busyBlock.isBlocking ? "neutral" : "transparent"}
-                >
-                  {busyBlock.isBlocking ? "미팅 가능으로 설정" : "다시 제외하기"}
-                </MuteButton>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
     </div>
   );
 }
@@ -587,9 +610,11 @@ function DateOverridePanel({
 function WeeklyEditor({
   availability,
   onChange,
+  portalContainer,
 }: {
   availability: MeetingAvailabilityDocument;
   onChange: (availability: MeetingAvailabilityDocument) => void;
+  portalContainer: HTMLElement | null;
 }) {
   const [presetDays, setPresetDays] = useState<PresetDays>("weekdays");
   const [presetEnd, setPresetEnd] = useState("19:00");
@@ -621,8 +646,10 @@ function WeeklyEditor({
           <h3 className="text-[16px] font-medium text-neutral-primary">
             가능한 일정
           </h3>
-          <p className="mt-1 text-[12px] leading-5 text-neutral-muted">
+          <p className="mt-1 text-[12px] font-light leading-4 text-neutral-muted">
             미팅 스케줄링을 허용할 요일과 시간을 설정하세요.
+            <br />
+            날짜를 선택하면 그날의 일정만 조정할 수 있어요.
           </p>
         </div>
         <Popover.Root onOpenChange={setPresetOpen} open={presetOpen}>
@@ -642,10 +669,10 @@ function WeeklyEditor({
               />
             </MuteButton>
           </Popover.Trigger>
-          <Popover.Portal>
+          <Popover.Portal container={portalContainer}>
             <Popover.Content
               align="end"
-              className="z-[130] w-[min(340px,calc(100vw-32px))] rounded-lg border border-neutral-1000-a10 bg-bg-floating p-3 shadow-[0_18px_48px_color-mix(in_srgb,var(--color-neutral-1000)_16%,transparent)] outline-none"
+              className="z-[110] w-[min(340px,calc(100vw-32px))] rounded-lg border border-neutral-1000-a10 bg-bg-floating p-3 shadow-[0_18px_48px_color-mix(in_srgb,var(--color-neutral-1000)_16%,transparent)] outline-none"
               onInteractOutside={(event) => {
                 const target = event.target as Element | null;
                 if (target?.closest("[data-slot=select-content]")) {
@@ -669,7 +696,11 @@ function WeeklyEditor({
                   >
                     <SelectValue>{PRESET_DAY_LABELS[presetDays]}</SelectValue>
                   </SelectTrigger>
-                  <SelectContent align="start" alignItemWithTrigger={false}>
+                  <SelectContent
+                    align="start"
+                    alignItemWithTrigger={false}
+                    container={portalContainer}
+                  >
                     <SelectItem value="weekdays">평일</SelectItem>
                     <SelectItem value="weekends">주말</SelectItem>
                     <SelectItem value="all">매일</SelectItem>
@@ -689,6 +720,7 @@ function WeeklyEditor({
                       );
                     }
                   }}
+                  portalContainer={portalContainer}
                   value={presetStart}
                 />
                 <TimeSelect
@@ -704,6 +736,7 @@ function WeeklyEditor({
                       );
                     }
                   }}
+                  portalContainer={portalContainer}
                   value={presetEnd}
                 />
                 <MuteButton
@@ -735,6 +768,7 @@ function WeeklyEditor({
               next.weeklyRules[key] = intervals;
               onChange(next);
             }}
+            portalContainer={portalContainer}
           />
         ))}
       </div>
@@ -755,17 +789,18 @@ export function OrgInterviewAvailabilityDialog({
 }) {
   const router = useRouter();
   const addToast = useToastStore((state) => state.add);
-  const availabilityQuery = useOrgMeetingAvailability({ workspaceId });
+  const availabilityQuery = useOrgMeetingAvailability({
+    enabled: open,
+    workspaceId,
+  });
   const saveAvailability = useSaveOrgMeetingAvailability(workspaceId);
   const calendar = useOrgGoogleCalendar({
     enabled: open,
     userId,
     workspaceId,
   });
-  const syncCalendar = useSyncOrgGoogleCalendar(workspaceId);
-  const updateCalendarBusyBlock = useUpdateOrgGoogleCalendarBusyBlock(
-    workspaceId
-  );
+  const updateCalendarBusyBlock =
+    useUpdateOrgGoogleCalendarBusyBlock(workspaceId);
   const allowPopNavigationRef = useRef(false);
   const initializedRef = useRef(false);
   const [baseline, setBaseline] = useState<MeetingAvailabilityDocument | null>(
@@ -777,8 +812,10 @@ export function OrgInterviewAvailabilityDialog({
     createDefaultMeetingAvailabilityDocument()
   );
   const [editorError, setEditorError] = useState("");
-  const [syncMessage, setSyncMessage] = useState("");
   const [expectedVersion, setExpectedVersion] = useState<number | null>(null);
+  const [portalContainer, setPortalContainer] = useState<HTMLDivElement | null>(
+    null
+  );
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const timezoneOptions = useMemo(
     () => supportedTimezones(draft.timezone),
@@ -802,7 +839,6 @@ export function OrgInterviewAvailabilityDialog({
     setSelectedDate(null);
     setConflict(false);
     setEditorError("");
-    setSyncMessage("");
     initializedRef.current = true;
   }, [availabilityQuery.data, availabilityQuery.isSuccess, open]);
 
@@ -813,10 +849,6 @@ export function OrgInterviewAvailabilityDialog({
     Boolean(baseline) &&
     (expectedVersion === null || dirty) &&
     !saveAvailability.isPending;
-  const hasBlockingCalendarBusyBlocks = (
-    availabilityQuery.data?.calendarBusyBlocks ?? []
-  ).some((busyBlock) => busyBlock.isBlocking);
-
   useEffect(() => {
     if (!open) return;
     router.beforePopState(() => {
@@ -840,7 +872,7 @@ export function OrgInterviewAvailabilityDialog({
   }, [dirty, open]);
 
   const requestClose = () => {
-    if (saveAvailability.isPending || syncCalendar.isPending) return;
+    if (saveAvailability.isPending) return;
     if (dirty) {
       setDiscardOpen(true);
       return;
@@ -910,43 +942,28 @@ export function OrgInterviewAvailabilityDialog({
     setConflict(false);
   };
 
-  const syncGoogleCalendar = async () => {
-    setSyncMessage("");
-    try {
-      const result = await syncCalendar.mutateAsync(draft.timezone);
-      const changes = [
-        result.addedCount > 0 ? `새 일정 ${result.addedCount}개` : "",
-        result.updatedCount > 0 ? `시간 변경 ${result.updatedCount}개` : "",
-        result.removedCount > 0 ? `삭제된 일정 ${result.removedCount}개` : "",
-      ].filter(Boolean);
-      const message =
-        changes.length > 0
-          ? `Google Calendar 변경 사항(${changes.join(", ")})을 미팅 불가 시간에 반영했어요.`
-          : "새로 반영할 일정이 없어요.";
-      setSyncMessage(`${message} 향후 2주 안의 일정만 확인했어요.`);
-      addToast({ message, variant: "success" });
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Google Calendar 일정을 불러오지 못했어요.";
-      setSyncMessage(message);
-      addToast({ message, variant: "error" });
-    }
-  };
-
-  const toggleCalendarBusyBlock = async (
-    busyBlock: MeetingCalendarBusyBlock
+  const makeCalendarBusyBlocksAvailable = async (
+    busyBlocks: MeetingCalendarBusyBlock[]
   ) => {
+    const blockingBusyBlocks = [
+      ...new Map(
+        busyBlocks
+          .filter((busyBlock) => busyBlock.isBlocking)
+          .map((busyBlock) => [busyBlock.id, busyBlock])
+      ).values(),
+    ];
+    if (blockingBusyBlocks.length === 0) return;
     try {
-      await updateCalendarBusyBlock.mutateAsync({
-        busyBlockId: busyBlock.id,
-        isBlocking: !busyBlock.isBlocking,
-      });
+      await Promise.all(
+        blockingBusyBlocks.map((busyBlock) =>
+          updateCalendarBusyBlock.mutateAsync({
+            busyBlockId: busyBlock.id,
+            isBlocking: false,
+          })
+        )
+      );
       addToast({
-        message: busyBlock.isBlocking
-          ? "이 Google Calendar 일정이 더 이상 미팅 시간을 막지 않아요."
-          : "이 Google Calendar 일정이 다시 미팅 시간을 막아요.",
+        message: "Google Calendar 일정을 미팅 가능한 시간으로 바꿨어요.",
         variant: "success",
       });
     } catch (error) {
@@ -997,10 +1014,11 @@ export function OrgInterviewAvailabilityDialog({
       >
         <DialogContent
           hideCloseButton
-          className="h-[100svh] w-screen max-w-none grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-none p-0 data-[state=closed]:animate-none data-[state=open]:animate-none sm:h-[min(760px,calc(100svh-2rem))] sm:w-[calc(100vw-2rem)] sm:max-w-[1120px] sm:rounded-2xl"
+          className="!inset-0 m-auto h-[100svh] w-screen max-w-none !translate-x-0 !translate-y-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-none p-0 data-[state=closed]:animate-none data-[state=open]:animate-none sm:h-[min(760px,calc(100svh-2rem))] sm:w-[calc(100vw-2rem)] sm:max-w-[1120px] sm:rounded-2xl"
           overlayClassName="data-[state=closed]:animate-none data-[state=open]:animate-none"
+          ref={setPortalContainer}
         >
-          <header className="flex min-h-[68px] items-center justify-between gap-4 border-b border-neutral-1000-a05 px-5 py-4 sm:px-6">
+          <header className="flex min-h-[60px] items-center justify-between gap-4 border-b border-neutral-1000-a05 px-5 py-3 sm:px-6">
             <div className="min-w-0">
               <DialogTitle className="text-[18px]">
                 미팅 가능한 일정
@@ -1039,148 +1057,128 @@ export function OrgInterviewAvailabilityDialog({
               <LoaderCircle className="size-5 animate-spin text-neutral-muted" />
             </div>
           ) : (
-            <div className="min-h-0 overflow-y-auto md:grid md:grid-cols-[minmax(330px,0.88fr)_minmax(480px,1.12fr)] md:grid-rows-1 md:overflow-hidden">
-              <aside className="border-b border-neutral-1000-a05 bg-bg-default p-5 md:overflow-y-auto md:border-b-0 md:border-r md:p-6">
-                <div className="mx-auto max-w-[380px]">
-                  <p className="mt-1 text-[12px] leading-5 text-neutral-muted">
-                    날짜를 선택하면 그날의 일정만 조정할 수 있어요.
-                  </p>
-                </div>
-                <Calendar
-                  className="mx-auto mt-3 max-w-[380px] rounded-xl bg-bg-default p-0 [--cell-size:1.95rem] [&_.rdp-week]:mt-1 [&_.rdp-weekday]:text-[10px] [&_button[data-day]]:aspect-auto [&_button[data-day]]:h-7 [&_button[data-day]]:min-w-0 [&_button[data-day]]:rounded-md [&_button[data-day]]:text-[12px] [&_button[data-day]]:transition-[background-color,color,box-shadow] [&_button[data-day]:disabled]:cursor-not-allowed [&_button[data-day]:disabled]:bg-transparent [&_button[data-day]:disabled]:text-neutral-disabled sm:[&_.rdp-weekday]:text-[11px] sm:[&_button[data-day]]:h-8 sm:[&_button[data-day]]:text-[13px] sm:[--cell-size:2.3rem]"
-                  disabled={{ before: today }}
-                  locale={ko}
-                  mode="single"
-                  navigationButtonClassName="size-10 hover:bg-neutral-100 sm:size-10 [&_svg]:size-5"
-                  navigationHeaderClassName="h-10 px-10 sm:h-11 sm:px-11"
-                  modifiers={{
-                    available: isAvailableDate,
-                    calendarBusy: isCalendarBusyDate,
-                    closedOverride: isClosedOverrideDate,
-                    override: isOverrideDate,
-                  }}
-                  modifiersClassNames={{
-                    available:
-                      "[&>button]:rounded-md [&>button]:bg-primary-faded [&>button]:text-neutral-primary [&>button]:hover:bg-primary/20 [&>button[data-selected-single=true]]:bg-primary [&>button[data-selected-single=true]]:text-neutral-00 [&>button[data-selected-single=true]]:hover:bg-primary",
-                    calendarBusy:
-                      "[&>button]:relative [&>button]:after:absolute [&>button]:after:bottom-0.5 [&>button]:after:left-1/2 [&>button]:after:size-1 [&>button]:after:-translate-x-1/2 [&>button]:after:rounded-full [&>button]:after:bg-info [&>button]:after:content-['']",
-                    closedOverride:
-                      "[&>button]:rounded-md [&>button]:bg-bg-weak [&>button]:text-neutral-disabled [&>button]:hover:bg-bg-weak [&>button[data-selected-single=true]]:bg-primary [&>button[data-selected-single=true]]:text-neutral-00",
-                    override:
-                      "[&>button]:ring-1 [&>button]:ring-inset [&>button]:ring-primary/50",
-                  }}
-                  onSelect={(date) => date && setSelectedDate(date)}
-                  selected={selectedDate ?? undefined}
-                  showOutsideDays={false}
-                />
-
-                {hasBlockingCalendarBusyBlocks ? (
-                  <div className="mx-auto mt-3 flex max-w-[380px] items-center gap-2 text-[11px] text-neutral-muted">
-                    <span
-                      aria-hidden="true"
-                      className="size-1.5 shrink-0 rounded-full bg-info"
-                    />
-                    파란 점은 Google Calendar 일정으로 제외된 시간이 있는 날이에요.
-                  </div>
-                ) : null}
-
-                <div className="mt-5 border-t border-neutral-1000-a05 pt-4">
-                  <label
-                    className="text-[12px] font-medium text-neutral-primary"
-                    htmlFor="availability-timezone"
-                  >
-                    시간대
-                  </label>
-                  <Combobox
-                    autoHighlight
-                    items={timezoneOptions}
-                    onValueChange={(value) => {
-                      if (!value) return;
-                      setDraft((current) => ({ ...current, timezone: value }));
+            <MeetingAvailabilitySplitLayout
+              calendar={
+                <>
+                  <MeetingAvailabilityCalendar
+                    disabled={{ before: today }}
+                    locale={ko}
+                    mode="single"
+                    modifiers={{
+                      available: isAvailableDate,
+                      calendarBusy: isCalendarBusyDate,
+                      closedOverride: isClosedOverrideDate,
+                      override: isOverrideDate,
                     }}
-                    value={draft.timezone}
-                  >
-                    <ComboboxInput
-                      aria-label="시간대 검색"
-                      className="mt-2 h-10 bg-bg-floating"
-                      id="availability-timezone"
-                      placeholder="시간대 검색"
-                      showClear={false}
-                    />
-                    <ComboboxContent className="z-[130]">
-                      <ComboboxEmpty>일치하는 시간대가 없습니다.</ComboboxEmpty>
-                      <ComboboxList>
-                        {(timezone) => (
-                          <ComboboxItem key={timezone} value={timezone}>
-                            {timezone}
-                          </ComboboxItem>
-                        )}
-                      </ComboboxList>
-                    </ComboboxContent>
-                  </Combobox>
-                </div>
-              </aside>
-
-              <section className="relative min-h-0 bg-bg-floating md:overflow-y-auto">
-                {selectedDate && selectedDateKey ? (
-                  <DateOverridePanel
-                    availability={draft}
-                    calendarBusyBlocks={
-                      availabilityQuery.data?.calendarBusyBlocks ?? []
-                    }
-                    calendarBusyUpdatePending={
-                      updateCalendarBusyBlock.isPending
-                    }
-                    date={selectedDate}
-                    key={`date-${selectedDateKey}`}
-                    onBack={() => setSelectedDate(null)}
-                    onChange={setDraft}
-                    onToggleCalendarBusyBlock={(busyBlock) =>
-                      void toggleCalendarBusyBlock(busyBlock)
-                    }
+                    modifiersClassNames={{
+                      calendarBusy:
+                        "[&>button]:relative [&>button]:after:absolute [&>button]:after:bottom-1.5 [&>button]:after:left-1/2 [&>button]:after:size-1 [&>button]:after:-translate-x-1/2 [&>button]:after:rounded-full [&>button]:after:bg-action [&>button]:after:content-['']",
+                      closedOverride:
+                        "[&>button]:rounded-md [&>button]:bg-bg-weak [&>button]:text-neutral-disabled [&>button]:hover:bg-bg-weak [&>button[data-selected-single=true]]:bg-primary [&>button[data-selected-single=true]]:text-neutral-00",
+                      override:
+                        "[&>button]:ring-1 [&>button]:ring-inset [&>button]:ring-primary/50",
+                    }}
+                    onSelect={(date) => date && setSelectedDate(date)}
+                    selected={selectedDate ?? undefined}
                   />
-                ) : (
-                  <WeeklyEditor availability={draft} onChange={setDraft} />
-                )}
-              </section>
-            </div>
+
+                  <div className="mt-5 border-t border-neutral-1000-a05 pt-4">
+                    <label
+                      className="text-[12px] font-medium text-neutral-primary"
+                      htmlFor="availability-timezone"
+                    >
+                      시간대
+                    </label>
+                    <Combobox
+                      autoHighlight
+                      items={timezoneOptions}
+                      onValueChange={(value) => {
+                        if (!value) return;
+                        setDraft((current) => ({
+                          ...current,
+                          timezone: value,
+                        }));
+                      }}
+                      value={draft.timezone}
+                    >
+                      <ComboboxInput
+                        aria-label="시간대 검색"
+                        className="mt-2 h-10 bg-bg-floating"
+                        id="availability-timezone"
+                        placeholder="시간대 검색"
+                        showClear={false}
+                      />
+                      <ComboboxContent
+                        className="z-[130]"
+                        container={portalContainer}
+                      >
+                        <ComboboxEmpty>
+                          일치하는 시간대가 없습니다.
+                        </ComboboxEmpty>
+                        <ComboboxList>
+                          {(timezone) => (
+                            <ComboboxItem key={timezone} value={timezone}>
+                              {timezone}
+                            </ComboboxItem>
+                          )}
+                        </ComboboxList>
+                      </ComboboxContent>
+                    </Combobox>
+                  </div>
+                </>
+              }
+            >
+              {selectedDate && selectedDateKey ? (
+                <DateOverridePanel
+                  availability={draft}
+                  calendarBusyBlocks={
+                    availabilityQuery.data?.calendarBusyBlocks ?? []
+                  }
+                  calendarBusyUpdatePending={updateCalendarBusyBlock.isPending}
+                  date={selectedDate}
+                  key={`date-${selectedDateKey}`}
+                  onBack={() => setSelectedDate(null)}
+                  onChange={setDraft}
+                  onMakeCalendarBusyBlocksAvailable={(busyBlocks) =>
+                    void makeCalendarBusyBlocksAvailable(busyBlocks)
+                  }
+                />
+              ) : (
+                <WeeklyEditor
+                  availability={draft}
+                  onChange={setDraft}
+                  portalContainer={portalContainer}
+                />
+              )}
+            </MeetingAvailabilitySplitLayout>
           )}
 
           <footer className="flex min-h-[70px] flex-col gap-3 border-t border-neutral-1000-a05 bg-bg-floating px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-              <MuteButton
-                disabled={
-                  calendar.statusQuery.data?.status !== "active" ||
-                  calendar.statusQuery.isPending ||
-                  syncCalendar.isPending
-                }
-                onClick={() => void syncGoogleCalendar()}
-                size="md"
-              >
-                {syncCalendar.isPending ? (
-                  <LoaderCircle className="size-4.5 animate-spin" />
-                ) : (
+              {calendar.statusQuery.data?.status === "active" ? (
+                <Tooltips
+                  side="top"
+                  text="자동으로 일정을 읽어와 불가능한 시간을 처리합니다."
+                >
+                  <div className="flex flex-row items-center gap-1.5 rounded-md bg-black/5 px-2 py-1 text-neutral-primary">
+                    <Image
+                      src="/images/logos/calendar.png"
+                      alt=""
+                      width={16}
+                      height={16}
+                    />
+                    <span className="text-[12px] leading-5">연동됨</span>
+                  </div>
+                </Tooltips>
+              ) : !calendar.statusQuery.isPending ? (
+                <span className="inline-flex items-center gap-1.5 text-[12px] leading-5 text-neutral-muted">
                   <Image
                     src="/images/logos/calendar.png"
-                    alt="Google Calendar"
-                    width={18}
-                    height={18}
+                    alt=""
+                    width={16}
+                    height={16}
                   />
-                )}
-                Google Calendar Sync
-              </MuteButton>
-              {syncMessage ? (
-                <span
-                  className={`text-[12px] leading-5 ${
-                    syncCalendar.error ? "text-critical" : "text-neutral-muted"
-                  }`}
-                >
-                  {syncMessage}
-                </span>
-              ) : calendar.statusQuery.data?.status !== "active" &&
-                !calendar.statusQuery.isPending ? (
-                <span className="text-[12px] leading-5 text-neutral-muted">
-                  Google Calendar를 연결한 뒤 Sync하면 일정을 가져올 수 있어요.
+                  연동 안 됨
                 </span>
               ) : null}
               {editorError ? (
@@ -1200,14 +1198,14 @@ export function OrgInterviewAvailabilityDialog({
             </div>
             <div className="flex shrink-0 justify-end gap-2">
               <MuteButton
-                disabled={saveAvailability.isPending || syncCalendar.isPending}
+                disabled={saveAvailability.isPending}
                 onClick={requestClose}
                 size="lg"
               >
                 닫기
               </MuteButton>
               <MuteButton
-                disabled={!canSave || syncCalendar.isPending}
+                disabled={!canSave}
                 onClick={() => void save()}
                 size="lg"
                 variant="primary"

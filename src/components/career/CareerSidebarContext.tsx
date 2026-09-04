@@ -218,6 +218,11 @@ export type CareerSidebarContextValue = {
         ) => CareerTalentPreferences | null)
   ) => void;
   onSaveTalentPreferences: () => boolean | Promise<boolean>;
+  onAccountSubscriptionsUpdated: (args: {
+    harperEnabled: boolean;
+    preferences: CareerTalentPreferences;
+    preferencesUpdatedAt: string | null;
+  }) => void;
   onTalentInsightsChange: (
     next:
       | CareerTalentInsights
@@ -282,6 +287,7 @@ export type CareerProfileContextValue = Pick<
   | "hasUnsavedTalentPreferencesChanges"
   | "hasUnsavedTalentSettingsChanges"
   | "onAddBlockedCompany"
+  | "onAccountSubscriptionsUpdated"
   | "onAddProfileLink"
   | "onDeleteTalentDocument"
   | "onUpdateTalentDocument"

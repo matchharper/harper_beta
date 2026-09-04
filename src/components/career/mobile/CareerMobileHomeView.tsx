@@ -18,6 +18,7 @@ import {
   useCareerProfileContext,
   useCareerSidebarContext,
 } from "@/components/career/CareerSidebarContext";
+import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { formatCareerMessage } from "@/i18n/careerMessage";
 import { useMessages } from "@/i18n/useMessage";
@@ -180,7 +181,11 @@ const CallHero = ({
   compact,
   ctaLabel,
   description,
+  forceCompleteDisabled,
+  forceCompletePending,
   isOnboardingCompleted,
+  progressPercent,
+  onForceComplete,
   onStartCall,
   title,
   extraComponent,
@@ -190,7 +195,11 @@ const CallHero = ({
   compact?: boolean;
   ctaLabel?: string;
   description: React.ReactNode;
+  forceCompleteDisabled?: boolean;
+  forceCompletePending?: boolean;
   isOnboardingCompleted: boolean;
+  progressPercent: number;
+  onForceComplete?: () => void;
   onStartCall: () => void;
   title: React.ReactNode;
   extraComponent: React.ReactNode;
@@ -207,7 +216,11 @@ const CallHero = ({
       ctaLabel={ctaLabel}
       className="mt-0 w-full"
       description={description}
+      forceCompleteDisabled={forceCompleteDisabled}
+      forceCompletePending={forceCompletePending}
       isOnboardingCompleted={isOnboardingCompleted}
+      onForceComplete={onForceComplete}
+      progressPercent={progressPercent}
       onStartCall={onStartCall}
       title={title}
     />
@@ -279,6 +292,15 @@ const CareerMobileHomeView = ({
     onRequestMoreOpenPositions,
     pendingInternalOpportunityCallRequest,
   } = useCareerSidebarContext();
+  const {
+    assistantTyping,
+    chatPending,
+    forceCompletePending = false,
+    interviewProgress,
+    onboardingWrapupPending,
+    opportunityFeedbackFollowUpPending,
+    onForceCompleteOnboarding,
+  } = useCareerChatPanelContext();
   const { historyOpportunityCounts } = useCareerHistoryContext();
   const { talentProfile } = useCareerProfileContext();
   const { m } = useMessages();
@@ -353,6 +375,12 @@ const CareerMobileHomeView = ({
     );
   };
 
+  const handleForceComplete = () => {
+    if (!onForceCompleteOnboarding) return;
+    logCareerEvent("click_mobile_home_force_complete");
+    void onForceCompleteOnboarding();
+  };
+
   const handleStartConversationStarter = ({
     mode,
     starterId,
@@ -392,7 +420,23 @@ const CareerMobileHomeView = ({
         compact={historyOpportunityCounts.newInternal > 0}
         description={callCardDescription}
         extraComponent={null}
+        forceCompleteDisabled={
+          forceCompletePending ||
+          onboardingWrapupPending ||
+          chatPending ||
+          assistantTyping ||
+          opportunityFeedbackFollowUpPending
+        }
+        forceCompletePending={forceCompletePending || onboardingWrapupPending}
         isOnboardingCompleted={callCardUsesCompletedLayout}
+        onForceComplete={
+          !isOnboardingCompleted &&
+          interviewProgress.canForceComplete &&
+          onForceCompleteOnboarding
+            ? handleForceComplete
+            : undefined
+        }
+        progressPercent={interviewProgress.percent}
         onStartCall={handleStartCall}
         title={callCardTitle}
       />

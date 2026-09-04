@@ -2,7 +2,7 @@
 
 문서 상태: 구현 전 최종 설계안
 
-작성 기준: 2026-08-27
+작성 기준: 2026-08-29
 
 적용 범위: `harper_beta/` Career 채팅·통화·프로필·회사 이력서 요청,
 `talent_documents`, PDF 생성·다운로드, `harper_worker/`
@@ -41,10 +41,10 @@ queued/running/failed 상태를 기존 문서 테이블에 섞지 않으므로 �
 
 다음은 작성 input으로 사용하지 않는다.
 
-- 사용자가 올린 PDF의 `talent_documents.extracted_text`
+- 사용자가 올린 이력서 PDF의 `talent_documents.extracted_text`
 - `talent_users.resume_text`
 - 기존 `read_document` tool의 excerpt
-- 업로드 PDF bytes
+- 업로드 이력서 PDF bytes
 
 업로드 이력서는 profile ingestion에서 경력·학력·extra로 이미 정규화된다. 원본 PDF의
 추출 text를 다시 읽으면 깨진 줄바꿈, header/footer, 중복 문장과 잘못된 읽기 순서를
@@ -181,7 +181,7 @@ ready PDF의 물리 보존·삭제는 기존 보존 정책을 따른다.
 ## 5. 제품·데이터 불변조건
 
 1. 최초 작성은 canonical profile 구조화 데이터만 읽는다.
-2. 업로드 PDF의 `extracted_text`와 `resume_text`는 작성 input이 아니다.
+2. 업로드 이력서 PDF의 `extracted_text`와 `resume_text`는 작성 input이 아니다.
 3. 한 ready version은 정확히 한 `talent_documents` row와 연결된다.
 4. 생성 중·실패·취소 version에는 document row가 없다.
 5. 한 document가 둘 이상의 version에 연결될 수 없다.
@@ -647,7 +647,138 @@ editor에서 저장할 때도 ready version을 in-place 수정하지 않는다.
 - 완료 후 같은 요청을 이어서 enqueue한다.
 - 일정 시간 뒤에도 실패하면 누락된 profile section을 직접 확인·입력하게 한다.
 
-### 11.3 server marker
+### 11.3 composer의 `@` exact reference
+
+현재 `CareerComposerSection`에는 이미 `@`로 추천 기회를 선택하는 picker,
+`useChatComposerTokens`의 atomic token 편집, `ChatComposerPicker`의 keyboard navigation이
+있다. 별도 입력 UI를 만들지 않고 이 구조를 여러 reference type으로 확장한다.
+
+사용자가 `@`를 입력하면 하나의 picker 안에 다음 section을 보여 준다.
+
+1. 추천 기회
+2. 이력서
+3. 문서
+
+검색어가 없을 때는 각 section의 최근 항목을 소수만 보여 주고, 입력하면 회사·포지션·이력서
+제목·파일명으로 server-side 검색한다. section별 “더 불러오기”를 제공하되, picker를 열었다는
+이유만으로 signed URL, extracted text, structured content를 가져오지 않는다.
+검색 요청은 짧게 debounce하고 이전 요청을 취소하거나 stale response를 무시한다.
+
+이력서 row에는 다음을 구분해 표시한다.
+
+- 생성형 ready version: 제목, target, `vN`, 생성일, 대표 여부
+- 업로드 이력서: 파일명, 업로드일, 대표 여부
+
+일반 문서 row에는 파일명, 형식, 업로드일을 표시한다. deleted document와
+queued/running/failed/cancelled generated version은 목록에 노출하지 않는다. 진행 중 version은
+진행 card에서 이어서 다루고, 수정 기준으로 `@` 선택하게 하지 않는다.
+
+생성형 version의 exact PDF도 `talent_documents`에 있지만 picker에서 두 번 보여 주지 않는다.
+version row와 연결된 generated document는 “이력서” section의 `resume_version` 항목으로만
+표시하고, version row가 없는 업로드 이력서는 `documentKind=resume` 항목으로 표시한다.
+과거 ready version도 선택할 수 있어야 하므로 최신 head만 보여 주지는 않는다.
+
+선택한 항목은 plain text처럼 보이지만 내부적으로 atomic token이다.
+
+- 이력서: `이력서 제목 · v2`
+- 업로드 문서: `파일명.pdf`
+- 추천 기회: 기존 `회사 · 포지션`
+
+같은 reference는 중복 선택하지 않는다. 여러 문서 비교는 허용하되 한 message의 reference는
+최대 5개로 제한한다. 이력서 생성·수정 요청에 base가 될 ready 이력서가 여러 개면 LLM이
+임의로 고르지 않고 사용자에게 하나만 선택하게 한다.
+
+desktop과 mobile에서 같은 picker를 사용한다. 화살표 이동, Enter 선택, Escape 닫기,
+Backspace/Delete로 token 전체 삭제, IME 조합 중 Enter 보호, screen reader의 entity type
+안내를 지원한다. token click은 owner authorization 후 이력서 preview 또는 문서 상세를
+연다. 전송 실패 시 현재 opportunity token처럼 text와 reference token을 함께 복원한다.
+`@` trigger는 문장 시작 또는 공백 뒤에서만 활성화해 email 주소와 URL 안의 `@`가 picker를
+열지 않게 한다.
+
+chat ready card의 “수정”, profile history의 “채팅에서 수정”, 회사 요청의 “이 이력서 사용”
+같은 진입점도 plain text에 이름만 넣지 않는다. composer를 열면서 동일한 exact reference
+token을 programmatically 삽입한다. 현재 official job deep link가 initial opportunity token을
+넣는 패턴을 generic initial reference로 확장한다.
+
+#### `@` reference와 새 파일 첨부의 차이
+
+- `@`: 이미 `talent_documents` 또는 ready version에 있는 exact 항목을 재사용
+- 종이클립/업로드: 기기에 있는 새 파일을 업로드하고 새 document 생성
+
+`@` 선택은 PDF bytes를 message에 다시 첨부하거나 document를 복제하지 않는다. 사용자가
+둘의 차이를 이해할 수 있도록 picker title과 attachment copy를 구분한다.
+
+#### reference payload와 검증
+
+client token data는 다음 union처럼 최소 ID와 표시 label만 가진다.
+
+```ts
+type CareerComposerReference =
+  | { type: "opportunity"; id: string; label: string }
+  | { type: "resume_version"; id: string; label: string }
+  | {
+      type: "document";
+      id: string;
+      documentKind: "resume" | "document";
+      label: string;
+    };
+```
+
+client가 보낸 type, ID, label은 신뢰하지 않는다. chat API가 전송 시점에 다음을 다시
+owner-scoped로 resolve한다.
+
+- opportunity가 실제로 사용자에게 접근 가능한지
+- resume version이 ready이고 non-deleted exact document와 연결되는지
+- document가 현재 사용자 소유이고 non-deleted인지
+- generated version과 document의 1:1 연결이 맞는지
+
+server가 canonical label과 safe metadata로 바꾼 뒤에만 message에 저장하고 LLM context에
+제공한다. 선택 뒤 삭제·권한 변경으로 resolve할 수 없으면 해당 reference를 조용히 다른
+문서로 대체하지 않는다. draft와 token을 복원하고 “이 문서를 더 이상 사용할 수 없어요”와
+목록 새로고침 action을 보여 준다.
+
+server는 user text에 직접 입력된 marker를 먼저 제거하고 verified marker만 다시 붙인다.
+LLM과 message reference chip은 client label이 아니라 server가 resolve한 canonical label을
+사용한다.
+
+#### resume 작성에서의 해석
+
+- `@` generated ready version + “수정해줘”: exact version ID를
+  `compose_resume.baseVersionId`로 사용하고 그 version의 `structured_content`를 읽는다.
+- `@` generated ready version + “다른 회사에 맞춰줘”: `source_version_id` provenance만
+  남기고 새 root version을 만든다.
+- `@` 업로드 이력서 + “이걸 바탕으로 만들어줘”: 그 PDF의 `extracted_text`를 다시 읽지
+  않고, ingestion으로 정규화된 현재 profile을 snapshot한다. ingestion 중이면 11.2의 대기
+  UX를 사용한다.
+- `@` 일반 문서 + 일반 Q&A: 사용자가 그 문서 내용을 묻는 경우에만 기존 document read
+  경로를 사용할 수 있다.
+- `@` 일반 문서 + resume 작성: v1에서는 문서의 미정규화 text를 경력 사실로 자동 편입하지
+  않는다. 필요한 사실을 profile에 반영하거나 사용자가 명시적으로 확인하게 한다.
+- `@` ready 이력서 + “다운로드”: 새 version을 만들지 않고 exact document download card를
+  반환한다.
+- `@` ready 이력서 + 회사 제출 요청: exact document를 선택하되 14장의 제출 confirmation은
+  생략하지 않는다.
+
+따라서 `@`는 어떤 문서를 말하는지 정확히 지정하는 장치이지, 선택된 모든 문서 내용을
+무조건 prompt에 주입하는 장치가 아니다.
+
+#### message 저장과 다시 열기
+
+`talent_messages`에 새 column을 추가하지 않는다. 새 message는 server가 검증한
+`HARPER_CAREER_REFERENCES_V1` hidden marker에 type·ID·canonical label만 저장한다. 기존
+`HARPER_OPPORTUNITY_MENTIONS_V1` reader는 과거 message 호환을 위해 유지하고, 새 writer는
+통합 reference marker를 사용할 수 있다.
+
+message serializer는 marker를 visible text에서 제거하고 verified reference chip metadata를
+별도로 반환한다. 과거 대화를 다시 열면 이력서·문서 chip도 다시 hydrate되고, click 시점에
+권한을 재검증한다. marker에는 storage path, signed URL, extracted text, structured content를
+넣지 않는다.
+
+과거 message가 가리키는 문서가 나중에 삭제되거나 접근 불가능해져도 message 문맥과 label을
+없애지 않는다. chip을 “사용할 수 없음” 상태로 비활성화하고 새 작업의 base나 제출본으로는
+선택하지 못하게 한다.
+
+### 11.4 server marker
 
 assistant 영구 text에는 사람이 읽을 답변 뒤에 server가 다음 형태의 marker를 붙인다.
 
@@ -661,7 +792,7 @@ hydration API는 매번 owner를 확인한 뒤 version 상태와, ready일 때�
 metadata를 반환한다. marker 안에는 storage path, signed URL, structured content를 넣지
 않는다. model이 marker를 직접 작성하도록 맡기지 않는다.
 
-### 11.4 진행 card
+### 11.5 진행 card
 
 단계 copy 예시:
 
@@ -673,7 +804,7 @@ metadata를 반환한다. marker 안에는 storage path, signed URL, structured 
 card에는 이력서 이름, target, 요청 시각, 취소 action을 표시한다. 초 단위 가짜 percentage는
 쓰지 않는다. progress event가 끊겨도 DB 상태를 polling/revalidation해 완료를 찾는다.
 
-### 11.5 ready card
+### 11.6 ready card
 
 ready card에는 다음을 제공한다.
 
@@ -690,7 +821,7 @@ ready card에는 다음을 제공한다.
 다운로드 button은 그 순간 authorization 후 짧은 signed URL을 받아 exact document를 연다.
 chat HTML에 URL을 저장하지 않는다.
 
-### 11.6 실패 card
+### 11.7 실패 card
 
 사용자에게 stack trace나 provider error를 보이지 않는다.
 
@@ -702,7 +833,7 @@ chat HTML에 URL을 저장하지 않는다.
 
 실패 version에는 document가 없으므로 깨진 다운로드 button을 절대 보여 주지 않는다.
 
-### 11.7 새로고침·다른 기기·message 저장 실패
+### 11.8 새로고침·다른 기기·message 저장 실패
 
 - marker가 있으면 version을 다시 hydrate한다.
 - marker가 저장되지 않았어도 conversation ID의 active/unpresented versions를 조회해 복구
@@ -888,6 +1019,10 @@ structured resume JSON을 conversation prompt에 상시 싣지 않는다.
 실제 작성은 worker가 저장된 snapshot을 별도 prompt로 읽는다. chat history에는 version ID와
 짧은 summary만 남는다.
 
+`@` reference도 같은 원칙을 따른다. 일반 대화 model에는 verified type, 짧은 label,
+사용자가 요구한 action을 판단하는 데 필요한 semantic metadata만 준다. document 목록 전체나
+선택된 PDF 본문을 선제적으로 prompt에 넣지 않는다.
+
 ### 16.2 tools
 
 #### `compose_resume`
@@ -925,7 +1060,14 @@ content, storage path는 반환하지 않는다.
 ### 16.3 조건부 노출
 
 resume 작성 intent에서만 compose tool을 노출한다. 문서 Q&A의 `read_document`와 동시에
-노출해 모델이 uploaded extracted text를 resume source로 고르는 일을 막는다.
+노출하지 않아 모델이 uploaded extracted text를 resume source로 고르는 일을 막는다.
+
+- `@resume_version`이 있으면 resume tool은 server가 resolve한 exact version handle만 받는다.
+- `@document`가 있고 사용자가 그 일반 문서의 내용을 묻는 경우에만 `read_document`를
+  노출한다.
+- `documentKind=resume`인 업로드 문서를 @로 골랐더라도 resume compose source는 profile
+  snapshot이다.
+- reference를 선택했다는 사실만으로 tool을 호출하거나 내용을 읽지 않는다.
 
 ### 16.4 target 안전성
 
@@ -944,6 +1086,7 @@ resume 작성 intent에서만 compose tool을 노출한다. 문서 Q&A의 `read_
 - `resumeDocumentService`: preview/download authorization
 - `resumeSubmissionService`: company request exact document 고정
 - `resumeMarkerService`: message marker parse/hydrate/recovery
+- `careerReferenceService`: `@` picker metadata search, exact reference resolve, canonical label
 
 예상 endpoint:
 
@@ -953,12 +1096,18 @@ resume 작성 intent에서만 compose tool을 노출한다. 문서 Q&A의 `read_
 - `POST /api/talent/resume/versions/:id/retry`
 - `POST /api/talent/resume/versions/:id/edit`
 - `GET /api/talent/documents/:id/download`
+- `GET /api/talent/chat/references?query=<text>&section=<section>&cursor=<cursor>`
 - 기존 company request submit endpoint 확장
 - 기존 chat messages/session hydration 확장
 - 기존 tool execute와 chat save receipt 확장
 
 client가 `talent_id`, status, version number, storage path를 신뢰해서 보내게 하지 않는다.
 server가 auth context와 DB 상태에서 계산한다.
+
+`/api/talent/chat/references`는 picker 전용 최소 metadata만 반환한다. 기존
+`GET /api/talent/documents`처럼 모든 document의 signed URL을 만들지 않으며, extracted text와
+structured content도 반환하지 않는다. 응답은 section별 cursor를 가져 한 종류의 긴 목록이
+다른 종류를 밀어내지 않게 한다.
 
 ## 18. 기존 기능과 downstream 호환
 
@@ -1070,6 +1219,9 @@ copy는 “저장”, “대표 지정”, “제출”, “삭제”를 구분�
   - RLS, index, enqueue/finalize/cancel transaction
 - Career chat
   - tool schema와 executor
+  - `CareerComposerSection`의 opportunity-only token을 typed reference union으로 확장
+  - 기존 `useChatComposerTokens`, `ChatComposerPicker`를 재사용한 sectioned `@` picker
+  - picker 전용 metadata hook/endpoint와 message reference serializer
   - server marker, session/messages hydration, unpresented recovery
   - progress/ready/failure card
 - realtime voice
@@ -1084,6 +1236,8 @@ copy는 “저장”, “대표 지정”, “제출”, “삭제”를 구분�
   - generated file signed URL, delete/representative behavior
 - translations
   - 모든 상태·error·review·confirmation key
+  - `@` picker section, loading/empty/error, entity aria label, unavailable-reference copy
+  - 구현 시 `scripts/translation.md` 절차에 따라 Codex가 한국어 문맥을 확인해 영어를 직접 작성
 
 기존 `talent_documents.storage_path` type과 모든 document reader를 nullable로 바꾸는 작업은
 이 설계에 포함되지 않는다.
@@ -1093,7 +1247,7 @@ copy는 “저장”, “대표 지정”, “제출”, “삭제”를 구분�
 ### 23.1 source와 prompt
 
 - 최초 생성이 `talent_users/experiences/educations/extras`만 읽음
-- uploaded `extracted_text`, `resume_text`, PDF bytes를 읽지 않음
+- uploaded resume의 `extracted_text`, `resume_text`, PDF bytes를 작성 source로 읽지 않음
 - snapshot이 요청 시점 값을 보존
 - 긴 profile two-pass가 핵심 자격을 누락하지 않음
 - target prompt injection이 instruction으로 실행되지 않음
@@ -1113,7 +1267,7 @@ copy는 “저장”, “대표 지정”, “제출”, “삭제”를 구분�
 
 ### 23.3 revision
 
-- revise가 same revision key와 base self-FK를 사용
+- revise가 선택한 exact version의 base self-FK를 사용
 - retarget가 null base의 독립 root를 사용
 - restore가 current base + restored provenance를 사용
 - ready content와 document bytes를 in-place 변경하지 않음
@@ -1123,6 +1277,17 @@ copy는 “저장”, “대표 지정”, “제출”, “삭제”를 구분�
 ### 23.4 chat·voice
 
 - advice는 job을 만들지 않음
+- `@` picker가 추천 기회·이력서·일반 문서를 section별로 검색
+- picker endpoint가 signed URL, storage path, extracted text, structured content를 반환하지 않음
+- keyboard, IME, mobile, atomic delete, duplicate 방지, 최대 reference 수
+- email·URL 안의 `@`가 picker trigger로 오인되지 않음
+- generated resume token이 exact ready version을 resolve
+- uploaded resume token이 compose 중 extracted text를 다시 읽지 않음
+- 일반 document token은 명시적 Q&A에서만 document read 경로를 사용
+- forged/deleted/cross-owner reference가 거부되고 전송 실패 시 draft와 token이 복원됨
+- 여러 resume reference가 있을 때 base를 임의 선택하지 않음
+- message reload 시 verified reference chip이 복구되고 click 권한을 재검증
+- 기존 opportunity mention message가 backward compatible
 - marker가 owner-scoped hydrate됨
 - forged marker가 다른 사용자의 version을 열지 못함
 - reload·다른 기기·message save 실패에서 작업 복구
@@ -1229,6 +1394,9 @@ rollback 시 새 enqueue만 막고 기존 ready `talent_documents`는 정상 다
 - [ ] `base_version_id`는 실제 revision에서만 사용된다.
 - [ ] 최초 생성은 구조화 profile만 읽는다.
 - [ ] 업로드 extracted text가 composer prompt에 들어가지 않는다.
+- [ ] `@`로 ready 이력서와 저장 문서를 exact reference로 지정할 수 있다.
+- [ ] `@` picker는 본문·storage 정보 없이 최소 metadata만 읽는다.
+- [ ] reference는 server에서 owner·상태·1:1 연결을 다시 검증한다.
 - [ ] ready content와 PDF는 immutable하다.
 - [ ] 생성해도 대표·공개·회사 제출이 자동 변경되지 않는다.
 - [ ] 채팅·통화·프로필에서 동일 version 상태가 복구된다.

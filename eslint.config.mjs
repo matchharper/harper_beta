@@ -3,7 +3,7 @@ import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 
 export default defineConfig([
   {
-    ignores: [".next/**", ".vercel/**"],
+    ignores: [".next/**", ".next-e2e/**", ".vercel/**"],
   },
   ...nextCoreWebVitals,
   {

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildKnownFutureMatchingInsightsSection } from "./conversationSections";
+import {
+  buildKnownFutureMatchingInsightsSection,
+  buildOptionalFollowUpOpportunitiesSection,
+} from "./conversationSections";
 
 test("does not mark an already saved good-to-remember insight as empty", () => {
   const section = buildKnownFutureMatchingInsightsSection({
@@ -28,4 +31,52 @@ test("omits good-to-remember nudges when both values are already saved", () => {
   });
 
   assert.doesNotMatch(section, /## Good to remember insights/);
+});
+
+test("offers optional waiting-period guidance while the conversation-completed run is active", () => {
+  const section = buildOptionalFollowUpOpportunitiesSection({
+    activeInternalFitHoldQuestion: null,
+    canRecordInternalFitHoldQuestion: false,
+    currentInsightContent: {},
+    isConversationCompletedOpportunityRunActive: true,
+    isOnboardingActive: false,
+    profile: { resume_file_name: "resume.pdf" },
+  });
+
+  assert.match(section, /initial post-onboarding opportunity search is running/);
+  assert.match(section, /even if it produces no opportunity/);
+  assert.match(section, /sends no recommendation email/);
+  assert.match(section, /Settings tab/);
+  assert.match(section, /KRW 5,000,000–15,000,000/);
+  assert.doesNotMatch(section, /Gmail/i);
+});
+
+test("removes waiting-period and referral guidance when the conversation-completed run ends", () => {
+  const section = buildOptionalFollowUpOpportunitiesSection({
+    activeInternalFitHoldQuestion: null,
+    canRecordInternalFitHoldQuestion: false,
+    currentInsightContent: {},
+    isConversationCompletedOpportunityRunActive: false,
+    isOnboardingActive: false,
+    profile: { resume_file_name: "resume.pdf" },
+  });
+
+  assert.doesNotMatch(
+    section,
+    /initial post-onboarding opportunity search is running/
+  );
+  assert.doesNotMatch(section, /referral-program|KRW 5,000,000/i);
+});
+
+test("does not expose waiting-period guidance during onboarding", () => {
+  const section = buildOptionalFollowUpOpportunitiesSection({
+    activeInternalFitHoldQuestion: null,
+    canRecordInternalFitHoldQuestion: false,
+    currentInsightContent: {},
+    isConversationCompletedOpportunityRunActive: true,
+    isOnboardingActive: true,
+    profile: null,
+  });
+
+  assert.equal(section, "");
 });

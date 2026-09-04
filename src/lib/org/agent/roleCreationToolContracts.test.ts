@@ -97,14 +97,14 @@ test("notification updates require a channel or an assignee", () => {
   assert.doesNotMatch(block, /anyOf/);
 });
 
-test("free-form final confirmation is contextual and terminal", () => {
+test("free-form final confirmation is contextual and sequential", () => {
   const block = toolBlock(
     "confirm_pending_role_creation",
     "request_role_creation_confirmation"
   );
   assert.match(block, /immediately preceding Harper message/);
   assert.match(block, /Natural affirmative replies/);
-  assert.match(block, /This is terminal/);
+  assert.doesNotMatch(block, /terminal/i);
   assert.match(block, /adds, removes, or changes any role detail/);
 });
 

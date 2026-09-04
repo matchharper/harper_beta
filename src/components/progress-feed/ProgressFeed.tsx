@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { formatKst } from "@/components/ops/career/utils";
 import { cx, opsTheme } from "@/components/ops/theme";
-import { BareButton } from "@/components/ui/button";
+import { BareButton, MuteButton } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,11 +33,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 
-export type ProgressFeedIcon = "check" | "eye" | "note" | "sparkles" | "x";
+export type ProgressFeedIcon =
+  | "check"
+  | "eye"
+  | "mail"
+  | "note"
+  | "sparkles"
+  | "x";
 
 export type ProgressFeedDelivery = {
   bodyText: string | null;
   id: string;
+  label?: string | null;
   subject: string | null;
 };
 
@@ -87,6 +94,7 @@ type ProgressFeedProps = {
 function ProgressIcon({ icon }: { icon?: ProgressFeedIcon }) {
   if (icon === "check") return <CheckCircle2 className="h-3.5 w-3.5" />;
   if (icon === "eye") return <Eye className="h-3.5 w-3.5" />;
+  if (icon === "mail") return <Mail className="h-3.5 w-3.5" />;
   if (icon === "sparkles") return <Sparkles className="h-3.5 w-3.5" />;
   if (icon === "x") return <XCircle className="h-3.5 w-3.5" />;
   return <StickyNote className="h-3.5 w-3.5" />;
@@ -94,10 +102,23 @@ function ProgressIcon({ icon }: { icon?: ProgressFeedIcon }) {
 
 function DeliveryPreview({ delivery }: { delivery: ProgressFeedDelivery }) {
   return (
-    <div className="mt-2 rounded-md border border-neutral-1000-a05 bg-bg-default/70 p-3 text-xs leading-5 text-neutral-muted">
+    <div className="mt-2 space-y-3 rounded-md border border-neutral-1000-a05 bg-bg-default/70 p-3 text-xs leading-5 text-neutral-muted">
       {delivery.subject ? (
-        <div className="mb-2 font-medium text-neutral-primary">
-          {delivery.subject}
+        <div>
+          <div className="text-[11px] text-neutral-soft">제목</div>
+          <div className="mt-1 font-medium text-neutral-primary">
+            {delivery.subject}
+          </div>
+        </div>
+      ) : null}
+      {delivery.bodyText ? (
+        <div>
+          {delivery.subject ? (
+            <div className="text-[11px] text-neutral-soft">본문</div>
+          ) : null}
+          <div className="mt-1 whitespace-pre-wrap break-words text-neutral-primary">
+            {delivery.bodyText}
+          </div>
         </div>
       ) : null}
     </div>
@@ -192,6 +213,7 @@ function equalDeliveries(
   return (
     left.bodyText === right.bodyText &&
     left.id === right.id &&
+    left.label === right.label &&
     left.subject === right.subject
   );
 }
@@ -334,10 +356,12 @@ const ProgressFeedItemRow = memo(function ProgressFeedItemRow({
             )}
             {delivery && deliveryKey ? (
               <div className="mt-2">
-                <BareButton
+                <MuteButton
+                  aria-expanded={expanded}
                   type="button"
                   onClick={() => onToggleDelivery(deliveryKey)}
-                  className="inline-flex h-7 items-center gap-1.5 rounded-md bg-bg-weak px-2 text-[11px] font-medium text-neutral-muted transition hover:text-neutral-primary"
+                  size="sm"
+                  variant="transparent"
                 >
                   {expanded ? (
                     <ChevronDown className="h-3.5 w-3.5" />
@@ -345,8 +369,8 @@ const ProgressFeedItemRow = memo(function ProgressFeedItemRow({
                     <ChevronRight className="h-3.5 w-3.5" />
                   )}
                   <Mail className="h-3.5 w-3.5" />
-                  메일 내용
-                </BareButton>
+                  {delivery.label || "내용 보기"}
+                </MuteButton>
                 {expanded ? <DeliveryPreview delivery={delivery} /> : null}
               </div>
             ) : null}

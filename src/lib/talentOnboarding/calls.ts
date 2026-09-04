@@ -23,6 +23,17 @@ export type OnboardingChecklistCoverage = Record<
   OnboardingChecklistCoverageStatus
 >;
 
+export type OnboardingChecklistProgress = {
+  additionalCoveredCount: number;
+  completed: boolean;
+  coveredCount: number;
+  finalConfirmationCovered: boolean;
+  minCoveredCount: number;
+  percent: number;
+  requiredQuestionsCovered: boolean;
+  totalCount: number;
+};
+
 export type TalentCallState = {
   checklist?: OnboardingChecklistCoverage;
 };
@@ -389,4 +400,48 @@ export function getOnboardingChecklistCoverageStats(
     requiredQuestionsCovered,
     totalCount: checklist.length,
   };
+}
+
+export function serializeOnboardingChecklistProgress(
+  stats: ReturnType<typeof getOnboardingChecklistCoverageStats>
+): OnboardingChecklistProgress {
+  const coveredCount = Math.max(
+    0,
+    stats.coveredCount - (stats.finalConfirmationCovered ? 1 : 0)
+  );
+  const totalCount = Math.max(0, stats.totalCount - 1);
+  const percent =
+    totalCount > 0
+      ? Math.min(100, Math.round((coveredCount / totalCount) * 100))
+      : 0;
+
+  return {
+    additionalCoveredCount: stats.additionalCoveredCount,
+    completed: stats.isComplete,
+    coveredCount,
+    finalConfirmationCovered: stats.finalConfirmationCovered,
+    minCoveredCount: stats.minCoveredCount,
+    percent,
+    requiredQuestionsCovered: stats.requiredQuestionsCovered,
+    totalCount,
+  };
+}
+
+export async function getCareerOnboardingChecklistProgress(args: {
+  admin: TalentAdminClient;
+  context?: OnboardingChecklistLocationContext;
+  conversationId?: string | null;
+  currentInsightContent?: Record<string, string> | null;
+  userId: string;
+}): Promise<OnboardingChecklistProgress> {
+  const coverage = await getCareerOnboardingChecklistCoverage({
+    admin: args.admin,
+    conversationId: args.conversationId,
+    currentInsightContent: args.currentInsightContent,
+    userId: args.userId,
+  });
+
+  return serializeOnboardingChecklistProgress(
+    getOnboardingChecklistCoverageStats(coverage, args.context)
+  );
 }
