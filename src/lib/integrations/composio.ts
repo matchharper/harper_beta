@@ -428,9 +428,9 @@ export async function createComposioGmailConnectLink(args: {
     callbackUrl: args.callbackUrl,
     userId: args.userId,
   };
-  // Gmail uses Harper-owned OAuth credentials. Send the browser straight to
-  // Google so neither a Composio Connect Link page nor its branding is shown.
-  const result = await client.createDirectOAuthConnection(connectionArgs);
+  // Gmail uses the hosted Composio Connect Link. The configured Gmail auth
+  // config determines whether Composio-managed or custom OAuth is used.
+  const result = await client.createLink(connectionArgs);
   return {
     connectedAccountId: result.accountId,
     expiresAt: null,
