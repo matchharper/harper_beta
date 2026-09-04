@@ -1386,11 +1386,12 @@ export default function TestCompanyPage({ locale }: TestCompanyPageProps) {
                   <div className="flex w-full flex-col gap-2">
                     {[
                       { accent: "$2B", label: "AI-first Asia VC" },
-                      { accent: "$2B", label: "Global Agentic Company" },
+                      { accent: "$5B", label: "Global Agentic Company" },
                       {
                         accent: "Sequoia-backed",
                         label: "Consumer AI Agent",
                       },
+                      { accent: "$15B", label: "U.S B2B AI Agent Service" },
                     ].map((item, index) => (
                       <Reveal
                         key={item.label}
@@ -1448,7 +1449,7 @@ export default function TestCompanyPage({ locale }: TestCompanyPageProps) {
                             General Manager
                           </div>
                           <div className="text-[14px] font-light text-neutral-muted">
-                            at $2B Agentic Company
+                            at $5B Agentic Company
                           </div>
                         </div>
                       </div>

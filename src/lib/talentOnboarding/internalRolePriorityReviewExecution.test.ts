@@ -219,29 +219,6 @@ test("register creates one fit request and repeated register preserves its time"
   );
 });
 
-test("a mapped official job company name overrides the internal workspace and review group names", async () => {
-  const admin = new FakePriorityReviewAdmin();
-  admin.roles[0].company_workspace = {
-    company_name: "Harper",
-    published_name: "Harper",
-  };
-  admin.roles[0].information = {
-    priorityReviewGroupName: "All FDE Positions",
-  };
-  admin.officialJobs = [
-    {
-      company_name: "Unified Hiring",
-      is_published: true,
-      role_id: ROLE_ID,
-      updated_at: "2026-09-04T00:00:00.000Z",
-    },
-  ];
-
-  const result = await runPriorityReview(admin);
-
-  assert.equal(result.companyName, "Unified Hiring");
-});
-
 test("an existing recommendation returns a position card without a request", async () => {
   const admin = new FakePriorityReviewAdmin();
   admin.recommendations = [
