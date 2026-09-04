@@ -73,9 +73,10 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     fetchActiveTalentGmailIntegration({
       admin,
       talentId: args.userId,
-      hasActiveConversationCompletedOpportunityRun({
-        admin,
-        userId: args.userId,
+    }),
+    hasActiveConversationCompletedOpportunityRun({
+      admin,
+      userId: args.userId,
     }),
   ]);
 
