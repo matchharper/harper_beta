@@ -358,7 +358,7 @@ async function collectAccountDeletionContext(
     selectValues<number>(admin, "bookmark_folder", "id", (query) =>
       query.eq("user_id", userId)
     ),
-    selectRows<{ storage_path: string }>(
+    selectRows<{ storage_path: string | null }>(
       admin,
       "talent_documents",
       "storage_path",
@@ -411,7 +411,11 @@ async function collectAccountDeletionContext(
       ...discoveryRunIdsByConversation,
     ]),
     documentStoragePaths: uniqueValues<string>(
-      documentRows.map((row) => row.storage_path)
+      documentRows.flatMap((row) =>
+        typeof row.storage_path === "string" && row.storage_path.trim()
+          ? [row.storage_path]
+          : []
+      )
     ),
     email,
     emailInboundEventIds: uniqueValues<string>(

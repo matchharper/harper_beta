@@ -40,6 +40,7 @@ import {
 } from "@/lib/talentOnboarding/messageStore";
 import {
   fetchTalentDocument,
+  fetchActiveTalentDocumentByOrigin,
   fetchTalentDocuments,
   fetchTalentDocumentsByIds,
   pickLatestResumeDocument,
@@ -86,6 +87,7 @@ export {
   fetchMessages,
   fetchRecentMessages,
   fetchTalentDocument,
+  fetchActiveTalentDocumentByOrigin,
   fetchTalentDocuments,
   fetchTalentDocumentsByIds,
   fetchTalentInsights,

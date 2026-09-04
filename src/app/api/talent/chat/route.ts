@@ -4,6 +4,7 @@ import {
   buildTalentProfileContext,
   countUserChatTurns,
   fetchTalentDocuments,
+  fetchActiveTalentDocumentByOrigin,
   fetchTalentDocumentsByIds,
   fetchTalentInsights,
   fetchTalentSetting,
@@ -125,6 +126,11 @@ import {
   stripOpportunityRunMarkers,
 } from "@/lib/opportunityDiscovery/messageMarker";
 import { buildFirstTurnUploadedDocumentContext } from "@/lib/talentOnboarding/documentPromptContext";
+import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
+import {
+  GMAIL_CAREER_HISTORY_ORIGIN_ID,
+  GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
+} from "@/lib/integrations/gmailCareerHistoryCore";
 import { canUseCareerDevControls } from "@/lib/internalAccess";
 import { resolveCareerTextChatModelForRequest } from "@/lib/career/textChatModelConfig";
 
@@ -239,9 +245,9 @@ async function buildTalentProfileSnapshot(args: {
     fetchTalentStructuredProfile({ admin: args.admin, userId: args.userId }),
     args.includeDocuments
       ? fetchTalentDocuments({ admin: args.admin, userId: args.userId }).then(
-          (rows) =>
-            serializeTalentDocuments({ admin: args.admin, documents: rows })
-        )
+        (rows) =>
+          serializeTalentDocuments({ admin: args.admin, documents: rows })
+      )
       : null,
   ]);
   const normalizedInsights = normalizeTalentInsightContent(
@@ -249,12 +255,12 @@ async function buildTalentProfileSnapshot(args: {
   );
   const onboardingChecklistProgress = !Boolean(setting?.is_onboarding_done)
     ? await getCareerOnboardingChecklistProgress({
-        admin: args.admin,
-        context: talentProfile.talentUser,
-        conversationId: args.conversationId,
-        currentInsightContent: normalizedInsights,
-        userId: args.userId,
-      })
+      admin: args.admin,
+      context: talentProfile.talentUser,
+      conversationId: args.conversationId,
+      currentInsightContent: normalizedInsights,
+      userId: args.userId,
+    })
     : null;
 
   return {
@@ -277,9 +283,9 @@ async function buildTalentProfileSnapshot(args: {
     talentInsights: normalizedInsights,
     talentProfile: documents
       ? {
-          ...talentProfile,
-          documents,
-        }
+        ...talentProfile,
+        documents,
+      }
       : talentProfile,
     preferencesUpdatedAt: setting?.updated_at ?? null,
     insightUpdatedAt: insights?.last_updated_at ?? null,
@@ -349,9 +355,9 @@ function splitToolUiStatus(input: Record<string, unknown>) {
   const status =
     typeof rawStatus === "string"
       ? stripPostgresUnsafeChars(rawStatus)
-          .replace(/\s+/g, " ")
-          .trim()
-          .slice(0, 160)
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 160)
       : "";
 
   return {
@@ -542,12 +548,12 @@ function buildOfficialJobSignupSourcePrompt(args: {
 
   const mappedRoleInstruction = args.roleId
     ? [
-        `This official job is already mapped to the verified internal roleId ${args.roleId}.`,
-        `If the user says yes or clearly shows interest, call internal_role_priority_review with action=register and roleId=${args.roleId} directly. Do not call get_internal_roles for this opportunity.`,
-      ]
+      `This official job is already mapped to the verified internal roleId ${args.roleId}.`,
+      `If the user says yes or clearly shows interest, call internal_role_priority_review with action=register and roleId=${args.roleId} directly. Do not call get_internal_roles for this opportunity.`,
+    ]
     : [
-        "If the user says yes or clearly shows interest, resolve the role with get_internal_roles and then call internal_role_priority_review using action=register.",
-      ];
+      "If the user says yes or clearly shows interest, resolve the role with get_internal_roles and then call internal_role_priority_review using action=register.",
+    ];
 
   return [
     "## Official jobs signup source follow-up",
@@ -682,7 +688,30 @@ export async function POST(req: NextRequest) {
       );
     }
     const admin = getTalentSupabaseAdmin();
-    const talentSetting = await fetchTalentSetting({ admin, userId: user.id });
+    const [
+      talentSetting,
+      activeGmailIntegration,
+      savedGmailCareerHistoryDocument,
+    ] = await Promise.all([
+      fetchTalentSetting({ admin, userId: user.id }),
+      fetchActiveTalentGmailIntegration({
+        admin,
+        talentId: user.id,
+      }),
+      requestChannel === "chat"
+        ? fetchActiveTalentDocumentByOrigin({
+          admin,
+          originId: GMAIL_CAREER_HISTORY_ORIGIN_ID,
+          originType: GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
+          userId: user.id,
+        }).catch((error) => {
+          console.warn("[TalentChat] Gmail history context unavailable", {
+            message: error instanceof Error ? error.message : "Unknown error",
+          });
+          return null;
+        })
+        : Promise.resolve(null),
+    ]);
     const responseLocale =
       talentSetting?.preferred_locale ??
       body.locale ??
@@ -816,9 +845,9 @@ export async function POST(req: NextRequest) {
       }),
       talentSetting?.is_onboarding_done
         ? hasActiveConversationCompletedOpportunityRun({
-            admin,
-            userId: user.id,
-          })
+          admin,
+          userId: user.id,
+        })
         : Promise.resolve(false),
     ]);
     const structuredProfile = await fetchTalentStructuredProfile({
@@ -845,11 +874,11 @@ export async function POST(req: NextRequest) {
       talentSetting?.is_onboarding_done
     )
       ? await getCareerOnboardingChecklistCoverage({
-          admin,
-          conversationId,
-          currentInsightContent,
-          userId: user.id,
-        })
+        admin,
+        conversationId,
+        currentInsightContent,
+        userId: user.id,
+      })
       : null;
     const shouldAutoExtractInsights = !Boolean(
       talentSetting?.is_onboarding_done
@@ -857,23 +886,23 @@ export async function POST(req: NextRequest) {
     const extractTurnInsights = (assistantContent: string) =>
       shouldAutoExtractInsights
         ? extractAndPersistChatInsights({
-            admin,
-            assistantContent,
-            buildPrompt: (promptArgs) =>
-              buildCareerInsightExtractionPrompt({
-                currentChecklistCoverage: promptArgs.currentChecklistCoverage,
-                currentInsightContent: promptArgs.currentInsightContent,
-                onboardingChecklistContext:
-                  promptArgs.onboardingChecklistContext,
-                preferredLocale: responseLocale,
-              }),
-            conversationId,
-            currentInsightContent,
-            logPrefix: "TalentChat",
-            onboardingChecklistContext: profile,
-            sourceChannel: "text_chat",
-            userId: user.id,
-          })
+          admin,
+          assistantContent,
+          buildPrompt: (promptArgs) =>
+            buildCareerInsightExtractionPrompt({
+              currentChecklistCoverage: promptArgs.currentChecklistCoverage,
+              currentInsightContent: promptArgs.currentInsightContent,
+              onboardingChecklistContext:
+                promptArgs.onboardingChecklistContext,
+              preferredLocale: responseLocale,
+            }),
+          conversationId,
+          currentInsightContent,
+          logPrefix: "TalentChat",
+          onboardingChecklistContext: profile,
+          sourceChannel: "text_chat",
+          userId: user.id,
+        })
         : Promise.resolve(0);
 
     let selectedCompanyTalentRequest: Awaited<
@@ -915,9 +944,9 @@ export async function POST(req: NextRequest) {
         });
         selectedInternalOpportunity =
           opportunity?.sourceType === "internal" &&
-          opportunity.feedback === null &&
-          opportunity.savedStage !== "hidden" &&
-          !opportunity.isExpired
+            opportunity.feedback === null &&
+            opportunity.savedStage !== "hidden" &&
+            !opportunity.isExpired
             ? opportunity
             : null;
       }
@@ -925,14 +954,14 @@ export async function POST(req: NextRequest) {
 
     const effectiveOpportunityMentions = selectedInternalOpportunity
       ? normalizeCareerOpportunityMentions([
-          ...opportunityMentions.filter(
-            (mention) => mention.roleId !== selectedInternalOpportunity?.roleId
-          ),
-          {
-            label: `${selectedInternalOpportunity.companyName} · ${selectedInternalOpportunity.title}`,
-            roleId: selectedInternalOpportunity.roleId,
-          },
-        ])
+        ...opportunityMentions.filter(
+          (mention) => mention.roleId !== selectedInternalOpportunity?.roleId
+        ),
+        {
+          label: `${selectedInternalOpportunity.companyName} · ${selectedInternalOpportunity.title}`,
+          roleId: selectedInternalOpportunity.roleId,
+        },
+      ])
       : opportunityMentions;
     const normalizedContent = appendCareerMessageAttachmentMetadata(
       appendCareerOpportunityMentionMetadata(
@@ -990,24 +1019,24 @@ export async function POST(req: NextRequest) {
     const userTurnCount = await countUserChatTurns({ admin, conversationId });
     const postOnboardingUserTurnCount =
       requestChannel === "chat" &&
-      talentSetting?.is_onboarding_done &&
-      onboardingCompletionEvent?.created_at
+        talentSetting?.is_onboarding_done &&
+        onboardingCompletionEvent?.created_at
         ? await countPostOnboardingUserChatTurns({
-            admin,
-            conversationId,
-            onboardingCompletedAt: onboardingCompletionEvent.created_at,
-            userId: user.id,
-          })
+          admin,
+          conversationId,
+          onboardingCompletedAt: onboardingCompletionEvent.created_at,
+          userId: user.id,
+        })
         : null;
     const officialJobSignupSourceContext =
       postOnboardingUserTurnCount !== null &&
-      postOnboardingUserTurnCount <= 5 &&
-      onboardingCompletionEvent?.created_at
+        postOnboardingUserTurnCount <= 5 &&
+        onboardingCompletionEvent?.created_at
         ? await fetchOfficialJobSignupSourceContext({
-            admin,
-            onboardingCompletedAt: onboardingCompletionEvent.created_at,
-            userId: user.id,
-          })
+          admin,
+          onboardingCompletedAt: onboardingCompletionEvent.created_at,
+          userId: user.id,
+        })
         : null;
     const officialJobSignupSourcePrompt = officialJobSignupSourceContext
       ? buildOfficialJobSignupSourcePrompt(officialJobSignupSourceContext)
@@ -1027,7 +1056,7 @@ export async function POST(req: NextRequest) {
       .filter(
         (item) =>
           item.message_type !==
-            TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE &&
+          TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE &&
           item.message_type !== TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP
       )
       .map((item) => ({
@@ -1041,24 +1070,24 @@ export async function POST(req: NextRequest) {
     const activeInternalFitHoldQuestion =
       selectedInternalFitHoldQuestion ??
       (pendingActionReference?.kind !== "internal_fit_question" &&
-      talentSetting?.is_onboarding_done &&
-      talentSetting.profile_visibility !== "dont_share" &&
-      canUseInternalFitHoldQuestionTool
+        talentSetting?.is_onboarding_done &&
+        talentSetting.profile_visibility !== "dont_share" &&
+        canUseInternalFitHoldQuestionTool
         ? await fetchActiveInternalFitHoldQuestion({
-            admin,
-            locale: responseLocale,
-            userId: user.id,
-          })
+          admin,
+          locale: responseLocale,
+          userId: user.id,
+        })
         : null);
     const activeCompanyTalentRequest = talentSetting?.is_onboarding_done
       ? (selectedCompanyTalentRequest ??
         (pendingActionReference?.kind === "company_request"
           ? null
           : await fetchActiveCompanyTalentRequest({
-              admin: admin as any,
-              awaitingTalentOnly: true,
-              talentId: user.id,
-            })))
+            admin: admin as any,
+            awaitingTalentOnly: true,
+            talentId: user.id,
+          })))
       : null;
     const toolSelection = resolveCareerChatTools({
       activeCompanyTalentRequestMode: activeCompanyTalentRequest
@@ -1069,60 +1098,68 @@ export async function POST(req: NextRequest) {
       activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
       allowedToolNames,
       channel: requestChannel,
+      hasActiveGmailIntegration: Boolean(activeGmailIntegration),
       isOnboardingDone: talentSetting?.is_onboarding_done,
       responseLocale,
     });
+    const gmailCapability = activeGmailIntegration
+      ? toolSelection.toolNames.includes(
+        TALENT_TOOL_NAMES.SEARCH_CONNECTED_GMAIL
+      )
+        ? ("available" as const)
+        : ("connected_but_unavailable_this_turn" as const)
+      : ("not_connected" as const);
     const toolDefinitions = toolSelection.tools;
     const currentPreferences = {
       getExternalRecommendation:
         talentSetting?.get_external_recommendation ?? true,
       periodicIntervalDays: talentSetting
         ? normalizeTalentPeriodicIntervalDays(
-            talentSetting.periodic_interval_days
-          )
+          talentSetting.periodic_interval_days
+        )
         : null,
       preferredLocale: responseLocale,
       profileVisibility: talentSetting?.profile_visibility ?? null,
       recommendationBatchSize: talentSetting
         ? normalizeTalentRecommendationBatchSize(
-            talentSetting.recommendation_batch_size
-          )
+          talentSetting.recommendation_batch_size
+        )
         : null,
       talentSettingStatus: talentSetting?.status ?? null,
     };
     const serializedActiveRun = serializeOpportunityRun(activeRun);
     const opportunityStatus = activeRun
       ? {
-          activeRunCreatedAt: activeRun.created_at ?? null,
-          activeRunStatus: activeRun.status ?? null,
-          isInitialSearchRunning:
-            Boolean(serializedActiveRun?.inputLocked) &&
-            activeRun.run_mode === "initial",
-          onboardingCompletedAt: onboardingCompletionEvent?.created_at ?? null,
-        }
+        activeRunCreatedAt: activeRun.created_at ?? null,
+        activeRunStatus: activeRun.status ?? null,
+        isInitialSearchRunning:
+          Boolean(serializedActiveRun?.inputLocked) &&
+          activeRun.run_mode === "initial",
+        onboardingCompletedAt: onboardingCompletionEvent?.created_at ?? null,
+      }
       : onboardingCompletionEvent
         ? {
-            onboardingCompletedAt: onboardingCompletionEvent.created_at,
-          }
+          onboardingCompletedAt: onboardingCompletionEvent.created_at,
+        }
         : null;
     const selectedPendingActionRuntimeInstruction = selectedCompanyTalentRequest
       ? [
-          "The user deliberately selected the active company request shown in the composer before writing the latest message.",
-          `Treat the latest message specifically as a response to requestId ${selectedCompanyTalentRequest.id}.`,
-          "If it clearly answers or declines the request, use the company-request response tool. If the intent is ambiguous, ask a concise clarification instead of inferring consent or refusal.",
-        ].join(" ")
+        "The user deliberately selected the active company request shown in the composer before writing the latest message.",
+        `Treat the latest message specifically as a response to requestId ${selectedCompanyTalentRequest.id}.`,
+        "If it clearly answers or declines the request, use the company-request response tool. If the intent is ambiguous, ask a concise clarification instead of inferring consent or refusal.",
+      ].join(" ")
       : selectedInternalFitHoldQuestion
         ? [
-            "The user deliberately selected the active internal-fit reevaluation question shown in the composer before writing the latest message.",
-            `Treat the latest message as an answer to fitId ${selectedInternalFitHoldQuestion.fitId}.`,
-            "Record it when it provides new information; otherwise ask one concise clarification.",
-          ].join(" ")
+          "The user deliberately selected the active internal-fit reevaluation question shown in the composer before writing the latest message.",
+          `Treat the latest message as an answer to fitId ${selectedInternalFitHoldQuestion.fitId}.`,
+          "Record it when it provides new information; otherwise ask one concise clarification.",
+        ].join(" ")
         : selectedInternalOpportunity
           ? [
-              "The user deliberately selected an undecided internal connection proposal before writing the latest message.",
-              `The exact role is ${selectedInternalOpportunity.title} at ${selectedInternalOpportunity.companyName} (roleId: ${selectedInternalOpportunity.roleId}).`,
-              "Answer questions in this role context. Only record positive or negative feedback when the user clearly accepts or rejects; do not infer a decision from a question.",
-            ].join(" ")
+            "The user deliberately selected an undecided internal connection proposal before writing the latest message.",
+            `The exact role is ${selectedInternalOpportunity.title} at ${selectedInternalOpportunity.companyName} (roleId: ${selectedInternalOpportunity.roleId}).`,
+            "Answer questions in this role context. Only record positive or negative feedback when the user clearly accepts or rejects; do not infer a decision from a question.",
+          ].join(" ")
           : undefined;
     const uploadedDocumentRuntimeInstruction =
       buildFirstTurnUploadedDocumentContext(uploadedDocuments);
@@ -1143,6 +1180,8 @@ export async function POST(req: NextRequest) {
         onboardingChecklistCoverage,
         currentInsightContent,
         currentPreferences,
+        gmailCapability,
+        hasSavedGmailCareerHistory: Boolean(savedGmailCareerHistoryDocument),
         isConversationCompletedOpportunityRunActive,
         isOnboardingDone: talentSetting?.is_onboarding_done,
         officialJobSignupIntentPrompt: talentSetting?.is_onboarding_done
@@ -1330,7 +1369,7 @@ export async function POST(req: NextRequest) {
       const resultRecord = isRecord(result) ? result : null;
       const changedRecommendedOpportunity =
         toolArgs.name ===
-          TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK &&
+        TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK &&
         resultRecord?.ok === true;
       if (changedRecommendedOpportunity) {
         opportunityRecommendationsChanged = true;
@@ -1434,9 +1473,9 @@ export async function POST(req: NextRequest) {
             recommendationStatusAfterCharCount === null
               ? message
               : {
-                  ...message,
-                  recommendationStatusAfterCharCount,
-                };
+                ...message,
+                recommendationStatusAfterCharCount,
+              };
           try {
             send("user_message", {
               message: toResponseMessage(
@@ -1545,7 +1584,7 @@ export async function POST(req: NextRequest) {
                       if (cacheMessageError || !cacheMessage) {
                         throw new Error(
                           cacheMessageError?.message ??
-                            "Failed to insert company_snapshot result message."
+                          "Failed to insert company_snapshot result message."
                         );
                       }
                       await touchConversationIfAllowed();
@@ -1599,7 +1638,7 @@ export async function POST(req: NextRequest) {
                     if (researchMessageError || !researchMessage) {
                       throw new Error(
                         researchMessageError?.message ??
-                          "Failed to insert company_snapshot result message."
+                        "Failed to insert company_snapshot result message."
                       );
                     }
                     await touchConversationIfAllowed();
@@ -1820,12 +1859,12 @@ export async function POST(req: NextRequest) {
             const completedOpportunityRun =
               shouldApplyCompletion && completion.reason
                 ? await completeOnboardingAndQueueInitialOpportunityRun({
-                    admin,
-                    completionReason: completion.reason,
-                    conversationId,
-                    source: "career_chat_completion",
-                    userId: user.id,
-                  })
+                  admin,
+                  completionReason: completion.reason,
+                  conversationId,
+                  source: "career_chat_completion",
+                  userId: user.id,
+                })
                 : null;
             if (completedOpportunityRun) {
               startOpportunityDiscoveryInBackground(completedOpportunityRun.id);
@@ -1864,21 +1903,21 @@ export async function POST(req: NextRequest) {
             const recommendationSearchRun = recommendationReceiptRef.current
               ?.statusRunId
               ? await fetchSerializedOpportunityRunForTalent({
-                  admin,
-                  runId: recommendationReceiptRef.current.statusRunId,
-                  userId: user.id,
-                }).catch((error) => {
-                  console.error(
-                    "[TalentChat] Failed to hydrate queued recommendation run",
-                    {
-                      error:
-                        error instanceof Error ? error.message : String(error),
-                      runId: recommendationReceiptRef.current?.statusRunId,
-                      userId: user.id,
-                    }
-                  );
-                  return null;
-                })
+                admin,
+                runId: recommendationReceiptRef.current.statusRunId,
+                userId: user.id,
+              }).catch((error) => {
+                console.error(
+                  "[TalentChat] Failed to hydrate queued recommendation run",
+                  {
+                    error:
+                      error instanceof Error ? error.message : String(error),
+                    runId: recommendationReceiptRef.current?.statusRunId,
+                    userId: user.id,
+                  }
+                );
+                return null;
+              })
               : null;
             const assistantResponseMessages =
               await attachPostingPreviewsToMessages({
@@ -1891,11 +1930,11 @@ export async function POST(req: NextRequest) {
                     thinkingLogs: finalAssistantThinkingLogs,
                     ...(recommendationSearchRun
                       ? {
-                          recommendationSearchRelation:
-                            recommendationReceiptRef.current?.statusRelation ??
-                            null,
-                          recommendationSearchRun,
-                        }
+                        recommendationSearchRelation:
+                          recommendationReceiptRef.current?.statusRelation ??
+                          null,
+                        recommendationSearchRun,
+                      }
                       : {}),
                   }),
                   insertedCompletionWrapupMessage
@@ -2078,7 +2117,7 @@ export async function POST(req: NextRequest) {
                 });
                 throw new Error(
                   cacheMessageError?.message ??
-                    "Failed to insert company_snapshot result message."
+                  "Failed to insert company_snapshot result message."
                 );
               }
               await touchConversationIfAllowed();
@@ -2141,7 +2180,7 @@ export async function POST(req: NextRequest) {
               });
               throw new Error(
                 researchMessageError?.message ??
-                  "Failed to insert company_snapshot result message."
+                "Failed to insert company_snapshot result message."
               );
             }
             await touchConversationIfAllowed();
@@ -2368,24 +2407,24 @@ export async function POST(req: NextRequest) {
     const completedOpportunityRun =
       shouldApplyCompletion && completion.reason
         ? await completeOnboardingAndQueueInitialOpportunityRun({
-            admin,
-            completionReason: completion.reason,
-            conversationId,
-            source: "career_chat_completion",
-            userId: user.id,
-          })
+          admin,
+          completionReason: completion.reason,
+          conversationId,
+          source: "career_chat_completion",
+          userId: user.id,
+        })
         : null;
     if (completedOpportunityRun) {
       startOpportunityDiscoveryInBackground(completedOpportunityRun.id);
     }
     const completionMessages = shouldApplyCompletion
       ? await createOnboardingCompletionMessages({
-          admin,
-          conversationId,
-          isMobile,
-          latestUserMessageId: insertedUserMessage.id,
-          userId: user.id,
-        })
+        admin,
+        conversationId,
+        isMobile,
+        latestUserMessageId: insertedUserMessage.id,
+        userId: user.id,
+      })
       : null;
     const insertedCompletionWrapupMessage =
       completionMessages?.wrapupMessage ?? null;
@@ -2401,20 +2440,20 @@ export async function POST(req: NextRequest) {
     const recommendationSearchRun = recommendationReceiptRef.current
       ?.statusRunId
       ? await fetchSerializedOpportunityRunForTalent({
-          admin,
-          runId: recommendationReceiptRef.current.statusRunId,
-          userId: user.id,
-        }).catch((error) => {
-          console.error(
-            "[TalentChat] Failed to hydrate queued recommendation run",
-            {
-              error: error instanceof Error ? error.message : String(error),
-              runId: recommendationReceiptRef.current?.statusRunId,
-              userId: user.id,
-            }
-          );
-          return null;
-        })
+        admin,
+        runId: recommendationReceiptRef.current.statusRunId,
+        userId: user.id,
+      }).catch((error) => {
+        console.error(
+          "[TalentChat] Failed to hydrate queued recommendation run",
+          {
+            error: error instanceof Error ? error.message : String(error),
+            runId: recommendationReceiptRef.current?.statusRunId,
+            userId: user.id,
+          }
+        );
+        return null;
+      })
       : null;
     const assistantResponseMessages = await attachPostingPreviewsToMessages({
       admin,
@@ -2424,10 +2463,10 @@ export async function POST(req: NextRequest) {
           thinkingLogs: finalAssistantThinkingLogs,
           ...(recommendationSearchRun
             ? {
-                recommendationSearchRelation:
-                  recommendationReceiptRef.current?.statusRelation ?? null,
-                recommendationSearchRun,
-              }
+              recommendationSearchRelation:
+                recommendationReceiptRef.current?.statusRelation ?? null,
+              recommendationSearchRun,
+            }
             : {}),
         },
         insertedCompletionWrapupMessage

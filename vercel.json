@@ -1,5 +1,15 @@
 {
   "functions": {
+    "src/app/api/queues/process-gmail-career-history/route.ts": {
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "harper-gmail-career-history-v1",
+          "retryAfterSeconds": 60,
+          "initialDelaySeconds": 0
+        }
+      ]
+    },
     "src/app/api/queues/process-slack-turn/route.ts": {
       "experimentalTriggers": [
         {

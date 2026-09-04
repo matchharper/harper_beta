@@ -3,7 +3,9 @@ import test, { after, before } from "node:test";
 import {
   ComposioApiError,
   createComposioClient,
+  getComposioAccountStatus,
   getIntegrationErrorDiagnostics,
+  isOwnedComposioGmailAccount,
 } from "./composio";
 
 const priorKey = process.env.COMPOSIO_API_KEY;
@@ -13,6 +15,50 @@ before(() => {
 after(() => {
   if (priorKey === undefined) delete process.env.COMPOSIO_API_KEY;
   else process.env.COMPOSIO_API_KEY = priorKey;
+});
+
+test("requires exact Gmail user and auth config ownership", (t) => {
+  const priorAuthConfig = process.env.COMPOSIO_GMAIL_AUTH_CONFIG_ID;
+  process.env.COMPOSIO_GMAIL_AUTH_CONFIG_ID = "ac_gmail_test";
+  t.after(() => {
+    if (priorAuthConfig === undefined) {
+      delete process.env.COMPOSIO_GMAIL_AUTH_CONFIG_ID;
+    } else {
+      process.env.COMPOSIO_GMAIL_AUTH_CONFIG_ID = priorAuthConfig;
+    }
+  });
+  const account = {
+    auth_config: { id: "ac_gmail_test" },
+    id: "ca_test",
+    status: "ACTIVE",
+    toolkit: { slug: "gmail" },
+    user_id: "talent-a",
+  };
+
+  assert.equal(isOwnedComposioGmailAccount(account, "talent-a"), true);
+  assert.equal(isOwnedComposioGmailAccount(account, "talent-b"), false);
+  assert.equal(
+    isOwnedComposioGmailAccount(
+      { ...account, auth_config: { id: "ac_other" } },
+      "talent-a"
+    ),
+    false
+  );
+  assert.equal(
+    isOwnedComposioGmailAccount(
+      { ...account, toolkit: { slug: "googlecalendar" } },
+      "talent-a"
+    ),
+    false
+  );
+});
+
+test("treats a disabled Composio account as inactive", () => {
+  assert.equal(
+    getComposioAccountStatus({ is_disabled: true, status: "ACTIVE" }),
+    "INACTIVE"
+  );
+  assert.equal(getComposioAccountStatus({ status: "expired" }), "EXPIRED");
 });
 
 test("creates a private connection using the server's user and auth config, not an event tool", async () => {
@@ -48,11 +94,77 @@ test("creates a private connection using the server's user and auth config, not 
   );
 });
 
+test("creates a direct OAuth connection for a self-hosted Gmail auth config", async () => {
+  const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
+  const client = createComposioClient({
+    fetch: async (input, init) => {
+      calls.push({ url: String(input), init });
+      return Response.json({
+        connection_data: {
+          val: {
+            redirect_url:
+              "https://accounts.google.com/o/oauth2/v2/auth?client_id=test",
+          },
+        },
+        id: "ca_gmail_test",
+      });
+    },
+  });
+  const result = await client.createDirectOAuthConnection({
+    authConfigId: "ac_gmail",
+    callbackUrl: "https://harper.example/career/profile",
+    userId: "talent-a",
+  });
+  assert.equal(result.accountId, "ca_gmail_test");
+  assert.match(result.authorizeUrl, /^https:\/\/accounts\.google\.com\//);
+  assert.equal(
+    calls[0].url,
+    "https://backend.composio.dev/api/v3.1/connected_accounts"
+  );
+  assert.deepEqual(JSON.parse(String(calls[0].init?.body)), {
+    auth_config: { id: "ac_gmail" },
+    connection: {
+      callback_url: "https://harper.example/career/profile",
+      state: {
+        authScheme: "OAUTH2",
+        val: { long_redirect_url: true, status: "INITIALIZING" },
+      },
+      user_id: "talent-a",
+    },
+  });
+});
+
+test("accepts only Composio and Google authorization destinations", async () => {
+  for (const redirectUrl of [
+    "https://connect.composio.dev/link/test",
+    "https://backend.composio.dev/api/v3/s/test",
+    "https://accounts.google.com/o/oauth2/v2/auth?client_id=test",
+  ]) {
+    const client = createComposioClient({
+      fetch: async () =>
+        Response.json({
+          connected_account_id: "ca_test",
+          redirect_url: redirectUrl,
+        }),
+    });
+    const result = await client.createLink({
+      userId: "alice",
+      authConfigId: "ac_calendar",
+      callbackUrl: "http://localhost:3000/org/settings",
+    });
+    assert.equal(result.authorizeUrl, redirectUrl);
+  }
+});
+
 test("rejects untrusted redirect destinations and missing connection IDs", async () => {
   for (const body of [
     {
       connected_account_id: "ca_test",
       redirect_url: "https://attacker.test/link",
+    },
+    {
+      connected_account_id: "ca_test",
+      redirect_url: "https://accounts.google.com.evil.test/o/oauth2/auth",
     },
     { connected_account_id: "ca_test", redirect_url: "javascript:alert(1)" },
     { redirect_url: "https://connect.composio.dev/link/test" },
@@ -70,7 +182,7 @@ test("rejects untrusted redirect destinations and missing connection IDs", async
   }
 });
 
-test("retains safe vendor error diagnostics but never credentials or raw account data", async () => {
+test("retains sanitized connection diagnostics but never credentials or raw account data", async () => {
   const client = createComposioClient({
     fetch: async () =>
       Response.json(
@@ -94,9 +206,11 @@ test("retains safe vendor error diagnostics but never credentials or raw account
     const diagnostics = getIntegrationErrorDiagnostics(error);
     assert.equal("code" in diagnostics && diagnostics.code, 812);
     assert.match(JSON.stringify(diagnostics), /request-test/);
-    assert.equal("message" in diagnostics, false);
-    assert.equal("providerMessage" in diagnostics, false);
-    assert.equal("suggestedFix" in diagnostics, false);
+    assert.equal(
+      diagnostics.suggestedFix,
+      "Grant connected_accounts write access"
+    );
+    assert.match(diagnostics.providerMessage ?? "", /\[redacted\]/);
     assert.doesNotMatch(
       JSON.stringify(diagnostics),
       /test-project-key-never-log|oauth-secret|alice@example.com|secret.test|raw-credential/

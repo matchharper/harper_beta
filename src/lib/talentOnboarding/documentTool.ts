@@ -5,14 +5,24 @@ import {
   syncLegacyResumeFromDocuments,
 } from "./documentStore";
 import type { TalentDocumentRow } from "./models";
+import {
+  GMAIL_CAREER_HISTORY_ORIGIN_ID,
+  GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
+} from "@/lib/integrations/gmailCareerHistoryCore";
 
 type TalentDocumentMetadataRow = Pick<
   TalentDocumentRow,
-  "created_at" | "file_name" | "id" | "is_primary" | "is_public" | "kind"
+  | "created_at"
+  | "file_name"
+  | "id"
+  | "is_primary"
+  | "is_public"
+  | "kind"
+  | "origin_type"
 >;
 
 const DOCUMENT_LIST_SELECT =
-  "id, kind, file_name, is_public, is_primary, created_at";
+  "id, kind, file_name, is_public, is_primary, created_at, origin_type";
 const DOCUMENT_UPDATE_SELECT = `${DOCUMENT_LIST_SELECT}, is_deleted`;
 const DEFAULT_LIST_LIMIT = 10;
 const MAX_LIST_LIMIT = 20;
@@ -60,6 +70,7 @@ function toDocumentMetadata(
     isPrimary: document.is_primary,
     isPublic: document.is_public,
     kind: document.kind,
+    source: document.origin_type ?? "user_upload",
   };
 }
 
@@ -116,10 +127,7 @@ export async function listTalentDocumentsForTool(args: {
     }
   }
   const documents = pageRows.map((document) =>
-    toDocumentMetadata(
-      document,
-      documentIdsWithExtractedText.has(document.id)
-    )
+    toDocumentMetadata(document, documentIdsWithExtractedText.has(document.id))
   );
   return {
     documents,
@@ -213,6 +221,19 @@ export async function updateTalentDocumentForTool(args: {
 
   const effectiveKind = update.kind ?? document.kind;
   const willBeDeleted = update.is_deleted ?? document.is_deleted;
+  const isGmailCareerHistory =
+    document.origin_type === GMAIL_CAREER_HISTORY_ORIGIN_TYPE &&
+    document.origin_id === GMAIL_CAREER_HISTORY_ORIGIN_ID;
+  if (
+    isGmailCareerHistory &&
+    (effectiveKind !== "document" ||
+      update.is_primary === true ||
+      update.is_public === true)
+  ) {
+    throw new Error(
+      "Generated Gmail history must remain a private, non-primary document."
+    );
+  }
   if (update.is_primary === true && effectiveKind !== "resume") {
     throw new Error("Only a resume can be selected as primary.");
   }

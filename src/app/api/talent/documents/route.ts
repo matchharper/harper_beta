@@ -8,6 +8,10 @@ import {
   syncLegacyResumeFromDocuments,
 } from "@/lib/talentOnboarding/server";
 import { insertTalentProfileSourceErrorLog } from "@/lib/talentOnboarding/errorLogs";
+import {
+  GMAIL_CAREER_HISTORY_ORIGIN_ID,
+  GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
+} from "@/lib/integrations/gmailCareerHistoryCore";
 
 export const runtime = "nodejs";
 
@@ -77,6 +81,9 @@ export async function PATCH(req: NextRequest) {
       is_primary?: boolean;
       is_public?: boolean;
     } = {};
+    const isGmailCareerHistory =
+      document.origin_type === GMAIL_CAREER_HISTORY_ORIGIN_TYPE &&
+      document.origin_id === GMAIL_CAREER_HISTORY_ORIGIN_ID;
 
     if (body.fileName !== undefined) {
       const fileName = String(body.fileName).trim().slice(0, 255);
@@ -90,6 +97,12 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (body.isPublic !== undefined) {
+      if (isGmailCareerHistory) {
+        return NextResponse.json(
+          { error: "Generated Gmail history must remain private" },
+          { status: 400 }
+        );
+      }
       if (document.kind !== "document") {
         return NextResponse.json(
           { error: "Only general documents can change visibility" },

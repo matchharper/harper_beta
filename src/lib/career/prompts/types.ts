@@ -68,6 +68,10 @@ export type CareerPromptBlock = {
 };
 
 export type CareerPromptChannel = "chat" | "voice";
+export type GmailCapability =
+  | "available"
+  | "connected_but_unavailable_this_turn"
+  | "not_connected";
 export type CareerConversationPromptMode =
   | "default"
   | "preference_update"

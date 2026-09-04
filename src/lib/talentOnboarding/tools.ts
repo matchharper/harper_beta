@@ -106,6 +106,7 @@ import {
   readTalentDocumentForTool,
   updateTalentDocumentForTool,
 } from "./documentTool";
+import { executeConnectedGmailSearch } from "@/lib/integrations/gmail";
 
 export type TalentToolChannel = "chat" | "voice";
 
@@ -193,6 +194,7 @@ export const TALENT_TOOL_NAMES = {
     "update_recommended_opportunity_feedback",
   WEB_SEARCH: "web_search",
   OPEN_URL: "open_url",
+  SEARCH_CONNECTED_GMAIL: "search_connected_gmail",
   RESEARCH_COMPANY: "research_company",
   LIST_DOCUMENTS: "list_documents",
   READ_DOCUMENT: "read_document",
@@ -213,6 +215,7 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.END_CALL,
   TALENT_TOOL_NAMES.WEB_SEARCH,
   TALENT_TOOL_NAMES.OPEN_URL,
+  TALENT_TOOL_NAMES.SEARCH_CONNECTED_GMAIL,
   TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS,
   TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
   TALENT_TOOL_NAMES.GET_INTERNAL_ROLES,
@@ -2277,6 +2280,66 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       });
     },
   },
+  [TALENT_TOOL_NAMES.SEARCH_CONNECTED_GMAIL]: {
+    name: TALENT_TOOL_NAMES.SEARCH_CONNECTED_GMAIL,
+    description:
+      "Search the currently authenticated user's connected Gmail inbox. Use this read-only tool only when the user's request depends on actual email messages. The server determines the user and connected account; never ask for or infer an account ID. A successful result contains normalized email metadata and optional plain-text content. A non-ok result means the inbox was not checked.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description:
+            "A Gmail search query, such as `from:company.com newer_than:30d` or `subject:(interview OR application)`. Keep it focused on the user's request.",
+        },
+        max_results: {
+          type: "integer",
+          minimum: 1,
+          maximum: 10,
+          default: 5,
+          description: "Maximum number of matching emails to return (1-10).",
+        },
+        include_content: {
+          type: "boolean",
+          default: false,
+          description:
+            "Whether normalized plain-text email content is needed. Leave false when sender, subject, date, and snippet are enough.",
+        },
+      },
+      required: ["query"],
+      additionalProperties: false,
+    },
+    channels: ["chat"],
+    async execute(input, context) {
+      const admin = context?.admin;
+      const userId = context?.userId;
+      if (!admin || !userId) {
+        throw new TalentToolError(
+          "search_connected_gmail requires authenticated service context."
+        );
+      }
+
+      const query = optionalToolString(input.query)
+        ?.replace(/\s+/g, " ")
+        .slice(0, 500);
+      if (!query) {
+        throw new TalentToolError("query is required.");
+      }
+
+      const requestedMaxResults = Number(input.max_results ?? 5);
+      const maxResults = Number.isFinite(requestedMaxResults)
+        ? Math.min(10, Math.max(1, Math.floor(requestedMaxResults)))
+        : 5;
+
+      return executeConnectedGmailSearch({
+        admin: admin as TalentAdminClient,
+        includeContent: input.include_content === true,
+        maxResults,
+        query,
+        talentId: userId,
+      });
+    },
+  },
   [TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS]: {
     name: TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS,
     description:
@@ -2410,7 +2473,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.LIST_DOCUMENTS]: {
     name: TALENT_TOOL_NAMES.LIST_DOCUMENTS,
     description:
-      "List this user's active saved documents as paginated metadata. Use it to resolve references to earlier uploads or answer which documents are saved. It never returns document text and never returns soft-deleted rows.",
+      "List this user's active saved documents and generated context documents as paginated metadata. Use it to resolve earlier document references, discover a saved context named in the system prompt, or answer which documents are saved. It never returns document text and never returns soft-deleted rows.",
     parameters: {
       type: "object",
       properties: {
@@ -2453,7 +2516,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.READ_DOCUMENT]: {
     name: TALENT_TOOL_NAMES.READ_DOCUMENT,
     description:
-      "Read one bounded excerpt from one active saved document's extracted text. Use the exact document_id from current upload context or list_documents. If current upload context already includes content_excerpt, continue from its next_offset instead of rereading offset 0. Binary-only files can be saved but return textAvailable=false.",
+      "Read one bounded excerpt from one active saved or generated document's extracted text. Use the exact document_id from current upload context or list_documents. This reads extracted text directly and does not require a downloadable file. If current upload context already includes content_excerpt, continue from its next_offset instead of rereading offset 0. Binary-only files can be saved but return textAvailable=false.",
     parameters: {
       type: "object",
       properties: {

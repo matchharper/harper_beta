@@ -6,7 +6,7 @@ import {
 } from "@/lib/talentOnboarding/models";
 
 const TALENT_DOCUMENT_SELECT =
-  "id, talent_id, kind, file_name, storage_path, content_type, size_bytes, content_sha256, extracted_text, is_public, is_primary, is_deleted, created_at";
+  "id, talent_id, kind, file_name, storage_path, content_type, size_bytes, content_sha256, extracted_text, is_public, is_primary, is_deleted, created_at, updated_at, origin_type, origin_id";
 
 export async function fetchTalentDocuments(args: {
   admin: TalentAdminClient;
@@ -53,6 +53,28 @@ export async function fetchTalentDocument(args: {
 
   if (error) {
     throw new Error(error.message ?? "Failed to fetch talent document");
+  }
+
+  return (data ?? null) as TalentDocumentRow | null;
+}
+
+export async function fetchActiveTalentDocumentByOrigin(args: {
+  admin: TalentAdminClient;
+  originId: string;
+  originType: string;
+  userId: string;
+}) {
+  const { data, error } = await args.admin
+    .from("talent_documents")
+    .select(TALENT_DOCUMENT_SELECT)
+    .eq("talent_id", args.userId)
+    .eq("origin_type", args.originType)
+    .eq("origin_id", args.originId)
+    .eq("is_deleted", false)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to fetch generated document");
   }
 
   return (data ?? null) as TalentDocumentRow | null;
@@ -115,9 +137,11 @@ export async function serializeTalentDocuments(args: {
 
   return Promise.all(
     documents.map(async (document) => {
-      const { data } = await admin.storage
-        .from(TALENT_RESUME_BUCKET)
-        .createSignedUrl(document.storage_path, expiresIn);
+      const signed = document.storage_path
+        ? await admin.storage
+            .from(TALENT_RESUME_BUCKET)
+            .createSignedUrl(document.storage_path, expiresIn)
+        : null;
 
       return {
         id: document.id,
@@ -129,7 +153,10 @@ export async function serializeTalentDocuments(args: {
         isPublic: document.is_public,
         isPrimary: document.is_primary,
         createdAt: document.created_at,
-        downloadUrl: data?.signedUrl ?? null,
+        updatedAt: document.updated_at,
+        originType: document.origin_type,
+        originId: document.origin_id,
+        downloadUrl: signed?.data?.signedUrl ?? null,
       };
     })
   );

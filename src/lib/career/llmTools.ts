@@ -8,6 +8,7 @@ import {
 } from "@/lib/talentOnboarding/tools";
 import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
 import { scopeCareerChatToolForOnboarding } from "@/lib/career/onboardingToolSchema";
+import { shouldExposeConnectedGmailTool } from "@/lib/career/gmailToolSelection";
 
 export type CareerOpenAIChatTool = ReturnType<
   typeof getOpenAIChatTools
@@ -19,6 +20,7 @@ export type CareerChatToolSelectionArgs = {
   activeInternalFitHoldQuestion?: boolean | null;
   activeCompanyTalentRequestMode?: "document" | "text" | null;
   channel?: TalentToolChannel | null;
+  hasActiveGmailIntegration?: boolean | null;
   isOnboardingDone?: boolean | null;
   responseLocale?: string | null;
 };
@@ -157,6 +159,10 @@ function shouldExposeCareerChatTool(
     channel !== "chat"
   ) {
     return false;
+  }
+
+  if (toolName === TALENT_TOOL_NAMES.SEARCH_CONNECTED_GMAIL) {
+    return shouldExposeConnectedGmailTool(args);
   }
 
   if (isOnboardingActive) {
