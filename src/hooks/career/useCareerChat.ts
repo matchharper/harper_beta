@@ -554,6 +554,26 @@ export const useCareerChat = ({
     setScrollTick((t) => t + 1);
   }, []);
 
+  const removeMessages = useCallback(
+    (messageIds: Array<string | number>) => {
+      if (messageIds.length === 0) return;
+
+      const idsToRemove = new Set(messageIds.map((id) => String(id)));
+      setLocalMessages((current) =>
+        current.filter((message) => !idsToRemove.has(String(message.id)))
+      );
+      setThinkingLogsByMessageId((current) => {
+        const next = { ...current };
+        for (const messageId of idsToRemove) {
+          delete next[messageId];
+        }
+        return next;
+      });
+      setScrollTick((t) => t + 1);
+    },
+    []
+  );
+
   const regenerateOnboardingWrapup = useCallback(async () => {
     if (!user || !conversationId || onboardingWrapupPending) return;
 
@@ -1336,6 +1356,7 @@ export const useCareerChat = ({
     messages,
     scrollTick,
     appendMessage,
+    removeMessages,
     chatPending,
     toolStatusMessage,
     activeThinkingLogs,

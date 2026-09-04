@@ -39,14 +39,25 @@ test("official job login href preserves company identity", () => {
   assert.equal(loginUrl.searchParams.get("job_company"), "[Harper]");
 });
 
-test("official job chat draft includes role and company", () => {
+test("Korean official job chat draft asks to prioritize the selected role", () => {
+  const draft = buildOfficialJobsInitialChatDraft(
+    JOB.roleTitle,
+    JOB.companyName,
+    "ko"
+  );
   assert.equal(
-    buildOfficialJobsInitialChatDraft(
-      JOB.roleTitle,
-      JOB.companyName,
-      "ko"
+    draft,
+    "Harper 내부 기회인 Forward Deployed Engineer에 관심 있어요. 우선적으로 검토해 주세요."
+  );
+  assert.equal(
+    draft.includes(
+      buildOfficialJobsInitialChatMentionLabel(
+        JOB.roleTitle,
+        JOB.companyName,
+        "ko"
+      )
     ),
-    "Harper 내부 기회인 Forward Deployed Engineer at [Harper] 포지션에 관심 있어요."
+    true
   );
   assert.equal(
     buildOfficialJobsInitialChatDraft(
@@ -54,14 +65,14 @@ test("official job chat draft includes role and company", () => {
       JOB.companyName,
       "en"
     ),
-    "I'm interested in the Harper internal opportunity: Forward Deployed Engineer at [Harper]."
+    "I'm interested in the Harper-connected Forward Deployed Engineer opportunity. Please prioritize it for review."
   );
 });
 
 test("legacy official job links retain the role-only chat draft", () => {
   assert.equal(
     buildOfficialJobsInitialChatDraft("Forward Deployed Engineer", null, "ko"),
-    "Harper 내부 기회인 Forward Deployed Engineer 포지션에 관심 있어요."
+    "Harper 내부 기회인 Forward Deployed Engineer에 관심 있어요. 우선적으로 검토해 주세요."
   );
 });
 
@@ -72,7 +83,7 @@ test("official job chat mention wraps the full visible opportunity phrase", () =
       JOB.companyName,
       "ko"
     ),
-    "Forward Deployed Engineer at [Harper] 포지션"
+    "Forward Deployed Engineer"
   );
   assert.equal(
     buildOfficialJobsInitialChatMentionLabel(
@@ -80,6 +91,6 @@ test("official job chat mention wraps the full visible opportunity phrase", () =
       JOB.companyName,
       "en"
     ),
-    "Forward Deployed Engineer at [Harper]"
+    "Forward Deployed Engineer"
   );
 });

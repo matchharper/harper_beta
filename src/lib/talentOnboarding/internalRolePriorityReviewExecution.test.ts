@@ -118,6 +118,7 @@ class FakePriorityReviewAdmin {
   calls: Array<{ operation: string; table: string }> = [];
   fits: Row[] = [];
   insertedAt = "2026-09-02T00:00:00.000Z";
+  officialJobs: Row[] = [];
   progress: Row[] = [];
   recommendations: Row[] = [];
   tags: Row[] = [];
@@ -147,6 +148,7 @@ class FakePriorityReviewAdmin {
 
   rowsFor(table: string) {
     if (table === "company_roles") return this.roles;
+    if (table === "official_jobs") return this.officialJobs;
     if (table === "talent_opportunity_fit") return this.fits;
     if (table === "talent_opportunity_recommendation") {
       return this.recommendations;
@@ -206,8 +208,8 @@ test("register creates one fit request and repeated register preserves its time"
   assert.equal(created.requestedAt, admin.insertedAt);
   assert.equal(repeated.requestedAt, admin.insertedAt);
   assert.equal(admin.progress.length, 1);
-  assert.equal(firstCallDataOperations.length, 6);
-  assert.equal(allDataOperations.length - firstCallDataOperations.length, 5);
+  assert.equal(firstCallDataOperations.length, 7);
+  assert.equal(allDataOperations.length - firstCallDataOperations.length, 6);
   assert.equal("effectiveFitLabel" in created, false);
   assert.equal("reevaluationCriteria" in created, false);
   assert.match(String(created.assistantInstruction), /Do not explain the JD/);
@@ -215,6 +217,29 @@ test("register creates one fit request and repeated register preserves its time"
     String(created.assistantInstruction),
     /longer and more detailed/
   );
+});
+
+test("a mapped official job company name overrides the internal workspace and review group names", async () => {
+  const admin = new FakePriorityReviewAdmin();
+  admin.roles[0].company_workspace = {
+    company_name: "Harper",
+    published_name: "Harper",
+  };
+  admin.roles[0].information = {
+    priorityReviewGroupName: "All FDE Positions",
+  };
+  admin.officialJobs = [
+    {
+      company_name: "Unified Hiring",
+      is_published: true,
+      role_id: ROLE_ID,
+      updated_at: "2026-09-04T00:00:00.000Z",
+    },
+  ];
+
+  const result = await runPriorityReview(admin);
+
+  assert.equal(result.companyName, "Unified Hiring");
 });
 
 test("an existing recommendation returns a position card without a request", async () => {

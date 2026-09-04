@@ -13,6 +13,7 @@ import {
 } from "@/lib/talentOpportunity";
 import { extractPostingRoleIdsFromText } from "@/lib/career/postingLinks";
 import { hydrateOpportunityRunsForMessages } from "@/lib/opportunityDiscovery/store";
+import { canUseCareerDevControls } from "@/lib/internalAccess";
 
 const parsePositiveIntegerParam = (
   value: string | null,
@@ -26,6 +27,11 @@ const parsePositiveIntegerParam = (
 
 const parseBeforeMessageIdParam = (value: string | null) =>
   value && /^\d+$/.test(value) ? Number(value) : null;
+
+const parsePositiveMessageId = (value: unknown) => {
+  const messageId = Number(value);
+  return Number.isSafeInteger(messageId) && messageId > 0 ? messageId : null;
+};
 
 async function fetchConversation(args: {
   admin: ReturnType<typeof getTalentSupabaseAdmin>;
@@ -229,5 +235,93 @@ export async function GET(req: NextRequest) {
     const message =
       error instanceof Error ? error.message : "Failed to load messages";
     return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await getRequestUser(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (!canUseCareerDevControls(user.email)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const body = (await req.json().catch(() => ({}))) as {
+      conversationId?: unknown;
+      messageId?: unknown;
+    };
+    const conversationId = String(body.conversationId ?? "").trim();
+    const messageId = parsePositiveMessageId(body.messageId);
+    if (!conversationId || messageId === null) {
+      return NextResponse.json(
+        { error: "conversationId and messageId are required" },
+        { status: 400 }
+      );
+    }
+
+    const admin = getTalentSupabaseAdmin();
+    const { data: message, error: messageError } = await admin
+      .from("talent_messages")
+      .select("id")
+      .eq("id", messageId)
+      .eq("conversation_id", conversationId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (messageError) {
+      throw new Error(messageError.message ?? "Failed to read talent message");
+    }
+    if (!message) {
+      return NextResponse.json({ error: "Message not found" }, { status: 404 });
+    }
+
+    const cleanupResults = await Promise.all([
+      (admin.from("talent_opportunity_chat_preview" as any) as any)
+        .delete()
+        .eq("assistant_message_id", messageId),
+      admin
+        .from("talent_activity_events")
+        .delete()
+        .eq("talent_id", user.id)
+        .eq("message_id", messageId),
+      (admin.from("talent_conversation_summaries" as any) as any)
+        .delete()
+        .eq("talent_id", user.id)
+        .eq("conversation_id", conversationId)
+        .or(`from_message_id.eq.${messageId},to_message_id.eq.${messageId}`),
+      admin
+        .from("career_email_messages")
+        .update({ talent_message_id: null })
+        .eq("talent_id", user.id)
+        .eq("talent_message_id", messageId),
+      admin
+        .from("company_talent_requests")
+        .update({ talent_source_message_id: null })
+        .eq("talent_id", user.id)
+        .eq("talent_source_message_id", messageId),
+    ]);
+    const cleanupError = cleanupResults.find((result) => result.error)?.error;
+    if (cleanupError) {
+      throw new Error(cleanupError.message ?? "Failed to clean up talent message");
+    }
+
+    const { error: deleteError } = await admin
+      .from("talent_messages")
+      .delete()
+      .eq("id", messageId)
+      .eq("conversation_id", conversationId)
+      .eq("user_id", user.id);
+    if (deleteError) {
+      throw new Error(deleteError.message ?? "Failed to delete talent message");
+    }
+
+    return NextResponse.json({ ok: true, deletedMessageId: messageId });
+  } catch (error) {
+    console.error("[career] Failed to delete dev message", error);
+    return NextResponse.json(
+      { error: "Failed to delete message" },
+      { status: 500 }
+    );
   }
 }

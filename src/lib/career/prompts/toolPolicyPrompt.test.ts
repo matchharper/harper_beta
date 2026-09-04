@@ -36,7 +36,7 @@ test("keeps language setting tool policy minimal", () => {
   assert.doesNotMatch(prompt, /### update_language_setting/);
 });
 
-test("matched internal role policy uses stored fit without rerunning it", () => {
+test("matched internal role policy describes already-reviewed fit roles", () => {
   const prompt = buildCareerToolPolicyPrompt({
     channel: "chat",
     isOnboardingActive: false,
@@ -50,12 +50,12 @@ test("matched internal role policy uses stored fit without rerunning it", () => 
   });
 
   assert.match(prompt, /matchedOnly=true/);
-  assert.match(prompt, /must never trigger a new fit evaluation/);
+  assert.match(prompt, /already been reviewed and assessed as a fit/);
   assert.match(prompt, /private selection context/);
   assert.match(prompt, /not yet roles to explain or render as posting cards/);
   assert.match(prompt, /feedback=`review`/);
   assert.match(prompt, /review alongside the current one/);
-  assert.match(prompt, /it does not accept it, close another role, rerun fit/);
+  assert.match(prompt, /does not accept it, close another role, rerun fit/);
   assert.doesNotMatch(prompt, /sourceRoleId|replacesRoleId/);
   assert.match(
     prompt,
@@ -63,10 +63,14 @@ test("matched internal role policy uses stored fit without rerunning it", () => 
   );
   assert.match(
     prompt,
-    /fitReasons to one to three concise candidate-visible reasons/
+    /one to three concise candidate-visible fitReasons/
   );
+  assert.match(prompt, /reason=internal_role_review_required/);
   assert.match(prompt, /never include private company requests/);
-  assert.match(prompt, /Never use register as a substitute/);
+  assert.match(prompt, /records the user's priority-review request/);
+  assert.match(prompt, /even when the role also has stored fit/);
+  assert.match(prompt, /asks to add it to Positions\/Jobs/);
+  assert.match(prompt, /prioritize a role is not `feedback=review`/);
   assert.match(prompt, /asking '더 있어\?'/);
   assert.match(prompt, /not to enumerate or explain every unpresented role/);
   assert.match(prompt, /only after feedback=`review` has made it a formal recommendation/);

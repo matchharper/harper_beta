@@ -120,6 +120,9 @@ export type CareerChatPanelContextValue = {
       savedStage?: CareerOpportunitySavedStage | null;
     }
   ) => boolean | void | Promise<boolean | void>;
+  onDeleteMessage?: (
+    messageId: string | number
+  ) => boolean | Promise<boolean>;
   onLoadOlderMessages: () => void | Promise<void>;
   onRegenerateOnboardingWrapup?: () => void | Promise<void>;
   forceCompletePending?: boolean;

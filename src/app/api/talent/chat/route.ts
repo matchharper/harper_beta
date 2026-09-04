@@ -114,6 +114,7 @@ import {
 } from "@/lib/textSanitization";
 import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
 import { OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE } from "@/lib/officialJobs";
+import { isOfficialJobFollowUpRoleAvailable } from "@/lib/officialJobs/followUpAvailability";
 import { normalizeCareerPendingActionReference } from "@/lib/career/pendingActions";
 import {
   extractRecommendJobPostingsReceipt,
@@ -480,6 +481,38 @@ async function fetchOfficialJobSignupSourceContext(args: {
       slug,
       userId: args.userId,
     });
+  }
+
+  if (job?.role_id) {
+    const { data: role, error: roleError } = await args.admin
+      .from("company_roles")
+      .select("status,is_expired,expires_at")
+      .eq("role_id", job.role_id)
+      .maybeSingle();
+
+    if (roleError) {
+      console.warn(
+        "[TalentChat] Failed to verify official job role availability",
+        {
+          error: roleError.message,
+          roleId: job.role_id,
+          slug,
+          userId: args.userId,
+        }
+      );
+      return null;
+    }
+
+    if (
+      !role ||
+      !isOfficialJobFollowUpRoleAvailable({
+        expiresAt: role.expires_at,
+        isExpired: role.is_expired,
+        status: role.status,
+      })
+    ) {
+      return null;
+    }
   }
 
   return {

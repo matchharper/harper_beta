@@ -1210,12 +1210,8 @@ async function updateRecommendedOpportunityFeedback(args: {
         matchedOnly: true,
         userId: args.userId,
       });
-      hasSameCompanyReviewedAlternative = matchedRoles.roles.some(
-        (role) =>
-          role.id !== updatedOpportunity.roleId &&
-          role.formalRecommendationState === "not_presented" &&
-          !role.reconsiderationScheduled
-      );
+      hasSameCompanyReviewedAlternative =
+        (matchedRoles.newOptionCount ?? 0) > 0;
     } catch (error) {
       console.error(
         "[recommended-opportunity-feedback] failed to read other roles at company",
@@ -1401,6 +1397,34 @@ function getPriorityReviewGroupName(
     roleInformation?.priorityReviewGroupName,
     160
   );
+}
+
+async function fetchPublishedOfficialJobCompanyName(args: {
+  admin: any;
+  roleId: string;
+}) {
+  const { data, error } = await ((
+    args.admin.from("official_jobs" as any) as any
+  )
+    .select("company_name")
+    .eq("role_id", args.roleId)
+    .eq("is_published", true)
+    .order("updated_at", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle() as any);
+
+  if (error) {
+    console.error(
+      "[internal-role-priority-review] official job company lookup failed",
+      {
+        error: error.message ?? String(error),
+        roleId: args.roleId,
+      }
+    );
+    return null;
+  }
+
+  return optionalToolString(asToolRecord(data)?.company_name);
 }
 
 function getHiringSlackWebhookUrl() {
@@ -1735,7 +1759,12 @@ async function updateInternalRolePriorityReview(args: {
     roleAvailability === "active" || roleAvailability === "hiring_paused";
   const workspace = asToolRecord(roleRecord.company_workspace);
   const rawCompanyName = optionalToolString(workspace?.company_name);
+  const officialJobCompanyName = await fetchPublishedOfficialJobCompanyName({
+    admin: args.admin,
+    roleId,
+  });
   const companyName =
+    officialJobCompanyName ??
     priorityReviewGroupName ??
     optionalToolString(workspace?.published_name) ??
     "Undisclosed internal company";
@@ -2806,7 +2835,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.INTERNAL_ROLE_PRIORITY_REVIEW]: {
     name: TALENT_TOOL_NAMES.INTERNAL_ROLE_PRIORITY_REVIEW,
     description:
-      "Register or withdraw a priority-review request for a specific Harper-connected internal role. Register is idempotent: when the request already exists, call register again to read its current review progress without creating a duplicate. This does not accept a role, share the candidate with a company, replace an existing recommendation, or rerun fit.",
+      "Register or withdraw a priority-review request for a specific Harper internal role when the user explicitly asks Harper to prioritize it. This remains a priority-review request even when the role has stored fit; it does not add the role to Positions/Jobs. Register is idempotent: when the request already exists, call register again to read its current review progress without creating a duplicate. This does not accept a role, share the candidate with a company, replace an existing recommendation, or rerun fit.",
     parameters: {
       type: "object",
       properties: {
@@ -3058,7 +3087,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK]: {
     name: TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK,
     description:
-      "Add a verified matched internal role for review, or set one formal recommendation's feedback to like or dislike. Use review to place the chosen role in Positions/Jobs without accepting it. For review, write one to three candidate-visible fitReasons using only public role facts and candidate-safe context. Acceptance requires a later explicit like.",
+      "Add a verified matched internal role to Positions/Jobs for the user's detailed review, or set one formal recommendation's feedback to like or dislike. Use review when the user asks to add the chosen matched role to Positions/Jobs, or when an earlier call for the same role returned reason=internal_role_review_required. A request asking Harper to prioritize a role is not feedback=review. For review, write one to three candidate-visible fitReasons using only public role facts and candidate-safe context. Acceptance requires a later explicit like.",
     parameters: {
       type: "object",
       properties: {

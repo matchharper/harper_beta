@@ -368,6 +368,7 @@ export const CareerFlowProvider = ({
     messages,
     scrollTick,
     appendMessage,
+    removeMessages,
     chatPending,
     chatError,
     setChatError,
@@ -834,6 +835,62 @@ export const CareerFlowProvider = ({
   const handleLoadOlderMessages = useCallback(async () => {
     await loadOlderMessages();
   }, [loadOlderMessages]);
+
+  const handleDeleteMessage = useCallback(
+    async (messageId: string | number): Promise<boolean> => {
+      const parsedMessageId = Number(messageId);
+      if (
+        !conversationId ||
+        !Number.isSafeInteger(parsedMessageId) ||
+        parsedMessageId <= 0
+      ) {
+        return false;
+      }
+
+      setChatError("");
+      try {
+        const response = await fetchWithAuth("/api/talent/messages", {
+          method: "DELETE",
+          body: JSON.stringify({
+            conversationId,
+            messageId: parsedMessageId,
+          }),
+        });
+        const payload = (await response
+          .json()
+          .catch(() => ({}))) as Record<string, unknown>;
+
+        if (!response.ok) {
+          throw new Error(
+            getErrorMessage(
+              payload,
+              // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
+              "메시지를 삭제하지 못했습니다."
+            )
+          );
+        }
+
+        removeMessagesFromCache([parsedMessageId]);
+        removeMessages([parsedMessageId]);
+        return true;
+      } catch (error) {
+        setChatError(
+          error instanceof Error
+            ? error.message
+            : // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
+              "메시지를 삭제하지 못했습니다."
+        );
+        return false;
+      }
+    },
+    [
+      conversationId,
+      fetchWithAuth,
+      removeMessages,
+      removeMessagesFromCache,
+      setChatError,
+    ]
+  );
 
   const enqueueAssistantMessages = useCallback(
     async (rawMessages: unknown[]) => {
@@ -1672,6 +1729,7 @@ export const CareerFlowProvider = ({
       onStartConversationStarter: handleStartConversationStarter,
       onRunSessionReengagement: handleRunSessionReengagement,
       onUpdateHistoryOpportunityFeedback,
+      onDeleteMessage: conversationId ? handleDeleteMessage : undefined,
       onLoadOlderMessages: handleLoadOlderMessages,
       onRegenerateOnboardingWrapup: regenerateOnboardingWrapup,
       forceCompletePending,
@@ -1732,6 +1790,7 @@ export const CareerFlowProvider = ({
       messages,
       loadingOlderMessages,
       onUpdateHistoryOpportunityFeedback,
+      handleDeleteMessage,
       regenerateOnboardingWrapup,
       onboardingBeginPending,
       callStartPending,

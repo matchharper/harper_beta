@@ -70,7 +70,7 @@ function ThinkingLogStatusIcon({
   return (
     <Icon
       aria-hidden="true"
-      className="mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral-soft"
+      className="mt-1 h-3.5 w-3.5 shrink-0 text-neutral-soft"
     />
   );
 }

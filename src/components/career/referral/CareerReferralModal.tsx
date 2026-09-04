@@ -34,6 +34,9 @@ type CareerReferralModalProps = {
 
 type CareerReferralSettingsSectionProps = {
   active?: boolean;
+  className?: string;
+  headingAs?: "h2" | "h3";
+  titleClassName?: string;
 };
 
 const REFERRAL_LIST_PAGE_SIZE = 10;
@@ -374,6 +377,9 @@ function ReferralRewardSection({
 
 export function CareerReferralSettingsSection({
   active = true,
+  className,
+  headingAs = "h3",
+  titleClassName = "pr-10",
 }: CareerReferralSettingsSectionProps) {
   const t = useCareerT();
   const { fetchWithAuth } = useCareerApi();
@@ -562,11 +568,14 @@ export function CareerReferralSettingsSection({
   };
 
   return (
-    <section className="break-keep text-neutral-primary pb-48">
-      <ReferralProgramIntroduction headingAs="h3" titleClassName="pr-10" />
+    <section className={cn("break-keep pb-48 text-neutral-primary", className)}>
+      <ReferralProgramIntroduction
+        headingAs={headingAs}
+        titleClassName={titleClassName}
+      />
 
       <div className="mt-4 py-5">
-        <ReferralProgramHowItWorks headingAs="h3" />
+        <ReferralProgramHowItWorks headingAs={headingAs} />
 
         <section className="mt-6 border-t border-neutral-1000-a05 pt-5">
           <Text as="h3" type="body" className="font-normal">
@@ -670,7 +679,7 @@ export function CareerReferralSettingsSection({
           </div>
         </section>
 
-        <ReferralProgramReward headingAs="h3" />
+        <ReferralProgramReward headingAs={headingAs} />
 
         <section className="mt-6 border-t border-neutral-1000-a05 pt-5">
           <div className="flex items-center justify-between gap-3">

@@ -162,13 +162,8 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
         matchedOnly: true,
         userId: args.userId,
       });
-      const otherRoles = matchedRoles.roles.filter(
-        (role) =>
-          role.id !== opportunity.roleId &&
-          role.formalRecommendationState === "not_presented" &&
-          !role.reconsiderationScheduled
-      );
-      hasSameCompanyReviewedAlternative = otherRoles.length > 0;
+      hasSameCompanyReviewedAlternative =
+        (matchedRoles.newOptionCount ?? 0) > 0;
     } catch (error) {
       console.error(
         "[Career] Failed to load other roles for internal feedback follow-up",

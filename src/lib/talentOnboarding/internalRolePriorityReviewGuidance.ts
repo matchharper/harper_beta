@@ -84,7 +84,7 @@ export function buildInternalRolePriorityReviewAssistantInstruction(args: {
       return [
         ROLE_IDENTITY_INSTRUCTION,
         "Say the user has already accepted this exact formal recommendation, so no new priority-review request was saved.",
-        "Use the current recommendation progress when explaining what happens next; do not present it as waiting for the user's first decision or claim that the candidate was already shared with the company.",
+        "This result does not contain current company-side progress. If the user asked for the current status and read_recommended_opportunities is available, call it with only_internal=true and answer only from the matching role's progress.message. Otherwise state only that this role was already accepted and no new priority-review request was created. Do not speculate about what happened after acceptance or claim that the candidate was already shared with the company.",
       ].join(" ");
     }
 

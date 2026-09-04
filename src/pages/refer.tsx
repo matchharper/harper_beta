@@ -1,18 +1,21 @@
 import type { GetServerSideProps } from "next";
 import Link from "next/link";
-import { UserRoundPlus } from "lucide-react";
+import { Loader2, UserRoundPlus } from "lucide-react";
 import DocumentPageShell from "@/components/landing/DocumentPageShell";
 import {
   ReferralProgramHowItWorks,
   ReferralProgramIntroduction,
   ReferralProgramReward,
 } from "@/components/career/referral/ReferralProgramOverview";
+import { CareerReferralSettingsSection } from "@/components/career/referral/CareerReferralModal";
 import { MuteButton } from "@/components/ui/button";
 import {
   normalizeLocale,
   resolveLocaleFromLanguage,
 } from "@/i18n/localeResolution";
+import { useCareerT } from "@/i18n/useCareerT";
 import { MessagesProvider, type Locale } from "@/i18n/useMessage";
+import { useAuthStore } from "@/store/useAuthStore";
 
 type ReferralProgramPageProps = {
   locale: Locale;
@@ -63,6 +66,9 @@ export const getServerSideProps: GetServerSideProps<
 function ReferralProgramPageContent({ locale }: ReferralProgramPageProps) {
   const copy = PUBLIC_COPY[locale];
   const signUpHref = "/career_login?next=%2Fcareer%3Fintent%3Dreferral";
+  const t = useCareerT();
+  const authLoading = useAuthStore((state) => state.loading);
+  const user = useAuthStore((state) => state.user);
 
   return (
     <DocumentPageShell
@@ -72,29 +78,50 @@ function ReferralProgramPageContent({ locale }: ReferralProgramPageProps) {
       landingChrome
       contentWidth="reading"
     >
-      <div className="break-keep text-neutral-primary">
-        <ReferralProgramIntroduction />
-        <div className="mt-4 py-5">
-          <ReferralProgramHowItWorks />
-          <ReferralProgramReward />
-          <section className="mt-6 border-t border-neutral-1000-a05 pt-5">
-            <div className="rounded-lg border border-neutral-1000-a05 bg-primary-faded p-5">
-              <h2 className="text-[16px] font-medium leading-6 text-neutral-primary">
-                {copy.start}
-              </h2>
-              <p className="mt-2 text-[13px] leading-5 text-neutral-muted">
-                {copy.startDescription}
-              </p>
-              <MuteButton asChild variant="primary" size="lg" className="mt-4">
-                <Link href={signUpHref}>
-                  <UserRoundPlus className="h-4 w-4" />
-                  {copy.start}
-                </Link>
-              </MuteButton>
-            </div>
-          </section>
+      {authLoading ? (
+        <div
+          role="status"
+          className="flex min-h-40 items-center justify-center gap-2 text-[13px] text-neutral-soft"
+        >
+          <Loader2 className="h-4 w-4 animate-spin" />
+          {t("career.referral.modal.updating", "업데이트 중")}
         </div>
-      </div>
+      ) : user ? (
+        <CareerReferralSettingsSection
+          className="pb-0"
+          headingAs="h2"
+          titleClassName=""
+        />
+      ) : (
+        <div className="break-keep text-neutral-primary">
+          <ReferralProgramIntroduction />
+          <div className="mt-4 py-5">
+            <ReferralProgramHowItWorks />
+            <ReferralProgramReward />
+            <section className="mt-6 border-t border-neutral-1000-a05 pt-5">
+              <div className="rounded-lg border border-neutral-1000-a05 bg-primary-faded p-5">
+                <h2 className="text-[16px] font-medium leading-6 text-neutral-primary">
+                  {copy.start}
+                </h2>
+                <p className="mt-2 text-[13px] leading-5 text-neutral-muted">
+                  {copy.startDescription}
+                </p>
+                <MuteButton
+                  asChild
+                  variant="primary"
+                  size="md"
+                  className="mt-4"
+                >
+                  <Link href={signUpHref}>
+                    <UserRoundPlus className="h-4 w-4" />
+                    {copy.start}
+                  </Link>
+                </MuteButton>
+              </div>
+            </section>
+          </div>
+        </div>
+      )}
     </DocumentPageShell>
   );
 }

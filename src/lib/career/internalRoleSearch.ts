@@ -35,6 +35,7 @@ type InternalRoleSearchSqlRow = {
   is_internal: boolean;
   latest_recommendation_id: string | null;
   location_text: string | null;
+  official_job_company_name: string | null;
   published_name: string | null;
   candidate_fit: string | null;
   company_fit: string | null;
@@ -70,7 +71,6 @@ export type InternalRoleSearchResultRole = {
     | "accepted"
     | "declined"
     | "closed";
-  reconsiderationScheduled: boolean;
   id: string;
   role: string;
   sameCompanyFormalRoles?: SameCompanyFormalRole[];
@@ -245,7 +245,9 @@ function normalizeSameCompanyFormalRoles(value: unknown) {
 }
 
 function getCandidateVisibleCompanyName(row: InternalRoleSearchSqlRow) {
-  return getInternalRolePublishedName(row.published_name);
+  return getInternalRolePublishedName(
+    row.official_job_company_name ?? row.published_name
+  );
 }
 
 function formatInternalRole(
@@ -274,7 +276,9 @@ function formatInternalRole(
     candidateState,
     companyState,
     row.has_priority_review_request ? "검토요청/선호전달됨" : null,
-    row.has_reconsideration_scheduled ? "내부 역할 재검토 예정" : null,
+    row.has_reconsideration_scheduled
+      ? "Scheduled for reconsideration"
+      : null,
   ].filter((part): part is string => Boolean(part));
 
   return parts.join(" | ");
@@ -352,6 +356,7 @@ async function searchInternalRoleRows(args: {
           cr.type,
           cw.company_name,
           cw.published_name,
+          official_job.company_name AS official_job_company_name,
           cr.location_text,
           cr.opportunity_search_tsv,
           cr.posted_at,
@@ -359,6 +364,14 @@ async function searchInternalRoleRows(args: {
         FROM public.company_roles cr
         JOIN public.company_workspace cw
           ON cw.company_workspace_id = cr.company_workspace_id
+        LEFT JOIN LATERAL (
+          SELECT NULLIF(btrim(job.company_name), '') AS company_name
+          FROM public.official_jobs job
+          WHERE job.role_id = cr.role_id
+            AND job.is_published = true
+          ORDER BY job.updated_at DESC NULLS LAST, job.id
+          LIMIT 1
+        ) official_job ON true
         WHERE cr.source_type = 'internal'
           AND cr.status IN ('active', 'paused')
           AND COALESCE(cr.is_expired, false) = false
@@ -388,6 +401,7 @@ async function searchInternalRoleRows(args: {
           er.type,
           er.company_name,
           er.published_name,
+          er.official_job_company_name,
           er.location_text,
           true AS is_internal,
           latest_recommendation.id::text AS latest_recommendation_id,
@@ -432,6 +446,8 @@ async function searchInternalRoleRows(args: {
                 OR position(lower(coalesce(er.company_name, '')) in lower(kt.keyword)) > 0
                 OR position(lower(kt.keyword) in lower(coalesce(er.published_name, ''))) > 0
                 OR position(lower(coalesce(er.published_name, '')) in lower(kt.keyword)) > 0
+                OR position(lower(kt.keyword) in lower(coalesce(er.official_job_company_name, ''))) > 0
+                OR position(lower(coalesce(er.official_job_company_name, '')) in lower(kt.keyword)) > 0
               )
           ) AS company_name_match,
           ts_rank_cd(
@@ -498,6 +514,8 @@ async function searchInternalRoleRows(args: {
                 OR position(lower(coalesce(er.company_name, '')) in lower(kt.keyword)) > 0
                 OR position(lower(kt.keyword) in lower(coalesce(er.published_name, ''))) > 0
                 OR position(lower(coalesce(er.published_name, '')) in lower(kt.keyword)) > 0
+                OR position(lower(kt.keyword) in lower(coalesce(er.official_job_company_name, ''))) > 0
+                OR position(lower(coalesce(er.official_job_company_name, '')) in lower(kt.keyword)) > 0
               )
           )
         ORDER BY
@@ -515,6 +533,7 @@ async function searchInternalRoleRows(args: {
         type,
         company_name,
         published_name,
+        official_job_company_name,
         location_text,
         is_internal,
         has_priority_review_request,
@@ -566,6 +585,7 @@ async function searchMatchedInternalRoleRows(args: {
         role.type,
         workspace.company_name,
         workspace.published_name,
+        official_job.company_name AS official_job_company_name,
         role.location_text,
         true AS is_internal,
         latest_recommendation.id::text AS latest_recommendation_id,
@@ -601,6 +621,14 @@ async function searchMatchedInternalRoleRows(args: {
       FROM public.company_roles role
       JOIN public.company_workspace workspace
         ON workspace.company_workspace_id = role.company_workspace_id
+      LEFT JOIN LATERAL (
+        SELECT NULLIF(btrim(job.company_name), '') AS company_name
+        FROM public.official_jobs job
+        WHERE job.role_id = role.role_id
+          AND job.is_published = true
+        ORDER BY job.updated_at DESC NULLS LAST, job.id
+        LIMIT 1
+      ) official_job ON true
       JOIN public.talent_opportunity_fit fit
         ON fit.opportunity_id = role.role_id
        AND fit.talent_id = ${args.userId}::uuid
@@ -669,6 +697,8 @@ async function searchMatchedInternalRoleRows(args: {
           OR position(lower(COALESCE(workspace.published_name, '')) in lower(btrim(${args.company}))) > 0
           OR position(lower(btrim(${args.company})) in lower(COALESCE(workspace.company_name, ''))) > 0
           OR position(lower(COALESCE(workspace.company_name, '')) in lower(btrim(${args.company}))) > 0
+          OR position(lower(btrim(${args.company})) in lower(COALESCE(official_job.company_name, ''))) > 0
+          OR position(lower(COALESCE(official_job.company_name, '')) in lower(btrim(${args.company}))) > 0
         )
         AND (
           btrim(${args.sourceRoleId}) = ''
@@ -829,7 +859,6 @@ export async function searchInternalRolesForCareerTool(args: {
       normalizedSameCompanyRoles.get(row.role_id) ?? [];
     return {
       formalRecommendationState: getFormalRecommendationState(row),
-      reconsiderationScheduled: row.has_reconsideration_scheduled,
       id: row.role_id,
       role: formatInternalRole(row, sameCompanyFormalRoles),
       ...(sameCompanyFormalRoles.length > 0
@@ -840,10 +869,10 @@ export async function searchInternalRolesForCareerTool(args: {
         : {}),
     };
   });
-  const newOptionCount = formattedRoles.filter(
-    (role) =>
-      role.formalRecommendationState === "not_presented" &&
-      !role.reconsiderationScheduled
+  const newOptionCount = rows.filter(
+    (row) =>
+      getFormalRecommendationState(row) === "not_presented" &&
+      !row.has_reconsideration_scheduled
   ).length;
 
   return {
@@ -851,7 +880,7 @@ export async function searchInternalRolesForCareerTool(args: {
       (matchedOnly
         ? [
             "Matched results are private selection context, not a candidate-facing list.",
-            "Only roles with formalRecommendationState=not_presented and reconsiderationScheduled=false may be offered; use newOptionCount, not returnedCount.",
+            "Only roles with formalRecommendationState=not_presented and without the trailing Scheduled for reconsideration status may be offered; use newOptionCount, not returnedCount.",
             "Use selectionContext and sameCompanyFormalRoles only to judge whether one option is useful, and never expose their labels, reasons, or contents.",
             "Accepted, declined, and closed roles are history; a role scheduled for reconsideration is progress to explain, not an option.",
             "Do not volunteer an unpresented role's name, details, link, or posting card. A question about one is not consent: ask whether the candidate wants it added for review before explaining it. If one is worth raising, offer at most one role for review; create it only after the candidate explicitly chooses it.",
@@ -862,7 +891,7 @@ export async function searchInternalRolesForCareerTool(args: {
         ? "When a returned role says 검토요청/선호전달됨 and the user asks about its progress, call internal_role_priority_review with action=register and that exact role id. Repeating register is idempotent and returns the current review progress without creating another request."
         : "") +
       (hasReconsiderationScheduled
-        ? " When a returned role says 내부 역할 재검토 예정, explain that the user's new information is already attached to that exact role and a fresh review is scheduled. Do not ask for the same information again or imply that the role is already a formal recommendation."
+        ? " When a returned role says Scheduled for reconsideration, explain that the user's new information is already attached to that exact role and a fresh review is scheduled. Do not ask for the same information again or imply that the role is already a formal recommendation."
         : ""),
     ...(fallbackKeywords
       ? {

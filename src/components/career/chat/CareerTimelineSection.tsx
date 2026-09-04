@@ -1,4 +1,4 @@
-import { Loader2, Plus, Upload, X } from "lucide-react";
+import { Copy, Loader2, Plus, Trash2, Upload, X } from "lucide-react";
 import {
   FormEvent,
   Fragment,
@@ -48,6 +48,7 @@ import {
   PrimaryButton,
   SecondaryButton,
   BareButton,
+  MuteButton,
 } from "@/components/ui/button";
 import { Input, Input as UiInput } from "@/components/ui/input";
 import { InlinePanel } from "@/components/ui/panel";
@@ -75,6 +76,7 @@ import Face from "@/components/common/Face";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { showToast } from "@/components/toast/toast";
 import { MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES } from "@/lib/talentOnboarding/documentUploadLimits";
+import { canUseCareerDevControls } from "@/lib/internalAccess";
 
 const BOTTOM_THRESHOLD_PX = 120;
 const TIMELINE_SCROLL_STYLE: React.CSSProperties = {
@@ -227,6 +229,107 @@ const InterestChoiceButton = ({
   </BareButton>
 );
 
+const CareerMessageDevActions = ({
+  isUser,
+  message,
+  onDeleteMessage,
+}: {
+  isUser: boolean;
+  message: CareerMessage;
+  onDeleteMessage: (messageId: string | number) => boolean | Promise<boolean>;
+}) => {
+  const [deleteArmed, setDeleteArmed] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const logCareerEvent = useCareerLogEvent();
+  const messageId = Number(message.id);
+
+  if (!Number.isSafeInteger(messageId) || messageId <= 0 || message.typing) {
+    return null;
+  }
+
+  const handleCopy = async () => {
+    logCareerEvent("click_chat_dev_message_copy", {
+      messageId,
+      messageRole: message.role,
+      messageType: message.messageType,
+    });
+
+    try {
+      await navigator.clipboard.writeText(message.content);
+      // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
+      showToast({ message: "메시지를 복사했습니다.", variant: "white" });
+    } catch {
+      // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
+      showToast({ message: "메시지를 복사하지 못했습니다.", variant: "white" });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteArmed) {
+      logCareerEvent("click_chat_dev_message_delete", {
+        messageId,
+        messageRole: message.role,
+        messageType: message.messageType,
+      });
+      setDeleteArmed(true);
+      return;
+    }
+
+    setDeleting(true);
+    const deleted = await onDeleteMessage(message.id);
+    setDeleting(false);
+    if (deleted) {
+      logCareerEvent("confirm_chat_dev_message_delete", {
+        messageId,
+        messageRole: message.role,
+        messageType: message.messageType,
+      });
+    }
+    if (!deleted) setDeleteArmed(false);
+  };
+
+  return (
+    <div
+      data-career-i18n-skip="true"
+      className={cn(
+        "mt-1 flex transition-opacity duration-150",
+        isUser ? "self-end" : "self-start",
+        deleteArmed
+          ? "pointer-events-auto opacity-100"
+          : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
+      )}
+    >
+      <MuteButton
+        aria-label="메시지 복사"
+        size="sm"
+        title="복사"
+        variant="transparent"
+        onClick={() => void handleCopy()}
+      >
+        <Copy aria-hidden="true" className="h-3.5 w-3.5" />
+      </MuteButton>
+      <MuteButton
+        aria-label={
+          deleteArmed
+            ? "메시지 삭제를 확정하려면 다시 누르세요."
+            : "메시지 삭제"
+        }
+        disabled={deleting}
+        size="sm"
+        title={deleteArmed ? "확인" : "삭제"}
+        variant={deleteArmed ? "critical" : "transparent"}
+        onClick={() => void handleDelete()}
+      >
+        {deleteArmed ? (
+          "확인"
+        ) : (
+          <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+        )}
+      </MuteButton>
+    </div>
+  );
+};
+
 type StartConversationStarterHandler = (args: {
   mode: CareerConversationStarterMode;
   starterId: CareerConversationStarterId;
@@ -245,6 +348,8 @@ const TimelineMessageList = memo(function TimelineMessageList({
   assistantChoiceActionsDisabled,
   onSelectAssistantChoice,
   onSelectReengagementAction,
+  onDeleteMessage,
+  showDevMessageActions,
 }: {
   messages: CareerMessage[];
   assistantTyping: boolean;
@@ -257,6 +362,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
   onSelectReengagementAction?: (
     selection: CareerReengagementActionSelection
   ) => void | Promise<void>;
+  onDeleteMessage?: (messageId: string | number) => boolean | Promise<boolean>;
   onRegenerateOnboardingWrapup?: () => void | Promise<void>;
   onCancelActiveRecommendationSearch?: () => void;
   onboardingWrapupPending: boolean;
@@ -265,6 +371,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
   ) => boolean | Promise<boolean>;
   onStartConversationStarter?: StartConversationStarterHandler;
   sessionReengagementActionMessageId?: string | null;
+  showDevMessageActions: boolean;
   onOpenOpportunity: (opportunity: CareerHistoryOpportunity) => void;
 }) {
   const t = useCareerT();
@@ -349,7 +456,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
         };
 
         const messageNode = (
-          <div className="flex flex-col gap-2">
+          <div className="group flex flex-col gap-2">
             {!isUser && textLogs.length > 0 && (
               <ThinkingLogPanel
                 active={
@@ -472,6 +579,13 @@ const TimelineMessageList = memo(function TimelineMessageList({
                 onOpenOpportunity={onOpenOpportunity}
               />
             )}
+            {showDevMessageActions && onDeleteMessage ? (
+              <CareerMessageDevActions
+                isUser={isUser}
+                message={message}
+                onDeleteMessage={onDeleteMessage}
+              />
+            ) : null}
           </div>
         );
 
@@ -570,6 +684,7 @@ const CareerTimelineSection = ({
     onRemoveProfileLink,
     onAddProfileLink,
     onProfileSubmit,
+    onDeleteMessage,
     onLoadOlderMessages,
     onRegenerateOnboardingWrapup,
     onSendChatMessage,
@@ -582,6 +697,7 @@ const CareerTimelineSection = ({
     onContinueOnboardingConversation,
     inputMode,
   } = useCareerChatPanelContext();
+  const showDevMessageActions = canUseCareerDevControls(user?.email);
 
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [authEmail, setAuthEmail] = useState("");
@@ -1097,6 +1213,7 @@ const CareerTimelineSection = ({
             assistantTyping={assistantTyping}
             thinkingLogsByMessageId={thinkingLogsByMessageId}
             assistantChoiceActionsDisabled={assistantChoiceActionsDisabled}
+            onDeleteMessage={onDeleteMessage}
             onSelectAssistantChoice={handleSelectAssistantChoice}
             onSelectReengagementAction={handleSelectReengagementAction}
             onRegenerateOnboardingWrapup={onRegenerateOnboardingWrapup}
@@ -1111,6 +1228,7 @@ const CareerTimelineSection = ({
             }
             isStartingCall={isStartingCall}
             onOpenOpportunity={handleOpenOpportunity}
+            showDevMessageActions={showDevMessageActions}
           />
         ) : null}
 

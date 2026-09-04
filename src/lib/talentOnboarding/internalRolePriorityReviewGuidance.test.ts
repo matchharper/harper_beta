@@ -90,6 +90,9 @@ test("past recommendation states get distinct guidance", () => {
 
   assert.match(declined, /user declined it/);
   assert.match(accepted, /already accepted/);
+  assert.match(accepted, /read_recommended_opportunities/);
+  assert.match(accepted, /progress\.message/);
+  assert.match(accepted, /Do not speculate/);
   assert.match(closed, /process is now closed/);
   assert.match(closed, /Do not present it.*attached position card/);
 });

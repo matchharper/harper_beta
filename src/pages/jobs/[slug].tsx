@@ -7,6 +7,7 @@ import OfficialJobMarkdown from "@/components/jobs/OfficialJobMarkdown";
 import OfficialJobsCtaLink from "@/components/jobs/OfficialJobsCtaLink";
 import OfficialJobsEventTracker from "@/components/jobs/OfficialJobsEventTracker";
 import OfficialJobsHeader from "@/components/jobs/OfficialJobsHeader";
+import OfficialJobsReferralCta from "@/components/jobs/OfficialJobsReferralCta";
 import OfficialJobsTreatmentMessage from "@/components/jobs/OfficialJobsTreatmentMessage";
 import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
@@ -39,6 +40,8 @@ import {
   getPublicOfficialJobById,
   getPublicOfficialJobBySlug,
 } from "@/lib/officialJobs/server";
+import { useTalentNetworkReferralCapture } from "@/hooks/useTalentNetworkReferralCapture";
+import { TALENT_NETWORK_REFERRAL_SOURCE_OFFICIAL_JOB } from "@/lib/talentNetworkReferral";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   BriefcaseBusiness,
@@ -97,6 +100,8 @@ export default function OfficialJobDetailPage({
   const publishedIsoDate = toIsoDateTime(job.publishedAt);
   const updatedIsoDate = toIsoDateTime(job.updatedAt);
   const structuredData = buildOfficialJobStructuredData(job, locale);
+  const jobPath = `/jobs/${encodeURIComponent(job.slug)}`;
+  useTalentNetworkReferralCapture(TALENT_NETWORK_REFERRAL_SOURCE_OFFICIAL_JOB);
   const trackApplyClick = (source: string) => {
     void postOfficialJobEvent({
       eventType: "job_apply_click",
@@ -193,7 +198,7 @@ export default function OfficialJobDetailPage({
             </Link>
 
             <div className="relative mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
-              <div>
+              <div className="min-w-0">
                 {job.vertical && (
                   <span className="py-1.5 px-4 rounded-full bg-black/5 text-[14px] font-normal text-black">
                     {job.vertical}
@@ -248,7 +253,7 @@ export default function OfficialJobDetailPage({
                 </div>
               </div>
 
-              <aside className="space-y-5 lg:sticky lg:top-4 lg:self-start">
+              <aside className="space-y-3 lg:sticky lg:top-4 lg:self-start">
                 <section className="rounded-[8px] border border-beige900/10 bg-white/65 p-4">
                   <div className="flex items-start gap-4">
                     <div className="min-w-0 p-1">
@@ -291,6 +296,8 @@ export default function OfficialJobDetailPage({
                     />
                   </div>
                 </section>
+
+                <OfficialJobsReferralCta jobPath={jobPath} locale={locale} />
 
                 {/* <section className="overflow-hidden">
                   <Image

@@ -17,7 +17,8 @@ test("matched role queries use the canonical candidate-visible eligibility", () 
     source,
     /talent_internal_role_reconsideration_is_pending_v1\(fit\)/
   );
-  assert.match(source, /내부 역할 재검토 예정/);
+  assert.match(source, /Scheduled for reconsideration/);
+  assert.doesNotMatch(source, /reconsiderationScheduled:/);
   assert.match(source, /private selection context/);
   assert.match(source, /formalRecommendationState=not_presented/);
   assert.match(source, /use newOptionCount, not returnedCount/);
@@ -31,6 +32,11 @@ test("matched role queries use the canonical candidate-visible eligibility", () 
   assert.match(source, /question about one is not consent/);
   assert.match(source, /sameCompanyFormalRoles/);
   assert.match(source, /candidate-safe public aliases/);
+  assert.match(source, /FROM public\.official_jobs job/);
+  assert.match(
+    source,
+    /row\.official_job_company_name \?\? row\.published_name/
+  );
   assert.doesNotMatch(source, /actual company name for sibling roles/);
   assert.match(source, /\["like", "positive"\]/);
   assert.match(source, /\["dislike", "negative"\]/);
