@@ -7,6 +7,7 @@ import ProfileSourceApplyConfirmModal, {
 } from "@/components/career/profile/ProfileSourceApplyConfirmModal";
 import {
   CareerAddDocumentModal,
+  CareerCallNoteModal,
   CareerDocumentDeleteModal,
   CareerDocumentRenameModal,
   type CareerDocumentUploadResult,
@@ -50,6 +51,9 @@ const CareerResumeLinksSettingsSection = () => {
   const [documentPendingRenameId, setDocumentPendingRenameId] = useState<
     string | null
   >(null);
+  const [callNoteDocumentId, setCallNoteDocumentId] = useState<string | null>(
+    null
+  );
   const [pendingPostUploadDialog, setPendingPostUploadDialog] =
     useState<CareerDocumentUploadResult | null>(null);
 
@@ -122,6 +126,10 @@ const CareerResumeLinksSettingsSection = () => {
     () => findDocumentById(talentDocuments, documentPendingRenameId),
     [documentPendingRenameId, talentDocuments]
   );
+  const callNoteDocument = useMemo(
+    () => findDocumentById(talentDocuments, callNoteDocumentId),
+    [callNoteDocumentId, talentDocuments]
+  );
 
   const handleSaveLinks = async () => {
     logCareerEvent("click_resume_links_save");
@@ -177,8 +185,14 @@ const CareerResumeLinksSettingsSection = () => {
       <CareerDocumentsSettingsSection
         documents={remainingDocuments}
         onAddDocument={() => setAddDocumentOpen(true)}
+        onOpenCallNote={(document) => setCallNoteDocumentId(document.id)}
         onRenameDocument={openDocumentRename}
         onDeleteDocument={setDocumentPendingDeleteId}
+      />
+
+      <CareerCallNoteModal
+        document={callNoteDocument}
+        onClose={() => setCallNoteDocumentId(null)}
       />
 
       <ProfileSourceApplyConfirmModal

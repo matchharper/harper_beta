@@ -21,6 +21,7 @@ import type {
   CareerOnboardingChecklistProgress,
   CareerOpportunityRun,
   CareerStage,
+  CareerTalentDocument,
   SessionResponse,
 } from "@/components/career/types";
 import type { TalentOnboardingInterestOptionId } from "@/lib/talentOnboarding/onboarding";
@@ -337,6 +338,7 @@ type UseCareerOnboardingVoiceArgs = {
   onPendingInternalOpportunityCallRequestsChanged?: (
     callRequests: CareerInternalOpportunityCallRequest[]
   ) => void;
+  onCallNoteSaved?: (document: CareerTalentDocument) => void;
   appendMessage: (message: CareerMessage) => void;
   setChatError: Dispatch<SetStateAction<string>>;
   setStage: Dispatch<SetStateAction<CareerStage>>;
@@ -370,6 +372,7 @@ export const useCareerOnboardingVoice = ({
   onTalentProfileRefreshed,
   onPendingInternalOpportunityCallRequestChanged,
   onPendingInternalOpportunityCallRequestsChanged,
+  onCallNoteSaved,
   appendMessage,
   setChatError,
   setStage,
@@ -496,6 +499,7 @@ export const useCareerOnboardingVoice = ({
   const activeCallConversationStarterIdRef =
     useRef<CareerConversationStarterId | null>(null);
   const activeInternalCallRequestIdRef = useRef<string | null>(null);
+  const activeCallIdRef = useRef<string | null>(null);
 
   const updateSessionInstructionsRef = useRef<
     ((instructions: string) => void) | null
@@ -1133,6 +1137,7 @@ export const useCareerOnboardingVoice = ({
     addCallTranscriptEntry,
     appendCallAssistantTranscriptDelta,
     finalizeCallAssistantTranscript,
+    getCallTranscriptEntries,
     callTranscriptEntries,
     connectionStatus,
     switchToChatOnly,
@@ -1422,6 +1427,7 @@ export const useCareerOnboardingVoice = ({
           : null;
       activeCallConversationStarterIdRef.current = conversationStarterId;
       activeInternalCallRequestIdRef.current = internalCallRequestId;
+      activeCallIdRef.current = null;
 
       setCallStartPending(true);
       let callStartedSuccessfully = false;
@@ -1490,6 +1496,7 @@ export const useCareerOnboardingVoice = ({
         }
 
         callStartedAtRef.current = Date.now();
+        activeCallIdRef.current = crypto.randomUUID();
         callStartedSuccessfully = true;
         suppressNextAssistantDoneRef.current = true;
         logCallOpeningResponseInstruction(openingInstructions);
@@ -1499,6 +1506,7 @@ export const useCareerOnboardingVoice = ({
         if (!callStartedSuccessfully) {
           activeCallConversationStarterIdRef.current = null;
           activeInternalCallRequestIdRef.current = null;
+          activeCallIdRef.current = null;
         }
         setCallStartPending(false);
       }
@@ -1530,11 +1538,13 @@ export const useCareerOnboardingVoice = ({
       const forceCompleteOnboarding = Boolean(options?.forceCompleteOnboarding);
 
       // Capture transcript before ending (endCallMode doesn't clear it)
-      const transcript = callTranscriptEntries;
+      const transcript = getCallTranscriptEntries();
       const startedAt = callStartedAtRef.current;
+      const endedAt = Date.now();
       const durationSeconds = startedAt
-        ? Math.max(0, Math.round((Date.now() - startedAt) / 1000))
+        ? Math.max(0, Math.round((endedAt - startedAt) / 1000))
         : 0;
+      const activeCallId = activeCallIdRef.current;
       const activeCallConversationStarterId =
         activeCallConversationStarterIdRef.current;
       const activeInternalCallRequestId =
@@ -1557,19 +1567,21 @@ export const useCareerOnboardingVoice = ({
       if (!conversationId) {
         activeCallConversationStarterIdRef.current = null;
         activeInternalCallRequestIdRef.current = null;
+        activeCallIdRef.current = null;
         return;
       }
 
-      const hasUserSpeech = transcript.some(
-        (entry) => entry.role === "user" && entry.text.trim().length > 0
+      const hasTranscript = transcript.some(
+        (entry) => entry.text.trim().length > 0
       );
       if (
-        !hasUserSpeech &&
+        !hasTranscript &&
         !forceCompleteOnboarding &&
         !activeInternalCallRequestId
       ) {
         activeCallConversationStarterIdRef.current = null;
         activeInternalCallRequestIdRef.current = null;
+        activeCallIdRef.current = null;
         return;
       }
 
@@ -1585,6 +1597,7 @@ export const useCareerOnboardingVoice = ({
           const response = await fetchWithAuth("/api/talent/chat/call-wrapup", {
             method: "POST",
             body: JSON.stringify({
+              callId: activeCallId ?? undefined,
               conversationId,
               conversationStarterId:
                 activeCallConversationStarterId ?? undefined,
@@ -1592,8 +1605,13 @@ export const useCareerOnboardingVoice = ({
               transcript: transcript.map((e) => ({
                 role: e.role,
                 text: e.text,
+                timestamp: e.timestamp,
               })),
               durationSeconds,
+              startedAt: startedAt
+                ? new Date(startedAt).toISOString()
+                : undefined,
+              endedAt: new Date(endedAt).toISOString(),
               forceCompleteOnboarding,
               locale,
             }),
@@ -1603,6 +1621,10 @@ export const useCareerOnboardingVoice = ({
             console.error("[CareerOnboardingVoice] Follow-up failed:", payload);
             setChatError(tCareer(H.callWrapupMessageFailed));
             return;
+          }
+
+          if (payload?.callNoteDocument?.id) {
+            onCallNoteSaved?.(payload.callNoteDocument as CareerTalentDocument);
           }
 
           if (payload?.progress?.completed) {
@@ -1726,17 +1748,19 @@ export const useCareerOnboardingVoice = ({
           setCallWrapUpPending(false);
           activeCallConversationStarterIdRef.current = null;
           activeInternalCallRequestIdRef.current = null;
+          activeCallIdRef.current = null;
         }
       })();
     },
     [
-      callTranscriptEntries,
       clearRealtimeTurnSyncState,
       conversationId,
       endCallMode,
       enqueueAssistantTypewriter,
       fetchWithAuth,
+      getCallTranscriptEntries,
       locale,
+      onCallNoteSaved,
       onMessagesChanged,
       onOnboardingChecklistProgressRefreshed,
       onOpportunityRunChanged,

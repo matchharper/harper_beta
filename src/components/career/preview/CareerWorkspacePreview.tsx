@@ -1044,6 +1044,9 @@ const CareerWorkspacePreview = ({
       onUploadTalentDocument: () => null,
       onUpdateTalentDocument: () => true,
       onDeleteTalentDocument: () => true,
+      onReadTalentCallNote: async () => {
+        throw new Error("Call notes are unavailable in preview mode");
+      },
       onUpdateAccountProfile: (profile) => {
         setTalentProfile((current) => ({
           ...current,

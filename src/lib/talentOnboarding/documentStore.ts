@@ -71,6 +71,7 @@ export async function fetchTalentDocumentsByIds(args: {
     .select(TALENT_DOCUMENT_SELECT)
     .eq("talent_id", args.userId)
     .eq("is_deleted", false)
+    .in("kind", ["resume", "document"])
     .in("id", documentIds);
   if (error) {
     throw new Error(error.message ?? "Failed to fetch talent documents");
@@ -115,9 +116,13 @@ export async function serializeTalentDocuments(args: {
 
   return Promise.all(
     documents.map(async (document) => {
-      const { data } = await admin.storage
-        .from(TALENT_RESUME_BUCKET)
-        .createSignedUrl(document.storage_path, expiresIn);
+      const data = document.storage_path
+        ? (
+            await admin.storage
+              .from(TALENT_RESUME_BUCKET)
+              .createSignedUrl(document.storage_path, expiresIn)
+          ).data
+        : null;
 
       return {
         id: document.id,

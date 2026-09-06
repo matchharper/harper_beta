@@ -6,6 +6,7 @@ import {
 } from "react";
 import type { User } from "@supabase/supabase-js";
 import type {
+  CareerCallNote,
   CareerMessage,
   CareerMessagePayload,
   CareerStage,
@@ -486,7 +487,6 @@ export const useCareerProfile = ({
             showProfileSaveToast(tCareer(H.profileSaved));
             return true;
           }
-
         }
 
         const response = await fetchWithAuth("/api/talent/profile/update", {
@@ -828,6 +828,30 @@ export const useCareerProfile = ({
     [fetchWithAuth, profileSavePending, tCareer, user]
   );
 
+  const handleCallNoteSaved = useCallback((document: CareerTalentDocument) => {
+    if (document.kind !== "call_note") return;
+    setTalentDocuments((previous) => [
+      document,
+      ...previous.filter((item) => item.id !== document.id),
+    ]);
+  }, []);
+
+  const handleReadTalentCallNote = useCallback(
+    async (documentId: string): Promise<CareerCallNote> => {
+      const response = await fetchWithAuth(
+        `/api/talent/call-notes/${encodeURIComponent(documentId)}`
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.document?.callNote) {
+        throw new Error(
+          getErrorMessage(payload, "Failed to load the call note")
+        );
+      }
+      return payload.document.callNote as CareerCallNote;
+    },
+    [fetchWithAuth]
+  );
+
   return {
     resumeFile,
     setResumeFile,
@@ -857,6 +881,8 @@ export const useCareerProfile = ({
     handleUploadTalentDocument,
     handleUpdateTalentDocument,
     handleDeleteTalentDocument,
+    handleCallNoteSaved,
+    handleReadTalentCallNote,
     resetProfileState,
   };
 };

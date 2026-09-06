@@ -57,6 +57,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   const [callTranscriptEntries, setCallTranscriptEntries] = useState<
     CallTranscriptEntry[]
   >([]);
+  const callTranscriptEntriesRef = useRef<CallTranscriptEntry[]>([]);
   const inputModeRef = useRef<CareerInputMode>("text");
 
   const voiceLevelStreamRef = useRef<MediaStream | null>(null);
@@ -72,6 +73,20 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   const callAssistantTranscriptStreamingRef = useRef(false);
   const voiceTranscript =
     inputMode === "call" ? (realtimeControls?.partialTranscript ?? "") : "";
+
+  const updateCallTranscriptEntries = useCallback(
+    (update: (entries: CallTranscriptEntry[]) => CallTranscriptEntry[]) => {
+      const next = update(callTranscriptEntriesRef.current);
+      callTranscriptEntriesRef.current = next;
+      setCallTranscriptEntries(next);
+    },
+    []
+  );
+
+  const getCallTranscriptEntries = useCallback(
+    () => callTranscriptEntriesRef.current,
+    []
+  );
 
   useEffect(() => {
     inputModeRef.current = inputMode;
@@ -405,7 +420,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
       setVoiceMuted(false);
       stopAssistantAudio();
       clearVoiceBuffer();
-      setCallTranscriptEntries([]);
+      updateCallTranscriptEntries(() => []);
       callAssistantTranscriptStreamingRef.current = false;
 
       if (realtimeControls) {
@@ -450,6 +465,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
       startVoiceLevelMonitor,
       stopAssistantAudio,
       t,
+      updateCallTranscriptEntries,
     ]
   );
 
@@ -490,7 +506,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
       if (role === "assistant") {
         callAssistantTranscriptStreamingRef.current = false;
       }
-      setCallTranscriptEntries((prev) => {
+      updateCallTranscriptEntries((prev) => {
         const entry = {
           role,
           text: text.trim(),
@@ -513,45 +529,50 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
         return [...prev, entry];
       });
     },
-    []
+    [updateCallTranscriptEntries]
   );
 
-  const appendCallAssistantTranscriptDelta = useCallback((delta: string) => {
-    if (inputModeRef.current !== "call") return;
+  const appendCallAssistantTranscriptDelta = useCallback(
+    (delta: string) => {
+      if (inputModeRef.current !== "call") return;
 
-    const displayDelta = delta.replace(CALL_END_MARKER, "");
-    if (!displayDelta) return;
+      const displayDelta = delta.replace(CALL_END_MARKER, "");
+      if (!displayDelta) return;
 
-    setCallTranscriptEntries((prev) => {
-      const now = new Date().toISOString();
-      const lastIndex = prev.length - 1;
-      const last = prev[lastIndex];
+      updateCallTranscriptEntries((prev) => {
+        const now = new Date().toISOString();
+        const lastIndex = prev.length - 1;
+        const last = prev[lastIndex];
 
-      if (
-        callAssistantTranscriptStreamingRef.current &&
-        last?.role === "assistant"
-      ) {
-        const next = [...prev];
-        next[lastIndex] = {
-          ...last,
-          text: `${last.text}${displayDelta}`.replace(/\s+/g, " ").trimStart(),
-          timestamp: now,
-        };
-        return next;
-      }
+        if (
+          callAssistantTranscriptStreamingRef.current &&
+          last?.role === "assistant"
+        ) {
+          const next = [...prev];
+          next[lastIndex] = {
+            ...last,
+            text: `${last.text}${displayDelta}`
+              .replace(/\s+/g, " ")
+              .trimStart(),
+            timestamp: now,
+          };
+          return next;
+        }
 
-      if (!displayDelta.trim()) return prev;
-      callAssistantTranscriptStreamingRef.current = true;
-      return [
-        ...prev,
-        {
-          role: "assistant",
-          text: displayDelta.trimStart(),
-          timestamp: now,
-        },
-      ];
-    });
-  }, []);
+        if (!displayDelta.trim()) return prev;
+        callAssistantTranscriptStreamingRef.current = true;
+        return [
+          ...prev,
+          {
+            role: "assistant",
+            text: displayDelta.trimStart(),
+            timestamp: now,
+          },
+        ];
+      });
+    },
+    [updateCallTranscriptEntries]
+  );
 
   const finalizeCallAssistantTranscript = useCallback(
     (text: string, options?: { alreadyRendered?: boolean }) => {
@@ -562,7 +583,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
       callAssistantTranscriptStreamingRef.current = false;
       if (!cleanText) return;
 
-      setCallTranscriptEntries((prev) => {
+      updateCallTranscriptEntries((prev) => {
         const now = new Date().toISOString();
         return finalizeAssistantTranscriptEntries({
           alreadyRendered: options?.alreadyRendered,
@@ -573,7 +594,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
         });
       });
     },
-    []
+    [updateCallTranscriptEntries]
   );
 
   return {
@@ -588,6 +609,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     addCallTranscriptEntry,
     appendCallAssistantTranscriptDelta,
     finalizeCallAssistantTranscript,
+    getCallTranscriptEntries,
     switchToChatOnly,
     toggleVoiceMute,
     resetVoice,
