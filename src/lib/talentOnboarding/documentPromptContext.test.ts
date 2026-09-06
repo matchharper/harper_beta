@@ -61,6 +61,16 @@ test("deleted documents and empty batches do not create first-turn context", () 
     ]),
     null
   );
+  assert.equal(
+    buildFirstTurnUploadedDocumentContext([
+      createDocument({
+        kind: "call_note",
+        storage_path: null,
+        extracted_text: '{"schema_version":1}',
+      }),
+    ]),
+    null
+  );
 });
 
 test("binary files are described without fabricated extracted text", () => {

@@ -9,6 +9,7 @@ import {
   FileText,
   FileType2,
   Pencil,
+  PhoneCall,
   Plus,
   Presentation,
   Star,
@@ -36,6 +37,7 @@ type CareerDocumentsSettingsSectionProps = {
   documents: CareerTalentDocument[];
   onAddDocument: () => void;
   onDeleteDocument: (documentId: string) => void;
+  onOpenCallNote: (document: CareerTalentDocument) => void;
   onRenameDocument: (document: CareerTalentDocument) => void;
 };
 
@@ -60,6 +62,7 @@ const CareerDocumentsSettingsSection = ({
   documents,
   onAddDocument,
   onDeleteDocument,
+  onOpenCallNote,
   onRenameDocument,
 }: CareerDocumentsSettingsSectionProps) => {
   const t = useCareerT();
@@ -91,10 +94,28 @@ const CareerDocumentsSettingsSection = ({
               key={document.id}
               className="flex items-center gap-3 rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 py-3 shadow-sm"
             >
-              <CareerDocumentFormatIcon fileName={document.fileName} />
+              {document.kind === "call_note" ? (
+                <PhoneCall
+                  aria-hidden="true"
+                  className="h-4 w-4 shrink-0 text-neutral-muted"
+                />
+              ) : (
+                <CareerDocumentFormatIcon fileName={document.fileName} />
+              )}
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
-                  {document.downloadUrl ? (
+                  {document.kind === "call_note" ? (
+                    <MuteButton
+                      variant="transparent"
+                      size="sm"
+                      onClick={() => onOpenCallNote(document)}
+                    >
+                      {t(
+                        "career.profile.documents.call_note_title",
+                        "Harper와의 통화"
+                      )}
+                    </MuteButton>
+                  ) : document.downloadUrl ? (
                     <a
                       href={document.downloadUrl}
                       target="_blank"
@@ -108,7 +129,14 @@ const CareerDocumentsSettingsSection = ({
                       {document.fileName}
                     </p>
                   )}
-                  {document.kind === "document" ? (
+                  {document.kind === "call_note" ? (
+                    <Badge size="sm" variant="faded">
+                      {t(
+                        "career.profile.documents.kind.call_note",
+                        "통화 기록"
+                      )}
+                    </Badge>
+                  ) : document.kind === "document" ? (
                     <Badge
                       size="sm"
                       tone={document.isPublic ? "positive" : "neutral"}
@@ -145,7 +173,15 @@ const CareerDocumentsSettingsSection = ({
                   </MuteButton>
                 }
               >
-                {document.kind === "resume" ? (
+                {document.kind === "call_note" ? (
+                  <ActionDropdownItem onSelect={() => onOpenCallNote(document)}>
+                    <Eye className="h-4 w-4" />
+                    {t(
+                      "career.profile.documents.open_call_note",
+                      "통화 기록 열기"
+                    )}
+                  </ActionDropdownItem>
+                ) : document.kind === "resume" ? (
                   <ActionDropdownItem
                     onSelect={() =>
                       void onUpdateTalentDocument(document.id, {
@@ -180,10 +216,14 @@ const CareerDocumentsSettingsSection = ({
                       : t("career.profile.documents.make_public", "공개하기")}
                   </ActionDropdownItem>
                 )}
-                <ActionDropdownItem onSelect={() => onRenameDocument(document)}>
-                  <Pencil className="h-4 w-4" />
-                  {t("career.profile.documents.rename", "이름 수정")}
-                </ActionDropdownItem>
+                {document.kind !== "call_note" ? (
+                  <ActionDropdownItem
+                    onSelect={() => onRenameDocument(document)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                    {t("career.profile.documents.rename", "이름 수정")}
+                  </ActionDropdownItem>
+                ) : null}
                 <ActionDropdownSeparator />
                 <ActionDropdownItem
                   tone="danger"

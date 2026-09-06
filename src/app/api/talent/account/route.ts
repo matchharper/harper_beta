@@ -358,7 +358,7 @@ async function collectAccountDeletionContext(
     selectValues<number>(admin, "bookmark_folder", "id", (query) =>
       query.eq("user_id", userId)
     ),
-    selectRows<{ storage_path: string }>(
+    selectRows<{ storage_path: string | null }>(
       admin,
       "talent_documents",
       "storage_path",

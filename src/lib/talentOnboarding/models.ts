@@ -51,7 +51,7 @@ export type TalentDocumentResponse = {
   id: string;
   kind: string;
   fileName: string;
-  storagePath: string;
+  storagePath: string | null;
   contentType: string | null;
   sizeBytes: number | null;
   isPublic: boolean;

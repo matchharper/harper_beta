@@ -71,6 +71,12 @@ export async function PATCH(req: NextRequest) {
         { status: 404 }
       );
     }
+    if (document.kind === "call_note") {
+      return NextResponse.json(
+        { error: "Call notes are read-only" },
+        { status: 400 }
+      );
+    }
 
     const update: {
       file_name?: string;

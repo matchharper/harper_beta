@@ -103,13 +103,29 @@ export type CareerTalentDocument = {
   id: string;
   kind: string;
   fileName: string;
-  storagePath: string;
+  storagePath: string | null;
   contentType: string | null;
   sizeBytes: number | null;
   isPublic: boolean;
   isPrimary: boolean;
   createdAt: string;
   downloadUrl: string | null;
+};
+
+export type CareerCallNoteEntry = {
+  role: "harper" | "user";
+  text: string;
+  timestamp: string | null;
+};
+
+export type CareerCallNote = {
+  schema_version: 1;
+  call_id: string;
+  conversation_id: string;
+  started_at: string;
+  ended_at: string;
+  duration_seconds: number;
+  entries: CareerCallNoteEntry[];
 };
 
 export type CareerTalentProfile = {

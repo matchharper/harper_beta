@@ -38,18 +38,26 @@ import {
   isInternalOpportunityCallQuestionPlanComplete,
   type InternalOpportunityCallCompletionDisposition,
 } from "@/lib/talentOnboarding/internalOpportunityCallProgress";
+import {
+  isCallNoteId,
+  saveTalentCallNote,
+} from "@/lib/talentOnboarding/callNote";
 
 type TranscriptEntry = {
   role: "user" | "assistant";
   text: string;
+  timestamp: string | null;
 };
 
 type Body = {
+  callId?: string | null;
   conversationStarterId?: string | null;
   conversationId: string;
+  endedAt?: string | null;
   forceCompleteOnboarding?: boolean;
   internalCallRequestId?: string | null;
   locale?: string | null;
+  startedAt?: string | null;
   transcript: TranscriptEntry[];
   durationSeconds: number;
 };
@@ -82,11 +90,21 @@ function normalizeTranscriptEntries(entries: unknown): TranscriptEntry[] {
   return entries
     .map((entry) => {
       if (!entry || typeof entry !== "object") return null;
-      const record = entry as { role?: unknown; text?: unknown };
-      const role = record.role === "user" ? "user" : "assistant";
+      const record = entry as {
+        role?: unknown;
+        text?: unknown;
+        timestamp?: unknown;
+      };
+      if (record.role !== "user" && record.role !== "assistant") return null;
+      const role: TranscriptEntry["role"] = record.role;
       const text = stripPostgresUnsafeChars(String(record.text ?? "")).trim();
       if (!text) return null;
-      return { role, text };
+      return {
+        role,
+        text,
+        timestamp:
+          typeof record.timestamp === "string" ? record.timestamp : null,
+      };
     })
     .filter((entry): entry is TranscriptEntry => entry !== null);
 }
@@ -316,6 +334,7 @@ export async function POST(request: NextRequest) {
       durationSeconds,
     } = body;
     const conversationId = sanitizeSingleLineDbText(body.conversationId, 80);
+    const callId = typeof body.callId === "string" ? body.callId.trim() : "";
     const conversationStarterId =
       typeof rawConversationStarterId === "string"
         ? (sanitizeSingleLineDbText(rawConversationStarterId, 120) ?? "")
@@ -330,6 +349,9 @@ export async function POST(request: NextRequest) {
         { error: "Missing required fields" },
         { status: 400 }
       );
+    }
+    if (callId && !isCallNoteId(callId)) {
+      return NextResponse.json({ error: "Invalid callId" }, { status: 400 });
     }
 
     const supabase = getTalentSupabaseAdmin();
@@ -419,6 +441,19 @@ export async function POST(request: NextRequest) {
         ? requestTranscript
         : savedTranscript;
     const transcriptStats = summarizeTranscript(resolvedTranscript);
+    const callNoteDocument = await saveTalentCallNote({
+      admin: supabase,
+      callId,
+      conversationId,
+      durationSeconds: safeDurationSeconds,
+      endedAt: body.endedAt,
+      startedAt: body.startedAt,
+      transcript: requestTranscript,
+      userId: user.id,
+    });
+    const withCallNoteDocument = <T extends Record<string, unknown>>(
+      payload: T
+    ) => (callNoteDocument ? { ...payload, callNoteDocument } : payload);
     const internalQuestionPlanComplete = internalCallRequest
       ? isInternalOpportunityCallQuestionPlanComplete(
           internalCallRequest.questionProgress,
@@ -466,19 +501,23 @@ export async function POST(request: NextRequest) {
             userId: user.id,
           });
 
-        return NextResponse.json({
-          followUpMessage: fallbackMessage,
-          followUpMessages: [fallbackMessage],
-          pendingInternalOpportunityCallRequest:
-            pendingInternalOpportunityCallRequests[0] ?? null,
-          pendingInternalOpportunityCallRequests,
-        });
+        return NextResponse.json(
+          withCallNoteDocument({
+            followUpMessage: fallbackMessage,
+            followUpMessages: [fallbackMessage],
+            pendingInternalOpportunityCallRequest:
+              pendingInternalOpportunityCallRequests[0] ?? null,
+            pendingInternalOpportunityCallRequests,
+          })
+        );
       }
 
-      return NextResponse.json({
-        followUpMessage: null,
-        skipped: "no_user_speech",
-      });
+      return NextResponse.json(
+        withCallNoteDocument({
+          followUpMessage: null,
+          skipped: "no_user_speech",
+        })
+      );
     }
 
     const briefConversation = internalCallRequest
@@ -523,17 +562,19 @@ export async function POST(request: NextRequest) {
           message !== null
       );
 
-      return NextResponse.json({
-        followUpMessage,
-        followUpMessages,
-        insightUpdatedAt: result.insightUpdatedAt,
-        opportunityDiscoveryQueued: result.opportunityDiscoveryQueued,
-        opportunityRun: result.opportunityRun,
-        progress: {
-          completed: true,
-        },
-        talentInsights: result.talentInsights,
-      });
+      return NextResponse.json(
+        withCallNoteDocument({
+          followUpMessage,
+          followUpMessages,
+          insightUpdatedAt: result.insightUpdatedAt,
+          opportunityDiscoveryQueued: result.opportunityDiscoveryQueued,
+          opportunityRun: result.opportunityRun,
+          progress: {
+            completed: true,
+          },
+          talentInsights: result.talentInsights,
+        })
+      );
     }
     if (
       forceCompleteOnboarding &&
@@ -558,17 +599,19 @@ export async function POST(request: NextRequest) {
           message !== null
       );
 
-      return NextResponse.json({
-        followUpMessage,
-        followUpMessages,
-        insightUpdatedAt: result.insightUpdatedAt,
-        opportunityDiscoveryQueued: result.opportunityDiscoveryQueued,
-        opportunityRun: result.opportunityRun,
-        progress: {
-          completed: true,
-        },
-        talentInsights: result.talentInsights,
-      });
+      return NextResponse.json(
+        withCallNoteDocument({
+          followUpMessage,
+          followUpMessages,
+          insightUpdatedAt: result.insightUpdatedAt,
+          opportunityDiscoveryQueued: result.opportunityDiscoveryQueued,
+          opportunityRun: result.opportunityRun,
+          progress: {
+            completed: true,
+          },
+          talentInsights: result.talentInsights,
+        })
+      );
     }
     const inferredOnboardingDone =
       Boolean(talentSetting?.is_onboarding_done) ||
@@ -647,23 +690,25 @@ export async function POST(request: NextRequest) {
           ...result.assistantMessage,
           content: normalized,
         };
-        return NextResponse.json({
-          followUpMessage,
-          followUpMessages: [followUpMessage],
-          insightUpdatedAt: result.insightUpdatedAt,
-          opportunityDiscoveryQueued: result.opportunityDiscoveryQueued,
-          opportunityRun: result.opportunityRun,
-          onboardingChecklistProgress: result.onboardingChecklistProgress,
-          pendingInternalOpportunityCallRequest: internalCallRequest
-            ? (pendingInternalOpportunityCallRequests?.[0] ?? null)
-            : undefined,
-          pendingInternalOpportunityCallRequests,
-          preferencesUpdatedAt: result.preferencesUpdatedAt,
-          progress: result.progress,
-          talentInsights: result.talentInsights,
-          talentPreferences: result.talentPreferences,
-          talentProfile: result.talentProfile,
-        });
+        return NextResponse.json(
+          withCallNoteDocument({
+            followUpMessage,
+            followUpMessages: [followUpMessage],
+            insightUpdatedAt: result.insightUpdatedAt,
+            opportunityDiscoveryQueued: result.opportunityDiscoveryQueued,
+            opportunityRun: result.opportunityRun,
+            onboardingChecklistProgress: result.onboardingChecklistProgress,
+            pendingInternalOpportunityCallRequest: internalCallRequest
+              ? (pendingInternalOpportunityCallRequests?.[0] ?? null)
+              : undefined,
+            pendingInternalOpportunityCallRequests,
+            preferencesUpdatedAt: result.preferencesUpdatedAt,
+            progress: result.progress,
+            talentInsights: result.talentInsights,
+            talentPreferences: result.talentPreferences,
+            talentProfile: result.talentProfile,
+          })
+        );
       }
     } catch (error) {
       console.error("[call-wrapup] Failed to generate chat-turn follow-up", {
@@ -692,14 +737,16 @@ export async function POST(request: NextRequest) {
         })
       : undefined;
 
-    return NextResponse.json({
-      followUpMessage: fallbackMessage,
-      followUpMessages: [fallbackMessage],
-      pendingInternalOpportunityCallRequest: internalCallRequest
-        ? (pendingInternalOpportunityCallRequests?.[0] ?? null)
-        : undefined,
-      pendingInternalOpportunityCallRequests,
-    });
+    return NextResponse.json(
+      withCallNoteDocument({
+        followUpMessage: fallbackMessage,
+        followUpMessages: [fallbackMessage],
+        pendingInternalOpportunityCallRequest: internalCallRequest
+          ? (pendingInternalOpportunityCallRequests?.[0] ?? null)
+          : undefined,
+        pendingInternalOpportunityCallRequests,
+      })
+    );
   } catch (error) {
     console.error("[call-wrapup] Unexpected error", { error });
     return NextResponse.json(

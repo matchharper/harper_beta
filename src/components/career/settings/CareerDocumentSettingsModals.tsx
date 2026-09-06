@@ -1,14 +1,19 @@
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import ResumeDropzone from "@/components/career/ResumeDropzone";
 import { useCareerProfileContext } from "@/components/career/CareerSidebarContext";
-import type { CareerTalentDocument } from "@/components/career/types";
+import type {
+  CareerCallNote,
+  CareerTalentDocument,
+} from "@/components/career/types";
 import { showToast } from "@/components/toast/toast";
 import { MuteButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Radio } from "@/components/ui/radio";
 import { useCareerT } from "@/i18n/useCareerT";
+import { useMessages } from "@/i18n/useMessage";
+import { formatCareerDate } from "@/lib/career/dateFormat";
 
 export type CareerDocumentUploadResult =
   | { type: "profile_apply" }
@@ -286,6 +291,113 @@ export const CareerDocumentVisibilityModal = ({
     </TalentCareerModal>
   );
 };
+
+const CareerCallNoteModalContent = ({
+  document,
+  onClose,
+}: {
+  document: CareerTalentDocument;
+  onClose: () => void;
+}) => {
+  const t = useCareerT();
+  const { locale } = useMessages();
+  const { onReadTalentCallNote } = useCareerProfileContext();
+  const [callNote, setCallNote] = useState<CareerCallNote | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    void onReadTalentCallNote(document.id)
+      .then((note) => {
+        if (active) setCallNote(note);
+      })
+      .catch(() => {
+        if (active) {
+          setError(
+            t(
+              "career.profile.documents.call_note_load_failed",
+              "통화 기록을 불러오지 못했습니다."
+            )
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [document, onReadTalentCallNote, t]);
+
+  const durationLabel = callNote
+    ? t("career.call.duration", "{m}분 {s}초", {
+        values: {
+          m: Math.floor(callNote.duration_seconds / 60),
+          s: callNote.duration_seconds % 60,
+        },
+      })
+    : null;
+  const dateLabel = formatCareerDate(
+    callNote?.started_at ?? document.createdAt,
+    locale
+  );
+
+  return (
+    <TalentCareerModal
+      open
+      onClose={onClose}
+      title={t("career.profile.documents.call_note_title", "Harper와의 통화")}
+      description={[dateLabel, durationLabel].filter(Boolean).join(" · ")}
+      mobileBottomSheet
+      panelClassName="max-w-[640px] bg-bg-floating"
+      bodyClassName="max-h-[65svh] overflow-y-auto px-5 py-5"
+    >
+      {loading ? (
+        <div className="flex items-center gap-2 text-sm text-neutral-muted">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          {t(
+            "career.profile.documents.call_note_loading",
+            "통화 기록을 불러오는 중입니다."
+          )}
+        </div>
+      ) : error ? (
+        <p className="text-sm text-critical">{error}</p>
+      ) : (
+        <div className="grid gap-3">
+          {callNote?.entries.map((entry, index) => (
+            <div
+              key={`${entry.timestamp ?? "entry"}-${index}`}
+              className="rounded-lg bg-bg-weak px-4 py-3"
+            >
+              <p className="text-xs font-medium text-neutral-muted">
+                {entry.role === "harper"
+                  ? "Harper"
+                  : t("career.profile.documents.call_note_me", "나")}
+              </p>
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-neutral-primary">
+                {entry.text}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </TalentCareerModal>
+  );
+};
+
+export const CareerCallNoteModal = ({
+  document,
+  onClose,
+}: CareerDocumentModalProps) =>
+  document ? (
+    <CareerCallNoteModalContent
+      key={document.id}
+      document={document}
+      onClose={onClose}
+    />
+  ) : null;
 
 const CareerDocumentRenameModalContent = ({
   document,
