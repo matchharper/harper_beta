@@ -13,7 +13,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, ChevronDown, ChevronUp, Copy } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Copy, Loader2 } from "lucide-react";
 import { CardButton, MuteButton } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,12 +32,23 @@ export type DocumentEditorProps = Omit<
   "className" | "unstyled" | "value"
 > & {
   className?: string;
+  copyErrorMessage?: string;
+  copyLabel?: string;
+  copySuccessMessage?: string;
+  dialogDescription?: string;
   documentTitle: string;
   editorClassName?: string;
   errorMessage?: string;
+  footer?: ReactNode;
   format?: "markdown" | "plain";
+  hideMeta?: boolean;
+  hidePreview?: boolean;
   lastChangedAt?: string | null;
+  loading?: boolean;
+  loadingLabel?: string;
+  onOpenChange?: (open: boolean) => void;
   onValueChange?: (value: string) => void;
+  open?: boolean;
   savedValue: string;
   value: string;
 };
@@ -139,8 +150,12 @@ export function isDocumentPreviewOverflowing(
 
 export async function copyDocumentText(
   value: string,
-  clipboard: Pick<Clipboard, "writeText"> | null | undefined =
-    typeof navigator === "undefined" ? undefined : navigator.clipboard
+  clipboard:
+    | Pick<Clipboard, "writeText">
+    | null
+    | undefined = typeof navigator === "undefined"
+    ? undefined
+    : navigator.clipboard
 ) {
   if (!clipboard?.writeText) {
     throw new Error("Clipboard API is unavailable");
@@ -179,11 +194,16 @@ function DocumentEditingSurface({
   autoFocus,
   changedAt,
   characterCount,
+  copyLabel,
   documentTitle,
   editorClassName,
   errorMessage,
+  footer,
   format,
   forwardedRef,
+  hideMeta,
+  loading,
+  loadingLabel,
   onBack,
   onChange,
   onCopy,
@@ -194,11 +214,16 @@ function DocumentEditingSurface({
   autoFocus: boolean;
   changedAt: string;
   characterCount: number;
+  copyLabel: string;
   documentTitle: string;
   editorClassName?: string;
   errorMessage?: string;
+  footer?: ReactNode;
   format: "markdown" | "plain";
   forwardedRef: Ref<HTMLTextAreaElement> | undefined;
+  hideMeta: boolean;
+  loading: boolean;
+  loadingLabel: string;
   onBack: () => void;
   onChange: (event: ChangeEvent<HTMLTextAreaElement>) => void;
   onCopy: () => void;
@@ -228,8 +253,9 @@ function DocumentEditingSurface({
           </span>
         </MuteButton>
         <MuteButton
-          aria-label="문서 전체 내용 복사"
+          aria-label={copyLabel}
           className="text-black"
+          disabled={loading || textareaProps.disabled}
           onClick={onCopy}
           type="button"
           variant="transparent"
@@ -238,7 +264,14 @@ function DocumentEditingSurface({
         </MuteButton>
       </header>
       <div className="min-h-0 flex-1 px-5 py-4 sm:px-6">
-        {format === "markdown" ? (
+        {loading ? (
+          <div className="flex h-full min-h-64 items-center justify-center">
+            <Loader2
+              aria-label={loadingLabel}
+              className="size-5 animate-spin text-neutral-muted"
+            />
+          </div>
+        ) : format === "markdown" ? (
           <MarkdownRichTextEditor
             ariaLabel={
               textareaProps["aria-label"] ?? `${documentTitle} 문서 내용`
@@ -278,7 +311,10 @@ function DocumentEditingSurface({
             {errorMessage}
           </div>
         ) : null}
-        <DocumentMeta changedAt={changedAt} characterCount={characterCount} />
+        {footer}
+        {!hideMeta ? (
+          <DocumentMeta changedAt={changedAt} characterCount={characterCount} />
+        ) : null}
       </footer>
     </div>
   );
@@ -297,14 +333,25 @@ export const DocumentEditor = forwardRef<
     {
       autoFocus,
       className,
+      copyErrorMessage = "문서 내용을 복사하지 못했어요. 다시 시도해 주세요.",
+      copyLabel = "문서 전체 내용 복사",
+      copySuccessMessage = "문서 내용을 복사했어요.",
+      dialogDescription,
       disabled,
       documentTitle,
       editorClassName,
       errorMessage,
+      footer,
       format = "plain",
+      hideMeta = false,
+      hidePreview = false,
       lastChangedAt,
+      loading = false,
+      loadingLabel = "문서 불러오는 중",
       onChange,
+      onOpenChange,
       onValueChange,
+      open,
       placeholder,
       readOnly,
       rows = 5,
@@ -319,29 +366,58 @@ export const DocumentEditor = forwardRef<
     const previewContentRef = useRef<HTMLDivElement | null>(null);
     const panelContext = useContext(DocumentEditorPanelContext);
     const addToast = useToastStore((state) => state.add);
-    const [overlayOpen, setOverlayOpen] = useState(false);
+    const [localOverlayOpen, setLocalOverlayOpen] = useState(false);
     const [localChangedAt, setLocalChangedAt] = useState<string | null>(null);
     const [previewExpanded, setPreviewExpanded] = useState(false);
     const [previewTruncated, setPreviewTruncated] = useState(false);
     const [relativeTimeNow, setRelativeTimeNow] = useState(() => Date.now());
+    const usesPanel = panelContext !== null;
     const panelOpen = panelContext?.activeDocumentId === documentId;
+    const closePanelDocument = panelContext?.closeDocument;
+    const openPanelDocument = panelContext?.openDocument;
+    const overlayOpen = open ?? localOverlayOpen;
+
+    const setOverlayOpen = useCallback(
+      (nextOpen: boolean) => {
+        if (open === undefined) setLocalOverlayOpen(nextOpen);
+        onOpenChange?.(nextOpen);
+      },
+      [onOpenChange, open]
+    );
+    const requestClose = useCallback(() => {
+      if (usesPanel) {
+        if (open === undefined || !onOpenChange) closePanelDocument?.();
+        onOpenChange?.(false);
+        return;
+      }
+      setOverlayOpen(false);
+    }, [closePanelDocument, onOpenChange, open, setOverlayOpen, usesPanel]);
 
     useEffect(() => {
+      if (hideMeta && hidePreview) return;
       const intervalId = window.setInterval(
         () => setRelativeTimeNow(Date.now()),
         MINUTE_MS
       );
       return () => window.clearInterval(intervalId);
-    }, []);
+    }, [hideMeta, hidePreview]);
+
+    useEffect(() => {
+      if (!open || !openPanelDocument || !closePanelDocument) return;
+
+      openPanelDocument(documentId);
+      return closePanelDocument;
+    }, [closePanelDocument, documentId, open, openPanelDocument]);
 
     useEffect(() => {
       if (!panelOpen) return;
       const handleEscape = (event: KeyboardEvent) => {
-        if (event.key === "Escape") panelContext?.closeDocument();
+        if (event.key !== "Escape") return;
+        requestClose();
       };
       window.addEventListener("keydown", handleEscape);
       return () => window.removeEventListener("keydown", handleEscape);
-    }, [panelContext, panelOpen]);
+    }, [panelOpen, requestClose]);
 
     const handleChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
       setLocalChangedAt(new Date().toISOString());
@@ -355,13 +431,13 @@ export const DocumentEditor = forwardRef<
       void copyDocumentText(value)
         .then(() => {
           addToast({
-            message: "문서 내용을 복사했어요.",
+            message: copySuccessMessage,
             variant: "success",
           });
         })
         .catch(() => {
           addToast({
-            message: "문서 내용을 복사하지 못했어요. 다시 시도해 주세요.",
+            message: copyErrorMessage,
             variant: "error",
           });
         });
@@ -423,15 +499,17 @@ export const DocumentEditor = forwardRef<
         autoFocus={autoFocus ?? !readOnly}
         changedAt={displayedChangedAt}
         characterCount={characterCount}
+        copyLabel={copyLabel}
         documentTitle={documentTitle}
         editorClassName={editorClassName}
         errorMessage={errorMessage}
+        footer={footer}
         format={format}
         forwardedRef={forwardedRef}
-        onBack={() => {
-          if (panelContext) panelContext.closeDocument();
-          else setOverlayOpen(false);
-        }}
+        hideMeta={hideMeta}
+        loading={loading}
+        loadingLabel={loadingLabel}
+        onBack={requestClose}
         onChange={handleChange}
         onCopy={handleCopy}
         onValueChange={handleValueChange}
@@ -442,94 +520,96 @@ export const DocumentEditor = forwardRef<
 
     return (
       <div className={cn("w-full", className)}>
-        <div
-          className={cn(
-            "group relative min-h-[340px] w-full overflow-hidden rounded-lg",
-            previewExpanded ? "max-h-none" : "max-h-[440px]",
-            disabled && "opacity-60"
-          )}
-        >
-          <CardButton
-            aria-label={`${documentTitle} 문서 열기`}
-            aria-haspopup="dialog"
-            className="absolute inset-0 h-full min-h-0 cursor-pointer overflow-hidden border-neutral-1000-a05 bg-white p-0 hover:border-neutral-1000-a05 hover:bg-neutral-100 group-hover:border-neutral-1000-a05 group-hover:bg-neutral-100 disabled:cursor-not-allowed"
-            data-document-editor-preview=""
-            disabled={disabled}
-            onClick={openEditor}
-            type="button"
-          />
-          <div className="pointer-events-none relative z-10 flex min-h-[340px] w-full flex-col justify-between px-5 py-4 text-left">
-            <div>
-              <span className="shrink-0 text-[12px] font-normal text-black/60">
-                {documentTitle}
-              </span>
-              <div className="relative mt-4">
-                <div
-                  className={cn(
-                    "min-h-20 w-full text-[15px] font-normal leading-6",
-                    previewExpanded
-                      ? "max-h-none overflow-visible"
-                      : "max-h-[268px] overflow-hidden",
-                    hasPreviewContent
-                      ? "text-neutral-primary"
-                      : "text-neutral-placeholder"
-                  )}
-                  id={previewContentId}
-                  ref={previewContentRef}
-                >
-                  {hasPreviewContent && format === "markdown" ? (
-                    <RichText content={previewContent} />
-                  ) : (
-                    <span className="whitespace-pre-wrap">
-                      {previewContent}
-                    </span>
-                  )}
-                </div>
-                {!previewExpanded && previewTruncated ? (
+        {!hidePreview ? (
+          <div
+            className={cn(
+              "group relative min-h-[340px] w-full overflow-hidden rounded-lg",
+              previewExpanded ? "max-h-none" : "max-h-[440px]",
+              disabled && "opacity-60"
+            )}
+          >
+            <CardButton
+              aria-label={`${documentTitle} 문서 열기`}
+              aria-haspopup="dialog"
+              className="absolute inset-0 h-full min-h-0 cursor-pointer overflow-hidden border-neutral-1000-a05 bg-white p-0 hover:border-neutral-1000-a05 hover:bg-neutral-100 group-hover:border-neutral-1000-a05 group-hover:bg-neutral-100 disabled:cursor-not-allowed"
+              data-document-editor-preview=""
+              disabled={disabled}
+              onClick={openEditor}
+              type="button"
+            />
+            <div className="pointer-events-none relative z-10 flex min-h-[340px] w-full flex-col justify-between px-5 py-4 text-left">
+              <div>
+                <span className="shrink-0 text-[12px] font-normal text-black/60">
+                  {documentTitle}
+                </span>
+                <div className="relative mt-4">
                   <div
-                    className="pointer-events-none absolute inset-x-0 bottom-0 flex h-18 items-end bg-gradient-to-b from-transparent via-white/90 to-white group-hover:via-neutral-100/90 group-hover:to-neutral-100"
-                    data-document-editor-preview-fade=""
+                    className={cn(
+                      "min-h-20 w-full text-[15px] font-normal leading-6",
+                      previewExpanded
+                        ? "max-h-none overflow-visible"
+                        : "max-h-[268px] overflow-hidden",
+                      hasPreviewContent
+                        ? "text-neutral-primary"
+                        : "text-neutral-placeholder"
+                    )}
+                    id={previewContentId}
+                    ref={previewContentRef}
                   >
+                    {hasPreviewContent && format === "markdown" ? (
+                      <RichText content={previewContent} />
+                    ) : (
+                      <span className="whitespace-pre-wrap">
+                        {previewContent}
+                      </span>
+                    )}
+                  </div>
+                  {!previewExpanded && previewTruncated ? (
+                    <div
+                      className="pointer-events-none absolute inset-x-0 bottom-0 flex h-18 items-end bg-gradient-to-b from-transparent via-white/90 to-white group-hover:via-neutral-100/90 group-hover:to-neutral-100"
+                      data-document-editor-preview-fade=""
+                    >
+                      <MuteButton
+                        aria-controls={previewContentId}
+                        aria-expanded={false}
+                        className="pointer-events-auto w-full text-center"
+                        onClick={() => setPreviewExpanded(true)}
+                        size="sm"
+                        type="button"
+                        variant="transparent"
+                      >
+                        <ChevronDown className="size-3.5" />
+                        더보기
+                      </MuteButton>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              <div className="mt-0 w-full shrink-0">
+                {previewExpanded ? (
+                  <div className="pointer-events-auto mb-2 w-full text-center">
                     <MuteButton
                       aria-controls={previewContentId}
-                      aria-expanded={false}
-                      className="pointer-events-auto w-full text-center"
-                      onClick={() => setPreviewExpanded(true)}
+                      aria-expanded
+                      className="w-full text-center"
+                      onClick={() => setPreviewExpanded(false)}
                       size="sm"
                       type="button"
                       variant="transparent"
                     >
-                      <ChevronDown className="size-3.5" />
-                      더보기
+                      <ChevronUp className="size-3.5" />
+                      접기
                     </MuteButton>
                   </div>
                 ) : null}
+                <DocumentMeta
+                  changedAt={displayedChangedAt}
+                  characterCount={characterCount}
+                />
               </div>
             </div>
-            <div className="mt-0 w-full shrink-0">
-              {previewExpanded ? (
-                <div className="pointer-events-auto mb-2 w-full text-center">
-                  <MuteButton
-                    aria-controls={previewContentId}
-                    aria-expanded
-                    className="w-full text-center"
-                    onClick={() => setPreviewExpanded(false)}
-                    size="sm"
-                    type="button"
-                    variant="transparent"
-                  >
-                    <ChevronUp className="size-3.5" />
-                    접기
-                  </MuteButton>
-                </div>
-              ) : null}
-              <DocumentMeta
-                changedAt={displayedChangedAt}
-                characterCount={characterCount}
-              />
-            </div>
           </div>
-        </div>
+        ) : null}
 
         {panelOpen && panelContext?.portalTarget
           ? createPortal(editingSurface, panelContext.portalTarget)
@@ -540,11 +620,11 @@ export const DocumentEditor = forwardRef<
             <DialogContent
               className="left-auto right-0 top-0 z-30 h-dvh w-full max-w-[680px] translate-x-0 translate-y-0 gap-0 overflow-hidden rounded-none border-y-0 border-r-0 p-0 duration-300 data-[state=closed]:slide-out-to-right data-[state=closed]:zoom-out-100 data-[state=open]:slide-in-from-right data-[state=open]:zoom-in-100"
               hideCloseButton
-              overlayClassName="z-30 bg-black/15 backdrop-blur-none"
+              overlayClassName="z-30 bg-transparent backdrop-blur-none"
             >
               <DialogTitle className="sr-only">{documentTitle}</DialogTitle>
               <DialogDescription className="sr-only">
-                {documentTitle} 문서를 확인하고 수정합니다.
+                {dialogDescription ?? documentTitle}
               </DialogDescription>
               {editingSurface}
             </DialogContent>

@@ -560,12 +560,6 @@ export function MarkdownRichTextEditor({
           "[&_.tiptap_img]:my-4 [&_.tiptap_img]:max-w-full [&_.tiptap_img]:rounded-lg"
         )}
       />
-
-      {editable ? (
-        <p className="pointer-events-none mt-2 pb-2 bg-white/10 backdrop-blur-sm shrink-0 text-[11px] leading-4 text-neutral-soft">
-          텍스트를 선택하면 서식을 적용할 수 있습니다.
-        </p>
-      ) : null}
     </div>
   );
 }

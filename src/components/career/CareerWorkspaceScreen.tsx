@@ -28,6 +28,7 @@ import CareerWorkspaceNav, {
 } from "@/components/career/CareerWorkspaceNav";
 import { cn } from "@/lib/utils";
 import { ActionButton } from "@/components/ui/button";
+import { DocumentEditorPanelProvider } from "@/components/ui/document-editor";
 import CareerMobileJobsView, {
   JobActionBar,
 } from "@/components/career/mobile/jobs/CareerMobileJobsView";
@@ -508,51 +509,53 @@ const CareerWorkspaceRoot = ({
 
           <section
             className={cn(
-              "min-w-0 flex-1 overflow-hidden bg-bg-basement md:min-h-0",
+              "relative min-w-0 flex-1 overflow-hidden bg-bg-basement md:min-h-0",
               forceDesktopLayout && "min-h-0"
             )}
           >
-            <div
-              className={cn(
-                "flex h-full min-h-[45svh] flex-col md:min-h-0",
-                forceDesktopLayout && "min-h-0"
-              )}
-            >
-              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-8">
-                <nav className="flex shrink-0 flex-wrap items-center justify-center gap-2 border-b border-neutral-1000-a05 px-3 py-3.5">
-                  {navItems.map((item) => {
-                    const Icon = item.icon;
-                    const active = item.id === activeTab;
+            <DocumentEditorPanelProvider>
+              <div
+                className={cn(
+                  "flex h-full min-h-[45svh] flex-col md:min-h-0",
+                  forceDesktopLayout && "min-h-0"
+                )}
+              >
+                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-8">
+                  <nav className="flex shrink-0 flex-wrap items-center justify-center gap-2 border-b border-neutral-1000-a05 px-3 py-3.5">
+                    {navItems.map((item) => {
+                      const Icon = item.icon;
+                      const active = item.id === activeTab;
 
-                    return (
-                      <ActionButton
-                        key={item.id}
-                        onClick={() => handleChangeTab(item.id)}
-                        active={active}
-                        actionVariant="secondary"
-                        className="px-6"
-                      >
-                        <Icon className="h-4 w-4" />
-                        {item.label}
-                        {item.id === "history" &&
-                        pendingInternalRoleFeedbackCount > 0 ? (
-                          <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-lg bg-sky-600 px-2.5 text-[11px] leading-none text-neutral-00">
-                            {pendingInternalRoleFeedbackCount}
-                          </span>
-                        ) : null}
-                      </ActionButton>
-                    );
-                  })}
-                </nav>
-                <div className="mx-auto flex w-full max-w-[1120px] flex-1 flex-col">
-                  <CareerWorkspaceContent
-                    activeTab={activeTab}
-                    onChangeTab={handleChangeTab}
-                    onRequestChatFocus={handleRequestChatFocus}
-                  />
+                      return (
+                        <ActionButton
+                          key={item.id}
+                          onClick={() => handleChangeTab(item.id)}
+                          active={active}
+                          actionVariant="secondary"
+                          className="px-6"
+                        >
+                          <Icon className="h-4 w-4" />
+                          {item.label}
+                          {item.id === "history" &&
+                          pendingInternalRoleFeedbackCount > 0 ? (
+                            <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-lg bg-sky-600 px-2.5 text-[11px] leading-none text-neutral-00">
+                              {pendingInternalRoleFeedbackCount}
+                            </span>
+                          ) : null}
+                        </ActionButton>
+                      );
+                    })}
+                  </nav>
+                  <div className="mx-auto flex w-full max-w-[1120px] flex-1 flex-col">
+                    <CareerWorkspaceContent
+                      activeTab={activeTab}
+                      onChangeTab={handleChangeTab}
+                      onRequestChatFocus={handleRequestChatFocus}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            </DocumentEditorPanelProvider>
           </section>
         </div>
       </div>

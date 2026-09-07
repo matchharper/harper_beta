@@ -31,6 +31,7 @@ import {
 import { buildCareerToolPolicyPrompt } from "@/lib/career/prompts/toolPolicyPrompt";
 import { getCareerConversationStarter } from "@/lib/career/prompts/conversationStarters";
 import type {
+  CareerPostOnboardingContext,
   CareerPromptActivitySummary,
   CareerPromptBlock,
   CareerPromptChannel,
@@ -45,6 +46,10 @@ import type {
 import { getCareerInterruptHandlingPrompt } from "./initialPrompts";
 import { buildInternalOpportunityRealtimeInstruction } from "./cases/lifecyclePrompts";
 import type { InternalOpportunityCallRequest } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
+import {
+  buildCareerPostOnboardingContextSection,
+  buildCareerPostOnboardingConversationGuide,
+} from "@/lib/career/prompts/postOnboardingGuide";
 
 const ONBOARDING_TOOL_POLICY_ALLOWED_TOOLS = [
   "update_language_setting",
@@ -114,6 +119,7 @@ export function buildSavedGmailCareerHistoryPrompt(args: {
  * 블록 포함 규칙:
  * - 항상 포함: chat_core, mode guidance, profile_context, dynamic_state.
  * - 온보딩 중에만 포함: onboarding_rules, dynamic_state 안의 checklist/runtime progress.
+ * - 온보딩 완료 후 대화에는 post-onboarding guide를 포함하되, wrap-up 같은 별도 산출물은 명시적으로 제외할 수 있다.
  * - voice call에만 포함: voice_call_rules, dynamic_state 안의 최근 채팅 맥락.
  * - text chat에만 포함: dynamic_state 안의 opportunity feedback, recent activity summaries.
  */
@@ -126,6 +132,7 @@ export function buildCareerConversationPromptPlan(args: {
   currentPreferences?: CareerPromptPreferences | null;
   gmailCapability?: GmailCapability;
   hasSavedGmailCareerHistory?: boolean;
+  includePostOnboardingConversationGuide?: boolean;
   isConversationCompletedOpportunityRunActive?: boolean;
   internalCallRequest?: InternalOpportunityCallRequest | null;
   isOnboardingDone?: boolean;
@@ -133,6 +140,7 @@ export function buildCareerConversationPromptPlan(args: {
   onboardingChecklistCoverage?: OnboardingChecklistCoverage | null;
   opportunityStatus?: CareerPromptOpportunityStatus | null;
   pendingOpportunityFeedbackContext?: string | null;
+  postOnboardingContext?: CareerPostOnboardingContext | null;
   profile: CareerPromptProfile | null;
   recentActivitySummaries?: readonly CareerPromptActivitySummary[] | null;
   recentRecommendedOpportunitiesText?: string | null;
@@ -261,6 +269,20 @@ export function buildCareerConversationPromptPlan(args: {
 
   promptBlocks.push(coreSystemPrompt);
   promptBlocks.push(conversationGuidePrompt());
+
+  if (
+    !isOnboardingActive &&
+    args.includePostOnboardingConversationGuide !== false
+  ) {
+    promptBlocks.push({
+      key: "post_onboarding_conversation_guide",
+      text: buildCareerPostOnboardingConversationGuide({
+        channel: args.channel,
+        preferredLocale: args.currentPreferences?.preferredLocale ?? null,
+      }),
+      cacheable: true,
+    });
+  }
 
   if (isOnboardingActive) {
     promptBlocks.push({
@@ -391,6 +413,12 @@ export function buildCareerConversationPromptPlan(args: {
   const officialJobSignupIntentPrompt = isOnboardingActive
     ? (args.officialJobSignupIntentPrompt?.trim() ?? "")
     : "";
+  const postOnboardingContextSection = isOnboardingActive
+    ? ""
+    : buildCareerPostOnboardingContextSection({
+        context: args.postOnboardingContext,
+        toolNames: normalizedToolNames,
+      });
 
   const runtimeOneTimeInstruction = args.runtimeInstruction
     ? "## High-priority runtime instruction : " + args.runtimeInstruction
@@ -404,6 +432,7 @@ export function buildCareerConversationPromptPlan(args: {
     runtimeOneTimeInstruction,
     args.companyTalentRequestText?.trim() ?? "",
     officialJobSignupIntentPrompt,
+    postOnboardingContextSection,
     onboardingRuntimeStateSection,
     existingPreferencesSection,
     optionalFollowUpOpportunitiesSection,

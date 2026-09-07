@@ -7,12 +7,13 @@ import {
   formatSlackLink,
 } from "@/lib/org/slackMessages";
 
-test("meeting availability URL preserves the workspace and deep-link dialog", () => {
+test("meeting availability URL opens the workspace Calendar settings tab", () => {
   const url = new URL(buildOrgMeetingAvailabilityUrl("workspace id"));
 
   assert.equal(url.pathname, "/org/settings");
-  assert.equal(url.searchParams.get("dialog"), "interview-availability");
   assert.equal(url.searchParams.get("orgId"), "workspace id");
+  assert.equal(url.searchParams.get("tab"), "calendar");
+  assert.equal(url.searchParams.get("dialog"), null);
 });
 
 test("meeting schedule URL opens the company schedule detail", () => {
@@ -36,9 +37,9 @@ test("Slack schedule links escape labels and unsafe separators", () => {
 test("converts model-authored web Markdown links before posting to Slack", () => {
   assert.equal(
     convertMarkdownLinksToSlackMrkdwn(
-      "[스케줄 열기](https://matchharper.com/org/settings?dialog=interview-availability)에서 설정해 주세요."
+      "[Calendar 설정](https://matchharper.com/org/settings?tab=calendar)에서 설정해 주세요."
     ),
-    "<https://matchharper.com/org/settings?dialog=interview-availability|스케줄 열기>에서 설정해 주세요."
+    "<https://matchharper.com/org/settings?tab=calendar|Calendar 설정>에서 설정해 주세요."
   );
 });
 

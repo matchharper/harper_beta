@@ -22,6 +22,14 @@ export type CareerPromptOpportunityStatus = {
   onboardingCompletedAt?: string | null;
 };
 
+export type CareerPostOnboardingContext = {
+  entryOpportunity?: {
+    companyName: string | null;
+    roleTitle: string | null;
+    verifiedActiveRoleId: string | null;
+  } | null;
+};
+
 export type CareerPromptActivitySummary = {
   created_at: string;
   summary: string;

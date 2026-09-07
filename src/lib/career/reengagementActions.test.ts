@@ -111,6 +111,30 @@ test("resolves only server-provided pending action keys before rendering", () =>
   });
 });
 
+test("recovers a valid server-resolved action payload when only the final marker is truncated", () => {
+  const resolved = resolveCareerReengagementActionKeys({
+    content: `질문을 바로 확인할 수 있어요.
+[[CAREER_REENGAGEMENT_ACTIONS]]
+{"actions":[{"label":"질문에 답하기","action":{"type":"open_pending_action","actionKey":"pending_1"}}]}
+[[/CAREER_REENGAGEMENT_ACTIONS]`,
+    resolvePendingActionRef: (actionKey) =>
+      actionKey === "pending_1" ? "signedPayload.signedValue" : null,
+  });
+
+  assert.deepEqual(extractCareerReengagementActions(resolved), {
+    actions: [
+      {
+        label: "질문에 답하기",
+        action: {
+          type: "open_pending_action",
+          ref: "signedPayload.signedValue",
+        },
+      },
+    ],
+    content: "질문을 바로 확인할 수 있어요.",
+  });
+});
+
 test("does not accept an LLM-authored pending action ref during server resolution", () => {
   const resolved = resolveCareerReengagementActionKeys({
     content: `안내

@@ -90,6 +90,23 @@ test("renders markdown formatting in a document preview", () => {
   assert.doesNotMatch(html, /\*\*핵심 업무\*\*/);
 });
 
+test("supports a controlled side panel without rendering another preview", () => {
+  const html = renderToStaticMarkup(
+    <DocumentEditor
+      documentTitle="Career History.md"
+      format="markdown"
+      hideMeta
+      hidePreview
+      open={false}
+      savedValue="- Acme - Engineer : Applied."
+      value="- Acme - Engineer : Applied."
+    />
+  );
+
+  assert.doesNotMatch(html, /data-document-editor-preview/);
+  assert.doesNotMatch(html, /마지막 변경/);
+});
+
 test("formats recent changes as relative Korean time", () => {
   const now = new Date("2026-08-13T12:00:00.000Z");
 

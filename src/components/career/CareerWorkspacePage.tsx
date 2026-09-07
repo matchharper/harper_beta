@@ -46,7 +46,10 @@ import {
   officialJobsQueryKey,
 } from "@/hooks/officialJobs/useOfficialJobs";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
-import { notifyGmailIntegrationChanged } from "@/hooks/career/useGmailIntegration";
+import {
+  GMAIL_CONNECTION_SUCCESS_QUERY_PARAM,
+  notifyGmailIntegrationChanged,
+} from "@/hooks/career/useGmailIntegration";
 
 const DELIVERY_EMAIL_HISTORY_LINK_ENTRY_PARAM = "entryPoint";
 const DELIVERY_EMAIL_HISTORY_LINK_ENTRY_VALUE = "delivery_email_history_link";
@@ -322,18 +325,25 @@ const CareerWorkspacePage = ({
       return;
     }
 
-    const callbackKey = `${gmailConnectStatus ?? ""}:${gmailConnectedAccountId ?? ""
-      }`;
+    const callbackKey = `${gmailConnectStatus ?? ""}:${
+      gmailConnectedAccountId ?? ""
+    }`;
     if (gmailCallbackHandledRef.current === callbackKey) return;
     gmailCallbackHandledRef.current = callbackKey;
 
-    const clearCallbackQuery = () => {
+    const clearCallbackQuery = (connected: boolean) => {
       const nextQuery = { ...router.query };
       delete nextQuery.connected_account_id;
       delete nextQuery.connectedAccountId;
       delete nextQuery.appName;
       delete nextQuery.gmailConnect;
+      delete nextQuery.settingsTab;
       delete nextQuery.status;
+      if (connected) {
+        nextQuery[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM] = "success";
+      } else {
+        delete nextQuery[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM];
+      }
       void router.replace(
         { pathname: router.pathname, query: nextQuery },
         undefined,
@@ -360,10 +370,11 @@ const CareerWorkspacePage = ({
         showToast({
           message: t(
             "career.profile.resume_links.gmail_connected_toast",
-            "Gmail을 연결했습니다. 이제 Harper가 요청할 때 이메일을 조회할 수 있습니다."
+            "Gmail을 연결했습니다. 읽어오기를 누르면 최근 커리어 관련 이메일을 정리합니다."
           ),
           variant: "success",
         });
+        clearCallbackQuery(true);
       })
       .catch(() => {
         showToast({
@@ -373,8 +384,8 @@ const CareerWorkspacePage = ({
           ),
           variant: "error",
         });
-      })
-      .finally(clearCallbackQuery);
+        clearCallbackQuery(false);
+      });
   }, [
     authLoading,
     gmailConnectCallback,

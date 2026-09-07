@@ -2,7 +2,14 @@ import { showToast } from "@/components/toast/toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import Textarea from "@/components/ui/textarea";
 import type {
   AdminCareerFunnelStep,
@@ -13,7 +20,17 @@ import { ADMIN_PAGE_PASSWORD } from "@/lib/admin";
 import { buildCareerUtmUrl, normalizeCareerUtmSource } from "@/lib/career/utm";
 import { cn } from "@/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, LoaderCircle, Pencil, Plus, RefreshCw, Shuffle, Trash2, X } from "lucide-react";
+import {
+  Check,
+  Copy,
+  LoaderCircle,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Shuffle,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 
 type AdminCareerUtmTabProps = {
@@ -295,12 +312,12 @@ export default function AdminCareerUtmTab({
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
       <div className="space-y-4">
         <Card className="rounded-md border-black/10 shadow-none">
-          <CardHeader className="p-4 pb-2">
+          <CardHeader className="">
             <CardTitle className="text-[14px] font-semibold text-black">
               UTM source 만들기
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-3 p-4 pt-2 md:grid-cols-[220px_1fr_auto] md:items-start">
+          <CardContent className="grid gap-3 md:grid-cols-[220px_1fr_auto] md:items-start">
             <div className="space-y-2">
               <div className="flex gap-2">
                 <Input
@@ -394,9 +411,7 @@ export default function AdminCareerUtmTab({
                     <TableHead className="h-8 px-2 text-[11px]">
                       Source
                     </TableHead>
-                    <TableHead className="h-8 px-2 text-[11px]">
-                      설명
-                    </TableHead>
+                    <TableHead className="h-8 px-2 text-[11px]">설명</TableHead>
                     <TableHead className="h-8 px-2 text-right text-[11px]">
                       관리
                     </TableHead>
@@ -573,46 +588,7 @@ export default function AdminCareerUtmTab({
         </CardHeader>
         <CardContent className="space-y-4 p-4 pt-2">
           {query.data?.selectedSource ? (
-            <>
-              <SourceFunnel steps={query.data.selectedSource.steps} />
-              <div className="border-t border-black/10 pt-3">
-                <div className="mb-2 text-[12px] font-medium text-black">
-                  진입한 사람들
-                </div>
-                <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
-                  {query.data.selectedSource.people.length === 0 ? (
-                    <div className="border border-black/10 bg-black/[0.02] p-3 text-[12px] text-black/45">
-                      아직 이 source로 진입한 사람이 없습니다.
-                    </div>
-                  ) : (
-                    query.data.selectedSource.people.map((person) => (
-                      <div
-                        key={person.localId}
-                        className="border border-black/10 bg-white p-3"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="truncate text-[12px] font-semibold text-black">
-                              {person.name || person.email || "Anonymous"}
-                            </div>
-                            <div className="mt-0.5 truncate font-mono text-[11px] text-black/40">
-                              {person.email || person.localId}
-                            </div>
-                          </div>
-                          <span className="shrink-0 border border-black/10 bg-black/[0.03] px-2 py-1 text-[11px] font-medium text-black/65">
-                            {person.currentStepLabel}
-                          </span>
-                        </div>
-                        <div className="mt-2 text-[11px] text-black/42">
-                          entry {formatDateTime(person.firstEnteredAt)} · login{" "}
-                          {formatDateTime(person.lastLoginAt)}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </>
+            <SourceFunnel steps={query.data.selectedSource.steps} />
           ) : (
             <div className="border border-black/10 bg-black/[0.02] p-4 text-[12px] text-black/45">
               source를 만들면 여기에서 해당 source의 funnel을 볼 수 있습니다.

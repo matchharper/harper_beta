@@ -133,7 +133,7 @@ test("preserves valid talent and role navigation markers", () => {
 
 test("does not treat identifiers inside user-facing HTTP links as leaks", () => {
   const workspaceId = "123e4567-e89b-42d3-a456-426614174000";
-  const slackLink = `<https://matchharper.com/org/settings?dialog=interview-availability&orgId=${workspaceId}|스케줄 열기>`;
+  const slackLink = `<https://matchharper.com/org/settings?orgId=${workspaceId}&tab=calendar|Calendar 설정>`;
 
   assert.deepEqual(
     findNewOrgAgentInternalArtifacts({

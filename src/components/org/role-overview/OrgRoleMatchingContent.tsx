@@ -23,6 +23,7 @@ import {
   getRoleOverviewErrorMessage,
   RoleSectionHeading,
 } from "./RoleOverviewShared";
+import { OrgRoleCalibrationSection } from "./OrgRoleCalibrationSection";
 
 type MatchingDraft = {
   criteria: OrgRoleCriterion[];
@@ -336,6 +337,11 @@ export function OrgRoleMatchingContent({
             </div>
           ) : null}
         </div>
+
+        <OrgRoleCalibrationSection
+          roleId={role.roleId}
+          workspaceId={workspaceId}
+        />
       </OrgSection>
 
       {canManage && hasChanges ? (

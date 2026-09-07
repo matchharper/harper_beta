@@ -5,8 +5,10 @@ import {
 import {
   buildOrgCandidateAcceptedSlackMessage,
   buildOrgCandidateRejectedSlackMessage,
+  buildOrgRoleCalibrationSlackBlocks,
   buildOrgRoleUrl,
   buildOrgRoleCreatedSlackMessage,
+  buildOrgRoleCalibrationSlackMessage,
   escapeSlackText,
   formatOptional,
   formatPerson,
@@ -19,7 +21,9 @@ import {
 export {
   buildOrgCandidateAcceptedSlackMessage,
   buildOrgCandidateRejectedSlackMessage,
+  buildOrgRoleCalibrationSlackBlocks,
   buildOrgRoleCreatedSlackMessage,
+  buildOrgRoleCalibrationSlackMessage,
 } from "@/lib/org/slackMessages";
 
 export const ORG_SLACK_CHANNEL_ID =
@@ -110,6 +114,39 @@ export async function notifyOrgRoleCreatedSlack(args: {
     args.roleId,
     `org-role-created/${args.roleId}`
   );
+}
+
+export async function notifyOrgRoleCalibrationSlack(args: {
+  calibrationId: string;
+  profiles: Array<{
+    display: {
+      headline: string | null;
+      name: string;
+      profilePicture?: string | null;
+    };
+    profileId: string;
+    selection: { reason: string };
+  }>;
+  roleId: string;
+  roleName: string;
+  workspaceId: string;
+}) {
+  return sendHarperWorkspaceSlackMessage({
+    blocks: buildOrgRoleCalibrationSlackBlocks(args),
+    idempotencyKey: `org-role-calibration/${args.calibrationId}`,
+    messageMetadata: {
+      roleCalibration: {
+        calibrationId: args.calibrationId,
+        profileIds: args.profiles.map((profile) => profile.profileId),
+      },
+      source: "company_role_calibration",
+    },
+    roleId: args.roleId,
+    text: buildOrgRoleCalibrationSlackMessage(args),
+    unfurlLinks: false,
+    unfurlMedia: false,
+    workspaceId: args.workspaceId,
+  });
 }
 
 export async function notifyOrgCandidateAcceptedSlack(args: {

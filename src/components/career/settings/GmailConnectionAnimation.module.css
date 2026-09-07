@@ -1,0 +1,413 @@
+.viewport {
+  position: relative;
+  width: 100%;
+  height: 178px;
+  overflow: hidden;
+  pointer-events: none;
+  container-type: inline-size;
+}
+
+.scene {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 320px;
+  height: 178px;
+  margin-left: -160px;
+}
+
+.gmail,
+.letter {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  background: var(--color-bg-floating);
+  border: 1px solid var(--color-neutral-1000-a05);
+  box-shadow: 0 4px 12px var(--color-neutral-1000-a05);
+}
+
+.gmail {
+  z-index: 3;
+  width: 64px;
+  height: 58px;
+  border-radius: 17px;
+}
+
+.letter {
+  width: 36px;
+  height: 29px;
+  border-radius: 8px;
+  color: var(--color-neutral-700);
+}
+
+.deliveryGmail {
+  top: 60px;
+  left: 34px;
+  animation: senderSway 6s ease-in-out infinite;
+}
+
+.deliveryTrack {
+  position: absolute;
+  top: 89px;
+  left: 91px;
+  width: 142px;
+  border-top: 1px dashed var(--color-neutral-300);
+}
+
+.deliveryLetter {
+  top: 74px;
+  left: 91px;
+  opacity: 0;
+  animation: deliverMail 6s ease-in-out infinite;
+}
+
+.deliveryLetterTwo {
+  animation-delay: 0.85s;
+}
+
+.deliveryFace {
+  position: absolute;
+  z-index: 2;
+  top: 23px;
+  left: 189px;
+  animation: receiveMail 6s ease-in-out infinite;
+}
+
+.deliveryGlow {
+  position: absolute;
+  z-index: 1;
+  top: 68px;
+  left: 234px;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--color-primary);
+  border-radius: 50%;
+  opacity: 0;
+  animation: receiveGlow 6s ease-out infinite;
+}
+
+.gatherRing {
+  position: absolute;
+  top: 15px;
+  left: 58px;
+  width: 210px;
+  height: 145px;
+  border: 1px solid var(--color-neutral-1000-a05);
+  border-radius: 50%;
+  transform: rotate(-18deg);
+}
+
+.gatherFace {
+  position: absolute;
+  top: 17px;
+  left: 90px;
+  animation: gentleFloat 6s ease-in-out infinite;
+}
+
+.gatherGmail {
+  top: 29px;
+  left: 39px;
+  transform: rotate(-10deg) scale(0.8);
+}
+
+.gatherLetter {
+  animation: gatherMail 6s ease-in-out infinite;
+}
+
+.gatherLetterOne {
+  top: 23px;
+  left: 238px;
+  --travel-x: -64px;
+  --travel-y: 36px;
+  --tilt: 12deg;
+}
+
+.gatherLetterTwo {
+  top: 127px;
+  left: 214px;
+  --travel-x: -43px;
+  --travel-y: -36px;
+  --tilt: -9deg;
+  animation-delay: 1.3s;
+}
+
+.gatherLetterThree {
+  top: 120px;
+  left: 62px;
+  --travel-x: 69px;
+  --travel-y: -28px;
+  --tilt: -14deg;
+  animation-delay: 2.6s;
+}
+
+.gatherDot {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  opacity: 0.35;
+}
+
+.gatherDotOne {
+  top: 20px;
+  left: 172px;
+}
+.gatherDotTwo {
+  top: 105px;
+  left: 277px;
+}
+
+.organizeGmail {
+  top: 45px;
+  left: 26px;
+  transform: rotate(-8deg) scale(0.8);
+}
+
+.organizeLetter {
+  top: 68px;
+  left: 77px;
+  opacity: 0;
+  animation: fileMail 6s ease-in-out infinite;
+}
+
+.paperStack {
+  position: absolute;
+  top: 28px;
+  left: 132px;
+  width: 93px;
+  height: 117px;
+  transform: rotate(-5deg);
+}
+
+.paper,
+.paperBack,
+.paperMiddle {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--color-neutral-1000-a10);
+  border-radius: 11px;
+  background: var(--color-bg-floating);
+}
+
+.paperBack {
+  transform: translate(9px, 3px) rotate(11deg);
+}
+.paperMiddle {
+  transform: translate(4px, 1px) rotate(5deg);
+}
+
+.paper {
+  padding: 21px 14px;
+  box-shadow: 0 5px 15px var(--color-neutral-1000-a05);
+}
+
+.paperHeading {
+  display: block;
+  width: 28px;
+  height: 5px;
+  margin-bottom: 15px;
+  border-radius: 5px;
+  background: var(--color-neutral-400);
+}
+
+.paperRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 11px;
+  animation: organizeRow 6s ease-in-out infinite;
+}
+
+.paperRow:nth-child(3) {
+  animation-delay: 0.55s;
+}
+.paperRow:nth-child(4) {
+  animation-delay: 1.1s;
+}
+
+.paperBullet {
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  background: var(--color-primary);
+}
+
+.paperLine {
+  width: 40px;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--color-neutral-300);
+}
+
+.organizeFace {
+  position: absolute;
+  z-index: 2;
+  top: 56px;
+  left: 193px;
+  animation: gentleFloat 6s ease-in-out infinite;
+}
+
+@keyframes gentleFloat {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-5px) rotate(2deg);
+  }
+}
+
+@keyframes gatherMail {
+  0%,
+  15% {
+    opacity: 0.85;
+    transform: translate(0, 0) rotate(var(--tilt));
+  }
+  35% {
+    opacity: 1;
+    transform: translate(0, -6px) rotate(0);
+  }
+  65%,
+  82% {
+    opacity: 0;
+    transform: translate(var(--travel-x), var(--travel-y)) scale(0.45);
+  }
+  83% {
+    opacity: 0;
+    transform: translate(0, 4px) rotate(var(--tilt));
+  }
+  100% {
+    opacity: 0.85;
+    transform: translate(0, 0) rotate(var(--tilt));
+  }
+}
+
+@keyframes fileMail {
+  0%,
+  5% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(-8deg);
+  }
+  18% {
+    opacity: 1;
+  }
+  35% {
+    opacity: 1;
+    transform: translate(31px, -18px) rotate(5deg);
+  }
+  51%,
+  100% {
+    opacity: 0;
+    transform: translate(75px, 0) scale(0.5);
+  }
+}
+
+@keyframes organizeRow {
+  0%,
+  38% {
+    opacity: 0.2;
+    transform: translateY(3px);
+  }
+  54%,
+  88% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0.2;
+    transform: translateY(3px);
+  }
+}
+
+@keyframes senderSway {
+  0%,
+  15%,
+  65%,
+  100% {
+    transform: rotate(-5deg);
+  }
+  30%,
+  45% {
+    transform: translateY(-3px) rotate(2deg);
+  }
+}
+
+@keyframes deliverMail {
+  0%,
+  12% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.75) rotate(-8deg);
+  }
+  23% {
+    opacity: 1;
+  }
+  40% {
+    opacity: 1;
+    transform: translate(64px, -9px) scale(1) rotate(5deg);
+  }
+  56%,
+  100% {
+    opacity: 0;
+    transform: translate(131px, 1px) scale(0.45);
+  }
+}
+
+@keyframes receiveMail {
+  0%,
+  43%,
+  78%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  55% {
+    transform: translateY(-5px) rotate(5deg);
+  }
+  65% {
+    transform: translateY(1px) rotate(-2deg);
+  }
+}
+
+@keyframes receiveGlow {
+  0%,
+  45% {
+    opacity: 0;
+    transform: scale(1);
+  }
+  52% {
+    opacity: 0.2;
+  }
+  75%,
+  100% {
+    opacity: 0;
+    transform: scale(2.3);
+  }
+}
+
+@container (max-width: 300px) {
+  .scene {
+    transform: scale(0.84);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene *,
+  .scene *::before,
+  .scene *::after {
+    animation: none !important;
+  }
+  .deliveryLetter {
+    opacity: 1;
+    transform: translateX(45px);
+  }
+  .deliveryLetterTwo,
+  .organizeLetter {
+    display: none;
+  }
+  .gatherLetter {
+    transform: rotate(var(--tilt));
+  }
+  .paperRow {
+    opacity: 1;
+  }
+}

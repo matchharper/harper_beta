@@ -1,6 +1,7 @@
 import type { OrgAgentModelId } from "@/lib/org/agent/modelConfig";
 import type {
   MeetingScheduleAdditionalMessage,
+  MeetingScheduleDraftBlocker,
   MeetingScheduleDraftConfig,
 } from "@/lib/meetings/scheduleDraft";
 import type { ChatAttachmentPayload } from "@/types/chat";
@@ -31,11 +32,7 @@ export type OrgAgentMeetingScheduleConfirmation = {
   additionalMessage: MeetingScheduleAdditionalMessage | null;
   availabilityVersion: number | null;
   config: MeetingScheduleDraftConfig;
-  draftBlocker:
-    | "availability_missing"
-    | "meeting_stage_missing"
-    | "organizer_email_missing"
-    | null;
+  draftBlocker: MeetingScheduleDraftBlocker;
   meetingStage:
     | import("@/lib/meetings/scheduleDraft").MeetingScheduleStageProfile
     | null;
@@ -178,6 +175,10 @@ export type OrgAgentMessageMetadata = {
     changeSummary: string;
     scope: "company" | "role";
   }>;
+  roleCalibration?: {
+    calibrationId: string;
+    profileIds: string[];
+  };
   retainedDataActivations?: OrgAgentRetainedDataActivation[];
   slackChoiceSourceJobId?: string;
   /** Server-only marker for exact Slack messages transferred into a new role thread. */

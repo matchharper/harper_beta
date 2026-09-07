@@ -33,6 +33,7 @@ import { TALENT_TOOL_NAMES } from "@/lib/talentOnboarding/tools";
 import { shouldUseCareerRealtimeOnboarding } from "@/lib/career/realtimeCallScope";
 import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
 import { hasActiveConversationCompletedOpportunityRun } from "@/lib/opportunityDiscovery/store";
+import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
 
 /**
  * Build realtime instructions from the shared Harper system prompt plus
@@ -53,6 +54,7 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     currentInsights,
     talentSetting,
     officialJobSignupIntentEvent,
+    postOnboardingContext,
     recentRecommendedOpportunities,
     activeGmailIntegration,
     isConversationCompletedOpportunityRunActive,
@@ -62,7 +64,13 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     fetchTalentSetting({ admin, userId: args.userId }),
     fetchLatestTalentActivityEvent({
       admin,
+      conversationId: args.conversationId,
       eventType: OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE,
+      userId: args.userId,
+    }),
+    fetchCareerPostOnboardingContext({
+      admin,
+      conversationId: args.conversationId,
       userId: args.userId,
     }),
     fetchRecentRecommendedOpportunitiesForPrompt({
@@ -186,6 +194,7 @@ export async function buildCareerRealtimeSessionInstructions(args: {
       ? officialJobSignupIntentEvent?.summary
       : null,
     onboardingChecklistCoverage,
+    postOnboardingContext,
     profile,
     conversationMode: openInternalCallRequest
       ? "internal_opportunity_call"

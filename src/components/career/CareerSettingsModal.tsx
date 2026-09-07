@@ -42,7 +42,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
+import { AppleSwitch } from "@/components/ui/switch";
 import type { CareerTalentPreferences } from "./types";
 import {
   getAccountSubscriptionConfirmationKind,
@@ -80,15 +80,24 @@ const SettingsTabPanel = ({
 const SettingRow = ({
   action,
   desc,
+  mobileActionPlacement = "stacked",
   title,
   variant = "default",
 }: {
   action: React.ReactNode;
   desc?: React.ReactNode;
+  mobileActionPlacement?: "stacked" | "trailing";
   title: React.ReactNode;
   variant?: "default" | "critical";
 }) => (
-  <div className="flex flex-col gap-3 py-4 first:pt-0 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+  <div
+    className={[
+      "flex gap-3 py-4 first:pt-0 sm:flex-row sm:items-center sm:justify-between sm:gap-8",
+      mobileActionPlacement === "trailing"
+        ? "flex-row items-center justify-between"
+        : "flex-col",
+    ].join(" ")}
+  >
     <div className="min-w-0 flex-1 sm:py-1.5">
       <h3
         className={[
@@ -968,6 +977,7 @@ const AccountSectionContent = ({
         />
 
         <SettingRow
+          mobileActionPlacement="trailing"
           title={t(
             "career.settings.career_settings_modal.harper_enabled_title",
             "Harper 사용"
@@ -978,7 +988,7 @@ const AccountSectionContent = ({
           )}
           action={
             <div className="flex min-h-9 items-center gap-2 sm:justify-end">
-              <Switch
+              <AppleSwitch
                 checked={subscriptionSettings.harperEnabled}
                 disabled={subscriptionPending}
                 onCheckedChange={handleHarperEnabledChange}
@@ -992,13 +1002,14 @@ const AccountSectionContent = ({
         />
 
         <SettingRow
+          mobileActionPlacement="trailing"
           title={t(
             "career.settings.career_settings_modal.external_recommendation_title",
             "외부 공고 주기적으로 추천받기"
           )}
           action={
             <div className="flex min-h-9 items-center gap-2 sm:justify-end">
-              <Switch
+              <AppleSwitch
                 checked={subscriptionSettings.getExternalRecommendation}
                 disabled={subscriptionPending}
                 onCheckedChange={handleExternalRecommendationChange}

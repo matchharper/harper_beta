@@ -3,8 +3,8 @@ import {
   normalizeExcludedEmails,
 } from "@/lib/adminMetrics/utils";
 import {
-  ADDITIONAL_INTERNAL_ALLOWED_EMAILS,
   INTERNAL_EMAIL_DOMAIN,
+  OPS_UTM_VIEWER_EMAILS,
   getEmailDomain,
 } from "@/lib/internalAccess";
 import { extractEmailFromLandingLoginType } from "@/lib/landingLogTypes";
@@ -16,7 +16,7 @@ type LandingLogIdentity = {
 
 export const DEFAULT_ADMIN_EXCLUDED_EMAILS = normalizeExcludedEmails([
   `@${INTERNAL_EMAIL_DOMAIN}`,
-  ...ADDITIONAL_INTERNAL_ALLOWED_EMAILS,
+  ...OPS_UTM_VIEWER_EMAILS,
 ]);
 
 export function createExcludedEmailSet(input: string | string[]) {

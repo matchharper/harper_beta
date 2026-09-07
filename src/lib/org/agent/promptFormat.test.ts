@@ -553,7 +553,7 @@ test("scheduled stage movement gives the writer user-safe coordination facts", (
     roleName: "Product",
     scheduleId: "schedule-private-id",
     schedulingSettingsUrl:
-      "https://matchharper.com/org/settings?orgId=workspace",
+      "https://matchharper.com/org/settings?orgId=workspace&tab=calendar",
     stageLabel: "첫 대화",
     status: "updated",
   });
@@ -604,6 +604,8 @@ test("an expedited meeting invitation reports the action without claiming delive
 
 test("blocked scheduled movement identifies company organizer availability without fixed copy", () => {
   const compact = serializeOrgAgentToolResult("move_candidate_stage", {
+    calendarSettingsUrl:
+      "https://matchharper.com/org/settings?orgId=workspace&tab=calendar",
     candidateName: "김하퍼",
     draftBlocker: "availability_missing",
     meetingDraft: {
@@ -632,10 +634,43 @@ test("blocked scheduled movement identifies company organizer availability witho
     compact,
     /continue this already-authorized candidate meeting request/
   );
+  assert.match(compact, /verified Calendar settings page/);
+  assert.match(compact, /org\/settings\?orgId=workspace&tab=calendar/);
   assert.doesNotMatch(
     compact,
     /draftBlocker|availability_missing|user_facing_state=/
   );
+});
+
+test("blocked scheduled movement explains the Calendar prerequisite and setup link", () => {
+  const compact = serializeOrgAgentToolResult("move_candidate_stage", {
+    calendarRequirementExplanation:
+      "Google Calendar 연결은 Harper가 인터뷰가 불가능한 일정을 미리 파악해 후보자에게 보여줄 선택지에서 제외하고, 후보자와 회사 참석자를 하나의 미팅으로 초대하는 데 필요해요.",
+    calendarSettingsUrl:
+      "https://matchharper.com/org/settings?orgId=workspace&tab=calendar",
+    candidateName: "김하퍼",
+    draftBlocker: "calendar_connection_missing",
+    meetingDraft: {
+      availabilityVersion: null,
+      config: {
+        durationMinutes: 30,
+        meetingPurpose: "제품 경험과 팀의 문제 해결 방식을 이야기하는 자리",
+      },
+      draftBlocker: "calendar_connection_missing",
+    },
+    previousStageLabel: "연결 대기",
+    roleName: "Product Engineer",
+    stageLabel: "1차 기술 인터뷰",
+    status: "meeting_setup_required",
+  });
+
+  assert.match(compact, /connect or reconnect Google Calendar/);
+  assert.match(compact, /인터뷰가 불가능한 일정을 미리 파악/);
+  assert.match(compact, /후보자에게 보여줄 선택지에서 제외/);
+  assert.match(compact, /reusable availability is also missing/);
+  assert.match(compact, /org\/settings\?orgId=workspace&tab=calendar/);
+  assert.match(compact, /Include this link as the concrete setup action/);
+  assert.doesNotMatch(compact, /calendar_connection_missing|draftBlocker/);
 });
 
 test("candidate decision preparation returns facts without server-authored confirmation copy", () => {
@@ -723,7 +758,7 @@ test("schedule decision keeps the company in the chat-only scheduling flow", () 
     roleName: "FDE",
     scheduleId: "private-schedule-id",
     schedulingSettingsUrl:
-      "https://matchharper.com/org/settings?dialog=interview-availability",
+      "https://matchharper.com/org/settings?orgId=workspace&tab=calendar",
     stage: "connected",
     status: "updated",
   });

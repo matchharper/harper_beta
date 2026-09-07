@@ -1,10 +1,8 @@
 export const INTERNAL_EMAIL_DOMAIN = "matchharper.com";
-export const ADDITIONAL_INTERNAL_ALLOWED_EMAILS = [
+export const OPS_UTM_VIEWER_EMAILS = [
   "hongbeom.heo@gmail.com",
-  "yijunlee.000@gmail.com",
-  "khj605123@gmail.com",
-] as const;
-export const CAREER_TRANSLATION_INSPECT_ALLOWED_EMAILS = [
+  "reason.jinny@gmail.com",
+  "rnfxlqcjf@naver.com",
   "khj605123@gmail.com",
 ] as const;
 
@@ -26,11 +24,15 @@ export function isInternalDomainEmail(value: string | null | undefined) {
 }
 
 export function isInternalEmail(value: string | null | undefined) {
+  return isInternalDomainEmail(value);
+}
+
+export function canViewOpsUtm(value: string | null | undefined) {
   const normalized = normalizeEmail(value);
   return (
-    getEmailDomain(normalized) === INTERNAL_EMAIL_DOMAIN ||
-    ADDITIONAL_INTERNAL_ALLOWED_EMAILS.includes(
-      normalized as (typeof ADDITIONAL_INTERNAL_ALLOWED_EMAILS)[number]
+    isInternalDomainEmail(normalized) ||
+    OPS_UTM_VIEWER_EMAILS.includes(
+      normalized as (typeof OPS_UTM_VIEWER_EMAILS)[number]
     )
   );
 }
@@ -46,11 +48,5 @@ export function canUseCareerDevControls(value: string | null | undefined) {
 }
 
 export function canInspectCareerTranslations(value: string | null | undefined) {
-  const normalized = normalizeEmail(value);
-  return (
-    getEmailDomain(normalized) === INTERNAL_EMAIL_DOMAIN ||
-    CAREER_TRANSLATION_INSPECT_ALLOWED_EMAILS.includes(
-      normalized as (typeof CAREER_TRANSLATION_INSPECT_ALLOWED_EMAILS)[number]
-    )
-  );
+  return isInternalDomainEmail(value);
 }

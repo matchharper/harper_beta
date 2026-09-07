@@ -2582,49 +2582,6 @@ export type Database = {
           },
         ]
       }
-      crm_email_campaign_deliveries: {
-        Row: {
-          campaign_id: string
-          discovery_run_id: string
-          sent_at: string
-          talent_id: string
-        }
-        Insert: {
-          campaign_id: string
-          discovery_run_id: string
-          sent_at?: string
-          talent_id: string
-        }
-        Update: {
-          campaign_id?: string
-          discovery_run_id?: string
-          sent_at?: string
-          talent_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "crm_email_campaign_deliveries_campaign_id_fkey"
-            columns: ["campaign_id"]
-            isOneToOne: false
-            referencedRelation: "crm_email_campaigns"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "crm_email_campaign_deliveries_discovery_run_id_fkey"
-            columns: ["discovery_run_id"]
-            isOneToOne: false
-            referencedRelation: "opportunity_discovery_run"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "crm_email_campaign_deliveries_talent_id_fkey"
-            columns: ["talent_id"]
-            isOneToOne: false
-            referencedRelation: "talent_users"
-            referencedColumns: ["user_id"]
-          },
-        ]
-      }
       crm_email_broadcasts: {
         Row: {
           completed_at: string | null
@@ -2672,6 +2629,49 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      crm_email_campaign_deliveries: {
+        Row: {
+          campaign_id: string
+          discovery_run_id: string
+          sent_at: string
+          talent_id: string
+        }
+        Insert: {
+          campaign_id: string
+          discovery_run_id: string
+          sent_at?: string
+          talent_id: string
+        }
+        Update: {
+          campaign_id?: string
+          discovery_run_id?: string
+          sent_at?: string
+          talent_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_email_campaign_deliveries_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "crm_email_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_email_campaign_deliveries_discovery_run_id_fkey"
+            columns: ["discovery_run_id"]
+            isOneToOne: false
+            referencedRelation: "opportunity_discovery_run"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_email_campaign_deliveries_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       crm_email_campaigns: {
         Row: {
@@ -7860,6 +7860,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_talent_internal_role_recommendation_v1: {
+        Args: {
+          p_context?: Json
+          p_email_acceptance_confirmation?: Json
+          p_feedback_reason?: string
+          p_recommendation_id: string
+          p_source_role_id?: string
+          p_talent_id: string
+        }
+        Returns: Json
+      }
       activate_slack_company_agent_update_proposal_v1: {
         Args: {
           p_proposal_id: string
@@ -7971,6 +7982,16 @@ export type Database = {
             }
             Returns: string
           }
+      change_internal_talent_opportunity_decision_v2: {
+        Args: {
+          p_action: string
+          p_changed_at?: string
+          p_reason?: string
+          p_recommendation_id: string
+          p_talent_id: string
+        }
+        Returns: string
+      }
       claim_career_email_onboarding_lead: {
         Args: {
           onboarding_lead_id: string
@@ -8083,13 +8104,6 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
-      }
-      count_crm_email_broadcast_recipients: {
-        Args: {
-          p_onboarding_done_only?: boolean
-          p_preferred_locale?: string | null
-        }
-        Returns: number
       }
       claim_email_reply_jobs: {
         Args: {
@@ -8308,9 +8322,17 @@ export type Database = {
         Args: { p_request_id: string }
         Returns: boolean
       }
+      company_talent_request_target_is_active_v1: {
+        Args: { p_request_id: string }
+        Returns: boolean
+      }
       complete_company_role_creation_v1: {
         Args: { p_role_id: string; p_workspace_id: string }
         Returns: boolean
+      }
+      count_crm_email_broadcast_recipients: {
+        Args: { p_onboarding_done_only?: boolean; p_preferred_locale?: string }
+        Returns: number
       }
       create_email_inbound_event_and_job_v1: {
         Args: {
@@ -8557,30 +8579,6 @@ export type Database = {
         Args: { p_tag: string }
         Returns: boolean
       }
-      list_crm_email_broadcasts: {
-        Args: { p_broadcast_id?: string }
-        Returns: {
-          cancelled_count: number
-          completed_at: string | null
-          created_at: string
-          failed_count: number
-          html_content: string
-          id: string
-          name: string
-          paused_count: number
-          processing_count: number
-          queued_at: string | null
-          queued_count: number
-          recipient_onboarding_done_only: boolean
-          recipient_preferred_locale: string | null
-          scheduled_at: string | null
-          sent_count: number
-          status: string
-          subject: string
-          total_count: number
-          updated_at: string
-        }[]
-      }
       list_company_agent_slack_threads_v1: {
         Args: {
           p_before_last_message_id?: number
@@ -8596,6 +8594,30 @@ export type Database = {
           message_count: number
           slack_thread_id: string
           thread_started_at: string
+        }[]
+      }
+      list_crm_email_broadcasts: {
+        Args: { p_broadcast_id?: string }
+        Returns: {
+          cancelled_count: number
+          completed_at: string
+          created_at: string
+          failed_count: number
+          html_content: string
+          id: string
+          name: string
+          paused_count: number
+          processing_count: number
+          queued_at: string
+          queued_count: number
+          recipient_onboarding_done_only: boolean
+          recipient_preferred_locale: string
+          scheduled_at: string
+          sent_count: number
+          status: string
+          subject: string
+          total_count: number
+          updated_at: string
         }[]
       }
       list_translation_entry_groups: {
@@ -8656,42 +8678,6 @@ export type Database = {
         }
         Returns: Json
       }
-      present_talent_internal_role_recommendation_for_review_v1: {
-        Args: {
-          p_context?: Json
-          p_source_role_id: string | null
-          p_talent_id: string
-          p_target_role_id: string
-        }
-        Returns: Json
-      }
-      request_talent_internal_role_reconsideration_v1: {
-        Args: {
-          p_context?: Json
-          p_new_information: string
-          p_role_id: string
-          p_talent_id: string
-        }
-        Returns: Json
-      }
-      queue_crm_email_broadcast: {
-        Args: { p_broadcast_id: string }
-        Returns: number
-      }
-      set_crm_email_broadcast_paused: {
-        Args: { p_broadcast_id: string; p_paused: boolean }
-        Returns: undefined
-      }
-      set_talent_internal_role_recommendation_before_company_share_v1: {
-        Args: {
-          p_accept?: boolean
-          p_context?: Json
-          p_source_role_id: string
-          p_talent_id: string
-          p_target_role_id: string
-        }
-        Returns: Json
-      }
       present_company_agent_update_proposal_v1: {
         Args: {
           p_message_metadata?: Json
@@ -8709,6 +8695,19 @@ export type Database = {
           p_workspace_id: string
         }
         Returns: Json
+      }
+      present_talent_internal_role_recommendation_for_review_v1: {
+        Args: {
+          p_context?: Json
+          p_source_role_id: string
+          p_talent_id: string
+          p_target_role_id: string
+        }
+        Returns: Json
+      }
+      queue_crm_email_broadcast: {
+        Args: { p_broadcast_id: string }
+        Returns: number
       }
       queue_meeting_schedule_invitation_v1: {
         Args: {
@@ -8782,6 +8781,15 @@ export type Database = {
           visit_count: number
         }[]
       }
+      request_talent_internal_role_reconsideration_v1: {
+        Args: {
+          p_context?: Json
+          p_new_information: string
+          p_role_id: string
+          p_talent_id: string
+        }
+        Returns: Json
+      }
       resolve_company_agent_update_proposal_v1: {
         Args: {
           p_action: string
@@ -8810,6 +8818,10 @@ export type Database = {
         }
         Returns: Json
       }
+      set_crm_email_broadcast_paused: {
+        Args: { p_broadcast_id: string; p_paused: boolean }
+        Returns: undefined
+      }
       set_google_calendar_busy_block_blocking_v1: {
         Args: {
           p_busy_block_id: string
@@ -8823,6 +8835,16 @@ export type Database = {
           p_company_workspace_id?: string
           p_slack_channel_id?: string
           p_worker_target: string
+        }
+        Returns: Json
+      }
+      set_talent_internal_role_recommendation_before_company_share_v1: {
+        Args: {
+          p_accept?: boolean
+          p_context?: Json
+          p_source_role_id: string
+          p_talent_id: string
+          p_target_role_id: string
         }
         Returns: Json
       }
@@ -8891,6 +8913,18 @@ export type Database = {
           p_selection_snapshot: Json
         }
         Returns: Json
+      }
+      talent_internal_role_is_candidate_visible_v1: {
+        Args: {
+          p_fit: Database["public"]["Tables"]["talent_opportunity_fit"]["Row"]
+        }
+        Returns: boolean
+      }
+      talent_internal_role_reconsideration_is_pending_v1: {
+        Args: {
+          p_fit: Database["public"]["Tables"]["talent_opportunity_fit"]["Row"]
+        }
+        Returns: boolean
       }
       try_enqueue_talent_behavior_context_change: {
         Args: {
@@ -8993,12 +9027,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -9022,11 +9056,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -9047,11 +9081,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -9072,11 +9106,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -9089,11 +9123,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

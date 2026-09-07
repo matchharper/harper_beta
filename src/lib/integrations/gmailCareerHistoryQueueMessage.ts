@@ -1,6 +1,8 @@
 export type GmailCareerHistoryQueueMessage = {
   expectedIntegrationUpdatedAt: string;
   kind: "analyze_gmail_career_history";
+  runId: number | null;
+  runStartedAt: string | null;
   talentId: string;
   version: 1;
 };
@@ -30,16 +32,24 @@ export function parseGmailCareerHistoryQueueMessage(
     message.expectedIntegrationUpdatedAt,
     100
   );
+  const runId = Number(message.runId);
+  const runStartedAt = clean(message.runStartedAt, 100);
   if (
     !UUID_PATTERN.test(talentId) ||
     !expectedIntegrationUpdatedAt ||
-    Number.isNaN(new Date(expectedIntegrationUpdatedAt).getTime())
+    Number.isNaN(new Date(expectedIntegrationUpdatedAt).getTime()) ||
+    (message.runId !== undefined &&
+      (!Number.isSafeInteger(runId) || runId <= 0)) ||
+    (message.runStartedAt !== undefined &&
+      (!runStartedAt || Number.isNaN(new Date(runStartedAt).getTime())))
   ) {
     return null;
   }
   return {
     expectedIntegrationUpdatedAt,
     kind: "analyze_gmail_career_history",
+    runId: message.runId === undefined ? null : runId,
+    runStartedAt: message.runStartedAt === undefined ? null : runStartedAt,
     talentId,
     version: 1,
   };

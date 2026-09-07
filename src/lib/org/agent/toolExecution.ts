@@ -115,6 +115,7 @@ import {
 } from "@/lib/org/agent/slackRoleCreation";
 import {
   formatPreparedMeetingScheduleConfirmation,
+  GOOGLE_CALENDAR_MEETING_REQUIREMENT,
   type PreparedMeetingScheduleDraft,
 } from "@/lib/meetings/scheduleDraft";
 import {
@@ -146,6 +147,12 @@ import {
   formatOtherRoleCalibrationContext,
   generateRoleHiringBriefCalibration,
 } from "@/lib/org/agent/roleCalibration";
+import { generateRoleCalibrationFeedback } from "@/lib/org/agent/roleCalibrationFeedback";
+import {
+  applyCompanyRoleCalibrationFeedback,
+  fetchLatestCompanyRoleCalibration,
+  getCompanyRoleCalibrationProfiles,
+} from "@/lib/org/roleCalibrationServer";
 import type { ChatAttachmentPayload } from "@/types/chat";
 
 export { createOrgAgentToolExecutionState, promoteOrgAgentToolReadVisibility };
@@ -455,6 +462,11 @@ export function getOrgAgentToolStatusLabel(args: {
       "참고 인물을 바탕으로 Hiring Brief를 정리하는 중",
       "Hiring Brief 기준 정리 완료",
       "Hiring Brief 기준을 정리하지 못했습니다",
+    ],
+    record_role_profile_example_feedback: [
+      "예시 프로필 피드백을 확인하는 중",
+      "예시 프로필 피드백 반영 완료",
+      "예시 프로필 피드백을 반영하지 못했습니다",
     ],
     read_talent: [
       "후보자와 진행 현황을 읽는 중",
@@ -1129,6 +1141,146 @@ async function executeCalibrateRoleHiringBrief(args: {
     status: "updated",
     summary: calibration.summary,
     userReply: calibration.userReply,
+  };
+}
+
+async function executeRecordRoleProfileExampleFeedback(args: {
+  admin: OrgAgentAdminClient;
+  callId: string;
+  companySideContext: string;
+  currentUserMessageId: number;
+  input: Record<string, unknown>;
+  name: OrgAgentToolName;
+  state: OrgAgentToolExecutionState;
+  user: User;
+  userMessage: string;
+  workspaceId: string;
+}) {
+  const visibleRole = roleOrThrow(args.state, args.input.roleId);
+  const [role, calibrationRow] = await Promise.all([
+    fetchRoleForOrgAgent({
+      admin: args.admin,
+      roleId: visibleRole.roleId,
+      workspaceId: args.workspaceId,
+    }),
+    fetchLatestCompanyRoleCalibration({
+      admin: args.admin,
+      roleId: visibleRole.roleId,
+      workspaceId: args.workspaceId,
+    }),
+  ]);
+  if (
+    !calibrationRow ||
+    !["ready", "sent", "completed"].includes(String(calibrationRow.status))
+  ) {
+    throw new OrgAgentToolInputError(
+      "This Role has no calibration profiles ready for feedback"
+    );
+  }
+  const profiles = getCompanyRoleCalibrationProfiles(calibrationRow);
+  if (profiles.length === 0) {
+    throw new OrgAgentToolInputError(
+      "This Role has no calibration profiles ready for feedback"
+    );
+  }
+  const feedback = await generateRoleCalibrationFeedback({
+    calibration: {
+      calibrationId: calibrationRow.id,
+      profiles,
+      roleId: calibrationRow.role_id,
+    },
+    companyContext: [
+      args.state.company.companyName,
+      text(args.state.company.pitch),
+      text(args.state.company.companyDescription),
+      text(args.state.company.request),
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    companySideContext: args.companySideContext,
+    currentHiringBrief: role.request,
+    roleDescription: role.description,
+    roleName: role.name,
+    userMessage: args.userMessage,
+  });
+  const validProfileIds = new Set(profiles.map((profile) => profile.profileId));
+  if (
+    feedback.reviews.some(
+      (review) => !validProfileIds.has(review.profileId)
+    )
+  ) {
+    throw new OrgAgentToolInputError(
+      "Feedback referenced a profile outside the active calibration"
+    );
+  }
+
+  if (feedback.reviews.length === 0 && !feedback.finishCalibration) {
+    args.state.fallbackReply = feedback.userReply;
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "unchanged",
+      summary: feedback.summary,
+    });
+    return {
+      hiringBriefUpdated: false,
+      reviewedProfiles: [],
+      roleId: role.roleId,
+      roleName: role.name,
+      status: "needs_more_information",
+      summary: feedback.summary,
+      userReply: feedback.userReply,
+    };
+  }
+
+  const applied = await applyCompanyRoleCalibrationFeedback({
+    admin: args.admin,
+    calibrationId: calibrationRow.id,
+    expectedCalibrationUpdatedAt: calibrationRow.updated_at,
+    expectedRequest: role.request,
+    finish: feedback.finishCalibration,
+    hiringBrief: feedback.hiringBrief,
+    reviews: feedback.reviews,
+    roleId: role.roleId,
+    sourceMessageId: args.currentUserMessageId,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+  const hiringBriefUpdated = applied.hiringBriefUpdated === true;
+  if (hiringBriefUpdated && feedback.hiringBrief) {
+    const current = args.state.roleById.get(role.roleId);
+    if (current) current.request = feedback.hiringBrief;
+    args.state.fullRoleRequestIds.add(role.roleId);
+    args.state.requestChanges.push({
+      after: feedback.hiringBrief,
+      before: role.request,
+      changeSummary: feedback.summary,
+      scope: "role",
+    });
+    markOrgAgentLongTextComplete({
+      key: "role_request",
+      observedValue: feedback.hiringBrief,
+      roleId: role.roleId,
+      state: args.state,
+    });
+  }
+  args.state.updateSummaries.push(feedback.summary);
+  args.state.fallbackReply = feedback.userReply;
+  recordResult(args.state, {
+    callId: args.callId,
+    name: args.name,
+    status: "success",
+    summary: feedback.summary,
+  });
+  return {
+    calibrationId: calibrationRow.id,
+    hiringBriefUpdated,
+    reviewedProfiles: feedback.reviews.map((review) => review.profileId),
+    roleId: role.roleId,
+    roleName: role.name,
+    status: text(applied.status) || "updated",
+    summary: feedback.summary,
+    userReply: feedback.userReply,
   };
 }
 
@@ -1909,6 +2061,25 @@ function meetingDraftConfirmation(
     config: draft.config,
     draftBlocker: draft.draftBlocker,
     meetingStage: draft.meetingStage,
+  };
+}
+
+function meetingSetupGuidance(
+  draft: PreparedMeetingScheduleDraft,
+  workspaceId: string
+) {
+  const calendarSetupRequired =
+    draft.draftBlocker === "calendar_connection_missing" ||
+    draft.draftBlocker === "availability_missing";
+  return {
+    ...(calendarSetupRequired
+      ? { calendarSettingsUrl: buildOrgMeetingAvailabilityUrl(workspaceId) }
+      : {}),
+    ...(draft.draftBlocker === "calendar_connection_missing"
+      ? {
+          calendarRequirementExplanation: GOOGLE_CALENDAR_MEETING_REQUIREMENT,
+        }
+      : {}),
   };
 }
 
@@ -3006,6 +3177,16 @@ async function executeMoveCandidateStage(args: {
       workspaceId: args.workspaceId,
     });
     if (prepared.draft.draftBlocker) {
+      const setupGuidance = meetingSetupGuidance(
+        prepared.draft,
+        args.workspaceId
+      );
+      args.state.fallbackReply = formatPreparedMeetingScheduleConfirmation({
+        calendarSettingsUrl: setupGuidance.calendarSettingsUrl,
+        candidateName,
+        draft: prepared.draft,
+        roleName: role.name,
+      });
       recordResult(args.state, {
         callId: args.callId,
         name: args.name,
@@ -3018,6 +3199,7 @@ async function executeMoveCandidateStage(args: {
         meetingDraft: meetingDraftConfirmation(prepared.draft),
         previousStageLabel,
         roleName: role.name,
+        ...setupGuidance,
         stageLabel: targetStageLabel,
         status: "meeting_setup_required",
       };
@@ -3586,6 +3768,9 @@ async function executePrepareCandidateConnection(args: {
       : null;
   const preparedMeetingDraft = preparedMeeting?.draft ?? null;
   const meetingDraftBlocked = Boolean(preparedMeetingDraft?.draftBlocker);
+  const setupGuidance = preparedMeetingDraft?.draftBlocker
+    ? meetingSetupGuidance(preparedMeetingDraft, args.workspaceId)
+    : null;
   if (!meetingDraftBlocked) {
     stageCandidateDecisionContext({
       actorId: args.actorId,
@@ -3637,6 +3822,7 @@ async function executePrepareCandidateConnection(args: {
       : null,
     meetingScheduleConfirmation: preparedMeetingDraft
       ? formatPreparedMeetingScheduleConfirmation({
+          calendarSettingsUrl: setupGuidance?.calendarSettingsUrl,
           candidateName: text(talent.candidate.name) || "후보자",
           draft: preparedMeetingDraft,
           roleName: current.name,
@@ -3647,6 +3833,7 @@ async function executePrepareCandidateConnection(args: {
     reason: reason.present ? reason.value : null,
     requesterEmail,
     reactivation,
+    ...(setupGuidance ?? {}),
     status: meetingDraftBlocked
       ? "meeting_setup_required"
       : "decision_context_ready",
@@ -3774,7 +3961,12 @@ async function executeCandidateConnectionDecision(args: {
       : null;
   const proposedMeetingDraft = proposedMeeting?.draft ?? null;
   if (proposedMeetingDraft?.draftBlocker) {
+    const setupGuidance = meetingSetupGuidance(
+      proposedMeetingDraft,
+      args.workspaceId
+    );
     args.state.fallbackReply = formatPreparedMeetingScheduleConfirmation({
+      calendarSettingsUrl: setupGuidance.calendarSettingsUrl,
       candidateName: text(talent.candidate.name) || "후보자",
       draft: proposedMeetingDraft,
       roleName: current.name,
@@ -3791,6 +3983,7 @@ async function executeCandidateConnectionDecision(args: {
       decision,
       draftBlocker: proposedMeetingDraft.draftBlocker,
       meetingDraft: meetingDraftConfirmation(proposedMeetingDraft),
+      ...setupGuidance,
       status: "meeting_setup_required",
       userMessage: args.state.fallbackReply,
     };
@@ -3983,7 +4176,12 @@ async function executeCandidateConnectionDecision(args: {
       });
       const currentDraft = preparedCurrentMeeting.draft;
       if (currentDraft.draftBlocker) {
+        const setupGuidance = meetingSetupGuidance(
+          currentDraft,
+          args.workspaceId
+        );
         args.state.fallbackReply = formatPreparedMeetingScheduleConfirmation({
+          calendarSettingsUrl: setupGuidance.calendarSettingsUrl,
           candidateName,
           draft: currentDraft,
           roleName: current.name,
@@ -4000,6 +4198,7 @@ async function executeCandidateConnectionDecision(args: {
           decision,
           draftBlocker: currentDraft.draftBlocker,
           meetingDraft: meetingDraftConfirmation(currentDraft),
+          ...setupGuidance,
           status: "meeting_setup_required",
         };
       }
@@ -4345,6 +4544,19 @@ export async function executeOrgAgentTool(args: {
       referenceAttachments: args.referenceAttachments,
       readAudience: args.audience,
       source: args.source,
+      state: args.state,
+      user: args.user,
+      userMessage: args.userMessage ?? "",
+      workspaceId,
+    });
+  } else if (args.name === "record_role_profile_example_feedback") {
+    return executeRecordRoleProfileExampleFeedback({
+      admin: args.admin,
+      callId: args.callId,
+      companySideContext: args.companySideContext ?? args.userMessage ?? "",
+      currentUserMessageId: args.currentUserMessageId,
+      input,
+      name: args.name,
       state: args.state,
       user: args.user,
       userMessage: args.userMessage ?? "",

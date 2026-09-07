@@ -1,7 +1,7 @@
 # Company Role Profile Calibration: Codex 실행 계약
 
-- 문서 기준: 2026-09-04
-- 상태: 구현 전 실행 계약
+- 문서 기준: 2026-09-07
+- 상태: 로컬 구현과 연결됨, production rollout 전
 - 구현 계획: [Company Role Profile Calibration 구현 계획](./company-role-profile-calibration-implementation-plan-ko.md)
 
 ## 1. 목적
@@ -35,7 +35,7 @@
 
 ## 3. 예약 실행의 범위
 
-Codex Scheduled는 6시간마다 실행한다. 한 번 깨어나면 현재 처리 가능한 calibration을
+Codex Scheduled는 12시간마다 실행한다. 한 번 깨어나면 현재 처리 가능한 calibration을
 하나씩 순차 처리하고, 각 row를 terminal 또는 공개 가능한 상태로 끝낸 뒤 다음 row를
 claim한다.
 
@@ -46,10 +46,11 @@ claim한다.
 - `is_expired=false`
 - `company_roles.information.testOnly`이 true가 아님
 - Role 등록 완료로 처음 active가 됨
-- 같은 Role에 아직 열린 calibration set이 없음
+- 같은 Role에 `failed`, `canceled`, `completed`를 포함한 어떤 상태의 calibration row도 없음
 
 Draft 생성만으로는 대상이 되지 않는다. Role이 active가 되는 transaction에서 애플리케이션
-또는 DB helper가 calibration row를 `queued`로 만든다. Codex가 6시간마다 전체 Role을 읽고
+또는 DB helper가 calibration row를 `queued`로 만든다. 한 Role에는 최초 calibration set 하나만
+자동 생성하며, 과거 row가 terminal 상태여도 다시 만들지 않는다. Codex가 12시간마다 전체 Role을 읽고
 대상을 추측하지 않는다.
 
 Claim 뒤 Role이 중단·종료·삭제·만료됐거나 test-only로 바뀌었으면 프로필을 만들거나
@@ -278,4 +279,3 @@ Hiring Brief에는 `A가 Good이었다` 같은 사건이나 가상 이름을 쓰
 - [ ] 경력·학력을 임의로 고치지 않았고 가정은 별도 표시했다.
 - [ ] 실제 후보자 추천·fit·연락·pipeline 데이터를 변경하지 않았다.
 - [ ] Calibration row와 Slack 전달 결과를 검증했다.
-

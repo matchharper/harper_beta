@@ -3,14 +3,38 @@ import test from "node:test";
 import {
   buildInternalRecommendationProgress,
   formatRecentRecommendedOpportunitiesForPrompt,
+  formatRecommendationTimeForPrompt,
   formatTalentRoleActivitiesForPrompt,
   formatUpcomingHarperMeetingForPrompt,
+  getOpportunityCompanyName,
   shouldHydrateTalentPostingCard,
   type TalentInternalRecommendationProgressEvent,
   type TalentOpportunityHistoryItem,
   type TalentRecentRecommendationPromptItem,
   type TalentRoleActivityItem,
 } from "./talentOpportunity";
+
+test("prefers the workspace company name for internal opportunities", () => {
+  assert.equal(
+    getOpportunityCompanyName({
+      workspace: {
+        company_name: "Workspace Company",
+      },
+    }),
+    "Workspace Company"
+  );
+});
+
+test("does not use a separate alias when the workspace company name is blank", () => {
+  assert.equal(
+    getOpportunityCompanyName({
+      workspace: {
+        company_name: "   ",
+      },
+    }),
+    "Unknown company"
+  );
+});
 
 test("does not hydrate a posting card for an unpresented internal role", () => {
   assert.equal(
@@ -51,6 +75,21 @@ const processStoppedTags = [
     updated_at: "2026-07-11T05:42:24.000Z",
   },
 ];
+
+test("accepted internal progress promises profile sharing and connection without internal timing", () => {
+  const now = new Date().toISOString();
+  const progress = buildInternalRecommendationProgress({
+    item: { ...baseItem, feedbackAt: now, recommendedAt: now },
+    tags: [],
+  });
+
+  assert.equal(progress?.code, "waiting_to_share");
+  assert.equal(
+    progress?.message,
+    "Harper가 회원님의 프로필과 관련 경험을 회사에 공유하고 연결을 돕기 위해 진행 중입니다."
+  );
+  assert.doesNotMatch(progress?.message ?? "", /적절한 타이밍|확인/);
+});
 
 function buildStopEvent(
   stopReason?: "candidate" | "company" | "internal"
@@ -279,6 +318,9 @@ function buildPromptOpportunity(
     feedback: null,
     feedbackReason: null,
     location: null,
+    recommendedAt: new Date(
+      Date.UTC(2026, 8, 1 + index, 1, 35)
+    ).toISOString(),
     recommendationId: `recommendation-${index}`,
     roleId: `role-${index}`,
     savedStage: null,
@@ -312,6 +354,24 @@ test("formats upcoming meetings in compact English KST text", () => {
     ),
     "Upcoming Harper-connected meeting: Sep 7, 14:00 KST"
   );
+});
+
+test("formats recommendation time as readable KST text for LLM context", () => {
+  assert.equal(
+    formatRecommendationTimeForPrompt("2026-09-04T01:35:10.584998+00:00"),
+    "Recommended at: Sep 4, 2026 at 10:35 KST"
+  );
+
+  const text = formatRecentRecommendedOpportunitiesForPrompt([
+    {
+      ...buildPromptOpportunity(0),
+      sourceType: "internal",
+      recommendedAt: "2026-09-04T01:35:10.584998+00:00",
+    },
+  ]);
+  assert.match(text, /User feedback: none/);
+  assert.match(text, /Recommended at: Sep 4, 2026 at 10:35 KST/);
+  assert.doesNotMatch(text, /2026-09-04T01:35/);
 });
 
 test("formats only the latest 10 role activities as compact text", () => {

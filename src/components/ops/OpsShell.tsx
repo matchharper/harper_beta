@@ -4,7 +4,11 @@ import { cx, opsTheme } from "@/components/ops/theme";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useOpsInternalDataExclusionStore } from "@/store/useOpsInternalDataExclusionStore";
-import { INTERNAL_EMAIL_DOMAIN, isInternalEmail } from "@/lib/internalAccess";
+import {
+  INTERNAL_EMAIL_DOMAIN,
+  canViewOpsUtm,
+  isInternalEmail,
+} from "@/lib/internalAccess";
 import {
   EyeOff,
   KeyRound,
@@ -86,6 +90,12 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         href: "/ops/crm",
         label: "CRM",
         matchPrefix: "/ops/crm",
+      },
+      {
+        description: "UTM source와 전환 퍼널 확인",
+        href: "/ops/utm",
+        label: "UTM",
+        matchPrefix: "/ops/utm",
       },
     ],
   },
@@ -215,18 +225,14 @@ function LoginGate({
       <div className={opsTheme.backgroundGlow} />
       <div className="relative flex min-h-svh items-center justify-center px-4">
         <div className="w-full max-w-md rounded-lg bg-bg-default/90 p-8 shadow-[0_28px_80px_color-mix(in_srgb,var(--color-neutral-1000)_10%,transparent)]">
-          <div className="inline-flex rounded-md bg-bg-weak p-3 text-neutral-primary">
-            <Lock className="h-5 w-5" />
+          <div className="inline-flex rounded-md bg-bg-weak p-2 text-neutral-primary">
+            <Lock className="h-4 w-4" />
           </div>
-          <h1 className="mt-4 font-hedvig text-[2.2rem] leading-[0.95] tracking-[-0.07em] text-neutral-primary">
+          <h1 className="mt-4 font-hedvig text-[2rem] text-neutral-primary">
             Harper Ops
           </h1>
           <p className="mt-3 text-sm leading-6 text-neutral-muted">
-            내부 운영 화면입니다. 로그인한 이메일의 도메인이{" "}
-            <span className="font-medium text-neutral-primary">
-              {INTERNAL_EMAIL_DOMAIN}
-            </span>
-            이어야 접근할 수 있습니다.
+            내부 운영 화면입니다.
           </p>
           <BareButton
             type="button"
@@ -434,12 +440,14 @@ function OpsInternalDataExclusionModal({
 
 export default function OpsShell({
   actions,
+  allowUtmViewer = false,
   children,
   compactHeader = false,
   title,
   navActions,
 }: {
   actions?: React.ReactNode;
+  allowUtmViewer?: boolean;
   children: React.ReactNode;
   compactHeader?: boolean;
   description?: React.ReactNode;
@@ -457,6 +465,8 @@ export default function OpsShell({
   const secondaryNavRef = useRef<HTMLElement>(null);
 
   const isAllowedUser = isInternalEmail(user?.email);
+  const isUtmOnlyViewer =
+    allowUtmViewer && !isAllowedUser && canViewOpsUtm(user?.email);
 
   const handleGoogleLogin = useCallback(async () => {
     if (authPending) return;
@@ -534,9 +544,20 @@ export default function OpsShell({
     );
   }
 
-  if (!isAllowedUser) {
+  if (!isAllowedUser && !isUtmOnlyViewer) {
     return (
       <ForbiddenGate email={user.email} onSignOut={() => void signOut()} />
+    );
+  }
+
+  if (isUtmOnlyViewer) {
+    return (
+      <div className="relative min-h-svh overflow-x-clip bg-bg-basement text-neutral-primary">
+        <div className={opsTheme.backgroundGlow} />
+        <main className="relative mx-auto max-w-[1600px] px-4 py-5 lg:px-6">
+          {children}
+        </main>
+      </div>
     );
   }
 

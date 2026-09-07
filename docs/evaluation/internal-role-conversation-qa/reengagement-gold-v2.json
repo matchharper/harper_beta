@@ -1,0 +1,48 @@
+{
+  "goldVersion": "reengagement-messaging-gold-v2",
+  "inputVersion": "reengagement-messaging-v1",
+  "labelReviewDate": "2026-09-06",
+  "provenance": "Product-owner correction after reviewing production message 272539. This changes the candidate-facing explanation, not the frozen input examples.",
+  "criticalRules": {
+    "internalPending": [
+      "Identify the opportunity as one Harper recommended earlier, not as a new recommendation.",
+      "Ask for a clear accept-or-decline decision for the named company and role.",
+      "Invite an optional decline reason so future matching can improve.",
+      "Explain that if accepted, Harper will share or introduce the candidate's profile and relevant experience to the company and help make the connection.",
+      "Use future tense until actual sharing is verified, but never expose the internal human confirmation or handoff as candidate uncertainty.",
+      "Do not say profile sharing or company connection is not immediate or confirmed, and do not say Harper merely needs to check the next step."
+    ],
+    "control": [
+      "Handle only the primary non-internal pending action, or the ordinary no-pending re-engagement topic.",
+      "Do not surface a secondary unanswered internal recommendation."
+    ],
+    "actions": [
+      "When a primary pending action exists, resolve exactly one open_pending_action for that action.",
+      "A recoverable truncated closing marker is not a user-visible failure when the production parser removes the raw block and resolves the action."
+    ]
+  },
+  "caseGroups": {
+    "internalPending": [
+      "incident_repeat_1",
+      "incident_repeat_2",
+      "incident_repeat_3",
+      "production_multi_pending",
+      "production_english_locale",
+      "production_account_3",
+      "production_account_4",
+      "synthetic_internal_no_summary"
+    ],
+    "control": [
+      "meeting_schedule_primary",
+      "company_request_primary",
+      "reevaluation_question_primary",
+      "no_pending_action"
+    ]
+  },
+  "releaseGate": {
+    "internalPendingPass": "8/8",
+    "controlPass": "4/4",
+    "actionResolutionPass": "12/12",
+    "criticalFailureCount": 0
+  }
+}

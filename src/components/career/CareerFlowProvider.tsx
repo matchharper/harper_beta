@@ -40,6 +40,10 @@ import { useCareerTalentInsights } from "@/hooks/career/useCareerTalentInsights"
 import { useCareerTalentPreferences } from "@/hooks/career/useCareerTalentPreferences";
 import { useCareerTalentSettings } from "@/hooks/career/useCareerTalentSettings";
 import { useCareerSession } from "@/hooks/career/useCareerSession";
+import {
+  isGmailCareerHistoryAnalysisRunning,
+  useGmailIntegration,
+} from "@/hooks/career/useGmailIntegration";
 import { getErrorMessage, toUiMessage } from "@/hooks/career/careerHelpers";
 import { useCareerHistoryState } from "@/hooks/career/useCareerHistoryState";
 import { useCareerRuntimeActions } from "@/hooks/career/useCareerRuntimeActions";
@@ -192,6 +196,7 @@ export const CareerFlowProvider = ({
   } = useCareerAuth();
 
   const userId = user?.id ?? null;
+  const gmailIntegration = useGmailIntegration(userId);
   const { fetchWithAuth } = useCareerApi();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeCompanyRoleCount, setActiveCompanyRoleCount] = useState(0);
@@ -235,6 +240,8 @@ export const CareerFlowProvider = ({
   const [profileSourceApplyPending, setProfileSourceApplyPending] =
     useState(false);
   const completedOpportunityRunRefreshRef = useRef<string | null>(null);
+  const gmailAnalysisMessageRefreshRef = useRef<string | null>(null);
+  const gmailAnalysisObservedRunningRef = useRef(false);
   const companyFollowUpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
@@ -305,6 +312,7 @@ export const CareerFlowProvider = ({
     hasOlderMessages,
     loadOlderMessages,
     loadingOlderMessages,
+    invalidateMessageHistory,
     appendLatestMessagesToCache,
     removeMessagesFromCache,
     updateOpportunityRunsInCache,
@@ -317,6 +325,7 @@ export const CareerFlowProvider = ({
   });
   const conversationId =
     sessionConversationId ?? messageConversation?.id ?? null;
+
   const messageHistoryReady =
     Boolean(messageConversation) &&
     (!messageHistoryPending || persistedMessages.length > 0);
@@ -1294,6 +1303,42 @@ export const CareerFlowProvider = ({
       replacePendingInternalOpportunityCallRequests,
     ]
   );
+
+  useEffect(() => {
+    if (isGmailCareerHistoryAnalysisRunning(gmailIntegration.analysisStatus)) {
+      gmailAnalysisObservedRunningRef.current = true;
+      return;
+    }
+    if (gmailIntegration.analysisStatus !== "completed") {
+      gmailAnalysisObservedRunningRef.current = false;
+      return;
+    }
+
+    const refreshKey = gmailIntegration.analysisUpdatedAt;
+    if (
+      !gmailAnalysisObservedRunningRef.current ||
+      !refreshKey ||
+      gmailAnalysisMessageRefreshRef.current === refreshKey
+    ) {
+      return;
+    }
+
+    gmailAnalysisObservedRunningRef.current = false;
+    gmailAnalysisMessageRefreshRef.current = refreshKey;
+    void loadSession({ force: true }).then((payload) => {
+      if (payload) {
+        hydrateSession(payload);
+        return;
+      }
+      void invalidateMessageHistory();
+    });
+  }, [
+    gmailIntegration.analysisStatus,
+    gmailIntegration.analysisUpdatedAt,
+    hydrateSession,
+    invalidateMessageHistory,
+    loadSession,
+  ]);
 
   const handleRunSessionReengagement =
     useCallback(async (): Promise<boolean> => {

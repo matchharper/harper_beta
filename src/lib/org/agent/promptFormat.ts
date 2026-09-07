@@ -832,6 +832,10 @@ function formatCandidateStageMoveResult(result: Record<string, any>) {
   const meetingStage = asRecord(meetingDraft.meetingStage);
   const availability = asRecord(result.organizerAvailability);
   const delivery = asRecord(result.delivery);
+  const calendarSettingsUrl = formatPromptCell(
+    result.calendarSettingsUrl,
+    2_000
+  );
   const candidateName = formatPromptCell(result.candidateName, 160);
   const from = formatPromptCell(result.previousStageLabel, 120);
   const to = formatPromptCell(result.stageLabel, 120);
@@ -841,9 +845,19 @@ function formatCandidateStageMoveResult(result: Record<string, any>) {
       `${candidateName} remains in the ${from} stage of the ${roleName} hiring process. The intended next stage is ${to}.`,
       "No candidate message or meeting request has been created, and the candidate has not been moved.",
     ];
-    if (meetingDraft.draftBlocker === "availability_missing") {
+    if (meetingDraft.draftBlocker === "calendar_connection_missing") {
       facts.push(
-        "The next required input is the company organizer's reusable working availability. Ask the Slack user to describe the days, time range, and timezone if it is not already clear from the workspace.",
+        "The next required action is for the company organizer to connect or reconnect Google Calendar.",
+        `Explain this verified reason in the user's language: ${formatPromptCell(result.calendarRequirementExplanation, 1_000)}`
+      );
+      if (!meetingDraft.availabilityVersion) {
+        facts.push(
+          "The organizer's reusable availability is also missing. Ask them to set it on the same Calendar settings page so the meeting can continue without another setup round."
+        );
+      }
+    } else if (meetingDraft.draftBlocker === "availability_missing") {
+      facts.push(
+        "The next required input is the company organizer's reusable working availability. Ask the company user to describe the days, time range, and timezone if it is not already clear from the workspace, or to set it on the verified Calendar settings page.",
         "After the organizer supplies it, save that availability and continue this already-authorized candidate meeting request in the same tool loop. Move the candidate to the intended stage and arrange the time-selection invitation without asking for another approval."
       );
     } else if (meetingDraft.draftBlocker === "organizer_email_missing") {
@@ -853,6 +867,16 @@ function formatCandidateStageMoveResult(result: Record<string, any>) {
     } else {
       facts.push(
         "The next required input is reusable guidance for this process stage: what the meeting is for, how long it lasts, and any context that would help the candidate."
+      );
+    }
+    if (
+      ["calendar_connection_missing", "availability_missing"].includes(
+        String(meetingDraft.draftBlocker ?? "")
+      ) &&
+      calendarSettingsUrl !== EMPTY_CELL
+    ) {
+      facts.push(
+        `The verified Calendar settings page is ${calendarSettingsUrl}. Include this link as the concrete setup action in the response.`
       );
     }
     if (meetingConfig.meetingPurpose || meetingConfig.durationMinutes) {
@@ -1012,14 +1036,24 @@ function formatCandidateConnectionPreparationResult(
   const meetingDraft = asRecord(result.meetingDraft);
   const meetingConfig = asRecord(meetingDraft.config);
   const meetingStage = asRecord(meetingDraft.meetingStage);
+  const calendarSettingsUrl = formatPromptCell(
+    result.calendarSettingsUrl,
+    2_000
+  );
+  const meetingSetupState =
+    meetingDraft.draftBlocker === "meeting_stage_missing"
+      ? "user_facing_state=Harper can coordinate this meeting, but first needs this process stage's topic, duration, and any candidate-facing context. Nothing has been sent to the candidate."
+      : meetingDraft.draftBlocker === "organizer_email_missing"
+        ? "user_facing_state=Harper can coordinate this meeting, but first needs a verified company email address for the organizer. Nothing has been sent to the candidate."
+        : meetingDraft.draftBlocker === "calendar_connection_missing"
+          ? `user_facing_state=Harper can coordinate this meeting, but the organizer must first connect Google Calendar.${meetingDraft.availabilityVersion ? "" : " The organizer's reusable availability must also be set on the same page."} Nothing has been sent to the candidate.`
+          : "user_facing_state=Harper can coordinate this meeting, but the organizer needs to share availability first. Nothing has been sent to the candidate.";
   return [
     ...(result.connectionMethod === "schedule_interview"
       ? [
           "response_mode=meeting_coordinator_narrative",
           result.status === "meeting_setup_required"
-            ? meetingDraft.draftBlocker === "meeting_stage_missing"
-              ? "user_facing_state=Harper can coordinate this meeting, but first needs this process stage's topic, duration, and any candidate-facing context. Nothing has been sent to the candidate."
-              : "user_facing_state=Harper can coordinate this meeting, but the organizer needs to share availability first. Nothing has been sent to the candidate."
+            ? meetingSetupState
             : "user_facing_state=This is a proposal awaiting company confirmation. The candidate is not connected by this result, the meeting details are not saved yet, and no email has been sent.",
         ]
       : []),
@@ -1077,6 +1111,18 @@ function formatCandidateConnectionPreparationResult(
       result.meetingScheduleConfirmation,
       4_000
     )}`,
+    ...(result.status === "meeting_setup_required" &&
+    ["calendar_connection_missing", "availability_missing"].includes(
+      String(meetingDraft.draftBlocker ?? "")
+    )
+      ? [
+          `calendar_settings_url=${calendarSettingsUrl}`,
+          meetingDraft.draftBlocker === "calendar_connection_missing"
+            ? `calendar_requirement=${formatPromptCell(result.calendarRequirementExplanation, 1_000)}`
+            : "calendar_requirement=-",
+          "setup_instruction=Include the verified Calendar settings link as the concrete next action. When calendar_requirement is present, explain that reason naturally rather than only saying the connection is required.",
+        ]
+      : []),
     ...(result.connectionMethod === "schedule_interview"
       ? [
           "writing_instruction=Preserve meeting_confirmation's conversational paragraph order and factual state. This preparation result is a preview, including after the user revises details: use intended language such as '~로 준비할게요' or '~로 바꿔 준비하면 돼요', never completed language such as '업데이트했어요' or '반영했어요'. You may adapt the opening to the visible conversation, but do not turn it into a field list. Omit the automatic meeting title unless the user explicitly asked about or changed it.",
@@ -1349,6 +1395,17 @@ export function serializeOrgAgentToolResult(
       "instruction=Explain the updated decision boundary concisely. Do not reproduce profile biographies or the full Hiring Brief. Ask follow_up_question only when it is not empty.",
     ].join("\n");
   }
+  if (name === "record_role_profile_example_feedback") {
+    return [
+      `status=${formatPromptCell(result.status, 30)}`,
+      `role_name=${formatPromptCell(result.roleName, 200)}`,
+      `reviewed_profiles=${formatPromptCell(result.reviewedProfiles, 100)}`,
+      `hiring_brief_updated=${Boolean(result.hiringBriefUpdated)}`,
+      `summary=${formatPromptCell(result.summary, 600)}`,
+      `user_reply=${formatPromptCell(result.userReply, 1_500)}`,
+      "instruction=Use user_reply as the factual basis. State which examples were recorded and whether their stated reasons changed the Hiring Brief. Do not reproduce the full profiles or Hiring Brief.",
+    ].join("\n");
+  }
   if (name === "get_more_data") {
     return serializeOrgAgentMoreData(value as OrgAgentMoreDataResult);
   }
@@ -1441,6 +1498,7 @@ function orgAgentToolRecoveryInstruction(args: {
     case "manage_role_pipeline_stages":
     case "manage_interview_availability":
     case "calibrate_role_hiring_brief":
+    case "record_role_profile_example_feedback":
       return `${retryPrefix} For an execution failure, read the relevant current company or Role state before another write. Then continue any still-authorized independent part of the request.`;
     case "get_talents":
     case "read_talent":

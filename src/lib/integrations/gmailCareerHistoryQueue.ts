@@ -4,6 +4,11 @@ import { send } from "@vercel/queue";
 import { after } from "next/server";
 import { analyzeGmailCareerHistory } from "@/lib/integrations/gmailCareerHistory";
 import { parseGmailCareerHistoryQueueMessage } from "@/lib/integrations/gmailCareerHistoryQueueMessage";
+import { createGmailCareerHistoryFollowUpReply } from "@/lib/integrations/gmailCareerHistoryReply";
+import {
+  createGmailCareerHistoryRun,
+  updateGmailCareerHistoryRun,
+} from "@/lib/integrations/gmailCareerHistoryRun";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/server";
 
 export const GMAIL_CAREER_HISTORY_QUEUE_TOPIC =
@@ -19,11 +24,15 @@ function cleanQueueKey(value: unknown, maxLength: number) {
 export async function publishGmailCareerHistoryAnalysis(args: {
   idempotencyKeySuffix?: string;
   integrationUpdatedAt: string;
+  runId: number;
+  runStartedAt: string;
   talentId: string;
 }) {
   const message = parseGmailCareerHistoryQueueMessage({
     expectedIntegrationUpdatedAt: args.integrationUpdatedAt,
     kind: "analyze_gmail_career_history",
+    runId: args.runId,
+    runStartedAt: args.runStartedAt,
     talentId: args.talentId,
     version: 1,
   });
@@ -46,24 +55,71 @@ export async function scheduleGmailCareerHistoryAnalysis(args: {
   integrationUpdatedAt: string;
   talentId: string;
 }) {
+  const run = await createGmailCareerHistoryRun({
+    admin: args.admin,
+    talentId: args.talentId,
+  });
   if (process.env.NODE_ENV === "development") {
     after(async () => {
+      await updateGmailCareerHistoryRun({
+        admin: args.admin,
+        runId: run.id,
+        status: "running",
+        talentId: args.talentId,
+      });
       try {
-        await analyzeGmailCareerHistory({
+        const result = await analyzeGmailCareerHistory({
           admin: args.admin,
           expectedIntegrationUpdatedAt: args.integrationUpdatedAt,
           talentId: args.talentId,
         });
+        if (result.status === "completed") {
+          await createGmailCareerHistoryFollowUpReply({
+            admin: args.admin,
+            entries: result.entries,
+            runStartedAt: run.createdAt,
+            userId: args.talentId,
+          });
+        }
+        await updateGmailCareerHistoryRun({
+          admin: args.admin,
+          reason: result.status === "skipped" ? result.reason : undefined,
+          runId: run.id,
+          status: result.status === "completed" ? "completed" : "failed",
+          talentId: args.talentId,
+        });
       } catch (error) {
+        await updateGmailCareerHistoryRun({
+          admin: args.admin,
+          reason: "analysis_failed",
+          runId: run.id,
+          status: "failed",
+          talentId: args.talentId,
+        });
         console.error("[gmail-career-history/local] analysis failed", {
           message:
             error instanceof Error ? error.message : "Unknown analysis error",
         });
       }
     });
-    return { mode: "next_after" as const };
+    return { mode: "next_after" as const, startedAt: run.createdAt };
   }
 
-  await publishGmailCareerHistoryAnalysis(args);
-  return { mode: "vercel_queue" as const };
+  try {
+    await publishGmailCareerHistoryAnalysis({
+      ...args,
+      runId: run.id,
+      runStartedAt: run.createdAt,
+    });
+  } catch (error) {
+    await updateGmailCareerHistoryRun({
+      admin: args.admin,
+      reason: "enqueue_failed",
+      runId: run.id,
+      status: "failed",
+      talentId: args.talentId,
+    });
+    throw error;
+  }
+  return { mode: "vercel_queue" as const, startedAt: run.createdAt };
 }

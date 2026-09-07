@@ -230,9 +230,11 @@ Shared component catalog:
 | Existing card action migration | `InteractiveCard`, `ChoiceCard` |
 | Text | `Text` |
 | Labels/status chips | `Badge` |
+| Calibration 평가 상태 (목록·상세) | `OrgCalibrationReviewBadge` from `src/components/org/role-overview/OrgCalibrationReviewBadge.tsx` |
 | Form fields | `Input`, `Textarea`, `Select`, `Checkbox`, `Switch`, `Radio` |
 | Menu | `ActionDropdown`, `DropdownMenu` |
 | Page section copy | `SectionHeader`, `SectionTitle`, `SectionDescription` |
+| Editable document preview and right-side editor | `DocumentEditor` from `src/components/ui/document-editor.tsx` |
 | Interview availability calendar, split panel, and time option | `MeetingAvailabilityCalendar`, `MeetingAvailabilitySplitLayout`, `MeetingAvailabilityTimeButton` from `src/components/meetings/MeetingAvailabilityLayout.tsx` |
 | `/career` modal, confirmation, or bottom sheet | `TalentCareerModal` from `src/components/common/TalentCareerModal.tsx` |
 | Generic Radix dialog composition | `Dialog`, `DialogContent`, `DialogTitle`, and `DialogDescription` from `src/components/ui/dialog.tsx` |

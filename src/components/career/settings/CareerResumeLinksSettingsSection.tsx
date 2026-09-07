@@ -8,7 +8,7 @@ import ProfileSourceApplyConfirmModal, {
 import {
   CareerAddDocumentModal,
   CareerDocumentDeleteModal,
-  CareerGmailHistoryEditModal,
+  CareerGmailHistoryEditPanel,
   CareerDocumentRenameModal,
   type CareerDocumentUploadResult,
   CareerDocumentVisibilityModal,
@@ -210,7 +210,7 @@ const CareerResumeLinksSettingsSection = () => {
         document={documentPendingRename}
         onClose={() => setDocumentPendingRenameId(null)}
       />
-      <CareerGmailHistoryEditModal
+      <CareerGmailHistoryEditPanel
         document={documentPendingEdit}
         onClose={() => setDocumentPendingEditId(null)}
       />

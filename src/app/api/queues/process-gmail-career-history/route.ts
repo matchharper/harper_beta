@@ -1,6 +1,8 @@
 import { handleCallback, type MessageMetadata } from "@vercel/queue";
 import { analyzeGmailCareerHistory } from "@/lib/integrations/gmailCareerHistory";
 import { parseGmailCareerHistoryQueueMessage } from "@/lib/integrations/gmailCareerHistoryQueueMessage";
+import { createGmailCareerHistoryFollowUpReply } from "@/lib/integrations/gmailCareerHistoryReply";
+import { updateGmailCareerHistoryRun } from "@/lib/integrations/gmailCareerHistoryRun";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 
 export const runtime = "nodejs";
@@ -25,14 +27,59 @@ async function processQueueMessage(
     );
   }
   if (metadata.deliveryCount > MAX_DELIVERIES) {
+    await updateGmailCareerHistoryRun({
+      admin: getTalentSupabaseAdmin(),
+      deliveryCount: metadata.deliveryCount,
+      reason: "retry_budget_exhausted",
+      runId: message.runId,
+      status: "failed",
+      talentId: message.talentId,
+    });
     throw new GmailCareerHistoryPermanentError(
       "Gmail career history retry budget exhausted"
     );
   }
 
-  const result = await analyzeGmailCareerHistory({
-    admin: getTalentSupabaseAdmin(),
-    expectedIntegrationUpdatedAt: message.expectedIntegrationUpdatedAt,
+  const admin = getTalentSupabaseAdmin();
+  await updateGmailCareerHistoryRun({
+    admin,
+    deliveryCount: metadata.deliveryCount,
+    runId: message.runId,
+    status: "running",
+    talentId: message.talentId,
+  });
+  let result;
+  try {
+    result = await analyzeGmailCareerHistory({
+      admin,
+      expectedIntegrationUpdatedAt: message.expectedIntegrationUpdatedAt,
+      talentId: message.talentId,
+    });
+    if (result.status === "completed") {
+      await createGmailCareerHistoryFollowUpReply({
+        admin,
+        entries: result.entries,
+        runStartedAt: message.runStartedAt ?? result.updatedAt,
+        userId: message.talentId,
+      });
+    }
+  } catch (error) {
+    await updateGmailCareerHistoryRun({
+      admin,
+      deliveryCount: metadata.deliveryCount,
+      reason: "analysis_failed",
+      runId: message.runId,
+      status: metadata.deliveryCount >= MAX_DELIVERIES ? "failed" : "retrying",
+      talentId: message.talentId,
+    });
+    throw error;
+  }
+  await updateGmailCareerHistoryRun({
+    admin,
+    deliveryCount: metadata.deliveryCount,
+    reason: result.status === "skipped" ? result.reason : undefined,
+    runId: message.runId,
+    status: result.status === "completed" ? "completed" : "failed",
     talentId: message.talentId,
   });
   console.info("[gmail-career-history/queue] finished", {

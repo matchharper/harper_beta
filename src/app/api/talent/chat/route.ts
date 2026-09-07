@@ -115,7 +115,7 @@ import {
 } from "@/lib/textSanitization";
 import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
 import { OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE } from "@/lib/officialJobs";
-import { isOfficialJobFollowUpRoleAvailable } from "@/lib/officialJobs/followUpAvailability";
+import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
 import { normalizeCareerPendingActionReference } from "@/lib/career/pendingActions";
 import {
   extractRecommendJobPostingsReceipt,
@@ -400,12 +400,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-function getJsonStringField(value: unknown, key: string) {
-  if (!isRecord(value)) return null;
-  const field = value[key];
-  return typeof field === "string" && field.trim() ? field.trim() : null;
-}
-
 function extractRecommendationPostingRoleIds(result: unknown) {
   if (!isRecord(result)) return [];
 
@@ -418,154 +412,6 @@ function extractRecommendationPostingRoleIds(result: unknown) {
       : [];
 
   return normalizePostingRoleIds([...roleIdsFromResult, ...roleIdsFromDraft]);
-}
-
-async function countPostOnboardingUserChatTurns(args: {
-  admin: ReturnType<typeof getTalentSupabaseAdmin>;
-  conversationId: string;
-  onboardingCompletedAt: string;
-  userId: string;
-}) {
-  const { count, error } = await args.admin
-    .from("talent_messages")
-    .select("id", { count: "exact", head: true })
-    .eq("conversation_id", args.conversationId)
-    .eq("user_id", args.userId)
-    .eq("role", "user")
-    .in("message_type", [
-      "chat",
-      "call_transcript",
-      TALENT_MESSAGE_TYPE_OPEN_POSITION_RECOMMENDATION_REQUEST,
-    ])
-    .gte("created_at", args.onboardingCompletedAt);
-
-  if (error) {
-    throw new Error(
-      error.message ?? "Failed to count post-onboarding user chat turns"
-    );
-  }
-
-  return count ?? 0;
-}
-
-async function fetchOfficialJobSignupSourceContext(args: {
-  admin: ReturnType<typeof getTalentSupabaseAdmin>;
-  onboardingCompletedAt: string;
-  userId: string;
-}) {
-  const { data: event, error: eventError } = await args.admin
-    .from("official_job_events")
-    .select("job_slug, metadata")
-    .eq("user_id", args.userId)
-    .eq("event_type", "job_apply_click")
-    .not("job_slug", "is", null)
-    .lte("created_at", args.onboardingCompletedAt)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (eventError) {
-    console.warn("[TalentChat] Failed to load official job signup source", {
-      error: eventError.message,
-      userId: args.userId,
-    });
-    return null;
-  }
-
-  const slug = String(event?.job_slug ?? "").trim();
-  if (!slug) return null;
-
-  const { data: job, error: jobError } = await args.admin
-    .from("official_jobs")
-    .select("company_name,role_title,role_id,slug")
-    .eq("slug", slug)
-    .maybeSingle();
-
-  if (jobError) {
-    console.warn("[TalentChat] Failed to load official job source detail", {
-      error: jobError.message,
-      slug,
-      userId: args.userId,
-    });
-  }
-
-  if (job?.role_id) {
-    const { data: role, error: roleError } = await args.admin
-      .from("company_roles")
-      .select("status,is_expired,expires_at")
-      .eq("role_id", job.role_id)
-      .maybeSingle();
-
-    if (roleError) {
-      console.warn(
-        "[TalentChat] Failed to verify official job role availability",
-        {
-          error: roleError.message,
-          roleId: job.role_id,
-          slug,
-          userId: args.userId,
-        }
-      );
-      return null;
-    }
-
-    if (
-      !role ||
-      !isOfficialJobFollowUpRoleAvailable({
-        expiresAt: role.expires_at,
-        isExpired: role.is_expired,
-        status: role.status,
-      })
-    ) {
-      return null;
-    }
-  }
-
-  return {
-    companyName:
-      job?.company_name ??
-      getJsonStringField(event?.metadata, "companyName") ??
-      null,
-    roleId: job?.role_id ?? null,
-    roleTitle:
-      job?.role_title ??
-      getJsonStringField(event?.metadata, "roleTitle") ??
-      null,
-    slug,
-  };
-}
-
-function buildOfficialJobSignupSourcePrompt(args: {
-  companyName: string | null;
-  roleId: string | null;
-  roleTitle: string | null;
-  slug: string;
-}) {
-  const roleLabel = [args.roleTitle, args.companyName]
-    .filter((value): value is string => Boolean(value))
-    .join(" @ ");
-  const sourceLabel = roleLabel || `/jobs/${args.slug}`;
-
-  const mappedRoleInstruction = args.roleId
-    ? [
-      `This official job is already mapped to the verified internal roleId ${args.roleId}.`,
-      `If the user says yes or clearly shows interest, call internal_role_priority_review with action=register and roleId=${args.roleId} directly. Do not call get_internal_roles for this opportunity.`,
-    ]
-    : [
-      "If the user says yes or clearly shows interest, resolve the role with get_internal_roles and then call internal_role_priority_review using action=register.",
-    ];
-
-  return [
-    "## Official jobs signup source follow-up",
-    `The user signed up from this Harper-internal connected opportunity: ${sourceLabel}.`,
-    "",
-    "If natural, briefly explain that Harper can help with connected opportunities when there is strong fit, then ask once whether the user is interested in this specific opportunity.",
-    `Example: "${sourceLabel} 기회에 연결을 도와드릴 수 있어요. 이 포지션에 관심 있으신가요? 그렇다고하면 우선적으로 검토되실 수 있게 할게요."`,
-    "If recent conversation already asked about this opportunity, do not ask again.",
-    "",
-    ...mappedRoleInstruction,
-    "The question above is optional.",
-  ].join("\n");
 }
 
 async function persistThinkingLogsForMessage(args: {
@@ -809,6 +655,7 @@ export async function POST(req: NextRequest) {
       currentInsights,
       onboardingCompletionEvent,
       officialJobSignupIntentEvent,
+      postOnboardingContext,
       pendingOpportunityFeedbackContext,
       recentActivitySummaries,
       recentRecommendedOpportunities,
@@ -824,9 +671,17 @@ export async function POST(req: NextRequest) {
       }),
       fetchLatestTalentActivityEvent({
         admin,
+        conversationId,
         eventType: OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE,
         userId: user.id,
       }),
+      talentSetting?.is_onboarding_done
+        ? fetchCareerPostOnboardingContext({
+            admin,
+            conversationId,
+            userId: user.id,
+          })
+        : Promise.resolve(null),
       fetchPendingOpportunityFeedbackPromptContext({
         admin,
         conversationId,
@@ -1017,30 +872,6 @@ export async function POST(req: NextRequest) {
     });
 
     const userTurnCount = await countUserChatTurns({ admin, conversationId });
-    const postOnboardingUserTurnCount =
-      requestChannel === "chat" &&
-        talentSetting?.is_onboarding_done &&
-        onboardingCompletionEvent?.created_at
-        ? await countPostOnboardingUserChatTurns({
-          admin,
-          conversationId,
-          onboardingCompletedAt: onboardingCompletionEvent.created_at,
-          userId: user.id,
-        })
-        : null;
-    const officialJobSignupSourceContext =
-      postOnboardingUserTurnCount !== null &&
-        postOnboardingUserTurnCount <= 5 &&
-        onboardingCompletionEvent?.created_at
-        ? await fetchOfficialJobSignupSourceContext({
-          admin,
-          onboardingCompletedAt: onboardingCompletionEvent.created_at,
-          userId: user.id,
-        })
-        : null;
-    const officialJobSignupSourcePrompt = officialJobSignupSourceContext
-      ? buildOfficialJobSignupSourcePrompt(officialJobSignupSourceContext)
-      : undefined;
     const currentProgressStep = Math.min(
       userTurnCount,
       TALENT_INTERVIEW_FINAL_STEP
@@ -1164,7 +995,6 @@ export async function POST(req: NextRequest) {
     const uploadedDocumentRuntimeInstruction =
       buildFirstTurnUploadedDocumentContext(uploadedDocuments);
     const runtimeInstruction = [
-      officialJobSignupSourcePrompt,
       selectedPendingActionRuntimeInstruction,
       uploadedDocumentRuntimeInstruction,
     ]
@@ -1189,6 +1019,7 @@ export async function POST(req: NextRequest) {
           : officialJobSignupIntentEvent?.summary,
         opportunityStatus,
         pendingOpportunityFeedbackContext,
+        postOnboardingContext,
         profile,
         conversationMode: conversationStarter?.id ?? "default",
         recentActivitySummaries,

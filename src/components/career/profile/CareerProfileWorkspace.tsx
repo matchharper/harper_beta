@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
 import { Loader2 } from "lucide-react";
 import CareerInPageTabs from "../CareerInPageTabs";
@@ -82,10 +82,30 @@ const CareerProfileWorkspace = () => {
     [hasSavedResume, t]
   );
 
-  const activeSection: ProfileSectionId = useMemo(() => {
-    const raw = router.query.profileSection;
-    return typeof raw === "string" && isProfileSectionId(raw) ? raw : "profile";
-  }, [router.query.profileSection]);
+  const requestedProfileSection =
+    typeof router.query.profileSection === "string"
+      ? router.query.profileSection
+      : null;
+
+  useEffect(() => {
+    if (!router.isReady || requestedProfileSection !== "connections") return;
+
+    void router.replace(
+      {
+        pathname: router.pathname,
+        query: { ...router.query, profileSection: "links" },
+      },
+      undefined,
+      { shallow: true, scroll: false }
+    );
+  }, [requestedProfileSection, router]);
+
+  const activeSection: ProfileSectionId =
+    requestedProfileSection === "connections"
+      ? "links"
+      : isProfileSectionId(requestedProfileSection)
+        ? requestedProfileSection
+        : "profile";
 
   const handleChangeSection = useCallback(
     (next: ProfileSectionId) => {

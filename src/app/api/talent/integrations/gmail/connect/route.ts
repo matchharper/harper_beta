@@ -18,6 +18,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    console.info("[GmailConnect] connect requested", {
+      talentId: user.id,
+    });
+
     stage = "load_server_config";
     const admin = getTalentSupabaseAdmin();
     stage = "list_accounts";
@@ -45,8 +49,7 @@ export async function POST(req: NextRequest) {
 
     const callbackUrl = new URL("/career/profile", req.nextUrl.origin);
     callbackUrl.searchParams.set("gmailConnect", "callback");
-    callbackUrl.searchParams.set("panel", "settings");
-    callbackUrl.searchParams.set("settingsTab", "resume");
+    callbackUrl.searchParams.set("profileSection", "links");
 
     stage = "create_connect_link";
     const link = await createComposioGmailConnectLink({

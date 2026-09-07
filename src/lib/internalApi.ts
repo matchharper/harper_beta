@@ -3,6 +3,7 @@ import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import {
   INTERNAL_EMAIL_DOMAIN,
+  canViewOpsUtm,
   isInternalEmail,
 } from "@/lib/internalAccess";
 import { getRequestUser } from "@/lib/supabaseServer";
@@ -28,6 +29,19 @@ export async function requireInternalApiUser(req: NextRequest): Promise<User> {
       403,
       `Forbidden: ${INTERNAL_EMAIL_DOMAIN} email required`
     );
+  }
+
+  return user;
+}
+
+export async function requireOpsUtmApiUser(req: NextRequest): Promise<User> {
+  const user = await getRequestUser(req);
+  if (!user) {
+    throw new InternalApiError(401, "Unauthorized");
+  }
+
+  if (!canViewOpsUtm(user.email)) {
+    throw new InternalApiError(403, "Forbidden: UTM viewer access required");
   }
 
   return user;

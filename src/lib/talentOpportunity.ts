@@ -45,7 +45,6 @@ type RawRecommendationRow = {
         logo: string | null;
       } | null;
       company_name: string;
-      published_name: string | null;
       homepage_url: string | null;
       linkedin_url: string | null;
       logo_url: string | null;
@@ -70,6 +69,7 @@ type RawRecommendationRow = {
 };
 
 type RawRecentRecommendationPromptRow = {
+  created_at: string;
   feedback: string | null;
   feedback_reason: string | null;
   id: string;
@@ -83,7 +83,6 @@ type RawRecentRecommendationPromptRow = {
     work_mode: string | null;
     company_workspace: {
       company_name: string;
-      published_name: string | null;
       company_db: {
         employee_count_range: Json | null;
       } | null;
@@ -133,7 +132,6 @@ type RawPostingRoleRow = {
       logo: string | null;
     } | null;
     company_name: string;
-    published_name: string | null;
     homepage_url: string | null;
     linkedin_url: string | null;
     logo_url: string | null;
@@ -188,7 +186,6 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
     source_job_id,
     company_workspace:company_workspace!inner (
       company_name,
-      published_name,
       company_description,
       company_db_id,
       homepage_url,
@@ -212,6 +209,7 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
 
 const TALENT_RECENT_RECOMMENDATION_PROMPT_SELECT = `
   id,
+  created_at,
   feedback,
   feedback_reason,
   role_id,
@@ -224,7 +222,6 @@ const TALENT_RECENT_RECOMMENDATION_PROMPT_SELECT = `
     source_type,
     company_workspace:company_workspace!inner (
       company_name,
-      published_name,
       company_db:company_db (
         employee_count_range
       )
@@ -250,7 +247,6 @@ const TALENT_POSTING_ROLE_SELECT = `
   source_job_id,
   company_workspace:company_workspace!inner (
     company_name,
-    published_name,
     company_description,
     company_db_id,
     homepage_url,
@@ -440,6 +436,7 @@ export type TalentRecentRecommendationPromptItem = {
   feedback: TalentOpportunityFeedback | null;
   feedbackReason: string | null;
   location: string | null;
+  recommendedAt: string;
   recommendationId: string;
   roleId: string | null;
   savedStage: TalentOpportunitySavedStage | null;
@@ -578,7 +575,8 @@ const INTERNAL_RECOMMENDATION_PROGRESS_MESSAGES: Record<
   rejected_by_talent:
     "현재 기록에는 회원님이 이 연결 제안을 거절한 것으로 표시되어 있습니다. 수락하신 것이 맞다면 기록이 서로 일치하지 않아 확인이 필요합니다.",
   stopped_by_candidate: "요청하신 대로 이 포지션의 진행을 종료했습니다.",
-  waiting_to_share: "적절한 타이밍에 회사에게 전달하기 위해 대기중입니다.",
+  waiting_to_share:
+    "Harper가 회원님의 프로필과 관련 경험을 회사에 공유하고 연결을 돕기 위해 진행 중입니다.",
 };
 
 const INTERNAL_ENDED_ROLE_PROGRESS_MESSAGE_AFTER_ACCEPTANCE =
@@ -806,16 +804,13 @@ function normalizeOpportunityPromptText(value: unknown, fallback: string) {
   return text || fallback;
 }
 
-function getCandidateVisibleOpportunityCompanyName(args: {
-  sourceType: TalentOpportunitySourceType;
-  workspace: { company_name: string; published_name?: string | null };
+export function getOpportunityCompanyName(args: {
+  workspace: { company_name: string };
 }) {
-  return args.sourceType === "internal"
-    ? normalizeOpportunityPromptText(
-        args.workspace.published_name,
-        "Undisclosed internal company"
-      )
-    : normalizeOpportunityPromptText(args.workspace.company_name, "Unknown company");
+  return normalizeOpportunityPromptText(
+    args.workspace.company_name,
+    "Unknown company"
+  );
 }
 
 function normalizePromptTextOrNull(value: unknown) {
@@ -865,10 +860,7 @@ function mapRecentRecommendationPromptRow(
   const sourceType = normalizeSourceType(role.source_type);
 
   return {
-    companyName: getCandidateVisibleOpportunityCompanyName({
-      sourceType,
-      workspace,
-    }),
+    companyName: getOpportunityCompanyName({ workspace }),
     companySize: compactEmployeeCountRangeForPrompt(
       workspace.company_db?.employee_count_range ?? null
     ),
@@ -876,6 +868,7 @@ function mapRecentRecommendationPromptRow(
     feedback: normalizeFeedback(row.feedback),
     feedbackReason: normalizePromptTextOrNull(row.feedback_reason),
     location: normalizePromptTextOrNull(role.location_text),
+    recommendedAt: row.created_at,
     recommendationId,
     roleId: normalizePromptTextOrNull(row.role_id),
     savedStage: normalizeSavedStage(row.saved_stage),
@@ -938,6 +931,14 @@ export function formatUpcomingHarperMeetingForPrompt(
     currentYear && parts.year !== currentYear ? `, ${parts.year}` : ""
   }, ${parts.hour}:${parts.minute} KST`;
   return `Upcoming Harper-connected meeting: ${date}`;
+}
+
+export function formatRecommendationTimeForPrompt(
+  value: string | null | undefined
+) {
+  const parts = getPromptKstDateTimeParts(value);
+  if (!parts) return "";
+  return `Recommended at: ${parts.month} ${parts.day}, ${parts.year} at ${parts.hour}:${parts.minute} KST`;
 }
 
 function compactTalentRoleActivityContent(
@@ -1034,9 +1035,13 @@ export function formatRecentRecommendedOpportunitiesForPrompt(
       const upcomingMeeting = formatUpcomingHarperMeetingForPrompt(
         item.upcomingMeetingAt
       );
+      const recommendedAt = formatRecommendationTimeForPrompt(
+        item.recommendedAt
+      );
 
       return [
         `(${sourceType}) ${item.title} at ${item.companyName} - ${roleIdPrefix}User feedback: ${feedback}, saved stage: ${savedStage}`,
+        recommendedAt,
         ...details,
         upcomingMeeting,
       ]
@@ -1622,10 +1627,7 @@ function mapRecommendationRow(
       companyDbLogoUrl: workspace.company_db?.logo,
       workspaceLogoUrl: workspace.logo_url,
     }),
-    companyName: getCandidateVisibleOpportunityCompanyName({
-      sourceType,
-      workspace,
-    }),
+    companyName: getOpportunityCompanyName({ workspace }),
     description: role.description ?? null,
     employmentTypes: Array.isArray(role.type) ? role.type : [],
     externalJdUrl,
@@ -1738,10 +1740,7 @@ function mapPostingRoleRow(
       companyDbLogoUrl: workspace.company_db?.logo,
       workspaceLogoUrl: workspace.logo_url,
     }),
-    companyName: getCandidateVisibleOpportunityCompanyName({
-      sourceType,
-      workspace,
-    }),
+    companyName: getOpportunityCompanyName({ workspace }),
     description: row.description ?? null,
     employmentTypes: Array.isArray(row.type) ? row.type : [],
     externalJdUrl,

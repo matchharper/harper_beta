@@ -117,6 +117,7 @@ import {
   GMAIL_CAREER_HISTORY_ORIGIN_ID,
   GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
 } from "@/lib/integrations/gmailCareerHistoryCore";
+import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
 
 type TalentMessageResponse = ReturnType<typeof toTalentMessageResponse>;
 
@@ -453,6 +454,7 @@ export async function runCareerChatTurn(
     talentSetting,
     onboardingCompletionEvent,
     officialJobSignupIntentEvent,
+    postOnboardingContext,
     fetchedPendingOpportunityFeedbackContext,
     recentActivitySummaries,
     recentRecommendedOpportunities,
@@ -471,7 +473,13 @@ export async function runCareerChatTurn(
     }),
     fetchLatestTalentActivityEvent({
       admin,
+      conversationId,
       eventType: OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE,
+      userId,
+    }),
+    fetchCareerPostOnboardingContext({
+      admin,
+      conversationId,
       userId,
     }),
     explicitPendingOpportunityFeedbackContext === undefined
@@ -748,6 +756,7 @@ export async function runCareerChatTurn(
       opportunityStatus,
       pendingOpportunityFeedbackContext:
         fetchedPendingOpportunityFeedbackContext,
+      postOnboardingContext,
       profile,
       runtimeInstruction: proactiveContext,
       recentActivitySummaries,

@@ -105,6 +105,9 @@ SUCCESS CRITERIA
 AVAILABLE CONTEXT
 The input contains the current Role, existing Hiring Brief, company context, relevant conversation, supplied attachments, and possibly criteria from other Roles. Treat the current Role fields as authoritative when older conversation text differs.
 
+SCOPE BOUNDARY
+This task accepts a new real-person reference supplied by the user. A person already listed in prepared_role_profile_examples or identified by role_profile_example_context is a prepared example, not a new reference. If the current request only evaluates such a prepared example, make no Hiring Brief change in this task. State that scope accurately in the summary so the calling Harper can continue through the prepared-example feedback path. Do not reinterpret a prepared display profile as a new user-supplied reference.
+
 EVIDENCE
 - A reason the user states is the strongest evidence of what the company values.
 - Verified professional facts may support that reason and may also reveal a small number of distinctive, job-relevant strengths the user reasonably could be pointing to.
@@ -159,6 +162,8 @@ OUTPUT
 Use the latest user's language. The Hiring Brief should use clear Markdown and keep Role eligibility, company caliber, and confirmed bonuses visibly distinct.
 
 Set shouldUpdate=true when the evidence supports a meaningful Hiring Brief change and return the complete replacement in hiringBrief. Otherwise set shouldUpdate=false, set hiringBrief to null, and ask for the smallest missing input in followUpQuestion.
+
+When no update is possible only because the user evaluated a prepared example rather than supplying a new reference, followUpQuestion is null: no additional evidence is missing.
 
 summary states the decision rules that changed or the reason no safe change was possible.
 

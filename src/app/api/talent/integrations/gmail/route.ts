@@ -19,11 +19,21 @@ import {
   GMAIL_CAREER_HISTORY_ORIGIN_ID,
   GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
 } from "@/lib/integrations/gmailCareerHistoryCore";
+import { fetchLatestGmailCareerHistoryRun } from "@/lib/integrations/gmailCareerHistoryRun";
+
+type GmailCareerHistoryStatus =
+  | "completed"
+  | "failed"
+  | "not_started"
+  | "queued"
+  | "retrying"
+  | "running"
+  | "unavailable";
 
 const statusPayload = (
   status: GmailIntegrationStatus,
   analysis?: {
-    status: "completed" | "not_started" | "unavailable";
+    status: GmailCareerHistoryStatus;
     updatedAt: string | null;
   }
 ) => ({
@@ -36,23 +46,66 @@ async function fetchGmailCareerHistoryStatus(
   admin: ReturnType<typeof getTalentSupabaseAdmin>,
   talentId: string
 ) {
-  const { data, error } = await admin
-    .from("talent_documents")
-    .select("updated_at")
-    .eq("talent_id", talentId)
-    .eq("origin_type", GMAIL_CAREER_HISTORY_ORIGIN_TYPE)
-    .eq("origin_id", GMAIL_CAREER_HISTORY_ORIGIN_ID)
-    .eq("is_deleted", false)
-    .maybeSingle();
-  if (error) {
+  const [documentResult, runResult] = await Promise.allSettled([
+    admin
+      .from("talent_documents")
+      .select("updated_at")
+      .eq("talent_id", talentId)
+      .eq("origin_type", GMAIL_CAREER_HISTORY_ORIGIN_TYPE)
+      .eq("origin_id", GMAIL_CAREER_HISTORY_ORIGIN_ID)
+      .eq("is_deleted", false)
+      .maybeSingle(),
+    fetchLatestGmailCareerHistoryRun({ admin, talentId }),
+  ]);
+  if (documentResult.status === "rejected" || documentResult.value.error) {
     console.warn("[GmailIntegration] career history status unavailable", {
-      code: error.code,
+      code:
+        documentResult.status === "fulfilled"
+          ? documentResult.value.error?.code
+          : "document_query_failed",
     });
+  }
+  if (runResult.status === "rejected") {
+    console.warn("[GmailIntegration] analysis run status unavailable");
+  }
+
+  const document =
+    documentResult.status === "fulfilled" && !documentResult.value.error
+      ? documentResult.value.data
+      : null;
+  const run = runResult.status === "fulfilled" ? runResult.value : null;
+  const documentUpdatedAt = document?.updated_at ?? null;
+  const documentIsFromLatestRun = Boolean(
+    documentUpdatedAt &&
+    run &&
+    new Date(documentUpdatedAt).getTime() >= new Date(run.createdAt).getTime()
+  );
+
+  if (run) {
+    if (run.status === "completed") {
+      return {
+        status: documentIsFromLatestRun
+          ? ("completed" as const)
+          : ("failed" as const),
+        updatedAt: documentUpdatedAt,
+      };
+    }
+    return {
+      status: run.status,
+      updatedAt: documentUpdatedAt,
+    };
+  }
+  if (document) {
+    return { status: "completed" as const, updatedAt: documentUpdatedAt };
+  }
+  if (
+    documentResult.status === "rejected" ||
+    runResult.status === "rejected" ||
+    documentResult.value.error
+  ) {
     return { status: "unavailable" as const, updatedAt: null };
   }
-  return data
-    ? { status: "completed" as const, updatedAt: data.updated_at }
-    : { status: "not_started" as const, updatedAt: null };
+  return { status: "not_started" as const, updatedAt: null };
 }
 
 export async function GET(req: NextRequest) {
@@ -63,11 +116,14 @@ export async function GET(req: NextRequest) {
     }
 
     const admin = getTalentSupabaseAdmin();
+    const analysis = await fetchGmailCareerHistoryStatus(admin, user.id);
+    if (req.nextUrl.searchParams.get("analysisOnly") === "true") {
+      return NextResponse.json({ analysis });
+    }
     const integration = await fetchTalentGmailIntegration({
       admin,
       talentId: user.id,
     });
-    const analysis = await fetchGmailCareerHistoryStatus(admin, user.id);
     if (!integration) {
       return NextResponse.json(statusPayload("not_connected", analysis));
     }

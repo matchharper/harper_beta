@@ -248,7 +248,7 @@ export async function fetchOpsCrmBroadcastAudienceCount(args: {
     "count_crm_email_broadcast_recipients",
     {
       p_onboarding_done_only: recipientOnboardingDoneOnly,
-      p_preferred_locale: recipientPreferredLocale,
+      p_preferred_locale: recipientPreferredLocale ?? undefined,
     }
   );
   if (error) {

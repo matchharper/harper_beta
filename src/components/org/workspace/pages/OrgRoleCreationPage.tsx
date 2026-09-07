@@ -16,6 +16,7 @@ import { OrgPipeline } from "@/components/org/OrgPipeline";
 import { OrgRoleTalentBoard } from "@/components/org/OrgRoleTalentBoard";
 import { OrgRoleDetailsContent } from "@/components/org/role-overview/OrgRoleDetailsContent";
 import { OrgRoleMatchingContent } from "@/components/org/role-overview/OrgRoleMatchingContent";
+import { OrgCalibrationProfilePanel } from "@/components/org/role-overview/OrgCalibrationProfilePanel";
 import { OrgRoleSettingsContent } from "@/components/org/role-overview/OrgRoleSettingsContent";
 import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
 import { TalentDetailSimpleView } from "@/components/org/TalentDetailSimpleView";
@@ -220,6 +221,12 @@ function OrgRoleCreationDetails({
     role !== null && normalizeOrgRoleStatus(role.status) === "draft";
   const requestedTab = router.isReady ? getQueryText(router.query.tab) : "";
   const requestedView = router.isReady ? getQueryText(router.query.view) : "";
+  const calibrationId = router.isReady
+    ? getQueryText(router.query.calibration)
+    : "";
+  const calibrationProfileId = router.isReady
+    ? getQueryText(router.query.profile)
+    : "";
   const activeTab = getRoleTab({ isDraft: roleCreation, tab: requestedTab });
   const pipelineDisplay: RolePipelineDisplay =
     mobile || requestedView === "board" ? "board" : "pipeline";
@@ -258,6 +265,16 @@ function OrgRoleCreationDetails({
       { shallow: true }
     );
   };
+  const closeCalibrationProfile = useCallback(() => {
+    const nextQuery = { ...router.query };
+    delete nextQuery.calibration;
+    delete nextQuery.profile;
+    void router.replace(
+      { pathname: router.pathname, query: nextQuery },
+      undefined,
+      { shallow: true }
+    );
+  }, [router]);
 
   return (
     <section
@@ -410,6 +427,16 @@ function OrgRoleCreationDetails({
           </div>
         </div>
       </DocumentEditorPanelProvider>
+      {role && calibrationId && calibrationProfileId ? (
+        <OrgCalibrationProfilePanel
+          calibrationId={calibrationId}
+          onClose={closeCalibrationProfile}
+          profileId={calibrationProfileId}
+          roleId={role.roleId}
+          roleName={role.name}
+          workspaceId={workspace.workspaceId}
+        />
+      ) : null}
     </section>
   );
 }

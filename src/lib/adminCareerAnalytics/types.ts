@@ -124,22 +124,9 @@ export type AdminCareerUtmSourceRow = {
   identifiedUserCount: number;
 };
 
-export type AdminCareerUtmPerson = {
-  localId: string;
-  userId: string | null;
-  name: string | null;
-  email: string | null;
-  firstEnteredAt: string | null;
-  lastEnteredAt: string | null;
-  lastLoginAt: string | null;
-  currentStepKey: AdminCareerFunnelStepKey;
-  currentStepLabel: string;
-};
-
 export type AdminCareerUtmSourceDetail = {
   source: string;
   steps: AdminCareerFunnelStep[];
-  people: AdminCareerUtmPerson[];
 };
 
 export type AdminCareerUtmResponse = {

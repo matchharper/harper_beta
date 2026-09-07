@@ -26,6 +26,7 @@ export const ORG_AGENT_TOOL_NAMES = [
   "read_talent",
   "read_role",
   "calibrate_role_hiring_brief",
+  "record_role_profile_example_feedback",
   "get_more_data",
   "read_conversation_history",
   "update_role_criteria",
@@ -227,13 +228,32 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "calibrate_role_hiring_brief",
       description:
-        "Calibrate one existing Role's company-level talent bar from real people the user presents as examples. Evidence may come from conversation text, internal candidate mentions, professional URLs, or attachments. Reference people represent caliber rather than Role fit unless the user explicitly connects them to both. Use this tool for calibration intent, including a contextual reply such as '이런 사람?', and not for identity questions, profile summaries, or ordinary candidate assessments. It returns the finalized Hiring Brief and a suggested user reply; review that result before deciding whether the user's request has separate unfinished work.",
+        "Calibrate one existing Role's company-level talent bar from a new real-person reference the user supplies in the conversation. Evidence may come from conversation text, internal candidate mentions, professional URLs, or attachments. Reference people represent caliber rather than Role fit unless the user explicitly connects them to both. Use this tool for a newly supplied reference, including a contextual reply such as '이런 사람?' after Harper requested one. Do not use it for Profile A-E or a displayed person already listed in prepared_role_profile_examples, and do not use it for identity questions, profile summaries, or ordinary candidate assessments. It returns the finalized Hiring Brief and a suggested user reply; review that result before deciding whether the user's request has separate unfinished work.",
       parameters: {
         additionalProperties: false,
         properties: {
           roleId: {
             description:
               "Exact internal Role ID whose Hiring Brief is updated.",
+            type: "string",
+          },
+        },
+        required: ["roleId"],
+        type: "object",
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "record_role_profile_example_feedback",
+      description:
+        "Record the company's natural-language Good or Bad feedback on the existing Profile A-E examples listed in prepared_role_profile_examples for one Role. Use this only when the user is reacting to one or more of those already-prepared examples, whether they refer to a profile letter or its displayed name. This is not a newly supplied ideal-person reference and not a candidate connection decision. The server reads the full prepared profiles, records every judgment in the current message, and changes the Hiring Brief only when the user supplied a reusable reason. The input stays limited to the exact Role ID.",
+      parameters: {
+        additionalProperties: false,
+        properties: {
+          roleId: {
+            description: "Exact Role ID that owns the displayed calibration set.",
             type: "string",
           },
         },
@@ -673,7 +693,7 @@ This operation changes only the Role's pipeline structure. It does not move cand
       name: "move_candidate_stage",
       description: `Move one exact candidate between company pipeline stages after the user explicitly asks for that stage change.
 Call this once per exact candidate stage change and review the result before another action. Read the Role with include=pipeline first unless the candidate's exact currentStageId and the complete ordered stage list with exact stage IDs are already visible. For “next stage”, select the immediate next company-defined process stage in that authoritative order; never treat the legacy connected column as a future process stage or infer a generic recruiting sequence from labels alone.
-Meeting scheduling is available from any company-visible active stage: pending_connection, connected, final_offer, or an exact custom:<id> stage. Never restrict it to pending_connection. A candidate in pending_connection may move only to a custom:<id> company-defined process stage, never directly to connected. If no custom stage exists, do not call this tool: ask the company to name and configure the next process first. targetStageId may be a custom:<id> stage or final_offer. A final_offer target returns a confirmation question unless confirmFinalOffer=true after Harper has just asked the exact question. The executor re-reads the candidate and applies compare-and-set protection. If scheduleInterview=true, targetStageId may equal the current custom stage when the company only asks to arrange that stage's meeting; it prepares the meeting without moving the candidate again. The same-stage form may also revise candidate-facing context on that meeting while its invitation is still queued; it preserves the scheduled delivery and never creates a duplicate. meetingDeliveryMode defaults to the standard delayed-delivery policy; use immediate only when the company explicitly instructs Harper to send this invitation now. An immediate update preserves the existing body, public link, and delivery identity. Otherwise it moves the candidate only after the meeting request is ready. With scheduling disabled, this operation never contacts the candidate. With scheduling enabled, it creates, revises, or expedites the time-selection request and returns the verified delivery facts for the final response.`,
+Meeting scheduling is available from any company-visible active stage: pending_connection, connected, final_offer, or an exact custom:<id> stage. Never restrict it to pending_connection. A candidate in pending_connection may move only to a custom:<id> company-defined process stage, never directly to connected. If no custom stage exists, do not call this tool: ask the company to name and configure the next process first. targetStageId may be a custom:<id> stage or final_offer. A final_offer target returns a confirmation question unless confirmFinalOffer=true after Harper has just asked the exact question. The executor re-reads the candidate and applies compare-and-set protection. If scheduleInterview=true, targetStageId may equal the current custom stage when the company only asks to arrange that stage's meeting; it prepares the meeting without moving the candidate again. The same-stage form may also revise candidate-facing context on that meeting while its invitation is still queued; it preserves the scheduled delivery and never creates a duplicate. meetingDeliveryMode defaults to the standard delayed-delivery policy; use immediate only when the company explicitly instructs Harper to send this invitation now. An immediate update preserves the existing body, public link, and delivery identity. Before any move or candidate contact, scheduling verifies the organizer's active Google Calendar connection and saved availability. If either is missing, the result keeps the candidate unchanged and provides the verified Calendar settings link and user-safe setup guidance. Otherwise it moves the candidate only after the meeting request is ready. With scheduling disabled, this operation never contacts the candidate. With scheduling enabled, it creates, revises, or expedites the time-selection request and returns the verified delivery facts for the final response.`,
       parameters: {
         additionalProperties: false,
         properties: {

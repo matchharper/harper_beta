@@ -4,6 +4,8 @@ import { formatMeetingAvailabilitySummary } from "@/lib/meetings/availability";
 export const DEFAULT_INTERVIEW_DURATION_MINUTES = 60;
 export const DEFAULT_MEETING_OFFER_WINDOW_DAYS = 14;
 export const DEFAULT_MEETING_PROVIDER = "google_meet" as const;
+export const GOOGLE_CALENDAR_MEETING_REQUIREMENT =
+  "Google Calendar 연결은 Harper가 인터뷰가 불가능한 일정을 미리 파악해 후보자에게 보여줄 선택지에서 제외하고, 후보자와 회사 참석자를 하나의 미팅으로 초대하는 데 필요해요.";
 
 export type MeetingScheduleAttendee = {
   companyUserId: string;
@@ -42,17 +44,37 @@ export type MeetingScheduleAdditionalMessage = {
   visibility: "both" | "candidate" | "internal";
 };
 
+export type MeetingScheduleDraftBlocker =
+  | "availability_missing"
+  | "calendar_connection_missing"
+  | "meeting_stage_missing"
+  | "organizer_email_missing"
+  | null;
+
 export type PreparedMeetingScheduleDraft = {
   additionalMessage: MeetingScheduleAdditionalMessage | null;
   availability: SavedMeetingAvailability | null;
   config: MeetingScheduleDraftConfig;
-  draftBlocker:
-    | "availability_missing"
-    | "meeting_stage_missing"
-    | "organizer_email_missing"
-    | null;
+  draftBlocker: MeetingScheduleDraftBlocker;
   meetingStage: MeetingScheduleStageProfile | null;
 };
+
+export function resolveMeetingScheduleDraftBlocker(args: {
+  availabilityConfigured: boolean;
+  calendarConnectionActive: boolean | null;
+  meetingPurposeConfigured: boolean;
+  meetingStageRequired: boolean;
+  organizerEmailConfigured: boolean;
+}): MeetingScheduleDraftBlocker {
+  if (args.meetingStageRequired || !args.meetingPurposeConfigured) {
+    return "meeting_stage_missing";
+  }
+  if (!args.organizerEmailConfigured) return "organizer_email_missing";
+  if (args.calendarConnectionActive !== true) {
+    return "calendar_connection_missing";
+  }
+  return args.availabilityConfigured ? null : "availability_missing";
+}
 
 export type MeetingScheduleDetail = {
   availability: SavedMeetingAvailability | null;
@@ -202,12 +224,17 @@ export function normalizeInterviewDuration(value: unknown) {
 }
 
 export function formatPreparedMeetingScheduleConfirmation(args: {
+  calendarSettingsUrl?: string;
   candidateName: string;
   draft: PreparedMeetingScheduleDraft;
   roleName?: string;
 }) {
   const { candidateName, draft, roleName } = args;
   const { config } = draft;
+  const calendarSettingsUrl = clean(args.calendarSettingsUrl);
+  const calendarSettingsLink = calendarSettingsUrl
+    ? `[Calendar 설정](${calendarSettingsUrl})`
+    : "Calendar 설정";
   const attendeeText = config.companyAttendees
     .map((attendee) => `${attendee.name}님 (${attendee.email})`)
     .join(", ");
@@ -221,6 +248,18 @@ export function formatPreparedMeetingScheduleConfirmation(args: {
     return `${stageText} 단계에서 ${candidateName}님과 어떤 주제로, 몇 분 정도 이야기 나누고 싶으신지 알려주세요. 후보자도 미리 알면 좋을 내용이 있다면 함께 말씀해 주세요. 그 내용을 이 단계의 안내로 남겨 다음에도 자연스럽게 이어갈게요.`;
   }
 
+  if (draft.draftBlocker === "calendar_connection_missing") {
+    return [
+      `${candidateName}님과의 미팅을 조율하려면 먼저 ${config.organizer.name}님의 Google Calendar를 연결해 주세요.`,
+      "",
+      GOOGLE_CALENDAR_MEETING_REQUIREMENT,
+      "",
+      `${calendarSettingsLink}에서 연결해 주세요.${draft.availability ? "" : " 같은 화면에서 평소 가능한 시간도 함께 설정해 주세요."}`,
+      "",
+      `아직 ${candidateName}님께는 아무 연락도 보내지 않았어요.`,
+    ].join("\n");
+  }
+
   if (draft.draftBlocker === "availability_missing") {
     const stageText = config.processStageName
       ? `“${config.processStageName}” 단계로 옮기면서 `
@@ -230,7 +269,7 @@ export function formatPreparedMeetingScheduleConfirmation(args: {
       "",
       `시간을 알려주시면 ${stageText}“${config.meetingPurpose}”를 주제로 ${config.durationMinutes}분 동안 이야기 나눌 수 있게 준비할게요. 참석자는 우선 ${attendeeText}로 두고, 향후 ${config.offerWindowDays / 7}주 안에서 가능한 선택지를 추려 ${candidateName}님께 보내드릴 예정이에요.`,
       "",
-      `아직 ${candidateName}님께는 아무 연락도 보내지 않았어요. “평일 오전 8시부터 오후 7시까지 가능해”처럼 이 대화에서 편하게 알려주세요.`,
+      `아직 ${candidateName}님께는 아무 연락도 보내지 않았어요. ${calendarSettingsUrl ? `${calendarSettingsLink}에서 설정하거나, ` : ""}“평일 오전 8시부터 오후 7시까지 가능해”처럼 이 대화에서 편하게 알려주세요.`,
     ].join("\n");
   }
 

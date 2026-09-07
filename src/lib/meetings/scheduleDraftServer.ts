@@ -17,9 +17,13 @@ import {
   normalizeInterviewDuration,
   resolveMeetingOrganizerEmail,
   resolveMeetingOrganizerName,
+  resolveMeetingScheduleDraftBlocker,
   type PreparedMeetingScheduleDraft,
 } from "@/lib/meetings/scheduleDraft";
-import { fetchMeetingCalendarDelivery } from "@/lib/meetings/meetingCalendarServer";
+import {
+  fetchMeetingCalendarDelivery,
+  hasActiveOrganizerGoogleCalendarConnection,
+} from "@/lib/meetings/meetingCalendarServer";
 import { assertOrgWorkspacePermission, OrgHttpError } from "@/lib/org/server";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type { Json } from "@/types/database.types";
@@ -270,6 +274,12 @@ export async function prepareMeetingScheduleDraft(args: {
   const durationMinutes = normalizeDurationOrThrow(args.durationMinutes);
   const meetingPurpose = normalizeMeetingPurpose(args.meetingPurpose);
   const availability = availabilityResult.availability;
+  const calendarConnectionActive =
+    !args.meetingStageRequired && meetingPurpose && organizer.email
+      ? await hasActiveOrganizerGoogleCalendarConnection({
+          organizerCompanyUserId: organizer.companyUserId,
+        })
+      : null;
   return {
     additionalMessage: combineCandidateMessages(
       args.meetingStage?.candidateMessage ?? null,
@@ -296,14 +306,13 @@ export async function prepareMeetingScheduleDraft(args: {
           companyName: args.companyName,
         }),
     },
-    draftBlocker:
-      args.meetingStageRequired || !meetingPurpose
-        ? "meeting_stage_missing"
-        : !organizer.email
-          ? "organizer_email_missing"
-          : availability
-            ? null
-            : "availability_missing",
+    draftBlocker: resolveMeetingScheduleDraftBlocker({
+      availabilityConfigured: Boolean(availability),
+      calendarConnectionActive,
+      meetingPurposeConfigured: Boolean(meetingPurpose),
+      meetingStageRequired: Boolean(args.meetingStageRequired),
+      organizerEmailConfigured: Boolean(organizer.email),
+    }),
     meetingStage: args.meetingStage ?? null,
   };
 }
@@ -324,7 +333,9 @@ export async function createMeetingScheduleDraft(args: {
         ? "미팅에 참석할 회사 사용자의 이메일을 확인해 주세요. 후보자에게는 아직 연락하지 않았어요."
         : args.draft.draftBlocker === "meeting_stage_missing"
           ? "이 단계에서 나눌 주제와 시간을 먼저 알려주세요. 후보자에게는 아직 연락하지 않았어요."
-          : "먼저 미팅 가능한 시간을 알려주세요. 후보자에게는 아직 연락하지 않았어요."
+          : args.draft.draftBlocker === "calendar_connection_missing"
+            ? "일정 담당자의 Google Calendar를 연결해 주세요. 후보자에게는 아직 연락하지 않았어요."
+            : "먼저 미팅 가능한 시간을 알려주세요. 후보자에게는 아직 연락하지 않았어요."
     );
   }
   const { config } = args.draft;

@@ -69,6 +69,7 @@ test("selects at most one re-engagement action", () => {
       actionKey: "pending_2",
       companyName: "Third Company",
       kind: "internal_opportunity",
+      recommendedAt: "2026-09-04T01:35:10.584998+00:00",
       recommendationSummary: null,
       roleTitle: "Product Engineer",
     },

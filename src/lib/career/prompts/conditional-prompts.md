@@ -69,15 +69,17 @@ Action note: ...
 | Opportunity feedback follow-up | `/api/talent/opportunities/feedback-followup` -> `createTalentOpportunityFeedbackFollowUpReply` -> `runCareerChatTurn` | No | `buildCareerOpportunityFeedbackFollowUpTurnInstruction` + `pendingOpportunityFeedbackContext` | `immediate_internal_feedback`이면 `get_internal_roles`; 그 외 trigger는 `recommend_job_postings` only | Yes. internal immediate feedback은 live internal-role lookup만 할 수 있다. external/delayed/all-cleared는 `recommend_job_postings`만 쓴다. |
 | Internal call request follow-up | `/api/talent/opportunities/internal-call-request-followup` -> `createInternalOpportunityCallRequestFollowUp` | No | Deterministic assistant template after JSON-only call-request decision | none | Internal accepted opportunity only |
 | Company watchlist follow follow-up | `/api/talent/company-watchlist/follow-followup` -> `createTalentCompanyFollowFollowUpReply` -> `runCareerChatTurn` | No | `buildCompanyFollowUpInstruction` | `[]` | No |
+| Gmail career history import completion | Gmail career-history queue -> `createGmailCareerHistoryFollowUpReply` -> `runCareerChatTurn` | No | `buildGmailCareerHistoryFollowUpInstruction` with the saved high-confidence application records | `[]` | No |
 | Session start greeting/re-engagement | `/api/talent/session`, `/api/talent/session/reengagement` -> `runCareerChatTurn` | Endpoint wrapper may stream status, but LLM turn itself is non-streaming | `buildCareerSessionStartTurnInstruction` | `recommend_job_postings` only | No internal/external branch |
 | Voice call wrap-up | `/api/talent/chat/call-wrapup` -> `runCareerChatTurn` | No | 일반 call: `buildCareerCallWrapupTurnInstruction`; internal opportunity call: `buildInternalOpportunityCallWrapupInstruction` | `update_setting`, `update_talent_profile` | Prompt differs for internal opportunity call. Tool allowlist is the same. |
 | Onboarding completion wrap-up card | `createOnboardingCompletionMessages` / `regenerateOnboardingCompletionMessages` -> `generateOnboardingCompletionWrapupContent` | No | `buildWrapupInstruction` as `runtimeInstruction` | `update_setting`, `update_talent_profile` | No |
-| Onboarding completion next message | `generateOnboardingCompletionNextStepsContent` | No | `buildNextStepsInstruction` as `runtimeInstruction` | `[]` | No |
+| Onboarding completion next message | `generateOnboardingCompletionNextStepsContent` | No | `buildOnboardingCompletionHandoffInstruction` + shared post-onboarding guide | `[]` | `/jobs` entry opportunity and Gmail state are supplied as factual context; the LLM chooses one primary continuation. |
 
 Not separate chat-like LLM calls:
 
 - `Conversation Starter`: normal `/api/talent/chat` request with `conversationMode: "preference_update"` or `conversationMode: "match_quality"`. It can stream through the normal chat SSE path.
-- `Official Jobs Signup Source Follow-Up`: normal `/api/talent/chat` request with `runtimeInstruction`.
+- `Post-onboarding conversation guide`: a shared block in `buildCareerConversationPromptPlan`, not a separate LLM call or turn-specific scenario prompt. The completion handoff applies it immediately, and later chat/voice turns use recent history to continue without a fixed turn counter.
+  - 여기서 post-onboarding은 온보딩 종료 후 첫 opportunity run 완료 전까지를 뜻한다. 이 기간에는 이미 진행 중인 초기 run과 중복되지 않도록 `recommend_job_postings` 호출을 가능한 피한다.
 - Internal opportunity call-request decision: separate JSON LLM, but it does not directly write the first chat reply. The visible call-request message is currently a deterministic template after the decision.
 
 ## Opportunity Feedback Follow-Up
@@ -314,9 +316,15 @@ Core intent:
 
 - 사용자가 새 메시지를 보내지 않았지만 Harper가 먼저 짧게 말을 걸 수 있는 turn.
 - 이전 활동, 추천 피드백, profile gap, 오래된 idle 상태를 보고 한 가지 자연스러운 질문이나 상태 공유를 만든다.
-- 필요한 경우 기존 career/chat tool policy에 따라 tool을 사용할 수 있다.
+- 전용 `POST /api/talent/session/reengagement` 경로는 서버에서 현재 pending action을 조회하고, 우선순위가 가장 높은 1개만 이 turn의 runtime instruction에 넣는다.
+- primary pending action이 있는 re-engagement turn은 그 action 하나에만 집중한다. 공통 최근 추천 문맥에 다른 미응답 internal 추천이 보여도 보조 주제로 꺼내지 않는다.
+- primary pending action의 UI action도 해당 항목을 여는 `open_pending_action` 하나만 만든다. 같은 결정을 위한 수락·거절 `send_message` 버튼을 별도로 만들지 않는다.
+- internal opportunity의 `User feedback:none`은 Harper가 이미 추천했지만 사용자가 아직 좋아요/싫어요(수락/거절) 반응을 남기지 않은 상태를 뜻한다. 이 action을 말할 때는 이전 추천이라는 사실, 회사·역할별 수락/거절 질문, 거절 시 선택적인 이유 요청을 모두 명시한다. 또한 수락하면 Harper가 프로필과 관련 경험을 회사에 공유·소개하고 연결을 돕는다고 미래형으로 분명히 설명한다. 새 추천이나 막연한 관심 확인, 불특정한 “다음 단계 확인”, “프로필 공유나 연결이 바로 확정되는 것은 아니다” 같은 내부 절차형 면책 문구로 바꾸지 않는다. 실제 공유 완료 전에는 완료형만 피하며, Harper 내부 사람 확인/handoff는 사용자에게 노출하지 않는다.
+- internal opportunity pending action에는 `recommendedAt` 원본 ISO 문자열을 보존한다. LLM에 넣을 때만 `formatCareerPromptKoreanDateTime`으로 `Asia/Seoul` 기준의 사람이 읽는 텍스트(예: `9월 4일 10:35`)로 변환하며, 이 prompt block에는 원본 ISO 문자열을 넣지 않는다.
+- internal opportunity 지시는 공통 대화 프롬프트가 아니다. 완료된 onboarding의 session re-engagement에서 가장 우선인 pending action이 `internal_opportunity`일 때만 해당 turn의 high-priority runtime instruction에 추가된다.
+- 일반 Career 채팅과 re-engagement가 공통으로 받는 `Recent recommended opportunities`에도 추천 시각을 `Sep 4, 2026 at 10:35 KST` 같은 텍스트로 넣는다. 공통 conversation guidance는 internal `User feedback: none`을 이미 전달된 추천의 미응답 상태로 해석하고, 관련 turn에서는 새 추천처럼 소개하지 않고 수락/거절과 거절 이유를 확인한다.
 
-Tools: `recommend_job_postings` only.
+Tools: `[]`.
 
 ### Call Wrap-Up
 
@@ -363,8 +371,13 @@ Wrap-up card prompt: `buildWrapupInstruction`
 - Generic stop/unsubscribe wording should ask for clarification instead of calling `update_setting`.
 - It must output only the markdown card body without the `Call Wrap-up` title.
 
-Next assistant message prompt: `buildNextStepsInstruction`
+Next assistant message prompt: `buildOnboardingCompletionHandoffInstruction`
 
 - It is generated separately.
 - Tools are `[]`.
-- It explains what happens next and asks about external-vs-internal contact preference.
+- It explains what happens next, then uses the shared post-onboarding guide to choose at most one primary continuation.
+- The normal direction order is: answer an unfinished direct request, prioritize the exact conversation-bound `/jobs` entry opportunity, clarify external/public posting preference, collect previous or active recruiting history, then leave an open invitation.
+- These are conversation directions, not a required checklist. Recent messages determine what has already been answered or should not be reopened.
+- The `/jobs` source comes from the current conversation's `official_jobs_signup_intent` activity. Its stored slug resolves current company/role facts and, when available, an active non-test internal role ID. Older intent events without a slug may recover it from the latest preceding apply click.
+- A priority-review reply retains the company and role labels from that exact conversation-bound slug. Another public job mapped to the same internal role cannot replace the candidate-facing labels.
+- When Gmail is disconnected and recruiting history is the chosen topic, the assistant may append one validated `/career/profile?profileSection=links` action. Connected users are not asked to reconnect, and a saved career-history document is not described as live inbox access.

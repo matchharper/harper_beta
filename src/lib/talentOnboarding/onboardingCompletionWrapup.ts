@@ -1,4 +1,5 @@
 import {
+  buildOnboardingCompletionHandoffInstruction,
   buildCareerConversationPromptPlan,
   type CareerPromptPreferences,
 } from "@/lib/career/prompts";
@@ -11,6 +12,7 @@ import {
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import {
   buildTalentProfileContext,
+  fetchActiveTalentDocumentByOrigin,
   fetchTalentInsights,
   fetchTalentSetting,
   fetchTalentStructuredProfile,
@@ -43,6 +45,12 @@ import {
 } from "@/lib/talentOpportunity";
 import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
 import { hasActiveConversationCompletedOpportunityRun } from "@/lib/opportunityDiscovery/store";
+import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
+import {
+  GMAIL_CAREER_HISTORY_ORIGIN_ID,
+  GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
+} from "@/lib/integrations/gmailCareerHistoryCore";
+import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
 
 const FALLBACK_WRAPUP_CONTENT_KO = [
   "좋은 대화였습니다. 말씀해주신 내용을 바탕으로 다음 기회 탐색 기준을 정리했습니다.",
@@ -73,7 +81,7 @@ const FALLBACK_NEXT_STEPS_CONTENT_KO = [
   "",
   "확인하신 뒤에는 각 기회에 대해 좋아요/싫어요를 눌러주세요. 마음에 드는 회사가 있으면 회사명을 눌러 자세히 보고, 계속 지켜보고 싶은 회사는 track 해두시면 관련 소식이나 채용 업데이트가 있을 때 챙겨드릴게요.",
   "",
-  "한 가지만 여쭤볼게요. 직접 연결 가능한 기회가 아니더라도 핏이 맞는 외부 공고라면 주기적으로 알려드리면 좋을까요? 아니면 직접 연결 가능한 좋은 기회가 있을 때만 연락드리는 쪽이 편하실까요?",
+  "가장 먼저 확인해보고 싶은 회사나 기회, 혹은 Harper가 더 알아두면 좋을 내용이 있다면 편하게 말씀해주세요.",
 ].join("\n\n");
 
 const FALLBACK_NEXT_STEPS_CONTENT_EN = [
@@ -81,7 +89,7 @@ const FALLBACK_NEXT_STEPS_CONTENT_EN = [
   "",
   "After you review them, use like or dislike on each opportunity so Harper can calibrate future recommendations. If a company looks interesting, open the company name for more context. You can also track companies you want Harper to keep watching for relevant updates or new roles.",
   "",
-  "One quick question: if an external posting is a good fit and looks like an opportunity you would genuinely prefer, would you like Harper to share those regularly too? Or would you prefer to hear only when there is a strong opportunity Harper can directly connect you with?",
+  "If there is a company or opportunity you want Harper to look at first, or anything else Harper should know, feel free to tell me.",
 ].join("\n\n");
 
 const ONBOARDING_COMPLETION_WRAPUP_THINKING_LOGS_KO = [
@@ -242,48 +250,6 @@ function buildWrapupInstruction(preferredLocale?: string | null) {
   ].join("\n");
 }
 
-function buildNextStepsInstruction(preferredLocale?: string | null) {
-  const outputLanguage = getCareerPromptLanguageName(preferredLocale);
-  const toneRule = getCareerPromptToneRule(preferredLocale);
-  const requiredContent =
-    outputLanguage === "English"
-      ? [
-          "- Say Harper reflected the user's stated criteria into Harper's search criteria. Mention the most important role/domain/location/company-stage/work-style criteria from the conversation, but only when grounded in the conversation or saved profile.",
-          "- Say Harper is starting a fresh search now. Explain that results will appear in the Positions tab and by email as soon as they are ready, and that it can take up to 1 hour.",
-          "- Explain what the user should do after seeing opportunities: use like/dislike, open company details, and track/follow companies they want Harper to monitor for company news or hiring updates.",
-          "- End with a clear question asking whether Harper should regularly share external/public open-position recommendations when they are a good fit, or avoid those and contact only when there is a strong directly connectable opportunity. This question is about external recommendations vs directly connectable opportunities, not about stopping all Harper contact.",
-        ]
-      : [
-          "- Say Harper reflected the user's stated criteria into Harper의 검색 기준. Mention the most important role/domain/location/company-stage/work-style criteria from the conversation, but only when grounded in the conversation or saved profile.",
-          "- Say Harper is starting a fresh search now. Explain that results will appear in the 포지션 탭 and by email as soon as they are ready, and that it can take up to 1 hour.",
-          "- Explain what the user should do after seeing opportunities: use 좋아요/싫어요, open company details, and track/follow companies they want Harper to monitor for company news or hiring updates.",
-          "- End with a clear question asking whether Harper should regularly share external/public open-position recommendations when they are a good fit, or avoid those and contact only when there is a strong directly connectable opportunity. This question is about external recommendations vs directly connectable opportunities, not about stopping all Harper contact.",
-        ];
-
-  const finalQuestionExample =
-    outputLanguage === "English"
-      ? "If an external posting is a good fit and looks like an opportunity you would genuinely prefer, would you like Harper to share those regularly too? Or would you rather hear only when there is a strong opportunity Harper can directly connect you with?"
-      : "직접 연결 가능한 기회가 아니더라도 핏이 잘 맞는 외부 오픈포지션이면 주기적으로 알려드릴까요? 아니면 핏이 맞는 외부 공고 추천은 빼고, 직접 연결 가능한 좋은 기회가 있을 때만 연락드리는 쪽이 편하실까요?";
-
-  return [
-    "## Onboarding completion next message task",
-    "The user's career onboarding conversation has just completed. Write the normal Harper assistant message that appears immediately below the summary card.",
-    "",
-    "This message is NOT part of the summary card. It should explain what happens next and ask the user about contact preferences.",
-    "",
-    "Required content:",
-    ...requiredContent,
-    "",
-    "Style:",
-    `- Use warm, clear ${outputLanguage}. ${toneRule}`,
-    "- Markdown is allowed. Prefer 2-4 short paragraphs or compact bullets.",
-    "- Be concrete and more detailed than a generic status message.",
-    "- Do not include a title like `Next steps`.",
-    "- Do not claim a search has already found specific companies or roles unless those appeared in the conversation.",
-    `- The final question should be close in meaning to: \`${finalQuestionExample}\``,
-  ].join("\n");
-}
-
 function stripUiStatusMessage(input: Record<string, unknown>) {
   const { _uiStatusMessage, ...toolInput } = input;
   void _uiStatusMessage;
@@ -350,6 +316,7 @@ export async function generateOnboardingCompletionWrapupContent(args: {
       insights?.content ?? null
     ),
     currentPreferences: buildCurrentPreferences(setting),
+    includePostOnboardingConversationGuide: false,
     isOnboardingDone: true,
     profile,
     recentRecommendedOpportunitiesText,
@@ -409,6 +376,9 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
     recentMessages,
     recentRecommendedOpportunities,
     isConversationCompletedOpportunityRunActive,
+    postOnboardingContext,
+    activeGmailIntegration,
+    savedGmailCareerHistoryDocument,
   ] = await Promise.all([
     fetchTalentUserProfile({ admin: args.admin, userId: args.userId }),
     fetchTalentSetting({ admin: args.admin, userId: args.userId }),
@@ -433,6 +403,26 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
       admin: args.admin,
       userId: args.userId,
     }),
+    fetchCareerPostOnboardingContext({
+      admin: args.admin,
+      conversationId: args.conversationId,
+      userId: args.userId,
+    }),
+    fetchActiveTalentGmailIntegration({
+      admin: args.admin,
+      talentId: args.userId,
+    }),
+    fetchActiveTalentDocumentByOrigin({
+      admin: args.admin,
+      originId: GMAIL_CAREER_HISTORY_ORIGIN_ID,
+      originType: GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
+      userId: args.userId,
+    }).catch((error) => {
+      console.warn("[OnboardingCompletion] Gmail history context unavailable", {
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+      return null;
+    }),
   ]);
 
   const structuredProfileText = buildTalentProfileContext({
@@ -451,11 +441,17 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
       insights?.content ?? null
     ),
     currentPreferences: buildCurrentPreferences(setting),
+    gmailCapability: activeGmailIntegration
+      ? "connected_but_unavailable_this_turn"
+      : "not_connected",
+    hasSavedGmailCareerHistory: Boolean(savedGmailCareerHistoryDocument),
     isConversationCompletedOpportunityRunActive,
     isOnboardingDone: true,
+    postOnboardingContext,
     profile,
     recentRecommendedOpportunitiesText,
-    runtimeInstruction: buildNextStepsInstruction(responseLocale),
+    runtimeInstruction:
+      buildOnboardingCompletionHandoffInstruction(responseLocale),
     structuredProfileText,
     toolNames: [],
   });

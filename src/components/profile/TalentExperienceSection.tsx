@@ -109,7 +109,7 @@ const profileDescriptionMarkdownComponents: Components = {
   ),
 };
 
-function TalentProfileDescriptionMarkdown({
+export function TalentProfileDescriptionMarkdown({
   value,
 }: {
   value?: string | null;

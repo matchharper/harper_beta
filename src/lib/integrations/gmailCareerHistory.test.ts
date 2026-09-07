@@ -1,155 +1,163 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  dedupGmailEmailsByThread,
+  buildGmailCareerHistorySummaryInstruction,
   normalizeGmailCareerEntries,
   renderGmailCareerHistoryMarkdown,
 } from "./gmailCareerHistoryCore";
 
-test("normalizes, deduplicates, and orders Gmail career entries", () => {
+test("asks for a compact localized summary without repeating company or role", () => {
+  const koreanInstruction =
+    buildGmailCareerHistorySummaryInstruction("Korean");
+  assert.match(koreanInstruction, /Write summary in Korean/);
+  assert.match(koreanInstruction, /Do not repeat their actual names/);
+  assert.match(koreanInstruction, /해당 직무 지원, 이후 기록 없음/);
+  assert.match(koreanInstruction, /최종 결과 없음/);
+
+  const englishInstruction =
+    buildGmailCareerHistorySummaryInstruction("English");
+  assert.match(englishInstruction, /Write summary in English/);
+  assert.match(englishInstruction, /Applied; no later record/);
+  assert.match(englishInstruction, /no final result/);
+});
+
+test("normalizes and orders while preserving separate application cycles", () => {
   const entries = normalizeGmailCareerEntries({
     entries: [
       {
+        appliedAt: "2026-01-01T00:00:00.000Z",
         company: "Acme",
-        confidence: "medium",
-        evidenceSummary: "Application confirmation",
-        lastActivityAt: "2026-01-01T00:00:00.000Z",
+        endedAt: null,
         role: "Engineer",
-        stage: "applied",
+        summary: "Application confirmation",
       },
       {
+        appliedAt: "2026-03-01T00:00:00.000Z",
         company: " Acme ",
-        confidence: "high",
-        evidenceSummary: "Interview scheduling email",
-        lastActivityAt: "2026-02-01T00:00:00.000Z",
+        endedAt: null,
         role: "Engineer",
-        stage: "interview",
+        summary: "A separate application cycle reached an interview.",
       },
       {
+        appliedAt: "not-a-date",
         company: "Beta Labs",
-        confidence: "unexpected",
-        evidenceSummary: "Recruiter message",
-        lastActivityAt: "not-a-date",
+        endedAt: "2026-02-15T00:00:00.000Z",
         role: null,
-        stage: "unexpected",
+        summary: "A role-specific resume was sent and the process ended.",
       },
       {
+        appliedAt: null,
         company: "",
-        confidence: "high",
-        evidenceSummary: "Must be ignored",
-        lastActivityAt: null,
+        endedAt: null,
         role: null,
-        stage: "offer",
+        summary: "Must be ignored",
       },
     ],
   });
 
   assert.deepEqual(entries, [
     {
+      appliedAt: "2026-03-01",
       company: "Acme",
-      confidence: "high",
-      evidenceSummary: "Interview scheduling email",
-      lastActivityAt: "2026-02-01T00:00:00.000Z",
+      endedAt: null,
       role: "Engineer",
-      stage: "interview",
+      summary: "A separate application cycle reached an interview.",
     },
     {
+      appliedAt: null,
       company: "Beta Labs",
-      confidence: "low",
-      evidenceSummary: "Recruiter message",
-      lastActivityAt: null,
+      endedAt: "2026-02-15",
       role: null,
-      stage: "unknown",
+      summary: "A role-specific resume was sent and the process ended.",
+    },
+    {
+      appliedAt: "2026-01-01",
+      company: "Acme",
+      endedAt: null,
+      role: "Engineer",
+      summary: "Application confirmation",
     },
   ]);
 });
 
-test("renders a bounded evidence summary without raw email bodies", () => {
-  const markdown = renderGmailCareerHistoryMarkdown({
-    analyzedAt: "2026-08-30T00:00:00.000Z",
+test("does not merge employers whose names overlap", () => {
+  const entries = normalizeGmailCareerEntries({
     entries: [
       {
-        company: "Acme",
-        confidence: "high",
-        evidenceSummary: "Interview scheduling and follow-up messages",
-        lastActivityAt: "2026-02-01T00:00:00.000Z",
-        role: "Engineer",
-        stage: "interview",
+        appliedAt: "2025-05-08",
+        company: "Toss",
+        endedAt: null,
+        role: "ML Engineer",
+        summary: "Applied and advanced to an interview.",
+      },
+      {
+        appliedAt: "2024-09-30",
+        company: "Toss Bank",
+        endedAt: null,
+        role: "Data Scientist",
+        summary: "Application received.",
       },
     ],
   });
 
-  assert.match(markdown, /^# Career history from Gmail/m);
-  assert.match(markdown, /## Acme — Engineer/);
-  assert.match(markdown, /Last known stage: Interview/);
-  assert.match(markdown, /Confidence: High/);
-  assert.match(markdown, /does not contain raw email bodies/);
+  assert.deepEqual(
+    entries.map((entry) => entry.company),
+    ["Toss", "Toss Bank"]
+  );
+});
+
+test("renders each application as one compact Markdown line", () => {
+  const markdown = renderGmailCareerHistoryMarkdown({
+    entries: [
+      {
+        appliedAt: "2026-01-12",
+        company: "Acme",
+        endedAt: "2026-03-09",
+        role: "Engineer",
+        summary: "Applied and later scheduled an interview.",
+      },
+      {
+        appliedAt: null,
+        company: "Beta Labs",
+        endedAt: "2025-12-04",
+        role: null,
+        summary: "The process ended after a final interview.",
+      },
+      {
+        appliedAt: null,
+        company: "Gamma",
+        endedAt: null,
+        role: "Product Engineer",
+        summary: "A role-specific resume was submitted.",
+      },
+      {
+        appliedAt: "2025-05-08",
+        company: "Toss",
+        endedAt: null,
+        role: "ML Engineer (Image Generation)",
+        summary:
+          "Applied and passed screening and the first job interview, with a second interview scheduled.",
+      },
+    ],
+  });
+
+  assert.equal(
+    markdown,
+    [
+      "- Acme - Engineer : 2026.01.12 ~ 2026.03.09, Applied and later scheduled an interview.",
+      "- Beta Labs : ~ 2025.12.04, The process ended after a final interview.",
+      "- Gamma - Product Engineer : A role-specific resume was submitted.",
+      "- Toss - ML Engineer (Image Generation) : 2025.05.08, Applied and passed screening and the first job interview, with a second interview scheduled.",
+      "",
+    ].join("\n")
+  );
+  assert.doesNotMatch(markdown, /Not confirmed|Application date|End date/);
 });
 
 test("renders an explicit empty result instead of inventing history", () => {
   const markdown = renderGmailCareerHistoryMarkdown({
-    analyzedAt: "2026-08-30T00:00:00.000Z",
     entries: [],
   });
 
-  assert.match(markdown, /No reliable application history found/);
-  assert.doesNotMatch(markdown, /^## .* — /m);
-});
-
-test("keeps only the latest message per Gmail thread", () => {
-  const emails = [
-    {
-      messageId: "m1",
-      receivedAt: "2026-01-01T00:00:00.000Z",
-      threadId: "t-acme",
-    },
-    {
-      messageId: "m2",
-      receivedAt: "2026-03-01T00:00:00.000Z",
-      threadId: "t-acme",
-    },
-    {
-      messageId: "m3",
-      receivedAt: "2026-02-15T00:00:00.000Z",
-      threadId: "t-beta",
-    },
-    {
-      messageId: "m4",
-      receivedAt: "2026-04-01T00:00:00.000Z",
-      threadId: null,
-    },
-    {
-      messageId: "m5",
-      receivedAt: null,
-      threadId: "",
-    },
-  ];
-
-  const deduped = dedupGmailEmailsByThread(emails);
-
-  assert.deepEqual(
-    deduped.map((email) => email.messageId),
-    ["m4", "m2", "m3", "m5"]
-  );
-});
-
-test("treats missing receivedAt as older when deduping", () => {
-  const emails = [
-    {
-      messageId: "m-null",
-      receivedAt: null,
-      threadId: "t-1",
-    },
-    {
-      messageId: "m-dated",
-      receivedAt: "2026-05-01T00:00:00.000Z",
-      threadId: "t-1",
-    },
-  ];
-
-  const deduped = dedupGmailEmailsByThread(emails);
-  assert.deepEqual(
-    deduped.map((email) => email.messageId),
-    ["m-dated"]
-  );
+  assert.equal(markdown, "- No reliable application history found.\n");
 });

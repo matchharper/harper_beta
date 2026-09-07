@@ -107,6 +107,7 @@ import {
   updateTalentDocumentForTool,
 } from "./documentTool";
 import { executeConnectedGmailSearch } from "@/lib/integrations/gmail";
+import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
 
 export type TalentToolChannel = "chat" | "voice";
 
@@ -541,7 +542,7 @@ const ROLE_CONTEXT_ROLE_SELECT = `
     request
   ),
   company_workspace:company_workspace!inner (
-    published_name,
+    company_name,
     company_db:company_db (
       name,
       short_description,
@@ -762,9 +763,7 @@ async function runGetRoleContext(args: {
       detailedRecommendation?.talentRoleActivities,
       10
     );
-    const publishedCompanyName =
-      optionalToolString(workspace?.published_name) ??
-      "Undisclosed internal company";
+    const workspaceCompanyName = optionalToolString(workspace?.company_name);
 
     return {
       found: true,
@@ -796,7 +795,7 @@ async function runGetRoleContext(args: {
       },
       companyDb: {
         name: isInternalRole
-          ? publishedCompanyName
+          ? workspaceCompanyName
           : optionalToolString(companyDb?.name),
         shortDescription: optionalToolString(companyDb?.short_description),
         description: optionalClippedToolString(
@@ -1245,6 +1244,17 @@ async function updateRecommendedOpportunityFeedback(args: {
               : []),
           ].join(" "),
         }
+      : args.feedback === "like" &&
+          updatedOpportunity?.sourceType === "internal"
+        ? {
+            // Candidate-facing contract: the human confirmation/handoff remains
+            // internal. A successful acceptance is explained as Harper sharing
+            // the profile/context with the company and helping make the connection.
+            // Future tense prevents a false completed-action claim without turning
+            // the operational handoff into a disclaimer or another user decision.
+            assistantInstruction:
+              "The internal connection acceptance is recorded. Tell the candidate directly that Harper will share or introduce their profile and relevant experience to the company and help make the connection. Use future tense until actual sharing is verified, but do not say profile sharing or company connection is not immediate/confirmed, do not say Harper merely needs to check the next step, and never expose Harper's internal human confirmation or handoff.",
+          }
       : {}),
   };
 }
@@ -1402,32 +1412,25 @@ function getPriorityReviewGroupName(
   );
 }
 
-async function fetchPublishedOfficialJobCompanyName(args: {
+async function fetchConversationEntryOfficialJobLabel(args: {
   admin: any;
+  conversationId?: string | null;
   roleId: string;
+  userId: string;
 }) {
-  const { data, error } = await ((
-    args.admin.from("official_jobs" as any) as any
-  )
-    .select("company_name")
-    .eq("role_id", args.roleId)
-    .eq("is_published", true)
-    .order("updated_at", { ascending: false, nullsFirst: false })
-    .limit(1)
-    .maybeSingle() as any);
+  if (!args.conversationId) return null;
+  const context = await fetchCareerPostOnboardingContext({
+    admin: args.admin,
+    conversationId: args.conversationId,
+    userId: args.userId,
+  });
+  const opportunity = context?.entryOpportunity;
+  if (opportunity?.verifiedActiveRoleId !== args.roleId) return null;
 
-  if (error) {
-    console.error(
-      "[internal-role-priority-review] official job company lookup failed",
-      {
-        error: error.message ?? String(error),
-        roleId: args.roleId,
-      }
-    );
-    return null;
-  }
-
-  return optionalToolString(asToolRecord(data)?.company_name);
+  return {
+    companyName: optionalToolString(opportunity.companyName),
+    roleTitle: optionalToolString(opportunity.roleTitle),
+  };
 }
 
 function getHiringSlackWebhookUrl() {
@@ -1762,16 +1765,19 @@ async function updateInternalRolePriorityReview(args: {
     roleAvailability === "active" || roleAvailability === "hiring_paused";
   const workspace = asToolRecord(roleRecord.company_workspace);
   const rawCompanyName = optionalToolString(workspace?.company_name);
-  const officialJobCompanyName = await fetchPublishedOfficialJobCompanyName({
+  const officialJobLabel = await fetchConversationEntryOfficialJobLabel({
     admin: args.admin,
+    conversationId: args.conversationId,
     roleId,
+    userId: args.userId,
   });
   const companyName =
-    officialJobCompanyName ??
+    officialJobLabel?.companyName ??
     priorityReviewGroupName ??
     optionalToolString(workspace?.published_name) ??
     "Undisclosed internal company";
-  const roleTitle = optionalToolString(roleRecord.name);
+  const roleTitle =
+    officialJobLabel?.roleTitle ?? optionalToolString(roleRecord.name);
 
   if (args.action === "withdraw") {
     const existing = await fetchEarliestInternalRolePriorityReview({

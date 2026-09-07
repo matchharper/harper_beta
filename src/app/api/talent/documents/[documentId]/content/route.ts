@@ -123,6 +123,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
     const bytes = Buffer.from(body.content, "utf8");
     const contentSha256 = createHash("sha256").update(bytes).digest("hex");
+    const updatedAt = new Date().toISOString();
     const { data: updatedDocument, error: updateError } = await admin
       .from("talent_documents")
       .update({
@@ -134,6 +135,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
         kind: "document",
         size_bytes: bytes.byteLength,
         storage_path: null,
+        updated_at: updatedAt,
       })
       .eq("id", document.id)
       .eq("talent_id", user.id)

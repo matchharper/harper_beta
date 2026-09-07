@@ -31,7 +31,11 @@ export async function POST(req: NextRequest) {
       integrationUpdatedAt: integration.updated_at,
       talentId: user.id,
     });
-    return NextResponse.json({ ok: true, status: "queued" });
+    return NextResponse.json({
+      analysis: { status: "queued" },
+      ok: true,
+      status: "queued",
+    });
   } catch (error) {
     console.error("[GmailCareerHistory] enqueue failed", {
       message: error instanceof Error ? error.message : "Unknown queue error",

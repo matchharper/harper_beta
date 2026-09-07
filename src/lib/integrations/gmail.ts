@@ -29,12 +29,15 @@ export type GmailSearchResult = {
     messageId: string;
     threadId: string | null;
     from: string | null;
+    to: string | null;
+    cc: string | null;
     subject: string | null;
     receivedAt: string | null;
     snippet: string | null;
     content?: string;
   }>;
   truncated: boolean;
+  nextPageToken: string | null;
   assistantInstruction: string;
 };
 
@@ -85,9 +88,21 @@ const findHeader = (message: Record<string, unknown>, headerName: string) => {
       record.name.toLowerCase() === headerName.toLowerCase()
     );
   });
-  return headerName.toLowerCase() === "from"
+  return ["from", "to", "cc"].includes(headerName.toLowerCase())
     ? cleanEmailAddress(asRecord(match)?.value, 500)
     : cleanText(asRecord(match)?.value, 500);
+};
+
+const cleanAddressList = (value: unknown, maxLength: number) => {
+  if (Array.isArray(value)) {
+    return cleanEmailAddress(
+      value
+        .filter((item): item is string => typeof item === "string")
+        .join(", "),
+      maxLength
+    );
+  }
+  return cleanEmailAddress(value, maxLength);
 };
 
 const normalizeReceivedAt = (value: unknown) => {
@@ -129,7 +144,7 @@ export function normalizeGmailSearchResponse(args: {
   includeContent: boolean;
   maxResults: number;
   response: unknown;
-}): Pick<GmailSearchResult, "emails" | "truncated"> {
+}): Pick<GmailSearchResult, "emails" | "nextPageToken" | "truncated"> {
   const payload = findMessagePayload(args.response);
   const messages = Array.isArray(payload?.messages) ? payload.messages : [];
   let remainingContentCharacters = 20_000;
@@ -141,8 +156,13 @@ export function normalizeGmailSearchResponse(args: {
       const messageId = cleanText(message.messageId ?? message.id, 300);
       if (!messageId) return null;
 
+      const preview = asRecord(message.preview);
       const rawContent =
-        message.messageText ?? message.text ?? message.body ?? message.content;
+        message.messageText ??
+        message.text ??
+        message.body ??
+        message.content ??
+        preview?.body;
       const contentLimit = Math.min(4_000, remainingContentCharacters);
       const content =
         args.includeContent && contentLimit > 0
@@ -154,7 +174,10 @@ export function normalizeGmailSearchResponse(args: {
         messageId,
         threadId: cleanText(message.threadId ?? message.thread_id, 300),
         from:
-          cleanEmailAddress(message.from, 500) ?? findHeader(message, "from"),
+          cleanAddressList(message.sender ?? message.from, 500) ??
+          findHeader(message, "from"),
+        to: cleanAddressList(message.to, 1_000) ?? findHeader(message, "to"),
+        cc: cleanAddressList(message.cc, 1_000) ?? findHeader(message, "cc"),
         subject:
           cleanText(message.subject, 500) ?? findHeader(message, "subject"),
         receivedAt: normalizeReceivedAt(
@@ -164,7 +187,7 @@ export function normalizeGmailSearchResponse(args: {
             message.date
         ),
         snippet: cleanText(
-          message.snippet ?? message.preview ?? message.data_preview,
+          message.snippet ?? preview?.body ?? message.data_preview,
           800
         ),
         ...(content ? { content } : {}),
@@ -180,6 +203,7 @@ export function normalizeGmailSearchResponse(args: {
 
   return {
     emails,
+    nextPageToken,
     truncated: Boolean(nextPageToken) || messages.length > args.maxResults,
   };
 }
@@ -281,6 +305,7 @@ const unavailableResult = (
 ): GmailSearchResult => ({
   assistantInstruction,
   emails: [],
+  nextPageToken: null,
   status,
   truncated: false,
 });
@@ -317,6 +342,7 @@ export async function executeConnectedGmailSearch(args: {
   admin: TalentAdminClient;
   includeContent: boolean;
   maxResults: number;
+  pageToken?: string;
   query: string;
   talentId: string;
 }): Promise<GmailSearchResult> {
@@ -380,6 +406,7 @@ export async function executeConnectedGmailSearch(args: {
       arguments: {
         include_payload: args.includeContent,
         max_results: args.maxResults,
+        ...(args.pageToken ? { page_token: args.pageToken } : {}),
         query: args.query,
         user_id: "me",
       },

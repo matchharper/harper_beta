@@ -229,7 +229,9 @@ export function createComposioClient(
   }) {
     let url: URL;
     try {
-      url = new URL(typeof args.redirectUrl === "string" ? args.redirectUrl : "");
+      url = new URL(
+        typeof args.redirectUrl === "string" ? args.redirectUrl : ""
+      );
     } catch {
       throw new ComposioApiError(
         "Composio returned an invalid connect URL",
@@ -447,9 +449,7 @@ export async function listActiveComposioGmailAccounts(userId: string) {
   });
 }
 
-export async function getComposioConnectedAccount(
-  connectedAccountId: string
-) {
+export async function getComposioConnectedAccount(connectedAccountId: string) {
   return createComposioClient().getAccount(connectedAccountId);
 }
 
@@ -480,6 +480,20 @@ export async function executeComposioGmailFetchEmails(args: {
     accountId: args.connectedAccountId,
     arguments: args.arguments,
     slug: "GMAIL_FETCH_EMAILS",
+    userId: args.userId,
+    version: COMPOSIO_GMAIL_TOOL_VERSION,
+  });
+}
+
+export async function executeComposioGmailFetchThread(args: {
+  connectedAccountId: string;
+  threadId: string;
+  userId: string;
+}) {
+  return createComposioClient().executeTool<Record<string, unknown>>({
+    accountId: args.connectedAccountId,
+    arguments: { thread_id: args.threadId, user_id: "me" },
+    slug: "GMAIL_FETCH_MESSAGE_BY_THREAD_ID",
     userId: args.userId,
     version: COMPOSIO_GMAIL_TOOL_VERSION,
   });

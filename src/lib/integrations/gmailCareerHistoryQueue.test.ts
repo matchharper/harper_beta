@@ -6,15 +6,36 @@ test("accepts only versioned Gmail analysis queue messages", () => {
   const message = parseGmailCareerHistoryQueueMessage({
     expectedIntegrationUpdatedAt: "2026-08-30T00:00:00.000Z",
     kind: "analyze_gmail_career_history",
+    runId: 42,
+    runStartedAt: "2026-08-30T00:00:01.000Z",
     talentId: "cb0a949a-a956-4ec6-864d-12e4eafc3693",
     version: 1,
   });
   assert.deepEqual(message, {
     expectedIntegrationUpdatedAt: "2026-08-30T00:00:00.000Z",
     kind: "analyze_gmail_career_history",
+    runId: 42,
+    runStartedAt: "2026-08-30T00:00:01.000Z",
     talentId: "cb0a949a-a956-4ec6-864d-12e4eafc3693",
     version: 1,
   });
+
+  assert.deepEqual(
+    parseGmailCareerHistoryQueueMessage({
+      expectedIntegrationUpdatedAt: "2026-08-30T00:00:00.000Z",
+      kind: "analyze_gmail_career_history",
+      talentId: "cb0a949a-a956-4ec6-864d-12e4eafc3693",
+      version: 1,
+    }),
+    {
+      expectedIntegrationUpdatedAt: "2026-08-30T00:00:00.000Z",
+      kind: "analyze_gmail_career_history",
+      runId: null,
+      runStartedAt: null,
+      talentId: "cb0a949a-a956-4ec6-864d-12e4eafc3693",
+      version: 1,
+    }
+  );
 
   assert.equal(
     parseGmailCareerHistoryQueueMessage({

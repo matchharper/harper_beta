@@ -1,65 +1,29 @@
 export const GMAIL_CAREER_HISTORY_ORIGIN_TYPE = "gmail_career_history";
 export const GMAIL_CAREER_HISTORY_ORIGIN_ID = "singleton";
-export const GMAIL_CAREER_HISTORY_FILE_NAME = "Gmail Career History.md";
+export const GMAIL_CAREER_HISTORY_FILE_NAME = "Career History.md";
 
-export function dedupGmailEmailsByThread<
-  T extends {
-    messageId: string;
-    receivedAt: string | null;
-    threadId: string | null;
-  },
->(emails: T[]): T[] {
-  const byThread = new Map<string, T>();
-  const noThread: T[] = [];
-
-  for (const email of emails) {
-    const threadKey = (email.threadId ?? "").trim();
-    if (!threadKey) {
-      noThread.push(email);
-      continue;
-    }
-    const existing = byThread.get(threadKey);
-    if (
-      !existing ||
-      String(email.receivedAt ?? "") > String(existing.receivedAt ?? "")
-    ) {
-      byThread.set(threadKey, email);
-    }
-  }
-
-  const combined = [...byThread.values(), ...noThread];
-  combined.sort((left, right) =>
-    String(right.receivedAt ?? "").localeCompare(String(left.receivedAt ?? ""))
-  );
-  return combined;
+export function buildGmailCareerHistorySummaryInstruction(
+  outputLanguage: "English" | "Korean"
+) {
+  return [
+    `Write summary in ${outputLanguage}.`,
+    "Use a compact phrase that records only the process: the application or submission, meaningful stages reached in chronological order, and the explicit final result when one exists.",
+    "The company and role are already separate fields. Do not repeat their actual names in summary.",
+    "If the evidence stops after the application with no later process record, say that there is no later record. If later stages exist but no final outcome is recorded, say that there is no final result.",
+    "Avoid report-like filler, explanations about what the emails confirm, and contrastive narration such as 'the company received the application, but'.",
+    "Keep it as short as the evidence allows; do not enumerate emails or dates.",
+    "Korean style examples: '해당 직무 지원, 이후 기록 없음' and '지원 접수 후 1차 직무 인터뷰, 2차 직무 인터뷰까지 진행, 최종 결과 없음.'",
+    "English style examples: 'Applied; no later record.' and 'Application received; progressed through first and second role interviews; no final result.'",
+    `Follow only the ${outputLanguage} examples for wording and language.`,
+  ].join(" ");
 }
-
-export const GMAIL_CAREER_STAGES = [
-  "applied",
-  "assessment",
-  "interview",
-  "offer",
-  "rejected",
-  "withdrawn",
-  "unknown",
-] as const;
-export const GMAIL_CAREER_CONFIDENCE_LEVELS = [
-  "high",
-  "medium",
-  "low",
-] as const;
-
-export type GmailCareerStage = (typeof GMAIL_CAREER_STAGES)[number];
-export type GmailCareerConfidence =
-  (typeof GMAIL_CAREER_CONFIDENCE_LEVELS)[number];
 
 export type GmailCareerEntry = {
   company: string;
   role: string | null;
-  stage: GmailCareerStage;
-  lastActivityAt: string | null;
-  evidenceSummary: string;
-  confidence: GmailCareerConfidence;
+  appliedAt: string | null;
+  endedAt: string | null;
+  summary: string;
 };
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
@@ -80,17 +44,9 @@ function normalizeNullableDate(value: unknown) {
   const text = cleanGmailCareerInlineText(value, 100);
   if (!text) return null;
   const parsed = new Date(text);
-  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
-}
-
-function isCareerStage(value: string): value is GmailCareerStage {
-  return GMAIL_CAREER_STAGES.some((candidate) => candidate === value);
-}
-
-function isConfidence(value: string): value is GmailCareerConfidence {
-  return GMAIL_CAREER_CONFIDENCE_LEVELS.some(
-    (candidate) => candidate === value
-  );
+  return Number.isNaN(parsed.getTime())
+    ? null
+    : parsed.toISOString().slice(0, 10);
 }
 
 export function normalizeGmailCareerEntries(
@@ -98,98 +54,63 @@ export function normalizeGmailCareerEntries(
 ): GmailCareerEntry[] {
   const root = asRecord(value);
   const rawEntries = Array.isArray(root?.entries) ? root.entries : [];
-  const byApplication = new Map<string, GmailCareerEntry>();
+  const normalizedEntries: GmailCareerEntry[] = [];
+  const seen = new Set<string>();
 
   for (const rawEntry of rawEntries.slice(0, 100)) {
     const entry = asRecord(rawEntry);
     if (!entry) continue;
     const company = cleanGmailCareerInlineText(entry.company, 200);
-    const evidenceSummary = cleanGmailCareerInlineText(
-      entry.evidenceSummary,
-      600
-    );
-    if (!company || !evidenceSummary) continue;
+    const summary = cleanGmailCareerInlineText(entry.summary, 800);
+    if (!company || !summary) continue;
     const role = cleanGmailCareerInlineText(entry.role, 240) || null;
-    const rawStage = cleanGmailCareerInlineText(entry.stage, 40).toLowerCase();
-    const rawConfidence = cleanGmailCareerInlineText(
-      entry.confidence,
-      40
-    ).toLowerCase();
     const normalized: GmailCareerEntry = {
+      appliedAt: normalizeNullableDate(entry.appliedAt),
       company,
-      confidence: isConfidence(rawConfidence) ? rawConfidence : "low",
-      evidenceSummary,
-      lastActivityAt: normalizeNullableDate(entry.lastActivityAt),
+      endedAt: normalizeNullableDate(entry.endedAt),
       role,
-      stage: isCareerStage(rawStage) ? rawStage : "unknown",
+      summary,
     };
-    const key = `${company.toLocaleLowerCase()}\u0000${(role ?? "").toLocaleLowerCase()}`;
-    const previous = byApplication.get(key);
-    if (
-      !previous ||
-      String(normalized.lastActivityAt ?? "") >
-        String(previous.lastActivityAt ?? "")
-    ) {
-      byApplication.set(key, normalized);
-    }
+    const key = JSON.stringify(normalized);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalizedEntries.push(normalized);
   }
 
-  return [...byApplication.values()].sort((left, right) => {
-    const dateOrder = String(right.lastActivityAt ?? "").localeCompare(
-      String(left.lastActivityAt ?? "")
-    );
+  return normalizedEntries.sort((left, right) => {
+    const dateOrder = String(
+      right.appliedAt ?? right.endedAt ?? ""
+    ).localeCompare(String(left.appliedAt ?? left.endedAt ?? ""));
     return dateOrder || left.company.localeCompare(right.company);
   });
 }
 
-const STAGE_LABELS: Record<GmailCareerStage, string> = {
-  applied: "Applied",
-  assessment: "Assessment",
-  interview: "Interview",
-  offer: "Offer",
-  rejected: "Rejected",
-  withdrawn: "Withdrawn",
-  unknown: "Unknown",
-};
+function formatCareerHistoryDate(value: string | null) {
+  return value ? value.replaceAll("-", ".") : "";
+}
 
-const CONFIDENCE_LABELS: Record<GmailCareerConfidence, string> = {
-  high: "High",
-  medium: "Medium",
-  low: "Low",
-};
+function formatCareerHistoryDateRange(entry: GmailCareerEntry) {
+  const appliedAt = formatCareerHistoryDate(entry.appliedAt);
+  const endedAt = formatCareerHistoryDate(entry.endedAt);
+  if (appliedAt && endedAt) return `${appliedAt} ~ ${endedAt}`;
+  if (appliedAt) return appliedAt;
+  if (endedAt) return `~ ${endedAt}`;
+  return "";
+}
 
 export function renderGmailCareerHistoryMarkdown(args: {
-  analyzedAt: string;
   entries: GmailCareerEntry[];
 }) {
-  const lines = [
-    "# Career history from Gmail",
-    "",
-    `Last analyzed: ${args.analyzedAt}`,
-    "",
-    "This document was generated from hiring-related email evidence. It does not contain raw email bodies or attachments.",
-  ];
-
   if (args.entries.length === 0) {
-    lines.push(
-      "",
-      "## No reliable application history found",
-      "",
-      "Harper did not find enough evidence in the reviewed hiring-related emails to record a company and role."
-    );
-    return `${lines.join("\n")}\n`;
+    return "- No reliable application history found.\n";
   }
 
-  for (const entry of args.entries) {
-    lines.push(
-      "",
-      `## ${entry.company}${entry.role ? ` — ${entry.role}` : ""}`,
-      "",
-      `- Last known stage: ${STAGE_LABELS[entry.stage]}`,
-      `- Last activity: ${entry.lastActivityAt ?? "Unknown"}`,
-      `- Evidence: ${entry.evidenceSummary}`,
-      `- Confidence: ${CONFIDENCE_LABELS[entry.confidence]}`
-    );
-  }
+  const lines = args.entries.map((entry) => {
+    const title = entry.role
+      ? `${entry.company} - ${entry.role}`
+      : entry.company;
+    const dateRange = formatCareerHistoryDateRange(entry);
+    return `- ${title} : ${dateRange ? `${dateRange}, ` : ""}${entry.summary}`;
+  });
   return `${lines.join("\n")}\n`;
 }

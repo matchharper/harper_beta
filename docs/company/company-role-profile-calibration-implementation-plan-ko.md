@@ -1,12 +1,12 @@
 # Company Role Profile Calibration 구현 계획
 
-- 문서 기준: 2026-09-04
-- 상태: 구현 전 계획
+- 문서 기준: 2026-09-07
+- 상태: 로컬 구현 완료, 현재 연결 DB의 migration 적용 확인, Scheduled 활성화·production app rollout 전
 - 반복 실행 계약: [Company Role Profile Calibration Codex 실행 계약](./company-role-profile-calibration-codex-runbook-ko.md)
 
 ## 1. 구현 목표
 
-새 internal Role이 등록되면 6시간 이내를 목표로 로컬 Codex가 `candid` 기반 예시 profile
+새 internal Role이 등록되면 12시간 이내를 목표로 로컬 Codex가 `candid` 기반 예시 profile
 5명 안팎을 준비한다. 회사 사용자는 Role의 `매칭 기준` 화면 맨 아래에서 profile과
 `미평가 / Good / Bad` 상태를 볼 수 있다. 상세 profile은 기존 후보자 profile UI를 작게
 재사용해 오른쪽 Role 정보 영역만 덮는다.
@@ -24,8 +24,10 @@
 - UI에는 상태 변경 버튼을 두지 않는다.
 - Slack에도 Good/Bad 버튼이나 modal을 두지 않는다.
 - Feedback은 기존 Role-scoped web chat과 company-side Slack thread만 받는다.
-- Feedback 반영에는 새 scenario 전용 agent tool을 만들지 않고 기존
-  `calibrate_role_hiring_brief`를 확장한다.
+- Feedback은 기존 `calibrate_role_hiring_brief`와 의미를 섞지 않는다. 준비된 profile A~E에 대한
+  반응만 기록하는 작은 `record_role_profile_example_feedback({ roleId })`를 둔다. 두 tool 모두에
+  `calibration`이라는 단어를 넣지 않고, 새 참고 인물인지 이미 준비된 예시인지 evidence의 출처로
+  선택하게 한다.
 - Calibration profile은 실제 recommendation이나 talent pipeline item이 아니다.
 
 ## 3. 현재 코드에서 재사용할 경계
@@ -37,15 +39,16 @@
 - 현재 `TalentDetailSimpleView.tsx`는 실제 후보자 query, feed, Connect/Reject와 전체 viewport
   portal을 함께 소유한다. 그대로 calibration에 mount하면 채팅까지 덮고 실제 후보자 action도
   노출되므로 전체 컴포넌트를 재사용하지 않는다.
-- 대신 그 안의 profile 표시 부분을 순수 presentational component로 분리해 실제 후보자 상세와
-  calibration 상세가 함께 사용한다.
+- 이미 분리되어 있는 `TalentProfileHeader`, `TalentExperienceSection`,
+  `TalentEducationSection`, `TalentExtraSection`과 Markdown renderer를 두 상세 화면이 함께 사용한다.
 
 ### Company-side LLM
 
-- 기존 `calibrate_role_hiring_brief`는 Role ID만 받고 server가 reference 자료를 읽어 Hiring
-  Brief를 갱신한다.
-- 이 tool의 작은 input contract는 유지한다. 현재 대화가 scheduled calibration profile에
-  대한 평가라면 server가 해당 Role의 active calibration을 직접 읽는다.
+- 기존 `calibrate_role_hiring_brief`는 사용자가 가장 이상적인 실제 인물을 새 reference로
+  제시했을 때만 사용하며 동작을 바꾸지 않는다.
+- 준비된 profile에 대한 피드백은 `record_role_profile_example_feedback({ roleId })`가 처리한다.
+  Server가 해당 Role의 최신 calibration과 profile 전체를 직접 읽으므로 profile ID, Good/Bad와
+  이유를 tool input으로 다시 복사하지 않는다.
 - 일반 `update_role`이나 profile별 Good/Bad tool을 추가하지 않는다.
 
 ### Slack
@@ -69,7 +72,8 @@
 
 이 정보는 최신 Hiring Brief만으로 복원할 수 없다. 일반 대화 기록만으로도 어느 snapshot을
 보여줬는지, A가 어느 source였는지와 아직 평가하지 않은 profile을 안정적으로 재구성할 수 없다.
-구체적인 reader는 Calibration UI, Slack publisher와 `calibrate_role_hiring_brief` executor다.
+구체적인 reader는 Calibration UI, Slack publisher와
+`record_role_profile_example_feedback` executor다.
 따라서 별도 profile·feedback·delivery table을 나누지 않고 이 한 table의 JSONB에 함께 둔다.
 
 ```sql
@@ -151,7 +155,7 @@ Slack이 없거나 일부 channel 전달이 실패해도 `ready` profile은 웹�
       },
       "display": {
         "name": "김민준",
-        "profilePicture": "/images/calibration/avatar-01.webp",
+        "profilePicture": "/images/profiles/avatar1.png",
         "headline": "Senior Backend Engineer",
         "location": "Seoul, South Korea",
         "bio": null,
@@ -205,7 +209,7 @@ contract를 검사한다.
 - URL field와 원래 identity field가 company-safe payload에 없음
 - source candid ID가 claimed run의 retrieval 결과에 속함
 
-## 6. Enqueue와 6시간 예약 실행
+## 6. Enqueue와 12시간 예약 실행
 
 ### Enqueue
 
@@ -215,9 +219,9 @@ Role이 draft에서 active로 확정되는 기존 activation 경계에서
 - 같은 workspace의 internal Role
 - active, unexpired
 - `information.testOnly`이 아님
-- 열린 calibration row가 없음
+- `failed`, `canceled`, `completed`를 포함한 어떤 상태의 calibration row도 없음
 
-중복 호출은 기존 열린 row를 반환하고 새 row를 만들지 않는다. Role 등록 transaction이 실패하면
+중복 호출은 기존 row의 상태와 관계없이 그 row를 반환하고 새 row를 만들지 않는다. Role 등록 transaction이 실패하면
 calibration row만 남지 않아야 한다.
 
 ### Atomic claim
@@ -229,8 +233,8 @@ claim하고 `running`으로 바꾼다. Claim 시점에도 Role 상태와 test-on
 
 ### Codex Scheduled
 
-로컬 Codex Scheduled를 6시간마다 실행한다. 한 번 실행할 때 queue가 빌 때까지 Role을
-순차 처리한다. 이 기능은 6~12시간 안에 시작하면 충분하다는 제품 전제를 사용하므로 실시간
+로컬 Codex Scheduled를 12시간마다 `gpt-5.6-sol`의 `xhigh` reasoning으로 실행한다. 한 번 실행할 때
+queue가 빌 때까지 Role을 순차 처리한다. 이 기능은 12시간 안에 시작하면 충분하다는 제품 전제를 사용하므로 실시간
 webhook이나 상시 worker를 추가하지 않는다.
 
 로컬 컴퓨터나 Codex 앱이 꺼져 있으면 실행이 늦을 수 있다. 나중에 가용성 요구가 높아져도 같은
@@ -253,6 +257,7 @@ python3 scripts/company_role_calibration.py candidate-packet \
   --calibration-id <id> --query-result <path> --limit 20
 python3 scripts/company_role_calibration.py finish \
   --calibration-id <id> --selection <selection-json>
+python3 scripts/company_role_calibration.py pending-deliveries --limit 10
 python3 scripts/company_role_calibration.py deliver --calibration-id <id>
 python3 scripts/company_role_calibration.py fail \
   --calibration-id <id> --stage <stage> --error <short-error>
@@ -268,8 +273,8 @@ Raw query result와 원본 candidate packet은 예를 들어 아래 ignored dire
 output/company_role_calibration/runs/<calibration_id>/
 ```
 
-Directory와 raw file은 owner-only permission으로 만들고 commit하지 않는다. 장기 보존할 필요가
-없으므로 기본 30일 뒤 정리한다.
+Directory와 raw file은 owner-only permission으로 만들고 commit하지 않는다. 장기 보존 대상이
+아니므로 운영 정리 대상에 포함한다.
 
 ## 8. Web API와 query
 
@@ -396,20 +401,29 @@ Active Role calibration이 있으면 일반 agent context에 다음 작은 index
 - 현재 `unreviewed|good|bad` 상태와 이미 받은 사용자 이유
 - 현재 Slack thread가 calibration root에서 시작됐는지 여부
 
-전체 경력과 학력을 every turn context에 넣지 않는다. `calibrate_role_hiring_brief`가 호출될 때
+전체 경력과 학력을 every turn context에 넣지 않는다. `record_role_profile_example_feedback`가 호출될 때
 server가 JSONB에서 full display profile을 읽는다. 가상 이름을 일반 candidate 검색 대상으로
 오해해 `get_talents`를 호출하지 않도록 prompt에서 calibration index의 의미를 명확히 한다.
 
-### 기존 tool 확장
+### 별도의 간소화된 feedback tool
 
-새 `record_calibration_feedback`, `mark_profile_good` 같은 tool은 만들지 않는다. 기존
-`calibrate_role_hiring_brief({ roleId })`를 두 종류의 calibration source를 처리하도록 확장한다.
+`calibrate_role_hiring_brief({ roleId })`는 가장 이상적인 reference person을 새로 입력받는 기존
+경로로 그대로 유지한다. 이번 기능은 `record_role_profile_example_feedback({ roleId })`를 별도로 둔다.
+두 흐름은 모두 Hiring Brief를 개선할 수 있지만 evidence의 의미가 다르므로 하나의 tool에서 mode를
+추론하지 않는다.
 
-1. 사용자가 직접 제시한 실제 reference person
-2. Harper가 미리 준비한 Role calibration profile set에 대한 Good/Bad feedback
+- `calibrate_role_hiring_brief`: 사용자가 직접 제시한 이상적인 실제 reference person
+- `record_role_profile_example_feedback`: Harper가 미리 준비한 profile set에 대한 가벼운 Good/Bad
+  feedback
 
-Tool input은 계속 `roleId` 하나다. 어떤 mode인지는 server가 현재 message/thread context와
-active calibration row로 결정하며 model이 mode enum을 만들어 보내지 않는다.
+Company-side LLM은 `Good`, `Bad`, `ideal` 같은 표현이 아니라 person의 출처로 경로를 고른다.
+`prepared_role_profile_examples`에 이미 있는 A~E 또는 표시 이름이면 feedback tool, 사용자가 새로
+가져온 인물·URL·첨부·mention이면 Hiring Brief calibration tool이다. 같은 person과 판단에는 두 tool을
+함께 호출하지 않는다. 한 message에 두 종류의 서로 다른 evidence가 실제로 같이 들어온 경우에만 두
+tool을 차례로 쓸 수 있다. 출처가 해소되지 않으면 어느 쪽도 쓰지 않고 한 가지 질문으로 확인한다.
+
+새 feedback tool의 input도 `roleId` 하나다. Server가 현재 message와 active calibration row의 full
+display profile을 읽어 profile 판단을 구조화하고, 실제 DB write에 필요한 결과만 검증한다.
 
 Scheduled profile feedback용 내부 structured result에는 machine write에 필요한 최소값만 둔다.
 
@@ -422,8 +436,8 @@ Scheduled profile feedback용 내부 structured result에는 machine write에 �
       "reason": "0-to-1 환경에서 제품을 직접 출시한 경험"
     }
   ],
-  "shouldUpdateHiringBrief": true,
   "hiringBrief": "완전한 최신 Hiring Brief",
+  "finishCalibration": false,
   "summary": "A의 0-to-1 실행 경험을 가산점으로 명확히 함",
   "userReply": "A를 Good으로 기록했고, 말씀하신 이유를 Hiring Brief의 가산점에 추가했어요."
 }
@@ -481,7 +495,7 @@ agent가 재시도한다.
 - `src/lib/org/roleCalibrationServer.ts`
   - company-safe serializer
   - list/detail read
-  - Slack delivery와 feedback transaction wrapper
+  - feedback transaction wrapper
 - `src/app/api/org/role-calibration/route.ts`
   - list/detail GET
 - `scripts/company_role_calibration.py`
@@ -493,8 +507,8 @@ agent가 재시도한다.
 - `src/components/org/role-overview/OrgRoleMatchingContent.tsx`
 - `src/components/org/role-overview/OrgRoleCalibrationSection.tsx`
 - `src/components/org/role-overview/OrgCalibrationProfilePanel.tsx`
-- `src/components/org/TalentDetailSimpleView.tsx`
-  - profile-only presentational 부분 추출 후 재사용
+- `src/components/profile/TalentProfileHeader.tsx`, `TalentExperienceSection.tsx`
+  - 기존 profile-only 표시 요소 재사용
 - `src/components/org/workspace/pages/OrgRoleCreationPage.tsx`
   - 오른쪽 pane의 calibration profile drill-in state와 deep link
 
@@ -504,10 +518,14 @@ agent가 재시도한다.
   - compact calibration index
 - `src/lib/org/agent/prompts.ts`
   - scheduled profile feedback 의미와 tool policy
-- `src/lib/org/agent/roleCalibrationPrompt.ts`
+- `src/lib/org/agent/roleCalibrationFeedbackPrompt.ts`
   - Good/Bad review output와 Hiring Brief 일반화 계약
-- `src/lib/org/agent/roleCalibration.ts`
-  - calibration JSONB source read
+- `src/lib/org/agent/roleCalibrationFeedback.ts`
+  - 준비된 profile feedback 전용 LLM 호출
+- `src/lib/org/roleCalibration.ts`, `src/lib/org/roleCalibrationServer.ts`
+  - company-safe calibration JSONB read와 atomic feedback wrapper
+- `src/lib/org/agent/tools.ts`
+  - `record_role_profile_example_feedback({ roleId })`의 작은 contract
 - `src/lib/org/agent/toolExecution.ts`
   - atomic review + Hiring Brief write
 - `src/lib/org/slackMessages.ts`
@@ -567,10 +585,10 @@ Production company-side E2E에 test-only Role을 넣지 않는다. 자동 calibr
 2. Canonical Codex script와 local dry-run; 이 단계에서는 Slack을 보내지 않음
 3. Role Matching 화면의 read-only Calibration list와 오른쪽 profile panel
 4. Slack root message와 idempotent delivery
-5. Agent compact context와 기존 `calibrate_role_hiring_brief` 확장
+5. Agent compact context와 별도 `record_role_profile_example_feedback` 연결
 6. Profile review + Hiring Brief atomic write
 7. Non-production end-to-end 검증
-8. 6시간 Codex Scheduled 연결
+8. 12시간 Codex Scheduled 연결 — rollout 시 별도 활성화
 
 Trigger와 Scheduled를 켜기 전에는 기존 active Role을 자동 backfill하지 않는다. 첫 release는 새로
 등록되는 Role만 대상으로 하고, 과거 Role calibration은 별도 명시적 작업으로 남긴다.

@@ -102,6 +102,7 @@ const LLM_LOG_TOOL_NAMES = [
 
 const LLM_LOG_SOURCES: readonly string[] = [
   "career/profile_ingestion",
+  "career/gmail-career-history",
   "career/chat",
   "career/internal-opportunity-call-request",
   "org/intro-email",

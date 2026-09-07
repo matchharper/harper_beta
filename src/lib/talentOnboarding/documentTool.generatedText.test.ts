@@ -16,7 +16,7 @@ function createGmailDocument(
     content_type: "text/markdown",
     created_at: "2026-09-01T00:00:00.000Z",
     extracted_text: "# Career history\n\n## Acme — Engineer",
-    file_name: "Gmail Career History.md",
+    file_name: "Career History.md",
     id: "gmail-document",
     is_deleted: false,
     is_primary: false,
