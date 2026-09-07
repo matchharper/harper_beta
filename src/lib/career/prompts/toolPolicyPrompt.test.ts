@@ -46,7 +46,20 @@ test("chat tools produce one cohesive response after the result", () => {
 
   assert.match(prompt, /call it before writing user-visible explanation/);
   assert.match(prompt, /one cohesive response after the result/);
+  assert.match(prompt, /entire final response consistently in Korean/);
   assert.doesNotMatch(prompt, /start with brief acknowledgement/);
+});
+
+test("career context updates keep Brief labels aligned with their content", () => {
+  const prompt = buildCareerToolPolicyPrompt({
+    channel: "chat",
+    isOnboardingActive: false,
+    preferredLocale: "ko",
+    toolNames: ["write_talent_context"],
+  });
+
+  assert.match(prompt, /Brief update makes its current label misleading/);
+  assert.match(prompt, /update the label in the same change/);
 });
 
 test("matched internal role policy describes already-reviewed fit roles", () => {
@@ -74,10 +87,7 @@ test("matched internal role policy describes already-reviewed fit roles", () => 
     prompt,
     /use feedback=`like` only when the user later explicitly accepts/
   );
-  assert.match(
-    prompt,
-    /one to three concise candidate-visible fitReasons/
-  );
+  assert.match(prompt, /one to three concise candidate-visible fitReasons/);
   assert.match(prompt, /reason=internal_role_review_required/);
   assert.match(prompt, /never include private company requests/);
   assert.match(prompt, /records the user's priority-review request/);
@@ -86,7 +96,10 @@ test("matched internal role policy describes already-reviewed fit roles", () => 
   assert.match(prompt, /prioritize a role is not `feedback=review`/);
   assert.match(prompt, /asking '더 있어\?'/);
   assert.match(prompt, /not to enumerate or explain every unpresented role/);
-  assert.match(prompt, /only after feedback=`review` has made it a formal recommendation/);
+  assert.match(
+    prompt,
+    /only after feedback=`review` has made it a formal recommendation/
+  );
   assert.doesNotMatch(
     prompt,
     /If user wants listing all, say it's not possible/

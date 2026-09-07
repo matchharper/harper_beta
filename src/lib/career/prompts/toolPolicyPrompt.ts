@@ -59,7 +59,7 @@ export function buildCareerToolPolicyPrompt(args: {
   const channelRule =
     args.channel === "voice"
       ? "- Voice mode: if a tool is needed, call it directly. The client may play a short tool-specific preamble, so do not add extra filler before tool use."
-      : `- Chat mode: if a tool is needed, call it directly and then answer naturally in ${outputLanguage} using only the relevant findings.`;
+      : `- Chat mode: if a tool is needed, call it directly and then answer naturally using only the relevant findings. Write the entire final response consistently in ${outputLanguage}, apart from proper nouns or technical terms that are clearer in their original form.`;
   const onboardingToolExceptionNames = [
     hasUpdateLanguageSettingTool ? "`update_language_setting`" : null,
     hasUpdateSettingTool ? "`update_setting`" : null,
@@ -286,7 +286,7 @@ export function buildCareerToolPolicyPrompt(args: {
             ? "- `write_talent_context` preserves context the user should not need to explain again. Put current opportunity-search criteria and premises the user can review in Search Brief; put other context worth remembering for later conversation or opportunity judgment in Memory."
             : "",
           hasWriteTalentContextTool
-            ? "- Read existing rows and the latest user meaning together. Correct a shown row by ref, add genuinely separate information, preserve strength, exceptions, uncertainty, and known timing, and avoid duplicating the same information across Brief and Memory."
+            ? "- Read existing rows and the latest user meaning together. Correct a shown row by ref, add genuinely separate information, preserve strength, exceptions, uncertainty, and known timing, and avoid duplicating the same information across Brief and Memory. When a Brief update makes its current label misleading, update the label in the same change."
             : "",
           hasWriteTalentContextTool
             ? "- Use a free user-readable label plus complete content for a new Brief. A new Memory needs complete content. Do not invent an internal key or choose from a fixed topic list."

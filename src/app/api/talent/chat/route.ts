@@ -1290,7 +1290,7 @@ export async function POST(req: NextRequest) {
             streamedAssistantText += missingText;
             send("text_delta", { delta: missingText });
           };
-          const clearStopToolPreamble = () => {
+          const clearToolPreamble = () => {
             if (!streamedAssistantText && !pendingAssistantText) return;
             pendingAssistantText = "";
             streamedAssistantText = "";
@@ -1350,6 +1350,11 @@ export async function POST(req: NextRequest) {
                 onTextDelta: (delta) => {
                   if (!recommendationToolStarted) sendVisibleTextDelta(delta);
                 },
+                onToolDetected: (tool) => {
+                  if (tool.name !== TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS) {
+                    clearToolPreamble();
+                  }
+                },
                 onToolStart: (tool) => {
                   if (tool.name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS) {
                     recommendationToolStarted = true;
@@ -1368,7 +1373,7 @@ export async function POST(req: NextRequest) {
                   }
                 },
                 onStopToolStart: () => {
-                  clearStopToolPreamble();
+                  clearToolPreamble();
                 },
                 openAIResponsesReasoningEffort:
                   textChatModel.openAIResponsesReasoningEffort,
