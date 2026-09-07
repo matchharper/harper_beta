@@ -92,10 +92,10 @@ export function useCareerTalentContexts(args: {
 
   const applyPersistedTalentContexts = useCallback(
     (payload: ContextPayload) => {
-      if (Object.prototype.hasOwnProperty.call(payload, "talentBrief")) {
+      if (payload.talentBrief !== undefined) {
         setTalentBrief(normalizeContextRows(payload.talentBrief, "brief"));
       }
-      if (Object.prototype.hasOwnProperty.call(payload, "talentMemories")) {
+      if (payload.talentMemories !== undefined) {
         setTalentMemories(
           normalizeContextRows(payload.talentMemories, "memory")
         );
@@ -105,14 +105,10 @@ export function useCareerTalentContexts(args: {
           Number.isSafeInteger(nextCursor) && nextCursor > 0 ? nextCursor : null
         );
         setTalentMemoriesLoaded(true);
-      } else if (
-        Object.prototype.hasOwnProperty.call(payload, "talentContextsUpdatedAt")
-      ) {
+      } else if (payload.talentContextsUpdatedAt !== undefined) {
         setTalentMemoriesLoaded(false);
       }
-      if (
-        Object.prototype.hasOwnProperty.call(payload, "talentContextsUpdatedAt")
-      ) {
+      if (payload.talentContextsUpdatedAt !== undefined) {
         setTalentContextsUpdatedAt(
           normalizeUpdatedAt(payload.talentContextsUpdatedAt)
         );

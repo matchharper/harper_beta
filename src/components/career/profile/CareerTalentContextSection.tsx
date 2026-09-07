@@ -156,7 +156,6 @@ export default function CareerTalentContextSection({
                 </dd>
                 <MuteButton
                   aria-label={t("career.profile.context.edit", "수정")}
-                  className="h-7 w-7 p-0"
                   disabled={!mutate || pending}
                   onClick={() => openEditor("brief", row)}
                   size="sm"
@@ -385,7 +384,7 @@ export default function CareerTalentContextSection({
                   </p>
                   <MuteButton
                     aria-label={t("career.profile.context.edit", "수정")}
-                    className="h-7 w-7 shrink-0 p-0"
+                    className="shrink-0"
                     disabled={!mutate || pending || memoryLoadPending}
                     onClick={() => {
                       setMemoryListOpen(false);

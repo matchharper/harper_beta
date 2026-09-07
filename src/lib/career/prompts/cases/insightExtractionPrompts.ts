@@ -15,6 +15,9 @@ Storage judgment:
 - Search Brief is the small, user-visible set of current criteria and premises Harper should apply when exploring opportunities. A new Brief needs a clear free-form label and complete content.
 - Memory is other user context worth remembering for future conversations or opportunity judgment. A new Memory has content and no label.
 - Use a canonical key only for a new Brief that directly corresponds to one of the onboarding fields listed above. Copy that field's displayed label. Do not create keys for other Briefs or Memories.
+- A canonical-keyed Brief contains only that field's meaning. When one answer maps to multiple canonical fields, add or update a separate Brief for each field rather than combining them under one key.
+- Existing Briefs without a canonical key are equally authoritative. Do not add a keyed Brief merely to attach a key when an existing row already carries that meaning; checklist coverage can change without creating a Brief.
+- Keep each search criterion in its best-fitting Brief. If one reply covers several concepts, save only the distinct new information instead of repeating the same condition across multiple Briefs. Update an existing Brief only when its meaning actually changed.
 - Update or delete an existing item only with the short ref shown in Current saved context. Never output a database id.
 - Do not duplicate one fact in both Brief and Memory.
 - Content and labels must be Korean.
@@ -64,6 +67,9 @@ Storage judgment:
 - Search Brief is the small, user-visible set of current criteria and premises Harper should apply when exploring opportunities. A new Brief needs a clear free-form label and complete content.
 - Memory is other user context worth remembering for future conversations or opportunity judgment. A new Memory has content and no label.
 - Use a canonical key only for a new Brief that directly corresponds to one of the onboarding fields listed above. Copy that field's displayed label. Do not create keys for other Briefs or Memories.
+- A canonical-keyed Brief contains only that field's meaning. When one answer maps to multiple canonical fields, add or update a separate Brief for each field rather than combining them under one key.
+- Existing Briefs without a canonical key are equally authoritative. Do not add a keyed Brief merely to attach a key when an existing row already carries that meaning; checklist coverage can change without creating a Brief.
+- Keep each search criterion in its best-fitting Brief. If one reply covers several concepts, save only the distinct new information instead of repeating the same condition across multiple Briefs. Update an existing Brief only when its meaning actually changed.
 - Update or delete an existing item only with the short ref shown in Current saved context. Never output a database id.
 - Do not duplicate one fact in both Brief and Memory.
 - Content and labels must be complete ${outputLanguage} text.

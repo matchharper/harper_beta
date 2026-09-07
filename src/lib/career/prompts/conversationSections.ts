@@ -189,12 +189,9 @@ export function buildExtractionInsightChecklistSection(args: {
   const coverage = normalizePromptChecklistCoverage(checklistCoverage);
   const insightChecklist = getInsightChecklist(checklistContext);
   const onboardingChecklist = getOnboardingQuestionChecklist(checklistContext);
-  const canonicalKeys = [...insightChecklist]
-    .sort((left, right) => left.priority - right.priority)
-    .map((item) => `"${item.key}"`);
   const checklistLines = [...insightChecklist]
     .sort((left, right) => left.priority - right.priority)
-    .map((item) => `- "${item.key}" (${item.label}): ${item.promptHint}`);
+    .map((item) => `- "${item.key}" (${item.label})`);
   const onboardingChecklistLines = [...onboardingChecklist]
     .sort((left, right) => left.priority - right.priority)
     .map((item) => {
@@ -212,8 +209,6 @@ export function buildExtractionInsightChecklistSection(args: {
         .join("\n");
     });
   return [
-    "## Canonical insight keys",
-    canonicalKeys.join(", "),
     "## Canonical insight fields",
     checklistLines.join("\n"),
     "## Onboarding question checklist coverage",

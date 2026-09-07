@@ -6,6 +6,8 @@ import {
   buildOnboardingRuntimeStateSection,
   buildOptionalFollowUpOpportunitiesSection,
 } from "./conversationSections";
+import { getInsightChecklist } from "../../talentOnboarding/insightChecklist";
+import { buildCareerInsightExtractionPrompt } from "./cases/insightExtractionPrompts";
 
 test("offers optional waiting-period guidance while the conversation-completed run is active", () => {
   const section = buildOptionalFollowUpOpportunitiesSection({
@@ -85,4 +87,25 @@ test("keeps saved Brief content out of onboarding checklist metadata", () => {
     extractionSection,
     /current_value|current_location_value/
   );
+
+  const promptHint = getInsightChecklist().find(
+    (item) => item.key === "cross_border_work_authorization"
+  )?.promptHint;
+  assert.ok(promptHint);
+  assert.equal(extractionSection.split(promptHint).length - 1, 1);
+  assert.doesNotMatch(extractionSection, /Canonical insight keys/);
+});
+
+test("keeps canonical onboarding Brief fields separate without discounting free-form Briefs", () => {
+  const prompt = buildCareerInsightExtractionPrompt({ preferredLocale: "en" });
+
+  assert.match(
+    prompt,
+    /canonical-keyed Brief contains only that field's meaning/
+  );
+  assert.match(
+    prompt,
+    /Briefs without a canonical key are equally authoritative/
+  );
+  assert.match(prompt, /without creating a Brief/);
 });
