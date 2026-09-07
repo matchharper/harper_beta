@@ -1,11 +1,14 @@
-import { isEmailExcluded } from "@/lib/adminEmailExclusions";
 import {
   normalizeEmail,
   normalizeExcludedEmails,
 } from "@/lib/adminMetrics/utils";
-import { extractEmailFromLandingLoginType } from "@/lib/landingLogTypes";
+import {
+  extractEmailFromLandingLoginType,
+  getLandingLogSource,
+} from "@/lib/landingLogTypes";
 import {
   CAREER_UTM_DESCRIPTION_MAX_LENGTH,
+  type CareerUtmParams,
   normalizeCareerUtmDescription,
   normalizeCareerUtmSource,
 } from "@/lib/career/utm";
@@ -13,11 +16,18 @@ import { DEFAULT_ADMIN_EXCLUDED_EMAILS } from "@/lib/adminEmailExclusions";
 import type {
   OpsUtmAccess,
   OpsUtmChartBucket,
+  OpsUtmFilters,
   OpsUtmGranularity,
   OpsUtmPeriod,
   OpsUtmSourceDetail,
   OpsUtmSourcePage,
   OpsUtmSourceRow,
+} from "@/lib/ops/utm";
+import {
+  OPS_UTM_DIMENSIONS,
+  buildOpsUtmLandingComposition,
+  normalizeOpsUtmFilterValue,
+  parseOpsUtmFilters,
 } from "@/lib/ops/utm";
 import { supabaseServer } from "@/lib/supabaseServer";
 import type { Database } from "@/types/database.types";
@@ -40,9 +50,14 @@ type LandingLogRow = Pick<
   Database["public"]["Tables"]["landing_logs"]["Row"],
   "created_at" | "local_id" | "type"
 >;
+type LandingEntryLogRow = LandingLogRow &
+  Pick<
+    Database["public"]["Tables"]["landing_logs"]["Row"],
+    "country_lang" | "is_mobile"
+  >;
 type TalentUserRow = Pick<
   Database["public"]["Tables"]["talent_users"]["Row"],
-  "email" | "user_id"
+  "created_at" | "email" | "user_id"
 >;
 type TalentSettingRow = Pick<
   Database["public"]["Tables"]["talent_setting"]["Row"],
@@ -61,6 +76,11 @@ type FetchPageResult<T> = {
 type SourceStats = {
   entryLocalIds: Set<string>;
   lastEnteredAt: string | null;
+};
+
+type ParsedUtmLog = {
+  createdAt: string;
+  params: CareerUtmParams;
 };
 
 type KstDateParts = {
@@ -181,6 +201,17 @@ function getExcludedEmails(extra: string[]) {
   return normalizeExcludedEmails([...DEFAULT_ADMIN_EXCLUDED_EMAILS, ...extra]);
 }
 
+function isEmailExcludedByTerms(value: string, excludedTerms: string[]) {
+  const email = normalizeEmail(value);
+  return Boolean(
+    email &&
+      excludedTerms.some((term) => {
+        const normalizedTerm = normalizeEmail(term);
+        return normalizedTerm.length > 0 && email.includes(normalizedTerm);
+      })
+  );
+}
+
 function collectExcludedLocalIds(
   loginLogs: LandingLogRow[],
   excludedEmails: string[]
@@ -189,7 +220,7 @@ function collectExcludedLocalIds(
   for (const log of loginLogs) {
     const localId = String(log.local_id ?? "").trim();
     const email = normalizeEmail(extractEmailFromLandingLoginType(log.type));
-    if (localId && email && isEmailExcluded(email, excludedEmails)) {
+    if (localId && email && isEmailExcludedByTerms(email, excludedEmails)) {
       result.add(localId);
     }
   }
@@ -223,24 +254,35 @@ async function fetchRegisteredSources() {
   );
 }
 
-function getUtmSourceFromLogType(type: string | null | undefined) {
+function getUtmParamsFromLogType(type: string | null | undefined) {
   const value = String(type ?? "").trim();
   if (!value.startsWith("utm:")) return null;
-  return normalizeCareerUtmSource(
-    new URLSearchParams(value.slice("utm:".length)).get("utm_source")
-  );
+  const searchParams = new URLSearchParams(value.slice("utm:".length));
+  const source = normalizeCareerUtmSource(searchParams.get("utm_source"));
+  if (!source) return null;
+
+  const params: CareerUtmParams = { utm_source: source };
+  for (const key of OPS_UTM_DIMENSIONS) {
+    const dimensionValue = normalizeOpsUtmFilterValue(searchParams.get(key));
+    if (dimensionValue) params[key] = dimensionValue;
+  }
+  return params;
 }
 
-function buildObservedSourceStats(
-  utmLogs: LandingLogRow[],
+function getUtmSourceFromLogType(type: string | null | undefined) {
+  return getUtmParamsFromLogType(type)?.utm_source ?? null;
+}
+
+function buildEntrySourceStats(
+  entryLogs: LandingLogRow[],
   excludedLocalIds: Set<string>
 ) {
   const result = new Map<string, SourceStats>();
 
-  for (const log of utmLogs) {
+  for (const log of entryLogs) {
     const localId = String(log.local_id ?? "").trim();
     if (!localId || excludedLocalIds.has(localId)) continue;
-    const source = getUtmSourceFromLogType(log.type);
+    const source = normalizeCareerUtmSource(getLandingLogSource(log.type));
     if (!source) continue;
 
     const stats = result.get(source) ?? {
@@ -261,8 +303,77 @@ function buildObservedSourceStats(
   return result;
 }
 
+function getClosestUtmParams(
+  entry: LandingLogRow,
+  logs: ParsedUtmLog[] | undefined
+) {
+  const entryTime = new Date(entry.created_at).getTime();
+  if (!Number.isFinite(entryTime) || !logs?.length) return null;
+
+  let closest: ParsedUtmLog | null = null;
+  let closestDistance = Number.POSITIVE_INFINITY;
+  for (const log of logs) {
+    const logTime = new Date(log.createdAt).getTime();
+    if (!Number.isFinite(logTime)) continue;
+    const distance = Math.abs(logTime - entryTime);
+    if (distance < closestDistance) {
+      closest = log;
+      closestDistance = distance;
+    }
+  }
+  return closest?.params ?? null;
+}
+
+function matchesUtmFilters(
+  params: CareerUtmParams | null | undefined,
+  filters: OpsUtmFilters
+) {
+  return OPS_UTM_DIMENSIONS.every((key) => {
+    const selectedValue = filters[key];
+    return !selectedValue || params?.[key] === selectedValue;
+  });
+}
+
+function buildUtmBreakdowns(
+  firstEntryByLocalId: Map<string, LandingLogRow>,
+  utmParamsByLocalId: Map<string, CareerUtmParams | null>,
+  filters: OpsUtmFilters
+) {
+  const prefixFilters: OpsUtmFilters = {};
+
+  return OPS_UTM_DIMENSIONS.map((key) => {
+    const localIdsByValue = new Map<string, Set<string>>();
+    for (const localId of firstEntryByLocalId.keys()) {
+      const params = utmParamsByLocalId.get(localId);
+      if (!matchesUtmFilters(params, prefixFilters)) continue;
+      const value = params?.[key];
+      if (!value) continue;
+      const localIds = localIdsByValue.get(value) ?? new Set<string>();
+      localIds.add(localId);
+      localIdsByValue.set(value, localIds);
+    }
+
+    const selectedValue = filters[key] ?? null;
+    if (selectedValue) prefixFilters[key] = selectedValue;
+
+    return {
+      key,
+      options: Array.from(localIdsByValue, ([value, localIds]) => ({
+        entryCount: localIds.size,
+        value,
+      })).sort(
+        (left, right) =>
+          right.entryCount - left.entryCount ||
+          left.value.localeCompare(right.value)
+      ),
+      selectedValue,
+    };
+  });
+}
+
 export async function fetchOpsUtmSources(args: {
   access: OpsUtmAccess;
+  excludedEmails?: string[];
   limit?: number;
   offset?: number;
   query?: string | null;
@@ -272,6 +383,7 @@ export async function fetchOpsUtmSources(args: {
     MAX_SOURCE_PAGE_SIZE
   );
   const offset = Math.max(Math.floor(args.offset ?? 0), 0);
+  const excludedEmails = getExcludedEmails(args.excludedEmails ?? []);
   const [registeredRows, utmLogs] = await Promise.all([
     fetchRegisteredSources(),
     fetchAllRows<LandingLogRow>((from, to) =>
@@ -284,14 +396,52 @@ export async function fetchOpsUtmSources(args: {
     ),
   ]);
 
-  const statsBySource = buildObservedSourceStats(utmLogs, new Set());
+  const observedSources = new Set(
+    utmLogs
+      .map((log) => getUtmSourceFromLogType(log.type))
+      .filter((source): source is string => Boolean(source))
+  );
+  const trackedSources = new Set([
+    ...registeredRows.map((row) => row.source),
+    ...observedSources,
+  ]);
+  const entryTypes = Array.from(trackedSources).flatMap((source) => [
+    `new_visit:${source}`,
+    `new_session:${source}`,
+  ]);
+  const entryLogs = await fetchRowsForValues<LandingLogRow>(
+    entryTypes,
+    (types, from, to) =>
+      supabaseServer
+        .from("landing_logs")
+        .select("local_id,type,created_at")
+        .in("type", types)
+        .order("id", { ascending: true })
+        .range(from, to)
+  );
+  const entryLocalIds = new Set(
+    entryLogs.map((log) => String(log.local_id ?? "").trim()).filter(Boolean)
+  );
+  const identityLogs = await fetchRowsForValues<LandingLogRow>(
+    entryLocalIds,
+    (localIds, from, to) =>
+      supabaseServer
+        .from("landing_logs")
+        .select("local_id,type,created_at")
+        .in("local_id", localIds)
+        .like("type", "login_email:%")
+        .order("id", { ascending: true })
+        .range(from, to)
+  );
+  const excludedLocalIds = collectExcludedLocalIds(
+    identityLogs,
+    excludedEmails
+  );
+  const statsBySource = buildEntrySourceStats(entryLogs, excludedLocalIds);
   const registeredBySource = new Map(
     registeredRows.map((row) => [row.source, row] as const)
   );
-  const sources = new Set([
-    ...registeredRows.map((row) => row.source),
-    ...statsBySource.keys(),
-  ]);
+  const sources = trackedSources;
   const normalizedQuery = String(args.query ?? "")
     .trim()
     .toLowerCase();
@@ -375,6 +525,7 @@ function createEmptyBuckets(
 export async function fetchOpsUtmSourceDetail(args: {
   access: OpsUtmAccess;
   excludedEmails?: string[];
+  filters?: OpsUtmFilters;
   granularity: OpsUtmGranularity;
   period: OpsUtmPeriod;
   source: string;
@@ -383,13 +534,14 @@ export async function fetchOpsUtmSourceDetail(args: {
   if (!source) throw new Error("유효한 UTM source가 필요합니다.");
   const range = resolveRange(args.period);
   const excludedEmails = getExcludedEmails(args.excludedEmails ?? []);
+  const filters = parseOpsUtmFilters(args.filters ?? {});
 
   const [registeredRows, entryLogs] = await Promise.all([
     fetchRegisteredSources(),
-    fetchAllRows<LandingLogRow>((from, to) =>
+    fetchAllRows<LandingEntryLogRow>((from, to) =>
       supabaseServer
         .from("landing_logs")
-        .select("local_id,type,created_at")
+        .select("local_id,type,created_at,country_lang,is_mobile")
         .in("type", [`new_visit:${source}`, `new_session:${source}`])
         .gte("created_at", range.startAt)
         .lte("created_at", range.endAt)
@@ -400,19 +552,28 @@ export async function fetchOpsUtmSourceDetail(args: {
   const entryLocalIds = new Set(
     entryLogs.map((log) => String(log.local_id ?? "").trim()).filter(Boolean)
   );
-  const loginLogs = await fetchRowsForValues<LandingLogRow>(
-    entryLocalIds,
-    (localIds, from, to) =>
+  const [loginLogs, utmLogs] = await Promise.all([
+    fetchRowsForValues<LandingLogRow>(entryLocalIds, (localIds, from, to) =>
       supabaseServer
         .from("landing_logs")
         .select("local_id,type,created_at")
         .in("local_id", localIds)
-        .like("type", `login_email:%:${source}`)
+        .like("type", "login_email:%")
         .order("id", { ascending: true })
         .range(from, to)
-  );
+    ),
+    fetchRowsForValues<LandingLogRow>(entryLocalIds, (localIds, from, to) =>
+      supabaseServer
+        .from("landing_logs")
+        .select("local_id,type,created_at")
+        .in("local_id", localIds)
+        .like("type", "utm:%")
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
+  ]);
   const excludedLocalIds = collectExcludedLocalIds(loginLogs, excludedEmails);
-  const firstEntryByLocalId = new Map<string, LandingLogRow>();
+  const firstEntryByLocalId = new Map<string, LandingEntryLogRow>();
 
   for (const log of entryLogs) {
     const localId = String(log.local_id ?? "").trim();
@@ -427,12 +588,45 @@ export async function fetchOpsUtmSourceDetail(args: {
     }
   }
 
+  const utmLogsByLocalId = new Map<string, ParsedUtmLog[]>();
+  for (const log of utmLogs) {
+    const localId = String(log.local_id ?? "").trim();
+    const params = getUtmParamsFromLogType(log.type);
+    if (!localId || params?.utm_source !== source) continue;
+    const localLogs = utmLogsByLocalId.get(localId) ?? [];
+    localLogs.push({ createdAt: log.created_at, params });
+    utmLogsByLocalId.set(localId, localLogs);
+  }
+  const utmParamsByLocalId = new Map<string, CareerUtmParams | null>();
+  for (const [localId, entry] of firstEntryByLocalId) {
+    utmParamsByLocalId.set(
+      localId,
+      getClosestUtmParams(entry, utmLogsByLocalId.get(localId))
+    );
+  }
+  const breakdowns = buildUtmBreakdowns(
+    firstEntryByLocalId,
+    utmParamsByLocalId,
+    filters
+  );
+  const filteredEntryByLocalId = new Map(
+    Array.from(firstEntryByLocalId).filter(([localId]) =>
+      matchesUtmFilters(utmParamsByLocalId.get(localId), filters)
+    )
+  );
+
   const emailsByLocalId = new Map<string, Set<string>>();
   for (const log of loginLogs) {
     const localId = String(log.local_id ?? "").trim();
-    if (!localId || !firstEntryByLocalId.has(localId)) continue;
+    if (
+      !localId ||
+      !filteredEntryByLocalId.has(localId) ||
+      getLandingLogSource(log.type) !== source
+    ) {
+      continue;
+    }
     const email = normalizeEmail(extractEmailFromLandingLoginType(log.type));
-    if (!email || isEmailExcluded(email, excludedEmails)) continue;
+    if (!email || isEmailExcludedByTerms(email, excludedEmails)) continue;
     const emails = emailsByLocalId.get(localId) ?? new Set<string>();
     emails.add(email);
     emailsByLocalId.set(localId, emails);
@@ -446,19 +640,19 @@ export async function fetchOpsUtmSourceDetail(args: {
     (emailChunk, from, to) =>
       supabaseServer
         .from("talent_users")
-        .select("user_id,email")
+        .select("user_id,email,created_at")
         .in("email", emailChunk)
         .order("created_at", { ascending: false })
         .range(from, to)
   );
-  const userIdByEmail = new Map<string, string>();
+  const userByEmail = new Map<string, TalentUserRow>();
   for (const user of talentUsers) {
     const email = normalizeEmail(user.email);
-    if (email && !userIdByEmail.has(email)) {
-      userIdByEmail.set(email, user.user_id);
+    if (email && !userByEmail.has(email)) {
+      userByEmail.set(email, user);
     }
   }
-  const userIds = new Set(userIdByEmail.values());
+  const userIds = new Set(talentUsers.map((user) => user.user_id));
   const [talentSettings, activityRows] = await Promise.all([
     fetchRowsForValues<TalentSettingRow>(userIds, (ids, from, to) =>
       supabaseServer
@@ -495,7 +689,7 @@ export async function fetchOpsUtmSourceDetail(args: {
   const allSignupUserIds = new Set<string>();
   const allOnboardingUserIds = new Set<string>();
 
-  for (const [localId, entry] of firstEntryByLocalId) {
+  for (const [localId, entry] of filteredEntryByLocalId) {
     const dateKey = toDateKey(toKstParts(new Date(entry.created_at)));
     const bucketKey =
       args.granularity === "week" ? getMondayKey(dateKey) : dateKey;
@@ -504,15 +698,20 @@ export async function fetchOpsUtmSourceDetail(args: {
     bucket.landingLocalIds.add(localId);
     allLandingLocalIds.add(localId);
 
-    const userId = Array.from(emailsByLocalId.get(localId) ?? [])
-      .map((email) => userIdByEmail.get(email))
-      .find((value): value is string => Boolean(value));
-    if (userId) {
-      bucket.signupUserIds.add(userId);
-      allSignupUserIds.add(userId);
-      if (onboardedUserIds.has(userId)) {
-        bucket.onboardingUserIds.add(userId);
-        allOnboardingUserIds.add(userId);
+    const user = Array.from(emailsByLocalId.get(localId) ?? [])
+      .map((email) => userByEmail.get(email))
+      .find(
+        (value): value is TalentUserRow =>
+          value !== undefined &&
+          new Date(value.created_at).getTime() >=
+            new Date(entry.created_at).getTime()
+      );
+    if (user) {
+      bucket.signupUserIds.add(user.user_id);
+      allSignupUserIds.add(user.user_id);
+      if (onboardedUserIds.has(user.user_id)) {
+        bucket.onboardingUserIds.add(user.user_id);
+        allOnboardingUserIds.add(user.user_id);
       }
     }
   }
@@ -525,11 +724,20 @@ export async function fetchOpsUtmSourceDetail(args: {
     signup: bucket.signupUserIds.size,
   }));
   const landingCount = allLandingLocalIds.size;
+  const landingComposition = buildOpsUtmLandingComposition(
+    Array.from(filteredEntryByLocalId.values(), (entry) => ({
+      countryLang: entry.country_lang,
+      createdAt: entry.created_at,
+      isMobile: entry.is_mobile,
+    }))
+  );
   const registeredBySource = new Map(
     registeredRows.map((row) => [row.source, row] as const)
   );
   const registered = registeredBySource.get(source);
-  const lastEnteredAt = entryLogs.reduce<string | null>((latest, row) => {
+  const lastEnteredAt = Array.from(filteredEntryByLocalId.values()).reduce<
+    string | null
+  >((latest, row) => {
     if (!latest) return row.created_at;
     return new Date(row.created_at).getTime() > new Date(latest).getTime()
       ? row.created_at
@@ -542,9 +750,11 @@ export async function fetchOpsUtmSourceDetail(args: {
 
   return {
     access: args.access,
+    breakdowns,
     buckets: chartBuckets,
     generatedAt: new Date().toISOString(),
     granularity: args.granularity,
+    landingComposition,
     period: args.period,
     range: { endAt: range.endAt, startAt: range.startAt },
     source: toSourceRow(source, registered, {

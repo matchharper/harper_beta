@@ -5,7 +5,12 @@ import {
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
 import { isInternalEmail } from "@/lib/internalAccess";
-import { parseOpsUtmGranularity, parseOpsUtmPeriod } from "@/lib/ops/utm";
+import {
+  OPS_UTM_DIMENSIONS,
+  parseOpsUtmFilters,
+  parseOpsUtmGranularity,
+  parseOpsUtmPeriod,
+} from "@/lib/ops/utm";
 import {
   fetchOpsUtmSourceDetail,
   fetchOpsUtmSources,
@@ -36,10 +41,19 @@ export async function GET(req: NextRequest) {
     const excludedEmails = req.nextUrl.searchParams.getAll("excludedEmail");
 
     if (source) {
+      const filters = parseOpsUtmFilters(
+        Object.fromEntries(
+          OPS_UTM_DIMENSIONS.map((key) => [
+            key,
+            req.nextUrl.searchParams.get(key),
+          ])
+        )
+      );
       return NextResponse.json(
         await fetchOpsUtmSourceDetail({
           access,
           excludedEmails,
+          filters,
           granularity: parseOpsUtmGranularity(
             req.nextUrl.searchParams.get("granularity")
           ),
@@ -52,6 +66,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       await fetchOpsUtmSources({
         access,
+        excludedEmails,
         limit: numberParam(req.nextUrl.searchParams.get("limit"), 30),
         offset: numberParam(req.nextUrl.searchParams.get("offset"), 0),
         query: req.nextUrl.searchParams.get("query"),

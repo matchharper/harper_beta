@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import type {
+  OpsUtmFilters,
   OpsUtmGranularity,
   OpsUtmPeriod,
   OpsUtmSourceDetail,
@@ -45,6 +46,7 @@ export function useOpsUtmSources(args: {
 export function useOpsUtmSourceDetail(args: {
   enabled: boolean;
   excludedEmails: string[];
+  filters: OpsUtmFilters;
   granularity: OpsUtmGranularity;
   period: OpsUtmPeriod;
   source: string | null;
@@ -56,6 +58,7 @@ export function useOpsUtmSourceDetail(args: {
       args.source,
       args.period,
       args.granularity,
+      args.filters,
       args.excludedEmails,
     ],
     queryFn: () => {
@@ -64,6 +67,9 @@ export function useOpsUtmSourceDetail(args: {
         period: args.period,
         source: args.source ?? "",
       });
+      for (const [key, value] of Object.entries(args.filters)) {
+        if (value) params.set(key, value);
+      }
       appendExcludedEmails(params, args.excludedEmails);
       return fetchWithInternalAuth<OpsUtmSourceDetail>(
         `/api/internal/ops/utm?${params.toString()}`

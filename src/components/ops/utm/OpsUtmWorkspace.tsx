@@ -2,14 +2,31 @@ import { showToast } from "@/components/toast/toast";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { MuteButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useOpsUtmSourceDetail, useOpsUtmSources } from "@/hooks/ops/useOpsUtm";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { isInternalEmail, canViewOpsUtm } from "@/lib/internalAccess";
+import {
+  buildOpsUtmUrlQuery,
+  OPS_UTM_DIMENSIONS,
+  parseOpsUtmUrlState,
+  readOpsUtmSearchQuery,
+} from "@/lib/ops/utm";
 import type {
   OpsUtmChartBucket,
+  OpsUtmDimension,
+  OpsUtmFilters,
   OpsUtmGranularity,
+  OpsUtmLandingCompositionRow,
   OpsUtmPeriod,
   OpsUtmSourceMutationResponse,
   OpsUtmSourceRow,
@@ -17,6 +34,7 @@ import type {
 import { useOpsInternalDataExclusionStore } from "@/store/useOpsInternalDataExclusionStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/router";
 import {
   Check,
   Copy,
@@ -50,6 +68,15 @@ const GRANULARITY_TABS = [
   { label: "일별", value: "day" },
   { label: "주별", value: "week" },
 ] as const;
+
+const UTM_DIMENSION_LABELS: Record<OpsUtmDimension, string> = {
+  utm_campaign: "Campaign",
+  utm_content: "Content",
+  utm_medium: "Medium",
+  utm_term: "Term",
+};
+
+const ALL_UTM_VALUES = "__all_utm_values__";
 
 type EditorMode = "create" | "edit" | null;
 
@@ -145,6 +172,81 @@ function ChartLegendItem({ color, label }: { color: string; label: string }) {
       <span className={cx("h-2.5 w-2.5 rounded-sm", color)} />
       {label}
     </span>
+  );
+}
+
+function compactCompositionRows(
+  rows: OpsUtmLandingCompositionRow[],
+  maxRows = 4
+) {
+  if (rows.length <= maxRows) return rows;
+  const visible = rows.slice(0, maxRows - 1);
+  const remainder = rows.slice(maxRows - 1);
+  const includesUnknown = remainder.some((row) => row.key === "unknown");
+  return [
+    ...visible,
+    {
+      count: remainder.reduce((sum, row) => sum + row.count, 0),
+      key: "other",
+      label: includesUnknown ? "기타 / 알 수 없음" : "기타",
+      rate: remainder.reduce((sum, row) => sum + row.rate, 0),
+    },
+  ];
+}
+
+function LandingCompositionCard({
+  columnCount = 1,
+  maxRows = 4,
+  rows,
+  subtitle,
+  title,
+}: {
+  columnCount?: 1 | 2;
+  maxRows?: number;
+  rows: OpsUtmLandingCompositionRow[];
+  subtitle?: string;
+  title: string;
+}) {
+  const compactRows = compactCompositionRows(rows, maxRows);
+
+  return (
+    <div className="rounded-md bg-bg-weak p-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <h4 className="text-xs font-medium text-neutral-primary">{title}</h4>
+        {subtitle ? (
+          <span className="text-[10px] text-neutral-soft">{subtitle}</span>
+        ) : null}
+      </div>
+      {compactRows.length === 0 ? (
+        <div className="mt-3 text-xs text-neutral-soft">기록 없음</div>
+      ) : (
+        <div
+          className={cx(
+            "mt-3 gap-x-3 gap-y-2.5",
+            columnCount === 2 ? "grid grid-cols-2" : "flex flex-col"
+          )}
+        >
+          {compactRows.map((row) => (
+            <div key={row.key}>
+              <div className="flex items-center justify-between gap-3 text-[11px]">
+                <span className="min-w-0 truncate text-neutral-muted">
+                  {row.label}
+                </span>
+                <span className="shrink-0 tabular-nums text-neutral-primary">
+                  {row.count.toLocaleString("ko-KR")} · {formatRate(row.rate)}
+                </span>
+              </div>
+              <div className="mt-1 h-1 overflow-hidden rounded-full bg-neutral-1000-a05">
+                <div
+                  className="h-full rounded-full bg-neutral-800"
+                  style={{ width: `${Math.min(row.rate * 100, 100)}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -322,6 +424,7 @@ function SourceEditor({
 }
 
 export default function OpsUtmWorkspace() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const authLoading = useAuthStore((state) => state.loading);
   const userEmail = useAuthStore((state) => state.user?.email);
@@ -330,24 +433,40 @@ export default function OpsUtmWorkspace() {
   );
   const canFetch = !authLoading && canViewOpsUtm(userEmail);
   const canManage = !authLoading && isInternalEmail(userEmail);
-  const [selectedSource, setSelectedSource] = useState<string | null>(null);
   const [queryInput, setQueryInput] = useState("");
-  const [query, setQuery] = useState("");
-  const [period, setPeriod] = useState<OpsUtmPeriod>("30d");
-  const [granularity, setGranularity] = useState<OpsUtmGranularity>("day");
   const [editorMode, setEditorMode] = useState<EditorMode>(null);
   const [editorSource, setEditorSource] = useState("");
   const [editorDescription, setEditorDescription] = useState("");
   const [editorSourceId, setEditorSourceId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const urlState = useMemo(
+    () => parseOpsUtmUrlState(router.query),
+    [router.query]
+  );
+  const query = router.isReady
+    ? readOpsUtmSearchQuery(router.query.q)
+    : "";
+  const { filters, granularity, period } = urlState;
 
   useEffect(() => {
+    if (!router.isReady) return;
+    queueMicrotask(() => setQueryInput(query));
+  }, [query, router.isReady]);
+
+  useEffect(() => {
+    if (!router.isReady || queryInput.trim() === query) return;
     const timeout = window.setTimeout(() => {
-      setQuery(queryInput.trim());
-      setSelectedSource(null);
+      void router.replace(
+        {
+          pathname: router.pathname,
+          query: buildOpsUtmUrlQuery(urlState, queryInput),
+        },
+        undefined,
+        { shallow: true, scroll: false }
+      );
     }, 250);
     return () => window.clearTimeout(timeout);
-  }, [queryInput]);
+  }, [query, queryInput, router, urlState]);
 
   const sourcesQuery = useOpsUtmSources({
     enabled: canFetch,
@@ -360,13 +479,14 @@ export default function OpsUtmWorkspace() {
   );
   const totalSources = sourcesQuery.data?.pages[0]?.total ?? 0;
 
-  const effectiveSelectedSource = selectedSource ?? rows[0]?.source ?? null;
+  const effectiveSelectedSource = urlState.source ?? rows[0]?.source ?? null;
   const selectedListRow = rows.find(
     (row) => row.source === effectiveSelectedSource
   );
   const detailQuery = useOpsUtmSourceDetail({
     enabled: canFetch,
     excludedEmails,
+    filters,
     granularity,
     period,
     source: effectiveSelectedSource,
@@ -386,6 +506,38 @@ export default function OpsUtmWorkspace() {
     720,
     chartRows.length * (granularity === "day" ? 22 : 54)
   );
+
+  const navigate = useCallback(
+    (
+      patch: Partial<{
+        filters: OpsUtmFilters;
+        granularity: OpsUtmGranularity;
+        period: OpsUtmPeriod;
+        source: string | null;
+      }>,
+      method: "push" | "replace" = "push"
+    ) => {
+      if (!router.isReady) return;
+      const nextState = {
+        ...urlState,
+        ...patch,
+      };
+      void router[method](
+        {
+          pathname: router.pathname,
+          query: buildOpsUtmUrlQuery(nextState, query),
+        },
+        undefined,
+        { shallow: true, scroll: false }
+      );
+    },
+    [query, router, urlState]
+  );
+
+  useEffect(() => {
+    if (!router.isReady || urlState.source || !rows[0]?.source) return;
+    navigate({ source: rows[0].source }, "replace");
+  }, [navigate, router.isReady, rows, urlState.source]);
 
   const refresh = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["ops-utm-sources"] });
@@ -407,12 +559,35 @@ export default function OpsUtmWorkspace() {
     setEditorSourceId(selectedRow.id);
   };
 
+  const selectSource = (source: string) => {
+    setEditorMode(null);
+    navigate({ filters: {}, source });
+  };
+
+  const selectDimension = (key: OpsUtmDimension, value: string) => {
+    const nextFilters: OpsUtmFilters = { ...filters };
+    if (value === ALL_UTM_VALUES) {
+      delete nextFilters[key];
+    } else {
+      nextFilters[key] = value;
+    }
+    const selectedIndex = OPS_UTM_DIMENSIONS.indexOf(key);
+    for (const downstreamKey of OPS_UTM_DIMENSIONS.slice(selectedIndex + 1)) {
+      delete nextFilters[downstreamKey];
+    }
+    navigate({ filters: nextFilters });
+  };
+
   const copyUrl = async () => {
     if (!effectiveSelectedSource) return;
     try {
-      await navigator.clipboard.writeText(
-        `https://matchharper.com?utm_source=${encodeURIComponent(effectiveSelectedSource)}`
-      );
+      const utmUrl = new URL("https://matchharper.com");
+      utmUrl.searchParams.set("utm_source", effectiveSelectedSource);
+      for (const key of OPS_UTM_DIMENSIONS) {
+        const value = filters[key];
+        if (value) utmUrl.searchParams.set(key, value);
+      }
+      await navigator.clipboard.writeText(utmUrl.toString());
       showToast({ message: "UTM 링크를 복사했습니다.", variant: "white" });
     } catch {
       showToast({ message: "링크를 복사하지 못했습니다.", variant: "error" });
@@ -437,7 +612,6 @@ export default function OpsUtmWorkspace() {
       });
       showToast({ message: "등록 정보를 삭제했습니다.", variant: "white" });
       setEditorMode(null);
-      setSelectedSource(null);
       refresh();
     } catch (error) {
       showToast({
@@ -522,7 +696,7 @@ export default function OpsUtmWorkspace() {
                 onCancel={() => setEditorMode(null)}
                 onSaved={(source) => {
                   setEditorMode(null);
-                  setSelectedSource(source.source);
+                  navigate({ filters: {}, source: source.source });
                   refresh();
                 }}
                 sourceId={editorSourceId}
@@ -551,10 +725,7 @@ export default function OpsUtmWorkspace() {
                 <SourceListRow
                   active={effectiveSelectedSource === row.source}
                   key={row.source}
-                  onSelect={() => {
-                    setSelectedSource(row.source);
-                    setEditorMode(null);
-                  }}
+                  onSelect={() => selectSource(row.source)}
                   row={row}
                 />
               ))
@@ -668,12 +839,96 @@ export default function OpsUtmWorkspace() {
                   </div>
                 </div>
 
+                <div className="mt-5 border-t border-neutral-1000-a05 pt-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="text-sm font-medium text-neutral-primary">
+                        UTM 상세 필터
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-neutral-muted">
+                        Source 아래에서 Medium, Campaign, Content, Term 순으로
+                        유입을 좁혀 볼 수 있습니다.
+                      </p>
+                    </div>
+                    {Object.keys(filters).length > 0 ? (
+                      <MuteButton
+                        onClick={() => navigate({ filters: {} })}
+                        size="sm"
+                        variant="transparent"
+                      >
+                        필터 초기화
+                      </MuteButton>
+                    ) : null}
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {detail.breakdowns.map((breakdown) => {
+                      const selectedValue =
+                        breakdown.selectedValue ?? ALL_UTM_VALUES;
+                      const hasSelectedOption = breakdown.options.some(
+                        (option) => option.value === breakdown.selectedValue
+                      );
+                      return (
+                        <label
+                          className="grid gap-1.5 text-xs font-medium text-neutral-muted"
+                          key={breakdown.key}
+                        >
+                          {UTM_DIMENSION_LABELS[breakdown.key]}
+                          <Select
+                            disabled={
+                              breakdown.options.length === 0 &&
+                              !breakdown.selectedValue
+                            }
+                            onValueChange={(value) => {
+                              if (value) {
+                                selectDimension(breakdown.key, value);
+                              }
+                            }}
+                            value={selectedValue}
+                          >
+                            <SelectTrigger size="sm">
+                              <SelectValue>
+                                {breakdown.selectedValue ?? "전체"}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent
+                              align="start"
+                              alignItemWithTrigger={false}
+                            >
+                              <SelectGroup>
+                                <SelectItem value={ALL_UTM_VALUES}>
+                                  전체
+                                </SelectItem>
+                                {breakdown.selectedValue &&
+                                !hasSelectedOption ? (
+                                  <SelectItem value={breakdown.selectedValue}>
+                                    {breakdown.selectedValue} · 0
+                                  </SelectItem>
+                                ) : null}
+                                {breakdown.options.map((option) => (
+                                  <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.value} · {option.entryCount}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <div className="mt-5 flex flex-col gap-3 border-t border-neutral-1000-a05 pt-4 lg:flex-row lg:items-center lg:justify-between">
                   <Tabs
                     activeValue={period}
                     className="w-fit max-w-full overflow-x-auto"
                     items={[...PERIOD_TABS]}
-                    onValueChange={(value) => setPeriod(value as OpsUtmPeriod)}
+                    onValueChange={(value) =>
+                      navigate({ period: value as OpsUtmPeriod })
+                    }
                     size="small"
                     variant="pills"
                   />
@@ -682,7 +937,7 @@ export default function OpsUtmWorkspace() {
                     className="w-fit"
                     items={[...GRANULARITY_TABS]}
                     onValueChange={(value) =>
-                      setGranularity(value as OpsUtmGranularity)
+                      navigate({ granularity: value as OpsUtmGranularity })
                     }
                     size="small"
                     variant="pills"
@@ -801,6 +1056,23 @@ export default function OpsUtmWorkspace() {
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
+                </div>
+                <div className="mt-4 grid gap-3 border-t border-neutral-1000-a05 pt-4 md:grid-cols-3">
+                  <LandingCompositionCard
+                    rows={detail.landingComposition?.countries ?? []}
+                    title="국가"
+                  />
+                  <LandingCompositionCard
+                    columnCount={2}
+                    maxRows={8}
+                    rows={detail.landingComposition?.timeRanges ?? []}
+                    subtitle="KST"
+                    title="유입 시간대"
+                  />
+                  <LandingCompositionCard
+                    rows={detail.landingComposition?.devices ?? []}
+                    title="기기"
+                  />
                 </div>
               </section>
             </>
