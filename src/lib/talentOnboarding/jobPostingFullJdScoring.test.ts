@@ -249,6 +249,8 @@ test("builds allowlisted user context text without irrelevant identity fields", 
       version: 3,
     },
     llmUserProfile: {
+      careerContext:
+        "Search Brief — 현재 탐색 기준\n[2] 선호 근무 지역: 서울 또는 원격 근무를 선호한다.",
       experiences: [
         {
           companyName: "ExampleAI",
@@ -282,6 +284,8 @@ test("builds allowlisted user context text without irrelevant identity fields", 
 
   assert.match(context, /\[CURRENT REQUEST\]/);
   assert.match(context, /hands-on IC 역할 선호/);
+  assert.match(context, /SAVED CAREER CONTEXT/);
+  assert.match(context, /서울 또는 원격 근무/);
   assert.match(context, /career\.direction: inference infrastructure/);
   assert.match(context, /hasResume: yes/);
   assert.match(context, /hasLinkedIn: yes/);

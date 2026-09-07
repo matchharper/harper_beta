@@ -43,7 +43,7 @@ test("omits talentInsights from update_talent_profile during onboarding", () => 
   );
 });
 
-test("keeps talentInsights in update_talent_profile after onboarding", () => {
+test("does not alter a post-onboarding tool schema", () => {
   const scopedTool = scopeCareerChatToolForOnboarding(
     updateTalentProfileTool,
     false

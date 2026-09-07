@@ -3,17 +3,18 @@ import { getRequestUser } from "@/lib/supabaseServer";
 import {
   DEFAULT_TALENT_PROFILE_VISIBILITY,
   ensureTalentUserRecord,
-  fetchTalentInsights,
+  fetchTalentContexts,
+  fetchTalentContextsUpdatedAt,
   fetchTalentSetting,
   fetchTalentUserProfile,
   getCareerOnboardingChecklistProgress,
   getTalentSupabaseAdmin,
   normalizeTalentBlockedCompanies,
   normalizeTalentEngagementTypes,
-  normalizeTalentInsightContent,
+  projectBriefsToLegacyInsights,
   sanitizeTalentProfileVisibility,
-  upsertTalentInsights,
   upsertTalentSetting,
+  toTalentContextResponse,
 } from "@/lib/talentOnboarding/server";
 import {
   normalizeTalentPeriodicIntervalDays,
@@ -21,12 +22,10 @@ import {
   normalizeTalentRecommendationToggle,
 } from "@/lib/talentOnboarding/recommendationSettings";
 import {
-  buildInsightActivitySummary,
   buildPreferenceActivitySummary,
   compactActivityChanges,
   getPreferenceActivityImpact,
   insertTalentActivityEvent,
-  isSameActivityValue,
   type TalentActivityChange,
 } from "@/lib/talentOnboarding/activityEvents";
 import {
@@ -88,9 +87,6 @@ const toResponsePreferences = (
   };
 };
 
-const toResponseInsights = (insights?: { content?: unknown } | null) =>
-  normalizeTalentInsightContent(insights?.content);
-
 const toResponseAccountSubscriptions = (
   setting?: {
     get_external_recommendation?: boolean | null;
@@ -145,22 +141,6 @@ function getPreferenceActivityChanges(args: {
   return compactActivityChanges(changes);
 }
 
-function getInsightActivityChanges(args: {
-  from: Record<string, string> | null;
-  to: Record<string, string> | null;
-}) {
-  const from = args.from ?? {};
-  const to = args.to ?? {};
-  return Array.from(new Set([...Object.keys(from), ...Object.keys(to)]))
-    .sort()
-    .map((key) => ({
-      field: key,
-      from: from[key] ?? null,
-      to: to[key] ?? null,
-    }))
-    .filter((change) => !isSameActivityValue(change.from, change.to));
-}
-
 export async function GET(req: NextRequest) {
   try {
     const user = await getRequestUser(req);
@@ -171,12 +151,18 @@ export async function GET(req: NextRequest) {
     const admin = getTalentSupabaseAdmin();
     await ensureTalentUserRecord({ admin, user });
 
-    const [setting, insights, profile] = await Promise.all([
+    const [setting, brief, talentContextsUpdatedAt, profile] = await Promise.all([
       fetchTalentSetting({ admin, userId: user.id }),
-      fetchTalentInsights({ admin, userId: user.id }),
+      fetchTalentContexts({
+        admin,
+        collection: "brief",
+        limit: 500,
+        userId: user.id,
+      }),
+      fetchTalentContextsUpdatedAt({ admin, userId: user.id }),
       fetchTalentUserProfile({ admin, userId: user.id }),
     ]);
-    const talentInsights = toResponseInsights(insights);
+    const talentInsights = projectBriefsToLegacyInsights(brief);
     const onboardingChecklistProgress = !Boolean(setting?.is_onboarding_done)
       ? await getCareerOnboardingChecklistProgress({
           admin,
@@ -192,11 +178,13 @@ export async function GET(req: NextRequest) {
       onboardingChecklistProgress,
       preferences: toResponsePreferences(setting),
       talentInsights,
+      talentBrief: brief.map(toTalentContextResponse),
+      talentContextsUpdatedAt,
       preferencesUpdatedAt: setting?.updated_at ?? null,
-      insightUpdatedAt: insights?.last_updated_at ?? null,
+      insightUpdatedAt: talentContextsUpdatedAt,
       updatedAt: getLatestUpdatedAt(
         setting?.updated_at ?? null,
-        insights?.last_updated_at ?? null
+        talentContextsUpdatedAt
       ),
     });
   } catch (error) {
@@ -214,6 +202,12 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json().catch(() => ({}))) as Body;
+    if (body.insightContent !== undefined) {
+      return NextResponse.json(
+        { error: "Use /api/talent/contexts for Search Brief and Memory edits" },
+        { status: 400 }
+      );
+    }
     if (
       (body.getExternalRecommendation !== undefined &&
         typeof body.getExternalRecommendation !== "boolean") ||
@@ -228,9 +222,16 @@ export async function POST(req: NextRequest) {
     const admin = getTalentSupabaseAdmin();
     await ensureTalentUserRecord({ admin, user });
 
-    const [existingSetting, existingInsights, profile] = await Promise.all([
+    const [existingSetting, brief, talentContextsUpdatedAt, profile] =
+      await Promise.all([
       fetchTalentSetting({ admin, userId: user.id }),
-      fetchTalentInsights({ admin, userId: user.id }),
+      fetchTalentContexts({
+        admin,
+        collection: "brief",
+        limit: 500,
+        userId: user.id,
+      }),
+      fetchTalentContextsUpdatedAt({ admin, userId: user.id }),
       fetchTalentUserProfile({ admin, userId: user.id }),
     ]);
 
@@ -239,7 +240,6 @@ export async function POST(req: NextRequest) {
       body.getExternalRecommendation !== undefined ||
       body.harperEnabled !== undefined ||
       body.recommendationBatchSize !== undefined;
-    const hasInsightUpdate = body.insightContent !== undefined;
 
     const accountSubscriptionUpdate = resolveAccountSubscriptionUpdate({
       currentGetExternalRecommendation: normalizeTalentRecommendationToggle(
@@ -275,14 +275,6 @@ export async function POST(req: NextRequest) {
           ),
         })
       : existingSetting;
-
-    const savedInsights = hasInsightUpdate
-      ? await upsertTalentInsights({
-          admin,
-          userId: user.id,
-          content: normalizeTalentInsightContent(body.insightContent ?? null),
-        })
-      : existingInsights;
 
     const previousPreferences = toResponsePreferences(existingSetting);
     const nextPreferences = toResponsePreferences(savedSetting);
@@ -320,32 +312,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const previousInsightContent = toResponseInsights(existingInsights);
-    const nextInsightContent = toResponseInsights(savedInsights);
-    const insightChanges = hasInsightUpdate
-      ? getInsightActivityChanges({
-          from: previousInsightContent,
-          to: nextInsightContent,
-        })
-      : [];
-    const insightSummary = buildInsightActivitySummary(
-      insightChanges.map((change) => change.field)
-    );
-    if (insightSummary) {
-      await insertTalentActivityEvent({
-        admin,
-        changedDomains: [
-          "insights",
-          ...insightChanges.map((change) => change.field),
-        ],
-        eventType: "insight_updated",
-        impactLevel: "high",
-        source: "profile_tab",
-        summary: insightSummary,
-        userId: user.id,
-      });
-    }
-    const responseInsights = toResponseInsights(savedInsights);
+    const responseInsights = projectBriefsToLegacyInsights(brief);
     const onboardingChecklistProgress = !Boolean(
       savedSetting?.is_onboarding_done
     )
@@ -365,11 +332,13 @@ export async function POST(req: NextRequest) {
       opportunityRunId: null,
       preferences: toResponsePreferences(savedSetting),
       talentInsights: responseInsights,
+      talentBrief: brief.map(toTalentContextResponse),
+      talentContextsUpdatedAt,
       preferencesUpdatedAt: savedSetting?.updated_at ?? null,
-      insightUpdatedAt: savedInsights?.last_updated_at ?? null,
+      insightUpdatedAt: talentContextsUpdatedAt,
       updatedAt: getLatestUpdatedAt(
         savedSetting?.updated_at ?? null,
-        savedInsights?.last_updated_at ?? null
+        talentContextsUpdatedAt
       ),
     });
   } catch (error) {

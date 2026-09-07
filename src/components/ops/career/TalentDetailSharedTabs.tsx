@@ -20,7 +20,7 @@ export type TalentDetailSharedTabId =
   | "recommendations";
 
 export const TALENT_DETAIL_SHARED_TABS = [
-  { id: "insights", label: "인사이트" },
+  { id: "insights", label: "Brief & Memory" },
   { id: "messages", label: "대화 내역" },
   { id: "mail", label: "메일" },
   { id: "recommendations", label: "추천" },
@@ -64,7 +64,7 @@ export const TalentInsightsTab = memo(function TalentInsightsTab({
     return (
       <TalentTabError
         error={insightsQuery.error}
-        fallback="인사이트를 불러오지 못했습니다."
+        fallback="Brief와 Memory를 불러오지 못했습니다."
       />
     );
   }
@@ -72,10 +72,9 @@ export const TalentInsightsTab = memo(function TalentInsightsTab({
   return (
     <InsightsTab
       key={userId}
-      insights={insightsQuery.data.insights}
-      mergedChecklist={insightsQuery.data.mergedChecklist}
+      brief={insightsQuery.data.brief}
+      memories={insightsQuery.data.memories}
       preferences={insightsQuery.data.preferences}
-      userId={userId}
     />
   );
 });

@@ -9,7 +9,10 @@ import {
   regenerateOnboardingCompletionMessages,
 } from "@/lib/talentOnboarding/onboardingCompletionWrapup";
 import {
-  fetchTalentInsights,
+  fetchTalentContexts,
+  fetchTalentContextsUpdatedAt,
+  projectBriefsToLegacyInsights,
+  toTalentContextResponse,
   type TalentAdminClient,
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/server";
@@ -57,9 +60,11 @@ export async function completeTalentOnboardingManually(args: {
     });
   }
 
-  const completionMessages = await (args.regenerateWrapup
-    ? regenerateOnboardingCompletionMessages
-    : createOnboardingCompletionMessages)({
+  const completionMessages = await (
+    args.regenerateWrapup
+      ? regenerateOnboardingCompletionMessages
+      : createOnboardingCompletionMessages
+  )({
     admin: args.admin,
     conversationId: args.conversationId,
     isMobile: args.isMobile,
@@ -79,7 +84,7 @@ export async function completeTalentOnboardingManually(args: {
     });
   });
 
-  const [activeRun, latestInsights] = await Promise.all([
+  const [activeRun, brief, updatedAt] = await Promise.all([
     queuedRun
       ? Promise.resolve(queuedRun)
       : getActiveOpportunityRun({
@@ -87,14 +92,25 @@ export async function completeTalentOnboardingManually(args: {
           conversationId: args.conversationId,
           userId: args.userId,
         }),
-    fetchTalentInsights({ admin: args.admin, userId: args.userId }),
+    fetchTalentContexts({
+      admin: args.admin,
+      collection: "brief",
+      limit: 500,
+      userId: args.userId,
+    }),
+    fetchTalentContextsUpdatedAt({
+      admin: args.admin,
+      userId: args.userId,
+    }),
   ]);
 
   return {
-    insightUpdatedAt: latestInsights?.last_updated_at ?? null,
+    insightUpdatedAt: updatedAt,
+    talentContextsUpdatedAt: updatedAt,
     opportunityDiscoveryQueued: Boolean(queuedRun),
     opportunityRun: serializeOpportunityRun(activeRun),
-    talentInsights: latestInsights?.content ?? {},
+    talentInsights: projectBriefsToLegacyInsights(brief),
+    talentBrief: brief.map(toTalentContextResponse),
     nextStepsMessage: (completionMessages.nextStepsMessage ??
       null) as TalentMessageRow | null,
     wrapupMessage: (completionMessages.wrapupMessage ??

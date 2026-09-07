@@ -220,6 +220,14 @@ type CandidateProfile = {
   resumeLinks: string[];
 };
 
+const AUTO_INTRO_SHARED_BRIEF_KEYS = [
+  "next_scope",
+  "location",
+  "team_style_fit",
+  "must_haves",
+  "deal_breakers",
+] as const;
+
 type AutoIntroCompanyPromptContext = {
   companyInformation: string | null;
   companyName: string;
@@ -1223,7 +1231,7 @@ async function fetchCandidateProfiles(
   const experiences: ExperienceRow[] = [];
   const educations: EducationRow[] = [];
   const extras = new Map<string, Json | null>();
-  const insights = new Map<string, Json | null>();
+  const contexts = new Map<string, Array<Record<string, unknown>>>();
   const engagementTypes = new Map<string, string[]>();
 
   for (const talentIdChunk of chunkValues(talentIds)) {
@@ -1231,7 +1239,7 @@ async function fetchCandidateProfiles(
       experienceResult,
       educationResult,
       extraResult,
-      insightResult,
+      contextResult,
       settingResult,
     ] = await Promise.all([
       (admin.from("talent_experiences" as any) as any)
@@ -1247,9 +1255,12 @@ async function fetchCandidateProfiles(
       (admin.from("talent_extras" as any) as any)
         .select("talent_id, content")
         .in("talent_id", talentIdChunk),
-      (admin.from("talent_insights" as any) as any)
-        .select("talent_id, content")
-        .in("talent_id", talentIdChunk),
+      (admin.from("talent_contexts" as any) as any)
+        .select("talent_id, key, content")
+        .eq("collection", "brief")
+        .is("deleted_at", null)
+        .in("talent_id", talentIdChunk)
+        .in("key", AUTO_INTRO_SHARED_BRIEF_KEYS),
       (admin.from("talent_setting" as any) as any)
         .select("user_id, engagement_types")
         .in("user_id", talentIdChunk),
@@ -1257,16 +1268,18 @@ async function fetchCandidateProfiles(
     if (experienceResult.error) throw experienceResult.error;
     if (educationResult.error) throw educationResult.error;
     if (extraResult.error) throw extraResult.error;
-    if (insightResult.error) throw insightResult.error;
+    if (contextResult.error) throw contextResult.error;
     if (settingResult.error) throw settingResult.error;
     experiences.push(...((experienceResult.data ?? []) as ExperienceRow[]));
     educations.push(...((educationResult.data ?? []) as EducationRow[]));
     for (const row of extraResult.data ?? []) {
       extras.set(row.talent_id, row.content as Json | null);
     }
-    for (const row of insightResult.data ?? []) {
-      if (row.talent_id)
-        insights.set(row.talent_id, row.content as Json | null);
+    for (const row of contextResult.data ?? []) {
+      if (!row.talent_id) continue;
+      const current = contexts.get(row.talent_id) ?? [];
+      current.push(row);
+      contexts.set(row.talent_id, current);
     }
     for (const row of settingResult.data ?? []) {
       engagementTypes.set(
@@ -1311,7 +1324,16 @@ async function fetchCandidateProfiles(
         })),
       extras: extras.get(talentId) ?? null,
       headline: normalizeText(talent?.headline) || null,
-      insights: insights.get(talentId) ?? null,
+      insights: (() => {
+        const rows = contexts.get(talentId) ?? [];
+        return Object.fromEntries(
+          rows.flatMap((row) => {
+            const key = normalizeText(row.key);
+            const content = normalizeMultiline(row.content);
+            return key && content ? [[key, content]] : [];
+          })
+        ) as Json;
+      })(),
       resumeLinks: uniqueTexts(talent?.resume_links ?? []),
     });
   }

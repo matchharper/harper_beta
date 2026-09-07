@@ -13,6 +13,7 @@
     "growth:ga-slack-report": "node scripts/sendGrowthCandidateGaSlackReport.mjs",
     "ops:auto-intro:list": "tsx --tsconfig scripts/tsconfig.json scripts/autoIntroToCompanyCodexScheduled.ts list",
     "ops:auto-intro:send": "tsx --tsconfig scripts/tsconfig.json scripts/autoIntroToCompanyCodexScheduled.ts send",
+    "talent-contexts:backfill-embeddings": "node --env-file=.env.local --import tsx scripts/backfillTalentContextEmbeddings.ts",
     "ops:company-role-matching": "python3 scripts/company_role_recurring_matching.py",
     "org-agent:live-eval": "tsx --tsconfig scripts/tsconfig.json scripts/evalOrgAgentLive.ts",
     "org-role-creation:llm-eval": "tsx --tsconfig scripts/tsconfig.json scripts/evalOrgRoleCreationLlm.ts",

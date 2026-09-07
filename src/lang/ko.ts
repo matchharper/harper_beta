@@ -2040,6 +2040,36 @@ export const ko = {
       "확인하면 편집 화면에서 이 항목이 제거됩니다. 최종 반영하려면 프로필을 저장해 주세요.",
     "career.profile.career_talent_profile_panel.remove_confirm_title":
       "{label} 항목을 삭제할까요?",
+    "career.profile.context.add": "추가",
+    "career.profile.context.add_brief": "탐색 기준 추가",
+    "career.profile.context.add_memory": "기억 추가",
+    "career.profile.context.brief_content_placeholder":
+      "기회를 찾을 때 반영할 기준을 적어주세요.",
+    "career.profile.context.brief_description":
+      "하퍼가 기회를 찾고 판단할 때 적용하는 현재 기준이에요.",
+    "career.profile.context.brief_empty":
+      "아직 정해진 탐색 기준이 없어요. 대화하면서 함께 채워갈 수 있어요.",
+    "career.profile.context.brief_title": "Search Brief",
+    "career.profile.context.cancel": "취소",
+    "career.profile.context.content": "내용",
+    "career.profile.context.delete": "삭제",
+    "career.profile.context.delete_description":
+      "삭제한 내용은 이후 대화와 기회 판단에 사용되지 않아요.",
+    "career.profile.context.delete_title": "이 내용을 삭제할까요?",
+    "career.profile.context.edit": "수정",
+    "career.profile.context.edit_brief": "탐색 기준 수정",
+    "career.profile.context.edit_memory": "기억 수정",
+    "career.profile.context.label": "제목",
+    "career.profile.context.label_placeholder": "예: 선호 근무 지역",
+    "career.profile.context.manage": "관리",
+    "career.profile.context.load_more": "더 보기",
+    "career.profile.context.memory_content_placeholder":
+      "하퍼가 다음에도 기억하면 좋을 맥락을 적어주세요.",
+    "career.profile.context.memory_description":
+      "다음 대화와 기회 판단에 도움이 되도록 기억해 둔 맥락이에요.",
+    "career.profile.context.memory_empty": "아직 저장된 기억이 없어요.",
+    "career.profile.context.memory_title": "Harper의 기억",
+    "career.profile.context.save": "저장",
     "career.profile.date.present": "현재",
     "career.profile.date.year_only": "{year}년",
     "career.profile.documents.actions": "문서 메뉴",

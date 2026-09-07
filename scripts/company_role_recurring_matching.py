@@ -1735,12 +1735,23 @@ def candidate_rows(conn: psycopg.Connection, talent_ids: list[str], role_id: str
         "select talent_id, content from public.talent_extras where talent_id = any(%s::uuid[])",
         (ids,),
     )
-    insights = fetch_all(
+    saved_contexts = fetch_all(
         conn,
         """
-        select talent_id, id, content, last_updated_at
-        from public.talent_insights where talent_id = any(%s::uuid[])
-        order by talent_id, last_updated_at desc, id desc
+        select talent_id, id, ref, collection, label, key, content, revision, updated_at
+        from (
+          select
+            talent_id, id, ref, collection, label, key, content, revision, updated_at,
+            row_number() over (
+              partition by talent_id, collection
+              order by updated_at desc, id desc
+            ) as collection_rank
+          from public.talent_contexts
+          where talent_id = any(%s::uuid[])
+            and deleted_at is null
+        ) ranked
+        where collection = 'brief' or collection_rank <= 40
+        order by talent_id, collection, ref
         """,
         (ids,),
     )
@@ -1984,13 +1995,21 @@ def candidate_rows(conn: psycopg.Connection, talent_ids: list[str], role_id: str
         talent_id: format_same_company_role_history(rows)
         for talent_id, rows in by_talent(same_company_role_history_rows).items()
     }
+    saved_contexts_by_talent = by_talent(saved_contexts)
     return {
         "profiles": {str(row["talent_id"]): row for row in profiles},
         "settings": {str(row["talent_id"]): row for row in settings},
         "experiences": by_talent(experiences),
         "educations": by_talent(educations),
         "extras": by_talent(extras),
-        "insights": by_talent(insights),
+        "insights": {
+            talent_id: [row for row in rows if row.get("collection") == "brief"]
+            for talent_id, rows in saved_contexts_by_talent.items()
+        },
+        "memories": {
+            talent_id: [row for row in rows if row.get("collection") == "memory"]
+            for talent_id, rows in saved_contexts_by_talent.items()
+        },
         "behavior": {str(row["talent_id"]): row for row in behavior},
         "activity": by_talent(activity),
         "messages": by_talent(messages),
@@ -2055,6 +2074,7 @@ def candidate_exclusion(
 
 
 def talent_packet_payload(data: Mapping[str, Any], talent_id: str) -> dict[str, Any]:
+    memories = data.get("memories", {}).get(talent_id, [])
     return {
         "profile": matching_profile_payload(data["profiles"].get(talent_id)),
         "setting": data["settings"].get(talent_id),
@@ -2062,7 +2082,10 @@ def talent_packet_payload(data: Mapping[str, Any], talent_id: str) -> dict[str, 
         "educations": data["educations"].get(talent_id, []),
         "extras": data["extras"].get(talent_id, []),
         "insights": data["insights"].get(talent_id, []),
-        "behaviorContext": data["behavior"].get(talent_id),
+        "memories": memories,
+        # Transitional fallback until the worker's Behavior Context writer is
+        # retired. Once Memory rows exist, do not emphasize the same context twice.
+        "behaviorContext": None if memories else data["behavior"].get(talent_id),
         "recentActivity": data["activity"].get(talent_id, [])[:60],
         "recentUserMessages": data["messages"].get(talent_id, []),
         "recentInboundEmails": data["emails"].get(talent_id, []),
@@ -2111,6 +2134,7 @@ def candidate_input_fingerprint(talent_payload: Mapping[str, Any]) -> str:
         "educations",
         "extras",
         "insights",
+        "memories",
         "recentActivity",
         "recentUserMessages",
         "recentInboundEmails",
@@ -2129,7 +2153,7 @@ def candidate_input_fingerprint(talent_payload: Mapping[str, Any]) -> str:
             # These source timestamps are retained when recency is itself
             # relevant (messages, activity, feedback, stages). Pure row-update
             # timestamps on profile-like facts are not matching evidence.
-            if collection_name in {"experiences", "educations", "extras", "insights"}:
+            if collection_name in {"experiences", "educations", "extras", "insights", "memories"}:
                 item.pop("updated_at", None)
                 item.pop("last_updated_at", None)
     return stable_hash(inputs)
@@ -2284,7 +2308,8 @@ def render_candidate_evaluation_document(packet: Mapping[str, Any]) -> str:
     for title, key in (
         ("학력", "educations"),
         ("기타 프로필 정보", "extras"),
-        ("현재 Talent Insights", "insights"),
+        ("현재 Search Brief", "insights"),
+        ("최근 Career Memory (최대 40개)", "memories"),
         ("최근 Activity", "recentActivity"),
         ("최근 후보자 발화", "recentUserMessages"),
         ("최근 후보자 수신 이메일 답신", "recentInboundEmails"),

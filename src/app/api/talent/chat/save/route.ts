@@ -2,15 +2,17 @@ import { after, NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   countUserChatTurns,
-  fetchTalentInsights,
+  fetchTalentContexts,
+  fetchTalentContextsUpdatedAt,
   fetchTalentSetting,
   fetchTalentUserProfile,
   getCareerOnboardingChecklistCoverage,
   getOnboardingChecklistCoverageStats,
   getTalentSupabaseAdmin,
-  normalizeTalentInsightContent,
+  projectBriefsToLegacyInsights,
   serializeOnboardingChecklistProgress,
   toTalentMessageResponse,
+  toTalentContextResponse,
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/server";
 import { TALENT_INTERVIEW_FINAL_STEP } from "@/lib/talentOnboarding/progress";
@@ -156,11 +158,15 @@ export async function POST(req: NextRequest) {
     const isInternalOpportunityCall = Boolean(internalCallRequest);
     const messageType = isCallMode ? "call_transcript" : "chat";
 
-    const [currentInsights, talentSetting, profile] = await Promise.all([
-      fetchTalentInsights({
+    const [currentBrief, currentContextsUpdatedAt, talentSetting, profile] =
+      await Promise.all([
+      fetchTalentContexts({
         admin,
+        collection: "brief",
+        limit: 500,
         userId: user.id,
       }),
+      fetchTalentContextsUpdatedAt({ admin, userId: user.id }),
       fetchTalentSetting({
         admin,
         userId: user.id,
@@ -170,19 +176,17 @@ export async function POST(req: NextRequest) {
         userId: user.id,
       }),
     ]);
-    const currentInsightContent = (currentInsights?.content ?? null) as Record<
-      string,
-      string
-    > | null;
+    const currentInsightContent = projectBriefsToLegacyInsights(
+      currentBrief
+    );
     const shouldAutoExtractInsights =
       !isInternalOpportunityCall &&
       !Boolean(talentSetting?.is_onboarding_done) &&
       Boolean(userMessageText) &&
       Boolean(assistantMessageText);
-    let responseTalentInsights = normalizeTalentInsightContent(
-      currentInsights?.content ?? null
-    );
-    let responseInsightUpdatedAt = currentInsights?.last_updated_at ?? null;
+    let responseBrief = currentBrief;
+    let responseTalentInsights = currentInsightContent;
+    let responseInsightUpdatedAt = currentContextsUpdatedAt;
     const responseLocale =
       talentSetting?.preferred_locale ??
       body.locale ??
@@ -217,17 +221,20 @@ export async function POST(req: NextRequest) {
         logPrefix: "ChatSave",
         onboardingChecklistContext: profile,
         sourceChannel: isCallMode ? "voice_call" : "text_chat",
+        scheduleAfter: (task) => after(task),
         userId: user.id,
       });
       if (changedCount > 0) {
-        const latestInsights = await fetchTalentInsights({
-          admin,
-          userId: user.id,
-        });
-        responseTalentInsights = normalizeTalentInsightContent(
-          latestInsights?.content ?? null
-        );
-        responseInsightUpdatedAt = latestInsights?.last_updated_at ?? null;
+        [responseBrief, responseInsightUpdatedAt] = await Promise.all([
+          fetchTalentContexts({
+            admin,
+            collection: "brief",
+            limit: 500,
+            userId: user.id,
+          }),
+          fetchTalentContextsUpdatedAt({ admin, userId: user.id }),
+        ]);
+        responseTalentInsights = projectBriefsToLegacyInsights(responseBrief);
       }
 
       return changedCount;
@@ -548,6 +555,8 @@ export async function POST(req: NextRequest) {
       nextStepInstructions,
       onboardingChecklistProgress,
       talentInsights: responseTalentInsights,
+      talentBrief: responseBrief.map(toTalentContextResponse),
+      talentContextsUpdatedAt: responseInsightUpdatedAt,
       progress: {
         answeredCount: userTurnCount,
         targetCount: TALENT_INTERVIEW_FINAL_STEP,

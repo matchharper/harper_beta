@@ -8,21 +8,20 @@ import {
 import { runCareerKickoff } from "@/lib/career/llm";
 import type {
   TalentConversationRow,
-  TalentInsightContent,
   TalentMessageRow,
   TalentStructuredProfile,
   TalentUserProfileRow,
 } from "@/lib/talentOnboarding/server";
 import {
   buildTalentProfileContext,
-  fetchTalentInsights,
+  fetchTalentContextPromptSnapshot,
   fetchTalentSetting,
   fetchTalentStructuredProfile,
   getTalentProfileVisibilityLabel,
   TALENT_PENDING_QUESTION_PREFIX,
   normalizeTalentBlockedCompanies,
-  normalizeTalentInsightContent,
   getTalentSupabaseAdmin,
+  renderTalentContextPrompt,
   toTalentDisplayName,
 } from "@/lib/talentOnboarding/server";
 import { withIsMobile } from "@/lib/requestDevice";
@@ -38,7 +37,7 @@ type LlmKickoff = {
 type TalentKickoffPreferences = {
   profileVisibilityLabel: string;
   blockedCompanies: string[];
-  insightContent: TalentInsightContent | null;
+  careerContext: string;
 };
 
 const CAREER_KICKOFF_TIMEOUT_MS = Number(
@@ -124,24 +123,6 @@ function describeTalentPreferences(
 ) {
   if (!preferences) return "(없음)";
 
-  const insightContent = preferences.insightContent ?? {};
-  const priorityKeys = ["desired_teams", "technical_strengths"];
-  const renderedInsightKeys = new Set<string>();
-  const insightLines = priorityKeys
-    .map((key) => {
-      const value = insightContent[key];
-      if (!value) return null;
-      renderedInsightKeys.add(key);
-      if (key === "desired_teams") return `원하는 팀: ${value}`;
-      if (key === "technical_strengths") return `기술적 장점: ${value}`;
-      return `${key}: ${value}`;
-    })
-    .filter(Boolean);
-  for (const [key, value] of Object.entries(insightContent)) {
-    if (!value || renderedInsightKeys.has(key)) continue;
-    insightLines.push(`${key}: ${value}`);
-  }
-
   return [
     `프로필 공개: ${preferences.profileVisibilityLabel}`,
     `차단 기업: ${
@@ -149,7 +130,7 @@ function describeTalentPreferences(
         ? preferences.blockedCompanies.join(", ")
         : "(없음)"
     }`,
-    ...insightLines,
+    preferences.careerContext,
   ]
     .filter(Boolean)
     .join("\n");
@@ -247,26 +228,28 @@ export async function autoStartClaimedTalentConversation(args: {
     return null;
   }
 
-  const [talentSetting, talentInsights, promptProfile] = await Promise.all([
-    fetchTalentSetting({
-      admin,
-      userId: user.id,
-    }),
-    fetchTalentInsights({
-      admin,
-      userId: user.id,
-    }),
-    structuredProfile
-      ? Promise.resolve(structuredProfile)
-      : fetchTalentStructuredProfile({
-          admin,
-          userId: user.id,
-          talentUser: profile,
-        }),
-  ]);
-  const normalizedInsights = normalizeTalentInsightContent(
-    talentInsights?.content
-  );
+  const [talentSetting, talentContextSnapshot, promptProfile] =
+    await Promise.all([
+      fetchTalentSetting({
+        admin,
+        userId: user.id,
+      }),
+      fetchTalentContextPromptSnapshot({
+        admin,
+        query: [profile.headline, profile.bio, profile.resume_text]
+          .filter(Boolean)
+          .join("\n")
+          .slice(0, 4_000),
+        userId: user.id,
+      }),
+      structuredProfile
+        ? Promise.resolve(structuredProfile)
+        : fetchTalentStructuredProfile({
+            admin,
+            userId: user.id,
+            talentUser: profile,
+          }),
+    ]);
   const profileVisibilityLabel = getTalentProfileVisibilityLabel(
     talentSetting?.profile_visibility
   );
@@ -292,7 +275,7 @@ export async function autoStartClaimedTalentConversation(args: {
     talentPreferences: {
       profileVisibilityLabel,
       blockedCompanies,
-      insightContent: normalizedInsights,
+      careerContext: renderTalentContextPrompt(talentContextSnapshot),
     },
     resumeFileName: profile?.resume_file_name,
     resumeText: resumeTextForKickoff,

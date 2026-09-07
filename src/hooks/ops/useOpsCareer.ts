@@ -237,36 +237,6 @@ export function useOpsCareerRecommendations(
   });
 }
 
-export function useUpdateInsights(userId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (updates: Record<string, string>) =>
-      fetchWithInternalAuth("/api/internal/career/update-insights", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, updates }),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: opsCareerInsightsKey(userId) });
-    },
-  });
-}
-
-export function useRefreshInsights(userId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: () =>
-      fetchWithInternalAuth("/api/internal/career/refresh-insights", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: opsCareerInsightsKey(userId) });
-    },
-  });
-}
-
 const invalidateOpsCareerMemoQueries = (
   queryClient: ReturnType<typeof useQueryClient>,
   userId: string

@@ -47,6 +47,8 @@ export function buildCareerToolPolicyPrompt(args: {
   const hasUpdateTalentProfileTool = toolNames.includes(
     "update_talent_profile"
   );
+  const hasReadTalentContextTool = toolNames.includes("read_talent_context");
+  const hasWriteTalentContextTool = toolNames.includes("write_talent_context");
   const hasUpdateLanguageSettingTool = toolNames.includes(
     "update_language_setting"
   );
@@ -173,7 +175,7 @@ export function buildCareerToolPolicyPrompt(args: {
     ...(hasInternalRoleReconsiderationTool
       ? [
           "- Use `request_internal_role_reconsideration` only when the user explicitly provides new information and asks Harper to reconsider one exact role. The eligible cases are an unresolved role-specific hold, or a role where role/company fit are already strong and only the candidate preference fit is still middle.",
-          "- Pass the exact roleId and a concise summary of only the new user-authored fact, preference change, or one-role exception. If the change is durable across future recommendations, also use update_talent_profile; do not write a one-role exception as a global preference.",
+          "- Pass the exact roleId and a concise summary of only the new user-authored fact, preference change, or one-role exception. If the change is durable across future recommendations, also use write_talent_context; do not write a one-role exception as a global preference.",
           "- Do not use reconsideration for candidate preference unfit, role/company mismatch, a generic request for more jobs, or a role already formally recommended. Never claim reconsideration was scheduled unless the tool result confirms reconsiderationScheduled=true.",
           "- When get_internal_roles or internal_role_priority_review says a role is already scheduled for reconsideration, explain that status and do not schedule it again unless the user supplied materially new information.",
         ]
@@ -238,10 +240,10 @@ export function buildCareerToolPolicyPrompt(args: {
           "### update_talent_profile (profile writer)",
           args.isOnboardingActive
             ? "- Purpose: update talentUser.bio/location, personal profileLinks, or rowMemos during onboarding."
-            : "- Purpose: update talentUser.bio/location, personal profileLinks, rowMemos, talentInsights, or recommendationBatchSize.",
+            : "- Purpose: update talentUser.bio/location, personal profileLinks, rowMemos, or recommendationBatchSize.",
           args.isOnboardingActive
             ? "- Boundary: profile summary/current base -> talentUser; row facts -> rowMemos; subscription actions -> update_setting."
-            : "- Boundary: row facts -> rowMemos; durable matching memory -> talentInsights; batch size -> recommendationBatchSize; subscription actions -> update_setting.",
+            : "- Boundary: row facts -> rowMemos; saved career context -> write_talent_context; batch size -> recommendationBatchSize; subscription actions -> update_setting.",
           "- For recommendationBatchSize, choose a 3-10 value per schema; vague more/less adjusts by 2, maximum requests use 10, and you should not ask a follow-up just to pick the number.",
           ...(hasUpdateSettingTool
             ? [
@@ -250,29 +252,49 @@ export function buildCareerToolPolicyPrompt(args: {
             : [
                 "- Do not write subscription/contact actions or cadence/frequency changes through this tool; answer naturally instead.",
               ]),
-          args.isOnboardingActive
-            ? ""
-            : "- Explicit hard-filter search language counts as durable memory even when phrased as search (e.g. '미국 회사로만', '앞으로 리모트만', '대기업은 빼고', '다음부터 Series B 이상').",
           "- Do NOT call for one-off browsing, curiosity, informational searches, questions, hypotheticals, assistant summaries, duplicates, or aspirational/off-profile role mentions without explicit future intent.",
           "- After this tool returns, produce a normal user-facing chat reply. Do not return an empty assistant message, and do not return only an onboarding marker.",
           "- Trigger conditions: call ONLY when the user's latest statement directly maps to a writable field in this tool:",
           "1) talentUser.bio: explicit final Summary/About/Bio replacement, correction, or clear request; never infer it from assistant-only summaries.",
           "2) talentUser.location: explicit current primary base/residence only; not travel, past/target job location, desired work location, or relocation preference.",
-          `3) rowMemos: when the user's latest statement clearly maps to one specific visible experience/education/extra row, use operation=append for genuinely new detail that should follow the existing memo, or operation=update when the user corrects or asks to revise the existing memo. For update, send the complete final ${outputLanguage} memo, not only the changed fragment. Use the visible RowID, omit if ambiguous/no row/generic, update to empty string to delete it and do not duplicate it into talentInsights.`,
+          `3) rowMemos: when the user's latest statement clearly maps to one specific visible experience/education/extra row, use operation=append for genuinely new detail that should follow the existing memo, or operation=update when the user corrects or asks to revise the existing memo. For update, send the complete final ${outputLanguage} memo, not only the changed fragment. Use the visible RowID and omit the change if the row is ambiguous or generic.`,
           "- Never store overly sensitive personal information in rowMemos, even if the user discloses it.",
           "- If related context must be retained, record only the generalized consequence and omit the sensitive cause and details.",
           args.isOnboardingActive
-            ? "- Use only talentUser.bio, talentUser.location, profileLinks, and rowMemos. Do NOT call this tool during onboarding for general answers that only update user preference or future matching memory. Those are handled outside this tool until onboarding completes."
-            : `4) talentInsights: opportunity preference/memory patch; merge existing axes, use English snake_case keys and complete ${outputLanguage} sentence values. Do not write information about rowMemos here. Things to remember for opportunity recommendation.`,
+            ? "- Use only talentUser.bio, talentUser.location, profileLinks, and rowMemos. Onboarding preference and memory extraction is handled by the existing onboarding flow."
+            : "",
           `- profileLinks: add/delete only this talent's own professional profile or material URL (personal LinkedIn/GitHub/Scholar/portfolio/blog/CV). Never add company, job-posting, recruiting, company-document, or another person's URL. After add, do not stop at registration confirmation: explain that Harper can use the saved link and relevant information from it when useful to understand and represent the user and improve future opportunity matching. During a Harper internal company connection, explain that the link and relevant profile-derived information may also be used when helpful to present the user's fit. After delete, explain that Harper will no longer use it as a saved source for future matching or future company-connection materials unless the user adds it again.`,
           "- Do not write resume files or the same fact twice. Use only user-provided new information, not assistant summaries.",
           ...(hasUpdateSettingTool
             ? [
-                "- If subscription scope and profile/matching memory or batch size both change in one turn, call `update_setting` and `update_talent_profile` separately.",
+                "- If subscription scope and saved career context both change in one turn, call `update_setting` and `write_talent_context` separately. Use `update_talent_profile` as well only when a structured profile field or recommendation batch size changed.",
               ]
             : [
                 "- Do not mix subscription/contact actions into profile/matching memory.",
               ]),
+          "",
+        ]
+      : []),
+    ...(hasReadTalentContextTool || hasWriteTalentContextTool
+      ? [
+          "",
+          "### Saved career context",
+          hasReadTalentContextTool
+            ? "- `read_talent_context` reads more saved context when the default Brief and Memory excerpt are insufficient. Search with the current task and conversation meaning, or request exact shown refs."
+            : "",
+          hasWriteTalentContextTool
+            ? "- `write_talent_context` preserves context the user should not need to explain again. Put current opportunity-search criteria and premises the user can review in Search Brief; put other context worth remembering for later conversation or opportunity judgment in Memory."
+            : "",
+          hasWriteTalentContextTool
+            ? "- Read existing rows and the latest user meaning together. Correct a shown row by ref, add genuinely separate information, preserve strength, exceptions, uncertainty, and known timing, and avoid duplicating the same information across Brief and Memory."
+            : "",
+          hasWriteTalentContextTool
+            ? "- Use a free user-readable label plus complete content for a new Brief. A new Memory needs complete content. Do not invent an internal key or choose from a fixed topic list."
+            : "",
+          hasWriteTalentContextTool
+            ? "- Use the feature that owns the data for Profile rows, settings, documents, opportunity feedback, and workflow state. Do not save transient requests or the assistant's own conclusions as durable user context."
+            : "",
+          "- After reading or writing, continue the user's original request naturally. Do not turn the response into a storage receipt or expose refs and implementation terms.",
           "",
         ]
       : []),

@@ -463,6 +463,12 @@ export function buildFullJdUserContextText(args: {
     ),
     maxChars
   );
+  addSection(
+    sections,
+    "SAVED CAREER CONTEXT",
+    multiline(args.llmUserProfile.careerContext, 8_000),
+    maxChars
+  );
 
   const experienceDescriptionMaxChars = args.view === "fit" ? 5_000 : 800;
   const experiences = Array.isArray(args.llmUserProfile.experiences)

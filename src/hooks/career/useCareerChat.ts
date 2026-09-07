@@ -63,6 +63,11 @@ type UseCareerChatArgs = {
     updatedAt: unknown
   ) => void;
   onTalentInsightsRefreshed?: (insights: unknown, updatedAt: unknown) => void;
+  onTalentContextsRefreshed?: (payload: {
+    talentBrief?: unknown;
+    talentContextsUpdatedAt?: unknown;
+    talentMemories?: unknown;
+  }) => void;
   onOnboardingChecklistProgressRefreshed?: (progress: unknown) => void;
   onTalentProfileRefreshed?: (
     profile: SessionResponse["talentProfile"] | undefined
@@ -228,6 +233,7 @@ export const useCareerChat = ({
   onOpportunityRecommendationsChanged,
   onTalentPreferencesRefreshed,
   onTalentInsightsRefreshed,
+  onTalentContextsRefreshed,
   onOnboardingChecklistProgressRefreshed,
   onTalentProfileRefreshed,
   persistedMessages,
@@ -1150,6 +1156,14 @@ export const useCareerChat = ({
                     data.insightUpdatedAt
                   );
                 }
+                if ("talentBrief" in data || "talentMemories" in data) {
+                  onTalentContextsRefreshed?.({
+                    talentBrief: data.talentBrief,
+                    talentContextsUpdatedAt:
+                      data.talentContextsUpdatedAt ?? data.insightUpdatedAt,
+                    talentMemories: data.talentMemories,
+                  });
+                }
                 if ("onboardingChecklistProgress" in data) {
                   onOnboardingChecklistProgressRefreshed?.(
                     data.onboardingChecklistProgress
@@ -1261,6 +1275,17 @@ export const useCareerChat = ({
             payload.talentInsights,
             payload.insightUpdatedAt
           );
+        }
+        if (
+          isRecord(payload) &&
+          ("talentBrief" in payload || "talentMemories" in payload)
+        ) {
+          onTalentContextsRefreshed?.({
+            talentBrief: payload.talentBrief,
+            talentContextsUpdatedAt:
+              payload.talentContextsUpdatedAt ?? payload.insightUpdatedAt,
+            talentMemories: payload.talentMemories,
+          });
         }
         if (isRecord(payload) && "onboardingChecklistProgress" in payload) {
           onOnboardingChecklistProgressRefreshed?.(
@@ -1383,6 +1408,7 @@ export const useCareerChat = ({
       onOpportunityRecommendationsChanged,
       onOnboardingChecklistProgressRefreshed,
       onTalentInsightsRefreshed,
+      onTalentContextsRefreshed,
       onTalentPreferencesRefreshed,
       onTalentProfileRefreshed,
       resetActiveThinkingLogs,

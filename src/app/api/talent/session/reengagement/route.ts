@@ -125,6 +125,8 @@ async function finalizeSessionReengagement(args: {
     preferencesUpdatedAt: result.preferencesUpdatedAt,
     skipped: false,
     talentInsights: result.talentInsights,
+    talentBrief: result.talentBrief,
+    talentContextsUpdatedAt: result.talentContextsUpdatedAt,
     talentPreferences: result.talentPreferences,
   };
 }

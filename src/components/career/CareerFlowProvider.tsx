@@ -37,6 +37,7 @@ import { useCareerOnboardingVoice } from "@/hooks/career/useCareerOnboardingVoic
 import { useCareerOpportunityRunSync } from "@/hooks/career/useCareerOpportunityRunSync";
 import { useCareerProfile } from "@/hooks/career/useCareerProfile";
 import { useCareerTalentInsights } from "@/hooks/career/useCareerTalentInsights";
+import { useCareerTalentContexts } from "@/hooks/career/useCareerTalentContexts";
 import { useCareerTalentPreferences } from "@/hooks/career/useCareerTalentPreferences";
 import { useCareerTalentSettings } from "@/hooks/career/useCareerTalentSettings";
 import { useCareerSession } from "@/hooks/career/useCareerSession";
@@ -155,6 +156,9 @@ type OnboardingManualCompletionPayload = {
     completed?: boolean;
   };
   talentInsights?: unknown;
+  talentBrief?: unknown;
+  talentMemories?: unknown;
+  talentContextsUpdatedAt?: unknown;
 };
 
 export const CareerFlowProvider = ({
@@ -343,6 +347,14 @@ export const CareerFlowProvider = ({
   const applyPersistedTalentInsightsRef = useRef<
     ((insights: unknown, updatedAt: unknown) => void) | null
   >(null);
+  const applyPersistedTalentContextsRef = useRef<
+    | ((payload: {
+        talentBrief?: unknown;
+        talentContextsUpdatedAt?: unknown;
+        talentMemories?: unknown;
+      }) => void)
+    | null
+  >(null);
   const applyTalentProfileSnapshotRef = useRef<
     ((profile: SessionResponse["talentProfile"] | undefined) => void) | null
   >(null);
@@ -355,6 +367,16 @@ export const CareerFlowProvider = ({
   const handleTalentInsightsRefreshedFromChat = useCallback(
     (insights: unknown, updatedAt: unknown) => {
       applyPersistedTalentInsightsRef.current?.(insights, updatedAt);
+    },
+    []
+  );
+  const handleTalentContextsRefreshedFromChat = useCallback(
+    (payload: {
+      talentBrief?: unknown;
+      talentContextsUpdatedAt?: unknown;
+      talentMemories?: unknown;
+    }) => {
+      applyPersistedTalentContextsRef.current?.(payload);
     },
     []
   );
@@ -404,6 +426,7 @@ export const CareerFlowProvider = ({
       handleOpportunityRecommendationsChanged,
     onTalentPreferencesRefreshed: handleTalentPreferencesRefreshedFromChat,
     onTalentInsightsRefreshed: handleTalentInsightsRefreshedFromChat,
+    onTalentContextsRefreshed: handleTalentContextsRefreshedFromChat,
     onOnboardingChecklistProgressRefreshed:
       handleOnboardingChecklistProgressRefreshed,
     onTalentProfileRefreshed: handleTalentProfileRefreshedFromChat,
@@ -697,6 +720,23 @@ export const CareerFlowProvider = ({
     user,
   });
 
+  const {
+    talentBrief,
+    talentMemories,
+    talentContextsUpdatedAt,
+    talentContextsSavePending,
+    talentContextsSaveError,
+    talentContextsSaveInfo,
+    talentMemoriesHasMore,
+    talentMemoriesLoaded,
+    talentMemoriesLoadPending,
+    applySessionTalentContexts,
+    applyPersistedTalentContexts,
+    loadTalentMemories,
+    mutateTalentContexts,
+    resetTalentContextsState,
+  } = useCareerTalentContexts({ fetchWithAuth, user });
+
   useEffect(() => {
     applyPersistedTalentPreferencesRef.current =
       applyPersistedTalentPreferences;
@@ -704,6 +744,9 @@ export const CareerFlowProvider = ({
   useEffect(() => {
     applyPersistedTalentInsightsRef.current = applyPersistedTalentInsights;
   }, [applyPersistedTalentInsights]);
+  useEffect(() => {
+    applyPersistedTalentContextsRef.current = applyPersistedTalentContexts;
+  }, [applyPersistedTalentContexts]);
   useEffect(() => {
     applyTalentProfileSnapshotRef.current = applyTalentProfileSnapshot;
   }, [applyTalentProfileSnapshot]);
@@ -865,9 +908,10 @@ export const CareerFlowProvider = ({
             messageId: parsedMessageId,
           }),
         });
-        const payload = (await response
-          .json()
-          .catch(() => ({}))) as Record<string, unknown>;
+        const payload = (await response.json().catch(() => ({}))) as Record<
+          string,
+          unknown
+        >;
 
         if (!response.ok) {
           throw new Error(
@@ -963,6 +1007,14 @@ export const CareerFlowProvider = ({
             payload.insightUpdatedAt ?? null
           );
         }
+        if ("talentBrief" in payload || "talentMemories" in payload) {
+          handleTalentContextsRefreshedFromChat({
+            talentBrief: payload.talentBrief,
+            talentContextsUpdatedAt:
+              payload.talentContextsUpdatedAt ?? payload.insightUpdatedAt,
+            talentMemories: payload.talentMemories,
+          });
+        }
 
         const assistantMessages = Array.isArray(payload.assistantMessages)
           ? payload.assistantMessages
@@ -997,6 +1049,7 @@ export const CareerFlowProvider = ({
       enqueueAssistantMessages,
       fetchWithAuth,
       forceCompletePending,
+      handleTalentContextsRefreshedFromChat,
       handleTalentInsightsRefreshedFromChat,
       setChatError,
       setStage,
@@ -1073,6 +1126,7 @@ export const CareerFlowProvider = ({
     onOpportunityRunChanged: setOpportunityRun,
     onTalentPreferencesRefreshed: handleTalentPreferencesRefreshedFromChat,
     onTalentInsightsRefreshed: handleTalentInsightsRefreshedFromChat,
+    onTalentContextsRefreshed: handleTalentContextsRefreshedFromChat,
     onOnboardingChecklistProgressRefreshed:
       handleOnboardingChecklistProgressRefreshed,
     onTalentProfileRefreshed: handleTalentProfileRefreshedFromChat,
@@ -1257,6 +1311,7 @@ export const CareerFlowProvider = ({
       applySessionProfile(payload);
       applySessionTalentPreferences(payload);
       applySessionTalentInsights(payload);
+      applySessionTalentContexts(payload);
       setOnboardingChecklistProgress(
         normalizeOnboardingChecklistProgress(
           payload.onboardingChecklistProgress
@@ -1295,6 +1350,7 @@ export const CareerFlowProvider = ({
       applySessionConversation,
       applySessionProfile,
       applySessionTalentInsights,
+      applySessionTalentContexts,
       applySessionTalentPreferences,
       applySessionPrompt,
       appendLatestMessagesToCache,
@@ -1593,6 +1649,7 @@ export const CareerFlowProvider = ({
       resetProfileState();
       resetTalentPreferencesState();
       resetTalentInsightsState();
+      resetTalentContextsState();
       resetOnboardingState();
       resetHistoryState();
       resetRuntimeActionsState();
@@ -1611,6 +1668,7 @@ export const CareerFlowProvider = ({
     resetProfileState,
     resetRuntimeActionsState,
     resetTalentInsightsState,
+    resetTalentContextsState,
     resetTalentPreferencesState,
     resetSessionState,
     resetHistoryState,
@@ -1630,6 +1688,7 @@ export const CareerFlowProvider = ({
     fetchWithAuth,
     onOpportunityRunChanged: setOpportunityRun,
     onTalentInsightsRefreshed: handleTalentInsightsRefreshedFromChat,
+    onTalentContextsRefreshed: handleTalentContextsRefreshedFromChat,
     onTalentPreferencesRefreshed: handleTalentPreferencesRefreshedFromChat,
     sessionPending,
     stage,
@@ -2033,6 +2092,17 @@ export const CareerFlowProvider = ({
       },
       talentPreferences,
       talentInsights,
+      talentBrief,
+      talentMemories,
+      talentContextsUpdatedAt,
+      talentContextsSavePending,
+      talentContextsSaveError,
+      talentContextsSaveInfo,
+      talentMemoriesHasMore,
+      talentMemoriesLoaded,
+      talentMemoriesLoadPending,
+      loadTalentMemories,
+      mutateTalentContexts,
       talentPreferencesUpdatedAt,
       talentInsightsUpdatedAt,
       talentPreferencesSavePending,
@@ -2117,6 +2187,17 @@ export const CareerFlowProvider = ({
       talentInsightsSaveInfo,
       talentInsightsSavePending,
       talentInsightsUpdatedAt,
+      talentBrief,
+      talentMemories,
+      talentContextsUpdatedAt,
+      talentContextsSavePending,
+      talentContextsSaveError,
+      talentContextsSaveInfo,
+      talentMemoriesHasMore,
+      talentMemoriesLoaded,
+      talentMemoriesLoadPending,
+      loadTalentMemories,
+      mutateTalentContexts,
       talentPreferences,
       talentPreferencesSaveError,
       talentPreferencesSaveInfo,

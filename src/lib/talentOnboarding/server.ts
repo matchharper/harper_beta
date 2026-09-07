@@ -13,7 +13,6 @@ import {
   markTalentUserLoggedIn,
 } from "@/lib/talentOnboarding/profileStore";
 import {
-  fetchTalentInsights,
   fetchTalentSetting,
   getEmptyInsightKeys,
   getMergedChecklist,
@@ -28,7 +27,6 @@ import {
   refreshTalentPreferredLocale,
   sanitizeTalentProfileVisibility,
   setTalentOnboardingDone,
-  upsertTalentInsights,
   upsertTalentSetting,
   type MergedChecklistItem,
 } from "@/lib/talentOnboarding/stateStore";
@@ -67,7 +65,6 @@ import {
   type TalentExtraItem,
   type TalentExtraRow,
   type TalentInsightContent,
-  type TalentInsightRow,
   type TalentMessageRow,
   type TalentProfileVisibility,
   type TalentSettingRow,
@@ -76,6 +73,24 @@ import {
   DEFAULT_TALENT_PROFILE_VISIBILITY,
   toTalentMessageResponse,
 } from "@/lib/talentOnboarding/models";
+import {
+  createTalentContextMutationRequestId,
+  fetchAllTalentContexts,
+  fetchTalentContextPromptSnapshot,
+  fetchTalentContexts,
+  fetchTalentContextsByRefs,
+  fetchTalentContextsUpdatedAt,
+  getTalentContextsUpdatedAt,
+  mutateTalentContexts,
+  mutateTalentContextsFromAgent,
+  projectBriefsToLegacyInsights,
+  readTalentContextsForAgent,
+  refreshTalentContextEmbeddings,
+  renderTalentContextPrompt,
+  TALENT_CONTEXT_READ_TOOL_PARAMETERS,
+  TALENT_CONTEXT_WRITE_TOOL_PARAMETERS,
+  toTalentContextResponse,
+} from "@/lib/talentOnboarding/talentContexts";
 
 export {
   DEFAULT_TALENT_PROFILE_VISIBILITY,
@@ -90,7 +105,6 @@ export {
   fetchActiveTalentDocumentByOrigin,
   fetchTalentDocuments,
   fetchTalentDocumentsByIds,
-  fetchTalentInsights,
   fetchTalentSetting,
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
@@ -122,9 +136,24 @@ export {
   toTalentDisplayName,
   mergeCareerOnboardingChecklistCoverage,
   serializeOnboardingChecklistProgress,
-  upsertTalentInsights,
   upsertTalentSetting,
   updateTalentDocumentExtractedText,
+  createTalentContextMutationRequestId,
+  fetchAllTalentContexts,
+  fetchTalentContextPromptSnapshot,
+  fetchTalentContexts,
+  fetchTalentContextsByRefs,
+  fetchTalentContextsUpdatedAt,
+  getTalentContextsUpdatedAt,
+  mutateTalentContexts,
+  mutateTalentContextsFromAgent,
+  projectBriefsToLegacyInsights,
+  readTalentContextsForAgent,
+  refreshTalentContextEmbeddings,
+  renderTalentContextPrompt,
+  TALENT_CONTEXT_READ_TOOL_PARAMETERS,
+  TALENT_CONTEXT_WRITE_TOOL_PARAMETERS,
+  toTalentContextResponse,
 };
 
 export type {
@@ -136,13 +165,21 @@ export type {
   TalentExtraItem,
   TalentExtraRow,
   TalentInsightContent,
-  TalentInsightRow,
   TalentMessageRow,
   TalentProfileVisibility,
   TalentSettingRow,
   TalentStructuredProfile,
   TalentUserProfileRow,
 };
+
+export type {
+  TalentContextAgentChange,
+  TalentContextCollection,
+  TalentContextDirectChange,
+  TalentContextPromptSnapshot,
+  TalentContextResponse,
+  TalentContextRow,
+} from "@/lib/talentOnboarding/talentContexts";
 
 /** Get first-visit text from the career prompt constants. */
 export function getTalentFirstVisitText(

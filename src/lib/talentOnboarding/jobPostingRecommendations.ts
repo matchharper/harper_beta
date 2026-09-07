@@ -10,10 +10,11 @@ import {
   validateRoleSummaryLanguage,
 } from "@/lib/talentOnboarding/roleSummaryLanguage";
 import {
-  fetchTalentInsights,
+  fetchTalentContextPromptSnapshot,
   fetchTalentStructuredProfile,
   getTalentSupabaseAdmin,
   normalizeTalentBlockedCompanies,
+  renderTalentContextPrompt,
 } from "@/lib/talentOnboarding/server";
 import { OpportunityType } from "@/lib/opportunityType";
 import {
@@ -495,7 +496,8 @@ async function persistRoleSqlFailure(args: {
 }) {
   const metadata = {
     durationMs: args.durationMs,
-    error: cleanText(args.errorMessage, 1_000) || "Failed to search company roles",
+    error:
+      cleanText(args.errorMessage, 1_000) || "Failed to search company roles",
     searchMode: args.searchMode,
     sql: args.sql,
     sqlSha256: createHash("sha256").update(args.sql).digest("hex"),
@@ -769,24 +771,6 @@ function firstPresent(record: JsonRecord | null, keys: string[]) {
     if (!isEmptyForLlm(value)) return value;
   }
   return null;
-}
-
-function compactInsightsForLlm(value: unknown): JsonRecord {
-  const record = asRecord(value);
-  if (!record) return {};
-  const compact: JsonRecord = {};
-  for (const [key, raw] of Object.entries(record)) {
-    const name = cleanText(key, 80);
-    if (!name) continue;
-    if (typeof raw === "string") {
-      compact[name] = normalizeMultiline(raw, 800);
-    } else if (Array.isArray(raw)) {
-      compact[name] = compactStringList(raw, 12, 180);
-    } else {
-      compact[name] = parseMaybeJsonValue(raw);
-    }
-  }
-  return cleanEmptyValues(compact) as JsonRecord;
 }
 
 function compactProfileLinks(links: unknown, limit = 6) {
@@ -1720,7 +1704,7 @@ async function buildLlmUserProfile(args: {
   asOf?: string | null;
   conversationId: string;
   existingExternalRecommendations: PreviousExternalRecommendation[];
-  insights: unknown;
+  careerContext: string;
   profile: JobPostingTalentUserProfile | null;
   recentRecommendations: RecentRecommendationRow[];
   setting: JobPostingTalentSetting | null;
@@ -1789,7 +1773,7 @@ async function buildLlmUserProfile(args: {
       args.recentRecommendations,
       redactionTerms
     ),
-    insights: compactInsightsForLlm(args.insights),
+    careerContext: normalizeMultiline(args.careerContext, 8_000),
     profile: cleanEmptyValues({
       bio: normalizeMultiline(profileRecord?.bio, 800),
       headline: cleanText(profileRecord?.headline, 240),
@@ -2159,8 +2143,7 @@ async function buildSearchPlan(args: {
     ],
     primaryModel: RECOMMEND_JOB_POSTINGS_PLAN_MODEL,
     temperature: CAREER_LLM_CONFIG.recommendJobPostings.planTemperature,
-    usageLabel:
-      args.usageLabel ?? "career_tool:recommend_job_postings:plan",
+    usageLabel: args.usageLabel ?? "career_tool:recommend_job_postings:plan",
   });
 
   return normalizeExternalSearchPlan(
@@ -3484,7 +3467,7 @@ function fullJdCacheInputFingerprint(args: { llmUserProfile: JsonRecord }) {
         experiences: args.llmUserProfile.experiences ?? [],
         educations: args.llmUserProfile.educations ?? [],
         extra: args.llmUserProfile.extra ?? {},
-        insights: args.llmUserProfile.insights ?? {},
+        careerContext: args.llmUserProfile.careerContext ?? "",
       })
     )
     .digest("hex");
@@ -5050,7 +5033,7 @@ export async function runCareerJobPostingRecommendations(args: {
 
   const [
     profile,
-    insights,
+    talentContextSnapshot,
     setting,
     existingExternalRecommendations,
     activitySummaries,
@@ -5060,7 +5043,11 @@ export async function runCareerJobPostingRecommendations(args: {
       admin: args.admin,
       userId: args.userId,
     }),
-    fetchTalentInsights({ admin: args.admin, userId: args.userId }),
+    fetchTalentContextPromptSnapshot({
+      admin: args.admin,
+      query: request,
+      userId: args.userId,
+    }),
     fetchJobPostingTalentSetting({ admin: args.admin, userId: args.userId }),
     fetchExistingExternalRecommendations({
       admin: args.admin,
@@ -5104,7 +5091,7 @@ export async function runCareerJobPostingRecommendations(args: {
     asOf: evaluationAsOf,
     conversationId: args.conversationId,
     existingExternalRecommendations,
-    insights: insights?.content ?? null,
+    careerContext: renderTalentContextPrompt(talentContextSnapshot),
     profile,
     recentRecommendations,
     setting,
@@ -5112,8 +5099,11 @@ export async function runCareerJobPostingRecommendations(args: {
     userId: args.userId,
   });
   throwIfRecommendationSearchAborted(args.abortSignal);
+  const hasSavedCareerContext =
+    talentContextSnapshot.allBriefs.length > 0 ||
+    talentContextSnapshot.memories.length > 0;
   const fullJdBehaviorContext =
-    recommendationStrategy === "full_jd"
+    recommendationStrategy === "full_jd" && !hasSavedCareerContext
       ? await buildFullJdBehaviorContext({
           admin: args.admin,
           asOf: evaluationAsOf,
@@ -5208,9 +5198,7 @@ export async function runCareerJobPostingRecommendations(args: {
 
     throwIfRecommendationSearchAborted(args.abortSignal);
     infoJson("role sql timed out; rebuilding search plan once", {
-      previousSqlSha256: createHash("sha256")
-        .update(error.sql)
-        .digest("hex"),
+      previousSqlSha256: createHash("sha256").update(error.sql).digest("hex"),
       recommendationStrategy,
     });
     plan = await createSearchPlan(error.sql);

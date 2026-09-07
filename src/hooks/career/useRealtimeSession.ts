@@ -1210,6 +1210,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
               channel: "voice",
               conversationId,
               name: functionCall.name,
+              toolCallId: functionCall.callId,
               arguments: parsedArguments,
             }),
           });

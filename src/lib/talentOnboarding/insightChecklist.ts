@@ -1,6 +1,6 @@
 import { careerT } from "@/lib/career/translatedCareerMessage";
 export type InsightChecklistItem = {
-  /** Normalized key for talent_insights.content, e.g. "recent_achievement_hook" */
+  /** Compatibility key for an onboarding-backed Brief, e.g. "recent_achievement_hook" */
   key: string;
   /** Korean display label for UI */
   label: string;
@@ -20,7 +20,7 @@ export type OnboardingQuestionChecklistKind =
 export type OnboardingQuestionChecklistItem = {
   /** Stable key used in talent_calls.state.checklist */
   key: string;
-  /** talent_insights.content key to fill when this item stores durable matching memory */
+  /** Compatibility Brief key filled when this onboarding item stores durable context */
   insightKey?: string;
   /** Other durable insight keys intentionally covered by the same user question */
   relatedInsightKeys?: readonly string[];

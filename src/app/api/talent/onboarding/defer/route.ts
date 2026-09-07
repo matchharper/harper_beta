@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   buildCareerInsightExtractionPrompt,
@@ -19,12 +19,14 @@ import {
 import {
   TalentConversationRow,
   TalentMessageRow,
-  fetchTalentInsights,
+  fetchTalentContexts,
+  fetchTalentContextsUpdatedAt,
   fetchTalentSetting,
   fetchTalentUserProfile,
   getCareerOnboardingChecklistProgress,
   getTalentSupabaseAdmin,
-  normalizeTalentInsightContent,
+  projectBriefsToLegacyInsights,
+  toTalentContextResponse,
 } from "@/lib/talentOnboarding/server";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 
@@ -189,9 +191,11 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const [currentInsights, profile] = await Promise.all([
-      fetchTalentInsights({
+    const [currentContexts, profile] = await Promise.all([
+      fetchTalentContexts({
         admin,
+        collection: "brief",
+        limit: 500,
         userId: user.id,
       }),
       fetchTalentUserProfile({
@@ -199,10 +203,9 @@ export async function POST(req: NextRequest) {
         userId: user.id,
       }),
     ]);
-    const currentInsightContent = (currentInsights?.content ?? null) as Record<
-      string,
-      string
-    > | null;
+    const currentInsightContent = projectBriefsToLegacyInsights(
+      currentContexts
+    );
 
     const selectedLabels = selectedOptions.map((optionId) => {
       const option = INTEREST_OPTIONS_BY_ID.get(optionId);
@@ -330,16 +333,20 @@ export async function POST(req: NextRequest) {
       logPrefix: "TalentOnboardingDefer",
       onboardingChecklistContext: profile,
       sourceChannel: "text_chat",
+      scheduleAfter: (task) => after(task),
       userId: user.id,
     });
 
-    const latestInsights = await fetchTalentInsights({
-      admin,
-      userId: user.id,
-    });
-    const normalizedLatestInsights = normalizeTalentInsightContent(
-      latestInsights?.content ?? null
-    );
+    const [latestBrief, talentContextsUpdatedAt] = await Promise.all([
+      fetchTalentContexts({
+        admin,
+        collection: "brief",
+        limit: 500,
+        userId: user.id,
+      }),
+      fetchTalentContextsUpdatedAt({ admin, userId: user.id }),
+    ]);
+    const normalizedLatestInsights = projectBriefsToLegacyInsights(latestBrief);
     const onboardingChecklistProgress = !Boolean(
       talentSetting?.is_onboarding_done
     )
@@ -358,9 +365,11 @@ export async function POST(req: NextRequest) {
         id: (conversation as TalentConversationRow).id,
         stage: "chat",
       },
-      insightUpdatedAt: latestInsights?.last_updated_at ?? null,
+      insightUpdatedAt: talentContextsUpdatedAt,
+      talentContextsUpdatedAt,
       onboardingChecklistProgress,
       talentInsights: normalizedLatestInsights,
+      talentBrief: latestBrief.map(toTalentContextResponse),
       userMessage: toResponseMessage(userMessage),
       assistantMessage: toResponseMessage(assistantMessage),
     });

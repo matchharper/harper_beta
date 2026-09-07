@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
-  fetchTalentInsights,
+  fetchTalentContexts,
   fetchTalentSetting,
   fetchTalentUserProfile,
   getCareerOnboardingChecklistCoverage,
   getOnboardingChecklistCoverageStats,
   getTalentSupabaseAdmin,
+  projectBriefsToLegacyInsights,
   toTalentMessageResponse,
 } from "@/lib/talentOnboarding/server";
 import {
@@ -352,14 +353,16 @@ export async function POST(request: NextRequest) {
     }
     const safeDurationSeconds = Math.max(0, Math.floor(durationSeconds ?? 0));
     const requestTranscript = normalizeTranscriptEntries(transcript);
-    const [talentSetting, currentInsights, profile, conversation] =
+    const [talentSetting, currentContexts, profile, conversation] =
       await Promise.all([
         fetchTalentSetting({
           admin: supabase,
           userId: user.id,
         }),
-        fetchTalentInsights({
+        fetchTalentContexts({
           admin: supabase,
+          collection: "brief",
+          limit: 500,
           userId: user.id,
         }),
         fetchTalentUserProfile({
@@ -484,10 +487,9 @@ export async function POST(request: NextRequest) {
     const briefConversation = internalCallRequest
       ? internalCompletionDisposition !== "full"
       : isBriefConversation(transcriptStats, safeDurationSeconds);
-    const currentInsightContent = (currentInsights?.content ?? null) as Record<
-      string,
-      string
-    > | null;
+    const currentInsightContent = projectBriefsToLegacyInsights(
+      currentContexts
+    );
     const coverageCompletion =
       !forceCompleteOnboarding &&
       !skipConversationWrites &&
@@ -533,6 +535,8 @@ export async function POST(request: NextRequest) {
           completed: true,
         },
         talentInsights: result.talentInsights,
+        talentBrief: result.talentBrief,
+        talentContextsUpdatedAt: result.talentContextsUpdatedAt,
       });
     }
     if (
@@ -568,6 +572,8 @@ export async function POST(request: NextRequest) {
           completed: true,
         },
         talentInsights: result.talentInsights,
+        talentBrief: result.talentBrief,
+        talentContextsUpdatedAt: result.talentContextsUpdatedAt,
       });
     }
     const inferredOnboardingDone =
@@ -589,10 +595,16 @@ export async function POST(request: NextRequest) {
       const result = await runCareerChatTurn({
         admin: supabase,
         allowedToolNames: internalCallRequest
-          ? [TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE]
+          ? [
+              TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
+              TALENT_TOOL_NAMES.READ_TALENT_CONTEXT,
+              TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT,
+            ]
           : [
               TALENT_TOOL_NAMES.UPDATE_SETTING,
               TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
+              TALENT_TOOL_NAMES.READ_TALENT_CONTEXT,
+              TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT,
             ],
         assistantMessageType: "call_wrapup",
         conversationId,
@@ -661,6 +673,8 @@ export async function POST(request: NextRequest) {
           preferencesUpdatedAt: result.preferencesUpdatedAt,
           progress: result.progress,
           talentInsights: result.talentInsights,
+          talentBrief: result.talentBrief,
+          talentContextsUpdatedAt: result.talentContextsUpdatedAt,
           talentPreferences: result.talentPreferences,
           talentProfile: result.talentProfile,
         });

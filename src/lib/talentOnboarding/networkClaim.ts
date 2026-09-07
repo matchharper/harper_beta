@@ -4,15 +4,17 @@ import {
   TALENT_RESUME_BUCKET,
   type TalentInsightContent,
   type TalentUserProfileRow,
-  fetchTalentInsights,
+  createTalentContextMutationRequestId,
+  fetchAllTalentContexts,
   fetchTalentSetting,
   fetchTalentUserProfile,
-  mergeTalentInsightContent,
+  mutateTalentContexts,
   mergeTalentSettingSeed,
+  refreshTalentContextEmbeddings,
   refreshTalentPreferredLocale,
-  upsertTalentInsights,
   upsertTalentSetting,
 } from "@/lib/talentOnboarding/server";
+import { getInsightLabel } from "@/lib/talentOnboarding/insightChecklist";
 import { NETWORK_WAITLIST_TYPE, buildNetworkLead } from "@/lib/networkOps";
 import { parseTalentNetworkInviteToken } from "@/lib/talentNetworkInvite";
 import { careerT } from "@/lib/career/translatedCareerMessage";
@@ -125,15 +127,6 @@ function buildLeadInsightSeed(lead: ReturnType<typeof buildNetworkLead>) {
   } satisfies TalentInsightContent;
 
   return Object.keys(content).length > 0 ? content : null;
-}
-
-function toStableInsightSignature(content: TalentInsightContent | null) {
-  if (!content) return "";
-
-  return Object.keys(content)
-    .sort()
-    .map((key) => `${key}:${content[key]}`)
-    .join("\n");
 }
 
 async function fetchWaitlistLead(
@@ -421,7 +414,7 @@ async function copyTalentSettingIfEmpty(args: {
   });
 }
 
-async function copyTalentInsightsIfEmpty(args: {
+async function copyTalentContexts(args: {
   admin: AdminClient;
   sourceTalentId: string;
   targetTalentId: string;
@@ -430,45 +423,101 @@ async function copyTalentInsightsIfEmpty(args: {
   const { admin, sourceTalentId, targetTalentId, lead } = args;
   if (sourceTalentId === targetTalentId) return;
 
-  const [currentInsights, sourceInsights] = await Promise.all([
-    fetchTalentInsights({
+  const [currentRows, sourceRows] = await Promise.all([
+    fetchAllTalentContexts({
       admin,
       userId: targetTalentId,
     }),
-    fetchTalentInsights({
+    fetchAllTalentContexts({
       admin,
       userId: sourceTalentId,
     }),
   ]);
-
-  const currentNormalized = mergeTalentInsightContent({
-    currentContent: currentInsights?.content,
-    seedContent: null,
-  });
-  const sourceNormalized = mergeTalentInsightContent({
-    currentContent: sourceInsights?.content,
-    seedContent: buildLeadInsightSeed(lead),
-  });
-
-  const mergedContent = mergeTalentInsightContent({
-    currentContent: currentInsights?.content,
-    seedContent: sourceNormalized ?? null,
-  });
-
-  const hasSameContent =
-    toStableInsightSignature(mergedContent) ===
-    toStableInsightSignature(currentNormalized);
-  const shouldSave = Boolean(
-    mergedContent && (!currentInsights || !hasSameContent)
+  const seedRows = Object.entries(buildLeadInsightSeed(lead) ?? {}).map(
+    ([key, content]) => ({
+      collection: "brief" as const,
+      content,
+      key,
+      label: getInsightLabel(key),
+    })
   );
+  const candidates = [
+    ...sourceRows.map((row) => ({
+      collection: row.collection,
+      content: row.content,
+      key: row.key,
+      label: row.label,
+    })),
+    ...seedRows,
+  ];
+  const normalized = (value: string | null | undefined) =>
+    String(value ?? "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  const seenKeys = new Set(
+    currentRows.flatMap((row) =>
+      row.collection === "brief" && row.key ? [row.key] : []
+    )
+  );
+  const seenRows = new Set(
+    currentRows.map(
+      (row) =>
+        `${row.collection}:${normalized(row.label)}:${normalized(row.content)}`
+    )
+  );
+  const changes: Array<{
+    collection: "brief" | "memory";
+    content: string;
+    key?: string | null;
+    label?: string | null;
+    op: "add";
+  }> = [];
+  for (const row of candidates) {
+    if (!row.content || (row.collection === "brief" && !row.label)) continue;
+    const signature = `${row.collection}:${normalized(row.label)}:${normalized(row.content)}`;
+    if (
+      (row.collection === "brief" && row.key && seenKeys.has(row.key)) ||
+      seenRows.has(signature)
+    ) {
+      continue;
+    }
+    if (row.collection === "brief" && row.key) seenKeys.add(row.key);
+    seenRows.add(signature);
+    changes.push({
+      collection: row.collection,
+      content: row.content,
+      ...(row.collection === "brief" ? { key: row.key, label: row.label } : {}),
+      op: "add",
+    });
+  }
 
-  if (!shouldSave) return;
-
-  await upsertTalentInsights({
-    admin,
-    userId: targetTalentId,
-    content: mergedContent,
-  });
+  for (let index = 0; index < changes.length; index += 20) {
+    const batch = changes.slice(index, index + 20);
+    const mutation = await mutateTalentContexts({
+      admin,
+      changes: batch,
+      requestId: createTalentContextMutationRequestId([
+        "network_claim",
+        sourceTalentId,
+        targetTalentId,
+        index,
+        batch,
+      ]),
+      sourceRefs: [{ type: "network_claim" }],
+      userId: targetTalentId,
+    });
+    await refreshTalentContextEmbeddings({
+      admin,
+      ids: mutation.applied.map((row) => row.id),
+      userId: targetTalentId,
+    }).catch((error) => {
+      console.error("[talent-network-claim] Context embedding failed", {
+        error: error instanceof Error ? error.message : String(error),
+        targetTalentId,
+      });
+    });
+  }
 }
 
 function buildTalentUserMergePayload(args: {
@@ -644,7 +693,7 @@ export async function claimTalentNetworkInvite(args: {
       targetTalentId: user.id,
       lead,
     }),
-    copyTalentInsightsIfEmpty({
+    copyTalentContexts({
       admin,
       sourceTalentId,
       targetTalentId: user.id,

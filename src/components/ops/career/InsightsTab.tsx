@@ -1,237 +1,81 @@
-import { memo, useCallback, useMemo, useState } from "react";
-import { LoaderCircle, RefreshCw, Save } from "lucide-react";
+import { memo } from "react";
 import { cx, opsTheme } from "@/components/ops/theme";
-import {
-  useRefreshInsights,
-  useUpdateInsights,
-} from "@/hooks/ops/useOpsCareer";
-import { getInsightLabel } from "@/lib/talentOnboarding/insightChecklist";
 import type { CareerTalentInsightsResponse } from "@/lib/ops/careerServer";
-import { BareButton } from "@/components/ui/button";
-import { Textarea as UiTextarea } from "@/components/ui/textarea";
-
-type InsightsTabProps = {
-  insights: Record<string, string> | null;
-  mergedChecklist: CareerTalentInsightsResponse["mergedChecklist"];
-  preferences: CareerTalentInsightsResponse["preferences"];
-  userId: string;
-};
 
 export const InsightsTab = memo(function InsightsTab({
-  insights,
-  mergedChecklist,
+  brief,
+  memories,
   preferences,
-  userId,
-}: InsightsTabProps) {
-  const [editedValues, setEditedValues] = useState<Record<string, string>>({});
-  const [isEditing, setIsEditing] = useState(false);
-
-  const refreshInsightsMutation = useRefreshInsights(userId);
-  const updateInsightsMutation = useUpdateInsights(userId);
-
-  const emptyCount = useMemo(() => {
-    return mergedChecklist.filter((item) => !insights?.[item.key]?.trim())
-      .length;
-  }, [mergedChecklist, insights]);
-
-  const displayInsightItems = useMemo(() => {
-    const checklistKeys = new Set(mergedChecklist.map((item) => item.key));
-    const additionalItems = Object.keys(insights ?? {})
-      .filter((key) => !checklistKeys.has(key))
-      .sort((left, right) => left.localeCompare(right, "ko-KR"))
-      .map((key) => ({
-        key,
-        label: getInsightLabel(key),
-        isAdditional: true,
-      }));
-
-    return [
-      ...mergedChecklist.map((item) => ({ ...item, isAdditional: false })),
-      ...additionalItems,
-    ];
-  }, [mergedChecklist, insights]);
-
-  const hasChanges = useMemo(() => {
-    return Object.entries(editedValues).some(
-      ([key, val]) => val !== (insights?.[key] ?? "")
-    );
-  }, [editedValues, insights]);
-
-  const handleEditChange = useCallback((key: string, value: string) => {
-    setEditedValues((prev) => ({ ...prev, [key]: value }));
-  }, []);
-
-  const cancelEditing = useCallback(() => {
-    setIsEditing(false);
-    setEditedValues({});
-  }, []);
-
-  const handleSave = useCallback(() => {
-    if (!hasChanges) return;
-    const updates: Record<string, string> = {};
-    for (const [key, val] of Object.entries(editedValues)) {
-      if (val !== (insights?.[key] ?? "")) {
-        updates[key] = val;
-      }
-    }
-    if (Object.keys(updates).length === 0) return;
-    updateInsightsMutation.mutate(updates, {
-      onSuccess: () => {
-        setIsEditing(false);
-        setEditedValues({});
-      },
-    });
-  }, [editedValues, hasChanges, insights, updateInsightsMutation]);
-
-  const handleRefresh = useCallback(() => {
-    if (
-      !window.confirm(
-        `빈 인사이트 항목 ${emptyCount}개를 LLM으로 추출합니다. 기존 값은 변경되지 않습니다.`
-      )
-    ) {
-      return;
-    }
-    refreshInsightsMutation.mutate();
-  }, [emptyCount, refreshInsightsMutation]);
-
+}: Pick<CareerTalentInsightsResponse, "brief" | "memories" | "preferences">) {
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="text-[13px] font-medium text-neutral-primary">
-          인사이트
+    <div className="space-y-6">
+      <section className="space-y-3">
+        <div>
+          <div className="text-[13px] font-medium text-neutral-primary">
+            Search Brief
+          </div>
+          <div className="mt-1 text-xs text-neutral-soft">
+            유저에게 보이며 추천과 탐색에 직접 적용되는 현재 기준
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {isEditing ? (
-            <>
-              <BareButton
-                type="button"
-                onClick={cancelEditing}
-                className={cx(opsTheme.buttonSecondary, "h-8 px-3 text-xs")}
+        {brief.length > 0 ? (
+          <div className="space-y-2">
+            {brief.map((row) => (
+              <div
+                className={cx(opsTheme.panelSoft, "rounded-md p-3")}
+                key={row.id}
               >
-                취소
-              </BareButton>
-              <BareButton
-                type="button"
-                onClick={handleSave}
-                disabled={!hasChanges || updateInsightsMutation.isPending}
-                className={cx(
-                  opsTheme.buttonSecondary,
-                  "h-8 px-3 text-xs flex items-center gap-1.5",
-                  (!hasChanges || updateInsightsMutation.isPending) &&
-                    "opacity-50 cursor-not-allowed"
-                )}
-              >
-                {updateInsightsMutation.isPending ? (
-                  <>
-                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                    저장 중...
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-3.5 w-3.5" />
-                    저장
-                  </>
-                )}
-              </BareButton>
-            </>
-          ) : (
-            <>
-              <BareButton
-                type="button"
-                onClick={() => setIsEditing(true)}
-                className={cx(opsTheme.buttonSecondary, "h-8 px-3 text-xs")}
-              >
-                편집
-              </BareButton>
-              <BareButton
-                type="button"
-                onClick={handleRefresh}
-                disabled={emptyCount === 0 || refreshInsightsMutation.isPending}
-                className={cx(
-                  opsTheme.buttonSecondary,
-                  "h-8 px-3 text-xs flex items-center gap-1.5",
-                  (emptyCount === 0 || refreshInsightsMutation.isPending) &&
-                    "opacity-50 cursor-not-allowed"
-                )}
-              >
-                {refreshInsightsMutation.isPending ? (
-                  <>
-                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                    추출 중...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-3.5 w-3.5" />빈 항목 {emptyCount}개
-                    추출
-                  </>
-                )}
-              </BareButton>
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        {displayInsightItems.map((item) => {
-          const savedValue = insights?.[item.key] ?? "";
-          const displayValue = isEditing
-            ? (editedValues[item.key] ?? savedValue)
-            : savedValue.trim();
-          const isFilled = Boolean(savedValue.trim());
-          return (
-            <div
-              key={item.key}
-              className={cx(
-                "p-3 rounded-md",
-                isFilled
-                  ? cx(opsTheme.panelSoft)
-                  : "border border-dashed border-neutral-1000-a10 bg-neutral-00/20"
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex min-w-0 items-center gap-1.5">
-                  <div className="text-[13px] font-medium text-neutral-muted">
-                    {item.label}
-                  </div>
-                  {item.isAdditional ? (
-                    <div className="truncate text-[12px] text-neutral-soft">
-                      {item.key}
-                    </div>
-                  ) : null}
+                <div className="text-[13px] font-medium text-neutral-muted">
+                  {row.label}
+                </div>
+                <div className="mt-1 whitespace-pre-wrap text-sm text-neutral-primary">
+                  {row.content}
                 </div>
               </div>
-              {isEditing ? (
-                <UiTextarea
-                  unstyled
-                  value={displayValue}
-                  onChange={(event) =>
-                    handleEditChange(item.key, event.target.value)
-                  }
-                  rows={2}
-                  className={cx(
-                    opsTheme.input,
-                    "mt-1 w-full text-sm resize-y min-h-10"
-                  )}
-                  placeholder="값을 입력하세요..."
-                />
-              ) : isFilled ? (
-                <div className="mt-1 whitespace-pre-wrap text-sm text-neutral-primary">
-                  {displayValue}
-                </div>
-              ) : (
-                <div className="mt-1 text-sm text-neutral-soft italic">
-                  미입력
-                </div>
-              )}
-            </div>
-          );
-        })}
-        {displayInsightItems.length === 0 ? (
-          <div className="rounded-md border border-dashed border-neutral-1000-a10 bg-bg-floating px-4 py-6 text-center text-sm text-neutral-soft">
-            추출된 인사이트가 없습니다.
+            ))}
           </div>
-        ) : null}
-      </div>
+        ) : (
+          <div className="rounded-md border border-dashed border-neutral-1000-a10 px-4 py-6 text-center text-sm text-neutral-soft">
+            저장된 Search Brief가 없습니다.
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <div className="text-[13px] font-medium text-neutral-primary">
+            Memory
+          </div>
+          <div className="mt-1 text-xs text-neutral-soft">
+            대화와 기회 판단에 필요할 때 꺼내 쓰는 장기 맥락
+          </div>
+        </div>
+        {memories.length > 0 ? (
+          <div className="space-y-2">
+            {memories.map((row) => (
+              <div
+                className={cx(opsTheme.panelSoft, "rounded-md p-3")}
+                key={row.id}
+              >
+                <div className="whitespace-pre-wrap text-sm text-neutral-primary">
+                  {row.content}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-md border border-dashed border-neutral-1000-a10 px-4 py-6 text-center text-sm text-neutral-soft">
+            저장된 Memory가 없습니다.
+          </div>
+        )}
+      </section>
+
+      {preferences ? (
+        <div className="text-xs text-neutral-soft">
+          프로필 공개: {preferences.profileVisibility ?? "-"} · 고용 형태:{" "}
+          {preferences.engagementTypes.join(", ") || "-"}
+        </div>
+      ) : null}
     </div>
   );
 });

@@ -6,7 +6,7 @@ import {
   buildOptionalFollowUpOpportunitiesSection,
 } from "./conversationSections";
 
-test("does not mark an already saved good-to-remember insight as empty", () => {
+test("renders only saved keyed Brief compatibility values", () => {
   const section = buildKnownFutureMatchingInsightsSection({
     content: {
       external_delivery_selectivity:
@@ -17,10 +17,11 @@ test("does not mark an already saved good-to-remember insight as empty", () => {
   });
 
   assert.doesNotMatch(section, /external_delivery_selectivity : empty/);
-  assert.match(section, /matching_preference : empty/);
+  assert.doesNotMatch(section, /matching_preference : empty/);
+  assert.match(section, /Search Brief/);
 });
 
-test("omits good-to-remember nudges when both values are already saved", () => {
+test("does not add schema-specific suggestion slots", () => {
   const section = buildKnownFutureMatchingInsightsSection({
     content: {
       external_delivery_selectivity:
@@ -30,7 +31,7 @@ test("omits good-to-remember nudges when both values are already saved", () => {
     },
   });
 
-  assert.doesNotMatch(section, /## Good to remember insights/);
+  assert.doesNotMatch(section, /## Good to remember insights|: empty/);
 });
 
 test("offers optional waiting-period guidance while the conversation-completed run is active", () => {

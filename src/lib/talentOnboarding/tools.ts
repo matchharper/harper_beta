@@ -22,7 +22,6 @@ import {
   toPostingOpportunityId,
 } from "@/lib/career/postingLinks";
 import { runCareerJobPostingRecommendations } from "./jobPostingRecommendations";
-import { normalizeGeneratedTalentInsightEntry } from "./insights";
 import {
   fetchTalentUserProfile,
   mutateEducationMemo,
@@ -31,12 +30,17 @@ import {
   type RowMemoOperation,
 } from "./profileStore";
 import {
-  fetchTalentInsights,
+  createTalentContextMutationRequestId,
+  fetchTalentContextsByRefs,
   fetchTalentSetting,
-  normalizeTalentInsightContent,
+  mutateTalentContextsFromAgent,
+  readTalentContextsForAgent,
+  refreshTalentContextEmbeddings,
   refreshTalentPreferredLocale,
-  upsertTalentInsights,
+  TALENT_CONTEXT_READ_TOOL_PARAMETERS,
+  TALENT_CONTEXT_WRITE_TOOL_PARAMETERS,
   upsertTalentSetting,
+  type TalentContextAgentChange,
 } from "./server";
 import {
   TALENT_RECOMMENDATION_BATCH_SIZE_MAX,
@@ -44,7 +48,6 @@ import {
   normalizeTalentRecommendationBatchSize,
 } from "./recommendationSettings";
 import {
-  buildInsightActivitySummary,
   buildPreferenceActivitySummary,
   buildRowMemoActivitySummary,
   compactActivityChanges,
@@ -117,6 +120,8 @@ export type TalentToolExecutionContext = {
   conversationId?: string;
   isMobile?: boolean | null;
   responseLocale?: string | null;
+  scheduleAfter?: (task: () => Promise<void>) => void;
+  toolCallId?: string | null;
   userMessageId?: number | string | null;
   userId?: string;
 };
@@ -204,6 +209,8 @@ export const TALENT_TOOL_NAMES = {
   UPDATE_LANGUAGE_SETTING: "update_language_setting",
   UPDATE_SETTING: "update_setting",
   UPDATE_TALENT_PROFILE: "update_talent_profile",
+  READ_TALENT_CONTEXT: "read_talent_context",
+  WRITE_TALENT_CONTEXT: "write_talent_context",
   RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION:
     "record_internal_fit_reevaluation_information",
   RECORD_COMPANY_REQUEST_RESPONSE: "record_company_request_response",
@@ -232,6 +239,8 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING,
   TALENT_TOOL_NAMES.UPDATE_SETTING,
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
+  TALENT_TOOL_NAMES.READ_TALENT_CONTEXT,
+  TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT,
   TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION,
   TALENT_TOOL_NAMES.RECORD_COMPANY_REQUEST_RESPONSE,
 ] as const;
@@ -1255,7 +1264,7 @@ async function updateRecommendedOpportunityFeedback(args: {
             assistantInstruction:
               "The internal connection acceptance is recorded. Tell the candidate directly that Harper will share or introduce their profile and relevant experience to the company and help make the connection. Use future tense until actual sharing is verified, but do not say profile sharing or company connection is not immediate/confirmed, do not say Harper merely needs to check the next step, and never expose Harper's internal human confirmation or handoff.",
           }
-      : {}),
+        : {}),
   };
 }
 
@@ -3437,10 +3446,167 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       };
     },
   },
+  [TALENT_TOOL_NAMES.READ_TALENT_CONTEXT]: {
+    name: TALENT_TOOL_NAMES.READ_TALENT_CONTEXT,
+    description:
+      "Read more of this user's saved Search Brief or Memory when the context already provided is insufficient. Search Memory with a natural-language description of the current task; use refs to retrieve exact rows already mentioned. This reads only and does not change profile, settings, recommendations, or sharing.",
+    parameters: TALENT_CONTEXT_READ_TOOL_PARAMETERS,
+    channels: ["chat", "voice"],
+    async execute(input, context) {
+      const admin = context?.admin as TalentAdminClient | undefined;
+      const userId = context?.userId;
+      if (!admin || !userId) {
+        throw new TalentToolError("read_talent_context requires user context.");
+      }
+      const collection =
+        input.collection === "brief" || input.collection === "memory"
+          ? input.collection
+          : "memory";
+      const refs = Array.isArray(input.refs)
+        ? input.refs
+            .map(Number)
+            .filter((ref) => Number.isSafeInteger(ref) && ref > 0)
+        : [];
+      const result = await readTalentContextsForAgent({
+        admin,
+        beforeId: Number.isSafeInteger(Number(input.cursor))
+          ? Number(input.cursor)
+          : null,
+        collection,
+        limit: Number.isSafeInteger(Number(input.limit))
+          ? Number(input.limit)
+          : undefined,
+        query: optionalToolString(input.query),
+        refs,
+        userId,
+      });
+      return {
+        ...result,
+        assistantInstruction:
+          "Use the returned saved context only when it is relevant to the user's current request. Continue the original task naturally and do not describe database, retrieval, scores, or internal tool behavior.",
+        skipCommonAssistantInstruction: true,
+      };
+    },
+  },
+  [TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT]: {
+    name: TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT,
+    description:
+      "Save or correct durable user context after onboarding. Put current opportunity-search criteria and premises that the user can review in Search Brief; put other context worth remembering for future conversations or opportunity judgment in Memory. Read the existing rows and the user's meaning together. Preserve strength, exceptions, uncertainty, and known timing. Do not duplicate one fact across both collections. Use the relevant profile, settings, document, feedback, or recommendation tool when that feature already owns the data. Do not call when nothing should be saved.",
+    parameters: TALENT_CONTEXT_WRITE_TOOL_PARAMETERS,
+    channels: ["chat", "voice"],
+    async execute(input, context) {
+      const admin = context?.admin as TalentAdminClient | undefined;
+      const userId = context?.userId;
+      if (!admin || !userId) {
+        throw new TalentToolError(
+          "write_talent_context requires user context."
+        );
+      }
+      const setting = await fetchTalentSetting({ admin, userId });
+      if (!setting?.is_onboarding_done) {
+        throw new TalentToolError(
+          "Onboarding context is saved by the onboarding extraction flow."
+        );
+      }
+      const rawChanges = Array.isArray(input.changes) ? input.changes : [];
+      const changes = rawChanges.flatMap(
+        (value): TalentContextAgentChange[] => {
+          if (!value || typeof value !== "object" || Array.isArray(value))
+            return [];
+          const change = value as Record<string, unknown>;
+          const op = optionalToolString(change.op);
+          if (op === "add") {
+            if (change.collection !== "brief" && change.collection !== "memory")
+              return [];
+            return [
+              {
+                collection: change.collection,
+                content: optionalToolString(change.content) ?? "",
+                ...(change.collection === "brief"
+                  ? { label: optionalToolString(change.label) }
+                  : {}),
+                op,
+              } as TalentContextAgentChange,
+            ];
+          }
+          if (op === "update") {
+            return [
+              {
+                ...(Object.prototype.hasOwnProperty.call(change, "content")
+                  ? { content: optionalToolString(change.content) ?? "" }
+                  : {}),
+                ...(Object.prototype.hasOwnProperty.call(change, "label")
+                  ? { label: optionalToolString(change.label) ?? "" }
+                  : {}),
+                op,
+                ref: Number(change.ref),
+              },
+            ];
+          }
+          if (op === "delete") return [{ op, ref: Number(change.ref) }];
+          return [];
+        }
+      );
+      if (changes.length !== rawChanges.length || changes.length === 0) {
+        throw new TalentToolError("Invalid talent context changes.");
+      }
+      const refs = changes.flatMap((change) =>
+        change.op === "add" ? [] : [Number(change.ref)]
+      );
+      const referencedRows = await fetchTalentContextsByRefs({
+        admin,
+        refs,
+        userId,
+      });
+      if (new Set(refs).size !== referencedRows.length) {
+        throw new TalentToolError(
+          "One or more talent context refs are unavailable.",
+          409
+        );
+      }
+      const requestId = createTalentContextMutationRequestId([
+        userId,
+        context?.conversationId ?? null,
+        context?.toolCallId ?? context?.userMessageId ?? null,
+        changes,
+      ]);
+      const result = await mutateTalentContextsFromAgent({
+        admin,
+        changes,
+        referencedRows,
+        requestId,
+        sourceRefs: [
+          {
+            type: "conversation_message",
+            conversationId: context?.conversationId ?? null,
+            messageId: context?.userMessageId ?? null,
+          },
+        ],
+        userId,
+      });
+      const embedChangedMemories = () =>
+        refreshTalentContextEmbeddings({
+          admin,
+          ids: result.changedIds,
+          userId,
+        }).catch((error) => {
+          console.error("[talent-contexts] background embedding failed", error);
+        });
+      if (context?.scheduleAfter) context.scheduleAfter(embedChangedMemories);
+      else void embedChangedMemories();
+      return {
+        applied: result.applied,
+        ok: true,
+        assistantInstruction:
+          "Continue the user's original request. Explain only the practical criteria or context that actually changed when that is useful; do not mention storage, collections, refs, schemas, or tool names, and do not turn the reply into a receipt.",
+        skipCommonAssistantInstruction: true,
+      };
+    },
+  },
   [TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE]: {
     name: TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
     description:
-      "Update saved profile/matching state from the latest user statement: profile summary, current base, the talent's own profile/material links, row memos, post-onboarding future matching memory, or recommendationBatchSize. Never add company, job-posting, recruiting, or third-party links as the talent's profile links. Do not use for subscription/contact actions; use update_setting for stop_external, stop_all, or resume. Skip questions, one-off searches, hypotheticals, assistant statements, and already-saved information.",
+      "Update saved profile state from the latest user statement: profile summary, current base, the talent's own profile/material links, row memos, or recommendationBatchSize. Use write_talent_context for Search Brief and Memory. Never add company, job-posting, recruiting, or third-party links as the talent's profile links. Do not use for subscription/contact actions; use update_setting for stop_external, stop_all, or resume. Skip questions, one-off searches, hypotheticals, assistant statements, and already-saved information.",
     parameters: {
       type: "object",
       properties: {
@@ -3520,28 +3686,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             additionalProperties: false,
           },
         },
-        talentInsights: {
-          type: "object",
-          description:
-            "Durable opportunity recommendation/search memory-preference updates from the user's latest statement, such as desired next role, search intensity, compensation, must-haves, deal-breakers, team style, company/domain preference, company size/stage preference, external_delivery_selectivity, hard constraint, etc. Explicit hard-filter search commands are durable memory too: for example, '미국 회사로만 찾아줘' should update must_haves with a value like '앞으로 미국 기반 회사만 추천받고 싶어합니다.' when intended as a hard requirement. If the user talks about what their resume/CV contains, leaves out, emphasizes, or should communicate for matching, preserve that resume-related context here unless it belongs on one visible profile row. Do not use this for facts that belong on a specific experience, education, or extra row; use rowMemos instead. Do not use this for one-off curiosity/browsing/search requests or aspirational/off-profile role mentions unless the user explicitly says Harper should remember the new direction for future matching. Values must be final integrated Korean complete sentences, not fragments.",
-          properties: {
-            content: {
-              type: "object",
-              description:
-                "opportunity matching memory/preference patch. If the new information belongs to an existing/current insight or checklist axis, update that key with the final integrated value instead of creating a synonym key. Create a new descriptive English snake_case key when the information is genuinely distinct and does not fit existing keys.",
-              additionalProperties: {
-                type: "string",
-                description: "Final integrated complete Korean sentence.",
-              },
-            },
-            changeSummary: {
-              type: "string",
-              description: "Short one-line Korean summary of what changed.",
-            },
-          },
-          required: ["content"],
-          additionalProperties: false,
-        },
         recommendationBatchSize: {
           type: "integer",
           minimum: TALENT_RECOMMENDATION_BATCH_SIZE_MIN,
@@ -3575,12 +3719,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         input.rowMemos && typeof input.rowMemos === "object"
           ? input.rowMemos
           : null;
-      const talentInsightsInput =
-        input.talentInsights &&
-        typeof input.talentInsights === "object" &&
-        !Array.isArray(input.talentInsights)
-          ? (input.talentInsights as Record<string, unknown>)
-          : null;
 
       let existingSetting:
         | Awaited<ReturnType<typeof fetchTalentSetting>>
@@ -3603,18 +3741,10 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         educations: string[];
         extras: string[];
       } = { experiences: [], educations: [], extras: [] };
-      const updatedTalentInsights: Record<
-        string,
-        { from: string | null; to: string }
-      > = {};
       const rowMemoActivityItems: TalentRowMemoActivityItem[] = [];
       const skippedRowMemos: Array<{
         table: "experiences" | "educations" | "extras";
         key: string;
-        reason: string;
-      }> = [];
-      const skippedTalentInsights: Array<{
-        key?: string;
         reason: string;
       }> = [];
       const skippedProfileLinks: Array<{
@@ -3781,80 +3911,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
               Object.prototype.hasOwnProperty.call(talentUserPatch, "location")
             ) {
               await refreshTalentPreferredLocale({ admin, userId });
-            }
-          }
-        }
-      }
-
-      // talent_insights — only after onboarding is complete. During onboarding,
-      // the separate insight extraction pass owns this state.
-      if (talentInsightsInput) {
-        const setting = await loadExistingSetting();
-        if (!setting?.is_onboarding_done) {
-          skippedTalentInsights.push({ reason: "onboarding_active" });
-        } else {
-          const contentInput =
-            talentInsightsInput.content &&
-            typeof talentInsightsInput.content === "object" &&
-            !Array.isArray(talentInsightsInput.content)
-              ? talentInsightsInput.content
-              : null;
-          const normalizedPatch: Record<string, string> = {};
-
-          if (contentInput) {
-            for (const [rawKey, rawValue] of Object.entries(contentInput)) {
-              const normalized = normalizeGeneratedTalentInsightEntry({
-                rawKey,
-                rawValue,
-              });
-              if (!normalized.ok) {
-                skippedTalentInsights.push({
-                  key: normalized.key ?? rawKey,
-                  reason: normalized.reason,
-                });
-                continue;
-              }
-              normalizedPatch[normalized.key] = normalized.value;
-            }
-          }
-
-          if (Object.keys(normalizedPatch).length === 0) {
-            skippedTalentInsights.push({ reason: "empty_or_invalid_content" });
-          } else {
-            const existingInsights = await fetchTalentInsights({
-              admin,
-              userId,
-            });
-            const currentContent =
-              normalizeTalentInsightContent(
-                existingInsights?.content ?? null
-              ) ?? {};
-            const changedPatch: Record<string, string> = {};
-
-            for (const [key, value] of Object.entries(normalizedPatch)) {
-              const previous = currentContent[key]?.trim() || null;
-              const next = value.trim();
-              if (!next) continue;
-              if (previous === next) {
-                skippedTalentInsights.push({ key, reason: "unchanged" });
-                continue;
-              }
-              changedPatch[key] = next;
-              updatedTalentInsights[key] = {
-                from: previous,
-                to: next,
-              };
-            }
-
-            if (Object.keys(changedPatch).length > 0) {
-              await upsertTalentInsights({
-                admin,
-                userId,
-                content: {
-                  ...currentContent,
-                  ...changedPatch,
-                },
-              });
             }
           }
         }
@@ -4112,26 +4168,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         });
       }
 
-      const talentInsightKeys = Object.keys(updatedTalentInsights);
-      const insightSummary = buildInsightActivitySummary(talentInsightKeys);
-      const insightChangeSummary = optionalToolString(
-        talentInsightsInput?.changeSummary
-      );
-      if (insightSummary) {
-        await insertTalentActivityEvent({
-          admin,
-          changedDomains: ["insights", ...talentInsightKeys],
-          conversationId: context?.conversationId ?? null,
-          eventType: "insight_updated",
-          messageId: context?.userMessageId ?? null,
-          source: "chat",
-          summary: insightChangeSummary
-            ? `${insightSummary} Change summary: ${insightChangeSummary}`
-            : insightSummary,
-          userId,
-        });
-      }
-
       if (updatedRecommendationSettings.includes("recommendationBatchSize")) {
         const nextRecommendationBatchSize =
           normalizeTalentRecommendationBatchSize(input.recommendationBatchSize);
@@ -4158,7 +4194,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const replyInstructions = [
         `Continue the conversation naturally in ${responseLanguage} now.`,
         profileLinkReplyInstruction,
-        "If saved profile or future-matching memory changed, do not make the saved-memory acknowledgement the whole answer. Explain the user-facing consequence in the context of what the user just asked, then continue naturally.",
+        "If the saved profile changed, explain the user-facing consequence in the context of what the user just asked, then continue naturally.",
         "Use other tools only if independently required by the user's latest explicit request.",
         "If onboarding is still active, ask at most one relevant next question, or close naturally with the required marker when appropriate. Do not return an empty assistant message.",
       ];
@@ -4169,11 +4205,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         updatedTalentUserFields,
         updatedProfileLinks,
         updatedRowMemos,
-        updatedTalentInsightKeys: talentInsightKeys,
         updatedRecommendationSettings,
         skippedRowMemos,
         skippedProfileLinks,
-        skippedTalentInsights,
       };
 
       return result;

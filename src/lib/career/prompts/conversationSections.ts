@@ -79,18 +79,6 @@ export function buildKnownFutureMatchingInsightsSection(args: {
   content: Record<string, string> | null;
   quoteKeys?: boolean;
 }) {
-  const goodToRememberInsights: { key: string; label: string }[] = [
-    {
-      key: "external_delivery_selectivity",
-      label:
-        "ex. 진짜 확실히 핏이 맞는 기회만 가끔 추천받고 싶어요. 처럼 외부 기회 추천 기준을 명시하는 경우.",
-    },
-    {
-      key: "matching_preference",
-      label:
-        "유저가 직접 이 조건을 추천에 반영해줘.라고 말했지만 다른 insights에 해당하는 key가 없는 경우.",
-    },
-  ];
   const { content, quoteKeys = false } = args;
   const insightEntries = Object.entries(content ?? {})
     .map(([key, value]) => [key, value.trim()] as const)
@@ -102,17 +90,10 @@ export function buildKnownFutureMatchingInsightsSection(args: {
 
   if (insightLines.length === 0) return "";
 
-  const remainNudges = goodToRememberInsights
-    .filter((insight) => !insightEntries.some(([key]) => key === insight.key))
-    .map((insight) => `- ${insight.key} : empty (${insight.label})`);
-
   return [
-    "## Known future-matching insights/preferences",
-    "Saved durable matching memory from talent_insights.content. Use this to understand the user's current preferences, avoid duplicate writes, and merge only genuinely new future-matching updates.",
+    "## Search Brief — legacy keyed compatibility view",
+    "These are current user-visible search criteria migrated from the former insight fields.",
     insightLines.join("\n"),
-    remainNudges.length > 0
-      ? `## Good to remember insights\n${remainNudges.join("\n")}`
-      : "",
   ].join("\n");
 }
 
@@ -598,8 +579,8 @@ summary: ${hiddenHoldSummary}
   const canonicalFutureMatchingMemorySlotsLines =
     insightSlotLines.length > 0
       ? `
-### Priority 4: Canonical future-matching memory slots
-Use these only for durable future matching memory. Prefer these keys before creating a new talentInsights key; do not store profile-row facts here.
+### Priority 4: Common Search Brief topics
+These are onboarding coverage topics, not a closed schema. During onboarding the existing extraction pass saves answers. After onboarding, use write_talent_context when a newly shared current search criterion should be saved; do not create keys.
 ${insightSlotLines.join("\n")}
 `
       : "";

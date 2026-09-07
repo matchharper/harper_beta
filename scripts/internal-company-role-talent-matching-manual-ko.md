@@ -288,7 +288,7 @@ role의 실제 근무 국가·지역, onsite·remote 범위, 고객 지원 지�
 2. `internal_reason`: `talent_opportunity_fit.reason`에 저장되고 회사가 후보자 추천 이유로 읽는 소개문이다. 회사가 알아야 할 후보자의 professional fact·성과·선호·제약을 사용할 수 있지만, Harper 운영 메모, 내부 점수·label, 다른 후보자 정보, DB schema와 source row ID를 노출하지 않는다.
 3. `candidate_proposal_copy`: 후보자에게 role을 제안하는 문구. private company request, 다른 후보자의 거절 이유, 내부 점수·label·메모를 노출하지 않는다.
 
-`internal_reason`에 사용한 각 주장의 source mapping은 회사가 읽는 본문과 분리해 감사 산출물의 `internalReasonSources`에 보존한다. 회사용 reason에 `talent_insights:123`, `resume:456` 같은 내부 식별자를 붙이지 않는다.
+`internal_reason`에 사용한 각 주장의 source mapping은 회사가 읽는 본문과 분리해 감사 산출물의 `internalReasonSources`에 보존한다. 회사용 reason에 `talent_contexts:123`, `resume:456` 같은 내부 식별자를 붙이지 않는다.
 
 수동 matching agent는 후보자 화면용 recommendation 상세 필드를 직접 작성하지 않는다. 해당 필드가 downstream delivery pipeline에서 생성되더라도 이 매뉴얼의 평가·선택·완료 조건이 아니다. 다만 어떤 후보자 노출 문구에도 “이전 후보자는 나이가 많아 거절했지만 이 후보자는 젊다” 같은 보호 특성·다른 후보자 정보·내부 판단을 저장하거나 전달하면 안 된다.
 
@@ -507,7 +507,7 @@ request 해석 우선순위:
 | `talent_experiences` | 회사, role, 기간, description, employment type, memo |
 | `talent_educations` | 학교, 학위, 전공, 기간, description, memo |
 | `talent_extras` | 프로젝트, 창업, 수상, publication 등 추가 정보 |
-| `talent_insights` | 대화에서 축적된 장기 선호·제약·커리어 방향 |
+| `talent_contexts` | 현재 Search Brief와 역할 판단에 관련된 Career Memory. `deleted_at is null`인 행만 사용한다. |
 | `talent_conversation_summaries` | 최근 대화에서 드러난 선호와 변화 |
 | `talent_messages` | summary로 판단이 불충분하거나 중요한 근거를 검증할 때 원문 확인 |
 | `talent_activity_events` | 최근 프로필·설정·추천 관련 변화 |
@@ -2227,7 +2227,7 @@ AI Solutions Engineer 겸 FDE로 근무하고 있습니다.
     {"claimId": "ir-1", "source": "talent_educations", "sourceId": "<row_id>", "fact": "하버드 졸업"},
     {"claimId": "ir-2", "source": "talent_experiences", "sourceId": "<row_id>", "fact": "Airbotics 3년 및 요격 드론 백엔드 개발"},
     {"claimId": "ir-3", "source": "talent_extra", "sourceId": "<row_id>", "fact": "700명 대상 하드웨어 구독 서비스와 월 매출"},
-    {"claimId": "ir-4", "source": "talent_insights", "sourceId": "<row_id>", "fact": "미국 전역 relocation 및 소프트웨어·하드웨어 결합 영역 선호"}
+    {"claimId": "ir-4", "source": "talent_contexts", "sourceId": "<row_id>", "fact": "미국 전역 relocation 및 소프트웨어·하드웨어 결합 영역 선호"}
   ]
 }
 ```

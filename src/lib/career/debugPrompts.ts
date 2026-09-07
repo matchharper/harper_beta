@@ -12,11 +12,13 @@ import {
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import {
   buildTalentProfileContext,
-  fetchTalentInsights,
+  fetchTalentContextPromptSnapshot,
   fetchTalentSetting,
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
   getCareerOnboardingChecklistCoverage,
+  projectBriefsToLegacyInsights,
+  renderTalentContextPrompt,
   type TalentAdminClient,
 } from "@/lib/talentOnboarding/server";
 import { fetchRecentMessagesWithSummary } from "@/lib/talentOnboarding/conversationSummary";
@@ -84,7 +86,10 @@ function countPromptBlockChars(blocks: readonly CareerPromptBlock[]) {
 }
 
 function countMessageChars(messages: readonly DebugMessage[]) {
-  return messages.reduce((sum, message) => sum + countChars(message.content), 0);
+  return messages.reduce(
+    (sum, message) => sum + countChars(message.content),
+    0
+  );
 }
 
 function countSerializedChars(value: unknown) {
@@ -192,7 +197,6 @@ export async function buildCareerTextChatDebugPrompt(args: {
 
   const [
     profile,
-    currentInsights,
     talentSetting,
     onboardingCompletionEvent,
     postOnboardingContext,
@@ -203,7 +207,6 @@ export async function buildCareerTextChatDebugPrompt(args: {
     isConversationCompletedOpportunityRunActive,
   ] = await Promise.all([
     fetchTalentUserProfile({ admin, userId }),
-    fetchTalentInsights({ admin, userId }),
     fetchTalentSetting({ admin, userId }),
     fetchLatestTalentActivityEvent({
       admin,
@@ -250,10 +253,14 @@ export async function buildCareerTextChatDebugPrompt(args: {
       recentRecommendedOpportunities
     );
 
-  const currentInsightContent = (currentInsights?.content ?? null) as Record<
-    string,
-    string
-  > | null;
+  const talentContextSnapshot = await fetchTalentContextPromptSnapshot({
+    admin,
+    query: "career conversation prompt debug",
+    userId,
+  });
+  const currentInsightContent = projectBriefsToLegacyInsights(
+    talentContextSnapshot.allBriefs
+  );
   const onboardingChecklistCoverage = !Boolean(
     talentSetting?.is_onboarding_done
   )
@@ -292,7 +299,9 @@ export async function buildCareerTextChatDebugPrompt(args: {
     getExternalRecommendation:
       talentSetting?.get_external_recommendation ?? true,
     periodicIntervalDays: talentSetting
-      ? normalizeTalentPeriodicIntervalDays(talentSetting.periodic_interval_days)
+      ? normalizeTalentPeriodicIntervalDays(
+          talentSetting.periodic_interval_days
+        )
       : null,
     preferredLocale: responseLocale,
     profileVisibility: talentSetting?.profile_visibility ?? null,
@@ -328,6 +337,7 @@ export async function buildCareerTextChatDebugPrompt(args: {
     activeInternalFitHoldQuestion,
     channel: "chat",
     currentInsightContent,
+    talentContextSection: renderTalentContextPrompt(talentContextSnapshot),
     currentPreferences,
     isConversationCompletedOpportunityRunActive,
     isOnboardingDone: talentSetting?.is_onboarding_done,
@@ -352,7 +362,8 @@ export async function buildCareerTextChatDebugPrompt(args: {
   const messages = recentMessages
     .filter(
       (item) =>
-        item.message_type !== TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE &&
+        item.message_type !==
+          TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE &&
         item.message_type !== TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP
     )
     .map((item) => ({

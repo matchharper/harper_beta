@@ -129,6 +129,7 @@ export function buildCareerConversationPromptPlan(args: {
   companyTalentRequestText?: string | null;
   conversationMode?: CareerConversationPromptMode;
   currentInsightContent: Record<string, string> | null;
+  talentContextSection?: string | null;
   currentPreferences?: CareerPromptPreferences | null;
   gmailCapability?: GmailCapability;
   hasSavedGmailCareerHistory?: boolean;
@@ -170,19 +171,20 @@ export function buildCareerConversationPromptPlan(args: {
   // 온보딩 중에는 checklist 진행/종료 조건/현재 insight 값을 하나의 runtime state 블록으로 넣는다.
   const onboardingRuntimeStateSection = isOnboardingActive
     ? buildOnboardingRuntimeStateSection({
-      checklistContext: args.profile,
-      checklistCoverage: args.onboardingChecklistCoverage,
-      content: args.currentInsightContent,
-      quoteKeys: args.channel === "chat",
-    })
+        checklistContext: args.profile,
+        checklistCoverage: args.onboardingChecklistCoverage,
+        content: args.currentInsightContent,
+        quoteKeys: args.channel === "chat",
+      })
     : "";
 
   const futureMatchingInsightsSection = isOnboardingActive
-    ? ""
-    : buildKnownFutureMatchingInsightsSection({
-      content: args.currentInsightContent,
-      quoteKeys: args.channel === "chat",
-    });
+    ? (args.talentContextSection?.trim() ?? "")
+    : args.talentContextSection?.trim() ||
+      buildKnownFutureMatchingInsightsSection({
+        content: args.currentInsightContent,
+        quoteKeys: args.channel === "chat",
+      });
 
   const profileContextBlock = buildProfileContextBlock({
     profile: args.profile,
@@ -199,11 +201,11 @@ export function buildCareerConversationPromptPlan(args: {
     isOnboardingActive && !allowToolPolicyDuringOnboarding
       ? ""
       : buildCareerToolPolicyPrompt({
-        channel: args.channel,
-        isOnboardingActive,
-        preferredLocale: args.currentPreferences?.preferredLocale ?? null,
-        toolNames: normalizedToolNames,
-      });
+          channel: args.channel,
+          isOnboardingActive,
+          preferredLocale: args.currentPreferences?.preferredLocale ?? null,
+          toolNames: normalizedToolNames,
+        });
 
   const isVoiceCall = args.channel === "voice";
 

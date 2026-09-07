@@ -6,14 +6,14 @@ import {
 import {
   TALENT_PENDING_QUESTION_PREFIX,
   buildTalentProfileContext,
-  fetchTalentInsights,
+  fetchTalentContextPromptSnapshot,
   fetchTalentSetting,
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
   getTalentProfileVisibilityLabel,
   getTalentSupabaseAdmin,
   normalizeTalentBlockedCompanies,
-  normalizeTalentInsightContent,
+  renderTalentContextPrompt,
   type TalentAdminClient,
   type TalentConversationRow,
   type TalentMessageRow,
@@ -62,10 +62,7 @@ function normalizeLinks(value: unknown) {
   );
 }
 
-function getSubmittedLinkLabel(
-  value: string,
-  preferredLocale?: string | null
-) {
+function getSubmittedLinkLabel(value: string, preferredLocale?: string | null) {
   const normalized = normalizeLink(value);
   if (!normalized) return null;
 
@@ -175,9 +172,9 @@ function hasProfileMaterial(profile: TalentUserProfileRow | null) {
   if (!profile) return false;
   return Boolean(
     hasText(profile.resume_file_name) ||
-      hasText(profile.resume_storage_path) ||
-      hasText(profile.resume_text) ||
-      (profile.resume_links ?? []).some((link) => hasText(link))
+    hasText(profile.resume_storage_path) ||
+    hasText(profile.resume_text) ||
+    (profile.resume_links ?? []).some((link) => hasText(link))
   );
 }
 
@@ -206,7 +203,11 @@ async function mergeSubmittedLinks(args: {
 
   const current = Array.isArray(data?.resume_links) ? data.resume_links : [];
   const merged = Array.from(
-    new Set([...current, ...args.links].map((link) => String(link ?? "").trim()).filter(Boolean))
+    new Set(
+      [...current, ...args.links]
+        .map((link) => String(link ?? "").trim())
+        .filter(Boolean)
+    )
   );
   if (merged.length === current.length) return;
 
@@ -286,7 +287,9 @@ async function hasProfileSubmitMessage(args: {
     .limit(1)
     .maybeSingle();
   if (error) {
-    throw new Error(error.message ?? "Failed to inspect profile submit messages");
+    throw new Error(
+      error.message ?? "Failed to inspect profile submit messages"
+    );
   }
   return Boolean(data?.id);
 }
@@ -328,25 +331,27 @@ async function seedProfileSubmit(args: {
     };
   }
 
-  const [talentSetting, talentInsights, structuredProfile] = await Promise.all([
-    fetchTalentSetting({
-      admin: args.admin,
-      userId: args.userId,
-    }),
-    fetchTalentInsights({
-      admin: args.admin,
-      userId: args.userId,
-    }),
-    fetchTalentStructuredProfile({
-      admin: args.admin,
-      userId: args.userId,
-      talentUser: profile,
-    }),
-  ]);
+  const [talentSetting, talentContextSnapshot, structuredProfile] =
+    await Promise.all([
+      fetchTalentSetting({
+        admin: args.admin,
+        userId: args.userId,
+      }),
+      fetchTalentContextPromptSnapshot({
+        admin: args.admin,
+        query: [profile?.headline, profile?.bio, profile?.resume_text]
+          .filter(Boolean)
+          .join("\n")
+          .slice(0, 4_000),
+        userId: args.userId,
+      }),
+      fetchTalentStructuredProfile({
+        admin: args.admin,
+        userId: args.userId,
+        talentUser: profile,
+      }),
+    ]);
   const preferredLocale = talentSetting?.preferred_locale ?? null;
-  const normalizedInsights = normalizeTalentInsightContent(
-    talentInsights?.content
-  );
   const profileVisibilityLabel = getTalentProfileVisibilityLabel(
     talentSetting?.profile_visibility
   );
@@ -368,8 +373,8 @@ async function seedProfileSubmit(args: {
   );
   const hasResume = Boolean(
     hasText(profile?.resume_file_name) ||
-      hasText(profile?.resume_storage_path) ||
-      hasText(profile?.resume_text)
+    hasText(profile?.resume_storage_path) ||
+    hasText(profile?.resume_text)
   );
   const kickoff = await generateTalentKickoff({
     displayName: displayName(profile),
@@ -377,7 +382,7 @@ async function seedProfileSubmit(args: {
     preferredLocale,
     talentPreferences: {
       blockedCompanies,
-      insightContent: normalizedInsights,
+      careerContext: renderTalentContextPrompt(talentContextSnapshot),
       profileVisibilityLabel,
     },
     resumeFileName: profile?.resume_file_name,
@@ -419,7 +424,9 @@ async function seedProfileSubmit(args: {
     .insert(messagePayloads)
     .select("*");
   if (insertError) {
-    throw new Error(insertError.message ?? "Failed to insert onboarding seed messages");
+    throw new Error(
+      insertError.message ?? "Failed to insert onboarding seed messages"
+    );
   }
 
   const now = new Date().toISOString();
