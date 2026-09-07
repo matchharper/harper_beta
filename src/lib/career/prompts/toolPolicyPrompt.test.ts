@@ -36,6 +36,19 @@ test("keeps language setting tool policy minimal", () => {
   assert.doesNotMatch(prompt, /### update_language_setting/);
 });
 
+test("chat tools produce one cohesive response after the result", () => {
+  const prompt = buildCareerToolPolicyPrompt({
+    channel: "chat",
+    isOnboardingActive: false,
+    preferredLocale: "ko",
+    toolNames: ["write_talent_context"],
+  });
+
+  assert.match(prompt, /call it before writing user-visible explanation/);
+  assert.match(prompt, /one cohesive response after the result/);
+  assert.doesNotMatch(prompt, /start with brief acknowledgement/);
+});
+
 test("matched internal role policy describes already-reviewed fit roles", () => {
   const prompt = buildCareerToolPolicyPrompt({
     channel: "chat",

@@ -90,7 +90,7 @@ export function buildCareerToolPolicyPrompt(args: {
       : []),
     ...(args.channel === "chat"
       ? [
-          `- When you are about to use a tool, start with brief acknowledgement before tool use.`,
+          "- When a tool is needed, call it before writing user-visible explanation. The tool status already provides interim progress; write one cohesive response after the result instead of acknowledging the same request both before and after the tool.",
         ]
       : []),
     ...(args.channel === "voice"
