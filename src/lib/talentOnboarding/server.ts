@@ -74,6 +74,7 @@ import {
   toTalentMessageResponse,
 } from "@/lib/talentOnboarding/models";
 import {
+  buildTalentMemoryRetrievalQuery,
   createTalentContextMutationRequestId,
   fetchAllTalentContexts,
   fetchTalentContextPromptSnapshot,
@@ -138,6 +139,7 @@ export {
   serializeOnboardingChecklistProgress,
   upsertTalentSetting,
   updateTalentDocumentExtractedText,
+  buildTalentMemoryRetrievalQuery,
   createTalentContextMutationRequestId,
   fetchAllTalentContexts,
   fetchTalentContextPromptSnapshot,

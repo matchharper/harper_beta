@@ -2054,7 +2054,7 @@ export const ko = {
     "career.profile.context.content": "내용",
     "career.profile.context.delete": "삭제",
     "career.profile.context.delete_description":
-      "삭제한 내용은 이후 대화와 기회 판단에 사용되지 않아요.",
+      "저장된 Search Brief 또는 기억에서 이 항목을 삭제해요. 원본 대화와 문서는 그대로 남아요.",
     "career.profile.context.delete_title": "이 내용을 삭제할까요?",
     "career.profile.context.edit": "수정",
     "career.profile.context.edit_brief": "탐색 기준 수정",
@@ -2069,6 +2069,7 @@ export const ko = {
       "다음 대화와 기회 판단에 도움이 되도록 기억해 둔 맥락이에요.",
     "career.profile.context.memory_empty": "아직 저장된 기억이 없어요.",
     "career.profile.context.memory_title": "Harper의 기억",
+    "career.profile.context.retry": "다시 시도",
     "career.profile.context.save": "저장",
     "career.profile.date.present": "현재",
     "career.profile.date.year_only": "{year}년",

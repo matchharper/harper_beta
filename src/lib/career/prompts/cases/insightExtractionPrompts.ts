@@ -47,7 +47,6 @@ Return a valid JSON object:
 
 export function buildCareerInsightExtractionPrompt(args: {
   currentChecklistCoverage?: OnboardingChecklistCoverage | null;
-  currentInsightContent: Record<string, string> | null;
   onboardingChecklistContext?: OnboardingChecklistLocationContext;
   preferredLocale?: string | null;
 }) {
@@ -55,7 +54,6 @@ export function buildCareerInsightExtractionPrompt(args: {
   const insightChecklistSection = buildExtractionInsightChecklistSection({
     checklistContext: args.onboardingChecklistContext,
     checklistCoverage: args.currentChecklistCoverage,
-    content: args.currentInsightContent,
   });
 
   return `You are the onboarding context extractor. Given a recent transcript between a user and Harper, update the user's durable career context and onboarding checklist.
@@ -98,7 +96,6 @@ Return a valid JSON object:
 
 export function buildCareerInsightExtractionOnlyPrompt(args: {
   currentChecklistCoverage?: OnboardingChecklistCoverage | null;
-  currentInsightContent: Record<string, string> | null;
   onboardingChecklistContext?: OnboardingChecklistLocationContext;
   preferredLocale?: string | null;
 }) {
@@ -106,7 +103,6 @@ export function buildCareerInsightExtractionOnlyPrompt(args: {
   const insightChecklistSection = buildExtractionInsightChecklistSection({
     checklistContext: args.onboardingChecklistContext,
     checklistCoverage: args.currentChecklistCoverage,
-    content: args.currentInsightContent,
   });
   return [
     CAREER_INSIGHT_EXTRACTION_ONLY_PROMPT.replace(

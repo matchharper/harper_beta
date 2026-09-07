@@ -2,7 +2,7 @@ import { after, NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   countUserChatTurns,
-  fetchTalentContexts,
+  fetchAllTalentContexts,
   fetchTalentContextsUpdatedAt,
   fetchTalentSetting,
   fetchTalentUserProfile,
@@ -160,25 +160,22 @@ export async function POST(req: NextRequest) {
 
     const [currentBrief, currentContextsUpdatedAt, talentSetting, profile] =
       await Promise.all([
-      fetchTalentContexts({
-        admin,
-        collection: "brief",
-        limit: 500,
-        userId: user.id,
-      }),
-      fetchTalentContextsUpdatedAt({ admin, userId: user.id }),
-      fetchTalentSetting({
-        admin,
-        userId: user.id,
-      }),
-      fetchTalentUserProfile({
-        admin,
-        userId: user.id,
-      }),
-    ]);
-    const currentInsightContent = projectBriefsToLegacyInsights(
-      currentBrief
-    );
+        fetchAllTalentContexts({
+          admin,
+          collection: "brief",
+          userId: user.id,
+        }),
+        fetchTalentContextsUpdatedAt({ admin, userId: user.id }),
+        fetchTalentSetting({
+          admin,
+          userId: user.id,
+        }),
+        fetchTalentUserProfile({
+          admin,
+          userId: user.id,
+        }),
+      ]);
+    const currentInsightContent = projectBriefsToLegacyInsights(currentBrief);
     const shouldAutoExtractInsights =
       !isInternalOpportunityCall &&
       !Boolean(talentSetting?.is_onboarding_done) &&
@@ -212,12 +209,10 @@ export async function POST(req: NextRequest) {
         buildPrompt: (promptArgs) =>
           buildCareerInsightExtractionOnlyPrompt({
             currentChecklistCoverage: promptArgs.currentChecklistCoverage,
-            currentInsightContent: promptArgs.currentInsightContent,
             onboardingChecklistContext: promptArgs.onboardingChecklistContext,
             preferredLocale: responseLocale,
           }),
         conversationId,
-        currentInsightContent,
         logPrefix: "ChatSave",
         onboardingChecklistContext: profile,
         sourceChannel: isCallMode ? "voice_call" : "text_chat",
@@ -226,10 +221,9 @@ export async function POST(req: NextRequest) {
       });
       if (changedCount > 0) {
         [responseBrief, responseInsightUpdatedAt] = await Promise.all([
-          fetchTalentContexts({
+          fetchAllTalentContexts({
             admin,
             collection: "brief",
-            limit: 500,
             userId: user.id,
           }),
           fetchTalentContextsUpdatedAt({ admin, userId: user.id }),
@@ -238,28 +232,6 @@ export async function POST(req: NextRequest) {
       }
 
       return changedCount;
-    };
-
-    const scheduleInsightExtraction = () => {
-      if (!shouldAutoExtractInsights) return;
-
-      const runBackgroundInsightExtraction = async () => {
-        try {
-          await runInsightExtraction();
-        } catch (error) {
-          console.error("[ChatSave] Failed to extract insights", {
-            conversationId,
-            error: error instanceof Error ? error.message : String(error),
-            userId: user.id,
-          });
-        }
-      };
-
-      try {
-        after(runBackgroundInsightExtraction);
-      } catch {
-        void runBackgroundInsightExtraction();
-      }
     };
 
     const activeRun = await getActiveOpportunityRun({
@@ -399,19 +371,8 @@ export async function POST(req: NextRequest) {
       ReturnType<typeof completeOnboardingAndQueueInitialOpportunityRun>
     > | null = null;
 
-    if (isCallMode) {
-      try {
-        await runInsightExtraction();
-      } catch (error) {
-        console.error("[ChatSave] Failed to extract call insights", {
-          conversationId,
-          error: error instanceof Error ? error.message : String(error),
-          userId: user.id,
-        });
-      }
-    } else {
-      scheduleInsightExtraction();
-    }
+    // 온보딩 답변 저장이 끝나기 전에 완료 처리와 첫 추천을 시작하지 않는다.
+    await runInsightExtraction();
     void maybeSummarizeTalentConversation({
       admin,
       conversationId,

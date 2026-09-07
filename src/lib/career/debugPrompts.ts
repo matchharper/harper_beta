@@ -336,7 +336,6 @@ export async function buildCareerTextChatDebugPrompt(args: {
   const { promptBlocks } = buildCareerConversationPromptPlan({
     activeInternalFitHoldQuestion,
     channel: "chat",
-    currentInsightContent,
     talentContextSection: renderTalentContextPrompt(talentContextSnapshot),
     currentPreferences,
     isConversationCompletedOpportunityRunActive,

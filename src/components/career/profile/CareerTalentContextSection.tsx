@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { Brain, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
-import ConfirmModal from "@/components/Modal/ConfirmModal";
 import { MuteButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -227,10 +226,11 @@ export default function CareerTalentContextSection({
             <div>
               {editor?.row ? (
                 <MuteButton
-                  className="gap-1.5 text-critical"
+                  className="gap-1.5"
                   disabled={pending}
                   onClick={() => setPendingDelete(editor.row)}
                   type="button"
+                  variant="warn"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                   {t("career.profile.context.delete", "삭제")}
@@ -260,13 +260,20 @@ export default function CareerTalentContextSection({
           </div>
         }
         mobileBottomSheet
-        onClose={() => setEditor(null)}
+        onClose={() => {
+          if (!pending) setEditor(null);
+        }}
         open={Boolean(editor)}
         panelClassName="max-w-[560px] border border-neutral-1000-a05 bg-bg-floating"
         showCloseButton={!pending}
         title={editorTitle}
       >
         <div className="space-y-4">
+          {error ? (
+            <p className="rounded-lg border border-critical/30 bg-critical-faded px-3 py-2 text-sm text-critical">
+              {error}
+            </p>
+          ) : null}
           {editor?.collection === "brief" ? (
             <label className="block space-y-2 text-[13px] font-medium text-neutral-primary">
               <span>{t("career.profile.context.label", "제목")}</span>
@@ -347,62 +354,104 @@ export default function CareerTalentContextSection({
         panelClassName="max-w-[640px] border border-neutral-1000-a05 bg-bg-floating"
         title={t("career.profile.context.memory_title", "Harper의 기억")}
       >
-        {memoryLoadPending && !memoryLoaded ? (
-          <div className="flex justify-center py-10 text-neutral-muted">
-            <Loader2 className="h-5 w-5 animate-spin" />
-          </div>
-        ) : memories.length > 0 ? (
-          <div className="divide-y divide-neutral-1000-a05">
-            {memories.map((row) => (
-              <div
-                className="flex items-start gap-3 py-3 first:pt-0"
-                key={row.id}
-              >
-                <p className="min-w-0 flex-1 whitespace-pre-line text-[14px] leading-6 text-neutral-primary">
-                  {row.content}
-                </p>
-                <MuteButton
-                  aria-label={t("career.profile.context.edit", "수정")}
-                  className="h-7 w-7 shrink-0 p-0"
-                  disabled={!mutate || pending || memoryLoadPending}
-                  onClick={() => {
-                    setMemoryListOpen(false);
-                    openEditor("memory", row);
-                  }}
-                  size="sm"
-                  type="button"
+        <div className="space-y-3">
+          {error ? (
+            <p className="rounded-lg border border-critical/30 bg-critical-faded px-3 py-2 text-sm text-critical">
+              {error}
+            </p>
+          ) : null}
+          {memoryLoadPending && !memoryLoaded ? (
+            <div className="flex justify-center py-10 text-neutral-muted">
+              <Loader2 className="h-5 w-5 animate-spin" />
+            </div>
+          ) : error && !memoryLoaded ? (
+            <MuteButton
+              disabled={memoryLoadPending}
+              onClick={() => void loadMemories?.()}
+              size="sm"
+              type="button"
+            >
+              {t("career.profile.context.retry", "다시 시도")}
+            </MuteButton>
+          ) : memories.length > 0 ? (
+            <div className="divide-y divide-neutral-1000-a05">
+              {memories.map((row) => (
+                <div
+                  className="flex items-start gap-3 py-3 first:pt-0"
+                  key={row.id}
                 >
-                  <Pencil className="h-3.5 w-3.5" />
-                </MuteButton>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="rounded-lg bg-bg-weak px-3 py-4 text-[13px] text-neutral-muted">
-            {t(
-              "career.profile.context.memory_empty",
-              "아직 저장된 기억이 없어요."
-            )}
-          </p>
-        )}
+                  <p className="min-w-0 flex-1 whitespace-pre-line text-[14px] leading-6 text-neutral-primary">
+                    {row.content}
+                  </p>
+                  <MuteButton
+                    aria-label={t("career.profile.context.edit", "수정")}
+                    className="h-7 w-7 shrink-0 p-0"
+                    disabled={!mutate || pending || memoryLoadPending}
+                    onClick={() => {
+                      setMemoryListOpen(false);
+                      openEditor("memory", row);
+                    }}
+                    size="sm"
+                    type="button"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </MuteButton>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-lg bg-bg-weak px-3 py-4 text-[13px] text-neutral-muted">
+              {t(
+                "career.profile.context.memory_empty",
+                "아직 저장된 기억이 없어요."
+              )}
+            </p>
+          )}
+        </div>
       </TalentCareerModal>
 
-      <ConfirmModal
-        cancelLabel={t("career.profile.context.cancel", "취소")}
-        confirmLabel={t("career.profile.context.delete", "삭제")}
+      <TalentCareerModal
+        closeOnBackdrop={!pending}
         description={t(
           "career.profile.context.delete_description",
-          "삭제한 내용은 이후 대화와 기회 판단에 사용되지 않아요."
+          "저장된 Search Brief 또는 기억에서 이 항목을 삭제해요. 원본 대화와 문서는 그대로 남아요."
         )}
-        isLoading={pending}
-        onClose={() => setPendingDelete(null)}
-        onConfirm={deleteRow}
+        footer={
+          <div className="flex justify-end gap-2">
+            <MuteButton
+              disabled={pending}
+              onClick={() => setPendingDelete(null)}
+              size="lg"
+              type="button"
+            >
+              {t("career.profile.context.cancel", "취소")}
+            </MuteButton>
+            <MuteButton
+              disabled={pending}
+              onClick={() => void deleteRow()}
+              size="lg"
+              type="button"
+              variant="warn"
+            >
+              {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {t("career.profile.context.delete", "삭제")}
+            </MuteButton>
+          </div>
+        }
+        mobileBottomSheet
+        onClose={() => {
+          if (!pending) setPendingDelete(null);
+        }}
         open={Boolean(pendingDelete)}
+        panelClassName="max-w-[480px] border border-neutral-1000-a05 bg-bg-floating"
+        showCloseButton={!pending}
         title={t(
           "career.profile.context.delete_title",
           "이 내용을 삭제할까요?"
         )}
-      />
+      >
+        {null}
+      </TalentCareerModal>
     </section>
   );
 }

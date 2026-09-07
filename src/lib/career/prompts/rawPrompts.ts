@@ -501,13 +501,6 @@ Do not extract one-off browsing, curiosity, benchmarking, or informational searc
 A request like "OpenAI Researcher 자리 보여줘" or a clarification like "그냥 보고 싶어서요" is not a target_role/domain preference update by itself.
 Extract it only if the user explicitly says Harper should remember it for future matching, such as "앞으로 AI 회사 위주로 봐줘" or "Research 쪽으로 커리어 전환하고 싶어요".`;
 
-export const CAREER_CANONICAL_TALENT_INSIGHT_SLOTS = [
-  {
-    key: "english proficiency",
-    label: "English proficiency.",
-  },
-] as const;
-
 type LocaleText = Record<"ko" | "en", string>;
 
 type CareerKickoffFallbackByLocale = Record<

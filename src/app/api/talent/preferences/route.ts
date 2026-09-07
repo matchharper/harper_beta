@@ -3,7 +3,7 @@ import { getRequestUser } from "@/lib/supabaseServer";
 import {
   DEFAULT_TALENT_PROFILE_VISIBILITY,
   ensureTalentUserRecord,
-  fetchTalentContexts,
+  fetchAllTalentContexts,
   fetchTalentContextsUpdatedAt,
   fetchTalentSetting,
   fetchTalentUserProfile,
@@ -151,17 +151,17 @@ export async function GET(req: NextRequest) {
     const admin = getTalentSupabaseAdmin();
     await ensureTalentUserRecord({ admin, user });
 
-    const [setting, brief, talentContextsUpdatedAt, profile] = await Promise.all([
-      fetchTalentSetting({ admin, userId: user.id }),
-      fetchTalentContexts({
-        admin,
-        collection: "brief",
-        limit: 500,
-        userId: user.id,
-      }),
-      fetchTalentContextsUpdatedAt({ admin, userId: user.id }),
-      fetchTalentUserProfile({ admin, userId: user.id }),
-    ]);
+    const [setting, brief, talentContextsUpdatedAt, profile] =
+      await Promise.all([
+        fetchTalentSetting({ admin, userId: user.id }),
+        fetchAllTalentContexts({
+          admin,
+          collection: "brief",
+          userId: user.id,
+        }),
+        fetchTalentContextsUpdatedAt({ admin, userId: user.id }),
+        fetchTalentUserProfile({ admin, userId: user.id }),
+      ]);
     const talentInsights = projectBriefsToLegacyInsights(brief);
     const onboardingChecklistProgress = !Boolean(setting?.is_onboarding_done)
       ? await getCareerOnboardingChecklistProgress({
@@ -224,16 +224,15 @@ export async function POST(req: NextRequest) {
 
     const [existingSetting, brief, talentContextsUpdatedAt, profile] =
       await Promise.all([
-      fetchTalentSetting({ admin, userId: user.id }),
-      fetchTalentContexts({
-        admin,
-        collection: "brief",
-        limit: 500,
-        userId: user.id,
-      }),
-      fetchTalentContextsUpdatedAt({ admin, userId: user.id }),
-      fetchTalentUserProfile({ admin, userId: user.id }),
-    ]);
+        fetchTalentSetting({ admin, userId: user.id }),
+        fetchAllTalentContexts({
+          admin,
+          collection: "brief",
+          userId: user.id,
+        }),
+        fetchTalentContextsUpdatedAt({ admin, userId: user.id }),
+        fetchTalentUserProfile({ admin, userId: user.id }),
+      ]);
 
     const hasPreferenceUpdate =
       body.engagementTypes !== undefined ||

@@ -17,7 +17,6 @@ import {
   fetchTalentSetting,
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
-  projectBriefsToLegacyInsights,
   renderTalentContextPrompt,
   type TalentAdminClient,
   type TalentMessageRow,
@@ -318,9 +317,6 @@ export async function generateOnboardingCompletionWrapupContent(args: {
     );
   const promptPlan = buildCareerConversationPromptPlan({
     channel: "chat",
-    currentInsightContent: projectBriefsToLegacyInsights(
-      talentContextSnapshot.allBriefs
-    ),
     talentContextSection: renderTalentContextPrompt(talentContextSnapshot),
     currentPreferences: buildCurrentPreferences(setting),
     includePostOnboardingConversationGuide: false,
@@ -448,9 +444,6 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
   const responseLocale = setting?.preferred_locale ?? null;
   const promptPlan = buildCareerConversationPromptPlan({
     channel: "chat",
-    currentInsightContent: projectBriefsToLegacyInsights(
-      talentContextSnapshot.allBriefs
-    ),
     talentContextSection: renderTalentContextPrompt(talentContextSnapshot),
     currentPreferences: buildCurrentPreferences(setting),
     gmailCapability: activeGmailIntegration

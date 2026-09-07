@@ -1,6 +1,7 @@
 import { after, NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
+  fetchAllTalentContexts,
   fetchTalentContexts,
   fetchTalentContextsUpdatedAt,
   getTalentSupabaseAdmin,
@@ -13,10 +14,9 @@ import {
 const briefPayload = async (userId: string) => {
   const admin = getTalentSupabaseAdmin();
   const [brief, talentContextsUpdatedAt] = await Promise.all([
-    fetchTalentContexts({
+    fetchAllTalentContexts({
       admin,
       collection: "brief",
-      limit: 500,
       userId,
     }),
     fetchTalentContextsUpdatedAt({ admin, userId }),

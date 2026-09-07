@@ -8735,6 +8735,28 @@ export type Database = {
         Args: { target_workspace_id: string }
         Returns: undefined
       }
+      match_talent_context_memories: {
+        Args: {
+          p_embedding_model?: string
+          p_match_count?: number
+          p_query_embedding: number[]
+          p_talent_id: string
+        }
+        Returns: {
+          collection: string
+          content: string
+          created_at: string
+          id: number
+          key: string | null
+          label: string | null
+          ref: number
+          revision: number
+          score: number
+          source_refs: Json
+          talent_id: string
+          updated_at: string
+        }[]
+      }
       match_service_answer_examples: {
         Args: {
           audience_filter: string
@@ -8750,6 +8772,14 @@ export type Database = {
           tags: string[]
           user_example_text: string
         }[]
+      }
+      mutate_talent_contexts: {
+        Args: {
+          p_changes: Json
+          p_request_id: string
+          p_talent_id: string
+        }
+        Returns: Json
       }
       move_company_candidate_to_role_v1: {
         Args: {

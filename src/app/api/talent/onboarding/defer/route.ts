@@ -19,7 +19,7 @@ import {
 import {
   TalentConversationRow,
   TalentMessageRow,
-  fetchTalentContexts,
+  fetchAllTalentContexts,
   fetchTalentContextsUpdatedAt,
   fetchTalentSetting,
   fetchTalentUserProfile,
@@ -192,10 +192,9 @@ export async function POST(req: NextRequest) {
       );
     }
     const [currentContexts, profile] = await Promise.all([
-      fetchTalentContexts({
+      fetchAllTalentContexts({
         admin,
         collection: "brief",
-        limit: 500,
         userId: user.id,
       }),
       fetchTalentUserProfile({
@@ -203,9 +202,8 @@ export async function POST(req: NextRequest) {
         userId: user.id,
       }),
     ]);
-    const currentInsightContent = projectBriefsToLegacyInsights(
-      currentContexts
-    );
+    const currentInsightContent =
+      projectBriefsToLegacyInsights(currentContexts);
 
     const selectedLabels = selectedOptions.map((optionId) => {
       const option = INTEREST_OPTIONS_BY_ID.get(optionId);
@@ -324,12 +322,10 @@ export async function POST(req: NextRequest) {
       buildPrompt: (promptArgs) =>
         buildCareerInsightExtractionPrompt({
           currentChecklistCoverage: promptArgs.currentChecklistCoverage,
-          currentInsightContent: promptArgs.currentInsightContent,
           onboardingChecklistContext: promptArgs.onboardingChecklistContext,
           preferredLocale: responseLocale,
         }),
       conversationId,
-      currentInsightContent,
       logPrefix: "TalentOnboardingDefer",
       onboardingChecklistContext: profile,
       sourceChannel: "text_chat",
@@ -338,10 +334,9 @@ export async function POST(req: NextRequest) {
     });
 
     const [latestBrief, talentContextsUpdatedAt] = await Promise.all([
-      fetchTalentContexts({
+      fetchAllTalentContexts({
         admin,
         collection: "brief",
-        limit: 500,
         userId: user.id,
       }),
       fetchTalentContextsUpdatedAt({ admin, userId: user.id }),

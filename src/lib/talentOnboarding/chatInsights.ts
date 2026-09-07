@@ -4,9 +4,10 @@ import {
 } from "@/lib/career/llm";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import {
+  buildTalentMemoryRetrievalQuery,
   createTalentContextMutationRequestId,
+  fetchAllTalentContexts,
   fetchTalentContextPromptSnapshot,
-  fetchTalentContexts,
   fetchTalentContextsByRefs,
   fetchRecentMessages,
   getCareerOnboardingChecklistCoverage,
@@ -39,14 +40,20 @@ type ExtractionConversationMessage = {
 
 type BuildPromptArgs = {
   currentChecklistCoverage: Record<string, "covered"> | null;
-  currentInsightContent: Record<string, string> | null;
   onboardingChecklistContext?: OnboardingChecklistLocationContext;
 };
 
 type OnboardingChecklistCoverage = Record<string, "covered">;
 
-function clamp(value: string, maxLength: number) {
+function clampForLog(value: string, maxLength: number) {
   return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
+}
+
+function compactOlderTranscriptMessage(value: string, maxLength = 2_400) {
+  if (value.length <= maxLength) return value;
+  const marker = " … [older message truncated] … ";
+  const sideLength = Math.floor((maxLength - marker.length) / 2);
+  return `${value.slice(0, sideLength)}${marker}${value.slice(-sideLength)}`;
 }
 
 function buildExtractionConversationMessages(args: {
@@ -63,15 +70,21 @@ function buildExtractionConversationMessages(args: {
           ...recentMessages,
           { role: "assistant" as const, content: assistantContent },
         ];
+  const latestUserIndex = messages.findLastIndex(
+    (message) => message.role === "user"
+  );
 
   const transcript = messages
     .slice(-5)
     .map((message, index) => {
       const role = message.role === "user" ? "User" : "Harper";
-      return `[${index + 1}] ${role}: ${clamp(
-        message.content.replace(/\s+/g, " ").trim(),
-        1200
-      )}`;
+      const normalized = message.content.replace(/\s+/g, " ").trim();
+      const originalIndex = Math.max(0, messages.length - 5) + index;
+      const content =
+        originalIndex === latestUserIndex
+          ? normalized
+          : compactOlderTranscriptMessage(normalized);
+      return `[${index + 1}] ${role}: ${content}`;
     })
     .join("\n");
 
@@ -93,7 +106,7 @@ function buildExtractionConversationMessages(args: {
 function normalizeExtractedContextChanges(
   value: unknown
 ): TalentContextAgentChange[] | null {
-  if (!Array.isArray(value)) return null;
+  if (!Array.isArray(value) || value.length > 20) return null;
   const changes: TalentContextAgentChange[] = [];
   for (const item of value) {
     if (!item || typeof item !== "object" || Array.isArray(item)) return null;
@@ -108,7 +121,11 @@ function normalizeExtractedContextChanges(
       if (
         (collection !== "brief" && collection !== "memory") ||
         !content ||
-        (collection === "brief" && !label)
+        Array.from(content).length > 8_000 ||
+        (collection === "brief" &&
+          (!label ||
+            Array.from(label).length > 160 ||
+            Array.from(key).length > 160))
       ) {
         return null;
       }
@@ -143,7 +160,8 @@ function normalizeExtractedContextChanges(
     if (
       (!hasContent && !hasLabel) ||
       (hasContent && !content) ||
-      (hasLabel && !label)
+      (hasContent && Array.from(content ?? "").length > 8_000) ||
+      (hasLabel && (!label || Array.from(label).length > 160))
     ) {
       return null;
     }
@@ -216,6 +234,7 @@ function parseExtractedContext(args: {
     });
   }
 
+  const changes = normalizeExtractedContextChanges(parsed.changes);
   return {
     coveredChecklistKeys: normalizeExtractedChecklistKeys(
       parsed.covered_onboarding_checklist ??
@@ -226,8 +245,8 @@ function parseExtractedContext(args: {
         onboardingChecklistContext,
       }
     ),
-    changes: normalizeExtractedContextChanges(parsed.changes),
-    parseOk,
+    changes,
+    parseOk: parseOk && changes !== null,
   };
 }
 
@@ -375,7 +394,7 @@ function extractJsonObjectCandidates(value: string) {
 
 function formatRecentMessagesForLog(messages: ExtractionConversationMessage[]) {
   return messages.slice(-2).map((message) => ({
-    content: clamp(message.content.replace(/\s+/g, " ").trim(), 800),
+    content: clampForLog(message.content.replace(/\s+/g, " ").trim(), 800),
     id: message.id ?? null,
     messageType: message.messageType ?? null,
     role: message.role,
@@ -551,7 +570,6 @@ export async function extractAndPersistChatInsights(args: {
   assistantContent: string;
   buildPrompt: (args: BuildPromptArgs) => string;
   conversationId: string;
-  currentInsightContent: Record<string, string> | null;
   logPrefix: string;
   onboardingChecklistContext?: OnboardingChecklistLocationContext;
   sourceChannel?: "text_chat" | "voice_call" | "unknown";
@@ -589,10 +607,9 @@ export async function extractAndPersistChatInsights(args: {
     });
     const talentContextSnapshot = await fetchTalentContextPromptSnapshot({
       admin: args.admin,
-      query: recentExtractionMessages
-        .slice(-5)
-        .map((message) => message.content)
-        .join("\n"),
+      query: buildTalentMemoryRetrievalQuery(
+        recentExtractionMessages.slice(-5).map((message) => message.content)
+      ),
       userId: args.userId,
     });
     const currentInsightContent = projectBriefsToLegacyInsights(
@@ -610,19 +627,20 @@ export async function extractAndPersistChatInsights(args: {
     const systemPrompt = args
       .buildPrompt({
         currentChecklistCoverage,
-        currentInsightContent,
         onboardingChecklistContext: args.onboardingChecklistContext,
       })
       .concat(
         "\n\n## Current saved context\n",
-        renderTalentContextPrompt(talentContextSnapshot)
+        renderTalentContextPrompt(talentContextSnapshot, {
+          includeCompatibilityKeys: true,
+        })
       );
     logger.log("[systemPrompt]", {
       systemPrompt,
     });
     let rawExtraction = await runCareerInsightExtraction({
       systemPrompt,
-      conversationMessages, // 최근 6개의 메세지가 들어감
+      conversationMessages,
     });
 
     logger.log("[llm-output]", {
@@ -673,7 +691,10 @@ export async function extractAndPersistChatInsights(args: {
       });
     }
 
-    const changes = parsedExtraction.changes ?? [];
+    if (!parsedExtraction.parseOk || parsedExtraction.changes === null) {
+      throw new Error("Onboarding context extraction returned invalid output");
+    }
+    const changes = parsedExtraction.changes;
     const coveredChecklistKeys = new Set(parsedExtraction.coveredChecklistKeys);
     const refs = changes.flatMap((change) =>
       change.op === "add" ? [] : [change.ref]
@@ -762,10 +783,9 @@ export async function extractAndPersistChatInsights(args: {
     }
 
     if (coveredChecklistKeys.size > 0) {
-      const latestBriefs = await fetchTalentContexts({
+      const latestBriefs = await fetchAllTalentContexts({
         admin: args.admin,
         collection: "brief",
-        limit: 500,
         userId: args.userId,
       });
       const coverageResult = await mergeCareerOnboardingChecklistCoverage({
@@ -785,6 +805,6 @@ export async function extractAndPersistChatInsights(args: {
       error:
         insightError instanceof Error ? insightError.message : "Unknown error",
     });
-    return 0;
+    throw insightError;
   }
 }

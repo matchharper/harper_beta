@@ -2,49 +2,24 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  buildKnownFutureMatchingInsightsSection,
+  buildExtractionInsightChecklistSection,
+  buildOnboardingRuntimeStateSection,
   buildOptionalFollowUpOpportunitiesSection,
 } from "./conversationSections";
-
-test("renders only saved keyed Brief compatibility values", () => {
-  const section = buildKnownFutureMatchingInsightsSection({
-    content: {
-      external_delivery_selectivity:
-        "확실히 잘 맞는 외부 기회만 선별해서 추천받고 싶어합니다.",
-      next_scope: "다음 역할로 제품 리더십 범위를 넓히고 싶어합니다.",
-    },
-    quoteKeys: true,
-  });
-
-  assert.doesNotMatch(section, /external_delivery_selectivity : empty/);
-  assert.doesNotMatch(section, /matching_preference : empty/);
-  assert.match(section, /Search Brief/);
-});
-
-test("does not add schema-specific suggestion slots", () => {
-  const section = buildKnownFutureMatchingInsightsSection({
-    content: {
-      external_delivery_selectivity:
-        "확실히 잘 맞는 외부 기회만 선별해서 추천받고 싶어합니다.",
-      matching_preference:
-        "제품 책임 범위가 넓은 역할을 추천에 반영해주길 원합니다.",
-    },
-  });
-
-  assert.doesNotMatch(section, /## Good to remember insights|: empty/);
-});
 
 test("offers optional waiting-period guidance while the conversation-completed run is active", () => {
   const section = buildOptionalFollowUpOpportunitiesSection({
     activeInternalFitHoldQuestion: null,
     canRecordInternalFitHoldQuestion: false,
-    currentInsightContent: {},
     isConversationCompletedOpportunityRunActive: true,
     isOnboardingActive: false,
     profile: { resume_file_name: "resume.pdf" },
   });
 
-  assert.match(section, /initial post-onboarding opportunity search is running/);
+  assert.match(
+    section,
+    /initial post-onboarding opportunity search is running/
+  );
   assert.match(section, /even if it produces no opportunity/);
   assert.match(section, /sends no recommendation email/);
   assert.match(section, /Settings tab/);
@@ -56,7 +31,6 @@ test("removes waiting-period and referral guidance when the conversation-complet
   const section = buildOptionalFollowUpOpportunitiesSection({
     activeInternalFitHoldQuestion: null,
     canRecordInternalFitHoldQuestion: false,
-    currentInsightContent: {},
     isConversationCompletedOpportunityRunActive: false,
     isOnboardingActive: false,
     profile: { resume_file_name: "resume.pdf" },
@@ -73,11 +47,42 @@ test("does not expose waiting-period guidance during onboarding", () => {
   const section = buildOptionalFollowUpOpportunitiesSection({
     activeInternalFitHoldQuestion: null,
     canRecordInternalFitHoldQuestion: false,
-    currentInsightContent: {},
     isConversationCompletedOpportunityRunActive: true,
     isOnboardingActive: true,
     profile: null,
   });
 
   assert.equal(section, "");
+});
+
+test("does not turn missing legacy insight slots into post-onboarding questions", () => {
+  const section = buildOptionalFollowUpOpportunitiesSection({
+    activeInternalFitHoldQuestion: null,
+    canRecordInternalFitHoldQuestion: false,
+    isConversationCompletedOpportunityRunActive: false,
+    isOnboardingActive: false,
+    profile: { resume_file_name: "resume.pdf" },
+  });
+
+  assert.doesNotMatch(
+    section,
+    /Common Search Brief topics|english proficiency/
+  );
+});
+
+test("keeps saved Brief content out of onboarding checklist metadata", () => {
+  const runtimeSection = buildOnboardingRuntimeStateSection({
+    checklistCoverage: { location: "covered" },
+  });
+  const extractionSection = buildExtractionInsightChecklistSection({
+    checklistCoverage: { location: "covered" },
+  });
+
+  assert.match(runtimeSection, /location[\s\S]*status: covered/);
+  assert.doesNotMatch(runtimeSection, /current .* insight value/);
+  assert.match(extractionSection, /Canonical insight fields/);
+  assert.doesNotMatch(
+    extractionSection,
+    /current_value|current_location_value/
+  );
 });

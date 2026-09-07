@@ -3,11 +3,11 @@ import { client as openaiClient } from "@/lib/llm/llm";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 
 export const TALENT_CONTEXT_EMBEDDING_MODEL = "text-embedding-3-small";
-export const DEFAULT_TALENT_BRIEF_CONTEXT_TOKEN_BUDGET = 1_600;
 export const DEFAULT_TALENT_MEMORY_CONTEXT_TOKEN_BUDGET = 1_000;
 const DEFAULT_MEMORY_READ_LIMIT = 12;
 const MAX_MEMORY_READ_LIMIT = 40;
 const MAX_AGENT_CONTEXT_READ_TOKEN_BUDGET = 6_000;
+const UNINDEXED_MEMORY_PRIORITY_LIMIT = 4;
 
 export const TALENT_CONTEXT_READ_TOOL_PARAMETERS = {
   type: "object",
@@ -167,7 +167,6 @@ export type TalentContextDirectChange =
 export type TalentContextPromptSnapshot = {
   allBriefs: TalentContextRow[];
   briefs: TalentContextRow[];
-  briefTruncated: boolean;
   memories: TalentContextRow[];
   memorySelection: "all" | "semantic" | "recent_fallback";
   memoryTruncated: boolean;
@@ -183,6 +182,18 @@ const normalizeText = (value: unknown, maxLength: number) =>
   typeof value === "string"
     ? value.replace(/\r/g, "").trim().slice(0, maxLength)
     : "";
+
+function normalizeWritableText(
+  value: unknown,
+  maxLength: number,
+  fieldName: string
+) {
+  const text = typeof value === "string" ? value.replace(/\r/g, "").trim() : "";
+  if (Array.from(text).length > maxLength) {
+    throw new Error(`${fieldName} exceeds the maximum length of ${maxLength}`);
+  }
+  return text;
+}
 
 const normalizeCollection = (value: unknown): TalentContextCollection | null =>
   value === "brief" || value === "memory" ? value : null;
@@ -329,7 +340,11 @@ export async function fetchAllTalentContexts(args: {
     rows.push(...page);
     beforeId = page.length === 500 ? (page.at(-1)?.id ?? null) : null;
   } while (beforeId);
-  return rows;
+  // Brief is a compact user-visible document. Keep its stable ref order so
+  // prompt and UI do not reshuffle when an existing item is edited.
+  return args.collection === "brief"
+    ? rows.sort((left, right) => left.ref - right.ref)
+    : rows;
 }
 
 export async function fetchTalentContextsUpdatedAt(args: {
@@ -396,28 +411,57 @@ export function getTalentContextsUpdatedAt(rows: TalentContextRow[]) {
   );
 }
 
+function estimateTalentContextTextTokens(text: string) {
+  let estimate = 0;
+  for (const character of text) {
+    estimate += character.codePointAt(0)! <= 0x7f ? 0.25 : 1;
+  }
+  return Math.max(1, Math.ceil(estimate));
+}
+
 function estimateTalentContextTokens(row: TalentContextRow) {
   const text =
     row.collection === "brief" ? `${row.label}: ${row.content}` : row.content;
-  return Math.max(1, Math.ceil(text.length / 2));
+  return estimateTalentContextTextTokens(text);
 }
 
-function fitRowsToTokenBudget(rows: TalentContextRow[], budget: number) {
+function fitRowsToTokenBudget(
+  rows: TalentContextRow[],
+  budget: number,
+  options?: { preserveFirstRow?: boolean }
+) {
   const selected: TalentContextRow[] = [];
   let used = 0;
   for (const row of rows) {
     const cost = estimateTalentContextTokens(row);
     if (selected.length === 0 && cost > budget) {
-      const labelChars =
-        row.collection === "brief" ? (row.label?.length ?? 0) : 0;
+      if (options?.preserveFirstRow) {
+        return { rows: [row], truncated: rows.length > 1 };
+      }
       const suffix = "… [일부 생략됨; 전체 내용은 이 ref로 다시 조회]";
-      const contentChars = Math.max(
-        1,
-        budget * 2 - labelChars - suffix.length - 4
-      );
+      const characters = Array.from(row.content);
+      let low = 1;
+      let high = characters.length;
+      let contentChars = 1;
+      while (low <= high) {
+        const middle = Math.floor((low + high) / 2);
+        const candidate = {
+          ...row,
+          content: `${characters.slice(0, middle).join("").trimEnd()}${suffix}`,
+        };
+        if (estimateTalentContextTokens(candidate) <= budget) {
+          contentChars = middle;
+          low = middle + 1;
+        } else {
+          high = middle - 1;
+        }
+      }
       selected.push({
         ...row,
-        content: `${row.content.slice(0, contentChars).trimEnd()}${suffix}`,
+        content: `${characters
+          .slice(0, contentChars)
+          .join("")
+          .trimEnd()}${suffix}`,
       });
       return { rows: selected, truncated: true };
     }
@@ -434,6 +478,21 @@ export function normalizeTalentContextEmbeddingInput(value: string) {
     .replace(/\r/g, "")
     .replace(/[ \t]+\n/g, "\n")
     .trim();
+}
+
+export function buildTalentMemoryRetrievalQuery(
+  parts: Array<string | null | undefined>,
+  maxLength = 8_000
+) {
+  const normalized = parts
+    .map((part) => normalizeTalentContextEmbeddingInput(String(part ?? "")))
+    .filter(Boolean)
+    .join("\n");
+  const characters = Array.from(normalized);
+  if (characters.length <= maxLength) return normalized;
+  // Retrieval context is ordered oldest to newest. Preserve the latest turn and
+  // the nearest preceding context when a long conversation exceeds the bound.
+  return characters.slice(-maxLength).join("");
 }
 
 export function hashTalentContextEmbeddingInput(value: string) {
@@ -469,7 +528,7 @@ async function semanticMemoryLookup(args: {
 }) {
   const [embedding] = await embedTalentContextTexts([args.query]);
   if (!embedding?.length) return [];
-  const { data, error } = await (args.admin as any).rpc(
+  const { data, error } = await args.admin.rpc(
     "match_talent_context_memories",
     {
       p_embedding_model: TALENT_CONTEXT_EMBEDDING_MODEL,
@@ -483,9 +542,50 @@ async function semanticMemoryLookup(args: {
   return normalizeRows(data);
 }
 
+async function fetchUnindexedMemoryContexts(args: {
+  admin: TalentAdminClient;
+  limit?: number;
+  userId: string;
+}) {
+  const limit = Math.max(
+    1,
+    Math.min(
+      args.limit ?? UNINDEXED_MEMORY_PRIORITY_LIMIT,
+      MAX_MEMORY_READ_LIMIT
+    )
+  );
+  const { data, error } = await (
+    args.admin.from("talent_contexts" as never) as any
+  )
+    .select(TALENT_CONTEXT_SELECT)
+    .eq("talent_id", args.userId)
+    .eq("collection", "memory")
+    .is("deleted_at", null)
+    .or(
+      `embedding.is.null,embedding_model.is.null,embedding_model.neq.${TALENT_CONTEXT_EMBEDDING_MODEL}`
+    )
+    .order("updated_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(limit);
+  if (error) {
+    throw new Error(error.message ?? "Failed to load unindexed memories");
+  }
+  return normalizeRows(data);
+}
+
+function mergeUniqueTalentContextRows(...groups: TalentContextRow[][]) {
+  const seen = new Set<number>();
+  return groups.flatMap((rows) =>
+    rows.filter((row) => {
+      if (seen.has(row.id)) return false;
+      seen.add(row.id);
+      return true;
+    })
+  );
+}
+
 export async function fetchTalentContextPromptSnapshot(args: {
   admin: TalentAdminClient;
-  briefTokenBudget?: number;
   memoryTokenBudget?: number;
   query?: string | null;
   userId: string;
@@ -497,18 +597,10 @@ export async function fetchTalentContextPromptSnapshot(args: {
       4_000
     )
   );
-  const briefTokenBudget = Math.max(
-    400,
-    Math.min(
-      args.briefTokenBudget ?? DEFAULT_TALENT_BRIEF_CONTEXT_TOKEN_BUDGET,
-      4_000
-    )
-  );
-  const [allBriefs, recentMemories] = await Promise.all([
-    fetchTalentContexts({
+  const [allBriefs, recentMemories, unindexedMemories] = await Promise.all([
+    fetchAllTalentContexts({
       admin: args.admin,
       collection: "brief",
-      limit: 500,
       userId: args.userId,
     }),
     fetchTalentContexts({
@@ -517,9 +609,12 @@ export async function fetchTalentContextPromptSnapshot(args: {
       limit: MAX_MEMORY_READ_LIMIT + 1,
       userId: args.userId,
     }),
+    fetchUnindexedMemoryContexts({
+      admin: args.admin,
+      userId: args.userId,
+    }),
   ]);
-  const fittedBriefs = fitRowsToTokenBudget(allBriefs, briefTokenBudget);
-  const briefs = fittedBriefs.rows;
+  const briefs = allBriefs;
   const allFit =
     recentMemories.length <= MAX_MEMORY_READ_LIMIT &&
     recentMemories.reduce(
@@ -530,14 +625,13 @@ export async function fetchTalentContextPromptSnapshot(args: {
     return {
       allBriefs,
       briefs,
-      briefTruncated: fittedBriefs.truncated,
       memories: recentMemories,
       memorySelection: "all",
       memoryTruncated: false,
     };
   }
 
-  const query = normalizeTalentContextEmbeddingInput(args.query ?? "");
+  const query = buildTalentMemoryRetrievalQuery([args.query]);
   if (query) {
     try {
       const semanticRows = await semanticMemoryLookup({
@@ -546,18 +640,14 @@ export async function fetchTalentContextPromptSnapshot(args: {
         query,
         userId: args.userId,
       });
-      const unindexedRows = recentMemories
-        .filter((row) => !semanticRows.some((match) => match.id === row.id))
-        .slice(0, 4);
       const fitted = fitRowsToTokenBudget(
-        [...semanticRows, ...unindexedRows],
+        mergeUniqueTalentContextRows(unindexedMemories, semanticRows),
         memoryTokenBudget
       );
       if (fitted.rows.length > 0) {
         return {
           allBriefs,
           briefs,
-          briefTruncated: fittedBriefs.truncated,
           memories: fitted.rows,
           memorySelection: "semantic",
           memoryTruncated:
@@ -573,7 +663,6 @@ export async function fetchTalentContextPromptSnapshot(args: {
   return {
     allBriefs,
     briefs,
-    briefTruncated: fittedBriefs.truncated,
     memories: fitted.rows,
     memorySelection: "recent_fallback",
     memoryTruncated: true,
@@ -581,11 +670,16 @@ export async function fetchTalentContextPromptSnapshot(args: {
 }
 
 export function renderTalentContextPrompt(
-  snapshot: TalentContextPromptSnapshot
+  snapshot: TalentContextPromptSnapshot,
+  options?: { includeCompatibilityKeys?: boolean }
 ) {
-  const briefLines = snapshot.briefs.map(
-    (row) => `[${row.ref}] ${row.label}: ${row.content}`
-  );
+  const briefLines = snapshot.briefs.map((row) => {
+    const compatibilityKey =
+      options?.includeCompatibilityKeys && row.key
+        ? ` (onboarding key: ${row.key})`
+        : "";
+    return `[${row.ref}] ${row.label}${compatibilityKey}: ${row.content}`;
+  });
   const memoryLines = snapshot.memories.map(
     (row) => `[${row.ref}] ${row.content}`
   );
@@ -599,9 +693,6 @@ export function renderTalentContextPrompt(
     "",
     memoryHeading,
     memoryLines.length > 0 ? memoryLines.join("\n") : "(제공된 기억 없음)",
-    snapshot.briefTruncated
-      ? "Search Brief는 일부만 제공됐다. 나머지가 필요하면 read_talent_context에서 collection=brief로 조회할 수 있다."
-      : "",
     snapshot.memoryTruncated
       ? "Memory는 일부만 제공됐다. 더 필요한 맥락은 read_talent_context로 조회할 수 있다."
       : "",
@@ -621,9 +712,10 @@ function normalizeDirectChanges(
   return changes.map((change) => {
     if (change.op === "add") {
       const collection = normalizeCollection(change.collection);
-      const content = normalizeText(change.content, 8_000);
-      const label = normalizeText(change.label, 160);
-      const key = normalizeText(change.key, 160) || null;
+      const content = normalizeWritableText(change.content, 8_000, "content");
+      const label = normalizeWritableText(change.label, 160, "label");
+      const key =
+        normalizeWritableText(change.key, 160, "compatibility key") || null;
       if (!collection || !content || (collection === "brief" && !label)) {
         throw new Error("Invalid talent context add change");
       }
@@ -651,9 +743,11 @@ function normalizeDirectChanges(
     const hasContent = Object.prototype.hasOwnProperty.call(change, "content");
     const hasLabel = Object.prototype.hasOwnProperty.call(change, "label");
     const content = hasContent
-      ? normalizeText(change.content, 8_000)
+      ? normalizeWritableText(change.content, 8_000, "content")
       : undefined;
-    const label = hasLabel ? normalizeText(change.label, 160) : undefined;
+    const label = hasLabel
+      ? normalizeWritableText(change.label, 160, "label")
+      : undefined;
     if (
       (!hasContent && !hasLabel) ||
       (hasContent && !content) ||
@@ -680,15 +774,13 @@ export async function mutateTalentContexts(args: {
   userId: string;
 }) {
   const changes = normalizeDirectChanges(args.changes, args.sourceRefs ?? []);
-  const requestId = normalizeText(args.requestId, 240) || randomUUID();
-  const { data, error } = await (args.admin as any).rpc(
-    "mutate_talent_contexts",
-    {
-      p_changes: changes,
-      p_request_id: requestId,
-      p_talent_id: args.userId,
-    }
-  );
+  const requestId =
+    normalizeWritableText(args.requestId, 240, "requestId") || randomUUID();
+  const { data, error } = await args.admin.rpc("mutate_talent_contexts", {
+    p_changes: changes,
+    p_request_id: requestId,
+    p_talent_id: args.userId,
+  });
   if (error)
     throw new Error(error.message ?? "Failed to update talent contexts");
   const applied = normalizeRows(
@@ -765,6 +857,7 @@ export async function readTalentContextsForAgent(args: {
     !exactRefRead &&
     (args.collection ?? "memory") === "memory" &&
     Boolean(normalizeText(args.query, 4_000));
+  let semanticReadIsPartial = false;
   if (exactRefRead) {
     rows = await fetchTalentContextsByRefs({
       admin: args.admin,
@@ -777,24 +870,32 @@ export async function readTalentContextsForAgent(args: {
         1,
         Math.min(args.limit ?? DEFAULT_MEMORY_READ_LIMIT, MAX_MEMORY_READ_LIMIT)
       );
-      const semanticRows = await semanticMemoryLookup({
-        admin: args.admin,
-        limit,
-        query: normalizeText(args.query, 4_000),
-        userId: args.userId,
-      });
-      const recentRows = await fetchTalentContexts({
-        admin: args.admin,
-        collection: "memory",
-        limit,
-        userId: args.userId,
-      });
-      rows = [
-        ...semanticRows,
-        ...recentRows.filter(
-          (row) => !semanticRows.some((match) => match.id === row.id)
-        ),
-      ].slice(0, limit);
+      const [semanticRows, recentRows, unindexedRows] = await Promise.all([
+        semanticMemoryLookup({
+          admin: args.admin,
+          limit,
+          query: normalizeText(args.query, 4_000),
+          userId: args.userId,
+        }),
+        fetchTalentContexts({
+          admin: args.admin,
+          collection: "memory",
+          limit: limit + 1,
+          userId: args.userId,
+        }),
+        fetchUnindexedMemoryContexts({
+          admin: args.admin,
+          limit: Math.min(limit, UNINDEXED_MEMORY_PRIORITY_LIMIT),
+          userId: args.userId,
+        }),
+      ]);
+      semanticReadIsPartial = recentRows.length > limit;
+      rows = semanticReadIsPartial
+        ? mergeUniqueTalentContextRows(unindexedRows, semanticRows).slice(
+            0,
+            limit
+          )
+        : recentRows;
     } catch (error) {
       console.error("[talent-contexts] agent memory search failed", error);
       rows = await fetchTalentContexts({
@@ -805,6 +906,15 @@ export async function readTalentContextsForAgent(args: {
         order: "id",
         userId: args.userId,
       });
+      semanticReadIsPartial =
+        rows.length >=
+        Math.max(
+          1,
+          Math.min(
+            args.limit ?? DEFAULT_MEMORY_READ_LIMIT,
+            MAX_MEMORY_READ_LIMIT
+          )
+        );
     }
   } else {
     rows = await fetchTalentContexts({
@@ -819,11 +929,18 @@ export async function readTalentContextsForAgent(args: {
   const paginatedRead = !exactRefRead && !semanticRead;
   const fitted = fitRowsToTokenBudget(
     rows,
-    MAX_AGENT_CONTEXT_READ_TOKEN_BUDGET
+    MAX_AGENT_CONTEXT_READ_TOKEN_BUDGET,
+    {
+      // An exact ref read is the escape hatch for a row that was shortened in
+      // default context. Preserve at least that full row instead of returning the
+      // same shortened text indefinitely.
+      preserveFirstRow: exactRefRead,
+    }
   );
   return {
     hasMore:
       fitted.truncated ||
+      semanticReadIsPartial ||
       (paginatedRead &&
         rows.length >=
           Math.max(
@@ -844,7 +961,7 @@ export async function readTalentContextsForAgent(args: {
   };
 }
 
-export async function refreshTalentContextEmbeddings(args: {
+async function refreshTalentContextEmbeddingsOnce(args: {
   admin: TalentAdminClient;
   ids: number[];
   userId: string;
@@ -866,20 +983,22 @@ export async function refreshTalentContextEmbeddings(args: {
   const rows = Array.isArray(data)
     ? data
         .map((row) => ({
-          content: normalizeTalentContextEmbeddingInput(
+          content: String(row.content ?? ""),
+          embeddingInput: normalizeTalentContextEmbeddingInput(
             String(row.content ?? "")
           ),
           embeddingHash: normalizeText(row.embedding_content_hash, 100),
           id: Number(row.id),
         }))
-        .filter((row) => row.content && Number.isSafeInteger(row.id))
+        .filter((row) => row.embeddingInput && Number.isSafeInteger(row.id))
     : [];
   const pending = rows.filter(
-    (row) => row.embeddingHash !== hashTalentContextEmbeddingInput(row.content)
+    (row) =>
+      row.embeddingHash !== hashTalentContextEmbeddingInput(row.embeddingInput)
   );
   if (pending.length === 0) return;
   const embeddings = await embedTalentContextTexts(
-    pending.map((row) => row.content)
+    pending.map((row) => row.embeddingInput)
   );
   await Promise.all(
     pending.map(async (row, index) => {
@@ -890,7 +1009,9 @@ export async function refreshTalentContextEmbeddings(args: {
       )
         .update({
           embedding,
-          embedding_content_hash: hashTalentContextEmbeddingInput(row.content),
+          embedding_content_hash: hashTalentContextEmbeddingInput(
+            row.embeddingInput
+          ),
           embedding_model: TALENT_CONTEXT_EMBEDDING_MODEL,
           embedding_updated_at: new Date().toISOString(),
         })
@@ -905,4 +1026,20 @@ export async function refreshTalentContextEmbeddings(args: {
       }
     })
   );
+}
+
+export async function refreshTalentContextEmbeddings(args: {
+  admin: TalentAdminClient;
+  ids: number[];
+  userId: string;
+}) {
+  try {
+    await refreshTalentContextEmbeddingsOnce(args);
+  } catch (firstError) {
+    console.warn(
+      "[talent-contexts] embedding refresh failed; retrying once",
+      firstError
+    );
+    await refreshTalentContextEmbeddingsOnce(args);
+  }
 }

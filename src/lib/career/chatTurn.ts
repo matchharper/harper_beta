@@ -11,11 +11,13 @@ import {
 import { normalizeNoMessageContent } from "@/lib/career/noMessageContent";
 import {
   buildTalentProfileContext,
+  buildTalentMemoryRetrievalQuery,
   countUserChatTurns,
+  fetchAllTalentContexts,
   fetchActiveTalentDocumentByOrigin,
   fetchTalentContextPromptSnapshot,
-  fetchTalentContexts,
   fetchTalentContextsUpdatedAt,
+  fetchRecentMessages,
   fetchTalentSetting,
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
@@ -140,7 +142,6 @@ export type RunCareerChatTurnArgs = {
   assistantMessageType?: string;
   channel?: CareerChatTurnChannel;
   conversationId: string;
-  inlineInsightExtraction?: boolean;
   isMobile?: boolean | null;
   link?: string | null;
   noMessageMarker?: string;
@@ -323,16 +324,15 @@ async function buildTalentProfileSnapshot(args: {
 }) {
   const [setting, brief, talentContextsUpdatedAt, talentProfile] =
     await Promise.all([
-    fetchTalentSetting({ admin: args.admin, userId: args.userId }),
-    fetchTalentContexts({
-      admin: args.admin,
-      collection: "brief",
-      limit: 500,
-      userId: args.userId,
-    }),
-    fetchTalentContextsUpdatedAt({ admin: args.admin, userId: args.userId }),
-    fetchTalentStructuredProfile({ admin: args.admin, userId: args.userId }),
-  ]);
+      fetchTalentSetting({ admin: args.admin, userId: args.userId }),
+      fetchAllTalentContexts({
+        admin: args.admin,
+        collection: "brief",
+        userId: args.userId,
+      }),
+      fetchTalentContextsUpdatedAt({ admin: args.admin, userId: args.userId }),
+      fetchTalentStructuredProfile({ admin: args.admin, userId: args.userId }),
+    ]);
   const normalizedInsights = projectBriefsToLegacyInsights(brief);
   const onboardingChecklistProgress = !Boolean(setting?.is_onboarding_done)
     ? await getCareerOnboardingChecklistProgress({
@@ -388,7 +388,6 @@ export async function runCareerChatTurn(
     userId,
   } = args;
   const requestChannel = args.channel === "voice" ? "voice" : "chat";
-  const inlineInsightExtraction = args.inlineInsightExtraction === true;
   const assistantMessageType =
     String(args.assistantMessageType ?? "").trim() || "chat";
   const isMobile = args.isMobile;
@@ -476,11 +475,23 @@ export async function runCareerChatTurn(
     isConversationCompletedOpportunityRunActive,
   ] = await Promise.all([
     fetchTalentUserProfile({ admin, userId }),
-    fetchTalentContextPromptSnapshot({
-      admin,
-      query: rawUserMessage,
-      userId,
-    }),
+    (async () => {
+      const recentContextMessages = await fetchRecentMessages({
+        admin,
+        conversationId,
+        limit: 6,
+      });
+      return fetchTalentContextPromptSnapshot({
+        admin,
+        query: buildTalentMemoryRetrievalQuery([
+          ...recentContextMessages
+            .slice(-5)
+            .map((item) => formatTalentMessageContentForLlmPrompt(item)),
+          rawUserMessage,
+        ]),
+        userId,
+      });
+    })(),
     fetchTalentSetting({ admin, userId }),
     fetchLatestTalentActivityEvent({
       admin,
@@ -599,12 +610,10 @@ export async function runCareerChatTurn(
           buildPrompt: (promptArgs) =>
             buildCareerInsightExtractionPrompt({
               currentChecklistCoverage: promptArgs.currentChecklistCoverage,
-              currentInsightContent: promptArgs.currentInsightContent,
               onboardingChecklistContext: promptArgs.onboardingChecklistContext,
               preferredLocale: responseLocale,
             }),
           conversationId,
-          currentInsightContent,
           logPrefix: "TalentChatTurn",
           onboardingChecklistContext: profile,
           sourceChannel:
@@ -761,7 +770,6 @@ export async function runCareerChatTurn(
       companyTalentRequestText: serializeTalentPendingRequest(
         activeCompanyTalentRequest
       ),
-      currentInsightContent,
       talentContextSection,
       currentPreferences,
       gmailCapability,
@@ -810,7 +818,7 @@ export async function runCareerChatTurn(
       thinkingLogs = appendRecommendationStatusLog(thinkingLogs, status);
     }
   };
-  const scheduleInsightExtractionForAssistantMessage = async (payload: {
+  const persistInsightExtractionForAssistantMessage = async (payload: {
     content: string;
     messageId: number | string | null | undefined;
   }) => {
@@ -818,32 +826,7 @@ export async function runCareerChatTurn(
       return;
     }
 
-    const runBackgroundInsightExtraction = async () => {
-      try {
-        await extractTurnInsights(payload.content);
-      } catch (error) {
-        console.error("[TalentChatTurn] Failed to extract insights", {
-          conversationId,
-          error: error instanceof Error ? error.message : String(error),
-          messageId: payload.messageId ?? null,
-          userId,
-        });
-      }
-    };
-
-    try {
-      if (inlineInsightExtraction) {
-        await runBackgroundInsightExtraction();
-      } else {
-        after(runBackgroundInsightExtraction);
-      }
-    } catch {
-      if (inlineInsightExtraction) {
-        await runBackgroundInsightExtraction();
-      } else {
-        void runBackgroundInsightExtraction();
-      }
-    }
+    await extractTurnInsights(payload.content);
   };
   const rememberRecommendationPostingRoleIds = (result: unknown) => {
     pendingRecommendationPostingRoleIds = normalizePostingRoleIds([
@@ -1187,7 +1170,7 @@ export async function runCareerChatTurn(
       preparedCompanySnapshot.messages[
         preparedCompanySnapshot.messages.length - 1
       ]?.id;
-    await scheduleInsightExtractionForAssistantMessage({
+    await persistInsightExtractionForAssistantMessage({
       content: preparedAssistantText,
       messageId: preparedMessageId,
     });
@@ -1368,7 +1351,7 @@ export async function runCareerChatTurn(
     );
   }
 
-  await scheduleInsightExtractionForAssistantMessage({
+  await persistInsightExtractionForAssistantMessage({
     content: stripCareerReengagementActions(
       stripOpportunityRunMarkers(safeAssistantText)
     ),
@@ -1382,10 +1365,9 @@ export async function runCareerChatTurn(
         admin,
         conversationId,
         currentInsightContent: projectBriefsToLegacyInsights(
-          await fetchTalentContexts({
+          await fetchAllTalentContexts({
             admin,
             collection: "brief",
-            limit: 500,
             userId,
           })
         ),

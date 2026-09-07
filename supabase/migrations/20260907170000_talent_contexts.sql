@@ -109,6 +109,11 @@ declare
   v_id bigint;
   v_ref bigint;
   v_expected_revision bigint;
+  v_active_brief_count bigint;
+  v_active_brief_chars bigint;
+  v_initial_brief_count bigint;
+  v_initial_brief_chars bigint;
+  v_touched_brief boolean := false;
   v_row public.talent_contexts%rowtype;
   v_applied jsonb := '[]'::jsonb;
 begin
@@ -127,6 +132,15 @@ begin
   if jsonb_array_length(p_changes) > 20 then
     raise exception 'changes exceeds the maximum of 20' using errcode = '22023';
   end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(p_talent_id::text, 0));
+
+  select count(*), coalesce(sum(length(label) + length(content)), 0)
+  into v_initial_brief_count, v_initial_brief_chars
+  from public.talent_contexts
+  where talent_id = p_talent_id
+    and collection = 'brief'
+    and deleted_at is null;
 
   -- A request cannot be retried through the product after this window. Keep
   -- the idempotency ledger bounded instead of accumulating one row forever.
@@ -200,20 +214,6 @@ begin
         for update;
       else
         v_row := null;
-      end if;
-
-      if v_row.id is null then
-        perform pg_advisory_xact_lock(hashtextextended(p_talent_id::text, 0));
-        if v_key is not null then
-          select *
-          into v_row
-          from public.talent_contexts
-          where talent_id = p_talent_id
-            and collection = 'brief'
-            and key = v_key
-            and deleted_at is null
-          for update;
-        end if;
       end if;
 
       if v_row.id is null then
@@ -314,6 +314,7 @@ begin
       raise exception 'invalid operation at change %', v_index using errcode = '22023';
     end if;
 
+    v_touched_brief := v_touched_brief or v_row.collection = 'brief';
     v_applied := v_applied || jsonb_build_array(jsonb_build_object(
       'change_index', v_index - 1,
       'op', v_op,
@@ -332,6 +333,26 @@ begin
     ));
     v_row := null;
   end loop;
+
+  if v_touched_brief then
+    select count(*), coalesce(sum(length(label) + length(content)), 0)
+    into v_active_brief_count, v_active_brief_chars
+    from public.talent_contexts
+    where talent_id = p_talent_id
+      and collection = 'brief'
+      and deleted_at is null;
+
+    if v_active_brief_count > 40
+      and v_active_brief_count > v_initial_brief_count
+    then
+      raise exception 'Search Brief exceeds the maximum of 40 active items' using errcode = '22023';
+    end if;
+    if v_active_brief_chars > 8000
+      and v_active_brief_chars > v_initial_brief_chars
+    then
+      raise exception 'Search Brief exceeds the maximum total text length' using errcode = '22023';
+    end if;
+  end if;
 
   v_existing_response := jsonb_build_object('applied', v_applied);
   update public.talent_context_write_requests
@@ -413,19 +434,51 @@ insert into public.talent_contexts (
 )
 select
   insight.talent_id,
-  row_number() over (partition by insight.talent_id order by insight.id, entry.key),
+  row_number() over (
+    partition by insight.talent_id
+    order by
+      insight.id,
+      case entry.key
+        when 'search_intensity' then 1
+        when 'location' then 2
+        when 'next_scope' then 3
+        when 'must_haves' then 4
+        when 'compensation' then 5
+        when 'cross_border_work_authorization' then 6
+        when 'language' then 7
+        when 'deal_breakers' then 8
+        when 'team_style_fit' then 9
+        else 100
+      end,
+      entry.key
+  ),
   'brief',
-  case entry.key
-    when 'search_intensity' then '이직 적극도'
-    when 'location' then '선호 근무 지역'
-    when 'next_scope' then '다음 역할'
-    when 'must_haves' then '꼭 있어야 하는 조건'
-    when 'compensation' then '기대 보상 조건'
-    when 'cross_border_work_authorization' then '거주국 외 국가의 근무 자격'
-    when 'language' then '외국어 능력'
-    when 'deal_breakers' then '피하고 싶은 조건'
-    when 'team_style_fit' then '선호하는 회사의 조건'
-    else initcap(replace(entry.key, '_', ' '))
+  case
+    when lower(coalesce(setting.setting_locale, setting.preferred_locale, 'ko')) like 'en%'
+      then case entry.key
+        when 'search_intensity' then 'Search intensity'
+        when 'location' then 'Preferred work location'
+        when 'next_scope' then 'Next role'
+        when 'must_haves' then 'Must-have criteria'
+        when 'compensation' then 'Compensation expectations'
+        when 'cross_border_work_authorization' then 'Work authorization outside country of residence'
+        when 'language' then 'Language proficiency'
+        when 'deal_breakers' then 'Deal breakers'
+        when 'team_style_fit' then 'Preferred company conditions'
+        else initcap(replace(entry.key, '_', ' '))
+      end
+    else case entry.key
+      when 'search_intensity' then '이직 적극도'
+      when 'location' then '선호 근무 지역'
+      when 'next_scope' then '다음 역할'
+      when 'must_haves' then '꼭 있어야 하는 조건'
+      when 'compensation' then '기대 보상 조건'
+      when 'cross_border_work_authorization' then '거주국 외 국가의 근무 자격'
+      when 'language' then '외국어 능력'
+      when 'deal_breakers' then '피하고 싶은 조건'
+      when 'team_style_fit' then '선호하는 회사의 조건'
+      else initcap(replace(entry.key, '_', ' '))
+    end
   end,
   entry.key,
   btrim(entry.value),
@@ -437,6 +490,7 @@ select
   coalesce(insight.last_updated_at, insight.created_at, now())
 from public.talent_insights insight
 cross join lateral jsonb_each_text(coalesce(insight.content, '{}'::jsonb)) entry
+left join public.talent_setting setting on setting.user_id = insight.talent_id
 where insight.talent_id is not null
   and length(btrim(entry.value)) > 0
 on conflict (talent_id, key)
@@ -507,6 +561,24 @@ with behavior_lines as (
   select * from behavior_memories
   union all
   select * from behavior_fallback_memories
+), behavior_memory_chunks as (
+  select
+    memory.talent_id,
+    row_number() over (
+      partition by memory.talent_id
+      order by memory.memory_number, chunk.chunk_number
+    ) as memory_number,
+    substring(memory.content from chunk.chunk_number * 8000 + 1 for 8000) as content,
+    memory.context_version,
+    memory.source_line,
+    chunk.chunk_number,
+    memory.created_at,
+    memory.updated_at
+  from all_behavior_memories memory
+  cross join lateral generate_series(
+    0,
+    greatest(0, (length(memory.content) - 1) / 8000)
+  ) as chunk(chunk_number)
 ), existing_refs as (
   select talent_id, coalesce(max(ref), 0) as max_ref
   from public.talent_contexts
@@ -529,10 +601,11 @@ select
   jsonb_build_array(jsonb_build_object(
     'type', 'talent_behavior_context_migration',
     'context_version', memory.context_version,
-    'source_line', memory.source_line
+    'source_line', memory.source_line,
+    'chunk', memory.chunk_number
   )),
   memory.created_at,
   memory.updated_at
-from all_behavior_memories memory
+from behavior_memory_chunks memory
 left join existing_refs existing on existing.talent_id = memory.talent_id
 where length(memory.content) between 1 and 8000;

@@ -1,4 +1,5 @@
 import {
+  buildTalentMemoryRetrievalQuery,
   buildTalentProfileContext,
   fetchTalentContextPromptSnapshot,
   fetchTalentSetting,
@@ -113,10 +114,11 @@ export async function buildCareerRealtimeSessionInstructions(args: {
 
   const talentContextSnapshot = await fetchTalentContextPromptSnapshot({
     admin,
-    query: visibleMessages
-      .slice(-6)
-      .map((message) => formatTalentMessageContentForLlmPrompt(message))
-      .join("\n"),
+    query: buildTalentMemoryRetrievalQuery(
+      visibleMessages
+        .slice(-6)
+        .map((message) => formatTalentMessageContentForLlmPrompt(message))
+    ),
     userId: args.userId,
   });
   const currentInsightContent = projectBriefsToLegacyInsights(
@@ -191,7 +193,6 @@ export async function buildCareerRealtimeSessionInstructions(args: {
 
   const promptPlan = buildCareerConversationPromptPlan({
     channel: "voice",
-    currentInsightContent,
     talentContextSection,
     currentPreferences,
     gmailCapability: activeGmailIntegration

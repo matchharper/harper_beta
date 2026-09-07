@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
-  fetchTalentContexts,
+  fetchAllTalentContexts,
   fetchTalentSetting,
   fetchTalentUserProfile,
   getCareerOnboardingChecklistCoverage,
@@ -359,10 +359,9 @@ export async function POST(request: NextRequest) {
           admin: supabase,
           userId: user.id,
         }),
-        fetchTalentContexts({
+        fetchAllTalentContexts({
           admin: supabase,
           collection: "brief",
-          limit: 500,
           userId: user.id,
         }),
         fetchTalentUserProfile({
@@ -487,9 +486,8 @@ export async function POST(request: NextRequest) {
     const briefConversation = internalCallRequest
       ? internalCompletionDisposition !== "full"
       : isBriefConversation(transcriptStats, safeDurationSeconds);
-    const currentInsightContent = projectBriefsToLegacyInsights(
-      currentContexts
-    );
+    const currentInsightContent =
+      projectBriefsToLegacyInsights(currentContexts);
     const coverageCompletion =
       !forceCompleteOnboarding &&
       !skipConversationWrites &&
@@ -608,7 +606,6 @@ export async function POST(request: NextRequest) {
             ],
         assistantMessageType: "call_wrapup",
         conversationId,
-        inlineInsightExtraction: true,
         isMobile,
         proactiveContext: internalCallRequest
           ? buildInternalOpportunityCallWrapupInstruction({

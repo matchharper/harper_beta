@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildTalentMemoryRetrievalQuery,
   normalizeTalentContextRow,
   projectBriefsToLegacyInsights,
   renderTalentContextPrompt,
@@ -60,7 +61,6 @@ test("renders all Brief rows and selected Memory rows without database ids", () 
   const output = renderTalentContextPrompt({
     allBriefs: [brief],
     briefs: [brief],
-    briefTruncated: false,
     memories: [memory],
     memorySelection: "semantic",
     memoryTruncated: true,
@@ -70,6 +70,19 @@ test("renders all Brief rows and selected Memory rows without database ids", () 
   assert.match(output, /\[2\] 초기 팀에서 빠르게 성장한 경험/);
   assert.doesNotMatch(output, /912345|998877|location/);
   assert.match(output, /read_talent_context/);
+
+  const onboardingExtractionOutput = renderTalentContextPrompt(
+    {
+      allBriefs: [brief],
+      briefs: [brief],
+      memories: [memory],
+      memorySelection: "semantic",
+      memoryTruncated: false,
+    },
+    { includeCompatibilityKeys: true }
+  );
+  assert.match(onboardingExtractionOutput, /onboarding key: location/);
+  assert.equal(onboardingExtractionOutput.match(/서울 또는 원격/g)?.length, 1);
 });
 
 test("legacy projection includes only keyed Brief rows", () => {
@@ -84,4 +97,12 @@ test("legacy projection includes only keyed Brief rows", () => {
     row(3, "memory", "과거에 해외 이직을 준비했다."),
   ]);
   assert.deepEqual(result, { location: "서울 또는 원격" });
+});
+
+test("memory retrieval query keeps the newest context within its bound", () => {
+  assert.equal(
+    buildTalentMemoryRetrievalQuery(["older context", "latest answer"], 13),
+    "latest answer"
+  );
+  assert.equal(buildTalentMemoryRetrievalQuery(["old", "A🙂B"], 3), "A🙂B");
 });

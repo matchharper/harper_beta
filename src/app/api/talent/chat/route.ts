@@ -2,13 +2,15 @@ import { after, NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   buildTalentProfileContext,
+  buildTalentMemoryRetrievalQuery,
   countUserChatTurns,
+  fetchAllTalentContexts,
   fetchTalentDocuments,
   fetchActiveTalentDocumentByOrigin,
   fetchTalentDocumentsByIds,
   fetchTalentContextPromptSnapshot,
-  fetchTalentContexts,
   fetchTalentContextsUpdatedAt,
+  fetchRecentMessages,
   fetchTalentSetting,
   fetchTalentStructuredProfile,
   TalentMessageRow,
@@ -245,22 +247,21 @@ async function buildTalentProfileSnapshot(args: {
 }) {
   const [setting, brief, talentContextsUpdatedAt, talentProfile, documents] =
     await Promise.all([
-    fetchTalentSetting({ admin: args.admin, userId: args.userId }),
-    fetchTalentContexts({
-      admin: args.admin,
-      collection: "brief",
-      userId: args.userId,
-      limit: 500,
-    }),
-    fetchTalentContextsUpdatedAt({ admin: args.admin, userId: args.userId }),
-    fetchTalentStructuredProfile({ admin: args.admin, userId: args.userId }),
-    args.includeDocuments
-      ? fetchTalentDocuments({ admin: args.admin, userId: args.userId }).then(
-          (rows) =>
-            serializeTalentDocuments({ admin: args.admin, documents: rows })
-        )
-      : null,
-  ]);
+      fetchTalentSetting({ admin: args.admin, userId: args.userId }),
+      fetchAllTalentContexts({
+        admin: args.admin,
+        collection: "brief",
+        userId: args.userId,
+      }),
+      fetchTalentContextsUpdatedAt({ admin: args.admin, userId: args.userId }),
+      fetchTalentStructuredProfile({ admin: args.admin, userId: args.userId }),
+      args.includeDocuments
+        ? fetchTalentDocuments({ admin: args.admin, userId: args.userId }).then(
+            (rows) =>
+              serializeTalentDocuments({ admin: args.admin, documents: rows })
+          )
+        : null,
+    ]);
   const normalizedInsights = projectBriefsToLegacyInsights(brief);
   const onboardingChecklistProgress = !Boolean(setting?.is_onboarding_done)
     ? await getCareerOnboardingChecklistProgress({
@@ -673,11 +674,23 @@ export async function POST(req: NextRequest) {
       isConversationCompletedOpportunityRunActive,
     ] = await Promise.all([
       fetchTalentUserProfile({ admin, userId: user.id }),
-      fetchTalentContextPromptSnapshot({
-        admin,
-        query: message,
-        userId: user.id,
-      }),
+      (async () => {
+        const recentContextMessages = await fetchRecentMessages({
+          admin,
+          conversationId,
+          limit: 6,
+        });
+        return fetchTalentContextPromptSnapshot({
+          admin,
+          query: buildTalentMemoryRetrievalQuery([
+            ...recentContextMessages
+              .slice(-5)
+              .map((item) => formatTalentMessageContentForLlmPrompt(item)),
+            message,
+          ]),
+          userId: user.id,
+        });
+      })(),
       fetchLatestTalentActivityEvent({
         admin,
         conversationId,
@@ -763,13 +776,11 @@ export async function POST(req: NextRequest) {
             buildPrompt: (promptArgs) =>
               buildCareerInsightExtractionPrompt({
                 currentChecklistCoverage: promptArgs.currentChecklistCoverage,
-                currentInsightContent: promptArgs.currentInsightContent,
                 onboardingChecklistContext:
                   promptArgs.onboardingChecklistContext,
                 preferredLocale: responseLocale,
               }),
             conversationId,
-            currentInsightContent,
             logPrefix: "TalentChat",
             onboardingChecklistContext: profile,
             sourceChannel: "text_chat",
@@ -1026,7 +1037,6 @@ export async function POST(req: NextRequest) {
           activeCompanyTalentRequest
         ),
         onboardingChecklistCoverage,
-        currentInsightContent,
         talentContextSection,
         currentPreferences,
         gmailCapability,
@@ -1111,22 +1121,13 @@ export async function POST(req: NextRequest) {
         return;
       }
 
-      try {
-        const changedKeysCount = await extractTurnInsights(args.content);
-        console.info("[TalentChat] insight extraction done", {
-          changedKeysCount,
-          conversationId,
-          messageId: args.messageId ?? null,
-          userId: user.id,
-        });
-      } catch (error) {
-        console.error("[TalentChat] Failed to extract insights", {
-          conversationId,
-          error: error instanceof Error ? error.message : String(error),
-          messageId: args.messageId ?? null,
-          userId: user.id,
-        });
-      }
+      const changedKeysCount = await extractTurnInsights(args.content);
+      console.info("[TalentChat] insight extraction done", {
+        changedKeysCount,
+        conversationId,
+        messageId: args.messageId ?? null,
+        userId: user.id,
+      });
     };
     const rememberRecommendationPostingRoleIds = (result: unknown) => {
       pendingRecommendationPostingRoleIds = normalizePostingRoleIds([

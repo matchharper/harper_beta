@@ -9,7 +9,7 @@ import {
   regenerateOnboardingCompletionMessages,
 } from "@/lib/talentOnboarding/onboardingCompletionWrapup";
 import {
-  fetchTalentContexts,
+  fetchAllTalentContexts,
   fetchTalentContextsUpdatedAt,
   projectBriefsToLegacyInsights,
   toTalentContextResponse,
@@ -92,10 +92,9 @@ export async function completeTalentOnboardingManually(args: {
           conversationId: args.conversationId,
           userId: args.userId,
         }),
-    fetchTalentContexts({
+    fetchAllTalentContexts({
       admin: args.admin,
       collection: "brief",
-      limit: 500,
       userId: args.userId,
     }),
     fetchTalentContextsUpdatedAt({

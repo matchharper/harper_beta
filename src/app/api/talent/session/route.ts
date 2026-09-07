@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   ensureTalentUserRecord,
+  fetchAllTalentContexts,
   fetchTalentDocuments,
-  fetchTalentContexts,
   fetchTalentContextsUpdatedAt,
   fetchTalentSetting,
   fetchVisibleMessagesPage,
@@ -619,10 +619,9 @@ export async function GET(req: NextRequest) {
       withSessionFallback({
         fallback: [],
         label: "search brief",
-        promise: fetchTalentContexts({
+        promise: fetchAllTalentContexts({
           admin,
           collection: "brief",
-          limit: 500,
           userId: user.id,
         }),
         userId: user.id,
@@ -693,9 +692,7 @@ export async function GET(req: NextRequest) {
     const visibleMessages = messages.filter(
       (message) => !(message.message_type ?? "").startsWith("mock_interview")
     );
-    const normalizedInsights = projectBriefsToLegacyInsights(
-      talentBrief
-    );
+    const normalizedInsights = projectBriefsToLegacyInsights(talentBrief);
     const onboardingChecklistProgress = !Boolean(
       talentSetting?.is_onboarding_done
     )

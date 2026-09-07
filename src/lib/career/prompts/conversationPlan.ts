@@ -19,7 +19,6 @@ import {
 } from "@/lib/career/prompts/promptUtils";
 import {
   buildCareerChannelContextRules,
-  buildKnownFutureMatchingInsightsSection,
   buildKnownPreferencesSection,
   buildOnboardingRuntimeStateSection,
   buildOptionalFollowUpOpportunitiesSection,
@@ -128,8 +127,7 @@ export function buildCareerConversationPromptPlan(args: {
   channel: CareerPromptChannel;
   companyTalentRequestText?: string | null;
   conversationMode?: CareerConversationPromptMode;
-  currentInsightContent: Record<string, string> | null;
-  talentContextSection?: string | null;
+  talentContextSection: string;
   currentPreferences?: CareerPromptPreferences | null;
   gmailCapability?: GmailCapability;
   hasSavedGmailCareerHistory?: boolean;
@@ -168,23 +166,17 @@ export function buildCareerConversationPromptPlan(args: {
 
   const normalizedToolNames = normalizeToolNames(args.toolNames);
 
-  // 온보딩 중에는 checklist 진행/종료 조건/현재 insight 값을 하나의 runtime state 블록으로 넣는다.
+  // 온보딩 중에는 checklist 진행/종료 조건을 하나의 runtime state 블록으로 넣는다.
+  // 저장된 Brief/Memory 본문은 아래 talentContextSection에서만 한 번 제공한다.
   const onboardingRuntimeStateSection = isOnboardingActive
     ? buildOnboardingRuntimeStateSection({
         checklistContext: args.profile,
         checklistCoverage: args.onboardingChecklistCoverage,
-        content: args.currentInsightContent,
         quoteKeys: args.channel === "chat",
       })
     : "";
 
-  const futureMatchingInsightsSection = isOnboardingActive
-    ? (args.talentContextSection?.trim() ?? "")
-    : args.talentContextSection?.trim() ||
-      buildKnownFutureMatchingInsightsSection({
-        content: args.currentInsightContent,
-        quoteKeys: args.channel === "chat",
-      });
+  const futureMatchingInsightsSection = args.talentContextSection.trim();
 
   const profileContextBlock = buildProfileContextBlock({
     profile: args.profile,
@@ -393,7 +385,6 @@ export function buildCareerConversationPromptPlan(args: {
       canRecordInternalFitHoldQuestion: normalizedToolNames.includes(
         "record_internal_fit_reevaluation_information"
       ),
-      currentInsightContent: args.currentInsightContent,
       isConversationCompletedOpportunityRunActive:
         args.isConversationCompletedOpportunityRunActive,
       isOnboardingActive,

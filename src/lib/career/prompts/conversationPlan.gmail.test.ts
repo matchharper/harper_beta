@@ -25,11 +25,11 @@ test("renders all Gmail capability states truthfully", () => {
 test("keeps the per-turn Gmail capability block non-cacheable", () => {
   const plan = buildCareerConversationPromptPlan({
     channel: "chat",
-    currentInsightContent: null,
     gmailCapability: "available",
     isOnboardingDone: true,
     profile: null,
     structuredProfileText: "",
+    talentContextSection: "",
     toolNames: ["search_connected_gmail"],
   });
   const block = plan.promptBlocks.find(
@@ -50,11 +50,11 @@ test("guides chat to read saved Gmail history without claiming live inbox access
 
   const plan = buildCareerConversationPromptPlan({
     channel: "chat",
-    currentInsightContent: null,
     hasSavedGmailCareerHistory: true,
     isOnboardingDone: true,
     profile: null,
     structuredProfileText: "",
+    talentContextSection: "",
     toolNames: ["list_documents", "read_document"],
   });
   const block = plan.promptBlocks.find(
