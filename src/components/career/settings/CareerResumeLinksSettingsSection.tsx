@@ -56,7 +56,9 @@ const CareerResumeLinksSettingsSection = ({
   const [documentPendingRenameId, setDocumentPendingRenameId] = useState<
     string | null
   >(null);
-  const [inlineCallNoteDocumentId, setInlineCallNoteDocumentId] = useState <
+  const [inlineCallNoteDocumentId, setInlineCallNoteDocumentId] = useState<
+    string | null
+  >(null);
   const [documentPendingEditId, setDocumentPendingEditId] = useState<
     string | null
   >(null);

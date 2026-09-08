@@ -63,6 +63,7 @@ const CareerDocumentsSettingsSection = ({
   documents,
   onAddDocument,
   onDeleteDocument,
+  onEditDocument,
   onOpenCallNote,
   onRenameDocument,
 }: CareerDocumentsSettingsSectionProps) => {
@@ -117,12 +118,12 @@ const CareerDocumentsSettingsSection = ({
                       >
                         {document.fileName === "Harper call note"
                           ? t(
-                            "career.profile.documents.call_note_title",
-                            "Harper와의 통화"
-                          )
+                              "career.profile.documents.call_note_title",
+                              "Harper와의 통화"
+                            )
                           : document.fileName}
                       </BareButton>
-                  {isGmailCareerHistory ? (
+                    ) : isGmailCareerHistory ? (
                       <MuteButton
                         type="button"
                         variant="transparent"
@@ -193,7 +194,9 @@ const CareerDocumentsSettingsSection = ({
                   }
                 >
                   {document.kind === "call_note" ? (
-                    <ActionDropdownItem onSelect={() => onOpenCallNote(document)}>
+                    <ActionDropdownItem
+                      onSelect={() => onOpenCallNote(document)}
+                    >
                       <Eye className="h-4 w-4" />
                       {t(
                         "career.profile.documents.open_call_note",
@@ -229,12 +232,12 @@ const CareerDocumentsSettingsSection = ({
                       )}
                       {document.isPublic
                         ? t(
-                          "career.profile.documents.make_private",
-                          "비공개로 전환"
-                        )
+                            "career.profile.documents.make_private",
+                            "비공개로 전환"
+                          )
                         : t("career.profile.documents.make_public", "공개하기")}
                     </ActionDropdownItem>
-                  )}
+                  ) : null}
                   {document.kind !== "call_note" ? (
                     <ActionDropdownItem
                       onSelect={() => onRenameDocument(document)}
@@ -243,11 +246,6 @@ const CareerDocumentsSettingsSection = ({
                       {t("career.profile.documents.rename", "이름 수정")}
                     </ActionDropdownItem>
                   ) : null}
-                ) : null}
-                  <ActionDropdownItem onSelect={() => onRenameDocument(document)}>
-                    <Pencil className="h-4 w-4" />
-                    {t("career.profile.documents.rename", "이름 수정")}
-                  </ActionDropdownItem>
                   <ActionDropdownSeparator />
                   <ActionDropdownItem
                     tone="danger"

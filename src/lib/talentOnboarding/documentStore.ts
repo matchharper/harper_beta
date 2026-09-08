@@ -138,19 +138,10 @@ export async function serializeTalentDocuments(args: {
 
   return Promise.all(
     documents.map(async (document) => {
-<<<<<<< HEAD
-      const data = document.storage_path
-        ? (
-            await admin.storage
-              .from(TALENT_RESUME_BUCKET)
-              .createSignedUrl(document.storage_path, expiresIn)
-          ).data
-=======
       const signed = document.storage_path
         ? await admin.storage
             .from(TALENT_RESUME_BUCKET)
             .createSignedUrl(document.storage_path, expiresIn)
->>>>>>> 0df6bfcc7218f5752c06f618790de3672d89a87e
         : null;
 
       return {
