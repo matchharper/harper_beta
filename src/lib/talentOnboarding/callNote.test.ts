@@ -17,6 +17,8 @@ test("builds a versioned call note and maps assistant to harper", () => {
     durationSeconds: 65.8,
     startedAt: "2026-09-06T01:00:00.000Z",
     endedAt: "2026-09-06T01:01:06.000Z",
+    title: "보상 기준 정리",
+    keyPoints: ["기본급을 우선해서 본다.", "제안을 보며 기준을 조정한다."],
     transcript: [
       {
         role: "assistant",
@@ -32,12 +34,14 @@ test("builds a versioned call note and maps assistant to harper", () => {
   });
 
   assert.deepEqual(note, {
-    schema_version: 1,
+    schema_version: 2,
     call_id: CALL_ID,
     conversation_id: "conversation-1",
     started_at: "2026-09-06T01:00:00.000Z",
     ended_at: "2026-09-06T01:01:06.000Z",
     duration_seconds: 65,
+    title: "보상 기준 정리",
+    key_points: ["기본급을 우선해서 본다.", "제안을 보며 기준을 조정한다."],
     entries: [
       {
         role: "harper",
@@ -57,6 +61,8 @@ test("does not create notes for old requests, empty transcripts, or invalid ids"
   const base = {
     conversationId: "conversation-1",
     durationSeconds: 0,
+    keyPoints: ["핵심 내용"],
+    title: "짧은 통화",
     transcript: [{ role: "assistant", text: "hello" }],
   };
   assert.equal(buildTalentCallNote({ ...base, callId: "" }), null);
@@ -71,12 +77,34 @@ test("parses valid persisted notes and rejects malformed payloads", () => {
     callId: CALL_ID,
     conversationId: "conversation-1",
     durationSeconds: 10,
+    keyPoints: ["인사를 나눴다."],
+    title: "인사",
     transcript: [{ role: "assistant", text: "hello" }],
   });
   assert.ok(note);
   assert.deepEqual(parseTalentCallNote(JSON.stringify(note)), note);
   assert.equal(parseTalentCallNote("not-json"), null);
-  assert.equal(parseTalentCallNote({ ...note, schema_version: 2 }), null);
+  assert.equal(parseTalentCallNote({ ...note, schema_version: 3 }), null);
+});
+
+test("continues to parse legacy version 1 notes", () => {
+  const legacy = {
+    schema_version: 1 as const,
+    call_id: CALL_ID,
+    conversation_id: "conversation-1",
+    started_at: "2026-09-06T01:00:00.000Z",
+    ended_at: "2026-09-06T01:01:00.000Z",
+    duration_seconds: 60,
+    entries: [
+      {
+        role: "user" as const,
+        text: "기존 콜노트입니다.",
+        timestamp: null,
+      },
+    ],
+  };
+
+  assert.deepEqual(parseTalentCallNote(JSON.stringify(legacy)), legacy);
 });
 
 test("saves with the authenticated owner and never upserts", async () => {
@@ -90,6 +118,7 @@ test("saves with the authenticated owner and never upserts", async () => {
             single: async () => ({
               data: {
                 id: CALL_ID,
+                file_name: "보상 기준 정리",
                 created_at: "2026-09-06T01:01:06.000Z",
                 size_bytes: 123,
               },
@@ -106,6 +135,8 @@ test("saves with the authenticated owner and never upserts", async () => {
     callId: CALL_ID,
     conversationId: "conversation-1",
     durationSeconds: 10,
+    keyPoints: ["기본급을 우선한다."],
+    title: "보상 기준 정리",
     transcript: [{ role: "assistant", text: "hello" }],
     userId: "authenticated-user",
   });
@@ -113,6 +144,7 @@ test("saves with the authenticated owner and never upserts", async () => {
   assert.equal(inserted.value?.talent_id, "authenticated-user");
   assert.equal(inserted.value?.id, CALL_ID);
   assert.equal(inserted.value?.storage_path, null);
+  assert.equal(inserted.value?.file_name, "보상 기준 정리");
   assert.equal(document?.id, CALL_ID);
 });
 
@@ -128,6 +160,7 @@ test("accepts an owned duplicate but rejects a foreign id collision", async () =
         data: owned
           ? {
               id: CALL_ID,
+              file_name: "보상 기준 정리",
               created_at: "2026-09-06T01:01:06.000Z",
               size_bytes: 123,
             }
@@ -154,6 +187,8 @@ test("accepts an owned duplicate but rejects a foreign id collision", async () =
     callId: CALL_ID,
     conversationId: "conversation-1",
     durationSeconds: 10,
+    keyPoints: ["핵심 내용"],
+    title: "통화 주제",
     transcript: [{ role: "user" as const, text: "hello" }],
     userId: "authenticated-user",
   };

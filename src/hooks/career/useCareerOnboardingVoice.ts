@@ -500,6 +500,7 @@ export const useCareerOnboardingVoice = ({
     useRef<CareerConversationStarterId | null>(null);
   const activeInternalCallRequestIdRef = useRef<string | null>(null);
   const activeCallIdRef = useRef<string | null>(null);
+  const activeCallOnboardingCompletedAtStartRef = useRef(false);
 
   const updateSessionInstructionsRef = useRef<
     ((instructions: string) => void) | null
@@ -1428,6 +1429,7 @@ export const useCareerOnboardingVoice = ({
       activeCallConversationStarterIdRef.current = conversationStarterId;
       activeInternalCallRequestIdRef.current = internalCallRequestId;
       activeCallIdRef.current = null;
+      activeCallOnboardingCompletedAtStartRef.current = false;
 
       setCallStartPending(true);
       let callStartedSuccessfully = false;
@@ -1497,6 +1499,8 @@ export const useCareerOnboardingVoice = ({
 
         callStartedAtRef.current = Date.now();
         activeCallIdRef.current = crypto.randomUUID();
+        activeCallOnboardingCompletedAtStartRef.current =
+          Boolean(isOnboardingDone);
         callStartedSuccessfully = true;
         suppressNextAssistantDoneRef.current = true;
         logCallOpeningResponseInstruction(openingInstructions);
@@ -1507,6 +1511,7 @@ export const useCareerOnboardingVoice = ({
           activeCallConversationStarterIdRef.current = null;
           activeInternalCallRequestIdRef.current = null;
           activeCallIdRef.current = null;
+          activeCallOnboardingCompletedAtStartRef.current = false;
         }
         setCallStartPending(false);
       }
@@ -1545,6 +1550,8 @@ export const useCareerOnboardingVoice = ({
         ? Math.max(0, Math.round((endedAt - startedAt) / 1000))
         : 0;
       const activeCallId = activeCallIdRef.current;
+      const onboardingCompletedAtStart =
+        activeCallOnboardingCompletedAtStartRef.current;
       const activeCallConversationStarterId =
         activeCallConversationStarterIdRef.current;
       const activeInternalCallRequestId =
@@ -1568,6 +1575,7 @@ export const useCareerOnboardingVoice = ({
         activeCallConversationStarterIdRef.current = null;
         activeInternalCallRequestIdRef.current = null;
         activeCallIdRef.current = null;
+        activeCallOnboardingCompletedAtStartRef.current = false;
         return;
       }
 
@@ -1582,6 +1590,7 @@ export const useCareerOnboardingVoice = ({
         activeCallConversationStarterIdRef.current = null;
         activeInternalCallRequestIdRef.current = null;
         activeCallIdRef.current = null;
+        activeCallOnboardingCompletedAtStartRef.current = false;
         return;
       }
 
@@ -1614,6 +1623,7 @@ export const useCareerOnboardingVoice = ({
               endedAt: new Date(endedAt).toISOString(),
               forceCompleteOnboarding,
               locale,
+              onboardingCompletedAtStart,
             }),
           });
           const payload = await response.json().catch(() => ({}));
@@ -1749,6 +1759,7 @@ export const useCareerOnboardingVoice = ({
           activeCallConversationStarterIdRef.current = null;
           activeInternalCallRequestIdRef.current = null;
           activeCallIdRef.current = null;
+          activeCallOnboardingCompletedAtStartRef.current = false;
         }
       })();
     },
@@ -1813,6 +1824,8 @@ export const useCareerOnboardingVoice = ({
     lastRealtimeUserTextRef.current = "";
     activeCallConversationStarterIdRef.current = null;
     activeInternalCallRequestIdRef.current = null;
+    activeCallIdRef.current = null;
+    activeCallOnboardingCompletedAtStartRef.current = false;
     clearRealtimeTurnSyncState();
   }, [clearRealtimeTurnSyncState]);
 

@@ -3,7 +3,7 @@ import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
 
 export const TALENT_CALL_NOTE_KIND = "call_note";
 export const TALENT_CALL_NOTE_ORIGIN_TYPE = "career_realtime_call";
-export const TALENT_CALL_NOTE_SCHEMA_VERSION = 1;
+export const TALENT_CALL_NOTE_SCHEMA_VERSION = 2;
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -20,7 +20,7 @@ export type TalentCallNoteEntry = {
   timestamp: string | null;
 };
 
-export type TalentCallNote = {
+export type TalentCallNoteV1 = {
   schema_version: 1;
   call_id: string;
   conversation_id: string;
@@ -29,6 +29,14 @@ export type TalentCallNote = {
   duration_seconds: number;
   entries: TalentCallNoteEntry[];
 };
+
+export type TalentCallNoteV2 = Omit<TalentCallNoteV1, "schema_version"> & {
+  schema_version: 2;
+  title: string;
+  key_points: string[];
+};
+
+export type TalentCallNote = TalentCallNoteV1 | TalentCallNoteV2;
 
 type TalentCallNoteDocument = {
   id: string;
@@ -54,6 +62,26 @@ function normalizeTimestamp(value: unknown) {
   if (typeof value !== "string" || !value.trim()) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function normalizeCallNoteTitle(value: unknown) {
+  return stripPostgresUnsafeChars(String(value ?? ""))
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
+}
+
+function normalizeCallNoteKeyPoints(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((point) =>
+      stripPostgresUnsafeChars(String(point ?? ""))
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 600)
+    )
+    .filter(Boolean)
+    .slice(0, 3);
 }
 
 export function isCallNoteId(value: unknown): value is string {
@@ -87,12 +115,17 @@ export function buildTalentCallNote(args: {
   conversationId: string;
   durationSeconds: number;
   endedAt?: string | null;
+  keyPoints: string[];
   startedAt?: string | null;
+  title: string;
   transcript: unknown;
-}): TalentCallNote | null {
+}): TalentCallNoteV2 | null {
   if (!isCallNoteId(args.callId)) return null;
   const entries = normalizeCallNoteTranscript(args.transcript);
   if (entries.length === 0) return null;
+  const title = normalizeCallNoteTitle(args.title);
+  const keyPoints = normalizeCallNoteKeyPoints(args.keyPoints);
+  if (!title || keyPoints.length === 0) return null;
 
   const endedAt = normalizeTimestamp(args.endedAt) ?? new Date().toISOString();
   const durationSeconds = Math.max(0, Math.floor(args.durationSeconds || 0));
@@ -109,6 +142,8 @@ export function buildTalentCallNote(args: {
     started_at: startedAt,
     ended_at: endedAt,
     duration_seconds: durationSeconds,
+    title,
+    key_points: keyPoints,
     entries,
   };
 }
@@ -125,7 +160,8 @@ export function parseTalentCallNote(value: unknown): TalentCallNote | null {
   if (!parsed || typeof parsed !== "object") return null;
   const record = parsed as Record<string, unknown>;
   if (
-    record.schema_version !== TALENT_CALL_NOTE_SCHEMA_VERSION ||
+    (record.schema_version !== 1 &&
+      record.schema_version !== TALENT_CALL_NOTE_SCHEMA_VERSION) ||
     !isCallNoteId(record.call_id) ||
     typeof record.conversation_id !== "string" ||
     !normalizeTimestamp(record.started_at) ||
@@ -151,8 +187,7 @@ export function parseTalentCallNote(value: unknown): TalentCallNote | null {
     .filter((entry): entry is TalentCallNoteEntry => entry !== null);
   if (entries.length === 0) return null;
 
-  return {
-    schema_version: TALENT_CALL_NOTE_SCHEMA_VERSION,
+  const base = {
     call_id: record.call_id,
     conversation_id: record.conversation_id,
     started_at: normalizeTimestamp(record.started_at)!,
@@ -167,17 +202,32 @@ export function parseTalentCallNote(value: unknown): TalentCallNote | null {
     ),
     entries,
   };
+
+  if (record.schema_version === 1) {
+    return { schema_version: 1, ...base };
+  }
+
+  const title = normalizeCallNoteTitle(record.title);
+  const keyPoints = normalizeCallNoteKeyPoints(record.key_points);
+  if (!title || keyPoints.length === 0) return null;
+  return {
+    schema_version: TALENT_CALL_NOTE_SCHEMA_VERSION,
+    ...base,
+    title,
+    key_points: keyPoints,
+  };
 }
 
 function toCallNoteDocument(row: {
   created_at: string;
+  file_name: string;
   id: string;
   size_bytes: number | null;
 }): TalentCallNoteDocument {
   return {
     id: row.id,
     kind: TALENT_CALL_NOTE_KIND,
-    fileName: "Harper call note",
+    fileName: row.file_name,
     storagePath: null,
     contentType: null,
     sizeBytes: row.size_bytes ?? 0,
@@ -213,7 +263,9 @@ export async function saveTalentCallNote(args: {
   conversationId: string;
   durationSeconds: number;
   endedAt?: string | null;
+  keyPoints: string[];
   startedAt?: string | null;
+  title: string;
   transcript: unknown;
   userId: string;
 }): Promise<TalentCallNoteDocument | null> {
@@ -222,7 +274,9 @@ export async function saveTalentCallNote(args: {
     conversationId: args.conversationId,
     durationSeconds: args.durationSeconds,
     endedAt: args.endedAt,
+    keyPoints: args.keyPoints,
     startedAt: args.startedAt,
+    title: args.title,
     transcript: args.transcript,
   });
   if (!callNote) return null;
@@ -232,7 +286,7 @@ export async function saveTalentCallNote(args: {
     id: callNote.call_id,
     talent_id: args.userId,
     kind: TALENT_CALL_NOTE_KIND,
-    file_name: "Harper call note",
+    file_name: callNote.title,
     storage_path: null,
     content_type: null,
     size_bytes: Buffer.byteLength(extractedText, "utf8"),
@@ -246,7 +300,7 @@ export async function saveTalentCallNote(args: {
   const { data, error } = await args.admin
     .from("talent_documents")
     .insert(row)
-    .select("id, created_at, size_bytes")
+    .select("id, file_name, created_at, size_bytes")
     .single();
 
   if (!error && data) return toCallNoteDocument(data);
@@ -256,7 +310,7 @@ export async function saveTalentCallNote(args: {
 
   const { data: existing, error: existingError } = await args.admin
     .from("talent_documents")
-    .select("id, created_at, size_bytes")
+    .select("id, file_name, created_at, size_bytes")
     .eq("id", callNote.call_id)
     .eq("talent_id", args.userId)
     .eq("kind", TALENT_CALL_NOTE_KIND)

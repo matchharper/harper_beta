@@ -74,6 +74,60 @@ test("runs career insight extraction and conversation summaries through Luna hig
   }
 });
 
+test("runs call note analysis through Luna low with a strict schema", async () => {
+  const [{ client }, { runCareerCallNoteAnalysis }] = await Promise.all([
+    import("@/lib/llm/llm"),
+    import("@/lib/career/llm"),
+  ]);
+  const responsesPrototype = Object.getPrototypeOf(client.responses) as any;
+  const originalCreate = responsesPrototype.create;
+  const captured: { request: Record<string, any> | null } = { request: null };
+  responsesPrototype.create = async (body: Record<string, any>) => {
+    captured.request = body;
+    return {
+      model: "gpt-5.6-luna",
+      output: [
+        {
+          content: [
+            {
+              text: JSON.stringify({
+                should_create: true,
+                title: "보상 기준 정리",
+                key_points: ["기본급을 우선한다."],
+              }),
+              type: "output_text",
+            },
+          ],
+          role: "assistant",
+          type: "message",
+        },
+      ],
+      status: "completed",
+      usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
+    };
+  };
+
+  try {
+    const result = await runCareerCallNoteAnalysis({
+      systemPrompt: "Judge the call.",
+      userPrompt: "User: 기본급이 중요해요.",
+    });
+
+    assert.match(result, /보상 기준 정리/);
+    assert.ok(captured.request);
+    assert.equal(captured.request.model, "gpt-5.6-luna");
+    assert.deepEqual(captured.request.reasoning, { effort: "low" });
+    assert.equal(captured.request.text?.format?.type, "json_schema");
+    assert.equal(
+      captured.request.text?.format?.name,
+      "career_call_note_analysis"
+    );
+    assert.equal(captured.request.text?.format?.strict, true);
+  } finally {
+    responsesPrototype.create = originalCreate;
+  }
+});
+
 test("preserves GPT-5.6 explicit cache breakpoints and structured output", () => {
   const schema = {
     properties: { evaluations: { items: {}, type: "array" } },

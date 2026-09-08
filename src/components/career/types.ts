@@ -118,7 +118,7 @@ export type CareerCallNoteEntry = {
   timestamp: string | null;
 };
 
-export type CareerCallNote = {
+export type CareerCallNoteV1 = {
   schema_version: 1;
   call_id: string;
   conversation_id: string;
@@ -127,6 +127,14 @@ export type CareerCallNote = {
   duration_seconds: number;
   entries: CareerCallNoteEntry[];
 };
+
+export type CareerCallNoteV2 = Omit<CareerCallNoteV1, "schema_version"> & {
+  schema_version: 2;
+  title: string;
+  key_points: string[];
+};
+
+export type CareerCallNote = CareerCallNoteV1 | CareerCallNoteV2;
 
 export type CareerTalentProfile = {
   documents?: CareerTalentDocument[];

@@ -80,6 +80,15 @@ export const CAREER_LLM_CONFIG = {
     reasoningEffort: "high" as const,
     temperature: 0.2,
   },
+  // Realtime 통화 종료 후 call note를 남길 가치가 있는지 판단하고,
+  // 읽기 전용 제목과 핵심 포인트를 구조화된 JSON으로 생성할 때.
+  callNoteAnalysis: {
+    fallbackModel: CLAUDE_MODEL,
+    maxTokens: 600,
+    model: GPT_56_LUNA_MODEL,
+    reasoningEffort: "low" as const,
+    temperature: 0.1,
+  },
   // 온보딩을 지금 끝내지 않고 나중으로 미룰 때 닫는 응답을 생성한다.
   // 모델은 assistant.primary/fallback을 쓰고 여기서는 온도만 조정한다.
   // 사용처: /api/talent/onboarding/defer.
@@ -2261,6 +2270,44 @@ export async function runCareerConversationSummary(args: {
     reasoningEffort: CAREER_LLM_CONFIG.conversationSummary.reasoningEffort,
     temperature: CAREER_LLM_CONFIG.conversationSummary.temperature,
     usageLabel: "career/chat:conversation_summary",
+  });
+}
+
+export async function runCareerCallNoteAnalysis(args: {
+  systemPrompt: string;
+  userPrompt: string;
+}) {
+  return runTalentAssistantCompletion({
+    fallbackModel: CAREER_LLM_CONFIG.callNoteAnalysis.fallbackModel,
+    jsonSchema: {
+      name: "career_call_note_analysis",
+      schema: {
+        additionalProperties: false,
+        properties: {
+          key_points: {
+            items: { type: "string" },
+            maxItems: 3,
+            minItems: 0,
+            type: "array",
+          },
+          should_create: { type: "boolean" },
+          title: { type: "string" },
+        },
+        required: ["should_create", "title", "key_points"],
+        type: "object",
+      },
+      strict: true,
+    },
+    maxTokens: CAREER_LLM_CONFIG.callNoteAnalysis.maxTokens,
+    messages: [
+      { role: "system", content: args.systemPrompt },
+      { role: "user", content: args.userPrompt },
+    ],
+    openAIResponsesReasoningEffort:
+      CAREER_LLM_CONFIG.callNoteAnalysis.reasoningEffort,
+    primaryModel: CAREER_LLM_CONFIG.callNoteAnalysis.model,
+    temperature: CAREER_LLM_CONFIG.callNoteAnalysis.temperature,
+    usageLabel: "career/call-note:analysis",
   });
 }
 

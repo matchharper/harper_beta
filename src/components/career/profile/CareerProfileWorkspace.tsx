@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { Loader2 } from "lucide-react";
 import CareerInPageTabs from "../CareerInPageTabs";
@@ -7,6 +7,7 @@ import {
   useCareerSidebarContext,
 } from "../CareerSidebarContext";
 import CareerTalentProfilePanel from "./CareerTalentProfilePanel";
+import CareerCallNoteDetail from "./CareerCallNoteDetail";
 import CareerResumeLinksSettingsSection from "../settings/CareerResumeLinksSettingsSection";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import React from "react";
@@ -61,8 +62,11 @@ const CareerProfileWorkspace = () => {
   const router = useRouter();
   const logCareerEvent = useCareerLogEvent();
   const { workspaceDataLoading } = useCareerSidebarContext();
-  const { savedResumeFileName, savedResumeStoragePath } =
+  const { savedResumeFileName, savedResumeStoragePath, talentDocuments } =
     useCareerProfileContext();
+  const [callNoteDocumentId, setCallNoteDocumentId] = useState<string | null>(
+    null
+  );
   const hasSavedResume = Boolean(savedResumeFileName || savedResumeStoragePath);
 
   const sectionItems = useMemo(
@@ -87,9 +91,19 @@ const CareerProfileWorkspace = () => {
     return typeof raw === "string" && isProfileSectionId(raw) ? raw : "profile";
   }, [router.query.profileSection]);
 
+  const callNoteDocument = useMemo(
+    () =>
+      talentDocuments.find(
+        (document) =>
+          document.id === callNoteDocumentId && document.kind === "call_note"
+      ) ?? null,
+    [callNoteDocumentId, talentDocuments]
+  );
+
   const handleChangeSection = useCallback(
     (next: ProfileSectionId) => {
       logCareerEvent(`click_profile_section_${next}`);
+      setCallNoteDocumentId(null);
       void router.replace(
         {
           pathname: router.pathname,
@@ -104,7 +118,9 @@ const CareerProfileWorkspace = () => {
 
   const activeContent =
     activeSection === "links" ? (
-      <CareerResumeLinksSettingsSection />
+      <CareerResumeLinksSettingsSection
+        onOpenCallNote={(document) => setCallNoteDocumentId(document.id)}
+      />
     ) : (
       <CareerTalentProfilePanel />
     );
@@ -120,6 +136,15 @@ const CareerProfileWorkspace = () => {
           )}
         </div>
       </section>
+    );
+  }
+
+  if (callNoteDocument) {
+    return (
+      <CareerCallNoteDetail
+        document={callNoteDocument}
+        onBack={() => setCallNoteDocumentId(null)}
+      />
     );
   }
 

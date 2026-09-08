@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   fetchTalentInsights,
@@ -42,6 +42,10 @@ import {
   isCallNoteId,
   saveTalentCallNote,
 } from "@/lib/talentOnboarding/callNote";
+import {
+  analyzeTalentCallNote,
+  shouldAnalyzeTalentCallNote,
+} from "@/lib/talentOnboarding/callNoteAnalysis";
 
 type TranscriptEntry = {
   role: "user" | "assistant";
@@ -57,6 +61,7 @@ type Body = {
   forceCompleteOnboarding?: boolean;
   internalCallRequestId?: string | null;
   locale?: string | null;
+  onboardingCompletedAtStart?: boolean | null;
   startedAt?: string | null;
   transcript: TranscriptEntry[];
   durationSeconds: number;
@@ -441,19 +446,49 @@ export async function POST(request: NextRequest) {
         ? requestTranscript
         : savedTranscript;
     const transcriptStats = summarizeTranscript(resolvedTranscript);
-    const callNoteDocument = await saveTalentCallNote({
-      admin: supabase,
-      callId,
-      conversationId,
-      durationSeconds: safeDurationSeconds,
-      endedAt: body.endedAt,
-      startedAt: body.startedAt,
-      transcript: requestTranscript,
-      userId: user.id,
-    });
-    const withCallNoteDocument = <T extends Record<string, unknown>>(
-      payload: T
-    ) => (callNoteDocument ? { ...payload, callNoteDocument } : payload);
+    if (
+      shouldAnalyzeTalentCallNote({
+        callId,
+        onboardingCompletedAtStart: body.onboardingCompletedAtStart,
+        transcript: resolvedTranscript,
+      })
+    ) {
+      const createCallNoteInBackground = async () => {
+        try {
+          const analysis = await analyzeTalentCallNote({
+            preferredLocale: responseLocale,
+            transcript: resolvedTranscript,
+          });
+          if (!analysis?.shouldCreate) return;
+
+          await saveTalentCallNote({
+            admin: supabase,
+            callId,
+            conversationId,
+            durationSeconds: safeDurationSeconds,
+            endedAt: body.endedAt,
+            keyPoints: analysis.keyPoints,
+            startedAt: body.startedAt,
+            title: analysis.title,
+            transcript: resolvedTranscript,
+            userId: user.id,
+          });
+        } catch (error) {
+          console.error("[call-wrapup] Failed to create call note", {
+            callId,
+            conversationId,
+            error: error instanceof Error ? error.message : String(error),
+            userId: user.id,
+          });
+        }
+      };
+
+      try {
+        after(createCallNoteInBackground);
+      } catch {
+        void createCallNoteInBackground();
+      }
+    }
     const internalQuestionPlanComplete = internalCallRequest
       ? isInternalOpportunityCallQuestionPlanComplete(
           internalCallRequest.questionProgress,
@@ -501,23 +536,19 @@ export async function POST(request: NextRequest) {
             userId: user.id,
           });
 
-        return NextResponse.json(
-          withCallNoteDocument({
-            followUpMessage: fallbackMessage,
-            followUpMessages: [fallbackMessage],
-            pendingInternalOpportunityCallRequest:
-              pendingInternalOpportunityCallRequests[0] ?? null,
-            pendingInternalOpportunityCallRequests,
-          })
-        );
+        return NextResponse.json({
+          followUpMessage: fallbackMessage,
+          followUpMessages: [fallbackMessage],
+          pendingInternalOpportunityCallRequest:
+            pendingInternalOpportunityCallRequests[0] ?? null,
+          pendingInternalOpportunityCallRequests,
+        });
       }
 
-      return NextResponse.json(
-        withCallNoteDocument({
-          followUpMessage: null,
-          skipped: "no_user_speech",
-        })
-      );
+      return NextResponse.json({
+        followUpMessage: null,
+        skipped: "no_user_speech",
+      });
     }
 
     const briefConversation = internalCallRequest
@@ -562,19 +593,17 @@ export async function POST(request: NextRequest) {
           message !== null
       );
 
-      return NextResponse.json(
-        withCallNoteDocument({
-          followUpMessage,
-          followUpMessages,
-          insightUpdatedAt: result.insightUpdatedAt,
-          opportunityDiscoveryQueued: result.opportunityDiscoveryQueued,
-          opportunityRun: result.opportunityRun,
-          progress: {
-            completed: true,
-          },
-          talentInsights: result.talentInsights,
-        })
-      );
+      return NextResponse.json({
+        followUpMessage,
+        followUpMessages,
+        insightUpdatedAt: result.insightUpdatedAt,
+        opportunityDiscoveryQueued: result.opportunityDiscoveryQueued,
+        opportunityRun: result.opportunityRun,
+        progress: {
+          completed: true,
+        },
+        talentInsights: result.talentInsights,
+      });
     }
     if (
       forceCompleteOnboarding &&
@@ -599,19 +628,17 @@ export async function POST(request: NextRequest) {
           message !== null
       );
 
-      return NextResponse.json(
-        withCallNoteDocument({
-          followUpMessage,
-          followUpMessages,
-          insightUpdatedAt: result.insightUpdatedAt,
-          opportunityDiscoveryQueued: result.opportunityDiscoveryQueued,
-          opportunityRun: result.opportunityRun,
-          progress: {
-            completed: true,
-          },
-          talentInsights: result.talentInsights,
-        })
-      );
+      return NextResponse.json({
+        followUpMessage,
+        followUpMessages,
+        insightUpdatedAt: result.insightUpdatedAt,
+        opportunityDiscoveryQueued: result.opportunityDiscoveryQueued,
+        opportunityRun: result.opportunityRun,
+        progress: {
+          completed: true,
+        },
+        talentInsights: result.talentInsights,
+      });
     }
     const inferredOnboardingDone =
       Boolean(talentSetting?.is_onboarding_done) ||
@@ -690,25 +717,23 @@ export async function POST(request: NextRequest) {
           ...result.assistantMessage,
           content: normalized,
         };
-        return NextResponse.json(
-          withCallNoteDocument({
-            followUpMessage,
-            followUpMessages: [followUpMessage],
-            insightUpdatedAt: result.insightUpdatedAt,
-            opportunityDiscoveryQueued: result.opportunityDiscoveryQueued,
-            opportunityRun: result.opportunityRun,
-            onboardingChecklistProgress: result.onboardingChecklistProgress,
-            pendingInternalOpportunityCallRequest: internalCallRequest
-              ? (pendingInternalOpportunityCallRequests?.[0] ?? null)
-              : undefined,
-            pendingInternalOpportunityCallRequests,
-            preferencesUpdatedAt: result.preferencesUpdatedAt,
-            progress: result.progress,
-            talentInsights: result.talentInsights,
-            talentPreferences: result.talentPreferences,
-            talentProfile: result.talentProfile,
-          })
-        );
+        return NextResponse.json({
+          followUpMessage,
+          followUpMessages: [followUpMessage],
+          insightUpdatedAt: result.insightUpdatedAt,
+          opportunityDiscoveryQueued: result.opportunityDiscoveryQueued,
+          opportunityRun: result.opportunityRun,
+          onboardingChecklistProgress: result.onboardingChecklistProgress,
+          pendingInternalOpportunityCallRequest: internalCallRequest
+            ? (pendingInternalOpportunityCallRequests?.[0] ?? null)
+            : undefined,
+          pendingInternalOpportunityCallRequests,
+          preferencesUpdatedAt: result.preferencesUpdatedAt,
+          progress: result.progress,
+          talentInsights: result.talentInsights,
+          talentPreferences: result.talentPreferences,
+          talentProfile: result.talentProfile,
+        });
       }
     } catch (error) {
       console.error("[call-wrapup] Failed to generate chat-turn follow-up", {
@@ -737,16 +762,14 @@ export async function POST(request: NextRequest) {
         })
       : undefined;
 
-    return NextResponse.json(
-      withCallNoteDocument({
-        followUpMessage: fallbackMessage,
-        followUpMessages: [fallbackMessage],
-        pendingInternalOpportunityCallRequest: internalCallRequest
-          ? (pendingInternalOpportunityCallRequests?.[0] ?? null)
-          : undefined,
-        pendingInternalOpportunityCallRequests,
-      })
-    );
+    return NextResponse.json({
+      followUpMessage: fallbackMessage,
+      followUpMessages: [fallbackMessage],
+      pendingInternalOpportunityCallRequest: internalCallRequest
+        ? (pendingInternalOpportunityCallRequests?.[0] ?? null)
+        : undefined,
+      pendingInternalOpportunityCallRequests,
+    });
   } catch (error) {
     console.error("[call-wrapup] Unexpected error", { error });
     return NextResponse.json(

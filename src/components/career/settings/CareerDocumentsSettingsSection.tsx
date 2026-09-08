@@ -23,7 +23,7 @@ import {
   ActionDropdownSeparator,
 } from "@/components/ui/action-dropdown";
 import { Badge } from "@/components/ui/badge";
-import { MuteButton } from "@/components/ui/button";
+import { BareButton, MuteButton } from "@/components/ui/button";
 import { FieldLabel } from "@/components/ui/panel";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useMessages } from "@/i18n/useMessage";
@@ -105,16 +105,18 @@ const CareerDocumentsSettingsSection = ({
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
                   {document.kind === "call_note" ? (
-                    <MuteButton
-                      variant="transparent"
-                      size="sm"
+                    <BareButton
+                      type="button"
                       onClick={() => onOpenCallNote(document)}
+                      className="min-w-0 truncate text-left text-sm text-neutral-muted transition-colors hover:text-neutral-primary"
                     >
-                      {t(
-                        "career.profile.documents.call_note_title",
-                        "Harper와의 통화"
-                      )}
-                    </MuteButton>
+                      {document.fileName === "Harper call note"
+                        ? t(
+                            "career.profile.documents.call_note_title",
+                            "Harper와의 통화"
+                          )
+                        : document.fileName}
+                    </BareButton>
                   ) : document.downloadUrl ? (
                     <a
                       href={document.downloadUrl}
@@ -131,10 +133,7 @@ const CareerDocumentsSettingsSection = ({
                   )}
                   {document.kind === "call_note" ? (
                     <Badge size="sm" variant="faded">
-                      {t(
-                        "career.profile.documents.kind.call_note",
-                        "통화 기록"
-                      )}
+                      {t("career.profile.documents.kind.call_note", "콜노트")}
                     </Badge>
                   ) : document.kind === "document" ? (
                     <Badge

@@ -2029,8 +2029,13 @@ export const ko = {
       "통화 기록을 불러오지 못했습니다.",
     "career.profile.documents.call_note_loading":
       "통화 기록을 불러오는 중입니다.",
+    "career.profile.documents.call_note_back": "문서 목록으로",
+    "career.profile.documents.call_note_key_points": "요약",
     "career.profile.documents.call_note_me": "나",
+    "career.profile.documents.call_note_read_only": "읽기 전용",
+    "career.profile.documents.call_note_retry": "다시 시도",
     "career.profile.documents.call_note_title": "Harper와의 통화",
+    "career.profile.documents.call_note_transcript": "대화 내용",
     "career.profile.documents.delete": "문서 삭제",
     "career.profile.documents.delete_failed": "문서를 삭제하지 못했습니다.",
     "career.profile.documents.delete_help":
@@ -2047,7 +2052,7 @@ export const ko = {
     "career.profile.documents.empty": "추가로 저장된 문서가 없습니다.",
     "career.profile.documents.file_name": "문서 이름",
     "career.profile.documents.keep_private": "비공개로 저장",
-    "career.profile.documents.kind.call_note": "통화 기록",
+    "career.profile.documents.kind.call_note": "콜노트",
     "career.profile.documents.kind.document": "문서",
     "career.profile.documents.kind.resume": "이력서",
     "career.profile.documents.make_private": "비공개로 전환",
