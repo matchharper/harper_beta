@@ -168,6 +168,7 @@ export async function fetchCareerReengagementPendingActions(args: {
         action: {
           companyName: cleanText(opportunity.companyName, "채용 회사", 160),
           kind: "internal_opportunity" as const,
+          recommendedAt: opportunity.recommendedAt,
           recommendationSummary:
             cleanText(opportunity.recommendationSummary, "", 600) || null,
           roleTitle: cleanText(opportunity.title, "제안받은 포지션", 180),

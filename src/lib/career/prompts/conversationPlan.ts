@@ -31,6 +31,7 @@ import {
 import { buildCareerToolPolicyPrompt } from "@/lib/career/prompts/toolPolicyPrompt";
 import { getCareerConversationStarter } from "@/lib/career/prompts/conversationStarters";
 import type {
+  CareerPostOnboardingContext,
   CareerPromptActivitySummary,
   CareerPromptBlock,
   CareerPromptChannel,
@@ -39,11 +40,16 @@ import type {
   CareerPromptPlan,
   CareerPromptPreferences,
   CareerPromptProfile,
+  GmailCapability,
   OnboardingChecklistCoverage,
 } from "@/lib/career/prompts/types";
 import { getCareerInterruptHandlingPrompt } from "./initialPrompts";
 import { buildInternalOpportunityRealtimeInstruction } from "./cases/lifecyclePrompts";
 import type { InternalOpportunityCallRequest } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
+import {
+  buildCareerPostOnboardingContextSection,
+  buildCareerPostOnboardingConversationGuide,
+} from "@/lib/career/prompts/postOnboardingGuide";
 
 const ONBOARDING_TOOL_POLICY_ALLOWED_TOOLS = [
   "update_language_setting",
@@ -63,12 +69,57 @@ function shouldIncludeToolPolicyDuringOnboarding(toolNames: string[]) {
   );
 }
 
+export function buildGmailCapabilityPrompt(capability: GmailCapability) {
+  if (capability === "available") {
+    return [
+      "## Gmail capability",
+      "The user's Gmail integration is active and the Gmail search tool is available in this turn. Use the tool when the answer depends on inbox contents.",
+      "Never claim that an email exists, was read, or contains specific information until the tool returns successfully with status=ok.",
+    ].join("\n");
+  }
+
+  if (capability === "connected_but_unavailable_this_turn") {
+    return [
+      "## Gmail capability",
+      "The user's Gmail is connected, but Gmail inbox access is not available in this turn.",
+      "Do not claim that you checked or can currently inspect the inbox.",
+    ].join("\n");
+  }
+
+  return [
+    "## Gmail capability",
+    "The user's Gmail is not connected, so you cannot access or inspect their inbox.",
+    "If the user asks for Gmail information, explain this limitation and direct them to Profile → Resume & Links → Gmail Connect.",
+    "Never imply that you checked their Gmail.",
+  ].join("\n");
+}
+
+export function buildSavedGmailCareerHistoryPrompt(args: {
+  canReadDocument: boolean;
+}) {
+  if (!args.canReadDocument) {
+    return [
+      "## Saved Gmail career history",
+      "A saved Gmail career-history document exists, but document reading is not available in this turn.",
+      "Do not claim that you read the saved document or inspected the current inbox.",
+    ].join("\n");
+  }
+
+  return [
+    "## Saved Gmail career history",
+    "A saved, user-editable Gmail career-history document is available.",
+    "When the answer depends on the user's past applications, interviews, or recruiting history, use list_documents and then read_document.",
+    "This document is a saved snapshot, not proof of the current inbox state. Distinguish reading it from checking Gmail with search_connected_gmail.",
+  ].join("\n");
+}
+
 /**
  * /career 텍스트 채팅과 실시간 voice call 프롬프트를 조립하는 핵심 함수.
  *
  * 블록 포함 규칙:
  * - 항상 포함: chat_core, mode guidance, profile_context, dynamic_state.
  * - 온보딩 중에만 포함: onboarding_rules, dynamic_state 안의 checklist/runtime progress.
+ * - 온보딩 완료 후 대화에는 post-onboarding guide를 포함하되, wrap-up 같은 별도 산출물은 명시적으로 제외할 수 있다.
  * - voice call에만 포함: voice_call_rules, dynamic_state 안의 최근 채팅 맥락.
  * - text chat에만 포함: dynamic_state 안의 opportunity feedback, recent activity summaries.
  */
@@ -79,6 +130,9 @@ export function buildCareerConversationPromptPlan(args: {
   conversationMode?: CareerConversationPromptMode;
   currentInsightContent: Record<string, string> | null;
   currentPreferences?: CareerPromptPreferences | null;
+  gmailCapability?: GmailCapability;
+  hasSavedGmailCareerHistory?: boolean;
+  includePostOnboardingConversationGuide?: boolean;
   isConversationCompletedOpportunityRunActive?: boolean;
   internalCallRequest?: InternalOpportunityCallRequest | null;
   isOnboardingDone?: boolean;
@@ -86,6 +140,7 @@ export function buildCareerConversationPromptPlan(args: {
   onboardingChecklistCoverage?: OnboardingChecklistCoverage | null;
   opportunityStatus?: CareerPromptOpportunityStatus | null;
   pendingOpportunityFeedbackContext?: string | null;
+  postOnboardingContext?: CareerPostOnboardingContext | null;
   profile: CareerPromptProfile | null;
   recentActivitySummaries?: readonly CareerPromptActivitySummary[] | null;
   recentRecommendedOpportunitiesText?: string | null;
@@ -115,19 +170,19 @@ export function buildCareerConversationPromptPlan(args: {
   // 온보딩 중에는 checklist 진행/종료 조건/현재 insight 값을 하나의 runtime state 블록으로 넣는다.
   const onboardingRuntimeStateSection = isOnboardingActive
     ? buildOnboardingRuntimeStateSection({
-        checklistContext: args.profile,
-        checklistCoverage: args.onboardingChecklistCoverage,
-        content: args.currentInsightContent,
-        quoteKeys: args.channel === "chat",
-      })
+      checklistContext: args.profile,
+      checklistCoverage: args.onboardingChecklistCoverage,
+      content: args.currentInsightContent,
+      quoteKeys: args.channel === "chat",
+    })
     : "";
 
   const futureMatchingInsightsSection = isOnboardingActive
     ? ""
     : buildKnownFutureMatchingInsightsSection({
-        content: args.currentInsightContent,
-        quoteKeys: args.channel === "chat",
-      });
+      content: args.currentInsightContent,
+      quoteKeys: args.channel === "chat",
+    });
 
   const profileContextBlock = buildProfileContextBlock({
     profile: args.profile,
@@ -144,11 +199,11 @@ export function buildCareerConversationPromptPlan(args: {
     isOnboardingActive && !allowToolPolicyDuringOnboarding
       ? ""
       : buildCareerToolPolicyPrompt({
-          channel: args.channel,
-          isOnboardingActive,
-          preferredLocale: args.currentPreferences?.preferredLocale ?? null,
-          toolNames: normalizedToolNames,
-        });
+        channel: args.channel,
+        isOnboardingActive,
+        preferredLocale: args.currentPreferences?.preferredLocale ?? null,
+        toolNames: normalizedToolNames,
+      });
 
   const isVoiceCall = args.channel === "voice";
 
@@ -214,6 +269,20 @@ export function buildCareerConversationPromptPlan(args: {
 
   promptBlocks.push(coreSystemPrompt);
   promptBlocks.push(conversationGuidePrompt());
+
+  if (
+    !isOnboardingActive &&
+    args.includePostOnboardingConversationGuide !== false
+  ) {
+    promptBlocks.push({
+      key: "post_onboarding_conversation_guide",
+      text: buildCareerPostOnboardingConversationGuide({
+        channel: args.channel,
+        preferredLocale: args.currentPreferences?.preferredLocale ?? null,
+      }),
+      cacheable: true,
+    });
+  }
 
   if (isOnboardingActive) {
     promptBlocks.push({
@@ -283,6 +352,24 @@ export function buildCareerConversationPromptPlan(args: {
     });
   }
 
+  if (args.gmailCapability) {
+    promptBlocks.push({
+      key: "gmail_capability",
+      text: buildGmailCapabilityPrompt(args.gmailCapability),
+    });
+  }
+
+  if (args.hasSavedGmailCareerHistory) {
+    promptBlocks.push({
+      key: "saved_gmail_career_history",
+      text: buildSavedGmailCareerHistoryPrompt({
+        canReadDocument:
+          normalizedToolNames.includes("list_documents") &&
+          normalizedToolNames.includes("read_document"),
+      }),
+    });
+  }
+
   if (futureMatchingInsightsSection) {
     promptBlocks.push({
       key: "future_matching_insights",
@@ -326,6 +413,12 @@ export function buildCareerConversationPromptPlan(args: {
   const officialJobSignupIntentPrompt = isOnboardingActive
     ? (args.officialJobSignupIntentPrompt?.trim() ?? "")
     : "";
+  const postOnboardingContextSection = isOnboardingActive
+    ? ""
+    : buildCareerPostOnboardingContextSection({
+        context: args.postOnboardingContext,
+        toolNames: normalizedToolNames,
+      });
 
   const runtimeOneTimeInstruction = args.runtimeInstruction
     ? "## High-priority runtime instruction : " + args.runtimeInstruction
@@ -339,6 +432,7 @@ export function buildCareerConversationPromptPlan(args: {
     runtimeOneTimeInstruction,
     args.companyTalentRequestText?.trim() ?? "",
     officialJobSignupIntentPrompt,
+    postOnboardingContextSection,
     onboardingRuntimeStateSection,
     existingPreferencesSection,
     optionalFollowUpOpportunitiesSection,

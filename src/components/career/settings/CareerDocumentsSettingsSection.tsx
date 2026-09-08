@@ -38,6 +38,7 @@ type CareerDocumentsSettingsSectionProps = {
   onAddDocument: () => void;
   onDeleteDocument: (documentId: string) => void;
   onOpenCallNote: (document: CareerTalentDocument) => void;
+  onEditDocument: (document: CareerTalentDocument) => void;
   onRenameDocument: (document: CareerTalentDocument) => void;
 };
 
@@ -89,151 +90,176 @@ const CareerDocumentsSettingsSection = ({
       </div>
       {documents.length > 0 ? (
         <div className="mt-2 grid gap-2">
-          {documents.map((document) => (
-            <div
-              key={document.id}
-              className="flex items-center gap-3 rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 py-3 shadow-sm"
-            >
-              {document.kind === "call_note" ? (
-                <PhoneCall
-                  aria-hidden="true"
-                  className="h-4 w-4 shrink-0 text-neutral-muted"
-                />
-              ) : (
-                <CareerDocumentFormatIcon fileName={document.fileName} />
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-center gap-2">
-                  {document.kind === "call_note" ? (
-                    <BareButton
-                      type="button"
-                      onClick={() => onOpenCallNote(document)}
-                      className="min-w-0 truncate text-left text-sm text-neutral-muted transition-colors hover:text-neutral-primary"
-                    >
-                      {document.fileName === "Harper call note"
-                        ? t(
+          {documents.map((document) => {
+            const isGmailCareerHistory =
+              document.originType === "gmail_career_history" &&
+              document.originId === "singleton";
+            return (
+              <div
+                key={document.id}
+                className="flex items-center gap-3 rounded-md border border-neutral-1000-a05 bg-bg-floating px-4 py-3 shadow-sm"
+              >
+                {document.kind === "call_note" ? (
+                  <PhoneCall
+                    aria-hidden="true"
+                    className="h-4 w-4 shrink-0 text-neutral-muted"
+                  />
+                ) : (
+                  <CareerDocumentFormatIcon fileName={document.fileName} />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-center gap-2">
+                    {document.kind === "call_note" ? (
+                      <BareButton
+                        type="button"
+                        onClick={() => onOpenCallNote(document)}
+                        className="min-w-0 truncate text-left text-sm text-neutral-muted transition-colors hover:text-neutral-primary"
+                      >
+                        {document.fileName === "Harper call note"
+                          ? t(
                             "career.profile.documents.call_note_title",
                             "Harper와의 통화"
                           )
-                        : document.fileName}
-                    </BareButton>
-                  ) : document.downloadUrl ? (
-                    <a
-                      href={document.downloadUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="min-w-0 truncate text-sm text-link underline underline-offset-2"
-                    >
-                      {document.fileName}
-                    </a>
-                  ) : (
-                    <p className="min-w-0 truncate text-sm text-neutral-primary">
-                      {document.fileName}
-                    </p>
-                  )}
-                  {document.kind === "call_note" ? (
-                    <Badge size="sm" variant="faded">
-                      {t("career.profile.documents.kind.call_note", "콜노트")}
-                    </Badge>
-                  ) : document.kind === "document" ? (
-                    <Badge
-                      size="sm"
-                      tone={document.isPublic ? "positive" : "neutral"}
-                      variant="faded"
-                    >
-                      {document.isPublic
-                        ? t("career.profile.documents.public", "회사 공개")
-                        : t("career.profile.documents.private", "비공개")}
-                    </Badge>
-                  ) : (
-                    <Badge size="sm" variant="faded">
-                      {t("career.profile.documents.kind.resume", "이력서")}
-                    </Badge>
-                  )}
-                </div>
-                <p className="mt-1 text-xs text-neutral-soft">
-                  {formatCareerDate(document.createdAt, locale)}
-                </p>
-              </div>
-              <ActionDropdown
-                align="end"
-                trigger={
-                  <MuteButton
-                    type="button"
-                    variant="transparent"
-                    size="sm"
-                    disabled={profileSavePending}
-                    aria-label={t(
-                      "career.profile.documents.actions",
-                      "문서 메뉴"
-                    )}
-                  >
-                    <Ellipsis className="h-4 w-4" />
-                  </MuteButton>
-                }
-              >
-                {document.kind === "call_note" ? (
-                  <ActionDropdownItem onSelect={() => onOpenCallNote(document)}>
-                    <Eye className="h-4 w-4" />
-                    {t(
-                      "career.profile.documents.open_call_note",
-                      "통화 기록 열기"
-                    )}
-                  </ActionDropdownItem>
-                ) : document.kind === "resume" ? (
-                  <ActionDropdownItem
-                    onSelect={() =>
-                      void onUpdateTalentDocument(document.id, {
-                        isPrimary: true,
-                      })
-                    }
-                  >
-                    <Star className="h-4 w-4" />
-                    {t(
-                      "career.profile.documents.set_primary",
-                      "대표 이력서로 지정"
-                    )}
-                  </ActionDropdownItem>
-                ) : (
-                  <ActionDropdownItem
-                    onSelect={() =>
-                      void onUpdateTalentDocument(document.id, {
-                        isPublic: !document.isPublic,
-                      })
-                    }
-                  >
-                    {document.isPublic ? (
-                      <EyeOff className="h-4 w-4" />
+                          : document.fileName}
+                      </BareButton>
+                  {isGmailCareerHistory ? (
+                      <MuteButton
+                        type="button"
+                        variant="transparent"
+                        size="sm"
+                        onClick={() => onEditDocument(document)}
+                        className="h-auto min-h-0 min-w-0 px-0 py-0 text-sm font-normal leading-normal text-link underline underline-offset-2 hover:bg-transparent hover:text-link active:bg-transparent"
+                      >
+                        {document.fileName}
+                      </MuteButton>
+                    ) : document.downloadUrl ? (
+                      <a
+                        href={document.downloadUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="min-w-0 truncate text-sm text-link underline underline-offset-2"
+                      >
+                        {document.fileName}
+                      </a>
                     ) : (
-                      <Eye className="h-4 w-4" />
+                      <p className="min-w-0 truncate text-sm text-neutral-primary">
+                        {document.fileName}
+                      </p>
                     )}
-                    {document.isPublic
-                      ? t(
+                    {document.kind === "call_note" ? (
+                      <Badge size="sm" variant="faded">
+                        {t("career.profile.documents.kind.call_note", "콜노트")}
+                      </Badge>
+                    ) : document.kind === "document" ? (
+                      <Badge
+                        size="sm"
+                        tone={document.isPublic ? "positive" : "neutral"}
+                        variant="faded"
+                      >
+                        {document.isPublic
+                          ? t("career.profile.documents.public", "회사 공개")
+                          : t("career.profile.documents.private", "비공개")}
+                      </Badge>
+                    ) : (
+                      <Badge size="sm" variant="faded">
+                        {t("career.profile.documents.kind.resume", "이력서")}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="mt-1 text-xs text-neutral-soft">
+                    {formatCareerDate(
+                      isGmailCareerHistory
+                        ? document.updatedAt
+                        : document.createdAt,
+                      locale
+                    )}
+                  </p>
+                </div>
+                <ActionDropdown
+                  align="end"
+                  trigger={
+                    <MuteButton
+                      type="button"
+                      variant="transparent"
+                      size="sm"
+                      disabled={profileSavePending}
+                      aria-label={t(
+                        "career.profile.documents.actions",
+                        "문서 메뉴"
+                      )}
+                    >
+                      <Ellipsis className="h-4 w-4" />
+                    </MuteButton>
+                  }
+                >
+                  {document.kind === "call_note" ? (
+                    <ActionDropdownItem onSelect={() => onOpenCallNote(document)}>
+                      <Eye className="h-4 w-4" />
+                      {t(
+                        "career.profile.documents.open_call_note",
+                        "통화 기록 열기"
+                      )}
+                    </ActionDropdownItem>
+                  ) : document.kind === "resume" ? (
+                    <ActionDropdownItem
+                      onSelect={() =>
+                        void onUpdateTalentDocument(document.id, {
+                          isPrimary: true,
+                        })
+                      }
+                    >
+                      <Star className="h-4 w-4" />
+                      {t(
+                        "career.profile.documents.set_primary",
+                        "대표 이력서로 지정"
+                      )}
+                    </ActionDropdownItem>
+                  ) : !isGmailCareerHistory ? (
+                    <ActionDropdownItem
+                      onSelect={() =>
+                        void onUpdateTalentDocument(document.id, {
+                          isPublic: !document.isPublic,
+                        })
+                      }
+                    >
+                      {document.isPublic ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                      {document.isPublic
+                        ? t(
                           "career.profile.documents.make_private",
                           "비공개로 전환"
                         )
-                      : t("career.profile.documents.make_public", "공개하기")}
-                  </ActionDropdownItem>
-                )}
-                {document.kind !== "call_note" ? (
-                  <ActionDropdownItem
-                    onSelect={() => onRenameDocument(document)}
-                  >
+                        : t("career.profile.documents.make_public", "공개하기")}
+                    </ActionDropdownItem>
+                  )}
+                  {document.kind !== "call_note" ? (
+                    <ActionDropdownItem
+                      onSelect={() => onRenameDocument(document)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                      {t("career.profile.documents.rename", "이름 수정")}
+                    </ActionDropdownItem>
+                  ) : null}
+                ) : null}
+                  <ActionDropdownItem onSelect={() => onRenameDocument(document)}>
                     <Pencil className="h-4 w-4" />
                     {t("career.profile.documents.rename", "이름 수정")}
                   </ActionDropdownItem>
-                ) : null}
-                <ActionDropdownSeparator />
-                <ActionDropdownItem
-                  tone="danger"
-                  onSelect={() => onDeleteDocument(document.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  {t("career.profile.documents.delete", "문서 삭제")}
-                </ActionDropdownItem>
-              </ActionDropdown>
-            </div>
-          ))}
+                  <ActionDropdownSeparator />
+                  <ActionDropdownItem
+                    tone="danger"
+                    onSelect={() => onDeleteDocument(document.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {t("career.profile.documents.delete", "문서 삭제")}
+                  </ActionDropdownItem>
+                </ActionDropdown>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <p className="mt-2 text-sm leading-6 text-neutral-soft">

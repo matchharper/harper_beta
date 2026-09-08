@@ -368,12 +368,12 @@ test("workspace-scoped Harper links keep model prose but use the verified org id
   const state = createOrgAgentToolExecutionState(minimalContext());
   const reply = enforceOrgAgentReplyInvariants(
     state,
-    "필요하면 <https://matchharper.com/org/settings?dialog=interview-availability&amp;orgId=hallucinated-workspace|가능 시간 설정>에서 조정할 수 있어요."
+    "필요하면 <https://matchharper.com/org/settings?orgId=hallucinated-workspace&amp;tab=calendar|Calendar 설정>에서 조정할 수 있어요."
   );
 
   assert.equal(
     reply,
-    `필요하면 <https://matchharper.com/org/settings?dialog=interview-availability&amp;orgId=${state.company.workspaceId}|가능 시간 설정>에서 조정할 수 있어요.`
+    `필요하면 <https://matchharper.com/org/settings?orgId=${state.company.workspaceId}&amp;tab=calendar|Calendar 설정>에서 조정할 수 있어요.`
   );
 });
 

@@ -62,8 +62,10 @@ import { filterOrgAgentMentionCandidates } from "@/lib/org/agent/mentionCandidat
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { formatInProgressSlackRoleCreations } from "@/lib/org/agent/slackRoleCreation";
 import { fetchCompanyTalentContactDraftsForScope } from "@/lib/companyTalentRequests/server";
+import { fetchCompanyRoleCalibrationPromptIndex } from "@/lib/org/roleCalibrationServer";
 
 export type OrgAgentPromptContext = {
+  calibrationsText?: string;
   companyText: string;
   completeRoleRequestIds: string[];
   contactDraftsText?: string;
@@ -308,6 +310,9 @@ function formatConversation(
         (ref) =>
           `candidate_contact_ref{contact_id=${ref.contactId};revision=${ref.revision}}`
       ),
+      message.metadata.roleCalibration
+        ? `role_profile_example_context{set_id=${message.metadata.roleCalibration.calibrationId};profile_ids=${message.metadata.roleCalibration.profileIds.join(",")}}`
+        : "",
     ].filter(Boolean);
     const speaker =
       message.role === "assistant"
@@ -456,6 +461,7 @@ export async function buildOrgAgentPromptContext(args: {
     messages,
     pendingUpdate,
     contactDrafts,
+    calibrationsText,
   ] = await Promise.all([
     fetchOrgAgentRoles({ admin: args.admin, workspaceId }),
     fetchOrgAgentWorkspaceAvailability({ admin: args.admin, workspace }),
@@ -515,6 +521,17 @@ export async function buildOrgAgentPromptContext(args: {
           admin: args.admin as any,
           conversationId: args.conversation.id,
           slackThreadId: scope.kind === "slack" ? scope.slackThreadId : null,
+          workspaceId,
+        }),
+    }),
+    optionalContext({
+      fallback:
+        "unavailable=true; do not assume there is no prepared Role profile example set",
+      label: "prepared_role_profile_examples",
+      task: () =>
+        fetchCompanyRoleCalibrationPromptIndex({
+          admin: args.admin,
+          preferredRoleId: args.conversation.role_id,
           workspaceId,
         }),
     }),
@@ -606,6 +623,7 @@ export async function buildOrgAgentPromptContext(args: {
     );
   }
   return enforceOrgAgentContextBudget({
+    calibrationsText,
     companyText: formatOrgAgentCompanyContext({
       companyDetailsAvailable: availability.companyDetailsAvailable,
       companyName: workspace.companyName,

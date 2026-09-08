@@ -70,10 +70,26 @@ export function buildOrgRoleUrl(workspaceId: string, roleId?: string | null) {
   return `${getOrgPublicSiteUrl()}/org/jobs?${params.toString()}`;
 }
 
+export function buildOrgRoleCalibrationProfileUrl(args: {
+  calibrationId: string;
+  profileId: string;
+  roleId: string;
+  workspaceId: string;
+}) {
+  const params = new URLSearchParams({
+    calibration: args.calibrationId,
+    orgId: args.workspaceId,
+    profile: args.profileId,
+    roleId: args.roleId,
+    tab: "matching",
+  });
+  return `${getOrgPublicSiteUrl()}/org/role?${params.toString()}`;
+}
+
 export function buildOrgMeetingAvailabilityUrl(workspaceId: string) {
   const params = new URLSearchParams({
-    dialog: "interview-availability",
     orgId: workspaceId,
+    tab: "calendar",
   });
   return `${getOrgPublicSiteUrl()}/org/settings?${params.toString()}`;
 }
@@ -128,6 +144,122 @@ export function buildOrgRoleCreatedSlackMessage(args: {
     "",
     "Inbox의 연결 대기 후보자를 검토한 뒤 연결을 수락하거나 거절하면 그 결정에 맞춰 다음 단계를 진행해요. 연결을 수락하면 소개 이메일로 양측을 연결하고, 연결을 거절하면 회사가 더 진행하지 않기로 했다는 종료 결정을 후보자에게 안내해요. 평소에도 어떤 점을 선호하시는지, 특정 후보자가 왜 기준에 맞지 않았는지 자세히 알려주실수록 더 정확한 매칭에 반영할게요.",
   ].join("\n");
+}
+
+export function buildOrgRoleCalibrationSlackMessage(args: {
+  calibrationId: string;
+  profiles: Array<{
+    display: {
+      headline: string | null;
+      name: string;
+      profilePicture?: string | null;
+    };
+    profileId: string;
+    selection: { reason: string };
+  }>;
+  roleId: string;
+  roleName: string;
+  workspaceId: string;
+}) {
+  const roleUrl = buildOrgRoleUrl(args.workspaceId, args.roleId);
+  const profileBlocks = args.profiles.map((profile) => {
+    const profileUrl = buildOrgRoleCalibrationProfileUrl({
+      calibrationId: args.calibrationId,
+      profileId: profile.profileId,
+      roleId: args.roleId,
+      workspaceId: args.workspaceId,
+    });
+    return [
+      `*Profile ${escapeSlackText(profile.profileId)}* — ${formatSlackLink(profileUrl, profile.display.name)}`,
+      profile.display.headline
+        ? escapeSlackText(profile.display.headline)
+        : null,
+      `*Harper가 고른 이유* ${escapeSlackText(profile.selection.reason)}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  });
+  return [
+    `*${formatSlackLink(roleUrl, args.roleName)} 역할의 예시 프로필을 골랐어요*`,
+    "Harper가 실제로 연결을 고려할 만한 분들을 기준으로 골랐어요. 서로 다른 강점과 확인점이 있는 프로필을 함께 보고, 지금 생각한 매칭 기준이 맞는지 확인하고 싶어요.",
+    "",
+    profileBlocks.join("\n\n———\n\n"),
+    "",
+    "이 스레드에서 `A는 Good`, `C는 경력이 짧아서 Bad`처럼 말씀해 주세요. 좋거나 아쉬운 이유를 함께 알려주시면 다음 추천 기준에도 반영할게요.",
+  ].join("\n");
+}
+
+export function buildOrgRoleCalibrationSlackBlocks(args: {
+  calibrationId: string;
+  profiles: Array<{
+    display: {
+      headline: string | null;
+      name: string;
+      profilePicture?: string | null;
+    };
+    profileId: string;
+    selection: { reason: string };
+  }>;
+  roleId: string;
+  roleName: string;
+  workspaceId: string;
+}) {
+  const roleUrl = buildOrgRoleUrl(args.workspaceId, args.roleId);
+  return [
+    {
+      text: {
+        text: `*${formatSlackLink(roleUrl, `${args.roleName} 역할의 예시 프로필을 골랐어요`)}*\nHarper가 실제로 연결을 고려할 만한 분들을 기준으로 골랐어요. 지금 생각한 매칭 기준이 맞는지 확인하고 싶어요.`,
+        type: "mrkdwn",
+      },
+      type: "section",
+    },
+    ...args.profiles.flatMap((profile, index) => {
+      const profileUrl = buildOrgRoleCalibrationProfileUrl({
+        calibrationId: args.calibrationId,
+        profileId: profile.profileId,
+        roleId: args.roleId,
+        workspaceId: args.workspaceId,
+      });
+      const localPicture = profile.display.profilePicture?.trim();
+      const section = {
+        ...(localPicture?.startsWith("/") && !localPicture.startsWith("//")
+          ? {
+              accessory: {
+                alt_text: `예시 프로필 ${profile.profileId}`,
+                image_url: new URL(
+                  localPicture,
+                  getOrgPublicSiteUrl()
+                ).toString(),
+                type: "image",
+              },
+            }
+          : {}),
+        text: {
+          text: [
+            `*Profile ${escapeSlackText(profile.profileId)} · ${formatSlackLink(profileUrl, profile.display.name)}*`,
+            profile.display.headline
+              ? escapeSlackText(profile.display.headline)
+              : null,
+            `*Harper가 고른 이유* ${escapeSlackText(profile.selection.reason)}`,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+          type: "mrkdwn",
+        },
+        type: "section",
+      };
+      return index < args.profiles.length - 1
+        ? [section, { type: "divider" }]
+        : [section];
+    }),
+    {
+      text: {
+        text: "이 스레드에서 `A는 Good`, `C는 경력이 짧아서 Bad`처럼 말씀해 주세요. 좋거나 아쉬운 이유를 함께 알려주시면 다음 추천 기준에도 반영할게요.",
+        type: "mrkdwn",
+      },
+      type: "section",
+    },
+  ];
 }
 
 export function buildOrgCandidateAcceptedSlackMessage(args: {

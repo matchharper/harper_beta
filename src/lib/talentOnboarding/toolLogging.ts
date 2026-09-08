@@ -11,6 +11,22 @@ function safeSerialize(value: unknown, maxLength = 3000) {
     : serialized;
 }
 
+function sanitizeTalentToolResultForLog(name: string, result: unknown) {
+  if (name !== "search_connected_gmail") return result;
+
+  const record =
+    result && typeof result === "object" && !Array.isArray(result)
+      ? (result as Record<string, unknown>)
+      : null;
+  const emails = Array.isArray(record?.emails) ? record.emails : [];
+
+  return {
+    emailCount: emails.length,
+    status: typeof record?.status === "string" ? record.status : "unknown",
+    truncated: record?.truncated === true,
+  };
+}
+
 export function logTalentToolCall(args: {
   callId?: string | null;
   input?: unknown;
@@ -55,7 +71,10 @@ export function logTalentToolResult(args: {
       args.callId ? `callId: ${args.callId}` : null,
       `durationMs: ${Math.round(args.durationMs)}`,
       "result:",
-      safeSerialize(args.result ?? {}, 1500),
+      safeSerialize(
+        sanitizeTalentToolResultForLog(args.name, args.result ?? {}),
+        1500
+      ),
       "============================================================",
       "",
     ]

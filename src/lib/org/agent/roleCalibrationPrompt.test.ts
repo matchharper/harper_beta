@@ -36,6 +36,9 @@ test("calibration writer turns one reference into concrete bonuses and an eviden
   assert.match(prompt, /missing proof that the reference person satisfies this Role is not a calibration question/);
   assert.match(prompt, /Put all currently known relevant URLs in one urls array/);
   assert.match(prompt, /shouldUpdate=false/);
+  assert.match(prompt, /prepared_role_profile_examples/);
+  assert.match(prompt, /make no Hiring Brief change in this task/);
+  assert.match(prompt, /followUpQuestion is null/);
   assert.match(prompt, /userReply/);
   assert.doesNotMatch(prompt, /another model/i);
   assert.doesNotMatch(prompt, /pre-open/i);

@@ -1,4 +1,4 @@
-import { Copy, Loader2, Plus, Trash2, Upload, X } from "lucide-react";
+import { Loader2, Plus, Upload, X } from "lucide-react";
 import {
   FormEvent,
   Fragment,
@@ -57,6 +57,7 @@ import CareerMessageBubble, {
   type CareerAssistantChoiceSelection,
   type CareerReengagementActionSelection,
 } from "./CareerMessageBubble";
+import { CareerMessageDevActions } from "./CareerMessageDevActions";
 import { useRouter } from "next/router";
 import React from "react";
 import {
@@ -182,7 +183,9 @@ const getRecommendationStatusAnchor = (
     (preamble) => trimmedContent.startsWith(preamble)
   );
   if (!matchedPreamble) {
-    return null;
+    if (latestStatus.state !== "stopped") return null;
+    const stoppedAnchor = message.content.trimEnd().length;
+    return stoppedAnchor > 0 ? stoppedAnchor : null;
   }
 
   const fallbackAnchor = leadingWhitespaceLength + matchedPreamble.length;
@@ -228,107 +231,6 @@ const InterestChoiceButton = ({
     {children}
   </BareButton>
 );
-
-const CareerMessageDevActions = ({
-  isUser,
-  message,
-  onDeleteMessage,
-}: {
-  isUser: boolean;
-  message: CareerMessage;
-  onDeleteMessage: (messageId: string | number) => boolean | Promise<boolean>;
-}) => {
-  const [deleteArmed, setDeleteArmed] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const logCareerEvent = useCareerLogEvent();
-  const messageId = Number(message.id);
-
-  if (!Number.isSafeInteger(messageId) || messageId <= 0 || message.typing) {
-    return null;
-  }
-
-  const handleCopy = async () => {
-    logCareerEvent("click_chat_dev_message_copy", {
-      messageId,
-      messageRole: message.role,
-      messageType: message.messageType,
-    });
-
-    try {
-      await navigator.clipboard.writeText(message.content);
-      // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
-      showToast({ message: "메시지를 복사했습니다.", variant: "white" });
-    } catch {
-      // career-i18n-skip-next-line: dev controls text is intentionally Korean-only.
-      showToast({ message: "메시지를 복사하지 못했습니다.", variant: "white" });
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!deleteArmed) {
-      logCareerEvent("click_chat_dev_message_delete", {
-        messageId,
-        messageRole: message.role,
-        messageType: message.messageType,
-      });
-      setDeleteArmed(true);
-      return;
-    }
-
-    setDeleting(true);
-    const deleted = await onDeleteMessage(message.id);
-    setDeleting(false);
-    if (deleted) {
-      logCareerEvent("confirm_chat_dev_message_delete", {
-        messageId,
-        messageRole: message.role,
-        messageType: message.messageType,
-      });
-    }
-    if (!deleted) setDeleteArmed(false);
-  };
-
-  return (
-    <div
-      data-career-i18n-skip="true"
-      className={cn(
-        "mt-1 flex transition-opacity duration-150",
-        isUser ? "self-end" : "self-start",
-        deleteArmed
-          ? "pointer-events-auto opacity-100"
-          : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
-      )}
-    >
-      <MuteButton
-        aria-label="메시지 복사"
-        size="sm"
-        title="복사"
-        variant="transparent"
-        onClick={() => void handleCopy()}
-      >
-        <Copy aria-hidden="true" className="h-3.5 w-3.5" />
-      </MuteButton>
-      <MuteButton
-        aria-label={
-          deleteArmed
-            ? "메시지 삭제를 확정하려면 다시 누르세요."
-            : "메시지 삭제"
-        }
-        disabled={deleting}
-        size="sm"
-        title={deleteArmed ? "확인" : "삭제"}
-        variant={deleteArmed ? "critical" : "transparent"}
-        onClick={() => void handleDelete()}
-      >
-        {deleteArmed ? (
-          "확인"
-        ) : (
-          <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
-        )}
-      </MuteButton>
-    </div>
-  );
-};
 
 type StartConversationStarterHandler = (args: {
   mode: CareerConversationStarterMode;
@@ -392,6 +294,13 @@ const TimelineMessageList = memo(function TimelineMessageList({
             : (thinkingLogsByMessageId[String(message.id)] ?? []);
         const { latestStatus, textLogs } =
           splitRecommendJobPostingStatusLogs(thinkingLogs);
+        const followingMessage = messages[index + 1];
+        const followingAssistantHasStoppedStatus =
+          isUser &&
+          followingMessage?.role === "assistant" &&
+          splitRecommendJobPostingStatusLogs(
+            followingMessage.thinkingLogs ?? []
+          ).latestStatus?.state === "stopped";
         const isRunningRecommendationSearch = latestStatus?.state === "running";
         const recommendationSearchRun = !isUser
           ? (message.recommendationSearchRun ?? null)
@@ -456,7 +365,10 @@ const TimelineMessageList = memo(function TimelineMessageList({
         };
 
         const messageNode = (
-          <div className="group flex flex-col gap-2">
+          <div
+            data-career-message-container="true"
+            className="group flex flex-col gap-2"
+          >
             {!isUser && textLogs.length > 0 && (
               <ThinkingLogPanel
                 active={
@@ -549,12 +461,14 @@ const TimelineMessageList = memo(function TimelineMessageList({
                 />
               </>
             ) : null}
-            {isUser && latestStatus?.state === "stopped" && (
-              <RecommendationSearchStatusPanel
-                active={false}
-                status={latestStatus}
-              />
-            )}
+            {isUser &&
+              latestStatus?.state === "stopped" &&
+              !followingAssistantHasStoppedStatus && (
+                <RecommendationSearchStatusPanel
+                  active={false}
+                  status={latestStatus}
+                />
+              )}
             {!isUser && recommendationSearchRun && (
               <RecommendationSearchStatusPanel
                 active={recommendationSearchRun.active}
@@ -1436,17 +1350,13 @@ const CareerTimelineSection = ({
                     </div>
                   ))}
                 </div>
-                <BareButton
-                  type="button"
-                  onClick={onAddProfileLink}
-                  className="mt-4 inline-flex h-10 items-center gap-2 rounded-[8px] border border-neutral-1000-a10 bg-bg-floating px-4 text-sm text-neutral-primary transition-colors hover:border-neutral-400 hover:bg-bg-weak"
-                >
+                <MuteButton type="button" onClick={onAddProfileLink} size="md">
                   <Plus className="h-4 w-4" />
                   {t(
                     "career.chat.career_timeline_section.1gvzqes",
                     "링크 추가"
                   )}
-                </BareButton>
+                </MuteButton>
               </section>
 
               {profileError ? (

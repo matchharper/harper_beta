@@ -260,6 +260,7 @@ export const useCareerChat = ({
   } | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const activeStreamAssistantIdRef = useRef<string | null>(null);
+  const activeStreamAssistantRef = useRef<CareerMessage | null>(null);
   const activeUserMessageRef = useRef<CareerMessagePayload | null>(null);
   const cancellationSavePendingRef = useRef(false);
   const cancelRequestedRef = useRef(false);
@@ -382,9 +383,16 @@ export const useCareerChat = ({
     const stoppedStatus: CareerRecommendationSearchStatus = {
       state: "stopped",
     };
-    const logs = appendRecommendationStatusToActiveLogs(stoppedStatus);
     const streamAssistantId = activeStreamAssistantIdRef.current;
+    const activeStreamAssistant = activeStreamAssistantRef.current;
     const activeUserMessage = activeUserMessageRef.current;
+    const logs = upsertRecommendJobPostingStatusLog(
+      activeStreamAssistant?.thinkingLogs ?? activeThinkingLogsRef.current,
+      stoppedStatus
+    );
+    activeThinkingLogsRef.current = logs;
+    setActiveThinkingLogs(logs);
+    setActiveRecommendationSearchStatus(stoppedStatus);
     const stoppedUserMessage = activeUserMessage
       ? {
           ...activeUserMessage,
@@ -394,54 +402,53 @@ export const useCareerChat = ({
           ),
         }
       : null;
+    const stoppedAssistantMessage = activeStreamAssistant
+      ? {
+          ...activeStreamAssistant,
+          thinkingLogs: logs,
+          typing: false,
+        }
+      : null;
 
-    if (stoppedUserMessage) {
-      activeUserMessageRef.current = stoppedUserMessage;
+    if (stoppedUserMessage || stoppedAssistantMessage) {
+      if (stoppedUserMessage) {
+        activeUserMessageRef.current = stoppedUserMessage;
+      }
       setLocalMessages((prev) => {
-        const withStoppedUser = replaceMessageById(
-          prev,
-          stoppedUserMessage.id,
-          toUiMessage(stoppedUserMessage)
-        );
-        if (!streamAssistantId) return withStoppedUser;
+        const withStoppedUser = stoppedUserMessage
+          ? replaceMessageById(
+              prev,
+              stoppedUserMessage.id,
+              toUiMessage(stoppedUserMessage)
+            )
+          : prev;
+        if (!streamAssistantId || !stoppedAssistantMessage) {
+          return withStoppedUser;
+        }
         return withStoppedUser.map((item) =>
-          String(item.id) === streamAssistantId
-            ? {
-                ...item,
-                content: tCareer(H.opportunitySearchStopped),
-                thinkingLogs: logs,
-                typing: false,
-              }
-            : item
+          String(item.id) === streamAssistantId ? stoppedAssistantMessage : item
         );
       });
-    } else if (streamAssistantId) {
-      setLocalMessages((prev) =>
-        prev.map((item) =>
-          String(item.id) === streamAssistantId
-            ? {
-                ...item,
-                thinkingLogs: logs,
-                typing: false,
-              }
-            : item
-        )
-      );
     }
 
     activeStreamAssistantIdRef.current = null;
+    activeStreamAssistantRef.current = null;
     setAssistantTyping(false);
     setOnboardingWrapupPending(false);
     setScrollTick((t) => t + 1);
-    return stoppedUserMessage;
-  }, [appendRecommendationStatusToActiveLogs, tCareer]);
+    return {
+      assistantMessage: stoppedAssistantMessage,
+      userMessage: stoppedUserMessage,
+    };
+  }, []);
 
   const cancelActiveRecommendationSearch = useCallback(() => {
     if (cancelRequestedRef.current) return;
     cancelRequestedRef.current = true;
     cancellationSavePendingRef.current = true;
     const stoppedAssistantMessageId = activeStreamAssistantIdRef.current;
-    const stoppedUserMessage = markActiveRecommendationSearchStopped();
+    const stoppedMessages = markActiveRecommendationSearchStopped();
+    const stoppedUserMessage = stoppedMessages.userMessage;
     abortControllerRef.current?.abort();
 
     if (!conversationId || !stoppedUserMessage) {
@@ -456,7 +463,15 @@ export const useCareerChat = ({
           method: "POST",
           body: JSON.stringify({
             conversationId,
-            locale,
+            assistantMessage: stoppedMessages.assistantMessage
+              ? {
+                  content: stoppedMessages.assistantMessage.content,
+                  recommendationStatusAfterCharCount:
+                    stoppedMessages.assistantMessage
+                      .recommendationStatusAfterCharCount,
+                  thinkingLogs: stoppedMessages.assistantMessage.thinkingLogs,
+                }
+              : undefined,
             userMessageId: stoppedUserMessage.id,
           }),
         });
@@ -478,11 +493,12 @@ export const useCareerChat = ({
           : null;
         activeUserMessageRef.current = updatedUserMessage;
         setLocalMessages((prev) => {
-          const withoutStoppedPlaceholder = stoppedAssistantMessageId
-            ? prev.filter(
-                (item) => String(item.id) !== stoppedAssistantMessageId
-              )
-            : prev;
+          const withoutStoppedPlaceholder =
+            updatedAssistantMessage && stoppedAssistantMessageId
+              ? prev.filter(
+                  (item) => String(item.id) !== stoppedAssistantMessageId
+                )
+              : prev;
           const withStoppedUser = replaceMessageById(
             withoutStoppedPlaceholder,
             updatedUserMessage.id,
@@ -517,7 +533,6 @@ export const useCareerChat = ({
   }, [
     conversationId,
     fetchWithAuth,
-    locale,
     markActiveRecommendationSearchStopped,
     onMessagesChanged,
     tCareer,
@@ -539,6 +554,8 @@ export const useCareerChat = ({
     setStage(payload.conversation.stage);
     setLocalMessages([]);
     activeConversationStarterRef.current = null;
+    activeStreamAssistantIdRef.current = null;
+    activeStreamAssistantRef.current = null;
     activeUserMessageRef.current = null;
     cancellationSavePendingRef.current = false;
     activeThinkingLogsRef.current = [];
@@ -554,25 +571,22 @@ export const useCareerChat = ({
     setScrollTick((t) => t + 1);
   }, []);
 
-  const removeMessages = useCallback(
-    (messageIds: Array<string | number>) => {
-      if (messageIds.length === 0) return;
+  const removeMessages = useCallback((messageIds: Array<string | number>) => {
+    if (messageIds.length === 0) return;
 
-      const idsToRemove = new Set(messageIds.map((id) => String(id)));
-      setLocalMessages((current) =>
-        current.filter((message) => !idsToRemove.has(String(message.id)))
-      );
-      setThinkingLogsByMessageId((current) => {
-        const next = { ...current };
-        for (const messageId of idsToRemove) {
-          delete next[messageId];
-        }
-        return next;
-      });
-      setScrollTick((t) => t + 1);
-    },
-    []
-  );
+    const idsToRemove = new Set(messageIds.map((id) => String(id)));
+    setLocalMessages((current) =>
+      current.filter((message) => !idsToRemove.has(String(message.id)))
+    );
+    setThinkingLogsByMessageId((current) => {
+      const next = { ...current };
+      for (const messageId of idsToRemove) {
+        delete next[messageId];
+      }
+      return next;
+    });
+    setScrollTick((t) => t + 1);
+  }, []);
 
   const regenerateOnboardingWrapup = useCallback(async () => {
     if (!user || !conversationId || onboardingWrapupPending) return;
@@ -691,6 +705,8 @@ export const useCareerChat = ({
       cancelRequestedRef.current = false;
       cancellationSavePendingRef.current = false;
       activeUserMessageRef.current = null;
+      activeStreamAssistantIdRef.current = null;
+      activeStreamAssistantRef.current = null;
       setChatPending(true);
       setLocalMessages((prev) => [
         ...prev,
@@ -773,23 +789,30 @@ export const useCareerChat = ({
             if (streamAssistantVisible) return;
             streamAssistantVisible = true;
             activeStreamAssistantIdRef.current = streamAssistantId;
+            const streamAssistant: CareerMessage = {
+              id: streamAssistantId,
+              role: "assistant",
+              content: "",
+              messageType: "chat",
+              createdAt: new Date().toISOString(),
+              typing: true,
+            };
+            activeStreamAssistantRef.current = streamAssistant;
             setAssistantTyping(true);
-            setLocalMessages((prev) => [
-              ...prev,
-              {
-                id: streamAssistantId,
-                role: "assistant",
-                content: "",
-                messageType: "chat",
-                createdAt: new Date().toISOString(),
-                typing: true,
-              },
-            ]);
+            setLocalMessages((prev) => [...prev, streamAssistant]);
           };
 
           const appendStreamDelta = (delta: string) => {
             if (!delta) return;
             ensureStreamAssistant();
+            const currentAssistant = activeStreamAssistantRef.current;
+            if (currentAssistant) {
+              activeStreamAssistantRef.current = {
+                ...currentAssistant,
+                content: `${currentAssistant.content}${delta}`,
+                typing: true,
+              };
+            }
             setLocalMessages((prev) =>
               prev.map((item) =>
                 String(item.id) === streamAssistantId
@@ -807,6 +830,17 @@ export const useCareerChat = ({
           const setStreamAssistantThinkingLogs = (logs: string[]) => {
             if (logs.length === 0) return;
             ensureStreamAssistant();
+            const currentAssistant = activeStreamAssistantRef.current;
+            if (currentAssistant) {
+              activeStreamAssistantRef.current = {
+                ...currentAssistant,
+                thinkingLogs: logs,
+                typing:
+                  currentAssistant.content.trim().length > 0
+                    ? currentAssistant.typing
+                    : false,
+              };
+            }
             setAssistantTyping(true);
             setLocalMessages((prev) =>
               prev.map((item) =>
@@ -855,6 +889,7 @@ export const useCareerChat = ({
             );
             streamAssistantVisible = false;
             activeStreamAssistantIdRef.current = null;
+            activeStreamAssistantRef.current = null;
             pendingAssistantMessageId = null;
             setAssistantTyping(false);
             setScrollTick((t) => t + 1);
@@ -928,6 +963,14 @@ export const useCareerChat = ({
                   : "";
               ensureStreamAssistant();
               setAssistantTyping(true);
+              const currentAssistant = activeStreamAssistantRef.current;
+              if (currentAssistant) {
+                activeStreamAssistantRef.current = {
+                  ...currentAssistant,
+                  content,
+                  typing: content.length > 0,
+                };
+              }
               setLocalMessages((prev) =>
                 prev.map((item) =>
                   String(item.id) === streamAssistantId
@@ -944,6 +987,13 @@ export const useCareerChat = ({
             }
 
             if (event === "assistant_text_done") {
+              const currentAssistant = activeStreamAssistantRef.current;
+              if (currentAssistant) {
+                activeStreamAssistantRef.current = {
+                  ...currentAssistant,
+                  typing: false,
+                };
+              }
               setLocalMessages((prev) =>
                 prev.map((item) =>
                   String(item.id) === streamAssistantId
@@ -997,6 +1047,13 @@ export const useCareerChat = ({
               const contentLength = toRecommendationStatusAnchor(data);
               if (contentLength === null) return;
               ensureStreamAssistant();
+              const currentAssistant = activeStreamAssistantRef.current;
+              if (currentAssistant) {
+                activeStreamAssistantRef.current = {
+                  ...currentAssistant,
+                  recommendationStatusAfterCharCount: contentLength,
+                };
+              }
               setLocalMessages((prev) =>
                 prev.map((item) =>
                   String(item.id) === streamAssistantId
@@ -1055,6 +1112,7 @@ export const useCareerChat = ({
               });
               streamAssistantVisible = false;
               activeStreamAssistantIdRef.current = null;
+              activeStreamAssistantRef.current = null;
               pendingAssistantMessageId = null;
               setAssistantTyping(false);
               commitStreamMessages(payloads);
@@ -1140,6 +1198,7 @@ export const useCareerChat = ({
               setChatPending(false);
               setAssistantTyping(false);
               activeStreamAssistantIdRef.current = null;
+              activeStreamAssistantRef.current = null;
             }
           };
 
@@ -1276,6 +1335,7 @@ export const useCareerChat = ({
           )
         );
         activeStreamAssistantIdRef.current = null;
+        activeStreamAssistantRef.current = null;
         setChatError(message);
         args.onError?.();
       } finally {
@@ -1338,6 +1398,8 @@ export const useCareerChat = ({
 
   const resetChatState = useCallback(() => {
     activeUserMessageRef.current = null;
+    activeStreamAssistantIdRef.current = null;
+    activeStreamAssistantRef.current = null;
     cancellationSavePendingRef.current = false;
     cancelRequestedRef.current = false;
     setStage("profile");

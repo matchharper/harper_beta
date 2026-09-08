@@ -51,6 +51,13 @@ test("organization-agent system prompt keeps runtime data out", () => {
     prompt,
     /requester as the default organizer and first company attendee/
   );
+  assert.match(prompt, /active organizer Google Calendar connection/);
+  assert.match(prompt, /saved organizer availability as prerequisites/);
+  assert.match(prompt, /identify times when the interview cannot happen/);
+  assert.match(
+    prompt,
+    /invite the candidate and company attendees to one shared meeting/
+  );
   assert.match(
     prompt,
     /time-selection message follows the standard delayed-delivery policy/
@@ -88,7 +95,10 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.match(prompt, /Never claim an unconfirmed action succeeded/);
   assert.match(prompt, /call calibrate_role_hiring_brief/);
   assert.doesNotMatch(prompt, /calibrate_role_hiring_brief as the only tool/);
-  assert.match(prompt, /Recognize this intent from the conversation/);
+  assert.match(prompt, /profile-evidence route from where the person came from/);
+  assert.match(prompt, /<profile_evidence_routing>/);
+  assert.match(prompt, /call record_role_profile_example_feedback/);
+  assert.match(prompt, /routes are mutually exclusive/);
   assert.match(prompt, /evidence for the company's caliber/);
   assert.match(prompt, /internal candidate mention/);
   assert.match(

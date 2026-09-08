@@ -3,6 +3,7 @@ export * from "@/lib/career/prompts/types";
 export * from "@/lib/career/prompts/promptUtils";
 export * from "@/lib/career/prompts/initialPrompts";
 export * from "@/lib/career/prompts/conversationPlan";
+export * from "@/lib/career/prompts/postOnboardingGuide";
 export * from "@/lib/career/prompts/realtimeRecentConversation";
 export * from "@/lib/career/prompts/cases/insightExtractionPrompts";
 export * from "@/lib/career/prompts/cases/lifecyclePrompts";

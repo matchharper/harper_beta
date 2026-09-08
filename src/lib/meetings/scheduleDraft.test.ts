@@ -7,6 +7,7 @@ import {
   normalizeInterviewDuration,
   resolveMeetingOrganizerEmail,
   resolveMeetingOrganizerName,
+  resolveMeetingScheduleDraftBlocker,
   type PreparedMeetingScheduleDraft,
 } from "@/lib/meetings/scheduleDraft";
 
@@ -137,6 +138,39 @@ test("defaults duration to 60 minutes and validates explicit edits", () => {
   assert.throws(() => normalizeInterviewDuration(50), /15분 단위/);
 });
 
+test("meeting setup blockers stop at Calendar before availability", () => {
+  assert.equal(
+    resolveMeetingScheduleDraftBlocker({
+      availabilityConfigured: false,
+      calendarConnectionActive: false,
+      meetingPurposeConfigured: true,
+      meetingStageRequired: false,
+      organizerEmailConfigured: true,
+    }),
+    "calendar_connection_missing"
+  );
+  assert.equal(
+    resolveMeetingScheduleDraftBlocker({
+      availabilityConfigured: false,
+      calendarConnectionActive: true,
+      meetingPurposeConfigured: true,
+      meetingStageRequired: false,
+      organizerEmailConfigured: true,
+    }),
+    "availability_missing"
+  );
+  assert.equal(
+    resolveMeetingScheduleDraftBlocker({
+      availabilityConfigured: true,
+      calendarConnectionActive: true,
+      meetingPurposeConfigured: true,
+      meetingStageRequired: false,
+      organizerEmailConfigured: true,
+    }),
+    null
+  );
+});
+
 test("confirmation presents defaults together without asking each field", () => {
   const confirmation = formatPreparedMeetingScheduleConfirmation({
     candidateName: "Ito",
@@ -172,6 +206,8 @@ test("confirmation distinguishes internal notes from candidate-facing copy", () 
 
 test("missing availability asks for one prerequisite without staging approval", () => {
   const confirmation = formatPreparedMeetingScheduleConfirmation({
+    calendarSettingsUrl:
+      "https://matchharper.com/org/settings?orgId=workspace&tab=calendar",
     candidateName: "Ito",
     draft: draft({ availability: null, draftBlocker: "availability_missing" }),
   });
@@ -180,10 +216,37 @@ test("missing availability asks for one prerequisite without staging approval", 
   assert.match(confirmation, /60분/);
   assert.match(confirmation, /“1차 기술 인터뷰” 단계로 옮기면서/);
   assert.doesNotMatch(confirmation, /스케줄 열기/);
+  assert.match(
+    confirmation,
+    /\[Calendar 설정\]\(https:\/\/matchharper\.com\/org\/settings\?orgId=workspace&tab=calendar\)/
+  );
   assert.match(confirmation, /아직 Ito님께는 아무 연락도 보내지 않았어요/);
   assert.match(confirmation, /이 대화에서 편하게 알려주세요/);
   assert.doesNotMatch(confirmation, /연결 상태|초안/);
   assert.doesNotMatch(confirmation, /저장할까요/);
+});
+
+test("missing Calendar connection explains why it is required and links setup", () => {
+  const confirmation = formatPreparedMeetingScheduleConfirmation({
+    calendarSettingsUrl:
+      "https://matchharper.com/org/settings?orgId=workspace&tab=calendar",
+    candidateName: "Ito",
+    draft: draft({
+      availability: null,
+      draftBlocker: "calendar_connection_missing",
+    }),
+  });
+
+  assert.match(confirmation, /민지님의 Google Calendar를 연결해 주세요/);
+  assert.match(confirmation, /인터뷰가 불가능한 일정을 미리 파악/);
+  assert.match(confirmation, /후보자에게 보여줄 선택지에서 제외/);
+  assert.match(confirmation, /후보자와 회사 참석자를 하나의 미팅으로 초대/);
+  assert.match(
+    confirmation,
+    /\[Calendar 설정\]\(https:\/\/matchharper\.com\/org\/settings\?orgId=workspace&tab=calendar\)/
+  );
+  assert.match(confirmation, /평소 가능한 시간도 함께 설정/);
+  assert.match(confirmation, /아직 Ito님께는 아무 연락도 보내지 않았어요/);
 });
 
 test("a process stage asks for its meeting guidance before availability", () => {

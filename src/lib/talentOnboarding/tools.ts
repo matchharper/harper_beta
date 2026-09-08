@@ -106,6 +106,8 @@ import {
   readTalentDocumentForTool,
   updateTalentDocumentForTool,
 } from "./documentTool";
+import { executeConnectedGmailSearch } from "@/lib/integrations/gmail";
+import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
 
 export type TalentToolChannel = "chat" | "voice";
 
@@ -193,6 +195,7 @@ export const TALENT_TOOL_NAMES = {
     "update_recommended_opportunity_feedback",
   WEB_SEARCH: "web_search",
   OPEN_URL: "open_url",
+  SEARCH_CONNECTED_GMAIL: "search_connected_gmail",
   RESEARCH_COMPANY: "research_company",
   LIST_DOCUMENTS: "list_documents",
   READ_DOCUMENT: "read_document",
@@ -213,6 +216,7 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.END_CALL,
   TALENT_TOOL_NAMES.WEB_SEARCH,
   TALENT_TOOL_NAMES.OPEN_URL,
+  TALENT_TOOL_NAMES.SEARCH_CONNECTED_GMAIL,
   TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS,
   TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
   TALENT_TOOL_NAMES.GET_INTERNAL_ROLES,
@@ -538,7 +542,7 @@ const ROLE_CONTEXT_ROLE_SELECT = `
     request
   ),
   company_workspace:company_workspace!inner (
-    published_name,
+    company_name,
     company_db:company_db (
       name,
       short_description,
@@ -759,9 +763,7 @@ async function runGetRoleContext(args: {
       detailedRecommendation?.talentRoleActivities,
       10
     );
-    const publishedCompanyName =
-      optionalToolString(workspace?.published_name) ??
-      "Undisclosed internal company";
+    const workspaceCompanyName = optionalToolString(workspace?.company_name);
 
     return {
       found: true,
@@ -793,7 +795,7 @@ async function runGetRoleContext(args: {
       },
       companyDb: {
         name: isInternalRole
-          ? publishedCompanyName
+          ? workspaceCompanyName
           : optionalToolString(companyDb?.name),
         shortDescription: optionalToolString(companyDb?.short_description),
         description: optionalClippedToolString(
@@ -1242,6 +1244,17 @@ async function updateRecommendedOpportunityFeedback(args: {
               : []),
           ].join(" "),
         }
+      : args.feedback === "like" &&
+          updatedOpportunity?.sourceType === "internal"
+        ? {
+            // Candidate-facing contract: the human confirmation/handoff remains
+            // internal. A successful acceptance is explained as Harper sharing
+            // the profile/context with the company and helping make the connection.
+            // Future tense prevents a false completed-action claim without turning
+            // the operational handoff into a disclaimer or another user decision.
+            assistantInstruction:
+              "The internal connection acceptance is recorded. Tell the candidate directly that Harper will share or introduce their profile and relevant experience to the company and help make the connection. Use future tense until actual sharing is verified, but do not say profile sharing or company connection is not immediate/confirmed, do not say Harper merely needs to check the next step, and never expose Harper's internal human confirmation or handoff.",
+          }
       : {}),
   };
 }
@@ -1399,32 +1412,25 @@ function getPriorityReviewGroupName(
   );
 }
 
-async function fetchPublishedOfficialJobCompanyName(args: {
+async function fetchConversationEntryOfficialJobLabel(args: {
   admin: any;
+  conversationId?: string | null;
   roleId: string;
+  userId: string;
 }) {
-  const { data, error } = await ((
-    args.admin.from("official_jobs" as any) as any
-  )
-    .select("company_name")
-    .eq("role_id", args.roleId)
-    .eq("is_published", true)
-    .order("updated_at", { ascending: false, nullsFirst: false })
-    .limit(1)
-    .maybeSingle() as any);
+  if (!args.conversationId) return null;
+  const context = await fetchCareerPostOnboardingContext({
+    admin: args.admin,
+    conversationId: args.conversationId,
+    userId: args.userId,
+  });
+  const opportunity = context?.entryOpportunity;
+  if (opportunity?.verifiedActiveRoleId !== args.roleId) return null;
 
-  if (error) {
-    console.error(
-      "[internal-role-priority-review] official job company lookup failed",
-      {
-        error: error.message ?? String(error),
-        roleId: args.roleId,
-      }
-    );
-    return null;
-  }
-
-  return optionalToolString(asToolRecord(data)?.company_name);
+  return {
+    companyName: optionalToolString(opportunity.companyName),
+    roleTitle: optionalToolString(opportunity.roleTitle),
+  };
 }
 
 function getHiringSlackWebhookUrl() {
@@ -1759,16 +1765,19 @@ async function updateInternalRolePriorityReview(args: {
     roleAvailability === "active" || roleAvailability === "hiring_paused";
   const workspace = asToolRecord(roleRecord.company_workspace);
   const rawCompanyName = optionalToolString(workspace?.company_name);
-  const officialJobCompanyName = await fetchPublishedOfficialJobCompanyName({
+  const officialJobLabel = await fetchConversationEntryOfficialJobLabel({
     admin: args.admin,
+    conversationId: args.conversationId,
     roleId,
+    userId: args.userId,
   });
   const companyName =
-    officialJobCompanyName ??
+    officialJobLabel?.companyName ??
     priorityReviewGroupName ??
     optionalToolString(workspace?.published_name) ??
     "Undisclosed internal company";
-  const roleTitle = optionalToolString(roleRecord.name);
+  const roleTitle =
+    officialJobLabel?.roleTitle ?? optionalToolString(roleRecord.name);
 
   if (args.action === "withdraw") {
     const existing = await fetchEarliestInternalRolePriorityReview({
@@ -2277,6 +2286,66 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       });
     },
   },
+  [TALENT_TOOL_NAMES.SEARCH_CONNECTED_GMAIL]: {
+    name: TALENT_TOOL_NAMES.SEARCH_CONNECTED_GMAIL,
+    description:
+      "Search the currently authenticated user's connected Gmail inbox. Use this read-only tool only when the user's request depends on actual email messages. The server determines the user and connected account; never ask for or infer an account ID. A successful result contains normalized email metadata and optional plain-text content. A non-ok result means the inbox was not checked.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description:
+            "A Gmail search query, such as `from:company.com newer_than:30d` or `subject:(interview OR application)`. Keep it focused on the user's request.",
+        },
+        max_results: {
+          type: "integer",
+          minimum: 1,
+          maximum: 10,
+          default: 5,
+          description: "Maximum number of matching emails to return (1-10).",
+        },
+        include_content: {
+          type: "boolean",
+          default: false,
+          description:
+            "Whether normalized plain-text email content is needed. Leave false when sender, subject, date, and snippet are enough.",
+        },
+      },
+      required: ["query"],
+      additionalProperties: false,
+    },
+    channels: ["chat"],
+    async execute(input, context) {
+      const admin = context?.admin;
+      const userId = context?.userId;
+      if (!admin || !userId) {
+        throw new TalentToolError(
+          "search_connected_gmail requires authenticated service context."
+        );
+      }
+
+      const query = optionalToolString(input.query)
+        ?.replace(/\s+/g, " ")
+        .slice(0, 500);
+      if (!query) {
+        throw new TalentToolError("query is required.");
+      }
+
+      const requestedMaxResults = Number(input.max_results ?? 5);
+      const maxResults = Number.isFinite(requestedMaxResults)
+        ? Math.min(10, Math.max(1, Math.floor(requestedMaxResults)))
+        : 5;
+
+      return executeConnectedGmailSearch({
+        admin: admin as TalentAdminClient,
+        includeContent: input.include_content === true,
+        maxResults,
+        query,
+        talentId: userId,
+      });
+    },
+  },
   [TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS]: {
     name: TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS,
     description:
@@ -2410,7 +2479,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.LIST_DOCUMENTS]: {
     name: TALENT_TOOL_NAMES.LIST_DOCUMENTS,
     description:
-      "List this user's active saved documents as paginated metadata. Use it to resolve references to earlier uploads or answer which documents are saved. It never returns document text and never returns soft-deleted rows.",
+      "List this user's active saved documents and generated context documents as paginated metadata. Use it to resolve earlier document references, discover a saved context named in the system prompt, or answer which documents are saved. It never returns document text and never returns soft-deleted rows.",
     parameters: {
       type: "object",
       properties: {
@@ -2453,7 +2522,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.READ_DOCUMENT]: {
     name: TALENT_TOOL_NAMES.READ_DOCUMENT,
     description:
-      "Read one bounded excerpt from one active saved document's extracted text. Use the exact document_id from current upload context or list_documents. If current upload context already includes content_excerpt, continue from its next_offset instead of rereading offset 0. Binary-only files can be saved but return textAvailable=false.",
+      "Read one bounded excerpt from one active saved or generated document's extracted text. Use the exact document_id from current upload context or list_documents. This reads extracted text directly and does not require a downloadable file. If current upload context already includes content_excerpt, continue from its next_offset instead of rereading offset 0. Binary-only files can be saved but return textAvailable=false.",
     parameters: {
       type: "object",
       properties: {

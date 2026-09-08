@@ -157,5 +157,14 @@ export async function resolveCareerPendingActionOpenTarget(args: {
     reference: args.reference,
     talentId: args.talentId,
   });
+  // A re-engagement action for an existing internal recommendation must open
+  // that position. Inserting it into the composer makes the click look inert
+  // and asks the talent to initiate a new conversation about an existing offer.
+  if (action?.kind === "internal_opportunity") {
+    return {
+      path: `/career/history?historyTab=new&id=${encodeURIComponent(action.roleId)}`,
+      type: "open_path",
+    };
+  }
   return action ? { action, type: "composer_pending_action" } : null;
 }

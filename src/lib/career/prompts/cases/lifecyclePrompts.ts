@@ -17,6 +17,16 @@ import { logger } from "@/utils/logger";
 export const CAREER_SESSION_START_NO_MESSAGE_MARKER = "__NO_SESSION_GREETING__";
 export const CAREER_SESSION_START_CALL_ACTION_MARKER = "[[CALL]]";
 
+// IMPORTANT candidate-facing product contract:
+// An internal human confirmation/handoff may still exist operationally, but it is
+// not a separate user-facing uncertainty. When a candidate is deciding, say that
+// accepting means Harper will share/introduce their profile and relevant experience
+// to the company and help connect them. Use future tense until sharing is verified;
+// never replace this promise with "Harper will check the next step" or a disclaimer
+// that profile sharing / company connection is not immediately confirmed.
+const INTERNAL_OPPORTUNITY_ACCEPTANCE_OUTCOME_KO =
+  "수락하면 Harper가 사용자의 프로필과 관련 경험을 회사에 공유·소개하고 연결을 돕는다고 분명히 설명한다. 아직 실제 공유가 확인되지 않았다면 미래형으로 말하되, 프로필 공유나 회사 연결이 바로 확정되는 것은 아니라는 면책 문구를 덧붙이거나 Harper가 다음 단계를 확인한다고 축소하지 마라. 내부의 사람 확인이나 handoff 절차는 사용자에게 설명하지 마라.";
+
 function formatReengagementPendingAction(
   action: CareerReengagementPendingAction
 ) {
@@ -24,7 +34,7 @@ function formatReengagementPendingAction(
     case "company_request":
       return `[actionKey:${action.actionKey}] [회사 요청] ${action.companyName} · ${action.roleTitle}: ${action.request}`;
     case "internal_opportunity":
-      return `[actionKey:${action.actionKey}] [internal 연결 제안] ${action.companyName} · ${action.roleTitle}: 아직 사용자의 피드백이 없음${
+      return `[actionKey:${action.actionKey}] [internal 연결 제안] ${action.companyName} · ${action.roleTitle}: User feedback:none · 추천 시각: ${formatCareerPromptKoreanDateTime(action.recommendedAt)}${
         action.recommendationSummary ? ` · ${action.recommendationSummary}` : ""
       }`;
     case "meeting_schedule":
@@ -91,14 +101,18 @@ export function buildCareerSessionStartTurnInstruction(args: {
     `- previousChatAt: ${previousChatAtLabel}`,
     "시각은 한국 시간 기준 24시간제이며 내부 판단용이다. 사용자에게 날짜·시각·경과 시간을 말하거나 이전 대화를 방금 일처럼 표현하지 마라.",
     ...pendingActionLines,
+    primaryPendingAction
+      ? "이 turn에는 위의 primary pending action 하나만 다룬다. 일반 추천 문맥에 다른 미응답 추천이 있더라도 함께 꺼내지 않는다."
+      : "",
     "답변은 짧고 자연스러운 인사말로 시작한다. 인사만 하거나 막연한 근황을 묻지 말고, 최근 대화·프로필·활동의 실제 사실에서 지금 가장 유용한 내용 1~2가지만 골라 같은 사실을 반복하지 않는다.",
     "사용자가 놓친 중요한 작업, 최신 상황과 현재 추천·연결 설정의 불일치, 새로 생긴 추천이나 결과, 최근 추천 피드백, 더 많은 공고 탐색, 알려주면 결과가 달라질 맥락을 살핀다. 사용자가 명확히 말한 변화는 다시 확인하지 않고, 이미 안내한 사용자 직접 작업은 새로운 가치가 없으면 반복하지 않는다. 내부 설정명·전달 방식·지원 여부가 불명확한 기능은 추측하지 않는다.",
+    "User feedback:none이면 Harper가 추천을 했지만 유저가 좋아요/싫어요 반응을 하지 않은 경우이다.",
     "사용자가 무엇을 부탁할지 고민하지 않도록 Harper가 지금 바로 대신할 수 있는 선택지를 중심에 둔다. 상황 변화와 추천 설정이 어긋나면 설정을 맞추는 선택을 먼저 제안한다. 계속 탐색하는 선택도 유용하면 현재 설정 유지나 공고 더 찾기로 함께 열어두되 새로운 세부 모드를 만들지 않는다. 사용자가 직접 해야 하는 프로필 수정은 주제로 삼지 말고 꼭 필요할 때만 보조 선택지로 둔다. 설정 변경은 영향과 다시 되돌리는 방법까지 짧게 알려준다.",
     primaryPendingAction?.kind === "reevaluation_question"
       ? "reevaluation_criteria는 답이 앞으로의 연결에 왜 도움이 되는지 짧게 설명한다."
       : "",
     primaryPendingAction?.kind === "internal_opportunity"
-      ? "internal 연결 제안에는 사용자의 관심과 피드백만 요청한다. 관심 표현만으로 프로필 공유·회사 소개·연결이 진행됐거나 확정됐다고 말하지 말고, Harper가 다음 단계를 확인할 수 있다고 설명한다."
+      ? `internal 연결 제안의 User feedback:none은 새 추천이 아니라 이전에 추천한 기회에 대한 결정 대기다. 추천 시각과 최근 대화를 함께 보고 새 기회처럼 소개하지 마라. 이 action을 다루는 메시지에는 반드시 (1) Harper가 전에 추천한 회사와 역할이라는 사실, (2) 그 회사와 역할로 연결을 원하는지 수락 또는 거절로 답해 달라는 질문, (3) 거절이면 이후 추천을 조정할 수 있도록 이유도 함께 알려 달라는 선택적 요청을 모두 명시한다. 막연히 관심만 표현해 달라고 하거나 Harper가 다음 단계를 확인한다는 말로 이 결정을 대신하지 마라. ${INTERNAL_OPPORTUNITY_ACCEPTANCE_OUTCOME_KO}`
       : "",
     primaryPendingAction?.kind === "meeting_schedule"
       ? "미팅 일정 요청은 사용자가 가능한 시간을 골라야 진행되는 실제 대기 작업으로 다루고, 일정 선택 액션을 가장 먼저 제안한다."
@@ -108,7 +122,8 @@ export function buildCareerSessionStartTurnInstruction(args: {
     CAREER_REENGAGEMENT_ACTIONS_START,
     '{"actions":[{"label":"사용자에게 보일 짧은 문구","action":{"type":"send_message","message":"클릭하면 사용자가 Harper에게 보낼 완전한 메시지"}},{"label":"사용자에게 보일 짧은 문구","action":{"type":"open_path","path":"/career/profile"}},{"label":"처리할 항목에 답하기","action":{"type":"open_pending_action","actionKey":"위에 제공된 정확한 actionKey"}}]}',
     CAREER_REENGAGEMENT_ACTIONS_END,
-    "액션은 본문에 맞는 1~3개만 만든다. label과 실제 action의 대상·범위·전달 채널을 정확히 맞추고 서로 다른 설정 변경을 한 액션에 묶지 않는다. send_message는 즉시 전송돼도 자연스러운 완전한 문장으로 쓴다. 사용자가 제공된 질문·이력서·미팅 일정 요청 등을 직접 처리해야 하면 '답할게요'를 전송하지 말고 open_pending_action과 해당 항목의 정확한 actionKey를 쓴다. open_path는 /career, /career/profile, /career/history, /career/watchlist와 그 하위 query만 쓴다.",
+    "action block을 출력할 때 시작·종료 marker는 위 문자열을 ASCII 그대로 각각 한 번씩 별도 줄에 쓰고, 종료 marker 뒤에 다른 문자나 문장부호를 붙이지 않는다.",
+    "액션은 본문에 맞는 1~3개만 만든다. label과 실제 action의 대상·범위·전달 채널을 정확히 맞추고 서로 다른 설정 변경을 한 액션에 묶지 않는다. primary pending action이 있으면 그것 하나를 여는 단일 open_pending_action만 만들고, 같은 결정을 위한 수락·거절 send_message나 다른 action을 추가하지 않는다. send_message는 즉시 전송돼도 자연스러운 완전한 문장으로 쓴다. 사용자가 제공된 질문·이력서·미팅 일정 요청 등을 직접 처리해야 하면 '답할게요'를 전송하지 말고 open_pending_action과 해당 항목의 정확한 actionKey를 쓴다. open_path는 /career, /career/profile, /career/history, /career/watchlist와 그 하위 query만 쓴다.",
   ]
     .filter(Boolean)
     .join("\n");
@@ -229,8 +244,8 @@ export function buildCareerOpportunityFeedbackFollowUpTurnInstruction(
         "- If the internal opportunity was disliked, acknowledge that decision and do not use the acceptance guidance below. Follow any rejection-specific context provided for this turn.",
         "- For a dislike, keep the reply proportional to the user's stated reason and the recorded outcome. Do not explain a future process unless the user needs a concrete next step.",
         "- If the internal opportunity was liked, treat it as confirmed acceptance. Thank them briefly and do not ask whether to connect/proceed again.",
-        "- Say the acceptance is recorded and Harper will prepare the candidate's relevant background and fit context and introduce them to the company at an appropriate time.",
-        "- Do not imply the profile was already shared or the company was already contacted. Explain that preparing a thoughtful introduction and coordinating with the company can take some time and that updates will arrive by email, without promising a fixed number of days. Never expose Harper's internal confirmation or handoff process.",
+        "- Say the acceptance is recorded and Harper will share or introduce the candidate's profile and relevant experience with the company and help make the connection.",
+        "- Use future tense until actual company sharing is verified, but do not volunteer a disclaimer that profile sharing or company connection is not immediate or confirmed. Never expose Harper's internal confirmation or handoff process. Say Harper will send progress updates by email without promising a fixed number of days.",
         "- Frame the process as Harper mediating a better-fit connection, not as a normal application.",
         "- If the profile context shows no resume file/link, mention that a resume usually improves review and companies often ask for it. Ask whether Harper should tell the company there is no updated resume yet, and invite them to upload one if they have it.",
         "- If the accepted opportunity visibly conflicts with known preferences or needs, ask one focused question about that mismatch. Example: current location vs role location, company/domain, role scope, or timing.",
@@ -239,9 +254,9 @@ export function buildCareerOpportunityFeedbackFollowUpTurnInstruction(
         "",
         "이 건은 일반적인 공고 지원이라기보다, Harper가 양쪽의 관심이 잘 맞는지 확인하고 소개를 조율하는 연결에 가까워요.",
         "",
-        "지금은 [이름]님의 수락 의사가 기록됐어요. Harper가 [이름]님의 경험과 역할 핏을 잘 정리해서, 가장 적절한 타이밍에 회사에 소개드릴게요.",
+        "수락 의사가 반영됐어요. 이제 Harper가 [이름]님의 프로필과 관련 경험을 회사에 잘 소개하고, 실제 연결까지 도와드릴게요.",
         "",
-        "소개 내용을 잘 준비하고 회사 쪽 일정을 조율하는 데에는 시간이 조금 걸릴 수 있어요. 진행 상황이나 추가로 확인할 내용이 생기면 이메일로 안내드릴게요. 따로 지원서를 다시 넣으실 필요는 없습니다.",
+        "진행 상황이나 추가로 확인할 내용이 생기면 이메일로 안내드릴게요. 따로 지원서를 다시 넣으실 필요는 없습니다.",
       ];
       break;
   }

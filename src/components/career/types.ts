@@ -109,6 +109,9 @@ export type CareerTalentDocument = {
   isPublic: boolean;
   isPrimary: boolean;
   createdAt: string;
+  updatedAt: string;
+  originType: string | null;
+  originId: string | null;
   downloadUrl: string | null;
 };
 

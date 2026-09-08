@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { Loader2 } from "lucide-react";
 import CareerInPageTabs from "../CareerInPageTabs";
@@ -29,33 +29,33 @@ type ProfileSectionItem = {
 const getProfileSectionItems = (
   t: ReturnType<typeof useCareerT>
 ): ProfileSectionItem[] => [
-  {
-    id: "profile",
-    label: t("career.common.career_workspace_screen.0b0v9cr", "프로필"),
-    title: t("career.common.career_workspace_screen.0b0v9cr", "프로필"),
-    description: [
-      t(
-        "career.profile.career_profile_workspace.16e35ps",
-        "입력하신 정보와 대화내용을 바탕으로 Harper가 구성한 프로필입니다."
-      ),
-      t(
-        "career.profile.career_profile_workspace.116ofw4",
-        "이대로 회사 측에 전달되지는 않지만, 변경하고 싶으신 사항이 있는지 확인할 수 있습니다."
-      ),
-    ],
-  },
-  {
-    id: "links",
-    label: t("career.profile.career_profile_workspace.14bifvm", "이력서/링크"),
-    title: t("career.profile.career_profile_workspace.14bifvm", "이력서/링크"),
-    description: [
-      t(
-        "career.profile.career_profile_workspace.11os0vs",
-        "이력서와 나와 관련된 링크를 확인하고 수정할 수 있습니다."
-      ),
-    ],
-  },
-];
+    {
+      id: "profile",
+      label: t("career.common.career_workspace_screen.0b0v9cr", "프로필"),
+      title: t("career.common.career_workspace_screen.0b0v9cr", "프로필"),
+      description: [
+        t(
+          "career.profile.career_profile_workspace.16e35ps",
+          "입력하신 정보와 대화내용을 바탕으로 Harper가 구성한 프로필입니다."
+        ),
+        t(
+          "career.profile.career_profile_workspace.116ofw4",
+          "이대로 회사 측에 전달되지는 않지만, 변경하고 싶으신 사항이 있는지 확인할 수 있습니다."
+        ),
+      ],
+    },
+    {
+      id: "links",
+      label: t("career.profile.career_profile_workspace.14bifvm", "이력서/링크"),
+      title: t("career.profile.career_profile_workspace.14bifvm", "이력서/링크"),
+      description: [
+        t(
+          "career.profile.career_profile_workspace.11os0vs",
+          "이력서와 나와 관련된 링크를 확인하고 수정할 수 있습니다."
+        ),
+      ],
+    },
+  ];
 
 const CareerProfileWorkspace = () => {
   const t = useCareerT();
@@ -74,22 +74,42 @@ const CareerProfileWorkspace = () => {
       getProfileSectionItems(t).map((item) =>
         item.id === "links"
           ? {
-              ...item,
-              attention: !hasSavedResume,
-              attentionLabel: t(
-                "career.profile.career_profile_workspace.0pv1jmq",
-                "저장된 이력서가 없습니다"
-              ),
-            }
+            ...item,
+            attention: !hasSavedResume,
+            attentionLabel: t(
+              "career.profile.career_profile_workspace.0pv1jmq",
+              "저장된 이력서가 없습니다"
+            ),
+          }
           : item
       ),
     [hasSavedResume, t]
   );
 
-  const activeSection: ProfileSectionId = useMemo(() => {
-    const raw = router.query.profileSection;
-    return typeof raw === "string" && isProfileSectionId(raw) ? raw : "profile";
-  }, [router.query.profileSection]);
+  const requestedProfileSection =
+    typeof router.query.profileSection === "string"
+      ? router.query.profileSection
+      : null;
+
+  useEffect(() => {
+    if (!router.isReady || requestedProfileSection !== "connections") return;
+
+    void router.replace(
+      {
+        pathname: router.pathname,
+        query: { ...router.query, profileSection: "links" },
+      },
+      undefined,
+      { shallow: true, scroll: false }
+    );
+  }, [requestedProfileSection, router]);
+
+  const activeSection: ProfileSectionId =
+    requestedProfileSection === "connections"
+      ? "links"
+      : isProfileSectionId(requestedProfileSection)
+        ? requestedProfileSection
+        : "profile";
 
   const callNoteDocument = useMemo(
     () =>

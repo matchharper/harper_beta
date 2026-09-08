@@ -21,6 +21,7 @@ type TalentCareerModalProps = {
   backdropClassName?: string;
   panelClassName?: string;
   headerClassName?: string;
+  descriptionClassName?: string;
   bodyClassName?: string;
   footerClassName?: string;
   closeButtonClassName?: string;
@@ -46,6 +47,7 @@ const TalentCareerModal = ({
   backdropClassName,
   panelClassName,
   headerClassName,
+  descriptionClassName,
   bodyClassName,
   footerClassName,
   closeButtonClassName,
@@ -156,11 +158,19 @@ const TalentCareerModal = ({
                 {hasDescription &&
                   (typeof description === "string" ? (
                     <DialogPrimitive.Description
-                      className="mt-2 max-w-[56ch] text-sm leading-relaxed text-neutral-muted"
+                      className={cn(
+                        "mt-2 max-w-[56ch] text-sm leading-relaxed text-neutral-muted",
+                        descriptionClassName
+                      )}
                       dangerouslySetInnerHTML={{ __html: description }}
                     />
                   ) : (
-                    <DialogPrimitive.Description className="mt-2 max-w-[56ch] text-sm leading-relaxed text-neutral-muted">
+                    <DialogPrimitive.Description
+                      className={cn(
+                        "mt-2 max-w-[56ch] text-sm leading-relaxed text-neutral-muted",
+                        descriptionClassName
+                      )}
+                    >
                       {description}
                     </DialogPrimitive.Description>
                   ))}

@@ -115,6 +115,7 @@ class FakePriorityReviewQuery {
 }
 
 class FakePriorityReviewAdmin {
+  activityEvents: Row[] = [];
   calls: Array<{ operation: string; table: string }> = [];
   fits: Row[] = [];
   insertedAt = "2026-09-02T00:00:00.000Z";
@@ -149,6 +150,7 @@ class FakePriorityReviewAdmin {
   rowsFor(table: string) {
     if (table === "company_roles") return this.roles;
     if (table === "official_jobs") return this.officialJobs;
+    if (table === "talent_activity_events") return this.activityEvents;
     if (table === "talent_opportunity_fit") return this.fits;
     if (table === "talent_opportunity_recommendation") {
       return this.recommendations;
@@ -165,12 +167,14 @@ class FakePriorityReviewAdmin {
 
 async function runPriorityReview(
   admin: FakePriorityReviewAdmin,
-  responseLocale: string | null = "ko"
+  responseLocale: string | null = "ko",
+  conversationId?: string
 ) {
   const { executeTalentTool, TALENT_TOOL_NAMES } = await talentToolsPromise;
   return (await executeTalentTool({
     context: {
       admin: admin as never,
+      conversationId,
       responseLocale,
       userId: TALENT_ID,
     },
@@ -208,8 +212,8 @@ test("register creates one fit request and repeated register preserves its time"
   assert.equal(created.requestedAt, admin.insertedAt);
   assert.equal(repeated.requestedAt, admin.insertedAt);
   assert.equal(admin.progress.length, 1);
-  assert.equal(firstCallDataOperations.length, 7);
-  assert.equal(allDataOperations.length - firstCallDataOperations.length, 6);
+  assert.equal(firstCallDataOperations.length, 6);
+  assert.equal(allDataOperations.length - firstCallDataOperations.length, 5);
   assert.equal("effectiveFitLabel" in created, false);
   assert.equal("reevaluationCriteria" in created, false);
   assert.match(String(created.assistantInstruction), /Do not explain the JD/);
@@ -219,27 +223,40 @@ test("register creates one fit request and repeated register preserves its time"
   );
 });
 
-test("a mapped official job company name overrides the internal workspace and review group names", async () => {
+test("a published official job keeps its candidate-facing company and role labels", async () => {
   const admin = new FakePriorityReviewAdmin();
-  admin.roles[0].company_workspace = {
-    company_name: "Harper",
-    published_name: "Harper",
-  };
-  admin.roles[0].information = {
-    priorityReviewGroupName: "All FDE Positions",
-  };
+  admin.activityEvents = [
+    {
+      conversation_id: "conversation-1",
+      created_at: "2026-09-06T00:00:00.000Z",
+      event_type: "official_jobs_signup_intent",
+      source: "official_jobs_onboarding:public-agent-deployment",
+      talent_id: TALENT_ID,
+    },
+  ];
   admin.officialJobs = [
     {
-      company_name: "Unified Hiring",
+      company_name: "Another Public Name",
       is_published: true,
       role_id: ROLE_ID,
-      updated_at: "2026-09-04T00:00:00.000Z",
+      role_title: "Another Public Role",
+      slug: "another-public-role",
+      updated_at: "2026-09-07T00:00:00.000Z",
+    },
+    {
+      company_name: "Public Agentic AI Company",
+      is_published: true,
+      role_id: ROLE_ID,
+      role_title: "Software Engineer, AI Agent Deployment",
+      slug: "public-agent-deployment",
+      updated_at: "2026-09-06T00:00:00.000Z",
     },
   ];
 
-  const result = await runPriorityReview(admin);
+  const result = await runPriorityReview(admin, "ko", "conversation-1");
 
-  assert.equal(result.companyName, "Unified Hiring");
+  assert.equal(result.companyName, "Public Agentic AI Company");
+  assert.equal(result.roleTitle, "Software Engineer, AI Agent Deployment");
 });
 
 test("an existing recommendation returns a position card without a request", async () => {

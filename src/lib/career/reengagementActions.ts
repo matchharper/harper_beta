@@ -172,7 +172,40 @@ export function resolveCareerReengagementActionKeys(args: {
       incompleteBlockStart
     ) === -1
   ) {
-    resolvedContent = resolvedContent.slice(0, incompleteBlockStart);
+    const visibleContent = resolvedContent.slice(0, incompleteBlockStart);
+    const hasExactStart = resolvedContent.startsWith(
+      CAREER_REENGAGEMENT_ACTIONS_START,
+      incompleteBlockStart
+    );
+    const blockRemainder = hasExactStart
+      ? resolvedContent.slice(
+          incompleteBlockStart + CAREER_REENGAGEMENT_ACTIONS_START.length
+        )
+      : "";
+    const payloadEnd = blockRemainder.lastIndexOf("}");
+    const trailingContent =
+      payloadEnd >= 0 ? blockRemainder.slice(payloadEnd + 1).trim() : "";
+    const hasOnlyTruncatedEndMarker =
+      !trailingContent ||
+      trailingContent.startsWith("[[/CAREER_REENGAGEMENT_ACTIONS");
+
+    if (hasExactStart && payloadEnd >= 0 && hasOnlyTruncatedEndMarker) {
+      try {
+        const actions = normalizeCareerReengagementActions(
+          parseCareerReengagementActionsPayload(
+            blockRemainder.slice(0, payloadEnd + 1)
+          ),
+          args.resolvePendingActionRef
+        );
+        resolvedContent = actions.length
+          ? `${visibleContent.trimEnd()}\n${CAREER_REENGAGEMENT_ACTIONS_START}\n${JSON.stringify({ actions })}\n${CAREER_REENGAGEMENT_ACTIONS_END}`
+          : visibleContent;
+      } catch {
+        resolvedContent = visibleContent;
+      }
+    } else {
+      resolvedContent = visibleContent;
+    }
   }
   return resolvedContent.trim();
 }

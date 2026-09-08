@@ -231,6 +231,10 @@ test("role creation is exposed only on Slack and transfers bounded source contex
 test("company-side tools separate lifecycle changes from the batch writer", () => {
   const toolNames = ORG_AGENT_TOOLS.map((item) => item.function.name);
   assert.equal(toolNames.includes("calibrate_role_hiring_brief"), true);
+  assert.equal(
+    toolNames.includes("record_role_profile_example_feedback"),
+    true
+  );
   assert.equal(toolNames.includes("get_more_data"), true);
   assert.equal(toolNames.includes("update_role_criteria"), true);
   assert.equal(toolNames.includes("update_data"), true);
@@ -242,6 +246,10 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
   assert.equal(isOrgAgentToolName("update_data"), true);
   assert.equal(isOrgAgentToolName("change_role_status"), true);
   assert.equal(isOrgAgentToolName("calibrate_role_hiring_brief"), true);
+  assert.equal(
+    isOrgAgentToolName("record_role_profile_example_feedback"),
+    true
+  );
 
   const calibration = ORG_AGENT_TOOLS.find(
     (item) => item.function.name === "calibrate_role_hiring_brief"

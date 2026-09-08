@@ -216,6 +216,29 @@ export async function requireOrganizerGoogleCalendarConnection(args: {
   }
 }
 
+export async function hasActiveOrganizerGoogleCalendarConnection(args: {
+  organizerCompanyUserId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  try {
+    const status = await createCalendarRuntime(admin).service.getStatus(
+      args.organizerCompanyUserId
+    );
+    return status.status === "active";
+  } catch (error) {
+    console.error("[meeting-schedule/calendar-status]", {
+      organizerCompanyUserId: args.organizerCompanyUserId,
+      ...getIntegrationErrorDiagnostics(error),
+      ...(error instanceof GoogleCalendarError ? { code: error.code } : {}),
+    });
+    if (error instanceof GoogleCalendarError) return false;
+    throw new OrgHttpError(
+      503,
+      "Google Calendar 연결 상태를 확인하지 못했어요. 잠시 후 다시 시도해 주세요."
+    );
+  }
+}
+
 export async function ensureMeetingCalendarEvent(scheduleIdValue: string) {
   const scheduleId = clean(scheduleIdValue, 80);
   if (!scheduleId) throw new OrgHttpError(400, "미팅 일정을 확인해 주세요.");
@@ -293,8 +316,7 @@ export async function ensureMeetingCalendarEvent(scheduleIdValue: string) {
               ? "process_stage"
               : "first_company_conversation",
           meetingPurpose: clean(meetingConfig?.meetingPurpose, 600) || null,
-          processStageName:
-            clean(meetingConfig?.processStageName, 80) || null,
+          processStageName: clean(meetingConfig?.processStageName, 80) || null,
           scheduleId: schedule.id,
           startAt,
           summary: schedule.title,

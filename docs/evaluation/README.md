@@ -13,7 +13,7 @@
 | [final-delivery-generation](final-delivery-generation/README.md) | 최종 추천 메일 생성 모델 | 완료 run에서 동결한 local-only 입력 | [worker final delivery](../../../harper_worker/llm_evals/final_delivery/README.md) | 사용 중 |
 | [company-candidate-introduction](company-candidate-introduction/README.md) | 회사용 후보자 소개의 사실성·관련성·스캔 가능성 | 3개 고정 pair, 6항목 rubric | [5회 개선 기록](../auto-intro-headhunter-message-five-iteration-evaluation-ko.md) | 로컬 평가 완료, 배포 전 |
 | [wonderful-internal-role-ranking](wonderful-internal-role-ranking/README.md) | Wonderful FDE/Field CTO retrieval·reranking·선택 | blind holdout 실행 계약 | [benchmark 매뉴얼](../wonderful-korea-fde-field-cto-benchmark-manual-ko.md) | 명시적 실행 요청 시에만 실행 |
-| [internal-role-conversation-qa](internal-role-conversation-qa/README.md) | Career·email reply의 내부 역할 탐색·단계적 공개·대안·재검토·우선 검토·수락 경험 | Career 20-turn + email reply 10-case `cases-v3.json`; 실제 계정 매핑과 원문은 local-only | Career Chrome E2E + email inbound-job local replay | v3 frozen, 실행 전 |
+| [internal-role-conversation-qa](internal-role-conversation-qa/README.md) | Career·email reply의 내부 역할 탐색·단계적 공개·대안·재검토·우선 검토·수락 경험 | Career 20-turn + email reply 10-case `cases-v3.json`; re-engagement 12-case `reengagement-cases-v1.json`; 실제 계정 매핑과 원문은 local-only | Career Chrome E2E + email inbound-job local replay; re-engagement read-only runner | v3 frozen; re-engagement v1은 2026-09-05 최종 12/12 통과 |
 
 과거 일회성 결과와 노트북은 [worker legacy 안내](../../../harper_worker/llm_evals/legacy/README.md)에 보존한다. 재사용할 평가로 승격할 때만 이 레지스트리에 태스크 폴더와 계약을 추가한다.
 

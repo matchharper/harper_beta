@@ -46,6 +46,7 @@ import {
 } from "@/lib/opportunityDiscovery/store";
 import type { TalentChatTool } from "@/lib/talentOnboarding/llm";
 import type { CareerRealtimeTool } from "@/lib/career/llmTools";
+import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
 
 type DebugMessage = {
   content: string;
@@ -194,6 +195,7 @@ export async function buildCareerTextChatDebugPrompt(args: {
     currentInsights,
     talentSetting,
     onboardingCompletionEvent,
+    postOnboardingContext,
     pendingOpportunityFeedbackContext,
     recentActivitySummaries,
     recentRecommendedOpportunities,
@@ -207,6 +209,11 @@ export async function buildCareerTextChatDebugPrompt(args: {
       admin,
       conversationId,
       eventType: "onboarding_completed",
+      userId,
+    }),
+    fetchCareerPostOnboardingContext({
+      admin,
+      conversationId,
       userId,
     }),
     fetchPendingOpportunityFeedbackPromptContext({
@@ -327,6 +334,7 @@ export async function buildCareerTextChatDebugPrompt(args: {
     onboardingChecklistCoverage,
     opportunityStatus,
     pendingOpportunityFeedbackContext,
+    postOnboardingContext,
     profile,
     conversationMode: conversationStarter?.id ?? "default",
     recentActivitySummaries,

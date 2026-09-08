@@ -80,6 +80,7 @@ test("session re-engagement prioritizes the first actionable pending item", () =
         actionKey: "pending_1",
         companyName: "Third Company",
         kind: "internal_opportunity",
+        recommendedAt: "2026-09-04T01:35:10.584998+00:00",
         recommendationSummary: null,
         roleTitle: "Product Engineer",
       },
@@ -90,9 +91,31 @@ test("session re-engagement prioritizes the first actionable pending item", () =
 
   assert.match(prompt, /사용자가 지금 처리하면 결과가 달라지는 작업이 있다/);
   assert.match(prompt, /Third Company/);
-  assert.match(prompt, /사용자의 관심과 피드백만 요청한다/);
-  assert.match(prompt, /프로필 공유·회사 소개·연결이 진행됐거나 확정됐다고/);
-  assert.match(prompt, /Harper가 다음 단계를 확인/);
+  assert.match(prompt, /User feedback:none/);
+  assert.match(prompt, /추천 시각: 9월 4일 10:35/);
+  assert.doesNotMatch(prompt, /2026-09-04T01:35/);
+  assert.match(prompt, /새 추천이 아니라 이전에 추천한 기회/);
+  assert.match(prompt, /Harper가 전에 추천한 회사와 역할이라는 사실/);
+  assert.match(prompt, /수락 또는 거절로 답해 달라는 질문/);
+  assert.match(prompt, /거절이면.*이유도 함께/);
+  assert.match(prompt, /막연히 관심만 표현해 달라고 하거나/);
+  assert.match(prompt, /primary pending action 하나만 다룬다/);
+  assert.match(
+    prompt,
+    /primary pending action이 있으면.*단일 open_pending_action만/
+  );
+  assert.match(
+    prompt,
+    /수락·거절 send_message나 다른 action을 추가하지 않는다/
+  );
+  assert.match(prompt, /종료 marker 뒤에 다른 문자나 문장부호를 붙이지 않는다/);
+  assert.match(prompt, /프로필과 관련 경험을 회사에 공유·소개하고 연결을 돕는다고/);
+  assert.match(prompt, /프로필 공유나 회사 연결이 바로 확정되는 것은 아니라는 면책 문구/);
+  assert.match(prompt, /내부의 사람 확인이나 handoff 절차는 사용자에게 설명하지 마라/);
+  assert.doesNotMatch(
+    prompt,
+    /사용자의 관심과 피드백만 요청하고, Harper가 다음 단계를 확인할 수 있다고 설명한다/
+  );
 });
 
 test("session re-engagement gives reevaluation context without role metadata", () => {
@@ -164,20 +187,29 @@ test("feedback follow-up forbids unsupported saved-filter claims", () => {
   assert.match(prompt, /explicit feedback reason.*direct evidence/i);
 });
 
-test("internal acceptance promises a thoughtful company introduction without exposing internals", () => {
+test("internal acceptance promises profile sharing and connection without exposing internals", () => {
   const prompt = buildCareerOpportunityFeedbackFollowUpTurnInstruction({
     preferredLocale: "ko",
     trigger:
       CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback,
   });
 
-  assert.match(prompt, /introduce them to the company at an appropriate time/);
-  assert.match(prompt, /preparing a thoughtful introduction/);
-  assert.match(prompt, /Do not imply the profile was already shared/);
+  assert.match(prompt, /share or introduce the candidate's profile and relevant experience/);
+  assert.match(prompt, /help make the connection/);
+  assert.match(prompt, /do not volunteer a disclaimer/);
   assert.match(prompt, /Never expose Harper's internal confirmation/);
   assert.match(prompt, /If the internal opportunity was disliked/);
-  assert.match(prompt, /Follow any rejection-specific context provided for this turn/);
-  assert.match(prompt, /keep the reply proportional to the user's stated reason/);
-  assert.doesNotMatch(prompt, /다음에 어떤 과정이 진행되는지 최대한 자세히 안내해라/);
+  assert.match(
+    prompt,
+    /Follow any rejection-specific context provided for this turn/
+  );
+  assert.match(
+    prompt,
+    /keep the reply proportional to the user's stated reason/
+  );
+  assert.doesNotMatch(
+    prompt,
+    /다음에 어떤 과정이 진행되는지 최대한 자세히 안내해라/
+  );
   assert.doesNotMatch(prompt, /same company/i);
 });

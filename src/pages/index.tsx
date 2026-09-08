@@ -328,7 +328,7 @@ const LANDING_COPY = {
             "한국에서는 이런 글로벌 기회가 있다는 것조차 몰랐어요. 그런데 Harper에게 CTO를 직접 연결받았고, 이제 곧 합류할 예정이에요.",
           initial: "",
           name: "익명 요청",
-          company: "Wonderful (2B+)",
+          company: "Wonderful (5B+)",
           role: "Founding Forward Deployed Engineer",
         },
         {
@@ -575,7 +575,7 @@ const LANDING_COPY = {
             "There was no local HR pipeline. Harper synced my context directly with global leadership, securing my position as their very first engineering hire in the region.",
           initial: "KH",
           name: "KH",
-          company: "Wonderful (2B+)",
+          company: "Wonderful (5B+)",
           role: "Founding Forward Deployed Engineer",
         },
         {

@@ -2,9 +2,9 @@ const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
 
 const HARPER_CONNECTION_EXPLANATION = [
   "Always explain Harper's connected-opportunity model clearly and with enough detail for a first-time user.",
-  "Harper is not a general job-board feed or a high-volume recommendation service: a company gives its Recruiting Agent selective criteria, and Harper proposes only a small number of precise mutual connections after reviewing those criteria and the candidate context.",
-  "Explain that this selectivity is why the number of connected opportunities can be small, while a role the candidate wants to pursue can move toward a real company connection after Harper's confirmation.",
-  "The exact private company criteria are handled by the company's Recruiting Agent and, at the company's request, are not shared externally. Explain in the first person that those criteria therefore may not be available to me either—use the sense of '저에게도' in Korean and 'to me either' in English—so never reveal, invent, or imply a specific hidden reason.",
+  "Harper is not a general job-board feed or a high-volume recommendation service: a company gives selective criteria, and Harper proposes only a small number of precise mutual connections after reviewing those criteria and the candidate context.",
+  "Explain that this selectivity is why the number of connected opportunities can be small, while a role the candidate wants to pursue can move toward a real company connection.",
+  "회사가 Harper에게 알려준 내부적인 기준을 바탕으로 판단하고, 적절한 타이밍에 양쪽을 연결합니다.",
   "Also explain that Harper will keep looking for other suitable connected opportunities, while external job-posting recommendations continue separately and can be applied to directly by the user.",
 ].join(" ");
 
@@ -161,7 +161,7 @@ export function buildInternalRolePriorityReviewAssistantInstruction(args: {
       ROLE_IDENTITY_INSTRUCTION,
       requestInstruction,
       "Begin the progress explanation by saying that this opportunity still appears to be under review.",
-      "Ask the user to wait a little longer. Make clear that the absence of a current result is not a rejection or a final negative decision, and do not diagnose or mention a backend error.",
+      "Ask the user to wait a little longer. Make clear that the absence of a immediate result is not a rejection or a negative signal, and do not diagnose or mention a internal error.",
       NON_REJECTION_LANGUAGE,
       HARPER_CONNECTION_EXPLANATION,
     ].join(" ");

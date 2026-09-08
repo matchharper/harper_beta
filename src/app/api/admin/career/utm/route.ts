@@ -4,7 +4,6 @@ import { isEmailExcluded } from "@/lib/adminEmailExclusions";
 import type {
   AdminCareerFunnelStep,
   AdminCareerFunnelStepKey,
-  AdminCareerUtmPerson,
   AdminCareerUtmResponse,
   AdminCareerUtmSourceDetail,
   AdminCareerUtmSourceRow,
@@ -149,10 +148,6 @@ const FUNNEL_META: Array<{
     detail: "첫 추천 이후 재접속/의미 있는 액션",
   },
 ];
-
-const STEP_ORDER = new Map(
-  FUNNEL_META.map((step, index) => [step.key, index] as const)
-);
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -320,20 +315,6 @@ function buildFunnelSteps(counts: Record<AdminCareerFunnelStepKey, number>) {
     previousCount = count;
     return result;
   });
-}
-
-function pickFurthestStep(steps: Set<AdminCareerFunnelStepKey>) {
-  let result: AdminCareerFunnelStepKey = "landing_entry";
-  for (const step of steps) {
-    if ((STEP_ORDER.get(step) ?? 0) > (STEP_ORDER.get(result) ?? 0)) {
-      result = step;
-    }
-  }
-  return result;
-}
-
-function getStepLabel(key: AdminCareerFunnelStepKey) {
-  return FUNNEL_META.find((step) => step.key === key)?.label ?? key;
 }
 
 function buildLandingStats(args: {
@@ -595,62 +576,9 @@ function buildSelectedSourceDetail(args: {
     returned_after_first_recommendation: returnedUserIds.size,
   };
 
-  const people: AdminCareerUtmPerson[] = [];
-  const localIds = new Set([
-    ...Array.from(stats.entryLocalIds),
-    ...Array.from(stats.clickStartLocalIds),
-    ...Array.from(stats.loginLocalIds),
-  ]);
-
-  for (const localId of localIds) {
-    const emails = Array.from(stats.emailsByLocalId.get(localId) ?? []);
-    const talent =
-      emails.map((email) => args.talentByEmail.get(email)).find(Boolean) ??
-      null;
-    const userId = talent?.user_id ?? null;
-    const reachedSteps = new Set<AdminCareerFunnelStepKey>(["landing_entry"]);
-    if (stats.clickStartLocalIds.has(localId)) reachedSteps.add("login_click");
-    if (emails.length > 0) reachedSteps.add("login");
-    if (userId) {
-      reachedSteps.add("signup");
-      for (const [step, users] of onboardingUsersByStep.entries()) {
-        if (users.has(userId)) reachedSteps.add(step);
-      }
-      if (completedUserIds.has(userId))
-        reachedSteps.add("onboarding_completed");
-      if (returnedUserIds.has(userId)) {
-        reachedSteps.add("returned_after_first_recommendation");
-      }
-    }
-    const currentStepKey = pickFurthestStep(reachedSteps);
-
-    people.push({
-      localId,
-      userId,
-      name: talent?.name ?? null,
-      email: talent?.email ?? emails[0] ?? null,
-      firstEnteredAt: stats.firstEnteredAtByLocalId.get(localId) ?? null,
-      lastEnteredAt: stats.lastEnteredAtByLocalId.get(localId) ?? null,
-      lastLoginAt: stats.lastLoginAtByLocalId.get(localId) ?? null,
-      currentStepKey,
-      currentStepLabel: getStepLabel(currentStepKey),
-    });
-  }
-
-  people.sort((a, b) => {
-    const aTime = new Date(
-      a.lastLoginAt ?? a.lastEnteredAt ?? a.firstEnteredAt ?? 0
-    ).getTime();
-    const bTime = new Date(
-      b.lastLoginAt ?? b.lastEnteredAt ?? b.firstEnteredAt ?? 0
-    ).getTime();
-    return bTime - aTime;
-  });
-
   return {
     source: args.source,
     steps: buildFunnelSteps(counts),
-    people,
   } satisfies AdminCareerUtmSourceDetail;
 }
 
@@ -753,26 +681,22 @@ async function buildUtmResponse(req: NextRequest) {
         .order("id", { ascending: true })
         .range(from, to)
     ),
-    fetchRowsForValues<TalentSettingRow>(
-      selectedUserIds,
-      (userIds, from, to) =>
-        supabaseServer
-          .from("talent_setting")
-          .select("user_id,is_onboarding_done,updated_at")
-          .in("user_id", userIds)
-          .order("updated_at", { ascending: false })
-          .range(from, to)
+    fetchRowsForValues<TalentSettingRow>(selectedUserIds, (userIds, from, to) =>
+      supabaseServer
+        .from("talent_setting")
+        .select("user_id,is_onboarding_done,updated_at")
+        .in("user_id", userIds)
+        .order("updated_at", { ascending: false })
+        .range(from, to)
     ),
-    fetchRowsForValues<TalentMessageRow>(
-      selectedUserIds,
-      (userIds, from, to) =>
-        supabaseServer
-          .from("talent_messages")
-          .select("user_id,role,created_at")
-          .in("user_id", userIds)
-          .eq("role", "user")
-          .order("id", { ascending: true })
-          .range(from, to)
+    fetchRowsForValues<TalentMessageRow>(selectedUserIds, (userIds, from, to) =>
+      supabaseServer
+        .from("talent_messages")
+        .select("user_id,role,created_at")
+        .in("user_id", userIds)
+        .eq("role", "user")
+        .order("id", { ascending: true })
+        .range(from, to)
     ),
     fetchRowsForValues<TalentActivityEventRow>(
       selectedUserIds,

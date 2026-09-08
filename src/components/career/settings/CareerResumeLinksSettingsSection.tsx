@@ -8,6 +8,7 @@ import ProfileSourceApplyConfirmModal, {
 import {
   CareerAddDocumentModal,
   CareerDocumentDeleteModal,
+  CareerGmailHistoryEditPanel,
   CareerDocumentRenameModal,
   type CareerDocumentUploadResult,
   CareerDocumentVisibilityModal,
@@ -55,7 +56,8 @@ const CareerResumeLinksSettingsSection = ({
   const [documentPendingRenameId, setDocumentPendingRenameId] = useState<
     string | null
   >(null);
-  const [inlineCallNoteDocumentId, setInlineCallNoteDocumentId] = useState<
+  const [inlineCallNoteDocumentId, setInlineCallNoteDocumentId] = useState <
+  const [documentPendingEditId, setDocumentPendingEditId] = useState<
     string | null
   >(null);
   const [pendingPostUploadDialog, setPendingPostUploadDialog] =
@@ -137,6 +139,11 @@ const CareerResumeLinksSettingsSection = ({
     );
     return document?.kind === "call_note" ? document : null;
   }, [inlineCallNoteDocumentId, talentDocuments]);
+  const documentPendingEdit = useMemo(
+    () => findDocumentById(talentDocuments, documentPendingEditId),
+    [documentPendingEditId, talentDocuments]
+  );
+
   const handleSaveLinks = async () => {
     logCareerEvent("click_resume_links_save");
     const saved = await onSaveTalentProfile({
@@ -209,6 +216,7 @@ const CareerResumeLinksSettingsSection = ({
         documents={remainingDocuments}
         onAddDocument={() => setAddDocumentOpen(true)}
         onOpenCallNote={handleOpenCallNote}
+        onEditDocument={(document) => setDocumentPendingEditId(document.id)}
         onRenameDocument={openDocumentRename}
         onDeleteDocument={setDocumentPendingDeleteId}
       />
@@ -232,6 +240,10 @@ const CareerResumeLinksSettingsSection = ({
       <CareerDocumentRenameModal
         document={documentPendingRename}
         onClose={() => setDocumentPendingRenameId(null)}
+      />
+      <CareerGmailHistoryEditPanel
+        document={documentPendingEdit}
+        onClose={() => setDocumentPendingEditId(null)}
       />
       <CareerDocumentDeleteModal
         document={documentPendingDelete}

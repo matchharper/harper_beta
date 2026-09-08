@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltips } from "@/components/ui/tooltip";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerT } from "@/i18n/useCareerT";
+import CareerGmailSettingsRow from "./CareerGmailSettingsRow";
 
 const CAREER_LINK_ITEMS = [
   {
@@ -162,10 +163,23 @@ const CareerProfileLinksSettingsSection = ({
 
   return (
     <div>
-      <FieldLabel
-        icon={<Cable className="h-4 w-4" />}
-        label={t("career.common.career.1ominm4", "내 링크")}
-      />
+      <div className="flex items-center justify-between gap-3">
+        <FieldLabel
+          icon={<Cable className="h-4 w-4" />}
+          label={t("career.common.career.1ominm4", "내 정보")}
+        />
+        <MuteButton
+          type="button"
+          onClick={() => {
+            logCareerEvent("click_resume_links_add_link");
+            onAddProfileLink();
+          }}
+          disabled={profileSavePending}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          {t("career.chat.career_timeline_section.1gvzqes", "링크 추가")}
+        </MuteButton>
+      </div>
       <div className="mt-2 space-y-2">
         {profileLinks.map((link, index) => (
           <div
@@ -243,19 +257,10 @@ const CareerProfileLinksSettingsSection = ({
             </div>
           </div>
         ))}
+        <CareerGmailSettingsRow />
       </div>
 
       <div className="mt-5 flex items-center gap-2">
-        <MuteButton
-          onClick={() => {
-            logCareerEvent("click_resume_links_add_link");
-            onAddProfileLink();
-          }}
-          disabled={profileSavePending}
-        >
-          <Plus className="h-3.5 w-3.5" />
-          {t("career.chat.career_timeline_section.1gvzqes", "링크 추가")}
-        </MuteButton>
         {hasUnsavedChanges ? (
           <MuteButton
             type="button"

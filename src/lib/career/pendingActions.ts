@@ -87,6 +87,7 @@ export type CareerReengagementPendingAction =
       actionKey: string;
       companyName: string;
       kind: "internal_opportunity";
+      recommendedAt: string;
       recommendationSummary: string | null;
       roleTitle: string;
     }

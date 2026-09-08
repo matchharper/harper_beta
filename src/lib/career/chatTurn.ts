@@ -12,6 +12,7 @@ import { normalizeNoMessageContent } from "@/lib/career/noMessageContent";
 import {
   buildTalentProfileContext,
   countUserChatTurns,
+  fetchActiveTalentDocumentByOrigin,
   fetchTalentInsights,
   fetchTalentSetting,
   fetchTalentStructuredProfile,
@@ -111,6 +112,12 @@ import {
   ensureOpportunityRunMarker,
   stripOpportunityRunMarkers,
 } from "@/lib/opportunityDiscovery/messageMarker";
+import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
+import {
+  GMAIL_CAREER_HISTORY_ORIGIN_ID,
+  GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
+} from "@/lib/integrations/gmailCareerHistoryCore";
+import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
 
 type TalentMessageResponse = ReturnType<typeof toTalentMessageResponse>;
 
@@ -318,12 +325,12 @@ async function buildTalentProfileSnapshot(args: {
   );
   const onboardingChecklistProgress = !Boolean(setting?.is_onboarding_done)
     ? await getCareerOnboardingChecklistProgress({
-        admin: args.admin,
-        context: talentProfile.talentUser,
-        conversationId: args.conversationId,
-        currentInsightContent: normalizedInsights,
-        userId: args.userId,
-      })
+      admin: args.admin,
+      context: talentProfile.talentUser,
+      conversationId: args.conversationId,
+      currentInsightContent: normalizedInsights,
+      userId: args.userId,
+    })
     : null;
 
   return {
@@ -382,8 +389,8 @@ export async function runCareerChatTurn(
     args.pendingOpportunityFeedbackContext === undefined
       ? undefined
       : stripPostgresUnsafeChars(
-          String(args.pendingOpportunityFeedbackContext ?? "")
-        ).trim();
+        String(args.pendingOpportunityFeedbackContext ?? "")
+      ).trim();
   const proactiveContext = stripPostgresUnsafeChars(
     String(args.proactiveContext ?? "")
   ).trim();
@@ -447,9 +454,12 @@ export async function runCareerChatTurn(
     talentSetting,
     onboardingCompletionEvent,
     officialJobSignupIntentEvent,
+    postOnboardingContext,
     fetchedPendingOpportunityFeedbackContext,
     recentActivitySummaries,
     recentRecommendedOpportunities,
+    activeGmailIntegration,
+    savedGmailCareerHistoryDocument,
     isConversationCompletedOpportunityRunActive,
   ] = await Promise.all([
     fetchTalentUserProfile({ admin, userId }),
@@ -463,16 +473,22 @@ export async function runCareerChatTurn(
     }),
     fetchLatestTalentActivityEvent({
       admin,
+      conversationId,
       eventType: OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE,
+      userId,
+    }),
+    fetchCareerPostOnboardingContext({
+      admin,
+      conversationId,
       userId,
     }),
     explicitPendingOpportunityFeedbackContext === undefined
       ? fetchPendingOpportunityFeedbackPromptContext({
-          admin,
-          conversationId,
-          limit: 10,
-          userId,
-        })
+        admin,
+        conversationId,
+        limit: 10,
+        userId,
+      })
       : Promise.resolve(explicitPendingOpportunityFeedbackContext),
     fetchRecentTalentActivitySummaries({
       admin,
@@ -484,6 +500,23 @@ export async function runCareerChatTurn(
       limit: 10,
       userId,
     }),
+    fetchActiveTalentGmailIntegration({
+      admin,
+      talentId: userId,
+    }),
+    requestChannel === "chat"
+      ? fetchActiveTalentDocumentByOrigin({
+        admin,
+        originId: GMAIL_CAREER_HISTORY_ORIGIN_ID,
+        originType: GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
+        userId,
+      }).catch((error) => {
+        console.warn("[TalentChatTurn] Gmail history context unavailable", {
+          message: error instanceof Error ? error.message : "Unknown error",
+        });
+        return null;
+      })
+      : Promise.resolve(null),
     hasActiveConversationCompletedOpportunityRun({ admin, userId }),
   ]);
 
@@ -512,11 +545,11 @@ export async function runCareerChatTurn(
     !Boolean(talentSetting?.is_onboarding_done) && !suppressOnboarding;
   const onboardingChecklistCoverage = isOnboardingActiveForTurn
     ? await getCareerOnboardingChecklistCoverage({
-        admin,
-        conversationId,
-        currentInsightContent,
-        userId,
-      })
+      admin,
+      conversationId,
+      currentInsightContent,
+      userId,
+    })
     : null;
   const shouldAutoExtractInsights = isOnboardingActiveForTurn;
   const canUseInternalFitHoldQuestionTool =
@@ -526,41 +559,41 @@ export async function runCareerChatTurn(
     );
   const activeInternalFitHoldQuestion =
     talentSetting?.is_onboarding_done &&
-    talentSetting.profile_visibility !== "dont_share" &&
-    canUseInternalFitHoldQuestionTool
+      talentSetting.profile_visibility !== "dont_share" &&
+      canUseInternalFitHoldQuestionTool
       ? await fetchActiveInternalFitHoldQuestion({
-          admin,
-          locale: responseLocale,
-          userId,
-        })
+        admin,
+        locale: responseLocale,
+        userId,
+      })
       : null;
   const activeCompanyTalentRequest = talentSetting?.is_onboarding_done
     ? await fetchActiveCompanyTalentRequest({
-        admin: admin as any,
-        awaitingTalentOnly: true,
-        talentId: userId,
-      })
+      admin: admin as any,
+      awaitingTalentOnly: true,
+      talentId: userId,
+    })
     : null;
   const extractTurnInsights = (assistantContent: string) =>
     shouldAutoExtractInsights
       ? extractAndPersistChatInsights({
-          admin,
-          assistantContent,
-          buildPrompt: (promptArgs) =>
-            buildCareerInsightExtractionPrompt({
-              currentChecklistCoverage: promptArgs.currentChecklistCoverage,
-              currentInsightContent: promptArgs.currentInsightContent,
-              onboardingChecklistContext: promptArgs.onboardingChecklistContext,
-              preferredLocale: responseLocale,
-            }),
-          conversationId,
-          currentInsightContent,
-          logPrefix: "TalentChatTurn",
-          onboardingChecklistContext: profile,
-          sourceChannel:
-            requestChannel === "voice" ? "voice_call" : "text_chat",
-          userId,
-        })
+        admin,
+        assistantContent,
+        buildPrompt: (promptArgs) =>
+          buildCareerInsightExtractionPrompt({
+            currentChecklistCoverage: promptArgs.currentChecklistCoverage,
+            currentInsightContent: promptArgs.currentInsightContent,
+            onboardingChecklistContext: promptArgs.onboardingChecklistContext,
+            preferredLocale: responseLocale,
+          }),
+        conversationId,
+        currentInsightContent,
+        logPrefix: "TalentChatTurn",
+        onboardingChecklistContext: profile,
+        sourceChannel:
+          requestChannel === "voice" ? "voice_call" : "text_chat",
+        userId,
+      })
       : Promise.resolve(0);
 
   let insertedUserMessage: TalentMessageRow | null = null;
@@ -627,7 +660,7 @@ export async function runCareerChatTurn(
     .filter(
       (item) =>
         item.message_type !==
-          TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE &&
+        TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE &&
         item.message_type !== TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP
     )
     .map((item) => ({
@@ -660,41 +693,47 @@ export async function runCareerChatTurn(
     activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
     allowedToolNames: args.allowedToolNames,
     channel: requestChannel,
+    hasActiveGmailIntegration: Boolean(activeGmailIntegration),
     isOnboardingDone: !isOnboardingActiveForTurn,
     responseLocale,
   });
+  const gmailCapability = activeGmailIntegration
+    ? toolSelection.toolNames.includes(TALENT_TOOL_NAMES.SEARCH_CONNECTED_GMAIL)
+      ? ("available" as const)
+      : ("connected_but_unavailable_this_turn" as const)
+    : ("not_connected" as const);
   const toolDefinitions = toolSelection.tools;
   const currentPreferences = {
     getExternalRecommendation:
       talentSetting?.get_external_recommendation ?? true,
     periodicIntervalDays: talentSetting
       ? normalizeTalentPeriodicIntervalDays(
-          talentSetting.periodic_interval_days
-        )
+        talentSetting.periodic_interval_days
+      )
       : null,
     preferredLocale: responseLocale,
     profileVisibility: talentSetting?.profile_visibility ?? null,
     recommendationBatchSize: talentSetting
       ? normalizeTalentRecommendationBatchSize(
-          talentSetting.recommendation_batch_size
-        )
+        talentSetting.recommendation_batch_size
+      )
       : null,
     talentSettingStatus: talentSetting?.status ?? null,
   };
   const serializedActiveRun = serializeOpportunityRun(activeRun);
   const opportunityStatus = activeRun
     ? {
-        activeRunCreatedAt: activeRun.created_at ?? null,
-        activeRunStatus: activeRun.status ?? null,
-        isInitialSearchRunning:
-          Boolean(serializedActiveRun?.inputLocked) &&
-          activeRun.run_mode === "initial",
-        onboardingCompletedAt: onboardingCompletionEvent?.created_at ?? null,
-      }
+      activeRunCreatedAt: activeRun.created_at ?? null,
+      activeRunStatus: activeRun.status ?? null,
+      isInitialSearchRunning:
+        Boolean(serializedActiveRun?.inputLocked) &&
+        activeRun.run_mode === "initial",
+      onboardingCompletedAt: onboardingCompletionEvent?.created_at ?? null,
+    }
     : onboardingCompletionEvent
       ? {
-          onboardingCompletedAt: onboardingCompletionEvent.created_at,
-        }
+        onboardingCompletedAt: onboardingCompletionEvent.created_at,
+      }
       : null;
 
   const { isOnboardingActive, promptBlocks } =
@@ -706,6 +745,8 @@ export async function runCareerChatTurn(
       ),
       currentInsightContent,
       currentPreferences,
+      gmailCapability,
+      hasSavedGmailCareerHistory: Boolean(savedGmailCareerHistoryDocument),
       isConversationCompletedOpportunityRunActive,
       isOnboardingDone: !isOnboardingActiveForTurn,
       officialJobSignupIntentPrompt: isOnboardingActiveForTurn
@@ -715,6 +756,7 @@ export async function runCareerChatTurn(
       opportunityStatus,
       pendingOpportunityFeedbackContext:
         fetchedPendingOpportunityFeedbackContext,
+      postOnboardingContext,
       profile,
       runtimeInstruction: proactiveContext,
       recentActivitySummaries,
@@ -882,9 +924,9 @@ export async function runCareerChatTurn(
         const status =
           typeof rawStatus === "string"
             ? stripPostgresUnsafeChars(rawStatus)
-                .replace(/\s+/g, " ")
-                .trim()
-                .slice(0, 160)
+              .replace(/\s+/g, " ")
+              .trim()
+              .slice(0, 160)
             : "";
         if (status) {
           recordThinkingLog(status);
@@ -948,7 +990,7 @@ export async function runCareerChatTurn(
               });
               throw new Error(
                 cacheMessageError?.message ??
-                  "Failed to insert company_snapshot result message."
+                "Failed to insert company_snapshot result message."
               );
             }
             await touchConversationIfAllowed();
@@ -1009,7 +1051,7 @@ export async function runCareerChatTurn(
             });
             throw new Error(
               researchMessageError?.message ??
-                "Failed to insert company_snapshot result message."
+              "Failed to insert company_snapshot result message."
             );
           }
           await touchConversationIfAllowed();
@@ -1316,13 +1358,13 @@ export async function runCareerChatTurn(
 
   const latestChecklistCoverage = isOnboardingActiveForTurn
     ? await getCareerOnboardingChecklistCoverage({
-        admin,
-        conversationId,
-        currentInsightContent: normalizeTalentInsightContent(
-          (await fetchTalentInsights({ admin, userId }))?.content ?? null
-        ),
-        userId,
-      })
+      admin,
+      conversationId,
+      currentInsightContent: normalizeTalentInsightContent(
+        (await fetchTalentInsights({ admin, userId }))?.content ?? null
+      ),
+      userId,
+    })
     : null;
   const checklistCompleted =
     latestChecklistCoverage &&
@@ -1332,9 +1374,9 @@ export async function runCareerChatTurn(
     ? completion
     : checklistCompleted
       ? {
-          completed: true,
-          reason: "question_checklist_covered" as const,
-        }
+        completed: true,
+        reason: "question_checklist_covered" as const,
+      }
       : completion;
   const isCompleted = Boolean(
     insertedUserMessage && resolvedCompletion.completed
@@ -1345,12 +1387,12 @@ export async function runCareerChatTurn(
   const completedOpportunityRun =
     shouldApplyCompletion && resolvedCompletion.reason
       ? await completeOnboardingAndQueueInitialOpportunityRun({
-          admin,
-          completionReason: resolvedCompletion.reason,
-          conversationId,
-          source: "career_chat_completion",
-          userId,
-        })
+        admin,
+        completionReason: resolvedCompletion.reason,
+        conversationId,
+        source: "career_chat_completion",
+        userId,
+      })
       : null;
   if (completedOpportunityRun) {
     startOpportunityDiscoveryInBackground(completedOpportunityRun.id);
@@ -1358,12 +1400,12 @@ export async function runCareerChatTurn(
   const completionMessages =
     shouldApplyCompletion && insertedUserMessage
       ? await createOnboardingCompletionMessages({
-          admin,
-          conversationId,
-          isMobile,
-          latestUserMessageId: insertedUserMessage.id,
-          userId,
-        })
+        admin,
+        conversationId,
+        isMobile,
+        latestUserMessageId: insertedUserMessage.id,
+        userId,
+      })
       : null;
   const insertedCompletionWrapupMessage =
     completionMessages?.wrapupMessage ?? null;
@@ -1372,20 +1414,20 @@ export async function runCareerChatTurn(
 
   const recommendationSearchRun = recommendationReceiptRef.current?.statusRunId
     ? await fetchSerializedOpportunityRunForTalent({
-        admin,
-        runId: recommendationReceiptRef.current.statusRunId,
-        userId,
-      }).catch((error) => {
-        console.error(
-          "[TalentChatTurn] Failed to hydrate queued recommendation run",
-          {
-            error: error instanceof Error ? error.message : String(error),
-            runId: recommendationReceiptRef.current?.statusRunId,
-            userId,
-          }
-        );
-        return null;
-      })
+      admin,
+      runId: recommendationReceiptRef.current.statusRunId,
+      userId,
+    }).catch((error) => {
+      console.error(
+        "[TalentChatTurn] Failed to hydrate queued recommendation run",
+        {
+          error: error instanceof Error ? error.message : String(error),
+          runId: recommendationReceiptRef.current?.statusRunId,
+          userId,
+        }
+      );
+      return null;
+    })
     : null;
   return buildResult(
     [
@@ -1396,10 +1438,10 @@ export async function runCareerChatTurn(
         thinkingLogs: finalAssistantThinkingLogs,
         ...(recommendationSearchRun
           ? {
-              recommendationSearchRelation:
-                recommendationReceiptRef.current?.statusRelation ?? null,
-              recommendationSearchRun,
-            }
+            recommendationSearchRelation:
+              recommendationReceiptRef.current?.statusRelation ?? null,
+            recommendationSearchRun,
+          }
           : {}),
       },
       insertedCompletionWrapupMessage

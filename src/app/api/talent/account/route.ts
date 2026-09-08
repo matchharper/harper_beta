@@ -411,7 +411,11 @@ async function collectAccountDeletionContext(
       ...discoveryRunIdsByConversation,
     ]),
     documentStoragePaths: uniqueValues<string>(
-      documentRows.map((row) => row.storage_path)
+      documentRows.flatMap((row) =>
+        typeof row.storage_path === "string" && row.storage_path.trim()
+          ? [row.storage_path]
+          : []
+      )
     ),
     email,
     emailInboundEventIds: uniqueValues<string>(
