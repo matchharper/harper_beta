@@ -527,10 +527,10 @@ export const ko = {
       "이미 종료된 포지션이라 연결을 수락할 수 없습니다.",
     "career.api.opportunities.ended_rejection_revert_forbidden":
       "이미 종료된 포지션이라 거절을 되돌릴 수 없습니다.",
-    "career.api.opportunities.import_url_details_required":
-      "공고에서 회사명과 포지션명을 확인하지 못했습니다. 두 항목을 직접 입력해 주세요.",
     "career.api.opportunities.import_url_batch_limit":
       "공고는 한 번에 20개까지 저장할 수 있습니다.",
+    "career.api.opportunities.import_url_details_required":
+      "공고에서 회사명과 포지션명을 확인하지 못했습니다. 두 항목을 직접 입력해 주세요.",
     "career.api.opportunities.import_url_failed":
       "공고를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.",
     "career.api.opportunities.import_url_invalid":
@@ -685,6 +685,8 @@ export const ko = {
       "{roleTitle} 포지션에 대해 간단히 이야기하고 연결을 준비해요.",
     "career.chat.career_composer_section.pending_call_trailing_text":
       "통화 시작",
+    "career.chat.career_composer_section.pending_career_check_in_subtext":
+      "최근 상황과 앞으로 보고 싶은 기회를 Harper와 가볍게 이야기해요.",
     "career.chat.career_composer_section.pending_company_request_label":
       "{companyName}의 요청",
     "career.chat.career_composer_section.pending_company_request_question":
@@ -1158,12 +1160,10 @@ export const ko = {
     "career.common.conversation_starters.1sfi8z4": "선호 조건 업데이트하기",
     "career.common.conversation_starters.career_check_in":
       "최근 상황 업데이트하기",
-    "career.common.conversation_starters.career_check_in_short":
-      "최근 상황 업데이트하기",
     "career.common.conversation_starters.career_check_in_message":
       "요즘 일과 커리어 상황에서 달라진 점을 이야기하고 싶어요.",
-    "career.chat.career_composer_section.pending_career_check_in_subtext":
-      "최근 상황과 앞으로 보고 싶은 기회를 Harper와 가볍게 이야기해요.",
+    "career.common.conversation_starters.career_check_in_short":
+      "최근 상황 업데이트하기",
     "career.common.conversation_starters.more_open_positions":
       "오픈 포지션 더 추천받기",
     "career.common.conversation_starters.requesting_more_open_positions":
@@ -1535,6 +1535,30 @@ export const ko = {
       "(Optional) 진행 종료 이유에 대해서 알려주세요. ex) 다른 회사에 오퍼를 받았습니다, 이직을 할 수 없는 상황이 되었습니다. 등",
     "career.history.internal_decision_actions.stop_title":
       "이 포지션의 진행을 중단할까요?",
+    "career.history.job_link_import.add": "공고 추가",
+    "career.history.job_link_import.bulk_help":
+      "여러 링크를 복사해 링크 칸 하나에 붙여넣으면 공고별 입력란으로 나뉩니다. 최대 20개까지 저장할 수 있습니다.",
+    "career.history.job_link_import.button": "공고 링크 추가",
+    "career.history.job_link_import.cancel": "취소",
+    "career.history.job_link_import.company_label": "회사명",
+    "career.history.job_link_import.description":
+      "임의로 관심 공고를 추가할 수 있습니다. 여러 개를 한 번에 저장할 수 있습니다.",
+    "career.history.job_link_import.details_help":
+      "이 페이지에서는 두 항목을 자동으로 확인하지 못했습니다. 직접 입력하면 링크와 함께 저장할 수 있습니다.",
+    "career.history.job_link_import.failed":
+      "공고를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    "career.history.job_link_import.remove": "공고 삭제",
+    "career.history.job_link_import.role_label": "포지션명",
+    "career.history.job_link_import.saved": "저장되었습니다.",
+    "career.history.job_link_import.source_label": "직접 추가한 공고",
+    "career.history.job_link_import.stage_applied": "지원함",
+    "career.history.job_link_import.stage_label": "현재 상태",
+    "career.history.job_link_import.stage_saved": "관심 있음",
+    "career.history.job_link_import.submit": "전체 저장",
+    "career.history.job_link_import.submitting": "저장 중",
+    "career.history.job_link_import.title": "지원할 공고 저장하기",
+    "career.history.job_link_import.url_label": "공고 링크",
+    "career.history.job_link_import.url_placeholder": "https://...",
     "career.history.opportunity_detail_content.add_memo": "메모 추가하기",
     "career.history.opportunity_detail_content.company_source": "회사 / 출처",
     "career.history.opportunity_detail_content.edit_memo": "메모 수정",
@@ -1552,33 +1576,10 @@ export const ko = {
     "career.history.posting.closed": "지난 공고.",
     "career.history.posting.posted_ago": "{postedAgo}에 게시됨",
     "career.history.saved_opportunity_board.0965oie": "여기에 드롭",
+    "career.history.saved_opportunity_board.0bo9zfr": "내부 기회",
     "career.history.saved_opportunity_board.load_more": "더 불러오기",
     "career.history.saved_opportunity_board.loading_column": "불러오는 중",
     "career.history.saved_opportunity_board.loading_more": "불러오는 중",
-    "career.history.job_link_import.button": "공고 링크 추가",
-    "career.history.job_link_import.cancel": "취소",
-    "career.history.job_link_import.company_label": "회사명",
-    "career.history.job_link_import.description":
-      "임의로 관심 공고를 추가할 수 있습니다. 여러 개를 한 번에 저장할 수 있습니다.",
-    "career.history.job_link_import.bulk_help":
-      "여러 링크를 복사해 링크 칸 하나에 붙여넣으면 공고별 입력란으로 나뉩니다. 최대 20개까지 저장할 수 있습니다.",
-    "career.history.job_link_import.details_help":
-      "이 페이지에서는 두 항목을 자동으로 확인하지 못했습니다. 직접 입력하면 링크와 함께 저장할 수 있습니다.",
-    "career.history.job_link_import.failed":
-      "공고를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.",
-    "career.history.job_link_import.role_label": "포지션명",
-    "career.history.job_link_import.add": "공고 추가",
-    "career.history.job_link_import.remove": "공고 삭제",
-    "career.history.job_link_import.saved": "저장되었습니다.",
-    "career.history.job_link_import.source_label": "직접 추가한 공고",
-    "career.history.job_link_import.stage_applied": "지원함",
-    "career.history.job_link_import.stage_label": "현재 상태",
-    "career.history.job_link_import.stage_saved": "관심 있음",
-    "career.history.job_link_import.submit": "전체 저장",
-    "career.history.job_link_import.submitting": "저장 중",
-    "career.history.job_link_import.title": "지원할 공고 저장하기",
-    "career.history.job_link_import.url_label": "공고 링크",
-    "career.history.job_link_import.url_placeholder": "https://...",
     "career.history.saved_opportunity_status.0exoa8f": "보관함",
     "career.history.saved_opportunity_status.0obqas2": "관심 있음",
     "career.history.saved_opportunity_status.1jv953e": "진행 종료",
@@ -2029,6 +2030,7 @@ export const ko = {
     "career.profile.career_profile_workspace.14bifvm": "이력서/링크",
     "career.profile.career_profile_workspace.16e35ps":
       "입력하신 정보와 대화내용을 바탕으로 Harper가 구성한 프로필입니다.",
+    "career.profile.career_profile_workspace.search_brief_tab": "선호 기준",
     "career.profile.career_talent_profile_panel.00infjs": "근무 지역",
     "career.profile.career_talent_profile_panel.04441vu":
       "로고 이미지는 5MB 이하로 업로드해 주세요.",
@@ -2094,6 +2096,36 @@ export const ko = {
       "확인하면 편집 화면에서 이 항목이 제거됩니다. 최종 반영하려면 프로필을 저장해 주세요.",
     "career.profile.career_talent_profile_panel.remove_confirm_title":
       "{label} 항목을 삭제할까요?",
+    "career.profile.context.add": "추가",
+    "career.profile.context.add_brief": "탐색 기준 추가",
+    "career.profile.context.add_memory": "기억 추가",
+    "career.profile.context.brief_content_placeholder":
+      "기회를 찾을 때 반영할 기준을 적어주세요.",
+    "career.profile.context.brief_description":
+      "Harper가 기회를 찾고 판단할 때 적용하는 현재 기준이에요. 회사에 직접적으로 공개되지않고 선호하시는 기회를 찾기 위해 사용되며, 사용해서 회원님을 더 잘 소개할 수 있을 때 일부 언급될 수 있습니다.",
+    "career.profile.context.brief_empty": "아직 정해진 탐색 기준이 없어요.",
+    "career.profile.context.brief_title": "Search Brief",
+    "career.profile.context.cancel": "취소",
+    "career.profile.context.content": "내용",
+    "career.profile.context.delete": "삭제",
+    "career.profile.context.delete_description":
+      "저장된 기준에서 이 항목을 삭제해요.",
+    "career.profile.context.delete_title": "이 내용을 삭제할까요?",
+    "career.profile.context.edit": "수정",
+    "career.profile.context.edit_brief": "탐색 기준 수정",
+    "career.profile.context.edit_memory": "기억 수정",
+    "career.profile.context.label": "제목",
+    "career.profile.context.label_placeholder": "예: 선호 근무 지역",
+    "career.profile.context.load_more": "더 보기",
+    "career.profile.context.manage": "관리",
+    "career.profile.context.memory_content_placeholder":
+      "하퍼가 다음에도 기억하면 좋을 맥락을 적어주세요.",
+    "career.profile.context.memory_description":
+      "다음 대화와 기회 판단에 도움이 되도록 기억해 둔 맥락이에요.",
+    "career.profile.context.memory_empty": "아직 저장된 기억이 없어요.",
+    "career.profile.context.memory_title": "Harper의 기억",
+    "career.profile.context.retry": "다시 시도",
+    "career.profile.context.save": "저장",
     "career.profile.date.present": "현재",
     "career.profile.date.year_only": "{year}년",
     "career.profile.documents.actions": "문서 메뉴",
@@ -2556,9 +2588,9 @@ export const ko = {
     "ui.0sinjah":
       "## 참고할 통화 시작 내용 아래 문구나 질문의 취지를 통화 첫 멘트에 자연스럽게 반영하세요. 그대로 읽기보다 위 지시와 최근 대화 맥락에 맞게 말하세요.",
     "ui.0tllcd0": "Internal 연결 제안",
-    "ui.0ztll8g": "작은 팀에서 제품 의사결정까지 맡는 역할에 관심이 있나요?",
     "ui.0z3ew5y": "연세대학교",
     "ui.0zrc4ap": "SQL 실행에 실패했습니다.",
+    "ui.0ztll8g": "작은 팀에서 제품 의사결정까지 맡는 역할에 관심이 있나요?",
     "ui.11t3ixr": "하버드",
     "ui.13zozby": "부산대학교",
     "ui.14kv35j": "서울과학기술대학교",
@@ -2590,38 +2622,7 @@ export const ko = {
     "ui.1tk2q9m": "이화여자대학교",
     "ui.1w4hprp": "경희대학교",
     "ui.1wiix8w": "company_roles FTS 검색 실패",
-    "ui.1xeaoum": "메시지를 삭제하지 못했습니다.",
     "ui.1x6ubj9": "성균관대학교",
-    "career.profile.career_profile_workspace.search_brief_tab": "선호 기준",
-    "career.profile.context.add": "추가",
-    "career.profile.context.add_brief": "탐색 기준 추가",
-    "career.profile.context.add_memory": "기억 추가",
-    "career.profile.context.brief_content_placeholder":
-      "기회를 찾을 때 반영할 기준을 적어주세요.",
-    "career.profile.context.brief_description":
-      "Harper가 기회를 찾고 판단할 때 적용하는 현재 기준이에요. 회사에 직접적으로 공개되지않고 선호하시는 기회를 찾기 위해 사용되며, 사용해서 회원님을 더 잘 소개할 수 있을 때 일부 언급될 수 있습니다.",
-    "career.profile.context.brief_empty": "아직 정해진 탐색 기준이 없어요.",
-    "career.profile.context.brief_title": "Search Brief",
-    "career.profile.context.cancel": "취소",
-    "career.profile.context.content": "내용",
-    "career.profile.context.delete": "삭제",
-    "career.profile.context.delete_description":
-      "저장된 기준에서 이 항목을 삭제해요.",
-    "career.profile.context.delete_title": "이 내용을 삭제할까요?",
-    "career.profile.context.edit": "수정",
-    "career.profile.context.edit_brief": "탐색 기준 수정",
-    "career.profile.context.edit_memory": "기억 수정",
-    "career.profile.context.label": "제목",
-    "career.profile.context.label_placeholder": "예: 선호 근무 지역",
-    "career.profile.context.manage": "관리",
-    "career.profile.context.load_more": "더 보기",
-    "career.profile.context.memory_content_placeholder":
-      "하퍼가 다음에도 기억하면 좋을 맥락을 적어주세요.",
-    "career.profile.context.memory_description":
-      "다음 대화와 기회 판단에 도움이 되도록 기억해 둔 맥락이에요.",
-    "career.profile.context.memory_empty": "아직 저장된 기억이 없어요.",
-    "career.profile.context.memory_title": "Harper의 기억",
-    "career.profile.context.retry": "다시 시도",
-    "career.profile.context.save": "저장",
+    "ui.1xeaoum": "메시지를 삭제하지 못했습니다.",
   },
 } as const;

@@ -24,6 +24,13 @@ const deletedStatusMigration = readFileSync(
   ),
   "utf8"
 );
+const terminalTimestampMigration = readFileSync(
+  new URL(
+    "../../../supabase/migrations/20260909130000_internal_role_terminal_expired_at.sql",
+    import.meta.url
+  ),
+  "utf8"
+);
 
 test("database validation accepts the same writable role states as the application", () => {
   const branch = migration.match(
@@ -75,5 +82,24 @@ test("direct E2E cleanup preserves the deleted-and-expired invariant", () => {
   assert.match(
     companySlackGmailE2e,
     /\.update\(\{ is_expired: true, status: "deleted", updated_at: now \}\)/
+  );
+});
+
+test("ended and deleted internal roles record one terminal timestamp", () => {
+  assert.match(
+    terminalTimestampMigration,
+    /v_new_status in \('ended', 'deleted'\)/
+  );
+  assert.match(
+    terminalTimestampMigration,
+    /v_old_status not in \('ended', 'deleted'\)[\s\S]*new\.expired_at := v_now/
+  );
+  assert.match(
+    terminalTimestampMigration,
+    /before update of status on public\.company_roles/
+  );
+  assert.match(
+    terminalTimestampMigration,
+    /role\.status, ''\)\)\) in \('ended', 'deleted'\)[\s\S]*role\.expired_at is null/
   );
 });

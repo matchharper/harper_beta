@@ -37,7 +37,7 @@ const nextConfig = {
       {
         source: "/search",
         destination: "/company",
-        permanent: false,
+        permanent: true,
       },
       {
         source: "/invitation",

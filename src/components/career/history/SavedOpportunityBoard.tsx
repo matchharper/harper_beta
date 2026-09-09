@@ -71,11 +71,14 @@ const SavedOpportunityBoardCard = ({
   ) => void;
   onOpenDetail: () => void;
 }) => {
+  const t = useCareerT();
   const recommendedAgo = formatRelativeTime(item.recommendedAt, locale);
   const displayLocation = formatCareerLocation(item.location, locale);
   const locationMeta = [displayLocation, item.workMode]
     .filter(Boolean)
     .join(" · ");
+  const isInternalOpportunity =
+    item.isInternal || item.sourceType === "internal";
   const canChangeStatus =
     !item.isInternal && canChangeCareerOpportunityManagementStatus(item);
 
@@ -151,9 +154,16 @@ const SavedOpportunityBoardCard = ({
               meeting={item.upcomingMeeting}
               className="-mx-3 mt-2 rounded-none px-3 py-1 text-[11px] leading-4"
             />
-            {recommendedAgo ? (
-              <div className="mt-2 truncate text-[12px] leading-4 text-neutral-muted">
-                {recommendedAgo}
+            {recommendedAgo || isInternalOpportunity ? (
+              <div className="mt-2 flex items-end justify-between gap-2 text-[12px] leading-4">
+                <span className="min-w-0 truncate text-neutral-muted">
+                  {recommendedAgo}
+                </span>
+                {isInternalOpportunity ? (
+                  <span className="shrink-0 font-medium text-primary">
+                    {t("career.history.saved_opportunity_board.0bo9zfr", "내부 기회")}
+                  </span>
+                ) : null}
               </div>
             ) : null}
           </div>

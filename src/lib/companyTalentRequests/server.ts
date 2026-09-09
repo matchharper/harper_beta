@@ -3,7 +3,11 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "crypto";
 import { buildOrgHref } from "@/lib/org/routes";
 import { assertSafeProfessionalQuestion } from "@/lib/companyTalentRequests/policy";
-import { humanizeCompanyTalentRequestStatus } from "@/lib/companyTalentRequests/status";
+import {
+  companyTalentRequestBlocksNewContact,
+  companyTalentRequestCandidateEmailWasSent,
+  humanizeCompanyTalentRequestStatus,
+} from "@/lib/companyTalentRequests/status";
 
 export { assertSafeProfessionalQuestion } from "@/lib/companyTalentRequests/policy";
 export { serializeTalentPendingRequest } from "@/lib/companyTalentRequests/presentation";
@@ -21,9 +25,15 @@ export const COMPANY_TALENT_REQUEST_ACTIVE_STATUSES = [
   "review_required",
 ] as const;
 
-export const COMPANY_TALENT_REQUEST_BLOCKING_STATUSES = [
+export const COMPANY_TALENT_REQUEST_TRACKED_STATUSES = [
   "draft",
   ...COMPANY_TALENT_REQUEST_ACTIVE_STATUSES,
+  "failed",
+] as const;
+
+export const COMPANY_TALENT_REQUEST_BLOCKING_STATUSES = [
+  "draft",
+  "queued",
   "failed",
 ] as const;
 
@@ -72,29 +82,20 @@ function companyRequestRoleIsOpen(row: CompanyTalentRequestReadRow) {
   );
 }
 
-function companyRequestCandidateEmailWasSent(row: CompanyTalentRequestReadRow) {
-  return Boolean(
-    row.deliveries?.some(
-      (delivery) =>
-        delivery.type === "company_request_candidate_delivery" &&
-        (delivery.status === "sent" ||
-          Number.isFinite(Date.parse(String(delivery.sent_at ?? ""))))
-    ) ||
-    [
-      "awaiting_talent",
-      "relay_queued",
-      "review_required",
-      "delivered",
-    ].includes(row.workflow_status)
-  );
-}
-
 function companyRequestStillActive(
   row: CompanyTalentRequestReadRow,
   awaitingTalentOnly: boolean
 ) {
   const hasResponse = Boolean(row.talent_source_message_id || row.document_id);
-  const candidateEmailSent = companyRequestCandidateEmailWasSent(row);
+  const candidateDelivery = row.deliveries?.find(
+    (delivery) => delivery.type === "company_request_candidate_delivery"
+  );
+  const candidateEmailSent = companyTalentRequestCandidateEmailWasSent({
+    candidate_delivery_status: candidateDelivery?.status,
+    candidate_sent_at: candidateDelivery?.sent_at,
+    has_candidate_response: hasResponse,
+    workflow_status: row.workflow_status,
+  });
   if (awaitingTalentOnly) {
     return candidateEmailSent && !hasResponse && companyRequestRoleIsOpen(row);
   }
@@ -480,7 +481,7 @@ export async function fetchBlockingCompanyTalentRequestForWorkspace(args: {
   const { data, error } = await args.admin
     .from("company_talent_requests")
     .select(
-      "id, role_id, expects_document, request_context, workflow_status, expires_at, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, talent_source_message_id, role:company_roles!inner(name), deliveries:contact_queue(scheduled_at, sent_at, status, last_error, payload, type)"
+      "id, role_id, expects_document, request_context, workflow_status, expires_at, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, talent_source_message_id, document_id, role:company_roles!inner(name), deliveries:contact_queue(scheduled_at, sent_at, status, last_error, payload, type)"
     )
     .eq("company_workspace_id", args.workspaceId)
     .eq("role_id", args.roleId)
@@ -488,22 +489,37 @@ export async function fetchBlockingCompanyTalentRequestForWorkspace(args: {
     .in("workflow_status", [...COMPANY_TALENT_REQUEST_BLOCKING_STATUSES])
     .gt("expires_at", new Date().toISOString())
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(30);
   if (error) throw error;
-  if (!data) return null;
-  const row = data as CompanyTalentRequestRow & {
-    deliveries?: Array<{
-      scheduled_at?: string | null;
-      sent_at?: string | null;
-      status?: string | null;
-      last_error?: string | null;
-      payload?: unknown;
-      type?: string | null;
-    }> | null;
-    role?: { name?: string | null } | null;
-    talent_source_message_id?: number | null;
-  };
+  const rows = (Array.isArray(data) ? data : []) as Array<
+    CompanyTalentRequestRow & {
+      deliveries?: Array<{
+        scheduled_at?: string | null;
+        sent_at?: string | null;
+        status?: string | null;
+        last_error?: string | null;
+        payload?: unknown;
+        type?: string | null;
+      }> | null;
+      role?: { name?: string | null } | null;
+      talent_source_message_id?: number | null;
+    }
+  >;
+  const row = rows.find((candidate) => {
+    const candidateDelivery = candidate.deliveries?.find(
+      (item) => item.type === "company_request_candidate_delivery"
+    );
+    return companyTalentRequestBlocksNewContact({
+      candidate_delivery_status: candidateDelivery?.status,
+      candidate_sent_at: candidateDelivery?.sent_at,
+      expires_at: candidate.expires_at,
+      has_candidate_response: Boolean(
+        candidate.talent_source_message_id || candidate.document_id
+      ),
+      workflow_status: candidate.workflow_status,
+    });
+  });
+  if (!row) return null;
   const candidateDelivery = row.deliveries?.find(
     (item) => item.type === "company_request_candidate_delivery"
   );

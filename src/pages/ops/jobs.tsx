@@ -23,6 +23,12 @@ import {
 } from "@/lib/officialJobs";
 import type { OpsOfficialJobSaveInput } from "@/lib/ops/officialJobs";
 import { useAuthStore } from "@/store/useAuthStore";
+import {
+  type OpsOfficialJobsLinkedinFilter,
+  type OpsOfficialJobsLocationFilter,
+  type OpsOfficialJobsStatusFilter,
+  useOpsOfficialJobsFilterStore,
+} from "@/store/useOpsOfficialJobsFilterStore";
 import { useIsDesktop, usePrefersReducedMotion } from "@/hooks/useMediaQuery";
 import {
   ArrowUpRight,
@@ -49,15 +55,12 @@ import {
 } from "@/components/ui/select";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
-type JobFilter = "all" | "published" | "draft";
-type LinkedinFilter = "all" | "published" | "unpublished";
-type LocationFilter = "all" | "kr" | "jp" | "us" | "uk" | "sg" | "th" | "au";
 const NEW_JOB_ID = "__new_official_job__";
 const AUTO_SAVE_DELAY_MS = 1_000;
 
 const JOB_FILTER_OPTIONS: ReadonlyArray<{
   label: string;
-  value: JobFilter;
+  value: OpsOfficialJobsStatusFilter;
 }> = [
   { label: "All", value: "all" },
   { label: "Published", value: "published" },
@@ -66,7 +69,7 @@ const JOB_FILTER_OPTIONS: ReadonlyArray<{
 
 const LINKEDIN_FILTER_OPTIONS: ReadonlyArray<{
   label: string;
-  value: LinkedinFilter;
+  value: OpsOfficialJobsLinkedinFilter;
 }> = [
   { label: "LinkedIn 전체", value: "all" },
   { label: "배포됨", value: "published" },
@@ -75,7 +78,7 @@ const LINKEDIN_FILTER_OPTIONS: ReadonlyArray<{
 
 const LOCATION_FILTER_OPTIONS: ReadonlyArray<{
   label: string;
-  value: LocationFilter;
+  value: OpsOfficialJobsLocationFilter;
 }> = [
   { label: "Location 전체", value: "all" },
   { label: "대한민국", value: "kr" },
@@ -88,7 +91,7 @@ const LOCATION_FILTER_OPTIONS: ReadonlyArray<{
 ];
 
 const LOCATION_MATCHERS: Record<
-  Exclude<LocationFilter, "all">,
+  Exclude<OpsOfficialJobsLocationFilter, "all">,
   { flags: string[]; terms: string[] }
 > = {
   kr: {
@@ -391,7 +394,10 @@ function createSlug(value: string) {
   return slug || "official-job";
 }
 
-function matchesFilter(job: OpsOfficialJobRecord, filter: JobFilter) {
+function matchesFilter(
+  job: OpsOfficialJobRecord,
+  filter: OpsOfficialJobsStatusFilter
+) {
   if (filter === "published") return job.isPublished;
   if (filter === "draft") return !job.isPublished;
   return true;
@@ -399,7 +405,7 @@ function matchesFilter(job: OpsOfficialJobRecord, filter: JobFilter) {
 
 function matchesLinkedinFilter(
   job: OpsOfficialJobRecord,
-  filter: LinkedinFilter
+  filter: OpsOfficialJobsLinkedinFilter
 ) {
   if (filter === "published") return job.isOnLinkedin;
   if (filter === "unpublished") return !job.isOnLinkedin;
@@ -416,7 +422,7 @@ function normalizeLocationTerm(value: string) {
 
 function matchesLocationFilter(
   job: OpsOfficialJobRecord,
-  filter: LocationFilter
+  filter: OpsOfficialJobsLocationFilter
 ) {
   if (filter === "all") return true;
 
@@ -462,10 +468,24 @@ export default function OpsOfficialJobsPage() {
   const isDesktop = useIsDesktop();
   const prefersReducedMotion = usePrefersReducedMotion();
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<JobFilter>("all");
-  const [linkedinFilter, setLinkedinFilter] = useState<LinkedinFilter>("all");
-  const [locationFilter, setLocationFilter] = useState<LocationFilter>("all");
+  const filter = useOpsOfficialJobsFilterStore((state) => state.jobFilter);
+  const linkedinFilter = useOpsOfficialJobsFilterStore(
+    (state) => state.linkedinFilter
+  );
+  const locationFilter = useOpsOfficialJobsFilterStore(
+    (state) => state.locationFilter
+  );
+  const query = useOpsOfficialJobsFilterStore((state) => state.query);
+  const setFilter = useOpsOfficialJobsFilterStore(
+    (state) => state.setJobFilter
+  );
+  const setLinkedinFilter = useOpsOfficialJobsFilterStore(
+    (state) => state.setLinkedinFilter
+  );
+  const setLocationFilter = useOpsOfficialJobsFilterStore(
+    (state) => state.setLocationFilter
+  );
+  const setQuery = useOpsOfficialJobsFilterStore((state) => state.setQuery);
   const [draftState, setDraftState] = useState<OfficialJobDraftState>({
     draft: EMPTY_DRAFT,
     initialDraft: EMPTY_DRAFT,
@@ -763,7 +783,9 @@ export default function OpsOfficialJobsPage() {
                 <Select
                   items={JOB_FILTER_OPTIONS}
                   value={filter}
-                  onValueChange={(value) => setFilter(value as JobFilter)}
+                  onValueChange={(value) =>
+                    setFilter(value as OpsOfficialJobsStatusFilter)
+                  }
                 >
                   <SelectTrigger aria-label="공개 상태 필터" size="sm">
                     <SelectValue />
@@ -783,7 +805,7 @@ export default function OpsOfficialJobsPage() {
                   items={LINKEDIN_FILTER_OPTIONS}
                   value={linkedinFilter}
                   onValueChange={(value) =>
-                    setLinkedinFilter(value as LinkedinFilter)
+                    setLinkedinFilter(value as OpsOfficialJobsLinkedinFilter)
                   }
                 >
                   <SelectTrigger aria-label="LinkedIn 배포 상태 필터" size="sm">
@@ -804,7 +826,7 @@ export default function OpsOfficialJobsPage() {
                   items={LOCATION_FILTER_OPTIONS}
                   value={locationFilter}
                   onValueChange={(value) =>
-                    setLocationFilter(value as LocationFilter)
+                    setLocationFilter(value as OpsOfficialJobsLocationFilter)
                   }
                 >
                   <SelectTrigger

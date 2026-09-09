@@ -537,7 +537,9 @@ export function useCreateOpsMatchingReviewStage() {
       queryClient.invalidateQueries({
         queryKey: queryKeys.opsMatching.reviewAll(variables.roleId),
       });
-      queryClient.invalidateQueries({ queryKey: queryKeys.opsMatching.all });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.opsMatching.reviewRoot,
+      });
     },
   });
 }
@@ -558,7 +560,9 @@ export function useUpdateOpsMatchingReviewStage() {
       queryClient.invalidateQueries({
         queryKey: queryKeys.opsMatching.reviewAll(variables.roleId),
       });
-      queryClient.invalidateQueries({ queryKey: queryKeys.opsMatching.all });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.opsMatching.reviewRoot,
+      });
     },
   });
 }
@@ -757,6 +761,7 @@ export function useCreateOpsMatchingProgress() {
       queryClient.invalidateQueries({
         queryKey: ["ops-career-detail", variables.talentId],
       });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opsMatching.all });
       queryClient.invalidateQueries({
         queryKey: queryKeys.org.acceptedTalents,
       });
@@ -828,6 +833,7 @@ export function useDeleteOpsMatchingProgress() {
       queryClient.invalidateQueries({
         queryKey: ["ops-career-detail", variables.talentId],
       });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opsMatching.all });
       queryClient.invalidateQueries({
         queryKey: queryKeys.org.acceptedTalents,
       });

@@ -1,5 +1,7 @@
 # Company Role Profile Calibration: 로컬 event 실행·운영 기준
 
+- 상위 작업 지도: [`codex-work.md`](./codex-work.md)
+- 전달 12시간 뒤 후속 작업: [`company-role-post-calibration-review-ko.md`](./company-role-post-calibration-review-ko.md)
 - 기준 repository: `harper_beta`
 - 실행 계약: [`company-role-profile-calibration-codex-runbook-ko.md`](../company/company-role-profile-calibration-codex-runbook-ko.md)
 - event prompt: [`company-role-profile-calibration-event-prompt-ko.md`](../company/company-role-profile-calibration-event-prompt-ko.md)
@@ -8,6 +10,10 @@
 - DB wake migration: `20260908190000_company_role_calibration_notify.sql`
 - 기존 Codex automation: `Company Role Profile Calibration` 12시간 주기, event listener를 쓰는 동안
   `PAUSED` 유지
+
+> 이 문서의 기존 12시간 automation은 **미전송 calibration 재시도 fallback**이다. Calibration
+> 전달 12시간 뒤 Harper talent pool을 검토하는 새 제품 단계와 같은 작업이 아니다. 후속 검토의
+> 시간 anchor, fit write와 회사 안내 계약은 위 후속 작업 문서를 따른다.
 
 ## 목적
 

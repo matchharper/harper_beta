@@ -25,7 +25,10 @@ import type {
 import { formatOrgAgentKstDateTime } from "@/lib/org/agent/dateTime";
 import { hasOrgWorkspaceAccessBypass } from "@/lib/org/access";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
-import { summarizeCompanyTalentRequestStatus } from "@/lib/companyTalentRequests/status";
+import {
+  companyTalentRequestBlocksNewContact,
+  summarizeCompanyTalentRequestStatus,
+} from "@/lib/companyTalentRequests/status";
 import { normalizeOrgRoleCriteria } from "@/lib/org/roleCriteria";
 import { fetchOrgProcessClosureNotifications } from "@/lib/org/processClosureNotification";
 import { resolveTalentLocation } from "@/lib/talentLocation";
@@ -1042,7 +1045,6 @@ async function readCompanyTalentRequestProjection(args: {
           )
         : null;
       const workflowStatus = text(row.workflow_status);
-      const expiresAt = Date.parse(text(row.expires_at));
       const role = args.roleById.get(text(row.role_id));
       const roleIsOpen = role
         ? !["ended", "deleted"].includes(text(role.status))
@@ -1068,18 +1070,16 @@ async function readCompanyTalentRequestProjection(args: {
         workflow_status: workflowStatus,
       });
       const blocksNewRequest =
-        [
-          "draft",
-          "queued",
-          "failed",
-          "awaiting_talent",
-          "relay_queued",
-          "review_required",
-        ].includes(workflowStatus) &&
         roleIsOpen !== false &&
-        (!["draft", "queued", "failed"].includes(workflowStatus) ||
-          !Number.isFinite(expiresAt) ||
-          expiresAt > Date.now());
+        companyTalentRequestBlocksNewContact({
+          candidate_delivery_status: text(candidateDelivery?.status),
+          candidate_sent_at: text(candidateDelivery?.sent_at),
+          expires_at: text(row.expires_at),
+          has_candidate_response: Boolean(
+            responseMessageId || responseDocumentId
+          ),
+          workflow_status: workflowStatus,
+        });
       return {
         approvedAt: formatRequestTimestamp(row.approved_at),
         at: formatRequestTimestamp(

@@ -1,5 +1,7 @@
 # Company-side 데이터 기반 Role Request 갱신 기준
 
+- 상위 작업 지도: [Company-side Codex 작업 지도](./codex-work.md)
+- 48시간 실행 런북: [최근 활동 기반 Hiring Brief 48시간 갱신](./company-role-request-refresh-48h-ko.md)
 - 대상: internal Role의 `company_internal_roles.request`
 - 기준 repository: `harper_beta`, 실제 evaluator는 `harper_worker`
 - 작성일: 2026-09-07

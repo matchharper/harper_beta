@@ -619,7 +619,9 @@ async function semanticMemoryLookup(args: {
     {
       p_embedding_model: TALENT_CONTEXT_EMBEDDING_MODEL,
       p_match_count: args.limit,
-      p_query_embedding: embedding,
+      // Supabase represents pgvector RPC parameters as their PostgreSQL text
+      // form in generated types. JSON array syntax is valid vector input.
+      p_query_embedding: JSON.stringify(embedding),
       p_talent_id: args.userId,
     }
   );

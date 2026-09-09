@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
-  getCareerDefaultSavedStage,
+  getCareerDefaultSavedStageForOpportunity,
   getCareerOpportunitySortPriority,
 } from "@/components/career/opportunityTypeMeta";
 import { getSavedOpportunityManagementStatus } from "@/components/career/history/savedOpportunityStatus";
@@ -90,7 +90,7 @@ const getSavedStageLoadedCount = (
   items.filter(
     (item) =>
       getHistoryOpportunityBucket(item) === "saved" &&
-      (item.savedStage ?? getCareerDefaultSavedStage(item.opportunityType)) ===
+      (item.savedStage ?? getCareerDefaultSavedStageForOpportunity(item)) ===
         stage
   ).length;
 
@@ -98,7 +98,7 @@ const getSavedOpenLoadedCount = (items: CareerHistoryOpportunity[]) =>
   items.filter((item) => {
     if (getHistoryOpportunityBucket(item) !== "saved") return false;
     const stage =
-      item.savedStage ?? getCareerDefaultSavedStage(item.opportunityType);
+      item.savedStage ?? getCareerDefaultSavedStageForOpportunity(item);
     return stage !== "hidden";
   }).length;
 

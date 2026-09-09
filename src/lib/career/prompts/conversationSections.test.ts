@@ -6,6 +6,7 @@ import {
   buildOnboardingRuntimeStateSection,
   buildOptionalFollowUpOpportunitiesSection,
 } from "./conversationSections";
+import { CAREER_DEFAULT_CONVERSATION_GUIDANCE_PROMPT } from "./rawPrompts";
 import { getInsightChecklist } from "../../talentOnboarding/insightChecklist";
 import { buildCareerInsightExtractionPrompt } from "./cases/insightExtractionPrompts";
 
@@ -115,4 +116,19 @@ test("keeps canonical onboarding Brief fields separate without discounting free-
     /Do not store information already saved in the profile in Memory/
   );
   assert.match(prompt, /do not repeat its label in content/);
+});
+
+test("keeps recommendation feedback separate from inferred durable context", () => {
+  assert.match(
+    CAREER_DEFAULT_CONVERSATION_GUIDANCE_PROMPT,
+    /by itself is recommendation feedback, not enough evidence to write a generalized criterion/
+  );
+  assert.match(
+    CAREER_DEFAULT_CONVERSATION_GUIDANCE_PROMPT,
+    /Behavior Context may later use the feedback as one soft signal/
+  );
+  assert.doesNotMatch(
+    CAREER_DEFAULT_CONVERSATION_GUIDANCE_PROMPT,
+    /counts as durable signal for future similar recommendations/
+  );
 });

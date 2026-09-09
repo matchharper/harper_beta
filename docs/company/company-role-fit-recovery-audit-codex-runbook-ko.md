@@ -1,6 +1,6 @@
 # Company Role Fit Recovery Audit: Codex 반복 실행 런북
 
-- 문서 기준: 2026-09-02
+- 문서 기준: 2026-09-09
 - 상태: local read-only 실행 계약 및 helper 구현 완료
 - 기능·데이터 계약: [Company Role Fit Recovery Audit 개요](./company-role-fit-recovery-audit-overview-ko.md)
 - 변경 판단 기록: [Company Role Fit Recovery Audit Calibration](./company-role-fit-recovery-audit-calibration-ko.md)
@@ -92,7 +92,8 @@ Company 이름의 부분 문자열만으로 workspace를 고르지 않는다. Ex
 - 대상 role이 active, unexpired, internal, non-test임
 - 자동 run이면 모두 `is_auto=true`
 - `talent_opportunity_fit.company_side_evaluation_metadata`를 읽을 수 있음
-- `talent_behavior_contexts`, recommendation, progress, tag를 읽을 수 있음
+- `talent_contexts`, `talent_behavior_contexts`, `talent_behavior_context_changes`, recommendation, progress, tag를 읽을 수 있음
+- 각 대상 talent의 Behavior Context가 현재 builder version이고 미반영 change가 0건임
 - 같은 workspace의 sibling role별 최신 recommendation, 후보 feedback, authoritative stage, role move와 process-stop evidence를 읽을 수 있음
 
 Transaction 종료 시 rollback한다. Preflight 때문에 due run을 enqueue하거나 queue row를 claim하지 않는다.
@@ -224,6 +225,12 @@ Packet은 다음 구조를 권장한다.
   "company": {},
   "roleIndex": [],
   "talent": {},
+  "searchBrief": [],
+  "behaviorContext": {
+    "text": "...",
+    "version": 0,
+    "builderVersion": "..."
+  },
   "sameCompanyHistory": {
     "summary": "...",
     "fingerprint": "...",
@@ -234,6 +241,10 @@ Packet은 다음 구조를 권장한다.
 ```
 
 Codex가 처음 읽는 문서에는 compact role index와 talent evidence를 넣는다. 특정 role/family를 자세히 평가할 필요가 생기면 그 full role card를 같은 run artifact에 추가한다.
+
+`searchBrief`는 사용자가 확인할 수 있는 현재 기준의 전체 활성 행이다. `behaviorContext`는 Memory·대화·이메일·추천·활동 원본에서 미리 도출한 Worker용 soft inference cache다. Memory 원문과 광범위한 메시지·이메일·추천·활동 이력은 packet에 다시 넣지 않는다. Behavior Context가 없거나, builder version이 다르거나, 미반영 source change가 남아 있으면 그 talent는 평가하지 않고 Worker builder를 먼저 갱신한다. Behavior Context는 hard mismatch·추천 금지·동의·공유 권한의 근거가 될 수 없으며 명시적인 Search Brief와 Profile을 덮어쓰지 않는다.
+
+현재 target role과 같은 회사의 authoritative 추천·진행 상태는 아래 same-company history 계약에 따라 별도로 넣는다. 이는 파생 선호를 다시 추론하기 위한 광범위한 행동 원본이 아니라 현재 pair의 중복 추천과 실제 pipeline 상태를 판단하기 위한 최신 사실이다.
 
 모든 active role의 긴 JD와 모든 과거 사건을 모든 candidate packet에 복제하지 않는다.
 
@@ -321,6 +332,7 @@ Checkpoint 전에 다음을 검증한다.
 - Reason이 후보별 실질 근거를 담은 5개 이상의 완결된 문장임
 - Human override를 변경하려는 출력이 아님
 - Candidate packet에 조회 완료된 same-company history summary와 fingerprint가 있음
+- Candidate packet에 전체 활성 Search Brief와 현재 builder version의 Behavior Context가 있고 미반영 change가 없음
 
 Validation 실패 line은 저장하지 않고 오류를 수정한 뒤 다시 검증한다.
 
@@ -478,6 +490,8 @@ Cleanup은 별도 실행으로 수행한다.
 - [ ] 같은 사람의 duplicate identity를 제거했다.
 - [ ] SQL rank로 label을 정하지 않았다.
 - [ ] Codex가 각 완료 talent의 candidate packet을 직접 읽었다.
+- [ ] 전체 활성 Search Brief와 현재 builder version의 Behavior Context를 사용했고 미반영 change가 없었다.
+- [ ] Memory·광범위한 메시지·이메일·추천·활동 원본을 packet에 다시 넣지 않았다.
 - [ ] 각 reason이 후보별 근거를 담은 5개 이상의 완결된 문장이다.
 - [ ] 현재 국가와 같은 국가의 학교·실제 근무 이력 조합으로 근로권을 판단하고, 더 직접적인 반대 evidence가 있으면 우선했다.
 - [ ] 같은 회사 다른 role의 실제 추천·후보 반응·authoritative 진행 상태를 조회하고 판단에 반영했다.
@@ -495,6 +509,7 @@ Cleanup은 별도 실행으로 수행한다.
 
 | 날짜 | 주요 변경 |
 | --- | --- |
+| 2026-09-09 | Candidate packet을 전체 Search Brief와 최신 Worker Behavior Context로 전환하고 Memory·광범위한 원본 행동 이력의 반복 주입을 금지함 |
 | 2026-09-02 | 현재 target 국가 location과 같은 국가의 학교 또는 실제 근무 이력이 함께 있으면 근로권을 인정하는 필수 규칙과 후보별 최소 5문장 reason 계약을 추가함 |
 | 2026-09-02 | Same-company sibling role의 실제 추천·후보 반응·authoritative stage를 조회·정규화하고 label·score·recommend·cache·보고에 반영하는 필수 절차를 추가함 |
 | 2026-09-02 | 집계와 후보별 가입·최근 사용·온보딩·기존/신규 reason을 빠짐없이 보여 주는 고정 보고 형식을 정의함 |

@@ -1,10 +1,24 @@
 import { memo, useMemo, useState } from "react";
-import { LoaderCircle, Plus } from "lucide-react";
+import { LoaderCircle, Plus, Trash2 } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
-import { BareButton } from "@/components/ui/button";
+import { BareButton, MuteButton } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
-import { useCreateOpsCareerProfileMemo } from "@/hooks/ops/useOpsCareer";
-import type { CareerTalentOpsMemo } from "@/lib/ops/careerServer";
+import {
+  useCreateOpsCareerProfileMemo,
+  useDeleteOpsCareerProfileMemo,
+} from "@/hooks/ops/useOpsCareer";
+import type {
+  CareerTalentOpsMemo,
+  CareerTalentOpsProfileMemo,
+} from "@/lib/ops/careerServer";
 import { formatKst } from "./utils";
 
 type OpsProfileMemoFeedProps = {
@@ -21,7 +35,10 @@ export const OpsProfileMemoFeed = memo(function OpsProfileMemoFeed({
   userId,
 }: OpsProfileMemoFeedProps) {
   const [draft, setDraft] = useState("");
+  const [memoToDelete, setMemoToDelete] =
+    useState<CareerTalentOpsProfileMemo | null>(null);
   const createMemo = useCreateOpsCareerProfileMemo(userId);
+  const deleteMemo = useDeleteOpsCareerProfileMemo(userId);
   const sortedMemos = useMemo(
     () =>
       [...memos].sort((left, right) =>
@@ -57,11 +74,29 @@ export const OpsProfileMemoFeed = memo(function OpsProfileMemoFeed({
                     .join(" · ")}
                 </div>
               ) : null}
-              <div className="mb-1.5 text-[11px] text-neutral-soft">
-                {formatKst(getMemoTimestamp(memo))}
-                {(memo.updatedBy ?? memo.createdBy)
-                  ? ` · ${memo.updatedBy ?? memo.createdBy}`
-                  : ""}
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <div className="min-w-0 truncate text-[11px] text-neutral-soft">
+                  {formatKst(getMemoTimestamp(memo))}
+                  {(memo.updatedBy ?? memo.createdBy)
+                    ? ` · ${memo.updatedBy ?? memo.createdBy}`
+                    : ""}
+                </div>
+                {memo.source === "profile" ? (
+                  <MuteButton
+                    aria-label="메모 삭제"
+                    className="shrink-0 text-neutral-soft hover:bg-critical-faded hover:text-critical"
+                    disabled={deleteMemo.isPending}
+                    onClick={() => {
+                      deleteMemo.reset();
+                      setMemoToDelete(memo);
+                    }}
+                    size="sm"
+                    title="메모 삭제"
+                    variant="transparent"
+                  >
+                    <Trash2 aria-hidden className="size-3.5" />
+                  </MuteButton>
+                ) : null}
               </div>
               <div className="whitespace-pre-wrap text-sm leading-6 text-neutral-primary">
                 {memo.content}
@@ -109,6 +144,66 @@ export const OpsProfileMemoFeed = memo(function OpsProfileMemoFeed({
           </div>
         ) : null}
       </div>
+
+      <Dialog
+        open={Boolean(memoToDelete)}
+        onOpenChange={(open) => {
+          if (!open && !deleteMemo.isPending) {
+            setMemoToDelete(null);
+            deleteMemo.reset();
+          }
+        }}
+      >
+        <DialogContent className="max-w-md rounded-lg" hideCloseButton>
+          <DialogHeader>
+            <DialogTitle>메모를 삭제할까요?</DialogTitle>
+            <DialogDescription>
+              누가 작성했는지와 관계없이 삭제되며, 되돌릴 수 없습니다.
+            </DialogDescription>
+          </DialogHeader>
+          {memoToDelete ? (
+            <div className="line-clamp-4 rounded-md bg-bg-weak px-3 py-2 text-sm leading-6 text-neutral-muted">
+              {memoToDelete.content}
+            </div>
+          ) : null}
+          {deleteMemo.error ? (
+            <div className={opsTheme.errorNotice}>
+              {deleteMemo.error instanceof Error
+                ? deleteMemo.error.message
+                : "메모 삭제에 실패했습니다."}
+            </div>
+          ) : null}
+          <DialogFooter>
+            <MuteButton
+              disabled={deleteMemo.isPending}
+              onClick={() => {
+                setMemoToDelete(null);
+                deleteMemo.reset();
+              }}
+              variant="transparent"
+            >
+              취소
+            </MuteButton>
+            <MuteButton
+              disabled={!memoToDelete || deleteMemo.isPending}
+              onClick={() => {
+                if (!memoToDelete || deleteMemo.isPending) return;
+                deleteMemo.mutate(memoToDelete.id, {
+                  onSuccess: () => setMemoToDelete(null),
+                });
+              }}
+              variant="critical"
+            >
+              {deleteMemo.isPending ? (
+                <LoaderCircle aria-hidden className="animate-spin" />
+              ) : (
+                <Trash2 aria-hidden />
+              )}
+              {deleteMemo.isPending ? "삭제 중" : "삭제"}
+            </MuteButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 });

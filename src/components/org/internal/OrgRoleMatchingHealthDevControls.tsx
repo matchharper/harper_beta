@@ -20,8 +20,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
-import type { OrgRoleMatchingHealthToolResult } from "@/lib/org/agent/roleMatchingHealth";
+import type {
+  OrgRoleMatchingHealthFocus,
+  OrgRoleMatchingHealthToolResult,
+} from "@/lib/org/agent/roleMatchingHealth";
 import type { OrgRole } from "@/lib/org/server";
+
+const FOCUS_OPTIONS: Array<{
+  label: string;
+  value: OrgRoleMatchingHealthFocus;
+}> = [
+  { label: "전체 통계", value: "overview" },
+  { label: "아쉽게 매칭되지 않은 이유", value: "near_matches" },
+  { label: "매칭 판단 범위와 최신성", value: "matching_coverage" },
+  { label: "후보자 거절 사유", value: "candidate_feedback" },
+];
 
 export function OrgRoleMatchingHealthDevControls({
   roles,
@@ -37,6 +50,8 @@ export function OrgRoleMatchingHealthDevControls({
   const [selectedRoleId, setSelectedRoleId] = useState(
     roleOptions[0]?.value ?? ""
   );
+  const [selectedFocus, setSelectedFocus] =
+    useState<OrgRoleMatchingHealthFocus>("overview");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -49,6 +64,9 @@ export function OrgRoleMatchingHealthDevControls({
     ? selectedRoleId
     : (roleOptions[0]?.value ?? "");
   const selectedRole = roles.find((role) => role.roleId === activeRoleId);
+  const selectedFocusLabel =
+    FOCUS_OPTIONS.find((option) => option.value === selectedFocus)?.label ??
+    "전체 통계";
   const formattedResult = result ?? "";
 
   const loadResult = async () => {
@@ -60,6 +78,7 @@ export function OrgRoleMatchingHealthDevControls({
     setCopied(false);
     try {
       const params = new URLSearchParams({
+        focus: selectedFocus,
         roleId: activeRoleId,
         workspaceId,
       });
@@ -101,12 +120,12 @@ export function OrgRoleMatchingHealthDevControls({
               </h2>
             </div>
             <p className="text-[13px] font-light leading-5 text-neutral-muted">
-              Role 하나를 선택해 company-side LLM용 tool result를 읽습니다.
-              데이터는 변경하지 않습니다.
+              Role과 focus를 선택해 read-tool result를 미리 봅니다. 아직
+              company-side LLM에는 연결되지 않았으며 데이터도 변경하지 않습니다.
             </p>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(220px,0.7fr)_auto] sm:items-end">
             <label className="grid min-w-0 gap-1.5 text-[12px] text-neutral-muted">
               대상 Role
               <Select
@@ -121,6 +140,31 @@ export function OrgRoleMatchingHealthDevControls({
                   {roleOptions.map((role) => (
                     <SelectItem key={role.value} value={role.value}>
                       {role.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+            <label className="grid min-w-0 gap-1.5 text-[12px] text-neutral-muted">
+              조회 Focus
+              <Select
+                items={FOCUS_OPTIONS}
+                onValueChange={(value) => {
+                  if (
+                    FOCUS_OPTIONS.some((option) => option.value === value)
+                  ) {
+                    setSelectedFocus(value as OrgRoleMatchingHealthFocus);
+                  }
+                }}
+                value={selectedFocus}
+              >
+                <SelectTrigger aria-label="Matching health 조회 Focus">
+                  <SelectValue placeholder="Focus 선택" />
+                </SelectTrigger>
+                <SelectContent align="start" alignItemWithTrigger={false}>
+                  {FOCUS_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -145,10 +189,11 @@ export function OrgRoleMatchingHealthDevControls({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0 space-y-1">
                 <DialogTitle className="truncate text-base">
-                  {selectedRole?.name ?? "Role"} · matching health
+                  {selectedRole?.name ?? "Role"} · {selectedFocusLabel}
                 </DialogTitle>
                 <DialogDescription>
-                  company-side LLM에 그대로 들어갈 tool result입니다.
+                  아직 company-side LLM에 연결하지 않은 read-tool result
+                  미리보기입니다.
                 </DialogDescription>
               </div>
               {result ? (

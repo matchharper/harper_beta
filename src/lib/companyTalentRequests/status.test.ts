@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { summarizeCompanyTalentRequestStatus } from "./status";
+import {
+  companyTalentRequestBlocksNewContact,
+  summarizeCompanyTalentRequestStatus,
+} from "./status";
 
 const NOW = Date.parse("2026-09-08T00:00:00.000Z");
 const FUTURE = "2026-09-15T00:00:00.000Z";
@@ -73,6 +76,77 @@ test("company talent request statuses preserve every completed milestone", () =>
         now: NOW,
       }).status,
       expected
+    );
+  }
+});
+
+test("only pre-send requests block a separate candidate question", () => {
+  const cases = [
+    {
+      input: { workflow_status: "draft" },
+      expected: true,
+      label: "draft",
+    },
+    {
+      input: {
+        candidate_delivery_status: "processing",
+        workflow_status: "queued",
+      },
+      expected: true,
+      label: "delivery in progress",
+    },
+    {
+      input: {
+        candidate_delivery_status: "failed",
+        workflow_status: "failed",
+      },
+      expected: true,
+      label: "pre-send failure",
+    },
+    {
+      input: {
+        candidate_delivery_status: "sent",
+        workflow_status: "awaiting_talent",
+      },
+      expected: false,
+      label: "sent and awaiting reply",
+    },
+    {
+      input: {
+        candidate_delivery_status: "sent",
+        has_candidate_response: true,
+        workflow_status: "failed",
+      },
+      expected: false,
+      label: "sent with failed company relay",
+    },
+    {
+      input: {
+        has_candidate_response: true,
+        workflow_status: "failed",
+      },
+      expected: false,
+      label: "candidate response proves delivery",
+    },
+    {
+      input: {
+        expires_at: "2026-09-07T00:00:00.000Z",
+        workflow_status: "queued",
+      },
+      expected: false,
+      label: "expired pre-send request",
+    },
+  ] as const;
+
+  for (const { input, expected, label } of cases) {
+    assert.equal(
+      companyTalentRequestBlocksNewContact({
+        ...input,
+        expires_at: "expires_at" in input ? input.expires_at : FUTURE,
+        now: NOW,
+      }),
+      expected,
+      label
     );
   }
 });

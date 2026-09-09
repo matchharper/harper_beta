@@ -40,7 +40,7 @@ import {
 } from "./types";
 import {
   EXTERNAL_ALREADY_APPLIED_FEEDBACK_REASON,
-  getCareerDefaultSavedStage,
+  getCareerDefaultSavedStageForOpportunity,
   getCareerNegativeActionLabel,
   getCareerOpportunityInfoCopy,
   getCareerOpportunityPanelToneClassName,
@@ -206,9 +206,7 @@ const formatWorkMode = (value: string | null, tArg?: CareerTHelper) => {
 };
 
 const getDefaultSavedStage = (item: CareerHistoryOpportunity) =>
-  item.isInternal || item.sourceType === "internal"
-    ? "connected"
-    : getCareerDefaultSavedStage(item.opportunityType);
+  getCareerDefaultSavedStageForOpportunity(item);
 
 export const getResolvedSavedStage = (item: CareerHistoryOpportunity) =>
   item.savedStage ?? getDefaultSavedStage(item);

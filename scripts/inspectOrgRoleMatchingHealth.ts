@@ -1,9 +1,14 @@
 import dotenv from "dotenv";
 import { isInternalDomainEmail } from "../src/lib/internalAccess";
+import {
+  parseOrgRoleMatchingHealthFocus,
+  type OrgRoleMatchingHealthFocus,
+} from "../src/lib/org/agent/roleMatchingHealth";
 
 dotenv.config({ path: ".env.local", quiet: true });
 
 type Options = {
+  focus: OrgRoleMatchingHealthFocus;
   maxRows?: number;
   roleId: string;
   userId?: string;
@@ -20,6 +25,7 @@ function usage() {
     "  pnpm exec tsx scripts/inspectOrgRoleMatchingHealth.ts <role-id> --user-id=<company-user-id>",
     "",
     "Options:",
+    "  --focus=<focus>                overview | near_matches | matching_coverage | candidate_feedback",
     "  --max-rows=<number>             Maximum fit/recommendation rows to inspect",
     "  --user-id=<uuid>                Company member actor; otherwise an owner/admin/member is selected",
   ].join("\n");
@@ -43,8 +49,12 @@ function parseArgs(arguments_: string[]): Options | null {
   if (maxRows !== undefined && (!Number.isInteger(maxRows) || maxRows <= 0)) {
     throw new Error("--max-rows must be a positive integer");
   }
+  const focusValue = optionValue(arguments_, "--focus") || "overview";
+  const focus = parseOrgRoleMatchingHealthFocus(focusValue);
+  if (!focus) throw new Error("--focus is invalid\n\n" + usage());
 
   return {
+    focus,
     maxRows,
     roleId,
     userId: optionValue(arguments_, "--user-id") || undefined,
@@ -127,6 +137,7 @@ async function main() {
   );
   const result = await getOrgRoleMatchingHealthToolResult({
     admin,
+    focus: options.focus,
     maxRows: options.maxRows,
     roleId: role.role_id,
     workspaceId: role.company_workspace_id,

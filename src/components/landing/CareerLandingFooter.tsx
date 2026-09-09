@@ -9,12 +9,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { openCustomCrispWidget } from "@/lib/feedback/customCrispEvents";
 import { persistLocalePreference } from "@/i18n/useMessage";
+import { getCompanyLocalePath } from "@/lib/companyLandingSeo";
 import Face from "../common/Face";
 // import { useCareerT } from "@/i18n/useCareerT";
 
 type FooterLocale = "ko" | "en";
-
-const COMPANY_CONTACT_HREF = "/company#company-contact";
 
 type CareerLandingFooterProps = {
   careerStartHref: string;
@@ -180,6 +179,8 @@ export default function CareerLandingFooter({
   showLocaleSwitcher = true,
 }: CareerLandingFooterProps) {
   const resolvedLocale = locale ?? "ko";
+  const companyPageHref = getCompanyLocalePath(resolvedLocale);
+  const companyContactHref = `${companyPageHref}#company-contact`;
   const labels = FOOTER_COPY[resolvedLocale];
   const openSupportChat = () => {
     openCustomCrispWidget();
@@ -247,7 +248,7 @@ export default function CareerLandingFooter({
                 {labels.forCompanies}
               </div>
               <div className={`${liststyle}`}>
-                <Link href="/company" className={liStyle}>
+                <Link href={companyPageHref} className={liStyle}>
                   {labels.harperForCompanies}
                 </Link>
                 {onScheduleCallClick ? (
@@ -259,7 +260,7 @@ export default function CareerLandingFooter({
                     {labels.scheduleCall}
                   </button>
                 ) : (
-                  <Link href={COMPANY_CONTACT_HREF} className={liStyle}>
+                  <Link href={companyContactHref} className={liStyle}>
                     {labels.scheduleCall}
                   </Link>
                 )}

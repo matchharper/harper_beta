@@ -509,10 +509,10 @@ export const en = {
       "This position has already closed, so you can no longer accept the introduction.",
     "career.api.opportunities.ended_rejection_revert_forbidden":
       "This position has already closed, so the rejection cannot be undone.",
-    "career.api.opportunities.import_url_details_required":
-      "We couldn't identify the company and position from this posting. Enter both to continue.",
     "career.api.opportunities.import_url_batch_limit":
       "You can save up to 20 job postings at a time.",
+    "career.api.opportunities.import_url_details_required":
+      "We couldn't identify the company and position from this posting. Enter both to continue.",
     "career.api.opportunities.import_url_failed":
       "We couldn't save this posting. Please try again shortly.",
     "career.api.opportunities.import_url_invalid":
@@ -669,6 +669,8 @@ export const en = {
       "Talk briefly about the {roleTitle} position and prepare for the introduction.",
     "career.chat.career_composer_section.pending_call_trailing_text":
       "Start call",
+    "career.chat.career_composer_section.pending_career_check_in_subtext":
+      "Have a quick chat with Harper about what's changed and the opportunities you'd like to see next.",
     "career.chat.career_composer_section.pending_company_request_label":
       "{companyName}'s request",
     "career.chat.career_composer_section.pending_company_request_question":
@@ -1156,12 +1158,10 @@ export const en = {
       "Speak to Update Preferences",
     "career.common.conversation_starters.career_check_in":
       "Share a Recent Update",
-    "career.common.conversation_starters.career_check_in_short":
-      "Share a Recent Update",
     "career.common.conversation_starters.career_check_in_message":
       "I'd like to share what's changed in my work or career situation.",
-    "career.chat.career_composer_section.pending_career_check_in_subtext":
-      "Have a quick chat with Harper about what's changed and the opportunities you'd like to see next.",
+    "career.common.conversation_starters.career_check_in_short":
+      "Share a Recent Update",
     "career.common.conversation_starters.more_open_positions":
       "Get more job recommendations",
     "career.common.conversation_starters.requesting_more_open_positions":
@@ -1547,6 +1547,30 @@ export const en = {
       "(Optional) Tell Harper why you're ending the process (e.g., you accepted another offer or are no longer able to change jobs).",
     "career.history.internal_decision_actions.stop_title":
       "Stop pursuing this position?",
+    "career.history.job_link_import.add": "Add posting",
+    "career.history.job_link_import.bulk_help":
+      "Paste multiple links into any link field to split them into separate entries. You can save up to 20 at a time.",
+    "career.history.job_link_import.button": "Add job link",
+    "career.history.job_link_import.cancel": "Cancel",
+    "career.history.job_link_import.company_label": "Company",
+    "career.history.job_link_import.description":
+      "Add any job postings you're interested in. You can save multiple postings at once.",
+    "career.history.job_link_import.details_help":
+      "We couldn't identify these two fields on this page. Enter them to save the posting with its link.",
+    "career.history.job_link_import.failed":
+      "We couldn't save this posting. Please try again shortly.",
+    "career.history.job_link_import.remove": "Remove posting",
+    "career.history.job_link_import.role_label": "Position",
+    "career.history.job_link_import.saved": "Saved.",
+    "career.history.job_link_import.source_label": "Added by you",
+    "career.history.job_link_import.stage_applied": "Applied",
+    "career.history.job_link_import.stage_label": "Current status",
+    "career.history.job_link_import.stage_saved": "Interested",
+    "career.history.job_link_import.submit": "Save all",
+    "career.history.job_link_import.submitting": "Saving",
+    "career.history.job_link_import.title": "Save jobs you're pursuing",
+    "career.history.job_link_import.url_label": "Job posting link",
+    "career.history.job_link_import.url_placeholder": "https://...",
     "career.history.opportunity_detail_content.add_memo": "Add Note",
     "career.history.opportunity_detail_content.company_source":
       "Company / Source",
@@ -1567,33 +1591,10 @@ export const en = {
     "career.history.posting.closed": "Closed posting.",
     "career.history.posting.posted_ago": "Posted {postedAgo}",
     "career.history.saved_opportunity_board.0965oie": "Drop here",
+    "career.history.saved_opportunity_board.0bo9zfr": "Internal",
     "career.history.saved_opportunity_board.load_more": "Load more",
     "career.history.saved_opportunity_board.loading_column": "Loading column",
     "career.history.saved_opportunity_board.loading_more": "Loading more",
-    "career.history.job_link_import.button": "Add job link",
-    "career.history.job_link_import.cancel": "Cancel",
-    "career.history.job_link_import.company_label": "Company",
-    "career.history.job_link_import.description":
-      "Add any job postings you're interested in. You can save multiple postings at once.",
-    "career.history.job_link_import.bulk_help":
-      "Paste multiple links into any link field to split them into separate entries. You can save up to 20 at a time.",
-    "career.history.job_link_import.details_help":
-      "We couldn't identify these two fields on this page. Enter them to save the posting with its link.",
-    "career.history.job_link_import.failed":
-      "We couldn't save this posting. Please try again shortly.",
-    "career.history.job_link_import.role_label": "Position",
-    "career.history.job_link_import.add": "Add posting",
-    "career.history.job_link_import.remove": "Remove posting",
-    "career.history.job_link_import.saved": "Saved.",
-    "career.history.job_link_import.source_label": "Added by you",
-    "career.history.job_link_import.stage_applied": "Applied",
-    "career.history.job_link_import.stage_label": "Current status",
-    "career.history.job_link_import.stage_saved": "Interested",
-    "career.history.job_link_import.submit": "Save all",
-    "career.history.job_link_import.submitting": "Saving",
-    "career.history.job_link_import.title": "Save jobs you're pursuing",
-    "career.history.job_link_import.url_label": "Job posting link",
-    "career.history.job_link_import.url_placeholder": "https://...",
     "career.history.saved_opportunity_status.0exoa8f": "Archive",
     "career.history.saved_opportunity_status.0obqas2": "Interested",
     "career.history.saved_opportunity_status.1jv953e": "Ended",
@@ -2055,6 +2056,7 @@ export const en = {
     "career.profile.career_profile_workspace.14bifvm": "Resume & Links",
     "career.profile.career_profile_workspace.16e35ps":
       "This is the profile Harper created based on the information and conversation you provided.",
+    "career.profile.career_profile_workspace.search_brief_tab": "Search Brief",
     "career.profile.career_talent_profile_panel.00infjs": "Work Location",
     "career.profile.career_talent_profile_panel.04441vu":
       "Please upload a logo image under 5MB.",
@@ -2126,6 +2128,38 @@ export const en = {
       "Confirming will remove this item from the editing screen. Please save your profile for the changes to take effect.",
     "career.profile.career_talent_profile_panel.remove_confirm_title":
       "Remove {label}?",
+    "career.profile.context.add": "Add",
+    "career.profile.context.add_brief": "Add search criterion",
+    "career.profile.context.add_memory": "Add memory",
+    "career.profile.context.brief_content_placeholder":
+      "Describe the criterion Harper should apply when exploring opportunities.",
+    "career.profile.context.brief_description":
+      "These are the current criteria Harper applies when finding and evaluating opportunities. They aren't shared directly with companies; Harper uses them to find opportunities aligned with your preferences and may mention relevant details when they help introduce you more effectively.",
+    "career.profile.context.brief_empty":
+      "You don't have any search criteria yet.",
+    "career.profile.context.brief_title": "Search Brief",
+    "career.profile.context.cancel": "Cancel",
+    "career.profile.context.content": "Details",
+    "career.profile.context.delete": "Delete",
+    "career.profile.context.delete_description":
+      "This removes the item from your saved criteria.",
+    "career.profile.context.delete_title": "Delete this item?",
+    "career.profile.context.edit": "Edit",
+    "career.profile.context.edit_brief": "Edit search criterion",
+    "career.profile.context.edit_memory": "Edit memory",
+    "career.profile.context.label": "Title",
+    "career.profile.context.label_placeholder":
+      "For example: Preferred location",
+    "career.profile.context.load_more": "Load more",
+    "career.profile.context.manage": "Manage",
+    "career.profile.context.memory_content_placeholder":
+      "Add context you want Harper to remember next time.",
+    "career.profile.context.memory_description":
+      "Context Harper remembers to support future conversations and opportunity decisions.",
+    "career.profile.context.memory_empty": "No saved memories yet.",
+    "career.profile.context.memory_title": "Harper's memory",
+    "career.profile.context.retry": "Try again",
+    "career.profile.context.save": "Save",
     "career.profile.date.present": "Present",
     "career.profile.date.year_only": "{year}",
     "career.profile.documents.actions": "Document menu",
@@ -2607,10 +2641,10 @@ export const en = {
     "ui.0sinjah":
       "## Conversation Starter Tips: Naturally incorporate the sentiment or intent of the phrases/questions below into your opening remarks. Speak in a way that aligns with the instructions and recent conversation context, rather than reading them verbatim.",
     "ui.0tllcd0": "Internal connection proposal",
-    "ui.0ztll8g":
-      "Are you interested in a role where you also own product decisions on a small team?",
     "ui.0z3ew5y": "Yonsei University",
     "ui.0zrc4ap": "Failed to execute SQL.",
+    "ui.0ztll8g":
+      "Are you interested in a role where you also own product decisions on a small team?",
     "ui.11t3ixr": "Harvard",
     "ui.13zozby": "Pusan National University",
     "ui.14kv35j": "Seoul National University of Science and Technology",
@@ -2643,40 +2677,7 @@ export const en = {
     "ui.1tk2q9m": "Ewha Womans University",
     "ui.1w4hprp": "Kyung Hee University",
     "ui.1wiix8w": "company_roles FTS search failed",
-    "ui.1xeaoum": "We couldn't delete the message.",
     "ui.1x6ubj9": "Sungkyunkwan University",
-    "career.profile.career_profile_workspace.search_brief_tab": "Search Brief",
-    "career.profile.context.add": "Add",
-    "career.profile.context.add_brief": "Add search criterion",
-    "career.profile.context.add_memory": "Add memory",
-    "career.profile.context.brief_content_placeholder":
-      "Describe the criterion Harper should apply when exploring opportunities.",
-    "career.profile.context.brief_description":
-      "These are the current criteria Harper applies when finding and evaluating opportunities. They aren't shared directly with companies; Harper uses them to find opportunities aligned with your preferences and may mention relevant details when they help introduce you more effectively.",
-    "career.profile.context.brief_empty":
-      "You don't have any search criteria yet.",
-    "career.profile.context.brief_title": "Search Brief",
-    "career.profile.context.cancel": "Cancel",
-    "career.profile.context.content": "Details",
-    "career.profile.context.delete": "Delete",
-    "career.profile.context.delete_description":
-      "This removes the item from your saved criteria.",
-    "career.profile.context.delete_title": "Delete this item?",
-    "career.profile.context.edit": "Edit",
-    "career.profile.context.edit_brief": "Edit search criterion",
-    "career.profile.context.edit_memory": "Edit memory",
-    "career.profile.context.label": "Title",
-    "career.profile.context.label_placeholder":
-      "For example: Preferred location",
-    "career.profile.context.manage": "Manage",
-    "career.profile.context.load_more": "Load more",
-    "career.profile.context.memory_content_placeholder":
-      "Add context you want Harper to remember next time.",
-    "career.profile.context.memory_description":
-      "Context Harper remembers to support future conversations and opportunity decisions.",
-    "career.profile.context.memory_empty": "No saved memories yet.",
-    "career.profile.context.memory_title": "Harper's memory",
-    "career.profile.context.retry": "Try again",
-    "career.profile.context.save": "Save",
+    "ui.1xeaoum": "We couldn't delete the message.",
   },
 } as const;

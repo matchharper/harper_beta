@@ -3,6 +3,7 @@ import {
   buildOrgRoleMatchingHealthToolResult,
   getRoleMatchingHealthContextTalentIds,
   type OrgRoleMatchingHealthToolResult,
+  type OrgRoleMatchingHealthFocus,
   type RoleMatchingHealthFitRow,
   type RoleMatchingHealthRecommendationRow,
   type RoleMatchingHealthTalentContext,
@@ -13,7 +14,7 @@ type OrgAgentAdminClient = ReturnType<typeof getSupabaseAdmin>;
 const FIT_FIELDS =
   "id, talent_id, label, score, reason, recommend, role_fit, candidate_fit, company_fit, human_label, human_reason, reevaluation_criteria, last_evaluated_at, created_at";
 const RECOMMENDATION_FIELDS =
-  "id, talent_id, kind, opportunity_type, fit_summary, fit_reasons, feedback, feedback_at, feedback_reason, saved_stage, recommended_at, viewed_at, created_at, updated_at";
+  "id, talent_id, kind, opportunity_type, fit_summary, fit_reasons, feedback, feedback_at, feedback_reason, saved_stage, recommended_at, created_at, updated_at";
 const PAGE_SIZE = 1_000;
 const DEFAULT_MAX_ROWS = 25_000;
 
@@ -128,6 +129,7 @@ async function fetchTalentContexts(args: {
 /** Reads one internal Role and returns the text passed to the company-side LLM. */
 export async function getOrgRoleMatchingHealthToolResult(args: {
   admin: OrgAgentAdminClient;
+  focus?: OrgRoleMatchingHealthFocus;
   maxRows?: number;
   roleId: string;
   workspaceId: string;
@@ -166,45 +168,56 @@ export async function getOrgRoleMatchingHealthToolResult(args: {
     PAGE_SIZE,
     Math.min(50_000, args.maxRows ?? DEFAULT_MAX_ROWS)
   );
+  const focus = args.focus ?? "overview";
+  const needsFits = focus !== "candidate_feedback";
+  const needsRecommendations =
+    focus === "overview" || focus === "candidate_feedback";
   const [fitRows, recommendationRows] = await Promise.all([
-    fetchPagedRows<RoleMatchingHealthFitRow>({
-      maxRows,
-      fetchPage: async (from, to) => {
-        const result = await (
-          args.admin.from("talent_opportunity_fit" as any) as any
-        )
-          .select(FIT_FIELDS)
-          .eq("opportunity_id", roleId)
-          .order("last_evaluated_at", { ascending: false })
-          .order("id", { ascending: false })
-          .range(from, to);
-        return {
-          data: (result.data ?? []) as RoleMatchingHealthFitRow[],
-          error: result.error,
-        };
-      },
-    }),
-    fetchPagedRows<RoleMatchingHealthRecommendationRow>({
-      maxRows,
-      fetchPage: async (from, to) => {
-        const result = await (
-          args.admin.from("talent_opportunity_recommendation" as any) as any
-        )
-          .select(RECOMMENDATION_FIELDS)
-          .eq("role_id", roleId)
-          .order("recommended_at", { ascending: false })
-          .order("id", { ascending: false })
-          .range(from, to);
-        return {
-          data: (result.data ?? []) as RoleMatchingHealthRecommendationRow[],
-          error: result.error,
-        };
-      },
-    }),
+    needsFits
+      ? fetchPagedRows<RoleMatchingHealthFitRow>({
+          maxRows,
+          fetchPage: async (from, to) => {
+            const result = await (
+              args.admin.from("talent_opportunity_fit" as any) as any
+            )
+              .select(FIT_FIELDS)
+              .eq("opportunity_id", roleId)
+              .order("last_evaluated_at", { ascending: false })
+              .order("id", { ascending: false })
+              .range(from, to);
+            return {
+              data: (result.data ?? []) as RoleMatchingHealthFitRow[],
+              error: result.error,
+            };
+          },
+        })
+      : Promise.resolve([] as RoleMatchingHealthFitRow[]),
+    needsRecommendations
+      ? fetchPagedRows<RoleMatchingHealthRecommendationRow>({
+          maxRows,
+          fetchPage: async (from, to) => {
+            const result = await (
+              args.admin.from(
+                "talent_opportunity_recommendation" as any
+              ) as any
+            )
+              .select(RECOMMENDATION_FIELDS)
+              .eq("role_id", roleId)
+              .order("recommended_at", { ascending: false })
+              .order("id", { ascending: false })
+              .range(from, to);
+            return {
+              data: (result.data ?? []) as RoleMatchingHealthRecommendationRow[],
+              error: result.error,
+            };
+          },
+        })
+      : Promise.resolve([] as RoleMatchingHealthRecommendationRow[]),
   ]);
 
   const contextTalentIds = getRoleMatchingHealthContextTalentIds({
     fits: fitRows,
+    focus,
     recommendations: recommendationRows,
   });
   const candidateContexts = await fetchTalentContexts({
@@ -215,6 +228,7 @@ export async function getOrgRoleMatchingHealthToolResult(args: {
   return buildOrgRoleMatchingHealthToolResult({
     candidateContexts,
     fits: fitRows,
+    focus,
     generatedAt: new Date().toISOString(),
     recommendations: recommendationRows,
     role: {

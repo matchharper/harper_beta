@@ -6,6 +6,10 @@ const migration = readFileSync(
   "supabase/migrations/20260908150000_company_talent_request_reply_without_deadline.sql",
   "utf8"
 );
+const parallelSentMigration = readFileSync(
+  "supabase/migrations/20260909140000_company_talent_request_parallel_sent.sql",
+  "utf8"
+);
 const server = readFileSync("src/lib/companyTalentRequests/server.ts", "utf8");
 const contacts = readFileSync("src/lib/org/agent/contacts.ts", "utf8");
 
@@ -44,6 +48,19 @@ test("sent-request reads do not apply the draft deadline", () => {
   );
   assert.match(server, /\["awaiting_talent", "closed"\]/);
   assert.match(server, /args\.ttlSeconds \?\? 90 \* 86400/);
+});
+
+test("sent requests no longer reserve the candidate contact slot", () => {
+  const indexSql =
+    parallelSentMigration.match(
+      /create unique index company_talent_requests_workspace_role_talent_open_uidx[\s\S]*?;/
+    )?.[0] ?? "";
+  assert.match(indexSql, /workflow_status in \('draft', 'queued', 'failed'\)/);
+  assert.doesNotMatch(indexSql, /awaiting_talent/);
+  assert.doesNotMatch(indexSql, /relay_queued/);
+  assert.doesNotMatch(indexSql, /review_required/);
+  assert.match(indexSql, /talent_source_message_id is null/);
+  assert.match(indexSql, /document_id is null/);
 });
 
 test("late resume replies use the same no-deadline contract", () => {

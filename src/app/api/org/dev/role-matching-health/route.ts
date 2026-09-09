@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { canUseOrgDevControls } from "@/lib/internalAccess";
+import { parseOrgRoleMatchingHealthFocus } from "@/lib/org/agent/roleMatchingHealth";
 import {
   getOrgRoleMatchingHealthToolResult,
   OrgRoleMatchingHealthError,
@@ -49,8 +50,13 @@ export async function GET(req: NextRequest) {
 
     const workspaceId = text(req.nextUrl.searchParams.get("workspaceId"));
     const roleId = text(req.nextUrl.searchParams.get("roleId"));
+    const focusParam = text(req.nextUrl.searchParams.get("focus"));
+    const focus = parseOrgRoleMatchingHealthFocus(focusParam || "overview");
     if (!workspaceId || !roleId) {
       throw new OrgHttpError(400, "workspaceId and roleId are required");
+    }
+    if (!focus) {
+      throw new OrgHttpError(400, "focus is invalid");
     }
 
     const admin = getSupabaseAdmin();
@@ -63,6 +69,7 @@ export async function GET(req: NextRequest) {
     });
     const result = await getOrgRoleMatchingHealthToolResult({
       admin,
+      focus,
       roleId,
       workspaceId,
     });

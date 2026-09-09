@@ -177,6 +177,28 @@ function ReviewDateChip({
   );
 }
 
+function ReviewMemoPreview({ talent }: { talent: OpsMatchingTalentItem }) {
+  if (!talent.memoPreview) return null;
+
+  return (
+    <div
+      className="mt-3 rounded-sm bg-bg-weak px-2 py-1.5 text-neutral-muted"
+      title={[talent.memoContextLabel, talent.memoPreview]
+        .filter(Boolean)
+        .join("\n")}
+    >
+      {talent.memoContextLabel ? (
+        <div className="truncate text-[10px] font-medium leading-4 text-neutral-soft">
+          {talent.memoContextLabel}
+        </div>
+      ) : null}
+      <div className="line-clamp-2 text-[11px] leading-4">
+        {talent.memoPreview}
+      </div>
+    </div>
+  );
+}
+
 function ReviewCardMenu({
   archiveDisabled,
   archivePending,
@@ -481,11 +503,7 @@ function ReviewCard({
         </div>
       ) : null}
 
-      {item.talent.memoPreview ? (
-        <div className="mt-3 line-clamp-2 rounded-sm bg-bg-weak px-2 py-1.5 text-[11px] leading-4 text-neutral-muted">
-          {item.talent.memoPreview}
-        </div>
-      ) : null}
+      <ReviewMemoPreview talent={item.talent} />
 
       {showTagSection ? (
         <div className="mt-3 space-y-2 border-t border-neutral-1000-a05 pt-3">
@@ -704,11 +722,7 @@ function AmbiguousReviewCard({
         </div>
       ) : null}
 
-      {talent.memoPreview ? (
-        <div className="mt-3 line-clamp-2 rounded-sm bg-bg-weak px-2 py-1.5 text-[11px] leading-4 text-neutral-muted">
-          {talent.memoPreview}
-        </div>
-      ) : null}
+      <ReviewMemoPreview talent={talent} />
 
       {showTagSection ? (
         <div className="mt-3 space-y-2 border-t border-neutral-1000-a05 pt-3">

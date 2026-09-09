@@ -1,4 +1,4 @@
-import { getCareerDefaultSavedStage } from "../opportunityTypeMeta";
+import { getCareerDefaultSavedStageForOpportunity } from "../opportunityTypeMeta";
 import type {
   CareerHistoryOpportunity,
   CareerOpportunitySavedStage,
@@ -122,7 +122,7 @@ export const getSavedOpportunityManagementStatus = (
   item: CareerHistoryOpportunity
 ): Exclude<SavedOpportunityManagementStatus, "all"> => {
   const stage =
-    item.savedStage ?? getCareerDefaultSavedStage(item.opportunityType);
+    item.savedStage ?? getCareerDefaultSavedStageForOpportunity(item);
   if (isCareerOpportunitySavedStage(stage)) return stage;
   return "saved";
 };

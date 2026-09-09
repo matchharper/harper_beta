@@ -67,7 +67,7 @@ import {
 } from "@/lib/org/slackTalentLinks";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { getPublicSiteUrlFromRequest } from "@/lib/siteUrl";
-import { COMPANY_TALENT_REQUEST_BLOCKING_STATUSES } from "@/lib/companyTalentRequests/server";
+import { COMPANY_TALENT_REQUEST_TRACKED_STATUSES } from "@/lib/companyTalentRequests/server";
 import { convertMarkdownLinksToSlackMrkdwn } from "@/lib/org/slackMessages";
 import { getOrgAgentContactDraftReferences } from "@/lib/org/agent/toolState";
 
@@ -126,7 +126,7 @@ async function hasActiveCandidateWorkflowInSlackThread(args: {
     .select("id")
     .eq("company_workspace_id", args.workspaceId)
     .in("id", contactIds)
-    .in("workflow_status", [...COMPANY_TALENT_REQUEST_BLOCKING_STATUSES])
+    .in("workflow_status", [...COMPANY_TALENT_REQUEST_TRACKED_STATUSES])
     .limit(1);
   if (activeContactError) throw activeContactError;
   return Boolean(activeContacts?.length);

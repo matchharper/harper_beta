@@ -417,7 +417,7 @@ function existingCompanyTalentRequestResult(args: {
   const conflictSummary = `${candidateName}께 ${existingDescription}`;
   args.state.fallbackReply = cancelable
     ? `${conflictSummary} 새 요청은 접수하지 않았습니다. 기존 요청을 취소하고 이번 요청으로 새로 접수할까요?`
-    : `${conflictSummary} 새 요청은 접수하지 않았습니다. 기존 요청은 이미 발송이 시작됐거나 답변을 처리 중이어서 지금 취소하거나 교체할 수 없습니다.`;
+    : `${conflictSummary} 새 요청은 접수하지 않았습니다. 기존 요청의 후보자 메일 발송이 이미 시작되어 지금 취소하거나 교체할 수 없습니다.`;
   recordResult(args.state, {
     callId: args.callId,
     name: args.name,
@@ -441,7 +441,7 @@ function existingCompanyTalentRequestResult(args: {
       : null,
     instruction: cancelable
       ? "No new request was queued. Explain the existing request for this company, role, and candidate, then ask whether to cancel it and replace it with the newly requested question. Do not claim cancellation or replacement before the company confirms."
-      : "No new request was queued. Explain that another unresolved request already exists and cannot currently be cancelled or replaced. Do not reveal another workspace or its request details.",
+      : "No new request was queued because the existing candidate email delivery has already started but is not yet confirmed as sent. Explain that it cannot currently be cancelled or replaced. Do not reveal another workspace or its request details.",
     newRequestQueued: false,
     requested: {
       kind: args.kind,

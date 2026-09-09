@@ -174,7 +174,7 @@ export default function CareerTalentContextSection({
     : "";
 
   return (
-    <section className="space-y-4 px-1">
+    <section className="space-y-4 md:px-1">
       <div>
         <div className="flex items-center justify-between gap-4">
           <h3 className="flex items-center gap-2 text-[14px] font-medium text-neutral-primary">
@@ -238,7 +238,7 @@ export default function CareerTalentContextSection({
           )}
         </div>
       </div>
-      <div className="rounded-[18px] border border-neutral-1000-a05 bg-bg-floating p-5 py-6">
+      <div className="rounded-[18px] border border-neutral-1000-a05 bg-bg-floating p-4 md:p-5 md:py-6">
         {brief.length > 0 ? (
           <dl className="mt-0 divide-y divide-neutral-1000-a05">
             {brief.map((row) => (

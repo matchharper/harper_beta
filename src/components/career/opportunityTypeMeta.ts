@@ -184,7 +184,7 @@ const buildCareerOpportunityTypeMeta = (
   },
   [OpportunityType.InternalRecommendation]: {
     companySectionTitle: t("career.common.career.0ol21b2", "회사 정보"),
-    defaultSavedStage: "saved",
+    defaultSavedStage: "connected",
     info: {
       description: t(
         "career.common.opportunity_type_meta.1t09h2g",
@@ -289,7 +289,7 @@ const buildCareerOpportunityTypeMeta = (
   },
   [OpportunityType.IntroRequest]: {
     companySectionTitle: t("career.common.career.0ol21b2", "회사 정보"),
-    defaultSavedStage: "saved",
+    defaultSavedStage: "connected",
     info: {
       description: t(
         "career.common.opportunity_type_meta.0aqqdks",
@@ -421,6 +421,15 @@ export const getCareerOpportunityTypeMeta = (
 
 export const getCareerDefaultSavedStage = (opportunityType: OpportunityType) =>
   getCareerOpportunityTypeMeta(opportunityType).defaultSavedStage;
+
+export const getCareerDefaultSavedStageForOpportunity = (item: {
+  isInternal: boolean;
+  opportunityType: OpportunityType;
+  sourceType: "internal" | "external";
+}) =>
+  item.isInternal || item.sourceType === "internal"
+    ? "connected"
+    : getCareerDefaultSavedStage(item.opportunityType);
 
 export const getCareerOpportunitySortPriority = (
   opportunityType: OpportunityType

@@ -11,6 +11,7 @@ import {
 import { supabaseServer } from "@/lib/supabaseServer";
 import type { Database } from "@/types/database.types";
 import type { AshbyOfficialJobsSyncSummary } from "@/lib/ashbyOfficialJobsSync";
+import { notifyGoogleJobIndexingBestEffort } from "@/lib/googleJobIndexing";
 
 type OfficialJobRow = Database["public"]["Tables"]["official_jobs"]["Row"];
 type OfficialJobViewEventRow = Pick<
@@ -209,7 +210,9 @@ async function validateOfficialJobInternalRoleId(value: unknown) {
     data.is_expired === true ||
     (data.expires_at && new Date(data.expires_at).getTime() <= Date.now())
   ) {
-    throw new Error("active 또는 paused 상태의 유효한 internal role을 선택해주세요.");
+    throw new Error(
+      "active 또는 paused 상태의 유효한 internal role을 선택해주세요."
+    );
   }
 
   return roleId;
@@ -376,9 +379,7 @@ export async function fetchOpsOfficialJobInternalRoleOptions(): Promise<OpsOffic
     }
   );
 
-  roles.sort((first, second) =>
-    first.label.localeCompare(second.label, "ko")
-  );
+  roles.sort((first, second) => first.label.localeCompare(second.label, "ko"));
 
   return { roles };
 }
@@ -621,6 +622,30 @@ export async function saveOpsOfficialJob(
   const { data, error } = await query.select("*").single();
   if (error || !data) {
     throw new Error(error?.message ?? "Failed to save official job");
+  }
+
+  if (!isInternalCopy) {
+    const previousPublishedSlug = existing?.is_published
+      ? normalizeOptionalString(existing.slug)
+      : null;
+
+    if (data.is_published) {
+      if (previousPublishedSlug && previousPublishedSlug !== data.slug) {
+        await notifyGoogleJobIndexingBestEffort({
+          slug: previousPublishedSlug,
+          type: "URL_DELETED",
+        });
+      }
+      await notifyGoogleJobIndexingBestEffort({
+        slug: data.slug,
+        type: "URL_UPDATED",
+      });
+    } else if (previousPublishedSlug) {
+      await notifyGoogleJobIndexingBestEffort({
+        slug: previousPublishedSlug,
+        type: "URL_DELETED",
+      });
+    }
   }
 
   return {

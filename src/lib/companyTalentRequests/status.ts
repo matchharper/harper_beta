@@ -25,6 +25,44 @@ function hasTimestamp(value: unknown) {
   return Number.isFinite(Date.parse(String(value ?? "")));
 }
 
+export function companyTalentRequestCandidateEmailWasSent(
+  row: CompanyTalentRequestStatusInput
+) {
+  const workflowStatus = String(row.workflow_status ?? "");
+  const candidateDeliveryStatus = String(
+    row.candidate_delivery_status ?? row.delivery_status ?? ""
+  );
+  return (
+    candidateDeliveryStatus === "sent" ||
+    hasTimestamp(row.candidate_sent_at) ||
+    row.has_candidate_response === true ||
+    [
+      "awaiting_talent",
+      "relay_queued",
+      "review_required",
+      "delivered",
+    ].includes(workflowStatus)
+  );
+}
+
+/**
+ * Only a request whose candidate email has not been sent may reserve the
+ * company/role/talent contact slot. Sent requests remain visible in history,
+ * but they must not prevent the company from asking a separate question.
+ */
+export function companyTalentRequestBlocksNewContact(
+  row: CompanyTalentRequestStatusInput
+) {
+  if (companyTalentRequestCandidateEmailWasSent(row)) return false;
+  if (
+    !["draft", "queued", "failed"].includes(String(row.workflow_status ?? ""))
+  ) {
+    return false;
+  }
+  const expiresAt = Date.parse(String(row.expires_at ?? ""));
+  return !Number.isFinite(expiresAt) || expiresAt > (row.now ?? Date.now());
+}
+
 /**
  * Converts the durable request and delivery facts into cumulative, user-safe
  * milestones. Later workflow stages must not hide that an earlier email was
@@ -46,15 +84,7 @@ export function summarizeCompanyTalentRequestStatus(
   const expired =
     Number.isFinite(expiresAt) && expiresAt <= (row.now ?? Date.now());
 
-  const candidateEmailSent =
-    candidateDeliveryStatus === "sent" ||
-    hasTimestamp(row.candidate_sent_at) ||
-    [
-      "awaiting_talent",
-      "relay_queued",
-      "review_required",
-      "delivered",
-    ].includes(workflowStatus);
+  const candidateEmailSent = companyTalentRequestCandidateEmailWasSent(row);
   const candidateResponseReceived =
     row.has_candidate_response === true ||
     ["relay_queued", "review_required", "delivered"].includes(workflowStatus);

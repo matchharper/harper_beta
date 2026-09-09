@@ -30,7 +30,7 @@ import {
   type CareerTalentPreferences,
   type CareerTalentProfile,
 } from "@/components/career/types";
-import { getCareerDefaultSavedStage } from "@/components/career/opportunityTypeMeta";
+import { getCareerDefaultSavedStageForOpportunity } from "@/components/career/opportunityTypeMeta";
 import { deriveHistoryOpportunityCounts } from "@/hooks/career/careerSessionData";
 import type { CareerEngagementType } from "@/hooks/career/useCareerTalentSettings";
 import {
@@ -833,7 +833,7 @@ const CareerWorkspacePreviewLanding = ({
                   savedStage:
                     feedback === "positive"
                       ? (options?.savedStage ??
-                        getCareerDefaultSavedStage(item.opportunityType))
+                        getCareerDefaultSavedStageForOpportunity(item))
                       : null,
                 }
               : item

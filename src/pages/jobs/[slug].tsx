@@ -333,25 +333,24 @@ export const getServerSideProps: GetServerSideProps<
   const slug = context.params?.slug;
 
   if (typeof slug !== "string") {
+    return { notFound: true };
+  }
+
+  const jobById = await getPublicOfficialJobById(slug);
+
+  if (jobById && jobById.slug !== slug) {
     return {
       redirect: {
-        destination: "/jobs",
-        permanent: false,
+        destination: `/jobs/${encodeURIComponent(jobById.slug)}`,
+        statusCode: 301,
       },
     };
   }
 
-  const job =
-    (await getPublicOfficialJobById(slug)) ??
-    (await getPublicOfficialJobBySlug(slug));
+  const job = jobById ?? (await getPublicOfficialJobBySlug(slug));
 
   if (!job) {
-    return {
-      redirect: {
-        destination: "/jobs",
-        permanent: false,
-      },
-    };
+    return { notFound: true };
   }
 
   return {
