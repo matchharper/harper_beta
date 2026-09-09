@@ -392,7 +392,7 @@ export function OrgPipeline() {
   };
 
   return (
-    <section className="flex h-full min-h-0 min-w-0 flex-col gap-2">
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
       {customStageActionError && !customStageDialogOpen && !stageToDelete ? (
         <div className={opsTheme.errorNotice}>{customStageActionError}</div>
       ) : null}
@@ -405,7 +405,7 @@ export function OrgPipeline() {
       ) : (
         <div
           data-org-pipeline-scroll
-          className="min-h-0 flex-1 overflow-x-auto pb-0"
+          className="min-h-0 flex-1 overflow-auto overscroll-contain pb-0"
         >
           <div className="flex h-full min-h-[560px] min-w-max items-stretch gap-0">
             {acceptedStages.map((stage) => renderStageColumn(stage, false))}

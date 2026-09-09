@@ -19,6 +19,7 @@ import {
   fetchMatchingRecommendationEmailOpenedAtMap,
   getEarliestMatchingViewedAt,
 } from "@/lib/ops/matchingViewedAt";
+import { OPS_MATCHING_ROLE_OPTION_STATUSES } from "@/lib/ops/matchingRoleOptions";
 import type {
   OpportunityEmploymentType,
   OpportunitySourceType,
@@ -237,7 +238,6 @@ const OPS_MATCHING_TALENT_HISTORY_SECTION_SET = new Set<string>(
   OPS_MATCHING_TALENT_HISTORY_SECTIONS
 );
 const ACTIVE_ROLE_STATUSES = new Set(["active", "top_priority"]);
-const MATCHING_ROLE_OPTION_STATUSES = ["active", "top_priority", "paused"];
 const CUSTOM_REVIEW_STAGE_ID_PREFIX = "custom:";
 const CUSTOM_REVIEW_STAGE_TAG_PREFIX = "내부단계:";
 const MATCHING_REVIEW_STAGE_TAG_BY_STAGE = {
@@ -2755,7 +2755,7 @@ export async function fetchOpsMatchingCompanies(args: {
     .from("company_roles")
     .select("company_workspace_id, status, updated_at")
     .eq("source_type", "internal")
-    .in("status", MATCHING_ROLE_OPTION_STATUSES)
+    .in("status", [...OPS_MATCHING_ROLE_OPTION_STATUSES])
     .order("updated_at", { ascending: false })
     .limit(MAX_MATCHING_ROLE_OPTIONS);
 
@@ -2862,7 +2862,7 @@ export async function fetchOpsMatchingRoles(args: {
         )
         .eq("company_workspace_id", companyWorkspaceId)
         .eq("source_type", "internal")
-        .in("status", MATCHING_ROLE_OPTION_STATUSES)
+        .in("status", [...OPS_MATCHING_ROLE_OPTION_STATUSES])
         .order("updated_at", { ascending: false })
         .limit(MAX_MATCHING_ROLE_OPTIONS),
     ]);

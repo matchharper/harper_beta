@@ -32,6 +32,7 @@ import {
   useOpsMatchingRoles,
 } from "@/hooks/ops/useOpsMatching";
 import { isInternalEmail } from "@/lib/internalAccess";
+import { getOpsMatchingRoleOptionLabel } from "@/lib/ops/matchingRoleOptions";
 import { useAuthStore } from "@/store/useAuthStore";
 import {
   type OpsMatchingStageTabId,
@@ -274,7 +275,7 @@ export default function OpsMatchingPage() {
   const roleSelectItems = useMemo(
     () =>
       roles.map((role) => ({
-        label: `Role: ${role.roleName}`,
+        label: getOpsMatchingRoleOptionLabel(role),
         value: role.roleId,
       })),
     [roles]
@@ -658,7 +659,7 @@ export default function OpsMatchingPage() {
                     <SelectGroup>
                       {roles.map((role) => (
                         <SelectItem key={role.roleId} value={role.roleId}>
-                          Role: {role.roleName}
+                          {getOpsMatchingRoleOptionLabel(role)}
                         </SelectItem>
                       ))}
                     </SelectGroup>
