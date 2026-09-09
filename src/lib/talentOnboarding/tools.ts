@@ -41,6 +41,7 @@ import {
   TALENT_CONTEXT_WRITE_TOOL_PARAMETERS,
   upsertTalentSetting,
   type TalentContextAgentChange,
+  type TalentMemoryImportance,
 } from "./server";
 import {
   TALENT_RECOMMENDATION_BATCH_SIZE_MAX,
@@ -3483,7 +3484,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       return {
         ...result,
         assistantInstruction:
-          "Use the returned saved context only when it is relevant to the user's current request. Continue the original task naturally and do not describe database, retrieval, scores, or internal tool behavior.",
+          "Use the returned saved context only when it is relevant to the user's current request. If truncated is true and nextCursor is absent, refine the natural-language query or request fewer exact refs only when more context is actually needed. Continue the original task naturally and do not describe database, retrieval, scores, or internal tool behavior.",
         skipCommonAssistantInstruction: true,
       };
     },
@@ -3491,7 +3492,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT]: {
     name: TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT,
     description:
-      "Save or correct durable user context after onboarding. Put current opportunity-search criteria and premises that the user can review in Search Brief; put other context worth remembering for future conversations or opportunity judgment in Memory. Read the existing rows and the user's meaning together. Preserve strength, exceptions, uncertainty, and known timing. Do not duplicate one fact across both collections. Use the relevant profile, settings, document, feedback, or recommendation tool when that feature already owns the data. Do not call when nothing should be saved.",
+      "Save or correct durable user context after onboarding. Put current opportunity-search criteria and premises that the user can review in Search Brief; put other context worth remembering for future conversations or opportunity judgment in Memory. Save only facts the user stated; never infer or add details the user did not provide. When a saved fact is corrected or no longer true, update or delete that row instead of appending a conflicting current fact; keep a past event only when it remains useful as history. For each new Memory, choose importance 3 if it can materially change matching, 2 if it is useful supporting context, or 1 if it mainly preserves conversational continuity. For a Brief, do not repeat its label in content. Read the existing rows and the user's meaning together. Preserve strength, exceptions, uncertainty, and known timing. Do not duplicate one fact across both collections. Use the relevant profile, settings, document, feedback, or recommendation tool when that feature already owns the data. Do not call when nothing should be saved.",
     parameters: TALENT_CONTEXT_WRITE_TOOL_PARAMETERS,
     channels: ["chat", "voice"],
     async execute(input, context) {
@@ -3518,22 +3519,50 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           if (op === "add") {
             if (change.collection !== "brief" && change.collection !== "memory")
               return [];
+            const importance = Number(change.importance);
+            const hasValidImportance =
+              Number.isInteger(importance) &&
+              importance >= 1 &&
+              importance <= 3;
+            if (
+              (change.collection === "memory" && !hasValidImportance) ||
+              (change.collection === "brief" &&
+                Object.prototype.hasOwnProperty.call(change, "importance"))
+            ) {
+              return [];
+            }
             return [
               {
                 collection: change.collection,
                 content: optionalToolString(change.content) ?? "",
                 ...(change.collection === "brief"
                   ? { label: optionalToolString(change.label) }
-                  : {}),
+                  : { importance: importance as TalentMemoryImportance }),
                 op,
               } as TalentContextAgentChange,
             ];
           }
           if (op === "update") {
+            const hasImportance = Object.prototype.hasOwnProperty.call(
+              change,
+              "importance"
+            );
+            const importance = Number(change.importance);
+            if (
+              hasImportance &&
+              (!Number.isInteger(importance) ||
+                importance < 1 ||
+                importance > 3)
+            ) {
+              return [];
+            }
             return [
               {
                 ...(Object.prototype.hasOwnProperty.call(change, "content")
                   ? { content: optionalToolString(change.content) ?? "" }
+                  : {}),
+                ...(hasImportance
+                  ? { importance: importance as TalentMemoryImportance }
                   : {}),
                 ...(Object.prototype.hasOwnProperty.call(change, "label")
                   ? { label: optionalToolString(change.label) ?? "" }
@@ -3606,7 +3635,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE]: {
     name: TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
     description:
-      "Update saved profile state from the latest user statement: profile summary, current base, the talent's own profile/material links, row memos, or recommendationBatchSize. Use write_talent_context for Search Brief and Memory. Never add company, job-posting, recruiting, or third-party links as the talent's profile links. Do not use for subscription/contact actions; use update_setting for stop_external, stop_all, or resume. Skip questions, one-off searches, hypotheticals, assistant statements, and already-saved information.",
+      "Update saved profile state from the latest user statement: profile summary, current base, the talent's own profile/material links, row memos, or recommendationBatchSize. Save only facts the user stated; never infer or add details the user did not provide. Use write_talent_context for Search Brief and Memory. Never add company, job-posting, recruiting, or third-party links as the talent's profile links. Do not use for subscription/contact actions; use update_setting for stop_external, stop_all, or resume. Skip questions, one-off searches, hypotheticals, assistant statements, and already-saved information.",
     parameters: {
       type: "object",
       properties: {

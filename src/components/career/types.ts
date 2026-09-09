@@ -141,6 +141,7 @@ export type CareerTalentContext = {
   content: string;
   createdAt: string;
   id: number;
+  importance: 1 | 2 | 3 | null;
   key: string | null;
   label: string | null;
   ref: number;
@@ -152,6 +153,7 @@ export type CareerTalentContextChange =
   | {
       collection: CareerTalentContextCollection;
       content: string;
+      importance?: 1 | 2 | 3;
       label?: string;
       op: "add";
     }
@@ -159,6 +161,7 @@ export type CareerTalentContextChange =
       content?: string;
       expectedRevision: number;
       id: number;
+      importance?: 1 | 2 | 3;
       label?: string;
       op: "update";
     }

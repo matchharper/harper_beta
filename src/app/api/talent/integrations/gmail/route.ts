@@ -15,10 +15,7 @@ import {
   type GmailIntegrationStatus,
   updateTalentGmailIntegrationStatus,
 } from "@/lib/integrations/gmail";
-import {
-  GMAIL_CAREER_HISTORY_ORIGIN_ID,
-  GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
-} from "@/lib/integrations/gmailCareerHistoryCore";
+import { fetchLatestGmailCareerMemory } from "@/lib/integrations/gmailCareerHistoryMemory";
 import { fetchLatestGmailCareerHistoryRun } from "@/lib/integrations/gmailCareerHistoryRun";
 
 type GmailCareerHistoryStatus =
@@ -46,62 +43,48 @@ async function fetchGmailCareerHistoryStatus(
   admin: ReturnType<typeof getTalentSupabaseAdmin>,
   talentId: string
 ) {
-  const [documentResult, runResult] = await Promise.allSettled([
-    admin
-      .from("talent_documents")
-      .select("updated_at")
-      .eq("talent_id", talentId)
-      .eq("origin_type", GMAIL_CAREER_HISTORY_ORIGIN_TYPE)
-      .eq("origin_id", GMAIL_CAREER_HISTORY_ORIGIN_ID)
-      .eq("is_deleted", false)
-      .maybeSingle(),
+  const [memoryResult, runResult] = await Promise.allSettled([
+    fetchLatestGmailCareerMemory({ admin, talentId }),
     fetchLatestGmailCareerHistoryRun({ admin, talentId }),
   ]);
-  if (documentResult.status === "rejected" || documentResult.value.error) {
+  if (memoryResult.status === "rejected" || memoryResult.value.error) {
     console.warn("[GmailIntegration] career history status unavailable", {
       code:
-        documentResult.status === "fulfilled"
-          ? documentResult.value.error?.code
-          : "document_query_failed",
+        memoryResult.status === "fulfilled"
+          ? memoryResult.value.error?.code
+          : "memory_query_failed",
     });
   }
   if (runResult.status === "rejected") {
     console.warn("[GmailIntegration] analysis run status unavailable");
   }
 
-  const document =
-    documentResult.status === "fulfilled" && !documentResult.value.error
-      ? documentResult.value.data
+  const memory =
+    memoryResult.status === "fulfilled" && !memoryResult.value.error
+      ? memoryResult.value.data
       : null;
   const run = runResult.status === "fulfilled" ? runResult.value : null;
-  const documentUpdatedAt = document?.updated_at ?? null;
-  const documentIsFromLatestRun = Boolean(
-    documentUpdatedAt &&
-    run &&
-    new Date(documentUpdatedAt).getTime() >= new Date(run.createdAt).getTime()
-  );
+  const memoryUpdatedAt = memory?.updated_at ?? null;
 
   if (run) {
     if (run.status === "completed") {
       return {
-        status: documentIsFromLatestRun
-          ? ("completed" as const)
-          : ("failed" as const),
-        updatedAt: documentUpdatedAt,
+        status: "completed" as const,
+        updatedAt: run.updatedAt,
       };
     }
     return {
       status: run.status,
-      updatedAt: documentUpdatedAt,
+      updatedAt: memoryUpdatedAt,
     };
   }
-  if (document) {
-    return { status: "completed" as const, updatedAt: documentUpdatedAt };
+  if (memory) {
+    return { status: "completed" as const, updatedAt: memoryUpdatedAt };
   }
   if (
-    documentResult.status === "rejected" ||
+    memoryResult.status === "rejected" ||
     runResult.status === "rejected" ||
-    documentResult.value.error
+    memoryResult.value.error
   ) {
     return { status: "unavailable" as const, updatedAt: null };
   }

@@ -6709,6 +6709,7 @@ export type Database = {
           embedding_model: string | null
           embedding_updated_at: string | null
           id: number
+          importance: number | null
           key: string | null
           label: string | null
           ref: number
@@ -6727,6 +6728,7 @@ export type Database = {
           embedding_model?: string | null
           embedding_updated_at?: string | null
           id?: number
+          importance?: number | null
           key?: string | null
           label?: string | null
           ref: number
@@ -6745,6 +6747,7 @@ export type Database = {
           embedding_model?: string | null
           embedding_updated_at?: string | null
           id?: number
+          importance?: number | null
           key?: string | null
           label?: string | null
           ref?: number
@@ -8747,6 +8750,7 @@ export type Database = {
           content: string
           created_at: string
           id: number
+          importance: number | null
           key: string | null
           label: string | null
           ref: number

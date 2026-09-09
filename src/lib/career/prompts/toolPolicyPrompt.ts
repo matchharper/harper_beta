@@ -289,10 +289,16 @@ export function buildCareerToolPolicyPrompt(args: {
             ? "- Read existing rows and the latest user meaning together. Correct a shown row by ref, add genuinely separate information, preserve strength, exceptions, uncertainty, and known timing, and avoid duplicating the same information across Brief and Memory. When a Brief update makes its current label misleading, update the label in the same change."
             : "",
           hasWriteTalentContextTool
+            ? "- Save only facts the user stated; never infer or add details the user did not provide. For a Brief, do not repeat its label in content."
+            : "",
+          hasWriteTalentContextTool
             ? "- Use a free user-readable label plus complete content for a new Brief. A new Memory needs complete content. Do not invent an internal key or choose from a fixed topic list."
             : "",
           hasWriteTalentContextTool
             ? "- Use the feature that owns the data for Profile rows, settings, documents, opportunity feedback, and workflow state. Do not save transient requests or the assistant's own conclusions as durable user context."
+            : "",
+          hasWriteTalentContextTool && hasJobPostingRecommendationTool
+            ? "- If the same user message both changes durable criteria or context and asks for recommendations now, write the context change first and then call `recommend_job_postings`, so the new run reads the updated context."
             : "",
           "- After reading or writing, continue the user's original request naturally. Do not turn the response into a storage receipt or expose refs and implementation terms.",
           "",

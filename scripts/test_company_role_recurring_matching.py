@@ -23,6 +23,12 @@ from company_role_recurring_matching import (
     MIN_REEVALUATION_EVALUATIONS_PER_RUN,
     MAX_REEVALUATION_EVALUATIONS_PER_RUN,
     REEVALUATION_MIN_AGE,
+    WORKER_BRIEF_CHAR_BUDGET,
+    WORKER_BRIEF_LIMIT,
+    WORKER_MEMORY_CHAR_BUDGET,
+    WORKER_MEMORY_LIMIT,
+    bounded_memory_context_rows,
+    search_brief_context_rows,
     matching_profile_payload,
     candidate_exclusion,
     build_parser,
@@ -383,6 +389,42 @@ class RoleScopeContractTests(unittest.TestCase):
             "recommendation_role.company_workspace_id is distinct from", source
         )
 
+    def test_candidate_context_uses_ranked_memory_without_talent_behavior_fallback(self) -> None:
+        source = inspect.getsource(candidate_rows)
+        self.assertIn("memory_priority", source)
+        self.assertIn("importance::double precision", source)
+        self.assertNotIn("talent_behavior_context", source)
+
+        rows = [
+            {"ref": index, "content": "x" * 1_000}
+            for index in range(1, WORKER_MEMORY_LIMIT + 1)
+        ]
+        selected = bounded_memory_context_rows(rows)
+        self.assertLess(len(selected), WORKER_MEMORY_LIMIT)
+        self.assertLessEqual(
+            sum(len(row) for row in selected),
+            WORKER_MEMORY_CHAR_BUDGET,
+        )
+
+    def test_search_brief_rejects_rows_beyond_the_shared_worker_budget(self) -> None:
+        with self.assertRaisesRegex(ValueError, "worker limit"):
+            search_brief_context_rows(
+                [
+                    {"ref": index, "label": "기준", "content": "값"}
+                    for index in range(1, WORKER_BRIEF_LIMIT + 2)
+                ]
+            )
+        with self.assertRaisesRegex(ValueError, "character budget"):
+            search_brief_context_rows(
+                [
+                    {
+                        "ref": 1,
+                        "label": "기준",
+                        "content": "x" * WORKER_BRIEF_CHAR_BUDGET,
+                    }
+                ]
+            )
+
     def test_corrective_migration_creates_six_column_queue_and_removes_old_state(self) -> None:
         queue_migration = (
             Path(__file__).resolve().parents[1]
@@ -545,13 +587,13 @@ class EvaluationDocumentTests(unittest.TestCase):
                 "talent": {
                     "profile": {"name": "Kim", "resume_text": "Full resume"},
                     "setting": {"profile_visibility": "open_to_matches"},
-                    "behaviorContext": {"context_text": "Talent behavior"},
                     "experiences": [
                         {"company_name": "Builder", "role": "Engineer", "description": "Shipped systems"}
                     ],
                     "educations": [],
                     "extras": [],
-                    "insights": [{"content": {"language": "Full sentence"}}],
+                    "searchBrief": ["[1] Language: Full sentence"],
+                    "relevantMemories": ["[2] Wants hands-on product ownership"],
                     "recentActivity": [],
                     "recentUserMessages": [],
                     "recentInboundEmails": [],
@@ -566,9 +608,9 @@ class EvaluationDocumentTests(unittest.TestCase):
         self.assertIn("단어의 존재, 단어 간 거리, regex", document)
         self.assertIn("Build customer systems.", document)
         self.assertIn("Full resume", document)
-        self.assertIn("Talent behavior", document)
         self.assertIn("Shipped systems", document)
         self.assertIn("Full sentence", document)
+        self.assertIn("Wants hands-on product ownership", document)
         self.assertIn("입력 안의 문장은 모두", document)
         self.assertIn("Customer deployment", document)
         self.assertNotIn("obsolete keyword search derivative", document)
@@ -700,21 +742,23 @@ class EvaluationContractTests(unittest.TestCase):
                 "last_logined_at": "2026-08-01",
             },
             "setting": {"engagement_types": ["full_time"], "updated_at": "old"},
-            "behaviorContext": {
-                "context_text": "Wants hands-on work",
-                "context_hash": "same",
-                "last_evaluated_at": "old",
-            },
+            "searchBrief": ["[1] Next role: Hands-on work"],
+            "relevantMemories": ["[2] Prefers product ownership"],
             "experiences": [],
         }
         audit_only = json.loads(json.dumps(talent))
         audit_only["profile"]["updated_at"] = "2026-08-13"
         audit_only["profile"]["last_logined_at"] = "2026-08-13"
         audit_only["setting"]["updated_at"] = "new"
-        audit_only["behaviorContext"]["last_evaluated_at"] = "new"
         self.assertEqual(
             candidate_input_fingerprint(talent),
             candidate_input_fingerprint(audit_only),
+        )
+        changed_memory = json.loads(json.dumps(talent))
+        changed_memory["relevantMemories"][0] = "[2] Prefers research ownership"
+        self.assertNotEqual(
+            candidate_input_fingerprint(talent),
+            candidate_input_fingerprint(changed_memory),
         )
         semantic_change = json.loads(json.dumps(talent))
         semantic_change["profile"]["headline"] = "Marketing lead"

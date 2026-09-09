@@ -1,6 +1,7 @@
 import {
   getTalentSupabaseAdmin,
   refreshTalentContextEmbeddings,
+  TALENT_CONTEXT_EMBEDDING_MODEL,
 } from "../src/lib/talentOnboarding/server";
 
 const BATCH_SIZE = 20;
@@ -17,7 +18,9 @@ async function main() {
       .select("id, talent_id")
       .eq("collection", "memory")
       .is("deleted_at", null)
-      .is("embedding", null)
+      .or(
+        `embedding.is.null,embedding_model.is.null,embedding_model.neq.${TALENT_CONTEXT_EMBEDDING_MODEL}`
+      )
       .order("id", { ascending: true })
       .limit(BATCH_SIZE);
     if (error) {

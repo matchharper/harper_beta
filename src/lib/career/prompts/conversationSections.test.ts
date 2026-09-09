@@ -108,4 +108,11 @@ test("keeps canonical onboarding Brief fields separate without discounting free-
     /Briefs without a canonical key are equally authoritative/
   );
   assert.match(prompt, /without creating a Brief/);
+  assert.match(prompt, /Never infer or add facts the user did not state/);
+  assert.match(prompt, /Keep relative time expressions as the user stated/);
+  assert.match(
+    prompt,
+    /Do not store information already saved in the profile in Memory/
+  );
+  assert.match(prompt, /do not repeat its label in content/);
 });

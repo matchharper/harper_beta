@@ -40,7 +40,6 @@ import CareerProfileEntryModal, {
 } from "./CareerProfileEntryModal";
 import CareerProfilePersonalInfo from "./CareerProfilePersonalInfo";
 import CareerEmailChangeModal from "../account/CareerEmailChangeModal";
-import CareerTalentContextSection from "./CareerTalentContextSection";
 import {
   EmptyEditState,
   ProfileSectionHeader,
@@ -467,17 +466,7 @@ const CareerTalentProfilePanel = ({
     savedResumeFileName,
     savedResumeStoragePath,
     talentProfile,
-    talentBrief = [],
-    talentMemories = [],
     talentContextsUpdatedAt,
-    talentContextsSavePending,
-    talentContextsSaveError,
-    talentContextsSaveInfo,
-    talentMemoriesHasMore,
-    talentMemoriesLoaded,
-    talentMemoriesLoadPending,
-    loadTalentMemories,
-    mutateTalentContexts,
     profileSavePending,
     profileSaveError,
     onSaveTalentProfile,
@@ -532,9 +521,7 @@ const CareerTalentProfilePanel = ({
       talentUser?.location
     ) ||
     mergedExperience.length > 0 ||
-    talentExtras.length > 0 ||
-    talentBrief.length > 0 ||
-    talentMemories.length > 0;
+    talentExtras.length > 0;
   const profileDisplayName = talentUser?.name?.trim() || "Unknown";
   const recruiterProfileName = talentUser?.name?.trim();
   const recruiterProfileCopy = recruiterProfileName
@@ -1687,19 +1674,6 @@ const CareerTalentProfilePanel = ({
             summary={profileSummary}
           />
 
-          <CareerTalentContextSection
-            brief={talentBrief}
-            error={talentContextsSaveError}
-            info={talentContextsSaveInfo}
-            loadMemories={loadTalentMemories}
-            memoryHasMore={talentMemoriesHasMore}
-            memoryLoaded={talentMemoriesLoaded}
-            memoryLoadPending={talentMemoriesLoadPending}
-            memories={talentMemories}
-            mutate={mutateTalentContexts}
-            pending={talentContextsSavePending}
-          />
-
           {backgroundCount > 0 ? (
             <>
               <ProfileSectionHeader
@@ -1831,19 +1805,6 @@ const CareerTalentProfilePanel = ({
               )}
             </MuteButton>
           </div>
-
-          <CareerTalentContextSection
-            brief={talentBrief}
-            error={talentContextsSaveError}
-            info={talentContextsSaveInfo}
-            loadMemories={loadTalentMemories}
-            memoryHasMore={talentMemoriesHasMore}
-            memoryLoaded={talentMemoriesLoaded}
-            memoryLoadPending={talentMemoriesLoadPending}
-            memories={talentMemories}
-            mutate={mutateTalentContexts}
-            pending={talentContextsSavePending}
-          />
         </>
       )}
 

@@ -6,17 +6,19 @@ import {
   useCareerProfileContext,
   useCareerSidebarContext,
 } from "../CareerSidebarContext";
+import CareerTalentContextSection from "./CareerTalentContextSection";
 import CareerTalentProfilePanel from "./CareerTalentProfilePanel";
 import CareerResumeLinksSettingsSection from "../settings/CareerResumeLinksSettingsSection";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import React from "react";
 import { useCareerT } from "@/i18n/useCareerT";
 
-type ProfileSectionId = "profile" | "links";
+type ProfileSectionId = "profile" | "brief" | "links";
 
 const isProfileSectionId = (
   value: string | null | undefined
-): value is ProfileSectionId => value === "profile" || value === "links";
+): value is ProfileSectionId =>
+  value === "profile" || value === "brief" || value === "links";
 
 type ProfileSectionItem = {
   id: ProfileSectionId;
@@ -44,6 +46,23 @@ const getProfileSectionItems = (
     ],
   },
   {
+    id: "brief",
+    label: t(
+      "career.profile.career_profile_workspace.search_brief_tab",
+      "선호 기준"
+    ),
+    title: t(
+      "career.profile.career_profile_workspace.search_brief_tab",
+      "선호 기준"
+    ),
+    description: [
+      t(
+        "career.profile.context.brief_description",
+        "Harper가 기회를 찾고 판단할 때 적용하는 현재 기준이에요. 회사에 직접적으로 공개되지않고 선호하시는 기회를 찾기 위해 사용되며, 사용해서 회원님을 더 잘 소개할 수 있을 때 일부 언급될 수 있습니다."
+      ),
+    ],
+  },
+  {
     id: "links",
     label: t("career.profile.career_profile_workspace.14bifvm", "이력서/링크"),
     title: t("career.profile.career_profile_workspace.14bifvm", "이력서/링크"),
@@ -61,8 +80,20 @@ const CareerProfileWorkspace = () => {
   const router = useRouter();
   const logCareerEvent = useCareerLogEvent();
   const { workspaceDataLoading } = useCareerSidebarContext();
-  const { savedResumeFileName, savedResumeStoragePath } =
-    useCareerProfileContext();
+  const {
+    loadTalentMemories,
+    mutateTalentContexts,
+    savedResumeFileName,
+    savedResumeStoragePath,
+    talentBrief = [],
+    talentContextsSaveError,
+    talentContextsSaveInfo,
+    talentContextsSavePending,
+    talentMemories = [],
+    talentMemoriesHasMore,
+    talentMemoriesLoaded,
+    talentMemoriesLoadPending,
+  } = useCareerProfileContext();
   const hasSavedResume = Boolean(savedResumeFileName || savedResumeStoragePath);
 
   const sectionItems = useMemo(
@@ -125,6 +156,19 @@ const CareerProfileWorkspace = () => {
   const activeContent =
     activeSection === "links" ? (
       <CareerResumeLinksSettingsSection />
+    ) : activeSection === "brief" ? (
+      <CareerTalentContextSection
+        brief={talentBrief}
+        error={talentContextsSaveError}
+        info={talentContextsSaveInfo}
+        loadMemories={loadTalentMemories}
+        memoryHasMore={talentMemoriesHasMore}
+        memoryLoaded={talentMemoriesLoaded}
+        memoryLoadPending={talentMemoriesLoadPending}
+        memories={talentMemories}
+        mutate={mutateTalentContexts}
+        pending={talentContextsSavePending}
+      />
     ) : (
       <CareerTalentProfilePanel />
     );

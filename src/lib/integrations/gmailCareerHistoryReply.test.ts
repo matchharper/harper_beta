@@ -11,25 +11,29 @@ const replySource = readFileSync(
 test("builds a concise Gmail completion turn from reliable application records", () => {
   const instruction = buildGmailCareerHistoryFollowUpInstruction([
     {
-      appliedAt: "2026-04-02",
       company: "Example Labs",
-      endedAt: null,
-      role: "Product Engineer",
-      summary: "지원 후 인터뷰가 진행되었고 최종 결과는 확인되지 않음.",
+      content:
+        "Example Labs Product Engineer 지원 후 인터뷰가 진행되었고 최종 결과는 확인되지 않음.",
+      latestActivityAt: "2026-04-02",
     },
     {
-      appliedAt: "2025-11-10",
       company: "Sample AI",
-      endedAt: "2025-12-01",
-      role: null,
-      summary: "지원 접수가 확인되었고 이후 불합격 안내를 받음.",
+      content: "Sample AI 지원 접수가 확인되었고 이후 불합격 안내를 받음.",
+      latestActivityAt: "2025-12-01",
     },
   ]);
 
-  assert.match(instruction, /2 or 3 short, natural sentences/);
   assert.match(instruction, /finished checking/);
   assert.match(instruction, /Example Labs/);
-  assert.match(instruction, /Product Engineer/);
+  assert.match(instruction, /Sample AI/);
+  assert.match(instruction, /Mention every company/);
+  assert.match(
+    instruction,
+    /Companies to mention: \["Example Labs","Sample AI"\]/
+  );
+  assert.match(instruction, /role and process details are optional/i);
+  assert.match(instruction, /Career Memories/);
+  assert.doesNotMatch(instruction, /My Documents/);
   assert.match(instruction, /count="2"/);
   assert.match(instruction, /untrusted data/);
 });

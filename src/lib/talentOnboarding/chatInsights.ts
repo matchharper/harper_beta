@@ -18,6 +18,7 @@ import {
   refreshTalentContextEmbeddings,
   renderTalentContextPrompt,
   type TalentContextAgentChange,
+  type TalentMemoryImportance,
 } from "@/lib/talentOnboarding/server";
 import {
   getInsightChecklist,
@@ -118,6 +119,11 @@ function normalizeExtractedContextChanges(
         typeof record.content === "string" ? record.content.trim() : "";
       const label = typeof record.label === "string" ? record.label.trim() : "";
       const key = typeof record.key === "string" ? record.key.trim() : "";
+      const importance = Number(record.importance);
+      const hasImportance = Object.prototype.hasOwnProperty.call(
+        record,
+        "importance"
+      );
       if (
         (collection !== "brief" && collection !== "memory") ||
         !content ||
@@ -125,23 +131,31 @@ function normalizeExtractedContextChanges(
         (collection === "brief" &&
           (!label ||
             Array.from(label).length > 160 ||
-            Array.from(key).length > 160))
+            Array.from(key).length > 160 ||
+            hasImportance)) ||
+        (collection === "memory" &&
+          (!Number.isInteger(importance) || importance < 1 || importance > 3))
       ) {
         return null;
       }
-      changes.push({
-        collection,
-        content,
-        ...(collection === "brief"
-          ? {
-              label,
-              ...(key && ONBOARDING_QUESTION_BY_INSIGHT_KEY.has(key)
-                ? { key }
-                : {}),
-            }
-          : {}),
-        op,
-      });
+      if (collection === "brief") {
+        changes.push({
+          collection,
+          content,
+          label,
+          ...(key && ONBOARDING_QUESTION_BY_INSIGHT_KEY.has(key)
+            ? { key }
+            : {}),
+          op,
+        });
+      } else {
+        changes.push({
+          collection,
+          content,
+          importance: importance as TalentMemoryImportance,
+          op,
+        });
+      }
       continue;
     }
     const ref = Number(record.ref);
@@ -153,20 +167,30 @@ function normalizeExtractedContextChanges(
     if (op !== "update") return null;
     const hasContent = Object.prototype.hasOwnProperty.call(record, "content");
     const hasLabel = Object.prototype.hasOwnProperty.call(record, "label");
+    const hasImportance = Object.prototype.hasOwnProperty.call(
+      record,
+      "importance"
+    );
     const content = hasContent
       ? String(record.content ?? "").trim()
       : undefined;
     const label = hasLabel ? String(record.label ?? "").trim() : undefined;
+    const importance = hasImportance ? Number(record.importance) : undefined;
     if (
-      (!hasContent && !hasLabel) ||
+      (!hasContent && !hasLabel && !hasImportance) ||
       (hasContent && !content) ||
       (hasContent && Array.from(content ?? "").length > 8_000) ||
-      (hasLabel && (!label || Array.from(label).length > 160))
+      (hasLabel && (!label || Array.from(label).length > 160)) ||
+      (hasImportance &&
+        (!Number.isInteger(importance) || importance! < 1 || importance! > 3))
     ) {
       return null;
     }
     changes.push({
       ...(hasContent ? { content } : {}),
+      ...(hasImportance
+        ? { importance: importance as TalentMemoryImportance }
+        : {}),
       ...(hasLabel ? { label } : {}),
       op,
       ref,
@@ -572,6 +596,7 @@ export async function extractAndPersistChatInsights(args: {
   conversationId: string;
   logPrefix: string;
   onboardingChecklistContext?: OnboardingChecklistLocationContext;
+  profileChangesAlreadySaved?: string | null;
   sourceChannel?: "text_chat" | "voice_call" | "unknown";
   scheduleAfter?: (task: () => Promise<void>) => void;
   userId: string;
@@ -624,11 +649,17 @@ export async function extractAndPersistChatInsights(args: {
       }
     );
 
+    const savedProfileChanges = args.profileChangesAlreadySaved?.trim();
     const systemPrompt = args
       .buildPrompt({
         currentChecklistCoverage,
         onboardingChecklistContext: args.onboardingChecklistContext,
       })
+      .concat(
+        savedProfileChanges
+          ? `\n\n## Profile information saved earlier in this turn\n${savedProfileChanges}`
+          : ""
+      )
       .concat(
         "\n\n## Current saved context\n",
         renderTalentContextPrompt(talentContextSnapshot, {

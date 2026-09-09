@@ -14,7 +14,6 @@ import {
   buildTalentMemoryRetrievalQuery,
   countUserChatTurns,
   fetchAllTalentContexts,
-  fetchActiveTalentDocumentByOrigin,
   fetchTalentContextPromptSnapshot,
   fetchTalentContextsUpdatedAt,
   fetchRecentMessages,
@@ -42,6 +41,7 @@ import {
   maybeSummarizeTalentConversation,
 } from "@/lib/talentOnboarding/conversationSummary";
 import { extractAndPersistChatInsights } from "@/lib/talentOnboarding/chatInsights";
+import { buildSavedProfileChangesForExtractor } from "@/lib/talentOnboarding/profileChangesForExtractor";
 import {
   executeTalentTool,
   TALENT_TOOL_NAMES,
@@ -119,10 +119,6 @@ import {
   stripOpportunityRunMarkers,
 } from "@/lib/opportunityDiscovery/messageMarker";
 import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
-import {
-  GMAIL_CAREER_HISTORY_ORIGIN_ID,
-  GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
-} from "@/lib/integrations/gmailCareerHistoryCore";
 import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
 
 type TalentMessageResponse = ReturnType<typeof toTalentMessageResponse>;
@@ -471,7 +467,6 @@ export async function runCareerChatTurn(
     recentActivitySummaries,
     recentRecommendedOpportunities,
     activeGmailIntegration,
-    savedGmailCareerHistoryDocument,
     isConversationCompletedOpportunityRunActive,
   ] = await Promise.all([
     fetchTalentUserProfile({ admin, userId }),
@@ -532,19 +527,6 @@ export async function runCareerChatTurn(
       admin,
       talentId: userId,
     }),
-    requestChannel === "chat"
-      ? fetchActiveTalentDocumentByOrigin({
-          admin,
-          originId: GMAIL_CAREER_HISTORY_ORIGIN_ID,
-          originType: GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
-          userId,
-        }).catch((error) => {
-          console.warn("[TalentChatTurn] Gmail history context unavailable", {
-            message: error instanceof Error ? error.message : "Unknown error",
-          });
-          return null;
-        })
-      : Promise.resolve(null),
     hasActiveConversationCompletedOpportunityRun({ admin, userId }),
   ]);
 
@@ -580,6 +562,7 @@ export async function runCareerChatTurn(
       })
     : null;
   const shouldAutoExtractInsights = isOnboardingActiveForTurn;
+  const savedProfileChangesForExtraction = new Set<string>();
   const canUseInternalFitHoldQuestionTool =
     !Array.isArray(args.allowedToolNames) ||
     args.allowedToolNames.includes(
@@ -616,6 +599,9 @@ export async function runCareerChatTurn(
           conversationId,
           logPrefix: "TalentChatTurn",
           onboardingChecklistContext: profile,
+          profileChangesAlreadySaved: Array.from(
+            savedProfileChangesForExtraction
+          ).join("\n"),
           sourceChannel:
             requestChannel === "voice" ? "voice_call" : "text_chat",
           scheduleAfter: (task) => after(task),
@@ -773,7 +759,6 @@ export async function runCareerChatTurn(
       talentContextSection,
       currentPreferences,
       gmailCapability,
-      hasSavedGmailCareerHistory: Boolean(savedGmailCareerHistoryDocument),
       isConversationCompletedOpportunityRunActive,
       isOnboardingDone: !isOnboardingActiveForTurn,
       officialJobSignupIntentPrompt: isOnboardingActiveForTurn
@@ -902,6 +887,20 @@ export async function runCareerChatTurn(
       input: toolArgs.input,
     });
     rememberRecommendationPostingRoleIds(result);
+    if (
+      shouldAutoExtractInsights &&
+      toolArgs.name === TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE &&
+      isRecord(result) &&
+      result.ok === true
+    ) {
+      const savedProfileChanges = buildSavedProfileChangesForExtractor({
+        input: toolArgs.input,
+        result,
+      });
+      if (savedProfileChanges) {
+        savedProfileChangesForExtraction.add(savedProfileChanges);
+      }
+    }
     return result;
   };
 

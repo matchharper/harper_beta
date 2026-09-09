@@ -12,7 +12,6 @@ import {
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import {
   buildTalentProfileContext,
-  fetchActiveTalentDocumentByOrigin,
   fetchTalentContextPromptSnapshot,
   fetchTalentSetting,
   fetchTalentStructuredProfile,
@@ -46,10 +45,6 @@ import {
 import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
 import { hasActiveConversationCompletedOpportunityRun } from "@/lib/opportunityDiscovery/store";
 import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
-import {
-  GMAIL_CAREER_HISTORY_ORIGIN_ID,
-  GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
-} from "@/lib/integrations/gmailCareerHistoryCore";
 import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
 
 const FALLBACK_WRAPUP_CONTENT_KO = [
@@ -381,7 +376,6 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
     isConversationCompletedOpportunityRunActive,
     postOnboardingContext,
     activeGmailIntegration,
-    savedGmailCareerHistoryDocument,
   ] = await Promise.all([
     fetchTalentUserProfile({ admin: args.admin, userId: args.userId }),
     fetchTalentSetting({ admin: args.admin, userId: args.userId }),
@@ -419,17 +413,6 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
       admin: args.admin,
       talentId: args.userId,
     }),
-    fetchActiveTalentDocumentByOrigin({
-      admin: args.admin,
-      originId: GMAIL_CAREER_HISTORY_ORIGIN_ID,
-      originType: GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
-      userId: args.userId,
-    }).catch((error) => {
-      console.warn("[OnboardingCompletion] Gmail history context unavailable", {
-        message: error instanceof Error ? error.message : "Unknown error",
-      });
-      return null;
-    }),
   ]);
 
   const structuredProfileText = buildTalentProfileContext({
@@ -449,7 +432,6 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
     gmailCapability: activeGmailIntegration
       ? "connected_but_unavailable_this_turn"
       : "not_connected",
-    hasSavedGmailCareerHistory: Boolean(savedGmailCareerHistoryDocument),
     isConversationCompletedOpportunityRunActive,
     isOnboardingDone: true,
     postOnboardingContext,

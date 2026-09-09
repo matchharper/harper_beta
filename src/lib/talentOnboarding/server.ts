@@ -88,6 +88,7 @@ import {
   readTalentContextsForAgent,
   refreshTalentContextEmbeddings,
   renderTalentContextPrompt,
+  TALENT_CONTEXT_EMBEDDING_MODEL,
   TALENT_CONTEXT_READ_TOOL_PARAMETERS,
   TALENT_CONTEXT_WRITE_TOOL_PARAMETERS,
   toTalentContextResponse,
@@ -153,6 +154,7 @@ export {
   readTalentContextsForAgent,
   refreshTalentContextEmbeddings,
   renderTalentContextPrompt,
+  TALENT_CONTEXT_EMBEDDING_MODEL,
   TALENT_CONTEXT_READ_TOOL_PARAMETERS,
   TALENT_CONTEXT_WRITE_TOOL_PARAMETERS,
   toTalentContextResponse,
@@ -181,6 +183,7 @@ export type {
   TalentContextPromptSnapshot,
   TalentContextResponse,
   TalentContextRow,
+  TalentMemoryImportance,
 } from "@/lib/talentOnboarding/talentContexts";
 
 /** Get first-visit text from the career prompt constants. */

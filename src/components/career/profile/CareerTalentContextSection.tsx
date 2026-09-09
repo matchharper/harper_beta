@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Brain, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { InfoIcon, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { MuteButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltips } from "@/components/ui/tooltip";
 import { useCareerT } from "@/i18n/useCareerT";
 import type {
   CareerTalentContext,
@@ -45,6 +46,8 @@ export default function CareerTalentContextSection({
   const [editor, setEditor] = useState<EditorState>(null);
   const [label, setLabel] = useState("");
   const [content, setContent] = useState("");
+  const [briefEditMode, setBriefEditMode] = useState(false);
+  const [briefDrafts, setBriefDrafts] = useState<Record<number, string>>({});
   const [memoryListOpen, setMemoryListOpen] = useState(false);
   const [pendingDelete, setPendingDelete] =
     useState<CareerTalentContext | null>(null);
@@ -63,10 +66,56 @@ export default function CareerTalentContextSection({
       Boolean(
         editor &&
         content.trim() &&
-        (editor.collection === "memory" || label.trim())
+        (editor.collection === "memory" || editor.row || label.trim())
       ),
     [content, editor, label]
   );
+
+  const briefChanges = useMemo<CareerTalentContextChange[]>(
+    () =>
+      brief.flatMap((row) => {
+        const nextContent = (briefDrafts[row.id] ?? row.content).trim();
+        if (!nextContent || nextContent === row.content.trim()) return [];
+        return [
+          {
+            content: nextContent,
+            expectedRevision: row.revision,
+            id: row.id,
+            op: "update" as const,
+          },
+        ];
+      }),
+    [brief, briefDrafts]
+  );
+
+  const canSaveBrief = useMemo(
+    () =>
+      Boolean(
+        mutate &&
+        briefChanges.length > 0 &&
+        brief.every((row) =>
+          Boolean((briefDrafts[row.id] ?? row.content).trim())
+        )
+      ),
+    [brief, briefChanges.length, briefDrafts, mutate]
+  );
+
+  const beginBriefEdit = () => {
+    setBriefDrafts(
+      Object.fromEntries(brief.map((row) => [row.id, row.content]))
+    );
+    setBriefEditMode(true);
+  };
+
+  const cancelBriefEdit = () => {
+    setBriefDrafts({});
+    setBriefEditMode(false);
+  };
+
+  const saveBrief = async () => {
+    if (!mutate || !canSaveBrief) return;
+    if (await mutate(briefChanges)) cancelBriefEdit();
+  };
 
   const submit = async () => {
     if (!editor || !mutate || !canSubmit) return;
@@ -76,7 +125,6 @@ export default function CareerTalentContextSection({
           content: content.trim(),
           expectedRevision: row.revision,
           id: row.id,
-          ...(editor.collection === "brief" ? { label: label.trim() } : {}),
           op: "update",
         }
       : {
@@ -101,6 +149,17 @@ export default function CareerTalentContextSection({
     ) {
       setPendingDelete(null);
       setEditor(null);
+      if (pendingDelete.collection === "brief") {
+        if (brief.length <= 1) {
+          cancelBriefEdit();
+        } else {
+          setBriefDrafts((current) => {
+            const next = { ...current };
+            delete next[pendingDelete.id];
+            return next;
+          });
+        }
+      }
     }
   };
 
@@ -116,67 +175,137 @@ export default function CareerTalentContextSection({
 
   return (
     <section className="space-y-4 px-1">
-      <div className="rounded-[14px] border border-neutral-1000-a05 bg-bg-default p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h3 className="text-[14px] font-medium text-neutral-primary">
-              {t("career.profile.context.brief_title", "Search Brief")}
-            </h3>
-            <p className="mt-1 text-[12.5px] leading-5 text-neutral-muted">
-              {t(
+      <div>
+        <div className="flex items-center justify-between gap-4">
+          <h3 className="flex items-center gap-2 text-[14px] font-medium text-neutral-primary">
+            {t("career.profile.context.brief_title", "Search Brief")}
+            <Tooltips
+              text={t(
                 "career.profile.context.brief_description",
-                "하퍼가 기회를 찾고 판단할 때 적용하는 현재 기준이에요."
+                "Harper가 기회를 찾고 판단할 때 적용하는 현재 기준이에요. 회사에 직접적으로 공개되지않고 선호하시는 기회를 찾기 위해 사용되며, 사용해서 회원님을 더 잘 소개할 수 있을 때 일부 언급될 수 있습니다."
               )}
-            </p>
-          </div>
-          <MuteButton
-            className="shrink-0 gap-1.5"
-            disabled={!mutate || pending}
-            onClick={() => openEditor("brief", null)}
-            size="sm"
-            type="button"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            {t("career.profile.context.add", "추가")}
-          </MuteButton>
+            >
+              <InfoIcon className="h-3.5 w-3.5 text-neutral-muted" />
+            </Tooltips>
+          </h3>
+          {briefEditMode ? (
+            <div className="flex shrink-0 items-center gap-2">
+              <MuteButton
+                disabled={pending}
+                onClick={cancelBriefEdit}
+                size="sm"
+                type="button"
+              >
+                {t("career.profile.context.cancel", "취소")}
+              </MuteButton>
+              <MuteButton
+                disabled={!canSaveBrief || pending}
+                onClick={() => void saveBrief()}
+                size="sm"
+                type="button"
+                variant="primary"
+              >
+                {pending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : null}
+                {t("career.profile.context.save", "저장")}
+              </MuteButton>
+            </div>
+          ) : (
+            <div className="flex shrink-0 items-center gap-2">
+              <MuteButton
+                className="gap-1.5"
+                disabled={!mutate || pending}
+                onClick={() => openEditor("brief", null)}
+                size="sm"
+                type="button"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {t("career.profile.context.add", "추가")}
+              </MuteButton>
+              <MuteButton
+                className="gap-1.5"
+                disabled={!mutate || pending || brief.length === 0}
+                onClick={beginBriefEdit}
+                size="sm"
+                type="button"
+                variant="transparent"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                {t("career.profile.context.edit", "수정")}
+              </MuteButton>
+            </div>
+          )}
         </div>
-
+      </div>
+      <div className="rounded-[18px] border border-neutral-1000-a05 bg-bg-floating p-5 py-6">
         {brief.length > 0 ? (
-          <dl className="mt-4 divide-y divide-neutral-1000-a05">
+          <dl className="mt-0 divide-y divide-neutral-1000-a05">
             {brief.map((row) => (
               <div
-                className="grid gap-1 py-3 first:pt-0 last:pb-0 sm:grid-cols-[130px_minmax(0,1fr)_28px] sm:gap-4"
+                className="grid gap-1 py-4 first:pt-0 last:pb-0 sm:grid-cols-[130px_minmax(0,1fr)] sm:gap-6"
                 key={row.id}
               >
-                <dt className="text-[13px] font-medium text-neutral-muted">
-                  {row.label}
+                <dt className="text-[13px] font-normal">
+                  {briefEditMode ? (
+                    <label htmlFor={`career-brief-${row.id}`}>
+                      {row.label}
+                    </label>
+                  ) : (
+                    row.label
+                  )}
                 </dt>
-                <dd className="m-0 whitespace-pre-line text-[14px] leading-6 text-neutral-primary">
-                  {row.content}
+                <dd className="m-0 min-w-0">
+                  {briefEditMode ? (
+                    <div className="flex items-start gap-2">
+                      <Textarea
+                        aria-label={row.label ?? undefined}
+                        autoResize
+                        className="min-h-10 resize-y py-1.5  text-[13px] font-normal leading-5 text-neutral-800/90 resize-none"
+                        disabled={pending}
+                        id={`career-brief-${row.id}`}
+                        maxLength={8000}
+                        onChange={(event) =>
+                          setBriefDrafts((current) => ({
+                            ...current,
+                            [row.id]: event.target.value,
+                          }))
+                        }
+                        rows={1}
+                        value={briefDrafts[row.id] ?? row.content}
+                      />
+                      <MuteButton
+                        aria-label={t("career.profile.context.delete", "삭제")}
+                        className="shrink-0 text-neutral-muted"
+                        disabled={!mutate || pending}
+                        onClick={() => setPendingDelete(row)}
+                        size="sm"
+                        type="button"
+                        variant="transparent"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </MuteButton>
+                    </div>
+                  ) : (
+                    <p className="whitespace-pre-line text-[13px] font-normal leading-5 text-neutral-800/90">
+                      {row.content}
+                    </p>
+                  )}
                 </dd>
-                <MuteButton
-                  aria-label={t("career.profile.context.edit", "수정")}
-                  disabled={!mutate || pending}
-                  onClick={() => openEditor("brief", row)}
-                  size="sm"
-                  type="button"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </MuteButton>
               </div>
             ))}
           </dl>
         ) : (
-          <p className="mt-4 rounded-lg bg-bg-weak px-3 py-3 text-[13px] text-neutral-muted">
+          <p className="mt-4 text-[13px] text-neutral-muted">
             {t(
               "career.profile.context.brief_empty",
-              "아직 정해진 탐색 기준이 없어요. 대화하면서 함께 채워갈 수 있어요."
+              "아직 정해진 탐색 기준이 없어요."
             )}
           </p>
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-4 rounded-[14px] border border-neutral-1000-a05 bg-bg-default px-4 py-3">
+      {/* <div className="flex items-center justify-between gap-4 rounded-[14px] border border-neutral-1000-a05 bg-bg-floating p-4">
         <div className="flex min-w-0 items-start gap-2.5">
           <Brain className="mt-0.5 h-4 w-4 shrink-0 text-neutral-muted" />
           <div>
@@ -208,7 +337,7 @@ export default function CareerTalentContextSection({
         >
           {t("career.profile.context.manage", "관리")}
         </MuteButton>
-      </div>
+      </div> */}
 
       {error ? (
         <p className="rounded-lg border border-critical/30 bg-critical-faded px-3 py-2 text-sm text-critical">
@@ -273,7 +402,7 @@ export default function CareerTalentContextSection({
               {error}
             </p>
           ) : null}
-          {editor?.collection === "brief" ? (
+          {editor?.collection === "brief" && !editor.row ? (
             <label className="block space-y-2 text-[13px] font-medium text-neutral-primary">
               <span>{t("career.profile.context.label", "제목")}</span>
               <Input
@@ -413,14 +542,14 @@ export default function CareerTalentContextSection({
         closeOnBackdrop={!pending}
         description={t(
           "career.profile.context.delete_description",
-          "저장된 Search Brief 또는 기억에서 이 항목을 삭제해요. 원본 대화와 문서는 그대로 남아요."
+          "저장된 기준에서 이 항목을 삭제해요."
         )}
         footer={
           <div className="flex justify-end gap-2">
             <MuteButton
               disabled={pending}
               onClick={() => setPendingDelete(null)}
-              size="lg"
+              size="md"
               type="button"
             >
               {t("career.profile.context.cancel", "취소")}
@@ -428,7 +557,7 @@ export default function CareerTalentContextSection({
             <MuteButton
               disabled={pending}
               onClick={() => void deleteRow()}
-              size="lg"
+              size="md"
               type="button"
               variant="warn"
             >

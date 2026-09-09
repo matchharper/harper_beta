@@ -97,7 +97,7 @@ UI에 현재 보이는 탭과 prompt에 필요한 데이터의 로딩 시점은 
 
 - `profile/CareerTalentProfilePanel.tsx`
   - talent structured profile 렌더러.
-  - Search Brief는 바로 표시하고 항목별로 편집합니다.
+  - Search Brief는 바로 표시하고 label은 유지한 채 값을 한 번에 인라인 편집합니다.
   - Memory는 관리 모달을 열 때 `/api/talent/contexts`에서 페이지 단위로 읽습니다.
   - 경험/학력/extra 등 구조화 프로필도 함께 표시합니다.
 

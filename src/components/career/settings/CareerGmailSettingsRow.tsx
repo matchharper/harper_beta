@@ -101,7 +101,7 @@ const CareerGmailSettingsRow = () => {
       showToast({
         message: t(
           "career.profile.resume_links.gmail_analysis_queued_toast",
-          "Gmail 이메일 읽어오기를 시작했습니다. 완료되면 내 문서에 추가됩니다."
+          "Gmail 이메일 읽어오기를 시작했습니다. 완료되면 Harper가 확인된 커리어 맥락을 기억합니다."
         ),
         variant: "white",
       });

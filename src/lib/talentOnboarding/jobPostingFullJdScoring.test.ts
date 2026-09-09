@@ -242,15 +242,11 @@ test("does not collapse unrelated aggregator roles into one company", () => {
 
 test("builds allowlisted user context text without irrelevant identity fields", () => {
   const context = buildFullJdUserContextText({
-    behaviorContext: {
-      recentFeedback: ["role traits: infra | disliked | reason: backend only"],
-      recentMessages: ["2026-08-13 | user: serving 역할을 더 보고 싶어요"],
-      text: "- hands-on IC 역할 선호",
-      version: 3,
-    },
     llmUserProfile: {
+      activityEvents: ["최근 serving 역할을 탐색함"],
       careerContext:
         "Search Brief — 현재 탐색 기준\n[2] 선호 근무 지역: 서울 또는 원격 근무를 선호한다.",
+      conversation: ["serving 역할을 더 보고 싶어요"],
       experiences: [
         {
           companyName: "ExampleAI",
@@ -259,7 +255,11 @@ test("builds allowlisted user context text without irrelevant identity fields", 
           role: "ML Engineer",
         },
       ],
-      insights: { career: { direction: "inference infrastructure" } },
+      // A stale legacy projection must not be injected beside careerContext.
+      insights: { career: { direction: "legacy duplicate" } },
+      feedbackSignals: {
+        role: ["backend-only 역할은 선호하지 않음"],
+      },
       profile: {
         bio: "Infrastructure engineer",
         email: "hidden@example.com",
@@ -276,6 +276,7 @@ test("builds allowlisted user context text without irrelevant identity fields", 
         blockedCompanies: ["Blocked Co"],
         engagementTypes: ["full-time"],
       },
+      recentRecommendations: ["hands-on IC 역할에 긍정적 반응"],
     },
     outputLanguage: "Korean",
     request: "LLM infra 역할 찾아줘",
@@ -283,16 +284,17 @@ test("builds allowlisted user context text without irrelevant identity fields", 
   });
 
   assert.match(context, /\[CURRENT REQUEST\]/);
-  assert.match(context, /hands-on IC 역할 선호/);
+  assert.match(context, /hands-on IC 역할에 긍정적 반응/);
   assert.match(context, /SAVED CAREER CONTEXT/);
   assert.match(context, /서울 또는 원격 근무/);
-  assert.match(context, /career\.direction: inference infrastructure/);
+  assert.doesNotMatch(context, /legacy duplicate|\[INSIGHTS\]/);
   assert.match(context, /hasResume: yes/);
   assert.match(context, /hasLinkedIn: yes/);
-  assert.ok(
-    context.indexOf("RECENT USER MESSAGES AFTER CONTEXT") <
-      context.indexOf("LONG-TERM BEHAVIOR CONTEXT")
-  );
+  assert.match(context, /RECENT CONVERSATION SUMMARY/);
+  assert.match(context, /RECENT ACTIVITY/);
+  assert.match(context, /RECENT RECOMMENDATIONS AND FEEDBACK/);
+  assert.match(context, /FEEDBACK SIGNALS/);
+  assert.doesNotMatch(context, /LONG-TERM BEHAVIOR CONTEXT/);
   assert.doesNotMatch(
     context,
     /hidden@example\.com|Hidden Name|secret\.pdf|https:\/\//

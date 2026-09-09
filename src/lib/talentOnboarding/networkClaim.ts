@@ -2,7 +2,6 @@ import type { User } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import {
   TALENT_RESUME_BUCKET,
-  type TalentInsightContent,
   type TalentUserProfileRow,
   createTalentContextMutationRequestId,
   fetchAllTalentContexts,
@@ -14,7 +13,6 @@ import {
   refreshTalentPreferredLocale,
   upsertTalentSetting,
 } from "@/lib/talentOnboarding/server";
-import { getInsightLabel } from "@/lib/talentOnboarding/insightChecklist";
 import { NETWORK_WAITLIST_TYPE, buildNetworkLead } from "@/lib/networkOps";
 import { parseTalentNetworkInviteToken } from "@/lib/talentNetworkInvite";
 import { careerT } from "@/lib/career/translatedCareerMessage";
@@ -120,13 +118,38 @@ function collectLeadLinks(lead: ReturnType<typeof buildNetworkLead>) {
   ]);
 }
 
-function buildLeadInsightSeed(lead: ReturnType<typeof buildNetworkLead>) {
-  const content = {
-    ...(lead.impactSummary ? { technical_strengths: lead.impactSummary } : {}),
-    ...(lead.dreamTeams ? { desired_teams: lead.dreamTeams } : {}),
-  } satisfies TalentInsightContent;
-
-  return Object.keys(content).length > 0 ? content : null;
+export function buildNetworkLeadContextSeeds(args: {
+  lead: Pick<
+    ReturnType<typeof buildNetworkLead>,
+    "dreamTeams" | "impactSummary"
+  >;
+  preferredLocale?: string | null;
+}) {
+  const english = String(args.preferredLocale ?? "")
+    .trim()
+    .toLowerCase()
+    .startsWith("en");
+  return [
+    ...(args.lead.dreamTeams
+      ? [
+          {
+            collection: "brief" as const,
+            content: args.lead.dreamTeams,
+            key: "desired_teams",
+            label: english ? "Preferred teams" : "선호 팀",
+          },
+        ]
+      : []),
+    ...(args.lead.impactSummary
+      ? [
+          {
+            collection: "memory" as const,
+            content: args.lead.impactSummary,
+            importance: 3 as const,
+          },
+        ]
+      : []),
+  ];
 }
 
 async function fetchWaitlistLead(
@@ -416,11 +439,12 @@ async function copyTalentSettingIfEmpty(args: {
 
 async function copyTalentContexts(args: {
   admin: AdminClient;
+  preferredLocale?: string | null;
   sourceTalentId: string;
   targetTalentId: string;
   lead: ReturnType<typeof buildNetworkLead>;
 }) {
-  const { admin, sourceTalentId, targetTalentId, lead } = args;
+  const { admin, preferredLocale, sourceTalentId, targetTalentId, lead } = args;
   if (sourceTalentId === targetTalentId) return;
 
   const [currentRows, sourceRows] = await Promise.all([
@@ -433,21 +457,25 @@ async function copyTalentContexts(args: {
       userId: sourceTalentId,
     }),
   ]);
-  const seedRows = Object.entries(buildLeadInsightSeed(lead) ?? {}).map(
-    ([key, content]) => ({
-      collection: "brief" as const,
-      content,
-      key,
-      label: getInsightLabel(key),
-    })
-  );
+  const seedRows = buildNetworkLeadContextSeeds({ lead, preferredLocale });
   const candidates = [
-    ...sourceRows.map((row) => ({
-      collection: row.collection,
-      content: row.content,
-      key: row.key,
-      label: row.label,
-    })),
+    ...sourceRows.map((row) =>
+      row.collection === "brief" && row.key === "technical_strengths"
+        ? {
+            collection: "memory" as const,
+            content: row.content,
+            importance: 3 as const,
+            key: null,
+            label: null,
+          }
+        : {
+            collection: row.collection,
+            content: row.content,
+            importance: row.importance,
+            key: row.key,
+            label: row.label,
+          }
+    ),
     ...seedRows,
   ];
   const normalized = (value: string | null | undefined) =>
@@ -469,6 +497,7 @@ async function copyTalentContexts(args: {
   const changes: Array<{
     collection: "brief" | "memory";
     content: string;
+    importance?: 1 | 2 | 3;
     key?: string | null;
     label?: string | null;
     op: "add";
@@ -487,7 +516,9 @@ async function copyTalentContexts(args: {
     changes.push({
       collection: row.collection,
       content: row.content,
-      ...(row.collection === "brief" ? { key: row.key, label: row.label } : {}),
+      ...(row.collection === "brief"
+        ? { key: row.key, label: row.label }
+        : { importance: row.importance ?? 2 }),
       op: "add",
     });
   }
@@ -695,6 +726,7 @@ export async function claimTalentNetworkInvite(args: {
     }),
     copyTalentContexts({
       admin,
+      preferredLocale,
       sourceTalentId,
       targetTalentId: user.id,
       lead,

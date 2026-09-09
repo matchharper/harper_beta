@@ -10,7 +10,6 @@ import type {
   CareerInterviewProgress,
   CareerInternalOpportunityCallRequest,
   CareerMessagePayload,
-  CareerOnboardingChecklistProgress,
   CareerOpportunityFeedbackFollowUpTrigger,
   CareerOpportunityRun,
   SessionResponse,
@@ -33,6 +32,7 @@ import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { useCareerChat } from "@/hooks/career/useCareerChat";
 import { useCareerChatAutoScroll } from "@/hooks/career/useCareerChatAutoScroll";
 import { useCareerMessageHistory } from "@/hooks/career/useCareerMessageHistory";
+import { useCareerOnboardingProgress } from "@/hooks/career/useCareerOnboardingProgress";
 import { useCareerOnboardingVoice } from "@/hooks/career/useCareerOnboardingVoice";
 import { useCareerOpportunityRunSync } from "@/hooks/career/useCareerOpportunityRunSync";
 import { useCareerProfile } from "@/hooks/career/useCareerProfile";
@@ -116,35 +116,6 @@ const normalizePendingInternalOpportunityCallRequests = (
   });
 };
 
-const normalizeOnboardingChecklistProgress = (
-  value: unknown
-): CareerOnboardingChecklistProgress | null => {
-  if (!isRecord(value)) return null;
-
-  const totalCount = Math.max(0, Number(value.totalCount ?? 0) || 0);
-  const coveredCount = Math.max(0, Number(value.coveredCount ?? 0) || 0);
-  const percent =
-    typeof value.percent === "number"
-      ? Math.max(0, Math.min(100, Math.round(value.percent)))
-      : totalCount > 0
-        ? Math.min(100, Math.round((coveredCount / totalCount) * 100))
-        : 0;
-
-  return {
-    additionalCoveredCount: Math.max(
-      0,
-      Number(value.additionalCoveredCount ?? 0) || 0
-    ),
-    completed: value.completed === true,
-    coveredCount,
-    finalConfirmationCovered: value.finalConfirmationCovered === true,
-    minCoveredCount: Math.max(0, Number(value.minCoveredCount ?? 0) || 0),
-    percent,
-    requiredQuestionsCovered: value.requiredQuestionsCovered === true,
-    totalCount,
-  };
-};
-
 type OnboardingManualCompletionPayload = {
   assistantMessage?: CareerMessagePayload | null;
   assistantMessages?: CareerMessagePayload[];
@@ -209,23 +180,6 @@ export const CareerFlowProvider = ({
   const [unlinkedOpportunityRuns, setUnlinkedOpportunityRuns] = useState<
     CareerOpportunityRun[]
   >([]);
-  const [onboardingChecklistProgress, setOnboardingChecklistProgress] =
-    useState<CareerOnboardingChecklistProgress | null>(null);
-  const handleOnboardingChecklistProgressRefreshed = useCallback(
-    (progress: unknown) => {
-      setOnboardingChecklistProgress(
-        normalizeOnboardingChecklistProgress(progress)
-      );
-    },
-    []
-  );
-  const hasMinimumOnboardingChecklistCoverage = Boolean(
-    onboardingChecklistProgress &&
-    onboardingChecklistProgress.minCoveredCount > 0 &&
-    onboardingChecklistProgress.coveredCount +
-      (onboardingChecklistProgress.finalConfirmationCovered ? 1 : 0) >=
-      onboardingChecklistProgress.minCoveredCount
-  );
   const [
     pendingInternalOpportunityCallRequest,
     setPendingInternalOpportunityCallRequest,
@@ -329,6 +283,27 @@ export const CareerFlowProvider = ({
   });
   const conversationId =
     sessionConversationId ?? messageConversation?.id ?? null;
+  const {
+    onboardingChecklistProgress,
+    applyProgress: applyOnboardingChecklistProgress,
+    hydrateProgress: hydrateOnboardingChecklistProgress,
+    resetProgress: resetOnboardingChecklistProgress,
+  } = useCareerOnboardingProgress({
+    userId,
+  });
+  const handleOnboardingChecklistProgressRefreshed = useCallback(
+    (progress: unknown) => {
+      applyOnboardingChecklistProgress(progress);
+    },
+    [applyOnboardingChecklistProgress]
+  );
+  const hasMinimumOnboardingChecklistCoverage = Boolean(
+    onboardingChecklistProgress &&
+    onboardingChecklistProgress.minCoveredCount > 0 &&
+    onboardingChecklistProgress.coveredCount +
+      (onboardingChecklistProgress.finalConfirmationCovered ? 1 : 0) >=
+      onboardingChecklistProgress.minCoveredCount
+  );
 
   const messageHistoryReady =
     Boolean(messageConversation) &&
@@ -1312,11 +1287,7 @@ export const CareerFlowProvider = ({
       applySessionTalentPreferences(payload);
       applySessionTalentInsights(payload);
       applySessionTalentContexts(payload);
-      setOnboardingChecklistProgress(
-        normalizeOnboardingChecklistProgress(
-          payload.onboardingChecklistProgress
-        )
-      );
+      hydrateOnboardingChecklistProgress(payload.onboardingChecklistProgress);
       applySessionPrompt(payload);
       if (payload.historyOpportunitiesIncluded === true) {
         hydrateHistoryOpportunities(
@@ -1356,6 +1327,7 @@ export const CareerFlowProvider = ({
       appendLatestMessagesToCache,
       hydrateHistoryOpportunityCounts,
       hydrateHistoryOpportunities,
+      hydrateOnboardingChecklistProgress,
       replacePendingInternalOpportunityCallRequests,
     ]
   );
@@ -1655,7 +1627,7 @@ export const CareerFlowProvider = ({
       resetRuntimeActionsState();
       setActiveCompanyRoleCount(0);
       setUnlinkedOpportunityRuns([]);
-      setOnboardingChecklistProgress(null);
+      resetOnboardingChecklistProgress();
       replacePendingInternalOpportunityCallRequests([]);
       clearSessionReengagementAction();
       sessionReengagementRef.current = null;
@@ -1672,6 +1644,7 @@ export const CareerFlowProvider = ({
     resetTalentPreferencesState,
     resetSessionState,
     resetHistoryState,
+    resetOnboardingChecklistProgress,
     replacePendingInternalOpportunityCallRequests,
     sessionReengagementRef,
     userId,

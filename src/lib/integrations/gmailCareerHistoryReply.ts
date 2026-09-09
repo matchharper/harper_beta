@@ -3,7 +3,7 @@ import "server-only";
 import { runCareerChatTurn } from "@/lib/career/chatTurn";
 import { CAREER_LLM_CONFIG } from "@/lib/career/llm";
 import { buildGmailCareerHistoryFollowUpInstruction } from "@/lib/integrations/gmailCareerHistoryReplyCore";
-import type { GmailCareerEntry } from "@/lib/integrations/gmailCareerHistoryCore";
+import type { GmailCareerMemoryEntry } from "@/lib/integrations/gmailCareerHistoryCore";
 import {
   toTalentMessageResponse,
   type TalentAdminClient,
@@ -37,7 +37,7 @@ async function fetchExistingFollowUp(args: {
 
 export async function createGmailCareerHistoryFollowUpReply(args: {
   admin: TalentAdminClient;
-  entries: GmailCareerEntry[];
+  entries: GmailCareerMemoryEntry[];
   runStartedAt: string;
   userId: string;
 }) {

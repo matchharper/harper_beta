@@ -6,7 +6,6 @@ import {
   countUserChatTurns,
   fetchAllTalentContexts,
   fetchTalentDocuments,
-  fetchActiveTalentDocumentByOrigin,
   fetchTalentDocumentsByIds,
   fetchTalentContextPromptSnapshot,
   fetchTalentContextsUpdatedAt,
@@ -59,6 +58,7 @@ import {
 } from "@/lib/talentOnboarding/conversationSummary";
 import { createOnboardingCompletionMessages } from "@/lib/talentOnboarding/onboardingCompletionWrapup";
 import { extractAndPersistChatInsights } from "@/lib/talentOnboarding/chatInsights";
+import { buildSavedProfileChangesForExtractor } from "@/lib/talentOnboarding/profileChangesForExtractor";
 import {
   TALENT_ONBOARDING_DONE_MARKER,
   resolveTalentOnboardingCompletion,
@@ -133,10 +133,6 @@ import {
 } from "@/lib/opportunityDiscovery/messageMarker";
 import { buildFirstTurnUploadedDocumentContext } from "@/lib/talentOnboarding/documentPromptContext";
 import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
-import {
-  GMAIL_CAREER_HISTORY_ORIGIN_ID,
-  GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
-} from "@/lib/integrations/gmailCareerHistoryCore";
 import { canUseCareerDevControls } from "@/lib/internalAccess";
 import { resolveCareerTextChatModelForRequest } from "@/lib/career/textChatModelConfig";
 
@@ -546,29 +542,12 @@ export async function POST(req: NextRequest) {
       );
     }
     const admin = getTalentSupabaseAdmin();
-    const [
-      talentSetting,
-      activeGmailIntegration,
-      savedGmailCareerHistoryDocument,
-    ] = await Promise.all([
+    const [talentSetting, activeGmailIntegration] = await Promise.all([
       fetchTalentSetting({ admin, userId: user.id }),
       fetchActiveTalentGmailIntegration({
         admin,
         talentId: user.id,
       }),
-      requestChannel === "chat"
-        ? fetchActiveTalentDocumentByOrigin({
-            admin,
-            originId: GMAIL_CAREER_HISTORY_ORIGIN_ID,
-            originType: GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
-            userId: user.id,
-          }).catch((error) => {
-            console.warn("[TalentChat] Gmail history context unavailable", {
-              message: error instanceof Error ? error.message : "Unknown error",
-            });
-            return null;
-          })
-        : Promise.resolve(null),
     ]);
     const responseLocale =
       talentSetting?.preferred_locale ??
@@ -768,6 +747,7 @@ export async function POST(req: NextRequest) {
     const shouldAutoExtractInsights = !Boolean(
       talentSetting?.is_onboarding_done
     );
+    const savedProfileChangesForExtraction = new Set<string>();
     const extractTurnInsights = (assistantContent: string) =>
       shouldAutoExtractInsights
         ? extractAndPersistChatInsights({
@@ -783,6 +763,9 @@ export async function POST(req: NextRequest) {
             conversationId,
             logPrefix: "TalentChat",
             onboardingChecklistContext: profile,
+            profileChangesAlreadySaved: Array.from(
+              savedProfileChangesForExtraction
+            ).join("\n"),
             sourceChannel: "text_chat",
             scheduleAfter: (task) => after(task),
             userId: user.id,
@@ -1040,7 +1023,6 @@ export async function POST(req: NextRequest) {
         talentContextSection,
         currentPreferences,
         gmailCapability,
-        hasSavedGmailCareerHistory: Boolean(savedGmailCareerHistoryDocument),
         isConversationCompletedOpportunityRunActive,
         isOnboardingDone: talentSetting?.is_onboarding_done,
         officialJobSignupIntentPrompt: talentSetting?.is_onboarding_done
@@ -1220,6 +1202,19 @@ export async function POST(req: NextRequest) {
       }
 
       const resultRecord = isRecord(result) ? result : null;
+      if (
+        shouldAutoExtractInsights &&
+        toolArgs.name === TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE &&
+        resultRecord?.ok === true
+      ) {
+        const savedProfileChanges = buildSavedProfileChangesForExtractor({
+          input: toolInput,
+          result: resultRecord,
+        });
+        if (savedProfileChanges) {
+          savedProfileChangesForExtraction.add(savedProfileChanges);
+        }
+      }
       const changedRecommendedOpportunity =
         toolArgs.name ===
           TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK &&

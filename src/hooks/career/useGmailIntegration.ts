@@ -51,7 +51,9 @@ type GmailConnectPayload = Omit<GmailIntegrationStatusPayload, "analysis"> & {
 
 const GMAIL_INTEGRATION_STALE_TIME_MS = 5 * 60_000;
 const GMAIL_INTEGRATION_GC_TIME_MS = 30 * 60_000;
-const GMAIL_ANALYSIS_POLL_INTERVAL_MS = 3_000;
+// Gmail history imports take minutes, so second-by-second polling adds load
+// without materially improving the experience.
+const GMAIL_ANALYSIS_POLL_INTERVAL_MS = 15_000;
 
 export const gmailIntegrationQueryKey = (userId: string | null) =>
   ["career-gmail-integration", userId] as const;

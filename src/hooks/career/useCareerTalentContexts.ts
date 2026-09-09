@@ -33,6 +33,16 @@ const normalizeContextRows = (
     const revision = Number(row.revision);
     const content = typeof row.content === "string" ? row.content.trim() : "";
     const label = typeof row.label === "string" ? row.label.trim() : "";
+    const rawImportance = Number(row.importance);
+    const importance =
+      collection === "memory" &&
+      Number.isInteger(rawImportance) &&
+      rawImportance >= 1 &&
+      rawImportance <= 3
+        ? (rawImportance as 1 | 2 | 3)
+        : collection === "memory"
+          ? 2
+          : null;
     if (
       row.collection !== collection ||
       !Number.isSafeInteger(id) ||
@@ -52,6 +62,7 @@ const normalizeContextRows = (
         content,
         createdAt: typeof row.createdAt === "string" ? row.createdAt : "",
         id,
+        importance,
         key: typeof row.key === "string" && row.key.trim() ? row.key : null,
         label: collection === "brief" ? label : null,
         ref,

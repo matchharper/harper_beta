@@ -14,6 +14,13 @@ test("keeps general Brief writes free-form and excludes compatibility keys", () 
   assert.ok("label" in changeProperties);
   assert.equal("enum" in changeProperties.label, false);
   assert.deepEqual(changeProperties.collection.enum, ["brief", "memory"]);
+  assert.match(changeProperties.content.description, /facts the user stated/);
+  assert.match(
+    changeProperties.content.description,
+    /must not repeat its label/
+  );
+  assert.deepEqual(changeProperties.importance.enum, [1, 2, 3]);
+  assert.match(changeProperties.importance.description, /Required.*Memory/);
 });
 
 test("uses short refs and bounded reads instead of database ids", () => {

@@ -60,6 +60,20 @@ test("career context updates keep Brief labels aligned with their content", () =
 
   assert.match(prompt, /Brief update makes its current label misleading/);
   assert.match(prompt, /update the label in the same change/);
+  assert.match(prompt, /Save only facts the user stated/);
+  assert.match(prompt, /do not repeat its label in content/);
+});
+
+test("writes changed criteria before starting a recommendation run", () => {
+  const prompt = buildCareerToolPolicyPrompt({
+    channel: "chat",
+    isOnboardingActive: false,
+    preferredLocale: "ko",
+    toolNames: ["write_talent_context", "recommend_job_postings"],
+  });
+
+  assert.match(prompt, /write the context change first/);
+  assert.match(prompt, /then call `recommend_job_postings`/);
 });
 
 test("matched internal role policy describes already-reviewed fit roles", () => {

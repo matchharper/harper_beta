@@ -21,7 +21,6 @@ import {
   buildInitialRecommendationPendingResult,
   fetchActiveInitialConversationRun,
 } from "@/lib/talentOnboarding/initialRecommendationGuard";
-import { hasPendingBehaviorContextChanges } from "@/lib/talentOnboarding/behaviorContextFreshness";
 import {
   FULL_JD_FIT_MAX_FRESH_ROLES,
   buildFullJdBatchWaves,
@@ -32,7 +31,6 @@ import {
   resolveJobPostingRecommendationStrategy,
   scoreFullJdCandidateBatch,
   selectFullJdEvaluations,
-  type FullJdBehaviorContext,
   type FullJdFitEvaluation,
   type FullJdPromptCandidate,
   type FullJdSelectionInput,
@@ -63,7 +61,7 @@ type PostingRecency = {
   recentWeight: number | null;
 };
 
-type ExternalSearchPlan = {
+export type ExternalSearchPlan = {
   ftsKeywords: FtsKeyword[];
   includeContract: boolean;
   includeIntern: boolean;
@@ -217,7 +215,6 @@ const TALENT_TIMELINE_DESCRIPTION_MAX_LENGTH = 900;
 const FINAL_RECOMMENDATION_COUNT = 5;
 const CONTINUATION_RECOMMENDATION_BATCH_LIMIT = 10;
 const EXTERNAL_FIT_CACHE_TTL_DAYS = 30;
-const EXTERNAL_FIT_CACHE_CHANGED_CONTEXT_TTL_DAYS = 10;
 const EXTERNAL_FIT_CACHE_EVALUATOR_KEY = "beta-full-jd-v1";
 const EXTERNAL_FIT_CACHE_SHORTLIST_SKIP_MIN_SCORE100 = 70;
 const EXTERNAL_FIT_CACHE_SHORTLIST_SKIP_MIN_COUNT = 20;
@@ -318,7 +315,7 @@ Rules:
 
 const FULL_JD_PLAN_SYSTEM_PROMPT = `Create a high-recall search plan for external public job postings. Return JSON only.
 
-The current request is the primary target. Use explicit user settings next. Profile, behavior context, and feedback may help choose aliases and relevant domain terms, but do not turn an inferred or weak preference into a hard database filter.
+The current request is the primary target. Use explicit user settings next. Profile, saved career context, and feedback may help choose aliases and relevant domain terms, but do not turn an inferred or weak preference into a hard database filter.
 
 Return exactly this shape:
 {
@@ -1162,338 +1159,6 @@ async function fetchRecentRecommendations(args: {
       };
     }
   );
-}
-
-type JobPostingBehaviorContextSnapshot = {
-  lastEvaluatedAt: string | null;
-  lastConsumedChangeId: number;
-  text: string;
-  version: number | null;
-};
-
-async function fetchJobPostingBehaviorContextSnapshot(args: {
-  admin: AdminClient;
-  asOf?: string | null;
-  userId: string;
-}): Promise<JobPostingBehaviorContextSnapshot | null> {
-  try {
-    const { data, error } = await ((
-      args.admin.from("talent_behavior_contexts" as any) as any
-    )
-      .select(
-        "context_text, context_version, context_hash, last_consumed_change_id, last_evaluated_at, builder_version"
-      )
-      .eq("talent_id", args.userId)
-      .maybeSingle() as unknown as Promise<{
-      data: unknown;
-      error: { message?: string } | null;
-    }>);
-    if (error) {
-      infoJson("behavior context unavailable", { message: error.message });
-      return null;
-    }
-    const row = asRecord(data);
-    const contextText = normalizeMultiline(row?.context_text, 24_000);
-    if (!contextText) return null;
-    if (cleanText(row?.builder_version, 120) !== "behavior_context_lines_v1") {
-      infoJson("behavior context builder mismatch", { userId: args.userId });
-      return null;
-    }
-    const headings = [
-      "현재 명시적 목표",
-      "확실한 제약",
-      "관찰된 선호",
-      "최근 변화",
-      "불확실하거나 충돌하는 부분",
-      "근거 강도",
-    ];
-    const contextLines = contextText.split("\n");
-    const headingIndexes = headings.map((heading) =>
-      contextLines.indexOf(heading)
-    );
-    if (
-      contextLines[0] !== headings[0] ||
-      headings.some(
-        (heading) =>
-          contextLines.filter((line) => line === heading).length !== 1
-      ) ||
-      headingIndexes.some(
-        (value, index) => index > 0 && value <= headingIndexes[index - 1]
-      )
-    ) {
-      infoJson("behavior context schema invalid", { userId: args.userId });
-      return null;
-    }
-    const storedHash = cleanText(row?.context_hash, 128);
-    const expectedHash = createHash("sha256")
-      .update(contextText, "utf8")
-      .digest("hex");
-    if (!storedHash || storedHash !== expectedHash) {
-      infoJson("behavior context hash mismatch", { userId: args.userId });
-      return null;
-    }
-    const lastEvaluatedAt = cleanText(row?.last_evaluated_at, 120) || null;
-    if (
-      args.asOf &&
-      lastEvaluatedAt &&
-      new Date(lastEvaluatedAt).getTime() > new Date(args.asOf).getTime()
-    ) {
-      return null;
-    }
-    const lastConsumedChangeIdText = cleanText(
-      row?.last_consumed_change_id,
-      40
-    );
-    const lastConsumedChangeId = lastConsumedChangeIdText
-      ? Number(lastConsumedChangeIdText)
-      : Number.NaN;
-    if (
-      !Number.isSafeInteger(lastConsumedChangeId) ||
-      lastConsumedChangeId < 0
-    ) {
-      infoJson("behavior context cursor unavailable", {
-        userId: args.userId,
-      });
-      return null;
-    }
-    if (
-      await hasPendingBehaviorContextChanges({
-        admin: args.admin,
-        asOf: args.asOf,
-        lastConsumedChangeId,
-        userId: args.userId,
-      })
-    ) {
-      infoJson("behavior context stale", {
-        lastConsumedChangeId,
-        userId: args.userId,
-      });
-      return null;
-    }
-    const version = Number(row?.context_version);
-    return {
-      lastEvaluatedAt,
-      lastConsumedChangeId,
-      text: contextText,
-      version: Number.isFinite(version) ? version : null,
-    };
-  } catch (error) {
-    infoJson("behavior context unavailable", {
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return null;
-  }
-}
-
-async function fetchRecentUserMessagesAfterBehaviorContext(args: {
-  admin: AdminClient;
-  asOf?: string | null;
-  conversationId: string;
-  lastEvaluatedAt: string | null;
-  request: string;
-  userId: string;
-}) {
-  try {
-    let query = (args.admin.from("talent_messages" as any) as any)
-      .select("content, created_at, id")
-      .eq("user_id", args.userId)
-      .eq("conversation_id", args.conversationId)
-      .eq("role", "user")
-      .order("created_at", { ascending: false })
-      .limit(6);
-    if (args.lastEvaluatedAt) {
-      query = query.gt("created_at", args.lastEvaluatedAt);
-    }
-    if (args.asOf) query = query.lte("created_at", args.asOf);
-    const { data, error } = (await query) as {
-      data: unknown;
-      error: { message?: string } | null;
-    };
-    if (error) {
-      infoJson("recent behavior messages unavailable", {
-        message: error.message,
-      });
-      return [];
-    }
-    const requestKey = normalizeMultiline(args.request, 1_400).toLowerCase();
-    return (Array.isArray(data) ? data : [])
-      .map((row) => {
-        const content = normalizeMultiline(row?.content, 1_200);
-        if (!content || content.toLowerCase() === requestKey) return "";
-        const createdAt = compactDatetimeForLlm(row?.created_at);
-        return createdAt
-          ? `${createdAt} | user: ${content}`
-          : `user: ${content}`;
-      })
-      .filter(Boolean)
-      .reverse();
-  } catch (error) {
-    infoJson("recent behavior messages unavailable", {
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return [];
-  }
-}
-
-async function fetchRecentRecommendationSignalTimes(args: {
-  admin: AdminClient;
-  asOf?: string | null;
-  userId: string;
-}) {
-  const timestamps = new Map<string, number>();
-  try {
-    let query = (
-      args.admin.from("talent_opportunity_recommendation" as any) as any
-    )
-      .select(
-        "id,feedback_at,updated_at,created_at,viewed_at,clicked_at,dismissed_at"
-      )
-      .eq("talent_id", args.userId)
-      .eq("opportunity_type", OpportunityType.ExternalJd)
-      .order("updated_at", { ascending: false })
-      .limit(60);
-    if (args.asOf) query = query.lte("created_at", args.asOf);
-    const { data, error } = await (query as any);
-    if (error) {
-      infoJson("recent recommendation signal timestamps unavailable", {
-        message: error.message,
-      });
-      return timestamps;
-    }
-    const asOfMs = args.asOf
-      ? new Date(args.asOf).getTime()
-      : Number.POSITIVE_INFINITY;
-    for (const row of Array.isArray(data) ? data : []) {
-      const id = cleanText(row?.id, 120);
-      if (!id) continue;
-      const timestamp = [
-        row?.feedback_at,
-        row?.updated_at,
-        row?.viewed_at,
-        row?.clicked_at,
-        row?.dismissed_at,
-      ]
-        .map((value) => {
-          const parsed = value ? new Date(String(value)).getTime() : Number.NaN;
-          return Number.isFinite(parsed) && parsed <= asOfMs
-            ? parsed
-            : Number.NEGATIVE_INFINITY;
-        })
-        .reduce(
-          (latest, value) => Math.max(latest, value),
-          Number.NEGATIVE_INFINITY
-        );
-      if (Number.isFinite(timestamp)) timestamps.set(id, timestamp);
-    }
-  } catch (error) {
-    infoJson("recent recommendation signal timestamps unavailable", {
-      message: error instanceof Error ? error.message : String(error),
-    });
-  }
-  return timestamps;
-}
-
-async function buildFullJdBehaviorContext(args: {
-  admin: AdminClient;
-  asOf?: string | null;
-  conversationId: string;
-  recentRecommendations: RecentRecommendationRow[];
-  redactionTerms: string[];
-  request: string;
-  userId: string;
-}): Promise<FullJdBehaviorContext | null> {
-  const snapshot = await fetchJobPostingBehaviorContextSnapshot({
-    admin: args.admin,
-    asOf: args.asOf,
-    userId: args.userId,
-  });
-  if (!snapshot) return null;
-  const recentMessages = await fetchRecentUserMessagesAfterBehaviorContext({
-    admin: args.admin,
-    asOf: args.asOf,
-    conversationId: args.conversationId,
-    lastEvaluatedAt: snapshot.lastEvaluatedAt,
-    request: args.request,
-    userId: args.userId,
-  });
-  const parsedCutoff = snapshot.lastEvaluatedAt
-    ? new Date(snapshot.lastEvaluatedAt).getTime()
-    : Number.NEGATIVE_INFINITY;
-  const cutoff = Number.isFinite(parsedCutoff)
-    ? parsedCutoff
-    : Number.NEGATIVE_INFINITY;
-  const signalTimes = await fetchRecentRecommendationSignalTimes({
-    admin: args.admin,
-    asOf: args.asOf,
-    userId: args.userId,
-  });
-  const recentFeedback = args.recentRecommendations
-    .filter((item) => {
-      const hasSignal = Boolean(
-        cleanText(item.feedback, 80) ||
-        cleanText(item.feedbackReason, 220) ||
-        cleanText(item.savedStage, 80) ||
-        item.viewedAt ||
-        item.clickedAt
-      );
-      const fallbackTimestamp = item.recommendedAt
-        ? new Date(item.recommendedAt).getTime()
-        : Number.NaN;
-      if (args.asOf) {
-        const asOfMs = new Date(args.asOf).getTime();
-        const atOrBeforeAsOf = (value: string | null | undefined) => {
-          const parsed = value ? new Date(value).getTime() : Number.NaN;
-          return Number.isFinite(parsed) && parsed <= asOfMs;
-        };
-        if (
-          (cleanText(item.feedback, 80) ||
-            cleanText(item.feedbackReason, 220)) &&
-          !atOrBeforeAsOf(item.feedbackAt)
-        ) {
-          return false;
-        }
-        if (cleanText(item.savedStage, 80) && !atOrBeforeAsOf(item.updatedAt)) {
-          return false;
-        }
-        if (item.viewedAt && !atOrBeforeAsOf(item.viewedAt)) return false;
-        if (item.clickedAt && !atOrBeforeAsOf(item.clickedAt)) return false;
-      }
-      const signalAt = item.id
-        ? (signalTimes.get(item.id) ??
-          (args.asOf ? Number.NaN : fallbackTimestamp))
-        : fallbackTimestamp;
-      return (
-        hasSignal &&
-        (!args.asOf || Number.isFinite(signalAt)) &&
-        (!Number.isFinite(signalAt) || signalAt > cutoff)
-      );
-    })
-    .slice(0, 10)
-    .map((item) =>
-      compactRecentRecommendation(item, args.redactionTerms, false)
-    )
-    .filter(Boolean)
-    .reverse();
-  if (
-    await hasPendingBehaviorContextChanges({
-      admin: args.admin,
-      asOf: args.asOf,
-      lastConsumedChangeId: snapshot.lastConsumedChangeId,
-      userId: args.userId,
-    })
-  ) {
-    infoJson("behavior context became stale during read", {
-      lastConsumedChangeId: snapshot.lastConsumedChangeId,
-      userId: args.userId,
-    });
-    return null;
-  }
-  return {
-    recentFeedback,
-    recentMessages,
-    text: snapshot.text,
-    version: snapshot.version,
-  };
 }
 
 type PreviousExternalRecommendation = {
@@ -3457,17 +3122,35 @@ function fullJdRoleSourceHash(card: RoleCard) {
     .digest("hex");
 }
 
-function fullJdCacheInputFingerprint(args: { llmUserProfile: JsonRecord }) {
-  const profile = asRecord(args.llmUserProfile.profile) ?? {};
+function fullJdStableUserContext(args: {
+  fitContextText: string;
+  plan: ExternalSearchPlan;
+}) {
+  return [
+    args.fitContextText,
+    "[NORMALIZED SEARCH INTENT]",
+    args.plan.searchIntentSummary,
+    "[SEARCH ROLE TITLES]",
+    args.plan.roleTitles.join(", "),
+    "[SEARCH DOMAIN TERMS]",
+    args.plan.ftsKeywords
+      .flatMap((keyword) => keyword.terms)
+      .slice(0, 40)
+      .join(", "),
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+export function fullJdCacheInputFingerprint(args: {
+  fitContextText: string;
+  plan: ExternalSearchPlan;
+}) {
   return createHash("sha256")
     .update(
       JSON.stringify({
         evaluatorKey: EXTERNAL_FIT_CACHE_EVALUATOR_KEY,
-        profile,
-        experiences: args.llmUserProfile.experiences ?? [],
-        educations: args.llmUserProfile.educations ?? [],
-        extra: args.llmUserProfile.extra ?? {},
-        careerContext: args.llmUserProfile.careerContext ?? "",
+        stableUserContext: fullJdStableUserContext(args),
       })
     )
     .digest("hex");
@@ -3476,7 +3159,6 @@ function fullJdCacheInputFingerprint(args: { llmUserProfile: JsonRecord }) {
 async function fetchExternalFitCache(args: {
   admin: AdminClient;
   asOf?: string | null;
-  behaviorContextVersion?: number | null;
   inputFingerprint?: string;
   roleCards?: RoleCard[];
   roleIds: string[];
@@ -3494,7 +3176,7 @@ async function fetchExternalFitCache(args: {
 
   try {
     let query = (args.admin.from("talent_external_fit" as any) as any)
-      .select("role_id, meta, created_at, behavior_context_version")
+      .select("role_id, meta, created_at")
       .eq("talent_id", args.userId)
       .gte("created_at", cutoff)
       .in("role_id", roleIds);
@@ -3533,21 +3215,10 @@ async function fetchExternalFitCache(args: {
         }
       }
       const createdAtMs = new Date(String(record?.created_at ?? "")).getTime();
-      const rowVersionRaw = record?.behavior_context_version;
-      const rowVersion =
-        rowVersionRaw === null || rowVersionRaw === undefined
-          ? null
-          : Number(rowVersionRaw);
-      const requestedVersion = args.behaviorContextVersion ?? null;
-      const sameVersion =
-        (rowVersion === null && requestedVersion === null) ||
-        (Number.isFinite(rowVersion) && rowVersion === requestedVersion);
-      const ttlDays = sameVersion
-        ? EXTERNAL_FIT_CACHE_TTL_DAYS
-        : EXTERNAL_FIT_CACHE_CHANGED_CONTEXT_TTL_DAYS;
       if (
         !Number.isFinite(createdAtMs) ||
-        createdAtMs < referenceTime - ttlDays * 24 * 60 * 60 * 1000
+        createdAtMs <
+          referenceTime - EXTERNAL_FIT_CACHE_TTL_DAYS * 24 * 60 * 60 * 1000
       ) {
         continue;
       }
@@ -4196,7 +3867,6 @@ function hydrateFullJdEvaluation(
 
 async function saveFullJdExternalFitEvaluations(args: {
   admin: AdminClient;
-  behaviorContextVersion?: number | null;
   evaluations: FullJdFitEvaluation[];
   inputFingerprint: string;
   cards: RoleCard[];
@@ -4222,7 +3892,6 @@ async function saveFullJdExternalFitEvaluations(args: {
       },
       role_id: item.roleId,
       talent_id: args.userId,
-      behavior_context_version: args.behaviorContextVersion ?? null,
     }));
   if (rows.length === 0) return 0;
   const { error } = await ((
@@ -4323,7 +3992,6 @@ WHERE role.role_id = incoming.role_id
 
 async function persistFullJdBatchEvaluations(args: {
   admin: AdminClient;
-  behaviorContextVersion?: number | null;
   cards: RoleCard[];
   evaluations: FullJdFitEvaluation[];
   inputFingerprint: string;
@@ -4334,7 +4002,6 @@ async function persistFullJdBatchEvaluations(args: {
   const results = await Promise.allSettled([
     saveFullJdExternalFitEvaluations({
       admin: args.admin,
-      behaviorContextVersion: args.behaviorContextVersion,
       cards: args.cards,
       evaluations: args.evaluations,
       inputFingerprint: args.inputFingerprint,
@@ -4404,7 +4071,6 @@ function fullJdSelectionInputs(args: {
 async function selectFullJdRecommendations(args: {
   abortSignal?: AbortSignal;
   admin: AdminClient;
-  behaviorContextVersion?: number | null;
   cards: RoleCard[];
   dryRun?: boolean;
   fitContextText: string;
@@ -4463,20 +4129,10 @@ async function selectFullJdRecommendations(args: {
       ) || 16
     );
     const promptCacheKey = fullJdPromptCacheKey(args.userId, shardCount);
-    const stableUserContext = [
-      args.fitContextText,
-      "[NORMALIZED SEARCH INTENT]",
-      args.plan.searchIntentSummary,
-      "[SEARCH ROLE TITLES]",
-      args.plan.roleTitles.join(", "),
-      "[SEARCH DOMAIN TERMS]",
-      args.plan.ftsKeywords
-        .flatMap((keyword) => keyword.terms)
-        .slice(0, 40)
-        .join(", "),
-    ]
-      .filter(Boolean)
-      .join("\n");
+    const stableUserContext = fullJdStableUserContext({
+      fitContextText: args.fitContextText,
+      plan: args.plan,
+    });
 
     for (let waveIndex = 0; waveIndex < waves.length; waveIndex += 1) {
       throwIfRecommendationSearchAborted(args.abortSignal);
@@ -4516,7 +4172,6 @@ async function selectFullJdRecommendations(args: {
           if (!args.dryRun) {
             await persistFullJdBatchEvaluations({
               admin: args.admin,
-              behaviorContextVersion: args.behaviorContextVersion,
               cards: batchCards,
               evaluations,
               inputFingerprint: args.inputFingerprint,
@@ -5099,25 +4754,9 @@ export async function runCareerJobPostingRecommendations(args: {
     userId: args.userId,
   });
   throwIfRecommendationSearchAborted(args.abortSignal);
-  const hasSavedCareerContext =
-    talentContextSnapshot.allBriefs.length > 0 ||
-    talentContextSnapshot.memories.length > 0;
-  const fullJdBehaviorContext =
-    recommendationStrategy === "full_jd" && !hasSavedCareerContext
-      ? await buildFullJdBehaviorContext({
-          admin: args.admin,
-          asOf: evaluationAsOf,
-          conversationId: args.conversationId,
-          recentRecommendations,
-          redactionTerms,
-          request,
-          userId: args.userId,
-        })
-      : null;
   const fullJdSearchContextText =
     recommendationStrategy === "full_jd"
       ? buildFullJdUserContextText({
-          behaviorContext: fullJdBehaviorContext,
           llmUserProfile,
           outputLanguage,
           request,
@@ -5127,7 +4766,6 @@ export async function runCareerJobPostingRecommendations(args: {
   const fullJdFitContextText =
     recommendationStrategy === "full_jd"
       ? buildFullJdUserContextText({
-          behaviorContext: fullJdBehaviorContext,
           llmUserProfile,
           outputLanguage,
           request,
@@ -5255,13 +4893,13 @@ export async function runCareerJobPostingRecommendations(args: {
   const externalFitInputFingerprint =
     recommendationStrategy === "full_jd"
       ? fullJdCacheInputFingerprint({
-          llmUserProfile,
+          fitContextText: fullJdFitContextText,
+          plan,
         })
       : "";
   const externalFitCacheByRoleId = await fetchExternalFitCache({
     admin: args.admin,
     asOf: evaluationAsOf,
-    behaviorContextVersion: fullJdBehaviorContext?.version ?? null,
     inputFingerprint: externalFitInputFingerprint,
     roleCards: candidateCardsWithoutCache,
     roleIds: candidateCardsWithoutCache.map((card) => card.roleId),
@@ -5291,7 +4929,6 @@ export async function runCareerJobPostingRecommendations(args: {
     const fullJdSelection = await selectFullJdRecommendations({
       abortSignal: args.abortSignal,
       admin: args.admin,
-      behaviorContextVersion: fullJdBehaviorContext?.version ?? null,
       cards: candidateCards,
       dryRun: args.evaluation?.dryRun === true,
       fitContextText: fullJdFitContextText,
@@ -5318,7 +4955,6 @@ export async function runCareerJobPostingRecommendations(args: {
           userId: args.userId,
         });
     infoJson("completed", {
-      behaviorContextVersion: fullJdBehaviorContext?.version ?? null,
       candidateCount: candidateCards.length,
       durationMs: Date.now() - startedAt,
       externalFitCacheHighScoreHitCount: highScoreCacheHitCount,
