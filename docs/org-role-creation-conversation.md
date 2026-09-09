@@ -273,7 +273,7 @@ Role-creation mode에는 역할 작성에 필요한 작은 범위의 도구를 �
 - `update_role_draft`
   - 현재 role만 수정할 수 있다.
   - title, description, request, location, work mode, employment types,
-    salary, external JD URL, Guide for Harper(memory)를 부분 업데이트한다.
+    salaryRange, external JD URL, Guide for Harper(memory)를 부분 업데이트한다.
   - `roleId`는 model input으로 받지 않고 server context에서 고정한다.
 - `update_company_context`
   - Company 탭의 회사명, 로고, 한 줄 소개, 설명/pitch, 위치, 설립연도, 인원,

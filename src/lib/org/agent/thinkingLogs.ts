@@ -17,6 +17,7 @@ export function getOrgAgentThinkingLogIcon(
       "manage_role_pipeline_stages",
       "move_candidate_stage",
       "move_candidate_to_role",
+      "add_candidate_note",
       "manage_interview_availability",
       "decide_candidate_connection",
       "set_role_notification",

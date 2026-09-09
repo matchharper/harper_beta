@@ -89,88 +89,22 @@ export function candidateContactDraftFallbackReply(candidateName: unknown) {
   return `네, 제가 대신 ${candidate}님께 여쭤보고, 답이 오면 여기로 알려드릴게요. 우선 아래 내용으로 연락드리려고 해요. 보내기 전에 한 번만 확인해 주시겠어요?`;
 }
 
-type KstParts = {
-  day: number;
-  hour: number;
-  month: number;
-  year: number;
-};
-
-function kstParts(value: Date): KstParts | null {
-  if (!Number.isFinite(value.getTime())) return null;
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    day: "numeric",
-    hour: "numeric",
-    hourCycle: "h23",
-    month: "numeric",
-    timeZone: "Asia/Seoul",
-    year: "numeric",
-  }).formatToParts(value);
-  const numberPart = (type: Intl.DateTimeFormatPartTypes) =>
-    Number(parts.find((part) => part.type === type)?.value);
-  const result = {
-    day: numberPart("day"),
-    hour: numberPart("hour"),
-    month: numberPart("month"),
-    year: numberPart("year"),
-  };
-  return Object.values(result).every(Number.isFinite) ? result : null;
-}
-
-function calendarDayNumber(parts: KstParts) {
-  return Math.floor(
-    Date.UTC(parts.year, parts.month - 1, parts.day) / 86_400_000
-  );
-}
-
-function koreanDayPeriod(hour: number) {
-  if (hour < 12) return "아침";
-  if (hour < 18) return "오후";
-  return "저녁";
-}
-
-export function naturalCandidateContactTiming(
-  scheduledAt: unknown,
-  now = new Date()
-) {
-  const scheduled = new Date(String(scheduledAt ?? "").trim());
-  const scheduledParts = kstParts(scheduled);
-  const nowParts = kstParts(now);
-  if (!scheduledParts || !nowParts) return null;
-
-  const dayDifference =
-    calendarDayNumber(scheduledParts) - calendarDayNumber(nowParts);
-  const minutesUntil = Math.round(
-    (scheduled.getTime() - now.getTime()) / 60_000
-  );
-  if (minutesUntil >= 0 && minutesUntil <= 90) {
-    return "조금 뒤에";
-  }
-
-  const period = koreanDayPeriod(scheduledParts.hour);
-  if (dayDifference === 0) return `오늘 ${period}에`;
-  if (dayDifference === 1) {
-    return nowParts.hour >= 20
-      ? `지금은 시간이 늦어서 내일 ${period}에`
-      : `내일 ${period}에`;
-  }
-  return `${scheduledParts.month}월 ${scheduledParts.day}일 ${period}에`;
-}
-
 export function candidateContactScheduledReply(args: {
   candidateName: string;
   immediate: boolean;
+  kind?: "question" | "resume";
   now?: Date;
   scheduledAt?: unknown;
 }) {
   const candidate = `${normalizedText(args.candidateName, 160) || "후보자"}님께`;
+  // Standard delivery keeps a five-minute operational buffer, but the normal
+  // company-facing confirmation intentionally does not foreground that short
+  // wait. It should feel like Harper has taken ownership now without falsely
+  // claiming that provider delivery already completed. scheduledAt remains
+  // available for an explicit timing question or a delivery-status lookup.
+  const request = args.kind === "resume" ? "최신 이력서를" : "확인을";
   if (args.immediate) {
-    return `${candidate} 제가 대신 바로 물어볼게요. 답이 오면 여기로 알려드릴게요.`;
+    return `네, 요청하신 내용으로 ${candidate} 바로 ${request} 요청할게요. 답변이 오면 이 대화로 바로 알려드리겠습니다.`;
   }
-  const timing = naturalCandidateContactTiming(args.scheduledAt, args.now);
-  if (timing?.startsWith("지금은 시간이 늦어서 ")) {
-    const later = timing.slice("지금은 시간이 늦어서 ".length);
-    return `지금은 시간이 늦어서, ${candidate} ${later} 제가 대신 물어볼게요. 답이 오면 여기로 알려드릴게요.`;
-  }
-  return `${candidate} 제가 대신 ${timing || "조금 뒤에"} 물어볼게요. 답이 오면 여기로 알려드릴게요.`;
+  return `네, 요청하신 내용으로 ${candidate} ${request} 요청할게요. 답변이 오면 이 대화로 바로 알려드리겠습니다.`;
 }

@@ -122,6 +122,84 @@ test("company agent exposes interview scheduling tools", () => {
   );
 });
 
+test("company agent exposes compact contact index and detailed contact reads", () => {
+  const list = ORG_AGENT_TOOLS.find(
+    (tool) => tool.function.name === "list_contacts"
+  );
+  const read = ORG_AGENT_TOOLS.find(
+    (tool) => tool.function.name === "read_contact"
+  );
+  const listParameters = list?.function.parameters as any;
+  const readParameters = read?.function.parameters as any;
+
+  assert.equal(isOrgAgentToolName("list_contacts"), true);
+  assert.equal(isOrgAgentToolName("read_contact"), true);
+  assert.deepEqual(listParameters.properties.kind.enum, [
+    "contact",
+    "interview_request",
+    "connection_intro",
+    "notice",
+  ]);
+  assert.deepEqual(listParameters.properties.dateBasis.enum, [
+    "created",
+    "sent",
+    "updated",
+  ]);
+  assert.equal("direction" in listParameters.properties, false);
+  assert.equal("subkind" in listParameters.properties, false);
+  assert.match(
+    listParameters.properties.after.description,
+    /explicit UTC offset/
+  );
+  assert.match(list?.function.description ?? "", /omit subjects and bodies/i);
+  assert.equal(readParameters.properties.contactRefs.maxItems, 10);
+  assert.deepEqual(readParameters.required, ["contactRefs"]);
+  assert.equal("contactRef" in readParameters.properties, false);
+  assert.match(
+    read?.function.description ?? "",
+    /sender names the company user whose request Harper delivered/i
+  );
+  assert.match(read?.function.description ?? "", /names Harper as sender/i);
+});
+
+test("company agent can append a minimal company-internal candidate note", () => {
+  const note = ORG_AGENT_TOOLS.find(
+    (tool) => tool.function.name === "add_candidate_note"
+  );
+  const parameters = note?.function.parameters as any;
+
+  assert.equal(isOrgAgentToolName("add_candidate_note"), true);
+  assert.equal(
+    getEnabledOrgAgentTools().some(
+      (tool) => tool.function.name === "add_candidate_note"
+    ),
+    true
+  );
+  assert.equal(
+    getEnabledOrgAgentTools("slack").some(
+      (tool) => tool.function.name === "add_candidate_note"
+    ),
+    true
+  );
+  assert.deepEqual(parameters.required, ["talentId", "roleId", "note"]);
+  assert.deepEqual(Object.keys(parameters.properties).sort(), [
+    "note",
+    "roleId",
+    "talentId",
+  ]);
+  assert.equal(parameters.properties.note.maxLength, 2_000);
+  assert.match(note?.function.description ?? "", /company-internal note/);
+  assert.match(note?.function.description ?? "", /returned by read_talent/);
+  assert.match(
+    note?.function.description ?? "",
+    /not shared with the candidate/
+  );
+  assert.match(
+    note?.function.description ?? "",
+    /does not change.*pipeline stage/
+  );
+});
+
 test("stage scheduling can prepare a meeting without moving an already-staged candidate", () => {
   const move = ORG_AGENT_TOOLS.find(
     (item) => item.function.name === "move_candidate_stage"
@@ -143,6 +221,10 @@ test("stage scheduling can prepare a meeting without moving an already-staged ca
   assert.match(
     move?.function.description ?? "",
     /standard delayed-delivery policy/
+  );
+  assert.match(
+    move?.function.description ?? "",
+    /candidate-facing invitation email is written in the candidate's saved locale/
   );
   assert.match(
     parameters.properties.targetStageId.description,
@@ -337,6 +419,7 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
     "homepage_url",
     "linkedin_url",
     "related_links",
+    "salaryRange",
   ]) {
     assert.equal(updateKeys.includes(retained), true, retained);
   }
@@ -395,11 +478,18 @@ test("pipeline management can continue into one sequential candidate movement", 
   assert.deepEqual(manageParameters.required, ["action", "roleId"]);
   assert.deepEqual(manageParameters.properties.action.enum, [
     "add",
+    "update",
     "rename",
     "delete",
   ]);
   assert.equal(manageParameters.properties.labels.maxItems, 6);
   assert.equal(manageParameters.properties.label.maxLength, 40);
+  assert.deepEqual(manageParameters.properties.meetingDurationMinutes.type, [
+    "integer",
+    "null",
+  ]);
+  assert.match(manage.function.description, /future scheduling defaults/);
+  assert.match(manage.function.description, /confirmed meeting/);
   assert.match(manage.function.description, /no candidate currently occupies/);
 
   const moveParameters = move.function.parameters as any;
@@ -518,7 +608,7 @@ test("read_talent accepts up to ten IDs and keeps resume output availability-onl
   );
 });
 
-test("candidate contact uses one draft-lifecycle tool", () => {
+test("candidate contact uses one batch-capable draft-lifecycle tool", () => {
   const enabled: string[] = getEnabledOrgAgentTools().map(
     (item) => item.function.name
   );
@@ -538,11 +628,31 @@ test("candidate contact uses one draft-lifecycle tool", () => {
     "cancel",
   ]);
   assert.deepEqual(parameters.properties.kind.enum, ["question", "resume"]);
+  assert.deepEqual(parameters.properties.language.enum, ["ko", "en"]);
+  assert.deepEqual(parameters.properties.items.items.properties.language.enum, [
+    "ko",
+    "en",
+  ]);
   assert.deepEqual(parameters.properties.deliveryMode.enum, [
     "standard",
     "immediate",
   ]);
   assert.deepEqual(parameters.required, ["action"]);
+  assert.equal(parameters.properties.items.minItems, 1);
+  assert.equal(parameters.properties.items.maxItems, 10);
+  assert.equal(parameters.properties.presentedDrafts.type, "boolean");
+  assert.match(
+    contactTalent?.function.description ?? "",
+    /one to ten exact candidate-contact drafts/
+  );
+  assert.match(
+    contactTalent?.function.description ?? "",
+    /presentedDrafts=true.*server resolves every exact ID and revision/
+  );
+  assert.match(
+    contactTalent?.function.description ?? "",
+    /never silently treat a partial batch as complete/
+  );
   assert.match(
     parameters.properties.requestContext.description,
     /create_draft with kind=question/
@@ -557,7 +667,15 @@ test("candidate contact uses one draft-lifecycle tool", () => {
   );
   assert.match(
     contactTalent?.function.description ?? "",
-    /saves the complete subject and body without queuing delivery/
+    /Unless the company explicitly requests another language.*candidate-facing email is written in the candidate's saved locale/
+  );
+  assert.match(
+    parameters.properties.language.description,
+    /omit to use the candidate's saved locale/
+  );
+  assert.match(
+    contactTalent?.function.description ?? "",
+    /saves each complete subject and body without queuing delivery/
   );
   assert.match(
     contactTalent?.function.description ?? "",
@@ -565,7 +683,7 @@ test("candidate contact uses one draft-lifecycle tool", () => {
   );
   assert.match(
     contactTalent?.function.description ?? "",
-    /action=schedule.*immediately previous Harper message presented the same contactId and revision/
+    /action=schedule.*nearest Harper message containing candidate-contact drafts within the four conversation messages/
   );
   assert.match(
     contactTalent?.function.description ?? "",
@@ -573,11 +691,11 @@ test("candidate contact uses one draft-lifecycle tool", () => {
   );
   assert.match(
     contactTalent?.function.description ?? "",
-    /standard schedules exactly 20 minutes later at any time of day/
+    /standard schedules exactly 5 minutes later at any time of day/
   );
   assert.match(
     parameters.properties.deliveryMode.description,
-    /20 minutes after approval at any time of day/
+    /5 minutes after approval at any time of day/
   );
   assert.doesNotMatch(
     contactTalent?.function.description ?? "",
@@ -602,11 +720,15 @@ test("candidate contact uses one draft-lifecycle tool", () => {
   );
   assert.match(
     contactTalent?.function.description ?? "",
-    /available throughout the active company process/
+    /company-visible position for the Role/
   );
   assert.match(
     contactTalent?.function.description ?? "",
-    /never restrict it to 연결 대기/
+    /never changes that position's pipeline stage/
+  );
+  assert.doesNotMatch(
+    contactTalent?.function.description ?? "",
+    /프로세스 종료 positions are not active contact targets/
   );
   assert.doesNotMatch(
     contactTalent?.function.description ?? "",
@@ -615,6 +737,35 @@ test("candidate contact uses one draft-lifecycle tool", () => {
   assert.equal(enabled.includes("change_talent_contact"), false);
   assert.equal(isOrgAgentToolName("change_talent_contact"), false);
   assert.equal(isOrgAgentToolName("cancel_talent_contact"), false);
+});
+
+test("candidate search can list by current company stage", () => {
+  const getTalents = ORG_AGENT_TOOLS.find(
+    (item) => item.function.name === "get_talents"
+  );
+  const parameters = getTalents?.function.parameters as any;
+
+  assert.equal(parameters.required, undefined);
+  assert.equal(parameters.properties.limit.maximum, 100);
+  assert.equal(parameters.properties.offset.maximum, 10_000);
+  assert.equal(parameters.properties.currentCompanyStageId.type, "string");
+  assert.match(
+    getTalents?.function.description ?? "",
+    /first read for a workspace-wide/
+  );
+  assert.match(
+    getTalents?.function.description ?? "",
+    /do not call read_role once per Role merely to list candidates/
+  );
+  assert.match(getTalents?.function.description ?? "", /Omit query to list/);
+  assert.match(
+    getTalents?.function.description ?? "",
+    /continue with the next offset while hasMore is true/
+  );
+  assert.match(
+    getTalents?.function.description ?? "",
+    /exact current company stage ID and user-facing label/
+  );
 });
 
 test("ordinary candidate connection keeps scheduling on the stage-move path", () => {

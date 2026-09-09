@@ -1974,6 +1974,7 @@ export const CareerFlowProvider = ({
       onLoadSavedStageHistoryOpportunityPages:
         loadSavedStageHistoryOpportunityPages,
       onLoadHistoryOpportunityByRoleId: loadHistoryOpportunityByRoleId,
+      onRefreshHistoryOpportunities: refreshLatestHistoryOpportunities,
       onChangeInternalHistoryOpportunityDecision,
       onUpdateHistoryOpportunityFeedback,
       onUpdateHistoryOpportunitySavedStage,
@@ -1993,6 +1994,7 @@ export const CareerFlowProvider = ({
       loadHistoryOpportunityByRoleId,
       loadMoreHistoryOpportunities,
       loadSavedStageHistoryOpportunityPages,
+      refreshLatestHistoryOpportunities,
       onChangeInternalHistoryOpportunityDecision,
       onMarkHistoryOpportunityClicked,
       onMarkHistoryOpportunityViewed,

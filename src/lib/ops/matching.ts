@@ -19,6 +19,7 @@ import {
   fetchMatchingRecommendationEmailOpenedAtMap,
   getEarliestMatchingViewedAt,
 } from "@/lib/ops/matchingViewedAt";
+import { OPS_ROLE_MEMO_KIND } from "@/lib/ops/talentMemo";
 import type {
   OpportunityEmploymentType,
   OpportunitySourceType,
@@ -5188,6 +5189,7 @@ export async function createOpsMatchingProgress(args: {
 
   const { error } = await fromOpsMatchingTable(admin, "talent_progress").insert(
     {
+      kind: OPS_ROLE_MEMO_KIND,
       recommendation_id: recommendation?.recommendationId ?? null,
       role_id: roleId,
       talent_id: talentId,

@@ -126,7 +126,7 @@ const TranscriptOverlay = memo(
     }, [transcriptScrollKey]);
 
     return (
-      <div className="absolute inset-x-4 bottom-24 z-10 max-h-[50svh] overflow-hidden rounded-[8px] border border-neutral-1000-a05 bg-bg-default/95 shadow-[0_0_24px_color-mix(in_srgb,var(--color-black)_10%,transparent)]">
+      <div className="absolute bottom-24 left-1/2 z-10 max-h-[50svh] w-[calc(100%-2rem)] max-w-[720px] -translate-x-1/2 overflow-hidden rounded-[8px] border border-neutral-1000-a05 bg-bg-default/95 shadow-[0_0_24px_color-mix(in_srgb,var(--color-black)_10%,transparent)]">
         <div className="border-b border-neutral-1000-a05 px-4 py-3">
           <span className="text-sm font-medium text-neutral-muted">
             Transcript

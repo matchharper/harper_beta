@@ -724,13 +724,19 @@ export const HistoryOpportunityInfoTag = ({
 
   return (
     <Badge
-      onClick={() => onOpenInfo(item.opportunityType)}
+      onClick={
+        item.isUserAdded ? undefined : () => onOpenInfo(item.opportunityType)
+      }
       icon={
         isConnectionOpportunity ? (
           <HeartHandshake className="h-3.5 w-3.5 text-primary" />
         ) : undefined
       }
-      className={`flex shrink-0 flex-row items-center gap-2 text-xs md:text-[13px] transition-colors hover:opacity-90 ${textColor}`}
+      className={cn(
+        "flex shrink-0 flex-row items-center gap-2 text-xs transition-colors md:text-[13px]",
+        !item.isUserAdded && "hover:opacity-90",
+        textColor
+      )}
     >
       {label}
     </Badge>

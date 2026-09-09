@@ -943,6 +943,21 @@ const CareerTimelineSection = ({
         label: selection.action.label,
       });
 
+      if (selection.action.action.type === "start_call") {
+        if ("internalCallRequestId" in selection.action.action) {
+          await onStartCallMode?.({
+            internalCallRequestId:
+              selection.action.action.internalCallRequestId,
+          });
+          return;
+        }
+        await onStartConversationStarter?.({
+          mode: "call",
+          starterId: selection.action.action.starterId,
+        });
+        return;
+      }
+
       if (selection.action.action.type === "open_path") {
         await router.push(selection.action.action.path);
         return;
@@ -963,6 +978,8 @@ const CareerTimelineSection = ({
       logCareerEvent,
       onOpenPendingAction,
       onSendChatMessage,
+      onStartCallMode,
+      onStartConversationStarter,
       router,
     ]
   );

@@ -755,6 +755,12 @@ export function useCreateOpsMatchingProgress() {
       ),
     onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({
+        queryKey: ["ops-career-detail", variables.talentId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.org.acceptedTalents,
+      });
+      queryClient.invalidateQueries({
         queryKey: queryKeys.opsMatching.progress(variables.talentId, null),
       });
       queryClient.invalidateQueries({
@@ -819,6 +825,12 @@ export function useDeleteOpsMatchingProgress() {
         }
       ),
     onSuccess: (result, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["ops-career-detail", variables.talentId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.org.acceptedTalents,
+      });
       queryClient.invalidateQueries({
         queryKey: queryKeys.opsMatching.progress(variables.talentId, null),
       });

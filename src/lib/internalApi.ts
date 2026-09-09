@@ -6,6 +6,7 @@ import {
   canViewOpsUtm,
   isInternalEmail,
 } from "@/lib/internalAccess";
+import { hasOpsUtmUuidAccess } from "@/lib/ops/utmAccessServer";
 import { getRequestUser } from "@/lib/supabaseServer";
 
 export class InternalApiError extends Error {
@@ -45,6 +46,20 @@ export async function requireOpsUtmApiUser(req: NextRequest): Promise<User> {
   }
 
   return user;
+}
+
+export async function requireOpsUtmApiAccess(
+  req: NextRequest
+): Promise<"internal" | "viewer"> {
+  const user = await getRequestUser(req);
+  if (user && canViewOpsUtm(user.email)) {
+    return isInternalEmail(user.email) ? "internal" : "viewer";
+  }
+
+  if (hasOpsUtmUuidAccess(req)) return "viewer";
+
+  if (!user) throw new InternalApiError(401, "Unauthorized");
+  throw new InternalApiError(403, "Forbidden: UTM viewer access required");
 }
 
 export function requireInternalWorkerSecret(req: NextRequest) {

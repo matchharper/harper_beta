@@ -8,6 +8,7 @@ import {
   type SetStateAction,
 } from "react";
 import type { User } from "@supabase/supabase-js";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCareerVoiceInput } from "@/components/career/useCareerVoiceInput";
 import { useRealtimeSession } from "@/hooks/career/useRealtimeSession";
 import type { RealtimeUserSpeechStartedContext } from "@/hooks/career/useRealtimeSession";
@@ -380,6 +381,7 @@ export const useCareerOnboardingVoice = ({
   const t = useCareerT();
   const tCareer = useCareerMessageFormatter();
   const { locale } = useMessages();
+  const queryClient = useQueryClient();
   const realtimeProviderOverride = useCareerRealtimeProviderOverrideStore(
     (state) => state.providerOverride
   );
@@ -496,6 +498,7 @@ export const useCareerOnboardingVoice = ({
   const activeCallConversationStarterIdRef =
     useRef<CareerConversationStarterId | null>(null);
   const activeInternalCallRequestIdRef = useRef<string | null>(null);
+  const activeCallSessionIdRef = useRef<string | null>(null);
 
   const updateSessionInstructionsRef = useRef<
     ((instructions: string) => void) | null
@@ -1422,6 +1425,7 @@ export const useCareerOnboardingVoice = ({
           : null;
       activeCallConversationStarterIdRef.current = conversationStarterId;
       activeInternalCallRequestIdRef.current = internalCallRequestId;
+      activeCallSessionIdRef.current = crypto.randomUUID();
 
       setCallStartPending(true);
       let callStartedSuccessfully = false;
@@ -1449,6 +1453,7 @@ export const useCareerOnboardingVoice = ({
             setShowVoiceStartPrompt(true);
             activeCallConversationStarterIdRef.current = null;
             activeInternalCallRequestIdRef.current = null;
+            activeCallSessionIdRef.current = null;
             return false;
           }
           openingAssistantMessage = beginResult.assistantMessage;
@@ -1486,6 +1491,7 @@ export const useCareerOnboardingVoice = ({
           }
           activeCallConversationStarterIdRef.current = null;
           activeInternalCallRequestIdRef.current = null;
+          activeCallSessionIdRef.current = null;
           return false;
         }
 
@@ -1499,6 +1505,7 @@ export const useCareerOnboardingVoice = ({
         if (!callStartedSuccessfully) {
           activeCallConversationStarterIdRef.current = null;
           activeInternalCallRequestIdRef.current = null;
+          activeCallSessionIdRef.current = null;
         }
         setCallStartPending(false);
       }
@@ -1539,6 +1546,7 @@ export const useCareerOnboardingVoice = ({
         activeCallConversationStarterIdRef.current;
       const activeInternalCallRequestId =
         activeInternalCallRequestIdRef.current;
+      const activeCallSessionId = activeCallSessionIdRef.current;
       const pendingUserText = lastRealtimeUserTextRef.current.trim();
       if (pendingUserText) {
         void saveRealtimeTurn({
@@ -1557,12 +1565,13 @@ export const useCareerOnboardingVoice = ({
       if (!conversationId) {
         activeCallConversationStarterIdRef.current = null;
         activeInternalCallRequestIdRef.current = null;
+        activeCallSessionIdRef.current = null;
         return;
       }
 
       const hasUserSpeech = transcript.some(
         (entry) => entry.role === "user" && entry.text.trim().length > 0
-      );
+      ) || pendingUserText.length > 0;
       if (
         !hasUserSpeech &&
         !forceCompleteOnboarding &&
@@ -1570,6 +1579,7 @@ export const useCareerOnboardingVoice = ({
       ) {
         activeCallConversationStarterIdRef.current = null;
         activeInternalCallRequestIdRef.current = null;
+        activeCallSessionIdRef.current = null;
         return;
       }
 
@@ -1586,6 +1596,7 @@ export const useCareerOnboardingVoice = ({
             method: "POST",
             body: JSON.stringify({
               conversationId,
+              callSessionId: activeCallSessionId ?? undefined,
               conversationStarterId:
                 activeCallConversationStarterId ?? undefined,
               internalCallRequestId: activeInternalCallRequestId ?? undefined,
@@ -1603,6 +1614,12 @@ export const useCareerOnboardingVoice = ({
             console.error("[CareerOnboardingVoice] Follow-up failed:", payload);
             setChatError(tCareer(H.callWrapupMessageFailed));
             return;
+          }
+
+          if (activeCallConversationStarterId === "career_check_in") {
+            await queryClient.invalidateQueries({
+              queryKey: ["career-pending-actions", userId],
+            });
           }
 
           if (payload?.progress?.completed) {
@@ -1726,6 +1743,7 @@ export const useCareerOnboardingVoice = ({
           setCallWrapUpPending(false);
           activeCallConversationStarterIdRef.current = null;
           activeInternalCallRequestIdRef.current = null;
+          activeCallSessionIdRef.current = null;
         }
       })();
     },
@@ -1745,10 +1763,12 @@ export const useCareerOnboardingVoice = ({
       onTalentProfileRefreshed,
       onPendingInternalOpportunityCallRequestChanged,
       onPendingInternalOpportunityCallRequestsChanged,
+      queryClient,
       saveRealtimeTurn,
       setChatError,
       setStage,
       tCareer,
+      userId,
     ]
   );
 
@@ -1789,6 +1809,7 @@ export const useCareerOnboardingVoice = ({
     lastRealtimeUserTextRef.current = "";
     activeCallConversationStarterIdRef.current = null;
     activeInternalCallRequestIdRef.current = null;
+    activeCallSessionIdRef.current = null;
     clearRealtimeTurnSyncState();
   }, [clearRealtimeTurnSyncState]);
 

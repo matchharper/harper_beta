@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { fetchWithInternalAuth } from "@/lib/internalApiClient";
+import { fetchWithOpsUtmAccess } from "@/lib/internalApiClient";
 import type {
   OpsUtmFilters,
   OpsUtmGranularity,
@@ -35,7 +35,7 @@ export function useOpsUtmSources(args: {
       });
       if (args.query) params.set("query", args.query);
       appendExcludedEmails(params, args.excludedEmails);
-      return fetchWithInternalAuth<OpsUtmSourcePage>(
+      return fetchWithOpsUtmAccess<OpsUtmSourcePage>(
         `/api/internal/ops/utm?${params.toString()}`
       );
     },
@@ -71,7 +71,7 @@ export function useOpsUtmSourceDetail(args: {
         if (value) params.set(key, value);
       }
       appendExcludedEmails(params, args.excludedEmails);
-      return fetchWithInternalAuth<OpsUtmSourceDetail>(
+      return fetchWithOpsUtmAccess<OpsUtmSourceDetail>(
         `/api/internal/ops/utm?${params.toString()}`
       );
     },

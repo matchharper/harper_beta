@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { Check, Copy, Loader2, Share2 } from "lucide-react";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { MuteButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Text } from "@/components/ui/text";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import {
   copyTextToClipboard,
   fetchTalentNetworkReferralList,
@@ -19,6 +20,10 @@ import {
   type TalentNetworkReferralSummary,
 } from "@/lib/talentNetworkReferral";
 import { cn } from "@/lib/utils";
+import {
+  CAREER_REFERRAL_LINK_COPIED_LOG_TYPE,
+  CAREER_REFERRAL_VIEWED_LOG_TYPE,
+} from "@/lib/talentNetworkReferralTracking";
 import { showToast } from "@/components/toast/toast";
 import { useCareerT } from "@/i18n/useCareerT";
 import {
@@ -383,6 +388,8 @@ export function CareerReferralSettingsSection({
 }: CareerReferralSettingsSectionProps) {
   const t = useCareerT();
   const { fetchWithAuth } = useCareerApi();
+  const logCareerEvent = useCareerLogEvent();
+  const hasLoggedViewRef = useRef(false);
   const [summary, setSummary] = useState<TalentNetworkReferralSummary | null>(
     null
   );
@@ -390,6 +397,13 @@ export function CareerReferralSettingsSection({
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [inviteMessageCopied, setInviteMessageCopied] = useState(false);
+
+  useEffect(() => {
+    if (!active || hasLoggedViewRef.current) return;
+
+    hasLoggedViewRef.current = true;
+    logCareerEvent(CAREER_REFERRAL_VIEWED_LOG_TYPE);
+  }, [active, logCareerEvent]);
 
   const loadSummary = useCallback(async () => {
     setLoading(true);
@@ -499,6 +513,7 @@ export function CareerReferralSettingsSection({
     if (!referralUrl) return;
     try {
       await copyTextToClipboard(referralUrl);
+      logCareerEvent(CAREER_REFERRAL_LINK_COPIED_LOG_TYPE);
       setCopied(true);
       showToast({
         message: t(
@@ -548,6 +563,7 @@ export function CareerReferralSettingsSection({
     if (!referralUrl) return;
     try {
       await copyTextToClipboard(inviteMessage);
+      logCareerEvent(CAREER_REFERRAL_LINK_COPIED_LOG_TYPE);
       setInviteMessageCopied(true);
       showToast({
         message: t(

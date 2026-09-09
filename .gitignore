@@ -25,6 +25,7 @@ output/
 *.pem
 __pycache__/
 *.py[cod]
+/.venv-company-role-calibration/
 
 # debug
 npm-debug.log*

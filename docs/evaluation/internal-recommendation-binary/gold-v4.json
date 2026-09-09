@@ -1,0 +1,330 @@
+{
+  "task": "internal-recommendation-binary",
+  "datasetVersion": "v4",
+  "goldVersion": "internal_recommendation_binary_gold_v4",
+  "createdAt": "2026-09-07T08:41:22.230037Z",
+  "containsProductionPII": false,
+  "caseCount": 41,
+  "scoredCaseCount": 31,
+  "ambiguousReviewCount": 10,
+  "labelDistribution": {
+    "recommend": 12,
+    "ambiguous": 10,
+    "doNotRecommend": 19
+  },
+  "evaluationContract": {
+    "output": "recommend boolean only",
+    "trueBucket": "expectedRecommend=true",
+    "noBucket": "expectedRecommend=false",
+    "ambiguousBucket": "not included in binary precision/recall; inspect separately",
+    "lifecycleIsolation": "Every private case has an exclusive snapshotCutoffAt. No pair-specific recommendation, acceptance, connection, interview, rejection, archive, offer, or derived summary at or after the cutoff may enter model input.",
+    "operationalStateBoundary": "Role delivery switches such as paused_by_request are outside this model-decision evaluation."
+  },
+  "adjudication": {
+    "reviewedBy": "product owner with Codex evidence audit",
+    "reviewedAt": "2026-09-07T11:44:30Z",
+    "notes": [
+      "All 43 Talent x Role pairs were reviewed against production profile facts and role requirements.",
+      "Five owner-selected hard negatives replaced five obvious negative controls before v1 was frozen.",
+      "Later interview or pipeline outcomes do not change a fit label.",
+      "Removed IRB026 entirely. May IRB024 remains in the no bucket; no other v1 label changed.",
+      "Removed IRB006 Jeonghoon Lee x Blockit AI Software Engineer, AI Agents because the positive gold label was not defensible under the role location and work-authorization contract.",
+      "Within the unexecuted v4 working set, IRB011 Byoungoh Kim was changed from Config Head of Robotics Systems to Config Forward-Deployed Engineer while retaining expectedRecommend=true."
+    ]
+  },
+  "cases": [
+    {
+      "caseId": "IRB001",
+      "bucket": "true",
+      "expectedRecommend": true,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB002",
+      "bucket": "true",
+      "expectedRecommend": true,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB003",
+      "bucket": "true",
+      "expectedRecommend": true,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB004",
+      "bucket": "true",
+      "expectedRecommend": true,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB005",
+      "bucket": "true",
+      "expectedRecommend": true,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB007",
+      "bucket": "true",
+      "expectedRecommend": true,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB008",
+      "bucket": "true",
+      "expectedRecommend": true,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB009",
+      "bucket": "true",
+      "expectedRecommend": true,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB010",
+      "bucket": "true",
+      "expectedRecommend": true,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB011",
+      "bucket": "true",
+      "expectedRecommend": true,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB012",
+      "bucket": "true",
+      "expectedRecommend": true,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB013",
+      "bucket": "true",
+      "expectedRecommend": true,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB014",
+      "bucket": "ambiguous",
+      "expectedRecommend": null,
+      "scored": false,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB015",
+      "bucket": "ambiguous",
+      "expectedRecommend": null,
+      "scored": false,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB016",
+      "bucket": "ambiguous",
+      "expectedRecommend": null,
+      "scored": false,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB017",
+      "bucket": "ambiguous",
+      "expectedRecommend": null,
+      "scored": false,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB018",
+      "bucket": "ambiguous",
+      "expectedRecommend": null,
+      "scored": false,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB019",
+      "bucket": "ambiguous",
+      "expectedRecommend": null,
+      "scored": false,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB020",
+      "bucket": "ambiguous",
+      "expectedRecommend": null,
+      "scored": false,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB021",
+      "bucket": "ambiguous",
+      "expectedRecommend": null,
+      "scored": false,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB022",
+      "bucket": "ambiguous",
+      "expectedRecommend": null,
+      "scored": false,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB023",
+      "bucket": "ambiguous",
+      "expectedRecommend": null,
+      "scored": false,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB024",
+      "bucket": "no",
+      "expectedRecommend": false,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB025",
+      "bucket": "no",
+      "expectedRecommend": false,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB027",
+      "bucket": "no",
+      "expectedRecommend": false,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB028",
+      "bucket": "no",
+      "expectedRecommend": false,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB029",
+      "bucket": "no",
+      "expectedRecommend": false,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB030",
+      "bucket": "no",
+      "expectedRecommend": false,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB031",
+      "bucket": "no",
+      "expectedRecommend": false,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB032",
+      "bucket": "no",
+      "expectedRecommend": false,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB033",
+      "bucket": "no",
+      "expectedRecommend": false,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB034",
+      "bucket": "no",
+      "expectedRecommend": false,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB035",
+      "bucket": "no",
+      "expectedRecommend": false,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB036",
+      "bucket": "no",
+      "expectedRecommend": false,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB037",
+      "bucket": "no",
+      "expectedRecommend": false,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB038",
+      "bucket": "no",
+      "expectedRecommend": false,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB039",
+      "bucket": "no",
+      "expectedRecommend": false,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB040",
+      "bucket": "no",
+      "expectedRecommend": false,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB041",
+      "bucket": "no",
+      "expectedRecommend": false,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB042",
+      "bucket": "no",
+      "expectedRecommend": false,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    },
+    {
+      "caseId": "IRB043",
+      "bucket": "no",
+      "expectedRecommend": false,
+      "scored": true,
+      "snapshotCutoffStoredInPrivateSelection": true
+    }
+  ],
+  "derivedFrom": {
+    "datasetVersion": "v3",
+    "goldVersion": "internal_recommendation_binary_gold_v3",
+    "reason": "IRB006 removed and IRB011 anchor changed to Config Forward-Deployed Engineer during v4 adjudication; every other v3 pair and label is unchanged."
+  },
+  "updatedAt": "2026-09-07T11:44:30Z"
+}

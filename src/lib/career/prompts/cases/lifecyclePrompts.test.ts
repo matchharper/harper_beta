@@ -28,27 +28,62 @@ test("session re-engagement uses readable Korean-local times and distinguishes a
   assert.match(prompt, /"type":"send_message"/);
   assert.match(prompt, /"type":"open_path"/);
   assert.match(prompt, /"type":"open_pending_action"/);
-  assert.match(prompt, /label과 실제 action의 대상·범위·전달 채널을 정확히/);
+  assert.match(prompt, /"type":"start_call"/);
   assert.match(prompt, /일반 CAREER_CHOICE_BUTTONS는 쓰지 않는다/);
-  assert.match(prompt, /보이는 일반 메시지가 답변의 핵심이다/);
-  assert.match(prompt, /짧고 자연스러운 인사말/);
-  assert.match(prompt, /같은 사실을 반복하지 않는다/);
-  assert.match(prompt, /Harper가 지금 바로 대신할 수 있는 선택지를 중심/);
-  assert.match(prompt, /추천 설정이 어긋나면 설정을 맞추는 선택을 먼저/);
-  assert.match(prompt, /현재 설정 유지나 공고 더 찾기/);
-  assert.match(prompt, /새로운 세부 모드를 만들지 않는다/);
-  assert.match(prompt, /내부 설정명·전달 방식/);
-  assert.match(prompt, /명확히 말한 변화는 다시 확인하지 않고/);
-  assert.match(prompt, /이미 안내한 사용자 직접 작업은/);
-  assert.match(prompt, /프로필 수정은 주제로 삼지 말고/);
-  assert.match(prompt, /최신 상황과 현재 추천·연결 설정의 불일치/);
-  assert.match(prompt, /새로 생긴 추천이나 결과/);
-  assert.match(prompt, /최근 추천 피드백/);
-  assert.match(prompt, /더 많은 공고 탐색/);
-  assert.match(prompt, /다시 되돌리는 방법/);
-  assert.match(prompt, /각각에 대응하는 액션을.*반드시/);
-  assert.match(prompt, /실행 선택이 없을 때만 블록을 생략/);
-  assert.match(prompt, /서로 다른 설정 변경을 한 액션에 묶지 않는다/);
+  assert.match(prompt, /Harper가 먼저 보낼 자연스러운 Korean 메시지/);
+  assert.match(prompt, /필요하면 적당히 길게 작성해도 된다/);
+  assert.doesNotMatch(prompt, /one brief/i);
+  assert.doesNotMatch(prompt, /primary pending action/);
+  assert.doesNotMatch(prompt, /다른 미응답 추천이 있더라도 함께 꺼내지 않는다/);
+});
+
+test("session re-engagement exposes a career check-in call as an available pending action", () => {
+  const prompt = buildCareerSessionStartTurnInstruction({
+    currentAccessAt: "2026-08-25T09:24:05.960Z",
+    idleMs: 31 * 60 * 60 * 1000,
+    isOnboardingDone: true,
+    pendingActions: [
+      {
+        actionKey: "pending_1",
+        createdAt: "2026-08-24T01:25:03.102495+00:00",
+        kind: "career_check_in_call",
+        status: "pending",
+      },
+    ],
+    preferredLocale: "ko",
+    previousChatAt: "2026-08-24T01:25:03.102495+00:00",
+  });
+
+  assert.match(prompt, /커리어 체크인 통화/);
+  assert.match(prompt, /"type":"start_call"/);
+  assert.match(prompt, /"type":"start_call","actionKey"/);
+  assert.match(prompt, /actionKey:pending_1/);
+  assert.doesNotMatch(prompt, /단일 start_call만 만든다/);
+});
+
+test("session re-engagement exposes an internal opportunity call as an available pending action", () => {
+  const prompt = buildCareerSessionStartTurnInstruction({
+    currentAccessAt: "2026-08-25T09:24:05.960Z",
+    idleMs: 31 * 60 * 60 * 1000,
+    isOnboardingDone: true,
+    pendingActions: [
+      {
+        actionKey: "pending_1",
+        callRequestId: "call_123",
+        companyName: "Acme",
+        kind: "internal_opportunity_call",
+        reason: "연결 전에 프로젝트 경험을 조금 더 듣고 싶어요.",
+        roleTitle: "Backend Engineer",
+        status: "pending",
+      },
+    ],
+    preferredLocale: "ko",
+    previousChatAt: "2026-08-24T01:25:03.102495+00:00",
+  });
+
+  assert.match(prompt, /\[actionKey:pending_1\] \[역할 관련 통화\] Acme · Backend Engineer/);
+  assert.match(prompt, /연결 전에 프로젝트 경험을 조금 더 듣고 싶어요/);
+  assert.doesNotMatch(prompt, /call_123/);
 });
 
 test("incomplete onboarding re-engagement allows an icebreaker but never sends only a welcome", () => {
@@ -70,7 +105,7 @@ test("incomplete onboarding re-engagement allows an icebreaker but never sends o
   assert.match(prompt, /대화의 최신 언어를 우선/);
 });
 
-test("session re-engagement prioritizes the first actionable pending item", () => {
+test("session re-engagement supplies pending actions without primary-only instructions", () => {
   const prompt = buildCareerSessionStartTurnInstruction({
     currentAccessAt: "2026-08-25T09:24:05.960Z",
     idleMs: 31 * 60 * 60 * 1000,
@@ -89,33 +124,14 @@ test("session re-engagement prioritizes the first actionable pending item", () =
     previousChatAt: "2026-08-24T01:25:03.102495+00:00",
   });
 
-  assert.match(prompt, /사용자가 지금 처리하면 결과가 달라지는 작업이 있다/);
+  assert.match(prompt, /현재 참고할 수 있는 pending action/);
   assert.match(prompt, /Third Company/);
-  assert.match(prompt, /User feedback:none/);
+  assert.match(prompt, /아직 응답 없음/);
   assert.match(prompt, /추천 시각: 9월 4일 10:35/);
   assert.doesNotMatch(prompt, /2026-09-04T01:35/);
-  assert.match(prompt, /새 추천이 아니라 이전에 추천한 기회/);
-  assert.match(prompt, /Harper가 전에 추천한 회사와 역할이라는 사실/);
-  assert.match(prompt, /수락 또는 거절로 답해 달라는 질문/);
-  assert.match(prompt, /거절이면.*이유도 함께/);
-  assert.match(prompt, /막연히 관심만 표현해 달라고 하거나/);
-  assert.match(prompt, /primary pending action 하나만 다룬다/);
-  assert.match(
-    prompt,
-    /primary pending action이 있으면.*단일 open_pending_action만/
-  );
-  assert.match(
-    prompt,
-    /수락·거절 send_message나 다른 action을 추가하지 않는다/
-  );
+  assert.doesNotMatch(prompt, /primary pending action/);
+  assert.doesNotMatch(prompt, /하나만 다룬다/);
   assert.match(prompt, /종료 marker 뒤에 다른 문자나 문장부호를 붙이지 않는다/);
-  assert.match(prompt, /프로필과 관련 경험을 회사에 공유·소개하고 연결을 돕는다고/);
-  assert.match(prompt, /프로필 공유나 회사 연결이 바로 확정되는 것은 아니라는 면책 문구/);
-  assert.match(prompt, /내부의 사람 확인이나 handoff 절차는 사용자에게 설명하지 마라/);
-  assert.doesNotMatch(
-    prompt,
-    /사용자의 관심과 피드백만 요청하고, Harper가 다음 단계를 확인할 수 있다고 설명한다/
-  );
 });
 
 test("session re-engagement gives reevaluation context without role metadata", () => {
@@ -138,10 +154,9 @@ test("session re-engagement gives reevaluation context without role metadata", (
     prompt,
     /\[actionKey:pending_1\] \[reevaluation_criteria\] 비즈니스 영어로 협업한 경험이 있으신가요\?/
   );
-  assert.match(prompt, /답이 앞으로의 연결에 왜 도움이 되는지/);
 });
 
-test("session re-engagement prioritizes a pending meeting schedule", () => {
+test("session re-engagement supplies a pending meeting schedule", () => {
   const prompt = buildCareerSessionStartTurnInstruction({
     currentAccessAt: "2026-08-25T09:24:05.960Z",
     idleMs: 31 * 60 * 60 * 1000,
@@ -162,8 +177,7 @@ test("session re-engagement prioritizes a pending meeting schedule", () => {
     prompt,
     /\[actionKey:pending_1\] \[미팅 일정 요청\] Acme · Backend Engineer/
   );
-  assert.match(prompt, /일정 선택 액션을 가장 먼저 제안/);
-  assert.match(prompt, /질문·이력서·미팅 일정 요청/);
+  assert.match(prompt, /"type":"open_pending_action","actionKey"/);
 });
 
 test("feedback follow-up forbids unsupported saved-filter claims", () => {

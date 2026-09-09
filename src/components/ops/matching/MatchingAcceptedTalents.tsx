@@ -250,6 +250,7 @@ export function MatchingAcceptedTalents({
             date: item.acceptedAt,
             item,
             key: item.recommendationId,
+            memoContextLabel: item.memoContextLabel,
             memoPreview: item.memoPreview,
             name: item.talent.name || item.talent.headline || "이름 없음",
             profilePicture: item.talent.profilePicture,

@@ -1,0 +1,168 @@
+{
+  "task": "internal-recommendation-binary",
+  "datasetKind": "reviewed-production-pair-recommendation-challenge-set",
+  "datasetVersion": "v1",
+  "goldVersion": "internal_recommendation_binary_gold_v1",
+  "selectionVersion": "internal_recommendation_binary_selection_v1",
+  "capturedAt": "2026-09-07T08:41:22.230037Z",
+  "caseCount": 43,
+  "scoredCaseCount": 33,
+  "labelDistribution": {
+    "recommend": 13,
+    "ambiguous": 10,
+    "doNotRecommend": 20
+  },
+  "snapshotCutoffDistribution": {
+    "firstStructuredPairEvent": 16,
+    "selectionCaptureNoPriorPairEvent": 27,
+    "exclusiveUpperBound": true
+  },
+  "source": {
+    "databaseMode": "default_transaction_read_only",
+    "harperBetaRevision": "0df6bfcc7218f5752c06f618790de3672d89a87e",
+    "harperWorkerRevision": "936e1a0bebe83df980dcce4f81407d6e54143cde",
+    "pairEventSources": [
+      "talent_opportunity_recommendation",
+      "talent_progress",
+      "talent_opportunity_tag",
+      "talent_role_activity",
+      "contact_queue",
+      "company_talent_requests"
+    ]
+  },
+  "artifacts": {
+    "readme": {
+      "path": "README.md",
+      "sha256": "852d91b53eb941ce8b304cb9c9b4e9cb2ecc267ad39fab7213fbc4a1010b8357",
+      "tracked": true,
+      "containsProductionPII": false
+    },
+    "gold": {
+      "path": "gold-v1.json",
+      "sha256": "afa01eeb6dbd93ee00943bbb8152138bcf28ba30531b7d6b72db9cf0e7144210",
+      "tracked": true,
+      "containsProductionPII": false
+    },
+    "privateSelection": {
+      "path": "private/selection-v1.json",
+      "sha256": "dee27e59d6864e14aa2a29abd70870c62407a1cc63256a454901530b3377618f",
+      "tracked": false,
+      "containsProductionPII": true,
+      "requiredMode": "0600"
+    },
+    "privateFixture": {
+      "path": "private/fixture-v1-irb024-028.json",
+      "sha256": "0b8eb4e1badeaa6a2e77be03c7e35b824fd3bda299d265efbb3ceb7f12c84472",
+      "caseIds": [
+        "IRB024",
+        "IRB025",
+        "IRB026",
+        "IRB027",
+        "IRB028"
+      ],
+      "tracked": false,
+      "containsProductionPII": true,
+      "requiredMode": "0600"
+    },
+    "runner": {
+      "path": "harper_worker/llm_evals/internal_recommendation_binary/eval.py",
+      "sha256": "07554f1b95d5f7759f7a14ff1a8e70f8340002660f2e8258e13d62ca6b64b4a8",
+      "tracked": true,
+      "containsProductionPII": false
+    },
+    "selectionValidator": {
+      "path": "harper_worker/llm_evals/internal_recommendation_binary/validate_selection.py",
+      "sha256": "bda65f45c75594b5a66b26b1987e96bf3ec905fd44a5060e85ea08736eceeaba",
+      "tracked": true,
+      "containsProductionPII": false
+    },
+    "modelTransport": {
+      "path": "harper_worker/llm_evals/model_benchmark/llm_model_benchmark.py",
+      "sha256": "b08fa5e2a4c7de5f7390c68a2a9d4b2543d2b17d279a8327b539788b2cd4fff4",
+      "tracked": true,
+      "containsProductionPII": false
+    }
+  },
+  "adjudication": {
+    "reviewedBy": "product owner with Codex evidence audit",
+    "reviewedAt": "2026-09-07T08:41:22.230037Z",
+    "history": [
+      "Reviewed all 43 Talent x Role pairs against production profile facts and role requirements.",
+      "Replaced five obvious negative controls with five owner-selected no-recommend challenge cases.",
+      "Recorded snapshotCutoffAt for every pair before freezing selection v1.",
+      "Later candidate acceptance, connection, interview, rejection, archive, and offer outcomes are label provenance only, never input."
+    ]
+  },
+  "runner": {
+    "selectionValidator": "harper_worker/llm_evals/internal_recommendation_binary/validate_selection.py",
+    "fixtureCapture": "harper_worker/llm_evals/internal_recommendation_binary/eval.py capture",
+    "modelRunner": "harper_worker/llm_evals/internal_recommendation_binary/eval.py run",
+    "productionImports": [
+      "internal fit prefilter prompt and normalizer",
+      "internal fit evaluation prompt and normalizer",
+      "prefilter pass cap and second-stage eligibility",
+      "first-stage direct fallback and second-stage recovery contract"
+    ],
+    "productionDependencyHashes": {
+      "harper_worker/opp/utils/internal_fit.py": "2f1f32e4b13bc73434fa97c82a6c6c4369c54bb4232b055a6de1c6bbdd9355ef",
+      "harper_worker/opp/new_config.py": "e1c7ccf688b98281d80f5e941311843129942632fa0198d5097ca29305ad9b39",
+      "harper_worker/opp/agentic/user_context.py": "f6452e8bbb83ae72897e00c963b7336e93729e1d36a41cb478967692c15db5eb",
+      "harper_worker/opp/experiments/internal_fit_same_company_asof_replay.py": "24b3d4bce22b2a29052d9aa036301778fdcc31b03af1ff23a78aaa86130360fb"
+    },
+    "configurable": [
+      "case IDs",
+      "stage models",
+      "stage reasoning efforts",
+      "stage prompt files",
+      "fallback and repair models",
+      "parallel case count"
+    ]
+  },
+  "privacy": {
+    "rawProductionData": "gitignored private/ only",
+    "privateFileMode": "0600",
+    "externalProviderRun": {
+      "caseIds": [
+        "IRB024",
+        "IRB025",
+        "IRB026",
+        "IRB027",
+        "IRB028"
+      ],
+      "provider": "OpenRouter routed only to z-ai",
+      "dataCollection": "deny",
+      "providerFallbacks": false
+    }
+  },
+  "executions": [
+    {
+      "runId": "20260907T091117.096606Z_prefilter-glm-5.3-flash_second-glm-5.3-flash",
+      "startedAt": "2026-09-07T09:11:17.096973+00:00",
+      "finishedAt": "2026-09-07T09:15:58.462022+00:00",
+      "caseCount": 5,
+      "prefilterModel": "glm-5.3-flash",
+      "prefilterReasoningEffort": "high",
+      "secondStageModel": "glm-5.3-flash",
+      "secondStageReasoningEffort": "high",
+      "secondStageRepairModel": "glm-5.3-flash",
+      "secondStageRepairReasoningEffort": "high",
+      "maxParallelCases": 5,
+      "decisionAvailable": 4,
+      "goldExact": 2,
+      "falsePositive": 2,
+      "secondStageRepairCalls": 2,
+      "totalCostUsd": 0.02462921,
+      "privateRunPath": "runs/20260907T091117.096606Z_prefilter-glm-5.3-flash_second-glm-5.3-flash.json",
+      "privateRunSha256": "5a76ba5cb69696b69f96ca85c85caa36b8eb5a81e05eb40802f55907e325c615",
+      "privateReportPath": "runs/20260907T091117.096606Z_prefilter-glm-5.3-flash_second-glm-5.3-flash.md",
+      "privateReportSha256": "9b89ab99c3ece1e632a71994ab1d9819eb201f32831a567ec0ec43235d81c47c"
+    }
+  ],
+  "knownLimitations": [
+    "Only IRB024 through IRB028 have a captured model-input fixture and execution; the other 38 cases remain uncaptured.",
+    "Current profile values may not be substituted when their pre-cutoff state cannot be reconstructed; IRB025, IRB027, and IRB028 therefore use a cutoff-safe legacy projection.",
+    "The role and company batch is the current active capture-time batch, not an exact historical role-card replay.",
+    "Ambiguous cases are not part of binary precision and recall.",
+    "This challenge set does not estimate production-population performance."
+  ]
+}

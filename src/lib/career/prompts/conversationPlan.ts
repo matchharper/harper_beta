@@ -324,7 +324,8 @@ export function buildCareerConversationPromptPlan(args: {
 
     if (
       conversationMode === "preference_update" ||
-      conversationMode === "match_quality"
+      conversationMode === "match_quality" ||
+      conversationMode === "career_check_in"
     )
       return (
         getCareerConversationStarter(

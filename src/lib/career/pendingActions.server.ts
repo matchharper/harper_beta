@@ -5,7 +5,7 @@ import {
   fetchActiveCompanyTalentRequest,
 } from "@/lib/companyTalentRequests/server";
 import type {
-  CareerPendingAction,
+  CareerComposerPendingAction,
   CareerPendingActionOpenTarget,
   CareerPendingActionReference,
   CareerOpenablePendingActionReference,
@@ -28,10 +28,7 @@ export async function resolveCareerPendingAction(args: {
   profileVisibility?: string | null;
   reference: CareerPendingActionReference;
   talentId: string;
-}): Promise<Exclude<
-  CareerPendingAction,
-  { kind: "internal_opportunity_call" }
-> | null> {
+}): Promise<CareerComposerPendingAction | null> {
   if (args.reference.kind === "company_request") {
     const request = await fetchActiveCompanyTalentRequest({
       admin: args.admin as any,
@@ -61,7 +58,7 @@ export async function resolveCareerPendingAction(args: {
     );
     return {
       companyName,
-      expiresAt: request.expires_at,
+      expiresAt: null,
       id: request.id,
       kind: "company_request",
       prompt: request.expects_document

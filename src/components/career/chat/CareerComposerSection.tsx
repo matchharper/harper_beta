@@ -447,7 +447,7 @@ const CareerComposerSection = ({
     opportunityFeedbackFollowUpPending;
   const forceCompleteTooltip = t(
     "career.chat.career_call_screen.0n1pl8k",
-    "커리어 인터뷰를 임의로 종료할 수 있어요. 거의 다 왔으니 2~3개의 질문에만 추가로 대답해주시면 자동으로 종료됩니다"
+    "커리어 인터뷰를 임의로 종료할 수 있어요. 거의 다 왔으니 2~3개의 질문에만 추가로 대답해주시면 자동으로 종료됩니다."
   );
 
   const closeOpportunityMentionPicker = useCallback(
@@ -684,6 +684,17 @@ const CareerComposerSection = ({
 
   const handleSelectPendingAction = useCallback(
     (action: CareerPendingAction) => {
+      if (action.kind === "career_check_in_call") {
+        logCareerEvent("click_chat_composer_pending_call", {
+          callId: action.callRequest.id,
+          callKind: action.kind,
+        });
+        void onStartConversationStarter?.({
+          mode: "call",
+          starterId: "career_check_in",
+        });
+        return;
+      }
       if (action.kind === "internal_opportunity_call") {
         logCareerEvent("click_chat_composer_pending_call", {
           callId: action.callRequest.id,
@@ -714,6 +725,7 @@ const CareerComposerSection = ({
       focusComposerAfterMenuSelection,
       insertPendingOpportunityMention,
       logCareerEvent,
+      onStartConversationStarter,
       onStartCallMode,
     ]
   );
@@ -1014,6 +1026,34 @@ const CareerComposerSection = ({
             },
           ]
         : visiblePendingActions.map((action) => {
+            if (action.kind === "career_check_in_call") {
+              return {
+                disabled:
+                  isComposerActionLocked ||
+                  isStartingCall ||
+                  !onStartConversationStarter,
+                icon: <PhoneCall />,
+                id: `pending-${action.kind}-${action.id}`,
+                label: t(
+                  "career.common.conversation_starters.career_check_in",
+                  "최근 상황 업데이트하기"
+                ),
+                onSelect: () => handleSelectPendingAction(action),
+                sectionLabel: t(
+                  "career.chat.career_composer_section.pending_actions_section_label",
+                  "처리할 항목"
+                ),
+                subtext: t(
+                  "career.chat.career_composer_section.pending_career_check_in_subtext",
+                  "최근 상황과 앞으로 보고 싶은 기회를 Harper와 가볍게 이야기해요."
+                ),
+                subtextLayout: "stacked" as const,
+                trailingText: t(
+                  "career.chat.career_composer_section.pending_call_trailing_text",
+                  "통화 시작"
+                ),
+              };
+            }
             if (action.kind === "internal_opportunity_call") {
               return {
                 disabled:
@@ -1296,7 +1336,7 @@ const CareerComposerSection = ({
             disabled={isTextInputLocked}
             mobileLeadingAction={
               <ChatComposerActionMenu
-                contentClassName="max-h-[min(32rem,70dvh)] overscroll-contain"
+                contentClassName="max-h-[min(32rem,70dvh)] overflow-y-auto overscroll-contain"
                 disabled={!user}
                 items={composerActionMenuItems}
                 onOpenChange={setMobileActionMenuOpen}
@@ -1351,7 +1391,7 @@ const CareerComposerSection = ({
                 <ChatComposerActionMenu
                   align="start"
                   className="hidden md:inline-flex"
-                  contentClassName="max-h-[min(32rem,70dvh)] overscroll-contain"
+                  contentClassName="max-h-[min(32rem,70dvh)] overflow-y-auto overscroll-contain"
                   disabled={!user}
                   items={composerActionMenuItems}
                   onOpenChange={setDesktopActionMenuOpen}

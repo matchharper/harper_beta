@@ -38,6 +38,7 @@ import {
   isInternalOpportunityCallQuestionPlanComplete,
   type InternalOpportunityCallCompletionDisposition,
 } from "@/lib/talentOnboarding/internalOpportunityCallProgress";
+import { completeOpenCareerCheckInCalls } from "@/lib/talentOnboarding/careerCheckInCall";
 
 type TranscriptEntry = {
   role: "user" | "assistant";
@@ -45,6 +46,7 @@ type TranscriptEntry = {
 };
 
 type Body = {
+  callSessionId?: string | null;
   conversationStarterId?: string | null;
   conversationId: string;
   forceCompleteOnboarding?: boolean;
@@ -64,6 +66,9 @@ type TranscriptStats = {
 const CALL_TRANSCRIPT_MESSAGE_TYPE = "call_transcript";
 const CALL_WRAPUP_MESSAGE_TYPE = "call_wrapup";
 const CALL_TRANSCRIPT_FALLBACK_LOOKBACK_MS = 60 * 60 * 1000;
+const CAREER_CHECK_IN_COMPLETED_EVENT_TYPE = "career_check_in_completed";
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function formatDuration(
   seconds: number,
@@ -188,6 +193,44 @@ function normalizeFollowUpMessage(content: string): string {
     .trim();
 }
 
+async function recordCareerCheckInCompleted(args: {
+  callSessionId: string;
+  conversationId: string;
+  supabase: ReturnType<typeof getTalentSupabaseAdmin>;
+  userId: string;
+}) {
+  const { data: existing, error: existingError } = await args.supabase
+    .from("talent_activity_events")
+    .select("id")
+    .eq("id", args.callSessionId)
+    .eq("talent_id", args.userId)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingError) {
+    throw new Error(
+      existingError.message ?? "Failed to read career check-in completion"
+    );
+  }
+  if (existing) return;
+
+  const { error } = await args.supabase.from("talent_activity_events").insert({
+    changed_domains: [],
+    conversation_id: args.conversationId,
+    event_type: CAREER_CHECK_IN_COMPLETED_EVENT_TYPE,
+    id: args.callSessionId,
+    impact_level: "medium",
+    source: "career_call",
+    summary: "Career check-in call completed with user participation.",
+    talent_id: args.userId,
+  });
+  if (error) {
+    throw new Error(
+      error.message ?? "Failed to record career check-in completion"
+    );
+  }
+}
+
 function buildInternalOpportunityInterruptedFollowUp(args: {
   companyName: string;
   preferredLocale?: string | null;
@@ -309,6 +352,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as Body;
     const isMobile = isMobileRequest(request);
     const {
+      callSessionId: rawCallSessionId,
       conversationStarterId: rawConversationStarterId,
       forceCompleteOnboarding = false,
       internalCallRequestId: rawInternalCallRequestId,
@@ -319,6 +363,11 @@ export async function POST(request: NextRequest) {
     const conversationStarterId =
       typeof rawConversationStarterId === "string"
         ? (sanitizeSingleLineDbText(rawConversationStarterId, 120) ?? "")
+        : "";
+    const callSessionId =
+      typeof rawCallSessionId === "string" &&
+      UUID_PATTERN.test(rawCallSessionId.trim())
+        ? rawCallSessionId.trim()
         : "";
     const internalCallRequestId =
       typeof rawInternalCallRequestId === "string"
@@ -478,6 +527,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         followUpMessage: null,
         skipped: "no_user_speech",
+      });
+    }
+
+    if (
+      conversationStarter?.id === "career_check_in" &&
+      callSessionId &&
+      transcriptStats.userTurns > 0
+    ) {
+      try {
+        await recordCareerCheckInCompleted({
+          callSessionId,
+          conversationId,
+          supabase,
+          userId: user.id,
+        });
+      } catch (error) {
+        console.error("[call-wrapup] Failed to record career check-in completion", {
+          error,
+          conversationId,
+          userId: user.id,
+        });
+      }
+      await completeOpenCareerCheckInCalls({
+        admin: supabase,
+        userId: user.id,
       });
     }
 

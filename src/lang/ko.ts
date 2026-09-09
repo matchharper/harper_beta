@@ -535,6 +535,14 @@ export const ko = {
       "이미 종료된 포지션이라 연결을 수락할 수 없습니다.",
     "career.api.opportunities.ended_rejection_revert_forbidden":
       "이미 종료된 포지션이라 거절을 되돌릴 수 없습니다.",
+    "career.api.opportunities.import_url_details_required":
+      "공고에서 회사명과 포지션명을 확인하지 못했습니다. 두 항목을 직접 입력해 주세요.",
+    "career.api.opportunities.import_url_batch_limit":
+      "공고는 한 번에 20개까지 저장할 수 있습니다.",
+    "career.api.opportunities.import_url_failed":
+      "공고를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    "career.api.opportunities.import_url_invalid":
+      "올바른 공고 링크를 입력해 주세요.",
     "career.api.opportunities.inactive_acceptance_forbidden":
       "현재 종료되었거나 이용할 수 없는 포지션이라 연결을 수락할 수 없습니다.",
     "career.api.opportunities.inactive_rejection_revert_forbidden":
@@ -1156,6 +1164,14 @@ export const ko = {
     "career.common.conversation_starters.1qmlix7":
       "제 정보와 경험을 조금 더 자세히 이야기할 수 있어요.",
     "career.common.conversation_starters.1sfi8z4": "선호 조건 업데이트하기",
+    "career.common.conversation_starters.career_check_in":
+      "최근 상황 업데이트하기",
+    "career.common.conversation_starters.career_check_in_short":
+      "최근 상황 업데이트하기",
+    "career.common.conversation_starters.career_check_in_message":
+      "요즘 일과 커리어 상황에서 달라진 점을 이야기하고 싶어요.",
+    "career.chat.career_composer_section.pending_career_check_in_subtext":
+      "최근 상황과 앞으로 보고 싶은 기회를 Harper와 가볍게 이야기해요.",
     "career.common.conversation_starters.more_open_positions":
       "오픈 포지션 더 추천받기",
     "career.common.conversation_starters.requesting_more_open_positions":
@@ -1323,6 +1339,11 @@ export const ko = {
     "career.common.recommendation_search.setting_changed_title": "검색 종료됨",
     "career.common.recommendation_search.stale_failed_detail":
       "오랫동안 진행 신호가 없어 검색을 종료했어요. 원하시면 같은 조건으로 다시 요청해 주세요.",
+    "career.common.referral_program_overview.0ncwy2t":
+      "최근 Harper를 통해 채용된 케이스",
+    "career.common.referral_program_overview.0ywfa9z": "실제 Harper 사례",
+    "career.common.referral_program_overview.1wlr0k8":
+      "추천을 통한 가입이라고 가정했을 때",
     "career.common.save": "저장",
     "career.common.talent_career_modal.18ppi14": "모달 닫기",
     "career.common.use_career_voice_input.02eo5ko":
@@ -1542,8 +1563,40 @@ export const ko = {
     "career.history.saved_opportunity_board.load_more": "더 불러오기",
     "career.history.saved_opportunity_board.loading_column": "불러오는 중",
     "career.history.saved_opportunity_board.loading_more": "불러오는 중",
-    "career.history.talent_role_activity_timeline.add_memo_aria": "메모 추가",
+    "career.history.job_link_import.button": "공고 링크 추가",
+    "career.history.job_link_import.cancel": "취소",
+    "career.history.job_link_import.company_label": "회사명",
+    "career.history.job_link_import.description":
+      "공고별 상태를 선택해 여러 링크를 한 번에 저장할 수 있습니다. 추천 분석은 만들지 않습니다.",
+    "career.history.job_link_import.bulk_help":
+      "여러 링크를 복사해 링크 칸 하나에 붙여넣으면 공고별 입력란으로 나뉩니다. 최대 20개까지 저장할 수 있습니다.",
+    "career.history.job_link_import.details_help":
+      "이 페이지에서는 두 항목을 자동으로 확인하지 못했습니다. 직접 입력하면 링크와 함께 저장할 수 있습니다.",
+    "career.history.job_link_import.failed":
+      "공고를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    "career.history.job_link_import.role_label": "포지션명",
+    "career.history.job_link_import.add": "공고 추가",
+    "career.history.job_link_import.remove": "공고 삭제",
+    "career.history.job_link_import.saved": "저장되었습니다.",
+    "career.history.job_link_import.source_label": "직접 추가한 공고",
+    "career.history.job_link_import.stage_applied": "지원함",
+    "career.history.job_link_import.stage_label": "현재 상태",
+    "career.history.job_link_import.stage_saved": "관심 있음",
+    "career.history.job_link_import.submit": "전체 저장",
+    "career.history.job_link_import.submitting": "저장 중",
+    "career.history.job_link_import.title": "지원할 공고 저장하기",
+    "career.history.job_link_import.url_label": "공고 링크",
+    "career.history.job_link_import.url_placeholder": "https://...",
+    "career.history.saved_opportunity_status.0exoa8f": "보관함",
+    "career.history.saved_opportunity_status.0obqas2": "관심 있음",
+    "career.history.saved_opportunity_status.1jv953e": "진행 종료",
+    "career.history.saved_opportunity_status.all": "전체보기",
+    "career.history.saved_opportunity_status.applied": "지원함",
+    "career.history.saved_opportunity_status.archived": "제외한 포지션",
+    "career.history.saved_opportunity_status.connected": "진행중",
+    "career.history.saved_opportunity_status.hide_action": "보관하기",
     "career.history.talent_role_activity_timeline.activity": "활동",
+    "career.history.talent_role_activity_timeline.add_memo_aria": "메모 추가",
     "career.history.talent_role_activity_timeline.empty":
       "아직 기록된 활동이 없습니다.",
     "career.history.talent_role_activity_timeline.loading":
@@ -1554,16 +1607,7 @@ export const ko = {
     "career.history.talent_role_activity_timeline.title": "내 활동",
     "career.history.talent_role_activity_timeline.upcoming_meeting":
       "예정된 미팅",
-    "career.history.upcoming_meeting_strip.label":
-      "다음 미팅 · {dateTime}",
-    "career.history.saved_opportunity_status.0exoa8f": "보관함",
-    "career.history.saved_opportunity_status.0obqas2": "관심 있음",
-    "career.history.saved_opportunity_status.1jv953e": "진행 종료",
-    "career.history.saved_opportunity_status.all": "전체보기",
-    "career.history.saved_opportunity_status.applied": "지원함",
-    "career.history.saved_opportunity_status.archived": "제외한 포지션",
-    "career.history.saved_opportunity_status.connected": "진행중",
-    "career.history.saved_opportunity_status.hide_action": "보관하기",
+    "career.history.upcoming_meeting_strip.label": "다음 미팅 · {dateTime}",
     "career.home.career_home_panel.024uw9c": "정보 다시 가져오기",
     "career.home.career_home_panel.05hgw7c":
       "왼쪽 채팅에서 혹은 아래 통화로 간단한 질문에만 대답해주세요.",
@@ -1893,27 +1937,45 @@ export const ko = {
     "career.preview.career_workspace_preview.1tenwz4":
       "LLM eval 도구와 agent workflow 패키지 유지보수",
     "career.preview.career_workspace_preview.1truxm7": "프로필을 저장했습니다.",
-    "career.profile.career_profile_links_settings_section.0117avu": "Gmail 연결 해제를 마치지 못했어요",
-    "career.profile.career_profile_links_settings_section.039w9r4": "필요할 때 지원·면접 이력을 확인해 회원님의 커리어 흐름과 관심 방향을 더 잘 이해합니다.",
-    "career.profile.career_profile_links_settings_section.0coeg3o": "다시 연결하면 Harper가 지원 이력을 커리어 맥락으로 계속 참고할 수 있습니다.",
+    "career.profile.career_profile_links_settings_section.0117avu":
+      "Gmail 연결 해제를 마치지 못했어요",
+    "career.profile.career_profile_links_settings_section.039w9r4":
+      "필요할 때 지원·면접 이력을 확인해 회원님의 커리어 흐름과 관심 방향을 더 잘 이해합니다.",
+    "career.profile.career_profile_links_settings_section.0coeg3o":
+      "다시 연결하면 Harper가 지원 이력을 커리어 맥락으로 계속 참고할 수 있습니다.",
     "career.profile.career_profile_links_settings_section.0eons0f": "모달 보기",
-    "career.profile.career_profile_links_settings_section.0erv6uz": "Gmail 연결이 완료되었어요",
-    "career.profile.career_profile_links_settings_section.0mdkfwg": "Gmail 연결 상태를 확인하지 못했어요",
-    "career.profile.career_profile_links_settings_section.0ntdqhi": "Gmail 연결을 확인하고 있어요",
-    "career.profile.career_profile_links_settings_section.0o7ztod": "Gmail로 커리어 맥락 연결하기",
-    "career.profile.career_profile_links_settings_section.0q4dh49": "최근 2년의 채용 관련 이메일에서 지원한 회사와 역할, 확인되는 주요 진행 과정을 정리합니다. 이를 커리어 이력과 관심사를 이해하고, 이미 지원한 기회를 다시 추천하지 않는 데 참고합니다.",
-    "career.profile.career_profile_links_settings_section.0rr9dvp": "읽어온 정보는 내 문서에 비공개로 저장되며 회사에 공개되지 않습니다. 지원 근거가 불분명한 이메일은 커리어 이력으로 저장하지 않습니다.",
-    "career.profile.career_profile_links_settings_section.0xqdt60": "안전하게 연결되었는지 확인하는 중입니다.",
+    "career.profile.career_profile_links_settings_section.0erv6uz":
+      "Gmail 연결이 완료되었어요",
+    "career.profile.career_profile_links_settings_section.0mdkfwg":
+      "Gmail 연결 상태를 확인하지 못했어요",
+    "career.profile.career_profile_links_settings_section.0ntdqhi":
+      "Gmail 연결을 확인하고 있어요",
+    "career.profile.career_profile_links_settings_section.0o7ztod":
+      "Gmail로 커리어 맥락 연결하기",
+    "career.profile.career_profile_links_settings_section.0q4dh49":
+      "최근 2년의 채용 관련 이메일에서 지원한 회사와 역할, 확인되는 주요 진행 과정을 정리합니다. 이를 커리어 이력과 관심사를 이해하고, 이미 지원한 기회를 다시 추천하지 않는 데 참고합니다.",
+    "career.profile.career_profile_links_settings_section.0rr9dvp":
+      "읽어온 정보는 내 문서에 비공개로 저장되며 회사에 공개되지 않습니다. 지원 근거가 불분명한 이메일은 커리어 이력으로 저장하지 않습니다.",
+    "career.profile.career_profile_links_settings_section.0xqdt60":
+      "안전하게 연결되었는지 확인하는 중입니다.",
     "career.profile.career_profile_links_settings_section.0z48n2w": "읽어오기",
-    "career.profile.career_profile_links_settings_section.0zo4k03": "Gmail 연결이 만료되었어요",
-    "career.profile.career_profile_links_settings_section.12rthh0": "읽어오기를 누르면 Harper가 최근 커리어 관련 이메일을 정리합니다.",
-    "career.profile.career_profile_links_settings_section.13v2rr1": "Gmail이 연결되어 있어요",
-    "career.profile.career_profile_links_settings_section.14bq1lz": "Gmail 연결",
-    "career.profile.career_profile_links_settings_section.15kd059": "Harper가 참고하는 내용",
-    "career.profile.career_profile_links_settings_section.1dgo1eq": "연결 해제를 다시 시도하면 Gmail 접근을 완전히 종료합니다.",
+    "career.profile.career_profile_links_settings_section.0zo4k03":
+      "Gmail 연결이 만료되었어요",
+    "career.profile.career_profile_links_settings_section.12rthh0":
+      "읽어오기를 누르면 Harper가 최근 커리어 관련 이메일을 정리합니다.",
+    "career.profile.career_profile_links_settings_section.13v2rr1":
+      "Gmail이 연결되어 있어요",
+    "career.profile.career_profile_links_settings_section.14bq1lz":
+      "Gmail 연결",
+    "career.profile.career_profile_links_settings_section.15kd059":
+      "Harper가 참고하는 내용",
+    "career.profile.career_profile_links_settings_section.1dgo1eq":
+      "연결 해제를 다시 시도하면 Gmail 접근을 완전히 종료합니다.",
     "career.profile.career_profile_links_settings_section.1h36xzh": "공개 범위",
-    "career.profile.career_profile_links_settings_section.1opfumq": "지원·면접 이력을 바탕으로 Harper가 회원님의 커리어 맥락을 더 잘 이해할 수 있습니다.",
-    "career.profile.career_profile_links_settings_section.1p9ak83": "잠시 후 상태를 다시 확인하거나 연결을 다시 시도해 주세요.",
+    "career.profile.career_profile_links_settings_section.1opfumq":
+      "지원·면접 이력을 바탕으로 Harper가 회원님의 커리어 맥락을 더 잘 이해할 수 있습니다.",
+    "career.profile.career_profile_links_settings_section.1p9ak83":
+      "잠시 후 상태를 다시 확인하거나 연결을 다시 시도해 주세요.",
     "career.profile.career_profile_menu.0rpl24h": "프로필 메뉴",
     "career.profile.career_profile_menu.1k7ppv0": "로그아웃",
     "career.profile.career_profile_menu.1vjbdm5": "문의하기",
@@ -2048,7 +2110,8 @@ export const ko = {
       "업로드할 파일의 종류를 선택해 주세요.",
     "career.profile.documents.add_title": "문서 추가",
     "career.profile.documents.copy_content": "문서 전체 내용 복사",
-    "career.profile.documents.copy_failed": "문서 내용을 복사하지 못했습니다. 다시 시도해 주세요.",
+    "career.profile.documents.copy_failed":
+      "문서 내용을 복사하지 못했습니다. 다시 시도해 주세요.",
     "career.profile.documents.copy_success": "문서 내용을 복사했습니다.",
     "career.profile.documents.delete": "문서 삭제",
     "career.profile.documents.delete_failed": "문서를 삭제하지 못했습니다.",
@@ -2065,7 +2128,21 @@ export const ko = {
       "파일을 끌어다 놓거나 선택하세요",
     "career.profile.documents.empty": "추가로 저장된 문서가 없습니다.",
     "career.profile.documents.file_name": "문서 이름",
-    "career.profile.documents.gmail_history_too_long": "Gmail 커리어 이력은 최대 50,000자까지 저장할 수 있습니다.",
+    "career.profile.documents.gmail_history_conflict":
+      "다른 변경사항이 먼저 저장되었습니다. 문서를 다시 열어 주세요.",
+    "career.profile.documents.gmail_history_content": "Gmail 커리어 이력 내용",
+    "career.profile.documents.gmail_history_edit_title": "커리어 이력 수정",
+    "career.profile.documents.gmail_history_load_failed":
+      "Gmail 커리어 이력을 불러오지 못했습니다.",
+    "career.profile.documents.gmail_history_loading":
+      "Gmail 커리어 이력 불러오는 중",
+    "career.profile.documents.gmail_history_retry": "다시 시도",
+    "career.profile.documents.gmail_history_save_failed":
+      "Gmail 커리어 이력을 저장하지 못했습니다. 다시 시도해 주세요.",
+    "career.profile.documents.gmail_history_saved":
+      "Gmail 커리어 이력을 저장했습니다.",
+    "career.profile.documents.gmail_history_too_long":
+      "Gmail 커리어 이력은 최대 50,000자까지 저장할 수 있습니다.",
     "career.profile.documents.keep_private": "비공개로 저장",
     "career.profile.documents.kind.document": "문서",
     "career.profile.documents.kind.resume": "이력서",
@@ -2095,14 +2172,6 @@ export const ko = {
     "career.profile.documents.visibility_help":
       "공개하면 회사가 프로필에서 이 문서를 열람할 수 있습니다. 언제든 다시 비공개로 전환할 수 있습니다.",
     "career.profile.documents.visibility_title": "회사에 이 문서를 공개할까요?",
-    "career.profile.documents.gmail_history_conflict": "다른 변경사항이 먼저 저장되었습니다. 문서를 다시 열어 주세요.",
-    "career.profile.documents.gmail_history_content": "Gmail 커리어 이력 내용",
-    "career.profile.documents.gmail_history_edit_title": "커리어 이력 수정",
-    "career.profile.documents.gmail_history_load_failed": "Gmail 커리어 이력을 불러오지 못했습니다.",
-    "career.profile.documents.gmail_history_loading": "Gmail 커리어 이력 불러오는 중",
-    "career.profile.documents.gmail_history_retry": "다시 시도",
-    "career.profile.documents.gmail_history_save_failed": "Gmail 커리어 이력을 저장하지 못했습니다. 다시 시도해 주세요.",
-    "career.profile.documents.gmail_history_saved": "Gmail 커리어 이력을 저장했습니다.",
     "career.profile.duration.month_many": "{months}개월",
     "career.profile.duration.month_one": "{months}개월",
     "career.profile.duration.year_many_month_many": "{years}년 {months}개월",
@@ -2130,38 +2199,57 @@ export const ko = {
     "career.profile.personal_info.phone_number": "휴대폰 번호",
     "career.profile.personal_info.title": "개인 정보",
     "career.profile.recruiter_profile.default": "채용 담당자가 보는 프로필",
-    "career.profile.recruiter_profile.named": "채용 담당자가 보는 {name}의 프로필",
-    "career.profile.resume_links.gmail_connect": "연동하기",
+    "career.profile.recruiter_profile.named":
+      "채용 담당자가 보는 {name}의 프로필",
+    "career.profile.resume_links.gmail_analysis_failed":
+      "Gmail 이메일 읽어오기를 시작하지 못했습니다. 다시 시도해 주세요.",
+    "career.profile.resume_links.gmail_analysis_failed_status": "읽어오기 실패",
+    "career.profile.resume_links.gmail_analysis_queued_toast":
+      "Gmail 이메일 읽어오기를 시작했습니다. 완료되면 내 문서에 추가됩니다.",
     "career.profile.resume_links.gmail_analysis_running": "읽어오는 중",
     "career.profile.resume_links.gmail_analyze": "읽어오기",
+    "career.profile.resume_links.gmail_callback_failed":
+      "Gmail 연결을 완료하지 못했습니다. 다시 시도해 주세요.",
+    "career.profile.resume_links.gmail_connect": "연동하기",
+    "career.profile.resume_links.gmail_connect_failed":
+      "Gmail 연결을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    "career.profile.resume_links.gmail_connected": "연결됨",
+    "career.profile.resume_links.gmail_connected_toast":
+      "Gmail을 연결했습니다. 읽어오기를 누르면 최근 커리어 관련 이메일을 정리합니다.",
     "career.profile.resume_links.gmail_connection_modal_close": "닫기",
+    "career.profile.resume_links.gmail_disconnect": "연결 해제",
+    "career.profile.resume_links.gmail_disconnect_failed":
+      "Gmail 연결을 완전히 해제하지 못했습니다. 다시 시도해 주세요.",
+    "career.profile.resume_links.gmail_disconnect_retry": "연결 해제 재시도",
+    "career.profile.resume_links.gmail_disconnected_toast":
+      "Gmail 연결을 해제했습니다.",
+    "career.profile.resume_links.gmail_last_synced": "마지막 업데이트 {time}",
+    "career.profile.resume_links.gmail_reconnect": "다시 연결",
     "career.profile.resume_links.gmail_resync": "다시 읽어오기",
     "career.profile.resume_links.gmail_resync_confirm_action": "다시 읽어오기",
-    "career.profile.resume_links.gmail_resync_confirm_description": "현재 문서에서 직접 수정한 내용도 새로 읽어온 결과로 대체됩니다.",
-    "career.profile.resume_links.gmail_resync_confirm_help": "저장된 Gmail 커리어 이력 문서는 유지되지만 내용은 새로 읽어온 결과로 덮어씁니다.",
-    "career.profile.resume_links.gmail_resync_confirm_title": "Gmail에서 다시 읽어올까요?",
-    "career.profile.resume_links.gmail_last_synced": "마지막 업데이트 {time}",
-    "career.profile.resume_links.gmail_analysis_failed": "Gmail 이메일 읽어오기를 시작하지 못했습니다. 다시 시도해 주세요.",
-    "career.profile.resume_links.gmail_analysis_failed_status": "읽어오기 실패",
-    "career.profile.resume_links.gmail_analysis_queued_toast": "Gmail 이메일 읽어오기를 시작했습니다. 완료되면 내 문서에 추가됩니다.",
-    "career.profile.resume_links.gmail_callback_failed": "Gmail 연결을 완료하지 못했습니다. 다시 시도해 주세요.",
-    "career.profile.resume_links.gmail_connect_failed": "Gmail 연결을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.",
-    "career.profile.resume_links.gmail_connected": "연결됨",
-    "career.profile.resume_links.gmail_connected_toast": "Gmail을 연결했습니다. 읽어오기를 누르면 최근 커리어 관련 이메일을 정리합니다.",
-    "career.profile.resume_links.gmail_disconnect": "연결 해제",
-    "career.profile.resume_links.gmail_disconnect_failed": "Gmail 연결을 완전히 해제하지 못했습니다. 다시 시도해 주세요.",
-    "career.profile.resume_links.gmail_disconnect_retry": "연결 해제 재시도",
-    "career.profile.resume_links.gmail_disconnected_toast": "Gmail 연결을 해제했습니다.",
-    "career.profile.resume_links.gmail_reconnect": "다시 연결",
-    "career.profile.resume_links.gmail_status_failed": "Gmail 연결 상태를 확인하지 못했습니다. 다시 시도해 주세요.",
-    "career.profile.resume_links.gmail_status_loading": "Gmail 연결 상태 확인 중",
+    "career.profile.resume_links.gmail_resync_confirm_description":
+      "현재 문서에서 직접 수정한 내용도 새로 읽어온 결과로 대체됩니다.",
+    "career.profile.resume_links.gmail_resync_confirm_help":
+      "저장된 Gmail 커리어 이력 문서는 유지되지만 내용은 새로 읽어온 결과로 덮어씁니다.",
+    "career.profile.resume_links.gmail_resync_confirm_title":
+      "Gmail에서 다시 읽어올까요?",
+    "career.profile.resume_links.gmail_status_failed":
+      "Gmail 연결 상태를 확인하지 못했습니다. 다시 시도해 주세요.",
+    "career.profile.resume_links.gmail_status_loading":
+      "Gmail 연결 상태 확인 중",
     "career.profile.resume_links.gmail_status_retry": "상태 다시 확인",
-    "career.profile.resume_links.linkedin_refresh_label": "링크드인 정보 새로고침",
-    "career.profile.resume_links.linkedin_refresh_tooltip": "업데이트된 링크드인 정보를 가져옵니다.",
-    "career.profile.resume_request.banner_description": "아래에서 업로드하면 이 요청과 연결해 해당 회사에만 전달됩니다. 업로드하지 않거나 답하지 않으셔도 됩니다.",
-    "career.profile.resume_request.banner_title": "{companyName}에서 {roleName} 검토를 위해 이력서 공유를 요청했습니다.",
-    "career.profile.resume_request.upload_cta": "업로드하고 {companyName}에 전달",
-    "career.profile.settings.no_saved_changes": "아직 저장된 변경 이력이 없습니다.",
+    "career.profile.resume_links.linkedin_refresh_label":
+      "링크드인 정보 새로고침",
+    "career.profile.resume_links.linkedin_refresh_tooltip":
+      "업데이트된 링크드인 정보를 가져옵니다.",
+    "career.profile.resume_request.banner_description":
+      "아래에서 업로드하면 이 요청과 연결해 해당 회사에만 전달됩니다. 업로드하지 않거나 답하지 않으셔도 됩니다.",
+    "career.profile.resume_request.banner_title":
+      "{companyName}에서 {roleName} 검토를 위해 이력서 공유를 요청했습니다.",
+    "career.profile.resume_request.upload_cta":
+      "업로드하고 {companyName}에 전달",
+    "career.profile.settings.no_saved_changes":
+      "아직 저장된 변경 이력이 없습니다.",
     "career.profile.source_apply.confirm": "반영하기",
     "career.profile.source_apply.description":
       "새로운 내용을 현재 프로필 정보에 반영하시겠습니까?",
@@ -2215,8 +2303,7 @@ export const ko = {
       "내 초대 링크가 자동으로 들어갑니다. 그대로 복사하거나 상대방에 맞게 다듬어 보내세요.",
     "career.referral.modal.invite_message_heading": "함께 보낼 소개 문구",
     "career.referral.modal.invite_message_link_placeholder": "[초대 링크]",
-    "career.referral.modal.latest_hire_reward":
-      "Harper의 가장 최근 채용건의 보상금: 1,000만원 (초대를 통한 가입으로 가정했을 때)",
+    "career.referral.modal.latest_hire_reward": "보상금 1,000만원",
     "career.referral.modal.link_loading": "초대 링크를 준비하는 중입니다.",
     "career.referral.modal.read_terms": "전체 약관 보기",
     "career.referral.modal.referral_headline_empty": "프로필 소개 없음",
@@ -2400,7 +2487,7 @@ export const ko = {
     "career.settings.career_settings_modal.external_recommendation_title":
       "외부 공고 주기적으로 추천받기",
     "career.settings.career_settings_modal.harper_enabled_description":
-      "끄면 계정과 데이터는 그대로 두고 새로운 매칭과 연결 기회 안내를 잠시 멈춥니다.",
+      "off시 계정과 데이터는 그대로 두고 새로운 매칭과 연결 기회 안내를 멈춥니다.",
     "career.settings.career_settings_modal.harper_enabled_title": "Harper 사용",
     "career.settings.career_settings_modal.keep_account": "계정 유지하기",
     "career.settings.career_settings_modal.pause_cancel": "계속 사용하기",

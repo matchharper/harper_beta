@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
     ok: true,
     request: {
       companyName: request.workspace?.company_name ?? "채용 회사",
-      expiresAt: request.expires_at,
+      expiresAt: null,
       requestId: request.id,
       roleName: request.role?.name ?? "해당 포지션",
       token:

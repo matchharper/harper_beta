@@ -1,0 +1,232 @@
+{
+  "task": "internal-recommendation-binary",
+  "datasetKind": "reviewed-production-pair-recommendation-challenge-set",
+  "datasetVersion": "v3",
+  "goldVersion": "internal_recommendation_binary_gold_v3",
+  "selectionVersion": "internal_recommendation_binary_selection_v3",
+  "capturedAt": "2026-09-07T08:41:22.230037Z",
+  "caseCount": 42,
+  "scoredCaseCount": 32,
+  "labelDistribution": {
+    "recommend": 13,
+    "ambiguous": 10,
+    "doNotRecommend": 19
+  },
+  "snapshotCutoffDistribution": {
+    "firstStructuredPairEvent": 15,
+    "selectionCaptureNoPriorPairEvent": 27,
+    "exclusiveUpperBound": true
+  },
+  "source": {
+    "databaseMode": "default_transaction_read_only",
+    "harperBetaRevision": "0df6bfcc7218f5752c06f618790de3672d89a87e",
+    "harperWorkerRevision": "936e1a0bebe83df980dcce4f81407d6e54143cde",
+    "pairEventSources": [
+      "talent_opportunity_recommendation",
+      "talent_progress",
+      "talent_opportunity_tag",
+      "talent_role_activity",
+      "contact_queue",
+      "company_talent_requests"
+    ]
+  },
+  "artifacts": {
+    "readme": {
+      "path": "README.md",
+      "sha256": "3969c9c6ec197edd9a5b8c01e32605a8aadfecc45254c150a2acc62ae7d95d21",
+      "tracked": true,
+      "containsProductionPII": false
+    },
+    "gold": {
+      "path": "gold-v3.json",
+      "sha256": "3c49e8b5c543ab8f8c32fe283792112982f53160a6a8f443e9c24fc4f03a46be",
+      "tracked": true,
+      "containsProductionPII": false
+    },
+    "privateSelection": {
+      "path": "private/selection-v3.json",
+      "sha256": "5389aedc72c7509f1f336af4ee8c7bff662bcc539f31b2b10087f96509a5e249",
+      "tracked": false,
+      "containsProductionPII": true,
+      "requiredMode": "0600"
+    },
+    "privateFixture": {
+      "path": "private/fixture-v3-full-42.json",
+      "sha256": "c75456fdae6c293bd5e1b54a29626a3fc49e6d14786f0280d7b775e86b99a69d",
+      "capturedAt": "2026-09-07T10:55:48.688546Z",
+      "caseCount": 42,
+      "caseIds": [
+        "IRB001",
+        "IRB002",
+        "IRB003",
+        "IRB004",
+        "IRB005",
+        "IRB006",
+        "IRB007",
+        "IRB008",
+        "IRB009",
+        "IRB010",
+        "IRB011",
+        "IRB012",
+        "IRB013",
+        "IRB014",
+        "IRB015",
+        "IRB016",
+        "IRB017",
+        "IRB018",
+        "IRB019",
+        "IRB020",
+        "IRB021",
+        "IRB022",
+        "IRB023",
+        "IRB024",
+        "IRB025",
+        "IRB027",
+        "IRB028",
+        "IRB029",
+        "IRB030",
+        "IRB031",
+        "IRB032",
+        "IRB033",
+        "IRB034",
+        "IRB035",
+        "IRB036",
+        "IRB037",
+        "IRB038",
+        "IRB039",
+        "IRB040",
+        "IRB041",
+        "IRB042",
+        "IRB043"
+      ],
+      "tracked": false,
+      "containsProductionPII": true,
+      "requiredMode": "0600"
+    },
+    "previousPartialPrivateFixture": {
+      "path": "private/fixture-v3-irb024-025-027-028.json",
+      "sha256": "10de47f1139e60db98cf428ac1dd8284481100d50d7d8a58a5e8fc1209cfaa12",
+      "caseCount": 4,
+      "tracked": false,
+      "containsProductionPII": true,
+      "requiredMode": "0600"
+    },
+    "runner": {
+      "path": "harper_worker/llm_evals/internal_recommendation_binary/eval.py",
+      "sha256": "75243574d21f4b9645982acb0e4acba67dc90137029ac6a30cefe761d2fd1bc7",
+      "tracked": true,
+      "containsProductionPII": false
+    },
+    "selectionValidator": {
+      "path": "harper_worker/llm_evals/internal_recommendation_binary/validate_selection.py",
+      "sha256": "ff32b22c9fea41e5972a45320fdf3cb87a8311c06eea983f8d77b31cff64fd50",
+      "tracked": true,
+      "containsProductionPII": false
+    },
+    "modelTransport": {
+      "path": "harper_worker/llm_evals/model_benchmark/llm_model_benchmark.py",
+      "sha256": "b08fa5e2a4c7de5f7390c68a2a9d4b2543d2b17d279a8327b539788b2cd4fff4",
+      "tracked": true,
+      "containsProductionPII": false
+    }
+  },
+  "adjudication": {
+    "reviewedBy": "product owner with Codex evidence audit",
+    "reviewedAt": "2026-09-07T10:07:44Z",
+    "history": [
+      "Reviewed all 43 Talent x Role pairs against production profile facts and role requirements.",
+      "Replaced five obvious negative controls with five owner-selected no-recommend challenge cases.",
+      "Recorded snapshotCutoffAt for every pair before freezing selection v1.",
+      "Later candidate acceptance, connection, interview, rejection, archive, and offer outcomes are label provenance only, never input.",
+      "Created v3 without overwriting v1 or the superseded v2 intermediate version.",
+      "Removed IRB026 entirely; retained every other v1 bucket and expectedRecommend value."
+    ]
+  },
+  "runner": {
+    "selectionValidator": "harper_worker/llm_evals/internal_recommendation_binary/validate_selection.py",
+    "fixtureCapture": "harper_worker/llm_evals/internal_recommendation_binary/eval.py capture",
+    "modelRunner": "harper_worker/llm_evals/internal_recommendation_binary/eval.py run",
+    "productionImports": [
+      "internal fit prefilter prompt and normalizer",
+      "internal fit evaluation prompt and normalizer",
+      "prefilter pass cap and second-stage eligibility",
+      "first-stage direct fallback and second-stage recovery contract"
+    ],
+    "productionDependencyHashes": {
+      "harper_worker/opp/utils/internal_fit.py": "07030c749a550f454997de708f6777237058bae15478ac0fa30c5f2b6d0e4c6f",
+      "harper_worker/opp/new_config.py": "e1c7ccf688b98281d80f5e941311843129942632fa0198d5097ca29305ad9b39",
+      "harper_worker/opp/agentic/user_context.py": "f6452e8bbb83ae72897e00c963b7336e93729e1d36a41cb478967692c15db5eb",
+      "harper_worker/opp/experiments/internal_fit_same_company_asof_replay.py": "24b3d4bce22b2a29052d9aa036301778fdcc31b03af1ff23a78aaa86130360fb"
+    },
+    "configurable": [
+      "case IDs",
+      "stage models",
+      "stage reasoning efforts",
+      "stage prompt files",
+      "fallback and repair models",
+      "parallel case count"
+    ]
+  },
+  "privacy": {
+    "rawProductionData": "gitignored private/ only",
+    "privateFileMode": "0600",
+    "externalProviderRun": "The 42-case v3 cutoff-safe fixture was sent to OpenRouter Z.AI GLM 5.3 Flash with data_collection=deny, provider.only=[z-ai], and allow_fallbacks=false. Two failed prefilter outputs were sent to the direct DeepSeek fallback. Raw inputs and outputs remain local-only."
+  },
+  "executions": [
+    {
+      "runId": "20260907T105717.686288Z_prefilter-glm-5.3-flash_second-glm-5.3-flash",
+      "startedAt": "2026-09-07T10:57:17.686509Z",
+      "finishedAt": "2026-09-07T11:17:45.013194Z",
+      "sourceRevision": "936e1a0bebe83df980dcce4f81407d6e54143cde",
+      "sourceDiffFingerprint": "b17167a969a0276369dcca52395b714ded57e4b1d53bef644a1e6449ac83db8f",
+      "model": {
+        "prefilter": "glm-5.3-flash/high",
+        "prefilterFallback": "deepseek-v4-flash-direct/high",
+        "secondStage": "glm-5.3-flash/high",
+        "secondStageRepair": "glm-5.3-flash/high",
+        "maxParallelCases": 5
+      },
+      "metrics": {
+        "decisionAvailable": 42,
+        "scoredCaseCount": 32,
+        "exact": 26,
+        "precision": 0.8889,
+        "recall": 0.6154,
+        "specificity": 0.9474,
+        "ambiguousRecommendRate": 0.3,
+        "prefilterFullCoverage": 42,
+        "secondStageFullCoverage": 34,
+        "finalOutputFailures": 0,
+        "totalCostUsd": 0.15982709
+      },
+      "privateRun": "runs/20260907T105717.686288Z_prefilter-glm-5.3-flash_second-glm-5.3-flash.json",
+      "privateReport": "runs/20260907T105717.686288Z_prefilter-glm-5.3-flash_second-glm-5.3-flash.md"
+    }
+  ],
+  "knownLimitations": [
+    "Current profile values may not be substituted when their pre-cutoff state cannot be reconstructed; 26 of 42 cases therefore use a cutoff-safe legacy projection.",
+    "The role and company batch is the current active capture-time batch, not an exact historical role-card replay.",
+    "IRB001 was ended at capture time, so the evaluation-only runner added its current anchor card to the active sibling batch without changing production role eligibility.",
+    "Ambiguous cases are not part of binary precision and recall.",
+    "Z.AI GLM 5.3 Flash does not support OpenRouter strict structured outputs, so the run uses json_object plus deterministic normalization and bounded recovery.",
+    "This challenge set does not estimate production-population performance."
+  ],
+  "derivedFrom": {
+    "datasetVersion": "v1",
+    "manifest": "manifest-v1.json",
+    "changedAt": "2026-09-07T10:07:44Z",
+    "note": "v2 is a superseded intermediate interpretation and is not current."
+  },
+  "caseChanges": [
+    {
+      "caseId": "IRB026",
+      "action": "removed",
+      "reason": "Owner requested removal from the no set and confirmed the no set should contain 19 cases. No remaining label changed."
+    }
+  ],
+  "historicalExecutionReference": {
+    "datasetVersion": "v1",
+    "manifest": "manifest-v1.json",
+    "runId": "20260907T091117.096606Z_prefilter-glm-5.3-flash_second-glm-5.3-flash"
+  }
+}

@@ -36,6 +36,10 @@ const TALENT_CONTACT_DRAFT_MIGRATION =
   "20260819110000_company_talent_contact_drafts.sql";
 const TALENT_CONTACT_ROUND_THE_CLOCK_MIGRATION =
   "20260827210000_company_talent_contact_round_the_clock.sql";
+const TALENT_REQUEST_MULTI_CANDIDATE_SOURCE_MIGRATION =
+  "20260901100000_company_talent_request_multi_candidate_source.sql";
+const TALENT_CONTACT_FIVE_MINUTE_DELAY_MIGRATION =
+  "20260908170000_company_talent_contact_five_minute_delay.sql";
 const COMPANY_ROLE_RECURRING_MATCHING_MIGRATION =
   "20260812150000_company_role_behavior_context_matching.sql";
 const COMPANY_INTERNAL_ROLE_MATCHING_LIFECYCLE_MIGRATION =
@@ -1078,6 +1082,36 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
   await applyMigration(sql, TALENT_REQUEST_IMMEDIATE_ENQUEUE_MIGRATION);
   await applyMigration(sql, TALENT_CONTACT_DRAFT_MIGRATION);
   await applyMigration(sql, TALENT_CONTACT_ROUND_THE_CLOCK_MIGRATION);
+  await applyMigration(sql, TALENT_REQUEST_MULTI_CANDIDATE_SOURCE_MIGRATION);
+  await applyMigration(sql, TALENT_CONTACT_FIVE_MINUTE_DELAY_MIGRATION);
+  const draftBatch = await sql`
+    insert into public.company_talent_requests(
+      company_workspace_id, role_id, recommendation_id, talent_id,
+      source_company_message_id, expects_document, request_context,
+      workflow_status, delivery_subject, delivery_body, draft_revision
+    ) values
+      (
+        ${IDS.workspaceA}::uuid, ${IDS.legacyRole}::uuid,
+        ${IDS.recommendation}::uuid, ${IDS.talent}::uuid,
+        ${Number(workspaceScopedMessage.id)}::bigint, false,
+        'First batch question', 'draft', 'First subject', 'First body', 1
+      ),
+      (
+        ${IDS.workspaceA}::uuid, ${IDS.conflictRole}::uuid,
+        ${IDS.recommendationB}::uuid, ${IDS.talent}::uuid,
+        ${Number(workspaceScopedMessage.id)}::bigint, false,
+        'Second batch question', 'draft', 'Second subject', 'Second body', 1
+      )
+    returning id
+  `;
+  assert(
+    draftBatch.length === 2,
+    "one company message did not create drafts for multiple targets"
+  );
+  await sql`
+    delete from public.company_talent_requests
+    where id in ${sql(draftBatch.map((row) => String(row.id)))}
+  `;
   const scopedQueueIndex = firstRow(
     await sql`
       select indexdef
@@ -1122,7 +1156,7 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
   const schedule = firstRow(
     await sql`
       select
-        queue.scheduled_at = request.created_at + interval '20 minutes'
+        queue.scheduled_at = request.created_at + interval '5 minutes'
           as exact_delay
       from public.company_talent_requests request
       join public.contact_queue queue
@@ -1133,7 +1167,7 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
   );
   assert(
     schedule.exact_delay === true,
-    "candidate contact was not scheduled exactly 20 minutes after creation"
+    "candidate contact was not scheduled exactly 5 minutes after creation"
   );
   const repeated = firstRow(
     await sql`
@@ -1600,7 +1634,8 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
   `;
   await sql`
     update public.company_talent_requests
-    set workflow_status = 'awaiting_talent'
+    set workflow_status = 'awaiting_talent',
+        expires_at = now() - interval '1 day'
     where id = ${String(otherRoleRequest.id)}::uuid
   `;
   await sql`
@@ -1624,7 +1659,8 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
 
   const recordedAfterStageChange = firstRow(
     await sql`
-      select request.workflow_status, request.talent_source_message_id
+      select request.workflow_status, request.talent_source_message_id,
+             request.expires_at = 'infinity'::timestamptz as has_no_reply_deadline
       from public.record_company_talent_response_v1(
         ${String(otherRoleRequest.id)}::uuid,
         ${IDS.talent}::uuid,
@@ -1635,6 +1671,7 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
   assert(
     recordedAfterStageChange.workflow_status === "relay_queued" &&
       Number(recordedAfterStageChange.talent_source_message_id) === 900001 &&
+      recordedAfterStageChange.has_no_reply_deadline === true &&
       value<number>(
         await sql`
           select count(*)::int as count
@@ -1645,7 +1682,7 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
         `,
         "count"
       ) === 1,
-    "a candidate answer after committed delivery was not queued for the company"
+    "a late candidate answer after committed delivery was not queued for the company"
   );
 
   await sql`
@@ -1730,7 +1767,7 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
     await sql`
       select request.workflow_status, request.approved_at,
              queue.status as queue_status,
-             queue.scheduled_at = request.approved_at + interval '20 minutes'
+             queue.scheduled_at = request.approved_at + interval '5 minutes'
                as exact_standard_delay,
              queue.payload -> 'delivery' ->> 'subject' as queued_subject,
              queue.payload -> 'delivery' ->> 'chatText' as queued_body,

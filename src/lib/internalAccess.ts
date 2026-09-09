@@ -47,6 +47,15 @@ export function canUseCareerDevControls(value: string | null | undefined) {
   );
 }
 
+export function canUseOrgDevControls(value: string | null | undefined) {
+  const normalized = normalizeEmail(value);
+  return (
+    isInternalDomainEmail(normalized) ||
+    normalized === "hyunbin.bk@gmail.com" ||
+    normalized === "khj605123@gmail.com"
+  );
+}
+
 export function canInspectCareerTranslations(value: string | null | undefined) {
   return isInternalDomainEmail(value);
 }

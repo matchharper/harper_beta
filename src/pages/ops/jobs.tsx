@@ -23,6 +23,7 @@ import {
 } from "@/lib/officialJobs";
 import type { OpsOfficialJobSaveInput } from "@/lib/ops/officialJobs";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useIsDesktop, usePrefersReducedMotion } from "@/hooks/useMediaQuery";
 import {
   ArrowUpRight,
   CheckCircle2,
@@ -458,6 +459,8 @@ export default function OpsOfficialJobsPage() {
   const authLoading = useAuthStore((state) => state.loading);
   const user = useAuthStore((state) => state.user);
   const canFetchInternal = !authLoading && isInternalEmail(user?.email);
+  const isDesktop = useIsDesktop();
+  const prefersReducedMotion = usePrefersReducedMotion();
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<JobFilter>("all");
@@ -470,6 +473,7 @@ export default function OpsOfficialJobsPage() {
   });
   const [autoSaveState, setAutoSaveState] =
     useState<OfficialJobAutoSaveState | null>(null);
+  const detailPanelRef = useRef<HTMLElement>(null);
   const saveRequestInFlightRef = useRef(false);
   const jobsQuery = useOpsOfficialJobs(canFetchInternal);
   const internalRolesQuery =
@@ -616,6 +620,22 @@ export default function OpsOfficialJobsPage() {
     return persistDraft(draft, currentDraftKey);
   };
 
+  const scrollDetailPanelIntoView = useCallback(() => {
+    const detailPanel = detailPanelRef.current;
+    if (
+      !isDesktop ||
+      !detailPanel ||
+      detailPanel.getBoundingClientRect().top >= 0
+    ) {
+      return;
+    }
+
+    detailPanel.scrollIntoView({
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+      block: "start",
+    });
+  }, [isDesktop, prefersReducedMotion]);
+
   const startNewJob = async () => {
     if (saveRequestInFlightRef.current) return;
     if (!(await saveBeforeChangingJob())) return;
@@ -637,7 +657,11 @@ export default function OpsOfficialJobsPage() {
   };
 
   const selectJob = async (job: OpsOfficialJobRecord) => {
-    if (job.id === activeJobId || saveRequestInFlightRef.current) return;
+    if (job.id === activeJobId) {
+      scrollDetailPanelIntoView();
+      return;
+    }
+    if (saveRequestInFlightRef.current) return;
     if (!(await saveBeforeChangingJob())) return;
 
     const nextDraft = jobToDraft(job);
@@ -647,6 +671,7 @@ export default function OpsOfficialJobsPage() {
       initialDraft: nextDraft,
       key: job.id,
     });
+    scrollDetailPanelIntoView();
   };
 
   const handleGenerateSlug = () => {
@@ -831,10 +856,11 @@ export default function OpsOfficialJobsPage() {
                     type="button"
                     onClick={() => void selectJob(job)}
                     disabled={isSavePending}
+                    aria-current={activeJobId === job.id ? "true" : undefined}
                     className={cx(
                       "block w-full border-b border-l-4 border-neutral-1000-a05 border-l-transparent px-4 py-3 text-left transition disabled:cursor-wait disabled:opacity-60",
                       activeJobId === job.id
-                        ? "bg-bg-floating"
+                        ? "border-l-neutral-800 bg-bg-floating ring-1 ring-inset ring-neutral-800"
                         : "hover:bg-bg-default/60"
                     )}
                   >
@@ -890,7 +916,7 @@ export default function OpsOfficialJobsPage() {
             </div>
           </aside>
 
-          <section className={cx(opsTheme.panel, "p-5")}>
+          <section ref={detailPanelRef} className={cx(opsTheme.panel, "p-5")}>
             <div className="flex flex-col gap-4 border-b border-neutral-1000-a05 pb-5 md:flex-row md:items-start md:justify-between">
               <div>
                 <h2 className="mt-1 text-xl font-medium text-neutral-primary">

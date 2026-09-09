@@ -15,6 +15,7 @@ export type DebugTabId =
   | "calls"
   | "cost"
   | "emails"
+  | "matching"
   | "opportunityRuns"
   | "orgAgentTools";
 
@@ -22,6 +23,7 @@ export function debugTabTitle(tab: DebugTabId) {
   if (tab === "emails") return "메일 로그";
   if (tab === "calls") return "콜 로그";
   if (tab === "cost") return "비용";
+  if (tab === "matching") return "매칭 품질";
   if (tab === "orgAgentTools") return "Company-side LLM Tool";
   return "Opportunity Runs";
 }
@@ -34,7 +36,10 @@ export function debugTabDescription(tab: DebugTabId) {
     return "talent_calls별로 저장된 통화 transcript와 wrap-up 메시지를 확인합니다.";
   }
   if (tab === "cost") {
-    return "Claude, OpenAI, Grok, Exa, EC2 비용과 현재 credit을 확인합니다.";
+    return "Claude, OpenAI, OpenRouter, Grok, Exa, EC2 비용과 현재 credit을 확인합니다.";
+  }
+  if (tab === "matching") {
+    return "internal 추천 코호트의 후보자 반응과 회사 프로세스 전환이 개선되고 있는지 확인합니다.";
   }
   if (tab === "orgAgentTools") {
     return "tool의 실제 반환 JSON과 company-side LLM에 전달되는 최종 content 문자열을 원문 그대로 확인합니다.";

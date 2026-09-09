@@ -61,6 +61,7 @@ import type {
 } from "@/components/career/mobile/jobs/types";
 import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
 import { normalizeHarperPublicImageUrl } from "@/lib/imageUrl";
+import CareerJobLinkImportButton from "@/components/career/history/CareerJobLinkImportButton";
 
 type CareerMobileJobsViewProps = {
   onChangeWorkspaceTab: (tab: CareerWorkspaceTab) => void;
@@ -231,8 +232,14 @@ export default function CareerMobileJobsView({
       ),
       includeArchived: true,
     }).map((option) => ({
-      // count: statusCounts[option.id],
-      label: option.label,
+      label: (
+        <>
+          {option.label}
+          <span className="ml-1.5 text-[10px] font-medium tabular-nums opacity-70">
+            {statusCounts[option.id]}
+          </span>
+        </>
+      ),
       value: option.id,
     }));
 
@@ -257,7 +264,7 @@ export default function CareerMobileJobsView({
     >
       <div className="relative flex flex-1 flex-col">
         {!isInboxTab ? (
-          <div className="sticky top-0 z-20 bg-bg-basement px-3 py-2">
+          <div className="sticky top-0 z-20 flex flex-col gap-2 bg-bg-basement px-3 py-2">
             <TabBoxes
               activeValue={tab}
               items={statusTabItems}
@@ -265,6 +272,9 @@ export default function CareerMobileJobsView({
               size="xs"
               className="[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
             />
+            <div className="flex justify-end">
+              <CareerJobLinkImportButton />
+            </div>
           </div>
         ) : null}
 

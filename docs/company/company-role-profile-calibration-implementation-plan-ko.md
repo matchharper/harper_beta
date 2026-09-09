@@ -1,12 +1,12 @@
 # Company Role Profile Calibration 구현 계획
 
-- 문서 기준: 2026-09-07
-- 상태: 로컬 구현 완료, 현재 연결 DB의 migration 적용 확인, Scheduled 활성화·production app rollout 전
+- 문서 기준: 2026-09-08
+- 상태: calibration 본체 구현 완료, event notification migration·production app rollout 전
 - 반복 실행 계약: [Company Role Profile Calibration Codex 실행 계약](./company-role-profile-calibration-codex-runbook-ko.md)
 
 ## 1. 구현 목표
 
-새 internal Role이 등록되면 12시간 이내를 목표로 로컬 Codex가 `candid` 기반 예시 profile
+새 internal Role이 등록되면 켜져 있는 로컬 event listener가 Codex를 깨워 `candid` 기반 예시 profile
 5명 안팎을 준비한다. 회사 사용자는 Role의 `매칭 기준` 화면 맨 아래에서 profile과
 `미평가 / Good / Bad` 상태를 볼 수 있다. 상세 profile은 기존 후보자 profile UI를 작게
 재사용해 오른쪽 Role 정보 영역만 덮는다.
@@ -133,7 +133,7 @@ Slack이 없거나 일부 channel 전달이 실패해도 `ready` profile은 웹�
     "queuedAt": "2026-09-04T00:00:00Z"
   },
   "run": {
-    "runner": "codex-scheduled",
+    "runner": "codex-event:<host>",
     "startedAt": null,
     "finishedAt": null,
     "attempt": 0,
@@ -209,7 +209,7 @@ contract를 검사한다.
 - URL field와 원래 identity field가 company-safe payload에 없음
 - source candid ID가 claimed run의 retrieval 결과에 속함
 
-## 6. Enqueue와 12시간 예약 실행
+## 6. Enqueue와 event 실행
 
 ### Enqueue
 
@@ -231,11 +231,18 @@ claim하고 `running`으로 바꾼다. Claim 시점에도 Role 상태와 test-on
 오래된 `running` recovery는 `payload.run.startedAt`과 `updated_at`을 보고 같은 helper에서만
 수행한다.
 
-### Codex Scheduled
+### 로컬 Codex event listener
 
-로컬 Codex Scheduled를 12시간마다 `gpt-5.6-sol`의 `xhigh` reasoning으로 실행한다. 한 번 실행할 때
-queue가 빌 때까지 Role을 순차 처리한다. 이 기능은 12시간 안에 시작하면 충분하다는 제품 전제를 사용하므로 실시간
-webhook이나 상시 worker를 추가하지 않는다.
+`company_role_calibrations`의 queued/ready 상태 변경 trigger가 ID와 상태만 담은 Postgres
+notification을 보낸다. 로컬 listener는 notification을 wake hint로만 사용하고 durable queue를
+다시 읽은 뒤 `gpt-5.6-sol`의 `xhigh` reasoning으로 `codex exec`을 시작한다. 한 Codex process는
+Role을 하나씩 최대 10개까지 순차 처리한다. 동시에 5개 Role이 들어와도 한 listener는 process
+하나만 실행하며 atomic claim은 다른 runner와의 중복 처리를 막는다.
+
+Listener는 시작·DB 재연결 때 queue를 확인하므로 notification 유실이나 일시적인 로컬 종료 뒤에도
+catch-up한다. Slack 전달 실패는 저장된 profile을 유지하고 12시간 cooldown 뒤 재시도한다. Queue가
+비었는지 확인하기 위해 LLM을 주기 실행하지 않는다. 기존 12시간 Codex automation은 fallback으로
+보존하되 event listener와 동시에 켜지 않는다.
 
 로컬 컴퓨터나 Codex 앱이 꺼져 있으면 실행이 늦을 수 있다. 나중에 가용성 요구가 높아져도 같은
 table과 claim contract를 server worker가 소비할 수 있게 scheduling과 판단 로직을 분리한다.
@@ -250,7 +257,7 @@ table과 claim contract를 server worker가 소비할 수 있게 scheduling과 �
 
 ```bash
 python3 scripts/company_role_calibration.py preflight
-python3 scripts/company_role_calibration.py start --runner codex-scheduled
+python3 scripts/company_role_calibration.py start --runner "$HARPER_CALIBRATION_RUNNER"
 python3 scripts/company_role_calibration.py run-sql \
   --calibration-id <id> --sql-file <read-only-sql> --max-rows 100
 python3 scripts/company_role_calibration.py candidate-packet \
@@ -425,7 +432,7 @@ tool을 차례로 쓸 수 있다. 출처가 해소되지 않으면 어느 쪽도
 새 feedback tool의 input도 `roleId` 하나다. Server가 현재 message와 active calibration row의 full
 display profile을 읽어 profile 판단을 구조화하고, 실제 DB write에 필요한 결과만 검증한다.
 
-Scheduled profile feedback용 내부 structured result에는 machine write에 필요한 최소값만 둔다.
+Profile feedback용 내부 structured result에는 machine write에 필요한 최소값만 둔다.
 
 ```json
 {
@@ -479,7 +486,7 @@ agent가 재시도한다.
   바꿀 수 있다.
 - Browser는 `candid`를 직접 query하지 않는다.
 - Service role과 canonical helper만 raw `candid_id`를 읽는다.
-- `testOnly=true` Role은 enqueue, scheduled claim, profile 생성과 Slack 발송에서 모두 제외한다.
+- `testOnly=true` Role은 enqueue, event claim, profile 생성과 Slack 발송에서 모두 제외한다.
 - Calibration 실행은 `talent_opportunity_fit`, recommendation, progress, contact queue와 실제
   candidate pipeline에 쓰지 않는다.
 - 실제 production candidate packet과 SQL artifact는 ignored owner-only directory에만 둔다.
@@ -499,7 +506,11 @@ agent가 재시도한다.
 - `src/app/api/org/role-calibration/route.ts`
   - list/detail GET
 - `scripts/company_role_calibration.py`
-  - scheduled Codex helper
+  - queue-backed Codex helper
+- `scripts/company_role_calibration_listener.py`
+  - host-local DB event listener와 LaunchAgent controller
+- `supabase/migrations/20260908190000_company_role_calibration_notify.sql`
+  - non-sensitive queue-only Postgres wake notification
 
 ### UI
 
@@ -517,7 +528,7 @@ agent가 재시도한다.
 - `src/lib/org/agent/context.ts`
   - compact calibration index
 - `src/lib/org/agent/prompts.ts`
-  - scheduled profile feedback 의미와 tool policy
+  - prepared profile feedback 의미와 tool policy
 - `src/lib/org/agent/roleCalibrationFeedbackPrompt.ts`
   - Good/Bad review output와 Hiring Brief 일반화 계약
 - `src/lib/org/agent/roleCalibrationFeedback.ts`
@@ -588,14 +599,14 @@ Production company-side E2E에 test-only Role을 넣지 않는다. 자동 calibr
 5. Agent compact context와 별도 `record_role_profile_example_feedback` 연결
 6. Profile review + Hiring Brief atomic write
 7. Non-production end-to-end 검증
-8. 12시간 Codex Scheduled 연결 — rollout 시 별도 활성화
+8. DB wake notification과 로컬 event listener 연결 — rollout 시 migration 적용 후 host별 활성화
 
-Trigger와 Scheduled를 켜기 전에는 기존 active Role을 자동 backfill하지 않는다. 첫 release는 새로
+Trigger와 event listener를 켜기 전에는 기존 active Role을 자동 backfill하지 않는다. 첫 release는 새로
 등록되는 Role만 대상으로 하고, 과거 Role calibration은 별도 명시적 작업으로 남긴다.
 
 ## 16. 완료 기준
 
-- 새 Role 등록 뒤 다음 scheduled run에서 3~5명의 profile set이 준비됨
+- 새 Role 등록 뒤 켜져 있는 local listener가 3~5명의 profile set을 준비함
 - 웹과 Slack에서 같은 가상 이름·사진·경력·선택 이유가 보임
 - 웹의 profile 상태는 미평가/Good/Bad로만 표시됨
 - Profile 상세가 desktop의 오른쪽 영역만 덮고 채팅은 계속 사용 가능함

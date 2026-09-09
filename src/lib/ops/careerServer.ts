@@ -30,6 +30,7 @@ import {
   fetchMatchingRecommendationEmailOpenedAtMap,
   getEarliestMatchingViewedAt,
 } from "@/lib/ops/matchingViewedAt";
+import { OPS_ROLE_MEMO_KIND } from "@/lib/ops/talentMemo";
 import type { Database } from "@/types/database.types";
 
 type TalentUserRow = Database["public"]["Tables"]["talent_users"]["Row"];
@@ -129,6 +130,7 @@ export type CareerTalentDetailResponse = {
   preferences: CareerTalentPreferenceSummary | null;
   opsProfileMemo: CareerTalentOpsProfileMemo | null;
   opsProfileMemos: CareerTalentOpsProfileMemo[];
+  opsRoleMemos: CareerTalentOpsRoleMemo[];
 };
 
 export type CareerTalentProfileResponse = {
@@ -166,9 +168,27 @@ export type CareerTalentOpsProfileMemo = {
   createdAt: string | null;
   createdBy: string | null;
   id: string;
+  source: "profile";
   updatedAt: string | null;
   updatedBy: string | null;
 };
+
+export type CareerTalentOpsRoleMemo = {
+  companyName: string | null;
+  content: string;
+  createdAt: string | null;
+  createdBy: string | null;
+  id: string;
+  roleId: string;
+  roleName: string | null;
+  source: "role";
+  updatedAt: null;
+  updatedBy: null;
+};
+
+export type CareerTalentOpsMemo =
+  | CareerTalentOpsProfileMemo
+  | CareerTalentOpsRoleMemo;
 
 export type CareerTalentProfileIngestSource = "linkedin" | "resume";
 
@@ -1565,8 +1585,42 @@ function toCareerTalentOpsProfileMemo(
     content,
     createdAt: typeof row?.created_at === "string" ? row.created_at : null,
     createdBy: typeof row?.created_by === "string" ? row.created_by : null,
+    source: "profile",
     updatedAt: typeof row?.updated_at === "string" ? row.updated_at : null,
     updatedBy: typeof row?.updated_by === "string" ? row.updated_by : null,
+  };
+}
+
+function getFirstRelationRecord(value: unknown) {
+  if (Array.isArray(value)) return asRecord(value[0]);
+  return asRecord(value);
+}
+
+function toCareerTalentOpsRoleMemo(
+  row: Record<string, unknown> | null | undefined
+): CareerTalentOpsRoleMemo | null {
+  const id = normalizeOpsProfileMemoId(row?.id);
+  const roleId = normalizeOpsProfileMemoId(row?.role_id);
+  const content = normalizeOpsProfileMemoContent(row?.text);
+  if (!id || !roleId || !content) return null;
+
+  const role = getFirstRelationRecord(row?.role);
+  const workspace = getFirstRelationRecord(role.workspace);
+
+  return {
+    companyName:
+      typeof workspace.company_name === "string"
+        ? workspace.company_name.trim() || null
+        : null,
+    content,
+    createdAt: typeof row?.created_at === "string" ? row.created_at : null,
+    createdBy: typeof row?.user_id === "string" ? row.user_id : null,
+    id,
+    roleId,
+    roleName: typeof role.name === "string" ? role.name.trim() || null : null,
+    source: "role",
+    updatedAt: null,
+    updatedBy: null,
   };
 }
 
@@ -1608,6 +1662,29 @@ async function fetchCareerTalentOpsProfileMemos(args: {
   return ((data ?? []) as Record<string, unknown>[])
     .map((row) => toCareerTalentOpsProfileMemo(row))
     .filter((memo): memo is CareerTalentOpsProfileMemo => Boolean(memo));
+}
+
+async function fetchCareerTalentOpsRoleMemos(args: {
+  admin: TalentAdminClient;
+  userId: string;
+}): Promise<CareerTalentOpsRoleMemo[]> {
+  const { data, error } = await toUntypedAdmin(args.admin)
+    .from("talent_progress")
+    .select(
+      "id, role_id, text, user_id, created_at, role:company_roles(name, workspace:company_workspace(company_name))"
+    )
+    .eq("talent_id", args.userId)
+    .eq("kind", OPS_ROLE_MEMO_KIND)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load ops role memos");
+  }
+
+  return ((data ?? []) as Record<string, unknown>[])
+    .map((row) => toCareerTalentOpsRoleMemo(row))
+    .filter((memo): memo is CareerTalentOpsRoleMemo => Boolean(memo));
 }
 
 async function fetchCareerTalentOpsProfileMemoPreviewMap(args: {
@@ -1778,9 +1855,10 @@ export async function fetchCareerTalentDetail(
 ): Promise<CareerTalentDetailResponse> {
   const admin = getTalentSupabaseAdmin();
 
-  const [profile, opsProfileMemos] = await Promise.all([
+  const [profile, opsProfileMemos, opsRoleMemos] = await Promise.all([
     fetchTalentUserProfile({ admin, userId }),
     fetchCareerTalentOpsProfileMemos({ admin, userId }),
+    fetchCareerTalentOpsRoleMemos({ admin, userId }),
   ]);
 
   const { data: conversations } = await admin
@@ -1820,6 +1898,7 @@ export async function fetchCareerTalentDetail(
       : null,
     opsProfileMemo: opsProfileMemos[0] ?? null,
     opsProfileMemos,
+    opsRoleMemos,
   };
 }
 

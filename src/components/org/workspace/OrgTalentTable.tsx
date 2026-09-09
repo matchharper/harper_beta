@@ -31,6 +31,7 @@ export type OrgTalentTableRow<Item> = {
   date: string;
   item: Item;
   key: string;
+  memoContextLabel?: string | null;
   memoPreview?: string | null;
   name: string;
   profilePicture?: string | null;
@@ -190,10 +191,23 @@ function OrgTalentMobileList<Item>({
             </div>
             {middleColumn === "memo" ? (
               <div
-                className="mt-1 truncate text-[12px] text-neutral-soft"
-                title={row.memoPreview ?? undefined}
+                className="mt-1 min-w-0 text-neutral-soft"
+                title={
+                  row.memoPreview
+                    ? [row.memoContextLabel, row.memoPreview]
+                        .filter(Boolean)
+                        .join("\n")
+                    : undefined
+                }
               >
-                {row.memoPreview || "메모 없음"}
+                {row.memoContextLabel ? (
+                  <div className="truncate text-[10px] font-medium text-neutral-muted">
+                    {row.memoContextLabel}
+                  </div>
+                ) : null}
+                <div className="truncate text-[12px]">
+                  {row.memoPreview || "메모 없음"}
+                </div>
               </div>
             ) : null}
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -376,12 +390,23 @@ export function OrgTalentTable<Item>({
                 ) : null}
                 {middleColumn === "memo" ? (
                   <td className="px-3 py-3 text-[13px] font-light text-neutral-muted">
-                    <span
-                      className="block truncate"
-                      title={row.memoPreview ?? undefined}
+                    <div
+                      className="min-w-0"
+                      title={
+                        row.memoPreview
+                          ? [row.memoContextLabel, row.memoPreview]
+                              .filter(Boolean)
+                              .join("\n")
+                          : undefined
+                      }
                     >
-                      {row.memoPreview || "-"}
-                    </span>
+                      {row.memoContextLabel ? (
+                        <div className="truncate text-[10px] font-medium leading-4 text-neutral-soft">
+                          {row.memoContextLabel}
+                        </div>
+                      ) : null}
+                      <div className="truncate">{row.memoPreview || "-"}</div>
+                    </div>
                   </td>
                 ) : (
                   <td className="px-3 py-3">

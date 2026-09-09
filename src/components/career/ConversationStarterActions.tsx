@@ -38,7 +38,9 @@ type PendingAction =
     }
   | null;
 
-type ConversationStarterIcon = "sliders-horizontal" | "message-circle-more";
+type ConversationStarterIcon =
+  | "sliders-horizontal"
+  | "message-circle-more";
 
 type ConversationStarterAction = {
   id: CareerConversationStarterId;

@@ -1,8 +1,6 @@
 import {
   Archive,
-  ArchiveX,
   ArrowRight,
-  Ban,
   BriefcaseBusiness,
   ChevronDown,
   ClipboardCheck,
@@ -96,6 +94,7 @@ import {
   type InternalOpportunityDecisionChangeRequest,
 } from "./history/InternalOpportunityDecisionActions";
 import { getHistoryOpportunityBucket } from "@/hooks/career/careerSessionData";
+import CareerJobLinkImportButton from "./history/CareerJobLinkImportButton";
 
 type HistoryTabId = "new" | "saved" | "archived";
 type HistoryDisplayTabId = "new" | "saved" | "hidden" | "archived";
@@ -236,7 +235,14 @@ export const getNegativeActionLabel = (
 export const getOpportunityTypeLabel = (
   item: CareerHistoryOpportunity,
   t?: CareerTHelper
-) => getCareerOpportunityTypeLabel(item.opportunityType, t);
+) =>
+  item.isUserAdded
+    ? (t ?? fallbackCareerT)(
+        "career.history.job_link_import.source_label",
+        // career-i18n-skip-next-line: localized fallback for exported helper.
+        "직접 추가한 공고"
+      )
+    : getCareerOpportunityTypeLabel(item.opportunityType, t);
 
 export const getOpportunityInfoCopy = (
   opportunityType: CareerOpportunityType,
@@ -1986,10 +1992,15 @@ const CareerHistoryPanel = () => {
 
   if (!hasKnownHistoryOpportunities) {
     return (
-      <HistoryEmptyStatePanel
-        onOpenChat={openChatTab}
-        variant={emptyStateVariant}
-      />
+      <div className="flex min-h-full flex-col">
+        <div className="my-4 flex justify-end">
+          <CareerJobLinkImportButton />
+        </div>
+        <HistoryEmptyStatePanel
+          onOpenChat={openChatTab}
+          variant={emptyStateVariant}
+        />
+      </div>
     );
   }
 
@@ -2006,31 +2017,28 @@ const CareerHistoryPanel = () => {
           activeId={activeDisplayTab}
           onChange={handleDisplayTabChange}
         />
-        <Tooltips
-          text={t(
-            "career.common.career_history_panel.archived_tooltip",
-            "제외한 포지션"
-          )}
-        >
-          <BareButton
-            type="button"
-            aria-label={"제외한 포지션"}
-            onClick={() => handleDisplayTabChange("archived")}
-            className={cn(
-              "inline-flex h-7 min-w-7 shrink-0 items-center justify-center gap-1.5 rounded-md border border-neutral-1000-a05 px-2 text-[12px] font-medium transition-colors",
-              activeDisplayTab === "archived"
-                ? "bg-bg-floating text-neutral-primary"
-                : "bg-bg-weak/80 text-neutral-muted hover:bg-bg-floating hover:text-neutral-primary"
+        <div className="flex items-center gap-2">
+          <Tooltips
+            text={t(
+              "career.common.career_history_panel.archived_tooltip",
+              "제외한 포지션"
             )}
           >
-            <Archive className="h-3.5 w-3.5" />
-            {/* {!historyOpportunityCounts.archived ? null : (
-              <span className="hidden min-w-4 text-center md:inline">
-                {historyOpportunityCounts.archived}
-              </span>
-            )} */}
-          </BareButton>
-        </Tooltips>
+            <BareButton
+              type="button"
+              aria-label={"제외한 포지션"}
+              onClick={() => handleDisplayTabChange("archived")}
+              className={cn(
+                "inline-flex h-7 min-w-7 shrink-0 items-center justify-center gap-1.5 rounded-md border border-neutral-1000-a05 px-2 text-[12px] font-medium transition-colors",
+                activeDisplayTab === "archived"
+                  ? "bg-bg-floating text-neutral-primary"
+                  : "bg-bg-weak/80 text-neutral-muted hover:bg-bg-floating hover:text-neutral-primary"
+              )}
+            >
+              <Archive className="h-3.5 w-3.5" />
+            </BareButton>
+          </Tooltips>
+        </div>
       </div>
 
       <div className="relative flex flex-1 flex-col gap-6">
@@ -2147,30 +2155,33 @@ const CareerHistoryPanel = () => {
                 )}
 
                 {activeSavedStatus !== "hidden" ? (
-                  <div className="inline-flex h-9 w-fit items-center rounded-md border border-neutral-1000-a05 bg-bg-weak p-1">
-                    {savedDisplayModeOptions.map((option) => {
-                      const Icon = option.icon;
-                      const active = option.id === savedDisplayMode;
-                      return (
-                        <BareButton
-                          key={option.id}
-                          type="button"
-                          aria-label={option.label}
-                          title={option.label}
-                          onClick={() =>
-                            handleSavedDisplayModeChange(option.id)
-                          }
-                          className={cn(
-                            "inline-flex h-7 w-8 items-center justify-center rounded text-neutral-primary transition-colors",
-                            active
-                              ? "bg-black text-neutral-00"
-                              : "text-neutral-muted hover:bg-bg-floating hover:text-neutral-primary"
-                          )}
-                        >
-                          <Icon className="h-4 w-4" />
-                        </BareButton>
-                      );
-                    })}
+                  <div className="flex w-fit items-center gap-2">
+                    <CareerJobLinkImportButton />
+                    <div className="inline-flex h-9 items-center rounded-md border border-neutral-1000-a05 bg-bg-weak p-1">
+                      {savedDisplayModeOptions.map((option) => {
+                        const Icon = option.icon;
+                        const active = option.id === savedDisplayMode;
+                        return (
+                          <BareButton
+                            key={option.id}
+                            type="button"
+                            aria-label={option.label}
+                            title={option.label}
+                            onClick={() =>
+                              handleSavedDisplayModeChange(option.id)
+                            }
+                            className={cn(
+                              "inline-flex h-7 w-8 items-center justify-center rounded text-neutral-primary transition-colors",
+                              active
+                                ? "bg-black text-neutral-00"
+                                : "text-neutral-muted hover:bg-bg-floating hover:text-neutral-primary"
+                            )}
+                          >
+                            <Icon className="h-4 w-4" />
+                          </BareButton>
+                        );
+                      })}
+                    </div>
                   </div>
                 ) : null}
               </div>

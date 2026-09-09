@@ -4,15 +4,15 @@ import { cx, opsTheme } from "@/components/ops/theme";
 import { BareButton } from "@/components/ui/button";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 import { useCreateOpsCareerProfileMemo } from "@/hooks/ops/useOpsCareer";
-import type { CareerTalentOpsProfileMemo } from "@/lib/ops/careerServer";
+import type { CareerTalentOpsMemo } from "@/lib/ops/careerServer";
 import { formatKst } from "./utils";
 
 type OpsProfileMemoFeedProps = {
-  memos: CareerTalentOpsProfileMemo[];
+  memos: CareerTalentOpsMemo[];
   userId: string;
 };
 
-function getMemoTimestamp(memo: CareerTalentOpsProfileMemo) {
+function getMemoTimestamp(memo: CareerTalentOpsMemo) {
   return memo.updatedAt ?? memo.createdAt;
 }
 
@@ -47,12 +47,21 @@ export const OpsProfileMemoFeed = memo(function OpsProfileMemoFeed({
         ) : (
           sortedMemos.map((memo) => (
             <div
-              key={memo.id}
+              key={`${memo.source}:${memo.id}`}
               className="rounded-md border border-neutral-1000-a05 bg-bg-default px-3 py-2"
             >
+              {memo.source === "role" ? (
+                <div className="mb-1 truncate text-[10px] font-medium text-neutral-muted">
+                  {[memo.companyName, memo.roleName]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </div>
+              ) : null}
               <div className="mb-1.5 text-[11px] text-neutral-soft">
                 {formatKst(getMemoTimestamp(memo))}
-                {memo.updatedBy ? ` · ${memo.updatedBy}` : ""}
+                {(memo.updatedBy ?? memo.createdBy)
+                  ? ` · ${memo.updatedBy ?? memo.createdBy}`
+                  : ""}
               </div>
               <div className="whitespace-pre-wrap text-sm leading-6 text-neutral-primary">
                 {memo.content}
@@ -70,7 +79,7 @@ export const OpsProfileMemoFeed = memo(function OpsProfileMemoFeed({
           rows={4}
           maxLength={4000}
           className="min-h-[112px] w-full resize-y rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 py-3 text-sm leading-6 text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a10"
-          placeholder="이 사람에 관련된 메모를 입력하세요."
+          placeholder="이 사람에게 관련된 메모를 남겨주세요."
         />
         <div className="mt-2 flex justify-end">
           <BareButton

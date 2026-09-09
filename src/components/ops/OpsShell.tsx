@@ -1,20 +1,16 @@
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/router";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useOpsInternalDataExclusionStore } from "@/store/useOpsInternalDataExclusionStore";
-import {
-  INTERNAL_EMAIL_DOMAIN,
-  canViewOpsUtm,
-  isInternalEmail,
-} from "@/lib/internalAccess";
+import { canViewOpsUtm, isInternalEmail } from "@/lib/internalAccess";
 import {
   EyeOff,
   KeyRound,
-  Lock,
+  LoaderCircle,
   Plus,
-  ShieldAlert,
   Trash2,
   X,
 } from "lucide-react";
@@ -25,7 +21,8 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { BareButton } from "@/components/ui/button";
+import { BareButton, MuteButton } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 import Face from "../common/Face";
 
@@ -42,6 +39,12 @@ type OpsNavGroup = {
   id: "system" | "matching" | "debugging" | "company";
   label: string;
   items: OpsNavItem[];
+};
+
+const UTM_UUID_ERROR_MESSAGES: Record<string, string> = {
+  invalid: "UUID를 확인해 주세요.",
+  not_configured: "UUID 접근이 설정되지 않았습니다.",
+  rate_limited: "입력 횟수가 너무 많습니다. 잠시 후 다시 시도해 주세요.",
 };
 
 export const OPS_NAV_GROUPS: OpsNavGroup[] = [
@@ -97,6 +100,12 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         label: "UTM",
         matchPrefix: "/ops/utm",
       },
+      {
+        description: "talent 서비스의 연결·활동·유지·전환 지표 확인",
+        href: "/ops/metrics",
+        label: "Talent 지표",
+        matchPrefix: "/ops/metrics",
+      },
     ],
   },
   {
@@ -141,6 +150,12 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         href: "/ops/companies",
         label: "회사 관리",
         matchPrefix: "/ops/companies",
+      },
+      {
+        description: "internal 추천부터 회사 프로세스까지 전환 품질 확인",
+        href: "/ops/debugging/matching",
+        label: "매칭 지표",
+        matchPrefix: "/ops/debugging/matching",
       },
       {
         description: "career 메일 발송·수신 본문 확인",
@@ -211,89 +226,182 @@ function getActiveNavGroup(path: string) {
   );
 }
 
-function LoginGate({
-  authError,
-  authPending,
-  onGoogleLogin,
-}: {
-  authError: string;
-  authPending: boolean;
-  onGoogleLogin: () => void;
-}) {
+function OpsAccessLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className={opsTheme.page}>
-      <div className={opsTheme.backgroundGlow} />
-      <div className="relative flex min-h-svh items-center justify-center px-4">
-        <div className="w-full max-w-md rounded-lg bg-bg-default/90 p-8 shadow-[0_28px_80px_color-mix(in_srgb,var(--color-neutral-1000)_10%,transparent)]">
-          <div className="inline-flex rounded-md bg-bg-weak p-2 text-neutral-primary">
-            <Lock className="h-4 w-4" />
-          </div>
-          <h1 className="mt-4 font-hedvig text-[2rem] text-neutral-primary">
-            Harper Ops
-          </h1>
-          <p className="mt-3 text-sm leading-6 text-neutral-muted">
-            내부 운영 화면입니다.
-          </p>
-          <BareButton
-            type="button"
-            onClick={onGoogleLogin}
-            disabled={authPending}
-            className={cx(opsTheme.buttonPrimary, "mt-6 h-11 w-full")}
+    <div className="min-h-screen bg-bg-default text-neutral-primary">
+      <header className="h-[52px]">
+        <div className="flex h-full items-center px-3 sm:px-8">
+          <Link
+            href="/ops"
+            aria-label="Harper Ops로 이동"
+            className="inline-flex items-center rounded-md px-1 py-1 outline-none transition-opacity hover:opacity-65 focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
           >
-            {authPending ? "로그인 중..." : "Google 로그인"}
-          </BareButton>
-          {authError ? (
-            <div className={cx(opsTheme.errorNotice, "mt-4")}>{authError}</div>
-          ) : null}
+            <Image
+              src="/svgs/logov2.svg"
+              alt="Harper"
+              width={68}
+              height={31}
+              priority
+            />
+          </Link>
         </div>
-      </div>
+      </header>
+      <main className="flex min-h-[calc(100vh-52px)] items-center justify-center px-4 pb-14">
+        <section className="w-full max-w-[400px]">{children}</section>
+      </main>
     </div>
   );
 }
 
-function ForbiddenGate({
-  email,
-  onSignOut,
+function GoogleLoginButton({
+  authPending,
+  onClick,
 }: {
-  email: string | null | undefined;
-  onSignOut: () => void;
+  authPending: boolean;
+  onClick: () => void;
 }) {
   return (
-    <div className={opsTheme.page}>
-      <div className={opsTheme.backgroundGlow} />
-      <div className="relative flex min-h-svh items-center justify-center px-4">
-        <div className="w-full max-w-lg rounded-lg bg-bg-default/90 p-8 shadow-[0_28px_80px_color-mix(in_srgb,var(--color-neutral-1000)_10%,transparent)]">
-          <div className="inline-flex rounded-md bg-critical-faded p-3 text-critical">
-            <ShieldAlert className="h-5 w-5" />
-          </div>
-          <h1 className="mt-4 font-hedvig text-[2.2rem] leading-[0.95] tracking-[-0.07em] text-neutral-primary">
-            접근 불가
-          </h1>
-          <p className="mt-3 text-sm leading-6 text-neutral-muted">
-            현재 로그인한 계정은 내부 운영 도메인이 아닙니다.
-          </p>
-          <div className={cx(opsTheme.panelSoft, "mt-5 px-4 py-3")}>
-            <div className={opsTheme.eyebrow}>Signed In</div>
-            <div className="mt-2 break-all text-sm font-medium text-neutral-primary">
-              {email ?? "-"}
-            </div>
-          </div>
-          <div className={cx(opsTheme.panelSoft, "mt-3 px-4 py-3")}>
-            <div className={opsTheme.eyebrow}>Allowed Domain</div>
-            <div className="mt-2 text-sm font-medium text-neutral-primary">
-              {INTERNAL_EMAIL_DOMAIN}
-            </div>
-          </div>
-          <BareButton
-            type="button"
-            onClick={onSignOut}
-            className={cx(opsTheme.buttonSoft, "mt-6 h-11")}
-          >
-            다른 계정으로 다시 로그인
-          </BareButton>
+    <BareButton
+      type="button"
+      onClick={onClick}
+      disabled={authPending}
+      className="inline-flex w-full items-center justify-center gap-2.5 rounded-full border border-neutral-1000-a05 bg-bg-floating px-4 py-3 text-[14px] font-medium text-neutral-700 shadow-sm transition duration-200 hover:border-neutral-200 hover:shadow-none active:shadow-inner disabled:cursor-not-allowed disabled:opacity-55"
+    >
+      {authPending ? (
+        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <Image
+          src="/images/logos/google.png"
+          alt="Google"
+          width={18}
+          height={18}
+        />
+      )}
+      Google로 로그인
+    </BareButton>
+  );
+}
+
+function LoginGate({
+  allowUtmUuid,
+  authError,
+  authPending,
+  onGoogleLogin,
+  utmUuidError,
+}: {
+  allowUtmUuid: boolean;
+  authError: string;
+  authPending: boolean;
+  onGoogleLogin: () => void;
+  utmUuidError: string;
+}) {
+  return (
+    <OpsAccessLayout>
+      <div className="text-center">
+        <h1 className="text-[18px] font-normal leading-6 tracking-[-0.025em] text-neutral-primary">
+          Harper Ops
+        </h1>
+        <p className="mt-3 text-[14px] font-light leading-5 text-neutral-muted">
+          Harper 내부 운영팀을 위한 공간입니다.
+          <br />
+          아래에서 사내 계정으로 로그인해 주세요.
+        </p>
+        <div className="mt-6">
+          <GoogleLoginButton
+            authPending={authPending}
+            onClick={onGoogleLogin}
+          />
         </div>
+        {authError ? (
+          <p className="mt-3 text-[12px] font-normal leading-5 text-critical">
+            {authError}
+          </p>
+        ) : null}
+        {allowUtmUuid ? (
+          <UtmUuidAccessForm
+            className="mt-6 border-t border-neutral-1000-a05 pt-6 text-left"
+            error={utmUuidError}
+          />
+        ) : null}
       </div>
-    </div>
+    </OpsAccessLayout>
+  );
+}
+
+function ForbiddenGate({
+  allowUtmUuid,
+  email,
+  onSignOut,
+  utmUuidError,
+}: {
+  allowUtmUuid: boolean;
+  email: string | null | undefined;
+  onSignOut: () => void;
+  utmUuidError: string;
+}) {
+  return (
+    <OpsAccessLayout>
+      <div className="text-center">
+        <h1 className="text-[18px] font-normal leading-6 tracking-[-0.025em] text-neutral-primary">
+          접근 권한이 없습니다.
+        </h1>
+        <p className="mt-3 text-[14px] font-light leading-5 text-neutral-muted">
+          {email ? <span className="block break-all">{email}</span> : null}
+          Harper 내부 계정으로 다시 로그인해 주세요.
+        </p>
+        <MuteButton
+          type="button"
+          onClick={onSignOut}
+          className="mt-6 w-full"
+          size="lg"
+          variant="dark"
+        >
+          다른 계정으로 로그인
+        </MuteButton>
+        {allowUtmUuid ? (
+          <UtmUuidAccessForm
+            className="mt-6 border-t border-neutral-1000-a05 pt-6 text-left"
+            error={utmUuidError}
+          />
+        ) : null}
+      </div>
+    </OpsAccessLayout>
+  );
+}
+
+function UtmUuidAccessForm({
+  className,
+  error,
+}: {
+  className?: string;
+  error: string;
+}) {
+  return (
+    <form
+      action="/api/internal/ops/utm/access"
+      className={className}
+      method="post"
+    >
+      <div className="mt-1.5 flex gap-2">
+        <Input
+          autoCapitalize="none"
+          autoComplete="off"
+          className="min-w-0 flex-1 font-mono"
+          id="ops-utm-access-uuid"
+          name="uuid"
+          placeholder="00000000-0000-0000-0000-000000000000"
+          required
+          spellCheck={false}
+          type="password"
+        />
+        <MuteButton className="shrink-0" size="md" type="submit" variant="dark">
+          Enter
+        </MuteButton>
+      </div>
+      {error ? (
+        <div className={cx(opsTheme.errorNotice, "mt-3")}>{error}</div>
+      ) : null}
+    </form>
   );
 }
 
@@ -462,11 +570,51 @@ export default function OpsShell({
   const [authPending, setAuthPending] = useState(false);
   const [authError, setAuthError] = useState("");
   const [exclusionModalOpen, setExclusionModalOpen] = useState(false);
+  const [utmUuidAccess, setUtmUuidAccess] = useState<
+    "checking" | "disabled" | "denied" | "granted"
+  >("checking");
   const secondaryNavRef = useRef<HTMLElement>(null);
 
   const isAllowedUser = isInternalEmail(user?.email);
-  const isUtmOnlyViewer =
+  const isUtmEmailViewer =
     allowUtmViewer && !isAllowedUser && canViewOpsUtm(user?.email);
+  const isUtmOnlyViewer =
+    allowUtmViewer &&
+    !isAllowedUser &&
+    (isUtmEmailViewer || utmUuidAccess === "granted");
+  const utmUuidError =
+    typeof router.query.utmAccessError === "string"
+      ? (UTM_UUID_ERROR_MESSAGES[router.query.utmAccessError] ?? "")
+      : "";
+
+  useEffect(() => {
+    if (authLoading || !allowUtmViewer || isAllowedUser || isUtmEmailViewer) {
+      return;
+    }
+
+    const controller = new AbortController();
+    setUtmUuidAccess("checking");
+    void fetch("/api/internal/ops/utm/access", {
+      cache: "no-store",
+      credentials: "same-origin",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const payload = (await response.json().catch(() => ({}))) as {
+          enabled?: boolean;
+          granted?: boolean;
+        };
+        if (controller.signal.aborted) return;
+        setUtmUuidAccess(
+          payload.granted ? "granted" : payload.enabled ? "denied" : "disabled"
+        );
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setUtmUuidAccess("denied");
+      });
+
+    return () => controller.abort();
+  }, [allowUtmViewer, authLoading, isAllowedUser, isUtmEmailViewer]);
 
   const handleGoogleLogin = useCallback(async () => {
     if (authPending) return;
@@ -534,19 +682,42 @@ export default function OpsShell({
     );
   }
 
+  if (
+    allowUtmViewer &&
+    !isAllowedUser &&
+    !isUtmEmailViewer &&
+    utmUuidAccess === "checking"
+  ) {
+    return (
+      <div className={opsTheme.page}>
+        <div className={opsTheme.backgroundGlow} />
+        <div className="relative flex min-h-svh items-center justify-center text-sm text-neutral-muted">
+          UTM 접근 권한 확인 중...
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
     return (
       <LoginGate
+        allowUtmUuid={allowUtmViewer && utmUuidAccess !== "disabled"}
         authError={authError}
         authPending={authPending}
         onGoogleLogin={() => void handleGoogleLogin()}
+        utmUuidError={utmUuidError}
       />
     );
   }
 
   if (!isAllowedUser && !isUtmOnlyViewer) {
     return (
-      <ForbiddenGate email={user.email} onSignOut={() => void signOut()} />
+      <ForbiddenGate
+        allowUtmUuid={allowUtmViewer && utmUuidAccess !== "disabled"}
+        email={user.email}
+        onSignOut={() => void signOut()}
+        utmUuidError={utmUuidError}
+      />
     );
   }
 

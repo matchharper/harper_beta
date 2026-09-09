@@ -1,6 +1,12 @@
-export type OpsCostProviderId = "claude" | "openai" | "grok" | "exa" | "ec2";
+export type OpsCostProviderId =
+  | "claude"
+  | "openai"
+  | "openrouter"
+  | "grok"
+  | "exa"
+  | "ec2";
 
-export type OpsCreditProviderId = "deepseek" | "aws";
+export type OpsCreditProviderId = "deepseek" | "openrouter" | "aws";
 
 export type OpsCostSourceStatus = "ok" | "not_configured" | "error";
 

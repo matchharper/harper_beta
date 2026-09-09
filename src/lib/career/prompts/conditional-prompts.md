@@ -77,7 +77,7 @@ Action note: ...
 
 Not separate chat-like LLM calls:
 
-- `Conversation Starter`: normal `/api/talent/chat` request with `conversationMode: "preference_update"` or `conversationMode: "match_quality"`. It can stream through the normal chat SSE path.
+- `Conversation Starter`: normal `/api/talent/chat` request with `conversationMode: "preference_update"`, `conversationMode: "match_quality"`, or `conversationMode: "career_check_in"`. It can stream through the normal chat SSE path.
 - `Post-onboarding conversation guide`: a shared block in `buildCareerConversationPromptPlan`, not a separate LLM call or turn-specific scenario prompt. The completion handoff applies it immediately, and later chat/voice turns use recent history to continue without a fixed turn counter.
   - 여기서 post-onboarding은 온보딩 종료 후 첫 opportunity run 완료 전까지를 뜻한다. 이 기간에는 이미 진행 중인 초기 run과 중복되지 않도록 `recommend_job_postings` 호출을 가능한 피한다.
 - Internal opportunity call-request decision: separate JSON LLM, but it does not directly write the first chat reply. The visible call-request message is currently a deterministic template after the decision.

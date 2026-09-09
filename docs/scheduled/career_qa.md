@@ -4,7 +4,7 @@
 - 기준 시간대: KST (`Asia/Seoul`)
 - 결과 저장소: Notion `Debugging Logs`
 - 긴급 알림 채널: Slack `C0BULQ5K5EJ`
-- 마지막 개정: 2026-09-04
+- 마지막 개정: 2026-09-08
 
 ## 1. 이 문서의 역할
 
@@ -207,6 +207,8 @@ QA 실행을 시작한 즉시 실행 시작 시각을 고정한다. 이후 조�
 - 사용자의 최신 수정·선호·거절을 무시하고 과거 정보를 다시 적용한 경우
 - 다른 사용자·회사·대화의 정보가 섞인 경우
 
+내부 기회 수락 뒤의 운영상 사람 확인 절차는 사용자에게 설명하거나 이름 붙이는 제품 단계가 아니다. Daily QA도 사용자 응답에 그 절차를 언급하라고 요구하거나, 그 설명이 없다는 이유로 결함으로 판정하거나, 그 내부 사실을 final-writing context에 넣으라고 제안하지 않는다. 수락 대화는 사용자의 의사가 정확히 기록됐는지와 실제 회사 공유·연결·연락이 발생했는지만 영속 상태로 검증한다. 실제 side effect가 없는데 이미 회사가 프로필을 받았거나 보고 있다고 말한 경우는 문제지만, 아직 일어나지 않은 내부 운영 절차를 사용자에게 공개하지 않은 것은 정상이다.
+
 #### 언어
 
 - 실제로 사용자에게 전달된 chat, recommendation copy, email subject와 본문을 사용자의 발송 당시 유효 언어와 비교한다.
@@ -234,7 +236,7 @@ QA 실행을 시작한 즉시 실행 시작 시각을 고정한다. 이후 조�
 - 회사가 요청하거나 확인한 role 정보와 실제 저장된 role 정보의 불일치
 - 후보자 조회·추천·상태 변경·수락·거절·후속 연락에 대한 잘못된 완료 안내
 - 회사의 명시적 수락 또는 거절이 기대한 상태에 반영됐는지, 응답이 없는 상태를 임의로 수락·거절로 해석하지 않았는지
-- 후보자의 수락만으로 회사에 후보자 정보가 자동 공유되지 않았는지, Harper 사람의 최종 확인 전 개인정보나 이력서가 노출되지 않았는지
+- 후보자의 수락만으로 회사에 후보자 정보가 자동 공유되지 않았는지, 명시적으로 확인된 실제 공유 side effect 전 개인정보나 이력서가 노출되지 않았는지
 - 회사·후보자·role·workspace가 다른 대상과 잘못 연결되지 않았는지
 - internal role의 상태, fit, recommendation, 후보자 응답과 회사-side 진행 상태가 서로 모순되지 않는지
 - 같은 오류가 `/org`와 Slack 중 한 채널에서만 발생하는지
@@ -424,6 +426,17 @@ Notion: 전체 QA 페이지 링크
 - 다른 작업자의 변경을 되돌리거나 덮어쓰기
 
 문제 해결에 위 작업이 필요하면 정확한 대상, 이유, 예상 영향, 안전 절차와 검증 방법을 다음 액션으로 적는다.
+
+### 11.1 운영 DB read-only 조회 안전 규칙
+
+Daily QA의 조회가 production 처리 경로를 바꾸면 안 된다. 특히 Supavisor transaction pool endpoint처럼 여러 client가 backend session을 재사용하는 연결에서는 session-level 설정이 다른 worker transaction으로 누출될 수 있다.
+
+1. Opportunity production DB 조회는 `harper_worker/opp/utils/new_runtime.py`의 `connect_read_only(load_config())`만 사용한다. 이 helper는 transaction pool URL을 전용 session endpoint로 바꾸고, 매 transaction의 첫 statement로 `SET TRANSACTION READ ONLY`를 적용·검증한다.
+2. canonical read-only helper를 import하거나 실행할 수 없으면 해당 DB 범위를 `부분 완료`로 남기고 중단한다. `psycopg.connect`, `psql`, worker의 일반 `connect()`, 임시 connection helper 또는 transaction pool endpoint로 우회하지 않는다.
+3. 조회 전에 실제로 선택된 DB URL의 host, port와 pool mode를 secret 없이 확인한다. opportunity runtime의 `load_config()`는 `DATABASE_URL`보다 `OPPORTUNITY_DATABASE_URL`을 우선할 수 있으므로 일반 `connect()`와 조합하지 않는다.
+4. pooled production connection에서 `SET default_transaction_read_only = on`, `ALTER ROLE ... SET default_transaction_read_only`, `conn.read_only = True`, session-level `SET`·`RESET`·`set_config(..., false)`를 절대 사용하지 않는다. read-only를 켠 뒤 `commit()`하고 연결을 닫는 방식도 금지한다.
+5. 평가·benchmark·QA 스크립트에서 `SET default_transaction_read_only`가 발견되면 실행하지 않는다. canonical helper로 고친 뒤 transaction-pooling regression test를 통과하기 전에는 production capture를 재개하지 않는다.
+6. session-level DB 설정을 잘못 실행했거나 worker에서 `cannot execute ... in a read-only transaction`이 나타나면 QA를 계속하지 않는다. 실행 시각·endpoint·명령 횟수를 보존하고, 모든 queue worker journal과 stuck run/delivery를 확인해 self-induced production incident로 보고한다. production reset, replay, worker restart는 별도 명시적 승인 없이는 하지 않는다.
 
 ## 12. 완료 조건
 

@@ -1,0 +1,269 @@
+{
+  "task": "internal-recommendation-binary",
+  "datasetKind": "reviewed-production-pair-recommendation-challenge-set",
+  "datasetVersion": "v4",
+  "goldVersion": "internal_recommendation_binary_gold_v4",
+  "selectionVersion": "internal_recommendation_binary_selection_v4",
+  "capturedAt": "2026-09-07T08:41:22.230037Z",
+  "caseCount": 41,
+  "scoredCaseCount": 31,
+  "labelDistribution": {
+    "recommend": 12,
+    "ambiguous": 10,
+    "doNotRecommend": 19
+  },
+  "snapshotCutoffDistribution": {
+    "firstStructuredPairEvent": 14,
+    "selectionCaptureNoPriorPairEvent": 26,
+    "manualHistoricalCutoff": 1,
+    "exclusiveUpperBound": true
+  },
+  "source": {
+    "databaseMode": "default_transaction_read_only",
+    "harperBetaRevision": "0df6bfcc7218f5752c06f618790de3672d89a87e",
+    "harperWorkerRevision": "936e1a0bebe83df980dcce4f81407d6e54143cde",
+    "pairEventSources": [
+      "talent_opportunity_recommendation",
+      "talent_progress",
+      "talent_opportunity_tag",
+      "talent_role_activity",
+      "contact_queue",
+      "company_talent_requests"
+    ]
+  },
+  "artifacts": {
+    "readme": {
+      "path": "README.md",
+      "sha256": "f604020be38e1722d1be986359a2ef773343bb1a3c9282c05586ca4ddf31d072",
+      "tracked": true,
+      "containsProductionPII": false
+    },
+    "gold": {
+      "path": "gold-v4.json",
+      "sha256": "706e99245fd39141bb5b6820120952113d9d40a319cca577e60889dac818a7cf",
+      "tracked": true,
+      "containsProductionPII": false
+    },
+    "privateSelection": {
+      "path": "private/selection-v4.json",
+      "sha256": "bb8f1d93e31a7f1ebd0daf0653c0ce9579cfd6b7a272bd1be7a9608004ecf6e2",
+      "tracked": false,
+      "containsProductionPII": true,
+      "requiredMode": "0600"
+    },
+    "privateFixture": {
+      "path": "private/fixture-v4-full-41.json",
+      "sha256": "968230254d4b975a523780feca4c50289ff553dc175aaf02d43d91172d702534",
+      "capturedAt": "2026-09-07T10:55:48.688546Z",
+      "caseCount": 41,
+      "caseIds": [
+        "IRB001",
+        "IRB002",
+        "IRB003",
+        "IRB004",
+        "IRB005",
+        "IRB007",
+        "IRB008",
+        "IRB009",
+        "IRB010",
+        "IRB011",
+        "IRB012",
+        "IRB013",
+        "IRB014",
+        "IRB015",
+        "IRB016",
+        "IRB017",
+        "IRB018",
+        "IRB019",
+        "IRB020",
+        "IRB021",
+        "IRB022",
+        "IRB023",
+        "IRB024",
+        "IRB025",
+        "IRB027",
+        "IRB028",
+        "IRB029",
+        "IRB030",
+        "IRB031",
+        "IRB032",
+        "IRB033",
+        "IRB034",
+        "IRB035",
+        "IRB036",
+        "IRB037",
+        "IRB038",
+        "IRB039",
+        "IRB040",
+        "IRB041",
+        "IRB042",
+        "IRB043"
+      ],
+      "tracked": false,
+      "containsProductionPII": true,
+      "requiredMode": "0600",
+      "filteredAt": "2026-09-07T11:39:25Z",
+      "derivedFrom": "private/fixture-v3-full-42.json; removed IRB006 and changed IRB011 anchor from Config Head of Robotics Systems to Config Forward-Deployed Engineer while preserving the pre-recommendation snapshot"
+    },
+    "previousPartialPrivateFixture": {
+      "path": "private/fixture-v3-irb024-025-027-028.json",
+      "sha256": "10de47f1139e60db98cf428ac1dd8284481100d50d7d8a58a5e8fc1209cfaa12",
+      "caseCount": 4,
+      "tracked": false,
+      "containsProductionPII": true,
+      "requiredMode": "0600"
+    },
+    "runner": {
+      "path": "harper_worker/llm_evals/internal_recommendation_binary/eval.py",
+      "sha256": "21d908738dc9a946a3056541507efcf156472caa2def9510eff4eecc7071d6d0",
+      "tracked": true,
+      "containsProductionPII": false
+    },
+    "selectionValidator": {
+      "path": "harper_worker/llm_evals/internal_recommendation_binary/validate_selection.py",
+      "sha256": "37c949c3576c028da17c97b0b1b2bc99884ec9d1cb113cfa66ed922cbb657e79",
+      "tracked": true,
+      "containsProductionPII": false
+    },
+    "modelTransport": {
+      "path": "harper_worker/llm_evals/model_benchmark/llm_model_benchmark.py",
+      "sha256": "b08fa5e2a4c7de5f7390c68a2a9d4b2543d2b17d279a8327b539788b2cd4fff4",
+      "tracked": true,
+      "containsProductionPII": false
+    },
+    "previousFullPrivateFixture": {
+      "path": "private/fixture-v3-full-42.json",
+      "sha256": "c75456fdae6c293bd5e1b54a29626a3fc49e6d14786f0280d7b775e86b99a69d",
+      "capturedAt": "2026-09-07T10:55:48.688546Z",
+      "caseCount": 42,
+      "caseIds": [
+        "IRB001",
+        "IRB002",
+        "IRB003",
+        "IRB004",
+        "IRB005",
+        "IRB006",
+        "IRB007",
+        "IRB008",
+        "IRB009",
+        "IRB010",
+        "IRB011",
+        "IRB012",
+        "IRB013",
+        "IRB014",
+        "IRB015",
+        "IRB016",
+        "IRB017",
+        "IRB018",
+        "IRB019",
+        "IRB020",
+        "IRB021",
+        "IRB022",
+        "IRB023",
+        "IRB024",
+        "IRB025",
+        "IRB027",
+        "IRB028",
+        "IRB029",
+        "IRB030",
+        "IRB031",
+        "IRB032",
+        "IRB033",
+        "IRB034",
+        "IRB035",
+        "IRB036",
+        "IRB037",
+        "IRB038",
+        "IRB039",
+        "IRB040",
+        "IRB041",
+        "IRB042",
+        "IRB043"
+      ],
+      "tracked": false,
+      "containsProductionPII": true,
+      "requiredMode": "0600"
+    }
+  },
+  "adjudication": {
+    "reviewedBy": "product owner with Codex evidence audit",
+    "reviewedAt": "2026-09-07T11:44:30Z",
+    "history": [
+      "Reviewed all 43 Talent x Role pairs against production profile facts and role requirements.",
+      "Replaced five obvious negative controls with five owner-selected no-recommend challenge cases.",
+      "Recorded snapshotCutoffAt for every pair before freezing selection v1.",
+      "Later candidate acceptance, connection, interview, rejection, archive, and offer outcomes are label provenance only, never input.",
+      "Created v3 without overwriting v1 or the superseded v2 intermediate version.",
+      "Removed IRB026 entirely; retained every other v1 bucket and expectedRecommend value.",
+      "Created v4 without overwriting v3.",
+      "Removed IRB006 Jeonghoon Lee x Blockit AI Software Engineer, AI Agents after owner adjudication that its positive gold label was incorrect.",
+      "Changed the IRB011 anchor from Config Head of Robotics Systems to Config Forward-Deployed Engineer within the still-unexecuted v4 working set, preserving the pre-Head-recommendation cutoff and the positive gold label."
+    ]
+  },
+  "runner": {
+    "selectionValidator": "harper_worker/llm_evals/internal_recommendation_binary/validate_selection.py",
+    "fixtureCapture": "harper_worker/llm_evals/internal_recommendation_binary/eval.py capture",
+    "modelRunner": "harper_worker/llm_evals/internal_recommendation_binary/eval.py run",
+    "productionImports": [
+      "internal fit prefilter prompt and normalizer",
+      "internal fit evaluation prompt and normalizer",
+      "prefilter pass cap and second-stage eligibility",
+      "first-stage direct fallback and second-stage recovery contract"
+    ],
+    "productionDependencyHashes": {
+      "harper_worker/opp/utils/internal_fit.py": "07030c749a550f454997de708f6777237058bae15478ac0fa30c5f2b6d0e4c6f",
+      "harper_worker/opp/new_config.py": "e1c7ccf688b98281d80f5e941311843129942632fa0198d5097ca29305ad9b39",
+      "harper_worker/opp/agentic/user_context.py": "f6452e8bbb83ae72897e00c963b7336e93729e1d36a41cb478967692c15db5eb",
+      "harper_worker/opp/experiments/internal_fit_same_company_asof_replay.py": "24b3d4bce22b2a29052d9aa036301778fdcc31b03af1ff23a78aaa86130360fb"
+    },
+    "configurable": [
+      "case IDs",
+      "stage models",
+      "stage reasoning efforts",
+      "stage prompt files",
+      "fallback and repair models",
+      "parallel case count"
+    ]
+  },
+  "privacy": {
+    "rawProductionData": "gitignored private/ only",
+    "privateFileMode": "0600",
+    "externalProviderRun": "No v4 provider run. The v4 fixture was derived locally from the frozen v3 fixture by removing IRB006 and changing IRB011's anchor to Config Forward-Deployed Engineer; the historical v3 provider run remains documented in manifest-v3.json."
+  },
+  "executions": [],
+  "knownLimitations": [
+    "Current profile values may not be substituted when their pre-cutoff state cannot be reconstructed; 26 of 41 cases therefore use a cutoff-safe legacy projection.",
+    "The role and company batch is the current active capture-time batch, not an exact historical role-card replay.",
+    "IRB001 was ended at capture time, so the evaluation-only runner added its current anchor card to the active sibling batch without changing production role eligibility.",
+    "Ambiguous cases are not part of binary precision and recall.",
+    "Z.AI GLM 5.3 Flash does not support OpenRouter strict structured outputs, so runs use json_object plus deterministic normalization and bounded recovery.",
+    "No model run has been recorded against v4; the v3 run is historical reference only.",
+    "This challenge set does not estimate production-population performance."
+  ],
+  "derivedFrom": {
+    "datasetVersion": "v3",
+    "manifest": "manifest-v3.json",
+    "changedAt": "2026-09-07T11:44:30Z",
+    "note": "IRB006 removed; IRB011 anchor changed from Config Head of Robotics Systems to Config Forward-Deployed Engineer with its positive label and pre-recommendation cutoff preserved; all other remaining v3 pairs and labels are unchanged."
+  },
+  "caseChanges": [
+    {
+      "caseId": "IRB006",
+      "action": "removed",
+      "reason": "Owner adjudicated that Jeonghoon Lee x Blockit AI Software Engineer, AI Agents was an incorrect positive gold label; removal avoids replacing one uncertain binary label with another."
+    },
+    {
+      "caseId": "IRB011",
+      "action": "anchor_changed",
+      "fromRole": "Config Head of Robotics Systems",
+      "toRole": "Config Forward-Deployed Engineer",
+      "reason": "Owner adjudicated FDE as the intended positive gold anchor. The candidate's hands-on physical-AI delivery, fleet integration, field deployment, and customer-feedback experience are a more direct match for FDE than the management-heavy Head role."
+    }
+  ],
+  "historicalExecutionReference": {
+    "datasetVersion": "v3",
+    "manifest": "manifest-v3.json",
+    "runId": "20260907T105717.686288Z_prefilter-glm-5.3-flash_second-glm-5.3-flash"
+  },
+  "updatedAt": "2026-09-07T11:44:30Z"
+}

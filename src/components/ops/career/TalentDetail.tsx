@@ -44,7 +44,7 @@ import {
   type TalentProfileResource,
 } from "@/components/profile/TalentProfileHeader";
 import type {
-  CareerTalentOpsProfileMemo,
+  CareerTalentOpsMemo,
   CareerTalentProfileResponse,
 } from "@/lib/ops/careerServer";
 
@@ -84,7 +84,7 @@ function TalentAllFeedTab({
   memos,
   userId,
 }: {
-  memos: CareerTalentOpsProfileMemo[];
+  memos: CareerTalentOpsMemo[];
   userId: string;
 }) {
   return (
@@ -356,10 +356,11 @@ export const TalentDetail = memo(function TalentDetail({
       <div className="p-5">
         {activeTab === "all_feed" ? (
           <TalentAllFeedTab
-            memos={
-              detail.opsProfileMemos ??
-              (detail.opsProfileMemo ? [detail.opsProfileMemo] : [])
-            }
+            memos={[
+              ...(detail.opsProfileMemos ??
+                (detail.opsProfileMemo ? [detail.opsProfileMemo] : [])),
+              ...(detail.opsRoleMemos ?? []),
+            ]}
             userId={detail.userId}
           />
         ) : null}

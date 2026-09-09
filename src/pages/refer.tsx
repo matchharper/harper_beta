@@ -72,6 +72,7 @@ function ReferralProgramPageContent({ locale }: ReferralProgramPageProps) {
 
   return (
     <DocumentPageShell
+      background="basement"
       title={copy.title}
       description={copy.description}
       locale={locale}

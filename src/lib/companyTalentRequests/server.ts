@@ -3,9 +3,11 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "crypto";
 import { buildOrgHref } from "@/lib/org/routes";
 import { assertSafeProfessionalQuestion } from "@/lib/companyTalentRequests/policy";
+import { humanizeCompanyTalentRequestStatus } from "@/lib/companyTalentRequests/status";
 
 export { assertSafeProfessionalQuestion } from "@/lib/companyTalentRequests/policy";
 export { serializeTalentPendingRequest } from "@/lib/companyTalentRequests/presentation";
+export { humanizeCompanyTalentRequestStatus } from "@/lib/companyTalentRequests/status";
 
 type UntypedAdmin = {
   from: (table: string) => any;
@@ -42,7 +44,65 @@ export type CompanyTalentRequestRow = {
   document_id: string | null;
   draft_revision: number;
   created_at: string;
+  talent_source_message_id?: number | null;
 };
+
+type CompanyTalentRequestReadRow = CompanyTalentRequestRow & {
+  deliveries?: Array<{
+    sent_at?: string | null;
+    status?: string | null;
+    type?: string | null;
+  }> | null;
+  role?: {
+    expires_at?: string | null;
+    is_expired?: boolean | null;
+    name?: string | null;
+    status?: string | null;
+  } | null;
+  workspace?: { company_name?: string | null } | null;
+};
+
+function companyRequestRoleIsOpen(row: CompanyTalentRequestReadRow) {
+  const status = normalizedText(row.role?.status, 80);
+  const roleExpiresAt = Date.parse(String(row.role?.expires_at ?? ""));
+  return (
+    !["ended", "deleted"].includes(status) &&
+    row.role?.is_expired !== true &&
+    (!Number.isFinite(roleExpiresAt) || roleExpiresAt > Date.now())
+  );
+}
+
+function companyRequestCandidateEmailWasSent(row: CompanyTalentRequestReadRow) {
+  return Boolean(
+    row.deliveries?.some(
+      (delivery) =>
+        delivery.type === "company_request_candidate_delivery" &&
+        (delivery.status === "sent" ||
+          Number.isFinite(Date.parse(String(delivery.sent_at ?? ""))))
+    ) ||
+    [
+      "awaiting_talent",
+      "relay_queued",
+      "review_required",
+      "delivered",
+    ].includes(row.workflow_status)
+  );
+}
+
+function companyRequestStillActive(
+  row: CompanyTalentRequestReadRow,
+  awaitingTalentOnly: boolean
+) {
+  const hasResponse = Boolean(row.talent_source_message_id || row.document_id);
+  const candidateEmailSent = companyRequestCandidateEmailWasSent(row);
+  if (awaitingTalentOnly) {
+    return candidateEmailSent && !hasResponse && companyRequestRoleIsOpen(row);
+  }
+  const expiresAt = Date.parse(String(row.expires_at ?? ""));
+  return candidateEmailSent
+    ? companyRequestRoleIsOpen(row)
+    : !Number.isFinite(expiresAt) || expiresAt > Date.now();
+}
 
 export type EnqueuedCompanyTalentRequest = CompanyTalentRequestRow & {
   candidateDeliveryScheduledAt: string;
@@ -219,6 +279,7 @@ export async function scheduleCompanyTalentContact(args: {
 
 export async function fetchCompanyTalentContactDraftsForScope(args: {
   admin: UntypedAdmin;
+  contactIds?: string[];
   conversationId: string;
   slackThreadId?: string | null;
   workspaceId: string;
@@ -231,11 +292,18 @@ export async function fetchCompanyTalentContactDraftsForScope(args: {
     .eq("company_workspace_id", args.workspaceId)
     .eq("workflow_status", "draft")
     .gt("expires_at", new Date().toISOString())
-    .order("created_at", { ascending: false })
-    .limit(3);
-  query = args.slackThreadId
-    ? query.eq("source_message.slack_thread_id", args.slackThreadId)
-    : query.eq("source_message.conversation_id", args.conversationId);
+    .order("created_at", { ascending: false });
+  const contactIds = Array.from(
+    new Set(
+      (args.contactIds ?? []).map((value) => value.trim()).filter(Boolean)
+    )
+  );
+  query =
+    contactIds.length > 0
+      ? query.in("id", contactIds)
+      : args.slackThreadId
+        ? query.eq("source_message.slack_thread_id", args.slackThreadId)
+        : query.eq("source_message.conversation_id", args.conversationId);
   const { data, error } = await query;
   if (error) throw error;
   return (data ?? []).map((value: any) => ({
@@ -349,27 +417,28 @@ export async function fetchActiveCompanyTalentRequest(args: {
   talentId: string;
 }) {
   const statuses = args.awaitingTalentOnly
-    ? ["awaiting_talent"]
+    ? ["awaiting_talent", "closed"]
     : [...COMPANY_TALENT_REQUEST_ACTIVE_STATUSES];
   let query = args.admin
     .from("company_talent_requests")
     .select(
-      "id, company_workspace_id, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, role:company_roles!inner(name), workspace:company_workspace!inner(company_name)"
+      "id, company_workspace_id, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, talent_source_message_id, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, deliveries:contact_queue(sent_at, status, type), role:company_roles!inner(name, status, is_expired, expires_at), workspace:company_workspace!inner(company_name)"
     )
     .eq("talent_id", args.talentId)
     .in("workflow_status", statuses)
-    .gt("expires_at", new Date().toISOString())
     .order("created_at", { ascending: false })
-    .limit(1);
+    .limit(args.requestId ? 1 : 30);
   if (args.requestId) query = query.eq("id", args.requestId);
-  const { data, error } = await query.maybeSingle();
+  const { data, error } = await query;
   if (error) throw error;
-  return data as
-    | (CompanyTalentRequestRow & {
-        role?: { name?: string | null } | null;
-        workspace?: { company_name?: string | null } | null;
-      })
-    | null;
+  const rows = (
+    Array.isArray(data) ? data : []
+  ) as CompanyTalentRequestReadRow[];
+  return (
+    rows.find((row) =>
+      companyRequestStillActive(row, args.awaitingTalentOnly === true)
+    ) ?? null
+  );
 }
 
 export async function fetchActiveCompanyTalentRequests(args: {
@@ -379,7 +448,7 @@ export async function fetchActiveCompanyTalentRequests(args: {
   talentId: string;
 }) {
   const statuses = args.awaitingTalentOnly
-    ? ["awaiting_talent"]
+    ? ["awaiting_talent", "closed"]
     : [...COMPANY_TALENT_REQUEST_ACTIVE_STATUSES];
   const limit =
     typeof args.limit === "number" && Number.isFinite(args.limit)
@@ -388,20 +457,18 @@ export async function fetchActiveCompanyTalentRequests(args: {
   const { data, error } = await args.admin
     .from("company_talent_requests")
     .select(
-      "id, company_workspace_id, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, role:company_roles!inner(name), workspace:company_workspace!inner(company_name)"
+      "id, company_workspace_id, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, talent_source_message_id, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, deliveries:contact_queue(sent_at, status, type), role:company_roles!inner(name, status, is_expired, expires_at), workspace:company_workspace!inner(company_name)"
     )
     .eq("talent_id", args.talentId)
     .in("workflow_status", statuses)
-    .gt("expires_at", new Date().toISOString())
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .limit(Math.min(limit * 3, 90));
   if (error) throw error;
-  return (Array.isArray(data) ? data : []) as Array<
-    CompanyTalentRequestRow & {
-      role?: { name?: string | null } | null;
-      workspace?: { company_name?: string | null } | null;
-    }
-  >;
+  return ((Array.isArray(data) ? data : []) as CompanyTalentRequestReadRow[])
+    .filter((row) =>
+      companyRequestStillActive(row, args.awaitingTalentOnly === true)
+    )
+    .slice(0, limit);
 }
 
 export async function fetchBlockingCompanyTalentRequestForWorkspace(args: {
@@ -413,7 +480,7 @@ export async function fetchBlockingCompanyTalentRequestForWorkspace(args: {
   const { data, error } = await args.admin
     .from("company_talent_requests")
     .select(
-      "id, role_id, expects_document, request_context, workflow_status, expires_at, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, role:company_roles!inner(name), deliveries:contact_queue(scheduled_at, sent_at, status, type)"
+      "id, role_id, expects_document, request_context, workflow_status, expires_at, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, talent_source_message_id, role:company_roles!inner(name), deliveries:contact_queue(scheduled_at, sent_at, status, last_error, payload, type)"
     )
     .eq("company_workspace_id", args.workspaceId)
     .eq("role_id", args.roleId)
@@ -430,14 +497,32 @@ export async function fetchBlockingCompanyTalentRequestForWorkspace(args: {
       scheduled_at?: string | null;
       sent_at?: string | null;
       status?: string | null;
+      last_error?: string | null;
+      payload?: unknown;
       type?: string | null;
     }> | null;
     role?: { name?: string | null } | null;
+    talent_source_message_id?: number | null;
   };
-  const delivery = row.deliveries?.find(
+  const candidateDelivery = row.deliveries?.find(
     (item) => item.type === "company_request_candidate_delivery"
   );
-  const deliveryStatus = normalizedText(delivery?.status, 80);
+  const companyDelivery = row.deliveries?.find(
+    (item) => item.type === "company_request_company_delivery"
+  );
+  const deliveryStatus = normalizedText(candidateDelivery?.status, 80);
+  const candidateDeliveryPayload =
+    candidateDelivery?.payload &&
+    typeof candidateDelivery.payload === "object" &&
+    !Array.isArray(candidateDelivery.payload)
+      ? (candidateDelivery.payload as Record<string, unknown>)
+      : {};
+  const cancellation =
+    candidateDeliveryPayload.cancellation &&
+    typeof candidateDeliveryPayload.cancellation === "object" &&
+    !Array.isArray(candidateDeliveryPayload.cancellation)
+      ? (candidateDeliveryPayload.cancellation as Record<string, unknown>)
+      : {};
   return {
     blocksNewRequest: true,
     cancelable:
@@ -451,10 +536,19 @@ export async function fetchBlockingCompanyTalentRequestForWorkspace(args: {
     requestId: row.id,
     roleId: row.role_id,
     roleName: normalizedText(row.role?.name, 160) || null,
-    scheduledAt: normalizedText(delivery?.scheduled_at, 100) || null,
+    scheduledAt: normalizedText(candidateDelivery?.scheduled_at, 100) || null,
     status: humanizeCompanyTalentRequestStatus({
       ...row,
-      delivery_status: deliveryStatus,
+      candidate_cancellation_source: normalizedText(cancellation.source, 80),
+      candidate_delivery_error: normalizedText(
+        candidateDelivery?.last_error,
+        120
+      ),
+      candidate_delivery_status: deliveryStatus,
+      candidate_sent_at: candidateDelivery?.sent_at,
+      company_delivery_status: normalizedText(companyDelivery?.status, 80),
+      company_sent_at: companyDelivery?.sent_at,
+      has_candidate_response: Boolean(row.talent_source_message_id),
     }),
     topic: normalizedText(row.request_context, 800),
   };
@@ -481,7 +575,7 @@ export function createCompanyTalentResumeUploadToken(args: {
 }) {
   const payload = base64Url(
     JSON.stringify({
-      exp: Math.floor(Date.now() / 1000) + (args.ttlSeconds ?? 14 * 86400),
+      exp: Math.floor(Date.now() / 1000) + (args.ttlSeconds ?? 90 * 86400),
       requestId: args.requestId,
       talentId: args.talentId,
       version: 1,
@@ -638,39 +732,4 @@ export function buildCompanyTalentProfileHref(args: {
     tab: "pipeline",
     view: "pipeline",
   });
-}
-
-export function humanizeCompanyTalentRequestStatus(row: {
-  delivery_status?: string | null;
-  expires_at?: string | null;
-  expects_document?: boolean | null;
-  workflow_status?: string | null;
-}) {
-  const status = row.workflow_status;
-  if (row.delivery_status === "cancelled") return "발송 취소";
-  if (row.delivery_status === "processing") return "발송 중";
-  if (row.delivery_status === "failed") return "발송 실패·재시도 필요";
-  const expiresAt = Date.parse(String(row.expires_at ?? ""));
-  if (
-    Number.isFinite(expiresAt) &&
-    expiresAt <= Date.now() &&
-    [
-      "queued",
-      "awaiting_talent",
-      "relay_queued",
-      "review_required",
-      "closed",
-    ].includes(String(status ?? ""))
-  ) {
-    return "요청 만료";
-  }
-  if (status === "queued") return "전달 준비 중";
-  if (status === "draft") return "발송 문구 확인 중";
-  if (status === "failed") return "발송 실패·재시도 필요";
-  if (status === "awaiting_talent")
-    return row.expects_document ? "연락 완료·자료 대기" : "연락 완료·답변 대기";
-  if (status === "relay_queued") return "답변 수신·전달 준비 중";
-  if (status === "review_required") return "답변 수신·전달 보류";
-  if (status === "delivered") return "회사 전달 완료";
-  return "종료";
 }

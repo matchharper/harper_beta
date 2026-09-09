@@ -590,7 +590,7 @@ async function cleanup() {
     await checked(
       admin
         .from("company_roles")
-        .update({ status: "deleted", updated_at: now })
+        .update({ is_expired: true, status: "deleted", updated_at: now })
         .eq("role_id", SOURCE_ROLE_ID)
         .eq("company_workspace_id", WORKSPACE_ID)
     );

@@ -74,6 +74,8 @@ function makeDailyUserStatsReport(
     negativeFeedbackCount: 0,
     newSignupFourPlusChatDropoffCount: 0,
     newSignupOnboardingCompletedCount: 0,
+    newSignupReferralActivatedCount: 0,
+    newSignupReferralViewedCount: 0,
     newSignupSubmittedCount: 0,
     newVisitorCount: 0,
     onboardingCompletedCount: 0,
@@ -115,6 +117,75 @@ test("referral visit log helpers recognize recorded visits", () => {
   assert.equal(type, "talent_network_referral_visit:referral-token");
   assert.equal(isTalentNetworkReferralVisitLogType(type), true);
   assert.equal(isTalentNetworkReferralVisitLogType("new_visit:career"), false);
+});
+
+test("referral viewers count unique users from the report-day signup cohort", async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:54321";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-key";
+  const { countNewSignupReferralViewedUsers } =
+    await import("@/lib/dailyUserStats");
+
+  const count = countNewSignupReferralViewedUsers({
+    referralInteractionLogs: [
+      { type: "career_referral_viewed", user_id: "new-user-a" },
+      { type: "career_referral_viewed", user_id: "new-user-a" },
+      { type: "career_referral_viewed", user_id: "returning-user" },
+      { type: "career_click_settings_tab_referral", user_id: "new-user-b" },
+      { type: "career_referral_viewed", user_id: "new-user-b" },
+    ],
+    signupUserIds: new Set(["new-user-a", "new-user-b"]),
+  });
+
+  assert.equal(count, 2);
+});
+
+test("referral activation counts new signups whose copied link gets a later visit", async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:54321";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-key";
+  const { countNewSignupReferralActivatedUsers } =
+    await import("@/lib/dailyUserStats");
+
+  const count = countNewSignupReferralActivatedUsers({
+    referralInteractionLogs: [
+      {
+        created_at: "2026-07-22T00:01:00.000Z",
+        type: "career_referral_link_copied",
+        user_id: "new-user-a",
+      },
+      {
+        created_at: "2026-07-22T00:05:00.000Z",
+        type: "career_referral_link_copied",
+        user_id: "new-user-b",
+      },
+      {
+        created_at: "2026-07-22T00:01:00.000Z",
+        type: "career_referral_link_copied",
+        user_id: "returning-user",
+      },
+    ],
+    referralLinks: [
+      { referrer_user_id: "new-user-a", token: "token-a" },
+      { referrer_user_id: "new-user-b", token: "token-b" },
+      { referrer_user_id: "returning-user", token: "token-returning" },
+    ],
+    referralVisitLogs: [
+      {
+        created_at: "2026-07-22T00:03:00.000Z",
+        type: buildTalentNetworkReferralVisitLogType("token-a"),
+      },
+      {
+        created_at: "2026-07-22T00:04:00.000Z",
+        type: buildTalentNetworkReferralVisitLogType("token-b"),
+      },
+      {
+        created_at: "2026-07-22T00:06:00.000Z",
+        type: buildTalentNetworkReferralVisitLogType("token-returning"),
+      },
+    ],
+    signupUserIds: new Set(["new-user-a", "new-user-b"]),
+  });
+
+  assert.equal(count, 1);
 });
 
 test("mail open stats dedupe Resend ids and respect the report cutoff", async () => {
@@ -400,6 +471,8 @@ test("daily Slack stats compare counts by percent and rates by percentage point"
     mailOpenRate: 0.5,
     mailOpenedCount: 40,
     mailTrackedSentCount: 80,
+    newSignupReferralActivatedCount: 2,
+    newSignupReferralViewedCount: 4,
     newSignupSubmittedCount: 87,
     newVisitorCount: 370,
     onboardingCompletedNoEmailUserCount: 8,
@@ -423,6 +496,8 @@ test("daily Slack stats compare counts by percent and rates by percentage point"
     mailOpenRate: 0.61,
     mailOpenedCount: 72,
     mailTrackedSentCount: 118,
+    newSignupReferralActivatedCount: 3,
+    newSignupReferralViewedCount: 7,
     newSignupSubmittedCount: 103,
     newVisitorCount: 446,
     onboardingCompletedNoEmailUserCount: 10,
@@ -444,6 +519,11 @@ test("daily Slack stats compare counts by percent and rates by percentage point"
   assert.match(
     main,
     /신규 가입자 중 제출 완료: 103명\(\+18\.4%\), 가입 대비 78\.6% \(-1\.2%p\)/
+  );
+  assert.match(main, /레퍼럴 확인한 사람 수: 7명\(\+75\.0%\)/);
+  assert.match(
+    main,
+    /레퍼럴 링크 복사 후 해당 링크로 다른 사람이 들어온 사람 수: 3명\(\+50\.0%\)/
   );
   assert.match(main, /회원 탈퇴: 0명\(-100\.0%\)/);
   assert.match(

@@ -348,6 +348,42 @@ async function fetchOpenAiCosts(range: DateRange) {
   }
 }
 
+async function fetchOpenRouterCosts(range: DateRange) {
+  const label = "OpenRouter";
+  const managementKey = process.env.OPENROUTER_MANAGEMENT_API_KEY?.trim();
+  if (!managementKey) {
+    return notConfiguredCost("openrouter", label, [
+      "OPENROUTER_MANAGEMENT_API_KEY",
+    ]);
+  }
+
+  try {
+    const payload = asRecord(
+      await fetchJson(
+        "https://openrouter.ai/api/v1/activity",
+        {
+          headers: {
+            Authorization: `Bearer ${managementKey}`,
+          },
+        },
+        label
+      )
+    );
+    const amounts = new Map<string, number>();
+
+    for (const rawActivity of asArray(payload.data)) {
+      const activity = asRecord(rawActivity);
+      const date = parseDateOnly(asString(activity.date).slice(0, 10));
+      if (!date || date < range.from || date >= range.endExclusive) continue;
+      amounts.set(date, (amounts.get(date) ?? 0) + asNumber(activity.usage));
+    }
+
+    return successfulCost("openrouter", label, pointsFromMap(amounts));
+  } catch (error) {
+    return failedCost("openrouter", label, error);
+  }
+}
+
 async function fetchGrokCosts(range: DateRange) {
   const label = "Grok";
   const managementKey = process.env.XAI_MANAGEMENT_API_KEY?.trim();
@@ -627,6 +663,46 @@ async function fetchDeepSeekCredit(): Promise<OpsCreditProviderResult> {
   }
 }
 
+async function fetchOpenRouterCredit(): Promise<OpsCreditProviderResult> {
+  const label = "OpenRouter";
+  const managementKey = process.env.OPENROUTER_MANAGEMENT_API_KEY?.trim();
+  if (!managementKey) {
+    return notConfiguredCredit("openrouter", label, [
+      "OPENROUTER_MANAGEMENT_API_KEY",
+    ]);
+  }
+
+  try {
+    const payload = asRecord(
+      await fetchJson(
+        "https://openrouter.ai/api/v1/credits",
+        {
+          headers: {
+            Authorization: `Bearer ${managementKey}`,
+          },
+        },
+        label
+      )
+    );
+    const data = asRecord(payload.data);
+    const remainingCredit = Math.max(
+      0,
+      asNumber(data.total_credits) - asNumber(data.total_usage)
+    );
+
+    return {
+      amounts: [{ amount: remainingCredit, currency: "USD" }],
+      id: "openrouter",
+      items: [],
+      label,
+      message: null,
+      status: "ok",
+    };
+  } catch (error) {
+    return failedCredit("openrouter", label, error);
+  }
+}
+
 function isActiveAwsCredit(credit: CreditData, now: Date) {
   if (credit.creditStatus === "DISABLED") return false;
   if (credit.endDate && credit.endDate.getTime() <= now.getTime()) return false;
@@ -733,20 +809,31 @@ async function fetchAwsCredit(): Promise<OpsCreditProviderResult> {
 export async function fetchOpsCosts(
   range: DateRange
 ): Promise<OpsCostResponse> {
-  const [claude, openai, grok, exa, ec2, deepseekCredit, awsCredit] =
-    await Promise.all([
-      fetchClaudeCosts(range),
-      fetchOpenAiCosts(range),
-      fetchGrokCosts(range),
-      fetchExaCosts(range),
-      fetchEc2Costs(range),
-      fetchDeepSeekCredit(),
-      fetchAwsCredit(),
-    ]);
+  const [
+    claude,
+    openai,
+    openrouter,
+    grok,
+    exa,
+    ec2,
+    deepseekCredit,
+    openrouterCredit,
+    awsCredit,
+  ] = await Promise.all([
+    fetchClaudeCosts(range),
+    fetchOpenAiCosts(range),
+    fetchOpenRouterCosts(range),
+    fetchGrokCosts(range),
+    fetchExaCosts(range),
+    fetchEc2Costs(range),
+    fetchDeepSeekCredit(),
+    fetchOpenRouterCredit(),
+    fetchAwsCredit(),
+  ]);
 
   return {
-    costs: [claude, openai, grok, exa, ec2],
-    credits: [deepseekCredit, awsCredit],
+    costs: [claude, openai, openrouter, grok, exa, ec2],
+    credits: [deepseekCredit, openrouterCredit, awsCredit],
     from: range.from,
     generatedAt: new Date().toISOString(),
     through: range.through,

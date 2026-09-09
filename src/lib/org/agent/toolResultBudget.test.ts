@@ -2,8 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   fitOrgAgentToolResultToBudget,
+  ORG_AGENT_MAX_TOTAL_TOOL_RESULT_CHARS,
   ORG_AGENT_TOOL_RESULT_BUDGET_MARKER,
 } from "@/lib/org/agent/toolResultBudget";
+
+test("the organization-agent turn shares an 80,000-character tool-result budget", () => {
+  assert.equal(ORG_AGENT_MAX_TOTAL_TOOL_RESULT_CHARS, 80_000);
+});
 
 test("an exhausted tool-result budget still returns a fixed non-empty incomplete marker", () => {
   const result = fitOrgAgentToolResultToBudget({

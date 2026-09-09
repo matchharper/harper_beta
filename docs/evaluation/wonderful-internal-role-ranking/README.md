@@ -21,5 +21,4 @@ Wonderful Korea의 FDE와 Field CTO를 대상으로 retrieval, reranking, 최종
 
 ## 안전과 한계
 
-Benchmark는 항상 dry-run이며 fit/recommendation/discovery run/메시지/메일을 쓰지 않는다. Protected trait와 source outcome leakage를 사용하지 않는다. Production에 clone role을 만들게 되는 실행은 `testOnly`, stable `testFixture`, worker guard를 모두 충족해야 한다. Current-data retrospective에는 outcome 이후 profile 변화가 섞일 수 있으므로 causal backtest로 표현하지 않는다.
-
+Benchmark는 항상 dry-run이며 fit/recommendation/discovery run/메시지/메일을 쓰지 않는다. Production capture는 worker의 canonical `connect_read_only()`만 사용하며 transaction pool endpoint, 일반 worker `connect()`, session-level `default_transaction_read_only`를 사용하지 않는다. Protected trait와 source outcome leakage를 사용하지 않는다. Production에 clone role을 만들게 되는 실행은 `testOnly`, stable `testFixture`, worker guard를 모두 충족해야 한다. Current-data retrospective에는 outcome 이후 profile 변화가 섞일 수 있으므로 causal backtest로 표현하지 않는다.

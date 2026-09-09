@@ -36,6 +36,10 @@ test("role search materializes only ranking fields before FTS", async () => {
     sql,
     /cr\.source_type = 'external'[\s\S]*cw\.external_roles_enabled = true/
   );
+  assert.match(
+    sql,
+    /COALESCE\(cr\.source_provider, ''\) <> 'user_submitted'/
+  );
   assert.doesNotMatch(
     sql.slice(0, materializedBoundary),
     /cr\.description|cr\.summary|cw\.company_description/

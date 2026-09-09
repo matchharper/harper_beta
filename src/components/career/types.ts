@@ -292,6 +292,7 @@ export type CareerHistoryOpportunity = {
   isExpired?: boolean;
   isAccepted: boolean;
   isInternal: boolean;
+  isUserAdded?: boolean;
   internalProgress?: CareerInternalRecommendationProgress | null;
   kind: "match" | "recommendation";
   location: string | null;

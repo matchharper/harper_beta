@@ -60,8 +60,13 @@ test("role and company updates require at least one declared field", () => {
   assert.match(roleBlock, /company talent quality \/ caliber/);
   assert.match(roleBlock, /independent interview threshold/);
   assert.match(roleBlock, /may satisfy the Role and remain below/);
-  assert.match(roleBlock, /Top-tier school, company, program, or core-team evidence/);
+  assert.match(
+    roleBlock,
+    /Top-tier school, company, program, or core-team evidence/
+  );
   assert.match(roleBlock, /actual role and contribution/);
+  assert.match(roleBlock, /One free-form compensation value/);
+  assert.match(roleBlock, /Never split it into minimum, maximum, currency/);
   assert.match(companyBlock, /minProperties: 1/);
   assert.doesNotMatch(companyBlock, /anyOf/);
   assert.doesNotMatch(companyBlock, /required: \["description"\]/);
@@ -83,9 +88,16 @@ test("saved Role Descriptions strip private company-information markers", () => 
 
 test("other role context is available before drafting internal criteria", () => {
   const block = toolBlock("read_other_roles", "set_role_notification");
+  assert.match(block, /lifecycle status/);
+  assert.match(block, /saved compensation range/);
   assert.match(block, /private request/);
+  assert.match(block, /optional compensation proposal/);
   assert.match(block, /before the first internal request or criteria draft/);
-  assert.match(block, /never copy it silently/);
+  assert.match(block, /Never infer analogy from title alone/);
+  assert.match(block, /only after the user's explicit acceptance/);
+  assert.match(stateSource, /description, salary_range, status/);
+  assert.match(stateSource, /salaryRange: text\(role\.salary_range\)/);
+  assert.match(stateSource, /status: text\(role\.status\)/);
 });
 
 test("notification updates require a channel or an assignee", () => {
@@ -130,5 +142,8 @@ test("the ordinary Hiring Brief writer preserves the independent caliber gate", 
   assert.match(block, /Top-tier school/);
   assert.match(block, /company, program, or core-team evidence/);
   assert.match(block, /actual role and contribution/);
-  assert.match(block, /Real-person calibration belongs in calibrate_role_hiring_brief/);
+  assert.match(
+    block,
+    /Real-person calibration belongs in calibrate_role_hiring_brief/
+  );
 });

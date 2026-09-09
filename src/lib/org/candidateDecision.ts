@@ -21,6 +21,10 @@ export function canInitiateOrgCandidateContact(stage: OrgStageId) {
   return !isOrgInternalStage(stage) && stage !== "process_stopped";
 }
 
+export function canCreateOrgCandidateContact(stage: OrgStageId) {
+  return !isOrgInternalStage(stage);
+}
+
 type OrgActiveCompanyPosition = {
   recommendationId: string;
   roleId: string;
@@ -31,6 +35,24 @@ type OrgActiveCompanyPosition = {
 export function currentOrgActiveCompanyPosition<
   T extends OrgActiveCompanyPosition,
 >(positions: readonly T[], roleId: string): T | null {
+  return currentOrgCompanyPosition(positions, roleId, (stage) =>
+    canInitiateOrgCandidateContact(stage)
+  );
+}
+
+export function currentOrgContactableCompanyPosition<
+  T extends OrgActiveCompanyPosition,
+>(positions: readonly T[], roleId: string): T | null {
+  return currentOrgCompanyPosition(positions, roleId, (stage) =>
+    canCreateOrgCandidateContact(stage)
+  );
+}
+
+function currentOrgCompanyPosition<T extends OrgActiveCompanyPosition>(
+  positions: readonly T[],
+  roleId: string,
+  isEligible: (stage: OrgStageId) => boolean
+): T | null {
   const latest =
     positions
       .filter((position) => position.roleId === roleId)
@@ -40,7 +62,7 @@ export function currentOrgActiveCompanyPosition<
           right.recommendationId.localeCompare(left.recommendationId)
       )[0] ?? null;
 
-  return latest && canInitiateOrgCandidateContact(latest.stage) ? latest : null;
+  return latest && isEligible(latest.stage) ? latest : null;
 }
 
 export function canStopOrgCandidateProcess(stage: OrgStageId) {

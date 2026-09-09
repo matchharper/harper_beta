@@ -4,6 +4,10 @@ import { formatMeetingAvailabilitySummary } from "@/lib/meetings/availability";
 export const DEFAULT_INTERVIEW_DURATION_MINUTES = 60;
 export const DEFAULT_MEETING_OFFER_WINDOW_DAYS = 14;
 export const DEFAULT_MEETING_PROVIDER = "google_meet" as const;
+export const RESUMABLE_MEETING_SCHEDULE_STATUSES = [
+  "preparing",
+  "awaiting_talent",
+] as const;
 export const GOOGLE_CALENDAR_MEETING_REQUIREMENT =
   "Google Calendar 연결은 Harper가 인터뷰가 불가능한 일정을 미리 파악해 후보자에게 보여줄 선택지에서 제외하고, 후보자와 회사 참석자를 하나의 미팅으로 초대하는 데 필요해요.";
 
@@ -134,6 +138,30 @@ export type MeetingScheduleDetailResponse = {
 };
 
 export type MeetingScheduleMutationResponse = MeetingScheduleDetailResponse;
+
+export type ExistingMeetingScheduleAction =
+  | "ignore"
+  | "queue_draft"
+  | "revise_draft_and_queue"
+  | "reuse_invitation"
+  | "revise_invitation";
+
+export function resolveExistingMeetingScheduleAction(args: {
+  candidateFacingRevisionRequested: boolean;
+  status: string;
+}): ExistingMeetingScheduleAction {
+  if (args.status === "preparing") {
+    return args.candidateFacingRevisionRequested
+      ? "revise_draft_and_queue"
+      : "queue_draft";
+  }
+  if (args.status === "awaiting_talent") {
+    return args.candidateFacingRevisionRequested
+      ? "revise_invitation"
+      : "reuse_invitation";
+  }
+  return "ignore";
+}
 
 export type MeetingScheduleListItem = {
   candidateName: string;

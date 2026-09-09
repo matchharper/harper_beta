@@ -7270,7 +7270,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          opportunity_id: string
+          opportunity_id: string | null
           tag: string
           talent_id: string
           updated_at: string
@@ -7278,7 +7278,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
-          opportunity_id: string
+          opportunity_id: string | null
           tag: string
           talent_id: string
           updated_at?: string
@@ -7286,7 +7286,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
-          opportunity_id?: string
+          opportunity_id?: string | null
           tag?: string
           talent_id?: string
           updated_at?: string
@@ -7898,6 +7898,15 @@ export type Database = {
         Returns: Json
       }
       apply_company_data_changes_v1: {
+        Args: {
+          p_changes: Json
+          p_event_content: string
+          p_source: string
+          p_workspace_id: string
+        }
+        Returns: Json
+      }
+      apply_company_data_changes_with_role_salary_v1: {
         Args: {
           p_changes: Json
           p_event_content: string

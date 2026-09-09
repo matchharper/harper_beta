@@ -1,3 +1,5 @@
+import { ORG_ROLE_MUTATION_STATUS_VALUES } from "@/lib/org/roleStatus";
+
 /**
  * Logical fields understood by the shared mutation machinery. Some legacy
  * fields remain here for database and response-guard compatibility, but only
@@ -30,6 +32,7 @@ export const COMPANY_DATA_KEYS = [
   "role_description",
   "role_external_jd_url",
   "role_location",
+  "salaryRange",
   "role_status",
   "role_work_mode",
   "role_employment_types",
@@ -65,6 +68,7 @@ export const COMPANY_SIDE_LLM_DATA_KEYS = [
   "role_description",
   "role_external_jd_url",
   "role_location",
+  "salaryRange",
   "role_status",
   "role_work_mode",
   "role_employment_types",
@@ -204,8 +208,9 @@ export const COMPANY_DATA_CATALOG: Record<
   }),
   role_external_jd_url: url(true),
   role_location: text({ maxLength: 300, roleScoped: true }),
+  salaryRange: text({ maxLength: 1_000, roleScoped: true }),
   role_status: {
-    allowedValues: ["top_priority", "active", "paused", "ended", "deleted"],
+    allowedValues: ORG_ROLE_MUTATION_STATUS_VALUES,
     confirmationRequired: false,
     longText: false,
     nullable: false,
@@ -297,6 +302,7 @@ const COMPANY_DATA_LABELS: Record<CompanyDataKey, string> = {
   role_description: "포지션 설명",
   role_external_jd_url: "외부 채용 공고",
   role_location: "포지션 근무지",
+  salaryRange: "보상 범위",
   role_status: "포지션 상태",
   role_work_mode: "근무 방식",
   role_employment_types: "고용 형태",

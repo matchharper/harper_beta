@@ -375,6 +375,30 @@ Memory가 적어 모두 예산 안에 들어가는 사용자는 전부 제공해
 | 추천 이유 설명 | 실제 판단에 사용한 기준·맥락과 기회 정보 |
 | 회사측 조회 | 기존 공유 범위에 허용된 정보만 |
 
+여기서 `talent_contexts` 전체를 모든 기존 `talent_insights` reader에 넘긴다는 뜻은 아니다. `talent_insights`라는 하나의 저장 형태를 여러 소비자가 우연히 같이 읽고 있던 현재 구조를, 소비 목적에 맞는 공통 projection으로 바꾼다.
+
+| 현재 `talent_insights` 소비 경로 | 전환 후 입력 | 전환 원칙 |
+| --- | --- | --- |
+| 채팅·realtime 음성·통화 wrap-up·일반 이메일 agent | 전체 활성 Brief + token 예산 안의 관련 Memory | 원본 agent가 같은 사용자 context 형식을 읽는다. DB 행·embedding·metadata 전체를 prompt에 넣지 않는다. |
+| kickoff·외부 JD 검토·internal opportunity call request·추천/fit worker | 전체 활성 Brief + 해당 역할·작업에 관련된 Memory + 기존 Profile/JD | 한 추천 run에서 공통 context를 한 번 만들고 재사용한다. 역할마다 모든 Memory를 다시 읽지 않는다. |
+| 웹·음성 온보딩 | 전체 활성 Brief + 필요한 Memory + 기존 checklist/대화 | 질문 진행 여부는 기존 coverage가 담당한다. 기존 질문과 연결된 Brief의 선택적 `key`는 이관과 호환에 쓸 수 있지만, 자유 형식 Brief를 고정 key 체계로 되돌리지 않는다. |
+| 이메일 온보딩 progress | 기존 call/checklist progress + 현재 Brief | 모든 Brief를 checklist 응답으로 간주하지 않는다. 연결된 `key`는 이관 기간의 보조 근거일 뿐이고, 일반 이메일 대화에 새 turn별 extractor를 만들지 않는다. |
+| Career 프로필·기존 insights UI/API | 전체 활성 Brief 행 | `label`, `content`, 짧은 `ref`로 표시·수정한다. Memory는 별도 보조 관리 화면과 read 경로에서 다룬다. |
+| Ops 후보 목록·후보 상세 | 우선 전체 활성 Brief | 목록마다 Memory 전체를 싣지 않는다. 업무상 필요한 상세 화면이나 판단 실행에서만 관련 Memory를 추가 조회한다. |
+| 회사측 Harper 정보·자동 소개 | 기존 동의와 공유 범위가 허용한 projection만 | Brief와 Memory 전체를 절대 넘기지 않는다. 기존 연결 `key`는 허용된 과거 필드의 호환에만 사용하고, 자유 형식 label이 비슷하다는 이유로 새 항목을 자동 공유하지 않는다. |
+| 계정 삭제·network claim/계정 병합·사용자 데이터 export | 해당 사용자의 Brief와 Memory 행 전체 | 이것은 prompt 입력이 아니라 소유권과 lifecycle 처리다. 두 collection을 모두 빠짐없이 이동·삭제·내보내야 한다. |
+
+따라서 전체 행을 읽는 경우도 의미가 다르다.
+
+- 사용자측 탐색 기준을 보여 주거나 판단할 때는 **전체 활성 Brief**를 읽는다. 자유 형식 항목이 key가 없다는 이유로 빠지면 안 된다.
+- Memory는 현재 대화나 역할에 필요한 것만 token 예산 안에서 읽고, 필요하면 원본 agent가 공통 read tool로 더 가져온다.
+- 회사측 공유에는 별도의 기존 권한 경계를 적용한다. 사용자측에서 읽을 수 있다는 사실은 회사에 공유해도 된다는 뜻이 아니다.
+- 데이터 이관·삭제·export 같은 lifecycle 작업만 두 collection의 전체 행을 대상으로 한다.
+
+구현 이행 중에는 기존 `key -> content` 형태만 이해하는 reader를 위한 얇은 호환 projection을 둘 수 있다. 이 projection은 `key`가 있는 이관/온보딩 Brief만 표현할 수 있으므로 임시 장치다. 새 자유 형식 Brief를 누락시키는 이 projection을 최종 reader로 남겨 두지 않고, 위 표의 사용자측 reader부터 행 목록 입력으로 전환한다. `talent_insights`와 `talent_contexts`를 계속 이중 저장해 맞추는 구조도 만들지 않는다.
+
+현재 존재하는 post-onboarding `refresh-insights`류 경로는 새 저장소를 자동 채우는 상시 extractor로 바꾸지 않는다. 이관 또는 온보딩 예외에 필요한 범위를 확인한 뒤 종료한다. 일반 대화에서는 대화하는 원본 LLM이 공통 read/write tool을 사용한다.
+
 현재 realtime 음성의 온보딩 후 allowlist에는 일반 프로필/insight 저장 tool이 없다. 새 기능은 tool 정의뿐 아니라 음성 실행·등록 경로에도 연결해야 한다. 채팅에서만 저장되는 상태로 완료하지 않는다.
 
 추천 run에서는 공통 사용자 context를 한 번 준비하고 기존 단계별 입력 구성에 전달한다. 모든 후보 역할마다 전체 Memory를 읽거나 다시 요약하지 않는다. 특정 역할에 추가 근거가 필요할 때만 좁게 더 읽는다.

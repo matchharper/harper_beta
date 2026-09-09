@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   requireInternalApiUser,
-  requireOpsUtmApiUser,
+  requireOpsUtmApiAccess,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
-import { isInternalEmail } from "@/lib/internalAccess";
 import {
   OPS_UTM_DIMENSIONS,
   parseOpsUtmFilters,
@@ -35,8 +34,7 @@ function numberParam(value: string | null, fallback: number) {
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await requireOpsUtmApiUser(req);
-    const access = isInternalEmail(user.email) ? "internal" : "viewer";
+    const access = await requireOpsUtmApiAccess(req);
     const source = req.nextUrl.searchParams.get("source");
     const excludedEmails = req.nextUrl.searchParams.getAll("excludedEmail");
 

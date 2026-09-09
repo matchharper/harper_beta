@@ -114,6 +114,9 @@ export type CareerSidebarContextValue = {
     | CareerHistoryOpportunity
     | null
     | Promise<CareerHistoryOpportunity | null>;
+  onRefreshHistoryOpportunities: (
+    roleId?: string | null
+  ) => void | Promise<void>;
   onChangeInternalHistoryOpportunityDecision: (
     opportunityId: string,
     action: CareerInternalOpportunityDecisionAction,
@@ -272,6 +275,7 @@ export type CareerHistoryContextValue = Pick<
   | "onLoadHistoryOpportunityByRoleId"
   | "onLoadMoreHistoryOpportunities"
   | "onLoadSavedStageHistoryOpportunityPages"
+  | "onRefreshHistoryOpportunities"
   | "onMarkHistoryOpportunityClicked"
   | "onMarkHistoryOpportunityViewed"
   | "onUpdateHistoryOpportunityFeedback"
