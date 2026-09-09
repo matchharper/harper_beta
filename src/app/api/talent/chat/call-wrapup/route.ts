@@ -1,4 +1,4 @@
-import { after, NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   fetchTalentInsights,
@@ -10,6 +10,7 @@ import {
   toTalentMessageResponse,
 } from "@/lib/talentOnboarding/server";
 import {
+  appendCareerCallNoteCreatedNotice,
   buildCareerCallWrapupFallbackFollowUp,
   buildCareerCallWrapupTurnInstruction,
   buildInternalOpportunityCallWrapupInstruction,
@@ -38,14 +39,8 @@ import {
   isInternalOpportunityCallQuestionPlanComplete,
   type InternalOpportunityCallCompletionDisposition,
 } from "@/lib/talentOnboarding/internalOpportunityCallProgress";
-import {
-  isCallNoteId,
-  saveTalentCallNote,
-} from "@/lib/talentOnboarding/callNote";
-import {
-  analyzeTalentCallNote,
-  shouldAnalyzeTalentCallNote,
-} from "@/lib/talentOnboarding/callNoteAnalysis";
+import { isCallNoteId } from "@/lib/talentOnboarding/callNote";
+import { generateTalentCallNoteForWrapup } from "@/lib/talentOnboarding/callNoteGeneration";
 
 type TranscriptEntry = {
   role: "user" | "assistant";
@@ -225,35 +220,41 @@ function buildInternalOpportunityInterruptedFollowUp(args: {
 }
 
 function buildInternalOpportunityFallbackFollowUp(args: {
+  callNoteCreated?: boolean;
   companyName: string;
   completionDisposition: InternalOpportunityCallCompletionDisposition;
   preferredLocale?: string | null;
   roleTitle: string;
 }) {
+  let content: string;
   if (args.completionDisposition === "unanswered") {
-    return careerT(
+    content = careerT(
       args.preferredLocale,
       "career.call.internal_brief_followup",
       "{companyName} {roleTitle} 관련 통화가 조금 짧게 끝난 것 같아요. 연결은 계속 진행 중이고, 더 이야기하고 싶으시면 채팅창의 + 버튼을 통해 통화를 선택해서 다시 진행해주세요.",
       { values: { companyName: args.companyName, roleTitle: args.roleTitle } }
     );
-  }
-
-  if (args.completionDisposition === "partial_answered") {
-    return careerT(
+  } else if (args.completionDisposition === "partial_answered") {
+    content = careerT(
       args.preferredLocale,
       "career.call.internal_partial_completed_followup",
       "{companyName} {roleTitle} 관련 통화는 중간에 종료하셨지만, 필요한 질문에는 응답해주신 것으로 보고 여기서 닫아둘게요. 참여해주셔서 감사합니다. 연결은 계속 진행됩니다.",
       { values: { companyName: args.companyName, roleTitle: args.roleTitle } }
     );
+  } else {
+    content = careerT(
+      args.preferredLocale,
+      "career.call.internal_completed_followup",
+      "{companyName} {roleTitle} 관련해서 들려주신 내용은 회사 측에 전달할 때 잘 반영해둘게요. 연결은 계속 진행 중입니다.",
+      { values: { companyName: args.companyName, roleTitle: args.roleTitle } }
+    );
   }
 
-  return careerT(
-    args.preferredLocale,
-    "career.call.internal_completed_followup",
-    "{companyName} {roleTitle} 관련해서 들려주신 내용은 회사 측에 전달할 때 잘 반영해둘게요. 연결은 계속 진행 중입니다.",
-    { values: { companyName: args.companyName, roleTitle: args.roleTitle } }
-  );
+  return appendCareerCallNoteCreatedNotice({
+    callNoteCreated: args.callNoteCreated,
+    content,
+    preferredLocale: args.preferredLocale,
+  });
 }
 
 async function insertFallbackFollowUp(args: {
@@ -446,49 +447,6 @@ export async function POST(request: NextRequest) {
         ? requestTranscript
         : savedTranscript;
     const transcriptStats = summarizeTranscript(resolvedTranscript);
-    if (
-      shouldAnalyzeTalentCallNote({
-        callId,
-        onboardingCompletedAtStart: body.onboardingCompletedAtStart,
-        transcript: resolvedTranscript,
-      })
-    ) {
-      const createCallNoteInBackground = async () => {
-        try {
-          const analysis = await analyzeTalentCallNote({
-            preferredLocale: responseLocale,
-            transcript: resolvedTranscript,
-          });
-          if (!analysis?.shouldCreate) return;
-
-          await saveTalentCallNote({
-            admin: supabase,
-            callId,
-            conversationId,
-            durationSeconds: safeDurationSeconds,
-            endedAt: body.endedAt,
-            keyPoints: analysis.keyPoints,
-            startedAt: body.startedAt,
-            title: analysis.title,
-            transcript: resolvedTranscript,
-            userId: user.id,
-          });
-        } catch (error) {
-          console.error("[call-wrapup] Failed to create call note", {
-            callId,
-            conversationId,
-            error: error instanceof Error ? error.message : String(error),
-            userId: user.id,
-          });
-        }
-      };
-
-      try {
-        after(createCallNoteInBackground);
-      } catch {
-        void createCallNoteInBackground();
-      }
-    }
     const internalQuestionPlanComplete = internalCallRequest
       ? isInternalOpportunityCallQuestionPlanComplete(
           internalCallRequest.questionProgress,
@@ -640,17 +598,43 @@ export async function POST(request: NextRequest) {
         talentInsights: result.talentInsights,
       });
     }
+    const callNoteGeneration = await generateTalentCallNoteForWrapup({
+      admin: supabase,
+      callId,
+      conversationId,
+      durationSeconds: safeDurationSeconds,
+      endedAt: body.endedAt,
+      onboardingCompletedAtStart: body.onboardingCompletedAtStart,
+      preferredLocale: responseLocale,
+      startedAt: body.startedAt,
+      transcript: resolvedTranscript,
+      userId: user.id,
+    });
+    if (callNoteGeneration.status === "failed") {
+      console.error("[call-wrapup] Failed to create call note", {
+        callId,
+        conversationId,
+        error:
+          callNoteGeneration.error instanceof Error
+            ? callNoteGeneration.error.message
+            : String(callNoteGeneration.error),
+        userId: user.id,
+      });
+    }
+    const callNoteCreated = callNoteGeneration.status === "created";
     const inferredOnboardingDone =
       Boolean(talentSetting?.is_onboarding_done) ||
       conversation.data?.stage === "completed";
     const fallbackFollowUpText = internalCallRequest
       ? buildInternalOpportunityFallbackFollowUp({
+          callNoteCreated,
           companyName: internalCallRequest.companyName,
           completionDisposition: internalCompletionDisposition ?? "unanswered",
           preferredLocale: responseLocale,
           roleTitle: internalCallRequest.roleTitle,
         })
       : buildCareerCallWrapupFallbackFollowUp({
+          callNoteCreated,
           isBrief: briefConversation,
           isOnboardingDone: inferredOnboardingDone,
           preferredLocale: responseLocale,
@@ -670,6 +654,7 @@ export async function POST(request: NextRequest) {
         isMobile,
         proactiveContext: internalCallRequest
           ? buildInternalOpportunityCallWrapupInstruction({
+              callNoteCreated,
               callRequest: internalCallRequest,
               completionDisposition:
                 internalCompletionDisposition ?? "unanswered",
@@ -678,6 +663,7 @@ export async function POST(request: NextRequest) {
               transcript: resolvedTranscript,
             })
           : buildCareerCallWrapupTurnInstruction({
+              callNoteCreated,
               durationLabel,
               isBrief: briefConversation,
               isOnboardingDone: inferredOnboardingDone,

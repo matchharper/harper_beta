@@ -2,10 +2,58 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildCareerCallWrapupFallbackFollowUp,
+  buildCareerCallWrapupTurnInstruction,
   buildCareerOpportunityFeedbackFollowUpTurnInstruction,
   buildCareerSessionStartTurnInstruction,
 } from "./lifecyclePrompts";
 import { CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER } from "../types";
+
+test("call wrap-up mentions only a verified saved call note", () => {
+  const baseArgs = {
+    durationLabel: "1분 5초",
+    isBrief: false,
+    isOnboardingDone: true,
+    preferredLocale: "ko",
+    transcript: [{ role: "user" as const, text: "기본급이 중요해요." }],
+  };
+
+  const withoutCallNote = buildCareerCallWrapupTurnInstruction(baseArgs);
+  const withCallNote = buildCareerCallWrapupTurnInstruction({
+    ...baseArgs,
+    callNoteCreated: true,
+  });
+
+  assert.doesNotMatch(withoutCallNote, /successfully saved/);
+  assert.match(withCallNote, /successfully saved/);
+  assert.match(withCallNote, /under Documents in their profile/);
+});
+
+test("call wrap-up fallback appends a localized saved call-note notice", () => {
+  const korean = buildCareerCallWrapupFallbackFollowUp({
+    callNoteCreated: true,
+    isBrief: false,
+    isOnboardingDone: true,
+    preferredLocale: "ko",
+  });
+  const english = buildCareerCallWrapupFallbackFollowUp({
+    callNoteCreated: true,
+    isBrief: false,
+    isOnboardingDone: true,
+    preferredLocale: "en",
+  });
+  const withoutCallNote = buildCareerCallWrapupFallbackFollowUp({
+    isBrief: false,
+    isOnboardingDone: true,
+    preferredLocale: "ko",
+  });
+
+  assert.match(korean, /콜노트로 정리해뒀어요/);
+  assert.match(korean, /프로필의 문서에서 확인/);
+  assert.match(english, /organized this conversation into a call note/);
+  assert.match(english, /under Documents in your profile/);
+  assert.doesNotMatch(withoutCallNote, /콜노트/);
+});
 
 test("session re-engagement uses readable Korean-local times and distinguishes access from prior chat", () => {
   const prompt = buildCareerSessionStartTurnInstruction({

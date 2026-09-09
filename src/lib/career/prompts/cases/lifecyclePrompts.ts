@@ -130,6 +130,7 @@ export function buildCareerSessionStartTurnInstruction(args: {
 }
 
 export function buildCareerCallWrapupTurnInstruction(args: {
+  callNoteCreated?: boolean;
   durationLabel: string | null;
   isBrief: boolean;
   isOnboardingDone?: boolean;
@@ -167,6 +168,14 @@ export function buildCareerCallWrapupTurnInstruction(args: {
     args.isOnboardingDone
       ? "- If the call had useful substance, thank them and say Harper will reflect what they shared in future matching/search."
       : "- Say briefly that Harper still needs a little more basic profile or preference context, and invite the user to continue from here in this chat. Do not imply the user must start another call.",
+    "- Mention a call note only when the verified call-note fact below is present.",
+    ...(args.callNoteCreated
+      ? [
+          "",
+          "Verified call-note fact:",
+          "- A call note for this conversation was successfully saved. Naturally tell the user that Harper organized this conversation into a call note and that they can find it under Documents in their profile.",
+        ]
+      : []),
     "- Do not claim you updated settings/profile state unless the relevant tool was actually called and returned a successful change.",
     "",
     "[Call transcript for this wrap-up]",
@@ -174,32 +183,53 @@ export function buildCareerCallWrapupTurnInstruction(args: {
   ].join("\n");
 }
 
+export function appendCareerCallNoteCreatedNotice(args: {
+  callNoteCreated?: boolean;
+  content: string;
+  preferredLocale?: string | null;
+}) {
+  if (!args.callNoteCreated) return args.content;
+
+  const notice = careerT(
+    args.preferredLocale,
+    "career.call.wrapup_fallback.call_note_created",
+    "이번 대화는 콜노트로 정리해뒀어요. 프로필의 문서에서 확인하실 수 있어요."
+  );
+  return [args.content.trim(), notice].filter(Boolean).join(" ");
+}
+
 export function buildCareerCallWrapupFallbackFollowUp(args: {
+  callNoteCreated?: boolean;
   isBrief: boolean;
   isOnboardingDone?: boolean;
   preferredLocale?: string | null;
 }) {
+  let content: string;
   if (!args.isOnboardingDone) {
-    return careerT(
+    content = careerT(
       args.preferredLocale,
       "career.call.wrapup_fallback.onboarding_remaining",
       "아직 온보딩이 조금 남아 있어요. 통화가 끊긴 지점부터 이 채팅에서 이어서 마무리하면, 그 기준으로 좋은 기회를 찾아드릴게요."
     );
-  }
-
-  if (args.isBrief) {
-    return careerT(
+  } else if (args.isBrief) {
+    content = careerT(
       args.preferredLocale,
       "career.call.wrapup_fallback.brief",
       "오늘은 짧게 이야기 나눴네요. 다음에 편하실 때 조금만 더 들려주시면 그에 맞춰 더 잘 도와드릴게요."
     );
+  } else {
+    content = careerT(
+      args.preferredLocale,
+      "career.call.wrapup_fallback.completed",
+      "좋은 이야기 들려주셔서 감사합니다. 말씀해주신 내용을 바탕으로 만족하실 만한 기회를 잘 골라서 가져와볼게요."
+    );
   }
 
-  return careerT(
-    args.preferredLocale,
-    "career.call.wrapup_fallback.completed",
-    "좋은 이야기 들려주셔서 감사합니다. 말씀해주신 내용을 바탕으로 만족하실 만한 기회를 잘 골라서 가져와볼게요."
-  );
+  return appendCareerCallNoteCreatedNotice({
+    callNoteCreated: args.callNoteCreated,
+    content,
+    preferredLocale: args.preferredLocale,
+  });
 }
 
 type OpportunityFeedbackFollowUpPromptArgs = {
@@ -374,6 +404,7 @@ export function buildInternalOpportunityRealtimeInstruction(
  * Internal 포지션 수락시 추가적인 정보 질문을 위해 voice call을 진행할 때 사용되는 프롬프트
  */
 export function buildInternalOpportunityCallWrapupInstruction(args: {
+  callNoteCreated?: boolean;
   callRequest: InternalOpportunityCallRequest;
   completionDisposition: "full" | "partial_answered" | "unanswered";
   durationLabel: string | null;
@@ -418,6 +449,14 @@ export function buildInternalOpportunityCallWrapupInstruction(args: {
     `- Write one short natural ${outputLanguage} follow-up message for the chat after the call ends.`,
     "- Say the connection is continuing.",
     ...completionGuidance,
+    "- Mention a call note only when the verified call-note fact below is present.",
+    ...(args.callNoteCreated
+      ? [
+          "",
+          "Verified call-note fact:",
+          "- A call note for this conversation was successfully saved. Naturally tell the user that Harper organized this conversation into a call note and that they can find it under Documents in their profile.",
+        ]
+      : []),
     "- No heading, no bullets, 1-3 sentences.",
     "",
     "[Call transcript]",

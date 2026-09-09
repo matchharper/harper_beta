@@ -49,11 +49,11 @@ export function parseTalentCallNoteAnalysis(
   const title = normalizeSingleLine(record.title, MAX_CALL_NOTE_TITLE_LENGTH);
   const keyPoints = Array.isArray(record.key_points)
     ? record.key_points
-        .map((point) =>
-          normalizeSingleLine(point, MAX_CALL_NOTE_KEY_POINT_LENGTH)
-        )
-        .filter(Boolean)
-        .slice(0, 3)
+      .map((point) =>
+        normalizeSingleLine(point, MAX_CALL_NOTE_KEY_POINT_LENGTH)
+      )
+      .filter(Boolean)
+      .slice(0, 3)
     : [];
 
   if (!record.should_create) {
@@ -110,7 +110,7 @@ export async function analyzeTalentCallNote(args: {
       "You decide whether a completed Harper voice call deserves a durable call note.",
       "Use only the transcript as evidence. User lines are the source of truth; Harper lines are context.",
       "Set should_create=false when the user contributed no meaningful information, the call is only greetings or acknowledgements, the audio failed, or the conversation is too thin to be useful later.",
-      "Set should_create=true when the call contains useful career context, preferences, decisions, questions, commitments, or next steps worth reviewing later.",
+      "Set should_create=true when the call contains useful career context, preferences, decisions, questions, mock interviews, commitments, or next steps worth reviewing later.",
       "For a saved note, write a specific topic title and 2-3 concise key points. Do not invent facts or repeat the same point.",
       "Match the predominant language of the transcript. The preferred locale is only a fallback hint.",
       "When should_create=false, return an empty title and an empty key_points array.",
