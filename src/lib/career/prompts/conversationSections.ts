@@ -9,10 +9,7 @@ import {
   type OnboardingChecklistLocationContext,
 } from "@/lib/talentOnboarding/insightChecklist";
 import type { ActiveInternalFitHoldQuestion } from "@/lib/talentOnboarding/internalFitHoldQuestion";
-import {
-  CAREER_CANONICAL_TALENT_INSIGHT_SLOTS,
-  CAREER_HARPER_LINK_OUTPUT_RULE,
-} from "@/lib/career/prompts/rawPrompts";
+import { CAREER_HARPER_LINK_OUTPUT_RULE } from "@/lib/career/prompts/rawPrompts";
 import {
   cleanCareerPromptInlineValue,
   formatCareerPromptCompactDateTime,
@@ -74,64 +71,14 @@ function normalizePromptChecklistCoverage(
   return normalized;
 }
 
-/** 온보딩 완료 후 메인 대화에 넣는 저장된 future-matching memory 블록을 만든다. */
-export function buildKnownFutureMatchingInsightsSection(args: {
-  content: Record<string, string> | null;
-  quoteKeys?: boolean;
-}) {
-  const goodToRememberInsights: { key: string; label: string }[] = [
-    {
-      key: "external_delivery_selectivity",
-      label:
-        "ex. 진짜 확실히 핏이 맞는 기회만 가끔 추천받고 싶어요. 처럼 외부 기회 추천 기준을 명시하는 경우.",
-    },
-    {
-      key: "matching_preference",
-      label:
-        "유저가 직접 이 조건을 추천에 반영해줘.라고 말했지만 다른 insights에 해당하는 key가 없는 경우.",
-    },
-  ];
-  const { content, quoteKeys = false } = args;
-  const insightEntries = Object.entries(content ?? {})
-    .map(([key, value]) => [key, value.trim()] as const)
-    .filter(([, value]) => value.length > 0)
-    .sort(([left], [right]) => left.localeCompare(right));
-  const insightLines = insightEntries.map(
-    ([key, value]) => `- ${renderInsightKey(key, quoteKeys)} : ${value}`
-  );
-
-  if (insightLines.length === 0) return "";
-
-  const remainNudges = goodToRememberInsights
-    .filter((insight) => !insightEntries.some(([key]) => key === insight.key))
-    .map((insight) => `- ${insight.key} : empty (${insight.label})`);
-
-  return [
-    "## Known future-matching insights/preferences",
-    "Saved durable matching memory from talent_insights.content. Use this to understand the user's current preferences, avoid duplicate writes, and merge only genuinely new future-matching updates.",
-    insightLines.join("\n"),
-    remainNudges.length > 0
-      ? `## Good to remember insights\n${remainNudges.join("\n")}`
-      : "",
-  ].join("\n");
-}
-
-/** 온보딩 중 메인 대화에 들어가는 checklist 진행/종료 조건/현재 insight 값을 한 번에 만든다. */
+/** 온보딩 중 메인 대화에 들어가는 checklist 진행/종료 조건을 만든다. */
 export function buildOnboardingRuntimeStateSection(args: {
   checklistContext?: OnboardingChecklistLocationContext;
   checklistCoverage?: OnboardingChecklistCoverage | null;
-  content: Record<string, string> | null;
   quoteKeys?: boolean;
 }) {
-  const {
-    checklistContext,
-    checklistCoverage,
-    content,
-    quoteKeys = false,
-  } = args;
-  const currentContent = content ?? {};
+  const { checklistContext, checklistCoverage, quoteKeys = false } = args;
   const coverage = normalizePromptChecklistCoverage(checklistCoverage);
-  const insightChecklist = getInsightChecklist(checklistContext);
   const onboardingChecklist = getOnboardingQuestionChecklist(checklistContext);
   const requiredAdditionalQuestionKeys =
     getOnboardingAdditionalQuestionKeys(checklistContext);
@@ -144,13 +91,6 @@ export function buildOnboardingRuntimeStateSection(args: {
   const coveredChecklistItems = onboardingChecklist.filter(
     (item) => coverage[item.key] === "covered"
   );
-  const filledInsightCount = Object.values(currentContent).filter(
-    (value) => typeof value === "string" && value.trim().length > 0
-  ).length;
-  const canonicalFilledInsightCount = insightChecklist.filter((item) => {
-    const value = currentContent[item.key];
-    return typeof value === "string" && value.trim().length > 0;
-  }).length;
   const missingRequiredAdditionalQuestionKeys =
     requiredAdditionalQuestionKeys.filter((key) => coverage[key] !== "covered");
   const missingRequiredQuestionKeys = requiredQuestionKeys.filter(
@@ -162,33 +102,16 @@ export function buildOnboardingRuntimeStateSection(args: {
   const isFinalPriorityConfirmationCovered =
     coverage[ONBOARDING_FINAL_CONFIRMATION_KEY] === "covered";
 
-  const checklistKeys = new Set(insightChecklist.map((item) => item.key));
   const checklistLines = [...onboardingChecklist]
     .sort((left, right) => left.priority - right.priority)
     .map((item) => {
-      const insightKeys = getOnboardingQuestionInsightKeys(item);
-      const currentValueLines = insightKeys.map((insightKey) => {
-        const value = currentContent[insightKey]?.trim();
-        return `  - current ${insightKey} insight value: ${value || "(아직 없음)"}`;
-      });
       return [
         `- ${renderInsightKey(item.key, quoteKeys)} (${item.label})`,
         `  - status: ${coverage[item.key] === "covered" ? "covered" : "missing"}`,
         coverage[item.key] !== "covered" &&
           `  - promptHint: ${item.promptHint}`,
-        ...currentValueLines,
       ].join("\n");
     });
-
-  const extraLines = Object.entries(currentContent)
-    .filter(
-      ([key, value]) => !checklistKeys.has(key) && value.trim().length > 0
-    )
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(
-      ([key, value]) =>
-        `- ${renderInsightKey(key, quoteKeys)}\n  - 현재 값: ${value.trim()}`
-    );
 
   const onboardingSummary = [
     "## Onboarding runtime state",
@@ -232,13 +155,6 @@ export function buildOnboardingRuntimeStateSection(args: {
     "## Onboarding Question Checklist",
     "Use missing items and their promptHint as options for the next natural question.",
     checklistLines.join("\n"),
-    "## Current insight values",
-    "- These values help avoid repetition, but they are not the onboarding progress source of truth.",
-    `- Filled insights: ${filledInsightCount}`,
-    `- Filled canonical checklist insights: ${canonicalFilledInsightCount}/${insightChecklist.length}`,
-    extraLines.length > 0
-      ? ["## Other current insights", extraLines.join("\n")].join("\n")
-      : "",
   ]
     .filter((line) => line.trim().length > 0)
     .join("\n");
@@ -264,39 +180,22 @@ export function buildOnboardingRuntimeStateSection(args: {
     .join("\n");
 }
 
-/** insight extraction 전용 prompt에 들어갈 checklist/현재값/coverage 기준 블록을 만든다. */
+/** insight extraction 전용 prompt에 들어갈 checklist/coverage 기준 블록을 만든다. */
 export function buildExtractionInsightChecklistSection(args: {
   checklistContext?: OnboardingChecklistLocationContext;
   checklistCoverage?: OnboardingChecklistCoverage | null;
-  content: Record<string, string> | null;
 }) {
-  const { checklistContext, checklistCoverage, content } = args;
-  const currentContent = content ?? {};
+  const { checklistContext, checklistCoverage } = args;
   const coverage = normalizePromptChecklistCoverage(checklistCoverage);
   const insightChecklist = getInsightChecklist(checklistContext);
   const onboardingChecklist = getOnboardingQuestionChecklist(checklistContext);
-  const canonicalKeys = [...insightChecklist]
-    .sort((left, right) => left.priority - right.priority)
-    .map((item) => `"${item.key}"`);
-  const checklistKeys = new Set(insightChecklist.map((item) => item.key));
   const checklistLines = [...insightChecklist]
     .sort((left, right) => left.priority - right.priority)
-    .map((item) => {
-      const value = currentContent[item.key]?.trim();
-      return `- "${item.key}" (${item.label}): ${item.promptHint}\n  current_value: ${value ? `"${value}"` : "null"}`;
-    });
+    .map((item) => `- "${item.key}" (${item.label})`);
   const onboardingChecklistLines = [...onboardingChecklist]
     .sort((left, right) => left.priority - right.priority)
     .map((item) => {
       const insightKeys = getOnboardingQuestionInsightKeys(item);
-      const currentValueLines = insightKeys
-        .map((insightKey) => {
-          const currentValue = currentContent[insightKey]?.trim();
-          return currentValue
-            ? `  current_${insightKey}_value: "${currentValue}"`
-            : "";
-        })
-        .filter(Boolean);
       return [
         `- "${item.key}" (${item.label})`,
         `  kind: ${item.kind}`,
@@ -304,31 +203,18 @@ export function buildExtractionInsightChecklistSection(args: {
           ? `  insight_keys: ${insightKeys.map((key) => `"${key}"`).join(", ")}`
           : "",
         `  current_status: ${coverage[item.key] === "covered" ? "covered" : "missing"}`,
-        ...currentValueLines,
         `  question hint: ${item.promptHint}`,
       ]
         .filter((line) => line.trim().length > 0)
         .join("\n");
     });
-  const extraLines = Object.entries(currentContent)
-    .filter(
-      ([key, value]) => !checklistKeys.has(key) && value.trim().length > 0
-    )
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, value]) => `- "${key}": "${value.trim()}"`);
-
   return [
-    "## Canonical insight keys",
-    canonicalKeys.join(", "),
-    "## Insight fields and current values",
+    "## Canonical insight fields",
     checklistLines.join("\n"),
     "## Onboarding question checklist coverage",
     "Only output checklist keys that became covered in the given transcript and are not already covered.",
     "A single user reply can cover multiple checklist keys. The next_scope checklist question intentionally covers both next_scope and must_haves; mark next_scope covered when the user substantively answers that combined question, and extract the two insight values separately when both are present. If Harper asked final_priority_confirmation and the user answers with an additional must-have condition, mark final_priority_confirmation covered and extract the condition under the must_haves insight key; must_haves is an insight key, not a separate checklist key.",
     onboardingChecklistLines.join("\n"),
-    extraLines.length > 0
-      ? ["## Other current insights", extraLines.join("\n")].join("\n")
-      : "",
   ]
     .filter((line) => line.trim().length > 0)
     .join("\n");
@@ -545,14 +431,12 @@ function hasCareerResumeContext(profile: CareerPromptProfile | null) {
 export function buildOptionalFollowUpOpportunitiesSection(args: {
   activeInternalFitHoldQuestion?: ActiveInternalFitHoldQuestion | null;
   canRecordInternalFitHoldQuestion: boolean;
-  currentInsightContent: Record<string, string> | null;
   isConversationCompletedOpportunityRunActive?: boolean;
   isOnboardingActive: boolean;
   profile: CareerPromptProfile | null;
 }) {
   if (args.isOnboardingActive) return "";
 
-  const insightContent = args.currentInsightContent ?? {};
   const fitId = args.canRecordInternalFitHoldQuestion
     ? cleanCareerPromptInlineValue(
         args.activeInternalFitHoldQuestion?.fitId,
@@ -565,12 +449,6 @@ export function buildOptionalFollowUpOpportunitiesSection(args: {
         1000
       )
     : "";
-
-  const insightSlotLines = CAREER_CANONICAL_TALENT_INSIGHT_SLOTS.map((slot) => {
-    const currentValue = cleanCareerPromptInlineValue(insightContent[slot.key]);
-    if (currentValue) return null;
-    return `- ${slot.key}: ${slot.label}`;
-  }).filter((line): line is string => Boolean(line));
 
   const hiddenHoldLines =
     fitId && hiddenHoldSummary
@@ -595,15 +473,6 @@ summary: ${hiddenHoldSummary}
 - experience depth: when company/title exists but actual work, ownership, products, or impact are shallow. Example question: 이력을 보면 ~~를 하셨는데/다니셨는데 구체적으로 어떤 제품이나 서비스를 만드셨나요?
 `;
 
-  const canonicalFutureMatchingMemorySlotsLines =
-    insightSlotLines.length > 0
-      ? `
-### Priority 4: Canonical future-matching memory slots
-Use these only for durable future matching memory. Prefer these keys before creating a new talentInsights key; do not store profile-row facts here.
-${insightSlotLines.join("\n")}
-`
-      : "";
-
   const initialSearchWaitingGuidance =
     args.isConversationCompletedOpportunityRunActive === true
       ? `### While Harper's initial post-onboarding opportunity search is running
@@ -624,7 +493,6 @@ ${insightSlotLines.join("\n")}
     hiddenHoldLines,
     resumeNudge,
     questionOpportunitiesLines,
-    canonicalFutureMatchingMemorySlotsLines,
   ]
     .filter((line) => line.trim().length > 0)
     .join("\n");

@@ -348,7 +348,7 @@ export default function RichText({
       data-career-i18n-skip="true"
     >
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[[remarkGfm, { singleTilde: false }]]}
         components={{
           h1: ({ children }) => (
             <h1 className="mt-5 text-base font-semibold leading-6 text-neutral-primary first:mt-0">

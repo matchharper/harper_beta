@@ -1154,7 +1154,8 @@ export const en = {
       "I can share a bit more about my background and experience.",
     "career.common.conversation_starters.1sfi8z4":
       "Speak to Update Preferences",
-    "career.common.conversation_starters.career_check_in": "Share a Recent Update",
+    "career.common.conversation_starters.career_check_in":
+      "Share a Recent Update",
     "career.common.conversation_starters.career_check_in_short":
       "Share a Recent Update",
     "career.common.conversation_starters.career_check_in_message":
@@ -1573,7 +1574,7 @@ export const en = {
     "career.history.job_link_import.cancel": "Cancel",
     "career.history.job_link_import.company_label": "Company",
     "career.history.job_link_import.description":
-      "Choose a status for each posting and save multiple links at once. Harper won't generate recommendation analysis.",
+      "Add any job postings you're interested in. You can save multiple postings at once.",
     "career.history.job_link_import.bulk_help":
       "Paste multiple links into any link field to split them into separate entries. You can save up to 20 at a time.",
     "career.history.job_link_import.details_help":
@@ -1971,7 +1972,7 @@ export const en = {
     "career.profile.career_profile_links_settings_section.0q4dh49":
       "Harper reviews recruiting-related emails from the past two years and organizes confirmed companies, roles, and key stages. It uses this to understand your career history and interests and avoid recommending opportunities you have already applied to.",
     "career.profile.career_profile_links_settings_section.0rr9dvp":
-      "Imported information is saved privately in My Documents and is not shared with companies. Emails without clear evidence of an application are not saved as career history.",
+      "Harper remembers imported information privately and does not share it with companies. Emails without reliable evidence of an application are not remembered.",
     "career.profile.career_profile_links_settings_section.0xqdt60":
       "Checking that your account is securely connected.",
     "career.profile.career_profile_links_settings_section.0z48n2w": "Import",
@@ -2228,12 +2229,13 @@ export const en = {
     "career.profile.personal_info.phone_number": "Phone Number",
     "career.profile.personal_info.title": "Personal Information",
     "career.profile.recruiter_profile.default": "Profile as seen by recruiters",
-    "career.profile.recruiter_profile.named": "How companies see your profile",
+    "career.profile.recruiter_profile.named":
+      "How recruiters see {name}'s profile",
     "career.profile.resume_links.gmail_analysis_failed":
       "We couldn't start importing emails from Gmail. Please try again.",
     "career.profile.resume_links.gmail_analysis_failed_status": "Import failed",
     "career.profile.resume_links.gmail_analysis_queued_toast":
-      "Harper started importing emails from Gmail. The result will appear in My Documents when it's ready.",
+      "Harper started importing emails from Gmail. Once complete, Harper will remember the confirmed career context.",
     "career.profile.resume_links.gmail_analysis_running": "Importing",
     "career.profile.resume_links.gmail_analyze": "Import",
     "career.profile.resume_links.gmail_callback_failed":
@@ -2256,9 +2258,9 @@ export const en = {
     "career.profile.resume_links.gmail_resync": "Import again",
     "career.profile.resume_links.gmail_resync_confirm_action": "Import again",
     "career.profile.resume_links.gmail_resync_confirm_description":
-      "Any edits you made to the current document will be replaced by the newly imported results.",
+      "The Gmail career context Harper already remembers will be updated with the newly imported results.",
     "career.profile.resume_links.gmail_resync_confirm_help":
-      "The saved Gmail career history document will remain, but its contents will be overwritten by the newly imported results.",
+      "Harper will reorganize its memory based on the latest application and interview history confirmed in this import.",
     "career.profile.resume_links.gmail_resync_confirm_title":
       "Import from Gmail again?",
     "career.profile.resume_links.gmail_status_failed":
@@ -2580,7 +2582,15 @@ export const en = {
     "career.settings.email_change.use_another": "Enter a different email",
     "career.tool_policy.acknowledgement_example":
       "Got it. I'll use that condition when looking for fitting opportunities.",
+    "ui.012dime":
+      "If you have designed and operated an LLM evaluation system in production within the past year, tell us about your responsibilities and the metrics you considered most important.",
+    "ui.01qi1bo":
+      "This is a short call to confirm key experience before connecting you with the company.",
     "ui.02og1m4": "You have already applied to this company/role.",
+    "ui.03xvxq9":
+      "Tell us about the scope of your leadership and team size when leading a product ML organization.",
+    "ui.044jtns":
+      "This role involves making product and technical decisions in English with a US team every day. In your recent work, have you led meetings in English or driven complex technical decisions through asynchronous documents? If so, tell us how often and what role you played.",
     "ui.0593ub5": "Continuing your preparation.",
     "ui.074rfeb": "Log In",
     "ui.0bwrzih":
@@ -2589,17 +2599,26 @@ export const en = {
       "You can enter multiple company_roles FTS search keywords separated by commas or line breaks.",
     "ui.0ihe4ni": "Failed to generate SQL.",
     "ui.0ko2085": "Go back home",
+    "ui.0pu9gbv":
+      "Orbit Labs requested your latest resume to review you for the Founding AI Engineer role. You can upload it, say that you don't have an up-to-date version, or decline to share it.",
     "ui.0rrkh2v": "Continue with Harper",
     "ui.0sdad4m": "Failed to generate prompt log.",
     "ui.0sgh1oi": "Seoul National University",
     "ui.0sinjah":
       "## Conversation Starter Tips: Naturally incorporate the sentiment or intent of the phrases/questions below into your opening remarks. Speak in a way that aligns with the instructions and recent conversation context, rather than reading them verbatim.",
+    "ui.0tllcd0": "Internal connection proposal",
+    "ui.0ztll8g":
+      "Are you interested in a role where you also own product decisions on a small team?",
     "ui.0z3ew5y": "Yonsei University",
     "ui.0zrc4ap": "Failed to execute SQL.",
     "ui.11t3ixr": "Harvard",
     "ui.13zozby": "Pusan National University",
     "ui.14kv35j": "Seoul National University of Science and Technology",
     "ui.14n199r": "Sogang University",
+    "ui.15obki3":
+      "This role owns both model quality and user experience for agent features on a small product team.",
+    "ui.163gd3b": "This is a short call to confirm the scope of the lead role.",
+    "ui.16toa1g": "Company request",
     "ui.1787f9e": "Korean",
     "ui.17cp27n": "You can continue after signing up.",
     "ui.18zbgbt": "Stanford",
@@ -2612,6 +2631,10 @@ export const en = {
     "ui.1iz3lr8": "Chung-Ang University",
     "ui.1lcz0wm": "Continue via chat",
     "ui.1lw6ycq": "Korea University",
+    "ui.1mu60r0":
+      "Tell us about a recent experience deploying an agent product to real users.",
+    "ui.1n7du7a":
+      "This is a preview Talent call. You can try the screen without connecting a real call.",
     "ui.1nn4apy":
       "You can enter multiple internal company_roles FTS search keywords separated by commas or line breaks.",
     "ui.1pan83z": "Please recheck the continuation link.",
@@ -2620,6 +2643,40 @@ export const en = {
     "ui.1tk2q9m": "Ewha Womans University",
     "ui.1w4hprp": "Kyung Hee University",
     "ui.1wiix8w": "company_roles FTS search failed",
+    "ui.1xeaoum": "We couldn't delete the message.",
     "ui.1x6ubj9": "Sungkyunkwan University",
+    "career.profile.career_profile_workspace.search_brief_tab": "Search Brief",
+    "career.profile.context.add": "Add",
+    "career.profile.context.add_brief": "Add search criterion",
+    "career.profile.context.add_memory": "Add memory",
+    "career.profile.context.brief_content_placeholder":
+      "Describe the criterion Harper should apply when exploring opportunities.",
+    "career.profile.context.brief_description":
+      "These are the current criteria Harper applies when finding and evaluating opportunities. They aren't shared directly with companies; Harper uses them to find opportunities aligned with your preferences and may mention relevant details when they help introduce you more effectively.",
+    "career.profile.context.brief_empty":
+      "You don't have any search criteria yet.",
+    "career.profile.context.brief_title": "Search Brief",
+    "career.profile.context.cancel": "Cancel",
+    "career.profile.context.content": "Details",
+    "career.profile.context.delete": "Delete",
+    "career.profile.context.delete_description":
+      "This removes the item from your saved criteria.",
+    "career.profile.context.delete_title": "Delete this item?",
+    "career.profile.context.edit": "Edit",
+    "career.profile.context.edit_brief": "Edit search criterion",
+    "career.profile.context.edit_memory": "Edit memory",
+    "career.profile.context.label": "Title",
+    "career.profile.context.label_placeholder":
+      "For example: Preferred location",
+    "career.profile.context.manage": "Manage",
+    "career.profile.context.load_more": "Load more",
+    "career.profile.context.memory_content_placeholder":
+      "Add context you want Harper to remember next time.",
+    "career.profile.context.memory_description":
+      "Context Harper remembers to support future conversations and opportunity decisions.",
+    "career.profile.context.memory_empty": "No saved memories yet.",
+    "career.profile.context.memory_title": "Harper's memory",
+    "career.profile.context.retry": "Try again",
+    "career.profile.context.save": "Save",
   },
 } as const;

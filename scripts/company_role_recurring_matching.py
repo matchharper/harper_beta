@@ -62,6 +62,13 @@ MAX_REEVALUATION_CANDIDATE_SCAN_PER_LANE = 500
 REEVALUATION_MIN_AGE = timedelta(weeks=3)
 DISCOVERY_LANES = {"new", "relocation"}
 REEVALUATION_LABELS = {"hold", "ambiguous"}
+WORKER_BRIEF_LIMIT = 40
+WORKER_BRIEF_CHAR_BUDGET = 8_000
+WORKER_MEMORY_LIMIT = 12
+WORKER_MEMORY_CHAR_BUDGET = 6_000
+WORKER_MEMORY_IMPORTANCE_WEIGHT = 0.65
+WORKER_MEMORY_FRESHNESS_WEIGHT = 0.35
+WORKER_MEMORY_FRESHNESS_HALF_LIFE_DAYS = 180.0
 
 FIT_EVALUATION_CONTRACT_TEXT = """Label을 먼저 정하고 해당 band 안에서 score를 정한다.
 - fit 80~100: 회사-side suitability gate를 통과하고 지금 후보에게 보여 줄 가치가 있으며, 명시적 blocker나 true hold가 없다.
@@ -134,6 +141,54 @@ def stable_hash(value: Any) -> str:
 
 def compact(value: Any, limit: int = 1000) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()[:limit]
+
+
+def search_brief_context_rows(rows: Sequence[Mapping[str, Any]]) -> list[str]:
+    rendered: list[str] = []
+    stored_chars = 0
+    for row in rows:
+        ref = int(row.get("ref") or 0)
+        label = compact(row.get("label"), 160)
+        content = str(row.get("content") or "").strip()
+        if ref and label and content:
+            rendered.append(f"[{ref}] {label}: {content}")
+            stored_chars += len(label) + len(content)
+    if len(rendered) > WORKER_BRIEF_LIMIT:
+        raise ValueError(
+            f"Search Brief exceeds the worker limit of {WORKER_BRIEF_LIMIT} rows"
+        )
+    if stored_chars > WORKER_BRIEF_CHAR_BUDGET:
+        raise ValueError(
+            "Search Brief exceeds the worker character budget of "
+            f"{WORKER_BRIEF_CHAR_BUDGET}"
+        )
+    return rendered
+
+
+def bounded_memory_context_rows(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    selected: list[str] = []
+    used = 0
+    for row in rows[:WORKER_MEMORY_LIMIT]:
+        ref = int(row.get("ref") or 0)
+        content = str(row.get("content") or "").strip()
+        if not ref or not content:
+            continue
+        remaining = WORKER_MEMORY_CHAR_BUDGET - used
+        prefix = f"[{ref}] "
+        prefix_length = len(prefix)
+        if remaining <= prefix_length:
+            break
+        if len(content) + prefix_length > remaining:
+            if not selected:
+                content = content[: max(1, remaining - prefix_length - 1)].rstrip() + "…"
+            else:
+                break
+        line = prefix + content
+        selected.append(line)
+        used += len(line)
+    return selected
 
 
 def resolve_profile_location(profile: Mapping[str, Any], limit: int = 300) -> str:
@@ -1735,24 +1790,57 @@ def candidate_rows(conn: psycopg.Connection, talent_ids: list[str], role_id: str
         "select talent_id, content from public.talent_extras where talent_id = any(%s::uuid[])",
         (ids,),
     )
-    insights = fetch_all(
+    saved_contexts = fetch_all(
         conn,
         """
-        select talent_id, id, content, last_updated_at
-        from public.talent_insights where talent_id = any(%s::uuid[])
-        order by talent_id, last_updated_at desc, id desc
+        select talent_id, id, ref, collection, label, key, content,
+               importance, revision, updated_at
+        from (
+          select
+            ranked.*,
+            row_number() over (
+              partition by talent_id, collection
+              order by
+                case when collection = 'brief' then ref end asc,
+                case when collection = 'memory' then memory_priority end desc,
+                updated_at desc,
+                id desc
+            ) as collection_rank
+          from (
+            select
+              talent_id, id, ref, collection, label, key, content,
+              importance, revision, updated_at,
+              %s::double precision
+                * ((importance::double precision - 1.0) / 2.0)
+              + %s::double precision
+                * power(
+                    0.5::double precision,
+                    greatest(
+                      extract(epoch from (now() - updated_at)) / 86400.0,
+                      0.0
+                    ) / %s::double precision
+                  ) as memory_priority
+            from public.talent_contexts
+            where talent_id = any(%s::uuid[])
+              and deleted_at is null
+              and (
+                collection = 'brief'
+                or (collection = 'memory' and importance between 1 and 3)
+              )
+          ) ranked
+        ) ranked
+        where (collection = 'brief' and collection_rank <= %s)
+           or (collection = 'memory' and collection_rank <= %s)
+        order by talent_id, collection, collection_rank
         """,
-        (ids,),
-    )
-    behavior = fetch_all(
-        conn,
-        """
-        select talent_id, context_text, context_version, context_hash,
-               last_evaluated_at, last_changed_at, builder_version
-        from public.talent_behavior_contexts
-        where talent_id = any(%s::uuid[])
-        """,
-        (ids,),
+        (
+            WORKER_MEMORY_IMPORTANCE_WEIGHT,
+            WORKER_MEMORY_FRESHNESS_WEIGHT,
+            WORKER_MEMORY_FRESHNESS_HALF_LIFE_DAYS,
+            ids,
+            WORKER_BRIEF_LIMIT + 1,
+            WORKER_MEMORY_LIMIT,
+        ),
     )
     activity = fetch_all(
         conn,
@@ -1984,14 +2072,25 @@ def candidate_rows(conn: psycopg.Connection, talent_ids: list[str], role_id: str
         talent_id: format_same_company_role_history(rows)
         for talent_id, rows in by_talent(same_company_role_history_rows).items()
     }
+    saved_contexts_by_talent = by_talent(saved_contexts)
     return {
         "profiles": {str(row["talent_id"]): row for row in profiles},
         "settings": {str(row["talent_id"]): row for row in settings},
         "experiences": by_talent(experiences),
         "educations": by_talent(educations),
         "extras": by_talent(extras),
-        "insights": by_talent(insights),
-        "behavior": {str(row["talent_id"]): row for row in behavior},
+        "searchBrief": {
+            talent_id: search_brief_context_rows(
+                [row for row in rows if row.get("collection") == "brief"]
+            )
+            for talent_id, rows in saved_contexts_by_talent.items()
+        },
+        "relevantMemories": {
+            talent_id: bounded_memory_context_rows(
+                [row for row in rows if row.get("collection") == "memory"]
+            )
+            for talent_id, rows in saved_contexts_by_talent.items()
+        },
         "activity": by_talent(activity),
         "messages": by_talent(messages),
         "emails": by_talent(emails),
@@ -2061,8 +2160,8 @@ def talent_packet_payload(data: Mapping[str, Any], talent_id: str) -> dict[str, 
         "experiences": data["experiences"].get(talent_id, []),
         "educations": data["educations"].get(talent_id, []),
         "extras": data["extras"].get(talent_id, []),
-        "insights": data["insights"].get(talent_id, []),
-        "behaviorContext": data["behavior"].get(talent_id),
+        "searchBrief": data["searchBrief"].get(talent_id, []),
+        "relevantMemories": data["relevantMemories"].get(talent_id, []),
         "recentActivity": data["activity"].get(talent_id, [])[:60],
         "recentUserMessages": data["messages"].get(talent_id, []),
         "recentInboundEmails": data["emails"].get(talent_id, []),
@@ -2099,18 +2198,12 @@ def candidate_input_fingerprint(talent_payload: Mapping[str, Any]) -> str:
     setting = inputs.get("setting") or {}
     if isinstance(setting, dict):
         setting.pop("updated_at", None)
-    behavior = inputs.get("behaviorContext") or {}
-    if isinstance(behavior, dict):
-        inputs["behaviorContext"] = {
-            key: behavior.get(key)
-            for key in ("context_text", "context_hash", "builder_version")
-            if key in behavior
-        }
     for collection_name in (
         "experiences",
         "educations",
         "extras",
-        "insights",
+        "searchBrief",
+        "relevantMemories",
         "recentActivity",
         "recentUserMessages",
         "recentInboundEmails",
@@ -2129,7 +2222,13 @@ def candidate_input_fingerprint(talent_payload: Mapping[str, Any]) -> str:
             # These source timestamps are retained when recency is itself
             # relevant (messages, activity, feedback, stages). Pure row-update
             # timestamps on profile-like facts are not matching evidence.
-            if collection_name in {"experiences", "educations", "extras", "insights"}:
+            if collection_name in {
+                "experiences",
+                "educations",
+                "extras",
+                "searchBrief",
+                "relevantMemories",
+            }:
                 item.pop("updated_at", None)
                 item.pop("last_updated_at", None)
     return stable_hash(inputs)
@@ -2257,10 +2356,6 @@ def render_candidate_evaluation_document(packet: Mapping[str, Any]) -> str:
         _markdown_json(setting),
         "```",
         "",
-        "## 후보자 Behavior Context",
-        "",
-        _markdown_text((talent.get("behaviorContext") or {}).get("context_text")),
-        "",
         "## 경력",
         "",
     ]
@@ -2284,7 +2379,8 @@ def render_candidate_evaluation_document(packet: Mapping[str, Any]) -> str:
     for title, key in (
         ("학력", "educations"),
         ("기타 프로필 정보", "extras"),
-        ("현재 Talent Insights", "insights"),
+        ("현재 Search Brief", "searchBrief"),
+        ("Relevant memories (최대 12개·6,000자)", "relevantMemories"),
         ("최근 Activity", "recentActivity"),
         ("최근 후보자 발화", "recentUserMessages"),
         ("최근 후보자 수신 이메일 답신", "recentInboundEmails"),
@@ -2905,21 +3001,16 @@ def command_upsert_fits(args: argparse.Namespace) -> int:
                         "explorationRecommendable": item["explorationRecommendable"],
                         "evaluatedAt": iso(),
                     }
-                    behavior_version = fetch_one(
-                        conn,
-                        "select context_version from public.talent_behavior_contexts where talent_id = %s::uuid",
-                        (item["talentId"],),
-                    )
                     cur.execute(
                         """
                         insert into public.talent_opportunity_fit (
                           talent_id, opportunity_id, kind, score, label, reason, recommend,
                           reevaluation_criteria, company_criteria_evaluations,
-                          company_side_evaluation_metadata, behavior_context_version,
-                          last_evaluated_at, reevaluation_checked_at
+                          company_side_evaluation_metadata, last_evaluated_at,
+                          reevaluation_checked_at
                         ) values (
                           %s::uuid, %s::uuid, 'codex', %s, %s, %s, %s,
-                          %s::jsonb, %s::jsonb, %s::jsonb, %s,
+                          %s::jsonb, %s::jsonb, %s::jsonb,
                           timezone('utc', now()), timezone('utc', now())
                         )
                         on conflict (talent_id, opportunity_id) do update set
@@ -2931,7 +3022,6 @@ def command_upsert_fits(args: argparse.Namespace) -> int:
                           reevaluation_criteria = excluded.reevaluation_criteria,
                           company_criteria_evaluations = excluded.company_criteria_evaluations,
                           company_side_evaluation_metadata = excluded.company_side_evaluation_metadata,
-                          behavior_context_version = excluded.behavior_context_version,
                           last_evaluated_at = excluded.last_evaluated_at,
                           reevaluation_checked_at = excluded.reevaluation_checked_at
                         returning talent_id, opportunity_id, score, label, recommend, kind,
@@ -2947,7 +3037,6 @@ def command_upsert_fits(args: argparse.Namespace) -> int:
                             json.dumps(item["reevaluationCriteria"]),
                             json.dumps(item["companyCriteriaEvaluations"]),
                             json.dumps(metadata),
-                            (behavior_version or {}).get("context_version"),
                         ),
                     )
                     stored_row = dict(cur.fetchone())

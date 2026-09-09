@@ -1,9 +1,4 @@
-import React, {
-  useEffect,
-  useMemo,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   AwardIcon,
   Building2,
@@ -28,10 +23,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { cn } from "@/lib/utils";
-import {
-  INSIGHT_CHECKLIST_ORDER_MAP,
-  getInsightLabel,
-} from "@/lib/talentOnboarding/insightChecklist";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useCareerMobileChatLauncherVisibility } from "@/components/career/mobile/CareerMobileChatLauncherVisibilityContext";
@@ -76,42 +67,6 @@ type PendingProfileEntryRemoval = {
 };
 
 type CareerT = ReturnType<typeof useCareerT>;
-
-const getProfileRerankingInsights = (t: CareerT) =>
-  [
-    {
-      key: "next_scope",
-      label: t(
-        "career.profile.career_talent_profile_panel.1axs5u2",
-        "다음 역할"
-      ),
-    },
-    {
-      key: "location",
-      label: t(
-        "career.profile.career_talent_profile_panel.00infjs",
-        "근무 지역"
-      ),
-    },
-    {
-      key: "compensation",
-      label: t("career.profile.career_talent_profile_panel.19jif2e", "보상"),
-    },
-    {
-      key: "must_haves",
-      label: t(
-        "career.profile.career_talent_profile_panel.06cga7b",
-        "필수 조건"
-      ),
-    },
-    {
-      key: "deal_breakers",
-      label: t(
-        "career.profile.career_talent_profile_panel.0qip38b",
-        "회피 조건"
-      ),
-    },
-  ] as const;
 
 type MergedTimelineEntry<
   TExperience extends CareerTalentExperience,
@@ -273,17 +228,6 @@ const formatLastUpdated = (value: string | null, locale: Locale) => {
 
 const createClientKey = (prefix: string) =>
   `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
-
-const isLocalhostHostname = (hostname: string) =>
-  hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
-
-const subscribeToLocalhostSnapshot = () => () => {};
-
-const getLocalhostSnapshot = () =>
-  typeof window !== "undefined" &&
-  isLocalhostHostname(window.location.hostname);
-
-const getServerLocalhostSnapshot = () => false;
 
 const createBlankTalentUser = (
   userId?: string | null,
@@ -522,14 +466,7 @@ const CareerTalentProfilePanel = ({
     savedResumeFileName,
     savedResumeStoragePath,
     talentProfile,
-    talentInsights,
-    talentInsightsUpdatedAt,
-    talentInsightsSavePending,
-    talentInsightsSaveError,
-    hasUnsavedTalentInsightsChanges,
-    onTalentInsightsChange,
-    onSaveTalentInsights,
-    onResetTalentInsights,
+    talentContextsUpdatedAt,
     profileSavePending,
     profileSaveError,
     onSaveTalentProfile,
@@ -554,12 +491,6 @@ const CareerTalentProfilePanel = ({
     useState<PendingProfileEntryRemoval | null>(null);
   const [phoneNumberModalOpen, setPhoneNumberModalOpen] = useState(false);
   const [emailChangeModalOpen, setEmailChangeModalOpen] = useState(false);
-  const isLocalhost = useSyncExternalStore(
-    subscribeToLocalhostSnapshot,
-    getLocalhostSnapshot,
-    getServerLocalhostSnapshot
-  );
-
   useEffect(() => {
     setChatLauncherHidden(isEditing);
 
@@ -603,32 +534,9 @@ const CareerTalentProfilePanel = ({
         "career.profile.recruiter_profile.default",
         "채용 담당자가 보는 프로필"
       );
-  const profileUpdatedText = formatLastUpdated(talentInsightsUpdatedAt, locale);
-  const lookingForItems = useMemo(
-    () =>
-      getProfileRerankingInsights(t).map((item) => ({
-        ...item,
-        value: talentInsights?.[item.key]?.trim() ?? "",
-      })),
-    [talentInsights, t]
-  );
-  const allInsightItems = useMemo(
-    () =>
-      Object.entries(talentInsights ?? {})
-        .map(([key, value]) => ({
-          key,
-          label: getInsightLabel(key),
-          value: value.trim(),
-        }))
-        .filter((item) => item.value)
-        .sort(
-          (left, right) =>
-            (INSIGHT_CHECKLIST_ORDER_MAP.get(left.key) ?? 999) -
-              (INSIGHT_CHECKLIST_ORDER_MAP.get(right.key) ?? 999) ||
-            left.label.localeCompare(right.label) ||
-            left.key.localeCompare(right.key)
-        ),
-    [talentInsights]
+  const profileUpdatedText = formatLastUpdated(
+    talentContextsUpdatedAt ?? null,
+    locale
   );
   const profileSummary = talentUser?.bio?.trim() ?? "";
   const backgroundCount = mergedExperience.length + talentExtras.length;
@@ -667,7 +575,6 @@ const CareerTalentProfilePanel = ({
   const cancelEditing = () => {
     logCareerEvent("click_profile_cancel_edit");
     setDraft(createEditableProfile(talentProfile, user?.email));
-    onResetTalentInsights();
     setIsEditing(false);
   };
 
@@ -681,12 +588,7 @@ const CareerTalentProfilePanel = ({
           ),
         })
       : true;
-    const insightsSaved = hasUnsavedTalentInsightsChanges
-      ? await onSaveTalentInsights()
-      : true;
-    const saved = profileSaved && insightsSaved;
-
-    if (saved) {
+    if (profileSaved) {
       setIsEditing(false);
     }
   };
@@ -1157,7 +1059,7 @@ const CareerTalentProfilePanel = ({
             type="button"
             size="lg"
             onClick={cancelEditing}
-            disabled={profileSavePending || talentInsightsSavePending}
+            disabled={profileSavePending}
           >
             {t("career.settings.career_settings_modal.0jiry9t", "취소")}
           </MuteButton>
@@ -1166,13 +1068,9 @@ const CareerTalentProfilePanel = ({
             size="lg"
             variant="dark"
             onClick={() => void handleSave()}
-            disabled={
-              profileSavePending ||
-              talentInsightsSavePending ||
-              (!hasUnsavedChanges && !hasUnsavedTalentInsightsChanges)
-            }
+            disabled={profileSavePending || !hasUnsavedChanges}
           >
-            {profileSavePending || talentInsightsSavePending
+            {profileSavePending
               ? t(
                   "career.profile.career_profile_settings_section.08zy6at",
                   "저장 중..."
@@ -1188,12 +1086,6 @@ const CareerTalentProfilePanel = ({
       {profileSaveError && (
         <p className="rounded-lg border border-critical/30 bg-critical-faded px-3 py-2 text-sm text-critical">
           {profileSaveError}
-        </p>
-      )}
-
-      {talentInsightsSaveError && (
-        <p className="rounded-lg border border-critical/30 bg-critical-faded px-3 py-2 text-sm text-critical">
-          {talentInsightsSaveError}
         </p>
       )}
 
@@ -1252,16 +1144,10 @@ const CareerTalentProfilePanel = ({
           />
 
           <ProfileOverviewSection
-            allItems={allInsightItems}
             isEditing
-            items={lookingForItems}
-            onInsightChange={(key, value) =>
-              onTalentInsightsChange((current) => ({
-                ...(current ?? {}),
-                [key]: value,
-              }))
-            }
+            items={[]}
             onSummaryChange={(value) => updateTalentUserField("bio", value)}
+            showLookingFor={false}
             summary={draft.talentUser.bio ?? ""}
           />
 
@@ -1782,10 +1668,9 @@ const CareerTalentProfilePanel = ({
           />
 
           <ProfileOverviewSection
-            allItems={allInsightItems}
             isEditing={false}
-            items={lookingForItems}
-            showAllInsightsButton={isLocalhost}
+            items={[]}
+            showLookingFor={false}
             summary={profileSummary}
           />
 
@@ -1900,25 +1785,27 @@ const CareerTalentProfilePanel = ({
           ) : null}
         </>
       ) : (
-        <div className="rounded-[12px] border border-dashed border-neutral-1000-a10 bg-bg-floating px-5 py-6 text-sm leading-6 text-neutral-muted shadow-sm">
-          <div>
-            {t(
-              "career.profile.career_talent_profile_panel.0q45tnt",
-              "아직 저장된 프로필 내용이 없습니다. 수정하기를 눌러 직접 입력할 수 있습니다."
-            )}
+        <>
+          <div className="rounded-[12px] border border-dashed border-neutral-1000-a10 bg-bg-floating px-5 py-6 text-sm leading-6 text-neutral-muted shadow-sm">
+            <div>
+              {t(
+                "career.profile.career_talent_profile_panel.0q45tnt",
+                "아직 저장된 프로필 내용이 없습니다. 수정하기를 눌러 직접 입력할 수 있습니다."
+              )}
+            </div>
+            <MuteButton
+              type="button"
+              onClick={beginEditing}
+              className="mt-4 h-11 gap-1.5 px-4 text-[13.5px] md:h-auto md:px-[7px] md:py-[7px] md:text-[12.5px]"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              {t(
+                "career.profile.career_talent_profile_panel.1iq5xym",
+                "수정하기"
+              )}
+            </MuteButton>
           </div>
-          <MuteButton
-            type="button"
-            onClick={beginEditing}
-            className="mt-4 h-11 gap-1.5 px-4 text-[13.5px] md:h-auto md:px-[7px] md:py-[7px] md:text-[12.5px]"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            {t(
-              "career.profile.career_talent_profile_panel.1iq5xym",
-              "수정하기"
-            )}
-          </MuteButton>
-        </div>
+        </>
       )}
 
       <CareerProfileEntryModal

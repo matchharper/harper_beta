@@ -79,3 +79,19 @@ test("does not flash a partially streamed opportunity marker", () => {
   assert.match(html, /검색을 접수했어요/);
   assert.doesNotMatch(html, /opportunity_run|\/care/);
 });
+
+test("keeps a single tilde as ordinary range punctuation", () => {
+  const html = renderToStaticMarkup(
+    <RichText content="시드~시리즈A, 엔지니어 5~20명" />
+  );
+
+  assert.match(html, /시드~시리즈A/);
+  assert.match(html, /5~20명/);
+  assert.doesNotMatch(html, /<del>/);
+});
+
+test("keeps explicit double-tilde strikethrough support", () => {
+  const html = renderToStaticMarkup(<RichText content="~~이 문장은 취소~~" />);
+
+  assert.match(html, /<del>이 문장은 취소<\/del>/);
+});

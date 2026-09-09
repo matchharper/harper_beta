@@ -2,15 +2,15 @@ import type { User } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import {
   TALENT_RESUME_BUCKET,
-  type TalentInsightContent,
   type TalentUserProfileRow,
-  fetchTalentInsights,
+  createTalentContextMutationRequestId,
+  fetchAllTalentContexts,
   fetchTalentSetting,
   fetchTalentUserProfile,
-  mergeTalentInsightContent,
+  mutateTalentContexts,
   mergeTalentSettingSeed,
+  refreshTalentContextEmbeddings,
   refreshTalentPreferredLocale,
-  upsertTalentInsights,
   upsertTalentSetting,
 } from "@/lib/talentOnboarding/server";
 import { NETWORK_WAITLIST_TYPE, buildNetworkLead } from "@/lib/networkOps";
@@ -118,22 +118,38 @@ function collectLeadLinks(lead: ReturnType<typeof buildNetworkLead>) {
   ]);
 }
 
-function buildLeadInsightSeed(lead: ReturnType<typeof buildNetworkLead>) {
-  const content = {
-    ...(lead.impactSummary ? { technical_strengths: lead.impactSummary } : {}),
-    ...(lead.dreamTeams ? { desired_teams: lead.dreamTeams } : {}),
-  } satisfies TalentInsightContent;
-
-  return Object.keys(content).length > 0 ? content : null;
-}
-
-function toStableInsightSignature(content: TalentInsightContent | null) {
-  if (!content) return "";
-
-  return Object.keys(content)
-    .sort()
-    .map((key) => `${key}:${content[key]}`)
-    .join("\n");
+export function buildNetworkLeadContextSeeds(args: {
+  lead: Pick<
+    ReturnType<typeof buildNetworkLead>,
+    "dreamTeams" | "impactSummary"
+  >;
+  preferredLocale?: string | null;
+}) {
+  const english = String(args.preferredLocale ?? "")
+    .trim()
+    .toLowerCase()
+    .startsWith("en");
+  return [
+    ...(args.lead.dreamTeams
+      ? [
+          {
+            collection: "brief" as const,
+            content: args.lead.dreamTeams,
+            key: "desired_teams",
+            label: english ? "Preferred teams" : "선호 팀",
+          },
+        ]
+      : []),
+    ...(args.lead.impactSummary
+      ? [
+          {
+            collection: "memory" as const,
+            content: args.lead.impactSummary,
+            importance: 3 as const,
+          },
+        ]
+      : []),
+  ];
 }
 
 async function fetchWaitlistLead(
@@ -421,54 +437,118 @@ async function copyTalentSettingIfEmpty(args: {
   });
 }
 
-async function copyTalentInsightsIfEmpty(args: {
+async function copyTalentContexts(args: {
   admin: AdminClient;
+  preferredLocale?: string | null;
   sourceTalentId: string;
   targetTalentId: string;
   lead: ReturnType<typeof buildNetworkLead>;
 }) {
-  const { admin, sourceTalentId, targetTalentId, lead } = args;
+  const { admin, preferredLocale, sourceTalentId, targetTalentId, lead } = args;
   if (sourceTalentId === targetTalentId) return;
 
-  const [currentInsights, sourceInsights] = await Promise.all([
-    fetchTalentInsights({
+  const [currentRows, sourceRows] = await Promise.all([
+    fetchAllTalentContexts({
       admin,
       userId: targetTalentId,
     }),
-    fetchTalentInsights({
+    fetchAllTalentContexts({
       admin,
       userId: sourceTalentId,
     }),
   ]);
-
-  const currentNormalized = mergeTalentInsightContent({
-    currentContent: currentInsights?.content,
-    seedContent: null,
-  });
-  const sourceNormalized = mergeTalentInsightContent({
-    currentContent: sourceInsights?.content,
-    seedContent: buildLeadInsightSeed(lead),
-  });
-
-  const mergedContent = mergeTalentInsightContent({
-    currentContent: currentInsights?.content,
-    seedContent: sourceNormalized ?? null,
-  });
-
-  const hasSameContent =
-    toStableInsightSignature(mergedContent) ===
-    toStableInsightSignature(currentNormalized);
-  const shouldSave = Boolean(
-    mergedContent && (!currentInsights || !hasSameContent)
+  const seedRows = buildNetworkLeadContextSeeds({ lead, preferredLocale });
+  const candidates = [
+    ...sourceRows.map((row) =>
+      row.collection === "brief" && row.key === "technical_strengths"
+        ? {
+            collection: "memory" as const,
+            content: row.content,
+            importance: 3 as const,
+            key: null,
+            label: null,
+          }
+        : {
+            collection: row.collection,
+            content: row.content,
+            importance: row.importance,
+            key: row.key,
+            label: row.label,
+          }
+    ),
+    ...seedRows,
+  ];
+  const normalized = (value: string | null | undefined) =>
+    String(value ?? "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  const seenKeys = new Set(
+    currentRows.flatMap((row) =>
+      row.collection === "brief" && row.key ? [row.key] : []
+    )
   );
+  const seenRows = new Set(
+    currentRows.map(
+      (row) =>
+        `${row.collection}:${normalized(row.label)}:${normalized(row.content)}`
+    )
+  );
+  const changes: Array<{
+    collection: "brief" | "memory";
+    content: string;
+    importance?: 1 | 2 | 3;
+    key?: string | null;
+    label?: string | null;
+    op: "add";
+  }> = [];
+  for (const row of candidates) {
+    if (!row.content || (row.collection === "brief" && !row.label)) continue;
+    const signature = `${row.collection}:${normalized(row.label)}:${normalized(row.content)}`;
+    if (
+      (row.collection === "brief" && row.key && seenKeys.has(row.key)) ||
+      seenRows.has(signature)
+    ) {
+      continue;
+    }
+    if (row.collection === "brief" && row.key) seenKeys.add(row.key);
+    seenRows.add(signature);
+    changes.push({
+      collection: row.collection,
+      content: row.content,
+      ...(row.collection === "brief"
+        ? { key: row.key, label: row.label }
+        : { importance: row.importance ?? 2 }),
+      op: "add",
+    });
+  }
 
-  if (!shouldSave) return;
-
-  await upsertTalentInsights({
-    admin,
-    userId: targetTalentId,
-    content: mergedContent,
-  });
+  for (let index = 0; index < changes.length; index += 20) {
+    const batch = changes.slice(index, index + 20);
+    const mutation = await mutateTalentContexts({
+      admin,
+      changes: batch,
+      requestId: createTalentContextMutationRequestId([
+        "network_claim",
+        sourceTalentId,
+        targetTalentId,
+        index,
+        batch,
+      ]),
+      sourceRefs: [{ type: "network_claim" }],
+      userId: targetTalentId,
+    });
+    await refreshTalentContextEmbeddings({
+      admin,
+      ids: mutation.applied.map((row) => row.id),
+      userId: targetTalentId,
+    }).catch((error) => {
+      console.error("[talent-network-claim] Context embedding failed", {
+        error: error instanceof Error ? error.message : String(error),
+        targetTalentId,
+      });
+    });
+  }
 }
 
 function buildTalentUserMergePayload(args: {
@@ -644,8 +724,9 @@ export async function claimTalentNetworkInvite(args: {
       targetTalentId: user.id,
       lead,
     }),
-    copyTalentInsightsIfEmpty({
+    copyTalentContexts({
       admin,
+      preferredLocale,
       sourceTalentId,
       targetTalentId: user.id,
       lead,

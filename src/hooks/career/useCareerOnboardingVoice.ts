@@ -328,6 +328,11 @@ type UseCareerOnboardingVoiceArgs = {
     updatedAt: unknown
   ) => void;
   onTalentInsightsRefreshed?: (insights: unknown, updatedAt: unknown) => void;
+  onTalentContextsRefreshed?: (payload: {
+    talentBrief?: unknown;
+    talentContextsUpdatedAt?: unknown;
+    talentMemories?: unknown;
+  }) => void;
   onOnboardingChecklistProgressRefreshed?: (progress: unknown) => void;
   onTalentProfileRefreshed?: (
     profile: SessionResponse["talentProfile"] | undefined
@@ -367,6 +372,7 @@ export const useCareerOnboardingVoice = ({
   onOpportunityRunChanged,
   onTalentPreferencesRefreshed,
   onTalentInsightsRefreshed,
+  onTalentContextsRefreshed,
   onOnboardingChecklistProgressRefreshed,
   onTalentProfileRefreshed,
   onPendingInternalOpportunityCallRequestChanged,
@@ -711,6 +717,23 @@ export const useCareerOnboardingVoice = ({
             response.ok &&
             payload &&
             typeof payload === "object" &&
+            ("talentBrief" in payload || "talentMemories" in payload)
+          ) {
+            onTalentContextsRefreshed?.({
+              talentBrief: payload.talentBrief,
+              talentContextsUpdatedAt:
+                "talentContextsUpdatedAt" in payload
+                  ? payload.talentContextsUpdatedAt
+                  : "insightUpdatedAt" in payload
+                    ? payload.insightUpdatedAt
+                    : null,
+              talentMemories: payload.talentMemories,
+            });
+          }
+          if (
+            response.ok &&
+            payload &&
+            typeof payload === "object" &&
             "onboardingChecklistProgress" in payload
           ) {
             onOnboardingChecklistProgressRefreshed?.(
@@ -779,6 +802,7 @@ export const useCareerOnboardingVoice = ({
       locale,
       onMessagesChanged,
       onOnboardingChecklistProgressRefreshed,
+      onTalentContextsRefreshed,
       onTalentInsightsRefreshed,
       onOpportunityRunChanged,
       setStage,
@@ -1337,6 +1361,22 @@ export const useCareerOnboardingVoice = ({
         if (
           payload &&
           typeof payload === "object" &&
+          ("talentBrief" in payload || "talentMemories" in payload)
+        ) {
+          onTalentContextsRefreshed?.({
+            talentBrief: payload.talentBrief,
+            talentContextsUpdatedAt:
+              "talentContextsUpdatedAt" in payload
+                ? payload.talentContextsUpdatedAt
+                : "insightUpdatedAt" in payload
+                  ? payload.insightUpdatedAt
+                  : null,
+            talentMemories: payload.talentMemories,
+          });
+        }
+        if (
+          payload &&
+          typeof payload === "object" &&
           "onboardingChecklistProgress" in payload
         ) {
           onOnboardingChecklistProgressRefreshed?.(
@@ -1380,6 +1420,7 @@ export const useCareerOnboardingVoice = ({
       onboardingPausePending,
       onMessagesChanged,
       onOnboardingChecklistProgressRefreshed,
+      onTalentContextsRefreshed,
       onTalentInsightsRefreshed,
       setChatError,
       setStage,
@@ -1650,6 +1691,20 @@ export const useCareerOnboardingVoice = ({
           if (
             payload &&
             typeof payload === "object" &&
+            ("talentBrief" in payload || "talentMemories" in payload)
+          ) {
+            onTalentContextsRefreshed?.({
+              talentBrief: payload.talentBrief,
+              talentContextsUpdatedAt:
+                payload.talentContextsUpdatedAt ??
+                payload.insightUpdatedAt ??
+                null,
+              talentMemories: payload.talentMemories,
+            });
+          }
+          if (
+            payload &&
+            typeof payload === "object" &&
             "talentInsights" in payload
           ) {
             onTalentInsightsRefreshed?.(
@@ -1759,6 +1814,7 @@ export const useCareerOnboardingVoice = ({
       onOnboardingChecklistProgressRefreshed,
       onOpportunityRunChanged,
       onTalentPreferencesRefreshed,
+      onTalentContextsRefreshed,
       onTalentInsightsRefreshed,
       onTalentProfileRefreshed,
       onPendingInternalOpportunityCallRequestChanged,

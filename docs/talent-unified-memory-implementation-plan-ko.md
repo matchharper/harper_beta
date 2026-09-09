@@ -1,6 +1,8 @@
 # Talent Memory · Search Brief 최종 설계
 
-문서 기준: 2026-09-07. **설계 결정 문서이며, 구현·데이터 이관·배포 완료를 의미하지 않는다.** 현재 구현에 대한 설명은 로컬 코드를 확인한 결과다.
+문서 기준: 2026-09-08. 이 문서는 목표 설계와 현재 구현 상태를 함께 기록한다.
+
+현재 `codex/talent-unified-memory` 브랜치의 `harper_beta`에는 공통 행 저장소, read/write tool, 온보딩 extraction 전환, 웹·음성 prompt, Search Brief/Memory UI, beta 내부 reader와 이관 migration이 구현돼 있다. 로컬 `harper_worker`에도 공통 context reader와 추천 단계 projection이 구현돼 있다. **migration 적용, commit, push, production 배포는 하지 않았다.** 따라서 아래의 ‘구현됨’은 현재 두 로컬 작업 트리의 코드 상태를 뜻하며 production 동작을 뜻하지 않는다.
 
 ## 1. 최종 결정
 
@@ -17,11 +19,11 @@ Harper는 사용자를 이해하며 기회를 탐색하는 커리어 에이전�
 
 Brief와 Memory는 물리적으로 하나의 `talent_contexts` 테이블에 저장하고 `collection = brief | memory`로 구분한다. 두 영역에 같은 read/write 계약을 쓴다. 별도의 Career Timeline, Memory 요약 원본, Brief Markdown 원본은 만들지 않는다.
 
-일반 대화에서 Brief를 추가할 때는 **label과 content**, Memory를 추가할 때는 **content**를 작성한다. 수정·삭제는 두 영역 모두 짧은 숫자 ref를 사용한다. Brief의 제목이나 주제를 enum으로 제한하지 않는다. 기존 key는 온보딩·이관·기존 reader 연결에 필요한 선택적 metadata로 보존하며, 일반 대화 tool에는 key를 넣지 않는다.
+일반 대화에서 Brief를 추가할 때는 **label과 content**, Memory를 추가할 때는 **content와 importance(1~3)**를 작성한다. 수정·삭제는 두 영역 모두 짧은 숫자 ref를 사용한다. Brief의 제목이나 주제를 enum으로 제한하지 않는다. 기존 key는 온보딩·이관·기존 reader 연결에 필요한 선택적 metadata로 보존하며, 일반 대화 tool에는 key를 넣지 않는다. importance는 worker의 제한된 Memory 선택에만 쓰는 작은 우선순위 신호이며 Brief에는 없다.
 
-**온보딩에서는 기존 별도 extraction과 질문 진행 로직을 유지한다. 이후에는 대화하는 원본 LLM이 필요할 때 read/write tool을 사용한다.** 저장 대상 분류, 중요성, 조건의 강도, 기존 내용과의 관계는 LLM이 의미를 보고 판단한다. 일반 대화 앞뒤에 별도 분류·추출·정리 모델을 붙이지 않는다.
+**온보딩에서는 기존 별도 extraction과 질문 진행 로직을 유지한다. 이후에는 대화하는 원본 LLM이 필요할 때 read/write tool을 사용한다.** 저장 대상 분류, Memory 중요도, 조건의 강도, 기존 내용의 수정·삭제·추가 관계는 LLM이 의미를 보고 판단한다. 일반 대화 앞뒤에 별도 분류·추출·정리 모델을 붙이지 않는다.
 
-이 문서에서 정한 것은 구조·책임·기본 실행 방식이다. 모델별 누락률, 적절한 context 예산, 실제 비용과 지연은 구현 후 측정할 대상이며 검증된 수치처럼 취급하지 않는다.
+모델별 누락률과 실제 비용·지연은 아직 production traffic에서 측정하지 않았다. 아래 수치와 평가는 구현 계약과 로컬 검증 결과이지 production 성능 수치가 아니다.
 
 ## 2. 서비스가 주려는 경험
 
@@ -70,7 +72,7 @@ Memory에는 과거 사건뿐 아니라 현재의 미결정 상태도 들어갈 
 
 “서울 또는 원격을 원한다”는 말만 했다면 Brief로 충분하다. Brief의 모든 내용을 Memory에 복제하거나, Memory에서 Brief를 자동 재생성하는 관계는 두지 않는다.
 
-현재 메시지의 명확한 정정은 기존 기록에 반영한다. 과거 Memory가 있다는 이유로 현재 Brief를 조용히 되돌리지 않는다. 조건의 강도·예외·적용 기간은 자연어 안에 남긴다. ‘희망’을 ‘최소 조건’으로, ‘이번 탐색’을 ‘앞으로 항상’으로 바꾸지 않는다.
+현재 메시지가 기존 행을 더 이상 사실이 아니게 만들면 기존 행을 update하거나 delete한다. 새 사실을 하나 더 추가해 모순된 두 행을 함께 남기는 것이 기본값이 아니다. 과거 자체가 여전히 의미 있는 사건이면 현재 상태와 혼동되지 않게 그 사실만 보존한다. 과거 Memory가 있다는 이유로 현재 Brief를 조용히 되돌리지 않는다. 조건의 강도·예외·적용 기간은 자연어 안에 남긴다. ‘희망’을 ‘최소 조건’으로, ‘이번 탐색’을 ‘앞으로 항상’으로 바꾸지 않는다.
 
 ### 3.3 기존 기능이 소유하는 정보는 그곳에 둔다
 
@@ -84,12 +86,12 @@ Memory에는 과거 사건뿐 아니라 현재의 미결정 상태도 들어갈 
 
 | LLM이 판단할 것 | 서버가 처리할 것 |
 | --- | --- |
-| 기억할 가치, Brief/Memory 구분, 기존 내용의 정정·추가 | 인증된 사용자 범위, 유효한 ref, 필요한 필드 |
+| 기억할 가치, Brief/Memory 구분, Memory 중요도, 기존 내용의 정정·삭제·추가 | 인증된 사용자 범위, 유효한 ref, 필요한 필드 |
 | 선호와 필수 조건, 일회성 요청과 지속적인 방향 | DB 저장, 동시 수정 검사, 재시도 중복 방지 |
 | 어떤 기억이 현재 대화·기회에 의미 있는지 | 검색 결과 조회, token 예산, 권한과 공유 제한 |
 | 무엇이 바뀌었는지 자연스럽게 설명하기 | 실제 저장 결과와 실패 사실 제공 |
 
-문장에 특정 단어가 있다는 이유로 저장 위치·조건 강도·추천 판단을 결정하지 않는다. 관련도 검색은 정보를 찾는 수단이며, 그 결과로 내용을 재분류하거나 삭제하는 규칙이 아니다.
+문장에 특정 단어가 있다는 이유로 저장 위치·중요도·조건 강도·추천 판단을 결정하지 않는다. 관련도 검색은 정보를 찾는 수단이며, 그 결과로 내용을 재분류하거나 삭제하는 규칙이 아니다. 서버는 importance 범위가 1~3인지 검사하지만 몇 점인지를 대신 결정하지 않는다.
 
 온보딩은 기존 extraction·checklist·질문 진행을 유지하는 예외다. 이 예외를 일반 대화의 룰 엔진으로 확장하지 않는다. 온보딩에서 추출할 내용의 의미도 LLM이 판단한다.
 
@@ -104,8 +106,17 @@ Memory에는 과거 사건뿐 아니라 현재의 미결정 상태도 들어갈 
 | collection | brief | memory |
 | label | 사용자와 LLM이 읽는 명확한 자유 형식 제목 | 불필요 |
 | content | 해당 항목의 현재 내용을 담은 자연어 | 기억할 맥락을 담은 자연어 |
+| importance | 없음 | 추천·매칭 판단에 미치는 중요도 1·2·3 |
 
 서버는 내부 id, talent_id, 근거 위치(source_refs), revision, 생성·수정 시각, 삭제 표시도 관리한다. 기존 Brief 항목의 연결에 필요한 key는 nullable text metadata로 보존한다. key에는 enum이나 주제 allowlist를 두지 않는다. 이 metadata를 일반 대화 LLM이 매번 출력하지는 않는다. embedding은 본문에서 재생성할 수 있는 검색용 데이터이지 별도 기억 원본이 아니다.
+
+Memory importance의 의미는 좁고 단순하다.
+
+- **3:** 이 사실을 놓치면 기회 매칭이나 중요한 커리어 판단이 실질적으로 달라질 가능성이 크다.
+- **2:** 판단에 유용하고 후보 간 비교나 설명에 의미 있게 쓰일 수 있다.
+- **1:** 대화의 연속성에는 도움이 되지만 일반적인 매칭 판단에는 영향이 작다.
+
+이는 certainty, privacy, 감정 강도, 영구 보존 기한이 아니다. LLM이 발화 의미와 현재 행을 보고 정하며, 키워드 점수나 서버 기본 분류기가 정하지 않는다. 일반 대화의 Memory add에는 명시적으로 필요하고, 기존 Memory를 update할 때 중요성 자체가 달라졌다면 함께 바꿀 수 있다. Brief는 모두 현재 탐색 기준이므로 importance를 받지 않는다. 기존 Behavior Context 이관 행과 사람이 UI에서 직접 만드는 Memory처럼 과거 판단값이 없는 호환 경로만 중립값 2로 시작한다.
 
 두 영역 모두 독립적으로 읽고 고칠 수 있는 주제 단위의 행이다. Brief의 같은 주제는 기존 행에 통합하고, 함께 읽어야 의미가 유지되는 이유·조건·예외는 함께 쓴다. label은 식별자가 아니므로 같은 제목이라는 이유로 서버가 합치거나 덮어쓰지 않는다. 같은 주제인지는 현재 행을 읽은 LLM이 판단한다.
 
@@ -117,7 +128,7 @@ Memory에는 과거 사건뿐 아니라 현재의 미결정 상태도 들어갈 
 
 - **일반 read/write와 UI:** 자유 형식 label·content, 기존 행은 ref 또는 내부 id로 처리한다. label은 저장된 내용에 맞게 고칠 수 있다.
 - **온보딩:** 기존 질문 key·coverage·질문의 의미를 유지한다. extractor는 기존 항목에 연결할 필요가 있을 때만 같은 changes의 Brief add에 key를 함께 출력할 수 있다. 이 key도 자유 문자열이며, 새 주제에 key를 요구하지 않는다.
-- **이관·호환:** 기존 key와 custom key는 원래 항목의 연결 정보로 남긴다. 새 일반 Brief에는 key가 없어도 된다. label에서 key를 생성하거나 추측하는 별도 로직은 두지 않는다.
+- **이관·호환:** 표준 온보딩 key는 Brief metadata로 남긴다. 기존 custom key를 Memory로 옮길 때는 원래 key를 migration 출처에 남겨 재실행·감사가 가능하게 한다. 새 일반 Brief에는 key가 없어도 된다. label에서 key를 생성하거나 추측하는 별도 로직은 두지 않는다.
 
 아래는 기존 온보딩 연결과 처음 제안할 제목의 목록이다. 저장 가능한 Brief 주제 전체나 일반 tool의 enum이 아니다.
 
@@ -141,9 +152,9 @@ key를 자유 문자열로 바꾸기만 하고 모든 추가에 계속 요구하
 
 Brief나 Memory를 바꿀 때 현재 행을 update한다. 삭제는 기본 조회·추천에서 제외하고, 새 내용은 add한다. 잘못된 저장 영역을 바로잡아야 한다면 필요한 add와 delete를 한 요청으로 처리한다.
 
-수정할 때마다 과거 행을 supersede하고 연결 관계를 만드는 모델은 채택하지 않는다. 모든 변경을 또 다른 Memory로 남기지도 않는다. 중요한 과거 사건과 현재 상태를 어떻게 보존할지는 내용을 읽은 LLM이 판단한다.
+수정할 때마다 과거 행을 supersede하고 연결 관계를 만드는 모델은 채택하지 않는다. 모든 변경을 또 다른 Memory로 남기지도 않는다. 더 이상 사실이 아닌 내용은 update/delete하고, 중요한 과거 사건과 현재 상태를 어떻게 보존할지는 내용을 읽은 LLM이 판단한다.
 
-예를 들어 2024년에 받은 제안은 과거 사실로 남을 수 있다. 반면 현재 희망 지역을 수정할 때 예전 희망 지역의 이력을 자동으로 쌓을 필요는 없다. 시점이 중요한 내용은 ‘최근’이라는 표현만 남기지 않고 본문에 확인 가능한 시점을 보존한다. 실행 context에는 현재 날짜를 제공하며, 말하지 않은 날짜를 만들어 넣지는 않는다.
+예를 들어 2024년에 받은 제안은 과거 사실로 남을 수 있다. 반면 현재 희망 지역을 수정할 때 예전 희망 지역의 이력을 자동으로 쌓을 필요는 없다. 사용자가 정확한 날짜를 말했다면 보존하되, ‘지난달’처럼 상대 시점만 말했다면 임의의 연월로 변환하지 않고 그대로 저장한다. 말하지 않은 날짜를 만들어 넣지 않는다.
 
 ### 4.4 다른 저장 방식과 비교한 결정
 
@@ -176,17 +187,17 @@ Relevant memories — 참고 맥락
 Memory는 기본 context에 선택된 항목이다. 더 필요한 맥락은 read_talent_context로 조회할 수 있다.
 ~~~
 
-이 블록은 저장된 행을 문자열로 렌더링한 것이다. 매번 다른 LLM이 요약해서 만드는 문서가 아니다. Brief는 ref·label·내용, Memory는 ref·내용으로 충분하다. UUID·호환 key·분류·출처 전체를 반복하지 않는다. 원문 확인이 필요한 경우에만 더 읽는다.
+이 블록은 저장된 행을 문자열로 렌더링한 것이다. 매번 다른 LLM이 요약해서 만드는 문서가 아니다. Brief는 ref·label·내용, Memory는 ref·내용으로 충분하다. importance는 worker가 행을 고르는 데만 쓰고 기본 prompt 문장마다 표시하지 않는다. UUID·호환 key·분류·출처 전체를 반복하지 않는다. 원문 확인이 필요한 경우에만 더 읽는다.
 
 현재 `Known future-matching insights/preferences` 본문은 이 블록으로 교체한다. 기존 insights JSON과 새 Brief를 함께 넣지 않는다. 기존 `Good to remember insights`와 온보딩 후 `Canonical future-matching memory slots`의 빈 key 채우기 유도문도 제거한다. 대화에 도움이 될 추가 질문은 현재 Profile·Brief·Memory를 읽은 원본 LLM이 판단하며, 질문을 다뤘는지 관리하는 checklist는 온보딩에만 남긴다.
 
-[1] 같은 번호는 한 agent 실행의 ref다. 서버가 실제 행 id와 읽은 revision으로 연결한다. 같은 실행의 read·write·후속 응답에서는 번호를 유지하고, 새로 조회한 행은 새 번호를 부여한다. 수정한 행은 같은 번호의 최신 내용을 가리키며, 삭제한 번호는 재사용하지 않는다.
+[1] 같은 번호는 사용자별로 부여한 짧고 안정적인 ref다. 내부 DB id·UUID와 분리하며 웹 채팅, realtime 음성, 이메일처럼 prompt 생성과 tool 실행 요청이 달라도 같은 행을 가리킨다. 새 행은 해당 사용자 안에서 다음 번호를 받고, 수정한 행은 같은 번호를 유지하며, 삭제한 번호는 재사용하지 않는다.
 
-다음 실행은 최신 context로 새 번호표를 만든다. 지난 tool trace의 [1]과 지금 [1]을 섞어 재사용하지 않도록 context와 실행 범위를 함께 관리한다. 긴 DB ID를 모델이 기억하거나 생성하게 하지 않는다.
+긴 DB ID를 모델이 기억하거나 생성하게 하지 않는다. ref는 의미나 분류를 담지 않는 사용자 범위 식별자이며, 서버는 인증된 사용자와 revision을 함께 검증한다.
 
 ### 5.2 read tool 하나
 
-`read_talent_context`는 collection, 자연어 query, refs, cursor와 필요한 경우 원문 근거 조회를 지원한다.
+`read_talent_context`는 collection, 자연어 query, refs, cursor를 지원한다. 관련 검색 결과가 잘렸고 cursor가 없는 경우에는 더 좁은 자연어 query나 더 적은 exact refs로 다시 읽을 수 있다. 대화 원문 전체를 이 tool에 섞지 않는다.
 
 ~~~json
 {"collection":"memory","query":"이전 조직을 떠난 이유"}
@@ -211,7 +222,8 @@ Memory는 기본 context에 선택된 항목이다. 더 필요한 맥락은 read
     {
       "op": "add",
       "collection": "memory",
-      "content": "이전 팀에서 동료 피드백을 통해 성장했던 경험을 특히 긍정적으로 기억한다."
+      "content": "이전 팀에서 동료 피드백을 통해 성장했던 경험을 특히 긍정적으로 기억한다.",
+      "importance": 2
     }
   ]
 }
@@ -223,17 +235,17 @@ Memory는 기본 context에 선택된 항목이다. 더 필요한 맥락은 read
 {"changes":[{"op":"add","collection":"brief","label":"제품 의사결정 참여","content":"제품 방향을 정하는 논의부터 참여할 수 있는 역할을 원한다."}]}
 ~~~
 
-일반 write tool의 필드는 아래로 끝난다. 이 표와 예시를 구현 계약으로 사용하며, 별도 intent·중요도·분류 이유를 출력하게 하지 않는다.
+일반 write tool의 필드는 아래로 끝난다. 이 표와 예시를 구현 계약으로 사용하며, 별도 intent·분류 이유·confidence를 출력하게 하지 않는다. importance는 worker가 실제로 소비하는 Memory 우선순위 한 필드만 둔다.
 
 | 작업 | 필요한 입력 |
 | --- | --- |
 | Brief 추가 | op=add, collection=brief, label, content |
-| Memory 추가 | op=add, collection=memory, content |
-| 내용 수정 | op=update, ref, content |
+| Memory 추가 | op=add, collection=memory, content, importance(1·2·3) |
+| 내용 수정 | op=update, ref, content; Memory 중요성도 바뀌면 importance 추가 |
 | Brief 제목 수정 | op=update, ref, label; 내용도 바꾸면 content 추가 |
 | 삭제 | op=delete, ref |
 
-label과 content는 자유 문자열이다. enum은 실행 동작인 op와 저장 영역인 collection에만 사용한다. 일반 tool schema에는 key 필드나 제목 목록이 없다. 온보딩 extractor가 추가하는 호환 key는 같은 공통 저장 함수가 받는 선택적 metadata이며, 별도 Brief writer를 뜻하지 않는다.
+label과 content는 자유 문자열이다. 일반 tool schema에는 key 필드나 제목 목록이 없다. `op`, `collection`, 1~3의 `importance`처럼 downstream 코드가 실제로 소비하는 구조적 값만 제한한다. 온보딩 extractor가 추가하는 호환 key는 같은 공통 저장 함수가 받는 선택적 metadata이며, 별도 Brief writer를 뜻하지 않는다.
 
 update의 content는 해당 행의 완성된 새 내용이다. 다른 행 전체를 다시 보내지 않는다. 제목만 고칠 때는 본문을 재출력하지 않는다. 내부 id와 기존 호환 key는 그대로 유지한다. 삭제는 `{"op":"delete","ref":5}`다.
 
@@ -254,8 +266,9 @@ update의 content는 해당 행의 완성된 새 내용이다. 다른 행 전체
 ~~~text
 사용자가 이후에도 다시 설명하지 않아야 할 유용한 맥락을 보존한다.
 현재 기회 탐색의 기준과 전제는 Search Brief, 그 밖에 다시 필요한 사용자 맥락은 Memory에 둔다. 추천과 대화에는 둘 다 참고한다.
-현재 제공된 행과 사용자의 새 말을 함께 읽고, 정정은 해당 행에 반영하고 별개의 새 내용은 추가한다. 표현의 강도·예외·불확실성과 확인 가능한 시점을 보존한다.
+현재 제공된 행과 사용자의 새 말을 함께 읽고, 더 이상 사실이 아닌 내용은 해당 행을 수정하거나 삭제하며 별개의 새 내용만 추가한다. 표현의 강도·예외·불확실성과 확인 가능한 시점을 보존한다.
 Brief의 제목은 내용을 쉽게 이해할 수 있는 자유로운 label로 작성한다. 같은 정보를 두 영역에 복제하지 않는다.
+Memory를 추가할 때는 매칭·판단에 미치는 중요도를 1(낮음), 2(중간), 3(높음)으로 정한다. 중요도가 바뀐 기존 Memory는 update한다. Brief에는 중요도를 쓰지 않는다.
 Profile·설정·문서·추천 상태에 속하는 작업은 해당 기능을 사용한다. 제공된 맥락이 부족하면 read_talent_context로 더 읽는다.
 변경은 write_talent_context의 changes에 함께 담는다. 수정·삭제에는 이번 실행에서 제공된 ref를 사용한다. 저장할 것이 없으면 쓰지 않는다.
 사용자의 원래 질문과 작업을 이어 가고, 저장 결과를 확인한 뒤 실제로 반영된 내용을 자연스럽게 설명한다.
@@ -307,7 +320,8 @@ Profile·설정·문서·추천 상태에 속하는 작업은 해당 기능을 �
     {
       "op": "add",
       "collection": "memory",
-      "content": "과거 해외 이직을 준비했지만 당시 일정 때문에 진행하지 않았다."
+      "content": "과거 해외 이직을 준비했지만 당시 일정 때문에 진행하지 않았다.",
+      "importance": 2
     }
   ],
   "covered_onboarding_checklist": ["location"]
@@ -316,11 +330,11 @@ Profile·설정·문서·추천 상태에 속하는 작업은 해당 기능을 �
 
 여기서 `key: location`은 온보딩의 기존 항목 연결을 보존하는 선택적 입력이다. 기존 key·label 목록을 extractor에 제공하되, 목록 밖 주제는 자유로운 label·content로 추가할 수 있다. 질문 coverage는 기존 온보딩 상태에 기록한다. Memory용 extractor와 Brief용 extractor를 따로 호출하지 않는다. 일반 대화 write tool에는 key와 coverage를 넣지 않는다.
 
-입력에는 추출 대상인 새 답변, 해석에 필요한 최근 대화, 현재 Brief, 관련 Memory, 현재 Profile와 이미 저장한 변경, checklist를 제공한다. 관련 Memory는 서버가 공통 read 함수로 준비한다. extractor에 새로운 탐색 agent를 덧붙이지 않는다.
+입력에는 추출 대상인 새 답변, 해석에 필요한 최근 대화, 현재 Brief, 관련 Memory, checklist를 제공한다. 같은 턴의 원본 LLM이 profile tool을 먼저 호출했다면 전체 Profile을 다시 읽어 넣지 않고, 그 호출 결과에서 실제 저장에 성공한 Profile 변경만 짧게 덧붙인다. extractor는 이를 Memory에 다시 저장하지 않는다. 관련 Memory는 서버가 공통 read 함수로 준비한다. extractor에 새로운 탐색 agent를 덧붙이지 않는다.
 
 ### 6.2 insights를 읽던 프롬프트와 연결한다
 
-온보딩 질문 key·promptHint·coverage와 종료 조건은 유지한다. 저장된 현재 내용은 ref·label·content 형태의 Brief로 함께 제공한다. 같은 내용을 checklist의 current_value와 별도 Brief 블록에 중복 삽입할 필요는 없다. extractor도 제목과 내용을 읽고 기존 행을 찾아 수정할 수 있다.
+온보딩 질문 key·promptHint·coverage와 종료 조건은 유지한다. 저장된 현재 내용은 `Current saved context`의 ref·label·content 행으로 **한 번만** 제공한다. checklist 블록에는 질문 정의와 coverage만 넣고 `current_value`를 반복하지 않는다. extractor에서 기존 온보딩 항목을 연결할 때 필요한 호환 key도 이 같은 행에 선택적으로 붙이며, 별도 keyed insight 본문을 만들지 않는다. 메인 대화 prompt도 `talentContextSection`을 필수 입력으로 받고 legacy `currentInsightContent` fallback을 두지 않아, 새 Brief와 예전 keyed view가 함께 들어가는 경로를 막는다.
 
 연결된 기존 항목은 과도기 reader에 한해 `key → content`로 읽을 수 있다. 그러나 이 객체에는 key 없는 새 Brief가 빠지므로, **이를 전체 사용자 조건으로 취급하는 reader는 남기지 않는다.** 채팅·검색·fit·설명·사용자 UI는 모든 Brief 행을 읽는다. 새로운 제목이 기존 key와 의미가 같은지는 LLM이 내용으로 이해하며, label→key 매칭·재분류 모델은 추가하지 않는다.
 
@@ -334,9 +348,9 @@ Profile·설정·문서·추천 상태에 속하는 작업은 해당 기능을 �
 
 ### 6.3 유지하면서 놓치면 안 되는 입력·실행 문제
 
-현재 웹 extractor는 마지막 5개 메시지를 사용하고 메시지마다 1,200자로 자른다. 저장 범위를 넓혀도 읽지 않은 사실은 저장할 수 없다. 새로 추출해야 하는 답변을 앞부분만 남겨 조용히 자르는 방식은 그대로 이식하지 않는다. 긴 문서 원문은 Documents와 기존 조회 경로를 사용한다.
+현재 구현은 최근 대화에서 최대 5개 메시지를 extractor transcript로 구성한다. 새로 추출할 최신 사용자 답변은 기존의 앞 1,200자 절단을 적용하지 않고, 오래된 긴 메시지만 앞뒤 맥락을 모두 남기는 명시적 축약 표시와 함께 줄인다. Memory 검색 query는 직전 대화와 최신 메시지를 함께 사용하고 전체 길이를 제한할 때 최신 쪽을 보존한다. 긴 문서 원문은 Documents와 기존 조회 경로를 사용한다.
 
-추출 대상 메시지 범위를 실행에 연결하고, 비동기 추출이 역순으로 끝나 최신 조건을 이전 답변으로 되돌리지 않게 한다. 첫 추천과 최종 Brief 확인에는 마지막 추출 결과가 반영되어야 한다. 실패를 변경 없음으로 숨기지 않는다.
+온보딩 extraction은 assistant 메시지 저장 뒤, 완료 처리와 첫 추천 전에 기다린다. 따라서 background extraction이 역순으로 끝나 최신 조건을 이전 답변으로 되돌리는 경로를 두지 않고, 마지막 답변이 최종 Brief와 첫 추천에 반영된다. 첫 모델과 fallback 모델의 출력이 모두 유효하지 않거나 저장이 실패하면 `변경 없음`으로 성공 처리하지 않고 해당 turn을 실패시킨다.
 
 웹·음성·이메일의 기존 실행 주체가 다르다는 점도 유지한다. 이메일 온보딩의 기존 progress tool 경로에 웹과 같아 보이기 위한 새 추출 호출을 추가하지 않는다.
 
@@ -344,9 +358,9 @@ Profile·설정·문서·추천 상태에 속하는 작업은 해당 기능을 �
 
 ### 7.1 기본 읽기 정책
 
-현재 Brief는 전체 활성 항목을 제공한다. Memory는 token 예산 내의 기본 맥락을 제공하고, 부족하면 원본 agent가 read tool로 더 읽는다.
+대화 agent와 온보딩에는 현재 Brief의 전체 활성 항목을 제공한다. Memory는 token 예산 안에서 최근 수정 항목 최대 5개를 작은 별도 예산으로 먼저 확보하고, 나머지를 현재 작업과 의미상 관련된 항목으로 채운다. 두 후보군은 중복을 제거한 뒤 LLM에게 하나의 `Relevant memories` 목록으로 제공한다. 부족하면 원본 agent가 read tool로 더 읽는다.
 
-초기 기본 Memory 예산은 약 1,000 tokens 이내에서 시작해 조정한다. 예산을 채우려고 불필요한 행을 넣지는 않는다. 행 수보다 실제 입력량을 제한하며, 한 행의 예외·조건이 잘려 의미가 바뀌지 않게 반환한다. 8개 같은 예시 숫자는 고정된 검색 규칙이 아니다.
+초기 기본 Memory 예산은 약 1,000 tokens 이내에서 시작해 조정한다. 예산을 채우려고 불필요한 행을 넣지는 않는다. ASCII와 비 ASCII 문자의 token 밀도 차이를 반영한 보수적 근사로 실제 입력량을 제한하며, 축약한 행에는 전체를 같은 ref로 다시 읽을 수 있음을 표시한다. exact-ref 조회는 적어도 첫 요청 행의 전문을 반환해 축약문만 반복하는 상황을 피한다. 8개 같은 예시 숫자는 고정된 검색 규칙이 아니다.
 
 Memory가 적어 모두 예산 안에 들어가는 사용자는 전부 제공해도 된다. 많아지면 관련 기억과 최근 변경을 제한된 범위로 제공한다. ‘최근 몇 행’만 읽는 것을 관련 Memory 검색이라고 부르지는 않는다.
 
@@ -358,29 +372,47 @@ Memory가 적어 모두 예산 안에 들어가는 사용자는 전부 제공해
 
 기존 PostgreSQL 안에서 사용자별 행을 제한해 조회하고, 자연어 query의 embedding과 비교하는 의미 검색을 기본으로 구현한다. 작은 사용자별 집합부터 검증하고, 별도 vector 서비스·graph DB·생성형 query rewrite·reranker는 도입하지 않는다.
 
-특정 ref나 페이지 조회는 일반 DB 조회다. 검색 결과를 개선해야 할 때도 우선 query 맥락과 입력 내용을 개선한다. 특정 단어를 보고 Memory/Brief를 재분류하거나 중요도 점수로 자동 삭제하는 코드는 만들지 않는다.
+특정 ref나 페이지 조회는 일반 DB 조회다. 검색 결과를 개선해야 할 때도 우선 query 맥락과 입력 내용을 개선한다. 특정 단어를 보고 Memory/Brief를 재분류하거나 importance를 덮어쓰거나 자동 삭제하는 코드는 만들지 않는다.
 
-본문이 바뀐 Memory만 embedding을 갱신한다. 저장 완료는 embedding 완료에 묶지 않으며, 아직 index에 반영되지 않은 새·수정 행은 기본 조회에서 함께 읽을 수 있어야 한다. 오래된 vector가 최신 본문인 것처럼 사용되지 않도록 갱신 상태를 관리한다.
+본문이 바뀐 Memory만 embedding을 갱신한다. 저장 완료는 embedding 완료에 묶지 않으며, 갱신은 한 번 재시도한다. 아직 index에 반영되지 않았거나 embedding model이 다른 최신 행은 의미 검색 결과보다 먼저 기본 후보에 합쳐 즉시 읽을 수 있게 한다. 오래된 vector가 최신 본문인 것처럼 사용되지 않도록 본문 변경 시 embedding metadata를 함께 비운다.
 
 같은 실행의 동일 query embedding과 읽은 행은 재사용한다. 개인정보가 다른 사용자 결과에 섞이지 않도록 사용자 범위를 먼저 적용하고, 결과는 개수뿐 아니라 token 예산으로 제한한다. 예산을 넘는 기억이 존재함을 숨기지 않는다.
 
-### 7.3 채널과 추천 단계에 연결한다
+### 7.3 Worker는 한 번 고른 bounded snapshot을 공유한다
+
+Worker에서는 역할·batch마다 embedding search를 반복하지 않는다. 한 추천 run 시작 시 DB를 한 번 읽어 다음 snapshot을 만든다.
+
+- 전체 활성 Brief: 최대 40개이며 저장 계약상 label+content 합계가 8,000자를 넘지 않는다.
+- Memory: 최대 12개, 렌더링한 합계 6,000자 이내다.
+- Memory 점수: `0.65 × (importance - 1) / 2 + 0.35 × 0.5^(수정 후 경과일 / 180)`이다.
+- 같은 점수면 `updated_at`, 그다음 내부 id 최신순으로 고른다.
+
+importance 65%는 매칭에 중요한 오래된 사실을 보존하고, freshness 35%는 최근 바뀐 맥락이 실제로 앞설 여지를 준다. 180일은 자동 삭제 기한이 아니라 최신성 성분의 반감기다. 이 수치는 production 분포와 추천 평가로 조정할 수 있지만, 키워드나 역할별 분기 없이 모든 Memory에 같은 식을 적용한다. 더 이상 사실이 아닌 행을 낮은 freshness로 무시하는 방식에 기대지 않고 write 시점에 update/delete하는 계약이 먼저다.
+
+이 snapshot을 검색 계획, internal fit, external fit·reranking, 최종 추천 작성에 재사용한다. 각 단계는 같은 `Search Brief`와 `Relevant memories`를 보므로 서로 다른 사용자상을 만들지 않는다. 즉시 외부 검색 경로도 같은 reader를 한 번 호출한다. Worker의 scorer에는 Memory write 권한이나 역할별 검색 agent를 추가하지 않는다.
+
+Beta repository의 회사 역할 반복 매칭 스크립트도 같은 가중치·12개·6,000자 계약을 사용하고 Talent Behavior Context fallback을 제거한다. 여러 후보자를 한 번에 읽는 SQL이므로 후보자별 partition 안에서 같은 점수를 계산한다.
+
+이 조회는 선택적 부가기능으로 fail-open하지 않는다. migration 누락이나 DB 오류를 ‘저장된 정보 없음’으로 바꾸면 사용자 기준 없이 추천할 수 있으므로 run을 실패시켜 재시도·운영 확인 대상으로 남긴다. 실제로 행이 0개인 사용자는 정상적인 빈 snapshot이다.
+
+이 방식은 대화 agent의 의미 검색과 의도적으로 다르다. 대화에서는 현재 질문과 관련된 오래된 세부 기억을 on-demand로 찾을 가치가 있지만, Worker는 여러 후보를 한 번에 비교하므로 후보별 retrieval이 비용과 결과 변동을 크게 만든다. 제한된 공통 snapshot은 호출 수와 token 상한을 예측 가능하게 하면서 Brief 전체와 가장 중요한 최근 Memory를 모든 후보에 동일하게 적용한다.
+
+### 7.4 채널과 추천 단계에 연결한다
 
 | 읽는 곳 | 필요한 내용 |
 | --- | --- |
 | 온보딩 | 현재 Brief, 관련 Memory, 기존 Profile·checklist·대화 |
 | 일반 채팅·음성·이메일 | 현재 Brief, 관련 Memory, 현재 요청과 운영 상태 |
-| 검색 방향 결정 | Brief, Profile, 탐색에 관련된 배경 Memory |
-| internal/external fit 판단 | Brief, 역할에 관련된 Memory, Profile와 JD |
+| 대화 중 검색 방향 결정 | Brief, Profile, 탐색에 관련된 배경 Memory |
+| Worker의 internal/external fit 판단 | 전체 Brief, 공통 bounded Memory snapshot, Profile와 JD |
 | 추천 이유 설명 | 실제 판단에 사용한 기준·맥락과 기회 정보 |
 | 회사측 조회 | 기존 공유 범위에 허용된 정보만 |
 
 여기서 `talent_contexts` 전체를 모든 기존 `talent_insights` reader에 넘긴다는 뜻은 아니다. `talent_insights`라는 하나의 저장 형태를 여러 소비자가 우연히 같이 읽고 있던 현재 구조를, 소비 목적에 맞는 공통 projection으로 바꾼다.
-
 | 현재 `talent_insights` 소비 경로 | 전환 후 입력 | 전환 원칙 |
 | --- | --- | --- |
 | 채팅·realtime 음성·통화 wrap-up·일반 이메일 agent | 전체 활성 Brief + token 예산 안의 관련 Memory | 원본 agent가 같은 사용자 context 형식을 읽는다. DB 행·embedding·metadata 전체를 prompt에 넣지 않는다. |
-| kickoff·외부 JD 검토·internal opportunity call request·추천/fit worker | 전체 활성 Brief + 해당 역할·작업에 관련된 Memory + 기존 Profile/JD | 한 추천 run에서 공통 context를 한 번 만들고 재사용한다. 역할마다 모든 Memory를 다시 읽지 않는다. |
+| kickoff·외부 JD 검토·internal opportunity call request·추천/fit worker | 전체 활성 Brief + 중요도·최신성 점수 상위의 bounded Memory + 기존 Profile/JD | 한 추천 run에서 공통 context를 한 번 만들고 모든 단계에서 재사용한다. 역할별 Memory retrieval은 하지 않는다. |
 | 웹·음성 온보딩 | 전체 활성 Brief + 필요한 Memory + 기존 checklist/대화 | 질문 진행 여부는 기존 coverage가 담당한다. 기존 질문과 연결된 Brief의 선택적 `key`는 이관과 호환에 쓸 수 있지만, 자유 형식 Brief를 고정 key 체계로 되돌리지 않는다. |
 | 이메일 온보딩 progress | 기존 call/checklist progress + 현재 Brief | 모든 Brief를 checklist 응답으로 간주하지 않는다. 연결된 `key`는 이관 기간의 보조 근거일 뿐이고, 일반 이메일 대화에 새 turn별 extractor를 만들지 않는다. |
 | Career 프로필·기존 insights UI/API | 전체 활성 Brief 행 | `label`, `content`, 짧은 `ref`로 표시·수정한다. Memory는 별도 보조 관리 화면과 read 경로에서 다룬다. |
@@ -399,42 +431,46 @@ Memory가 적어 모두 예산 안에 들어가는 사용자는 전부 제공해
 
 현재 존재하는 post-onboarding `refresh-insights`류 경로는 새 저장소를 자동 채우는 상시 extractor로 바꾸지 않는다. 이관 또는 온보딩 예외에 필요한 범위를 확인한 뒤 종료한다. 일반 대화에서는 대화하는 원본 LLM이 공통 read/write tool을 사용한다.
 
-현재 realtime 음성의 온보딩 후 allowlist에는 일반 프로필/insight 저장 tool이 없다. 새 기능은 tool 정의뿐 아니라 음성 실행·등록 경로에도 연결해야 한다. 채팅에서만 저장되는 상태로 완료하지 않는다.
+Realtime 음성의 온보딩 후 allowlist에도 같은 read/write tool과 실행 경로를 연결했다. 온보딩 중에는 기존 별도 extractor가 소유하므로 이 tool을 노출하지 않는다. 채팅과 음성이 서로 다른 저장 계약을 쓰지 않는다.
 
-추천 run에서는 공통 사용자 context를 한 번 준비하고 기존 단계별 입력 구성에 전달한다. 모든 후보 역할마다 전체 Memory를 읽거나 다시 요약하지 않는다. 특정 역할에 추가 근거가 필요할 때만 좁게 더 읽는다.
+추천 run에서는 공통 사용자 context를 한 번 준비하고 기존 단계별 입력 구성에 전달한다. 모든 후보 역할마다 전체 Memory를 읽거나 다시 요약하지 않는다. 현재 Worker에는 단계별 추가 Memory 조회를 두지 않는다.
 
-### 7.4 최신 기준을 사용하는 책임
+### 7.5 최신 기준을 사용하는 책임
 
 write가 성공하면 같은 실행의 후속 검색은 수정된 Brief를 사용한다. 저장 이전 context를 그대로 닫아 둔 채 검색 tool에 넘기지 않는다. 의존하는 검색은 저장 결과를 확인한 뒤 실행한다.
 
 일반적인 write 후 응답에는 모델이 이미 보낸 변경과 짧은 성공 결과면 충분하다. 같은 tool loop에서 사용자 context 전체를 다시 생성하거나 새 번호를 부여하지 않는다. 서버의 행 mapping과 후속 검색 입력만 최신화하고, 다음 사용자 turn에서 최신 기본 블록을 렌더링한다. 동시 수정 충돌 등으로 실제 값이 달라졌을 때는 최신 행을 tool 결과로 제공한다.
 
-정기 추천·fit cache는 해당 판단에 사용한 사용자 context와 이후 변경을 구분할 수 있어야 한다. Brief가 변경됐는데 이전 snapshot에서 평가한 후보를 최종 추천하려면 최신 기준으로 다시 검토한다. 의미가 달라졌는지를 판정하는 별도 규칙 대신 저장 변경과 사용한 revision을 확인한다. Memory 변경도 기존 freshness 경로에 전달하되, 한 줄이 추가될 때마다 모든 역할을 전량 재평가하지 않는다.
+정기 추천·fit cache는 해당 판단에 사용한 사용자 context와 이후 변경을 구분할 수 있어야 한다. Brief가 변경됐는데 이전 snapshot에서 평가한 후보를 최종 추천하려면 최신 기준으로 다시 검토한다. 의미가 달라졌는지를 판정하는 별도 규칙 대신 선택된 행의 id·revision·updated_at fingerprint를 확인한다. External fit cache의 입력 fingerprint에도 실제 Profile, Brief, Memory, 현재 interaction과 matching setting을 포함한다. 따라서 Behavior Context version 없이도 사용한 입력이 바뀌면 오래된 fit cache를 재사용하지 않는다.
 
 현재 메시지나 Memory가 기존 동의·공유 권한·설정의 적용 범위를 넘어설 수는 없다. 사용자가 원하는 내용과 시스템상 허용된 행동의 경계는 계속 서버가 지킨다.
 
-## 8. Behavior Context는 어떻게 합치는가
+## 8. Behavior Context 종료와 이관
 
-현재 Behavior Context는 단순 캐시가 아니다. worker가 메시지·이메일·추천 반응·활동을 해석해 장기 텍스트로 유지하고 여러 추천 단계에 전달한다. 새 근거가 없으면 모델 호출을 생략하고, 갱신 시에는 줄 단위 변경을 사용하는 경로도 있다.
+Behavior Context를 Brief·Memory 옆의 세 번째 사용자 이해 저장소로 유지하지 않는다. 같은 목표·제약이 서로 다른 시점과 형식으로 겹치고, 별도 LLM이 큰 문서를 재작성하는 비용이 생기며, 어느 값이 현재 기준인지 불명확해지기 때문이다.
 
-따라서 이를 지우기만 하면 기존에 활용하던 사용자 이해를 잃을 수 있고, 그대로 옆에 두면 세 곳에서 서로 다른 목표·제약을 유지하게 된다. 다음처럼 통합한다.
+최종 소유권은 다음처럼 단순화한다.
 
-| 기존 역할 | 최종 위치 |
+| 정보 | 최종 위치 |
 | --- | --- |
-| 현재 명시적 목표와 조건 | Brief 또는 기존 setting |
-| 유용한 배경·관찰·변화 | Memory |
-| 추천·거절·조회 등의 원본 사건 | 기존 feedback·활동·추천 이력 |
-| 단계별로 읽기 좋은 사용자 context | 저장된 행과 기존 원본을 읽어 구성한 실행 입력 |
+| 현재 명시적 목표·조건·기회 판단 전제 | Brief 또는 기존 setting |
+| 이후 다시 쓸 사용자 배경·경험·판단 맥락 | Memory |
+| 추천·거절·조회·메시지 등의 원본 사건 | 기존 feedback·활동·대화 이력 |
+| 한 Worker run에서 LLM이 읽는 사용자 context | Brief 전체 + bounded Memory snapshot + Profile·현재 실행 정보 |
 
-실행 입력은 읽기 결과이며 세 번째 장기 문서가 아니다. 별도 LLM이 매번 다시 작성하지 않는다.
+로컬 구현에서 production Worker 경로는 다음을 하지 않는다.
 
-대화에서 얻는 맥락은 원본 대화 agent가 저장한다. 대화 없이 쌓인 행동은 기존 추천 run의 원본 orchestration 모델이 필요할 때 읽고, 다시 쓸 만한 관찰을 발견하면 같은 Memory tool로 남긴다. 현재 orchestration은 정해진 결과를 반환하는 모델 호출이므로, 여기에 공통 tool 실행을 연결하는 작업이 필요하다. 별도 행동 추출 모델을 새로 추가하는 것은 아니다.
+- `talent_behavior_contexts`를 읽어 prompt에 넣지 않는다.
+- Behavior Context 변경 queue를 읽거나 소비하지 않는다.
+- Behavior Context를 갱신하는 별도 LLM을 호출하지 않는다.
+- 새 Behavior Context 문서나 version을 쓰지 않는다.
+- 같은 run에 Behavior Context와 Memory를 함께 넣지 않는다.
 
-role별 scorer 모두에게 Memory 쓰기를 주지는 않는다. 추천 run 차원의 모델이 사용자 맥락을 다루고, 개별 scorer는 평가에 집중한다. 이 권한 분리는 실행 책임의 구분이지 발화 분류 규칙이 아니다.
+대신 Worker는 `talent_contexts`를 한 번 읽은 snapshot을 모든 추천 단계에 전달한다. 대화에서 새로 알게 된 지속 정보는 온보딩 이후 원본 대화 agent가 같은 Memory/Brief write tool로 관리한다. Worker의 scorer나 orchestration에 Memory write tool을 추가하지 않는다. 추천 반응 같은 원본 사건이 중요해도 Worker가 숨은 장기 판단을 새로 저장하는 구조는 이번 범위에 없다. 나중에 필요성이 검증되면 원본 agent가 일반 read/write 계약을 쓰는 별도 사용자-visible 흐름에서 다루며 Behavior 문서 writer를 되살리지 않는다.
 
-관찰은 관찰로 남긴다. 여러 역할을 거절한 사실을 근거로 유용한 배경을 기억할 수 있지만, 그것만으로 사용자가 말하지 않은 영구 제외 조건을 Brief에 만들지 않는다. 모델의 내부 추론 과정이나 매 run의 추천 계획을 Memory로 보존하지 않는다.
+이관 migration은 기존 Behavior Context가 가진 내용을 버리지 않기 위해 기존 heading/bullet을 Memory 행으로 한 번 복사한다. 별도 LLM이나 의미 재분류를 호출하지 않고, 당시 importance 판단이 없으므로 중립값 2를 준다. 그 뒤 메시지·이메일·추천·활동이 legacy change queue를 쌓던 trigger를 제거한다. 기존 Behavior 테이블과 deprecated 호환 코드는 rollback·audit 및 기존 테스트를 위해 잠시 남길 수 있지만 현재 Worker와 beta 추천 실행 경로에서는 읽거나 쓰지 않는다.
 
-기존 내용 이관과 새 reader의 coverage를 확인한 뒤 기존 Behavior Context 장기 writer를 종료한다. 한 run에 기존 text와 새 Memory를 겹쳐 넣어 같은 근거를 두 번 강조하지 않는다. 과거의 모든 신호를 자동으로 복구한다고 보장하지 않으며, 원본 근거가 실제로 읽히는지 확인하는 것이 전환의 완료 조건이다.
+이관 완료의 조건은 테이블 삭제가 아니라 실제 실행 경로에 Behavior read/write/LLM call이 없고, Profile·Brief·Memory가 검색 계획부터 최종 추천까지 동일한 snapshot으로 전달되는 것이다. legacy 테이블의 물리 삭제는 rollback 기간과 운영 확인 뒤 별도 migration으로 할 수 있다.
 
 ## 9. 사용자 화면과 통제
 
@@ -456,11 +492,11 @@ role별 scorer 모두에게 Memory 쓰기를 주지는 않는다. 추천 run 차
                          항목 수정 · 기준 추가
 ~~~
 
-저장된 label과 content를 그대로 보여 준다. 화면용 요약을 생성하는 LLM 호출은 없다. 항목 추가는 제목과 내용을 입력하는 자유 형식 편집이며, 정해진 유형을 먼저 고르는 절차가 없다. 제목을 고쳐도 같은 행의 내용을 수정한다.
+저장된 label과 content를 그대로 보여 준다. 화면용 요약을 생성하는 LLM 호출은 없다. 항목 추가는 제목과 내용을 입력하는 자유 형식 편집이며, 정해진 유형을 먼저 고르는 절차가 없다. 제목을 고쳐도 같은 행의 내용을 수정한다. 표시 순서는 안정적인 ref 순서를 사용해 기존 항목을 수정할 때 화면과 prompt가 재배열되지 않게 한다.
 
-기존 항목의 초기 제목과 순서는 기존 정의를 활용할 수 있지만, label을 다시 key로 분류하거나 저장된 제목을 고정 번역으로 덮어쓰지 않는다. 새 제목은 사용자 언어의 데이터로 저장하며 제목마다 번역 key를 등록하지 않는다. 화면 버튼 등 고정 UI 문구는 기존 번역 체계를 사용한다.
+기존 항목의 초기 제목과 순서는 기존 정의를 활용할 수 있지만, label을 다시 key로 분류하거나 저장된 제목을 고정 번역으로 덮어쓰지 않는다. 이관 시에만 사용자의 `setting_locale`, 없으면 `preferred_locale`에 따라 기존 표준 key의 한국어·영어 초기 label을 선택한다. 따라서 영어 사용자의 기존 insight가 한국어 제목으로 일괄 이관되지 않는다. 이관 뒤 label은 일반 데이터이며 언어 설정을 바꿀 때 자동 재번역하지 않는다. 새 제목도 사용자 언어의 데이터로 저장하고 제목마다 번역 key를 등록하지 않는다. 화면 버튼 등 고정 UI 문구는 기존 번역 체계를 사용한다.
 
-한 항목을 편집하면 해당 행만 저장한다. Profile 수정과 Brief 전체 초안 저장을 묶지 않는다. 직접 입력·삭제에는 LLM을 호출하지 않는다. 기존 shared form·modal을 재사용하며 이 설계를 위해 새로운 디자인 체계를 만들지 않는다.
+한 항목을 편집하면 해당 행만 저장한다. Profile 수정과 Brief 전체 초안 저장을 묶지 않는다. 직접 입력·삭제에는 LLM을 호출하지 않는다. 추가·편집·Memory 관리·삭제 확인은 `/career`의 공통 `TalentCareerModal`을 사용하며, 삭제 안내에는 저장 행만 없어지고 원본 대화·문서는 유지된다는 범위를 명시한다.
 
 빈 항목을 전부 필수 폼으로 펼치지 않는다. 현재 조건이 있는 항목부터 보여 주고, 온보딩 진행 상태는 기존 흐름에서 관리한다. ‘보상 질문에 답했지만 기준 미정’은 조건 행과 별개다.
 
@@ -473,6 +509,8 @@ role별 scorer 모두에게 Memory 쓰기를 주지는 않는다. 추천 run 차
 ### 9.3 Memory는 별도의 보조 관리 화면에서 확인한다
 
 Memory 목록을 찾아보고 수정·삭제할 수 있게 한다. 이를 기본 프로필에 모두 펼치거나 Career Timeline으로 재구성하지 않는다. 중요한 기억이 추천 이유에 영향을 줬다면 필요한 근거를 사용자에게 설명할 수 있어야 한다.
+
+구현에서는 Search Brief만 session/chat 응답으로 갱신한다. Memory 전체를 매 응답에 복사하지 않고, 사용자가 관리 화면을 열 때 50개씩 cursor pagination으로 읽으며 필요할 때 더 불러온다. 직접 수정한 행만 원자적으로 저장하고, 대화 agent가 Memory를 바꾼 뒤에는 다음 관리 화면 조회에서 최신 목록을 읽는다. 이 UI 조회 정책은 LLM prompt의 관련 Memory 검색과 별개다.
 
 ‘조건을 더 이상 적용하지 않기’와 ‘그 기억을 지우기’는 다르다. 삭제한 행은 기본 context·검색·캐시에서 제외하고, 같은 원본을 자동 재처리하는 이관·갱신 경로로 되살리지 않는다. Memory 삭제와 원문 대화·문서 삭제는 별개임을 명확히 한다. 모든 표현의 의미를 대조하는 삭제 키워드 목록이나 별도 판단 그래프는 만들지 않는다.
 
@@ -489,7 +527,7 @@ Memory를 추가한다고 기존 수집·안전·공유 범위를 넓히지 않�
 사용자: “예전에 한 회사에서 오퍼가 왔었는데 면접을 보다가 그냥 안 갔어.”
 
 1. 원본 agent가 현재 대화와 제공된 기억을 읽고, 이후에 유용한 이야기라고 판단한다.
-2. write에서 Memory add를 요청한다. 저장할 문장은 사용자가 말한 제안과 중단 사실, 확인 가능한 시점을 보존한다.
+2. write에서 Memory add와 importance를 요청한다. 저장할 문장은 사용자가 말한 제안과 중단 사실, 확인 가능한 시점을 보존한다.
 3. DB에 Memory 행 하나가 생긴다. 기존 회사 선호·검색 조건·지원 workflow는 자동으로 바뀌지 않는다.
 4. 원본 agent는 사용자의 원래 이야기나 고민에 답한다. “면접을 마친 정식 오퍼” 등 말하지 않은 단계로 보강하지 않는다.
 5. 이후 관련 역할을 검토할 때 이 기억을 조회할 수 있다. 회사 이름만으로 능력을 점수화하는 로직은 없다.
@@ -522,7 +560,7 @@ Memory를 추가한다고 기존 수집·안전·공유 범위를 넓히지 않�
 
 사용자: “창업을 고민하긴 하는데 당장 이직 방향을 바꾸진 않을래.”
 
-원본 agent는 고민을 Memory로 남길 수 있다. 현재 Brief는 유지한다. 다음에 역할 선택을 고민하면 이 맥락을 참고하되 창업 관련 역할만 찾는 조건으로 바꾸지는 않는다. 미결정 상태를 보존하기 위해 별도 confidence enum이나 상태 머신은 필요 없다.
+원본 agent는 고민을 Memory로 남기고 매칭에 미치는 중요도를 판단할 수 있다. 현재 Brief는 유지한다. 다음에 역할 선택을 고민하면 이 맥락을 참고하되 창업 관련 역할만 찾는 조건으로 바꾸지는 않는다. 미결정 상태를 보존하기 위해 별도 confidence enum이나 상태 머신은 필요 없다.
 
 ### D. 온보딩에서 보상을 아직 정하지 못했다
 
@@ -557,7 +595,7 @@ Memory를 추가한다고 기존 수집·안전·공유 범위를 넓히지 않�
 
 현재 일반 채팅도 변경 insight key만 출력하고 서버가 JSON을 병합한다. 행으로 바꾼다는 이유만으로 현재보다 쓰기 tokens가 크게 줄어든다고 주장하지 않는다.
 
-기존에는 버렸을 맥락도 보존하므로 저장 tool을 쓰는 대화의 비율은 오히려 높아질 수 있다. 이 추가 비용은 새로운 기억 기능의 비용이며, 저장 단위를 행으로 바꿔 절약하는 비용과 구분해서 계산한다. Behavior Context 재작성 제거가 이를 얼마나 상쇄하는지도 실제 사용 빈도에 달려 있다.
+기존에는 버렸을 맥락도 보존하므로 저장 tool을 쓰는 대화의 비율은 오히려 높아질 수 있다. 이 추가 비용은 새로운 기억 기능의 비용이며, 저장 단위를 행으로 바꿔 절약하는 비용과 구분해서 계산한다. Worker에서는 기존 Behavior Context 재작성 모델 호출을 제거했으므로 갱신이 필요했던 run은 생성형 호출 하나가 줄어든다. 실제 총절감은 일반 대화의 새 write 빈도와 기존 Behavior 갱신 빈도를 함께 측정해야 한다.
 
 행의 이점은 저장·편집·조회 단위를 일치시키는 데 있다. 큰 문서 전체를 생성하는 대안에 비해서는 작은 변경만 출력한다. 하지만 원본 모델이 tool 결과를 받아 답하는 후속 모델 요청은 생길 수 있다.
 
@@ -568,6 +606,7 @@ Memory를 추가한다고 기존 수집·안전·공유 범위를 넓히지 않�
 | 먼저 기억을 검색해야 함 | query embedding·DB 조회 + tool 결과를 읽는 원본 모델 비용 |
 | 여러 변경을 함께 처리 | 하나의 changes 요청에 묶음. 행마다 별도 모델 호출하지 않음 |
 | 온보딩 | 기존 extractor 유지. Memory/Brief별로 호출을 늘리지 않음 |
+| Worker 추천 run | context DB 조회 한 번. 별도 Behavior 재작성 LLM과 단계별 Memory retrieval 없음 |
 | UI 직접 편집 | DB 변경. 생성형 모델 호출 없음 |
 
 원본 tool loop라는 것은 별도 전문 추출기를 두지 않는다는 뜻이지, 총 모델 API 호출이 항상 한 번이라는 뜻이 아니다. 쓰기 성공을 확인한 후 답하면 지연도 추가될 수 있다. 숨은 background extraction으로 이 비용을 감추는 방식은 채택하지 않는다.
@@ -579,11 +618,11 @@ Memory를 추가한다고 기존 수집·안전·공유 범위를 넓히지 않�
 3. UUID, 반복 label, 분류 근거, 전체 수정 문서를 출력하지 않는다.
 4. 정상 write 결과는 적용 ref 중심으로 반환한다.
 5. Memory 전체를 매 turn 읽지 않고 필요한 양만 읽는다.
-6. 추천 run의 공통 context와 동일 query 결과를 재사용한다.
+6. 추천 run에서는 Brief 전체와 상위 Memory snapshot을 DB 한 번으로 읽어 모든 단계에서 재사용한다.
 7. embedding은 본문이 바뀐 행만 갱신한다.
 8. 화면용 요약, 일반 대화 extractor, 별도 Behavior 문서 재작성 호출을 두지 않는다.
 
-예를 들어 Brief 1,200 tokens와 Memory 500개 × 평균 70 tokens를 모두 넣으면 이 부분만 약 36,200 tokens다. 관련 Memory 8개면 약 1,760 tokens다. 이는 산술 예시이며 실제 계정 측정이나 검색 정확도 보장은 아니다. 대화·Profile·tool schema·후속 요청 비용은 별도로 포함해야 한다.
+예를 들어 Brief 1,200 tokens와 Memory 500개 × 평균 70 tokens를 모두 넣으면 이 부분만 약 36,200 tokens다. 대화 agent에서 관련 Memory 8개를 넣으면 약 1,760 tokens다. Worker는 Brief 합계 최대 8,000자와 Memory 합계 최대 6,000자로 context를 제한하므로 한국어·영어 혼합 내용에서 대략 수천 tokens 범위다. Worker의 여러 LLM 단계에는 같은 snapshot tokens가 각각 입력되지만, Memory 수 증가에 따라 무제한 커지거나 역할별 retrieval 호출이 늘지는 않는다. 이는 산술 예시이며 실제 계정 측정이나 검색 정확도 보장은 아니다. 대화·Profile·tool schema·후속 요청 비용은 별도로 포함해야 한다.
 
 전체 비용은 생성형 모델의 모든 입력·출력, embedding, DB/검색, 저장량을 합쳐 비교한다. 평균뿐 아니라 기억이 많은 사용자와 tool을 연달아 쓰는 대화의 지연도 본다.
 
@@ -615,13 +654,13 @@ Memory를 추가한다고 기존 수집·안전·공유 범위를 넓히지 않�
 
 ### 11.5 규모가 커져도 같은 계약을 유지할 수 있다
 
-사용자별 행 조회와 제한된 Memory context를 사용하므로 Memory 저장량 증가가 매번 LLM 입력 증가로 그대로 이어지지는 않는다. 검색 구현을 나중에 개선해도 LLM의 read/write 계약과 Brief UI는 유지할 수 있다. 다만 Brief는 전체를 읽으므로 Brief 자체가 계속 커지면 입력도 증가한다. 이 구조가 사용자 context 전체를 언제나 고정 크기로 만든다고 주장하지 않는다.
+사용자별 행 조회와 제한된 Memory context를 사용하므로 Memory 저장량 증가가 매번 LLM 입력 증가로 그대로 이어지지는 않는다. 대화 retrieval을 나중에 개선해도 LLM의 read/write 계약과 Brief UI는 유지할 수 있다. Worker 역시 사용자별 한 query와 12개·6,000자 상한이어서 후보 수가 늘어도 context 조회 횟수는 늘지 않는다. Brief는 전체를 읽지만 저장 계약에서 40개·8,000자로 제한한다. Profile과 역할 데이터까지 포함한 전체 prompt가 고정 크기라는 뜻은 아니다.
 
 반면 DB 비용은 증가한다. 사용자 10만 명 × Memory 200개면 2천만 행이다. 본문 평균 1 KB면 본문만 약 20 GB, 1,536차원 float32 vector를 모두 붙이면 원시 vector 값만 약 123 GB다. index·복제·backup은 제외한 산술 예시다.
 
 따라서 처음부터 무제한 저장·조회가 싸다고 가정하지 않는다. 실제 사용자별 분포로 조회 지연과 저장 비용을 검증하고, 필요할 때 index·embedding 크기·검색 실행을 최적화한다. 이 문제를 해결하려고 의미 없는 세부 Memory taxonomy나 graph를 먼저 도입하지 않는다.
 
-Brief는 항목별로 통합해 간결하게 유지한다. 길어졌다고 활성 조건을 기계적으로 잘라 추천에서 숨기지는 않는다. Memory도 오래됐다는 이유만으로 가치 없는 것으로 분류해 삭제하지 않는다.
+Brief는 항목별로 통합해 간결하게 유지한다. 저장 상한을 넘기려는 새 변경은 거절하고 기존 항목을 정리하게 하며, 이미 저장된 활성 조건을 Worker가 임의로 잘라 숨기지는 않는다. Memory도 오래됐다는 이유만으로 삭제하지 않는다. Worker의 최신성은 제한된 입력에서 순서를 정할 뿐 사실의 유효성을 대신하지 않는다.
 
 ### 11.6 최종 평가
 
@@ -649,35 +688,36 @@ Harper에서 Brief를 따로 두는 이유는 범용 memory 서비스의 분류 
 
 ## 13. 구현 범위와 완료 조건
 
-### 13.1 개발 순서
+### 13.1 구현 상태와 남은 전환
 
-| 단계 | 할 일 | 완료 기준 |
+| 영역 | 현재 브랜치 상태 | production cutover 전 남은 일 |
 | --- | --- | --- |
-| 1. 공통 저장·조회 | 행 schema, 공통 DB 변경 함수/RPC, read, ref mapping, 권한·동시 수정 | 같은 계약을 웹·worker에서 사용 가능 |
-| 2. 대화 연결 | 기존 온보딩 extractor output 전환, 일반 대화·음성·이메일 원본 tool 연결 | 별도 일반 대화 extractor 없이 저장·정정 가능 |
-| 3. 화면·추천 연결 | Brief 항목 UI, Memory 관리, prompt·검색·fit·설명·회사측 제한 reader | 저장된 내용이 실제 읽히고 적용됨 |
-| 4. 기존 데이터 전환 | insights/custom 항목과 Behavior Context 이관, legacy writer 종료 | 기존 기준·유용한 맥락·coverage가 유실되지 않음 |
-| 5. 대화·규모 검증 | 여러 turn과 채널의 저장→조회→추천, 비용·지연 확인 | 아래 경험·안전·효율 조건 충족 |
+| 공통 저장·조회 | `talent_contexts`, 사용자별 안정적인 숫자 ref, revision/idempotency RPC, Memory importance 1~3, 의미 검색, 최신 unindexed Memory 우선 포함, embedding 재시도와 backfill 명령 구현. 새 변경으로 활성 Brief가 40개 또는 label+content 합계 8,000자를 넘어 더 커지는 것은 원자적 RPC에서 막되, 기존 초과 계정은 삭제·축소와 Memory 변경을 계속 허용 | 두 migration을 검토·적용하고 실제 DB 권한·vector query·부하 확인 |
+| 일반 웹 채팅 | 원본 agent에 공통 read/write 노출. post-onboarding 별도 extractor 없음 | 대화 단위 저장·정정·검색 회귀 평가 |
+| realtime 음성 | post-onboarding에 같은 read/write와 tool-call idempotency 연결. 온보딩에는 노출하지 않음 | 실제 통화 저장→웹 UI 반영 E2E |
+| 온보딩 | 기존 extractor 한 번이 공통 `changes[]`로 Brief/Memory를 함께 저장. checklist 유지 | 긴 답변·동시 turn·마지막 답변 반영 평가 |
+| 이메일 대화 | post-onboarding 원본 이메일 agent에 같은 ref 기반 read/write를 노출. `update_talent_profile.talentInsights`를 제거하고 기본 prompt에는 전체 Brief와 중요도·최신성 상위 Memory만 한 번 조회해 제공. 이메일 온보딩은 기존 progress tool 하나를 유지하되 `contextChanges[]`를 같은 RPC에 저장. 이메일에서 바뀐 Memory도 발송 후 한 embedding batch로 갱신하며 실패 시 한 번 재시도한다 | 실제 이메일 답장→저장→웹 UI/다음 추천 반영 E2E |
+| 사용자 UI | 기존 insights 영역을 자유 label/content Brief와 lazy-paginated Memory 관리로 전환 | 실제 모바일/데스크톱 시각·동시수정 검증 |
+| beta 추천·Ops reader | 웹 추천, full-JD, kickoff, call request, Ops 상세/목록, 회사측 제한 projection 전환. 반복 매칭 script도 Talent Behavior fallback 없이 전체 Brief와 같은 중요도·최신성 상위 Memory 12개/6,000자를 읽음 | 실제 DB query와 반복 매칭 prompt 크기·추천 품질 검증 |
+| 기존 데이터 | keyed insights→사용자 locale에 맞는 초기 label의 Brief, 기존 Behavior Context bullet→importance 2 Memory의 일회성 SQL과 Memory embedding backfill 명령 구현. 이미 첫 migration을 적용한 환경을 위한 보완 migration도 추가 | production 표본 audit와 migration/backfill 실행. legacy table은 rollback 기간 뒤 별도 제거 |
+| `harper_worker` | production v2 경로에서 Behavior Context read/write/LLM 갱신을 제거. 한 DB 조회로 전체 Brief와 중요도 65%·최신성 35% 상위 Memory 12개/6,000자 snapshot을 만들고 internal/external fit·rerank·delivery에 재사용. 실제 context를 external fit cache fingerprint에 포함. 이메일·온보딩 contact·기존 worker profile loader의 `talent_insights` DB reader/writer도 공통 행과 keyed Brief 호환 projection으로 전환 | 깨끗한 test environment에서 전체 관련 suite, 실제 DB query plan·context 크기·추천 품질 검증 후 beta와 함께 cutover |
 
 같은 저장 처리를 TypeScript와 Python에서 제각각 재구현하지 않도록 DB의 원자적 변경 계약을 공유한다. 채널별 adapter는 인증된 사용자·원문 출처·ref를 연결한다. 의미 판단 코드를 공통 유틸리티라는 이름으로 추가하지 않는다.
 
 이는 개발 순서이며 새 writer만 먼저 운영에 켜라는 뜻이 아니다. 전환할 사용자의 writer와 reader가 함께 준비돼야 한다. 이관은 일회성 변환이며 두 원본을 영구 동기화하는 구조가 아니다. 이전 경로로 복구할 때도 전환 후의 새 쓰기를 버리는 방식은 허용하지 않는다.
 
-이관할 때는 기존 insights의 custom 항목과 Behavior Context까지 내용으로 검토한다. key 이름만 보고 모든 값을 현재 조건으로 승격하지 않는다. 필요한 의미 구분은 일회성 이관 작업에서 LLM과 검토로 수행하며, 이 작업을 일반 대화마다 돌아가는 extractor로 남기지 않는다. 한 문장에 현재 조건과 배경이 함께 있으면 각각 필요한 내용을 남기고, 원문 근거와 질문 coverage는 보존한다.
+schema migration은 기존 `talent_insights`를 먼저 손실 없이 keyed 행으로 가져오고, cutover용 partition script가 표준 온보딩 key만 locale에 맞는 label의 Brief로 유지한다. `technical_strengths` 같은 custom key는 현재 탐색 기준으로 단정하지 않고 importance 2 Memory로 옮기며 원래 key는 migration 출처에 남긴다. 네트워크 가입의 신규 seed도 `dreamTeams`는 Brief, `impactSummary`는 Memory로 직접 구분해 Technical Strength가 Brief에 다시 생기지 않게 한다. 기존 Behavior Context는 이미 LLM이 작성한 heading/bullet 문서이므로 bullet별 importance 2 Memory로 구조적으로 옮기며, 예상 형식이 아닌 문서는 전체 text를 보존한다. 한 행의 DB 길이 한도를 넘는 비정상적으로 긴 원문은 누락시키지 않고 순서가 있는 여러 행으로 나눈다. 이 과정에서 별도 생성형 LLM을 호출하거나 일반 대화의 의미 분류를 키워드 규칙으로 대체하지 않는다. production 적용 전에는 custom insight와 Behavior 문서 형식을 표본 audit한다. 의미 재정리가 필요하면 일회성 검토 작업으로 하되 일반 대화 extractor로 남기지 않는다.
 
-### 13.2 현재 코드에서 확인한 필수 연결 지점
+### 13.2 이번 beta 구현에서 연결한 지점
 
-- 현재 insights는 고정 schema만이 아니라 custom key를 허용한다. 문제는 저장 의미와 reader의 역할이 섞인 데도 있다.
-- 기존 일반 채팅에는 이미 `update_talent_profile.talentInsights` tool 쓰기가 있다. 이 부분만 새 계약으로 옮기고 중복 writer를 제거한다.
-- 일반 tool에는 key enum뿐 아니라 key 작성 요구 자체를 두지 않는다. label·content로 추가한 새 Brief가 UI·채팅·검색·fit·설명 입력에 모두 들어가는지 확인한다.
-- 온보딩의 질문 key·label·coverage와 `next_scope → next_scope + must_haves` 연결을 보존한다.
-- 온보딩 현재값을 고정 key로만 읽는 코드, 일반 대화의 빈 canonical key 유도문, 회사측 고정 key reader를 각각 확인한다. 사용자 기준 조회와 회사 공유 권한을 같은 adapter로 처리하지 않는다.
-- 음성 allowlist·실행 handler, 이메일 progress와 reply 경로, 종료 wrap-up까지 확인한다.
-- 기존 tool loop의 step 제한 안에서 read·write·후속 검색과 최종 응답이 가능한지 확인한다. tool 정의만 추가해 중요한 후속 작업이 잘리게 하지 않는다.
-- write 성공 후 전체 context를 다시 생성하지 않고도 최신 기준으로 검색할 수 있게 연결하고, 후속 요청의 캐시 적중·추가 비용을 확인한다.
-- 기존 Behavior Context version에 의존한 추천 freshness와 단계별 context 입력도 전환한다.
-- Profile 저장과 insights 전체 초안 저장이 묶인 UI를 항목별 저장으로 바꾼다.
-- 회사측에는 기존의 제한된 공유 정보만 제공한다.
+- beta와 worker 이메일 모두 `update_talent_profile.talentInsights` 쓰기를 제거하고 일반 대화에는 `read_talent_context`와 `write_talent_context`만 노출했다.
+- 일반 write schema에는 key와 label enum이 없다. 구조적 제한은 `op`, `collection`, Memory importance 1~3뿐이다.
+- 온보딩 질문 key·label·coverage와 기존 추가 질문 흐름은 유지하고, 저장 결과만 공통 `changes[]`로 전환했다.
+- chat/realtime prompt의 기존 insights 본문은 ref가 있는 Search Brief/Relevant memories 텍스트 하나로 교체했다. 현재 값은 checklist나 legacy fallback에 반복하지 않고, 온보딩 coverage 계산만 keyed Brief projection을 사용한다.
+- Search Brief는 UI·채팅·beta 추천/fit·Ops reader가 자유 label 행까지 읽는다. 회사측에는 기존에 허용된 keyed subset만 전달하고 Memory와 자유 Brief는 자동 공유하지 않는다.
+- UI는 Profile 전체 초안과 분리된 행 단위 쓰기와 `TalentCareerModal`을 사용한다. Memory 목록은 일반 응답에 포함하지 않고 관리 화면에서 페이지 단위로 읽는다.
+- `refresh-insights`와 `update-insights` post-onboarding API는 상시 extractor로 전환하지 않고 종료 응답을 반환한다.
+- `harper_worker`의 production v2 loader는 Behavior Context writer를 호출하지 않고 새 snapshot을 사용한다. Beta의 full-JD fallback도 legacy Behavior Context를 읽지 않는다. legacy 모듈·테이블·generic cache column은 rollback과 호환을 위해 남아 있으나 현재 실행 입력의 원본이 아니다.
 
 ### 13.3 검증은 실제 사용자 경험 단위로 한다
 
@@ -701,21 +741,25 @@ Harper에서 Brief를 따로 두는 이유는 범용 memory 서비스의 분류 
 
 ## 14. 코드 근거와 운영 지침
 
-현재 구현을 확인한 주요 파일이다. 아래 파일에 새 구조가 이미 구현돼 있다는 뜻은 아니다.
+현재 브랜치의 구현 근거가 되는 주요 파일이다.
 
 | 확인 내용 | 파일 |
 | --- | --- |
-| insights 저장 | `src/lib/talentOnboarding/stateStore.ts` |
+| 공통 저장·조회·prompt projection | `src/lib/talentOnboarding/talentContexts.ts` |
+| DB schema·RPC·기존 데이터 이관 | `supabase/migrations/20260907170000_talent_contexts.sql`, `supabase/migrations/20260908190000_talent_context_importance.sql` |
 | 항목 key·label·질문 연결 | `src/lib/talentOnboarding/insightChecklist.ts` |
 | 현재값·coverage 프롬프트 | `src/lib/career/prompts/conversationSections.ts` |
 | extraction 입력·실행 | `src/lib/talentOnboarding/chatInsights.ts`, `src/lib/career/prompts/cases/insightExtractionPrompts.ts` |
 | 일반 대화 tool·채널별 노출 | `src/lib/talentOnboarding/tools.ts`, `src/lib/career/llmTools.ts` |
 | 원본 모델 tool loop | `src/lib/career/llm.ts` |
 | 채팅·공유 실행·음성 저장 | `src/app/api/talent/chat/route.ts`, `src/lib/career/chatTurn.ts`, `src/app/api/talent/chat/save/route.ts` |
-| UI와 insights 초안 저장 | `src/components/career/profile/CareerTalentProfilePanel.tsx`, `src/hooks/career/useCareerTalentInsights.ts` |
+| Brief/Memory API와 UI | `src/app/api/talent/contexts/route.ts`, `src/components/career/profile/CareerTalentContextSection.tsx`, `src/hooks/career/useCareerTalentContexts.ts` |
 | 즉시 추천·회사측 제한 reader | `src/lib/talentOnboarding/jobPostingRecommendations.ts`, `src/lib/org/agent/data.ts` |
-| embedding 기존 사용 예 | `src/lib/serviceAnswerExamples.ts` |
-| worker의 장기 context·단계별 입력 | `harper_worker/opp/agentic/behavior_context.py`, `harper_worker/opp/agentic/current_state.py`, `harper_worker/opp/agentic/user_context.py` |
-| worker 원본 모델·이메일 쓰기 | `harper_worker/opp/agentic/orchestration.py`, `harper_worker/email_reply/tools.py` |
+| embedding backfill | `scripts/backfillTalentContextEmbeddings.ts` |
+| beta 반복 매칭 reader | `scripts/company_role_recurring_matching.py` |
+| Worker bounded context 조회·점수 | `harper_worker/opp/agentic/talent_context.py` |
+| Worker 실행 projection·Behavior cutover | `harper_worker/opp/agentic/current_state.py`, `harper_worker/opp/agentic/user_context.py`, `harper_worker/opp/new_harper_agent_v2.py` |
+| Worker fit prompt·cache fingerprint | `harper_worker/opp/agentic/prompts.py`, `harper_worker/opp/utils/internal_fit.py`, `harper_worker/opp/utils/external_deepseek_selector.py` |
+| Worker 이메일 context·tool·온보딩 호환 projection | `harper_worker/email_reply/db.py`, `harper_worker/email_reply/prompt.py`, `harper_worker/email_reply/tools.py`, `harper_worker/email_reply/contact_queue.py` |
 
 설계 원칙은 workspace와 Harper repository의 AGENTS.md에도 남긴다. 온보딩의 기존 예외를 존중하면서, 일반 대화의 의미 판단을 원본 LLM과 명확한 tool 계약에 맡긴다는 원칙을 이후 구현·리뷰에서도 유지한다.

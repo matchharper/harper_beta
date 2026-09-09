@@ -134,6 +134,43 @@ export type CareerTalentPreferences = {
 
 export type CareerTalentInsights = Record<string, string>;
 
+export type CareerTalentContextCollection = "brief" | "memory";
+
+export type CareerTalentContext = {
+  collection: CareerTalentContextCollection;
+  content: string;
+  createdAt: string;
+  id: number;
+  importance: 1 | 2 | 3 | null;
+  key: string | null;
+  label: string | null;
+  ref: number;
+  revision: number;
+  updatedAt: string;
+};
+
+export type CareerTalentContextChange =
+  | {
+      collection: CareerTalentContextCollection;
+      content: string;
+      importance?: 1 | 2 | 3;
+      label?: string;
+      op: "add";
+    }
+  | {
+      content?: string;
+      expectedRevision: number;
+      id: number;
+      importance?: 1 | 2 | 3;
+      label?: string;
+      op: "update";
+    }
+  | {
+      expectedRevision: number;
+      id: number;
+      op: "delete";
+    };
+
 export type CareerInterviewProgress = {
   canForceComplete: boolean;
   filledCount: number;
@@ -406,6 +443,7 @@ export type CareerInternalOpportunityCallRequest = {
 export type CareerProfileSettingsMeta = {
   talentPreferencesUpdatedAt: string | null;
   talentInsightsUpdatedAt: string | null;
+  talentContextsUpdatedAt?: string | null;
   talentSettingsUpdatedAt: string | null;
   latestUpdatedAt: string | null;
 };
@@ -428,6 +466,8 @@ export type SessionResponse = {
   historyOpportunities?: CareerHistoryOpportunity[];
   talentPreferences?: CareerTalentPreferences | null;
   talentInsights?: CareerTalentInsights | null;
+  talentBrief?: CareerTalentContext[];
+  talentMemories?: CareerTalentContext[];
   onboardingChecklistProgress?: CareerOnboardingChecklistProgress | null;
   profileSettingsMeta?: CareerProfileSettingsMeta;
   talentProfile?: CareerTalentProfile;

@@ -1251,21 +1251,19 @@ async function readHarperSharedInformation(args: {
   admin: OrgAgentAdminClient;
   talentId: string;
 }) {
-  const { data: insight, error: insightError } = await (
-    args.admin.from("talent_insights" as any) as any
+  const keys = HARPER_SHARED_INFORMATION_FIELDS.map((field) => field.key);
+  const { data: rows, error } = await (
+    args.admin.from("talent_contexts" as any) as any
   )
-    .select("content")
+    .select("key, content")
     .eq("talent_id", args.talentId)
-    .order("id", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (insightError) throw insightError;
-  const content =
-    insight?.content &&
-    typeof insight.content === "object" &&
-    !Array.isArray(insight.content)
-      ? (insight.content as Record<string, unknown>)
-      : {};
+    .eq("collection", "brief")
+    .is("deleted_at", null)
+    .in("key", keys);
+  if (error) throw error;
+  const content = Object.fromEntries(
+    (Array.isArray(rows) ? rows : []).map((row) => [row.key, row.content])
+  ) as Record<string, unknown>;
   return HARPER_SHARED_INFORMATION_FIELDS.map(({ key, label }) => ({
     key,
     label,

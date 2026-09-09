@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   ensureTalentUserRecord,
+  fetchAllTalentContexts,
   fetchTalentDocuments,
-  fetchTalentInsights,
+  fetchTalentContextsUpdatedAt,
   fetchTalentSetting,
   fetchVisibleMessagesPage,
   fetchTalentStructuredProfile,
@@ -14,7 +15,7 @@ import {
   getTalentSupabaseAdmin,
   markTalentUserLoggedIn,
   normalizeTalentEngagementTypes,
-  normalizeTalentInsightContent,
+  projectBriefsToLegacyInsights,
   pickLatestResumeDocument,
   serializeTalentDocuments,
   serializeOnboardingChecklistProgress,
@@ -22,6 +23,7 @@ import {
   type TalentMessageRow,
   type TalentStructuredProfile,
   type TalentUserProfileRow,
+  toTalentContextResponse,
   toTalentMessageResponse,
 } from "@/lib/talentOnboarding/server";
 import {
@@ -567,7 +569,8 @@ export async function GET(req: NextRequest) {
       talentProfile,
       resumeDownloadUrl,
       talentSetting,
-      talentInsights,
+      talentBrief,
+      talentContextsUpdatedAt,
       historyOpportunitiesPage,
       latestOpportunityRun,
       activeCompanyRoleCount,
@@ -614,12 +617,19 @@ export async function GET(req: NextRequest) {
         userId: user.id,
       }),
       withSessionFallback({
-        fallback: null,
-        label: "talent insights",
-        promise: fetchTalentInsights({
+        fallback: [],
+        label: "search brief",
+        promise: fetchAllTalentContexts({
           admin,
+          collection: "brief",
           userId: user.id,
         }),
+        userId: user.id,
+      }),
+      withSessionFallback({
+        fallback: null,
+        label: "saved career context timestamp",
+        promise: fetchTalentContextsUpdatedAt({ admin, userId: user.id }),
         userId: user.id,
       }),
       withSessionFallback({
@@ -682,9 +692,7 @@ export async function GET(req: NextRequest) {
     const visibleMessages = messages.filter(
       (message) => !(message.message_type ?? "").startsWith("mock_interview")
     );
-    const normalizedInsights = normalizeTalentInsightContent(
-      talentInsights?.content
-    );
+    const normalizedInsights = projectBriefsToLegacyInsights(talentBrief);
     const onboardingChecklistProgress = !Boolean(
       talentSetting?.is_onboarding_done
     )
@@ -711,7 +719,6 @@ export async function GET(req: NextRequest) {
       : [];
     const talentSettingsUpdatedAt = talentSetting?.updated_at ?? null;
     const talentPreferencesUpdatedAt = talentSetting?.updated_at ?? null;
-    const talentInsightsUpdatedAt = talentInsights?.last_updated_at ?? null;
     const messageIds = visibleMessages
       .map((message) => message.id)
       .filter((id): id is number => typeof id === "number");
@@ -893,14 +900,16 @@ export async function GET(req: NextRequest) {
         ),
       },
       talentInsights: normalizedInsights,
+      talentBrief: talentBrief.map(toTalentContextResponse),
       onboardingChecklistProgress,
       profileSettingsMeta: {
         talentPreferencesUpdatedAt,
-        talentInsightsUpdatedAt,
+        talentInsightsUpdatedAt: talentContextsUpdatedAt,
+        talentContextsUpdatedAt,
         talentSettingsUpdatedAt,
         latestUpdatedAt: getLatestUpdatedAt(
           talentPreferencesUpdatedAt,
-          talentInsightsUpdatedAt,
+          talentContextsUpdatedAt,
           talentSettingsUpdatedAt
         ),
       },

@@ -1,7 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { applyWebsiteCompanyDataChanges } from "@/lib/org/companyDataWebsite";
 import { getCompanyInternalRoleRequest } from "@/lib/companyInternalRole";
-import { getInsightLabel } from "@/lib/talentOnboarding/insightChecklist";
 import {
   isOpsMatchingExcludeNotInterestedFilter,
   isOpsMatchingNoHumanLabelFilter,
@@ -73,10 +72,13 @@ type TalentExtraRow = Pick<
   Database["public"]["Tables"]["talent_extras"]["Row"],
   "content" | "talent_id"
 >;
-type TalentInsightRow = Pick<
-  Database["public"]["Tables"]["talent_insights"]["Row"],
-  "content" | "talent_id"
->;
+type TalentContextBriefRow = {
+  content: string;
+  key: string | null;
+  label: string;
+  ref: number;
+  talent_id: string;
+};
 type TalentOpportunityTagRow = {
   created_at: string;
   id: string;
@@ -1361,40 +1363,6 @@ function normalizeProfileExtras(value: unknown): OpsMatchingProfileExtra[] {
     .filter((extra): extra is OpsMatchingProfileExtra => extra !== null);
 }
 
-function formatInsightValue(value: unknown) {
-  const primitiveText = normalizePrimitiveText(value);
-  if (primitiveText) return primitiveText;
-  if (Array.isArray(value)) {
-    return value.map(normalizePrimitiveText).filter(Boolean).join(", ");
-  }
-  if (!isRecord(value)) return "";
-  return (
-    getRecordPrimitiveText(value, [
-      "value",
-      "answer",
-      "description",
-      "summary",
-      "text",
-    ]) ?? ""
-  );
-}
-
-function normalizeTalentInsights(value: unknown): OpsMatchingTalentInsight[] {
-  const record = parseJsonRecord(value);
-  if (!record) return [];
-  return Object.entries(record)
-    .map(([key, rawValue]) => {
-      const insightValue = formatInsightValue(rawValue);
-      if (!insightValue) return null;
-      return {
-        key,
-        label: getInsightLabel(key),
-        value: insightValue,
-      };
-    })
-    .filter((insight): insight is OpsMatchingTalentInsight => insight !== null);
-}
-
 function getHasActiveRole(status: string | null | undefined) {
   return ACTIVE_ROLE_STATUSES.has(
     String(status ?? "")
@@ -1802,24 +1770,32 @@ async function fetchInsightMap(args: {
   if (args.talentIds.length === 0) return insightMap;
 
   const { data, error } = await args.admin
-    .from("talent_insights")
-    .select("talent_id, content")
+    .from("talent_contexts" as never)
+    .select("talent_id, ref, key, label, content")
+    .eq("collection", "brief")
+    .is("deleted_at", null)
     .in("talent_id", args.talentIds);
 
   if (error) {
     throw new Error(error.message ?? "Failed to load talent insights");
   }
 
-  for (const row of (data ?? []) as TalentInsightRow[]) {
+  for (const row of (data ?? []) as unknown as TalentContextBriefRow[]) {
     const talentId = normalizeText(row.talent_id);
     if (!talentId) continue;
-    const nextInsights = normalizeTalentInsights(row.content);
-    if (nextInsights.length === 0) continue;
+    const value = normalizeText(row.content);
+    const label = normalizeText(row.label);
+    if (!value || !label) continue;
+    const nextInsight = {
+      key: normalizeText(row.key) || `brief_${row.ref}`,
+      label,
+      value,
+    };
     const existing = insightMap.get(talentId) ?? [];
     const existingKeys = new Set(existing.map((insight) => insight.key));
     const merged = [
       ...existing,
-      ...nextInsights.filter((insight) => !existingKeys.has(insight.key)),
+      ...(existingKeys.has(nextInsight.key) ? [] : [nextInsight]),
     ];
     insightMap.set(talentId, merged);
   }

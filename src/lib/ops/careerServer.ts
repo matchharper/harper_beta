@@ -1,13 +1,15 @@
 import {
-  fetchTalentInsights,
+  fetchAllTalentContexts,
+  fetchTalentContexts,
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
   getTalentSupabaseAdmin,
   getMergedChecklist,
   getTalentResumeSignedUrl,
   TALENT_RESUME_BUCKET,
+  projectBriefsToLegacyInsights,
+  toTalentContextResponse,
 } from "@/lib/talentOnboarding/server";
-import { normalizeTalentInsightContent } from "@/lib/talentOnboarding/server";
 import {
   ingestTalentProfileFromLinkedin,
   pickLinkedinUrl,
@@ -152,6 +154,8 @@ export type CareerTalentProfileResponse = {
 export type CareerTalentInsightsResponse = {
   userId: string;
   insights: Record<string, string> | null;
+  brief: ReturnType<typeof toTalentContextResponse>[];
+  memories: ReturnType<typeof toTalentContextResponse>[];
   mergedChecklist: MergedChecklistItem[];
   preferences: CareerTalentPreferenceSummary | null;
 };
@@ -1505,24 +1509,28 @@ export async function fetchCareerTalentList(args: {
     onboardingDoneMap.set(setting.user_id, Boolean(setting.is_onboarding_done));
   }
 
-  // Fetch insights per user
-  const { data: insightsRows } = await admin
-    .from("talent_insights")
-    .select("talent_id, content")
+  // Fetch user-visible Search Brief rows per user.
+  const { data: briefRows } = await admin
+    .from("talent_contexts" as never)
+    .select("talent_id")
+    .eq("collection", "brief")
+    .is("deleted_at", null)
     .in("talent_id", userIds);
 
-  const insightsMap = new Map<string, Record<string, string>>();
-  for (const row of insightsRows ?? []) {
-    const normalized = normalizeTalentInsightContent(row.content);
-    if (normalized && row.talent_id) {
-      insightsMap.set(row.talent_id, normalized);
-    }
+  const insightCountMap = new Map<string, number>();
+  for (const row of (briefRows ?? []) as unknown as Array<{
+    talent_id: string;
+  }>) {
+    if (!row.talent_id) continue;
+    insightCountMap.set(
+      row.talent_id,
+      (insightCountMap.get(row.talent_id) ?? 0) + 1
+    );
   }
 
   const talents: CareerTalentSummary[] = rows.map((row) => {
     const conv = conversationMap.get(row.user_id);
-    const insights = insightsMap.get(row.user_id);
-    const insightCount = insights ? Object.keys(insights).length : 0;
+    const insightCount = insightCountMap.get(row.user_id) ?? 0;
     const currentExperience = currentExperienceMap.get(row.user_id);
     const registeredLinkTypes = getRegisteredLinkTypes(row.resume_links);
 
@@ -1940,8 +1948,8 @@ export async function fetchCareerTalentInsightsDetail(
   userId: string
 ): Promise<CareerTalentInsightsResponse> {
   const admin = getTalentSupabaseAdmin();
-  const [insights, mergedChecklist, settingResult] = await Promise.all([
-    fetchTalentInsights({ admin, userId }),
+  const [contexts, mergedChecklist, settingResult] = await Promise.all([
+    fetchAllTalentContexts({ admin, userId }),
     getMergedChecklist({ admin }),
     admin
       .from("talent_setting")
@@ -1957,10 +1965,15 @@ export async function fetchCareerTalentInsightsDetail(
   }
 
   const setting = settingResult.data;
+  const brief = contexts.filter((row) => row.collection === "brief");
 
   return {
     userId,
-    insights: normalizeTalentInsightContent(insights?.content),
+    insights: projectBriefsToLegacyInsights(brief),
+    brief: brief.map(toTalentContextResponse),
+    memories: contexts
+      .filter((row) => row.collection === "memory")
+      .map(toTalentContextResponse),
     mergedChecklist,
     preferences: setting
       ? {
@@ -2446,12 +2459,10 @@ export async function fetchCareerTalentRecommendations(args: {
       .slice(0, limit)
       .map(mapCareerRecommendationRow)
       .filter((item): item is CareerTalentRecommendationItem => item !== null);
-    const recommendationsWithDetails = await attachCareerRecommendationDetails(
-      {
-        admin,
-        recommendations,
-      }
-    );
+    const recommendationsWithDetails = await attachCareerRecommendationDetails({
+      admin,
+      recommendations,
+    });
 
     return {
       recommendations: recommendationsWithDetails,

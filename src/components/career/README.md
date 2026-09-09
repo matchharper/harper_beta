@@ -33,7 +33,7 @@
 
 - `profile/CareerProfileWorkspace.tsx`
   - profile 탭 내부의 in-page tab shell.
-  - `선호 조건 / 프로필 / 하퍼 인사이트 / 이력서·링크` 네 섹션을 전환합니다.
+  - Search Brief, 구조화 프로필, 이력서·링크를 확인·관리합니다.
 
 - `CareerSettingsModal.tsx`
   - 우측 상단 설정 버튼으로 여는 모달.
@@ -47,7 +47,7 @@
   - runtime 구독은 변경 빈도와 도메인에 따라 다음 hook으로 분리합니다.
     - `useCareerSidebarContext` — workspace shell, onboarding/run 상태와 공통 액션
     - `useCareerHistoryContext` — opportunity history 조회 결과와 액션
-    - `useCareerProfileContext` — profile/preferences/insights/settings draft와 저장 액션
+    - `useCareerProfileContext` — profile/preferences/Search Brief/Memory/settings와 저장 액션
     - `useCareerCompanyFollowContext` — company follow 전용 상태와 액션
 
 - `CareerChatPanelContext.tsx`
@@ -61,14 +61,14 @@
 UI에 현재 보이는 탭과 prompt에 필요한 데이터의 로딩 시점은 분리되어 있습니다.
 
 - text chat `/api/talent/chat`
-  - 요청 시점에 서버가 talent setting, insights, structured profile, 최근 대화와
-    추천 기회를 조회해 prompt를 만듭니다.
+  - 요청 시점에 서버가 talent setting, 전체 Search Brief, 관련 Memory,
+    structured profile, 최근 대화와 추천 기회를 조회해 prompt를 만듭니다.
 - voice call `/api/realtime/token`
   - `buildCareerRealtimeSessionInstructions`가 요청 시점의 DB 데이터를 조회해
     realtime instructions를 만듭니다.
 - `settingsDataEnabled`
   - profile/settings 편집 UI의 클라이언트 조회 시점만 제어합니다.
-  - prompt용 setting/insight/profile 로딩을 제어하면 안 됩니다.
+  - prompt용 setting/context/profile 로딩을 제어하면 안 됩니다.
 - `/api/talent/session`
   - workspace bootstrap과 UI hydration에 사용합니다. 이 응답의 클라이언트
     복사본을 prompt 데이터의 유일한 소스로 간주하지 않습니다.
@@ -97,7 +97,9 @@ UI에 현재 보이는 탭과 prompt에 필요한 데이터의 로딩 시점은 
 
 - `profile/CareerTalentProfilePanel.tsx`
   - talent structured profile 렌더러.
-  - 경험/학력/extra 등 읽기 중심 패널입니다.
+  - Search Brief는 바로 표시하고 label은 유지한 채 값을 한 번에 인라인 편집합니다.
+  - Memory는 관리 모달을 열 때 `/api/talent/contexts`에서 페이지 단위로 읽습니다.
+  - 경험/학력/extra 등 구조화 프로필도 함께 표시합니다.
 
 ### Chat
 
@@ -141,10 +143,14 @@ UI에 현재 보이는 탭과 prompt에 필요한 데이터의 로딩 시점은 
   - `talentPreferences` draft 와 saved snapshot 을 분리합니다.
   - `hasUnsavedTalentPreferencesChanges`, `onResetTalentPreferences` 제공.
 
+- `useCareerTalentContexts.ts`
+  - Search Brief와 Memory 행 상태를 관리합니다.
+  - Brief는 session/chat 응답으로 갱신하고, Memory 목록은 관리 화면에서 lazy pagination 합니다.
+  - 추가·수정·삭제는 revision을 포함한 `/api/talent/contexts` 변경 요청을 사용합니다.
+
 - `useCareerTalentInsights.ts`
-  - `talentInsights` draft 와 saved snapshot 을 분리합니다.
-  - `talent_insights.content` 의 동적 key-value 를 그대로 저장합니다.
-  - `hasUnsavedTalentInsightsChanges`, `onResetTalentInsights` 제공.
+  - 온보딩·이관 기간의 keyed Brief projection을 읽는 legacy compatibility 상태입니다.
+  - 새 Search Brief/Memory 저장 경로로 사용하지 않습니다.
 
 - `useCareerTalentSettings.ts`
   - `profileVisibility`, `blockedCompanies` 를 draft 기반으로 관리합니다.
@@ -164,17 +170,18 @@ profile settings 는 한 군데가 아니라 두 저장소로 나뉩니다.
   - API: `/api/talent/settings`, `/api/talent/preferences`
   - DB: `talent_setting`
 
-- Harper's insight key-value
-  - API: `/api/talent/preferences`
-  - DB: `talent_insights.content`
-  - key 는 고정 schema 가 아니라 `content` JSONB 에 저장된 값 기준으로 동적으로 정해집니다.
-  - 현재 내부 구조화에서 `technical_strengths`, `desired_teams` 가 seed 될 수는 있지만 UI는 이 둘을 하드코딩하지 않습니다.
+- Search Brief / Memory
+  - API: `/api/talent/contexts`
+  - DB: `talent_contexts` (`collection = brief | memory`)
+  - 일반 Brief는 자유 형식 `label + content`, Memory는 `content`로 저장합니다.
+  - 기존 온보딩 연결용 `key`는 선택적 호환 metadata이며 일반 UI/tool 입력이 아닙니다.
+  - 사용자별 짧은 `ref`는 LLM용 식별자, 내부 `id + revision`은 UI 동시수정 검사용입니다.
 
 `CareerProfileSettingsSection` 상단의 `Last updated` 는 아래 세 시각 중 가장 최신값을 표시합니다.
 
 - `talent_users.updated_at`
 - `talent_setting.updated_at`
-- `talent_insights.last_updated_at`
+- `talent_contexts.updated_at`
 
 ## API Contracts That This Folder Depends On
 
@@ -186,8 +193,12 @@ profile settings 는 한 군데가 아니라 두 저장소로 나뉩니다.
   - network application 저장 후 `updatedAt` 반환.
 
 - `/api/talent/preferences`
-  - preferences 와 `talentInsights` 를 함께 hydrate 합니다.
-  - preferences 저장 시 `preferencesUpdatedAt`, insight 저장 시 `insightUpdatedAt` 반환.
+  - preferences와 온보딩 호환용 keyed Brief projection을 hydrate 합니다.
+  - Search Brief/Memory 쓰기는 받지 않습니다.
+
+- `/api/talent/contexts`
+  - Brief 조회와 항목별 add/update/delete를 제공합니다.
+  - Memory 목록은 cursor pagination으로 읽습니다. 일반 chat/session 응답에 전체 Memory를 싣지 않습니다.
 
 - `/api/talent/settings`
   - settings 저장 후 `updatedAt` 반환.
@@ -199,10 +210,10 @@ profile 설정 필드를 추가하거나 저장 방식을 바꿀 때는 보통 �
 1. `src/components/career/types.ts`
 2. `src/components/career/CareerSidebarContext.tsx`
 3. `src/hooks/career/useCareerTalentPreferences.ts`
-4. `src/hooks/career/useCareerTalentInsights.ts`
+4. `src/hooks/career/useCareerTalentContexts.ts`
 5. `src/hooks/career/useCareerTalentSettings.ts`
 6. `src/app/api/talent/session/route.ts`
-7. 관련 저장 API route (`settings`, `preferences`)
+7. 관련 저장 API route (`settings`, `preferences`, `contexts`)
 8. `src/pages/career/preview.tsx`
 
 이 중 하나라도 빠지면 runtime 에서는 동작해도 preview, hydrate, dirty-state, reset, updated-at 표시가 어긋날 수 있습니다.

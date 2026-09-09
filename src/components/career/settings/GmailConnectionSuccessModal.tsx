@@ -95,7 +95,7 @@ export default function GmailConnectionSuccessModal({
           <p className="text-[13px] leading-[1.65] text-neutral-muted">
             {t(
               "career.profile.career_profile_links_settings_section.0rr9dvp",
-              "읽어온 정보는 내 문서에 비공개로 저장되며 회사에 공개되지 않습니다. 지원 근거가 불분명한 이메일은 커리어 이력으로 저장하지 않습니다."
+              "읽어온 정보는 Harper가 비공개로 기억하며 회사에 공개하지 않습니다. 지원 근거가 불분명한 이메일은 기억하지 않습니다."
             )}
           </p>
         </div>

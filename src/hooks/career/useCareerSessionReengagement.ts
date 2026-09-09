@@ -29,6 +29,9 @@ export type SessionReengagementPayload = {
   preferencesUpdatedAt?: unknown;
   skipped?: boolean;
   talentInsights?: unknown;
+  talentBrief?: unknown;
+  talentContextsUpdatedAt?: unknown;
+  talentMemories?: unknown;
   talentPreferences?: unknown;
 };
 
@@ -157,6 +160,7 @@ export const useCareerAutomaticSessionReengagement = ({
   fetchWithAuth,
   onOpportunityRunChanged,
   onTalentInsightsRefreshed,
+  onTalentContextsRefreshed,
   onTalentPreferencesRefreshed,
   sessionPending,
   stage,
@@ -168,6 +172,11 @@ export const useCareerAutomaticSessionReengagement = ({
   fetchWithAuth: FetchWithAuth;
   onOpportunityRunChanged: (run: CareerOpportunityRun | null) => void;
   onTalentInsightsRefreshed: (insights: unknown, updatedAt: unknown) => void;
+  onTalentContextsRefreshed: (payload: {
+    talentBrief?: unknown;
+    talentContextsUpdatedAt?: unknown;
+    talentMemories?: unknown;
+  }) => void;
   onTalentPreferencesRefreshed: (
     preferences: unknown,
     updatedAt: unknown
@@ -222,6 +231,14 @@ export const useCareerAutomaticSessionReengagement = ({
           payload.talentInsights,
           payload.insightUpdatedAt ?? null
         );
+      }
+      if ("talentBrief" in payload || "talentMemories" in payload) {
+        onTalentContextsRefreshed({
+          talentBrief: payload.talentBrief,
+          talentContextsUpdatedAt:
+            payload.talentContextsUpdatedAt ?? payload.insightUpdatedAt,
+          talentMemories: payload.talentMemories,
+        });
       }
 
       const assistantMessages = Array.isArray(payload.assistantMessages)
@@ -407,6 +424,7 @@ export const useCareerAutomaticSessionReengagement = ({
     fetchWithAuth,
     onOpportunityRunChanged,
     onTalentInsightsRefreshed,
+    onTalentContextsRefreshed,
     onTalentPreferencesRefreshed,
     sessionPending,
     setActionMessageId,

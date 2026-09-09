@@ -11,6 +11,8 @@ import type {
   CareerOpportunitySavedStage,
   CareerStage,
   CareerTalentInsights,
+  CareerTalentContext,
+  CareerTalentContextChange,
   CareerTalentDocument,
   CareerTalentPreferences,
   CareerTalentProfile,
@@ -200,6 +202,21 @@ export type CareerSidebarContextValue = {
   talentProfile: CareerTalentProfile;
   talentPreferences: CareerTalentPreferences | null;
   talentInsights: CareerTalentInsights | null;
+  talentBrief?: CareerTalentContext[];
+  talentMemories?: CareerTalentContext[];
+  talentContextsUpdatedAt?: string | null;
+  talentContextsSavePending?: boolean;
+  talentContextsSaveError?: string;
+  talentContextsSaveInfo?: string;
+  talentMemoriesHasMore?: boolean;
+  talentMemoriesLoaded?: boolean;
+  talentMemoriesLoadPending?: boolean;
+  loadTalentMemories?: (options?: {
+    append?: boolean;
+  }) => boolean | Promise<boolean>;
+  mutateTalentContexts?: (
+    changes: CareerTalentContextChange[]
+  ) => boolean | Promise<boolean>;
   talentPreferencesUpdatedAt: string | null;
   talentPreferencesSavePending: boolean;
   talentPreferencesSaveError: string;
@@ -330,6 +347,17 @@ export type CareerProfileContextValue = Pick<
   | "settingsSaving"
   | "settingsUpdatedAt"
   | "talentInsights"
+  | "talentBrief"
+  | "talentMemories"
+  | "talentContextsUpdatedAt"
+  | "talentContextsSavePending"
+  | "talentContextsSaveError"
+  | "talentContextsSaveInfo"
+  | "talentMemoriesHasMore"
+  | "talentMemoriesLoaded"
+  | "talentMemoriesLoadPending"
+  | "loadTalentMemories"
+  | "mutateTalentContexts"
   | "talentDocuments"
   | "talentInsightsSaveError"
   | "talentInsightsSaveInfo"

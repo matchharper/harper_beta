@@ -109,9 +109,7 @@ export async function POST(req: NextRequest) {
       conversationId,
       isMobile,
       latestUserMessageId:
-        typeof latestUserMessage?.id === "number"
-          ? latestUserMessage.id
-          : null,
+        typeof latestUserMessage?.id === "number" ? latestUserMessage.id : null,
       regenerateWrapup,
       source: regenerateWrapup
         ? "career_dev_onboarding_completion_test"
@@ -144,12 +142,12 @@ export async function POST(req: NextRequest) {
         completed: true,
       },
       talentInsights: result.talentInsights,
+      talentBrief: result.talentBrief,
+      talentContextsUpdatedAt: result.talentContextsUpdatedAt,
     });
   } catch (error) {
     const message =
-      error instanceof Error
-        ? error.message
-        : "Failed to complete onboarding";
+      error instanceof Error ? error.message : "Failed to complete onboarding";
     console.error("[onboarding-complete] Error:", error);
     return NextResponse.json({ error: message }, { status: 500 });
   }

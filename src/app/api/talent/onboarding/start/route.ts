@@ -9,6 +9,7 @@ import {
   TalentConversationRow,
   TalentMessageRow,
   ensureTalentUserRecord,
+  fetchTalentContextPromptSnapshot,
   fetchTalentDocument,
   fetchTalentDocuments,
   fetchTalentSetting,
@@ -18,6 +19,7 @@ import {
   getTalentSupabaseAdmin,
   toTalentDisplayName,
   serializeTalentDocuments,
+  renderTalentContextPrompt,
   updateTalentDocumentExtractedText,
 } from "@/lib/talentOnboarding/server";
 import {
@@ -470,6 +472,11 @@ export async function POST(req: NextRequest) {
 
     const displayName = submittedName || toTalentDisplayName(user);
     const talentSetting = await fetchTalentSetting({ admin, userId: user.id });
+    const talentContextSnapshot = await fetchTalentContextPromptSnapshot({
+      admin,
+      query: resumeText,
+      userId: user.id,
+    });
     const preferredLocale =
       talentSetting?.preferred_locale ?? body.locale ?? cookieLocale;
     const kickoff = await generateTalentKickoff({
@@ -483,7 +490,7 @@ export async function POST(req: NextRequest) {
         blockedCompanies: normalizeTalentBlockedCompanies(
           talentSetting?.blocked_companies ?? []
         ),
-        insightContent: null,
+        careerContext: renderTalentContextPrompt(talentContextSnapshot),
       },
       resumeFileName,
       resumeText,

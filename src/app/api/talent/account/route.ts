@@ -639,6 +639,13 @@ async function deleteCareerRows(
   );
 
   await deleteEq(admin, "talent_setting", "user_id", context.userId);
+  await deleteEq(
+    admin,
+    "talent_context_write_requests",
+    "talent_id",
+    context.userId
+  );
+  await deleteEq(admin, "talent_contexts", "talent_id", context.userId);
   await deleteEq(admin, "talent_insights", "talent_id", context.userId);
   await deleteEq(admin, "talent_extras", "talent_id", context.userId);
   await deleteEq(admin, "talent_educations", "talent_id", context.userId);

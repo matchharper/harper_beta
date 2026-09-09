@@ -6,11 +6,11 @@ import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
 import { fetchRecentMessagesWithSummary } from "@/lib/talentOnboarding/conversationSummary";
 import {
   buildTalentProfileContext,
-  fetchTalentInsights,
+  fetchTalentContextPromptSnapshot,
   fetchTalentSetting,
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
-  normalizeTalentInsightContent,
+  renderTalentContextPrompt,
   type TalentAdminClient,
 } from "@/lib/talentOnboarding/server";
 import type { TalentOpportunityHistoryItem } from "@/lib/talentOpportunity";
@@ -644,7 +644,7 @@ function buildDecisionPrompt(args: {
   candidateName: string | null;
   companyName: string;
   hasResume: boolean;
-  insights: Record<string, string>;
+  careerContext: string;
   opportunity: TalentOpportunityHistoryItem;
   preferredLocale?: string | null;
   profileContext: string;
@@ -701,9 +701,8 @@ function buildDecisionPrompt(args: {
       RECENT_CONVERSATION_CONTEXT_MAX_CHARS
     ) || "(none)",
     "",
-    "Known future-matching insights/preferences:",
-    clip(JSON.stringify(args.insights, null, 2), INSIGHT_CONTEXT_MAX_CHARS) ||
-      "(none)",
+    "Saved Search Brief and relevant Memory:",
+    clip(args.careerContext, INSIGHT_CONTEXT_MAX_CHARS) || "(none)",
   ].join("\n");
 }
 
@@ -741,11 +740,15 @@ async function decideInternalOpportunityCallRequest(args: {
   roleContext: InternalOpportunityCallRoleContext;
   userId: string;
 }) {
-  const [profile, setting, insights, recentConversationContext] =
+  const [profile, setting, talentContextSnapshot, recentConversationContext] =
     await Promise.all([
       fetchTalentUserProfile({ admin: args.admin, userId: args.userId }),
       fetchTalentSetting({ admin: args.admin, userId: args.userId }),
-      fetchTalentInsights({ admin: args.admin, userId: args.userId }),
+      fetchTalentContextPromptSnapshot({
+        admin: args.admin,
+        query: `${args.opportunity.title}\n${args.roleContext.description}\n${args.roleContext.request}`,
+        userId: args.userId,
+      }),
       fetchRecentConversationContext({
         admin: args.admin,
         conversationId: args.conversationId,
@@ -782,8 +785,7 @@ async function decideInternalOpportunityCallRequest(args: {
           candidateName: optionalString(profile?.name),
           companyName,
           hasResume: hasResumeSignal(profile),
-          insights:
-            normalizeTalentInsightContent(insights?.content ?? null) ?? {},
+          careerContext: renderTalentContextPrompt(talentContextSnapshot),
           opportunity: args.opportunity,
           preferredLocale: setting?.preferred_locale ?? null,
           profileContext,

@@ -2,15 +2,17 @@ import { after, NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   countUserChatTurns,
-  fetchTalentInsights,
+  fetchAllTalentContexts,
+  fetchTalentContextsUpdatedAt,
   fetchTalentSetting,
   fetchTalentUserProfile,
   getCareerOnboardingChecklistCoverage,
   getOnboardingChecklistCoverageStats,
   getTalentSupabaseAdmin,
-  normalizeTalentInsightContent,
+  projectBriefsToLegacyInsights,
   serializeOnboardingChecklistProgress,
   toTalentMessageResponse,
+  toTalentContextResponse,
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/server";
 import { TALENT_INTERVIEW_FINAL_STEP } from "@/lib/talentOnboarding/progress";
@@ -156,33 +158,32 @@ export async function POST(req: NextRequest) {
     const isInternalOpportunityCall = Boolean(internalCallRequest);
     const messageType = isCallMode ? "call_transcript" : "chat";
 
-    const [currentInsights, talentSetting, profile] = await Promise.all([
-      fetchTalentInsights({
-        admin,
-        userId: user.id,
-      }),
-      fetchTalentSetting({
-        admin,
-        userId: user.id,
-      }),
-      fetchTalentUserProfile({
-        admin,
-        userId: user.id,
-      }),
-    ]);
-    const currentInsightContent = (currentInsights?.content ?? null) as Record<
-      string,
-      string
-    > | null;
+    const [currentBrief, currentContextsUpdatedAt, talentSetting, profile] =
+      await Promise.all([
+        fetchAllTalentContexts({
+          admin,
+          collection: "brief",
+          userId: user.id,
+        }),
+        fetchTalentContextsUpdatedAt({ admin, userId: user.id }),
+        fetchTalentSetting({
+          admin,
+          userId: user.id,
+        }),
+        fetchTalentUserProfile({
+          admin,
+          userId: user.id,
+        }),
+      ]);
+    const currentInsightContent = projectBriefsToLegacyInsights(currentBrief);
     const shouldAutoExtractInsights =
       !isInternalOpportunityCall &&
       !Boolean(talentSetting?.is_onboarding_done) &&
       Boolean(userMessageText) &&
       Boolean(assistantMessageText);
-    let responseTalentInsights = normalizeTalentInsightContent(
-      currentInsights?.content ?? null
-    );
-    let responseInsightUpdatedAt = currentInsights?.last_updated_at ?? null;
+    let responseBrief = currentBrief;
+    let responseTalentInsights = currentInsightContent;
+    let responseInsightUpdatedAt = currentContextsUpdatedAt;
     const responseLocale =
       talentSetting?.preferred_locale ??
       body.locale ??
@@ -208,51 +209,29 @@ export async function POST(req: NextRequest) {
         buildPrompt: (promptArgs) =>
           buildCareerInsightExtractionOnlyPrompt({
             currentChecklistCoverage: promptArgs.currentChecklistCoverage,
-            currentInsightContent: promptArgs.currentInsightContent,
             onboardingChecklistContext: promptArgs.onboardingChecklistContext,
             preferredLocale: responseLocale,
           }),
         conversationId,
-        currentInsightContent,
         logPrefix: "ChatSave",
         onboardingChecklistContext: profile,
         sourceChannel: isCallMode ? "voice_call" : "text_chat",
+        scheduleAfter: (task) => after(task),
         userId: user.id,
       });
       if (changedCount > 0) {
-        const latestInsights = await fetchTalentInsights({
-          admin,
-          userId: user.id,
-        });
-        responseTalentInsights = normalizeTalentInsightContent(
-          latestInsights?.content ?? null
-        );
-        responseInsightUpdatedAt = latestInsights?.last_updated_at ?? null;
+        [responseBrief, responseInsightUpdatedAt] = await Promise.all([
+          fetchAllTalentContexts({
+            admin,
+            collection: "brief",
+            userId: user.id,
+          }),
+          fetchTalentContextsUpdatedAt({ admin, userId: user.id }),
+        ]);
+        responseTalentInsights = projectBriefsToLegacyInsights(responseBrief);
       }
 
       return changedCount;
-    };
-
-    const scheduleInsightExtraction = () => {
-      if (!shouldAutoExtractInsights) return;
-
-      const runBackgroundInsightExtraction = async () => {
-        try {
-          await runInsightExtraction();
-        } catch (error) {
-          console.error("[ChatSave] Failed to extract insights", {
-            conversationId,
-            error: error instanceof Error ? error.message : String(error),
-            userId: user.id,
-          });
-        }
-      };
-
-      try {
-        after(runBackgroundInsightExtraction);
-      } catch {
-        void runBackgroundInsightExtraction();
-      }
     };
 
     const activeRun = await getActiveOpportunityRun({
@@ -392,19 +371,8 @@ export async function POST(req: NextRequest) {
       ReturnType<typeof completeOnboardingAndQueueInitialOpportunityRun>
     > | null = null;
 
-    if (isCallMode) {
-      try {
-        await runInsightExtraction();
-      } catch (error) {
-        console.error("[ChatSave] Failed to extract call insights", {
-          conversationId,
-          error: error instanceof Error ? error.message : String(error),
-          userId: user.id,
-        });
-      }
-    } else {
-      scheduleInsightExtraction();
-    }
+    // 온보딩 답변 저장이 끝나기 전에 완료 처리와 첫 추천을 시작하지 않는다.
+    await runInsightExtraction();
     void maybeSummarizeTalentConversation({
       admin,
       conversationId,
@@ -548,6 +516,8 @@ export async function POST(req: NextRequest) {
       nextStepInstructions,
       onboardingChecklistProgress,
       talentInsights: responseTalentInsights,
+      talentBrief: responseBrief.map(toTalentContextResponse),
+      talentContextsUpdatedAt: responseInsightUpdatedAt,
       progress: {
         answeredCount: userTurnCount,
         targetCount: TALENT_INTERVIEW_FINAL_STEP,

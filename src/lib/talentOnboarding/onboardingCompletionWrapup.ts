@@ -12,12 +12,11 @@ import {
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import {
   buildTalentProfileContext,
-  fetchActiveTalentDocumentByOrigin,
-  fetchTalentInsights,
+  fetchTalentContextPromptSnapshot,
   fetchTalentSetting,
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
-  normalizeTalentInsightContent,
+  renderTalentContextPrompt,
   type TalentAdminClient,
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/server";
@@ -46,10 +45,6 @@ import {
 import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
 import { hasActiveConversationCompletedOpportunityRun } from "@/lib/opportunityDiscovery/store";
 import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
-import {
-  GMAIL_CAREER_HISTORY_ORIGIN_ID,
-  GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
-} from "@/lib/integrations/gmailCareerHistoryCore";
 import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
 
 const FALLBACK_WRAPUP_CONTENT_KO = [
@@ -223,13 +218,12 @@ function buildWrapupInstruction(preferredLocale?: string | null) {
     "- If the user disclosed a clear recommendation/contact subscription action, you may call `update_setting` before writing the wrap-up: stop_external for external/public postings only, stop_all for all Harper matching contact, or resume for recommendation/contact restart.",
     "- If the user's wording is a generic stop/unsubscribe that could mean either external postings only or all Harper matching contact, do not call `update_setting`; leave the clarification for the normal assistant message.",
     "- If the user disclosed a clear recommendation batch-size change, use `update_talent_profile.recommendationBatchSize`, not `update_setting`.",
-    "- If the user disclosed clear durable facts, preferences, constraints, or role-specific details that are missing from current state, you may call `update_talent_profile` before writing the wrap-up.",
+    "- If the user disclosed clear durable context that is missing from current state, use `write_talent_context` before writing the wrap-up. Put current user-visible search criteria in Brief and other context worth remembering in Memory.",
+    "- Use `update_talent_profile` only for structured profile rows or recommendation batch size.",
     "- Tool calls are optional. Skip them when there is no clear new writable information or when the information is already saved.",
     "- For rowMemos, use only exact RowID values visible in the Structured Talent Profile. Do not guess row IDs or attach generic facts to a row.",
     "- For rowMemos, use operation=append for genuinely new detail. Use operation=update only to replace an existing memo with a complete corrected final memo; never send only the changed fragment, and never delete or clear a memo.",
-    "- For talentInsights, prefer existing checklist-style insight keys/current insight keys when they fit. Use a new free-form English snake_case key only when the fact is important for future matching and does not reasonably fit an existing key.",
-    "- Do not put profile-row facts into talentInsights. Specific experience, education, project, responsibility, or achievement details should go to rowMemos when one visible row matches; if no row matches, do not work around it with a profile-like insight key.",
-    `- talentInsights values must be complete ${outputLanguage} sentences, not fragments such as \`규모 선호.\`.`,
+    `- Brief labels and all saved content must be clear, complete ${outputLanguage} text. Do not duplicate one fact across Brief and Memory.`,
     "- Do not call any search or recommendation tool from this task.",
     "",
     "Then write ONLY the markdown body for a UI card. The UI will render the title `Call Wrap-up`, so do not include that title.",
@@ -265,14 +259,18 @@ export async function generateOnboardingCompletionWrapupContent(args: {
   const [
     profile,
     setting,
-    insights,
+    talentContextSnapshot,
     structuredProfile,
     recentMessages,
     recentRecommendedOpportunities,
   ] = await Promise.all([
     fetchTalentUserProfile({ admin: args.admin, userId: args.userId }),
     fetchTalentSetting({ admin: args.admin, userId: args.userId }),
-    fetchTalentInsights({ admin: args.admin, userId: args.userId }),
+    fetchTalentContextPromptSnapshot({
+      admin: args.admin,
+      query: "onboarding completion wrap-up",
+      userId: args.userId,
+    }),
     fetchTalentStructuredProfile({
       admin: args.admin,
       userId: args.userId,
@@ -296,6 +294,8 @@ export async function generateOnboardingCompletionWrapupContent(args: {
     allowedToolNames: [
       TALENT_TOOL_NAMES.UPDATE_SETTING,
       TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
+      TALENT_TOOL_NAMES.READ_TALENT_CONTEXT,
+      TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT,
     ],
     isOnboardingDone: true,
     responseLocale,
@@ -312,9 +312,7 @@ export async function generateOnboardingCompletionWrapupContent(args: {
     );
   const promptPlan = buildCareerConversationPromptPlan({
     channel: "chat",
-    currentInsightContent: normalizeTalentInsightContent(
-      insights?.content ?? null
-    ),
+    talentContextSection: renderTalentContextPrompt(talentContextSnapshot),
     currentPreferences: buildCurrentPreferences(setting),
     includePostOnboardingConversationGuide: false,
     isOnboardingDone: true,
@@ -371,18 +369,21 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
   const [
     profile,
     setting,
-    insights,
+    talentContextSnapshot,
     structuredProfile,
     recentMessages,
     recentRecommendedOpportunities,
     isConversationCompletedOpportunityRunActive,
     postOnboardingContext,
     activeGmailIntegration,
-    savedGmailCareerHistoryDocument,
   ] = await Promise.all([
     fetchTalentUserProfile({ admin: args.admin, userId: args.userId }),
     fetchTalentSetting({ admin: args.admin, userId: args.userId }),
-    fetchTalentInsights({ admin: args.admin, userId: args.userId }),
+    fetchTalentContextPromptSnapshot({
+      admin: args.admin,
+      query: "onboarding completion next steps",
+      userId: args.userId,
+    }),
     fetchTalentStructuredProfile({
       admin: args.admin,
       userId: args.userId,
@@ -412,17 +413,6 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
       admin: args.admin,
       talentId: args.userId,
     }),
-    fetchActiveTalentDocumentByOrigin({
-      admin: args.admin,
-      originId: GMAIL_CAREER_HISTORY_ORIGIN_ID,
-      originType: GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
-      userId: args.userId,
-    }).catch((error) => {
-      console.warn("[OnboardingCompletion] Gmail history context unavailable", {
-        message: error instanceof Error ? error.message : "Unknown error",
-      });
-      return null;
-    }),
   ]);
 
   const structuredProfileText = buildTalentProfileContext({
@@ -437,14 +427,11 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
   const responseLocale = setting?.preferred_locale ?? null;
   const promptPlan = buildCareerConversationPromptPlan({
     channel: "chat",
-    currentInsightContent: normalizeTalentInsightContent(
-      insights?.content ?? null
-    ),
+    talentContextSection: renderTalentContextPrompt(talentContextSnapshot),
     currentPreferences: buildCurrentPreferences(setting),
     gmailCapability: activeGmailIntegration
       ? "connected_but_unavailable_this_turn"
       : "not_connected",
-    hasSavedGmailCareerHistory: Boolean(savedGmailCareerHistoryDocument),
     isConversationCompletedOpportunityRunActive,
     isOnboardingDone: true,
     postOnboardingContext,

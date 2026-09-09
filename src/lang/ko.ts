@@ -144,7 +144,7 @@ export const ko = {
     startButton: "시작하기",
     hero: {
       badge: "Hiring Intelligence",
-      titleLine1: "Don\u2019t Buy",
+      titleLine1: "Don’t Buy",
       titleLine2Prefix: "Pay for",
       titleLine2Highlight: "Intelligence",
       subtitle:
@@ -157,7 +157,6 @@ export const ko = {
       bodyLine1: "",
       bodyLine2:
         "Harper가 역량과 맥락을 먼저 읽고 정리해, 검토 시간을 크게 단축합니다.",
-      // "It shrinks weeks of work that a whole recruiting team would do, into days."
     },
     why: {
       title: "Why harper?",
@@ -189,7 +188,6 @@ export const ko = {
           label: "People Intelligence",
           title: "모든 정보를 바탕으로,<br />후보자에 대한 이해를 돕습니다.",
           desc: "후보자에 대한 퍼져있는 정보들을 모으고<br/>이를 바탕으로 질문에 대답해<br />인터뷰 전에 이미 후보자와 대화를 나눈 듯한 경험을 드립니다.",
-          // "어떤 관심사를 가지고 커리어를 쌓아왔는지, <br />꾸준함과 열정은 어느 정도인지... <br />이력서의 빈 공간을 채워주는 풍부한 배경 정보를 제공합니다. <br />인터뷰 전에 이미 후보자와 깊은 대화를 나눈 듯한 경험을 드립니다",
         },
       ],
     },
@@ -313,9 +311,7 @@ export const ko = {
         {
           question: "부분 환불이 가능한가요?",
           answer:
-            "월간 구독의 경우 기본적으로 부분 환불은 제공되지 않습니다.\n \
-다만 정당한 사유가 있는 경우 고객센터로 문의해 주시면 개별적으로 검토해 드립니다. 이 경우 결제하신 플랜과 남은 이용 기간을 기준으로 환불 금액이 산정될 수 있습니다.\n\n \
-연간 구독의 경우, 구독 기간 중 취소 및 환불을 요청하시면 이미 사용한 개월 수를 월간 구독 요금 기준으로 계산한 후, 나머지 기간에 해당하는 금액을 환불해 드립니다.\n자세한 사항은 아래의 환불 규정을 확인해주세요.",
+            "월간 구독의 경우 기본적으로 부분 환불은 제공되지 않습니다.\n 다만 정당한 사유가 있는 경우 고객센터로 문의해 주시면 개별적으로 검토해 드립니다. 이 경우 결제하신 플랜과 남은 이용 기간을 기준으로 환불 금액이 산정될 수 있습니다.\n\n 연간 구독의 경우, 구독 기간 중 취소 및 환불을 요청하시면 이미 사용한 개월 수를 월간 구독 요금 기준으로 계산한 후, 나머지 기간에 해당하는 금액을 환불해 드립니다.\n자세한 사항은 아래의 환불 규정을 확인해주세요.",
         },
       ],
     },
@@ -383,10 +379,6 @@ export const ko = {
         label: "프로덕트 매니저",
         query: "네카라쿠배 출신 프로덕트 매니저 + 개발 역량 보유",
       },
-      // {
-      //   label: "질문",
-      //   query: "어떤 기준으로 검색할 수 있나요?",
-      // },
       {
         label: "리서처",
         query:
@@ -1567,7 +1559,7 @@ export const ko = {
     "career.history.job_link_import.cancel": "취소",
     "career.history.job_link_import.company_label": "회사명",
     "career.history.job_link_import.description":
-      "공고별 상태를 선택해 여러 링크를 한 번에 저장할 수 있습니다. 추천 분석은 만들지 않습니다.",
+      "임의로 관심 공고를 추가할 수 있습니다. 여러 개를 한 번에 저장할 수 있습니다.",
     "career.history.job_link_import.bulk_help":
       "여러 링크를 복사해 링크 칸 하나에 붙여넣으면 공고별 입력란으로 나뉩니다. 최대 20개까지 저장할 수 있습니다.",
     "career.history.job_link_import.details_help":
@@ -1955,7 +1947,7 @@ export const ko = {
     "career.profile.career_profile_links_settings_section.0q4dh49":
       "최근 2년의 채용 관련 이메일에서 지원한 회사와 역할, 확인되는 주요 진행 과정을 정리합니다. 이를 커리어 이력과 관심사를 이해하고, 이미 지원한 기회를 다시 추천하지 않는 데 참고합니다.",
     "career.profile.career_profile_links_settings_section.0rr9dvp":
-      "읽어온 정보는 내 문서에 비공개로 저장되며 회사에 공개되지 않습니다. 지원 근거가 불분명한 이메일은 커리어 이력으로 저장하지 않습니다.",
+      "읽어온 정보는 Harper가 비공개로 기억하며 회사에 공개하지 않습니다. 지원 근거가 불분명한 이메일은 기억하지 않습니다.",
     "career.profile.career_profile_links_settings_section.0xqdt60":
       "안전하게 연결되었는지 확인하는 중입니다.",
     "career.profile.career_profile_links_settings_section.0z48n2w": "읽어오기",
@@ -2205,7 +2197,7 @@ export const ko = {
       "Gmail 이메일 읽어오기를 시작하지 못했습니다. 다시 시도해 주세요.",
     "career.profile.resume_links.gmail_analysis_failed_status": "읽어오기 실패",
     "career.profile.resume_links.gmail_analysis_queued_toast":
-      "Gmail 이메일 읽어오기를 시작했습니다. 완료되면 내 문서에 추가됩니다.",
+      "Gmail 이메일 읽어오기를 시작했습니다. 완료되면 Harper가 확인된 커리어 맥락을 기억합니다.",
     "career.profile.resume_links.gmail_analysis_running": "읽어오는 중",
     "career.profile.resume_links.gmail_analyze": "읽어오기",
     "career.profile.resume_links.gmail_callback_failed":
@@ -2228,9 +2220,9 @@ export const ko = {
     "career.profile.resume_links.gmail_resync": "다시 읽어오기",
     "career.profile.resume_links.gmail_resync_confirm_action": "다시 읽어오기",
     "career.profile.resume_links.gmail_resync_confirm_description":
-      "현재 문서에서 직접 수정한 내용도 새로 읽어온 결과로 대체됩니다.",
+      "Harper가 기존에 기억한 Gmail 커리어 맥락은 새로 읽어온 결과로 업데이트됩니다.",
     "career.profile.resume_links.gmail_resync_confirm_help":
-      "저장된 Gmail 커리어 이력 문서는 유지되지만 내용은 새로 읽어온 결과로 덮어씁니다.",
+      "이번에 확인된 최신 지원·면접 이력을 기준으로 기억을 다시 정리합니다.",
     "career.profile.resume_links.gmail_resync_confirm_title":
       "Gmail에서 다시 읽어올까요?",
     "career.profile.resume_links.gmail_status_failed":
@@ -2541,7 +2533,13 @@ export const ko = {
     "career.settings.email_change.use_another": "다른 이메일 입력",
     "career.tool_policy.acknowledgement_example":
       "알겠습니다. 앞으로 이 조건을 기준으로 맞는 기회를 찾아볼게요.",
+    "ui.012dime":
+      "최근 1년 안에 프로덕션 환경에서 LLM evaluation 체계를 직접 설계하고 운영한 경험이 있다면, 맡았던 범위와 가장 중요하게 본 지표를 알려주세요.",
+    "ui.01qi1bo": "회사 연결 전에 핵심 경험을 짧게 확인하는 통화예요.",
     "ui.02og1m4": "이미 지원했던 회사/역할입니다.",
+    "ui.03xvxq9": "제품 ML 조직을 리드했던 범위와 팀 규모를 알려주세요.",
+    "ui.044jtns":
+      "이 역할은 미국 팀과 매일 영어로 제품·기술 의사결정을 진행합니다. 최근 업무에서 영어 회의를 주도하거나 비동기 문서로 복잡한 기술 결정을 이끌었던 경험이 있나요? 있다면 빈도와 맡았던 역할을 알려주세요.",
     "ui.0593ub5": "이어서 준비하고 있어요.",
     "ui.074rfeb": "로그인",
     "ui.0bwrzih":
@@ -2550,17 +2548,25 @@ export const ko = {
       "company_roles FTS 검색 키워드 쉼표나 줄바꿈으로 여러 개 입력할 수 있습니다.",
     "ui.0ihe4ni": "SQL 생성에 실패했습니다.",
     "ui.0ko2085": "홈으로 돌아가기",
+    "ui.0pu9gbv":
+      "Orbit Labs에서 Founding AI Engineer 검토를 위해 최신 이력서를 요청했어요. 업로드하거나, 최신본이 없거나 공유하지 않겠다고 답할 수 있어요.",
     "ui.0rrkh2v": "Harper와 이어가기",
     "ui.0sdad4m": "프롬프트 로그 생성에 실패했습니다.",
     "ui.0sgh1oi": "서울대학교",
     "ui.0sinjah":
       "## 참고할 통화 시작 내용 아래 문구나 질문의 취지를 통화 첫 멘트에 자연스럽게 반영하세요. 그대로 읽기보다 위 지시와 최근 대화 맥락에 맞게 말하세요.",
+    "ui.0tllcd0": "Internal 연결 제안",
+    "ui.0ztll8g": "작은 팀에서 제품 의사결정까지 맡는 역할에 관심이 있나요?",
     "ui.0z3ew5y": "연세대학교",
     "ui.0zrc4ap": "SQL 실행에 실패했습니다.",
     "ui.11t3ixr": "하버드",
     "ui.13zozby": "부산대학교",
     "ui.14kv35j": "서울과학기술대학교",
     "ui.14n199r": "서강대학교",
+    "ui.15obki3":
+      "작은 제품팀에서 agent 기능의 모델 품질과 사용자 경험을 함께 책임지는 역할입니다.",
+    "ui.163gd3b": "리드 역할의 범위를 확인하는 짧은 통화예요.",
+    "ui.16toa1g": "회사 요청",
     "ui.1787f9e": "한국어",
     "ui.17cp27n": "회원가입 후 이어서 진행할 수 있어요.",
     "ui.18zbgbt": "스탠퍼드",
@@ -2573,6 +2579,9 @@ export const ko = {
     "ui.1iz3lr8": "중앙대학교",
     "ui.1lcz0wm": "채팅으로 이어가기",
     "ui.1lw6ycq": "고려대학교",
+    "ui.1mu60r0": "최근 agent 제품을 실제 사용자에게 배포한 경험을 알려주세요.",
+    "ui.1n7du7a":
+      "미리보기 Talent call입니다. 실제 통화 연결 없이 화면 동작만 확인할 수 있어요.",
     "ui.1nn4apy":
       "internal company_roles FTS 검색 키워드 쉼표나 줄바꿈으로 여러 개 입력할 수 있습니다.",
     "ui.1pan83z": "이어가기 링크를 다시 확인해주세요.",
@@ -2581,6 +2590,38 @@ export const ko = {
     "ui.1tk2q9m": "이화여자대학교",
     "ui.1w4hprp": "경희대학교",
     "ui.1wiix8w": "company_roles FTS 검색 실패",
+    "ui.1xeaoum": "메시지를 삭제하지 못했습니다.",
     "ui.1x6ubj9": "성균관대학교",
+    "career.profile.career_profile_workspace.search_brief_tab": "선호 기준",
+    "career.profile.context.add": "추가",
+    "career.profile.context.add_brief": "탐색 기준 추가",
+    "career.profile.context.add_memory": "기억 추가",
+    "career.profile.context.brief_content_placeholder":
+      "기회를 찾을 때 반영할 기준을 적어주세요.",
+    "career.profile.context.brief_description":
+      "Harper가 기회를 찾고 판단할 때 적용하는 현재 기준이에요. 회사에 직접적으로 공개되지않고 선호하시는 기회를 찾기 위해 사용되며, 사용해서 회원님을 더 잘 소개할 수 있을 때 일부 언급될 수 있습니다.",
+    "career.profile.context.brief_empty": "아직 정해진 탐색 기준이 없어요.",
+    "career.profile.context.brief_title": "Search Brief",
+    "career.profile.context.cancel": "취소",
+    "career.profile.context.content": "내용",
+    "career.profile.context.delete": "삭제",
+    "career.profile.context.delete_description":
+      "저장된 기준에서 이 항목을 삭제해요.",
+    "career.profile.context.delete_title": "이 내용을 삭제할까요?",
+    "career.profile.context.edit": "수정",
+    "career.profile.context.edit_brief": "탐색 기준 수정",
+    "career.profile.context.edit_memory": "기억 수정",
+    "career.profile.context.label": "제목",
+    "career.profile.context.label_placeholder": "예: 선호 근무 지역",
+    "career.profile.context.manage": "관리",
+    "career.profile.context.load_more": "더 보기",
+    "career.profile.context.memory_content_placeholder":
+      "하퍼가 다음에도 기억하면 좋을 맥락을 적어주세요.",
+    "career.profile.context.memory_description":
+      "다음 대화와 기회 판단에 도움이 되도록 기억해 둔 맥락이에요.",
+    "career.profile.context.memory_empty": "아직 저장된 기억이 없어요.",
+    "career.profile.context.memory_title": "Harper의 기억",
+    "career.profile.context.retry": "다시 시도",
+    "career.profile.context.save": "저장",
   },
 } as const;

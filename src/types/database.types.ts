@@ -6669,6 +6669,103 @@ export type Database = {
           },
         ]
       }
+      talent_context_write_requests: {
+        Row: {
+          created_at: string
+          request_id: string
+          response: Json | null
+          talent_id: string
+        }
+        Insert: {
+          created_at?: string
+          request_id: string
+          response?: Json | null
+          talent_id: string
+        }
+        Update: {
+          created_at?: string
+          request_id?: string
+          response?: Json | null
+          talent_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_context_write_requests_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      talent_contexts: {
+        Row: {
+          collection: string
+          content: string
+          created_at: string
+          deleted_at: string | null
+          embedding: string | null
+          embedding_content_hash: string | null
+          embedding_model: string | null
+          embedding_updated_at: string | null
+          id: number
+          importance: number | null
+          key: string | null
+          label: string | null
+          ref: number
+          revision: number
+          source_refs: Json
+          talent_id: string
+          updated_at: string
+        }
+        Insert: {
+          collection: string
+          content: string
+          created_at?: string
+          deleted_at?: string | null
+          embedding?: string | null
+          embedding_content_hash?: string | null
+          embedding_model?: string | null
+          embedding_updated_at?: string | null
+          id?: number
+          importance?: number | null
+          key?: string | null
+          label?: string | null
+          ref: number
+          revision?: number
+          source_refs?: Json
+          talent_id: string
+          updated_at?: string
+        }
+        Update: {
+          collection?: string
+          content?: string
+          created_at?: string
+          deleted_at?: string | null
+          embedding?: string | null
+          embedding_content_hash?: string | null
+          embedding_model?: string | null
+          embedding_updated_at?: string | null
+          id?: number
+          importance?: number | null
+          key?: string | null
+          label?: string | null
+          ref?: number
+          revision?: number
+          source_refs?: Json
+          talent_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_contexts_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       talent_insights: {
         Row: {
           content: Json | null
@@ -8650,6 +8747,29 @@ export type Database = {
         Args: { target_workspace_id: string }
         Returns: undefined
       }
+      match_talent_context_memories: {
+        Args: {
+          p_embedding_model?: string
+          p_match_count?: number
+          p_query_embedding: number[]
+          p_talent_id: string
+        }
+        Returns: {
+          collection: string
+          content: string
+          created_at: string
+          id: number
+          importance: number | null
+          key: string | null
+          label: string | null
+          ref: number
+          revision: number
+          score: number
+          source_refs: Json
+          talent_id: string
+          updated_at: string
+        }[]
+      }
       match_service_answer_examples: {
         Args: {
           audience_filter: string
@@ -8665,6 +8785,14 @@ export type Database = {
           tags: string[]
           user_example_text: string
         }[]
+      }
+      mutate_talent_contexts: {
+        Args: {
+          p_changes: Json
+          p_request_id: string
+          p_talent_id: string
+        }
+        Returns: Json
       }
       move_company_candidate_to_role_v1: {
         Args: {
