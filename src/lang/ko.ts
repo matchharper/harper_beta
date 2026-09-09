@@ -612,6 +612,7 @@ export const ko = {
     "career.call.opening.relative.minute_one": "{count}분전",
     "career.call.opening.relative.month_many": "{count}개월전",
     "career.call.opening.relative.month_one": "{count}개월전",
+    "career.call.wrapup.call_note_action": "콜노트 보기 · {title}",
     "career.call.wrapup_fallback.brief":
       "오늘은 짧게 이야기 나눴네요. 다음에 편하실 때 조금만 더 들려주시면 그에 맞춰 더 잘 도와드릴게요.",
     "career.call.wrapup_fallback.call_note_created":

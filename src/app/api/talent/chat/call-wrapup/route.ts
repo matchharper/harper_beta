@@ -11,6 +11,7 @@ import {
 } from "@/lib/talentOnboarding/server";
 import {
   appendCareerCallNoteCreatedNotice,
+  appendCareerCallNoteOpenAction,
   buildCareerCallWrapupFallbackFollowUp,
   buildCareerCallWrapupTurnInstruction,
   buildInternalOpportunityCallWrapupInstruction,
@@ -622,6 +623,9 @@ export async function POST(request: NextRequest) {
       });
     }
     const callNoteCreated = callNoteGeneration.status === "created";
+    const callNoteDocument = callNoteCreated
+      ? callNoteGeneration.document
+      : null;
     const inferredOnboardingDone =
       Boolean(talentSetting?.is_onboarding_done) ||
       conversation.data?.stage === "completed";
@@ -639,6 +643,13 @@ export async function POST(request: NextRequest) {
           isOnboardingDone: inferredOnboardingDone,
           preferredLocale: responseLocale,
         });
+    const withCallNoteOpenAction = (content: string) =>
+      appendCareerCallNoteOpenAction({
+        content,
+        documentId: callNoteDocument?.id,
+        preferredLocale: responseLocale,
+        title: callNoteDocument?.fileName,
+      });
     try {
       const result = await runCareerChatTurn({
         admin: supabase,
@@ -673,8 +684,14 @@ export async function POST(request: NextRequest) {
         skipConversationWrites,
         suppressOnboarding: Boolean(internalCallRequest),
         transformAssistantTextBeforeInsert:
-          internalCompletionDisposition === "partial_answered"
-            ? () => fallbackFollowUpText
+          internalCompletionDisposition === "partial_answered" ||
+          callNoteDocument
+            ? (content) =>
+                withCallNoteOpenAction(
+                  internalCompletionDisposition === "partial_answered"
+                    ? fallbackFollowUpText
+                    : content
+                )
             : undefined,
         usageLabel: internalCallRequest
           ? "career/chat:internal_opportunity_call_wrapup"
@@ -704,6 +721,7 @@ export async function POST(request: NextRequest) {
           content: normalized,
         };
         return NextResponse.json({
+          callNoteDocument,
           followUpMessage,
           followUpMessages: [followUpMessage],
           insightUpdatedAt: result.insightUpdatedAt,
@@ -728,7 +746,7 @@ export async function POST(request: NextRequest) {
     }
 
     const fallbackMessage = await insertFallbackFollowUp({
-      content: fallbackFollowUpText,
+      content: withCallNoteOpenAction(fallbackFollowUpText),
       conversationId,
       isMobile,
       supabase,
@@ -749,6 +767,7 @@ export async function POST(request: NextRequest) {
       : undefined;
 
     return NextResponse.json({
+      callNoteDocument,
       followUpMessage: fallbackMessage,
       followUpMessages: [fallbackMessage],
       pendingInternalOpportunityCallRequest: internalCallRequest

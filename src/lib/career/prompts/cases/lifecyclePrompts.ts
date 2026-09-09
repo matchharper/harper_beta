@@ -3,6 +3,7 @@ import type { CareerReengagementPendingAction } from "@/lib/career/pendingAction
 import {
   CAREER_REENGAGEMENT_ACTIONS_END,
   CAREER_REENGAGEMENT_ACTIONS_START,
+  prependCareerReengagementAction,
 } from "@/lib/career/reengagementActions";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import { formatCareerPromptKoreanDateTime } from "@/lib/career/prompts/promptUtils";
@@ -196,6 +197,32 @@ export function appendCareerCallNoteCreatedNotice(args: {
     "이번 대화는 콜노트로 정리해뒀어요. 프로필의 문서에서 확인하실 수 있어요."
   );
   return [args.content.trim(), notice].filter(Boolean).join(" ");
+}
+
+export function appendCareerCallNoteOpenAction(args: {
+  content: string;
+  documentId?: string | null;
+  preferredLocale?: string | null;
+  title?: string | null;
+}) {
+  const documentId = String(args.documentId ?? "").trim();
+  const title = String(args.title ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!documentId || !title) return args.content;
+
+  return prependCareerReengagementAction(args.content, {
+    label: careerT(
+      args.preferredLocale,
+      "career.call.wrapup.call_note_action",
+      "콜노트 보기 · {title}",
+      { values: { title } }
+    ),
+    action: {
+      type: "open_path",
+      path: `/career/profile?profileSection=links&callNoteId=${encodeURIComponent(documentId)}`,
+    },
+  });
 }
 
 export function buildCareerCallWrapupFallbackFollowUp(args: {

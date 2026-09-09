@@ -5,6 +5,21 @@ import type { TalentAdminClient } from "./admin";
 import { generateTalentCallNoteForWrapup } from "./callNoteGeneration";
 
 const CALL_ID = "9de379c1-b735-42a6-8e92-3939b12e87f0";
+const SAVED_DOCUMENT = {
+  id: CALL_ID,
+  kind: "call_note" as const,
+  fileName: "보상 기준",
+  storagePath: null,
+  contentType: null,
+  sizeBytes: 123,
+  isPublic: false as const,
+  isPrimary: false as const,
+  createdAt: "2026-09-06T01:01:06.000Z",
+  updatedAt: "2026-09-06T01:01:06.000Z",
+  originType: "career_realtime_call" as const,
+  originId: CALL_ID,
+  downloadUrl: null,
+};
 const baseArgs = {
   admin: {} as TalentAdminClient,
   callId: CALL_ID,
@@ -29,12 +44,15 @@ test("analyzes and saves a meaningful call before reporting creation", async () 
     },
     save: async () => {
       steps.push("save");
-      return {};
+      return SAVED_DOCUMENT;
     },
   });
 
   assert.deepEqual(steps, ["analyze", "save"]);
-  assert.deepEqual(result, { status: "created" });
+  assert.deepEqual(result, {
+    document: SAVED_DOCUMENT,
+    status: "created",
+  });
 });
 
 test("skips ineligible and non-meaningful calls without saving", async () => {
@@ -47,7 +65,7 @@ test("skips ineligible and non-meaningful calls without saving", async () => {
     },
     save: async () => {
       saveCalls += 1;
-      return {};
+      return SAVED_DOCUMENT;
     },
   };
 
@@ -75,7 +93,7 @@ test("reports analysis and save failures without claiming creation", async () =>
     analyze: async () => {
       throw analysisError;
     },
-    save: async () => ({}),
+    save: async () => SAVED_DOCUMENT,
   });
   assert.deepEqual(analysisFailure, {
     error: analysisError,

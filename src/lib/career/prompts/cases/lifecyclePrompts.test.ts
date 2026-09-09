@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  appendCareerCallNoteOpenAction,
   buildCareerCallWrapupFallbackFollowUp,
   buildCareerCallWrapupTurnInstruction,
   buildCareerOpportunityFeedbackFollowUpTurnInstruction,
   buildCareerSessionStartTurnInstruction,
 } from "./lifecyclePrompts";
+import { extractCareerReengagementActions } from "../../reengagementActions";
 import { CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER } from "../types";
 
 test("call wrap-up mentions only a verified saved call note", () => {
@@ -53,6 +55,47 @@ test("call wrap-up fallback appends a localized saved call-note notice", () => {
   assert.match(english, /organized this conversation into a call note/);
   assert.match(english, /under Documents in your profile/);
   assert.doesNotMatch(withoutCallNote, /콜노트/);
+});
+
+test("call wrap-up adds a localized deep link for a verified call note", () => {
+  const korean = appendCareerCallNoteOpenAction({
+    content: "대화를 정리했어요.",
+    documentId: "9de379c1-b735-42a6-8e92-3939b12e87f0",
+    preferredLocale: "ko",
+    title: "보상 기준",
+  });
+  const english = appendCareerCallNoteOpenAction({
+    content: "I organized the conversation.",
+    documentId: "9de379c1-b735-42a6-8e92-3939b12e87f0",
+    preferredLocale: "en",
+    title: "Compensation criteria",
+  });
+
+  assert.deepEqual(extractCareerReengagementActions(korean), {
+    actions: [
+      {
+        label: "콜노트 보기 · 보상 기준",
+        action: {
+          path: "/career/profile?profileSection=links&callNoteId=9de379c1-b735-42a6-8e92-3939b12e87f0",
+          type: "open_path",
+        },
+      },
+    ],
+    content: "대화를 정리했어요.",
+  });
+  assert.equal(
+    extractCareerReengagementActions(english).actions[0]?.label,
+    "View call note · Compensation criteria"
+  );
+  assert.equal(
+    appendCareerCallNoteOpenAction({
+      content: "저장하지 않았어요.",
+      documentId: null,
+      preferredLocale: "ko",
+      title: null,
+    }),
+    "저장하지 않았어요."
+  );
 });
 
 test("session re-engagement uses readable Korean-local times and distinguishes access from prior chat", () => {
@@ -157,9 +200,18 @@ test("session re-engagement prioritizes the first actionable pending item", () =
     /수락·거절 send_message나 다른 action을 추가하지 않는다/
   );
   assert.match(prompt, /종료 marker 뒤에 다른 문자나 문장부호를 붙이지 않는다/);
-  assert.match(prompt, /프로필과 관련 경험을 회사에 공유·소개하고 연결을 돕는다고/);
-  assert.match(prompt, /프로필 공유나 회사 연결이 바로 확정되는 것은 아니라는 면책 문구/);
-  assert.match(prompt, /내부의 사람 확인이나 handoff 절차는 사용자에게 설명하지 마라/);
+  assert.match(
+    prompt,
+    /프로필과 관련 경험을 회사에 공유·소개하고 연결을 돕는다고/
+  );
+  assert.match(
+    prompt,
+    /프로필 공유나 회사 연결이 바로 확정되는 것은 아니라는 면책 문구/
+  );
+  assert.match(
+    prompt,
+    /내부의 사람 확인이나 handoff 절차는 사용자에게 설명하지 마라/
+  );
   assert.doesNotMatch(
     prompt,
     /사용자의 관심과 피드백만 요청하고, Harper가 다음 단계를 확인할 수 있다고 설명한다/
@@ -242,7 +294,10 @@ test("internal acceptance promises profile sharing and connection without exposi
       CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback,
   });
 
-  assert.match(prompt, /share or introduce the candidate's profile and relevant experience/);
+  assert.match(
+    prompt,
+    /share or introduce the candidate's profile and relevant experience/
+  );
   assert.match(prompt, /help make the connection/);
   assert.match(prompt, /do not volunteer a disclaimer/);
   assert.match(prompt, /Never expose Harper's internal confirmation/);

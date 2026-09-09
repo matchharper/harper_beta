@@ -51,6 +51,9 @@ const DOCUMENT_FORMAT_ICONS: Record<CareerDocumentFormat, typeof File> = {
   unknown: File,
 };
 
+const DOCUMENT_TITLE_LINK_CLASS =
+  "min-w-0 truncate text-sm font-normal leading-normal text-link underline underline-offset-2";
+
 const CareerDocumentFormatIcon = ({ fileName }: { fileName: string }) => {
   const Icon = DOCUMENT_FORMAT_ICONS[getCareerDocumentFormat(fileName)];
 
@@ -114,7 +117,7 @@ const CareerDocumentsSettingsSection = ({
                       <BareButton
                         type="button"
                         onClick={() => onOpenCallNote(document)}
-                        className="min-w-0 truncate text-left text-sm text-neutral-muted transition-colors hover:text-neutral-primary"
+                        className={`${DOCUMENT_TITLE_LINK_CLASS} text-left`}
                       >
                         {document.fileName === "Harper call note"
                           ? t(
@@ -129,7 +132,7 @@ const CareerDocumentsSettingsSection = ({
                         variant="transparent"
                         size="sm"
                         onClick={() => onEditDocument(document)}
-                        className="h-auto min-h-0 min-w-0 px-0 py-0 text-sm font-normal leading-normal text-link underline underline-offset-2 hover:bg-transparent hover:text-link active:bg-transparent"
+                        className={`h-auto min-h-0 px-0 py-0 hover:bg-transparent hover:text-link active:bg-transparent ${DOCUMENT_TITLE_LINK_CLASS}`}
                       >
                         {document.fileName}
                       </MuteButton>
@@ -138,12 +141,12 @@ const CareerDocumentsSettingsSection = ({
                         href={document.downloadUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="min-w-0 truncate text-sm text-link underline underline-offset-2"
+                        className={DOCUMENT_TITLE_LINK_CLASS}
                       >
                         {document.fileName}
                       </a>
                     ) : (
-                      <p className="min-w-0 truncate text-sm text-neutral-primary">
+                      <p className={DOCUMENT_TITLE_LINK_CLASS}>
                         {document.fileName}
                       </p>
                     )}

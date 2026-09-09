@@ -2,6 +2,7 @@ import type { TalentAdminClient } from "./admin";
 import {
   saveTalentCallNote,
   type CallNoteTranscriptInputEntry,
+  type TalentCallNoteDocument,
 } from "./callNote";
 import {
   analyzeTalentCallNote,
@@ -12,11 +13,11 @@ type CallNoteGenerationDependencies = {
   analyze: typeof analyzeTalentCallNote;
   save: (
     args: Parameters<typeof saveTalentCallNote>[0]
-  ) => Promise<unknown | null>;
+  ) => Promise<TalentCallNoteDocument | null>;
 };
 
 export type TalentCallNoteGenerationResult =
-  | { status: "created" }
+  | { document: TalentCallNoteDocument; status: "created" }
   | { reason: "ineligible" | "not_meaningful"; status: "skipped" }
   | { error: unknown; status: "failed" };
 
@@ -76,7 +77,7 @@ export async function generateTalentCallNoteForWrapup(
       };
     }
 
-    return { status: "created" };
+    return { document, status: "created" };
   } catch (error) {
     return { error, status: "failed" };
   }

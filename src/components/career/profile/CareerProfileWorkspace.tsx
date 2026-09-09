@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
 import { Loader2 } from "lucide-react";
 import CareerInPageTabs from "../CareerInPageTabs";
@@ -64,9 +64,6 @@ const CareerProfileWorkspace = () => {
   const { workspaceDataLoading } = useCareerSidebarContext();
   const { savedResumeFileName, savedResumeStoragePath, talentDocuments } =
     useCareerProfileContext();
-  const [callNoteDocumentId, setCallNoteDocumentId] = useState<string | null>(
-    null
-  );
   const hasSavedResume = Boolean(savedResumeFileName || savedResumeStoragePath);
 
   const sectionItems = useMemo(
@@ -89,6 +86,10 @@ const CareerProfileWorkspace = () => {
   const requestedProfileSection =
     typeof router.query.profileSection === "string"
       ? router.query.profileSection
+      : null;
+  const requestedCallNoteId =
+    typeof router.query.callNoteId === "string"
+      ? router.query.callNoteId.trim()
       : null;
 
   useEffect(() => {
@@ -115,19 +116,69 @@ const CareerProfileWorkspace = () => {
     () =>
       talentDocuments.find(
         (document) =>
-          document.id === callNoteDocumentId && document.kind === "call_note"
+          document.id === requestedCallNoteId && document.kind === "call_note"
       ) ?? null,
-    [callNoteDocumentId, talentDocuments]
+    [requestedCallNoteId, talentDocuments]
+  );
+
+  const closeCallNote = useCallback(() => {
+    const query = { ...router.query };
+    delete query.callNoteId;
+    void router.replace(
+      {
+        pathname: router.pathname,
+        query: { ...query, profileSection: "links" },
+      },
+      undefined,
+      { shallow: true, scroll: false }
+    );
+  }, [router]);
+
+  useEffect(() => {
+    if (
+      !router.isReady ||
+      workspaceDataLoading ||
+      !requestedCallNoteId ||
+      callNoteDocument
+    ) {
+      return;
+    }
+    closeCallNote();
+  }, [
+    callNoteDocument,
+    closeCallNote,
+    requestedCallNoteId,
+    router.isReady,
+    workspaceDataLoading,
+  ]);
+
+  const openCallNote = useCallback(
+    (documentId: string) => {
+      void router.push(
+        {
+          pathname: router.pathname,
+          query: {
+            ...router.query,
+            callNoteId: documentId,
+            profileSection: "links",
+          },
+        },
+        undefined,
+        { shallow: true, scroll: false }
+      );
+    },
+    [router]
   );
 
   const handleChangeSection = useCallback(
     (next: ProfileSectionId) => {
       logCareerEvent(`click_profile_section_${next}`);
-      setCallNoteDocumentId(null);
+      const query = { ...router.query };
+      delete query.callNoteId;
       void router.replace(
         {
           pathname: router.pathname,
-          query: { ...router.query, profileSection: next },
+          query: { ...query, profileSection: next },
         },
         undefined,
         { shallow: true }
@@ -139,7 +190,7 @@ const CareerProfileWorkspace = () => {
   const activeContent =
     activeSection === "links" ? (
       <CareerResumeLinksSettingsSection
-        onOpenCallNote={(document) => setCallNoteDocumentId(document.id)}
+        onOpenCallNote={(document) => openCallNote(document.id)}
       />
     ) : (
       <CareerTalentProfilePanel />
@@ -163,7 +214,7 @@ const CareerProfileWorkspace = () => {
     return (
       <CareerCallNoteDetail
         document={callNoteDocument}
-        onBack={() => setCallNoteDocumentId(null)}
+        onBack={closeCallNote}
       />
     );
   }

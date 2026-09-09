@@ -248,6 +248,26 @@ export function extractCareerReengagementActions(content: string) {
   };
 }
 
+export function prependCareerReengagementAction(
+  content: string,
+  action: CareerReengagementAction
+) {
+  const extracted = extractCareerReengagementActions(content);
+  const actions = normalizeCareerReengagementActions({
+    actions: [action, ...extracted.actions],
+  });
+  if (actions.length === 0) return extracted.content;
+
+  return [
+    extracted.content,
+    CAREER_REENGAGEMENT_ACTIONS_START,
+    JSON.stringify({ actions }),
+    CAREER_REENGAGEMENT_ACTIONS_END,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 export function stripCareerReengagementActions(content: string) {
   return extractCareerReengagementActions(content).content;
 }

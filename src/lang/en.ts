@@ -547,6 +547,7 @@ export const en = {
     "career.call.opening.relative.minute_one": "{count} minute ago",
     "career.call.opening.relative.month_many": "{count} months ago",
     "career.call.opening.relative.month_one": "{count} month ago",
+    "career.call.wrapup.call_note_action": "View call note · {title}",
     "career.call.wrapup_fallback.brief": "We only talked briefly today. When you have a little more time, share a bit more and I'll use that context to help you better.",
     "career.call.wrapup_fallback.call_note_created": "I also organized this conversation into a call note. You can find it under Documents in your profile.",
     "career.call.wrapup_fallback.completed": "Thanks for sharing all of that. I'll use what you told me to bring back opportunities that should be a stronger fit.",

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   extractCareerReengagementActions,
+  prependCareerReengagementAction,
   resolveCareerReengagementActionKeys,
 } from "./reengagementActions";
 
@@ -145,4 +146,37 @@ test("does not accept an LLM-authored pending action ref during server resolutio
   });
 
   assert.equal(resolved, "안내");
+});
+
+test("prepends a verified action while preserving valid existing actions", () => {
+  const content = prependCareerReengagementAction(
+    `안내
+[[CAREER_REENGAGEMENT_ACTIONS]]
+{"actions":[{"label":"프로필 보기","action":{"type":"open_path","path":"/career/profile"}}]}
+[[/CAREER_REENGAGEMENT_ACTIONS]]`,
+    {
+      label: "콜노트 보기 · 보상 기준",
+      action: {
+        type: "open_path",
+        path: "/career/profile?profileSection=links&callNoteId=note-1",
+      },
+    }
+  );
+
+  assert.deepEqual(extractCareerReengagementActions(content), {
+    actions: [
+      {
+        label: "콜노트 보기 · 보상 기준",
+        action: {
+          type: "open_path",
+          path: "/career/profile?profileSection=links&callNoteId=note-1",
+        },
+      },
+      {
+        label: "프로필 보기",
+        action: { type: "open_path", path: "/career/profile" },
+      },
+    ],
+    content: "안내",
+  });
 });

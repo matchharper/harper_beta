@@ -38,7 +38,7 @@ export type TalentCallNoteV2 = Omit<TalentCallNoteV1, "schema_version"> & {
 
 export type TalentCallNote = TalentCallNoteV1 | TalentCallNoteV2;
 
-type TalentCallNoteDocument = {
+export type TalentCallNoteDocument = {
   id: string;
   kind: typeof TALENT_CALL_NOTE_KIND;
   fileName: string;
@@ -48,6 +48,9 @@ type TalentCallNoteDocument = {
   isPublic: false;
   isPrimary: false;
   createdAt: string;
+  updatedAt: string;
+  originType: typeof TALENT_CALL_NOTE_ORIGIN_TYPE;
+  originId: string;
   downloadUrl: null;
 };
 
@@ -223,6 +226,7 @@ function toCallNoteDocument(row: {
   file_name: string;
   id: string;
   size_bytes: number | null;
+  updated_at: string;
 }): TalentCallNoteDocument {
   return {
     id: row.id,
@@ -234,6 +238,9 @@ function toCallNoteDocument(row: {
     isPublic: false,
     isPrimary: false,
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    originType: TALENT_CALL_NOTE_ORIGIN_TYPE,
+    originId: row.id,
     downloadUrl: null,
   };
 }
@@ -300,7 +307,7 @@ export async function saveTalentCallNote(args: {
   const { data, error } = await args.admin
     .from("talent_documents")
     .insert(row)
-    .select("id, file_name, created_at, size_bytes")
+    .select("id, file_name, created_at, updated_at, size_bytes")
     .single();
 
   if (!error && data) return toCallNoteDocument(data);
@@ -310,7 +317,7 @@ export async function saveTalentCallNote(args: {
 
   const { data: existing, error: existingError } = await args.admin
     .from("talent_documents")
-    .select("id, file_name, created_at, size_bytes")
+    .select("id, file_name, created_at, updated_at, size_bytes")
     .eq("id", callNote.call_id)
     .eq("talent_id", args.userId)
     .eq("kind", TALENT_CALL_NOTE_KIND)

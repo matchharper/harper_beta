@@ -120,7 +120,10 @@ test("saves with the authenticated owner and never upserts", async () => {
                 id: CALL_ID,
                 file_name: "보상 기준 정리",
                 created_at: "2026-09-06T01:01:06.000Z",
+                updated_at: "2026-09-06T01:01:06.000Z",
                 size_bytes: 123,
+                origin_type: "career_realtime_call",
+                origin_id: CALL_ID,
               },
               error: null,
             }),
@@ -146,6 +149,9 @@ test("saves with the authenticated owner and never upserts", async () => {
   assert.equal(inserted.value?.storage_path, null);
   assert.equal(inserted.value?.file_name, "보상 기준 정리");
   assert.equal(document?.id, CALL_ID);
+  assert.equal(document?.updatedAt, "2026-09-06T01:01:06.000Z");
+  assert.equal(document?.originType, "career_realtime_call");
+  assert.equal(document?.originId, CALL_ID);
 });
 
 test("accepts an owned duplicate but rejects a foreign id collision", async () => {
@@ -162,7 +168,10 @@ test("accepts an owned duplicate but rejects a foreign id collision", async () =
               id: CALL_ID,
               file_name: "보상 기준 정리",
               created_at: "2026-09-06T01:01:06.000Z",
+              updated_at: "2026-09-06T01:01:06.000Z",
               size_bytes: 123,
+              origin_type: "career_realtime_call",
+              origin_id: CALL_ID,
             }
           : null,
         error: null,
