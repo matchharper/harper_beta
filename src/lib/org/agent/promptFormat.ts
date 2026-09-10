@@ -445,7 +445,7 @@ function formatContactDetailResult(result: Record<string, any>) {
   return [
     "status=ok",
     `requested_count=${Number(result.requestedCount ?? 0)} returned_count=${items.length} not_found_count=${Array.isArray(result.notFound) ? result.notFound.length : 0}`,
-    "sender_contract=For a company-requested candidate email, interview request, or Role-change notice, sender is the actual company user who initiated the message and Harper delivered it for that person. A system-generated connection notice names Harper as sender. Introduction replies identify their stored sender and actual visible recipients. Do not replace a known company user name with a generic Harper sender.",
+    "sender_contract=For a company-requested candidate email, interview request, or Role-change notice, sender is the actual company user who initiated the message and Harper delivered it for that person. System-generated connection, process-closure, and company-request follow-up notices name Harper as sender. Introduction replies identify their stored sender and actual visible recipients. Do not replace a known company user name with a generic Harper sender.",
     ...items.map(formatContactDetailItem),
     ...(Array.isArray(result.notFound) && result.notFound.length
       ? [
@@ -558,6 +558,8 @@ function formatSingleTalentResult(result: Record<string, any>) {
           "role_id",
           "role",
           "stage",
+          "saved_state",
+          "closed",
           "closure_notice",
           "closure_notice_at",
           "closure_notice_channel",
@@ -574,6 +576,8 @@ function formatSingleTalentResult(result: Record<string, any>) {
           item?.roleId,
           item?.roleName,
           humanizeOrgStage(item?.stage, item?.stageLabel),
+          item?.savedStage,
+          item?.closed,
           item?.processClosureNotification?.status,
           formatPromptDate(item?.processClosureNotification?.deliveredAt),
           item?.processClosureNotification?.sentChannel,
@@ -586,7 +590,10 @@ function formatSingleTalentResult(result: Record<string, any>) {
           formatPromptDate(item?.recommendedAt),
           formatPromptDate(item?.updatedAt),
         ]),
-        [100, 160, 100, 30, 10, 40, 700, 500, 300, 400, 700, 1_000, 10, 10]
+        [
+          100, 160, 100, 30, 10, 30, 10, 40, 700, 500, 300, 400, 700, 1_000, 10,
+          10,
+        ]
       )
     ),
     formatPromptSection(
@@ -629,10 +636,13 @@ function formatSingleTalentResult(result: Record<string, any>) {
           "company_relay_state",
           "role",
           "request",
+          "intent",
+          "resume_stage",
           "topic",
           "candidate_email_subject",
           "candidate_email_body",
           "overall_status",
+          "response_disposition",
           "cancelable",
         ],
         requestHistory.map((item: any) => [
@@ -649,15 +659,18 @@ function formatSingleTalentResult(result: Record<string, any>) {
           item?.companyRelayState,
           item?.roleName,
           item?.label,
+          item?.intent,
+          humanizeOrgStage(item?.resumeStage),
           item?.topic,
           item?.candidateEmailSubject,
           item?.candidateEmailBody,
           item?.status,
+          item?.responseDisposition,
           item?.cancelable,
         ]),
         [
           100, 40, 40, 40, 40, 100, 40, 100, 40, 40, 100, 160, 180, 800, 240,
-          1_600, 300, 10,
+          100, 100, 1_600, 300, 100, 10,
         ]
       )
     ),

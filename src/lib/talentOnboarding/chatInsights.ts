@@ -119,22 +119,19 @@ function normalizeExtractedContextChanges(
         typeof record.content === "string" ? record.content.trim() : "";
       const label = typeof record.label === "string" ? record.label.trim() : "";
       const key = typeof record.key === "string" ? record.key.trim() : "";
-      const importance = Number(record.importance);
-      const hasImportance = Object.prototype.hasOwnProperty.call(
-        record,
-        "importance"
-      );
+      const requestedImportance = Number(record.importance);
+      const importance =
+        Number.isInteger(requestedImportance) &&
+        requestedImportance >= 1 &&
+        requestedImportance <= 3
+          ? requestedImportance
+          : 1;
       if (
         (collection !== "brief" && collection !== "memory") ||
         !content ||
         Array.from(content).length > 8_000 ||
         (collection === "brief" &&
-          (!label ||
-            Array.from(label).length > 160 ||
-            Array.from(key).length > 160 ||
-            hasImportance)) ||
-        (collection === "memory" &&
-          (!Number.isInteger(importance) || importance < 1 || importance > 3))
+          (Array.from(label).length > 160 || Array.from(key).length > 160))
       ) {
         return null;
       }
@@ -142,7 +139,7 @@ function normalizeExtractedContextChanges(
         changes.push({
           collection,
           content,
-          label,
+          ...(label ? { label } : {}),
           ...(key && ONBOARDING_QUESTION_BY_INSIGHT_KEY.has(key)
             ? { key }
             : {}),
@@ -166,23 +163,31 @@ function normalizeExtractedContextChanges(
     }
     if (op !== "update") return null;
     const hasContent = Object.prototype.hasOwnProperty.call(record, "content");
-    const hasLabel = Object.prototype.hasOwnProperty.call(record, "label");
-    const hasImportance = Object.prototype.hasOwnProperty.call(
+    const suppliedLabel = Object.prototype.hasOwnProperty.call(record, "label");
+    const suppliedImportance = Object.prototype.hasOwnProperty.call(
       record,
       "importance"
     );
     const content = hasContent
       ? String(record.content ?? "").trim()
       : undefined;
-    const label = hasLabel ? String(record.label ?? "").trim() : undefined;
-    const importance = hasImportance ? Number(record.importance) : undefined;
+    const label = suppliedLabel ? String(record.label ?? "").trim() : undefined;
+    const requestedImportance = suppliedImportance
+      ? Number(record.importance)
+      : undefined;
+    const hasLabel = Boolean(label);
+    const hasImportance =
+      Number.isInteger(requestedImportance) &&
+      requestedImportance! >= 1 &&
+      requestedImportance! <= 3;
+    const importance = hasImportance
+      ? (requestedImportance as TalentMemoryImportance)
+      : undefined;
     if (
       (!hasContent && !hasLabel && !hasImportance) ||
       (hasContent && !content) ||
       (hasContent && Array.from(content ?? "").length > 8_000) ||
-      (hasLabel && (!label || Array.from(label).length > 160)) ||
-      (hasImportance &&
-        (!Number.isInteger(importance) || importance! < 1 || importance! > 3))
+      (hasLabel && Array.from(label ?? "").length > 160)
     ) {
       return null;
     }

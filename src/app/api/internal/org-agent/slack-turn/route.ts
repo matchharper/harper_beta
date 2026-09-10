@@ -15,7 +15,11 @@ import {
   toOrgAgentMessage,
   type OrgAgentMessageRow,
 } from "@/lib/org/agent/store";
-import type { OrgAgentToolDebugEvent } from "@/lib/org/agent/toolDebug";
+import {
+  formatOrgAgentSlackToolTrace,
+  shouldShowLocalSlackToolTrace,
+  type OrgAgentToolDebugEvent,
+} from "@/lib/org/agent/toolDebug";
 import type { OrgAgentMessageMetadata } from "@/lib/org/agent/types";
 import type { ChatAttachmentPayload } from "@/types/chat";
 import { renderOrgAgentCompanyInfoSlackLink } from "@/lib/org/agent/companyInfoMarker";
@@ -659,10 +663,7 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
     }
 
     const jobWatch = watchSlackReplyJob({ admin, jobId: job.id });
-    slackTurnSignal = AbortSignal.any([
-      jobWatch.signal,
-      slackTurnTimeBudget,
-    ]);
+    slackTurnSignal = AbortSignal.any([jobWatch.signal, slackTurnTimeBudget]);
     stopSlackJobWatch = jobWatch.stop;
 
     const { data: thread, error: threadError } = await (
@@ -1424,8 +1425,18 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
       // Slack does not render `[label](url)`, so normalize HTTP links at the
       // final delivery boundary after every generated and appended fragment.
       slackResponseText = convertMarkdownLinksToSlackMrkdwn(slackResponseText);
-      const deliveredSlackText =
-        slackResponseText || "다음 행동을 선택해 주세요.";
+      const localToolTrace = shouldShowLocalSlackToolTrace({
+        nodeEnv: process.env.NODE_ENV,
+        verbose,
+      })
+        ? formatOrgAgentSlackToolTrace(toolCalls)
+        : "";
+      const deliveredSlackText = [
+        slackResponseText || "다음 행동을 선택해 주세요.",
+        localToolTrace,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
       const slackBlocks = buildHarperSlackChoiceBlocks({
         choices: parsedSlackResponse.choices,
         sourceJobId: job.id,

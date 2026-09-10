@@ -258,24 +258,26 @@ test("does not build accepted-connection progress for Talent rejection feedback"
   assert.equal(progress, null);
 });
 
-test("closes an ended role with post-acceptance hiring closure guidance", () => {
-  const progress = buildInternalRecommendationProgress({
-    item: { ...baseItem, status: "ended" },
-    tags: [
-      {
-        opportunity_id: "role-1",
-        tag: "내부:연결대기",
-        updated_at: "2026-07-11T05:42:24.000Z",
-      },
-    ],
-  });
+test("closes ended and deleted roles with the same post-acceptance guidance", () => {
+  for (const status of ["ended", "deleted"]) {
+    const progress = buildInternalRecommendationProgress({
+      item: { ...baseItem, status },
+      tags: [
+        {
+          opportunity_id: "role-1",
+          tag: "내부:연결대기",
+          updated_at: "2026-07-11T05:42:24.000Z",
+        },
+      ],
+    });
 
-  assert.equal(progress?.code, "closed_by_company");
-  assert.equal(progress?.stage, "pending_connection");
-  assert.equal(
-    progress?.message,
-    "회사에서 해당 역할의 채용을 종료했다고 알려왔습니다. 우선적으로 보고 있는 방향과 더 가까운 후보자와 다음 단계를 진행하게 되었다고 알려왔습니다. 또 다른 좋은 기회가 있을 때 연락드릴게요. 우선 이 기회의 프로세스를 종료하겠습니다. 감사합니다."
-  );
+    assert.equal(progress?.code, "closed_by_company");
+    assert.equal(progress?.stage, "pending_connection");
+    assert.equal(
+      progress?.message,
+      "회사에서 해당 역할의 채용을 종료했다고 알려왔습니다. 우선적으로 보고 있는 방향과 더 가까운 후보자와 다음 단계를 진행하게 되었다고 알려왔습니다. 또 다른 좋은 기회가 있을 때 연락드릴게요. 우선 이 기회의 프로세스를 종료하겠습니다. 감사합니다."
+    );
+  }
 });
 
 test("closes an ended role at the accepted stage with limited-review guidance", () => {
@@ -290,6 +292,24 @@ test("closes an ended role at the accepted stage with limited-review guidance", 
     progress?.message,
     "회사에 전달했지만, 추가 진행 의사 없이 해당 역할의 채용이 종료되었습니다. 자세한 검토까지 이어지지 않았을 가능성이 높지만 우선 이 기회의 프로세스를 종료하겠습니다."
   );
+});
+
+test("final offer is the sole stage exception for every closed role", () => {
+  for (const status of ["ended", "deleted"]) {
+    const progress = buildInternalRecommendationProgress({
+      item: { ...baseItem, status },
+      tags: [
+        {
+          opportunity_id: "role-1",
+          tag: "내부:최종오퍼",
+          updated_at: "2026-07-11T05:42:24.000Z",
+        },
+      ],
+    });
+
+    assert.equal(progress?.code, "company_next_process");
+    assert.equal(progress?.stage, "final_offer");
+  }
 });
 
 test("keeps an explicit candidate stop authoritative when the role is ended", () => {
@@ -318,9 +338,7 @@ function buildPromptOpportunity(
     feedback: null,
     feedbackReason: null,
     location: null,
-    recommendedAt: new Date(
-      Date.UTC(2026, 8, 1 + index, 1, 35)
-    ).toISOString(),
+    recommendedAt: new Date(Date.UTC(2026, 8, 1 + index, 1, 35)).toISOString(),
     recommendationId: `recommendation-${index}`,
     roleId: `role-${index}`,
     savedStage: null,

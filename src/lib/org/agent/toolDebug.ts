@@ -2,8 +2,9 @@ const MAX_DEBUG_DEPTH = 3;
 const MAX_DEBUG_KEYS = 20;
 const MAX_DEBUG_ARRAY_ITEMS = 10;
 const MAX_DEBUG_STRING_CHARS = 240;
+const MAX_SLACK_TOOL_TRACE_CHARS = 12_000;
 const SENSITIVE_DEBUG_KEY =
-  /token|secret|password|authorization|cookie|cipher|api.?key|message|content|body|email/i;
+  /token|secret|password|authorization|cookie|cipher|api.?key|message|content|body|email|context|subject/i;
 
 export type OrgAgentToolDebugEvent = {
   callId: string;
@@ -88,4 +89,45 @@ export function summarizeOrgAgentToolResult(
 
 export function clipOrgAgentToolDebugSummary(value: unknown) {
   return clipDebugString(String(value ?? ""), 300);
+}
+
+export function shouldShowLocalSlackToolTrace(args: {
+  nodeEnv?: string;
+  verbose: boolean;
+}) {
+  return args.verbose && args.nodeEnv === "development";
+}
+
+function escapeSlackMrkdwn(value: unknown) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function inlineSlackCode(value: unknown) {
+  return `\`${escapeSlackMrkdwn(value).replaceAll("`", "'")}\``;
+}
+
+export function formatOrgAgentSlackToolTrace(events: OrgAgentToolDebugEvent[]) {
+  if (events.length === 0) return "";
+  const lines = ["---", "*Local tool trace*"];
+  for (const [index, event] of events.entries()) {
+    lines.push(
+      `${index + 1}. ${inlineSlackCode(event.name)} · ${escapeSlackMrkdwn(
+        event.status
+      )} · ${Math.max(0, event.durationMs).toFixed(1)}ms`
+    );
+    lines.push(
+      `   input: ${inlineSlackCode(
+        clipDebugString(JSON.stringify(event.input ?? {}), 1_000)
+      )}`
+    );
+    if (event.summary) {
+      lines.push(`   result: ${escapeSlackMrkdwn(event.summary)}`);
+    } else if (event.resultStatus) {
+      lines.push(`   result: ${escapeSlackMrkdwn(event.resultStatus)}`);
+    }
+  }
+  return clipDebugString(lines.join("\n"), MAX_SLACK_TOOL_TRACE_CHARS);
 }

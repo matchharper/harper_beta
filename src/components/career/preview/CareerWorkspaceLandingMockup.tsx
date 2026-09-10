@@ -9,11 +9,12 @@ import {
   FileText,
   GalleryVerticalEnd,
   House,
+  List,
   Lock,
   MapPin,
   MessageCircleMore,
-  MessageSquareText,
   Phone,
+  Plus,
   Search,
   Settings2,
   ShieldAlert,
@@ -34,6 +35,7 @@ import React, {
   type ReactNode,
 } from "react";
 import Face from "@/components/common/Face";
+import { MuteButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 
@@ -690,24 +692,75 @@ const OpportunityDigest = ({
   </div>
 );
 
-const StaticComposer = ({ placeholder }: { placeholder: string }) => (
+const StaticComposer = ({
+  compact,
+  placeholder,
+}: {
+  compact: boolean;
+  placeholder: string;
+}) => (
   <div className="shrink-0 px-4 pb-3 pt-2 md:px-5 md:pb-6 md:pt-0">
     <div className="mx-auto w-full max-w-[1120px]">
-      <div className="overflow-hidden rounded-[16px] border border-neutral-1000-a10 bg-bg-floating/80 shadow-sm backdrop-blur-xl">
-        <div className="relative flex min-h-[84px] items-start">
-          <div className="min-w-0 flex-1 px-3.5 py-4 text-[15px] leading-6 text-neutral-placeholder md:text-[16px] md:leading-7">
-            {placeholder}
-          </div>
-          <div className="absolute bottom-2 right-2 flex items-center gap-2">
-            <button
-              type="button"
+      <div
+        className={cn(
+          "overflow-hidden rounded-[18px] border",
+          "border-neutral-1000-a05 bg-bg-floating/55 shadow-sm backdrop-blur-lg",
+          compact
+            ? "grid h-12 grid-cols-[auto_minmax(0,1fr)_auto] items-center"
+            : "flex flex-col"
+        )}
+      >
+        {compact ? (
+          <MuteButton
+            aria-disabled="true"
+            aria-label="추가 메뉴"
+            className="ml-2 rounded-full"
+            size="md"
+            tabIndex={-1}
+            variant="transparent"
+          >
+            <Plus className="h-5 w-5" />
+          </MuteButton>
+        ) : null}
+        <div
+          className={cn(
+            "min-w-0 text-neutral-placeholder",
+            compact
+              ? "truncate px-2 text-[15px] leading-5"
+              : "min-h-12 px-3.5 py-3 text-[15px] leading-6"
+          )}
+        >
+          {placeholder}
+        </div>
+        <div
+          className={cn(
+            "flex items-center",
+            compact ? "mr-2 justify-self-end" : "justify-between px-2 pb-2"
+          )}
+        >
+          {!compact ? (
+            <MuteButton
               aria-disabled="true"
+              aria-label="추가 메뉴"
+              className="rounded-full"
+              size="md"
               tabIndex={-1}
-              className="inline-flex h-8 w-10 items-center justify-center rounded-[14px] border border-neutral-1000-a10 bg-primary text-neutral-00 shadow-xs"
+              variant="transparent"
             >
-              <AudioLines className="h-4 w-4" />
-            </button>
-          </div>
+              <Plus className="h-5 w-5" />
+            </MuteButton>
+          ) : null}
+          <MuteButton
+            type="button"
+            aria-disabled="true"
+            aria-label="통화 모드"
+            tabIndex={-1}
+            className="rounded-full"
+            size="md"
+            variant="primary"
+          >
+            <AudioLines className="h-4 w-4" />
+          </MuteButton>
         </div>
       </div>
     </div>
@@ -858,7 +911,10 @@ const StaticChatPanel = ({
       </div>
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-linear-to-t from-bg-basement via-bg-basement/70 to-transparent">
         <div>
-          <StaticComposer placeholder={copy.composerPlaceholder} />
+          <StaticComposer
+            compact={compact}
+            placeholder={copy.composerPlaceholder}
+          />
         </div>
       </div>
     </section>
@@ -1184,58 +1240,37 @@ const MobileWorkspace = ({
   copy: StaticCopy;
   onGmailMockupVisibleChange?: (visible: boolean) => void;
 }) => (
-  <main className="flex h-full pt-0.5 w-full flex-col overflow-hidden bg-bg-basement text-neutral-primary">
-    <header className="relative z-20 flex h-12 shrink-0 items-center justify-between px-2 text-neutral-primary backdrop-blur-xl overflow-hidden">
-      <button
-        type="button"
+  <main className="flex h-full w-full flex-col overflow-hidden bg-bg-floating text-neutral-primary">
+    <header className="relative z-20 flex shrink-0 items-center justify-center px-4 pb-2 pt-2">
+      <MuteButton
         aria-disabled="true"
+        aria-label="메뉴 열기"
+        className="absolute left-3 top-2 rounded-full border-neutral-1000-a05 bg-bg-floating/55 text-neutral-muted backdrop-blur-lg"
+        size="md"
         tabIndex={-1}
-        className="inline-flex h-11 max-w-[180px] items-center gap-2 rounded-md px-2.5 text-base font-medium text-neutral-primary"
       >
-        <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center text-neutral-primary">
-          <MessageSquareText className="h-4 w-4" />
-        </span>
-        <span>{copy.chatTitle}</span>
-      </button>
-      <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-hedvig text-[18px] text-neutral-primary">
-        Harper
+        <List className="h-4 w-4" />
+      </MuteButton>
+      <div className="flex h-8 w-24 items-center justify-center">
+        <div className="h-[3px] w-10 rounded-full bg-black/20" />
       </div>
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          aria-disabled="true"
-          tabIndex={-1}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-muted"
-        >
-          <Settings2 className="h-5 w-5" />
-        </button>
-        <Avatar small />
-      </div>
+      <MuteButton
+        aria-disabled="true"
+        aria-label="채팅 접기"
+        className="absolute right-3 top-2 rounded-full border-neutral-1000-a05 bg-bg-floating/55 text-neutral-muted backdrop-blur-lg"
+        size="md"
+        tabIndex={-1}
+      >
+        <X className="h-4 w-4" />
+      </MuteButton>
     </header>
-    <div className="relative min-h-0 flex-1 bg-bg-basement">
-      <div className="absolute inset-x-0 bottom-0 top-0 z-10 flex flex-col border-t border-neutral-1000-a05 bg-bg-floating text-neutral-primary">
-        <div className="relative flex shrink-0 items-center justify-center px-4 pb-2 pt-3">
-          <div className="flex h-6 w-24 items-center justify-center">
-            <div className="h-1.5 w-12 rounded-full bg-black/15" />
-          </div>
-          <button
-            type="button"
-            aria-disabled="true"
-            tabIndex={-1}
-            className="absolute right-3 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-1000-a05 bg-bg-floating text-neutral-muted"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="min-h-0 flex-1 overflow-hidden">
-          <StaticChatPanel
-            autoPlayConversation={autoPlayConversation}
-            copy={copy}
-            onGmailMockupVisibleChange={onGmailMockupVisibleChange}
-            viewport="mobile"
-          />
-        </div>
-      </div>
+    <div className="min-h-0 flex-1 overflow-hidden border-t border-neutral-1000-a05">
+      <StaticChatPanel
+        autoPlayConversation={autoPlayConversation}
+        copy={copy}
+        onGmailMockupVisibleChange={onGmailMockupVisibleChange}
+        viewport="mobile"
+      />
     </div>
   </main>
 );

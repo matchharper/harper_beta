@@ -143,6 +143,7 @@ const previewInbox: OrgBoardResponse = {
       fitSummary: "초기 AI 제품 경험과 높은 제품 오너십이 잘 맞습니다.",
       recommendedAt: PREVIEW_NOW,
       recommendationId: "preview-recommendation",
+      processClosureNoticeUnresolved: false,
       roleId: "preview-role-design",
       roleName: "Founding Product Designer",
       stage: "pending_connection",

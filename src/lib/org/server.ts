@@ -78,7 +78,20 @@ import {
 } from "@/lib/companyTalentRequests/server";
 import type { Database, Json } from "@/types/database.types";
 import { getCompanyInternalRoleRecord } from "@/lib/companyInternalRole";
-import { fetchOrgProcessClosureNotifications } from "@/lib/org/processClosureNotification";
+import {
+  fetchOrgProcessClosureNotifications,
+  isOrgProcessClosureNoticeUnresolved,
+} from "@/lib/org/processClosureNotification";
+import {
+  candidateReengagementAppliesToStage,
+  confirmCandidateReengagementByCompany,
+  internalCandidatePairIsClosed,
+  internalCandidateRoleIsOpen,
+  recordCandidateReengagementRequired,
+  reengagementActor,
+  requestCandidateReengagement,
+  type CandidateReengagementResolution,
+} from "@/lib/internalCandidateReengagement";
 import { resolveTalentLocation } from "@/lib/talentLocation";
 import {
   resolveRoleStageMeetingDefaultsUpdate,
@@ -363,6 +376,7 @@ export type OrgBoardItem = {
   fitSummary: string | null;
   recommendedAt: string;
   recommendationId: string;
+  processClosureNoticeUnresolved: boolean;
   roleId: string;
   roleName: string | null;
   stage: OrgStageId;
@@ -516,10 +530,11 @@ export type OrgCompanyTalentRequestFeedItem = {
   responseMessage: string | null;
   roleId: string;
   roleName: string | null;
-  scheduledAt: string;
+  scheduledAt: string | null;
   sentMessage: string | null;
   sentAt: string | null;
   status: string;
+  workflowStatus: string;
 };
 
 export type OrgTalentDetailResponse = {
@@ -654,6 +669,7 @@ export type OrgStageChangeOptions = {
   introEmails?: string[] | null;
   meetingCandidateMessage?: string | null;
   meetingPurpose?: string | null;
+  reengagementResolution?: "company_confirmed";
   scheduleInterview?: boolean;
   sourceStage?: OrgStageId;
   stopNote?: string | null;
@@ -2673,6 +2689,41 @@ async function fetchUpcomingMeetingsByRecommendation(args: {
   return meetingsByRecommendation;
 }
 
+async function fetchLatestProcessClosureNoticeAtByRecommendation(args: {
+  admin: SupabaseAdminClient;
+  recommendationIds: string[];
+}) {
+  const recommendationIds = uniqueTexts(args.recommendationIds);
+  if (recommendationIds.length === 0) return new Map<string, string>();
+  const results = await Promise.all(
+    chunkValues(recommendationIds).map(async (recommendationIdChunk) => {
+      const { data, error } = await (
+        args.admin.from("talent_progress" as any) as any
+      )
+        .select("recommendation_id,created_at")
+        .eq("kind", "internal_process_stopped_notified")
+        .in("recommendation_id", recommendationIdChunk)
+        .order("created_at", { ascending: false })
+        .limit(ORG_BOARD_STAGE_DEPENDENCY_CAP);
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        created_at: string;
+        recommendation_id: string | null;
+      }>;
+    })
+  );
+  const latestByRecommendationId = new Map<string, string>();
+  for (const row of results.flat()) {
+    if (
+      row.recommendation_id &&
+      !latestByRecommendationId.has(row.recommendation_id)
+    ) {
+      latestByRecommendationId.set(row.recommendation_id, row.created_at);
+    }
+  }
+  return latestByRecommendationId;
+}
+
 export async function fetchOrgBoard(args: {
   /**
    * Reserved for API routes already protected by `requireInternalApiUser`.
@@ -2812,6 +2863,7 @@ export async function fetchOrgBoard(args: {
     profileLabels,
     connectedRecommendationIds,
     criteriaEvaluationsByKey,
+    processClosureNoticeAtByRecommendation,
     upcomingMeetingsByRecommendation,
   ] = await Promise.all([
     fetchTalentRows(admin, talentIds),
@@ -2829,6 +2881,14 @@ export async function fetchOrgBoard(args: {
         })
       : fetchOrgConnectedRecommendationIds({ admin, roleIds }),
     fetchCriteriaEvaluationsForBoard({ admin, recommendationRows }),
+    fetchLatestProcessClosureNoticeAtByRecommendation({
+      admin,
+      recommendationIds: recommendationRows.flatMap((row) =>
+        normalizeText(row.saved_stage).toLowerCase() === "closed"
+          ? [row.id]
+          : []
+      ),
+    }),
     fetchUpcomingMeetingsByRecommendation({
       admin,
       recommendationIds: recommendationRows.map((row) => row.id),
@@ -2872,6 +2932,7 @@ export async function fetchOrgBoard(args: {
       if (!haystack.includes(searchQuery)) return [];
     }
 
+    const stageRows = tagsByKey.get(`${row.talent_id}:${row.role_id}`) ?? [];
     const stageInfo = getVisibleOrgStage({
       connectedByOrgAction: connectedRecommendationIds.has(row.id),
       customStageByTagKey,
@@ -2881,9 +2942,16 @@ export async function fetchOrgBoard(args: {
         normalizeText(roleById.get(row.role_id)?.source_type).toLowerCase() ===
         "internal",
       savedStage: row.saved_stage,
-      tags: tagsByKey.get(`${row.talent_id}:${row.role_id}`) ?? [],
+      tags: stageRows,
     });
     if (!stageInfo) return [];
+    const currentStageRow = stageInfo.stageTag
+      ? stageRows.find(
+          (stageRow) =>
+            normalizeTagKey(stageRow.tag) ===
+            normalizeTagKey(stageInfo.stageTag)
+        )
+      : null;
 
     return [
       {
@@ -2894,6 +2962,13 @@ export async function fetchOrgBoard(args: {
         fitSummary: row.fit_summary ?? null,
         recommendedAt: row.recommended_at,
         recommendationId: row.id,
+        processClosureNoticeUnresolved: isOrgProcessClosureNoticeUnresolved({
+          currentStageChangedAt:
+            currentStageRow?.updated_at ?? currentStageRow?.created_at,
+          deliveredAt:
+            processClosureNoticeAtByRecommendation.get(row.id) ?? null,
+          savedStage: row.saved_stage,
+        }),
         roleId: row.role_id,
         roleName: roleById.get(row.role_id)?.name ?? null,
         stage: stageInfo.stage,
@@ -3810,6 +3885,8 @@ export async function setOrgCandidateStage(args: {
   expectedPreviousStage?: OrgStageId;
   introEmails?: string[] | null;
   recommendationId: string;
+  reengagementActionId?: string | null;
+  reengagementResolution?: CandidateReengagementResolution | null;
   roleId: string;
   scheduleInterview?: boolean;
   skipAutomaticContact?: boolean;
@@ -3865,6 +3942,15 @@ export async function setOrgCandidateStage(args: {
   const roleRows = await fetchRoleRowsForWorkspace(admin, workspaceId);
   const role = roleRows.find((row) => row.role_id === roleId);
   if (!role) throw new OrgHttpError(404, "Role not found");
+  if (
+    candidateReengagementAppliesToStage(stage) &&
+    !internalCandidateRoleIsOpen(role)
+  ) {
+    throw new OrgHttpError(
+      409,
+      "이 역할은 종료되어 후보자를 다시 진행할 수 없어요. 역할을 먼저 진행 상태로 바꾼 뒤 다시 시도해 주세요."
+    );
+  }
   const assignedIntroEmails =
     canInitiateContact &&
     !contactDirectly &&
@@ -3924,9 +4010,17 @@ export async function setOrgCandidateStage(args: {
       savedStage: recommendation.saved_stage,
       tags: (previousTags ?? []) as TalentOpportunityTagRow[],
     })?.stage ?? "pending_connection";
+  const closedState = candidateReengagementAppliesToStage(stage)
+    ? await internalCandidatePairIsClosed({
+        admin,
+        recommendationId,
+        roleId,
+        talentId,
+      })
+    : { closed: false, recommendationId: null };
   const reactivation =
-    previousStage === "process_stopped" && stage === "connected";
-  const processClosureNotification = reactivation
+    closedState.closed && args.reengagementResolution === "company_confirmed";
+  const processClosureNotification = closedState.closed
     ? ((
         await fetchOrgProcessClosureNotifications({
           admin,
@@ -3940,6 +4034,13 @@ export async function setOrgCandidateStage(args: {
         stoppedAt: null,
       })
     : null;
+
+  if (args.reengagementResolution === "ask_candidate" && !closedState.closed) {
+    throw new OrgHttpError(
+      409,
+      "후보자가 이미 진행 중 상태로 복구되어 재진행 의사를 다시 물을 필요가 없어요. 새로고침한 뒤 현재 단계를 확인해 주세요."
+    );
+  }
 
   if (
     args.expectedPreviousStage &&
@@ -3970,6 +4071,71 @@ export async function setOrgCandidateStage(args: {
       400,
       "CC로 연결하려면 회사 담당자 이메일을 1개 이상 추가해 주세요."
     );
+  }
+
+  if (closedState.closed) {
+    const actor = reengagementActor(args.user);
+    if (!args.reengagementResolution) {
+      await recordCandidateReengagementRequired({
+        ...actor,
+        actionKey: args.reengagementActionId,
+        admin,
+        currentStage: previousStage,
+        recommendationId,
+        roleId,
+        stage,
+        talentId,
+      });
+      const candidate = await fetchOrgSlackTalent(admin, talentId);
+      return {
+        candidateName: candidate?.name ?? "후보자",
+        currentStage: previousStage,
+        ok: true as const,
+        requestedStage: stage,
+        roleId,
+        roleName: role.name,
+        status: "candidate_reengagement_required" as const,
+        talentId,
+      };
+    }
+    if (args.reengagementResolution === "ask_candidate") {
+      const request = await requestCandidateReengagement({
+        ...actor,
+        admin,
+        recommendationId,
+        roleId,
+        stage,
+        talentId,
+        workspaceId,
+      });
+      return {
+        ok: true as const,
+        requestId: request.requestId,
+        requestedStage: stage,
+        roleId,
+        scheduledAt: request.scheduledAt ?? null,
+        status: "candidate_reengagement_requested" as const,
+        talentId,
+      };
+    }
+  }
+
+  if (reactivation) {
+    const confirmed = await confirmCandidateReengagementByCompany({
+      ...reengagementActor(args.user),
+      actionKey: args.reengagementActionId,
+      admin,
+      recommendationId,
+      roleId,
+      stage,
+      talentId,
+    });
+    if (!confirmed) {
+      throw new OrgHttpError(
+        409,
+        "후보자나 역할 상태가 바뀌어 다시 진행할 수 없어요. 새로고침한 뒤 현재 상태를 확인해 주세요."
+      );
+    }
   }
 
   const isIntroRequested = shouldSendOrgIntroEmail({
@@ -4016,47 +4182,35 @@ export async function setOrgCandidateStage(args: {
     }
   }
 
-  const { error: deleteError } = await (
-    admin.from("talent_opportunity_tag" as any) as any
-  )
-    .delete()
-    .eq("talent_id", talentId)
-    .eq("opportunity_id", roleId)
-    .in("tag", allStageTags);
-
-  if (deleteError) throw deleteError;
-
   const nextTag = getStageTagForInsert(stage);
-  const { error: insertError } = await (
-    admin.from("talent_opportunity_tag" as any) as any
-  ).insert({
-    opportunity_id: roleId,
-    tag: nextTag,
-    talent_id: talentId,
-  });
-
-  if (insertError) throw insertError;
-
-  await upsertRecommendationProcessedStage({
-    admin,
-    recommendationId,
-    roleId,
-    stage,
-    talentId,
-  });
-
-  if (reactivation) {
-    const { error: reopenError } = await (
-      admin.from("talent_opportunity_recommendation" as any) as any
+  if (!reactivation) {
+    const { error: deleteError } = await (
+      admin.from("talent_opportunity_tag" as any) as any
     )
-      .update({
-        saved_stage: "accepted",
-        updated_at: new Date().toISOString(),
-      })
+      .delete()
       .eq("talent_id", talentId)
-      .eq("role_id", roleId)
-      .eq("saved_stage", "closed");
-    if (reopenError) throw reopenError;
+      .eq("opportunity_id", roleId)
+      .in("tag", allStageTags);
+
+    if (deleteError) throw deleteError;
+
+    const { error: insertError } = await (
+      admin.from("talent_opportunity_tag" as any) as any
+    ).insert({
+      opportunity_id: roleId,
+      tag: nextTag,
+      talent_id: talentId,
+    });
+
+    if (insertError) throw insertError;
+
+    await upsertRecommendationProcessedStage({
+      admin,
+      recommendationId,
+      roleId,
+      stage,
+      talentId,
+    });
   }
 
   const previousLabel = buildStageLabel(previousStage, stageRows);
@@ -4679,6 +4833,9 @@ function getOrgStageChangeFeedKind(row: TalentProgressRow) {
 }
 
 function getOrgProgressFeedText(row: TalentProgressRow) {
+  if (row.kind === "internal_process_stopped_notified") {
+    return "Harper가 후보자에게 이 역할의 프로세스 종료 안내를 보냈습니다.";
+  }
   if (row.kind !== "org_stage_change") return row.text;
   const metadata = getJsonRecord(row.metadata);
   const kind = getOrgStageChangeFeedKind(row);
@@ -4830,6 +4987,7 @@ export async function fetchOrgTalentOtherRoleFeed(args: {
         "org_candidate_activity",
         "org_candidate_role_move",
         "company_request_followup_sent",
+        "internal_process_stopped_notified",
       ])
       .order("created_at", { ascending: false })
       .limit(200),
@@ -4875,7 +5033,9 @@ export async function fetchOrgTalentOtherRoleFeed(args: {
     if (row.kind === "org_note") title = "메모";
     else if (row.kind === "org_candidate_role_move") title = "역할 변경";
     else if (row.kind === "org_stage_change") title = "상태 변경";
-    else if (row.kind === "company_request_followup_sent") {
+    else if (row.kind === "internal_process_stopped_notified") {
+      title = "프로세스 종료 안내";
+    } else if (row.kind === "company_request_followup_sent") {
       title = "후보자에게 회사 요청을 다시 안내했어요";
     } else if (eventType === "candidate_contact_sent") {
       title =
@@ -5180,6 +5340,7 @@ export async function fetchOrgTalentDetail(args: {
         "org_note",
         "org_candidate_role_move",
         "company_request_followup_sent",
+        "internal_process_stopped_notified",
       ])
       .order("created_at", { ascending: false })
       .limit(50),
@@ -5346,7 +5507,7 @@ export async function fetchOrgTalentDetail(args: {
       roleId: row.role_id,
       roleName:
         roleRows.find((role) => role.role_id === row.role_id)?.name ?? null,
-      scheduledAt: candidateDelivery?.scheduled_at ?? row.created_at,
+      scheduledAt: candidateDelivery?.scheduled_at ?? null,
       sentMessage: activity?.sentMessage ?? null,
       sentAt: candidateDelivery?.sent_at ?? null,
       status: humanizeCompanyTalentRequestStatus({
@@ -5365,6 +5526,7 @@ export async function fetchOrgTalentDetail(args: {
           !["ended", "deleted"].includes(normalizeText(roleRow.status)) &&
           roleRow.is_expired !== true,
       }),
+      workflowStatus: row.workflow_status,
     } satisfies OrgCompanyTalentRequestFeedItem;
   });
   const candidateDeliveryByRequestId = new Map(

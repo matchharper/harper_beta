@@ -60,6 +60,8 @@ test("career context updates keep Brief labels aligned with their content", () =
 
   assert.match(prompt, /Brief update makes its current label misleading/);
   assert.match(prompt, /update the label in the same change/);
+  assert.match(prompt, /independently understandable and updatable topic/);
+  assert.match(prompt, /linked conditions, trade-offs, and exceptions/);
   assert.match(prompt, /Save only facts the user stated/);
   assert.match(prompt, /do not repeat its label in content/);
 });

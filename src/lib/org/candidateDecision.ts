@@ -69,6 +69,16 @@ export function canStopOrgCandidateProcess(stage: OrgStageId) {
   return !isOrgInternalStage(stage) && stage !== "process_stopped";
 }
 
+export function shouldOpenOrgCandidateReengagementDialog(
+  candidate: { processClosureNoticeUnresolved: boolean },
+  nextStage: OrgStageId
+) {
+  return (
+    candidate.processClosureNoticeUnresolved &&
+    canInitiateOrgCandidateContact(nextStage)
+  );
+}
+
 export function shouldOpenOrgAcceptIntroDialog(
   currentStage: OrgStageId,
   nextStage: OrgStageId

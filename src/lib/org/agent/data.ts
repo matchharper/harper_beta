@@ -981,7 +981,7 @@ async function readCompanyTalentRequestProjection(args: {
   const [historyResult, documentsResult] = await Promise.all([
     (args.admin.from("company_talent_requests" as any) as any)
       .select(
-        "id, role_id, expects_document, request_context, workflow_status, expires_at, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, talent_source_message_id, document_id, deliveries:contact_queue(scheduled_at, sent_at, cancelled_at, status, last_error, payload, type)"
+        "id, role_id, expects_document, request_context, workflow_status, intent, resume_stage, response_disposition, expires_at, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, talent_source_message_id, document_id, deliveries:contact_queue(scheduled_at, sent_at, cancelled_at, status, last_error, payload, type)"
       )
       .eq("company_workspace_id", args.workspaceId)
       .eq("talent_id", args.talentId)
@@ -1115,10 +1115,18 @@ async function readCompanyTalentRequestProjection(args: {
           workflowStatus === "draft" ? Number(row.draft_revision ?? 0) : null,
         draftSubject:
           workflowStatus === "draft" ? text(row.delivery_subject) : null,
-        label: row.expects_document ? "이력서 요청" : "회사 질문 확인",
+        intent: text(row.intent) || "ordinary",
+        label:
+          text(row.intent) === "candidate_reengagement"
+            ? "재진행 의사 확인"
+            : row.expects_document
+              ? "이력서 요청"
+              : "회사 질문 확인",
         requestId: text(row.id),
         roleId: text(row.role_id),
         roleName: role?.name ?? null,
+        resumeStage: text(row.resume_stage) || null,
+        responseDisposition: text(row.response_disposition) || null,
         scheduledAt: formatRequestTimestamp(candidateDelivery?.scheduled_at),
         status: statusSummary.status,
         topic: text(row.request_context),
@@ -1516,8 +1524,9 @@ export async function readOrgAgentTalent(args: {
             ["accepted", "closed"].includes(
               text(row.saved_stage).toLowerCase()
             ),
+          closed: text(row.saved_stage).toLowerCase() === "closed",
           processClosureNotification:
-            visibleItem.stage === "process_stopped"
+            text(row.saved_stage).toLowerCase() === "closed"
               ? (processClosureNotifications.get(row.role_id) ?? {
                   deliveredAt: null,
                   sentChannel: null,
@@ -1525,6 +1534,7 @@ export async function readOrgAgentTalent(args: {
                   stoppedAt: null,
                 })
               : null,
+          savedStage: text(row.saved_stage) || null,
           stage: visibleItem.stage,
           stageLabel: getBoardStageLabel(board, visibleItem),
           talentMemo: clip(row.talent_memo, 700) || null,

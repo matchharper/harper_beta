@@ -728,7 +728,10 @@ export function buildInternalRecommendationProgress(args: {
   const daysSinceStageChanged =
     getDaysSinceInternalProgressDate(stageChangedAt);
   const effectiveStage = stage ?? "accepted";
-  const isEndedRole = args.item.status.trim().toLowerCase() === "ended";
+  const isClosedRole = ["ended", "deleted"].includes(
+    args.item.status.trim().toLowerCase()
+  );
+  const shouldCloseRole = isClosedRole && effectiveStage !== "final_offer";
   let code: TalentInternalRecommendationProgressCode;
   const isWithinInitialAcceptanceGrace =
     daysSinceAccepted !== null &&
@@ -750,7 +753,7 @@ export function buildInternalRecommendationProgress(args: {
     code = "rejected_by_talent";
   } else if (effectiveStage === "archived" && roleMoveOutEvent) {
     code = "moved_to_another_role";
-  } else if (isEndedRole) {
+  } else if (shouldCloseRole) {
     code = "closed_by_company";
   } else if (effectiveStage === "pending_connection") {
     code = "company_acknowledged_awaiting_response";
@@ -783,7 +786,7 @@ export function buildInternalRecommendationProgress(args: {
     daysSinceAccepted,
     daysSinceStageChanged,
     message:
-      isEndedRole && code === "closed_by_company"
+      shouldCloseRole && code === "closed_by_company"
         ? effectiveStage === "accepted"
           ? INTERNAL_ENDED_ROLE_PROGRESS_MESSAGE_AT_ACCEPTANCE
           : INTERNAL_ENDED_ROLE_PROGRESS_MESSAGE_AFTER_ACCEPTANCE

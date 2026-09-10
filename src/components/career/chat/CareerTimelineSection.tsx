@@ -1367,7 +1367,7 @@ const CareerTimelineSection = ({
                     </div>
                   ))}
                 </div>
-                <MuteButton type="button" onClick={onAddProfileLink} size="md">
+                <MuteButton type="button" onClick={onAddProfileLink} size="sm">
                   <Plus className="h-4 w-4" />
                   {t(
                     "career.chat.career_timeline_section.1gvzqes",

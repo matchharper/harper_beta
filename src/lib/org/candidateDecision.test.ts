@@ -10,6 +10,7 @@ import {
   requiresOrgIntroEmailRecipient,
   shouldSendOrgIntroEmail,
   shouldOpenOrgAcceptIntroDialog,
+  shouldOpenOrgCandidateReengagementDialog,
   shouldOpenOrgStopCandidateDialog,
 } from "./candidateDecision";
 import { isInternalDomainEmail } from "../internalAccess";
@@ -42,6 +43,41 @@ test("allows candidate contact throughout an active company process", () => {
   assert.equal(canInitiateOrgCandidateContact("process_stopped"), false);
   assert.equal(canInitiateOrgCandidateContact("accepted"), false);
   assert.equal(canInitiateOrgCandidateContact("archived"), false);
+});
+
+test("requires renewed consent before every active move after a closure notice", () => {
+  const candidate = { processClosureNoticeUnresolved: true };
+
+  assert.equal(
+    shouldOpenOrgCandidateReengagementDialog(candidate, "pending_connection"),
+    true
+  );
+  assert.equal(
+    shouldOpenOrgCandidateReengagementDialog(
+      candidate,
+      "custom:first-interview"
+    ),
+    true
+  );
+  assert.equal(
+    shouldOpenOrgCandidateReengagementDialog(candidate, "final_offer"),
+    true
+  );
+  assert.equal(
+    shouldOpenOrgCandidateReengagementDialog(candidate, "archived"),
+    false
+  );
+  assert.equal(
+    shouldOpenOrgCandidateReengagementDialog(candidate, "process_stopped"),
+    false
+  );
+  assert.equal(
+    shouldOpenOrgCandidateReengagementDialog(
+      { processClosureNoticeUnresolved: false },
+      "custom:first-interview"
+    ),
+    false
+  );
 });
 
 test("allows a new candidate contact after the company process stopped", () => {
@@ -134,10 +170,7 @@ test("requests an intro for an active stage after pending connection", () => {
     shouldOpenOrgAcceptIntroDialog("pending_connection", "accepted"),
     false
   );
-  assert.equal(
-    shouldOpenOrgAcceptIntroDialog("accepted", "connected"),
-    false
-  );
+  assert.equal(shouldOpenOrgAcceptIntroDialog("accepted", "connected"), false);
   assert.equal(
     shouldOpenOrgAcceptIntroDialog("process_stopped", "connected"),
     true
@@ -179,7 +212,10 @@ test("sends an intro only when a connection starts or resumes", () => {
       ...overrides,
     });
 
-  assert.equal(shouldSend("pending_connection", "custom:first-interview"), true);
+  assert.equal(
+    shouldSend("pending_connection", "custom:first-interview"),
+    true
+  );
   assert.equal(shouldSend("process_stopped", "connected"), true);
   assert.equal(
     shouldSend("custom:first-interview", "custom:second-interview"),
@@ -214,10 +250,7 @@ test("sends an intro only when a connection starts or resumes", () => {
 
 test("confirms stopping both waiting and already active company connections", () => {
   assert.equal(
-    shouldOpenOrgStopCandidateDialog(
-      "pending_connection",
-      "process_stopped"
-    ),
+    shouldOpenOrgStopCandidateDialog("pending_connection", "process_stopped"),
     true
   );
   assert.equal(

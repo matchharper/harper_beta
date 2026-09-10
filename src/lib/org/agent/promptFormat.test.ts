@@ -395,8 +395,11 @@ test("candidate contact history separates email, response, and company relay mil
         companyRelayedAt: "2026. 9. 7. 18:36 KST",
         companyRelayState: "전달됨",
         createdAt: "2026. 9. 7. 18:20 KST",
-        label: "회사 질문 확인",
+        intent: "candidate_reengagement",
+        label: "재진행 의사 확인",
         requestId: "request-1",
+        responseDisposition: "positive",
+        resumeStage: "pending_connection",
         roleName: "Site CTO - Indonesia",
         status: "후보자 메일 발송됨 · 후보자 답변 수신됨 · 회사 전달됨",
         topic: "Wonderful에 계속 관심이 있는지 확인",
@@ -414,6 +417,10 @@ test("candidate contact history separates email, response, and company relay mil
   assert.match(compact, /회사 전달됨/);
   assert.match(compact, /Continued Interest/);
   assert.match(compact, /계속 관심이 있으신지/);
+  assert.match(compact, /candidate_reengagement/);
+  assert.match(compact, /재진행 의사 확인/);
+  assert.match(compact, /연결 대기/);
+  assert.match(compact, /positive/);
   assert.doesNotMatch(compact, /created_or_sent_kst/);
 });
 
@@ -576,10 +583,10 @@ test("proposal results leave the exact preview and confirmation to server presen
 test("Role status changes explain the candidate-facing lifecycle effect", () => {
   const compact = serializeOrgAgentToolResult("change_role_status", {
     effect:
-      "역할을 종료 상태로 바꾸고 추가 추천을 중단합니다. 후보자 화면은 역할 종료로 해석하지만, 기존 후보 단계와 회사 요청은 이 변경만으로 모두 자동 종료되지 않습니다.",
+      "역할을 종료 상태로 바꾸고 추가 추천을 중단합니다. 종료 안내는 상태 변경과 동시에 발송되지는 않습니다.",
     expectation:
-      "이미 검토 중인 후보자와 후보자에게 보낸 질문은 그대로 남습니다.",
-    nextProcess: "남아 있는 후보자와 요청은 각각 마무리해 주세요.",
+      "유예기간 후 최종 오퍼를 제외한 수락 후보자에게 종료를 안내합니다.",
+    nextProcess: "재개하려면 역할을 먼저 진행 상태로 바꾸세요.",
     roleName: "Backend Engineer",
     roleStatus: "ended",
     status: "updated",
@@ -588,12 +595,9 @@ test("Role status changes explain the candidate-facing lifecycle effect", () => 
   assert.match(compact, /status=updated/);
   assert.match(compact, /role=Backend Engineer/);
   assert.match(compact, /lifecycle=종료/);
-  assert.match(
-    compact,
-    /기존 후보 단계와 회사 요청은 .*자동 종료되지 않습니다/
-  );
-  assert.match(compact, /expectation=.*후보자에게 보낸 질문은 그대로 남습니다/);
-  assert.match(compact, /next_process=남아 있는 후보자와 요청은 각각 마무리/);
+  assert.match(compact, /종료 안내는 상태 변경과 동시에 발송되지는 않습니다/);
+  assert.match(compact, /expectation=.*최종 오퍼를 제외한/);
+  assert.match(compact, /next_process=재개하려면 역할을 먼저 진행/);
   assert.doesNotMatch(compact, /lifecycle=ended/);
 });
 

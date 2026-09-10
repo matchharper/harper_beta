@@ -19,6 +19,16 @@ type EditorState = {
   row: CareerTalentContext | null;
 } | null;
 
+const PINNED_BRIEF_KEYS = [
+  "next_scope",
+  "location",
+  "compensation",
+  "deal_breakers",
+  "must_haves",
+] as const;
+
+const PINNED_BRIEF_KEY_SET = new Set<string>(PINNED_BRIEF_KEYS);
+
 export default function CareerTalentContextSection({
   brief,
   memories,
@@ -51,6 +61,60 @@ export default function CareerTalentContextSection({
   const [memoryListOpen, setMemoryListOpen] = useState(false);
   const [pendingDelete, setPendingDelete] =
     useState<CareerTalentContext | null>(null);
+
+  const pinnedBriefLabels = useMemo(
+    () => ({
+      compensation: t(
+        "career.profile.context.pinned.compensation",
+        "기대 보상 조건"
+      ),
+      deal_breakers: t(
+        "career.profile.context.pinned.deal_breakers",
+        "피하고 싶은 조건"
+      ),
+      location: t("career.profile.context.pinned.location", "선호 근무 지역"),
+      must_haves: t(
+        "career.profile.context.pinned.must_haves",
+        "꼭 있어야 하는 조건"
+      ),
+      next_scope: t("career.profile.context.pinned.next_scope", "다음 역할"),
+    }),
+    [t]
+  );
+
+  const displayedBrief = useMemo(() => {
+    const pinnedRowsByKey = new Map<string, CareerTalentContext>();
+    for (const row of brief) {
+      if (
+        row.key &&
+        PINNED_BRIEF_KEY_SET.has(row.key) &&
+        !pinnedRowsByKey.has(row.key)
+      ) {
+        pinnedRowsByKey.set(row.key, row);
+      }
+    }
+
+    const pinnedRowIds = new Set(
+      Array.from(pinnedRowsByKey.values(), (row) => row.id)
+    );
+    return [
+      ...PINNED_BRIEF_KEYS.map((key) => {
+        const row = pinnedRowsByKey.get(key) ?? null;
+        return {
+          id: row ? `row-${row.id}` : `empty-${key}`,
+          label: row?.label ?? pinnedBriefLabels[key],
+          row,
+        };
+      }),
+      ...brief
+        .filter((row) => !pinnedRowIds.has(row.id))
+        .map((row) => ({
+          id: `row-${row.id}`,
+          label: row.label ?? "",
+          row,
+        })),
+    ];
+  }, [brief, pinnedBriefLabels]);
 
   const openEditor = (
     collection: CareerTalentContextCollection,
@@ -239,70 +303,63 @@ export default function CareerTalentContextSection({
         </div>
       </div>
       <div className="rounded-[18px] border border-neutral-1000-a05 bg-bg-floating p-4 md:p-5 md:py-6">
-        {brief.length > 0 ? (
-          <dl className="mt-0 divide-y divide-neutral-1000-a05">
-            {brief.map((row) => (
-              <div
-                className="grid gap-1 py-4 first:pt-0 last:pb-0 sm:grid-cols-[130px_minmax(0,1fr)] sm:gap-6"
-                key={row.id}
-              >
-                <dt className="text-[13px] font-normal">
-                  {briefEditMode ? (
-                    <label htmlFor={`career-brief-${row.id}`}>
-                      {row.label}
-                    </label>
-                  ) : (
-                    row.label
-                  )}
-                </dt>
-                <dd className="m-0 min-w-0">
-                  {briefEditMode ? (
-                    <div className="flex items-start gap-2">
-                      <Textarea
-                        aria-label={row.label ?? undefined}
-                        autoResize
-                        className="min-h-10 resize-y py-1.5  text-[13px] font-normal leading-5 text-neutral-800/90 resize-none"
-                        disabled={pending}
-                        id={`career-brief-${row.id}`}
-                        maxLength={8000}
-                        onChange={(event) =>
-                          setBriefDrafts((current) => ({
-                            ...current,
-                            [row.id]: event.target.value,
-                          }))
-                        }
-                        rows={1}
-                        value={briefDrafts[row.id] ?? row.content}
-                      />
-                      <MuteButton
-                        aria-label={t("career.profile.context.delete", "삭제")}
-                        className="shrink-0 text-neutral-muted"
-                        disabled={!mutate || pending}
-                        onClick={() => setPendingDelete(row)}
-                        size="sm"
-                        type="button"
-                        variant="transparent"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </MuteButton>
-                    </div>
-                  ) : (
-                    <p className="whitespace-pre-line text-[13px] font-normal leading-5 text-neutral-800/90">
-                      {row.content}
-                    </p>
-                  )}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        ) : (
-          <p className="mt-4 text-[13px] text-neutral-muted">
-            {t(
-              "career.profile.context.brief_empty",
-              "아직 정해진 탐색 기준이 없어요."
-            )}
-          </p>
-        )}
+        <dl className="mt-0 divide-y divide-neutral-1000-a05">
+          {displayedBrief.map(({ id, label: rowLabel, row }) => (
+            <div
+              className="grid gap-1 py-4 first:pt-0 last:pb-0 sm:grid-cols-[130px_minmax(0,1fr)] sm:gap-6"
+              key={id}
+            >
+              <dt className="text-[13px] font-normal">
+                {briefEditMode && row ? (
+                  <label htmlFor={`career-brief-${row.id}`}>{rowLabel}</label>
+                ) : (
+                  rowLabel
+                )}
+              </dt>
+              <dd className="m-0 min-w-0">
+                {briefEditMode && row ? (
+                  <div className="flex items-start gap-2">
+                    <Textarea
+                      aria-label={rowLabel}
+                      autoResize
+                      className="min-h-10 resize-y py-1.5  text-[13px] font-normal leading-5 text-neutral-800/90 resize-none"
+                      disabled={pending}
+                      id={`career-brief-${row.id}`}
+                      maxLength={8000}
+                      onChange={(event) =>
+                        setBriefDrafts((current) => ({
+                          ...current,
+                          [row.id]: event.target.value,
+                        }))
+                      }
+                      rows={1}
+                      value={briefDrafts[row.id] ?? row.content}
+                    />
+                    <MuteButton
+                      aria-label={t("career.profile.context.delete", "삭제")}
+                      className="shrink-0 text-neutral-muted"
+                      disabled={!mutate || pending}
+                      onClick={() => setPendingDelete(row)}
+                      size="sm"
+                      type="button"
+                      variant="transparent"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </MuteButton>
+                  </div>
+                ) : (
+                  <p
+                    className={`whitespace-pre-line text-[13px] font-normal leading-5 ${
+                      row ? "text-neutral-800/90" : "text-neutral-muted"
+                    }`}
+                  >
+                    {row?.content ?? t("career.profile.context.blank", "빈칸")}
+                  </p>
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
       </div>
 
       {/* <div className="flex items-center justify-between gap-4 rounded-[14px] border border-neutral-1000-a05 bg-bg-floating p-4">

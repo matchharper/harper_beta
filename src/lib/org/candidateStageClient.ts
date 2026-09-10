@@ -20,6 +20,8 @@ export type OrgCandidateStageMutationInput = {
   meetingCandidateMessage?: OrgStageChangeOptions["meetingCandidateMessage"];
   meetingPurpose?: OrgStageChangeOptions["meetingPurpose"];
   recommendationId: string;
+  reengagementActionId?: string | null;
+  reengagementResolution?: "ask_candidate" | "company_confirmed" | null;
   roleId: string;
   scheduleInterview?: OrgStageChangeOptions["scheduleInterview"];
   sourceStage?: OrgStageChangeOptions["sourceStage"];
@@ -30,20 +32,49 @@ export type OrgCandidateStageMutationInput = {
   workspaceId: string;
 };
 
-export type OrgCandidateStageMutationResponse = {
-  meetingSchedule?: {
-    alreadyExisted: boolean;
-    detailPath: string;
-    roundId: string;
-    scheduleId: string;
-    status: string;
-  } | null;
-  ok: true;
-  roleId: string;
-  stage: OrgStageId;
-  stageTag: string;
-  talentId: string;
-};
+export type OrgCandidateStageMutationResponse =
+  | {
+      candidateName: string;
+      currentStage: OrgStageId;
+      ok: true;
+      requestedStage: OrgStageId;
+      roleId: string;
+      roleName: string;
+      status: "candidate_reengagement_required";
+      talentId: string;
+    }
+  | {
+      ok: true;
+      requestId: string;
+      requestedStage: OrgStageId;
+      roleId: string;
+      scheduledAt: string | null;
+      status: "candidate_reengagement_requested";
+      talentId: string;
+    }
+  | {
+      meetingSchedule?: {
+        alreadyExisted: boolean;
+        detailPath: string;
+        roundId: string;
+        scheduleId: string;
+        status: string;
+      } | null;
+      ok: true;
+      roleId: string;
+      stage: OrgStageId;
+      stageTag: string;
+      talentId: string;
+    };
+
+export function orgCandidateStageWasUpdated(
+  response: OrgCandidateStageMutationResponse
+): response is Extract<
+  OrgCandidateStageMutationResponse,
+  { stage: OrgStageId }
+> {
+  return "stage" in response;
+}
 
 export const ORG_CANDIDATE_STAGE_MUTATION_KEY = [
   "org",
@@ -82,12 +113,14 @@ export function applyOrgCandidateStageToBoard(
   variables: OrgCandidateStageMutationInput
 ) {
   if (!current || current.workspaceId !== variables.workspaceId) return current;
+  if (!orgCandidateStageWasUpdated(update)) return current;
   return {
     ...current,
     items: current.items.map((item) =>
       item.roleId === update.roleId && item.talentId === update.talentId
         ? {
             ...item,
+            processClosureNoticeUnresolved: false,
             stage: update.stage,
             stageTag: update.stageTag,
           }
@@ -109,6 +142,7 @@ export function applyOrgCandidateStageToDetail(
   ) {
     return current;
   }
+  if (!orgCandidateStageWasUpdated(update)) return current;
   return {
     ...current,
     recommendation: {
@@ -124,6 +158,7 @@ export function applyOrgCandidateStageToAcceptedTalents(
   variables: OrgCandidateStageMutationInput
 ) {
   if (!current) return current;
+  if (!orgCandidateStageWasUpdated(update)) return current;
   return {
     ...current,
     items: current.items.map((item) =>

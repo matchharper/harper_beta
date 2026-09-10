@@ -104,6 +104,21 @@ const HARPER_ACTOR: ContactActor = {
   type: "harper",
 };
 
+const PROGRESS_NOTICE_KINDS = [
+  "internal_process_stopped_notified",
+  "company_request_followup_sent",
+] as const;
+
+function progressNoticeState(kind: unknown) {
+  if (text(kind) === "internal_process_stopped_notified") {
+    return "Harper가 후보자에게 이 역할의 프로세스 종료를 안내함";
+  }
+  if (text(kind) === "company_request_followup_sent") {
+    return "Harper가 후보자에게 회사 요청을 다시 안내함";
+  }
+  return null;
+}
+
 function latestDelivery(row: Record<string, any>, type: string) {
   const deliveries = Array.isArray(row.deliveries) ? row.deliveries : [];
   return (
@@ -181,6 +196,8 @@ function stateForKind(kind: OrgAgentContactKind, row: Record<string, any>) {
   if (kind === "contact") return contactState(row);
   if (kind === "interview_request") return interviewState(row);
   if (kind === "connection_intro") return connectionIntroState(row);
+  const progressState = progressNoticeState(row.workflow_status);
+  if (progressState) return progressState;
   return text(row.sent_at) || text(row.delivery_status) === "sent"
     ? "후보자에게 안내 이메일을 보냄"
     : "후보자 안내 이메일의 발송 상태를 확인하지 못함";
@@ -210,7 +227,7 @@ export async function listOrgAgentContacts(args: {
   const offset = Math.min(Math.max(Math.trunc(args.offset ?? 0), 0), 10_000);
   const dateBasis = args.dateBasis ?? "updated";
   const { data, error } = await (args.admin.rpc as any)(
-    "list_company_contact_index_v1",
+    "list_company_contact_index_v2",
     {
       p_after: text(args.after) || null,
       p_before: text(args.before) || null,
@@ -724,7 +741,7 @@ async function readConnectionIntros(args: {
     });
 }
 
-async function readNotices(args: {
+async function readEmailNotices(args: {
   admin: OrgAgentAdminClient;
   ids: string[];
   workspaceId: string;
@@ -876,6 +893,92 @@ async function readNotices(args: {
       },
     ];
   });
+}
+
+async function readProgressNotices(args: {
+  admin: OrgAgentAdminClient;
+  ids: string[];
+  workspaceId: string;
+}) {
+  if (args.ids.length === 0) return [];
+  const { data, error } = await (
+    args.admin.from("talent_progress" as any) as any
+  )
+    .select("id,talent_id,role_id,kind,created_at")
+    .in("kind", [...PROGRESS_NOTICE_KINDS])
+    .in("id", args.ids);
+  if (error) throw error;
+  const progressRows = (data ?? []) as Array<Record<string, any>>;
+  const roleIds = Array.from(
+    new Set(progressRows.map((row) => text(row.role_id)).filter(Boolean))
+  );
+  if (roleIds.length === 0) return [];
+  const roleResult = await (args.admin.from("company_roles" as any) as any)
+    .select("role_id,name")
+    .eq("company_workspace_id", args.workspaceId)
+    .in("role_id", roleIds);
+  if (roleResult.error) throw roleResult.error;
+  const roleById = new Map<string, Record<string, any>>(
+    (roleResult.data ?? []).map((row: any) => [text(row.role_id), row])
+  );
+  const scopedProgressRows = progressRows.filter((row) =>
+    roleById.has(text(row.role_id))
+  );
+  const talentIds = Array.from(
+    new Set(
+      scopedProgressRows.map((row) => text(row.talent_id)).filter(Boolean)
+    )
+  );
+  if (talentIds.length === 0) return [];
+  const talentResult = await (args.admin.from("talent_users" as any) as any)
+    .select("user_id,name,email")
+    .in("user_id", talentIds)
+    .is("deleted_at", null);
+  if (talentResult.error) throw talentResult.error;
+  const talentById = new Map<string, Record<string, any>>(
+    (talentResult.data ?? []).map((row: any) => [text(row.user_id), row])
+  );
+
+  return scopedProgressRows.flatMap((progress) => {
+    const role = roleById.get(text(progress.role_id));
+    const candidate = talentById.get(text(progress.talent_id));
+    const state = progressNoticeState(progress.kind);
+    if (!role || !candidate || !state) return [];
+    return [
+      {
+        candidate: candidateActor(candidate),
+        contactRef: contactRef("notice", progress.id),
+        kind: "notice" as const,
+        message: {
+          body: null,
+          deliveryState: "발송됨",
+          recipient: candidateActor(candidate),
+          scheduledAt: null,
+          sender: HARPER_ACTOR,
+          sentAt: text(progress.created_at) || null,
+          subject: null,
+        },
+        role: {
+          name: text(role.name) || "이름 없는 Role",
+          roleId: text(progress.role_id),
+        },
+        state,
+        talentId: text(progress.talent_id),
+      },
+    ];
+  });
+}
+
+async function readNotices(args: {
+  admin: OrgAgentAdminClient;
+  ids: string[];
+  workspaceId: string;
+}) {
+  const [emailNotices, progressNotices] = await Promise.all([
+    readEmailNotices(args),
+    readProgressNotices(args),
+  ]);
+  return [...emailNotices, ...progressNotices];
 }
 
 export async function readOrgAgentContacts(args: {

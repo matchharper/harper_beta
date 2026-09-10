@@ -55,6 +55,20 @@ test("pending resume decline uses the same successful-writer boundary", () => {
   );
 });
 
+test("renewed interest defers to the tool when the company changed stage later", () => {
+  const context = serializeTalentPendingRequest({
+    expects_document: false,
+    id: "request-reengagement",
+    intent: "candidate_reengagement",
+    request_context: "다시 연결받을 의향이 있으신가요?",
+    role: { name: "Backend Engineer" },
+    workspace: { company_name: "Acme" },
+  });
+
+  assert.match(context ?? "", /newer company stage change takes precedence/);
+  assert.match(context ?? "", /tool's assistantInstruction/);
+});
+
 test("candidate contact confirmation shows the body without mechanical fields", () => {
   const body =
     "안녕하세요.\n\n회사에서 확인을 부탁드린 내용입니다.\n\nHarper 드림";

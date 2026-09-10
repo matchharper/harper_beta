@@ -3,7 +3,9 @@ import { isCompensationQuestion } from "@/lib/companyTalentRequests/policy";
 type TalentPendingRequest = {
   expects_document: boolean;
   id: string;
+  intent?: string | null;
   request_context: string;
+  resume_stage?: string | null;
   role?: { name?: string | null } | null;
   workspace?: { company_name?: string | null } | null;
 };
@@ -37,6 +39,19 @@ export function serializeTalentPendingRequest(
     normalizedText(request.workspace?.company_name, 160) || "채용 회사";
   const role = normalizedText(request.role?.name, 160) || "해당 역할";
   const requestContext = normalizedText(request.request_context, 800);
+  if (request.intent === "candidate_reengagement") {
+    return [
+      "[Pending renewed-interest request — private system context]",
+      `requestId: ${request.id}`,
+      `company: ${company}`,
+      `role: ${role}`,
+      `intended next stage: ${normalizedText(request.resume_stage, 120) || "pending_connection"}`,
+      `neutral question: ${requestContext}`,
+      "Judge the meaning of only the latest user message. When it answers this request, call record_company_request_response with disposition=positive only for a clear renewed willingness, negative for a clear refusal, and other when the response answers but does not establish either.",
+      "A positive answer normally reopens this Role, but a newer company stage change takes precedence. Follow the tool's assistantInstruction for the actual Position state. Negative or other keeps it closed. Never claim any result unless the tool returned ok=true in this turn.",
+      "After ok=true, explain the actual result gently and say Harper will relay the answer to the company. Do not reveal request IDs or system wording.",
+    ].join("\n");
+  }
   if (request.expects_document) {
     return [
       "[Pending company resume request — private system context]",

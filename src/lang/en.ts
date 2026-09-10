@@ -1975,7 +1975,7 @@ export const en = {
     "career.profile.career_profile_links_settings_section.0q4dh49":
       "Harper reviews recruiting-related emails from the past two years and organizes confirmed companies, roles, and key stages. It uses this to understand your career history and interests and avoid recommending opportunities you have already applied to.",
     "career.profile.career_profile_links_settings_section.0rr9dvp":
-      "Harper remembers imported information privately and does not share it with companies. Emails without reliable evidence of an application are not remembered.",
+      "Harper keeps imported information private and does not share it with companies. It does not remember emails without clear evidence of a job application.",
     "career.profile.career_profile_links_settings_section.0xqdt60":
       "Checking that your account is securely connected.",
     "career.profile.career_profile_links_settings_section.0z48n2w": "Import",
@@ -2133,6 +2133,7 @@ export const en = {
     "career.profile.context.add": "Add",
     "career.profile.context.add_brief": "Add search criterion",
     "career.profile.context.add_memory": "Add memory",
+    "career.profile.context.blank": "Blank",
     "career.profile.context.brief_content_placeholder":
       "Describe the criterion Harper should apply when exploring opportunities.",
     "career.profile.context.brief_description":
@@ -2160,6 +2161,11 @@ export const en = {
       "Context Harper remembers to support future conversations and opportunity decisions.",
     "career.profile.context.memory_empty": "No saved memories yet.",
     "career.profile.context.memory_title": "Harper's memory",
+    "career.profile.context.pinned.compensation": "Compensation expectations",
+    "career.profile.context.pinned.deal_breakers": "Deal-breakers",
+    "career.profile.context.pinned.location": "Preferred work location",
+    "career.profile.context.pinned.must_haves": "Must-have criteria",
+    "career.profile.context.pinned.next_scope": "Next role",
     "career.profile.context.retry": "Try again",
     "career.profile.context.save": "Save",
     "career.profile.date.present": "Present",
