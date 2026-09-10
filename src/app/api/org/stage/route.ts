@@ -44,6 +44,8 @@ export async function POST(req: NextRequest) {
       meetingCandidateMessage?: unknown;
       meetingPurpose?: unknown;
       recommendationId?: string;
+      reengagementActionId?: unknown;
+      reengagementResolution?: unknown;
       introEmails?: string[] | null;
       roleId?: string;
       scheduleInterview?: boolean;
@@ -59,6 +61,15 @@ export async function POST(req: NextRequest) {
       throw new OrgHttpError(400, "이메일 전달 방식을 확인해 주세요.");
     }
     const stage = body.stage ?? "pending_connection";
+    const reengagementResolution = String(
+      body.reengagementResolution ?? ""
+    ).trim();
+    if (
+      reengagementResolution &&
+      !["ask_candidate", "company_confirmed"].includes(reengagementResolution)
+    ) {
+      throw new OrgHttpError(400, "복구 진행 방식을 확인해 주세요.");
+    }
     if (body.scheduleInterview === true) {
       throw new OrgHttpError(
         410,
@@ -73,6 +84,13 @@ export async function POST(req: NextRequest) {
       expectedPreviousStage: body.sourceStage,
       introEmails: body.introEmails ?? null,
       recommendationId: body.recommendationId ?? "",
+      reengagementActionId:
+        typeof body.reengagementActionId === "string"
+          ? body.reengagementActionId
+          : null,
+      reengagementResolution: reengagementResolution
+        ? (reengagementResolution as "ask_candidate" | "company_confirmed")
+        : null,
       roleId: body.roleId ?? "",
       scheduleInterview: false,
       stage,

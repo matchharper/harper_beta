@@ -54,6 +54,9 @@ export type CompanyTalentRequestRow = {
   document_id: string | null;
   draft_revision: number;
   created_at: string;
+  intent: "candidate_reengagement" | "ordinary";
+  response_disposition: "negative" | "other" | "positive" | null;
+  resume_stage: string | null;
   talent_source_message_id?: number | null;
 };
 
@@ -73,12 +76,9 @@ type CompanyTalentRequestReadRow = CompanyTalentRequestRow & {
 };
 
 function companyRequestRoleIsOpen(row: CompanyTalentRequestReadRow) {
-  const status = normalizedText(row.role?.status, 80);
-  const roleExpiresAt = Date.parse(String(row.role?.expires_at ?? ""));
+  const status = normalizedText(row.role?.status, 80).toLowerCase();
   return (
-    !["ended", "deleted"].includes(status) &&
-    row.role?.is_expired !== true &&
-    (!Number.isFinite(roleExpiresAt) || roleExpiresAt > Date.now())
+    !["ended", "deleted"].includes(status) && row.role?.is_expired !== true
   );
 }
 
@@ -157,8 +157,10 @@ export async function createCompanyTalentContactDraft(args: {
   body: string;
   id: string;
   expectsDocument: boolean;
+  intent?: "candidate_reengagement" | "ordinary";
   recommendationId: string;
   requestContext: string;
+  resumeStage?: string | null;
   roleId: string;
   sourceCompanyMessageId: number;
   subject: string;
@@ -175,15 +177,17 @@ export async function createCompanyTalentContactDraft(args: {
       draft_revision: 1,
       expects_document: args.expectsDocument,
       id: args.id,
+      intent: args.intent ?? "ordinary",
       recommendation_id: args.recommendationId,
       request_context: context,
+      resume_stage: args.resumeStage ?? null,
       role_id: args.roleId,
       source_company_message_id: args.sourceCompanyMessageId,
       talent_id: args.talentId,
       workflow_status: "draft",
     })
     .select(
-      "id, company_workspace_id, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision"
+      "id, company_workspace_id, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, intent, resume_stage, response_disposition"
     )
     .single();
   if (error) throw error;
@@ -198,7 +202,7 @@ export async function fetchCompanyTalentContact(args: {
   const { data, error } = await args.admin
     .from("company_talent_requests")
     .select(
-      "id, company_workspace_id, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, role:company_roles(name), talent:talent_users(name, email)"
+      "id, company_workspace_id, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, intent, resume_stage, response_disposition, role:company_roles(name), talent:talent_users(name, email)"
     )
     .eq("id", args.requestId)
     .eq("company_workspace_id", args.workspaceId)
@@ -241,7 +245,7 @@ export async function reviseCompanyTalentContactDraft(args: {
     .eq("draft_revision", args.expectedRevision)
     .gt("expires_at", new Date().toISOString())
     .select(
-      "id, company_workspace_id, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision"
+      "id, company_workspace_id, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, intent, resume_stage, response_disposition"
     )
     .maybeSingle();
   if (error) throw error;
@@ -423,7 +427,7 @@ export async function fetchActiveCompanyTalentRequest(args: {
   let query = args.admin
     .from("company_talent_requests")
     .select(
-      "id, company_workspace_id, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, talent_source_message_id, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, deliveries:contact_queue(sent_at, status, type), role:company_roles!inner(name, status, is_expired, expires_at), workspace:company_workspace!inner(company_name)"
+      "id, company_workspace_id, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, talent_source_message_id, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, intent, resume_stage, response_disposition, deliveries:contact_queue(sent_at, status, type), role:company_roles!inner(name, status, is_expired, expires_at), workspace:company_workspace!inner(company_name)"
     )
     .eq("talent_id", args.talentId)
     .in("workflow_status", statuses)
@@ -458,7 +462,7 @@ export async function fetchActiveCompanyTalentRequests(args: {
   const { data, error } = await args.admin
     .from("company_talent_requests")
     .select(
-      "id, company_workspace_id, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, talent_source_message_id, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, deliveries:contact_queue(sent_at, status, type), role:company_roles!inner(name, status, is_expired, expires_at), workspace:company_workspace!inner(company_name)"
+      "id, company_workspace_id, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, talent_source_message_id, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, intent, resume_stage, response_disposition, deliveries:contact_queue(sent_at, status, type), role:company_roles!inner(name, status, is_expired, expires_at), workspace:company_workspace!inner(company_name)"
     )
     .eq("talent_id", args.talentId)
     .in("workflow_status", statuses)
@@ -700,6 +704,7 @@ async function candidateAuthoredMessage(args: {
 
 export async function recordCompanyTalentResponse(args: {
   admin: UntypedAdmin;
+  disposition?: "negative" | "other" | "positive" | null;
   requestId: string;
   sourceMessageId: number;
   talentId: string;
@@ -713,21 +718,49 @@ export async function recordCompanyTalentResponse(args: {
   if (!request) {
     throw new Error("Active company request not found");
   }
+  if (request.intent === "candidate_reengagement" && !args.disposition) {
+    throw new Error("candidate_reengagement_disposition_required");
+  }
+  if (request.intent !== "candidate_reengagement" && args.disposition) {
+    throw new Error("ordinary_company_request_disposition_not_allowed");
+  }
   await candidateAuthoredMessage({
     admin: args.admin,
     messageId: args.sourceMessageId,
     talentId: args.talentId,
   });
   const { data, error } = await args.admin.rpc(
-    "record_company_talent_response_v1",
+    "record_company_talent_response_v2",
     {
+      p_disposition: args.disposition ?? null,
       p_request_id: args.requestId,
       p_source_message_id: args.sourceMessageId,
       p_talent_id: args.talentId,
     }
   );
   if (error) throw error;
-  return data as CompanyTalentRequestRow;
+  let positionActive: boolean | null = null;
+  if (
+    request.intent === "candidate_reengagement" &&
+    args.disposition === "positive"
+  ) {
+    const { data: recommendation, error: recommendationError } =
+      await args.admin
+        .from("talent_opportunity_recommendation")
+        .select("saved_stage")
+        .eq("id", request.recommendation_id)
+        .eq("talent_id", request.talent_id)
+        .eq("role_id", request.role_id)
+        .maybeSingle();
+    if (recommendationError) throw recommendationError;
+    positionActive =
+      normalizedText(recommendation?.saved_stage, 40).toLowerCase() ===
+      "accepted";
+  }
+  return {
+    ...(data as CompanyTalentRequestRow),
+    positionActive,
+  };
 }
 
 export function buildCompanyTalentProfileHref(args: {

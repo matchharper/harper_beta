@@ -45,6 +45,10 @@ const FEEDBACK_LABELS: Record<string, string> = {
 
 const PROGRESS_KIND_LABELS: Record<string, string> = {
   company_request_followup_sent: "회사 요청 팔로업 발송",
+  internal_process_reactivated: "후보자 프로세스 재개",
+  internal_process_reengagement_required: "후보자 재진행 의사 확인 필요",
+  internal_process_reengagement_requested: "후보자 재진행 의사 확인 요청",
+  internal_process_reengagement_response: "후보자 재진행 답변 수신",
   internal_process_stopped_notified: "후보자 프로세스 종료 안내 발송",
   org_candidate_activity: "후보자 진행",
   org_note: "회사 메모",
@@ -130,15 +134,21 @@ export function compactOrgProgressMetadata(value: unknown) {
   for (const key of [
     "stage",
     "fromStage",
+    "currentStage",
+    "requestedStage",
     "acceptReason",
     "stopNote",
     "reason",
   ]) {
     if (record[key] !== undefined) {
-      compact[key] =
-        key === "stage" || key === "fromStage"
-          ? humanizeOrgStage(record[key])
-          : record[key];
+      compact[key] = [
+        "stage",
+        "fromStage",
+        "currentStage",
+        "requestedStage",
+      ].includes(key)
+        ? humanizeOrgStage(record[key])
+        : record[key];
     }
   }
   if (record.eventType !== undefined) {
@@ -149,6 +159,16 @@ export function compactOrgProgressMetadata(value: unknown) {
   }
   for (const key of [
     "requestContext",
+    "requestedStageLabel",
+    "status",
+    "consentSource",
+    "responseDisposition",
+    "stageFallbackToPendingConnection",
+    "deliveryState",
+    "sentChannel",
+    "requestId",
+    "confirmationContext",
+    "confirmedAt",
     "scheduledAt",
     "scheduledEndAt",
     "durationMinutes",

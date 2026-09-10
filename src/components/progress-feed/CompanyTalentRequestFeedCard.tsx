@@ -1,6 +1,7 @@
 import {
   ChevronRight,
   Clock3,
+  FileText,
   LoaderCircle,
   MailCheck,
   Send,
@@ -59,11 +60,25 @@ export function CompanyTalentRequestFeedCard({
                   "중복 연락을 피하려면 실제 전달 여부를 먼저 확인해 주세요.",
                 title: "후보자에게 전달됐는지 확인이 필요해요",
               }
-            : {
-                Icon: Clock3,
-                detail: `${formatExactKst(item.scheduledAt)}에 전달할 예정이에요.`,
-                title: "후보자에게 전달할 예정이에요",
-              };
+            : item.workflowStatus === "draft"
+              ? {
+                  Icon: FileText,
+                  detail: `${formatExactKst(item.createdAt)}에 저장했어요. 아직 후보자에게 보내지 않았어요.`,
+                  title: "후보자에게 보낼 문구를 준비했어요",
+                }
+              : item.deliveryStatus === "queued"
+                ? {
+                    Icon: Clock3,
+                    detail: item.scheduledAt
+                      ? `${formatExactKst(item.scheduledAt)}에 전달할 예정이에요.`
+                      : "후보자에게 전달할 예정이에요.",
+                    title: "후보자에게 전달할 예정이에요",
+                  }
+                : {
+                    Icon: XCircle,
+                    detail: "아직 전달 여부를 확인하지 못했어요.",
+                    title: "후보자 연락 상태를 확인해 주세요",
+                  };
   const StatusIcon = statusMeta.Icon;
 
   return (

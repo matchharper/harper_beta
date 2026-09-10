@@ -15,6 +15,7 @@ import type { OrgTalentSelection } from "@/hooks/org/useOrgJobsRoute";
 import { useOrgRoleActions } from "@/hooks/org/useOrgRoleActions";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import type { OrgBoardItem, OrgRole } from "@/lib/org/server";
+import { OrgCandidateReengagementDialog } from "@/components/org/OrgCandidateReengagementDialog";
 import type { OrgJobsView, OrgWorkspacePageId } from "@/lib/org/routes";
 
 type OrgJobsNavigationValue = {
@@ -218,6 +219,21 @@ function OrgJobsCandidateActionsProvider({
   return (
     <OrgJobsCandidateActionsContext.Provider value={value}>
       {children}
+      <OrgCandidateReengagementDialog
+        candidateName={
+          value.candidateReengagement?.response.candidateName ?? "후보자"
+        }
+        onCancel={value.cancelCandidateReengagement}
+        onConfirmCompanyChecked={async () => {
+          await value.resolveCandidateReengagement("company_confirmed");
+        }}
+        onRequestCandidateCheck={async () => {
+          await value.resolveCandidateReengagement("ask_candidate");
+        }}
+        open={Boolean(value.candidateReengagement)}
+        pending={value.resolvingCandidateReengagement}
+        roleName={value.candidateReengagement?.response.roleName ?? "해당 역할"}
+      />
     </OrgJobsCandidateActionsContext.Provider>
   );
 }

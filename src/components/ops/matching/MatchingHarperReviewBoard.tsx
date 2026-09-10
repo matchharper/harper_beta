@@ -64,9 +64,11 @@ import { useOpsMatchingStore } from "@/store/useOpsMatchingStore";
 import type {
   OpsMatchingReviewItem,
   OpsMatchingReviewStageId,
+  OpsMatchingReviewStageUpdateResponse,
   OpsMatchingRoleOption,
   OpsMatchingTalentItem,
 } from "@/lib/ops/matching";
+import type { OpsMatchingReviewStageMutationInput } from "@/lib/ops/matchingClient";
 import { buildPendingOpsMatchingReviewStageMap } from "@/lib/ops/matchingClient";
 import {
   Dialog,
@@ -882,6 +884,13 @@ export function MatchingHarperReviewBoard({
   const [customStageLabel, setCustomStageLabel] = useState("");
   const [customStageError, setCustomStageError] = useState("");
   const [customStageActionError, setCustomStageActionError] = useState("");
+  const [candidateReengagement, setCandidateReengagement] = useState<{
+    input: OpsMatchingReviewStageMutationInput;
+    response: Extract<
+      OpsMatchingReviewStageUpdateResponse,
+      { status: "candidate_reengagement_required" }
+    >;
+  } | null>(null);
   const collapsedColumnIds =
     useOpsMatchingStore(
       (state) => state.collapsedReviewColumnIdsByRole[role.roleId]
@@ -996,6 +1005,30 @@ export function MatchingHarperReviewBoard({
   const isCustomStageSubmitting =
     createReviewStage.isPending || updateReviewStage.isPending;
 
+  const submitReviewStage = async (
+    input: OpsMatchingReviewStageMutationInput
+  ) => {
+    const request = {
+      ...input,
+      reengagementActionId: input.reengagementActionId ?? crypto.randomUUID(),
+    };
+    const result = await setReviewStage.mutateAsync(request);
+    if (
+      "status" in result &&
+      result.status === "candidate_reengagement_required"
+    ) {
+      setCandidateReengagement({ input: request, response: result });
+    } else if (
+      "status" in result &&
+      result.status === "candidate_reengagement_requested"
+    ) {
+      setCandidateReengagement(null);
+    } else {
+      setCandidateReengagement(null);
+    }
+    return result;
+  };
+
   useEffect(() => {
     const header = document.querySelector<HTMLElement>(
       "[data-ops-shell-header]"
@@ -1061,7 +1094,7 @@ export function MatchingHarperReviewBoard({
       setDropTargetStageId(null);
       return;
     }
-    setReviewStage.mutate({
+    void submitReviewStage({
       roleId: role.roleId,
       stage,
       talentId: item.talent.userId,
@@ -1076,7 +1109,7 @@ export function MatchingHarperReviewBoard({
     ) {
       return;
     }
-    setReviewStage.mutate({
+    void submitReviewStage({
       roleId: role.roleId,
       stage: "archived",
       talentId: item.talent.userId,
@@ -1721,7 +1754,7 @@ export function MatchingHarperReviewBoard({
         onConfirm={async (emailMode) => {
           if (!pendingConnectionMove) return;
           const move = pendingConnectionMove;
-          const request = setReviewStage.mutateAsync({
+          const request = submitReviewStage({
             emailMode,
             roleId: role.roleId,
             stage: "pending_connection",
@@ -1739,6 +1772,63 @@ export function MatchingHarperReviewBoard({
         }
         recipientEmail={pendingConnectionMove?.talent.email}
       />
+
+      <Dialog
+        open={Boolean(candidateReengagement)}
+        onOpenChange={(open) => {
+          if (!open && !setReviewStage.isPending) {
+            setCandidateReengagement(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg rounded-lg" hideCloseButton>
+          <DialogHeader>
+            <DialogTitle>후보자에게 종료 안내가 전달됨</DialogTitle>
+            <DialogDescription>
+              {candidateReengagement?.response.candidateName ?? "후보자"}에게{" "}
+              {candidateReengagement?.response.roleName ?? "해당 역할"}의 진행이
+              끝났다고 이미 안내했습니다. 다시 진행할 의향을 Harper가 먼저
+              확인할지, 회사가 직접 확인한 것으로 보고 바로 복구할지 선택해
+              주세요.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+            <BareButton
+              className={opsTheme.buttonSecondary}
+              disabled={setReviewStage.isPending}
+              onClick={() => setCandidateReengagement(null)}
+            >
+              취소
+            </BareButton>
+            <BareButton
+              className={opsTheme.buttonSecondary}
+              disabled={setReviewStage.isPending}
+              onClick={() => {
+                if (!candidateReengagement) return;
+                void submitReviewStage({
+                  ...candidateReengagement.input,
+                  reengagementResolution: "company_confirmed",
+                });
+              }}
+            >
+              회사에서 이미 확인함
+            </BareButton>
+            <BareButton
+              className={opsTheme.buttonPrimary}
+              disabled={setReviewStage.isPending}
+              onClick={() => {
+                if (!candidateReengagement) return;
+                void submitReviewStage({
+                  ...candidateReengagement.input,
+                  reengagementResolution: "ask_candidate",
+                });
+              }}
+            >
+              Harper가 먼저 물어보기
+            </BareButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={Boolean(confirmRecommendTalent)}

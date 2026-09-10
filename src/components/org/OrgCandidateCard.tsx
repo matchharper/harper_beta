@@ -237,7 +237,11 @@ export function OrgCandidateCard({
           </>
         )}
       </div>
-      {item.upcomingMeeting ? (
+      {item.processClosureNoticeUnresolved ? (
+        <div className="-mx-3 mt-3 bg-critical px-3 py-1 text-[12px] font-medium text-neutral-00">
+          프로세스 종료 안내됨
+        </div>
+      ) : item.upcomingMeeting ? (
         <div className="-mx-3 mt-3 bg-positive px-3 py-1 text-[12px] font-medium text-neutral-00">
           {formatOrgUpcomingMeetingTime(item.upcomingMeeting.startAt)} Interview
           예정

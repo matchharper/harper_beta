@@ -76,7 +76,7 @@ export const TALENT_CONTEXT_WRITE_TOOL_PARAMETERS = {
             type: "string",
             maxLength: 160,
             description:
-              "Free-form user-readable title. Required for a new Brief; optional when renaming an existing Brief. Never create a key or choose from a fixed category list.",
+              "Short, user-readable noun phrase naming one Brief topic. Name the kind of criterion, not its current value, conclusion, or requested action. A new Brief uses a generic fallback when this is omitted or blank; it is optional when renaming an existing Brief. Never create a key or choose from a fixed category list.",
           },
           content: {
             type: "string",
@@ -88,7 +88,7 @@ export const TALENT_CONTEXT_WRITE_TOOL_PARAMETERS = {
             type: "integer",
             enum: [1, 2, 3],
             description:
-              "Required when adding a Memory and optional when updating one. Choose 3 when it can materially change matching, 2 when it is useful supporting context, or 1 when it mainly preserves conversational continuity. Never use for Brief.",
+              "Optional when adding or updating a Memory. Choose 3 when it can materially change matching, 2 when it is useful supporting context, or 1 when it mainly preserves conversational continuity. A new Memory defaults to 1 when this is omitted or invalid. Never use for Brief.",
           },
         },
         required: ["op"],
@@ -102,6 +102,9 @@ export const TALENT_CONTEXT_WRITE_TOOL_PARAMETERS = {
 
 export type TalentContextCollection = "brief" | "memory";
 export type TalentMemoryImportance = 1 | 2 | 3;
+
+const DEFAULT_TALENT_BRIEF_LABEL = "Career criteria";
+const DEFAULT_TALENT_MEMORY_IMPORTANCE: TalentMemoryImportance = 1;
 
 export type TalentContextSourceRef = {
   conversationId?: string | null;
@@ -810,25 +813,20 @@ function normalizeDirectChanges(
     if (change.op === "add") {
       const collection = normalizeCollection(change.collection);
       const content = normalizeWritableText(change.content, 8_000, "content");
-      const label = normalizeWritableText(change.label, 160, "label");
+      const label =
+        normalizeWritableText(change.label, 160, "label") ||
+        DEFAULT_TALENT_BRIEF_LABEL;
       const key =
         normalizeWritableText(change.key, 160, "compatibility key") || null;
-      const hasImportance = Object.prototype.hasOwnProperty.call(
-        change,
-        "importance"
-      );
-      const importance = Number(change.importance ?? 2);
-      if (!collection || !content || (collection === "brief" && !label)) {
+      const requestedImportance = Number(change.importance);
+      const importance =
+        Number.isInteger(requestedImportance) &&
+        requestedImportance >= 1 &&
+        requestedImportance <= 3
+          ? (requestedImportance as TalentMemoryImportance)
+          : DEFAULT_TALENT_MEMORY_IMPORTANCE;
+      if (!collection || !content) {
         throw new Error("Invalid talent context add change");
-      }
-      if (
-        collection === "memory" &&
-        (!Number.isInteger(importance) || importance < 1 || importance > 3)
-      ) {
-        throw new Error("Memory importance must be 1, 2, or 3");
-      }
-      if (collection === "brief" && hasImportance) {
-        throw new Error("Importance is not allowed on a Brief");
       }
       return {
         collection,
@@ -854,24 +852,31 @@ function normalizeDirectChanges(
       return { expected_revision: expectedRevision, id, op: "delete" };
     }
     const hasContent = Object.prototype.hasOwnProperty.call(change, "content");
-    const hasLabel = Object.prototype.hasOwnProperty.call(change, "label");
-    const hasImportance = Object.prototype.hasOwnProperty.call(
+    const suppliedLabel = Object.prototype.hasOwnProperty.call(change, "label");
+    const suppliedImportance = Object.prototype.hasOwnProperty.call(
       change,
       "importance"
     );
     const content = hasContent
       ? normalizeWritableText(change.content, 8_000, "content")
       : undefined;
-    const label = hasLabel
+    const label = suppliedLabel
       ? normalizeWritableText(change.label, 160, "label")
       : undefined;
-    const importance = hasImportance ? Number(change.importance) : undefined;
+    const requestedImportance = suppliedImportance
+      ? Number(change.importance)
+      : undefined;
+    const hasLabel = Boolean(label);
+    const hasImportance =
+      Number.isInteger(requestedImportance) &&
+      requestedImportance! >= 1 &&
+      requestedImportance! <= 3;
+    const importance = hasImportance
+      ? (requestedImportance as TalentMemoryImportance)
+      : undefined;
     if (
       (!hasContent && !hasLabel && !hasImportance) ||
-      (hasContent && !content) ||
-      (hasLabel && !label) ||
-      (hasImportance &&
-        (!Number.isInteger(importance) || importance! < 1 || importance! > 3))
+      (hasContent && !content)
     ) {
       throw new Error("Invalid talent context update change");
     }

@@ -2787,16 +2787,35 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       );
       if (itemsToClose.length > 0) {
         await Promise.all(
-          itemsToClose.map((item) =>
-            updateTalentOpportunityHistoryItem({
-              action: "saved_stage",
-              admin: admin as any,
-              opportunityId: item.id,
-              recordTalentRoleActivity: false,
-              savedStage: "closed",
-              userId,
-            })
-          )
+          itemsToClose.map(async (item) => {
+            const { error: closureError } = await (admin as any).rpc(
+              "commit_internal_process_closure_notice_v1",
+              {
+                p_metadata: {
+                  closureKind: ["ended", "deleted"].includes(
+                    item.status.trim().toLowerCase()
+                  )
+                    ? "role_ended"
+                    : "company_process_stopped",
+                  companyName: item.companyName,
+                  currentStage: item.internalProgress?.stage ?? "accepted",
+                  deliveryState: "committed",
+                  roleName: item.title,
+                  sentChannel: "career_chat",
+                },
+                p_recommendation_id: item.id,
+                p_talent_id: userId,
+                p_text: `Harper가 ${item.companyName} - ${item.title} 역할의 프로세스 종료 안내를 Career 대화에 포함하고 종료 상태로 전환했습니다.`,
+                p_user_id: "harper",
+              }
+            );
+            if (closureError) {
+              throw new TalentToolError(
+                closureError.message ??
+                  "Failed to record the process closure notification."
+              );
+            }
+          })
         );
       }
       const closedOpportunityIds = new Set(itemsToClose.map((item) => item.id));
@@ -3122,10 +3141,16 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.RECORD_COMPANY_REQUEST_RESPONSE]: {
     name: TALENT_TOOL_NAMES.RECORD_COMPANY_REQUEST_RESPONSE,
     description:
-      "Record the user's latest message as the response to the active company request. Use only when the message substantively answers or explicitly declines the request. For a resume request, use this only for decline or unavailability; a real upload is recorded by the upload service. For compensation, do not call until the user explicitly provides an amount, range, or wording to share, or clearly approves the wording Harper showed them.",
+      "Record the user's latest message as the response to the active company request. Use only when the message substantively answers or explicitly declines the request. If the pending request is a renewed-interest check, disposition is required: judge the full meaning and use positive only for clear renewed willingness, negative for clear refusal, and other for an answer that establishes neither. For a resume request, use this only for decline or unavailability; a real upload is recorded by the upload service. For compensation, do not call until the user explicitly provides an amount, range, or wording to share, or clearly approves the wording Harper showed them.",
     parameters: {
       type: "object",
       properties: {
+        disposition: {
+          type: "string",
+          enum: ["positive", "negative", "other"],
+          description:
+            "Required only for a renewed-interest request. Omit for every ordinary company question or resume request.",
+        },
         requestId: {
           type: "string",
           description:
@@ -3149,15 +3174,27 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       if (!requestId) {
         throw new TalentToolError("Invalid company request response.");
       }
-      await recordCompanyTalentResponse({
+      const response = await recordCompanyTalentResponse({
         admin: admin as any,
+        disposition:
+          input.disposition === "positive" ||
+          input.disposition === "negative" ||
+          input.disposition === "other"
+            ? input.disposition
+            : null,
         requestId,
         sourceMessageId,
         talentId: userId,
       });
       return {
         assistantInstruction:
-          "Confirm gently that Harper received the response and will relay it in polished wording without overstating the user's meaning. Do not repeat private request metadata.",
+          input.disposition === "positive"
+            ? response.positionActive
+              ? "Confirm gently that the Role is active in Positions and that Harper will relay the answer to the company. Do not overstate any details beyond renewed willingness."
+              : "Confirm gently that Harper received the renewed willingness and will relay it, but kept the current Position state because the company changed it after asking."
+            : input.disposition === "negative" || input.disposition === "other"
+              ? "Confirm gently that the Role remains closed and Harper will relay the answer to the company. Do not overstate the user's meaning."
+              : "Confirm gently that Harper received the response and will relay it in polished wording without overstating the user's meaning. Do not repeat private request metadata.",
         ok: true,
         skipCommonAssistantInstruction: true,
       };
@@ -3519,18 +3556,13 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           if (op === "add") {
             if (change.collection !== "brief" && change.collection !== "memory")
               return [];
-            const importance = Number(change.importance);
-            const hasValidImportance =
-              Number.isInteger(importance) &&
-              importance >= 1 &&
-              importance <= 3;
-            if (
-              (change.collection === "memory" && !hasValidImportance) ||
-              (change.collection === "brief" &&
-                Object.prototype.hasOwnProperty.call(change, "importance"))
-            ) {
-              return [];
-            }
+            const requestedImportance = Number(change.importance);
+            const importance =
+              Number.isInteger(requestedImportance) &&
+              requestedImportance >= 1 &&
+              requestedImportance <= 3
+                ? requestedImportance
+                : 1;
             return [
               {
                 collection: change.collection,
@@ -3543,30 +3575,25 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             ];
           }
           if (op === "update") {
-            const hasImportance = Object.prototype.hasOwnProperty.call(
-              change,
-              "importance"
-            );
-            const importance = Number(change.importance);
-            if (
-              hasImportance &&
-              (!Number.isInteger(importance) ||
-                importance < 1 ||
-                importance > 3)
-            ) {
-              return [];
-            }
+            const label = optionalToolString(change.label);
+            const requestedImportance = Number(change.importance);
+            const hasImportance =
+              Object.prototype.hasOwnProperty.call(change, "importance") &&
+              Number.isInteger(requestedImportance) &&
+              requestedImportance >= 1 &&
+              requestedImportance <= 3;
             return [
               {
                 ...(Object.prototype.hasOwnProperty.call(change, "content")
                   ? { content: optionalToolString(change.content) ?? "" }
                   : {}),
                 ...(hasImportance
-                  ? { importance: importance as TalentMemoryImportance }
+                  ? {
+                      importance:
+                        requestedImportance as TalentMemoryImportance,
+                    }
                   : {}),
-                ...(Object.prototype.hasOwnProperty.call(change, "label")
-                  ? { label: optionalToolString(change.label) ?? "" }
-                  : {}),
+                ...(label ? { label } : {}),
                 op,
                 ref: Number(change.ref),
               },

@@ -56,6 +56,7 @@ test("tracks every pending candidate stage mutation by talent and role", () => {
 test("applies a completed stage to duplicate board cards for the same pair", () => {
   const variables = buildMutation("talent-1", "connected");
   const matchingItem = {
+    processClosureNoticeUnresolved: true,
     recommendationId: "recommendation-1",
     roleId: variables.roleId,
     stage: "pending_connection",
@@ -90,6 +91,7 @@ test("applies a completed stage to duplicate board cards for the same pair", () 
     ["connected", "connected", "pending_connection"]
   );
   assert.equal(next?.items[0]?.stageTag, "내부:연결됨");
+  assert.equal(next?.items[0]?.processClosureNoticeUnresolved, false);
 });
 
 test("keeps detail and accepted-list caches aligned with a stage response", () => {
@@ -134,4 +136,34 @@ test("keeps detail and accepted-list caches aligned with a stage response", () =
   assert.equal(nextAccepted?.items[0]?.currentStage, "connected");
   assert.equal(nextAccepted?.items[0]?.currentStageLabel, "연결됨");
   assert.equal(nextAccepted?.items[0]?.isAwaitingStageMove, false);
+});
+
+test("does not optimistically move a candidate while renewed consent is required", () => {
+  const variables = buildMutation("talent-1", "pending_connection");
+  const current = {
+    items: [
+      {
+        recommendationId: variables.recommendationId,
+        roleId: variables.roleId,
+        stage: "archived",
+        talentId: variables.talentId,
+      } as OrgBoardItem,
+    ],
+    workspaceId: variables.workspaceId,
+  } as OrgBoardResponse;
+  const update = {
+    candidateName: "Person",
+    currentStage: "archived" as const,
+    ok: true as const,
+    requestedStage: "pending_connection" as const,
+    roleId: variables.roleId,
+    roleName: "Engineer",
+    status: "candidate_reengagement_required" as const,
+    talentId: variables.talentId,
+  };
+
+  assert.equal(
+    applyOrgCandidateStageToBoard(current, update, variables),
+    current
+  );
 });

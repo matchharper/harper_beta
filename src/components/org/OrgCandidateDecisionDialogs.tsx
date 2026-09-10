@@ -291,7 +291,7 @@ export function AcceptIntroDialog({
           ? `${processDestinationDirection} 옮기기 전에 미팅의 시간과 참석자를 확인해 주세요. 아직 후보자에게는 메일을 보내지 않아요.`
           : usesDirectContact
             ? `후보자를 ${processDestinationDirection} 표시하지만 Harper는 이메일을 보내지 않아요. 회사가 후보자에게 직접 연락해야 해요.`
-            : "Harper가 후보자와 선택한 담당자에게 소개 이메일을 바로 보내요. 보낸 이메일은 회수할 수 없어요."
+            : "Harper가 후보자와 선택한 담당자를 소개하는 이메일을 보내요."
       }
       footer={
         <div className="flex items-center justify-end gap-2">
@@ -359,8 +359,7 @@ export function AcceptIntroDialog({
               다음 프로세스
             </div>
             <p className="text-[12px] leading-5 text-neutral-muted">
-              연결 대기 다음에는 1차 기술 인터뷰나 커피챗처럼 진행할 단계를 먼저
-              만들어둘게요.
+              옮길 다음 프로세스를 알려주세요.(ex. 1차 기술 인터뷰, 커피챗 등)
             </p>
             <Input
               aria-label="다음 프로세스 이름"
@@ -668,37 +667,6 @@ export function AcceptIntroDialog({
                   {introSubject}
                 </div>
               </div>
-
-              <div className="border-t border-neutral-1000-a05 pt-2">
-                <MuteButton
-                  aria-controls={emailPreviewId}
-                  aria-expanded={emailPreviewOpen}
-                  className="-ml-2 text-neutral-muted"
-                  onClick={() =>
-                    setEmailPreviewOpen((currentOpen) => !currentOpen)
-                  }
-                  size="sm"
-                  variant="transparent"
-                >
-                  메일 내용 보기
-                  <ChevronRight
-                    className={cn(
-                      "size-3.5 transition-transform",
-                      emailPreviewOpen && "rotate-90"
-                    )}
-                  />
-                </MuteButton>
-                {emailPreviewOpen ? (
-                  <div
-                    className="mt-1 rounded-md bg-bg-weak px-3 py-2.5 text-[12px] leading-5 text-neutral-muted"
-                    id={emailPreviewId}
-                  >
-                    후보자와 회사 담당자를 소개하고 역할과 추천 이유를 전하는
-                    이메일이 전송 시 작성돼요. 전송 후에는 이 이메일에서 바로
-                    대화를 이어갈 수 있으며, 보낸 이메일은 회수할 수 없어요.
-                  </div>
-                ) : null}
-              </div>
             </div>
           </section>
         )}
@@ -725,7 +693,7 @@ export function AcceptIntroDialog({
               ? "후보자에게 보낼 이메일에 자연스럽게 담을게요. 아직 메일이 보내지는 것은 아니에요."
               : usesDirectContact
                 ? "작성해주시면 다음 후보 추천에 반영됩니다."
-                : "작성해주시면 소개 메일과 다음 후보 추천에 반영됩니다."}
+                : "소개 이메일이나 후보자에게는 공유되지 않으며, 이후 후보 추천 기준을 다듬는 데 참고합니다."}
           </p>
         </label>
         {error ? (

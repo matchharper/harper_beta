@@ -71,6 +71,28 @@ test("applies a completed stage mutation to only the matching review card", () =
   assert.equal(next?.items[1], current.items[1]);
 });
 
+test("does not optimistically move an Ops card while renewed consent is required", () => {
+  const current = {
+    customStages: [],
+    items: [buildReviewItem("talent-1", "archived")],
+    roleId: "role-1",
+    totalCount: 1,
+  } satisfies OpsMatchingReviewBoardResponse;
+
+  const next = applyOpsMatchingReviewStageUpdate(current, {
+    candidateName: "Person",
+    currentStage: "archived",
+    ok: true,
+    requestedStage: "pending_connection",
+    roleId: "role-1",
+    roleName: "Engineer",
+    status: "candidate_reengagement_required",
+    talentId: "talent-1",
+  });
+
+  assert.equal(next, current);
+});
+
 test("tracks concurrent human-label mutations per fit", () => {
   const pending = buildPendingOpsMatchingFitHumanLabelIds([
     { fitId: "fit-1", humanLabel: "fit" },

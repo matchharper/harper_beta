@@ -78,6 +78,48 @@ test("keeps a per-change external source identity for imported memories", async 
   );
 });
 
+test("fills missing add metadata and ignores empty optional update metadata", async () => {
+  const captured: { rpcArgs?: Record<string, unknown> } = {};
+  const admin = {
+    rpc: async (_name: string, args: Record<string, unknown>) => {
+      captured.rpcArgs = args;
+      return { data: { applied: [] }, error: null };
+    },
+  } as unknown as Parameters<typeof mutateTalentContexts>[0]["admin"];
+
+  await mutateTalentContexts({
+    admin,
+    changes: [
+      {
+        collection: "memory",
+        content: "Prefers concise follow-ups.",
+        op: "add",
+      },
+      {
+        collection: "brief",
+        content: "Open to remote platform roles.",
+        label: null,
+        op: "add",
+      },
+      {
+        content: "Now prefers smaller teams.",
+        expectedRevision: 2,
+        id: 31,
+        label: null as unknown as string,
+        op: "update",
+      },
+    ],
+    requestId: "missing-context-metadata-test",
+    userId: "00000000-0000-0000-0000-000000000001",
+  });
+
+  const changes = captured.rpcArgs?.p_changes as Array<Record<string, unknown>>;
+  assert.equal(changes[0]?.importance, 1);
+  assert.equal(changes[1]?.label, "Career criteria");
+  assert.equal(changes[2]?.content, "Now prefers smaller teams.");
+  assert.equal("label" in changes[2]!, false);
+});
+
 test("normalizes Memory importance without exposing it in prompt text", () => {
   const memory = row(9, "memory", "면접 일정은 평일 저녁을 선호한다.");
   const normalized = normalizeTalentContextRow({ ...memory, importance: 3 });

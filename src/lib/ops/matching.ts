@@ -32,6 +32,16 @@ import type {
   OpportunityWorkMode,
 } from "@/lib/ops/opportunity";
 import type { Database } from "@/types/database.types";
+import type { OrgStageId } from "@/lib/org/server";
+import {
+  candidateReengagementAppliesToStage,
+  confirmCandidateReengagementByCompany,
+  internalCandidatePairIsClosed,
+  internalCandidateRoleIsOpen,
+  recordCandidateReengagementRequired,
+  requestCandidateReengagement,
+  type CandidateReengagementResolution,
+} from "@/lib/internalCandidateReengagement";
 
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
 type TalentUserRow = Pick<
@@ -664,13 +674,33 @@ export type OpsMatchingTalentFitsResponse = {
   totalCount: number;
 };
 
-export type OpsMatchingReviewStageUpdateResponse = {
-  ok: true;
-  roleId: string;
-  stage: Exclude<OpsMatchingReviewStageId, "recommended">;
-  tags: OpsMatchingTalentTag[];
-  talentId: string;
-};
+export type OpsMatchingReviewStageUpdateResponse =
+  | {
+      candidateName: string;
+      currentStage: OpsMatchingReviewStageId;
+      ok: true;
+      requestedStage: Exclude<OpsMatchingReviewStageId, "recommended">;
+      roleId: string;
+      roleName: string;
+      status: "candidate_reengagement_required";
+      talentId: string;
+    }
+  | {
+      ok: true;
+      requestId: string;
+      requestedStage: Exclude<OpsMatchingReviewStageId, "recommended">;
+      roleId: string;
+      scheduledAt: string | null;
+      status: "candidate_reengagement_requested";
+      talentId: string;
+    }
+  | {
+      ok: true;
+      roleId: string;
+      stage: Exclude<OpsMatchingReviewStageId, "recommended">;
+      tags: OpsMatchingTalentTag[];
+      talentId: string;
+    };
 
 export type OpsMatchingRoleReviewStageCreateResponse = {
   ok: true;
@@ -4511,6 +4541,8 @@ export async function fetchOpsMatchingTagOptions(): Promise<OpsMatchingTagOption
 export async function setOpsMatchingReviewStage(args: {
   actorEmail?: string | null;
   emailMode?: InternalConnectionConfirmationEmailMode;
+  reengagementActionId?: string | null;
+  reengagementResolution?: CandidateReengagementResolution | null;
   roleId: string;
   stage: unknown;
   talentId: string;
@@ -4571,44 +4603,143 @@ export async function setOpsMatchingReviewStage(args: {
     feedback: recommendation?.feedback,
     tags: rows.map((row) => ({ id: row.id, tag: row.tag })),
   }).stage;
-  const internalStageTagIds = rows
-    .filter((row) => isInternalReviewStageTag(row.tag))
-    .map((row) => row.id)
-    .filter(Boolean);
+  const recommendationId = recommendation?.recommendationId ?? null;
+  let reactivation = false;
+  if (recommendationId && candidateReengagementAppliesToStage(stage)) {
+    const closedState = await internalCandidatePairIsClosed({
+      admin,
+      recommendationId,
+      roleId,
+      talentId,
+    });
+    if (closedState.closed) {
+      const [roleResult, talentResult] = await Promise.all([
+        (admin.from("company_roles" as any) as any)
+          .select("company_workspace_id, name, status, is_expired, expires_at")
+          .eq("role_id", roleId)
+          .maybeSingle(),
+        (admin.from("talent_users" as any) as any)
+          .select("name, email")
+          .eq("user_id", talentId)
+          .maybeSingle(),
+      ]);
+      if (roleResult.error) throw roleResult.error;
+      if (talentResult.error) throw talentResult.error;
+      if (!roleResult.data) throw new Error("Role not found");
+      if (!internalCandidateRoleIsOpen(roleResult.data)) {
+        throw new Error(
+          "이 역할은 종료되어 후보자를 다시 진행할 수 없습니다. 역할을 먼저 진행 상태로 바꿔 주세요."
+        );
+      }
+      const requestedStage = stage as Exclude<
+        OpsMatchingReviewStageId,
+        "recommended"
+      >;
+      if (!args.reengagementResolution) {
+        await recordCandidateReengagementRequired({
+          actorEmail,
+          actionKey: args.reengagementActionId,
+          admin,
+          currentStage: previousStage,
+          recommendationId,
+          roleId,
+          stage: requestedStage as OrgStageId,
+          talentId,
+        });
+        return {
+          candidateName:
+            normalizeText(talentResult.data?.name) ||
+            normalizeText(talentResult.data?.email) ||
+            "후보자",
+          currentStage: previousStage,
+          ok: true,
+          requestedStage,
+          roleId,
+          roleName: normalizeText(roleResult.data.name) || "해당 역할",
+          status: "candidate_reengagement_required",
+          talentId,
+        };
+      }
+      if (args.reengagementResolution === "ask_candidate") {
+        const request = await requestCandidateReengagement({
+          actorEmail,
+          admin,
+          recommendationId,
+          roleId,
+          stage: requestedStage as OrgStageId,
+          talentId,
+          workspaceId: String(roleResult.data.company_workspace_id),
+        });
+        return {
+          ok: true,
+          requestId: request.requestId,
+          requestedStage,
+          roleId,
+          scheduledAt: request.scheduledAt ?? null,
+          status: "candidate_reengagement_requested",
+          talentId,
+        };
+      }
+      reactivation = args.reengagementResolution === "company_confirmed";
+    }
+  }
+  if (reactivation && recommendationId) {
+    const confirmed = await confirmCandidateReengagementByCompany({
+      actorEmail,
+      actionKey: args.reengagementActionId,
+      admin,
+      recommendationId,
+      roleId,
+      stage: stage as OrgStageId,
+      talentId,
+    });
+    if (!confirmed) {
+      throw new Error(
+        "후보자나 역할 상태가 바뀌어 다시 진행할 수 없습니다. 현재 상태를 다시 확인해 주세요."
+      );
+    }
+  }
 
-  if (internalStageTagIds.length > 0) {
+  if (!reactivation) {
+    const internalStageTagIds = rows
+      .filter((row) => isInternalReviewStageTag(row.tag))
+      .map((row) => row.id)
+      .filter(Boolean);
+
+    if (internalStageTagIds.length > 0) {
+      const { error } = await fromOpsMatchingTable(
+        admin,
+        "talent_opportunity_tag"
+      )
+        .delete()
+        .eq("opportunity_id", roleId)
+        .eq("talent_id", talentId)
+        .in("id", internalStageTagIds);
+
+      if (error) {
+        if (isMissingOpsMatchingTableError(error)) {
+          throw createMissingOpsMatchingTableError("talent_opportunity_tag");
+        }
+        throw new Error(error.message ?? "Failed to update review stage");
+      }
+    }
+
     const { error } = await fromOpsMatchingTable(
       admin,
       "talent_opportunity_tag"
-    )
-      .delete()
-      .eq("opportunity_id", roleId)
-      .eq("talent_id", talentId)
-      .in("id", internalStageTagIds);
+    ).insert({
+      opportunity_id: roleId,
+      tag: stageTag,
+      talent_id: talentId,
+      updated_at: new Date().toISOString(),
+    });
 
-    if (error) {
+    if (error && error.code !== "23505") {
       if (isMissingOpsMatchingTableError(error)) {
         throw createMissingOpsMatchingTableError("talent_opportunity_tag");
       }
       throw new Error(error.message ?? "Failed to update review stage");
     }
-  }
-
-  const { error } = await fromOpsMatchingTable(
-    admin,
-    "talent_opportunity_tag"
-  ).insert({
-    opportunity_id: roleId,
-    tag: stageTag,
-    talent_id: talentId,
-    updated_at: new Date().toISOString(),
-  });
-
-  if (error && error.code !== "23505") {
-    if (isMissingOpsMatchingTableError(error)) {
-      throw createMissingOpsMatchingTableError("talent_opportunity_tag");
-    }
-    throw new Error(error.message ?? "Failed to update review stage");
   }
 
   if (previousStage !== stage) {

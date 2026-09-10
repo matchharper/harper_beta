@@ -15,6 +15,8 @@ export const runtime = "nodejs";
 
 type ReviewStageBody = {
   emailMode?: unknown;
+  reengagementActionId?: unknown;
+  reengagementResolution?: unknown;
   roleId?: string;
   stage?: unknown;
   talentId?: string;
@@ -56,10 +58,26 @@ export async function POST(req: NextRequest) {
     if (!["schedule", "send_now", "skip"].includes(emailMode)) {
       throw new InternalApiError(400, "emailMode is invalid");
     }
+    const reengagementResolution = String(
+      body.reengagementResolution ?? ""
+    ).trim();
+    if (
+      reengagementResolution &&
+      !["ask_candidate", "company_confirmed"].includes(reengagementResolution)
+    ) {
+      throw new InternalApiError(400, "reengagementResolution is invalid");
+    }
 
     const payload = await setOpsMatchingReviewStage({
       actorEmail: user.email ?? null,
       emailMode: emailMode as InternalConnectionConfirmationEmailMode,
+      reengagementActionId:
+        typeof body.reengagementActionId === "string"
+          ? body.reengagementActionId
+          : null,
+      reengagementResolution: reengagementResolution
+        ? (reengagementResolution as "ask_candidate" | "company_confirmed")
+        : null,
       roleId,
       stage: body.stage,
       talentId,

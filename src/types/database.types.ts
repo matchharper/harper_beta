@@ -1930,7 +1930,10 @@ export type Database = {
           expects_document: boolean
           expires_at: string
           id: string
+          intent: string
           recommendation_id: string
+          response_disposition: string | null
+          resume_stage: string | null
           request_context: string
           role_id: string
           source_company_message_id: number
@@ -1950,7 +1953,10 @@ export type Database = {
           expects_document?: boolean
           expires_at?: string
           id?: string
+          intent?: string
           recommendation_id: string
+          response_disposition?: string | null
+          resume_stage?: string | null
           request_context: string
           role_id: string
           source_company_message_id: number
@@ -1970,7 +1976,10 @@ export type Database = {
           expects_document?: boolean
           expires_at?: string
           id?: string
+          intent?: string
           recommendation_id?: string
+          response_disposition?: string | null
+          resume_stage?: string | null
           request_context?: string
           role_id?: string
           source_company_message_id?: number
@@ -8499,6 +8508,29 @@ export type Database = {
         }
         Returns: boolean
       }
+      commit_internal_process_closure_notice_v1: {
+        Args: {
+          p_metadata?: Json
+          p_recommendation_id: string
+          p_talent_id: string
+          p_text: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
+      confirm_internal_candidate_reengagement_v1: {
+        Args: {
+          p_actor_email: string
+          p_actor_user_id: string
+          p_metadata: Json
+          p_recommendation_id: string
+          p_role_id: string
+          p_stage: string
+          p_talent_id: string
+          p_text: string
+        }
+        Returns: boolean
+      }
       company_data_change_current_value_v1: {
         Args: { p_key: string; p_role_id?: string; p_workspace_id: string }
         Returns: Json
@@ -9124,6 +9156,15 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      record_company_talent_response_v2: {
+        Args: {
+          p_disposition?: string | null
+          p_request_id: string
+          p_source_message_id: number
+          p_talent_id: string
+        }
+        Returns: Database["public"]["Tables"]["company_talent_requests"]["Row"]
       }
       record_talent_network_referral_visit: {
         Args: { p_token: string; p_visitor_user_id?: string }

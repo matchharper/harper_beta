@@ -286,7 +286,7 @@ export function buildCareerToolPolicyPrompt(args: {
             ? "- `write_talent_context` preserves context the user should not need to explain again. Put current opportunity-search criteria and premises the user can review in Search Brief; put other context worth remembering for later conversation or opportunity judgment in Memory."
             : "",
           hasWriteTalentContextTool
-            ? "- Read existing rows and the latest user meaning together. Correct a shown row by ref, add genuinely separate information, preserve strength, exceptions, uncertainty, and known timing, and avoid duplicating the same information across Brief and Memory. When a Brief update makes its current label misleading, update the label in the same change."
+            ? "- Read existing rows and the latest user meaning together. Correct a shown row by ref. Keep each independently understandable and updatable topic in its own Brief row, while keeping linked conditions, trade-offs, and exceptions together when separating them would change their meaning. Preserve strength, uncertainty, and known timing, and avoid duplicating the same information across Brief and Memory. When a Brief update makes its current label misleading, update the label in the same change."
             : "",
           hasWriteTalentContextTool
             ? "- Save only facts the user stated; never infer or add details the user did not provide. For a Brief, do not repeat its label in content."

@@ -1,6 +1,36 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveOrgProcessClosureNotification } from "./processClosureNotification";
+import {
+  isOrgProcessClosureNoticeUnresolved,
+  resolveOrgProcessClosureNotification,
+} from "./processClosureNotification";
+
+test("keeps the board warning until recovery or a later stage change", () => {
+  assert.equal(
+    isOrgProcessClosureNoticeUnresolved({
+      currentStageChangedAt: "2026-08-07T00:00:00.000Z",
+      deliveredAt: "2026-08-10T00:00:00.000Z",
+      savedStage: "closed",
+    }),
+    true
+  );
+  assert.equal(
+    isOrgProcessClosureNoticeUnresolved({
+      currentStageChangedAt: "2026-08-11T00:00:00.000Z",
+      deliveredAt: "2026-08-10T00:00:00.000Z",
+      savedStage: "closed",
+    }),
+    false
+  );
+  assert.equal(
+    isOrgProcessClosureNoticeUnresolved({
+      currentStageChangedAt: "2026-08-07T00:00:00.000Z",
+      deliveredAt: "2026-08-10T00:00:00.000Z",
+      savedStage: "accepted",
+    }),
+    false
+  );
+});
 
 test("reports a closure notice sent after the current company stop", () => {
   assert.deepEqual(

@@ -698,7 +698,7 @@ export default function OpsShell({
     );
   }
 
-  if (!user) {
+  if (!user && !isUtmOnlyViewer) {
     return (
       <LoginGate
         allowUtmUuid={allowUtmViewer && utmUuidAccess !== "disabled"}
@@ -714,7 +714,7 @@ export default function OpsShell({
     return (
       <ForbiddenGate
         allowUtmUuid={allowUtmViewer && utmUuidAccess !== "disabled"}
-        email={user.email}
+        email={user?.email}
         onSignOut={() => void signOut()}
         utmUuidError={utmUuidError}
       />

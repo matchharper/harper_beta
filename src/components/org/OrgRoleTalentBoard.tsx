@@ -311,7 +311,11 @@ export function OrgRoleTalentBoardCard({
 
         <TalentExperienceList item={item} />
 
-        {item.upcomingMeeting ? (
+        {item.processClosureNoticeUnresolved ? (
+          <div className="-mx-4 mt-5 bg-critical px-4 py-1.5 text-[12px] font-medium text-neutral-00 sm:-mx-5 sm:px-5">
+            프로세스 종료 안내됨
+          </div>
+        ) : item.upcomingMeeting ? (
           <div className="-mx-4 -mb-4 mt-5 bg-positive px-4 py-1.5 text-[12px] font-medium text-neutral-00 sm:-mx-5 sm:-mb-5 sm:px-5">
             {formatOrgUpcomingMeetingTime(item.upcomingMeeting.startAt)}{" "}
             Interview 예정
@@ -351,7 +355,11 @@ export function OrgRoleTalentBoard({
   displayControl?: ReactNode;
 }) {
   const { board, boardQuery } = useOrgJobsBoard();
-  const { changeStage, isCandidateStagePending } = useOrgJobsCandidateActions();
+  const {
+    changeStage,
+    isCandidateStagePending,
+    requestCandidateReengagementBeforeStageChange,
+  } = useOrgJobsCandidateActions();
   const { activeRole, selectTalent, workspaceId } = useOrgJobsNavigation();
   const {
     bootstrap,
@@ -365,6 +373,7 @@ export function OrgRoleTalentBoard({
   const [activeStageId, setActiveStageId] = useState("");
   const [acceptRequest, setAcceptRequest] = useState<{
     item: OrgBoardItem;
+    reengagementResolution?: "company_confirmed";
     stage: OrgStageId;
   } | null>(null);
   const [stopItem, setStopItem] = useState<OrgBoardItem | null>(null);
@@ -396,17 +405,38 @@ export function OrgRoleTalentBoard({
     [board?.items, selectedStageId]
   );
 
-  const requestMove = (item: OrgBoardItem, stage: OrgStageId) => {
-    if (!permissions.canManageCandidates || item.stage === stage) return;
+  const continueMove = (
+    item: OrgBoardItem,
+    stage: OrgStageId,
+    reengagementResolution?: "company_confirmed"
+  ) => {
     if (shouldOpenOrgStopCandidateDialog(item.stage, stage)) {
       setStopItem(item);
       return;
     }
     if (shouldOpenOrgAcceptIntroDialog(item.stage, stage)) {
-      setAcceptRequest({ item, stage });
+      setAcceptRequest({ item, reengagementResolution, stage });
       return;
     }
-    void Promise.resolve(changeStage(item, stage)).catch(() => undefined);
+    void Promise.resolve(
+      changeStage(
+        item,
+        stage,
+        reengagementResolution ? { reengagementResolution } : undefined
+      )
+    ).catch(() => undefined);
+  };
+
+  const requestMove = (item: OrgBoardItem, stage: OrgStageId) => {
+    if (!permissions.canManageCandidates || item.stage === stage) return;
+    if (
+      requestCandidateReengagementBeforeStageChange(item, stage, () =>
+        continueMove(item, stage, "company_confirmed")
+      )
+    ) {
+      return;
+    }
+    continueMove(item, stage);
   };
 
   if (boardQuery.isLoading) {
@@ -532,6 +562,7 @@ export function OrgRoleTalentBoard({
             introEmails,
             meetingCandidateMessage,
             meetingPurpose,
+            reengagementResolution: acceptRequest.reengagementResolution,
             scheduleInterview,
             title,
           });

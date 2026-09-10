@@ -118,6 +118,13 @@ import {
   candidateContactScheduledReply,
 } from "@/lib/companyTalentRequests/presentation";
 import {
+  candidateReengagementAppliesToStage,
+  internalCandidatePairIsClosed,
+  internalCandidateRoleIsOpen,
+  recordCandidateReengagementRequired,
+  recordCandidateReengagementRequested,
+} from "@/lib/internalCandidateReengagement";
+import {
   resolveCandidateContactLifecycleAction,
   type CandidateContactLifecycleAction,
 } from "@/lib/org/agent/candidateContactAction";
@@ -324,18 +331,19 @@ const ORG_AGENT_ROLE_STATUS_COPY: Record<
   },
   ended: {
     effect:
-      "새 후보자 추천은 멈추고 후보자 화면에는 역할이 종료된 것으로 표시돼요. 기존 후보자 단계와 회사 요청은 자동으로 종료되지 않아요.",
+      "새 후보자 추천을 멈추고 역할을 종료 상태로 바꿔요. 종료 안내는 상태 변경과 동시에 발송되지는 않아요.",
     expectation:
-      "이미 검토 중이거나 연결된 후보자, 후보자에게 보낸 질문은 그대로 남기 때문에 필요한 결정은 각각 마무리해 주셔야 해요.",
+      "유예기간이 지나면 수락 후 진행 중인 후보자에게 Harper가 종료를 안내하고 Position을 닫아요. 최종 오퍼 단계만 이 자동 종료에서 제외돼요.",
     nextProcess:
-      "남아 있는 후보자나 요청을 함께 정리하고 싶다면 말씀해 주세요. 현재 상태를 확인해 다음 결정을 도와드릴게요.",
+      "다시 진행하려면 역할을 먼저 진행 상태로 바꾼 뒤 후보자의 재연결 의향을 확인해야 해요. 최종 오퍼 후보자는 현재 진행 상태를 따로 관리해 주세요.",
   },
   deleted: {
-    effect: "역할을 삭제하고 새 후보자 추천을 멈춰요.",
+    effect:
+      "역할을 삭제 상태로 바꾸고 새 후보자 추천을 멈춰요. 종료 안내는 상태 변경과 동시에 발송되지는 않아요.",
     expectation:
-      "Roles와 후보자 기회 화면에서 더 이상 진행 중인 역할로 보이지 않아요. 기존 후보자 단계와 회사 요청은 자동으로 모두 종료되지 않아요.",
+      "유예기간이 지나면 수락 후 진행 중인 후보자에게 Harper가 종료를 안내하고 Position을 닫아요. 최종 오퍼 단계만 이 자동 종료에서 제외돼요.",
     nextProcess:
-      "남아 있는 후보자나 요청이 있다면 각각의 실제 결과에 맞게 마무리해 주세요.",
+      "삭제한 역할에서 후보자를 바로 재개할 수는 없어요. 먼저 역할을 진행 가능한 상태로 복구한 뒤 후보자의 재연결 의향을 확인해 주세요.",
   },
 };
 
@@ -2470,6 +2478,14 @@ async function executeCandidateContactLifecycleItem(args: {
       throw new OrgAgentToolInputError("kind must be question or resume");
     }
     const kind: "question" | "resume" = kindValue;
+    const resumeStage = text(args.input.resumeStageId)
+      ? moveableCompanyPipelineStage(args.input.resumeStageId, "resumeStageId")
+      : null;
+    if (resumeStage && kind !== "question") {
+      throw new OrgAgentToolInputError(
+        "resumeStageId is available only for a renewed-interest question"
+      );
+    }
     const requestedLanguage = text(args.input.language);
     if (
       requestedLanguage &&
@@ -2498,10 +2514,35 @@ async function executeCandidateContactLifecycleItem(args: {
       talent.positions,
       role.roleId
     );
-    if (!position) {
+    const latestPosition =
+      talent.positions
+        .filter((item) => item.roleId === role.roleId)
+        .sort(
+          (left, right) =>
+            (right.updatedAt ?? "").localeCompare(left.updatedAt ?? "") ||
+            right.recommendationId.localeCompare(left.recommendationId)
+        )[0] ?? null;
+    const latestClosed = latestPosition
+      ? await internalCandidatePairIsClosed({
+          admin: args.admin,
+          recommendationId: latestPosition.recommendationId,
+          roleId: role.roleId,
+          talentId,
+        })
+      : { closed: false, recommendationId: null };
+    const requestPosition =
+      position ?? (latestClosed.closed ? latestPosition : null);
+    if (!requestPosition) {
       throw new OrgAgentToolInputError(
         "이 역할에서 회사에 공유된 후보자 연락 대상을 확인하지 못해 초안을 만들 수 없어요."
       );
+    }
+    if (resumeStage) {
+      if (!latestClosed.closed) {
+        throw new OrgAgentToolInputError(
+          "This candidate no longer needs renewed consent before the requested stage change. Read the current pipeline before continuing."
+        );
+      }
     }
     if (!text(talent.candidate.email)) {
       args.state.fallbackReply =
@@ -2617,8 +2658,10 @@ async function executeCandidateContactLifecycleItem(args: {
         body: draftCopy.body,
         expectsDocument: kind === "resume",
         id: requestId,
-        recommendationId: position.recommendationId,
+        intent: resumeStage ? "candidate_reengagement" : "ordinary",
+        recommendationId: requestPosition.recommendationId,
         requestContext: draftCopy.requestContext,
+        resumeStage,
         roleId: role.roleId,
         sourceCompanyMessageId: args.currentUserMessageId,
         subject: draftCopy.subject,
@@ -2675,6 +2718,20 @@ async function executeCandidateContactLifecycleItem(args: {
     args.state.fallbackReply = candidateContactDraftFallbackReply(
       text(talent.candidate.name)
     );
+    if (resumeStage) {
+      await recordCandidateReengagementRequested({
+        actorEmail: args.user.email ?? null,
+        actorUserId: args.user.id,
+        admin: args.admin,
+        recommendationId: requestPosition.recommendationId,
+        requestContext: draftCopy.requestContext,
+        requestId: contactId,
+        roleId: role.roleId,
+        stage: resumeStage,
+        status: "draft",
+        talentId,
+      });
+    }
     recordResult(args.state, {
       callId: args.callId,
       name: args.name,
@@ -2871,6 +2928,24 @@ async function executeCandidateContactLifecycleItem(args: {
           );
         }
         throw error;
+      }
+      if (text(contact.intent) === "candidate_reengagement") {
+        const resumeStage = moveableCompanyPipelineStage(
+          contact.resume_stage || "pending_connection",
+          "resumeStageId"
+        );
+        await recordCandidateReengagementRequested({
+          actorEmail: args.user.email ?? null,
+          actorUserId: args.user.id,
+          admin: args.admin,
+          recommendationId: text(contact.recommendation_id),
+          requestContext: text(contact.request_context),
+          requestId: contact.id,
+          roleId: contact.role_id,
+          stage: resumeStage,
+          status: "waiting_for_candidate_reply",
+          talentId: contact.talent_id,
+        });
       }
       args.state.contactDraftRef = {
         contactId: contact.id,
@@ -3406,6 +3481,27 @@ function moveableCompanyPipelineStage(
   return stage;
 }
 
+function companyPipelineSourceStage(value: unknown, field: string): OrgStageId {
+  const stage = requiredText(value, field, 100) as OrgStageId;
+  if (
+    stage === "accepted" ||
+    stage === "archived" ||
+    stage === "process_stopped"
+  ) {
+    return stage;
+  }
+  return moveableCompanyPipelineStage(stage, field);
+}
+
+function companyPipelineMutationTargetStage(
+  value: unknown,
+  field: string
+): OrgStageId {
+  const stage = requiredText(value, field, 100) as OrgStageId;
+  if (stage === "archived" || stage === "process_stopped") return stage;
+  return moveableCompanyPipelineStage(stage, field);
+}
+
 async function executeManageRolePipelineStages(args: {
   admin: OrgAgentAdminClient;
   callId: string;
@@ -3679,14 +3775,29 @@ async function executeMoveCandidateStage(args: {
 }) {
   const role = roleOrThrow(args.state, args.input.roleId);
   const talentId = requiredText(args.input.talentId, "talentId", 100);
-  const expectedCurrentStage = moveableCompanyPipelineStage(
+  const expectedCurrentStageValue = requiredText(
     args.input.expectedCurrentStageId,
+    "expectedCurrentStageId",
+    100
+  );
+  const expectedCurrentStage = companyPipelineSourceStage(
+    expectedCurrentStageValue,
     "expectedCurrentStageId"
   );
-  const targetStage = moveableCompanyPipelineStage(
+  const targetStage = companyPipelineMutationTargetStage(
     args.input.targetStageId,
     "targetStageId"
   );
+  const targetRequiresReengagement =
+    candidateReengagementAppliesToStage(targetStage);
+  if (
+    targetRequiresReengagement &&
+    !internalCandidateRoleIsOpen({ status: role.status })
+  ) {
+    throw new OrgAgentToolInputError(
+      "이 역할은 종료되어 후보자를 다시 진행할 수 없어요. 역할을 먼저 진행 상태로 바꾼 뒤 다시 요청해 주세요."
+    );
+  }
   const talent = await readOrgAgentTalent({
     admin: args.admin,
     audience: "company_safe",
@@ -3696,22 +3807,44 @@ async function executeMoveCandidateStage(args: {
     user: args.user,
     workspaceId: args.workspaceId,
   });
-  const position = currentOrgActiveCompanyPosition(
+  const activePosition = currentOrgActiveCompanyPosition(
     talent.positions,
     role.roleId
   );
+  const latestPosition =
+    talent.positions
+      .filter((item) => item.roleId === role.roleId)
+      .sort(
+        (left, right) =>
+          (right.updatedAt ?? "").localeCompare(left.updatedAt ?? "") ||
+          right.recommendationId.localeCompare(left.recommendationId)
+      )[0] ?? null;
+  const closedState = latestPosition
+    ? await internalCandidatePairIsClosed({
+        admin: args.admin,
+        recommendationId: latestPosition.recommendationId,
+        roleId: role.roleId,
+        talentId,
+      })
+    : { closed: false, recommendationId: null };
+  const position =
+    activePosition ?? (closedState.closed ? latestPosition : null);
   if (!position) {
     throw new OrgAgentToolInputError(
       "The candidate is not currently active in this Role's company pipeline"
     );
   }
-  const currentStage = moveableCompanyPipelineStage(
+  const currentStage = companyPipelineSourceStage(
     position.stage,
     "currentStageId"
   );
   const candidateName = text(talent.candidate.name) || "후보자";
   const scheduleInterview = args.input.scheduleInterview === true;
-  if (currentStage === targetStage && !scheduleInterview) {
+  if (
+    currentStage === targetStage &&
+    !scheduleInterview &&
+    (!closedState.closed || !targetRequiresReengagement)
+  ) {
     const stageLabel = position.stageLabel || humanizeOrgStage(targetStage);
     const summary = `${candidateName} 후보자는 이미 ${stageLabel} 단계`;
     args.state.fallbackReply = `${summary}입니다. 후보자에게 별도 연락은 보내지 않았습니다.`;
@@ -3735,6 +3868,48 @@ async function executeMoveCandidateStage(args: {
     );
   }
 
+  const reengagementResolution = text(args.input.reengagementResolution);
+  if (
+    reengagementResolution &&
+    reengagementResolution !== "company_confirmed"
+  ) {
+    throw new OrgAgentToolInputError(
+      "reengagementResolution must be company_confirmed when supplied"
+    );
+  }
+  if (
+    closedState.closed &&
+    targetRequiresReengagement &&
+    reengagementResolution !== "company_confirmed"
+  ) {
+    await recordCandidateReengagementRequired({
+      actorEmail: args.user.email ?? null,
+      actorUserId: args.user.id,
+      actionKey: `company-message:${args.currentUserMessageId}`,
+      admin: args.admin,
+      currentStage,
+      recommendationId: position.recommendationId,
+      roleId: role.roleId,
+      stage: targetStage,
+      talentId,
+    });
+    args.state.fallbackReply = `종료 안내가 이미 ${candidateName}님께 발송되었습니다. 다시 연결받을 생각이 있으신지 Harper가 먼저 물어본 뒤 긍정 여부를 받고 진행할까요, 아니면 회사에서 이미 직접 확인하셨으니 바로 진행할까요?`;
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "unchanged",
+      summary: `${candidateName} 후보자 재진행 의사 확인 필요`,
+    });
+    return {
+      candidateName,
+      currentStage,
+      requestedStage: targetStage,
+      roleName: role.name,
+      status: "candidate_reengagement_required",
+      userMessage: args.state.fallbackReply,
+    };
+  }
+
   const targetCustomStageId = customPipelineStageDbId(targetStage);
   let targetStageLabel = humanizeOrgStage(targetStage);
   if (targetCustomStageId) {
@@ -3755,7 +3930,12 @@ async function executeMoveCandidateStage(args: {
   }
   const previousStageLabel =
     position.stageLabel || humanizeOrgStage(currentStage);
-  if (currentStage === "pending_connection" && !targetCustomStageId) {
+  if (
+    currentStage === "pending_connection" &&
+    targetRequiresReengagement &&
+    targetStage !== "pending_connection" &&
+    !targetCustomStageId
+  ) {
     throw new OrgAgentToolInputError(
       "A candidate awaiting connection must move into an exact custom:<id> process stage, not the legacy connected or final offer stage."
     );
@@ -3946,10 +4126,17 @@ async function executeMoveCandidateStage(args: {
     }
   }
 
-  if (currentStage !== targetStage) {
-    await setOrgCandidateStage({
+  if (currentStage !== targetStage || closedState.closed) {
+    const stageResult = await setOrgCandidateStage({
       expectedPreviousStage: expectedCurrentStage,
       recommendationId: position.recommendationId,
+      reengagementActionId: `company-message:${args.currentUserMessageId}`,
+      reengagementResolution:
+        closedState.closed &&
+        targetRequiresReengagement &&
+        reengagementResolution === "company_confirmed"
+          ? "company_confirmed"
+          : null,
       roleId: role.roleId,
       scheduleInterview,
       skipAutomaticContact:
@@ -3959,6 +4146,14 @@ async function executeMoveCandidateStage(args: {
       user: args.user,
       workspaceId: args.workspaceId,
     });
+    if (!("stage" in stageResult)) {
+      args.state.fallbackReply =
+        "후보자의 다시 진행할 의사를 먼저 확인해야 해서 아직 단계나 미팅 요청을 변경하지 않았어요.";
+      return {
+        ...stageResult,
+        userMessage: args.state.fallbackReply,
+      };
+    }
   }
 
   if (schedule && !queuedMeeting) {
@@ -4791,6 +4986,77 @@ async function executeCandidateConnectionDecision(args: {
       : null;
   const finalReason = reason.present ? reason.value : confirmed.reason;
   const candidateName = text(talent.candidate.name) || "후보자";
+  if (
+    decision === "accept" &&
+    !internalCandidateRoleIsOpen({ status: current.status })
+  ) {
+    throw new OrgAgentToolInputError(
+      "이 역할은 종료되어 후보자와의 연결을 다시 진행할 수 없어요. 역할을 먼저 진행 상태로 바꾼 뒤 다시 요청해 주세요."
+    );
+  }
+  const closedState =
+    decision === "accept"
+      ? await internalCandidatePairIsClosed({
+          admin: args.admin,
+          recommendationId: position.recommendationId,
+          roleId: current.roleId,
+          talentId,
+        })
+      : { closed: false, recommendationId: null };
+  const reengagementResolution = text(args.input.reengagementResolution);
+  if (
+    reengagementResolution &&
+    reengagementResolution !== "company_confirmed"
+  ) {
+    throw new OrgAgentToolInputError(
+      "reengagementResolution must be company_confirmed when supplied"
+    );
+  }
+  if (closedState.closed && reengagementResolution !== "company_confirmed") {
+    const requestedStage = confirmed.processStageId
+      ? (confirmed.processStageId as OrgStageId)
+      : "connected";
+    stageCandidateDecisionContext({
+      actorId: args.actorId,
+      connectionMethod: confirmed.connectionMethod,
+      decision,
+      introEmails: confirmed.introEmails,
+      meetingDraft: confirmed.meetingDraft,
+      processStageId: confirmed.processStageId,
+      reason: confirmed.reason,
+      recommendationId: position.recommendationId,
+      roleId: current.roleId,
+      slackThreadId: args.slackThreadId,
+      state: args.state,
+      talentId,
+    });
+    await recordCandidateReengagementRequired({
+      actorEmail: args.user.email ?? null,
+      actorUserId: args.user.id,
+      actionKey: `company-message:${args.currentUserMessageId}`,
+      admin: args.admin,
+      currentStage: position.stage,
+      recommendationId: position.recommendationId,
+      roleId: current.roleId,
+      stage: requestedStage,
+      talentId,
+    });
+    args.state.fallbackReply = `종료 안내가 이미 ${candidateName}님께 발송되었습니다. 다시 연결받을 생각이 있으신지 Harper가 먼저 물어본 뒤 긍정 여부를 받고 진행할까요, 아니면 회사에서 이미 직접 확인하셨으니 바로 진행할까요?`;
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "unchanged",
+      summary: `${candidateName} 후보자 재진행 의사 확인 필요`,
+    });
+    return {
+      candidateName,
+      currentStage: position.stage,
+      requestedStage,
+      roleName: current.name,
+      status: "candidate_reengagement_required",
+      userMessage: args.state.fallbackReply,
+    };
+  }
   if (decision === "decline") {
     const result = await setOrgCandidateStage({
       expectedPreviousStage: position.stage,
@@ -4903,6 +5169,11 @@ async function executeCandidateConnectionDecision(args: {
         acceptReason: finalReason,
         expectedPreviousStage: position.stage,
         recommendationId: position.recommendationId,
+        reengagementActionId: `company-message:${args.currentUserMessageId}`,
+        reengagementResolution:
+          closedState.closed && reengagementResolution === "company_confirmed"
+            ? "company_confirmed"
+            : null,
         roleId: current.roleId,
         scheduleInterview: true,
         stage:
@@ -4911,6 +5182,11 @@ async function executeCandidateConnectionDecision(args: {
         user: args.user,
         workspaceId: args.workspaceId,
       });
+      if (!("stage" in result)) {
+        args.state.fallbackReply =
+          "후보자의 다시 진행할 의사를 먼저 확인해야 해서 아직 단계나 미팅 요청을 변경하지 않았어요.";
+        return { ...result, userMessage: args.state.fallbackReply };
+      }
       const queuedMeeting = await queueGeneratedMeetingInvitation({
         baseUrl: getOrgPublicSiteUrl(),
         scheduleId: schedule.scheduleId,
@@ -5023,6 +5299,11 @@ async function executeCandidateConnectionDecision(args: {
     expectedPreviousStage: position.stage,
     introEmails,
     recommendationId: position.recommendationId,
+    reengagementActionId: `company-message:${args.currentUserMessageId}`,
+    reengagementResolution:
+      closedState.closed && reengagementResolution === "company_confirmed"
+        ? "company_confirmed"
+        : null,
     roleId: current.roleId,
     stage:
       position.stage === "pending_connection"
@@ -5032,6 +5313,11 @@ async function executeCandidateConnectionDecision(args: {
     user: args.user,
     workspaceId: args.workspaceId,
   });
+  if (!("stage" in result)) {
+    args.state.fallbackReply =
+      "후보자의 다시 진행할 의사를 먼저 확인해야 해서 아직 연결 상태를 변경하지 않았어요.";
+    return { ...result, userMessage: args.state.fallbackReply };
+  }
   const changeSummary =
     reactivation && connectionMethod === "intro_email"
       ? position.processClosureNotification?.status === "sent"

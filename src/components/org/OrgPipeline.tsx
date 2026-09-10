@@ -58,6 +58,7 @@ export function OrgPipeline() {
     changeStage: onStageChange,
     getPendingStage,
     isCandidateStagePending,
+    requestCandidateReengagementBeforeStageChange,
   } = useOrgJobsCandidateActions();
   const {
     activeRoleId,
@@ -77,6 +78,7 @@ export function OrgPipeline() {
   const [dragOverStage, setDragOverStage] = useState<OrgStageId | null>(null);
   const [acceptRequest, setAcceptRequest] = useState<{
     item: OrgBoardItem;
+    reengagementResolution?: "company_confirmed";
     stage: OrgStageId;
   } | null>(null);
   const [stopItem, setStopItem] = useState<OrgBoardItem | null>(null);
@@ -152,18 +154,38 @@ export function OrgPipeline() {
   );
   const lastPreOfferStageId = preOfferStages.at(-1)?.id ?? null;
 
-  const requestMove = (item: OrgBoardItem, stage: OrgStageId) => {
-    if (!canManageCandidates) return;
-    if (item.stage === stage) return;
+  const continueMove = (
+    item: OrgBoardItem,
+    stage: OrgStageId,
+    reengagementResolution?: "company_confirmed"
+  ) => {
     if (shouldOpenOrgStopCandidateDialog(item.stage, stage)) {
       setStopItem(item);
       return;
     }
     if (shouldOpenOrgAcceptIntroDialog(item.stage, stage)) {
-      setAcceptRequest({ item, stage });
+      setAcceptRequest({ item, reengagementResolution, stage });
       return;
     }
-    void Promise.resolve(onStageChange(item, stage)).catch(() => undefined);
+    void Promise.resolve(
+      onStageChange(
+        item,
+        stage,
+        reengagementResolution ? { reengagementResolution } : undefined
+      )
+    ).catch(() => undefined);
+  };
+
+  const requestMove = (item: OrgBoardItem, stage: OrgStageId) => {
+    if (!canManageCandidates || item.stage === stage) return;
+    if (
+      requestCandidateReengagementBeforeStageChange(item, stage, () =>
+        continueMove(item, stage, "company_confirmed")
+      )
+    ) {
+      return;
+    }
+    continueMove(item, stage);
   };
 
   const handleDrop = (event: DragEvent<HTMLElement>, stage: OrgStage) => {
@@ -490,7 +512,7 @@ export function OrgPipeline() {
         open={Boolean(acceptRequest)}
         pending={Boolean(
           createCustomStage.isPending ||
-            (acceptRequest && isCandidateStagePending(acceptRequest.item))
+          (acceptRequest && isCandidateStagePending(acceptRequest.item))
         )}
         onClose={() => setAcceptRequest(null)}
         onSubmit={async ({
@@ -519,23 +541,20 @@ export function OrgPipeline() {
                   })
                 ).stage.stage
               : acceptRequest.stage;
-          const result = await onStageChange(
-            acceptRequest.item,
-            stage,
-            {
-              acceptReason,
-              additionalMessage,
-              additionalMessageVisibility,
-              attendeeEmails,
-              contactDirectly,
-              durationMinutes,
-              introEmails,
-              meetingCandidateMessage,
-              meetingPurpose,
-              scheduleInterview,
-              title,
-            }
-          );
+          const result = await onStageChange(acceptRequest.item, stage, {
+            acceptReason,
+            additionalMessage,
+            additionalMessageVisibility,
+            attendeeEmails,
+            contactDirectly,
+            durationMinutes,
+            introEmails,
+            meetingCandidateMessage,
+            meetingPurpose,
+            reengagementResolution: acceptRequest.reengagementResolution,
+            scheduleInterview,
+            title,
+          });
           setAcceptRequest(null);
           return result;
         }}

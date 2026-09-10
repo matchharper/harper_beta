@@ -143,6 +143,8 @@ export function applyOpsMatchingFitHumanLabelToProgress(
 
 export type OpsMatchingReviewStageMutationInput = {
   emailMode?: InternalConnectionConfirmationEmailMode;
+  reengagementActionId?: string | null;
+  reengagementResolution?: "ask_candidate" | "company_confirmed" | null;
   roleId: string;
   stage: Exclude<OpsMatchingReviewStageId, "recommended">;
   talentId: string;
@@ -175,6 +177,7 @@ export function applyOpsMatchingReviewStageUpdate(
   update: OpsMatchingReviewStageUpdateResponse
 ) {
   if (!current || current.roleId !== update.roleId) return current;
+  if (!("stage" in update)) return current;
 
   return {
     ...current,

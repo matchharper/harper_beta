@@ -804,14 +804,14 @@ function HeroScreenshot({
   const [showGmailMockup, setShowGmailMockup] = useState(false);
 
   return (
-    <div className="shadow-lg md:shadow-lg relative flex items-center md:items-end justify-center mx-auto mt-6 md:mt-12 h-[640px] w-full max-w-[1440px] overflow-hidden rounded-[18px] bg-neutral-200 ring-1 ring-black/[0.06] md:mt-14 md:h-[720px]">
+    <div className="shadow-lg md:shadow-lg relative flex items-center md:items-end justify-center mx-auto mt-6 md:mt-12 h-[640px] w-full max-w-[1440px] overflow-hidden rounded-[8px] bg-neutral-200 ring-1 ring-black/[0.06] md:mt-14 md:h-[720px]">
       <Image
-        src="/images/orangesky2.jpg"
+        src="/images/river.jpg"
         alt=""
         fill
         priority
         sizes="(min-width: 1280px) 1240px, 100vw"
-        className="object-cover opacity-[0.95]"
+        className="object-cover opacity-[1]"
       />
       <div className="absolute inset-0 bg-neutral-200/40" />
       <div className="pointer-events-none absolute inset-x-4 top-4 z-30 md:hidden">

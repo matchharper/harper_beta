@@ -74,6 +74,7 @@ import type { CareerTalentOpsProfileMemo } from "@/lib/ops/careerServer";
 import { extractEmailAddress } from "@/lib/email/parse";
 import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
 import { isInternalDomainEmail } from "@/lib/internalAccess";
+import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import type { OrgInternalTalentSystemResponse } from "@/lib/org/internalTalentTypes";
 import {
   canStopOrgCandidateProcess,
@@ -661,6 +662,9 @@ function getOrgFeedTitle(item: OrgTalentDetailResponse["feed"][number]) {
   if (item.kind === "company_request_followup_sent") {
     return "후보자에게 회사 요청을 다시 안내했어요";
   }
+  if (item.kind === "internal_process_stopped_notified") {
+    return "프로세스 종료 안내";
+  }
   if (item.activity?.eventType === "candidate_contact_sent") {
     return item.activity.requestKind === "resume"
       ? "후보자에게 이력서를 요청했어요"
@@ -687,6 +691,7 @@ function getOrgFeedIcon(
   item: OrgTalentDetailResponse["feed"][number]
 ): ProgressFeedIcon {
   if (item.kind === "company_request_followup_sent") return "mail";
+  if (item.kind === "internal_process_stopped_notified") return "mail";
   if (item.activity?.eventType === "candidate_contact_sent") return "mail";
   if (item.activity?.eventType === "candidate_response_received") {
     return "sparkles";
@@ -825,19 +830,9 @@ function FeedPanel({
         talentId: talentId ?? detail.talent.userId,
         workspaceId,
       });
-      const response = await fetch(
+      const payload = await fetchWithInternalAuth<OrgOtherRoleFeedResponse>(
         `/api/org/detail/other-role-feed?${params.toString()}`
       );
-      const payload = (await response.json().catch(() => ({}))) as
-        | OrgOtherRoleFeedResponse
-        | { error?: string };
-      if (!response.ok || !("items" in payload)) {
-        throw new Error(
-          "error" in payload && payload.error
-            ? payload.error
-            : "다른 역할의 기록을 불러오지 못했습니다."
-        );
-      }
       setOtherRoleFeed({ payload, scope: requestedScope });
     } catch (error) {
       setOtherRoleFeedError({
@@ -1080,7 +1075,7 @@ function FeedPanel({
           createFeed.error instanceof Error ? createFeed.error : null
         }
       />
-      <div className="border-t border-neutral-1000-a05 pt-2">
+      <div className="pt-4">
         <MuteButton
           aria-expanded={scopedOtherRolesOpen}
           className="w-full justify-between"
@@ -1129,7 +1124,7 @@ function FeedPanel({
               </div>
             ) : scopedOtherRoleFeed && scopedOtherRoleFeed.items.length > 0 ? (
               <ProgressFeed
-                emptyLabel="이 Workspace의 다른 역할에는 기록이 없어요."
+                emptyLabel="다른 역할에서 기록된 내용이 없어요."
                 items={scopedOtherRoleFeed.items.map((item) => ({
                   createdAt: item.createdAt,
                   icon:
@@ -1146,7 +1141,7 @@ function FeedPanel({
               />
             ) : (
               <div className="py-4 text-[12px] text-neutral-muted">
-                이 Workspace의 다른 역할에는 기록이 없어요.
+                다른 역할에서 기록된 내용이 없어요.
               </div>
             )}
           </div>

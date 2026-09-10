@@ -175,6 +175,7 @@ const CareerProfileLinksSettingsSection = ({
             onAddProfileLink();
           }}
           disabled={profileSavePending}
+          size="sm"
         >
           <Plus className="h-3.5 w-3.5" />
           {t("career.chat.career_timeline_section.1gvzqes", "링크 추가")}

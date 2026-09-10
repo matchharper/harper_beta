@@ -5,6 +5,21 @@ export type OrgProcessClosureNotification = {
   stoppedAt: string | null;
 };
 
+export function isOrgProcessClosureNoticeUnresolved(args: {
+  currentStageChangedAt?: string | null;
+  deliveredAt?: string | null;
+  savedStage?: string | null;
+}) {
+  if (text(args.savedStage).toLowerCase() !== "closed") return false;
+  const deliveredAt = Date.parse(text(args.deliveredAt));
+  if (!Number.isFinite(deliveredAt)) return false;
+  const currentStageChangedAt = Date.parse(text(args.currentStageChangedAt));
+  return (
+    !Number.isFinite(currentStageChangedAt) ||
+    currentStageChangedAt < deliveredAt
+  );
+}
+
 type ProgressRow = {
   created_at: string;
   kind: string;

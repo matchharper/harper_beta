@@ -452,11 +452,11 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
   );
   assert.match(
     changeRoleStatus?.function.description ?? "",
-    /does not atomically close every existing candidate stage or company request/
+    /candidate closure is not atomic/
   );
-  assert.doesNotMatch(
+  assert.match(
     changeRoleStatus?.function.description ?? "",
-    /close candidate processes and connections already in progress/
+    /across company-controlled stages except final_offer/
   );
 });
 

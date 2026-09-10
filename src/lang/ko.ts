@@ -2099,6 +2099,7 @@ export const ko = {
     "career.profile.context.add": "추가",
     "career.profile.context.add_brief": "탐색 기준 추가",
     "career.profile.context.add_memory": "기억 추가",
+    "career.profile.context.blank": "빈칸",
     "career.profile.context.brief_content_placeholder":
       "기회를 찾을 때 반영할 기준을 적어주세요.",
     "career.profile.context.brief_description":
@@ -2124,6 +2125,11 @@ export const ko = {
       "다음 대화와 기회 판단에 도움이 되도록 기억해 둔 맥락이에요.",
     "career.profile.context.memory_empty": "아직 저장된 기억이 없어요.",
     "career.profile.context.memory_title": "Harper의 기억",
+    "career.profile.context.pinned.compensation": "기대 보상 조건",
+    "career.profile.context.pinned.deal_breakers": "피하고 싶은 조건",
+    "career.profile.context.pinned.location": "선호 근무 지역",
+    "career.profile.context.pinned.must_haves": "꼭 있어야 하는 조건",
+    "career.profile.context.pinned.next_scope": "다음 역할",
     "career.profile.context.retry": "다시 시도",
     "career.profile.context.save": "저장",
     "career.profile.date.present": "현재",
