@@ -114,6 +114,7 @@ export function buildCareerSessionStartTurnInstruction(args: {
 
 export function buildCareerCallWrapupTurnInstruction(args: {
   callNoteCreated?: boolean;
+  callNoteUpdated?: boolean;
   durationLabel: string | null;
   isBrief: boolean;
   isOnboardingDone?: boolean;
@@ -152,11 +153,13 @@ export function buildCareerCallWrapupTurnInstruction(args: {
       ? "- If the call had useful substance, thank them and say Harper will reflect what they shared in future matching/search."
       : "- Say briefly that Harper still needs a little more basic profile or preference context, and invite the user to continue from here in this chat. Do not imply the user must start another call.",
     "- Mention a call note only when the verified call-note fact below is present.",
-    ...(args.callNoteCreated
+    ...(args.callNoteCreated || args.callNoteUpdated
       ? [
           "",
           "Verified call-note fact:",
-          "- A call note for this conversation was successfully saved. Naturally tell the user that Harper organized this conversation into a call note and that they can find it under Documents in their profile.",
+          args.callNoteUpdated
+            ? "- The user's existing call note was successfully updated with this conversation. Naturally tell the user that Harper added this conversation to that call note and that they can find it under Documents in their profile."
+            : "- A call note for this conversation was successfully saved. Naturally tell the user that Harper organized this conversation into a call note and that they can find it under Documents in their profile.",
         ]
       : []),
     "- Do not claim you updated settings/profile state unless the relevant tool was actually called and returned a successful change.",
@@ -168,16 +171,23 @@ export function buildCareerCallWrapupTurnInstruction(args: {
 
 export function appendCareerCallNoteCreatedNotice(args: {
   callNoteCreated?: boolean;
+  callNoteUpdated?: boolean;
   content: string;
   preferredLocale?: string | null;
 }) {
-  if (!args.callNoteCreated) return args.content;
+  if (!args.callNoteCreated && !args.callNoteUpdated) return args.content;
 
-  const notice = careerT(
-    args.preferredLocale,
-    "career.call.wrapup_fallback.call_note_created",
-    "이번 대화는 콜노트로 정리해뒀어요. 프로필의 문서에서 확인하실 수 있어요."
-  );
+  const notice = args.callNoteUpdated
+    ? careerT(
+        args.preferredLocale,
+        "career.call.wrapup_fallback.call_note_updated",
+        "기존 콜노트에 이번 대화도 이어서 정리해뒀어요. 프로필의 문서에서 확인하실 수 있어요."
+      )
+    : careerT(
+        args.preferredLocale,
+        "career.call.wrapup_fallback.call_note_created",
+        "이번 대화는 콜노트로 정리해뒀어요. 프로필의 문서에서 확인하실 수 있어요."
+      );
   return [args.content.trim(), notice].filter(Boolean).join(" ");
 }
 
@@ -209,6 +219,7 @@ export function appendCareerCallNoteOpenAction(args: {
 
 export function buildCareerCallWrapupFallbackFollowUp(args: {
   callNoteCreated?: boolean;
+  callNoteUpdated?: boolean;
   isBrief: boolean;
   isOnboardingDone?: boolean;
   preferredLocale?: string | null;
@@ -236,6 +247,7 @@ export function buildCareerCallWrapupFallbackFollowUp(args: {
 
   return appendCareerCallNoteCreatedNotice({
     callNoteCreated: args.callNoteCreated,
+    callNoteUpdated: args.callNoteUpdated,
     content,
     preferredLocale: args.preferredLocale,
   });
@@ -414,6 +426,7 @@ export function buildInternalOpportunityRealtimeInstruction(
  */
 export function buildInternalOpportunityCallWrapupInstruction(args: {
   callNoteCreated?: boolean;
+  callNoteUpdated?: boolean;
   callRequest: InternalOpportunityCallRequest;
   completionDisposition: "full" | "partial_answered" | "unanswered";
   durationLabel: string | null;
@@ -459,11 +472,13 @@ export function buildInternalOpportunityCallWrapupInstruction(args: {
     "- Say the connection is continuing.",
     ...completionGuidance,
     "- Mention a call note only when the verified call-note fact below is present.",
-    ...(args.callNoteCreated
+    ...(args.callNoteCreated || args.callNoteUpdated
       ? [
           "",
           "Verified call-note fact:",
-          "- A call note for this conversation was successfully saved. Naturally tell the user that Harper organized this conversation into a call note and that they can find it under Documents in their profile.",
+          args.callNoteUpdated
+            ? "- The user's existing call note was successfully updated with this conversation. Naturally tell the user that Harper added this conversation to that call note and that they can find it under Documents in their profile."
+            : "- A call note for this conversation was successfully saved. Naturally tell the user that Harper organized this conversation into a call note and that they can find it under Documents in their profile.",
         ]
       : []),
     "- No heading, no bullets, 1-3 sentences.",

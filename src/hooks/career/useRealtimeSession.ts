@@ -35,6 +35,7 @@ type RealtimeConnectOptions = {
   conversationStarterId?: CareerConversationStarterId | null;
   initialResponseInstruction?: string | null;
   internalCallRequestId?: string | null;
+  resumeCallNoteId?: string | null;
 };
 
 export type RealtimeConnectFailure = {
@@ -526,6 +527,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             initialResponseInstruction:
               options?.initialResponseInstruction ?? undefined,
             internalCallRequestId: options?.internalCallRequestId ?? undefined,
+            resumeCallNoteId: options?.resumeCallNoteId ?? undefined,
             locale,
             providerOverride: providerOverride ?? undefined,
           }),

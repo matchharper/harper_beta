@@ -1,6 +1,9 @@
-import { ChevronRight, Loader2, LockKeyhole } from "lucide-react";
+import { ChevronRight, Loader2, LockKeyhole, PhoneCall } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useCareerProfileContext } from "@/components/career/CareerSidebarContext";
+import {
+  useCareerProfileContext,
+  useCareerSidebarContext,
+} from "@/components/career/CareerSidebarContext";
 import type {
   CareerCallNote,
   CareerTalentDocument,
@@ -10,20 +13,29 @@ import { BareButton, MuteButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useMessages } from "@/i18n/useMessage";
 import { formatCareerDate } from "@/lib/career/dateFormat";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 
 type CareerCallNoteDetailProps = {
-  document: CareerTalentDocument;
+  document?: CareerTalentDocument | null;
+  documentId: string;
   onBack: () => void;
 };
 
 const CareerCallNoteDetail = ({
   document,
+  documentId,
   onBack,
 }: CareerCallNoteDetailProps) => {
   const t = useCareerT();
   const { locale } = useMessages();
   const { onReadTalentCallNote } = useCareerProfileContext();
+  const { callStartPending, onStartCallMode } = useCareerSidebarContext();
+  const logCareerEvent = useCareerLogEvent();
   const [callNote, setCallNote] = useState<CareerCallNote | null>(null);
+  const [loadedDocumentDates, setLoadedDocumentDates] = useState<{
+    createdAt: string;
+    updatedAt: string;
+  } | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -31,9 +43,16 @@ const CareerCallNoteDetail = ({
   useEffect(() => {
     let active = true;
 
-    void onReadTalentCallNote(document.id)
-      .then((note) => {
-        if (active) setCallNote(note);
+    void onReadTalentCallNote(documentId)
+      .then((result) => {
+        if (active) {
+          setCallNote(result.callNote);
+          setLoadedDocumentDates({
+            createdAt: result.createdAt,
+            updatedAt: result.updatedAt,
+          });
+          setError("");
+        }
       })
       .catch(() => {
         if (active) {
@@ -52,19 +71,20 @@ const CareerCallNoteDetail = ({
     return () => {
       active = false;
     };
-  }, [document.id, loadAttempt, onReadTalentCallNote, t]);
+  }, [document?.updatedAt, documentId, loadAttempt, onReadTalentCallNote, t]);
 
   const fallbackTitle = t(
     "career.profile.documents.call_note_title",
     "Harper와의 통화"
   );
   const title =
-    callNote?.schema_version === 2
+    callNote && callNote.schema_version !== 1
       ? callNote.title
-      : document.fileName === "Harper call note"
+      : document?.fileName === "Harper call note" || !document
         ? fallbackTitle
         : document.fileName;
-  const keyPoints = callNote?.schema_version === 2 ? callNote.key_points : [];
+  const keyPoints =
+    callNote && callNote.schema_version !== 1 ? callNote.key_points : [];
   const durationLabel = callNote
     ? t("career.call.duration", "{m}분 {s}초", {
         values: {
@@ -73,15 +93,25 @@ const CareerCallNoteDetail = ({
         },
       })
     : null;
-  const dateLabel = formatCareerDate(
-    callNote?.started_at ?? document.createdAt,
-    locale
-  );
+  const documentCreatedAt =
+    document?.createdAt || loadedDocumentDates?.createdAt || null;
+  const documentUpdatedAt =
+    document?.updatedAt || loadedDocumentDates?.updatedAt || null;
+  const displayDate =
+    documentUpdatedAt && documentUpdatedAt !== documentCreatedAt
+      ? documentUpdatedAt
+      : documentCreatedAt ?? callNote?.started_at ?? null;
+  const dateLabel = formatCareerDate(displayDate, locale);
   const handleRetry = () => {
     setCallNote(null);
+    setLoadedDocumentDates(null);
     setError("");
     setLoading(true);
     setLoadAttempt((value) => value + 1);
+  };
+  const handleResumeCall = () => {
+    logCareerEvent("click_resume_call_note", { documentId });
+    void onStartCallMode?.({ resumeCallNoteId: documentId });
   };
 
   return (
@@ -140,15 +170,37 @@ const CareerCallNoteDetail = ({
                   {[dateLabel, durationLabel].filter(Boolean).join(" · ")}
                 </p>
               </div>
-              <Badge
-                size="md"
-                variant="faded"
-                radius="full"
-                icon={<LockKeyhole className="h-3.5 w-3.5" />}
-                className="h-auto min-h-7 w-fit shrink-0 flex-row flex-nowrap gap-1.5 px-2.5 py-1 leading-4 whitespace-nowrap"
-              >
-                {t("career.profile.documents.call_note_read_only", "읽기 전용")}
-              </Badge>
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                <MuteButton
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  disabled={!onStartCallMode || callStartPending}
+                  onClick={handleResumeCall}
+                >
+                  {callStartPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <PhoneCall className="h-3.5 w-3.5" />
+                  )}
+                  {t(
+                    "career.profile.documents.call_note_resume",
+                    "콜 이어서 하기"
+                  )}
+                </MuteButton>
+                <Badge
+                  size="md"
+                  variant="faded"
+                  radius="full"
+                  icon={<LockKeyhole className="h-3.5 w-3.5" />}
+                  className="h-auto min-h-7 w-fit shrink-0 flex-row flex-nowrap gap-1.5 px-2.5 py-1 leading-4 whitespace-nowrap"
+                >
+                  {t(
+                    "career.profile.documents.call_note_read_only",
+                    "읽기 전용"
+                  )}
+                </Badge>
+              </div>
             </header>
 
             {keyPoints.length > 0 ? (

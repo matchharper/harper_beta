@@ -174,7 +174,9 @@ const CareerDocumentsSettingsSection = ({
                     {formatCareerDate(
                       isGmailCareerHistory
                         ? document.updatedAt
-                        : document.createdAt,
+                        : document.kind === "call_note"
+                          ? document.updatedAt || document.createdAt
+                          : document.createdAt,
                       locale
                     )}
                   </p>

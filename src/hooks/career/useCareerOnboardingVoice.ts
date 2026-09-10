@@ -50,6 +50,16 @@ import { useCareerT } from "@/i18n/useCareerT";
 
 type CareerT = ReturnType<typeof useCareerT>;
 
+function upsertCallNoteDocument(
+  documents: CareerTalentDocument[] | undefined,
+  document: CareerTalentDocument
+) {
+  return [
+    document,
+    ...(documents ?? []).filter((item) => item.id !== document.id),
+  ];
+}
+
 function getCallOpeningOutputLanguage(locale?: string | null) {
   return locale === "en" ? "영어" : "한국어";
 }
@@ -246,39 +256,39 @@ function buildCallOpeningResponseInstruction(args: {
   const sections = [
     applyCallOpeningPromptValues(baseOpeningInstruction, { outputLanguage }),
     shouldUseNearFinishOpening &&
-    t(
-      "career.call.opening.instruction.near_finish",
-      [
-        "",
-        "## Incomplete onboarding near-finish opening",
-        "현재 커리어 인터뷰는 아직 완료되지 않았지만 거의 끝난 상태입니다.",
-        "- filledInsights: {filledCount}/{totalCount}",
-        "- remainingInsights: {remainingCount}",
-        "- 일반적인 새 통화 인사나 '오늘 어떠세요?', '최근 우선순위가 바뀐 게 있나요?' 같은 넓은 질문으로 시작하지 마세요.",
-        "- 첫 문장은 '대화가 거의 끝났고, 더 정확한 추천/연결을 위해 마지막 확인만 빠르게 하겠다'는 취지를 자연스럽게 담으세요.",
-        "- 최근 대화 맥락은 배경으로만 참고하고, 마지막으로 남은 한 가지 missing checklist question hint나 final priority confirmation으로 바로 이어가세요.",
-        "- 이미 final priority confirmation에 사용자가 답한 맥락이면 같은 확인 질문을 반복하지 말고 짧게 closing으로 넘어가세요.",
-      ].join("\n"),
-      {
-        values: {
-          filledCount: interviewProgress?.filledCount ?? "(unknown)",
-          remainingCount: interviewProgress?.remainingCount ?? "(unknown)",
-          totalCount: interviewProgress?.totalCount ?? "(unknown)",
-        },
-      }
-    ),
+      t(
+        "career.call.opening.instruction.near_finish",
+        [
+          "",
+          "## Incomplete onboarding near-finish opening",
+          "현재 커리어 인터뷰는 아직 완료되지 않았지만 거의 끝난 상태입니다.",
+          "- filledInsights: {filledCount}/{totalCount}",
+          "- remainingInsights: {remainingCount}",
+          "- 일반적인 새 통화 인사나 '오늘 어떠세요?', '최근 우선순위가 바뀐 게 있나요?' 같은 넓은 질문으로 시작하지 마세요.",
+          "- 첫 문장은 '대화가 거의 끝났고, 더 정확한 추천/연결을 위해 마지막 확인만 빠르게 하겠다'는 취지를 자연스럽게 담으세요.",
+          "- 최근 대화 맥락은 배경으로만 참고하고, 마지막으로 남은 한 가지 missing checklist question hint나 final priority confirmation으로 바로 이어가세요.",
+          "- 이미 final priority confirmation에 사용자가 답한 맥락이면 같은 확인 질문을 반복하지 말고 짧게 closing으로 넘어가세요.",
+        ].join("\n"),
+        {
+          values: {
+            filledCount: interviewProgress?.filledCount ?? "(unknown)",
+            remainingCount: interviewProgress?.remainingCount ?? "(unknown)",
+            totalCount: interviewProgress?.totalCount ?? "(unknown)",
+          },
+        }
+      ),
     isConversationStarter &&
-    t(
-      "career.call.opening.instruction.conversation_starter",
-      "\n## Conversation starter opening\n이번 통화는 사용자가 특정 conversation starter 버튼을 눌러 시작했습니다.\n아래 starter 내용의 목적과 질문 방향을 가장 우선하세요.\n최근 우선순위, 선호 조건, 일반적인 기회 탐색 질문을 임의로 고르지 마세요."
-    ),
+      t(
+        "career.call.opening.instruction.conversation_starter",
+        "\n## Conversation starter opening\n이번 통화는 사용자가 특정 conversation starter 버튼을 눌러 시작했습니다.\n아래 starter 내용의 목적과 질문 방향을 가장 우선하세요.\n최근 우선순위, 선호 조건, 일반적인 기회 탐색 질문을 임의로 고르지 마세요."
+      ),
     !isInternalOpportunityCall &&
-    recentConversationContext &&
-    ["", recentConversationContext].join("\n"),
+      recentConversationContext &&
+      ["", recentConversationContext].join("\n"),
     normalizedOpeningText &&
-    !isInternalOpportunityCall &&
-    !shouldUseOnboardingOpening &&
-    ["", normalizedOpeningText].join("\n"),
+      !isInternalOpportunityCall &&
+      !shouldUseOnboardingOpening &&
+      ["", normalizedOpeningText].join("\n"),
   ].filter(Boolean);
 
   return sections.join("\n");
@@ -507,6 +517,7 @@ export const useCareerOnboardingVoice = ({
   const activeCallConversationStarterIdRef =
     useRef<CareerConversationStarterId | null>(null);
   const activeInternalCallRequestIdRef = useRef<string | null>(null);
+  const activeResumeCallNoteIdRef = useRef<string | null>(null);
   const activeCallIdRef = useRef<string | null>(null);
   const activeCallOnboardingCompletedAtStartRef = useRef(false);
   const activeCallSessionIdRef = useRef<string | null>(null);
@@ -821,13 +832,13 @@ export const useCareerOnboardingVoice = ({
 
   const addCallTranscriptEntryRef = useRef<
     | ((
-      role: "user" | "assistant",
-      text: string,
-      options?: {
-        beforeCurrentAssistant?: boolean;
-        placement?: CallLiveTranscriptPlacement;
-      }
-    ) => void)
+        role: "user" | "assistant",
+        text: string,
+        options?: {
+          beforeCurrentAssistant?: boolean;
+          placement?: CallLiveTranscriptPlacement;
+        }
+      ) => void)
     | null
   >(null);
   const appendCallAssistantTranscriptDeltaRef = useRef<
@@ -835,11 +846,11 @@ export const useCareerOnboardingVoice = ({
   >(null);
   const finalizeCallAssistantTranscriptRef = useRef<
     | ((
-      text: string,
-      options?: {
-        alreadyRendered?: boolean;
-      }
-    ) => void)
+        text: string,
+        options?: {
+          alreadyRendered?: boolean;
+        }
+      ) => void)
     | null
   >(null);
   const handleRealtimeTranscript = useCallback(
@@ -1470,8 +1481,13 @@ export const useCareerOnboardingVoice = ({
         typeof startArgs === "object"
           ? (startArgs.internalCallRequestId?.trim() ?? null)
           : null;
+      const resumeCallNoteId =
+        typeof startArgs === "object"
+          ? (startArgs.resumeCallNoteId?.trim() ?? null)
+          : null;
       activeCallConversationStarterIdRef.current = conversationStarterId;
       activeInternalCallRequestIdRef.current = internalCallRequestId;
+      activeResumeCallNoteIdRef.current = resumeCallNoteId;
       activeCallIdRef.current = null;
       activeCallOnboardingCompletedAtStartRef.current = false;
       activeCallSessionIdRef.current = crypto.randomUUID();
@@ -1486,7 +1502,7 @@ export const useCareerOnboardingVoice = ({
         clearRealtimeTurnSyncState();
 
         const hasFocusedCallObjective = Boolean(
-          conversationStarterId || internalCallRequestId
+          conversationStarterId || internalCallRequestId || resumeCallNoteId
         );
         const shouldBeginOnboarding =
           !hasFocusedCallObjective &&
@@ -1502,14 +1518,16 @@ export const useCareerOnboardingVoice = ({
             setShowVoiceStartPrompt(true);
             activeCallConversationStarterIdRef.current = null;
             activeInternalCallRequestIdRef.current = null;
+            activeResumeCallNoteIdRef.current = null;
             activeCallSessionIdRef.current = null;
             return false;
           }
           openingAssistantMessage = beginResult.assistantMessage;
         }
 
-        const openingRecentConversationContext =
-          buildCallOpeningRecentConversationContext(messages, t);
+        const openingRecentConversationContext = resumeCallNoteId
+          ? ""
+          : buildCallOpeningRecentConversationContext(messages, t);
         let openingText = customOpeningText?.trim();
         if (shouldBeginOnboarding) {
           const greetingText = tCareer(H.callGreeting);
@@ -1533,6 +1551,7 @@ export const useCareerOnboardingVoice = ({
           conversationStarterId,
           initialResponseInstruction: openingInstructions,
           internalCallRequestId,
+          resumeCallNoteId,
         });
         if (!callStarted) {
           if (shouldBeginOnboarding) {
@@ -1540,6 +1559,7 @@ export const useCareerOnboardingVoice = ({
           }
           activeCallConversationStarterIdRef.current = null;
           activeInternalCallRequestIdRef.current = null;
+          activeResumeCallNoteIdRef.current = null;
           activeCallSessionIdRef.current = null;
           return false;
         }
@@ -1557,6 +1577,7 @@ export const useCareerOnboardingVoice = ({
         if (!callStartedSuccessfully) {
           activeCallConversationStarterIdRef.current = null;
           activeInternalCallRequestIdRef.current = null;
+          activeResumeCallNoteIdRef.current = null;
           activeCallIdRef.current = null;
           activeCallOnboardingCompletedAtStartRef.current = false;
           activeCallSessionIdRef.current = null;
@@ -1604,6 +1625,7 @@ export const useCareerOnboardingVoice = ({
         activeCallConversationStarterIdRef.current;
       const activeInternalCallRequestId =
         activeInternalCallRequestIdRef.current;
+      const activeResumeCallNoteId = activeResumeCallNoteIdRef.current;
       const activeCallSessionId = activeCallSessionIdRef.current;
       const pendingUserText = lastRealtimeUserTextRef.current.trim();
       if (pendingUserText) {
@@ -1623,6 +1645,7 @@ export const useCareerOnboardingVoice = ({
       if (!conversationId) {
         activeCallConversationStarterIdRef.current = null;
         activeInternalCallRequestIdRef.current = null;
+        activeResumeCallNoteIdRef.current = null;
         activeCallIdRef.current = null;
         activeCallOnboardingCompletedAtStartRef.current = false;
         activeCallSessionIdRef.current = null;
@@ -1640,6 +1663,7 @@ export const useCareerOnboardingVoice = ({
       ) {
         activeCallConversationStarterIdRef.current = null;
         activeInternalCallRequestIdRef.current = null;
+        activeResumeCallNoteIdRef.current = null;
         activeCallIdRef.current = null;
         activeCallOnboardingCompletedAtStartRef.current = false;
         activeCallSessionIdRef.current = null;
@@ -1664,6 +1688,7 @@ export const useCareerOnboardingVoice = ({
               conversationStarterId:
                 activeCallConversationStarterId ?? undefined,
               internalCallRequestId: activeInternalCallRequestId ?? undefined,
+              resumeCallNoteId: activeResumeCallNoteId ?? undefined,
               transcript: transcript.map((e) => ({
                 role: e.role,
                 text: e.text,
@@ -1687,7 +1712,25 @@ export const useCareerOnboardingVoice = ({
           }
 
           if (payload?.callNoteDocument?.id) {
-            onCallNoteSaved?.(payload.callNoteDocument as CareerTalentDocument);
+            const callNoteDocument =
+              payload.callNoteDocument as CareerTalentDocument;
+            onCallNoteSaved?.(callNoteDocument);
+            queryClient.setQueriesData<SessionResponse>(
+              { queryKey: ["career-session", userId] },
+              (previous) =>
+                previous
+                  ? {
+                      ...previous,
+                      conversation: {
+                        ...previous.conversation,
+                        documents: upsertCallNoteDocument(
+                          previous.conversation.documents,
+                          callNoteDocument
+                        ),
+                      },
+                    }
+                  : previous
+            );
           }
           if (activeCallConversationStarterId === "career_check_in") {
             await queryClient.invalidateQueries({
@@ -1695,144 +1738,145 @@ export const useCareerOnboardingVoice = ({
             });
           }
 
-        if (payload?.progress?.completed) {
-          setStage("completed" as CareerStage);
-        }
-        if (payload?.opportunityRun) {
-          onOpportunityRunChanged?.(
-            payload.opportunityRun as CareerOpportunityRun
-          );
-        }
-        if (payload?.opportunityDiscoveryQueued) {
-          showOpportunityDiscoveryStartedToast(
-            tCareer(H.opportunityDiscoveryStarted)
-          );
-        }
-        if (
-          payload &&
-          typeof payload === "object" &&
-          "talentPreferences" in payload
-        ) {
-          onTalentPreferencesRefreshed?.(
-            payload.talentPreferences,
-            "preferencesUpdatedAt" in payload
-              ? payload.preferencesUpdatedAt
-              : null
-          );
-        }
-        if (
-          payload &&
-          typeof payload === "object" &&
-          ("talentBrief" in payload || "talentMemories" in payload)
-        ) {
-          onTalentContextsRefreshed?.({
-            talentBrief: payload.talentBrief,
-            talentContextsUpdatedAt:
-              payload.talentContextsUpdatedAt ??
-              payload.insightUpdatedAt ??
-              null,
-            talentMemories: payload.talentMemories,
-          });
-        }
-        if (
-          payload &&
-          typeof payload === "object" &&
-          "talentInsights" in payload
-        ) {
-          onTalentInsightsRefreshed?.(
-            payload.talentInsights,
-            payload.insightUpdatedAt ?? null
-          );
-        }
-        if (
-          payload &&
-          typeof payload === "object" &&
-          "onboardingChecklistProgress" in payload
-        ) {
-          onOnboardingChecklistProgressRefreshed?.(
-            payload.onboardingChecklistProgress
-          );
-        }
-        if (
-          payload &&
-          typeof payload === "object" &&
-          "talentProfile" in payload
-        ) {
-          onTalentProfileRefreshed?.(
-            payload.talentProfile as SessionResponse["talentProfile"]
-          );
-        }
-        if (
-          payload &&
-          typeof payload === "object" &&
-          Array.isArray(payload.pendingInternalOpportunityCallRequests)
-        ) {
-          onPendingInternalOpportunityCallRequestsChanged?.(
-            payload.pendingInternalOpportunityCallRequests as CareerInternalOpportunityCallRequest[]
-          );
-        } else if (
-          payload &&
-          typeof payload === "object" &&
-          "pendingInternalOpportunityCallRequest" in payload
-        ) {
-          onPendingInternalOpportunityCallRequestChanged?.(
-            (payload.pendingInternalOpportunityCallRequest ??
-              null) as CareerInternalOpportunityCallRequest | null
-          );
-        }
+          if (payload?.progress?.completed) {
+            setStage("completed" as CareerStage);
+          }
+          if (payload?.opportunityRun) {
+            onOpportunityRunChanged?.(
+              payload.opportunityRun as CareerOpportunityRun
+            );
+          }
+          if (payload?.opportunityDiscoveryQueued) {
+            showOpportunityDiscoveryStartedToast(
+              tCareer(H.opportunityDiscoveryStarted)
+            );
+          }
+          if (
+            payload &&
+            typeof payload === "object" &&
+            "talentPreferences" in payload
+          ) {
+            onTalentPreferencesRefreshed?.(
+              payload.talentPreferences,
+              "preferencesUpdatedAt" in payload
+                ? payload.preferencesUpdatedAt
+                : null
+            );
+          }
+          if (
+            payload &&
+            typeof payload === "object" &&
+            ("talentBrief" in payload || "talentMemories" in payload)
+          ) {
+            onTalentContextsRefreshed?.({
+              talentBrief: payload.talentBrief,
+              talentContextsUpdatedAt:
+                payload.talentContextsUpdatedAt ??
+                payload.insightUpdatedAt ??
+                null,
+              talentMemories: payload.talentMemories,
+            });
+          }
+          if (
+            payload &&
+            typeof payload === "object" &&
+            "talentInsights" in payload
+          ) {
+            onTalentInsightsRefreshed?.(
+              payload.talentInsights,
+              payload.insightUpdatedAt ?? null
+            );
+          }
+          if (
+            payload &&
+            typeof payload === "object" &&
+            "onboardingChecklistProgress" in payload
+          ) {
+            onOnboardingChecklistProgressRefreshed?.(
+              payload.onboardingChecklistProgress
+            );
+          }
+          if (
+            payload &&
+            typeof payload === "object" &&
+            "talentProfile" in payload
+          ) {
+            onTalentProfileRefreshed?.(
+              payload.talentProfile as SessionResponse["talentProfile"]
+            );
+          }
+          if (
+            payload &&
+            typeof payload === "object" &&
+            Array.isArray(payload.pendingInternalOpportunityCallRequests)
+          ) {
+            onPendingInternalOpportunityCallRequestsChanged?.(
+              payload.pendingInternalOpportunityCallRequests as CareerInternalOpportunityCallRequest[]
+            );
+          } else if (
+            payload &&
+            typeof payload === "object" &&
+            "pendingInternalOpportunityCallRequest" in payload
+          ) {
+            onPendingInternalOpportunityCallRequestChanged?.(
+              (payload.pendingInternalOpportunityCallRequest ??
+                null) as CareerInternalOpportunityCallRequest | null
+            );
+          }
 
-        const followUpMessages = Array.isArray(payload?.followUpMessages)
-          ? payload.followUpMessages
-          : payload?.followUpMessage
-            ? [payload.followUpMessage]
-            : [];
+          const followUpMessages = Array.isArray(payload?.followUpMessages)
+            ? payload.followUpMessages
+            : payload?.followUpMessage
+              ? [payload.followUpMessage]
+              : [];
 
-        const savedFollowUpMessages: CareerMessagePayload[] = [];
-        for (const followMsg of followUpMessages) {
-          const id = followMsg.id ?? `followup-${Date.now()}`;
-          const role = followMsg.role === "user" ? "user" : "assistant";
-          const content = String(followMsg.content ?? "");
-          const messageType =
-            followMsg.message_type ?? followMsg.messageType ?? "chat";
-          const createdAt =
-            followMsg.created_at ??
-            followMsg.createdAt ??
-            new Date().toISOString();
+          const savedFollowUpMessages: CareerMessagePayload[] = [];
+          for (const followMsg of followUpMessages) {
+            const id = followMsg.id ?? `followup-${Date.now()}`;
+            const role = followMsg.role === "user" ? "user" : "assistant";
+            const content = String(followMsg.content ?? "");
+            const messageType =
+              followMsg.message_type ?? followMsg.messageType ?? "chat";
+            const createdAt =
+              followMsg.created_at ??
+              followMsg.createdAt ??
+              new Date().toISOString();
 
-          await enqueueAssistantTypewriter({
-            id,
-            role,
-            content,
-            messageType,
-            createdAt,
-          });
-
-          const numericId = typeof id === "number" ? id : Number(id);
-          if (Number.isFinite(numericId)) {
-            savedFollowUpMessages.push({
-              id: numericId,
+            await enqueueAssistantTypewriter({
+              id,
               role,
               content,
               messageType,
               createdAt,
             });
+
+            const numericId = typeof id === "number" ? id : Number(id);
+            if (Number.isFinite(numericId)) {
+              savedFollowUpMessages.push({
+                id: numericId,
+                role,
+                content,
+                messageType,
+                createdAt,
+              });
+            }
           }
-        }
           if (savedFollowUpMessages.length > 0) {
             await onMessagesChanged?.(savedFollowUpMessages);
           }
         } catch (error) {
-        console.error("[CareerOnboardingVoice] Follow-up error:", error);
-        setChatError(tCareer(H.callWrapupMessageFailed));
-      } finally {
-        setOnboardingBeginPending(false);
-        callWrapUpPendingRef.current = false;
-        setCallWrapUpPending(false);
-        activeCallConversationStarterIdRef.current = null;
-        activeInternalCallRequestIdRef.current = null;
-        activeCallIdRef.current = null;
-        activeCallOnboardingCompletedAtStartRef.current = false;
-        activeCallSessionIdRef.current = null;
+          console.error("[CareerOnboardingVoice] Follow-up error:", error);
+          setChatError(tCareer(H.callWrapupMessageFailed));
+        } finally {
+          setOnboardingBeginPending(false);
+          callWrapUpPendingRef.current = false;
+          setCallWrapUpPending(false);
+          activeCallConversationStarterIdRef.current = null;
+          activeInternalCallRequestIdRef.current = null;
+          activeResumeCallNoteIdRef.current = null;
+          activeCallIdRef.current = null;
+          activeCallOnboardingCompletedAtStartRef.current = false;
+          activeCallSessionIdRef.current = null;
         }
       })();
     },
@@ -1900,6 +1944,7 @@ export const useCareerOnboardingVoice = ({
     lastRealtimeUserTextRef.current = "";
     activeCallConversationStarterIdRef.current = null;
     activeInternalCallRequestIdRef.current = null;
+    activeResumeCallNoteIdRef.current = null;
     activeCallIdRef.current = null;
     activeCallOnboardingCompletedAtStartRef.current = false;
     activeCallSessionIdRef.current = null;

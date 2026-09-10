@@ -6,7 +6,7 @@ import type {
   CareerHistoryOpportunityFeedback,
   CareerHistoryOpportunityPageFilter,
   CareerCallStartRequest,
-  CareerCallNote,
+  CareerCallNoteReadResult,
   CareerInternalOpportunityCallRequest,
   CareerMessagePayload,
   CareerOpportunitySavedStage,
@@ -192,7 +192,9 @@ export type CareerSidebarContextValue = {
     }
   ) => boolean | Promise<boolean>;
   onDeleteTalentDocument: (documentId: string) => boolean | Promise<boolean>;
-  onReadTalentCallNote: (documentId: string) => Promise<CareerCallNote>;
+  onReadTalentCallNote: (
+    documentId: string
+  ) => Promise<CareerCallNoteReadResult>;
   onUpdateAccountProfile: (profile: {
     email: string | null;
     name: string | null;

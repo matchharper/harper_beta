@@ -6,7 +6,7 @@ import {
 } from "react";
 import type { User } from "@supabase/supabase-js";
 import type {
-  CareerCallNote,
+  CareerCallNoteReadResult,
   CareerMessage,
   CareerMessagePayload,
   CareerStage,
@@ -226,8 +226,8 @@ export const useCareerProfile = ({
       setSavedResumeFileName(payload.conversation.resumeFileName ?? null);
       setSavedResumeStoragePath(payload.conversation.resumeStoragePath ?? null);
       setSavedResumeDownloadUrl(payload.conversation.resumeDownloadUrl ?? null);
-      setTalentDocuments(payload.conversation.documents ?? []);
       applyTalentProfileSnapshot(payload.talentProfile);
+      setTalentDocuments(payload.conversation.documents ?? []);
     },
     [applyTalentProfileSnapshot]
   );
@@ -837,7 +837,7 @@ export const useCareerProfile = ({
   }, []);
 
   const handleReadTalentCallNote = useCallback(
-    async (documentId: string): Promise<CareerCallNote> => {
+    async (documentId: string): Promise<CareerCallNoteReadResult> => {
       const response = await fetchWithAuth(
         `/api/talent/call-notes/${encodeURIComponent(documentId)}`
       );
@@ -847,7 +847,13 @@ export const useCareerProfile = ({
           getErrorMessage(payload, "Failed to load the call note")
         );
       }
-      return payload.document.callNote as CareerCallNote;
+      return {
+        callNote: payload.document.callNote,
+        createdAt: String(payload.document.createdAt ?? ""),
+        updatedAt: String(
+          payload.document.updatedAt ?? payload.document.createdAt ?? ""
+        ),
+      } as CareerCallNoteReadResult;
     },
     [fetchWithAuth]
   );

@@ -42,7 +42,10 @@ import {
   type InternalOpportunityCallCompletionDisposition,
 } from "@/lib/talentOnboarding/internalOpportunityCallProgress";
 import { isCallNoteId } from "@/lib/talentOnboarding/callNote";
-import { generateTalentCallNoteForWrapup } from "@/lib/talentOnboarding/callNoteGeneration";
+import {
+  generateTalentCallNoteForWrapup,
+  updateTalentCallNoteForWrapup,
+} from "@/lib/talentOnboarding/callNoteGeneration";
 import { completeOpenCareerCheckInCalls } from "@/lib/talentOnboarding/careerCheckInCall";
 
 type TranscriptEntry = {
@@ -61,6 +64,7 @@ type Body = {
   internalCallRequestId?: string | null;
   locale?: string | null;
   onboardingCompletedAtStart?: boolean | null;
+  resumeCallNoteId?: string | null;
   startedAt?: string | null;
   transcript: TranscriptEntry[];
   durationSeconds: number;
@@ -266,6 +270,7 @@ function buildInternalOpportunityInterruptedFollowUp(args: {
 
 function buildInternalOpportunityFallbackFollowUp(args: {
   callNoteCreated?: boolean;
+  callNoteUpdated?: boolean;
   companyName: string;
   completionDisposition: InternalOpportunityCallCompletionDisposition;
   preferredLocale?: string | null;
@@ -297,6 +302,7 @@ function buildInternalOpportunityFallbackFollowUp(args: {
 
   return appendCareerCallNoteCreatedNotice({
     callNoteCreated: args.callNoteCreated,
+    callNoteUpdated: args.callNoteUpdated,
     content,
     preferredLocale: args.preferredLocale,
   });
@@ -387,13 +393,17 @@ export async function POST(request: NextRequest) {
     } = body;
     const conversationId = sanitizeSingleLineDbText(body.conversationId, 80);
     const callId = typeof body.callId === "string" ? body.callId.trim() : "";
+    const resumeCallNoteId =
+      typeof body.resumeCallNoteId === "string"
+        ? body.resumeCallNoteId.trim()
+        : "";
     const conversationStarterId =
       typeof rawConversationStarterId === "string"
         ? (sanitizeSingleLineDbText(rawConversationStarterId, 120) ?? "")
         : "";
     const callSessionId =
       typeof rawCallSessionId === "string" &&
-        UUID_PATTERN.test(rawCallSessionId.trim())
+      UUID_PATTERN.test(rawCallSessionId.trim())
         ? rawCallSessionId.trim()
         : "";
     const internalCallRequestId =
@@ -410,14 +420,26 @@ export async function POST(request: NextRequest) {
     if (callId && !isCallNoteId(callId)) {
       return NextResponse.json({ error: "Invalid callId" }, { status: 400 });
     }
+    if (resumeCallNoteId && !isCallNoteId(resumeCallNoteId)) {
+      return NextResponse.json(
+        { error: "Invalid resumeCallNoteId" },
+        { status: 400 }
+      );
+    }
+    if (resumeCallNoteId && (conversationStarterId || internalCallRequestId)) {
+      return NextResponse.json(
+        { error: "Call note continuation cannot use another call mode" },
+        { status: 400 }
+      );
+    }
 
     const supabase = getTalentSupabaseAdmin();
     const internalCallRequest = internalCallRequestId
       ? await fetchInternalOpportunityCallRequestById({
-        admin: supabase,
-        callId: internalCallRequestId,
-        userId: user.id,
-      })
+          admin: supabase,
+          callId: internalCallRequestId,
+          userId: user.id,
+        })
       : null;
     if (
       internalCallRequestId &&
@@ -489,10 +511,10 @@ export async function POST(request: NextRequest) {
     const savedTranscript =
       requestTranscriptStats.userTurns <= 0
         ? await fetchSavedCallTranscript({
-          conversationId,
-          supabase,
-          userId: user.id,
-        })
+            conversationId,
+            supabase,
+            userId: user.id,
+          })
         : [];
     const resolvedTranscript =
       requestTranscriptStats.userTurns > 0
@@ -501,22 +523,22 @@ export async function POST(request: NextRequest) {
     const transcriptStats = summarizeTranscript(resolvedTranscript);
     const internalQuestionPlanComplete = internalCallRequest
       ? isInternalOpportunityCallQuestionPlanComplete(
-        internalCallRequest.questionProgress,
-        internalCallRequest.questions.length
-      )
+          internalCallRequest.questionProgress,
+          internalCallRequest.questions.length
+        )
       : false;
     const internalCallHasAnsweredQuestion = internalCallRequest
       ? hasAnsweredAtLeastOneInternalOpportunityCallQuestion({
-        progress: internalCallRequest.questionProgress,
-        questions: internalCallRequest.questions,
-        transcript: resolvedTranscript,
-      })
+          progress: internalCallRequest.questionProgress,
+          questions: internalCallRequest.questions,
+          transcript: resolvedTranscript,
+        })
       : false;
     const internalCompletionDisposition = internalCallRequest
       ? getInternalOpportunityCallCompletionDisposition({
-        answeredAtLeastOneQuestion: internalCallHasAnsweredQuestion,
-        questionPlanComplete: internalQuestionPlanComplete,
-      })
+          answeredAtLeastOneQuestion: internalCallHasAnsweredQuestion,
+          questionPlanComplete: internalQuestionPlanComplete,
+        })
       : null;
     const shouldCompleteInternalCall =
       internalCompletionDisposition === "full" ||
@@ -574,11 +596,14 @@ export async function POST(request: NextRequest) {
           userId: user.id,
         });
       } catch (error) {
-        console.error("[call-wrapup] Failed to record career check-in completion", {
-          error,
-          conversationId,
-          userId: user.id,
-        });
+        console.error(
+          "[call-wrapup] Failed to record career check-in completion",
+          {
+            error,
+            conversationId,
+            userId: user.id,
+          }
+        );
       }
       await completeOpenCareerCheckInCalls({
         admin: supabase,
@@ -593,18 +618,18 @@ export async function POST(request: NextRequest) {
       projectBriefsToLegacyInsights(currentContexts);
     const coverageCompletion =
       !forceCompleteOnboarding &&
-        !skipConversationWrites &&
-        !internalCallRequest &&
-        !Boolean(talentSetting?.is_onboarding_done)
+      !skipConversationWrites &&
+      !internalCallRequest &&
+      !Boolean(talentSetting?.is_onboarding_done)
         ? getOnboardingChecklistCoverageStats(
-          await getCareerOnboardingChecklistCoverage({
-            admin: supabase,
-            conversationId,
-            currentInsightContent,
-            userId: user.id,
-          }),
-          profile
-        ).isComplete
+            await getCareerOnboardingChecklistCoverage({
+              admin: supabase,
+              conversationId,
+              currentInsightContent,
+              userId: user.id,
+            }),
+            profile
+          ).isComplete
         : false;
     if (coverageCompletion) {
       const result = await completeTalentOnboardingManually({
@@ -677,20 +702,33 @@ export async function POST(request: NextRequest) {
         talentContextsUpdatedAt: result.talentContextsUpdatedAt,
       });
     }
-    const callNoteGeneration = await generateTalentCallNoteForWrapup({
-      admin: supabase,
-      callId,
-      conversationId,
-      durationSeconds: safeDurationSeconds,
-      endedAt: body.endedAt,
-      onboardingCompletedAtStart: body.onboardingCompletedAtStart,
-      preferredLocale: responseLocale,
-      startedAt: body.startedAt,
-      transcript: resolvedTranscript,
-      userId: user.id,
-    });
+    const callNoteGeneration = resumeCallNoteId
+      ? await updateTalentCallNoteForWrapup({
+          admin: supabase,
+          callId,
+          conversationId,
+          documentId: resumeCallNoteId,
+          durationSeconds: safeDurationSeconds,
+          endedAt: body.endedAt,
+          preferredLocale: responseLocale,
+          startedAt: body.startedAt,
+          transcript: resolvedTranscript,
+          userId: user.id,
+        })
+      : await generateTalentCallNoteForWrapup({
+          admin: supabase,
+          callId,
+          conversationId,
+          durationSeconds: safeDurationSeconds,
+          endedAt: body.endedAt,
+          onboardingCompletedAtStart: body.onboardingCompletedAtStart,
+          preferredLocale: responseLocale,
+          startedAt: body.startedAt,
+          transcript: resolvedTranscript,
+          userId: user.id,
+        });
     if (callNoteGeneration.status === "failed") {
-      console.error("[call-wrapup] Failed to create call note", {
+      console.error("[call-wrapup] Failed to save call note", {
         callId,
         conversationId,
         error:
@@ -701,26 +739,42 @@ export async function POST(request: NextRequest) {
       });
     }
     const callNoteCreated = callNoteGeneration.status === "created";
-    const callNoteDocument = callNoteCreated
-      ? callNoteGeneration.document
-      : null;
+    const callNoteUpdated = callNoteGeneration.status === "updated";
+    if (callNoteUpdated && callNoteGeneration.warning) {
+      console.warn(
+        "[call-wrapup] Updated call note transcript without refreshing its summary",
+        {
+          callId,
+          conversationId,
+          error:
+            callNoteGeneration.warning instanceof Error
+              ? callNoteGeneration.warning.message
+              : String(callNoteGeneration.warning),
+          userId: user.id,
+        }
+      );
+    }
+    const callNoteDocument =
+      callNoteCreated || callNoteUpdated ? callNoteGeneration.document : null;
     const inferredOnboardingDone =
       Boolean(talentSetting?.is_onboarding_done) ||
       conversation.data?.stage === "completed";
     const fallbackFollowUpText = internalCallRequest
       ? buildInternalOpportunityFallbackFollowUp({
-        callNoteCreated,
-        companyName: internalCallRequest.companyName,
-        completionDisposition: internalCompletionDisposition ?? "unanswered",
-        preferredLocale: responseLocale,
-        roleTitle: internalCallRequest.roleTitle,
-      })
+          callNoteCreated,
+          callNoteUpdated,
+          companyName: internalCallRequest.companyName,
+          completionDisposition: internalCompletionDisposition ?? "unanswered",
+          preferredLocale: responseLocale,
+          roleTitle: internalCallRequest.roleTitle,
+        })
       : buildCareerCallWrapupFallbackFollowUp({
-        callNoteCreated,
-        isBrief: briefConversation,
-        isOnboardingDone: inferredOnboardingDone,
-        preferredLocale: responseLocale,
-      });
+          callNoteCreated,
+          callNoteUpdated,
+          isBrief: briefConversation,
+          isOnboardingDone: inferredOnboardingDone,
+          preferredLocale: responseLocale,
+        });
     const withCallNoteOpenAction = (content: string) =>
       appendCareerCallNoteOpenAction({
         content,
@@ -733,48 +787,50 @@ export async function POST(request: NextRequest) {
         admin: supabase,
         allowedToolNames: internalCallRequest
           ? [
-            TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
-            TALENT_TOOL_NAMES.READ_TALENT_CONTEXT,
-            TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT,
-          ]
+              TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
+              TALENT_TOOL_NAMES.READ_TALENT_CONTEXT,
+              TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT,
+            ]
           : [
-            TALENT_TOOL_NAMES.UPDATE_SETTING,
-            TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
-            TALENT_TOOL_NAMES.READ_TALENT_CONTEXT,
-            TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT,
-          ],
+              TALENT_TOOL_NAMES.UPDATE_SETTING,
+              TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
+              TALENT_TOOL_NAMES.READ_TALENT_CONTEXT,
+              TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT,
+            ],
         assistantMessageType: "call_wrapup",
         conversationId,
         isMobile,
         proactiveContext: internalCallRequest
           ? buildInternalOpportunityCallWrapupInstruction({
-            callNoteCreated,
-            callRequest: internalCallRequest,
-            completionDisposition:
-              internalCompletionDisposition ?? "unanswered",
-            durationLabel,
-            preferredLocale: responseLocale,
-            transcript: resolvedTranscript,
-          })
+              callNoteCreated,
+              callNoteUpdated,
+              callRequest: internalCallRequest,
+              completionDisposition:
+                internalCompletionDisposition ?? "unanswered",
+              durationLabel,
+              preferredLocale: responseLocale,
+              transcript: resolvedTranscript,
+            })
           : buildCareerCallWrapupTurnInstruction({
-            callNoteCreated,
-            durationLabel,
-            isBrief: briefConversation,
-            isOnboardingDone: inferredOnboardingDone,
-            preferredLocale: responseLocale,
-            transcript: resolvedTranscript,
-          }),
+              callNoteCreated,
+              callNoteUpdated,
+              durationLabel,
+              isBrief: briefConversation,
+              isOnboardingDone: inferredOnboardingDone,
+              preferredLocale: responseLocale,
+              transcript: resolvedTranscript,
+            }),
         skipConversationWrites,
         suppressOnboarding: Boolean(internalCallRequest),
         transformAssistantTextBeforeInsert:
           internalCompletionDisposition === "partial_answered" ||
-            callNoteDocument
+          callNoteDocument
             ? (content) =>
-              withCallNoteOpenAction(
-                internalCompletionDisposition === "partial_answered"
-                  ? fallbackFollowUpText
-                  : content
-              )
+                withCallNoteOpenAction(
+                  internalCompletionDisposition === "partial_answered"
+                    ? fallbackFollowUpText
+                    : content
+                )
             : undefined,
         usageLabel: internalCallRequest
           ? "career/chat:internal_opportunity_call_wrapup"
@@ -795,9 +851,9 @@ export async function POST(request: NextRequest) {
         }
         const pendingInternalOpportunityCallRequests = internalCallRequest
           ? await fetchPendingInternalOpportunityCallRequests({
-            admin: supabase,
-            userId: user.id,
-          })
+              admin: supabase,
+              userId: user.id,
+            })
           : undefined;
         const followUpMessage = {
           ...result.assistantMessage,
@@ -846,9 +902,9 @@ export async function POST(request: NextRequest) {
     }
     const pendingInternalOpportunityCallRequests = internalCallRequest
       ? await fetchPendingInternalOpportunityCallRequests({
-        admin: supabase,
-        userId: user.id,
-      })
+          admin: supabase,
+          userId: user.id,
+        })
       : undefined;
 
     return NextResponse.json({

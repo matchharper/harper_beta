@@ -25,6 +25,7 @@ export type CareerCallStartRequest =
       forceBeginOnboarding?: boolean;
       internalCallRequestId?: string | null;
       openingText?: string;
+      resumeCallNoteId?: string | null;
     };
 export type CallLiveTranscriptPlacement =
   | "beforeCurrentAssistant"
@@ -137,7 +138,31 @@ export type CareerCallNoteV2 = Omit<CareerCallNoteV1, "schema_version"> & {
   key_points: string[];
 };
 
-export type CareerCallNote = CareerCallNoteV1 | CareerCallNoteV2;
+export type CareerCallNoteSession = {
+  call_id: string;
+  conversation_id: string;
+  started_at: string;
+  ended_at: string;
+  duration_seconds: number;
+  entry_start: number;
+  entry_count: number;
+};
+
+export type CareerCallNoteV3 = Omit<CareerCallNoteV2, "schema_version"> & {
+  schema_version: 3;
+  sessions: CareerCallNoteSession[];
+};
+
+export type CareerCallNote =
+  | CareerCallNoteV1
+  | CareerCallNoteV2
+  | CareerCallNoteV3;
+
+export type CareerCallNoteReadResult = {
+  callNote: CareerCallNote;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export type CareerTalentProfile = {
   documents?: CareerTalentDocument[];

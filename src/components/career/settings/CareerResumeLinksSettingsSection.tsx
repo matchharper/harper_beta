@@ -117,9 +117,21 @@ const CareerResumeLinksSettingsSection = ({
   );
   const remainingDocuments = useMemo(
     () =>
-      talentDocuments.filter(
-        (document) => document.id !== primaryResumeDocument?.id
-      ),
+      talentDocuments
+        .filter((document) => document.id !== primaryResumeDocument?.id)
+        .sort((left, right) => {
+          const leftTime = Date.parse(
+            left.kind === "call_note"
+              ? left.updatedAt || left.createdAt
+              : left.createdAt
+          );
+          const rightTime = Date.parse(
+            right.kind === "call_note"
+              ? right.updatedAt || right.createdAt
+              : right.createdAt
+          );
+          return rightTime - leftTime;
+        }),
     [primaryResumeDocument?.id, talentDocuments]
   );
   const documentPendingDelete = useMemo(
@@ -193,6 +205,7 @@ const CareerResumeLinksSettingsSection = ({
   if (inlineCallNoteDocument) {
     return (
       <CareerCallNoteDetail
+        documentId={inlineCallNoteDocument.id}
         document={inlineCallNoteDocument}
         onBack={() => setInlineCallNoteDocumentId(null)}
       />

@@ -17,6 +17,7 @@ type RealtimeControls = {
     conversationStarterId?: CareerConversationStarterId | null;
     initialResponseInstruction?: string | null;
     internalCallRequestId?: string | null;
+    resumeCallNoteId?: string | null;
   }) => Promise<boolean>;
   disconnect: () => void;
   getLastConnectFailure?: () => RealtimeConnectFailure | null;
@@ -414,6 +415,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
       conversationStarterId?: CareerConversationStarterId | null;
       initialResponseInstruction?: string | null;
       internalCallRequestId?: string | null;
+      resumeCallNoteId?: string | null;
     }) => {
       void logEnvironmentSnapshot();
       logVoiceDebug("start-call-mode");
@@ -430,6 +432,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
           initialResponseInstruction:
             options?.initialResponseInstruction ?? null,
           internalCallRequestId: options?.internalCallRequestId ?? null,
+          resumeCallNoteId: options?.resumeCallNoteId ?? null,
         });
         if (connected) {
           setVoiceListening(true);

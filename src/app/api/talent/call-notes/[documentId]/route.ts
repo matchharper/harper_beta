@@ -44,6 +44,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
         id: document.id,
         fileName: document.file_name,
         createdAt: document.created_at,
+        updatedAt: document.updated_at,
         callNote,
       },
     });

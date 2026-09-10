@@ -25,10 +25,22 @@ test("call wrap-up mentions only a verified saved call note", () => {
     ...baseArgs,
     callNoteCreated: true,
   });
+  const withUpdatedCallNote = buildCareerCallWrapupTurnInstruction({
+    ...baseArgs,
+    callNoteUpdated: true,
+  });
 
   assert.doesNotMatch(withoutCallNote, /successfully saved/);
   assert.match(withCallNote, /successfully saved/);
   assert.match(withCallNote, /under Documents in their profile/);
+  assert.match(
+    withUpdatedCallNote,
+    /existing call note was successfully updated/
+  );
+  assert.doesNotMatch(
+    withUpdatedCallNote,
+    /organized this conversation into a call note/
+  );
 });
 
 test("call wrap-up fallback appends a localized saved call-note notice", () => {
@@ -49,11 +61,21 @@ test("call wrap-up fallback appends a localized saved call-note notice", () => {
     isOnboardingDone: true,
     preferredLocale: "ko",
   });
+  const updatedEnglish = buildCareerCallWrapupFallbackFollowUp({
+    callNoteUpdated: true,
+    isBrief: false,
+    isOnboardingDone: true,
+    preferredLocale: "en",
+  });
 
   assert.match(korean, /콜노트로 정리해뒀어요/);
   assert.match(korean, /프로필의 문서에서 확인/);
   assert.match(english, /organized this conversation into a call note/);
   assert.match(english, /under Documents in your profile/);
+  assert.match(
+    updatedEnglish,
+    /added this conversation to your existing call note/
+  );
   assert.doesNotMatch(withoutCallNote, /콜노트/);
 });
 
@@ -172,7 +194,10 @@ test("session re-engagement exposes an internal opportunity call as an available
     previousChatAt: "2026-08-24T01:25:03.102495+00:00",
   });
 
-  assert.match(prompt, /\[actionKey:pending_1\] \[역할 관련 통화\] Acme · Backend Engineer/);
+  assert.match(
+    prompt,
+    /\[actionKey:pending_1\] \[역할 관련 통화\] Acme · Backend Engineer/
+  );
   assert.match(prompt, /연결 전에 프로젝트 경험을 조금 더 듣고 싶어요/);
   assert.doesNotMatch(prompt, /call_123/);
 });

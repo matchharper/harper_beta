@@ -597,6 +597,8 @@ export const en = {
     "career.call.opening.relative.month_one": "{count} month ago",
     "career.call.wrapup.call_note_action": "View call note · {title}",
     "career.call.wrapup_fallback.call_note_created": "I also organized this conversation into a call note. You can find it under Documents in your profile.",
+    "career.call.wrapup_fallback.call_note_updated":
+      "I've added this conversation to your existing call note. You can review it under Documents in your profile.",
     "career.call.wrapup_fallback.brief":
       "We only talked briefly today. When you have a little more time, share a bit more and I'll use that context to help you better.",
     "career.call.wrapup_fallback.completed":
@@ -2181,6 +2183,7 @@ export const en = {
     "career.profile.documents.call_note_key_points": "Summary",
     "career.profile.documents.call_note_me": "Me",
     "career.profile.documents.call_note_read_only": "Read-only",
+    "career.profile.documents.call_note_resume": "Continue call",
     "career.profile.documents.call_note_retry": "Try again",
     "career.profile.documents.call_note_title": "Call with Harper",
     "career.profile.documents.call_note_transcript": "Transcript",
