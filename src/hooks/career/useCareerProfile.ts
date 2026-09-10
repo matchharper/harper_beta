@@ -6,6 +6,7 @@ import {
 } from "react";
 import type { User } from "@supabase/supabase-js";
 import type {
+  CareerCallNoteReadResult,
   CareerMessage,
   CareerMessagePayload,
   CareerStage,
@@ -225,8 +226,8 @@ export const useCareerProfile = ({
       setSavedResumeFileName(payload.conversation.resumeFileName ?? null);
       setSavedResumeStoragePath(payload.conversation.resumeStoragePath ?? null);
       setSavedResumeDownloadUrl(payload.conversation.resumeDownloadUrl ?? null);
-      setTalentDocuments(payload.conversation.documents ?? []);
       applyTalentProfileSnapshot(payload.talentProfile);
+      setTalentDocuments(payload.conversation.documents ?? []);
     },
     [applyTalentProfileSnapshot]
   );
@@ -486,7 +487,6 @@ export const useCareerProfile = ({
             showProfileSaveToast(tCareer(H.profileSaved));
             return true;
           }
-
         }
 
         const response = await fetchWithAuth("/api/talent/profile/update", {
@@ -828,6 +828,36 @@ export const useCareerProfile = ({
     [fetchWithAuth, profileSavePending, tCareer, user]
   );
 
+  const handleCallNoteSaved = useCallback((document: CareerTalentDocument) => {
+    if (document.kind !== "call_note") return;
+    setTalentDocuments((previous) => [
+      document,
+      ...previous.filter((item) => item.id !== document.id),
+    ]);
+  }, []);
+
+  const handleReadTalentCallNote = useCallback(
+    async (documentId: string): Promise<CareerCallNoteReadResult> => {
+      const response = await fetchWithAuth(
+        `/api/talent/call-notes/${encodeURIComponent(documentId)}`
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.document?.callNote) {
+        throw new Error(
+          getErrorMessage(payload, "Failed to load the call note")
+        );
+      }
+      return {
+        callNote: payload.document.callNote,
+        createdAt: String(payload.document.createdAt ?? ""),
+        updatedAt: String(
+          payload.document.updatedAt ?? payload.document.createdAt ?? ""
+        ),
+      } as CareerCallNoteReadResult;
+    },
+    [fetchWithAuth]
+  );
+
   return {
     resumeFile,
     setResumeFile,
@@ -857,6 +887,8 @@ export const useCareerProfile = ({
     handleUploadTalentDocument,
     handleUpdateTalentDocument,
     handleDeleteTalentDocument,
+    handleCallNoteSaved,
+    handleReadTalentCallNote,
     resetProfileState,
   };
 };

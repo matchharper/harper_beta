@@ -93,6 +93,7 @@ export async function fetchTalentDocumentsByIds(args: {
     .select(TALENT_DOCUMENT_SELECT)
     .eq("talent_id", args.userId)
     .eq("is_deleted", false)
+    .in("kind", ["resume", "document"])
     .in("id", documentIds);
   if (error) {
     throw new Error(error.message ?? "Failed to fetch talent documents");

@@ -21,11 +21,23 @@ import {
 import { canUseCareerDevControls } from "@/lib/internalAccess";
 import { appendRealtimeInitialResponseInstruction } from "@/lib/career/realtimeInitialResponse";
 import { touchOpenCareerCheckInCall } from "@/lib/talentOnboarding/careerCheckInCall";
+import {
+  buildTalentCallNoteContinuationContext,
+  fetchTalentCallNoteDocument,
+  isCallNoteId,
+  parseTalentCallNote,
+} from "@/lib/talentOnboarding/callNote";
 
 const TOKEN_RATE_LIMIT = new Map<string, { count: number; resetAt: number }>();
 const MAX_TOKENS_PER_MINUTE = 10;
 const MAX_RATE_LIMIT_ENTRIES = 1000;
 const DEFAULT_REALTIME_TRANSCRIPTION_LANGUAGE = "ko";
+const CALL_NOTE_CONTINUATION_OPENING_INSTRUCTION = [
+  "This is a new call that continues the verified call-note context in the session instructions.",
+  "This continuation guidance takes priority over generic call-opening guidance and recent chat context.",
+  "For the first response only, reconnect naturally to that subject without reading the summary aloud or claiming that the user just said it.",
+  "Briefly acknowledge the continuation and ask one focused question that moves the same discussion forward.",
+].join("\n");
 
 function getRealtimeTranscriptionLanguage(locale: unknown) {
   if (typeof locale !== "string")
@@ -214,6 +226,7 @@ export async function POST(req: NextRequest) {
       conversationStarterId: rawConversationStarterId,
       initialResponseInstruction: rawInitialResponseInstruction,
       internalCallRequestId: rawInternalCallRequestId,
+      resumeCallNoteId: rawResumeCallNoteId,
       locale: rawLocale,
       providerOverride: rawProviderOverride,
     } = body as {
@@ -221,6 +234,7 @@ export async function POST(req: NextRequest) {
       conversationStarterId?: string;
       initialResponseInstruction?: string;
       internalCallRequestId?: string;
+      resumeCallNoteId?: string;
       locale?: string;
       providerOverride?: string;
     };
@@ -237,6 +251,8 @@ export async function POST(req: NextRequest) {
       typeof rawInitialResponseInstruction === "string"
         ? rawInitialResponseInstruction
         : "";
+    const resumeCallNoteId =
+      typeof rawResumeCallNoteId === "string" ? rawResumeCallNoteId.trim() : "";
     const providerOverride =
       canUseCareerDevControls(user.email) &&
       typeof rawProviderOverride === "string"
@@ -249,8 +265,42 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    if (resumeCallNoteId && !isCallNoteId(resumeCallNoteId)) {
+      return NextResponse.json(
+        { error: "Invalid resumeCallNoteId" },
+        { status: 400 }
+      );
+    }
+    if (resumeCallNoteId && (conversationStarterId || internalCallRequestId)) {
+      return NextResponse.json(
+        { error: "A continued call note cannot use another call objective" },
+        { status: 400 }
+      );
+    }
 
     const admin = getTalentSupabaseAdmin();
+    const continuedCallNoteDocument = resumeCallNoteId
+      ? await fetchTalentCallNoteDocument({
+          admin,
+          documentId: resumeCallNoteId,
+          userId: user.id,
+        })
+      : null;
+    if (resumeCallNoteId && !continuedCallNoteDocument) {
+      return NextResponse.json(
+        { error: "Call note not found" },
+        { status: 404 }
+      );
+    }
+    const continuedCallNote = continuedCallNoteDocument
+      ? parseTalentCallNote(continuedCallNoteDocument.extracted_text)
+      : null;
+    if (resumeCallNoteId && !continuedCallNote) {
+      return NextResponse.json(
+        { error: "Call note data is invalid" },
+        { status: 422 }
+      );
+    }
     const talentSetting = await fetchTalentSetting({ admin, userId: user.id });
     const responseLocale =
       talentSetting?.preferred_locale ??
@@ -317,8 +367,20 @@ export async function POST(req: NextRequest) {
       userId: user.id,
     });
     const instructions = appendRealtimeInitialResponseInstruction({
-      initialResponseInstruction,
-      instructions: realtimePromptPlan.instructions,
+      initialResponseInstruction: [
+        initialResponseInstruction,
+        continuedCallNote ? CALL_NOTE_CONTINUATION_OPENING_INSTRUCTION : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      instructions: [
+        realtimePromptPlan.instructions,
+        continuedCallNote
+          ? buildTalentCallNoteContinuationContext(continuedCallNote)
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
     });
     if (process.env.NODE_ENV !== "production") {
       console.log("[RealtimeToken] final instructions", {

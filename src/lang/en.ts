@@ -595,6 +595,10 @@ export const en = {
     "career.call.opening.relative.minute_one": "{count} minute ago",
     "career.call.opening.relative.month_many": "{count} months ago",
     "career.call.opening.relative.month_one": "{count} month ago",
+    "career.call.wrapup.call_note_action": "View call note · {title}",
+    "career.call.wrapup_fallback.call_note_created": "I also organized this conversation into a call note. You can find it under Documents in your profile.",
+    "career.call.wrapup_fallback.call_note_updated":
+      "I've added this conversation to your existing call note. You can review it under Documents in your profile.",
     "career.call.wrapup_fallback.brief":
       "We only talked briefly today. When you have a little more time, share a bit more and I'll use that context to help you better.",
     "career.call.wrapup_fallback.completed":
@@ -2173,6 +2177,16 @@ export const en = {
     "career.profile.documents.add_description":
       "Choose the type of file you want to upload.",
     "career.profile.documents.add_title": "Add a document",
+    "career.profile.documents.call_note_load_failed": "Couldn't load the call record.",
+    "career.profile.documents.call_note_loading": "Loading call record.",
+    "career.profile.documents.call_note_back": "Back to documents",
+    "career.profile.documents.call_note_key_points": "Summary",
+    "career.profile.documents.call_note_me": "Me",
+    "career.profile.documents.call_note_read_only": "Read-only",
+    "career.profile.documents.call_note_resume": "Continue call",
+    "career.profile.documents.call_note_retry": "Try again",
+    "career.profile.documents.call_note_title": "Call with Harper",
+    "career.profile.documents.call_note_transcript": "Transcript",
     "career.profile.documents.copy_content": "Copy entire document",
     "career.profile.documents.copy_failed":
       "We couldn't copy the document. Please try again.",
@@ -2210,10 +2224,12 @@ export const en = {
     "career.profile.documents.gmail_history_too_long":
       "Gmail career history can be up to 50,000 characters.",
     "career.profile.documents.keep_private": "Keep private",
+    "career.profile.documents.kind.call_note": "Call note",
     "career.profile.documents.kind.document": "Document",
     "career.profile.documents.kind.resume": "Resume",
     "career.profile.documents.make_private": "Make private",
     "career.profile.documents.make_public": "Share with companies",
+    "career.profile.documents.open_call_note": "Open call record",
     "career.profile.documents.primary_resume": "Primary resume",
     "career.profile.documents.private": "Private",
     "career.profile.documents.public": "Visible to companies",

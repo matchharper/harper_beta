@@ -11,6 +11,8 @@ import {
   toTalentMessageResponse,
 } from "@/lib/talentOnboarding/server";
 import {
+  appendCareerCallNoteCreatedNotice,
+  appendCareerCallNoteOpenAction,
   buildCareerCallWrapupFallbackFollowUp,
   buildCareerCallWrapupTurnInstruction,
   buildInternalOpportunityCallWrapupInstruction,
@@ -39,20 +41,31 @@ import {
   isInternalOpportunityCallQuestionPlanComplete,
   type InternalOpportunityCallCompletionDisposition,
 } from "@/lib/talentOnboarding/internalOpportunityCallProgress";
+import { isCallNoteId } from "@/lib/talentOnboarding/callNote";
+import {
+  generateTalentCallNoteForWrapup,
+  updateTalentCallNoteForWrapup,
+} from "@/lib/talentOnboarding/callNoteGeneration";
 import { completeOpenCareerCheckInCalls } from "@/lib/talentOnboarding/careerCheckInCall";
 
 type TranscriptEntry = {
   role: "user" | "assistant";
   text: string;
+  timestamp: string | null;
 };
 
 type Body = {
+  callId?: string | null;
   callSessionId?: string | null;
   conversationStarterId?: string | null;
   conversationId: string;
+  endedAt?: string | null;
   forceCompleteOnboarding?: boolean;
   internalCallRequestId?: string | null;
   locale?: string | null;
+  onboardingCompletedAtStart?: boolean | null;
+  resumeCallNoteId?: string | null;
+  startedAt?: string | null;
   transcript: TranscriptEntry[];
   durationSeconds: number;
 };
@@ -88,11 +101,21 @@ function normalizeTranscriptEntries(entries: unknown): TranscriptEntry[] {
   return entries
     .map((entry) => {
       if (!entry || typeof entry !== "object") return null;
-      const record = entry as { role?: unknown; text?: unknown };
-      const role = record.role === "user" ? "user" : "assistant";
+      const record = entry as {
+        role?: unknown;
+        text?: unknown;
+        timestamp?: unknown;
+      };
+      if (record.role !== "user" && record.role !== "assistant") return null;
+      const role: TranscriptEntry["role"] = record.role;
       const text = stripPostgresUnsafeChars(String(record.text ?? "")).trim();
       if (!text) return null;
-      return { role, text };
+      return {
+        role,
+        text,
+        timestamp:
+          typeof record.timestamp === "string" ? record.timestamp : null,
+      };
     })
     .filter((entry): entry is TranscriptEntry => entry !== null);
 }
@@ -246,35 +269,43 @@ function buildInternalOpportunityInterruptedFollowUp(args: {
 }
 
 function buildInternalOpportunityFallbackFollowUp(args: {
+  callNoteCreated?: boolean;
+  callNoteUpdated?: boolean;
   companyName: string;
   completionDisposition: InternalOpportunityCallCompletionDisposition;
   preferredLocale?: string | null;
   roleTitle: string;
 }) {
+  let content: string;
   if (args.completionDisposition === "unanswered") {
-    return careerT(
+    content = careerT(
       args.preferredLocale,
       "career.call.internal_brief_followup",
       "{companyName} {roleTitle} 관련 통화가 조금 짧게 끝난 것 같아요. 연결은 계속 진행 중이고, 더 이야기하고 싶으시면 채팅창의 + 버튼을 통해 통화를 선택해서 다시 진행해주세요.",
       { values: { companyName: args.companyName, roleTitle: args.roleTitle } }
     );
-  }
-
-  if (args.completionDisposition === "partial_answered") {
-    return careerT(
+  } else if (args.completionDisposition === "partial_answered") {
+    content = careerT(
       args.preferredLocale,
       "career.call.internal_partial_completed_followup",
       "{companyName} {roleTitle} 관련 통화는 중간에 종료하셨지만, 필요한 질문에는 응답해주신 것으로 보고 여기서 닫아둘게요. 참여해주셔서 감사합니다. 연결은 계속 진행됩니다.",
       { values: { companyName: args.companyName, roleTitle: args.roleTitle } }
     );
+  } else {
+    content = careerT(
+      args.preferredLocale,
+      "career.call.internal_completed_followup",
+      "{companyName} {roleTitle} 관련해서 들려주신 내용은 회사 측에 전달할 때 잘 반영해둘게요. 연결은 계속 진행 중입니다.",
+      { values: { companyName: args.companyName, roleTitle: args.roleTitle } }
+    );
   }
 
-  return careerT(
-    args.preferredLocale,
-    "career.call.internal_completed_followup",
-    "{companyName} {roleTitle} 관련해서 들려주신 내용은 회사 측에 전달할 때 잘 반영해둘게요. 연결은 계속 진행 중입니다.",
-    { values: { companyName: args.companyName, roleTitle: args.roleTitle } }
-  );
+  return appendCareerCallNoteCreatedNotice({
+    callNoteCreated: args.callNoteCreated,
+    callNoteUpdated: args.callNoteUpdated,
+    content,
+    preferredLocale: args.preferredLocale,
+  });
 }
 
 async function insertFallbackFollowUp(args: {
@@ -361,6 +392,11 @@ export async function POST(request: NextRequest) {
       durationSeconds,
     } = body;
     const conversationId = sanitizeSingleLineDbText(body.conversationId, 80);
+    const callId = typeof body.callId === "string" ? body.callId.trim() : "";
+    const resumeCallNoteId =
+      typeof body.resumeCallNoteId === "string"
+        ? body.resumeCallNoteId.trim()
+        : "";
     const conversationStarterId =
       typeof rawConversationStarterId === "string"
         ? (sanitizeSingleLineDbText(rawConversationStarterId, 120) ?? "")
@@ -378,6 +414,21 @@ export async function POST(request: NextRequest) {
     if (!conversationId || !Array.isArray(transcript)) {
       return NextResponse.json(
         { error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
+    if (callId && !isCallNoteId(callId)) {
+      return NextResponse.json({ error: "Invalid callId" }, { status: 400 });
+    }
+    if (resumeCallNoteId && !isCallNoteId(resumeCallNoteId)) {
+      return NextResponse.json(
+        { error: "Invalid resumeCallNoteId" },
+        { status: 400 }
+      );
+    }
+    if (resumeCallNoteId && (conversationStarterId || internalCallRequestId)) {
+      return NextResponse.json(
+        { error: "Call note continuation cannot use another call mode" },
         { status: 400 }
       );
     }
@@ -545,11 +596,14 @@ export async function POST(request: NextRequest) {
           userId: user.id,
         });
       } catch (error) {
-        console.error("[call-wrapup] Failed to record career check-in completion", {
-          error,
-          conversationId,
-          userId: user.id,
-        });
+        console.error(
+          "[call-wrapup] Failed to record career check-in completion",
+          {
+            error,
+            conversationId,
+            userId: user.id,
+          }
+        );
       }
       await completeOpenCareerCheckInCalls({
         admin: supabase,
@@ -648,21 +702,86 @@ export async function POST(request: NextRequest) {
         talentContextsUpdatedAt: result.talentContextsUpdatedAt,
       });
     }
+    const callNoteGeneration = resumeCallNoteId
+      ? await updateTalentCallNoteForWrapup({
+          admin: supabase,
+          callId,
+          conversationId,
+          documentId: resumeCallNoteId,
+          durationSeconds: safeDurationSeconds,
+          endedAt: body.endedAt,
+          preferredLocale: responseLocale,
+          startedAt: body.startedAt,
+          transcript: resolvedTranscript,
+          userId: user.id,
+        })
+      : await generateTalentCallNoteForWrapup({
+          admin: supabase,
+          callId,
+          conversationId,
+          durationSeconds: safeDurationSeconds,
+          endedAt: body.endedAt,
+          onboardingCompletedAtStart: body.onboardingCompletedAtStart,
+          preferredLocale: responseLocale,
+          startedAt: body.startedAt,
+          transcript: resolvedTranscript,
+          userId: user.id,
+        });
+    if (callNoteGeneration.status === "failed") {
+      console.error("[call-wrapup] Failed to save call note", {
+        callId,
+        conversationId,
+        error:
+          callNoteGeneration.error instanceof Error
+            ? callNoteGeneration.error.message
+            : String(callNoteGeneration.error),
+        userId: user.id,
+      });
+    }
+    const callNoteCreated = callNoteGeneration.status === "created";
+    const callNoteUpdated = callNoteGeneration.status === "updated";
+    if (callNoteUpdated && callNoteGeneration.warning) {
+      console.warn(
+        "[call-wrapup] Updated call note transcript without refreshing its summary",
+        {
+          callId,
+          conversationId,
+          error:
+            callNoteGeneration.warning instanceof Error
+              ? callNoteGeneration.warning.message
+              : String(callNoteGeneration.warning),
+          userId: user.id,
+        }
+      );
+    }
+    const callNoteDocument =
+      callNoteCreated || callNoteUpdated ? callNoteGeneration.document : null;
     const inferredOnboardingDone =
       Boolean(talentSetting?.is_onboarding_done) ||
       conversation.data?.stage === "completed";
     const fallbackFollowUpText = internalCallRequest
       ? buildInternalOpportunityFallbackFollowUp({
+          callNoteCreated,
+          callNoteUpdated,
           companyName: internalCallRequest.companyName,
           completionDisposition: internalCompletionDisposition ?? "unanswered",
           preferredLocale: responseLocale,
           roleTitle: internalCallRequest.roleTitle,
         })
       : buildCareerCallWrapupFallbackFollowUp({
+          callNoteCreated,
+          callNoteUpdated,
           isBrief: briefConversation,
           isOnboardingDone: inferredOnboardingDone,
           preferredLocale: responseLocale,
         });
+    const withCallNoteOpenAction = (content: string) =>
+      appendCareerCallNoteOpenAction({
+        content,
+        documentId: callNoteDocument?.id,
+        preferredLocale: responseLocale,
+        title: callNoteDocument?.fileName,
+      });
     try {
       const result = await runCareerChatTurn({
         admin: supabase,
@@ -683,6 +802,8 @@ export async function POST(request: NextRequest) {
         isMobile,
         proactiveContext: internalCallRequest
           ? buildInternalOpportunityCallWrapupInstruction({
+              callNoteCreated,
+              callNoteUpdated,
               callRequest: internalCallRequest,
               completionDisposition:
                 internalCompletionDisposition ?? "unanswered",
@@ -691,6 +812,8 @@ export async function POST(request: NextRequest) {
               transcript: resolvedTranscript,
             })
           : buildCareerCallWrapupTurnInstruction({
+              callNoteCreated,
+              callNoteUpdated,
               durationLabel,
               isBrief: briefConversation,
               isOnboardingDone: inferredOnboardingDone,
@@ -700,8 +823,14 @@ export async function POST(request: NextRequest) {
         skipConversationWrites,
         suppressOnboarding: Boolean(internalCallRequest),
         transformAssistantTextBeforeInsert:
-          internalCompletionDisposition === "partial_answered"
-            ? () => fallbackFollowUpText
+          internalCompletionDisposition === "partial_answered" ||
+          callNoteDocument
+            ? (content) =>
+                withCallNoteOpenAction(
+                  internalCompletionDisposition === "partial_answered"
+                    ? fallbackFollowUpText
+                    : content
+                )
             : undefined,
         usageLabel: internalCallRequest
           ? "career/chat:internal_opportunity_call_wrapup"
@@ -731,6 +860,7 @@ export async function POST(request: NextRequest) {
           content: normalized,
         };
         return NextResponse.json({
+          callNoteDocument,
           followUpMessage,
           followUpMessages: [followUpMessage],
           insightUpdatedAt: result.insightUpdatedAt,
@@ -757,7 +887,7 @@ export async function POST(request: NextRequest) {
     }
 
     const fallbackMessage = await insertFallbackFollowUp({
-      content: fallbackFollowUpText,
+      content: withCallNoteOpenAction(fallbackFollowUpText),
       conversationId,
       isMobile,
       supabase,
@@ -778,6 +908,7 @@ export async function POST(request: NextRequest) {
       : undefined;
 
     return NextResponse.json({
+      callNoteDocument,
       followUpMessage: fallbackMessage,
       followUpMessages: [fallbackMessage],
       pendingInternalOpportunityCallRequest: internalCallRequest

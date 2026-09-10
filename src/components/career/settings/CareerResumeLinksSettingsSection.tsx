@@ -16,6 +16,7 @@ import {
 import CareerDocumentsSettingsSection from "@/components/career/settings/CareerDocumentsSettingsSection";
 import CareerProfileLinksSettingsSection from "@/components/career/settings/CareerProfileLinksSettingsSection";
 import CareerSavedResumeSettingsSection from "@/components/career/settings/CareerSavedResumeSettingsSection";
+import CareerCallNoteDetail from "@/components/career/profile/CareerCallNoteDetail";
 import type { CareerTalentDocument } from "@/components/career/types";
 import { pickLinkedinProfileLink } from "@/hooks/career/careerHelpers";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
@@ -26,7 +27,11 @@ const findDocumentById = (
   documentId: string | null
 ) => documents.find((document) => document.id === documentId) ?? null;
 
-const CareerResumeLinksSettingsSection = () => {
+const CareerResumeLinksSettingsSection = ({
+  onOpenCallNote,
+}: {
+  onOpenCallNote?: (document: CareerTalentDocument) => void;
+}) => {
   const t = useCareerT();
   const logCareerEvent = useCareerLogEvent();
   const {
@@ -49,6 +54,9 @@ const CareerResumeLinksSettingsSection = () => {
     string | null
   >(null);
   const [documentPendingRenameId, setDocumentPendingRenameId] = useState<
+    string | null
+  >(null);
+  const [inlineCallNoteDocumentId, setInlineCallNoteDocumentId] = useState<
     string | null
   >(null);
   const [documentPendingEditId, setDocumentPendingEditId] = useState<
@@ -109,9 +117,21 @@ const CareerResumeLinksSettingsSection = () => {
   );
   const remainingDocuments = useMemo(
     () =>
-      talentDocuments.filter(
-        (document) => document.id !== primaryResumeDocument?.id
-      ),
+      talentDocuments
+        .filter((document) => document.id !== primaryResumeDocument?.id)
+        .sort((left, right) => {
+          const leftTime = Date.parse(
+            left.kind === "call_note"
+              ? left.updatedAt || left.createdAt
+              : left.createdAt
+          );
+          const rightTime = Date.parse(
+            right.kind === "call_note"
+              ? right.updatedAt || right.createdAt
+              : right.createdAt
+          );
+          return rightTime - leftTime;
+        }),
     [primaryResumeDocument?.id, talentDocuments]
   );
   const documentPendingDelete = useMemo(
@@ -126,6 +146,13 @@ const CareerResumeLinksSettingsSection = () => {
     () => findDocumentById(talentDocuments, documentPendingRenameId),
     [documentPendingRenameId, talentDocuments]
   );
+  const inlineCallNoteDocument = useMemo(() => {
+    const document = findDocumentById(
+      talentDocuments,
+      inlineCallNoteDocumentId
+    );
+    return document?.kind === "call_note" ? document : null;
+  }, [inlineCallNoteDocumentId, talentDocuments]);
   const documentPendingEdit = useMemo(
     () => findDocumentById(talentDocuments, documentPendingEditId),
     [documentPendingEditId, talentDocuments]
@@ -167,6 +194,24 @@ const CareerResumeLinksSettingsSection = () => {
     setDocumentPendingRenameId(document.id);
   };
 
+  const handleOpenCallNote = (document: CareerTalentDocument) => {
+    if (onOpenCallNote) {
+      onOpenCallNote(document);
+      return;
+    }
+    setInlineCallNoteDocumentId(document.id);
+  };
+
+  if (inlineCallNoteDocument) {
+    return (
+      <CareerCallNoteDetail
+        documentId={inlineCallNoteDocument.id}
+        document={inlineCallNoteDocument}
+        onBack={() => setInlineCallNoteDocumentId(null)}
+      />
+    );
+  }
+
   return (
     <div className="pb-24">
       <CareerSavedResumeSettingsSection
@@ -185,6 +230,7 @@ const CareerResumeLinksSettingsSection = () => {
       <CareerDocumentsSettingsSection
         documents={remainingDocuments}
         onAddDocument={() => setAddDocumentOpen(true)}
+        onOpenCallNote={handleOpenCallNote}
         onEditDocument={(document) => setDocumentPendingEditId(document.id)}
         onRenameDocument={openDocumentRename}
         onDeleteDocument={setDocumentPendingDeleteId}

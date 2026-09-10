@@ -83,3 +83,19 @@ test("partial-answer wrap-up closes the request without inviting a resumed call"
   assert.match(prompt, /Do not invite them to resume later/);
   assert.doesNotMatch(prompt, /selecting Call from the \+ button in the chat/);
 });
+
+test("internal opportunity wrap-up includes the verified call-note fact", () => {
+  const prompt = buildInternalOpportunityCallWrapupInstruction({
+    callNoteCreated: true,
+    callRequest,
+    completionDisposition: "full",
+    durationLabel: "2분 10초",
+    preferredLocale: "en",
+    transcript: [
+      { role: "user", text: "I explained my deployment experience." },
+    ],
+  });
+
+  assert.match(prompt, /successfully saved/);
+  assert.match(prompt, /under Documents in their profile/);
+});

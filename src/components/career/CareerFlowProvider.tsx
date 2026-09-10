@@ -645,6 +645,8 @@ export const CareerFlowProvider = ({
     handleUploadTalentDocument,
     handleUpdateTalentDocument,
     handleDeleteTalentDocument,
+    handleCallNoteSaved,
+    handleReadTalentCallNote,
     resetProfileState,
   } = useCareerProfile({
     user,
@@ -1109,6 +1111,7 @@ export const CareerFlowProvider = ({
       replacePendingInternalOpportunityCallRequest,
     onPendingInternalOpportunityCallRequestsChanged:
       replacePendingInternalOpportunityCallRequests,
+    onCallNoteSaved: handleCallNoteSaved,
     appendMessage,
     setChatError,
     setStage,
@@ -2057,6 +2060,7 @@ export const CareerFlowProvider = ({
       onUploadTalentDocument: handleUploadTalentDocument,
       onUpdateTalentDocument: handleUpdateTalentDocument,
       onDeleteTalentDocument: handleDeleteTalentDocument,
+      onReadTalentCallNote: handleReadTalentCallNote,
       onUpdateAccountProfile: handleUpdateAccountProfile,
       onRefreshTalentProfileSources: handleRefreshTalentProfileSources,
       talentProfile: {
@@ -2118,6 +2122,7 @@ export const CareerFlowProvider = ({
       handleAddProfileLink,
       handleAccountSubscriptionsUpdated,
       handleDeleteTalentDocument,
+      handleReadTalentCallNote,
       handleProfileLinkChange,
       handleRemoveProfileLink,
       handleRefreshTalentProfileSources,

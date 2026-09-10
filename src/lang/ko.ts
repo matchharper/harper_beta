@@ -612,8 +612,13 @@ export const ko = {
     "career.call.opening.relative.minute_one": "{count}분전",
     "career.call.opening.relative.month_many": "{count}개월전",
     "career.call.opening.relative.month_one": "{count}개월전",
+    "career.call.wrapup.call_note_action": "콜노트 보기 · {title}",
     "career.call.wrapup_fallback.brief":
       "오늘은 짧게 이야기 나눴네요. 다음에 편하실 때 조금만 더 들려주시면 그에 맞춰 더 잘 도와드릴게요.",
+    "career.call.wrapup_fallback.call_note_created":
+      "이번 대화는 콜노트로 정리해뒀어요. 프로필의 문서에서 확인하실 수 있어요.",
+    "career.call.wrapup_fallback.call_note_updated":
+      "기존 콜노트에 이번 대화도 이어서 정리해뒀어요. 프로필의 문서에서 확인하실 수 있어요.",
     "career.call.wrapup_fallback.completed":
       "좋은 이야기 들려주셔서 감사합니다. 말씀해주신 내용을 바탕으로 만족하실 만한 기회를 잘 골라서 가져와볼게요.",
     "career.call.wrapup_fallback.onboarding_remaining":
@@ -2139,6 +2144,18 @@ export const ko = {
     "career.profile.documents.add_description":
       "업로드할 파일의 종류를 선택해 주세요.",
     "career.profile.documents.add_title": "문서 추가",
+    "career.profile.documents.call_note_load_failed":
+      "통화 기록을 불러오지 못했습니다.",
+    "career.profile.documents.call_note_loading":
+      "통화 기록을 불러오는 중입니다.",
+    "career.profile.documents.call_note_back": "문서 목록으로",
+    "career.profile.documents.call_note_key_points": "요약",
+    "career.profile.documents.call_note_me": "나",
+    "career.profile.documents.call_note_read_only": "읽기 전용",
+    "career.profile.documents.call_note_resume": "콜 이어서 하기",
+    "career.profile.documents.call_note_retry": "다시 시도",
+    "career.profile.documents.call_note_title": "Harper와의 통화",
+    "career.profile.documents.call_note_transcript": "대화 내용",
     "career.profile.documents.copy_content": "문서 전체 내용 복사",
     "career.profile.documents.copy_failed":
       "문서 내용을 복사하지 못했습니다. 다시 시도해 주세요.",
@@ -2174,10 +2191,12 @@ export const ko = {
     "career.profile.documents.gmail_history_too_long":
       "Gmail 커리어 이력은 최대 50,000자까지 저장할 수 있습니다.",
     "career.profile.documents.keep_private": "비공개로 저장",
+    "career.profile.documents.kind.call_note": "콜노트",
     "career.profile.documents.kind.document": "문서",
     "career.profile.documents.kind.resume": "이력서",
     "career.profile.documents.make_private": "비공개로 전환",
     "career.profile.documents.make_public": "공개하기",
+    "career.profile.documents.open_call_note": "통화 기록 열기",
     "career.profile.documents.primary_resume": "대표 이력서",
     "career.profile.documents.private": "비공개",
     "career.profile.documents.public": "회사 공개",

@@ -92,7 +92,8 @@ export async function listTalentDocumentsForTool(args: {
     .from("talent_documents")
     .select(DOCUMENT_LIST_SELECT)
     .eq("talent_id", args.userId)
-    .eq("is_deleted", false);
+    .eq("is_deleted", false)
+    .in("kind", ["resume", "document"]);
   if (kind) query = query.eq("kind", kind);
 
   const { data, error } = await query
@@ -152,6 +153,9 @@ export async function readTalentDocumentForTool(args: {
     userId: args.userId,
   });
   if (!document) throw new Error("Document not found.");
+  if (document.kind !== "resume" && document.kind !== "document") {
+    throw new Error("Document not found.");
+  }
 
   const content = document.extracted_text?.trim() ?? "";
   const offset = normalizeInteger(
@@ -196,6 +200,9 @@ export async function updateTalentDocumentForTool(args: {
     userId: args.userId,
   });
   if (!document) throw new Error("Document not found.");
+  if (document.kind !== "resume" && document.kind !== "document") {
+    throw new Error("Document not found.");
+  }
 
   const update: Database["public"]["Tables"]["talent_documents"]["Update"] = {};
   const nextKind = hasOwn(args.input, "kind")

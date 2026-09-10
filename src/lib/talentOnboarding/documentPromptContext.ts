@@ -7,7 +7,11 @@ export function buildFirstTurnUploadedDocumentContext(
   documents: TalentDocumentRow[]
 ) {
   const activeDocuments = documents
-    .filter((document) => !document.is_deleted)
+    .filter(
+      (document) =>
+        !document.is_deleted &&
+        (document.kind === "resume" || document.kind === "document")
+    )
     .slice(0, MAX_FIRST_TURN_DOCUMENTS);
   if (activeDocuments.length === 0) return null;
 

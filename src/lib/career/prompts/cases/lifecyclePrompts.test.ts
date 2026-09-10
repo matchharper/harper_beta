@@ -2,10 +2,123 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  appendCareerCallNoteOpenAction,
+  buildCareerCallWrapupFallbackFollowUp,
+  buildCareerCallWrapupTurnInstruction,
   buildCareerOpportunityFeedbackFollowUpTurnInstruction,
   buildCareerSessionStartTurnInstruction,
 } from "./lifecyclePrompts";
+import { extractCareerReengagementActions } from "../../reengagementActions";
 import { CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER } from "../types";
+
+test("call wrap-up mentions only a verified saved call note", () => {
+  const baseArgs = {
+    durationLabel: "1분 5초",
+    isBrief: false,
+    isOnboardingDone: true,
+    preferredLocale: "ko",
+    transcript: [{ role: "user" as const, text: "기본급이 중요해요." }],
+  };
+
+  const withoutCallNote = buildCareerCallWrapupTurnInstruction(baseArgs);
+  const withCallNote = buildCareerCallWrapupTurnInstruction({
+    ...baseArgs,
+    callNoteCreated: true,
+  });
+  const withUpdatedCallNote = buildCareerCallWrapupTurnInstruction({
+    ...baseArgs,
+    callNoteUpdated: true,
+  });
+
+  assert.doesNotMatch(withoutCallNote, /successfully saved/);
+  assert.match(withCallNote, /successfully saved/);
+  assert.match(withCallNote, /under Documents in their profile/);
+  assert.match(
+    withUpdatedCallNote,
+    /existing call note was successfully updated/
+  );
+  assert.doesNotMatch(
+    withUpdatedCallNote,
+    /organized this conversation into a call note/
+  );
+});
+
+test("call wrap-up fallback appends a localized saved call-note notice", () => {
+  const korean = buildCareerCallWrapupFallbackFollowUp({
+    callNoteCreated: true,
+    isBrief: false,
+    isOnboardingDone: true,
+    preferredLocale: "ko",
+  });
+  const english = buildCareerCallWrapupFallbackFollowUp({
+    callNoteCreated: true,
+    isBrief: false,
+    isOnboardingDone: true,
+    preferredLocale: "en",
+  });
+  const withoutCallNote = buildCareerCallWrapupFallbackFollowUp({
+    isBrief: false,
+    isOnboardingDone: true,
+    preferredLocale: "ko",
+  });
+  const updatedEnglish = buildCareerCallWrapupFallbackFollowUp({
+    callNoteUpdated: true,
+    isBrief: false,
+    isOnboardingDone: true,
+    preferredLocale: "en",
+  });
+
+  assert.match(korean, /콜노트로 정리해뒀어요/);
+  assert.match(korean, /프로필의 문서에서 확인/);
+  assert.match(english, /organized this conversation into a call note/);
+  assert.match(english, /under Documents in your profile/);
+  assert.match(
+    updatedEnglish,
+    /added this conversation to your existing call note/
+  );
+  assert.doesNotMatch(withoutCallNote, /콜노트/);
+});
+
+test("call wrap-up adds a localized deep link for a verified call note", () => {
+  const korean = appendCareerCallNoteOpenAction({
+    content: "대화를 정리했어요.",
+    documentId: "9de379c1-b735-42a6-8e92-3939b12e87f0",
+    preferredLocale: "ko",
+    title: "보상 기준",
+  });
+  const english = appendCareerCallNoteOpenAction({
+    content: "I organized the conversation.",
+    documentId: "9de379c1-b735-42a6-8e92-3939b12e87f0",
+    preferredLocale: "en",
+    title: "Compensation criteria",
+  });
+
+  assert.deepEqual(extractCareerReengagementActions(korean), {
+    actions: [
+      {
+        label: "콜노트 보기 · 보상 기준",
+        action: {
+          path: "/career/profile?profileSection=links&callNoteId=9de379c1-b735-42a6-8e92-3939b12e87f0",
+          type: "open_path",
+        },
+      },
+    ],
+    content: "대화를 정리했어요.",
+  });
+  assert.equal(
+    extractCareerReengagementActions(english).actions[0]?.label,
+    "View call note · Compensation criteria"
+  );
+  assert.equal(
+    appendCareerCallNoteOpenAction({
+      content: "저장하지 않았어요.",
+      documentId: null,
+      preferredLocale: "ko",
+      title: null,
+    }),
+    "저장하지 않았어요."
+  );
+});
 
 test("session re-engagement uses readable Korean-local times and distinguishes access from prior chat", () => {
   const prompt = buildCareerSessionStartTurnInstruction({
@@ -81,7 +194,10 @@ test("session re-engagement exposes an internal opportunity call as an available
     previousChatAt: "2026-08-24T01:25:03.102495+00:00",
   });
 
-  assert.match(prompt, /\[actionKey:pending_1\] \[역할 관련 통화\] Acme · Backend Engineer/);
+  assert.match(
+    prompt,
+    /\[actionKey:pending_1\] \[역할 관련 통화\] Acme · Backend Engineer/
+  );
   assert.match(prompt, /연결 전에 프로젝트 경험을 조금 더 듣고 싶어요/);
   assert.doesNotMatch(prompt, /call_123/);
 });
@@ -208,7 +324,10 @@ test("internal acceptance promises profile sharing and connection without exposi
       CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback,
   });
 
-  assert.match(prompt, /share or introduce the candidate's profile and relevant experience/);
+  assert.match(
+    prompt,
+    /share or introduce the candidate's profile and relevant experience/
+  );
   assert.match(prompt, /help make the connection/);
   assert.match(prompt, /do not volunteer a disclaimer/);
   assert.match(prompt, /Never expose Harper's internal confirmation/);

@@ -8,6 +8,7 @@ import {
 } from "../CareerSidebarContext";
 import CareerTalentContextSection from "./CareerTalentContextSection";
 import CareerTalentProfilePanel from "./CareerTalentProfilePanel";
+import CareerCallNoteDetail from "./CareerCallNoteDetail";
 import CareerResumeLinksSettingsSection from "../settings/CareerResumeLinksSettingsSection";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import React from "react";
@@ -86,6 +87,7 @@ const CareerProfileWorkspace = () => {
     savedResumeFileName,
     savedResumeStoragePath,
     talentBrief = [],
+    talentDocuments,
     talentContextsSaveError,
     talentContextsSaveInfo,
     talentContextsSavePending,
@@ -117,6 +119,10 @@ const CareerProfileWorkspace = () => {
     typeof router.query.profileSection === "string"
       ? router.query.profileSection
       : null;
+  const requestedCallNoteId =
+    typeof router.query.callNoteId === "string"
+      ? router.query.callNoteId.trim()
+      : null;
 
   useEffect(() => {
     if (!router.isReady || requestedProfileSection !== "connections") return;
@@ -138,13 +144,55 @@ const CareerProfileWorkspace = () => {
         ? requestedProfileSection
         : "profile";
 
+  const callNoteDocument = useMemo(
+    () =>
+      talentDocuments.find(
+        (document) =>
+          document.id === requestedCallNoteId && document.kind === "call_note"
+      ) ?? null,
+    [requestedCallNoteId, talentDocuments]
+  );
+
+  const closeCallNote = useCallback(() => {
+    const query = { ...router.query };
+    delete query.callNoteId;
+    void router.replace(
+      {
+        pathname: router.pathname,
+        query: { ...query, profileSection: "links" },
+      },
+      undefined,
+      { shallow: true, scroll: false }
+    );
+  }, [router]);
+
+  const openCallNote = useCallback(
+    (documentId: string) => {
+      void router.push(
+        {
+          pathname: router.pathname,
+          query: {
+            ...router.query,
+            callNoteId: documentId,
+            profileSection: "links",
+          },
+        },
+        undefined,
+        { shallow: true, scroll: false }
+      );
+    },
+    [router]
+  );
+
   const handleChangeSection = useCallback(
     (next: ProfileSectionId) => {
       logCareerEvent(`click_profile_section_${next}`);
+      const query = { ...router.query };
+      delete query.callNoteId;
       void router.replace(
         {
           pathname: router.pathname,
-          query: { ...router.query, profileSection: next },
+          query: { ...query, profileSection: next },
         },
         undefined,
         { shallow: true }
@@ -155,7 +203,9 @@ const CareerProfileWorkspace = () => {
 
   const activeContent =
     activeSection === "links" ? (
-      <CareerResumeLinksSettingsSection />
+      <CareerResumeLinksSettingsSection
+        onOpenCallNote={(document) => openCallNote(document.id)}
+      />
     ) : activeSection === "brief" ? (
       <CareerTalentContextSection
         brief={talentBrief}
@@ -184,6 +234,16 @@ const CareerProfileWorkspace = () => {
           )}
         </div>
       </section>
+    );
+  }
+
+  if (requestedCallNoteId) {
+    return (
+      <CareerCallNoteDetail
+        documentId={requestedCallNoteId}
+        document={callNoteDocument}
+        onBack={closeCallNote}
+      />
     );
   }
 
