@@ -342,18 +342,20 @@ Slack post가 실패하면 draft는 적용 불가능한 상태로 남는다. pos
 
 ## Tool loop와 result budget
 
-- tool-enabled completion 최대 10회
-- completion마다 `parallel_tool_calls=false`, 실제 tool call은 한 번에 하나씩 최대 10개
-- provider가 여러 call을 반환해도 첫 call만 실행하고 나머지는 `deferred` result로
-  돌려준 뒤 다음 completion에서 다시 판단
-- 한 turn tool result 합계 최대 48,000자
+- tool-enabled completion과 실제 tool call은 한 turn에 각각 최대 30회
+- completion마다 `parallel_tool_calls=true`이며, provider가 같은 reasoning step에서
+  반환한 독립적인 call을 누락하지 않고 turn의 총 call 한도 안에서 모두 실행
+- 여러 대상에 같은 작업을 할 때는 가능한 경우 개별 call 반복보다 tool의 batch
+  입력을 우선 사용
+- 한 turn tool result 합계 최대 80,000자
 - 일반 completion output 최대 4,000 tokens
 - complete long text를 읽은 뒤 큰 rewrite completion 최대 32,000 tokens
 - tool-free final completion 최대 2,000 tokens
 - 각 tool result를 다음 completion에 돌려준 뒤 모델이 재시도·추가 실행·최종 답변을 결정
 
-tool result가 남은 문자 budget을 넘으면 `status=truncated`를 붙이고 그 result가
-열어 준 complete-read state를 취소한다. loop가 끝났는데 final text가 없으면 tools를
+tool result가 남은 문자 budget을 넘으면 불완전한 앞부분을 전달하지 않고
+`status=tool_budget_exhausted` marker로 교체하며, 그 result가 열어 준 complete-read
+state를 취소한다. loop가 끝났는데 final text가 없으면 tools를
 제거하고 다음 user message를 붙여 마지막 completion을 호출한다.
 
 ```text
@@ -372,12 +374,13 @@ contact reference를 모두 보존한다. 최종 답변에는 각 exact body를 
 붙이고, 다음 확인 turn에도 모든 reference를 다시 제공한다. 직전 답변에 여러 초안이
 함께 있었다면 각 contact/revision 모두 독립적으로 직전 확인 조건을 충족한다.
 
-## 사람용 답변 guard
+## 사람용 답변 경계
 
 tool과 context serializer는 stage, role status, work mode, feedback/progress kind를
-사람용 label로 바꾼다. 그래도 final prose가 사용자 질문에 없던 `final_offer` 같은
-내부 token을 새로 만들면 별도 correction completion을 최대 한 번 시도한다. 교정에
-실패하면 내부 상태를 노출하지 않는 fallback을 사용한다.
+사람용 label과 최종 답변에 필요한 최소 사실로 바꾼다. 최종 prose는 company-side
+LLM이 한 번 작성한 결과를 그대로 사용하며, 정규식이나 token 목록으로 내용을
+재분류하거나 별도 correction LLM에 전체 답변을 다시 보내지 않는다. 코드는 workspace
+링크의 org 식별자처럼 권한·데이터 무결성에 필요한 구조적 값만 검증한다.
 
 ## 별도 summary completion
 

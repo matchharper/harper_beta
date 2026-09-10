@@ -1,7 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { applyWebsiteCompanyDataChanges } from "@/lib/org/companyDataWebsite";
 import { getCompanyInternalRoleRequest } from "@/lib/companyInternalRole";
-import { getInsightLabel } from "@/lib/talentOnboarding/insightChecklist";
 import {
   isOpsMatchingExcludeNotInterestedFilter,
   isOpsMatchingNoHumanLabelFilter,
@@ -19,6 +18,13 @@ import {
   fetchMatchingRecommendationEmailOpenedAtMap,
   getEarliestMatchingViewedAt,
 } from "@/lib/ops/matchingViewedAt";
+import { OPS_MATCHING_ROLE_OPTION_STATUSES } from "@/lib/ops/matchingRoleOptions";
+import {
+  buildLatestOpsTalentMemoPreviewMap,
+  formatOpsTalentMemoRoleContext,
+  OPS_ROLE_MEMO_KIND,
+  type OpsTalentMemoCandidate,
+} from "@/lib/ops/talentMemo";
 import type {
   OpportunityEmploymentType,
   OpportunitySourceType,
@@ -72,10 +78,13 @@ type TalentExtraRow = Pick<
   Database["public"]["Tables"]["talent_extras"]["Row"],
   "content" | "talent_id"
 >;
-type TalentInsightRow = Pick<
-  Database["public"]["Tables"]["talent_insights"]["Row"],
-  "content" | "talent_id"
->;
+type TalentContextBriefRow = {
+  content: string;
+  key: string | null;
+  label: string;
+  ref: number;
+  talent_id: string;
+};
 type TalentOpportunityTagRow = {
   created_at: string;
   id: string;
@@ -237,7 +246,6 @@ const OPS_MATCHING_TALENT_HISTORY_SECTION_SET = new Set<string>(
   OPS_MATCHING_TALENT_HISTORY_SECTIONS
 );
 const ACTIVE_ROLE_STATUSES = new Set(["active", "top_priority"]);
-const MATCHING_ROLE_OPTION_STATUSES = ["active", "top_priority", "paused"];
 const CUSTOM_REVIEW_STAGE_ID_PREFIX = "custom:";
 const CUSTOM_REVIEW_STAGE_TAG_PREFIX = "내부단계:";
 const MATCHING_REVIEW_STAGE_TAG_BY_STAGE = {
@@ -490,6 +498,7 @@ export type OpsMatchingTalentItem = {
   latestCompany: OpsMatchingProfileLabel | null;
   latestSchool: OpsMatchingProfileLabel | null;
   lastLoginedAt: string | null;
+  memoContextLabel: string | null;
   memoPreview: string | null;
   name: string | null;
   profilePicture: string | null;
@@ -1360,40 +1369,6 @@ function normalizeProfileExtras(value: unknown): OpsMatchingProfileExtra[] {
     .filter((extra): extra is OpsMatchingProfileExtra => extra !== null);
 }
 
-function formatInsightValue(value: unknown) {
-  const primitiveText = normalizePrimitiveText(value);
-  if (primitiveText) return primitiveText;
-  if (Array.isArray(value)) {
-    return value.map(normalizePrimitiveText).filter(Boolean).join(", ");
-  }
-  if (!isRecord(value)) return "";
-  return (
-    getRecordPrimitiveText(value, [
-      "value",
-      "answer",
-      "description",
-      "summary",
-      "text",
-    ]) ?? ""
-  );
-}
-
-function normalizeTalentInsights(value: unknown): OpsMatchingTalentInsight[] {
-  const record = parseJsonRecord(value);
-  if (!record) return [];
-  return Object.entries(record)
-    .map(([key, rawValue]) => {
-      const insightValue = formatInsightValue(rawValue);
-      if (!insightValue) return null;
-      return {
-        key,
-        label: getInsightLabel(key),
-        value: insightValue,
-      };
-    })
-    .filter((insight): insight is OpsMatchingTalentInsight => insight !== null);
-}
-
 function getHasActiveRole(status: string | null | undefined) {
   return ACTIVE_ROLE_STATUSES.has(
     String(status ?? "")
@@ -1601,31 +1576,70 @@ async function loadRoleFitRows(args: {
 
 async function fetchMemoPreviewMap(args: {
   admin: AdminClient;
+  includeRoleMemos?: boolean;
   talentIds: string[];
 }) {
-  const memoMap = new Map<string, string>();
-  if (args.talentIds.length === 0) return memoMap;
-
-  const { data, error } = await args.admin
-    .from("talent_ops_profile_memos")
-    .select("talent_id, content, updated_at, created_at")
-    .in("talent_id", args.talentIds)
-    .order("updated_at", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(args.talentIds.length * 5);
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to load talent memos");
+  if (args.talentIds.length === 0) {
+    return buildLatestOpsTalentMemoPreviewMap([]);
   }
 
-  for (const row of data ?? []) {
-    const talentId = normalizeText(row.talent_id);
-    if (!talentId || memoMap.has(talentId)) continue;
-    const content = normalizeText(row.content);
-    if (content) memoMap.set(talentId, content.slice(0, 240));
+  const [profileMemoResult, roleMemoResult] = await Promise.all([
+    args.admin
+      .from("talent_ops_profile_memos")
+      .select("talent_id, content, updated_at, created_at")
+      .in("talent_id", args.talentIds),
+    args.includeRoleMemos
+      ? fromOpsMatchingTable(args.admin, "talent_progress")
+          .select(
+            "talent_id, role_id, text, created_at, role:company_roles(name, workspace:company_workspace(company_name))"
+          )
+          .in("talent_id", args.talentIds)
+          .eq("kind", OPS_ROLE_MEMO_KIND)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (profileMemoResult.error) {
+    throw new Error(
+      profileMemoResult.error.message ?? "Failed to load talent memos"
+    );
+  }
+  if (roleMemoResult.error) {
+    throw new Error(
+      roleMemoResult.error.message ?? "Failed to load talent role memos"
+    );
   }
 
-  return memoMap;
+  const candidates: OpsTalentMemoCandidate[] = (
+    profileMemoResult.data ?? []
+  ).map((row) => ({
+    companyName: null,
+    content: normalizeText(row.content),
+    occurredAt:
+      normalizeNullableText(row.updated_at) ??
+      normalizeNullableText(row.created_at),
+    roleId: null,
+    roleName: null,
+    source: "profile",
+    talentId: normalizeText(row.talent_id),
+  }));
+
+  for (const row of roleMemoResult.data ?? []) {
+    const role = Array.isArray(row.role) ? (row.role[0] ?? null) : row.role;
+    const workspace = Array.isArray(role?.workspace)
+      ? (role.workspace[0] ?? null)
+      : role?.workspace;
+    candidates.push({
+      companyName: normalizeNullableText(workspace?.company_name),
+      content: normalizeText(row.text),
+      occurredAt: normalizeNullableText(row.created_at),
+      roleId: normalizeNullableText(row.role_id),
+      roleName: normalizeNullableText(role?.name),
+      source: "role",
+      talentId: normalizeText(row.talent_id),
+    });
+  }
+
+  return buildLatestOpsTalentMemoPreviewMap(candidates);
 }
 
 async function fetchTagMap(args: {
@@ -1801,24 +1815,32 @@ async function fetchInsightMap(args: {
   if (args.talentIds.length === 0) return insightMap;
 
   const { data, error } = await args.admin
-    .from("talent_insights")
-    .select("talent_id, content")
+    .from("talent_contexts" as never)
+    .select("talent_id, ref, key, label, content")
+    .eq("collection", "brief")
+    .is("deleted_at", null)
     .in("talent_id", args.talentIds);
 
   if (error) {
     throw new Error(error.message ?? "Failed to load talent insights");
   }
 
-  for (const row of (data ?? []) as TalentInsightRow[]) {
+  for (const row of (data ?? []) as unknown as TalentContextBriefRow[]) {
     const talentId = normalizeText(row.talent_id);
     if (!talentId) continue;
-    const nextInsights = normalizeTalentInsights(row.content);
-    if (nextInsights.length === 0) continue;
+    const value = normalizeText(row.content);
+    const label = normalizeText(row.label);
+    if (!value || !label) continue;
+    const nextInsight = {
+      key: normalizeText(row.key) || `brief_${row.ref}`,
+      label,
+      value,
+    };
     const existing = insightMap.get(talentId) ?? [];
     const existingKeys = new Set(existing.map((insight) => insight.key));
     const merged = [
       ...existing,
-      ...nextInsights.filter((insight) => !existingKeys.has(insight.key)),
+      ...(existingKeys.has(nextInsight.key) ? [] : [nextInsight]),
     ];
     insightMap.set(talentId, merged);
   }
@@ -2241,6 +2263,7 @@ async function fetchTalentRowMap(args: {
 async function buildOpsMatchingTalentItems(args: {
   admin: AdminClient;
   fitMap?: Map<string, OpsMatchingTalentFitSummary>;
+  includeRoleMemos?: boolean;
   roleId?: string | null;
   rows: TalentUserRow[];
 }) {
@@ -2259,7 +2282,11 @@ async function buildOpsMatchingTalentItems(args: {
     insightMap,
     onboardingDoneMap,
   ] = await Promise.all([
-    fetchMemoPreviewMap({ admin: args.admin, talentIds }),
+    fetchMemoPreviewMap({
+      admin: args.admin,
+      includeRoleMemos: args.includeRoleMemos,
+      talentIds,
+    }),
     scopedTagsPromise,
     roleId
       ? fetchTagMap({ admin: args.admin, roleId: null, talentIds })
@@ -2272,6 +2299,7 @@ async function buildOpsMatchingTalentItems(args: {
   return args.rows.map((row) => {
     const recentCompanies = profileMaps.companyMap.get(row.user_id) ?? [];
     const recentSchools = profileMaps.schoolMap.get(row.user_id) ?? [];
+    const memoPreview = memoPreviewMap.get(row.user_id) ?? null;
     return {
       createdAt: row.created_at,
       deletedAt: row.deleted_at,
@@ -2289,7 +2317,10 @@ async function buildOpsMatchingTalentItems(args: {
       latestCompany: recentCompanies[0] ?? null,
       latestSchool: recentSchools[0] ?? null,
       lastLoginedAt: row.last_logined_at,
-      memoPreview: memoPreviewMap.get(row.user_id) ?? null,
+      memoContextLabel: memoPreview
+        ? formatOpsTalentMemoRoleContext(memoPreview)
+        : null,
+      memoPreview: memoPreview?.content ?? null,
       name: row.name,
       profilePicture: row.profile_picture,
       recentCompanies,
@@ -2755,7 +2786,7 @@ export async function fetchOpsMatchingCompanies(args: {
     .from("company_roles")
     .select("company_workspace_id, status, updated_at")
     .eq("source_type", "internal")
-    .in("status", MATCHING_ROLE_OPTION_STATUSES)
+    .in("status", [...OPS_MATCHING_ROLE_OPTION_STATUSES])
     .order("updated_at", { ascending: false })
     .limit(MAX_MATCHING_ROLE_OPTIONS);
 
@@ -2862,7 +2893,7 @@ export async function fetchOpsMatchingRoles(args: {
         )
         .eq("company_workspace_id", companyWorkspaceId)
         .eq("source_type", "internal")
-        .in("status", MATCHING_ROLE_OPTION_STATUSES)
+        .in("status", [...OPS_MATCHING_ROLE_OPTION_STATUSES])
         .order("updated_at", { ascending: false })
         .limit(MAX_MATCHING_ROLE_OPTIONS),
     ]);
@@ -3219,6 +3250,7 @@ function buildFallbackOpsMatchingTalentItem(talentId: string) {
     latestCompany: null,
     latestSchool: null,
     lastLoginedAt: null,
+    memoContextLabel: null,
     memoPreview: null,
     name: null,
     profilePicture: null,
@@ -4248,6 +4280,7 @@ export async function fetchOpsMatchingReviewBoard(args: {
     .filter((row): row is TalentUserRow => Boolean(row));
   const talentItems = await buildOpsMatchingTalentItems({
     admin,
+    includeRoleMemos: true,
     roleId,
     rows: talentRows,
   });
@@ -5188,6 +5221,7 @@ export async function createOpsMatchingProgress(args: {
 
   const { error } = await fromOpsMatchingTable(admin, "talent_progress").insert(
     {
+      kind: OPS_ROLE_MEMO_KIND,
       recommendation_id: recommendation?.recommendationId ?? null,
       role_id: roleId,
       talent_id: talentId,

@@ -20,6 +20,7 @@ import uuid
 from zoneinfo import ZoneInfo
 
 from company_role_recurring_matching import (
+    BehaviorContextUnavailableError,
     FIT_LABEL_BANDS,
     candidate_identity_key,
     candidate_input_fingerprint,
@@ -42,8 +43,8 @@ from company_role_recurring_matching import (
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_ROOT = ROOT / "output" / "company_role_fit_audit"
-EVALUATOR_VERSION = "company-role-fit-recovery-codex-v2-work-authorization-inference"
-PACKET_VERSION = "company-role-fit-recovery-packet-v1"
+EVALUATOR_VERSION = "company-role-fit-recovery-codex-v3-brief-behavior"
+PACKET_VERSION = "company-role-fit-recovery-packet-v2-brief-behavior"
 CACHE_VERSION = 1
 ALLOWED_SOURCE_STATES = {"missing_fit", "existing_non_fit"}
 KST = ZoneInfo("Asia/Seoul")
@@ -187,6 +188,8 @@ def relation_status(conn: Any) -> dict[str, bool]:
         "company_behavior_contexts",
         "talent_opportunity_fit",
         "talent_behavior_contexts",
+        "talent_behavior_context_changes",
+        "talent_contexts",
         "talent_opportunity_recommendation",
         "talent_progress",
         "talent_opportunity_tag",
@@ -436,7 +439,18 @@ def command_prepare(args: argparse.Namespace) -> int:
         if identity_fingerprint and identity_fingerprint in seen_identity:
             excluded.append({"talentId": talent_id, "roleId": role_id, "reason": "duplicate_identity"})
             continue
-        talent = talent_packet_payload(data, talent_id)
+        try:
+            talent = talent_packet_payload(data, talent_id)
+        except BehaviorContextUnavailableError as exc:
+            excluded.append(
+                {
+                    "talentId": talent_id,
+                    "roleId": role_id,
+                    "reason": "behavior_context_not_current",
+                    "detail": compact(str(exc), 500),
+                }
+            )
+            continue
         candidate_fingerprint = candidate_input_fingerprint(talent)
         role_entry = role_index_by_id[role_id]
         cache_entry = rotation_talents.get(talent_id) if isinstance(rotation_talents, Mapping) else None

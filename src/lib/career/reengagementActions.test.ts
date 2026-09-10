@@ -4,8 +4,19 @@ import test from "node:test";
 import {
   extractCareerReengagementActions,
   prependCareerReengagementAction,
+  readCareerPendingActionKindForDisplay,
   resolveCareerReengagementActionKeys,
 } from "./reengagementActions";
+
+test("reads a signed-ref payload kind for display without changing the ref", () => {
+  const payload = Buffer.from(
+    JSON.stringify({ id: "request_123", kind: "company_request" })
+  ).toString("base64url");
+  const ref = `${payload}.displayOnlySignature`;
+
+  assert.equal(readCareerPendingActionKindForDisplay(ref), "company_request");
+  assert.equal(readCareerPendingActionKindForDisplay("malformed"), null);
+});
 
 test("extracts chat and navigation re-engagement actions separately from labels", () => {
   const result = extractCareerReengagementActions(`무엇부터 같이 볼까요?
@@ -29,16 +40,30 @@ test("extracts chat and navigation re-engagement actions separately from labels"
   ]);
 });
 
-test("rejects unsafe navigation, deduplicates actions, and limits output to three", () => {
+test("accepts only the registered career check-in call starter", () => {
+  const result = extractCareerReengagementActions(`오랜만에 이야기해도 좋아요.
+[[CAREER_REENGAGEMENT_ACTIONS]]
+{"actions":[{"label":"최근 상황 업데이트하기","action":{"type":"start_call","starterId":"career_check_in"}},{"label":"임의 통화","action":{"type":"start_call","starterId":"invented_call"}}]}
+[[/CAREER_REENGAGEMENT_ACTIONS]]`);
+
+  assert.deepEqual(result.actions, [
+    {
+      label: "최근 상황 업데이트하기",
+      action: { type: "start_call", starterId: "career_check_in" },
+    },
+  ]);
+});
+
+test("rejects unsafe navigation, deduplicates actions, and limits output to four", () => {
   const result = extractCareerReengagementActions(`안내
 [[CAREER_REENGAGEMENT_ACTIONS]]
 {"actions":[{"label":"외부로 이동","action":{"type":"open_path","path":"https://example.com"}},{"label":"프로필","action":{"type":"open_path","path":"/career/profile"}},{"label":"프로필 다시","action":{"type":"open_path","path":"/career/profile"}},{"label":"대화 1","action":{"type":"send_message","message":"첫 번째 대화를 시작해줘."}},{"label":"대화 2","action":{"type":"send_message","message":"두 번째 대화를 시작해줘."}},{"label":"대화 3","action":{"type":"send_message","message":"세 번째 대화를 시작해줘."}}]}
 [[/CAREER_REENGAGEMENT_ACTIONS]]`);
 
-  assert.equal(result.actions.length, 3);
+  assert.equal(result.actions.length, 4);
   assert.deepEqual(
     result.actions.map((item) => item.label),
-    ["프로필", "대화 1", "대화 2"]
+    ["프로필", "대화 1", "대화 2", "대화 3"]
   );
 });
 
@@ -179,4 +204,59 @@ test("prepends a verified action while preserving valid existing actions", () =>
     ],
     content: "안내",
   });
+});
+
+test("server keeps career check-in call actions only when a pending call allows them", () => {
+  const content = `오랜만에 이야기해도 좋아요.
+[[CAREER_REENGAGEMENT_ACTIONS]]
+{"actions":[{"label":"최근 상황 업데이트하기","action":{"type":"start_call","actionKey":"pending_1"}}]}
+[[/CAREER_REENGAGEMENT_ACTIONS]]`;
+
+  assert.equal(
+    resolveCareerReengagementActionKeys({
+      content,
+      resolvePendingActionRef: () => null,
+    }),
+    "오랜만에 이야기해도 좋아요."
+  );
+
+  const allowed = resolveCareerReengagementActionKeys({
+    content,
+    resolvePendingCallTarget: (actionKey) =>
+      actionKey === "pending_1" ? { starterId: "career_check_in" } : null,
+    resolvePendingActionRef: () => null,
+  });
+  assert.deepEqual(extractCareerReengagementActions(allowed).actions, [
+    {
+      label: "최근 상황 업데이트하기",
+      action: { type: "start_call", starterId: "career_check_in" },
+    },
+  ]);
+});
+
+test("server resolves an internal opportunity call action from a pending action key", () => {
+  const content = `역할에 관해 통화할 수 있어요.
+[[CAREER_REENGAGEMENT_ACTIONS]]
+{"actions":[{"label":"역할 관련 통화하기","action":{"type":"start_call","actionKey":"pending_2"}},{"label":"임의 통화","action":{"type":"start_call","internalCallRequestId":"forged_call"}}]}
+[[/CAREER_REENGAGEMENT_ACTIONS]]`;
+
+  const resolved = resolveCareerReengagementActionKeys({
+    content,
+    resolvePendingCallTarget: (actionKey) =>
+      actionKey === "pending_2"
+        ? { internalCallRequestId: "call_123" }
+        : null,
+    resolvePendingActionRef: () => null,
+  });
+
+  assert.doesNotMatch(resolved, /pending_2|forged_call/);
+  assert.deepEqual(extractCareerReengagementActions(resolved).actions, [
+    {
+      label: "역할 관련 통화하기",
+      action: {
+        type: "start_call",
+        internalCallRequestId: "call_123",
+      },
+    },
+  ]);
 });

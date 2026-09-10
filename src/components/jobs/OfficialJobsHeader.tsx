@@ -4,6 +4,7 @@ import {
   type OfficialJobsLocale,
 } from "@/lib/officialJobs/copy";
 import type { OfficialJobsCareerJob } from "@/lib/officialJobs";
+import { getCompanyLocalePath } from "@/lib/companyLandingSeo";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -36,7 +37,7 @@ export default function OfficialJobsHeader({
             {copy.header.jobs}
           </Link>
           <Link
-            href="/company"
+            href={getCompanyLocalePath(locale)}
             className="hidden transition hover:text-neutral-primary sm:block"
           >
             {copy.header.forCompanies}

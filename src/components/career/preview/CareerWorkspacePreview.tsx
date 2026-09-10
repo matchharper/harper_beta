@@ -30,7 +30,7 @@ import {
   type CareerTalentPreferences,
   type CareerTalentProfile,
 } from "@/components/career/types";
-import { getCareerDefaultSavedStage } from "@/components/career/opportunityTypeMeta";
+import { getCareerDefaultSavedStageForOpportunity } from "@/components/career/opportunityTypeMeta";
 import { deriveHistoryOpportunityCounts } from "@/hooks/career/careerSessionData";
 import type { CareerEngagementType } from "@/hooks/career/useCareerTalentSettings";
 import {
@@ -882,6 +882,7 @@ const CareerWorkspacePreview = ({
       onLoadSavedStageHistoryOpportunityPages: () => undefined,
       onLoadHistoryOpportunityByRoleId: (roleId) =>
         historyOpportunities.find((item) => item.roleId === roleId) ?? null,
+      onRefreshHistoryOpportunities: () => undefined,
       onChangeInternalHistoryOpportunityDecision: (opportunityId, action) => {
         setHistoryOpportunities((current) =>
           current.map((item) =>
@@ -927,7 +928,7 @@ const CareerWorkspacePreview = ({
                   savedStage:
                     feedback === "positive"
                       ? (options?.savedStage ??
-                        getCareerDefaultSavedStage(item.opportunityType))
+                        getCareerDefaultSavedStageForOpportunity(item))
                       : null,
                 }
               : item

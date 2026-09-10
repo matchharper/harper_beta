@@ -1,9 +1,11 @@
 import unittest
 from decimal import Decimal
+import ssl
 from uuid import UUID
 
 from company_role_calibration import (
     candidate_ids_from_result,
+    delivery_ssl_context,
     jsonable,
     public_display,
     validate_read_sql,
@@ -11,6 +13,12 @@ from company_role_calibration import (
 
 
 class CompanyRoleCalibrationHelperTest(unittest.TestCase):
+    def test_delivery_uses_a_verified_ca_context(self):
+        context = delivery_ssl_context()
+
+        self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
+        self.assertTrue(context.check_hostname)
+
     def test_database_scalars_are_json_serializable(self):
         value = jsonable(
             {

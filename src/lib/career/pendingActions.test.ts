@@ -58,7 +58,7 @@ test("normalizes meeting schedules only as openable pending actions", () => {
   );
 });
 
-test("selects at most one re-engagement action", () => {
+test("selects at most four re-engagement actions", () => {
   const actions: CareerReengagementPendingAction[] = [
     {
       actionKey: "pending_1",
@@ -73,9 +73,31 @@ test("selects at most one re-engagement action", () => {
       recommendationSummary: null,
       roleTitle: "Product Engineer",
     },
+    {
+      actionKey: "pending_3",
+      kind: "reevaluation_question",
+      question: "선호하는 근무지가 있나요?",
+    },
+    {
+      actionKey: "pending_4",
+      createdAt: "2026-09-04T01:35:10.584998+00:00",
+      kind: "career_check_in_call",
+      status: "pending",
+    },
+    {
+      actionKey: "pending_5",
+      companyName: "Fifth Company",
+      kind: "meeting_schedule",
+      roleTitle: "Platform Engineer",
+    },
   ];
 
-  assert.deepEqual(selectCareerReengagementPromptActions(actions), [
-    actions[0],
-  ]);
+  assert.deepEqual(
+    selectCareerReengagementPromptActions(actions),
+    actions.slice(0, 4)
+  );
+  assert.deepEqual(
+    selectCareerReengagementPromptActions(actions, 100),
+    actions.slice(0, 4)
+  );
 });

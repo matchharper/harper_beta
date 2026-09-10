@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 import {
@@ -11,6 +11,7 @@ type Body = {
   channel?: string;
   conversationId?: string;
   name?: string;
+  toolCallId?: string;
 };
 
 export async function POST(req: NextRequest) {
@@ -64,6 +65,8 @@ export async function POST(req: NextRequest) {
       context: {
         admin,
         conversationId,
+        scheduleAfter: (task) => after(task),
+        toolCallId: String(body.toolCallId ?? "").trim() || null,
         userId: user.id,
       },
       input:

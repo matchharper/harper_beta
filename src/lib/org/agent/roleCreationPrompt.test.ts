@@ -51,13 +51,33 @@ test("guides adaptive role discovery without turning it into a fixed script", ()
   assert.match(prompt, /JD link, file, or pasted text/);
   assert.match(prompt, /proposal, not user-confirmed hiring truth/);
   assert.match(prompt, /single easy-to-scan grouped question/);
+  assert.match(prompt, /location, employment type, work mode, start timing/);
+  assert.match(prompt, /Treat compensation as useful but optional/);
+  assert.match(prompt, /OPTIONAL COMPENSATION CHECKPOINT FOR A NEW DRAFT/);
+  assert.match(prompt, /prefer one brief standalone compensation question/);
+  assert.match(prompt, /call read_other_roles/);
+  assert.match(prompt, /actual saved salaryRange/);
+  assert.match(prompt, /a vaguely similar title alone is not enough/);
+  assert.match(prompt, /preserve its salary wording exactly/);
   assert.match(
     prompt,
-    /location, employment type, work mode, compensation range/
+    /아직 정하지 않았다면 지금은 생략하고 나중에 추가해도 괜찮아요/
+  );
+  assert.match(prompt, /do not average them or choose one silently/);
+  assert.match(prompt, /salaryRange as one free-form compensation value/);
+  assert.match(
+    prompt,
+    /never create or request separate salaryMin, salaryMax, salaryCurrency/
   );
   assert.match(
     prompt,
-    /compensation as optional rather than an activation blocker/
+    /Save compensation only when the user supplies a value or clearly accepts/
+  );
+  assert.match(prompt, /Ask this checkpoint at most once/);
+  assert.match(prompt, /do not ask again/);
+  assert.match(
+    prompt,
+    /does not count as either of the required team-preference opportunities/
   );
   assert.match(
     prompt,

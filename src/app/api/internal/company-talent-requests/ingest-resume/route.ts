@@ -142,11 +142,7 @@ export async function POST(req: NextRequest) {
       requestId,
       talentId,
     });
-    if (
-      !request ||
-      !request.expects_document ||
-      request.workflow_status !== "awaiting_talent"
-    ) {
+    if (!request || !request.expects_document) {
       return NextResponse.json(
         { error: "active_resume_request_not_found" },
         { status: 409 }

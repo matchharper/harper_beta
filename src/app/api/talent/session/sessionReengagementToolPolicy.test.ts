@@ -67,7 +67,7 @@ test("dedicated re-engagement loads fresh pending actions into the turn instruct
   assert.match(reengagementRoute, /pendingActions:\s*pendingActionsForTurn/);
 });
 
-test("dedicated re-engagement does not load talent calls", () => {
+test("dedicated re-engagement exposes durable pending call actions", () => {
   assert.doesNotMatch(
     reengagementRoute,
     /REENGAGEMENT_TALENT_CALL_PROBABILITY/
@@ -82,10 +82,17 @@ test("dedicated re-engagement does not load talent calls", () => {
     reengagementRoute,
     /replaceReengagementCallLinkWithCardMarker/
   );
-  assert.doesNotMatch(
-    reengagementPendingActions,
-    /fetchPendingInternalOpportunityCallRequests|talent_call/
+  assert.match(reengagementPendingActions, /fetchOpenCareerCheckInCall/);
+  assert.match(
+    reengagementRoute,
+    /resolvePendingCallTarget:\s*\(actionKey\)/
   );
+  assert.match(
+    reengagementPendingActions,
+    /fetchPendingInternalOpportunityCallRequests/
+  );
+  assert.match(reengagementRoute, /internalCallRequestId:\s*action\.callRequestId/);
+  assert.match(reengagementRoute, /starterId:\s*"career_check_in"/);
 });
 
 test("dedicated re-engagement resolves prompt action keys to signed refs before insert", () => {

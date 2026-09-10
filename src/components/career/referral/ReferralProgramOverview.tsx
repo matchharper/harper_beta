@@ -195,13 +195,6 @@ export function ReferralProgramReward({
               "career.referral.modal.reward_description",
               "추천한 사람이 Harper를 통해 채용되면 첫해 연봉, 계약 조건, Harper가 실제로 수령한 채용 수수료의 20%를 기준으로 보상을 검토합니다."
             )}
-            <br />
-            <span className="text-primary">
-              {t(
-                "career.referral.modal.latest_hire_reward",
-                "Harper의 가장 최근 채용건의 보상금: 1,000만원 (초대를 통한 가입으로 가정했을 때)"
-              )}
-            </span>
           </p>
         </div>
       </div>
@@ -257,6 +250,29 @@ export function ReferralProgramReward({
             "실제 보상은 약관상 유효 추천 여부와 채용·정산 조건에 따라 달라질 수 있습니다."
           )}
         </p>
+      </div>
+      <div className="mt-3 rounded-lg border border-primary/20 bg-primary-faded p-4 shadow-sm">
+        <div className="text-[12px] font-medium leading-4 text-neutral-soft">
+          {t(
+            "career.common.referral_program_overview.0ywfa9z",
+            "실제 Harper 사례"
+          )}
+        </div>
+        <div className="mt-2 text-[13px] leading-5 text-neutral-muted">
+          {t(
+            "career.common.referral_program_overview.0ncwy2t",
+            "최근 Harper를 통해 채용된 케이스"
+          )}
+        </div>
+        <p className="mt-0.5 text-[13px] leading-5 text-neutral-muted">
+          {t(
+            "career.common.referral_program_overview.1wlr0k8",
+            "추천을 통한 가입이라고 가정했을 때"
+          )}
+        </p>
+        <div className="mt-2 text-[28px] font-semibold leading-8 text-neutral-primary">
+          {t("career.referral.modal.latest_hire_reward", "보상금 1,000만원")}
+        </div>
       </div>
     </section>
   );

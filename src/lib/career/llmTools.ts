@@ -94,8 +94,11 @@ export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
   TALENT_TOOL_NAMES.READ_TALENT_ACTIVITY_EVENTS,
   // 온보딩 후에도 사용자가 "3일마다", "외부 공고 빼줘"처럼 추천 발송 설정을 말할 때.
   TALENT_TOOL_NAMES.UPDATE_SETTING,
-  // 온보딩 후에도 사용자가 "앞으로 리모트만"처럼 저장할 선호를 말할 때.
+  // 프로필 자체와 프로필 row 메모를 수정할 때.
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
+  // 기본 context에 없는 사용자 기억을 더 읽거나 현재 탐색 기준/기억을 저장할 때.
+  TALENT_TOOL_NAMES.READ_TALENT_CONTEXT,
+  TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT,
   TALENT_TOOL_NAMES.LIST_DOCUMENTS,
   TALENT_TOOL_NAMES.READ_DOCUMENT,
   TALENT_TOOL_NAMES.UPDATE_DOCUMENT,
@@ -117,6 +120,9 @@ export const CAREER_REALTIME_VOICE_POST_ONBOARDING_TOOL_NAMES = [
   TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
   // 통화 중 이미 추천된 특정 role/posting의 상세 맥락을 확인할 때.
   TALENT_TOOL_NAMES.GET_ROLE_CONTEXT,
+  // 음성에서도 같은 사용자별 숫자 ref로 기억을 조회·수정할 수 있다.
+  TALENT_TOOL_NAMES.READ_TALENT_CONTEXT,
+  TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT,
 ] as const;
 
 function normalizeToolNames(toolNames?: readonly string[] | null) {

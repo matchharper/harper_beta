@@ -1,12 +1,15 @@
 import {
+  buildTalentMemoryRetrievalQuery,
   buildTalentProfileContext,
-  fetchTalentInsights,
+  fetchTalentContextPromptSnapshot,
   fetchTalentSetting,
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
   fetchVisibleMessagesPage,
   getCareerOnboardingChecklistCoverage,
   getTalentSupabaseAdmin,
+  projectBriefsToLegacyInsights,
+  renderTalentContextPrompt,
 } from "@/lib/talentOnboarding/server";
 import {
   buildCareerConversationPromptPlan,
@@ -51,7 +54,6 @@ export async function buildCareerRealtimeSessionInstructions(args: {
 
   const [
     profile,
-    currentInsights,
     talentSetting,
     officialJobSignupIntentEvent,
     postOnboardingContext,
@@ -60,7 +62,6 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     isConversationCompletedOpportunityRunActive,
   ] = await Promise.all([
     fetchTalentUserProfile({ admin, userId: args.userId }),
-    fetchTalentInsights({ admin, userId: args.userId }),
     fetchTalentSetting({ admin, userId: args.userId }),
     fetchLatestTalentActivityEvent({
       admin,
@@ -111,46 +112,55 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     limit: 12,
   });
 
-  const currentInsightContent = (currentInsights?.content ?? null) as Record<
-    string,
-    string
-  > | null;
+  const talentContextSnapshot = await fetchTalentContextPromptSnapshot({
+    admin,
+    query: buildTalentMemoryRetrievalQuery(
+      visibleMessages
+        .slice(-6)
+        .map((message) => formatTalentMessageContentForLlmPrompt(message))
+    ),
+    userId: args.userId,
+  });
+  const currentInsightContent = projectBriefsToLegacyInsights(
+    talentContextSnapshot.allBriefs
+  );
+  const talentContextSection = renderTalentContextPrompt(talentContextSnapshot);
   const currentPreferences = {
     getExternalRecommendation:
       talentSetting?.get_external_recommendation ?? true,
     periodicIntervalDays: talentSetting
       ? normalizeTalentPeriodicIntervalDays(
-        talentSetting.periodic_interval_days
-      )
+          talentSetting.periodic_interval_days
+        )
       : null,
     preferredLocale:
       talentSetting?.preferred_locale ?? args.preferredLocale ?? null,
     profileVisibility: talentSetting?.profile_visibility ?? null,
     recommendationBatchSize: talentSetting
       ? normalizeTalentRecommendationBatchSize(
-        talentSetting.recommendation_batch_size
-      )
+          talentSetting.recommendation_batch_size
+        )
       : null,
     talentSettingStatus: talentSetting?.status ?? null,
   };
   const conversationStarterId = args.conversationStarterId?.trim();
   const conversationStarter = conversationStarterId
     ? getCareerConversationStarter(
-      conversationStarterId,
-      currentPreferences.preferredLocale
-    )
+        conversationStarterId,
+        currentPreferences.preferredLocale
+      )
     : null;
   const internalCallRequestId = args.internalCallRequestId?.trim();
   const internalCallRequest = internalCallRequestId
     ? await fetchInternalOpportunityCallRequestById({
-      admin,
-      callId: internalCallRequestId,
-      userId: args.userId,
-    })
+        admin,
+        callId: internalCallRequestId,
+        userId: args.userId,
+      })
     : null;
   const openInternalCallRequest =
     internalCallRequest &&
-      isOpenInternalOpportunityCallRequestStatus(internalCallRequest.status)
+    isOpenInternalOpportunityCallRequestStatus(internalCallRequest.status)
       ? internalCallRequest
       : null;
   const isOnboardingActiveForSession = shouldUseCareerRealtimeOnboarding({
@@ -160,11 +170,11 @@ export async function buildCareerRealtimeSessionInstructions(args: {
   });
   const onboardingChecklistCoverage = isOnboardingActiveForSession
     ? await getCareerOnboardingChecklistCoverage({
-      admin,
-      conversationId: args.conversationId,
-      currentInsightContent,
-      userId: args.userId,
-    })
+        admin,
+        conversationId: args.conversationId,
+        currentInsightContent,
+        userId: args.userId,
+      })
     : null;
   const promptToolNames =
     openInternalCallRequest || isOnboardingActiveForSession
@@ -183,7 +193,7 @@ export async function buildCareerRealtimeSessionInstructions(args: {
 
   const promptPlan = buildCareerConversationPromptPlan({
     channel: "voice",
-    currentInsightContent,
+    talentContextSection,
     currentPreferences,
     gmailCapability: activeGmailIntegration
       ? "connected_but_unavailable_this_turn"

@@ -1,5 +1,23 @@
 [
   {
+    "date": "2026-09-09",
+    "tag": "NEW",
+    "ko": "이제 프로필의 ‘선호 기준’에서 Harper가 기회를 찾고 판단할 때 사용하는 Search Brief를 직접 확인하고 수정할 수 있습니다. 대화에서 알려주신 중요한 맥락도 다음 대화와 추천에 더 일관되게 이어집니다.",
+    "en": "You can now review and edit the Search Brief Harper uses to find and evaluate opportunities directly from your profile. Important context you share also carries into future conversations and recommendations more consistently."
+  },
+  {
+    "date": "2026-09-09",
+    "tag": "NEW",
+    "ko": "이제 관심 있거나 이미 지원한 공고 링크를 커리어 이력에 직접 추가할 수 있습니다. 여러 링크를 한 번에 붙여넣고 각 공고의 현재 상태까지 함께 저장할 수 있습니다.",
+    "en": "You can now add links for jobs you’re interested in or have already applied to directly to your career history. Paste multiple links at once and save the current status of each opportunity."
+  },
+  {
+    "date": "2026-09-09",
+    "tag": "NEW",
+    "ko": "주기적으로 Harper에게 달라진 정보를 알려주세요. 일정 시간이 지나면 Harper가 먼저 연락드려, 최근 상황이나 앞으로 보고 싶은 기회에 변화가 있는지 여쭤볼 수 있습니다.",
+    "en": "Keep Harper updated when your information changes. After some time, Harper may reach out first to ask whether anything has changed in your current situation or the opportunities you’d like to explore."
+  },
+  {
     "date": "2026-09-04",
     "tag": "NEW",
     "ko": "이제 Gmail을 연결할 수 있습니다. 연결한 이메일의 원문은 회사 등 외부에 공개되지 않으며, Harper는 선호하시는 회사와 역할을 더 잘 이해하는 데 필요한 커리어 관련 정보만 필요할 때 확인합니다.",

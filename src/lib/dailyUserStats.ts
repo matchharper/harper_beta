@@ -26,6 +26,11 @@ import {
   buildReferralFunnelStats,
   type DailyUserStatsReferralFunnelStats,
 } from "@/lib/dailyUserStatsReferral";
+import {
+  CAREER_REFERRAL_LINK_COPIED_LOG_TYPE,
+  CAREER_REFERRAL_VIEWED_LOG_TYPE,
+  getTalentNetworkReferralTokenFromVisitLogType,
+} from "@/lib/talentNetworkReferralTracking";
 import { normalizeEmail } from "@/lib/adminMetrics/utils";
 import { supabaseServer } from "@/lib/supabaseServer";
 import type { Database } from "@/types/database.types";
@@ -130,6 +135,10 @@ type EmailOnboardingLeadRow = Pick<
   | "profile_ingested_at"
   | "profile_received_at"
   | "talent_id"
+>;
+type TalentNetworkReferralLinkRow = Pick<
+  Database["public"]["Tables"]["talent_network_referral_links"]["Row"],
+  "referrer_user_id" | "token"
 >;
 type OfficialJobRow = Pick<
   Database["public"]["Tables"]["official_jobs"]["Row"],
@@ -277,6 +286,8 @@ export type DailyUserStatsReport = {
   negativeFeedbackClickedCount: number;
   newSignupFourPlusChatDropoffCount: number;
   newSignupOnboardingCompletedCount: number;
+  newSignupReferralActivatedCount: number;
+  newSignupReferralViewedCount: number;
   newSignupSubmittedCount: number;
   newVisitorCount: number;
   onboardingCompletedCount: number;
@@ -487,6 +498,81 @@ function buildUserIdSet(userIds: Iterable<string | null | undefined>) {
   const set = new Set<string>();
   for (const userId of userIds) addUserId(set, userId);
   return set;
+}
+
+export function countNewSignupReferralViewedUsers(args: {
+  referralInteractionLogs: Array<Pick<LogRow, "type" | "user_id">>;
+  signupUserIds: Set<string>;
+}) {
+  const viewedUserIds = new Set<string>();
+
+  for (const log of args.referralInteractionLogs) {
+    const userId = String(log.user_id ?? "").trim();
+    if (
+      log.type === CAREER_REFERRAL_VIEWED_LOG_TYPE &&
+      userId &&
+      args.signupUserIds.has(userId)
+    ) {
+      viewedUserIds.add(userId);
+    }
+  }
+
+  return viewedUserIds.size;
+}
+
+export function countNewSignupReferralActivatedUsers(args: {
+  referralInteractionLogs: Array<
+    Pick<LogRow, "created_at" | "type" | "user_id">
+  >;
+  referralLinks: TalentNetworkReferralLinkRow[];
+  referralVisitLogs: Array<Pick<LandingLogRow, "created_at" | "type">>;
+  signupUserIds: Set<string>;
+}) {
+  const firstCopiedAtByUserId = new Map<string, string>();
+  for (const log of args.referralInteractionLogs) {
+    const userId = String(log.user_id ?? "").trim();
+    if (
+      log.type !== CAREER_REFERRAL_LINK_COPIED_LOG_TYPE ||
+      !userId ||
+      !args.signupUserIds.has(userId)
+    ) {
+      continue;
+    }
+
+    const current = firstCopiedAtByUserId.get(userId);
+    if (!current || log.created_at < current) {
+      firstCopiedAtByUserId.set(userId, log.created_at);
+    }
+  }
+
+  const referrerUserIdByToken = new Map<string, string>();
+  for (const link of args.referralLinks) {
+    const referrerUserId = String(link.referrer_user_id ?? "").trim();
+    const token = String(link.token ?? "").trim();
+    if (
+      referrerUserId &&
+      token &&
+      firstCopiedAtByUserId.has(referrerUserId)
+    ) {
+      referrerUserIdByToken.set(token, referrerUserId);
+    }
+  }
+
+  const activatedUserIds = new Set<string>();
+  for (const visit of args.referralVisitLogs) {
+    const token = getTalentNetworkReferralTokenFromVisitLogType(visit.type);
+    if (!token) continue;
+
+    const referrerUserId = referrerUserIdByToken.get(token);
+    const firstCopiedAt = referrerUserId
+      ? firstCopiedAtByUserId.get(referrerUserId)
+      : null;
+    if (referrerUserId && firstCopiedAt && visit.created_at >= firstCopiedAt) {
+      activatedUserIds.add(referrerUserId);
+    }
+  }
+
+  return activatedUserIds.size;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -1387,6 +1473,7 @@ async function buildUserStatsReport(args: {
   const [
     talentUsers,
     signupAndSubmitLogs,
+    referralInteractionLogs,
     loginCompletedLogs,
     messages,
     onboardingEvents,
@@ -1430,6 +1517,19 @@ async function buildUserStatsReport(args: {
         .from("logs")
         .select("user_id,type,created_at")
         .in("type", ["career_signup_completed", "career_onboarding_submitted"])
+        .gte("created_at", startIso)
+        .lt("created_at", endIso)
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows<LogRow>((from, to) =>
+      supabaseServer
+        .from("logs")
+        .select("user_id,type,created_at")
+        .in("type", [
+          CAREER_REFERRAL_VIEWED_LOG_TYPE,
+          CAREER_REFERRAL_LINK_COPIED_LOG_TYPE,
+        ])
         .gte("created_at", startIso)
         .lt("created_at", endIso)
         .order("id", { ascending: true })
@@ -1783,6 +1883,17 @@ async function buildUserStatsReport(args: {
       addUserId(signupUserIds, log.user_id);
     }
   }
+  const signupReferralLinks =
+    args.period === "daily" && signupUserIds.size > 0
+      ? await fetchAllRows<TalentNetworkReferralLinkRow>((from, to) =>
+          supabaseServer
+            .from("talent_network_referral_links")
+            .select("referrer_user_id,token")
+            .in("referrer_user_id", Array.from(signupUserIds))
+            .order("token", { ascending: true })
+            .range(from, to)
+        )
+      : [];
 
   const submittedUserIds = new Set<string>();
   for (const log of signupAndSubmitLogs) {
@@ -1822,6 +1933,17 @@ async function buildUserStatsReport(args: {
   const newSignupOnboardingCompletedCount = Array.from(
     onboardingCompletedUserIds
   ).filter((userId) => signupUserIds.has(userId)).length;
+  const newSignupReferralViewedCount = countNewSignupReferralViewedUsers({
+    referralInteractionLogs,
+    signupUserIds,
+  });
+  const newSignupReferralActivatedCount =
+    countNewSignupReferralActivatedUsers({
+      referralInteractionLogs,
+      referralLinks: signupReferralLinks,
+      referralVisitLogs,
+      signupUserIds,
+    });
   const signedUpEmails = new Set(
     includedTalentUsers
       .filter((user) => signupUserIds.has(user.user_id))
@@ -1963,7 +2085,12 @@ async function buildUserStatsReport(args: {
     rows: outboundEmailRows,
   });
   const harperMailReplyRows = outboundEmailRows.filter(
-    (row) => row.mail_type === "auto_reply" && Boolean(row.reply_job_id)
+    (row) =>
+      Boolean(row.reply_job_id) &&
+      // Candidate-request replies are Harper replies too. reply_job_id keeps
+      // the initial company-request delivery itself out of this count.
+      (row.mail_type === "auto_reply" ||
+        row.mail_type === "company_talent_request")
   );
   const includedOpportunityEmailDeliveries = opportunityEmailDeliveries.filter(
     (row) =>
@@ -2227,6 +2354,8 @@ async function buildUserStatsReport(args: {
     negativeFeedbackClickedCount: negativeFeedbackClickedRows.length,
     newSignupFourPlusChatDropoffCount,
     newSignupOnboardingCompletedCount,
+    newSignupReferralActivatedCount,
+    newSignupReferralViewedCount,
     newSignupSubmittedCount,
     newVisitorCount: countNewVisitors({
       excludedEmailSet,
@@ -2646,6 +2775,22 @@ export function formatDailyUserStatsSlackMessages(
       report.returningOnboardingCompletedCount,
       previousComparisonReport?.returningOnboardingCompletedCount
     )}`,
+    ...(report.period === "daily"
+      ? [
+          `레퍼럴 확인한 사람 수: ${formatCount(
+            report.newSignupReferralViewedCount
+          )}명${formatCountChangeSuffix(
+            report.newSignupReferralViewedCount,
+            previousComparisonReport?.newSignupReferralViewedCount
+          )}`,
+          `레퍼럴 링크 복사 후 해당 링크로 다른 사람이 들어온 사람 수: ${formatCount(
+            report.newSignupReferralActivatedCount
+          )}명${formatCountChangeSuffix(
+            report.newSignupReferralActivatedCount,
+            previousComparisonReport?.newSignupReferralActivatedCount
+          )}`,
+        ]
+      : []),
     "",
     `Active talents: ${formatCount(
       report.activeTalentsCount

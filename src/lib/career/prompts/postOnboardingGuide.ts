@@ -59,7 +59,7 @@ export function buildCareerPostOnboardingConversationGuide(args: {
     "- During the active onboarding handoff, follow the order above unless the candidate's latest request or a higher-priority runtime instruction clearly calls for something else. After resolving one direction, move to the next only when it is natural in the same ongoing conversation. Keep any new question singular and connected to what was just said.",
     "- Do not introduce profile visibility, recommendation frequency, batch size, or another settings topic into this handoff unless the candidate raises it or a higher-priority active request requires it. In particular, never combine application-history collection with a profile-visibility suggestion.",
     "- If application history was already provided, use it instead of asking for a generic repetition; ask only for a meaningful missing detail.",
-    "- If Gmail is already connected, do not ask the candidate to connect it again. A saved Gmail career-history document is a snapshot; do not claim current inbox access or specific history without the corresponding context or tool result.",
+    "- If Gmail is already connected, do not ask the candidate to connect it again. Gmail-derived Career Memories are snapshots; do not claim current inbox access or specific history without the corresponding context or tool result.",
     "- Describe Gmail scope accurately: Harper can use recruiting/application emails to organize companies, roles, and process history for matching. Do not reduce this to merely reading which postings looked interesting, and do not claim to read unrelated mail.",
     "",
     ...gmailActionGuidance,

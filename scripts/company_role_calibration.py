@@ -17,11 +17,13 @@ import json
 import os
 from pathlib import Path
 import re
+import ssl
 from typing import Any, Mapping, Sequence
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 from uuid import UUID
 
+import certifi
 from dotenv import load_dotenv
 import psycopg
 from psycopg.rows import dict_row
@@ -616,6 +618,10 @@ def internal_api_base_url() -> str:
     return value.rstrip("/")
 
 
+def delivery_ssl_context() -> ssl.SSLContext:
+    return ssl.create_default_context(cafile=certifi.where())
+
+
 def command_deliver(args: argparse.Namespace) -> None:
     load_dotenv(ROOT.parent / "worker.env", override=False)
     load_dotenv(ROOT / ".env.local", override=False)
@@ -630,7 +636,11 @@ def command_deliver(args: argparse.Namespace) -> None:
         method="POST",
     )
     try:
-        with urllib_request.urlopen(request, timeout=60) as response:
+        with urllib_request.urlopen(
+            request,
+            timeout=60,
+            context=delivery_ssl_context(),
+        ) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except urllib_error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
@@ -649,6 +659,15 @@ def command_pending_deliveries(args: argparse.Namespace) -> None:
             from public.company_role_calibrations calibration
             where calibration.status = 'ready'
               and coalesce(calibration.payload->'delivery'->>'status', 'pending') <> 'sent'
+              and (
+                nullif(
+                  calibration.payload->'delivery'->>'lastAttemptAt',
+                  ''
+                ) is null
+                or (
+                  calibration.payload->'delivery'->>'lastAttemptAt'
+                )::timestamptz <= timezone('utc', now()) - interval '12 hours'
+              )
               and public.company_role_is_calibration_eligible_v1(calibration.role_id)
             order by calibration.created_at, calibration.id
             limit %s

@@ -806,14 +806,20 @@ export type Database = {
       }
       company_behavior_contexts: {
         Row: {
+          created_at: string | null
+          reason: string | null
           role_id: string
           text_context: string
         }
         Insert: {
+          created_at?: string | null
+          reason?: string | null
           role_id: string
           text_context?: string
         }
         Update: {
+          created_at?: string | null
+          reason?: string | null
           role_id?: string
           text_context?: string
         }
@@ -1361,6 +1367,54 @@ export type Database = {
           },
           {
             foreignKeyName: "company_role_assignees_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "company_roles"
+            referencedColumns: ["role_id"]
+          },
+        ]
+      }
+      company_role_calibrations: {
+        Row: {
+          available_at: string
+          company_workspace_id: string
+          created_at: string
+          id: string
+          payload: Json
+          role_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          available_at?: string
+          company_workspace_id: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          role_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          available_at?: string
+          company_workspace_id?: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          role_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_role_calibrations_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+          {
+            foreignKeyName: "company_role_calibrations_role_id_fkey"
             columns: ["role_id"]
             isOneToOne: false
             referencedRelation: "company_roles"
@@ -6330,6 +6384,103 @@ export type Database = {
           },
         ]
       }
+      talent_context_write_requests: {
+        Row: {
+          created_at: string
+          request_id: string
+          response: Json | null
+          talent_id: string
+        }
+        Insert: {
+          created_at?: string
+          request_id: string
+          response?: Json | null
+          talent_id: string
+        }
+        Update: {
+          created_at?: string
+          request_id?: string
+          response?: Json | null
+          talent_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_context_write_requests_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      talent_contexts: {
+        Row: {
+          collection: string
+          content: string
+          created_at: string
+          deleted_at: string | null
+          embedding: string | null
+          embedding_content_hash: string | null
+          embedding_model: string | null
+          embedding_updated_at: string | null
+          id: number
+          importance: number | null
+          key: string | null
+          label: string | null
+          ref: number
+          revision: number
+          source_refs: Json
+          talent_id: string
+          updated_at: string
+        }
+        Insert: {
+          collection: string
+          content: string
+          created_at?: string
+          deleted_at?: string | null
+          embedding?: string | null
+          embedding_content_hash?: string | null
+          embedding_model?: string | null
+          embedding_updated_at?: string | null
+          id?: number
+          importance?: number | null
+          key?: string | null
+          label?: string | null
+          ref: number
+          revision?: number
+          source_refs?: Json
+          talent_id: string
+          updated_at?: string
+        }
+        Update: {
+          collection?: string
+          content?: string
+          created_at?: string
+          deleted_at?: string | null
+          embedding?: string | null
+          embedding_content_hash?: string | null
+          embedding_model?: string | null
+          embedding_updated_at?: string | null
+          id?: number
+          importance?: number | null
+          key?: string | null
+          label?: string | null
+          ref?: number
+          revision?: number
+          source_refs?: Json
+          talent_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_contexts_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       talent_conversation_summaries: {
         Row: {
           conversation_id: string
@@ -7270,7 +7421,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          opportunity_id: string
+          opportunity_id: string | null
           tag: string
           talent_id: string
           updated_at: string
@@ -7278,7 +7429,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
-          opportunity_id: string
+          opportunity_id?: string | null
           tag: string
           talent_id: string
           updated_at?: string
@@ -7286,7 +7437,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
-          opportunity_id?: string
+          opportunity_id?: string | null
           tag?: string
           talent_id?: string
           updated_at?: string
@@ -7906,6 +8057,21 @@ export type Database = {
         }
         Returns: Json
       }
+      apply_company_role_calibration_feedback_v1: {
+        Args: {
+          p_calibration_id: string
+          p_expected_calibration_updated_at: string
+          p_expected_request: string
+          p_finish: boolean
+          p_hiring_brief: string
+          p_reviewed_by: string
+          p_reviews: Json
+          p_role_id: string
+          p_source_message_id: number
+          p_workspace_id: string
+        }
+        Returns: Json
+      }
       archive_ended_internal_opportunities_for_talent: {
         Args: { p_locale?: string; p_talent_id: string }
         Returns: number
@@ -8067,6 +8233,25 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "company_context_runs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_company_role_calibration_v1: {
+        Args: { p_runner: string }
+        Returns: {
+          available_at: string
+          company_workspace_id: string
+          created_at: string
+          id: string
+          payload: Json
+          role_id: string
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "company_role_calibrations"
           isOneToOne: false
           isSetofReturn: true
         }
@@ -8318,6 +8503,10 @@ export type Database = {
         Args: { p_key: string; p_role_id?: string; p_workspace_id: string }
         Returns: Json
       }
+      company_role_is_calibration_eligible_v1: {
+        Args: { p_now?: string; p_role_id: string }
+        Returns: boolean
+      }
       company_talent_request_stage_is_pending_v1: {
         Args: { p_request_id: string }
         Returns: boolean
@@ -8390,6 +8579,10 @@ export type Database = {
           p_role_id: string
           p_trigger_reason: string
         }
+        Returns: string
+      }
+      enqueue_company_role_calibration_v1: {
+        Args: { p_available_at?: string; p_role_id: string }
         Returns: string
       }
       enqueue_company_talent_request_v1:
@@ -8518,6 +8711,25 @@ export type Database = {
         }
         Returns: Json[]
       }
+      fail_company_role_calibration_v1: {
+        Args: { p_calibration_id: string; p_error: string }
+        Returns: {
+          available_at: string
+          company_workspace_id: string
+          created_at: string
+          id: string
+          payload: Json
+          role_id: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "company_role_calibrations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       finalize_company_talent_delivery_v1: {
         Args: {
           p_request_id: string
@@ -8574,6 +8786,97 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      finish_company_role_calibration_v1: {
+        Args: {
+          p_calibration_id: string
+          p_expected_calibration_updated_at: string
+          p_expected_company_updated_at: string
+          p_expected_internal_role_updated_at: string
+          p_expected_role_updated_at: string
+          p_profiles: Json
+          p_source: Json
+          p_summary: string
+        }
+        Returns: {
+          available_at: string
+          company_workspace_id: string
+          created_at: string
+          id: string
+          payload: Json
+          role_id: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "company_role_calibrations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      get_ops_talent_metrics_conversion_v1: {
+        Args: {
+          p_excluded_email_terms?: string[]
+          p_from: string
+          p_interval?: string
+          p_to: string
+        }
+        Returns: Json
+      }
+      get_ops_talent_metrics_engagement_v1: {
+        Args: {
+          p_excluded_email_terms?: string[]
+          p_from: string
+          p_interval?: string
+          p_to: string
+        }
+        Returns: Json
+      }
+      get_ops_talent_metrics_retention_v1: {
+        Args: {
+          p_excluded_email_terms?: string[]
+          p_from: string
+          p_interval?: string
+          p_to: string
+        }
+        Returns: Json
+      }
+      get_ops_talent_metrics_v1: {
+        Args: {
+          p_excluded_email_terms?: string[]
+          p_from: string
+          p_interval?: string
+          p_to: string
+        }
+        Returns: Json
+      }
+      get_ops_talent_metrics_v2: {
+        Args: {
+          p_excluded_email_terms?: string[]
+          p_from: string
+          p_interval?: string
+          p_to: string
+        }
+        Returns: Json
+      }
+      import_talent_job_link: {
+        Args: {
+          p_existing_role_id: string
+          p_role: Json
+          p_saved_stage: string
+          p_talent_id: string
+          p_workspace: Json
+          p_workspace_id: string
+        }
+        Returns: {
+          created_recommendation: boolean
+          created_role: boolean
+          created_workspace: boolean
+          recommendation_id: string
+          role_id: string
+          role_source_provider: string
+        }[]
       }
       internal_opportunity_is_stage_tag: {
         Args: { p_tag: string }
@@ -8641,6 +8944,29 @@ export type Database = {
         Args: { target_workspace_id: string }
         Returns: undefined
       }
+      mark_company_role_calibration_delivery_v1: {
+        Args: {
+          p_calibration_id: string
+          p_delivered: boolean
+          p_error?: string
+        }
+        Returns: {
+          available_at: string
+          company_workspace_id: string
+          created_at: string
+          id: string
+          payload: Json
+          role_id: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "company_role_calibrations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       match_service_answer_examples: {
         Args: {
           audience_filter: string
@@ -8655,6 +8981,29 @@ export type Database = {
           score: number
           tags: string[]
           user_example_text: string
+        }[]
+      }
+      match_talent_context_memories: {
+        Args: {
+          p_embedding_model?: string
+          p_match_count?: number
+          p_query_embedding: string
+          p_talent_id: string
+        }
+        Returns: {
+          collection: string
+          content: string
+          created_at: string
+          id: number
+          importance: number
+          key: string
+          label: string
+          ref: number
+          revision: number
+          score: number
+          source_refs: Json
+          talent_id: string
+          updated_at: string
         }[]
       }
       move_company_candidate_to_role_v1: {
@@ -8676,6 +9025,10 @@ export type Database = {
           p_saved_stage: string
           p_talent_id: string
         }
+        Returns: Json
+      }
+      mutate_talent_contexts: {
+        Args: { p_changes: Json; p_request_id: string; p_talent_id: string }
         Returns: Json
       }
       present_company_agent_update_proposal_v1: {

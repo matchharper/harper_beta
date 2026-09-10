@@ -20,6 +20,10 @@ const isRunActive = (run: CareerOpportunityRun) =>
 const shouldPollRun = (run: CareerOpportunityRun) =>
   isRunActive(run) || run.deliveryRetryPending;
 
+export const ACTIVE_OPPORTUNITY_RUN_POLL_INTERVAL_MS = 60_000;
+export const IDLE_OPPORTUNITY_RUN_POLL_INTERVAL_MS = 300_000;
+export const HIDDEN_OPPORTUNITY_RUN_POLL_INTERVAL_MS = 300_000;
+
 export const useCareerOpportunityRunSync = ({
   conversationId,
   fetchWithAuth,
@@ -65,7 +69,7 @@ export const useCareerOpportunityRunSync = ({
     for (const message of messages) {
       if (message.role !== "assistant") continue;
       for (const marker of extractOpportunityRunMarkers(message.content)) {
-        markerRunIds.add(marker.runId);
+        markerRunIds.add(marker.runId.toLowerCase());
       }
       if (message.recommendationSearchRun) {
         runById.set(
@@ -77,6 +81,9 @@ export const useCareerOpportunityRunSync = ({
     for (const run of unlinkedOpportunityRuns) {
       runById.set(run.id.toLowerCase(), run);
     }
+    if (opportunityRun) {
+      runById.set(opportunityRun.id.toLowerCase(), opportunityRun);
+    }
 
     const pollIds = Array.from(markerRunIds).filter((runId) => {
       const run = runById.get(runId.toLowerCase());
@@ -85,6 +92,10 @@ export const useCareerOpportunityRunSync = ({
     for (const run of unlinkedOpportunityRuns) {
       const runId = run.id.toLowerCase();
       if (shouldPollRun(run) && !pollIds.includes(runId)) pollIds.push(runId);
+    }
+    if (opportunityRun && shouldPollRun(opportunityRun)) {
+      const runId = opportunityRun.id.toLowerCase();
+      if (!pollIds.includes(runId)) pollIds.push(runId);
     }
 
     const activeSearch = pollIds.some((runId) => {
@@ -97,51 +108,7 @@ export const useCareerOpportunityRunSync = ({
       pollIds,
       pollKey: pollIds.slice().sort().join(","),
     };
-  }, [messages, unlinkedOpportunityRuns]);
-
-  useEffect(() => {
-    if (!userId || !opportunityRun?.inputLocked) return;
-
-    let cancelled = false;
-    const poll = async () => {
-      try {
-        const response = await fetchWithAuth(
-          "/api/talent/opportunity-runs/latest"
-        );
-        const payload = (await response.json().catch(() => ({}))) as {
-          run?: CareerOpportunityRun | null;
-        };
-        if (!response.ok || cancelled) return;
-
-        const nextRun = payload.run ?? null;
-        setOpportunityRun(nextRun);
-        const sessionPayload =
-          await loadSessionForCompletedOpportunityRun(nextRun);
-        if (!cancelled && sessionPayload) {
-          hydrateSession(sessionPayload);
-        }
-      } catch {
-        // Keep the current lock state; the next poll can recover.
-      }
-    };
-
-    const intervalId = window.setInterval(() => {
-      void poll();
-    }, 4000);
-    void poll();
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, [
-    fetchWithAuth,
-    hydrateSession,
-    loadSessionForCompletedOpportunityRun,
-    opportunityRun?.inputLocked,
-    setOpportunityRun,
-    userId,
-  ]);
+  }, [messages, opportunityRun, unlinkedOpportunityRuns]);
 
   useEffect(() => {
     if (!userId || !markerRunState.pollKey) return;
@@ -153,12 +120,14 @@ export const useCareerOpportunityRunSync = ({
     const requestedIds = markerRunState.pollKey
       ? markerRunState.pollKey.split(",")
       : [];
-    const pollIntervalMs = markerRunState.activeSearch ? 4_000 : 30_000;
+    const pollIntervalMs = markerRunState.activeSearch
+      ? ACTIVE_OPPORTUNITY_RUN_POLL_INTERVAL_MS
+      : IDLE_OPPORTUNITY_RUN_POLL_INTERVAL_MS;
 
     const schedule = () => {
       if (cancelled) return;
       const delay = document.hidden
-        ? Math.max(30_000, pollIntervalMs * 4)
+        ? Math.max(HIDDEN_OPPORTUNITY_RUN_POLL_INTERVAL_MS, pollIntervalMs)
         : pollIntervalMs;
       timeoutId = window.setTimeout(() => void poll(), delay);
     };
@@ -177,7 +146,13 @@ export const useCareerOpportunityRunSync = ({
         const payload = (await response.json().catch(() => ({}))) as {
           runs?: CareerOpportunityRun[];
         };
-        if (!response.ok || cancelled) return;
+        if (cancelled) return;
+        if (!response.ok) {
+          // A transient API failure should not silently stop the only remaining
+          // completion sync path. Keep the existing low-frequency retry.
+          continuePolling = true;
+          throw new Error(`Opportunity-run sync failed (${response.status})`);
+        }
 
         const runs = Array.isArray(payload.runs) ? payload.runs : [];
         continuePolling = runs.some(shouldPollRun);

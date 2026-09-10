@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  canCreateOrgCandidateContact,
   canInitiateOrgCandidateContact,
   canStopOrgCandidateProcess,
   isOrgInternalStage,
   currentOrgActiveCompanyPosition,
+  currentOrgContactableCompanyPosition,
   requiresOrgIntroEmailRecipient,
   shouldSendOrgIntroEmail,
   shouldOpenOrgAcceptIntroDialog,
@@ -40,6 +42,33 @@ test("allows candidate contact throughout an active company process", () => {
   assert.equal(canInitiateOrgCandidateContact("process_stopped"), false);
   assert.equal(canInitiateOrgCandidateContact("accepted"), false);
   assert.equal(canInitiateOrgCandidateContact("archived"), false);
+});
+
+test("allows a new candidate contact after the company process stopped", () => {
+  assert.equal(canCreateOrgCandidateContact("pending_connection"), true);
+  assert.equal(canCreateOrgCandidateContact("process_stopped"), true);
+  assert.equal(canCreateOrgCandidateContact("accepted"), false);
+  assert.equal(canCreateOrgCandidateContact("archived"), false);
+
+  const position = currentOrgContactableCompanyPosition(
+    [
+      {
+        recommendationId: "recommendation-old",
+        roleId: "role-1",
+        stage: "connected" as const,
+        updatedAt: "2026-08-01T00:00:00.000Z",
+      },
+      {
+        recommendationId: "recommendation-stopped",
+        roleId: "role-1",
+        stage: "process_stopped" as const,
+        updatedAt: "2026-08-03T00:00:00.000Z",
+      },
+    ],
+    "role-1"
+  );
+
+  assert.equal(position?.recommendationId, "recommendation-stopped");
 });
 
 test("selects the current active company position in one Role", () => {

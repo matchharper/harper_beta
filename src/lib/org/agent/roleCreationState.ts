@@ -706,7 +706,7 @@ export async function fetchOtherRoleCriteria(args: {
   const { data, error } = await getSupabaseAdmin()
     .from("company_roles")
     .select(
-      "role_id, name, description, company_internal_roles(request, criteria)"
+      "role_id, name, description, salary_range, status, company_internal_roles(request, criteria)"
     )
     .eq("company_workspace_id", args.workspaceId)
     .eq("source_type", "internal")
@@ -742,6 +742,8 @@ export async function fetchOtherRoleCriteria(args: {
         text(record(role.company_internal_roles).request).slice(0, 2_500) ||
         null,
       roleId: role.role_id,
+      salaryRange: text(role.salary_range).slice(0, 1_000) || null,
+      status: text(role.status) || null,
     })),
   };
 }

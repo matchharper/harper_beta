@@ -4,15 +4,21 @@ import {
 } from "@/lib/career/llm";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import {
-  normalizeExtractedInsights,
-  normalizeGeneratedTalentInsightEntry,
-} from "@/lib/talentOnboarding/insights";
-import {
+  buildTalentMemoryRetrievalQuery,
+  createTalentContextMutationRequestId,
+  fetchAllTalentContexts,
+  fetchTalentContextPromptSnapshot,
+  fetchTalentContextsByRefs,
   fetchRecentMessages,
   getCareerOnboardingChecklistCoverage,
   getTalentSupabaseAdmin,
   mergeCareerOnboardingChecklistCoverage,
-  upsertTalentInsights,
+  mutateTalentContextsFromAgent,
+  projectBriefsToLegacyInsights,
+  refreshTalentContextEmbeddings,
+  renderTalentContextPrompt,
+  type TalentContextAgentChange,
+  type TalentMemoryImportance,
 } from "@/lib/talentOnboarding/server";
 import {
   getInsightChecklist,
@@ -35,14 +41,20 @@ type ExtractionConversationMessage = {
 
 type BuildPromptArgs = {
   currentChecklistCoverage: Record<string, "covered"> | null;
-  currentInsightContent: Record<string, string> | null;
   onboardingChecklistContext?: OnboardingChecklistLocationContext;
 };
 
 type OnboardingChecklistCoverage = Record<string, "covered">;
 
-function clamp(value: string, maxLength: number) {
+function clampForLog(value: string, maxLength: number) {
   return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
+}
+
+function compactOlderTranscriptMessage(value: string, maxLength = 2_400) {
+  if (value.length <= maxLength) return value;
+  const marker = " … [older message truncated] … ";
+  const sideLength = Math.floor((maxLength - marker.length) / 2);
+  return `${value.slice(0, sideLength)}${marker}${value.slice(-sideLength)}`;
 }
 
 function buildExtractionConversationMessages(args: {
@@ -59,15 +71,21 @@ function buildExtractionConversationMessages(args: {
           ...recentMessages,
           { role: "assistant" as const, content: assistantContent },
         ];
+  const latestUserIndex = messages.findLastIndex(
+    (message) => message.role === "user"
+  );
 
   const transcript = messages
     .slice(-5)
     .map((message, index) => {
       const role = message.role === "user" ? "User" : "Harper";
-      return `[${index + 1}] ${role}: ${clamp(
-        message.content.replace(/\s+/g, " ").trim(),
-        1200
-      )}`;
+      const normalized = message.content.replace(/\s+/g, " ").trim();
+      const originalIndex = Math.max(0, messages.length - 5) + index;
+      const content =
+        originalIndex === latestUserIndex
+          ? normalized
+          : compactOlderTranscriptMessage(normalized);
+      return `[${index + 1}] ${role}: ${content}`;
     })
     .join("\n");
 
@@ -86,7 +104,102 @@ function buildExtractionConversationMessages(args: {
   ];
 }
 
-function parseExtractedInsights(args: {
+function normalizeExtractedContextChanges(
+  value: unknown
+): TalentContextAgentChange[] | null {
+  if (!Array.isArray(value) || value.length > 20) return null;
+  const changes: TalentContextAgentChange[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+    const record = item as Record<string, unknown>;
+    const op = typeof record.op === "string" ? record.op : "";
+    if (op === "add") {
+      const collection = record.collection;
+      const content =
+        typeof record.content === "string" ? record.content.trim() : "";
+      const label = typeof record.label === "string" ? record.label.trim() : "";
+      const key = typeof record.key === "string" ? record.key.trim() : "";
+      const importance = Number(record.importance);
+      const hasImportance = Object.prototype.hasOwnProperty.call(
+        record,
+        "importance"
+      );
+      if (
+        (collection !== "brief" && collection !== "memory") ||
+        !content ||
+        Array.from(content).length > 8_000 ||
+        (collection === "brief" &&
+          (!label ||
+            Array.from(label).length > 160 ||
+            Array.from(key).length > 160 ||
+            hasImportance)) ||
+        (collection === "memory" &&
+          (!Number.isInteger(importance) || importance < 1 || importance > 3))
+      ) {
+        return null;
+      }
+      if (collection === "brief") {
+        changes.push({
+          collection,
+          content,
+          label,
+          ...(key && ONBOARDING_QUESTION_BY_INSIGHT_KEY.has(key)
+            ? { key }
+            : {}),
+          op,
+        });
+      } else {
+        changes.push({
+          collection,
+          content,
+          importance: importance as TalentMemoryImportance,
+          op,
+        });
+      }
+      continue;
+    }
+    const ref = Number(record.ref);
+    if (!Number.isSafeInteger(ref) || ref <= 0) return null;
+    if (op === "delete") {
+      changes.push({ op, ref });
+      continue;
+    }
+    if (op !== "update") return null;
+    const hasContent = Object.prototype.hasOwnProperty.call(record, "content");
+    const hasLabel = Object.prototype.hasOwnProperty.call(record, "label");
+    const hasImportance = Object.prototype.hasOwnProperty.call(
+      record,
+      "importance"
+    );
+    const content = hasContent
+      ? String(record.content ?? "").trim()
+      : undefined;
+    const label = hasLabel ? String(record.label ?? "").trim() : undefined;
+    const importance = hasImportance ? Number(record.importance) : undefined;
+    if (
+      (!hasContent && !hasLabel && !hasImportance) ||
+      (hasContent && !content) ||
+      (hasContent && Array.from(content ?? "").length > 8_000) ||
+      (hasLabel && (!label || Array.from(label).length > 160)) ||
+      (hasImportance &&
+        (!Number.isInteger(importance) || importance! < 1 || importance! > 3))
+    ) {
+      return null;
+    }
+    changes.push({
+      ...(hasContent ? { content } : {}),
+      ...(hasImportance
+        ? { importance: importance as TalentMemoryImportance }
+        : {}),
+      ...(hasLabel ? { label } : {}),
+      op,
+      ref,
+    });
+  }
+  return changes;
+}
+
+function parseExtractedContext(args: {
   currentChecklistCoverage: OnboardingChecklistCoverage | null;
   logPrefix: string;
   onboardingChecklistContext?: OnboardingChecklistLocationContext;
@@ -102,7 +215,7 @@ function parseExtractedInsights(args: {
     covered_checklist?: unknown;
     covered_onboarding_checklist?: unknown;
     covered_onboarding_questions?: unknown;
-    extracted_insights?: Record<string, unknown>;
+    changes?: unknown;
   } = {};
   let parseOk = false;
   const cleaned = rawExtraction
@@ -114,7 +227,7 @@ function parseExtractedInsights(args: {
       value &&
       typeof value === "object" &&
       !Array.isArray(value) &&
-      ("extracted_insights" in value ||
+      ("changes" in value ||
         "covered_onboarding_checklist" in value ||
         "covered_checklist" in value ||
         "covered_onboarding_questions" in value)
@@ -145,6 +258,7 @@ function parseExtractedInsights(args: {
     });
   }
 
+  const changes = normalizeExtractedContextChanges(parsed.changes);
   return {
     coveredChecklistKeys: normalizeExtractedChecklistKeys(
       parsed.covered_onboarding_checklist ??
@@ -155,10 +269,8 @@ function parseExtractedInsights(args: {
         onboardingChecklistContext,
       }
     ),
-    insights: normalizeExtractedInsights(
-      (parsed.extracted_insights as Record<string, unknown>) ?? null
-    ),
-    parseOk,
+    changes,
+    parseOk: parseOk && changes !== null,
   };
 }
 
@@ -306,7 +418,7 @@ function extractJsonObjectCandidates(value: string) {
 
 function formatRecentMessagesForLog(messages: ExtractionConversationMessage[]) {
   return messages.slice(-2).map((message) => ({
-    content: clamp(message.content.replace(/\s+/g, " ").trim(), 800),
+    content: clampForLog(message.content.replace(/\s+/g, " ").trim(), 800),
     id: message.id ?? null,
     messageType: message.messageType ?? null,
     role: message.role,
@@ -442,7 +554,9 @@ function maybeInferAdditionalQuestionCoverage(args: {
   const insightBackedChecklistKeys = getInsightBackedChecklistKeys({
     onboardingChecklistContext: args.onboardingChecklistContext,
   });
-  const hasNewInsightBackedCoverage = Array.from(args.coveredChecklistKeys).some(
+  const hasNewInsightBackedCoverage = Array.from(
+    args.coveredChecklistKeys
+  ).some(
     (key) =>
       insightBackedChecklistKeys.has(key) &&
       args.currentChecklistCoverage?.[key] !== "covered"
@@ -464,11 +578,14 @@ function maybeInferAdditionalQuestionCoverage(args: {
   });
   if (!inferredKey) return null;
 
-  logger.log(`[${args.logPrefix}] Applied additional question coverage fallback`, {
-    assistantMessageId: pair.assistantQuestion.id ?? null,
-    coveredChecklistKey: inferredKey,
-    userMessageId: pair.userAnswer.id ?? null,
-  });
+  logger.log(
+    `[${args.logPrefix}] Applied additional question coverage fallback`,
+    {
+      assistantMessageId: pair.assistantQuestion.id ?? null,
+      coveredChecklistKey: inferredKey,
+      userMessageId: pair.userAnswer.id ?? null,
+    }
+  );
   return inferredKey;
 }
 
@@ -477,10 +594,11 @@ export async function extractAndPersistChatInsights(args: {
   assistantContent: string;
   buildPrompt: (args: BuildPromptArgs) => string;
   conversationId: string;
-  currentInsightContent: Record<string, string> | null;
   logPrefix: string;
   onboardingChecklistContext?: OnboardingChecklistLocationContext;
+  profileChangesAlreadySaved?: string | null;
   sourceChannel?: "text_chat" | "voice_call" | "unknown";
+  scheduleAfter?: (task: () => Promise<void>) => void;
   userId: string;
 }) {
   const assistantContent = args.assistantContent.trim();
@@ -512,26 +630,48 @@ export async function extractAndPersistChatInsights(args: {
       assistantContent,
       recentMessages: recentExtractionMessages,
     });
+    const talentContextSnapshot = await fetchTalentContextPromptSnapshot({
+      admin: args.admin,
+      query: buildTalentMemoryRetrievalQuery(
+        recentExtractionMessages.slice(-5).map((message) => message.content)
+      ),
+      userId: args.userId,
+    });
+    const currentInsightContent = projectBriefsToLegacyInsights(
+      talentContextSnapshot.allBriefs
+    );
     const currentChecklistCoverage = await getCareerOnboardingChecklistCoverage(
       {
         admin: args.admin,
         conversationId: args.conversationId,
-        currentInsightContent: args.currentInsightContent,
+        currentInsightContent,
         userId: args.userId,
       }
     );
 
-    const systemPrompt = args.buildPrompt({
-      currentChecklistCoverage,
-      currentInsightContent: args.currentInsightContent,
-      onboardingChecklistContext: args.onboardingChecklistContext,
-    });
+    const savedProfileChanges = args.profileChangesAlreadySaved?.trim();
+    const systemPrompt = args
+      .buildPrompt({
+        currentChecklistCoverage,
+        onboardingChecklistContext: args.onboardingChecklistContext,
+      })
+      .concat(
+        savedProfileChanges
+          ? `\n\n## Profile information saved earlier in this turn\n${savedProfileChanges}`
+          : ""
+      )
+      .concat(
+        "\n\n## Current saved context\n",
+        renderTalentContextPrompt(talentContextSnapshot, {
+          includeCompatibilityKeys: true,
+        })
+      );
     logger.log("[systemPrompt]", {
       systemPrompt,
     });
     let rawExtraction = await runCareerInsightExtraction({
       systemPrompt,
-      conversationMessages, // 최근 6개의 메세지가 들어감
+      conversationMessages,
     });
 
     logger.log("[llm-output]", {
@@ -543,7 +683,7 @@ export async function extractAndPersistChatInsights(args: {
       // recentMessages: recentMessagesForLog,
     });
 
-    let parsedExtraction = parseExtractedInsights({
+    let parsedExtraction = parseExtractedContext({
       currentChecklistCoverage,
       logPrefix: args.logPrefix,
       onboardingChecklistContext: args.onboardingChecklistContext,
@@ -574,7 +714,7 @@ export async function extractAndPersistChatInsights(args: {
         recentMessages: recentMessagesForLog,
         sourceChannel: args.sourceChannel ?? "unknown",
       });
-      parsedExtraction = parseExtractedInsights({
+      parsedExtraction = parseExtractedContext({
         currentChecklistCoverage,
         logPrefix: args.logPrefix,
         onboardingChecklistContext: args.onboardingChecklistContext,
@@ -582,38 +722,34 @@ export async function extractAndPersistChatInsights(args: {
       });
     }
 
-    const extractedInsights = parsedExtraction.insights;
+    if (!parsedExtraction.parseOk || parsedExtraction.changes === null) {
+      throw new Error("Onboarding context extraction returned invalid output");
+    }
+    const changes = parsedExtraction.changes;
     const coveredChecklistKeys = new Set(parsedExtraction.coveredChecklistKeys);
-
-    const processedInsights: Record<string, string> = {};
-
-    for (const [rawKey, extracted] of Object.entries(extractedInsights ?? {})) {
-      const normalized = normalizeGeneratedTalentInsightEntry({
-        rawKey,
-        rawValue: extracted.value,
-      });
-      if (!normalized.ok) {
-        logger.log(`[${args.logPrefix}] Skipped invalid talent insight`, {
-          key: normalized.key ?? rawKey,
-          reason: normalized.reason,
-        });
-        continue;
-      }
-
-      const { key, value } = normalized;
-      const checklistKey = ONBOARDING_QUESTION_BY_INSIGHT_KEY.get(key);
-      if (checklistKey) {
+    const refs = changes.flatMap((change) =>
+      change.op === "add" ? [] : [change.ref]
+    );
+    const referencedRows = await fetchTalentContextsByRefs({
+      admin: args.admin,
+      refs,
+      userId: args.userId,
+    });
+    if (new Set(refs).size !== referencedRows.length) {
+      throw new Error("Extraction referenced unavailable talent context rows");
+    }
+    for (const change of changes) {
+      const key =
+        change.op === "add"
+          ? change.collection === "brief"
+            ? change.key
+            : null
+          : referencedRows.find((row) => row.ref === change.ref)?.key;
+      const checklistKey = key
+        ? ONBOARDING_QUESTION_BY_INSIGHT_KEY.get(key)
+        : null;
+      if (checklistKey && change.op !== "delete") {
         coveredChecklistKeys.add(checklistKey);
-      }
-      const existingValue = args.currentInsightContent?.[key]?.trim();
-      if (extracted.action === "update") {
-        if (existingValue === value) continue;
-        processedInsights[key] = value;
-        continue;
-      }
-
-      if (!existingValue) {
-        processedInsights[key] = value;
       }
     }
 
@@ -621,7 +757,7 @@ export async function extractAndPersistChatInsights(args: {
       assistantContent,
       coveredChecklistKeys,
       currentChecklistCoverage,
-      currentInsightContent: args.currentInsightContent,
+      currentInsightContent,
       logPrefix: args.logPrefix,
       messages: recentExtractionMessages,
       onboardingChecklistContext: args.onboardingChecklistContext,
@@ -630,50 +766,76 @@ export async function extractAndPersistChatInsights(args: {
       coveredChecklistKeys.add(inferredAdditionalQuestionKey);
     }
 
-    if (
-      Object.keys(processedInsights).length === 0 &&
-      coveredChecklistKeys.size === 0
-    ) {
+    if (changes.length === 0 && coveredChecklistKeys.size === 0) {
       return 0;
     }
 
-    const changedKeysCount = Object.keys(processedInsights).length;
+    let changedContextCount = 0;
     let changedChecklistCount = 0;
 
-    if (changedKeysCount > 0) {
-      const finalContent: Record<string, string> = {
-        ...(args.currentInsightContent ?? {}),
-        ...processedInsights,
-      };
-
-      await upsertTalentInsights({
+    if (changes.length > 0) {
+      const lastUserMessage = [...recentExtractionMessages]
+        .reverse()
+        .find((message) => message.role === "user");
+      const requestId = createTalentContextMutationRequestId([
+        "onboarding_extraction",
+        args.userId,
+        args.conversationId,
+        lastUserMessage?.id ?? null,
+        changes,
+      ]);
+      const mutation = await mutateTalentContextsFromAgent({
         admin: args.admin,
+        changes,
+        referencedRows,
+        requestId,
+        sourceRefs: [
+          {
+            type: "onboarding_extraction",
+            conversationId: args.conversationId,
+            messageId: lastUserMessage?.id ?? null,
+          },
+        ],
         userId: args.userId,
-        content: finalContent,
       });
+      changedContextCount = mutation.changedIds.length;
+      const refreshEmbeddings = () =>
+        refreshTalentContextEmbeddings({
+          admin: args.admin,
+          ids: mutation.changedIds,
+          userId: args.userId,
+        }).catch((error) => {
+          logger.log(`[${args.logPrefix}] Failed to embed extracted memories`, {
+            error: error instanceof Error ? error.message : "Unknown error",
+          });
+        });
+      if (args.scheduleAfter) args.scheduleAfter(refreshEmbeddings);
+      else void refreshEmbeddings();
     }
 
     if (coveredChecklistKeys.size > 0) {
+      const latestBriefs = await fetchAllTalentContexts({
+        admin: args.admin,
+        collection: "brief",
+        userId: args.userId,
+      });
       const coverageResult = await mergeCareerOnboardingChecklistCoverage({
         admin: args.admin,
         conversationId: args.conversationId,
         coveredKeys: Array.from(coveredChecklistKeys),
-        currentInsightContent: {
-          ...(args.currentInsightContent ?? {}),
-          ...processedInsights,
-        },
+        currentInsightContent: projectBriefsToLegacyInsights(latestBriefs),
         userId: args.userId,
       });
       changedChecklistCount = coverageResult.changedCount;
     }
 
-    return changedKeysCount + changedChecklistCount;
+    return changedContextCount + changedChecklistCount;
   } catch (insightError) {
     logger.log(`[${args.logPrefix}] Failed to extract insights`, {
       userId: args.userId,
       error:
         insightError instanceof Error ? insightError.message : "Unknown error",
     });
-    return 0;
+    throw insightError;
   }
 }

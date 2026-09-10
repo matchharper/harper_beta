@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import type { User } from "@supabase/supabase-js";
 import type { CareerCallStartRequest } from "@/components/career/types";
+import { getCareerConversationStarter } from "@/lib/career/prompts/conversationStarters";
 
 type AutoStartArgs = {
   user: User | null;
@@ -35,6 +36,8 @@ export function useCareerAutoStart({
     if (typeof window === "undefined") return;
     const nextUrl = new URL(window.location.href);
     nextUrl.searchParams.delete("start");
+    nextUrl.searchParams.delete("starter");
+    nextUrl.searchParams.delete("source");
     const nextPathname =
       nextUrl.pathname.replace(/\/+$/, "") === "/career/chat"
         ? "/career"
@@ -52,15 +55,33 @@ export function useCareerAutoStart({
       router.query.start === "call" || router.query.start === "chat"
         ? router.query.start
         : null;
+    const rawStarterId = Array.isArray(router.query.starter)
+      ? router.query.starter[0]
+      : router.query.starter;
+    const conversationStarter = getCareerConversationStarter(
+      rawStarterId,
+      router.locale
+    );
     if (!startMode) return;
-    if (!showVoiceStartPrompt && !forceOnboardingStart) return;
+    if (
+      !showVoiceStartPrompt &&
+      !forceOnboardingStart &&
+      !conversationStarter
+    ) {
+      return;
+    }
 
     handledRef.current = true;
     clearStartQuery();
 
     if (startMode === "call" && onStartCallMode) {
       void onStartCallMode(
-        forceOnboardingStart && !showVoiceStartPrompt
+        conversationStarter
+          ? {
+              conversationStarterId: conversationStarter.id,
+              openingText: conversationStarter.callOpeningText,
+            }
+          : forceOnboardingStart && !showVoiceStartPrompt
           ? { forceBeginOnboarding: true }
           : undefined
       );
@@ -85,7 +106,9 @@ export function useCareerAutoStart({
     onStartCallMode,
     onUseChatOnly,
     router.isReady,
+    router.locale,
     router.query.start,
+    router.query.starter,
     showVoiceStartPrompt,
     user,
   ]);

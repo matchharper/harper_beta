@@ -4,13 +4,11 @@ import type {
   CareerOpportunitySavedStage,
   SessionResponse,
 } from "@/components/career/types";
-import { getCareerDefaultSavedStage } from "@/components/career/opportunityTypeMeta";
+import { getCareerDefaultSavedStageForOpportunity } from "@/components/career/opportunityTypeMeta";
 import { isOpportunityType } from "@/lib/opportunityType";
 
 export const getDefaultSavedStage = (item: CareerHistoryOpportunity) =>
-  item.isInternal || item.sourceType === "internal"
-    ? "connected"
-    : getCareerDefaultSavedStage(item.opportunityType);
+  getCareerDefaultSavedStageForOpportunity(item);
 
 export type CareerHistoryOpportunityBucket = "new" | "saved" | "archived";
 

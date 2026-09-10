@@ -1,3 +1,12 @@
+import {
+  getCareerConversationStarter,
+  type CareerConversationStarterId,
+} from "@/lib/career/prompts/conversationStarters";
+import {
+  normalizeCareerOpenablePendingActionReference,
+  type CareerOpenablePendingActionReference,
+} from "@/lib/career/pendingActions";
+
 export const CAREER_REENGAGEMENT_ACTIONS_START =
   "[[CAREER_REENGAGEMENT_ACTIONS]]";
 export const CAREER_REENGAGEMENT_ACTIONS_END =
@@ -11,7 +20,25 @@ const CAREER_PATH_PATTERN = /^\/career(?:\/|$)/;
 const CAREER_PATH_BASE_URL = "https://career.matchharper.invalid";
 const JSON_CODE_FENCE_PATTERN = /^```(?:json)?\s*([\s\S]*?)\s*```$/i;
 
+export type CareerReengagementPendingCallTarget =
+  | { starterId: CareerConversationStarterId }
+  | { internalCallRequestId: string };
+
 export type CareerReengagementAction =
+  | {
+      label: string;
+      action: {
+        type: "start_call";
+        starterId: CareerConversationStarterId;
+      };
+    }
+  | {
+      label: string;
+      action: {
+        type: "start_call";
+        internalCallRequestId: string;
+      };
+    }
   | {
       label: string;
       action: {
@@ -62,9 +89,35 @@ function normalizePendingActionRef(value: unknown) {
   return /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(ref) ? ref : "";
 }
 
+export function readCareerPendingActionKindForDisplay(
+  value: unknown
+): CareerOpenablePendingActionReference["kind"] | null {
+  const ref = normalizePendingActionRef(value);
+  const payload = ref.split(".")[0];
+  if (!payload) return null;
+
+  try {
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = `${base64}${"=".repeat((4 - (base64.length % 4)) % 4)}`;
+    const parsed = JSON.parse(globalThis.atob(padded)) as unknown;
+    return normalizeCareerOpenablePendingActionReference(parsed)?.kind ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeInternalCallRequestId(value: unknown) {
+  const id = cleanString(value, 160);
+  return /^[\p{L}\p{N}._:-]+$/u.test(id) ? id : "";
+}
+
 function normalizeCareerReengagementAction(
   value: unknown,
-  resolvePendingActionRef?: (actionKey: string) => string | null
+  resolvePendingActionRef?: (actionKey: string) => string | null,
+  resolvePendingCallTarget?: (
+    actionKey: string
+  ) => CareerReengagementPendingCallTarget | null,
+  allowResolvedCallTargets = true
 ): CareerReengagementAction | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
@@ -74,6 +127,50 @@ function normalizeCareerReengagementAction(
   }
 
   const action = record.action as Record<string, unknown>;
+  if (action.type === "start_call") {
+    const resolvedTarget = resolvePendingCallTarget?.(
+      cleanString(action.actionKey, 80)
+    );
+    if (resolvedTarget && "internalCallRequestId" in resolvedTarget) {
+      const internalCallRequestId = normalizeInternalCallRequestId(
+        resolvedTarget.internalCallRequestId
+      );
+      return internalCallRequestId
+        ? {
+            label,
+            action: { type: "start_call", internalCallRequestId },
+          }
+        : null;
+    }
+    if (resolvedTarget && "starterId" in resolvedTarget) {
+      const starter = getCareerConversationStarter(resolvedTarget.starterId);
+      return starter
+        ? {
+            label,
+            action: { type: "start_call", starterId: starter.id },
+          }
+        : null;
+    }
+    if (!allowResolvedCallTargets) return null;
+
+    const internalCallRequestId = normalizeInternalCallRequestId(
+      action.internalCallRequestId
+    );
+    if (internalCallRequestId) {
+      return {
+        label,
+        action: { type: "start_call", internalCallRequestId },
+      };
+    }
+    const starter = getCareerConversationStarter(action.starterId);
+    return starter
+      ? {
+          label,
+          action: { type: "start_call", starterId: starter.id },
+        }
+      : null;
+  }
+
   if (action.type === "send_message") {
     const message = cleanString(action.message, 1000);
     return message
@@ -100,6 +197,10 @@ function normalizeCareerReengagementAction(
 
 function getCareerReengagementActionKey(action: CareerReengagementAction) {
   switch (action.action.type) {
+    case "start_call":
+      return "internalCallRequestId" in action.action
+        ? `start_call:internal:${action.action.internalCallRequestId}`
+        : `start_call:starter:${action.action.starterId}`;
     case "send_message":
       return `send_message:${action.action.message}`;
     case "open_path":
@@ -111,7 +212,11 @@ function getCareerReengagementActionKey(action: CareerReengagementAction) {
 
 function normalizeCareerReengagementActions(
   value: unknown,
-  resolvePendingActionRef?: (actionKey: string) => string | null
+  resolvePendingActionRef?: (actionKey: string) => string | null,
+  resolvePendingCallTarget?: (
+    actionKey: string
+  ) => CareerReengagementPendingCallTarget | null,
+  allowResolvedCallTargets = true
 ) {
   const rawActions =
     value && typeof value === "object" && !Array.isArray(value)
@@ -124,14 +229,16 @@ function normalizeCareerReengagementActions(
   for (const rawAction of rawActions) {
     const action = normalizeCareerReengagementAction(
       rawAction,
-      resolvePendingActionRef
+      resolvePendingActionRef,
+      resolvePendingCallTarget,
+      allowResolvedCallTargets
     );
     if (!action) continue;
     const actionKey = getCareerReengagementActionKey(action);
     if (seenActions.has(actionKey)) continue;
     seenActions.add(actionKey);
     actions.push(action);
-    if (actions.length >= 3) break;
+    if (actions.length >= 4) break;
   }
   return actions;
 }
@@ -144,6 +251,9 @@ function parseCareerReengagementActionsPayload(payload: string) {
 
 export function resolveCareerReengagementActionKeys(args: {
   content: string;
+  resolvePendingCallTarget?: (
+    actionKey: string
+  ) => CareerReengagementPendingCallTarget | null;
   resolvePendingActionRef: (actionKey: string) => string | null;
 }) {
   let resolvedContent = args.content.replace(
@@ -152,7 +262,9 @@ export function resolveCareerReengagementActionKeys(args: {
       try {
         const actions = normalizeCareerReengagementActions(
           parseCareerReengagementActionsPayload(payload),
-          args.resolvePendingActionRef
+          args.resolvePendingActionRef,
+          args.resolvePendingCallTarget,
+          false
         );
         if (actions.length === 0) return "";
         return `${CAREER_REENGAGEMENT_ACTIONS_START}\n${JSON.stringify({ actions })}\n${CAREER_REENGAGEMENT_ACTIONS_END}`;
@@ -195,7 +307,9 @@ export function resolveCareerReengagementActionKeys(args: {
           parseCareerReengagementActionsPayload(
             blockRemainder.slice(0, payloadEnd + 1)
           ),
-          args.resolvePendingActionRef
+          args.resolvePendingActionRef,
+          args.resolvePendingCallTarget,
+          false
         );
         resolvedContent = actions.length
           ? `${visibleContent.trimEnd()}\n${CAREER_REENGAGEMENT_ACTIONS_START}\n${JSON.stringify({ actions })}\n${CAREER_REENGAGEMENT_ACTIONS_END}`
@@ -225,7 +339,7 @@ export function extractCareerReengagementActions(content: string) {
           if (seenActions.has(actionKey)) continue;
           seenActions.add(actionKey);
           actions.push(action);
-          if (actions.length >= 3) break;
+          if (actions.length >= 4) break;
         }
       } catch {
         // Malformed UI metadata is hidden while the visible reply stays usable.

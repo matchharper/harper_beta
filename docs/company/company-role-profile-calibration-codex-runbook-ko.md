@@ -1,7 +1,7 @@
 # Company Role Profile Calibration: Codex 실행 계약
 
-- 문서 기준: 2026-09-07
-- 상태: 로컬 구현과 연결됨, production rollout 전
+- 문서 기준: 2026-09-08
+- 상태: event listener 로컬 구현과 연결됨, notification migration rollout 전
 - 구현 계획: [Company Role Profile Calibration 구현 계획](./company-role-profile-calibration-implementation-plan-ko.md)
 
 ## 1. 목적
@@ -33,11 +33,24 @@
 8. 프로필 평가는 웹 버튼이 아니라 Role 채팅 또는 calibration Slack thread의 자연어
    답변으로만 받는다.
 
-## 3. 예약 실행의 범위
+## 3. 자동 실행의 범위
 
-Codex Scheduled는 12시간마다 실행한다. 한 번 깨어나면 현재 처리 가능한 calibration을
-하나씩 순차 처리하고, 각 row를 terminal 또는 공개 가능한 상태로 끝낸 뒤 다음 row를
-claim한다.
+Role 활성화 transaction이 calibration row를 `queued`로 만들면 DB는 ID와 상태만 담은 wake
+notification을 보낸다. 켜져 있는 로컬 listener는 durable queue를 다시 확인한 뒤 `codex exec`을
+한 번 시작한다. Codex는 현재 처리 가능한 calibration을 하나씩 순차 처리하고, 각 row를
+terminal 또는 공개 가능한 상태로 끝낸 뒤 다음 row를 claim한다. 동시에 여러 Role이 들어와도
+한 로컬 listener는 Codex process를 하나만 실행하며, 한 process가 최대 10개 Role을 처리한 뒤
+backlog가 남으면 다음 process가 이어서 처리한다.
+
+Notification은 작업의 존재를 알려 주는 wake hint일 뿐이다. 알림이 유실되거나 listener가
+꺼져 있었어도 queue row는 남으며 listener 시작·재연결 때 다시 발견한다. 2시간 넘게 남아 있는
+`running` row는 다음 실행의 기존 claim helper가 복구한다. 저장은 끝났지만 Slack 전달이 되지
+않은 `ready` row는 즉시 한 번 전송하고, 이후 실패 시 12시간 간격으로 재시도한다. 이를 위해
+빈 queue를 확인하는 LLM schedule은 사용하지 않는다.
+
+Listener가 띄우는 Codex에는 DB와 internal delivery API 접근을 위한 workspace-write network
+access를 명시한다. 모든 helper 명령은 LaunchAgent를 설치한 Python executable로 실행해 새
+컴퓨터의 전용 venv와 실제 runtime이 달라지지 않게 한다.
 
 자동 대상은 다음을 모두 만족해야 한다.
 
@@ -50,7 +63,7 @@ claim한다.
 
 Draft 생성만으로는 대상이 되지 않는다. Role이 active가 되는 transaction에서 애플리케이션
 또는 DB helper가 calibration row를 `queued`로 만든다. 한 Role에는 최초 calibration set 하나만
-자동 생성하며, 과거 row가 terminal 상태여도 다시 만들지 않는다. Codex가 12시간마다 전체 Role을 읽고
+자동 생성하며, 과거 row가 terminal 상태여도 다시 만들지 않는다. Codex가 주기적으로 전체 Role을 읽고
 대상을 추측하지 않는다.
 
 Claim 뒤 Role이 중단·종료·삭제·만료됐거나 test-only로 바뀌었으면 프로필을 만들거나
@@ -249,11 +262,11 @@ calibration reference를 남긴다. 이후 thread reply는 기존 company-side S
 들어간다. 별도의 Slack button interactivity 경로는 만들지 않는다.
 
 Slack이 연결되지 않았거나 전달에 실패해도 준비된 웹 profile을 버리지 않는다. UI에는
-계속 보이게 하고 같은 idempotency key로 다음 예약 실행에서 Slack 전달만 다시 시도한다.
+계속 보이게 하고 같은 idempotency key로 listener가 계산한 다음 retry 시점에 Slack 전달만 다시 시도한다.
 
 ## 11. Feedback 처리 경계
 
-예약 Codex는 프로필을 준비하고 Slack에 전달하는 데까지만 책임진다. 사용자의 답변은 웹과
+로컬 event Codex는 프로필을 준비하고 Slack에 전달하는 데까지만 책임진다. 사용자의 답변은 웹과
 Slack의 기존 company-side LLM이 처리한다.
 
 - 명시적으로 좋다고 한 profile만 `good`

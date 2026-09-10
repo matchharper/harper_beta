@@ -121,7 +121,11 @@ export const ROLE_CREATION_TOOLS = [
             },
             uniqueItems: true,
           },
-          salaryRange: { type: ["string", "null"] },
+          salaryRange: {
+            type: ["string", "null"],
+            description:
+              "One free-form compensation value containing any range, currency, equity, bonus, or basis detail together. Never split it into minimum, maximum, currency, or other compensation fields.",
+          },
           externalJdUrl: { type: ["string", "null"] },
           memory: {
             type: ["string", "null"],
@@ -177,7 +181,7 @@ export const ROLE_CREATION_TOOLS = [
     function: {
       name: "read_other_roles",
       description:
-        "Read up to eight other internal roles in the same company, including each role's private request, structured criteria, description, and memory. For a new draft, call this before the first internal request or criteria draft. Use analogous roles only to propose a team preference for the user's review; never copy it silently.",
+        "Read up to eight other internal roles in the same company, including each role's lifecycle status, saved compensation range, private request, structured criteria, description, and memory. For a new draft, use this to ground an optional compensation proposal when a genuinely analogous role has saved compensation, and call it before the first internal request or criteria draft. Never infer analogy from title alone or copy another role's compensation or preferences silently; apply them only after the user's explicit acceptance.",
       parameters: {
         type: "object",
         properties: {},

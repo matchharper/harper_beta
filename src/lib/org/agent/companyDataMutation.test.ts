@@ -282,6 +282,30 @@ test("employment types preserve company-specific labels", () => {
   ]);
 });
 
+test("role salary range is rewritten as role-scoped text", () => {
+  const parsed = parseCompanyDataChanges({
+    changes: [
+      {
+        key: "salaryRange",
+        kind: "rewrite",
+        roleId: "role-1",
+        value: "9천만원~1억 2천만원",
+      },
+    ],
+    summary: "보상 범위 수정",
+  });
+  const result = resolveCompanyDataMutation({
+    ...parsed,
+    isComplete: () => true,
+    snapshot: snapshot({ "salaryRange:role-1": null }),
+  });
+
+  assert.equal(result.confirmationRequired, false);
+  assert.equal(result.changes[0]?.key, "salaryRange");
+  assert.equal(result.changes[0]?.role_id, "role-1");
+  assert.equal(result.changes[0]?.value, "9천만원~1억 2천만원");
+});
+
 test("a mirrored physical value drift is not treated as a logical no-op", () => {
   const parsed = parseCompanyDataChanges({
     changes: [{ key: "company_description", kind: "rewrite", value: null }],

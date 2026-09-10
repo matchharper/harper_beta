@@ -12,7 +12,7 @@
 | always-on context와 retention 주입 | `src/lib/org/agent/context.ts` |
 | compact 직렬화 | `src/lib/org/agent/promptFormat.ts` |
 | tool schema | `src/lib/org/agent/tools.ts` |
-| bounded read | `src/lib/org/agent/data.ts` |
+| bounded read | `src/lib/org/agent/data.ts`, `src/lib/org/agent/contacts.ts` |
 | flat key catalog | `src/lib/org/agent/companyDataCatalog.ts` |
 | append/replace/rewrite | `src/lib/org/agent/companyDataMutation.ts` |
 | runtime validation과 실행 | `src/lib/org/agent/toolExecution.ts` |
@@ -88,13 +88,15 @@ role request/memory/JD 본문과 큰 회사 정보는 기본으로 넣지 않는
 | --- | --- | --- |
 | `get_talents` | 후보 식별용 bounded search | 없음 |
 | `read_talent` | 특정 후보의 role/stage/progress, Harper 공유 정보와 선택적 profile | 없음 |
+| `list_contacts` | workspace 전체의 후보자 연락·인터뷰 요청·소개 이메일 index | 없음 |
+| `read_contact` | 선택한 연락의 실제 참여자·상태·제목·본문·답변 읽기 | 없음 |
 | `read_role` | 특정 role의 선택 block 읽기 | 없음 |
 | `get_more_data` | workspace optional data 읽기 | 없음 |
 | `update_role_criteria` | structured role criteria 전체 교체 또는 선택 편집 | 있음 |
 | `update_data` | 회사·role 정보를 단일 atomic batch로 변경/확인 | 있음 |
 | `change_role_status` | Role의 진행·중단·종료·삭제 lifecycle 변경 | 있음 |
 | `decide_candidate_connection` | 연결 대기 후보자의 수락·거절과 연락 방식 결정 | 있음 |
-| `manage_role_pipeline_stages` | Role의 custom 단계 추가·이름 변경·빈 단계 삭제 | 있음 |
+| `manage_role_pipeline_stages` | Role의 custom 단계 추가·미팅 기본값 수정·이름 변경·빈 단계 삭제 | 있음 |
 | `move_candidate_stage` | 연결 이후 후보자를 활성 pipeline 단계 사이에서 이동 | 있음 |
 
 pipeline 구조 변경과 후보자 위치 변경은 서로 다른 terminal tool이다. 단계만 고치는
@@ -147,7 +149,7 @@ memo, tradeoff, 최근 progress, 회사 연락 이력, 이력서 등록 여부�
 `talent_users.resume_text`와 resume excerpt는 DB에서 읽거나 tool result에 직렬화하지
 않는다. resume는 공개 가능한 primary resume 파일의 존재 여부와 안내 문구만 반환한다.
 
-여러 후보를 한 번에 읽을 때도 전체 tool result는 48,000자 한도 안에 들어오도록 후보별
+여러 후보를 한 번에 읽을 때도 전체 tool result는 80,000자 한도 안에 들어오도록 후보별
 detail을 bounded하게 직렬화한다. 특정 후보의 detail이 잘리면 해당 item에
 `detail_complete=false`를 표시하므로, exact 나머지 정보가 필요할 때 그 후보 한 명만
 다시 읽는다.
@@ -155,6 +157,45 @@ detail을 bounded하게 직렬화한다. 특정 후보의 detail이 잘리면 �
 조회는 최신 board page에만 의존하지 않는다. talent/role과 최근 progress의
 recommendation ID를 bounded하게 다시 확인하므로 최근 활동이 생긴 오래된
 recommendation도 읽을 수 있다. Slack은 `company_safe` audience를 사용한다.
+
+## `list_contacts` / `read_contact`
+
+`list_contacts`는 후보자를 먼저 열거하지 않고 workspace 전체의 회사 요청 연락,
+인터뷰 가능 시간 요청, 연결 소개 이메일, 연결·Role 변경 안내를 한 목록에서 찾는다.
+한 행은 이메일 한 통이 아니라 하나의 연락 흐름이다. 단, 독립된 이메일로 저장되지
+않고 Career Harper의 종합 안내 안에 포함된 내용은 이 목록의 대상이 아니다.
+
+| argument | 의미 |
+| --- | --- |
+| `kind` | `contact`, `interview_request`, `connection_intro`, `notice`; 생략하면 전체 |
+| `dateBasis` | `updated`가 기본. 실제 발송 이력에는 `sent` 사용 |
+| `after` / `before` | 선택한 date basis의 ISO date-time 범위 |
+| `talentId` / `roleId` | 정확한 후보자 또는 Role 범위 |
+| `query` | 후보자명·이메일, Role명, 요청한 회사 사용자명·이메일 |
+| `limit` / `offset` | 기본 20/0, 최대 100/10,000 |
+
+목록 결과는 `contact_ref`, 종류, 후보자와 Role, 연락을 요청한 회사 사용자, 현재 상태,
+선택한 기준 시각만 반환한다. 제목과 본문은 반환하지 않는다. `has_more=true`이면
+offset을 늘려 계속 읽는다. `dateBasis=sent`는 실제 `sent_at`이 있는 연락만 포함하므로
+초안과 발송 예정 항목을 발송 완료로 계산하지 않는다.
+
+`read_contact`는 목록에서 받은 exact `contactRef`를 `contactRefs` 배열에 1~10개 넣어
+읽는다. 이때만 저장된 제목과 본문, 실제 요청자와 수신자, 예약·발송 시각, 후보자
+답변이나 일정 선택·확정 정보를 반환한다. 회사 요청 연락·인터뷰 요청·Role 변경 안내의
+`sender`는 Harper라는 일반 label이 아니라 해당 발송을 요청한 실제 회사 사용자다.
+시스템이 만든 연결 안내만 Harper를 발신자로 표시한다. Harper가 회사 사용자의 요청을
+후보자에게 대신 전달한 경우에는 그 의미를 tool result에 함께 설명한다.
+
+연락 흐름 하나에 회사 요청, Harper의 전달, 후보자 답변이 함께 있을 수 있으므로
+최상위 `direction`은 두 tool 모두 사용하지 않는다. 상세 결과가 각 메시지의 실제
+sender와 recipient를 명시한다.
+
+목록은 새 저장소를 만들지 않고 다음 원본을 read-only projection으로 합친다.
+
+- `company_talent_requests`와 관련 `contact_queue`
+- `meeting_schedules`, `meeting_schedule_rounds`와 관련 `contact_queue`
+- `career_email_messages`의 회사 연결 소개 이메일
+- `career_email_messages`의 연결·Role 변경 안내 이메일
 
 ## `read_role`
 
@@ -180,8 +221,9 @@ request, memory, description은 Markdown을 보존하고 field별
 complete read가 있어야 한다. pipeline count가 cap에 닿으면 정확한 수가 아니라
 lower bound이며 `countsComplete=false`다.
 
-`pipeline` 결과는 사람이 읽는 label과 함께 변경에 필요한 exact stage ID와 정렬
-순서를 반환한다. custom 단계는 `custom:<uuid>` 형식이며, 후보자마다 현재
+`pipeline` 결과는 사람이 읽는 label과 함께 변경에 필요한 exact stage ID, 정렬
+순서, 저장된 미팅 주제·시간·후보자 안내 문구를 반환한다. custom 단계는
+`custom:<uuid>` 형식이며, 후보자마다 현재
 `currentStageId`와 `currentStageLabel`을 함께 준다. “다음 단계”는 이 최신 정렬
 순서에서 현재 단계 바로 다음을 뜻한다.
 
@@ -193,10 +235,14 @@ lower bound이며 `countsComplete=false`다.
 | action | 필수 값 | 동작 |
 | --- | --- | --- |
 | `add` | `roleId`, `labels` 1~6개 | 입력 순서대로 custom 단계 추가; 같은 이름은 재생성하지 않음 |
+| `update` | `roleId`, exact `stageId`, 변경할 미팅 기본값 | 기존 custom 단계의 미팅 주제·시간·후보자 안내 문구 수정; 생략한 값은 유지 |
 | `rename` | `roleId`, exact `stageId`, `label` | custom 단계 이름만 변경 |
 | `delete` | `roleId`, exact `stageId` | 후보자가 한 명도 없는 custom 단계만 삭제 |
 
 기본 단계인 연결 대기·연결됨·최종 오퍼·프로세스 종료는 수정하거나 삭제하지 않는다.
+`update`의 주제와 시간은 항상 함께 존재해야 한다. 기존 값 일부만 바꿀 때는 바꿀 값만
+보내며, 둘을 제거할 때는 모두 `null`로 보낸다. 이 변경은 이후 새로 준비하는 일정에만
+적용되고 이미 보낸 초대나 확정된 미팅은 바꾸지 않는다.
 단계 삭제는 사용 중이면 거절하고 후보자 태그를 함께 지우지 않는다. 어떤 action도
 후보자 위치, Role 조건·요청·메모·상태, 후보자 연락이나 인터뷰 일정을 바꾸지 않는다.
 
@@ -349,8 +395,11 @@ flat key는 다음 범주다.
   홈페이지·LinkedIn, 위치, 설립 연도, 직원 수, 관련 링크, 누적 투자금, 최근 투자
   단계
 - memory: `workspace_memory`
-- role: 이름, 설명, 외부 JD, 위치, 근무 방식, 고용 형태
+- role: 이름, 설명, 외부 JD, 위치, 보상 범위, 근무 방식, 고용 형태
 - role 기준/기억: `role_request`, `role_memory`
+
+보상 범위는 `salaryRange`로 즉시 저장한다. 확인이 필요한 request·memory 변경과는
+별도 호출로 보내며, 그 밖의 즉시 적용 field와는 같은 atomic batch에 넣을 수 있다.
 
 모든 서술형 회사 정보와 후보자 안내용 회사 문구는 pitch 문서에 쓴다. 홈페이지와
 LinkedIn 이외의 채용·투자·보도·참고 URL은 모두 관련 링크에 쓴다. 별도 회사 소개,
@@ -444,7 +493,7 @@ argument는 exact `roleId`와 `status` 두 개다. `paused`를 기존 후보 프
   그대로 전달한다.
 - Luna와 Terra는 Responses API에서 `reasoning.effort=high`로 호출한다.
 - tool loop 최대 4회, 실제 tool call 최대 5개
-- 누적 tool result 최대 48,000자
+- 누적 tool result 최대 80,000자
 - 일반 completion 최대 4,000 tokens
 - complete long text read 후 rewrite completion 최대 32,000 tokens
 - tool-free final 최대 2,000 tokens

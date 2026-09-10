@@ -1,8 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { OrgAgentPromptContext } from "@/lib/org/agent/context";
+import {
+  CONVERSATION_CONTEXT_MAX_CHARS,
+  CONVERSATION_MESSAGE_MAX_CHARS,
+  type OrgAgentPromptContext,
+} from "@/lib/org/agent/context";
 import { buildDefaultOrgAgentLongTextObservations } from "@/lib/org/agent/contextVisibility";
 import { formatOrgAgentCompanyContext } from "@/lib/org/agent/promptFormat";
+import { selectRecentlyPresentedContactDraftIds } from "@/lib/org/agent/toolState";
+
+test("uses the expanded recent-conversation limits", () => {
+  assert.equal(CONVERSATION_MESSAGE_MAX_CHARS, 6_000);
+  assert.equal(CONVERSATION_CONTEXT_MAX_CHARS, 50_000);
+});
 
 test("default visibility treats the always-injected pitch document as complete", () => {
   const roleObservation = {
@@ -112,7 +122,7 @@ test("total context truncation revokes every retained completeness marker", asyn
     },
   } as any;
   const context = {
-    companyText: "c".repeat(49_000),
+    companyText: "c".repeat(97_000),
     completeRoleRequestIds: [],
     contextNotesText: "-",
     conversationText: "-",
@@ -163,11 +173,11 @@ test("total context truncation revokes every retained completeness marker", asyn
 });
 
 test("conversation truncation preserves the current Slack thread ID", async () => {
-  const { enforceOrgAgentContextBudget } =
+  const { enforceOrgAgentContextBudget, ORG_AGENT_CONTEXT_MAX_CHARS } =
     await import("@/lib/org/agent/contextBudget");
   const threadId = "thread-1";
   const context = {
-    companyText: "c".repeat(47_500),
+    companyText: "c".repeat(ORG_AGENT_CONTEXT_MAX_CHARS - 500),
     contextNotesText: "-",
     conversationText: [
       `scope=current_thread thread_id=${threadId} returned_items=24 has_more=true`,
@@ -183,4 +193,43 @@ test("conversation truncation preserves the current Slack thread ID", async () =
 
   assert.match(context.conversationText, /older_conversation_truncated=true/);
   assert.match(context.conversationText, new RegExp(`thread_id=${threadId}`));
+});
+
+test("keeps every draft reference from the nearest draft presentation in the recent four messages", () => {
+  const refs = Array.from({ length: 15 }, (_, index) => ({
+    contactId: `contact-${index + 1}`,
+    revision: 1,
+  }));
+
+  assert.deepEqual(
+    selectRecentlyPresentedContactDraftIds([
+      {
+        metadata: { contactDraftRefs: [{ contactId: "older", revision: 1 }] },
+        role: "assistant",
+      },
+      { metadata: {}, role: "user" },
+      { metadata: { contactDraftRefs: refs }, role: "assistant" },
+      { metadata: {}, role: "user" },
+      { metadata: {}, role: "assistant" },
+    ]),
+    refs.map((ref) => ref.contactId)
+  );
+});
+
+test("does not reuse a draft presentation older than four conversation messages", () => {
+  assert.deepEqual(
+    selectRecentlyPresentedContactDraftIds([
+      {
+        metadata: {
+          contactDraftRefs: [{ contactId: "too-old", revision: 1 }],
+        },
+        role: "assistant",
+      },
+      { metadata: {}, role: "user" },
+      { metadata: {}, role: "assistant" },
+      { metadata: {}, role: "user" },
+      { metadata: {}, role: "assistant" },
+    ]),
+    []
+  );
 });

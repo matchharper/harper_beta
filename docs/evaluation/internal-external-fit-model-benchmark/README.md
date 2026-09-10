@@ -21,5 +21,4 @@ Runner를 이 폴더로 복사하지 않는다. 실제 worker import 경로와 �
 
 ## 안전과 한계
 
-Production capture와 실행은 DB write, recommendation 저장, discovery run 생성, 발송을 하지 않는다. 실제 후보자와 role 원문이 포함된 fixture·manual review·raw result는 local-only다. External score gold가 없는 suite는 모델 대체의 품질 결론이 아니라 동작·비용·drift 진단만 제공한다.
-
+Production capture와 실행은 DB write, recommendation 저장, discovery run 생성, 발송을 하지 않는다. Capture는 worker의 canonical `connect_read_only()`를 사용해 transaction pool과 분리된 session 연결에서 매 transaction을 read-only로 시작한다. session-level `default_transaction_read_only`는 사용하지 않는다. 실제 후보자와 role 원문이 포함된 fixture·manual review·raw result는 local-only다. External score gold가 없는 suite는 모델 대체의 품질 결론이 아니라 동작·비용·drift 진단만 제공한다.

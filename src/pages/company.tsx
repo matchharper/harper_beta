@@ -39,6 +39,15 @@ import { MessagesProvider, type Locale } from "@/i18n/useMessage";
 import { resolveOfficialJobsLocaleFromRequest } from "@/lib/officialJobs/copy";
 import type { GetServerSideProps } from "next";
 import { usePublicPageVisitLog } from "@/hooks/usePublicPageVisitLog";
+import {
+  COMPANY_OG_IMAGE_URL,
+  COMPANY_ORGANIZATION_ID,
+  COMPANY_SITE_URL,
+  COMPANY_WEBSITE_ID,
+  getCompanyLanguageEntryUrl,
+  getCompanyLocalePath,
+  getCompanyLocaleUrl,
+} from "@/lib/companyLandingSeo";
 
 const fontMain =
   "text-[22px] font-normal leading-[1.5] text-neutral-900 md:text-[28px]";
@@ -51,10 +60,7 @@ const fontSmall =
 
 const CONTACT_SALES_SECTION_ID = "company-contact";
 const CONTACT_SALES_HREF = `#${CONTACT_SALES_SECTION_ID}`;
-const COMPANY_PAGE_URLS = {
-  canonicalUrl: "https://matchharper.com/company",
-  imageUrl: "https://matchharper.com/images/logos/thumbnail.png",
-} as const;
+const LINKEDIN_COMPANY_URL = "https://www.linkedin.com/company/matchharper/";
 
 const COMPANY_PAGE_COPY = {
   ko: {
@@ -307,21 +313,63 @@ const COMPANY_PAGE_COPY = {
 
 type CompanyPageCopy = (typeof COMPANY_PAGE_COPY)[Locale];
 
-function buildCompanyPageStructuredData(copy: CompanyPageCopy) {
+function buildCompanyPageStructuredData(
+  copy: CompanyPageCopy,
+  canonicalUrl: string
+) {
   return {
     "@context": "https://schema.org",
-    "@type": "ProfessionalService",
-    name: "Harper for Companies",
-    url: COMPANY_PAGE_URLS.canonicalUrl,
-    image: COMPANY_PAGE_URLS.imageUrl,
-    description: copy.meta.description,
-    serviceType: "AI recruiting and candidate sourcing",
-    areaServed: ["KR", "US", "APAC"],
-    provider: {
-      "@type": "Organization",
-      name: "Harper",
-      url: "https://matchharper.com/",
-    },
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": COMPANY_ORGANIZATION_ID,
+        name: "Harper",
+        url: `${COMPANY_SITE_URL}/`,
+        logo: {
+          "@type": "ImageObject",
+          url: `${COMPANY_SITE_URL}/images/logo.png`,
+          width: 264,
+          height: 264,
+        },
+        sameAs: [LINKEDIN_COMPANY_URL],
+      },
+      {
+        "@type": "WebSite",
+        "@id": COMPANY_WEBSITE_ID,
+        name: "Harper",
+        url: `${COMPANY_SITE_URL}/`,
+        publisher: {
+          "@id": COMPANY_ORGANIZATION_ID,
+        },
+      },
+      {
+        "@type": "Service",
+        "@id": `${canonicalUrl}#service`,
+        name: "Harper for Companies",
+        url: canonicalUrl,
+        image: COMPANY_OG_IMAGE_URL,
+        description: copy.meta.description,
+        serviceType: "AI recruiting and candidate sourcing",
+        areaServed: ["KR", "US", "APAC"],
+        provider: {
+          "@id": COMPANY_ORGANIZATION_ID,
+        },
+      },
+      {
+        "@type": "WebPage",
+        "@id": `${canonicalUrl}#webpage`,
+        name: copy.meta.title,
+        url: canonicalUrl,
+        description: copy.meta.description,
+        inLanguage: copy.meta.language,
+        isPartOf: {
+          "@id": COMPANY_WEBSITE_ID,
+        },
+        mainEntity: {
+          "@id": `${canonicalUrl}#service`,
+        },
+      },
+    ],
   };
 }
 
@@ -807,7 +855,13 @@ const PillBtn = ({
   );
 };
 
-function ContactSalesSection({ copy }: { copy: CompanyPageCopy["contact"] }) {
+function ContactSalesSection({
+  copy,
+  shareUrl,
+}: {
+  copy: CompanyPageCopy["contact"];
+  shareUrl: string;
+}) {
   const router = useRouter();
   const emailInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState(initialContactSalesForm);
@@ -817,7 +871,7 @@ function ContactSalesSection({ copy }: { copy: CompanyPageCopy["contact"] }) {
 
   const handleShareClick = async () => {
     try {
-      const didCopy = await copyTextToClipboard(COMPANY_PAGE_URLS.canonicalUrl);
+      const didCopy = await copyTextToClipboard(shareUrl);
 
       if (!didCopy) {
         throw new Error("Copy command failed");
@@ -942,7 +996,7 @@ function ContactSalesSection({ copy }: { copy: CompanyPageCopy["contact"] }) {
     >
       <div className="grid w-full gap-8 lg:grid-cols-2 xl:gap-[30px]">
         <div>
-          <h1 className={cn(fontMain, "max-w-[610px]")}>{copy.title}</h1>
+          <h2 className={cn(fontMain, "max-w-[610px]")}>{copy.title}</h2>
 
           <div className="mt-5 flex min-h-[200px] max-w-[635px] flex-col justify-between rounded-lg border border-neutral-1000-a05 bg-[#fbfaf7] p-4 md:p-5">
             <p className="text-[15px] font-light leading-[1.55] text-neutral-primary">
@@ -1116,17 +1170,19 @@ function ContactSalesSection({ copy }: { copy: CompanyPageCopy["contact"] }) {
   );
 }
 
-type TestCompanyPageProps = {
+export type CompanyPageProps = {
   locale: Locale;
 };
 
-export default function TestCompanyPage({ locale }: TestCompanyPageProps) {
-  const [companyLocale, setCompanyLocale] = useState<Locale>(locale);
+export default function CompanyPage({ locale }: CompanyPageProps) {
+  const router = useRouter();
+  const companyLocale = locale;
   const [showPreloader, setShowPreloader] = useState(true);
   const [socialProofAnimationReady, setSocialProofAnimationReady] =
     useState(false);
   const copy = COMPANY_PAGE_COPY[companyLocale];
-  const structuredData = buildCompanyPageStructuredData(copy);
+  const canonicalUrl = getCompanyLocaleUrl(companyLocale);
+  const structuredData = buildCompanyPageStructuredData(copy, canonicalUrl);
   usePublicPageVisitLog();
 
   useEffect(() => {
@@ -1173,24 +1229,35 @@ export default function TestCompanyPage({ locale }: TestCompanyPageProps) {
           <meta name="author" content="Harper" />
           <meta key="theme-color" name="theme-color" content="#f7f6f1" />
           <link rel="icon" href="/images/logo.ico" />
-          <link rel="canonical" href={COMPANY_PAGE_URLS.canonicalUrl} />
+          <link rel="canonical" href={canonicalUrl} />
           <link
             rel="alternate"
-            hrefLang={copy.meta.language}
-            href={COMPANY_PAGE_URLS.canonicalUrl}
+            hrefLang="en"
+            href={getCompanyLocaleUrl("en")}
+          />
+          <link
+            rel="alternate"
+            hrefLang="ko"
+            href={getCompanyLocaleUrl("ko")}
+          />
+          <link
+            rel="alternate"
+            hrefLang="x-default"
+            href={getCompanyLanguageEntryUrl()}
           />
           <meta property="og:type" content="website" />
           <meta property="og:site_name" content="Harper" />
           <meta property="og:locale" content={copy.meta.ogLocale} />
           <meta property="og:title" content={copy.meta.title} />
           <meta property="og:description" content={copy.meta.description} />
-          <meta property="og:url" content={COMPANY_PAGE_URLS.canonicalUrl} />
-          <meta property="og:image" content={COMPANY_PAGE_URLS.imageUrl} />
+          <meta property="og:url" content={canonicalUrl} />
+          <meta property="og:image" content={COMPANY_OG_IMAGE_URL} />
           <meta property="og:image:alt" content={copy.meta.title} />
           <meta name="twitter:card" content="summary_large_image" />
           <meta name="twitter:title" content={copy.meta.title} />
           <meta name="twitter:description" content={copy.meta.description} />
-          <meta name="twitter:image" content={COMPANY_PAGE_URLS.imageUrl} />
+          <meta name="twitter:image" content={COMPANY_OG_IMAGE_URL} />
+          <meta name="twitter:image:alt" content={copy.meta.title} />
           <script
             key="ld-company-service"
             type="application/ld+json"
@@ -1472,24 +1539,37 @@ export default function TestCompanyPage({ locale }: TestCompanyPageProps) {
             </div>
           </Section>
 
-          <ContactSalesSection copy={copy.contact} />
+          <ContactSalesSection copy={copy.contact} shareUrl={canonicalUrl} />
         </main>
         <CareerLandingFooter
           careerStartHref={CONTACT_SALES_HREF}
           onCareerStartClick={handleContactSalesAnchorClick}
           onScheduleCallClick={handleFooterScheduleClick}
           locale={companyLocale}
-          onLocaleChange={setCompanyLocale}
+          onLocaleChange={(nextLocale) => {
+            void router.push(getCompanyLocalePath(nextLocale));
+          }}
         />
       </>
     </MessagesProvider>
   );
 }
 
-export const getServerSideProps: GetServerSideProps<
-  TestCompanyPageProps
-> = async ({ req }) => ({
-  props: {
-    locale: resolveOfficialJobsLocaleFromRequest(req),
+export function getCompanyPageServerSideProps(
+  routeLocale: Locale
+): GetServerSideProps<CompanyPageProps> {
+  return async () => ({
+    props: {
+      locale: routeLocale,
+    },
+  });
+}
+
+export const getServerSideProps: GetServerSideProps = async ({ req }) => ({
+  redirect: {
+    destination: getCompanyLocalePath(
+      resolveOfficialJobsLocaleFromRequest(req)
+    ),
+    permanent: false,
   },
 });

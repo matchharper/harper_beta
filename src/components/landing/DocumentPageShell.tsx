@@ -9,6 +9,7 @@ import type { Locale } from "@/i18n/useMessage";
 
 type DocumentPageShellProps = {
   aside?: ReactNode;
+  background?: "basement" | "default";
   children: ReactNode;
   contentWidth?: "wide" | "reading";
   description?: string;
@@ -19,6 +20,7 @@ type DocumentPageShellProps = {
 
 export default function DocumentPageShell({
   aside,
+  background = "default",
   children,
   contentWidth = "wide",
   description,
@@ -32,7 +34,11 @@ export default function DocumentPageShell({
   });
 
   return (
-    <main className="min-h-screen bg-bg-default text-neutral-primary">
+    <main
+      className={`min-h-screen text-neutral-primary ${
+        background === "basement" ? "bg-bg-basement" : "bg-bg-default"
+      }`}
+    >
       <Head>
         <title>{title} | Harper</title>
         {description ? <meta name="description" content={description} /> : null}

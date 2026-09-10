@@ -663,14 +663,17 @@ def main() -> int:
 
     with ThreadPoolExecutor(max_workers=7) as executor:
         calls = {
-            "insights": executor.submit(db.by_ids, "talent_insights", "talent_id", pool_ids, select="id,talent_id,content,created_at,last_updated_at"),
+            "contexts": executor.submit(db.by_ids, "talent_contexts", "talent_id", pool_ids, select="id,talent_id,ref,collection,label,key,content,revision,created_at,updated_at,deleted_at"),
             "summaries": executor.submit(db.by_ids, "talent_conversation_summaries", "talent_id", pool_ids, select="id,talent_id,conversation_id,segment_summary,summary_text,created_at,to_message_id", order="created_at.desc"),
             "activities": executor.submit(db.by_ids, "talent_activity_events", "talent_id", pool_ids, select="id,talent_id,event_type,summary,impact_level,source,created_at", order="created_at.desc"),
             "progress": executor.submit(db.by_ids, "talent_progress", "talent_id", pool_ids, select="id,talent_id,role_id,recommendation_id,kind,text,metadata,user_id,created_at", order="created_at.desc"),
             "memos": executor.submit(db.by_ids, "talent_ops_profile_memos", "talent_id", pool_ids, select="id,talent_id,content,created_at,updated_at"),
         }
         detail = {name: future.result() for name, future in calls.items()}
-    insights = index_many(detail["insights"], "talent_id")
+    contexts = index_many(
+        [row for row in detail["contexts"] if not row.get("deleted_at")],
+        "talent_id",
+    )
     summaries = index_many(detail["summaries"], "talent_id")
     activities = index_many(detail["activities"], "talent_id")
     progress = index_many(detail["progress"], "talent_id")
@@ -696,7 +699,8 @@ def main() -> int:
             "experiences": [{"id": item.get("id"), "company": item.get("company_name"), "role": item.get("role"), "start": item.get("start_date"), "end": item.get("end_date"), "employmentType": item.get("employment_type"), "description": compact(item.get("description"), 1600), "memo": compact(item.get("memo"), 400)} for item in candidate_exp[:15]],
             "educations": [{"id": item.get("id"), "school": item.get("school"), "degree": item.get("degree"), "field": item.get("field"), "start": item.get("start_date"), "end": item.get("end_date"), "description": compact(item.get("description"), 400)} for item in (educations.get(talent_id) or [])[:8]],
             "extras": [compact(json.dumps(jsonable(item.get("content") or {}), ensure_ascii=False), 2500) for item in (extras.get(talent_id) or [])[:2]],
-            "insights": [{"id": item.get("id"), "content": compact(json.dumps(jsonable(item.get("content") or {}), ensure_ascii=False), 3500), "updatedAt": item.get("last_updated_at") or item.get("created_at")} for item in sorted(insights.get(talent_id) or [], key=lambda row: compact(row.get("last_updated_at") or row.get("created_at")), reverse=True)[:3]],
+            "insights": [{"ref": item.get("ref"), "label": item.get("label"), "content": compact(item.get("content"), 3500), "updatedAt": item.get("updated_at") or item.get("created_at")} for item in sorted((row for row in (contexts.get(talent_id) or []) if row.get("collection") == "brief"), key=lambda row: compact(row.get("updated_at") or row.get("created_at")), reverse=True)],
+            "memories": [{"ref": item.get("ref"), "content": compact(item.get("content"), 3500), "updatedAt": item.get("updated_at") or item.get("created_at")} for item in sorted((row for row in (contexts.get(talent_id) or []) if row.get("collection") == "memory"), key=lambda row: compact(row.get("updated_at") or row.get("created_at")), reverse=True)[:40]],
             "conversationSummaries": [{"id": item.get("id"), "createdAt": item.get("created_at"), "summary": compact(item.get("segment_summary") or item.get("summary_text"), 1600)} for item in sorted(summaries.get(talent_id) or [], key=lambda row: compact(row.get("created_at")), reverse=True)[:4]],
             "activityEvents": [{"id": item.get("id"), "eventType": item.get("event_type"), "summary": compact(item.get("summary"), 500), "impactLevel": item.get("impact_level"), "createdAt": item.get("created_at")} for item in sorted(activities.get(talent_id) or [], key=lambda row: compact(row.get("created_at")), reverse=True)[:10]],
             "recentRecommendations": recent_recs,

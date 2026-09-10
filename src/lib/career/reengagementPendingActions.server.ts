@@ -10,13 +10,15 @@ import {
 import { fetchPendingTalentMeetingSchedules } from "@/lib/meetings/talentPendingMeeting.server";
 import { fetchTalentOpportunityHistory } from "@/lib/talentOpportunity";
 import { fetchActiveInternalFitHoldQuestion } from "@/lib/talentOnboarding/internalFitHoldQuestion";
+import { fetchOpenCareerCheckInCall } from "@/lib/talentOnboarding/careerCheckInCall";
+import { fetchPendingInternalOpportunityCallRequests } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/server";
 
 type WithoutActionKey<T> = T extends unknown ? Omit<T, "actionKey"> : never;
 
 type ReengagementPendingActionCandidate = {
   action: WithoutActionKey<CareerReengagementPendingAction>;
-  reference: CareerOpenablePendingActionReference;
+  reference: CareerOpenablePendingActionReference | null;
   roleId: string | null;
 };
 
@@ -80,6 +82,8 @@ export async function fetchCareerReengagementPendingActions(args: {
     companyRequests,
     internalOpportunities,
     fitQuestion,
+    careerCheckInCall,
+    internalOpportunityCalls,
   ] = await Promise.all([
     withPendingActionFallback({
       fallback: [],
@@ -125,6 +129,24 @@ export async function fetchCareerReengagementPendingActions(args: {
             userId: args.userId,
           })
         : Promise.resolve(null),
+      userId: args.userId,
+    }),
+    withPendingActionFallback({
+      fallback: null,
+      label: "career check-in call",
+      promise: fetchOpenCareerCheckInCall({
+        admin: args.admin,
+        userId: args.userId,
+      }),
+      userId: args.userId,
+    }),
+    withPendingActionFallback({
+      fallback: [],
+      label: "internal opportunity calls",
+      promise: fetchPendingInternalOpportunityCallRequests({
+        admin: args.admin,
+        userId: args.userId,
+      }),
       userId: args.userId,
     }),
   ]);
@@ -194,6 +216,31 @@ export async function fetchCareerReengagementPendingActions(args: {
           },
         ]
       : []),
+    ...(careerCheckInCall
+      ? [
+          {
+            action: {
+              createdAt: careerCheckInCall.createdAt,
+              kind: "career_check_in_call" as const,
+              status: careerCheckInCall.status,
+            },
+            reference: null,
+            roleId: null,
+          },
+        ]
+      : []),
+    ...internalOpportunityCalls.map((callRequest) => ({
+      action: {
+        callRequestId: callRequest.id,
+        companyName: cleanText(callRequest.companyName, "채용 회사", 160),
+        kind: "internal_opportunity_call" as const,
+        reason: cleanText(callRequest.reason, "", 600) || null,
+        roleTitle: cleanText(callRequest.roleTitle, "제안받은 포지션", 180),
+        status: callRequest.status,
+      },
+      reference: null,
+      roleId: cleanText(callRequest.roleId, "", 160) || null,
+    })),
   ];
 
   const dedupedCandidates = dedupeCandidatesByRole(
@@ -206,7 +253,9 @@ export async function fetchCareerReengagementPendingActions(args: {
     {};
   const actions = dedupedCandidates.map((candidate, index) => {
     const actionKey = `pending_${index + 1}`;
-    actionReferences[actionKey] = candidate.reference;
+    if (candidate.reference) {
+      actionReferences[actionKey] = candidate.reference;
+    }
     return {
       ...candidate.action,
       actionKey,

@@ -3,6 +3,7 @@ import { UserPlus } from "lucide-react";
 import { useRouter } from "next/router";
 import { useMemo } from "react";
 import { OrgAgentChatSurface } from "@/components/org/agent/OrgAgentPanel";
+import { OrgRoleMatchingHealthDevControls } from "@/components/org/internal/OrgRoleMatchingHealthDevControls";
 import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
 import { OrgPageHeader } from "@/components/org/workspace/OrgPageHeader";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
@@ -16,6 +17,7 @@ import { Tooltips } from "@/components/ui/tooltip";
 import { useOrgBoard } from "@/hooks/org/useOrg";
 import { useOrgSlackStatus } from "@/hooks/org/useOrgSlack";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
+import { canUseOrgDevControls } from "@/lib/internalAccess";
 import { buildOrgHref } from "@/lib/org/routes";
 import { cn } from "@/lib/utils";
 
@@ -282,7 +284,7 @@ function HomeQuickActions({
 
 export function OrgHomePage() {
   const router = useRouter();
-  const { permissions, roles, workspace } = useOrgWorkspace();
+  const { permissions, roles, user, workspace } = useOrgWorkspace();
   const workspaceId = workspace.workspaceId;
   const homeRoles = useMemo(
     () => roles.filter((role) => !isDeletedRole(role.status)),
@@ -483,6 +485,12 @@ export function OrgHomePage() {
               ) : null}
             </div>
           </OrgSection>
+          {canUseOrgDevControls(user.email) ? (
+            <OrgRoleMatchingHealthDevControls
+              roles={homeRoles}
+              workspaceId={workspaceId}
+            />
+          ) : null}
           <HomeQuickActions
             companyLogoUrl={workspace.logoUrl}
             companyName={workspace.companyName}

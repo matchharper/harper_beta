@@ -43,6 +43,7 @@ type CostChartRow = {
   grok: number;
   label: string;
   openai: number;
+  openrouter: number;
   period: string;
 };
 
@@ -53,6 +54,7 @@ const PROVIDER_META: Record<
   claude: { color: "#c15f3c", shortLabel: "Claude" },
   deepseek: { color: "#7b61a8", shortLabel: "DeepSeek" },
   openai: { color: "#10a37f", shortLabel: "OpenAI" },
+  openrouter: { color: "#6d5bd0", shortLabel: "OpenRouter" },
   grok: { color: "#56616f", shortLabel: "Grok" },
   exa: { color: "#3478f6", shortLabel: "Exa" },
   ec2: { color: "#e38b2c", shortLabel: "AWS EC2" },
@@ -61,6 +63,7 @@ const PROVIDER_META: Record<
 const COST_PROVIDER_IDS: OpsCostProviderId[] = [
   "claude",
   "openai",
+  "openrouter",
   "grok",
   "exa",
   "ec2",
@@ -68,6 +71,7 @@ const COST_PROVIDER_IDS: OpsCostProviderId[] = [
 const COMBINED_PROVIDER_IDS: CombinedProviderId[] = [
   "claude",
   "openai",
+  "openrouter",
   "grok",
   "exa",
   "deepseek",
@@ -129,6 +133,7 @@ function emptyCostRow(label: string, period: string): CostChartRow {
     grok: 0,
     label,
     openai: 0,
+    openrouter: 0,
     period,
   };
 }
@@ -266,7 +271,7 @@ function CombinedCostChart({
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <div className="text-sm font-medium text-neutral-muted">
-            Claude + OpenAI + Grok + Exa + DeepSeek
+            Claude + OpenAI + OpenRouter + Grok + Exa + DeepSeek
           </div>
           <div className="mt-1 text-[28px] font-semibold leading-none tabular-nums text-neutral-primary">
             {formatMoney(total)}
@@ -469,6 +474,7 @@ function ServiceCostRow({
 }) {
   const meta = PROVIDER_META[provider.id];
   const isEc2 = provider.id === "ec2";
+  const isOpenRouter = provider.id === "openrouter";
   const netTotal = Math.max(0, provider.netTotal ?? provider.total);
   const coveredTotal = Math.max(0, provider.total - netTotal);
   const forecast = isEc2 ? getAwsCreditForecast(credit) : null;
@@ -564,6 +570,8 @@ function ServiceCostRow({
               </div>
             ) : null}
           </>
+        ) : isOpenRouter ? (
+          <CreditSummary credit={credit} label="남은 OpenRouter 크레딧" />
         ) : null}
       </div>
 
@@ -790,6 +798,9 @@ export default function OpsCostPage() {
   const deepSeekCredit = data?.credits.find(
     (credit) => credit.id === "deepseek"
   );
+  const openRouterCredit = data?.credits.find(
+    (credit) => credit.id === "openrouter"
+  );
 
   return (
     <DebuggingPageShell
@@ -858,7 +869,13 @@ export default function OpsCostPage() {
                 key={provider.id}
                 provider={provider}
                 rows={chartRows}
-                credit={provider.id === "ec2" ? awsCredit : undefined}
+                credit={
+                  provider.id === "ec2"
+                    ? awsCredit
+                    : provider.id === "openrouter"
+                      ? openRouterCredit
+                      : undefined
+                }
               />
             ))}
             <DeepSeekCreditRow credit={deepSeekCredit} />
@@ -866,10 +883,11 @@ export default function OpsCostPage() {
 
           <div className="px-1 text-[11px] leading-5 text-neutral-soft">
             비용 일자는 UTC 기준입니다. 오늘 값은 제공사 집계 지연으로 이후
-            변경될 수 있습니다. EC2 사용 비용은 Credit line을 제외하고,
-            실청구 예상은 Credit line까지 포함한 UnblendedCost 합계입니다.
-            compute와 EC2-Other를 합산하며, 소진일은 이번 달 AWS 전체 크레딧
-            사용 속도를 기준으로 계산한 단순 추정치입니다.
+            변경될 수 있습니다. EC2 사용 비용은 Credit line을 제외하고, 실청구
+            예상은 Credit line까지 포함한 UnblendedCost 합계입니다. compute와
+            EC2-Other를 합산하며, 소진일은 이번 달 AWS 전체 크레딧 사용 속도를
+            기준으로 계산한 단순 추정치입니다. OpenRouter 사용 비용은 완료된 UTC
+            일자만 집계됩니다.
           </div>
         </>
       ) : null}

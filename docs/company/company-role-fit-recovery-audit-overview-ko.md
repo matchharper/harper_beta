@@ -1,6 +1,6 @@
 # Company Role Fit Recovery Audit: 목적과 구현 계약
 
-- 문서 기준: 2026-09-02
+- 문서 기준: 2026-09-09
 - 상태: 로컬 read-only helper 구현 및 파일럿 운영
 - 반복 실행 절차: [Company Role Fit Recovery Audit Codex 런북](./company-role-fit-recovery-audit-codex-runbook-ko.md)
 - 평가·검색 변경 기록: [Company Role Fit Recovery Audit Calibration](./company-role-fit-recovery-audit-calibration-ko.md)
@@ -193,11 +193,12 @@ Variant마다 다음 정보는 유지한다.
 
 - profile, resume, experience, education, skill
 - matching preference와 명시적 constraint
-- Talent Behavior Context와 current interaction delta
-- 최근 추천 수락·거절·무응답 등 관련 행동
+- 전체 Search Brief와 최신 builder version의 Talent Behavior Context
 - target role의 현재 fit·추천·progress·tag
 - 같은 회사의 다른 role에 대한 아래 계약의 짧은 추천·반응·진행 history
 - 최신 회사·role 정보, request, criteria, company behavior context
+
+Memory 원문과 광범위한 메시지·이메일·추천·활동 이력은 packet에 직접 반복하지 않는다. 이 원본은 Behavior builder가 읽으며, 미반영 source change나 builder version 불일치가 있으면 해당 pair를 평가하지 않는다.
 
 Packet에는 raw contact detail을 넣지 않는다. Run artifact에는 평가에 필요한 private profile이 포함될 수 있으므로 git에 넣지 않고 retention 정책을 적용한다.
 
@@ -407,6 +408,7 @@ Writeback 전에 현재 production consumer가 `label`, `kind`, `recommend`를 �
 
 | 날짜 | 주요 변경 |
 | --- | --- |
+| 2026-09-09 | Candidate packet을 전체 Search Brief와 최신 Worker Behavior Context 중심으로 전환하고 Memory·광범위한 원본 행동 이력의 반복 주입을 제거함 |
 | 2026-09-02 | 현재 target 국가 location과 같은 국가의 학교 또는 실제 근무 이력이 함께 있으면 현지 근로권을 인정하는 필수 판단 규칙과 evaluator-version cache 무효화를 추가함 |
 | 2026-09-02 | Worker internal-fit과 같이 동일 회사 sibling role의 추천·후보 반응·authoritative 진행 상태를 label·score·recommend 및 cache 무효화에 반영하는 계약을 추가함 |
 | 2026-09-02 | 모든 완료 후보의 가입·최근 사용·온보딩·기존 판정·dry-run 판정을 담는 private 상세 보고서 계약을 추가함 |

@@ -17,6 +17,7 @@ import type {
 } from "@/lib/career/pendingActions";
 import { fetchCareerReengagementPendingActions } from "@/lib/career/reengagementPendingActions.server";
 import { careerT } from "@/lib/career/translatedCareerMessage";
+import { fetchOpenCareerCheckInCall } from "@/lib/talentOnboarding/careerCheckInCall";
 
 const cleanText = (value: unknown, fallback: string, maxLength = 1000) => {
   const text =
@@ -78,12 +79,27 @@ export async function GET(req: NextRequest) {
     } satisfies CareerReengagementPendingActionsSnapshot);
   }
 
-  const [callRequests, fitQuestion, companyRequests, internalOpportunities] =
+  const [
+    callRequests,
+    careerCheckInCall,
+    fitQuestion,
+    companyRequests,
+    internalOpportunities,
+  ] =
     await Promise.all([
       withPendingActionsFallback({
         fallback: [],
         label: "internal opportunity calls",
         promise: fetchPendingInternalOpportunityCallRequests({
+          admin,
+          userId: user.id,
+        }),
+        userId: user.id,
+      }),
+      withPendingActionsFallback({
+        fallback: null,
+        label: "career check-in call",
+        promise: fetchOpenCareerCheckInCall({
           admin,
           userId: user.id,
         }),
@@ -133,6 +149,15 @@ export async function GET(req: NextRequest) {
       id: callRequest.id,
       kind: "internal_opportunity_call" as const,
     })),
+    ...(careerCheckInCall
+      ? [
+          {
+            callRequest: careerCheckInCall,
+            id: careerCheckInCall.id,
+            kind: "career_check_in_call" as const,
+          },
+        ]
+      : []),
     ...companyRequests.map((request) => {
       const companyName = cleanText(
         request.workspace?.company_name,
@@ -154,7 +179,7 @@ export async function GET(req: NextRequest) {
       );
       return {
         companyName,
-        expiresAt: request.expires_at,
+        expiresAt: null,
         id: request.id,
         kind: "company_request" as const,
         prompt: request.expects_document

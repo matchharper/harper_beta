@@ -63,6 +63,7 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { formatInProgressSlackRoleCreations } from "@/lib/org/agent/slackRoleCreation";
 import { fetchCompanyTalentContactDraftsForScope } from "@/lib/companyTalentRequests/server";
 import { fetchCompanyRoleCalibrationPromptIndex } from "@/lib/org/roleCalibrationServer";
+import { selectRecentlyPresentedContactDraftIds } from "@/lib/org/agent/toolState";
 
 export type OrgAgentPromptContext = {
   calibrationsText?: string;
@@ -87,7 +88,8 @@ export const DEFAULT_DATA_CONTEXT_MAX_CHARS = 18_000;
 export const DEFAULT_ROLE_INDEX_MAX_ITEMS = 100;
 export const DEFAULT_ROLE_INDEX_MAX_CHARS = 10_000;
 export const RECENT_CONVERSATION_MESSAGE_LIMIT = 24;
-export const CONVERSATION_CONTEXT_MAX_CHARS = 24_000;
+export const CONVERSATION_MESSAGE_MAX_CHARS = 6_000;
+export const CONVERSATION_CONTEXT_MAX_CHARS = 50_000;
 export {
   enforceOrgAgentContextBudget,
   formatRecentRecommendations,
@@ -150,7 +152,7 @@ function formatRoles(
         "status",
         "location",
         "work_mode",
-        "salary",
+        "salaryRange",
         "waiting",
         "active",
         "ended",
@@ -191,7 +193,7 @@ function formatRoles(
       "status",
       "location",
       "work_mode",
-      "salary",
+      "salaryRange",
       "waiting",
       "active",
       "ended",
@@ -342,7 +344,7 @@ function formatConversation(
       cells: [
         speaker,
         references.join(",") || null,
-        clipPromptText(messageContent, 4_000),
+        clipPromptText(messageContent, CONVERSATION_MESSAGE_MAX_CHARS),
       ],
       id: message.id,
     };
@@ -369,7 +371,7 @@ function formatConversation(
   const table = formatPromptTable(
     ["speaker", "references", "message"],
     selected.map((row) => row.cells),
-    [140, 500, 4_000]
+    [140, 500, CONVERSATION_MESSAGE_MAX_CHARS]
   );
   if (!slackThreadId) return table;
   const hasMore = page.hasMore || selected.length < messages.length;
@@ -460,7 +462,6 @@ export async function buildOrgAgentPromptContext(args: {
     summaries,
     messages,
     pendingUpdate,
-    contactDrafts,
     calibrationsText,
   ] = await Promise.all([
     fetchOrgAgentRoles({ admin: args.admin, workspaceId }),
@@ -510,21 +511,6 @@ export async function buildOrgAgentPromptContext(args: {
         }),
     }),
     optionalContext({
-      fallback: [],
-      label: "candidate_contact_drafts",
-      onError: () =>
-        notes.push(
-          "candidate_contact_drafts_unavailable=true; do not assume that no contact draft is awaiting review"
-        ),
-      task: () =>
-        fetchCompanyTalentContactDraftsForScope({
-          admin: args.admin as any,
-          conversationId: args.conversation.id,
-          slackThreadId: scope.kind === "slack" ? scope.slackThreadId : null,
-          workspaceId,
-        }),
-    }),
-    optionalContext({
       fallback:
         "unavailable=true; do not assume there is no prepared Role profile example set",
       label: "prepared_role_profile_examples",
@@ -536,6 +522,25 @@ export async function buildOrgAgentPromptContext(args: {
         }),
     }),
   ]);
+  const recentlyPresentedContactIds = selectRecentlyPresentedContactDraftIds(
+    messages.messages
+  );
+  const contactDrafts = await optionalContext({
+    fallback: [],
+    label: "candidate_contact_drafts",
+    onError: () =>
+      notes.push(
+        "candidate_contact_drafts_unavailable=true; do not assume that no contact draft is awaiting review"
+      ),
+    task: () =>
+      fetchCompanyTalentContactDraftsForScope({
+        admin: args.admin as any,
+        contactIds: recentlyPresentedContactIds,
+        conversationId: args.conversation.id,
+        slackThreadId: scope.kind === "slack" ? scope.slackThreadId : null,
+        workspaceId,
+      }),
+  });
   const inProgressRoleCreationsText =
     scope.kind === "slack"
       ? await optionalContext({

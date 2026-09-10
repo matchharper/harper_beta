@@ -9,11 +9,13 @@
 | 태스크 | 평가 대상 | 정답/fixture 상태 | canonical runner 또는 원문 | 상태 |
 | --- | --- | --- | --- | --- |
 | [internal-fit-abc](internal-fit-abc/README.md) | 사람 × internal role의 A 직무 적합성, B 후보 만족 가능성, C 회사 인터뷰 가능성과 최종 추천 판단 | A/B/C `gold-v3.json` 13쌍; 최종 추천 `recommendation-gold-v1.json`은 positive 9·negative 4 | A/B/C runner와 production 1·2차를 재사용하는 fresh-decision recommendation runner | GLM high P/R 85.7%/66.7%, max 80.0%/44.4%; max는 3시간 45분·soft-positive 0/2이고 공통 hard-negative 오류가 남아 배포 부적합 |
+| [internal-recommendation-binary](internal-recommendation-binary/README.md) | 한 Talent × 한 internal Role의 최종 추천 여부 | `gold-v4.json` 41쌍(추천 12·애매 10·비추천 19); pair별 exclusive `snapshotCutoffAt`, 전체 cutoff-safe fixture | production 1·2차 prompt/builder/normalizer와 recovery를 재사용하는 `harper_worker/llm_evals/internal_recommendation_binary/eval.py` | v4는 IRB006 제거·IRB011 Config FDE anchor 변경 후 미실행; 직전 v3 전체 GLM 5.3 Flash high는 판정 42/42, precision 88.9%, recall 61.5%, specificity 94.7% |
 | [internal-external-fit-model-benchmark](internal-external-fit-model-benchmark/README.md) | 기존 internal prefilter와 external scorer의 모델 교체 | worker suite별 fixed fixture/manual gold | [worker model benchmark](../../../harper_worker/llm_evals/model_benchmark/README.md) | 사용 중 |
 | [final-delivery-generation](final-delivery-generation/README.md) | 최종 추천 메일 생성 모델 | 완료 run에서 동결한 local-only 입력 | [worker final delivery](../../../harper_worker/llm_evals/final_delivery/README.md) | 사용 중 |
 | [company-candidate-introduction](company-candidate-introduction/README.md) | 회사용 후보자 소개의 사실성·관련성·스캔 가능성 | 3개 고정 pair, 6항목 rubric | [5회 개선 기록](../auto-intro-headhunter-message-five-iteration-evaluation-ko.md) | 로컬 평가 완료, 배포 전 |
 | [wonderful-internal-role-ranking](wonderful-internal-role-ranking/README.md) | Wonderful FDE/Field CTO retrieval·reranking·선택 | blind holdout 실행 계약 | [benchmark 매뉴얼](../wonderful-korea-fde-field-cto-benchmark-manual-ko.md) | 명시적 실행 요청 시에만 실행 |
 | [internal-role-conversation-qa](internal-role-conversation-qa/README.md) | Career·email reply의 내부 역할 탐색·단계적 공개·대안·재검토·우선 검토·수락 경험 | Career 20-turn + email reply 10-case `cases-v3.json`; re-engagement 12-case `reengagement-cases-v1.json`; 실제 계정 매핑과 원문은 local-only | Career Chrome E2E + email inbound-job local replay; re-engagement read-only runner | v3 frozen; re-engagement v1은 2026-09-05 최종 12/12 통과 |
+| [talent-behavior-context](talent-behavior-context/README.md) | Memory·Brief·행동 원천에서 Worker용 soft inference cache를 생성·증분 수정하는 품질 | 비식별 synthetic challenge `cases-v1.json` 7개와 review gold v1 | `harper_worker/llm_evals/talent_behavior_context/eval.py` | 2026-09-09 최종 prompt 2회 반복 14/14 구조 통과, 수동 critical review 통과 |
 
 과거 일회성 결과와 노트북은 [worker legacy 안내](../../../harper_worker/llm_evals/legacy/README.md)에 보존한다. 재사용할 평가로 승격할 때만 이 레지스트리에 태스크 폴더와 계약을 추가한다.
 
@@ -56,7 +58,7 @@ docs/evaluation/<task>/
 
 ## 데이터 안전
 
-- production capture는 read-only connection/transaction으로 실행하고 DB write, fit/recommendation 저장, 메시지·이메일 전송을 금지한다.
+- production capture는 read-only connection/transaction으로 실행하고 DB write, fit/recommendation 저장, 메시지·이메일 전송을 금지한다. Harper worker DB를 읽는 canonical runner는 `opp.utils.new_runtime.connect_read_only()`를 사용해야 한다. 일반 worker `connect()`나 transaction pool endpoint에서 session-level `SET default_transaction_read_only`를 실행하는 capture는 금지하며, canonical helper를 사용할 수 없으면 실행을 중단한다.
 - `private/`와 `runs/`는 이 디렉터리의 `.gitignore`로 제외된다. private 파일은 owner-only(`0600`)로 둔다.
 - 외부 provider에 production 원문을 보낼 때는 provider, endpoint, data collection 설정과 승인을 README/run에 기록한다.
 - raw fixture가 이 로컬 머신에만 있으면 git clone만으로는 재현되지 않는다. 장기 보존이 필요할 때는 별도의 승인된 암호화 저장소를 사용하고 locator만 기록한다.

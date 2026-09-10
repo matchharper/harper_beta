@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildGmailCareerMemoryMergeInstruction,
   buildGmailCareerHistorySummaryInstruction,
   normalizeGmailCareerEntries,
+  parseGmailCareerMemoryEntries,
   renderGmailCareerHistoryMarkdown,
 } from "./gmailCareerHistoryCore";
 
@@ -160,4 +162,78 @@ test("renders an explicit empty result instead of inventing history", () => {
   });
 
   assert.equal(markdown, "- No reliable application history found.\n");
+});
+
+test("makes the final model responsible for one-company rows and the 20-company newest-first limit", () => {
+  const instruction = buildGmailCareerMemoryMergeInstruction("Korean");
+
+  assert.match(instruction, /at most 20 companies/);
+  assert.match(instruction, /most recent supported activity/);
+  assert.match(instruction, /one real-world company/);
+  assert.match(instruction, /exactly one memory per company/);
+  assert.match(instruction, /do not expect application code to truncate or reorder/i);
+  assert.match(instruction, /Do not infer or embellish/);
+  assert.match(instruction, /Write content in Korean/);
+});
+
+test("accepts only unique Gmail company memories already ordered newest first", () => {
+  assert.deepEqual(
+    parseGmailCareerMemoryEntries({
+      memories: [
+        {
+          company: "Recent Labs",
+          content: "Recent Labs 지원 후 인터뷰까지 진행했다.",
+          latestActivityAt: "2026-08-03T12:00:00.000Z",
+        },
+        {
+          company: "Earlier Inc",
+          content: "Earlier Inc에 지원했다.",
+          latestActivityAt: "2025-11-09",
+        },
+      ],
+    }),
+    [
+      {
+        company: "Recent Labs",
+        content: "Recent Labs 지원 후 인터뷰까지 진행했다.",
+        latestActivityAt: "2026-08-03",
+      },
+      {
+        company: "Earlier Inc",
+        content: "Earlier Inc에 지원했다.",
+        latestActivityAt: "2025-11-09",
+      },
+    ]
+  );
+
+  assert.throws(
+    () =>
+      parseGmailCareerMemoryEntries({
+        memories: [
+          {
+            company: "Earlier Inc",
+            content: "Earlier Inc에 지원했다.",
+            latestActivityAt: "2025-11-09",
+          },
+          {
+            company: "Recent Labs",
+            content: "Recent Labs에 지원했다.",
+            latestActivityAt: "2026-08-03",
+          },
+        ],
+      }),
+    /newest first/
+  );
+
+  assert.throws(
+    () =>
+      parseGmailCareerMemoryEntries({
+        memories: Array.from({ length: 21 }, (_, index) => ({
+          company: `Company ${index}`,
+          content: `Company ${index}에 지원했다.`,
+          latestActivityAt: null,
+        })),
+      }),
+    /exceeds 20 companies/
+  );
 });

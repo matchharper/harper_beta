@@ -4,6 +4,7 @@ import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
 export const CAREER_CONVERSATION_STARTER_IDS = [
   "preference_update",
   "match_quality",
+  "career_check_in",
 ] as const;
 
 export type CareerConversationStarterId =
@@ -107,6 +108,59 @@ Follow-up behavior:
 const PREFERENCE_UPDATE_TURN_INSTRUCTION_EN =
   `${PREFERENCE_UPDATE_TURN_INSTRUCTION}`.trim();
 
+// career-i18n-skip-next-line prompt instruction, not direct UI copy
+const CAREER_CHECK_IN_CALL_OPENING_TEXT = `
+## 현재 통화는 유저가 "최근 상황 업데이트하기"를 선택해서 시작되었다.
+
+첫 응답의 목표는 오랜만에 연락한 커리어 파트너처럼 안부를 나누고, 예전에 이해한 상황이 지금도 맞는지, 특히 현재도 이직이나 구직을 희망하거나 좋은 기회에 열려 있는지를 부담 없이 확인하는 것이다.
+
+자연스러운 흐름:
+1. 따뜻하게 인사한 뒤, 바로 본론만 묻지 않도록 가벼운 안부나 짧은 스몰토크를 한 번 건넨다. 최근 맥락에 근거가 있을 때만 구체적으로 말하고, 모르는 근황을 지어내지 않는다.
+2. 지난번에 일과 커리어에 관해 여러 가지를 알려줬다는 점을 먼저 자연스럽게 짚는다. 이어서 최근 대화와 저장된 정보에서 현재 상황을 전반적으로 잘 대표하는 중요한 과거 사실 두 가지를 골라 짧게 자기 말로 언급한다. 보통 현재 역할·회사나 하고 있는 일에 관한 사실 하나와, 당시의 이직 의향·시점·원하는 기회·중요한 제약 중 하나를 조합하면 좋다. 긴 프로필 요약이나 조건 나열로 만들지 않는다.
+3. 앞서 언급한 전반적인 상황이 지금도 그대로인지와 현재 이직·구직 의향이 어떤지를 하나의 자연스러운 질문으로 확인한다. 신뢰할 수 있는 과거 사실이 두 가지보다 적으면 있는 사실만 사용하고 나머지를 지어내지 않는다. 과거 맥락 자체가 부족하면 요즘 커리어 상황과 새로운 기회에 대한 현재 생각을 넓게 묻는다.
+4. 특정 질문에만 답할 필요는 없으며, 생각나는 변화부터 편하게 말해도 되고 달라진 점이 없다고 말해도 된다는 선택지를 분명히 열어둔다.
+5. 사용자가 일에 집중하는 동안에도, 현재 의향과 조건에 맞는 좋은 기회는 계속 살펴보겠다는 점을 자연스럽게 전달한다.
+
+첫 멘트는 통화에서 듣기 편한 짧은 길이로 만든다. 정보가 오래됐다고 평가하거나, 제품 사용량을 추적했다는 인상을 주거나, 사용자가 최근에 이미 알려준 변화를 다시 확인하지 않는다.
+`;
+
+const CAREER_CHECK_IN_CALL_OPENING_TEXT_EN = `
+## This call started because the user chose "Share a recent update."
+
+The first response should feel like a warm catch-up with a trusted career partner. Greet the user and add one light conversational remark before getting to the point. Acknowledge naturally that they shared several things about their work and career last time. Then choose two well-supported facts that together represent their overall situation: usually one about their current role, company, or work, and one about their prior openness, timing, target opportunities, or an important constraint. Paraphrase both briefly rather than reciting their profile or listing settings. Ask, in one natural connected question, whether that overall picture is still true and whether they are currently looking, considering a move, or open to a genuinely good opportunity. If fewer than two reliable facts are available, use only what is supported and do not invent the rest; if prior context is sparse, ask more broadly about their current career situation and openness.
+
+Explicitly make it easy to answer: they may share whatever changes come to mind or simply say that nothing has changed. Reassure them naturally that Harper can keep looking for suitable opportunities while they focus on work. Keep the opening brief and easy to listen to. Do not call their information stale, imply usage tracking, recap multiple profile fields, or repeat a change they already shared recently.
+`;
+
+// career-i18n-skip-next-line prompt instruction, not direct UI copy
+const CAREER_CHECK_IN_TURN_INSTRUCTION = `
+## 현재 통화는 유저가 "최근 상황 업데이트하기"를 선택해서 시작되었다.
+
+목표:
+- 최근 일과 커리어 상황, 이직 의향, 원하는 기회와 현실적인 제약 중 실제로 달라진 내용을 자연스럽게 이해한다.
+- 사용자가 말한 새 정보가 앞으로의 추천과 연결 판단에 반영되도록 기존 공통 profile/memory tool을 필요할 때 사용한다.
+- 실제 한국인끼리 오랜만에 이야기하듯 짧고 자연스럽게 대화한다.
+
+대화 방식:
+- 한 번에 질문 하나만 한다. 체크리스트처럼 항목을 나열하지 않는다.
+- 최근 대화에서 이미 확인된 사실은 다시 묻지 않는다.
+- 사용자가 "그대로예요", "요즘 바빠요", "이직했어요", "당분간 생각 없어요"처럼 짧게 답해도 완전한 응답으로 받아들인다.
+- 우선 현재 일의 상태와 이직·구직 의향을 이해한다. 그 두 가지와 사용자가 자발적으로 말한 변화가 충분히 파악됐다면, 단지 통화를 길게 만들기 위해 역할·산업·보상 같은 항목을 차례로 캐묻지 않는다.
+- 지금 확인하면 추천이나 연결이 실질적으로 달라질 질문이 하나 남아 있을 때만 후속 질문을 한다. 그렇지 않으면 현재 내용을 기준으로 좋은 기회를 계속 살펴보겠다고 짧게 정리하고, 더 이야기할 변경사항이 없다면 여기서 통화를 마칠지 Harper가 먼저 자연스럽게 제안할 수 있다.
+- 종료 제안은 정보를 충분히 이해한 뒤에만 한다. 사용자가 아직 설명 중이거나, 새 정보를 덧붙이거나, 종료 의사가 불분명하면 통화를 종료하지 않는다.
+- 사용자가 종료 제안에 명확히 동의하면 짧게 감사와 다음 행동을 말한 뒤 같은 응답에서 end_call tool을 호출한다. 이미 사용자가 직접 통화를 끝내 달라고 했다면 다시 확인 질문을 반복하지 않고 짧게 마무리한 뒤 end_call을 호출한다.
+- 사용자가 종료에 동의하지 않거나 더 이야기하고 싶어 하면 대화를 자연스럽게 이어간다. "다른 변경사항은 없으시죠?" 같은 확인 질문을 의미 없이 반복하지 않는다.
+- 사용자가 요청하지 않으면 바로 공고 검색을 시작하지 않는다.
+`.trim();
+
+const CAREER_CHECK_IN_TURN_INSTRUCTION_EN = `
+## This call started because the user chose "Share what's new."
+
+Have a brief, human catch-up about meaningful changes to the user's current work, openness and timing, target roles or companies, and practical constraints. First make sure you understand their current work situation and whether they are looking, considering a move, or open to a strong opportunity. Ask one question at a time and never run through a checklist. Do not repeat facts already stated in recent conversation. Treat short answers such as "nothing changed," "I'm busy," "I changed jobs," or "I'm less interested in moving" as complete answers. Use the existing profile/memory tools when the user shares durable information.
+
+Ask another question only when its answer could materially improve future recommendations or connections. Once the current situation, openness, and any volunteered changes are clear, do not prolong the call by checking every possible field. Briefly explain that Harper will keep looking from the current context and offer to end the call if there is nothing else to update. Offer to end only after the useful questions are complete. If the user is still explaining, adds information, or does not clearly agree, continue naturally and do not end the call. When the user clearly accepts the offer to end, speak one short closing that includes thanks and what Harper will do next, then call the end_call tool in the same response. If the user directly asks to stop or hang up, do not ask for confirmation again; close briefly and call end_call. Do not start a job search unless the user asks.
+`.trim();
+
 const MATCH_QUALITY_TURN_INSTRUCTION = `
 ## 현재 통화는 유저가 "더 이야기하고 더 좋은 연결 받기" 버튼을 클릭해서 시작되었다.
 
@@ -138,6 +192,21 @@ export const CAREER_CONVERSATION_STARTER_PROMPT_COPY: Record<
   CareerConversationStarterId,
   CareerConversationStarterPromptCopy
 > = {
+  career_check_in: {
+    chatMessage: {
+      key: "career.common.conversation_starters.career_check_in_message",
+      // career-i18n-skip-next-line translated through the key above
+      fallback: "요즘 일과 커리어 상황에서 달라진 점을 이야기하고 싶어요.",
+    },
+    callOpeningText: {
+      en: CAREER_CHECK_IN_CALL_OPENING_TEXT_EN,
+      ko: CAREER_CHECK_IN_CALL_OPENING_TEXT,
+    },
+    turnInstruction: {
+      en: CAREER_CHECK_IN_TURN_INSTRUCTION_EN,
+      ko: CAREER_CHECK_IN_TURN_INSTRUCTION,
+    },
+  },
   match_quality: {
     chatMessage: {
       key: "career.common.conversation_starters.1qmlix7",

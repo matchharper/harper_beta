@@ -151,7 +151,6 @@ export type OrgAgentMessageMetadata = {
   }>;
   fallbackReason?: string | null;
   historyTruncated?: boolean;
-  internalTokenCorrectionCount?: number;
   llmUsage?: {
     cacheCreationInputTokens: number;
     cacheReadInputTokens: number;

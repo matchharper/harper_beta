@@ -1,14 +1,19 @@
 import type { GetServerSideProps } from "next";
 import { toIsoDate } from "@/lib/blog";
+import {
+  getCompanyLanguageEntryUrl,
+  getCompanyLocaleUrl,
+} from "@/lib/companyLandingSeo";
+import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://matchharper.com")
-  .trim()
-  .replace(/\/$/, "");
+const SITE_URL = getConfiguredPublicSiteUrl();
 
-type SitemapEntry = {
+export type SitemapEntry = {
   loc: string;
-  changefreq?: "daily" | "weekly" | "monthly" | "yearly";
-  priority?: number;
+  alternates?: Array<{
+    href: string;
+    hrefLang: "en" | "ko" | "x-default";
+  }>;
   lastmod?: string;
 };
 
@@ -21,15 +26,15 @@ function escapeXml(value: string): string {
     .replace(/>/g, "&gt;");
 }
 
-function buildSitemapXml(entries: SitemapEntry[]): string {
+export function buildSitemapXml(entries: SitemapEntry[]): string {
   const urls = entries
     .map((entry) => {
       const children = [
         `<loc>${escapeXml(entry.loc)}</loc>`,
-        entry.changefreq ? `<changefreq>${entry.changefreq}</changefreq>` : "",
-        typeof entry.priority === "number"
-          ? `<priority>${entry.priority.toFixed(1)}</priority>`
-          : "",
+        ...(entry.alternates ?? []).map(
+          (alternate) =>
+            `<xhtml:link rel="alternate" hreflang="${alternate.hrefLang}" href="${escapeXml(alternate.href)}"/>`
+        ),
         entry.lastmod ? `<lastmod>${entry.lastmod}</lastmod>` : "",
       ]
         .filter(Boolean)
@@ -39,7 +44,55 @@ function buildSitemapXml(entries: SitemapEntry[]): string {
     })
     .join("");
 
-  return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">${urls}</urlset>`;
+}
+
+export function buildStaticSitemapEntries(): SitemapEntry[] {
+  const landingAlternates: SitemapEntry["alternates"] = [
+    { href: `${SITE_URL}/en`, hrefLang: "en" },
+    { href: `${SITE_URL}/ko`, hrefLang: "ko" },
+    { href: `${SITE_URL}/`, hrefLang: "x-default" },
+  ];
+  const companyAlternates: SitemapEntry["alternates"] = [
+    { href: getCompanyLocaleUrl("en"), hrefLang: "en" },
+    { href: getCompanyLocaleUrl("ko"), hrefLang: "ko" },
+    { href: getCompanyLanguageEntryUrl(), hrefLang: "x-default" },
+  ];
+
+  return [
+    {
+      loc: `${SITE_URL}/`,
+      alternates: landingAlternates,
+    },
+    {
+      loc: `${SITE_URL}/ko`,
+      alternates: landingAlternates,
+    },
+    {
+      loc: `${SITE_URL}/en`,
+      alternates: landingAlternates,
+    },
+    {
+      loc: getCompanyLocaleUrl("ko"),
+      alternates: companyAlternates,
+    },
+    {
+      loc: getCompanyLocaleUrl("en"),
+      alternates: companyAlternates,
+    },
+    {
+      loc: `${SITE_URL}/blog`,
+    },
+    {
+      loc: `${SITE_URL}/about`,
+    },
+    {
+      loc: `${SITE_URL}/jobs`,
+    },
+    {
+      loc: `${SITE_URL}/refer`,
+    },
+  ];
 }
 
 function toSitemapDateTime(value: string | null | undefined) {
@@ -55,56 +108,15 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   ]);
   const posts = getAllPostsMeta();
   const jobs = await getPublicOfficialJobs();
-
-  const staticEntries: SitemapEntry[] = [
-    {
-      loc: `${SITE_URL}/`,
-      changefreq: "weekly",
-      priority: 1.0,
-    },
-    {
-      loc: `${SITE_URL}/ko`,
-      changefreq: "weekly",
-      priority: 1.0,
-    },
-    {
-      loc: `${SITE_URL}/en`,
-      changefreq: "weekly",
-      priority: 1.0,
-    },
-    {
-      loc: `${SITE_URL}/search`,
-      changefreq: "weekly",
-      priority: 0.9,
-    },
-    {
-      loc: `${SITE_URL}/blog`,
-      changefreq: "weekly",
-      priority: 0.9,
-    },
-    {
-      loc: `${SITE_URL}/jobs`,
-      changefreq: "daily",
-      priority: 0.9,
-    },
-    {
-      loc: `${SITE_URL}/refer`,
-      changefreq: "monthly",
-      priority: 0.7,
-    },
-  ];
+  const staticEntries = buildStaticSitemapEntries();
 
   const postEntries: SitemapEntry[] = posts.map((post) => ({
     loc: `${SITE_URL}/blog/${post.slug}`,
-    changefreq: "monthly",
-    priority: 0.7,
     lastmod: toIsoDate(post.updatedAt),
   }));
 
   const jobEntries: SitemapEntry[] = jobs.map((job) => ({
     loc: `${SITE_URL}/jobs/${encodeURIComponent(job.slug)}`,
-    changefreq: "weekly",
-    priority: 0.8,
     lastmod:
       toSitemapDateTime(job.updatedAt) ?? toSitemapDateTime(job.publishedAt),
   }));

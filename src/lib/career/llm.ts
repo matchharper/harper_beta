@@ -1828,6 +1828,7 @@ export async function runCareerChatAssistantStream(args: {
   }>;
   onStopToolStart?: (tool: AnthropicToolUseStart) => void | Promise<void>;
   onTextDelta: (delta: string) => void | Promise<void>;
+  onToolDetected?: (tool: AnthropicToolUseStart) => void | Promise<void>;
   onToolStart?: (tool: AnthropicToolUseStart) => void | Promise<void>;
   stopAfterToolNames?: string[];
   systemBlocks: CareerChatSystemBlock[];
@@ -1864,9 +1865,13 @@ export async function runCareerChatAssistantStream(args: {
         ? ({ id, name }) => args.onStopToolStart?.({ id, name })
         : undefined,
       onTextDelta: args.onTextDelta,
-      onToolStart: args.onToolStart
-        ? ({ id, name }) => args.onToolStart?.({ id, name })
-        : undefined,
+      onToolStart:
+        args.onToolDetected || args.onToolStart
+          ? async ({ id, name }) => {
+              await args.onToolDetected?.({ id, name });
+              await args.onToolStart?.({ id, name });
+            }
+          : undefined,
       openAIResponsesReasoningEffort:
         args.openAIResponsesReasoningEffort ??
         modelConfig.openAIResponsesReasoningEffort ??
@@ -1953,8 +1958,10 @@ export async function runCareerChatAssistantStream(args: {
       const response = await createAnthropicMessageStreamResponse({
         messages: workingMessages,
         model: modelConfig.primaryModel,
-        onToolUseStart: async () => {
+        onToolUseStart: async (tool) => {
           startedAnyTool = true;
+          forwardedVisibleText = "";
+          await args.onToolDetected?.(tool);
         },
         onTextDelta: forwardTextDelta,
         systemBlocks: systemBlocksForStep,

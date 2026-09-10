@@ -38,7 +38,11 @@ import {
   type OrgMembershipRole,
 } from "@/lib/org/permissions";
 import { getOrgImplicitAcceptanceStage } from "@/lib/org/recommendationStage";
-import { normalizeOrgRoleStatus } from "@/lib/org/roleStatus";
+import {
+  normalizeOrgRoleStatus,
+  parseOrgRoleMutationStatus,
+  resolveOrgRoleMutationExpiry,
+} from "@/lib/org/roleStatus";
 import {
   normalizeOrgRoleCriteria,
   parseOrgRoleCriteria,
@@ -55,6 +59,12 @@ import {
   type OpsMatchingConnectionConfirmationEmail,
   type OpsMatchingConnectionConfirmationEmailActionResponse,
 } from "@/lib/ops/connectionConfirmationEmail";
+import {
+  buildLatestOpsTalentMemoPreviewMap,
+  formatOpsTalentMemoRoleContext,
+  OPS_ROLE_MEMO_KIND,
+  type OpsTalentMemoCandidate,
+} from "@/lib/ops/talentMemo";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import {
   notifyOrgCandidateAcceptedSlack,
@@ -70,6 +80,11 @@ import type { Database, Json } from "@/types/database.types";
 import { getCompanyInternalRoleRecord } from "@/lib/companyInternalRole";
 import { fetchOrgProcessClosureNotifications } from "@/lib/org/processClosureNotification";
 import { resolveTalentLocation } from "@/lib/talentLocation";
+import {
+  resolveRoleStageMeetingDefaultsUpdate,
+  RoleStageMeetingDefaultsValidationError,
+  type RoleStageMeetingDefaults,
+} from "@/lib/meetings/roleStageMeetingDefaults";
 
 type SupabaseAdminClient = ReturnType<typeof getSupabaseAdmin>;
 type CompanyUserRow = Database["public"]["Tables"]["company_users"]["Row"];
@@ -310,6 +325,14 @@ export type OrgRoleReviewStageCreateResponse = {
 
 export type OrgRoleReviewStageUpdateResponse = OrgRoleReviewStageCreateResponse;
 
+export type OrgRoleReviewStageMeetingDefaultsUpdateResponse = {
+  changed: boolean;
+  meetingDefaults: RoleStageMeetingDefaults;
+  ok: true;
+  roleId: string;
+  stage: OrgRoleReviewStage;
+};
+
 export type OrgRoleReviewStageDeleteResponse = {
   ok: true;
   roleId: string;
@@ -382,6 +405,7 @@ export type OrgAcceptedTalentItem = {
   currentStage: OrgStageId | null;
   currentStageLabel: string;
   isAwaitingStageMove: boolean;
+  memoContextLabel: string | null;
   memoPreview: string | null;
   recommendationId: string;
   roleDescription: string | null;
@@ -2896,30 +2920,61 @@ export async function fetchOrgBoard(args: {
   };
 }
 
-async function fetchLatestOpsProfileMemoPreviews(args: {
+async function fetchLatestOpsMemoPreviews(args: {
   admin: ReturnType<typeof getSupabaseAdmin>;
   talentIds: string[];
 }) {
-  const memoPreviewByTalentId = new Map<string, string>();
-  if (args.talentIds.length === 0) return memoPreviewByTalentId;
-
-  const { data, error } = await args.admin
-    .from("talent_ops_profile_memos")
-    .select("talent_id, content, updated_at, created_at")
-    .in("talent_id", args.talentIds)
-    .order("updated_at", { ascending: false })
-    .order("created_at", { ascending: false });
-
-  if (error) throw error;
-
-  for (const row of data ?? []) {
-    const talentId = normalizeText(row.talent_id);
-    const content = normalizeText(row.content);
-    if (!talentId || !content || memoPreviewByTalentId.has(talentId)) continue;
-    memoPreviewByTalentId.set(talentId, content.slice(0, 240));
+  if (args.talentIds.length === 0) {
+    return buildLatestOpsTalentMemoPreviewMap([]);
   }
 
-  return memoPreviewByTalentId;
+  const [profileMemoResult, roleMemoResult] = await Promise.all([
+    args.admin
+      .from("talent_ops_profile_memos")
+      .select("talent_id, content, updated_at, created_at")
+      .in("talent_id", args.talentIds),
+    (args.admin.from("talent_progress" as any) as any)
+      .select(
+        "talent_id, role_id, text, created_at, role:company_roles(name, workspace:company_workspace(company_name))"
+      )
+      .in("talent_id", args.talentIds)
+      .eq("kind", OPS_ROLE_MEMO_KIND),
+  ]);
+
+  if (profileMemoResult.error) throw profileMemoResult.error;
+  if (roleMemoResult.error) throw roleMemoResult.error;
+
+  const candidates: OpsTalentMemoCandidate[] = (
+    profileMemoResult.data ?? []
+  ).map((row) => ({
+    companyName: null,
+    content: normalizeText(row.content),
+    occurredAt:
+      normalizeNullableText(row.updated_at) ??
+      normalizeNullableText(row.created_at),
+    roleId: null,
+    roleName: null,
+    source: "profile",
+    talentId: normalizeText(row.talent_id),
+  }));
+
+  for (const row of roleMemoResult.data ?? []) {
+    const role = Array.isArray(row.role) ? (row.role[0] ?? null) : row.role;
+    const workspace = Array.isArray(role?.workspace)
+      ? (role.workspace[0] ?? null)
+      : role?.workspace;
+    candidates.push({
+      companyName: normalizeNullableText(workspace?.company_name),
+      content: normalizeText(row.text),
+      occurredAt: normalizeNullableText(row.created_at),
+      roleId: normalizeNullableText(row.role_id),
+      roleName: normalizeNullableText(role?.name),
+      source: "role",
+      talentId: normalizeText(row.talent_id),
+    });
+  }
+
+  return buildLatestOpsTalentMemoPreviewMap(candidates);
 }
 
 export async function fetchOrgAcceptedTalents(args: {
@@ -3006,7 +3061,7 @@ export async function fetchOrgAcceptedTalents(args: {
     }),
     fetchTagsForBoard({ admin, roleIds, talentIds }),
     fetchTalentRows(admin, talentIds),
-    fetchLatestOpsProfileMemoPreviews({ admin, talentIds }),
+    fetchLatestOpsMemoPreviews({ admin, talentIds }),
   ]);
   const customStageByTagKey = new Map(
     customStages.map((row) => [
@@ -3037,6 +3092,8 @@ export async function fetchOrgAcceptedTalents(args: {
     });
     const currentStage = stageInfo?.stage ?? null;
 
+    const memoPreview = memoPreviewByTalentId.get(row.talent_id) ?? null;
+
     return [
       {
         acceptedAt,
@@ -3047,7 +3104,10 @@ export async function fetchOrgAcceptedTalents(args: {
           customStages
         ),
         isAwaitingStageMove: currentStage === "accepted",
-        memoPreview: memoPreviewByTalentId.get(row.talent_id) ?? null,
+        memoContextLabel: memoPreview
+          ? formatOpsTalentMemoRoleContext(memoPreview)
+          : null,
+        memoPreview: memoPreview?.content ?? null,
         recommendationId: row.id,
         roleDescription: role.description ?? null,
         roleDescriptionSummary: role.description_summary ?? null,
@@ -5150,7 +5210,7 @@ export async function fetchOrgTalentDetail(args: {
       .order("created_at", { ascending: false }),
     (admin.from("company_talent_requests" as any) as any)
       .select(
-        "id, role_id, expects_document, request_context, delivery_subject, workflow_status, expires_at, created_at, deliveries:contact_queue(scheduled_at, sent_at, cancelled_at, status, last_error, payload, type)"
+        "id, role_id, expects_document, request_context, delivery_subject, workflow_status, expires_at, created_at, talent_source_message_id, deliveries:contact_queue(scheduled_at, sent_at, cancelled_at, status, last_error, payload, type)"
       )
       .eq("company_workspace_id", workspaceId)
       .eq("talent_id", talentId)
@@ -5257,23 +5317,27 @@ export async function fetchOrgTalentDetail(args: {
     id: string;
     request_context: string;
     role_id: string;
+    talent_source_message_id: number | null;
     workflow_status: string;
   }>(companyRequestHistoryResult, "company request history").map((row) => {
     const activity = candidateActivityByRequestId.get(row.id);
-    const delivery = row.deliveries?.find(
+    const candidateDelivery = row.deliveries?.find(
       (item) => item.type === "company_request_candidate_delivery"
     );
-    const deliveryStatus = delivery?.status ?? "unknown";
+    const companyDelivery = row.deliveries?.find(
+      (item) => item.type === "company_request_company_delivery"
+    );
+    const deliveryStatus = candidateDelivery?.status ?? "unknown";
     return {
       canCancel:
         ["queued", "failed"].includes(deliveryStatus) &&
         ["queued", "failed"].includes(row.workflow_status),
-      cancelledAt: delivery?.cancelled_at ?? null,
+      cancelledAt: candidateDelivery?.cancelled_at ?? null,
       createdAt: row.created_at,
       deliveryStatus,
       id: row.id,
       label: row.expects_document ? "이력서 요청" : "회사 질문 확인",
-      lastError: delivery?.last_error ?? null,
+      lastError: candidateDelivery?.last_error ?? null,
       requestContext: row.request_context,
       requestKind: row.expects_document ? "resume" : "question",
       responseMessage: row.expects_document
@@ -5282,12 +5346,24 @@ export async function fetchOrgTalentDetail(args: {
       roleId: row.role_id,
       roleName:
         roleRows.find((role) => role.role_id === row.role_id)?.name ?? null,
-      scheduledAt: delivery?.scheduled_at ?? row.created_at,
+      scheduledAt: candidateDelivery?.scheduled_at ?? row.created_at,
       sentMessage: activity?.sentMessage ?? null,
-      sentAt: delivery?.sent_at ?? null,
+      sentAt: candidateDelivery?.sent_at ?? null,
       status: humanizeCompanyTalentRequestStatus({
         ...row,
-        delivery_status: deliveryStatus,
+        candidate_cancellation_source: normalizeNullableText(
+          getJsonRecord(getJsonRecord(candidateDelivery?.payload).cancellation)
+            .source
+        ),
+        candidate_delivery_error: candidateDelivery?.last_error,
+        candidate_delivery_status: deliveryStatus,
+        candidate_sent_at: candidateDelivery?.sent_at,
+        company_delivery_status: companyDelivery?.status,
+        company_sent_at: companyDelivery?.sent_at,
+        has_candidate_response: Boolean(row.talent_source_message_id),
+        role_is_open:
+          !["ended", "deleted"].includes(normalizeText(roleRow.status)) &&
+          roleRow.is_expired !== true,
       }),
     } satisfies OrgCompanyTalentRequestFeedItem;
   });
@@ -6177,7 +6253,19 @@ export async function updateOrgRole(args: {
   });
 
   const requestedStatus =
-    args.status === undefined ? null : normalizeOrgRoleStatus(args.status);
+    args.status === undefined
+      ? undefined
+      : parseOrgRoleMutationStatus(args.status);
+  if (args.status !== undefined && !requestedStatus) {
+    throw new OrgHttpError(
+      400,
+      "역할 상태가 올바르지 않습니다. 새로고침한 뒤 다시 시도해 주세요."
+    );
+  }
+  const requestedIsExpired = resolveOrgRoleMutationExpiry({
+    isExpired: args.isExpired,
+    status: requestedStatus,
+  });
   let activatedDraftRole = false;
   if (requestedStatus) {
     const { data: currentRole, error: currentRoleError } = await (
@@ -6191,11 +6279,7 @@ export async function updateOrgRole(args: {
     if (!currentRole) throw new OrgHttpError(404, "Role not found");
 
     const currentRoleStatus = normalizeOrgRoleStatus(currentRole.status);
-    if (
-      currentRoleStatus === "draft" &&
-      requestedStatus !== "draft" &&
-      requestedStatus !== "deleted"
-    ) {
+    if (currentRoleStatus === "draft" && requestedStatus !== "deleted") {
       if (
         requestedStatus !== "active" ||
         !hasOrgAllWorkspaceAccess(args.user)
@@ -6273,11 +6357,11 @@ export async function updateOrgRole(args: {
       value: normalizeOrgRoleWorkMode(args.workMode),
     });
   }
-  if (typeof args.isExpired === "boolean") {
+  if (requestedIsExpired !== undefined) {
     changes.push({
       key: "role_is_expired",
       roleId,
-      value: args.isExpired,
+      value: requestedIsExpired,
     });
   }
 
@@ -6722,6 +6806,92 @@ export async function updateOrgRoleReviewStage(args: {
     ok: true,
     roleId,
     stage: buildOrgRoleReviewStage(data as RoleStageRow),
+  };
+}
+
+export async function updateOrgRoleReviewStageMeetingDefaults(args: {
+  meetingCandidateMessage?: unknown;
+  meetingDurationMinutes?: unknown;
+  meetingPurpose?: unknown;
+  roleId: string;
+  stageId: string;
+  user: User;
+  workspaceId: string;
+}): Promise<OrgRoleReviewStageMeetingDefaultsUpdateResponse> {
+  const admin = getSupabaseAdmin();
+  const workspaceId = normalizeText(args.workspaceId);
+  const roleId = normalizeText(args.roleId);
+  const stageId = normalizeText(args.stageId);
+  if (!workspaceId || !roleId || !stageId) {
+    throw new OrgHttpError(400, "Missing required fields");
+  }
+
+  await assertOrgRoleAccess({ admin, roleId, user: args.user, workspaceId });
+  const { data: current, error: currentError } = await (
+    admin.from("ops_matching_role_stages" as any) as any
+  )
+    .select(
+      "id, role_id, label, sort_order, meeting_purpose, meeting_duration_minutes, meeting_candidate_message"
+    )
+    .eq("id", stageId)
+    .eq("role_id", roleId)
+    .maybeSingle();
+  if (currentError) throw currentError;
+  if (!current) throw new OrgHttpError(404, "Pipeline stage not found");
+
+  let resolved: ReturnType<typeof resolveRoleStageMeetingDefaultsUpdate>;
+  try {
+    const input: Record<string, unknown> = {};
+    if (Object.prototype.hasOwnProperty.call(args, "meetingPurpose")) {
+      input.meetingPurpose = args.meetingPurpose;
+    }
+    if (Object.prototype.hasOwnProperty.call(args, "meetingDurationMinutes")) {
+      input.meetingDurationMinutes = args.meetingDurationMinutes;
+    }
+    if (Object.prototype.hasOwnProperty.call(args, "meetingCandidateMessage")) {
+      input.meetingCandidateMessage = args.meetingCandidateMessage;
+    }
+    resolved = resolveRoleStageMeetingDefaultsUpdate({
+      current: {
+        candidateMessage: current.meeting_candidate_message ?? null,
+        durationMinutes: current.meeting_duration_minutes ?? null,
+        meetingPurpose: current.meeting_purpose ?? null,
+      },
+      input,
+    });
+  } catch (error) {
+    if (error instanceof RoleStageMeetingDefaultsValidationError) {
+      throw new OrgHttpError(400, error.message);
+    }
+    throw error;
+  }
+
+  let stageRow = current as RoleStageRow;
+  if (resolved.changed) {
+    const { data, error } = await (
+      admin.from("ops_matching_role_stages" as any) as any
+    )
+      .update(resolved.patch)
+      .eq("id", stageId)
+      .eq("role_id", roleId)
+      .select(
+        "id, role_id, label, sort_order, meeting_purpose, meeting_duration_minutes, meeting_candidate_message"
+      )
+      .single();
+    if (error) throw error;
+    stageRow = data as RoleStageRow;
+  }
+
+  return {
+    changed: resolved.changed,
+    meetingDefaults: {
+      candidateMessage: stageRow.meeting_candidate_message ?? null,
+      durationMinutes: stageRow.meeting_duration_minutes ?? null,
+      meetingPurpose: stageRow.meeting_purpose ?? null,
+    },
+    ok: true,
+    roleId,
+    stage: buildOrgRoleReviewStage(stageRow),
   };
 }
 

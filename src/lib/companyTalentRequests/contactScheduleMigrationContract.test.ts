@@ -6,7 +6,7 @@ import test from "node:test";
 const migration = readFileSync(
   resolve(
     process.cwd(),
-    "supabase/migrations/20260827210000_company_talent_contact_round_the_clock.sql"
+    "supabase/migrations/20260908170000_company_talent_contact_five_minute_delay.sql"
   ),
   "utf8"
 );
@@ -18,17 +18,17 @@ const draftScheduleFunction = migration.match(
   /create or replace function public\.schedule_company_talent_request_v1\([\s\S]*?\n\$\$;/
 )?.[0];
 
-test("standard candidate contact always keeps exactly the 20-minute delay", () => {
+test("standard candidate contact always keeps exactly the five-minute delay", () => {
   assert.ok(legacyEnqueueFunction);
   assert.ok(draftScheduleFunction);
 
   assert.match(
     legacyEnqueueFunction,
-    /v_scheduled_at timestamptz := v_now \+ interval '20 minutes'/
+    /v_scheduled_at timestamptz := v_now \+ interval '5 minutes'/
   );
   assert.match(
     draftScheduleFunction,
-    /when p_delivery_mode = 'immediate' then v_now[\s\S]*?else v_now \+ interval '20 minutes'/
+    /when p_delivery_mode = 'immediate' then v_now[\s\S]*?else v_now \+ interval '5 minutes'/
   );
 });
 

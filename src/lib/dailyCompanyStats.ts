@@ -86,7 +86,7 @@ type RecommendationRow = {
 
 type OpportunityTagRow = {
   id: string;
-  opportunity_id: string;
+  opportunity_id: string | null;
   tag: string;
   talent_id: string;
   updated_at: string;

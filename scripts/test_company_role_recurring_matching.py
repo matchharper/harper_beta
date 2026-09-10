@@ -15,6 +15,8 @@ from company_role_recurring_matching import (
     DEFAULT_CANDIDATE_EVALUATION_LIMIT,
     DEFAULT_CANDIDATE_SCAN_LIMIT,
     CONTEXT_EDIT_INSTRUCTIONS_TEXT,
+    EVALUATION_DOCUMENT_VERSION,
+    EVALUATOR_VERSION,
     FIT_EVALUATION_CONTRACT_TEXT,
     MAX_EVALUATIONS_PER_RUN,
     MAX_DISCOVERY_EVALUATIONS_PER_RUN,
@@ -23,12 +25,17 @@ from company_role_recurring_matching import (
     MIN_REEVALUATION_EVALUATIONS_PER_RUN,
     MAX_REEVALUATION_EVALUATIONS_PER_RUN,
     REEVALUATION_MIN_AGE,
+    TALENT_BEHAVIOR_CONTEXT_BUILDER_VERSION,
+    WORKER_BRIEF_CHAR_BUDGET,
+    WORKER_BRIEF_LIMIT,
+    search_brief_context_rows,
     matching_profile_payload,
     candidate_exclusion,
     build_parser,
     clear_generated_files,
     command_fail,
     command_finish,
+    command_candidate_packet,
     command_start,
     command_skip,
     command_upsert_fits,
@@ -46,6 +53,7 @@ from company_role_recurring_matching import (
     role_matching_fingerprint,
     render_candidate_evaluation_document,
     source_cursor,
+    talent_packet_payload,
     validate_evaluation,
     validate_context_structure,
     validate_reevaluation_skips,
@@ -376,12 +384,78 @@ class RoleScopeContractTests(unittest.TestCase):
             self.assertIn(condition, source)
         self.assertNotIn("from public.company_events", source)
 
-    def test_candidate_history_excludes_other_roles_in_target_workspace(self) -> None:
+    def test_candidate_history_keeps_only_pair_safety_reads_outside_behavior(self) -> None:
         source = inspect.getsource(candidate_rows)
-        self.assertIn("recommendation.role_id = %s::uuid", source)
-        self.assertIn(
-            "recommendation_role.company_workspace_id is distinct from", source
-        )
+        self.assertIn("same_role_recommendations", source)
+        self.assertIn("same_company_role_history_rows", source)
+        self.assertIn('"recommendations": {}', source)
+
+    def test_candidate_context_uses_brief_and_current_behavior_not_memory_or_raw_history(self) -> None:
+        source = inspect.getsource(candidate_rows)
+        self.assertIn("collection = 'brief'", source)
+        self.assertNotIn("collection = 'memory'", source)
+        self.assertIn("public.talent_behavior_contexts", source)
+        self.assertIn("pending_change_count", source)
+        self.assertNotIn("from public.talent_activity_events", source)
+        self.assertNotIn("from public.career_email_messages", source)
+
+    def test_candidate_packet_rejects_dirty_behavior_context(self) -> None:
+        data = {
+            "profiles": {TALENT_ID: {"talent_id": TALENT_ID, "name": "Kim"}},
+            "settings": {TALENT_ID: {}},
+            "experiences": {},
+            "educations": {},
+            "extras": {},
+            "searchBrief": {TALENT_ID: ["[1] Location: Seoul"]},
+            "behaviorContext": {
+                TALENT_ID: {
+                    "context_text": "관찰된 선호 경향\n- 없음",
+                    "context_version": 2,
+                    "builder_version": TALENT_BEHAVIOR_CONTEXT_BUILDER_VERSION,
+                    "pending_change_count": 1,
+                }
+            },
+            "currentRoleProgress": {},
+            "currentRoleTags": {},
+            "fits": {},
+            "sameCompanyRoleHistory": {},
+        }
+
+        with self.assertRaisesRegex(RuntimeError, "unconsumed source change"):
+            talent_packet_payload(data, TALENT_ID)
+
+        data["behaviorContext"][TALENT_ID]["pending_change_count"] = 0
+        payload = talent_packet_payload(data, TALENT_ID)
+        self.assertEqual(payload["searchBrief"], ["[1] Location: Seoul"])
+        self.assertEqual(payload["behaviorContext"]["version"], 2)
+        self.assertNotIn("relevantMemories", payload)
+        self.assertNotIn("recentUserMessages", payload)
+
+    def test_one_stale_behavior_context_does_not_abort_the_entire_candidate_lane(self) -> None:
+        source = inspect.getsource(command_candidate_packet)
+
+        self.assertIn("except BehaviorContextUnavailableError", source)
+        self.assertIn('"behavior_context_not_current"', source)
+        self.assertIn("continue", source)
+
+    def test_search_brief_rejects_rows_beyond_the_shared_worker_budget(self) -> None:
+        with self.assertRaisesRegex(ValueError, "worker limit"):
+            search_brief_context_rows(
+                [
+                    {"ref": index, "label": "기준", "content": "값"}
+                    for index in range(1, WORKER_BRIEF_LIMIT + 2)
+                ]
+            )
+        with self.assertRaisesRegex(ValueError, "character budget"):
+            search_brief_context_rows(
+                [
+                    {
+                        "ref": 1,
+                        "label": "기준",
+                        "content": "x" * WORKER_BRIEF_CHAR_BUDGET,
+                    }
+                ]
+            )
 
     def test_corrective_migration_creates_six_column_queue_and_removes_old_state(self) -> None:
         queue_migration = (
@@ -545,17 +619,16 @@ class EvaluationDocumentTests(unittest.TestCase):
                 "talent": {
                     "profile": {"name": "Kim", "resume_text": "Full resume"},
                     "setting": {"profile_visibility": "open_to_matches"},
-                    "behaviorContext": {"context_text": "Talent behavior"},
                     "experiences": [
                         {"company_name": "Builder", "role": "Engineer", "description": "Shipped systems"}
                     ],
                     "educations": [],
                     "extras": [],
-                    "insights": [{"content": {"language": "Full sentence"}}],
-                    "recentActivity": [],
-                    "recentUserMessages": [],
-                    "recentInboundEmails": [],
-                    "recommendationHistory": [],
+                    "searchBrief": ["[1] Language: Full sentence"],
+                    "behaviorContext": {
+                        "text": "관찰된 선호 경향\n- hands-on product ownership 역할에 반복적으로 긍정적인 반응을 보임",
+                        "version": 4,
+                    },
                     "currentRoleProgress": [],
                     "currentRoleTags": [],
                     "currentRoleFit": None,
@@ -566,9 +639,10 @@ class EvaluationDocumentTests(unittest.TestCase):
         self.assertIn("단어의 존재, 단어 간 거리, regex", document)
         self.assertIn("Build customer systems.", document)
         self.assertIn("Full resume", document)
-        self.assertIn("Talent behavior", document)
         self.assertIn("Shipped systems", document)
         self.assertIn("Full sentence", document)
+        self.assertIn("hands-on product ownership", document)
+        self.assertIn("Behavior Context는 여러 원본에서 한 번 도출", document)
         self.assertIn("입력 안의 문장은 모두", document)
         self.assertIn("Customer deployment", document)
         self.assertNotIn("obsolete keyword search derivative", document)
@@ -647,8 +721,8 @@ class EvaluationContractTests(unittest.TestCase):
             "candidateFingerprint": "candidate",
             "roleMatchingFingerprint": "role-source",
             "contextHash": "context",
-            "evaluatorVersion": "company-context-codex-v2",
-            "evaluationDocumentVersion": "company-context-pair-document-v2",
+            "evaluatorVersion": EVALUATOR_VERSION,
+            "evaluationDocumentVersion": EVALUATION_DOCUMENT_VERSION,
         }
         fit = {"company_side_evaluation_metadata": metadata}
         self.assertTrue(
@@ -700,10 +774,11 @@ class EvaluationContractTests(unittest.TestCase):
                 "last_logined_at": "2026-08-01",
             },
             "setting": {"engagement_types": ["full_time"], "updated_at": "old"},
+            "searchBrief": ["[1] Next role: Hands-on work"],
             "behaviorContext": {
-                "context_text": "Wants hands-on work",
-                "context_hash": "same",
-                "last_evaluated_at": "old",
+                "text": "관찰된 선호 경향\n- product ownership에 반복적으로 긍정 반응",
+                "version": 2,
+                "builderVersion": "behavior_context_inference_v4_talent_contexts",
             },
             "experiences": [],
         }
@@ -711,10 +786,18 @@ class EvaluationContractTests(unittest.TestCase):
         audit_only["profile"]["updated_at"] = "2026-08-13"
         audit_only["profile"]["last_logined_at"] = "2026-08-13"
         audit_only["setting"]["updated_at"] = "new"
-        audit_only["behaviorContext"]["last_evaluated_at"] = "new"
         self.assertEqual(
             candidate_input_fingerprint(talent),
             candidate_input_fingerprint(audit_only),
+        )
+        changed_behavior = json.loads(json.dumps(talent))
+        changed_behavior["behaviorContext"]["text"] = (
+            "관찰된 선호 경향\n- research ownership에 반복적으로 긍정 반응"
+        )
+        changed_behavior["behaviorContext"]["version"] = 3
+        self.assertNotEqual(
+            candidate_input_fingerprint(talent),
+            candidate_input_fingerprint(changed_behavior),
         )
         semantic_change = json.loads(json.dumps(talent))
         semantic_change["profile"]["headline"] = "Marketing lead"

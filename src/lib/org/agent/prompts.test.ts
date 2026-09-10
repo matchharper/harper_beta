@@ -85,17 +85,30 @@ test("organization-agent system prompt keeps runtime data out", () => {
   );
   assert.match(prompt, /Its result is context, not wording to repeat/);
   assert.match(prompt, /<tool_policy>/);
-  assert.match(prompt, /Tools run one at a time/);
-  assert.match(prompt, /After every result, decide from that new evidence/);
+  assert.match(
+    prompt,
+    /request several independent tool calls in one response/
+  );
+  assert.match(
+    prompt,
+    /all independent reads or actions may be requested together/
+  );
   assert.match(
     prompt,
     /multi-target or multi-step requests in the same user turn/
   );
-  assert.match(prompt, /A successful write does not by itself end the turn/);
-  assert.match(prompt, /Never claim an unconfirmed action succeeded/);
+  assert.match(
+    prompt,
+    /A successful write or tool result does not by itself end the turn/
+  );
+  assert.match(prompt, /Never silently omit requested targets/);
+  assert.match(prompt, /claim an incomplete set succeeded/);
   assert.match(prompt, /call calibrate_role_hiring_brief/);
   assert.doesNotMatch(prompt, /calibrate_role_hiring_brief as the only tool/);
-  assert.match(prompt, /profile-evidence route from where the person came from/);
+  assert.match(
+    prompt,
+    /profile-evidence route from where the person came from/
+  );
   assert.match(prompt, /<profile_evidence_routing>/);
   assert.match(prompt, /call record_role_profile_example_feedback/);
   assert.match(prompt, /routes are mutually exclusive/);
@@ -145,6 +158,11 @@ test("organization-agent system prompt keeps runtime data out", () => {
   );
   assert.doesNotMatch(prompt, /do not mix writing systems/);
   assert.match(prompt, /proactively useful rather than merely correct/);
+  assert.match(prompt, /Take ownership of safe preparation/);
+  assert.match(
+    prompt,
+    /ask the user to intervene only when Harper cannot proceed safely/
+  );
   assert.match(prompt, /bare list or one-line result is usually incomplete/);
   assert.match(
     prompt,
@@ -166,7 +184,11 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.match(prompt, /Do not replace it with a relative day/);
   assert.match(
     prompt,
-    /what Harper sent, what answer arrived, or which meeting was confirmed/
+    /When the company asks what Harper sent, read the exact matching contact/
+  );
+  assert.match(
+    prompt,
+    /For what answer arrived, use the candidate response or reply in that result/
   );
   assert.match(
     prompt,
@@ -245,6 +267,11 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.doesNotMatch(prompt, /named candidate/);
   assert.match(prompt, /replace requires one exact oldValue/);
   assert.match(prompt, /read it fully and update in the same turn/);
+  assert.match(prompt, /update meeting defaults on/);
+  assert.match(
+    prompt,
+    /affects future scheduling, not invitations or confirmed meetings/
+  );
   assert.match(prompt, /Do not mention delivery channels/);
   assert.match(prompt, /ready to move now/);
   assert.match(prompt, /what Harper can ask.*answer will come back/);
@@ -269,6 +296,14 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.match(prompt, /never use a fixed response template/);
   assert.match(
     prompt,
+    /workspace-wide candidate list or candidate filter spanning multiple Roles, use get_talents first/
+  );
+  assert.match(
+    prompt,
+    /Do not read every Role separately merely to list its candidates/
+  );
+  assert.match(
+    prompt,
     /decide_candidate_connection only when the immediately previous Harper message asked for approval/
   );
   assert.match(
@@ -281,38 +316,59 @@ test("organization-agent system prompt keeps runtime data out", () => {
     /Meeting requests are available throughout a candidate's company-visible active process/
   );
   assert.match(prompt, /action=create_draft in that same turn/);
+  assert.match(prompt, /one batch call for up to ten candidates/);
+  assert.match(prompt, /additional batch calls in the same turn/);
   assert.match(
     prompt,
-    /available for any candidate who is currently in a company-visible active stage/
+    /available for any candidate with a company-visible position for that Role/
   );
   assert.match(
     prompt,
     /Do not limit questions or resume requests to candidates awaiting the initial connection decision/
   );
+  assert.match(
+    prompt,
+    /do not infer that contacting someone changes their pipeline stage/
+  );
   assert.match(prompt, /complete candidate-contact body/);
   assert.match(
     prompt,
-    /must not repeat the company name, Role title, email subject, or body/
+    /must not repeat company names, Role titles, email subjects, or bodies/
   );
   assert.doesNotMatch(prompt, /fixed Harper service footer/);
-  assert.match(prompt, /creates a saved draft only/);
+  assert.match(prompt, /creates saved drafts only/);
   assert.match(prompt, /pending_candidate_contact_drafts/);
   assert.match(prompt, /action=revise_draft/);
   assert.match(prompt, /Repeat this revision loop as many times as requested/);
   assert.match(
     prompt,
-    /action=schedule when the immediately previous Harper message presented that same contactId and revision body/
+    /action=schedule when the nearest Harper message containing candidate-contact drafts within the four conversation messages/
   );
-  assert.match(prompt, /server independently verifies this adjacency/);
-  assert.match(prompt, /Scheduling uses the stored subject and body unchanged/);
   assert.match(
     prompt,
-    /standard schedule exactly 20 minutes after exact-copy approval at any time of day/
+    /presentedDrafts=true.*server resolves and verifies every exact ID and revision/
   );
+  assert.match(prompt, /Do not copy a displayed set's IDs into/);
+  assert.match(
+    prompt,
+    /Scheduling uses every stored subject and body unchanged/
+  );
+  assert.match(
+    prompt,
+    /standard schedule exactly 5 minutes after exact-copy approval at any time of day/
+  );
+  assert.match(prompt, /do not mention or imply a wait before contacting/);
+  assert.match(prompt, /do not use phrases such as "조금 뒤에"/);
+  assert.match(prompt, /네, 요청하신 내용으로 <후보자>님께 확인을 요청할게요/);
+  assert.match(
+    prompt,
+    /For a resume request, say that Harper will request the latest resume/
+  );
+  assert.match(prompt, /Do not falsely claim that the email was already sent/);
   assert.doesNotMatch(prompt, /only between 08:00 and 20:00 KST/);
   assert.match(
     prompt,
-    /Once Harper has said the request will be sent later, today, or tomorrow, it is already queued: never call schedule again/
+    /Once Harper has said a request will be sent later, today, or tomorrow, it is already queued: never call schedule again/
   );
   assert.match(
     prompt,
@@ -327,10 +383,18 @@ test("organization-agent system prompt keeps runtime data out", () => {
   assert.match(prompt, /instead of refusing, moralizing, inferring the answer/);
   assert.match(prompt, /Recognize compensation questions by their meaning/);
   assert.match(prompt, /base salary or total compensation/);
-  assert.match(prompt, /three milestones in human terms/);
+  assert.match(prompt, /Preserve every completed milestone/);
   assert.match(
     prompt,
     /one considerate follow-up only after at least 72 hours/
+  );
+  assert.match(
+    prompt,
+    /14-day cutoff only closes an unsent draft or send attempt/
+  );
+  assert.match(
+    prompt,
+    /After a candidate email is sent, there is no reply deadline/
   );
   assert.match(prompt, /at most one light follow-up/);
   assert.match(prompt, /Do not promise an exact follow-up time/);
@@ -344,7 +408,10 @@ test("organization-agent system prompt keeps runtime data out", () => {
     prompt,
     /After contact_talent action=schedule succeeds.*respond like a human assistant taking ownership/
   );
-  assert.match(prompt, /Express that short delay conversationally/);
+  assert.match(
+    prompt,
+    /Do not mention the routine five-minute timing unless the company explicitly asks/
+  );
   assert.match(prompt, /Do not expose delivery-channel or queue mechanics/);
   assert.match(
     prompt,
@@ -481,4 +548,15 @@ test("organization-agent user prompt keeps recent conversation next to the lates
     /<recent_conversation>[\s\S]*<\/recent_conversation>\n<user_message>/
   );
   assert.ok(prompt.endsWith("</conversation>"));
+});
+
+test("company-side prompt routes workspace contact history through contact reads", () => {
+  const prompt = buildOrgAgentSystemPrompt({ surface: "slack" });
+
+  assert.match(prompt, /workspace-wide or date-bounded communication question/);
+  assert.match(prompt, /dateBasis=sent/);
+  assert.match(prompt, /contains no subject or body/);
+  assert.match(prompt, /read_contact with up to ten/);
+  assert.match(prompt, /actual company initiator/);
+  assert.doesNotMatch(prompt, /For contact-status questions, use read_talent/);
 });

@@ -5,7 +5,6 @@ import {
   candidateContactDraftFallbackReply,
   candidateContactDraftPresentation,
   candidateContactScheduledReply,
-  naturalCandidateContactTiming,
   serializeTalentPendingRequest,
 } from "@/lib/companyTalentRequests/presentation";
 
@@ -93,41 +92,49 @@ test("Slack candidate contact preview renders a hidden clickable resume URL", ()
   assert.doesNotMatch(presentation, /\[이력서 업로드\]\(/);
 });
 
-test("candidate contact completion turns schedule data into conversational timing", () => {
+test("candidate contact completion does not foreground the short delivery buffer", () => {
   const afternoon = new Date("2026-08-27T05:00:00.000Z");
-  assert.equal(
-    naturalCandidateContactTiming("2026-08-27T05:20:00.000Z", afternoon),
-    "조금 뒤에"
-  );
   assert.equal(
     candidateContactScheduledReply({
       candidateName: "김호진",
       immediate: false,
       now: afternoon,
-      scheduledAt: "2026-08-27T05:20:00.000Z",
+      scheduledAt: "2026-08-27T05:05:00.000Z",
     }),
-    "김호진님께 제가 대신 조금 뒤에 물어볼게요. 답이 오면 여기로 알려드릴게요."
+    "네, 요청하신 내용으로 김호진님께 확인을 요청할게요. 답변이 오면 이 대화로 바로 알려드리겠습니다."
   );
   const lateNight = new Date("2026-08-27T14:50:00.000Z");
-  assert.equal(
-    naturalCandidateContactTiming("2026-08-27T15:10:00.000Z", lateNight),
-    "조금 뒤에"
-  );
   assert.equal(
     candidateContactScheduledReply({
       candidateName: "김호진",
       immediate: false,
       now: lateNight,
-      scheduledAt: "2026-08-27T15:10:00.000Z",
+      scheduledAt: "2026-08-27T14:55:00.000Z",
     }),
-    "김호진님께 제가 대신 조금 뒤에 물어볼게요. 답이 오면 여기로 알려드릴게요."
+    "네, 요청하신 내용으로 김호진님께 확인을 요청할게요. 답변이 오면 이 대화로 바로 알려드리겠습니다."
   );
   assert.equal(
     candidateContactScheduledReply({
       candidateName: "김호진",
       immediate: true,
     }),
-    "김호진님께 제가 대신 바로 물어볼게요. 답이 오면 여기로 알려드릴게요."
+    "네, 요청하신 내용으로 김호진님께 바로 확인을 요청할게요. 답변이 오면 이 대화로 바로 알려드리겠습니다."
+  );
+  assert.equal(
+    candidateContactScheduledReply({
+      candidateName: "김호진",
+      immediate: false,
+      kind: "resume",
+    }),
+    "네, 요청하신 내용으로 김호진님께 최신 이력서를 요청할게요. 답변이 오면 이 대화로 바로 알려드리겠습니다."
+  );
+  assert.doesNotMatch(
+    candidateContactScheduledReply({
+      candidateName: "김호진",
+      immediate: false,
+      scheduledAt: "2026-08-27T05:05:00.000Z",
+    }),
+    /조금 뒤에|5분/
   );
 });
 

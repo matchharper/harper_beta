@@ -11,18 +11,18 @@ import {
 test("adds one shared post-onboarding guide only after onboarding", () => {
   const completedPlan = buildCareerConversationPromptPlan({
     channel: "chat",
-    currentInsightContent: null,
     isOnboardingDone: true,
     profile: null,
     structuredProfileText: "",
+    talentContextSection: "",
     toolNames: [],
   });
   const activePlan = buildCareerConversationPromptPlan({
     channel: "chat",
-    currentInsightContent: null,
     isOnboardingDone: false,
     profile: null,
     structuredProfileText: "",
+    talentContextSection: "",
     toolNames: [],
   });
 
@@ -42,11 +42,11 @@ test("adds one shared post-onboarding guide only after onboarding", () => {
 test("allows non-conversational completion artifacts to omit the guide", () => {
   const plan = buildCareerConversationPromptPlan({
     channel: "chat",
-    currentInsightContent: null,
     includePostOnboardingConversationGuide: false,
     isOnboardingDone: true,
     profile: null,
     structuredProfileText: "",
+    talentContextSection: "",
     toolNames: [],
   });
 
@@ -55,6 +55,28 @@ test("allows non-conversational completion artifacts to omit the guide", () => {
       (block) => block.key === "post_onboarding_conversation_guide"
     ),
     false
+  );
+});
+
+test("injects the saved talent context block exactly once", () => {
+  const marker = "UNIQUE_SAVED_BRIEF_VALUE";
+  const plan = buildCareerConversationPromptPlan({
+    channel: "chat",
+    isOnboardingDone: false,
+    onboardingChecklistCoverage: { location: "covered" },
+    profile: null,
+    structuredProfileText: "",
+    talentContextSection: `Search Brief\n[1] Location: ${marker}`,
+    toolNames: [],
+  });
+  const prompt = plan.promptBlocks.map((block) => block.text).join("\n\n");
+
+  assert.equal(prompt.match(new RegExp(marker, "g"))?.length, 1);
+  assert.deepEqual(
+    plan.promptBlocks
+      .filter((block) => block.text.includes(marker))
+      .map((block) => block.key),
+    ["future_matching_insights"]
   );
 });
 

@@ -1,5 +1,6 @@
 import TurndownService from "turndown";
 import { OFFICIAL_JOBS_INTERNAL_COPY_SLUG } from "@/lib/officialJobs";
+import { notifyGoogleJobIndexingBestEffort } from "@/lib/googleJobIndexing";
 import { supabaseServer } from "@/lib/supabaseServer";
 import type { Database } from "@/types/database.types";
 
@@ -7,10 +8,19 @@ type OfficialJobRow = Pick<
   Database["public"]["Tables"]["official_jobs"]["Row"],
   | "ashby_job_posting_id"
   | "company_description_markdown"
+  | "company_logo_url"
+  | "company_name"
   | "company_website_url"
+  | "compensation"
+  | "display_order"
+  | "employment_type"
   | "id"
   | "is_published"
+  | "location"
+  | "published_at"
   | "role_id"
+  | "role_description_markdown"
+  | "role_title"
   | "seniority"
   | "short_description"
   | "slug"
@@ -398,7 +408,7 @@ async function fetchExistingOfficialJobs() {
   const { data, error } = await supabaseServer
     .from("official_jobs")
     .select(
-      "ashby_job_posting_id,company_description_markdown,company_website_url,id,is_published,role_id,seniority,short_description,slug,vertical"
+      "ashby_job_posting_id,company_description_markdown,company_logo_url,company_name,company_website_url,compensation,display_order,employment_type,id,is_published,location,published_at,role_description_markdown,role_id,role_title,seniority,short_description,slug,vertical"
     );
 
   if (error) {
@@ -494,6 +504,34 @@ async function buildPayload(
   };
 }
 
+type AshbyOfficialJobPayload = NonNullable<
+  Awaited<ReturnType<typeof buildPayload>>
+>["payload"];
+
+function hasPublicJobContentChanged(
+  existing: OfficialJobRow,
+  payload: AshbyOfficialJobPayload
+) {
+  return (
+    existing.company_description_markdown !==
+      payload.company_description_markdown ||
+    existing.company_logo_url !== payload.company_logo_url ||
+    existing.company_name !== payload.company_name ||
+    existing.company_website_url !== payload.company_website_url ||
+    existing.compensation !== payload.compensation ||
+    existing.display_order !== payload.display_order ||
+    existing.employment_type !== payload.employment_type ||
+    existing.location !== payload.location ||
+    existing.published_at !== payload.published_at ||
+    existing.role_description_markdown !== payload.role_description_markdown ||
+    existing.role_title !== payload.role_title ||
+    existing.seniority !== payload.seniority ||
+    existing.short_description !== payload.short_description ||
+    existing.slug !== payload.slug ||
+    existing.vertical !== payload.vertical
+  );
+}
+
 export async function runAshbyOfficialJobsSync(options?: {
   unpublishMissing?: boolean;
 }): Promise<AshbyOfficialJobsSyncSummary> {
@@ -524,6 +562,10 @@ export async function runAshbyOfficialJobsSync(options?: {
     const existingRow = existingRows.find(
       (row) => row.ashby_job_posting_id === built.ashbyJobId
     );
+    const shouldNotifyPublishedUpdate = Boolean(
+      existingRow?.is_published &&
+      hasPublicJobContentChanged(existingRow, built.payload)
+    );
 
     const query = existingRow
       ? supabaseServer
@@ -537,6 +579,13 @@ export async function runAshbyOfficialJobsSync(options?: {
       throw new Error(error?.message ?? "Failed to sync Ashby job posting");
     }
 
+    if (shouldNotifyPublishedUpdate) {
+      await notifyGoogleJobIndexingBestEffort({
+        slug: data.slug,
+        type: "URL_UPDATED",
+      });
+    }
+
     if (existingRow) {
       summary.updated += 1;
     } else {
@@ -545,10 +594,19 @@ export async function runAshbyOfficialJobsSync(options?: {
         ashby_job_posting_id: built.ashbyJobId,
         company_description_markdown:
           built.payload.company_description_markdown,
+        company_logo_url: built.payload.company_logo_url,
+        company_name: built.payload.company_name,
         company_website_url: built.payload.company_website_url,
+        compensation: built.payload.compensation,
+        display_order: built.payload.display_order,
+        employment_type: built.payload.employment_type,
         id: data.id,
         is_published: built.payload.is_published,
+        location: built.payload.location,
+        published_at: built.payload.published_at,
+        role_description_markdown: built.payload.role_description_markdown,
         role_id: null,
+        role_title: built.payload.role_title,
         seniority: built.payload.seniority,
         short_description: built.payload.short_description,
         slug: data.slug,
@@ -575,6 +633,13 @@ export async function runAshbyOfficialJobsSync(options?: {
 
       if (error) {
         throw new Error(error.message ?? "Failed to unpublish missing job");
+      }
+
+      if (row.is_published) {
+        await notifyGoogleJobIndexingBestEffort({
+          slug: row.slug,
+          type: "URL_DELETED",
+        });
       }
       summary.unpublished += 1;
     }

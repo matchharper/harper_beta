@@ -10,7 +10,6 @@ import type {
   CareerInterviewProgress,
   CareerInternalOpportunityCallRequest,
   CareerMessagePayload,
-  CareerOnboardingChecklistProgress,
   CareerOpportunityFeedbackFollowUpTrigger,
   CareerOpportunityRun,
   SessionResponse,
@@ -33,10 +32,12 @@ import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { useCareerChat } from "@/hooks/career/useCareerChat";
 import { useCareerChatAutoScroll } from "@/hooks/career/useCareerChatAutoScroll";
 import { useCareerMessageHistory } from "@/hooks/career/useCareerMessageHistory";
+import { useCareerOnboardingProgress } from "@/hooks/career/useCareerOnboardingProgress";
 import { useCareerOnboardingVoice } from "@/hooks/career/useCareerOnboardingVoice";
 import { useCareerOpportunityRunSync } from "@/hooks/career/useCareerOpportunityRunSync";
 import { useCareerProfile } from "@/hooks/career/useCareerProfile";
 import { useCareerTalentInsights } from "@/hooks/career/useCareerTalentInsights";
+import { useCareerTalentContexts } from "@/hooks/career/useCareerTalentContexts";
 import { useCareerTalentPreferences } from "@/hooks/career/useCareerTalentPreferences";
 import { useCareerTalentSettings } from "@/hooks/career/useCareerTalentSettings";
 import { useCareerSession } from "@/hooks/career/useCareerSession";
@@ -115,35 +116,6 @@ const normalizePendingInternalOpportunityCallRequests = (
   });
 };
 
-const normalizeOnboardingChecklistProgress = (
-  value: unknown
-): CareerOnboardingChecklistProgress | null => {
-  if (!isRecord(value)) return null;
-
-  const totalCount = Math.max(0, Number(value.totalCount ?? 0) || 0);
-  const coveredCount = Math.max(0, Number(value.coveredCount ?? 0) || 0);
-  const percent =
-    typeof value.percent === "number"
-      ? Math.max(0, Math.min(100, Math.round(value.percent)))
-      : totalCount > 0
-        ? Math.min(100, Math.round((coveredCount / totalCount) * 100))
-        : 0;
-
-  return {
-    additionalCoveredCount: Math.max(
-      0,
-      Number(value.additionalCoveredCount ?? 0) || 0
-    ),
-    completed: value.completed === true,
-    coveredCount,
-    finalConfirmationCovered: value.finalConfirmationCovered === true,
-    minCoveredCount: Math.max(0, Number(value.minCoveredCount ?? 0) || 0),
-    percent,
-    requiredQuestionsCovered: value.requiredQuestionsCovered === true,
-    totalCount,
-  };
-};
-
 type OnboardingManualCompletionPayload = {
   assistantMessage?: CareerMessagePayload | null;
   assistantMessages?: CareerMessagePayload[];
@@ -155,6 +127,9 @@ type OnboardingManualCompletionPayload = {
     completed?: boolean;
   };
   talentInsights?: unknown;
+  talentBrief?: unknown;
+  talentMemories?: unknown;
+  talentContextsUpdatedAt?: unknown;
 };
 
 export const CareerFlowProvider = ({
@@ -205,23 +180,6 @@ export const CareerFlowProvider = ({
   const [unlinkedOpportunityRuns, setUnlinkedOpportunityRuns] = useState<
     CareerOpportunityRun[]
   >([]);
-  const [onboardingChecklistProgress, setOnboardingChecklistProgress] =
-    useState<CareerOnboardingChecklistProgress | null>(null);
-  const handleOnboardingChecklistProgressRefreshed = useCallback(
-    (progress: unknown) => {
-      setOnboardingChecklistProgress(
-        normalizeOnboardingChecklistProgress(progress)
-      );
-    },
-    []
-  );
-  const hasMinimumOnboardingChecklistCoverage = Boolean(
-    onboardingChecklistProgress &&
-    onboardingChecklistProgress.minCoveredCount > 0 &&
-    onboardingChecklistProgress.coveredCount +
-      (onboardingChecklistProgress.finalConfirmationCovered ? 1 : 0) >=
-      onboardingChecklistProgress.minCoveredCount
-  );
   const [
     pendingInternalOpportunityCallRequest,
     setPendingInternalOpportunityCallRequest,
@@ -325,6 +283,27 @@ export const CareerFlowProvider = ({
   });
   const conversationId =
     sessionConversationId ?? messageConversation?.id ?? null;
+  const {
+    onboardingChecklistProgress,
+    applyProgress: applyOnboardingChecklistProgress,
+    hydrateProgress: hydrateOnboardingChecklistProgress,
+    resetProgress: resetOnboardingChecklistProgress,
+  } = useCareerOnboardingProgress({
+    userId,
+  });
+  const handleOnboardingChecklistProgressRefreshed = useCallback(
+    (progress: unknown) => {
+      applyOnboardingChecklistProgress(progress);
+    },
+    [applyOnboardingChecklistProgress]
+  );
+  const hasMinimumOnboardingChecklistCoverage = Boolean(
+    onboardingChecklistProgress &&
+    onboardingChecklistProgress.minCoveredCount > 0 &&
+    onboardingChecklistProgress.coveredCount +
+      (onboardingChecklistProgress.finalConfirmationCovered ? 1 : 0) >=
+      onboardingChecklistProgress.minCoveredCount
+  );
 
   const messageHistoryReady =
     Boolean(messageConversation) &&
@@ -343,6 +322,14 @@ export const CareerFlowProvider = ({
   const applyPersistedTalentInsightsRef = useRef<
     ((insights: unknown, updatedAt: unknown) => void) | null
   >(null);
+  const applyPersistedTalentContextsRef = useRef<
+    | ((payload: {
+        talentBrief?: unknown;
+        talentContextsUpdatedAt?: unknown;
+        talentMemories?: unknown;
+      }) => void)
+    | null
+  >(null);
   const applyTalentProfileSnapshotRef = useRef<
     ((profile: SessionResponse["talentProfile"] | undefined) => void) | null
   >(null);
@@ -355,6 +342,16 @@ export const CareerFlowProvider = ({
   const handleTalentInsightsRefreshedFromChat = useCallback(
     (insights: unknown, updatedAt: unknown) => {
       applyPersistedTalentInsightsRef.current?.(insights, updatedAt);
+    },
+    []
+  );
+  const handleTalentContextsRefreshedFromChat = useCallback(
+    (payload: {
+      talentBrief?: unknown;
+      talentContextsUpdatedAt?: unknown;
+      talentMemories?: unknown;
+    }) => {
+      applyPersistedTalentContextsRef.current?.(payload);
     },
     []
   );
@@ -404,6 +401,7 @@ export const CareerFlowProvider = ({
       handleOpportunityRecommendationsChanged,
     onTalentPreferencesRefreshed: handleTalentPreferencesRefreshedFromChat,
     onTalentInsightsRefreshed: handleTalentInsightsRefreshedFromChat,
+    onTalentContextsRefreshed: handleTalentContextsRefreshedFromChat,
     onOnboardingChecklistProgressRefreshed:
       handleOnboardingChecklistProgressRefreshed,
     onTalentProfileRefreshed: handleTalentProfileRefreshedFromChat,
@@ -699,6 +697,23 @@ export const CareerFlowProvider = ({
     user,
   });
 
+  const {
+    talentBrief,
+    talentMemories,
+    talentContextsUpdatedAt,
+    talentContextsSavePending,
+    talentContextsSaveError,
+    talentContextsSaveInfo,
+    talentMemoriesHasMore,
+    talentMemoriesLoaded,
+    talentMemoriesLoadPending,
+    applySessionTalentContexts,
+    applyPersistedTalentContexts,
+    loadTalentMemories,
+    mutateTalentContexts,
+    resetTalentContextsState,
+  } = useCareerTalentContexts({ fetchWithAuth, user });
+
   useEffect(() => {
     applyPersistedTalentPreferencesRef.current =
       applyPersistedTalentPreferences;
@@ -706,6 +721,9 @@ export const CareerFlowProvider = ({
   useEffect(() => {
     applyPersistedTalentInsightsRef.current = applyPersistedTalentInsights;
   }, [applyPersistedTalentInsights]);
+  useEffect(() => {
+    applyPersistedTalentContextsRef.current = applyPersistedTalentContexts;
+  }, [applyPersistedTalentContexts]);
   useEffect(() => {
     applyTalentProfileSnapshotRef.current = applyTalentProfileSnapshot;
   }, [applyTalentProfileSnapshot]);
@@ -966,6 +984,14 @@ export const CareerFlowProvider = ({
             payload.insightUpdatedAt ?? null
           );
         }
+        if ("talentBrief" in payload || "talentMemories" in payload) {
+          handleTalentContextsRefreshedFromChat({
+            talentBrief: payload.talentBrief,
+            talentContextsUpdatedAt:
+              payload.talentContextsUpdatedAt ?? payload.insightUpdatedAt,
+            talentMemories: payload.talentMemories,
+          });
+        }
 
         const assistantMessages = Array.isArray(payload.assistantMessages)
           ? payload.assistantMessages
@@ -1000,6 +1026,7 @@ export const CareerFlowProvider = ({
       enqueueAssistantMessages,
       fetchWithAuth,
       forceCompletePending,
+      handleTalentContextsRefreshedFromChat,
       handleTalentInsightsRefreshedFromChat,
       setChatError,
       setStage,
@@ -1076,6 +1103,7 @@ export const CareerFlowProvider = ({
     onOpportunityRunChanged: setOpportunityRun,
     onTalentPreferencesRefreshed: handleTalentPreferencesRefreshedFromChat,
     onTalentInsightsRefreshed: handleTalentInsightsRefreshedFromChat,
+    onTalentContextsRefreshed: handleTalentContextsRefreshedFromChat,
     onOnboardingChecklistProgressRefreshed:
       handleOnboardingChecklistProgressRefreshed,
     onTalentProfileRefreshed: handleTalentProfileRefreshedFromChat,
@@ -1261,11 +1289,8 @@ export const CareerFlowProvider = ({
       applySessionProfile(payload);
       applySessionTalentPreferences(payload);
       applySessionTalentInsights(payload);
-      setOnboardingChecklistProgress(
-        normalizeOnboardingChecklistProgress(
-          payload.onboardingChecklistProgress
-        )
-      );
+      applySessionTalentContexts(payload);
+      hydrateOnboardingChecklistProgress(payload.onboardingChecklistProgress);
       applySessionPrompt(payload);
       if (payload.historyOpportunitiesIncluded === true) {
         hydrateHistoryOpportunities(
@@ -1299,11 +1324,13 @@ export const CareerFlowProvider = ({
       applySessionConversation,
       applySessionProfile,
       applySessionTalentInsights,
+      applySessionTalentContexts,
       applySessionTalentPreferences,
       applySessionPrompt,
       appendLatestMessagesToCache,
       hydrateHistoryOpportunityCounts,
       hydrateHistoryOpportunities,
+      hydrateOnboardingChecklistProgress,
       replacePendingInternalOpportunityCallRequests,
     ]
   );
@@ -1597,12 +1624,13 @@ export const CareerFlowProvider = ({
       resetProfileState();
       resetTalentPreferencesState();
       resetTalentInsightsState();
+      resetTalentContextsState();
       resetOnboardingState();
       resetHistoryState();
       resetRuntimeActionsState();
       setActiveCompanyRoleCount(0);
       setUnlinkedOpportunityRuns([]);
-      setOnboardingChecklistProgress(null);
+      resetOnboardingChecklistProgress();
       replacePendingInternalOpportunityCallRequests([]);
       clearSessionReengagementAction();
       sessionReengagementRef.current = null;
@@ -1615,9 +1643,11 @@ export const CareerFlowProvider = ({
     resetProfileState,
     resetRuntimeActionsState,
     resetTalentInsightsState,
+    resetTalentContextsState,
     resetTalentPreferencesState,
     resetSessionState,
     resetHistoryState,
+    resetOnboardingChecklistProgress,
     replacePendingInternalOpportunityCallRequests,
     sessionReengagementRef,
     userId,
@@ -1634,6 +1664,7 @@ export const CareerFlowProvider = ({
     fetchWithAuth,
     onOpportunityRunChanged: setOpportunityRun,
     onTalentInsightsRefreshed: handleTalentInsightsRefreshedFromChat,
+    onTalentContextsRefreshed: handleTalentContextsRefreshedFromChat,
     onTalentPreferencesRefreshed: handleTalentPreferencesRefreshedFromChat,
     sessionPending,
     stage,
@@ -1978,6 +2009,7 @@ export const CareerFlowProvider = ({
       onLoadSavedStageHistoryOpportunityPages:
         loadSavedStageHistoryOpportunityPages,
       onLoadHistoryOpportunityByRoleId: loadHistoryOpportunityByRoleId,
+      onRefreshHistoryOpportunities: refreshLatestHistoryOpportunities,
       onChangeInternalHistoryOpportunityDecision,
       onUpdateHistoryOpportunityFeedback,
       onUpdateHistoryOpportunitySavedStage,
@@ -1997,6 +2029,7 @@ export const CareerFlowProvider = ({
       loadHistoryOpportunityByRoleId,
       loadMoreHistoryOpportunities,
       loadSavedStageHistoryOpportunityPages,
+      refreshLatestHistoryOpportunities,
       onChangeInternalHistoryOpportunityDecision,
       onMarkHistoryOpportunityClicked,
       onMarkHistoryOpportunityViewed,
@@ -2038,6 +2071,17 @@ export const CareerFlowProvider = ({
       },
       talentPreferences,
       talentInsights,
+      talentBrief,
+      talentMemories,
+      talentContextsUpdatedAt,
+      talentContextsSavePending,
+      talentContextsSaveError,
+      talentContextsSaveInfo,
+      talentMemoriesHasMore,
+      talentMemoriesLoaded,
+      talentMemoriesLoadPending,
+      loadTalentMemories,
+      mutateTalentContexts,
       talentPreferencesUpdatedAt,
       talentInsightsUpdatedAt,
       talentPreferencesSavePending,
@@ -2123,6 +2167,17 @@ export const CareerFlowProvider = ({
       talentInsightsSaveInfo,
       talentInsightsSavePending,
       talentInsightsUpdatedAt,
+      talentBrief,
+      talentMemories,
+      talentContextsUpdatedAt,
+      talentContextsSavePending,
+      talentContextsSaveError,
+      talentContextsSaveInfo,
+      talentMemoriesHasMore,
+      talentMemoriesLoaded,
+      talentMemoriesLoadPending,
+      loadTalentMemories,
+      mutateTalentContexts,
       talentPreferences,
       talentPreferencesSaveError,
       talentPreferencesSaveInfo,

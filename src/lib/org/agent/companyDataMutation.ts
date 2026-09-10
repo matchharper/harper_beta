@@ -1063,7 +1063,7 @@ export async function fetchCompanyDataSnapshot(args: {
       roleIds.length
         ? (args.admin.from("company_roles" as any) as any)
             .select(
-              "role_id, company_workspace_id, name, description, external_jd_url, location_text, status, work_mode, type, source_type, is_expired"
+              "role_id, company_workspace_id, name, description, external_jd_url, location_text, salary_range, status, work_mode, type, source_type, is_expired"
             )
             .eq("company_workspace_id", args.workspaceId)
             .eq("source_type", "internal")
@@ -1214,6 +1214,7 @@ export async function fetchCompanyDataSnapshot(args: {
       role_description: role.description ?? null,
       role_external_jd_url: role.external_jd_url ?? null,
       role_location: role.location_text ?? null,
+      salaryRange: role.salary_range ?? null,
       role_status: role.status,
       role_work_mode: role.work_mode ?? null,
       role_employment_types: Array.isArray(role.type) ? role.type : [],

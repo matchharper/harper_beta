@@ -2,7 +2,9 @@ import { formatPromptTable } from "@/lib/org/agent/promptFormat";
 import { humanizeOrgStage } from "@/lib/org/pipelineStage";
 
 export const DEFAULT_RECENT_PIPELINE_MAX_CHARS = 6_000;
-export const ORG_AGENT_CONTEXT_MAX_CHARS = 48_000;
+// Leave room for the expanded recent-conversation section alongside the
+// company, Role, and current workflow context that the model also needs.
+export const ORG_AGENT_CONTEXT_MAX_CHARS = 96_000;
 
 type RecentRecommendationRows = Array<{
   candidate: {

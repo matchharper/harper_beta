@@ -448,6 +448,7 @@ export const ProfileOverviewSection = ({
   onInsightChange,
   onSummaryChange,
   showAllInsightsButton = false,
+  showLookingFor = true,
   summary,
 }: {
   allItems?: CareerProfileInsightItem[];
@@ -456,6 +457,7 @@ export const ProfileOverviewSection = ({
   onInsightChange?: (key: string, value: string) => void;
   onSummaryChange?: (value: string) => void;
   showAllInsightsButton?: boolean;
+  showLookingFor?: boolean;
   summary: string;
 }) => {
   const t = useCareerT();
@@ -494,55 +496,63 @@ export const ProfileOverviewSection = ({
         </div>
       ) : null}
 
-      <div className={overviewEyebrowClassName}>What They Are Looking For</div>
-      <dl className="mt-3 grid gap-x-4 gap-y-3 sm:grid-cols-[112px_minmax(0,1fr)]">
-        {displayedItems.map((item) => (
-          <React.Fragment key={item.key}>
-            <dt
-              className={cn(
-                insightTermClassName,
-                isEditing ? "pt-2" : "pt-0.5"
-              )}
-            >
-              {item.label}
-            </dt>
-            <dd className="m-0">
-              {isEditing ? (
-                <Textarea
-                  rows={2}
-                  value={item.value}
-                  onChange={(event) =>
-                    onInsightChange?.(item.key, event.target.value)
-                  }
-                  placeholder={t(
-                    "career.profile.career_talent_profile_panel.093jpik",
-                    "아직 확인 중"
-                  )}
-                  aria-label={item.label}
+      {showLookingFor ? (
+        <>
+          <div className={overviewEyebrowClassName}>
+            What They Are Looking For
+          </div>
+          <dl className="mt-3 grid gap-x-4 gap-y-3 sm:grid-cols-[112px_minmax(0,1fr)]">
+            {displayedItems.map((item) => (
+              <React.Fragment key={item.key}>
+                <dt
                   className={cn(
-                    profileEditTextareaClassName,
-                    "min-h-[56px] md:min-h-[52px]"
-                  )}
-                />
-              ) : (
-                <div
-                  className={cn(
-                    "text-[14px] leading-6 font-normal",
-                    item.value ? "text-neutral-primary" : "text-neutral-soft"
+                    insightTermClassName,
+                    isEditing ? "pt-2" : "pt-0.5"
                   )}
                 >
-                  {item.value ||
-                    t(
-                      "career.profile.career_talent_profile_panel.093jpik",
-                      "아직 확인 중"
-                    )}
-                </div>
-              )}
-            </dd>
-          </React.Fragment>
-        ))}
-      </dl>
-      {canShowAllInsights ? (
+                  {item.label}
+                </dt>
+                <dd className="m-0">
+                  {isEditing ? (
+                    <Textarea
+                      rows={2}
+                      value={item.value}
+                      onChange={(event) =>
+                        onInsightChange?.(item.key, event.target.value)
+                      }
+                      placeholder={t(
+                        "career.profile.career_talent_profile_panel.093jpik",
+                        "아직 확인 중"
+                      )}
+                      aria-label={item.label}
+                      className={cn(
+                        profileEditTextareaClassName,
+                        "min-h-[56px] md:min-h-[52px]"
+                      )}
+                    />
+                  ) : (
+                    <div
+                      className={cn(
+                        "text-[14px] leading-6 font-normal",
+                        item.value
+                          ? "text-neutral-primary"
+                          : "text-neutral-soft"
+                      )}
+                    >
+                      {item.value ||
+                        t(
+                          "career.profile.career_talent_profile_panel.093jpik",
+                          "아직 확인 중"
+                        )}
+                    </div>
+                  )}
+                </dd>
+              </React.Fragment>
+            ))}
+          </dl>
+        </>
+      ) : null}
+      {showLookingFor && canShowAllInsights ? (
         <MuteButton
           type="button"
           onClick={() => setShowAllInsights((current) => !current)}

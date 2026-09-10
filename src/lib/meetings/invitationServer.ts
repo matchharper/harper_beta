@@ -226,7 +226,7 @@ async function candidateLocale(talentId: string) {
     .eq("user_id", talentId)
     .maybeSingle();
   if (error) throw error;
-  return normalizeLocale(data?.preferred_locale ?? data?.setting_locale);
+  return normalizeLocale(data?.setting_locale ?? data?.preferred_locale);
 }
 
 async function calculateCompanyPreviewSlots(args: {

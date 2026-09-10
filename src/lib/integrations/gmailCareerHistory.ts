@@ -1,11 +1,14 @@
 import "server-only";
 
-import { createHash } from "crypto";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import { CLAUDE_MODEL, GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
 import {
+  createTalentContextMutationRequestId,
+  fetchAllTalentContexts,
   fetchTalentSetting,
+  mutateTalentContexts,
+  refreshTalentContextEmbeddings,
   type TalentAdminClient,
 } from "@/lib/talentOnboarding/server";
 import {
@@ -19,20 +22,26 @@ import {
   type GmailSearchResult,
 } from "@/lib/integrations/gmail";
 import {
-  cleanGmailCareerInlineText,
+  buildGmailCareerMemoryMergeInstruction,
   buildGmailCareerHistorySummaryInstruction,
-  GMAIL_CAREER_HISTORY_FILE_NAME,
   GMAIL_CAREER_HISTORY_ORIGIN_ID,
   GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
+  MAX_GMAIL_CAREER_MEMORY_COMPANIES,
   normalizeGmailCareerEntries,
-  renderGmailCareerHistoryMarkdown,
+  parseGmailCareerMemoryEntries,
   type GmailCareerEntry,
+  type GmailCareerMemoryEntry,
 } from "@/lib/integrations/gmailCareerHistoryCore";
 import {
   chunkGmailCareerThreads,
   compactGmailCareerThreads,
   type GmailCareerAnalysisThread,
 } from "@/lib/integrations/gmailCareerHistoryInput";
+import {
+  buildGmailCareerMemoryChanges,
+  getGmailCareerMemoryOriginId,
+  gmailCareerMemoryOriginId,
+} from "@/lib/integrations/gmailCareerHistoryMemory";
 
 const SEARCH_QUERY_DENOISE =
   "-category:promotions -category:social -in:spam -in:trash";
@@ -190,9 +199,8 @@ const EXTRACTION_CONCURRENCY = 3;
 export type GmailCareerHistoryAnalysisResult =
   | {
       status: "completed";
-      documentId: string;
       entryCount: number;
-      entries: GmailCareerEntry[];
+      entries: GmailCareerMemoryEntry[];
       updatedAt: string;
     }
   | {
@@ -619,6 +627,30 @@ const evidenceEntrySchema = {
   type: "object",
 } as const;
 
+const careerMemorySchema = {
+  additionalProperties: false,
+  properties: {
+    memories: {
+      items: {
+        additionalProperties: false,
+        properties: {
+          company: { maxLength: 200, type: "string" },
+          content: { maxLength: 2_000, type: "string" },
+          latestActivityAt: {
+            anyOf: [{ type: "string" }, { type: "null" }],
+          },
+        },
+        required: ["company", "content", "latestActivityAt"],
+        type: "object",
+      },
+      maxItems: MAX_GMAIL_CAREER_MEMORY_COMPANIES,
+      type: "array",
+    },
+  },
+  required: ["memories"],
+  type: "object",
+} as const;
+
 function parseEvidenceEntries(raw: string, allowedIds: Set<string>) {
   const parsed = parseJsonObject(raw);
   const rawEntries = Array.isArray(parsed.entries) ? parsed.entries : [];
@@ -757,12 +789,78 @@ async function extractCareerEntries(args: {
   preferredLocale: string | null;
 }) {
   if (args.emails.length === 0) return [];
-  const extracted = await extractEvidenceEntries({
+  return extractEvidenceEntries({
     emails: args.emails,
     owner: args.owner,
     preferredLocale: args.preferredLocale,
   });
-  return normalizeGmailCareerEntries({ entries: extracted });
+}
+
+async function mergeCareerEntriesIntoMemories(args: {
+  emails: GmailCareerEmail[];
+  entries: EvidenceEntry[];
+  preferredLocale: string | null;
+}) {
+  if (args.entries.length === 0) return [];
+  const messageDates = new Map(
+    args.emails.map((email) => [email.messageId, email.receivedAt ?? null])
+  );
+  const candidates = args.entries.map(
+    ({ evidenceMessageIds, ...entry }) => ({
+      ...entry,
+      evidence: evidenceMessageIds.map((messageId) => ({
+        at: messageDates.get(messageId) ?? null,
+        messageId,
+      })),
+    })
+  );
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const raw = await runTalentAssistantCompletion({
+      anthropicOverloadFallbackModel: CLAUDE_MODEL,
+      fallbackModel: CLAUDE_MODEL,
+      jsonSchema: {
+        name: "gmail_career_memories",
+        schema: careerMemorySchema,
+      },
+      maxTokens: 16_000,
+      messages: [
+        {
+          role: "system",
+          content: [
+            buildGmailCareerMemoryMergeInstruction(
+              getCareerPromptLanguageName(args.preferredLocale)
+            ),
+            attempt > 0 && lastError instanceof Error
+              ? `The previous response failed validation: ${lastError.message}. Return a corrected complete result.`
+              : "",
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        },
+        {
+          role: "user",
+          content: JSON.stringify({ applicationCycleCandidates: candidates }),
+        },
+      ],
+      openAIResponsesReasoningEffort: "xhigh",
+      primaryModel: GPT_56_LUNA_MODEL,
+      temperature: 0.1,
+      usageLabel: "career/gmail-career-history:merge",
+    });
+    try {
+      return parseGmailCareerMemoryEntries(parseJsonObject(raw));
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw new GmailCareerHistoryRetryableError(
+    lastError instanceof Error
+      ? lastError.message
+      : "Career history merge returned invalid memories"
+  );
 }
 
 async function fetchMailboxOwner(args: {
@@ -788,6 +886,95 @@ function integrationMatches(
   return integration?.updated_at === expectedIntegrationUpdatedAt;
 }
 
+async function persistGmailCareerMemories(args: {
+  admin: TalentAdminClient;
+  entries: GmailCareerMemoryEntry[];
+  integrationUpdatedAt: string;
+  talentId: string;
+}) {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const activeMemories = await fetchAllTalentContexts({
+      admin: args.admin,
+      collection: "memory",
+      userId: args.talentId,
+    });
+    const existingRows = activeMemories.filter((row) =>
+      row.source_refs.some(
+        (source) => source.type === GMAIL_CAREER_HISTORY_ORIGIN_TYPE
+      )
+    );
+    const changes = buildGmailCareerMemoryChanges({
+      entries: args.entries,
+      existingRows,
+    });
+    const activeIds = existingRows
+      .filter((row) =>
+        args.entries.some(
+          (entry) =>
+            gmailCareerMemoryOriginId(entry.company) ===
+            getGmailCareerMemoryOriginId(row)
+        )
+      )
+      .map((row) => row.id);
+
+    try {
+      for (let offset = 0; offset < changes.length; offset += 20) {
+        const batch = changes.slice(offset, offset + 20);
+        const result = await mutateTalentContexts({
+          admin: args.admin,
+          changes: batch,
+          requestId: createTalentContextMutationRequestId([
+            "gmail-career-history",
+            args.talentId,
+            args.integrationUpdatedAt,
+            batch,
+          ]),
+          userId: args.talentId,
+        });
+        activeIds.push(
+          ...result.applied
+            .filter(
+              (row) => row.collection === "memory" && !row.deleted_at
+            )
+            .map((row) => row.id)
+        );
+      }
+      await refreshTalentContextEmbeddings({
+        admin: args.admin,
+        ids: activeIds,
+        userId: args.talentId,
+      });
+      return;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw new GmailCareerHistoryRetryableError(
+    lastError instanceof Error
+      ? lastError.message
+      : "Failed to save Gmail career memories"
+  );
+}
+
+async function retireLegacyGmailCareerHistoryDocument(args: {
+  admin: TalentAdminClient;
+  talentId: string;
+}) {
+  const { error } = await args.admin
+    .from("talent_documents")
+    .update({ is_deleted: true, updated_at: new Date().toISOString() })
+    .eq("talent_id", args.talentId)
+    .eq("origin_type", GMAIL_CAREER_HISTORY_ORIGIN_TYPE)
+    .eq("origin_id", GMAIL_CAREER_HISTORY_ORIGIN_ID)
+    .eq("is_deleted", false);
+  if (error) {
+    throw new GmailCareerHistoryRetryableError(
+      error.message || "Failed to retire legacy Gmail career history"
+    );
+  }
+}
+
 async function buildGmailCareerHistory(args: {
   admin: TalentAdminClient;
   connectedAccountId: string;
@@ -807,14 +994,18 @@ async function buildGmailCareerHistory(args: {
     talentId: args.talentId,
   });
   if (search.status !== "ok") return search;
-  const entries = await extractCareerEntries({
+  const evidenceEntries = await extractCareerEntries({
     emails: search.emails,
     owner,
     preferredLocale: talentSetting?.preferred_locale ?? null,
   });
+  const entries = await mergeCareerEntriesIntoMemories({
+    emails: search.emails,
+    entries: evidenceEntries,
+    preferredLocale: talentSetting?.preferred_locale ?? null,
+  });
   return {
     entries,
-    markdown: renderGmailCareerHistoryMarkdown({ entries }),
     status: "ok" as const,
   };
 }
@@ -843,9 +1034,7 @@ export async function analyzeGmailCareerHistory(args: {
   if (preview.status !== "ok") {
     return { reason: preview.status, status: "skipped" };
   }
-  const { entries, markdown } = preview;
-  const bytes = Buffer.from(markdown, "utf8");
-  const contentSha256 = createHash("sha256").update(bytes).digest("hex");
+  const { entries } = preview;
 
   const currentIntegration = await fetchActiveTalentGmailIntegration({
     admin: args.admin,
@@ -857,40 +1046,22 @@ export async function analyzeGmailCareerHistory(args: {
     return { reason: "stale_integration", status: "skipped" };
   }
 
-  const { data: document, error: documentError } = await args.admin
-    .from("talent_documents")
-    .upsert(
-      {
-        content_sha256: contentSha256,
-        content_type: "text/markdown",
-        extracted_text: markdown,
-        file_name: GMAIL_CAREER_HISTORY_FILE_NAME,
-        is_deleted: false,
-        is_primary: false,
-        is_public: false,
-        kind: "document",
-        origin_id: GMAIL_CAREER_HISTORY_ORIGIN_ID,
-        origin_type: GMAIL_CAREER_HISTORY_ORIGIN_TYPE,
-        size_bytes: bytes.byteLength,
-        storage_path: null,
-        talent_id: args.talentId,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "talent_id,origin_type,origin_id" }
-    )
-    .select("id,updated_at")
-    .single();
-  if (documentError || !document) {
-    throw new GmailCareerHistoryRetryableError(
-      documentError?.message || "Failed to save Gmail career history"
-    );
-  }
+  await persistGmailCareerMemories({
+    admin: args.admin,
+    entries,
+    integrationUpdatedAt: args.expectedIntegrationUpdatedAt,
+    talentId: args.talentId,
+  });
+  await retireLegacyGmailCareerHistoryDocument({
+    admin: args.admin,
+    talentId: args.talentId,
+  });
+  const updatedAt = new Date().toISOString();
 
   return {
-    documentId: document.id,
     entryCount: entries.length,
     entries,
     status: "completed",
-    updatedAt: document.updated_at,
+    updatedAt,
   };
 }

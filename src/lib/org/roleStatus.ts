@@ -10,6 +10,17 @@ export const ORG_ROLE_STATUS_VALUES = [
 export type OrgRoleStatus = (typeof ORG_ROLE_STATUS_VALUES)[number];
 export type OrgRoleLifecycleAction = "delete" | "pause" | "resume";
 
+export const ORG_ROLE_MUTATION_STATUS_VALUES = [
+  "top_priority",
+  "active",
+  "paused",
+  "ended",
+  "deleted",
+] as const satisfies readonly OrgRoleStatus[];
+
+export type OrgRoleMutationStatus =
+  (typeof ORG_ROLE_MUTATION_STATUS_VALUES)[number];
+
 const ORG_ROLE_STATUS_PRESENTATION = {
   active: { label: "진행 중", tone: "positive" },
   deleted: { label: "삭제됨", tone: "neutral" },
@@ -60,6 +71,27 @@ export function normalizeOrgRoleStatus(value: unknown): OrgRoleStatus {
     : "active";
 }
 
+export function parseOrgRoleMutationStatus(
+  value: unknown
+): OrgRoleMutationStatus | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+
+  return ORG_ROLE_MUTATION_STATUS_VALUES.includes(
+    normalized as OrgRoleMutationStatus
+  )
+    ? (normalized as OrgRoleMutationStatus)
+    : null;
+}
+
+export function resolveOrgRoleMutationExpiry(args: {
+  isExpired: unknown;
+  status: OrgRoleMutationStatus | null | undefined;
+}): boolean | undefined {
+  if (args.status === "deleted") return true;
+  return typeof args.isExpired === "boolean" ? args.isExpired : undefined;
+}
+
 export function getOrgRoleStatusPresentation(value: unknown) {
   const rawStatus = String(value ?? "")
     .replace(/\s+/g, " ")
@@ -81,7 +113,7 @@ export function getOrgRoleStatusFilterValue(value: unknown): OrgRoleStatus {
 
 export function getOrgRoleLifecycleUpdate(action: OrgRoleLifecycleAction): {
   isExpired?: boolean;
-  status: OrgRoleStatus;
+  status: OrgRoleMutationStatus;
 } {
   if (action === "delete") {
     return { isExpired: true, status: "deleted" };

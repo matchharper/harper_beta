@@ -28,6 +28,7 @@ type RawRecommendationRow = {
   feedback_reason: string | null;
   fit_summary: string | null;
   id: string;
+  kind: string;
   opportunity_type: string | null;
   preference_fit: Json | null;
   fit_reasons: Json;
@@ -51,6 +52,7 @@ type RawRecommendationRow = {
       company_data?: RawCompanyDataRow | RawCompanyDataRow[] | null;
     } | null;
     description: string | null;
+    description_summary: string | null;
     external_jd_url: string | null;
     expires_at: string | null;
     location_text: string | null;
@@ -98,6 +100,7 @@ type RawPostingRecommendationRow = {
   feedback_reason: string | null;
   fit_summary: string | null;
   id: string;
+  kind: string;
   opportunity_type: string | null;
   preference_fit: Json | null;
   fit_reasons: Json;
@@ -154,6 +157,7 @@ type RawTalentProgressRow = {
 
 const TALENT_OPPORTUNITY_HISTORY_SELECT = `
   id,
+  kind,
   role_id,
   opportunity_type,
   preference_fit,
@@ -172,6 +176,7 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
     role_id,
     name,
     description,
+    description_summary,
     external_jd_url,
     expires_at,
     location_text,
@@ -267,6 +272,7 @@ const TALENT_POSTING_ROLE_SELECT = `
   ),
   talent_opportunity_recommendation:talent_opportunity_recommendation!role_id (
     id,
+    kind,
     opportunity_type,
     preference_fit,
     fit_summary,
@@ -405,6 +411,7 @@ export type TalentOpportunityHistoryItem = {
   isExpired: boolean;
   isAccepted: boolean;
   isInternal: boolean;
+  isUserAdded: boolean;
   internalProgress: TalentInternalRecommendationProgress | null;
   kind: "match" | "recommendation";
   location: string | null;
@@ -1150,6 +1157,7 @@ const getDefaultSavedStageForOpportunity = (args: {
 const INACTIVE_ROLE_STATUSES = new Set([
   "archived",
   "closed",
+  "deleted",
   "ended",
   "expired",
   "inactive",
@@ -1644,6 +1652,7 @@ function mapRecommendationRow(
     }),
     isAccepted: kind === "match",
     isInternal: sourceType === "internal",
+    isUserAdded: row.kind === "user_link_import",
     internalProgress: null,
     kind,
     location: role.location_text ?? null,
@@ -1656,6 +1665,7 @@ function mapRecommendationRow(
     recommendationSummary:
       getLocalizedRoleSummaryContent(role.summary, locale) ??
       row.fit_summary ??
+      role.description_summary ??
       null,
     roleId: String(row.role_id ?? ""),
     savedStage: normalizeSavedStage(row.saved_stage),
@@ -1759,6 +1769,7 @@ function mapPostingRoleRow(
     }),
     isAccepted: kind === "match",
     isInternal: sourceType === "internal",
+    isUserAdded: existingRecommendation?.kind === "user_link_import",
     internalProgress: null,
     kind,
     location: row.location_text ?? null,
@@ -2749,7 +2760,7 @@ async function acceptInternalRoleRecommendation(args: {
     sourceRoleId !== targetRoleId;
   const emailAcceptanceConfirmation =
     args.emailAcceptanceConfirmation !== undefined
-      ? args.emailAcceptanceConfirmation ?? {}
+      ? (args.emailAcceptanceConfirmation ?? {})
       : args.clearEmailAcceptanceConfirmation
         ? {}
         : null;
@@ -2760,7 +2771,9 @@ async function acceptInternalRoleRecommendation(args: {
       p_context: {},
       p_email_acceptance_confirmation: emailAcceptanceConfirmation,
       p_feedback_reason:
-        String(args.feedbackReason ?? "").trim().slice(0, 1000) || null,
+        String(args.feedbackReason ?? "")
+          .trim()
+          .slice(0, 1000) || null,
       p_recommendation_id: args.recommendationId,
       p_source_role_id: hasSameCompanySource ? sourceRoleId : null,
       p_talent_id: args.userId,

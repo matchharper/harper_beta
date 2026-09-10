@@ -20,6 +20,8 @@ const COUNT_SPECS = [
   { table: "talent_messages", column: "user_id" },
   { table: "talent_setting", column: "user_id" },
   { table: "talent_insights", column: "talent_id" },
+  { table: "talent_context_write_requests", column: "talent_id" },
+  { table: "talent_contexts", column: "talent_id" },
   { table: "talent_experiences", column: "talent_id" },
   { table: "talent_educations", column: "talent_id" },
   { table: "talent_extras", column: "talent_id" },

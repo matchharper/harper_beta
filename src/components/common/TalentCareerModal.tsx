@@ -140,7 +140,7 @@ const TalentCareerModal = ({
             {eyebrow || hasTitle || hasDescription ? (
               <header
                 className={cn(
-                  "border-b border-neutral-1000-a05 px-4 py-5 sm:px-5",
+                  "px-4 py-5 sm:px-5",
                   mobileBottomSheet && "max-sm:shrink-0",
                   headerClassName
                 )}

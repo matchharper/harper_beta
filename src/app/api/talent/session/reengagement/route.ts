@@ -125,6 +125,8 @@ async function finalizeSessionReengagement(args: {
     preferencesUpdatedAt: result.preferencesUpdatedAt,
     skipped: false,
     talentInsights: result.talentInsights,
+    talentBrief: result.talentBrief,
+    talentContextsUpdatedAt: result.talentContextsUpdatedAt,
     talentPreferences: result.talentPreferences,
   };
 }
@@ -364,6 +366,18 @@ export async function POST(req: NextRequest) {
     const transformAssistantTextBeforeInsert = (content: string) =>
       resolveCareerReengagementActionKeys({
         content,
+        resolvePendingCallTarget: (actionKey) => {
+          const action = pendingActionsForTurn.find(
+            (candidate) => candidate.actionKey === actionKey
+          );
+          if (action?.kind === "internal_opportunity_call") {
+            return { internalCallRequestId: action.callRequestId };
+          }
+          if (action?.kind === "career_check_in_call") {
+            return { starterId: "career_check_in" };
+          }
+          return null;
+        },
         resolvePendingActionRef: (actionKey) => {
           const reference = pendingActionsSnapshot.actionReferences[actionKey];
           return reference

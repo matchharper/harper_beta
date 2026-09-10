@@ -18,7 +18,6 @@ import {
   TALENT_RESUME_BUCKET,
   TALENT_SETTING_SELECT_QUERY,
   type TalentInsightContent,
-  type TalentInsightRow,
   type TalentProfileVisibility,
   type TalentSettingRow,
 } from "@/lib/talentOnboarding/models";
@@ -28,7 +27,6 @@ import {
   type CareerPromptLocale,
 } from "@/lib/career/promptLocale";
 import { safeSlice, stripPostgresUnsafeChars } from "@/lib/textSanitization";
-import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
 
 const TALENT_PROFILE_VISIBILITY_LABELS: Record<
   TalentProfileVisibility,
@@ -430,98 +428,6 @@ export async function setTalentOnboardingDone(args: {
   }
 
   return inserted as TalentSettingRow;
-}
-
-export async function fetchTalentInsights(args: {
-  admin: TalentAdminClient;
-  userId: string;
-}) {
-  const { admin, userId } = args;
-  const { data, error } = await admin
-    .from("talent_insights")
-    .select("id, talent_id, content, created_at, last_updated_at")
-    .eq("talent_id", userId)
-    .order("id", { ascending: false })
-    .limit(1);
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to load talent_insights");
-  }
-
-  const row = (data ?? [])[0] ?? null;
-  if (!row) return null;
-
-  return {
-    ...(row as TalentInsightRow),
-    content: normalizeTalentInsightContent(row.content),
-  } as TalentInsightRow;
-}
-
-export async function upsertTalentInsights(args: {
-  admin: TalentAdminClient;
-  userId: string;
-  content: TalentInsightContent | null;
-}) {
-  const { admin, userId, content } = args;
-  const normalizedContent = normalizeTalentInsightContent(content);
-  const now = new Date().toISOString();
-  const payload = {
-    talent_id: userId,
-    content: normalizedContent,
-    last_updated_at: now,
-  };
-  const selectQuery = "id, talent_id, content, created_at, last_updated_at";
-
-  const { data, error } = await admin
-    .from("talent_insights")
-    .upsert(payload, { onConflict: "talent_id" })
-    .select(selectQuery)
-    .single();
-
-  if (!error) {
-    return data as TalentInsightRow;
-  }
-
-  const errorMessage = error.message ?? "Failed to save talent_insights";
-  const canRetryWithoutConflictKey =
-    errorMessage.includes("ON CONFLICT") ||
-    errorMessage.includes("unique or exclusion constraint");
-
-  if (!canRetryWithoutConflictKey) {
-    await notifyUnsupportedUnicodeEscapeError({
-      error,
-      metadata: {
-        insightKeyCount: Object.keys(normalizedContent ?? {}).length,
-      },
-      route: "talentOnboardingStateStore",
-      stage: "talent_insights.upsert",
-      userId,
-    });
-    throw new Error(errorMessage);
-  }
-
-  const existing = await fetchTalentInsights({ admin, userId });
-  const mutation = existing
-    ? admin.from("talent_insights").update(payload).eq("id", existing.id)
-    : admin.from("talent_insights").insert(payload);
-  const { data: fallbackData, error: fallbackError } = await mutation
-    .select(selectQuery)
-    .single();
-
-  if (fallbackError) {
-    await notifyUnsupportedUnicodeEscapeError({
-      error: fallbackError,
-      metadata: {
-        insightKeyCount: Object.keys(normalizedContent ?? {}).length,
-      },
-      route: "talentOnboardingStateStore",
-      stage: "talent_insights.fallback_save",
-      userId,
-    });
-    throw new Error(fallbackError.message ?? "Failed to save talent_insights");
-  }
-
-  return fallbackData as TalentInsightRow;
 }
 
 export async function getTalentResumeSignedUrl(args: {

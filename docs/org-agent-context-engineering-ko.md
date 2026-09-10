@@ -167,7 +167,7 @@ kind별 lease는 독립적이며 같은 kind를 다시 호출하면 그 kind의 
 | `get_more_data` 직렬화 | 14,000자 |
 | 전체 workspace context | 48,000자 |
 | `read_role` 결과 목표 | 약 24,000자 |
-| 한 turn 누적 tool result | 48,000자 |
+| 한 turn 누적 tool result | 80,000자 |
 | 현재 user message | 8,000자 |
 
 전체 context가 커지면 오래된 summary와 raw history, recent 표시 text, retained long

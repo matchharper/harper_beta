@@ -301,8 +301,7 @@ Helper가 SQL 결과의 각 talent를 `harper_worker` internal fit과 같은 can
 
 - Profile, resume, structured experience·education·skill
 - Matching preference와 명시적 constraint
-- Talent Behavior Context와 current interaction delta
-- 관련된 최근 추천 반응과 활동
+- 전체 Search Brief와 최신 builder version의 Talent Behavior Context
 - 이 role의 기존 progress·fit·human override
 - 같은 회사의 다른 역할에 대한 최근 기록을 짧게 압축한 text. 이미 추천한 역할, 추천하지 않은 fit 역할, 후보 반응과 이유, 회사 진행 단계만 판단에 필요한 만큼 포함하고 sibling hold 역할은 제외한다.
 - 회사와 role의 최신 정보
@@ -310,6 +309,7 @@ Helper가 SQL 결과의 각 talent를 `harper_worker` internal fit과 같은 can
 - 이번 run에서 저장한 context
 
 Candidate packet이 불완전하거나 context 저장 이후 source가 바뀌었으면 그 pair를 평가·저장하지 말고 packet을 새로 만든다.
+Memory 원문과 광범위한 메시지·이메일·추천·활동 이력은 packet에 직접 반복하지 않는다. Behavior Context에 미반영 source change가 남아 있으면 packet 생성 자체를 중단하고 파생 context를 먼저 갱신한다.
 
 ## 8. `[talent × role]` 평가
 

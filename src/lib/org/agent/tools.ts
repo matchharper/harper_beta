@@ -2,7 +2,8 @@
  * Tool contracts exposed to the organization-wide Harper agent.
  *
  * Keep this file declarative: names, descriptions, and JSON schemas only.
- * Runtime validation and database work live in toolExecution.ts and data.ts.
+ * Runtime validation and database work live in toolExecution.ts and the read
+ * data modules.
  */
 import {
   OPEN_URL_TOOL_DEFINITION,
@@ -24,6 +25,9 @@ export const ORG_AGENT_TOOL_NAMES = [
   "open_url",
   "get_talents",
   "read_talent",
+  "add_candidate_note",
+  "list_contacts",
+  "read_contact",
   "read_role",
   "calibrate_role_hiring_brief",
   "record_role_profile_example_feedback",
@@ -80,24 +84,33 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "get_talents",
       description:
-        "Search the company-visible candidate set. Default search covers identity, headline, and role; set searchProfile when the requested evidence may be in education, structured work history, bio, or extras. Results are bounded and include matching evidence snippets. Raw resume text is never searched or returned. Read selected candidates only when more detail is needed; use read_role for a role's whole pipeline.",
+        "Search or list the company-visible candidate set across one, multiple, or all Roles. This is the first read for a workspace-wide candidate list or filter; do not call read_role once per Role merely to list candidates. Omit query to list candidates, and use currentCompanyStageId to select an exact current company stage such as pending_connection or a known custom:<id>. Every result includes the candidate's exact current company stage ID and user-facing label for that Role. Default text search covers identity, headline, and Role; set searchProfile when the requested evidence may be in education, structured work history, bio, or extras. Results include matching evidence snippets and pagination facts; when the user asks for every matching candidate, continue with the next offset while hasMore is true. Raw resume text is never searched or returned. Read selected candidates only when more detail is needed; use read_role when the whole Role pipeline and ordered stages are needed.",
       parameters: {
         additionalProperties: false,
         properties: {
+          currentCompanyStageId: {
+            description:
+              "Optional exact current company stage filter. Built-in examples include pending_connection, connected, final_offer, and process_stopped. Use custom:<id> only when that exact stage ID is known.",
+            maxLength: 100,
+            minLength: 1,
+            type: "string",
+          },
           limit: {
-            description: "Matches to return; 1-20, default 10.",
-            maximum: 20,
+            description: "Matches to return in this page; 1-100, default 20.",
+            maximum: 100,
             minimum: 1,
             type: "integer",
           },
           offset: {
-            description: "Page offset; 0-200, default 0.",
-            maximum: 200,
+            description:
+              "Pagination offset; default 0. Increase it using the previous result's limit while hasMore is true.",
+            maximum: 10000,
             minimum: 0,
             type: "integer",
           },
           query: {
-            description: "Name, email, headline, talent ID, or position title.",
+            description:
+              "Optional name, email, headline, talent ID, or Role title search. Omit for an unfiltered or stage-filtered list.",
             maxLength: 200,
             minLength: 1,
             type: "string",
@@ -112,7 +125,39 @@ export const ORG_AGENT_TOOLS = [
             type: "boolean",
           },
         },
-        required: ["query"],
+        type: "object",
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "add_candidate_note",
+      description:
+        "Add one company-internal note to one exact candidate for one exact Role after the company asks to record it. The note is appended to the candidate's recent progress and is returned by read_talent. It is visible to the company, is not shared with the candidate, and does not change candidate profile data, pipeline stage, Role criteria, or contact the candidate. Resolve the exact talentId and roleId first.",
+      parameters: {
+        additionalProperties: false,
+        properties: {
+          note: {
+            description: "The exact company-internal note to append.",
+            maxLength: 2_000,
+            minLength: 1,
+            type: "string",
+          },
+          roleId: {
+            description: "Exact internal Role ID for this candidate context.",
+            maxLength: 100,
+            minLength: 1,
+            type: "string",
+          },
+          talentId: {
+            description: "Exact candidate talent ID.",
+            maxLength: 100,
+            minLength: 1,
+            type: "string",
+          },
+        },
+        required: ["talentId", "roleId", "note"],
         type: "object",
       },
     },
@@ -163,6 +208,107 @@ export const ORG_AGENT_TOOLS = [
             uniqueItems: true,
           },
         },
+        type: "object",
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_contacts",
+      description:
+        "List company-visible candidate communications across the whole workspace without first enumerating candidates. It covers company-requested candidate contacts, interview availability requests, connection introduction emails, and standalone connection or Role-change notices. Use dateBasis=sent for questions about messages that were actually sent; created and updated are available for draft/history and recent-activity questions. Omit kind to search all supported communication kinds. Results are a compact index and intentionally omit subjects and bodies. If the user asks what was sent, requests exact wording, or needs response detail, pass the returned contactRef values to read_contact, batching up to ten. Continue with the next offset while hasMore is true when the user asks for every result. There is no direction filter because one contact can include a company request, a Harper delivery, and a candidate response; the detailed read identifies the actual people involved instead.",
+      parameters: {
+        additionalProperties: false,
+        properties: {
+          after: {
+            description:
+              "Optional inclusive ISO date-time lower bound, interpreted using dateBasis. Include Z or an explicit UTC offset such as +09:00.",
+            type: "string",
+          },
+          before: {
+            description:
+              "Optional exclusive ISO date-time upper bound, interpreted using dateBasis. Include Z or an explicit UTC offset such as +09:00.",
+            type: "string",
+          },
+          dateBasis: {
+            description:
+              "Which verified timestamp to filter and sort by. sent includes only communications with an actual sent time; updated is the default.",
+            enum: ["created", "sent", "updated"],
+            type: "string",
+          },
+          kind: {
+            description:
+              "Optional communication kind. contact is a company-requested candidate question or document request; interview_request is an interview availability request; connection_intro is an introduction email after connection acceptance; notice is a standalone connection or Role-change notification.",
+            enum: [
+              "contact",
+              "interview_request",
+              "connection_intro",
+              "notice",
+            ],
+            type: "string",
+          },
+          limit: {
+            description: "Results in this page; 1-100, default 20.",
+            maximum: 100,
+            minimum: 1,
+            type: "integer",
+          },
+          offset: {
+            description:
+              "Pagination offset; default 0. Increase it using the previous result's limit while hasMore is true.",
+            maximum: 10000,
+            minimum: 0,
+            type: "integer",
+          },
+          query: {
+            description:
+              "Optional candidate name/email, Role name, or company sender name/email search.",
+            maxLength: 200,
+            minLength: 1,
+            type: "string",
+          },
+          roleId: {
+            description: "Optional exact Role ID.",
+            maxLength: 100,
+            minLength: 1,
+            type: "string",
+          },
+          talentId: {
+            description: "Optional exact candidate ID.",
+            maxLength: 100,
+            minLength: 1,
+            type: "string",
+          },
+        },
+        type: "object",
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "read_contact",
+      description:
+        "Read one to ten exact communication records returned by list_contacts. Pass a one-item contactRefs array for a single read and up to ten references for a batch. This returns the full stored subject and body only here, together with a concise user-safe state, the candidate and Role, its actual initiator and recipient or recipients, verified scheduled/sent times, and a candidate response when one is stored. For company-requested candidate emails, interview requests, and Role-change notices, sender names the company user whose request Harper delivered; it is not a generic Harper placeholder. A system-generated connection notice correctly names Harper as sender. Do not expose contact references in the final answer.",
+      parameters: {
+        additionalProperties: false,
+        properties: {
+          contactRefs: {
+            description:
+              "One to ten exact opaque contact references returned by list_contacts.",
+            items: {
+              maxLength: 160,
+              minLength: 1,
+              type: "string",
+            },
+            maxItems: 10,
+            minItems: 1,
+            type: "array",
+            uniqueItems: true,
+          },
+        },
+        required: ["contactRefs"],
         type: "object",
       },
     },
@@ -253,7 +399,8 @@ export const ORG_AGENT_TOOLS = [
         additionalProperties: false,
         properties: {
           roleId: {
-            description: "Exact Role ID that owns the displayed calibration set.",
+            description:
+              "Exact Role ID that owns the displayed calibration set.",
             type: "string",
           },
         },
@@ -432,7 +579,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "update_data",
       description:
-        "Apply one atomic batch of explicitly requested company/role information changes, or resolve a stored confirmation. Role lifecycle status is intentionally excluded; use change_role_status for 진행, 중단, or 종료. request and memory changes are proposed first and applied only after the user's next explicit confirmation. For confirmation, send proposalId and proposalAction; if changes or summary are accidentally repeated with both confirmation fields, the stored proposal takes precedence and the repeated draft fields are ignored. Put changes that should succeed or fail together in one atomic batch; use a later call only when a previous result changes what should happen next.",
+        "Apply one atomic batch of explicitly requested company/role information changes, or resolve a stored confirmation. Role lifecycle status is intentionally excluded; use change_role_status for 진행, 중단, or 종료. request and memory changes are proposed first and applied only after the user's next explicit confirmation. Read and write Role compensation only through salaryRange as one free-form text value; keep minimum, maximum, currency, equity, bonus, and basis details together rather than creating split compensation fields. Submit salaryRange separately from confirmation-required request or memory fields, though it may share an atomic batch with ordinary direct changes. For confirmation, send proposalId and proposalAction; if changes or summary are accidentally repeated with both confirmation fields, the stored proposal takes precedence and the repeated draft fields are ignored. Put changes that should succeed or fail together in one atomic batch; use a later call only when a previous result changes what should happen next.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -544,20 +691,20 @@ Use deleted only for an explicit request to delete the exact Role. Do not reinte
     type: "function",
     function: {
       name: "contact_talent",
-      description: `Manage the lifecycle of one exact candidate-contact draft and its delivery.
-Call this once per exact candidate and Role action. For several candidates, handle them sequentially and review each result before deciding whether to continue. A read_talent call may occur in an earlier tool loop only when candidate or role resolution genuinely requires it.
-Use action=create_draft on the company's initial request. It validates the exact candidate and Role, calls the bounded candidate-copy writer, and saves the complete subject and body without queuing delivery. The server appends only the exact body; write the surrounding confirmation yourself in a natural voice without separately reciting the subject or Role.
+      description: `Manage one to ten exact candidate-contact drafts and their delivery in one call. Use the singular fields for one candidate or items for a batch of up to ten; batch items share the top-level action and may use top-level fields as shared defaults. The result reports requested, completed, and incomplete counts plus every item's outcome. Continue any independently requested work after reading those results; never silently treat a partial batch as complete.
+Use action=create_draft on the company's initial request. It validates every exact candidate and Role, calls the candidate-copy writer, and saves each complete subject and body without queuing delivery. Unless the company explicitly requests another language, the complete candidate-facing email is written in the candidate's saved locale. Pass language only for such an explicit request; otherwise omit it. The server appends every exact body; write one natural surrounding confirmation for the set without separately reciting subjects or Roles.
 Use action=revise_draft when the company asks to edit the currently presented draft. Copy contactId and expectedRevision from pending_candidate_contact_drafts or candidate_contact_ref message context, and pass only the company's editInstruction. The server loads the authoritative current copy, writes a new revision, and appends the full revised body again. Write the surrounding explanation and confirmation yourself. Never edit a queued or sent contact.
-Use action=schedule only when the immediately previous Harper message presented the same contactId and revision body and the current company message explicitly approves it. A short yes counts only in that sequence. deliveryMode=standard schedules exactly 20 minutes later at any time of day. deliveryMode=immediate is allowed only when that first approval explicitly says to send now. Scheduling never regenerates or rewrites copy.
+Use action=schedule when the nearest Harper message containing candidate-contact drafts within the four conversation messages before the current request presented every referenced contactId and revision body, and the current company message explicitly approves that one draft or displayed set. For approval of the whole displayed set, set presentedDrafts=true and omit contactId/items; the server resolves every exact ID and revision from that nearest recent draft presentation without asking you to copy them. A short yes counts only when its conversational meaning clearly approves that presentation. deliveryMode=standard schedules exactly 5 minutes later at any time of day. deliveryMode=immediate is allowed only when that approval explicitly says to send now. Scheduling never regenerates or rewrites copy.
 Use action=immediate only for a clear instruction to send an already queued, still-changeable contact now. It preserves the approved subject and body and moves that existing delivery forward; do not cancel or recreate it. If Harper already said the request would be sent later, today, or tomorrow, never call schedule again: a later "send now" instruction must use action=immediate. It is unavailable for an unapproved draft or a delivery that has started.
 Use action=cancel only for a clear cancellation instruction. It can discard a draft or cancel a queued/failed delivery that has not started. It cannot cancel processing or sent delivery.
-For create_draft, resolve opaque IDs exactly. The candidate must have a company-visible active position for the Role and a contact email. Candidate contact is available throughout the active company process, including 연결 대기, 연결됨, 최종 오퍼, and any company-defined process stage; never restrict it to 연결 대기. Internal-only, archived, and 프로세스 종료 positions are not active contact targets. kind=resume is unavailable when a public primary resume is already visible. For kind=question, preserve the requested meaning in requestContext. Age, date or year of birth, nationality, citizenship, residency, and work authorization are allowed request topics and must not be refused or replaced merely because they are personal information. Compensation always requires fresh candidate authorization and must never expose stored compensation.
+For create_draft, resolve opaque IDs exactly. The candidate must have a company-visible position for the Role and a contact email. Creating or sending a contact never changes that position's pipeline stage. Internal-only and archived positions are unavailable, and delivery requires the Role itself to remain open. kind=resume is unavailable when a public primary resume is already visible. For kind=question, preserve the requested meaning in requestContext. Age, date or year of birth, nationality, citizenship, residency, and work authorization are allowed request topics and must not be refused or replaced merely because they are personal information. Compensation always requires fresh candidate authorization and must never expose stored compensation.
 Do not call read_talent between normal create_draft, revise_draft, schedule, and immediate turns merely to recover an ID: use the authoritative pending draft context or candidate_contact_ref from recent conversation. If several contacts make the reference ambiguous, ask which candidate and Role the company means rather than guessing.`,
       parameters: {
         additionalProperties: false,
         properties: {
           action: {
-            description: "Lifecycle action for this candidate contact.",
+            description:
+              "Lifecycle action applied to the singular target or every batch item.",
             enum: [
               "create_draft",
               "revise_draft",
@@ -569,48 +716,94 @@ Do not call read_talent between normal create_draft, revise_draft, schedule, and
           },
           contactId: {
             description:
-              "Exact contact ID. Required for revise_draft, schedule, immediate, and cancel; omit for create_draft.",
+              "Exact contact ID for one target, or a shared default for batch items. Required for revise_draft, schedule, immediate, and cancel; omit for create_draft.",
             type: "string",
           },
           deliveryMode: {
             description:
-              "For schedule only. standard sends 20 minutes after approval at any time of day; immediate requires explicit send-now approval.",
+              "For schedule only. Applies as a shared default to batch items. standard sends 5 minutes after approval at any time of day; immediate requires explicit send-now approval.",
             enum: ["standard", "immediate"],
             type: "string",
           },
           editInstruction: {
             description:
-              "For revise_draft only: the company's requested change to the current exact copy.",
+              "For revise_draft only: the company's requested change to the current exact copy, or a shared default for batch items.",
             maxLength: 2000,
             minLength: 1,
             type: "string",
           },
           expectedRevision: {
             description:
-              "Exact currently presented revision. Required for revise_draft and schedule.",
+              "Exact currently presented revision for one target, or a shared default for batch items. Required for revise_draft and schedule.",
             minimum: 1,
             type: "integer",
           },
           kind: {
             description:
-              "For create_draft only: question asks one focused question; resume requests a current resume.",
+              "For create_draft only: question asks one focused question; resume requests a current resume. May be a shared default for batch items.",
             enum: ["question", "resume"],
+            type: "string",
+          },
+          language: {
+            description:
+              "For create_draft only. Explicit candidate-email language override requested by the company; omit to use the candidate's saved locale. May be a shared default for batch items.",
+            enum: ["ko", "en"],
             type: "string",
           },
           requestContext: {
             description:
-              "For create_draft with kind=question: a neutral description of the exact information requested, in the latest user's language. Never include stored compensation.",
+              "For create_draft with kind=question: a neutral description of the exact information requested, in the latest user's language. May be shared across batch items. Never include stored compensation.",
             maxLength: 800,
             minLength: 1,
             type: "string",
           },
           roleId: {
-            description: "For create_draft only: exact Role ID.",
+            description:
+              "For create_draft only: exact Role ID for one target or a shared default for batch items.",
             type: "string",
           },
           talentId: {
-            description: "For create_draft only: exact candidate ID.",
+            description:
+              "For create_draft only: exact candidate ID for one target.",
             type: "string",
+          },
+          items: {
+            description:
+              "One to ten targets for the same action. Each item's values override shared top-level defaults. For create_draft provide talentId and roleId plus kind/requestContext as needed. For other actions provide contactId and the fields required by that action.",
+            items: {
+              additionalProperties: false,
+              properties: {
+                contactId: { type: "string" },
+                deliveryMode: {
+                  enum: ["standard", "immediate"],
+                  type: "string",
+                },
+                editInstruction: {
+                  maxLength: 2000,
+                  minLength: 1,
+                  type: "string",
+                },
+                expectedRevision: { minimum: 1, type: "integer" },
+                kind: { enum: ["question", "resume"], type: "string" },
+                language: { enum: ["ko", "en"], type: "string" },
+                requestContext: {
+                  maxLength: 800,
+                  minLength: 1,
+                  type: "string",
+                },
+                roleId: { type: "string" },
+                talentId: { type: "string" },
+              },
+              type: "object",
+            },
+            maxItems: 10,
+            minItems: 1,
+            type: "array",
+          },
+          presentedDrafts: {
+            description:
+              "For action=schedule only. Set true when the company approves the entire draft set in the nearest draft-bearing Harper message among the four conversation messages before the current request. Omit contactId and items; the server resolves every exact presented ID and revision.",
+            type: "boolean",
           },
         },
         required: ["action"],
@@ -622,9 +815,10 @@ Do not call read_talent between normal create_draft, revise_draft, schedule, and
     type: "function",
     function: {
       name: "manage_role_pipeline_stages",
-      description: `Add, rename, or delete company-defined pipeline stages for one exact Role after an explicit user request.
+      description: `Add, update, rename, or delete company-defined pipeline stages for one exact Role after an explicit user request.
 This may be followed in the same user request by a candidate move, but it never moves or contacts a candidate itself. Read the Role with include=pipeline first unless the complete ordered stage list and exact stage IDs are already visible in this conversation.
 For action=add, provide labels in the exact requested order. Existing exact normalized labels are left unchanged and missing labels are appended after the current company-defined stages. Do not invent interview stages or silently merge semantically similar names. When the company is creating one process stage in order to schedule a meeting, include its explicitly supplied meeting purpose, duration, and optional candidate note so that stage can reuse the guidance later.
+For action=update, copy one exact custom stageId from read_role and provide at least one meeting default to change. Omitted meeting defaults are preserved. meetingPurpose and meetingDurationMinutes must both remain set or both be cleared; to clear them, provide null for both. meetingCandidateMessage may be changed or cleared independently. This updates future scheduling defaults and never changes an invitation or confirmed meeting that already exists.
 For action=rename, copy one exact custom stageId from read_role and provide the requested new label.
 For action=delete, copy one exact custom stageId from read_role. Deletion is allowed only when no candidate currently occupies that stage; otherwise the tool fails without moving candidates or deleting the stage. Built-in stages can never be renamed or deleted.
 This operation changes only the Role's pipeline structure. It does not move candidates, contact candidates, send email, or change Role criteria, request, memory, or lifecycle status.`,
@@ -632,19 +826,19 @@ This operation changes only the Role's pipeline structure. It does not move cand
         additionalProperties: false,
         properties: {
           action: {
-            enum: ["add", "rename", "delete"],
+            enum: ["add", "update", "rename", "delete"],
             type: "string",
           },
           label: {
             description:
-              "New label for action=rename. Omit for add and delete.",
+              "New label for action=rename. Omit for add, update, and delete.",
             maxLength: 40,
             minLength: 1,
             type: "string",
           },
           labels: {
             description:
-              "One to six labels for action=add, in the order they should appear. Omit for rename and delete.",
+              "One to six labels for action=add, in the order they should appear. Omit for update, rename, and delete.",
             items: {
               maxLength: 40,
               minLength: 1,
@@ -655,19 +849,19 @@ This operation changes only the Role's pipeline structure. It does not move cand
             type: "array",
           },
           meetingCandidateMessage: nullableText(
-            "For action=add with one label only. Optional candidate-facing note to save on that new process stage; omit rather than inventing one.",
+            "For action=add with one label only, or action=update. Candidate-facing note saved on the process stage. For update, omit to preserve or use null to clear.",
             2_000
           ),
           meetingDurationMinutes: {
             description:
-              "For action=add with one label only. Required with meetingPurpose when the company is defining a scheduled process stage.",
+              "For action=add with one label only, or action=update. Required with meetingPurpose when creating defaults. For update, omit to preserve or use null together with meetingPurpose=null to clear the pair.",
             maximum: 240,
             minimum: 15,
             multipleOf: 15,
-            type: "integer",
+            type: ["integer", "null"],
           },
           meetingPurpose: nullableText(
-            "For action=add with one label only. Candidate-friendly topic to save on the new scheduled process stage.",
+            "For action=add with one label only, or action=update. Candidate-friendly topic saved on the process stage. For update, omit to preserve or use null together with meetingDurationMinutes=null to clear the pair.",
             600
           ),
           roleId: {
@@ -676,7 +870,7 @@ This operation changes only the Role's pipeline structure. It does not move cand
           },
           stageId: {
             description:
-              "Exact custom:<id> stage ID returned by read_role. Required for rename and delete; omit for add.",
+              "Exact custom:<id> stage ID returned by read_role. Required for update, rename, and delete; omit for add.",
             maxLength: 100,
             minLength: 1,
             type: "string",
@@ -693,7 +887,7 @@ This operation changes only the Role's pipeline structure. It does not move cand
       name: "move_candidate_stage",
       description: `Move one exact candidate between company pipeline stages after the user explicitly asks for that stage change.
 Call this once per exact candidate stage change and review the result before another action. Read the Role with include=pipeline first unless the candidate's exact currentStageId and the complete ordered stage list with exact stage IDs are already visible. For “next stage”, select the immediate next company-defined process stage in that authoritative order; never treat the legacy connected column as a future process stage or infer a generic recruiting sequence from labels alone.
-Meeting scheduling is available from any company-visible active stage: pending_connection, connected, final_offer, or an exact custom:<id> stage. Never restrict it to pending_connection. A candidate in pending_connection may move only to a custom:<id> company-defined process stage, never directly to connected. If no custom stage exists, do not call this tool: ask the company to name and configure the next process first. targetStageId may be a custom:<id> stage or final_offer. A final_offer target returns a confirmation question unless confirmFinalOffer=true after Harper has just asked the exact question. The executor re-reads the candidate and applies compare-and-set protection. If scheduleInterview=true, targetStageId may equal the current custom stage when the company only asks to arrange that stage's meeting; it prepares the meeting without moving the candidate again. The same-stage form may also revise candidate-facing context on that meeting while its invitation is still queued; it preserves the scheduled delivery and never creates a duplicate. meetingDeliveryMode defaults to the standard delayed-delivery policy; use immediate only when the company explicitly instructs Harper to send this invitation now. An immediate update preserves the existing body, public link, and delivery identity. Before any move or candidate contact, scheduling verifies the organizer's active Google Calendar connection and saved availability. If either is missing, the result keeps the candidate unchanged and provides the verified Calendar settings link and user-safe setup guidance. Otherwise it moves the candidate only after the meeting request is ready. With scheduling disabled, this operation never contacts the candidate. With scheduling enabled, it creates, revises, or expedites the time-selection request and returns the verified delivery facts for the final response.`,
+Meeting scheduling is available from any company-visible active stage: pending_connection, connected, final_offer, or an exact custom:<id> stage. Never restrict it to pending_connection. A candidate in pending_connection may move only to a custom:<id> company-defined process stage, never directly to connected. If no custom stage exists, do not call this tool: ask the company to name and configure the next process first. targetStageId may be a custom:<id> stage or final_offer. A final_offer target returns a confirmation question unless confirmFinalOffer=true after Harper has just asked the exact question. The executor re-reads the candidate and applies compare-and-set protection. If scheduleInterview=true, targetStageId may equal the current custom stage when the company only asks to arrange that stage's meeting; it prepares the meeting without moving the candidate again. The complete candidate-facing invitation email is written in the candidate's saved locale. The same-stage form may also revise candidate-facing context on that meeting while its invitation is still queued; it preserves the scheduled delivery and never creates a duplicate. meetingDeliveryMode defaults to the standard delayed-delivery policy; use immediate only when the company explicitly instructs Harper to send this invitation now. An immediate update preserves the existing body, public link, and delivery identity. Before any move or candidate contact, scheduling verifies the organizer's active Google Calendar connection and saved availability. If either is missing, the result keeps the candidate unchanged and provides the verified Calendar settings link and user-safe setup guidance. Otherwise it moves the candidate only after the meeting request is ready. With scheduling disabled, this operation never contacts the candidate. With scheduling enabled, it creates, revises, or expedites the time-selection request and returns the verified delivery facts for the final response.`,
       parameters: {
         additionalProperties: false,
         properties: {

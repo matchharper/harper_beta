@@ -26,7 +26,10 @@ const RUN_STATUSES = new Set<GmailCareerHistoryRunStatus>([
   "completed",
   "failed",
 ]);
-const ACTIVE_RUN_STALE_MS = 60 * 60 * 1_000;
+// A queue delivery is capped at five minutes and refreshes updatedAt before a
+// retry. Treat a run with no heartbeat for twice that long as interrupted so
+// the UI does not stay locked after a local server restart or terminated job.
+const ACTIVE_RUN_STALE_MS = 10 * 60 * 1_000;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)

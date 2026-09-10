@@ -74,7 +74,6 @@ async function main() {
       );
     const { promptBlocks } = buildCareerConversationPromptPlan({
       channel: "chat",
-      currentInsightContent: null,
       currentPreferences: {
         getExternalRecommendation: true,
         periodicIntervalDays: 3,
@@ -88,6 +87,7 @@ async function main() {
       recentRecommendedOpportunitiesText,
       runtimeInstruction: proactiveContext,
       structuredProfileText: evalCase.structuredProfileText,
+      talentContextSection: "",
       toolNames: [],
     });
     const historicalMessages = (evalCase.recentMessages ?? [])

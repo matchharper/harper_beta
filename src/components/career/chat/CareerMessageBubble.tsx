@@ -3,7 +3,10 @@ import { useRouter } from "next/router";
 import {
   ArrowUpRight,
   AudioLines,
+  CalendarClock,
+  CircleHelp,
   FileText,
+  Handshake,
   Mail,
   MessageCircleMore,
   Phone,
@@ -44,6 +47,7 @@ import {
 } from "@/components/chat/ChatTimeline";
 import {
   extractCareerReengagementActions,
+  readCareerPendingActionKindForDisplay,
   type CareerReengagementAction,
 } from "@/lib/career/reengagementActions";
 import Image from "next/image";
@@ -511,8 +515,14 @@ const CareerMessageBubble = ({
         {!isUser && !message.typing && reengagementActions.length > 0 && (
           <div className="mt-4 flex flex-col max-w-[640px] flex-wrap gap-2">
             {reengagementActions.map((item, index) => {
+              const pendingActionKind =
+                item.action.type === "open_pending_action"
+                  ? readCareerPendingActionKindForDisplay(item.action.ref)
+                  : null;
               const ActionIcon =
-                item.action.type === "send_message" ? (
+                item.action.type === "start_call" ? (
+                  <Phone aria-hidden="true" className="size-4" />
+                ) : item.action.type === "send_message" ? (
                   <Image
                     src="/svgs/face.svg"
                     alt=""
@@ -520,13 +530,25 @@ const CareerMessageBubble = ({
                     width={14}
                     height={14}
                   />
+                ) : pendingActionKind === "company_request" ? (
+                  <Mail aria-hidden="true" className="size-4" />
+                ) : pendingActionKind === "internal_opportunity" ? (
+                  <Handshake aria-hidden="true" className="size-4" />
+                ) : pendingActionKind === "meeting_schedule" ? (
+                  <CalendarClock aria-hidden="true" className="size-4" />
+                ) : pendingActionKind === "internal_fit_question" ? (
+                  <CircleHelp aria-hidden="true" className="size-4" />
                 ) : item.action.type === "open_pending_action" ? (
                   <MessageCircleMore aria-hidden="true" className="size-4" />
                 ) : (
                   <ArrowUpRight aria-hidden="true" className="size-4" />
                 );
               const actionKey =
-                item.action.type === "send_message"
+                item.action.type === "start_call"
+                  ? "internalCallRequestId" in item.action
+                    ? item.action.internalCallRequestId
+                    : item.action.starterId
+                  : item.action.type === "send_message"
                   ? item.action.message
                   : item.action.type === "open_path"
                     ? item.action.path

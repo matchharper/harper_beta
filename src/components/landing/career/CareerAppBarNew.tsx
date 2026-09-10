@@ -1,5 +1,6 @@
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useMessages, type Locale } from "@/i18n/useMessage";
+import { getCompanyLocalePath } from "@/lib/companyLandingSeo";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
 import { motion } from "motion/react";
@@ -69,7 +70,7 @@ export default function CareerAppBar({
   sectionHrefPrefix = "",
   bgColor = "neutral-100",
   showSectionLinks = true,
-  audienceHref = "/company",
+  audienceHref,
   locale: localeOverride,
 }: CareerAppBarProps) {
   const { locale: contextLocale } = useMessages();
@@ -77,9 +78,10 @@ export default function CareerAppBar({
   const isMobile = useIsMobile();
   const [isMobileHeaderVisible, setIsMobileHeaderVisible] = useState(true);
   const locale = localeOverride ?? contextLocale;
+  const resolvedAudienceHref = audienceHref ?? getCompanyLocalePath(locale);
   const talentCopy = TALENT_APP_BAR_COPY[locale];
   const companyCopy = COMPANY_APP_BAR_COPY[locale];
-  const isCompanyBar = audienceHref === "/" && !showSectionLinks;
+  const isCompanyBar = resolvedAudienceHref === "/" && !showSectionLinks;
 
   const sectionLinks = [
     { href: "#workflow", label: talentCopy.workflow },
@@ -135,7 +137,7 @@ export default function CareerAppBar({
         )}
         <div className="flex items-center gap-2 sm:gap-3">
           <Link
-            href={audienceHref}
+            href={resolvedAudienceHref}
             className={`${pillbtn} text-black hover:bg-black/2`}
           >
             {audienceLabel}

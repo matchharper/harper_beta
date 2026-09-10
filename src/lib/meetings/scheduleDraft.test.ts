@@ -5,8 +5,10 @@ import {
   buildDefaultInterviewTitle,
   formatPreparedMeetingScheduleConfirmation,
   normalizeInterviewDuration,
+  RESUMABLE_MEETING_SCHEDULE_STATUSES,
   resolveMeetingOrganizerEmail,
   resolveMeetingOrganizerName,
+  resolveExistingMeetingScheduleAction,
   resolveMeetingScheduleDraftBlocker,
   type PreparedMeetingScheduleDraft,
 } from "@/lib/meetings/scheduleDraft";
@@ -168,6 +170,48 @@ test("meeting setup blockers stop at Calendar before availability", () => {
       organizerEmailConfigured: true,
     }),
     null
+  );
+});
+
+test("candidate-stage scheduling retries resume the one existing schedule", () => {
+  assert.deepEqual(
+    [...RESUMABLE_MEETING_SCHEDULE_STATUSES],
+    ["preparing", "awaiting_talent"]
+  );
+  assert.equal(
+    resolveExistingMeetingScheduleAction({
+      candidateFacingRevisionRequested: false,
+      status: "preparing",
+    }),
+    "queue_draft"
+  );
+  assert.equal(
+    resolveExistingMeetingScheduleAction({
+      candidateFacingRevisionRequested: true,
+      status: "preparing",
+    }),
+    "revise_draft_and_queue"
+  );
+  assert.equal(
+    resolveExistingMeetingScheduleAction({
+      candidateFacingRevisionRequested: false,
+      status: "awaiting_talent",
+    }),
+    "reuse_invitation"
+  );
+  assert.equal(
+    resolveExistingMeetingScheduleAction({
+      candidateFacingRevisionRequested: true,
+      status: "awaiting_talent",
+    }),
+    "revise_invitation"
+  );
+  assert.equal(
+    resolveExistingMeetingScheduleAction({
+      candidateFacingRevisionRequested: false,
+      status: "confirmed",
+    }),
+    "ignore"
   );
 });
 

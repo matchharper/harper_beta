@@ -38,7 +38,6 @@ export type OrgAgentToolExecutionState = {
   company: OrgWorkspace;
   completeLongTextTargets: Set<string>;
   fullRoleRequestIds: Set<string>;
-  internalTokenCorrectionCount: number;
   observedLongTextFingerprints: Map<string, string>;
   openedUrls: Set<string>;
   pendingFullRoleRequestIds: Set<string>;
@@ -201,6 +200,33 @@ export function getOrgAgentContactDraftReferences(metadata: unknown) {
   return Array.from(byContactAndRevision.values());
 }
 
+export const CANDIDATE_CONTACT_PRESENTATION_MESSAGE_WINDOW = 4;
+
+export function selectRecentlyPresentedContactDraftReferences(
+  messages: Array<{ metadata: unknown; role: string }>
+) {
+  for (const message of messages
+    .slice(-CANDIDATE_CONTACT_PRESENTATION_MESSAGE_WINDOW)
+    .toReversed()) {
+    if (message.role !== "assistant") continue;
+    const refs = getOrgAgentContactDraftReferences(message.metadata);
+    if (refs.length > 0) return refs;
+  }
+  return [];
+}
+
+export function selectRecentlyPresentedContactDraftIds(
+  messages: Array<{ metadata: unknown; role: string }>
+) {
+  return Array.from(
+    new Set(
+      selectRecentlyPresentedContactDraftReferences(messages).map(
+        (ref) => ref.contactId
+      )
+    )
+  );
+}
+
 export function hasOrgAgentContactDraftReference(args: {
   contactId: string;
   metadata: unknown;
@@ -308,7 +334,6 @@ export function createOrgAgentToolExecutionStateFromSnapshot(args: {
     company: { ...args.workspace },
     completeLongTextTargets: new Set(),
     fullRoleRequestIds: new Set(args.completeRoleRequestIds ?? []),
-    internalTokenCorrectionCount: 0,
     observedLongTextFingerprints: new Map(),
     openedUrls: new Set(),
     pendingFullRoleRequestIds: new Set(),

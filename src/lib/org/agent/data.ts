@@ -25,7 +25,10 @@ import type {
 import { formatOrgAgentKstDateTime } from "@/lib/org/agent/dateTime";
 import { hasOrgWorkspaceAccessBypass } from "@/lib/org/access";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
-import { humanizeCompanyTalentRequestStatus } from "@/lib/companyTalentRequests/server";
+import {
+  companyTalentRequestBlocksNewContact,
+  summarizeCompanyTalentRequestStatus,
+} from "@/lib/companyTalentRequests/status";
 import { normalizeOrgRoleCriteria } from "@/lib/org/roleCriteria";
 import { fetchOrgProcessClosureNotifications } from "@/lib/org/processClosureNotification";
 import { resolveTalentLocation } from "@/lib/talentLocation";
@@ -851,6 +854,7 @@ async function findOrgAgentProfileMatches(args: {
 export async function getOrgAgentTalents(args: {
   admin: OrgAgentAdminClient;
   audience?: OrgAgentReadAudience;
+  currentCompanyStageId?: string | null;
   includeProfilePicture?: boolean;
   limit?: number;
   limitCap?: number;
@@ -863,24 +867,29 @@ export async function getOrgAgentTalents(args: {
 }) {
   const queryText = text(args.query);
   const queryLower = queryText.toLocaleLowerCase();
+  const currentCompanyStageId = text(args.currentCompanyStageId);
   const limitCap = integer(args.limitCap, 20, 1, 200);
   const limit = integer(args.limit, 10, 1, limitCap);
-  const offset = integer(args.offset, 0, 0, 200);
+  const offset = integer(args.offset, 0, 0, 10_000);
   const board = await fetchVisibleOrgAgentBoard({
     audience: args.audience,
     roleId: text(args.roleId) || null,
     user: args.user,
     workspaceId: args.workspaceId,
   });
-  const profileMatches = args.searchProfile
-    ? await findOrgAgentProfileMatches({
-        admin: args.admin,
-        query: queryText,
-        talentIds: unique(board.items.map((item) => item.talentId)),
-      })
-    : new Map<string, string[]>();
+  const profileMatches =
+    args.searchProfile && queryText
+      ? await findOrgAgentProfileMatches({
+          admin: args.admin,
+          query: queryText,
+          talentIds: unique(board.items.map((item) => item.talentId)),
+        })
+      : new Map<string, string[]>();
   const rows = board.items
     .filter((item) => {
+      if (currentCompanyStageId && item.stage !== currentCompanyStageId) {
+        return false;
+      }
       if (!queryLower) return true;
       return (
         profileMatches.has(item.talentId) ||
@@ -904,6 +913,10 @@ export async function getOrgAgentTalents(args: {
       ...compactBoardItem(item, {
         includeProfilePicture: args.includeProfilePicture,
       }),
+      currentCompanyStage: {
+        id: item.stage,
+        label: getBoardStageLabel(board, item),
+      },
       ...(profileMatches.has(item.talentId) && {
         profileMatches: profileMatches.get(item.talentId),
       }),
@@ -911,6 +924,8 @@ export async function getOrgAgentTalents(args: {
     })),
     limit,
     offset,
+    selectedStage: currentCompanyStageId || null,
+    total: rows.length,
   };
 }
 
@@ -951,6 +966,12 @@ function formatRequestTimestamp(value: unknown) {
   return formatted ? `${formatted} KST` : null;
 }
 
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 async function readCompanyTalentRequestProjection(args: {
   admin: OrgAgentAdminClient;
   roleById: Map<string, OrgAgentRole>;
@@ -960,7 +981,7 @@ async function readCompanyTalentRequestProjection(args: {
   const [historyResult, documentsResult] = await Promise.all([
     (args.admin.from("company_talent_requests" as any) as any)
       .select(
-        "id, role_id, expects_document, request_context, workflow_status, expires_at, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, deliveries:contact_queue(scheduled_at, sent_at, cancelled_at, status, type)"
+        "id, role_id, expects_document, request_context, workflow_status, expires_at, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, talent_source_message_id, document_id, deliveries:contact_queue(scheduled_at, sent_at, cancelled_at, status, last_error, payload, type)"
       )
       .eq("company_workspace_id", args.workspaceId)
       .eq("talent_id", args.talentId)
@@ -978,37 +999,117 @@ async function readCompanyTalentRequestProjection(args: {
   const historyRows = (historyResult.data ?? []) as Array<
     Record<string, unknown>
   >;
+  const responseMessageIds = unique(
+    historyRows.map((row) => text(row.talent_source_message_id))
+  );
+  const responseDocumentIds = unique(
+    historyRows.map((row) => text(row.document_id))
+  );
+  const [responseMessagesResult, responseDocumentsResult] = await Promise.all([
+    responseMessageIds.length > 0
+      ? (args.admin.from("talent_messages" as any) as any)
+          .select("id, created_at")
+          .in("id", responseMessageIds)
+      : Promise.resolve({ data: [], error: null }),
+    responseDocumentIds.length > 0
+      ? (args.admin.from("talent_documents" as any) as any)
+          .select("id, created_at")
+          .in("id", responseDocumentIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (responseMessagesResult.error) throw responseMessagesResult.error;
+  if (responseDocumentsResult.error) throw responseDocumentsResult.error;
+  const responseReceivedAtById = new Map<string, unknown>(
+    [
+      ...((responseMessagesResult.data ?? []) as Array<
+        Record<string, unknown>
+      >),
+      ...((responseDocumentsResult.data ?? []) as Array<
+        Record<string, unknown>
+      >),
+    ].map((row) => [text(row.id), row.created_at])
+  );
   const primary = (documentsResult.data ?? [])[0] as
     | { id: string; is_public: boolean }
     | undefined;
   return {
     requestHistory: historyRows.map((row) => {
-      const delivery = Array.isArray(row.deliveries)
+      const candidateDelivery = Array.isArray(row.deliveries)
         ? row.deliveries.find(
             (item) => text(item?.type) === "company_request_candidate_delivery"
           )
         : null;
+      const companyDelivery = Array.isArray(row.deliveries)
+        ? row.deliveries.find(
+            (item) => text(item?.type) === "company_request_company_delivery"
+          )
+        : null;
       const workflowStatus = text(row.workflow_status);
-      const expiresAt = Date.parse(text(row.expires_at));
+      const role = args.roleById.get(text(row.role_id));
+      const roleIsOpen = role
+        ? !["ended", "deleted"].includes(text(role.status))
+        : null;
+      const cancellation = objectValue(
+        objectValue(candidateDelivery?.payload).cancellation
+      );
+      const responseMessageId = text(row.talent_source_message_id);
+      const responseDocumentId = text(row.document_id);
+      const statusSummary = summarizeCompanyTalentRequestStatus({
+        candidate_delivery_status: text(candidateDelivery?.status),
+        candidate_delivery_error: text(candidateDelivery?.last_error),
+        candidate_cancellation_source: text(cancellation.source),
+        candidate_sent_at: text(candidateDelivery?.sent_at),
+        company_delivery_status: text(companyDelivery?.status),
+        company_sent_at: text(companyDelivery?.sent_at),
+        expires_at: text(row.expires_at),
+        expects_document: Boolean(row.expects_document),
+        has_candidate_response: Boolean(
+          responseMessageId || responseDocumentId
+        ),
+        role_is_open: roleIsOpen,
+        workflow_status: workflowStatus,
+      });
       const blocksNewRequest =
-        [
-          "draft",
-          "queued",
-          "failed",
-          "awaiting_talent",
-          "relay_queued",
-          "review_required",
-        ].includes(workflowStatus) &&
-        (!Number.isFinite(expiresAt) || expiresAt > Date.now());
+        roleIsOpen !== false &&
+        companyTalentRequestBlocksNewContact({
+          candidate_delivery_status: text(candidateDelivery?.status),
+          candidate_sent_at: text(candidateDelivery?.sent_at),
+          expires_at: text(row.expires_at),
+          has_candidate_response: Boolean(
+            responseMessageId || responseDocumentId
+          ),
+          workflow_status: workflowStatus,
+        });
       return {
         approvedAt: formatRequestTimestamp(row.approved_at),
-        at: formatRequestTimestamp(delivery?.sent_at ?? row.created_at),
+        at: formatRequestTimestamp(
+          candidateDelivery?.sent_at ?? row.created_at
+        ),
         blocksNewRequest,
         cancelable:
           workflowStatus === "draft" ||
-          (["queued", "failed"].includes(text(delivery?.status)) &&
+          (["queued", "failed"].includes(text(candidateDelivery?.status)) &&
             ["queued", "failed"].includes(workflowStatus)),
-        deliveryStatus: text(delivery?.status),
+        candidateEmailBody: text(row.delivery_body) || null,
+        candidateEmailScheduledAt: formatRequestTimestamp(
+          candidateDelivery?.scheduled_at
+        ),
+        candidateEmailSentAt: formatRequestTimestamp(
+          candidateDelivery?.sent_at
+        ),
+        candidateEmailState: statusSummary.candidateEmail,
+        candidateEmailSubject: text(row.delivery_subject) || null,
+        candidateResponseReceivedAt: formatRequestTimestamp(
+          responseReceivedAtById.get(responseMessageId || responseDocumentId)
+        ),
+        candidateResponseState: statusSummary.candidateResponse,
+        companyRelayScheduledAt: formatRequestTimestamp(
+          companyDelivery?.scheduled_at
+        ),
+        companyRelayedAt: formatRequestTimestamp(companyDelivery?.sent_at),
+        companyRelayState: statusSummary.companyRelay,
+        createdAt: formatRequestTimestamp(row.created_at),
+        deliveryStatus: text(candidateDelivery?.status),
         draftBody: workflowStatus === "draft" ? text(row.delivery_body) : null,
         draftRevision:
           workflowStatus === "draft" ? Number(row.draft_revision ?? 0) : null,
@@ -1017,12 +1118,9 @@ async function readCompanyTalentRequestProjection(args: {
         label: row.expects_document ? "이력서 요청" : "회사 질문 확인",
         requestId: text(row.id),
         roleId: text(row.role_id),
-        roleName: args.roleById.get(text(row.role_id))?.name ?? null,
-        scheduledAt: formatRequestTimestamp(delivery?.scheduled_at),
-        status: humanizeCompanyTalentRequestStatus({
-          ...row,
-          delivery_status: text(delivery?.status),
-        }),
+        roleName: role?.name ?? null,
+        scheduledAt: formatRequestTimestamp(candidateDelivery?.scheduled_at),
+        status: statusSummary.status,
         topic: text(row.request_context),
         updatedAt: formatRequestTimestamp(row.updated_at),
       };
@@ -1153,21 +1251,19 @@ async function readHarperSharedInformation(args: {
   admin: OrgAgentAdminClient;
   talentId: string;
 }) {
-  const { data: insight, error: insightError } = await (
-    args.admin.from("talent_insights" as any) as any
+  const keys = HARPER_SHARED_INFORMATION_FIELDS.map((field) => field.key);
+  const { data: rows, error } = await (
+    args.admin.from("talent_contexts" as any) as any
   )
-    .select("content")
+    .select("key, content")
     .eq("talent_id", args.talentId)
-    .order("id", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (insightError) throw insightError;
-  const content =
-    insight?.content &&
-    typeof insight.content === "object" &&
-    !Array.isArray(insight.content)
-      ? (insight.content as Record<string, unknown>)
-      : {};
+    .eq("collection", "brief")
+    .is("deleted_at", null)
+    .in("key", keys);
+  if (error) throw error;
+  const content = Object.fromEntries(
+    (Array.isArray(rows) ? rows : []).map((row) => [row.key, row.content])
+  ) as Record<string, unknown>;
   return HARPER_SHARED_INFORMATION_FIELDS.map(({ key, label }) => ({
     key,
     label,
@@ -1764,17 +1860,32 @@ export async function readOrgAgentRole(args: {
     allItems.map((item) => item.recommendationId)
   );
   const visibleTalentIds = new Set(allItems.map((item) => item.talentId));
-  const progressResult =
+  const [progressResult, stageMeetingDefaultsResult] = await Promise.all([
     recentUpdateLimit > 0
-      ? await (args.admin.from("talent_progress" as any) as any)
+      ? (args.admin.from("talent_progress" as any) as any)
           .select(
             "created_at, kind, recommendation_id, role_id, talent_id, text, metadata"
           )
           .eq("role_id", role.roleId)
           .order("created_at", { ascending: false })
           .limit(Math.max(recentUpdateLimit * 5, 50))
-      : { data: [], error: null };
+      : Promise.resolve({ data: [], error: null }),
+    (args.admin.from("ops_matching_role_stages" as any) as any)
+      .select(
+        "id, meeting_purpose, meeting_duration_minutes, meeting_candidate_message"
+      )
+      .eq("role_id", role.roleId),
+  ]);
   if (progressResult.error) throw progressResult.error;
+  if (stageMeetingDefaultsResult.error) {
+    throw stageMeetingDefaultsResult.error;
+  }
+  const stageMeetingDefaultsById = new Map<string, Record<string, any>>(
+    (stageMeetingDefaultsResult.data ?? []).map((row: any) => [
+      `custom:${text(row.id)}`,
+      row,
+    ])
+  );
   const visibleProgress = ((progressResult.data ?? []) as ProgressRow[])
     .filter((row) =>
       row.recommendation_id
@@ -1794,13 +1905,21 @@ export async function readOrgAgentRole(args: {
   };
   const pipelineResult = {
     ...result,
-    availableStages: snapshot.availableStages.map((item) => ({
-      kind: item.id.startsWith("custom:") ? "custom" : "built_in",
-      label: item.label,
-      roleId: item.roleId,
-      sortOrder: item.sortOrder,
-      stageId: item.id,
-    })),
+    availableStages: snapshot.availableStages.map((item) => {
+      const meetingDefaults = stageMeetingDefaultsById.get(item.id);
+      return {
+        kind: item.id.startsWith("custom:") ? "custom" : "built_in",
+        label: item.label,
+        meetingCandidateMessage:
+          text(meetingDefaults?.meeting_candidate_message) || null,
+        meetingDurationMinutes:
+          Number(meetingDefaults?.meeting_duration_minutes) || null,
+        meetingPurpose: text(meetingDefaults?.meeting_purpose) || null,
+        roleId: item.roleId,
+        sortOrder: item.sortOrder,
+        stageId: item.id,
+      };
+    }),
     countsComplete: bucketCounts.complete,
     people: {
       hasMore: peopleOffset + peopleItems.length < filteredItems.length,

@@ -600,7 +600,7 @@ GET_MORE_DATA_SERIALIZED_MAX_CHARS = 14000
 RETAINED_MORE_DATA_TOTAL_CHARS = 14000
 ORG_AGENT_CONTEXT_MAX_CHARS = 48000
 READ_ROLE_TOTAL_CHARS = 24000
-TOOL_RESULTS_PER_TURN_MAX_CHARS = 48000
+TOOL_RESULTS_PER_TURN_MAX_CHARS = 80000
 ~~~
 
 ORG_AGENT_CONTEXT_MAX_CHARS는 system prompt와 tool schema, 최대 8,000자로 이미
@@ -616,7 +616,7 @@ manager 하나가 default data, retained block, summary/raw history, pending pro
 5. role index는 100개 또는 10,000자에서 멈추고 total/returned/truncated를 남긴다.
 
 모든 truncation은 block과 field 단위로 표시한다. request, memory나 긴 text를 잘라
-놓고 complete라고 표시하지 않는다. 한 turn의 누적 tool result가 48,000자에 닿았을
+놓고 complete라고 표시하지 않는다. 한 turn의 누적 tool result가 80,000자에 닿았을
 때 완전한 문서를 추가로 읽어야 하면 일부만 반환하지 않고 tool_budget_exhausted를
 반환해 다음 turn에서 필요한 block 하나만 읽게 한다.
 
@@ -828,7 +828,7 @@ criteria/memory를 field별로 줄이면서 complete = false를 기록한다. re
 
 serializer는 request, memory, role_description 각각의 complete/truncated 상태를
 execution state에 기록한다. read_talent를 포함한 한 turn의 모든 tool result도
-9.0의 48,000자 누적 budget을 공유한다.
+9.0의 80,000자 누적 budget을 공유한다.
 
 ### 9.4 현재 값의 우선순위
 
@@ -2078,7 +2078,7 @@ host가 loopback이 아니거나 현재 app의 production/staging DB URL과 같�
   - pending proposal 주입
   - scopeKey와 currentUserMessageId를 명시적 argument로 받음
   - authoritative read 실패를 false/zero로 삼지 않는 unavailable marker
-  - 전체 48,000자 budget manager
+  - 전체 80,000자 budget manager
 - src/lib/org/agent/promptFormat.ts
   - enum humanizer
   - Markdown-preserving block serializer

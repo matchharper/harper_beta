@@ -257,10 +257,11 @@ Codex가 role마다 SQL을 새로 작성한다. 고정 keyword query 하나를 �
 
 - canonical profile, resume, experience, education, skill
 - matching preference와 명시적 제약
-- talent Behavior Context와 현재 interaction delta
-- 최근 추천 수락·거절·무응답 등 관련 행동
-- 현재 role에 대한 기존 progress와 fit이 있다면 그 상태
+- 전체 Search Brief와 최신 builder version의 talent Behavior Context
+- 현재 role에 대한 progress·tag와 fit이 있다면 그 상태
 - 최신 회사·role 정보, request, criteria, 이번에 갱신한 context
+
+Memory 원문과 광범위한 대화·이메일·추천 이력은 candidate 문서에 다시 넣지 않는다. 이 원본들은 Behavior builder만 읽는다. candidate packet을 만들 때 Behavior source change가 남아 있거나 builder version이 맞지 않으면 평가하지 않고 먼저 파생 context를 갱신한다.
 
 평가는 모든 후보를 한 문서에서 상대 비교하는 방식이 아니라 pair별로 한다. 저장 결과는 다음을 포함한다.
 

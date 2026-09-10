@@ -6,7 +6,6 @@ import {
   formatPromptMarkdown,
   formatPromptTable,
   serializeOrgAgentMoreData,
-  serializeOrgAgentDeferredToolCall,
   serializeOrgAgentToolError,
   serializeOrgAgentToolResult,
 } from "@/lib/org/agent/promptFormat";
@@ -64,6 +63,7 @@ test("organization-agent search results are compacted for the model", () => {
       recommendationId: `recommendation-${index}`,
       recommendedAt: timestamp,
       role: { name: "Backend Engineer", roleId: "role-1" },
+      currentCompanyStage: { id: "connected", label: "진행 중" },
       stage: "connected",
       updatedAt: timestamp,
     })),
@@ -76,6 +76,8 @@ test("organization-agent search results are compacted for the model", () => {
 
   assert.ok(compact.length < raw.length * 0.65);
   assert.match(compact, /talent_id\tname\temail/);
+  assert.match(compact, /current_company_stage_id\tcurrent_company_stage/);
+  assert.match(compact, /connected\t진행 중/);
   assert.match(compact, /2026-07-30/);
   assert.doesNotMatch(compact, /10:23:45/);
   assert.doesNotMatch(compact, /recommendationId/);
@@ -100,6 +102,209 @@ test("profile search snippets survive candidate result compaction", () => {
 
   assert.match(compact, /profile_matches/);
   assert.match(compact, /Seoul National University/);
+});
+
+test("web search results use compact text instead of JSON", () => {
+  const compact = serializeOrgAgentToolResult("web_search", {
+    query: "Harper recruiting",
+    resultCount: 1,
+    results: [
+      {
+        author: "Reporter",
+        highlights: ["First useful passage", "Second useful passage"],
+        publishedDate: "2026-09-08T00:00:00.000Z",
+        rank: 1,
+        title: "Example result",
+        url: "https://example.com/result",
+      },
+    ],
+  });
+
+  assert.match(compact, /^status=ok/m);
+  assert.match(compact, /rank\ttitle\turl\tauthor\tpublished\thighlights/);
+  assert.match(compact, /First useful passage ; Second useful passage/);
+  assert.doesNotMatch(compact, /"resultCount"|"results"/);
+});
+
+test("opened pages use a metadata row and Markdown text instead of JSON", () => {
+  const compact = serializeOrgAgentToolResult("open_url", {
+    cached: true,
+    createdAt: "2026-09-08T00:00:00.000Z",
+    documentId: "internal-document-id",
+    markdown: "# Role\n\n- Build reliable systems",
+    markdownCharCount: 33,
+    resolvedUrl: "https://example.com/role",
+    title: "Backend Engineer",
+    truncated: false,
+    url: "https://example.com/role",
+  });
+
+  assert.match(compact, /^status=ok/m);
+  assert.match(compact, /<page_markdown>\n# Role/);
+  assert.match(compact, /content_truncated/);
+  assert.doesNotMatch(compact, /internal-document-id|"markdown"/);
+});
+
+test("contact list omits message subjects and bodies", () => {
+  const compact = serializeOrgAgentToolResult("list_contacts", {
+    body: "목록에 나오면 안 되는 본문",
+    dateBasis: "sent",
+    hasMore: false,
+    items: [
+      {
+        activityAt: "2026-09-08T01:30:00.000Z",
+        candidateName: "민수",
+        contactRef: "contact:11111111-1111-4111-8111-111111111111",
+        initiatedBy: "민지",
+        kind: "contact",
+        roleId: "role-1",
+        roleName: "Backend Engineer",
+        state: "후보자 메일 발송됨 · 후보자 답변 대기 · 회사 전달 전",
+        talentId: "talent-1",
+      },
+    ],
+    limit: 20,
+    offset: 0,
+    subject: "목록에 나오면 안 되는 제목",
+  });
+
+  assert.match(compact, /민수/);
+  assert.match(compact, /민지/);
+  assert.match(compact, /후보자 메일 발송됨/);
+  assert.doesNotMatch(compact, /목록에 나오면 안 되는 제목/);
+  assert.doesNotMatch(compact, /목록에 나오면 안 되는 본문/);
+  assert.doesNotMatch(compact, /subject\t|body_preview/);
+});
+
+test("contact detail includes stored copy and actual company initiator", () => {
+  const compact = serializeOrgAgentToolResult("read_contact", {
+    items: [
+      {
+        candidate: {
+          email: "minsu@example.com",
+          name: "민수",
+          type: "candidate",
+        },
+        contactRef: "contact:11111111-1111-4111-8111-111111111111",
+        kind: "contact",
+        message: {
+          body: "현재 합류 가능 시점을 알려주세요.",
+          deliveryState: "발송됨",
+          recipient: {
+            email: "minsu@example.com",
+            name: "민수",
+            type: "candidate",
+          },
+          scheduledAt: "2026-09-08T01:10:00.000Z",
+          sender: {
+            email: "minji@company.com",
+            name: "민지",
+            type: "company_user",
+          },
+          sentAt: "2026-09-08T01:30:00.000Z",
+          subject: "합류 가능 시점 확인",
+        },
+        role: { name: "Backend Engineer", roleId: "role-1" },
+        state: "후보자 메일 발송됨 · 후보자 답변 대기 · 회사 전달 전",
+        talentId: "talent-1",
+      },
+    ],
+    notFound: [],
+    requestedCount: 1,
+  });
+
+  assert.match(compact, /sender=민지 \(회사 사용자, minji@company\.com\)/);
+  assert.match(compact, /recipient=민수 \(후보자, minsu@example\.com\)/);
+  assert.match(compact, /subject=합류 가능 시점 확인/);
+  assert.match(compact, /현재 합류 가능 시점을 알려주세요/);
+  assert.match(compact, /2026년 9월 8일 10:30 KST/);
+  assert.doesNotMatch(compact, /contact:11111111-1111-4111-8111-111111111111/);
+});
+
+test("contact detail identifies every stored introduction reply recipient", () => {
+  const compact = serializeOrgAgentToolResult("read_contact", {
+    items: [
+      {
+        candidate: {
+          email: "candidate@example.com",
+          name: "후보자",
+          type: "candidate",
+        },
+        contactRef: "connection_intro:11111111-1111-4111-8111-111111111111",
+        kind: "connection_intro",
+        message: {},
+        replies: [
+          {
+            body: "확인했습니다.",
+            receivedAt: "2026-09-08T01:30:00.000Z",
+            recipient: [
+              {
+                email: "candidate@example.com",
+                name: "후보자",
+                type: "candidate",
+              },
+              {
+                email: "minji@company.com",
+                name: "민지",
+                type: "company_user",
+              },
+            ],
+            sender: {
+              email: "sender@company.com",
+              name: "서준",
+              type: "company_user",
+            },
+          },
+        ],
+        role: { name: "Backend Engineer", roleId: "role-1" },
+        state: "답장이 도착함",
+        talentId: "talent-1",
+      },
+    ],
+    notFound: [],
+    requestedCount: 1,
+  });
+
+  assert.match(
+    compact,
+    /recipient=후보자 \(후보자, candidate@example\.com\), 민지 \(회사 사용자, minji@company\.com\)/
+  );
+});
+
+test("system notices preserve Harper as the actual sender", () => {
+  const compact = serializeOrgAgentToolResult("read_contact", {
+    items: [
+      {
+        candidate: {
+          email: "candidate@example.com",
+          name: "후보자",
+          type: "candidate",
+        },
+        kind: "notice",
+        message: {
+          body: "회사 연결 안내 본문",
+          deliveryState: "발송됨",
+          recipient: {
+            email: "candidate@example.com",
+            name: "후보자",
+            type: "candidate",
+          },
+          sender: { email: null, name: "Harper", type: "harper" },
+          sentAt: "2026-09-08T01:30:00.000Z",
+          subject: "회사 연결 안내",
+        },
+        role: { name: "Backend Engineer", roleId: "role-1" },
+        state: "후보자에게 회사 연결 안내 이메일을 보냄",
+        talentId: "talent-1",
+      },
+    ],
+    notFound: [],
+    requestedCount: 1,
+  });
+
+  assert.match(compact, /kind=notice/);
+  assert.match(compact, /sender=Harper \(Harper\)/);
+  assert.match(compact, /후보자에게 회사 연결 안내 이메일을 보냄/);
 });
 
 test("candidate details always label the five insights as information told to Harper", () => {
@@ -164,6 +369,52 @@ test("candidate meeting coordination exposes exact user-safe delivery facts", ()
   assert.match(compact, /후보자에게 일정 선택 안내를 보낼 예정/);
   assert.match(compact, /candidate_context_changeable/);
   assert.doesNotMatch(compact, /queue|delivery_queue_id|schedule_id/);
+});
+
+test("candidate contact history separates email, response, and company relay milestones", () => {
+  const compact = serializeOrgAgentToolResult("read_talent", {
+    candidate: { name: "Randi", talentId: "talent-1" },
+    harperSharedInformation: [],
+    meetingHistory: [],
+    positions: [],
+    profileIncluded: false,
+    recentProgress: [],
+    requestHistory: [
+      {
+        approvedAt: "2026. 9. 7. 18:21 KST",
+        cancelable: false,
+        candidateEmailBody:
+          "Wonderful의 Site CTO 역할에 계속 관심이 있으신지 알려주세요.",
+        candidateEmailScheduledAt: "2026. 9. 7. 18:21 KST",
+        candidateEmailSentAt: "2026. 9. 7. 18:21 KST",
+        candidateEmailState: "발송됨",
+        candidateEmailSubject: "Wonderful Site CTO: Continued Interest",
+        candidateResponseReceivedAt: "2026. 9. 7. 18:36 KST",
+        candidateResponseState: "수신됨",
+        companyRelayScheduledAt: "2026. 9. 7. 18:36 KST",
+        companyRelayedAt: "2026. 9. 7. 18:36 KST",
+        companyRelayState: "전달됨",
+        createdAt: "2026. 9. 7. 18:20 KST",
+        label: "회사 질문 확인",
+        requestId: "request-1",
+        roleName: "Site CTO - Indonesia",
+        status: "후보자 메일 발송됨 · 후보자 답변 수신됨 · 회사 전달됨",
+        topic: "Wonderful에 계속 관심이 있는지 확인",
+      },
+    ],
+    resumeAvailability: { available: false, guidance: "없음" },
+  });
+
+  assert.match(compact, /candidate_email_sent_kst/);
+  assert.match(compact, /candidate_response_received_kst/);
+  assert.match(compact, /company_relayed_kst/);
+  assert.match(compact, /candidate_email_state/);
+  assert.match(compact, /발송됨/);
+  assert.match(compact, /후보자 답변 수신됨/);
+  assert.match(compact, /회사 전달됨/);
+  assert.match(compact, /Continued Interest/);
+  assert.match(compact, /계속 관심이 있으신지/);
+  assert.doesNotMatch(compact, /created_or_sent_kst/);
 });
 
 test("candidate details expose whether the current company closure notice was sent", () => {
@@ -458,14 +709,20 @@ test("candidate connection decisions return a compact outcome", () => {
 
 test("pipeline mutation results state exact effects and no candidate contact", () => {
   const structure = serializeOrgAgentToolResult("manage_role_pipeline_stages", {
-    action: "add",
+    action: "update",
     roleName: "Engineer",
     stages: [
-      { label: "기술 면접", status: "created" },
-      { label: "컬처핏 인터뷰", status: "already_exists" },
+      {
+        id: "custom:stage-1",
+        label: "기술 면접",
+        meetingCandidateMessage: "기술 경험을 중심으로 이야기합니다.",
+        meetingDurationMinutes: 45,
+        meetingPurpose: "기술 인터뷰",
+        status: "updated",
+      },
     ],
     status: "updated",
-    summary: "Engineer 파이프라인 단계 추가",
+    summary: "Engineer 기술 면접 미팅 기본값 수정",
   });
   const move = serializeOrgAgentToolResult("move_candidate_stage", {
     candidateName: "김하퍼",
@@ -475,8 +732,9 @@ test("pipeline mutation results state exact effects and no candidate contact", (
     status: "updated",
   });
 
-  assert.match(structure, /기술 면접\tcreated/);
-  assert.match(structure, /컬처핏 인터뷰\talready_exists/);
+  assert.match(structure, /custom:stage-1\t기술 면접\tupdated/);
+  assert.match(structure, /기술 인터뷰\t45/);
+  assert.match(structure, /기술 경험을 중심으로 이야기합니다/);
   assert.match(structure, /candidate_moved=false candidate_contacted=false/);
   assert.match(move, /stage changed from 1차 인터뷰 to 2차 인터뷰/);
   assert.match(move, /No candidate message or meeting request was created/);
@@ -810,19 +1068,88 @@ test("pending candidate contact results tell the model what can be replaced", ()
 
 test("scheduled candidate contact keeps timing data without transport details", () => {
   const compact = serializeOrgAgentToolResult("contact_talent", {
-    scheduledAt: "2026-08-27T15:10:00.000Z",
+    scheduledAt: "2026-08-27T14:55:00.000Z",
     status: "queued",
     userMessage:
-      "김호진님께 제가 대신 조금 뒤에 물어볼게요. 답이 오면 여기로 알려드릴게요.",
+      "네, 요청하신 내용으로 김호진님께 확인을 요청할게요. 답변이 오면 이 대화로 바로 알려드리겠습니다.",
   });
 
-  assert.match(compact, /scheduled_at=2026-08-27T15:10:00.000Z/);
-  assert.match(compact, /조금 뒤에/);
+  assert.match(compact, /scheduled_at=2026-08-27T14:55:00.000Z/);
+  assert.doesNotMatch(compact, /조금 뒤에|5분/);
+  assert.match(compact, /확인을 요청할게요/);
   assert.doesNotMatch(compact, /이메일|Harper 채팅|worker/i);
+});
+
+test("candidate contact batch results preserve counts and every item outcome", () => {
+  const compact = serializeOrgAgentToolResult("contact_talent", {
+    action: "create_draft",
+    completedCount: 1,
+    completedDistinctCandidateCount: 1,
+    incompleteCount: 1,
+    items: [
+      {
+        candidatePreferredLanguage: "English",
+        candidateName: "Laura",
+        completed: true,
+        contactId: "contact-laura",
+        index: 0,
+        revision: 1,
+        status: "draft",
+      },
+      {
+        completed: false,
+        index: 1,
+        message: "후보자 연락 이메일을 확인하지 못했어요.",
+        status: "invalid_input",
+        target: { roleId: "role-1", talentId: "talent-richard" },
+      },
+    ],
+    requestedCount: 2,
+    requestedDistinctCandidateCount: 2,
+    status: "batch_partial",
+    userMessage: "2명 중 1명은 처리했고 1명은 완료하지 못했어요.",
+  });
+
+  assert.match(compact, /requested_count=2/);
+  assert.match(compact, /requested_distinct_candidate_count=2/);
+  assert.match(compact, /completed_count=1/);
+  assert.match(compact, /completed_distinct_candidate_count=1/);
+  assert.match(compact, /incomplete_count=1/);
+  assert.match(compact, /Laura/);
+  assert.match(
+    compact,
+    /The candidate has set English as their preferred language\./
+  );
+  assert.match(compact, /talent-richard/);
+  assert.match(compact, /후보자 연락 이메일/);
+  assert.match(compact, /one approval can authorize the whole displayed set/);
+  assert.match(compact, /do not imply the whole batch succeeded/);
+});
+
+test("candidate contact batch distinguishes Role requests from unique people", () => {
+  const compact = serializeOrgAgentToolResult("contact_talent", {
+    action: "schedule",
+    completedCount: 3,
+    completedDistinctCandidateCount: 2,
+    incompleteCount: 0,
+    items: [],
+    requestedCount: 3,
+    requestedDistinctCandidateCount: 2,
+    status: "batch_complete",
+    userMessage: "3건(2명)에 대한 요청을 모두 처리했어요.",
+  });
+
+  assert.match(compact, /requested_count=3/);
+  assert.match(compact, /requested_distinct_candidate_count=2/);
+  assert.match(compact, /completed_count=3/);
+  assert.match(compact, /completed_distinct_candidate_count=2/);
+  assert.match(compact, /count candidate-Role contact requests/);
+  assert.match(compact, /distinct count whenever describing how many people/);
 });
 
 test("candidate contact drafts expose only the approval state and next decision", () => {
   const compact = serializeOrgAgentToolResult("contact_talent", {
+    candidatePreferredLanguage: "Korean",
     candidateName: "김호진",
     status: "draft",
     userMessage: "이 고정 fallback은 정상 응답에 복사하지 않습니다.",
@@ -832,10 +1159,28 @@ test("candidate contact drafts expose only the approval state and next decision"
   assert.match(compact, /approval_state=awaiting_company_confirmation/);
   assert.match(compact, /candidate_contact_state=not_sent/);
   assert.match(compact, /exact_body_appended_by_server=true/);
+  assert.match(
+    compact,
+    /The candidate has set Korean as their preferred language\./
+  );
   assert.match(compact, /company reviews the appended exact body/);
   assert.match(compact, /bring any candidate answer back to this conversation/);
   assert.doesNotMatch(compact, /writing_instruction/);
   assert.doesNotMatch(compact, /이 고정 fallback/);
+});
+
+test("candidate note results keep the saved note internal and bounded", () => {
+  const compact = serializeOrgAgentToolResult("add_candidate_note", {
+    note: "다음 통화에서 리모트 근무 선호를 다시 확인하기",
+    roleName: "Backend Engineer",
+    status: "saved",
+  });
+
+  assert.match(compact, /status=saved/);
+  assert.match(compact, /role_name=Backend Engineer/);
+  assert.match(compact, /리모트 근무 선호/);
+  assert.match(compact, /visibility=company_internal/);
+  assert.match(compact, /contacted the candidate/);
 });
 
 test("get_more_data serialization is bounded and keeps completeness markers", () => {
@@ -909,7 +1254,7 @@ test("organization-agent role results expose whole-pipeline stage counts", () =>
   assert.match(compact, /pipeline_counts_complete=false/);
   assert.match(compact, /recommended\t3/);
   assert.match(compact, /saved\t2/);
-  assert.match(compact, /salary\t연봉 7,000만–9,000만원 \+ 스톡옵션/);
+  assert.match(compact, /salaryRange\t연봉 7,000만–9,000만원 \+ 스톡옵션/);
 });
 
 test("read_role preserves the already humanized role lifecycle and work fields", () => {
@@ -943,6 +1288,9 @@ test("role pipeline reads expose ordered stage and current-stage IDs for safe mu
       {
         kind: "custom",
         label: "1차 인터뷰",
+        meetingCandidateMessage: "실무 경험을 중심으로 이야기합니다.",
+        meetingDurationMinutes: 45,
+        meetingPurpose: "1차 인터뷰",
         sortOrder: 101,
         stageId: "custom:stage-1",
       },
@@ -967,8 +1315,15 @@ test("role pipeline reads expose ordered stage and current-stage IDs for safe mu
     stageCounts: [],
   });
 
-  assert.match(compact, /stage_id\tlabel\tkind\tsort_order/);
-  assert.match(compact, /custom:stage-1\t1차 인터뷰\tcustom\t101/);
+  assert.match(
+    compact,
+    /stage_id\tlabel\tkind\tsort_order\tmeeting_purpose\tmeeting_duration_minutes/
+  );
+  assert.match(
+    compact,
+    /custom:stage-1\t1차 인터뷰\tcustom\t101\t1차 인터뷰\t45/
+  );
+  assert.match(compact, /실무 경험을 중심으로 이야기합니다/);
   assert.match(compact, /current_stage_id\tstage/);
   assert.match(compact, /talent-1\t김하퍼.*custom:stage-1\t1차 인터뷰/);
 });
@@ -1081,13 +1436,4 @@ test("tool errors give the model action-specific recovery guidance", () => {
   assert.match(readError, /Use the verified error and recovery facts/);
   assert.doesNotMatch(readError, /effect_status/);
   assert.doesNotMatch(readError, /final effect is uncertain/);
-});
-
-test("extra provider tool calls are deferred instead of cancelling the batch", () => {
-  const result = serializeOrgAgentDeferredToolCall();
-
-  assert.match(result, /status=deferred/);
-  assert.match(result, /executed=false/);
-  assert.match(result, /request it again as the next single tool call/);
-  assert.doesNotMatch(result, /error/);
 });

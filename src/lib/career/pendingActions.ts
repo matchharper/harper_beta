@@ -26,9 +26,20 @@ export type CareerPendingCallAction = {
   kind: "internal_opportunity_call";
 };
 
+export type CareerPendingCheckInCallAction = {
+  callRequest: {
+    createdAt: string;
+    id: string;
+    status: string;
+    updatedAt: string;
+  };
+  id: string;
+  kind: "career_check_in_call";
+};
+
 export type CareerPendingCompanyRequestAction = {
   companyName: string;
-  expiresAt: string;
+  expiresAt: string | null;
   id: string;
   kind: "company_request";
   prompt: string;
@@ -56,13 +67,14 @@ export type CareerPendingInternalOpportunityAction = {
 
 export type CareerPendingAction =
   | CareerPendingCallAction
+  | CareerPendingCheckInCallAction
   | CareerPendingCompanyRequestAction
   | CareerPendingFitQuestionAction
   | CareerPendingInternalOpportunityAction;
 
 export type CareerComposerPendingAction = Exclude<
   CareerPendingAction,
-  CareerPendingCallAction
+  CareerPendingCallAction | CareerPendingCheckInCallAction
 >;
 
 export type CareerPendingActionOpenTarget =
@@ -76,6 +88,21 @@ export type CareerPendingActionOpenTarget =
     };
 
 export type CareerReengagementPendingAction =
+  | {
+      actionKey: string;
+      callRequestId: string;
+      companyName: string;
+      kind: "internal_opportunity_call";
+      reason: string | null;
+      roleTitle: string;
+      status: string;
+    }
+  | {
+      actionKey: string;
+      createdAt: string;
+      kind: "career_check_in_call";
+      status: string;
+    }
   | {
       actionKey: string;
       companyName: string;
@@ -108,11 +135,19 @@ export type CareerReengagementPendingActionsSnapshot = {
   promptActions: CareerReengagementPendingAction[];
 };
 
+export const CAREER_REENGAGEMENT_PROMPT_ACTION_LIMIT = 4;
+
 export function selectCareerReengagementPromptActions(
   actions: CareerReengagementPendingAction[],
-  limit = 1
+  limit = CAREER_REENGAGEMENT_PROMPT_ACTION_LIMIT
 ) {
-  return actions.slice(0, Math.max(0, limit));
+  return actions.slice(
+    0,
+    Math.min(
+      CAREER_REENGAGEMENT_PROMPT_ACTION_LIMIT,
+      Math.max(0, Math.floor(limit))
+    )
+  );
 }
 
 const PENDING_ACTION_REFERENCE_KINDS = new Set([

@@ -20,6 +20,7 @@ import {
 } from "@/lib/talentOnboarding/server";
 import { canUseCareerDevControls } from "@/lib/internalAccess";
 import { appendRealtimeInitialResponseInstruction } from "@/lib/career/realtimeInitialResponse";
+import { touchOpenCareerCheckInCall } from "@/lib/talentOnboarding/careerCheckInCall";
 
 const TOKEN_RATE_LIMIT = new Map<string, { count: number; resetAt: number }>();
 const MAX_TOKENS_PER_MINUTE = 10;
@@ -266,6 +267,19 @@ export async function POST(req: NextRequest) {
         { error: "Invalid conversationStarterId" },
         { status: 400 }
       );
+    }
+    if (conversationStarterId === "career_check_in") {
+      const careerCheckInCall = await touchOpenCareerCheckInCall({
+        admin,
+        conversationId,
+        userId: user.id,
+      });
+      if (!careerCheckInCall) {
+        return NextResponse.json(
+          { error: "No pending career check-in call" },
+          { status: 409 }
+        );
+      }
     }
     if (internalCallRequestId) {
       const callRequest = await fetchInternalOpportunityCallRequestById({

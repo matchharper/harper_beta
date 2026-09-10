@@ -13,8 +13,8 @@ import {
 import { Tabs } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useOpsUtmSourceDetail, useOpsUtmSources } from "@/hooks/ops/useOpsUtm";
-import { fetchWithInternalAuth } from "@/lib/internalApiClient";
-import { isInternalEmail, canViewOpsUtm } from "@/lib/internalAccess";
+import { fetchWithOpsUtmAccess } from "@/lib/internalApiClient";
+import { isInternalEmail } from "@/lib/internalAccess";
 import {
   buildOpsUtmUrlQuery,
   OPS_UTM_DIMENSIONS,
@@ -336,7 +336,7 @@ function SourceEditor({
     setSaving(true);
     try {
       const response =
-        await fetchWithInternalAuth<OpsUtmSourceMutationResponse>(
+        await fetchWithOpsUtmAccess<OpsUtmSourceMutationResponse>(
           "/api/internal/ops/utm",
           {
             body: JSON.stringify({
@@ -431,7 +431,7 @@ export default function OpsUtmWorkspace() {
   const excludedEmails = useOpsInternalDataExclusionStore(
     (state) => state.emailExclusionTerms
   );
-  const canFetch = !authLoading && canViewOpsUtm(userEmail);
+  const canFetch = !authLoading;
   const canManage = !authLoading && isInternalEmail(userEmail);
   const [queryInput, setQueryInput] = useState("");
   const [editorMode, setEditorMode] = useState<EditorMode>(null);
@@ -605,7 +605,7 @@ export default function OpsUtmWorkspace() {
     }
     setDeleting(true);
     try {
-      await fetchWithInternalAuth<{ ok: boolean }>("/api/internal/ops/utm", {
+      await fetchWithOpsUtmAccess<{ ok: boolean }>("/api/internal/ops/utm", {
         body: JSON.stringify({ id: selectedRow.id }),
         headers: { "Content-Type": "application/json" },
         method: "DELETE",

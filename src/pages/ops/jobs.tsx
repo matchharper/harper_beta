@@ -24,6 +24,13 @@ import {
 import type { OpsOfficialJobSaveInput } from "@/lib/ops/officialJobs";
 import { useAuthStore } from "@/store/useAuthStore";
 import {
+  type OpsOfficialJobsLinkedinFilter,
+  type OpsOfficialJobsLocationFilter,
+  type OpsOfficialJobsStatusFilter,
+  useOpsOfficialJobsFilterStore,
+} from "@/store/useOpsOfficialJobsFilterStore";
+import { useIsDesktop, usePrefersReducedMotion } from "@/hooks/useMediaQuery";
+import {
   ArrowUpRight,
   CheckCircle2,
   LoaderCircle,
@@ -48,15 +55,12 @@ import {
 } from "@/components/ui/select";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
 
-type JobFilter = "all" | "published" | "draft";
-type LinkedinFilter = "all" | "published" | "unpublished";
-type LocationFilter = "all" | "kr" | "jp" | "us" | "uk" | "sg" | "th" | "au";
 const NEW_JOB_ID = "__new_official_job__";
 const AUTO_SAVE_DELAY_MS = 1_000;
 
 const JOB_FILTER_OPTIONS: ReadonlyArray<{
   label: string;
-  value: JobFilter;
+  value: OpsOfficialJobsStatusFilter;
 }> = [
   { label: "All", value: "all" },
   { label: "Published", value: "published" },
@@ -65,7 +69,7 @@ const JOB_FILTER_OPTIONS: ReadonlyArray<{
 
 const LINKEDIN_FILTER_OPTIONS: ReadonlyArray<{
   label: string;
-  value: LinkedinFilter;
+  value: OpsOfficialJobsLinkedinFilter;
 }> = [
   { label: "LinkedIn 전체", value: "all" },
   { label: "배포됨", value: "published" },
@@ -74,7 +78,7 @@ const LINKEDIN_FILTER_OPTIONS: ReadonlyArray<{
 
 const LOCATION_FILTER_OPTIONS: ReadonlyArray<{
   label: string;
-  value: LocationFilter;
+  value: OpsOfficialJobsLocationFilter;
 }> = [
   { label: "Location 전체", value: "all" },
   { label: "대한민국", value: "kr" },
@@ -87,7 +91,7 @@ const LOCATION_FILTER_OPTIONS: ReadonlyArray<{
 ];
 
 const LOCATION_MATCHERS: Record<
-  Exclude<LocationFilter, "all">,
+  Exclude<OpsOfficialJobsLocationFilter, "all">,
   { flags: string[]; terms: string[] }
 > = {
   kr: {
@@ -390,7 +394,10 @@ function createSlug(value: string) {
   return slug || "official-job";
 }
 
-function matchesFilter(job: OpsOfficialJobRecord, filter: JobFilter) {
+function matchesFilter(
+  job: OpsOfficialJobRecord,
+  filter: OpsOfficialJobsStatusFilter
+) {
   if (filter === "published") return job.isPublished;
   if (filter === "draft") return !job.isPublished;
   return true;
@@ -398,7 +405,7 @@ function matchesFilter(job: OpsOfficialJobRecord, filter: JobFilter) {
 
 function matchesLinkedinFilter(
   job: OpsOfficialJobRecord,
-  filter: LinkedinFilter
+  filter: OpsOfficialJobsLinkedinFilter
 ) {
   if (filter === "published") return job.isOnLinkedin;
   if (filter === "unpublished") return !job.isOnLinkedin;
@@ -415,7 +422,7 @@ function normalizeLocationTerm(value: string) {
 
 function matchesLocationFilter(
   job: OpsOfficialJobRecord,
-  filter: LocationFilter
+  filter: OpsOfficialJobsLocationFilter
 ) {
   if (filter === "all") return true;
 
@@ -458,11 +465,27 @@ export default function OpsOfficialJobsPage() {
   const authLoading = useAuthStore((state) => state.loading);
   const user = useAuthStore((state) => state.user);
   const canFetchInternal = !authLoading && isInternalEmail(user?.email);
+  const isDesktop = useIsDesktop();
+  const prefersReducedMotion = usePrefersReducedMotion();
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<JobFilter>("all");
-  const [linkedinFilter, setLinkedinFilter] = useState<LinkedinFilter>("all");
-  const [locationFilter, setLocationFilter] = useState<LocationFilter>("all");
+  const filter = useOpsOfficialJobsFilterStore((state) => state.jobFilter);
+  const linkedinFilter = useOpsOfficialJobsFilterStore(
+    (state) => state.linkedinFilter
+  );
+  const locationFilter = useOpsOfficialJobsFilterStore(
+    (state) => state.locationFilter
+  );
+  const query = useOpsOfficialJobsFilterStore((state) => state.query);
+  const setFilter = useOpsOfficialJobsFilterStore(
+    (state) => state.setJobFilter
+  );
+  const setLinkedinFilter = useOpsOfficialJobsFilterStore(
+    (state) => state.setLinkedinFilter
+  );
+  const setLocationFilter = useOpsOfficialJobsFilterStore(
+    (state) => state.setLocationFilter
+  );
+  const setQuery = useOpsOfficialJobsFilterStore((state) => state.setQuery);
   const [draftState, setDraftState] = useState<OfficialJobDraftState>({
     draft: EMPTY_DRAFT,
     initialDraft: EMPTY_DRAFT,
@@ -470,6 +493,7 @@ export default function OpsOfficialJobsPage() {
   });
   const [autoSaveState, setAutoSaveState] =
     useState<OfficialJobAutoSaveState | null>(null);
+  const detailPanelRef = useRef<HTMLElement>(null);
   const saveRequestInFlightRef = useRef(false);
   const jobsQuery = useOpsOfficialJobs(canFetchInternal);
   const internalRolesQuery =
@@ -616,6 +640,22 @@ export default function OpsOfficialJobsPage() {
     return persistDraft(draft, currentDraftKey);
   };
 
+  const scrollDetailPanelIntoView = useCallback(() => {
+    const detailPanel = detailPanelRef.current;
+    if (
+      !isDesktop ||
+      !detailPanel ||
+      detailPanel.getBoundingClientRect().top >= 0
+    ) {
+      return;
+    }
+
+    detailPanel.scrollIntoView({
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+      block: "start",
+    });
+  }, [isDesktop, prefersReducedMotion]);
+
   const startNewJob = async () => {
     if (saveRequestInFlightRef.current) return;
     if (!(await saveBeforeChangingJob())) return;
@@ -637,7 +677,11 @@ export default function OpsOfficialJobsPage() {
   };
 
   const selectJob = async (job: OpsOfficialJobRecord) => {
-    if (job.id === activeJobId || saveRequestInFlightRef.current) return;
+    if (job.id === activeJobId) {
+      scrollDetailPanelIntoView();
+      return;
+    }
+    if (saveRequestInFlightRef.current) return;
     if (!(await saveBeforeChangingJob())) return;
 
     const nextDraft = jobToDraft(job);
@@ -647,6 +691,7 @@ export default function OpsOfficialJobsPage() {
       initialDraft: nextDraft,
       key: job.id,
     });
+    scrollDetailPanelIntoView();
   };
 
   const handleGenerateSlug = () => {
@@ -738,7 +783,9 @@ export default function OpsOfficialJobsPage() {
                 <Select
                   items={JOB_FILTER_OPTIONS}
                   value={filter}
-                  onValueChange={(value) => setFilter(value as JobFilter)}
+                  onValueChange={(value) =>
+                    setFilter(value as OpsOfficialJobsStatusFilter)
+                  }
                 >
                   <SelectTrigger aria-label="공개 상태 필터" size="sm">
                     <SelectValue />
@@ -758,7 +805,7 @@ export default function OpsOfficialJobsPage() {
                   items={LINKEDIN_FILTER_OPTIONS}
                   value={linkedinFilter}
                   onValueChange={(value) =>
-                    setLinkedinFilter(value as LinkedinFilter)
+                    setLinkedinFilter(value as OpsOfficialJobsLinkedinFilter)
                   }
                 >
                   <SelectTrigger aria-label="LinkedIn 배포 상태 필터" size="sm">
@@ -779,7 +826,7 @@ export default function OpsOfficialJobsPage() {
                   items={LOCATION_FILTER_OPTIONS}
                   value={locationFilter}
                   onValueChange={(value) =>
-                    setLocationFilter(value as LocationFilter)
+                    setLocationFilter(value as OpsOfficialJobsLocationFilter)
                   }
                 >
                   <SelectTrigger
@@ -831,10 +878,11 @@ export default function OpsOfficialJobsPage() {
                     type="button"
                     onClick={() => void selectJob(job)}
                     disabled={isSavePending}
+                    aria-current={activeJobId === job.id ? "true" : undefined}
                     className={cx(
                       "block w-full border-b border-l-4 border-neutral-1000-a05 border-l-transparent px-4 py-3 text-left transition disabled:cursor-wait disabled:opacity-60",
                       activeJobId === job.id
-                        ? "bg-bg-floating"
+                        ? "border-l-neutral-800 bg-bg-floating ring-1 ring-inset ring-neutral-800"
                         : "hover:bg-bg-default/60"
                     )}
                   >
@@ -890,7 +938,7 @@ export default function OpsOfficialJobsPage() {
             </div>
           </aside>
 
-          <section className={cx(opsTheme.panel, "p-5")}>
+          <section ref={detailPanelRef} className={cx(opsTheme.panel, "p-5")}>
             <div className="flex flex-col gap-4 border-b border-neutral-1000-a05 pb-5 md:flex-row md:items-start md:justify-between">
               <div>
                 <h2 className="mt-1 text-xl font-medium text-neutral-primary">

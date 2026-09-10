@@ -13,10 +13,12 @@ import Head from "next/head";
 import { useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { usePublicPageVisitLog } from "@/hooks/usePublicPageVisitLog";
+import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 
 const CONTACT_EMAIL = "chris@matchharper.com";
 const HARPER_COMPANY_NAME = "harper";
 const HARPER_ABOUT_JOBS_LIMIT = 4;
+const ABOUT_PAGE_URL = `${getConfiguredPublicSiteUrl()}/about`;
 
 type AboutPageProps = {
   harperJobs: OfficialJobListItem[];
@@ -99,6 +101,15 @@ export default function AboutPage({ harperJobs, locale }: AboutPageProps) {
           name="description"
           content="A note from Harper's founders on why Harper was built."
         />
+        <link rel="canonical" href={ABOUT_PAGE_URL} />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Harper" />
+        <meta property="og:title" content="A Note from the Founders - Harper" />
+        <meta
+          property="og:description"
+          content="A note from Harper's founders on why Harper was built."
+        />
+        <meta property="og:url" content={ABOUT_PAGE_URL} />
         <link rel="icon" href="/images/logo.ico" />
       </Head>
 
@@ -199,9 +210,9 @@ export default function AboutPage({ harperJobs, locale }: AboutPageProps) {
   );
 }
 
-export const getServerSideProps: GetServerSideProps<
-  AboutPageProps
-> = async (context) => {
+export const getServerSideProps: GetServerSideProps<AboutPageProps> = async (
+  context
+) => {
   const jobs = await getPublicOfficialJobListItems();
   const harperJobs = jobs
     .filter(isHarperOfficialJob)

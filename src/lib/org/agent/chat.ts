@@ -32,14 +32,9 @@ import {
   buildOrgAgentUserPrompt,
 } from "@/lib/org/agent/prompts";
 import {
-  serializeOrgAgentDeferredToolCall,
   serializeOrgAgentToolError,
   serializeOrgAgentToolResult,
 } from "@/lib/org/agent/promptFormat";
-import {
-  findNewOrgAgentInternalArtifacts,
-  replaceNewOrgAgentInternalTokens,
-} from "@/lib/org/agent/responseGuard";
 import { maybeSummarizeOrgAgentConversation } from "@/lib/org/agent/summary";
 import {
   ensureOrgAgentConversation,
@@ -166,9 +161,11 @@ type OrgAgentLlmMessage = {
   tool_calls?: OrgAgentLlmToolCall[];
 };
 
-// One completion may request one tool; each result informs the next decision.
-const MAX_TOOL_LOOPS = 10;
-const MAX_TOTAL_TOOL_CALLS = 10;
+// A completion may request several independent tools. Thirty calls is the
+// explicit per-turn safety boundary; normal batch work should need far fewer
+// model round trips.
+const MAX_TOOL_LOOPS = 30;
+const MAX_TOTAL_TOOL_CALLS = 30;
 const TOOL_FREE_FINAL_MAX_TOKENS = 2_000;
 type OrgAgentTurnUsage = NonNullable<OrgAgentMessageMetadata["llmUsage"]>;
 
@@ -386,7 +383,7 @@ async function runCompletion(args: {
       temperature: 0.1,
       ...(args.allowTools
         ? {
-            parallel_tool_calls: false,
+            parallel_tool_calls: true,
             tool_choice: "auto" as const,
             tools: getEnabledOrgAgentTools(args.surface) as any,
           }
@@ -406,76 +403,6 @@ async function runCompletion(args: {
     },
     signal: args.signal,
   });
-}
-
-async function correctOrgAgentInternalTokenLeak(args: {
-  debugCalls: LlmDebugCall[];
-  model: OrgAgentModelId;
-  reasoningEffort?: OrgAgentReasoningEffort;
-  reply: string;
-  signal?: AbortSignal;
-  strictModel?: boolean;
-  usage: OrgAgentTurnUsage;
-  userMessage: string;
-}) {
-  const leaked = findNewOrgAgentInternalArtifacts(args);
-  if (leaked.length === 0) {
-    return { attempted: false, model: args.model, reply: args.reply };
-  }
-  try {
-    const correction = await runCompletion({
-      allowTools: false,
-      maxTokens: NORMAL_TOOL_COMPLETION_MAX_TOKENS,
-      messages: [
-        {
-          content:
-            "Rewrite the draft as a natural user-facing answer in the same language. Replace internal enum/token names with ordinary human wording. Preserve every fact, decision, caveat, and Markdown structure. Do not mention this rewrite or add new information.",
-          role: "system",
-        },
-        {
-          content: `Leaked internal tokens: ${leaked.join(", ")}\n\n<draft>\n${args.reply}\n</draft>`,
-          role: "user",
-        },
-      ],
-      model: args.model,
-      reasoningEffort: args.reasoningEffort,
-      signal: args.signal,
-      strictModel: args.strictModel,
-    });
-    addCompletionUsage({
-      debugCalls: args.debugCalls,
-      model: correction.model,
-      response: correction.response,
-      step: "internal_token_correction",
-      usage: args.usage,
-    });
-    const reply = extractAssistantText(
-      correction.response?.choices?.[0]?.message
-    );
-    if (
-      reply &&
-      findNewOrgAgentInternalArtifacts({
-        reply,
-        userMessage: args.userMessage,
-      }).length === 0
-    ) {
-      return {
-        attempted: true,
-        model: correction.model as OrgAgentModelId,
-        reply,
-      };
-    }
-  } catch (error) {
-    console.error(
-      "[org/agent:internal-token-correction]",
-      getLlmErrorMessage(error)
-    );
-  }
-  return {
-    attempted: true,
-    model: args.model,
-    reply: replaceNewOrgAgentInternalTokens(args),
-  };
 }
 
 async function runOrgAgentToolLoop(args: {
@@ -532,6 +459,7 @@ async function runOrgAgentToolLoop(args: {
   let fallbackReason: ChatCompletionFallbackReason | null = null;
   let totalToolCalls = 0;
   let totalToolResultChars = 0;
+  let toolBudgetReached = false;
   const usage = createTurnUsage();
   const debugCalls: LlmDebugCall[] = [];
 
@@ -602,8 +530,7 @@ async function runOrgAgentToolLoop(args: {
       tool_calls: toolCalls,
     });
 
-    const deferredToolCalls = toolCalls.slice(1);
-    for (const toolCall of toolCalls.slice(0, 1)) {
+    for (const toolCall of toolCalls) {
       args.signal?.throwIfAborted();
       const toolName = toolCall.function.name;
       const toolDebugInput = args.debug
@@ -627,6 +554,7 @@ async function runOrgAgentToolLoop(args: {
         } satisfies OrgAgentToolDebugEvent);
       };
       if (totalToolCalls >= MAX_TOTAL_TOOL_CALLS) {
+        toolBudgetReached = true;
         messages.push({
           content: serializeOrgAgentToolError({
             kind: "budget",
@@ -824,26 +752,8 @@ async function runOrgAgentToolLoop(args: {
         });
       }
     }
-    for (const deferredCall of deferredToolCalls) {
-      messages.push({
-        content: serializeOrgAgentDeferredToolCall(),
-        name: deferredCall.function.name || "unknown_tool",
-        role: "tool",
-        tool_call_id: deferredCall.id,
-      });
-      if (args.debug) {
-        args.emit?.("tool_debug", {
-          callId: deferredCall.id,
-          durationMs: 0,
-          input: summarizeOrgAgentToolInput(deferredCall.function.arguments),
-          loop: loop + 1,
-          name: deferredCall.function.name || "unknown_tool",
-          status: "skipped",
-          summary: "deferred until the next reasoning step",
-        } satisfies OrgAgentToolDebugEvent);
-      }
-    }
     promoteOrgAgentToolReadVisibility(state);
+    if (toolBudgetReached || totalToolCalls >= MAX_TOTAL_TOOL_CALLS) break;
   }
 
   let finalCompletion: Awaited<ReturnType<typeof runCompletion>>;
@@ -924,9 +834,6 @@ function buildAssistantMetadata(args: {
       contactDraftRefs: args.state.contactDraftRefs,
     }),
     fallbackReason: args.fallbackReason,
-    ...(args.state.internalTokenCorrectionCount > 0 && {
-      internalTokenCorrectionCount: args.state.internalTokenCorrectionCount,
-    }),
     llmUsage: args.usage,
     model: args.model,
     ...(args.state.preferredRoleId && {
@@ -1235,33 +1142,11 @@ export async function runOrgAgentChat(args: {
       (value, exact) => value.replace(exact, "").trim(),
       llmResult.reply
     );
-    const corrected = await correctOrgAgentInternalTokenLeak({
-      debugCalls: llmResult.debugCalls,
-      model: llmResult.model,
-      reasoningEffort: llmResult.state.toolResults.some(
-        (result) =>
-          result.name === "calibrate_role_hiring_brief" &&
-          result.status === "success"
-      )
-        ? "max"
-        : DEFAULT_ORG_AGENT_REASONING_EFFORT,
-      reply: draftProse,
-      signal: args.signal,
-      strictModel: llmResult.state.toolResults.some(
-        (result) =>
-          result.name === "calibrate_role_hiring_brief" &&
-          result.status === "success"
-      ),
-      usage: llmResult.usage,
-      userMessage: llmUserMessage,
-    });
-    llmResult.model = corrected.model;
-    llmResult.state.internalTokenCorrectionCount += corrected.attempted ? 1 : 0;
     llmResult.reply = enforceOrgAgentReplyInvariants(
       llmResult.state,
-      corrected.reply ||
+      draftProse ||
         llmResult.state.fallbackReply ||
-        "내부 상태를 사람이 읽을 수 있는 표현으로 바꾸지 못했습니다. 잠시 후 다시 시도해 주세요."
+        "지금은 답변을 만들지 못했습니다. 잠시 후 다시 시도해 주세요."
     );
     if (args.debug) {
       args.emit?.("llm_debug", summarizeLlmDebugCalls(llmResult.debugCalls));

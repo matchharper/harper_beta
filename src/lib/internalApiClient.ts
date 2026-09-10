@@ -56,3 +56,37 @@ export async function fetchWithInternalAuth<T>(
 
   return payload;
 }
+
+export async function fetchWithOpsUtmAccess<T>(
+  input: string,
+  init?: RequestInit
+) {
+  const fetchRequest = (accessToken?: string | null) =>
+    fetch(input, {
+      ...init,
+      credentials: "same-origin",
+      headers: {
+        ...(init?.headers ?? {}),
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+    });
+
+  let accessToken = await getInternalAccessToken();
+  let response = await fetchRequest(accessToken);
+  if (response.status === 401) {
+    const refreshedAccessToken = await refreshInternalAccessToken();
+    if (refreshedAccessToken && refreshedAccessToken !== accessToken) {
+      accessToken = refreshedAccessToken;
+      response = await fetchRequest(accessToken);
+    }
+  }
+
+  const payload = (await response.json().catch(() => ({}))) as T & {
+    error?: string;
+  };
+  if (!response.ok) {
+    throw new Error(payload.error ?? "요청을 처리하지 못했습니다.");
+  }
+
+  return payload;
+}
