@@ -1973,7 +1973,7 @@ export const en = {
     "career.profile.career_profile_links_settings_section.0q4dh49":
       "Harper reviews recruiting-related emails from the past two years and organizes confirmed companies, roles, and key stages. It uses this to understand your career history and interests and avoid recommending opportunities you have already applied to.",
     "career.profile.career_profile_links_settings_section.0rr9dvp":
-      "Harper remembers imported information privately and does not share it with companies. Emails without reliable evidence of an application are not remembered.",
+      "Harper keeps imported information private and does not share it with companies. It does not remember emails without clear evidence of a job application.",
     "career.profile.career_profile_links_settings_section.0xqdt60":
       "Checking that your account is securely connected.",
     "career.profile.career_profile_links_settings_section.0z48n2w": "Import",
