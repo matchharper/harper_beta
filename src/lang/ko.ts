@@ -1602,6 +1602,9 @@ export const ko = {
     "career.history.talent_role_activity_timeline.memo": "메모",
     "career.history.talent_role_activity_timeline.past_meeting": "지난 미팅",
     "career.history.talent_role_activity_timeline.stage_changed": "단계 변경",
+    "career.history.mock_interview.description":
+      "Harper와 실제 면접처럼 대화하며 이 포지션의 인터뷰를 준비해보세요.",
+    "career.history.mock_interview.action": "모의 인터뷰 해보기",
     "career.history.talent_role_activity_timeline.title": "내 활동",
     "career.history.talent_role_activity_timeline.upcoming_meeting":
       "예정된 미팅",

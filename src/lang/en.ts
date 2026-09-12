@@ -1615,6 +1615,9 @@ export const en = {
     "career.history.talent_role_activity_timeline.past_meeting": "Past meeting",
     "career.history.talent_role_activity_timeline.stage_changed":
       "Stage changed",
+    "career.history.mock_interview.description":
+      "Prepare for this role with Harper in a conversation that feels like a real interview.",
+    "career.history.mock_interview.action": "Try a mock interview",
     "career.history.talent_role_activity_timeline.title": "My activity",
     "career.history.talent_role_activity_timeline.upcoming_meeting":
       "Upcoming meeting",

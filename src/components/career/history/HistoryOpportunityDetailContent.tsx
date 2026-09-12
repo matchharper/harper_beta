@@ -28,7 +28,7 @@ import { OpportunityType } from "@/lib/opportunityType";
 import { Badge } from "@/components/ui/badge";
 import { getOpportunityPostingStatus } from "./opportunityPostingStatus";
 import OpportunityPreferenceFit from "./OpportunityPreferenceFit";
-import { BareButton } from "@/components/ui/button";
+import { BareButton, MuteButton } from "@/components/ui/button";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 import { InternalOpportunityDecisionMenu } from "./InternalOpportunityDecisionActions";
@@ -606,6 +606,24 @@ export const HistoryOpportunityInlinePage = ({
         onOpenLink={onOpenLink}
         onOpenOpportunityInfo={onOpenOpportunityInfo}
       />
+
+      <div className="mt-6 flex flex-wrap items-center gap-4 rounded-xl border border-neutral-1000-a05 bg-bg-floating p-4">
+        <p className="min-w-0 flex-1 basis-[240px] text-[13px] leading-6 text-neutral-muted">
+          {t(
+            "career.history.mock_interview.description",
+            "Harper와 실제 면접처럼 대화하며 이 포지션의 인터뷰를 준비해보세요."
+          )}
+        </p>
+        {/* UI preview only; mock interview sessions are not connected yet. */}
+        <MuteButton
+          aria-disabled="true"
+          className="shrink-0"
+          size="lg"
+          variant="neutral"
+        >
+          {t("career.history.mock_interview.action", "모의 인터뷰 해보기")}
+        </MuteButton>
+      </div>
 
       <TalentRoleActivityTimeline
         item={item}
