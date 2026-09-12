@@ -315,7 +315,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const [isConnecting, setIsConnecting] = useState(false);
   const [partialTranscript, setPartialTranscript] = useState("");
   const [isAssistantSpeaking, setIsAssistantSpeaking] = useState(false);
-  const [isToolExecuting, setIsToolExecuting] = useState(false);
+  const [activeToolNames, setActiveToolNames] = useState<string[]>([]);
+  const isToolExecuting = activeToolNames.length > 0;
   const [connectionStatus, setConnectionStatus] = useState<
     "connected" | "reconnecting" | "disconnected"
   >("disconnected");
@@ -351,7 +352,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     Array<{ arguments: string; callId: string; name: string }>
   >([]);
   const nextToolExecutionIdRef = useRef(1);
-  const activeToolExecutionIdsRef = useRef<Set<number>>(new Set());
+  const activeToolExecutionIdsRef = useRef<Map<number, string>>(new Map());
 
   const currentResponseAssistantItemIdsRef = useRef<string[]>([]);
   const currentResponseStartedAfterUserSpeechRef = useRef(false);
@@ -1178,6 +1179,18 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     [runAfterCurrentPlayback, sendEvent]
   );
 
+  const beginToolExecution = useCallback((toolName: string) => {
+    const executionId = nextToolExecutionIdRef.current++;
+    activeToolExecutionIdsRef.current.set(executionId, toolName);
+    setActiveToolNames([...activeToolExecutionIdsRef.current.values()]);
+    return executionId;
+  }, []);
+
+  const finishToolExecution = useCallback((executionId: number) => {
+    activeToolExecutionIdsRef.current.delete(executionId);
+    setActiveToolNames([...activeToolExecutionIdsRef.current.values()]);
+  }, []);
+
   const resolveFunctionCalls = useCallback(
     async (
       functionCalls: Array<{
@@ -1200,6 +1213,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           parsedArguments = { _raw: functionCall.arguments };
         }
 
+        const executionId = beginToolExecution(functionCall.name);
         let output: unknown;
         try {
           if (!conversationId) {
@@ -1230,6 +1244,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             error:
               error instanceof Error ? error.message : "Tool execution failed",
           };
+        } finally {
+          finishToolExecution(executionId);
         }
 
         outputs.push({
@@ -1240,21 +1256,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
 
       return outputs;
     },
-    [conversationId, fetchWithAuth]
+    [beginToolExecution, conversationId, fetchWithAuth, finishToolExecution]
   );
-
-  const beginToolExecution = useCallback(() => {
-    const executionId = nextToolExecutionIdRef.current;
-    nextToolExecutionIdRef.current += 1;
-    activeToolExecutionIdsRef.current.add(executionId);
-    setIsToolExecuting(true);
-    return executionId;
-  }, []);
-
-  const finishToolExecution = useCallback((executionId: number) => {
-    activeToolExecutionIdsRef.current.delete(executionId);
-    setIsToolExecuting(activeToolExecutionIdsRef.current.size > 0);
-  }, []);
 
   const getToolVoicePreamble = useCallback(
     (
@@ -1284,10 +1287,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
         name: string;
       }>
     ) => {
-      const toolExecutionId = beginToolExecution();
-      const outputPromise = resolveFunctionCalls(functionCalls).finally(() => {
-        finishToolExecution(toolExecutionId);
-      });
+      const outputPromise = resolveFunctionCalls(functionCalls);
       const preamble = getToolVoicePreamble(functionCalls);
 
       if (preamble) {
@@ -1305,8 +1305,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       sendFunctionCallOutputs(outputs);
     },
     [
-      beginToolExecution,
-      finishToolExecution,
       getToolVoicePreamble,
       requestExactSpeech,
       resolveFunctionCalls,
@@ -1898,7 +1896,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     xaiTranscriptTurnRef.current = createXaiTranscriptTurnState();
     pendingResponseFunctionCallsRef.current = [];
     activeToolExecutionIdsRef.current.clear();
-    setIsToolExecuting(false);
+    setActiveToolNames([]);
     currentResponseAssistantItemIdsRef.current = [];
     currentResponseStartedAfterUserSpeechRef.current = false;
     nextAudioDeleteEventIdRef.current = 1;
@@ -2350,6 +2348,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     isConnecting,
     isAssistantSpeaking,
     isToolExecuting,
+    activeToolNames,
     partialTranscript,
     connectionStatus,
     connect,

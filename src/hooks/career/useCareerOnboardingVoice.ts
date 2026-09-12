@@ -1977,5 +1977,6 @@ export const useCareerOnboardingVoice = ({
     resetOnboardingState,
     isAssistantSpeaking: realtimeSession.isAssistantSpeaking,
     isVoiceToolExecuting: realtimeSession.isToolExecuting,
+    voiceActiveToolNames: realtimeSession.activeToolNames,
   };
 };

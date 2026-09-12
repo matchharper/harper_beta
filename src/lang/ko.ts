@@ -635,6 +635,12 @@ export const ko = {
     "career.chat.career_call_screen.1914g7j": "음소거",
     "career.chat.career_call_screen.1lwovam": "커리어 인터뷰 진행률",
     "career.chat.career_call_screen.force_complete_label": "지금 마무리하기",
+    "career.call.tool_status.web_search": "웹 검색 중...",
+    "career.call.tool_status.recommendations": "기존 추천 조회 중...",
+    "career.call.tool_status.role_context": "포지션 상세 조회 중...",
+    "career.call.tool_status.read_context": "사용자 정보 조회 중...",
+    "career.call.tool_status.write_context": "사용자 정보 업데이트 중...",
+    "career.call.tool_status.default": "요청 처리 중...",
     "career.chat.career_call_screen.tool_executing": "정보 찾는 중...",
     "career.chat.career_composer_section.017fk2m":
       "원하는 역할이나 조건을 편하게 알려주세요. @로 기회를 선택하세요.",
