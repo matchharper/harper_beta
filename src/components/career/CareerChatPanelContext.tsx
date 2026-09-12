@@ -152,6 +152,7 @@ export type CareerChatPanelContextValue = {
   callConnectionStatus?: "connected" | "reconnecting" | "disconnected";
   isAssistantSpeaking?: boolean;
   isVoiceToolExecuting?: boolean;
+  voiceActiveToolNames?: string[];
 };
 
 export type CareerCallContextValue = Pick<
@@ -160,6 +161,7 @@ export type CareerCallContextValue = Pick<
   | "callTranscriptEntries"
   | "isAssistantSpeaking"
   | "isVoiceToolExecuting"
+  | "voiceActiveToolNames"
   | "liveUserTranscriptPlacement"
   | "onEndCallMode"
   | "onToggleVoiceMute"

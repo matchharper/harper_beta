@@ -617,6 +617,12 @@ export const en = {
     "career.chat.career_call_screen.1914g7j": "Mute",
     "career.chat.career_call_screen.1lwovam": "Career Interview Progress",
     "career.chat.career_call_screen.force_complete_label": "Finish Now",
+    "career.call.tool_status.web_search": "Searching the web...",
+    "career.call.tool_status.recommendations": "Checking previous recommendations...",
+    "career.call.tool_status.role_context": "Checking position details...",
+    "career.call.tool_status.read_context": "Reading your saved information...",
+    "career.call.tool_status.write_context": "Updating your saved information...",
+    "career.call.tool_status.default": "Processing your request...",
     "career.chat.career_call_screen.tool_executing":
       "Looking up information...",
     "career.chat.career_composer_section.017fk2m":
@@ -1615,6 +1621,9 @@ export const en = {
     "career.history.talent_role_activity_timeline.past_meeting": "Past meeting",
     "career.history.talent_role_activity_timeline.stage_changed":
       "Stage changed",
+    "career.history.mock_interview.description":
+      "Prepare for this role with Harper in a conversation that feels like a real interview.",
+    "career.history.mock_interview.action": "Try a mock interview",
     "career.history.talent_role_activity_timeline.title": "My activity",
     "career.history.talent_role_activity_timeline.upcoming_meeting":
       "Upcoming meeting",

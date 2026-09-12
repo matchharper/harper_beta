@@ -635,6 +635,12 @@ export const ko = {
     "career.chat.career_call_screen.1914g7j": "음소거",
     "career.chat.career_call_screen.1lwovam": "커리어 인터뷰 진행률",
     "career.chat.career_call_screen.force_complete_label": "지금 마무리하기",
+    "career.call.tool_status.web_search": "웹 검색 중...",
+    "career.call.tool_status.recommendations": "기존 추천 조회 중...",
+    "career.call.tool_status.role_context": "포지션 상세 조회 중...",
+    "career.call.tool_status.read_context": "사용자 정보 조회 중...",
+    "career.call.tool_status.write_context": "사용자 정보 업데이트 중...",
+    "career.call.tool_status.default": "요청 처리 중...",
     "career.chat.career_call_screen.tool_executing": "정보 찾는 중...",
     "career.chat.career_composer_section.017fk2m":
       "원하는 역할이나 조건을 편하게 알려주세요. @로 기회를 선택하세요.",
@@ -1602,6 +1608,9 @@ export const ko = {
     "career.history.talent_role_activity_timeline.memo": "메모",
     "career.history.talent_role_activity_timeline.past_meeting": "지난 미팅",
     "career.history.talent_role_activity_timeline.stage_changed": "단계 변경",
+    "career.history.mock_interview.description":
+      "Harper와 실제 면접처럼 대화하며 이 포지션의 인터뷰를 준비해보세요.",
+    "career.history.mock_interview.action": "모의 인터뷰 해보기",
     "career.history.talent_role_activity_timeline.title": "내 활동",
     "career.history.talent_role_activity_timeline.upcoming_meeting":
       "예정된 미팅",

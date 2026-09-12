@@ -195,7 +195,25 @@ const CareerCallScreen = () => {
     callConnectionStatus,
     isAssistantSpeaking,
     isVoiceToolExecuting,
+    voiceActiveToolNames = [],
   } = useCareerCallContext();
+
+  const getToolStatus = (toolName: string) => {
+    switch (toolName) {
+      case "web_search":
+        return t("career.call.tool_status.web_search", "웹 검색 중...");
+      case "read_recommended_opportunities":
+        return t("career.call.tool_status.recommendations", "기존 추천 조회 중...");
+      case "get_role_context":
+        return t("career.call.tool_status.role_context", "포지션 상세 조회 중...");
+      case "read_talent_context":
+        return t("career.call.tool_status.read_context", "사용자 정보 조회 중...");
+      case "write_talent_context":
+        return t("career.call.tool_status.write_context", "사용자 정보 업데이트 중...");
+      default:
+        return t("career.call.tool_status.default", "요청 처리 중...");
+    }
+  };
 
   const [showTranscript, setShowTranscript] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
@@ -314,15 +332,17 @@ const CareerCallScreen = () => {
 
         {isVoiceToolExecuting ? (
           <div
-            className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-neutral-soft"
+            className="mt-2 inline-flex max-w-full items-center gap-1.5 px-4 text-center text-xs font-medium text-neutral-soft"
             role="status"
             aria-live="polite"
           >
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            {t(
-              "career.chat.career_call_screen.tool_executing",
-              "정보 찾는 중..."
-            )}
+            <span>
+              {(voiceActiveToolNames.length > 0
+                ? [...new Set(voiceActiveToolNames.map(getToolStatus))]
+                : [getToolStatus("")]
+              ).join(" · ")}
+            </span>
           </div>
         ) : null}
 
