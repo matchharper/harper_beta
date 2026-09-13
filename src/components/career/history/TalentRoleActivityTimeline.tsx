@@ -171,7 +171,7 @@ export default function TalentRoleActivityTimeline({
             )}
           </div>
         ) : (
-          <ol className="divide-y divide-neutral-1000-a05">
+          <ol className="">
             {timelineEntries.map((entry) => {
               if (entry.type === "meeting") {
                 const meetingDateTime = formatCareerMeetingDateTimeRange({
@@ -202,7 +202,7 @@ export default function TalentRoleActivityTimeline({
 
                 return (
                   <li
-                    className="flex items-start gap-3 py-3 first:pt-0"
+                    className="flex items-start gap-3 py-2 first:pt-0"
                     key={entry.id}
                   >
                     <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-bg-weak text-neutral-muted">

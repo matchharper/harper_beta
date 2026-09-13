@@ -47,6 +47,10 @@ import {
 } from "@/hooks/career/useGmailIntegration";
 import { getErrorMessage, toUiMessage } from "@/hooks/career/careerHelpers";
 import { useCareerHistoryState } from "@/hooks/career/useCareerHistoryState";
+import {
+  useCareerLiveSync,
+  type CareerLiveSyncScope,
+} from "@/hooks/career/useCareerLiveSync";
 import { useCareerRuntimeActions } from "@/hooks/career/useCareerRuntimeActions";
 import {
   useCareerAutomaticSessionReengagement,
@@ -1334,6 +1338,43 @@ export const CareerFlowProvider = ({
       replacePendingInternalOpportunityCallRequests,
     ]
   );
+
+  const syncCareerWorkspace = useCallback(
+    async (scopes: CareerLiveSyncScope[]) => {
+      const refreshAll = scopes.includes("all");
+      const refreshMessages = refreshAll || scopes.includes("messages");
+      const refreshHistory = refreshAll || scopes.includes("opportunities");
+      const refreshRuns = refreshAll || scopes.includes("runs");
+      await Promise.all([
+        refreshMessages ? invalidateMessageHistory() : Promise.resolve(),
+        refreshHistory
+          ? refreshLatestHistoryOpportunities()
+          : Promise.resolve(),
+        refreshRuns
+          ? fetchWithAuth("/api/talent/opportunity-runs/latest")
+              .then(async (response) => {
+                const payload = (await response.json().catch(() => ({}))) as {
+                  run?: CareerOpportunityRun | null;
+                };
+                if (response.ok) setOpportunityRun(payload.run ?? null);
+              })
+              .catch(() => undefined)
+          : Promise.resolve(),
+      ]);
+    },
+    [
+      fetchWithAuth,
+      invalidateMessageHistory,
+      refreshLatestHistoryOpportunities,
+      setOpportunityRun,
+    ]
+  );
+
+  useCareerLiveSync({
+    enabled: !authLoading && Boolean(userId),
+    onSync: syncCareerWorkspace,
+    userId,
+  });
 
   useEffect(() => {
     if (isGmailCareerHistoryAnalysisRunning(gmailIntegration.analysisStatus)) {

@@ -6,7 +6,11 @@ import {
   normalizePostingRoleId,
   toPostingOpportunityId,
 } from "@/lib/career/postingLinks";
-import { OpportunityType, isOpportunityType } from "@/lib/opportunityType";
+import {
+  OpportunityType,
+  isOpportunityType,
+  paginateNewOpportunityHistory,
+} from "@/lib/opportunityType";
 import { resolveCompanyLogoUrl } from "@/lib/imageUrl";
 
 type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
@@ -32,8 +36,10 @@ type RawRecommendationRow = {
   opportunity_type: string | null;
   preference_fit: Json | null;
   fit_reasons: Json;
+  rank: number | null;
   role_id: string;
   saved_stage: string | null;
+  score: number | null;
   talent_memo: string | null;
   tradeoffs: Json;
   viewed_at: string | null;
@@ -161,6 +167,8 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
   role_id,
   opportunity_type,
   preference_fit,
+  rank,
+  score,
   fit_summary,
   created_at,
   fit_reasons,
@@ -418,9 +426,11 @@ export type TalentOpportunityHistoryItem = {
   opportunityType: OpportunityType;
   postedAt: string | null;
   preferenceFit: TalentOpportunityPreferenceFitItem[];
+  recommendationRank: number | null;
   recommendedAt: string;
   recommendationConcerns: string[];
   recommendationReasons: string[];
+  recommendationScore: number | null;
   recommendationSummary: string | null;
   roleId: string;
   savedStage: TalentOpportunitySavedStage | null;
@@ -1195,7 +1205,8 @@ function buildTalentOpportunityHistoryQuery(args: {
   )
     .select(TALENT_OPPORTUNITY_HISTORY_SELECT)
     .eq("talent_id", args.userId)
-    .order("created_at", { ascending: false }) as any;
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: true }) as any;
 
   if (args.sourceType) {
     query = query.eq("company_role.source_type", args.sourceType);
@@ -1662,9 +1673,17 @@ function mapRecommendationRow(
     opportunityType,
     postedAt: role.posted_at ?? null,
     preferenceFit: normalizePreferenceFit(row.preference_fit ?? null),
+    recommendationRank:
+      typeof row.rank === "number" && Number.isFinite(row.rank)
+        ? row.rank
+        : null,
     recommendedAt: row.created_at,
     recommendationConcerns: normalizeTextList(row.tradeoffs, 3),
     recommendationReasons: normalizeTextList(row.fit_reasons),
+    recommendationScore:
+      typeof row.score === "number" && Number.isFinite(row.score)
+        ? row.score
+        : null,
     recommendationSummary:
       getLocalizedRoleSummaryContent(role.summary, locale) ??
       row.fit_summary ??
@@ -1781,6 +1800,7 @@ function mapPostingRoleRow(
     preferenceFit: normalizePreferenceFit(
       existingRecommendation?.preference_fit ?? null
     ),
+    recommendationRank: null,
     recommendedAt:
       existingRecommendation?.created_at ??
       row.posted_at ??
@@ -1792,6 +1812,7 @@ function mapPostingRoleRow(
     recommendationReasons: normalizeTextList(
       existingRecommendation?.fit_reasons ?? []
     ),
+    recommendationScore: null,
     recommendationSummary:
       getLocalizedRoleSummaryContent(row.summary, locale) ??
       existingRecommendation?.fit_summary ??
@@ -2298,16 +2319,28 @@ async function fetchFilteredTalentOpportunityHistoryPage(args: {
     args.historyTab === "saved"
       ? filterHistoryItemsForSavedStage(allItems, args.savedStage)
       : allItems;
-  const items = filteredItems.slice(args.offset, args.offset + args.limit);
+  const page =
+    args.historyTab === "new"
+      ? paginateNewOpportunityHistory(filteredItems, args.offset, args.limit)
+      : (() => {
+          const items = filteredItems.slice(
+            args.offset,
+            args.offset + args.limit
+          );
+          return {
+            items,
+            nextOffset:
+              args.offset + items.length < filteredItems.length
+                ? args.offset + items.length
+                : null,
+          };
+        })();
 
   return {
     counts,
-    items,
+    items: page.items,
     limit: args.limit,
-    nextOffset:
-      args.offset + items.length < filteredItems.length
-        ? args.offset + items.length
-        : null,
+    nextOffset: page.nextOffset,
     offset: args.offset,
   };
 }

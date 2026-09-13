@@ -339,7 +339,9 @@ class SchemaPreflightTests(unittest.TestCase):
                 {
                     "public.enqueue_company_context_run_v1(uuid,text,timestamp with time zone)",
                     "public.enqueue_due_company_context_runs_v1(timestamp with time zone)",
+                    "public.enqueue_scheduled_company_runs_v1(uuid,timestamp with time zone)",
                     "public.claim_company_context_run_v1(text,uuid)",
+                    "public.claim_scheduled_company_run_v1(text,uuid)",
                     "public.finish_company_context_run_v1(uuid,text,jsonb)",
                 },
                 {

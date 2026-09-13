@@ -35,6 +35,7 @@ export type ChatComposerActionMenuItem = {
 
 type ChatComposerActionMenuProps = {
   align?: "start" | "center" | "end";
+  animated?: boolean;
   className?: string;
   contentClassName?: string;
   disabled?: boolean;
@@ -47,6 +48,7 @@ type ChatComposerActionMenuProps = {
 
 export function ChatComposerActionMenu({
   align = "start",
+  animated = true,
   className,
   contentClassName,
   disabled = false,
@@ -98,7 +100,9 @@ export function ChatComposerActionMenu({
         className={cn(
           "w-[min(320px,calc(100vw-32px))] p-0 text-neutral-primary",
           CHAT_COMPOSER_PICKER_SURFACE_CLASS_NAME,
-          "data-[state=open]:duration-200 data-[state=closed]:duration-150 data-[state=closed]:slide-out-to-bottom-2 data-[side=top]:slide-in-from-bottom-3",
+          animated
+            ? "data-[state=open]:duration-200 data-[state=closed]:duration-150 data-[state=closed]:slide-out-to-bottom-2 data-[side=top]:slide-in-from-bottom-3"
+            : "data-[state=open]:!animate-none data-[state=closed]:!animate-none",
           contentClassName
         )}
       >

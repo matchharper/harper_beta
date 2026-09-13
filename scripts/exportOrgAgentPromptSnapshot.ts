@@ -324,7 +324,7 @@ async function main() {
     maxTokens,
     model,
     openAIResponsesReasoningEffort: "high",
-    deepSeekThinkingReasoningEffort: "high",
+    chatCompletionReasoningEffort: "high",
     temperature: 0.1,
     toolChoice: "auto",
   };

@@ -30,20 +30,22 @@ import {
 } from "@/lib/llm/modelConfig";
 import { DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT } from "@/lib/opportunityDiscovery/types";
 import { useCareerDevSqlPromptHistoryStore } from "@/store/useCareerDevSqlPromptHistoryStore";
+import { useCareerVoiceModelStore } from "@/store/useCareerVoiceModelStore";
 import {
-  useCareerRealtimeProviderOverrideStore,
-  type CareerRealtimeProviderOverride,
-} from "@/store/useCareerRealtimeProviderOverrideStore";
+  CAREER_LIVE_MODEL,
+  CAREER_REALTIME_MODEL,
+  type CareerVoiceModelOverride,
+} from "@/lib/career/voiceModel";
 import { useCareerTextChatModelStore } from "@/store/useCareerTextChatModelStore";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 
-const devVoiceProviderOptions: Array<{
+const devVoiceModelOptions: Array<{
   label: string;
-  value: CareerRealtimeProviderOverride;
+  value: CareerVoiceModelOverride;
 }> = [
   { label: "Auto", value: null },
-  { label: "OpenAI", value: "openai" },
-  { label: "xAI", value: "xai" },
+  { label: "GPT-Realtime 2.1", value: CAREER_REALTIME_MODEL },
+  { label: "GPT-Live 1", value: CAREER_LIVE_MODEL },
 ];
 
 const devTextChatModelOptions: Array<{
@@ -146,11 +148,11 @@ export default function CareerHomeDevControls({
   const addDevSqlPromptHistory = useCareerDevSqlPromptHistoryStore(
     (state) => state.addPrompt
   );
-  const voiceProviderOverride = useCareerRealtimeProviderOverrideStore(
-    (state) => state.providerOverride
+  const voiceModelOverride = useCareerVoiceModelStore(
+    (state) => state.modelOverride
   );
-  const setVoiceProviderOverride = useCareerRealtimeProviderOverrideStore(
-    (state) => state.setProviderOverride
+  const setVoiceModelOverride = useCareerVoiceModelStore(
+    (state) => state.setModelOverride
   );
   const textChatModel = useCareerTextChatModelStore((state) => state.model);
   const setTextChatModel = useCareerTextChatModelStore(
@@ -498,16 +500,16 @@ export default function CareerHomeDevControls({
         <Text as="span" type="subtle">
           Voice
         </Text>
-        {devVoiceProviderOptions.map((option) => {
-          const selected = option.value === voiceProviderOverride;
+        {devVoiceModelOptions.map((option) => {
+          const selected = option.value === voiceModelOverride;
           return (
             <MuteButton
               key={option.label}
               onClick={() => {
                 logCareerEvent(
-                  `click_home_dev_voice_provider_${option.value ?? "auto"}`
+                  `click_home_dev_voice_model_${option.value ?? "auto"}`
                 );
-                setVoiceProviderOverride(option.value);
+                setVoiceModelOverride(option.value);
               }}
               variant={selected ? "dark" : "default"}
             >

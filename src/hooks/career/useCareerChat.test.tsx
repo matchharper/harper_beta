@@ -187,6 +187,10 @@ test("stopping a recommendation search preserves the assistant text and thinking
       () =>
         chatRef.current?.activeRecommendationSearchStatus?.state === "running"
     );
+    const streamingAssistantMessage = chatRef.current?.messages.find(
+      (message) => message.role === "assistant"
+    );
+    assert.equal(streamingAssistantMessage?.typingMode, "stream");
 
     await act(async () => {
       chatRef.current?.cancelActiveRecommendationSearch();

@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "datasetVersion": "company-first-talent-selection-v1",
+  "goldVersion": "company-first-talent-selection-gold-v1",
+  "capturedAt": "2026-09-11T11:42:00Z",
+  "adjudicatedAt": "2026-09-11T12:10:00Z",
+  "repository": {
+    "head": "6fbe404929d9142dc089c9ac6eddeaa1b032e33c",
+    "workingTreeDirty": true
+  },
+  "assets": {
+    "casesV1Sha256": "5f7a74368d9bb2c4d06953e360805c8b5f40cfa60a9bf32dddbf286ec9f7f81e",
+    "goldV1Sha256": "9761c583508251f93232250783babfeb568364fbc1f332f6c68b6ffac697eaa5",
+    "productPlanAfterCalibrationSha256": "8331ad02a79e858942d4d16e6e73c76470e15cb3cdd97f036020cf4112715dd3",
+    "runbookAfterCalibrationSha256": "701028f5cd370b6ed8025052bdc08a538f8dd912a2958b5391e7bc87993b1c4f"
+  },
+  "capture": {
+    "database": "production_read_only",
+    "connection": "opp.utils.new_runtime.connect_read_only",
+    "roleSeed": "2026-09-11-company-first-second-sample",
+    "replyConfidence": "reply_confidence_v1",
+    "databaseWrites": 0,
+    "recommendationsCreated": 0,
+    "outboundCreated": 0
+  },
+  "evaluation": {
+    "runner": "manual_current_codex_direct_review",
+    "externalModelCalls": 0,
+    "modelOverride": null,
+    "temperature": null,
+    "reasoningOverride": null,
+    "directlyReviewedPackets": 4,
+    "selected": 0
+  },
+  "privacy": {
+    "trackedAssetsDeidentified": true,
+    "rawProductionArtifacts": "private/runs/",
+    "rawArtifactsGitignored": true,
+    "fileMode": "0600",
+    "directoryMode": "0700"
+  },
+  "limitations": [
+    "The sample was conditioned on at least one preliminary un-recommended fit after the first arbitrary sample yielded no new route.",
+    "All three final selections are empty, so positive selection quality and company response are not measured.",
+    "The first compact route query omitted candidate-origin progress; gold uses the corrected full-packet adjudication.",
+    "The canonical company-first runner and ledger do not exist yet, so this is shadow-only and not commit readiness evidence."
+  ]
+}

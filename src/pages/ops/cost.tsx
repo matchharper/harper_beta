@@ -32,11 +32,10 @@ import type {
 
 type Granularity = "daily" | "weekly";
 type RangeDays = 7 | 30;
-type CombinedProviderId = OpsCostProviderId | "deepseek";
+type CombinedProviderId = OpsCostProviderId;
 
 type CostChartRow = {
   claude: number;
-  deepseek: number;
   ec2: number;
   ec2Net: number;
   exa: number;
@@ -52,7 +51,6 @@ const PROVIDER_META: Record<
   { color: string; shortLabel: string }
 > = {
   claude: { color: "#c15f3c", shortLabel: "Claude" },
-  deepseek: { color: "#7b61a8", shortLabel: "DeepSeek" },
   openai: { color: "#10a37f", shortLabel: "OpenAI" },
   openrouter: { color: "#6d5bd0", shortLabel: "OpenRouter" },
   grok: { color: "#56616f", shortLabel: "Grok" },
@@ -74,7 +72,6 @@ const COMBINED_PROVIDER_IDS: CombinedProviderId[] = [
   "openrouter",
   "grok",
   "exa",
-  "deepseek",
 ];
 
 function toDateOnly(date: Date) {
@@ -126,7 +123,6 @@ function formatMoney(amount: number, currency = "USD") {
 function emptyCostRow(label: string, period: string): CostChartRow {
   return {
     claude: 0,
-    deepseek: 0,
     ec2: 0,
     ec2Net: 0,
     exa: 0,
@@ -155,7 +151,6 @@ function buildDailyRows(data: OpsCostResponse) {
     for (const providerId of COST_PROVIDER_IDS) {
       row[providerId] = providerAmounts.get(providerId)?.get(date) ?? 0;
     }
-    row.deepseek = 10;
     row.ec2Net = Math.max(0, ec2NetAmounts.get(date) ?? 0);
     return row;
   });
@@ -190,7 +185,6 @@ function buildWeeklyRows(
     for (const providerId of COST_PROVIDER_IDS) {
       row[providerId] += dailyRow[providerId];
     }
-    row.deepseek += dailyRow.deepseek;
     row.ec2Net += dailyRow.ec2Net;
     rows.set(weekStart, row);
   }
@@ -250,15 +244,12 @@ function CombinedCostChart({
 }) {
   const connectedProviderIds = COMBINED_PROVIDER_IDS.filter(
     (providerId) =>
-      providerId === "deepseek" ||
       providers.find((provider) => provider.id === providerId)?.status === "ok"
   );
   const providerTotals = new Map<CombinedProviderId, number>(
     COMBINED_PROVIDER_IDS.map((providerId) => [
       providerId,
-      providerId === "deepseek"
-        ? rows.reduce((sum, row) => sum + row.deepseek, 0)
-        : (providers.find((provider) => provider.id === providerId)?.total ?? 0),
+      providers.find((provider) => provider.id === providerId)?.total ?? 0,
     ])
   );
   const total = COMBINED_PROVIDER_IDS.reduce(
@@ -271,7 +262,7 @@ function CombinedCostChart({
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <div className="text-sm font-medium text-neutral-muted">
-            Claude + OpenAI + OpenRouter + Grok + Exa + DeepSeek
+            Claude + OpenAI + OpenRouter + Grok + Exa
           </div>
           <div className="mt-1 text-[28px] font-semibold leading-none tabular-nums text-neutral-primary">
             {formatMoney(total)}
@@ -281,9 +272,8 @@ function CombinedCostChart({
         <div className="grid gap-x-5 gap-y-2 sm:grid-cols-2 xl:flex xl:flex-wrap xl:justify-end">
           {COMBINED_PROVIDER_IDS.map((providerId) => {
             const provider = providers.find((item) => item.id === providerId);
-            const isDeepSeek = providerId === "deepseek";
             const providerTotal = providerTotals.get(providerId) ?? 0;
-            const isConnected = isDeepSeek || provider?.status === "ok";
+            const isConnected = provider?.status === "ok";
             const share = total > 0 ? (providerTotal / total) * 100 : 0;
             return (
               <div
@@ -663,91 +653,6 @@ function ServiceCostRow({
   );
 }
 
-function DeepSeekCreditRow({
-  credit,
-}: {
-  credit: OpsCreditProviderResult | undefined;
-}) {
-  const amount = credit?.amounts[0];
-  const total = amount?.amount ?? 0;
-  const granted = amount?.grantedAmount ?? 0;
-  const toppedUp = amount?.toppedUpAmount ?? 0;
-  const grantedShare = total > 0 ? (granted / total) * 100 : 0;
-  const toppedUpShare = total > 0 ? (toppedUp / total) * 100 : 0;
-  const status = credit?.status ?? "not_configured";
-
-  return (
-    <article
-      className={cx(
-        opsTheme.panel,
-        "grid min-w-0 gap-4 p-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-center"
-      )}
-    >
-      <div className="min-w-0 lg:border-r lg:border-neutral-1000-a05 lg:pr-4">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="h-3 w-3 shrink-0 rounded-sm bg-[#7b61a8]" />
-            <h3 className="truncate text-sm font-semibold text-neutral-primary">
-              DeepSeek
-            </h3>
-          </div>
-          <StatusBadge status={status} />
-        </div>
-        <div className="mt-5 text-xs text-neutral-muted">현재 크레딧</div>
-        <div className="mt-1 text-2xl font-semibold tabular-nums text-neutral-primary">
-          {credit?.status === "ok" && amount
-            ? formatMoney(amount.amount, amount.currency)
-            : "-"}
-        </div>
-        {credit?.message ? (
-          <p className="mt-3 text-[11px] leading-4 text-neutral-muted">
-            {credit.message}
-          </p>
-        ) : null}
-      </div>
-
-      {credit?.status === "ok" && amount ? (
-        <div className="min-w-0 py-3">
-          <div className="flex items-center justify-between gap-3 text-xs">
-            <span className="font-medium text-neutral-muted">잔액 구성</span>
-            <span className="tabular-nums text-neutral-soft">
-              {amount.currency}
-            </span>
-          </div>
-          <div className="mt-4 flex h-7 w-full overflow-hidden rounded bg-bg-weak">
-            {grantedShare > 0 ? (
-              <div
-                className="h-full bg-[#7b61a8]"
-                style={{ width: `${grantedShare}%` }}
-              />
-            ) : null}
-            {toppedUpShare > 0 ? (
-              <div
-                className="h-full bg-[#2b8a78]"
-                style={{ width: `${toppedUpShare}%` }}
-              />
-            ) : null}
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-neutral-muted">
-            <span className="inline-flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-sm bg-[#7b61a8]" />
-              Grant {formatMoney(granted, amount.currency)}
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-sm bg-[#2b8a78]" />
-              충전 {formatMoney(toppedUp, amount.currency)}
-            </span>
-          </div>
-        </div>
-      ) : (
-        <div className="flex min-h-[120px] items-center justify-center text-sm text-neutral-soft">
-          {statusLabel(status)}
-        </div>
-      )}
-    </article>
-  );
-}
-
 function SegmentedButton<T extends string | number>({
   onChange,
   options,
@@ -795,9 +700,6 @@ export default function OpsCostPage() {
   }, [data, granularity]);
 
   const awsCredit = data?.credits.find((credit) => credit.id === "aws");
-  const deepSeekCredit = data?.credits.find(
-    (credit) => credit.id === "deepseek"
-  );
   const openRouterCredit = data?.credits.find(
     (credit) => credit.id === "openrouter"
   );
@@ -878,7 +780,6 @@ export default function OpsCostPage() {
                 }
               />
             ))}
-            <DeepSeekCreditRow credit={deepSeekCredit} />
           </div>
 
           <div className="px-1 text-[11px] leading-5 text-neutral-soft">

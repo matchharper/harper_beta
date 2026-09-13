@@ -44,10 +44,10 @@ import {
   getCareerNegativeActionLabel,
   getCareerOpportunityInfoCopy,
   getCareerOpportunityPanelToneClassName,
-  getCareerOpportunitySortPriority,
   getCareerOpportunityTypeLabel,
   getCareerPositiveActionLabel,
 } from "./opportunityTypeMeta";
+import { compareNewOpportunityHistoryOrder } from "@/lib/opportunityType";
 import {
   HistoryNegativeFeedbackModal,
   hasExternalAlreadyAppliedFeedbackReason,
@@ -95,6 +95,11 @@ import {
 } from "./history/InternalOpportunityDecisionActions";
 import { getHistoryOpportunityBucket } from "@/hooks/career/careerSessionData";
 import CareerJobLinkImportButton from "./history/CareerJobLinkImportButton";
+import {
+  getLoadedSameCompanyExternalOpportunities,
+  getNewOpportunityNavigationItems,
+  getNewOpportunityNavigationKey,
+} from "./history/NewOpportunityCompanyRoleSwitcher";
 
 type HistoryTabId = "new" | "saved" | "archived";
 type HistoryDisplayTabId = "new" | "saved" | "hidden" | "archived";
@@ -901,13 +906,7 @@ const CareerHistoryPanel = () => {
       }
     }
 
-    nextNewItems.sort(
-      (left, right) =>
-        Number(right.isInternal) - Number(left.isInternal) ||
-        getCareerOpportunitySortPriority(left.opportunityType) -
-          getCareerOpportunitySortPriority(right.opportunityType) ||
-        compareRecommendedAtDesc(left, right)
-    );
+    nextNewItems.sort(compareNewOpportunityHistoryOrder);
 
     return {
       archivedItems: nextArchivedItems,
@@ -983,11 +982,31 @@ const CareerHistoryPanel = () => {
     : -1;
 
   const activeOpportunity = activeIndex >= 0 ? newItems[activeIndex] : null;
+  // EXPERIMENT(new-opportunity-company-role-switcher): same-company public
+  // roles share one navigation stop while feedback remains role-scoped. The
+  // feature flag restores the previous one-stop-per-role behavior.
+  const newNavigationItems = useMemo(
+    () => getNewOpportunityNavigationItems(newItems),
+    [newItems]
+  );
+  const activeNavigationIndex = activeOpportunity
+    ? newNavigationItems.findIndex(
+        (item) =>
+          getNewOpportunityNavigationKey(item) ===
+          getNewOpportunityNavigationKey(activeOpportunity)
+      )
+    : -1;
+  const activeCompanyOpportunities = useMemo(
+    () =>
+      getLoadedSameCompanyExternalOpportunities(newItems, activeOpportunity),
+    [activeOpportunity, newItems]
+  );
   const hasMoreNewOpportunities =
     newItems.length < historyOpportunityCounts.new;
   const canMoveNextOpportunity =
-    activeIndex >= 0 &&
-    (activeIndex < newItems.length - 1 || hasMoreNewOpportunities);
+    activeNavigationIndex >= 0 &&
+    (activeNavigationIndex < newNavigationItems.length - 1 ||
+      hasMoreNewOpportunities);
   const nextOpportunityPending =
     activeTab === "new" && autoAdvanceTargetIndex !== null;
 
@@ -1200,24 +1219,24 @@ const CareerHistoryPanel = () => {
 
   const moveActiveOpportunity = useCallback(
     (direction: -1 | 1) => {
-      if (newItems.length === 0) return;
+      if (newNavigationItems.length === 0) return;
       logCareerEvent(
         direction > 0 ? "click_history_next" : "click_history_prev"
       );
 
-      const baseIndex = activeIndex >= 0 ? activeIndex : 0;
+      const baseIndex = activeNavigationIndex >= 0 ? activeNavigationIndex : 0;
       const nextIndex = Math.min(
-        newItems.length - 1,
+        newNavigationItems.length - 1,
         Math.max(0, baseIndex + direction)
       );
-      const nextOpportunityId = newItems[nextIndex]?.id ?? null;
+      const nextOpportunityId = newNavigationItems[nextIndex]?.id ?? null;
 
       if (nextOpportunityId) {
         activeOpportunityUrlSyncRequestedRef.current = true;
         setActiveOpportunityId(nextOpportunityId);
       }
     },
-    [activeIndex, logCareerEvent, newItems]
+    [activeNavigationIndex, logCareerEvent, newNavigationItems]
   );
 
   const loadNextOpportunityPage = useCallback(() => {
@@ -1240,7 +1259,7 @@ const CareerHistoryPanel = () => {
   ]);
 
   const handleMoveNextOpportunity = useCallback(() => {
-    if (activeIndex < newItems.length - 1) {
+    if (activeNavigationIndex < newNavigationItems.length - 1) {
       moveActiveOpportunity(1);
       return;
     }
@@ -1248,12 +1267,22 @@ const CareerHistoryPanel = () => {
     logCareerEvent("click_history_next");
     loadNextOpportunityPage();
   }, [
-    activeIndex,
+    activeNavigationIndex,
     logCareerEvent,
     loadNextOpportunityPage,
     moveActiveOpportunity,
-    newItems.length,
+    newNavigationItems.length,
   ]);
+
+  const handleSelectCompanyOpportunity = useCallback(
+    (item: CareerHistoryOpportunity) => {
+      if (!newItemIndexById.has(item.id)) return;
+      logCareerEvent("click_history_same_company_role");
+      activeOpportunityUrlSyncRequestedRef.current = true;
+      setActiveOpportunityId(item.id);
+    },
+    [logCareerEvent, newItemIndexById]
+  );
 
   useEffect(() => {
     if (newItems.length === 0) {
@@ -2051,13 +2080,15 @@ const CareerHistoryPanel = () => {
             <>
               <HistoryOpportunityDetailContent
                 item={activeOpportunity}
-                canMovePrev={activeIndex > 0}
+                companyOpportunities={activeCompanyOpportunities}
+                canMovePrev={activeNavigationIndex > 0}
                 canMoveNext={canMoveNextOpportunity}
                 onOpenCompanyInfo={openHistoryCompanyInfo}
                 onOpenLink={(url) => openHistoryLink(activeOpportunity, url)}
                 onOpenOpportunityInfo={openOpportunityInfo}
                 onMovePrev={() => moveActiveOpportunity(-1)}
                 onMoveNext={handleMoveNextOpportunity}
+                onSelectCompanyOpportunity={handleSelectCompanyOpportunity}
               />
             </>
           )}
@@ -2325,7 +2356,7 @@ const CareerHistoryPanel = () => {
               pending={pendingOpportunityIds.has(activeOpportunity.id)}
               onPositive={() => handlePositiveAction(activeOpportunity)}
               onNegative={() => handleNegativeAction(activeOpportunity)}
-              activeIndex={activeIndex}
+              activeIndex={activeNavigationIndex}
               canMoveNext={canMoveNextOpportunity}
               nextPending={nextOpportunityPending}
               onNext={handleMoveNextOpportunity}

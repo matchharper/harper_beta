@@ -29,7 +29,6 @@ import {
 } from "@/lib/talentOnboarding/toolLogging";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import { buildCareerToolPolicyPrompt } from "@/lib/career/prompts/toolPolicyPrompt";
-import { resolveCareerRealtimeProvider } from "@/lib/career/realtimeProvider";
 import { getCareerStreamingNextToolNames } from "@/lib/career/streamingToolChainPolicy";
 
 export const CAREER_LLM_CONFIG = {
@@ -136,21 +135,17 @@ export const CAREER_LLM_CONFIG = {
   // Realtime 세션 생성 설정.
   // 사용처: /api/realtime/token.
   realtime: {
-    providers: {
-      openai: {
-        model: "gpt-realtime-2.1",
-        speechSpeed: 1.1,
-        transcriptionModel: "gpt-4o-transcribe",
-        voice: "cedar",
-      },
-      xai: {
-        model: "grok-voice-think-fast-2.0",
-        reasoningEffort: "high",
-        speechSpeed: 1.3,
-        transcriptionModel: "grok-transcribe",
-        voice: "Cosmo",
-      },
-    },
+    model: "gpt-realtime-2.1",
+    speechSpeed: 1.1,
+    transcriptionModel: "gpt-4o-transcribe",
+    voice: "cedar",
+  },
+  // GPT Live는 음성 프런트엔드와 Responses 기반 판단 모델을 분리한다.
+  // 기존 Realtime 경로와 섞지 않고 /api/live/session에서만 사용한다.
+  live: {
+    delegationModel: GPT_56_TERRA_MODEL,
+    model: "gpt-live-1",
+    voice: "cedar",
   },
   // 회사 스냅샷이 캐시에 없을 때 OpenAI Responses API + web_search로 조사한다.
   // createChatCompletionWithFallback 경로가 아니며, web_search tool을 쓰기 때문에
@@ -2375,21 +2370,14 @@ export async function runOpsRoleDescriptionSummary(args: {
   });
 }
 
-export function getCareerRealtimeSessionConfig(args: {
-  providerOverride?: string | null;
-  userCreatedAt?: string | null;
-  userId: string;
-}) {
-  const provider = resolveCareerRealtimeProvider(args);
-  const providerConfig = CAREER_LLM_CONFIG.realtime.providers[provider];
-
+export function getCareerRealtimeSessionConfig() {
   return {
-    ...providerConfig,
+    ...CAREER_LLM_CONFIG.realtime,
     outputModalities: ["audio"] as const,
-    provider,
-    reasoningEffort:
-      provider === "xai"
-        ? CAREER_LLM_CONFIG.realtime.providers.xai.reasoningEffort
-        : null,
+    provider: "openai" as const,
   };
+}
+
+export function getCareerLiveSessionConfig() {
+  return CAREER_LLM_CONFIG.live;
 }

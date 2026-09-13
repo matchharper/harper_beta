@@ -802,6 +802,7 @@ export const useCareerChat = ({
               messageType: "chat",
               createdAt: new Date().toISOString(),
               typing: true,
+              typingMode: "stream",
             };
             activeStreamAssistantRef.current = streamAssistant;
             setAssistantTyping(true);

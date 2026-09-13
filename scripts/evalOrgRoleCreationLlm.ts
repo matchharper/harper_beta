@@ -328,7 +328,7 @@ async function main() {
               }),
         }),
         debugLabel: `org/agent:role-creation-llm-eval:${turnIndex + 1}`,
-        deepSeekThinking: { reasoningEffort: "high" },
+        chatCompletionReasoning: { reasoningEffort: "high" },
         fallbackModel: modelConfig.getOrgAgentFallbackModel(selectedModel),
         model: selectedModel,
         openAIResponses: { reasoningEffort: "high" },

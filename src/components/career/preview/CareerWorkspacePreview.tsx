@@ -42,6 +42,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useCareerT } from "@/i18n/useCareerT";
 import type { CareerPendingAction } from "@/lib/career/pendingActions";
+import { ENABLE_NEW_OPPORTUNITY_COMPANY_ROLE_SWITCHER } from "@/components/career/history/NewOpportunityCompanyRoleSwitcher";
 
 type CareerT = ReturnType<typeof useCareerT>;
 
@@ -343,6 +344,7 @@ const getInitialHistoryOpportunities = (
     id: "preview-history-3",
     roleId: "preview-role-3",
     title: "Research Engineer",
+    companyDbId: 90210,
     companyName: "Frontier Robotics Lab",
     companyDescription: t(
       "career.preview.career_workspace_preview.10x4rht",
@@ -369,6 +371,7 @@ const getInitialHistoryOpportunities = (
     opportunityType: CareerOpportunityType.ExternalJd,
     postedAt: previewDaysAgo(8),
     recommendedAt: previewDaysAgo(4),
+    recommendationRank: 1,
     recommendationReasons: [
       t(
         "career.preview.career_workspace_preview.0hhw3xx",
@@ -379,6 +382,7 @@ const getInitialHistoryOpportunities = (
         "research와 product의 중간 지점 역할을 선호하는지 확인이 필요한 기회입니다."
       ),
     ],
+    recommendationScore: 0.94,
     sourceJobId: "robotics-lab-2",
     savedStage: null,
     sourceProvider: "lever",
@@ -387,6 +391,109 @@ const getInitialHistoryOpportunities = (
     viewedAt: null,
     workMode: "onsite",
   },
+  // EXPERIMENT(new-opportunity-company-role-switcher): local preview-only
+  // sibling. Turning the experiment flag off removes this fixture as well as
+  // the UI, so /career/preview returns to its previous opportunity set.
+  ...(ENABLE_NEW_OPPORTUNITY_COMPANY_ROLE_SWITCHER
+    ? [
+        {
+          id: "preview-history-3b",
+          roleId: "preview-role-3b",
+          title: "Applied AI Research Engineer",
+          companyDbId: 90210,
+          companyName: "Frontier Robotics Lab",
+          companyDescription: t(
+            "career.preview.career_workspace_preview.10x4rht",
+            "논문과 프로덕트 사이를 잇는 applied research 조직입니다."
+          ),
+          companyHomepageUrl: "https://example.com/robotics-lab",
+          companyLinkedinUrl: null,
+          companyLogoUrl: null,
+          description: t(
+            "career.preview.career_workspace_preview.045qelm",
+            "멀티모달 모델 평가 파이프라인과 배포 시스템을 만드는 역할입니다."
+          ),
+          employmentTypes: ["full_time"],
+          externalJdUrl: "https://jobs.example.com/applied-ai-research",
+          feedback: null,
+          feedbackAt: null,
+          feedbackReason: null,
+          href: "https://jobs.example.com/applied-ai-research",
+          clickedAt: null,
+          isAccepted: false,
+          isInternal: false,
+          kind: "recommendation",
+          location: "Seoul · Tokyo",
+          opportunityType: CareerOpportunityType.ExternalJd,
+          postedAt: previewDaysAgo(6),
+          recommendedAt: previewDaysAgo(5),
+          recommendationRank: 2,
+          recommendationReasons: [
+            t(
+              "career.preview.career_workspace_preview.0hhw3xx",
+              "논문 기반 평가 시스템 경험이 직접적으로 이어집니다."
+            ),
+          ],
+          recommendationScore: 0.89,
+          sourceJobId: "robotics-lab-3",
+          savedStage: null,
+          sourceProvider: "lever",
+          sourceType: "external",
+          status: "active",
+          viewedAt: null,
+          workMode: "hybrid",
+        } satisfies CareerHistoryOpportunity,
+        {
+          id: "preview-history-3c",
+          roleId: "preview-role-3c",
+          title: "ML Systems Engineer",
+          companyDbId: 90210,
+          companyName: "Frontier Robotics Lab",
+          companyDescription: t(
+            "career.preview.career_workspace_preview.10x4rht",
+            "논문과 프로덕트 사이를 잇는 applied research 조직입니다."
+          ),
+          companyHomepageUrl: "https://example.com/robotics-lab",
+          companyLinkedinUrl: null,
+          companyLogoUrl: null,
+          description: t(
+            "career.preview.career_workspace_preview.045qelm",
+            "멀티모달 모델 평가 파이프라인과 배포 시스템을 만드는 역할입니다."
+          ),
+          employmentTypes: ["full_time"],
+          externalJdUrl: "https://jobs.example.com/ml-systems-engineer",
+          feedback: null,
+          feedbackAt: null,
+          feedbackReason: null,
+          href: "https://jobs.example.com/ml-systems-engineer",
+          clickedAt: null,
+          isAccepted: false,
+          isInternal: false,
+          kind: "recommendation",
+          location: "Seoul",
+          opportunityType: CareerOpportunityType.ExternalJd,
+          postedAt: previewDaysAgo(9),
+          // Deliberately newer than the primary role: the experiment must use
+          // fit score/rank, not recency, when choosing the representative.
+          recommendedAt: previewDaysAgo(1),
+          recommendationRank: 3,
+          recommendationReasons: [
+            t(
+              "career.preview.career_workspace_preview.0hhw3xx",
+              "논문 기반 평가 시스템 경험이 직접적으로 이어집니다."
+            ),
+          ],
+          recommendationScore: 0.84,
+          sourceJobId: "robotics-lab-4",
+          savedStage: null,
+          sourceProvider: "lever",
+          sourceType: "external",
+          status: "active",
+          viewedAt: null,
+          workMode: "hybrid",
+        } satisfies CareerHistoryOpportunity,
+      ]
+    : []),
   {
     id: "preview-history-4",
     roleId: "preview-role-4",

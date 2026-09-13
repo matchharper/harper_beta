@@ -11,6 +11,7 @@
 
 - 현재 directory의 `AGENTS.md`
 - 존재하면 상위 repository의 `../AGENTS.md`
+- `docs/scheduled/codex-work.md` — 제0장의 신규 Role 한·영 summary 선행 작업을 가장 먼저 수행한다.
 - `docs/scheduled/company-role-profile-calibration-ko.md`
 - `docs/company/company-role-profile-calibration-codex-runbook-ko.md`
 
@@ -41,17 +42,22 @@ migration, application source, 문서나 테스트를 수정하지 않는다.
 1. `{{CALIBRATION_PYTHON}} scripts/company_role_calibration.py start --runner {{CALIBRATION_RUNNER}}`로
    정확히 한 row를 claim한다.
 2. `claimed=false`이면 현재 queue가 빈 것이므로 정상 종료한다.
-3. Claim된 Role 하나에 대해 canonical 실행 계약의 retrieval, 검토, 익명화와 최종 선택을
-   끝까지 수행한다. 검색 SQL과 선택 JSON은 helper가 지정한 owner-only ignored run directory
-   안에만 둔다.
-4. `run-sql`, `candidate-packet`, `finish` 순서로 실행한다. `finish` 성공은 프로필 snapshot이
+3. Claim된 Role 하나에 대해 `docs/scheduled/codex-work.md` 제0장의 계약대로 비어 있는
+   `company_roles.summary.ko.content`와 `company_roles.summary.en.content`를 먼저 작성·저장하고
+   readback한다. 이 단계에 한해 회사 정보가 부족하면 제0장의 출처 원칙에 따라 공개 웹 검색으로
+   검증 가능한 사실을 보강할 수 있다. 기존 non-empty content는 덮어쓰지 않고, 실패 시 fallback을
+   summary에 저장하거나 calibration으로 넘어가지 않는다.
+4. 두 언어 summary를 확인한 뒤 claim된 Role 하나에 대해 canonical 실행 계약의 retrieval, 검토,
+   익명화와 최종 선택을 끝까지 수행한다. 검색 SQL과 선택 JSON은 helper가 지정한 owner-only
+   ignored run directory 안에만 둔다.
+5. `run-sql`, `candidate-packet`, `finish` 순서로 실행한다. `finish` 성공은 프로필 snapshot이
    DB에 저장되어 웹에서 볼 수 있는 `ready` 상태가 됐다는 뜻이다.
-5. `finish`가 성공한 정확한 calibration ID에 즉시 `deliver`를 실행한다. Slack 성공 여부와
+6. `finish`가 성공한 정확한 calibration ID에 즉시 `deliver`를 실행한다. Slack 성공 여부와
    관계없이 저장된 profile을 삭제하거나 새 set으로 교체하지 않는다.
-6. 생성 단계가 실패하면 가능한 경우 `fail --calibration-id ... --stage ... --error ...`로
+7. 생성 단계가 실패하면 가능한 경우 `fail --calibration-id ... --stage ... --error ...`로
    해당 running row를 terminal 상태로 닫는다. 개인정보나 raw profile을 오류 문자열에 넣지
    않는다.
-7. 한 Role이 `ready`, `sent`, `failed` 또는 `canceled`가 된 뒤에만 다음 Role을 claim한다.
+8. 한 Role이 `ready`, `sent`, `failed` 또는 `canceled`가 된 뒤에만 다음 Role을 claim한다.
 
 동시에 여러 Role을 claim하거나 병렬로 profile을 생성하지 않는다. 같은 순간 5개가 queue에
 들어오면 이 프로세스 하나가 5개를 순차 처리한다. 10개를 처리한 뒤 backlog가 남아 있으면

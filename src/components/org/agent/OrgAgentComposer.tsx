@@ -37,8 +37,7 @@ import {
 import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
 import {
   ORG_AGENT_CLAUDE_MODEL,
-  ORG_AGENT_DEEPSEEK_FLASH_MODEL,
-  ORG_AGENT_DEEPSEEK_PRO_MODEL,
+  ORG_AGENT_DEEPSEEK_FLASH_0731_MODEL,
   ORG_AGENT_GROK_MODEL,
   ORG_AGENT_LUNA_MODEL,
   ORG_AGENT_TERRA_MODEL,
@@ -124,10 +123,9 @@ function ModelSelector({
 }) {
   const options: Array<{ label: string; value: OrgAgentModelId }> = [
     {
-      label: "DeepSeek V4 Flash · high",
-      value: ORG_AGENT_DEEPSEEK_FLASH_MODEL,
+      label: "DeepSeek V4 Flash 0731 · OpenRouter",
+      value: ORG_AGENT_DEEPSEEK_FLASH_0731_MODEL,
     },
-    { label: "DeepSeek V4 Pro · high", value: ORG_AGENT_DEEPSEEK_PRO_MODEL },
     { label: "Luna · GPT-5.6", value: ORG_AGENT_LUNA_MODEL },
     { label: "Terra · GPT-5.6", value: ORG_AGENT_TERRA_MODEL },
     { label: "Claude Sonnet 5", value: ORG_AGENT_CLAUDE_MODEL },

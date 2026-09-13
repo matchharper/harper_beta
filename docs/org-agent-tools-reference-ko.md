@@ -482,16 +482,16 @@ argument는 exact `roleId`와 `status` 두 개다. `paused`를 기존 후보 프
 
 ## Model과 실행 한도
 
-- 웹·Slack 기본 model: `deepseek-v4-flash` (`reasoning_effort=high`)
+- 웹·Slack 기본 model: `gpt-5.6-terra` (`reasoning.effort=xhigh`)
 - 공통 서버 기본값: `ORG_AGENT_MODEL`
 - Slack 전용 override: `SLACK_ORG_AGENT_MODEL` (`ORG_AGENT_MODEL`보다 우선)
 - 웹 내부 model selector는 요청마다 model을 지정하며 공통 기본값보다 우선한다.
-- 허용 model: `deepseek-v4-flash`, `deepseek-v4-pro`, `gpt-5.6-luna`,
+- 허용 model: `deepseek/deepseek-v4-flash-0731`, `gpt-5.6-luna`,
   `gpt-5.6-terra`, `claude-sonnet-5`, `grok-4.3`
-- DeepSeek V4는 DeepSeek Chat Completions endpoint와 `DEEPSEEK_API_KEY`를 사용한다.
-  thinking mode에서 tool call이 발생하면 `reasoning_content`를 다음 tool turn에
-  그대로 전달한다.
-- Luna와 Terra는 Responses API에서 `reasoning.effort=high`로 호출한다.
+- DeepSeek V4 Flash 0731은 OpenRouter Chat Completions endpoint와
+  `OPENROUTER_API_KEY`를 사용한다. OpenRouter tool turn의 reasoning state는
+  `reasoning_details`로 이어서 전달한다.
+- Luna와 Terra는 Responses API를 사용하며 기본 reasoning effort는 `xhigh`다.
 - tool loop 최대 4회, 실제 tool call 최대 5개
 - 누적 tool result 최대 80,000자
 - 일반 completion 최대 4,000 tokens

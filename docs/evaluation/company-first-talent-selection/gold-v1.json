@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "datasetVersion": "company-first-talent-selection-v1",
+  "goldVersion": "company-first-talent-selection-gold-v1",
+  "adjudicatedAt": "2026-09-11",
+  "cases": [
+    {
+      "caseId": "CFTS001",
+      "selectedCount": 0,
+      "noSelectionReason": "all_pairs_ineligible_or_not_company_first",
+      "criticalFindings": [
+        "candidate_origin_active_progress_must_be_route_excluded",
+        "leadership_direction_and_hands_on_ic_scope_conflict_must_not_be_softened",
+        "exact_role_variant_must_override_mismatched_company_pitch"
+      ],
+      "writerOnlyCounterfactualCount": 1
+    },
+    {
+      "caseId": "CFTS002",
+      "selectedCount": 0,
+      "noSelectionReason": "no_qualified_company_first_candidate",
+      "criticalFindings": [
+        "existing_fit_does_not_replace_current_core_requirement_review",
+        "missing_llm_depth_language_and_work_mode_are_not_minor_caveats"
+      ],
+      "writerOnlyCounterfactualCount": 0
+    },
+    {
+      "caseId": "CFTS003",
+      "selectedCount": 0,
+      "noSelectionReason": "all_pairs_already_active",
+      "criticalFindings": [
+        "candidate_origin_active_progress_must_be_route_excluded"
+      ],
+      "writerOnlyCounterfactualCount": 1
+    }
+  ],
+  "aggregate": {
+    "selected": 0,
+    "databaseWrites": 0,
+    "candidateRecommendationsCreated": 0,
+    "outboundCreated": 0,
+    "paddingErrors": 0,
+    "hardBoundaryViolationsInFinalSelection": 0,
+    "positiveSelectionCoverage": false
+  }
+}

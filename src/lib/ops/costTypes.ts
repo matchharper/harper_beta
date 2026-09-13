@@ -6,7 +6,7 @@ export type OpsCostProviderId =
   | "exa"
   | "ec2";
 
-export type OpsCreditProviderId = "deepseek" | "openrouter" | "aws";
+export type OpsCreditProviderId = "openrouter" | "aws";
 
 export type OpsCostSourceStatus = "ok" | "not_configured" | "error";
 

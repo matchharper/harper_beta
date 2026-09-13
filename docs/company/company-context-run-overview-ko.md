@@ -1,19 +1,21 @@
-# Company Context Run: 목적과 구현 계약
+# Company Run: 목적과 구현 계약
 
 - 작성일: 2026-08-14
 - 상태: 구현 기준 설계
 - 반복 실행 절차: [Company Context Run Codex 런북](./company-context-run-codex-runbook-ko.md)
+- 월·목 예약 실행 정본: [Company Run 예약 실행](../schedule/company-run-ko.md)
 - 기존 non-fit의 제한적 재발견 감사: [Company Role Fit Recovery Audit](./company-role-fit-recovery-audit-overview-ko.md)
 
 ## 1. 한 문장으로 설명
 
-`company_context_run`은 회사가 실제 채용 과정에서 남긴 행동과 설명을 자연어 `context`로 압축해 계속 갱신하고, 그 최신 기억을 사용해 특정 internal role에 지금 연결을 제안할 만한 talent를 찾고 평가하는 작업이다.
+`company_run`은 회사가 실제 채용 과정에서 남긴 행동과 설명을 자연어 `context`로 압축해 계속 갱신하고, 그 최신 기억을 사용해 특정 internal role의 talent 탐색을 지금 다시 실행할 가치가 있는지 판단하고, 필요할 때 후보를 찾고 평가하는 작업이다.
 
-이 작업의 산출물은 다음 세 가지다.
+이 작업의 산출물은 다음 네 가지다.
 
 1. Role별로 관리되는 최신 `context` 문서 하나
-2. 이번 run에서 새로 평가한 `[talent × role]`의 `talent_opportunity_fit`
-3. 이번 실행의 상태와 짧은 결론이 담긴 `company_context_runs` row
+2. 이번 시점의 matching cycle 실행 여부와 run-specific 탐색 지침
+3. 실행을 선택했을 때 새로 평가하거나 재평가한 `[talent × role]`의 `talent_opportunity_fit`
+4. 각 Role의 상태·출력·짧은 결론이 담긴 `company_context_runs` row와 batch별 internal-notification thread
 
 Context 갱신은 matching을 위한 준비 작업이 아니라 이 workflow의 핵심 결과다. 현재 run의 후보 평가에 즉시 사용하고, 앞으로 `harper_worker`의 new agent v2가 internal matching을 할 때도 같은 회사 기억을 사용할 수 있게 한다.
 
@@ -40,7 +42,7 @@ Context 갱신은 matching을 위한 준비 작업이 아니라 이 workflow의 
 
 한 run의 target은 internal role 하나다. 각 role에는 현재 상태를 나타내는 `context` 문서 하나만 둔다. 별도의 company context와 role context 두 문서를 동시에 관리하지 않는다.
 
-문서 안에서는 다음 두 범위를 구분한다.
+최대 10개의 bullet 안에서 다음 두 범위를 구분한다.
 
 - `회사 공통으로 보이는 판단`: 여러 역할에도 적용될 가능성이 충분한 운영 방식이나 선호
 - `현재 역할에서 확인된 판단`: 이 role의 후보 반응, 진행, 거절, 메모에서만 확인된 기준
@@ -110,7 +112,7 @@ Context 후보 문장은 저장 전에 다음 질문을 통과해야 한다.
 모든 evidence를 검토했지만 필요한 정보가 하나도 없을 수 있다. 이는 정상 결과다.
 
 - 기존 context가 비어 있으면 `text_context`를 빈 문자열로 유지하고 `contextChanged=false`로 처리한다.
-- 기존 context가 있고 새 evidence가 그 의미를 바꾸지 않으면 기존 text를 byte-for-byte 그대로 유지한다.
+- 기존 context가 bullet-only 계약이고 새 evidence가 그 의미를 바꾸지 않으면 기존 wording과 순서를 그대로 유지한다. Legacy heading 형식은 한 번 bullet-only로 전환한다.
 - 기존 문장이 더 이상 위 gate를 통과하지 못하거나 근거가 사라졌으면 그 문장을 삭제한다. 결과가 빈 context여도 된다.
 - 검토 완료를 남겨야 하면 `company_context_runs.result.summary`에 `행동 evidence를 검토했으나 context에 반영할 matching-relevant 정보 없음`처럼 짧게 기록한다. 이 문장을 context에 넣지 않는다.
 
@@ -118,29 +120,10 @@ Context의 빈 값은 실패나 미완성이 아니다. 현재 별도 입력을 
 
 ### 4.4 문서 형태
 
-Context는 사건 일지가 아니라 현재 판단에 바로 쓸 수 있는 메모다. 다음 구조를 기본으로 한다.
-
-```markdown
-## 현재 채용 판단
-- 지금 이 role에서 실제로 중요해 보이는 기준
-
-## 긍정 신호
-- 수락하거나 진행시킨 사례에서 확인된 패턴과 이유
-
-## 부정 신호
-- 거절하거나 중단한 사례에서 확인된 패턴과 이유
-
-## 회사 공통 운영 맥락
-- 여러 role에도 적용할 근거가 있는 판단 방식이나 협업 기대
-
-## 최근 변화
-- 이전 context 이후 새로 생기거나 달라진 내용
-
-## 아직 불확실한 점
-- 실제 평가를 바꿀 수 있고 확인할 대상이 구체적인 불확실성
-```
-
-빈 section을 억지로 채우지 않는다. 특히 쓸 내용이 없다는 이유로 `아직 불확실한 점`을 만들지 않는다. 후보자 이름과 raw 대화 전문은 남기지 않고, 평가에 필요한 속성과 결정 이유로 일반화한다.
+Context는 heading이나 사건 일지 없이 0~10개의 독립적인 bullet로만 쓴다. 회사 공통 기준인지 현재
+Role 한정 기준인지 각 문장 안에서 밝힌다. 빈 bullet을 억지로 채우지 않고, 후보자 이름과 raw 대화
+전문은 남기지 않으며 평가에 필요한 속성과 결정 이유로 일반화한다. 이미 이 계약인 context가
+유효하면 wording과 순서를 유지하고, heading 기반 legacy context만 한 번 bullet 형태로 전환한다.
 
 ### 4.5 갱신 방식
 
@@ -152,17 +135,23 @@ Context는 사건 일지가 아니라 현재 판단에 바로 쓸 수 있는 메
 6. 오래된 판단과 최근 판단이 충돌하면 무조건 덮어쓰지 말고, 범위 차이인지 실제 변화인지 설명한다.
 7. 사실, 합리적 추론, 아직 모르는 점을 구분한다. 단, 아직 모른다는 사실도 다음 평가에 필요할 때만 남긴다.
 
-## 5. 언제 실행하는가: 코드의 책임
+## 5. 언제 실행하는가: schedule과 코드의 책임
 
-실행 시점은 Codex가 매번 추론하지 않는다. 애플리케이션과 DB helper가 아래 조건을 판정하고 즉시 queue에 넣는다.
+정기 실행 시각은 Codex가 매번 추론하지 않는다. 매주 월요일·목요일 오전 8시(`Asia/Seoul`)에
+Scheduled task가 한 `company_run` batch를 만들고 모든 eligible Role을 queue에 넣는다. 동일한 예약
+slot은 결정적인 `batchRunId`를 사용하므로 재실행해도 중복 batch가 생기지 않는다.
 
-자동 실행의 첫 gate는 `company_internal_roles.is_auto = true`다. 아래 `role_created`, `reactivated_after_7d`, `weekly`는 모두 `is_auto=true`인 role에만 적용한다. `is_auto=false`로 바뀌면 아직 시작하지 않은 자동 queue row를 취소한다. 운영자가 명시적으로 넣는 `manual` run만 이 gate와 무관하다.
+자동 실행의 첫 gate는 `company_internal_roles.is_auto = true`다. `scheduled`, `role_created`,
+`reactivated_after_7d`, 기존 `weekly` queue는 모두 `is_auto=true`인 Role에만 적용한다.
+`is_auto=false`로 바뀌면 아직 시작하지 않은 자동 queue row를 취소한다. 운영자가 명시적으로 넣는
+`manual` run만 이 gate와 무관하다.
 
 | Trigger | Queue 조건 |
 | --- | --- |
 | `role_created` | `is_auto=true`인 새로운 internal role이 `active`로 확정됨. Draft 생성만으로는 queue에 넣지 않음 |
 | `reactivated_after_7d` | `is_auto=true`이고 `paused` 또는 `ended` 상태가 합쳐서 연속 7일 이상 지속된 뒤 `active`로 바뀜 |
 | `weekly` | `is_auto=true`인 role이 계속 `active`이고 마지막 성공한 `company_context_run` 이후 7일이 지남 |
+| `scheduled` | 월·목 오전 8시 batch 생성 시점에 eligible한 모든 Role |
 | `manual` | 운영자가 특정 role의 실행을 명시적으로 요청함 |
 
 `role_created`와 `reactivated_after_7d`는 상태 변경 transaction 직후 enqueue한다. `weekly` due 판정도 코드로 구현하며, 예약 작업이 시작될 때 due-enqueue helper를 한 번 호출하면 된다.
@@ -171,7 +160,9 @@ Context는 사건 일지가 아니라 현재 판단에 바로 쓸 수 있는 메
 
 “즉시 실행”은 즉시 queue에 들어간다는 뜻이다. 실제 Codex 실행 시각은 설정된 예약 주기를 따른다. 이미 같은 role의 `queued` 또는 `running` row가 있으면 중복 enqueue하지 않는다.
 
-예약 작업은 한 번 깨어날 때 현재 claim 가능한 queue를 모두 비울 때까지 순차 처리한다. 한 role을 `succeeded`, `canceled`, `failed` 중 하나의 terminal 상태로 끝낸 뒤 다음 role을 claim하며, 여러 role을 동시에 처리하지 않는다. 무효한 row를 취소한 경우에도 예약 실행을 끝내지 않고 다음 row로 진행한다.
+예약 작업은 해당 `batchRunId`의 queue를 비울 때까지 순차 처리한다. 한 Role을 `succeeded`,
+`canceled`, `failed` 중 하나의 terminal 상태로 끝낸 뒤 다음 Role을 claim한다. 모든 Role이 terminal이면
+같은 회사의 fit Role을 talent별로 한 번 rerank하고 internal notification thread를 만든다.
 
 ## 6. `company_context_runs`: 6-column queue와 실행 이력
 
@@ -182,7 +173,7 @@ Queue는 실행 대상 전달, atomic claim, 완료 기록에만 사용한다. 6
 | `id` | run ID |
 | `role_id` | 처리할 internal role |
 | `status` | `queued`, `running`, `succeeded`, `failed`, `canceled` |
-| `trigger_reason` | `role_created`, `reactivated_after_7d`, `weekly`, `manual` |
+| `trigger_reason` | `role_created`, `reactivated_after_7d`, `weekly`, `scheduled`, `manual` |
 | `available_at` | claim 가능한 시각. 실패 재시도의 backoff에도 사용 |
 | `result` | 시작·종료 시각, runner, 짧은 결론, count, 실패 stage를 담는 JSON |
 
@@ -190,9 +181,12 @@ Queue는 실행 대상 전달, atomic claim, 완료 기록에만 사용한다. 6
 
 ```json
 {
+  "contractVersion": "company-run-v1",
+  "batchRunId": "...",
   "startedAt": "...",
   "finishedAt": "...",
-  "context": {"changed": true},
+  "contextOutput": {"bullets": [], "reason": "...", "changed": true},
+  "searchDecision": {"runMatching": true, "reason": "...", "searchInstruction": "..."},
   "matching": {
     "skippedReason": null,
     "retrieved": 84,
@@ -226,6 +220,9 @@ Column을 늘리지 않고도 다음은 index와 RPC/helper로 구현한다.
 8. 각 `[talent × role]`을 독립적으로 평가한다.
 9. 평가 결과와 pair text-context를 `talent_opportunity_fit`에 저장한다.
 10. 저장 결과를 검증하고 queue row를 짧은 결론과 함께 완료 처리한다.
+11. Batch의 모든 Role이 끝나면 같은 회사의 Role들을 talent별로 rerank해 먼저 제안할 Role 하나 또는
+    `null`을 고른다.
+12. Internal-notification에 batch thread 하나와 Role별 한두 문장 답글을 남긴다.
 
 Pending limit은 matching만 막는다. 일주일마다 context를 새로 확인하는 목적은 유지되므로 context 갱신까지 건너뛰지 않는다.
 
@@ -239,13 +236,14 @@ Codex가 role마다 SQL을 새로 작성한다. 고정 keyword query 하나를 �
 
 한 run의 신규 lane은 SQL 순서대로 최대 150명을 scan하고, 안전 제외를 통과한 최대 100명을 full-text 평가한다. SQL 결과가 100명 이하이면 제외되지 않은 전원을 평가하며 임의로 더 작은 상한을 두지 않는다. Scan된 수, 제외된 수, 실제 평가한 수를 결과에서 서로 구분한다.
 
-### 8.2 기존 평가의 재사용
+### 8.2 기존 평가의 제한적 재판단
 
-현재 자동 Company Context Run은 기존 fit row를 시간 경과, profile 변경, 대화, 회사 기록 또는 fingerprint 변화만으로 다시 계산하지 않는다. 이 workflow의 matching 대상은 해당 role의 fit row가 아직 없는 신규 후보다.
+Scheduled Company Run은 `output 2`가 실제 기대효과를 확인했을 때 기존 pair를 제한적으로 다시 볼 수
+있다. 기본 reevaluation lane은 21일 이상 지난 effective `hold`·`ambiguous` 중 입력 fingerprint가
+달라진 10~50명이다. 기존 `reason`은 이전 판단의 참고 evidence이며 정답으로 취급하지 않는다.
 
-후보자가 실제 `hold_role_question`에 답한 경우의 재검사는 질문과 답을 보유한 Worker 경로가 담당한다. Role 중심 Company Context Run이 그 답을 추정하거나 대신 처리하지 않는다.
-
-기존 effective non-fit에서 자동 평가가 놓친 추천 가능 후보를 제한된 비용으로 다시 찾는 일은 별도의 [Company Role Fit Recovery Audit](./company-role-fit-recovery-audit-overview-ko.md)이 담당한다. Recovery Audit은 전체 pair 재계산이 아니라 한 실행당 50~150명의 unique talent만 Codex가 직접 읽는 bounded audit이며, local read-only 단계부터 시작한다.
+`fit`, `dissatisfied`, `unfit` 전체를 시간만으로 다시 계산하거나 추천 수를 채우려고 기준을 낮추지
+않는다. 더 넓은 false-negative 감사가 필요하면 별도 [Company Role Fit Recovery Audit](./company-role-fit-recovery-audit-overview-ko.md)을 사용한다. 후보자가 실제 `hold_role_question`에 답한 경우의 즉시 재검사는 질문과 답을 보유한 Worker 경로가 계속 담당한다.
 
 ## 9. 후보 텍스트와 pair 평가
 
@@ -275,9 +273,13 @@ Memory 원문과 광범위한 대화·이메일·추천 이력은 candidate 문�
 
 ## 10. 저장 순서
 
-1. Role별 current context text 하나를 `company_behavior_contexts`에 저장한다. 이 table은 `role_id`, `text_context` 두 column만 가진다.
+1. Role별 current context text 하나를 `company_behavior_contexts.role_id`, `text_context`에 저장한다. 현재
+   배포 스키마의 추가 audit column은 삭제하거나 재정의하지 않는다.
 2. 이번 run에서 실제로 평가한 pair만 `talent_opportunity_fit`에 upsert한다.
-3. Queue `result`에 context 변화 여부, skip 이유, 평가 count와 한두 문장의 결론을 저장한다.
+3. Queue `result`에 context 전체 출력, search 실행 판단, skip 이유, retrieval·lane·label count와 한두
+   문장의 결론을 저장한다.
+4. 모든 Role 뒤 talent별 company-wide rerank 결과를 `recommend`와 run count에 반영한다.
+5. Internal-notification thread와 Role 답글 timestamp를 각 row의 `result.notification`에 저장한다.
 
 Fit 단계가 실패해도 이미 저장한 올바른 context를 되돌리지 않는다. 재시도에서는 같은 context가 unchanged임을 확인한 뒤 미완료 matching부터 이어갈 수 있어야 한다.
 
@@ -289,11 +291,13 @@ Fit 단계가 실패해도 이미 저장한 올바른 context를 되돌리지 �
 | --- | --- |
 | Trigger 판정과 enqueue | 새 evidence가 현재 회사 판단을 어떻게 바꾸는지 |
 | Atomic claim, 중복 방지, retry | Context 문장의 추가·수정·삭제 |
-| Role active 여부와 pending count | Role별 retrieval SQL 작성과 결과 점검 |
+| Role active 여부와 pending count | 지금 matching cycle을 실행할지와 이번 탐색 가설 |
+| Batch identity와 Role별 durable row | Role별 retrieval SQL 작성과 결과 점검 |
 | Evidence fetch와 실행 중 source drift 검증 | 신규 SQL의 role별 rank evidence 설계 |
-| 기존 fit row, recommendation·progress·privacy 안전 제외 | 후보별 상호 적합도, label, score, reason |
+| 기존 fit row, recommendation·progress·privacy 안전 제외 | 후보별 상호 적합도, label, score, reason과 제한적 재평가 |
 | Candidate packet 생성과 canonical projection | Run의 짧은 결론 작성 |
-| Context·fit·run result의 검증된 write |  |
+| Context·fit·run result의 검증된 write | 같은 회사 Role 중 지금 먼저 제안할 Role의 최종 rerank |
+| Slack thread timestamp 기반 멱등 전송 | Role별 한두 문장 summary |
 
 Due 여부, pending limit, 중복 실행, 같은 fingerprint skip처럼 결정적인 조건을 prompt에 맡기지 않는다. 반대로 회사 행동의 의미, 좋은 검색 SQL, pair 적합도처럼 role마다 달라지는 판단을 좁은 규칙과 고정 keyword로 대체하지 않는다.
 
@@ -311,12 +315,13 @@ Due 여부, pending limit, 중복 실행, 같은 fingerprint skip처럼 결정�
 
 ## 13. 완료 기준
 
-- `is_auto=true`인 새 role, 7일 이상 비활성 후 재개, active 7일 경과만 코드로 정확히 enqueue된다.
-- Codex 예약 작업은 조건을 다시 추론하지 않고 queued role을 하나씩 atomic claim하며, 현재 claim 가능한 queue를 순차적으로 모두 처리한다.
-- Role당 current context 문서 하나가 실제 회사 행동을 compact하게 verbalize한다.
+- 월·목 오전 8시에는 같은 `batchRunId`로 eligible Role별 row가 멱등하게 enqueue된다.
+- Codex 예약 작업은 대상 조건을 다시 추론하지 않고 해당 batch의 queued Role을 하나씩 atomic claim한다.
+- Role당 current context 문서 하나가 실제 회사 행동을 최대 10개의 bullet로 compact하게 verbalize한다.
 - Pending limit에 도달해도 context는 갱신되고 matching만 생략된다.
-- 신규 후보는 동적 SQL과 full candidate text를 거쳐 pair별로 평가된다.
-- 기존 fit row는 자동 Company Context Run에서 다시 계산하지 않는다.
-- 기존 effective non-fit의 제한적 재발견은 별도 Recovery Audit의 unique-talent 예산과 cache 계약을 따른다.
+- LLM이 이번 matching cycle의 기대효과와 run-specific 탐색 지침을 명시적으로 남긴다.
+- 신규 후보는 동적 SQL과 full candidate text를 거쳐 pair별로 평가되고, 허용된 기존 pair는 bounded lane에서 재평가된다.
+- 같은 talent에 대한 동일 회사 Role들은 batch 마지막에 함께 rerank된다.
 - Pair reason과 input fingerprint가 저장되어 사람이 판단 근거를 확인할 수 있다.
-- Queue row에 성공·실패와 짧은 실행 결론이 남는다.
+- Queue row에 output 1·2, 성공·실패, count와 짧은 실행 결론이 남는다.
+- Internal-notification에는 batch thread 하나와 Role별 답글 하나가 중복 없이 남는다.

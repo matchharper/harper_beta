@@ -27,7 +27,7 @@ function formatReengagementPendingAction(
         action.reason ? `: ${action.reason}` : ""
       }`;
     case "career_check_in_call":
-      return `[actionKey:${action.actionKey}] [커리어 체크인 통화] 최근 상황과 이직·구직 의향을 Harper와 이야기할 수 있음`;
+      return `[actionKey:${action.actionKey}] [최근 변화를 듣기 위한 통화 제안] Harper가 최근 일·커리어 상황에서 달라진 점이 있는지 통화로 편하게 듣고 싶어 함`;
     case "company_request":
       return `[actionKey:${action.actionKey}] [회사 요청] ${action.companyName} · ${action.roleTitle}: ${action.request}`;
     case "internal_opportunity":
@@ -93,6 +93,18 @@ export function buildCareerSessionStartTurnInstruction(args: {
         ),
       ]
     : [];
+  const pendingActionCopyLines = pendingActions.length
+    ? [
+        "pending action의 대괄호 설명은 내부 의미 참고용이다. 그대로 제목이나 고유 명칭처럼 복사하지 말고 사용자가 이해할 자연스러운 말로 풀어 쓴다.",
+        ...(pendingActions.some(
+          (action) => action.kind === "career_check_in_call"
+        )
+          ? [
+              "최근 변화를 듣기 위한 통화는 프로그램명처럼 이름 붙이지 말고, Harper가 최근 달라진 점이 있는지 통화로 편하게 듣고 싶다는 취지로 제안한다.",
+            ]
+          : []),
+      ]
+    : [];
   return [
     "## Session re-engagement",
     `사용자가 새 메시지를 보내지 않은 상태에서 Career에 다시 접속했다. 지금까지의 대화와 제공된 맥락을 보고 Harper가 먼저 보낼 자연스러운 ${outputLanguage} 메시지를 작성한다. 필요하면 적당히 길게 작성해도 된다.`,
@@ -100,6 +112,7 @@ export function buildCareerSessionStartTurnInstruction(args: {
     `- previousChatAt: ${previousChatAtLabel}`,
     "시각은 한국 시간 기준 24시간제이며 내부 판단용이다. 사용자에게 날짜·시각·경과 시간을 말하거나 이전 대화를 방금 일처럼 표현하지 마라.",
     ...pendingActionLines,
+    ...pendingActionCopyLines,
     `맥락에 맞는 유용한 메시지를 만들 수 없으면 정확히 ${CAREER_SESSION_START_NO_MESSAGE_MARKER}만 출력한다.`,
     "본문에서 사용자가 바로 실행할 수 있는 선택을 제안했다면 아래 raw JSON 블록에 맞는 액션을 붙인다. 실행 선택이 없으면 블록을 생략하고 일반 CAREER_CHOICE_BUTTONS는 쓰지 않는다. 마커와 JSON은 코드 펜스 없이 출력한다.",
     CAREER_REENGAGEMENT_ACTIONS_START,

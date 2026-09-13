@@ -618,51 +618,6 @@ async function fetchEc2Costs(range: DateRange) {
   }
 }
 
-async function fetchDeepSeekCredit(): Promise<OpsCreditProviderResult> {
-  const label = "DeepSeek";
-  const apiKey = process.env.DEEPSEEK_API_KEY?.trim();
-  if (!apiKey) {
-    return notConfiguredCredit("deepseek", label, ["DEEPSEEK_API_KEY"]);
-  }
-
-  try {
-    const payload = asRecord(
-      await fetchJson(
-        "https://api.deepseek.com/user/balance",
-        {
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-          },
-        },
-        label
-      )
-    );
-    const amounts = asArray(payload.balance_infos).map((rawBalance) => {
-      const balance = asRecord(rawBalance);
-      return {
-        amount: asNumber(balance.total_balance),
-        currency: asString(balance.currency) || "USD",
-        grantedAmount: asNumber(balance.granted_balance),
-        toppedUpAmount: asNumber(balance.topped_up_balance),
-      };
-    });
-
-    return {
-      amounts,
-      id: "deepseek",
-      items: [],
-      label,
-      message:
-        payload.is_available === false
-          ? "현재 API 호출에 사용할 수 없는 잔액입니다."
-          : null,
-      status: "ok",
-    };
-  } catch (error) {
-    return failedCredit("deepseek", label, error);
-  }
-}
-
 async function fetchOpenRouterCredit(): Promise<OpsCreditProviderResult> {
   const label = "OpenRouter";
   const managementKey = process.env.OPENROUTER_MANAGEMENT_API_KEY?.trim();
@@ -816,7 +771,6 @@ export async function fetchOpsCosts(
     grok,
     exa,
     ec2,
-    deepseekCredit,
     openrouterCredit,
     awsCredit,
   ] = await Promise.all([
@@ -826,14 +780,13 @@ export async function fetchOpsCosts(
     fetchGrokCosts(range),
     fetchExaCosts(range),
     fetchEc2Costs(range),
-    fetchDeepSeekCredit(),
     fetchOpenRouterCredit(),
     fetchAwsCredit(),
   ]);
 
   return {
     costs: [claude, openai, openrouter, grok, exa, ec2],
-    credits: [deepseekCredit, openrouterCredit, awsCredit],
+    credits: [openrouterCredit, awsCredit],
     from: range.from,
     generatedAt: new Date().toISOString(),
     through: range.through,

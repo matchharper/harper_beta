@@ -150,7 +150,7 @@ test("session re-engagement uses readable Korean-local times and distinguishes a
   assert.doesNotMatch(prompt, /다른 미응답 추천이 있더라도 함께 꺼내지 않는다/);
 });
 
-test("session re-engagement exposes a career check-in call as an available pending action", () => {
+test("session re-engagement describes the update call as a natural invitation", () => {
   const prompt = buildCareerSessionStartTurnInstruction({
     currentAccessAt: "2026-08-25T09:24:05.960Z",
     idleMs: 31 * 60 * 60 * 1000,
@@ -167,7 +167,10 @@ test("session re-engagement exposes a career check-in call as an available pendi
     previousChatAt: "2026-08-24T01:25:03.102495+00:00",
   });
 
-  assert.match(prompt, /커리어 체크인 통화/);
+  assert.match(prompt, /최근 일·커리어 상황에서 달라진 점/);
+  assert.match(prompt, /통화로 편하게 듣고 싶/);
+  assert.match(prompt, /프로그램명처럼 이름 붙이지 말고/);
+  assert.doesNotMatch(prompt, /커리어 체크인/);
   assert.match(prompt, /"type":"start_call"/);
   assert.match(prompt, /"type":"start_call","actionKey"/);
   assert.match(prompt, /actionKey:pending_1/);

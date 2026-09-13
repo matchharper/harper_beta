@@ -92,6 +92,12 @@ const STATIC_MODEL_PRICING_USD_PER_MTOK: Record<string, LlmModelPricing> = {
     outputUsdPerMtok: 2.5,
     pricingSource: "xai_retired_slug_redirect_2026_05_15",
   },
+  "deepseek/deepseek-v4-flash-0731": {
+    cacheReadUsdPerMtok: 0.013,
+    inputUsdPerMtok: 0.05,
+    outputUsdPerMtok: 0.16,
+    pricingSource: "openrouter_pricing_2026_09_13",
+  },
   "z-ai/glm-5.3-flash": {
     cacheReadUsdPerMtok: 0.015,
     inputUsdPerMtok: 0.075,
@@ -106,24 +112,6 @@ const STATIC_MODEL_PRICING_USD_PER_MTOK: Record<string, LlmModelPricing> = {
     pricingSource: "openrouter_pricing_2026_09_01",
   },
 };
-
-const DEEPSEEK_PRICING_EFFECTIVE_AT_UTC = Date.UTC(2026, 7, 16, 16, 0, 0);
-const DEEPSEEK_PEAK_HOURS_UTC = [
-  [1, 4],
-  [6, 10],
-] as const;
-const DEEPSEEK_RATES = {
-  flash: {
-    legacy: { cached: 0.0028, input: 0.14, output: 0.28 },
-    off_peak: { cached: 0.007, input: 0.22, output: 0.66 },
-    peak: { cached: 0.014, input: 0.44, output: 1.32 },
-  },
-  pro: {
-    legacy: { cached: 0.003625, input: 0.435, output: 0.87 },
-    off_peak: { cached: 0.022, input: 0.66, output: 1.98 },
-    peak: { cached: 0.044, input: 1.32, output: 3.96 },
-  },
-} as const;
 
 const REALTIME_MODEL_PRICING_USD_PER_MTOK: Record<
   string,
@@ -166,37 +154,9 @@ const REALTIME_MODEL_PRICING_USD_PER_MTOK: Record<
 
 export function getLlmModelPricing(
   model: string,
-  options: { at?: Date } = {}
+  _options: { at?: Date } = {}
 ): LlmModelPricing | null {
   const normalized = model.trim().toLowerCase();
-  const deepseekFamily = normalized.startsWith("deepseek-v4-pro")
-    ? "pro"
-    : normalized.startsWith("deepseek-v4-flash") ||
-        normalized === "deepseek-chat" ||
-        normalized === "deepseek-reasoner"
-      ? "flash"
-      : null;
-  if (deepseekFamily) {
-    const at = options.at ?? new Date();
-    const tier =
-      at.getTime() < DEEPSEEK_PRICING_EFFECTIVE_AT_UTC
-        ? "legacy"
-        : DEEPSEEK_PEAK_HOURS_UTC.some(
-              ([start, end]) => at.getUTCHours() >= start && at.getUTCHours() < end
-            )
-          ? "peak"
-          : "off_peak";
-    const rates = DEEPSEEK_RATES[deepseekFamily][tier];
-    return {
-      cacheReadUsdPerMtok: rates.cached,
-      effectiveModel: `deepseek-v4-${deepseekFamily}`,
-      inputUsdPerMtok: rates.input,
-      outputUsdPerMtok: rates.output,
-      pricingSource: `deepseek_api_pricing_2026_08_16:${tier}`,
-      pricingTier: tier,
-    };
-  }
-
   const exact = STATIC_MODEL_PRICING_USD_PER_MTOK[normalized];
   if (exact) return exact;
   const matchedKey = Object.keys(STATIC_MODEL_PRICING_USD_PER_MTOK)
@@ -217,6 +177,4 @@ export function getRealtimeModelPricing(
   return matchedKey ? REALTIME_MODEL_PRICING_USD_PER_MTOK[matchedKey] : null;
 }
 
-export const XAI_REALTIME_AUDIO_USD_PER_MINUTE = 0.05;
-export const XAI_REALTIME_TEXT_INPUT_USD_PER_EVENT = 0.004;
 export const OPENAI_WEB_SEARCH_USD_PER_CALL = 0.01;

@@ -2,9 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   estimateLlmUsageCost,
-  estimateXaiRealtimeUsageCost,
   extractLlmTokenUsage,
-  normalizeRealtimeBillingUsage,
 } from "@/lib/llm/usageLogging";
 
 test("accounts for GPT-5.6 cache writes included in input tokens", () => {
@@ -63,84 +61,14 @@ test("prices retired Grok Fast slugs as redirected Grok 4.3", () => {
   assert.equal(cost?.estimatedCostUsd, 0.0025);
 });
 
-test("uses the DeepSeek V4 peak tier effective at the logged call time", () => {
+test("prices OpenRouter DeepSeek V4 Flash 0731", () => {
   const usage = extractLlmTokenUsage({
     usage: { input_tokens: 1_000, output_tokens: 500 },
   });
 
-  const cost = estimateLlmUsageCost("deepseek-v4-pro", usage, {
-    at: new Date("2026-09-01T02:30:00Z"),
-  });
-  assert.equal(cost?.inputUsdPerMtok, 1.32);
-  assert.equal(cost?.outputUsdPerMtok, 3.96);
-  assert.equal(cost?.pricingTier, "peak");
-  assert.equal(cost?.estimatedCostUsd, 0.0033);
-});
-
-test("prices xAI realtime audio by sent and received duration", () => {
-  const cost = estimateXaiRealtimeUsageCost("grok-voice-think-fast-2.0", {
-    inputAudioSeconds: 60,
-    outputAudioSeconds: 30,
-    textInputEventCount: 2,
-  });
-
-  assert.deepEqual(cost, {
-    audioCostUsd: 0.075,
-    audioDurationSeconds: 90,
-    audioUsdPerMinute: 0.05,
-    billingBasis: "audio_duration",
-    estimatedCostUsd: 0.083,
-    inputAudioSeconds: 60,
-    outputAudioSeconds: 30,
-    pricingSource: "xai_official_voice_api",
-    sessionDurationSeconds: null,
-    textInputCostUsd: 0.008,
-    textInputEventCount: 2,
-    textInputUsdPerEvent: 0.004,
-  });
-});
-
-test("uses session duration only when audio counters are unavailable", () => {
-  const cost = estimateXaiRealtimeUsageCost("grok-voice-latest", {
-    sessionDurationSeconds: 120,
-  });
-
-  assert.equal(cost?.billingBasis, "session_duration_fallback");
-  assert.equal(cost?.audioDurationSeconds, 120);
-  assert.equal(cost?.estimatedCostUsd, 0.1);
-});
-
-test("does not apply xAI voice pricing to other realtime models", () => {
-  assert.equal(
-    estimateXaiRealtimeUsageCost("gpt-realtime-2.1", {
-      inputAudioSeconds: 60,
-    }),
-    null
-  );
-  assert.equal(
-    estimateXaiRealtimeUsageCost("grok-voice-latest", {
-      sessionStartedAt: "2026-07-31T00:00:00.000Z",
-    }),
-    null
-  );
-});
-
-test("normalizes invalid client measurements without turning them into cost", () => {
-  assert.deepEqual(
-    normalizeRealtimeBillingUsage({
-      inputAudioSeconds: -1,
-      sessionDurationSeconds: 12,
-      textInputEventCount: "not-a-number",
-    }),
-    {
-      audioDurationSeconds: null,
-      billingBasis: null,
-      inputAudioSeconds: null,
-      outputAudioSeconds: null,
-      sessionDurationSeconds: 12,
-      sessionEndedAt: null,
-      sessionStartedAt: null,
-      textInputEventCount: null,
-    }
-  );
+  const cost = estimateLlmUsageCost("deepseek/deepseek-v4-flash-0731", usage);
+  assert.equal(cost?.inputUsdPerMtok, 0.05);
+  assert.equal(cost?.outputUsdPerMtok, 0.16);
+  assert.equal(cost?.pricingSource, "openrouter_pricing_2026_09_13");
+  assert.equal(cost?.estimatedCostUsd, 0.00013);
 });

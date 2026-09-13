@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 process.env.OPENAI_API_KEY ||= "test-openai-key";
-process.env.DEEPSEEK_API_KEY ||= "test-deepseek-key";
 process.env.OPENROUTER_API_KEY ||= "test-openrouter-key";
 
 const loadLlm = () => import("@/lib/llm/llm");
@@ -13,12 +12,12 @@ function asyncStream(items: unknown[]) {
   })();
 }
 
-test("routes DeepSeek V4 models to the DeepSeek provider", async () => {
+test("routes DeepSeek V4 Flash 0731 to OpenRouter", async () => {
   const { getLlmChatProviderForModel, supportsSamplingParametersForModel } =
     await loadLlm();
-  assert.equal(getLlmChatProviderForModel("deepseek-v4-flash"), "deepseek");
-  assert.equal(getLlmChatProviderForModel("deepseek-v4-pro"), "deepseek");
-  assert.equal(supportsSamplingParametersForModel("deepseek-v4-flash"), false);
+  const model = "deepseek/deepseek-v4-flash-0731";
+  assert.equal(getLlmChatProviderForModel(model), "openrouter");
+  assert.equal(supportsSamplingParametersForModel(model), true);
 });
 
 test("routes Z.ai models to OpenRouter with explicit reasoning effort", async () => {
@@ -311,9 +310,9 @@ test("forwards OpenRouter deltas through the Career chat stream", async () => {
   assert.equal((receivedBody as Record<string, any>).stream, true);
 });
 
-test("enables DeepSeek high thinking and preserves tool reasoning", async () => {
-  const { createChatCompletionWithFallback, deepseekClient } = await loadLlm();
-  const completions = deepseekClient.chat.completions as any;
+test("enables OpenRouter reasoning for DeepSeek V4 Flash 0731", async () => {
+  const { createChatCompletionWithFallback, openrouterClient } = await loadLlm();
+  const completions = openrouterClient.chat.completions as any;
   const originalCreate = completions.create;
   let receivedBody: Record<string, any> | null = null;
   completions.create = async (body: Record<string, any>) => {
@@ -327,7 +326,7 @@ test("enables DeepSeek high thinking and preserves tool reasoning", async () => 
         messages: [
           {
             content: "",
-            reasoning_content: "private tool reasoning",
+            reasoning_details: [{ type: "reasoning.summary", text: "summary" }],
             role: "assistant",
             tool_calls: [],
           },
@@ -335,8 +334,8 @@ test("enables DeepSeek high thinking and preserves tool reasoning", async () => 
         parallel_tool_calls: false,
         temperature: 0.1,
       }),
-      deepSeekThinking: { reasoningEffort: "high" },
-      model: "deepseek-v4-flash",
+      chatCompletionReasoning: { reasoningEffort: "high" },
+      model: "deepseek/deepseek-v4-flash-0731",
     });
   } finally {
     completions.create = originalCreate;
@@ -344,19 +343,17 @@ test("enables DeepSeek high thinking and preserves tool reasoning", async () => 
 
   assert.ok(receivedBody);
   const requestBody = receivedBody as unknown as Record<string, any>;
-  assert.equal(requestBody.reasoning_effort, "high");
-  assert.deepEqual(requestBody.thinking, { type: "enabled" });
-  assert.equal(requestBody.temperature, undefined);
+  assert.deepEqual(requestBody.reasoning, { effort: "high" });
+  assert.equal(requestBody.temperature, 0.1);
   assert.equal(requestBody.parallel_tool_calls, false);
-  assert.equal(
-    requestBody.messages[0].reasoning_content,
-    "private tool reasoning"
-  );
+  assert.deepEqual(requestBody.messages[0].reasoning_details, [
+    { type: "reasoning.summary", text: "summary" },
+  ]);
 });
 
-test("aborts an in-flight chat completion without retrying", async () => {
-  const { createChatCompletionWithFallback, deepseekClient } = await loadLlm();
-  const completions = deepseekClient.chat.completions as any;
+test("aborts an in-flight OpenRouter completion without retrying", async () => {
+  const { createChatCompletionWithFallback, openrouterClient } = await loadLlm();
+  const completions = openrouterClient.chat.completions as any;
   const originalCreate = completions.create;
   const controller = new AbortController();
   let callCount = 0;
@@ -378,7 +375,7 @@ test("aborts an in-flight chat completion without retrying", async () => {
   try {
     const completion = createChatCompletionWithFallback({
       buildRequest: () => ({ messages: [] }),
-      model: "deepseek-v4-flash",
+      model: "deepseek/deepseek-v4-flash-0731",
       signal: controller.signal,
     });
     controller.abort(reason);
