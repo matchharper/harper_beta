@@ -6,6 +6,7 @@ import {
   type OpenAIResponsesReasoningEffort,
 } from "@/lib/llm/responsesChatAdapter";
 import {
+  isOpenRouterModel,
   isOpenRouterGlm53FlashModel,
   OPENROUTER_ZAI_PROVIDER_SLUG,
 } from "@/lib/llm/modelConfig";
@@ -62,12 +63,6 @@ export const anthropicClient = new OpenAI({
   baseURL: "https://api.anthropic.com/v1/",
 });
 
-export const deepseekClient = new OpenAI({
-  apiKey: process.env.DEEPSEEK_API_KEY ?? "missing-deepseek-api-key",
-  dangerouslyAllowBrowser: true,
-  baseURL: "https://api.deepseek.com",
-});
-
 export const openrouterClient = new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY ?? "missing-openrouter-api-key",
   dangerouslyAllowBrowser: true,
@@ -76,7 +71,6 @@ export const openrouterClient = new OpenAI({
 
 export type LlmChatProvider =
   | "anthropic"
-  | "deepseek"
   | "openai"
   | "openrouter"
   | "xai";
@@ -95,9 +89,6 @@ type ChatCompletionRequestConfig = {
   chatCompletionReasoning?: {
     reasoningEffort: ChatCompletionReasoningEffort;
   };
-  deepSeekThinking?: {
-    reasoningEffort: "high" | "max";
-  };
   openAIResponses?: {
     reasoningEffort: OpenAIResponsesReasoningEffort;
   };
@@ -107,8 +98,7 @@ export function getLlmChatProviderForModel(model: string): LlmChatProvider {
   const normalized = model.trim().toLowerCase();
   if (normalized.startsWith("grok-")) return "xai";
   if (normalized.startsWith("claude-")) return "anthropic";
-  if (normalized.startsWith("deepseek-")) return "deepseek";
-  if (normalized.startsWith("z-ai/")) return "openrouter";
+  if (isOpenRouterModel(normalized)) return "openrouter";
   return "openai";
 }
 
@@ -116,18 +106,13 @@ export function getChatClientForModel(model: string) {
   const provider = getLlmChatProviderForModel(model);
   if (provider === "xai") return xaiClient;
   if (provider === "anthropic") return anthropicClient;
-  if (provider === "deepseek") return deepseekClient;
   if (provider === "openrouter") return openrouterClient;
   return client;
 }
 
 export function supportsResponseFormatForModel(model: string) {
   const provider = getLlmChatProviderForModel(model);
-  return (
-    provider === "deepseek" ||
-    provider === "openai" ||
-    provider === "openrouter"
-  );
+  return provider === "openai" || provider === "openrouter";
 }
 
 export function supportsSamplingParametersForModel(model: string) {
@@ -138,7 +123,6 @@ export function supportsSamplingParametersForModel(model: string) {
   ) {
     return false;
   }
-  if (getLlmChatProviderForModel(normalized) === "deepseek") return false;
   if (getLlmChatProviderForModel(normalized) !== "anthropic") return true;
   if (
     normalized === "claude-sonnet-5" ||
@@ -264,10 +248,6 @@ function buildChatCompletionRequestParts(
     ...args.buildRequest(model),
     model,
   };
-  if (provider === "deepseek" && args.deepSeekThinking) {
-    rawRequestBody.reasoning_effort = args.deepSeekThinking.reasoningEffort;
-    rawRequestBody.thinking = { type: "enabled" };
-  }
   if (provider === "openrouter" && args.chatCompletionReasoning) {
     rawRequestBody.reasoning = {
       effort: args.chatCompletionReasoning.reasoningEffort,
@@ -290,7 +270,7 @@ function buildChatCompletionRequestParts(
     messages: Array.isArray(rawRequestBody.messages)
       ? rawRequestBody.messages.map((message: any) => {
           const { _responses_output: _ignored, ...chatMessage } = message;
-          if (provider === "deepseek" || provider === "openrouter") {
+          if (provider === "openrouter") {
             return chatMessage;
           }
           const {
@@ -609,9 +589,6 @@ export async function createChatCompletionWithFallback(args: {
     reasoningEffort: ChatCompletionReasoningEffort;
   };
   debugLabel?: string | null;
-  deepSeekThinking?: {
-    reasoningEffort: "high" | "max";
-  };
   fallbackModel?: string | null;
   model: string;
   openAIResponses?: {
@@ -730,9 +707,6 @@ export async function createChatCompletionStreamWithFallback(args: {
     reasoningEffort: ChatCompletionReasoningEffort;
   };
   debugLabel?: string | null;
-  deepSeekThinking?: {
-    reasoningEffort: "high" | "max";
-  };
   fallbackModel?: string | null;
   model: string;
   onTextDelta: (delta: string) => void | Promise<void>;

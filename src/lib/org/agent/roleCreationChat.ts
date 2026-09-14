@@ -338,7 +338,7 @@ async function completion(args: {
         : {}),
     }),
     debugLabel: "org/agent:role-creation",
-    deepSeekThinking: { reasoningEffort: "high" },
+    chatCompletionReasoning: { reasoningEffort: "high" },
     ...(args.strictModel
       ? {}
       : { fallbackModel: getOrgAgentFallbackModel(args.model) }),
@@ -383,7 +383,7 @@ export async function generateRoleCreationOutcomeReply(args: {
       temperature: 0.15,
     }),
     debugLabel: "org/agent:role-creation-outcome",
-    deepSeekThinking: { reasoningEffort: "high" },
+    chatCompletionReasoning: { reasoningEffort: "high" },
     fallbackModel: getOrgAgentFallbackModel(selectedModel),
     model: selectedModel,
     openAIResponses: {

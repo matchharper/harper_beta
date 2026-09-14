@@ -23,6 +23,20 @@
   evaluator and retrieval changes. Do not substitute the Company Context Run
   documents for this audit's existing-non-fit workflow.
 
+## Company-first talent selection
+
+- Before every company-first talent selection run, including shadow, dry-run,
+  manual, and scheduled execution, read
+  `docs/company/company-first-talent-recommendation-codex-runbook-ko.md` in full
+  during that run. Do not rely on having read it in an earlier run.
+- Treat
+  `docs/company/company-first-talent-recommendation-product-plan-ko.md` as the
+  product and state contract, and the Codex runbook as the execution contract.
+- A selection run may create only the company-side `ready` artifact described
+  by those documents. It must not create a candidate-visible recommendation,
+  candidate message, email, follow-up, or normal pipeline stage; those begin
+  only after a company explicitly requests the intro.
+
 ## Company-side UX writing
 
 - Before creating, changing, or reviewing any user-facing wording for the

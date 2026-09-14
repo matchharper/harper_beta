@@ -3,8 +3,6 @@ import {
   getLlmModelPricing,
   getRealtimeModelPricing,
   type LlmModelPricing,
-  XAI_REALTIME_AUDIO_USD_PER_MINUTE,
-  XAI_REALTIME_TEXT_INPUT_USD_PER_EVENT,
 } from "@/lib/llm/pricing";
 
 type OpenAICompatibleUsage = {
@@ -72,17 +70,6 @@ type RealtimeTokenUsage = {
   unattributedOutputTokens: number;
 };
 
-export type RealtimeBillingUsage = {
-  audioDurationSeconds?: number | null;
-  billingBasis?: "audio_duration" | "session_duration_fallback" | null;
-  inputAudioSeconds?: number | null;
-  outputAudioSeconds?: number | null;
-  sessionDurationSeconds?: number | null;
-  sessionEndedAt?: string | null;
-  sessionStartedAt?: string | null;
-  textInputEventCount?: number | null;
-};
-
 const LLM_LOG_TOOL_NAMES = [
   "recommend_job_postings",
   "read_recommended_opportunities",
@@ -115,58 +102,6 @@ const TOOL_LLM_LOG_NAMES = new Set<string>(LLM_LOG_TOOL_NAMES);
 
 function toNullableNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function toNullableNonNegativeNumber(value: unknown): number | null {
-  const number = toNullableNumber(value);
-  return number !== null && number >= 0 ? number : null;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === "object" && !Array.isArray(value));
-}
-
-export function normalizeRealtimeBillingUsage(
-  value: unknown
-): RealtimeBillingUsage | null {
-  if (!isRecord(value)) return null;
-
-  const billing: RealtimeBillingUsage = {
-    audioDurationSeconds: toNullableNonNegativeNumber(
-      value.audioDurationSeconds
-    ),
-    billingBasis:
-      value.billingBasis === "audio_duration" ||
-      value.billingBasis === "session_duration_fallback"
-        ? value.billingBasis
-        : null,
-    inputAudioSeconds: toNullableNonNegativeNumber(value.inputAudioSeconds),
-    outputAudioSeconds: toNullableNonNegativeNumber(value.outputAudioSeconds),
-    sessionDurationSeconds: toNullableNonNegativeNumber(
-      value.sessionDurationSeconds
-    ),
-    sessionEndedAt:
-      typeof value.sessionEndedAt === "string"
-        ? value.sessionEndedAt.trim().slice(0, 80) || null
-        : null,
-    sessionStartedAt:
-      typeof value.sessionStartedAt === "string"
-        ? value.sessionStartedAt.trim().slice(0, 80) || null
-        : null,
-    textInputEventCount: toNullableNonNegativeNumber(value.textInputEventCount),
-  };
-
-  const hasMeasurement = Object.entries(billing).some(([key, field]) => {
-    if (
-      key === "billingBasis" ||
-      key === "sessionStartedAt" ||
-      key === "sessionEndedAt"
-    ) {
-      return field !== null;
-    }
-    return field !== null && field !== undefined;
-  });
-  return hasMeasurement ? billing : null;
 }
 
 function resolvePricingForUsage(
@@ -484,72 +419,6 @@ export function estimateRealtimeLlmUsageCost(
   };
 }
 
-export function estimateXaiRealtimeUsageCost(
-  model: string,
-  billing: RealtimeBillingUsage | null | undefined
-) {
-  if (!model.trim().toLowerCase().startsWith("grok-voice")) return null;
-
-  const normalizedBilling = normalizeRealtimeBillingUsage(billing);
-  if (!normalizedBilling) return null;
-
-  const inputAudioSeconds = numberOrZero(normalizedBilling.inputAudioSeconds);
-  const outputAudioSeconds = numberOrZero(normalizedBilling.outputAudioSeconds);
-  const explicitAudioDurationSeconds = toNullableNonNegativeNumber(
-    normalizedBilling.audioDurationSeconds
-  );
-  const sessionDurationSeconds = toNullableNonNegativeNumber(
-    normalizedBilling.sessionDurationSeconds
-  );
-  const audioDurationSeconds =
-    explicitAudioDurationSeconds ??
-    (normalizedBilling.inputAudioSeconds !== null ||
-    normalizedBilling.outputAudioSeconds !== null
-      ? inputAudioSeconds + outputAudioSeconds
-      : (sessionDurationSeconds ?? 0));
-  const textInputEventCount = numberOrZero(
-    normalizedBilling.textInputEventCount
-  );
-  const hasAudioMeasurement =
-    explicitAudioDurationSeconds !== null ||
-    normalizedBilling.inputAudioSeconds !== null ||
-    normalizedBilling.outputAudioSeconds !== null ||
-    sessionDurationSeconds !== null;
-  const hasTextMeasurement = normalizedBilling.textInputEventCount !== null;
-
-  if (!hasAudioMeasurement && !hasTextMeasurement) return null;
-
-  const audioCostUsd =
-    (audioDurationSeconds / 60) * XAI_REALTIME_AUDIO_USD_PER_MINUTE;
-  const textInputCostUsd =
-    textInputEventCount * XAI_REALTIME_TEXT_INPUT_USD_PER_EVENT;
-  const usesSessionFallback =
-    explicitAudioDurationSeconds === null &&
-    normalizedBilling.inputAudioSeconds === null &&
-    normalizedBilling.outputAudioSeconds === null &&
-    sessionDurationSeconds !== null;
-
-  return {
-    audioCostUsd: roundCost(audioCostUsd),
-    audioDurationSeconds: roundCost(audioDurationSeconds),
-    audioUsdPerMinute: XAI_REALTIME_AUDIO_USD_PER_MINUTE,
-    billingBasis: usesSessionFallback
-      ? "session_duration_fallback"
-      : "audio_duration",
-    estimatedCostUsd: roundCost(audioCostUsd + textInputCostUsd),
-    inputAudioSeconds: roundCost(inputAudioSeconds),
-    outputAudioSeconds: roundCost(outputAudioSeconds),
-    pricingSource: "xai_official_voice_api",
-    sessionDurationSeconds:
-      sessionDurationSeconds === null
-        ? null
-        : roundCost(sessionDurationSeconds),
-    textInputCostUsd: roundCost(textInputCostUsd),
-    textInputEventCount,
-    textInputUsdPerEvent: XAI_REALTIME_TEXT_INPUT_USD_PER_EVENT,
-  };
-}
-
 export function logLlmTokenUsage(args: {
   extraEstimatedCostUsd?: number;
   label?: string;
@@ -660,18 +529,12 @@ function resolvePricingModel(configuredModel: string, response: any) {
 }
 
 export async function insertRealtimeLlmUsageLog(args: {
-  billing?: RealtimeBillingUsage | null;
   meta?: Record<string, unknown>;
   model: string;
   response: any;
 }) {
   const usage = extractRealtimeLlmTokenUsage(args.response);
-  const durationBasedCost = estimateXaiRealtimeUsageCost(
-    args.model,
-    args.billing
-  );
-  const estimatedCost =
-    durationBasedCost ?? estimateRealtimeLlmUsageCost(args.model, usage);
+  const estimatedCost = estimateRealtimeLlmUsageCost(args.model, usage);
   const providerCostTicks = toNullableNumber(
     args.response?.usage?.cost_in_usd_ticks
   );
@@ -701,11 +564,48 @@ export async function insertRealtimeLlmUsageLog(args: {
               providerCostTicks,
               source: "provider_reported",
             },
-      ...(args.billing ? { billing: args.billing } : {}),
       ...(args.meta ?? {}),
     },
     model: args.model,
     source: "career/realtime",
+  });
+}
+
+export async function insertLiveLlmUsageLog(args: {
+  audioSeconds?: number | null;
+  meta?: Record<string, unknown>;
+  model: string;
+  response?: any;
+  usageKind: "audio" | "delegation";
+}) {
+  const usage = extractLlmTokenUsage(args.response ?? {});
+  const cost =
+    args.usageKind === "delegation"
+      ? estimateLlmUsageCost(args.model, usage)
+      : null;
+  const costStatus = cost ? "estimated" : "unpriced";
+
+  await insertLlmLog({
+    costStatus,
+    estimatedCostUsd: cost?.estimatedCostUsd ?? 0,
+    meta: {
+      audioSeconds:
+        typeof args.audioSeconds === "number" &&
+        Number.isFinite(args.audioSeconds) &&
+        args.audioSeconds >= 0
+          ? args.audioSeconds
+          : null,
+      costBreakdown: cost ?? { source: "unpriced" },
+      costKind: costStatus,
+      costStatus,
+      label: `career/live:${args.usageKind}`,
+      step: args.usageKind,
+      usage,
+      usageKind: args.usageKind,
+      ...(args.meta ?? {}),
+    },
+    model: args.model,
+    source: "career/live",
   });
 }
 

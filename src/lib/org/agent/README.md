@@ -70,7 +70,8 @@ DB를 읽기만 하며 LLM을 호출하거나 tool을 실행하지 않는다. �
 
 ## Model 선택
 
-- 기본값은 웹과 Slack 모두 `deepseek-v4-flash`의 high thinking mode다.
+- 기본값은 웹과 Slack 모두 `gpt-5.6-terra`이며 reasoning effort는 `xhigh`다.
+- DeepSeek 선택지는 OpenRouter의 `deepseek/deepseek-v4-flash-0731` 한 종류다.
 - 내부 웹 사용자는 composer의 model selector에서 턴별 model을 바꿀 수 있고,
   마지막 선택은 브라우저에 저장된다.
 - 서버 공통 기본값은 `ORG_AGENT_MODEL`, Slack 전용 override는

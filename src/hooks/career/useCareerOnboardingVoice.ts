@@ -10,7 +10,7 @@ import {
 import type { User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCareerVoiceInput } from "@/components/career/useCareerVoiceInput";
-import { useRealtimeSession } from "@/hooks/career/useRealtimeSession";
+import { useCareerVoiceSession } from "@/hooks/career/useCareerVoiceSession";
 import type { RealtimeUserSpeechStartedContext } from "@/hooks/career/useRealtimeSession";
 import type {
   CallLiveTranscriptPlacement,
@@ -35,7 +35,7 @@ import { showToast } from "@/components/toast/toast";
 import { showOpportunityDiscoveryStartedToast } from "./opportunityDiscoveryToast";
 import type { FetchWithAuth } from "./useCareerApi";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
-import { useCareerRealtimeProviderOverrideStore } from "@/store/useCareerRealtimeProviderOverrideStore";
+import { useCareerVoiceModelStore } from "@/store/useCareerVoiceModelStore";
 import {
   hasTalentOnboardingCompletionMarker,
   stripTalentOnboardingCompletionMarker,
@@ -401,8 +401,8 @@ export const useCareerOnboardingVoice = ({
   const tCareer = useCareerMessageFormatter();
   const { locale } = useMessages();
   const queryClient = useQueryClient();
-  const realtimeProviderOverride = useCareerRealtimeProviderOverrideStore(
-    (state) => state.providerOverride
+  const voiceModelOverride = useCareerVoiceModelStore(
+    (state) => state.modelOverride
   );
   const [showVoiceStartPrompt, setShowVoiceStartPrompt] = useState(false);
   const [onboardingBeginPending, setOnboardingBeginPending] = useState(false);
@@ -545,7 +545,7 @@ export const useCareerOnboardingVoice = ({
   const inputModeRef = useRef<string>("text");
   const generateSpeechRef = useRef<((text: string) => void) | null>(null);
   const realtimeSessionRef = useRef<ReturnType<
-    typeof useRealtimeSession
+    typeof useCareerVoiceSession
   > | null>(null);
 
   const scheduleCallEndAfterRealtimePlayback = useCallback(() => {
@@ -1124,7 +1124,7 @@ export const useCareerOnboardingVoice = ({
       userSpeechObservedRef.current = true;
       userTranscriptionPendingRef.current = false;
       userSpeechWithoutTranscriptRef.current = false;
-      if (context.provider !== "xai" || !context.continuesCurrentUserTurn) {
+      if (!context.continuesCurrentUserTurn) {
         liveUserTranscriptPlacementRef.current = "afterCurrentAssistant";
         setLiveUserTranscriptPlacement("afterCurrentAssistant");
       }
@@ -1149,10 +1149,10 @@ export const useCareerOnboardingVoice = ({
     markUserTranscriptionPending({ resetTimeout: true });
   }, [markUserTranscriptionPending]);
 
-  const realtimeSession = useRealtimeSession({
+  const realtimeSession = useCareerVoiceSession({
     conversationId,
     fetchWithAuth,
-    providerOverride: realtimeProviderOverride,
+    modelOverride: voiceModelOverride,
     onTranscript: handleRealtimeTranscript,
     onAssistantDelta: handleRealtimeAssistantDelta,
     onAssistantDone: handleRealtimeAssistantDone,

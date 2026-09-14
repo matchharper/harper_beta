@@ -50,8 +50,11 @@ import {
 } from "./savedOpportunityStatus";
 import UpcomingMeetingStrip from "./UpcomingMeetingStrip";
 import TalentRoleActivityTimeline from "./TalentRoleActivityTimeline";
+import NewOpportunityCompanyRoleSwitcher from "./NewOpportunityCompanyRoleSwitcher";
 
 export { getKnownCompanyDataText, parseFundingStageLabel };
+
+const EMPTY_COMPANY_OPPORTUNITIES: readonly CareerHistoryOpportunity[] = [];
 
 export const HistoryOpportunityFundingStageText = ({
   className,
@@ -82,12 +85,14 @@ export const HistoryOpportunityFundingStageText = ({
 };
 
 export const OpportunityHeader = ({
+  hideCompanyIdentity = false,
   item,
   layout = "responsive",
   onOpenCompanyInfo,
   onOpenOpportunityInfo,
   extraComponent,
 }: {
+  hideCompanyIdentity?: boolean;
   item: CareerHistoryOpportunity;
   layout?: "responsive" | "stacked";
   onOpenCompanyInfo?: (item: CareerHistoryOpportunity) => void;
@@ -140,71 +145,74 @@ export const OpportunityHeader = ({
         )}
       >
         <div className="flex min-w-0 w-full flex-row items-start gap-3 sm:gap-4">
-          {item.companyLogoUrl ? (
-            <div className="shrink-0 flex p-1 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-default">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={item.companyLogoUrl}
-                alt={item.companyName}
-                className="h-10 w-10 rounded-lg object-cover"
-              />
-            </div>
-          ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-black text-neutral-00">
-              <Building2 className="h-4 w-4" />
-            </div>
-          )}
+          {!hideCompanyIdentity &&
+            (item.companyLogoUrl ? (
+              <div className="shrink-0 flex p-1 items-center justify-center rounded-lg border border-neutral-1000-a05 bg-bg-default">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={item.companyLogoUrl}
+                  alt={item.companyName}
+                  className="h-10 w-10 rounded-lg object-cover"
+                />
+              </div>
+            ) : (
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-black text-neutral-00">
+                <Building2 className="h-4 w-4" />
+              </div>
+            ))}
 
           <div className="flex min-w-0 flex-col items-start w-full">
             <div className="wrap-break-word text-[16px] font-medium leading-tight sm:text-lg">
               {item.title}
             </div>
-            <div className="mt-2 flex w-full min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
-              <div className="flex min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-1">
-                {canOpenCompanyInfo ? (
-                  <BareButton
-                    type="button"
-                    onClick={() => {
-                      if (onOpenCompanyInfo) {
-                        onOpenCompanyInfo(item);
-                        return;
-                      }
-                      if (companyInfoLink) {
-                        window.open(
-                          companyInfoLink,
-                          "_blank",
-                          "noopener,noreferrer"
-                        );
-                      }
-                    }}
-                    className="min-w-0 wrap-break-word text-left decoration-dotted underline underline-offset-2 text-neutral-primary font-medium text-[14px] transition-colors duration-200 hover:text-primary"
+            {!hideCompanyIdentity || postingStatus ? (
+              <div className="mt-2 flex w-full min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
+                {!hideCompanyIdentity ? (
+                  <div className="flex min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-1">
+                    {canOpenCompanyInfo ? (
+                      <BareButton
+                        type="button"
+                        onClick={() => {
+                          if (onOpenCompanyInfo) {
+                            onOpenCompanyInfo(item);
+                            return;
+                          }
+                          if (companyInfoLink) {
+                            window.open(
+                              companyInfoLink,
+                              "_blank",
+                              "noopener,noreferrer"
+                            );
+                          }
+                        }}
+                        className="min-w-0 wrap-break-word text-left decoration-dotted underline underline-offset-2 text-neutral-primary font-medium text-[14px] transition-colors duration-200 hover:text-primary"
+                      >
+                        {item.companyName}
+                      </BareButton>
+                    ) : (
+                      <span className="min-w-0 wrap-break-word">
+                        {item.companyName}
+                      </span>
+                    )}
+                    <HistoryOpportunityFundingStageText
+                      lastFundingStage={lastFundingStage}
+                    />
+                  </div>
+                ) : null}
+                {postingStatus ? (
+                  <div
+                    className={cn(
+                      "text-xs",
+                      postingStatus.isExpired
+                        ? "font-medium text-info"
+                        : "text-neutral-muted"
+                    )}
                   >
-                    {item.companyName}
-                  </BareButton>
-                ) : (
-                  <span className="min-w-0 wrap-break-word">
-                    {item.companyName}
-                  </span>
-                )}
-                <HistoryOpportunityFundingStageText
-                  lastFundingStage={lastFundingStage}
-                />
+                    {postingStatus.label}
+                  </div>
+                ) : null}
               </div>
-              {postingStatus ? (
-                <div
-                  className={cn(
-                    "text-xs",
-                    postingStatus.isExpired
-                      ? "font-medium text-info"
-                      : "text-neutral-muted"
-                  )}
-                >
-                  {postingStatus.label}
-                </div>
-              ) : (
-                <></>
-              )}
-            </div>
+            ) : null}
             <div className="flex flex-row items-center justify-between w-full mt-2 text-sm font-normal">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 {detailMetaItems.map((meta, index) => (
@@ -239,12 +247,14 @@ export const OpportunityHeader = ({
 
 export const HistoryOpportunityOverview = ({
   className,
+  hideCompanyIdentity = false,
   item,
   onOpenCompanyInfo,
   onOpenLink,
   onOpenOpportunityInfo,
 }: {
   className?: string;
+  hideCompanyIdentity?: boolean;
   item: CareerHistoryOpportunity;
   onOpenCompanyInfo?: (item: CareerHistoryOpportunity) => void;
   onOpenLink: (url: string) => void;
@@ -261,6 +271,7 @@ export const HistoryOpportunityOverview = ({
   return (
     <div className={cn("flex w-full flex-col items-start", className)}>
       <OpportunityHeader
+        hideCompanyIdentity={hideCompanyIdentity}
         item={item}
         onOpenCompanyInfo={onOpenCompanyInfo}
         onOpenOpportunityInfo={onOpenOpportunityInfo}
@@ -672,6 +683,7 @@ export const HistoryOpportunityInlinePage = ({
 
 const HistoryOpportunityDetailContent = ({
   item,
+  companyOpportunities = EMPTY_COMPANY_OPPORTUNITIES,
   canMoveNext = false,
   canMovePrev = false,
   onOpenCompanyInfo,
@@ -679,8 +691,10 @@ const HistoryOpportunityDetailContent = ({
   onOpenOpportunityInfo,
   onMoveNext,
   onMovePrev,
+  onSelectCompanyOpportunity,
 }: {
   item: CareerHistoryOpportunity;
+  companyOpportunities?: readonly CareerHistoryOpportunity[];
   canMoveNext?: boolean;
   canMovePrev?: boolean;
   onOpenCompanyInfo?: (item: CareerHistoryOpportunity) => void;
@@ -688,9 +702,13 @@ const HistoryOpportunityDetailContent = ({
   onOpenOpportunityInfo: (type: CareerOpportunityType) => void;
   onMoveNext?: () => void;
   onMovePrev?: () => void;
+  onSelectCompanyOpportunity?: (item: CareerHistoryOpportunity) => void;
 }) => {
+  const hasCompanyRoleGroup =
+    Boolean(onSelectCompanyOpportunity) && companyOpportunities.length > 1;
+
   return (
-    <div className="space-y-4">
+    <div>
       <div className="relative">
         {canMovePrev && onMovePrev && (
           <HistoryDetailArrowButton direction="prev" onClick={onMovePrev} />
@@ -701,21 +719,42 @@ const HistoryOpportunityDetailContent = ({
         <InlinePanel
           className={cn("rounded-2xl p-1", getOpportunityPanelTone(item))}
         >
-          <div className="flex w-full flex-col items-start justify-between rounded-2xl bg-bg-floating px-5 py-4">
-            <HistoryOpportunityOverview
+          <div className="overflow-hidden rounded-2xl bg-bg-floating">
+            {/* EXPERIMENT(new-opportunity-company-role-switcher): this is the
+                company-level navigation layer. Remove this block and its
+                optional props to restore the previous detail UI. */}
+            {hasCompanyRoleGroup && onSelectCompanyOpportunity ? (
+              <NewOpportunityCompanyRoleSwitcher
+                key={companyOpportunities[0]?.companyDbId ?? item.id}
+                activeOpportunityId={item.id}
+                onOpenCompanyInfo={onOpenCompanyInfo}
+                opportunities={companyOpportunities}
+                onSelect={onSelectCompanyOpportunity}
+              />
+            ) : null}
+
+            <div
+              className={cn(
+                "flex w-full flex-col items-start justify-between px-5 py-4",
+                hasCompanyRoleGroup && "border-t border-neutral-1000-a05"
+              )}
+            >
+              <HistoryOpportunityOverview
+                hideCompanyIdentity={hasCompanyRoleGroup}
+                item={item}
+                onOpenCompanyInfo={onOpenCompanyInfo}
+                onOpenLink={onOpenLink}
+                onOpenOpportunityInfo={onOpenOpportunityInfo}
+              />
+            </div>
+
+            <HistoryOpportunityAdditionalDetails
               item={item}
               onOpenCompanyInfo={onOpenCompanyInfo}
               onOpenLink={onOpenLink}
-              onOpenOpportunityInfo={onOpenOpportunityInfo}
+              className="px-5 pb-4"
             />
           </div>
-
-          <HistoryOpportunityAdditionalDetails
-            item={item}
-            onOpenCompanyInfo={onOpenCompanyInfo}
-            onOpenLink={onOpenLink}
-            className="px-5 pb-4"
-          />
         </InlinePanel>
       </div>
     </div>

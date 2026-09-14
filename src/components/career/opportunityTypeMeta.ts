@@ -4,7 +4,10 @@ import {
   ThumbsUp,
   type LucideIcon,
 } from "lucide-react";
-import { OpportunityType } from "@/lib/opportunityType";
+import {
+  getOpportunityTypeSortPriority,
+  OpportunityType,
+} from "@/lib/opportunityType";
 import type { CareerOpportunitySavedStage } from "./types";
 
 type CareerTValues = Record<string, string | number | null | undefined>;
@@ -72,7 +75,6 @@ type CareerOpportunityTypeMeta = {
     applied: string;
   };
   shortLabel: string;
-  sortPriority: number;
 };
 
 const buildCareerOpportunityTypeMeta = (
@@ -180,7 +182,6 @@ const buildCareerOpportunityTypeMeta = (
       applied: t("career.common.opportunity_type_meta.0ume46n", "지원함"),
     },
     shortLabel: t("career.common.opportunity_type_meta.16ujfch", "외부 기회"),
-    sortPriority: 2,
   },
   [OpportunityType.InternalRecommendation]: {
     companySectionTitle: t("career.common.career.0ol21b2", "회사 정보"),
@@ -285,7 +286,6 @@ const buildCareerOpportunityTypeMeta = (
       ),
     },
     shortLabel: t("career.common.opportunity_type_meta.1gbs2on", "Harper 기회"),
-    sortPriority: 1,
   },
   [OpportunityType.IntroRequest]: {
     companySectionTitle: t("career.common.career.0ol21b2", "회사 정보"),
@@ -387,7 +387,6 @@ const buildCareerOpportunityTypeMeta = (
       ),
     },
     shortLabel: t("career.common.opportunity_type_meta.0woigko", "Intro 요청"),
-    sortPriority: 0,
   },
 });
 
@@ -433,7 +432,7 @@ export const getCareerDefaultSavedStageForOpportunity = (item: {
 
 export const getCareerOpportunitySortPriority = (
   opportunityType: OpportunityType
-) => getCareerOpportunityTypeMeta(opportunityType).sortPriority;
+) => getOpportunityTypeSortPriority(opportunityType);
 
 export const getCareerOpportunityTypeLabel = (
   opportunityType: OpportunityType,

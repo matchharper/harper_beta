@@ -20,10 +20,9 @@ import {
 } from "@/lib/ops/matchingViewedAt";
 import { OPS_MATCHING_ROLE_OPTION_STATUSES } from "@/lib/ops/matchingRoleOptions";
 import {
-  buildLatestOpsTalentMemoPreviewMap,
-  formatOpsTalentMemoRoleContext,
+  buildLatestOpsTalentProfileMemoPreviewMap,
   OPS_ROLE_MEMO_KIND,
-  type OpsTalentMemoCandidate,
+  type OpsTalentProfileMemoCandidate,
 } from "@/lib/ops/talentMemo";
 import type {
   OpportunityEmploymentType,
@@ -1606,70 +1605,34 @@ async function loadRoleFitRows(args: {
 
 async function fetchMemoPreviewMap(args: {
   admin: AdminClient;
-  includeRoleMemos?: boolean;
   talentIds: string[];
 }) {
   if (args.talentIds.length === 0) {
-    return buildLatestOpsTalentMemoPreviewMap([]);
+    return buildLatestOpsTalentProfileMemoPreviewMap([]);
   }
 
-  const [profileMemoResult, roleMemoResult] = await Promise.all([
-    args.admin
-      .from("talent_ops_profile_memos")
-      .select("talent_id, content, updated_at, created_at")
-      .in("talent_id", args.talentIds),
-    args.includeRoleMemos
-      ? fromOpsMatchingTable(args.admin, "talent_progress")
-          .select(
-            "talent_id, role_id, text, created_at, role:company_roles(name, workspace:company_workspace(company_name))"
-          )
-          .in("talent_id", args.talentIds)
-          .eq("kind", OPS_ROLE_MEMO_KIND)
-      : Promise.resolve({ data: [], error: null }),
-  ]);
+  const profileMemoResult = await args.admin
+    .from("talent_ops_profile_memos")
+    .select("talent_id, content, updated_at, created_at")
+    .in("talent_id", args.talentIds);
 
   if (profileMemoResult.error) {
     throw new Error(
       profileMemoResult.error.message ?? "Failed to load talent memos"
     );
   }
-  if (roleMemoResult.error) {
-    throw new Error(
-      roleMemoResult.error.message ?? "Failed to load talent role memos"
-    );
-  }
 
-  const candidates: OpsTalentMemoCandidate[] = (
+  const candidates: OpsTalentProfileMemoCandidate[] = (
     profileMemoResult.data ?? []
   ).map((row) => ({
-    companyName: null,
     content: normalizeText(row.content),
     occurredAt:
       normalizeNullableText(row.updated_at) ??
       normalizeNullableText(row.created_at),
-    roleId: null,
-    roleName: null,
-    source: "profile",
     talentId: normalizeText(row.talent_id),
   }));
 
-  for (const row of roleMemoResult.data ?? []) {
-    const role = Array.isArray(row.role) ? (row.role[0] ?? null) : row.role;
-    const workspace = Array.isArray(role?.workspace)
-      ? (role.workspace[0] ?? null)
-      : role?.workspace;
-    candidates.push({
-      companyName: normalizeNullableText(workspace?.company_name),
-      content: normalizeText(row.text),
-      occurredAt: normalizeNullableText(row.created_at),
-      roleId: normalizeNullableText(row.role_id),
-      roleName: normalizeNullableText(role?.name),
-      source: "role",
-      talentId: normalizeText(row.talent_id),
-    });
-  }
-
-  return buildLatestOpsTalentMemoPreviewMap(candidates);
+  return buildLatestOpsTalentProfileMemoPreviewMap(candidates);
 }
 
 async function fetchTagMap(args: {
@@ -2293,7 +2256,6 @@ async function fetchTalentRowMap(args: {
 async function buildOpsMatchingTalentItems(args: {
   admin: AdminClient;
   fitMap?: Map<string, OpsMatchingTalentFitSummary>;
-  includeRoleMemos?: boolean;
   roleId?: string | null;
   rows: TalentUserRow[];
 }) {
@@ -2314,7 +2276,6 @@ async function buildOpsMatchingTalentItems(args: {
   ] = await Promise.all([
     fetchMemoPreviewMap({
       admin: args.admin,
-      includeRoleMemos: args.includeRoleMemos,
       talentIds,
     }),
     scopedTagsPromise,
@@ -2347,9 +2308,7 @@ async function buildOpsMatchingTalentItems(args: {
       latestCompany: recentCompanies[0] ?? null,
       latestSchool: recentSchools[0] ?? null,
       lastLoginedAt: row.last_logined_at,
-      memoContextLabel: memoPreview
-        ? formatOpsTalentMemoRoleContext(memoPreview)
-        : null,
+      memoContextLabel: null,
       memoPreview: memoPreview?.content ?? null,
       name: row.name,
       profilePicture: row.profile_picture,
@@ -4310,7 +4269,6 @@ export async function fetchOpsMatchingReviewBoard(args: {
     .filter((row): row is TalentUserRow => Boolean(row));
   const talentItems = await buildOpsMatchingTalentItems({
     admin,
-    includeRoleMemos: true,
     roleId,
     rows: talentRows,
   });

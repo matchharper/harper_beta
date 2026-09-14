@@ -385,9 +385,11 @@ export type CareerHistoryOpportunity = {
   opportunityType: OpportunityType;
   postedAt: string | null;
   preferenceFit?: CareerPreferenceFitItem[];
+  recommendationRank?: number | null;
   recommendedAt: string;
   recommendationConcerns?: string[];
   recommendationReasons: string[];
+  recommendationScore?: number | null;
   recommendationSummary?: string | null;
   roleId: string;
   savedStage: CareerOpportunitySavedStage | null;
@@ -453,7 +455,7 @@ export type CareerMessage = {
   recommendationStatusAfterCharCount?: number | null;
   thinkingLogs?: string[];
   typing?: boolean;
-  typingMode?: "word";
+  typingMode?: "stream" | "word";
 };
 
 export type CareerMessagePayload = {

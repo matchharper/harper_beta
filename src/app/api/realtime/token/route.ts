@@ -18,7 +18,6 @@ import {
   fetchTalentSetting,
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
-import { canUseCareerDevControls } from "@/lib/internalAccess";
 import { appendRealtimeInitialResponseInstruction } from "@/lib/career/realtimeInitialResponse";
 import { touchOpenCareerCheckInCall } from "@/lib/talentOnboarding/careerCheckInCall";
 import {
@@ -136,46 +135,6 @@ function buildOpenAIRealtimeSessionBody(args: {
   };
 }
 
-function buildXaiRealtimeClientSession(args: {
-  instructions: string;
-  realtimeConfig: ReturnType<typeof getCareerRealtimeSessionConfig>;
-  tools: readonly CareerRealtimeTool[];
-  transcriptionLanguage: string;
-}) {
-  const { instructions, realtimeConfig, tools, transcriptionLanguage } = args;
-
-  return {
-    instructions,
-    reasoning: {
-      effort: realtimeConfig.reasoningEffort ?? "high",
-    },
-    voice: realtimeConfig.voice,
-    turn_detection: {
-      type: "server_vad",
-    },
-    audio: {
-      input: {
-        format: {
-          type: "audio/pcm",
-          rate: 24_000,
-        },
-        transcription: {
-          model: realtimeConfig.transcriptionModel,
-          language_hint: transcriptionLanguage,
-        },
-      },
-      output: {
-        format: {
-          type: "audio/pcm",
-          rate: 24_000,
-        },
-        speed: realtimeConfig.speechSpeed,
-      },
-    },
-    ...(tools.length > 0 ? { tools } : {}),
-  };
-}
-
 function createOpenAIRealtimeClientSecret(args: {
   body: ReturnType<typeof buildOpenAIRealtimeSessionBody>;
   safetyIdentifier: string;
@@ -188,21 +147,6 @@ function createOpenAIRealtimeClientSecret(args: {
       "OpenAI-Safety-Identifier": args.safetyIdentifier,
     },
     body: JSON.stringify(args.body),
-  });
-}
-
-function createXaiRealtimeClientSecret(apiKey: string) {
-  return fetch("https://api.x.ai/v1/realtime/client_secrets", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      expires_after: {
-        seconds: 300,
-      },
-    }),
   });
 }
 
@@ -228,7 +172,6 @@ export async function POST(req: NextRequest) {
       internalCallRequestId: rawInternalCallRequestId,
       resumeCallNoteId: rawResumeCallNoteId,
       locale: rawLocale,
-      providerOverride: rawProviderOverride,
     } = body as {
       conversationId?: string;
       conversationStarterId?: string;
@@ -236,7 +179,6 @@ export async function POST(req: NextRequest) {
       internalCallRequestId?: string;
       resumeCallNoteId?: string;
       locale?: string;
-      providerOverride?: string;
     };
     const conversationId = rawConversationId?.trim();
     const conversationStarterId =
@@ -253,11 +195,6 @@ export async function POST(req: NextRequest) {
         : "";
     const resumeCallNoteId =
       typeof rawResumeCallNoteId === "string" ? rawResumeCallNoteId.trim() : "";
-    const providerOverride =
-      canUseCareerDevControls(user.email) &&
-      typeof rawProviderOverride === "string"
-        ? rawProviderOverride.trim() || undefined
-        : undefined;
 
     if (!conversationId) {
       return NextResponse.json(
@@ -397,46 +334,22 @@ export async function POST(req: NextRequest) {
     });
     const tools = realtimeToolSelection.tools;
     const toolVoicePreambles = realtimeToolSelection.toolVoicePreambles;
-    const realtimeConfig = getCareerRealtimeSessionConfig({
-      providerOverride,
-      userCreatedAt: user.created_at,
-      userId: user.id,
-    });
+    const realtimeConfig = getCareerRealtimeSessionConfig();
     const safetyIdentifier = buildSafetyIdentifier(user.id);
-
-    const xaiApiKey = (
-      process.env.XAI_API_KEY ?? process.env.GROK_API_KEY
-    )?.trim();
-    if (realtimeConfig.provider === "xai" && !xaiApiKey) {
-      console.error(
-        "[RealtimeToken] XAI_API_KEY or GROK_API_KEY is not configured"
-      );
-      return NextResponse.json(
-        { error: "xAI realtime is not configured" },
-        { status: 503 }
-      );
-    }
-
-    const response =
-      realtimeConfig.provider === "xai"
-        ? await createXaiRealtimeClientSecret(xaiApiKey!)
-        : await createOpenAIRealtimeClientSecret({
-            safetyIdentifier,
-            body: buildOpenAIRealtimeSessionBody({
-              instructions,
-              realtimeConfig,
-              tools,
-              transcriptionLanguage,
-              transcriptionModel: realtimeConfig.transcriptionModel,
-            }),
-          });
+    const response = await createOpenAIRealtimeClientSecret({
+      safetyIdentifier,
+      body: buildOpenAIRealtimeSessionBody({
+        instructions,
+        realtimeConfig,
+        tools,
+        transcriptionLanguage,
+        transcriptionModel: realtimeConfig.transcriptionModel,
+      }),
+    });
 
     if (!response.ok) {
       const err = await response.text().catch(() => "");
-      console.error(
-        `[RealtimeToken] ${realtimeConfig.provider} session creation failed:`,
-        err
-      );
+      console.error("[RealtimeToken] OpenAI session creation failed:", err);
       return NextResponse.json(
         { error: "Failed to create realtime session" },
         { status: 502 }
@@ -447,9 +360,7 @@ export async function POST(req: NextRequest) {
 
     const token = data.value ?? data.client_secret?.value;
     if (typeof token !== "string" || token.length === 0) {
-      console.error(
-        `[RealtimeToken] ${realtimeConfig.provider} response did not include a token`
-      );
+      console.error("[RealtimeToken] OpenAI response did not include a token");
       return NextResponse.json(
         { error: "Failed to create realtime client secret" },
         { status: 502 }
@@ -463,16 +374,6 @@ export async function POST(req: NextRequest) {
       transcriptionLanguage,
       toolVoicePreambles,
       transcriptionModel: realtimeConfig.transcriptionModel,
-      ...(realtimeConfig.provider === "xai"
-        ? {
-            session: buildXaiRealtimeClientSession({
-              instructions,
-              realtimeConfig,
-              tools,
-              transcriptionLanguage,
-            }),
-          }
-        : {}),
     });
   } catch (error) {
     console.error("[RealtimeToken] Error:", error);

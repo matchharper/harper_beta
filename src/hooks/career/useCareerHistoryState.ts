@@ -33,6 +33,9 @@ import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/inter
 const CAREER_HISTORY_PAGE_SIZE = 10;
 const CAREER_HISTORY_GC_TIME = 30 * 60_000;
 const CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_DELAY_MS = 10_000;
+const NEW_HISTORY_PAGE_FILTER = {
+  historyTab: "new",
+} satisfies CareerHistoryOpportunityPageFilter;
 
 type CareerHistoryPage = {
   counts: CareerHistoryOpportunityCounts | null;
@@ -514,7 +517,8 @@ export function useCareerHistoryState(args: {
     queryKey,
     enabled: enabled && autoLoad && Boolean(userId),
     initialPageParam: 0,
-    queryFn: ({ pageParam }) => fetchHistoryPage(pageParam),
+    queryFn: ({ pageParam }) =>
+      fetchHistoryPage(pageParam, NEW_HISTORY_PAGE_FILTER),
     getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
     gcTime: CAREER_HISTORY_GC_TIME,
     initialData,
@@ -1352,7 +1356,7 @@ export function useCareerHistoryState(args: {
       try {
         const normalizedRoleId = String(roleId ?? "").trim();
         const [firstPage, changedOpportunity] = await Promise.all([
-          fetchHistoryPage(0),
+          fetchHistoryPage(0, NEW_HISTORY_PAGE_FILTER),
           normalizedRoleId
             ? fetchWithAuth(
                 `/api/talent/opportunities?${new URLSearchParams({

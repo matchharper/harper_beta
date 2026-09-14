@@ -390,9 +390,13 @@ async function runCompletion(args: {
         : {}),
     }),
     debugLabel: "org/agent:chat",
-    deepSeekThinking: {
-      reasoningEffort: args.reasoningEffort === "max" ? "max" : "high",
-    },
+    ...(args.reasoningEffort
+      ? {
+          chatCompletionReasoning: {
+            reasoningEffort: args.reasoningEffort,
+          },
+        }
+      : {}),
     ...(args.strictModel
       ? {}
       : { fallbackModel: getOrgAgentFallbackModel(args.model) }),

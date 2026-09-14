@@ -20,7 +20,10 @@ import os
 from pathlib import Path
 import re
 from typing import Any, Iterable, Mapping, Sequence
+import urllib.error
+import urllib.request
 import uuid
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 import psycopg
@@ -30,8 +33,20 @@ from psycopg.rows import dict_row
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_ROOT = ROOT / "output" / "company_context_runs"
 RUNBOOK_PATH = ROOT / "docs" / "company" / "company-context-run-codex-runbook-ko.md"
+SCHEDULED_RUNBOOK_PATH = ROOT / "docs" / "schedule" / "company-run-ko.md"
+COMPANY_RUN_CONTRACT_VERSION = "company-run-v1"
+CONTEXT_OUTPUT_CONTRACT_VERSION = "company-context-output-v1"
+SEARCH_DECISION_CONTRACT_VERSION = "company-search-decision-v1"
 EVALUATOR_VERSION = "company-context-codex-v3-brief-behavior"
 EVALUATION_DOCUMENT_VERSION = "company-context-pair-document-v3-brief-behavior"
+COMPANY_RUN_NAMESPACE = uuid.UUID("936275f1-8593-49a4-ad37-6ea38eaf6f78")
+SEOUL = ZoneInfo("Asia/Seoul")
+SCHEDULED_WEEKDAYS = {0, 3}
+MAX_COMPANY_CONTEXT_BULLETS = 10
+MAX_COMPANY_CONTEXT_CHARS = 8_000
+MAX_COMPANY_CONTEXT_BULLET_CHARS = 1_200
+MAX_COMPANY_RUN_RECOMMENDATIONS = 3
+DEFAULT_INTERNAL_NOTIFICATION_CHANNEL_ID = "C0AKK93FMH8"
 ACTIVE_ROLE_STATUSES = {"active"}
 FIT_LABEL_BANDS = {
     "fit": (80, 100),
@@ -106,9 +121,22 @@ CONTEXT_EDIT_INSTRUCTIONS_TEXT = """이 context는 검토 이력이나 사건 �
 talent_opportunity_recommendation의 feedback·feedback_reason은 후보자의 공고 반응이므로 회사 선호로 사용하지 않는다.
 stage와 company_user_id 없는 progress는 actor가 확인되지 않으면 회사 선호로 사용하지 않는다.
 기존 문장도 근거가 사라졌거나 다음 평가에 불필요하면 삭제한다.
-반영할 필요한 정보가 0개이고 기존 context가 비어 있으면 빈 text를 그대로 저장한다. 기존 context가 여전히 유효하고 의미 변화가 없으면 byte-for-byte 그대로 사용한다.
+반영할 필요한 정보가 0개이고 기존 context가 비어 있으면 빈 text를 그대로 저장한다. 기존 context가 이미 bullet-only 계약이고 여전히 유효하며 의미 변화가 없으면 bullet wording과 순서를 그대로 사용한다. Heading이 있는 legacy context는 의미를 보존해 최대 10개의 bullet로 한 번 전환한다.
 검토 완료 기록이 필요하면 run summary에 '행동 evidence를 검토했으나 context에 반영할 matching-relevant 정보 없음'처럼 남기고 context에는 넣지 않는다.
 회사 공통 신호와 이 role에만 적용되는 신호를 문서 안에서 명확히 구분한다.
+최종 context는 heading이나 사건 일지 없이 최대 10개의 독립적인 bullet로만 작성한다. 한 bullet 안에 근거의 범위와 적용 조건을 자연스럽게 포함한다.
+현재 Role의 기존 bullet 전체와 이전 성공 run 이후 evidence를 함께 읽고, 유지할 bullet은 불필요하게 바꿔 쓰지 않는다.
+출력은 {"bullets":["..."],"reason":"..."} 형태의 JSON 하나다. bullets는 저장 후의 전체 current context이며 reason은 이번 변경 또는 유지 판단의 짧은 설명이다.
+"""
+
+SEARCH_DECISION_INSTRUCTIONS_TEXT = """너는 현재 Role에서 지금 talent 탐색·재평가 cycle을 한 번 실행할 기대효과가 있는지 판단한다.
+고정된 safety, eligibility, privacy, test-only, pending-capacity gate는 바꾸거나 우회하지 않는다.
+현재 Role/JD/Hiring Brief/criteria, 갱신된 company behavior context, 이전 run의 retrieval·label·yield, 아직 보지 않은 후보와 오래된 평가, 회사가 실제로 남긴 피드백과 처리 속도를 함께 읽는다.
+context가 바뀌었으면 새로운 후보군이나 기존 판단에 실질적인 영향을 주는지 본다. context가 안 바뀌어도 새로운 talent, 충분히 오래 보지 않은 후보군, 이전 retrieval의 사각지대, 반복된 zero-yield 뒤의 새로운 탐색 가설이 있으면 실행할 수 있다.
+회사가 빠르게 피드백한다는 사실은 실행 우선순위와 기대효과에는 쓸 수 있지만 talent의 fit bar를 낮추는 근거는 아니다. 더 넓게 찾을 때는 hard requirement를 완화하지 말고, 명시된 기준과 충돌하지 않는 인접 function·transferable evidence·새 cohort를 탐색한다.
+평가 수나 추천 수를 채우는 quota는 없다. 기대효과가 낮으면 정상적으로 생략한다.
+실행한다면 searchInstruction에 이번 cycle에서 retrieval·재평가·exploration을 어떻게 달리 볼지 한 덩어리의 명확한 지침으로 쓴다. 영구적인 회사 기준이 아니라 이번 run의 탐색 가설이다.
+출력은 {"runMatching":true|false,"reason":"...","searchInstruction":"..."|null} 형태의 JSON 하나다.
 """
 
 
@@ -155,6 +183,39 @@ def stable_hash(value: Any) -> str:
 
 def compact(value: Any, limit: int = 1000) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()[:limit]
+
+
+def previous_fit_snapshot(
+    row: Mapping[str, Any] | None,
+    current_run_id: str,
+) -> dict[str, Any] | None:
+    if not row:
+        return None
+    metadata = row.get("company_side_evaluation_metadata")
+    if isinstance(metadata, Mapping) and str(metadata.get("runId") or "") == current_run_id:
+        preserved = metadata.get("previousFit")
+        return dict(preserved) if isinstance(preserved, Mapping) else None
+    label = compact(row.get("label"), 40).lower()
+    if not label:
+        return None
+    return {
+        "label": label,
+        "score": row.get("score"),
+        "reason": str(row.get("reason") or "").strip() or None,
+        "recommend": bool(row.get("recommend")),
+        "humanLabel": compact(row.get("human_label"), 40).lower() or None,
+        "humanReason": str(row.get("human_reason") or "").strip() or None,
+        "lastEvaluatedAt": jsonable(row.get("last_evaluated_at")),
+    }
+
+
+def is_test_only_role(information: Any) -> bool:
+    if not isinstance(information, Mapping):
+        return False
+    value = information.get("testOnly")
+    if isinstance(value, bool):
+        return value
+    return compact(value, 20).lower() in {"true", "1", "yes", "on"}
 
 
 def search_brief_context_rows(rows: Sequence[Mapping[str, Any]]) -> list[str]:
@@ -237,13 +298,137 @@ def normalize_context_text(value: str) -> str:
     return "\n".join(normalized).strip()
 
 
+def validate_context_output(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise ValueError("context output must be an object")
+    raw_bullets = value.get("bullets")
+    if not isinstance(raw_bullets, list):
+        raise ValueError("context output requires a bullets array")
+    if len(raw_bullets) > MAX_COMPANY_CONTEXT_BULLETS:
+        raise ValueError(
+            f"company behavior context may contain at most {MAX_COMPANY_CONTEXT_BULLETS} bullets"
+        )
+    bullets: list[str] = []
+    for raw in raw_bullets:
+        if not isinstance(raw, str):
+            raise ValueError("each company behavior context bullet must be text")
+        bullet = compact(raw.removeprefix("-"), MAX_COMPANY_CONTEXT_BULLET_CHARS + 1)
+        if not bullet or len(bullet) > MAX_COMPANY_CONTEXT_BULLET_CHARS:
+            raise ValueError(
+                "each company behavior context bullet must contain "
+                f"1..{MAX_COMPANY_CONTEXT_BULLET_CHARS} characters"
+            )
+        bullets.append(bullet)
+    if len(set(bullets)) != len(bullets):
+        raise ValueError("company behavior context contains duplicate bullets")
+    reason = str(value.get("reason") or "").strip()
+    if not reason or len(reason) > 3_000:
+        raise ValueError("context output reason must contain 1..3000 characters")
+    context_text = "\n".join(f"- {bullet}" for bullet in bullets)
+    if len(context_text) > MAX_COMPANY_CONTEXT_CHARS:
+        raise ValueError(
+            f"company behavior context exceeds {MAX_COMPANY_CONTEXT_CHARS} characters"
+        )
+    return {
+        "contractVersion": CONTEXT_OUTPUT_CONTRACT_VERSION,
+        "bullets": bullets,
+        "reason": reason,
+        "text": context_text,
+    }
+
+
+def validate_search_decision(value: Any, *, search_allowed: bool = True) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise ValueError("search decision must be an object")
+    run_matching = value.get("runMatching")
+    if not isinstance(run_matching, bool):
+        raise ValueError("search decision runMatching must be boolean")
+    reason = str(value.get("reason") or "").strip()
+    if not reason or len(reason) > 3_000:
+        raise ValueError("search decision reason must contain 1..3000 characters")
+    raw_instruction = value.get("searchInstruction")
+    instruction = (
+        str(raw_instruction).strip()
+        if raw_instruction not in (None, "")
+        else None
+    )
+    if run_matching and not instruction:
+        raise ValueError("a runMatching=true decision requires searchInstruction")
+    if not run_matching and instruction is not None:
+        raise ValueError("a runMatching=false decision must not include searchInstruction")
+    if instruction and len(instruction) > 4_000:
+        raise ValueError("searchInstruction must contain at most 4000 characters")
+    if run_matching and not search_allowed:
+        raise ValueError("matching cannot run while a deterministic search gate is closed")
+    return {
+        "contractVersion": SEARCH_DECISION_CONTRACT_VERSION,
+        "runMatching": run_matching,
+        "reason": reason,
+        "searchInstruction": instruction,
+    }
+
+
 def validate_context_structure(value: str) -> None:
     if not value:
         return
-    if not re.search(r"(?m)^#{1,3}\s+\S", value):
-        raise ValueError("a non-empty behavior context requires at least one Markdown heading")
+    has_heading = bool(re.search(r"(?m)^#{1,3}\s+\S", value))
+    nonempty_lines = [line for line in value.splitlines() if line.strip()]
+    is_bullet_context = bool(nonempty_lines) and all(
+        line.startswith("- ") for line in nonempty_lines
+    )
+    if not has_heading and not is_bullet_context:
+        raise ValueError(
+            "a non-empty behavior context requires legacy Markdown headings or bullet-only context"
+        )
+    if is_bullet_context and len(nonempty_lines) > MAX_COMPANY_CONTEXT_BULLETS:
+        raise ValueError(
+            f"company behavior context may contain at most {MAX_COMPANY_CONTEXT_BULLETS} bullets"
+        )
     if re.search(r"(?i)\b(?:email|e-mail|phone|telephone)\s*[:：]", value):
         raise ValueError("behavior context must not copy candidate contact details")
+
+
+def scheduled_for_value(value: str | None, *, now: datetime | None = None) -> datetime:
+    if value:
+        parsed = parsed_time(value)
+        if parsed is None:
+            raise ValueError("scheduled-for must be an ISO-8601 timestamp")
+        scheduled_local = parsed.astimezone(SEOUL)
+    else:
+        local_now = (now or utc_now()).astimezone(SEOUL)
+        scheduled_local = local_now.replace(hour=8, minute=0, second=0, microsecond=0)
+        while (
+            scheduled_local.weekday() not in SCHEDULED_WEEKDAYS
+            or scheduled_local > local_now
+        ):
+            scheduled_local -= timedelta(days=1)
+    if scheduled_local.weekday() not in SCHEDULED_WEEKDAYS:
+        raise ValueError(
+            "scheduled Company Run is valid only on Monday or Thursday in Asia/Seoul"
+        )
+    if (
+        scheduled_local.hour != 8
+        or scheduled_local.minute != 0
+        or scheduled_local.second != 0
+    ):
+        raise ValueError("scheduled Company Run must use 08:00 Asia/Seoul")
+    return scheduled_local.astimezone(timezone.utc).replace(microsecond=0)
+
+
+def scheduled_batch_id(scheduled_for: datetime) -> str:
+    normalized = scheduled_for.astimezone(timezone.utc).replace(microsecond=0)
+    return str(uuid.uuid5(COMPANY_RUN_NAMESPACE, normalized.isoformat()))
+
+
+def batch_dir(batch_id: str) -> Path:
+    try:
+        uuid.UUID(batch_id)
+    except (TypeError, ValueError):
+        raise RuntimeError(f"invalid company run batch id: {batch_id}") from None
+    path = (OUTPUT_ROOT / "batches" / batch_id).resolve()
+    if OUTPUT_ROOT.resolve() not in path.parents:
+        raise RuntimeError("batch path escaped the matching output root")
+    return path
 
 
 def normalized_company(value: Any) -> str:
@@ -274,6 +459,7 @@ def write_json(path: Path, value: Any) -> None:
         json.dumps(jsonable(value), ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    temporary.chmod(0o600)
     temporary.replace(path)
 
 
@@ -284,6 +470,7 @@ def read_json(path: Path) -> Any:
 def write_text(path: Path, value: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(value.rstrip() + "\n", encoding="utf-8")
+    path.chmod(0o600)
 
 
 def clear_generated_files(path: Path, suffixes: set[str]) -> None:
@@ -404,6 +591,74 @@ def database_url() -> str:
     return value
 
 
+def internal_notification_settings() -> tuple[str, str]:
+    load_dotenv(ROOT.parent / "worker.env", override=False)
+    load_dotenv(ROOT / ".env.local", override=False)
+    token = str(os.environ.get("SLACK_BOT_TOKEN") or "").strip()
+    if not token:
+        raise RuntimeError("SLACK_BOT_TOKEN is required for batch notification")
+    channel = str(
+        os.environ.get("COMPANY_RUN_INTERNAL_NOTIFICATION_CHANNEL_ID")
+        or os.environ.get("ORG_SLACK_CHANNEL_ID")
+        or DEFAULT_INTERNAL_NOTIFICATION_CHANNEL_ID
+    ).strip()
+    if not channel:
+        raise RuntimeError("an internal notification Slack channel is required")
+    return token, channel
+
+
+def slack_post_message(
+    *,
+    token: str,
+    channel: str,
+    text: str,
+    thread_ts: str | None = None,
+    client_msg_id: str,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "channel": channel,
+        "text": text,
+        "client_msg_id": client_msg_id,
+        "unfurl_links": False,
+        "unfurl_media": False,
+    }
+    if thread_ts:
+        payload["thread_ts"] = thread_ts
+    request = urllib.request.Request(
+        "https://slack.com/api/chat.postMessage",
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json; charset=utf-8",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            status = response.status
+            raw = response.read().decode("utf-8")
+    except urllib.error.HTTPError as error:
+        raw = error.read().decode("utf-8", errors="replace")
+        raise RuntimeError(
+            f"Slack chat.postMessage HTTP {error.code}: {compact(raw, 500)}"
+        ) from error
+    except urllib.error.URLError as error:
+        raise RuntimeError(f"Slack chat.postMessage failed: {error.reason}") from error
+    try:
+        result = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise RuntimeError("Slack chat.postMessage returned invalid JSON") from error
+    if status < 200 or status >= 300 or not result.get("ok"):
+        raise RuntimeError(
+            "Slack chat.postMessage failed: "
+            f"{compact(result.get('error') or status, 300)}"
+        )
+    message_ts = compact(result.get("ts"), 100)
+    if not message_ts:
+        raise RuntimeError("Slack chat.postMessage returned no message timestamp")
+    return {"channel": compact(result.get("channel") or channel, 100), "ts": message_ts}
+
+
 def connect(*, autocommit: bool = False) -> psycopg.Connection:
     conn = psycopg.connect(
         database_url(),
@@ -442,6 +697,19 @@ def enqueue_due_runs(conn: psycopg.Connection) -> int:
     return int((row or {}).get("count") or 0)
 
 
+def enqueue_scheduled_runs(
+    conn: psycopg.Connection,
+    *,
+    batch_id: str,
+    scheduled_for: datetime,
+) -> list[dict[str, Any]]:
+    return fetch_all(
+        conn,
+        "select * from public.enqueue_scheduled_company_runs_v1(%s::uuid, %s::timestamptz)",
+        (batch_id, scheduled_for),
+    )
+
+
 def enqueue_run(
     conn: psycopg.Connection,
     *,
@@ -473,6 +741,19 @@ def claim_queued_run(
         conn,
         "select * from public.claim_company_context_run_v1(%s, %s::uuid)",
         (runner, role_id),
+    )
+
+
+def claim_scheduled_run(
+    conn: psycopg.Connection,
+    *,
+    runner: str,
+    batch_id: str,
+) -> dict[str, Any] | None:
+    return fetch_one(
+        conn,
+        "select * from public.claim_scheduled_company_run_v1(%s, %s::uuid)",
+        (runner, batch_id),
     )
 
 
@@ -596,7 +877,9 @@ def workflow_schema_status(conn: psycopg.Connection) -> dict[str, Any]:
     procedure_signatures = (
         "public.enqueue_company_context_run_v1(uuid,text,timestamp with time zone)",
         "public.enqueue_due_company_context_runs_v1(timestamp with time zone)",
+        "public.enqueue_scheduled_company_runs_v1(uuid,timestamp with time zone)",
         "public.claim_company_context_run_v1(text,uuid)",
+        "public.claim_scheduled_company_run_v1(text,uuid)",
         "public.finish_company_context_run_v1(uuid,text,jsonb)",
     )
     missing_procedures: list[str] = []
@@ -635,10 +918,6 @@ def workflow_schema_status(conn: psycopg.Connection) -> dict[str, Any]:
             """,
         )
         context_column_count = int((context_count_row or {}).get("count") or 0)
-        if context_column_count != 2:
-            forbidden_artifacts.append(
-                "public.company_behavior_contexts must contain only role_id and text_context"
-            )
     if relation_exists(conn, "public.company_context_runs"):
         count_row = fetch_one(
             conn,
@@ -671,6 +950,7 @@ def workflow_schema_status(conn: psycopg.Connection) -> dict[str, Any]:
         "queueColumnCount": queue_column_count,
         "contextColumnCount": context_column_count,
         "runLedger": "public.company_context_runs",
+        "scheduledBatchContractVersion": COMPANY_RUN_CONTRACT_VERSION,
         "forbiddenDiscoveryRunAccess": True,
         "databaseWrites": 0,
     }
@@ -756,6 +1036,36 @@ def require_run(run_id: str) -> dict[str, Any]:
             if dry_run
             else result.get("error")
         ),
+        "contract_version": (
+            (manifest if isinstance(manifest, Mapping) else {}).get("contract_version")
+            if dry_run
+            else result.get("contractVersion")
+        ),
+        "batch_run_id": (
+            (manifest if isinstance(manifest, Mapping) else {}).get("batch_run_id")
+            if dry_run
+            else result.get("batchRunId")
+        ),
+        "scheduled_for": (
+            (manifest if isinstance(manifest, Mapping) else {}).get("scheduled_for")
+            if dry_run
+            else result.get("scheduledFor")
+        ),
+        "context_output": (
+            (manifest if isinstance(manifest, Mapping) else {}).get("context_output")
+            if dry_run
+            else result.get("contextOutput")
+        ),
+        "search_decision": (
+            (manifest if isinstance(manifest, Mapping) else {}).get("search_decision")
+            if dry_run
+            else result.get("searchDecision")
+        ),
+        "notification": (
+            (manifest if isinstance(manifest, Mapping) else {}).get("notification")
+            if dry_run
+            else result.get("notification")
+        ),
     }
 
 
@@ -776,6 +1086,23 @@ def save_run(run: Mapping[str, Any]) -> dict[str, Any]:
     write_json(run_dir(payload) / "run_manifest.json", payload)
     if payload.get("dry_run"):
         return payload
+    result_patch = {
+        "companyWorkspaceId": payload.get("company_workspace_id"),
+        "inputSnapshot": payload.get("input_snapshot") or {},
+        "counts": payload.get("counts") or {},
+        "resultReason": payload.get("result_reason"),
+        "summary": payload.get("summary"),
+        "error": payload.get("error_message"),
+        "contractVersion": payload.get("contract_version"),
+        "batchRunId": payload.get("batch_run_id"),
+        "scheduledFor": payload.get("scheduled_for"),
+        "contextOutput": payload.get("context_output"),
+        "searchDecision": payload.get("search_decision"),
+        "notification": payload.get("notification"),
+    }
+    result_patch = {
+        key: value for key, value in result_patch.items() if value is not None
+    }
     with connect() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -785,17 +1112,7 @@ def save_run(run: Mapping[str, Any]) -> dict[str, Any]:
                 where id = %s::uuid
                 """,
                 (
-                    json.dumps(
-                        {
-                            "companyWorkspaceId": payload.get("company_workspace_id"),
-                            "inputSnapshot": payload.get("input_snapshot") or {},
-                            "counts": payload.get("counts") or {},
-                            "resultReason": payload.get("result_reason"),
-                            "summary": payload.get("summary"),
-                            "error": payload.get("error_message"),
-                        },
-                        ensure_ascii=False,
-                    ),
+                    json.dumps(result_patch, ensure_ascii=False),
                     str(payload["id"]),
                 ),
             )
@@ -818,6 +1135,7 @@ def source_cursor(conn: psycopg.Connection, workspace_id: str, role_id: str) -> 
             as company_talent_request_created_at,
           (select md5(coalesce(string_agg(
              request.id::text || ':' || request.workflow_status || ':' ||
+             request.updated_at::text || ':' || md5(request.request_context) || ':' ||
              coalesce(request.talent_source_message_id::text, '') || ':' ||
              coalesce(request.document_id::text, ''),
              '|' order by request.id
@@ -849,7 +1167,22 @@ def source_cursor(conn: psycopg.Connection, workspace_id: str, role_id: str) -> 
           (select internal_role.updated_at from public.company_internal_roles internal_role
            where internal_role.role_id = %s::uuid) as internal_role_updated_at,
           (select workspace.updated_at from public.company_workspace workspace
-           where workspace.company_workspace_id = %s::uuid) as workspace_updated_at
+           where workspace.company_workspace_id = %s::uuid) as workspace_updated_at,
+          (select max(memory.updated_at) from public.company_memories memory
+           where memory.company_workspace_id = %s::uuid
+             and (memory.role_id is null or memory.role_id = %s::uuid))
+            as company_memory_updated_at,
+          (select md5(coalesce(string_agg(
+             memory.id::text || ':' || memory.updated_at::text || ':' || memory.content,
+             '|' order by memory.id
+           ), ''))
+           from public.company_memories memory
+           where memory.company_workspace_id = %s::uuid
+             and (memory.role_id is null or memory.role_id = %s::uuid))
+            as company_memory_state_hash,
+          (select max(calibration.updated_at)
+           from public.company_role_calibrations calibration
+           where calibration.role_id = %s::uuid) as role_calibration_updated_at
         """,
         (
             workspace_id,
@@ -862,9 +1195,132 @@ def source_cursor(conn: psycopg.Connection, workspace_id: str, role_id: str) -> 
             role_id,
             role_id,
             workspace_id,
+            workspace_id,
+            role_id,
+            workspace_id,
+            role_id,
+            role_id,
         ),
     )
     return jsonable(row or {})
+
+
+def previous_successful_run(
+    conn: psycopg.Connection,
+    *,
+    role_id: str,
+    current_run_id: str,
+) -> dict[str, Any] | None:
+    return fetch_one(
+        conn,
+        """
+        select id, trigger_reason, result
+        from public.company_context_runs
+        where role_id = %s::uuid
+          and id <> %s::uuid
+          and status = 'succeeded'
+          and result ? 'finishedAt'
+        order by (result->>'finishedAt')::timestamptz desc, id desc
+        limit 1
+        """,
+        (role_id, current_run_id),
+    )
+
+
+def _row_id_after(row: Mapping[str, Any], previous: Any) -> bool:
+    if previous is None:
+        return True
+    try:
+        return int(row.get("id")) > int(previous)
+    except (TypeError, ValueError):
+        return False
+
+
+def _row_time_after(row: Mapping[str, Any], key: str, previous: Any) -> bool:
+    previous_time = parsed_time(previous)
+    row_time = parsed_time(row.get(key))
+    return previous_time is None or (row_time is not None and row_time > previous_time)
+
+
+def evidence_since_previous_success(
+    evidence: Mapping[str, Any],
+    *,
+    previous_cursor: Mapping[str, Any],
+    current_cursor: Mapping[str, Any],
+) -> dict[str, Any]:
+    request_state_changed = (
+        previous_cursor.get("company_talent_request_state_hash")
+        != current_cursor.get("company_talent_request_state_hash")
+    )
+    stage_state_changed = (
+        previous_cursor.get("opportunity_stage_state_hash")
+        != current_cursor.get("opportunity_stage_state_hash")
+    )
+    memory_state_changed = (
+        previous_cursor.get("company_memory_state_hash")
+        != current_cursor.get("company_memory_state_hash")
+    )
+    requests = list(evidence.get("companyTalentRequests") or [])
+    stages = list(evidence.get("operationalStageOutcomes") or [])
+    memories = list(evidence.get("companyMemories") or [])
+    return {
+        "companyUserMessages": [
+            row
+            for row in (evidence.get("companyUserMessages") or [])
+            if _row_id_after(row, previous_cursor.get("company_message_id"))
+        ],
+        "conversationSummaries": [
+            row
+            for row in (evidence.get("conversationSummaries") or [])
+            if _row_id_after(row, previous_cursor.get("company_summary_id"))
+        ],
+        "companyTalentRequests": (
+            requests
+            if request_state_changed
+            else [
+                row
+                for row in requests
+                if _row_time_after(
+                    row,
+                    "created_at",
+                    previous_cursor.get("company_talent_request_created_at"),
+                )
+            ]
+        ),
+        "operationalStageOutcomes": stages if stage_state_changed else [],
+        "progressWithActor": [
+            row
+            for row in (evidence.get("progressWithActor") or [])
+            if _row_time_after(
+                row,
+                "created_at",
+                previous_cursor.get("progress_created_at"),
+            )
+        ],
+        "companyMemories": memories if memory_state_changed else [],
+        "roleCalibrations": [
+            row
+            for row in (evidence.get("roleCalibrations") or [])
+            if _row_time_after(
+                row,
+                "updated_at",
+                previous_cursor.get("role_calibration_updated_at"),
+            )
+        ],
+        "stateChanges": {
+            "companyTalentRequests": request_state_changed,
+            "operationalStages": stage_state_changed,
+            "companyMemories": memory_state_changed,
+            "roleOrHiringBrief": any(
+                previous_cursor.get(key) != current_cursor.get(key)
+                for key in (
+                    "role_updated_at",
+                    "internal_role_updated_at",
+                    "workspace_updated_at",
+                )
+            ),
+        },
+    }
 
 
 def pending_count(conn: psycopg.Connection, role_id: str) -> int:
@@ -910,6 +1366,13 @@ def pending_gate(conn: psycopg.Connection, role_id: str) -> dict[str, Any]:
 
 
 def assert_search_allowed(conn: psycopg.Connection, run: Mapping[str, Any]) -> dict[str, Any]:
+    if (
+        run.get("trigger_reason") == "scheduled"
+        and (run.get("search_decision") or {}).get("runMatching") is not True
+    ):
+        raise RuntimeError(
+            "scheduled Company Run requires a saved runMatching=true decision before search"
+        )
     gate = pending_gate(conn, str(run["role_id"]))
     if not gate["searchAllowed"]:
         raise RuntimeError(
@@ -1002,11 +1465,11 @@ def context_source_packet(conn: psycopg.Connection, run: Mapping[str, Any]) -> d
                role.name as role_name, request.expects_document,
                left(request.request_context, 3000) as request_context,
                request.workflow_status, request.source_company_message_id,
-               request.created_at
+               request.created_at, request.updated_at
         from public.company_talent_requests request
         left join public.company_roles role on role.role_id = request.role_id
         where request.company_workspace_id = %s::uuid
-        order by request.created_at desc, request.id desc
+        order by request.updated_at desc, request.id desc
         limit 100
         """,
         (workspace_id,),
@@ -1037,6 +1500,29 @@ def context_source_packet(conn: psycopg.Connection, run: Mapping[str, Any]) -> d
         limit 500
         """,
         (workspace_id,),
+    )
+    company_memories = fetch_all(
+        conn,
+        """
+        select id, role_id, left(content, 8000) as content, created_at, updated_at
+        from public.company_memories
+        where company_workspace_id = %s::uuid
+          and (role_id is null or role_id = %s::uuid)
+        order by updated_at desc, id desc
+        limit 20
+        """,
+        (workspace_id, role_id),
+    )
+    role_calibrations = fetch_all(
+        conn,
+        """
+        select id, role_id, status, payload, created_at, updated_at
+        from public.company_role_calibrations
+        where role_id = %s::uuid
+        order by updated_at desc, id desc
+        limit 10
+        """,
+        (role_id,),
     )
     focus_talent_ids: list[str] = []
     seen_focus_talent_ids: set[str] = set()
@@ -1083,19 +1569,45 @@ def context_source_packet(conn: psycopg.Connection, run: Mapping[str, Any]) -> d
             (focus_talent_ids,),
         )
     cursor = source_cursor(conn, workspace_id, role_id)
+    previous_run = previous_successful_run(
+        conn,
+        role_id=role_id,
+        current_run_id=str(run["id"]),
+    )
+    previous_result = (
+        previous_run.get("result")
+        if previous_run and isinstance(previous_run.get("result"), Mapping)
+        else {}
+    )
+    previous_cursor = (
+        previous_result.get("inputSnapshot", {}).get("sourceCursor", {})
+        if isinstance(previous_result.get("inputSnapshot"), Mapping)
+        else {}
+    )
+    if not isinstance(previous_cursor, Mapping):
+        previous_cursor = {}
     evidence = {
         "companyUserMessages": messages,
         "conversationSummaries": summaries,
         "companyTalentRequests": company_talent_requests,
         "operationalStageOutcomes": stage_outcomes,
         "progressWithActor": progress,
+        "companyMemories": company_memories,
+        "roleCalibrations": role_calibrations,
         "focusCandidateEvidence": focus_candidates,
     }
+    evidence_delta = evidence_since_previous_success(
+        evidence,
+        previous_cursor=previous_cursor,
+        current_cursor=cursor,
+    )
     gate = pending_gate(conn, role_id)
     return jsonable(
         {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
+            "contractVersion": COMPANY_RUN_CONTRACT_VERSION,
             "runId": run["id"],
+            "batchRunId": run.get("batch_run_id"),
             "triggerReason": run["trigger_reason"],
             "createdAt": iso(),
             "role": role,
@@ -1107,6 +1619,7 @@ def context_source_packet(conn: psycopg.Connection, run: Mapping[str, Any]) -> d
                     "companyUserMessages",
                     "companyTalentRequests",
                     "progressWithActor rows whose company_user_id is present",
+                    "roleCalibrations profile review status and reasons, when they are traceable to a company message",
                     "focusCandidateEvidence only to interpret the target of a verified company decision; never copy private details into long-term context",
                 ],
                 "requiresActorVerification": [
@@ -1116,12 +1629,28 @@ def context_source_packet(conn: psycopg.Connection, run: Mapping[str, Any]) -> d
                 "operationalEvidence": [
                     "workspace progress rows, including rows without company_user_id, may establish workflow state and chronology; role_id determines whether a fact is company-wide or role-specific",
                     "a progress row without a verified company actor or explicit reason must not by itself establish a company preference or rejection rationale",
+                    "companyMemories are declared supporting context and may clarify a company statement, but are not independent evidence of a new inferred preference",
                 ],
                 "excludedFromBehaviorContext": [
                     "company_events because the table has no reliable target role key",
                     "talent_opportunity_recommendation.feedback and feedback_reason are talent reactions to opportunities, not company feedback on talent",
-                    "company_memories are current conversation memory, not an automatic source of new matching preferences",
                 ],
+            },
+            "previousSuccessfulRun": (
+                {
+                    "runId": str(previous_run["id"]),
+                    "triggerReason": previous_run.get("trigger_reason"),
+                    "finishedAt": previous_result.get("finishedAt"),
+                    "sourceCursor": previous_cursor,
+                    "summary": previous_result.get("summary"),
+                }
+                if previous_run
+                else None
+            ),
+            "evidenceWindow": {
+                "fromPreviousSuccessfulCursor": previous_cursor or None,
+                "toCurrentCursor": cursor,
+                "newOrChangedEvidence": evidence_delta,
             },
             "sourceCursor": cursor,
             "sourceFingerprint": stable_hash({"role": role, "evidence": evidence}),
@@ -1130,6 +1659,181 @@ def context_source_packet(conn: psycopg.Connection, run: Mapping[str, Any]) -> d
             "evidence": evidence,
         }
     )
+
+
+def matching_decision_support(
+    conn: psycopg.Connection,
+    run: Mapping[str, Any],
+) -> dict[str, Any]:
+    role_id = str(run["role_id"])
+    source_packet = read_json(run_dir(run) / "source_packet.json")
+    previous = source_packet.get("previousSuccessfulRun") or {}
+    previous_finished_at = previous.get("finishedAt")
+    fit_inventory = fetch_one(
+        conn,
+        """
+        select
+          count(*)::integer as total_fit_rows,
+          count(*) filter (
+            where coalesce(fit.human_label, fit.label) = 'fit'
+          )::integer as effective_fit,
+          count(*) filter (
+            where coalesce(fit.human_label, fit.label) = 'fit'
+              and not exists (
+                select 1
+                from public.talent_opportunity_recommendation recommendation
+                where recommendation.talent_id = fit.talent_id
+                  and recommendation.role_id = fit.opportunity_id
+              )
+          )::integer as fit_not_yet_recommended,
+          count(*) filter (
+            where coalesce(fit.human_label, fit.label) in ('hold', 'ambiguous')
+              and fit.last_evaluated_at <= timezone('utc', now()) - interval '21 days'
+              and fit.human_label is null
+          )::integer as due_hold_or_ambiguous,
+          count(*) filter (
+            where coalesce(fit.human_label, fit.label) in (
+              'hold', 'ambiguous', 'dissatisfied', 'unfit'
+            )
+          )::integer as effective_non_fit
+        from public.talent_opportunity_fit fit
+        where fit.opportunity_id = %s::uuid
+        """,
+        (role_id,),
+    ) or {}
+    talent_inventory = fetch_one(
+        conn,
+        """
+        select
+          count(*) filter (where talent.deleted_at is null)::integer as active_talents,
+          count(*) filter (
+            where talent.deleted_at is null
+              and (%s::timestamptz is null or talent.created_at > %s::timestamptz)
+          )::integer as created_since_previous_run,
+          count(*) filter (
+            where talent.deleted_at is null
+              and (%s::timestamptz is null or talent.updated_at > %s::timestamptz)
+          )::integer as updated_since_previous_run
+        from public.talent_users talent
+        """,
+        (
+            previous_finished_at,
+            previous_finished_at,
+            previous_finished_at,
+            previous_finished_at,
+        ),
+    ) or {}
+    recent_runs = fetch_all(
+        conn,
+        """
+        select id, trigger_reason, status, result
+        from public.company_context_runs
+        where role_id = %s::uuid
+          and id <> %s::uuid
+          and status in ('succeeded', 'failed', 'canceled')
+        order by (result->>'finishedAt')::timestamptz desc nulls last, id desc
+        limit 6
+        """,
+        (role_id, str(run["id"])),
+    )
+    recent_recommendation_history = fetch_all(
+        conn,
+        """
+        select
+          recommendation.id,
+          recommendation.talent_id,
+          recommendation.role_id,
+          role.name as role_name,
+          recommendation.recommended_at,
+          recommendation.feedback,
+          recommendation.feedback_at,
+          left(recommendation.feedback_reason, 2000) as feedback_reason,
+          recommendation.saved_stage,
+          recommendation.processed_stage,
+          recommendation.updated_at,
+          latest_stage.tag as latest_company_stage,
+          latest_stage.updated_at as latest_company_stage_at,
+          company_response.first_response_at,
+          company_response.response_count
+        from public.talent_opportunity_recommendation recommendation
+        join public.company_roles role on role.role_id = recommendation.role_id
+        left join lateral (
+          select tag.tag, tag.updated_at
+          from public.talent_opportunity_tag tag
+          where tag.talent_id = recommendation.talent_id
+            and tag.opportunity_id = recommendation.role_id
+          order by tag.updated_at desc, tag.created_at desc, tag.id desc
+          limit 1
+        ) latest_stage on true
+        left join lateral (
+          select
+            min(progress.created_at) as first_response_at,
+            count(*)::integer as response_count
+          from public.talent_progress progress
+          where progress.talent_id = recommendation.talent_id
+            and progress.role_id = recommendation.role_id
+            and progress.company_user_id is not null
+            and progress.created_at >= recommendation.recommended_at
+        ) company_response on true
+        where role.company_workspace_id = %s::uuid
+          and role.source_type = 'internal'
+          and coalesce(lower(btrim(role.information->>'testOnly')), '')
+            not in ('true', '1', 'yes', 'on')
+        order by recommendation.recommended_at desc, recommendation.id desc
+        limit 100
+        """,
+        (str(run["company_workspace_id"]),),
+    )
+    current_context = str(
+        (
+            fetch_one(
+                conn,
+                "select text_context from public.company_behavior_contexts where role_id = %s::uuid",
+                (role_id,),
+            )
+            or {}
+        ).get("text_context")
+        or ""
+    )
+    return jsonable(
+        {
+            "schemaVersion": 1,
+            "contractVersion": SEARCH_DECISION_CONTRACT_VERSION,
+            "runId": str(run["id"]),
+            "batchRunId": run.get("batch_run_id"),
+            "roleId": role_id,
+            "currentContext": current_context,
+            "contextOutput": run.get("context_output"),
+            "deterministicGates": source_packet.get("pendingGate") or {},
+            "candidateInventory": {
+                **talent_inventory,
+                **fit_inventory,
+            },
+            "newOrChangedCompanyEvidence": (
+                (source_packet.get("evidenceWindow") or {}).get(
+                    "newOrChangedEvidence"
+                )
+                or {}
+            ),
+            "recentRoleRuns": recent_runs,
+            "recentCompanyRecommendationHistory": recent_recommendation_history,
+            "decisionNotes": [
+                "Timestamps in company-attributed messages, progress, and calibration reviews are evidence for whether the company is responding; do not convert response speed into a talent fit criterion.",
+                "Recommendation feedback belongs to the talent. Use recommendedAt, feedback/feedbackAt, savedStage, the latest company stage, and verified company response timestamps together to understand whether a recommendation reached the talent, was accepted, reached the company, and received company follow-through.",
+                "Existing fit reasons are previous judgments. Read them in candidate packets when a cycle runs, but do not treat them as gold labels.",
+                "A run-specific searchInstruction may broaden retrieval or choose a new exploration cohort without rewriting permanent company criteria.",
+            ],
+        }
+    )
+
+
+def write_matching_decision_packet(
+    conn: psycopg.Connection,
+    run: Mapping[str, Any],
+) -> Path:
+    path = run_dir(run) / "search_decision_input.json"
+    write_json(path, matching_decision_support(conn, run))
+    return path
 
 
 def current_source_fingerprint(
@@ -1154,6 +1858,10 @@ def prepare_run(conn: psycopg.Connection, run: Mapping[str, Any]) -> Path:
         CONTEXT_EDIT_INSTRUCTIONS_TEXT,
     )
     write_text(
+        path / "search_decision_instructions.md",
+        SEARCH_DECISION_INSTRUCTIONS_TEXT,
+    )
+    write_text(
         path / "fit_evaluation_contract.md",
         FIT_EVALUATION_CONTRACT_TEXT,
     )
@@ -1163,6 +1871,17 @@ def prepare_run(conn: psycopg.Connection, run: Mapping[str, Any]) -> Path:
         "sourceCursor": packet["sourceCursor"],
         "sourceFingerprint": packet["sourceFingerprint"],
         "roleMatchingFingerprint": packet["roleMatchingFingerprint"],
+        "evidenceWindow": {
+            "previousRunId": (
+                (packet.get("previousSuccessfulRun") or {}).get("runId")
+            ),
+            "fromCursor": (
+                (packet.get("evidenceWindow") or {}).get(
+                    "fromPreviousSuccessfulCursor"
+                )
+            ),
+            "toCursor": packet.get("sourceCursor") or {},
+        },
     }
     updated_run["counts"] = {
         **(updated_run.get("counts") or {}),
@@ -1188,7 +1907,8 @@ def assert_run_writable(
         """
         select role.role_id, role.company_workspace_id,
                role.status as role_status, role.source_type,
-               role.is_expired, internal_role.is_auto
+               role.is_expired, role.expires_at, role.information,
+               internal_role.is_auto
         from public.company_roles role
         join public.company_internal_roles internal_role
           on internal_role.role_id = role.role_id
@@ -1213,6 +1933,11 @@ def assert_run_writable(
         raise RuntimeError("role is no longer active")
     if row.get("is_expired") is True:
         raise RuntimeError("role is expired")
+    expires_at = parsed_time(row.get("expires_at"))
+    if expires_at is not None and expires_at <= utc_now():
+        raise RuntimeError("role expiry time has passed")
+    if is_test_only_role(row.get("information")):
+        raise RuntimeError("test-only role is excluded from Company Run")
     if run.get("trigger_reason") != "manual" and row.get("is_auto") is not True:
         raise RuntimeError("role automation is disabled")
     recorded_workspace = run.get("company_workspace_id")
@@ -1273,9 +1998,42 @@ def command_enqueue(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_enqueue_scheduled(args: argparse.Namespace) -> int:
+    scheduled_for = scheduled_for_value(args.scheduled_for)
+    batch_id = scheduled_batch_id(scheduled_for)
+    with connect() as conn:
+        rows = enqueue_scheduled_runs(
+            conn,
+            batch_id=batch_id,
+            scheduled_for=scheduled_for,
+        )
+        conn.commit()
+    counts = {
+        outcome: sum(1 for row in rows if row.get("outcome") == outcome)
+        for outcome in ("enqueued", "already_recorded", "blocked_by_open_run")
+    }
+    manifest = {
+        "contractVersion": COMPANY_RUN_CONTRACT_VERSION,
+        "batchRunId": batch_id,
+        "scheduledFor": iso(scheduled_for),
+        "createdAt": iso(),
+        "counts": counts,
+        "roles": rows,
+    }
+    path = batch_dir(batch_id)
+    path.mkdir(parents=True, exist_ok=True)
+    write_json(path / "batch_manifest.json", manifest)
+    print(json.dumps(jsonable(manifest), ensure_ascii=False))
+    return 0
+
+
 def command_start(args: argparse.Namespace) -> int:
     if args.allow_inactive and (not args.dry_run or not args.role_id):
         raise ValueError("--allow-inactive requires both --dry-run and --role-id")
+    if args.batch_id and args.dry_run:
+        raise ValueError("--batch-id cannot be combined with --dry-run")
+    if args.batch_id and args.role_id:
+        raise ValueError("--batch-id cannot be combined with --role-id")
     with connect() as conn:
         due_enqueued = enqueue_due_runs(conn) if args.enqueue_due and not args.dry_run else 0
         if args.allow_inactive:
@@ -1291,15 +2049,32 @@ def command_start(args: argparse.Namespace) -> int:
             queue_row = (
                 peek_queued_run(conn, role_id=args.role_id)
                 if args.dry_run
-                else claim_queued_run(
-                    conn,
-                    runner=args.runner,
-                    role_id=args.role_id,
+                else (
+                    claim_scheduled_run(
+                        conn,
+                        runner=args.runner,
+                        batch_id=args.batch_id,
+                    )
+                    if args.batch_id
+                    else claim_queued_run(
+                        conn,
+                        runner=args.runner,
+                        role_id=args.role_id,
+                    )
                 )
             )
         if not queue_row:
             conn.commit()
-            print(json.dumps({"started": False, "reason": "no_queued_run", "dueEnqueued": due_enqueued}))
+            print(
+                json.dumps(
+                    {
+                        "started": False,
+                        "reason": "no_queued_run",
+                        "dueEnqueued": due_enqueued,
+                        "batchRunId": args.batch_id,
+                    }
+                )
+            )
             return 0
         run_id = str(queue_row["id"])
         role = fetch_one(
@@ -1307,7 +2082,8 @@ def command_start(args: argparse.Namespace) -> int:
             """
             select role.role_id, role.company_workspace_id,
                    role.status as role_status, role.source_type,
-                   role.is_expired, internal_role.is_auto
+                   role.is_expired, role.expires_at, role.information,
+                   internal_role.is_auto
             from public.company_roles role
             join public.company_internal_roles internal_role
               on internal_role.role_id = role.role_id
@@ -1323,7 +2099,11 @@ def command_start(args: argparse.Namespace) -> int:
                 conn,
                 run_id=run_id,
                 status="canceled",
-                result={"resultReason": "role_missing", "summary": "Role no longer exists."},
+                result={
+                    **dict(queue_row.get("result") or {}),
+                    "resultReason": "role_missing",
+                    "summary": "Role no longer exists.",
+                },
             )
             conn.commit()
             raise RuntimeError("internal role not found")
@@ -1336,6 +2116,13 @@ def command_start(args: argparse.Namespace) -> int:
             terminal_reason = "role_not_active"
         elif role.get("is_expired") is True:
             terminal_reason = "role_expired"
+        elif (
+            parsed_time(role.get("expires_at")) is not None
+            and parsed_time(role.get("expires_at")) <= utc_now()
+        ):
+            terminal_reason = "role_expired"
+        elif is_test_only_role(role.get("information")):
+            terminal_reason = "test_only_role"
         elif (
             str(queue_row.get("trigger_reason")) != "manual"
             and role.get("is_auto") is not True
@@ -1361,7 +2148,11 @@ def command_start(args: argparse.Namespace) -> int:
                 conn,
                 run_id=run_id,
                 status="canceled",
-                result={"resultReason": terminal_reason, "summary": terminal_reason},
+                result={
+                    **dict(queue_row.get("result") or {}),
+                    "resultReason": terminal_reason,
+                    "summary": terminal_reason,
+                },
             )
             conn.commit()
             print(json.dumps(jsonable(finished)))
@@ -1379,6 +2170,14 @@ def command_start(args: argparse.Namespace) -> int:
             "counts": {},
             "summary": None,
             "error_message": None,
+            "contract_version": (queue_row.get("result") or {}).get(
+                "contractVersion"
+            ),
+            "batch_run_id": (queue_row.get("result") or {}).get("batchRunId"),
+            "scheduled_for": (queue_row.get("result") or {}).get("scheduledFor"),
+            "context_output": (queue_row.get("result") or {}).get("contextOutput"),
+            "search_decision": (queue_row.get("result") or {}).get("searchDecision"),
+            "notification": (queue_row.get("result") or {}).get("notification"),
             "dry_run": bool(args.dry_run),
             "allow_inactive": bool(args.allow_inactive),
             "synthetic_queue": bool(args.allow_inactive),
@@ -1431,6 +2230,8 @@ def command_start(args: argparse.Namespace) -> int:
                     "artifactPath": str(path),
                     "sourcePacket": str(path / "source_packet.json"),
                     "runbook": str(RUNBOOK_PATH),
+                    "scheduledRunbook": str(SCHEDULED_RUNBOOK_PATH),
+                    "batchRunId": run.get("batch_run_id"),
                     "dueEnqueued": due_enqueued,
                     "dryRun": bool(args.dry_run),
                     "queueBacked": not bool(args.allow_inactive),
@@ -1636,6 +2437,16 @@ def command_run_sql(args: argparse.Namespace) -> int:
     write_text(path / f"retrieval_query_v{revision}.sql", sql)
     output = path / f"retrieval_result_v{revision}.json"
     write_json(output, result)
+    prior_counts = run.get("counts") or {}
+    retrieval_counts = dict(prior_counts.get("retrieval") or {})
+    retrieval_counts[args.lane] = {
+        "revision": revision,
+        "rows": len(rows),
+        "uniqueTalents": len(unique_ids),
+        "duplicateRows": len(rows) - len(unique_ids),
+    }
+    run["counts"] = {**prior_counts, "retrieval": retrieval_counts}
+    save_run(run)
     print(
         json.dumps(
             {
@@ -2610,6 +3421,15 @@ def command_candidate_packet(args: argparse.Namespace) -> int:
     }
     index_path = path / f"candidate_packet_index_{args.lane}.json"
     write_json(index_path, index)
+    prior_counts = run.get("counts") or {}
+    packet_counts = dict(prior_counts.get("candidatePackets") or {})
+    packet_counts[args.lane] = {
+        "requested": len(ordered_ids),
+        "eligible": len(index_rows),
+        "excluded": len(excluded),
+    }
+    run["counts"] = {**prior_counts, "candidatePackets": packet_counts}
+    save_run(run)
     print(
         json.dumps(
             {
@@ -2623,10 +3443,13 @@ def command_candidate_packet(args: argparse.Namespace) -> int:
     return 0
 
 
-def command_save_context(args: argparse.Namespace) -> int:
-    context_text = normalize_context_text(
-        Path(args.context_file).resolve().read_text(encoding="utf-8")
-    )
+def save_context_value(
+    *,
+    run_id: str,
+    context_text: str,
+    context_output: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    context_text = normalize_context_text(context_text)
     validate_context_structure(context_text)
     if len(context_text) > 12000:
         raise ValueError("context text must be concise (maximum 12,000 characters)")
@@ -2634,9 +3457,9 @@ def command_save_context(args: argparse.Namespace) -> int:
         with conn.cursor() as cur:
             cur.execute(
                 "select pg_advisory_xact_lock(hashtextextended(%s, 0))",
-                (args.run_id,),
+                (run_id,),
             )
-        run = assert_run_writable(conn, args.run_id)
+        run = assert_run_writable(conn, run_id)
         path = run_dir(run)
         packet = read_json(path / "source_packet.json")
         current_cursor = source_cursor(
@@ -2674,6 +3497,13 @@ def command_save_context(args: argparse.Namespace) -> int:
                 )
                 cur.fetchone()
             conn.commit()
+        if context_output is not None:
+            run["context_output"] = {
+                **dict(context_output),
+                "changed": stable_hash(context_text) != stable_hash(previous_text),
+                "afterHash": stable_hash(context_text),
+            }
+        write_matching_decision_packet(conn, run)
     run["input_snapshot"] = {
         **(run.get("input_snapshot") or {}),
         "contextHash": context_hash,
@@ -2691,7 +3521,48 @@ def command_save_context(args: argparse.Namespace) -> int:
         "dryRun": bool(run.get("dry_run")),
     }
     write_json(path / "context_save_receipt.json", result)
+    return result
+
+
+def command_save_context(args: argparse.Namespace) -> int:
+    context_text = Path(args.context_file).resolve().read_text(encoding="utf-8")
+    result = save_context_value(run_id=args.run_id, context_text=context_text)
     print(json.dumps(result))
+    return 0
+
+
+def command_save_context_output(args: argparse.Namespace) -> int:
+    output = validate_context_output(read_json(Path(args.input).resolve()))
+    result = save_context_value(
+        run_id=args.run_id,
+        context_text=str(output["text"]),
+        context_output={key: value for key, value in output.items() if key != "text"},
+    )
+    print(json.dumps({**result, "bulletCount": len(output["bullets"])}))
+    return 0
+
+
+def command_save_search_decision(args: argparse.Namespace) -> int:
+    with connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "select pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                (args.run_id,),
+            )
+        run = assert_run_writable(conn, args.run_id)
+        path = run_dir(run)
+        if not (path / "context_save_receipt.json").exists():
+            raise RuntimeError("context output must be saved before search decision")
+        gate = pending_gate(conn, str(run["role_id"]))
+        decision = validate_search_decision(
+            read_json(Path(args.input).resolve()),
+            search_allowed=bool(gate["searchAllowed"]),
+        )
+        run["search_decision"] = decision
+        save_run(run)
+        write_json(path / "search_decision.json", decision)
+        conn.rollback()
+    print(json.dumps(decision, ensure_ascii=False))
     return 0
 
 
@@ -2900,7 +3771,9 @@ def command_upsert_fits(args: argparse.Namespace) -> int:
             fetch_all(
                 conn,
                 """
-                select talent_id, human_label, human_reason, human_reviewed_by, human_reviewed_at
+                select talent_id, score, label, reason, recommend,
+                       human_label, human_reason, human_reviewed_by, human_reviewed_at,
+                       last_evaluated_at, company_side_evaluation_metadata
                 from public.talent_opportunity_fit
                 where opportunity_id = %s::uuid and talent_id = any(%s::uuid[])
                 """,
@@ -2911,6 +3784,7 @@ def command_upsert_fits(args: argparse.Namespace) -> int:
         )
         before_human_map = {str(row["talent_id"]): row for row in before_human}
         stored: list[dict[str, Any]] = []
+        batch_rerank_pending = bool(run.get("batch_run_id"))
         if run.get("dry_run"):
             for item in evaluations:
                 previous = before_human_map.get(item["talentId"]) or {}
@@ -2920,7 +3794,9 @@ def command_upsert_fits(args: argparse.Namespace) -> int:
                         "opportunity_id": str(run["role_id"]),
                         "score": item["score"],
                         "label": item["label"],
-                        "recommend": item["recommend"],
+                        "recommend": (
+                            False if batch_rerank_pending else item["recommend"]
+                        ),
                         "kind": "codex",
                         **{
                             field: previous.get(field)
@@ -2938,6 +3814,7 @@ def command_upsert_fits(args: argparse.Namespace) -> int:
             with conn.cursor() as cur:
                 for item in evaluations:
                     candidate = all_index_rows[item["talentId"]]
+                    previous = before_human_map.get(item["talentId"])
                     metadata = {
                         "schemaVersion": 1,
                         "workflow": "company_context_fit_refresh",
@@ -2951,7 +3828,14 @@ def command_upsert_fits(args: argparse.Namespace) -> int:
                         ),
                         "candidateFingerprint": candidate.get("candidateFingerprint"),
                         "explorationRecommendable": item["explorationRecommendable"],
+                        "preliminaryRecommend": item["recommend"],
+                        "batchRunId": run.get("batch_run_id"),
+                        "batchRerankPending": batch_rerank_pending,
                         "evaluatedAt": iso(),
+                        "previousFit": previous_fit_snapshot(
+                            previous,
+                            str(run["id"]),
+                        ),
                     }
                     cur.execute(
                         """
@@ -2985,7 +3869,7 @@ def command_upsert_fits(args: argparse.Namespace) -> int:
                             item["score"],
                             item["label"],
                             item["reason"],
-                            item["recommend"],
+                            False if batch_rerank_pending else item["recommend"],
                             json.dumps(item["reevaluationCriteria"]),
                             json.dumps(item["companyCriteriaEvaluations"]),
                             json.dumps(metadata),
@@ -2996,7 +3880,11 @@ def command_upsert_fits(args: argparse.Namespace) -> int:
                         stored_row.get("human_label") or stored_row.get("label"),
                         40,
                     ).lower()
-                    if item["recommend"] is True and effective_label == "fit":
+                    if (
+                        not batch_rerank_pending
+                        and item["recommend"] is True
+                        and effective_label == "fit"
+                    ):
                         cur.execute(
                             """
                             update public.talent_opportunity_fit sibling_fit
@@ -3041,6 +3929,20 @@ def command_upsert_fits(args: argparse.Namespace) -> int:
         if item["label"] == "fit"
         and indexed_lanes.get(item["talentId"]) in DISCOVERY_LANES
     )
+    label_counts = dict(prior_counts.get("labelCounts") or {})
+    for label in FIT_LABEL_BANDS:
+        label_counts[label] = int(label_counts.get(label) or 0) + sum(
+            1 for item in evaluations if item["label"] == label
+        )
+    evaluated_by_lane = dict(prior_counts.get("evaluatedByLane") or {})
+    for lane in (*sorted(DISCOVERY_LANES), "reevaluation"):
+        lane_count = sum(
+            1
+            for item in evaluations
+            if indexed_lanes.get(item["talentId"]) == lane
+        )
+        if lane_count:
+            evaluated_by_lane[lane] = int(evaluated_by_lane.get(lane) or 0) + lane_count
     run["counts"] = {
         **prior_counts,
         "fitWrites": int(prior_counts.get("fitWrites") or 0)
@@ -3051,6 +3953,8 @@ def command_upsert_fits(args: argparse.Namespace) -> int:
         + len(skips),
         "newFitCount": int(prior_counts.get("newFitCount") or 0)
         + new_fit_count,
+        "labelCounts": label_counts,
+        "evaluatedByLane": evaluated_by_lane,
     }
     save_run(run)
     receipt = {
@@ -3148,12 +4052,625 @@ def command_validate_fits(args: argparse.Namespace) -> int:
     return 0
 
 
+def batch_rerank_source(
+    conn: psycopg.Connection,
+    batch_id: str,
+) -> dict[str, Any]:
+    open_row = fetch_one(
+        conn,
+        """
+        select count(*)::integer as count
+        from public.company_context_runs
+        where result->>'batchRunId' = %s
+          and status in ('queued', 'running')
+        """,
+        (batch_id,),
+    ) or {}
+    if int(open_row.get("count") or 0):
+        raise RuntimeError("batch rerank requires every Role run to be terminal")
+    rows = fetch_all(
+        conn,
+        """
+        with touched as (
+          select distinct
+            fit.talent_id,
+            role.company_workspace_id
+          from public.talent_opportunity_fit fit
+          join public.company_roles role on role.role_id = fit.opportunity_id
+          where fit.company_side_evaluation_metadata->>'batchRunId' = %s
+        )
+        select
+          touched.talent_id,
+          talent.name as talent_name,
+          touched.company_workspace_id,
+          workspace.company_name,
+          role.role_id,
+          role.name as role_name,
+          role.location_text,
+          role.work_mode,
+          role.seniority_level,
+          internal_role.request as hiring_brief,
+          internal_role.criteria,
+          behavior.text_context as company_behavior_context,
+          coalesce(fit.human_label, fit.label) as effective_label,
+          fit.score,
+          left(fit.reason, 3000) as reason,
+          fit.recommend,
+          fit.human_label,
+          fit.human_reason,
+          fit.company_side_evaluation_metadata->>'preliminaryRecommend'
+            as preliminary_recommend,
+          fit.company_side_evaluation_metadata->'previousFit' as previous_fit,
+          exists (
+            select 1
+            from public.talent_opportunity_recommendation same_pair_delivery
+            where same_pair_delivery.talent_id = fit.talent_id
+              and same_pair_delivery.role_id = fit.opportunity_id
+          ) as already_delivered,
+          coalesce((
+            select jsonb_agg(jsonb_build_object(
+              'roleId', delivered_role.role_id,
+              'roleName', delivered_role.name,
+              'recommendedAt', recommendation.recommended_at,
+              'talentFeedback', recommendation.feedback,
+              'talentFeedbackReason', recommendation.feedback_reason,
+              'savedStage', recommendation.saved_stage,
+              'processedStage', recommendation.processed_stage
+            ) order by recommendation.recommended_at desc)
+            from public.talent_opportunity_recommendation recommendation
+            join public.company_roles delivered_role
+              on delivered_role.role_id = recommendation.role_id
+            where recommendation.talent_id = touched.talent_id
+              and delivered_role.company_workspace_id = touched.company_workspace_id
+              and delivered_role.source_type = 'internal'
+              and coalesce(lower(btrim(delivered_role.information->>'testOnly')), '')
+                not in ('true', '1', 'yes', 'on')
+          ), '[]'::jsonb) as same_company_history
+        from touched
+        join public.talent_users talent
+          on talent.user_id = touched.talent_id
+        join public.company_workspace workspace
+          on workspace.company_workspace_id = touched.company_workspace_id
+        join public.company_roles role
+          on role.company_workspace_id = touched.company_workspace_id
+        join public.company_internal_roles internal_role
+          on internal_role.role_id = role.role_id
+        join public.talent_opportunity_fit fit
+          on fit.talent_id = touched.talent_id
+         and fit.opportunity_id = role.role_id
+        left join public.company_behavior_contexts behavior
+          on behavior.role_id = role.role_id
+        where role.source_type = 'internal'
+          and role.status = 'active'
+          and coalesce(role.is_expired, false) = false
+          and (role.expires_at is null or role.expires_at > timezone('utc', now()))
+          and coalesce(internal_role.is_auto, false) = true
+          and coalesce(lower(btrim(role.information->>'testOnly')), '')
+            not in ('true', '1', 'yes', 'on')
+          and coalesce(fit.human_label, fit.label) = 'fit'
+          and not exists (
+            select 1
+            from public.talent_opportunity_recommendation same_pair_delivery
+            where same_pair_delivery.talent_id = fit.talent_id
+              and same_pair_delivery.role_id = fit.opportunity_id
+          )
+        order by touched.company_workspace_id, touched.talent_id,
+                 fit.score desc, role.role_id
+        """,
+        (batch_id,),
+    )
+    groups: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        workspace_id = str(row["company_workspace_id"])
+        talent_id = str(row["talent_id"])
+        key = (workspace_id, talent_id)
+        group = groups.setdefault(
+            key,
+            {
+                "companyWorkspaceId": workspace_id,
+                "companyName": row.get("company_name"),
+                "talentId": talent_id,
+                "talentName": row.get("talent_name"),
+                "sameCompanyHistory": row.get("same_company_history") or [],
+                "roleOptions": [],
+            },
+        )
+        group["roleOptions"].append(
+            {
+                "roleId": str(row["role_id"]),
+                "roleName": row.get("role_name"),
+                "location": row.get("location_text"),
+                "workMode": row.get("work_mode"),
+                "seniority": row.get("seniority_level"),
+                "hiringBrief": row.get("hiring_brief"),
+                "criteria": row.get("criteria"),
+                "companyBehaviorContext": row.get("company_behavior_context") or "",
+                "score": row.get("score"),
+                "label": row.get("effective_label"),
+                "reason": row.get("reason"),
+                "previousFit": row.get("previous_fit"),
+                "preliminaryRecommend": (
+                    str(row.get("preliminary_recommend") or "").lower() == "true"
+                ),
+                "currentlyRecommend": bool(row.get("recommend")),
+                "humanLabel": row.get("human_label"),
+                "humanReason": row.get("human_reason"),
+            }
+        )
+    ordered_groups = [groups[key] for key in sorted(groups)]
+    source = {
+        "contractVersion": "company-run-batch-rerank-v1",
+        "batchRunId": batch_id,
+        "maxRecommendations": MAX_COMPANY_RUN_RECOMMENDATIONS,
+        "groups": ordered_groups,
+    }
+    return {**source, "sourceFingerprint": stable_hash(source)}
+
+
+def validate_batch_rerank_decision(
+    value: Any,
+    source: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    if not isinstance(value, Mapping) or not isinstance(value.get("decisions"), list):
+        raise ValueError("batch rerank output requires a decisions array")
+    groups = {
+        (str(group["companyWorkspaceId"]), str(group["talentId"])): group
+        for group in (source.get("groups") or [])
+    }
+    decisions: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for raw in value["decisions"]:
+        if not isinstance(raw, Mapping):
+            raise ValueError("each batch rerank decision must be an object")
+        key = (
+            compact(raw.get("companyWorkspaceId"), 100),
+            compact(raw.get("talentId"), 100),
+        )
+        if key not in groups or key in seen:
+            raise ValueError("batch rerank decision has an unknown or duplicate group")
+        selected = compact(raw.get("selectedRoleId"), 100) or None
+        allowed = {
+            str(option["roleId"])
+            for option in groups[key].get("roleOptions") or []
+        }
+        if selected is not None and selected not in allowed:
+            raise ValueError("batch rerank selectedRoleId is outside the reviewed role options")
+        reason = str(raw.get("reason") or "").strip()
+        if not reason or len(reason) > 2_000:
+            raise ValueError("batch rerank reason must contain 1..2000 characters")
+        seen.add(key)
+        decisions.append(
+            {
+                "companyWorkspaceId": key[0],
+                "talentId": key[1],
+                "selectedRoleId": selected,
+                "reason": reason,
+            }
+        )
+    missing = sorted(set(groups) - seen)
+    if missing:
+        raise ValueError(f"batch rerank output is missing {len(missing)} talent group(s)")
+    selected_count = sum(1 for item in decisions if item["selectedRoleId"] is not None)
+    if selected_count > MAX_COMPANY_RUN_RECOMMENDATIONS:
+        raise ValueError(
+            "batch rerank may select at most "
+            f"{MAX_COMPANY_RUN_RECOMMENDATIONS} talents per company_run"
+        )
+    return decisions
+
+
+def command_prepare_batch_rerank(args: argparse.Namespace) -> int:
+    with connect() as conn:
+        source = batch_rerank_source(conn, args.batch_id)
+        conn.rollback()
+    path = batch_dir(args.batch_id)
+    path.mkdir(parents=True, exist_ok=True)
+    output = path / "batch_rerank_input.json"
+    write_json(output, source)
+    instructions = f"""모든 Role의 pair scoring이 끝난 뒤 같은 회사 안에서 지금 먼저 제안할 Role을 talent별로 최종 선택한다.
+각 roleOptions의 독립적인 fit은 이미 확정됐으므로 score나 label을 다시 쓰지 않는다. sameCompanyHistory, 현재 진행 중인 Role, 각 Role의 reason과 회사 behavior context를 함께 보고 selectedRoleId 하나 또는 null을 고른다. 이 company_run batch 전체에서 selectedRoleId가 null이 아닌 talent는 최대 {MAX_COMPANY_RUN_RECOMMENDATIONS}명이다. fit인 talent가 더 많으면 fit은 유지하고 우선순위가 낮은 group의 selectedRoleId를 null로 둔다. 적절한 첫 제안이 없으면 null이 정상이며 추천 수를 채우지 않는다.
+출력은 모든 group을 정확히 한 번 포함하는 {{\"decisions\":[{{\"companyWorkspaceId\":\"uuid\",\"talentId\":\"uuid\",\"selectedRoleId\":\"uuid\"|null,\"reason\":\"...\"}}]}} JSON이다.
+"""
+    write_text(path / "batch_rerank_instructions.md", instructions)
+    print(
+        json.dumps(
+            {
+                "batchRunId": args.batch_id,
+                "groupCount": len(source["groups"]),
+                "maxRecommendations": MAX_COMPANY_RUN_RECOMMENDATIONS,
+                "input": str(output),
+                "instructions": str(path / "batch_rerank_instructions.md"),
+            },
+            ensure_ascii=False,
+        )
+    )
+    return 0
+
+
+def command_apply_batch_rerank(args: argparse.Namespace) -> int:
+    path = batch_dir(args.batch_id)
+    stored_source = read_json(path / "batch_rerank_input.json")
+    with connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "select pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                (args.batch_id,),
+            )
+        current_source = batch_rerank_source(conn, args.batch_id)
+        if current_source.get("sourceFingerprint") != stored_source.get(
+            "sourceFingerprint"
+        ):
+            raise RuntimeError("batch rerank source changed; rebuild and review the packet")
+        decisions = validate_batch_rerank_decision(
+            read_json(Path(args.input).resolve()),
+            current_source,
+        )
+        groups_by_key = {
+            (group["companyWorkspaceId"], group["talentId"]): group
+            for group in current_source["groups"]
+        }
+        selected_candidates: list[dict[str, Any]] = []
+        for decision in decisions:
+            if not decision["selectedRoleId"]:
+                continue
+            group = groups_by_key[
+                (decision["companyWorkspaceId"], decision["talentId"])
+            ]
+            option = next(
+                option
+                for option in group["roleOptions"]
+                if option["roleId"] == decision["selectedRoleId"]
+            )
+            selected_candidates.append(
+                {
+                    "companyWorkspaceId": decision["companyWorkspaceId"],
+                    "companyName": group.get("companyName"),
+                    "talentId": decision["talentId"],
+                    "talentName": group.get("talentName"),
+                    "selectedRoleId": decision["selectedRoleId"],
+                    "roleName": option.get("roleName"),
+                    "previousFit": option.get("previousFit"),
+                    "currentFit": {
+                        "label": option.get("label"),
+                        "score": option.get("score"),
+                        "reason": option.get("reason"),
+                    },
+                    "selectionReason": decision["reason"],
+                }
+            )
+        selected_counts: dict[str, int] = defaultdict(int)
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                update public.company_context_runs
+                set result = coalesce(result, '{}'::jsonb) || jsonb_build_object(
+                  'matching', coalesce(result->'matching', '{}'::jsonb)
+                    || jsonb_build_object('rerankSelected', 0)
+                )
+                where result->>'batchRunId' = %s
+                """,
+                (args.batch_id,),
+            )
+            for decision in decisions:
+                group = groups_by_key[
+                    (decision["companyWorkspaceId"], decision["talentId"])
+                ]
+                role_ids = [option["roleId"] for option in group["roleOptions"]]
+                cur.execute(
+                    """
+                    update public.talent_opportunity_fit fit
+                    set
+                      recommend = (fit.opportunity_id = %s::uuid),
+                      company_side_evaluation_metadata =
+                        coalesce(fit.company_side_evaluation_metadata, '{}'::jsonb)
+                        || jsonb_build_object(
+                          'batchRerank', jsonb_build_object(
+                            'batchRunId', %s::text,
+                            'selected', fit.opportunity_id = %s::uuid,
+                            'reason', %s::text,
+                            'appliedAt', timezone('utc', now())
+                          ),
+                          'batchRerankPending', false
+                        )
+                    where fit.talent_id = %s::uuid
+                      and fit.opportunity_id = any(%s::uuid[])
+                      and not exists (
+                        select 1
+                        from public.talent_opportunity_recommendation delivered
+                        where delivered.talent_id = fit.talent_id
+                          and delivered.role_id = fit.opportunity_id
+                      )
+                    """,
+                    (
+                        decision["selectedRoleId"],
+                        args.batch_id,
+                        decision["selectedRoleId"],
+                        decision["reason"],
+                        decision["talentId"],
+                        role_ids,
+                    ),
+                )
+                if decision["selectedRoleId"]:
+                    selected_counts[decision["selectedRoleId"]] += 1
+            for role_id, selected_count in selected_counts.items():
+                cur.execute(
+                    """
+                    update public.company_context_runs
+                    set result = coalesce(result, '{}'::jsonb) || jsonb_build_object(
+                      'matching', coalesce(result->'matching', '{}'::jsonb)
+                        || jsonb_build_object('rerankSelected', %s::integer)
+                    )
+                    where role_id = %s::uuid
+                      and result->>'batchRunId' = %s
+                    """,
+                    (selected_count, role_id, args.batch_id),
+                )
+        conn.commit()
+    receipt = {
+        "batchRunId": args.batch_id,
+        "reviewedTalentGroups": len(decisions),
+        "selected": sum(1 for item in decisions if item["selectedRoleId"]),
+        "maxRecommendations": MAX_COMPANY_RUN_RECOMMENDATIONS,
+        "selectedByRole": dict(sorted(selected_counts.items())),
+        "selectedCandidates": selected_candidates,
+        "appliedAt": iso(),
+    }
+    write_json(path / "batch_rerank_receipt.json", receipt)
+    print(json.dumps(receipt, ensure_ascii=False))
+    return 0
+
+
+def batch_notification_rows(
+    conn: psycopg.Connection,
+    batch_id: str,
+) -> list[dict[str, Any]]:
+    return fetch_all(
+        conn,
+        """
+        select
+          run.id,
+          run.role_id,
+          run.status,
+          run.trigger_reason,
+          run.result,
+          role.name as role_name,
+          workspace.company_workspace_id,
+          workspace.company_name
+        from public.company_context_runs run
+        join public.company_roles role on role.role_id = run.role_id
+        join public.company_workspace workspace
+          on workspace.company_workspace_id = role.company_workspace_id
+        where run.result->>'batchRunId' = %s
+        order by workspace.company_name, role.name, run.id
+        """,
+        (batch_id,),
+    )
+
+
+def slack_escape(value: Any) -> str:
+    return str(value or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def company_run_role_notification_text(row: Mapping[str, Any]) -> str:
+    result = row.get("result") if isinstance(row.get("result"), Mapping) else {}
+    summary = compact(result.get("summary") or result.get("error"), 1_000)
+    if not summary:
+        summary = f"Role run이 {compact(row.get('status'), 40) or 'unknown'} 상태로 종료되었습니다."
+    return (
+        f"*{slack_escape(row.get('company_name') or '회사')} · "
+        f"{slack_escape(row.get('role_name') or 'Role')}*\n"
+        f"{slack_escape(summary)}"
+    )
+
+
+def company_run_root_notification_text(
+    *,
+    batch_id: str,
+    rows: Sequence[Mapping[str, Any]],
+) -> str:
+    first_result = (
+        rows[0].get("result")
+        if rows and isinstance(rows[0].get("result"), Mapping)
+        else {}
+    )
+    scheduled_for = parsed_time(first_result.get("scheduledFor"))
+    scheduled_label = (
+        scheduled_for.astimezone(SEOUL).strftime("%Y-%m-%d %H:%M KST")
+        if scheduled_for
+        else "scheduled batch"
+    )
+    status_counts = {
+        status: sum(1 for row in rows if row.get("status") == status)
+        for status in ("succeeded", "failed", "canceled")
+    }
+    return (
+        f"*Company Run · {scheduled_label}*\n"
+        f"Role {len(rows)}개 · 성공 {status_counts['succeeded']} · "
+        f"실패 {status_counts['failed']} · 취소 {status_counts['canceled']}\n"
+        f"batch `{batch_id}`"
+    )
+
+
+def update_run_notification(
+    conn: psycopg.Connection,
+    *,
+    run_ids: Sequence[str],
+    patch: Mapping[str, Any],
+) -> None:
+    if not run_ids:
+        return
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            update public.company_context_runs
+            set result = coalesce(result, '{}'::jsonb) || jsonb_build_object(
+              'notification', case
+                when jsonb_typeof(result->'notification') = 'object'
+                  then result->'notification'
+                else '{}'::jsonb
+              end || %s::jsonb
+            )
+            where id = any(%s::uuid[])
+            """,
+            (json.dumps(jsonable(patch), ensure_ascii=False), list(run_ids)),
+        )
+
+
+def command_notify_batch(args: argparse.Namespace) -> int:
+    path = batch_dir(args.batch_id)
+    with connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "select pg_advisory_lock(hashtextextended(%s, 0))",
+                (f"company-run-notification:{args.batch_id}",),
+            )
+        rows = batch_notification_rows(conn, args.batch_id)
+        if not rows:
+            conn.rollback()
+            receipt = {
+                "batchRunId": args.batch_id,
+                "status": "not_sent",
+                "reason": "no_role_runs",
+                "roleReplies": 0,
+            }
+            path.mkdir(parents=True, exist_ok=True)
+            write_json(path / "notification_receipt.json", receipt)
+            print(json.dumps(receipt))
+            return 0
+        open_rows = [
+            str(row["id"])
+            for row in rows
+            if row.get("status") not in {"succeeded", "failed", "canceled"}
+        ]
+        if open_rows:
+            raise RuntimeError(
+                f"batch notification requires terminal Role runs: {open_rows[:5]}"
+            )
+        matching_ran = any(
+            isinstance((row.get("result") or {}).get("searchDecision"), Mapping)
+            and (row.get("result") or {}).get("searchDecision", {}).get("runMatching")
+            is True
+            for row in rows
+        )
+        if matching_ran and not (path / "batch_rerank_receipt.json").exists():
+            raise RuntimeError("batch rerank must be applied before notification")
+
+        existing_thread_ts = {
+            compact(((row.get("result") or {}).get("notification") or {}).get("threadTs"), 100)
+            for row in rows
+            if isinstance((row.get("result") or {}).get("notification"), Mapping)
+            and compact(
+                ((row.get("result") or {}).get("notification") or {}).get("threadTs"),
+                100,
+            )
+        }
+        if len(existing_thread_ts) > 1:
+            raise RuntimeError("batch Role rows disagree on notification thread")
+        token, configured_channel = internal_notification_settings()
+        thread_ts = next(iter(existing_thread_ts), None)
+        channel = configured_channel
+        run_ids = [str(row["id"]) for row in rows]
+        if thread_ts is None:
+            posted = slack_post_message(
+                token=token,
+                channel=channel,
+                text=company_run_root_notification_text(
+                    batch_id=args.batch_id,
+                    rows=rows,
+                ),
+                client_msg_id=str(
+                    uuid.uuid5(
+                        COMPANY_RUN_NAMESPACE,
+                        f"company-run-notification-root:{args.batch_id}",
+                    )
+                ),
+            )
+            channel = posted["channel"]
+            thread_ts = posted["ts"]
+            update_run_notification(
+                conn,
+                run_ids=run_ids,
+                patch={
+                    "status": "sending",
+                    "channelId": channel,
+                    "threadTs": thread_ts,
+                    "rootSentAt": iso(),
+                },
+            )
+            conn.commit()
+            rows = batch_notification_rows(conn, args.batch_id)
+        else:
+            first_notification = (rows[0].get("result") or {}).get("notification") or {}
+            channel = compact(first_notification.get("channelId"), 100) or channel
+
+        sent = 0
+        for row in rows:
+            notification = (
+                (row.get("result") or {}).get("notification")
+                if isinstance((row.get("result") or {}).get("notification"), Mapping)
+                else {}
+            )
+            if compact(notification.get("roleReplyTs"), 100):
+                sent += 1
+                continue
+            posted = slack_post_message(
+                token=token,
+                channel=channel,
+                thread_ts=thread_ts,
+                text=company_run_role_notification_text(row),
+                client_msg_id=str(
+                    uuid.uuid5(
+                        COMPANY_RUN_NAMESPACE,
+                        f"company-run-notification-role:{args.batch_id}:{row['id']}",
+                    )
+                ),
+            )
+            update_run_notification(
+                conn,
+                run_ids=[str(row["id"])],
+                patch={
+                    "status": "sending",
+                    "channelId": channel,
+                    "threadTs": thread_ts,
+                    "roleReplyTs": posted["ts"],
+                    "roleReplySentAt": iso(),
+                },
+            )
+            conn.commit()
+            sent += 1
+        update_run_notification(
+            conn,
+            run_ids=run_ids,
+            patch={
+                "status": "sent",
+                "channelId": channel,
+                "threadTs": thread_ts,
+                "completedAt": iso(),
+            },
+        )
+        conn.commit()
+    receipt = {
+        "batchRunId": args.batch_id,
+        "status": "sent",
+        "channelId": channel,
+        "threadTs": thread_ts,
+        "roleReplies": sent,
+    }
+    write_json(path / "notification_receipt.json", receipt)
+    print(json.dumps(receipt, ensure_ascii=False))
+    return 0
+
+
 def command_finish(args: argparse.Namespace) -> int:
     with connect() as conn:
         run = assert_run_writable(conn, args.run_id)
         path = run_dir(run)
         if not (path / "context_save_receipt.json").exists():
             raise RuntimeError("context must be saved before a run can succeed")
+        scheduled_run = run.get("trigger_reason") == "scheduled"
+        search_decision = run.get("search_decision") or {}
+        if scheduled_run and not search_decision:
+            raise RuntimeError("scheduled Company Run requires a saved search decision")
         counts = run.get("counts") or {}
         indexed_candidate_ids: set[str] = set()
         discovery_index_seen = False
@@ -3172,7 +4689,14 @@ def command_finish(args: argparse.Namespace) -> int:
             gate = pending_gate(conn, str(run["role_id"]))
             if gate["reason"] != "pending_limit_reached":
                 raise RuntimeError("pending limit is no longer reached; do not finish as context-only")
+        elif args.result_reason == "matching_skipped":
+            if search_decision.get("runMatching") is not False:
+                raise RuntimeError("matching_skipped requires runMatching=false")
+            if indexed_candidate_ids or int(counts.get("fitWrites") or 0) != 0:
+                raise RuntimeError("matching_skipped cannot include candidate evaluation or fit writes")
         elif args.result_reason == "no_eligible_unseen_candidate":
+            if scheduled_run and search_decision.get("runMatching") is not True:
+                raise RuntimeError("candidate search requires runMatching=true")
             if not discovery_index_seen:
                 raise RuntimeError("no-eligible finish requires a discovery candidate index")
             if indexed_candidate_ids:
@@ -3180,6 +4704,8 @@ def command_finish(args: argparse.Namespace) -> int:
             if int(counts.get("fitWrites") or 0) != 0:
                 raise RuntimeError("no-eligible finish must not have fit writes")
         elif args.result_reason == "completed":
+            if scheduled_run and search_decision.get("runMatching") is not True:
+                raise RuntimeError("completed matching requires runMatching=true")
             if not indexed_candidate_ids:
                 raise RuntimeError("completed finish requires at least one indexed candidate")
             coverage_path = path / "fit_evaluation_coverage.json"
@@ -3220,16 +4746,24 @@ def command_finish(args: argparse.Namespace) -> int:
                     f"cannot finish before every indexed candidate is stored: {missing_ids[:5]}"
                 )
         context_receipt = read_json(path / "context_save_receipt.json")
+        retrieval_counts = counts.get("retrieval") or {}
+        evaluated_by_lane = counts.get("evaluatedByLane") or {}
+        label_counts = counts.get("labelCounts") or {}
         result = {
+            "contractVersion": run.get("contract_version") or COMPANY_RUN_CONTRACT_VERSION,
+            "batchRunId": run.get("batch_run_id"),
+            "scheduledFor": run.get("scheduled_for"),
             "resultReason": args.result_reason,
             "summary": args.summary[:3000],
             "context": {
                 "changed": bool(context_receipt.get("contextChanged")),
             },
+            "contextOutput": run.get("context_output"),
+            "searchDecision": run.get("search_decision"),
             "matching": {
                 "skippedReason": (
                     args.result_reason
-                    if args.result_reason == "pending_limit_reached"
+                    if args.result_reason in ("pending_limit_reached", "matching_skipped")
                     else None
                 ),
                 "evaluated": int(
@@ -3240,8 +4774,19 @@ def command_finish(args: argparse.Namespace) -> int:
                     )
                     or 0
                 ),
+                "retrieved": sum(
+                    int((lane_count or {}).get("uniqueTalents") or 0)
+                    for lane_count in retrieval_counts.values()
+                    if isinstance(lane_count, Mapping)
+                ),
+                "evaluatedNew": sum(
+                    int(evaluated_by_lane.get(lane) or 0)
+                    for lane in DISCOVERY_LANES
+                ),
+                "reevaluated": int(evaluated_by_lane.get("reevaluation") or 0),
                 "reevaluationSkipped": int(counts.get("reevaluationSkips") or 0),
-                "fit": int(counts.get("newFitCount") or 0),
+                "fit": int(label_counts.get("fit") or 0),
+                "rerankSelected": 0 if run.get("batch_run_id") else None,
             },
             "counts": counts,
         }
@@ -3345,7 +4890,7 @@ def command_fail(args: argparse.Namespace) -> int:
         )
         retry_run_id = None
         retry_eligible = run.get("trigger_reason") == "manual"
-        if not retry_eligible:
+        if not retry_eligible and run.get("trigger_reason") != "scheduled":
             auto_state = fetch_one(
                 conn,
                 "select is_auto from public.company_internal_roles where role_id = %s::uuid",
@@ -3489,16 +5034,21 @@ def build_parser() -> argparse.ArgumentParser:
     enqueue.add_argument("--role-id", required=True)
     enqueue.add_argument(
         "--trigger-reason",
-        choices=("role_created", "reactivated_after_7d", "weekly", "manual"),
+        choices=("role_created", "reactivated_after_7d", "weekly", "scheduled", "manual"),
         default="manual",
     )
     enqueue.set_defaults(func=command_enqueue)
+
+    enqueue_scheduled = sub.add_parser("enqueue-scheduled")
+    enqueue_scheduled.add_argument("--scheduled-for")
+    enqueue_scheduled.set_defaults(func=command_enqueue_scheduled)
 
     list_parser = sub.add_parser("list")
     list_parser.set_defaults(func=command_list)
 
     start = sub.add_parser("start")
     start.add_argument("--role-id")
+    start.add_argument("--batch-id")
     start.add_argument("--runner", default="codex-scheduled")
     start.add_argument("--enqueue-due", action="store_true")
     start.add_argument("--dry-run", action="store_true")
@@ -3534,6 +5084,16 @@ def build_parser() -> argparse.ArgumentParser:
     save_context.add_argument("--context-file", required=True)
     save_context.set_defaults(func=command_save_context)
 
+    save_context_output = sub.add_parser("save-context-output")
+    save_context_output.add_argument("--run-id", required=True)
+    save_context_output.add_argument("--input", required=True)
+    save_context_output.set_defaults(func=command_save_context_output)
+
+    save_search_decision = sub.add_parser("save-search-decision")
+    save_search_decision.add_argument("--run-id", required=True)
+    save_search_decision.add_argument("--input", required=True)
+    save_search_decision.set_defaults(func=command_save_search_decision)
+
     fits = sub.add_parser("upsert-fits")
     fits.add_argument("--run-id", required=True)
     fits.add_argument("--input", required=True)
@@ -3546,6 +5106,19 @@ def build_parser() -> argparse.ArgumentParser:
     validate_fits.add_argument("--require-complete", action="store_true")
     validate_fits.set_defaults(func=command_validate_fits)
 
+    prepare_batch_rerank = sub.add_parser("prepare-batch-rerank")
+    prepare_batch_rerank.add_argument("--batch-id", required=True)
+    prepare_batch_rerank.set_defaults(func=command_prepare_batch_rerank)
+
+    apply_batch_rerank = sub.add_parser("apply-batch-rerank")
+    apply_batch_rerank.add_argument("--batch-id", required=True)
+    apply_batch_rerank.add_argument("--input", required=True)
+    apply_batch_rerank.set_defaults(func=command_apply_batch_rerank)
+
+    notify_batch = sub.add_parser("notify-batch")
+    notify_batch.add_argument("--batch-id", required=True)
+    notify_batch.set_defaults(func=command_notify_batch)
+
     finish = sub.add_parser("finish")
     finish.add_argument("--run-id", required=True)
     finish.add_argument(
@@ -3554,6 +5127,7 @@ def build_parser() -> argparse.ArgumentParser:
             "completed",
             "pending_limit_reached",
             "no_eligible_unseen_candidate",
+            "matching_skipped",
         ),
         required=True,
     )
@@ -3564,7 +5138,17 @@ def build_parser() -> argparse.ArgumentParser:
     fail.add_argument("--run-id", required=True)
     fail.add_argument(
         "--stage",
-        choices=("evidence", "context_write", "retrieval", "candidate_packet", "fit_write", "verification"),
+        choices=(
+            "evidence",
+            "context_write",
+            "search_decision",
+            "retrieval",
+            "candidate_packet",
+            "fit_write",
+            "rerank",
+            "notification",
+            "verification",
+        ),
         required=True,
     )
     fail.add_argument("--result-reason", required=True)

@@ -60,10 +60,8 @@ import {
   type OpsMatchingConnectionConfirmationEmailActionResponse,
 } from "@/lib/ops/connectionConfirmationEmail";
 import {
-  buildLatestOpsTalentMemoPreviewMap,
-  formatOpsTalentMemoRoleContext,
-  OPS_ROLE_MEMO_KIND,
-  type OpsTalentMemoCandidate,
+  buildLatestOpsTalentProfileMemoPreviewMap,
+  type OpsTalentProfileMemoCandidate,
 } from "@/lib/ops/talentMemo";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import {
@@ -3000,56 +2998,27 @@ async function fetchLatestOpsMemoPreviews(args: {
   talentIds: string[];
 }) {
   if (args.talentIds.length === 0) {
-    return buildLatestOpsTalentMemoPreviewMap([]);
+    return buildLatestOpsTalentProfileMemoPreviewMap([]);
   }
 
-  const [profileMemoResult, roleMemoResult] = await Promise.all([
-    args.admin
-      .from("talent_ops_profile_memos")
-      .select("talent_id, content, updated_at, created_at")
-      .in("talent_id", args.talentIds),
-    (args.admin.from("talent_progress" as any) as any)
-      .select(
-        "talent_id, role_id, text, created_at, role:company_roles(name, workspace:company_workspace(company_name))"
-      )
-      .in("talent_id", args.talentIds)
-      .eq("kind", OPS_ROLE_MEMO_KIND),
-  ]);
+  const profileMemoResult = await args.admin
+    .from("talent_ops_profile_memos")
+    .select("talent_id, content, updated_at, created_at")
+    .in("talent_id", args.talentIds);
 
   if (profileMemoResult.error) throw profileMemoResult.error;
-  if (roleMemoResult.error) throw roleMemoResult.error;
 
-  const candidates: OpsTalentMemoCandidate[] = (
+  const candidates: OpsTalentProfileMemoCandidate[] = (
     profileMemoResult.data ?? []
   ).map((row) => ({
-    companyName: null,
     content: normalizeText(row.content),
     occurredAt:
       normalizeNullableText(row.updated_at) ??
       normalizeNullableText(row.created_at),
-    roleId: null,
-    roleName: null,
-    source: "profile",
     talentId: normalizeText(row.talent_id),
   }));
 
-  for (const row of roleMemoResult.data ?? []) {
-    const role = Array.isArray(row.role) ? (row.role[0] ?? null) : row.role;
-    const workspace = Array.isArray(role?.workspace)
-      ? (role.workspace[0] ?? null)
-      : role?.workspace;
-    candidates.push({
-      companyName: normalizeNullableText(workspace?.company_name),
-      content: normalizeText(row.text),
-      occurredAt: normalizeNullableText(row.created_at),
-      roleId: normalizeNullableText(row.role_id),
-      roleName: normalizeNullableText(role?.name),
-      source: "role",
-      talentId: normalizeText(row.talent_id),
-    });
-  }
-
-  return buildLatestOpsTalentMemoPreviewMap(candidates);
+  return buildLatestOpsTalentProfileMemoPreviewMap(candidates);
 }
 
 export async function fetchOrgAcceptedTalents(args: {
@@ -3179,9 +3148,7 @@ export async function fetchOrgAcceptedTalents(args: {
           customStages
         ),
         isAwaitingStageMove: currentStage === "accepted",
-        memoContextLabel: memoPreview
-          ? formatOpsTalentMemoRoleContext(memoPreview)
-          : null,
+        memoContextLabel: null,
         memoPreview: memoPreview?.content ?? null,
         recommendationId: row.id,
         roleDescription: role.description ?? null,

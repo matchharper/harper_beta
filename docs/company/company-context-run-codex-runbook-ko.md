@@ -1,15 +1,18 @@
-# Company Context Run: Codex 반복 실행 런북
+# Company Context Run: 단일 queue Role 실행 런북
 
 - 작성일: 2026-08-14
-- 용도: Codex 예약 작업이 현재 claim 가능한 queued role을 모두 순차 처리할 때 읽는 문서
+- 용도: 수동·event·legacy weekly queue의 단일 Role 실행 참고
 - 기능·구현 계약: [Company Context Run 개요](./company-context-run-overview-ko.md)
+- 월·목 Scheduled task의 유일한 정본: [Company Run 예약 실행](../schedule/company-run-ko.md)
 - 기존 non-fit의 제한적 재발견 감사: [Company Role Fit Recovery Audit 런북](./company-role-fit-recovery-audit-codex-runbook-ko.md)
 
-이 문서는 migration, 최초 배포, 테스트 계획을 설명하지 않는다. 이미 queue에 들어온 role 하나의 context를 올바르게 갱신하고 연결 후보를 평가하는 데만 집중한다.
+이 문서는 migration, 최초 배포, 테스트 계획을 설명하지 않는다. 이미 queue에 들어온 Role 하나의
+context를 올바르게 갱신하고 연결 후보를 평가하는 데만 집중한다. 월·목 오전 8시 batch는 이 문서의
+legacy weekly 시작 명령을 사용하지 않고 위 Scheduled 정본을 처음부터 끝까지 따른다.
 
-## 1. 예약 작업의 계약
+## 1. 단일 queue consumer의 계약
 
-예약 작업이 깨어날 때마다 다음 순서를 따른다.
+수동·event·legacy weekly consumer가 깨어날 때마다 다음 순서를 따른다.
 
 1. Root와 project `AGENTS.md`, 이 런북을 읽는다.
 2. Canonical helper로 weekly due-enqueue를 실행한다. Due 조건을 직접 다시 판단하지 않는다.
@@ -160,26 +163,14 @@ Claim 뒤 role이 더 이상 active가 아니거나 자동 run의 `is_auto`가 �
 ### 4.4 기본 형태
 
 ```markdown
-## 현재 채용 판단
-- ...
-
-## 긍정 신호
-- ...
-
-## 부정 신호
-- ...
-
-## 회사 공통 운영 맥락
-- ...
-
-## 최근 변화
-- ...
-
-## 아직 불확실한 점
-- 실제 평가를 바꿀 수 있고 확인할 대상이 구체적인 불확실성
+- 회사 공통: 여러 Role의 다음 matching에 적용할 수 있는 현재 기준
+- 현재 Role 한정: 이 Role의 다음 matching에 적용할 수 있는 현재 기준
 ```
 
-빈 section은 생략한다. 쓸 내용이 없다는 이유로 `아직 불확실한 점`을 만들지 않는다. Context는 짧고 현재형이어야 하며, 사건을 날짜별로 전부 나열하지 않는다. 후보자 이름, 연락처, raw resume, 대화 전문을 넣지 않는다. “몇 명을 봤다”보다 “어떤 근거 때문에 어떤 유형을 진행하거나 거절했고 그 판단이 다음 후보에게 어떻게 적용되는가”가 중요하다.
+Heading 없이 최대 10개의 bullet만 관리한다. 빈 bullet을 만들지 않는다. Context는 짧고 현재형이어야
+하며, 사건을 날짜별로 전부 나열하지 않는다. 후보자 이름, 연락처, raw resume, 대화 전문을 넣지
+않는다. “몇 명을 봤다”보다 “어떤 근거 때문에 어떤 유형을 진행하거나 거절했고 그 판단이 다음
+후보에게 어떻게 적용되는가”가 중요하다.
 
 ### 4.5 저장 전 질문
 
@@ -191,9 +182,15 @@ Claim 뒤 role이 더 이상 active가 아니거나 자동 run의 `is_auto`가 �
 - 낮은 신호 여러 개로 강한 결론을 만들지 않았는가?
 - 검토 완료나 무정보 상태를 context에 잘못 기록하지 않았는가?
 
-Context를 먼저 저장하고 `company_behavior_contexts`의 해당 `role_id`에 current text가 그대로 저장됐는지 다시 읽어 확인한다. 이 table은 `role_id`, `text_context`만 사용하며 version, hash, cursor, `changed_domains`를 저장하지 않는다. 새 evidence가 있지만 의미 변화가 없으면 기존 text를 그대로 저장한다.
+Context를 먼저 저장하고 `company_behavior_contexts`의 해당 `role_id`에 current text가 그대로 저장됐는지
+다시 읽어 확인한다. Helper는 `role_id`, `text_context`만 쓰며 현재 배포 스키마의 추가 audit column을
+삭제하거나 재정의하지 않는다. Version, hash, cursor, `changed_domains` 같은 새 상태는 이 table에
+추가하지 않는다. 새 evidence가 있지만 의미 변화가 없으면 기존 text를 그대로 저장한다.
 
-기존 문서는 `$RUN_DIR/context_before.md`, raw evidence는 `$RUN_DIR/source_packet.json`, 편집 원칙은 `$RUN_DIR/context_edit_instructions.md`에 있다. 갱신한 문서를 `$RUN_DIR/context_after_draft.md`에 작성한 뒤 저장한다.
+기존 문서는 `$RUN_DIR/context_before.md`, raw evidence는 `$RUN_DIR/source_packet.json`, 편집 원칙은
+`$RUN_DIR/context_edit_instructions.md`에 있다. Legacy/manual run은 아래 text 명령을 계속 쓸 수 있다.
+Scheduled run은 [`Company Run 예약 실행`](../schedule/company-run-ko.md)의 JSON output contract와
+`save-context-output`을 사용한다.
 
 ```bash
 python3 scripts/company_role_recurring_matching.py save-context \
@@ -287,11 +284,14 @@ python3 scripts/company_role_recurring_matching.py finish \
 - 같은 role의 연결 흐름에 이미 들어가거나 명시적으로 종료된 pair가 아님
 - Canonical identity dedupe를 통과함
 
-### 6.2 재검사 금지
+### 6.2 기존 평가 재검사 범위
 
-이 자동 운영 흐름은 기존 fit을 시간 경과, 프로필 변경, 대화, 회사 기록 변경, fingerprint 차이 등의 이유로 다시 계산하지 않는다. 이 단계에서 평가하는 대상은 해당 role의 fit row가 아직 없는 신규 후보뿐이다.
+이 legacy/manual 단일 Role 흐름은 기본적으로 신규 후보만 평가한다. 월·목 Scheduled batch는 별도
+`output 2`가 기대효과를 확인했을 때 21일 이상 지난 effective `hold`·`ambiguous`를 10~50명 범위에서
+재평가할 수 있으며, 자세한 절차는 [Company Run 예약 실행](../schedule/company-run-ko.md)을 따른다.
 
-후보자가 실제 `hold_role_question`에 답한 경우의 재검사는 질문과 답을 보유한 Worker 경로에서만 처리한다. 이 role 중심 실행 흐름이 그 답변을 추정하거나 대신 재검사해서는 안 된다.
+후보자가 실제 `hold_role_question`에 답한 경우의 즉시 재검사는 질문과 답을 보유한 Worker 경로에서
+처리한다. Role 중심 run이 그 답변을 추정하지 않는다.
 
 ## 7. Candidate 문서 만들기
 
@@ -440,7 +440,7 @@ Context가 바뀌지 않은 것도 정상이다. 후보가 0명인 것도 정상
 
 오류가 나면 queue row를 방치하지 않는다. Canonical helper로 `failed` 처리하고 `result`에 다음을 남긴다.
 
-- 실패 stage: `evidence`, `context_write`, `retrieval`, `candidate_packet`, `fit_write`, `verification`
+- 실패 stage: `evidence`, `context_write`, `search_decision`, `retrieval`, `candidate_packet`, `fit_write`, `rerank`, `notification`, `verification`
 - 짧고 재현 가능한 error
 - 재시도 가능 여부
 - 이미 저장된 current context와 완료된 fit count
@@ -450,7 +450,7 @@ Context가 바뀌지 않은 것도 정상이다. 후보가 0명인 것도 정상
 ```bash
 python3 scripts/company_role_recurring_matching.py fail \
   --run-id "$RUN_ID" \
-  --stage '<evidence|context_write|retrieval|candidate_packet|fit_write|verification>' \
+  --stage '<evidence|context_write|search_decision|retrieval|candidate_packet|fit_write|rerank|notification|verification>' \
   --result-reason '<짧은 machine-readable reason>' \
   --error '<짧고 재현 가능한 오류>' \
   --retryable
@@ -476,7 +476,7 @@ Claim 뒤 `is_auto=false`가 된 자동 run은 `--result-reason auto_disabled`�
 - [ ] Context를 pending gate보다 먼저 저장했다.
 - [ ] Pending limit 도달 시 matching만 생략했다.
 - [ ] SQL rank가 아니라 candidate 전체 문서로 pair를 평가했다.
-- [ ] 기존 fit을 시간 경과, 입력 변경, 대화, 회사 기록 또는 fingerprint 변화 때문에 다시 계산하지 않았다.
+- [ ] Scheduled 재평가는 output 2와 허용된 bounded lane 안에서만 수행했다.
 - [ ] Pair `reason`을 저장했다.
 - [ ] Human override를 보존했다.
 - [ ] Queue status와 짧은 결론을 기록했다.

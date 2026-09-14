@@ -596,7 +596,8 @@ export const en = {
     "career.call.opening.relative.month_many": "{count} months ago",
     "career.call.opening.relative.month_one": "{count} month ago",
     "career.call.wrapup.call_note_action": "View call note · {title}",
-    "career.call.wrapup_fallback.call_note_created": "I also organized this conversation into a call note. You can find it under Documents in your profile.",
+    "career.call.wrapup_fallback.call_note_created":
+      "I also organized this conversation into a call note. You can find it under Documents in your profile.",
     "career.call.wrapup_fallback.call_note_updated":
       "I've added this conversation to your existing call note. You can review it under Documents in your profile.",
     "career.call.wrapup_fallback.brief":
@@ -1473,6 +1474,11 @@ export const en = {
     "career.history.feedback_modal.1m0q35j":
       "Add notes here to refer back to when you review this position later.",
     "career.history.feedback_modal.1xp6hfy": "Save",
+    "career.history.company_role_switcher.position_count":
+      "{count} recommended roles",
+    "career.history.company_role_switcher.primary": "Top recommendation",
+    "career.history.company_role_switcher.role_list_label":
+      "Recommended roles at {companyName}",
     "career.history.history_oppotunity_info_modal.01tamdx":
       "What's the request?",
     "career.history.history_oppotunity_info_modal.02wru4l":
@@ -2186,7 +2192,8 @@ export const en = {
     "career.profile.documents.add_description":
       "Choose the type of file you want to upload.",
     "career.profile.documents.add_title": "Add a document",
-    "career.profile.documents.call_note_load_failed": "Couldn't load the call record.",
+    "career.profile.documents.call_note_load_failed":
+      "Couldn't load the call record.",
     "career.profile.documents.call_note_loading": "Loading call record.",
     "career.profile.documents.call_note_back": "Back to documents",
     "career.profile.documents.call_note_key_points": "Summary",

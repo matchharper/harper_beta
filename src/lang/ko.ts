@@ -1467,6 +1467,11 @@ export const ko = {
     "career.history.feedback_modal.1m0q35j":
       "해당 포지션을 다시 볼 때 참고할 내용을 적어둘 수 있습니다.",
     "career.history.feedback_modal.1xp6hfy": "저장",
+    "career.history.company_role_switcher.position_count":
+      "추천 포지션 {count}개",
+    "career.history.company_role_switcher.primary": "우선 추천",
+    "career.history.company_role_switcher.role_list_label":
+      "{companyName} 추천 포지션",
     "career.history.history_oppotunity_info_modal.01tamdx": "어떤 요청인가요?",
     "career.history.history_oppotunity_info_modal.02wru4l":
       "후속 대화를 이어갑니다.",

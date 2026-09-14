@@ -1,6 +1,12 @@
 # Company-side Codex 작업 지도
 
-- 문서 기준: 2026-09-09
+> **최우선 실행 규칙:** 새 internal Role의 등록이 완료되고 최초 `active` 상태가 감지되면,
+> Codex는 profile calibration을 시작하기 전에 `company_roles.summary.ko.content`와
+> `company_roles.summary.en.content`를 먼저 작성·저장하고 readback한다. 이 선행 단계가 끝나기
+> 전에는 calibration 후보를 조회하거나 선택하지 않는다. 회사 정보가 부족하면 이 summary 작성에
+> 한해 공개 웹을 검색해 검증 가능한 회사 정보를 보강할 수 있다.
+
+- 문서 기준: 2026-09-10
 - 기준 repository: `harper_beta`
 - 목적: 새 internal Role 등록부터 초기 후보 검토, 이후 Hiring Brief 갱신까지 Codex가 언제 어떤
   문서를 읽고 무엇을 쓰는지 한곳에서 찾게 한다.
@@ -8,14 +14,67 @@
 - 운영 원칙: Scheduled task의 prompt는 이 문서의 경로와 진입 명령만 가진다. 정성 판단,
   안전 경계와 문구는 Git에 있는 상세 문서가 정본이다.
 
+## 0. Calibration보다 먼저 만드는 Role summary
+
+이 단계는 새 Role activation으로 시작된 Codex 실행의 첫 번째 write다. 동일한 event와 claim을
+사용하되, calibration의 일부 결과로 뒤늦게 만들지 않는다. Role을 claim한 직후 eligibility를 다시
+확인하고, 아래 순서로 처리한다.
+
+1. 대상이 internal, active, unexpired, non-test Role인지 확인한다. 하나라도 아니면 summary와
+   calibration을 모두 만들지 않고 기존 cancel 계약을 따른다.
+2. Role/JD, 위치, 근무 방식, 보상, 저장된 회사 설명·pitch와 공개 가능한 회사 정보를 읽고 현재
+   `company_roles.summary`를 확인한다.
+3. `summary.ko.content`와 `summary.en.content` 중 비어 있는 언어만 작성한다. 둘 다 비어 있으면 한
+   실행에서 두 언어를 함께 작성한다. 이미 값이 있는 언어는 다시 쓰거나 번역문으로 덮어쓰지 않는다.
+4. 누락된 content를 충돌 안전한 조건부 write로 저장하고 두 언어를 readback한다. 다른 실행이 먼저
+   유효한 content를 저장했다면 그 값을 정본으로 사용한다.
+5. 필요한 두 content가 모두 존재하는 것을 확인한 뒤에만 candid retrieval과 profile calibration을
+   시작한다. 생성·저장·readback이 실패하면 fallback 문구를 cache에 넣지 말고 해당 작업을
+   retriable failure로 끝낸다.
+
+### 작성 가이드
+
+한국어와 영어는 같은 사실을 바탕으로 자연스럽게 작성하며, 다음 계약을 모두 지킨다.
+
+- 여러 후보자에게 그대로 재사용할 수 있는 중립적인 회사·역할 설명이다. 특정 후보자, 후보자의
+  경력·선호, 왜 그 후보자에게 맞는지, 추천 판단이나 점수를 넣지 않는다.
+- 먼저 회사가 무엇을 하는지와 객관적으로 주목할 이유를 2~4개의 간결한 문장으로 쓴다. 입력에
+  있고 실제 설명에 도움이 될 때만 투자 금액·단계, 주요 투자자, traction·규모 또는 창업자 배경을
+  포함한다.
+- 이어서 Role이 무엇을 책임지는지, 제품·domain 범위와 핵심 업무를 2~4개의 간결한 문장으로
+  쓴다.
+- location이나 work mode가 제공되면 마지막 별도 문장에 제공된 값만 적는다. 둘 다 없으면 이
+  문장을 생략한다. 국가 제한, 출근 일수, remote 정책을 추론하지 않는다.
+- compensation이 제공되면 그 다음 마지막 별도 문장에 정확한 범위만 적는다. 통화를 변환하거나
+  총보상, equity, bonus, benefit을 추정하지 않는다.
+- Role/JD와 회사 자료에 없는 투자, 투자자, 창업자, traction, 팀 수준, 문화, 보상, 채용 조건과
+  역할 범위를 만들지 않는다. `companyRoleRequest`, `internalFit`, 비공개 회사 요청·평가와 후보자
+  정보는 summary의 근거로 사용하거나 바꾸어 말하지 않는다.
+- 한국어 content는 자연스러운 한국어를 기본으로 하고 회사명·직무명·기술명 같은 고유명사는
+  자연스러우면 원문을 유지한다. 영어 content의 모든 자연어 문장은 영어로 쓰며, 자연스러운 영어
+  형태가 없는 고유명사만 원문을 유지할 수 있다.
+- `internal`, DB, retrieval, score, cache, calibration 같은 구현 용어를 content에 쓰지 않는다.
+
+저장된 회사 정보만으로 회사 부분을 사실에 맞게 작성하기 어렵다면 공개 웹 검색을 허용한다. 공식
+회사 사이트의 About·Product·Careers, 공식 보도자료·투자 발표, 현재 공개 JD를 우선하고, 필요할 때만
+신뢰할 수 있는 보조 출처로 교차 확인한다. 검색 결과의 snippet만으로 단정하거나 서로 다른 동명
+회사를 섞지 않는다. 확인되지 않은 내용은 빼며, 검색을 허용한다는 이유로 Role summary 이외의
+calibration 판단을 공개 웹 조사로 확장하지 않는다.
+
+저장은 `company_roles.summary.<lang>.content`를 정본으로 하며 기존 JSON의 다른 언어와 sibling
+metadata를 보존한다. 현재 canonical write helper가 `version`, `generatedAt`, `sourceHash` 같은
+metadata를 관리하면 같은 계약을 사용한다. 직접 전체 `summary` 객체를 교체하거나 non-empty
+content를 무조건 overwrite하지 않는다.
+
 ## 1. 이 문서가 답하는 것
 
-이 문서는 세 작업의 큰 흐름과 소유권만 정의한다.
+이 문서는 네 작업의 큰 흐름과 소유권만 정의한다.
 
-1. 새 Role이 active가 되면 즉시 profile calibration을 만든다.
-2. Calibration을 전달한 시각으로부터 12시간 뒤에 Harper talent pool을 직접 검토하고, 추천
+1. 새 Role이 active가 되면 한국어·영어 Role summary를 먼저 만든다.
+2. 두 summary의 저장과 readback 뒤에 즉시 profile calibration을 만든다.
+3. Calibration을 전달한 시각으로부터 12시간 뒤에 Harper talent pool을 직접 검토하고, 추천
    가능한 pair를 저장한 뒤 회사에 한 번 진행 안내를 보낸다.
-3. 48시간마다 최근 활동이 있는 Role만 찾아 회사의 직접 수정 요청을 Hiring Brief에 반영하고,
+4. 48시간마다 최근 활동이 있는 Role만 찾아 회사의 직접 수정 요청을 Hiring Brief에 반영하고,
    행동에서 새로 추론한 기준은 확인 전 제안으로 남긴다.
 
 후보 선택, 평가, Hiring Brief 보정처럼 긴 판단 계약은 이 파일에 복제하지 않는다. 각 실행은
@@ -27,6 +86,8 @@
 Slack 또는 /org에서 internal Role이 처음 active가 됨
   -> DB가 calibration work를 durable하게 enqueue
   -> local event listener가 Codex를 즉시 실행
+  -> Codex가 비어 있는 summary.ko.content와 summary.en.content를 작성·저장·readback
+  -> 필요하면 이 summary 작성에 한해 공개 웹에서 회사 사실을 보강
   -> Codex가 candid profile 3~5개를 선택·익명화·저장
   -> /org 목록에 노출하고 Slack으로 feedback 요청
   -> 실제 Slack 전송 성공 시각을 기준으로 +12시간 due work 저장
@@ -48,6 +109,7 @@ Slack 또는 /org에서 internal Role이 처음 active가 됨
 
 | 작업 | 기동 방식 | 시간 기준 | 정본 문서 | 주요 write | 정상 무작업 |
 | --- | --- | --- | --- | --- | --- |
+| 신규 Role 한·영 summary 작성 | DB event + local listener | Role 최초 active 직후, calibration claim 직후 | 이 문서 제0장 | 비어 있는 `company_roles.summary.ko/en.content` | 두 언어 content가 이미 존재 |
 | 새 Role profile calibration | DB event + local listener | Role 최초 active 직후 | [Company Role Profile Calibration](./company-role-profile-calibration-ko.md) | calibration snapshot, Slack delivery receipt | claim할 Role 없음 |
 | Calibration 후 초기 talent 검토 | DB due work + 같은 local listener | calibration Slack `sentAt + 12h` | [Calibration 후 12시간 초기 후보 검토](./company-role-post-calibration-review-ko.md) | `talent_opportunity_fit`, run receipt, 회사 안내 delivery receipt | eligible unseen candidate 없음 |
 | 활동 기반 Hiring Brief 갱신 | Codex Scheduled task 하나 | 48시간마다 | [48시간 Hiring Brief 갱신 런북](./company-role-request-refresh-48h-ko.md) | 승인된 `company_internal_roles.request` 변경 또는 확인 대기 proposal | 활동 또는 유효한 변경 없음 |
@@ -63,6 +125,16 @@ Slack 또는 /org에서 internal Role이 처음 active가 됨
 - test Role 격리: [Test internal-role isolation](../test-internal-role-isolation-ko.md)
 
 ## 4. 작업별 정확한 책임
+
+### 4.0 신규 Role summary 선행 작성
+
+이 단계는 profile calibration보다 먼저 같은 Role에 대해 정확히 한 번 수행한다. 비어 있는 언어만
+채우며, 작성 품질과 저장 계약은 제0장을 따른다. Summary는 역할을 소개하는 공용 사실 설명이지
+calibration 결과, Hiring Brief, 후보자 fit 또는 회사의 비공개 요청을 요약한 문서가 아니다.
+
+두 언어 content의 readback이 끝나야 calibration으로 넘어간다. 이 순서는 Role 등록 직후 회사와
+후보자에게 사용될 수 있는 공용 설명을 먼저 안정시키기 위한 것이며, summary 저장 자체가 후보자
+추천·연락, 회사 공유 또는 fit 생성을 뜻하지 않는다.
 
 ### 4.1 즉시 Calibration
 
@@ -137,6 +209,7 @@ Codex는 `talent_users`에서 Role별 retrieval을 만들고 bounded candidate p
 새 top-level 판단 table을 만들지 않는다. 필요한 durable fact는 기존 원장에 둔다.
 
 - Calibration 생성·전달: `company_role_calibrations`
+- Role 공용 설명: `company_roles.summary.ko/en.content`
 - +12시간 due anchor: calibration payload의 최초 delivery `sentAt`
 - +12시간 실행 queue·history: `company_context_runs`의 `trigger_reason=post_calibration_12h`
 - Fit 결과: `talent_opportunity_fit`
@@ -176,6 +249,7 @@ Codex desktop의 local Scheduled task는 지정된 컴퓨터가 켜져 있고 �
 
 | 항목 | repository 상태 | 활성화 전 확인 |
 | --- | --- | --- |
+| 신규 Role summary 선행 생성·조건부 write·readback | 이 문서에 목표 계약 정의 | calibration claim 뒤 candid 조회 전 실행되는 canonical helper와 실패/재시도 검증 |
 | 새 Role calibration queue/helper/listener/Slack route | 구현 존재 | production migration·app revision·listener status를 preflight로 확인 |
 | calibration 전달 후 정확히 +12시간 queue | 목표 계약만 정의됨 | delivery transaction enqueue, trigger 전환, listener 확장 구현·테스트·배포 |
 | +12시간 talent direct review와 fit write | 재사용 가능한 helper/runbook 존재 | 새 trigger reason, post-calibration runner, coverage 검증 구현 |
@@ -216,6 +290,7 @@ listener enable과 Scheduled task activation은 각각 실제 rollout 증거를 
 
 | 영역 | 기존 또는 목표 파일 | 책임 |
 | --- | --- | --- |
+| 신규 Role summary 선행 단계 | `scripts/company_role_calibration.py`와 event prompt | claim 직후 누락된 한·영 content 생성, 조건부 write, readback을 완료한 뒤에만 candid retrieval 허용 |
 | Calibration delivery hook | `src/app/api/internal/company-role-calibrations/deliver/route.ts`와 새 corrective migration | 최초 Slack `sentAt` transaction에서 +12시간 run을 idempotent하게 예약 |
 | 신규 Role context trigger 정리 | `company_context_runs` 관련 corrective migration | 즉시 `role_created`와 `post_calibration_12h` 중복 제거, test/eligibility guard 유지 |
 | Event listener | `scripts/company_role_calibration_listener.py` | calibration work와 +12시간 due work 중 가장 이른 시각에 맞춰 Codex 실행 |
@@ -235,6 +310,10 @@ direct-request/proposal 분리와 expected-value conflict를 포함한다.
 
 - [ ] Slack과 `/org` 두 Role 생성 경로가 같은 calibration enqueue를 만든다.
 - [ ] 새 Role 생성 후 event listener가 polling 지연 없이 calibration Codex를 시작한다.
+- [ ] 새 active Role의 비어 있는 `summary.ko.content`와 `summary.en.content`가 제0장 가이드로 먼저
+      작성되고 readback된 뒤에만 candid retrieval이 시작된다.
+- [ ] 기존 non-empty summary와 sibling metadata를 덮어쓰지 않고, 생성 실패 시 fallback 문구를
+      `company_roles.summary`에 저장하지 않는다.
 - [ ] Calibration snapshot과 Slack message가 같은 profile set을 보여 준다.
 - [ ] 재전송해도 Slack duplicate가 생기지 않는다.
 - [ ] 최초 Slack `sentAt`에 정확히 하나의 `post_calibration_12h` run이 예약된다.

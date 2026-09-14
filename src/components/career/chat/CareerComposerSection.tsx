@@ -1336,6 +1336,7 @@ const CareerComposerSection = ({
             disabled={isTextInputLocked}
             mobileLeadingAction={
               <ChatComposerActionMenu
+                animated={false}
                 contentClassName="max-h-[min(32rem,70dvh)] overflow-y-auto overscroll-contain"
                 disabled={!user}
                 items={composerActionMenuItems}
@@ -1390,6 +1391,7 @@ const CareerComposerSection = ({
               <div className="flex w-full items-end justify-between gap-2">
                 <ChatComposerActionMenu
                   align="start"
+                  animated={false}
                   className="hidden md:inline-flex"
                   contentClassName="max-h-[min(32rem,70dvh)] overflow-y-auto overscroll-contain"
                   disabled={!user}

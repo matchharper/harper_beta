@@ -70,7 +70,7 @@ source ./worker.env
 
 ## 입력·출력 계약
 
-Runner는 production의 일반 internal recommendation prompt, role card builder, user-context builder, 1차 pass cap, 2차 recommend guard와 output normalization을 직접 import한다. 1차 invalid/coverage 실패에는 production의 direct DeepSeek fallback 1회를, 2차 invalid/coverage 실패에는 production recovery prompt와 설정 가능한 repair model 1회를 적용한다. 어떤 경로도 application persistence helper를 호출하지 않는다.
+Runner는 production의 일반 internal recommendation prompt, role card builder, user-context builder, 1차 pass cap, 2차 recommend guard와 output normalization을 직접 import한다. 1차 invalid/coverage 실패에는 production의 OpenRouter DeepSeek V4 Flash 0731 fallback 1회를, 2차 invalid/coverage 실패에는 production recovery prompt와 설정 가능한 repair model 1회를 적용한다. 어떤 경로도 application persistence helper를 호출하지 않는다.
 
 Capture는 source discovery run의 behavior-context version이 현재 저장본과 같고 cutoff 이전에 저장됐을 때만 그 text를 사용한다. 버전이 덮인 경우 현재 text를 섞지 않고 cutoff 이전 경력·학력·메시지·activity의 legacy projection으로 전환한다. 전체 v4 fixture는 exact stored behavior version 15건과 cutoff-safe legacy fallback 26건으로 구성된다. 운영 전달 상태는 gold에서 제외하므로 capture 시점에 `ended`였던 IRB001 anchor는 평가 runner에서만 active sibling batch에 추가했고, production 추천 경로는 바꾸지 않았다.
 
@@ -128,6 +128,7 @@ fixture와 runner가 만들어지면 다음을 기록한다.
 - 실명과 UUID는 gitignored `private/selection-v4.json`에만 저장하며 디렉터리는 `0700`, 파일은 `0600`이다.
 - `gold-v4.json`과 `manifest-v4.json`에는 후보자 식별자나 원문 profile을 넣지 않는다.
 - 전체 42개 cutoff-safe fixture를 OpenRouter Z.AI GLM 5.3 Flash에 전송했다. OpenRouter `data_collection=deny`, `provider.only=["z-ai"]`, `allow_fallbacks=false`로 실행했다. 1차 fallback 두 건만 direct DeepSeek API를 사용했다.
+- 위 direct DeepSeek 기록은 동결된 v3 실행의 provenance다. 현재 runner와 production fallback은 OpenRouter의 `deepseek/deepseek-v4-flash-0731`을 사용하며 DeepSeek 자체 API를 호출하지 않는다.
 - v4 fixture는 아직 어떤 모델 provider에도 새로 전송하지 않았다.
 
 ## 알려진 제한

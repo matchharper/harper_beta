@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import {
-  getCareerDefaultSavedStageForOpportunity,
-  getCareerOpportunitySortPriority,
-} from "@/components/career/opportunityTypeMeta";
+import { getCareerDefaultSavedStageForOpportunity } from "@/components/career/opportunityTypeMeta";
 import { getSavedOpportunityManagementStatus } from "@/components/career/history/savedOpportunityStatus";
 import { getHistoryOpportunityBucket } from "@/hooks/career/careerSessionData";
+import { compareNewOpportunityHistoryOrder } from "@/lib/opportunityType";
 import type {
   CareerHistoryOpportunity,
   CareerHistoryOpportunityCounts,
@@ -139,12 +137,7 @@ const sortOpportunitiesForJobsTab =
   (tab: CareerMobileHistoryJobsTab) =>
   (left: CareerHistoryOpportunity, right: CareerHistoryOpportunity) => {
     if (tab === "new") {
-      return (
-        Number(right.isInternal) - Number(left.isInternal) ||
-        getCareerOpportunitySortPriority(left.opportunityType) -
-          getCareerOpportunitySortPriority(right.opportunityType) ||
-        compareRecommendedAtDesc(left, right)
-      );
+      return compareNewOpportunityHistoryOrder(left, right);
     }
 
     return compareRecommendedAtDesc(left, right);

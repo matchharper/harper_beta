@@ -1,18 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCareerRealtimeSessionConfig } from "@/lib/career/llm";
-import {
-  insertRealtimeLlmUsageLog,
-  normalizeRealtimeBillingUsage,
-} from "@/lib/llm/usageLogging";
-import { canUseCareerDevControls } from "@/lib/internalAccess";
+import { insertRealtimeLlmUsageLog } from "@/lib/llm/usageLogging";
 import { getRequestUser } from "@/lib/supabaseServer";
 
 type RealtimeUsageLogBody = {
-  billing?: unknown;
   conversationId?: unknown;
   eventType?: unknown;
   hadAudioInResponse?: unknown;
-  providerOverride?: unknown;
   responseId?: unknown;
   status?: unknown;
   usage?: unknown;
@@ -39,34 +33,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const billing = normalizeRealtimeBillingUsage(body.billing);
-  if (!isRecord(body.usage) && !billing) {
-    return NextResponse.json(
-      { error: "usage or billing is required" },
-      { status: 400 }
-    );
+  if (!isRecord(body.usage)) {
+    return NextResponse.json({ error: "usage is required" }, { status: 400 });
   }
 
-  const rawProviderOverride = cleanString(
-    body.providerOverride,
-    20
-  ).toLowerCase();
-  const providerOverride =
-    canUseCareerDevControls(user.email) &&
-    (rawProviderOverride === "openai" || rawProviderOverride === "xai")
-      ? rawProviderOverride
-      : undefined;
-  const realtimeConfig = getCareerRealtimeSessionConfig({
-    providerOverride,
-    userCreatedAt: user.created_at,
-    userId: user.id,
-  });
+  const realtimeConfig = getCareerRealtimeSessionConfig();
   await insertRealtimeLlmUsageLog({
     model: realtimeConfig.model,
     response: {
       usage: body.usage ?? {},
     },
-    billing,
     meta: {
       conversationId: cleanString(body.conversationId, 120) || null,
       eventType: cleanString(body.eventType, 80) || "response.done",

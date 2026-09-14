@@ -361,6 +361,21 @@ function AnimatedAssistantTypingContent({ content }: { content: string }) {
   );
 }
 
+function StreamingAssistantContent({ content }: { content: string }) {
+  // Partial Markdown can repeatedly reinterpret the whole message while tokens
+  // arrive. Keep the live draft stable; the completed message uses RichText.
+  return (
+    <div
+      className={cn(
+        careerTimelineAssistantRichTextClassName,
+        "whitespace-pre-wrap wrap-break-word"
+      )}
+    >
+      {content}
+    </div>
+  );
+}
+
 const CareerMessageBubble = ({
   message,
   isUser,
@@ -479,7 +494,9 @@ const CareerMessageBubble = ({
           />
         ) : (
           <>
-            {message.typing && message.typingMode === "word" ? (
+            {message.typing && message.typingMode === "stream" ? (
+              <StreamingAssistantContent content={assistantContent} />
+            ) : message.typing && message.typingMode === "word" ? (
               <AnimatedAssistantTypingContent content={assistantContent} />
             ) : (
               <ChatAssistantContent

@@ -7,20 +7,9 @@ import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { useMessages } from "@/i18n/useMessage";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 import { shouldSpeakRealtimeEndCallFallback } from "@/lib/career/realtimeEndCall";
-import {
-  beginXaiSpeech,
-  completeXaiResponse,
-  createXaiTranscriptTurnState,
-  markXaiAssistantOutputStarted,
-  markXaiResponseCreated,
-  queueXaiCompletedTranscript,
-  type XaiTranscriptTransition,
-} from "@/lib/career/xaiTranscriptTurn";
-
-type UseRealtimeSessionArgs = {
+export type UseRealtimeSessionArgs = {
   conversationId: string | null;
   fetchWithAuth: FetchWithAuth;
-  providerOverride?: "openai" | "xai" | null;
   onTranscript: (text: string) => void;
   onAssistantDelta: (delta: string) => void;
   onAssistantDone: (fullText: string) => void;
@@ -31,7 +20,7 @@ type UseRealtimeSessionArgs = {
   onUserSpeechStopped?: () => void;
 };
 
-type RealtimeConnectOptions = {
+export type RealtimeConnectOptions = {
   conversationStarterId?: CareerConversationStarterId | null;
   initialResponseInstruction?: string | null;
   internalCallRequestId?: string | null;
@@ -45,13 +34,11 @@ export type RealtimeConnectFailure = {
 
 export type RealtimeUserSpeechStartedContext = {
   continuesCurrentUserTurn: boolean;
-  provider: "openai" | "xai";
 };
 
 type TokenInfo = {
   model: string;
-  provider: "openai" | "xai";
-  session?: Record<string, unknown>;
+  provider: "openai";
   token: string;
   toolVoicePreambles?: Record<string, string>;
 };
@@ -62,32 +49,9 @@ type PendingFunctionCallOutput = {
 };
 
 type RealtimeUsageLogOptions = {
-  billing?: XaiRealtimeBillingPayload | null;
   eventType?: string;
   hadAudioInResponse: boolean;
   status: string;
-};
-
-type XaiRealtimeBillingPayload = {
-  audioDurationSeconds: number;
-  billingBasis: "audio_duration";
-  inputAudioSeconds: number;
-  outputAudioSeconds: number;
-  sessionDurationSeconds: number;
-  sessionEndedAt?: string | null;
-  sessionStartedAt: string;
-  textInputEventCount: number;
-};
-
-type XaiRealtimeBillingState = {
-  inputAudioSeconds: number;
-  outputAudioSeconds: number;
-  sentInputAudioSeconds: number;
-  sentOutputAudioSeconds: number;
-  sentTextInputEventCount: number;
-  sessionStartedAt: string;
-  sessionStartedAtMs: number;
-  textInputEventCount: number;
 };
 
 type RealtimeAudioTurnSavedOptions = {
@@ -110,68 +74,6 @@ const MIN_ESTIMATED_PLAYBACK_MS = 900;
 const MAX_ESTIMATED_PLAYBACK_MS = 45_000;
 const REALTIME_AUDIO_TURNS_TO_KEEP = 4;
 const REALTIME_END_CALL_TOOL_NAME = "end_call";
-const XAI_AUDIO_SAMPLE_RATE = 24_000;
-
-function resampleAudio(
-  samples: Float32Array,
-  sourceRate: number,
-  targetRate: number
-) {
-  if (sourceRate === targetRate) return samples;
-  if (samples.length === 0) return samples;
-
-  const outputLength = Math.max(
-    1,
-    Math.round(samples.length * (targetRate / sourceRate))
-  );
-  const output = new Float32Array(outputLength);
-  const ratio = sourceRate / targetRate;
-
-  for (let index = 0; index < outputLength; index += 1) {
-    const position = index * ratio;
-    const leftIndex = Math.floor(position);
-    const rightIndex = Math.min(leftIndex + 1, samples.length - 1);
-    const mix = position - leftIndex;
-    output[index] = samples[leftIndex] * (1 - mix) + samples[rightIndex] * mix;
-  }
-
-  return output;
-}
-
-function encodePcm16Base64(samples: Float32Array) {
-  const bytes = new Uint8Array(samples.length * 2);
-  const view = new DataView(bytes.buffer);
-
-  for (let index = 0; index < samples.length; index += 1) {
-    const sample = Math.max(-1, Math.min(1, samples[index]));
-    const pcm = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
-    view.setInt16(index * 2, Math.round(pcm), true);
-  }
-
-  let binary = "";
-  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
-    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
-  }
-  return btoa(binary);
-}
-
-function decodePcm16Base64(audio: string) {
-  const binary = atob(audio);
-  const byteLength = binary.length - (binary.length % 2);
-  const bytes = new Uint8Array(byteLength);
-  for (let index = 0; index < byteLength; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-
-  const view = new DataView(bytes.buffer);
-  const samples = new Float32Array(byteLength / 2);
-  for (let index = 0; index < samples.length; index += 1) {
-    const pcm = view.getInt16(index * 2, true);
-    samples[index] = pcm < 0 ? pcm / 0x8000 : pcm / 0x7fff;
-  }
-  return samples;
-}
-
 function getPlaybackNow() {
   if (typeof performance !== "undefined") return performance.now();
   return Date.now();
@@ -300,7 +202,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const {
     conversationId,
     fetchWithAuth,
-    providerOverride,
     onTranscript,
     onAssistantDelta,
     onAssistantDone,
@@ -323,19 +224,11 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
 
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
-  const webSocketRef = useRef<WebSocket | null>(null);
   const tokenInfoRef = useRef<TokenInfo | null>(null);
   const responseTextRef = useRef("");
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
-  const xaiAudioContextRef = useRef<AudioContext | null>(null);
-  const xaiInputSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const xaiInputProcessorRef = useRef<ScriptProcessorNode | null>(null);
-  const xaiInputMuteRef = useRef<GainNode | null>(null);
-  const xaiPlaybackSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
-  const xaiNextPlaybackTimeRef = useRef(0);
-  const xaiBillingRef = useRef<XaiRealtimeBillingState | null>(null);
   const connectRef = useRef<
     ((options?: RealtimeConnectOptions) => Promise<boolean>) | null
   >(null);
@@ -345,9 +238,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const pendingConnectCancelRef = useRef<(() => void) | null>(null);
   const connectAttemptIdRef = useRef(0);
   const partialTranscriptItemIdRef = useRef<string | null>(null);
-  // xAI can emit a cumulative completed transcript after every VAD pause.
-  // Keep replacing the pending text until an actual assistant turn boundary.
-  const xaiTranscriptTurnRef = useRef(createXaiTranscriptTurnState());
   const pendingResponseFunctionCallsRef = useRef<
     Array<{ arguments: string; callId: string; name: string }>
   >([]);
@@ -432,36 +322,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   }, []);
 
   const cleanupMedia = useCallback(() => {
-    const inputProcessor = xaiInputProcessorRef.current;
-    xaiInputProcessorRef.current = null;
-    if (inputProcessor) {
-      inputProcessor.onaudioprocess = null;
-      inputProcessor.disconnect();
-    }
-
-    xaiInputSourceRef.current?.disconnect();
-    xaiInputSourceRef.current = null;
-    xaiInputMuteRef.current?.disconnect();
-    xaiInputMuteRef.current = null;
-
-    const playbackSources = Array.from(xaiPlaybackSourcesRef.current);
-    xaiPlaybackSourcesRef.current.clear();
-    for (const source of playbackSources) {
-      try {
-        source.stop();
-      } catch {
-        // The source may already have finished.
-      }
-      source.disconnect();
-    }
-    xaiNextPlaybackTimeRef.current = 0;
-
-    const xaiAudioContext = xaiAudioContextRef.current;
-    xaiAudioContextRef.current = null;
-    if (xaiAudioContext && xaiAudioContext.state !== "closed") {
-      void xaiAudioContext.close().catch(() => undefined);
-    }
-
     mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
     mediaStreamRef.current = null;
 
@@ -475,21 +335,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   }, []);
 
   const cleanupTransport = useCallback(() => {
-    const webSocket = webSocketRef.current;
-    webSocketRef.current = null;
-    if (webSocket) {
-      webSocket.onopen = null;
-      webSocket.onmessage = null;
-      webSocket.onerror = null;
-      webSocket.onclose = null;
-      if (
-        webSocket.readyState === WebSocket.CONNECTING ||
-        webSocket.readyState === WebSocket.OPEN
-      ) {
-        webSocket.close();
-      }
-    }
-
     const dataChannel = dataChannelRef.current;
     dataChannelRef.current = null;
     if (dataChannel) {
@@ -530,7 +375,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             internalCallRequestId: options?.internalCallRequestId ?? undefined,
             resumeCallNoteId: options?.resumeCallNoteId ?? undefined,
             locale,
-            providerOverride: providerOverride ?? undefined,
           }),
         });
         if (!res.ok) {
@@ -566,8 +410,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             typeof data.model === "string" && data.model.trim()
               ? data.model.trim()
               : "gpt-realtime-2.1",
-          provider: data.provider === "xai" ? "xai" : "openai",
-          session: isRecord(data.session) ? data.session : undefined,
+          provider: "openai",
           token: data.token,
           toolVoicePreambles:
             data.toolVoicePreambles &&
@@ -588,55 +431,14 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
         return null;
       }
     },
-    [conversationId, fetchWithAuth, locale, providerOverride, tCareer]
+    [conversationId, fetchWithAuth, locale, tCareer]
   );
 
   const sendEvent = useCallback((event: Record<string, unknown>) => {
-    const webSocket = webSocketRef.current;
-    if (webSocket?.readyState === WebSocket.OPEN) {
-      webSocket.send(JSON.stringify(event));
-      return;
-    }
-
     const dataChannel = dataChannelRef.current;
     if (!dataChannel || dataChannel.readyState !== "open") return;
     dataChannel.send(JSON.stringify(event));
   }, []);
-
-  const applyXaiTranscriptTransition = useCallback(
-    (transition: XaiTranscriptTransition) => {
-      xaiTranscriptTurnRef.current = transition.state;
-
-      const deliveredTranscript = transition.deliveredTranscript;
-      const shouldClearPartial = deliveredTranscript
-        ? !deliveredTranscript.itemId ||
-          partialTranscriptItemIdRef.current === deliveredTranscript.itemId
-        : Boolean(
-            transition.discardedItemId &&
-            partialTranscriptItemIdRef.current === transition.discardedItemId
-          );
-      if (shouldClearPartial) {
-        partialTranscriptItemIdRef.current = null;
-        setPartialTranscript("");
-      }
-      if (deliveredTranscript) {
-        onTranscriptRef.current(deliveredTranscript.text);
-      }
-    },
-    []
-  );
-
-  const scheduleXaiTranscript = useCallback(
-    (text: string, itemId: string) => {
-      applyXaiTranscriptTransition(
-        queueXaiCompletedTranscript(xaiTranscriptTurnRef.current, {
-          itemId,
-          text,
-        })
-      );
-    },
-    [applyXaiTranscriptTransition]
-  );
 
   const pruneSavedRealtimeAudioTurns = useCallback(() => {
     const turns = realtimeAudioTurnsRef.current;
@@ -836,64 +638,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     [recordRealtimeAssistantOutputItem]
   );
 
-  const beginXaiBilling = useCallback(() => {
-    const now = Date.now();
-    xaiBillingRef.current = {
-      inputAudioSeconds: 0,
-      outputAudioSeconds: 0,
-      sentInputAudioSeconds: 0,
-      sentOutputAudioSeconds: 0,
-      sentTextInputEventCount: 0,
-      sessionStartedAt: new Date(now).toISOString(),
-      sessionStartedAtMs: now,
-      textInputEventCount: 0,
-    };
-  }, []);
-
-  const consumeXaiBilling = useCallback((ended = false) => {
-    const state = xaiBillingRef.current;
-    if (!state) return null;
-
-    const inputAudioSeconds = Math.max(
-      state.inputAudioSeconds - state.sentInputAudioSeconds,
-      0
-    );
-    const outputAudioSeconds = Math.max(
-      state.outputAudioSeconds - state.sentOutputAudioSeconds,
-      0
-    );
-    const textInputEventCount = Math.max(
-      state.textInputEventCount - state.sentTextInputEventCount,
-      0
-    );
-    if (
-      inputAudioSeconds <= 0 &&
-      outputAudioSeconds <= 0 &&
-      textInputEventCount <= 0
-    ) {
-      return null;
-    }
-
-    state.sentInputAudioSeconds = state.inputAudioSeconds;
-    state.sentOutputAudioSeconds = state.outputAudioSeconds;
-    state.sentTextInputEventCount = state.textInputEventCount;
-
-    const now = Date.now();
-    return {
-      audioDurationSeconds: inputAudioSeconds + outputAudioSeconds,
-      billingBasis: "audio_duration" as const,
-      inputAudioSeconds,
-      outputAudioSeconds,
-      sessionDurationSeconds: Math.max(
-        (now - state.sessionStartedAtMs) / 1000,
-        0
-      ),
-      sessionEndedAt: ended ? new Date(now).toISOString() : null,
-      sessionStartedAt: state.sessionStartedAt,
-      textInputEventCount,
-    } satisfies XaiRealtimeBillingPayload;
-  }, []);
-
   const scheduleRealtimeUsageLog = useCallback(
     (
       response: Record<string, unknown> | undefined,
@@ -902,14 +646,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       if (!conversationId) return;
 
       const usage = getRealtimeResponseUsage(response);
-      const isXai = tokenInfoRef.current?.provider === "xai";
-      const billing =
-        options.billing !== undefined
-          ? options.billing
-          : isXai
-            ? consumeXaiBilling()
-            : null;
-      if (!usage && !billing) return;
+      if (!usage) return;
 
       const responseId =
         typeof response?.id === "string" ? response.id.trim() : "";
@@ -917,11 +654,9 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
         conversationId,
         eventType: options.eventType ?? "response.done",
         hadAudioInResponse: options.hadAudioInResponse,
-        providerOverride: providerOverride ?? undefined,
         responseId,
         status: options.status,
-        usage: usage ?? {},
-        ...(billing ? { billing } : {}),
+        usage,
       };
 
       scheduleRealtimeUsageLogTask(() => {
@@ -940,25 +675,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           });
       });
     },
-    [consumeXaiBilling, conversationId, fetchWithAuth, providerOverride]
-  );
-
-  const flushXaiBilling = useCallback(
-    (eventType: string, status: string) => {
-      if (tokenInfoRef.current?.provider !== "xai") return;
-
-      const billing = consumeXaiBilling(true);
-      if (billing) {
-        scheduleRealtimeUsageLog(undefined, {
-          billing,
-          eventType,
-          hadAudioInResponse: false,
-          status,
-        });
-      }
-      xaiBillingRef.current = null;
-    },
-    [consumeXaiBilling, scheduleRealtimeUsageLog]
+    [conversationId, fetchWithAuth]
   );
 
   const requestExactSpeech = useCallback(
@@ -1015,112 +732,13 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     playbackDrainTimersRef.current.clear();
   }, []);
 
-  const ensureXaiAudioContext = useCallback(() => {
-    const existing = xaiAudioContextRef.current;
-    if (existing && existing.state !== "closed") return existing;
-    if (typeof window === "undefined") return null;
-
-    const audioWindow = window as Window &
-      typeof globalThis & {
-        webkitAudioContext?: typeof AudioContext;
-      };
-    const AudioContextConstructor =
-      audioWindow.AudioContext ?? audioWindow.webkitAudioContext;
-    if (!AudioContextConstructor) return null;
-
-    const audioContext = new AudioContextConstructor({
-      sampleRate: XAI_AUDIO_SAMPLE_RATE,
-    });
-    xaiAudioContextRef.current = audioContext;
-    return audioContext;
-  }, []);
-
-  const stopXaiPlayback = useCallback(() => {
-    const playbackSources = Array.from(xaiPlaybackSourcesRef.current);
-    xaiPlaybackSourcesRef.current.clear();
-    for (const source of playbackSources) {
-      try {
-        source.stop();
-      } catch {
-        // The source may already have finished.
-      }
-      source.disconnect();
-    }
-
-    const audioContext = xaiAudioContextRef.current;
-    xaiNextPlaybackTimeRef.current =
-      audioContext?.state === "running" ? audioContext.currentTime : 0;
-  }, []);
-
-  const queueXaiAudioDelta = useCallback(
-    (audio: string) => {
-      if (!audio || tokenInfoRef.current?.provider !== "xai") return;
-
-      try {
-        const samples = decodePcm16Base64(audio);
-        if (samples.length === 0) return;
-
-        if (xaiBillingRef.current) {
-          xaiBillingRef.current.outputAudioSeconds +=
-            samples.length / XAI_AUDIO_SAMPLE_RATE;
-        }
-
-        const audioContext = ensureXaiAudioContext();
-        if (!audioContext || audioContext.state === "closed") return;
-        if (audioContext.state === "suspended") {
-          void audioContext.resume().catch((error) => {
-            console.warn("[RealtimeSession] xAI audio resume failed:", error);
-          });
-        }
-
-        const buffer = audioContext.createBuffer(
-          1,
-          samples.length,
-          XAI_AUDIO_SAMPLE_RATE
-        );
-        buffer.copyToChannel(samples, 0);
-
-        const source = audioContext.createBufferSource();
-        source.buffer = buffer;
-        source.connect(audioContext.destination);
-        source.onended = () => {
-          if (xaiPlaybackSourcesRef.current.delete(source)) {
-            source.disconnect();
-          }
-        };
-
-        const startAt = Math.max(
-          audioContext.currentTime + 0.01,
-          xaiNextPlaybackTimeRef.current
-        );
-        source.start(startAt);
-        xaiNextPlaybackTimeRef.current = startAt + buffer.duration;
-        xaiPlaybackSourcesRef.current.add(source);
-
-        const queuedPlaybackMs =
-          Math.max(
-            0,
-            xaiNextPlaybackTimeRef.current - audioContext.currentTime
-          ) * 1000;
-        playbackDrainUntilRef.current = Math.max(
-          playbackDrainUntilRef.current,
-          getPlaybackNow() + queuedPlaybackMs + PLAYBACK_DRAIN_GRACE_MS
-        );
-      } catch (error) {
-        console.warn("[RealtimeSession] xAI audio decode failed:", error);
-      }
-    },
-    [ensureXaiAudioContext]
-  );
-
   const stopNativePlayback = useCallback(() => {
     hasAudioInResponseRef.current = false;
     assistantPlaybackStartedAtRef.current = null;
     playbackDrainUntilRef.current = 0;
     clearPlaybackDrainTimers();
-    stopXaiPlayback();
     setIsAssistantSpeaking(false);
-  }, [clearPlaybackDrainTimers, stopXaiPlayback]);
+  }, [clearPlaybackDrainTimers]);
 
   const cancelActiveResponse = useCallback(() => {
     suppressCurrentResponseOutputRef.current = true;
@@ -1167,16 +785,9 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
         });
       }
 
-      const continueResponse = () => {
-        sendEvent({ type: "response.create" });
-      };
-      if (tokenInfoRef.current?.provider === "xai") {
-        runAfterCurrentPlayback(continueResponse);
-      } else {
-        continueResponse();
-      }
+      sendEvent({ type: "response.create" });
     },
-    [runAfterCurrentPlayback, sendEvent]
+    [sendEvent]
   );
 
   const beginToolExecution = useCallback((toolName: string) => {
@@ -1326,11 +937,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           case "response.created":
             currentResponseAssistantItemIdsRef.current = [];
             pendingResponseFunctionCallsRef.current = [];
-            if (tokenInfoRef.current?.provider === "xai") {
-              xaiTranscriptTurnRef.current = markXaiResponseCreated(
-                xaiTranscriptTurnRef.current
-              );
-            }
             currentResponseStartedAfterUserSpeechRef.current =
               userSpeechSinceLastResponseRef.current ||
               pendingUserSpeechForAudioTurnRef.current;
@@ -1369,28 +975,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             break;
           }
 
-          case "conversation.item.input_audio_transcription.updated": {
-            const xaiTranscriptState = xaiTranscriptTurnRef.current;
-            if (
-              tokenInfoRef.current?.provider === "xai" &&
-              xaiTranscriptState.deliveredTurnId === xaiTranscriptState.turnId
-            ) {
-              break;
-            }
-            const transcript =
-              typeof msg.transcript === "string" ? msg.transcript : "";
-            const itemId = typeof msg.item_id === "string" ? msg.item_id : "";
-            logCareerVoiceDebug("transcription.updated", {
-              itemId,
-              transcript,
-            });
-            if (itemId) {
-              partialTranscriptItemIdRef.current = itemId;
-            }
-            setPartialTranscript(transcript);
-            break;
-          }
-
           case "conversation.item.input_audio_transcription.completed": {
             const transcript =
               typeof msg.transcript === "string" ? msg.transcript : "";
@@ -1400,10 +984,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
               transcript,
             });
             recordRealtimeUserAudioItem(itemId);
-            if (tokenInfoRef.current?.provider === "xai") {
-              scheduleXaiTranscript(transcript, itemId);
-              break;
-            }
             if (!itemId || partialTranscriptItemIdRef.current === itemId) {
               partialTranscriptItemIdRef.current = null;
               setPartialTranscript("");
@@ -1423,21 +1003,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             break;
           }
 
-          case "response.output_audio.delta":
-          case "response.audio.delta": {
+          case "response.output_audio.delta": {
             if (suppressCurrentResponseOutputRef.current) break;
-            if (tokenInfoRef.current?.provider === "xai") {
-              xaiTranscriptTurnRef.current = markXaiAssistantOutputStarted(
-                xaiTranscriptTurnRef.current
-              );
-            }
-            const audio =
-              typeof msg.delta === "string"
-                ? msg.delta
-                : typeof msg.audio === "string"
-                  ? msg.audio
-                  : "";
-            if (audio) queueXaiAudioDelta(audio);
             markAssistantPlaybackStarted();
             if (
               !hasAudioInResponseRef.current &&
@@ -1452,14 +1019,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             break;
           }
 
-          case "response.output_audio_transcript.delta":
-          case "response.audio_transcript.delta": {
+          case "response.output_audio_transcript.delta": {
             if (suppressCurrentResponseOutputRef.current) break;
-            if (tokenInfoRef.current?.provider === "xai") {
-              xaiTranscriptTurnRef.current = markXaiAssistantOutputStarted(
-                xaiTranscriptTurnRef.current
-              );
-            }
             const delta = typeof msg.delta === "string" ? msg.delta : "";
             markAssistantPlaybackStarted();
             hasAudioInResponseRef.current = true;
@@ -1469,8 +1030,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             break;
           }
 
-          case "response.output_audio_transcript.done":
-          case "response.audio_transcript.done": {
+          case "response.output_audio_transcript.done": {
             if (suppressCurrentResponseOutputRef.current) break;
             const transcript =
               typeof msg.transcript === "string" ? msg.transcript : "";
@@ -1523,11 +1083,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
               typeof response?.status === "string"
                 ? response.status
                 : "completed";
-            if (tokenInfoRef.current?.provider === "xai") {
-              applyXaiTranscriptTransition(
-                completeXaiResponse(xaiTranscriptTurnRef.current, status)
-              );
-            }
             scheduleRealtimeUsageLog(response, {
               hadAudioInResponse,
               status,
@@ -1659,31 +1214,15 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           case "input_audio_buffer.speech_started": {
             logCareerVoiceDebug("speech.started");
             userSpeechSinceLastResponseRef.current = true;
-            let preserveXaiPartialTranscript = false;
-            if (tokenInfoRef.current?.provider === "xai") {
-              const speechTransition = beginXaiSpeech(
-                xaiTranscriptTurnRef.current
-              );
-              preserveXaiPartialTranscript =
-                speechTransition.continuesCurrentUserTurn;
-              applyXaiTranscriptTransition(speechTransition.transition);
-              stopXaiPlayback();
-              setIsAssistantSpeaking(false);
-            }
-            if (!preserveXaiPartialTranscript) {
-              partialTranscriptItemIdRef.current = null;
-              setPartialTranscript("");
-            }
+            partialTranscriptItemIdRef.current = null;
+            setPartialTranscript("");
             if (interruptTimerRef.current) {
               clearTimeout(interruptTimerRef.current);
               interruptTimerRef.current = null;
             }
 
             onUserSpeechStartedRef.current?.({
-              continuesCurrentUserTurn:
-                tokenInfoRef.current?.provider === "xai" &&
-                preserveXaiPartialTranscript,
-              provider: tokenInfoRef.current?.provider ?? "openai",
+              continuesCurrentUserTurn: false,
             });
             break;
           }
@@ -1739,20 +1278,16 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       }
     },
     [
-      applyXaiTranscriptTransition,
       completeRealtimeAudioTurnFromResponse,
       handleFunctionCalls,
       markAssistantPlaybackDone,
       markAssistantPlaybackStarted,
-      queueXaiAudioDelta,
       recordRealtimeAssistantOutputItem,
       recordRealtimeUserAudioItem,
       requestExactSpeech,
       runAfterCurrentPlayback,
-      scheduleXaiTranscript,
       scheduleRealtimeUsageLog,
       stopNativePlayback,
-      stopXaiPlayback,
       tCareer,
     ]
   );
@@ -1793,79 +1328,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     [cleanupMedia]
   );
 
-  const startXaiAudioCapture = useCallback(
-    async (webSocket: WebSocket): Promise<boolean> => {
-      if (typeof window === "undefined") return false;
-      if (
-        typeof navigator === "undefined" ||
-        typeof navigator.mediaDevices?.getUserMedia !== "function"
-      ) {
-        return false;
-      }
-
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            channelCount: 1,
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-          video: false,
-        });
-        mediaStreamRef.current = stream;
-
-        const audioContext = ensureXaiAudioContext();
-        if (!audioContext) {
-          cleanupMedia();
-          return false;
-        }
-        if (audioContext.state === "suspended") {
-          await audioContext.resume();
-        }
-
-        const source = audioContext.createMediaStreamSource(stream);
-        const processor = audioContext.createScriptProcessor(2048, 1, 1);
-        const mute = audioContext.createGain();
-        mute.gain.value = 0;
-
-        processor.onaudioprocess = (event) => {
-          if (webSocket.readyState !== WebSocket.OPEN) return;
-
-          const input = event.inputBuffer.getChannelData(0);
-          const resampled = resampleAudio(
-            input,
-            audioContext.sampleRate,
-            XAI_AUDIO_SAMPLE_RATE
-          );
-          if (xaiBillingRef.current) {
-            xaiBillingRef.current.inputAudioSeconds +=
-              resampled.length / XAI_AUDIO_SAMPLE_RATE;
-          }
-          webSocket.send(
-            JSON.stringify({
-              type: "input_audio_buffer.append",
-              audio: encodePcm16Base64(resampled),
-            })
-          );
-        };
-
-        source.connect(processor);
-        processor.connect(mute);
-        mute.connect(audioContext.destination);
-        xaiInputSourceRef.current = source;
-        xaiInputProcessorRef.current = processor;
-        xaiInputMuteRef.current = mute;
-        return true;
-      } catch (err) {
-        console.error("[RealtimeSession] xAI audio capture failed:", err);
-        cleanupMedia();
-        return false;
-      }
-    },
-    [cleanupMedia, ensureXaiAudioContext]
-  );
-
   const disconnect = useCallback(() => {
     connectAttemptIdRef.current += 1;
     lastConnectFailureRef.current = null;
@@ -1882,7 +1344,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     assistantPlaybackStartedAtRef.current = null;
     playbackDrainUntilRef.current = 0;
     clearPlaybackDrainTimers();
-    flushXaiBilling("session.completed", "completed");
     cleanupTransport();
     tokenInfoRef.current = null;
     responseTextRef.current = "";
@@ -1893,7 +1354,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     suppressCurrentResponseOutputRef.current = false;
     suppressCancelledResponseDoneRef.current = false;
     partialTranscriptItemIdRef.current = null;
-    xaiTranscriptTurnRef.current = createXaiTranscriptTurnState();
     pendingResponseFunctionCallsRef.current = [];
     activeToolExecutionIdsRef.current.clear();
     setActiveToolNames([]);
@@ -1910,14 +1370,11 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     setIsConnected(false);
     setIsConnecting(false);
     setConnectionStatus("disconnected");
-  }, [cleanupTransport, clearPlaybackDrainTimers, flushXaiBilling]);
+  }, [cleanupTransport, clearPlaybackDrainTimers]);
 
   const connect = useCallback(
     (options?: RealtimeConnectOptions): Promise<boolean> => {
-      if (
-        dataChannelRef.current?.readyState === "open" ||
-        webSocketRef.current?.readyState === 1
-      ) {
+      if (dataChannelRef.current?.readyState === "open") {
         return Promise.resolve(true);
       }
       if (connectPromiseRef.current) return connectPromiseRef.current;
@@ -1954,105 +1411,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             return false;
           }
           tokenInfoRef.current = tokenInfo;
-
-          if (tokenInfo.provider === "xai") {
-            if (
-              typeof WebSocket === "undefined" ||
-              !tokenInfo.session ||
-              !tokenInfo.model
-            ) {
-              lastConnectFailureRef.current = {
-                code: "connection",
-                message: "xAI realtime connection is not supported.",
-              };
-              return false;
-            }
-
-            const webSocket = new WebSocket(
-              `wss://api.x.ai/v1/realtime?model=${encodeURIComponent(
-                tokenInfo.model
-              )}`,
-              [`xai-client-secret.${tokenInfo.token}`]
-            );
-            webSocketRef.current = webSocket;
-            webSocket.onmessage = handleMessage;
-
-            const opened = await new Promise<boolean>((resolve) => {
-              let ready = false;
-              let settled = false;
-              const timeout = setTimeout(() => {
-                if (settled) return;
-                settled = true;
-                webSocket.close();
-                resolve(false);
-              }, 10_000);
-
-              const settle = (ok: boolean) => {
-                if (settled) return;
-                settled = true;
-                clearTimeout(timeout);
-                resolve(ok);
-              };
-
-              webSocket.onopen = () => {
-                logCareerVoiceDebug("xai.websocket_open", {
-                  model: tokenInfo.model,
-                });
-                webSocket.send(
-                  JSON.stringify({
-                    type: "session.update",
-                    session: tokenInfo.session,
-                  })
-                );
-                beginXaiBilling();
-
-                void startXaiAudioCapture(webSocket).then((audioOk) => {
-                  if (
-                    !audioOk ||
-                    webSocket.readyState !== WebSocket.OPEN ||
-                    connectAttemptIdRef.current !== attemptId
-                  ) {
-                    settle(false);
-                    webSocket.close();
-                    return;
-                  }
-                  ready = true;
-                  settle(true);
-                });
-              };
-
-              webSocket.onerror = () => {
-                console.error("[RealtimeSession] xAI WebSocket error");
-                if (!ready) settle(false);
-              };
-
-              webSocket.onclose = () => {
-                if (!ready) {
-                  settle(false);
-                  return;
-                }
-                if (connectAttemptIdRef.current !== attemptId) return;
-                setIsConnected(false);
-                setConnectionStatus("disconnected");
-                flushXaiBilling("session.disconnected", "error");
-                cleanupTransport();
-                onConnectionChangeRef.current(false);
-                onErrorRef.current(
-                  "Realtime connection lost. Falling back to text mode."
-                );
-              };
-            });
-
-            if (!opened || connectAttemptIdRef.current !== attemptId) {
-              cleanupTransport();
-              return false;
-            }
-
-            setIsConnected(true);
-            setConnectionStatus("connected");
-            onConnectionChangeRef.current(true);
-            return true;
-          }
 
           if (typeof RTCPeerConnection === "undefined") {
             lastConnectFailureRef.current = {
@@ -2238,14 +1596,11 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       return connectPromise;
     },
     [
-      beginXaiBilling,
       cleanupTransport,
       ensureRemoteAudioElement,
       fetchToken,
-      flushXaiBilling,
       handleMessage,
       startAudioCapture,
-      startXaiAudioCapture,
     ]
   );
 
@@ -2256,9 +1611,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const sendTextMessage = useCallback(
     (text: string) => {
       responseTextRef.current = "";
-      if (tokenInfoRef.current?.provider === "xai" && xaiBillingRef.current) {
-        xaiBillingRef.current.textInputEventCount += 1;
-      }
       sendEvent({
         type: "conversation.item.create",
         item: {
@@ -2284,16 +1636,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     if (typeof window === "undefined") return;
 
     try {
-      const xaiAudioContext = ensureXaiAudioContext();
-      if (xaiAudioContext?.state === "suspended") {
-        void xaiAudioContext.resume().catch((error) => {
-          console.warn(
-            "[RealtimeSession] xAI audio playback unlock failed:",
-            error
-          );
-        });
-      }
-
       const audio = ensureRemoteAudioElement();
       if (!audio) return;
       void audio.play().catch((error) => {
@@ -2302,17 +1644,14 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     } catch (error) {
       console.warn("[RealtimeSession] Audio playback prime failed:", error);
     }
-  }, [ensureRemoteAudioElement, ensureXaiAudioContext]);
+  }, [ensureRemoteAudioElement]);
 
   /** Update the Realtime session instructions (e.g., on interview step transition) */
   const updateSessionInstructions = useCallback(
     (instructions: string) => {
       sendEvent({
         type: "session.update",
-        session:
-          tokenInfoRef.current?.provider === "xai"
-            ? { instructions }
-            : { type: "realtime", instructions },
+        session: { type: "realtime", instructions },
       });
     },
     [sendEvent]

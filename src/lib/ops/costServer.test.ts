@@ -12,7 +12,6 @@ const PROVIDER_ENV_NAMES = [
   "EXA_SERVICE_API_KEY",
   "AWS_ACCESS_KEY_ID",
   "AWS_SECRET_ACCESS_KEY",
-  "DEEPSEEK_API_KEY",
 ] as const;
 
 test("loads OpenRouter daily usage and remaining credit with a management key", async () => {
