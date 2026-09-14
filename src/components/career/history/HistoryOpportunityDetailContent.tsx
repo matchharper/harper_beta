@@ -1,3 +1,4 @@
+import MockInterviewStart from "./MockInterviewStart";
 import React, { ReactNode, useState } from "react";
 import { CareerOpportunityType, type CareerHistoryOpportunity } from "../types";
 import {
@@ -541,6 +542,7 @@ export const HistoryOpportunityInlinePage = ({
   onInternalDecisionAction,
   onSavedStatusChange,
   onUpdateTalentMemo,
+  onStartMockInterview,
   pending,
   savedStatus,
 }: {
@@ -554,6 +556,7 @@ export const HistoryOpportunityInlinePage = ({
     action: CareerInternalOpportunityDecisionAction
   ) => void;
   onSavedStatusChange?: (value: CareerOpportunityManagementStatus) => void;
+  onStartMockInterview?: (opportunityId: string) => boolean | Promise<boolean>;
   onUpdateTalentMemo?: (
     item: CareerHistoryOpportunity,
     talentMemo: string | null
@@ -625,15 +628,11 @@ export const HistoryOpportunityInlinePage = ({
             "Harper와 실제 면접처럼 대화하며 이 포지션의 인터뷰를 준비해보세요."
           )}
         </p>
-        {/* UI preview only; mock interview sessions are not connected yet. */}
-        <MuteButton
-          aria-disabled="true"
-          className="shrink-0"
-          size="lg"
-          variant="neutral"
-        >
-          {t("career.history.mock_interview.action", "모의 인터뷰 해보기")}
-        </MuteButton>
+        <MockInterviewStart
+          key={item.id}
+          item={item}
+          onStart={onStartMockInterview}
+        />
       </div>
 
       <TalentRoleActivityTimeline

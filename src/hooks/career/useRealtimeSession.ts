@@ -25,6 +25,7 @@ export type RealtimeConnectOptions = {
   initialResponseInstruction?: string | null;
   internalCallRequestId?: string | null;
   resumeCallNoteId?: string | null;
+  mockInterviewOpportunityId?: string | null;
 };
 
 export type RealtimeConnectFailure = {
@@ -373,6 +374,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             initialResponseInstruction:
               options?.initialResponseInstruction ?? undefined,
             internalCallRequestId: options?.internalCallRequestId ?? undefined,
+            mockInterviewOpportunityId:
+              options?.mockInterviewOpportunityId ?? undefined,
             resumeCallNoteId: options?.resumeCallNoteId ?? undefined,
             locale,
           }),

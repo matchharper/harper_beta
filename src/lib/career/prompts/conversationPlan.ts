@@ -11,7 +11,14 @@ import {
   CAREER_ONBOARDING_CONVERSATION_PROMPT,
   CAREER_POST_ONBOARDING_VOICE_RESPONSE_GUIDANCE_PROMPT,
 } from "@/lib/career/prompts/rawPrompts";
-import { CAREER_VOICE_CALL_MODE_PROMPT } from "@/lib/career/prompts/cases/voicePrompts";
+import {
+  buildMockInterviewInstruction,
+  type MockInterviewContext,
+} from "./cases/mockInterviewPrompts";
+import {
+  CAREER_FOCUSED_VOICE_CALL_PROMPT,
+  CAREER_VOICE_CALL_MODE_PROMPT,
+} from "@/lib/career/prompts/cases/voicePrompts";
 import {
   formatCareerPromptKoreanDateTime,
   interpolateCareerPromptText,
@@ -108,6 +115,7 @@ export function buildCareerConversationPromptPlan(args: {
   channel: CareerPromptChannel;
   companyTalentRequestText?: string | null;
   conversationMode?: CareerConversationPromptMode;
+  mockInterviewContext?: MockInterviewContext | null;
   talentContextSection: string;
   currentPreferences?: CareerPromptPreferences | null;
   gmailCapability?: GmailCapability;
@@ -201,6 +209,12 @@ export function buildCareerConversationPromptPlan(args: {
   };
 
   const conversationGuidePrompt = () => {
+    if (conversationMode === "mock_interview")
+      return {
+        key: "mock_interview_response_guidance",
+        text: "이번 통화의 모의 인터뷰 지침을 따른다.",
+        cacheable: true,
+      };
     if (isOnboardingActive)
       if (isVoiceCall)
         // 단순히 더 짧은 프롬프트.
@@ -246,6 +260,7 @@ export function buildCareerConversationPromptPlan(args: {
 
   if (
     !isOnboardingActive &&
+    conversationMode !== "mock_interview" &&
     args.includePostOnboardingConversationGuide !== false
   ) {
     promptBlocks.push({
@@ -269,7 +284,9 @@ export function buildCareerConversationPromptPlan(args: {
   // 통화중일 때
   if (isVoiceCall) {
     const voiceRules = [
-      CAREER_VOICE_CALL_MODE_PROMPT,
+      conversationMode === "mock_interview"
+        ? CAREER_FOCUSED_VOICE_CALL_PROMPT
+        : CAREER_VOICE_CALL_MODE_PROMPT,
       getCareerInterruptHandlingPrompt(
         args.currentPreferences?.preferredLocale
       ),
@@ -286,6 +303,8 @@ export function buildCareerConversationPromptPlan(args: {
     }
   }
   const callModePrompt = () => {
+    if (conversationMode === "mock_interview" && args.mockInterviewContext)
+      return buildMockInterviewInstruction(args.mockInterviewContext);
     if (
       conversationMode === "internal_opportunity_call" &&
       args.internalCallRequest

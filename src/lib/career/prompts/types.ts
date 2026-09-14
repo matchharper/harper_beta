@@ -85,7 +85,8 @@ export type CareerConversationPromptMode =
   | "preference_update"
   | "match_quality"
   | "career_check_in"
-  | "internal_opportunity_call";
+  | "internal_opportunity_call"
+  | "mock_interview";
 export type CareerToolPolicyChannel = CareerPromptChannel;
 
 export type CareerPromptPlan = {

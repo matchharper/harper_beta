@@ -886,6 +886,8 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
               internalCallRequestId:
                 options?.internalCallRequestId ?? undefined,
               locale,
+              mockInterviewOpportunityId:
+                options?.mockInterviewOpportunityId ?? undefined,
               resumeCallNoteId: options?.resumeCallNoteId ?? undefined,
               sdp,
             }),

@@ -1,3 +1,8 @@
+import {
+  readMockInterviewOpportunityId,
+  MockInterviewRequestError,
+} from "@/lib/career/mockInterview";
+import { MOCK_INTERVIEW_OPENING_PROMPT } from "@/lib/career/prompts/cases/mockInterviewPrompts";
 import { createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getCareerLiveSessionConfig } from "@/lib/career/llm";
@@ -115,13 +120,15 @@ export async function POST(req: NextRequest) {
       internalCallRequestId?: string;
       locale?: string;
       resumeCallNoteId?: string;
+      mockInterviewOpportunityId?: string;
       sdp?: string;
     };
     const conversationId = readBodyString(body.conversationId);
+    const mockInterviewOpportunityId = readMockInterviewOpportunityId(body);
     const conversationStarterId = readBodyString(body.conversationStarterId);
-    const initialResponseInstruction = readBodyString(
-      body.initialResponseInstruction
-    );
+    const initialResponseInstruction = mockInterviewOpportunityId
+      ? MOCK_INTERVIEW_OPENING_PROMPT
+      : readBodyString(body.initialResponseInstruction);
     const internalCallRequestId = readBodyString(body.internalCallRequestId);
     const resumeCallNoteId = readBodyString(body.resumeCallNoteId);
     const sdp = parseLiveSdpOffer(body.sdp);
@@ -229,6 +236,7 @@ export async function POST(req: NextRequest) {
     const promptPlan = await buildCareerRealtimeSessionInstructions({
       conversationId,
       conversationStarterId,
+      mockInterviewOpportunityId,
       internalCallRequestId,
       preferredLocale: responseLocale,
       toolNames: toolCandidates.map((tool) => tool.name),
@@ -323,6 +331,11 @@ export async function POST(req: NextRequest) {
       transport: { type: "webrtc", sdp: answerSdp },
     });
   } catch (error) {
+    if (error instanceof MockInterviewRequestError)
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status }
+      );
     console.error("[LiveSession] Error:", error);
     return NextResponse.json(
       { error: "Internal server error" },

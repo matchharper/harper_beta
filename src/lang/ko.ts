@@ -1615,6 +1615,18 @@ export const ko = {
     "career.history.talent_role_activity_timeline.stage_changed": "단계 변경",
     "career.history.mock_interview.description":
       "Harper와 실제 면접처럼 대화하며 이 포지션의 인터뷰를 준비해보세요.",
+    "career.history.mock_interview.failed":
+      "통화를 시작하지 못했습니다. 진행 중인 통화와 마이크 권한을 확인한 뒤 다시 시도해 주세요.",
+    "career.history.mock_interview.title": "모의 인터뷰를 시작할까요?",
+    "career.history.mock_interview.cancel": "취소",
+    "career.history.mock_interview.start": "음성으로 시작하기",
+    "career.history.mock_interview.connecting": "연결 중...",
+    "career.history.mock_interview.notice":
+      "선택한 포지션을 기준으로 Harper와 음성 면접을 연습합니다. 개인의 면접 역량 향상을 위한 연습이며, 이 기능이 인터뷰 내용을 기업이나 채용 담당자에게 전송하지는 않습니다.",
+    "career.history.mock_interview.accuracy":
+      "공개 자료를 바탕으로 구성한 질문은 실제 기출과 다르거나 부정확할 수 있습니다.",
+    "career.history.mock_interview.recording":
+      "대화는 일반 통화와 동일하게 기록과 콜노트로 저장됩니다.",
     "career.history.mock_interview.action": "모의 인터뷰 해보기",
     "career.history.talent_role_activity_timeline.title": "내 활동",
     "career.history.talent_role_activity_timeline.upcoming_meeting":

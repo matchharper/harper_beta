@@ -26,6 +26,7 @@ export type CareerCallStartRequest =
       internalCallRequestId?: string | null;
       openingText?: string;
       resumeCallNoteId?: string | null;
+      mockInterviewOpportunityId?: string | null;
     };
 export type CallLiveTranscriptPlacement =
   | "beforeCurrentAssistant"

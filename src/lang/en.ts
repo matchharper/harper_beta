@@ -619,10 +619,12 @@ export const en = {
     "career.chat.career_call_screen.1lwovam": "Career Interview Progress",
     "career.chat.career_call_screen.force_complete_label": "Finish Now",
     "career.call.tool_status.web_search": "Searching the web...",
-    "career.call.tool_status.recommendations": "Checking previous recommendations...",
+    "career.call.tool_status.recommendations":
+      "Checking previous recommendations...",
     "career.call.tool_status.role_context": "Checking position details...",
     "career.call.tool_status.read_context": "Reading your saved information...",
-    "career.call.tool_status.write_context": "Updating your saved information...",
+    "career.call.tool_status.write_context":
+      "Updating your saved information...",
     "career.call.tool_status.default": "Processing your request...",
     "career.chat.career_call_screen.tool_executing":
       "Looking up information...",
@@ -1629,6 +1631,18 @@ export const en = {
       "Stage changed",
     "career.history.mock_interview.description":
       "Prepare for this role with Harper in a conversation that feels like a real interview.",
+    "career.history.mock_interview.failed":
+      "Could not start the call. Check for an active call and microphone permissions, then try again.",
+    "career.history.mock_interview.title": "Start a mock interview?",
+    "career.history.mock_interview.cancel": "Cancel",
+    "career.history.mock_interview.start": "Start voice interview",
+    "career.history.mock_interview.connecting": "Connecting...",
+    "career.history.mock_interview.notice":
+      "Practice a voice interview with Harper for this position. This is an exercise to help you improve your interview skills. This feature does not send your interview to companies or recruiters.",
+    "career.history.mock_interview.accuracy":
+      "Questions are based on public sources and may be inaccurate or differ from actual interview questions.",
+    "career.history.mock_interview.recording":
+      "Your conversation is saved in your history and call notes, just like a regular call.",
     "career.history.mock_interview.action": "Try a mock interview",
     "career.history.talent_role_activity_timeline.title": "My activity",
     "career.history.talent_role_activity_timeline.upcoming_meeting":

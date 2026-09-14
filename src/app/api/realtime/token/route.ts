@@ -1,3 +1,8 @@
+import {
+  readMockInterviewOpportunityId,
+  MockInterviewRequestError,
+} from "@/lib/career/mockInterview";
+import { MOCK_INTERVIEW_OPENING_PROMPT } from "@/lib/career/prompts/cases/mockInterviewPrompts";
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { getRequestUser } from "@/lib/supabaseServer";
@@ -178,8 +183,10 @@ export async function POST(req: NextRequest) {
       initialResponseInstruction?: string;
       internalCallRequestId?: string;
       resumeCallNoteId?: string;
+      mockInterviewOpportunityId?: string;
       locale?: string;
     };
+    const mockInterviewOpportunityId = readMockInterviewOpportunityId(body);
     const conversationId = rawConversationId?.trim();
     const conversationStarterId =
       typeof rawConversationStarterId === "string"
@@ -189,8 +196,9 @@ export async function POST(req: NextRequest) {
       typeof rawInternalCallRequestId === "string"
         ? rawInternalCallRequestId.trim()
         : "";
-    const initialResponseInstruction =
-      typeof rawInitialResponseInstruction === "string"
+    const initialResponseInstruction = mockInterviewOpportunityId
+      ? MOCK_INTERVIEW_OPENING_PROMPT
+      : typeof rawInitialResponseInstruction === "string"
         ? rawInitialResponseInstruction
         : "";
     const resumeCallNoteId =
@@ -298,6 +306,7 @@ export async function POST(req: NextRequest) {
     const realtimePromptPlan = await buildCareerRealtimeSessionInstructions({
       conversationId,
       conversationStarterId,
+      mockInterviewOpportunityId,
       internalCallRequestId,
       preferredLocale: responseLocale,
       toolNames: realtimeToolCandidates.map((tool) => tool.name),
@@ -376,6 +385,11 @@ export async function POST(req: NextRequest) {
       transcriptionModel: realtimeConfig.transcriptionModel,
     });
   } catch (error) {
+    if (error instanceof MockInterviewRequestError)
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status }
+      );
     console.error("[RealtimeToken] Error:", error);
     return NextResponse.json(
       { error: "Internal server error" },

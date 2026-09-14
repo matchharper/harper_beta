@@ -1,3 +1,4 @@
+import { fetchMockInterviewContext } from "./mockInterview";
 import {
   buildTalentMemoryRetrievalQuery,
   buildTalentProfileContext,
@@ -46,11 +47,19 @@ export async function buildCareerRealtimeSessionInstructions(args: {
   conversationId: string;
   conversationStarterId?: string | null;
   internalCallRequestId?: string | null;
+  mockInterviewOpportunityId?: string | null;
   preferredLocale?: string | null;
   toolNames: string[];
   userId: string;
 }) {
   const admin = getTalentSupabaseAdmin();
+  const mockInterviewContext = args.mockInterviewOpportunityId
+    ? await fetchMockInterviewContext({
+        admin,
+        userId: args.userId,
+        opportunityId: args.mockInterviewOpportunityId,
+      })
+    : null;
 
   const [
     profile,
@@ -165,6 +174,7 @@ export async function buildCareerRealtimeSessionInstructions(args: {
       : null;
   const isOnboardingActiveForSession = shouldUseCareerRealtimeOnboarding({
     hasConversationStarter: Boolean(conversationStarter),
+    hasMockInterview: Boolean(mockInterviewContext),
     hasInternalOpportunityCall: Boolean(openInternalCallRequest),
     isOnboardingDone: Boolean(talentSetting?.is_onboarding_done),
   });
@@ -204,14 +214,19 @@ export async function buildCareerRealtimeSessionInstructions(args: {
       ? officialJobSignupIntentEvent?.summary
       : null,
     onboardingChecklistCoverage,
-    postOnboardingContext,
+    postOnboardingContext: mockInterviewContext ? null : postOnboardingContext,
     profile,
-    conversationMode: openInternalCallRequest
-      ? "internal_opportunity_call"
-      : (conversationStarter?.id ?? "default"),
+    mockInterviewContext,
+    conversationMode: mockInterviewContext
+      ? "mock_interview"
+      : openInternalCallRequest
+        ? "internal_opportunity_call"
+        : (conversationStarter?.id ?? "default"),
     internalCallRequest,
     recentConversationSection,
-    recentRecommendedOpportunitiesText,
+    recentRecommendedOpportunitiesText: mockInterviewContext
+      ? ""
+      : recentRecommendedOpportunitiesText,
     structuredProfileText,
     toolNames: promptToolNames,
   });
