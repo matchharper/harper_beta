@@ -216,6 +216,7 @@ function HomeQuickActions({
   onOpenMembers,
   onOpenSlack,
   slackChannelName,
+  slackDisconnected,
 }: {
   companyLogoUrl: string | null;
   companyName: string;
@@ -223,6 +224,7 @@ function HomeQuickActions({
   onOpenMembers: () => void;
   onOpenSlack: () => void;
   slackChannelName: string | null;
+  slackDisconnected: boolean;
 }) {
   const cardCs =
     "sm:min-h-[132px] min-w-0 w-full flex-col items-start gap-1 rounded-xl border-neutral-1000-a10 bg-bg-default p-4 sm:p-4 shadow-none hover:border-neutral-1000-a10 hover:bg-neutral-100";
@@ -232,13 +234,30 @@ function HomeQuickActions({
       aria-label="Workspace 설정"
       className="mt-20 grid w-full grid-cols-1 sm:grid-cols-3 gap-3 sm:mt-32"
     >
-      <CardButton className={cardCs} onClick={onOpenSlack}>
-        <span className="mb-3 flex size-8 shrink-0 items-center justify-center rounded-md bg-black/5">
+      <CardButton
+        className={cn(
+          cardCs,
+          slackDisconnected &&
+            "border-transparent bg-action text-white ring-1 ring-inset ring-white hover:border-transparent hover:bg-action/90 hover:text-white focus-visible:ring-white"
+        )}
+        onClick={onOpenSlack}
+      >
+        <span
+          className={cn(
+            "mb-3 flex size-8 shrink-0 items-center justify-center rounded-md",
+            slackDisconnected ? "bg-white/50" : "bg-black/5"
+          )}
+        >
           <Image alt="" height={18} src="/images/logos/slack.svg" width={18} />
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="truncate text-[14px] font-medium">Slack</span>
-          <span className="line-clamp-2 text-[13px] font-light leading-4 text-black/70">
+          <span
+            className={cn(
+              "line-clamp-2 text-[13px] font-light leading-4",
+              slackDisconnected ? "text-white" : "text-black/70"
+            )}
+          >
             {slackChannelName
               ? `${slackChannelName} 연결됨`
               : "팀과 함께 추천 소식을 확인하세요."}
@@ -299,6 +318,7 @@ export function OrgHomePage() {
   const slackStatusQuery = useOrgSlackStatus({ workspaceId });
   const primarySlackChannel = slackStatusQuery.data?.channels[0] ?? null;
   const slackChannelName = formatSlackChannelName(primarySlackChannel);
+  const slackDisconnected = slackStatusQuery.data?.connected === false;
   const board = boardQuery.data;
   const error = boardQuery.error instanceof Error ? boardQuery.error : null;
   const isLoading = boardQuery.isLoading;
@@ -427,6 +447,7 @@ export function OrgHomePage() {
             onOpenMembers={openMembers}
             onOpenSlack={openSlack}
             slackChannelName={slackChannelName}
+            slackDisconnected={slackDisconnected}
           />
         </div>
       </div>
@@ -498,6 +519,7 @@ export function OrgHomePage() {
             onOpenMembers={openMembers}
             onOpenSlack={openSlack}
             slackChannelName={slackChannelName}
+            slackDisconnected={slackDisconnected}
           />
         </>
       )}

@@ -234,7 +234,7 @@ test("runs the talent tool loop through Luna Responses with high reasoning", asy
         { content: "Continue now.", role: "user" },
       ],
       modelConfig: {
-        fallbackModel: "grok-4.3",
+        fallbackModel: "gpt-4.1-mini",
         primaryModel: "gpt-5.6-luna",
       },
       openAIResponsesReasoningEffort: "high",

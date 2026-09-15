@@ -40,6 +40,14 @@ test("accepts only explicit writable lifecycle states for mutations", () => {
   }
 });
 
+test("normalizes user-visible lifecycle labels for mutations", () => {
+  assert.equal(parseOrgRoleMutationStatus("진행 중"), "active");
+  assert.equal(parseOrgRoleMutationStatus("중단"), "paused");
+  assert.equal(parseOrgRoleMutationStatus("채용 종료"), "ended");
+  assert.equal(parseOrgRoleMutationStatus("삭제됨"), "deleted");
+  assert.equal(parseOrgRoleMutationStatus("open"), null);
+});
+
 test("always pairs deleted status with role expiry", () => {
   assert.equal(
     resolveOrgRoleMutationExpiry({ isExpired: undefined, status: "deleted" }),

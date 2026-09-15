@@ -135,6 +135,7 @@ import { buildFirstTurnUploadedDocumentContext } from "@/lib/talentOnboarding/do
 import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
 import { canUseCareerDevControls } from "@/lib/internalAccess";
 import { resolveCareerTextChatModelForRequest } from "@/lib/career/textChatModelConfig";
+import { resolveCareerRequestTimeZone } from "@/lib/career/requestTimeZone";
 
 export const maxDuration = 180;
 
@@ -149,6 +150,7 @@ type Body = {
   opportunityMentions?: unknown;
   pendingAction?: unknown;
   textChatModel?: unknown;
+  timeZone?: string;
   uploadedDocumentIds?: unknown;
   link?: string;
 };
@@ -496,6 +498,7 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json()) as Body;
     const isMobile = isMobileRequest(req);
+    const promptTimeZone = resolveCareerRequestTimeZone(req, body.timeZone);
     const conversationId = sanitizeSingleLineDbText(body.conversationId, 80);
     let message =
       typeof body.message === "string"
@@ -906,6 +909,8 @@ export async function POST(req: NextRequest) {
         role: item.role as "user" | "assistant",
         content: formatTalentMessageContentForLlmPrompt(item, {
           includeCreatedAt: item.message_type !== "conversation_summary",
+          preferredLocale: responseLocale,
+          timeZone: promptTimeZone,
         }),
       }))
       .filter((item) => item.content.trim().length > 0);
@@ -1037,6 +1042,7 @@ export async function POST(req: NextRequest) {
         recentRecommendedOpportunitiesText,
         runtimeInstruction: runtimeInstruction || undefined,
         structuredProfileText,
+        timeZone: promptTimeZone,
         toolNames: toolSelection.toolNames,
       });
     const systemBlocks = promptBlocks;
@@ -1725,6 +1731,8 @@ export async function POST(req: NextRequest) {
 
             let sentFinalAssistantMessage = false;
             let insertedCompletionWrapupMessage: TalentMessageRow | null = null;
+            let insertedInitialSearchStartedMessage: TalentMessageRow | null =
+              null;
             let insertedCompletionNextStepsMessage: TalentMessageRow | null =
               null;
             if (shouldApplyCompletion) {
@@ -1746,10 +1754,13 @@ export async function POST(req: NextRequest) {
                   conversationId,
                   isMobile,
                   latestUserMessageId: insertedUserMessage.id,
+                  opportunityRunId: completedOpportunityRun?.id ?? null,
                   userId: user.id,
                 });
               insertedCompletionWrapupMessage =
                 completionMessages.wrapupMessage;
+              insertedInitialSearchStartedMessage =
+                completionMessages.initialSearchStartedMessage;
               insertedCompletionNextStepsMessage =
                 completionMessages.nextStepsMessage;
             }
@@ -1792,6 +1803,17 @@ export async function POST(req: NextRequest) {
                   }),
                   insertedCompletionWrapupMessage
                     ? toResponseMessage(insertedCompletionWrapupMessage)
+                    : null,
+                  insertedInitialSearchStartedMessage
+                    ? {
+                        ...toResponseMessage(
+                          insertedInitialSearchStartedMessage
+                        ),
+                        recommendationSearchRelation: "accepted" as const,
+                        recommendationSearchRun: serializeOpportunityRun(
+                          completedOpportunityRun
+                        ),
+                      }
                     : null,
                   insertedCompletionNextStepsMessage
                     ? toResponseMessage(insertedCompletionNextStepsMessage)
@@ -2276,11 +2298,14 @@ export async function POST(req: NextRequest) {
           conversationId,
           isMobile,
           latestUserMessageId: insertedUserMessage.id,
+          opportunityRunId: completedOpportunityRun?.id ?? null,
           userId: user.id,
         })
       : null;
     const insertedCompletionWrapupMessage =
       completionMessages?.wrapupMessage ?? null;
+    const insertedInitialSearchStartedMessage =
+      completionMessages?.initialSearchStartedMessage ?? null;
     const insertedCompletionNextStepsMessage =
       completionMessages?.nextStepsMessage ?? null;
 
@@ -2324,6 +2349,15 @@ export async function POST(req: NextRequest) {
         },
         insertedCompletionWrapupMessage
           ? toResponseMessage(insertedCompletionWrapupMessage)
+          : null,
+        insertedInitialSearchStartedMessage
+          ? {
+              ...toResponseMessage(insertedInitialSearchStartedMessage),
+              recommendationSearchRelation: "accepted" as const,
+              recommendationSearchRun: serializeOpportunityRun(
+                completedOpportunityRun
+              ),
+            }
           : null,
         insertedCompletionNextStepsMessage
           ? toResponseMessage(insertedCompletionNextStepsMessage)

@@ -1,9 +1,19 @@
 import { buildOrgHref } from "@/lib/org/routes";
 
 const DEFAULT_PUBLIC_SITE_URL = "https://matchharper.com";
-const ORG_PAGE_MARKER_PATTERN = /\[([^\]\r\n]+)\]\((home|roles|team)\)/g;
-const ROLE_MARKER_PATTERN = /\[([^\]\r\n]+)\]\(role:([^)]+)\)/g;
-const TALENT_MARKER_PATTERN = /\[([^\]\r\n]+)\]\(talent:([^)]+)\)/g;
+const MARKER_LABEL_PATTERN = String.raw`((?:[^\[\]\r\n]|\[[^\[\]\r\n]*\])+)`;
+const ORG_PAGE_MARKER_PATTERN = new RegExp(
+  String.raw`\[${MARKER_LABEL_PATTERN}\]\((home|roles|team)\)`,
+  "g"
+);
+const ROLE_MARKER_PATTERN = new RegExp(
+  String.raw`\[${MARKER_LABEL_PATTERN}\]\(role:([^)]+)\)`,
+  "g"
+);
+const TALENT_MARKER_PATTERN = new RegExp(
+  String.raw`\[${MARKER_LABEL_PATTERN}\]\(talent:([^)]+)\)`,
+  "g"
+);
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 

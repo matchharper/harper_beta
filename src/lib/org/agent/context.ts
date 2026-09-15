@@ -21,9 +21,14 @@ import {
   fetchWorkspaceForOrgAgent,
 } from "@/lib/org/agent/store";
 import {
+  fetchOrgAgentContactSummary,
+  type OrgAgentContactSummary,
+} from "@/lib/org/agent/contacts";
+import {
   clipPromptText,
   formatOrgAgentCompanyContext,
   formatPromptCell,
+  formatPromptKstDateTime,
   formatPromptSection,
   formatPromptTable,
   serializeOrgAgentMoreData,
@@ -61,20 +66,19 @@ import {
 import { filterOrgAgentMentionCandidates } from "@/lib/org/agent/mentionCandidates";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { formatInProgressSlackRoleCreations } from "@/lib/org/agent/slackRoleCreation";
-import { fetchCompanyTalentContactDraftsForScope } from "@/lib/companyTalentRequests/server";
 import { fetchCompanyRoleCalibrationPromptIndex } from "@/lib/org/roleCalibrationServer";
-import { selectRecentlyPresentedContactDraftIds } from "@/lib/org/agent/toolState";
 
 export type OrgAgentPromptContext = {
   calibrationsText?: string;
   companyText: string;
   completeRoleRequestIds: string[];
-  contactDraftsText?: string;
   contextNotesText: string;
   conversationText: string;
   defaultLongTextObservations?: OrgAgentLongTextObservation[];
   inProgressRoleCreationsText?: string;
   pendingUpdateText?: string;
+  recentToolContextText?: string;
+  recentContactsText: string;
   recentRecommendationsText: string;
   retainedDataText?: string;
   retainedMoreData?: OrgAgentMoreDataResult | null;
@@ -312,6 +316,14 @@ function formatConversation(
         (ref) =>
           `candidate_contact_ref{contact_id=${ref.contactId};revision=${ref.revision}}`
       ),
+      message.metadata.candidateRelayRef
+        ? `candidate_contact_ref{${[
+            `talent_id=${message.metadata.candidateRelayRef.talentId}`,
+            `role_id=${message.metadata.candidateRelayRef.roleId}`,
+            `request_id=${message.metadata.candidateRelayRef.requestId}`,
+            `relay_id=${message.metadata.candidateRelayRef.relayId}`,
+          ].join(";")}}`
+        : "",
       message.metadata.roleCalibration
         ? `role_profile_example_context{set_id=${message.metadata.roleCalibration.calibrationId};profile_ids=${message.metadata.roleCalibration.profileIds.join(",")}}`
         : "",
@@ -379,6 +391,45 @@ function formatConversation(
   return `${pageMetadata}\n${table}`;
 }
 
+const RECENT_TOOL_CONTEXT_MESSAGE_WINDOW = 4;
+const RECENT_TOOL_CONTEXT_RESULT_LIMIT = 3;
+
+export function formatRecentOrgAgentToolContext(
+  messages: Awaited<
+    ReturnType<typeof fetchRecentOrgAgentPromptMessages>
+  >["messages"]
+) {
+  const nearestToolMessage = messages
+    .slice(-RECENT_TOOL_CONTEXT_MESSAGE_WINDOW)
+    .findLast(
+      (message) =>
+        message.role === "assistant" &&
+        Boolean(message.metadata.toolResults?.length)
+    );
+  if (!nearestToolMessage) return "-";
+
+  const toolResults = (nearestToolMessage.metadata.toolResults ?? []).slice(
+    -RECENT_TOOL_CONTEXT_RESULT_LIMIT
+  );
+  const outcomes = formatPromptTable(
+    ["tool", "status", "summary"],
+    toolResults.map((result) => [result.name, result.status, result.summary]),
+    [120, 40, 500]
+  );
+  const continuations = toolResults
+    .map((result) => formatPromptCell(result.continuationContext, 3_000))
+    .filter((value) => value !== "-");
+  return [
+    outcomes,
+    ...(continuations.length > 0
+      ? [
+          "continuation_facts=Use these exact server-returned identifiers when the user's next message resolves the corresponding missing input.",
+          ...continuations,
+        ]
+      : []),
+  ].join("\n");
+}
+
 function formatSummaries(
   summaries: Awaited<ReturnType<typeof fetchRecentOrgAgentSummaries>>
 ) {
@@ -389,23 +440,26 @@ function formatSummaries(
     .join("\n---\n");
 }
 
-function formatContactDrafts(
-  drafts: Awaited<ReturnType<typeof fetchCompanyTalentContactDraftsForScope>>
+export function formatOrgAgentContactSummary(
+  summary: OrgAgentContactSummary | null
 ) {
-  if (drafts.length === 0) return "-";
-  return drafts
-    .map((draft) =>
-      [
-        `contact_id=${draft.contactId} revision=${draft.revision}`,
-        `talent_id=${draft.talentId} candidate=${JSON.stringify(draft.candidateName)}`,
-        `role_id=${draft.roleId} role=${JSON.stringify(draft.roleName)}`,
-        `kind=${draft.kind}`,
-        `request_json=${JSON.stringify(draft.requestContext)}`,
-        `subject_json=${JSON.stringify(draft.subject)}`,
-        `body_json=${JSON.stringify(draft.body)}`,
-      ].join("\n")
-    )
-    .join("\n---\n");
+  if (!summary) {
+    return [
+      "available=false",
+      "instruction=연락 요약을 불러오지 못했다. 연락이 없다고 추정하지 말고 자세한 내용은 list_contacts와 read_contact로 확인한다.",
+    ].join("\n");
+  }
+  return [
+    "available=true scope=workspace window=rolling_7_days",
+    `window_start=${formatPromptKstDateTime(summary.windowStart)} window_end=${formatPromptKstDateTime(summary.asOf)}`,
+    `recent_active_drafts=${summary.recentActiveDraftCount}`,
+    `recent_sent=${summary.recentSentCount}`,
+    `recent_contacts_with_response=${summary.recentResponseContactCount}`,
+    `all_time_sent=${summary.allSentCount}`,
+    `all_time_contacts_with_response=${summary.allResponseContactCount}`,
+    "count_unit=contact_records; response counts are contacts with at least one stored response, not individual reply messages.",
+    "instruction=자세한 연락 목록과 개별 연락의 현재 상태·메시지·답장은 list_contacts와 read_contact로 확인한다. 이 집계만으로 특정 연락이 없다고 판단하지 않는다.",
+  ].join("\n");
 }
 
 /**
@@ -415,6 +469,7 @@ function formatContactDrafts(
  * - company information
  * - every role in compact form
  * - the 20 most recent candidates visible in the organization pipeline
+ * - workspace contact counts for the rolling last seven days and all time
  * - recent conversation and older summaries
  *
  * Candidate profiles and large role pipelines are never injected here. The
@@ -461,6 +516,7 @@ export async function buildOrgAgentPromptContext(args: {
     availability,
     summaries,
     messages,
+    contactSummary,
     pendingUpdate,
     calibrationsText,
   ] = await Promise.all([
@@ -499,6 +555,20 @@ export async function buildOrgAgentPromptContext(args: {
     }),
     optionalContext({
       fallback: null,
+      label: "recent_contacts",
+      onError: () =>
+        notes.push(
+          "recent_contacts_unavailable=true; do not infer contact counts or absence; use list_contacts and read_contact for current facts"
+        ),
+      task: () =>
+        fetchOrgAgentContactSummary({
+          admin: args.admin,
+          user: args.user,
+          workspaceId,
+        }),
+    }),
+    optionalContext({
+      fallback: null,
       label: "pending_update",
       onError: () => {
         pendingUpdateUnavailable = true;
@@ -522,25 +592,6 @@ export async function buildOrgAgentPromptContext(args: {
         }),
     }),
   ]);
-  const recentlyPresentedContactIds = selectRecentlyPresentedContactDraftIds(
-    messages.messages
-  );
-  const contactDrafts = await optionalContext({
-    fallback: [],
-    label: "candidate_contact_drafts",
-    onError: () =>
-      notes.push(
-        "candidate_contact_drafts_unavailable=true; do not assume that no contact draft is awaiting review"
-      ),
-    task: () =>
-      fetchCompanyTalentContactDraftsForScope({
-        admin: args.admin as any,
-        contactIds: recentlyPresentedContactIds,
-        conversationId: args.conversation.id,
-        slackThreadId: scope.kind === "slack" ? scope.slackThreadId : null,
-        workspaceId,
-      }),
-  });
   const inProgressRoleCreationsText =
     scope.kind === "slack"
       ? await optionalContext({
@@ -637,7 +688,6 @@ export async function buildOrgAgentPromptContext(args: {
       workspaceRequestExists: Boolean(text(workspace.request)),
     }),
     completeRoleRequestIds: formattedRoles.completeRoleRequestIds,
-    contactDraftsText: formatContactDrafts(contactDrafts),
     contextNotesText: notes.join("\n") || "-",
     conversationText: formatConversation(
       messages,
@@ -648,6 +698,8 @@ export async function buildOrgAgentPromptContext(args: {
     pendingUpdateText: pendingUpdateUnavailable
       ? "pending_update_unavailable=true; do not assume that no update is awaiting confirmation"
       : formatPendingOrgAgentUpdateProposal(pendingUpdate),
+    recentToolContextText: formatRecentOrgAgentToolContext(messages.messages),
+    recentContactsText: formatOrgAgentContactSummary(contactSummary),
     recentRecommendationsText: formatRecentRecommendations(
       recentRecommendations
     ),

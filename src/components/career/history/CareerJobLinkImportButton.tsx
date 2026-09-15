@@ -363,10 +363,7 @@ export default function CareerJobLinkImportButton() {
         bodyClassName="min-h-0 overflow-y-auto"
         headerClassName="shrink-0"
         footerClassName="shrink-0"
-        title={t(
-          "career.history.job_link_import.title",
-          "지원할 공고 저장하기"
-        )}
+        title={t("career.history.job_link_import.title", "외부 공고 저장하기")}
         description={t(
           "career.history.job_link_import.description",
           "임의로 관심 공고를 추가할 수 있습니다. 여러 개를 한 번에 저장할 수 있습니다."

@@ -7,7 +7,7 @@ import {
 import { buildLongDoc } from "@/utils/textprocess";
 import { logger } from "@/utils/logger";
 import { CANDID_SYSTEM_PROMPT, SYSTEM_PROMPT } from "./chat_prompt";
-import { createXaiGeminiOpenAIReadableStream } from "./streamProviders";
+import { createLunaReadableStream } from "./streamProviders";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -89,8 +89,6 @@ export async function POST(req: NextRequest) {
       attachments?: AttachmentPayload[];
     };
 
-    const model = body.model ?? "grok-4-fast-reasoning";
-
     const messages = Array.isArray(body.messages) ? body.messages : [];
     if (!messages.length) {
       return NextResponse.json({ error: "Missing messages" }, { status: 400 });
@@ -142,8 +140,7 @@ ${information}
       content: m.content,
     }));
 
-    const { stream } = await createXaiGeminiOpenAIReadableStream({
-      model: model,
+    const { stream } = await createLunaReadableStream({
       systemPrompt: systemMsg,
       messages: baseMsgs,
       temperature: 0.5,

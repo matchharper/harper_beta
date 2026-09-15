@@ -1,5 +1,4 @@
 import type { GetServerSideProps } from "next";
-import { toIsoDate } from "@/lib/blog";
 import {
   getCompanyLanguageEntryUrl,
   getCompanyLocaleUrl,
@@ -13,6 +12,10 @@ export type SitemapEntry = {
   alternates?: Array<{
     href: string;
     hrefLang: "en" | "ko" | "x-default";
+  }>;
+  images?: Array<{
+    loc: string;
+    title?: string;
   }>;
   lastmod?: string;
 };
@@ -35,6 +38,14 @@ export function buildSitemapXml(entries: SitemapEntry[]): string {
           (alternate) =>
             `<xhtml:link rel="alternate" hreflang="${alternate.hrefLang}" href="${escapeXml(alternate.href)}"/>`
         ),
+        ...(entry.images ?? []).map(
+          (image) =>
+            `<image:image><image:loc>${escapeXml(image.loc)}</image:loc>${
+              image.title
+                ? `<image:title>${escapeXml(image.title)}</image:title>`
+                : ""
+            }</image:image>`
+        ),
         entry.lastmod ? `<lastmod>${entry.lastmod}</lastmod>` : "",
       ]
         .filter(Boolean)
@@ -44,7 +55,7 @@ export function buildSitemapXml(entries: SitemapEntry[]): string {
     })
     .join("");
 
-  return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">${urls}</urlset>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1" xmlns:xhtml="http://www.w3.org/1999/xhtml">${urls}</urlset>`;
 }
 
 export function buildStaticSitemapEntries(): SitemapEntry[] {
@@ -102,17 +113,41 @@ function toSitemapDateTime(value: string | null | undefined) {
 }
 
 export const getServerSideProps: GetServerSideProps = async ({ res }) => {
-  const [{ getAllPostsMeta }, { getPublicOfficialJobs }] = await Promise.all([
-    import("@/lib/blog.server"),
-    import("@/lib/officialJobs/server"),
+  const [{ getPublishedPostSitemapRows }, { getPublicOfficialJobs }] =
+    await Promise.all([
+      import("@/lib/blog.server"),
+      import("@/lib/officialJobs/server"),
+    ]);
+  const [posts, jobs] = await Promise.all([
+    getPublishedPostSitemapRows(),
+    getPublicOfficialJobs(),
   ]);
-  const posts = getAllPostsMeta();
-  const jobs = await getPublicOfficialJobs();
   const staticEntries = buildStaticSitemapEntries();
+  const newestPostUpdatedAt = posts.reduce<string | undefined>(
+    (newest, post) =>
+      !newest || Date.parse(post.updatedAt) > Date.parse(newest)
+        ? post.updatedAt
+        : newest,
+    undefined
+  );
+  const blogEntry = staticEntries.find(
+    (entry) => entry.loc === `${SITE_URL}/blog`
+  );
+  if (blogEntry) blogEntry.lastmod = toSitemapDateTime(newestPostUpdatedAt);
 
   const postEntries: SitemapEntry[] = posts.map((post) => ({
+    images: post.thumbnail
+      ? [
+          {
+            loc: /^https?:\/\//i.test(post.thumbnail)
+              ? post.thumbnail
+              : `${SITE_URL}${post.thumbnail.startsWith("/") ? "" : "/"}${post.thumbnail}`,
+            title: post.title,
+          },
+        ]
+      : undefined,
     loc: `${SITE_URL}/blog/${post.slug}`,
-    lastmod: toIsoDate(post.updatedAt),
+    lastmod: toSitemapDateTime(post.updatedAt),
   }));
 
   const jobEntries: SitemapEntry[] = jobs.map((job) => ({
@@ -127,6 +162,10 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
     ...jobEntries,
   ]);
   res.setHeader("Content-Type", "text/xml; charset=utf-8");
+  res.setHeader(
+    "Cache-Control",
+    "public, s-maxage=900, stale-while-revalidate=86400"
+  );
   res.write(sitemap);
   res.end();
 

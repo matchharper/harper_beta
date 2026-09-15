@@ -38,7 +38,6 @@ import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
 import {
   ORG_AGENT_CLAUDE_MODEL,
   ORG_AGENT_DEEPSEEK_FLASH_0731_MODEL,
-  ORG_AGENT_GROK_MODEL,
   ORG_AGENT_LUNA_MODEL,
   ORG_AGENT_TERRA_MODEL,
   isOrgAgentModelId,
@@ -129,7 +128,6 @@ function ModelSelector({
     { label: "Luna · GPT-5.6", value: ORG_AGENT_LUNA_MODEL },
     { label: "Terra · GPT-5.6", value: ORG_AGENT_TERRA_MODEL },
     { label: "Claude Sonnet 5", value: ORG_AGENT_CLAUDE_MODEL },
-    { label: "Grok 4.3", value: ORG_AGENT_GROK_MODEL },
   ];
 
   if (!visible) return null;

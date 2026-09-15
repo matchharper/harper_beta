@@ -160,6 +160,11 @@ recommendation도 읽을 수 있다. Slack은 `company_safe` audience를 사용�
 
 ## `list_contacts` / `read_contact`
 
+매 turn의 기본 context에는 `<recent_contacts>` 집계만 들어간다. 최근 7일의 현재
+유효한 초안·실제 발송·답변 도착 연락 수와 전체 기간의 실제 발송·답변 도착 연락
+수를 제공한다. 개별 초안의 ID·revision·제목·본문은 기본으로 넣지 않으며, 집계 조회가
+실패한 경우 0건으로 표시하지 않는다. 특정 연락의 존재나 내용은 아래 두 tool로 확인한다.
+
 `list_contacts`는 후보자를 먼저 열거하지 않고 workspace 전체의 회사 요청 연락,
 인터뷰 가능 시간 요청, 연결 소개 이메일, 연결·Role 변경 안내를 한 목록에서 찾는다.
 한 행은 이메일 한 통이 아니라 하나의 연락 흐름이다. 단, 독립된 이메일로 저장되지
@@ -184,7 +189,10 @@ offset을 늘려 계속 읽는다. `dateBasis=sent`는 실제 `sent_at`이 있�
 답변이나 일정 선택·확정 정보를 반환한다. 회사 요청 연락·인터뷰 요청·Role 변경 안내의
 `sender`는 Harper라는 일반 label이 아니라 해당 발송을 요청한 실제 회사 사용자다.
 시스템이 만든 연결 안내만 Harper를 발신자로 표시한다. Harper가 회사 사용자의 요청을
-후보자에게 대신 전달한 경우에는 그 의미를 tool result에 함께 설명한다.
+후보자에게 대신 전달한 경우에는 그 의미를 tool result에 함께 설명한다. 현재 유효한
+회사 요청 초안이면 수정·승인·취소에 필요한 exact contact ID와 revision도 LLM에만
+반환한다. 아직 변경 가능한 발송 대기·실패 연락도 즉시 발송·취소에 필요한 exact
+contact ID와 가능한 action을 함께 반환한다. 이 내부 값은 사용자 답변에는 노출하지 않는다.
 
 연락 흐름 하나에 회사 요청, Harper의 전달, 후보자 답변이 함께 있을 수 있으므로
 최상위 `direction`은 두 tool 모두 사용하지 않는다. 상세 결과가 각 메시지의 실제
@@ -451,6 +459,13 @@ proposal로 간다.
 정확한 internal Role 하나의 lifecycle을 바꾸는 단독·terminal tool이다. 사용자가
 명시적으로 상태 변경을 요청한 경우에만 호출한다.
 
+대상이 이미 등록된 Role이 아니라 web에서 작성 중인 draft이고 사용자가 그 정확한 역할의
+채용 시작 또는 등록을 명시적으로 요청했다면, 새 역할 생성 도구 대신
+`change_role_status(status=active)`를 사용한다. 이 경로는 draft의 필수 역할 정보와 확인된
+Slack 알림 채널·담당자를 다시 읽는다. 부족한 값이 있으면 상태를 바꾸지 않고 부족한 항목과
+선택 가능한 채널·멤버를 반환하며, 모두 충족되면 별도의 반복 확인 없이 역할 생성 전용
+completion 경로로 `active` 전환을 완료한다.
+
 | status | 사용자 표현 | 의미 |
 | --- | --- | --- |
 | `active` | 진행 | 채용을 진행하며 Harper가 주기적으로 적합한 인재를 연결한다. |
@@ -458,7 +473,10 @@ proposal로 간다.
 | `ended` | 종료 | Role 상태를 종료로 바꾸고 종료 시각을 기록해 추가 추천을 막는다. 후보자 기회 화면은 종료로 해석하며, 미응답 내부 추천은 이력 조회 시 보관된다. 이 변경 하나가 모든 기존 후보 stage와 회사 요청을 원자적으로 닫지는 않는다. |
 | `deleted` | 삭제 | 웹의 역할 삭제와 같이 `status=deleted`와 `is_expired=true`를 하나의 atomic RPC로 저장한다. Role은 활성 Roles와 후보자 기회 화면에서 제외되고 추가 추천이 멈추지만, 기존 후보 stage와 회사 요청은 자동으로 모두 종료되지 않는다. |
 
-argument는 exact `roleId`와 `status` 두 개다. `paused`를 기존 후보 프로세스까지
+필수 argument는 exact `roleId`와 `status` 두 개다. draft 활성화에서 사용자가 알림 채널이나
+담당자를 명시적으로 선택한 경우에만 optional `notificationChannelIds`, `assigneeUserId`를
+함께 보낼 수 있다. 이 값은 role-creation confirmation metadata와 실제 알림 설정에 먼저
+저장된 뒤 완료 조건을 다시 검사한다. `paused`를 기존 후보 프로세스까지
 끝내는 의미로 사용하거나, 단순히 새 추천만 잠시 멈추려는 요청에 `ended`를 사용하면
 안 된다. `deleted`는 사용자가 정확한 Role을 명시적으로 삭제해 달라고 요청한 경우에만 사용하고,
 종료 요청을 삭제로 해석하지 않는다. 상태 변경은 기존 atomic company-data RPC와 event 기록 경로를 공유하지만,
@@ -487,7 +505,7 @@ argument는 exact `roleId`와 `status` 두 개다. `paused`를 기존 후보 프
 - Slack 전용 override: `SLACK_ORG_AGENT_MODEL` (`ORG_AGENT_MODEL`보다 우선)
 - 웹 내부 model selector는 요청마다 model을 지정하며 공통 기본값보다 우선한다.
 - 허용 model: `deepseek/deepseek-v4-flash-0731`, `gpt-5.6-luna`,
-  `gpt-5.6-terra`, `claude-sonnet-5`, `grok-4.3`
+  `gpt-5.6-terra`, `claude-sonnet-5`
 - DeepSeek V4 Flash 0731은 OpenRouter Chat Completions endpoint와
   `OPENROUTER_API_KEY`를 사용한다. OpenRouter tool turn의 reasoning state는
   `reasoning_details`로 이어서 전달한다.

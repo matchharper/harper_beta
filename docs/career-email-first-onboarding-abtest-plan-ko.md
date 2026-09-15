@@ -448,7 +448,7 @@ profile visibility는 이메일 필수 정보에서 제외한다. 실제 회사 
 
 ### 파싱 방식
 
-현재 email-first 답장 파싱은 grok 기반 JSON LLM extraction으로 처리한다. 이름/지역/기회 타입/링크/답장 문안을 한 번에 뽑고, 이름/지역/기회 타입 regex parser는 사용하지 않는다.
+현재 email-first 답장 파싱은 GPT-5.6 Luna `xhigh` 기반 JSON LLM extraction으로 처리한다. 이름/지역/기회 타입/링크/답장 문안을 한 번에 뽑고, 이름/지역/기회 타입 regex parser는 사용하지 않는다.
 
 새 helper 제안:
 
@@ -478,7 +478,7 @@ profile visibility는 이메일 필수 정보에서 제외한다. 실제 회사 
 - 기회 타입은 `full_time`, `fractional`, `advisor`만 저장한다.
 - “아무거나 괜찮다”, “전부 열려있다”, “open to anything”은 세 타입 모두 저장한다.
 - “풀타임은 아니고 파트타임/자문만”, “not full-time, only advisory” 같은 negation을 테스트 케이스에 포함한다.
-- model은 `grok-4.3`을 사용한다.
+- model은 `gpt-5.6-luna`를 `xhigh` reasoning으로 사용한다.
 - LLM output shape는 `{"links":[],"location":null,"name":null,"engagementType":[],"reply":""}`를 기준으로 한다.
 
 ### 부족한 정보가 있을 때 답장
@@ -621,7 +621,7 @@ Harper
 - review task는 profile ingestion을 먼저 실행하고, 성공하면 `metadata.emailFirstReplyDraft`의 `*LINK*`를 실제 signed bridge URL로 치환해 보낸다.
 - profile ingestion이 충분한 profile signal을 저장하지 못하면 CTA 대신 `review_onboarding.profile_ingestion_failed_*` fallback 메일을 보내고 lead step을 `awaiting_profile`로 되돌린다.
 - ingestion 실패 fallback과 성공 CTA는 Resend idempotency key를 분리해, 이후 유저가 자료를 다시 보내도 최종 CTA를 다시 발송할 수 있게 한다.
-- 저장된 draft가 없을 때만 최종 CTA 메일을 grok으로 다시 작성한다. 이때 LLM payload에는 `displayName`, `continueUrl`, `engagementTypesContext`만 넣는다.
+- 저장된 draft가 없을 때만 최종 CTA 메일을 GPT-5.6 Luna `xhigh`로 다시 작성한다. 이때 LLM payload에는 `displayName`, `continueUrl`, `engagementTypesContext`만 넣는다.
 - `fallbackPoint`, `profileVisibilityContext`, `requiredCTA`, 그리고 raw `profile`, `experiences`, `educations`, `extras`는 만들지도 않고 넣지도 않는다.
 - LLM이 링크를 빼먹지 않도록 JSON 필드가 아니라 system prompt에서 `continueUrl`을 정확히 포함하도록 지시한다.
 - LLM 실패 시 fallback body도 위 구조의 locale별 copy를 사용한다.
@@ -746,7 +746,7 @@ claim 후에는 `career_email_onboarding_leads`가 아래처럼 업데이트되�
 6. worker 파싱 강화
    - `cfg` 전달
    - 이름/지역/기회 타입/profile material JSON extraction
-   - grok JSON extractor
+   - GPT-5.6 Luna `xhigh` JSON extractor
    - `talent_users`, `talent_setting`, lead metadata 저장
    - LLM reply draft 저장 및 fallback missing-fields localized reply 추가
 

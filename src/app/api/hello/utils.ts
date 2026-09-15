@@ -1,5 +1,6 @@
 // slack.ts
-import { xaiInference } from "@/lib/llm/llm";
+import { lunaInference } from "@/lib/llm/llm";
+import { GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import { IncomingWebhook } from "@slack/webhook";
 import { postUserFeedbackSlackMessage } from "@/lib/userFeedbackSlack";
 
@@ -78,8 +79,8 @@ export const makeMessage = async (
   
   `;
   // "message": "지금 결과도 출발점으로는 괜찮은데, 수가 좀 적어요. 더 깊게 찾아볼까요?",
-  const response = await xaiInference(
-    "grok-4-fast-reasoning",
+  const response = await lunaInference(
+    GPT_56_LUNA_MODEL,
     "You are a helpful assistant",
     prompt
   );

@@ -4,6 +4,7 @@ import {
   TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION,
   TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NEXT_STEPS,
   TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP,
+  TALENT_MESSAGE_TYPE_ONBOARDING_INITIAL_SEARCH_STARTED,
   TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP,
 } from "@/lib/talentOnboarding/onboarding";
 import {
@@ -89,8 +90,34 @@ export async function fetchOnboardingCompletionNextStepsMessage(args: {
 
   if (existingError) {
     throw new Error(
+      existingError.message ?? "Failed to read onboarding completion next steps"
+    );
+  }
+
+  return existing ? (existing as TalentMessageRow) : null;
+}
+
+export async function fetchOnboardingInitialSearchStartedMessage(args: {
+  admin: TalentAdminClient;
+  conversationId: string;
+  userId: string;
+}) {
+  const { data: existing, error: existingError } = await args.admin
+    .from("talent_messages")
+    .select(
+      "id, conversation_id, user_id, role, content, message_type, thinking_logs, created_at"
+    )
+    .eq("conversation_id", args.conversationId)
+    .eq("user_id", args.userId)
+    .eq("message_type", TALENT_MESSAGE_TYPE_ONBOARDING_INITIAL_SEARCH_STARTED)
+    .order("id", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingError) {
+    throw new Error(
       existingError.message ??
-        "Failed to read onboarding completion next steps"
+        "Failed to read onboarding initial search started message"
     );
   }
 
@@ -145,6 +172,59 @@ export async function insertOnboardingCompletionWrapupMessage(args: {
     });
     throw new Error(
       error?.message ?? "Failed to insert onboarding completion wrap-up"
+    );
+  }
+
+  return data as TalentMessageRow;
+}
+
+export async function insertOnboardingInitialSearchStartedMessage(args: {
+  admin: TalentAdminClient;
+  content: string;
+  conversationId: string;
+  isMobile?: boolean | null;
+  userId: string;
+}) {
+  const content = stripPostgresUnsafeChars(args.content).trim();
+  if (!content) {
+    throw new Error("Onboarding initial search started content is required");
+  }
+
+  const existing = await fetchOnboardingInitialSearchStartedMessage(args);
+  if (existing) return existing;
+
+  const { data, error } = await args.admin
+    .from("talent_messages")
+    .insert(
+      withIsMobile(
+        {
+          conversation_id: args.conversationId,
+          content,
+          message_type: TALENT_MESSAGE_TYPE_ONBOARDING_INITIAL_SEARCH_STARTED,
+          role: "assistant",
+          user_id: args.userId,
+        },
+        args.isMobile
+      )
+    )
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    await notifyUnsupportedUnicodeEscapeError({
+      conversationId: args.conversationId,
+      error,
+      metadata: {
+        contentLength: content.length,
+        messageType: TALENT_MESSAGE_TYPE_ONBOARDING_INITIAL_SEARCH_STARTED,
+      },
+      route: "talentOnboardingMessageStore",
+      stage: "talent_messages.insert:onboarding_initial_search_started",
+      userId: args.userId,
+    });
+    throw new Error(
+      error?.message ??
+        "Failed to insert onboarding initial search started message"
     );
   }
 

@@ -455,8 +455,8 @@ Approved answer guidance: ...
 
 구현할 때 다음 충돌도 함께 정리해야 한다.
 
-1. `src/lib/org/agent/prompts.ts`의 연결 대기 설명에는 Harper 팀의 마지막 확인이라는 내부 사실이 들어 있다. 새 Core의 비공개 원칙과 충돌하므로 LLM에 필요한 상태 의미만 남기고 내부 절차 표현은 제거해야 한다.
-2. `src/lib/org/slackMessages.ts`의 Role 등록 완료 문구도 후보자 관심·연결 의사 뒤의 Harper 팀 마지막 확인을 회사에 직접 노출한다. 동일하게 company-facing 표현에서 빼야 한다.
+1. `src/lib/org/agent/prompts.ts`의 연결 대기 설명은 후보자의 대화 의향 확인과 회사 소개라는 외부 상태 의미만 남기고 내부 운영 절차를 드러내지 않아야 한다.
+2. `src/lib/org/slackMessages.ts`의 Role 등록 완료 문구도 후보자 관심·연결 의사 뒤의 내부 운영 절차를 회사에 직접 노출하지 않아야 한다.
 3. company-facing Documents는 연결 대기 5명을 고정값으로 안내하지만, 실제 recurring matching은 Role별 `max_pending_talents`를 읽는다. 제품 기준을 하나로 정한 뒤 문서와 답변을 맞춰야 한다.
 4. repository에는 과거 구독 플랜과 `/pricing` 관련 코드가 남아 있다. 이 정보가 현재 company workspace의 가격 근거로 검색되거나 prompt에 들어가면 안 된다.
 5. 현재 테이블에는 audience 컬럼이 없고, 기존 Career 답변 11개 중 일부는 현재 동작 검증이 필요하다. 컬럼을 추가하고 값을 채우더라도 Career에서는 내용 검토가 끝날 때까지 자동 lookup이나 tool lookup을 사용하지 않는다.

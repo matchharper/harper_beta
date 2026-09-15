@@ -76,6 +76,9 @@ import {
 } from "@/lib/chat/attachmentClient";
 import { showToast } from "@/components/toast/toast";
 import { MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES } from "@/lib/talentOnboarding/documentUploadLimits";
+import CareerInitialOpportunitySearchStatus, {
+  useInitialOpportunitySearchStatus,
+} from "@/components/career/CareerInitialOpportunitySearchStatus";
 
 const RECENT_CHAT_HISTORY_WINDOW_MS = 60 * 60 * 1000;
 const CAREER_COMPOSER_MAX_ROWS = 4;
@@ -143,6 +146,7 @@ const CareerComposerSection = ({
     onStartConversationStarter,
     onOpenHistoryOpportunity,
     onForceCompleteOnboarding,
+    opportunityRun,
   } = useCareerChatPanelContext();
 
   const initialDraftText = initialChatDraft?.trim() ?? "";
@@ -202,6 +206,8 @@ const CareerComposerSection = ({
   const isStartingCall =
     (onboardingBeginPending && !callWrapUpPending) || callStartPending;
   const isWorkflowPending = isStartingCall || callWrapUpPending;
+  const initialOpportunitySearchStatus =
+    useInitialOpportunitySearchStatus(opportunityRun);
 
   const isTextInputLocked =
     !user ||
@@ -1228,6 +1234,12 @@ const CareerComposerSection = ({
       className="shrink-0 px-4 pb-3 pt-2 md:px-5 md:pb-6 md:pt-0"
     >
       <div className="mx-auto w-full max-w-[1120px]">
+        {initialOpportunitySearchStatus ? (
+          <CareerInitialOpportunitySearchStatus
+            status={initialOpportunitySearchStatus}
+            variant="composer"
+          />
+        ) : null}
         <div
           className={cn(
             "transition-all duration-200",

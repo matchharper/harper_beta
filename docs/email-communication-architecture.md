@@ -96,7 +96,7 @@ PYTHONPATH=. ../myenv/bin/python email_reply_worker.py once
 - `RESEND_API_KEY`
 - `EMAIL_REPLY_FROM_EMAIL` 또는 `RESEND_FROM_EMAIL`
 - `EMAIL_REPLY_DOMAIN`, 권장값 `reply.matchharper.com`
-- `ANTHROPIC_API_KEY`, `GROK_API_KEY`, 또는 `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, 또는 `OPENAI_API_KEY`
 
 튜닝 env:
 
@@ -114,7 +114,7 @@ Reply alias domain은 `EMAIL_REPLY_DOMAIN`을 사용하며 기본값은 `reply.m
 모델 provider는 `EMAIL_REPLY_MODEL` prefix로 결정한다.
 
 - `claude-*`: Anthropic, `ANTHROPIC_API_KEY` 사용
-- `grok-*`: xAI, `GROK_API_KEY` 사용
+- `grok-*`: 지원하지 않으며 `gpt-5.6-luna` 사용
 - `/`가 포함된 OpenRouter catalog slug 또는 `openrouter:` prefix: OpenRouter, `OPENROUTER_API_KEY` 사용
 - 그 외: OpenAI, `OPENAI_API_KEY` 사용
 

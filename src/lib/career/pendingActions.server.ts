@@ -3,6 +3,7 @@ import "server-only";
 import {
   createCompanyTalentResumeUploadToken,
   fetchActiveCompanyTalentRequest,
+  getCompanyTalentRequestLogoUrl,
 } from "@/lib/companyTalentRequests/server";
 import type {
   CareerComposerPendingAction,
@@ -11,6 +12,7 @@ import type {
   CareerOpenablePendingActionReference,
 } from "@/lib/career/pendingActions";
 import { careerT } from "@/lib/career/translatedCareerMessage";
+import { isInternalRoleCandidateDecisionAvailable } from "@/lib/career/internalOpportunityDecision";
 import { resolveTalentPendingMeetingPath } from "@/lib/meetings/talentPendingMeeting.server";
 import { fetchTalentOpportunityHistoryByIds } from "@/lib/talentOpportunity";
 import { fetchActiveInternalFitHoldQuestion } from "@/lib/talentOnboarding/internalFitHoldQuestion";
@@ -57,6 +59,7 @@ export async function resolveCareerPendingAction(args: {
       180
     );
     return {
+      companyLogoUrl: getCompanyTalentRequestLogoUrl(request),
       companyName,
       expiresAt: null,
       id: request.id,
@@ -116,7 +119,7 @@ export async function resolveCareerPendingAction(args: {
     opportunity.feedback !== null ||
     opportunity.savedStage === "hidden" ||
     opportunity.isExpired ||
-    opportunity.status.trim().toLowerCase() !== "active"
+    !isInternalRoleCandidateDecisionAvailable(opportunity.status)
   ) {
     return null;
   }

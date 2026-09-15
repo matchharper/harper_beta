@@ -148,6 +148,7 @@ export type RunCareerChatTurnArgs = {
   shouldInsertAssistantMessage?: () => Promise<boolean>;
   skipConversationWrites?: boolean;
   suppressOnboarding?: boolean;
+  timeZone?: string | null;
   transformAssistantTextBeforeInsert?: (content: string) => string;
   usageLabel?: string;
   userId: string;
@@ -680,6 +681,8 @@ export async function runCareerChatTurn(
       role: item.role as "user" | "assistant",
       content: formatTalentMessageContentForLlmPrompt(item, {
         includeCreatedAt: item.message_type !== "conversation_summary",
+        preferredLocale: responseLocale,
+        timeZone: args.timeZone,
       }),
     }))
     .filter((item) => item.content.trim().length > 0);
@@ -774,6 +777,7 @@ export async function runCareerChatTurn(
       recentActivitySummaries,
       recentRecommendedOpportunitiesText,
       structuredProfileText,
+      timeZone: args.timeZone,
       toolNames: toolSelection.toolNames,
     });
   const systemBlocks = promptBlocks;
@@ -1411,11 +1415,14 @@ export async function runCareerChatTurn(
           conversationId,
           isMobile,
           latestUserMessageId: insertedUserMessage.id,
+          opportunityRunId: completedOpportunityRun?.id ?? null,
           userId,
         })
       : null;
   const insertedCompletionWrapupMessage =
     completionMessages?.wrapupMessage ?? null;
+  const insertedInitialSearchStartedMessage =
+    completionMessages?.initialSearchStartedMessage ?? null;
   const insertedCompletionNextStepsMessage =
     completionMessages?.nextStepsMessage ?? null;
 
@@ -1453,6 +1460,15 @@ export async function runCareerChatTurn(
       },
       insertedCompletionWrapupMessage
         ? toTalentMessageResponse(insertedCompletionWrapupMessage)
+        : null,
+      insertedInitialSearchStartedMessage
+        ? {
+            ...toTalentMessageResponse(insertedInitialSearchStartedMessage),
+            recommendationSearchRelation: "accepted" as const,
+            recommendationSearchRun: serializeOpportunityRun(
+              completedOpportunityRun
+            ),
+          }
         : null,
       insertedCompletionNextStepsMessage
         ? toTalentMessageResponse(insertedCompletionNextStepsMessage)

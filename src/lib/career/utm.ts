@@ -6,11 +6,23 @@ export const CAREER_UTM_SOURCE_MAX_LENGTH = 80;
 export const CAREER_UTM_PARAM_MAX_LENGTH = 120;
 export const CAREER_UTM_DESCRIPTION_MAX_LENGTH = 500;
 export const CAREER_UTM_SOURCE_STORAGE_KEY = "harper_career_utm_source_v1";
+export const CAREER_UTM_EXPLICIT_SOURCE_STORAGE_KEY =
+  "harper_career_explicit_utm_source_v1";
+export const CAREER_UTM_EXPLICIT_SOURCE_AT_STORAGE_KEY =
+  "harper_career_explicit_utm_source_at_v1";
 export const CAREER_UTM_LOGIN_LOGGED_STORAGE_PREFIX =
   "harper_career_utm_login_logged_v1";
+export const CAREER_UTM_PARAMS_LOGGED_STORAGE_PREFIX =
+  "harper_career_utm_params_logged_v1";
 export const CAREER_LANDING_LOCAL_ID_STORAGE_KEY =
   "harper_career_landing_id_v1";
+export const CAREER_LANDING_LAST_ABTEST_TYPE_KEY =
+  "harper_career_landing_last_abtest_type";
+export const CAREER_LANDING_LAST_VISIT_AT_KEY =
+  "harper_career_landing_last_visit_at";
+export const CAREER_LANDING_SESSION_GAP_MS = 30 * 60 * 1000;
 export const CAREER_LANDING_ABTEST_TYPE = "career_landing_v1";
+export const CAREER_PUBLIC_UTM_ABTEST_TYPE = "career_public_utm_v1";
 export const CAREER_LANDING_HERO_COPY_ABTEST_COOKIE =
   "harper_career_landing_hero_copy_ab_v1";
 export const CAREER_LANDING_HERO_COPY_ABTEST_TYPE_A =
@@ -61,6 +73,68 @@ export function normalizeCareerUtmDescription(value: unknown) {
 
 export function resolveCareerUtmSource(value: unknown) {
   return normalizeCareerUtmSource(value) ?? CAREER_UTM_DEFAULT_SOURCE;
+}
+
+export function resolveActiveCareerExplicitUtmSource(
+  source: unknown,
+  capturedAt: unknown,
+  now = Date.now()
+) {
+  const normalizedSource = normalizeCareerUtmSource(source);
+  const normalizedCapturedAt = Number(capturedAt);
+  const elapsed = now - normalizedCapturedAt;
+
+  if (
+    !normalizedSource ||
+    !Number.isFinite(normalizedCapturedAt) ||
+    elapsed < 0 ||
+    elapsed >= CAREER_LANDING_SESSION_GAP_MS
+  ) {
+    return null;
+  }
+
+  return normalizedSource;
+}
+
+export function readActiveCareerExplicitUtmSourceFromStorage(
+  now = Date.now()
+) {
+  if (typeof window === "undefined") return null;
+
+  try {
+    return resolveActiveCareerExplicitUtmSource(
+      window.localStorage.getItem(CAREER_UTM_EXPLICIT_SOURCE_STORAGE_KEY),
+      window.localStorage.getItem(CAREER_UTM_EXPLICIT_SOURCE_AT_STORAGE_KEY),
+      now
+    );
+  } catch {
+    return null;
+  }
+}
+
+export function persistCareerExplicitUtmSource(
+  source: unknown,
+  capturedAt = Date.now()
+) {
+  if (typeof window === "undefined") return null;
+
+  const normalizedSource = normalizeCareerUtmSource(source);
+  if (!normalizedSource) return null;
+
+  try {
+    window.localStorage.setItem(
+      CAREER_UTM_EXPLICIT_SOURCE_STORAGE_KEY,
+      normalizedSource
+    );
+    window.localStorage.setItem(
+      CAREER_UTM_EXPLICIT_SOURCE_AT_STORAGE_KEY,
+      String(capturedAt)
+    );
+  } catch {
+    return null;
+  }
+
+  return normalizedSource;
 }
 
 function getFirstQueryValue(value: QueryValue) {

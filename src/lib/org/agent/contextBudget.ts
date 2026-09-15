@@ -35,11 +35,12 @@ type RetainedMoreDataState = {
 type OrgAgentContextBudgetShape = {
   calibrationsText?: string;
   companyText: string;
-  contactDraftsText?: string;
   contextNotesText: string;
   conversationText: string;
   inProgressRoleCreationsText?: string;
   pendingUpdateText?: string;
+  recentToolContextText?: string;
+  recentContactsText: string;
   recentRecommendationsText: string;
   retainedDataText?: string;
   retainedMoreData?: RetainedMoreDataState | null;
@@ -97,13 +98,14 @@ export function enforceOrgAgentContextBudget<
     [
       mutable.companyText,
       mutable.calibrationsText,
-      mutable.contactDraftsText,
+      mutable.recentContactsText,
       mutable.rolesText,
       mutable.recentRecommendationsText,
       mutable.summariesText,
       mutable.conversationText,
       mutable.inProgressRoleCreationsText,
       mutable.pendingUpdateText,
+      mutable.recentToolContextText,
       mutable.retainedDataText,
       mutable.contextNotesText,
     ].reduce((sum, value) => sum + String(value ?? "").length, 0);

@@ -76,7 +76,11 @@ const getProfileSectionItems = (
   },
 ];
 
-const CareerProfileWorkspace = () => {
+const CareerProfileWorkspace = ({
+  onDetailOpen,
+}: {
+  onDetailOpen?: () => void;
+}) => {
   const t = useCareerT();
   const router = useRouter();
   const logCareerEvent = useCareerLogEvent();
@@ -123,6 +127,10 @@ const CareerProfileWorkspace = () => {
     typeof router.query.callNoteId === "string"
       ? router.query.callNoteId.trim()
       : null;
+
+  useEffect(() => {
+    if (requestedCallNoteId) onDetailOpen?.();
+  }, [onDetailOpen, requestedCallNoteId]);
 
   useEffect(() => {
     if (!router.isReady || requestedProfileSection !== "connections") return;

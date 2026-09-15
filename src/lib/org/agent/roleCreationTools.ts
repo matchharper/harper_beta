@@ -22,6 +22,12 @@ import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { OrgHttpError, updateOrgRoleRequestOnly } from "@/lib/org/server";
 import { parseOrgRoleCriteria } from "@/lib/org/roleCriteria";
 import {
+  ORG_ROLE_EMPLOYMENT_TYPE_VALUES,
+  ORG_ROLE_WORK_MODE_VALUES,
+  parseOrgRoleEmploymentType,
+  parseOrgRoleWorkMode,
+} from "@/lib/org/roleFieldValues";
+import {
   formatOtherRoleCalibrationContext,
   generateRoleHiringBriefCalibration,
 } from "@/lib/org/agent/roleCalibration";
@@ -111,13 +117,13 @@ export const ROLE_CREATION_TOOLS = [
           locationText: { type: ["string", "null"] },
           workMode: {
             type: ["string", "null"],
-            enum: ["onsite", "hybrid", "remote", null],
+            enum: [...ORG_ROLE_WORK_MODE_VALUES, null],
           },
           employmentTypes: {
             type: "array",
             items: {
               type: "string",
-              enum: ["full_time", "part_time", "internship", "contract"],
+              enum: ORG_ROLE_EMPLOYMENT_TYPE_VALUES,
             },
             uniqueItems: true,
           },
@@ -512,25 +518,25 @@ export async function executeRoleCreationTool(args: {
     ] as const;
     assertOnlyKeys(args.input, allowedKeys, args.name);
     requireOneInput(args.input, allowedKeys, args.name);
-    const workMode = optionalText(args.input.workMode);
+    const rawWorkMode = optionalText(args.input.workMode);
+    const workMode =
+      rawWorkMode === null || rawWorkMode === undefined
+        ? rawWorkMode
+        : parseOrgRoleWorkMode(rawWorkMode);
     if (
       Object.prototype.hasOwnProperty.call(args.input, "workMode") &&
-      workMode !== null &&
-      workMode !== undefined &&
-      !["onsite", "hybrid", "remote"].includes(workMode)
+      rawWorkMode !== null &&
+      rawWorkMode !== undefined &&
+      workMode === null
     ) {
       throw new OrgHttpError(400, "Unknown work mode");
     }
-    const employmentTypes = stringList(args.input.employmentTypes);
-    if (
-      Object.prototype.hasOwnProperty.call(args.input, "employmentTypes") &&
-      employmentTypes.some(
-        (value) =>
-          !["full_time", "part_time", "internship", "contract"].includes(value)
-      )
-    ) {
-      throw new OrgHttpError(400, "Unknown employment type");
-    }
+    const rawEmploymentTypes = stringList(args.input.employmentTypes);
+    const employmentTypes = rawEmploymentTypes.map((value) => {
+      const normalized = parseOrgRoleEmploymentType(value);
+      if (!normalized) throw new OrgHttpError(400, "Unknown employment type");
+      return normalized;
+    });
     const state = await updateRoleCreationDraft({
       actorLabel: args.actorLabel,
       allowCompletedRole: args.allowCompletedRole,

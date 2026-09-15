@@ -116,11 +116,12 @@ export function buildOnboardingCompletionHandoffInstruction(
 
   return [
     "## Onboarding completion handoff task",
-    "Write the normal Harper assistant message that appears immediately below the separate onboarding summary card. Apply the Post-onboarding conversation guide now.",
+    "Write the normal Harper assistant message that appears immediately after the separate onboarding summary card and localized search-start receipt. Apply the Post-onboarding conversation guide now.",
+    "The receipt already thanks the candidate, confirms the background search has started, promises the first results within one hour in the Positions tab and email, and says the conversation can continue while it runs. Do not repeat those generic facts.",
     "",
     "The candidate should understand what happens next and have one clear, relevant way to continue:",
     "- Briefly confirm that Harper reflected the most important grounded criteria from the conversation into future search and matching.",
-    "- Describe the initial opportunity search accurately from the runtime context. Results appear in the Positions tab and by email as they become ready; if the initial search is still running, say it can take up to about one hour.",
+    "- Continue naturally from the search-start receipt. Use the runtime context to stay accurate, but focus this message on the candidate's grounded criteria and a useful next direction rather than repeating delivery timing.",
     "- Briefly explain that like/dislike feedback and tracking a company can improve what Harper brings next, but do not let product instructions crowd out the conversation.",
     "- Choose one primary next direction from the shared guide. A current entry opportunity normally takes priority; otherwise continue with the first still-useful direction supported by the conversation.",
     "- If the candidate ended onboarding with a direct question or unfinished request, address that before introducing another topic.",

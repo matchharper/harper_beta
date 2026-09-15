@@ -58,6 +58,7 @@ from company_role_recurring_matching import (
     validate_context_structure,
     validate_reevaluation_skips,
     validate_read_only_sql,
+    validate_post_calibration_notice,
     validate_retrieval_rows,
     validate_semantic_neutral_retrieval_sql,
     workflow_schema_status,
@@ -342,6 +343,10 @@ class SchemaPreflightTests(unittest.TestCase):
                     "public.enqueue_scheduled_company_runs_v1(uuid,timestamp with time zone)",
                     "public.claim_company_context_run_v1(text,uuid)",
                     "public.claim_scheduled_company_run_v1(text,uuid)",
+                    "public.enqueue_post_calibration_company_context_run_v1(uuid)",
+                    "public.claim_post_calibration_company_context_run_v1(text)",
+                    "public.retry_post_calibration_company_context_run_v1(uuid,timestamp with time zone)",
+                    "public.record_post_calibration_company_notice_v1(uuid,text,bigint,text,text,text,text)",
                     "public.finish_company_context_run_v1(uuid,text,jsonb)",
                 },
                 {
@@ -355,6 +360,8 @@ class SchemaPreflightTests(unittest.TestCase):
                     "company_internal_roles_enqueue_context_run_v1",
                     "company_internal_roles_cancel_context_run_v1",
                     "company_roles_track_status_and_enqueue_context_v1",
+                    "company_context_runs_enqueue_waiting_post_calibration_v1",
+                    "company_context_runs_notify_post_calibration_v1",
                 },
             )
         )
@@ -365,6 +372,15 @@ class SchemaPreflightTests(unittest.TestCase):
 
 
 class RoleScopeContractTests(unittest.TestCase):
+    def test_post_calibration_notice_keeps_llm_authored_text_intact(self) -> None:
+        message = "ML Engineer에 맞는 인재풀 검토를 시작했어요.\n\n• 필수 기술의 경계를 알려주세요."
+        self.assertEqual(
+            validate_post_calibration_notice({"message": message}),
+            {"message": message},
+        )
+        with self.assertRaises(ValueError):
+            validate_post_calibration_notice({"message": ""})
+
     def test_context_instructions_keep_only_decision_useful_information(self) -> None:
         for required in (
             "검토 이력이나 사건 원장이 아니라",

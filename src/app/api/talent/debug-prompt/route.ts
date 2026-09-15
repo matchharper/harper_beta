@@ -9,6 +9,7 @@ import {
 } from "@/lib/career/debugPrompts";
 import { sanitizeSingleLineDbText } from "@/lib/textSanitization";
 import { canUseCareerDevControls } from "@/lib/internalAccess";
+import { resolveCareerRequestTimeZone } from "@/lib/career/requestTimeZone";
 
 export const runtime = "nodejs";
 
@@ -18,6 +19,7 @@ type Body = {
   internalCallRequestId?: string;
   kind?: string;
   locale?: string;
+  timeZone?: string;
 };
 
 function canUseCareerPromptDebug(user: User) {
@@ -65,6 +67,7 @@ export async function POST(req: NextRequest) {
       conversationStarterId: optionalTrimmed(body.conversationStarterId),
       preferredLocale:
         optionalTrimmed(body.locale) ?? req.cookies.get("NEXT_LOCALE")?.value,
+      timeZone: resolveCareerRequestTimeZone(req, body.timeZone),
       userId: user.id,
     };
 

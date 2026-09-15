@@ -23,6 +23,7 @@ language plpgsql
 security definer
 set search_path = public, pg_temp
 as $$
+#variable_conflict use_column
 begin
   if p_batch_run_id is null or p_scheduled_for is null then
     raise exception 'batch_run_id and scheduled_for are required';

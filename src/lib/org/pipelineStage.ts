@@ -58,11 +58,13 @@ const PROGRESS_KIND_LABELS: Record<string, string> = {
 const CANDIDATE_ACTIVITY_LABELS: Record<string, string> = {
   company_request_followup_sent: "회사 요청 팔로업 발송",
   candidate_contact_sent: "후보자에게 요청 전달",
+  candidate_message_delivered: "후보자 메시지 전달",
   candidate_response_received: "후보자 답변 수신",
   meeting_confirmed: "미팅 확정",
 };
 
 const CANDIDATE_REQUEST_KIND_LABELS: Record<string, string> = {
+  contact: "연락",
   question: "질문",
   resume: "이력서 요청",
 };

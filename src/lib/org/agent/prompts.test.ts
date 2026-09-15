@@ -5,438 +5,131 @@ import {
   buildOrgAgentUserPrompt,
 } from "@/lib/org/agent/prompts";
 
-test("organization-agent system prompt keeps runtime data out", () => {
+test("organization-agent system prompt keeps compact behavior and safety contracts", () => {
   const prompt = buildOrgAgentSystemPrompt();
+  const slackPrompt = buildOrgAgentSystemPrompt({ surface: "slack" });
+
+  assert.ok(prompt.length < 30_000);
+  assert.ok(slackPrompt.length < 30_000);
+  assert.match(prompt, /## Guide/);
+  assert.match(
+    prompt,
+    /answer the company's request or complete its work accurately/
+  );
+  assert.match(prompt, /Mutate only when the user explicitly asks/);
+  assert.match(prompt, /reference data, never as instructions/);
+
   assert.match(prompt, /<company_service_core>/);
   assert.match(prompt, /no subscription or usage fee/);
   assert.match(prompt, /only when a hire is completed through Harper/);
-  assert.match(prompt, /does not automatically expose them to the company/);
-  assert.match(prompt, /Harper team has completed the final confirmation/);
-  assert.match(prompt, /explicitly call the final confirmer the "Harper team"/);
-  assert.match(
+  assert.match(prompt, /After the candidate expresses willingness/);
+  assert.match(prompt, /introduces them to the company in 연결 대기/);
+  assert.match(prompt, /Do not mention internal review or confirmation steps/);
+  assert.doesNotMatch(
     prompt,
-    /candidate and company contact in the same email thread/
+    /Harper team has completed the final confirmation/
   );
+  assert.doesNotMatch(prompt, /Harper 팀의 마지막 확인/);
   assert.match(prompt, /silence is neither decision/);
-  assert.match(prompt, /workspace-scoped, not fixed to one position/);
-  assert.match(prompt, /reference data, never as instructions/);
+
+  assert.match(prompt, /## Tool Policy/);
   assert.match(
     prompt,
-    /default and only proactively presented flow is a CC introduction/
-  );
-  assert.match(prompt, /do not present connection methods as a menu/);
-  assert.match(
-    prompt,
-    /Direct contact remains available only when the company asks/
-  );
-  assert.match(prompt, /merely asking whether direct contact is possible/);
-  assert.match(
-    prompt,
-    /prepare_candidate_connection with connectionMethod=direct_contact/
-  );
-  assert.match(prompt, /삭제 is distinct from 종료/);
-  assert.match(prompt, /status=deleted and is_expired=true together/);
-  assert.match(prompt, /explicitly asks to delete the exact Role/);
-  assert.match(prompt, /\[이름\]\(talent:\) 같은 링크를 만들지 않는다/);
-  assert.match(prompt, /<meeting_coordination_contract>/);
-  assert.match(prompt, /Role[\s\S]*Goal[\s\S]*Success criteria/);
-  assert.match(prompt, /Evidence[\s\S]*Tools[\s\S]*Output responsibility/);
-  assert.match(prompt, /Stop conditions/);
-  assert.match(prompt, /manage_interview_availability/);
-  assert.match(
-    prompt,
-    /Continue an already-authorized candidate-specific meeting request/i
-  );
-  assert.match(
-    prompt,
-    /requester as the default organizer and first company attendee/
-  );
-  assert.match(prompt, /active organizer Google Calendar connection/);
-  assert.match(prompt, /saved organizer availability as prerequisites/);
-  assert.match(prompt, /identify times when the interview cannot happen/);
-  assert.match(
-    prompt,
-    /invite the candidate and company attendees to one shared meeting/
-  );
-  assert.match(
-    prompt,
-    /time-selection message follows the standard delayed-delivery policy/
-  );
-  assert.match(
-    prompt,
-    /candidate-facing context supplied in the conversation should revise the same invitation/
-  );
-  assert.match(
-    prompt,
-    /Write the final response from the latest user message and the verified results/
-  );
-  assert.doesNotMatch(prompt, /김호진|Product Engineer|E2E-MEET/);
-  assert.match(
-    prompt,
-    /a reason is optional, helps improve later recommendations/
-  );
-  assert.match(
-    prompt,
-    /meaning of the current message together with the relevant conversation/
-  );
-  assert.match(
-    prompt,
-    /Do not reduce this judgment to isolated words or phrases/
-  );
-  assert.match(prompt, /Its result is context, not wording to repeat/);
-  assert.match(prompt, /<tool_policy>/);
-  assert.match(
-    prompt,
-    /request several independent tool calls in one response/
-  );
-  assert.match(
-    prompt,
-    /all independent reads or actions may be requested together/
+    /independent reads or actions may be requested together/
   );
   assert.match(
     prompt,
     /multi-target or multi-step requests in the same user turn/
   );
-  assert.match(
-    prompt,
-    /A successful write or tool result does not by itself end the turn/
-  );
-  assert.match(prompt, /Never silently omit requested targets/);
-  assert.match(prompt, /claim an incomplete set succeeded/);
-  assert.match(prompt, /call calibrate_role_hiring_brief/);
-  assert.doesNotMatch(prompt, /calibrate_role_hiring_brief as the only tool/);
-  assert.match(
-    prompt,
-    /profile-evidence route from where the person came from/
-  );
-  assert.match(prompt, /<profile_evidence_routing>/);
-  assert.match(prompt, /call record_role_profile_example_feedback/);
-  assert.match(prompt, /routes are mutually exclusive/);
-  assert.match(prompt, /evidence for the company's caliber/);
-  assert.match(prompt, /internal candidate mention/);
-  assert.match(
-    prompt,
-    /returns the finalized Hiring Brief update and user reply/
-  );
-  assert.doesNotMatch(prompt, /uses gpt-5\.6-terra at max reasoning/);
-  assert.doesNotMatch(prompt, /pre-open sources/);
-  assert.match(prompt, /write it yourself in Harper's natural voice/);
-  assert.match(prompt, /semantic reading of the current message/);
-  assert.match(prompt, /If the message is ambiguous/);
-  assert.match(prompt, /candidate_decision_context reference/);
-  assert.doesNotMatch(
-    prompt,
-    /Never call decide_candidate_connection in that same user turn/
-  );
-  assert.match(prompt, /Never expose database or tool names, raw enum values/);
-  assert.match(prompt, /latest user's language/);
-  assert.match(prompt, /natural, considerate conversational voice/);
-  assert.match(prompt, /may be using Harper for the first time/);
-  assert.match(prompt, /briefly explain the verified result/);
-  assert.match(
-    prompt,
-    /distinguish lifecycle states when that distinction matters/
-  );
-  assert.match(prompt, /Do not write simple proposals or results as receipts/);
-  assert.match(prompt, /never force the same greeting/);
-  assert.match(prompt, /Important lifecycle milestones may intentionally/);
-  assert.match(prompt, /what the user should expect/);
-  assert.match(prompt, /appropriate anticipation about what comes next/);
-  assert.match(prompt, /서로에게 좋은 기회가 되길 바랄게요 :\)/);
+  assert.match(prompt, /Never silently omit targets/);
+  assert.match(prompt, /## Tool Response Guidance/);
+  assert.match(prompt, /When an action failed/);
+
+  assert.match(prompt, /## UX Writing Guidance/);
+  assert.match(prompt, /Respond in user's language/);
+  assert.match(prompt, /complete and proportional, not merely minimal/);
+  assert.match(prompt, /short or impatient user message/);
+  assert.match(prompt, /If either the person or role is missing/);
+  assert.match(prompt, /고정된 맺음말/);
   assert.match(prompt, /Preserve canonical product labels exactly/);
-  assert.match(prompt, /labels on the web candidate-review buttons only/);
-  assert.match(prompt, /in Korean use "연결 수락", "연결 거절"/);
+  assert.match(
+    prompt,
+    /Do not reveal internal review or confirmation steps.*tools, models, routing, workers, queues/
+  );
   assert.match(prompt, /Never conjugate the raw labels/);
-  assert.match(prompt, /notice already seen or delivered cannot be recalled/);
+  assert.match(prompt, /connection-rejection decision is not a temporary hold/);
+
+  assert.match(prompt, /## Scope and Current Data/);
+  assert.match(prompt, /conversation is workspace-scoped/);
   assert.match(
     prompt,
-    /server-side confirmation_required result is the non-mutating preview/
+    /company_information_document is the single canonical source/
   );
+  assert.match(prompt, /counts_complete=true/);
+  assert.match(prompt, /read_conversation_history/);
   assert.match(
     prompt,
-    /instead of writing an untracked free-standing approval question/
+    /bounded, truncated, stale, or unavailable data as incomplete/
   );
-  assert.doesNotMatch(prompt, /do not mix writing systems/);
-  assert.match(prompt, /proactively useful rather than merely correct/);
-  assert.match(prompt, /Take ownership of safe preparation/);
-  assert.match(
-    prompt,
-    /ask the user to intervene only when Harper cannot proceed safely/
-  );
-  assert.match(prompt, /bare list or one-line result is usually incomplete/);
-  assert.match(
-    prompt,
-    /finish a completed response with at least one tailored next step/
-  );
-  assert.match(prompt, /not a conversational referent/);
-  assert.match(prompt, /do not enumerate unrelated fields/);
-  assert.match(prompt, /Select evidence relevant to the current question/);
-  assert.match(prompt, /latest relevant changes/);
-  assert.match(
-    prompt,
-    /When counts_complete is true, use those counts directly for an overview instead of reading every role again/
-  );
-  assert.match(
-    prompt,
-    /Read an individual role only when the question needs people, progress, or another detail/
-  );
-  assert.match(prompt, /copy its calendar date and time exactly/);
-  assert.match(prompt, /Do not replace it with a relative day/);
-  assert.match(
-    prompt,
-    /When the company asks what Harper sent, read the exact matching contact/
-  );
-  assert.match(
-    prompt,
-    /For what answer arrived, use the candidate response or reply in that result/
-  );
-  assert.match(
-    prompt,
-    /do not turn meeting confirmation into a claim about Calendar or Google Meet delivery/
-  );
-  assert.match(prompt, /one decision-relevant recommendation reason/);
-  assert.match(prompt, /names and headlines alone/);
-  assert.match(
-    prompt,
-    /education, experience, location, or work-mode searches/
-  );
-  assert.match(prompt, /list the members and their stored role labels/);
-  assert.match(prompt, /Do not add permission explanations/);
-  assert.match(prompt, /company-information lookups/);
-  assert.match(prompt, /complete company_information_document/);
-  assert.match(prompt, /canonical company document/);
-  assert.match(prompt, /all candidate-facing company copy in pitch/);
-  assert.match(prompt, /every other company-level URL[\s\S]*related_links/);
-  assert.match(prompt, /name the input needed and the specific correction/);
-  assert.match(prompt, /workspace-wide memory inventory/);
-  assert.match(prompt, /concrete interview questions/);
-  assert.match(prompt, /clearly distinguish what someone discussed/);
-  assert.match(prompt, /Only mutate data when the user explicitly asks/);
-  assert.match(prompt, /Do not turn a stated priority or urgency/);
-  assert.match(prompt, /do not choose either category for them/);
-  assert.match(prompt, /observable work behavior or an evaluable level/);
-  assert.match(prompt, /exact target, verified result, and practical effect/);
-  assert.match(prompt, /help the user produce the missing input or a draft/);
-  assert.doesNotMatch(
-    prompt,
-    /nothing was saved or changed|nothing was changed or sent|append routine assurances|generic inventory/
-  );
-  assert.match(prompt, /practical next step in the introduction email thread/);
-  assert.match(prompt, /reactivate a candidate in 프로세스 종료/);
-  assert.match(
-    prompt,
-    /whole visible candidate set, including ended processes/
-  );
-  assert.match(prompt, /pending closure notice is no longer going out/);
-  assert.match(prompt, /already told the candidate the process ended/);
-  assert.match(
-    prompt,
-    /CC introduction email itself must remain a normal neutral introduction/
-  );
-  assert.match(prompt, /which channel or workflow it uses/);
-  assert.match(
-    prompt,
-    /broad candidate-matching instructions[\s\S]*structured role criteria/
-  );
-  assert.match(prompt, /For a targeted change, use edits/);
-  assert.match(prompt, /exact current name into targetName/);
-  assert.match(prompt, /criteria argument only to replace the complete list/);
-  assert.match(prompt, /final list may contain 0-6 dimensions/);
-  assert.match(prompt, /prefer 2-4 without adding filler/);
-  assert.match(prompt, /one technical-fit dimension/);
-  assert.match(prompt, /Split a criterion only when the evidence/);
-  assert.match(prompt, /missing evidence is uncertainty, not failure/);
-  assert.match(prompt, /do not replace the role request/);
-  assert.match(prompt, /other durable company or role context in memory/);
+  assert.match(prompt, /Copy opaque identifiers exactly/);
+
+  assert.match(prompt, /## Writes/);
+  assert.match(prompt, /Mutate only when the user explicitly asks/);
+  assert.match(prompt, /0–6 concise, non-overlapping hiring dimensions/);
   assert.match(prompt, /## Hard constraints/);
   assert.match(prompt, /## Preferred criteria/);
-  assert.match(prompt, /facts already present in current context/);
-  assert.match(prompt, /bounded, recent, truncated, or unavailable data/);
-  assert.match(prompt, /absence, completeness, or comparison claims/);
-  assert.match(prompt, /not a complete candidate directory/);
-  assert.match(prompt, /use read_conversation_history/);
-  assert.match(prompt, /type=all/);
-  assert.match(prompt, /type=all with limit=5 first/);
-  assert.match(prompt, /only when those five previews do not identify/);
-  assert.match(prompt, /type=thread/);
-  assert.match(prompt, /exact KST start\/latest times/);
-  assert.match(prompt, /Never expose opaque thread IDs/);
-  assert.match(prompt, /not the company's full Slack history/);
-  assert.match(prompt, /identifiers are opaque/);
-  assert.match(prompt, /never shorten, normalize, infer, or reconstruct an ID/);
-  assert.doesNotMatch(prompt, /named candidate/);
-  assert.match(prompt, /replace requires one exact oldValue/);
-  assert.match(prompt, /read it fully and update in the same turn/);
-  assert.match(prompt, /update meeting defaults on/);
+  assert.match(prompt, /bounded, complete preview and explicit confirmation/);
+
+  assert.match(prompt, /## Pipeline Management/);
+  assert.match(prompt, /Report verified structure/);
+
+  assert.match(prompt, /### connection_decisions/);
+  assert.match(prompt, /Talent-side rejection is never reversible/);
   assert.match(
     prompt,
-    /affects future scheduling, not invitations or confirmed meetings/
+    /prepare_candidate_connection for missing authoritative facts/
   );
-  assert.match(prompt, /Do not mention delivery channels/);
-  assert.match(prompt, /ready to move now/);
-  assert.match(prompt, /what Harper can ask.*answer will come back/);
-  assert.match(prompt, /read_talent as a neutral read operation/);
-  assert.match(prompt, /never means the user asked about preference/);
-  assert.match(prompt, /includeProfile=false is the compact default/);
+  assert.match(prompt, /Include only a reason the user supplied/);
+  assert.match(prompt, /For reactivation/);
+  assert.match(prompt, /notice already seen or delivered cannot be recalled/);
+
+  assert.match(prompt, /<meeting_coordination_contract>/);
+  assert.match(prompt, /any company-visible active stage/);
+  assert.match(prompt, /verify the current state before retrying/);
+
+  assert.match(prompt, /### profile_evidence_routing/);
+  assert.match(prompt, /Route evidence by provenance/);
+  assert.match(prompt, /record_role_profile_example_feedback/);
+  assert.match(prompt, /routes are mutually exclusive/);
+  assert.match(prompt, /### talent_reads/);
+
+  assert.match(prompt, /## Candidate Contact/);
+  assert.match(prompt, /Creating or revising a draft never queues or sends it/);
   assert.match(
     prompt,
-    /It does not return current profile location, bio, structured work history, education, or extras/
-  );
-  assert.match(
-    prompt,
-    /includeProfile=true returns the same compact base plus those longer professional-profile fields/
-  );
-  assert.match(prompt, /meaning of the current message and conversation/);
-  assert.match(
-    prompt,
-    /never include insights about openness to opportunities/
-  );
-  assert.match(prompt, /Do not use a fixed response template/);
-  assert.match(prompt, /do not use keyword matching/);
-  assert.match(prompt, /never use a fixed response template/);
-  assert.match(
-    prompt,
-    /workspace-wide candidate list or candidate filter spanning multiple Roles, use get_talents first/
+    /In the same response that creates or revises the draft/
   );
   assert.match(
     prompt,
-    /Do not read every Role separately merely to list its candidates/
+    /One considerate follow-up is allowed only after 72 unanswered hours/
   );
   assert.match(
     prompt,
-    /decide_candidate_connection only when the immediately previous Harper message asked for approval/
+    /On uncertain delivery, verify the current state before retrying/
   );
+  assert.match(prompt, /received candidate response as correspondence/);
   assert.match(
     prompt,
-    /server independently verifies the previous-message confirmation/
+    /include when it arrived when a verified received time is available/
   );
-  assert.match(prompt, /Candidate contact is a saved-body approval flow/);
+  assert.match(prompt, /current surface's quote format/);
   assert.match(
     prompt,
-    /Meeting requests are available throughout a candidate's company-visible active process/
+    /rather than appending a fixed closing or generic help question/
   );
-  assert.match(prompt, /action=create_draft in that same turn/);
-  assert.match(prompt, /one batch call for up to ten candidates/);
-  assert.match(prompt, /additional batch calls in the same turn/);
-  assert.match(
-    prompt,
-    /available for any candidate with a company-visible position for that Role/
-  );
-  assert.match(
-    prompt,
-    /Do not limit questions or resume requests to candidates awaiting the initial connection decision/
-  );
-  assert.match(
-    prompt,
-    /do not infer that contacting someone changes their pipeline stage/
-  );
-  assert.match(prompt, /complete candidate-contact body/);
-  assert.match(
-    prompt,
-    /must not repeat company names, Role titles, email subjects, or bodies/
-  );
-  assert.doesNotMatch(prompt, /fixed Harper service footer/);
-  assert.match(prompt, /creates saved drafts only/);
-  assert.match(prompt, /pending_candidate_contact_drafts/);
-  assert.match(prompt, /action=revise_draft/);
-  assert.match(prompt, /Repeat this revision loop as many times as requested/);
-  assert.match(
-    prompt,
-    /action=schedule when the nearest Harper message containing candidate-contact drafts within the four conversation messages/
-  );
-  assert.match(
-    prompt,
-    /presentedDrafts=true.*server resolves and verifies every exact ID and revision/
-  );
-  assert.match(prompt, /Do not copy a displayed set's IDs into/);
-  assert.match(
-    prompt,
-    /Scheduling uses every stored subject and body unchanged/
-  );
-  assert.match(
-    prompt,
-    /standard schedule exactly 5 minutes after exact-copy approval at any time of day/
-  );
-  assert.match(prompt, /do not mention or imply a wait before contacting/);
-  assert.match(prompt, /do not use phrases such as "조금 뒤에"/);
-  assert.match(prompt, /네, 요청하신 내용으로 <후보자>님께 확인을 요청할게요/);
-  assert.match(
-    prompt,
-    /For a resume request, say that Harper will request the latest resume/
-  );
-  assert.match(prompt, /Do not falsely claim that the email was already sent/);
-  assert.doesNotMatch(prompt, /only between 08:00 and 20:00 KST/);
-  assert.match(
-    prompt,
-    /Once Harper has said a request will be sent later, today, or tomorrow, it is already queued: never call schedule again/
-  );
-  assert.match(
-    prompt,
-    /action=cancel only for a clear cancellation instruction/
-  );
-  assert.match(prompt, /in-place editing is unsupported/);
-  assert.match(prompt, /write requestContext in the latest user's language/);
-  assert.match(
-    prompt,
-    /Age, date or year of birth, nationality, citizenship, residency, and work-authorization questions are allowed/
-  );
-  assert.match(prompt, /instead of refusing, moralizing, inferring the answer/);
-  assert.match(prompt, /Recognize compensation questions by their meaning/);
-  assert.match(prompt, /base salary or total compensation/);
-  assert.match(prompt, /Preserve every completed milestone/);
-  assert.match(
-    prompt,
-    /one considerate follow-up only after at least 72 hours/
-  );
-  assert.match(
-    prompt,
-    /14-day cutoff only closes an unsent draft or send attempt/
-  );
-  assert.match(
-    prompt,
-    /After a candidate email is sent, there is no reply deadline/
-  );
-  assert.match(prompt, /at most one light follow-up/);
-  assert.match(prompt, /Do not promise an exact follow-up time/);
-  assert.match(
-    prompt,
-    /meetingDeliveryMode=immediate.*Preserve the existing invitation/
-  );
-  assert.match(prompt, /Do not call an older or different queued request/);
-  assert.match(prompt, /if no matching entry exists/);
-  assert.match(
-    prompt,
-    /After contact_talent action=schedule succeeds.*respond like a human assistant taking ownership/
-  );
-  assert.match(
-    prompt,
-    /Do not mention the routine five-minute timing unless the company explicitly asks/
-  );
-  assert.match(prompt, /Do not expose delivery-channel or queue mechanics/);
-  assert.match(
-    prompt,
-    /Never describe create_draft or revise_draft as accepted/
-  );
-  assert.match(prompt, /contact_talent with action=cancel/);
-  assert.match(
-    prompt,
-    /contact_talent with action=immediate.*preserves the already approved subject and body/
-  );
-  assert.match(
-    prompt,
-    /including a correction such as "not later, send it now"/
-  );
-  assert.match(
-    prompt,
-    /never tell the company it must cancel and recreate merely to move a still-changeable queued delivery forward/
-  );
-  assert.match(
-    prompt,
-    /initial request that says "now" still creates a draft only/
-  );
-  assert.match(prompt, /create the complete resume-request draft in that turn/);
-  assert.doesNotMatch(prompt, /change_talent_contact/);
-  assert.doesNotMatch(prompt, /workspaceId=/);
+
+  assert.doesNotMatch(prompt, /김호진|Product Engineer|E2E-MEET|workspaceId=/);
+  assert.doesNotMatch(prompt, /After tools, answer naturally/);
 });
 
 test("organization-agent Slack prompt enables sparse private choice markers", () => {
@@ -447,11 +140,7 @@ test("organization-agent Slack prompt enables sparse private choice markers", ()
   const regularPrompt = buildOrgAgentSystemPrompt();
 
   assert.match(prompt, /Slack mrkdwn/);
-  assert.match(
-    prompt,
-    /굵게 표시하는 별표 사이에는 공백이나 문장부호 없이 한 단어만 넣는다/
-  );
-  assert.match(prompt, /굵게: \*텍스트\*/);
+  assert.match(prompt, /굵게: \*한단어\*/);
   assert.doesNotMatch(prompt, /표준 Markdown\/GFM/);
   assert.match(prompt, /\[짧은 버튼 라벨\]\(button:/);
   assert.match(prompt, /한 답변에 버튼은 최대 2개/);
@@ -476,6 +165,10 @@ test("role creation entry differs between web general chat and Slack", () => {
   assert.match(web, /왼쪽 사이드바의 \*New role\* 버튼/);
   assert.doesNotMatch(web, /start_role_creation을 호출/);
   assert.match(slack, /start_role_creation을 바로 호출/);
+  assert.match(slack, /이미 있는 작성 중 역할의 채용 시작이나 등록/);
+  assert.match(slack, /change_role_status\(status=active\)/);
+  assert.match(slack, /새 역할을 만들지 않는다/);
+  assert.match(slack, /별도의 시작 확인을 반복하지 말고/);
   assert.match(slack, /현재 대화와 사용 가능한 자료/);
   assert.match(slack, /title이 명확하면 같은 제목을 다시 확인하지 말고/);
   assert.match(slack, /그래도 title을 특정할 수 없을 때만/);
@@ -509,9 +202,20 @@ test("organization-agent user prompt keeps recent conversation next to the lates
     context: {
       companyText: "field\tvalue\nname\tTest",
       completeRoleRequestIds: [],
+      recentContactsText: [
+        "available=true scope=workspace window=rolling_7_days",
+        "recent_active_drafts=1",
+        "recent_sent=4",
+        "recent_contacts_with_response=2",
+        "all_time_sent=18",
+        "all_time_contacts_with_response=7",
+        "instruction=자세한 연락 목록과 개별 연락의 현재 상태·메시지·답장은 list_contacts와 read_contact로 확인한다.",
+      ].join("\n"),
       contextNotesText: "-",
       conversationText: "speaker\tmessage\nuser\told",
       pendingUpdateText: "summary: 채용 기준 수정",
+      recentToolContextText:
+        "tool\tstatus\tsummary\nchange_role_status\tunchanged\t채널 선택 필요",
       recentRecommendationsText: "-",
       roles: [],
       rolesText: "-",
@@ -527,10 +231,22 @@ test("organization-agent user prompt keeps recent conversation next to the lates
       },
     },
     mentions: [],
+    requestTime: new Date("2026-09-14T10:09:00.000Z"),
+    slackContext: {
+      channelId: "C123",
+      channelName: "hiring-backend",
+    },
     userLabel: "Kim [U123]",
     userMessage: "latest question",
   });
 
+  assert.ok(
+    prompt.indexOf("<runtime_context>") < prompt.indexOf("<workspace_context>")
+  );
+  assert.match(
+    prompt,
+    /<runtime_context>\ncurrent_time_kst=2026년 9월 14일 19:09 KST\ncurrent_slack_channel_id=C123\ncurrent_slack_channel_name=hiring-backend\n<\/runtime_context>/
+  );
   assert.ok(
     prompt.indexOf("<workspace_context>") < prompt.indexOf("<user_message>")
   );
@@ -540,6 +256,12 @@ test("organization-agent user prompt keeps recent conversation next to the lates
     prompt,
     /<pending_update>\nsummary: 채용 기준 수정\n<\/pending_update>/
   );
+  assert.match(prompt, /<recent_contacts>[\s\S]*recent_sent=4/);
+  assert.match(
+    prompt,
+    /<recent_tool_context>[\s\S]*change_role_status\tunchanged/
+  );
+  assert.doesNotMatch(prompt, /pending_candidate_contact_drafts/);
   assert.ok(
     prompt.indexOf("<pending_update>") < prompt.indexOf("<recent_conversation>")
   );
@@ -550,13 +272,15 @@ test("organization-agent user prompt keeps recent conversation next to the lates
   assert.ok(prompt.endsWith("</conversation>"));
 });
 
-test("company-side prompt routes workspace contact history through contact reads", () => {
+test("company-side prompt leaves contact-read routing to tool descriptions", () => {
   const prompt = buildOrgAgentSystemPrompt({ surface: "slack" });
 
-  assert.match(prompt, /workspace-wide or date-bounded communication question/);
-  assert.match(prompt, /dateBasis=sent/);
-  assert.match(prompt, /contains no subject or body/);
-  assert.match(prompt, /read_contact with up to ten/);
-  assert.match(prompt, /actual company initiator/);
+  assert.doesNotMatch(
+    prompt,
+    /Use list_contacts for workspace-wide or date-bounded communication/
+  );
+  assert.doesNotMatch(prompt, /dateBasis=sent/);
+  assert.doesNotMatch(prompt, /read up to ten exact contacts/);
+  assert.doesNotMatch(prompt, /resolve with list_contacts\/read_contact/);
   assert.doesNotMatch(prompt, /For contact-status questions, use read_talent/);
 });

@@ -13,6 +13,7 @@ export const OPPORTUNITY_RUN_FETCH_LIMIT = 20;
 
 export type DebugTabId =
   | "calls"
+  | "companyAnswerRetrieval"
   | "cost"
   | "emails"
   | "matching"
@@ -22,6 +23,7 @@ export type DebugTabId =
 export function debugTabTitle(tab: DebugTabId) {
   if (tab === "emails") return "메일 로그";
   if (tab === "calls") return "콜 로그";
+  if (tab === "companyAnswerRetrieval") return "Company Answer Retrieval";
   if (tab === "cost") return "비용";
   if (tab === "matching") return "매칭 품질";
   if (tab === "orgAgentTools") return "Company-side LLM Tool";
@@ -35,6 +37,7 @@ export function debugTabDescription(tab: DebugTabId) {
   if (tab === "calls") {
     return "talent_calls별로 저장된 통화 transcript와 wrap-up 메시지를 확인합니다.";
   }
+  if (tab === "companyAnswerRetrieval") return "";
   if (tab === "cost") {
     return "Claude, OpenAI, OpenRouter, Grok, Exa, EC2 비용과 현재 credit을 확인합니다.";
   }
@@ -161,11 +164,13 @@ export function DebuggingPageShell({
   children,
   filters,
   showContextLabel = true,
+  showDescription = true,
   tab,
 }: {
   children: ReactNode;
   filters: ReactNode;
   showContextLabel?: boolean;
+  showDescription?: boolean;
   tab: DebugTabId;
 }) {
   return (
@@ -191,9 +196,11 @@ export function DebuggingPageShell({
                 >
                   {debugTabTitle(tab)}
                 </h1>
-                <p className="mt-1 text-sm leading-6 text-neutral-muted">
-                  {debugTabDescription(tab)}
-                </p>
+                {showDescription ? (
+                  <p className="mt-1 text-sm leading-6 text-neutral-muted">
+                    {debugTabDescription(tab)}
+                  </p>
+                ) : null}
               </div>
             </div>
             {filters}

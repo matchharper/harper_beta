@@ -63,6 +63,7 @@ test("company request context clearly identifies its company and role", () => {
   const markup = renderCard(
     <CareerPendingActionContextCard
       action={{
+        companyLogoUrl: "/images/logos/wonderful.jpg",
         companyName: "Harper Portfolio",
         expiresAt: "2026-08-30T00:00:00.000Z",
         id: "request_1",
@@ -81,12 +82,16 @@ test("company request context clearly identifies its company and role", () => {
   assert.match(markup, /회사에서 온 질문/);
   assert.match(markup, /Harper Portfolio/);
   assert.match(markup, /Applied AI Engineer/);
+  assert.match(markup, /src="\/images\/logos\/wonderful\.jpg"/);
+  assert.match(markup, /alt="Harper Portfolio"/);
+  assert.doesNotMatch(markup, /lucide-message-square-text/);
 });
 
 test("resume request context exposes its dedicated upload action", () => {
   const markup = renderCard(
     <CareerPendingActionContextCard
       action={{
+        companyLogoUrl: null,
         companyName: "Harper Portfolio",
         expiresAt: "2026-08-30T00:00:00.000Z",
         id: "request_2",
@@ -111,6 +116,7 @@ test("company request context uses English visible and accessibility copy", () =
   const markup = renderCard(
     <CareerPendingActionContextCard
       action={{
+        companyLogoUrl: null,
         companyName: "Harper Portfolio",
         expiresAt: "2026-08-30T00:00:00.000Z",
         id: "request_3",

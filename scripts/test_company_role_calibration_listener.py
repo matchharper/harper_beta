@@ -54,27 +54,64 @@ class CompanyRoleCalibrationListenerTest(unittest.TestCase):
         rows = [
             {
                 "id": "queued",
+                "worker_kind": "calibration",
                 "work_type": "generate",
                 "work_available_at": now - timedelta(seconds=1),
             },
             {
                 "id": "delivery",
+                "worker_kind": "calibration",
                 "work_type": "deliver",
                 "work_available_at": now,
             },
             {
                 "id": "retry-later",
+                "worker_kind": "calibration",
                 "work_type": "deliver",
                 "work_available_at": now + timedelta(hours=12),
             },
         ]
-        with patch.object(listener, "calibration_work_rows", return_value=rows):
+        with patch.object(listener, "calibration_work_rows", return_value=rows), patch.object(
+            listener, "post_calibration_work_rows", return_value=[]
+        ):
             snapshot = listener.queue_snapshot(FakeConnection(), now=now)
         self.assertEqual(
             snapshot.ready_ids,
-            ("generate:queued", "deliver:delivery"),
+            ("calibration:generate:queued", "calibration:deliver:delivery"),
         )
         self.assertEqual(snapshot.next_available_at, rows[-1]["work_available_at"])
+        self.assertEqual(snapshot.worker_kind, "calibration")
+
+    def test_queue_snapshot_routes_the_earliest_due_kind(self) -> None:
+        now = datetime(2026, 9, 8, 12, 0, tzinfo=timezone.utc)
+        calibration_rows = [{
+            "id": "calibration",
+            "worker_kind": "calibration",
+            "work_type": "deliver",
+            "work_available_at": now,
+        }]
+        post_rows = [{
+            "id": "post",
+            "worker_kind": "post_calibration",
+            "work_type": "review",
+            "work_available_at": now - timedelta(seconds=1),
+        }]
+        with patch.object(
+            listener, "calibration_work_rows", return_value=calibration_rows
+        ), patch.object(listener, "post_calibration_work_rows", return_value=post_rows):
+            snapshot = listener.queue_snapshot(FakeConnection(), now=now)
+        self.assertEqual(snapshot.worker_kind, "post_calibration")
+        self.assertEqual(snapshot.ready_ids[0], "post_calibration:review:post")
+
+    def test_post_calibration_prompt_uses_matching_placeholders(self) -> None:
+        with patch.object(listener.sys, "executable", "/tmp/Matching Env/python3"):
+            prompt = listener.render_worker_prompt(
+                "codex-event:test host", "post_calibration"
+            )
+        self.assertNotIn("{{MATCHING_PYTHON}}", prompt)
+        self.assertNotIn("{{MATCHING_RUNNER}}", prompt)
+        self.assertIn("'/tmp/Matching Env/python3'", prompt)
+        self.assertIn("--post-calibration", prompt)
 
     def test_codex_command_is_noninteractive_and_workspace_scoped(self) -> None:
         command = listener.codex_command(Path("/tmp/codex"))

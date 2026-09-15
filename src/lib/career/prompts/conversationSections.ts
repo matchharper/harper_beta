@@ -14,6 +14,7 @@ import {
   cleanCareerPromptInlineValue,
   formatCareerPromptCompactDateTime,
   sanitizeCareerPromptDateValues,
+  type CareerPromptDateTimeOptions,
 } from "@/lib/career/prompts/promptUtils";
 import type {
   CareerPromptActivitySummary,
@@ -36,12 +37,14 @@ export function buildCareerChannelContextRules(channel: CareerPromptChannel) {
       "The candidate is currently communicating through Voice Call.",
       "- Do not use markdown-like formatting.",
       "- Speak naturally and concisely, as in a real conversation.",
+      "- Do not begin a reply by announcing a timestamp or relative-time label.",
     ].join("\n");
   }
 
   return [
     "The candidate is currently communicating through Text Chat.",
     "- Use Markdown for better readability.",
+    "- Do not begin a reply with a timestamp or relative-time label.",
     "- Use short headings, bullets, bold text for important terms such as role or company names, lists, links, or code blocks.",
     "- Do not use emojis.",
     "- When asking a question to the user to choose one of 2 answer options, you can append exactly one raw choice button block after the visible question. But do not use this too frequently.",
@@ -321,13 +324,15 @@ function buildRecommendationCadenceGuidance(
 
 /** 온보딩 직후 opportunity search 진행 상태를 모델에게 알려주는 runtime 블록을 만든다. */
 export function buildOpportunityStatusSection(
-  status: CareerPromptOpportunityStatus | null | undefined
+  status: CareerPromptOpportunityStatus | null | undefined,
+  dateTimeOptions?: CareerPromptDateTimeOptions
 ) {
   if (!status) return "";
 
   const lines: string[] = [];
   const onboardingCompletedAt = formatCareerPromptCompactDateTime(
-    status.onboardingCompletedAt
+    status.onboardingCompletedAt,
+    dateTimeOptions
   );
   if (onboardingCompletedAt) {
     lines.push(`- onboardingCompletedAt: ${onboardingCompletedAt}`);
@@ -336,7 +341,8 @@ export function buildOpportunityStatusSection(
     lines.push(`- activeOpportunitySearchStatus: ${status.activeRunStatus}`);
   }
   const activeRunCreatedAt = formatCareerPromptCompactDateTime(
-    status.activeRunCreatedAt
+    status.activeRunCreatedAt,
+    dateTimeOptions
   );
   if (activeRunCreatedAt) {
     lines.push(`- activeOpportunitySearchCreatedAt: ${activeRunCreatedAt}`);
@@ -344,6 +350,9 @@ export function buildOpportunityStatusSection(
   if (status.isInitialSearchRunning) {
     lines.push(
       "- Initial opportunity search is currently queued/running after onboarding completion."
+    );
+    lines.push(
+      "- Harper is currently searching in the background for opportunities that fit this talent. The search continues independently of the current conversation, so the user can keep chatting while it runs."
     );
     lines.push(
       "- If the user asks what to do now or whether anything is happening, answer that Harper has just finished the onboarding conversation and is now looking for fitting opportunities. Say Harper should follow up within up to 1 hour, and the user can wait. Also mention that sharing more details about preferences, constraints, or target roles can improve the recommendations."
@@ -387,16 +396,21 @@ export function buildProfileContextBlock(args: {
 
 /** 최근 talent activity event 요약을 text chat prompt에 넣을 짧은 블록으로 만든다. */
 export function buildRecentActivitySummariesSection(
-  events?: readonly CareerPromptActivitySummary[] | null
+  events?: readonly CareerPromptActivitySummary[] | null,
+  dateTimeOptions?: CareerPromptDateTimeOptions
 ) {
   const rows = (events ?? [])
     .slice(0, 5)
     .map((event) => ({
-      created_at: formatCareerPromptCompactDateTime(event.created_at),
+      created_at: formatCareerPromptCompactDateTime(
+        event.created_at,
+        dateTimeOptions
+      ),
       summary: sanitizeCareerPromptDateValues(
         String(event.summary ?? "")
           .replace(/\s+/g, " ")
-          .trim()
+          .trim(),
+        dateTimeOptions
       ),
     }))
     .filter((event) => event.created_at && event.summary);
@@ -412,7 +426,8 @@ export function buildRecentActivitySummariesSection(
             `- created_at: ${event.created_at}; summary: ${event.summary}`
         )
         .join("\n"),
-    ].join("\n")
+    ].join("\n"),
+    dateTimeOptions
   );
 }
 

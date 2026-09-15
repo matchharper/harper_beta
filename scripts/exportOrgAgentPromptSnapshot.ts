@@ -318,7 +318,7 @@ async function main() {
     : "max_tokens";
   const generatedAt = new Date();
   const requestSummary = {
-    anthropicOverloadFallbackModel: "grok-4.3",
+    anthropicOverloadFallbackModel: getOrgAgentFallbackModel(model),
     fallbackModel: getOrgAgentFallbackModel(model),
     maxTokensField,
     maxTokens,

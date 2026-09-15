@@ -1,5 +1,35 @@
 [
   {
+    "date": "2026-09-15",
+    "tag": "FIXED",
+    "ko": "이메일이 잘린 상태로 발송되던 문제를 해결했습니다.",
+    "en": "We've fixed an issue that caused some emails to be sent with their content cut off."
+  },
+  {
+    "date": "2026-09-15",
+    "tag": "FIXED",
+    "ko": "커리어 이력의 항목 순서가 정렬되지 않던 문제를 해결했습니다.",
+    "en": "We've fixed an issue that prevented career history items from appearing in the correct order."
+  },
+  {
+    "date": "2026-09-15",
+    "tag": "IMPROVED",
+    "ko": "온보딩 직후 Harper가 현재 무엇을 하고 있는지 더 명확히 알 수 있도록 안내를 개선했습니다.",
+    "en": "Right after onboarding, Harper now explains more clearly what it is currently working on for you."
+  },
+  {
+    "date": "2026-09-15",
+    "tag": "NEW",
+    "ko": "역할을 이해하는 데 도움이 되는 블로그를 만들었습니다.",
+    "en": "We've launched a blog to help you understand different roles and what they involve."
+  },
+  {
+    "date": "2026-09-15",
+    "tag": "NEW",
+    "ko": "현재 화면에서 Harper에 원하는 기능을 투표로 알려주실 수 있습니다. 필요한 기능이 있다면 모두 선택하거나 자유롭게 적어주세요!",
+    "en": "You can now vote for the features you'd like from Harper directly on this page. Select everything you need or share your own idea!"
+  },
+  {
     "date": "2026-09-09",
     "tag": "NEW",
     "ko": "이제 프로필의 ‘선호 기준’에서 Harper가 기회를 찾고 판단할 때 사용하는 Search Brief를 직접 확인하고 수정할 수 있습니다. 대화에서 알려주신 중요한 맥락도 다음 대화와 추천에 더 일관되게 이어집니다.",

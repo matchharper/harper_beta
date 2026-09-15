@@ -68,7 +68,12 @@ export type OrgAgentMoreDataResult = {
   };
   members?: {
     complete: boolean;
-    items: Array<{ email: string | null; name: string | null; role: string }>;
+    items: Array<{
+      email: string | null;
+      name: string | null;
+      role: string;
+      userId: string;
+    }>;
     returnedCount: number;
     totalCount: number;
   };
@@ -2064,6 +2069,7 @@ async function fetchOrgAgentMembers(args: {
               name: user.name,
               rawRole: membership.authority,
               role: humanizeOrgMembershipRole(membership.authority),
+              userId: membership.company_user_id,
             },
           ]
         : [];
@@ -2248,7 +2254,8 @@ function fitOrgAgentMoreDataContent(args: {
             sum +
             serializedValueLength(item.name) +
             serializedValueLength(item.email) +
-            serializedValueLength(item.role),
+            serializedValueLength(item.role) +
+            serializedValueLength(item.userId),
           0
         )
       : 0,

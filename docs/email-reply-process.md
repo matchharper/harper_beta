@@ -86,7 +86,7 @@ Model selection:
 Provider selection:
 
 - model starts with `claude-`: Anthropic-compatible endpoint, requires `ANTHROPIC_API_KEY`
-- model starts with `grok-`: xAI OpenAI-compatible endpoint, requires `GROK_API_KEY`
+- model starts with `grok-`: rejected; use `gpt-5.6-luna`
 - OpenRouter catalog slug containing `/` (or local `openrouter:` prefix): OpenRouter endpoint, requires `OPENROUTER_API_KEY`
 - otherwise: OpenAI endpoint, requires `OPENAI_API_KEY`
 
@@ -125,10 +125,10 @@ Defaults:
 
 | Step | Default model | Temperature | Max tokens | Purpose |
 | --- | --- | ---: | ---: | --- |
-| `policy_search_plan` | `grok-4.3` | `0.2` | `3072` | choose communication act, copy shape, counts, search plan |
-| `shortlist` | `grok-4.3` | `0.1` | `2048` | choose candidate role IDs for detailed final writing |
+| `policy_search_plan` | `claude-sonnet-5` | `0.2` | `3072` | choose communication act, copy shape, counts, search plan |
+| `shortlist` | `claude-sonnet-5` | `0.1` | `2048` | choose candidate role IDs for detailed final writing |
 | `final_delivery` | `claude-sonnet-5` | `0.55` | `8192` | write the final Korean email/chat draft |
-| `copy_critic` | `grok-4.3` | `0.0` | `2048` | review tone, repetition, factuality, ask overload |
+| `copy_critic` | `gpt-5.6-luna` (`xhigh`) | `0.0` | `2048` | review tone, repetition, factuality, ask overload |
 
 Each value can be overridden through the matching `OPP_HUMAN_SCRIPTED_*` environment variable in `harper_worker/opp/scripted_human_config.py`.
 
@@ -147,5 +147,4 @@ For outbound aliases and inbound replies:
 For the generic email reply LLM:
 
 - `ANTHROPIC_API_KEY` if using `claude-*`
-- `GROK_API_KEY` if using `grok-*`
 - `OPENAI_API_KEY` otherwise

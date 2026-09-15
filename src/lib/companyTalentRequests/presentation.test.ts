@@ -29,10 +29,8 @@ test("pending company question requires a successful response writer before rela
     context ?? "",
     /unless record_company_request_response returned ok=true/
   );
-  assert.match(
-    context ?? "",
-    /do not claim that the company has already received it/
-  );
+  assert.match(context ?? "", /Harper delivered the response to the company/);
+  assert.doesNotMatch(context ?? "", /will relay|queued/i);
 });
 
 test("pending resume decline uses the same successful-writer boundary", () => {

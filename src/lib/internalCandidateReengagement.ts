@@ -483,9 +483,11 @@ export async function requestCandidateReengagement(args: {
   const draftCopy = await generateCandidateContactDraft({
     candidateName: text(talentResult.data.name, 160),
     companyName: text(workspaceResult.data.company_name, 160) || "채용 회사",
+    currentInstruction: requestContext,
     kind: "question",
     locale: text(settingResult.data?.preferred_locale, 10) || "ko",
     profileUrl: null,
+    recentConversation: "",
     requestContext,
     requestId,
     roleName: text(roleResult.data.name, 180) || "해당 역할",
@@ -493,6 +495,7 @@ export async function requestCandidateReengagement(args: {
   const draft = await createCompanyTalentContactDraft({
     admin: args.admin,
     body: draftCopy.body,
+    contactKind: "question",
     expectsDocument: false,
     id: requestId,
     intent: "candidate_reengagement",

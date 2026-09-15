@@ -30,6 +30,7 @@ import {
   normalizeTalentPeriodicIntervalDays,
   normalizeTalentRecommendationBatchSize,
 } from "@/lib/talentOnboarding/recommendationSettings";
+import { resolveCareerRequestTimeZone } from "@/lib/career/requestTimeZone";
 import { autoStartClaimedTalentConversation } from "@/lib/talentOnboarding/kickoff";
 import { TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP } from "@/lib/talentOnboarding/onboarding";
 import {
@@ -220,6 +221,7 @@ async function generateSessionStartGreeting(args: {
   isMobile?: boolean | null;
   preferredLocale?: string | null;
   previousChatAt: string | null;
+  timeZone: string;
   userId: string;
 }) {
   const {
@@ -243,6 +245,7 @@ async function generateSessionStartGreeting(args: {
       isOnboardingDone: args.isOnboardingDone,
       preferredLocale: args.preferredLocale,
       previousChatAt,
+      timeZone: args.timeZone,
     }),
     transformAssistantTextBeforeInsert: (content) =>
       resolveCareerReengagementActionKeys({
@@ -250,6 +253,7 @@ async function generateSessionStartGreeting(args: {
         resolvePendingActionRef: () => null,
       }),
     usageLabel: "career/chat:session_start_greeting",
+    timeZone: args.timeZone,
     userId,
   });
 
@@ -262,6 +266,8 @@ export async function GET(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const promptTimeZone = resolveCareerRequestTimeZone(req);
 
     const admin = getTalentSupabaseAdmin();
     const isMobile = isMobileRequest(req);
@@ -498,6 +504,7 @@ export async function GET(req: NextRequest) {
             isMobile,
             preferredLocale: talentSetting?.preferred_locale ?? null,
             previousChatAt: latestChatMessage?.created_at ?? null,
+            timeZone: promptTimeZone,
             userId: user.id,
           });
 

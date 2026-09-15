@@ -23,6 +23,7 @@ import { useCareerReengagementPendingActions } from "@/hooks/career/useCareerRee
 import { canUseCareerDevControls } from "@/lib/internalAccess";
 import type { CareerReengagementPendingAction } from "@/lib/career/pendingActions";
 import type { CareerTextChatModelId } from "@/lib/career/textChatModelConfig";
+import { getCareerBrowserTimeZone } from "@/lib/career/requestTimeZone";
 import {
   CLAUDE_MODEL,
   GPT_56_LUNA_MODEL,
@@ -231,6 +232,7 @@ export default function CareerHomeDevControls({
           body: JSON.stringify({
             conversationId,
             kind,
+            timeZone: getCareerBrowserTimeZone(),
           }),
         });
         const payload = (await response.json().catch(() => ({}))) as

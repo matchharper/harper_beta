@@ -1,4 +1,5 @@
-import { xaiInference } from "@/lib/llm/llm";
+import { lunaInference } from "@/lib/llm/llm";
+import { GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import { logger } from "@/utils/logger";
 import { buildSummary } from "@/utils/textprocess";
 
@@ -45,8 +46,8 @@ Information : ${information}
 Output: 
 `;
 
-  const summary = await xaiInference(
-    "grok-4-fast-reasoning",
+  const summary = await lunaInference(
+    GPT_56_LUNA_MODEL,
     systemPrompt,
     userPrompt
   );
@@ -170,8 +171,8 @@ Output:
   // Output:
   // `;
 
-  const summary = await xaiInference(
-    "grok-4-fast-reasoning",
+  const summary = await lunaInference(
+    GPT_56_LUNA_MODEL,
     systemPrompt,
     userPrompt
   );

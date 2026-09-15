@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "task": "company-side-conversational-qa",
+  "datasetVersion": "company-side-conversational-qa-v3",
+  "goldVersion": "company-side-conversational-qa-gold-v3",
+  "runId": "20260914_slack_v3",
+  "createdAt": "2026-09-14T13:13:30Z",
+  "completedAt": "2026-09-14T14:01:58Z",
+  "resultArtifact": "RESULTS-2026-09-14-V3.md",
+  "sourceRevision": {
+    "repositoryHead": "5f39e97fb4b87a3c88e8f137fe8fb5d29f6c20ff",
+    "workingTreeDirty": true,
+    "workingTreeFingerprintSha256": "23334fc9c6574ba71eaecd63733a8d28f8bd8b2910c88aaf38620808f7f4a2c3"
+  },
+  "promptFingerprint": "8e0f58119b0bf125ad30609fe812cbcd37cbb7026c14f38e3ccb7a9c1825c073",
+  "assets": {
+    "casesV3Sha256": "3a031025dbcfabf51b7345586cdf6ce19248d08fdd34f3225158c17da7de2e8c",
+    "goldV3Sha256": "1fba65766f94716fce31665623533be3bd737edc6307d2fc1e3e29ff6849c609",
+    "readmeAtFreezeSha256": "8204c6f57236574c84cdb926ff12b0ddf810fc06c1f67518380147b412d0be73"
+  },
+  "input": {
+    "scenarioCount": 5,
+    "minimumCompanyTurnsPerScenario": 6,
+    "plannedCompanyMessageCount": 31,
+    "challengeSet": true,
+    "representativeSample": false,
+    "actualIdentityMapping": "runs/20260914_slack_v3/fixture-scope.json"
+  },
+  "runner": {
+    "type": "manual_stateful_e2e",
+    "slackSurface": "z-test-harper Slack plugin",
+    "slackIngress": "production events and queue",
+    "localWorkerTarget": "local-gimhojin-z-test-harper",
+    "localAppOrigin": "http://127.0.0.1:3100",
+    "rawArtifactPath": "runs/20260914_slack_v3/"
+  },
+  "modelConfiguration": {
+    "model": "gpt-5.6-terra",
+    "routingModel": "gpt-5.6-luna",
+    "provider": "production runtime configuration",
+    "reasoning": "runtime configuration; no override",
+    "temperature": "runtime configuration; no override",
+    "slackTurnTimeoutMs": 270000
+  },
+  "observedExecution": {
+    "companyMessageCount": 31,
+    "scenarioCount": 5,
+    "completedJobCount": 31,
+    "singleAttemptJobCount": 31,
+    "workerErrorCount": 0,
+    "authorizedOutboundContactCount": 4,
+    "strictScenarioEndToEndPasses": 1,
+    "criticalFailureCount": 1,
+    "cleanupResidualFixtureCount": 0,
+    "channelRouteAfterCleanup": "vercel_queue"
+  },
+  "privacy": {
+    "trackedAssetsDeidentified": true,
+    "authorizedTalentCount": 2,
+    "rawArtifactsGitignored": true,
+    "fileMode": "0600",
+    "directoryMode": "0700",
+    "providers": ["Slack", "production LLM provider", "Resend/email"]
+  },
+  "metricGate": {
+    "criticalFailures": 0,
+    "stateIntegrityPassRate": 1,
+    "intentApplicationPassRateAtLeast": 0.94,
+    "continuityPassRateAtLeast": 0.9,
+    "effortPassRateAtLeast": 0.9,
+    "truthfulnessPassRateAtLeast": 0.9,
+    "copyFidelityPassRateAtLeast": 0.9,
+    "scenarioEndToEnd": "5/5"
+  },
+  "knownLimitations": [
+    "One internal Workspace, one Slack sender, two authorized talent accounts, and four test-only Roles do not represent production frequency.",
+    "Gmail plugin reauthentication was unavailable, so this run verifies real outbound delivery state but does not fabricate candidate replies.",
+    "The manual runner adapts follow-up wording to the actual Harper response while preserving each frozen checkpoint."
+  ]
+}

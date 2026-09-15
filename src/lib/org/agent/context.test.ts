@@ -3,15 +3,148 @@ import test from "node:test";
 import {
   CONVERSATION_CONTEXT_MAX_CHARS,
   CONVERSATION_MESSAGE_MAX_CHARS,
+  formatOrgAgentContactSummary,
+  formatRecentOrgAgentToolContext,
   type OrgAgentPromptContext,
 } from "@/lib/org/agent/context";
 import { buildDefaultOrgAgentLongTextObservations } from "@/lib/org/agent/contextVisibility";
 import { formatOrgAgentCompanyContext } from "@/lib/org/agent/promptFormat";
-import { selectRecentlyPresentedContactDraftIds } from "@/lib/org/agent/toolState";
+import { selectRecentlyPresentedContactDraftReferences } from "@/lib/org/agent/toolState";
 
 test("uses the expanded recent-conversation limits", () => {
   assert.equal(CONVERSATION_MESSAGE_MAX_CHARS, 6_000);
   assert.equal(CONVERSATION_CONTEXT_MAX_CHARS, 50_000);
+});
+
+test("contact summary exposes only bounded counts and an exact-read instruction", () => {
+  const formatted = formatOrgAgentContactSummary({
+    allResponseContactCount: 12,
+    allSentCount: 31,
+    asOf: "2026-09-15T03:00:00.000Z",
+    recentActiveDraftCount: 2,
+    recentResponseContactCount: 3,
+    recentSentCount: 5,
+    windowStart: "2026-09-08T03:00:00.000Z",
+  });
+
+  assert.match(formatted, /scope=workspace window=rolling_7_days/);
+  assert.match(formatted, /recent_active_drafts=2/);
+  assert.match(formatted, /recent_sent=5/);
+  assert.match(formatted, /recent_contacts_with_response=3/);
+  assert.match(formatted, /all_time_sent=31/);
+  assert.match(formatted, /all_time_contacts_with_response=12/);
+  assert.match(formatted, /list_contacts와 read_contact/);
+  assert.match(formatted, /특정 연락이 없다고 판단하지 않는다/);
+  assert.doesNotMatch(formatted, /contact_id|subject|body/);
+});
+
+test("unavailable contact summary never looks like an empty history", () => {
+  const formatted = formatOrgAgentContactSummary(null);
+
+  assert.match(formatted, /available=false/);
+  assert.match(formatted, /연락이 없다고 추정하지 말고/);
+  assert.doesNotMatch(formatted, /recent_sent=0|all_time_sent=0/);
+});
+
+test("recent tool context carries bounded outcomes and exact continuation identifiers", () => {
+  const messages = [
+    {
+      content: "older",
+      createdAt: "2026-09-15T00:00:00.000Z",
+      id: 1,
+      mentions: [],
+      metadata: {
+        toolResults: [
+          {
+            callId: "old",
+            continuationContext: "role_id=too-old",
+            name: "change_role_status",
+            status: "unchanged" as const,
+            summary: "old result",
+          },
+        ],
+      },
+      role: "assistant" as const,
+      slackThreadId: "thread-1",
+      slackUserId: null,
+    },
+    {
+      content: "user",
+      createdAt: "2026-09-15T00:01:00.000Z",
+      id: 2,
+      mentions: [],
+      metadata: {},
+      role: "user" as const,
+      slackThreadId: "thread-1",
+      slackUserId: "U1",
+    },
+    {
+      content: "choose",
+      createdAt: "2026-09-15T00:02:00.000Z",
+      id: 3,
+      mentions: [],
+      metadata: {
+        toolResults: [
+          {
+            callId: "latest",
+            continuationContext:
+              "role_id=role-1;notification_channel_options=C123|hiring|current=true|selected=false;assignee_options=user-1|민지|current=true",
+            name: "change_role_status",
+            status: "unchanged" as const,
+            summary: "채널과 담당자 선택 필요",
+          },
+        ],
+      },
+      role: "assistant" as const,
+      slackThreadId: "thread-1",
+      slackUserId: null,
+    },
+  ];
+
+  const formatted = formatRecentOrgAgentToolContext(messages);
+
+  assert.match(formatted, /change_role_status\tunchanged/);
+  assert.match(formatted, /role_id=role-1/);
+  assert.match(formatted, /C123\|hiring\|current=true\|selected=false/);
+  assert.match(formatted, /user-1\|민지\|current=true/);
+  assert.doesNotMatch(formatted, /too-old/);
+});
+
+test("recent tool context expires outside the nearest four messages", () => {
+  const messages = [
+    {
+      content: "old",
+      createdAt: "2026-09-15T00:00:00.000Z",
+      id: 1,
+      mentions: [],
+      metadata: {
+        toolResults: [
+          {
+            callId: "old",
+            continuationContext: "role_id=too-old",
+            name: "change_role_status",
+            status: "unchanged" as const,
+            summary: "old result",
+          },
+        ],
+      },
+      role: "assistant" as const,
+      slackThreadId: "thread-1",
+      slackUserId: null,
+    },
+    ...Array.from({ length: 4 }, (_, index) => ({
+      content: `later-${index}`,
+      createdAt: "2026-09-15T00:01:00.000Z",
+      id: index + 2,
+      mentions: [],
+      metadata: {},
+      role: (index % 2 === 0 ? "user" : "assistant") as "assistant" | "user",
+      slackThreadId: "thread-1",
+      slackUserId: null,
+    })),
+  ];
+
+  assert.equal(formatRecentOrgAgentToolContext(messages), "-");
 });
 
 test("default visibility treats the always-injected pitch document as complete", () => {
@@ -127,6 +260,7 @@ test("total context truncation revokes every retained completeness marker", asyn
     contextNotesText: "-",
     conversationText: "-",
     pendingUpdateText: "-",
+    recentContactsText: "recent_sent=2\nall_time_sent=10",
     recentRecommendationsText:
       "returned_items=1 recent_complete=true\ntalent_id | name",
     retainedDataText: [
@@ -202,7 +336,7 @@ test("keeps every draft reference from the nearest draft presentation in the rec
   }));
 
   assert.deepEqual(
-    selectRecentlyPresentedContactDraftIds([
+    selectRecentlyPresentedContactDraftReferences([
       {
         metadata: { contactDraftRefs: [{ contactId: "older", revision: 1 }] },
         role: "assistant",
@@ -212,13 +346,13 @@ test("keeps every draft reference from the nearest draft presentation in the rec
       { metadata: {}, role: "user" },
       { metadata: {}, role: "assistant" },
     ]),
-    refs.map((ref) => ref.contactId)
+    refs
   );
 });
 
 test("does not reuse a draft presentation older than four conversation messages", () => {
   assert.deepEqual(
-    selectRecentlyPresentedContactDraftIds([
+    selectRecentlyPresentedContactDraftReferences([
       {
         metadata: {
           contactDraftRefs: [{ contactId: "too-old", revision: 1 }],

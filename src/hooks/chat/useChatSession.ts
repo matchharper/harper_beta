@@ -14,7 +14,7 @@ import {
 import type { CandidateDetail } from "@/hooks/candidates/useCandidateDetail";
 import { logger } from "@/utils/logger";
 
-const CHAT_MODEL = "grok-4-fast-reasoning";
+const CHAT_MODEL = "gpt-5.6-luna";
 const STREAM_FLUSH_INTERVAL_MS = 60;
 
 export const UI_START = "<<UI>>";
@@ -233,7 +233,7 @@ export function useChatSessionDB(args: {
   scope?: ChatScope;
   userId?: string;
   apiPath?: string;
-  model?: "grok-4-fast-reasoning" | "grok-4.3" | "gemini-3-flash-preview";
+  model?: "gpt-5.6-luna" | "gemini-3-flash-preview";
   candidDoc?: CandidateDetail;
 }) {
   const { scope, userId } = args;
@@ -498,16 +498,7 @@ export function useChatSessionDB(args: {
         setIsStreaming(false);
       }
     },
-    [
-      ready,
-      input,
-      isStreaming,
-      scope,
-      userId,
-      apiPath,
-      model,
-      candidDoc,
-    ]
+    [ready, input, isStreaming, scope, userId, apiPath, model, candidDoc]
   );
 
   const reload = useCallback(async () => {

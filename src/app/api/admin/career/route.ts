@@ -17,7 +17,8 @@ import type {
   AdminCareerQuickSignal,
   AdminCareerSummaryMetric,
 } from "@/lib/adminCareerAnalytics/types";
-import { xaiInference } from "@/lib/llm/llm";
+import { lunaInference } from "@/lib/llm/llm";
+import { GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import {
   extractEmailFromLandingLoginType,
   getLandingLogBaseType,
@@ -41,7 +42,7 @@ export const runtime = "nodejs";
 
 const BATCH_SIZE = 1000;
 const IN_FILTER_CHUNK_SIZE = 300;
-const CAREER_ANALYTICS_SLACK_SUMMARY_MODEL = "grok-4.3";
+const CAREER_ANALYTICS_SLACK_SUMMARY_MODEL = GPT_56_LUNA_MODEL;
 const LANDING_LOG_EVENT_FILTER = [
   "type.eq.new_visit",
   "type.like.new_visit:%",
@@ -842,7 +843,7 @@ async function generateCareerAnalyticsSlackSummary(
   ].join("\n");
 
   const summary = (
-    await xaiInference(
+    await lunaInference(
       CAREER_ANALYTICS_SLACK_SUMMARY_MODEL,
       systemPrompt,
       userPrompt,

@@ -39,6 +39,24 @@ const BATCH_SIZE = 1000;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const NO_RECOMMENDATION_GRACE_PERIOD_MS = 60 * 60 * 1000;
 const ACCOUNT_DELETED_LOG_TYPE = "career_account_deleted";
+export const ANALYTICS_TEST_FIXTURE_TALENT_LOG_TYPE =
+  "analytics_excluded_test_fixture_talent";
+export const TALENT_LOGIN_ACTIVITY_LOG_TYPES = [
+  "login_completed",
+  "weekly_stats_activity:login",
+] as const;
+export const TALENT_RECOMMENDATION_VIEW_ACTIVITY_LOG_TYPE =
+  "weekly_stats_activity:recommendation_view";
+export const TALENT_RECOMMENDATION_CLICK_ACTIVITY_LOG_TYPE =
+  "weekly_stats_activity:recommendation_click";
+export const TALENT_RECOMMENDATION_FEEDBACK_ACTIVITY_LOG_TYPE =
+  "weekly_stats_activity:recommendation_feedback";
+const TALENT_ACTIVE_ACTIVITY_LOG_TYPES = [
+  ...TALENT_LOGIN_ACTIVITY_LOG_TYPES,
+  TALENT_RECOMMENDATION_VIEW_ACTIVITY_LOG_TYPE,
+  TALENT_RECOMMENDATION_CLICK_ACTIVITY_LOG_TYPE,
+  TALENT_RECOMMENDATION_FEEDBACK_ACTIVITY_LOG_TYPE,
+] as const;
 const TOOL_USAGE_LOG_PREFIX = "career_tool_call:";
 const TOOL_FAILURE_LOG_PREFIX = "career_tool_call_failed:";
 const DAILY_USER_STATS_EXTRA_EXCLUDED_EMAILS = [
@@ -71,7 +89,9 @@ type TalentUserRow = Pick<
 type LogRow = Pick<
   Database["public"]["Tables"]["logs"]["Row"],
   "user_id" | "type" | "created_at"
->;
+> & {
+  meta_data?: Database["public"]["Tables"]["logs"]["Row"]["meta_data"];
+};
 type TalentMessageRow = Pick<
   Database["public"]["Tables"]["talent_messages"]["Row"],
   "user_id" | "role" | "message_type" | "created_at"
@@ -96,7 +116,12 @@ type RecommendationRow = Pick<
 >;
 type ExternalNegativeFeedbackReasonRow = Pick<
   Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"],
-  "feedback_at" | "feedback_reason" | "id" | "talent_id" | "updated_at"
+  | "feedback_at"
+  | "feedback_reason"
+  | "id"
+  | "role_id"
+  | "talent_id"
+  | "updated_at"
 >;
 type CareerEmailMessageRow = Pick<
   Database["public"]["Tables"]["career_email_messages"]["Row"],
@@ -151,6 +176,26 @@ type InternalOpportunityRoleRow = Pick<
   company_workspace:
     | { company_name: string | null }
     | { company_name: string | null }[]
+    | null;
+};
+
+type TestOnlyRoleRow = Pick<
+  Database["public"]["Tables"]["company_roles"]["Row"],
+  "information" | "role_id"
+>;
+
+type TalentRoleActivityRecommendationRow = Pick<
+  Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"],
+  "role_id" | "talent_id"
+>;
+
+type TalentRoleActivityRow = Pick<
+  Database["public"]["Tables"]["talent_role_activity"]["Row"],
+  "created_at" | "kind" | "recommendation_id"
+> & {
+  talent_opportunity_recommendation:
+    | TalentRoleActivityRecommendationRow
+    | TalentRoleActivityRecommendationRow[]
     | null;
 };
 
@@ -584,6 +629,44 @@ function asRecord(value: unknown): Record<string, unknown> {
 function getJsonString(value: unknown, key: string) {
   const raw = asRecord(value)[key];
   return typeof raw === "string" && raw.trim() ? raw.trim() : null;
+}
+
+export function buildDailyUserStatsTestExclusions(args: {
+  markerLogs: Array<Pick<LogRow, "user_id">>;
+  roles: TestOnlyRoleRow[];
+}) {
+  const roleIds = new Set<string>();
+  const talentIds = new Set<string>();
+
+  for (const log of args.markerLogs) addUserId(talentIds, log.user_id);
+
+  for (const role of args.roles) {
+    const information = asRecord(role.information);
+    if (information.testOnly !== true) continue;
+
+    const roleId = String(role.role_id ?? "").trim();
+    if (roleId) roleIds.add(roleId);
+
+    const testTalentIds = information.testTalentIds;
+    if (!Array.isArray(testTalentIds)) continue;
+    for (const talentId of testTalentIds) {
+      if (typeof talentId === "string") addUserId(talentIds, talentId);
+    }
+  }
+
+  return { roleIds, talentIds };
+}
+
+function getTalentRoleActivityRecommendation(row: TalentRoleActivityRow) {
+  return Array.isArray(row.talent_opportunity_recommendation)
+    ? row.talent_opportunity_recommendation[0] ?? null
+    : row.talent_opportunity_recommendation;
+}
+
+function isTalentLoginActivityLog(type: string | null | undefined) {
+  return TALENT_LOGIN_ACTIVITY_LOG_TYPES.includes(
+    String(type ?? "") as (typeof TALENT_LOGIN_ACTIVITY_LOG_TYPES)[number]
+  );
 }
 
 function getOpportunityDeliveryDedupeKey(args: {
@@ -1472,9 +1555,11 @@ async function buildUserStatsReport(args: {
 
   const [
     talentUsers,
+    analyticsExcludedTalentLogs,
+    testOnlyRoleRows,
     signupAndSubmitLogs,
     referralInteractionLogs,
-    loginCompletedLogs,
+    activeTalentActivityLogs,
     messages,
     onboardingEvents,
     recommendedRows,
@@ -1482,7 +1567,7 @@ async function buildUserStatsReport(args: {
     clickedRows,
     feedbackAtRows,
     legacyFeedbackRows,
-    savedStageRows,
+    savedStageActivityRows,
     emailRows,
     opportunityEmailDeliveries,
     failedDiscoveryCompletedRuns,
@@ -1516,6 +1601,22 @@ async function buildUserStatsReport(args: {
       supabaseServer
         .from("logs")
         .select("user_id,type,created_at")
+        .eq("type", ANALYTICS_TEST_FIXTURE_TALENT_LOG_TYPE)
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows<TestOnlyRoleRow>((from, to) =>
+      supabaseServer
+        .from("company_roles")
+        .select("role_id,information")
+        .contains("information", { testOnly: true })
+        .order("role_id", { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows<LogRow>((from, to) =>
+      supabaseServer
+        .from("logs")
+        .select("user_id,type,created_at")
         .in("type", ["career_signup_completed", "career_onboarding_submitted"])
         .gte("created_at", startIso)
         .lt("created_at", endIso)
@@ -1538,8 +1639,8 @@ async function buildUserStatsReport(args: {
     fetchAllRows<LogRow>((from, to) =>
       supabaseServer
         .from("logs")
-        .select("user_id,type,created_at")
-        .eq("type", "login_completed")
+        .select("user_id,type,created_at,meta_data")
+        .in("type", [...TALENT_ACTIVE_ACTIVITY_LOG_TYPES])
         .gte("created_at", startIso)
         .lt("created_at", endIso)
         .order("id", { ascending: true })
@@ -1622,17 +1723,19 @@ async function buildUserStatsReport(args: {
         .order("updated_at", { ascending: true })
         .range(from, to)
     ),
-    fetchAllRows<RecommendationRow>((from, to) =>
-      supabaseServer
-        .from("talent_opportunity_recommendation")
+    fetchAllRows<TalentRoleActivityRow>((from, to) =>
+      (supabaseServer
+        .from("talent_role_activity")
         .select(
-          "id,talent_id,role_id,opportunity_type,created_at,viewed_at,clicked_at,feedback,feedback_at,saved_stage,updated_at"
+          "recommendation_id,kind,created_at,talent_opportunity_recommendation!inner(talent_id,role_id)"
         )
-        .not("saved_stage", "is", null)
-        .gte("updated_at", startIso)
-        .lt("updated_at", endIso)
-        .order("updated_at", { ascending: true })
-        .range(from, to)
+        .eq("kind", "saved_stage_changed")
+        .gte("created_at", startIso)
+        .lt("created_at", endIso)
+        .order("created_at", { ascending: true })
+        .range(from, to) as unknown as PromiseLike<
+        FetchPageResult<TalentRoleActivityRow>
+      >)
     ),
     fetchAllRows<CareerEmailMessageRow>((from, to) =>
       supabaseServer
@@ -1687,11 +1790,13 @@ async function buildUserStatsReport(args: {
         .order("created_at", { ascending: true })
         .range(from, to)
     ),
-    fetchAllRows<Pick<RecommendationRow, "created_at" | "talent_id">>(
+    fetchAllRows<
+      Pick<RecommendationRow, "created_at" | "role_id" | "talent_id">
+    >(
       (from, to) =>
         supabaseServer
           .from("talent_opportunity_recommendation")
-          .select("talent_id,created_at")
+          .select("talent_id,role_id,created_at")
           .lt("created_at", noRecommendationObservationEndIso)
           .order("created_at", { ascending: true })
           .range(from, to)
@@ -1710,7 +1815,9 @@ async function buildUserStatsReport(args: {
     fetchAllRows<ExternalNegativeFeedbackReasonRow>((from, to) =>
       supabaseServer
         .from("talent_opportunity_recommendation")
-        .select("id,talent_id,feedback_at,feedback_reason,updated_at")
+        .select(
+          "id,talent_id,role_id,feedback_at,feedback_reason,updated_at"
+        )
         .eq("opportunity_type", "external_jd")
         .in("feedback", ["dislike", "negative"])
         .gte("feedback_at", externalNegativeFeedbackReasonRange.startIso)
@@ -1721,7 +1828,9 @@ async function buildUserStatsReport(args: {
     fetchAllRows<ExternalNegativeFeedbackReasonRow>((from, to) =>
       supabaseServer
         .from("talent_opportunity_recommendation")
-        .select("id,talent_id,feedback_at,feedback_reason,updated_at")
+        .select(
+          "id,talent_id,role_id,feedback_at,feedback_reason,updated_at"
+        )
         .eq("opportunity_type", "external_jd")
         .in("feedback", ["dislike", "negative"])
         .is("feedback_at", null)
@@ -1858,8 +1967,23 @@ async function buildUserStatsReport(args: {
     ),
   ]);
 
+  const {
+    roleIds: testOnlyRoleIds,
+    talentIds: testFixtureTalentIds,
+  } = buildDailyUserStatsTestExclusions({
+    markerLogs: analyticsExcludedTalentLogs,
+    roles: testOnlyRoleRows,
+  });
+  for (const user of talentUsers) {
+    if (!testFixtureTalentIds.has(user.user_id)) continue;
+    const email = normalizeEmail(user.email);
+    if (email) excludedEmailSet.add(email);
+  }
+
   const includedTalentUsers = talentUsers.filter(
-    (user) => !isEmailExcluded(user.email, excludedEmailSet)
+    (user) =>
+      !testFixtureTalentIds.has(user.user_id) &&
+      !isEmailExcluded(user.email, excludedEmailSet)
   );
   const includedUserIds = new Set(
     includedTalentUsers.map((user) => user.user_id).filter(Boolean)
@@ -1868,6 +1992,12 @@ async function buildUserStatsReport(args: {
     const normalized = String(userId ?? "").trim();
     return Boolean(normalized && includedUserIds.has(normalized));
   };
+  const isIncludedRecommendation = (row: {
+    role_id: string | null | undefined;
+    talent_id: string | null | undefined;
+  }) =>
+    isIncludedUserId(row.talent_id) &&
+    !testOnlyRoleIds.has(String(row.role_id ?? "").trim());
 
   const signupUserIds = new Set<string>();
   for (const user of includedTalentUsers) {
@@ -1987,8 +2117,8 @@ async function buildUserStatsReport(args: {
   const cumulativeTalentCount = includedTalentUsers.filter(
     (user) => user.created_at && user.created_at < endIso
   ).length;
-  const includedRecommendedRows = recommendedRows.filter((row) =>
-    isIncludedUserId(row.talent_id)
+  const includedRecommendedRows = recommendedRows.filter(
+    isIncludedRecommendation
   );
   const includedInternalRecommendedRows = includedRecommendedRows.filter(
     (row) => isInternalOpportunity(row.opportunity_type)
@@ -1996,7 +2126,7 @@ async function buildUserStatsReport(args: {
   const includedRolling7DayInternalRecommendedRows =
     internalOpportunityRolling7DayRows.filter(
       (row) =>
-        isIncludedUserId(row.talent_id) &&
+        isIncludedRecommendation(row) &&
         isInternalOpportunity(row.opportunity_type)
     );
   const internalOpportunityStats = buildInternalOpportunityStats(
@@ -2014,7 +2144,7 @@ async function buildUserStatsReport(args: {
     ).values()
   ).filter(
     (row) =>
-      isIncludedUserId(row.talent_id) &&
+      isIncludedRecommendation(row) &&
       isInRange(
         row.feedback_at ?? row.updated_at,
         externalNegativeFeedbackReasonRange.startIso,
@@ -2041,24 +2171,25 @@ async function buildUserStatsReport(args: {
   const includedRecommendedRowIds = new Set(
     includedRecommendedRows.map((row) => row.id).filter(Boolean)
   );
-  const includedViewedRows = viewedRows.filter((row) =>
-    isIncludedUserId(row.talent_id)
-  );
+  const includedViewedRows = viewedRows.filter(isIncludedRecommendation);
   const includedViewedRecommendedRows = includedViewedRows.filter((row) =>
     includedRecommendedRowIds.has(row.id)
   );
-  const includedClickedRows = clickedRows.filter((row) =>
-    isIncludedUserId(row.talent_id)
-  );
-  const includedSavedStageRows = savedStageRows.filter((row) =>
-    isIncludedUserId(row.talent_id)
+  const includedClickedRows = clickedRows.filter(isIncludedRecommendation);
+  const includedSavedStageActivityRows = savedStageActivityRows.filter(
+    (row) => {
+      const recommendation = getTalentRoleActivityRecommendation(row);
+      return recommendation
+        ? isIncludedRecommendation(recommendation)
+        : false;
+    }
   );
   const includedFeedbackRows = dedupeRecommendationRows([
     ...feedbackAtRows,
     ...legacyFeedbackRows,
   ]).filter(
     (row) =>
-      isIncludedUserId(row.talent_id) &&
+      isIncludedRecommendation(row) &&
       isInRange(row.feedback_at ?? row.updated_at, startIso, endIso)
   );
   const includedFeedbackRecommendedRows = includedFeedbackRows.filter((row) =>
@@ -2139,14 +2270,22 @@ async function buildUserStatsReport(args: {
     addUserId(inboundEmailUserIds, row.talent_id);
   }
 
+  const includedActiveTalentActivityLogs = activeTalentActivityLogs.filter(
+    (log) => {
+      if (!isIncludedUserId(log.user_id)) return false;
+      const roleId = getJsonString(log.meta_data, "roleId");
+      return !roleId || !testOnlyRoleIds.has(roleId);
+    }
+  );
+
   const loggedInUserIds = new Set<string>();
   for (const user of includedTalentUsers) {
     if (isInRange(user.last_logined_at, startIso, endIso)) {
       addUserId(loggedInUserIds, user.user_id);
     }
   }
-  for (const log of loginCompletedLogs) {
-    if (log.type === "login_completed" && isIncludedUserId(log.user_id)) {
+  for (const log of includedActiveTalentActivityLogs) {
+    if (isTalentLoginActivityLog(log.type)) {
       addUserId(loggedInUserIds, log.user_id);
     }
   }
@@ -2154,14 +2293,31 @@ async function buildUserStatsReport(args: {
   const viewedRecommendationTalentIds = buildUserIdSet(
     includedViewedRows.map((row) => row.talent_id)
   );
+  for (const log of includedActiveTalentActivityLogs) {
+    if (log.type === TALENT_RECOMMENDATION_VIEW_ACTIVITY_LOG_TYPE) {
+      addUserId(viewedRecommendationTalentIds, log.user_id);
+    }
+  }
   const clickedRecommendationTalentIds = buildUserIdSet(
     includedClickedRows.map((row) => row.talent_id)
   );
+  for (const log of includedActiveTalentActivityLogs) {
+    if (log.type === TALENT_RECOMMENDATION_CLICK_ACTIVITY_LOG_TYPE) {
+      addUserId(clickedRecommendationTalentIds, log.user_id);
+    }
+  }
   const feedbackRecommendationTalentIds = buildUserIdSet(
     includedFeedbackRows.map((row) => row.talent_id)
   );
+  for (const log of includedActiveTalentActivityLogs) {
+    if (log.type === TALENT_RECOMMENDATION_FEEDBACK_ACTIVITY_LOG_TYPE) {
+      addUserId(feedbackRecommendationTalentIds, log.user_id);
+    }
+  }
   const savedRecommendationTalentIds = buildUserIdSet(
-    includedSavedStageRows.map((row) => row.talent_id)
+    includedSavedStageActivityRows.map(
+      (row) => getTalentRoleActivityRecommendation(row)?.talent_id
+    )
   );
 
   const activeTalentIds = new Set<string>();
@@ -2227,7 +2383,7 @@ async function buildUserStatsReport(args: {
   }
   const recommendationTalentIdsBeforeObservationEnd = new Set<string>();
   for (const row of recommendationTalentRowsBeforeObservationEnd) {
-    if (isIncludedUserId(row.talent_id)) {
+    if (isIncludedRecommendation(row)) {
       addUserId(recommendationTalentIdsBeforeObservationEnd, row.talent_id);
     }
   }
@@ -2255,7 +2411,7 @@ async function buildUserStatsReport(args: {
   const includedInternalConnectionResponseRows =
     internalConnectionResponseRows.filter(
       (row) =>
-        isIncludedUserId(row.talent_id) &&
+        isIncludedRecommendation(row) &&
         isInternalOpportunity(row.opportunity_type)
     );
   const internalConnectionResponseStats =

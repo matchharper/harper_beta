@@ -7,7 +7,10 @@ import {
   companyTalentRequestBlocksNewContact,
   companyTalentRequestCandidateEmailWasSent,
   humanizeCompanyTalentRequestStatus,
+  normalizeCompanyTalentRelayDeliveryStatus,
 } from "@/lib/companyTalentRequests/status";
+import type { CompanyTalentRelayDeliveryStatus } from "@/lib/companyTalentRequests/status";
+import { resolveCompanyLogoUrl } from "@/lib/imageUrl";
 
 export { assertSafeProfessionalQuestion } from "@/lib/companyTalentRequests/policy";
 export { serializeTalentPendingRequest } from "@/lib/companyTalentRequests/presentation";
@@ -41,6 +44,7 @@ export type CompanyTalentRequestRow = {
   approved_at: string | null;
   id: string;
   company_workspace_id: string;
+  contact_kind: "contact" | "question" | "resume";
   delivery_body: string | null;
   delivery_subject: string | null;
   role_id: string;
@@ -72,8 +76,21 @@ type CompanyTalentRequestReadRow = CompanyTalentRequestRow & {
     name?: string | null;
     status?: string | null;
   } | null;
-  workspace?: { company_name?: string | null } | null;
+  workspace?: {
+    company_db?: { logo?: string | null } | null;
+    company_name?: string | null;
+    logo_url?: string | null;
+  } | null;
 };
+
+export function getCompanyTalentRequestLogoUrl(
+  request: Pick<CompanyTalentRequestReadRow, "workspace">
+) {
+  return resolveCompanyLogoUrl({
+    companyDbLogoUrl: request.workspace?.company_db?.logo,
+    workspaceLogoUrl: request.workspace?.logo_url,
+  });
+}
 
 function companyRequestRoleIsOpen(row: CompanyTalentRequestReadRow) {
   const status = normalizedText(row.role?.status, 80).toLowerCase();
@@ -97,7 +114,13 @@ function companyRequestStillActive(
     workflow_status: row.workflow_status,
   });
   if (awaitingTalentOnly) {
-    return candidateEmailSent && !hasResponse && companyRequestRoleIsOpen(row);
+    const awaitsCandidateResponse = row.contact_kind !== "contact";
+    return (
+      candidateEmailSent &&
+      !hasResponse &&
+      companyRequestRoleIsOpen(row) &&
+      awaitsCandidateResponse
+    );
   }
   const expiresAt = Date.parse(String(row.expires_at ?? ""));
   return candidateEmailSent
@@ -130,20 +153,6 @@ export type CompanyTalentContactDraft = CompanyTalentRequestRow & {
   roleName?: string | null;
 };
 
-export type CompanyTalentContactDraftContext = {
-  body: string;
-  candidateName: string;
-  contactId: string;
-  expiresAt: string;
-  kind: "question" | "resume";
-  requestContext: string;
-  revision: number;
-  roleId: string;
-  roleName: string;
-  subject: string;
-  talentId: string;
-};
-
 function normalizedText(value: unknown, maxLength = 800) {
   return String(value ?? "")
     .replace(/[\u0000-\u001f\u007f]/g, " ")
@@ -152,9 +161,18 @@ function normalizedText(value: unknown, maxLength = 800) {
     .slice(0, maxLength);
 }
 
+function normalizedRelayContent(value: unknown, maxLength = 5_000) {
+  return String(value ?? "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[\u0000\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ")
+    .trim()
+    .slice(0, maxLength);
+}
+
 export async function createCompanyTalentContactDraft(args: {
   admin: UntypedAdmin;
   body: string;
+  contactKind: "contact" | "question" | "resume";
   id: string;
   expectsDocument: boolean;
   intent?: "candidate_reengagement" | "ordinary";
@@ -167,11 +185,15 @@ export async function createCompanyTalentContactDraft(args: {
   talentId: string;
   workspaceId: string;
 }) {
+  if (args.expectsDocument !== (args.contactKind === "resume")) {
+    throw new Error("company_talent_contact_kind_document_mismatch");
+  }
   const context = assertSafeProfessionalQuestion(args.requestContext);
   const { data, error } = await args.admin
     .from("company_talent_requests")
     .insert({
       company_workspace_id: args.workspaceId,
+      contact_kind: args.contactKind,
       delivery_body: args.body.trim(),
       delivery_subject: normalizedText(args.subject, 180),
       draft_revision: 1,
@@ -187,7 +209,7 @@ export async function createCompanyTalentContactDraft(args: {
       workflow_status: "draft",
     })
     .select(
-      "id, company_workspace_id, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, intent, resume_stage, response_disposition"
+      "id, company_workspace_id, contact_kind, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, intent, resume_stage, response_disposition"
     )
     .single();
   if (error) throw error;
@@ -202,7 +224,7 @@ export async function fetchCompanyTalentContact(args: {
   const { data, error } = await args.admin
     .from("company_talent_requests")
     .select(
-      "id, company_workspace_id, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, intent, resume_stage, response_disposition, role:company_roles(name), talent:talent_users(name, email)"
+      "id, company_workspace_id, contact_kind, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, intent, resume_stage, response_disposition, role:company_roles(name), talent:talent_users(name, email)"
     )
     .eq("id", args.requestId)
     .eq("company_workspace_id", args.workspaceId)
@@ -245,7 +267,7 @@ export async function reviseCompanyTalentContactDraft(args: {
     .eq("draft_revision", args.expectedRevision)
     .gt("expires_at", new Date().toISOString())
     .select(
-      "id, company_workspace_id, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, intent, resume_stage, response_disposition"
+      "id, company_workspace_id, contact_kind, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, intent, resume_stage, response_disposition"
     )
     .maybeSingle();
   if (error) throw error;
@@ -280,50 +302,6 @@ export async function scheduleCompanyTalentContact(args: {
     scheduledAt: string;
     status: "immediate" | "queued";
   };
-}
-
-export async function fetchCompanyTalentContactDraftsForScope(args: {
-  admin: UntypedAdmin;
-  contactIds?: string[];
-  conversationId: string;
-  slackThreadId?: string | null;
-  workspaceId: string;
-}): Promise<CompanyTalentContactDraftContext[]> {
-  let query = args.admin
-    .from("company_talent_requests")
-    .select(
-      "id, role_id, talent_id, expects_document, request_context, delivery_subject, delivery_body, draft_revision, expires_at, created_at, role:company_roles(name), talent:talent_users(name), source_message:company_messages!company_talent_requests_source_company_message_id_fkey!inner(conversation_id, slack_thread_id)"
-    )
-    .eq("company_workspace_id", args.workspaceId)
-    .eq("workflow_status", "draft")
-    .gt("expires_at", new Date().toISOString())
-    .order("created_at", { ascending: false });
-  const contactIds = Array.from(
-    new Set(
-      (args.contactIds ?? []).map((value) => value.trim()).filter(Boolean)
-    )
-  );
-  query =
-    contactIds.length > 0
-      ? query.in("id", contactIds)
-      : args.slackThreadId
-        ? query.eq("source_message.slack_thread_id", args.slackThreadId)
-        : query.eq("source_message.conversation_id", args.conversationId);
-  const { data, error } = await query;
-  if (error) throw error;
-  return (data ?? []).map((value: any) => ({
-    body: String(value.delivery_body ?? ""),
-    candidateName: normalizedText(value.talent?.name, 160) || "후보자",
-    contactId: String(value.id ?? ""),
-    expiresAt: String(value.expires_at ?? ""),
-    kind: value.expects_document ? "resume" : "question",
-    requestContext: normalizedText(value.request_context, 800),
-    revision: Number(value.draft_revision ?? 0),
-    roleId: String(value.role_id ?? ""),
-    roleName: normalizedText(value.role?.name, 160) || "이름 없는 Role",
-    subject: normalizedText(value.delivery_subject, 180),
-    talentId: String(value.talent_id ?? ""),
-  }));
 }
 
 export async function enqueueCompanyTalentRequest(args: {
@@ -427,7 +405,7 @@ export async function fetchActiveCompanyTalentRequest(args: {
   let query = args.admin
     .from("company_talent_requests")
     .select(
-      "id, company_workspace_id, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, talent_source_message_id, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, intent, resume_stage, response_disposition, deliveries:contact_queue(sent_at, status, type), role:company_roles!inner(name, status, is_expired, expires_at), workspace:company_workspace!inner(company_name)"
+      "id, company_workspace_id, contact_kind, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, talent_source_message_id, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, intent, resume_stage, response_disposition, deliveries:contact_queue(sent_at, status, type), role:company_roles!inner(name, status, is_expired, expires_at), workspace:company_workspace!inner(company_name, logo_url, company_db:company_db(logo))"
     )
     .eq("talent_id", args.talentId)
     .in("workflow_status", statuses)
@@ -462,7 +440,7 @@ export async function fetchActiveCompanyTalentRequests(args: {
   const { data, error } = await args.admin
     .from("company_talent_requests")
     .select(
-      "id, company_workspace_id, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, talent_source_message_id, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, intent, resume_stage, response_disposition, deliveries:contact_queue(sent_at, status, type), role:company_roles!inner(name, status, is_expired, expires_at), workspace:company_workspace!inner(company_name)"
+      "id, company_workspace_id, contact_kind, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, talent_source_message_id, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, intent, resume_stage, response_disposition, deliveries:contact_queue(sent_at, status, type), role:company_roles!inner(name, status, is_expired, expires_at), workspace:company_workspace!inner(company_name, logo_url, company_db:company_db(logo))"
     )
     .eq("talent_id", args.talentId)
     .in("workflow_status", statuses)
@@ -476,6 +454,149 @@ export async function fetchActiveCompanyTalentRequests(args: {
     .slice(0, limit);
 }
 
+export type RelayableCompanyTalentContact = {
+  answered: boolean;
+  companyName: string;
+  contactKind: "contact" | "question" | "resume";
+  contactedAt: string;
+  latestRelayAt: string | null;
+  latestRelayStatus: CompanyTalentRelayDeliveryStatus | null;
+  requestContext: string;
+  requestId: string;
+  roleName: string;
+};
+
+export async function fetchRelayableCompanyTalentContacts(args: {
+  admin: UntypedAdmin;
+  limit?: number;
+  query?: string | null;
+  talentId: string;
+}) {
+  const limit =
+    typeof args.limit === "number" && Number.isFinite(args.limit)
+      ? Math.max(1, Math.min(Math.floor(args.limit), 30))
+      : 20;
+  const { data, error } = await args.admin
+    .from("company_talent_requests")
+    .select(
+      "id, contact_kind, expects_document, request_context, created_at, updated_at, talent_source_message_id, document_id, deliveries:contact_queue!inner(sent_at, status, type), relays:company_talent_relays(id,created_at,deliveries:contact_queue(type,status,sent_at,updated_at)), role:company_roles!inner(name,information), workspace:company_workspace!inner(company_name)"
+    )
+    .eq("talent_id", args.talentId)
+    .eq("deliveries.type", "company_request_candidate_delivery")
+    .eq("deliveries.status", "sent")
+    .not("deliveries.sent_at", "is", null)
+    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false, referencedTable: "relays" })
+    .limit(1, { referencedTable: "relays" })
+    .limit(Math.min(limit * 5, 150));
+  if (error) throw error;
+
+  const query = normalizedText(args.query, 200).toLocaleLowerCase();
+  return (Array.isArray(data) ? data : [])
+    .filter((row: any) => {
+      const role = Array.isArray(row.role) ? row.role[0] : row.role;
+      const information =
+        role?.information && typeof role.information === "object"
+          ? role.information
+          : {};
+      return (
+        information.testOnly !== true ||
+        (Array.isArray(information.testTalentIds) &&
+          information.testTalentIds.includes(args.talentId))
+      );
+    })
+    .map((row: any): RelayableCompanyTalentContact => {
+      const role = Array.isArray(row.role) ? row.role[0] : row.role;
+      const workspace = Array.isArray(row.workspace)
+        ? row.workspace[0]
+        : row.workspace;
+      const latestRelay = Array.isArray(row.relays) ? row.relays[0] : null;
+      const latestRelayDelivery = Array.isArray(latestRelay?.deliveries)
+        ? [...latestRelay.deliveries]
+            .filter((delivery: any) =>
+              [
+                "company_contact_company_delivery",
+                "company_request_company_delivery",
+              ].includes(normalizedText(delivery?.type, 120))
+            )
+            .sort((left: any, right: any) =>
+              normalizedText(right?.updated_at, 100).localeCompare(
+                normalizedText(left?.updated_at, 100)
+              )
+            )[0]
+        : null;
+      const contactKind = ["contact", "question", "resume"].includes(
+        row.contact_kind
+      )
+        ? row.contact_kind
+        : row.expects_document
+          ? "resume"
+          : "question";
+      return {
+        answered: Boolean(row.talent_source_message_id || row.document_id),
+        companyName:
+          normalizedText(workspace?.company_name, 160) || "채용 회사",
+        contactKind,
+        contactedAt:
+          normalizedText(row.deliveries?.[0]?.sent_at, 100) ||
+          normalizedText(row.created_at, 100),
+        latestRelayAt: latestRelay
+          ? normalizedText(latestRelay.created_at, 100) || null
+          : null,
+        latestRelayStatus: latestRelay
+          ? normalizeCompanyTalentRelayDeliveryStatus(
+              latestRelayDelivery?.status
+            )
+          : null,
+        requestContext: normalizedText(row.request_context, 800),
+        requestId: normalizedText(row.id, 120),
+        roleName: normalizedText(role?.name, 160) || "해당 역할",
+      };
+    })
+    .filter((contact: RelayableCompanyTalentContact) => {
+      if (!query) return true;
+      return [
+        contact.companyName,
+        contact.roleName,
+        contact.requestContext,
+      ].some((value) => value.toLocaleLowerCase().includes(query));
+    })
+    .slice(0, limit);
+}
+
+export function formatRelayableCompanyTalentContacts(
+  contacts: RelayableCompanyTalentContact[]
+) {
+  if (contacts.length === 0) {
+    return "전달 가능한 회사 연락 내역이 없습니다.";
+  }
+  return [
+    `전달 가능한 회사 연락 ${contacts.length}건`,
+    ...contacts.map((contact, index) => {
+      const status = contact.answered
+        ? "이전에 답변 또는 전달함"
+        : "아직 답변하지 않음";
+      const kind =
+        contact.contactKind === "resume"
+          ? "이력서 요청"
+          : contact.contactKind === "contact"
+            ? "연락"
+            : "질문";
+      const latestRelay = contact.latestRelayStatus
+        ? `${contact.latestRelayStatus} · ${contact.latestRelayAt || "시점 미상"}`
+        : "없음";
+      return [
+        `${index + 1}. ${contact.companyName} · ${contact.roleName}`,
+        `   연락 ID: ${contact.requestId}`,
+        `   종류/상태: ${kind} · ${status}`,
+        `   연락 시점: ${contact.contactedAt || "-"}`,
+        `   최근 후보자→회사 relay: ${latestRelay}`,
+        `   내용: ${normalizedText(contact.requestContext, 300) || "-"}`,
+      ].join("\n");
+    }),
+  ].join("\n");
+}
+
 export async function fetchBlockingCompanyTalentRequestForWorkspace(args: {
   admin: UntypedAdmin;
   roleId: string;
@@ -485,7 +606,7 @@ export async function fetchBlockingCompanyTalentRequestForWorkspace(args: {
   const { data, error } = await args.admin
     .from("company_talent_requests")
     .select(
-      "id, role_id, expects_document, request_context, workflow_status, expires_at, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, talent_source_message_id, document_id, role:company_roles!inner(name), deliveries:contact_queue(scheduled_at, sent_at, status, last_error, payload, type)"
+      "id, role_id, contact_kind, expects_document, request_context, workflow_status, expires_at, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, talent_source_message_id, document_id, role:company_roles!inner(name), deliveries:contact_queue(scheduled_at, sent_at, status, last_error, payload, type)"
     )
     .eq("company_workspace_id", args.workspaceId)
     .eq("role_id", args.roleId)
@@ -552,7 +673,12 @@ export async function fetchBlockingCompanyTalentRequestForWorkspace(args: {
     draftBody: row.delivery_body,
     draftRevision: row.draft_revision,
     draftSubject: row.delivery_subject,
-    label: row.expects_document ? "이력서 요청" : "회사 질문 확인",
+    label:
+      row.contact_kind === "contact"
+        ? "회사 연락"
+        : row.expects_document
+          ? "이력서 요청"
+          : "회사 질문 확인",
     requestId: row.id,
     roleId: row.role_id,
     roleName: normalizedText(row.role?.name, 160) || null,
@@ -681,6 +807,42 @@ export async function finalizeRequestedResumeUpload(args: {
   };
 }
 
+export async function finalizeEmailedCompanyTalentResumeRelay(args: {
+  admin: UntypedAdmin;
+  contentType: string | null;
+  extractedText?: string | null;
+  fileName: string;
+  relayContent?: string | null;
+  requestId: string;
+  sizeBytes: number;
+  sourceMessageId: number;
+  storagePath: string;
+  talentId: string;
+}) {
+  const { data, error } = await args.admin.rpc(
+    "finalize_company_talent_resume_relay_v1",
+    {
+      p_content_type: args.contentType,
+      p_extracted_text: args.extractedText ?? null,
+      p_file_name: normalizedText(args.fileName, 300),
+      p_relay_content: normalizedRelayContent(args.relayContent, 5_000) || null,
+      p_request_id: args.requestId,
+      p_size_bytes: args.sizeBytes,
+      p_source_message_id: args.sourceMessageId,
+      p_storage_path: args.storagePath,
+      p_talent_id: args.talentId,
+    }
+  );
+  if (error) throw error;
+  return data as {
+    documentId: string;
+    idempotent: boolean;
+    messageId: number;
+    relayId: string;
+    requestId: string;
+  };
+}
+
 async function candidateAuthoredMessage(args: {
   admin: UntypedAdmin;
   messageId: number;
@@ -700,6 +862,47 @@ async function candidateAuthoredMessage(args: {
   const evidence = normalizedText(data.content, 1_200);
   if (!evidence) throw new Error("Candidate answer is empty");
   return evidence;
+}
+
+export async function createCompanyTalentRelay(args: {
+  admin: UntypedAdmin;
+  relayContent: string;
+  requestId: string;
+  sourceMessageId: number;
+  talentId: string;
+}) {
+  await candidateAuthoredMessage({
+    admin: args.admin,
+    messageId: args.sourceMessageId,
+    talentId: args.talentId,
+  });
+  const relayContent = normalizedRelayContent(args.relayContent, 5_000);
+  if (!relayContent) throw new Error("Company relay content is empty");
+  const { data, error } = await args.admin.rpc(
+    "create_company_talent_relay_v1",
+    {
+      p_relay_content: relayContent,
+      p_request_id: args.requestId,
+      p_source_message_id: args.sourceMessageId,
+      p_talent_id: args.talentId,
+    }
+  );
+  if (error) throw error;
+  const result = data as {
+    contentMismatch?: boolean;
+    firstResponse?: boolean;
+    id: string;
+    idempotent: boolean;
+    requestId: string;
+    status: string;
+  };
+  console.info("[company-talent-relay] accepted", {
+    contentMismatch: Boolean(result.contentMismatch),
+    idempotent: Boolean(result.idempotent),
+    relayId: result.id,
+    requestId: result.requestId,
+  });
+  return result;
 }
 
 export async function recordCompanyTalentResponse(args: {
@@ -724,11 +927,27 @@ export async function recordCompanyTalentResponse(args: {
   if (request.intent !== "candidate_reengagement" && args.disposition) {
     throw new Error("ordinary_company_request_disposition_not_allowed");
   }
-  await candidateAuthoredMessage({
+  const evidence = await candidateAuthoredMessage({
     admin: args.admin,
     messageId: args.sourceMessageId,
     talentId: args.talentId,
   });
+  if (request.intent !== "candidate_reengagement") {
+    const relay = await createCompanyTalentRelay({
+      admin: args.admin,
+      relayContent: evidence,
+      requestId: args.requestId,
+      sourceMessageId: args.sourceMessageId,
+      talentId: args.talentId,
+    });
+    return {
+      ...request,
+      positionActive: null,
+      relayId: relay.id,
+      talent_source_message_id: args.sourceMessageId,
+      workflow_status: "relay_queued",
+    };
+  }
   const { data, error } = await args.admin.rpc(
     "record_company_talent_response_v2",
     {

@@ -44,6 +44,10 @@ import {
   resolveOrgRoleMutationExpiry,
 } from "@/lib/org/roleStatus";
 import {
+  parseOrgRoleEmploymentType,
+  parseOrgRoleWorkMode,
+} from "@/lib/org/roleFieldValues";
+import {
   normalizeOrgRoleCriteria,
   parseOrgRoleCriteria,
   type OrgRoleCriterion,
@@ -453,10 +457,13 @@ export type OrgFeedActor = {
 
 export type OrgFeedItem = {
   activity: {
-    eventType: "candidate_contact_sent" | "candidate_response_received";
+    eventType:
+      | "candidate_contact_sent"
+      | "candidate_message_delivered"
+      | "candidate_response_received";
     requestContext: string | null;
     requestId: string;
-    requestKind: "question" | "resume";
+    requestKind: "contact" | "question" | "resume";
   } | null;
   actor: OrgFeedActor | null;
   companyUserId: string | null;
@@ -520,11 +527,13 @@ export type OrgCompanyTalentRequestFeedItem = {
   cancelledAt: string | null;
   createdAt: string;
   deliveryStatus: string;
+  draftBody: string | null;
+  draftSubject: string | null;
   id: string;
   label: string;
   lastError: string | null;
   requestContext: string;
-  requestKind: "question" | "resume";
+  requestKind: "contact" | "question" | "resume";
   responseMessage: string | null;
   roleId: string;
   roleName: string | null;
@@ -770,32 +779,17 @@ function buildVirtualOrgMember(user: User): OrgMember {
   };
 }
 
-const ORG_ROLE_EMPLOYMENT_TYPE_VALUES = [
-  "full_time",
-  "part_time",
-  "internship",
-  "contract",
-] as const;
-const ORG_ROLE_WORK_MODE_VALUES = ["onsite", "hybrid", "remote"] as const;
-
 function normalizeOrgRoleEmploymentTypes(value: unknown) {
   const values = Array.isArray(value) ? value : [];
   return uniqueTexts(
-    values.filter((item): item is string =>
-      ORG_ROLE_EMPLOYMENT_TYPE_VALUES.includes(
-        item as (typeof ORG_ROLE_EMPLOYMENT_TYPE_VALUES)[number]
-      )
-    )
+    values
+      .map(parseOrgRoleEmploymentType)
+      .filter((item): item is NonNullable<typeof item> => item !== null)
   );
 }
 
 function normalizeOrgRoleWorkMode(value: unknown) {
-  const normalized = normalizeText(value);
-  return ORG_ROLE_WORK_MODE_VALUES.includes(
-    normalized as (typeof ORG_ROLE_WORK_MODE_VALUES)[number]
-  )
-    ? normalized
-    : null;
+  return parseOrgRoleWorkMode(value);
 }
 
 function normalizeCompanyList(value: unknown, limit: number) {
@@ -5005,12 +4999,17 @@ export async function fetchOrgTalentOtherRoleFeed(args: {
     } else if (row.kind === "company_request_followup_sent") {
       title = "후보자에게 회사 요청을 다시 안내했어요";
     } else if (eventType === "candidate_contact_sent") {
+      const requestKind = normalizeText(metadata.requestKind);
       title =
-        normalizeText(metadata.requestKind) === "resume"
+        requestKind === "resume"
           ? "후보자에게 이력서를 요청했어요"
-          : "후보자에게 질문을 보냈어요";
+          : requestKind === "contact"
+            ? "후보자에게 연락을 보냈어요"
+            : "후보자에게 질문을 보냈어요";
     } else if (eventType === "candidate_response_received") {
       title = "후보자의 답변이 도착했어요";
+    } else if (eventType === "candidate_message_delivered") {
+      title = "후보자의 메시지가 전달됐어요";
     }
     return [
       {
@@ -5320,6 +5319,7 @@ export async function fetchOrgTalentDetail(args: {
       .eq("kind", "org_candidate_activity")
       .in("metadata->>eventType", [
         "candidate_contact_sent",
+        "candidate_message_delivered",
         "candidate_response_received",
       ])
       .order("created_at", { ascending: false })
@@ -5338,7 +5338,7 @@ export async function fetchOrgTalentDetail(args: {
       .order("created_at", { ascending: false }),
     (admin.from("company_talent_requests" as any) as any)
       .select(
-        "id, role_id, expects_document, request_context, delivery_subject, workflow_status, expires_at, created_at, talent_source_message_id, deliveries:contact_queue(scheduled_at, sent_at, cancelled_at, status, last_error, payload, type)"
+        "id, role_id, contact_kind, expects_document, request_context, delivery_subject, delivery_body, workflow_status, expires_at, created_at, talent_source_message_id, deliveries:contact_queue(scheduled_at, sent_at, cancelled_at, status, last_error, payload, type)"
       )
       .eq("company_workspace_id", workspaceId)
       .eq("talent_id", talentId)
@@ -5421,7 +5421,8 @@ export async function fetchOrgTalentDetail(args: {
       current.sentMessage = progress.text;
     }
     if (
-      eventType === "candidate_response_received" &&
+      (eventType === "candidate_response_received" ||
+        eventType === "candidate_message_delivered") &&
       !current.responseMessage
     ) {
       current.responseMessage = progress.text;
@@ -5429,7 +5430,9 @@ export async function fetchOrgTalentDetail(args: {
     candidateActivityByRequestId.set(requestId, current);
   }
   const companyRequestHistory = optionalRows<{
+    contact_kind: "contact" | "question" | "resume";
     created_at: string;
+    delivery_body: string | null;
     delivery_subject: string | null;
     deliveries: Array<{
       cancelled_at: string | null;
@@ -5463,11 +5466,29 @@ export async function fetchOrgTalentDetail(args: {
       cancelledAt: candidateDelivery?.cancelled_at ?? null,
       createdAt: row.created_at,
       deliveryStatus,
+      draftBody:
+        row.workflow_status === "draft"
+          ? normalizeNullableText(row.delivery_body)
+          : null,
+      draftSubject:
+        row.workflow_status === "draft"
+          ? normalizeNullableText(row.delivery_subject)
+          : null,
       id: row.id,
-      label: row.expects_document ? "이력서 요청" : "회사 질문 확인",
+      label:
+        row.contact_kind === "contact"
+          ? "회사 연락"
+          : row.expects_document
+            ? "이력서 요청"
+            : "회사 질문 확인",
       lastError: candidateDelivery?.last_error ?? null,
       requestContext: row.request_context,
-      requestKind: row.expects_document ? "resume" : "question",
+      requestKind:
+        row.contact_kind === "contact"
+          ? "contact"
+          : row.expects_document
+            ? "resume"
+            : "question",
       responseMessage: row.expects_document
         ? null
         : (activity?.responseMessage ?? null),
@@ -5477,22 +5498,28 @@ export async function fetchOrgTalentDetail(args: {
       scheduledAt: candidateDelivery?.scheduled_at ?? null,
       sentMessage: activity?.sentMessage ?? null,
       sentAt: candidateDelivery?.sent_at ?? null,
-      status: humanizeCompanyTalentRequestStatus({
-        ...row,
-        candidate_cancellation_source: normalizeNullableText(
-          getJsonRecord(getJsonRecord(candidateDelivery?.payload).cancellation)
-            .source
-        ),
-        candidate_delivery_error: candidateDelivery?.last_error,
-        candidate_delivery_status: deliveryStatus,
-        candidate_sent_at: candidateDelivery?.sent_at,
-        company_delivery_status: companyDelivery?.status,
-        company_sent_at: companyDelivery?.sent_at,
-        has_candidate_response: Boolean(row.talent_source_message_id),
-        role_is_open:
-          !["ended", "deleted"].includes(normalizeText(roleRow.status)) &&
-          roleRow.is_expired !== true,
-      }),
+      status:
+        row.contact_kind === "contact" && candidateDelivery?.sent_at
+          ? "후보자에게 연락을 보냄"
+          : humanizeCompanyTalentRequestStatus({
+              ...row,
+              candidate_cancellation_source: normalizeNullableText(
+                getJsonRecord(
+                  getJsonRecord(candidateDelivery?.payload).cancellation
+                ).source
+              ),
+              candidate_delivery_error: candidateDelivery?.last_error,
+              candidate_delivery_status: deliveryStatus,
+              candidate_sent_at: candidateDelivery?.sent_at,
+              company_delivery_status: companyDelivery?.status,
+              company_sent_at: companyDelivery?.sent_at,
+              has_candidate_response: Boolean(
+                row.talent_source_message_id || activity?.responseMessage
+              ),
+              role_is_open:
+                !["ended", "deleted"].includes(normalizeText(roleRow.status)) &&
+                roleRow.is_expired !== true,
+            }),
       workflowStatus: row.workflow_status,
     } satisfies OrgCompanyTalentRequestFeedItem;
   });
@@ -5638,14 +5665,18 @@ export async function fetchOrgTalentDetail(args: {
       if (
         !requestId ||
         (eventType !== "candidate_contact_sent" &&
+          eventType !== "candidate_message_delivered" &&
           eventType !== "candidate_response_received")
       ) {
         return [];
       }
+      const normalizedRequestKind = normalizeText(metadata.requestKind);
       const requestKind =
-        normalizeText(metadata.requestKind) === "resume"
+        normalizedRequestKind === "resume"
           ? "resume"
-          : "question";
+          : normalizedRequestKind === "contact"
+            ? "contact"
+            : "question";
       const requestContext = normalizeNullableText(metadata.requestContext);
       const actorKey = row.company_user_id;
       return [

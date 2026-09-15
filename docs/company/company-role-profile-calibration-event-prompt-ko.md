@@ -42,11 +42,13 @@ migration, application source, 문서나 테스트를 수정하지 않는다.
 1. `{{CALIBRATION_PYTHON}} scripts/company_role_calibration.py start --runner {{CALIBRATION_RUNNER}}`로
    정확히 한 row를 claim한다.
 2. `claimed=false`이면 현재 queue가 빈 것이므로 정상 종료한다.
-3. Claim된 Role 하나에 대해 `docs/scheduled/codex-work.md` 제0장의 계약대로 비어 있는
-   `company_roles.summary.ko.content`와 `company_roles.summary.en.content`를 먼저 작성·저장하고
-   readback한다. 이 단계에 한해 회사 정보가 부족하면 제0장의 출처 원칙에 따라 공개 웹 검색으로
-   검증 가능한 사실을 보강할 수 있다. 기존 non-empty content는 덮어쓰지 않고, 실패 시 fallback을
-   summary에 저장하거나 calibration으로 넘어가지 않는다.
+3. Claim 응답의 calibration ID로 `summary-status --calibration-id <id>`를 실행한다. 비어 있는 언어가
+   있으면 claim이 만든 `run.json`의 `summarySource`만 summary 근거로 사용해
+   `{"ko":{"content":"..."},"en":{"content":"..."}}` 형태의 JSON을 같은 owner-only run
+   directory에 작성하고 `save-summaries --calibration-id <id> --input <json>`으로 저장·readback한다.
+   이미 채워진 언어는 input에 넣어도 helper가 덮어쓰지 않는다. 이 단계에 한해 회사 정보가
+   부족하면 제0장의 출처 원칙에 따라 공개 웹 검색으로 검증 가능한 사실을 보강할 수 있다. 실패 시
+   fallback을 summary에 저장하거나 calibration으로 넘어가지 않는다.
 4. 두 언어 summary를 확인한 뒤 claim된 Role 하나에 대해 canonical 실행 계약의 retrieval, 검토,
    익명화와 최종 선택을 끝까지 수행한다. 검색 SQL과 선택 JSON은 helper가 지정한 owner-only
    ignored run directory 안에만 둔다.

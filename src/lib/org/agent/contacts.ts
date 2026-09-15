@@ -1,5 +1,6 @@
 import type { User } from "@supabase/supabase-js";
 import { summarizeCompanyTalentRequestStatus } from "@/lib/companyTalentRequests/status";
+import { MEETING_INVITATION_LINK_MARKER } from "@/lib/meetings/invitation";
 import type { OrgAgentAdminClient } from "@/lib/org/agent/data";
 import { assertOrgWorkspacePermission, OrgHttpError } from "@/lib/org/server";
 
@@ -12,6 +13,16 @@ export const ORG_AGENT_CONTACT_KINDS = [
 
 export type OrgAgentContactKind = (typeof ORG_AGENT_CONTACT_KINDS)[number];
 export type OrgAgentContactDateBasis = "created" | "sent" | "updated";
+
+export type OrgAgentContactSummary = {
+  allResponseContactCount: number;
+  allSentCount: number;
+  asOf: string;
+  recentActiveDraftCount: number;
+  recentResponseContactCount: number;
+  recentSentCount: number;
+  windowStart: string;
+};
 
 type ContactActor = {
   email: string | null;
@@ -66,6 +77,64 @@ function emailList(value: unknown) {
 
 function contactRef(kind: OrgAgentContactKind, sourceId: unknown) {
   return `${kind}:${text(sourceId)}`;
+}
+
+function count(value: unknown, field: string) {
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error(`Invalid company contact summary field: ${field}`);
+  }
+  return parsed;
+}
+
+export async function fetchOrgAgentContactSummary(args: {
+  admin: OrgAgentAdminClient;
+  asOf?: Date;
+  user: User;
+  workspaceId: string;
+}): Promise<OrgAgentContactSummary> {
+  await assertOrgWorkspacePermission({
+    admin: args.admin,
+    permission: "view",
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+  const asOf = args.asOf ?? new Date();
+  if (!Number.isFinite(asOf.getTime())) {
+    throw new Error("Invalid contact summary as-of time");
+  }
+  const windowStart = new Date(asOf.getTime() - 7 * 24 * 60 * 60 * 1_000);
+  const { data, error } = await (args.admin.rpc as any)(
+    "summarize_company_contact_index_v1",
+    {
+      p_as_of: asOf.toISOString(),
+      p_company_workspace_id: args.workspaceId,
+      p_window_start: windowStart.toISOString(),
+    }
+  );
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row !== "object") {
+    throw new Error("Company contact summary returned no row");
+  }
+  return {
+    allResponseContactCount: count(
+      row.all_response_contact_count,
+      "all_response_contact_count"
+    ),
+    allSentCount: count(row.all_sent_count, "all_sent_count"),
+    asOf: text(row.as_of) || asOf.toISOString(),
+    recentActiveDraftCount: count(
+      row.recent_active_draft_count,
+      "recent_active_draft_count"
+    ),
+    recentResponseContactCount: count(
+      row.recent_response_contact_count,
+      "recent_response_contact_count"
+    ),
+    recentSentCount: count(row.recent_sent_count, "recent_sent_count"),
+    windowStart: text(row.window_start) || windowStart.toISOString(),
+  };
 }
 
 export function parseOrgAgentContactRef(value: unknown) {
@@ -131,6 +200,13 @@ function latestDelivery(row: Record<string, any>, type: string) {
 }
 
 function contactState(row: Record<string, any>) {
+  if (
+    text(row.contact_kind) === "contact" &&
+    (Boolean(text(row.sent_at)) || text(row.delivery_status) === "sent") &&
+    !row.has_response
+  ) {
+    return "후보자에게 연락을 보냄";
+  }
   return summarizeCompanyTalentRequestStatus({
     candidate_cancellation_source: text(row.candidate_cancellation_source),
     candidate_delivery_error: text(row.candidate_delivery_error),
@@ -244,11 +320,54 @@ export async function listOrgAgentContacts(args: {
   if (error) throw error;
   const rows = (Array.isArray(data) ? data : []) as Array<Record<string, any>>;
   const page = rows.slice(0, limit);
+  const candidateContactIds = page
+    .filter((row) => text(row.kind) === "contact")
+    .map((row) => text(row.source_id))
+    .filter(Boolean);
+  const contactOverlayById = new Map<string, Record<string, unknown>>();
+  if (candidateContactIds.length > 0) {
+    const { data: overlays, error: overlayError } = await (
+      args.admin.from("company_talent_requests" as any) as any
+    )
+      .select(
+        "id,contact_kind,relays:company_talent_relays(id,created_at,deliveries:contact_queue(type,status,sent_at,updated_at))"
+      )
+      .eq("company_workspace_id", args.workspaceId)
+      .in("id", candidateContactIds);
+    if (overlayError) throw overlayError;
+    for (const overlay of (overlays ?? []) as Array<Record<string, any>>) {
+      const relays = Array.isArray(overlay.relays) ? overlay.relays : [];
+      const latestRelay = relays.sort(
+        (left: Record<string, unknown>, right: Record<string, unknown>) =>
+          text(right.created_at).localeCompare(text(left.created_at))
+      )[0];
+      const relayDelivery = latestRelay
+        ? latestDelivery(
+            latestRelay as Record<string, any>,
+            "company_contact_company_delivery"
+          )
+        : null;
+      contactOverlayById.set(text(overlay.id), {
+        contact_kind: text(overlay.contact_kind),
+        has_response: relays.length > 0,
+        ...(relayDelivery && {
+          relay_sent_at: relayDelivery?.sent_at,
+          relay_status: relayDelivery?.status,
+        }),
+      });
+    }
+  }
   return {
     dateBasis,
     hasMore: rows.length > limit,
     items: page.map((row) => {
       const kind = text(row.kind) as OrgAgentContactKind;
+      const overlay = contactOverlayById.get(text(row.source_id)) ?? {};
+      const stateRow = {
+        ...row,
+        ...overlay,
+        has_response: Boolean(row.has_response || overlay.has_response),
+      };
       return {
         activityAt: text(row.activity_at) || null,
         candidateName: text(row.talent_name) || "후보자",
@@ -260,7 +379,7 @@ export async function listOrgAgentContacts(args: {
         kind,
         roleId: text(row.role_id),
         roleName: text(row.role_name) || "이름 없는 Role",
-        state: stateForKind(kind, row),
+        state: stateForKind(kind, stateRow),
         talentId: text(row.talent_id),
       };
     }),
@@ -284,6 +403,111 @@ async function fetchCompanyUsersById(args: {
   );
 }
 
+function candidateContactScopeKey(value: {
+  role_id?: unknown;
+  talent_id?: unknown;
+}) {
+  return `${text(value.role_id)}:${text(value.talent_id)}`;
+}
+
+async function fetchCandidateContactScopeTimelines(args: {
+  admin: OrgAgentAdminClient;
+  rows: Array<Record<string, any>>;
+  workspaceId: string;
+}) {
+  const roleIds = Array.from(
+    new Set(args.rows.map((row) => text(row.role_id)).filter(Boolean))
+  );
+  const talentIds = Array.from(
+    new Set(args.rows.map((row) => text(row.talent_id)).filter(Boolean))
+  );
+  if (roleIds.length === 0 || talentIds.length === 0) {
+    return new Map<string, Array<Record<string, unknown>>>();
+  }
+  const selectedScopes = new Set(args.rows.map(candidateContactScopeKey));
+  const { data, error } = await (
+    args.admin.from("company_talent_requests" as any) as any
+  )
+    .select(
+      "id,role_id,talent_id,contact_kind,request_context,delivery_body,talent_source_message_id,created_at,deliveries:contact_queue(type,status,sent_at,updated_at,payload),relays:company_talent_relays(id,source_talent_message_id,created_at,deliveries:contact_queue(type,status,sent_at,updated_at,payload))"
+    )
+    .eq("company_workspace_id", args.workspaceId)
+    .in("role_id", roleIds)
+    .in("talent_id", talentIds)
+    .order("created_at", { ascending: false })
+    .limit(300);
+  if (error) throw error;
+
+  const byScope = new Map<string, Array<Record<string, unknown>>>();
+  for (const row of (data ?? []) as Array<Record<string, any>>) {
+    const scopeKey = candidateContactScopeKey(row);
+    if (!selectedScopes.has(scopeKey)) continue;
+    const events = byScope.get(scopeKey) ?? [];
+    const candidateDelivery = latestDelivery(
+      row,
+      "company_request_candidate_delivery"
+    );
+    if (
+      text(candidateDelivery?.status) === "sent" &&
+      text(candidateDelivery?.sent_at)
+    ) {
+      const deliveryPayload = record(candidateDelivery?.payload);
+      const frozenDelivery = record(deliveryPayload.delivery);
+      events.push({
+        body:
+          text(frozenDelivery.chatText) ||
+          text(row.delivery_body) ||
+          text(row.request_context),
+        contactKind: text(row.contact_kind) || "question",
+        contactRef: contactRef("contact", row.id),
+        direction: "company_to_candidate",
+        occurredAt: text(candidateDelivery.sent_at),
+      });
+    }
+    for (const relay of Array.isArray(row.relays) ? row.relays : []) {
+      const genericDelivery = latestDelivery(
+        relay as Record<string, any>,
+        "company_contact_company_delivery"
+      );
+      const relayDelivery =
+        genericDelivery ??
+        (text(relay.source_talent_message_id) ===
+        text(row.talent_source_message_id)
+          ? latestDelivery(row, "company_request_company_delivery")
+          : null);
+      const relayBody = text(
+        record(record(relayDelivery?.payload).delivery).body
+      );
+      if (
+        text(relayDelivery?.status) !== "sent" ||
+        !text(relayDelivery?.sent_at) ||
+        !relayBody
+      ) {
+        continue;
+      }
+      events.push({
+        body: relayBody,
+        contactRef: contactRef("contact", row.id),
+        direction: "candidate_to_company",
+        occurredAt: text(relayDelivery.sent_at),
+        relayId: text(relay.id),
+      });
+    }
+    byScope.set(scopeKey, events);
+  }
+  for (const [scope, events] of byScope) {
+    byScope.set(
+      scope,
+      events
+        .sort((left, right) =>
+          text(left.occurredAt).localeCompare(text(right.occurredAt))
+        )
+        .slice(-20)
+    );
+  }
+  return byScope;
+}
+
 async function readCandidateContacts(args: {
   admin: OrgAgentAdminClient;
   ids: string[];
@@ -294,7 +518,7 @@ async function readCandidateContacts(args: {
     args.admin.from("company_talent_requests" as any) as any
   )
     .select(
-      "id,role_id,talent_id,expects_document,request_context,workflow_status,expires_at,created_at,updated_at,approved_at,delivery_subject,delivery_body,talent_source_message_id,document_id,source_message:company_messages!company_talent_requests_source_company_message_id_fkey(company_user_id),role:company_roles!inner(name,status,is_expired,expires_at),talent:talent_users!inner(name,email),deliveries:contact_queue(type,status,scheduled_at,sent_at,cancelled_at,updated_at,last_error,payload)"
+      "id,role_id,talent_id,contact_kind,expects_document,request_context,workflow_status,expires_at,created_at,updated_at,approved_at,delivery_subject,delivery_body,draft_revision,talent_source_message_id,document_id,source_message:company_messages!company_talent_requests_source_company_message_id_fkey(company_user_id),role:company_roles!inner(name,status,is_expired,expires_at),talent:talent_users!inner(name,email),deliveries:contact_queue(type,status,scheduled_at,sent_at,cancelled_at,updated_at,last_error,payload),relays:company_talent_relays(id,source_talent_message_id,created_at,deliveries:contact_queue(type,status,sent_at,updated_at,last_error,payload))"
     )
     .eq("company_workspace_id", args.workspaceId)
     .is("talent.deleted_at", null)
@@ -308,20 +532,29 @@ async function readCandidateContacts(args: {
     text(row.talent_source_message_id)
   );
   const responseDocumentIds = rows.map((row) => text(row.document_id));
-  const [companyUsers, responseMessagesResult, responseDocumentsResult] =
-    await Promise.all([
-      fetchCompanyUsersById({ admin: args.admin, userIds: companyUserIds }),
-      responseMessageIds.some(Boolean)
-        ? (args.admin.from("talent_messages" as any) as any)
-            .select("id,content,created_at")
-            .in("id", responseMessageIds.filter(Boolean))
-        : Promise.resolve({ data: [], error: null }),
-      responseDocumentIds.some(Boolean)
-        ? (args.admin.from("talent_documents" as any) as any)
-            .select("id,file_name,created_at")
-            .in("id", responseDocumentIds.filter(Boolean))
-        : Promise.resolve({ data: [], error: null }),
-    ]);
+  const [
+    companyUsers,
+    responseMessagesResult,
+    responseDocumentsResult,
+    scopeTimelines,
+  ] = await Promise.all([
+    fetchCompanyUsersById({ admin: args.admin, userIds: companyUserIds }),
+    responseMessageIds.some(Boolean)
+      ? (args.admin.from("talent_messages" as any) as any)
+          .select("id,content,created_at")
+          .in("id", responseMessageIds.filter(Boolean))
+      : Promise.resolve({ data: [], error: null }),
+    responseDocumentIds.some(Boolean)
+      ? (args.admin.from("talent_documents" as any) as any)
+          .select("id,file_name,created_at")
+          .in("id", responseDocumentIds.filter(Boolean))
+      : Promise.resolve({ data: [], error: null }),
+    fetchCandidateContactScopeTimelines({
+      admin: args.admin,
+      rows,
+      workspaceId: args.workspaceId,
+    }),
+  ]);
   if (responseMessagesResult.error) throw responseMessagesResult.error;
   if (responseDocumentsResult.error) throw responseDocumentsResult.error;
   const responseMessageById = new Map<string, Record<string, any>>(
@@ -346,6 +579,29 @@ async function readCandidateContacts(args: {
       text(row.talent_source_message_id)
     );
     const responseDocument = responseDocumentById.get(text(row.document_id));
+    const allRelays = (Array.isArray(row.relays) ? row.relays : [])
+      .map((relay: Record<string, unknown>) => {
+        const genericDelivery = latestDelivery(
+          relay as Record<string, any>,
+          "company_contact_company_delivery"
+        );
+        const delivery =
+          genericDelivery ??
+          (text(relay.source_talent_message_id) ===
+          text(row.talent_source_message_id)
+            ? companyDelivery
+            : null);
+        return {
+          ...relay,
+          effectiveBody: text(record(record(delivery?.payload).delivery).body),
+          effectiveSentAt: delivery?.sent_at,
+          effectiveStatus: delivery?.status,
+        };
+      })
+      .sort((left: Record<string, unknown>, right: Record<string, unknown>) =>
+        text(left.created_at).localeCompare(text(right.created_at))
+      );
+    const latestRelay = allRelays.at(-1);
     const cancellation = record(
       record(candidateDelivery?.payload).cancellation
     );
@@ -354,14 +610,36 @@ async function readCandidateContacts(args: {
       !["ended", "deleted"].includes(text(role?.status)) &&
       role?.is_expired !== true &&
       (!Number.isFinite(roleExpiresAt) || roleExpiresAt > Date.now());
+    const draftExpiresAt = Date.parse(text(row.expires_at));
+    const draftAction =
+      text(row.workflow_status) === "draft" &&
+      Number.isSafeInteger(Number(row.draft_revision)) &&
+      Number(row.draft_revision) > 0 &&
+      Number.isFinite(draftExpiresAt) &&
+      draftExpiresAt > Date.now()
+        ? {
+            contactId: text(row.id),
+            expectedRevision: Number(row.draft_revision),
+          }
+        : null;
+    const deliveryAction =
+      ["queued", "failed"].includes(text(row.workflow_status)) &&
+      ["queued", "failed"].includes(text(candidateDelivery?.status))
+        ? {
+            availableActions: ["immediate", "cancel"],
+            contactId: text(row.id),
+          }
+        : null;
     const stateRow = {
       ...row,
       candidate_cancellation_source: text(cancellation.source),
       candidate_delivery_error: text(candidateDelivery?.last_error),
       delivery_status: candidateDelivery?.status,
-      has_response: Boolean(responseMessage || responseDocument),
-      relay_sent_at: companyDelivery?.sent_at,
-      relay_status: companyDelivery?.status,
+      has_response: Boolean(
+        responseMessage || responseDocument || allRelays.length
+      ),
+      relay_sent_at: latestRelay?.effectiveSentAt ?? companyDelivery?.sent_at,
+      relay_status: latestRelay?.effectiveStatus ?? companyDelivery?.status,
       role_is_open: roleIsOpen,
       sent_at: candidateDelivery?.sent_at,
     };
@@ -380,7 +658,11 @@ async function readCandidateContacts(args: {
               sender: candidateActor(candidate),
             }
           : null,
+      conversationTimeline:
+        scopeTimelines.get(candidateContactScopeKey(row)) ?? [],
       contactRef: contactRef("contact", row.id),
+      deliveryAction,
+      draftAction,
       kind: "contact" as const,
       message: {
         body: text(row.delivery_body) || null,
@@ -390,7 +672,9 @@ async function readCandidateContacts(args: {
           candidate_delivery_status: text(candidateDelivery?.status),
           candidate_sent_at: text(candidateDelivery?.sent_at),
           expires_at: text(row.expires_at),
-          has_candidate_response: Boolean(responseMessage || responseDocument),
+          has_candidate_response: Boolean(
+            responseMessage || responseDocument || allRelays.length
+          ),
           role_is_open: roleIsOpen,
           workflow_status: text(row.workflow_status),
         }).candidateEmail,
@@ -493,10 +777,13 @@ async function readInterviewRequests(args: {
         title: text(schedule.title) || null,
       },
       message: {
-        body: text(payload.body) || text(snapshotEmail.body) || null,
+        body: text(snapshotEmail.body) || null,
         deliveryState: interviewState(stateRow),
         recipient: candidateActor(candidate),
         scheduledAt: text(delivery?.scheduled_at) || null,
+        selectionLinkIncluded: text(snapshotEmail.body).includes(
+          MEETING_INVITATION_LINK_MARKER
+        ),
         sender: companyUserActor(companyUsers.get(organizerId)),
         sentAt: text(delivery?.sent_at) || null,
         subject: text(payload.subject) || text(snapshotEmail.subject) || null,

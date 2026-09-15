@@ -34,6 +34,7 @@ import {
 } from "./careerHelpers";
 import { showToast } from "@/components/toast/toast";
 import { showOpportunityDiscoveryStartedToast } from "./opportunityDiscoveryToast";
+import { getCareerBrowserTimeZone } from "@/lib/career/requestTimeZone";
 import type { FetchWithAuth } from "./useCareerApi";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { useCareerVoiceModelStore } from "@/store/useCareerVoiceModelStore";
@@ -705,6 +706,7 @@ export const useCareerOnboardingVoice = ({
               assistantEndedOnboarding: Boolean(args.assistantEndedOnboarding),
               isCallMode: args.isCallMode,
               locale,
+              timeZone: getCareerBrowserTimeZone(),
             }),
           });
           const payload = await response.json().catch(() => ({}));
@@ -1733,6 +1735,7 @@ export const useCareerOnboardingVoice = ({
               forceCompleteOnboarding,
               locale,
               onboardingCompletedAtStart,
+              timeZone: getCareerBrowserTimeZone(),
             }),
           });
           const payload = await response.json().catch(() => ({}));

@@ -32,6 +32,9 @@ import { ActionButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import { Skeleton } from "@/components/ui/skeleton";
 import InternalRoleDecisionBanner from "@/components/career/InternalRoleDecisionBanner";
+import CareerInitialOpportunitySearchStatus, {
+  useInitialOpportunitySearchStatus,
+} from "@/components/career/CareerInitialOpportunitySearchStatus";
 
 const countFormatter = new Intl.NumberFormat("ko-KR");
 
@@ -291,6 +294,7 @@ const CareerMobileHomeView = ({
     onStartConversationStarter,
     onRequestMoreOpenPositions,
     pendingInternalOpportunityCallRequest,
+    opportunityRun,
   } = useCareerSidebarContext();
   const {
     assistantTyping,
@@ -304,6 +308,8 @@ const CareerMobileHomeView = ({
   const { historyOpportunityCounts } = useCareerHistoryContext();
   const { talentProfile } = useCareerProfileContext();
   const { m } = useMessages();
+  const initialOpportunitySearchStatus =
+    useInitialOpportunitySearchStatus(opportunityRun);
 
   const displayName =
     talentProfile.talentUser?.name ??
@@ -414,32 +420,49 @@ const CareerMobileHomeView = ({
         }
         variant="mobile"
       />
-      <CallHero
-        callDisabled={!onStartCallMode}
-        callStartPending={callStartPending}
-        compact={historyOpportunityCounts.newInternal > 0}
-        description={callCardDescription}
-        extraComponent={null}
-        forceCompleteDisabled={
-          forceCompletePending ||
-          onboardingWrapupPending ||
-          chatPending ||
-          assistantTyping ||
-          opportunityFeedbackFollowUpPending
-        }
-        forceCompletePending={forceCompletePending || onboardingWrapupPending}
-        isOnboardingCompleted={callCardUsesCompletedLayout}
-        onForceComplete={
-          !isOnboardingCompleted &&
-          interviewProgress.canForceComplete &&
-          onForceCompleteOnboarding
-            ? handleForceComplete
-            : undefined
-        }
-        progressPercent={interviewProgress.percent}
-        onStartCall={handleStartCall}
-        title={callCardTitle}
-      />
+      {initialOpportunitySearchStatus ? (
+        <section
+          className={cn(
+            "relative flex flex-col items-center justify-center pb-2",
+            historyOpportunityCounts.newInternal > 0
+              ? "min-h-[30svh]"
+              : "min-h-[44svh]"
+          )}
+        >
+          <CareerInitialOpportunitySearchStatus
+            className="mt-0"
+            status={initialOpportunitySearchStatus}
+            variant="home"
+          />
+        </section>
+      ) : (
+        <CallHero
+          callDisabled={!onStartCallMode}
+          callStartPending={callStartPending}
+          compact={historyOpportunityCounts.newInternal > 0}
+          description={callCardDescription}
+          extraComponent={null}
+          forceCompleteDisabled={
+            forceCompletePending ||
+            onboardingWrapupPending ||
+            chatPending ||
+            assistantTyping ||
+            opportunityFeedbackFollowUpPending
+          }
+          forceCompletePending={forceCompletePending || onboardingWrapupPending}
+          isOnboardingCompleted={callCardUsesCompletedLayout}
+          onForceComplete={
+            !isOnboardingCompleted &&
+            interviewProgress.canForceComplete &&
+            onForceCompleteOnboarding
+              ? handleForceComplete
+              : undefined
+          }
+          progressPercent={interviewProgress.percent}
+          onStartCall={handleStartCall}
+          title={callCardTitle}
+        />
+      )}
 
       <div className="px-1 text-center">
         <h2 className="text-neutral-primary font-hedvig text-[24px] font-normal">

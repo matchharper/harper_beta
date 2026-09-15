@@ -1,4 +1,5 @@
 import { ORG_ROLE_MUTATION_STATUS_VALUES } from "@/lib/org/roleStatus";
+import { ORG_ROLE_WORK_MODE_VALUES } from "@/lib/org/roleFieldValues";
 
 /**
  * Logical fields understood by the shared mutation machinery. Some legacy
@@ -218,7 +219,7 @@ export const COMPANY_DATA_CATALOG: Record<
     type: "enum",
   },
   role_work_mode: {
-    allowedValues: ["onsite", "hybrid", "remote"],
+    allowedValues: ORG_ROLE_WORK_MODE_VALUES,
     confirmationRequired: false,
     longText: false,
     nullable: true,

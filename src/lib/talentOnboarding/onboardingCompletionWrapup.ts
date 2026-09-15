@@ -25,6 +25,7 @@ import { fetchRecentMessagesWithSummary } from "@/lib/talentOnboarding/conversat
 import {
   fetchOnboardingCompletionNextStepsMessage,
   fetchOnboardingCompletionWrapupMessage,
+  insertOnboardingInitialSearchStartedMessage,
   insertOnboardingCompletionNextStepsMessage,
   insertOnboardingCompletionWrapupMessage,
 } from "@/lib/talentOnboarding/messageStore";
@@ -32,6 +33,7 @@ import {
   TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE,
   TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NEXT_STEPS,
   TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP,
+  TALENT_MESSAGE_TYPE_ONBOARDING_INITIAL_SEARCH_STARTED,
 } from "@/lib/talentOnboarding/onboarding";
 import {
   executeTalentTool,
@@ -46,6 +48,7 @@ import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
 import { hasActiveConversationCompletedOpportunityRun } from "@/lib/opportunityDiscovery/store";
 import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
 import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
+import { buildOnboardingInitialSearchStartedContent } from "@/lib/talentOnboarding/onboardingInitialSearchStartedCopy";
 
 const FALLBACK_WRAPUP_CONTENT_KO = [
   "좋은 대화였습니다. 말씀해주신 내용을 바탕으로 다음 기회 탐색 기준을 정리했습니다.",
@@ -72,19 +75,15 @@ const FALLBACK_WRAPUP_CONTENT_EN = [
 ].join("\n");
 
 const FALLBACK_NEXT_STEPS_CONTENT_KO = [
-  "말씀해주신 조건들을 Harper의 검색 기준에 반영했어요. 이제 대화에서 확인한 역할, 산업, 지역, 근무 형태 기준을 중심으로 새로운 기회를 찾기 시작할게요. 결과는 포지션 탭과 이메일로 준비되는 대로 보내드릴 거예요. 최대 1시간 정도 걸릴 수 있어요.",
-  "",
-  "확인하신 뒤에는 각 기회에 대해 좋아요/싫어요를 눌러주세요. 마음에 드는 회사가 있으면 회사명을 눌러 자세히 보고, 계속 지켜보고 싶은 회사는 track 해두시면 관련 소식이나 채용 업데이트가 있을 때 챙겨드릴게요.",
-  "",
-  "가장 먼저 확인해보고 싶은 회사나 기회, 혹은 Harper가 더 알아두면 좋을 내용이 있다면 편하게 말씀해주세요.",
+  "말씀해주신 조건은 앞으로의 검색과 매칭에 반영했어요.",
+  "추천을 확인하신 뒤에는 각 기회에 좋아요/싫어요를 남겨주세요. 마음에 드는 회사는 자세히 살펴보거나 track 해두시면 이후 추천을 더 잘 맞춰갈 수 있어요.",
+  "가장 먼저 확인해보고 싶은 회사나 기회, 혹은 제가 더 알아두면 좋을 내용이 있다면 편하게 말씀해주세요.",
 ].join("\n\n");
 
 const FALLBACK_NEXT_STEPS_CONTENT_EN = [
-  "I added what you shared to Harper's search criteria. Harper will start looking around the roles, industries, locations, and work styles we discussed. New opportunities will appear in the Positions tab and may also be sent by email when they are ready. This can take up to about an hour.",
-  "",
-  "After you review them, use like or dislike on each opportunity so Harper can calibrate future recommendations. If a company looks interesting, open the company name for more context. You can also track companies you want Harper to keep watching for relevant updates or new roles.",
-  "",
-  "If there is a company or opportunity you want Harper to look at first, or anything else Harper should know, feel free to tell me.",
+  "I've added what you shared to future search and matching.",
+  "After you review the recommendations, use like or dislike on each opportunity. You can also explore a company or track it so I can improve what I bring you next.",
+  "If there's a company or opportunity you want me to look at first, or anything else I should know, feel free to tell me.",
 ].join("\n\n");
 
 const ONBOARDING_COMPLETION_WRAPUP_THINKING_LOGS_KO = [
@@ -118,6 +117,68 @@ async function getOnboardingCompletionFallbackLocale(args: {
     return resolveFallbackLocale(setting?.preferred_locale);
   } catch {
     return "en";
+  }
+}
+
+type OnboardingInitialSearchStartedContext = {
+  gmailConnected: boolean;
+  hasUploadedResume: boolean;
+  locale: "ko" | "en";
+};
+
+async function getOnboardingInitialSearchStartedContext(args: {
+  admin: TalentAdminClient;
+  userId: string;
+}): Promise<OnboardingInitialSearchStartedContext> {
+  const [locale, profile, gmailIntegration] = await Promise.all([
+    getOnboardingCompletionFallbackLocale(args),
+    fetchTalentUserProfile(args).catch(() => null),
+    fetchActiveTalentGmailIntegration({
+      admin: args.admin,
+      talentId: args.userId,
+    }).catch(() => null),
+  ]);
+
+  return {
+    gmailConnected: Boolean(gmailIntegration),
+    hasUploadedResume: Boolean(
+      profile?.resume_file_name?.trim() || profile?.resume_storage_path?.trim()
+    ),
+    locale,
+  };
+}
+
+async function createOnboardingInitialSearchStartedReceipt(args: {
+  admin: TalentAdminClient;
+  contextPromise: Promise<OnboardingInitialSearchStartedContext>;
+  conversationId: string;
+  isMobile?: boolean | null;
+  opportunityRunId: string;
+  userId: string;
+}) {
+  try {
+    const context = await args.contextPromise;
+    return await insertOnboardingInitialSearchStartedMessage({
+      admin: args.admin,
+      content: buildOnboardingInitialSearchStartedContent({
+        ...context,
+        opportunityRunId: args.opportunityRunId,
+      }),
+      conversationId: args.conversationId,
+      isMobile: args.isMobile,
+      userId: args.userId,
+    });
+  } catch (error) {
+    console.error(
+      "[onboarding-initial-search-started] Failed to save message",
+      {
+        conversationId: args.conversationId,
+        error: error instanceof Error ? error.message : String(error),
+        opportunityRunId: args.opportunityRunId,
+        userId: args.userId,
+      }
+    );
+    return null;
   }
 }
 
@@ -189,7 +250,8 @@ function isWrapupInputMessage(message: TalentMessageRow) {
     messageType !== "call_wrapup" &&
     messageType !== TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE &&
     messageType !== TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NEXT_STEPS &&
-    messageType !== TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP
+    messageType !== TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP &&
+    messageType !== TALENT_MESSAGE_TYPE_ONBOARDING_INITIAL_SEARCH_STARTED
   );
 }
 
@@ -716,9 +778,21 @@ export async function createOnboardingCompletionMessages(args: {
   conversationId: string;
   isMobile?: boolean | null;
   latestUserMessageId?: number | string | null;
+  opportunityRunId?: string | null;
   userId: string;
 }) {
+  const initialSearchContextPromise = args.opportunityRunId
+    ? getOnboardingInitialSearchStartedContext(args)
+    : null;
   const wrapupMessage = await createOnboardingCompletionWrapupMessage(args);
+  const initialSearchStartedMessage =
+    args.opportunityRunId && initialSearchContextPromise
+      ? await createOnboardingInitialSearchStartedReceipt({
+          ...args,
+          contextPromise: initialSearchContextPromise,
+          opportunityRunId: args.opportunityRunId,
+        })
+      : null;
   const nextStepsMessage = await createOnboardingCompletionNextStepsMessage({
     admin: args.admin,
     conversationId: args.conversationId,
@@ -727,6 +801,7 @@ export async function createOnboardingCompletionMessages(args: {
   });
 
   return {
+    initialSearchStartedMessage,
     nextStepsMessage,
     wrapupMessage,
   };
@@ -737,9 +812,21 @@ export async function regenerateOnboardingCompletionMessages(args: {
   conversationId: string;
   isMobile?: boolean | null;
   latestUserMessageId?: number | string | null;
+  opportunityRunId?: string | null;
   userId: string;
 }) {
+  const initialSearchContextPromise = args.opportunityRunId
+    ? getOnboardingInitialSearchStartedContext(args)
+    : null;
   const wrapupMessage = await regenerateOnboardingCompletionWrapupMessage(args);
+  const initialSearchStartedMessage =
+    args.opportunityRunId && initialSearchContextPromise
+      ? await createOnboardingInitialSearchStartedReceipt({
+          ...args,
+          contextPromise: initialSearchContextPromise,
+          opportunityRunId: args.opportunityRunId,
+        })
+      : null;
   const nextStepsMessage = await regenerateOnboardingCompletionNextStepsMessage(
     {
       admin: args.admin,
@@ -750,6 +837,7 @@ export async function regenerateOnboardingCompletionMessages(args: {
   );
 
   return {
+    initialSearchStartedMessage,
     nextStepsMessage,
     wrapupMessage,
   };

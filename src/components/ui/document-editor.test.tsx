@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { JSDOM } from "jsdom";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   DocumentEditor,
+  DocumentEditorPanelProvider,
   copyDocumentText,
   formatDocumentLastChangedAt,
   isDocumentPreviewOverflowing,
@@ -105,6 +109,80 @@ test("supports a controlled side panel without rendering another preview", () =>
 
   assert.doesNotMatch(html, /data-document-editor-preview/);
   assert.doesNotMatch(html, /마지막 변경/);
+});
+
+test("notifies the surrounding panel when a document opens", async () => {
+  const dom = new JSDOM("<!doctype html><html><body></body></html>", {
+    pretendToBeVisual: true,
+  });
+  const previousDocument = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "document"
+  );
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  Object.defineProperty(globalThis, "document", {
+    configurable: true,
+    value: dom.window.document,
+  });
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: dom.window,
+  });
+  const actEnvironment = globalThis as typeof globalThis & {
+    IS_REACT_ACT_ENVIRONMENT?: boolean;
+  };
+  const previousActEnvironment = actEnvironment.IS_REACT_ACT_ENVIRONMENT;
+  actEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
+
+  const container = dom.window.document.createElement("div");
+  dom.window.document.body.append(container);
+  const root = createRoot(container);
+  let openedDocumentId = "";
+
+  try {
+    await act(async () => {
+      root.render(
+        <DocumentEditorPanelProvider
+          onOpenDocument={(documentId) => {
+            openedDocumentId = documentId;
+          }}
+        >
+          <DocumentEditor
+            documentTitle="Career History"
+            readOnly
+            savedValue="첫 문장"
+            value="첫 문장"
+          />
+        </DocumentEditorPanelProvider>
+      );
+    });
+
+    const openButton = container.querySelector<HTMLButtonElement>(
+      '[data-document-editor-preview=""]'
+    );
+    assert.ok(openButton);
+    await act(async () => openButton.click());
+
+    assert.ok(openedDocumentId);
+    assert.ok(
+      container.querySelector('[data-document-editor-panel=""]')
+        ?.textContent
+    );
+  } finally {
+    await act(async () => root.unmount());
+    actEnvironment.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
+    if (previousDocument) {
+      Object.defineProperty(globalThis, "document", previousDocument);
+    } else {
+      Reflect.deleteProperty(globalThis, "document");
+    }
+    if (previousWindow) {
+      Object.defineProperty(globalThis, "window", previousWindow);
+    } else {
+      Reflect.deleteProperty(globalThis, "window");
+    }
+    dom.window.close();
+  }
 });
 
 test("formats recent changes as relative Korean time", () => {

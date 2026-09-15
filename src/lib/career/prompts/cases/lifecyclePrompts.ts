@@ -6,7 +6,11 @@ import {
   prependCareerReengagementAction,
 } from "@/lib/career/reengagementActions";
 import { careerT } from "@/lib/career/translatedCareerMessage";
-import { formatCareerPromptKoreanDateTime } from "@/lib/career/prompts/promptUtils";
+import {
+  formatCareerPromptKoreanDateTime,
+  normalizeCareerPromptTimeZone,
+  type CareerPromptDateTimeOptions,
+} from "@/lib/career/prompts/promptUtils";
 import {
   CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER,
   type CareerOpportunityFeedbackFollowUpTrigger,
@@ -19,7 +23,8 @@ export const CAREER_SESSION_START_NO_MESSAGE_MARKER = "__NO_SESSION_GREETING__";
 export const CAREER_SESSION_START_CALL_ACTION_MARKER = "[[CALL]]";
 
 function formatReengagementPendingAction(
-  action: CareerReengagementPendingAction
+  action: CareerReengagementPendingAction,
+  dateTimeOptions?: CareerPromptDateTimeOptions
 ) {
   switch (action.kind) {
     case "internal_opportunity_call":
@@ -31,7 +36,7 @@ function formatReengagementPendingAction(
     case "company_request":
       return `[actionKey:${action.actionKey}] [회사 요청] ${action.companyName} · ${action.roleTitle}: ${action.request}`;
     case "internal_opportunity":
-      return `[actionKey:${action.actionKey}] [internal 연결 제안] ${action.companyName} · ${action.roleTitle}: 아직 응답 없음 · 추천 시각: ${formatCareerPromptKoreanDateTime(action.recommendedAt)}${
+      return `[actionKey:${action.actionKey}] [internal 연결 제안] ${action.companyName} · ${action.roleTitle}: 아직 응답 없음 · 추천 시각: ${formatCareerPromptKoreanDateTime(action.recommendedAt, dateTimeOptions)}${
         action.recommendationSummary ? ` · ${action.recommendationSummary}` : ""
       }`;
     case "meeting_schedule":
@@ -51,13 +56,21 @@ export function buildCareerSessionStartTurnInstruction(args: {
   pendingActions?: CareerReengagementPendingAction[];
   preferredLocale?: string | null;
   previousChatAt: string | null;
+  timeZone?: string | null;
 }) {
   const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
+  const timeZone = normalizeCareerPromptTimeZone(args.timeZone);
+  const dateTimeOptions = {
+    preferredLocale: args.preferredLocale,
+    timeZone,
+  };
   const currentAccessAtLabel = formatCareerPromptKoreanDateTime(
-    args.currentAccessAt
+    args.currentAccessAt,
+    dateTimeOptions
   );
   const previousChatAtLabel = formatCareerPromptKoreanDateTime(
-    args.previousChatAt
+    args.previousChatAt,
+    dateTimeOptions
   );
 
   logger.log("buildCareerSessionStartTurnInstruction", {
@@ -72,7 +85,7 @@ export function buildCareerSessionStartTurnInstruction(args: {
       "사용자가 방금 Career 화면에 다시 접속했다. 사용자가 아직 새 메시지를 보내지 않았지만, Harper가 먼저 짧게 말을 건넬 수 있는 차례다.",
       `- currentAccessAt: ${currentAccessAtLabel}`,
       `- previousChatAt: ${previousChatAtLabel}`,
-      "위 시각 값은 모두 한국 시간 기준 24시간제다. 예를 들어 22:46을 10:46으로 변환하지 마라.",
+      `위 시각 값은 모두 사용자의 현재 접속 지역 타임존(${timeZone}) 기준 24시간제다. 예를 들어 22:46을 10:46으로 변환하지 마라.`,
       "'방금'은 현재 화면 접속만 뜻한다. 이전 대화 시각과 혼동하지 말고, 이전 대화가 오늘이 아니면 그 대화를 '방금' 또는 '조금 전'이라고 표현하지 마라.",
       "중요: 위의 정확한 날짜/시각과 경과 시간은 내부 판단용 정보다. 사용자에게 정확한 날짜, 시각, 경과 시간, 시각 비교를 직접 또는 괄호로 절대 말하지 마라. '몇 시간/며칠 만에'처럼 경과 시간을 유추해서도 말하지 마라.",
       "이번 발화의 목적은 끊긴 커리어 온보딩을 자연스럽게 이어가는 것이다.",
@@ -89,7 +102,8 @@ export function buildCareerSessionStartTurnInstruction(args: {
     ? [
         "현재 참고할 수 있는 pending action:",
         ...pendingActions.map(
-          (action) => `- ${formatReengagementPendingAction(action)}`
+          (action) =>
+            `- ${formatReengagementPendingAction(action, dateTimeOptions)}`
         ),
       ]
     : [];
@@ -110,7 +124,7 @@ export function buildCareerSessionStartTurnInstruction(args: {
     `사용자가 새 메시지를 보내지 않은 상태에서 Career에 다시 접속했다. 지금까지의 대화와 제공된 맥락을 보고 Harper가 먼저 보낼 자연스러운 ${outputLanguage} 메시지를 작성한다. 필요하면 적당히 길게 작성해도 된다.`,
     `- currentAccessAt: ${currentAccessAtLabel}`,
     `- previousChatAt: ${previousChatAtLabel}`,
-    "시각은 한국 시간 기준 24시간제이며 내부 판단용이다. 사용자에게 날짜·시각·경과 시간을 말하거나 이전 대화를 방금 일처럼 표현하지 마라.",
+    `시각은 사용자의 현재 접속 지역 타임존(${timeZone}) 기준 24시간제이며 내부 판단용이다. 사용자에게 날짜·시각·경과 시간을 말하거나 이전 대화를 방금 일처럼 표현하지 마라.`,
     ...pendingActionLines,
     ...pendingActionCopyLines,
     `맥락에 맞는 유용한 메시지를 만들 수 없으면 정확히 ${CAREER_SESSION_START_NO_MESSAGE_MARKER}만 출력한다.`,

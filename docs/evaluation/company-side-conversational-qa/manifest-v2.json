@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "task": "company-side-conversational-qa",
+  "datasetVersion": "company-side-conversational-qa-v2",
+  "goldVersion": "company-side-conversational-qa-gold-v2",
+  "runId": "20260914_slack_gmail_v2",
+  "createdAt": "2026-09-14T08:01:27Z",
+  "sourceRevision": {
+    "repositoryHead": "5f39e97fb4b87a3c88e8f137fe8fb5d29f6c20ff",
+    "workingTreeDirty": true,
+    "preExistingDiffSha256": "00da06e6dd213ad76dc837e9530ccb479c16e7647bc07ae121bc1a214c9e46d5"
+  },
+  "promptFingerprint": "7d2976ccc76cfe14b0c3f8c9774c6d9875b89c160f32e4a9c331b3aecdaa4262",
+  "assets": {
+    "casesV2Sha256": "17b13553b899acd93c0224a4a6112a4f4f5b287bac4ae77b959e2d53902405aa",
+    "goldV2Sha256": "eebbdfd71658082f6b3c7b00e877bf7efa7f1c391a57ec891d436eb46715fbc7",
+    "readmeAtFreezeSha256": "9527d89fc840882c1148382da0f0ad42ce7cc44c3a6760e6d29c82ea4af213f8"
+  },
+  "input": {
+    "scenarioCount": 6,
+    "companyTurnsPerScenario": 6,
+    "companyMessageCount": 36,
+    "minimumVisibleMessagesPerScenario": 12,
+    "challengeSet": true,
+    "representativeSample": false,
+    "actualIdentityMapping": "runs/20260914_slack_gmail_v2/fixture-backup.json"
+  },
+  "runner": {
+    "type": "manual_stateful_e2e",
+    "slackSurface": "z-test-harper desktop UI",
+    "slackIngress": "production events and queue",
+    "localWorkerTarget": "local-gimhojin-z-test-harper",
+    "localAppOrigin": "http://127.0.0.1:3100",
+    "candidateSurfaces": [
+      "actual authorized email inbox and reply",
+      "public scheduling page"
+    ],
+    "rawArtifactPath": "runs/20260914_slack_gmail_v2/"
+  },
+  "modelConfiguration": {
+    "model": "gpt-5.6-terra",
+    "provider": "openai",
+    "reasoning": "xhigh",
+    "temperature": 0.1,
+    "fallbackModel": "gpt-5.6-luna",
+    "samplingOverride": null,
+    "slackTurnTimeoutMs": 270000,
+    "actualConfigurationEvidence": "runs/20260914_slack_gmail_v2/worker-evidence.json"
+  },
+  "privacy": {
+    "trackedAssetsDeidentified": true,
+    "authorizedTalentCount": 2,
+    "rawArtifactsGitignored": true,
+    "fileMode": "0600",
+    "directoryMode": "0700",
+    "providers": [
+      "Slack",
+      "OpenAI",
+      "Resend/email",
+      "Google Calendar and Meet"
+    ]
+  },
+  "metricGate": {
+    "criticalFailures": 0,
+    "stateIntegrity": "36/36",
+    "intentApplication": ">=34/36",
+    "continuity": ">=32/36",
+    "effort": ">=32/36",
+    "truthfulness": ">=32/36",
+    "copyFidelity": ">=32/36",
+    "scenarioEndToEnd": "6/6"
+  },
+  "knownLimitations": [
+    "One internal Workspace, one Slack sender, two authorized talent accounts, and four test-only Roles do not represent production frequency.",
+    "The six scenarios are stateful and intentionally share external side effects in a fixed order.",
+    "Provider latency and authenticated inbox sessions affect completion.",
+    "The manual runner is not yet an automated regression suite."
+  ]
+}

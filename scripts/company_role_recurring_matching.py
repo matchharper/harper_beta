@@ -35,6 +35,7 @@ OUTPUT_ROOT = ROOT / "output" / "company_context_runs"
 RUNBOOK_PATH = ROOT / "docs" / "company" / "company-context-run-codex-runbook-ko.md"
 SCHEDULED_RUNBOOK_PATH = ROOT / "docs" / "schedule" / "company-run-ko.md"
 COMPANY_RUN_CONTRACT_VERSION = "company-run-v1"
+POST_CALIBRATION_CONTRACT_VERSION = "post-calibration-review-v1"
 CONTEXT_OUTPUT_CONTRACT_VERSION = "company-context-output-v1"
 SEARCH_DECISION_CONTRACT_VERSION = "company-search-decision-v1"
 EVALUATOR_VERSION = "company-context-codex-v3-brief-behavior"
@@ -607,6 +608,53 @@ def internal_notification_settings() -> tuple[str, str]:
     return token, channel
 
 
+def internal_app_settings() -> tuple[str, str]:
+    load_dotenv(ROOT.parent / "worker.env", override=False)
+    load_dotenv(ROOT / ".env.local", override=False)
+    secret = str(os.environ.get("INTERNAL_WORKER_API_SECRET") or "").strip()
+    if not secret:
+        raise RuntimeError("INTERNAL_WORKER_API_SECRET is required")
+    base_url = str(
+        os.environ.get("NEXT_PUBLIC_SITE_URL")
+        or os.environ.get("NEXT_PUBLIC_APP_URL")
+        or os.environ.get("APP_BASE_URL")
+        or "https://matchharper.com"
+    ).strip().rstrip("/")
+    if not base_url.startswith(("https://", "http://")):
+        base_url = f"https://{base_url}"
+    return base_url, secret
+
+
+def internal_post_json(path: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+    base_url, secret = internal_app_settings()
+    request = urllib.request.Request(
+        f"{base_url}{path}",
+        data=json.dumps(jsonable(payload), ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {secret}",
+            "Content-Type": "application/json; charset=utf-8",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            raw = response.read().decode("utf-8")
+    except urllib.error.HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")
+        raise RuntimeError(
+            f"internal delivery HTTP {error.code}: {compact(detail, 500)}"
+        ) from error
+    except urllib.error.URLError as error:
+        raise RuntimeError(f"internal delivery failed: {error.reason}") from error
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise RuntimeError("internal delivery returned invalid JSON") from error
+    if not isinstance(value, Mapping):
+        raise RuntimeError("internal delivery returned a non-object response")
+    return dict(value)
+
+
 def slack_post_message(
     *,
     token: str,
@@ -707,6 +755,18 @@ def enqueue_scheduled_runs(
         conn,
         "select * from public.enqueue_scheduled_company_runs_v1(%s::uuid, %s::timestamptz)",
         (batch_id, scheduled_for),
+    )
+
+
+def claim_post_calibration_run(
+    conn: psycopg.Connection,
+    *,
+    runner: str,
+) -> dict[str, Any] | None:
+    return fetch_one(
+        conn,
+        "select * from public.claim_post_calibration_company_context_run_v1(%s)",
+        (runner,),
     )
 
 
@@ -880,6 +940,10 @@ def workflow_schema_status(conn: psycopg.Connection) -> dict[str, Any]:
         "public.enqueue_scheduled_company_runs_v1(uuid,timestamp with time zone)",
         "public.claim_company_context_run_v1(text,uuid)",
         "public.claim_scheduled_company_run_v1(text,uuid)",
+        "public.enqueue_post_calibration_company_context_run_v1(uuid)",
+        "public.claim_post_calibration_company_context_run_v1(text)",
+        "public.retry_post_calibration_company_context_run_v1(uuid,timestamp with time zone)",
+        "public.record_post_calibration_company_notice_v1(uuid,text,bigint,text,text,text,text)",
         "public.finish_company_context_run_v1(uuid,text,jsonb)",
     )
     missing_procedures: list[str] = []
@@ -888,9 +952,10 @@ def workflow_schema_status(conn: psycopg.Connection) -> dict[str, Any]:
         if not bool((row or {}).get("exists")):
             missing_procedures.append(signature)
     trigger_names = (
-        "company_internal_roles_enqueue_context_run_v1",
         "company_internal_roles_cancel_context_run_v1",
         "company_roles_track_status_and_enqueue_context_v1",
+        "company_context_runs_enqueue_waiting_post_calibration_v1",
+        "company_context_runs_notify_post_calibration_v1",
     )
     missing_triggers: list[str] = []
     for trigger_name in trigger_names:
@@ -1066,6 +1131,16 @@ def require_run(run_id: str) -> dict[str, Any]:
             if dry_run
             else result.get("notification")
         ),
+        "calibration_id": (
+            (manifest if isinstance(manifest, Mapping) else {}).get("calibration_id")
+            if dry_run
+            else result.get("calibrationId")
+        ),
+        "company_notice": (
+            (manifest if isinstance(manifest, Mapping) else {}).get("company_notice")
+            if dry_run
+            else result.get("companyNotice")
+        ),
     }
 
 
@@ -1099,6 +1174,8 @@ def save_run(run: Mapping[str, Any]) -> dict[str, Any]:
         "contextOutput": payload.get("context_output"),
         "searchDecision": payload.get("search_decision"),
         "notification": payload.get("notification"),
+        "calibrationId": payload.get("calibration_id"),
+        "companyNotice": payload.get("company_notice"),
     }
     result_patch = {
         key: value for key, value in result_patch.items() if value is not None
@@ -1381,6 +1458,39 @@ def assert_search_allowed(conn: psycopg.Connection, run: Mapping[str, Any]) -> d
     return gate
 
 
+def post_calibration_gate(
+    conn: psycopg.Connection,
+    run: Mapping[str, Any],
+) -> dict[str, Any]:
+    if run.get("trigger_reason") != "post_calibration_12h":
+        return {}
+    calibration_id = compact(run.get("calibration_id"), 100)
+    if not calibration_id:
+        raise RuntimeError("post-calibration run is missing calibrationId")
+    row = fetch_one(
+        conn,
+        """
+        select
+          calibration.id,
+          calibration.role_id,
+          calibration.status,
+          calibration.payload->'delivery'->>'status' as delivery_status,
+          calibration.payload->'delivery'->>'sentAt' as sent_at
+        from public.company_role_calibrations calibration
+        where calibration.id = %s::uuid
+          and calibration.role_id = %s::uuid
+        """,
+        (calibration_id, str(run["role_id"])),
+    )
+    if not row:
+        raise RuntimeError("linked calibration does not exist for this Role")
+    if row.get("status") not in {"sent", "completed"}:
+        raise RuntimeError("linked calibration is not delivered")
+    if row.get("delivery_status") != "sent" or not compact(row.get("sent_at"), 100):
+        raise RuntimeError("linked calibration has no first Slack delivery receipt")
+    return jsonable(row)
+
+
 def context_source_packet(conn: psycopg.Connection, run: Mapping[str, Any]) -> dict[str, Any]:
     role_id = str(run["role_id"])
     workspace_id = str(run["company_workspace_id"])
@@ -1602,6 +1712,7 @@ def context_source_packet(conn: psycopg.Connection, run: Mapping[str, Any]) -> d
         current_cursor=cursor,
     )
     gate = pending_gate(conn, role_id)
+    linked_calibration = post_calibration_gate(conn, run)
     return jsonable(
         {
             "schemaVersion": 2,
@@ -1656,6 +1767,7 @@ def context_source_packet(conn: psycopg.Connection, run: Mapping[str, Any]) -> d
             "sourceFingerprint": stable_hash({"role": role, "evidence": evidence}),
             "roleMatchingFingerprint": role_matching_fingerprint(role),
             "pendingGate": gate,
+            "linkedCalibration": linked_calibration or None,
             "evidence": evidence,
         }
     )
@@ -1943,7 +2055,9 @@ def assert_run_writable(
     recorded_workspace = run.get("company_workspace_id")
     if recorded_workspace and str(row.get("company_workspace_id")) != str(recorded_workspace):
         raise RuntimeError("role workspace changed after run start")
-    return {**run, **row, "company_workspace_id": str(row["company_workspace_id"])}
+    checked = {**run, **row, "company_workspace_id": str(row["company_workspace_id"])}
+    post_calibration_gate(conn, checked)
+    return checked
 
 
 def command_list(_: argparse.Namespace) -> int:
@@ -2034,6 +2148,12 @@ def command_start(args: argparse.Namespace) -> int:
         raise ValueError("--batch-id cannot be combined with --dry-run")
     if args.batch_id and args.role_id:
         raise ValueError("--batch-id cannot be combined with --role-id")
+    if args.post_calibration and (args.batch_id or args.role_id or args.enqueue_due):
+        raise ValueError(
+            "--post-calibration cannot be combined with --batch-id, --role-id, or --enqueue-due"
+        )
+    if args.post_calibration and args.dry_run:
+        raise ValueError("--post-calibration claims a durable due row and cannot use --dry-run")
     with connect() as conn:
         due_enqueued = enqueue_due_runs(conn) if args.enqueue_due and not args.dry_run else 0
         if args.allow_inactive:
@@ -2050,7 +2170,12 @@ def command_start(args: argparse.Namespace) -> int:
                 peek_queued_run(conn, role_id=args.role_id)
                 if args.dry_run
                 else (
-                    claim_scheduled_run(
+                    claim_post_calibration_run(
+                        conn,
+                        runner=args.runner,
+                    )
+                    if args.post_calibration
+                    else claim_scheduled_run(
                         conn,
                         runner=args.runner,
                         batch_id=args.batch_id,
@@ -2076,6 +2201,8 @@ def command_start(args: argparse.Namespace) -> int:
                 )
             )
             return 0
+        if args.post_calibration and queue_row.get("trigger_reason") != "post_calibration_12h":
+            raise RuntimeError("post-calibration claim returned a different run kind")
         run_id = str(queue_row["id"])
         role = fetch_one(
             conn,
@@ -2172,12 +2299,18 @@ def command_start(args: argparse.Namespace) -> int:
             "error_message": None,
             "contract_version": (queue_row.get("result") or {}).get(
                 "contractVersion"
+            ) or (
+                POST_CALIBRATION_CONTRACT_VERSION
+                if queue_row.get("trigger_reason") == "post_calibration_12h"
+                else None
             ),
             "batch_run_id": (queue_row.get("result") or {}).get("batchRunId"),
             "scheduled_for": (queue_row.get("result") or {}).get("scheduledFor"),
             "context_output": (queue_row.get("result") or {}).get("contextOutput"),
             "search_decision": (queue_row.get("result") or {}).get("searchDecision"),
             "notification": (queue_row.get("result") or {}).get("notification"),
+            "calibration_id": (queue_row.get("result") or {}).get("calibrationId"),
+            "company_notice": (queue_row.get("result") or {}).get("companyNotice"),
             "dry_run": bool(args.dry_run),
             "allow_inactive": bool(args.allow_inactive),
             "synthetic_queue": bool(args.allow_inactive),
@@ -2377,6 +2510,8 @@ def command_run_sql(args: argparse.Namespace) -> int:
     raw_sql = sql_path.read_text(encoding="utf-8")
     with connect() as conn:
         run = assert_run_writable(conn, args.run_id)
+        if run.get("trigger_reason") == "post_calibration_12h" and args.lane != "new":
+            raise RuntimeError("post-calibration initial review uses only the unseen new lane")
         assert_search_allowed(conn, run)
         if not (run.get("input_snapshot") or {}).get("contextHash"):
             raise RuntimeError("context must be saved before retrieval SQL runs")
@@ -3226,6 +3361,8 @@ def command_candidate_packet(args: argparse.Namespace) -> int:
 
     with connect() as conn:
         run = assert_run_writable(conn, args.run_id)
+        if run.get("trigger_reason") == "post_calibration_12h" and args.lane != "new":
+            raise RuntimeError("post-calibration initial review uses only the unseen new lane")
         assert_search_allowed(conn, run)
         if not (run.get("input_snapshot") or {}).get("contextHash"):
             raise RuntimeError("context must be saved before candidate packets")
@@ -4661,6 +4798,106 @@ def command_notify_batch(args: argparse.Namespace) -> int:
     return 0
 
 
+def validate_post_calibration_notice(value: Any) -> dict[str, str]:
+    if not isinstance(value, Mapping):
+        raise ValueError("company notice input must be a JSON object")
+    message = str(value.get("message") or "").replace("\x00", "").strip()[:5_000]
+    if not message:
+        raise ValueError("company notice input requires a non-empty message")
+    return {"message": message}
+
+
+def command_preview_post_calibration_notice(args: argparse.Namespace) -> int:
+    notice = validate_post_calibration_notice(read_json(Path(args.input)))
+    preview = {
+        "status": "previewed",
+        "databaseWrites": 0,
+        "externalWrites": 0,
+        "slackMessage": notice["message"],
+        "orgMessage": notice["message"],
+    }
+    print(json.dumps(preview, ensure_ascii=False))
+    return 0
+
+
+def command_pending_post_calibration_notices(args: argparse.Namespace) -> int:
+    with connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("set transaction read only")
+        rows = fetch_all(
+            conn,
+            """
+            select run.id, run.role_id, run.result->>'calibrationId' as calibration_id,
+                   run.result->'companyNotice' as company_notice
+            from public.company_context_runs run
+            where run.trigger_reason = 'post_calibration_12h'
+              and run.status = 'succeeded'
+              and coalesce(run.result->'companyNotice'->>'status', '')
+                in ('partial', 'not_configured', 'failed')
+              and coalesce(
+                nullif(run.result->'companyNotice'->>'retryAt', '')::timestamptz,
+                run.available_at
+              ) <= timezone('utc', now())
+            order by coalesce(
+              nullif(run.result->'companyNotice'->>'retryAt', '')::timestamptz,
+              run.available_at
+            ), run.id
+            limit %s
+            """,
+            (args.limit,),
+        )
+        conn.rollback()
+    print(json.dumps(jsonable({"runs": rows}), ensure_ascii=False))
+    return 0
+
+
+def command_deliver_post_calibration_notice(args: argparse.Namespace) -> int:
+    run = require_run(args.run_id)
+    if run.get("trigger_reason") != "post_calibration_12h":
+        raise RuntimeError("company notice is only valid for post-calibration runs")
+    if run.get("status") not in {"running", "succeeded"}:
+        raise RuntimeError(f"post-calibration run cannot deliver from {run.get('status')}")
+    message = None
+    if args.input:
+        notice_input = validate_post_calibration_notice(read_json(Path(args.input)))
+        message = notice_input["message"]
+    if run.get("dry_run"):
+        if not message:
+            raise RuntimeError("dry-run notice preview requires --input")
+        receipt = {
+            "runId": args.run_id,
+            "status": "previewed",
+            "databaseWrites": 0,
+            "externalWrites": 0,
+            "slackMessage": message,
+            "orgMessage": message,
+        }
+        write_json(run_dir(run) / "company_notice_preview.json", receipt)
+        print(json.dumps(receipt, ensure_ascii=False))
+        return 0
+
+    payload: dict[str, Any] = {"runId": args.run_id}
+    if message:
+        payload["message"] = message
+    response = internal_post_json(
+        "/api/internal/company-context-runs/post-calibration-notice",
+        payload,
+    )
+    notice = response.get("notice")
+    if not isinstance(notice, Mapping):
+        raise RuntimeError("company notice delivery returned no durable receipt")
+    run["company_notice"] = dict(notice)
+    save_run(run)
+    receipt = {
+        "runId": args.run_id,
+        "status": response.get("status"),
+        "notice": notice,
+    }
+    write_json(run_dir(run) / "company_notice_receipt.json", receipt)
+    print(json.dumps(jsonable(receipt), ensure_ascii=False))
+    return 0
+
+
 def command_finish(args: argparse.Namespace) -> int:
     with connect() as conn:
         run = assert_run_writable(conn, args.run_id)
@@ -4668,6 +4905,16 @@ def command_finish(args: argparse.Namespace) -> int:
         if not (path / "context_save_receipt.json").exists():
             raise RuntimeError("context must be saved before a run can succeed")
         scheduled_run = run.get("trigger_reason") == "scheduled"
+        post_calibration_run = run.get("trigger_reason") == "post_calibration_12h"
+        company_notice = run.get("company_notice") or {}
+        if post_calibration_run and company_notice.get("status") not in {
+            "sent",
+            "partial",
+            "not_configured",
+        }:
+            raise RuntimeError(
+                "post-calibration run requires a durable company notice receipt before finish"
+            )
         search_decision = run.get("search_decision") or {}
         if scheduled_run and not search_decision:
             raise RuntimeError("scheduled Company Run requires a saved search decision")
@@ -4703,7 +4950,7 @@ def command_finish(args: argparse.Namespace) -> int:
                 raise RuntimeError("no-eligible finish cannot leave indexed candidates unevaluated")
             if int(counts.get("fitWrites") or 0) != 0:
                 raise RuntimeError("no-eligible finish must not have fit writes")
-        elif args.result_reason == "completed":
+        elif args.result_reason in ("completed", "no_recommendable_fit"):
             if scheduled_run and search_decision.get("runMatching") is not True:
                 raise RuntimeError("completed matching requires runMatching=true")
             if not indexed_candidate_ids:
@@ -4790,6 +5037,9 @@ def command_finish(args: argparse.Namespace) -> int:
             },
             "counts": counts,
         }
+        if post_calibration_run:
+            result["calibrationId"] = run.get("calibration_id")
+            result["companyNotice"] = run.get("company_notice")
         if run.get("dry_run"):
             finished_row = {
                 "status": (
@@ -4898,15 +5148,27 @@ def command_fail(args: argparse.Namespace) -> int:
             )
             retry_eligible = (auto_state or {}).get("is_auto") is True
         if args.retryable and retry_eligible:
-            retry_row = fetch_one(
-                conn,
-                """
-                select public.enqueue_company_context_run_v1(
-                  %s::uuid, %s, timezone('utc', now()) + interval '6 hours'
-                ) as id
-                """,
-                (str(run["role_id"]), str(run["trigger_reason"])),
-            )
+            if run.get("trigger_reason") == "post_calibration_12h":
+                retry_row = fetch_one(
+                    conn,
+                    """
+                    select retry.id
+                    from public.retry_post_calibration_company_context_run_v1(
+                      %s::uuid, timezone('utc', now()) + interval '6 hours'
+                    ) retry
+                    """,
+                    (str(run["id"]),),
+                )
+            else:
+                retry_row = fetch_one(
+                    conn,
+                    """
+                    select public.enqueue_company_context_run_v1(
+                      %s::uuid, %s, timezone('utc', now()) + interval '6 hours'
+                    ) as id
+                    """,
+                    (str(run["role_id"]), str(run["trigger_reason"])),
+                )
             retry_run_id = compact((retry_row or {}).get("id"), 100) or None
         conn.commit()
     run["status"] = "failed"
@@ -5053,6 +5315,7 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--enqueue-due", action="store_true")
     start.add_argument("--dry-run", action="store_true")
     start.add_argument("--allow-inactive", action="store_true")
+    start.add_argument("--post-calibration", action="store_true")
     start.set_defaults(func=command_start)
 
     refresh = sub.add_parser("refresh-packet")
@@ -5119,12 +5382,26 @@ def build_parser() -> argparse.ArgumentParser:
     notify_batch.add_argument("--batch-id", required=True)
     notify_batch.set_defaults(func=command_notify_batch)
 
+    pending_notices = sub.add_parser("pending-post-calibration-notices")
+    pending_notices.add_argument("--limit", type=int, default=10, choices=range(1, 51))
+    pending_notices.set_defaults(func=command_pending_post_calibration_notices)
+
+    deliver_notice = sub.add_parser("deliver-post-calibration-notice")
+    deliver_notice.add_argument("--run-id", required=True)
+    deliver_notice.add_argument("--input")
+    deliver_notice.set_defaults(func=command_deliver_post_calibration_notice)
+
+    preview_notice = sub.add_parser("preview-post-calibration-notice")
+    preview_notice.add_argument("--input", required=True)
+    preview_notice.set_defaults(func=command_preview_post_calibration_notice)
+
     finish = sub.add_parser("finish")
     finish.add_argument("--run-id", required=True)
     finish.add_argument(
         "--result-reason",
         choices=(
             "completed",
+            "no_recommendable_fit",
             "pending_limit_reached",
             "no_eligible_unseen_candidate",
             "matching_skipped",

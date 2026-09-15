@@ -2,11 +2,21 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   companyTalentRequestBlocksNewContact,
+  normalizeCompanyTalentRelayDeliveryStatus,
   summarizeCompanyTalentRequestStatus,
 } from "./status";
 
 const NOW = Date.parse("2026-09-08T00:00:00.000Z");
 const FUTURE = "2026-09-15T00:00:00.000Z";
+
+test("candidate-to-company relay delivery states use one compact read contract", () => {
+  assert.deepEqual(
+    ["queued", "processing", "retry", "sent", "failed", "cancelled", null].map(
+      normalizeCompanyTalentRelayDeliveryStatus
+    ),
+    ["queued", "queued", "queued", "sent", "failed", "cancelled", "queued"]
+  );
+});
 
 test("company talent request statuses preserve every completed milestone", () => {
   const cases = [

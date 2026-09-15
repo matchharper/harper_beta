@@ -10,6 +10,7 @@ import { useEffect, useLayoutEffect, useState } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import dynamic from "next/dynamic";
 import CareerTranslationRuntime from "@/i18n/CareerTranslationRuntime";
+import CareerUtmCapture from "@/components/analytics/CareerUtmCapture";
 import {
   getCurrentCareerTranslationPath,
   isCareerTranslationRoute,
@@ -159,6 +160,7 @@ export default function App({ Component, pageProps }: AppProps) {
         <RouteHistoryProvider>
           <div className="notranslate font-sans" translate="no">
             <Analytics />
+            <CareerUtmCapture />
             <AppErrorBoundary resetKey={router.asPath}>
               <CompanyModalRoot />
               <PaperModalRoot />

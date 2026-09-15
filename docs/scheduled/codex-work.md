@@ -6,7 +6,7 @@
 > 전에는 calibration 후보를 조회하거나 선택하지 않는다. 회사 정보가 부족하면 이 summary 작성에
 > 한해 공개 웹을 검색해 검증 가능한 회사 정보를 보강할 수 있다.
 
-- 문서 기준: 2026-09-10
+- 문서 기준: 2026-09-15
 - 기준 repository: `harper_beta`
 - 목적: 새 internal Role 등록부터 초기 후보 검토, 이후 Hiring Brief 갱신까지 Codex가 언제 어떤
   문서를 읽고 무엇을 쓰는지 한곳에서 찾게 한다.
@@ -249,16 +249,16 @@ Codex desktop의 local Scheduled task는 지정된 컴퓨터가 켜져 있고 �
 
 | 항목 | repository 상태 | 활성화 전 확인 |
 | --- | --- | --- |
-| 신규 Role summary 선행 생성·조건부 write·readback | 이 문서에 목표 계약 정의 | calibration claim 뒤 candid 조회 전 실행되는 canonical helper와 실패/재시도 검증 |
+| 신규 Role summary 선행 생성·조건부 write·readback | helper와 event prompt 구현 존재 | production app revision·migration·listener 활성화 후 첫 실행 receipt 확인 |
 | 새 Role calibration queue/helper/listener/Slack route | 구현 존재 | production migration·app revision·listener status를 preflight로 확인 |
-| calibration 전달 후 정확히 +12시간 queue | 목표 계약만 정의됨 | delivery transaction enqueue, trigger 전환, listener 확장 구현·테스트·배포 |
-| +12시간 talent direct review와 fit write | 재사용 가능한 helper/runbook 존재 | 새 trigger reason, post-calibration runner, coverage 검증 구현 |
-| +12시간 회사 Slack + `/org` 안내 | 목표 계약만 정의됨 | idempotent dual-channel delivery path와 receipt 구현 |
+| calibration 전달 후 정확히 +12시간 queue | corrective migration과 listener 구현 존재 | production migration 적용·delivery readback으로 `sentAt + 12h` 확인 |
+| +12시간 talent direct review와 fit write | 전용 claim, `new` lane·coverage·retry 구현 존재 | production app revision과 첫 실제 run receipt 확인 |
+| +12시간 회사 Slack + `/org` 안내 | idempotent dual-channel route와 channel별 receipt 구현 존재 | production app revision과 Slack/`/org` 실제 receipt 확인 |
 | 48시간 활동 선별·request refresh helper | 판단 문서는 존재, 전용 canonical helper는 없음 | source cursor, claim, proposal/write/readback 구현·테스트 |
 | 48시간 Codex Scheduled task | host-local task를 `PAUSED`로 생성/갱신 | 위 helper preflight와 production rollout 후 `ACTIVE` 전환 |
 
-이 문서를 추가하는 것만으로 production behavior가 바뀌지는 않는다. Migration, application push,
-listener enable과 Scheduled task activation은 각각 실제 rollout 증거를 확인한 뒤 수행한다.
+Repository 구현만으로 production behavior가 바뀌지는 않는다. Migration, application push, listener
+enable과 Scheduled task activation은 각각 실제 rollout 증거를 확인한 뒤 수행한다.
 
 ## 9. 새 clone에서 시작하는 순서
 

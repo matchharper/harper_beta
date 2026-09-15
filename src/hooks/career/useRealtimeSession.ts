@@ -7,6 +7,7 @@ import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { useMessages } from "@/i18n/useMessage";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 import { shouldSpeakRealtimeEndCallFallback } from "@/lib/career/realtimeEndCall";
+import { getCareerBrowserTimeZone } from "@/lib/career/requestTimeZone";
 export type UseRealtimeSessionArgs = {
   conversationId: string | null;
   fetchWithAuth: FetchWithAuth;
@@ -378,6 +379,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
               options?.mockInterviewOpportunityId ?? undefined,
             resumeCallNoteId: options?.resumeCallNoteId ?? undefined,
             locale,
+            timeZone: getCareerBrowserTimeZone(),
           }),
         });
         if (!res.ok) {

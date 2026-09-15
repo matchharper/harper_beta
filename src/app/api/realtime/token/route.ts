@@ -31,6 +31,7 @@ import {
   isCallNoteId,
   parseTalentCallNote,
 } from "@/lib/talentOnboarding/callNote";
+import { resolveCareerRequestTimeZone } from "@/lib/career/requestTimeZone";
 
 const TOKEN_RATE_LIMIT = new Map<string, { count: number; resetAt: number }>();
 const MAX_TOKENS_PER_MINUTE = 10;
@@ -122,19 +123,19 @@ function buildOpenAIRealtimeSessionBody(args: {
         },
         ...(realtimeConfig.voice
           ? {
-              output: {
-                speed: realtimeConfig.speechSpeed,
-                voice: realtimeConfig.voice,
-              },
-            }
+            output: {
+              speed: realtimeConfig.speechSpeed,
+              voice: realtimeConfig.voice,
+            },
+          }
           : {}),
       },
       instructions,
       ...(tools.length > 0
         ? {
-            tools,
-            tool_choice: "auto" as const,
-          }
+          tools,
+          tool_choice: "auto" as const,
+        }
         : {}),
     },
   };
@@ -177,6 +178,7 @@ export async function POST(req: NextRequest) {
       internalCallRequestId: rawInternalCallRequestId,
       resumeCallNoteId: rawResumeCallNoteId,
       locale: rawLocale,
+      timeZone: rawTimeZone,
     } = body as {
       conversationId?: string;
       conversationStarterId?: string;
@@ -185,8 +187,10 @@ export async function POST(req: NextRequest) {
       resumeCallNoteId?: string;
       mockInterviewOpportunityId?: string;
       locale?: string;
+      timeZone?: string;
     };
     const mockInterviewOpportunityId = readMockInterviewOpportunityId(body);
+    const promptTimeZone = resolveCareerRequestTimeZone(req, rawTimeZone);
     const conversationId = rawConversationId?.trim();
     const conversationStarterId =
       typeof rawConversationStarterId === "string"
@@ -226,10 +230,10 @@ export async function POST(req: NextRequest) {
     const admin = getTalentSupabaseAdmin();
     const continuedCallNoteDocument = resumeCallNoteId
       ? await fetchTalentCallNoteDocument({
-          admin,
-          documentId: resumeCallNoteId,
-          userId: user.id,
-        })
+        admin,
+        documentId: resumeCallNoteId,
+        userId: user.id,
+      })
       : null;
     if (resumeCallNoteId && !continuedCallNoteDocument) {
       return NextResponse.json(
@@ -309,6 +313,7 @@ export async function POST(req: NextRequest) {
       mockInterviewOpportunityId,
       internalCallRequestId,
       preferredLocale: responseLocale,
+      timeZone: promptTimeZone,
       toolNames: realtimeToolCandidates.map((tool) => tool.name),
       userId: user.id,
     });

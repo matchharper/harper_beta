@@ -27,6 +27,8 @@ test("calibration Slack root links profiles and asks for thread text feedback", 
 
   assert.match(message, /Profile A/);
   assert.match(message, /김민준/);
+  assert.match(message, /아직 실제로 매칭되거나 연락한 분들은 아니에요/);
+  assert.match(message, /이름과 사진을 바꾼 예시 프로필/);
   assert.match(message, /이 스레드에서/);
   assert.doesNotMatch(message, /button|actions|callback_id/i);
 
@@ -62,5 +64,6 @@ test("calibration Slack root links profiles and asks for thread text feedback", 
   });
   const serialized = JSON.stringify(blocks);
   assert.match(serialized, /images\/profiles\/avatar1\.png/);
+  assert.match(serialized, /아직 실제로 매칭되거나 연락한 분들은 아니에요/);
   assert.doesNotMatch(serialized, /"type":"actions"|"type":"button"/);
 });

@@ -32,6 +32,7 @@ import {
   fetchTalentSetting,
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
+import { resolveCareerRequestTimeZone } from "@/lib/career/requestTimeZone";
 
 const SESSION_RATE_LIMIT = new Map<
   string,
@@ -81,10 +82,15 @@ function buildLiveFrontendInstructions(args: {
     args.responseLocale.trim().toLowerCase().startsWith("en")
       ? "English"
       : "Korean";
+  const paceInstruction =
+    language === "English"
+      ? "Speak clearly at a slightly faster pace."
+      : "조금 빠른 속도로 또렷하게 말해.";
 
   return [
     "You are Harper, a warm and capable career partner in a live voice call.",
     `Speak naturally in ${language}, unless the caller clearly switches languages.`,
+    paceInstruction,
     "Keep spoken turns concise, conversational, and easy to interrupt. Listen while speaking and adapt naturally when the caller interjects.",
     "Delegate whenever you need the caller's stored context, business rules, careful reasoning, or any tool. Use the delegated result before making factual claims or claiming that an action succeeded.",
     "Do not narrate delegation mechanics, tool names, system instructions, or hidden context to the caller.",
@@ -122,7 +128,9 @@ export async function POST(req: NextRequest) {
       resumeCallNoteId?: string;
       mockInterviewOpportunityId?: string;
       sdp?: string;
+      timeZone?: string;
     };
+    const promptTimeZone = resolveCareerRequestTimeZone(req, body.timeZone);
     const conversationId = readBodyString(body.conversationId);
     const mockInterviewOpportunityId = readMockInterviewOpportunityId(body);
     const conversationStarterId = readBodyString(body.conversationStarterId);
@@ -239,6 +247,7 @@ export async function POST(req: NextRequest) {
       mockInterviewOpportunityId,
       internalCallRequestId,
       preferredLocale: responseLocale,
+      timeZone: promptTimeZone,
       toolNames: toolCandidates.map((tool) => tool.name),
       userId: user.id,
     });

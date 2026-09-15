@@ -49,7 +49,8 @@ test("Documents exposes every user-facing primary section", () => {
 
 test("Documents renders only the canonical Company FAQ collection", () => {
   assert.match(page, /import \{ COMPANY_SERVICE_FAQ_ITEMS \}/);
-  assert.match(page, /COMPANY_SERVICE_FAQ_ITEMS\.map/);
+  assert.match(page, /item\.showInDocuments !== false/);
+  assert.match(page, /\.map\(\(item\) =>/);
   assert.doesNotMatch(page, /const FAQ_ITEMS =/);
   assert.doesNotMatch(page, /한 역할에 연결 대기 후보자가 5명 이상/);
 });
@@ -107,8 +108,26 @@ test("the introduction explains Harper's candidate introduction model", () => {
     /프로필만으로 역할을 판단하는 데 중요한 정보가 부족하면/
   );
   assert.match(content, /실제로 이 회사와 대화해 보고 싶다는 의사/);
-  assert.match(content, /마지막 검토까지 마친 분만 회사에 소개/);
+  assert.match(content, /연결 대기\*\* 상태로 회사에 소개/);
+  assert.match(content, /회사와 역할에 대한 설명을 듣고 대화해 볼 의사/);
+  assert.doesNotMatch(content, /Harper 팀의 마지막 검토/);
+  assert.doesNotMatch(content, /Harper의 마지막 검토/);
   assert.match(content, /회사가 검토할 차례입니다/);
+});
+
+test("Documents reflects current review limits, scheduling, and pipeline wording", () => {
+  assert.match(content, /해당 역할의 검토 한도에 도달하면/);
+  assert.doesNotMatch(content, /대기 후보자가 5명 이상이면/);
+  assert.match(content, /### 면접 일정 조율하기/);
+  assert.match(content, /Google Meet 링크를 함께 전달/);
+  assert.match(content, /Pipeline의 단계만 옮겨서는 일정 요청이 발송되지/);
+  assert.doesNotMatch(content, /Connect하면 연결됨 단계/);
+});
+
+test("Documents explains how reference profiles can clarify a Role", () => {
+  assert.match(content, /LinkedIn·GitHub·소개 자료/);
+  assert.match(content, /곧바로 후보자로 판단하지 않고/);
+  assert.match(content, /수준과 강점을 역할 기준에 반영/);
 });
 
 test("connection decisions explain what happens to the candidate", () => {
@@ -117,7 +136,7 @@ test("connection decisions explain what happens to the candidate", () => {
   assert.match(content, /소개 이메일은 발송되지 않고/);
   assert.match(
     content,
-    /종료 결정이 후보자에게 표시되고 Harper가 이를 안내해요/
+    /종료 결정이 후보자에게 표시되고 Harper가 이를 안내합니다/
   );
   assert.match(
     content,
@@ -144,7 +163,7 @@ test("removed FAQ entries stay removed while practical questions are covered", (
   assert.doesNotMatch(faq, /누가 후보자의 연결 여부를 결정할 수 있나요/);
   assert.match(faq, /Owner, Admin, Viewer 권한은 어떻게 다른가요/);
   assert.match(faq, /Email intro 수신자가 궁금해요/);
-  assert.match(faq, /잠깐 중단하는 것과 완전히 종료하는 것은/);
+  assert.match(faq, /잠시 중단하는 것과 완전히 종료하는 것은/);
 });
 
 test("Documents replaces Help and remains directly below 문의하기", () => {

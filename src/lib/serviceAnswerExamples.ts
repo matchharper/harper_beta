@@ -1,15 +1,14 @@
 import { createHash } from "crypto";
-import { client as openaiClient } from "@/lib/llm/llm";
-import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 
 export const ANSWER_EXAMPLE_EMBEDDING_MODEL = "text-embedding-3-small";
-const DEFAULT_TOP_K = 3;
-const DEFAULT_MIN_SCORE = 0.35;
-const DEFAULT_LOOKUP_TIMEOUT_MS = 2_500;
+export const ANSWER_EXAMPLE_DEFAULT_TOP_K = 3;
+export const ANSWER_EXAMPLE_DEFAULT_MIN_SCORE = 0.35;
+export const ANSWER_EXAMPLE_DEFAULT_LOOKUP_TIMEOUT_MS = 2_500;
 
 export type ServiceAnswerExampleAudience = "career" | "company";
 
-type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
+type TalentOnboardingServer = typeof import("@/lib/talentOnboarding/server");
+type AdminClient = ReturnType<TalentOnboardingServer["getTalentSupabaseAdmin"]>;
 
 export type AnswerExampleLookupResult = {
   answer_example_text: string;
@@ -64,6 +63,7 @@ export async function embedAnswerExampleUserText(value: string) {
     throw new Error("user_example_text is required for embedding.");
   }
 
+  const { client: openaiClient } = await import("@/lib/llm/llm");
   const response = await openaiClient.embeddings.create({
     model: ANSWER_EXAMPLE_EMBEDDING_MODEL,
     input,
@@ -93,12 +93,17 @@ async function performAnswerExampleLookup(
     };
   }
 
-  const topK = Math.max(1, Math.min(options.topK ?? DEFAULT_TOP_K, 10));
+  const topK = Math.max(
+    1,
+    Math.min(options.topK ?? ANSWER_EXAMPLE_DEFAULT_TOP_K, 10)
+  );
   const minScore = Math.max(
     0,
-    Math.min(options.minScore ?? DEFAULT_MIN_SCORE, 1)
+    Math.min(options.minScore ?? ANSWER_EXAMPLE_DEFAULT_MIN_SCORE, 1)
   );
-  const admin = options.admin ?? getTalentSupabaseAdmin();
+  const admin =
+    options.admin ??
+    (await import("@/lib/talentOnboarding/server")).getTalentSupabaseAdmin();
 
   let embedding: number[];
   try {
@@ -169,7 +174,10 @@ export async function lookupAnswerExamples(
 ): Promise<AnswerExampleLookupResponse> {
   const timeoutMs = Math.max(
     250,
-    Math.min(options.timeoutMs ?? DEFAULT_LOOKUP_TIMEOUT_MS, 10_000)
+    Math.min(
+      options.timeoutMs ?? ANSWER_EXAMPLE_DEFAULT_LOOKUP_TIMEOUT_MS,
+      10_000
+    )
   );
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
 

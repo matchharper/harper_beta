@@ -542,21 +542,26 @@ export async function updateRoleCreationDraft(args: {
   return fetchRoleCreationState(args);
 }
 
-export async function setRoleCreationNotification(args: {
+type RoleCreationNotificationSelectionArgs = {
   allowCompletedRole?: boolean;
   assigneeUserId?: string;
   channelIds?: string[];
-  previousAssistantMessage: string;
+  currentSlackChannelId?: string;
   roleId: string;
   user: User;
-  userMessage: string;
   workspaceId: string;
+};
+
+function resolveRoleCreationNotificationSelection(args: {
+  input: RoleCreationNotificationSelectionArgs;
+  state: RoleCreationState;
 }) {
-  const state = await fetchRoleCreationState(args);
-  const hasChannels = args.channelIds !== undefined;
-  const hasAssignee = args.assigneeUserId !== undefined;
-  const channelIds = stringList(args.channelIds);
-  const assigneeUserId = text(args.assigneeUserId);
+  const input = args.input;
+  const state = args.state;
+  const hasChannels = input.channelIds !== undefined;
+  const hasAssignee = input.assigneeUserId !== undefined;
+  const channelIds = stringList(input.channelIds);
+  const assigneeUserId = text(input.assigneeUserId);
   if (!hasChannels && !hasAssignee) {
     throw new OrgHttpError(400, "Slack channel or assignee is required");
   }
@@ -585,11 +590,87 @@ export async function setRoleCreationNotification(args: {
   const selectedAssignee = hasAssignee
     ? state.members.find((member) => member.userId === assigneeUserId)
     : null;
+  return {
+    assigneeUserId,
+    channelIds,
+    hasAssignee,
+    hasChannels,
+    selectedAssignee,
+    selectedChannels,
+  };
+}
+
+async function persistRoleCreationNotificationSelection(args: {
+  selection: ReturnType<typeof resolveRoleCreationNotificationSelection>;
+  state: RoleCreationState;
+  user: User;
+  workspaceId: string;
+}) {
+  const { assigneeUserId, channelIds, hasAssignee, hasChannels } =
+    args.selection;
+  const state = args.state;
+  await updateOrgRoleNotificationSettings({
+    ...(hasAssignee ? { assigneeUserIds: [assigneeUserId] } : {}),
+    ...(hasChannels
+      ? {
+          channels: state.channels.map((channel) => ({
+            channelId: channel.channelId,
+            enabled: channelIds.includes(channel.channelId),
+          })),
+        }
+      : {}),
+    roleId: state.role.roleId,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+  await updateRoleCreationConversationMetadata({
+    admin: getSupabaseAdmin(),
+    conversationId: state.conversation.id,
+    current: state.conversation.metadata,
+    patch: {
+      ...(hasAssignee ? { confirmedAssigneeUserId: assigneeUserId } : {}),
+      ...(hasChannels ? { confirmedSlackChannelIds: channelIds } : {}),
+      phase: state.role.status === "draft" ? "collecting" : "completed",
+    },
+  });
+  return fetchRoleCreationState({
+    allowCompletedRole: true,
+    roleId: state.role.roleId,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+}
+
+export async function setRoleCreationNotification(
+  args: RoleCreationNotificationSelectionArgs & {
+    previousAssistantMessage: string;
+    userMessage: string;
+  }
+) {
+  const state = await fetchRoleCreationState(args);
+  const selection = resolveRoleCreationNotificationSelection({
+    input: args,
+    state,
+  });
+  const {
+    assigneeUserId,
+    channelIds,
+    hasAssignee,
+    hasChannels,
+    selectedAssignee,
+    selectedChannels,
+  } = selection;
   const consent = validateRoleCreationNotificationConsent({
     previousAssistantMessage: args.previousAssistantMessage,
     targets: [
       ...selectedChannels.map((channel) => ({
-        aliases: [`#${channel.channelName ?? ""}`, channel.channelId],
+        aliases: [
+          `#${channel.channelName ?? ""}`,
+          channel.channelId,
+          ...(channel.channelId === text(args.currentSlackChannelId)
+            ? ["현재 채널", "이 채널"]
+            : []),
+        ],
         id: `channel:${channel.channelId}`,
         label: channel.channelName ?? channel.channelId,
       })),
@@ -631,32 +712,12 @@ export async function setRoleCreationNotification(args: {
       "Slack channel and assignee changes require explicit user confirmation"
     );
   }
-
-  await updateOrgRoleNotificationSettings({
-    ...(hasAssignee ? { assigneeUserIds: [assigneeUserId] } : {}),
-    ...(hasChannels
-      ? {
-          channels: state.channels.map((channel) => ({
-            channelId: channel.channelId,
-            enabled: channelIds.includes(channel.channelId),
-          })),
-        }
-      : {}),
-    roleId: args.roleId,
+  return persistRoleCreationNotificationSelection({
+    selection,
+    state,
     user: args.user,
     workspaceId: args.workspaceId,
   });
-  await updateRoleCreationConversationMetadata({
-    admin: getSupabaseAdmin(),
-    conversationId: state.conversation.id,
-    current: state.conversation.metadata,
-    patch: {
-      ...(hasAssignee ? { confirmedAssigneeUserId: assigneeUserId } : {}),
-      ...(hasChannels ? { confirmedSlackChannelIds: channelIds } : {}),
-      phase: state.role.status === "draft" ? "collecting" : "completed",
-    },
-  });
-  return fetchRoleCreationState(args);
 }
 
 export function getRoleCreationMissingFields(state: RoleCreationState) {

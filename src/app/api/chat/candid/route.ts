@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { xaiClient } from "@/lib/llm/llm";
 import { ChatScope } from "@/hooks/chat/useChatSession";
 import { buildLongDoc } from "@/utils/textprocess";
 import { logger } from "@/utils/logger";
 import { CANDID_SYSTEM_PROMPT, MAX_MESSEGE_LENGTH } from "../chat_prompt";
-import { createXaiOrOpenAIStream } from "../streamProviders";
+import { createLunaChatCompletion } from "../streamProviders";
 
 type ChatMessage = {
   role: "user" | "assistant" | "system" | "tool";
@@ -32,7 +31,6 @@ type ScrapeResponse = {
   markdown?: string;
 };
 
-const DEFAULT_MODEL = "grok-4-fast-reasoning";
 const MAX_TOOL_LOOPS = 3;
 const MAX_TOTAL_TOOL_CALLS = 5;
 const MAX_TOOL_TEXT_CHARS = 18_000; // hard cap to avoid prompt blow-ups
@@ -127,8 +125,7 @@ async function callWebsiteScraping(
 }
 
 /**
- * Tools definition (OpenAI-style). Grok/xAI generally supports this format.
- * If your client uses a slightly different key (functions vs tools), tweak here.
+ * Tools definition (OpenAI-compatible function calling).
  */
 const tools = [
   {
@@ -209,12 +206,11 @@ ${information}
 
 async function streamWithTools(params: {
   req: NextRequest;
-  model: string;
   baseMessages: ChatMessage[];
   systemPrompt: string;
   temperature: number;
 }) {
-  const { req, model, baseMessages, systemPrompt, temperature } = params;
+  const { req, baseMessages, systemPrompt, temperature } = params;
   const encoder = new TextEncoder();
   const recent = baseMessages.slice(-MAX_MESSEGE_LENGTH);
   const messages: any[] = [
@@ -228,64 +224,29 @@ async function streamWithTools(params: {
     async start(controller) {
       try {
         for (let loop = 0; loop < MAX_TOOL_LOOPS; loop++) {
-          const llmStream = await createXaiOrOpenAIStream({
-            model,
+          const { response } = await createLunaChatCompletion({
             messages,
+            onTextDelta: (delta) => {
+              if (delta) controller.enqueue(encoder.encode(delta));
+            },
             temperature,
             tools: tools as any,
             tool_choice: "auto",
           });
-          //   const llmStream = await xaiClient.chat.completions.create({
-          //     model,
-          //     messages,
-          //     temperature,
-          //     stream: true,
-          //     tools: tools as any,
-          //     tool_choice: "auto",
-          //   });
-
-          const toolCallsByIndex = new Map<
-            number,
-            { id?: string; name?: string; argumentsStr: string }
-          >();
-          let sawAnyToolCall = false;
-
-          for await (const chunk of llmStream as any) {
-            const choice = chunk?.choices?.[0];
-            const delta = choice?.delta ?? {};
-
-            const text = delta?.content ?? "";
-            if (text) controller.enqueue(encoder.encode(text));
-
-            const tcs = delta?.tool_calls;
-            if (Array.isArray(tcs) && tcs.length) {
-              sawAnyToolCall = true;
-              for (const tc of tcs) {
-                const idx = typeof tc.index === "number" ? tc.index : 0;
-                const existing = toolCallsByIndex.get(idx) ?? {
-                  id: tc.id,
-                  name: tc.function?.name,
-                  argumentsStr: "",
-                };
-                if (tc.id) existing.id = tc.id;
-                if (tc.function?.name) existing.name = tc.function.name;
-                const argDelta = tc.function?.arguments ?? "";
-                if (argDelta) existing.argumentsStr += argDelta;
-                toolCallsByIndex.set(idx, existing);
-              }
-            }
+          const responseToolCalls = response?.choices?.[0]?.message?.tool_calls;
+          if (
+            !Array.isArray(responseToolCalls) ||
+            responseToolCalls.length === 0
+          ) {
+            break;
           }
 
-          if (!sawAnyToolCall || toolCallsByIndex.size === 0) break;
-
           // ✅ id를 여기서 확정(assistant/tool 동일 id 보장)
-          const orderedToolCalls = Array.from(toolCallsByIndex.entries())
-            .sort((a, b) => a[0] - b[0])
-            .map(([_, v]) => ({
-              id: v.id ?? `toolcall_${crypto.randomUUID()}`,
-              name: v.name ?? "",
-              argumentsStr: v.argumentsStr ?? "",
-            }));
+          const orderedToolCalls = responseToolCalls.map((toolCall: any) => ({
+            argumentsStr: String(toolCall?.function?.arguments ?? ""),
+            id: String(toolCall?.id ?? `toolcall_${crypto.randomUUID()}`),
+            name: String(toolCall?.function?.name ?? ""),
+          }));
 
           messages.push({
             role: "assistant",
@@ -407,9 +368,6 @@ export async function POST(req: NextRequest) {
     systemPromptOverride?: string;
   };
 
-  const model = DEFAULT_MODEL;
-  // const model = body.model ?? DEFAULT_MODEL;
-
   const messages = Array.isArray(body.messages) ? body.messages : [];
   if (!messages.length) {
     return NextResponse.json({ error: "Missing messages" }, { status: 400 });
@@ -422,7 +380,6 @@ export async function POST(req: NextRequest) {
 
   const responseStream = await streamWithTools({
     req,
-    model,
     baseMessages: messages.map((m) => ({ role: m.role, content: m.content })),
     systemPrompt,
     temperature: 0.7,

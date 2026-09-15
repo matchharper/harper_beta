@@ -115,6 +115,11 @@ export async function queueHarperSlackEvent(envelope: SlackEventEnvelope) {
         workspaceId: integration.company_workspace_id,
       })
     : null;
+  // The Slack thread keeps its role after creation completes. Use that durable
+  // association for message storage instead of dropping back to the workspace
+  // conversation as soon as the role is no longer a draft.
+  const conversationRoleId =
+    draftRoleCreation?.roleId || clean(thread?.role_id) || null;
 
   if (isMention) {
     triggerKind = "mention";
@@ -160,7 +165,7 @@ export async function queueHarperSlackEvent(envelope: SlackEventEnvelope) {
   } else if (event.type === "message" && event.thread_ts && thread) {
     await storeHarperSlackThreadEvent({
       content: prompt,
-      roleId: draftRoleCreation?.roleId,
+      roleId: conversationRoleId,
       slackMessageTs: messageTs,
       slackUserId: clean(event.user) || null,
       threadId: thread.id,
@@ -176,7 +181,7 @@ export async function queueHarperSlackEvent(envelope: SlackEventEnvelope) {
   if (triggerKind === "thread_reply") {
     await storeHarperSlackThreadEvent({
       content: prompt,
-      roleId: draftRoleCreation?.roleId,
+      roleId: conversationRoleId,
       slackMessageTs: messageTs,
       slackUserId: clean(event.user) || null,
       threadId: thread.id,
@@ -207,7 +212,8 @@ export async function queueHarperSlackEvent(envelope: SlackEventEnvelope) {
   }
   if (enqueueResult.ignored === true) {
     return {
-      ignored: clean(enqueueResult.last_error) || "superseded_by_newer_thread_message",
+      ignored:
+        clean(enqueueResult.last_error) || "superseded_by_newer_thread_message",
       jobId,
     };
   }

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { fetchActiveCompanyTalentRequests } from "@/lib/companyTalentRequests/server";
+import { isInternalRoleCandidateDecisionAvailable } from "@/lib/career/internalOpportunityDecision";
 import {
   selectCareerReengagementPromptActions,
   type CareerOpenablePendingActionReference,
@@ -184,7 +185,7 @@ export async function fetchCareerReengagementPendingActions(args: {
       .filter(
         (opportunity) =>
           !opportunity.isExpired &&
-          opportunity.status.trim().toLowerCase() === "active"
+          isInternalRoleCandidateDecisionAvailable(opportunity.status)
       )
       .map((opportunity) => ({
         action: {

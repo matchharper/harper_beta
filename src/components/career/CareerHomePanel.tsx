@@ -40,6 +40,9 @@ import { Textarea as UiTextarea } from "@/components/ui/textarea";
 import { useCareerT } from "@/i18n/useCareerT";
 import { Skeleton } from "@/components/ui/skeleton";
 import InternalRoleDecisionBanner from "@/components/career/InternalRoleDecisionBanner";
+import CareerInitialOpportunitySearchStatus, {
+  useInitialOpportunitySearchStatus,
+} from "@/components/career/CareerInitialOpportunitySearchStatus";
 
 const countFormatter = new Intl.NumberFormat("ko-KR");
 
@@ -188,6 +191,7 @@ const CareerHomePanel = ({
     onStartConversationStarter,
     onRequestMoreOpenPositions,
     pendingInternalOpportunityCallRequest,
+    opportunityRun,
   } = useCareerSidebarContext();
   const {
     assistantTyping,
@@ -211,6 +215,8 @@ const CareerHomePanel = ({
     onRefreshTalentProfileSources,
   } = useCareerProfileContext();
   const { m } = useMessages();
+  const initialOpportunitySearchStatus =
+    useInitialOpportunitySearchStatus(opportunityRun);
 
   const displayName =
     talentProfile.talentUser?.name ??
@@ -447,30 +453,37 @@ const CareerHomePanel = ({
           onStart={handleStartConversationStarter}
         />
       )} */}
-      <CareerCallCard
-        callDisabled={!onStartCallMode}
-        callStartPending={callStartPending}
-        description={callCardDescription}
-        forceCompleteDisabled={
-          forceCompletePending ||
-          onboardingWrapupPending ||
-          chatPending ||
-          assistantTyping ||
-          opportunityFeedbackFollowUpPending
-        }
-        forceCompletePending={forceCompletePending || onboardingWrapupPending}
-        isOnboardingCompleted={callCardUsesCompletedLayout}
-        onForceComplete={
-          !isOnboardingCompleted &&
-          interviewProgress.canForceComplete &&
-          onForceCompleteOnboarding
-            ? handleForceComplete
-            : undefined
-        }
-        progressPercent={interviewProgress.percent}
-        onStartCall={handleStartCall}
-        title={callCardTitle}
-      />
+      {initialOpportunitySearchStatus ? (
+        <CareerInitialOpportunitySearchStatus
+          status={initialOpportunitySearchStatus}
+          variant="home"
+        />
+      ) : (
+        <CareerCallCard
+          callDisabled={!onStartCallMode}
+          callStartPending={callStartPending}
+          description={callCardDescription}
+          forceCompleteDisabled={
+            forceCompletePending ||
+            onboardingWrapupPending ||
+            chatPending ||
+            assistantTyping ||
+            opportunityFeedbackFollowUpPending
+          }
+          forceCompletePending={forceCompletePending || onboardingWrapupPending}
+          isOnboardingCompleted={callCardUsesCompletedLayout}
+          onForceComplete={
+            !isOnboardingCompleted &&
+            interviewProgress.canForceComplete &&
+            onForceCompleteOnboarding
+              ? handleForceComplete
+              : undefined
+          }
+          progressPercent={interviewProgress.percent}
+          onStartCall={handleStartCall}
+          title={callCardTitle}
+        />
+      )}
       <InternalRoleDecisionBanner
         onConfirm={(roleId) =>
           onOpenHistory({

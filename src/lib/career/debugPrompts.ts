@@ -177,6 +177,7 @@ export async function buildCareerTextChatDebugPrompt(args: {
   conversationId: string;
   conversationStarterId?: string | null;
   preferredLocale?: string | null;
+  timeZone?: string | null;
   userId: string;
 }): Promise<CareerDebugPromptPayload> {
   const { admin, conversationId, userId } = args;
@@ -349,6 +350,7 @@ export async function buildCareerTextChatDebugPrompt(args: {
     recentActivitySummaries,
     recentRecommendedOpportunitiesText,
     structuredProfileText,
+    timeZone: args.timeZone,
     toolNames: toolSelection.toolNames,
   });
 
@@ -369,6 +371,8 @@ export async function buildCareerTextChatDebugPrompt(args: {
       role: item.role as "assistant" | "user",
       content: formatTalentMessageContentForLlmPrompt(item, {
         includeCreatedAt: item.message_type !== "conversation_summary",
+        preferredLocale: responseLocale,
+        timeZone: args.timeZone,
       }),
     }))
     .filter((item) => item.content.trim().length > 0);
@@ -406,6 +410,7 @@ export async function buildCareerVoiceDebugPrompt(args: {
   conversationStarterId?: string | null;
   internalCallRequestId?: string | null;
   preferredLocale?: string | null;
+  timeZone?: string | null;
   userId: string;
 }): Promise<CareerDebugPromptPayload> {
   const realtimeToolCandidates = getCareerRealtimeToolCandidates(
@@ -416,6 +421,7 @@ export async function buildCareerVoiceDebugPrompt(args: {
     conversationStarterId: args.conversationStarterId,
     internalCallRequestId: args.internalCallRequestId,
     preferredLocale: args.preferredLocale,
+    timeZone: args.timeZone,
     toolNames: realtimeToolCandidates.map((tool) => tool.name),
     userId: args.userId,
   });

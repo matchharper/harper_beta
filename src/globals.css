@@ -756,7 +756,8 @@
   }
 }
 
-.career-thinking-shimmer {
+.career-thinking-shimmer,
+.career-thinking-shimmer-slow {
   color: #2e1706;
   background-image: linear-gradient(
     90deg,
@@ -771,8 +772,15 @@
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: career-thinking-shimmer 1.7s ease-in-out infinite;
   will-change: background-position;
+}
+
+.career-thinking-shimmer {
+  animation: career-thinking-shimmer 1.7s ease-in-out infinite;
+}
+
+.career-thinking-shimmer-slow {
+  animation: career-thinking-shimmer 5.6s ease-in-out infinite;
 }
 
 .career-interview-shimmer {
@@ -817,6 +825,82 @@
   }
 }
 
+.career-opportunity-search-face-glow::before {
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  background: var(--color-primary-faded);
+  content: "";
+  filter: blur(5px);
+  opacity: 0.3;
+  animation: career-opportunity-search-face-glow 1.7s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+.career-opportunity-search-face-glow > img {
+  position: relative;
+}
+
+.career-opportunity-search-list-face {
+  animation: career-opportunity-search-list-face 4.2s ease-in-out infinite;
+  will-change: transform;
+}
+
+.career-opportunity-search-list-row {
+  animation: career-opportunity-search-list-row 4.2s ease-in-out infinite;
+  transform-origin: left center;
+  will-change: opacity, transform;
+}
+
+.career-opportunity-search-list-row:nth-child(2) {
+  animation-delay: 1.4s;
+}
+
+.career-opportunity-search-list-row:nth-child(3) {
+  animation-delay: 2.8s;
+}
+
+@keyframes career-opportunity-search-face-glow {
+  0%,
+  100% {
+    opacity: 0.24;
+    transform: scale(0.82);
+  }
+  50% {
+    opacity: 0.72;
+    transform: scale(1.22);
+  }
+}
+
+@keyframes career-opportunity-search-list-face {
+  0%,
+  12%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  32%,
+  45% {
+    transform: translate3d(5px, 14px, 0);
+  }
+  66%,
+  82% {
+    transform: translate3d(0, 28px, 0);
+  }
+}
+
+@keyframes career-opportunity-search-list-row {
+  0%,
+  22%,
+  100% {
+    opacity: 0.32;
+    transform: scaleX(0.72);
+  }
+  10% {
+    opacity: 0.9;
+    transform: scaleX(1);
+  }
+}
+
 @keyframes career-reengagement-actions-in {
   0% {
     max-height: 0;
@@ -846,10 +930,17 @@
     animation: none;
   }
 
-  .career-thinking-shimmer {
+  .career-thinking-shimmer,
+  .career-thinking-shimmer-slow {
     animation: none;
     background-image: none;
     -webkit-text-fill-color: currentColor;
+  }
+
+  .career-opportunity-search-face-glow::before,
+  .career-opportunity-search-list-face,
+  .career-opportunity-search-list-row {
+    animation: none;
   }
 
   .career-interview-shimmer {

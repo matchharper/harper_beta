@@ -52,6 +52,7 @@ import {
   isOpenInternalOpportunityCallRequestStatus,
 } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
 import { shouldAdvanceInternalOpportunityCallQuestion } from "@/lib/talentOnboarding/internalOpportunityCallProgress";
+import { resolveCareerRequestTimeZone } from "@/lib/career/requestTimeZone";
 
 type Body = {
   assistantEndedOnboarding?: boolean;
@@ -63,6 +64,7 @@ type Body = {
   userMessage?: string;
   assistantMessage?: string;
   isCallMode?: boolean;
+  timeZone?: string | null;
 };
 
 const toResponseMessage = toTalentMessageResponse;
@@ -83,6 +85,7 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as Body;
     const mockInterviewOpportunityId = readMockInterviewOpportunityId(body);
     const isMobile = isMobileRequest(req);
+    const promptTimeZone = resolveCareerRequestTimeZone(req, body.timeZone);
     const conversationId = sanitizeSingleLineDbText(body.conversationId, 80);
     const conversationStarterId =
       typeof body.conversationStarterId === "string"
@@ -479,11 +482,14 @@ export async function POST(req: NextRequest) {
             conversationId,
             isMobile,
             latestUserMessageId: insertedUserMessage.id,
+            opportunityRunId: opportunityRun?.id ?? null,
             userId: user.id,
           })
         : null;
     const insertedCompletionWrapupMessage =
       completionMessages?.wrapupMessage ?? null;
+    const insertedInitialSearchStartedMessage =
+      completionMessages?.initialSearchStartedMessage ?? null;
     const insertedCompletionNextStepsMessage =
       completionMessages?.nextStepsMessage ?? null;
     const assistantResponseMessage = insertedAssistantMessage
@@ -493,6 +499,13 @@ export async function POST(req: NextRequest) {
       assistantResponseMessage,
       insertedCompletionWrapupMessage
         ? toResponseMessage(insertedCompletionWrapupMessage)
+        : null,
+      insertedInitialSearchStartedMessage
+        ? {
+            ...toResponseMessage(insertedInitialSearchStartedMessage),
+            recommendationSearchRelation: "accepted" as const,
+            recommendationSearchRun: serializeOpportunityRun(opportunityRun),
+          }
         : null,
       insertedCompletionNextStepsMessage
         ? toResponseMessage(insertedCompletionNextStepsMessage)
@@ -511,6 +524,7 @@ export async function POST(req: NextRequest) {
             mockInterviewOpportunityId,
             internalCallRequestId,
             preferredLocale: responseLocale,
+            timeZone: promptTimeZone,
             toolNames: getCareerRealtimeToolCandidates(responseLocale).map(
               (tool) => tool.name
             ),

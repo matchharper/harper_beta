@@ -3,9 +3,9 @@ import {
   getLlmErrorMessage,
 } from "@/lib/llm/llm";
 import {
+  DEFAULT_ORG_AGENT_REASONING_EFFORT,
   DEFAULT_ORG_AGENT_MODEL,
   getOrgAgentFallbackModel,
-  ORG_AGENT_GROK_MODEL,
   isOrgAgentModelId,
   type OrgAgentModelId,
 } from "@/lib/org/agent/modelConfig";
@@ -44,7 +44,7 @@ async function summarizeOrgAgentSource(args: {
   source: string;
 }) {
   const { model, response } = await createChatCompletionWithFallback({
-    anthropicOverloadFallbackModel: ORG_AGENT_GROK_MODEL,
+    anthropicOverloadFallbackModel: getOrgAgentFallbackModel(args.model),
     buildRequest: () => ({
       max_tokens: 900,
       messages: [
@@ -76,6 +76,9 @@ async function summarizeOrgAgentSource(args: {
     chatCompletionReasoning: { reasoningEffort: "high" },
     fallbackModel: getOrgAgentFallbackModel(args.model),
     model: args.model,
+    openAIResponses: {
+      reasoningEffort: DEFAULT_ORG_AGENT_REASONING_EFFORT,
+    },
   });
 
   return {

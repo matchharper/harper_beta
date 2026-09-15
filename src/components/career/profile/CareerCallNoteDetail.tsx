@@ -14,6 +14,7 @@ import { useCareerT } from "@/i18n/useCareerT";
 import { useMessages } from "@/i18n/useMessage";
 import { formatCareerDate } from "@/lib/career/dateFormat";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
+import Image from "next/image";
 
 type CareerCallNoteDetailProps = {
   document?: CareerTalentDocument | null;
@@ -100,7 +101,7 @@ const CareerCallNoteDetail = ({
   const displayDate =
     documentUpdatedAt && documentUpdatedAt !== documentCreatedAt
       ? documentUpdatedAt
-      : documentCreatedAt ?? callNote?.started_at ?? null;
+      : (documentCreatedAt ?? callNote?.started_at ?? null);
   const dateLabel = formatCareerDate(displayDate, locale);
   const handleRetry = () => {
     setCallNote(null);
@@ -161,9 +162,9 @@ const CareerCallNoteDetail = ({
           </div>
         ) : callNote ? (
           <div className="mx-auto w-full max-w-[800px]">
-            <header className="flex flex-col gap-4 border-b border-neutral-1000-a05 pb-6 sm:flex-row sm:items-start sm:justify-between">
+            <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
-                <h1 className="text-xl font-semibold leading-8 text-neutral-primary sm:text-2xl">
+                <h1 className="text-lg font-medium leading-6 text-neutral-primary sm:text-xl">
                   {title}
                 </h1>
                 <p className="mt-1.5 text-[13px] text-neutral-soft">
@@ -204,16 +205,16 @@ const CareerCallNoteDetail = ({
             </header>
 
             {keyPoints.length > 0 ? (
-              <section className="mt-6 rounded-xl border border-neutral-1000-a05 bg-primary-faded px-5 py-5">
-                <h2 className="text-sm font-semibold text-neutral-primary">
+              <section className="mt-6 rounded-xl bg-neutral-100 p-4 font-normal">
+                <h2 className="text-sm text-neutral-primary">
                   {t("career.profile.documents.call_note_key_points", "요약")}
                 </h2>
-                <ul className="mt-4 grid gap-3 text-sm font-medium leading-6 text-neutral-primary">
+                <ul className="mt-3 grid gap-3 text-sm leading-6 text-neutral-primary">
                   {keyPoints.map((point, index) => (
                     <li key={`${index}-${point}`} className="flex gap-2.5">
                       <span
                         aria-hidden="true"
-                        className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-primary"
+                        className="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-primary"
                       />
                       <span>{point}</span>
                     </li>
@@ -229,16 +230,26 @@ const CareerCallNoteDetail = ({
                   "대화 내용"
                 )}
               </h2>
-              <div className="mt-4 divide-y divide-neutral-1000-a05">
+              <div className="mt-6 font-normal">
                 {callNote.entries.map((entry, index) => (
                   <div
                     key={`${entry.timestamp ?? "entry"}-${index}`}
-                    className="grid gap-1.5 py-3.5 first:pt-0 sm:grid-cols-[72px_minmax(0,1fr)] sm:gap-4"
+                    className="grid gap-1.5 py-2 first:pt-0 sm:grid-cols-[72px_minmax(0,1fr)] sm:gap-4"
                   >
-                    <p className="text-xs font-medium text-neutral-soft">
-                      {entry.role === "harper"
-                        ? "Harper"
-                        : t("career.profile.documents.call_note_me", "나")}
+                    <p className="text-xs text-neutral-soft mt-0.5">
+                      {entry.role === "harper" ? (
+                        <>
+                          <Image
+                            src="/svgs/face.svg"
+                            alt="Harper"
+                            width={12}
+                            height={12}
+                            className="mt-1"
+                          />
+                        </>
+                      ) : (
+                        t("career.profile.documents.call_note_me", "나")
+                      )}
                     </p>
                     <p className="whitespace-pre-wrap text-[13px] leading-[1.4rem] text-neutral-muted">
                       {entry.text}

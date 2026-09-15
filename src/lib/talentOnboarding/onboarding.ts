@@ -9,6 +9,8 @@ export const TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE =
   "onboarding_completion_notice";
 export const TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP =
   "onboarding_completion_wrapup";
+export const TALENT_MESSAGE_TYPE_ONBOARDING_INITIAL_SEARCH_STARTED =
+  "onboarding_initial_search_started";
 export const TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NEXT_STEPS =
   "onboarding_completion_next_steps";
 export const TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP =

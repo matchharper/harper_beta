@@ -1,43 +1,99 @@
-import type { GetStaticPaths, GetStaticProps } from "next";
+import BlogAuthorAvatar from "@/components/blog/BlogAuthorAvatar";
+import CareerLandingFooter from "@/components/landing/CareerLandingFooter";
+import CareerAppBar from "@/components/landing/career/CareerAppBarNew";
+import { showToast } from "@/components/toast/toast";
+import { BareButton, MuteButton } from "@/components/ui/button";
+import { useCareerLandingStart } from "@/hooks/useCareerLandingStart";
+import type { BlogLocale, BlogPost, BlogPostMeta } from "@/lib/blog";
+import {
+  buildBlogTalkToHarperHref,
+  formatBlogDate,
+  getBlogDisplayTitle,
+  toIsoDate,
+} from "@/lib/blog";
+import { postBlogEvent } from "@/lib/blogMetrics";
+import type { OfficialJobListItem } from "@/lib/officialJobs";
+import { ArrowRight, LinkIcon } from "lucide-react";
+import type { GetServerSideProps } from "next";
 import Head from "next/head";
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  isValidElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { BlogPost, formatBlogDate, toIsoDate } from "@/lib/blog";
-import {
-  getOrCreateLandingId,
-  makeBlogConversionEventType,
-  makeBlogViewEventType,
-} from "@/lib/blogMetrics";
-import Footer from "@/components/landing/Footer";
-import LandingHeader from "@/components/landing/LandingHeader";
-import { LinkIcon } from "lucide-react";
-import { HERO_DOT_BACKGROUND_STYLE } from "../find";
-import { useRouter } from "next/router";
-import { useIsMobile } from "@/hooks/useIsMobile";
-import { supabase } from "@/lib/supabase";
-import { showToast } from "@/components/toast/toast";
-import { BareButton } from "@/components/ui/button";
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://matchharper.com")
   .trim()
   .replace(/\/$/, "");
 
+const BLOG_DOT_BACKGROUND_STYLE = {
+  backgroundImage:
+    "radial-gradient(rgba(11, 9, 8, 0.16) 0.9px, transparent 0.9px)",
+  backgroundSize: "20px 20px",
+  opacity: 0.35,
+};
+
+const BLOG_DETAIL_COPY = {
+  ko: {
+    allJobs: "열린 자리 전체 보기",
+    back: "블로그로 돌아가기",
+    blogMore: "블로그 더보기",
+    copied: "링크가 복사되었습니다.",
+    copyFailed: "링크 복사에 실패했습니다.",
+    copyLink: "링크 복사",
+    jobsDescription:
+      "Harper가 지금 살펴보고 있는 자리입니다. 관심 있는 자리가 보이면 알려주세요.",
+    jobsEmpty:
+      "지금 공개된 자리가 없습니다. 관심 있는 방향을 Harper에게 남겨주세요.",
+    jobsTitle: "Harper가 살펴보고 있는 자리",
+    tableOfContents: "목차",
+    talk: "Talk to Harper",
+    viewAll: "전체 보기",
+  },
+  en: {
+    allJobs: "View all open roles",
+    back: "Back to blog",
+    blogMore: "More from the blog",
+    copied: "Link copied.",
+    copyFailed: "Could not copy the link.",
+    copyLink: "Copy link",
+    jobsDescription:
+      "These are roles Harper is watching now. If one catches your eye, let me know.",
+    jobsEmpty:
+      "There are no public roles right now. Tell Harper what you are looking for.",
+    jobsTitle: "Roles Harper is watching",
+    tableOfContents: "Table of contents",
+    talk: "Talk to Harper",
+    viewAll: "View all",
+  },
+} as const;
+
 type BlogPostPageProps = {
+  jobs: OfficialJobListItem[];
+  locale: BlogLocale;
+  morePosts: BlogPostMeta[];
   post: BlogPost;
 };
 
-type MarkdownH1TocItem = {
+type MarkdownTocItem = {
   id: string;
   text: string;
 };
 
+type FaqItem = {
+  answer: string;
+  question: string;
+};
+
 function toAbsoluteUrl(url: string): string {
-  if (/^https?:\/\//i.test(url)) {
-    return url;
-  }
+  if (/^https?:\/\//i.test(url)) return url;
   return `${SITE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
 }
 
@@ -49,546 +105,669 @@ function toHeadingSlug(value: string): string {
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-+|-+$/g, "");
-
   return normalized || "section";
 }
 
-function extractMarkdownH1Toc(content: string): MarkdownH1TocItem[] {
+function extractMarkdownToc(content: string): MarkdownTocItem[] {
   const lines = content.replace(/\r\n/g, "\n").split("\n");
-  const slugCountByBase = new Map<string, number>();
-  const toc: MarkdownH1TocItem[] = [];
+  const usedIds = new Set<string>();
+  const toc: MarkdownTocItem[] = [];
   let isInsideCodeFence = false;
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
-
     if (/^(```|~~~)/.test(line)) {
       isInsideCodeFence = !isInsideCodeFence;
       continue;
     }
+    if (isInsideCodeFence) continue;
 
-    if (isInsideCodeFence) {
-      continue;
-    }
-
-    const match = line.match(/^#\s+(.+)$/);
-    if (!match) {
-      continue;
-    }
-
+    const match = line.match(/^##\s+(.+)$/);
+    if (!match) continue;
     const text = match[1].replace(/\s+#+\s*$/, "").trim();
-    if (!text) {
-      continue;
-    }
+    if (!text) continue;
 
-    const slugBase = `h1-${toHeadingSlug(text)}`;
-    const usedCount = slugCountByBase.get(slugBase) ?? 0;
-    slugCountByBase.set(slugBase, usedCount + 1);
-    const id = usedCount === 0 ? slugBase : `${slugBase}-${usedCount + 1}`;
-
+    const id = `section-${toHeadingSlug(text)}`;
+    if (usedIds.has(id)) continue;
+    usedIds.add(id);
     toc.push({ id, text });
   }
 
   return toc;
 }
 
-async function copyToClipboard(text: string): Promise<boolean> {
-  if (typeof window === "undefined") {
-    return false;
+function getReactNodeText(node: ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") {
+    return String(node);
   }
+  if (Array.isArray(node)) return node.map(getReactNodeText).join("");
+  if (isValidElement<{ children?: ReactNode }>(node)) {
+    return getReactNodeText(node.props.children);
+  }
+  return "";
+}
 
+function extractFaqItems(content: string): FaqItem[] {
+  const faqSection = content.match(
+    /(?:^|\n)##\s+FAQ\s*\n([\s\S]*?)(?=\n##\s+|$)/i
+  )?.[1];
+  if (!faqSection) return [];
+
+  const matches = Array.from(
+    faqSection.matchAll(
+      /(?:^|\n)\*\*(.+?\?)\*\*\s*\n([\s\S]*?)(?=\n\*\*.+?\?\*\*|$)/g
+    )
+  );
+  return matches
+    .map((match) => ({
+      answer: match[2].trim().replace(/\n+/g, " "),
+      question: match[1].trim(),
+    }))
+    .filter((item) => item.answer && item.question);
+}
+
+function countMarkdownWords(content: string): number {
+  return content
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/[#>*_`~\[\]()!-]/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+}
+
+function extractExternalLinks(content: string): string[] {
+  return [
+    ...new Set(
+      Array.from(
+        content.matchAll(/(?<!!)\[[^\]]*\]\((https?:\/\/[^\s)]+)[^)]*\)/g)
+      )
+        .map((match) => match[1])
+        .filter(Boolean)
+    ),
+  ];
+}
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  if (typeof window === "undefined") return false;
   if (navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(text);
     return true;
   }
 
-  const ta = document.createElement("textarea");
-  ta.value = text;
-  ta.style.position = "fixed";
-  ta.style.left = "-9999px";
-  document.body.appendChild(ta);
-  ta.select();
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
   const copied = document.execCommand("copy");
-  document.body.removeChild(ta);
+  document.body.removeChild(textarea);
   return copied;
 }
 
-export const getStaticPaths: GetStaticPaths = async () => {
-  const { getAllPostSlugs } = await import("@/lib/blog.server");
-  const slugs = getAllPostSlugs();
-
-  return {
-    paths: slugs.map((slug) => ({ params: { slug } })),
-    fallback: false,
-  };
-};
-
-export const getStaticProps: GetStaticProps<BlogPostPageProps> = async ({
-  params,
-}) => {
-  const { getPostBySlug } = await import("@/lib/blog.server");
+export const getServerSideProps: GetServerSideProps<
+  BlogPostPageProps
+> = async ({ params, req, res }) => {
+  const { getBlogPageData, resolveBlogLocaleFromRequest } =
+    await import("@/lib/blog.server");
   const slug = typeof params?.slug === "string" ? params.slug : "";
-  const post = getPostBySlug(slug);
+  const locale = resolveBlogLocaleFromRequest(req);
+  const data = await getBlogPageData(slug, locale);
 
-  if (!post) {
-    return {
-      notFound: true,
-    };
-  }
-
-  return {
-    props: {
-      post,
-    },
-  };
+  if (!data) return { notFound: true };
+  res.setHeader("Content-Language", locale === "ko" ? "ko-KR" : "en-US");
+  res.setHeader("Vary", "Cookie, Accept-Language");
+  return { props: { ...data, locale } };
 };
 
-export default function BlogPostPage({ post }: BlogPostPageProps) {
-  const router = useRouter();
-  const [activeHeadingId, setActiveHeadingId] = useState<string>("");
+export default function BlogPostPage({
+  jobs,
+  locale,
+  morePosts,
+  post,
+}: BlogPostPageProps) {
+  const copy = BLOG_DETAIL_COPY[locale];
+  const [activeHeadingId, setActiveHeadingId] = useState("");
+  const { careerStartHref, handleCareerStartClick } = useCareerLandingStart({
+    trackingEnabled: false,
+  });
   const canonicalUrl = `${SITE_URL}/blog/${post.slug}`;
-  const title = post.seoTitle || `${post.title} | Harper Blog`;
+  const displayTitle = getBlogDisplayTitle(post.title);
+  const title = post.seoTitle || `${displayTitle} | Harper Blog`;
   const description = post.seoDescription || post.excerpt;
   const ogImageUrl = toAbsoluteUrl(post.thumbnail);
   const publishedIsoDate = toIsoDate(post.publishedAt);
   const updatedIsoDate = toIsoDate(post.updatedAt);
-  const markdownH1Toc = useMemo(
-    () => extractMarkdownH1Toc(post.content),
+  const markdownToc = useMemo(
+    () => extractMarkdownToc(post.content),
     [post.content]
   );
-  const isMobile = useIsMobile();
+  const faqItems = useMemo(() => extractFaqItems(post.content), [post.content]);
+  const talkToHarperHref = buildBlogTalkToHarperHref(post.slug);
+  const dateLocale = locale === "ko" ? "ko-KR" : "en-US";
+  const languageTag = locale === "ko" ? "ko-KR" : "en-US";
+  const ogLocale = locale === "ko" ? "ko_KR" : "en_US";
+  const citations = useMemo(
+    () => extractExternalLinks(post.content),
+    [post.content]
+  );
+  const wordCount = useMemo(
+    () => countMarkdownWords(post.content),
+    [post.content]
+  );
 
   const scrollToHeading = useCallback((id: string) => {
-    if (typeof window === "undefined") return;
-
     const target = document.getElementById(id);
     if (!target) return;
-
-    const fixedHeaderOffset = 96;
-    const top =
-      target.getBoundingClientRect().top + window.scrollY - fixedHeaderOffset;
+    const top = target.getBoundingClientRect().top + window.scrollY - 96;
     window.scrollTo({ top, behavior: "smooth" });
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined" || markdownH1Toc.length === 0) {
-      setActiveHeadingId("");
-      return;
-    }
+    if (markdownToc.length === 0) return;
 
     const updateActiveHeading = () => {
-      const viewportOffset = 130;
-      let nextActiveId = markdownH1Toc[0].id;
-      let hasHeadingInDom = false;
-
-      for (const item of markdownH1Toc) {
-        const heading = document.getElementById(item.id);
-        if (!heading) {
-          continue;
-        }
-
-        hasHeadingInDom = true;
-
-        if (heading.getBoundingClientRect().top - viewportOffset <= 0) {
-          nextActiveId = item.id;
-        } else {
-          break;
+      let nextId = markdownToc[0]?.id ?? "";
+      for (const item of markdownToc) {
+        const element = document.getElementById(item.id);
+        if (element && element.getBoundingClientRect().top <= 130) {
+          nextId = item.id;
         }
       }
-
-      if (!hasHeadingInDom) {
-        return;
-      }
-
-      setActiveHeadingId((prev) =>
-        prev === nextActiveId ? prev : nextActiveId
+      setActiveHeadingId((previousId) =>
+        previousId === nextId ? previousId : nextId
       );
     };
+    const initialFrame = window.requestAnimationFrame(updateActiveHeading);
 
-    updateActiveHeading();
-
-    let isTicking = false;
+    let ticking = false;
     const handleScroll = () => {
-      if (isTicking) return;
-      isTicking = true;
-
+      if (ticking) return;
+      ticking = true;
       window.requestAnimationFrame(() => {
         updateActiveHeading();
-        isTicking = false;
+        ticking = false;
       });
     };
-
     window.addEventListener("scroll", handleScroll, { passive: true });
     window.addEventListener("resize", handleScroll);
-
     return () => {
+      window.cancelAnimationFrame(initialFrame);
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("resize", handleScroll);
     };
-  }, [markdownH1Toc]);
+  }, [markdownToc]);
 
   useEffect(() => {
-    const trackViewEvent = async () => {
-      const landingId = getOrCreateLandingId();
-      if (landingId === "a4d4df1a-aa6d-401e-a34a-00d426630fe2") return;
+    void postBlogEvent({ eventType: "post_view", locale, postSlug: post.slug });
+  }, [locale, post.slug]);
 
-      const viewSessionKey = `harper_blog_view_logged_${post.slug}`;
-      const shouldLogView =
-        typeof window !== "undefined" &&
-        sessionStorage.getItem(viewSessionKey) !== "1";
-
-      if (shouldLogView) {
-        sessionStorage.setItem(viewSessionKey, "1");
-        await supabase.from("landing_logs").insert({
-          local_id: landingId || null,
-          type: makeBlogViewEventType(post.slug),
-          is_mobile: isMobile,
-          country_lang: "",
-        });
-      }
-    };
-
-    trackViewEvent();
-  }, [isMobile, post.slug]);
-
-  const blogPostingStructuredData = {
-    "@context": "https://schema.org",
-    "@type": "BlogPosting",
-    headline: post.title,
-    description,
-    image: ogImageUrl,
-    url: canonicalUrl,
-    datePublished: publishedIsoDate,
-    dateModified: updatedIsoDate,
-    inLanguage: "en-US",
-    articleSection: post.category,
-    keywords: post.tags.join(", "),
-    author: {
-      "@type": "Person",
-      name: post.author,
-    },
-    publisher: {
-      "@type": "Organization",
-      name: "Harper",
-      logo: {
-        "@type": "ImageObject",
-        url: `${SITE_URL}/images/logo.png`,
-      },
-    },
-    mainEntityOfPage: {
-      "@type": "WebPage",
-      "@id": canonicalUrl,
-    },
-  };
-
-  let renderedHeadingIndex = 0;
-  const markdownComponents: Components = {
-    h1: ({ node: _node, ...props }) => {
-      const headingId = markdownH1Toc[renderedHeadingIndex]?.id;
-      renderedHeadingIndex += 1;
-      return <h1 id={headingId} {...props} />;
-    },
-  };
-
-  const moveToHome = async () => {
-    const landingId = getOrCreateLandingId();
-
-    const baseBody = {
-      local_id: landingId,
-      is_mobile: isMobile,
-      country_lang: "",
-    };
-
-    await supabase.from("landing_logs").insert([
-      {
-        ...baseBody,
-        type: "blog_post_click",
-      },
-      {
-        ...baseBody,
-        type: makeBlogConversionEventType(post.slug),
-      },
-    ]);
-
-    router.push("/");
+  const trackTalkToHarper = () => {
+    void postBlogEvent({
+      eventType: "talk_click",
+      locale,
+      postSlug: post.slug,
+    });
   };
 
   const copyPostLink = useCallback(async () => {
-    const postUrl =
-      typeof window !== "undefined" ? window.location.href : canonicalUrl;
-
     try {
-      const copied = await copyToClipboard(postUrl);
-      if (!copied) {
-        throw new Error("Failed to copy link");
-      }
-
-      showToast({
-        message: "링크가 복사되었습니다.",
-        variant: "white",
+      const copied = await copyToClipboard(window.location.href);
+      if (!copied) throw new Error("copy failed");
+      void postBlogEvent({
+        eventType: "copy_link",
+        locale,
+        postSlug: post.slug,
       });
+      showToast({ message: copy.copied, variant: "white" });
     } catch {
-      showToast({
-        message: "링크 복사에 실패했습니다.",
-        variant: "error",
-      });
+      showToast({ message: copy.copyFailed, variant: "error" });
     }
-  }, [canonicalUrl]);
+  }, [copy.copied, copy.copyFailed, locale, post.slug]);
+
+  const blogPostingStructuredData = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@id": `${canonicalUrl}#article`,
+        "@type": "BlogPosting",
+        about: [post.category, ...post.tags].map((name) => ({
+          "@type": "Thing",
+          name,
+        })),
+        abstract: post.excerpt,
+        articleSection: post.category,
+        author: { "@type": "Person", name: post.author },
+        citation: citations,
+        dateModified: updatedIsoDate,
+        datePublished: publishedIsoDate,
+        description,
+        headline: displayTitle,
+        image: { "@type": "ImageObject", url: ogImageUrl },
+        inLanguage: languageTag,
+        isAccessibleForFree: true,
+        isPartOf: {
+          "@id": `${SITE_URL}/blog#blog`,
+          "@type": "Blog",
+          name: "Harper Blog",
+        },
+        keywords: post.tags.join(", "),
+        mainEntityOfPage: { "@id": canonicalUrl, "@type": "WebPage" },
+        publisher: {
+          "@type": "Organization",
+          logo: {
+            "@type": "ImageObject",
+            url: `${SITE_URL}/images/logo.png`,
+          },
+          name: "Harper",
+          url: SITE_URL,
+        },
+        speakable: {
+          "@type": "SpeakableSpecification",
+          cssSelector: [".blog-post-title", ".blog-markdown"],
+        },
+        timeRequired: `PT${post.readingMinutes}M`,
+        url: canonicalUrl,
+        wordCount,
+      },
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          {
+            "@type": "ListItem",
+            item: SITE_URL,
+            name: "Harper",
+            position: 1,
+          },
+          {
+            "@type": "ListItem",
+            item: `${SITE_URL}/blog`,
+            name: "Blog",
+            position: 2,
+          },
+          {
+            "@type": "ListItem",
+            item: canonicalUrl,
+            name: displayTitle,
+            position: 3,
+          },
+        ],
+      },
+    ],
+  };
+  const faqStructuredData =
+    post.schemaType === "faq" && faqItems.length > 0
+      ? {
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: faqItems.map((item) => ({
+            "@type": "Question",
+            acceptedAnswer: { "@type": "Answer", text: item.answer },
+            name: item.question,
+          })),
+        }
+      : null;
+
+  const markdownComponents: Components = {
+    h2: ({ children, node: _node, ...props }) => {
+      const headingId = `section-${toHeadingSlug(getReactNodeText(children))}`;
+      return (
+        <h2 id={headingId} {...props}>
+          {children}
+        </h2>
+      );
+    },
+  };
 
   return (
     <>
       <Head>
         <title>{title}</title>
         <meta name="description" content={description} />
+        <meta name="author" content={post.author} />
+        <meta name="keywords" content={post.tags.join(", ")} />
+        <meta httpEquiv="content-language" content={languageTag} />
         <meta name="robots" content="index,follow,max-image-preview:large" />
         <link rel="canonical" href={canonicalUrl} />
+        <link
+          rel="alternate"
+          type="application/rss+xml"
+          title="Harper Blog RSS"
+          href={`${SITE_URL}/blog/feed.xml?lang=${locale}`}
+        />
         <meta property="og:type" content="article" />
         <meta property="og:site_name" content="Harper" />
+        <meta property="og:locale" content={ogLocale} />
         <meta property="og:title" content={title} />
         <meta property="og:description" content={description} />
         <meta property="og:url" content={canonicalUrl} />
         <meta property="og:image" content={ogImageUrl} />
-        <meta property="og:image:alt" content={post.title} />
+        <meta property="og:image:alt" content={displayTitle} />
         <meta property="article:published_time" content={publishedIsoDate} />
         <meta property="article:modified_time" content={updatedIsoDate} />
         <meta property="article:section" content={post.category} />
+        {post.tags.map((tag) => (
+          <meta key={tag} property="article:tag" content={tag} />
+        ))}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={title} />
         <meta name="twitter:description" content={description} />
         <meta name="twitter:image" content={ogImageUrl} />
-        <script
-          key={`ld-blog-${post.slug}`}
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify(blogPostingStructuredData),
-          }}
-        />
+        <meta name="twitter:image:alt" content={displayTitle} />
+        {post.schemaType !== "none" ? (
+          <script
+            id={`blog-post-json-ld-${post.slug}`}
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify(blogPostingStructuredData),
+            }}
+          />
+        ) : null}
+        {faqStructuredData ? (
+          <script
+            id={`blog-faq-json-ld-${post.slug}`}
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify(faqStructuredData),
+            }}
+          />
+        ) : null}
       </Head>
 
       <div
-        className="pointer-events-none fixed inset-0 z-0 top-0 left-0"
-        style={HERO_DOT_BACKGROUND_STYLE}
-      />
-      <main className="min-h-screen text-neutral-00 font-sans relative">
-        <LandingHeader />
-        {markdownH1Toc.length > 0 && (
-          <aside className="hidden lg:flex fixed top-24 left-6">
-            <nav className="sticky top-24 pt-6" aria-label="Table of contents">
-              <div className="flex flex-col gap-2">
-                {markdownH1Toc.map((item) => {
-                  const isActive = item.id === activeHeadingId;
+        id="top"
+        className="min-h-screen bg-bg-basement font-sans text-neutral-primary antialiased"
+      >
+        <CareerAppBar
+          careerStartHref={careerStartHref}
+          onCareerStartClick={handleCareerStartClick}
+          locale={locale}
+          sectionHrefPrefix="/"
+          bgColor="neutral-100"
+        />
 
-                  return (
-                    <BareButton
-                      key={item.id}
-                      type="button"
-                      onClick={() => scrollToHeading(item.id)}
-                      className={`bg-transparent border-0 p-0 text-left leading-snug transition-all duration-200 ${
-                        isActive
-                          ? "text-neutral-00 text-base"
-                          : "text-neutral-800 text-sm hover:text-neutral-500"
-                      }`}
-                    >
-                      {item.text}
-                    </BareButton>
-                  );
-                })}
-              </div>
-            </nav>
-          </aside>
-        )}
-        <section className="mx-auto w-full max-w-[1024px] pb-16 pt-0 md:pb-24 md:pt-12 border-x border-white/10 bg-black z-30">
-          <div className="flex flex-col px-6">
-            <header className="mt-8 flex flex-col items-center justify-center pt-8 pb-20 w-full">
-              <Link
-                href="/blog"
-                className="inline-flex items-center gap-2 text-sm text-neutral-200 transition-colors hover:text-neutral-00"
+        <main className="relative min-h-screen">
+          <div
+            className="pointer-events-none fixed inset-0 z-0"
+            style={BLOG_DOT_BACKGROUND_STYLE}
+          />
+
+          {markdownToc.length > 0 ? (
+            <aside className="fixed left-6 top-24 z-20 hidden lg:flex">
+              <nav
+                className="sticky top-24 pt-6"
+                aria-label={copy.tableOfContents}
               >
-                <span aria-hidden="true">←</span>
-                <span>Back to blog</span>
-              </Link>
-              <br />
-              <br />
-              <p className="text-base font-normal text-accent-200">
-                {post.category}
-              </p>
-              <h1 className="max-w-[70%] md:max-w-[80%] mt-4 font-medium text-3xl leading-normal md:text-4xl md:leading-normal text-center break-keep">
-                {post.title}
-              </h1>
-
-              <div className="mt-9 flex flex-wrap items-center gap-2.5 text-sm text-neutral-200">
-                <div className="relative h-5 w-5 overflow-hidden rounded-full ring-1 ring-white/20">
-                  <Image
-                    src={post.authorAvatar}
-                    alt={post.author}
-                    fill
-                    className="object-cover"
-                    sizes="28px"
-                  />
+                <div className="flex flex-col gap-2">
+                  {markdownToc.map((item) => {
+                    const isActive = item.id === activeHeadingId;
+                    return (
+                      <BareButton
+                        key={item.id}
+                        type="button"
+                        onClick={() => scrollToHeading(item.id)}
+                        aria-current={isActive ? "location" : undefined}
+                        className={`border-0 bg-transparent p-0 text-left leading-snug transition-colors duration-200 ${
+                          isActive
+                            ? "text-base text-neutral-primary"
+                            : "text-sm text-neutral-muted hover:text-neutral-primary"
+                        }`}
+                      >
+                        {item.text}
+                      </BareButton>
+                    );
+                  })}
                 </div>
-                <span>{post.author}</span>
-              </div>
-            </header>
+              </nav>
+            </aside>
+          ) : null}
 
-            <div className="flex flex-row items-center justify-between w-full text-neutral-500 text-sm font-light py-4">
-              <BareButton
-                type="button"
-                onClick={copyPostLink}
-                className="flex flex-row items-center gap-2 text-accent-200 bg-transparent border-0 p-0 cursor-pointer transition-colors hover:text-accent-200/80"
-              >
-                <LinkIcon className="w-3.5 h-3.5" strokeWidth={2} />
-                <span>링크 복사</span>
-              </BareButton>
-              <time dateTime={post.publishedAt}>
-                {formatBlogDate(post.publishedAt)}
-              </time>
-            </div>
-            <div className="relative mt-10 h-[240px] overflow-hidden bg-white/5 ring-1 ring-white/10 md:h-[420px]">
-              <Image
-                src={post.thumbnail}
-                alt={`${post.title} hero image`}
-                fill
-                priority
-                className="object-cover"
-                sizes="(min-width: 1024px) 768px, 100vw"
-              />
-            </div>
-
-            <article className="blog-markdown mt-12 text-neutral-300 flex items-center justify-center">
-              <div className="max-w-[712px] w-full">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={markdownComponents}
+          <section className="relative z-10 mx-auto w-full max-w-[1024px] border-x border-neutral-1000-a10 bg-bg-basement pb-16 pt-0 md:pb-24 md:pt-12">
+            <div className="flex flex-col px-6">
+              <header className="mt-8 flex w-full flex-col items-center justify-center pb-20 pt-8">
+                <Link
+                  href="/blog"
+                  className="inline-flex items-center gap-2 text-sm text-neutral-muted transition-colors hover:text-neutral-primary"
                 >
-                  {post.content}
-                </ReactMarkdown>
-              </div>
-            </article>
-          </div>
-          <div className="mt-52 relative overflow-hidden border-y border-white/10 py-20">
-            {/* background image */}
-            <Image
-              src="/images/bb.jpg" // 원하는 이미지
-              alt=""
-              fill
-              priority={false}
-              className="object-cover"
-            />
+                  <span aria-hidden="true">←</span>
+                  <span>{copy.back}</span>
+                </Link>
+                <br />
+                <br />
+                <p className="text-base font-normal text-primary">
+                  {post.category}
+                </p>
+                <h1 className="blog-post-title mt-4 max-w-[70%] break-keep text-center text-3xl font-medium leading-normal text-neutral-primary md:max-w-[80%] md:text-4xl md:leading-normal">
+                  {displayTitle}
+                </h1>
 
-            {/* dark overlay (가독성용) */}
-            <div className="absolute inset-0 bg-black/80" />
-
-            {/* content */}
-            <div className="relative z-10 flex flex-col items-center justify-center text-center text-2xl md:text-3xl font-medium text-neutral-00">
-              Harper를 사용해서
-              <br />
-              원하는 사람을 즉시 발견하세요.
-              <BareButton
-                onClick={moveToHome}
-                className="cursor-pointer hover:bg-accent-200/90 transition-all duration-200 mt-8 text-sm font-medium text-black bg-accent-200 px-5 py-3 rounded-full"
-              >
-                시작하기
-              </BareButton>
-              <div className="mt-8 text-sm text-neutral-300 font-normal">
-                <div className="flex flex-col gap-1">
-                  <div className="flex flex-col md:flex-row gap-2 items-center justify-center">
-                    <div
-                      onClick={moveToHome}
-                      className="cursor-pointer hover:text-white transition-all duration-200"
-                    >
-                      Rust 오픈소스 기여 엔지니어
-                    </div>
-                    <div>/</div>
-                    <div
-                      onClick={moveToHome}
-                      className="cursor-pointer hover:text-white transition-all duration-200"
-                    >
-                      최근 6개월 내 Seed 또는 Series A 투자를 받은 AI 스타트업
-                      Founder…
-                    </div>
-                  </div>
-                  <div className="md:flex flex-row gap-2 items-center justify-center hidden">
-                    <div
-                      onClick={moveToHome}
-                      className="cursor-pointer hover:text-white transition-all duration-200"
-                    >
-                      [35살 이하, 해외경험] LLM 기반 제품 디자이너
-                    </div>
-                    <div>/</div>
-                    <div
-                      onClick={moveToHome}
-                      className="cursor-pointer hover:text-white transition-all duration-200"
-                    >
-                      일본 문화를 이해하고 있는 한국인 SNS 마케터
-                    </div>
-                  </div>
+                <div className="mt-9 flex flex-wrap items-center gap-2.5 text-sm text-neutral-muted">
+                  <BlogAuthorAvatar
+                    author={post.author}
+                    avatarUrl={post.authorAvatar}
+                    withRing
+                  />
+                  <span>{post.author}</span>
                 </div>
+              </header>
+
+              <div className="flex w-full flex-row items-center justify-between py-4 text-sm font-normal text-neutral-soft">
+                <BareButton
+                  type="button"
+                  onClick={copyPostLink}
+                  className="flex cursor-pointer flex-row items-center gap-2 border-0 bg-transparent p-0 text-primary transition-colors hover:text-neutral-primary"
+                >
+                  <LinkIcon className="h-3.5 w-3.5" strokeWidth={2} />
+                  <span>{copy.copyLink}</span>
+                </BareButton>
+                <time dateTime={post.publishedAt}>
+                  {formatBlogDate(post.publishedAt, dateLocale)}
+                </time>
+              </div>
+
+              <div className="relative mt-10 h-[240px] overflow-hidden bg-bg-weak ring-1 ring-neutral-1000-a10 md:h-[420px]">
+                <Image
+                  src={post.thumbnail}
+                  alt={displayTitle}
+                  fill
+                  priority
+                  className="object-cover"
+                  sizes="(min-width: 1024px) 768px, 100vw"
+                />
+              </div>
+
+              <article className="blog-markdown mt-12 flex items-center justify-center text-neutral-900">
+                <div className="w-full max-w-[712px]">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={markdownComponents}
+                  >
+                    {post.content}
+                  </ReactMarkdown>
+                </div>
+              </article>
+            </div>
+
+            <div className="mt-52 border-t border-neutral-100/0 px-6 pt-14">
+              <div className="mx-auto w-full max-w-[712px]">
+                <section>
+                  <h2 className="text-xl font-medium leading-tight text-neutral-primary">
+                    {copy.jobsTitle}
+                  </h2>
+                  <p className="mt-3 break-keep text-[15px] font-light leading-6 text-neutral-muted">
+                    {copy.jobsDescription}
+                  </p>
+
+                  {jobs.length > 0 ? (
+                    <div className="mt-8 space-y-3">
+                      {jobs.map((job) => (
+                        <Link
+                          key={job.id}
+                          href={`/jobs/${job.slug}`}
+                          onClick={() => {
+                            void postBlogEvent({
+                              eventType: "job_open",
+                              locale,
+                              postSlug: post.slug,
+                              targetSlug: job.slug,
+                            });
+                          }}
+                          className="group flex items-center justify-between gap-4 py-1 text-[15px] font-light leading-6 text-neutral-primary transition-colors hover:text-neutral-muted"
+                        >
+                          <span className="min-w-0 break-keep">
+                            {job.roleTitle}
+                            <span className="text-neutral-muted">
+                              {" "}
+                              · {job.companyName}
+                            </span>
+                          </span>
+                          <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-8 text-[14px] font-light leading-6 text-neutral-muted">
+                      {copy.jobsEmpty}
+                    </p>
+                  )}
+
+                  <div className="mt-9 flex flex-col gap-2 sm:flex-row">
+                    <MuteButton asChild variant="primary" size="lg">
+                      <Link href={talkToHarperHref} onClick={trackTalkToHarper}>
+                        {copy.talk}
+                        <ArrowRight className="size-4" />
+                      </Link>
+                    </MuteButton>
+                    <MuteButton asChild size="lg">
+                      <Link
+                        href="/jobs"
+                        onClick={() => {
+                          void postBlogEvent({
+                            eventType: "all_jobs_open",
+                            locale,
+                            postSlug: post.slug,
+                          });
+                        }}
+                      >
+                        {copy.allJobs}
+                      </Link>
+                    </MuteButton>
+                  </div>
+                </section>
+
+                {morePosts.length > 0 ? (
+                  <section className="mt-16 border-t border-neutral-1000-a10 pt-12">
+                    <div className="flex items-baseline justify-between gap-4">
+                      <h2 className="text-xl font-medium leading-tight text-neutral-primary">
+                        {copy.blogMore}
+                      </h2>
+                      <Link
+                        href="/blog"
+                        className="inline-flex shrink-0 items-center gap-1.5 text-sm text-neutral-muted transition-colors hover:text-neutral-primary"
+                      >
+                        {copy.viewAll}
+                        <ArrowRight className="size-3.5" />
+                      </Link>
+                    </div>
+
+                    <div className="mt-[18px] grid grid-cols-2 gap-x-4 gap-y-5 md:grid-cols-3">
+                      {morePosts.map((item) => (
+                        <Link
+                          key={item.slug}
+                          href={`/blog/${item.slug}`}
+                          onClick={() => {
+                            void postBlogEvent({
+                              eventType: "post_open",
+                              locale,
+                              postSlug: post.slug,
+                              surface: "related",
+                              targetSlug: item.slug,
+                            });
+                          }}
+                          className="block min-w-0"
+                        >
+                          <div className="relative aspect-[1200/630] overflow-hidden rounded-[5px] border border-neutral-1000-a10 bg-bg-weak">
+                            <Image
+                              src={item.thumbnail}
+                              alt={getBlogDisplayTitle(item.title)}
+                              fill
+                              sizes="(max-width: 767px) 50vw, 220px"
+                              className="object-cover"
+                            />
+                          </div>
+                          <h3 className="mt-2.5 line-clamp-2 break-keep text-[14.5px] font-semibold leading-[1.4] text-neutral-primary">
+                            {getBlogDisplayTitle(item.title)}
+                          </h3>
+                          <p className="mt-1 line-clamp-2 text-[12.5px] leading-[1.55] text-neutral-muted">
+                            {item.excerpt}
+                          </p>
+                        </Link>
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
               </div>
             </div>
-          </div>
-        </section>
-        <Footer />
-      </main>
+          </section>
+        </main>
+
+        <CareerLandingFooter
+          careerStartHref={careerStartHref}
+          onCareerStartClick={handleCareerStartClick}
+          locale={locale}
+        />
+      </div>
+
       <style jsx global>{`
         .blog-markdown {
-          color: rgba(255, 255, 255, 0.88);
+          color: var(--color-neutral-900);
           font-size: 17px;
           line-height: 1.75;
           letter-spacing: 0.005em;
           word-break: keep-all;
         }
 
-        /* ---------- Headings ---------- */
-
         .blog-markdown h1,
         .blog-markdown h2,
         .blog-markdown h3 {
-          font-family: var(--font-sans), serif;
-          color: #ffffff;
+          color: var(--color-neutral-1000);
+          font-family: var(--font-sans), sans-serif;
           line-height: 1.28;
           letter-spacing: -0.015em;
         }
 
         .blog-markdown h1 {
-          font-family: var(--font-sans), serif;
           font-size: 1.6rem;
-          margin-top: 3.2rem;
           margin-bottom: 1.4rem;
+          margin-top: 3.2rem;
         }
 
         .blog-markdown h2 {
           font-size: 1.4rem;
-          margin-top: 2.6rem;
           margin-bottom: 1rem;
+          margin-top: 2.6rem;
         }
 
         .blog-markdown h3 {
           font-size: 1.2rem;
-          margin-top: 1.8rem;
           margin-bottom: 0.6rem;
+          margin-top: 1.8rem;
         }
 
-        /* 첫 heading은 위 여백 제거 */
         .blog-markdown > h1:first-child {
           margin-top: 0;
         }
 
-        /* ---------- Paragraph ---------- */
-
         .blog-markdown p {
-          margin: 1.25rem 0;
+          color: var(--color-neutral-900);
           font-weight: 300;
-          color: rgba(255, 255, 255, 0.86);
+          margin: 1.25rem 0;
         }
-
-        /* ---------- Strong ---------- */
 
         .blog-markdown strong {
-          color: #ffffff;
+          color: var(--color-neutral-1000);
           font-weight: 600;
         }
-
-        /* ---------- Lists ---------- */
 
         .blog-markdown ul,
         .blog-markdown ol {
@@ -602,20 +781,20 @@ export default function BlogPostPage({ post }: BlogPostPageProps) {
         }
 
         .blog-markdown ul li {
-          position: relative;
-          padding-left: 1.5rem;
           margin: 0.5rem 0;
+          padding-left: 1.5rem;
+          position: relative;
         }
 
         .blog-markdown ul li::before {
+          background: var(--color-neutral-600);
+          border-radius: 50%;
           content: "";
-          position: absolute;
+          height: 6px;
           left: 0;
+          position: absolute;
           top: 0.75em;
           width: 6px;
-          height: 6px;
-          border-radius: 50%;
-          background: rgba(255, 255, 255, 0.45);
         }
 
         .blog-markdown ol {
@@ -623,39 +802,30 @@ export default function BlogPostPage({ post }: BlogPostPageProps) {
         }
 
         .blog-markdown li {
+          color: var(--color-neutral-900);
           font-weight: 300;
-          color: rgba(255, 255, 255, 0.86);
           line-height: 1.75;
         }
 
-        /* Heading 바로 아래 리스트 간격 보정 */
         .blog-markdown h3 + ul,
-        .blog-markdown h3 + ol {
-          margin-top: 0.4rem;
-        }
-
-        /* Heading 바로 아래 리스트 간격 보정 */
+        .blog-markdown h3 + ol,
         .blog-markdown p + ul,
         .blog-markdown p + ol {
           margin-top: 0.4rem;
         }
 
-        /* ---------- Blockquote ---------- */
-
         .blog-markdown blockquote {
+          background: var(--color-bg-weak);
+          border-left: 3px solid var(--color-neutral-400);
+          border-radius: 0.6rem;
+          color: var(--color-neutral-800);
+          font-style: italic;
           margin: 2rem 0;
           padding: 1rem 1.2rem;
-          border-left: 3px solid rgba(255, 255, 255, 0.25);
-          background: rgba(255, 255, 255, 0.04);
-          color: rgba(255, 255, 255, 0.78);
-          font-style: italic;
-          border-radius: 0.6rem;
         }
 
-        /* ---------- Links ---------- */
-
         .blog-markdown a {
-          color: rgba(255, 255, 255, 0.95);
+          color: var(--color-neutral-1000);
           text-decoration: underline;
           text-decoration-style: dotted;
           text-underline-offset: 3px;
@@ -666,55 +836,46 @@ export default function BlogPostPage({ post }: BlogPostPageProps) {
           opacity: 0.7;
         }
 
-        /* ---------- Divider ---------- */
-
         .blog-markdown hr {
-          margin: 3rem 0;
           border: 0;
-          border-top: 1px solid rgba(255, 255, 255, 0.14);
+          border-top: 1px solid var(--color-neutral-300);
+          margin: 3rem 0;
         }
-
-        /* ---------- Code block ---------- */
 
         .blog-markdown pre {
-          margin: 1.8rem 0;
+          background: var(--color-neutral-1000);
+          border: 1px solid var(--color-neutral-800);
           border-radius: 0.8rem;
-          background: rgba(0, 0, 0, 0.85);
-          color: #ffffff;
-          border: 1px solid rgba(255, 255, 255, 0.14);
-          padding: 1.2rem 1.4rem;
-          overflow-x: auto;
+          color: var(--color-neutral-00);
           font-size: 0.9rem;
           line-height: 1.7;
+          margin: 1.8rem 0;
+          overflow-x: auto;
+          padding: 1.2rem 1.4rem;
         }
 
-        /* Inline code */
-
         .blog-markdown code {
+          background: var(--color-bg-weak);
           border-radius: 0.4rem;
-          background: rgba(255, 255, 255, 0.1);
-          color: #ffffff;
-          padding: 0.15rem 0.45rem;
-          font-size: 0.88em;
+          color: var(--color-neutral-1000);
           font-family:
             ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
             "Liberation Mono", "Courier New", monospace;
+          font-size: 0.88em;
+          padding: 0.15rem 0.45rem;
         }
 
         .blog-markdown pre code {
           background: transparent;
+          color: inherit;
           padding: 0;
         }
 
-        /* ---------- Images ---------- */
-
         .blog-markdown img {
+          border-radius: 0;
           margin: 2rem auto;
-          border-radius: 0rem;
           max-width: 100%;
         }
-
-        /* ---------- Spacing rhythm helper ---------- */
 
         .blog-markdown > * + * {
           margin-top: 0;

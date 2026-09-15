@@ -110,8 +110,8 @@ export const CAREER_LLM_CONFIG = {
   // finalSelection: 상세 후보 중 최종 추천과 fit reason JSON 생성.
   // 사용처: src/lib/talentOnboarding/jobPostingRecommendations.ts.
   recommendJobPostings: {
-    anthropicOverloadFallbackModel: "grok-4.3",
-    fallbackModel: "grok-4-fast-reasoning",
+    anthropicOverloadFallbackModel: GPT_56_LUNA_MODEL,
+    fallbackModel: GPT_56_LUNA_MODEL,
     finalSelectionModel: GPT_56_LUNA_MODEL,
     finalSelectionReasoningEffort: "high" as const,
     finalSelectionTemperature: 0.2,
@@ -528,8 +528,14 @@ function getAnthropicToolUseNames(
     .filter(Boolean);
 }
 
-function serializeToolResult(result: unknown) {
+export function serializeCareerToolResultForModel(result: unknown) {
   if (typeof result === "string") return result;
+  if (result && typeof result === "object" && !Array.isArray(result)) {
+    const modelOutput = (result as Record<string, unknown>).modelOutput;
+    if (typeof modelOutput === "string" && modelOutput.trim()) {
+      return modelOutput.trim();
+    }
+  }
 
   try {
     return JSON.stringify(result);
@@ -705,7 +711,7 @@ function stringifyAnthropicContent(content: AnthropicMessage["content"]) {
     .map((block) => {
       if (block.type === "text") return block.text;
       if (block.type === "tool_use") {
-        return `[Assistant requested ${block.name}: ${serializeToolResult(
+        return `[Assistant requested ${block.name}: ${serializeCareerToolResultForModel(
           block.input
         )}]`;
       }
@@ -1668,7 +1674,7 @@ export async function runCareerChatAssistant(args: {
           toolResultBlocks.push({
             type: "tool_result",
             tool_use_id: toolCall.id,
-            content: serializeToolResult(result),
+            content: serializeCareerToolResultForModel(result),
           });
           if (stopAfterToolNameSet.has(toolCall.name)) {
             shouldStopAfterTool = true;
@@ -2072,7 +2078,7 @@ export async function runCareerChatAssistantStream(args: {
           toolResultBlocks.push({
             type: "tool_result",
             tool_use_id: toolCall.id,
-            content: serializeToolResult(result),
+            content: serializeCareerToolResultForModel(result),
           });
           if (stopAfterToolNameSet.has(toolCall.name)) {
             shouldStopAfterTool = true;

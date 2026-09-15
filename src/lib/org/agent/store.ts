@@ -776,7 +776,7 @@ export async function fetchRecentOrgAgentPromptMessages(args: {
 export async function findOrgAgentSlackUserMessage(args: {
   adoptInto?: {
     conversation: OrgAgentConversationRow;
-    roleId: string;
+    roleId: string | null;
     userId?: string | null;
   };
   admin: SupabaseAdminClient;
@@ -784,23 +784,32 @@ export async function findOrgAgentSlackUserMessage(args: {
   slackThreadId: string;
   workspaceId: string;
 }) {
-  const { data, error } = await (
-    args.admin.from("company_messages" as any) as any
-  )
-    .select(
-      "id, conversation_id, company_workspace_id, role_id, company_user_id, role, content, message_type, model, status, mentions, thinking_logs, metadata, created_at"
-    )
-    .eq("company_workspace_id", args.workspaceId)
-    .eq("message_type", "slack")
-    .eq("role", "user")
-    .eq("slack_thread_id", args.slackThreadId)
-    .eq("slack_message_ts", args.slackMessageTs)
-    .maybeSingle();
-  if (error) throw error;
+  const select =
+    "id, conversation_id, company_workspace_id, role_id, company_user_id, role, content, message_type, model, status, mentions, thinking_logs, metadata, created_at";
+  const findOne = async (conversationId?: string) => {
+    let query = (args.admin.from("company_messages" as any) as any)
+      .select(select)
+      .eq("company_workspace_id", args.workspaceId)
+      .eq("message_type", "slack")
+      .eq("role", "user")
+      .eq("slack_thread_id", args.slackThreadId)
+      .eq("slack_message_ts", args.slackMessageTs);
+    if (conversationId) query = query.eq("conversation_id", conversationId);
+    const { data, error } = await query
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return data as OrgAgentMessageRow | null;
+  };
+
+  const target = args.adoptInto;
+  const data =
+    (target ? await findOne(target.conversation.id) : null) ??
+    (await findOne());
   if (!data) return null;
 
   let row = data as OrgAgentMessageRow;
-  const target = args.adoptInto;
   if (
     target &&
     (row.conversation_id !== target.conversation.id ||
@@ -828,32 +837,40 @@ export async function findOrgAgentSlackUserMessage(args: {
         "id, conversation_id, company_workspace_id, role_id, company_user_id, role, content, message_type, model, status, mentions, thinking_logs, metadata, created_at"
       )
       .single();
-    if (moveError) throw moveError;
-    row = moved as OrgAgentMessageRow;
+    if (moveError) {
+      if ((moveError as { code?: string }).code !== "23505") throw moveError;
+      // Another worker may have populated the target conversation after the
+      // first lookup. Reuse that row instead of surfacing an idempotency race.
+      const concurrentTarget = await findOne(target.conversation.id);
+      if (!concurrentTarget) throw moveError;
+      row = concurrentTarget;
+    } else {
+      row = moved as OrgAgentMessageRow;
 
-    for (const conversationId of new Set([
-      previousConversationId,
-      target.conversation.id,
-    ])) {
-      const { data: latest, error: latestError } = await (
-        args.admin.from("company_messages" as any) as any
-      )
-        .select("id, created_at")
-        .eq("conversation_id", conversationId)
-        .order("id", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (latestError) throw latestError;
-      const { error: conversationError } = await (
-        args.admin.from("company_conversations" as any) as any
-      )
-        .update({
-          last_message_at: latest?.created_at ?? null,
-          last_message_id: latest?.id ?? null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", conversationId);
-      if (conversationError) throw conversationError;
+      for (const conversationId of new Set([
+        previousConversationId,
+        target.conversation.id,
+      ])) {
+        const { data: latest, error: latestError } = await (
+          args.admin.from("company_messages" as any) as any
+        )
+          .select("id, created_at")
+          .eq("conversation_id", conversationId)
+          .order("id", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (latestError) throw latestError;
+        const { error: conversationError } = await (
+          args.admin.from("company_conversations" as any) as any
+        )
+          .update({
+            last_message_at: latest?.created_at ?? null,
+            last_message_id: latest?.id ?? null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", conversationId);
+        if (conversationError) throw conversationError;
+      }
     }
   }
 

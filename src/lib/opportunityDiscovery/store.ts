@@ -31,6 +31,7 @@ import {
   normalizeTalentRecommendationBatchSize,
   normalizeTalentRecommendationToggle,
 } from "@/lib/talentOnboarding/recommendationSettings";
+import { sendInitialSearchStartedEmail } from "./initialSearchNotification";
 
 if (typeof window !== "undefined") {
   throw new Error("opportunityDiscovery store must not run in the browser");
@@ -481,16 +482,34 @@ export async function completeOnboardingAndQueueInitialOpportunityRun(args: {
     },
   });
 
-  await insertTalentActivityEvent({
-    admin: args.admin,
-    changedDomains: ["onboarding", "opportunity_search"],
-    conversationId: args.conversationId,
-    eventType: "onboarding_completed",
-    impactLevel: "high",
-    source: "onboarding",
-    summary: `Onboarding completed; initial opportunity search ${run.id} was queued.`,
-    userId: args.userId,
-  });
+  await Promise.all([
+    insertTalentActivityEvent({
+      admin: args.admin,
+      changedDomains: ["onboarding", "opportunity_search"],
+      conversationId: args.conversationId,
+      eventType: "onboarding_completed",
+      impactLevel: "high",
+      source: "onboarding",
+      summary: `Onboarding completed; initial opportunity search ${run.id} was queued.`,
+      userId: args.userId,
+    }),
+    sendInitialSearchStartedEmail({
+      admin: args.admin,
+      conversationId: args.conversationId,
+      opportunityRunId: run.id,
+      userId: args.userId,
+    }).catch((error) => {
+      console.error(
+        "[opportunity-discovery] Failed to send initial search receipt",
+        {
+          error: error instanceof Error ? error.message : String(error),
+          runId: run.id,
+          userId: args.userId,
+        }
+      );
+      return null;
+    }),
+  ]);
 
   return run;
 }

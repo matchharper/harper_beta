@@ -164,16 +164,24 @@ export default function AboutPage({ harperJobs, locale }: AboutPageProps) {
               {harperJobs.length > 0 ? (
                 <div className="mb-12 mt-12 space-y-2">
                   {harperJobs.map((job) => (
-                    <div key={job.id}>
+                    <div key={job.id} className="group/job">
                       <OfficialJobsCtaLink
                         job={job}
                         locale={aboutLocale}
                         variant="secondary"
                         className="min-h-0 justify-start text-left text-[15px] p-0 font-light leading-6 text-blue-600 hover:bg-transparent hover:text-primary md:border-0 md:bg-transparent"
                       >
-                        <div className="flex flex-row items-center justify-start gap-1.5 group ">
+                        <div className="flex flex-row items-center justify-start gap-1.5">
                           <span>{job.roleTitle}</span>
-                          <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform duration-200" />
+                          <span
+                            aria-hidden="true"
+                            className="relative inline-flex h-4 w-4 shrink-0 items-center justify-center"
+                          >
+                            <ArrowRight className="absolute h-3.5 w-3.5 translate-x-0 opacity-100 blur-[0px] transition-[translate,opacity,filter] duration-500 ease-in-out group-hover/job:translate-x-1.5 group-hover/job:opacity-0 group-hover/job:blur-[3px] group-focus-within/job:translate-x-1.5 group-focus-within/job:opacity-0 group-focus-within/job:blur-[3px] motion-reduce:transition-none" />
+                            <span className="absolute -translate-x-1.5 text-[13px] leading-none opacity-0 blur-[3px] transition-[translate,opacity,filter] duration-500 ease-in-out group-hover/job:translate-x-0 group-hover/job:opacity-100 group-hover/job:blur-[0px] group-focus-within/job:translate-x-0 group-focus-within/job:opacity-100 group-focus-within/job:blur-[0px] motion-reduce:transition-none">
+                              💼
+                            </span>
+                          </span>
                         </div>
                       </OfficialJobsCtaLink>
                     </div>

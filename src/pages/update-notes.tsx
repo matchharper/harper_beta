@@ -11,6 +11,7 @@ import {
 } from "@/lib/careerUpdateNotes.server";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import Image from "next/image";
+import UpdateNotesFeatureVote from "@/components/career/UpdateNotesFeatureVote";
 
 type CareerUpdateNotesPageProps = {
   notes: CareerUpdateNote[];
@@ -28,8 +29,7 @@ const PAGE_COPY: Record<
   }
 > = {
   ko: {
-    description:
-      "Harper가 Talent를 위해 새롭게 만들고 개선한 내용을 확인할 수 있어요.",
+    description: "Harper의 변화를 확인할 수 있어요.",
     empty: "아직 공개된 업데이트가 없어요.",
     latest: "최근 업데이트",
     noUpdates: "업데이트 준비 중",
@@ -37,7 +37,7 @@ const PAGE_COPY: Record<
     title: "Harper 업데이트 노트",
   },
   en: {
-    description: "See what Harper has recently built and improved for Talent.",
+    description: "See what Harper has recently built and improved.",
     empty: "There are no published updates yet.",
     latest: "Latest update",
     noUpdates: "Updates coming soon",
@@ -68,38 +68,41 @@ export default function CareerUpdateNotesPage({
       locale={locale}
       landingChrome
       aside={
-        <div className="rounded-sm border-b border-neutral-1000/2 bg-bg-basement pb-4 lg:border p-3">
-          <Text type="subtle" className="text-primary">
-            {copy.latest}
-          </Text>
-          <Text type="caption" className="mt-1 text-neutral-soft">
-            {latestDate ?? copy.noUpdates}
-          </Text>
-          <div className="mt-5 flex flex-wrap gap-2 lg:flex-col">
-            <MuteButton
-              type="button"
-              onClick={openCustomCrispWidget}
-              className="justify-start"
-            >
-              <MessageSquareText className="h-3.5 w-3.5" />
-              {copy.suggest}
-            </MuteButton>
-            <MuteButton asChild className="justify-start">
-              <a
-                href="https://www.linkedin.com/company/matchharper/"
-                target="_blank"
-                rel="noreferrer"
+        <div className="grid gap-3">
+          <div className="rounded-sm border-b border-neutral-1000/2 bg-bg-basement pb-4 lg:border p-3">
+            <Text type="subtle" className="text-primary">
+              {copy.latest}
+            </Text>
+            <Text type="caption" className="mt-1 text-neutral-soft">
+              {latestDate ?? copy.noUpdates}
+            </Text>
+            <div className="mt-5 flex flex-wrap gap-2 lg:flex-col">
+              <MuteButton
+                type="button"
+                onClick={openCustomCrispWidget}
+                className="justify-start"
               >
-                <Image
-                  src="/images/logos/linkedin.svg"
-                  alt="LinkedIn"
-                  width={18}
-                  height={18}
-                />
-                LinkedIn
-              </a>
-            </MuteButton>
+                <MessageSquareText className="h-3.5 w-3.5" />
+                {copy.suggest}
+              </MuteButton>
+              <MuteButton asChild className="justify-start">
+                <a
+                  href="https://www.linkedin.com/company/matchharper/"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Image
+                    src="/images/logos/linkedin.svg"
+                    alt="LinkedIn"
+                    width={18}
+                    height={18}
+                  />
+                  LinkedIn
+                </a>
+              </MuteButton>
+            </div>
           </div>
+          <UpdateNotesFeatureVote locale={locale} />
         </div>
       }
     >

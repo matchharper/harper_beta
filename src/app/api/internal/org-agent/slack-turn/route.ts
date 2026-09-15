@@ -1303,6 +1303,7 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
                 slackExecutionContext: {
                   channelDbId: channel.id,
                   channelId,
+                  channelName: clean(channel.slack_channel_name) || channelId,
                   publicSiteUrl,
                   slackUserId,
                   sourceKey: job.id,
