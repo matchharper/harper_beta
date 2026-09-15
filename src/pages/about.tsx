@@ -164,7 +164,7 @@ export default function AboutPage({ harperJobs, locale }: AboutPageProps) {
               {harperJobs.length > 0 ? (
                 <div className="mb-12 mt-12 space-y-2">
                   {harperJobs.map((job) => (
-                    <div key={job.id}>
+                    <div key={job.id} className="group">
                       <OfficialJobsCtaLink
                         job={job}
                         locale={aboutLocale}
@@ -174,6 +174,7 @@ export default function AboutPage({ harperJobs, locale }: AboutPageProps) {
                         <div className="flex flex-row items-center justify-start gap-1.5 group ">
                           <span>{job.roleTitle}</span>
                           <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform duration-200" />
+                          {/* <div className="">💼</div> */}
                         </div>
                       </OfficialJobsCtaLink>
                     </div>
