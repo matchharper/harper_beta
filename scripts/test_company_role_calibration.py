@@ -8,11 +8,45 @@ from company_role_calibration import (
     delivery_ssl_context,
     jsonable,
     public_display,
+    role_summary_source_payload,
+    role_summary_status,
+    summary_input_content,
     validate_read_sql,
 )
 
 
 class CompanyRoleCalibrationHelperTest(unittest.TestCase):
+    def test_role_summary_tracks_only_missing_language_content(self):
+        status = role_summary_status({"ko": {"content": "한국어 설명"}, "en": {}})
+        self.assertFalse(status["ready"])
+        self.assertEqual(status["missingLanguages"], ["en"])
+        self.assertEqual(
+            summary_input_content({"en": {"content": "English summary"}}, "en"),
+            "English summary",
+        )
+
+    def test_role_summary_source_excludes_hiring_brief_and_private_request(self):
+        source = role_summary_source_payload(
+            {
+                "company": {
+                    "brief": "Public brief",
+                    "name": "Example",
+                    "request": "Private company request",
+                },
+                "role": {
+                    "description": "Public JD",
+                    "hiringBrief": "Private hiring brief",
+                    "information": {"secret": True},
+                    "name": "Engineer",
+                },
+            }
+        )
+        serialized = str(source)
+        self.assertIn("Public brief", serialized)
+        self.assertIn("Public JD", serialized)
+        self.assertNotIn("Private", serialized)
+        self.assertNotIn("secret", serialized)
+
     def test_delivery_uses_a_verified_ca_context(self):
         context = delivery_ssl_context()
 

@@ -1341,6 +1341,11 @@ export async function sendHarperWorkspaceSlackMessage(args: {
   messageMetadata?: OrgAgentMessageMetadata;
   mentions?: OrgAgentMention[];
   notificationKey?: HarperSlackNotificationKey;
+  onPosted?: (receipt: {
+    channelId: string;
+    slackMessageTs: string;
+    threadId: string;
+  }) => void;
   /** Skip persisting the Slack post in /org when another atomic writer saves it. */
   recordConversationMessage?: boolean;
   roleId?: string | null;
@@ -1420,6 +1425,11 @@ export async function sendHarperWorkspaceSlackMessage(args: {
           .select("id")
           .single();
         if (threadError) throw threadError;
+        args.onPosted?.({
+          channelId: channel.slack_channel_id,
+          slackMessageTs: posted.ts,
+          threadId: thread.id,
+        });
         if (args.recordConversationMessage === false) return;
         const conversation = await ensureSlackConversation({
           admin,
@@ -1448,6 +1458,74 @@ export async function sendHarperWorkspaceSlackMessage(args: {
   if (results.every((result) => result.status === "rejected"))
     throw (results[0] as PromiseRejectedResult).reason;
   return results.some((result) => result.status === "fulfilled");
+}
+
+export async function storeHarperWorkspaceConversationMessage(args: {
+  calibrationId: string;
+  idempotencyKey: string;
+  roleId: string;
+  runId: string;
+  text: string;
+  workspaceId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const metadata = {
+    postCalibrationReview: {
+      calibrationId: text(args.calibrationId),
+      idempotencyKey: text(args.idempotencyKey),
+      runId: text(args.runId),
+    },
+    source: "post_calibration_review",
+  } satisfies OrgAgentMessageMetadata;
+  const findExisting = async () => {
+    const { data, error } = await (
+      admin.from("company_messages" as any) as any
+    )
+      .select("id, content, created_at")
+      .eq("company_workspace_id", args.workspaceId)
+      .eq("role_id", args.roleId)
+      .eq("role", "assistant")
+      .contains("metadata", {
+        postCalibrationReview: {
+          idempotencyKey: args.idempotencyKey,
+        },
+      })
+      .maybeSingle();
+    if (error) throw error;
+    return data as { content: string; created_at: string; id: number } | null;
+  };
+
+  const existing = await findExisting();
+  if (existing) {
+    if (text(existing.content) !== text(args.text)) {
+      throw new Error("post-calibration /org notice content conflict");
+    }
+    return { idempotent: true, messageId: existing.id };
+  }
+
+  const conversation = await ensureSlackConversation({
+    admin,
+    roleId: args.roleId,
+    workspaceId: args.workspaceId,
+  });
+  try {
+    const stored = await insertOrgAgentMessage({
+      admin,
+      content: text(args.text),
+      conversation,
+      messageType: "chat",
+      metadata,
+      role: "assistant",
+      roleId: args.roleId,
+      userId: null,
+    });
+    return { idempotent: false, messageId: stored.id };
+  } catch (error) {
+    if ((error as { code?: string })?.code !== "23505") throw error;
+    const raced = await findExisting();
+    if (!raced || text(raced.content) !== text(args.text)) throw error;
+    return { idempotent: true, messageId: raced.id };
+  }
 }
 
 export async function sendHarperSlackThreadReply(args: {

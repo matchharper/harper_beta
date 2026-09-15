@@ -39,10 +39,14 @@ SCRIPT_PATH = Path(__file__).resolve()
 PROMPT_PATH = (
     ROOT / "docs" / "company" / "company-role-profile-calibration-event-prompt-ko.md"
 )
+POST_CALIBRATION_PROMPT_PATH = (
+    ROOT / "docs" / "company" / "company-role-post-calibration-event-prompt-ko.md"
+)
 RUNBOOK_PATH = (
     ROOT / "docs" / "company" / "company-role-profile-calibration-codex-runbook-ko.md"
 )
 HELPER_PATH = ROOT / "scripts" / "company_role_calibration.py"
+MATCHING_HELPER_PATH = ROOT / "scripts" / "company_role_recurring_matching.py"
 LABEL = "com.harper.company-role-calibration-codex"
 NOTIFY_CHANNEL = "harper_company_role_calibration_work"
 NOTIFY_TRIGGER = "company_role_calibrations_notify_work_v1"
@@ -70,6 +74,7 @@ DEFAULT_REASONING_EFFORT = "xhigh"
 class QueueSnapshot:
     ready_ids: tuple[str, ...]
     next_available_at: datetime | None
+    worker_kind: str | None = None
 
     @property
     def ready_count(self) -> int:
@@ -149,6 +154,7 @@ def calibration_work_rows(conn: Any, *, limit: int = 100) -> list[dict[str, Any]
         """
         select
           calibration.id,
+          'calibration'::text as worker_kind,
           case
             when calibration.status = 'queued' then 'generate'
             when calibration.status = 'running' then 'recover'
@@ -182,14 +188,62 @@ def calibration_work_rows(conn: Any, *, limit: int = 100) -> list[dict[str, Any]
     )
 
 
+def post_calibration_work_rows(
+    conn: Any, *, limit: int = 100
+) -> list[dict[str, Any]]:
+    return fetch_all(
+        conn,
+        """
+        select
+          run.id,
+          'post_calibration'::text as worker_kind,
+          case
+            when run.status = 'queued' then 'review'
+            when run.status = 'running' then 'recover_review'
+            else 'retry_notice'
+          end as work_type,
+          case
+            when run.status = 'queued' then run.available_at
+            when run.status = 'running' then
+              coalesce(
+                nullif(run.result->>'startedAt', '')::timestamptz,
+                run.available_at
+              ) + interval '6 hours'
+            else coalesce(
+              nullif(run.result->'companyNotice'->>'retryAt', '')::timestamptz,
+              run.available_at
+            )
+          end as work_available_at
+        from public.company_context_runs run
+        where run.trigger_reason = 'post_calibration_12h'
+          and (
+            run.status in ('queued', 'running')
+            or (
+              run.status = 'succeeded'
+              and coalesce(run.result->'companyNotice'->>'status', '')
+                in ('partial', 'not_configured', 'failed')
+            )
+          )
+        order by work_available_at, run.id
+        limit %s
+        """,
+        (limit,),
+    )
+
+
 def queue_snapshot(conn: Any, *, now: datetime | None = None) -> QueueSnapshot:
     current = now or utc_now()
-    rows = calibration_work_rows(conn)
-    ready_ids = tuple(
-        f"{row['work_type']}:{row['id']}"
+    rows = [*calibration_work_rows(conn), *post_calibration_work_rows(conn)]
+    rows.sort(key=lambda row: (row.get("work_available_at") or datetime.max.replace(tzinfo=timezone.utc), str(row.get("id"))))
+    due_rows = [
+        row
         for row in rows
         if isinstance(row.get("work_available_at"), datetime)
         and row["work_available_at"] <= current
+    ]
+    ready_ids = tuple(
+        f"{row['worker_kind']}:{row['work_type']}:{row['id']}"
+        for row in due_rows
     )
     next_available_at = None
     for row in rows:
@@ -200,6 +254,7 @@ def queue_snapshot(conn: Any, *, now: datetime | None = None) -> QueueSnapshot:
     return QueueSnapshot(
         ready_ids=ready_ids,
         next_available_at=next_available_at,
+        worker_kind=(str(due_rows[0]["worker_kind"]) if due_rows else None),
     )
 
 
@@ -260,20 +315,61 @@ def notification_status(conn: Any) -> dict[str, bool]:
               and relation.relname = 'company_role_calibrations'
               and trigger_row.tgname = %s
               and not trigger_row.tgisinternal
-          ) as trigger_exists
+          ) as trigger_exists,
+          to_regprocedure('public.notify_post_calibration_company_context_work_v1()')
+            is not null as post_function_exists,
+          exists (
+            select 1
+            from pg_trigger trigger_row
+            join pg_class relation on relation.oid = trigger_row.tgrelid
+            join pg_namespace namespace on namespace.oid = relation.relnamespace
+            where namespace.nspname = 'public'
+              and relation.relname = 'company_context_runs'
+              and trigger_row.tgname = 'company_context_runs_notify_post_calibration_v1'
+              and not trigger_row.tgisinternal
+          ) as post_trigger_exists
         """,
         (NOTIFY_TRIGGER,),
     )
     return {
         "functionExists": bool((row or {}).get("function_exists")),
         "triggerExists": bool((row or {}).get("trigger_exists")),
+        "postFunctionExists": bool((row or {}).get("post_function_exists")),
+        "postTriggerExists": bool((row or {}).get("post_trigger_exists")),
     }
+
+
+def post_calibration_schema_status(conn: Any) -> dict[str, bool]:
+    row = fetch_one(
+        conn,
+        """
+        select
+          to_regprocedure('public.enqueue_post_calibration_company_context_run_v1(uuid)')
+            is not null as has_enqueue,
+          to_regprocedure('public.claim_post_calibration_company_context_run_v1(text)')
+            is not null as has_claim,
+          to_regprocedure(
+            'public.retry_post_calibration_company_context_run_v1(uuid,timestamp with time zone)'
+          ) is not null as has_retry,
+          to_regprocedure(
+            'public.record_post_calibration_company_notice_v1(uuid,text,bigint,text,text,text,text)'
+          ) is not null as has_notice_receipt,
+          exists (
+            select 1 from pg_trigger
+            where tgname = 'company_context_runs_enqueue_waiting_post_calibration_v1'
+              and not tgisinternal
+          ) as has_waiting_run_trigger
+        """,
+    ) or {}
+    checks = {key: bool(value) for key, value in row.items()}
+    return {**checks, "ready": bool(checks) and all(checks.values())}
 
 
 def database_check() -> dict[str, Any]:
     with connect() as conn:
         calibration = calibration_schema_status(conn)
         notifications = notification_status(conn)
+        post_calibration = post_calibration_schema_status(conn)
         snapshot = (
             queue_snapshot(conn)
             if calibration.get("has_table")
@@ -282,6 +378,7 @@ def database_check() -> dict[str, Any]:
     return {
         "calibration": calibration,
         "notifications": notifications,
+        "postCalibration": post_calibration,
         "queue": {
             "readyCount": snapshot.ready_count,
             "readyWorkIds": list(snapshot.ready_ids),
@@ -305,6 +402,8 @@ def local_prerequisites() -> dict[str, Any]:
         codex_error = f"{type(error).__name__}: {error}"
     paths = {
         "helper": HELPER_PATH.exists(),
+        "matchingHelper": MATCHING_HELPER_PATH.exists(),
+        "postCalibrationPrompt": POST_CALIBRATION_PROMPT_PATH.exists(),
         "prompt": PROMPT_PATH.exists(),
         "runbook": RUNBOOK_PATH.exists(),
     }
@@ -367,7 +466,15 @@ def runner_id() -> str:
     return (configured or f"codex-event:{socket.gethostname()}")[:120]
 
 
-def render_worker_prompt(worker_runner_id: str) -> str:
+def render_worker_prompt(
+    worker_runner_id: str, worker_kind: str = "calibration"
+) -> str:
+    if worker_kind == "post_calibration":
+        return (
+            POST_CALIBRATION_PROMPT_PATH.read_text(encoding="utf-8")
+            .replace("{{MATCHING_PYTHON}}", shlex.quote(sys.executable))
+            .replace("{{MATCHING_RUNNER}}", shlex.quote(worker_runner_id))
+        )
     return (
         PROMPT_PATH.read_text(encoding="utf-8")
         .replace("{{CALIBRATION_PYTHON}}", shlex.quote(sys.executable))
@@ -380,7 +487,8 @@ def run_codex_worker(snapshot_before: QueueSnapshot) -> int:
     ensure_local_directories()
     codex_binary = resolve_codex_binary()
     worker_runner_id = runner_id()
-    prompt = render_worker_prompt(worker_runner_id)
+    worker_kind = snapshot_before.worker_kind or "calibration"
+    prompt = render_worker_prompt(worker_runner_id, worker_kind)
     timestamp = utc_now().strftime("%Y%m%dT%H%M%S%fZ")
     event_log = LOG_DIR / f"company-role-calibration-codex-run-{timestamp}.jsonl"
     error_log = LOG_DIR / f"company-role-calibration-codex-run-{timestamp}.error.log"
@@ -392,6 +500,7 @@ def run_codex_worker(snapshot_before: QueueSnapshot) -> int:
         eventLog=str(event_log),
         errorLog=str(error_log),
         runner=worker_runner_id,
+        workerKind=worker_kind,
     )
     environment = os.environ.copy()
     environment["PYTHONUNBUFFERED"] = "1"
@@ -473,6 +582,7 @@ def listen_loop() -> int:
                             refresh_queue = False
                             if snapshot.ready_count > 0 and monotonic_now >= codex_retry_at:
                                 calibration = calibration_schema_status(conn)
+                                post_calibration = post_calibration_schema_status(conn)
                                 notifications = notification_status(conn)
                                 if not calibration.get("ready"):
                                     emit(
@@ -488,6 +598,18 @@ def listen_loop() -> int:
                                         "codex_blocked",
                                         reason="database_notification_not_installed",
                                         details=notifications,
+                                    )
+                                    codex_retry_at = (
+                                        monotonic_now + PREFLIGHT_BACKOFF_SECONDS
+                                    )
+                                elif (
+                                    snapshot.worker_kind == "post_calibration"
+                                    and not post_calibration.get("ready")
+                                ):
+                                    emit(
+                                        "codex_blocked",
+                                        reason="post_calibration_preflight_failed",
+                                        details=post_calibration,
                                     )
                                     codex_retry_at = (
                                         monotonic_now + PREFLIGHT_BACKOFF_SECONDS
@@ -642,8 +764,14 @@ def command_on(_: argparse.Namespace) -> int:
     checks = database_check()
     prerequisites = local_prerequisites()
     calibration_ready = bool(checks["calibration"].get("ready"))
+    post_calibration_ready = bool(checks["postCalibration"].get("ready"))
     notifications_ready = all(checks["notifications"].values())
-    if not prerequisites["ready"] or not calibration_ready or not notifications_ready:
+    if (
+        not prerequisites["ready"]
+        or not calibration_ready
+        or not post_calibration_ready
+        or not notifications_ready
+    ):
         print(
             json.dumps(
                 {"localPrerequisites": prerequisites, "database": checks},
@@ -718,6 +846,7 @@ def command_status(args: argparse.Namespace) -> int:
         print(f"database: ERROR ({database['error']})")
     else:
         calibration = database["calibration"]
+        post_calibration = database["postCalibration"]
         notifications = database["notifications"]
         queue = database["queue"]
         print(
@@ -725,6 +854,10 @@ def command_status(args: argparse.Namespace) -> int:
             f"{'ready' if payload['localPrerequisites']['ready'] else 'missing'}"
         )
         print(f"calibration DB ready: {str(bool(calibration.get('ready'))).lower()}")
+        print(
+            "post-calibration DB ready: "
+            f"{str(bool(post_calibration.get('ready'))).lower()}"
+        )
         print(
             "notification trigger: "
             f"{'ready' if all(notifications.values()) else 'missing'}"
@@ -763,6 +896,7 @@ def command_check(_: argparse.Namespace) -> int:
     payload = {
         "localPrerequisites": local_prerequisites(),
         "promptPath": str(PROMPT_PATH),
+        "postCalibrationPromptPath": str(POST_CALIBRATION_PROMPT_PATH),
         "runbookPath": str(RUNBOOK_PATH),
         "runner": runner_id(),
         "database": database_check(),

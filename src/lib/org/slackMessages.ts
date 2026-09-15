@@ -181,7 +181,7 @@ export function buildOrgRoleCalibrationSlackMessage(args: {
   });
   return [
     `*${formatSlackLink(roleUrl, args.roleName)} 역할의 예시 프로필을 골랐어요*`,
-    "Harper가 실제로 연결을 고려할 만한 분들을 기준으로 골랐어요. 서로 다른 강점과 확인점이 있는 프로필을 함께 보고, 지금 생각한 매칭 기준이 맞는지 확인하고 싶어요.",
+    "아직 실제로 매칭되거나 연락한 분들은 아니에요. 제가 이해한 기준이라면 이런 분들을 찾아보게 될 것 같아, 혹시 잘못 이해한 부분이 없는지 여쭤보려고 이름과 사진을 바꾼 예시 프로필을 준비했어요. 지금 생각한 매칭 기준이 맞는지 확인하고 싶어요.",
     "",
     profileBlocks.join("\n\n———\n\n"),
     "",
@@ -208,7 +208,7 @@ export function buildOrgRoleCalibrationSlackBlocks(args: {
   return [
     {
       text: {
-        text: `*${formatSlackLink(roleUrl, `${args.roleName} 역할의 예시 프로필을 골랐어요`)}*\nHarper가 실제로 연결을 고려할 만한 분들을 기준으로 골랐어요. 지금 생각한 매칭 기준이 맞는지 확인하고 싶어요.`,
+        text: `*${formatSlackLink(roleUrl, `${args.roleName} 역할의 예시 프로필을 골랐어요`)}*\n아직 실제로 매칭되거나 연락한 분들은 아니에요. 제가 이해한 기준이라면 이런 분들을 찾아보게 될 것 같아, 혹시 잘못 이해한 부분이 없는지 여쭤보려고 이름과 사진을 바꾼 예시 프로필을 준비했어요. 지금 생각한 매칭 기준이 맞는지 확인하고 싶어요.`,
         type: "mrkdwn",
       },
       type: "section",

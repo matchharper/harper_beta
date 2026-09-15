@@ -162,6 +162,11 @@ export type OrgAgentMessageMetadata = {
   model?: string | null;
   /** Server-authored role context used to resolve Slack candidate links. */
   preferredRoleId?: string | null;
+  postCalibrationReview?: {
+    calibrationId: string;
+    idempotencyKey: string;
+    runId: string;
+  };
   requestChange?: {
     after: string | null;
     before: string | null;

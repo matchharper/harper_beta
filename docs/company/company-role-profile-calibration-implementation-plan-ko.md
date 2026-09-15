@@ -1,7 +1,8 @@
 # Company Role Profile Calibration 구현 계획
 
-- 문서 기준: 2026-09-08
-- 상태: calibration 본체 구현 완료, event notification migration·production app rollout 전
+- 문서 기준: 2026-09-15
+- 상태: summary·calibration·`sentAt + 12h` review·dual-channel 안내 production release 포함.
+  실제 가동 상태는 migration preflight와 local listener status로 확인한다.
 - 반복 실행 계약: [Company Role Profile Calibration Codex 실행 계약](./company-role-profile-calibration-codex-runbook-ko.md)
 
 ## 1. 구현 목표

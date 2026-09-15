@@ -37,6 +37,7 @@ RUNBOOK_PATH = (
 FAKE_NAMES = ["김민준", "이서윤", "박지후", "최하린", "정도윤"]
 FAKE_PHOTOS = [f"/images/profiles/avatar{index}.png" for index in (1, 2, 3, 5, 6)]
 PROFILE_IDS = ["A", "B", "C", "D", "E"]
+ROLE_SUMMARY_VERSION = "v1-role-event-summary"
 FORBIDDEN_SQL = re.compile(
     r"\b(insert|update|delete|merge|create|alter|drop|truncate|grant|revoke|copy|call|do|vacuum|analyze|refresh|reindex|cluster|comment)\b",
     re.IGNORECASE,
@@ -150,6 +151,7 @@ def calibration_source_row(conn: psycopg.Connection, calibration_id: str) -> dic
           role.salary_max as role_salary_max,
           role.salary_period as role_salary_period,
           role.seniority_level as role_seniority_level,
+          role.summary as role_summary,
           role.updated_at as role_updated_at,
           role.status as role_status,
           role.information as role_information,
@@ -245,12 +247,243 @@ def command_start(args: argparse.Namespace) -> None:
                 "range": source["role_salary_range"],
             },
             "seniorityLevel": source["role_seniority_level"],
+            "summary": source["role_summary"],
             "workMode": source["role_work_mode"],
         },
     }
+    packet["summarySource"] = role_summary_source_payload(packet)
+    packet["summarySourceHash"] = stable_hash(packet["summarySource"])
     path = run_dir(str(source["id"])) / "run.json"
     write_private_json(path, packet)
+    summary_status = role_summary_status(source["role_summary"])
+    write_private_json(run_dir(str(source["id"])) / "summary-status.json", summary_status)
+    if summary_status["ready"]:
+        write_private_json(
+            run_dir(str(source["id"])) / "summary-receipt.json",
+            {
+                **summary_status,
+                "calibrationId": str(source["id"]),
+                "roleId": str(source["role_id"]),
+                "sourceHash": packet["summarySourceHash"],
+                "storedLanguages": [],
+                "verifiedAt": datetime.now(timezone.utc),
+            },
+        )
     emit({"claimed": True, "packet": str(path), **packet})
+
+
+def summary_content(summary: Any, language: str) -> str:
+    if not isinstance(summary, Mapping):
+        return ""
+    entry = summary.get(language)
+    if not isinstance(entry, Mapping):
+        return ""
+    return text(entry.get("content"), 12_000)
+
+
+def role_summary_status(summary: Any) -> dict[str, Any]:
+    contents = {
+        language: summary_content(summary, language)
+        for language in ("ko", "en")
+    }
+    missing = [language for language, content in contents.items() if not content]
+    return {
+        "ready": not missing,
+        "missingLanguages": missing,
+        "contents": contents,
+    }
+
+
+def role_summary_source_payload(packet: Mapping[str, Any]) -> dict[str, Any]:
+    role = packet.get("role") if isinstance(packet.get("role"), Mapping) else {}
+    company = (
+        packet.get("company")
+        if isinstance(packet.get("company"), Mapping)
+        else {}
+    )
+    return {
+        "company": {
+            key: company.get(key)
+            for key in ("brief", "description", "homepageUrl", "name", "pitch")
+        },
+        "role": {
+            key: role.get(key)
+            for key in (
+                "description",
+                "employmentTypes",
+                "location",
+                "name",
+                "salary",
+                "seniorityLevel",
+                "workMode",
+            )
+        },
+    }
+
+
+def summary_input_content(value: Any, language: str) -> str:
+    candidate = value.get(language) if isinstance(value, Mapping) else None
+    if isinstance(candidate, Mapping):
+        candidate = candidate.get("content")
+    content = text(candidate, 12_000)
+    if not content:
+        raise RuntimeError(f"A non-empty {language} summary content is required")
+    return content
+
+
+def assert_summary_ready(conn: psycopg.Connection, calibration_id: str) -> dict[str, Any]:
+    receipt_path = run_dir(calibration_id) / "summary-receipt.json"
+    if not receipt_path.exists():
+        raise RuntimeError("Role summaries must be saved and read back before candid retrieval")
+    source = calibration_source_row(conn, calibration_id)
+    status = role_summary_status(source.get("role_summary"))
+    if not status["ready"]:
+        raise RuntimeError("Role summaries are no longer complete")
+    receipt = read_json(receipt_path)
+    if text(receipt.get("roleId"), 100) != str(source["role_id"]):
+        raise RuntimeError("Role summary receipt does not belong to this calibration")
+    return status
+
+
+def command_summary_status(args: argparse.Namespace) -> None:
+    run_path = run_dir(args.calibration_id) / "run.json"
+    if not run_path.exists():
+        raise RuntimeError("Calibration run packet is missing")
+    with connect() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("set transaction read only")
+        source = calibration_source_row(conn, args.calibration_id)
+        if source["status"] != "running":
+            raise RuntimeError("Calibration must be running")
+        conn.rollback()
+    status = role_summary_status(source.get("role_summary"))
+    write_private_json(run_dir(args.calibration_id) / "summary-status.json", status)
+    emit(
+        {
+            **status,
+            "calibrationId": args.calibration_id,
+            "input": str(run_path),
+            "outputContract": {
+                "ko": {"content": "string"},
+                "en": {"content": "string"},
+            },
+        }
+    )
+
+
+def command_save_summaries(args: argparse.Namespace) -> None:
+    run_path = run_dir(args.calibration_id) / "run.json"
+    if not run_path.exists():
+        raise RuntimeError("Calibration run packet is missing")
+    run = read_json(run_path)
+    summary_input = read_json(Path(args.input))
+    expected_source_hash = text(run.get("summarySourceHash"), 128)
+    if not expected_source_hash:
+        raise RuntimeError("Role summary source hash is missing")
+
+    with connect() as conn:
+        source = calibration_source_row(conn, args.calibration_id)
+        if source["status"] != "running":
+            raise RuntimeError("Calibration must be running")
+        eligible = fetch_one(
+            conn,
+            "select public.company_role_is_calibration_eligible_v1(%s::uuid) as eligible",
+            (str(source["role_id"]),),
+        )
+        if not bool((eligible or {}).get("eligible")):
+            raise RuntimeError("Role is no longer eligible for calibration")
+
+        current_packet = {
+            "company": {
+                "brief": source["company_brief"],
+                "description": source["company_description"],
+                "homepageUrl": source["company_homepage_url"],
+                "name": source["company_name"],
+                "pitch": source["company_pitch"],
+            },
+            "role": {
+                "description": source["role_description"],
+                "employmentTypes": source["role_employment_types"],
+                "location": source["role_location"],
+                "name": source["role_name"],
+                "salary": {
+                    "currency": source["role_salary_currency"],
+                    "max": source["role_salary_max"],
+                    "min": source["role_salary_min"],
+                    "period": source["role_salary_period"],
+                    "range": source["role_salary_range"],
+                },
+                "seniorityLevel": source["role_seniority_level"],
+                "workMode": source["role_work_mode"],
+            },
+        }
+        if stable_hash(current_packet) != expected_source_hash:
+            raise RuntimeError("Role summary source changed; restart the calibration claim")
+
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "select summary from public.company_roles where role_id = %s::uuid for update",
+                (str(source["role_id"]),),
+            )
+            locked = cursor.fetchone()
+            current_summary = (locked or {}).get("summary") or {}
+            status_before = role_summary_status(current_summary)
+            stored_languages: list[str] = []
+            for language in status_before["missingLanguages"]:
+                content = summary_input_content(summary_input, language)
+                entry = {
+                    "content": content,
+                    "generatedAt": datetime.now(timezone.utc),
+                    "sourceHash": expected_source_hash,
+                    "version": ROLE_SUMMARY_VERSION,
+                }
+                cursor.execute(
+                    """
+                    update public.company_roles role
+                    set
+                      summary = jsonb_set(
+                        coalesce(role.summary, '{}'::jsonb),
+                        array[%s::text],
+                        coalesce(role.summary->%s, '{}'::jsonb) || %s::jsonb,
+                        true
+                      ),
+                      updated_at = timezone('utc', now())
+                    where role.role_id = %s::uuid
+                      and nullif(btrim(role.summary->%s->>'content'), '') is null
+                    """,
+                    (
+                        language,
+                        language,
+                        json.dumps(jsonable(entry), ensure_ascii=False),
+                        str(source["role_id"]),
+                        language,
+                    ),
+                )
+                if cursor.rowcount == 1:
+                    stored_languages.append(language)
+            cursor.execute(
+                "select summary, updated_at from public.company_roles where role_id = %s::uuid",
+                (str(source["role_id"]),),
+            )
+            readback = dict(cursor.fetchone())
+        status_after = role_summary_status(readback.get("summary"))
+        if not status_after["ready"]:
+            raise RuntimeError("Both Role summary languages must exist after save")
+        conn.commit()
+
+    run["role"]["summary"] = readback["summary"]
+    run["role"]["roleUpdatedAt"] = readback["updated_at"]
+    write_private_json(run_path, run)
+    receipt = {
+        **status_after,
+        "calibrationId": args.calibration_id,
+        "roleId": str(source["role_id"]),
+        "sourceHash": expected_source_hash,
+        "storedLanguages": stored_languages,
+        "verifiedAt": datetime.now(timezone.utc),
+    }
+    write_private_json(run_dir(args.calibration_id) / "summary-receipt.json", receipt)
+    emit(receipt)
 
 
 def validate_read_sql(sql: str, max_rows: int) -> str:
@@ -280,6 +513,7 @@ def command_run_sql(args: argparse.Namespace) -> None:
         calibration = calibration_source_row(conn, args.calibration_id)
         if calibration["status"] != "running":
             raise RuntimeError("Calibration must be running")
+        assert_summary_ready(conn, args.calibration_id)
         with conn.cursor() as cursor:
             cursor.execute(sql)
             rows = [dict(row) for row in cursor.fetchmany(args.max_rows + 1)]
@@ -703,6 +937,13 @@ def parser() -> argparse.ArgumentParser:
     run_sql.add_argument("--sql-file", required=True)
     run_sql.add_argument("--max-rows", type=int, default=100, choices=range(1, 101))
     run_sql.set_defaults(handler=command_run_sql)
+    summary_status = commands.add_parser("summary-status")
+    summary_status.add_argument("--calibration-id", required=True)
+    summary_status.set_defaults(handler=command_summary_status)
+    save_summaries = commands.add_parser("save-summaries")
+    save_summaries.add_argument("--calibration-id", required=True)
+    save_summaries.add_argument("--input", required=True)
+    save_summaries.set_defaults(handler=command_save_summaries)
     packet = commands.add_parser("candidate-packet")
     packet.add_argument("--calibration-id", required=True)
     packet.add_argument("--query-result", required=True)
