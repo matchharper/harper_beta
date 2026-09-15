@@ -236,6 +236,7 @@ Shared component catalog:
 | Page section copy | `SectionHeader`, `SectionTitle`, `SectionDescription` |
 | Editable document preview and right-side editor | `DocumentEditor` from `src/components/ui/document-editor.tsx` |
 | Interview availability calendar, split panel, and time option | `MeetingAvailabilityCalendar`, `MeetingAvailabilitySplitLayout`, `MeetingAvailabilityTimeButton` from `src/components/meetings/MeetingAvailabilityLayout.tsx` |
+| Chat internal-role and mock interview call proposals | `CareerCallProposalCard` from `src/components/career/chat/CareerCallProposalCard.tsx`; use shared `src/components/career/MockInterviewStart.tsx` for mock interview confirmation and start behavior |
 | `/career` modal, confirmation, or bottom sheet | `TalentCareerModal` from `src/components/common/TalentCareerModal.tsx` |
 | Generic Radix dialog composition | `Dialog`, `DialogContent`, `DialogTitle`, and `DialogDescription` from `src/components/ui/dialog.tsx` |
 

@@ -97,6 +97,7 @@ function formatTranscriptForAnalysis(transcript: TalentCallNoteEntry[]) {
 }
 
 export async function analyzeTalentCallNote(args: {
+  callPurposeContext?: string;
   previousCallNote?: TalentCallNote | null;
   preferredLocale?: string | null;
   transcript: CallNoteTranscriptInputEntry[];
@@ -118,6 +119,7 @@ export async function analyzeTalentCallNote(args: {
   const isContinuation = Boolean(args.previousCallNote);
   const rawAnalysis = await runCareerCallNoteAnalysis({
     systemPrompt: [
+      args.callPurposeContext ?? "",
       isContinuation
         ? "You decide whether a completed continuation of an existing Harper call note contains enough new substance to update that note."
         : "You decide whether a completed Harper voice call deserves a durable call note.",

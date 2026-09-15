@@ -1,3 +1,4 @@
+import { hydrateMockInterviewOffers } from "@/lib/career/mockInterviewOffers.server";
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
@@ -204,10 +205,14 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const serializedMessages = visibleMessages.map((message) => ({
-      ...toTalentMessageResponse(message as TalentMessageRow),
-      opportunityPreview: previewByMessageId.get(message.id) ?? [],
-    }));
+    const serializedMessages = await hydrateMockInterviewOffers({
+      admin,
+      userId: user.id,
+      messages: visibleMessages.map((message) => ({
+        ...toTalentMessageResponse(message as TalentMessageRow),
+        opportunityPreview: previewByMessageId.get(message.id) ?? [],
+      })),
+    });
     let hydratedMessages = serializedMessages;
     try {
       hydratedMessages = await hydrateOpportunityRunsForMessages({

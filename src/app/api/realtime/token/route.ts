@@ -1,3 +1,9 @@
+import { buildVoiceInputTranscription } from "@/lib/career/voiceSessionInstructions";
+import {
+  readMockInterviewOpportunityId,
+  MockInterviewRequestError,
+} from "@/lib/career/mockInterview";
+import { MOCK_INTERVIEW_OPENING_PROMPT } from "@/lib/career/prompts/cases/mockInterviewPrompts";
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { getRequestUser } from "@/lib/supabaseServer";
@@ -79,8 +85,9 @@ function buildOpenAIRealtimeSessionBody(args: {
   instructions: string;
   realtimeConfig: ReturnType<typeof getCareerRealtimeSessionConfig>;
   tools: readonly CareerRealtimeTool[];
-  transcriptionLanguage: string;
+  transcriptionLanguage?: string;
   transcriptionModel: string;
+  isMockInterview?: boolean;
 }) {
   const {
     instructions,
@@ -104,10 +111,11 @@ function buildOpenAIRealtimeSessionBody(args: {
       },
       audio: {
         input: {
-          transcription: {
+          transcription: buildVoiceInputTranscription({
             model: transcriptionModel,
             language: transcriptionLanguage,
-          },
+            isMockInterview: args.isMockInterview,
+          }),
           turn_detection: {
             type: "semantic_vad",
             create_response: true,
@@ -180,9 +188,11 @@ export async function POST(req: NextRequest) {
       initialResponseInstruction?: string;
       internalCallRequestId?: string;
       resumeCallNoteId?: string;
+      mockInterviewOpportunityId?: string;
       locale?: string;
       timeZone?: string;
     };
+    const mockInterviewOpportunityId = readMockInterviewOpportunityId(body);
     const promptTimeZone = resolveCareerRequestTimeZone(req, rawTimeZone);
     const conversationId = rawConversationId?.trim();
     const conversationStarterId =
@@ -193,8 +203,9 @@ export async function POST(req: NextRequest) {
       typeof rawInternalCallRequestId === "string"
         ? rawInternalCallRequestId.trim()
         : "";
-    const initialResponseInstruction =
-      typeof rawInitialResponseInstruction === "string"
+    const initialResponseInstruction = mockInterviewOpportunityId
+      ? MOCK_INTERVIEW_OPENING_PROMPT
+      : typeof rawInitialResponseInstruction === "string"
         ? rawInitialResponseInstruction
         : "";
     const resumeCallNoteId =
@@ -247,8 +258,9 @@ export async function POST(req: NextRequest) {
       talentSetting?.preferred_locale ??
       rawLocale ??
       req.cookies.get("NEXT_LOCALE")?.value;
-    const transcriptionLanguage =
-      getRealtimeTranscriptionLanguage(responseLocale);
+    const transcriptionLanguage = mockInterviewOpportunityId
+      ? undefined
+      : getRealtimeTranscriptionLanguage(responseLocale);
 
     if (
       conversationStarterId &&
@@ -302,6 +314,7 @@ export async function POST(req: NextRequest) {
     const realtimePromptPlan = await buildCareerRealtimeSessionInstructions({
       conversationId,
       conversationStarterId,
+      mockInterviewOpportunityId,
       internalCallRequestId,
       preferredLocale: responseLocale,
       timeZone: promptTimeZone,
@@ -338,7 +351,9 @@ export async function POST(req: NextRequest) {
       preferredLocale: responseLocale,
     });
     const tools = realtimeToolSelection.tools;
-    const toolVoicePreambles = realtimeToolSelection.toolVoicePreambles;
+    const toolVoicePreambles = mockInterviewOpportunityId
+      ? {}
+      : realtimeToolSelection.toolVoicePreambles;
     const realtimeConfig = getCareerRealtimeSessionConfig();
     const safetyIdentifier = buildSafetyIdentifier(user.id);
     const response = await createOpenAIRealtimeClientSecret({
@@ -349,6 +364,7 @@ export async function POST(req: NextRequest) {
         tools,
         transcriptionLanguage,
         transcriptionModel: realtimeConfig.transcriptionModel,
+        isMockInterview: Boolean(mockInterviewOpportunityId),
       }),
     });
 
@@ -381,6 +397,11 @@ export async function POST(req: NextRequest) {
       transcriptionModel: realtimeConfig.transcriptionModel,
     });
   } catch (error) {
+    if (error instanceof MockInterviewRequestError)
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status }
+      );
     console.error("[RealtimeToken] Error:", error);
     return NextResponse.json(
       { error: "Internal server error" },

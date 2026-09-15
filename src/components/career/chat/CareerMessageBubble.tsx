@@ -1,3 +1,6 @@
+import CareerCallProposalCard from "./CareerCallProposalCard";
+import MockInterviewStart from "../MockInterviewStart";
+import { stripMockInterviewMarkers } from "@/lib/career/mockInterviewOffers";
 import React, { type ReactNode } from "react";
 import { useRouter } from "next/router";
 import {
@@ -25,7 +28,7 @@ import {
   getHarperOwnedUrlRoute,
   isHarperOwnedUrl,
 } from "@/lib/urlDisplay";
-import { BareButton } from "@/components/ui/button";
+import { BareButton, MuteButton } from "@/components/ui/button";
 import { ChatMessageAttachmentList } from "@/components/chat/ChatMessageAttachmentList";
 import { cn } from "@/lib/utils";
 import {
@@ -108,7 +111,9 @@ type Props = {
   onSelectReengagementAction?: (
     selection: CareerReengagementActionSelection
   ) => void | Promise<void>;
-  onStartCallMode?: (args?: CareerCallStartRequest) => void | Promise<void>;
+  onStartCallMode?: (
+    args?: CareerCallStartRequest
+  ) => boolean | Promise<boolean>;
 };
 
 function stripCallActionMarker(content: string) {
@@ -428,7 +433,9 @@ const CareerMessageBubble = ({
   const reengagementActions = reengagementActionExtraction.actions;
   const internalCallRequestMarkers = internalCallRequestExtraction.markers;
   const assistantContent = !isUser
-    ? stripStandalonePostingLinksFromText(displayContent)
+    ? stripStandalonePostingLinksFromText(
+        stripMockInterviewMarkers(displayContent)
+      )
     : displayContent;
   return (
     <>
@@ -566,10 +573,10 @@ const CareerMessageBubble = ({
                     ? item.action.internalCallRequestId
                     : item.action.starterId
                   : item.action.type === "send_message"
-                  ? item.action.message
-                  : item.action.type === "open_path"
-                    ? item.action.path
-                    : item.action.ref;
+                    ? item.action.message
+                    : item.action.type === "open_path"
+                      ? item.action.path
+                      : item.action.ref;
 
               return (
                 <button
@@ -618,79 +625,106 @@ const CareerMessageBubble = ({
           </BareButton>
         )}
         {internalCallRequestMarkers.map((marker) => (
-          <div
+          <CareerCallProposalCard
             key={marker.callId}
-            className="mt-3 w-[94%] max-w-[440px] rounded-md border border-neutral-200 bg-bg-floating px-2 py-2 text-neutral-primary"
+            title={
+              <>
+                Call for {'"'}
+                {marker.companyName} - {marker.roleTitle}
+                {'"'}
+              </>
+            }
+            description={
+              <span
+                dangerouslySetInnerHTML={{
+                  __html: t(
+                    "career.chat.career_message_bubble.optional_call_notice",
+                    "꼭 해야하는 대화는 아니고, 연결 시에 도움이될 정보를 몇가지 여쭤보기 위한 통화에요. 진행하지 않으셔도 {companyName} 측과의 연결은 제가 계속 진행할게요.",
+                    { values: { companyName: marker.companyName } }
+                  ),
+                }}
+              />
+            }
           >
-            <div className="flex flex-col items-center justify-center gap-3">
-              <div className="min-h-20 flex flex-col items-start justify-center">
-                <div className="text-sm font-normal leading-snug">
-                  Call for {'"'}
-                  {marker.companyName} - {marker.roleTitle}
-                  {'"'}
-                </div>
-                <div
-                  className="mt-1 text-[14px] md:text-[13px] text-left leading-5 text-neutral-muted"
-                  dangerouslySetInnerHTML={{
-                    __html: t(
-                      "career.chat.career_message_bubble.optional_call_notice",
-                      "꼭 해야하는 대화는 아니고, 연결 시에 도움이될 정보를 몇가지 여쭤보기 위한 통화에요. 진행하지 않으셔도 {companyName} 측과의 연결은 제가 계속 진행할게요.",
-                      {
-                        values: {
-                          companyName: marker.companyName,
-                        },
-                      }
-                    ),
-                  }}
-                />
-              </div>
-              <div className="flex items-center gap-2 mt-1 w-full">
-                {marker.resumePromptNeeded && (
-                  <BareButton
-                    type="button"
-                    onClick={() =>
-                      void router.push("/career/profile?profileSection=links")
+            {marker.resumePromptNeeded && (
+              <BareButton
+                type="button"
+                onClick={() =>
+                  void router.push("/career/profile?profileSection=links")
+                }
+                className="h-9 w-full text-center inline-flex items-center gap-1.5 rounded-[8px] border border-neutral-1000-a10 bg-bg-weak px-2.5 py-1.5 text-xs text-neutral-primary transition-colors hover:border-neutral-400 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                {t("career.chat.career_message_bubble.1tqt1ip", "이력서 보강")}
+              </BareButton>
+            )}
+            <BareButton
+              type="button"
+              onClick={() =>
+                void onStartCallMode?.({
+                  internalCallRequestId: marker.callId,
+                  openingText: formatCareerMessageByKey(
+                    m,
+                    "career.internal_opportunity.call_opening",
+                    "",
+                    {
+                      companyName: marker.companyName,
+                      roleTitle: marker.roleTitle,
                     }
-                    className="h-9 w-full text-center inline-flex items-center gap-1.5 rounded-[8px] border border-neutral-1000-a10 bg-bg-weak px-2.5 py-1.5 text-xs text-neutral-primary transition-colors hover:border-neutral-400 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <FileText className="h-3.5 w-3.5" />
-                    {t(
-                      "career.chat.career_message_bubble.1tqt1ip",
-                      "이력서 보강"
-                    )}
-                  </BareButton>
-                )}
-                <BareButton
-                  type="button"
-                  onClick={() =>
-                    void onStartCallMode?.({
-                      internalCallRequestId: marker.callId,
-                      openingText: formatCareerMessageByKey(
-                        m,
-                        "career.internal_opportunity.call_opening",
-                        "",
-                        {
-                          companyName: marker.companyName,
-                          roleTitle: marker.roleTitle,
-                        }
-                      ),
-                    })
-                  }
-                  disabled={!onStartCallMode || isCallStartPending}
-                  className="h-9 w-full text-center inline-flex items-center justify-center gap-1.5 rounded-[8px] border border-neutral-1000-a10 bg-primary px-2.5 py-1.5 text-sm text-neutral-00 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <PhoneOutgoing strokeWidth={1.9} size={14} />
-                  {isCallStartPending
-                    ? t("career.call.career_call_card.1vn8y3k", "연결 중...")
-                    : t(
-                        "career.chat.career_message_bubble.0whsa78",
-                        "통화하기"
-                      )}
-                </BareButton>
-              </div>
-            </div>
-          </div>
+                  ),
+                })
+              }
+              disabled={!onStartCallMode || isCallStartPending}
+              className="h-9 w-full text-center inline-flex items-center justify-center gap-1.5 rounded-[8px] border border-neutral-1000-a10 bg-primary px-2.5 py-1.5 text-sm text-neutral-00 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <PhoneOutgoing strokeWidth={1.9} size={14} />
+              {isCallStartPending
+                ? t("career.call.career_call_card.1vn8y3k", "연결 중...")
+                : t("career.chat.career_message_bubble.0whsa78", "통화하기")}
+            </BareButton>
+          </CareerCallProposalCard>
         ))}
+        {!isUser &&
+          !message.typing &&
+          message.mockInterviewOffers?.map((offer) => (
+            <CareerCallProposalCard
+              key={`mock-${offer.id}`}
+              title={
+                <>
+                  {offer.companyName} · {offer.title}
+                </>
+              }
+              description={t(
+                "career.chat.mock_interview.description",
+                "이 포지션의 면접을 Harper와 음성으로 연습해 보세요. 개인 연습이며 기업에 전달되지 않습니다."
+              )}
+            >
+              <MockInterviewStart
+                item={offer}
+                disabled={isCallStartPending}
+                onStart={
+                  onStartCallMode
+                    ? (id) =>
+                        onStartCallMode({ mockInterviewOpportunityId: id })
+                    : undefined
+                }
+                renderTrigger={(props) => (
+                  <MuteButton
+                    {...props}
+                    variant="primary"
+                    size="lg"
+                    className="w-full min-w-0 whitespace-normal"
+                  >
+                    <PhoneOutgoing size={14} className="shrink-0" />
+                    {t(
+                      "career.history.mock_interview.action",
+                      "모의 인터뷰 해보기"
+                    )}
+                  </MuteButton>
+                )}
+              />
+            </CareerCallProposalCard>
+          ))}
       </ChatMessageBubbleFrame>
     </>
   );
