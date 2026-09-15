@@ -20,6 +20,14 @@ test("routes DeepSeek V4 Flash 0731 to OpenRouter", async () => {
   assert.equal(supportsSamplingParametersForModel(model), true);
 });
 
+test("rejects Grok model IDs before selecting a provider", async () => {
+  const { getLlmChatProviderForModel } = await loadLlm();
+  assert.throws(
+    () => getLlmChatProviderForModel("grok-4.3"),
+    /Grok models are disabled/
+  );
+});
+
 test("routes Z.ai models to OpenRouter with explicit reasoning effort", async () => {
   const {
     createChatCompletionWithFallback,
@@ -311,7 +319,8 @@ test("forwards OpenRouter deltas through the Career chat stream", async () => {
 });
 
 test("enables OpenRouter reasoning for DeepSeek V4 Flash 0731", async () => {
-  const { createChatCompletionWithFallback, openrouterClient } = await loadLlm();
+  const { createChatCompletionWithFallback, openrouterClient } =
+    await loadLlm();
   const completions = openrouterClient.chat.completions as any;
   const originalCreate = completions.create;
   let receivedBody: Record<string, any> | null = null;
@@ -352,7 +361,8 @@ test("enables OpenRouter reasoning for DeepSeek V4 Flash 0731", async () => {
 });
 
 test("aborts an in-flight OpenRouter completion without retrying", async () => {
-  const { createChatCompletionWithFallback, openrouterClient } = await loadLlm();
+  const { createChatCompletionWithFallback, openrouterClient } =
+    await loadLlm();
   const completions = openrouterClient.chat.completions as any;
   const originalCreate = completions.create;
   const controller = new AbortController();
@@ -384,4 +394,156 @@ test("aborts an in-flight OpenRouter completion without retrying", async () => {
     completions.create = originalCreate;
   }
   assert.equal(callCount, 1);
+});
+
+test("uses Anthropic native structured output instead of a JSON-only prompt", async () => {
+  const { createChatCompletionWithFallback } = await loadLlm();
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.ANTHROPIC_API_KEY;
+  let receivedUrl = "";
+  let receivedBody: Record<string, any> | null = null;
+  process.env.ANTHROPIC_API_KEY = "test-anthropic-key";
+  globalThis.fetch = async (input, init) => {
+    receivedUrl = String(input);
+    receivedBody = JSON.parse(String(init?.body ?? "{}"));
+    return new Response(
+      JSON.stringify({
+        content: [
+          {
+            text: '{"subject":"Hello","body":"Body","requestContext":"Question"}',
+            type: "text",
+          },
+        ],
+        id: "msg-structured",
+        model: "claude-sonnet-5",
+        stop_reason: "end_turn",
+        usage: { input_tokens: 12, output_tokens: 8 },
+      }),
+      { status: 200 }
+    );
+  };
+
+  try {
+    const result = await createChatCompletionWithFallback({
+      buildRequest: () => ({
+        max_tokens: 1_800,
+        messages: [
+          { content: "Write candidate copy.", role: "system" },
+          { content: "Current instruction", role: "user" },
+        ],
+      }),
+      model: "claude-sonnet-5",
+      structuredOutput: {
+        name: "candidate_contact_copy",
+        schema: {
+          additionalProperties: false,
+          properties: {
+            body: { type: "string" },
+            requestContext: { type: "string" },
+            subject: { type: "string" },
+          },
+          required: ["subject", "body", "requestContext"],
+          type: "object",
+        },
+      },
+    });
+    assert.equal(result.model, "claude-sonnet-5");
+    assert.match(result.response.choices[0].message.content, /"subject"/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = originalApiKey;
+  }
+
+  assert.equal(receivedUrl, "https://api.anthropic.com/v1/messages");
+  assert.ok(receivedBody);
+  assert.deepEqual((receivedBody as Record<string, any>).output_config.format, {
+    schema: {
+      additionalProperties: false,
+      properties: {
+        body: { type: "string" },
+        requestContext: { type: "string" },
+        subject: { type: "string" },
+      },
+      required: ["subject", "body", "requestContext"],
+      type: "object",
+    },
+    type: "json_schema",
+  });
+});
+
+test("falls back to Luna xhigh when structured-output validation fails", async () => {
+  const { client, createChatCompletionWithFallback, openrouterClient } =
+    await loadLlm();
+  const openrouterCompletions = openrouterClient.chat.completions as any;
+  const originalOpenrouterCreate = openrouterCompletions.create;
+  const responses = client.responses as any;
+  const originalResponsesCreate = responses.create;
+  let fallbackRequest: Record<string, any> | null = null;
+  let primaryCalls = 0;
+
+  openrouterCompletions.create = async () => {
+    primaryCalls += 1;
+    return { choices: [{ message: { content: "not-json" } }] };
+  };
+  responses.create = async (body: Record<string, any>) => {
+    fallbackRequest = body;
+    return {
+      id: "resp-luna-fallback",
+      model: "gpt-5.6-luna",
+      output: [
+        {
+          content: [
+            {
+              text: '{"subject":"Hello","body":"Body","requestContext":"Question"}',
+              type: "output_text",
+            },
+          ],
+          role: "assistant",
+          type: "message",
+        },
+      ],
+      status: "completed",
+      usage: { input_tokens: 10, output_tokens: 8, total_tokens: 18 },
+    };
+  };
+
+  try {
+    const result = await createChatCompletionWithFallback({
+      buildRequest: () => ({
+        messages: [{ content: "Write JSON", role: "user" }],
+      }),
+      fallbackModel: "gpt-5.6-luna",
+      model: "deepseek/deepseek-v4-flash-0731",
+      openAIResponses: { reasoningEffort: "xhigh" },
+      structuredOutput: {
+        name: "candidate_contact_copy",
+        schema: {
+          additionalProperties: false,
+          properties: { subject: { type: "string" } },
+          required: ["subject"],
+          type: "object",
+        },
+      },
+      validateResponse: (response) => {
+        JSON.parse(String(response?.choices?.[0]?.message?.content ?? ""));
+      },
+    });
+
+    assert.equal(result.model, "gpt-5.6-luna");
+    assert.equal(result.fallbackReason, "primary_failed");
+  } finally {
+    openrouterCompletions.create = originalOpenrouterCreate;
+    responses.create = originalResponsesCreate;
+  }
+
+  assert.equal(primaryCalls, 1);
+  assert.ok(fallbackRequest);
+  assert.deepEqual((fallbackRequest as Record<string, any>).reasoning, {
+    effort: "xhigh",
+  });
+  assert.equal(
+    (fallbackRequest as Record<string, any>).text.format.type,
+    "json_schema"
+  );
 });

@@ -47,6 +47,7 @@ export async function buildCareerRealtimeSessionInstructions(args: {
   conversationStarterId?: string | null;
   internalCallRequestId?: string | null;
   preferredLocale?: string | null;
+  timeZone?: string | null;
   toolNames: string[];
   userId: string;
 }) {
@@ -185,10 +186,14 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     buildCareerRealtimeRecentConversationSection(
       visibleMessages.map((message) => ({
         role: message.role,
-        content: formatTalentMessageContentForLlmPrompt(message),
+        content: formatTalentMessageContentForLlmPrompt(message, {
+          preferredLocale: currentPreferences.preferredLocale,
+          timeZone: args.timeZone,
+        }),
         createdAt: message.created_at,
       })),
-      currentPreferences.preferredLocale
+      currentPreferences.preferredLocale,
+      args.timeZone
     );
 
   const promptPlan = buildCareerConversationPromptPlan({
@@ -213,6 +218,7 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     recentConversationSection,
     recentRecommendedOpportunitiesText,
     structuredProfileText,
+    timeZone: args.timeZone,
     toolNames: promptToolNames,
   });
 

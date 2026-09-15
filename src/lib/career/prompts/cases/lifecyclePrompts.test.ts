@@ -131,7 +131,7 @@ test("session re-engagement uses readable Korean-local times and distinguishes a
 
   assert.match(prompt, /currentAccessAt: 8월 25일 18:24/);
   assert.match(prompt, /previousChatAt: 8월 24일 10:25/);
-  assert.match(prompt, /한국 시간 기준 24시간제/);
+  assert.match(prompt, /현재 접속 지역 타임존\(Asia\/Seoul\) 기준 24시간제/);
   assert.doesNotMatch(prompt, /\bKST\b/);
   assert.match(prompt, /이전 대화를 방금 일처럼 표현하지 마라/);
   assert.doesNotMatch(prompt, /2026-08-2[45]T/);
@@ -148,6 +148,21 @@ test("session re-engagement uses readable Korean-local times and distinguishes a
   assert.doesNotMatch(prompt, /one brief/i);
   assert.doesNotMatch(prompt, /primary pending action/);
   assert.doesNotMatch(prompt, /다른 미응답 추천이 있더라도 함께 꺼내지 않는다/);
+});
+
+test("session re-engagement localizes times to the current access timezone and preferred locale", () => {
+  const prompt = buildCareerSessionStartTurnInstruction({
+    currentAccessAt: "2026-09-01T02:57:00.000Z",
+    idleMs: 31 * 60 * 60 * 1000,
+    isOnboardingDone: true,
+    preferredLocale: "en",
+    previousChatAt: "2026-08-31T02:57:00.000Z",
+    timeZone: "America/New_York",
+  });
+
+  assert.match(prompt, /currentAccessAt: Aug 31, 22:57/);
+  assert.match(prompt, /previousChatAt: Aug 30, 22:57/);
+  assert.match(prompt, /현재 접속 지역 타임존\(America\/New_York\)/);
 });
 
 test("session re-engagement describes the update call as a natural invitation", () => {

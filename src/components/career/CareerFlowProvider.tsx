@@ -32,6 +32,7 @@ import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { useCareerChat } from "@/hooks/career/useCareerChat";
 import { useCareerChatAutoScroll } from "@/hooks/career/useCareerChatAutoScroll";
 import { useCareerMessageHistory } from "@/hooks/career/useCareerMessageHistory";
+import { getCareerBrowserTimeZone } from "@/lib/career/requestTimeZone";
 import { useCareerOnboardingProgress } from "@/hooks/career/useCareerOnboardingProgress";
 import { useCareerOnboardingVoice } from "@/hooks/career/useCareerOnboardingVoice";
 import { useCareerOpportunityRunSync } from "@/hooks/career/useCareerOpportunityRunSync";
@@ -1436,6 +1437,7 @@ export const CareerFlowProvider = ({
             method: "POST",
             body: JSON.stringify({
               conversationId,
+              timeZone: getCareerBrowserTimeZone(),
               userInitiated: true,
             }),
           }
@@ -1553,6 +1555,7 @@ export const CareerFlowProvider = ({
               conversationId,
               ...(deleteLatestMessage ? { devDeleteLatestMessage: true } : {}),
               devForce: true,
+              timeZone: getCareerBrowserTimeZone(),
             }),
           }
         );

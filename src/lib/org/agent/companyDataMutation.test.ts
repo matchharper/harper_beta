@@ -282,6 +282,60 @@ test("employment types preserve company-specific labels", () => {
   ]);
 });
 
+test("known employment-type labels are canonicalized without losing custom values", () => {
+  const parsed = parseCompanyDataChanges({
+    changes: [
+      {
+        key: "role_employment_types",
+        kind: "rewrite",
+        roleId: "role-1",
+        value: ["정규직", "full_time", "계약직", "프로젝트 계약"],
+      },
+    ],
+    summary: "고용 형태 수정",
+  });
+  const result = resolveCompanyDataMutation({
+    ...parsed,
+    isComplete: () => true,
+    snapshot: snapshot({ "role_employment_types:role-1": [] }),
+  });
+
+  assert.deepEqual(result.changes[0]?.value, [
+    "full_time",
+    "contract",
+    "프로젝트 계약",
+  ]);
+});
+
+test("user-visible work-mode labels are stored as canonical values", () => {
+  for (const [input, expected] of [
+    ["원격 근무", "remote"],
+    ["하이브리드 근무", "hybrid"],
+    ["오피스 근무", "onsite"],
+  ] as const) {
+    const parsed = parseCompanyDataChanges({
+      changes: [
+        {
+          key: "role_work_mode",
+          kind: "rewrite",
+          roleId: "role-1",
+          value: input,
+        },
+      ],
+      summary: "근무 방식 수정",
+    });
+    const result = resolveCompanyDataMutation({
+      ...parsed,
+      isComplete: () => true,
+      snapshot: snapshot({
+        "role_work_mode:role-1": expected === "remote" ? "onsite" : "remote",
+      }),
+    });
+
+    assert.equal(result.changes[0]?.value, expected);
+  }
+});
+
 test("role salary range is rewritten as role-scoped text", () => {
   const parsed = parseCompanyDataChanges({
     changes: [

@@ -4,10 +4,7 @@ import {
   requireInternalWorkerSecret,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
-import {
-  fetchActiveCompanyTalentRequest,
-  finalizeRequestedResumeUpload,
-} from "@/lib/companyTalentRequests/server";
+import { finalizeEmailedCompanyTalentResumeRelay } from "@/lib/companyTalentRequests/server";
 import {
   TALENT_RESUME_BUCKET,
   getTalentSupabaseAdmin,
@@ -113,10 +110,11 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as Record<string, unknown>;
     const requestId = String(body.requestId ?? "").trim();
     const talentId = String(body.talentId ?? "").trim();
-    const requestedConversationId = String(body.conversationId ?? "").trim();
-    if (!requestId || !talentId) {
+    const relayContent = String(body.relayContent ?? "").trim();
+    const sourceMessageId = Number(body.sourceMessageId);
+    if (!requestId || !talentId || !Number.isSafeInteger(sourceMessageId)) {
       return NextResponse.json(
-        { error: "requestId and talentId are required" },
+        { error: "requestId, talentId, and sourceMessageId are required" },
         { status: 400 }
       );
     }
@@ -136,41 +134,34 @@ export async function POST(req: NextRequest) {
     }
 
     const admin = getTalentSupabaseAdmin();
-    const request = await fetchActiveCompanyTalentRequest({
-      admin: admin as any,
-      awaitingTalentOnly: true,
-      requestId,
-      talentId,
-    });
-    if (!request || !request.expects_document) {
+    const { data: request, error: requestError } = await (
+      admin.from("company_talent_requests" as any) as any
+    )
+      .select(
+        "id,contact_kind,expects_document,deliveries:contact_queue(type,status,sent_at)"
+      )
+      .eq("id", requestId)
+      .eq("talent_id", talentId)
+      .maybeSingle();
+    if (requestError) throw requestError;
+    const candidateContactWasSent = Array.isArray(request?.deliveries)
+      ? request.deliveries.some(
+          (delivery: Record<string, unknown>) =>
+            delivery.type === "company_request_candidate_delivery" &&
+            delivery.status === "sent" &&
+            Boolean(delivery.sent_at)
+        )
+      : false;
+    if (
+      !request ||
+      request.contact_kind !== "resume" ||
+      request.expects_document !== true ||
+      !candidateContactWasSent
+    ) {
       return NextResponse.json(
-        { error: "active_resume_request_not_found" },
+        { error: "relayable_resume_contact_not_found" },
         { status: 409 }
       );
-    }
-
-    let conversationId = requestedConversationId || "";
-    if (!conversationId) {
-      const { data: existing, error: existingError } = await admin
-        .from("talent_conversations")
-        .select("id")
-        .eq("user_id", talentId)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (existingError) throw existingError;
-      conversationId = existing?.id ?? "";
-    }
-    if (!conversationId) {
-      const { data: created, error: createError } = await admin
-        .from("talent_conversations")
-        .insert({ user_id: talentId, stage: "chat" })
-        .select("id")
-        .single();
-      if (createError || !created?.id) {
-        throw createError ?? new Error("Failed to create conversation");
-      }
-      conversationId = created.id;
     }
 
     const attachment = attachments[0];
@@ -204,10 +195,9 @@ export async function POST(req: NextRequest) {
     if (uploadError) throw uploadError;
 
     try {
-      const result = await finalizeRequestedResumeUpload({
+      const result = await finalizeEmailedCompanyTalentResumeRelay({
         admin: admin as any,
         contentType: upload.contentType,
-        conversationId,
         extractedText: await extractResumeTextContentBestEffort({
           bytes: buffer,
           fileName: attachment.fileName,
@@ -223,8 +213,10 @@ export async function POST(req: NextRequest) {
           },
         }),
         fileName: attachment.fileName,
+        relayContent,
         requestId,
         sizeBytes: buffer.byteLength,
+        sourceMessageId,
         storagePath,
         talentId,
       });

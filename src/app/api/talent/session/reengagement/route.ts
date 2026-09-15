@@ -20,6 +20,7 @@ import { resolveCareerReengagementActionKeys } from "@/lib/career/reengagementAc
 import { createCareerPendingActionRef } from "@/lib/career/pendingActionRef.server";
 import { GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
+import { resolveCareerRequestTimeZone } from "@/lib/career/requestTimeZone";
 
 const REENGAGEMENT_IDLE_MS = 12 * 60 * 60 * 1000; // 12시간
 const REENGAGEMENT_TEMPERATURE = 0.8;
@@ -48,6 +49,7 @@ type ReengagementBody = {
   conversationId?: string | null;
   devDeleteLatestMessage?: boolean;
   devForce?: boolean;
+  timeZone?: string | null;
   userInitiated?: boolean;
 };
 
@@ -155,6 +157,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json().catch(() => ({}))) as ReengagementBody;
+    const promptTimeZone = resolveCareerRequestTimeZone(req, body.timeZone);
     const conversationId = String(body?.conversationId ?? "").trim();
     const devDeleteLatestMessage = body?.devDeleteLatestMessage === true;
     const devForce = body?.devForce === true;
@@ -395,6 +398,7 @@ export async function POST(req: NextRequest) {
       pendingActions: pendingActionsForTurn,
       preferredLocale: talentSetting?.preferred_locale ?? null,
       previousChatAt: latestChatMessage?.created_at ?? null,
+      timeZone: promptTimeZone,
     });
 
     if (wantsSseStream(req)) {
@@ -423,6 +427,7 @@ export async function POST(req: NextRequest) {
               proactiveContext,
               shouldInsertAssistantMessage: isReengagementAnchorCurrent,
               transformAssistantTextBeforeInsert,
+              timeZone: promptTimeZone,
               usageLabel: "career/chat:session_reengagement",
               userId: user.id,
             });
@@ -466,6 +471,7 @@ export async function POST(req: NextRequest) {
       proactiveContext,
       shouldInsertAssistantMessage: isReengagementAnchorCurrent,
       transformAssistantTextBeforeInsert,
+      timeZone: promptTimeZone,
       usageLabel: "career/chat:session_reengagement",
       userId: user.id,
     });

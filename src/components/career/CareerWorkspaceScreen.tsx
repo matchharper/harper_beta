@@ -226,6 +226,7 @@ const CareerCanvas = ({
 const CareerWorkspaceContent = ({
   activeTab,
   onChangeTab,
+  onOpenRightPanelDetail,
   onRequestChatFocus,
 }: {
   activeTab: CareerWorkspaceTab;
@@ -233,6 +234,7 @@ const CareerWorkspaceContent = ({
     tab: CareerWorkspaceTab,
     options?: CareerWorkspaceNavigationOptions
   ) => void;
+  onOpenRightPanelDetail: () => void;
   onRequestChatFocus: () => void;
 }) => {
   if (activeTab === "home") {
@@ -266,7 +268,7 @@ const CareerWorkspaceContent = ({
 
   return (
     <CareerCanvas>
-      <CareerProfileWorkspace />
+      <CareerProfileWorkspace onDetailOpen={onOpenRightPanelDetail} />
     </CareerCanvas>
   );
 };
@@ -401,6 +403,10 @@ const CareerWorkspaceRoot = ({
     });
     composer?.focus();
   }, []);
+  const rightPanelScrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollRightPanelToTop = useCallback(() => {
+    rightPanelScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
+  }, []);
   const pendingInternalRoleFeedbackCount = historyOpportunityCounts.newInternal;
   const navItems = useMemo(() => getWorkspaceTabOptions(t), [t]);
   const isCallInProgress = inputMode === "call";
@@ -513,14 +519,19 @@ const CareerWorkspaceRoot = ({
               forceDesktopLayout && "min-h-0"
             )}
           >
-            <DocumentEditorPanelProvider>
+            <DocumentEditorPanelProvider
+              onOpenDocument={scrollRightPanelToTop}
+            >
               <div
                 className={cn(
                   "flex h-full min-h-[45svh] flex-col md:min-h-0",
                   forceDesktopLayout && "min-h-0"
                 )}
               >
-                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-8">
+                <div
+                  ref={rightPanelScrollRef}
+                  className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-8"
+                >
                   <nav className="flex shrink-0 flex-wrap items-center justify-center gap-2 border-b border-neutral-1000-a05 px-3 py-3.5">
                     {navItems.map((item) => {
                       const Icon = item.icon;
@@ -550,6 +561,7 @@ const CareerWorkspaceRoot = ({
                     <CareerWorkspaceContent
                       activeTab={activeTab}
                       onChangeTab={handleChangeTab}
+                      onOpenRightPanelDetail={scrollRightPanelToTop}
                       onRequestChatFocus={handleRequestChatFocus}
                     />
                   </div>

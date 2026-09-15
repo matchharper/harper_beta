@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "task": "company-side-conversational-qa",
+  "datasetVersion": "company-side-conversational-qa-v4",
+  "goldVersion": "company-side-conversational-qa-gold-v4",
+  "runId": "20260915_slack_v4_live",
+  "createdAt": "2026-09-15T03:58:47Z",
+  "completedAt": "2026-09-15T04:33:07Z",
+  "resultArtifact": "RESULTS-2026-09-15-V4.md",
+  "sourceRevision": {
+    "repositoryHead": "5f39e97fb4b87a3c88e8f137fe8fb5d29f6c20ff",
+    "workingTreeDirty": true,
+    "workingTreeFingerprintAtCompletionSha256": "7fba90564b968551f4b11ade1ccf91f762c4a7b060f2e1b4c50d75cd09ac1b3e",
+    "stableForWholeRun": false,
+    "driftEvidence": "Relevant contact server, contact read, and migration files changed while the local Next dev server was serving this run."
+  },
+  "promptFingerprintAtCompletion": "1802c4318c8801a5b014057b538946c113f7428ac2a950bc203bd85d50cba99b",
+  "assets": {
+    "casesV4Sha256": "6b6f427e042f2c1bb83a46da8d73fdd89cec6ae84618e39044d9f7e4db29fc9c",
+    "goldV4Sha256": "ee4e2eb061ff198f7aada3ced69a3e6c8c13193d0d56abf47946ae0e6dffaa7d",
+    "resultSha256": "b5c7d672d33108b1c75ab1b342416b1378bd792002c65d2418d97ad04e3542b1"
+  },
+  "input": {
+    "scenarioCount": 5,
+    "minimumCompanyTurnsPerScenario": 6,
+    "companyMessageCount": 31,
+    "challengeSet": true,
+    "representativeSample": false,
+    "adaptiveContinuation": true,
+    "actualIdentityMapping": "runs/2026-09-15-v4-live/"
+  },
+  "runner": {
+    "type": "manual_stateful_e2e",
+    "slackSurface": "z-test-harper Slack plugin",
+    "slackIngress": "production events and queue",
+    "localWorkerTarget": "local-gimhojin-z-test-harper",
+    "localAppOrigin": "http://127.0.0.1:3100",
+    "rawArtifactPath": "runs/2026-09-15-v4-live/"
+  },
+  "modelConfiguration": {
+    "model": "gpt-5.6-terra",
+    "routingModel": "gpt-5.6-luna",
+    "provider": "production runtime configuration",
+    "reasoning": "runtime configuration; no override",
+    "temperature": "runtime configuration; no override"
+  },
+  "observedExecution": {
+    "companyMessageCount": 31,
+    "scenarioCount": 5,
+    "completedJobCount": 31,
+    "toolExecutionFailureCount": 9,
+    "authorizedOutboundActionCount": 3,
+    "strictScenarioEndToEndPasses": 0,
+    "criticalFailureCount": 4,
+    "cleanupResidualFixtureCount": 0,
+    "testOnlyFitCount": 0,
+    "testOnlyContextRunCount": 0,
+    "channelRouteAfterCleanup": "vercel_queue"
+  },
+  "privacy": {
+    "trackedAssetsDeidentified": true,
+    "authorizedTalentCount": 2,
+    "rawArtifactsGitignored": true,
+    "fileMode": "0600",
+    "directoryMode": "0700",
+    "providers": ["Slack", "production LLM provider", "Resend/email"]
+  },
+  "metricGate": {
+    "criticalFailures": 0,
+    "stateIntegrityPassRate": 1,
+    "intentApplicationPassRateAtLeast": 0.94,
+    "continuityPassRateAtLeast": 0.9,
+    "effortPassRateAtLeast": 0.9,
+    "truthfulnessPassRateAtLeast": 0.9,
+    "scenarioEndToEnd": "5/5"
+  },
+  "knownLimitations": [
+    "The dirty working tree changed during execution, so this run is not a valid single-revision release qualification.",
+    "Gmail plugin required OAuth reauthentication, so candidate replies and public scheduling selection were not fabricated.",
+    "One internal workspace and two authorized talent accounts do not estimate production frequency."
+  ]
+}

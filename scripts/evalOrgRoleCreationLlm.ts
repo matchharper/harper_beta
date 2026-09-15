@@ -313,7 +313,8 @@ async function main() {
     const turnCalls: string[] = [];
     for (let loop = 0; loop < 5; loop += 1) {
       const completion = await llm.createChatCompletionWithFallback({
-        anthropicOverloadFallbackModel: modelConfig.ORG_AGENT_GROK_MODEL,
+        anthropicOverloadFallbackModel:
+          modelConfig.getOrgAgentFallbackModel(selectedModel),
         buildRequest: (model) => ({
           ...(llm.usesMaxCompletionTokensForModel(model)
             ? { max_completion_tokens: 4_800 }
@@ -368,7 +369,9 @@ async function main() {
     }
     assert(finalReply, `turn ${turnIndex + 1} returned no final reply`);
     console.log(`\nTURN ${turnIndex + 1} USER\n${userMessage}`);
-    console.log(`\nTURN ${turnIndex + 1} TOOLS\n${turnCalls.join(", ") || "-"}`);
+    console.log(
+      `\nTURN ${turnIndex + 1} TOOLS\n${turnCalls.join(", ") || "-"}`
+    );
     console.log(`\nTURN ${turnIndex + 1} HARPER\n${finalReply}`);
     history.push({ content: userMessage, role: "user" });
     history.push({ content: finalReply, role: "assistant" });
@@ -385,8 +388,14 @@ async function main() {
   );
   assert(state.role.locationText === "서울 강남", "location mismatch");
   assert(state.role.workMode === "hybrid", "work mode mismatch");
-  assert(state.role.employmentTypes.includes("full_time"), "employment type missing");
-  assert(missingFields.length === 0, `remaining fields: ${missingFields.join(",")}`);
+  assert(
+    state.role.employmentTypes.includes("full_time"),
+    "employment type missing"
+  );
+  assert(
+    missingFields.length === 0,
+    `remaining fields: ${missingFields.join(",")}`
+  );
   assert(confirmationRequested, "confirmation tool was not requested");
   assert(
     allToolCalls.some((call) => call.name === "update_role_draft"),

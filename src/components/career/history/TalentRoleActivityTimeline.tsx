@@ -164,12 +164,7 @@ export default function TalentRoleActivityTimeline({
             )}
           </div>
         ) : timelineEntries.length === 0 ? (
-          <div className="text-[13px] leading-5 text-neutral-soft">
-            {t(
-              "career.history.talent_role_activity_timeline.empty",
-              "아직 기록된 활동이 없습니다."
-            )}
-          </div>
+          <div></div>
         ) : (
           <ol className="">
             {timelineEntries.map((entry) => {

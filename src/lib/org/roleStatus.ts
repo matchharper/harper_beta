@@ -47,6 +47,19 @@ const ORG_ROLE_STATUS_ALIASES: Partial<Record<string, OrgRoleStatus>> = {
   stopped: "ended",
 };
 
+const ORG_ROLE_MUTATION_STATUS_ALIASES: Partial<
+  Record<string, OrgRoleMutationStatus>
+> = {
+  진행: "active",
+  "진행 중": "active",
+  중단: "paused",
+  "일시 중단": "paused",
+  종료: "ended",
+  "채용 종료": "ended",
+  삭제: "deleted",
+  삭제됨: "deleted",
+};
+
 const ORG_ROLE_STATUS_FILTER_ORDER = [
   "draft",
   "active",
@@ -75,12 +88,13 @@ export function parseOrgRoleMutationStatus(
   value: unknown
 ): OrgRoleMutationStatus | null {
   if (typeof value !== "string") return null;
-  const normalized = value.trim();
+  const normalized = value.replace(/\s+/g, " ").trim();
+  const aliased = ORG_ROLE_MUTATION_STATUS_ALIASES[normalized] ?? normalized;
 
   return ORG_ROLE_MUTATION_STATUS_VALUES.includes(
-    normalized as OrgRoleMutationStatus
+    aliased as OrgRoleMutationStatus
   )
-    ? (normalized as OrgRoleMutationStatus)
+    ? (aliased as OrgRoleMutationStatus)
     : null;
 }
 

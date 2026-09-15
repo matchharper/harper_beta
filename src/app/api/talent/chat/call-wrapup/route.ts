@@ -47,6 +47,7 @@ import {
   updateTalentCallNoteForWrapup,
 } from "@/lib/talentOnboarding/callNoteGeneration";
 import { completeOpenCareerCheckInCalls } from "@/lib/talentOnboarding/careerCheckInCall";
+import { resolveCareerRequestTimeZone } from "@/lib/career/requestTimeZone";
 
 type TranscriptEntry = {
   role: "user" | "assistant";
@@ -68,6 +69,7 @@ type Body = {
   startedAt?: string | null;
   transcript: TranscriptEntry[];
   durationSeconds: number;
+  timeZone?: string | null;
 };
 
 type TranscriptStats = {
@@ -382,6 +384,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as Body;
+    const promptTimeZone = resolveCareerRequestTimeZone(request, body.timeZone);
     const isMobile = isMobileRequest(request);
     const {
       callSessionId: rawCallSessionId,
@@ -822,6 +825,7 @@ export async function POST(request: NextRequest) {
             }),
         skipConversationWrites,
         suppressOnboarding: Boolean(internalCallRequest),
+        timeZone: promptTimeZone,
         transformAssistantTextBeforeInsert:
           internalCompletionDisposition === "partial_answered" ||
           callNoteDocument

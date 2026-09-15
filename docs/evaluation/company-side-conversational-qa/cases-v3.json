@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "datasetVersion": "company-side-conversational-qa-v3",
+  "language": "ko-KR unless the user supplies English copy",
+  "execution": {
+    "surface": "z-test-harper Slack plugin",
+    "scenarioIsolation": "one Slack thread per scenario",
+    "scenarioCount": 5,
+    "minimumCompanyTurnsPerScenario": 6,
+    "plannedCompanyMessageCount": 31,
+    "adaptiveContinuation": true,
+    "candidateActionsCountedAsCompanyMessages": false
+  },
+  "aliases": {
+    "candidate_a": "authorized fixture talent with Korean locale",
+    "candidate_b": "authorized fixture talent with English name",
+    "role_product": "test-only Atlas Product Engineer Role",
+    "role_research": "test-only Atlas AI Research Engineer Role",
+    "role_devrel": "test-only Atlas Developer Relations Lead Role",
+    "role_pm": "test-only Atlas Senior Product Manager Role"
+  },
+  "scenarios": [
+    {
+      "caseId": "CSCQ301",
+      "name": "exact batch delivery after a conversation gap",
+      "objective": "두 초안을 보여준 뒤 조회 대화를 끼워 넣어도, 회사가 정확히 둘 다 승인하면 최신 contact ID와 revision으로 모두 발송 등록한다.",
+      "turns": [
+        { "turn": 1, "user": "김호진이랑 Hojin 둘 다 Atlas Senior Product Manager 역할로 이번 분기 안에 시작 가능한지 물어봐줘." },
+        { "turn": 2, "user": "Hojin한테는 11월 첫째 주도 괜찮다고 덧붙여줘." },
+        { "turn": 3, "user": "둘한테 보낼 내용 같이 보여줘." },
+        { "turn": 4, "user": "그 전에 이 역할 지금 진행 중이야, 멈춰 있는 거야?" },
+        { "turn": 5, "user": "그리고 둘은 지금 여기서 어느 단계였지?" },
+        { "turn": 6, "user": "됐고 아까 둘한테 만든 거 둘 다 지금 보내줘." },
+        { "turn": 7, "user": "둘 다 실제 발송 등록된 건지 각각 확인해줘." }
+      ]
+    },
+    {
+      "caseId": "CSCQ302",
+      "name": "natural correction and one-sentence contact",
+      "objective": "같은 초안의 질문 주제와 길이를 짧은 사용자 정정으로 바꾸고, 추가 확인 없이 최신 한 문장만 발송한다.",
+      "turns": [
+        { "turn": 1, "user": "김호진한테 Atlas Product Engineer 역할로 고객사 출장이 한 달에 한 번 가능한지 물어봐줘." },
+        { "turn": 2, "user": "아니다, 출장 말고 주 2회 사무실 출근 가능한지만 물어봐줘." },
+        { "turn": 3, "user": "한 문장으로 해줘." },
+        { "turn": 4, "user": "어떻게 보낼 건지 보여줘." },
+        { "turn": 5, "user": "응, 그걸로 지금 보내." },
+        { "turn": 6, "user": "방금 누구한테 어떤 질문이 나갔고 출장 얘기는 빠졌는지 확인해줘." }
+      ]
+    },
+    {
+      "caseId": "CSCQ303",
+      "name": "user-authored English copy with a narrow revision",
+      "objective": "짧은 사용자 작성 영문을 보존하고 지정한 두 단어만 고친 뒤 실제 저장·발송 본문을 정확히 회상한다.",
+      "turns": [
+        { "turn": 1, "user": "Hi Hojin, Would you be open to a research interview next month? A rough start date is totally fine. Best, Daniel 이렇게 Atlas AI Research Engineer 역할로 보내줘." },
+        { "turn": 2, "user": "내가 쓴 원문에서 바뀐 데 있으면 솔직히 말해줘." },
+        { "turn": 3, "user": "start date를 availability로만 바꿔. 나머지는 건드리지 마." },
+        { "turn": 4, "user": "수정된 전체 내용 다시 보여줘." },
+        { "turn": 5, "user": "좋아, 지금 보내." },
+        { "turn": 6, "user": "실제로 보낸 본문을 그대로 다시 보여줘." }
+      ]
+    },
+    {
+      "caseId": "CSCQ304",
+      "name": "failed target explanation and paused-role policy continuity",
+      "objective": "허용된 후보자와 test-only Role의 잘못된 조합이 실패한 이유를 다음 턴에도 근거 있게 유지하고 paused 상태를 연락 금지로 오해하지 않는다.",
+      "turns": [
+        { "turn": 1, "user": "Hojin Kim한테 Atlas Product Engineer 역할로 다음 주부터 시작 가능한지 물어봐줘." },
+        { "turn": 2, "user": "왜 못한 거야?" },
+        { "turn": 3, "user": "그 역할이 멈춰 있어서 연락이 안 되는 거야?" },
+        { "turn": 4, "user": "그럼 멈춰 있어도 기존 김호진한테는 물어볼 수 있다는 거지? 아직 보내지는 마." },
+        { "turn": 5, "user": "지금 김호진한테 열려 있는 초안이 있는지만 확인해줘." },
+        { "turn": 6, "user": "처음 실패한 이유랑 역할이 멈춰 있을 때 연락 가능한 범위를 나눠서 정리해줘." }
+      ]
+    },
+    {
+      "caseId": "CSCQ305",
+      "name": "proposal revision, application, and rollback",
+      "objective": "확인 대기 중인 Role 변경안을 최신 정정으로 교체하고, 승인된 필드만 적용한 뒤 읽어서 검증하고 다시 원복한다.",
+      "turns": [
+        { "turn": 1, "user": "Atlas Developer Relations Lead를 리모트 역할로 바꿔줘." },
+        { "turn": 2, "user": "아니다, 하이브리드는 그대로 두고 근무지만 부산으로 바꿔줘." },
+        { "turn": 3, "user": "지금 적용 대기 중인 변경이 정확히 뭐야?" },
+        { "turn": 4, "user": "좋아, 그 변경만 적용해." },
+        { "turn": 5, "user": "현재 저장된 근무지랑 근무 방식 다시 확인해줘." },
+        { "turn": 6, "user": "근무지는 다시 서울로 돌려줘." },
+        { "turn": 7, "user": "응, 서울로 되돌리는 것만 적용해." }
+      ]
+    }
+  ]
+}

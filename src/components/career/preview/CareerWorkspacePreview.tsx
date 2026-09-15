@@ -581,6 +581,7 @@ const getPreviewPendingActions = (): CareerPendingAction[] => [
     kind: "internal_opportunity_call",
   },
   {
+    companyLogoUrl: "/images/logos/wonderful.jpg",
     companyName: "Nexus AI",
     expiresAt: previewDate(7 * 24 * 60 * 60 * 1000),
     id: "preview-company-question",
@@ -593,6 +594,7 @@ const getPreviewPendingActions = (): CareerPendingAction[] => [
     roleTitle: "Applied AI Engineer",
   },
   {
+    companyLogoUrl: null,
     companyName: "Orbit Labs",
     expiresAt: previewDate(7 * 24 * 60 * 60 * 1000),
     id: "preview-company-resume",

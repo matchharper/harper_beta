@@ -221,6 +221,220 @@ test("contact detail includes stored copy and actual company initiator", () => {
   assert.doesNotMatch(compact, /contact:11111111-1111-4111-8111-111111111111/);
 });
 
+test("interview contact detail exposes the safe link marker without a selection URL", () => {
+  const compact = serializeOrgAgentToolResult("read_contact", {
+    items: [
+      {
+        candidate: { email: null, name: "민수", type: "candidate" },
+        kind: "interview_request",
+        message: {
+          body: "가능한 시간을 선택해 주세요.\n\n[일정 선택 링크]",
+          selectionLinkIncluded: true,
+          subject: "인터뷰 일정 선택",
+        },
+        role: { name: "Backend Engineer", roleId: "role-1" },
+        state: "인터뷰 시간 선택 요청 발송됨",
+        talentId: "talent-1",
+      },
+    ],
+    notFound: [],
+    requestedCount: 1,
+  });
+
+  assert.match(compact, /selection_link_included=true/);
+  assert.match(compact, /\[일정 선택 링크\]/);
+  assert.doesNotMatch(compact, /\/meeting\//);
+});
+
+test("contact detail renders the sent-only ongoing Role conversation timeline", () => {
+  const compact = serializeOrgAgentToolResult("read_contact", {
+    items: [
+      {
+        candidate: { email: null, name: "민수", type: "candidate" },
+        contactRef: "contact:11111111-1111-4111-8111-111111111111",
+        conversationTimeline: [
+          {
+            body: "회사에서 팀 소개 자료를 전달했어요.",
+            contactKind: "contact",
+            contactRef: "contact:11111111-1111-4111-8111-111111111111",
+            direction: "company_to_candidate",
+            occurredAt: "2026-09-08T01:30:00.000Z",
+          },
+          {
+            body: "민수님이 다음 주부터 가능하다고 전해 주셨어요.",
+            contactRef: "contact:11111111-1111-4111-8111-111111111111",
+            direction: "candidate_to_company",
+            occurredAt: "2026-09-08T02:00:00.000Z",
+            relayId: "22222222-2222-4222-8222-222222222222",
+          },
+        ],
+        kind: "contact",
+        message: {},
+        role: { name: "Backend Engineer", roleId: "role-1" },
+        state: "후보자에게 연락을 보냄",
+        talentId: "talent-1",
+      },
+    ],
+    notFound: [],
+    requestedCount: 1,
+  });
+
+  assert.match(compact, /same_role_candidate_contact_timeline/);
+  assert.match(compact, /company_to_candidate/);
+  assert.match(compact, /candidate_to_company/);
+  assert.match(compact, /다음 주부터 가능/);
+  assert.match(compact, /sent-only timeline/);
+});
+
+test("batched contact timelines stay below the shared tool-result budget", () => {
+  const compact = serializeOrgAgentToolResult("read_contact", {
+    items: Array.from({ length: 10 }, (_, itemIndex) => ({
+      candidate: {
+        email: null,
+        name: `후보자 ${itemIndex}`,
+        type: "candidate",
+      },
+      conversationTimeline: Array.from({ length: 40 }, (_, eventIndex) => ({
+        body: `${itemIndex}-${eventIndex}-` + "상세 전달 내용 ".repeat(500),
+        contactKind: "contact",
+        direction:
+          eventIndex % 2 === 0
+            ? "company_to_candidate"
+            : "candidate_to_company",
+        occurredAt: "2026-09-08T02:00:00.000Z",
+      })),
+      kind: "contact",
+      message: {
+        body: "원래 회사 연락 ".repeat(1_000),
+        deliveryState: "발송됨",
+      },
+      role: { name: "Backend Engineer", roleId: `role-${itemIndex}` },
+      state: "후보자에게 연락을 보냄",
+      talentId: `talent-${itemIndex}`,
+    })),
+    notFound: [],
+    requestedCount: 10,
+  });
+
+  assert.ok(compact.length < 80_000);
+  assert.match(compact, /detail_complete="false"/);
+  assert.match(compact, /Re-read only this contact/);
+  assert.match(compact, /9-39-/);
+});
+
+test("active contact draft detail includes the exact action target without exposing its list reference", () => {
+  const compact = serializeOrgAgentToolResult("read_contact", {
+    items: [
+      {
+        candidate: { email: null, name: "민수", type: "candidate" },
+        contactRef: "contact:11111111-1111-4111-8111-111111111111",
+        draftAction: {
+          contactId: "11111111-1111-4111-8111-111111111111",
+          expectedRevision: 3,
+        },
+        kind: "contact",
+        message: {
+          body: "가능한 시작일을 알려주세요.",
+          deliveryState: "아직 발송하지 않음",
+          recipient: { email: null, name: "민수", type: "candidate" },
+          scheduledAt: null,
+          sender: { email: null, name: "민지", type: "company_user" },
+          sentAt: null,
+          subject: "시작일 확인",
+        },
+        role: { name: "Backend Engineer", roleId: "role-1" },
+        state: "후보자 연락 초안",
+        talentId: "talent-1",
+      },
+    ],
+    notFound: [],
+    requestedCount: 1,
+  });
+
+  assert.match(
+    compact,
+    /draft_contact_id=11111111-1111-4111-8111-111111111111/
+  );
+  assert.match(compact, /draft_expected_revision=3/);
+  assert.match(compact, /Use these exact values with contact_talent/);
+  assert.doesNotMatch(compact, /contact:11111111-1111-4111-8111-111111111111/);
+});
+
+test("changeable queued contact detail includes exact delivery actions", () => {
+  const compact = serializeOrgAgentToolResult("read_contact", {
+    items: [
+      {
+        candidate: { email: null, name: "민수", type: "candidate" },
+        contactRef: "contact:22222222-2222-4222-8222-222222222222",
+        deliveryAction: {
+          availableActions: ["immediate", "cancel"],
+          contactId: "22222222-2222-4222-8222-222222222222",
+        },
+        kind: "contact",
+        message: {
+          body: "가능한 시작일을 알려주세요.",
+          deliveryState: "발송 예정",
+          recipient: { email: null, name: "민수", type: "candidate" },
+          scheduledAt: "2026-09-15T03:00:00.000Z",
+          sender: { email: null, name: "민지", type: "company_user" },
+          sentAt: null,
+          subject: "시작일 확인",
+        },
+        role: { name: "Backend Engineer", roleId: "role-1" },
+        state: "후보자 연락 발송 예정",
+        talentId: "talent-1",
+      },
+    ],
+    notFound: [],
+    requestedCount: 1,
+  });
+
+  assert.match(
+    compact,
+    /delivery_contact_id=22222222-2222-4222-8222-222222222222/
+  );
+  assert.match(compact, /delivery_available_actions=immediate,cancel/);
+  assert.doesNotMatch(compact, /draft_expected_revision/);
+  assert.doesNotMatch(compact, /contact:22222222-2222-4222-8222-222222222222/);
+});
+
+test("contact detail gives the final writer the candidate reply and received time", () => {
+  const compact = serializeOrgAgentToolResult("read_contact", {
+    items: [
+      {
+        candidate: {
+          email: "candidate@example.com",
+          name: "후보자",
+          type: "candidate",
+        },
+        candidateResponse: {
+          body: "주 2회 서울 오피스 출근 가능합니다.",
+          receivedAt: "2026-09-14T08:00:00.000Z",
+          recipient: { email: null, name: "Harper", type: "harper" },
+          sender: {
+            email: "candidate@example.com",
+            name: "후보자",
+            type: "candidate",
+          },
+        },
+        contactRef: "contact:11111111-1111-4111-8111-111111111111",
+        kind: "contact",
+        message: {},
+        role: { name: "Product Engineer", roleId: "role-1" },
+        state: "후보자 메일 발송됨 · 후보자 답변 수신됨 · 회사 전달됨",
+        talentId: "talent-1",
+      },
+    ],
+    notFound: [],
+    requestedCount: 1,
+  });
+
+  assert.match(compact, /<candidate_response>/);
+  assert.match(compact, /received_at=2026년 9월 14일 17:00 KST/);
+  assert.match(compact, /주 2회 서울 오피스 출근 가능합니다\./);
+  assert.match(compact, /role=Product Engineer/);
+});
+
 test("contact detail identifies every stored introduction reply recipient", () => {
   const compact = serializeOrgAgentToolResult("read_contact", {
     items: [
@@ -568,6 +782,28 @@ test("organization-agent update results contain only acknowledgement fields", ()
   assert.doesNotMatch(compact, new RegExp("x".repeat(100)));
 });
 
+test("member reads expose exact IDs required by member-targeted tools", () => {
+  const compact = serializeOrgAgentMoreData({
+    members: {
+      complete: true,
+      items: [
+        {
+          email: "minji@example.com",
+          name: "민지",
+          role: "관리자",
+          userId: "user-1",
+        },
+      ],
+      returnedCount: 1,
+      totalCount: 1,
+    },
+    requestedKinds: ["members"],
+  });
+
+  assert.match(compact, /user_id\tname\temail\tworkspace_role/);
+  assert.match(compact, /user-1\t민지\tminji@example\.com\t관리자/);
+});
+
 test("proposal results leave the exact preview and confirmation to server presentation", () => {
   const compact = serializeOrgAgentToolResult("update_data", {
     preview: "[추가] 역할 메모\n+ enterprise integration 경험 우선 확인",
@@ -576,8 +812,9 @@ test("proposal results leave the exact preview and confirmation to server presen
   });
 
   assert.match(compact, /exact_change_preview/);
-  assert.match(compact, /server appends the exact change presentation/);
-  assert.match(compact, /do not ask a second confirmation question/);
+  assert.match(compact, /server_appends_exact_change_block=true/);
+  assert.match(compact, /server_appends_confirmation_question=true/);
+  assert.match(compact, /model_must_not_repeat_appended_content=true/);
 });
 
 test("Role status changes explain the candidate-facing lifecycle effect", () => {
@@ -595,10 +832,43 @@ test("Role status changes explain the candidate-facing lifecycle effect", () => 
   assert.match(compact, /status=updated/);
   assert.match(compact, /role=Backend Engineer/);
   assert.match(compact, /lifecycle=종료/);
-  assert.match(compact, /종료 안내는 상태 변경과 동시에 발송되지는 않습니다/);
-  assert.match(compact, /expectation=.*최종 오퍼를 제외한/);
-  assert.match(compact, /next_process=재개하려면 역할을 먼저 진행/);
+  assert.match(compact, /closure_notice_sent_by_status_change=false/);
+  assert.match(
+    compact,
+    /candidate_closure_notice=after_grace_period_except_final_offer/
+  );
+  assert.match(compact, /new_candidate_recommendations=stopped/);
   assert.doesNotMatch(compact, /lifecycle=ended/);
+});
+
+test("incomplete draft activation returns only missing information and exact choices", () => {
+  const compact = serializeOrgAgentToolResult("change_role_status", {
+    availableAssignees: [{ current: true, name: "민지", userId: "user-1" }],
+    availableChannels: [
+      {
+        channelId: "C123",
+        current: true,
+        name: "hiring-backend",
+        selected: false,
+      },
+    ],
+    missingFields: ["알림을 받을 Slack 채널", "담당자"],
+    notificationSelectionSaved: false,
+    responseGuidance: "Ask only for the missing information.",
+    roleName: "Backend Engineer",
+    roleStatus: "draft",
+    status: "role_creation_incomplete",
+  });
+
+  assert.match(compact, /status=role_creation_incomplete/);
+  assert.match(compact, /lifecycle=작성 중/);
+  assert.match(compact, /알림을 받을 Slack 채널, 담당자/);
+  assert.match(compact, /available_notification_channels/);
+  assert.match(compact, /C123\thiring-backend\ttrue\tfalse/);
+  assert.match(compact, /available_assignees/);
+  assert.match(compact, /user-1\t민지\ttrue/);
+  assert.match(compact, /Ask only for the missing information/);
+  assert.doesNotMatch(compact, /matching_state=active/);
 });
 
 test("stored Slack history lists thread previews with precise dates and first messages", () => {
@@ -701,13 +971,19 @@ test("candidate connection decisions return a compact outcome", () => {
     warmClosing: "서로에게 좋은 기회가 되길 바랄게요 :)",
   });
 
-  assert.match(compact, /김후보.*Backend Engineer hiring process/);
-  assert.match(compact, /소개 메일을 보내 연결을 시작했습니다/);
-  assert.match(compact, /previously been closed/);
-  assert.match(compact, /같은 이메일에서 다음 일정을 조율합니다/);
+  assert.match(compact, /candidate=김후보/);
+  assert.match(compact, /role=Backend Engineer/);
+  assert.match(compact, /outcome=completed/);
+  assert.match(compact, /introduction_email_sent=true/);
+  assert.match(compact, /reactivated=true/);
+  assert.match(compact, /closure_notice_already_delivered=true/);
+  assert.match(
+    compact,
+    /response_guidance=다음 과정을 설명하고 따뜻하게 축하하세요/
+  );
   assert.doesNotMatch(
     compact,
-    /role-1|talent-1|decision=|connection_method=|reactivation=|closure_notice/
+    /role-1|talent-1|changeSummary|warmClosing|같은 이메일에서 다음 일정을/
   );
 });
 
@@ -740,9 +1016,11 @@ test("pipeline mutation results state exact effects and no candidate contact", (
   assert.match(structure, /기술 인터뷰\t45/);
   assert.match(structure, /기술 경험을 중심으로 이야기합니다/);
   assert.match(structure, /candidate_moved=false candidate_contacted=false/);
-  assert.match(move, /stage changed from 1차 인터뷰 to 2차 인터뷰/);
-  assert.match(move, /No candidate message or meeting request was created/);
-  assert.doesNotMatch(move, /candidate_contacted|email_sent|status=updated/);
+  assert.match(move, /previous_stage=1차 인터뷰/);
+  assert.match(move, /current_stage=2차 인터뷰/);
+  assert.match(move, /stage_changed=true/);
+  assert.match(move, /meeting_request_created=false/);
+  assert.match(move, /candidate_contacted=false/);
 });
 
 test("cross-Role move serialization omits candidate delivery state", () => {
@@ -780,13 +1058,16 @@ test("availability mutation result cannot imply a candidate or meeting action", 
     timezone: "Asia/Seoul",
   });
 
-  assert.match(compact, /working meeting availability is now 매일 07:00-20:00/);
-  assert.match(compact, /in Asia\/Seoul/);
+  assert.match(compact, /organizer_availability=매일 07:00-20:00/);
+  assert.match(compact, /organizer_timezone=Asia\/Seoul/);
   assert.match(compact, /Retry the candidate-specific scheduling request/);
-  assert.match(compact, /does not move or contact a candidate/);
+  assert.match(compact, /candidate_moved=false/);
+  assert.match(compact, /candidate_contacted=false/);
+  assert.match(compact, /meeting_created=false/);
+  assert.match(compact, /response_guidance=Ask whether to prepare/);
   assert.doesNotMatch(
     compact,
-    /status=updated|availability_version|organizer_hours|response_mode/
+    /availability_version|organizer_hours|response_mode/
   );
   assert.doesNotMatch(compact, /meeting_draft_created|calendar_event_created/);
 });
@@ -820,12 +1101,12 @@ test("scheduled stage movement gives the writer user-safe coordination facts", (
     status: "updated",
   });
 
-  assert.match(compact, /saved availability.*평일 10:00-17:00/);
-  assert.match(compact, /candidate has not received/);
-  assert.match(compact, /standard delivery delay is 20 minutes/);
-  assert.match(compact, /opening the selection link refreshes/);
-  assert.match(compact, /before choices are shown/);
-  assert.match(compact, /verified optional scheduling settings page/);
+  assert.match(compact, /organizer_availability=평일 10:00-17:00/);
+  assert.match(compact, /candidate_message_state=scheduled/);
+  assert.match(compact, /standard_delivery_delay_minutes=20/);
+  assert.match(compact, /calendar_refresh_on_candidate_link_open=true/);
+  assert.match(compact, /calendar_blocks_busy_and_outside_availability=true/);
+  assert.match(compact, /availability_settings_url=/);
   assert.doesNotMatch(
     compact,
     /schedule-private-id|invitation_delivery_started|candidate_stage_moved|response_mode/
@@ -858,9 +1139,10 @@ test("an expedited meeting invitation reports the action without claiming delive
     status: "updated",
   });
 
-  assert.match(compact, /moved forward for immediate delivery/);
-  assert.match(compact, /completed delivery is not yet verified/);
-  assert.doesNotMatch(compact, /standard delivery delay is 0 minutes/);
+  assert.match(compact, /invitation_delivery_change=expedited/);
+  assert.match(compact, /candidate_message_state=scheduled/);
+  assert.match(compact, /candidate_message_sent=false/);
+  assert.match(compact, /standard_delivery_delay_minutes=0/);
   assert.doesNotMatch(compact, /private-schedule-id/);
 });
 
@@ -886,22 +1168,17 @@ test("blocked scheduled movement identifies company organizer availability witho
     status: "meeting_setup_required",
   });
 
-  assert.match(compact, /company organizer's reusable working availability/);
-  assert.match(compact, /remains in the 연결 대기 stage/);
-  assert.match(
-    compact,
-    /No candidate message or meeting request has been created/
-  );
-  assert.match(
-    compact,
-    /continue this already-authorized candidate meeting request/
-  );
-  assert.match(compact, /verified Calendar settings page/);
+  assert.match(compact, /outcome=not_completed/);
+  assert.match(compact, /current_stage=연결 대기/);
+  assert.match(compact, /candidate_moved=false/);
+  assert.match(compact, /meeting_request_created=false/);
+  assert.match(compact, /candidate_contacted=false/);
+  assert.match(compact, /organizer_availability_required=true/);
+  assert.match(compact, /original_candidate_meeting_request_authorized=true/);
+  assert.match(compact, /continuation_after_prerequisite=/);
+  assert.match(compact, /calendar_settings_url=/);
   assert.match(compact, /org\/settings\?orgId=workspace&tab=calendar/);
-  assert.doesNotMatch(
-    compact,
-    /draftBlocker|availability_missing|user_facing_state=/
-  );
+  assert.doesNotMatch(compact, /draftBlocker|user_facing_state=/);
 });
 
 test("blocked scheduled movement explains the Calendar prerequisite and setup link", () => {
@@ -926,13 +1203,12 @@ test("blocked scheduled movement explains the Calendar prerequisite and setup li
     status: "meeting_setup_required",
   });
 
-  assert.match(compact, /connect or reconnect Google Calendar/);
+  assert.match(compact, /calendar_connection_required=true/);
   assert.match(compact, /인터뷰가 불가능한 일정을 미리 파악/);
   assert.match(compact, /후보자에게 보여줄 선택지에서 제외/);
-  assert.match(compact, /reusable availability is also missing/);
+  assert.match(compact, /organizer_availability_required=true/);
   assert.match(compact, /org\/settings\?orgId=workspace&tab=calendar/);
-  assert.match(compact, /Include this link as the concrete setup action/);
-  assert.doesNotMatch(compact, /calendar_connection_missing|draftBlocker/);
+  assert.doesNotMatch(compact, /draftBlocker|user_facing_state=/);
 });
 
 test("candidate decision preparation returns facts without server-authored confirmation copy", () => {
@@ -964,7 +1240,7 @@ test("candidate decision preparation returns facts without server-authored confi
   assert.doesNotMatch(compact, /이대로 진행할까요/);
 });
 
-test("schedule preparation keeps the automatic proposal in one compact confirmation", () => {
+test("schedule preparation returns proposal facts without prewritten confirmation copy", () => {
   const compact = serializeOrgAgentToolResult("prepare_candidate_connection", {
     candidateName: "이토",
     connectionMethod: "schedule_interview",
@@ -985,14 +1261,16 @@ test("schedule preparation keeps the automatic proposal in one compact confirmat
   });
 
   assert.match(compact, /connection_method=schedule_interview/);
-  assert.match(compact, /response_mode=meeting_coordinator_narrative/);
-  assert.match(compact, /user_facing_state=This is a proposal awaiting/);
+  assert.match(compact, /outcome=awaiting_confirmation/);
+  assert.match(compact, /candidate_changed=false/);
+  assert.match(compact, /candidate_contacted=false/);
+  assert.match(compact, /meeting_saved=false/);
   assert.match(compact, /meeting_title=Wonderful Japan ‹› 이토 Intro/);
   assert.match(compact, /meeting_duration_minutes=60/);
-  assert.match(compact, /meeting_confirmation=.*향후 2주/);
+  assert.match(compact, /company_confirmation_required=true/);
+  assert.doesNotMatch(compact, /향후 2주/);
   assert.doesNotMatch(compact, /meeting_availability_url=/);
-  assert.match(compact, /writing_instruction=Preserve meeting_confirmation/);
-  assert.match(compact, /This preparation result is a preview/);
+  assert.doesNotMatch(compact, /meeting_confirmation|writing_instruction/);
 });
 
 test("schedule decision keeps the company in the chat-only scheduling flow", () => {
@@ -1025,13 +1303,14 @@ test("schedule decision keeps the company in the chat-only scheduling flow", () 
     status: "updated",
   });
 
-  assert.match(compact, /이토.*FDE hiring process/);
-  assert.match(compact, /saved availability.*평일 10:00-17:00/);
-  assert.match(compact, /candidate has not received/);
-  assert.match(compact, /standard delivery delay is 20 minutes/);
-  assert.match(compact, /opening the selection link refreshes/);
-  assert.match(compact, /before choices are shown/);
-  assert.match(compact, /verified optional page/);
+  assert.match(compact, /candidate=이토/);
+  assert.match(compact, /role=FDE/);
+  assert.match(compact, /organizer_availability=평일 10:00-17:00/);
+  assert.match(compact, /candidate_message_state=scheduled/);
+  assert.match(compact, /standard_delivery_delay_minutes=20/);
+  assert.match(compact, /calendar_refresh_on_candidate_link_open=true/);
+  assert.match(compact, /calendar_blocks_busy_and_outside_availability=true/);
+  assert.match(compact, /availability_settings_url=/);
   assert.doesNotMatch(
     compact,
     /private-schedule-id|meeting_schedule_url|user_facing_state|response_mode/
@@ -1049,8 +1328,7 @@ test("pending candidate contact results tell the model what can be replaced", ()
       status: "발송 실패·재시도 필요",
       topic: "현재 또는 희망 연봉을 공유할 의향이 있는지 확인",
     },
-    instruction:
-      "No new request was queued. Ask whether to cancel and replace it.",
+    responseGuidance: "Make the existing request and replacement choice clear.",
     newRequestQueued: false,
     requested: {
       kind: "question",
@@ -1067,11 +1345,19 @@ test("pending candidate contact results tell the model what can be replaced", ()
   assert.match(compact, /현재 또는 희망 연봉/);
   assert.match(compact, /연 5,500만원/);
   assert.match(compact, /cancelable/);
-  assert.match(compact, /cancel and replace/);
+  assert.match(compact, /replacement_available=true/);
+  assert.match(compact, /replacement_requires_confirmation=true/);
+  assert.match(compact, /response_guidance=Make the existing request/);
 });
 
-test("scheduled candidate contact keeps timing data without transport details", () => {
+test("scheduled candidate contact returns verified state instead of prewritten prose", () => {
   const compact = serializeOrgAgentToolResult("contact_talent", {
+    candidateContactState: "scheduled",
+    candidateMessageSent: false,
+    candidateName: "김호진",
+    deliveryMode: "standard",
+    responseDestination: "this conversation",
+    roleName: "Backend Engineer",
     scheduledAt: "2026-08-27T14:55:00.000Z",
     status: "queued",
     userMessage:
@@ -1079,8 +1365,11 @@ test("scheduled candidate contact keeps timing data without transport details", 
   });
 
   assert.match(compact, /scheduled_at=2026-08-27T14:55:00.000Z/);
+  assert.match(compact, /current_state=scheduled/);
+  assert.match(compact, /candidate_message_sent=false/);
+  assert.match(compact, /response_destination=this conversation/);
   assert.doesNotMatch(compact, /조금 뒤에|5분/);
-  assert.match(compact, /확인을 요청할게요/);
+  assert.doesNotMatch(compact, /확인을 요청할게요/);
   assert.doesNotMatch(compact, /이메일|Harper 채팅|worker/i);
 });
 
@@ -1097,13 +1386,17 @@ test("candidate contact batch results preserve counts and every item outcome", (
         completed: true,
         contactId: "contact-laura",
         index: 0,
+        reason:
+          "The candidate's saved language is English, so the email was written in English.",
         revision: 1,
         status: "draft",
       },
       {
         completed: false,
         index: 1,
-        message: "후보자 연락 이메일을 확인하지 못했어요.",
+        nextAction: "후보자의 연락 가능한 이메일을 확인해 주세요.",
+        reason: "후보자 연락 이메일을 확인하지 못했어요.",
+        roleName: "Backend Engineer",
         status: "invalid_input",
         target: { roleId: "role-1", talentId: "talent-richard" },
       },
@@ -1120,14 +1413,17 @@ test("candidate contact batch results preserve counts and every item outcome", (
   assert.match(compact, /completed_distinct_candidate_count=1/);
   assert.match(compact, /incomplete_count=1/);
   assert.match(compact, /Laura/);
+  assert.match(compact, /candidate_preferred_language/);
+  assert.match(compact, /Laura.*English/);
+  assert.match(compact, /saved language is English/);
+  assert.doesNotMatch(compact, /talent-richard/);
+  assert.match(compact, /후보자 연락 이메일/);
+  assert.match(compact, /연락 가능한 이메일/);
   assert.match(
     compact,
-    /The candidate has set English as their preferred language\./
+    /single_confirmation_applies_to_all_displayed_drafts=true/
   );
-  assert.match(compact, /talent-richard/);
-  assert.match(compact, /후보자 연락 이메일/);
-  assert.match(compact, /one approval can authorize the whole displayed set/);
-  assert.match(compact, /do not imply the whole batch succeeded/);
+  assert.match(compact, /response_guidance=.*partial batch/);
 });
 
 test("candidate contact batch distinguishes Role requests from unique people", () => {
@@ -1147,14 +1443,16 @@ test("candidate contact batch distinguishes Role requests from unique people", (
   assert.match(compact, /requested_distinct_candidate_count=2/);
   assert.match(compact, /completed_count=3/);
   assert.match(compact, /completed_distinct_candidate_count=2/);
-  assert.match(compact, /count candidate-Role contact requests/);
-  assert.match(compact, /distinct count whenever describing how many people/);
+  assert.match(compact, /request_count_unit=candidate_role_contact_requests/);
+  assert.match(compact, /person_count_unit=distinct_candidates/);
 });
 
 test("candidate contact drafts expose only the approval state and next decision", () => {
   const compact = serializeOrgAgentToolResult("contact_talent", {
     candidatePreferredLanguage: "Korean",
     candidateName: "김호진",
+    reason:
+      "후보자의 설정 언어가 한국어이므로 회사가 준 영어 예시를 한국어로 작성했습니다.",
     status: "draft",
     userMessage: "이 고정 fallback은 정상 응답에 복사하지 않습니다.",
   });
@@ -1163,14 +1461,52 @@ test("candidate contact drafts expose only the approval state and next decision"
   assert.match(compact, /approval_state=awaiting_company_confirmation/);
   assert.match(compact, /candidate_contact_state=not_sent/);
   assert.match(compact, /exact_body_appended_by_server=true/);
+  assert.match(compact, /candidate_preferred_language=Korean/);
   assert.match(
     compact,
-    /The candidate has set Korean as their preferred language\./
+    /writing_reason=후보자의 설정 언어가 한국어이므로 회사가 준 영어 예시를 한국어로 작성했습니다/
   );
-  assert.match(compact, /company reviews the appended exact body/);
-  assert.match(compact, /bring any candidate answer back to this conversation/);
+  assert.match(
+    compact,
+    /next_required_decision=approve_or_reject_displayed_draft/
+  );
+  assert.match(
+    compact,
+    /candidate_answer_destination=this_conversation_after_delivery/
+  );
+  assert.match(
+    compact,
+    /response_guidance=Ask once whether Harper should send/
+  );
   assert.doesNotMatch(compact, /writing_instruction/);
   assert.doesNotMatch(compact, /이 고정 fallback/);
+});
+
+test("candidate contact copy failures expose facts and recovery without fallback prose", () => {
+  const compact = serializeOrgAgentToolResult("contact_talent", {
+    candidateContactState: "not_sent",
+    candidateName: "Jinu",
+    contactId: "contact-1",
+    draftChanged: false,
+    nextAction: "The company can repeat the same request once.",
+    requestedAction: "revise_draft",
+    retrySameRequest: true,
+    revision: 3,
+    roleName: "FDE - Australia",
+    status: "revision_failed",
+    userMessage: "기존 초안은 그대로 남아 있습니다.",
+  });
+
+  assert.match(compact, /outcome=not_completed/);
+  assert.match(compact, /requested_action=revise_draft/);
+  assert.match(compact, /draft_changed=false/);
+  assert.match(compact, /candidate_contact_state=not_sent/);
+  assert.match(compact, /existing_draft_state=unchanged/);
+  assert.match(compact, /external_contact=none/);
+  assert.match(compact, /retry_same_request=true/);
+  assert.match(compact, /repeat the same request once/);
+  assert.doesNotMatch(compact, /contact-1|revision=3/);
+  assert.doesNotMatch(compact, /기존 초안은 그대로/);
 });
 
 test("candidate note results keep the saved note internal and bounded", () => {
@@ -1184,7 +1520,11 @@ test("candidate note results keep the saved note internal and bounded", () => {
   assert.match(compact, /role_name=Backend Engineer/);
   assert.match(compact, /리모트 근무 선호/);
   assert.match(compact, /visibility=company_internal/);
-  assert.match(compact, /contacted the candidate/);
+  assert.match(compact, /candidate_contacted=false/);
+  assert.match(
+    compact,
+    /response_guidance=Confirm the saved internal note briefly/
+  );
 });
 
 test("get_more_data serialization is bounded and keeps completeness markers", () => {
@@ -1370,16 +1710,15 @@ test("organization-agent role reads expose structured criteria beside the reques
   assert.match(compact, /role_criteria_complete=true/);
 });
 
-test("start_role_creation exposes the required continuation link and writing guidance", () => {
+test("start_role_creation exposes verified state and the required continuation link", () => {
   const compact = serializeOrgAgentToolResult("start_role_creation", {
     roleId: "private-role-id",
     roleTitle: "Staff Engineer",
     requiredContinuationLink:
       "<https://slack.example/thread|새로운 채용 등록 이어가기>",
-    responseExample: "네, Staff Engineer 역할 등록을 함께 시작할게요.",
-    responseGuidance: "채용 파트너처럼 자연스럽게 안내해 주세요.",
     status: "started",
     threadPermalink: "https://slack.example/thread",
+    transferredMessageCount: 3,
     webUrl: "https://harper.example/org/role?orgId=org&roleId=role",
   });
 
@@ -1388,8 +1727,14 @@ test("start_role_creation exposes the required continuation link and writing gui
     compact,
     /required_continuation_link=<https:\/\/slack\.example\/thread\|새로운 채용 등록 이어가기>/
   );
-  assert.match(compact, /writing guidance|response_guidance/);
-  assert.match(compact, /example is illustrative/i);
+  assert.match(compact, /role_registration_state=in_progress/);
+  assert.match(compact, /matching_started=false/);
+  assert.match(compact, /transferred_message_count=3/);
+  assert.match(
+    compact,
+    /response_guidance=Explain that registration continues/
+  );
+  assert.doesNotMatch(compact, /illustrative_response/);
   assert.doesNotMatch(compact, /private-role-id/);
   assert.doesNotMatch(compact, /harper\.example/);
 });
@@ -1435,9 +1780,9 @@ test("tool errors give the model action-specific recovery guidance", () => {
   assert.match(inputError, /Continue other independently requested candidates/);
   assert.match(executionError, /effect_status=unknown/);
   assert.match(executionError, /Re-read the exact candidate/);
-  assert.match(executionError, /only after a later result verifies it/);
+  assert.match(executionError, /only after a later verified result/);
   assert.match(readError, /corrected or narrower retry is safe/);
-  assert.match(readError, /Use the verified error and recovery facts/);
+  assert.match(readError, /verification_boundary=/);
   assert.doesNotMatch(readError, /effect_status/);
   assert.doesNotMatch(readError, /final effect is uncertain/);
 });

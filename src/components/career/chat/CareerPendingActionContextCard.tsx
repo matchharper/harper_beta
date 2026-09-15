@@ -1,15 +1,10 @@
 "use client";
 
-import {
-  CircleHelp,
-  FileText,
-  Loader2,
-  MessageSquareText,
-  Upload,
-  X,
-} from "lucide-react";
+import { CircleHelp, FileText, Loader2, Upload, X } from "lucide-react";
+import { CompanyLogo } from "@/components/career/watchlist/CompanyLogo";
 import { CardButton, MuteButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
+import { getDisplayableCompanyLogoUrl } from "@/lib/imageUrl";
 import { cn } from "@/lib/utils";
 import type {
   CareerPendingCompanyRequestAction,
@@ -38,6 +33,8 @@ export function CareerPendingActionContextCard({
   const t = useCareerT();
   const canUploadResume =
     action.kind === "company_request" && action.requestMode === "resume";
+  const isCompanyQuestion =
+    action.kind === "company_request" && action.requestMode === "question";
   const eyebrow =
     action.kind === "internal_fit_question"
       ? t(
@@ -53,12 +50,7 @@ export function CareerPendingActionContextCard({
             "career.chat.pending_action_context.company_question_label",
             "회사에서 온 질문"
           );
-  const Icon =
-    action.kind === "internal_fit_question"
-      ? CircleHelp
-      : action.kind === "company_request" && action.requestMode === "resume"
-        ? FileText
-        : MessageSquareText;
+  const Icon = action.kind === "internal_fit_question" ? CircleHelp : FileText;
 
   return (
     <div className="relative animate-in fade-in-0 slide-in-from-bottom-1 duration-200">
@@ -82,9 +74,17 @@ export function CareerPendingActionContextCard({
         )}
       >
         <span className="flex min-w-0 flex-1 items-start gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] border border-neutral-1000-a05 bg-bg-floating text-neutral-muted">
-            <Icon className="h-4 w-4" />
-          </span>
+          {isCompanyQuestion ? (
+            <CompanyLogo
+              logoUrl={getDisplayableCompanyLogoUrl(action.companyLogoUrl)}
+              name={action.companyName}
+              size="sm"
+            />
+          ) : (
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] border border-neutral-1000-a05 bg-bg-floating text-neutral-muted">
+              <Icon className="h-4 w-4" />
+            </span>
+          )}
           <span className="min-w-0 flex-1">
             <span className="mb-1 flex min-w-0 items-center gap-2">
               <span className="text-[11px] font-normal uppercase text-neutral-soft">
@@ -106,16 +106,11 @@ export function CareerPendingActionContextCard({
             >
               {action.prompt}
             </span>
-            <span className="mt-2 block text-[11px] font-normal leading-4 text-neutral-soft">
-              {expanded
-                ? t(
-                    "career.chat.pending_action_context.expanded_help",
-                    "내용 영역 안에서 스크롤할 수 있어요. 아래에 바로 답변해 주세요."
-                  )
-                : t(
-                    "career.chat.pending_action_context.collapsed_help",
-                    "누르면 내용을 더 볼 수 있어요. 아래 답변은 이 요청에 연결됩니다."
-                  )}
+            <span className="mt-1 block text-[11px] font-normal leading-4 text-neutral-soft">
+              {t(
+                "career.chat.pending_action_context.collapsed_help",
+                "아래 답변은 이 요청에 연결됩니다."
+              )}
             </span>
           </span>
         </span>

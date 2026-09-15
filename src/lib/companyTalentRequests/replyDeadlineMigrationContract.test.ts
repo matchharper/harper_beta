@@ -44,7 +44,7 @@ test("sent-request reads do not apply the draft deadline", () => {
   );
   assert.match(
     server,
-    /candidateEmailSent && !hasResponse && companyRequestRoleIsOpen\(row\)/
+    /candidateEmailSent &&[\s\S]*!hasResponse &&[\s\S]*companyRequestRoleIsOpen\(row\)[\s\S]*awaitsCandidateResponse/
   );
   assert.match(server, /\["awaiting_talent", "closed"\]/);
   assert.match(server, /args\.ttlSeconds \?\? 90 \* 86400/);

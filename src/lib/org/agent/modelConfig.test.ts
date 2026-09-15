@@ -4,6 +4,7 @@ import {
   DEFAULT_ORG_AGENT_REASONING_EFFORT,
   DEFAULT_ORG_AGENT_MODEL,
   DEFAULT_SLACK_ORG_AGENT_MODEL,
+  getOrgAgentFallbackModel,
   getSlackOrgAgentModel,
   ORG_AGENT_CLAUDE_MODEL,
   ORG_AGENT_DEEPSEEK_FLASH_0731_MODEL,
@@ -19,8 +20,19 @@ test("exposes every supported company-side LLM", () => {
     ORG_AGENT_LUNA_MODEL,
     ORG_AGENT_TERRA_MODEL,
     ORG_AGENT_CLAUDE_MODEL,
-    "grok-4.3",
   ]);
+});
+
+test("uses Luna as the only company-agent fallback", () => {
+  assert.equal(
+    getOrgAgentFallbackModel(ORG_AGENT_CLAUDE_MODEL),
+    ORG_AGENT_LUNA_MODEL
+  );
+  assert.equal(
+    getOrgAgentFallbackModel(ORG_AGENT_TERRA_MODEL),
+    ORG_AGENT_LUNA_MODEL
+  );
+  assert.equal(getOrgAgentFallbackModel(ORG_AGENT_LUNA_MODEL), null);
 });
 
 test("uses GPT-5.6 Terra with xhigh reasoning for web and Slack by default", () => {

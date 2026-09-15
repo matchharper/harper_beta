@@ -215,18 +215,6 @@ export function selectRecentlyPresentedContactDraftReferences(
   return [];
 }
 
-export function selectRecentlyPresentedContactDraftIds(
-  messages: Array<{ metadata: unknown; role: string }>
-) {
-  return Array.from(
-    new Set(
-      selectRecentlyPresentedContactDraftReferences(messages).map(
-        (ref) => ref.contactId
-      )
-    )
-  );
-}
-
 export function hasOrgAgentContactDraftReference(args: {
   contactId: string;
   metadata: unknown;

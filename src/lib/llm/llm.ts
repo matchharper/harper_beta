@@ -6,6 +6,7 @@ import {
   type OpenAIResponsesReasoningEffort,
 } from "@/lib/llm/responsesChatAdapter";
 import {
+  GPT_56_LUNA_MODEL,
   isOpenRouterModel,
   isOpenRouterGlm53FlashModel,
   OPENROUTER_ZAI_PROVIDER_SLUG,
@@ -51,12 +52,6 @@ export const client = new OpenAI({
   dangerouslyAllowBrowser: true,
 });
 
-export const xaiClient = new OpenAI({
-  apiKey: process.env.GROK_API_KEY,
-  dangerouslyAllowBrowser: true,
-  baseURL: "https://api.x.ai/v1",
-});
-
 export const anthropicClient = new OpenAI({
   apiKey: process.env.ANTHROPIC_API_KEY ?? "missing-anthropic-api-key",
   dangerouslyAllowBrowser: true,
@@ -69,11 +64,7 @@ export const openrouterClient = new OpenAI({
   baseURL: "https://openrouter.ai/api/v1",
 });
 
-export type LlmChatProvider =
-  | "anthropic"
-  | "openai"
-  | "openrouter"
-  | "xai";
+export type LlmChatProvider = "anthropic" | "openai" | "openrouter";
 
 export type ChatCompletionReasoningEffort =
   | "none"
@@ -94,9 +85,16 @@ type ChatCompletionRequestConfig = {
   };
 };
 
+export type ChatCompletionStructuredOutput = {
+  name: string;
+  schema: Record<string, unknown>;
+};
+
 export function getLlmChatProviderForModel(model: string): LlmChatProvider {
   const normalized = model.trim().toLowerCase();
-  if (normalized.startsWith("grok-")) return "xai";
+  if (normalized.startsWith("grok-")) {
+    throw new Error("Grok models are disabled. Use gpt-5.6-luna instead.");
+  }
   if (normalized.startsWith("claude-")) return "anthropic";
   if (isOpenRouterModel(normalized)) return "openrouter";
   return "openai";
@@ -104,7 +102,6 @@ export function getLlmChatProviderForModel(model: string): LlmChatProvider {
 
 export function getChatClientForModel(model: string) {
   const provider = getLlmChatProviderForModel(model);
-  if (provider === "xai") return xaiClient;
   if (provider === "anthropic") return anthropicClient;
   if (provider === "openrouter") return openrouterClient;
   return client;
@@ -283,6 +280,119 @@ function buildChatCompletionRequestParts(
   });
 
   return { llmClient, provider, rawRequestBody, requestBody };
+}
+
+function structuredChatCompletionResponseFormat(
+  output: ChatCompletionStructuredOutput
+) {
+  return {
+    json_schema: {
+      name: output.name,
+      schema: output.schema,
+      strict: true,
+    },
+    type: "json_schema" as const,
+  };
+}
+
+async function createAnthropicStructuredChatCompletion(args: {
+  model: string;
+  requestBody: Record<string, unknown>;
+  signal?: AbortSignal;
+  structuredOutput: ChatCompletionStructuredOutput;
+}) {
+  const apiKey = (process.env.ANTHROPIC_API_KEY ?? "").trim();
+  if (!apiKey) {
+    throw new Error(
+      "ANTHROPIC_API_KEY is required for Anthropic structured output"
+    );
+  }
+
+  const sourceMessages = Array.isArray(args.requestBody.messages)
+    ? args.requestBody.messages
+    : [];
+  const system = sourceMessages
+    .filter((message: any) => message?.role === "system")
+    .map((message: any) => String(message?.content ?? "").trim())
+    .filter(Boolean)
+    .join("\n\n");
+  const messages = sourceMessages
+    .filter(
+      (message: any) =>
+        message?.role === "user" || message?.role === "assistant"
+    )
+    .map((message: any) => ({
+      content: message.content,
+      role: message.role,
+    }));
+  const requestedMaxTokens = Number(args.requestBody.max_tokens);
+  const maxTokens =
+    Number.isSafeInteger(requestedMaxTokens) && requestedMaxTokens > 0
+      ? requestedMaxTokens
+      : 1_800;
+  const requestBody = {
+    model: args.model,
+    max_tokens: maxTokens,
+    ...(system ? { system } : {}),
+    messages,
+    output_config: {
+      format: {
+        schema: args.structuredOutput.schema,
+        type: "json_schema" as const,
+      },
+    },
+    ...(typeof args.requestBody.temperature === "number"
+      ? { temperature: args.requestBody.temperature }
+      : {}),
+  };
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    body: JSON.stringify(requestBody),
+    cache: "no-store",
+    headers: {
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+      "x-api-key": apiKey,
+    },
+    method: "POST",
+    signal: args.signal,
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw Object.assign(
+      new Error(
+        `Anthropic Messages API request failed (${response.status}): ${detail}`
+      ),
+      { status: response.status }
+    );
+  }
+
+  const result = (await response.json()) as Record<string, any>;
+  const content = Array.isArray(result.content)
+    ? result.content
+        .filter((block: any) => block?.type === "text")
+        .map((block: any) => String(block?.text ?? ""))
+        .join("")
+    : "";
+  const inputTokens = Number(result.usage?.input_tokens) || 0;
+  const outputTokens = Number(result.usage?.output_tokens) || 0;
+  return {
+    choices: [
+      {
+        finish_reason: result.stop_reason ?? null,
+        index: 0,
+        message: { content, role: "assistant" as const },
+      },
+    ],
+    created: Math.floor(Date.now() / 1_000),
+    id: String(result.id ?? ""),
+    model: String(result.model ?? args.model),
+    object: "chat.completion" as const,
+    usage: {
+      completion_tokens: outputTokens,
+      prompt_tokens: inputTokens,
+      total_tokens: inputTokens + outputTokens,
+    },
+  };
 }
 
 async function createChatCompletionStream(args: {
@@ -595,6 +705,8 @@ export async function createChatCompletionWithFallback(args: {
     reasoningEffort: OpenAIResponsesReasoningEffort;
   };
   signal?: AbortSignal;
+  structuredOutput?: ChatCompletionStructuredOutput;
+  validateResponse?: (response: any, model: string) => void;
 }): Promise<{
   fallbackReason?: ChatCompletionFallbackReason;
   model: string;
@@ -604,14 +716,43 @@ export async function createChatCompletionWithFallback(args: {
     args.signal?.throwIfAborted();
     const { llmClient, provider, rawRequestBody, requestBody } =
       buildChatCompletionRequestParts(args, model);
-    if (args.openAIResponses && provider === "openai") {
-      return createOpenAIResponsesCompletion({
+    let response: any;
+    if (args.structuredOutput && provider === "anthropic") {
+      response = await createAnthropicStructuredChatCompletion({
+        model,
+        requestBody,
+        signal: args.signal,
+        structuredOutput: args.structuredOutput,
+      });
+    } else if (args.openAIResponses && provider === "openai") {
+      response = await createOpenAIResponsesCompletion({
         llmClient,
         model,
         reasoningEffort: args.openAIResponses.reasoningEffort,
-        requestBody: rawRequestBody,
+        requestBody: args.structuredOutput
+          ? {
+              ...rawRequestBody,
+              response_format: structuredChatCompletionResponseFormat(
+                args.structuredOutput
+              ),
+            }
+          : rawRequestBody,
         signal: args.signal,
       });
+    } else {
+      response = await llmClient.chat.completions.create(
+        {
+          ...requestBody,
+          ...(args.structuredOutput
+            ? {
+                response_format: structuredChatCompletionResponseFormat(
+                  args.structuredOutput
+                ),
+              }
+            : {}),
+        } as any,
+        { signal: args.signal }
+      );
     }
     // if (args.debugLabel?.startsWith("career/chat:assistant")) {
     //   console.info(
@@ -619,9 +760,8 @@ export async function createChatCompletionWithFallback(args: {
     //     JSON.stringify(requestBody, null, 2)
     //   );
     // }
-    return llmClient.chat.completions.create(requestBody as any, {
-      signal: args.signal,
-    });
+    args.validateResponse?.(response, model);
+    return response;
   };
   const createForModelWithTransientRetry = async (model: string) => {
     let attempt = 0;
@@ -831,14 +971,8 @@ export async function createChatCompletionStreamWithFallback(args: {
 
 export type OnToken = (token: string) => void;
 
-export const xaiInference = async (
-  model:
-    | "grok-4-fast-reasoning"
-    | "grok-4.3"
-    | "grok-4.3"
-    | "grok-4-fast-non-reasoning"
-    | "gpt-5-mini"
-    | "gpt-5.6-luna",
+export const lunaInference = async (
+  model: typeof GPT_56_LUNA_MODEL,
   systemPrompt: string,
   userPrompt: string,
   temperature: number = 0.7,
@@ -846,21 +980,26 @@ export const xaiInference = async (
   is_json: boolean = false,
   prompt_cache_key: string = ""
 ): Promise<string> => {
-  const llmClient = getChatClientForModel(model);
-  const provider = getLlmChatProviderForModel(model);
-  const response = await llmClient.chat.completions.create({
+  void max_retries;
+  const { response } = await createChatCompletionWithFallback({
     model,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-    temperature,
-    ...(is_json &&
-      supportsResponseFormatForModel(model) && {
-        response_format: { type: "json_object" as const },
-      }),
-    ...(provider === "xai" && prompt_cache_key ? { prompt_cache_key } : {}),
-  } as any);
+    openAIResponses: { reasoningEffort: "xhigh" },
+    buildRequest: () => ({
+      max_completion_tokens: 4_000,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature,
+      ...(is_json ? { response_format: { type: "json_object" as const } } : {}),
+      ...(prompt_cache_key
+        ? {
+            prompt_cache_key,
+            prompt_cache_options: { mode: "explicit", ttl: "30m" },
+          }
+        : {}),
+    }),
+  });
   const content = response.choices[0]?.message?.content;
 
   return content ?? "";
@@ -900,8 +1039,8 @@ export async function geminiInference(
 ): Promise<string | object> {
   void model;
   void thinkingLevel;
-  return xaiInference(
-    "grok-4-fast-reasoning",
+  return lunaInference(
+    GPT_56_LUNA_MODEL,
     systemPrompt,
     userPrompt,
     temperature,
@@ -1114,26 +1253,18 @@ Now extract all information and output JSON only. Do not include \`\`\`json or \
 export async function queryKeyword(input_query: string): Promise<any> {
   if (input_query.length < 10) return input_query;
 
-  const response = await xaiClient.chat.completions.create({
-    model: "grok-4-fast-reasoning",
-    messages: [
-      { role: "system", content: "You are a helpful assistant." },
-      {
-        role: "user",
-        content: `
+  return lunaInference(
+    GPT_56_LUNA_MODEL,
+    "You are a helpful assistant.",
+    `
 Below is the input query of a user. Who is trying to search candidates for a job.
 나중에 검색 목록에서 무엇을 검색했었는지 다시 기억하고 찾기 쉽게, 의미를 유지한채로 3-5 단어의 키워드로 만들어줘.
 You should return in korean.
 
 Input Query: ${input_query}
 Output:
-`,
-      },
-    ],
-  });
-
-  const content = response.choices[0]?.message?.content;
-  return content ?? "";
+`
+  );
 }
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });

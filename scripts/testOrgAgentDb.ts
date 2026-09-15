@@ -54,6 +54,8 @@ const COMPANY_BEHAVIOR_CONTEXT_CURRENT_MIGRATION =
   "20260814200000_company_behavior_contexts_role_current.sql";
 const DROP_COMPANY_ROLES_REQUEST_MIGRATION =
   "20260826130000_drop_company_roles_request.sql";
+const COMPANY_MESSAGE_CONVERSATION_SCOPED_SLACK_IDENTITY_MIGRATION =
+  "20260915140000_company_message_conversation_scoped_slack_identity.sql";
 
 const IDS = {
   workspaceA: "00000000-0000-4000-8000-000000000001",
@@ -71,6 +73,7 @@ const IDS = {
   recurringDraftRole: "00000000-0000-4000-8000-000000000110",
   recurringTestOnlyRole: "00000000-0000-4000-8000-000000000111",
   conversation: "00000000-0000-4000-8000-000000000201",
+  slackDuplicateConversation: "00000000-0000-4000-8000-000000000202",
   slackChannel: "00000000-0000-4000-8000-000000000301",
   slackThread: "00000000-0000-4000-8000-000000000302",
   slackBatchChannel: "00000000-0000-4000-8000-000000000303",
@@ -704,6 +707,10 @@ async function applyRemainingMigrations(sql: Db) {
   await applyMigration(sql, MIGRATIONS[10]);
   await applyMigration(sql, MIGRATIONS[11]);
   await applyMigration(sql, MIGRATIONS[12]);
+  await applyMigration(
+    sql,
+    COMPANY_MESSAGE_CONVERSATION_SCOPED_SLACK_IDENTITY_MIGRATION
+  );
   const isAutoColumn = firstRow(
     await sql`
       select column_default, is_nullable
@@ -3864,6 +3871,84 @@ async function ensureSlackFixtures(sql: Db) {
   `;
 }
 
+async function testSlackMessageConversationScopedIdentity(sql: Db) {
+  await ensureSlackFixtures(sql);
+  await sql`
+    insert into public.company_conversations(
+      id, company_workspace_id, metadata
+    ) values (
+      ${IDS.slackDuplicateConversation}::uuid,
+      ${IDS.workspaceA}::uuid,
+      '{}'::jsonb
+    )
+  `;
+
+  await sql`
+    insert into public.company_messages(
+      conversation_id, company_workspace_id, company_user_id, role, content,
+      message_type, slack_thread_id, slack_message_ts, slack_user_id
+    ) values
+      (
+        ${IDS.conversation}::uuid,
+        ${IDS.workspaceA}::uuid,
+        ${IDS.user}::uuid,
+        'user',
+        'same Slack message',
+        'slack',
+        ${IDS.slackThread}::uuid,
+        '1700000000.000099',
+        'U_TEST'
+      ),
+      (
+        ${IDS.slackDuplicateConversation}::uuid,
+        ${IDS.workspaceA}::uuid,
+        ${IDS.user}::uuid,
+        'user',
+        'same Slack message',
+        'slack',
+        ${IDS.slackThread}::uuid,
+        '1700000000.000099',
+        'U_TEST'
+      )
+  `;
+  assert(
+    value<number>(
+      await sql`
+        select count(*)::int as value
+        from public.company_messages
+        where slack_thread_id = ${IDS.slackThread}::uuid
+          and slack_message_ts = '1700000000.000099'
+      `,
+      "value"
+    ) === 2,
+    "the same Slack identity was not allowed across internal conversations"
+  );
+
+  await expectDbError(
+    "same-conversation Slack identity",
+    () => sql`
+      insert into public.company_messages(
+        conversation_id, company_workspace_id, company_user_id, role, content,
+        message_type, slack_thread_id, slack_message_ts, slack_user_id
+      ) values (
+        ${IDS.conversation}::uuid,
+        ${IDS.workspaceA}::uuid,
+        ${IDS.user}::uuid,
+        'user',
+        'same conversation retry',
+        'slack',
+        ${IDS.slackThread}::uuid,
+        '1700000000.000099',
+        'U_TEST'
+      )
+    `,
+    /company_messages_slack_conversation_message_uidx/i
+  );
+  logPass(
+    "Slack identities may cross conversations while same-conversation retries stay idempotent"
+  );
+}
+
 async function setSlackWorkerTarget(sql: Db, workerTarget: string) {
   return rpcResult(
     await sql`
@@ -4712,6 +4797,7 @@ async function run() {
     await testRlsAndGrants(testDb);
     await testApplyRpcAndGuard(testDb, lockHolderDb);
     await testChatProposalLifecycle(testDb);
+    await testSlackMessageConversationScopedIdentity(testDb);
     await testSlackWorkerRouting(testDb);
     await testSlackThreadReplyCoalescing(testDb);
     await testSlackReplyFinalization(testDb);

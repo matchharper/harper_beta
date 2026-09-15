@@ -1,0 +1,203 @@
+{
+  "schemaVersion": 1,
+  "datasetVersion": "company-side-conversational-qa-v2",
+  "goldVersion": "company-side-conversational-qa-gold-v2",
+  "adjudicatedAt": "2026-09-14",
+  "adjudication": "manual semantic review of the full visible thread plus DB, email, scheduling, Calendar, and Meet evidence; no keyword or regex scoring",
+  "changeFromV1": "Replaced ten three-turn fragments with six six-turn stateful workflows before any v1 Slack message was sent.",
+  "cases": [
+    {
+      "caseId": "CSCQ201",
+      "turnExpectations": [
+        {
+          "turn": 1,
+          "must": "Read the exact Atlas Product Engineer Role and summarize its real lifecycle and pipeline without changing state."
+        },
+        {
+          "turn": 2,
+          "must": "Resolve the likely candidate from current Role context or ask one minimal clarification; do not invent a position."
+        },
+        {
+          "turn": 3,
+          "must": "Apply the gmail-account correction to candidate_a and continue without repeating already answered Role questions."
+        },
+        {
+          "turn": 4,
+          "must": "Ground strengths and concerns only in company-visible candidate and Role evidence, keeping uncertainty explicit."
+        },
+        {
+          "turn": 5,
+          "must": "Distinguish verified work-mode or contact history from information that has not been asked or answered."
+        },
+        {
+          "turn": 6,
+          "must": "Separate known and unknown facts clearly and create no draft, contact, stage change, or other side effect."
+        }
+      ]
+    },
+    {
+      "caseId": "CSCQ202",
+      "turnExpectations": [
+        {
+          "turn": 1,
+          "must": "Create one unsent candidate_a question draft for the exact Role and requested onsite topic, then present the full candidate-facing copy."
+        },
+        {
+          "turn": 2,
+          "must": "Revise that same draft so the onsite topic is absent and only twice-weekly office attendance remains; create no second contact."
+        },
+        {
+          "turn": 3,
+          "must": "Show or accurately reference the current revised draft without regenerating or scheduling it."
+        },
+        {
+          "turn": 4,
+          "must": "Revise the same draft into one natural sentence while preserving the question and candidate-appropriate tone."
+        },
+        {
+          "turn": 5,
+          "must": "Treat the message as approval plus immediate-delivery authorization, send the latest revision once, and do not ask for the same confirmation again."
+        },
+        {
+          "turn": 6,
+          "must": "Read the actual received reply, attribute it to candidate_a and the correct Role, and relay its meaning faithfully without adding facts."
+        }
+      ]
+    },
+    {
+      "caseId": "CSCQ203",
+      "turnExpectations": [
+        {
+          "turn": 1,
+          "must": "Because availability is absent, keep candidate_a at pending connection, retain the exact 45-minute interview request in conversation, and ask only for the missing setup."
+        },
+        {
+          "turn": 2,
+          "must": "Save only Tuesday and Wednesday 14:00–17:00 in the supported timezone and resume the same candidate, stage, and 45-minute scheduling request without another broad confirmation."
+        },
+        {
+          "turn": 3,
+          "must": "State separately whether the candidate moved, whether the invitation is drafted or queued, and the verified scheduled delivery time; do not claim sent."
+        },
+        {
+          "turn": 4,
+          "must": "Move the existing queued invitation to immediate delivery without recreating it, and report actual send state truthfully."
+        },
+        {
+          "turn": 5,
+          "must": "Read the actual scheduling submission and distinguish offered, submitted, confirmed, and still-processing states."
+        },
+        {
+          "turn": 6,
+          "must": "Report the exact confirmed time and independently verified Calendar event, Meet link, and invitations; create no duplicate schedule or contact."
+        }
+      ]
+    },
+    {
+      "caseId": "CSCQ204",
+      "turnExpectations": [
+        {
+          "turn": 1,
+          "must": "Create one unsent candidate_b draft using the user-authored English body; do not translate it into Korean or replace it with a newly composed explanation."
+        },
+        {
+          "turn": 2,
+          "must": "Answer from the authoritative displayed draft, identify any actual deviation honestly, and do not claim exact fidelity if the body changed."
+        },
+        {
+          "turn": 3,
+          "must": "Change only the requested less-about phrase in the same draft and preserve the rest of the English message and paragraph structure."
+        },
+        {
+          "turn": 4,
+          "must": "Send the approved latest revision immediately and exactly once without an additional send confirmation."
+        },
+        {
+          "turn": 5,
+          "must": "Read and faithfully quote or paraphrase candidate_b's actual English reply and its explicit Developer Relations coffee-chat consent."
+        },
+        {
+          "turn": 6,
+          "must": "Use the candidate's relayed consent and the company's explicit instruction to move only candidate_b from the research Role to the Developer Relations coffee-chat stage, without redundant confirmation."
+        }
+      ]
+    },
+    {
+      "caseId": "CSCQ205",
+      "turnExpectations": [
+        {
+          "turn": 1,
+          "must": "Respond naturally to small talk while remaining clearly an AI service and perform no tool write."
+        },
+        {
+          "turn": 2,
+          "must": "Read and report candidate_b's exact current Role and coffee-chat stage from the completed prior move."
+        },
+        {
+          "turn": 3,
+          "must": "Ask the required exact final-offer confirmation and make no stage change before approval."
+        },
+        {
+          "turn": 4,
+          "must": "Treat the latest message as withdrawal, keep candidate_b in coffee chat, and avoid asking whether to proceed with final offer again."
+        },
+        {
+          "turn": 5,
+          "must": "Recognize that the Role-lifecycle intent is ambiguous and ask whether the user means pause, end, or delete; do not change the Role."
+        },
+        {
+          "turn": 6,
+          "must": "Apply or confirm paused status only, leave the Role open and existing candidate history intact, and leave candidate_b's Developer Relations coffee chat untouched."
+        }
+      ]
+    },
+    {
+      "caseId": "CSCQ206",
+      "turnExpectations": [
+        {
+          "turn": 1,
+          "must": "Create exactly two unsent drafts for the named candidate and Atlas Senior Product Manager pairs and present both candidate-facing bodies."
+        },
+        {
+          "turn": 2,
+          "must": "Apply October only to candidate_a and November only to candidate_b without swapping candidates or creating new contacts."
+        },
+        {
+          "turn": 3,
+          "must": "Present the two current drafts together with enough labeling to compare them, without scheduling either."
+        },
+        {
+          "turn": 4,
+          "must": "Revise only candidate_b's draft with the approximate-date sentence and preserve candidate_a's draft and both exact revisions."
+        },
+        {
+          "turn": 5,
+          "must": "Treat the message as approval of the displayed set, schedule or send both exactly once according to product policy, and report partial completion item by item if needed."
+        },
+        {
+          "turn": 6,
+          "must": "Use actual contact state to list only unsent or reply-pending work from this run, excluding completed or unrelated contacts and making no new side effect."
+        }
+      ]
+    }
+  ],
+  "criticalFailureGate": {
+    "allowedRecipientViolations": 0,
+    "testIsolationViolations": 0,
+    "unauthorizedStateChanges": 0,
+    "unsupportedDeliveryOrCalendarClaims": 0,
+    "fabricatedCandidateOrRoleFacts": 0,
+    "userAuthoredCopyMeaningOrLanguageCorruptions": 0,
+    "staleDraftOrDuplicateSideEffects": 0,
+    "candidateMixupsInBatch": 0
+  },
+  "qualityGate": {
+    "stateIntegrityPasses": 36,
+    "intentApplicationPassesAtLeast": 34,
+    "continuityPassesAtLeast": 32,
+    "effortPassesAtLeast": 32,
+    "truthfulnessPassesAtLeast": 32,
+    "copyFidelityPassesAtLeast": 32,
+    "scenarioEndToEndPasses": 6
+  }
+}

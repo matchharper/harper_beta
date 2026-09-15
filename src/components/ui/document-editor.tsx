@@ -69,15 +69,20 @@ const DocumentEditorPanelContext =
  */
 export function DocumentEditorPanelProvider({
   children,
+  onOpenDocument,
 }: {
   children: ReactNode;
+  onOpenDocument?: (documentId: string) => void;
 }) {
   const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
   const [portalTarget, setPortalTarget] = useState<HTMLDivElement | null>(null);
   const closeDocument = useCallback(() => setActiveDocumentId(null), []);
   const openDocument = useCallback(
-    (documentId: string) => setActiveDocumentId(documentId),
-    []
+    (documentId: string) => {
+      onOpenDocument?.(documentId);
+      setActiveDocumentId(documentId);
+    },
+    [onOpenDocument]
   );
   const contextValue = useMemo(
     () => ({

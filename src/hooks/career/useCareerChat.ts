@@ -26,6 +26,7 @@ import type { CareerOpportunityMention } from "@/lib/career/opportunityMentionTe
 import type { CareerPendingActionReference } from "@/lib/career/pendingActions";
 import { uploadTalentDocument } from "@/lib/talentOnboarding/documentUploadClient";
 import { useCareerTextChatModelStore } from "@/store/useCareerTextChatModelStore";
+import { getCareerBrowserTimeZone } from "@/lib/career/requestTimeZone";
 
 type SendChatArgs = {
   allowedToolNames?: readonly string[];
@@ -767,6 +768,7 @@ export const useCareerChat = ({
             opportunityMentions: args.opportunityMentions,
             pendingAction: args.pendingAction,
             textChatModel,
+            timeZone: getCareerBrowserTimeZone(),
             uploadedDocumentIds,
             link,
           }),

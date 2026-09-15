@@ -9,6 +9,7 @@ import {
   updateTalentOpportunityHistoryItem,
 } from "@/lib/talentOpportunity";
 import type { Json } from "@/types/database.types";
+import { isInternalRoleCandidateDecisionAvailable } from "@/lib/career/internalOpportunityDecision";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -65,11 +66,13 @@ export async function POST(req: NextRequest) {
         ? (role.information as Record<string, unknown>)
         : {};
     if (
-      String(role.status ?? "").trim().toLowerCase() !== "active" ||
+      !isInternalRoleCandidateDecisionAvailable(role.status) ||
       role.is_expired === true ||
       (Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now()) ||
       roleInformation.testOnly === true ||
-      String(roleInformation.testOnly ?? "").trim().toLowerCase() === "true"
+      String(roleInformation.testOnly ?? "")
+        .trim()
+        .toLowerCase() === "true"
     ) {
       return NextResponse.json(
         { error: "internal_opportunity_unavailable" },

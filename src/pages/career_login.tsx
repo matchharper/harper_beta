@@ -22,6 +22,8 @@ import {
   CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
   CAREER_UTM_SOURCE_STORAGE_KEY,
   normalizeCareerUtmSource,
+  readActiveCareerExplicitUtmSourceFromStorage,
+  readCareerUtmParamsFromSearch,
 } from "@/lib/career/utm";
 import { useCountryLang } from "@/hooks/useCountryLang";
 import { BareButton } from "@/components/ui/button";
@@ -485,12 +487,22 @@ const CareerLoginContent = () => {
   useEffect(() => {
     if (!router.isReady || typeof window === "undefined") return;
 
-    const source =
+    const explicitUtmSource = readCareerUtmParamsFromSearch(
+      window.location.search
+    )?.utm_source;
+    const routedSource =
       typeof router.query.source === "string"
         ? normalizeCareerUtmSource(router.query.source)
         : null;
-    const localId =
+    const activeExplicitUtmSource =
+      explicitUtmSource ?? readActiveCareerExplicitUtmSourceFromStorage();
+    const source = activeExplicitUtmSource ?? routedSource;
+    const routedLocalId =
       typeof router.query.lid === "string" ? router.query.lid : "";
+    const localId = activeExplicitUtmSource
+      ? localStorage.getItem(CAREER_LANDING_LOCAL_ID_STORAGE_KEY) ||
+        routedLocalId
+      : routedLocalId;
 
     if (source) {
       localStorage.setItem(CAREER_UTM_SOURCE_STORAGE_KEY, source);
@@ -498,7 +510,7 @@ const CareerLoginContent = () => {
     if (localId) {
       localStorage.setItem(CAREER_LANDING_LOCAL_ID_STORAGE_KEY, localId);
     }
-  }, [router.isReady, router.query.lid, router.query.source]);
+  }, [router.asPath, router.isReady, router.query.lid, router.query.source]);
 
   useEffect(() => {
     if (!router.isReady || typeof window === "undefined") return;

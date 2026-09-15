@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "datasetVersion": "company-side-conversational-qa-v3",
+  "goldVersion": "company-side-conversational-qa-gold-v3",
+  "adjudicatedAt": "2026-09-14",
+  "adjudication": "manual semantic review of each adaptive Slack thread plus authoritative contact and Role state; no keyword or regex scoring",
+  "changeFromV2": "Adds five fresh scenarios focused on exact-ID batch delivery after a context gap, revision UX, English-copy fidelity, failure-cause continuity, and pending proposal replacement.",
+  "cases": [
+    {
+      "caseId": "CSCQ301",
+      "must": [
+        "Create exactly two candidate-specific drafts and keep the November allowance only on candidate_b.",
+        "Read-only detours must not replace, cancel, or lose either draft.",
+        "The final explicit batch approval must schedule both exact current revisions without relying on a recent-message window.",
+        "The verification turn must report each candidate's real contact state and no duplicate delivery."
+      ]
+    },
+    {
+      "caseId": "CSCQ302",
+      "must": [
+        "Revise the same draft rather than create another contact.",
+        "Remove the travel topic completely and ask only about twice-weekly office attendance.",
+        "Honor the one-sentence request in the actual appended candidate copy.",
+        "Send the latest revision once after approval and report the exact recipient, Role, and topic."
+      ]
+    },
+    {
+      "caseId": "CSCQ303",
+      "must": [
+        "Preserve the user-authored English language and meaning and disclose any actual rewriting honestly.",
+        "Revise only start date to availability while preserving all other user-authored wording unless a product-required sender disclosure is clearly explained.",
+        "Send exactly the approved latest revision once.",
+        "Read the authoritative sent contact and reproduce its exact body without reconstructing it from memory."
+      ]
+    },
+    {
+      "caseId": "CSCQ304",
+      "must": [
+        "Create no draft or delivery for a candidate-Role pair that is not company-visible.",
+        "Explain the verified target mismatch or missing company-visible position instead of inventing a policy reason.",
+        "State correctly that paused stops new recommendations but does not itself block contact for an existing visible candidate process.",
+        "Perform no contact side effect after the user says not to send."
+      ]
+    },
+    {
+      "caseId": "CSCQ305",
+      "must": [
+        "Replace the pending remote-work proposal with a location-only Busan proposal while preserving hybrid work mode.",
+        "Apply only the latest confirmed change and accurately read back Busan plus hybrid.",
+        "Create a separate Seoul rollback proposal and apply it only after confirmation.",
+        "End with Seoul plus hybrid and no unrelated Role or candidate change."
+      ]
+    }
+  ],
+  "criticalFailureGate": {
+    "allowedRecipientViolations": 0,
+    "testIsolationViolations": 0,
+    "unauthorizedStateChanges": 0,
+    "unsupportedDeliveryClaims": 0,
+    "fabricatedCandidateRoleOrFailureFacts": 0,
+    "userAuthoredCopyMeaningOrLanguageCorruptions": 0,
+    "staleDraftOrDuplicateSideEffects": 0,
+    "candidateMixupsInBatch": 0
+  },
+  "qualityGate": {
+    "stateIntegrityPassRate": 1,
+    "intentApplicationPassRateAtLeast": 0.94,
+    "continuityPassRateAtLeast": 0.9,
+    "effortPassRateAtLeast": 0.9,
+    "truthfulnessPassRateAtLeast": 0.9,
+    "copyFidelityPassRateAtLeast": 0.9,
+    "scenarioEndToEndPasses": 5
+  }
+}

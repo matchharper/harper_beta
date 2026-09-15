@@ -6,14 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useOpsInternalDataExclusionStore } from "@/store/useOpsInternalDataExclusionStore";
 import { canViewOpsUtm, isInternalEmail } from "@/lib/internalAccess";
-import {
-  EyeOff,
-  KeyRound,
-  LoaderCircle,
-  Plus,
-  Trash2,
-  X,
-} from "lucide-react";
+import { EyeOff, KeyRound, LoaderCircle, Plus, Trash2, X } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -57,6 +50,12 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         href: "/ops/jobs",
         label: "공식 채용공고",
         matchPrefix: "/ops/jobs",
+      },
+      {
+        description: "블로그 글, 언어 버전, 썸네일 관리",
+        href: "/ops/blog",
+        label: "블로그",
+        matchPrefix: "/ops/blog",
       },
       {
         description: "채팅 답변 예시 관리",
@@ -180,6 +179,12 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         href: "/ops/debugging/org-agent-tools",
         label: "LLM Tool",
         matchPrefix: "/ops/debugging/org-agent-tools",
+      },
+      {
+        description: "회사 채팅 answer example retrieval 결과 확인",
+        href: "/ops/debugging/company-answer-retrieval",
+        label: "Answer Retrieval",
+        matchPrefix: "/ops/debugging/company-answer-retrieval",
       },
       {
         description: "LLM API와 AWS EC2 비용 및 credit 확인",

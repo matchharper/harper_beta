@@ -5,6 +5,10 @@ import {
   humanizeOrgWorkMode,
 } from "@/lib/org/pipelineStage";
 import {
+  parseOrgRoleEmploymentType,
+  parseOrgRoleWorkMode,
+} from "@/lib/org/roleFieldValues";
+import {
   COMPANY_DATA_CATALOG,
   companyDataDisplayLabel,
   companyDataTargetKey,
@@ -326,7 +330,11 @@ function normalizeList(args: {
   const raw = Array.isArray(args.value) ? args.value : [args.value];
   const values: string[] = [];
   for (const item of raw) {
-    const value = singleLine(item);
+    const originalValue = singleLine(item);
+    const value =
+      args.key === "role_employment_types"
+        ? (parseOrgRoleEmploymentType(originalValue) ?? originalValue)
+        : originalValue;
     if (!value || values.includes(value)) continue;
     if (args.allowedValues && !args.allowedValues.includes(value)) {
       throw new CompanyDataMutationError(
@@ -364,7 +372,11 @@ function normalizeRewriteValue(key: CompanyDataKey, value: unknown) {
     });
   }
   if (catalog.type === "enum") {
-    const normalized = normalizeString(value, catalog.nullable, 100);
+    const raw = normalizeString(value, catalog.nullable, 100);
+    const normalized =
+      key === "role_work_mode" && raw !== null
+        ? (parseOrgRoleWorkMode(raw) ?? raw)
+        : raw;
     if (
       normalized !== null &&
       catalog.allowedValues &&

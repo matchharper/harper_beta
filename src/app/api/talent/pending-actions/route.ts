@@ -9,6 +9,7 @@ import { fetchActiveInternalFitHoldQuestion } from "@/lib/talentOnboarding/inter
 import {
   createCompanyTalentResumeUploadToken,
   fetchActiveCompanyTalentRequests,
+  getCompanyTalentRequestLogoUrl,
 } from "@/lib/companyTalentRequests/server";
 import { fetchTalentOpportunityHistory } from "@/lib/talentOpportunity";
 import type {
@@ -178,6 +179,7 @@ export async function GET(req: NextRequest) {
         180
       );
       return {
+        companyLogoUrl: getCompanyTalentRequestLogoUrl(request),
         companyName,
         expiresAt: null,
         id: request.id,

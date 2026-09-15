@@ -9,6 +9,7 @@ import type {
   RealtimeConnectOptions,
   UseRealtimeSessionArgs,
 } from "./useRealtimeSession";
+import { getCareerBrowserTimeZone } from "@/lib/career/requestTimeZone";
 
 type LiveFunctionCall = {
   arguments: string;
@@ -888,6 +889,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
               locale,
               resumeCallNoteId: options?.resumeCallNoteId ?? undefined,
               sdp,
+              timeZone: getCareerBrowserTimeZone(),
             }),
           });
           const responseText = await response.text();

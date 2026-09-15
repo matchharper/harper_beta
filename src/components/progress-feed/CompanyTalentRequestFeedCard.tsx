@@ -37,7 +37,9 @@ export function CompanyTalentRequestFeedCard({
           title:
             item.requestKind === "resume"
               ? "후보자에게 이력서를 요청했어요"
-              : "후보자에게 질문을 보냈어요",
+              : item.requestKind === "contact"
+                ? "후보자에게 연락을 보냈어요"
+                : "후보자에게 질문을 보냈어요",
         }
       : item.deliveryStatus === "processing"
         ? {
@@ -80,6 +82,9 @@ export function CompanyTalentRequestFeedCard({
                     title: "후보자 연락 상태를 확인해 주세요",
                   };
   const StatusIcon = statusMeta.Icon;
+  const hasDraftContent =
+    item.workflowStatus === "draft" &&
+    Boolean(item.draftSubject?.trim() || item.draftBody?.trim());
 
   return (
     <div className="flex items-start gap-1.5">
@@ -87,9 +92,36 @@ export function CompanyTalentRequestFeedCard({
         <StatusIcon className="h-3.5 w-3.5" />
       </span>
       <article className="min-w-0 flex-1 border-b border-neutral-1000-a05 pb-3 text-sm text-neutral-primary">
-        <div className="text-[12px] font-medium text-neutral-primary">
-          {statusMeta.title}
-        </div>
+        {hasDraftContent ? (
+          <details className="group">
+            <summary className="flex cursor-pointer list-none items-center gap-1 py-0.5 text-[12px] font-medium text-neutral-primary transition hover:text-neutral-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 [&::-webkit-details-marker]:hidden">
+              <ChevronRight className="h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-90" />
+              {statusMeta.title}
+            </summary>
+            <div className="mt-2 space-y-3 rounded-md bg-bg-weak px-3 py-2.5 text-xs leading-5">
+              {item.draftSubject ? (
+                <div>
+                  <div className="text-[11px] text-neutral-soft">제목</div>
+                  <div className="mt-1 font-medium text-neutral-primary">
+                    {item.draftSubject}
+                  </div>
+                </div>
+              ) : null}
+              {item.draftBody ? (
+                <div>
+                  <div className="text-[11px] text-neutral-soft">본문</div>
+                  <div className="mt-1 whitespace-pre-wrap break-words text-neutral-primary">
+                    {item.draftBody}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </details>
+        ) : (
+          <div className="text-[12px] font-medium text-neutral-primary">
+            {statusMeta.title}
+          </div>
+        )}
         <div
           className={cn(
             "mt-1 text-xs leading-5",

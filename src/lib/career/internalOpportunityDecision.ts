@@ -30,6 +30,18 @@ type InternalOpportunityDecisionState = Pick<
 
 const ACCEPTANCE_REVERSAL_WINDOW_MS = 24 * 60 * 60 * 1000;
 const ACCEPTANCE_REVERSIBLE_STAGES = new Set(["accepted"]);
+const INTERNAL_ROLE_CANDIDATE_DECISION_STATUSES = new Set([
+  "active",
+  "paused",
+  "top_priority",
+]);
+
+export function isInternalRoleCandidateDecisionAvailable(status: unknown) {
+  return (
+    typeof status === "string" &&
+    INTERNAL_ROLE_CANDIDATE_DECISION_STATUSES.has(status.trim().toLowerCase())
+  );
+}
 
 export function getInternalOpportunityDecisionAvailability(
   item: InternalOpportunityDecisionState,
@@ -41,7 +53,7 @@ export function getInternalOpportunityDecisionAvailability(
 
   if (item.feedback === "negative") {
     const roleIsAvailable =
-      item.status.trim().toLowerCase() === "active" && !item.isExpired;
+      isInternalRoleCandidateDecisionAvailable(item.status) && !item.isExpired;
     return {
       canRevert: roleIsAvailable,
       canStopProcess: false,

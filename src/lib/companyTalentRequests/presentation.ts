@@ -49,7 +49,7 @@ export function serializeTalentPendingRequest(
       `neutral question: ${requestContext}`,
       "Judge the meaning of only the latest user message. When it answers this request, call record_company_request_response with disposition=positive only for a clear renewed willingness, negative for a clear refusal, and other when the response answers but does not establish either.",
       "A positive answer normally reopens this Role, but a newer company stage change takes precedence. Follow the tool's assistantInstruction for the actual Position state. Negative or other keeps it closed. Never claim any result unless the tool returned ok=true in this turn.",
-      "After ok=true, explain the actual result gently and say Harper will relay the answer to the company. Do not reveal request IDs or system wording.",
+      "After ok=true, explain the actual result gently and say Harper delivered the answer to the company. Do not reveal request IDs or system wording, and do not add later status updates that the tool result does not provide.",
     ].join("\n");
   }
   if (request.expects_document) {
@@ -60,8 +60,8 @@ export function serializeTalentPendingRequest(
       `role: ${role}`,
       "The company asked whether the talent can share a current resume.",
       "If the latest user message explicitly declines or says that no current resume is available, you MUST call record_company_request_response before the final reply. An upload is completed by the document service, never by a chat claim.",
-      "Use only the latest user message as response evidence. Never say or imply that Harper accepted, saved, queued, relayed, shared, or delivered the response unless record_company_request_response returned ok=true in this turn.",
-      "After ok=true, say only that Harper received the response and will relay it; do not claim that the company has already received it.",
+      "Use only the latest user message as response evidence. Never say or imply that Harper shared or delivered the response to the company unless record_company_request_response returned ok=true in this turn.",
+      "After ok=true, say that Harper delivered the response to the company. Keep the reply to facts returned by the tool.",
     ].join("\n");
   }
   return [
@@ -71,8 +71,8 @@ export function serializeTalentPendingRequest(
     `role: ${role}`,
     `neutral question: ${requestContext}`,
     "If the latest user message substantively answers or explicitly declines this request, you MUST call record_company_request_response before the final reply.",
-    "Use only the latest user message as response evidence. Never say or imply that Harper accepted, saved, queued, relayed, shared, or delivered the response unless record_company_request_response returned ok=true in this turn.",
-    "After ok=true, say only that Harper received the response and will relay it; do not claim that the company has already received it.",
+    "Use only the latest user message as response evidence. Never say or imply that Harper shared or delivered the response to the company unless record_company_request_response returned ok=true in this turn.",
+    "After ok=true, say that Harper delivered the response to the company. Keep the reply to facts returned by the tool.",
     isCompensationQuestion(request.request_context)
       ? "Compensation is never shared from stored profile/insight. Record a response only when the talent explicitly provides an amount/range/wording to share, or clearly approves the wording Harper showed them. Otherwise ask one clarification question."
       : "The candidate may answer, decline, or ignore. Never pressure them.",
@@ -99,15 +99,21 @@ export function candidateContactDraftPresentation(args: {
  * Emergency copy for a failed final LLM completion. Successful contact-draft
  * turns keep the company-side model's prose and never use this text.
  */
-export function candidateContactDraftFallbackReply(candidateName: unknown) {
+export function candidateContactDraftFallbackReply(
+  candidateName: unknown,
+  kind?: "contact" | "question" | "resume"
+) {
   const candidate = normalizedText(candidateName, 160) || "후보자";
+  if (kind === "contact") {
+    return `네, 제가 대신 ${candidate}님께 연락을 전달할게요. 우선 아래 내용으로 보내려고 해요. 보내기 전에 한 번만 확인해 주시겠어요?`;
+  }
   return `네, 제가 대신 ${candidate}님께 여쭤보고, 답이 오면 여기로 알려드릴게요. 우선 아래 내용으로 연락드리려고 해요. 보내기 전에 한 번만 확인해 주시겠어요?`;
 }
 
 export function candidateContactScheduledReply(args: {
   candidateName: string;
   immediate: boolean;
-  kind?: "question" | "resume";
+  kind?: "contact" | "question" | "resume";
   now?: Date;
   scheduledAt?: unknown;
 }) {
@@ -117,7 +123,16 @@ export function candidateContactScheduledReply(args: {
   // wait. It should feel like Harper has taken ownership now without falsely
   // claiming that provider delivery already completed. scheduledAt remains
   // available for an explicit timing question or a delivery-status lookup.
-  const request = args.kind === "resume" ? "최신 이력서를" : "확인을";
+  const request =
+    args.kind === "resume"
+      ? "최신 이력서를"
+      : args.kind === "contact"
+        ? "연락을"
+        : "확인을";
+  if (args.kind === "contact") {
+    const timing = args.immediate ? "바로 " : "";
+    return `네, 요청하신 내용으로 ${candidate} ${timing}${request} 전달할게요. 후보자가 답장을 보내면 이 대화로 알려드리겠습니다.`;
+  }
   if (args.immediate) {
     return `네, 요청하신 내용으로 ${candidate} 바로 ${request} 요청할게요. 답변이 오면 이 대화로 바로 알려드리겠습니다.`;
   }

@@ -141,6 +141,12 @@ export type OrgAgentMessageMetadata = {
     webToolCallCount?: number;
   };
   candidateConnectionConfirmations?: OrgAgentCandidateDecisionConfirmation[];
+  candidateRelayRef?: {
+    relayId: string;
+    requestId: string;
+    roleId: string;
+    talentId: string;
+  };
   contactDraftRef?: {
     contactId: string;
     revision: number;
@@ -214,6 +220,8 @@ export type OrgAgentMessageMetadata = {
   slackUserName?: string | null;
   toolResults?: Array<{
     callId: string;
+    /** Bounded, user-safe facts required to continue an incomplete tool flow. */
+    continuationContext?: string;
     name: string;
     status: "error" | "success" | "unchanged";
     summary: string;

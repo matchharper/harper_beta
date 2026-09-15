@@ -17,6 +17,7 @@ import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import {
   CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
   CAREER_UTM_SOURCE_STORAGE_KEY,
+  readActiveCareerExplicitUtmSourceFromStorage,
 } from "@/lib/career/utm";
 import { useAuthStore } from "@/store/useAuthStore";
 import { cva, type VariantProps } from "class-variance-authority";
@@ -83,16 +84,25 @@ export default function OfficialJobsCtaLink({
   const handleClick: MouseEventHandler<HTMLAnchorElement> = (event) => {
     const resolvedAnonymousId = getOfficialJobsAnonymousId();
     const experimentAbtestType = getOfficialJobsApplyHelpExperimentAbtestType();
+    const activeExplicitUtmSource =
+      readActiveCareerExplicitUtmSourceFromStorage();
+    let careerLandingId = resolvedAnonymousId;
 
     if (typeof window !== "undefined" && resolvedAnonymousId) {
-      window.localStorage.setItem(
-        CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
-        resolvedAnonymousId
-      );
-      window.localStorage.setItem(
-        CAREER_UTM_SOURCE_STORAGE_KEY,
-        OFFICIAL_JOBS_LANDING_SOURCE
-      );
+      if (activeExplicitUtmSource) {
+        careerLandingId =
+          window.localStorage.getItem(CAREER_LANDING_LOCAL_ID_STORAGE_KEY) ||
+          resolvedAnonymousId;
+      } else {
+        window.localStorage.setItem(
+          CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
+          resolvedAnonymousId
+        );
+        window.localStorage.setItem(
+          CAREER_UTM_SOURCE_STORAGE_KEY,
+          OFFICIAL_JOBS_LANDING_SOURCE
+        );
+      }
     }
 
     onClick?.(event);
@@ -109,7 +119,7 @@ export default function OfficialJobsCtaLink({
 
     event.preventDefault();
     window.location.href = buildOfficialJobsLoginHref(
-      resolvedAnonymousId,
+      careerLandingId,
       careerHref,
       experimentAbtestType
     );

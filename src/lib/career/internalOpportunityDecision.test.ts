@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   getInternalOpportunityDecisionAvailability,
   INTERNAL_OPPORTUNITY_DECISION_REASON_MAX_LENGTH,
+  isInternalRoleCandidateDecisionAvailable,
   normalizeInternalOpportunityDecisionReason,
 } from "./internalOpportunityDecision";
 
@@ -84,7 +85,13 @@ test("treats a connected role as a post-acceptance stage", () => {
   );
 });
 
-test("allows rejection reversal only while the role is active and unexpired", () => {
+test("allows candidate decisions while an internal role is active or paused", () => {
+  assert.equal(isInternalRoleCandidateDecisionAvailable("active"), true);
+  assert.equal(isInternalRoleCandidateDecisionAvailable("PAUSED"), true);
+  assert.equal(isInternalRoleCandidateDecisionAvailable("top_priority"), true);
+  assert.equal(isInternalRoleCandidateDecisionAvailable("ended"), false);
+  assert.equal(isInternalRoleCandidateDecisionAvailable("draft"), false);
+
   assert.deepEqual(
     getInternalOpportunityDecisionAvailability(
       buildState({ feedback: "negative", status: "active" }),
@@ -104,7 +111,7 @@ test("allows rejection reversal only while the role is active and unexpired", ()
       buildState({ feedback: "negative", status: "paused" }),
       NOW
     ),
-    { canRevert: false, canStopProcess: false }
+    { canRevert: true, canStopProcess: false }
   );
   assert.deepEqual(
     getInternalOpportunityDecisionAvailability(

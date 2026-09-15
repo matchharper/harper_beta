@@ -10,7 +10,6 @@ import {
   DEFAULT_ORG_AGENT_REASONING_EFFORT,
   DEFAULT_ORG_AGENT_MODEL,
   getOrgAgentFallbackModel,
-  ORG_AGENT_GROK_MODEL,
   ORG_AGENT_TERRA_MODEL,
   isOrgAgentModelId,
   resolveOrgAgentModel,
@@ -317,7 +316,9 @@ async function completion(args: {
   return createChatCompletionWithFallback({
     ...(args.strictModel
       ? {}
-      : { anthropicOverloadFallbackModel: ORG_AGENT_GROK_MODEL }),
+      : {
+          anthropicOverloadFallbackModel: getOrgAgentFallbackModel(args.model),
+        }),
     buildRequest: (model) => ({
       ...(usesMaxCompletionTokensForModel(model)
         ? { max_completion_tokens: maxTokens }
@@ -361,7 +362,7 @@ export async function generateRoleCreationOutcomeReply(args: {
     ? args.model
     : resolveOrgAgentModel(DEFAULT_ORG_AGENT_MODEL).model;
   const result = await createChatCompletionWithFallback({
-    anthropicOverloadFallbackModel: ORG_AGENT_GROK_MODEL,
+    anthropicOverloadFallbackModel: getOrgAgentFallbackModel(selectedModel),
     buildRequest: (model) => ({
       ...(usesMaxCompletionTokensForModel(model)
         ? { max_completion_tokens: ROLE_CREATION_MAX_OUTPUT_TOKENS }
@@ -807,7 +808,7 @@ export async function runOrgRoleCreationChat(args: {
         ...messages,
         {
           content:
-            "Tool use is finished for this turn. Explain what was completed, what remains incomplete, and the most useful next step. Do not claim an unverified save or activation.",
+            "Tool use is finished for this turn. Write the final company-facing response now using the tool_outcome_response_contract and every verified result above.",
           role: "user",
         },
       ],

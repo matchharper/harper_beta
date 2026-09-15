@@ -19,7 +19,7 @@ const TALENT_B = "72f3a534-66e2-4eca-92be-cb054b31fd36";
 test("extracts unique valid role IDs from company-side LLM markers", () => {
   assert.deepEqual(
     extractSlackRoleMarkerIds(
-      `[Backend](role:${ROLE_A}) [Design](role:${ROLE_B}) ` +
+      `[[TEST] Backend](role:${ROLE_A}) [Design](role:${ROLE_B}) ` +
         `[Backend](role:${ROLE_A}) [잘못된 값](role:not-an-id)`
     ),
     [ROLE_A, ROLE_B]
@@ -29,7 +29,7 @@ test("extracts unique valid role IDs from company-side LLM markers", () => {
 test("extracts unique valid talent IDs from company-side LLM markers", () => {
   assert.deepEqual(
     extractSlackTalentMarkerIds(
-      `[김하퍼](talent:${TALENT_A})와 [이하퍼](talent:${TALENT_B}), ` +
+      `[[TEST] 김하퍼](talent:${TALENT_A})와 [이하퍼](talent:${TALENT_B}), ` +
         `[김하퍼](talent:${TALENT_A}) [잘못된 값](talent:not-an-id)`
     ),
     [TALENT_A, TALENT_B]
@@ -163,9 +163,9 @@ test("renders all company-side LLM navigation markers as Slack links", () => {
   const rendered = renderSlackOrgLinks({
     message:
       `[홈](home)에서 [전체 역할](roles)을 보고 ` +
-      `[Backend | API](role:${ROLE_A})의 후보자를 확인하세요. ` +
+      `[[TEST] Backend | API](role:${ROLE_A})의 후보자를 확인하세요. ` +
       `[팀 <설정>](team)과 [없는 역할](role:${ROLE_B})도 있습니다. ` +
-      `[김하퍼](talent:${TALENT_A})`,
+      `문서 [보기](https://example.com) 후 [[TEST] 김하퍼](talent:${TALENT_A})`,
     roleTargets: [{ roleId: ROLE_A }],
     talentTargets: [
       {
@@ -188,7 +188,7 @@ test("renders all company-side LLM navigation markers as Slack links", () => {
   assert.match(
     rendered,
     new RegExp(
-      `<https://matchharper\\.com/org/role\\?orgId=workspace-id&roleId=${ROLE_A}&tab=pipeline&view=pipeline\\|Backend &#124; API>`
+      `<https://matchharper\\.com/org/role\\?orgId=workspace-id&roleId=${ROLE_A}&tab=pipeline&view=pipeline\\|\\[TEST\\] Backend &#124; API>`
     )
   );
   assert.match(
@@ -196,6 +196,8 @@ test("renders all company-side LLM navigation markers as Slack links", () => {
     /<https:\/\/matchharper\.com\/org\/team\?orgId=workspace-id\|팀 &lt;설정&gt;>/
   );
   assert.match(rendered, /없는 역할도 있습니다\./);
+  assert.match(rendered, /문서 \[보기\]\(https:\/\/example\.com\) 후/);
+  assert.match(rendered, /\|\[TEST\] 김하퍼>/);
   assert.match(rendered, new RegExp(`talentId=${TALENT_A}`));
   assert.doesNotMatch(rendered, new RegExp(ROLE_B));
   assert.doesNotMatch(rendered, /\]\((?:home|roles|team|role:|talent:)/);

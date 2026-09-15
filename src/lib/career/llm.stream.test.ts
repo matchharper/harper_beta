@@ -11,6 +11,29 @@ const toAnthropicStream = (events: unknown[]) =>
     }
   );
 
+test("Career tool results prefer compact model-facing text when provided", async () => {
+  const previousApiKey = process.env.ANTHROPIC_API_KEY;
+  const previousOpenAiApiKey = process.env.OPENAI_API_KEY;
+  process.env.ANTHROPIC_API_KEY = "test-key";
+  process.env.OPENAI_API_KEY = "test-key";
+  try {
+    const { serializeCareerToolResultForModel } = await import("./llm");
+    assert.equal(
+      serializeCareerToolResultForModel({
+        contacts: [{ large: "ignored" }],
+        modelOutput: "status=ok\ncontacts=Acme · Backend Engineer",
+        ok: true,
+      }),
+      "status=ok\ncontacts=Acme · Backend Engineer"
+    );
+  } finally {
+    if (previousApiKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = previousApiKey;
+    if (previousOpenAiApiKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = previousOpenAiApiKey;
+  }
+});
+
 test("tool detection replaces a streamed preamble and returns only the final answer", async () => {
   const previousApiKey = process.env.ANTHROPIC_API_KEY;
   const previousOpenAiApiKey = process.env.OPENAI_API_KEY;

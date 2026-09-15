@@ -324,7 +324,9 @@ export function OrgDocumentsPage({ markdown }: { markdown: string }) {
               자주 묻는 질문
             </h2>
             <div className="mt-6 divide-y divide-[#e9e6e4] border-y border-neutral-100">
-              {COMPANY_SERVICE_FAQ_ITEMS.map((item) => (
+              {COMPANY_SERVICE_FAQ_ITEMS.filter(
+                (item) => item.showInDocuments !== false
+              ).map((item) => (
                 <details
                   className="group py-6 font-normal text-black"
                   key={item.question}

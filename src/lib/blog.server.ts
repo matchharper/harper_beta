@@ -1,101 +1,130 @@
-import fs from "fs";
-import path from "path";
-import { BlogCategorySummary, BlogPost, BlogPostMeta } from "./blog";
+import type { IncomingMessage } from "http";
+import type { OfficialJobListItem } from "@/lib/officialJobs";
+import { getPublicOfficialJobListItems } from "@/lib/officialJobs/server";
+import { resolveOfficialJobsLocaleFromRequest } from "@/lib/officialJobs/copy";
+import { supabaseServer } from "@/lib/supabaseServer";
+import type {
+  BlogCategorySummary,
+  BlogLocale,
+  BlogPost,
+  BlogPostMeta,
+  BlogSchemaType,
+} from "./blog";
 
-const BLOG_CONTENT_DIR = path.join(process.cwd(), "src", "content", "blog");
-const FRONTMATTER_PATTERN = /^---\n([\s\S]*?)\n---\n?/;
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const REQUIRED_FRONTMATTER_FIELDS = [
-  "title",
-  "excerpt",
-  "category",
-  "author",
-  "authorAvatar",
-  "thumbnail",
-  "publishedAt",
-] as const;
+const BLOG_POST_SELECT_COLUMNS = [
+  "id",
+  "slug",
+  "category_ko",
+  "category_en",
+  "title_ko",
+  "title_en",
+  "excerpt_ko",
+  "excerpt_en",
+  "content_ko",
+  "content_en",
+  "seo_title_ko",
+  "seo_title_en",
+  "seo_description_ko",
+  "seo_description_en",
+  "author_name",
+  "author_avatar_url",
+  "thumbnail_url",
+  "published_at",
+  "updated_at",
+  "is_published",
+  "is_pinned",
+  "tags",
+  "schema_type",
+  "related_job_slugs",
+  "related_post_slugs",
+].join(",");
 
-type RequiredFrontmatterField = (typeof REQUIRED_FRONTMATTER_FIELDS)[number];
+type BlogPostRow = {
+  author_avatar_url: string;
+  author_name: string;
+  category_en: string | null;
+  category_ko: string | null;
+  content_en: string | null;
+  content_ko: string | null;
+  excerpt_en: string | null;
+  excerpt_ko: string | null;
+  id: string;
+  is_pinned: boolean;
+  is_published: boolean;
+  published_at: string;
+  related_job_slugs: string[] | null;
+  related_post_slugs: string[] | null;
+  schema_type: string;
+  seo_description_en: string | null;
+  seo_description_ko: string | null;
+  seo_title_en: string | null;
+  seo_title_ko: string | null;
+  slug: string;
+  tags: string[] | null;
+  thumbnail_url: string;
+  title_en: string | null;
+  title_ko: string | null;
+  updated_at: string;
+};
 
-function stripQuotes(value: string): string {
-  if (
-    (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith("'") && value.endsWith("'"))
-  ) {
-    return value.slice(1, -1);
-  }
-  return value;
-}
+type RequestWithCookies = IncomingMessage & {
+  cookies?: Record<string, string | undefined>;
+};
 
-function parseFrontmatter(raw: string, filePath: string): {
-  frontmatter: Record<string, string>;
-  content: string;
-} {
-  const normalizedRaw = raw.replace(/\r\n/g, "\n");
-  const frontmatterMatch = normalizedRaw.match(FRONTMATTER_PATTERN);
+type BlogPageData = {
+  jobs: OfficialJobListItem[];
+  morePosts: BlogPostMeta[];
+  post: BlogPost;
+};
 
-  if (!frontmatterMatch) {
-    throw new Error(`Blog post is missing frontmatter: ${filePath}`);
-  }
-
-  const frontmatterBlock = frontmatterMatch[1];
-  const content = normalizedRaw.slice(frontmatterMatch[0].length).trim();
-  const frontmatter: Record<string, string> = {};
-
-  for (const rawLine of frontmatterBlock.split("\n")) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) {
-      continue;
+function getUntypedBlogTable() {
+  return (
+    supabaseServer as unknown as {
+      from: (table: string) => any;
     }
-
-    const separatorIndex = line.indexOf(":");
-    if (separatorIndex < 0) {
-      continue;
-    }
-
-    const key = line.slice(0, separatorIndex).trim();
-    const value = line.slice(separatorIndex + 1).trim();
-    frontmatter[key] = stripQuotes(value);
-  }
-
-  return { frontmatter, content };
+  ).from("blog_posts");
 }
 
-function validateDate(dateString: string, slug: string, field: string): string {
-  if (!DATE_PATTERN.test(dateString)) {
-    throw new Error(
-      `Invalid ${field} format in blog post "${slug}". Use YYYY-MM-DD.`
-    );
-  }
-  return dateString;
+function normalizeOptionalText(value: string | null | undefined) {
+  const normalized = String(value ?? "").trim();
+  return normalized || null;
 }
 
-function parseTags(tagsValue: string | undefined): string[] {
-  if (!tagsValue) {
-    return [];
+function getLocalizedRow(row: BlogPostRow, locale: BlogLocale) {
+  if (locale === "ko") {
+    return {
+      category: normalizeOptionalText(row.category_ko),
+      content: normalizeOptionalText(row.content_ko),
+      excerpt: normalizeOptionalText(row.excerpt_ko),
+      seoDescription: normalizeOptionalText(row.seo_description_ko),
+      seoTitle: normalizeOptionalText(row.seo_title_ko),
+      title: normalizeOptionalText(row.title_ko),
+    };
   }
-  return tagsValue
-    .split(",")
-    .map((tag) => tag.trim())
-    .filter(Boolean);
+
+  return {
+    category: normalizeOptionalText(row.category_en),
+    content: normalizeOptionalText(row.content_en),
+    excerpt: normalizeOptionalText(row.excerpt_en),
+    seoDescription: normalizeOptionalText(row.seo_description_en),
+    seoTitle: normalizeOptionalText(row.seo_title_en),
+    title: normalizeOptionalText(row.title_en),
+  };
 }
 
-function parsePinnedValue(value: string | undefined, slug: string): boolean {
-  if (!value) {
-    return false;
-  }
-
-  const normalized = value.trim().toLowerCase();
-  if (normalized === "true" || normalized === "1" || normalized === "yes") {
-    return true;
-  }
-  if (normalized === "false" || normalized === "0" || normalized === "no") {
-    return false;
-  }
-
-  throw new Error(
-    `Invalid "is_pinned" value in blog post "${slug}". Use true or false.`
+function hasCompleteLocalizedVersion(row: BlogPostRow, locale: BlogLocale) {
+  const localized = getLocalizedRow(row, locale);
+  return Boolean(
+    localized.category &&
+    localized.content &&
+    localized.excerpt &&
+    localized.title
   );
+}
+
+function normalizeSchemaType(value: string): BlogSchemaType {
+  if (value === "faq" || value === "none") return value;
+  return "article";
 }
 
 function countReadingMinutes(content: string): number {
@@ -103,74 +132,37 @@ function countReadingMinutes(content: string): number {
   return Math.max(1, Math.ceil(words / 220));
 }
 
-function assertRequiredFields(
-  frontmatter: Record<string, string>,
-  slug: string
-): Record<RequiredFrontmatterField, string> {
-  const required: Partial<Record<RequiredFrontmatterField, string>> = {};
-
-  for (const field of REQUIRED_FRONTMATTER_FIELDS) {
-    const value = frontmatter[field];
-    if (!value) {
-      throw new Error(`Missing "${field}" in blog post "${slug}".`);
-    }
-    required[field] = value;
-  }
-
-  return required as Record<RequiredFrontmatterField, string>;
-}
-
-function parsePostFromFile(fileName: string): BlogPost {
-  const slug = fileName.replace(/\.md$/, "");
-  const fullPath = path.join(BLOG_CONTENT_DIR, fileName);
-  const raw = fs.readFileSync(fullPath, "utf8");
-  const { frontmatter, content } = parseFrontmatter(raw, fullPath);
-  const required = assertRequiredFields(frontmatter, slug);
-
-  const publishedAt = validateDate(required.publishedAt, slug, "publishedAt");
-  const updatedAt = validateDate(
-    frontmatter.updatedAt || publishedAt,
-    slug,
-    "updatedAt"
-  );
-  const isPinned = parsePinnedValue(
-    frontmatter.is_pinned || frontmatter.isPinned,
-    slug
-  );
+function mapBlogPostRow(row: BlogPostRow, locale: BlogLocale): BlogPost | null {
+  if (!hasCompleteLocalizedVersion(row, locale)) return null;
+  const localized = getLocalizedRow(row, locale);
+  const content = localized.content!;
 
   return {
-    slug,
-    title: required.title,
-    excerpt: required.excerpt,
-    category: required.category,
-    author: required.author,
-    authorAvatar: required.authorAvatar,
-    thumbnail: required.thumbnail,
-    publishedAt,
-    updatedAt,
-    isPinned,
-    tags: parseTags(frontmatter.tags),
-    seoTitle: frontmatter.seoTitle,
-    seoDescription: frontmatter.seoDescription,
+    author: row.author_name,
+    authorAvatar: row.author_avatar_url,
+    category: localized.category!,
     content,
+    excerpt: localized.excerpt!,
+    id: row.id,
+    isPinned: row.is_pinned,
+    publishedAt: row.published_at,
     readingMinutes: countReadingMinutes(content),
+    relatedJobSlugs: row.related_job_slugs ?? [],
+    relatedPostSlugs: row.related_post_slugs ?? [],
+    schemaType: normalizeSchemaType(row.schema_type),
+    seoDescription: localized.seoDescription,
+    seoTitle: localized.seoTitle,
+    slug: row.slug,
+    tags: row.tags ?? [],
+    thumbnail: row.thumbnail_url,
+    title: localized.title!,
+    updatedAt: row.updated_at,
   };
 }
 
-function getMarkdownFileNames(): string[] {
-  if (!fs.existsSync(BLOG_CONTENT_DIR)) {
-    return [];
-  }
-
-  return fs
-    .readdirSync(BLOG_CONTENT_DIR)
-    .filter(
-      (fileName) =>
-        fileName.endsWith(".md") &&
-        !fileName.startsWith("_") &&
-        fileName.toLowerCase() !== "readme.md"
-    )
-    .sort();
+function toMeta(post: BlogPost): BlogPostMeta {
+  const { content: _content, readingMinutes: _readingMinutes, ...meta } = post;
+  return meta;
 }
 
 function compareByPublishedDateDesc(a: BlogPostMeta, b: BlogPostMeta): number {
@@ -180,45 +172,180 @@ function compareByPublishedDateDesc(a: BlogPostMeta, b: BlogPostMeta): number {
   return b.publishedAt.localeCompare(a.publishedAt);
 }
 
-export function getAllPostSlugs(): string[] {
-  return getMarkdownFileNames().map((fileName) => fileName.replace(/\.md$/, ""));
+async function fetchPublishedRows(): Promise<BlogPostRow[]> {
+  const { data, error } = await getUntypedBlogTable()
+    .select(BLOG_POST_SELECT_COLUMNS)
+    .eq("is_published", true)
+    .order("published_at", { ascending: false })
+    .order("slug", { ascending: false });
+
+  if (error) {
+    console.warn("blog post query failed:", error.message);
+    return [];
+  }
+
+  return (data ?? []) as BlogPostRow[];
 }
 
-export function getAllPostsMeta(): BlogPostMeta[] {
-  return getMarkdownFileNames()
-    .map((fileName) => parsePostFromFile(fileName))
-    .map(({ content: _content, readingMinutes: _readingMinutes, ...meta }) => meta)
+export function resolveBlogLocaleFromRequest(req: RequestWithCookies) {
+  const acceptLanguage = req.headers["accept-language"];
+  const hasAcceptLanguage = Array.isArray(acceptLanguage)
+    ? acceptLanguage.some((value) => value.trim().length > 0)
+    : Boolean(acceptLanguage?.trim());
+  if (!req.cookies?.NEXT_LOCALE?.trim() && !hasAcceptLanguage) return "ko";
+
+  return resolveOfficialJobsLocaleFromRequest(req);
+}
+
+export async function getAllPostsMeta(
+  locale: BlogLocale
+): Promise<BlogPostMeta[]> {
+  const rows = await fetchPublishedRows();
+  return rows
+    .map((row) => mapBlogPostRow(row, locale))
+    .filter((post): post is BlogPost => Boolean(post))
+    .map(toMeta)
     .sort(compareByPublishedDateDesc);
 }
 
-export function getPostBySlug(slug: string): BlogPost | null {
-  if (!slug) {
+export async function getPostBySlug(
+  slug: string,
+  locale: BlogLocale
+): Promise<BlogPost | null> {
+  const normalizedSlug = slug.trim().toLowerCase();
+  if (!normalizedSlug) return null;
+
+  const { data, error } = await getUntypedBlogTable()
+    .select(BLOG_POST_SELECT_COLUMNS)
+    .eq("slug", normalizedSlug)
+    .eq("is_published", true)
+    .maybeSingle();
+
+  if (error) {
+    console.warn("blog post detail query failed:", error.message);
     return null;
   }
+  if (!data) return null;
+  return mapBlogPostRow(data as BlogPostRow, locale);
+}
 
-  const fileName = `${slug}.md`;
-  if (!getMarkdownFileNames().includes(fileName)) {
-    return null;
+export async function getPublishedPostSitemapRows(): Promise<
+  Array<{
+    slug: string;
+    thumbnail: string;
+    title: string;
+    updatedAt: string;
+  }>
+> {
+  const { data, error } = await getUntypedBlogTable()
+    .select(
+      "slug,updated_at,title_ko,title_en,content_ko,content_en,thumbnail_url"
+    )
+    .eq("is_published", true)
+    .order("slug", { ascending: true });
+
+  if (error) {
+    console.warn("blog sitemap query failed:", error.message);
+    return [];
   }
 
-  return parsePostFromFile(fileName);
+  return (data ?? [])
+    .filter(
+      (row: Record<string, unknown>) =>
+        (normalizeOptionalText(row.title_ko as string | null) &&
+          normalizeOptionalText(row.content_ko as string | null)) ||
+        (normalizeOptionalText(row.title_en as string | null) &&
+          normalizeOptionalText(row.content_en as string | null))
+    )
+    .map((row: Record<string, unknown>) => ({
+      slug: String(row.slug),
+      thumbnail: String(row.thumbnail_url ?? ""),
+      title:
+        normalizeOptionalText(row.title_ko as string | null) ??
+        normalizeOptionalText(row.title_en as string | null) ??
+        String(row.slug),
+      updatedAt: String(row.updated_at),
+    }));
 }
 
 export function getCategorySummaries(
   posts: BlogPostMeta[]
 ): BlogCategorySummary[] {
   const counter = new Map<string, number>();
-
   for (const post of posts) {
-    counter.set(post.category, (counter.get(post.category) || 0) + 1);
+    counter.set(post.category, (counter.get(post.category) ?? 0) + 1);
   }
 
   return Array.from(counter.entries())
     .map(([name, count]) => ({ name, count }))
-    .sort((a, b) => {
-      if (a.count === b.count) {
-        return a.name.localeCompare(b.name);
-      }
-      return b.count - a.count;
-    });
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+}
+
+function takeRandomJobs(jobs: OfficialJobListItem[], limit: number) {
+  const shuffled = [...jobs];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [
+      shuffled[swapIndex],
+      shuffled[index],
+    ];
+  }
+  return shuffled.slice(0, limit);
+}
+
+export function selectBlogJobs(
+  jobs: OfficialJobListItem[],
+  selectedSlugs: string[],
+  limit = 4
+) {
+  const cappedLimit = Math.max(0, Math.min(limit, 4));
+  if (selectedSlugs.length === 0) return takeRandomJobs(jobs, cappedLimit);
+
+  const jobsBySlug = new Map(jobs.map((job) => [job.slug, job]));
+  return selectedSlugs
+    .map((slug) => jobsBySlug.get(slug))
+    .filter((job): job is OfficialJobListItem => Boolean(job))
+    .slice(0, cappedLimit);
+}
+
+function selectMorePosts(
+  posts: BlogPostMeta[],
+  currentPost: BlogPost,
+  limit = 3
+) {
+  const candidates = posts.filter((post) => post.slug !== currentPost.slug);
+  const bySlug = new Map(candidates.map((post) => [post.slug, post]));
+  const selected: BlogPostMeta[] = [];
+
+  for (const slug of currentPost.relatedPostSlugs) {
+    const post = bySlug.get(slug);
+    if (!post || selected.some((item) => item.slug === post.slug)) continue;
+    selected.push(post);
+    if (selected.length >= limit) return selected;
+  }
+
+  for (const post of candidates) {
+    if (selected.some((item) => item.slug === post.slug)) continue;
+    selected.push(post);
+    if (selected.length >= limit) break;
+  }
+  return selected;
+}
+
+export async function getBlogPageData(
+  slug: string,
+  locale: BlogLocale
+): Promise<BlogPageData | null> {
+  const [post, posts, jobs] = await Promise.all([
+    getPostBySlug(slug, locale),
+    getAllPostsMeta(locale),
+    getPublicOfficialJobListItems(),
+  ]);
+  if (!post) return null;
+
+  return {
+    jobs: selectBlogJobs(jobs, post.relatedJobSlugs),
+    morePosts: selectMorePosts(posts, post),
+    post,
+  };
 }

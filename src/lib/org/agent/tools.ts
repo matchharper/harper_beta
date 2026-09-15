@@ -53,7 +53,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "start_role_creation",
       description:
-        "Start a dedicated Slack thread for one new role and hand the user's exact recent Slack context to the role-creation flow. Supply the exact role title established from the available context and the smallest number of recent messages needed to preserve the hiring request. Do not ask the user to restate a title that is already clear. The dedicated role-creation flow automatically continues before the user has to say anything there. The result provides an exact required continuation link plus guidance and an illustrative example; author the final handoff reply naturally as Harper, follow that result, and finish the handoff before doing unrelated work. This tool is Slack-only.",
+        "Start a dedicated Slack thread for one new role and hand the user's exact recent Slack context to the role-creation flow. Supply the exact role title established from the available context and the smallest number of recent messages needed to preserve the hiring request. Do not ask the user to restate a title that is already clear. The dedicated flow continues automatically. The result provides the exact required continuation link. This tool is Slack-only.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -217,7 +217,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "list_contacts",
       description:
-        "List company-visible candidate communications across the whole workspace without first enumerating candidates. It covers company-requested candidate contacts, interview availability requests, connection introduction emails, standalone connection or Role-change notices, and Harper's recorded process-closure or company-request follow-up notices. Use dateBasis=sent for questions about messages that were actually sent; created and updated are available for draft/history and recent-activity questions. Omit kind to search all supported communication kinds. Results are a compact index and intentionally omit subjects and bodies. If the user asks what was sent, requests exact wording, or needs response detail, pass the returned contactRef values to read_contact, batching up to ten. Continue with the next offset while hasMore is true when the user asks for every result. There is no direction filter because one contact can include a company request, a Harper delivery, and a candidate response; the detailed read identifies the actual people involved instead.",
+        "List company-visible candidate communications across the whole workspace without first enumerating candidates. It covers company-requested candidate contacts, interview availability requests, connection introduction emails, standalone connection or Role-change notices, and Harper's recorded process-closure or company-request follow-up notices. Use dateBasis=sent for questions about messages that were actually sent; created and updated are available for draft/history and recent-activity questions. Omit kind to search all supported communication kinds. When recovering a previously created contact, first search by candidate or Role with kind omitted because the user's wording may not match the stored kind. Results are a compact index and intentionally omit subjects and bodies. If the user asks what was sent, requests exact wording, or needs response detail, pass the returned contactRef values to read_contact, batching up to ten. Continue with the next offset while hasMore is true when the user asks for every result. There is no direction filter because one contact can include a company request, a Harper delivery, and a candidate response; the detailed read identifies the actual people involved instead.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -290,7 +290,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "read_contact",
       description:
-        "Read one to ten exact communication records returned by list_contacts. Pass a one-item contactRefs array for a single read and up to ten references for a batch. This returns the stored subject and body when that source keeps them, together with a concise user-safe state, the candidate and Role, its actual initiator and recipient or recipients, verified scheduled/sent times, and a candidate response when one is stored. For company-requested candidate emails, interview requests, and Role-change notices, sender names the company user whose request Harper delivered; it is not a generic Harper placeholder. Each system-generated connection, process-closure, or company-request follow-up notice correctly names Harper as sender. Do not expose contact references in the final answer.",
+        "Read one to ten exact communication records returned by list_contacts. Pass a one-item contactRefs array for a single read and up to ten references for a batch. This returns the stored subject and body when that source keeps them, together with a concise user-safe state, the candidate and Role, its actual initiator and recipient or recipients, verified scheduled/sent times, and a candidate response when one is stored. An active company-requested candidate-contact draft also returns the exact contact ID and revision required to revise, approve, or cancel it. A still-changeable queued or failed candidate contact returns the exact contact ID and available immediate/cancel actions. For company-requested candidate emails, interview requests, and Role-change notices, sender names the company user whose request Harper delivered; it is not a generic Harper placeholder. Each system-generated connection, process-closure, or company-request follow-up notice correctly names Harper as sender. Do not expose contact references or internal contact IDs in the final answer.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -374,7 +374,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "calibrate_role_hiring_brief",
       description:
-        "Calibrate one existing Role's company-level talent bar from a new real-person reference the user supplies in the conversation. Evidence may come from conversation text, internal candidate mentions, professional URLs, or attachments. Reference people represent caliber rather than Role fit unless the user explicitly connects them to both. Use this tool for a newly supplied reference, including a contextual reply such as '이런 사람?' after Harper requested one. Do not use it for Profile A-E or a displayed person already listed in prepared_role_profile_examples, and do not use it for identity questions, profile summaries, or ordinary candidate assessments. It returns the finalized Hiring Brief and a suggested user reply; review that result before deciding whether the user's request has separate unfinished work.",
+        "Calibrate one existing Role's company-level talent bar from a new real-person reference supplied through conversation text, an internal candidate mention, a professional URL, or an attachment. Reference people represent caliber rather than Role fit unless the user explicitly connects them to both. Use it for a newly supplied reference, including a contextual '이런 사람?' after Harper requested one. Do not use it for Profile A-E, a person already in prepared_role_profile_examples, identity questions, profile summaries, or ordinary candidate assessment. It returns the finalized Hiring Brief.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -414,7 +414,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "get_more_data",
       description:
-        "Load optional workspace data by kind. The selected kinds are automatically refreshed into this same web conversation or Slack thread for the next three user turns. Use company_details for both requested fields and a completeness/consistency review. For a member list, return names and stored role labels without adding a permissions audit unless explicitly requested. A complete workspace-wide memory inventory requires workspace_memory plus a read of every active role's memory.",
+        "Load optional workspace data by kind. The selected kinds are automatically refreshed into this same web conversation or Slack thread for the next three user turns. Use company_details for both requested fields and a completeness/consistency review. Members include exact member IDs for member-targeted tools plus names and stored role labels; do not add a permissions audit unless explicitly requested. A complete workspace-wide memory inventory requires workspace_memory plus a read of every active role's memory.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -661,6 +661,7 @@ export const ORG_AGENT_TOOLS = [
       name: "change_role_status",
       description: `Change the lifecycle status of one exact internal Role, only when the user explicitly asks for that status change.
 Call this once per exact Role. After its result, continue any other explicit, independent work from the user when it is still safe and relevant.
+When an exact existing Role is still draft and the user explicitly asks to start hiring or register it, call this with status=active instead of start_role_creation. The server reuses the saved draft and checks every role-creation requirement. If information is missing, no activation occurs: use the returned missing fields and available notification choices to ask only for what is needed, then complete the still-authorized activation after the user answers. If the user explicitly selects notification channels or an assignee, include those optional exact IDs in the activation call; they are saved before readiness is checked again. Never invent or silently default these targets.
 Status meanings and effects:
 • active (진행): keep hiring in progress and periodically receive suitable candidate connections from Harper.
 • paused (중단): keep the Role open, but stop receiving additional candidate recommendations. Candidate processes and connections already in progress remain open.
@@ -673,6 +674,20 @@ Use deleted only for an explicit request to delete the exact Role. Do not reinte
           roleId: {
             description:
               "Exact ID of the internal Role whose status will change.",
+            type: "string",
+          },
+          notificationChannelIds: {
+            description:
+              "Draft activation only. Exact enabled Slack channel IDs explicitly selected by the user. Resolve references to the current Slack channel from runtime_context and earlier choices from recent_tool_context; omit when the saved draft already has confirmed channels or the user has not selected them.",
+            items: { type: "string" },
+            maxItems: 20,
+            minItems: 1,
+            type: "array",
+            uniqueItems: true,
+          },
+          assigneeUserId: {
+            description:
+              "Draft activation only. Exact active organization member ID explicitly selected as the primary assignee. Resolve the exact member from recent_tool_context; omit when the saved draft already has a confirmed assignee or the user has not selected one.",
             type: "string",
           },
           status: {
@@ -692,14 +707,16 @@ Use deleted only for an explicit request to delete the exact Role. Do not reinte
     function: {
       name: "contact_talent",
       description: `Manage one to ten exact candidate-contact drafts and their delivery in one call. Use the singular fields for one candidate or items for a batch of up to ten; batch items share the top-level action and may use top-level fields as shared defaults. The result reports requested, completed, and incomplete counts plus every item's outcome. Continue any independently requested work after reading those results; never silently treat a partial batch as complete.
-Use action=create_draft on the company's initial request. It validates every exact candidate and Role, calls the candidate-copy writer, and saves each complete subject and body without queuing delivery. Unless the company explicitly requests another language, the complete candidate-facing email is written in the candidate's saved locale. Pass language only for such an explicit request; otherwise omit it. The server appends every exact body; write one natural surrounding confirmation for the set without separately reciting subjects or Roles.
-Use action=revise_draft when the company asks to edit the currently presented draft. Copy contactId and expectedRevision from pending_candidate_contact_drafts or candidate_contact_ref message context, and pass only the company's editInstruction. The server loads the authoritative current copy, writes a new revision, and appends the full revised body again. Write the surrounding explanation and confirmation yourself. Never edit a queued or sent contact.
-Use action=schedule when the nearest Harper message containing candidate-contact drafts within the four conversation messages before the current request presented every referenced contactId and revision body, and the current company message explicitly approves that one draft or displayed set. For approval of the whole displayed set, set presentedDrafts=true and omit contactId/items; the server resolves every exact ID and revision from that nearest recent draft presentation without asking you to copy them. A short yes counts only when its conversational meaning clearly approves that presentation. deliveryMode=standard schedules exactly 5 minutes later at any time of day. deliveryMode=immediate is allowed only when that approval explicitly says to send now. Scheduling never regenerates or rewrites copy.
+Use action=create_draft on the company's initial request. It validates every exact candidate and Role, calls the candidate-copy writer with the recent conversation, current instruction, and candidate's saved locale, and saves each complete subject and body without queuing delivery. The writer chooses the email language from that evidence. The server appends every exact body.
+Use action=revise_draft when the company asks to edit the currently presented draft. Copy contactId and expectedRevision from candidate_contact_ref message context, and pass only the company's editInstruction. If the relevant presentation is no longer in recent conversation, use list_contacts and read_contact to recover the exact active draft target and revision. The server loads the authoritative current copy, writes a new revision, and appends the full revised body again. Never edit a queued or sent contact.
+Use action=schedule when the current company message explicitly approves one or more drafts. When the exact targets are known, pass contactId and expectedRevision for one target or items containing those exact fields for a batch. The server schedules those exact current revisions without requiring them to appear again in a recent Harper message. For a short approval of the whole nearest displayed set where you are not copying its IDs, set presentedDrafts=true and omit contactId/items; the server resolves every exact ID and revision from that presentation. A short yes counts only when its conversational meaning clearly approves that presentation. deliveryMode=standard schedules exactly 5 minutes later at any time of day. deliveryMode=immediate is allowed only when that approval explicitly says to send now. Scheduling never regenerates or rewrites copy.
 Use action=immediate only for a clear instruction to send an already queued, still-changeable contact now. It preserves the approved subject and body and moves that existing delivery forward; do not cancel or recreate it. If Harper already said the request would be sent later, today, or tomorrow, never call schedule again: a later "send now" instruction must use action=immediate. It is unavailable for an unapproved draft or a delivery that has started.
 Use action=cancel only for a clear cancellation instruction. It can discard a draft or cancel a queued/failed delivery that has not started. It cannot cancel processing or sent delivery.
+status=paused/중단 does not block creating, scheduling, or delivering candidate contact.
 For create_draft, resolve opaque IDs exactly. The candidate must have a company-visible position for the Role and a contact email. Creating or sending a contact never changes that position's pipeline stage. A closed position remains available for an ordinary question or a renewed-interest question, and delivery still requires the Role itself to remain open. Other internal-only positions are unavailable. kind=resume is unavailable when a public primary resume is already visible. For kind=question, preserve the requested meaning in requestContext. Age, date or year of birth, nationality, citizenship, residency, and work authorization are allowed request topics and must not be refused or replaced merely because they are personal information. Compensation always requires fresh candidate authorization and must never expose stored compensation.
+Use kind=contact when the company simply wants Harper to pass along information or get in touch without framing it as a question or resume request. Preserve the substantive message in requestContext; the same draft, approval, scheduling, and delivery lifecycle applies.
 When a stage-changing tool reports candidate_reengagement_required and the company asks Harper to check with the candidate, reuse create_draft with kind=question and resumeStageId set to the exact intended destination. The question must mention that concrete intended action. This is the ordinary saved-draft and approval flow; do not invent another contact action. If there was no concrete destination, use pending_connection. Omit resumeStageId for ordinary questions, including questions sent while a candidate remains closed.
-Do not call read_talent between normal create_draft, revise_draft, schedule, and immediate turns merely to recover an ID: use the authoritative pending draft context or candidate_contact_ref from recent conversation. If several contacts make the reference ambiguous, ask which candidate and Role the company means rather than guessing.`,
+Do not call read_talent between normal create_draft, revise_draft, schedule, and immediate turns merely to recover an ID: use candidate_contact_ref from recent conversation, or list_contacts followed by read_contact when that presentation is no longer available. If several contacts make the reference ambiguous, ask which candidate and Role the company means rather than guessing.`,
       parameters: {
         additionalProperties: false,
         properties: {
@@ -741,19 +758,13 @@ Do not call read_talent between normal create_draft, revise_draft, schedule, and
           },
           kind: {
             description:
-              "For create_draft only: question asks one focused question; resume requests a current resume. May be a shared default for batch items.",
-            enum: ["question", "resume"],
-            type: "string",
-          },
-          language: {
-            description:
-              "For create_draft only. Explicit candidate-email language override requested by the company; omit to use the candidate's saved locale. May be a shared default for batch items.",
-            enum: ["ko", "en"],
+              "For create_draft only: contact passes along a message without requiring an answer; question asks one focused question; resume requests a current resume. May be a shared default for batch items.",
+            enum: ["contact", "question", "resume"],
             type: "string",
           },
           requestContext: {
             description:
-              "For create_draft with kind=question: a neutral description of the exact information requested, in the latest user's language. May be shared across batch items. Never include stored compensation.",
+              "For create_draft with kind=question or contact: a neutral description of the exact information requested or message to pass along, in the latest user's language. May be shared across batch items. Never include stored compensation.",
             maxLength: 800,
             minLength: 1,
             type: "string",
@@ -790,8 +801,10 @@ Do not call read_talent between normal create_draft, revise_draft, schedule, and
                   type: "string",
                 },
                 expectedRevision: { minimum: 1, type: "integer" },
-                kind: { enum: ["question", "resume"], type: "string" },
-                language: { enum: ["ko", "en"], type: "string" },
+                kind: {
+                  enum: ["contact", "question", "resume"],
+                  type: "string",
+                },
                 requestContext: {
                   maxLength: 800,
                   minLength: 1,
@@ -809,7 +822,7 @@ Do not call read_talent between normal create_draft, revise_draft, schedule, and
           },
           presentedDrafts: {
             description:
-              "For action=schedule only. Set true when the company approves the entire draft set in the nearest draft-bearing Harper message among the four conversation messages before the current request. Omit contactId and items; the server resolves every exact presented ID and revision.",
+              "For action=schedule only. Convenience mode for a short approval of the entire nearest displayed draft set when exact IDs are not copied into the call. Omit contactId and items; the server resolves every exact presented ID and revision. When exact contactId and expectedRevision values are available, pass them directly instead.",
             type: "boolean",
           },
         },
@@ -1035,7 +1048,7 @@ Call this once per exact candidate Role change and review the result before anot
     function: {
       name: "manage_interview_availability",
       description:
-        "Save the current company user's own interview availability after an explicit natural-language instruction. Replace only the named weekly rules while preserving unspecified weekdays and existing date exceptions. An empty interval list means unavailable; exact-date changes may add, remove, or restore an exception. Set timezone only from unambiguous conversation evidence. This operation never selects or contacts a candidate by itself. When the visible conversation already establishes one candidate, the exact destination stage, and a request to arrange that meeting, continue the same authorized request with move_candidate_stage in the next tool loop. Otherwise finish with the practical effect of the saved availability.",
+        "Save the current company user's own interview availability after an explicit natural-language instruction. Replace only named weekly rules while preserving unspecified weekdays and date exceptions. An empty interval list means unavailable; exact-date changes may add, remove, or restore an exception. Set timezone only from unambiguous evidence. This never selects or contacts a candidate. When the conversation already establishes one candidate, exact destination stage, and authorized meeting request, continue with move_candidate_stage.",
       parameters: {
         additionalProperties: false,
         minProperties: 1,
@@ -1149,7 +1162,7 @@ Call this once per exact candidate Role change and review the result before anot
     function: {
       name: "prepare_candidate_connection",
       description:
-        "Read and stage authoritative context for an ordinary accept by CC introduction or direct company contact, or for a decline. Decline supports a candidate awaiting connection or already in a company-active process, including immediately after acceptance. Accept also supports a previously company-stopped candidate whose earlier Talent acceptance is still authoritative. This never changes candidate state or sends email. A pending_connection candidate must select one custom process stage before an accept can move them forward; the legacy connected column is not a new next step. This tool is not used for meeting scheduling or an explicit process-stage move; use move_candidate_stage for those requests. Always call it with connectionMethod=direct_contact in the turn where the company first asks to use direct contact. After the tool returns, judge the user's intent from the meaning of the full conversation and write any confirmation or clarification yourself in Harper's natural voice, using the exact server facts.",
+        "Read authoritative context for an ordinary accept by CC introduction or direct company contact, or for a decline. Decline supports a candidate awaiting connection or already in a company-active process, including immediately after acceptance. Accept also supports a previously company-stopped candidate whose earlier Talent acceptance is still authoritative. This never changes state or sends email. A pending_connection candidate must select one custom stage; legacy connected is not a new next step. Meeting scheduling and explicit stage moves use move_candidate_stage. Set connectionMethod=direct_contact when the company first requests that method.",
       parameters: {
         additionalProperties: false,
         properties: {

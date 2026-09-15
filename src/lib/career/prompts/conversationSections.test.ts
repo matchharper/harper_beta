@@ -4,11 +4,25 @@ import test from "node:test";
 import {
   buildExtractionInsightChecklistSection,
   buildOnboardingRuntimeStateSection,
+  buildOpportunityStatusSection,
   buildOptionalFollowUpOpportunitiesSection,
 } from "./conversationSections";
 import { CAREER_DEFAULT_CONVERSATION_GUIDANCE_PROMPT } from "./rawPrompts";
 import { getInsightChecklist } from "../../talentOnboarding/insightChecklist";
 import { buildCareerInsightExtractionPrompt } from "./cases/insightExtractionPrompts";
+
+test("tells the Career LLM that the initial search continues in the background", () => {
+  const section = buildOpportunityStatusSection({
+    activeRunCreatedAt: "2026-09-14T00:00:00.000Z",
+    activeRunStatus: "running",
+    isInitialSearchRunning: true,
+    onboardingCompletedAt: "2026-09-14T00:00:00.000Z",
+  });
+
+  assert.match(section, /searching in the background/);
+  assert.match(section, /keep chatting while it runs/);
+  assert.match(section, /within up to 1 hour/);
+});
 
 test("offers optional waiting-period guidance while the conversation-completed run is active", () => {
   const section = buildOptionalFollowUpOpportunitiesSection({

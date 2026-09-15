@@ -47,7 +47,7 @@ export default function CandidChatPanel({
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const chat = useChatSessionDB({
-    model: "grok-4-fast-reasoning",
+    model: "gpt-5.6-luna",
     scope,
     userId,
     candidDoc,

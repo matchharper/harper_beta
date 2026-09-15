@@ -31,6 +31,7 @@ type AdminClient = ReturnType<typeof getSupabaseAdmin>;
 export type SlackRoleCreationExecutionContext = {
   channelDbId: string;
   channelId: string;
+  channelName: string;
   publicSiteUrl: string;
   slackUserId: string;
   sourceKey: string;
@@ -211,28 +212,28 @@ async function ensureSlackRoleCreationBootstrap(args: {
   if (!bootstrapMessageTs || !bootstrapPrompt) {
     throw new Error("Slack role creation bootstrap message is unavailable");
   }
-  const { data: enqueueData, error: enqueueError } = await (args.admin.rpc as any)(
-    "enqueue_slack_reply_job_v2",
-    {
-      p_prompt: bootstrapPrompt,
-      p_slack_event_id: `role_creation_bootstrap:${args.execution.sourceKey}`,
-      p_slack_files: [],
-      p_slack_message_ts: bootstrapMessageTs,
-      p_slack_user_id: args.execution.slackUserId,
-      p_thread_id: args.roleSlackThreadId,
-      // Keep this on the existing durable thread-reply queue contract. The
-      // event id and copied message metadata identify the server-only
-      // bootstrap turn without requiring a database enum/constraint change.
-      p_trigger_kind: "thread_reply",
-    }
-  );
+  const { data: enqueueData, error: enqueueError } = await (
+    args.admin.rpc as any
+  )("enqueue_slack_reply_job_v2", {
+    p_prompt: bootstrapPrompt,
+    p_slack_event_id: `role_creation_bootstrap:${args.execution.sourceKey}`,
+    p_slack_files: [],
+    p_slack_message_ts: bootstrapMessageTs,
+    p_slack_user_id: args.execution.slackUserId,
+    p_thread_id: args.roleSlackThreadId,
+    // Keep this on the existing durable thread-reply queue contract. The
+    // event id and copied message metadata identify the server-only
+    // bootstrap turn without requiring a database enum/constraint change.
+    p_trigger_kind: "thread_reply",
+  });
   if (enqueueError) throw enqueueError;
   const enqueueResult =
     enqueueData && typeof enqueueData === "object"
       ? (enqueueData as Record<string, unknown>)
       : {};
   const jobId = text(enqueueResult.job_id);
-  if (!jobId) throw new Error("Slack role creation bootstrap did not create a reply job");
+  if (!jobId)
+    throw new Error("Slack role creation bootstrap did not create a reply job");
   await dispatchSlackReplyJob({
     admin: args.admin,
     jobId,
@@ -241,7 +242,10 @@ async function ensureSlackRoleCreationBootstrap(args: {
     // The committed job remains pending for the queue-dispatch Cron. Role
     // creation must not be rolled back just because the immediate publish
     // attempt had a transient Queue error.
-    console.error("[harper-slack/role-bootstrap:queue-dispatch]", dispatchError);
+    console.error(
+      "[harper-slack/role-bootstrap:queue-dispatch]",
+      dispatchError
+    );
   });
 }
 

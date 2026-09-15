@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { parseCompanyDataChanges } from "@/lib/org/agent/companyDataMutation";
 import type { OrgAgentPromptContext } from "@/lib/org/agent/context";
-import { resolveCandidateContactLifecycleAction } from "@/lib/org/agent/candidateContactAction";
+import {
+  resolveCandidateContactLifecycleAction,
+  resolveCandidateContactTargetMode,
+} from "@/lib/org/agent/candidateContactAction";
 import { parseReadTalentIds } from "@/lib/org/agent/readTalentInput";
 import { jsonValuesEqual } from "@/lib/jsonValue";
 import {
@@ -25,6 +28,7 @@ function minimalContext(
   return {
     companyText: "-",
     completeRoleRequestIds: [],
+    recentContactsText: "-",
     contextNotesText: "-",
     conversationText: "-",
     defaultLongTextObservations,
@@ -79,10 +83,38 @@ test("a repeated immediate schedule request advances an existing queued contact"
   );
 });
 
+test("exact candidate contact targets bypass presented-draft resolution", () => {
+  assert.equal(
+    resolveCandidateContactTargetMode({
+      items: undefined,
+      presentedDrafts: undefined,
+    }),
+    "exact_singular"
+  );
+  assert.equal(
+    resolveCandidateContactTargetMode({
+      items: [
+        { contactId: "contact-a", expectedRevision: 2 },
+        { contactId: "contact-b", expectedRevision: 4 },
+      ],
+      presentedDrafts: undefined,
+    }),
+    "exact_batch"
+  );
+  assert.equal(
+    resolveCandidateContactTargetMode({
+      items: undefined,
+      presentedDrafts: true,
+    }),
+    "presented_drafts"
+  );
+});
+
 test("role request reads become writable only after their result is available", () => {
   const context = {
     companyText: "-",
     completeRoleRequestIds: ["role-visible"],
+    recentContactsText: "-",
     contextNotesText: "-",
     conversationText: "-",
     recentRecommendationsText: "-",

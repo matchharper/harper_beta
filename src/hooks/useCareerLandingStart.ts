@@ -1,11 +1,16 @@
 import {
   CAREER_LANDING_ABTEST_TYPE,
+  CAREER_LANDING_LAST_ABTEST_TYPE_KEY,
+  CAREER_LANDING_LAST_VISIT_AT_KEY,
   CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
+  CAREER_LANDING_SESSION_GAP_MS,
   CAREER_UTM_DEFAULT_SOURCE,
   CAREER_UTM_LOGIN_LOGGED_STORAGE_PREFIX,
+  CAREER_UTM_PARAMS_LOGGED_STORAGE_PREFIX,
   CAREER_UTM_SOURCE_STORAGE_KEY,
   buildCareerUtmLandingLogType,
   normalizeCareerUtmSource,
+  persistCareerExplicitUtmSource,
   readCareerUtmParamsFromSearch,
   readCareerUtmSourceFromQuery,
   readCareerUtmSourceFromSearch,
@@ -25,12 +30,6 @@ import type React from "react";
 
 const CAREER_AUTHENTICATED_START_HREF = "/career";
 const CAREER_ONBOARDING_HREF = "/career/onboarding";
-const CAREER_LANDING_LAST_ABTEST_TYPE_KEY =
-  "harper_career_landing_last_abtest_type";
-const CAREER_LANDING_LAST_VISIT_AT_KEY = "harper_career_landing_last_visit_at";
-const CAREER_UTM_PARAMS_LOGGED_STORAGE_PREFIX =
-  "harper_career_utm_params_logged_v1";
-const CAREER_LANDING_SESSION_GAP_MS = 30 * 60 * 1000;
 
 type UseCareerLandingStartOptions = {
   abtestType?: string;
@@ -227,9 +226,8 @@ export function useCareerLandingStart({
     );
     const resolvedSource =
       querySource ?? savedSource ?? CAREER_UTM_DEFAULT_SOURCE;
-    const utmLogType = buildCareerUtmLandingLogType(
-      readCareerUtmParamsFromSearch(window.location.search)
-    );
+    const utmParams = readCareerUtmParamsFromSearch(window.location.search);
+    const utmLogType = buildCareerUtmLandingLogType(utmParams);
     const addUtmLog = (localId: string, source: string) => {
       if (!utmLogType) return;
       const storageKey = `${CAREER_UTM_PARAMS_LOGGED_STORAGE_PREFIX}:${localId}:${utmLogType}`;
@@ -240,6 +238,9 @@ export function useCareerLandingStart({
         if (didLog) localStorage.setItem(storageKey, "1");
       })();
     };
+    if (utmParams?.utm_source) {
+      persistCareerExplicitUtmSource(utmParams.utm_source);
+    }
     localStorage.setItem(CAREER_UTM_SOURCE_STORAGE_KEY, resolvedSource);
 
     const savedId =

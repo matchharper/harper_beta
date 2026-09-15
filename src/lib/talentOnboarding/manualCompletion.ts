@@ -69,6 +69,7 @@ export async function completeTalentOnboardingManually(args: {
     conversationId: args.conversationId,
     isMobile: args.isMobile,
     latestUserMessageId: args.latestUserMessageId ?? null,
+    opportunityRunId: queuedRun?.id ?? null,
     userId: args.userId,
   });
 
@@ -112,6 +113,9 @@ export async function completeTalentOnboardingManually(args: {
     talentBrief: brief.map(toTalentContextResponse),
     nextStepsMessage: (completionMessages.nextStepsMessage ??
       null) as TalentMessageRow | null,
+    initialSearchStartedMessage:
+      (completionMessages.initialSearchStartedMessage ??
+        null) as TalentMessageRow | null,
     wrapupMessage: (completionMessages.wrapupMessage ??
       null) as TalentMessageRow | null,
   };

@@ -6,6 +6,7 @@ import {
   type ChatCompletionReasoningEffort,
   usesMaxCompletionTokensForModel,
 } from "@/lib/llm/llm";
+import { GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import type { OpenAIResponsesReasoningEffort } from "@/lib/llm/responsesChatAdapter";
 import {
   logLlmTokenUsage,
@@ -77,9 +78,9 @@ type LlmToolCostAttribution = {
   toolNames: readonly string[];
 };
 
-const DEFAULT_TALENT_PRIMARY_MODEL = "grok-4.3";
+const DEFAULT_TALENT_PRIMARY_MODEL = GPT_56_LUNA_MODEL;
 const DEFAULT_TALENT_FALLBACK_MODEL = "gpt-4.1-mini";
-const DEFAULT_TALENT_ANTHROPIC_OVERLOAD_FALLBACK_MODEL = "grok-4.3";
+const DEFAULT_TALENT_ANTHROPIC_OVERLOAD_FALLBACK_MODEL = GPT_56_LUNA_MODEL;
 
 function cleanModelText(raw: string) {
   return raw

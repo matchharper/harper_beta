@@ -54,15 +54,7 @@ test("candidate decisions expose LLM-judged preparation and execution tools", ()
   assert.equal("confirmed" in decideParameters.properties, false);
   assert.match(
     prepare?.function.description ?? "",
-    /judge the user's intent from the meaning of the full conversation/
-  );
-  assert.match(
-    prepare?.function.description ?? "",
-    /write any confirmation or clarification yourself/
-  );
-  assert.match(
-    prepare?.function.description ?? "",
-    /Always call it with connectionMethod=direct_contact/
+    /Set connectionMethod=direct_contact/
   );
   assert.match(
     decide?.function.description ?? "",
@@ -79,7 +71,7 @@ test("candidate decisions expose LLM-judged preparation and execution tools", ()
   );
   assert.match(
     prepare?.function.description ?? "",
-    /not used for meeting scheduling/
+    /Meeting scheduling and explicit stage moves use move_candidate_stage/
   );
   assert.match(
     decide?.function.description ?? "",
@@ -96,6 +88,10 @@ test("candidate decisions expose LLM-judged preparation and execution tools", ()
   assert.doesNotMatch(
     decide?.function.description ?? "",
     /matching prepare_candidate_connection confirmation must have appeared/
+  );
+  assert.doesNotMatch(
+    prepare?.function.description ?? "",
+    /write any confirmation|natural voice|final response/i
   );
 });
 
@@ -118,7 +114,7 @@ test("company agent exposes interview scheduling tools", () => {
   );
   assert.match(
     availability?.function.description ?? "",
-    /continue the same authorized request/
+    /authorized meeting request, continue with move_candidate_stage/
   );
 });
 
@@ -152,6 +148,10 @@ test("company agent exposes compact contact index and detailed contact reads", (
     /explicit UTC offset/
   );
   assert.match(list?.function.description ?? "", /omit subjects and bodies/i);
+  assert.match(
+    list?.function.description ?? "",
+    /recovering a previously created contact.*candidate or Role with kind omitted/i
+  );
   assert.equal(readParameters.properties.contactRefs.maxItems, 10);
   assert.deepEqual(readParameters.required, ["contactRefs"]);
   assert.equal("contactRef" in readParameters.properties, false);
@@ -160,6 +160,14 @@ test("company agent exposes compact contact index and detailed contact reads", (
     /sender names the company user whose request Harper delivered/i
   );
   assert.match(read?.function.description ?? "", /names Harper as sender/i);
+  assert.match(
+    read?.function.description ?? "",
+    /active company-requested candidate-contact draft.*contact ID and revision/i
+  );
+  assert.match(
+    read?.function.description ?? "",
+    /changeable queued or failed candidate contact.*immediate\/cancel/i
+  );
 });
 
 test("company agent can append a minimal company-internal candidate note", () => {
@@ -296,15 +304,15 @@ test("role creation is exposed only on Slack and transfers bounded source contex
   assert.match(properties.roleTitle.description, /available context/);
   assert.match(
     start?.function.description ?? "",
-    /automatically continues before the user has to say anything/
+    /dedicated flow continues automatically/
   );
   assert.match(
     start?.function.description ?? "",
     /exact required continuation link/
   );
-  assert.match(
+  assert.doesNotMatch(
     start?.function.description ?? "",
-    /author the final handoff reply naturally as Harper/
+    /author the final handoff reply/
   );
   assert.equal(parameters.additionalProperties, false);
   assert.doesNotMatch(start?.function.description ?? "", /terminal/i);
@@ -350,7 +358,7 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
   );
   assert.match(
     calibration?.function.description ?? "",
-    /finalized Hiring Brief and a suggested user reply/
+    /returns the finalized Hiring Brief/
   );
   assert.doesNotMatch(
     calibration?.function.description ?? "",
@@ -429,6 +437,11 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
   );
   const statusParameters = changeRoleStatus?.function.parameters as any;
   assert.deepEqual(statusParameters.required, ["roleId", "status"]);
+  assert.equal(
+    statusParameters.properties.notificationChannelIds.type,
+    "array"
+  );
+  assert.equal(statusParameters.properties.assigneeUserId.type, "string");
   assert.deepEqual(statusParameters.properties.status.enum, [
     "active",
     "paused",
@@ -436,6 +449,18 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
     "deleted",
   ]);
   assert.match(changeRoleStatus?.function.description ?? "", /active \(진행\)/);
+  assert.match(
+    changeRoleStatus?.function.description ?? "",
+    /exact existing Role is still draft/
+  );
+  assert.match(
+    changeRoleStatus?.function.description ?? "",
+    /instead of start_role_creation/
+  );
+  assert.match(
+    changeRoleStatus?.function.description ?? "",
+    /no activation occurs/
+  );
   assert.match(changeRoleStatus?.function.description ?? "", /paused \(중단\)/);
   assert.match(changeRoleStatus?.function.description ?? "", /ended \(종료\)/);
   assert.match(
@@ -627,12 +652,16 @@ test("candidate contact uses one batch-capable draft-lifecycle tool", () => {
     "immediate",
     "cancel",
   ]);
-  assert.deepEqual(parameters.properties.kind.enum, ["question", "resume"]);
-  assert.deepEqual(parameters.properties.language.enum, ["ko", "en"]);
-  assert.deepEqual(parameters.properties.items.items.properties.language.enum, [
-    "ko",
-    "en",
+  assert.deepEqual(parameters.properties.kind.enum, [
+    "contact",
+    "question",
+    "resume",
   ]);
+  assert.equal(parameters.properties.language, undefined);
+  assert.equal(
+    parameters.properties.items.items.properties.language,
+    undefined
+  );
   assert.deepEqual(parameters.properties.deliveryMode.enum, [
     "standard",
     "immediate",
@@ -648,6 +677,10 @@ test("candidate contact uses one batch-capable draft-lifecycle tool", () => {
   assert.match(
     contactTalent?.function.description ?? "",
     /presentedDrafts=true.*server resolves every exact ID and revision/
+  );
+  assert.match(
+    contactTalent?.function.description ?? "",
+    /exact targets are known.*contactId and expectedRevision.*without requiring them to appear again in a recent Harper message/
   );
   assert.match(
     contactTalent?.function.description ?? "",
@@ -667,11 +700,7 @@ test("candidate contact uses one batch-capable draft-lifecycle tool", () => {
   );
   assert.match(
     contactTalent?.function.description ?? "",
-    /Unless the company explicitly requests another language.*candidate-facing email is written in the candidate's saved locale/
-  );
-  assert.match(
-    parameters.properties.language.description,
-    /omit to use the candidate's saved locale/
+    /recent conversation, current instruction, and candidate's saved locale/
   );
   assert.match(
     contactTalent?.function.description ?? "",
@@ -683,7 +712,7 @@ test("candidate contact uses one batch-capable draft-lifecycle tool", () => {
   );
   assert.match(
     contactTalent?.function.description ?? "",
-    /action=schedule.*nearest Harper message containing candidate-contact drafts within the four conversation messages/
+    /action=schedule.*current company message explicitly approves one or more drafts/
   );
   assert.match(
     contactTalent?.function.description ?? "",
@@ -716,7 +745,7 @@ test("candidate contact uses one batch-capable draft-lifecycle tool", () => {
   assert.match(contactTalent?.function.description ?? "", /action=cancel/);
   assert.match(
     contactTalent?.function.description ?? "",
-    /pending draft context or candidate_contact_ref/
+    /candidate_contact_ref[\s\S]*list_contacts followed by read_contact/
   );
   assert.match(
     contactTalent?.function.description ?? "",

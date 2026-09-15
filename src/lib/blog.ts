@@ -1,4 +1,9 @@
+export type BlogLocale = "ko" | "en";
+
+export type BlogSchemaType = "article" | "faq" | "none";
+
 export type BlogPostMeta = {
+  id: string;
   slug: string;
   title: string;
   excerpt: string;
@@ -10,8 +15,11 @@ export type BlogPostMeta = {
   updatedAt: string;
   isPinned: boolean;
   tags: string[];
-  seoTitle?: string;
-  seoDescription?: string;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  schemaType: BlogSchemaType;
+  relatedJobSlugs: string[];
+  relatedPostSlugs: string[];
 };
 
 export type BlogPost = BlogPostMeta & {
@@ -26,7 +34,7 @@ export type BlogCategorySummary = {
 
 export function formatBlogDate(
   dateString: string,
-  locale = "en-US"
+  locale: string = "en-US"
 ): string {
   return new Intl.DateTimeFormat(locale, {
     year: "numeric",
@@ -37,5 +45,22 @@ export function formatBlogDate(
 }
 
 export function toIsoDate(dateString: string): string {
+  const timestamp = Date.parse(dateString);
+  if (!Number.isNaN(timestamp) && dateString.includes("T")) {
+    return new Date(timestamp).toISOString();
+  }
   return `${dateString}T00:00:00.000Z`;
+}
+
+export function buildBlogTalkToHarperHref(slug: string): string {
+  const nextParams = new URLSearchParams({ source: "blog", slug });
+  const loginParams = new URLSearchParams({
+    next: `/career?${nextParams.toString()}`,
+    source: "blog",
+  });
+  return `/career_login?${loginParams.toString()}`;
+}
+
+export function getBlogDisplayTitle(title: string): string {
+  return title.replace(/\s*\|\s*Harper(?:\s+Blog)?\s*$/i, "").trim();
 }

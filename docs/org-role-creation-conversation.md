@@ -104,8 +104,11 @@ company-side LLM과 같은 모델 실행 기반을 쓰지만, 대화 범위·시
      담당자를 이해하기 쉬운 형태로 정리하고 최종 의사를 묻는다.
    - 선택지: `예`, `아니오`
 
-3. 자유 텍스트의 “예”, LLM의 추론, tool 호출 자체는 완료로 인정하지 않는다.
-4. 사용자가 발급된 선택지의 `예` 버튼을 누르면 별도 confirm API가 다음을 검증한다.
+3. 역할 작성 대화에서는 바로 앞 Harper 메시지가 해당 역할의 최종 확인을 요청한 경우에만
+   맥락이 분명한 자유 텍스트 승인을 같은 선택의 승인으로 처리한다. 그 밖의 단순 긍정이나
+   LLM의 추론, 확인 요청 tool 호출 자체는 완료로 인정하지 않는다.
+4. 사용자가 발급된 선택지의 `예` 버튼을 누르거나 위 조건의 자유 텍스트 승인을 보내면
+   별도 confirm 경로가 다음을 검증한다.
 
    - 선택지가 같은 workspace/role/conversation의 아직 처리되지 않은 최신 선택지인지
    - role이 여전히 `draft`인지
@@ -117,6 +120,20 @@ company-side LLM과 같은 모델 실행 기반을 쓰지만, 대화 범위·시
 6. `아니오`는 draft를 유지하고 선택지만 `declined`로 닫는다. Harper는 무엇을 더
    다듬을지 묻는다.
 7. 이미 처리된 선택지를 재클릭해도 결과가 중복 적용되지 않아야 한다.
+
+일반 company-side LLM 대화에는 기존 web draft를 바로 이어서 시작하는 경로도 있다.
+
+1. workspace의 작성 중 역할을 정확히 지목해 “채용 시작”, “역할 등록”처럼 현재 요청에서
+   활성화를 명시하면 새 draft나 별도 역할 작성 스레드를 만들지 않는다.
+2. 같은 `change_role_status(status=active)` 도구가 role-creation 저장 상태를 읽고 위의
+   모든 필수값과 알림 채널·담당자 확인 상태를 재검증한다.
+3. 부족한 값이 있으면 draft를 유지하고 부족한 항목과 선택 가능한 알림 채널·담당자를
+   반환한다. company-side LLM은 필요한 정보만 묻고, 사용자의 답을 기존 일반 수정 도구와
+   같은 상태 도구의 선택 인자로 저장한다.
+4. 부족한 값이 없거나 방금 답으로 모두 충족됐으면 사용자가 이미 내린 시작 지시를 다시
+   확인하지 않고 같은 guarded completion RPC로 즉시 `active`로 전환한다.
+5. 역할명만 비슷하거나 대상이 여러 개라 정확한 draft를 고를 수 없으면 활성화하지 않고
+   어떤 역할인지 먼저 확인한다.
 
 ## 4. 데이터 모델과 격리
 
@@ -363,9 +380,10 @@ URL과 동일하게 Exa로 읽는다.
 - 암호화·손상 문서 등 parser 오류: 해당 파일을 읽을 수 없다는 오류를 표시하고 그 turn은
   전송하지 않는다.
 - Slack channel이 비활성화되거나 담당자가 workspace에서 빠짐: 완료 시 재검증 실패.
-- 동시에 두 탭에서 대화: message는 같은 role conversation에 순서대로 저장된다. 완료는
-  conversation lease로 선점하고, DB trigger가 generic status 변경을 막으며 service-role 전용
-  completion RPC만 `draft → active`를 수행한다.
+- 동시에 두 탭에서 대화: message는 같은 role conversation에 순서대로 저장된다. 역할 작성
+  confirmation은 conversation lease로 선점한다. DB trigger는 일반 status mutation의
+  `draft → active`를 막고, 역할 작성 confirmation과 명시적인 일반 company-side LLM 시작
+  요청 모두 필수값을 재검증한 뒤 service-role 전용 completion RPC를 사용한다.
 - notification tool과 confirmation tool이 같은 turn에 실행되면 confirmation metadata는
   turn 시작 시점이 아니라 notification 반영 뒤 최신 conversation metadata를 기반으로 저장한다.
 

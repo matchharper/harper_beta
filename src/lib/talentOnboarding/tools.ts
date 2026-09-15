@@ -82,6 +82,7 @@ import type { TalentAdminClient } from "./admin";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import { formatCareerPromptCompactDateTime } from "@/lib/career/prompts/promptUtils";
 import { searchInternalRolesForCareerTool } from "@/lib/career/internalRoleSearch";
+import { isInternalRoleCandidateDecisionAvailable } from "@/lib/career/internalOpportunityDecision";
 import {
   hasPendingInternalRoleReconsideration,
   isInternalRoleCandidateReadable,
@@ -90,7 +91,12 @@ import {
 } from "@/lib/career/internalRoleEligibility";
 import { IncomingWebhook } from "@slack/webhook";
 import { notifyInternalOpportunityDecisionSlack } from "@/lib/internalOpportunityDecisionSlack";
-import { recordCompanyTalentResponse } from "@/lib/companyTalentRequests/server";
+import {
+  createCompanyTalentRelay,
+  fetchRelayableCompanyTalentContacts,
+  formatRelayableCompanyTalentContacts,
+  recordCompanyTalentResponse,
+} from "@/lib/companyTalentRequests/server";
 import { buildProfileLinkReplyInstruction } from "@/lib/talentOnboarding/profileLinkReplyInstruction";
 import { getCompanyInternalRoleRequest } from "@/lib/companyInternalRole";
 import {
@@ -215,6 +221,8 @@ export const TALENT_TOOL_NAMES = {
   RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION:
     "record_internal_fit_reevaluation_information",
   RECORD_COMPANY_REQUEST_RESPONSE: "record_company_request_response",
+  LIST_COMPANY_REQUESTS: "list_company_requests",
+  RELAY_TO_COMPANY: "relay_to_company",
 } as const;
 
 export type TalentToolName =
@@ -244,6 +252,8 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT,
   TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION,
   TALENT_TOOL_NAMES.RECORD_COMPANY_REQUEST_RESPONSE,
+  TALENT_TOOL_NAMES.LIST_COMPANY_REQUESTS,
+  TALENT_TOOL_NAMES.RELAY_TO_COMPANY,
 ] as const;
 
 // Edit this value to change the common final-reply guidance added to every
@@ -997,7 +1007,7 @@ async function verifyUnrecommendedInternalRoleChoice(args: {
   const expiresAt = optionalToolString(role?.expires_at);
   const expiresAtMs = expiresAt ? Date.parse(expiresAt) : Number.NaN;
   const roleUnavailable =
-    optionalToolString(role?.status)?.toLowerCase() !== "active" ||
+    !isInternalRoleCandidateDecisionAvailable(role?.status) ||
     role?.is_expired === true ||
     (Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now()) ||
     roleInformation?.testOnly === true ||
@@ -3186,17 +3196,150 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         sourceMessageId,
         talentId: userId,
       });
+      const assistantInstruction =
+        input.disposition === "positive"
+          ? response.positionActive
+            ? "Confirm gently that the Role is active in Positions and that Harper delivered the answer to the company. Do not overstate any details beyond renewed willingness or add future status updates that this result does not provide."
+            : "Confirm gently that Harper delivered the renewed willingness to the company, but kept the current Position state because the company changed it after asking. Do not add future status updates that this result does not provide."
+          : input.disposition === "negative" || input.disposition === "other"
+            ? "Confirm gently that the Role remains closed and Harper delivered the answer to the company. Do not overstate the user's meaning or add future status updates that this result does not provide."
+            : "Confirm gently that Harper delivered the response to the company in polished wording without overstating the user's meaning. Do not repeat private request metadata or add future status updates that this result does not provide.";
       return {
-        assistantInstruction:
-          input.disposition === "positive"
-            ? response.positionActive
-              ? "Confirm gently that the Role is active in Positions and that Harper will relay the answer to the company. Do not overstate any details beyond renewed willingness."
-              : "Confirm gently that Harper received the renewed willingness and will relay it, but kept the current Position state because the company changed it after asking."
-            : input.disposition === "negative" || input.disposition === "other"
-              ? "Confirm gently that the Role remains closed and Harper will relay the answer to the company. Do not overstate the user's meaning."
-              : "Confirm gently that Harper received the response and will relay it in polished wording without overstating the user's meaning. Do not repeat private request metadata.",
+        assistantInstruction,
+        modelOutput: [
+          "status=delivered_to_company",
+          ...(typeof response.positionActive === "boolean"
+            ? [`position_active=${response.positionActive}`]
+            : []),
+          `instruction=${assistantInstruction}`,
+        ].join("\n"),
         ok: true,
         skipCommonAssistantInstruction: true,
+      };
+    },
+  },
+  [TALENT_TOOL_NAMES.LIST_COMPANY_REQUESTS]: {
+    name: TALENT_TOOL_NAMES.LIST_COMPANY_REQUESTS,
+    description:
+      "List companies and Roles for which Harper has already sent this user a company-originated contact. Use it when the user wants to reply, follow up, pass along information, or identify which prior company contact they mean. The result says whether each contact already has a response and reports its latest relay as queued, sent, failed, or cancelled; answered contacts remain valid relay destinations.",
+    parameters: {
+      type: "object",
+      properties: {
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 30,
+          description: "Maximum contacts to return. Defaults to 20.",
+        },
+        query: {
+          type: "string",
+          maxLength: 200,
+          description:
+            "Optional company, Role, or prior-contact text used to narrow the list.",
+        },
+      },
+      additionalProperties: false,
+    },
+    channels: ["chat"],
+    async execute(input, context) {
+      const admin = context?.admin;
+      const userId = context?.userId;
+      if (!admin || !userId) {
+        throw new TalentToolError(
+          "list_company_requests requires user context."
+        );
+      }
+      const contacts = await fetchRelayableCompanyTalentContacts({
+        admin: admin as any,
+        limit:
+          typeof input.limit === "number" && Number.isFinite(input.limit)
+            ? input.limit
+            : undefined,
+        query: optionalToolString(input.query) || null,
+        talentId: userId,
+      });
+      const readableContacts = formatRelayableCompanyTalentContacts(contacts);
+      const assistantInstruction =
+        "Use the readable contact list to identify the intended company and Role. Treat its latest relay status as the source of truth: queued is still processing, sent completed transport, and failed or cancelled was not delivered. Distinguish delivery from the company's later reading or response. Do not expose the contact ID unless the user needs to disambiguate, and do not imply that an earlier answer prevents another message.";
+      return {
+        assistantInstruction,
+        contacts: readableContacts,
+        modelOutput: [
+          "status=ok",
+          readableContacts,
+          `instruction=${assistantInstruction}`,
+        ].join("\n"),
+        ok: true,
+        skipCommonAssistantInstruction: true,
+      };
+    },
+  },
+  [TALENT_TOOL_NAMES.RELAY_TO_COMPANY]: {
+    name: TALENT_TOOL_NAMES.RELAY_TO_COMPANY,
+    description:
+      "Deliver one user-authorized message to a company through a prior company contact. Use for both a first response and any later follow-up; the contact does not need to be awaiting a response. Use the exact requestId from current private context or list_company_requests. relayContent is the substantive information the user wants Harper to pass along, faithfully preserving qualifications, uncertainty, and refusal. If the content is unrelated to that company or Role contact, briefly mention that it is generally better not to relay unrelated content and let the candidate decide whether to continue.",
+    parameters: {
+      type: "object",
+      properties: {
+        relayContent: {
+          type: "string",
+          minLength: 1,
+          maxLength: 5000,
+          description:
+            "The candidate-authorized content Harper should convey to the selected company.",
+        },
+        requestId: {
+          type: "string",
+          description:
+            "Exact contact ID from private request context or list_company_requests.",
+        },
+      },
+      required: ["requestId", "relayContent"],
+      additionalProperties: false,
+    },
+    channels: ["chat"],
+    async execute(input, context) {
+      const admin = context?.admin;
+      const userId = context?.userId;
+      const sourceMessageId = Number(context?.userMessageId);
+      const requestId = optionalToolString(input.requestId);
+      const relayContent = optionalToolString(input.relayContent);
+      if (
+        !admin ||
+        !userId ||
+        !requestId ||
+        !relayContent ||
+        !Number.isSafeInteger(sourceMessageId)
+      ) {
+        throw new TalentToolError(
+          "relay_to_company requires an exact contact and user message."
+        );
+      }
+      const relay = await createCompanyTalentRelay({
+        admin: admin as any,
+        relayContent,
+        requestId,
+        sourceMessageId,
+        talentId: userId,
+      });
+      const contentMismatch = Boolean(relay.contentMismatch);
+      const assistantInstruction = contentMismatch
+        ? "The same source message was already delivered by Harper using its earlier content. Confirm that existing delivery only; do not claim that a differently rewritten version replaced it or add future status updates that this result does not provide."
+        : "Confirm simply that Harper delivered this candidate-authorized message to the selected company. Preserve any uncertainty or limits in what the user authorized, and do not add future status updates that this result does not provide.";
+      return {
+        assistantInstruction,
+        idempotent: relay.idempotent,
+        modelOutput: [
+          `status=${relay.idempotent ? "already_delivered_to_company" : "delivered_to_company"}`,
+          `idempotent=${Boolean(relay.idempotent)}`,
+          `requested_rewrite_replaced_existing=${relay.idempotent ? !contentMismatch : "not_applicable"}`,
+          `instruction=${assistantInstruction}`,
+        ].join("\n"),
+        ok: true,
+        skipCommonAssistantInstruction: true,
+        status: relay.idempotent
+          ? "already_delivered_to_company"
+          : "delivered_to_company",
       };
     },
   },
@@ -3589,8 +3732,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
                   : {}),
                 ...(hasImportance
                   ? {
-                      importance:
-                        requestedImportance as TalentMemoryImportance,
+                      importance: requestedImportance as TalentMemoryImportance,
                     }
                   : {}),
                 ...(label ? { label } : {}),

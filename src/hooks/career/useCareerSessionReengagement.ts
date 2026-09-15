@@ -15,6 +15,7 @@ import type {
 } from "@/components/career/types";
 import type { FetchWithAuth } from "@/hooks/career/useCareerApi";
 import { useCareerT } from "@/i18n/useCareerT";
+import { getCareerBrowserTimeZone } from "@/lib/career/requestTimeZone";
 
 export type SessionReengagementPayload = {
   assistantMessage?: CareerMessagePayload | null;
@@ -367,7 +368,10 @@ export const useCareerAutomaticSessionReengagement = ({
             headers: {
               Accept: "text/event-stream",
             },
-            body: JSON.stringify({ conversationId }),
+            body: JSON.stringify({
+              conversationId,
+              timeZone: getCareerBrowserTimeZone(),
+            }),
           }
         );
 

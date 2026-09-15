@@ -668,10 +668,15 @@ function getOrgFeedTitle(item: OrgTalentDetailResponse["feed"][number]) {
   if (item.activity?.eventType === "candidate_contact_sent") {
     return item.activity.requestKind === "resume"
       ? "후보자에게 이력서를 요청했어요"
-      : "후보자에게 질문을 보냈어요";
+      : item.activity.requestKind === "contact"
+        ? "후보자에게 연락을 보냈어요"
+        : "후보자에게 질문을 보냈어요";
   }
   if (item.activity?.eventType === "candidate_response_received") {
     return "후보자의 답변이 도착했어요";
+  }
+  if (item.activity?.eventType === "candidate_message_delivered") {
+    return "후보자의 메시지가 전달됐어요";
   }
   const { kind } = item;
   if (kind === "org_note") return "메모";
@@ -694,6 +699,9 @@ function getOrgFeedIcon(
   if (item.kind === "internal_process_stopped_notified") return "mail";
   if (item.activity?.eventType === "candidate_contact_sent") return "mail";
   if (item.activity?.eventType === "candidate_response_received") {
+    return "sparkles";
+  }
+  if (item.activity?.eventType === "candidate_message_delivered") {
     return "sparkles";
   }
   const { kind } = item;

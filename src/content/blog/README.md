@@ -1,18 +1,11 @@
-# Blog Authoring Guide
+# Legacy Blog Content
 
-1. Copy `_template.md` and rename it to `YYYY-MM-DD-your-slug.md`.
-2. Fill frontmatter fields at the top of the file.
-3. Write the body in Markdown.
-4. Commit and deploy.
+Blog posts are now stored in the Supabase `blog_posts` table and managed at
+`/ops/blog`. Files in this directory are retained only as migration source and
+are not read by the public blog.
 
-## Rules
-
-- Keep `publishedAt` and `updatedAt` in `YYYY-MM-DD` format.
-- Use `is_pinned: "true"` to pin posts in the top blog section.
-- The left featured card picks the most recent `is_pinned` post.
-- Use image paths from `public/` (example: `/images/usemain.png`).
-- Avoid duplicate file names; the file name becomes the URL slug.
-
-## URL Example
-
-`src/content/blog/2026-02-24-seo-playbook.md` -> `/blog/2026-02-24-seo-playbook`
+- Korean and English versions share one database row.
+- A version is public only when its category, title, excerpt, and Markdown body
+  are all present.
+- Publishing, pinning, thumbnail, related jobs, and related posts are managed in
+  Ops.

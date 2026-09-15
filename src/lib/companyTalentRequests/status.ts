@@ -21,6 +21,34 @@ export type CompanyTalentRequestStatusSummary = {
   status: string;
 };
 
+export const COMPANY_TALENT_RELAY_DELIVERY_STATUSES = [
+  "queued",
+  "sent",
+  "failed",
+  "cancelled",
+] as const;
+
+export type CompanyTalentRelayDeliveryStatus =
+  (typeof COMPANY_TALENT_RELAY_DELIVERY_STATUSES)[number];
+
+/**
+ * Candidate-to-company relays use contact_queue as their delivery-state owner.
+ * Keep the candidate-side read contract intentionally small: every
+ * non-terminal transport state is still queued, while terminal outcomes stay
+ * distinct.
+ */
+export function normalizeCompanyTalentRelayDeliveryStatus(
+  value: unknown
+): CompanyTalentRelayDeliveryStatus {
+  const status = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  if (status === "sent" || status === "failed" || status === "cancelled") {
+    return status;
+  }
+  return "queued";
+}
+
 function hasTimestamp(value: unknown) {
   return Number.isFinite(Date.parse(String(value ?? "")));
 }

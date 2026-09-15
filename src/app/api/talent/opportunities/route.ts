@@ -42,6 +42,7 @@ import {
 } from "@/lib/internalOpportunityDecisionSlack";
 import {
   getInternalOpportunityDecisionAvailability,
+  isInternalRoleCandidateDecisionAvailable,
   normalizeInternalOpportunityDecisionReason,
   type CareerInternalOpportunityDecisionAction,
 } from "@/lib/career/internalOpportunityDecision";
@@ -601,7 +602,9 @@ export async function PATCH(req: NextRequest) {
         const error =
           internalDecisionAction === "revert" &&
           previousOpportunity.feedback === "negative" &&
-          (previousOpportunity.status.trim().toLowerCase() !== "active" ||
+          (!isInternalRoleCandidateDecisionAvailable(
+            previousOpportunity.status
+          ) ||
             previousOpportunity.isExpired)
             ? careerT(
                 responseLocale,
@@ -755,7 +758,7 @@ export async function PATCH(req: NextRequest) {
       action === "feedback" &&
       body.feedback === "positive" &&
       previousOpportunity?.sourceType === "internal" &&
-      (previousOpportunity.status.trim().toLowerCase() !== "active" ||
+      (!isInternalRoleCandidateDecisionAvailable(previousOpportunity.status) ||
         previousOpportunity.isExpired)
     ) {
       return NextResponse.json(

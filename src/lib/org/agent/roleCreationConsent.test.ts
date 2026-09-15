@@ -39,6 +39,28 @@ test("accepts targets explicitly selected in the current user turn", () => {
   );
 });
 
+test("accepts an exact current-channel reference only for the current channel target", () => {
+  assert.equal(
+    validateRoleCreationNotificationConsent({
+      previousAssistantMessage: "어디로 연결할까요?",
+      targets: [
+        { ...channel, aliases: [...channel.aliases, "현재 채널", "이 채널"] },
+        assignee,
+      ],
+      userMessage: "현재 채널로 하고, 김민수님으로 바로 시작해 주세요",
+    }).ok,
+    true
+  );
+  assert.equal(
+    validateRoleCreationNotificationConsent({
+      previousAssistantMessage: "어디로 연결할까요?",
+      targets: [channel, assignee],
+      userMessage: "현재 채널로 하고, 김민수님으로 바로 시작해 주세요",
+    }).missingTargetIds.includes("channel:C123"),
+    true
+  );
+});
+
 test("accepts a shorthand only when the preceding proposal names the target", () => {
   assert.equal(
     validateRoleCreationNotificationConsent({

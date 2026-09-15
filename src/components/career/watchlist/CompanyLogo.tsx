@@ -7,10 +7,14 @@ export const CompanyLogo = ({
 }: {
   logoUrl: string | null;
   name: string;
-  size?: "md" | "lg";
+  size?: "sm" | "md" | "lg";
 }) => {
   const className =
-    size === "lg" ? "h-14 w-14 rounded-[8px]" : "h-11 w-11 rounded-[8px]";
+    size === "lg"
+      ? "h-14 w-14 rounded-[8px]"
+      : size === "sm"
+        ? "h-9 w-9 rounded-[11px]"
+        : "h-11 w-11 rounded-[8px]";
 
   if (logoUrl) {
     return (
@@ -24,10 +28,10 @@ export const CompanyLogo = ({
   }
 
   return (
-    <div
+    <span
       className={`${className} flex shrink-0 items-center justify-center border border-neutral-1000-a05 bg-bg-weak text-neutral-primary`}
     >
       <Building2 className={size === "lg" ? "h-5 w-5" : "h-4 w-4"} />
-    </div>
+    </span>
   );
 };

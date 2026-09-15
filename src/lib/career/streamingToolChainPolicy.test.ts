@@ -18,6 +18,12 @@ test("supports dependent document reads, pagination, and updates", () => {
   ]);
 });
 
+test("can select a prior company contact and relay in the same turn", () => {
+  assert.deepEqual(getCareerStreamingNextToolNames(["list_company_requests"]), [
+    "relay_to_company",
+  ]);
+});
+
 test("supports the other identifier-dependent Career tool workflows", () => {
   assert.deepEqual(
     getCareerStreamingNextToolNames(["read_recommended_opportunities"]),

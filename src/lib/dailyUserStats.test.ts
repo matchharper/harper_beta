@@ -119,6 +119,41 @@ test("referral visit log helpers recognize recorded visits", () => {
   assert.equal(isTalentNetworkReferralVisitLogType("new_visit:career"), false);
 });
 
+test("weekly stats exclude canonical test role talents and persisted markers", async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:54321";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-key";
+  const { buildDailyUserStatsTestExclusions } =
+    await import("@/lib/dailyUserStats");
+
+  const exclusions = buildDailyUserStatsTestExclusions({
+    markerLogs: [{ user_id: "cleaned-up-fixture" }],
+    roles: [
+      {
+        information: {
+          testFixture: "company-flow-v1",
+          testOnly: true,
+          testTalentIds: ["fixture-a", "fixture-b", "fixture-a"],
+        },
+        role_id: "test-role",
+      },
+      {
+        information: {
+          testOnly: false,
+          testTalentIds: ["real-talent"],
+        },
+        role_id: "production-role",
+      },
+    ],
+  });
+
+  assert.deepEqual([...exclusions.roleIds], ["test-role"]);
+  assert.deepEqual([...exclusions.talentIds].sort(), [
+    "cleaned-up-fixture",
+    "fixture-a",
+    "fixture-b",
+  ]);
+});
+
 test("referral viewers count unique users from the report-day signup cohort", async () => {
   process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:54321";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-key";

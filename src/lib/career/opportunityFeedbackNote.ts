@@ -3,8 +3,9 @@ import { stripOpportunityRunMarkers } from "@/lib/opportunityDiscovery/messageMa
 import { formatCareerOpportunityMentionsForLlm } from "@/lib/career/opportunityMentionText";
 import { formatCareerMessageAttachmentsForLlm } from "@/lib/career/messageAttachments";
 import {
-  formatCareerPromptKoreanDateTime,
+  formatCareerPromptMessageTimeLabel,
   sanitizeCareerPromptDateValues,
+  type CareerPromptDateTimeOptions,
 } from "@/lib/career/prompts/promptUtils";
 import { stripCareerReengagementActions } from "@/lib/career/reengagementActions";
 export const TALENT_MESSAGE_TYPE_OPPORTUNITY_FEEDBACK_NOTE =
@@ -67,7 +68,7 @@ export function formatTalentMessageContentForLlmPrompt(
     messageType?: string | null;
     message_type?: string | null;
   },
-  options?: { includeCreatedAt?: boolean }
+  options?: CareerPromptDateTimeOptions & { includeCreatedAt?: boolean }
 ) {
   const content = sanitizeCareerPromptDateValues(
     formatCareerMessageAttachmentsForLlm(
@@ -76,7 +77,8 @@ export function formatTalentMessageContentForLlmPrompt(
           stripOpportunityRunMarkers(String(message.content ?? ""))
         )
       )
-    )
+    ),
+    options
   );
   const messageType = message.message_type ?? message.messageType;
   let formattedContent: string;
@@ -97,6 +99,7 @@ export function formatTalentMessageContentForLlmPrompt(
   const createdAt = message.created_at ?? message.createdAt;
   if (!options?.includeCreatedAt || !createdAt) return formattedContent;
 
-  const createdAtLabel = formatCareerPromptKoreanDateTime(createdAt);
+  const createdAtLabel = formatCareerPromptMessageTimeLabel(createdAt, options);
+  if (!createdAtLabel) return formattedContent;
   return `[${createdAtLabel}]\n${formattedContent}`;
 }

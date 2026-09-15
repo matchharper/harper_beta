@@ -16,7 +16,6 @@ import {
   DEFAULT_ORG_AGENT_REASONING_EFFORT,
   DEFAULT_ORG_AGENT_MODEL,
   getOrgAgentFallbackModel,
-  ORG_AGENT_GROK_MODEL,
   ORG_AGENT_TERRA_MODEL,
   isOrgAgentModelId,
   resolveOrgAgentModel,
@@ -39,6 +38,7 @@ import { maybeSummarizeOrgAgentConversation } from "@/lib/org/agent/summary";
 import {
   ensureOrgAgentConversation,
   ensureOrgRoleCreationConversation,
+  findOrgAgentSlackUserMessage,
   insertOrgAgentMessage,
   toOrgAgentMessage,
   type OrgAgentMessageRow,
@@ -374,7 +374,9 @@ async function runCompletion(args: {
   return createChatCompletionWithFallback({
     ...(args.strictModel
       ? {}
-      : { anthropicOverloadFallbackModel: ORG_AGENT_GROK_MODEL }),
+      : {
+          anthropicOverloadFallbackModel: getOrgAgentFallbackModel(args.model),
+        }),
     buildRequest: (model) => ({
       ...(usesMaxCompletionTokensForModel(model)
         ? { max_completion_tokens: maxTokens }
@@ -439,6 +441,12 @@ async function runOrgAgentToolLoop(args: {
     context: args.context,
     mentions: args.mentions,
     serviceAnswerExamplesText: args.serviceAnswerExamplesText,
+    slackContext: args.slackExecutionContext
+      ? {
+          channelId: args.slackExecutionContext.channelId,
+          channelName: args.slackExecutionContext.channelName,
+        }
+      : null,
     userLabel: args.userLabel,
     userMessage: args.userMessage,
   });
@@ -655,6 +663,7 @@ async function runOrgAgentToolLoop(args: {
           source: args.source,
           state,
           user: args.user,
+          recentConversationContext: args.context.conversationText,
           userMessage: args.userMessage,
         });
         if (toolName === "contact_talent") {
@@ -769,7 +778,7 @@ async function runOrgAgentToolLoop(args: {
         ...messages,
         {
           content:
-            "Tool use is finished for this turn. Give a clear, natural user-facing answer with enough context to understand the result, but no padding. Do not claim success for failed tools.",
+            "Tool use is finished for this turn. Write the final company-facing response now and results above.",
           role: "user",
         },
       ],
@@ -1030,31 +1039,61 @@ export async function runOrgAgentChat(args: {
     );
   }
 
-  const userMessage = await insertOrgAgentMessage({
-    admin,
-    content: userMessageText,
-    conversation,
-    mentions,
-    metadata: {
-      model: modelConfig.model,
-      source: "org_agent_user",
-      ...args.userMessageMetadata,
-      ...(referenceAttachments.length > 0
-        ? {
-            attachments: referenceAttachmentMetadata(referenceAttachments),
-            roleCreationAttachments: referenceAttachments,
-          }
-        : {}),
-    },
-    messageType: args.messageType,
-    role: "user",
-    roleId,
-    slackMessageTs: args.slackUserMessageTs,
-    slackThreadId: args.slackThreadId,
-    slackUserId: args.slackUserId,
-    userId:
-      args.messageUserId === undefined ? args.user.id : args.messageUserId,
-  });
+  const messageUserId =
+    args.messageUserId === undefined ? args.user.id : args.messageUserId;
+  const userMessageMetadata: OrgAgentMessageMetadata = {
+    model: modelConfig.model,
+    source: "org_agent_user",
+    ...args.userMessageMetadata,
+    ...(referenceAttachments.length > 0
+      ? {
+          attachments: referenceAttachmentMetadata(referenceAttachments),
+          roleCreationAttachments: referenceAttachments,
+        }
+      : {}),
+  };
+  let userMessage =
+    args.slackThreadId && args.slackUserMessageTs
+      ? await findOrgAgentSlackUserMessage({
+          adoptInto: {
+            conversation,
+            roleId,
+            userId: messageUserId,
+          },
+          admin,
+          slackMessageTs: args.slackUserMessageTs,
+          slackThreadId: args.slackThreadId,
+          workspaceId: args.workspaceId,
+        })
+      : null;
+  if (userMessage) {
+    const mergedMetadata = {
+      ...userMessage.metadata,
+      ...userMessageMetadata,
+    };
+    const { error: metadataError } = await (
+      admin.from("company_messages" as any) as any
+    )
+      .update({ metadata: mergedMetadata })
+      .eq("id", userMessage.id);
+    if (metadataError) throw metadataError;
+    userMessage = { ...userMessage, metadata: mergedMetadata };
+  } else {
+    userMessage = await insertOrgAgentMessage({
+      admin,
+      content: userMessageText,
+      conversation,
+      mentions,
+      metadata: userMessageMetadata,
+      messageType: args.messageType,
+      role: "user",
+      roleId,
+      slackMessageTs: args.slackUserMessageTs,
+      slackThreadId: args.slackThreadId,
+      slackUserId: args.slackUserId,
+      userId: messageUserId,
+    });
+  }
   args.emit?.("user_message", userMessage);
 
   try {

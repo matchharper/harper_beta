@@ -38,6 +38,7 @@ export type CareerPendingCheckInCallAction = {
 };
 
 export type CareerPendingCompanyRequestAction = {
+  companyLogoUrl: string | null;
   companyName: string;
   expiresAt: string | null;
   id: string;

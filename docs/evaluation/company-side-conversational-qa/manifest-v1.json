@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "datasetVersion": "company-side-conversational-qa-v1",
+  "goldVersion": "company-side-conversational-qa-gold-v1",
+  "createdAt": "2026-09-14T07:37:03Z",
+  "sourceRevision": {
+    "repositoryHead": "5f39e97fb4b87a3c88e8f137fe8fb5d29f6c20ff",
+    "workingTreeDirty": true,
+    "preExistingDiffSha256": "2dfb9ed32d3c86c17c47ea2adc207ca294be4d73aaa7e11fe068021b3923155f"
+  },
+  "promptFingerprint": "6197b849484b1225c7d9a3f3c50e8dd52650882a61936fc32fd60fe9ed7427d1",
+  "assets": {
+    "casesV1Sha256": "3f009218331c7a5956293f7e9ab2c76f02d20080cf778051119a3d50010751a0",
+    "goldV1Sha256": "12618fea4b16bd77131571eeadd890dd11781f4f545a2be671e12f9e2936cb2d",
+    "readmeAtFreezeSha256": "83d5f89dd6fa706b33dfe16e214a4d2df28b3e8f7e8ff1f081d0028760198566"
+  },
+  "input": {
+    "scenarioCount": 10,
+    "companyMessageCount": 30,
+    "challengeSet": true,
+    "representativeSample": false,
+    "actualIdentityMapping": "private/fixture-v1.json"
+  },
+  "runner": {
+    "type": "manual_stateful_e2e",
+    "slackSurface": "z-test-harper desktop UI",
+    "slackIngress": "production events and queue",
+    "localWorkerTarget": "local-gimhojin-z-test-harper",
+    "localAppOrigin": "http://127.0.0.1:3100",
+    "candidateSurfaces": [
+      "actual authorized email inbox and reply",
+      "public scheduling page"
+    ]
+  },
+  "modelConfiguration": {
+    "override": null,
+    "expectedRuntimeDefault": "gpt-5.6-terra",
+    "expectedReasoning": "xhigh",
+    "temperature": "production runtime setting",
+    "actualConfigurationEvidence": "runs/<run-id>/worker-evidence.json"
+  },
+  "privacy": {
+    "trackedAssetsDeidentified": true,
+    "authorizedTalentCount": 2,
+    "rawArtifacts": "runs/<run-id>/",
+    "rawArtifactsGitignored": true,
+    "fileMode": "0600",
+    "directoryMode": "0700",
+    "providers": [
+      "Slack",
+      "production company-side LLM provider",
+      "Resend/email",
+      "Google Calendar and Meet"
+    ]
+  },
+  "releaseGate": {
+    "criticalFailures": 0,
+    "stateIntegrity": "30/30",
+    "intentApplication": ">=28/30",
+    "continuity": ">=27/30",
+    "effort": ">=27/30",
+    "truthfulness": ">=27/30",
+    "copyFidelity": ">=27/30"
+  },
+  "knownLimitations": [
+    "One internal Workspace, one Slack sender, two authorized talent accounts, and a small test-only Role set do not represent production frequency.",
+    "The scenarios are stateful and intentionally share external side effects in a fixed order.",
+    "Provider latency and existing authenticated browser sessions affect completion.",
+    "The manual runner is not yet an automated regression suite."
+  ]
+}

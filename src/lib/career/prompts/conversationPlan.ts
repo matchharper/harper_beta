@@ -15,6 +15,7 @@ import { CAREER_VOICE_CALL_MODE_PROMPT } from "@/lib/career/prompts/cases/voiceP
 import {
   formatCareerPromptKoreanDateTime,
   interpolateCareerPromptText,
+  normalizeCareerPromptTimeZone,
   normalizeToolNames,
 } from "@/lib/career/prompts/promptUtils";
 import {
@@ -126,6 +127,7 @@ export function buildCareerConversationPromptPlan(args: {
   recentConversationSection?: string;
   runtimeInstruction?: string | null;
   structuredProfileText: string;
+  timeZone?: string | null;
   toolNames?: readonly string[] | string;
 }): CareerPromptPlan {
   const channelType = getCareerChannelType(args.channel);
@@ -363,11 +365,18 @@ export function buildCareerConversationPromptPlan(args: {
 
   const recentActivitySummariesSection =
     args.channel === "chat"
-      ? buildRecentActivitySummariesSection(args.recentActivitySummaries)
+      ? buildRecentActivitySummariesSection(args.recentActivitySummaries, {
+          preferredLocale: args.currentPreferences?.preferredLocale,
+          timeZone: args.timeZone,
+        })
       : "";
 
   const opportunityStatusSection = buildOpportunityStatusSection(
-    args.opportunityStatus
+    args.opportunityStatus,
+    {
+      preferredLocale: args.currentPreferences?.preferredLocale,
+      timeZone: args.timeZone,
+    }
   );
   const existingPreferencesSection = buildKnownPreferencesSection(
     args.currentPreferences
@@ -387,11 +396,17 @@ export function buildCareerConversationPromptPlan(args: {
     ? "## High-priority runtime instruction : " + args.runtimeInstruction
     : "";
 
+  const promptTimeZone = normalizeCareerPromptTimeZone(args.timeZone);
+
   const dynamicStateLines = [
     // 항상 포함: 현재 채널, 현재 시각, 활성 runtime instruction.
     `## Runtime context\n현재 후보자와 ${channelType}을 통해 소통하고 있습니다.\n현재 시각: ${formatCareerPromptKoreanDateTime(
-      new Date().toISOString()
-    )}\n이 prompt와 최근 메시지에 표시되는 모든 시각은 한국 시간(UTC+9) 기준이다.`,
+      new Date().toISOString(),
+      {
+        preferredLocale: args.currentPreferences?.preferredLocale,
+        timeZone: promptTimeZone,
+      }
+    )}\n최근 메시지의 시간 표시는 사용자의 현재 접속 지역 타임존(${promptTimeZone})과 preferred locale 기준이다.`,
     runtimeOneTimeInstruction,
     args.companyTalentRequestText?.trim() ?? "",
     officialJobSignupIntentPrompt,

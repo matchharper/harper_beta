@@ -297,7 +297,6 @@ async function main() {
       DEFAULT_ORG_AGENT_MODEL,
       getOrgAgentFallbackModel,
       isOrgAgentModelId,
-      ORG_AGENT_GROK_MODEL,
       resolveOrgAgentModel,
     },
     { buildOrgAgentSystemPrompt, buildOrgAgentUserPrompt },
@@ -519,7 +518,7 @@ async function main() {
 
     for (let loop = 0; loop < 10; loop += 1) {
       const completion = await createChatCompletionWithFallback({
-        anthropicOverloadFallbackModel: ORG_AGENT_GROK_MODEL,
+        anthropicOverloadFallbackModel: getOrgAgentFallbackModel(activeModel),
         buildRequest: () => ({
           max_tokens: 4_000,
           messages,
@@ -1144,7 +1143,7 @@ async function main() {
     }
 
     const finalCompletion = await createChatCompletionWithFallback({
-      anthropicOverloadFallbackModel: ORG_AGENT_GROK_MODEL,
+      anthropicOverloadFallbackModel: getOrgAgentFallbackModel(activeModel),
       buildRequest: () => ({
         max_tokens: 4_000,
         messages: [
@@ -2324,10 +2323,7 @@ async function main() {
     console.error(`[live-eval] ${testCase.id} running`);
     const result = await runCase(testCase.message, {
       history: "history" in testCase ? testCase.history : undefined,
-      mockWrites:
-        "mockWrites" in testCase
-          ? testCase.mockWrites
-          : undefined,
+      mockWrites: "mockWrites" in testCase ? testCase.mockWrites : undefined,
     });
     const passed =
       testCase.pass(result) &&
