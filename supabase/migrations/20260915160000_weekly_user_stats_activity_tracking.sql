@@ -8,6 +8,10 @@ create unique index if not exists logs_test_fixture_talent_marker_uidx
   where type = 'analytics_excluded_test_fixture_talent'
     and user_id is not null;
 
+commit;
+
+begin;
+
 create or replace function public.mark_weekly_stats_test_fixture_talents_v1()
 returns trigger
 language plpgsql
@@ -37,12 +41,20 @@ begin
 end;
 $$;
 
+commit;
+
+begin;
+
 drop trigger if exists company_roles_mark_weekly_stats_test_fixture_talents
   on public.company_roles;
 create trigger company_roles_mark_weekly_stats_test_fixture_talents
 after insert or update of information on public.company_roles
 for each row
 execute function public.mark_weekly_stats_test_fixture_talents_v1();
+
+commit;
+
+begin;
 
 insert into public.logs (type, user_id, meta_data)
 select distinct
@@ -65,6 +77,10 @@ where coalesce(role.information ->> 'testOnly', 'false') = 'true'
   and jsonb_typeof(role.information -> 'testTalentIds') = 'array'
   and nullif(btrim(fixture.talent_id), '') is not null
 on conflict do nothing;
+
+commit;
+
+begin;
 
 create or replace function public.record_weekly_stats_login_activity_v1()
 returns trigger
@@ -96,12 +112,20 @@ begin
 end;
 $$;
 
+commit;
+
+begin;
+
 drop trigger if exists talent_users_record_weekly_stats_login_activity
   on public.talent_users;
 create trigger talent_users_record_weekly_stats_login_activity
 after update of last_logined_at on public.talent_users
 for each row
 execute function public.record_weekly_stats_login_activity_v1();
+
+commit;
+
+begin;
 
 create or replace function public.record_weekly_stats_recommendation_activity_v1()
 returns trigger
@@ -170,6 +194,10 @@ begin
 end;
 $$;
 
+commit;
+
+begin;
+
 drop trigger if exists talent_recommendations_record_weekly_stats_activity
   on public.talent_opportunity_recommendation;
 create trigger talent_recommendations_record_weekly_stats_activity
@@ -177,6 +205,10 @@ after update of viewed_at, clicked_at, feedback_at
 on public.talent_opportunity_recommendation
 for each row
 execute function public.record_weekly_stats_recommendation_activity_v1();
+
+commit;
+
+begin;
 
 insert into public.logs (type, user_id, created_at, meta_data)
 select
@@ -199,6 +231,10 @@ where talent.last_logined_at is not null
       and activity.user_id = talent.user_id
       and activity.created_at = talent.last_logined_at
   );
+
+commit;
+
+begin;
 
 insert into public.logs (type, user_id, created_at, meta_data)
 select
