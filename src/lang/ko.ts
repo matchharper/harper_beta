@@ -1259,6 +1259,7 @@ export const ko = {
       "공개 자료를 바탕으로 구성한 질문은 실제 기출과 다르거나 부정확할 수 있습니다.",
     "career.history.mock_interview.recording":
       "대화는 일반 통화와 동일하게 기록과 콜노트로 저장됩니다.",
+  "career.chat.mock_interview.description": "이 포지션의 면접을 Harper와 음성으로 연습해 보세요. 개인 연습이며 기업에 전달되지 않습니다.",
     "career.history.mock_interview.action": "모의 인터뷰 해보기",
     "career.history.talent_role_activity_timeline.title": "내 활동",
     "career.history.talent_role_activity_timeline.upcoming_meeting": "예정된 미팅",

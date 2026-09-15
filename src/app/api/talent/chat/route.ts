@@ -1,3 +1,4 @@
+import { hydrateMockInterviewOffers } from "@/lib/career/mockInterviewOffers.server";
 import { after, NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
@@ -175,6 +176,7 @@ async function attachPostingPreviewsToMessages(args: {
   messages: ReturnType<typeof toTalentMessageResponse>[];
   userId: string;
 }) {
+  args.messages = await hydrateMockInterviewOffers(args);
   const roleIdsByMessageId = new Map<number, string[]>();
 
   for (const message of args.messages) {

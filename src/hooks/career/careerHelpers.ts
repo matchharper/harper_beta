@@ -57,6 +57,7 @@ export const toUiMessage = (message: {
   content: string;
   messageType?: string;
   createdAt?: string;
+  mockInterviewOffers?: CareerMessage["mockInterviewOffers"];
   opportunityPreview?: CareerMessage["opportunityPreview"];
   recommendationSearchRelation?: CareerMessage["recommendationSearchRelation"];
   recommendationSearchRun?: CareerMessage["recommendationSearchRun"];
@@ -69,6 +70,7 @@ export const toUiMessage = (message: {
   content: message.content,
   messageType: message.messageType ?? "chat",
   createdAt: message.createdAt ?? new Date().toISOString(),
+  mockInterviewOffers: message.mockInterviewOffers,
   opportunityPreview: message.opportunityPreview,
   recommendationSearchRelation: message.recommendationSearchRelation ?? null,
   recommendationSearchRun: message.recommendationSearchRun ?? null,

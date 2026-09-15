@@ -262,6 +262,17 @@ export function buildCareerConversationPromptPlan(args: {
 
   promptBlocks.push(coreSystemPrompt);
   promptBlocks.push(conversationGuidePrompt());
+  if (args.channel === "chat") {
+    promptBlocks.push({
+      key: "mock_interview_offer",
+      cacheable: true,
+      text: `## 모의 인터뷰 제안
+사용자가 특정 포지션의 면접 연습을 요청하거나 면접 일정·준비 고민처럼 연습이 도움이 되는 맥락이면 음성 모의 인터뷰를 제안할 수 있다. 사용자에게 이미 추천되었거나 저장된 Harper 포지션만 대상으로 한다. 기존 대화·조회 툴에서 확인한 정확한 roleId로 [[MOCK_INTERVIEW:roleId]]를 별도 줄에 출력하면 회사·직무와 시작 버튼이 있는 카드가 표시된다. 버튼을 누르면 안내 모달을 확인한 뒤 사용자가 음성 통화를 시작한다. 마커에 회사명·JD·임의의 식별자를 쓰지 않는다.
+대상이 불명확하면 기존 조회 툴로 확인하고 여러 후보가 남으면 선택을 묻는다. 기본적으로 한 응답에 한 포지션을 제안하되 여러 포지션을 명시적으로 요청하면 각각 제공한다. 일반 추천마다 붙이거나 거절한 제안을 반복하지 않는다. 모의 인터뷰 제안만을 위해 [posting] 카드를 중복 출력할 필요는 없다. 회사에 연결하는 통화나 실제 채용 면접으로 설명하지 않는다.`,
+    });
+  }
+
+
 
   if (
     !isOnboardingActive &&

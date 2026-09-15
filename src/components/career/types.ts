@@ -1,3 +1,4 @@
+import type { MockInterviewOffer } from "@/lib/career/mockInterviewOffers";
 import { OpportunityType } from "@/lib/opportunityType";
 import type {
   OpportunityDiscoveryAgentVariant,
@@ -450,6 +451,7 @@ export type CareerMessage = {
   content: string;
   messageType: string;
   createdAt: string;
+  mockInterviewOffers?: MockInterviewOffer[];
   opportunityPreview?: CareerHistoryOpportunity[];
   recommendationSearchRelation?: OpportunityRunMarkerRelation | null;
   recommendationSearchRun?: CareerOpportunityRun | null;
@@ -466,6 +468,7 @@ export type CareerMessagePayload = {
   content: string;
   messageType: string;
   createdAt: string;
+  mockInterviewOffers?: MockInterviewOffer[];
   opportunityPreview?: CareerHistoryOpportunity[];
   recommendationSearchRelation?: OpportunityRunMarkerRelation | null;
   recommendationSearchRun?: CareerOpportunityRun | null;

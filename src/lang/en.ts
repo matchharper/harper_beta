@@ -1244,6 +1244,7 @@ export const en = {
       "Questions are based on public sources and may be inaccurate or differ from actual interview questions.",
     "career.history.mock_interview.recording":
       "Your conversation is saved in your history and call notes, just like a regular call.",
+  "career.chat.mock_interview.description": "Practice interviewing for this position with Harper over a voice call. This is private practice and is not shared with the employer.",
     "career.history.mock_interview.action": "Try a mock interview",
     "career.history.talent_role_activity_timeline.title": "My activity",
     "career.history.talent_role_activity_timeline.upcoming_meeting": "Upcoming meeting",
