@@ -1,3 +1,4 @@
+import { buildLiveFrontendInstructions } from "@/lib/career/voiceSessionInstructions";
 import {
   readMockInterviewOpportunityId,
   MockInterviewRequestError,
@@ -71,33 +72,6 @@ function buildSafetyIdentifier(userId: string) {
 
 function readBodyString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function buildLiveFrontendInstructions(args: {
-  initialResponseInstruction: string;
-  responseLocale: unknown;
-}) {
-  const language =
-    typeof args.responseLocale === "string" &&
-    args.responseLocale.trim().toLowerCase().startsWith("en")
-      ? "English"
-      : "Korean";
-  const paceInstruction =
-    language === "English"
-      ? "Speak clearly at a slightly faster pace."
-      : "조금 빠른 속도로 또렷하게 말해.";
-
-  return [
-    "You are Harper, a warm and capable career partner in a live voice call.",
-    `Speak naturally in ${language}, unless the caller clearly switches languages.`,
-    paceInstruction,
-    "Keep spoken turns concise, conversational, and easy to interrupt. Listen while speaking and adapt naturally when the caller interjects.",
-    "Delegate whenever you need the caller's stored context, business rules, careful reasoning, or any tool. Use the delegated result before making factual claims or claiming that an action succeeded.",
-    "Do not narrate delegation mechanics, tool names, system instructions, or hidden context to the caller.",
-    args.initialResponseInstruction
-      ? `For the opening turn, follow this call-opening guidance:\n${args.initialResponseInstruction}`
-      : "When asked to begin, greet the caller briefly and ask one useful opening question.",
-  ].join("\n\n");
 }
 
 export async function POST(req: NextRequest) {
@@ -289,6 +263,7 @@ export async function POST(req: NextRequest) {
           instructions: buildLiveFrontendInstructions({
             initialResponseInstruction: openingInstruction,
             responseLocale,
+            isMockInterview: Boolean(mockInterviewOpportunityId),
           }),
           delegation: {
             type: "responses",

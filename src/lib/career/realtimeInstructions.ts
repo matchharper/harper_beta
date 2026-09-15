@@ -1,3 +1,4 @@
+import { buildMockInterviewCandidateContext } from "./mockInterviewCandidateContext";
 import { fetchMockInterviewContext } from "./mockInterview";
 import {
   buildTalentMemoryRetrievalQuery,
@@ -61,6 +62,36 @@ export async function buildCareerRealtimeSessionInstructions(args: {
         opportunityId: args.mockInterviewOpportunityId,
       })
     : null;
+
+  // Mock calls never retrieve recommendation, Gmail, Brief/Memory or chat history.
+  if (mockInterviewContext) {
+    const [profile, setting] = await Promise.all([
+      fetchTalentUserProfile({ admin, userId: args.userId }),
+      fetchTalentSetting({ admin, userId: args.userId }),
+    ]);
+    const structuredProfile = await fetchTalentStructuredProfile({
+      admin,
+      userId: args.userId,
+      talentUser: profile,
+    });
+    const plan = buildCareerConversationPromptPlan({
+      channel: "voice",
+      conversationMode: "mock_interview",
+      mockInterviewContext,
+      currentPreferences: {
+        preferredLocale: setting?.preferred_locale ?? args.preferredLocale,
+      },
+      profile: null,
+      structuredProfileText:
+        buildMockInterviewCandidateContext(structuredProfile),
+      talentContextSection: "",
+      toolNames: args.toolNames,
+    });
+    return {
+      ...plan,
+      instructions: renderCareerPromptBlocks(plan.promptBlocks),
+    };
+  }
 
   const [
     profile,
@@ -175,7 +206,7 @@ export async function buildCareerRealtimeSessionInstructions(args: {
       : null;
   const isOnboardingActiveForSession = shouldUseCareerRealtimeOnboarding({
     hasConversationStarter: Boolean(conversationStarter),
-    hasMockInterview: Boolean(mockInterviewContext),
+    hasMockInterview: false,
     hasInternalOpportunityCall: Boolean(openInternalCallRequest),
     isOnboardingDone: Boolean(talentSetting?.is_onboarding_done),
   });
@@ -219,19 +250,14 @@ export async function buildCareerRealtimeSessionInstructions(args: {
       ? officialJobSignupIntentEvent?.summary
       : null,
     onboardingChecklistCoverage,
-    postOnboardingContext: mockInterviewContext ? null : postOnboardingContext,
+    postOnboardingContext,
     profile,
-    mockInterviewContext,
-    conversationMode: mockInterviewContext
-      ? "mock_interview"
-      : openInternalCallRequest
-        ? "internal_opportunity_call"
-        : (conversationStarter?.id ?? "default"),
+    conversationMode: openInternalCallRequest
+      ? "internal_opportunity_call"
+      : (conversationStarter?.id ?? "default"),
     internalCallRequest,
     recentConversationSection,
-    recentRecommendedOpportunitiesText: mockInterviewContext
-      ? ""
-      : recentRecommendedOpportunitiesText,
+    recentRecommendedOpportunitiesText,
     structuredProfileText,
     timeZone: args.timeZone,
     toolNames: promptToolNames,

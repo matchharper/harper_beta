@@ -235,6 +235,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     ((options?: RealtimeConnectOptions) => Promise<boolean>) | null
   >(null);
   const lastConnectFailureRef = useRef<RealtimeConnectFailure | null>(null);
+  const mockInterviewOpportunityIdRef = useRef<string | null>(null);
   const connectPromiseRef = useRef<Promise<boolean> | null>(null);
   const pendingConnectAbortControllerRef = useRef<AbortController | null>(null);
   const pendingConnectCancelRef = useRef<(() => void) | null>(null);
@@ -337,6 +338,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   }, []);
 
   const cleanupTransport = useCallback(() => {
+    mockInterviewOpportunityIdRef.current = null;
     const dataChannel = dataChannelRef.current;
     dataChannelRef.current = null;
     if (dataChannel) {
@@ -839,6 +841,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           const response = await fetchWithAuth("/api/talent/tool/execute", {
             method: "POST",
             body: JSON.stringify({
+              mockInterviewOpportunityId:
+                mockInterviewOpportunityIdRef.current ?? undefined,
               channel: "voice",
               conversationId,
               name: functionCall.name,
@@ -1384,6 +1388,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       }
       if (connectPromiseRef.current) return connectPromiseRef.current;
 
+      mockInterviewOpportunityIdRef.current =
+        options?.mockInterviewOpportunityId?.trim() || null;
       setIsConnecting(true);
       lastConnectFailureRef.current = null;
       const attemptId = connectAttemptIdRef.current + 1;
@@ -1399,6 +1405,9 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           pendingConnectAbortControllerRef.current = null;
         }
         pendingConnectCancelRef.current = null;
+        if (dataChannelRef.current?.readyState !== "open") {
+          mockInterviewOpportunityIdRef.current = null;
+        }
         setIsConnecting(false);
       };
 

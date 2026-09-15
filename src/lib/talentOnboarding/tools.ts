@@ -122,6 +122,7 @@ import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingCon
 export type TalentToolChannel = "chat" | "voice";
 
 export type TalentToolExecutionContext = {
+  searchPurpose?: "mock_interview";
   admin?: unknown;
   abortSignal?: AbortSignal;
   conversationId?: string;
@@ -2285,6 +2286,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       }
       return executeSharedWebSearch(input, {
         admin: admin as TalentAdminClient,
+        searchPurpose: context?.searchPurpose,
         inputError: (message) => new TalentToolError(message),
       });
     },

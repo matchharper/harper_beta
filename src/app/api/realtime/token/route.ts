@@ -1,3 +1,4 @@
+import { buildVoiceInputTranscription } from "@/lib/career/voiceSessionInstructions";
 import {
   readMockInterviewOpportunityId,
   MockInterviewRequestError,
@@ -84,8 +85,9 @@ function buildOpenAIRealtimeSessionBody(args: {
   instructions: string;
   realtimeConfig: ReturnType<typeof getCareerRealtimeSessionConfig>;
   tools: readonly CareerRealtimeTool[];
-  transcriptionLanguage: string;
+  transcriptionLanguage?: string;
   transcriptionModel: string;
+  isMockInterview?: boolean;
 }) {
   const {
     instructions,
@@ -109,10 +111,11 @@ function buildOpenAIRealtimeSessionBody(args: {
       },
       audio: {
         input: {
-          transcription: {
+          transcription: buildVoiceInputTranscription({
             model: transcriptionModel,
             language: transcriptionLanguage,
-          },
+            isMockInterview: args.isMockInterview,
+          }),
           turn_detection: {
             type: "semantic_vad",
             create_response: true,
@@ -123,19 +126,19 @@ function buildOpenAIRealtimeSessionBody(args: {
         },
         ...(realtimeConfig.voice
           ? {
-            output: {
-              speed: realtimeConfig.speechSpeed,
-              voice: realtimeConfig.voice,
-            },
-          }
+              output: {
+                speed: realtimeConfig.speechSpeed,
+                voice: realtimeConfig.voice,
+              },
+            }
           : {}),
       },
       instructions,
       ...(tools.length > 0
         ? {
-          tools,
-          tool_choice: "auto" as const,
-        }
+            tools,
+            tool_choice: "auto" as const,
+          }
         : {}),
     },
   };
@@ -230,10 +233,10 @@ export async function POST(req: NextRequest) {
     const admin = getTalentSupabaseAdmin();
     const continuedCallNoteDocument = resumeCallNoteId
       ? await fetchTalentCallNoteDocument({
-        admin,
-        documentId: resumeCallNoteId,
-        userId: user.id,
-      })
+          admin,
+          documentId: resumeCallNoteId,
+          userId: user.id,
+        })
       : null;
     if (resumeCallNoteId && !continuedCallNoteDocument) {
       return NextResponse.json(
@@ -255,8 +258,9 @@ export async function POST(req: NextRequest) {
       talentSetting?.preferred_locale ??
       rawLocale ??
       req.cookies.get("NEXT_LOCALE")?.value;
-    const transcriptionLanguage =
-      getRealtimeTranscriptionLanguage(responseLocale);
+    const transcriptionLanguage = mockInterviewOpportunityId
+      ? undefined
+      : getRealtimeTranscriptionLanguage(responseLocale);
 
     if (
       conversationStarterId &&
@@ -347,7 +351,9 @@ export async function POST(req: NextRequest) {
       preferredLocale: responseLocale,
     });
     const tools = realtimeToolSelection.tools;
-    const toolVoicePreambles = realtimeToolSelection.toolVoicePreambles;
+    const toolVoicePreambles = mockInterviewOpportunityId
+      ? {}
+      : realtimeToolSelection.toolVoicePreambles;
     const realtimeConfig = getCareerRealtimeSessionConfig();
     const safetyIdentifier = buildSafetyIdentifier(user.id);
     const response = await createOpenAIRealtimeClientSecret({
@@ -358,6 +364,7 @@ export async function POST(req: NextRequest) {
         tools,
         transcriptionLanguage,
         transcriptionModel: realtimeConfig.transcriptionModel,
+        isMockInterview: Boolean(mockInterviewOpportunityId),
       }),
     });
 

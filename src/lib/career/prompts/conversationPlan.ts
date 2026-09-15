@@ -12,13 +12,10 @@ import {
   CAREER_POST_ONBOARDING_VOICE_RESPONSE_GUIDANCE_PROMPT,
 } from "@/lib/career/prompts/rawPrompts";
 import {
-  buildMockInterviewInstruction,
+  buildMockInterviewPromptPlan,
   type MockInterviewContext,
 } from "./cases/mockInterviewPrompts";
-import {
-  CAREER_FOCUSED_VOICE_CALL_PROMPT,
-  CAREER_VOICE_CALL_MODE_PROMPT,
-} from "@/lib/career/prompts/cases/voicePrompts";
+import { CAREER_VOICE_CALL_MODE_PROMPT } from "@/lib/career/prompts/cases/voicePrompts";
 import {
   formatCareerPromptKoreanDateTime,
   interpolateCareerPromptText,
@@ -138,6 +135,18 @@ export function buildCareerConversationPromptPlan(args: {
   timeZone?: string | null;
   toolNames?: readonly string[] | string;
 }): CareerPromptPlan {
+  if (args.conversationMode === "mock_interview") {
+    if (args.channel !== "voice" || !args.mockInterviewContext) {
+      throw new Error("Mock interview requires voice and position context");
+    }
+    return buildMockInterviewPromptPlan({
+      context: args.mockInterviewContext,
+      candidateContext: args.structuredProfileText,
+      preferredLocale: args.currentPreferences?.preferredLocale,
+      toolNames: args.toolNames ?? [],
+    });
+  }
+
   const channelType = getCareerChannelType(args.channel);
   const channelContextRules = buildCareerChannelContextRules(args.channel);
 
@@ -211,12 +220,6 @@ export function buildCareerConversationPromptPlan(args: {
   };
 
   const conversationGuidePrompt = () => {
-    if (conversationMode === "mock_interview")
-      return {
-        key: "mock_interview_response_guidance",
-        text: "이번 통화의 모의 인터뷰 지침을 따른다.",
-        cacheable: true,
-      };
     if (isOnboardingActive)
       if (isVoiceCall)
         // 단순히 더 짧은 프롬프트.
@@ -262,7 +265,6 @@ export function buildCareerConversationPromptPlan(args: {
 
   if (
     !isOnboardingActive &&
-    conversationMode !== "mock_interview" &&
     args.includePostOnboardingConversationGuide !== false
   ) {
     promptBlocks.push({
@@ -286,9 +288,7 @@ export function buildCareerConversationPromptPlan(args: {
   // 통화중일 때
   if (isVoiceCall) {
     const voiceRules = [
-      conversationMode === "mock_interview"
-        ? CAREER_FOCUSED_VOICE_CALL_PROMPT
-        : CAREER_VOICE_CALL_MODE_PROMPT,
+      CAREER_VOICE_CALL_MODE_PROMPT,
       getCareerInterruptHandlingPrompt(
         args.currentPreferences?.preferredLocale
       ),
@@ -305,8 +305,6 @@ export function buildCareerConversationPromptPlan(args: {
     }
   }
   const callModePrompt = () => {
-    if (conversationMode === "mock_interview" && args.mockInterviewContext)
-      return buildMockInterviewInstruction(args.mockInterviewContext);
     if (
       conversationMode === "internal_opportunity_call" &&
       args.internalCallRequest

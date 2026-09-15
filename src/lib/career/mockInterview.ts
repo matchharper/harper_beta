@@ -66,5 +66,6 @@ export async function fetchMockInterviewContext(
     roleTitle: item.title,
     jd: item.description,
     companyDescription: item.companyDescription,
+    location: item.location ?? null,
   };
 }

@@ -62,6 +62,7 @@ export async function executeSharedWebSearch(
   options: {
     admin: TalentAdminClient;
     exa?: ExaSearchClient;
+    searchPurpose?: "mock_interview";
     inputError?: SharedToolInputErrorFactory;
   }
 ) {
@@ -77,6 +78,7 @@ export async function executeSharedWebSearch(
   const response = await runWebSearch({
     admin: options.admin,
     exa: options.exa,
+    searchPurpose: options.searchPurpose,
     maxResults: Number.isFinite(parsed) ? parsed : 10,
     query,
   });

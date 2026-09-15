@@ -43,6 +43,7 @@ function optionalString(value: unknown) {
 export async function runWebSearch(args: {
   admin: TalentAdminClient;
   exa?: ExaSearchClient;
+  searchPurpose?: "mock_interview";
   maxResults?: number;
   query: string;
 }): Promise<WebSearchResponse> {
@@ -58,7 +59,21 @@ export async function runWebSearch(args: {
     type: "auto",
     contents: {
       text: { maxCharacters: SEARCH_TEXT_MAX_CHARACTERS },
-      highlights: { maxCharacters: SEARCH_HIGHLIGHTS_MAX_CHARACTERS },
+      highlights:
+        args.searchPurpose === "mock_interview"
+          ? {
+              query: [
+                "Concrete interview questions and practical assessment tasks.",
+                "Prioritize technical questions, coding problems, system design",
+                "and take-home requirements when relevant to the role.",
+                "Favor questions requiring specific domain knowledge, underlying",
+                "mechanisms, and applied problem solving over behavioral or motivation questions.",
+                "Include problem statements, constraints, interviewer follow-up",
+                "questions, and technical trade-offs over recruiter calls and hiring timelines.",
+              ].join(" "),
+              maxCharacters: 2500,
+            }
+          : { maxCharacters: SEARCH_HIGHLIGHTS_MAX_CHARACTERS },
     },
   });
 
