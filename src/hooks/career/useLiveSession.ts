@@ -134,6 +134,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const mockInterviewOpportunityIdRef = useRef<string | null>(null);
   const connectPromiseRef = useRef<Promise<boolean> | null>(null);
   const connectAttemptIdRef = useRef(0);
   const pendingConnectAbortControllerRef = useRef<AbortController | null>(null);
@@ -395,6 +396,8 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
             method: "POST",
             body: JSON.stringify({
               arguments: parsedArguments,
+              mockInterviewOpportunityId:
+                mockInterviewOpportunityIdRef.current ?? undefined,
               channel: "voice",
               conversationId,
               name: functionCall.name,
@@ -661,6 +664,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
   );
 
   const cleanupTransport = useCallback(() => {
+    mockInterviewOpportunityIdRef.current = null;
     sessionStartedResolverRef.current?.(false);
     sessionStartedResolverRef.current = null;
     pendingInstructionActionsRef.current.forEach(({ timer }) =>
@@ -744,6 +748,8 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
         return Promise.resolve(true);
       }
 
+      mockInterviewOpportunityIdRef.current =
+        options?.mockInterviewOpportunityId?.trim() || null;
       setIsConnecting(true);
       lastConnectFailureRef.current = null;
       latestAudioSecondsRef.current = null;
@@ -887,6 +893,8 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
               internalCallRequestId:
                 options?.internalCallRequestId ?? undefined,
               locale,
+              mockInterviewOpportunityId:
+                options?.mockInterviewOpportunityId ?? undefined,
               resumeCallNoteId: options?.resumeCallNoteId ?? undefined,
               sdp,
               timeZone: getCareerBrowserTimeZone(),

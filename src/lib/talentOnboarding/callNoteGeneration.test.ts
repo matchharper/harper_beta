@@ -313,3 +313,27 @@ test("treats a repeated continuation call id as an idempotent update", async () 
   assert.equal(analyzeCalls, 0);
   assert.equal(updateCalls, 0);
 });
+
+test("passes mock interview purpose to analysis without changing the transcript", async () => {
+  const purpose =
+    "This was a mock interview; hypothetical examples are not career facts.";
+  const result = await generateTalentCallNoteForWrapup(
+    { ...baseArgs, callPurposeContext: purpose },
+    {
+      analyze: async (args) => {
+        assert.equal(args.callPurposeContext, purpose);
+        assert.deepEqual(args.transcript, baseArgs.transcript);
+        return {
+          shouldCreate: true,
+          title: "Mock interview",
+          keyPoints: ["Practice feedback"],
+        };
+      },
+      save: async (args) => {
+        assert.deepEqual(args.transcript, baseArgs.transcript);
+        return SAVED_DOCUMENT;
+      },
+    }
+  );
+  assert.equal(result.status, "created");
+});

@@ -6,7 +6,14 @@ import {
   TalentToolError,
 } from "@/lib/talentOnboarding/tools";
 
+import {
+  fetchMockInterviewContext,
+  MockInterviewRequestError,
+  readMockInterviewOpportunityId,
+} from "@/lib/career/mockInterview";
+
 type Body = {
+  mockInterviewOpportunityId?: string;
   arguments?: Record<string, unknown>;
   channel?: string;
   conversationId?: string;
@@ -59,11 +66,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const mockInterviewOpportunityId = readMockInterviewOpportunityId(body);
+    let searchPurpose: "mock_interview" | undefined;
+    if (
+      channel === "voice" &&
+      name === "web_search" &&
+      mockInterviewOpportunityId
+    ) {
+      await fetchMockInterviewContext({
+        admin,
+        userId: user.id,
+        opportunityId: mockInterviewOpportunityId,
+      });
+      searchPurpose = "mock_interview";
+    }
+
     const output = await executeTalentTool({
       channel,
       name,
       context: {
         admin,
+        searchPurpose,
         conversationId,
         scheduleAfter: (task) => after(task),
         toolCallId: String(body.toolCallId ?? "").trim() || null,
@@ -81,7 +104,10 @@ export async function POST(req: NextRequest) {
       output,
     });
   } catch (error) {
-    if (error instanceof TalentToolError) {
+    if (
+      error instanceof TalentToolError ||
+      error instanceof MockInterviewRequestError
+    ) {
       return NextResponse.json(
         { error: error.message },
         { status: error.status }

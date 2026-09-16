@@ -1,3 +1,5 @@
+import { buildMockInterviewCandidateContext } from "./mockInterviewCandidateContext";
+import { fetchMockInterviewContext } from "./mockInterview";
 import {
   buildTalentMemoryRetrievalQuery,
   buildTalentProfileContext,
@@ -46,12 +48,50 @@ export async function buildCareerRealtimeSessionInstructions(args: {
   conversationId: string;
   conversationStarterId?: string | null;
   internalCallRequestId?: string | null;
+  mockInterviewOpportunityId?: string | null;
   preferredLocale?: string | null;
   timeZone?: string | null;
   toolNames: string[];
   userId: string;
 }) {
   const admin = getTalentSupabaseAdmin();
+  const mockInterviewContext = args.mockInterviewOpportunityId
+    ? await fetchMockInterviewContext({
+        admin,
+        userId: args.userId,
+        opportunityId: args.mockInterviewOpportunityId,
+      })
+    : null;
+
+  // Mock calls never retrieve recommendation, Gmail, Brief/Memory or chat history.
+  if (mockInterviewContext) {
+    const [profile, setting] = await Promise.all([
+      fetchTalentUserProfile({ admin, userId: args.userId }),
+      fetchTalentSetting({ admin, userId: args.userId }),
+    ]);
+    const structuredProfile = await fetchTalentStructuredProfile({
+      admin,
+      userId: args.userId,
+      talentUser: profile,
+    });
+    const plan = buildCareerConversationPromptPlan({
+      channel: "voice",
+      conversationMode: "mock_interview",
+      mockInterviewContext,
+      currentPreferences: {
+        preferredLocale: setting?.preferred_locale ?? args.preferredLocale,
+      },
+      profile: null,
+      structuredProfileText:
+        buildMockInterviewCandidateContext(structuredProfile),
+      talentContextSection: "",
+      toolNames: args.toolNames,
+    });
+    return {
+      ...plan,
+      instructions: renderCareerPromptBlocks(plan.promptBlocks),
+    };
+  }
 
   const [
     profile,
@@ -166,6 +206,7 @@ export async function buildCareerRealtimeSessionInstructions(args: {
       : null;
   const isOnboardingActiveForSession = shouldUseCareerRealtimeOnboarding({
     hasConversationStarter: Boolean(conversationStarter),
+    hasMockInterview: false,
     hasInternalOpportunityCall: Boolean(openInternalCallRequest),
     isOnboardingDone: Boolean(talentSetting?.is_onboarding_done),
   });

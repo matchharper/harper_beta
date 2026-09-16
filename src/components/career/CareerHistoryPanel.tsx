@@ -2112,6 +2112,17 @@ const CareerHistoryPanel = () => {
                 modalOpportunity
               )}
               onBack={closeOpportunityModal}
+              onStartMockInterview={
+                onStartCallMode
+                  ? async (opportunityId) => {
+                      const started = await onStartCallMode({
+                        mockInterviewOpportunityId: opportunityId,
+                      });
+                      if (started) openChatTab("start_mock_interview");
+                      return started;
+                    }
+                  : undefined
+              }
               onOpenCompanyInfo={openHistoryCompanyInfo}
               onOpenLink={(url) => openHistoryLink(modalOpportunity, url)}
               onOpenOpportunityInfo={openOpportunityInfo}

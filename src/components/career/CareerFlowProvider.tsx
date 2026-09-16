@@ -1092,6 +1092,7 @@ export const CareerFlowProvider = ({
     resetOnboardingState,
     isAssistantSpeaking,
     isVoiceToolExecuting,
+    voiceActiveToolNames,
   } = useCareerOnboardingVoice({
     user,
     userId,
@@ -1944,6 +1945,7 @@ export const CareerFlowProvider = ({
       callTranscriptEntries,
       isAssistantSpeaking,
       isVoiceToolExecuting,
+      voiceActiveToolNames,
       liveUserTranscriptPlacement,
       onEndCallMode: handleEndCallMode,
       onToggleVoiceMute: handleToggleVoiceMute,
@@ -1957,6 +1959,7 @@ export const CareerFlowProvider = ({
       handleToggleVoiceMute,
       isAssistantSpeaking,
       isVoiceToolExecuting,
+      voiceActiveToolNames,
       liveUserTranscriptPlacement,
       voiceMuted,
       voiceTranscript,

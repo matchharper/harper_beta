@@ -587,6 +587,12 @@ export const ko = {
     "career.chat.career_call_screen.1914g7j": "음소거",
     "career.chat.career_call_screen.1lwovam": "커리어 인터뷰 진행률",
     "career.chat.career_call_screen.force_complete_label": "지금 마무리하기",
+    "career.call.tool_status.web_search": "웹 검색 중...",
+    "career.call.tool_status.recommendations": "기존 추천 조회 중...",
+    "career.call.tool_status.role_context": "포지션 상세 조회 중...",
+    "career.call.tool_status.read_context": "사용자 정보 조회 중...",
+    "career.call.tool_status.write_context": "사용자 정보 업데이트 중...",
+    "career.call.tool_status.default": "요청 처리 중...",
     "career.chat.career_call_screen.tool_executing": "정보 찾는 중...",
     "career.chat.career_composer_section.017fk2m": "원하는 역할이나 조건을 편하게 알려주세요. @로 기회를 선택하세요.",
     "career.chat.career_composer_section.02tj0kp": "약 5분",
@@ -1239,6 +1245,22 @@ export const ko = {
     "career.history.talent_role_activity_timeline.memo": "메모",
     "career.history.talent_role_activity_timeline.past_meeting": "지난 미팅",
     "career.history.talent_role_activity_timeline.stage_changed": "단계 변경",
+    "career.history.mock_interview.description":
+      "Harper와 실제 면접처럼 대화하며 이 포지션의 인터뷰를 준비해보세요.",
+    "career.history.mock_interview.failed":
+      "통화를 시작하지 못했습니다. 진행 중인 통화와 마이크 권한을 확인한 뒤 다시 시도해 주세요.",
+    "career.history.mock_interview.title": "모의 인터뷰를 시작할까요?",
+    "career.history.mock_interview.cancel": "취소",
+    "career.history.mock_interview.start": "음성으로 시작하기",
+    "career.history.mock_interview.connecting": "연결 중...",
+    "career.history.mock_interview.notice":
+      "선택한 포지션을 기준으로 Harper와 음성 면접을 연습합니다. 개인의 면접 역량 향상을 위한 연습이며, 이 기능이 인터뷰 내용을 기업이나 채용 담당자에게 전송하지는 않습니다.",
+    "career.history.mock_interview.accuracy":
+      "공개 자료를 바탕으로 구성한 질문은 실제 기출과 다르거나 부정확할 수 있습니다.",
+    "career.history.mock_interview.recording":
+      "대화는 일반 통화와 동일하게 기록과 콜노트로 저장됩니다.",
+  "career.chat.mock_interview.description": "이 포지션의 면접을 Harper와 음성으로 연습해 보세요. 개인 연습이며 기업에 전달되지 않습니다.",
+    "career.history.mock_interview.action": "모의 인터뷰 해보기",
     "career.history.talent_role_activity_timeline.title": "내 활동",
     "career.history.talent_role_activity_timeline.upcoming_meeting": "예정된 미팅",
     "career.history.upcoming_meeting_strip.label": "다음 미팅 · {dateTime}",

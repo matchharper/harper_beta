@@ -1,3 +1,4 @@
+import type { MockInterviewOffer } from "@/lib/career/mockInterviewOffers";
 import type { Database } from "@/types/database.types";
 import type { TalentNetworkEngagementOptionId } from "@/lib/talentNetworkOptions";
 import { stripCareerOpportunityMentionMetadata } from "@/lib/career/opportunityMentionText";
@@ -103,6 +104,7 @@ export type TalentMessageRow = {
 };
 
 export type TalentMessageResponse = {
+  mockInterviewOffers?: MockInterviewOffer[];
   attachments?: CareerMessageAttachment[];
   id: number;
   role: "user" | "assistant";
