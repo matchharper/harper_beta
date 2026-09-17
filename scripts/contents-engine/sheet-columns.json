@@ -830,7 +830,7 @@
         "read"
       ]
     ],
-    "helpText": "① 크리에이터·수신 이메일·템플릿·제목·본문을 확인하세요. ② 노란색 Review Decision에서 Approve & Send, Request Revision, Skip 중 하나를 선택하세요. ③ 행을 선택하고 Contents Engine → Outreach Review 선택행 승인/반영을 실행해야 실제 반영됩니다."
+    "helpText": "① 크리에이터·수신 이메일·템플릿·제목·본문을 확인하세요. ② 노란색 Review Decision에서 Approve & Send, Request Revision, Skip 중 하나를 선택하세요. Approve & Send를 선택하면 셀이 초록색으로 바뀝니다. ③ 행을 선택하고 Contents Engine → Outreach Review 선택행 승인/반영을 실행해야 실제 반영됩니다."
   },
   "Outreach Log": {
     "entity": "gtm_activities",

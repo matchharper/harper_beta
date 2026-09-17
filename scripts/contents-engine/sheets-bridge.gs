@@ -145,6 +145,22 @@ function migrateLegacyRows_(sheet,c){
   });
   return migrated;
 }
+function setReviewDecisionFormatting_(sheet,range){
+  const sheetId=sheet.getSheetId(),column=range.getColumn(),startRow=range.getRow();
+  const rules=sheet.getConditionalFormatRules().filter(rule=>
+    !rule.getRanges().some(existing=>
+      existing.getSheet().getSheetId()===sheetId&&
+      existing.getColumn()===column&&existing.getRow()===startRow
+    )
+  );
+  rules.push(
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenTextEqualTo('Approve & Send')
+      .setBackground('#d9ead3').setFontColor('#274e13').setBold(true)
+      .setRanges([range]).build()
+  );
+  sheet.setConditionalFormatRules(rules);
+}
 function prepareWorkbook(){
   const ss=workbook_(),properties=PropertiesService.getDocumentProperties();
   const schemaChanged=properties.getProperty('GTM_SHEET_SCHEMA_VERSION')!==GTM_SHEET_SCHEMA_VERSION;
@@ -194,10 +210,12 @@ function prepareWorkbook(){
       else if(field[2]==='decision'){
         s.getRange(5,col).setBackground('#f4b400').setFontColor('#3d2c00')
           .setNote('제목과 본문을 확인한 뒤 이 칼럼에서 결정을 선택하고, Contents Engine → Outreach Review 선택행 승인/반영을 실행하세요.');
-        s.getRange(6,col,Math.max(1,s.getMaxRows()-5),1)
+        const decisionRange=s.getRange(6,col,Math.max(1,s.getMaxRows()-5),1);
+        decisionRange
           .setBackground('#fff2cc').setFontWeight('bold').setDataValidation(
             SpreadsheetApp.newDataValidation().requireValueInList(['Approve & Send','Request Revision','Skip'],true).setAllowInvalid(false).build()
           );
+        setReviewDecisionFormatting_(s,decisionRange);
       }
       else if(field[2]==='bool')s.getRange(6,col,Math.max(1,s.getMaxRows()-5),1).insertCheckboxes();
     });

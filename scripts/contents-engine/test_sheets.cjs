@@ -98,7 +98,11 @@ assert.deepEqual(reviewC.fields.slice(0,6).map(field=>field[0]),[
  'creator_name','recipient_email','outreach_template_name','subject','body','review_action'
 ]);
 assert.match(reviewC.helpText,/노란색 Review Decision/);
+assert.match(reviewC.helpText,/Approve & Send를 선택하면 셀이 초록색/);
 assert.equal(reviewC.fields.find(field=>field[0]==='review_action')[2],'decision');
+const bridgeSource=fs.readFileSync(__dirname+'/sheets-bridge.gs','utf8');
+assert.match(bridgeSource,/whenTextEqualTo\('Approve & Send'\)/);
+assert.match(bridgeSource,/setBackground\('#d9ead3'\)/);
 assert.equal(context.reviewAction_('Approve & Send'),'approve');
 assert.equal(context.reviewAction_('Request Revision'),'request_revision');
 assert.equal(context.reviewAction_('Skip'),'skip');
