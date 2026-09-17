@@ -22,6 +22,7 @@ VERSIONS = [
     '20260917055533_gtm_format_bank_outreach_templates',
     '20260917064500_gtm_creator_outreach_score',
     '20260917075510_gtm_outreach_dispatches',
+    '20260917090000_gtm_outreach_reply_triage',
 ]
 
 

@@ -967,7 +967,58 @@
         "created_by",
         "Recorded By",
         "read"
+      ],
+      [
+        "reply_type",
+        "Reply Type",
+        "read"
+      ],
+      [
+        "reply_summary",
+        "Reply Summary",
+        "read"
+      ],
+      [
+        "reply_mentioned_urls",
+        "Reported URLs",
+        "read"
+      ],
+      [
+        "publication_candidate_content_ref",
+        "Publication Candidate Content Ref",
+        "read"
+      ],
+      [
+        "publication_candidate_tracking_ready",
+        "UTM Link Ready",
+        "read"
+      ],
+      [
+        "publication_verification_required",
+        "Publication Verification Needed",
+        "read"
+      ],
+      [
+        "delivery_status",
+        "Delivery Status",
+        "read"
+      ],
+      [
+        "manual_destination",
+        "Manual Destination",
+        "read"
+      ],
+      [
+        "delivery_diagnostic",
+        "Delivery Diagnostic",
+        "read"
       ]
+    ],
+    "helpText": "Chronological message record. Inbound replies include GLM triage and a publication-review candidate; publication remains unconfirmed until a teammate verifies the live post.",
+    "help": [
+      "Delivery Status distinguishes manual_send_required drafts, temporary delivery errors, and permanent bounces.",
+      "Manual Destination is the profile or inbox URL for a team member to use when no verified email is available.",
+      "Permanent Gmail delivery failures mark only the exact recipient contact as bounced; temporary errors keep the contact usable."
     ]
   },
   "협업": {

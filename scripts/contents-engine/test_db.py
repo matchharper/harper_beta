@@ -22,6 +22,7 @@ MIGRATIONS = [
     ROOT / 'supabase/migrations/20260917055533_gtm_format_bank_outreach_templates.sql',
     ROOT / 'supabase/migrations/20260917064500_gtm_creator_outreach_score.sql',
     ROOT / 'supabase/migrations/20260917075510_gtm_outreach_dispatches.sql',
+    ROOT / 'supabase/migrations/20260917090000_gtm_outreach_reply_triage.sql',
 ]
 
 
@@ -92,8 +93,9 @@ def main():
             changed = api('save', 'gtm_creators', {'notes': 'verified edit'}, record=creator)['record']
             rejects('stale row version', lambda: api('save', 'gtm_creators', {'notes': 'stale'}, record=creator))
             rejects('immutable identity', lambda: api('save', 'gtm_creators', {'ref': 42}, record=changed))
+            primary_contact_id = str(uuid.uuid4())
             changed = api('patch_item', 'gtm_creators', {'field': 'contacts', 'item': {
-                'id': str(uuid.uuid4()), 'channel': 'email',
+                'id': primary_contact_id, 'channel': 'email',
                 'address': 'fixture@example.test', 'source_ref': 'transactional-fixture',
                 'as_of': datetime.now(timezone.utc).isoformat(), 'status': 'active',
             }}, record=changed)['record']
@@ -249,6 +251,27 @@ def main():
                  dispatch['rfc_message_id']),
             ).fetchone()[0]
             assert reply['matched'] and reply['inserted'] and reply['notify_needed']
+            triage = conn.execute(
+                'select public.gtm_outreach_record_reply_triage(%s,%s,%s,%s,%s)',
+                (reply['activity_id'], 'positive',
+                 '크리에이터가 제안에 관심을 보이고 자세한 설명을 요청했습니다.',
+                 Jsonb([]), 'z-ai/glm-5.3-flash'),
+            ).fetchone()[0]
+            assert triage['triage_type'] == 'positive'
+            assert triage['follow_up_action_id'] == reply['activity_id']
+            reply_action = conn.execute(
+                "select to_jsonb(t) from public.gtm_today t where t.entity='gtm_collaborations' and t.entity_id=%s and t.action_id=%s",
+                (collab['id'], reply['activity_id']),
+            ).fetchone()[0]
+            assert reply_action['status'] == 'open'
+            assert reply_action['action'] == 'Review creator email reply and decide the next response'
+            repeated_triage = conn.execute(
+                'select public.gtm_outreach_record_reply_triage(%s,%s,%s,%s,%s)',
+                (reply['activity_id'], 'positive',
+                 '크리에이터가 제안에 관심을 보이고 자세한 설명을 요청했습니다.',
+                 Jsonb([]), 'z-ai/glm-5.3-flash'),
+            ).fetchone()[0]
+            assert triage['triage_activity_id'] == repeated_triage['triage_activity_id']
             conn.execute(
                 'select public.gtm_outreach_record_slack_notification(%s,%s,%s)',
                 (reply['activity_id'], 'C_FIXTURE', '123.456'),
@@ -263,11 +286,99 @@ def main():
             ).fetchone()[0]
             assert repeated_reply['matched'] and not repeated_reply['inserted']
             assert not repeated_reply['notify_needed']
+            alternate_contact_id = str(uuid.uuid4())
+            creator_for_contact = conn.execute(
+                'select to_jsonb(c) from public.gtm_creators c where id=%s',
+                (creator['id'],),
+            ).fetchone()[0]
+            api('patch_item', 'gtm_creators', {'field': 'contacts', 'item': {
+                'id': alternate_contact_id, 'channel': 'email',
+                'address': 'manager@example.test', 'source_ref': 'transactional-fixture',
+                'as_of': datetime.now(timezone.utc).isoformat(), 'status': 'pending',
+                'party': 'manager',
+            }}, record=creator_for_contact)
+            alternate_reply = conn.execute(
+                'select public.gtm_outreach_ingest_gmail_reply(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                ('harper@matchharper.com', 'gmail-' + uuid.uuid4().hex,
+                 gmail_thread_id, 'manager@example.test', 'harper@matchharper.com',
+                 'Re: Final fixture subject', 'I manage this creator.', now,
+                 '<manager-reply@example.test>', dispatch['rfc_message_id'],
+                 dispatch['rfc_message_id']),
+            ).fetchone()[0]
+            assert alternate_reply['matched'] and alternate_reply['inserted']
+            unknown_reply = conn.execute(
+                'select public.gtm_outreach_ingest_gmail_reply(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                ('harper@matchharper.com', 'gmail-' + uuid.uuid4().hex,
+                 gmail_thread_id, 'unknown-third-party@example.test',
+                 'harper@matchharper.com', 'Re: Final fixture subject',
+                 'Unrelated participant.', now, '<unknown-reply@example.test>',
+                 dispatch['rfc_message_id'], dispatch['rfc_message_id']),
+            ).fetchone()[0]
+            assert not unknown_reply['matched']
+            bounce_message_id = 'gmail-' + uuid.uuid4().hex
+            delivery_failure = conn.execute(
+                'select public.gtm_outreach_ingest_gmail_delivery_failure(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                ('harper@matchharper.com', bounce_message_id, gmail_thread_id,
+                 '5.1.1', 'fixture@example.test',
+                 'smtp; 550 5.1.1 User unknown', now,
+                 '<bounce@example.test>', dispatch['rfc_message_id'],
+                 dispatch['rfc_message_id']),
+            ).fetchone()[0]
+            assert delivery_failure['matched'] and delivery_failure['inserted']
+            assert delivery_failure['permanent'] and delivery_failure['notify_needed']
+            bounced_dispatch = conn.execute(
+                'select to_jsonb(d) from public.gtm_outreach_dispatches d where id=%s',
+                (dispatch['id'],),
+            ).fetchone()[0]
+            assert bounced_dispatch['status'] == 'replied'
+            assert '550 5.1.1' in bounced_dispatch['last_error']
+            bounced_creator = conn.execute(
+                'select to_jsonb(c) from public.gtm_creators c where id=%s',
+                (creator['id'],),
+            ).fetchone()[0]
+            bounced_contact = next(
+                contact for contact in bounced_creator['contacts']
+                if contact['id'] == primary_contact_id
+            )
+            assert bounced_contact['status'] == 'bounced'
+            conn.execute(
+                'select public.gtm_outreach_record_activity_slack_notification(%s,%s,%s)',
+                (delivery_failure['activity_id'], 'C_FIXTURE', '123.457'),
+            )
+            repeated_failure = conn.execute(
+                'select public.gtm_outreach_ingest_gmail_delivery_failure(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                ('harper@matchharper.com', bounce_message_id, gmail_thread_id,
+                 '5.1.1', 'fixture@example.test',
+                 'smtp; 550 5.1.1 User unknown', now,
+                 '<bounce@example.test>', dispatch['rfc_message_id'],
+                 dispatch['rfc_message_id']),
+            ).fetchone()[0]
+            assert repeated_failure['matched'] and not repeated_failure['inserted']
+            assert not repeated_failure['notify_needed']
+            creator_for_restore = conn.execute(
+                'select to_jsonb(c) from public.gtm_creators c where id=%s',
+                (creator['id'],),
+            ).fetchone()[0]
+            api('patch_item', 'gtm_creators', {'field': 'contacts', 'item': {
+                'id': primary_contact_id,
+                'status': 'active',
+                'as_of': datetime.now(timezone.utc).isoformat(),
+            }}, record=creator_for_restore)
             review_row = sheet('outreach_review', dispatch['id'])['record']
             assert review_row['status'] == 'replied'
             assert review_row['outreach_template_ref'] == outreach_template['ref']
             assert review_row['creator_ref'] == creator['ref']
-            checks.append('human-approved outreach is idempotently claimed, sent, replied, notified, and shown in Sheet review')
+            checks.append('human-approved outreach is idempotently sent and triaged; evidenced alternate senders, permanent bounces, and Slack notifications are recorded once')
+            api('save', 'gtm_activities', {
+                'entity': 'gtm_collaborations', 'entity_id': collab['id'],
+                'kind': 'message_draft', 'body': 'Send this directly by DM.',
+                'payload': {
+                    'channel': 'instagram_dm',
+                    'delivery_status': 'manual_send_required',
+                    'manual_destination': 'https://instagram.com/gtm-fixture',
+                    'subject': 'Manual collaboration outreach',
+                },
+            })
             api('save', 'gtm_activities', {
                 'entity': 'gtm_collaborations', 'entity_id': collab['id'],
                 'kind': 'message_sent', 'body': 'fixture outreach',
@@ -289,7 +400,8 @@ def main():
             assert overview['content_count_365d'] == 78
             assert overview['outreach_status'] == 'replied'
             assert overview['data_status'] == 'current'
-            assert overview['contact_summary'] == 'email: fixture@example.test [active]'
+            assert 'email: fixture@example.test [active]' in overview['contact_summary']
+            assert 'email: manager@example.test [pending]' in overview['contact_summary']
             assert overview['activity_regions'] == ['KR']
             assert overview['primary_platform'] == 'youtube'
             assert overview['primary_handle'] == 'gtm-fixture'
@@ -308,11 +420,20 @@ def main():
             assert any(row['id'] == creator['id'] for row in connected)
             outreach = sheet('outreach_log')['rows']
             fixture_reply = next(row for row in outreach if row['body'] == 'fixture reply')
+            classified_reply = next(row for row in outreach if row['body'] == 'Interested in learning more.')
             fixture_outreach = next(row for row in outreach if row['body'] == 'fixture outreach')
+            manual_outreach = next(row for row in outreach if row['body'] == 'Send this directly by DM.')
+            delivery_event = next(row for row in outreach if row['kind'] == 'delivery_failed')
             assert fixture_reply['creator_ref'] == creator['ref']
             assert fixture_reply['direction'] == 'inbound'
+            assert classified_reply['reply_type'] == 'positive'
+            assert classified_reply['reply_summary'] == '크리에이터가 제안에 관심을 보이고 자세한 설명을 요청했습니다.'
             assert fixture_outreach['direction'] == 'outbound'
             assert fixture_outreach['outreach_template_ref'] == outreach_template['ref']
+            assert manual_outreach['delivery_status'] == 'manual_send_required'
+            assert manual_outreach['manual_destination'] == 'https://instagram.com/gtm-fixture'
+            assert delivery_event['delivery_status'] == 'permanent_failure'
+            assert '550 5.1.1' in delivery_event['delivery_diagnostic']
             checks.append('three Sheet read models join creator, relationship, and outreach facts without new ledgers')
             creator = api('save', 'gtm_creators', {'outreach_score': 5}, record=overview)['record']
             changed = creator
@@ -341,12 +462,21 @@ def main():
             assert incomplete_overview['data_status'] == 'missing_accounts'
             assert {'activity_regions', 'content_topics', 'contact_method'} <= set(incomplete_overview['refresh_fields'])
             checks.append('creator default read exposes missing research instead of converting unknowns to zero')
+            collab = conn.execute(
+                'select to_jsonb(c) from public.gtm_collaborations c where id=%s',
+                (collab['id'],),
+            ).fetchone()[0]
+            collab = api('patch_item', 'gtm_collaborations', {
+                'field': 'action_items',
+                'item': {'id': reply['activity_id'], 'status': 'done'},
+            }, record=collab)['record']
             for text in ['Receive statistics', 'Reconcile payment']:
                 collab = api('patch_item', 'gtm_collaborations', {'field': 'action_items', 'item': {
                     'id': str(uuid.uuid4()), 'text': text, 'status': 'open', 'owner_id': 'fixture',
                 }}, record=collab)['record']
-            assert len(collab['action_items']) == 2
-            first_id = collab['action_items'][0]['id']
+            open_actions = [action for action in collab['action_items'] if action['status'] == 'open']
+            assert len(open_actions) == 2
+            first_id = open_actions[0]['id']
             collab = api('patch_item', 'gtm_collaborations', {'field': 'action_items', 'item': {'id': first_id, 'status': 'done'}}, record=collab)['record']
             outstanding = [a for a in api('today')['rows'] if a['entity_id'] == collab['id']]
             assert len(outstanding) == 1 and outstanding[0]['action'] == 'Reconcile payment'

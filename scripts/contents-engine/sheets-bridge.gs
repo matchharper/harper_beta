@@ -3,7 +3,7 @@
  * GTM_TABLES is generated from sheet-columns.json and inserted above this file.
  * Each teammate stores their own scoped GTM credential in UserProperties.
  */
-const GTM_SHEET_SCHEMA_VERSION='2026-09-17-v7';
+const GTM_SHEET_SCHEMA_VERSION='2026-09-17-v8';
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Contents Engine')

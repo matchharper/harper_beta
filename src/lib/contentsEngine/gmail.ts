@@ -28,6 +28,11 @@ export type GmailMessage = {
 
 export type ParsedGmailMessage = {
   body: string;
+  deliveryFailure: {
+    diagnosticCode: string | null;
+    finalRecipient: string | null;
+    status: string | null;
+  } | null;
   fromEmail: string | null;
   inReplyTo: string | null;
   messageId: string;
@@ -274,9 +279,54 @@ function collectBodyParts(part: GmailPart | undefined, target: string[]) {
   for (const child of part.parts ?? []) collectBodyParts(child, target);
 }
 
+function collectDeliveryStatusParts(
+  part: GmailPart | undefined,
+  target: string[]
+) {
+  if (!part) return false;
+  const contentType = getHeader(part, "Content-Type")?.toLowerCase() ?? "";
+  const isDeliveryStatus =
+    part.mimeType?.toLowerCase() === "message/delivery-status" ||
+    contentType.includes("message/delivery-status");
+  if (isDeliveryStatus && part.body?.data) {
+    target.push(decodeGmailData(part.body.data));
+  }
+  let found = isDeliveryStatus;
+  for (const child of part.parts ?? []) {
+    found = collectDeliveryStatusParts(child, target) || found;
+  }
+  return found;
+}
+
+function parseDeliveryStatus(value: string) {
+  const unfolded = value.replace(/\r?\n[ \t]+/g, " ");
+  const field = (name: string) =>
+    unfolded
+      .split(/\r?\n/)
+      .find((line) => line.toLowerCase().startsWith(`${name.toLowerCase()}:`))
+      ?.slice(name.length + 1)
+      .trim() || null;
+  const recipientField = field("Final-Recipient") ?? field("Original-Recipient");
+  const recipientValue = recipientField?.includes(";")
+    ? recipientField.slice(recipientField.indexOf(";") + 1)
+    : recipientField;
+  const statusField = field("Status");
+  return {
+    action: field("Action")?.toLowerCase() ?? null,
+    diagnosticCode: field("Diagnostic-Code"),
+    finalRecipient: normalizeEmailAddress(recipientValue ?? null),
+    status: statusField?.match(/^[245]\.\d{1,3}\.\d{1,3}$/)?.[0] ?? null,
+  };
+}
+
 export function parseGmailMessage(message: GmailMessage): ParsedGmailMessage {
   const parts: string[] = [];
+  const deliveryStatusParts: string[] = [];
   collectBodyParts(message.payload, parts);
+  const hasDeliveryStatus = collectDeliveryStatusParts(
+    message.payload,
+    deliveryStatusParts
+  );
   if (parts.length === 0 && message.payload?.body?.data) {
     parts.push(decodeGmailData(message.payload.body.data));
   }
@@ -284,8 +334,22 @@ export function parseGmailMessage(message: GmailMessage): ParsedGmailMessage {
   const receivedAt = Number.isFinite(internalDate)
     ? new Date(internalDate).toISOString()
     : new Date().toISOString();
+  const deliveryStatus = parseDeliveryStatus(deliveryStatusParts.join("\n"));
+  const isDeliveryFailure =
+    hasDeliveryStatus &&
+    (deliveryStatus.action === "failed" ||
+      deliveryStatus.action === "delayed" ||
+      deliveryStatus.status?.startsWith("4.") ||
+      deliveryStatus.status?.startsWith("5."));
   return {
     body: parts.find((part) => part.trim())?.trim().slice(0, 50_000) ?? "",
+    deliveryFailure: isDeliveryFailure
+      ? {
+          diagnosticCode: deliveryStatus.diagnosticCode,
+          finalRecipient: deliveryStatus.finalRecipient,
+          status: deliveryStatus.status,
+        }
+      : null,
     fromEmail: normalizeEmailAddress(getHeader(message.payload, "From")),
     inReplyTo: getHeader(message.payload, "In-Reply-To"),
     messageId: message.id,

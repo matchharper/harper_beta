@@ -2,6 +2,8 @@
 
 상태: 2026-09-17 운영 배포 완료. Workspace 별칭, Gmail domain-wide delegation, Pub/Sub push, Slack 알림, Supabase 원장, Apps Script와 11개 Sheet 탭을 실제 환경에서 확인함
 
+다음 배포 대상: `20260917090000_gtm_outreach_reply_triage.sql`, 앱의 GLM 5.3 Flash 회신 분류·구조화된 Gmail 반송 처리, Apps Script schema v8과 Outreach Log 추가 칼럼. 이 문장의 기능은 다음 배포와 실제 smoke test 전까지 운영 완료로 간주하지 않는다.
+
 ## 고정 발신 계정과 별칭
 
 Gmail API는 실제 Google Workspace 사용자 `daniel@matchharper.com`으로 인증하고, 외부 발신 주소는 이 사용자의 무료 별칭 `harper@matchharper.com`을 사용한다. 별칭은 별도 Google 계정이나 별도 받은편지함이 아니며, 발송 내역과 답장은 실제 사용자 메일함에서 관리한다. Google Group, 전달 전용 주소, `noreply` 주소는 사용하지 않는다.
@@ -48,13 +50,15 @@ scripts/contents-engine/setup_gmail_pubsub.sh
 
 ## 배포 순서
 
-1. `20260917075510_gtm_outreach_dispatches.sql` migration을 적용한다.
+1. 최초 구성은 `20260917075510_gtm_outreach_dispatches.sql`, 회신 분류·반송 보강은 `20260917090000_gtm_outreach_reply_triage.sql` migration을 순서대로 적용한다.
 2. Harper 앱을 배포해 승인 발송, Gmail push, watch renewal endpoint와 5분 복구 cron을 활성화한다.
 3. `sheets-bridge.gs`와 `sheet-columns.json`을 운영 Apps Script에 반영한다.
 4. Sheet에서 전체 새로고침을 실행해 `Outreach Review` 탭을 만든다.
 5. cron secret으로 Gmail watch endpoint를 한 번 호출하거나 첫 일일 cron 성공을 확인한다.
 6. 통제된 내부 수신 주소 한 건으로 준비 → `Approve & Send` → Gmail 발송 → 회신 → DB `message_received` → Slack 알림을 확인한다.
 7. 같은 Pub/Sub 메시지를 다시 전달해 DB 활동과 Slack 알림이 중복되지 않는지 확인한다.
+8. 통제된 영구 반송 영수증으로 정확한 수신 contact만 `bounced`가 되고 같은 영수증·Slack 알림이 중복되지 않는지 확인한다. 4.x 영수증은 contact를 막지 않아야 한다.
+9. 긍정·협상·질문·부정·게시 알림 샘플 회신이 compact Slack 형식과 Outreach Log에 표시되고, 게시 알림만으로 콘텐츠가 자동 게시 처리되지 않는지 확인한다.
 
 ## 운영 흐름
 

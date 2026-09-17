@@ -62,4 +62,73 @@ test("parses an inbound Gmail reply with thread and reply headers", () => {
   assert.equal(parsed.inReplyTo, "<gtm-fixture@matchharper.com>");
   assert.equal(parsed.body, "네, 자세히 이야기해보고 싶어요.");
   assert.equal(parsed.receivedAt, "2026-09-17T10:00:00.000Z");
+  assert.equal(parsed.deliveryFailure, null);
+});
+
+test("parses a structured Gmail delivery status receipt", () => {
+  const deliveryStatus = [
+    "Final-Recipient: rfc822; creator@example.com",
+    "Action: failed",
+    "Status: 5.1.1",
+    "Diagnostic-Code: smtp; 550 5.1.1 User unknown",
+  ].join("\r\n");
+  const parsed = parseGmailMessage({
+    id: "gmail-bounce-1",
+    internalDate: String(Date.parse("2026-09-17T10:05:00Z")),
+    labelIds: ["INBOX"],
+    threadId: "gmail-thread-1",
+    payload: {
+      headers: [
+        { name: "From", value: "Mail Delivery Subsystem <mailer-daemon@googlemail.com>" },
+        { name: "To", value: "harper@matchharper.com" },
+        { name: "Subject", value: "Delivery Status Notification (Failure)" },
+        { name: "In-Reply-To", value: "<gtm-fixture@matchharper.com>" },
+      ],
+      mimeType: "multipart/report",
+      parts: [
+        {
+          body: {
+            data: Buffer.from("Address not found.").toString("base64url"),
+          },
+          mimeType: "text/plain",
+        },
+        {
+          body: {
+            data: Buffer.from(deliveryStatus).toString("base64url"),
+          },
+          headers: [
+            { name: "Content-Type", value: "message/delivery-status" },
+          ],
+          mimeType: "message/delivery-status",
+        },
+      ],
+    },
+  });
+  assert.deepEqual(parsed.deliveryFailure, {
+    diagnosticCode: "smtp; 550 5.1.1 User unknown",
+    finalRecipient: "creator@example.com",
+    status: "5.1.1",
+  });
+  assert.equal(parsed.body, "Address not found.");
+});
+
+test("does not treat a successful delivery receipt as a bounce", () => {
+  const parsed = parseGmailMessage({
+    id: "gmail-delivered-1",
+    threadId: "gmail-thread-1",
+    payload: {
+      mimeType: "multipart/report",
+      parts: [
+        {
+          body: {
+            data: Buffer.from(
+              "Final-Recipient: rfc822; creator@example.com\r\nAction: delivered\r\nStatus: 2.0.0"
+            ).toString("base64url"),
+          },
+          mimeType: "message/delivery-status",
+        },
+      ],
+    },
+  });
+  assert.equal(parsed.deliveryFailure, null);
 });

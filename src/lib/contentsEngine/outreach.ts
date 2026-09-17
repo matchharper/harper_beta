@@ -10,7 +10,14 @@ import {
   sendGtmOutreachEmail,
   startGmailWatch,
 } from "@/lib/contentsEngine/gmail";
-import { notifyGtmOutreachReply } from "@/lib/contentsEngine/slack";
+import {
+  classifyOutreachReply,
+  unclassifiedOutreachReplyTriage,
+} from "@/lib/contentsEngine/replyTriage";
+import {
+  notifyGtmOutreachDeliveryFailure,
+  notifyGtmOutreachReply,
+} from "@/lib/contentsEngine/slack";
 
 type UntypedAdmin = ReturnType<typeof getSupabaseAdmin> & {
   from: (table: string) => any;
@@ -220,7 +227,33 @@ type ReplyIngestResult = {
   inserted?: boolean;
   matched?: boolean;
   notify_needed?: boolean;
+  outbound_body?: string;
+  outbound_subject?: string;
+  primary_handle?: string | null;
   received_at?: string;
+  selection_reason?: string;
+  subject?: string;
+};
+
+type ReplyTriageRecord = {
+  candidate_content_id?: string | null;
+  candidate_content_ref?: number | string | null;
+  publication_verification_required?: boolean;
+  triage_activity_id?: string;
+};
+
+type DeliveryFailureIngestResult = {
+  activity_id?: string;
+  creator_name?: string;
+  creator_ref?: number | string;
+  diagnostic_code?: string | null;
+  dispatch_ref?: number | string;
+  inserted?: boolean;
+  matched?: boolean;
+  notify_needed?: boolean;
+  permanent?: boolean;
+  recipient_email?: string;
+  status?: string | null;
   subject?: string;
 };
 
@@ -230,6 +263,49 @@ async function ingestReplyMessage(messageId: string) {
   const message = await getGmailMessage(messageId);
   if (!message.labelIds?.includes("INBOX")) return { matched: false };
   const parsed = parseGmailMessage(message);
+  if (parsed.deliveryFailure) {
+    const result = rpcData<DeliveryFailureIngestResult>(
+      await adminClient().rpc("gtm_outreach_ingest_gmail_delivery_failure", {
+        p_diagnostic_code: parsed.deliveryFailure.diagnosticCode,
+        p_final_recipient: parsed.deliveryFailure.finalRecipient,
+        p_in_reply_to: parsed.inReplyTo,
+        p_mailbox: config.fromEmail,
+        p_message_id: parsed.messageId,
+        p_received_at: parsed.receivedAt,
+        p_references: parsed.references,
+        p_rfc_message_id: parsed.rfcMessageId,
+        p_status: parsed.deliveryFailure.status,
+        p_thread_id: parsed.threadId,
+      })
+    );
+    if (result.matched && result.notify_needed && result.activity_id) {
+      const slack = await notifyGtmOutreachDeliveryFailure({
+        activityId: result.activity_id,
+        creatorName: result.creator_name ?? "Unknown creator",
+        creatorRef: result.creator_ref ?? "",
+        diagnosticCode: result.diagnostic_code,
+        dispatchRef: result.dispatch_ref ?? "",
+        permanent: result.permanent === true,
+        recipientEmail:
+          result.recipient_email ??
+          parsed.deliveryFailure.finalRecipient ??
+          "unknown",
+        status: result.status,
+        subject: result.subject ?? parsed.subject,
+      });
+      rpcData(
+        await adminClient().rpc(
+          "gtm_outreach_record_activity_slack_notification",
+          {
+            p_activity_id: result.activity_id,
+            p_channel_id: slack.channel,
+            p_slack_ts: slack.ts,
+          }
+        )
+      );
+    }
+    return result;
+  }
   if (
     !parsed.fromEmail ||
     parsed.fromEmail === mailbox ||
@@ -255,6 +331,29 @@ async function ingestReplyMessage(messageId: string) {
   if (!result.matched || !result.notify_needed || !result.activity_id) {
     return result;
   }
+  let triage;
+  try {
+    triage = await classifyOutreachReply({
+      creatorName: result.creator_name ?? "Unknown creator",
+      fromEmail: result.from_email ?? parsed.fromEmail,
+      outboundBody: result.outbound_body ?? "",
+      outboundSubject: result.outbound_subject ?? "",
+      replyBody: result.body ?? parsed.body,
+      replySubject: result.subject ?? parsed.subject,
+      selectionReason: result.selection_reason ?? "",
+    });
+  } catch (error) {
+    triage = unclassifiedOutreachReplyTriage(error);
+  }
+  const triageRecord = rpcData<ReplyTriageRecord>(
+    await adminClient().rpc("gtm_outreach_record_reply_triage", {
+      p_mentioned_urls: triage.mentionedUrls,
+      p_model: triage.model,
+      p_reply_activity_id: result.activity_id,
+      p_summary: triage.summary,
+      p_type: triage.type,
+    })
+  );
   const slack = await notifyGtmOutreachReply({
     activityId: result.activity_id,
     activityRef: result.activity_ref ?? "",
@@ -263,8 +362,12 @@ async function ingestReplyMessage(messageId: string) {
     creatorRef: result.creator_ref ?? "",
     dispatchRef: result.dispatch_ref ?? "",
     fromEmail: result.from_email ?? parsed.fromEmail,
+    outboundSubject: result.outbound_subject ?? "",
+    primaryHandle: result.primary_handle,
     receivedAt: result.received_at ?? parsed.receivedAt,
     subject: result.subject ?? parsed.subject,
+    triageSummary: triage.summary,
+    triageType: triage.type,
   });
   rpcData(
     await adminClient().rpc("gtm_outreach_record_slack_notification", {
@@ -273,7 +376,7 @@ async function ingestReplyMessage(messageId: string) {
       p_slack_ts: slack.ts,
     })
   );
-  return result;
+  return { ...result, ...triageRecord, triage_type: triage.type };
 }
 
 export async function syncGtmOutreachGmailHistory(notificationHistoryId: string) {

@@ -24,6 +24,8 @@
 3. `save gtm_contents`에 post_url/external_post_id/published_at/publish_status를 반영하고 `publication_verified` 활동에 확인 근거를 남긴다. 같은 계정+외부 게시 ID는 중복 행으로 넣지 않는다.
 4. D1/D7/D14 수집과 필요한 제출 요청을 콘텐츠 action_items에 각각 남긴다. 실제 게시/실패/접근 불가와 다음 조치를 보고한다. 게시 자동화 연결은 현재 미설정이다.
 
+크리에이터 이메일이 게시 완료로 분류되면 그것은 확인 요청을 시작하는 신호다. 회신에 실제 포함된 URL과 같은 collaboration의 유일한 미게시 콘텐츠 후보, 기존 tracking link 준비 여부를 먼저 본다. 후보가 없거나 여러 개면 Agent가 대상 콘텐츠를 확인한다. URL을 직접 확인하고 계정·콘텐츠·캠페인·포맷·plan·tracking link가 맞을 때만 2~4단계를 수행한다. 회신 분류만으로 `published_at`, `post_url`, `publish_status`를 자동 갱신하지 않는다.
+
 ## 중단·충돌·완료 확인
 
 같은 쓰기를 재시도할 때 request_id와 본문을 유지한다. row_version 충돌은 최신 행을 읽고 실제 변경을 재판단한다. 애매한 외부 결과를 성공으로 기록하지 않는다. 외부 입력을 기다리면 기존 원장의 실제 할 일·담당·기한·재개 조건을 남긴다. 결과에는 사용한 문서 버전, 저장한 원장 ref/ID, 실제 완료 범위와 남은 사항을 포함한다.

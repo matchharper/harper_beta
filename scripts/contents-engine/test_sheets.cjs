@@ -85,6 +85,11 @@ assert.equal(visibleFormat[formatC.fields.findIndex(field=>field[0]==='example_l
 assert.equal(visibleFormat[formatC.fields.findIndex(field=>field[0]==='content_use_count')],4);
 assert.ok(templateC.fields.some(field=>field[0]==='response_rate'&&field[2]==='read'));
 assert.ok(config['Outreach Log'].fields.some(field=>field[0]==='outreach_template_name'));
+assert.ok(config['Outreach Log'].fields.some(field=>field[0]==='reply_type'));
+assert.ok(config['Outreach Log'].fields.some(field=>field[0]==='publication_verification_required'));
+assert.ok(config['Outreach Log'].fields.some(field=>field[0]==='delivery_status'));
+assert.ok(config['Outreach Log'].fields.some(field=>field[0]==='manual_destination'));
+assert.ok(config['Outreach Log'].fields.some(field=>field[0]==='delivery_diagnostic'));
 console.log('PASS Format Bank and Outreach Templates expose editable guidance, relations, arrays, and read-only usage');
 
 const reviewC=config['Outreach Review'];

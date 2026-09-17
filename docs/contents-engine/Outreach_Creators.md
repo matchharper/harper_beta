@@ -238,17 +238,29 @@
 
 여러 명을 한 번에 준비하면 `outreach_batch_planned` 활동 한 건에 요청 원문·목표·수량·가정, research result/cutoff, 선택된 creator/collaboration/contact, 후보별 template ref/version/선택 이유, 제외·Research 반환, 예산·팀 대응량과 문서 버전을 남긴다. 각 정확한 메시지는 대상별 `message_draft`에 따로 저장한다.
 
+### 8.5 대표 운영 시나리오
+
+아래는 같은 원장과 도구를 쓰는 예시다. 상황마다 별도 상태 머신이나 전용 도구를 만들지 않는다.
+
+1. **40~50명, 총 현금 지출 100만원 이하의 유료 파일럿:** 목표 캠페인·수량·총 예산을 plan에 고정하고, 최신성 gate를 통과한 신규/기존 후보를 함께 비교한다. Agent가 후보별 템플릿·개인화 근거·정확한 발송본을 준비하고 팀원이 Outreach Review에서 한 건씩 승인한다. 회신·협상·비용 약정은 collaboration/cost에 연결하며 새 약정이 가용 예산을 넘으면 막는다.
+2. **초기 데이터가 거의 없는 탐색형 파일럿:** 해외 취업, 대학생 대량 유입 등 성공 정의를 바꾸는 핵심 캠페인이 정해지지 않았으면 Agent가 그 한 가지를 먼저 묻는다. 답을 받은 뒤 넓은 후보를 소량 발송하고, rate discovery와 반응을 실제 활동으로 남긴다. 무응답을 부정으로 만들거나 작은 표본을 자동 승자 판정으로 쓰지 않는다.
+3. **기존 관계 재활성화:** 과거 회신·합의·콘텐츠·비용·성과가 있는 크리에이터부터 현재 조건과 연락 가능 상태를 확인한다. 새 목적에 맞는 템플릿과 원문을 다시 준비하고 같은 승인 절차를 거친다. 이전 단가·성과는 과거 근거이며 현재 약정이나 미래 성과로 간주하지 않는다.
+
 ## 10. 실제 발송과 회신
 
-현재 운영 배포본의 전용 발송·수신 동기화는 아직 미연결이다. 소스에는 아래 이메일 흐름이 구현·검증되어 있으며 [Connections.md](Connections.md)의 외부 계정 설정과 운영 배포가 끝난 뒤 활성화한다. DM은 계속 별도 수동 범위다.
+전용 이메일 발송·수신 동기화는 운영 중이다. DM은 계속 별도 수동 범위다. 다음 배포의 회신 분류·반송 보강은 [Connections.md](Connections.md)의 현재 상태를 따른다.
 
 1. Agent가 `gtm_outreach_prepare`로 사람별 수신자, `harper@matchharper.com` 발신자, active email template의 당시 version, 정확한 제목·본문을 준비한다. 준비는 발송이 아니다.
 2. 팀원은 `Outreach Review`에서 한 행씩 최종 제목·본문·예약 시각을 읽고 `Approve & Send`, `Request Revision`, `Skip` 중 하나를 선택해 저장한다. 셀 선택만으로는 보내지 않는다. `Request Revision`이면 Agent가 같은 dispatch의 제목/본문을 `revise`로 고쳐 `ready_for_review`에 다시 올리고 이전 초안과 요청은 활동 이력에 남긴다.
 3. 승인 시 do-not-contact, 최신 contact 상태, template active 상태, 동시 수정 버전을 다시 확인한다. 실패하면 보내지 않고 행에 오류를 표시한다.
 4. 승인된 행만 Gmail로 발송한다. Gmail 결과가 불명확하면 고정 RFC Message-ID를 먼저 검색한 뒤 같은 logical send를 복구한다. 실제 성공 뒤에만 provider message/thread ID·시각·정확한 원문으로 `message_sent`를 만든다.
 5. 5분 복구 작업이 전송 중 중단되거나 일시 실패한 행을 최대 횟수 안에서 이어간다. 팀원이 Sheet를 열어둘 필요가 없다.
-6. Gmail push와 history cursor가 inbox 회신을 수집한다. 원 수신자·thread/reply header가 일치하는 dispatch에만 `message_received`를 추가하고 같은 Gmail message ID를 중복 저장하지 않는다.
-7. 새 회신은 Slack에 한 번 알리고 같은 DB 활동에 알림 결과를 남긴다. 이후 협상과 다음 행동은 [Manage_Collaborations.md](Manage_Collaborations.md)가 맡는다. 무응답은 거절이 아니다.
+6. Gmail push와 history cursor가 inbox 회신을 수집한다. 원 수신자 또는 같은 크리에이터의 근거 있는 현재 이메일과 thread/reply header가 일치하는 dispatch에만 `message_received`를 추가하고 같은 Gmail message ID를 중복 저장하지 않는다.
+7. 새 회신은 가벼운 LLM 분류와 한 문장 요약을 붙여 Slack에 한 번 알린다. 분류 실패도 원문 저장과 알림을 막지 않는다. collaboration이 있으면 모든 회신에 일반 후속 업무를 하나 남기고, 협상과 다음 행동은 [Manage_Collaborations.md](Manage_Collaborations.md)가 맡는다. 무응답은 거절이 아니다.
+8. `published` 분류는 게시 확정이 아니다. 회신 원문 URL, 유일한 미게시 콘텐츠 후보와 tracking link 준비 여부를 보여주고 [Publish_Content.md](Publish_Content.md)의 실제 확인 뒤에만 콘텐츠를 갱신한다.
+9. Gmail delivery-status는 일반 회신과 분리한다. 5.x 영구 반송만 정확한 수신 주소를 `bounced`로 바꾸고, 일시 오류는 원인과 상태만 기록한다.
+
+이메일을 확인할 수 없는 대상은 임의 주소로 준비하지 않는다. 직접 보낼 채널·제목·본문·프로필 URL을 `message_draft`에 저장하고 `delivery_status=manual_send_required`, `manual_destination=<실제 프로필 URL>`로 표시한다. 팀원이 수동 발송한 뒤에는 실제 원문·목적지·시각·증빙을 `message_sent`로 기록한다.
 
 팀원이 다른 메일 앱에서 수동 발송했다면 실제 원문·목적지·시각·증빙을 받은 뒤 `message_sent`로 기록한다. 자동 발송과 동일한 메시지를 별도로 수동 발송하지 않는다.
 

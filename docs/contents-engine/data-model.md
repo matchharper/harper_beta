@@ -128,9 +128,9 @@ gtm_collaborations/gtm_contents/plans의 action_items는 부모 한 건의 현�
 | `gtm_activities` | 관련 원장 ID, 실제 기록 종류, 본문/제한 파일 주소, 발생·기록 시각, 작성자, 출처·외부 ID, 대화 thread, 사용한 outreach template, 정정/이전 기록 참조 | 대화·견적·채택 리뷰 등 타임라인 |
 | `gtm_metric_snapshots` | 계정 또는 콘텐츠 ID, 지표·값·단위, 관측 기간, 원본 시각·수집 시각, 출처·정의, 누적/기간 구분, 결측 이유·보존 기한 | 최신 규모, 관측 창별 성과·기준일 |
 | `gtm_costs` | 집행/협업, 종류·설명, 통화, 예상·약정·발생액, 시간·단가·측정 근거, 지급 내역, 배분 내역, 증빙 | 협업·집행 비용, 콘텐츠 원가 |
-| `gtm_outreach_dispatches` | creator/collaboration/template와 사용 당시 version, 템플릿 선택 이유·개인화 근거, 정확한 발신·수신·제목·본문, 준비 요청, 팀원 승인, 예약·재시도, RFC/Gmail message/thread ID, 발송·회신·실패 시각 | `Outreach Review`의 검토 대상과 실제 전달 상태. 배포 전 migration |
+| `gtm_outreach_dispatches` | creator/collaboration/template와 사용 당시 version, 템플릿 선택 이유·개인화 근거, 정확한 발신·수신·제목·본문, 준비 요청, 팀원 승인, 예약·재시도, RFC/Gmail message/thread ID, 발송·회신·실패 시각 | `Outreach Review`의 검토 대상과 실제 전달 상태 |
 
-activities에는 메시지 전송 결과·provider thread/message ID 같은 실제 통신 metadata가 붙을 수 있다. 종류별 작은 구조 계약을 쓰되 중간 추론·intent·confidence·상황별 계획을 적재하지 않는다. 현재 업무 원장은 자체 칼럼으로 유지하며 activities를 매번 재생해야만 현재 상태를 아는 구조로 만들지 않는다.
+activities에는 메시지 전송 결과·provider thread/message ID 같은 실제 통신 metadata가 붙을 수 있다. 회신 분류는 원문을 대체하지 않는 짧은 `reply_triaged` 활동으로 저장하고, 유형·한 문장 요약·원문에 실제 있는 URL·사용 모델·게시 확인 후보만 둔다. Gmail 영구/일시 반송은 `delivery_failed`로 분리한다. 종류별 작은 구조 계약을 쓰되 중간 추론·intent·confidence·상황별 계획을 적재하지 않는다. 현재 업무 원장은 자체 칼럼으로 유지하며 activities를 매번 재생해야만 현재 상태를 아는 구조로 만들지 않는다.
 
 `gtm_outreach_dispatches`는 transient Agent 판단이나 대화 계획이 아니다. Gmail이라는 외부 side effect를 정확히 한 번에 가깝게 실행하기 위해 다시 계산할 수 없는 팀원 승인과 당시 exact copy, provider identity, 재시도 상태를 보존한다. 준비 요청과 발송 요청 ID는 idempotent하며 승인 전에는 외부 전송이 없다. 실제 발송 성공 뒤에는 같은 원문을 append-only `message_sent` activity에도 기록해 일반 관계 타임라인과 템플릿 결과가 이어지게 한다.
 
