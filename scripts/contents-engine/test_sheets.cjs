@@ -86,3 +86,12 @@ assert.equal(visibleFormat[formatC.fields.findIndex(field=>field[0]==='content_u
 assert.ok(templateC.fields.some(field=>field[0]==='response_rate'&&field[2]==='read'));
 assert.ok(config['Outreach Log'].fields.some(field=>field[0]==='outreach_template_name'));
 console.log('PASS Format Bank and Outreach Templates expose editable guidance, relations, arrays, and read-only usage');
+
+const reviewC=config['Outreach Review'];
+assert.ok(reviewC);assert.equal(reviewC.view,'outreach_review');assert.equal(reviewC.reviewMode,true);
+assert.equal(reviewC.fields.find(field=>field[0]==='review_action')[2],'decision');
+assert.equal(context.reviewAction_('Approve & Send'),'approve');
+assert.equal(context.reviewAction_('Request Revision'),'request_revision');
+assert.equal(context.reviewAction_('Skip'),'skip');
+assert.throws(()=>context.reviewAction_(''),/Review Decision/);
+console.log('PASS Outreach Review requires one explicit human decision before the send path');

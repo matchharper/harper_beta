@@ -663,6 +663,175 @@
     ],
     "helpText": "Reusable starting points. Personalize each creator message; actual drafts, sends, replies, and rates are calculated from Outreach Log."
   },
+  "Outreach Review": {
+    "entity": "gtm_outreach_dispatches",
+    "view": "outreach_review",
+    "reviewMode": true,
+    "frozenColumns": 4,
+    "fields": [
+      [
+        "ref",
+        "Dispatch Ref",
+        "read"
+      ],
+      [
+        "creator_ref",
+        "Creator Ref",
+        "read"
+      ],
+      [
+        "creator_name",
+        "Creator Name",
+        "read"
+      ],
+      [
+        "primary_platform",
+        "Primary Platform",
+        "read"
+      ],
+      [
+        "primary_handle",
+        "Primary Handle",
+        "read"
+      ],
+      [
+        "recipient_email",
+        "Recipient Email",
+        "read"
+      ],
+      [
+        "outreach_template_ref",
+        "Template Ref",
+        "read"
+      ],
+      [
+        "outreach_template_name",
+        "Template",
+        "read"
+      ],
+      [
+        "template_version",
+        "Template Version Used",
+        "read"
+      ],
+      [
+        "collaboration_ref",
+        "Collaboration Ref",
+        "read"
+      ],
+      [
+        "collaboration_title",
+        "Collaboration",
+        "read"
+      ],
+      [
+        "plan_ref",
+        "Plan Ref",
+        "read"
+      ],
+      [
+        "plan_name",
+        "Plan",
+        "read"
+      ],
+      [
+        "sender_email",
+        "Sender Email",
+        "read"
+      ],
+      [
+        "selection_reason",
+        "Why This Template",
+        "read"
+      ],
+      [
+        "personalization_evidence",
+        "Personalization Evidence",
+        "read"
+      ],
+      [
+        "subject",
+        "Final Subject",
+        "text"
+      ],
+      [
+        "body",
+        "Final Email Body",
+        "text"
+      ],
+      [
+        "review_action",
+        "Review Decision",
+        "decision"
+      ],
+      [
+        "scheduled_at",
+        "Send At (ISO, blank = now)",
+        "date"
+      ],
+      [
+        "review_note",
+        "Review Note",
+        "text"
+      ],
+      [
+        "status",
+        "Delivery Status",
+        "read"
+      ],
+      [
+        "approved_by",
+        "Approved By",
+        "read"
+      ],
+      [
+        "approved_at",
+        "Approved At",
+        "read"
+      ],
+      [
+        "attempt_count",
+        "Send Attempts",
+        "read"
+      ],
+      [
+        "last_error",
+        "Last Send Error",
+        "read"
+      ],
+      [
+        "sent_at",
+        "Sent At",
+        "read"
+      ],
+      [
+        "replied_at",
+        "First Reply At",
+        "read"
+      ],
+      [
+        "provider_message_id",
+        "Gmail Message ID",
+        "read"
+      ],
+      [
+        "provider_thread_id",
+        "Gmail Thread ID",
+        "read"
+      ],
+      [
+        "created_by",
+        "Prepared By",
+        "read"
+      ],
+      [
+        "created_at",
+        "Prepared At",
+        "read"
+      ]
+    ],
+    "helpText": "Final human review queue. Edit subject/body if needed, choose Approve & Send, Request Revision, or Skip, then save the selected row. Only an explicit saved approval can send email."
+  },
   "Outreach Log": {
     "entity": "gtm_activities",
     "view": "outreach_log",

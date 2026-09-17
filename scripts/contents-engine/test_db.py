@@ -21,6 +21,7 @@ MIGRATIONS = [
     ROOT / 'supabase/migrations/20260917052200_gtm_creator_overview_sheet_fields.sql',
     ROOT / 'supabase/migrations/20260917055533_gtm_format_bank_outreach_templates.sql',
     ROOT / 'supabase/migrations/20260917064500_gtm_creator_outreach_score.sql',
+    ROOT / 'supabase/migrations/20260917075510_gtm_outreach_dispatches.sql',
 ]
 
 
@@ -36,10 +37,12 @@ def main():
                     conn.execute(migration.read_text())
             else:
                 # Test the working copy of existing GTM functions, still inside the rollback.
-                sql = MIGRATIONS[0].read_text()
-                start = sql.index('create function public.gtm_api(')
+                # Exercise the newest checked-in API definition that includes
+                # format-bank and outreach-template entities.
+                sql = MIGRATIONS[5].read_text()
+                start = sql.index('create or replace function public.gtm_api(')
                 end = sql.index('end $$;', start) + len('end $$;')
-                conn.execute(sql[start:end].replace('create function', 'create or replace function', 1))
+                conn.execute(sql[start:end])
                 conn.execute(MIGRATIONS[1].read_text().replace('create function', 'create or replace function'))
                 # Older operating views are already live. Replacing a view that
                 # expands another view with `*` can reorder columns after a later
@@ -146,6 +149,125 @@ def main():
                     'value_kind': 'period' if start_at else 'cumulative',
                 })
             collab = api('save', 'gtm_collaborations', {'title': 'GTM rollback collaboration', 'creator_id': creator['id'], 'plan_id': plan['id']})['record']
+            prepare_request_id = uuid.uuid4()
+            rejects('outreach recipient must be a current creator email contact', lambda: conn.execute(
+                'select public.gtm_outreach_prepare(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                (token, creator['id'], outreach_template['id'], 'unknown@example.test',
+                 'harper@matchharper.com', 'Fixture subject', 'Fixture body',
+                 'The active email template fits this creator', uuid.uuid4(),
+                 collab['id'], None, 'Observed career content'),
+            ))
+            rejects('outreach sender must be a matchharper.com mailbox', lambda: conn.execute(
+                'select public.gtm_outreach_prepare(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                (token, creator['id'], outreach_template['id'], 'fixture@example.test',
+                 'sender@example.test', 'Fixture subject', 'Fixture body',
+                 'The active email template fits this creator', uuid.uuid4(),
+                 collab['id'], None, 'Observed career content'),
+            ))
+            dispatch = conn.execute(
+                'select public.gtm_outreach_prepare(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                (token, creator['id'], outreach_template['id'], 'fixture@example.test',
+                 'harper@matchharper.com', 'Fixture subject', 'Fixture body',
+                 'The active email template fits this creator', prepare_request_id,
+                 collab['id'], None, 'Observed career content'),
+            ).fetchone()[0]
+            repeated_dispatch = conn.execute(
+                'select public.gtm_outreach_prepare(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                (token, creator['id'], outreach_template['id'], 'fixture@example.test',
+                 'harper@matchharper.com', 'Fixture subject', 'Fixture body',
+                 'The active email template fits this creator', prepare_request_id,
+                 collab['id'], None, 'Observed career content'),
+            ).fetchone()[0]
+            assert dispatch['id'] == repeated_dispatch['id']
+            assert dispatch['selection_reason'] == 'The active email template fits this creator'
+            dispatch = conn.execute(
+                'select public.gtm_outreach_review(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                (token, dispatch['id'], dispatch['row_version'], 'request_revision',
+                 uuid.uuid4(), None, None, None,
+                 'Use a more specific observed-content opening', 'tester@matchharper.com'),
+            ).fetchone()[0]
+            assert dispatch['status'] == 'needs_revision'
+            dispatch = conn.execute(
+                'select public.gtm_outreach_review(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                (token, dispatch['id'], dispatch['row_version'], 'revise',
+                 uuid.uuid4(), 'Revised fixture subject', 'Revised fixture body',
+                 None, 'Revision completed', None),
+            ).fetchone()[0]
+            assert dispatch['status'] == 'ready_for_review'
+            review_request_id = uuid.uuid4()
+            dispatch = conn.execute(
+                'select public.gtm_outreach_review(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                (token, dispatch['id'], dispatch['row_version'], 'approve',
+                 review_request_id, 'Final fixture subject', 'Final fixture body',
+                 None, 'Approved in transaction test', 'tester@matchharper.com'),
+            ).fetchone()[0]
+            assert dispatch['status'] == 'approved'
+            assert dispatch['approved_by'] == 'GTM transactional test'
+            conn.execute(
+                'update public.gtm_creators set do_not_contact=true where id=%s',
+                (creator['id'],),
+            )
+            blocked_claim = conn.execute(
+                'select public.gtm_outreach_worker_claim(%s,%s)',
+                (dispatch['id'], 1),
+            ).fetchone()[0]
+            assert blocked_claim == []
+            dispatch = conn.execute(
+                'select to_jsonb(d) from public.gtm_outreach_dispatches d where id=%s',
+                (dispatch['id'],),
+            ).fetchone()[0]
+            assert dispatch['status'] == 'failed'
+            conn.execute(
+                'update public.gtm_creators set do_not_contact=false where id=%s',
+                (creator['id'],),
+            )
+            dispatch = conn.execute(
+                'select public.gtm_outreach_review(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                (token, dispatch['id'], dispatch['row_version'], 'approve',
+                 uuid.uuid4(), 'Final fixture subject', 'Final fixture body',
+                 None, 'Approved after contact gate restored', None),
+            ).fetchone()[0]
+            claimed = conn.execute(
+                'select public.gtm_outreach_worker_claim(%s,%s)',
+                (dispatch['id'], 1),
+            ).fetchone()[0]
+            assert len(claimed) == 1 and claimed[0]['status'] == 'sending'
+            gmail_message_id = 'gmail-' + uuid.uuid4().hex
+            gmail_thread_id = 'thread-' + uuid.uuid4().hex
+            dispatch = conn.execute(
+                'select public.gtm_outreach_worker_mark_sent(%s,%s,%s,%s)',
+                (dispatch['id'], gmail_message_id, gmail_thread_id, now),
+            ).fetchone()[0]
+            assert dispatch['status'] == 'sent'
+            gmail_reply_id = 'gmail-' + uuid.uuid4().hex
+            reply = conn.execute(
+                'select public.gtm_outreach_ingest_gmail_reply(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                ('harper@matchharper.com', gmail_reply_id, gmail_thread_id,
+                 'fixture@example.test', 'harper@matchharper.com',
+                 'Re: Final fixture subject', 'Interested in learning more.', now,
+                 '<reply@example.test>', dispatch['rfc_message_id'],
+                 dispatch['rfc_message_id']),
+            ).fetchone()[0]
+            assert reply['matched'] and reply['inserted'] and reply['notify_needed']
+            conn.execute(
+                'select public.gtm_outreach_record_slack_notification(%s,%s,%s)',
+                (reply['activity_id'], 'C_FIXTURE', '123.456'),
+            )
+            repeated_reply = conn.execute(
+                'select public.gtm_outreach_ingest_gmail_reply(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                ('harper@matchharper.com', gmail_reply_id, gmail_thread_id,
+                 'fixture@example.test', 'harper@matchharper.com',
+                 'Re: Final fixture subject', 'Interested in learning more.', now,
+                 '<reply@example.test>', dispatch['rfc_message_id'],
+                 dispatch['rfc_message_id']),
+            ).fetchone()[0]
+            assert repeated_reply['matched'] and not repeated_reply['inserted']
+            assert not repeated_reply['notify_needed']
+            review_row = sheet('outreach_review', dispatch['id'])['record']
+            assert review_row['status'] == 'replied'
+            assert review_row['outreach_template_ref'] == outreach_template['ref']
+            assert review_row['creator_ref'] == creator['ref']
+            checks.append('human-approved outreach is idempotently claimed, sent, replied, notified, and shown in Sheet review')
             api('save', 'gtm_activities', {
                 'entity': 'gtm_collaborations', 'entity_id': collab['id'],
                 'kind': 'message_sent', 'body': 'fixture outreach',
@@ -185,11 +307,12 @@ def main():
             connected = sheet('connected_creators')['rows']
             assert any(row['id'] == creator['id'] for row in connected)
             outreach = sheet('outreach_log')['rows']
-            assert outreach[0]['creator_ref'] == creator['ref']
-            assert outreach[0]['direction'] == 'inbound'
-            assert outreach[1]['direction'] == 'outbound'
-            assert outreach[1]['body'] == 'fixture outreach'
-            assert outreach[1]['outreach_template_ref'] == outreach_template['ref']
+            fixture_reply = next(row for row in outreach if row['body'] == 'fixture reply')
+            fixture_outreach = next(row for row in outreach if row['body'] == 'fixture outreach')
+            assert fixture_reply['creator_ref'] == creator['ref']
+            assert fixture_reply['direction'] == 'inbound'
+            assert fixture_outreach['direction'] == 'outbound'
+            assert fixture_outreach['outreach_template_ref'] == outreach_template['ref']
             checks.append('three Sheet read models join creator, relationship, and outreach facts without new ledgers')
             creator = api('save', 'gtm_creators', {'outreach_score': 5}, record=overview)['record']
             changed = creator
@@ -201,11 +324,14 @@ def main():
             template_detail = api('get', 'gtm_outreach_templates', record=outreach_template)
             template_overview = template_detail['record']
             assert template_overview['default_format_count'] == 1
-            assert template_overview['sent_count'] == 1
-            assert template_overview['sent_thread_count'] == 1
-            assert template_overview['replied_thread_count'] == 1
+            assert template_overview['sent_count'] == 2
+            assert template_overview['sent_thread_count'] == 2
+            assert template_overview['replied_thread_count'] == 2
             assert template_overview['response_rate'] == 100
-            assert template_detail['related']['messages'][0]['body'] == 'fixture outreach'
+            assert any(
+                message['body'] == 'fixture outreach'
+                for message in template_detail['related']['messages']
+            )
             format_overview = api('get', 'gtm_formats', record=fmt)['record']
             assert format_overview['default_campaign_ref'] == campaign['ref']
             assert format_overview['default_outreach_template_ref'] == outreach_template['ref']

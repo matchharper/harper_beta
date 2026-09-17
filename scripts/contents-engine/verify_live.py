@@ -66,7 +66,7 @@ def call_sheet(view):
     with urlopen(req,context=context,timeout=30) as response:
         return json.load(response)
 
-for view in ('creator_directory','connected_creators','outreach_log'):
+for view in ('creator_directory','connected_creators','outreach_log','outreach_review'):
     result = call_sheet(view)
     assert isinstance(result['rows'],list)
     print('PASS Sheet operating view',view)

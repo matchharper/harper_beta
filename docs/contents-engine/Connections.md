@@ -1,6 +1,6 @@
 # Connections.md
 
-버전: 1.4 · 적용일: 2026-09-17 · 상태: 10개 운영 시트와 자동 동기화 운영 중. Format Bank·Outreach Templates 원장·결과 집계·Sheet 반영 완료 · 관리: 데이터 연결 담당
+버전: 1.6 · 적용일: 2026-09-17 · 상태: 10개 운영 시트는 운영 중. Outreach Review·Gmail 발송/회신·Slack 알림은 소스 구현과 검증 완료, 외부 계정 설정·배포 전 · 관리: 데이터 연결 담당
 
 ## 연결 상태
 
@@ -9,9 +9,9 @@
 | Supabase gtm_api | GTM 11개 업무 원장의 조회·변경·일괄 저장·UTM 발급·오늘 할 일·제품 집계. Format Bank와 Outreach Templates는 실제 사용·게시·회신 결과가 붙는 기본 조회까지 운영 | 임의 SQL, 원본 제품 사용자 조회, 발송/송금 실행 제공 안 함 |
 | 제품 성과 | logs + landing_logs + 인증 가입 연결 + 실제 온보딩 이벤트의 서버 집계 | 동일 UTM 재방문 수집 누락 가능; 관측된 명시적 UTM만 귀속 |
 | Notion | 기존 Contents Engine / Agents.md 아래 작업별 지침 | 토큰이나 개인 사용자 데이터 보관 장소 아님 |
-| Google Sheets | 전체 성과·Creator Directory·Connected Creators·Outreach Log·Format Bank·Outreach Templates·협업·콘텐츠·집행·캠페인과 5분/열기 자동 동기화 운영 중. 미반영 편집이 있는 시트만 보존하고 나머지 시트는 계속 갱신 | 새 팀원은 첫 실행에서 Google 권한 승인과 본인 GTM 전용 키 연결 필요. 승인된 포맷·템플릿 원본이 아직 없으면 신규 두 탭은 헤더만 표시 |
+| Google Sheets | 전체 성과·Creator Directory·Connected Creators·Outreach Log·Format Bank·Outreach Templates·협업·콘텐츠·집행·캠페인과 5분/열기 자동 동기화 운영 중. 배포 후 `Outreach Review`에서 최종 제목·본문·발송 시각을 보고 승인/수정요청/건너뛰기를 선택 | 새 팀원은 첫 실행에서 Google 권한 승인과 본인 GTM 전용 키 연결 필요. `Outreach Review`는 아직 운영 Apps Script와 DB에 배포되지 않음 |
 | 크리에이터 발굴 | Agent가 접근 가능한 공개 출처와 제공 자료로 조사·저장 | 전 플랫폼 전수 발굴 API 미연결 |
-| 메일/DM | 초안과 받은/보낸 실제 메시지 기록 | 전용 발송/수신 동기화 미연결 |
+| 메일/DM | 이메일은 `daniel@matchharper.com` Gmail 메일함의 무료 별칭 `harper@matchharper.com`, 팀원 Sheet 승인, 중복 방지 발송, Gmail 회신 DB 저장, Slack 알림까지 사용. DM은 초안과 실제 메시지 기록만 지원 | 별칭은 별도 로그인·별도 받은편지함이 아니며 `daniel@matchharper.com`에서 발신·회신을 관리. Instagram/X/Threads/TikTok DM 자동화 미연결 |
 | 플랫폼 통계 | 원본 API/제출 통계 관측값 저장 계약 | YouTube/Meta/TikTok 전용 인증/API 미연결 |
 | 지급 | 비용·증빙·지급/환불 내역 대사 | 실제 송금 미연결 |
 | 정기 Agent·Metabase | 공통 API/지표를 재사용할 수 있음 | 스케줄·별도 Metabase 설치 미설정 |
@@ -51,15 +51,23 @@ python3 scripts/contents-engine/client.py --request /absolute/path/request.json
 
 `contacts/action_items/payments/allocations/asset_refs`는 patch_item, `tracking_links`는 issue_link만 사용한다. contact item은 불변 id, channel, address, source_ref, as_of를 필수로 가지며 party/status 같은 실제 확인 정보를 추가할 수 있다. activities는 append-only이며 correction_of_id로 정정한다. API 오류는 성공으로 바꾸지 말고 오류 메시지와 영향을 기록한다.
 
+## 이메일 Outreach 연결
+
+발신 주소는 임의 문자열이 아니다. `harper@matchharper.com`을 `daniel@matchharper.com` Google Workspace 사용자의 무료 별칭으로 사용한다. Gmail API는 실제 사용자로 인증하고 승인 행의 sender는 별칭과 일치해야 한다. 별칭으로 온 답장도 같은 사용자 받은편지함에서 수집한다. 설정·환경 변수·Pub/Sub 생성·배포 순서는 [email-outreach-deployment.md](email-outreach-deployment.md)를 따른다.
+
+Agent는 `gtm_outreach_prepare`로 사람별 active email template 버전, 선택 이유·개인화 근거, 정확한 수신자·발신자·제목·본문을 준비한다. 팀원이 수정을 요청하면 같은 검토 RPC의 `revise`로 원문을 갱신하고 다시 검토 대기 상태에 둔다. 팀원의 마지막 승인은 Sheet의 `Approve & Send`에서만 발생한다. 승인 순간과 실제 실행 직전에 contact 유효성, do-not-contact, template active 상태를 다시 검사하고, 승인에서는 행 버전도 확인한다. 실제 Gmail 성공 뒤에만 `message_sent`를 기록한다. 결과가 불명확하면 같은 RFC Message-ID를 Gmail에서 먼저 찾아 중복 발송을 막고 5분 복구 작업이 이어서 처리한다.
+
+Gmail push는 인증된 Pub/Sub 호출만 받는다. 회신은 Gmail message/thread/reply headers와 원래 수신 주소가 모두 맞는 dispatch에만 연결한다. 동일 Gmail message ID는 한 번만 저장하고 Slack 알림도 reply activity ID당 한 번만 기록한다. watch는 매일 갱신하며 history cursor가 만료되면 최근 inbox를 다시 읽어 기존 message ID를 제외한다.
+
 ## 권한과 복구
 
 시트: [Harper Contents Engine](https://docs.google.com/spreadsheets/d/1-3QpEN19fFEiP6acBqLWMCOD483bWvJtPwwQ9KUqgEI/edit). 연결 코드: [Harper Contents Engine Bridge](https://script.google.com/home/projects/1W_QjT0BkUfUU8sbhWMxWHST3daZaMs2fdnf3TyJywzlmNt9hBVMLmShX/edit). 소유자는 daniel@matchharper.com이며 chris@matchharper.com과 yoonkyoung@matchharper.com에 편집 권한을 부여했다.
 
 팀원은 시트 편집 권한과 본인 이름의 GTM 전용 키가 필요하다. 첫 실행에서 Google이 요구하는 권한은 설치된 시트 읽기/쓰기, 외부 서비스 연결, 상세 창 표시다. 시트의 Contents Engine → 연결 설정에 전용 구성 JSON을 넣으면 Apps Script의 본인 UserProperties에 저장된다. 비밀값은 셀·스크립트 소스·Notion에 쓰지 않는다. 한 팀원의 키는 다른 팀원의 실행에 자동 공유되지 않는다.
 
-2026-09-17에 Google 권한 승인, 전용 키 연결, 조회, 전체 새로고침, 임시 포맷 한 건 저장, 동일 ID 재조회, 정확한 검증 행·감사 기록 제거, 다시 새로고침까지 확인했다. 같은 날 Format Bank·Outreach Templates 추가, 기존 Creator Directory 30개 행의 새 칼럼 안전 이관, 5분/열기 trigger와 오류율 0%, 부분 새로고침을 실제 시트에서 다시 확인했다. 검증용 업무 행은 남아 있지 않고 승인된 포맷·템플릿 원본도 아직 0건이다. 입력 수정은 즉시 DB에 쓰지 않고 ‘미반영’으로 표시하며 선택행 저장 메뉴를 누른다. 서버 변경과 충돌하면 로컬 수정은 남기고 재확인을 요구한다. 새로고침은 미반영 수정이 있는 시트를 보존하고 나머지 시트를 계속 갱신한다. 통신 결과가 불명확한 쓰기는 같은 요청 ID로 재시도한다. 숨김 ID/버전 칼럼과 조회값은 수정 경고를 표시한다.
+2026-09-17에 Google 권한 승인, 전용 키 연결, 조회, 전체 새로고침, 임시 포맷 한 건 저장, 동일 ID 재조회, 정확한 검증 행·감사 기록 제거, 다시 새로고침까지 확인했다. 같은 날 Format Bank·Outreach Templates 추가, 기존 Creator Directory 30개 행의 새 칼럼 안전 이관, 5분/열기 trigger와 오류율 0%, 부분 새로고침을 실제 시트에서 다시 확인했다. 검증용 업무 행은 남아 있지 않다. 현재 승인된 Outreach Template은 한국 개발·커리어 크리에이터용 email rate 문의형과 Instagram DM 관심 확인형 2건이며, 실제 draft/sent/reply 수치는 해당 원장과 Outreach Log에서 읽는다. 입력 수정은 즉시 DB에 쓰지 않고 ‘미반영’으로 표시하며 선택행 저장 메뉴를 누른다. 서버 변경과 충돌하면 로컬 수정은 남기고 재확인을 요구한다. 새로고침은 미반영 수정이 있는 시트를 보존하고 나머지 시트를 계속 갱신한다. 통신 결과가 불명확한 쓰기는 같은 요청 ID로 재시도한다. 숨김 ID/버전 칼럼과 조회값은 수정 경고를 표시한다.
 
-Creator Directory는 전체 후보의 조사 정보와 간단한 연락·연결 상태를 표시하고 허용된 크리에이터 원본 칼럼만 편집한다. Connected Creators는 실제 연락·협업 이력이 있는 크리에이터의 협업·콘텐츠·비용·성과·채택 방향을 모은 읽기 화면이다. Outreach Log는 메시지 초안·발송·수신 원문을 관계 정보와 함께 시간순으로 보여주는 읽기 화면이다. Format Bank는 hook·제작 흐름·필수 장면·캡션·반복/중단 기준·대상·연락 각도와 사용량을, Outreach Templates는 캠페인·채널·대상·본문·제안·후속 문구와 발송/회신 결과를 보여준다. 5분 주기와 파일 열기 trigger가 DB View/RPC를 다시 읽고, 미반영 편집이 있는 시트는 보존한 채 나머지 시트를 갱신한다. 이 구조는 자동 메일/DM 수신함을 뜻하지 않는다. 외부 메시지는 연결된 수집기나 Agent가 `gtm_activities`에 기록해야 표시된다.
+Creator Directory는 전체 후보의 조사 정보와 간단한 연락·연결 상태를 표시하고 허용된 크리에이터 원본 칼럼만 편집한다. Connected Creators는 실제 연락·협업 이력이 있는 크리에이터의 협업·콘텐츠·비용·성과·채택 방향을 모은 읽기 화면이다. Outreach Log는 메시지 초안·발송·수신 원문을 관계 정보와 함께 시간순으로 보여주는 읽기 화면이다. Format Bank는 hook·제작 흐름·필수 장면·캡션·반복/중단 기준·대상·연락 각도와 사용량을, Outreach Templates는 캠페인·채널·대상·본문·제안·후속 문구와 발송/회신 결과를 보여준다. 5분 주기와 파일 열기 trigger가 DB View/RPC를 다시 읽고, 미반영 편집이 있는 시트는 보존한 채 나머지 시트를 갱신한다. 현재 배포본은 아직 자동 메일 수신함이 아니며, 위 이메일 연결을 배포한 뒤 `Outreach Review`와 Gmail 회신 수집이 추가된다.
 
 `gtm_access_tokens`는 접근 관리용 내부 테이블이다. 원본 키 대신 SHA-256 해시·이름·읽기/쓰기·만료/폐기를 저장한다. 초기에 로컬 Agent와 Sheets용 키를 별도로 90일 만료로 발급했다. 현재 권한은 GTM 전체 읽기 또는 전체 읽기/쓰기 단위이며 팀원별 행/연락처 단위 권한까지 분리하지 않았다.
 

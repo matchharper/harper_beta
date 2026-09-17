@@ -1,6 +1,6 @@
 # 데이터 계약 — 일곱 원장과 내부 기록
 
-버전: 1.2 · 적용일: 2026-09-17 · 상태: 업무 테이블 11개와 공통 API 구현. [AGENTS.md](AGENTS.md)를 먼저 읽는다. 아래는 저장 의미와 운영 계약이며 실제 칼럼은 마지막 물리 목록, 호출은 Connections를 따른다.
+버전: 1.3 · 적용일: 2026-09-17 · 상태: 현재 운영 업무 테이블 11개와 공통 API 구현. 이메일 발송 실행 원장·메일함 cursor migration은 검증 완료 후 배포 전. [AGENTS.md](AGENTS.md)를 먼저 읽는다. 아래는 저장 의미와 운영 계약이며 실제 칼럼은 마지막 물리 목록, 호출은 Connections를 따른다.
 
 ## 공통 규칙
 
@@ -10,7 +10,7 @@
 
 기본 목록의 계산값은 별도 편집 원본이 아니다. 통화와 금액, 시각과 시간대를 명시한다. 미확인 금액·지표는 null이며 관측된 0과 다르다. 기본 화면은 사람이 한 대상에 대해 바로 결정해야 하는 식별·규모·활동·연락·다음 업무·최신성을 먼저 보여주고, 원본과 긴 이력은 상세에서 펼친다.
 
-업무 데이터의 설계 범위는 7개 기본 원장과 4개 보조 기록, 총 11개다. 문서 수는 테이블 수와 관계없다. 접근 키 해시·권한·만료를 보관하는 내부 gtm_access_tokens 1개가 추가되어 물리 테이블은 총 12개다. 기존 공통 마케팅 접근 저장소가 없어 최소로 추가했다.
+현재 운영 데이터는 7개 기본 원장과 4개 보조 기록, 총 11개 업무 테이블이다. 이메일 발송 migration은 실제 외부 전송의 승인·정확한 원문·provider 결과·재시도 상태를 보존하는 `gtm_outreach_dispatches`를 다섯 번째 보조 기록으로 추가한다. 접근 키용 `gtm_access_tokens`와 Gmail cursor/watch 상태용 `gtm_outreach_mailboxes`는 내부 연결 테이블이다. 배포 후 업무 테이블은 12개, 내부 연결 테이블은 2개, 물리 테이블은 총 14개다.
 
 ## 1. gtm_creators — 크리에이터
 
@@ -95,7 +95,7 @@ performance API는 성과·배분 비용·잠정 CPA·측정 상태를 반환한
 | `gtm_formats` | `name`, `status`, `default_campaign_id`, `default_outreach_template_id`, `hook`, `shot_sequence`, `required_moment`, `caption_template`, `example_links`, `replicate_rule`, `kill_rule`, `target_creator_profile`, `cold_outreach_angle`, `description`, `guide_ref`, `guide_version`, `owner_id`, `archived_at` | 표현 흐름·제작 방식·참고 예시·반복/중단 기준과 기본 연락 각도 |
 | `gtm_outreach_templates` | `name`, `status`, `campaign_id`, `channel`, `language`, `target_creator_profile`, `subject_template`, `opening_template`, `value_proposition`, `ask`, `offer_structure`, `follow_up_template`, `link_refs`, `usage_notes`, `template_version`, `owner_id`, `archived_at` | 재사용할 첫 연락의 메시지·요청·조건·후속 문구 |
 
-가이드 본문은 버전 있는 Markdown/문서다. DB의 이름·짧은 설명과 가이드 본문은 역할이 다르며 같은 본문을 양쪽에서 독립 편집하지 않는다. 포맷은 영상·글·뉴스레터를 수용하므로 고정 Shot 1~4 칼럼 대신 순서 있는 `shot_sequence`를 쓴다. Format Bank는 연결 콘텐츠 수·게시 수·마지막 게시일을 계산해 보여준다. Outreach Templates는 원문을 복사하는 출발점이며 상대의 실제 콘텐츠 근거로 개인화한다. 정확한 초안·발송·수신 원문은 activities에 남기고 `outreach_template_id`로 사용한 기준을 연결한다. 템플릿 화면은 초안·발송·회신 스레드와 응답률을 계산해 보여주되 이를 메시지 품질의 자동 판정으로 쓰지 않는다.
+가이드 본문은 버전 있는 Markdown/문서다. DB의 이름·짧은 설명과 가이드 본문은 역할이 다르며 같은 본문을 양쪽에서 독립 편집하지 않는다. 포맷은 영상·글·뉴스레터를 수용하므로 고정 Shot 1~4 칼럼 대신 순서 있는 `shot_sequence`를 쓴다. Format Bank는 연결 콘텐츠 수·게시 수·마지막 게시일을 계산해 보여준다. Outreach Templates는 원문을 복사하는 출발점이며 상대의 실제 콘텐츠 근거로 개인화한다. 최초 메시지 한 건은 기준 템플릿 하나만 `outreach_template_id`로 연결하고, 사용 당시 template ref/version·선택 이유·가장 가까운 대안·개인화 source refs를 draft/sent payload에도 보존한다. 맞는 템플릿이 없으면 일회성 후보 문구가 아니라 재사용 가능한 채널·대상·ask·offer 차이가 있을 때만 새 템플릿을 만든다. 정확한 초안·발송·수신 원문은 activities에 남긴다. 템플릿 화면은 초안·발송·회신 스레드와 응답률을 계산해 보여주되 이를 메시지 품질의 자동 판정으로 쓰지 않는다.
 
 ## 5. gtm_plans — 집행 계획
 
@@ -118,7 +118,7 @@ gtm_collaborations/gtm_contents/plans의 action_items는 부모 한 건의 현�
 
 조사만 할 때는 집행·협업·콘텐츠를 억지로 만들지 않는다. 시작 조회에는 요청과 관련된 집행 후보, 진행 중 연락, 자료 기준일, 남은 한도, 실제 다음 업무와 상세 참조를 짧게 제공한다. 집행이 여럿이면 가장 최근 것을 임의로 선택하지 않는다. 초안은 미정 조건을 표시하며 진행하고, 외부 약속 전에 필요한 집행·권한만 확인한다.
 
-## 6. 자동으로 붙는 네 보조 기록
+## 6. 자동으로 붙는 보조 기록
 
 아래는 반복 사실을 보존하기 위한 내부 저장이다. 각각의 독립 편집 메뉴를 만들지 않는다. 기존 공통 저장 구조가 같은 계약을 충족하면 재사용한다.
 
@@ -128,8 +128,13 @@ gtm_collaborations/gtm_contents/plans의 action_items는 부모 한 건의 현�
 | `gtm_activities` | 관련 원장 ID, 실제 기록 종류, 본문/제한 파일 주소, 발생·기록 시각, 작성자, 출처·외부 ID, 대화 thread, 사용한 outreach template, 정정/이전 기록 참조 | 대화·견적·채택 리뷰 등 타임라인 |
 | `gtm_metric_snapshots` | 계정 또는 콘텐츠 ID, 지표·값·단위, 관측 기간, 원본 시각·수집 시각, 출처·정의, 누적/기간 구분, 결측 이유·보존 기한 | 최신 규모, 관측 창별 성과·기준일 |
 | `gtm_costs` | 집행/협업, 종류·설명, 통화, 예상·약정·발생액, 시간·단가·측정 근거, 지급 내역, 배분 내역, 증빙 | 협업·집행 비용, 콘텐츠 원가 |
+| `gtm_outreach_dispatches` | creator/collaboration/template와 사용 당시 version, 템플릿 선택 이유·개인화 근거, 정확한 발신·수신·제목·본문, 준비 요청, 팀원 승인, 예약·재시도, RFC/Gmail message/thread ID, 발송·회신·실패 시각 | `Outreach Review`의 검토 대상과 실제 전달 상태. 배포 전 migration |
 
 activities에는 메시지 전송 결과·provider thread/message ID 같은 실제 통신 metadata가 붙을 수 있다. 종류별 작은 구조 계약을 쓰되 중간 추론·intent·confidence·상황별 계획을 적재하지 않는다. 현재 업무 원장은 자체 칼럼으로 유지하며 activities를 매번 재생해야만 현재 상태를 아는 구조로 만들지 않는다.
+
+`gtm_outreach_dispatches`는 transient Agent 판단이나 대화 계획이 아니다. Gmail이라는 외부 side effect를 정확히 한 번에 가깝게 실행하기 위해 다시 계산할 수 없는 팀원 승인과 당시 exact copy, provider identity, 재시도 상태를 보존한다. 준비 요청과 발송 요청 ID는 idempotent하며 승인 전에는 외부 전송이 없다. 실제 발송 성공 뒤에는 같은 원문을 append-only `message_sent` activity에도 기록해 일반 관계 타임라인과 템플릿 결과가 이어지게 한다.
+
+`gtm_outreach_mailboxes`는 업무 원장이 아니라 Gmail history cursor, watch 만료, 마지막 동기화·오류만 보관하는 내부 연결 상태다. Sheet나 일반 GTM API에 노출하지 않는다.
 
 활동에는 불변 id/ref, 관련 원장 참조, 발생·기록 시각과 작성자를 둔다. 메시지 초안은 draft로 구분하고 실제 발송 결과는 그 초안 버전·원문 hash·provider ID를 참조한다. 대화 식별자는 사용 연결+provider thread ID 범위로 관리하며 같은 스레드의 새 협업도 조회할 수 있게 한다. 자동 동기화가 수동 기록과 같은 외부 메시지 ID를 발견하면 실제 메시지를 중복 적재하지 않고 출처를 보완한다. 일치가 불확실하면 내용을 보고 확인하며 추측으로 병합하지 않는다.
 
@@ -189,15 +194,17 @@ costs의 선금·잔금·환불은 해당 비용 한 건에 붙는 작은 지급
 - **gtm_activities**: `id`, `ref`, `entity`, `entity_id`, `kind`, `body`, `payload`, `occurred_at`, `source_ref`, `provider`, `connection_ref`, `external_id`, `thread_id`, `outreach_template_id`, `correction_of_id`, `request_id`, `created_at`, `updated_at`, `created_by`, `updated_by`, `row_version`, `archived_at`.
 - **gtm_metric_snapshots**: `id`, `ref`, `account_id`, `content_id`, `metric`, `value`, `unit`, `period_start`, `period_end`, `as_of`, `collected_at`, `source_ref`, `definition_version`, `value_kind`, `missing_reason`, `retention_until`, `created_at`, `updated_at`, `created_by`, `updated_by`, `row_version`, `archived_at`.
 - **gtm_costs**: `id`, `ref`, `plan_id`, `collaboration_id`, `kind`, `description`, `currency`, `base_currency`, `fx_rate`, `fx_source`, `expected_amount`, `agreed_amount`, `incurred_amount`, `labor_minutes`, `hourly_rate`, `measurement_basis`, `due_at`, `incurred_at`, `source_ref`, `payments`, `allocations`, `created_at`, `updated_at`, `created_by`, `updated_by`, `row_version`, `archived_at`.
+- **gtm_outreach_dispatches** (배포 전 migration): `id`, `ref`, `creator_id`, `collaboration_id`, `outreach_template_id`, `template_version`, `recipient_email`, `sender_email`, `subject`, `body`, `selection_reason`, `personalization_evidence`, `status`, `review_note`, `approved_by`, `approved_at`, `scheduled_at`, `next_attempt_at`, `sending_started_at`, `sent_at`, `replied_at`, `failed_at`, `attempt_count`, `last_error`, `provider`, `connection_ref`, `provider_message_id`, `provider_thread_id`, `rfc_message_id`, `draft_activity_id`, `prepare_request_id`, `prepare_input_hash`, `send_request_id`, `created_at`, `updated_at`, `created_by`, `updated_by`, `row_version`, `archived_at`.
 - **gtm_access_tokens**: `id`, `name`, `token_hash`, `can_write`, `created_at`, `expires_at`, `revoked_at`, `last_used_at`.
+- **gtm_outreach_mailboxes** (배포 전 migration): `email`, `provider`, `history_id`, `watch_expiration`, `last_synced_at`, `last_error`, `created_at`, `updated_at`.
 
 
 ## 현재 조회 계약의 경계
 
 list는 원장 행과 페이지네이션을 반환한다. `gtm_creators`는 `gtm_creator_overview`, plans는 비용 요약 뷰, formats는 `gtm_format_overview`, outreach templates는 `gtm_outreach_template_overview`를 사용한다. 크리에이터 기본 조회에는 플랫폼 계정, 팔로워, 최근 365일 게시물 수, 최근 게시, 연락 상태, 열린 협업/후속 업무, 최신 채택 방향, 자료 최신성이 포함된다. Format Bank와 Outreach Templates 기본 조회에는 편집 원본과 실제 사용 결과가 함께 포함된다. get은 이 기본 행과 계정별 원본·관련 활동을 붙이고 과거 이력이 더 필요하면 activities를 대상 필터로 추가 조회한다. performance는 제품 전체·일별·콘텐츠·공용 귀속을 반환한다. 기본 목록이 모든 원문과 시계열을 무제한 조인한다고 가정하지 않는다.
 
-Sheets의 세 크리에이터 화면은 새 물리 테이블이 아니다. `gtm_creator_directory_sheet_v1`은 전체 크리에이터와 대표 계정·연락·현재 진행을 합치고, `gtm_connected_creator_sheet_v1`은 실제 관계가 시작된 크리에이터에 협업·콘텐츠·비용 이력을 더하며, `gtm_outreach_sheet_v1`은 `message_%` 활동을 크리에이터·협업·집행·사용 템플릿과 연결한다. 제한 토큰을 검사하는 `gtm_sheet_view`가 이 읽기 View만 페이지 단위로 반환한다. Format Bank와 Outreach Templates는 각각 계산값이 붙은 기본 API 조회를 쓰며 편집 원본은 `gtm_formats`와 `gtm_outreach_templates`다. 모든 원본 변경은 기존 `gtm_api`와 행 버전 계약을 그대로 사용한다.
+Sheets의 크리에이터 화면은 View로 여러 원장을 합친다. `gtm_creator_directory_sheet_v1`은 전체 크리에이터와 대표 계정·연락·현재 진행을 합치고, `gtm_connected_creator_sheet_v1`은 실제 관계가 시작된 크리에이터에 협업·콘텐츠·비용 이력을 더하며, `gtm_outreach_sheet_v1`은 실제 draft/sent/received 활동을 크리에이터·협업·집행·사용 템플릿과 연결한다. 배포 전 `gtm_outreach_review_sheet_v1`은 dispatch의 정확한 발송본과 승인/전달 상태를 합친다. 제한 토큰을 검사하는 `gtm_sheet_view`가 이 읽기 View만 페이지 단위로 반환한다. Format Bank와 Outreach Templates는 각각 계산값이 붙은 기본 API 조회를 쓰며 편집 원본은 `gtm_formats`와 `gtm_outreach_templates`다. 일반 원본 변경은 기존 `gtm_api`, 이메일 준비·검토는 각각 제한된 전용 RPC와 행 버전 계약을 사용한다.
 
 계정 수치의 표준 기록은 `metric='followers'`(누적, unit=`people`)와 `metric='published_content_count'`(기간, unit=`posts`, 정확한 365일 period_start/period_end)다. 값·단위·기간·as_of·collected_at·source_ref·definition_version을 함께 기록한다. 기본 조회의 `total_followers`와 `content_count_365d`는 플랫폼 계정 합계라 고유 사람 수나 고유 제작물 수가 아니다.
 
-activities의 system.mutation은 실제 변경의 before/result와 요청 해시를 보존하는 서버 감사 기록이다. 임시 모델 판단이 아니다. 일반 호출은 해당 kind/request_id를 위조할 수 없다. 모든 API 쓰기는 행 버전·허용 칼럼·관련 ID·약정 예산·지급 중복을 검사한다. 실제 외부 발송 중복을 막는 실행기는 아직 연결하지 않았다.
+activities의 system.mutation은 실제 변경의 before/result와 요청 해시를 보존하는 서버 감사 기록이다. 임시 모델 판단이 아니다. 일반 호출은 해당 kind/request_id를 위조할 수 없다. 모든 API 쓰기는 행 버전·허용 칼럼·관련 ID·약정 예산·지급 중복을 검사한다. 이메일 실행기는 고정 RFC Message-ID와 Gmail 조회, provider external ID unique 범위로 불명확한 결과를 복구하도록 구현됐으며 실제 계정 설정과 배포 전이다.

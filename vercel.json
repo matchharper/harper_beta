@@ -41,6 +41,14 @@
     {
       "path": "/api/internal/slack/queue-dispatch",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/internal/contents-engine/outreach/dispatch",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/internal/contents-engine/gmail/watch",
+      "schedule": "15 3 * * *"
     }
   ]
 }

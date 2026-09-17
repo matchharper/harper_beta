@@ -3,7 +3,7 @@
  * GTM_TABLES is generated from sheet-columns.json and inserted above this file.
  * Each teammate stores their own scoped GTM credential in UserProperties.
  */
-const GTM_SHEET_SCHEMA_VERSION='2026-09-17-v6';
+const GTM_SHEET_SCHEMA_VERSION='2026-09-17-v7';
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Contents Engine')
@@ -11,6 +11,7 @@ function onOpen() {
     .addItem('시트 구조 설치/업데이트', 'prepareWorkbook')
     .addItem('자동 동기화 설치/복구', 'installAutoSync')
     .addItem('선택한 행 저장', 'saveSelected')
+    .addItem('Outreach Review 선택행 승인/반영', 'saveOutreachReviewSelected')
     .addItem('선택한 행 상세', 'showSelected')
     .addItem('선택한 행 서버값 다시 읽기', 'reloadSelected')
     .addSeparator().addItem('연결 설정', 'configureConnection')
@@ -18,12 +19,15 @@ function onOpen() {
 }
 function configureConnection() {
   const ui=SpreadsheetApp.getUi();
-  const response=ui.prompt('GTM 전용 연결', '관리자가 발급한 supabase_url, anon_key, token JSON을 입력하세요. 본인 UserProperties에만 저장됩니다. DB 관리자 키를 넣지 마세요.', ui.ButtonSet.OK_CANCEL);
+  const response=ui.prompt('GTM 전용 연결', '관리자가 발급한 supabase_url, anon_key, token JSON을 입력하세요. app_url은 생략하면 https://matchharper.com 을 사용합니다. 본인 UserProperties에만 저장되며 DB 관리자 키를 넣지 마세요.', ui.ButtonSet.OK_CANCEL);
   if(response.getSelectedButton()!==ui.Button.OK)return;
   const config=JSON.parse(response.getResponseText());
   const base=String(config.supabase_url||'').trim().replace(/\/+$/,'');
   if(!/^https:\/\/[A-Za-z0-9.-]+(?::\d+)?$/.test(base)||!config.anon_key||!config.token)throw Error('구성 형식을 확인하세요.');
   config.supabase_url=base;
+  const appUrl=String(config.app_url||'https://matchharper.com').trim().replace(/\/+$/,'');
+  if(!/^https:\/\/(?:[A-Za-z0-9-]+\.)*matchharper\.com$/.test(appUrl))throw Error('app_url은 matchharper.com 주소여야 합니다.');
+  config.app_url=appUrl;
   PropertiesService.getUserProperties().setProperty('GTM_CONFIG',JSON.stringify(config));
   verifyConnection();
 }
@@ -91,8 +95,11 @@ function context_(){
     m.cpa=m.windowCostComplete&&m.windowCurrencies.size===1&&m.windowCompleted>0?m.windowCost/m.windowCompleted:'';
     m.measurement_status=m.contents===0?'no_content':m.tracked===0?'untracked':m.statuses.has('observing')?'observing':m.statuses.has('observed_window')?'observed_window':'partial';
   });
-  const reviews={};records.gtm_activities.filter(r=>r.kind==='review_adopted').sort((a,b)=>Date.parse(a.occurred_at)-Date.parse(b.occurred_at)).forEach(r=>reviews[r.entity_id]=r.payload.direction||'');
-  return {records,sheetRows,refs,names,perf,metrics,creatorMetrics,reviews};
+  const reviews={},reviewedAt={};records.gtm_activities.filter(r=>r.kind==='review_adopted').sort((a,b)=>Date.parse(a.occurred_at)-Date.parse(b.occurred_at)).forEach(r=>{
+    reviews[r.entity_id]=r.payload.direction||'';
+    reviewedAt[r.entity_id]=r.occurred_at||'';
+  });
+  return {records,sheetRows,refs,names,perf,metrics,creatorMetrics,reviews,reviewedAt};
 }
 function visible_(r,c,ctx){
   const m=ctx.metrics[r.id]||{},cm=ctx.creatorMetrics[r.id]||{},derived={_next:(r.action_items||[]).filter(x=>x.status==='open').map(x=>x.text).join(' / '),_direction:ctx.reviews[r.id]||'',_signups:m.signups,_completed:m.onboarding_completed_7d,_visitors:m.landing_visitors,_cost:m.allocated_lifetime_cost,_cpa:m.provisional_cost_per_completion,_currency:m.currency,_measurement:m.measurement_status,_creator_visitors:cm.tracked?cm.visitors:'',_creator_signups:cm.tracked?cm.signups:'',_creator_completed:cm.tracked?cm.completed:'',_creator_cost:cm.costSeen?cm.cost:'',_creator_currency:cm.currency||'',_creator_cpa:cm.cpa===undefined?'':cm.cpa,_creator_measurement:cm.measurement_status||'no_content'};
@@ -176,6 +183,9 @@ function prepareWorkbook(){
         s.getRange(5,col).setBackground('#fef3c7').setFontColor('#78350f');
         s.getRange(6,col,Math.max(1,s.getMaxRows()-5),1).setBackground('#fff9db');
       }else if(field[2]==='read')s.getRange(6,col,Math.max(1,s.getMaxRows()-5),1).setBackground('#f3f4f6');
+      else if(field[2]==='decision')s.getRange(6,col,Math.max(1,s.getMaxRows()-5),1).setDataValidation(
+        SpreadsheetApp.newDataValidation().requireValueInList(['Approve & Send','Request Revision','Skip'],true).setAllowInvalid(false).build()
+      );
       else if(field[2]==='bool')s.getRange(6,col,Math.max(1,s.getMaxRows()-5),1).insertCheckboxes();
     });
     s.hideColumns(c.fields.length+2,5);
@@ -226,6 +236,7 @@ function refreshAllCore_(ss,showToast,forceRefresh){
       s.hideColumns(c.fields.length+2,5);
     });
     renderPerformance_(ss.getSheetByName('전체 성과'),ctx.perf);
+    renderPerformanceFeed_(ss,ctx);
     if(showToast)ss.toast(
       dirtySheets.length
         ? '갱신 완료 · 미반영 편집 보존: '+dirtySheets.join(', ')
@@ -245,6 +256,51 @@ function renderPerformance_(s,p){
   s.getRange('A22:D120').clearContent();
   writeRows_(s,22,p.daily.map(r=>[r.day,r.landing_visitors,r.signups,r.onboarding_completion_events]));
 }
+function byId_(rows){
+  const index={};(rows||[]).forEach(row=>index[row.id]=row);return index;
+}
+function openActions_(record){
+  return (record&&record.action_items||[]).filter(item=>item.status==='open');
+}
+function actionSummary_(record,key){
+  const actions=openActions_(record);
+  if(key==='text')return actions.map(item=>item.text).filter(Boolean).join(' / ');
+  if(key==='owner')return [...new Set(actions.map(item=>item.owner_id).filter(Boolean))].join(', ');
+  if(key==='due')return actions.map(item=>item.due_at).filter(Boolean).sort()[0]||'';
+  return '';
+}
+function renderPerformanceFeed_(ss,ctx){
+  const name='_Performance Feed';
+  let s=ss.getSheetByName(name);if(!s)s=ss.insertSheet(name);
+  const headers=[
+    'Content ID','Content Ref','Content Name','Platform','Campaign Ref','Campaign','Format Ref','Format',
+    'Cost','Currency','Attributed Visitors','Signups','D7 Completed','Content Count','Measurement Status','Published At',
+    'Content Direction','Content Next Action','Content Owner','Content Due','Content Reviewed At',
+    'Campaign Direction','Campaign Next Action','Campaign Owner','Campaign Due','Campaign Reviewed At',
+    'Format Direction','Format Next Action','Format Owner','Format Due','Format Reviewed At',
+    'Plan Direction','Plan Next Action','Plan Owner','Plan Due','Plan Reviewed At','Generated At'
+  ];
+  const contents=byId_(ctx.records.gtm_contents),accounts=byId_(ctx.records.gtm_accounts),campaigns=byId_(ctx.records.gtm_campaigns),formats=byId_(ctx.records.gtm_formats),plans=byId_(ctx.records.gtm_plans);
+  const rows=ctx.perf.contents.map(metric=>{
+    const content=contents[metric.id]||{},account=accounts[metric.account_id]||{},campaign=campaigns[metric.campaign_id]||{},format=formats[metric.format_id]||{},plan=plans[metric.plan_id]||{};
+    return [
+      metric.id,metric.ref,metric.title,account.platform||'',campaign.ref||'',campaign.name||'',format.ref||'',format.name||'',
+      metric.allocated_lifetime_cost,metric.currency||'',metric.landing_visitors,metric.signups,metric.onboarding_completed_7d,1,metric.measurement_status||'',metric.published_at||'',
+      ctx.reviews[metric.id]||'',actionSummary_(content,'text'),actionSummary_(content,'owner'),actionSummary_(content,'due'),ctx.reviewedAt[metric.id]||'',
+      ctx.reviews[metric.campaign_id]||'',actionSummary_(campaign,'text'),actionSummary_(campaign,'owner'),actionSummary_(campaign,'due'),ctx.reviewedAt[metric.campaign_id]||'',
+      ctx.reviews[metric.format_id]||'',actionSummary_(format,'text'),actionSummary_(format,'owner'),actionSummary_(format,'due'),ctx.reviewedAt[metric.format_id]||'',
+      ctx.reviews[metric.plan_id]||'',actionSummary_(plan,'text'),actionSummary_(plan,'owner'),actionSummary_(plan,'due'),ctx.reviewedAt[metric.plan_id]||'',ctx.perf.generated_at
+    ];
+  });
+  const height=Math.max(s.getLastRow(),rows.length+1,2),width=headers.length;
+  if(s.getMaxColumns()<width)s.insertColumnsAfter(s.getMaxColumns(),width-s.getMaxColumns());
+  if(s.getMaxRows()<height)s.insertRowsAfter(s.getMaxRows(),height-s.getMaxRows());
+  s.getRange(1,1,height,width).clearContent();
+  s.getRange(1,1,1,width).setValues([headers]).setBackground('#1f4e78').setFontColor('#ffffff').setFontWeight('bold');
+  writeRows_(s,2,rows);
+  s.setFrozenRows(1);
+  if(!s.isSheetHidden())s.hideSheet();
+}
 function selection_(){
   const s=SpreadsheetApp.getActiveSheet(),c=GTM_TABLES[s.getName()],r=s.getActiveRange();
   if(!c||r.getRow()<6)throw Error('원장 탭의 데이터 행을 선택하세요.');
@@ -255,6 +311,7 @@ function saveSelected(){
   try{
     const {s,c,r}=selection_(),ctx=context_();
     if(c.readOnly)throw Error('이 시트는 여러 원장을 합친 읽기 화면입니다. 원본 변경은 Creator Directory 또는 해당 원장 시트에서 하세요.');
+    if(c.reviewMode){saveOutreachReviewRows_(s,c,r,ctx);return;}
     for(let rowIndex=r.getRow();rowIndex<=r.getLastRow();rowIndex++){
       const values=s.getRange(rowIndex,1,1,c.fields.length+6).getValues()[0];
       if(!dirty_(values,c))continue;
@@ -284,6 +341,110 @@ function saveSelected(){
     }
     SpreadsheetApp.getActive().toast('선택행 저장·재조회 완료','Contents Engine',8);
   }finally{lock.releaseLock();}
+}
+function saveOutreachReviewSelected(){
+  const active=SpreadsheetApp.getActiveSheet();
+  if(active.getName()!=='Outreach Review')throw Error('Outreach Review 시트의 데이터 행을 선택하세요.');
+  saveSelected();
+}
+function fieldIndex_(c,key){
+  for(let i=0;i<c.fields.length;i++)if(c.fields[i][0]===key)return i;
+  throw Error('시트 설정에 '+key+' 칼럼이 없습니다.');
+}
+function reviewAction_(value){
+  const normalized=String(value||'').trim();
+  if(normalized==='Approve & Send')return 'approve';
+  if(normalized==='Request Revision')return 'request_revision';
+  if(normalized==='Skip')return 'skip';
+  throw Error('Review Decision에서 Approve & Send, Request Revision, Skip 중 하나를 선택하세요.');
+}
+function requestImmediateDispatch_(dispatchId){
+  const raw=PropertiesService.getUserProperties().getProperty('GTM_CONFIG');
+  if(!raw)throw Error('GTM 연결 설정이 없습니다.');
+  const config=JSON.parse(raw),appUrl=String(config.app_url||'https://matchharper.com').replace(/\/+$/,'');
+  const response=UrlFetchApp.fetch(appUrl+'/api/internal/contents-engine/outreach/dispatch',{
+    method:'post',
+    contentType:'application/json',
+    headers:{Authorization:'Bearer '+config.token},
+    payload:JSON.stringify({dispatchId:dispatchId}),
+    muteHttpExceptions:true
+  });
+  if(response.getResponseCode()>=400){
+    let message='HTTP '+response.getResponseCode();
+    try{message=JSON.parse(response.getContentText()).error||message;}catch(error){}
+    throw Error(message);
+  }
+  const result=JSON.parse(response.getContentText());
+  if(result.ok===false){
+    const failure=result.results&&result.results[0]&&result.results[0].error;
+    throw Error(failure||result.error||'Gmail 발송에 실패했습니다.');
+  }
+  return result;
+}
+function saveOutreachReviewRows_(s,c,r,ctx){
+  const indexes={
+    action:fieldIndex_(c,'review_action'),
+    subject:fieldIndex_(c,'subject'),
+    body:fieldIndex_(c,'body'),
+    scheduled:fieldIndex_(c,'scheduled_at'),
+    note:fieldIndex_(c,'review_note')
+  };
+  let approved=0,queued=0,changed=0;
+  for(let rowIndex=r.getRow();rowIndex<=r.getLastRow();rowIndex++){
+    const values=s.getRange(rowIndex,1,1,c.fields.length+6).getValues()[0];
+    if(!dirty_(values,c))continue;
+    if(!values[c.fields.length+1])throw Error('저장되지 않은 Outreach 행은 승인할 수 없습니다.');
+    const action=reviewAction_(values[indexes.action]);
+    let scheduledAt=null;
+    if(values[indexes.scheduled]!==''){
+      const scheduled=new Date(values[indexes.scheduled]);
+      if(!Number.isFinite(scheduled.getTime()))throw Error('Send At은 시간대를 포함한 ISO 시각이어야 합니다.');
+      scheduledAt=scheduled.toISOString();
+    }
+    const request={
+      dispatch_id:values[c.fields.length+1],
+      expected_version:Number(values[c.fields.length+2]),
+      action:action,
+      subject:String(values[indexes.subject]||''),
+      body:String(values[indexes.body]||''),
+      scheduled_at:scheduledAt,
+      review_note:values[indexes.note]===''?null:String(values[indexes.note]),
+      actor_email:Session.getActiveUser().getEmail()||null
+    };
+    const signature=JSON.stringify(request);
+    request.request_id=values[c.fields.length+5]===signature&&values[c.fields.length+4]
+      ?values[c.fields.length+4]:Utilities.getUuid();
+    s.getRange(rowIndex,c.fields.length+5,1,2).setValues([[request.request_id,signature]]);
+    SpreadsheetApp.flush();
+    try{
+      const result=postRpc_('gtm_outreach_review',request);
+      const saved=getRecord_(c,result.id);
+      writeRows_(s,rowIndex,[row_(saved,c,ctx)]);
+      changed++;
+      if(action==='approve'){
+        approved++;
+        try{
+          const delivery=requestImmediateDispatch_(result.id);
+          if(delivery.queued)queued++;
+          const delivered=getRecord_(c,result.id);
+          writeRows_(s,rowIndex,[row_(delivered,c,ctx)]);
+        }
+        catch(error){
+          queued++;
+          s.getRange(rowIndex,c.fields.length+1).setValue('승인됨 · 자동 발송 대기 · '+error.message);
+        }
+      }
+    }catch(error){
+      s.getRange(rowIndex,c.fields.length+1).setValue('미반영 · '+error.message);
+      throw error;
+    }
+  }
+  SpreadsheetApp.getActive().toast(
+    approved
+      ?'검토 '+changed+'건 반영 · 승인 '+approved+'건'+(queued?' · 백그라운드 발송 대기 '+queued+'건':' · 즉시 발송 요청 완료')
+      :'검토 '+changed+'건 반영 완료',
+    'Contents Engine',8
+  );
 }
 function showSelected(){
   const {s,c,r}=selection_(),id=s.getRange(r.getRow(),c.fields.length+2).getValue();

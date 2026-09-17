@@ -21,6 +21,7 @@ VERSIONS = [
     '20260917052200_gtm_creator_overview_sheet_fields',
     '20260917055533_gtm_format_bank_outreach_templates',
     '20260917064500_gtm_creator_outreach_score',
+    '20260917075510_gtm_outreach_dispatches',
 ]
 
 
@@ -54,12 +55,12 @@ def main():
                 conn.execute("insert into public.gtm_access_tokens(name,token_hash,can_write,expires_at) values(%s,%s,true,now()+interval '90 days')",
                              (name, hashlib.sha256(token.encode()).hexdigest()))
             count = conn.execute("select count(*) from pg_tables where schemaname='public' and tablename like 'gtm_%'").fetchone()[0]
-            assert count == 12, count
+            assert count == 14, count
             conn.commit()
             committed = True
         for pending, output in zip(staged, outputs):
             pending.replace(output)
-        print('Created 11 GTM business tables + 1 scoped-access infrastructure table and aggregate RPCs.')
+        print('Created 12 GTM business tables + 2 connection infrastructure tables and scoped RPCs.')
         print('Two 90-day scoped credentials saved in owner-only local configuration files. No secret values printed.')
     finally:
         if not committed:
