@@ -1,6 +1,6 @@
 # Connections.md
 
-버전: 1.6 · 적용일: 2026-09-17 · 상태: 10개 운영 시트는 운영 중. Outreach Review·Gmail 발송/회신·Slack 알림은 소스 구현과 검증 완료, 외부 계정 설정·배포 전 · 관리: 데이터 연결 담당
+버전: 1.7 · 적용일: 2026-09-17 · 상태: 11개 운영 시트, Outreach Review 승인, Gmail 발송/회신, Slack 알림 운영 중 · 관리: 데이터 연결 담당
 
 ## 연결 상태
 
@@ -9,7 +9,7 @@
 | Supabase gtm_api | GTM 11개 업무 원장의 조회·변경·일괄 저장·UTM 발급·오늘 할 일·제품 집계. Format Bank와 Outreach Templates는 실제 사용·게시·회신 결과가 붙는 기본 조회까지 운영 | 임의 SQL, 원본 제품 사용자 조회, 발송/송금 실행 제공 안 함 |
 | 제품 성과 | logs + landing_logs + 인증 가입 연결 + 실제 온보딩 이벤트의 서버 집계 | 동일 UTM 재방문 수집 누락 가능; 관측된 명시적 UTM만 귀속 |
 | Notion | 기존 Contents Engine / Agents.md 아래 작업별 지침 | 토큰이나 개인 사용자 데이터 보관 장소 아님 |
-| Google Sheets | 전체 성과·Creator Directory·Connected Creators·Outreach Log·Format Bank·Outreach Templates·협업·콘텐츠·집행·캠페인과 5분/열기 자동 동기화 운영 중. 배포 후 `Outreach Review`에서 최종 제목·본문·발송 시각을 보고 승인/수정요청/건너뛰기를 선택 | 새 팀원은 첫 실행에서 Google 권한 승인과 본인 GTM 전용 키 연결 필요. `Outreach Review`는 아직 운영 Apps Script와 DB에 배포되지 않음 |
+| Google Sheets | 전체 성과·Creator Directory·Connected Creators·Outreach Log·Format Bank·Outreach Templates·협업·콘텐츠·집행·캠페인과 5분/열기 자동 동기화 운영 중. `Outreach Review`에서 최종 제목·본문·발송 시각을 보고 승인/수정요청/건너뛰기를 선택 | 새 팀원은 첫 실행에서 Google 권한 승인과 본인 GTM 전용 키 연결 필요 |
 | 크리에이터 발굴 | Agent가 접근 가능한 공개 출처와 제공 자료로 조사·저장 | 전 플랫폼 전수 발굴 API 미연결 |
 | 메일/DM | 이메일은 `daniel@matchharper.com` Gmail 메일함의 무료 별칭 `harper@matchharper.com`, 팀원 Sheet 승인, 중복 방지 발송, Gmail 회신 DB 저장, Slack 알림까지 사용. DM은 초안과 실제 메시지 기록만 지원 | 별칭은 별도 로그인·별도 받은편지함이 아니며 `daniel@matchharper.com`에서 발신·회신을 관리. Instagram/X/Threads/TikTok DM 자동화 미연결 |
 | 플랫폼 통계 | 원본 API/제출 통계 관측값 저장 계약 | YouTube/Meta/TikTok 전용 인증/API 미연결 |
@@ -67,7 +67,7 @@ Gmail push는 인증된 Pub/Sub 호출만 받는다. 회신은 Gmail message/thr
 
 2026-09-17에 Google 권한 승인, 전용 키 연결, 조회, 전체 새로고침, 임시 포맷 한 건 저장, 동일 ID 재조회, 정확한 검증 행·감사 기록 제거, 다시 새로고침까지 확인했다. 같은 날 Format Bank·Outreach Templates 추가, 기존 Creator Directory 30개 행의 새 칼럼 안전 이관, 5분/열기 trigger와 오류율 0%, 부분 새로고침을 실제 시트에서 다시 확인했다. 검증용 업무 행은 남아 있지 않다. 현재 승인된 Outreach Template은 한국 개발·커리어 크리에이터용 email rate 문의형과 Instagram DM 관심 확인형 2건이며, 실제 draft/sent/reply 수치는 해당 원장과 Outreach Log에서 읽는다. 입력 수정은 즉시 DB에 쓰지 않고 ‘미반영’으로 표시하며 선택행 저장 메뉴를 누른다. 서버 변경과 충돌하면 로컬 수정은 남기고 재확인을 요구한다. 새로고침은 미반영 수정이 있는 시트를 보존하고 나머지 시트를 계속 갱신한다. 통신 결과가 불명확한 쓰기는 같은 요청 ID로 재시도한다. 숨김 ID/버전 칼럼과 조회값은 수정 경고를 표시한다.
 
-Creator Directory는 전체 후보의 조사 정보와 간단한 연락·연결 상태를 표시하고 허용된 크리에이터 원본 칼럼만 편집한다. Connected Creators는 실제 연락·협업 이력이 있는 크리에이터의 협업·콘텐츠·비용·성과·채택 방향을 모은 읽기 화면이다. Outreach Log는 메시지 초안·발송·수신 원문을 관계 정보와 함께 시간순으로 보여주는 읽기 화면이다. Format Bank는 hook·제작 흐름·필수 장면·캡션·반복/중단 기준·대상·연락 각도와 사용량을, Outreach Templates는 캠페인·채널·대상·본문·제안·후속 문구와 발송/회신 결과를 보여준다. 5분 주기와 파일 열기 trigger가 DB View/RPC를 다시 읽고, 미반영 편집이 있는 시트는 보존한 채 나머지 시트를 갱신한다. 현재 배포본은 아직 자동 메일 수신함이 아니며, 위 이메일 연결을 배포한 뒤 `Outreach Review`와 Gmail 회신 수집이 추가된다.
+Creator Directory는 전체 후보의 조사 정보와 간단한 연락·연결 상태를 표시하고 허용된 크리에이터 원본 칼럼만 편집한다. Connected Creators는 실제 연락·협업 이력이 있는 크리에이터의 협업·콘텐츠·비용·성과·채택 방향을 모은 읽기 화면이다. Outreach Log는 메시지 초안·발송·수신 원문을 관계 정보와 함께 시간순으로 보여주는 읽기 화면이다. Format Bank는 hook·제작 흐름·필수 장면·캡션·반복/중단 기준·대상·연락 각도와 사용량을, Outreach Templates는 캠페인·채널·대상·본문·제안·후속 문구와 발송/회신 결과를 보여준다. Outreach Review는 정확한 이메일 발송본과 승인 상태를 보여주고 팀원이 한 건씩 승인·수정요청·건너뛰기를 저장한다. 5분 주기와 파일 열기 trigger가 DB View/RPC를 다시 읽고, 미반영 편집이 있는 시트는 보존한 채 나머지 시트를 갱신한다. Gmail 회신은 DB와 Outreach Log에 반영되고 Slack `_growth_creators`에 알린다.
 
 `gtm_access_tokens`는 접근 관리용 내부 테이블이다. 원본 키 대신 SHA-256 해시·이름·읽기/쓰기·만료/폐기를 저장한다. 초기에 로컬 Agent와 Sheets용 키를 별도로 90일 만료로 발급했다. 현재 권한은 GTM 전체 읽기 또는 전체 읽기/쓰기 단위이며 팀원별 행/연락처 단위 권한까지 분리하지 않았다.
 

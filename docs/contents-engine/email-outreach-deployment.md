@@ -1,6 +1,6 @@
 # Creator email outreach 배포 체크리스트
 
-상태: 소스 구현·트랜잭션 검증 완료, 실제 Google Workspace/GCP/Slack 설정과 운영 배포 전
+상태: 2026-09-17 운영 배포 완료. Workspace 별칭, Gmail domain-wide delegation, Pub/Sub push, Slack 알림, Supabase 원장, Apps Script와 11개 Sheet 탭을 실제 환경에서 확인함
 
 ## 고정 발신 계정과 별칭
 
