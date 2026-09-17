@@ -94,9 +94,13 @@ console.log('PASS Format Bank and Outreach Templates expose editable guidance, r
 
 const reviewC=config['Outreach Review'];
 assert.ok(reviewC);assert.equal(reviewC.view,'outreach_review');assert.equal(reviewC.reviewMode,true);
+assert.deepEqual(reviewC.fields.slice(0,6).map(field=>field[0]),[
+ 'creator_name','recipient_email','outreach_template_name','subject','body','review_action'
+]);
+assert.match(reviewC.helpText,/노란색 Review Decision/);
 assert.equal(reviewC.fields.find(field=>field[0]==='review_action')[2],'decision');
 assert.equal(context.reviewAction_('Approve & Send'),'approve');
 assert.equal(context.reviewAction_('Request Revision'),'request_revision');
 assert.equal(context.reviewAction_('Skip'),'skip');
 assert.throws(()=>context.reviewAction_(''),/Review Decision/);
-console.log('PASS Outreach Review requires one explicit human decision before the send path');
+console.log('PASS Outreach Review leads with the email decision context and requires one explicit human decision before the send path');

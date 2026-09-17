@@ -3,7 +3,7 @@
  * GTM_TABLES is generated from sheet-columns.json and inserted above this file.
  * Each teammate stores their own scoped GTM credential in UserProperties.
  */
-const GTM_SHEET_SCHEMA_VERSION='2026-09-17-v8';
+const GTM_SHEET_SCHEMA_VERSION='2026-09-17-v9';
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Contents Engine')
@@ -164,6 +164,11 @@ function prepareWorkbook(){
     s.getRange(1,1,5,s.getMaxColumns()).breakApart();
     s.getRange(1,1).setValue(name).setFontSize(15).setFontWeight('bold');
     s.getRange(2,1).setValue(c.helpText||(c.view?'Automatically synced operating view. Read-only fields are rebuilt from Supabase.':'Supabase is canonical. Edit allowed fields, then save the selected row.'));
+    if(c.reviewMode){
+      s.getRange(2,1,1,6).merge().setBackground('#fff2cc').setFontColor('#7f6000')
+        .setFontWeight('bold').setWrap(true).setVerticalAlignment('middle');
+      s.setRowHeight(2,44);
+    }
     s.getRange(5,1,1,s.getMaxColumns()).clearContent().clearFormat();
     s.getRange(5,1,1,width).setValues([c.fields.map(f=>f[1]).concat(meta)])
       .setBackground('#1f4e78').setFontColor('#ffffff').setFontWeight('bold').setWrap(true);
@@ -176,16 +181,24 @@ function prepareWorkbook(){
     if(c.fields.length>1)s.setColumnWidth(2,180);
     c.fields.forEach((field,index)=>{
       const key=field[0],col=index+1;
-      if(/summary|history|body|notes|description|message|template|sequence|profile|offer|rule/.test(key))s.setColumnWidth(col,320);
+      if(key==='body')s.setColumnWidth(col,440);
+      else if(key==='subject')s.setColumnWidth(col,300);
+      else if(key==='review_action')s.setColumnWidth(col,190);
+      else if(/summary|history|notes|description|message|template|sequence|profile|offer|rule/.test(key))s.setColumnWidth(col,320);
       else if(/url|email|contact|audience|action|reason|hook|ask|link/.test(key))s.setColumnWidth(col,210);
       else if(col>2)s.setColumnWidth(col,145);
       if(key==='outreach_score'){
         s.getRange(5,col).setBackground('#fef3c7').setFontColor('#78350f');
         s.getRange(6,col,Math.max(1,s.getMaxRows()-5),1).setBackground('#fff9db');
       }else if(field[2]==='read')s.getRange(6,col,Math.max(1,s.getMaxRows()-5),1).setBackground('#f3f4f6');
-      else if(field[2]==='decision')s.getRange(6,col,Math.max(1,s.getMaxRows()-5),1).setDataValidation(
-        SpreadsheetApp.newDataValidation().requireValueInList(['Approve & Send','Request Revision','Skip'],true).setAllowInvalid(false).build()
-      );
+      else if(field[2]==='decision'){
+        s.getRange(5,col).setBackground('#f4b400').setFontColor('#3d2c00')
+          .setNote('제목과 본문을 확인한 뒤 이 칼럼에서 결정을 선택하고, Contents Engine → Outreach Review 선택행 승인/반영을 실행하세요.');
+        s.getRange(6,col,Math.max(1,s.getMaxRows()-5),1)
+          .setBackground('#fff2cc').setFontWeight('bold').setDataValidation(
+            SpreadsheetApp.newDataValidation().requireValueInList(['Approve & Send','Request Revision','Skip'],true).setAllowInvalid(false).build()
+          );
+      }
       else if(field[2]==='bool')s.getRange(6,col,Math.max(1,s.getMaxRows()-5),1).insertCheckboxes();
     });
     s.hideColumns(c.fields.length+2,5);

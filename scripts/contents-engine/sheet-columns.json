@@ -667,31 +667,11 @@
     "entity": "gtm_outreach_dispatches",
     "view": "outreach_review",
     "reviewMode": true,
-    "frozenColumns": 4,
+    "frozenColumns": 3,
     "fields": [
-      [
-        "ref",
-        "Dispatch Ref",
-        "read"
-      ],
-      [
-        "creator_ref",
-        "Creator Ref",
-        "read"
-      ],
       [
         "creator_name",
         "Creator Name",
-        "read"
-      ],
-      [
-        "primary_platform",
-        "Primary Platform",
-        "read"
-      ],
-      [
-        "primary_handle",
-        "Primary Handle",
         "read"
       ],
       [
@@ -700,53 +680,8 @@
         "read"
       ],
       [
-        "outreach_template_ref",
-        "Template Ref",
-        "read"
-      ],
-      [
         "outreach_template_name",
         "Template",
-        "read"
-      ],
-      [
-        "template_version",
-        "Template Version Used",
-        "read"
-      ],
-      [
-        "collaboration_ref",
-        "Collaboration Ref",
-        "read"
-      ],
-      [
-        "collaboration_title",
-        "Collaboration",
-        "read"
-      ],
-      [
-        "plan_ref",
-        "Plan Ref",
-        "read"
-      ],
-      [
-        "plan_name",
-        "Plan",
-        "read"
-      ],
-      [
-        "sender_email",
-        "Sender Email",
-        "read"
-      ],
-      [
-        "selection_reason",
-        "Why This Template",
-        "read"
-      ],
-      [
-        "personalization_evidence",
-        "Personalization Evidence",
         "read"
       ],
       [
@@ -765,6 +700,21 @@
         "decision"
       ],
       [
+        "selection_reason",
+        "Why This Template",
+        "read"
+      ],
+      [
+        "personalization_evidence",
+        "Personalization Evidence",
+        "read"
+      ],
+      [
+        "status",
+        "Delivery Status",
+        "read"
+      ],
+      [
         "scheduled_at",
         "Send At (ISO, blank = now)",
         "date"
@@ -775,8 +725,58 @@
         "text"
       ],
       [
-        "status",
-        "Delivery Status",
+        "primary_platform",
+        "Primary Platform",
+        "read"
+      ],
+      [
+        "primary_handle",
+        "Primary Handle",
+        "read"
+      ],
+      [
+        "sender_email",
+        "Sender Email",
+        "read"
+      ],
+      [
+        "plan_name",
+        "Plan",
+        "read"
+      ],
+      [
+        "collaboration_title",
+        "Collaboration",
+        "read"
+      ],
+      [
+        "ref",
+        "Dispatch Ref",
+        "read"
+      ],
+      [
+        "creator_ref",
+        "Creator Ref",
+        "read"
+      ],
+      [
+        "outreach_template_ref",
+        "Template Ref",
+        "read"
+      ],
+      [
+        "template_version",
+        "Template Version Used",
+        "read"
+      ],
+      [
+        "collaboration_ref",
+        "Collaboration Ref",
+        "read"
+      ],
+      [
+        "plan_ref",
+        "Plan Ref",
         "read"
       ],
       [
@@ -830,7 +830,7 @@
         "read"
       ]
     ],
-    "helpText": "Final human review queue. Edit subject/body if needed, choose Approve & Send, Request Revision, or Skip, then save the selected row. Only an explicit saved approval can send email."
+    "helpText": "① 크리에이터·수신 이메일·템플릿·제목·본문을 확인하세요. ② 노란색 Review Decision에서 Approve & Send, Request Revision, Skip 중 하나를 선택하세요. ③ 행을 선택하고 Contents Engine → Outreach Review 선택행 승인/반영을 실행해야 실제 반영됩니다."
   },
   "Outreach Log": {
     "entity": "gtm_activities",
