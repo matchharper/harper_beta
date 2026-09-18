@@ -2,6 +2,7 @@ import { getResendEmail, sendResendEmail } from "@/lib/email/send";
 
 export const GTM_OUTREACH_RESEND_FROM = "Harper <harper@matchharper.com>";
 export const GTM_OUTREACH_RESEND_REPLY_TO = "harper@matchharper.com";
+const MESSAGE_ID_LOOKUP_ATTEMPTS = 3;
 
 function renderExactTextBodyHtml(body: string) {
   return `<div style="white-space: pre-wrap;">${body
@@ -30,11 +31,14 @@ export async function sendGtmOutreachEmailWithResend(args: {
   const emailId = sent.id?.trim();
   if (!emailId) throw new Error("Resend did not return an email ID");
 
-  const delivered = await getResendEmail(emailId);
-  const messageId = delivered.message_id?.trim();
-  if (!messageId) {
-    throw new Error("Resend did not return the sent email Message-ID");
+  for (let attempt = 0; attempt < MESSAGE_ID_LOOKUP_ATTEMPTS; attempt += 1) {
+    const delivered = await getResendEmail(emailId);
+    const messageId = delivered.message_id?.trim();
+    if (messageId) return { emailId, messageId };
+    if (attempt + 1 < MESSAGE_ID_LOOKUP_ATTEMPTS) {
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+    }
   }
 
-  return { emailId, messageId };
+  throw new Error("Resend did not return the sent email Message-ID");
 }
