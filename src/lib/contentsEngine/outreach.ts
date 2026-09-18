@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import {
   getGmailMessage,
   getGtmOutreachGmailConfig,
+  isGmailNotFoundError,
   listGmailHistory,
   listInboxMessageIds,
   parseGmailMessage,
@@ -272,7 +273,22 @@ async function getOutreachDispatchSentAt(dispatchId: string | undefined) {
 async function ingestReplyMessage(messageId: string) {
   const config = getGtmOutreachGmailConfig();
   const mailbox = config.mailbox;
-  const message = await getGmailMessage(messageId);
+  let message;
+  try {
+    message = await getGmailMessage(messageId);
+  } catch (error) {
+    // Gmail can remove a message after it appears in a history or INBOX page.
+    // That stale ID must not block later replies from being collected and sent
+    // to Slack.
+    if (isGmailNotFoundError(error)) {
+      console.warn("[contents-engine/gmail] skipped missing message", {
+        mailbox,
+        messageId,
+      });
+      return { matched: false, skipped: true };
+    }
+    throw error;
+  }
   if (!message.labelIds?.includes("INBOX")) return { matched: false };
   const parsed = parseGmailMessage(message);
   if (parsed.deliveryFailure) {
@@ -408,7 +424,7 @@ export async function syncGtmOutreachGmailHistory(notificationHistoryId: string)
       messageIds = await listInboxMessageIds();
     }
   } catch (error) {
-    if (!/Gmail API 404:/i.test(errorMessage(error))) throw error;
+    if (!isGmailNotFoundError(error)) throw error;
     messageIds = await listInboxMessageIds();
   }
 

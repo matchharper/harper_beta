@@ -2,8 +2,22 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildGmailRawMessage,
+  isGmailNotFoundError,
   parseGmailMessage,
 } from "@/lib/contentsEngine/gmail";
+
+test("recognizes Gmail's missing-message error without masking other failures", () => {
+  assert.equal(
+    isGmailNotFoundError(
+      new Error("Gmail API 404: Requested entity was not found.")
+    ),
+    true
+  );
+  assert.equal(
+    isGmailNotFoundError(new Error("Gmail API 403: Permission denied")),
+    false
+  );
+});
 
 test("builds a Gmail API message with the stable RFC Message-ID", () => {
   const raw = buildGmailRawMessage({
