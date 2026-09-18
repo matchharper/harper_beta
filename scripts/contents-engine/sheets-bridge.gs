@@ -3,7 +3,7 @@
  * GTM_TABLES is generated from sheet-columns.json and inserted above this file.
  * Each teammate stores their own scoped GTM credential in UserProperties.
  */
-const GTM_SHEET_SCHEMA_VERSION='2026-09-18-v11';
+const GTM_SHEET_SCHEMA_VERSION='2026-09-18-v12';
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Contents Engine')
@@ -157,8 +157,47 @@ function migrateLegacyRows_(sheet,c){
   });
   return migrated;
 }
-function setReviewDecisionFormatting_(sheet,range){
+function migrateFieldOrderRows_(sheet,c){
+  const oldKeys=c.legacyFieldOrder||[],oldHeaders=c.legacyHeaders||[];
+  if(!oldKeys.length||oldKeys.length!==oldHeaders.length||sheet.getLastRow()<5)return 0;
+  const currentHeaders=sheet.getRange(5,1,1,oldHeaders.length).getValues()[0];
+  if(oldHeaders.some((header,index)=>String(currentHeaders[index]||'')!==header))return 0;
+  const oldWidth=oldKeys.length+6,newKeys=c.fields.map(field=>field[0]),newWidth=newKeys.length+6;
+  if(sheet.getMaxColumns()<newWidth)sheet.insertColumnsAfter(sheet.getMaxColumns(),newWidth-sheet.getMaxColumns());
+  const oldIndexes={};oldKeys.forEach((key,index)=>oldIndexes[key]=index);
+  const source=sheet.getLastRow()<6?[]:sheet.getRange(6,1,sheet.getLastRow()-5,oldWidth).getValues();
+  let migrated=0;
+  source.forEach((row,rowIndex)=>{
+    if(!row.some(value=>value!==''&&value!==null))return;
+    const visible=row.slice(0,oldKeys.length),meta=row.slice(oldKeys.length,oldKeys.length+6);
+    let baseline=[];
+    if(meta[3]){
+      try{baseline=JSON.parse(meta[3]);}
+      catch(error){throw Error(sheet.getName()+'의 기존 행 기준값을 읽을 수 없습니다. 편집을 유지한 채 관리자 확인이 필요합니다.');}
+    }
+    const remap=values=>newKeys.map(key=>oldIndexes[key]===undefined?'':values[oldIndexes[key]]);
+    meta[3]=JSON.stringify(remap(baseline));
+    const target=sheet.getRange(rowIndex+6,1,1,Math.max(oldWidth,newWidth));
+    target.clearContent();
+    sheet.getRange(rowIndex+6,1,1,newWidth).setValues([remap(visible).concat(meta)]);
+    migrated++;
+  });
+  return migrated;
+}
+function clearWarningOnlyProtections_(sheet){
+  if(sheet.getName()!=='Creator Directory')return;
+  [SpreadsheetApp.ProtectionType.RANGE,SpreadsheetApp.ProtectionType.SHEET].forEach(type=>{
+    sheet.getProtections(type).forEach(protection=>{if(protection.isWarningOnly())protection.remove();});
+  });
+}
+function a1Column_(column){
+  let label='';
+  while(column>0){column--;label=String.fromCharCode(65+column%26)+label;column=Math.floor(column/26);}
+  return label;
+}
+function setReviewDecisionFormatting_(sheet,range,c){
   const sheetId=sheet.getSheetId(),column=range.getColumn(),startRow=range.getRow();
+  const decisionColumn=a1Column_(column),sentColumn=a1Column_(fieldIndex_(c,'sent_at')+1);
   const rules=sheet.getConditionalFormatRules().filter(rule=>
     !rule.getRanges().some(existing=>
       existing.getSheet().getSheetId()===sheetId&&
@@ -167,7 +206,7 @@ function setReviewDecisionFormatting_(sheet,range){
   );
   rules.push(
     SpreadsheetApp.newConditionalFormatRule()
-      .whenTextEqualTo('Approve & Send')
+      .whenFormulaSatisfied('=OR($'+decisionColumn+startRow+'="Approve & Send",$'+sentColumn+startRow+'<>"")')
       .setBackground('#d9ead3').setFontColor('#274e13').setBold(true)
       .setRanges([range]).build()
   );
@@ -186,7 +225,7 @@ function formatReviewRows_(sheet,c){
   decisionRange.setBackground('#fff2cc').setFontWeight('bold').setDataValidation(
     SpreadsheetApp.newDataValidation().requireValueInList(['Approve & Send','Request Revision','Skip'],true).setAllowInvalid(false).build()
   );
-  setReviewDecisionFormatting_(sheet,decisionRange);
+  setReviewDecisionFormatting_(sheet,decisionRange,c);
   sheet.setRowHeightsForced(6,height,38);
 }
 function prepareWorkbook(){
@@ -200,6 +239,8 @@ function prepareWorkbook(){
       s=ss.getSheetByName(c.legacySheet);s.setName(name);
     }
     if(!s)s=ss.insertSheet(name);
+    clearWarningOnlyProtections_(s);
+    migrateFieldOrderRows_(s,c);
     migrateLegacyRows_(s,c);
     const width=c.fields.length+meta.length;
     if(s.getMaxColumns()<width)s.insertColumnsAfter(s.getMaxColumns(),width-s.getMaxColumns());

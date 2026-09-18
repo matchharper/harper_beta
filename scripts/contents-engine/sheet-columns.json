@@ -4,9 +4,6 @@
     "view": "creator_directory",
     "legacySheet": "크리에이터",
     "frozenColumns": 3,
-    "legacyInsertions": [
-      15
-    ],
     "fields": [
       [
         "ref",
@@ -19,13 +16,8 @@
         "text"
       ],
       [
-        "owner_id",
-        "Owner",
-        "text"
-      ],
-      [
-        "sheet_primary_platform",
-        "Primary Platform",
+        "platforms",
+        "Platforms",
         "read"
       ],
       [
@@ -44,33 +36,23 @@
         "read"
       ],
       [
-        "platforms",
-        "Platforms",
-        "read"
-      ],
-      [
         "activity_regions",
-        "Activity Regions (comma-separated)",
-        "array"
-      ],
-      [
-        "languages",
-        "Languages (comma-separated)",
+        "Activity Regions",
         "array"
       ],
       [
         "content_topics",
-        "Content Topics (comma-separated)",
+        "Content Topics",
         "array"
       ],
       [
         "total_followers",
-        "Total Followers (May Overlap Across Platforms)",
+        "Total Followers",
         "read"
       ],
       [
         "content_count_365d",
-        "Posts in Last 365 Days (Cross-posts May Overlap)",
+        "Posts Last 365 Days",
         "read"
       ],
       [
@@ -85,7 +67,7 @@
       ],
       [
         "outreach_score",
-        "Outreach Score (1-5)",
+        "Outreach Score",
         "number"
       ],
       [
@@ -97,6 +79,11 @@
         "last_contact_at",
         "Last Contact At",
         "read"
+      ],
+      [
+        "languages",
+        "Languages",
+        "array"
       ],
       [
         "current_collaboration_ref",
@@ -173,7 +160,78 @@
         "Notes",
         "text"
       ]
-    ]
+    ],
+    "legacyFieldOrder": [
+      "ref",
+      "name",
+      "owner_id",
+      "sheet_primary_platform",
+      "sheet_primary_handle",
+      "sheet_primary_profile_url",
+      "sheet_primary_email",
+      "platforms",
+      "activity_regions",
+      "languages",
+      "content_topics",
+      "total_followers",
+      "content_count_365d",
+      "latest_post_at",
+      "audience_summary",
+      "outreach_score",
+      "outreach_status",
+      "last_contact_at",
+      "current_collaboration_ref",
+      "current_collaboration_title",
+      "current_collaboration_status",
+      "sheet_current_plan_ref",
+      "sheet_current_plan_name",
+      "next_action",
+      "next_action_due_at",
+      "data_status",
+      "profile_metrics_as_of",
+      "refresh_fields_text",
+      "account_summary",
+      "contact_summary",
+      "description",
+      "do_not_contact",
+      "notes"
+    ],
+    "legacyHeaders": [
+      "Ref",
+      "Creator Name",
+      "Owner",
+      "Primary Platform",
+      "Primary Handle",
+      "Primary Profile URL",
+      "Primary Email",
+      "Platforms",
+      "Activity Regions (comma-separated)",
+      "Languages (comma-separated)",
+      "Content Topics (comma-separated)",
+      "Total Followers (May Overlap Across Platforms)",
+      "Posts in Last 365 Days (Cross-posts May Overlap)",
+      "Latest Post At",
+      "Audience Evidence Summary",
+      "Outreach Score (1-5)",
+      "Outreach Status",
+      "Last Contact At",
+      "Active Collaboration Ref",
+      "Active Collaboration",
+      "Active Collaboration Status",
+      "Active Plan Ref",
+      "Active Plan",
+      "Next Action",
+      "Next Action Due At",
+      "Data Status",
+      "Account Metrics As Of",
+      "Fields to Refresh",
+      "Platform Account Detail",
+      "Contact Method Detail",
+      "Content / Background",
+      "Do Not Contact",
+      "Notes"
+    ],
+    "helpText": "흰색 칸은 직접 수정한 뒤 선택행 저장이 가능합니다. 회색 칸은 Supabase에서 자동 동기화되는 읽기 전용 정보입니다. Platforms는 연결된 전체 플랫폼을 한 칸에 표시하고 Languages는 연락 상태 오른쪽에 있습니다."
   },
   "Connected Creators": {
     "entity": "gtm_creators",

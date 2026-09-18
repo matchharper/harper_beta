@@ -43,19 +43,36 @@ assert.deepEqual(Array.from(context.dirtySheetNames_(mixedWorkbook)),['Creator D
 assert.match(context.refreshAllCore_.toString(),/dirtySheets\.indexOf\(name\)>=0/);
 console.log('PASS refresh preserves dirty sheets while allowing clean sheets to continue syncing');
 
-const oldFieldCount=n-c.legacyInsertions.length,legacyVisible=Array(oldFieldCount).fill('');
-legacyVisible[0]=1;legacyVisible[1]='Legacy creator';legacyVisible[15]='awaiting_reply';
+assert.ok(!c.fields.some(field=>/[()]/.test(field[1])));
+assert.ok(!c.fields.some(field=>field[0]==='owner_id'));
+assert.ok(!c.fields.some(field=>field[0]==='sheet_primary_platform'));
+assert.equal(c.fields[2][0],'platforms');
+assert.equal(c.fields.findIndex(field=>field[0]==='languages'),c.fields.findIndex(field=>field[0]==='last_contact_at')+1);
+const oldFieldCount=c.legacyFieldOrder.length,legacyVisible=Array(oldFieldCount).fill('');
+const oldIndex=key=>c.legacyFieldOrder.indexOf(key);
+legacyVisible[oldIndex('ref')]=1;legacyVisible[oldIndex('name')]='Legacy creator';
+legacyVisible[oldIndex('owner_id')]='removed owner';legacyVisible[oldIndex('sheet_primary_platform')]='youtube';
+legacyVisible[oldIndex('platforms')]='youtube, instagram';legacyVisible[oldIndex('languages')]='ko, en';
+legacyVisible[oldIndex('outreach_status')]='awaiting_reply';legacyVisible[oldIndex('last_contact_at')]='2026-09-18';
 const legacyId='bd94d180-6d21-4cb2-91ef-72763151d2f6';
 const legacyRow=legacyVisible.concat(['미반영 · 메뉴에서 선택행 저장',legacyId,7,JSON.stringify(legacyVisible),'request-legacy','payload-legacy']);
 let migratedRow=null,maxColumns=legacyRow.length;
 const legacySheet={getName:()=> 'Creator Directory',getLastRow:()=>6,getMaxColumns:()=>maxColumns,
  insertColumnsAfter:(after,count)=>{maxColumns+=count;},
- getRange:(r,col,height,width)=>({getValues:()=>[legacyRow.slice(col-1,col-1+width)],setValues:matrix=>{migratedRow=matrix[0];}})};
-assert.equal(context.migrateLegacyRows_(legacySheet,c),1);
-assert.equal(migratedRow.length,n+6);assert.equal(migratedRow[15],'');assert.equal(migratedRow[16],'awaiting_reply');
+ getRange:(r,col,height,width)=>({
+  getValues:()=>[r===5?c.legacyHeaders.slice(col-1,col-1+width):legacyRow.slice(col-1,col-1+width)],
+  clearContent(){},setValues:matrix=>{migratedRow=matrix[0];}
+ })};
+assert.equal(context.migrateFieldOrderRows_(legacySheet,c),1);
+assert.equal(migratedRow.length,n+6);
+assert.equal(migratedRow[c.fields.findIndex(field=>field[0]==='outreach_status')],'awaiting_reply');
+assert.equal(migratedRow[c.fields.findIndex(field=>field[0]==='last_contact_at')],'2026-09-18');
+assert.equal(migratedRow[c.fields.findIndex(field=>field[0]==='platforms')],'youtube, instagram');
+assert.equal(migratedRow[c.fields.findIndex(field=>field[0]==='languages')],'ko, en');
 assert.equal(migratedRow[n],'미반영 · 메뉴에서 선택행 저장');assert.equal(migratedRow[n+1],legacyId);
-assert.equal(JSON.parse(migratedRow[n+3])[15],'');assert.equal(migratedRow[n+4],'request-legacy');
-console.log('PASS schema upgrade inserts new visible fields without shifting legacy IDs, versions, or unsaved edits');
+assert.equal(JSON.parse(migratedRow[n+3])[c.fields.findIndex(field=>field[0]==='platforms')],'youtube, instagram');
+assert.equal(migratedRow[n+4],'request-legacy');
+console.log('PASS Creator Directory schema upgrade remaps reordered fields without shifting IDs, versions, or unsaved edits');
 
 values=context.row_(committed,c,ctx);values[0]=999;
 assert.equal(context.dirty_(values,c),false);
@@ -107,8 +124,11 @@ assert.match(reviewC.helpText,/노란색 Review Decision/);
 assert.match(reviewC.helpText,/Approve & Send를 선택하면 셀이 초록색/);
 assert.equal(reviewC.fields.find(field=>field[0]==='review_action')[2],'decision');
 const bridgeSource=fs.readFileSync(__dirname+'/sheets-bridge.gs','utf8');
-assert.match(bridgeSource,/whenTextEqualTo\('Approve & Send'\)/);
+assert.match(bridgeSource,/whenFormulaSatisfied/);
+assert.match(bridgeSource,/fieldIndex_\(c,'sent_at'\)/);
+assert.match(bridgeSource,/Approve & Send/);
 assert.match(bridgeSource,/setBackground\('#d9ead3'\)/);
+assert.match(bridgeSource,/clearWarningOnlyProtections_/);
 assert.match(bridgeSource,/WrapStrategy\.CLIP/);
 assert.match(bridgeSource,/setRowHeightsForced\(6,height,38\)/);
 assert.match(bridgeSource,/getRange\(4,1,2,s\.getMaxColumns\(\)\)\.clearContent\(\)\.clearFormat\(\)\.clearDataValidations\(\)/);
