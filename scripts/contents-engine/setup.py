@@ -30,11 +30,11 @@ def main():
     env = dotenv_values(ROOT / '.env.local')
     config_dir = Path.home() / '.config/harper'
     config_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-    outputs = [config_dir / 'contents-engine.json', config_dir / 'contents-engine-sheets.json']
+    outputs = [config_dir / 'contents-engine.json', config_dir / 'contents-engine-server.json']
     if any(p.exists() for p in outputs):
         raise RuntimeError('Existing GTM credentials found. Inspect the existing setup instead of reapplying.')
     credentials = [secrets.token_urlsafe(32), secrets.token_urlsafe(32)]
-    names = ['Hojin / Contents Engine Agent', 'Contents Engine Google Sheets']
+    names = ['Contents Engine Agent Runtime', 'Contents Engine Server Bridge']
     # Stage owner-only files before committing, so a filesystem error cannot strand credentials.
     staged = []
     for path, token in zip(outputs, credentials):

@@ -1,9 +1,12 @@
 /** Harper Contents Engine. Bound to one workbook.
  * @OnlyCurrentDoc
  * GTM_TABLES is generated from sheet-columns.json and inserted above this file.
- * Each teammate stores their own scoped GTM credential in UserProperties.
+ * Teammates authenticate with their Harper Google Workspace identity. GTM
+ * credentials stay on the Harper server and are never stored in this workbook.
  */
-const GTM_SHEET_SCHEMA_VERSION='2026-09-18-v15';
+const GTM_SHEET_SCHEMA_VERSION='2026-09-18-v16';
+const GTM_APP_URL='https://matchharper.com';
+const GTM_SPREADSHEET_ID='1-3QpEN19fFEiP6acBqLWMCOD483bWvJtPwwQ9KUqgEI';
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Contents Engine')
@@ -14,39 +17,35 @@ function onOpen() {
     .addItem('Outreach Review 선택행 승인/반영', 'saveOutreachReviewSelected')
     .addItem('선택한 행 상세', 'showSelected')
     .addItem('선택한 행 서버값 다시 읽기', 'reloadSelected')
-    .addSeparator().addItem('연결 설정', 'configureConnection')
+    .addSeparator()
     .addItem('연결 확인', 'verifyConnection').addToUi();
-}
-function configureConnection() {
-  const ui=SpreadsheetApp.getUi();
-  const response=ui.prompt('GTM 전용 연결', '관리자가 발급한 supabase_url, anon_key, token JSON을 입력하세요. app_url은 생략하면 https://matchharper.com 을 사용합니다. 본인 UserProperties에만 저장되며 DB 관리자 키를 넣지 마세요.', ui.ButtonSet.OK_CANCEL);
-  if(response.getSelectedButton()!==ui.Button.OK)return;
-  const config=JSON.parse(response.getResponseText());
-  const base=String(config.supabase_url||'').trim().replace(/\/+$/,'');
-  if(!/^https:\/\/[A-Za-z0-9.-]+(?::\d+)?$/.test(base)||!config.anon_key||!config.token)throw Error('구성 형식을 확인하세요.');
-  config.supabase_url=base;
-  const appUrl=String(config.app_url||'https://matchharper.com').trim().replace(/\/+$/,'');
-  if(!/^https:\/\/(?:[A-Za-z0-9-]+\.)*matchharper\.com$/.test(appUrl))throw Error('app_url은 matchharper.com 주소여야 합니다.');
-  config.app_url=appUrl;
-  PropertiesService.getUserProperties().setProperty('GTM_CONFIG',JSON.stringify(config));
-  verifyConnection();
 }
 function rpc_(request) {
   return postRpc_('gtm_api',request);
 }
-function postRpc_(name,request) {
-  const raw=PropertiesService.getUserProperties().getProperty('GTM_CONFIG');
-  if(!raw)throw Error('Contents Engine → 연결 설정에서 본인의 GTM 전용 키를 연결하세요.');
-  const c=JSON.parse(raw),payload={p_token:c.token};
-  Object.keys(request).forEach(k=>payload['p_'+k]=request[k]);
-  const response=UrlFetchApp.fetch(c.supabase_url+'/rest/v1/rpc/'+name,{method:'post',contentType:'application/json',headers:{apikey:c.anon_key},payload:JSON.stringify(payload),muteHttpExceptions:true});
-  const data=JSON.parse(response.getContentText());
-  if(response.getResponseCode()>=400)throw Error(data.message||('API '+response.getResponseCode()));
+function googleIdentityToken_(){
+  const token=ScriptApp.getIdentityToken();
+  if(!token)throw Error('Harper Google Workspace 권한이 필요합니다. 이 메뉴를 다시 실행해 Google 권한을 승인하세요.');
+  return token;
+}
+function postServer_(path,payload){
+  const response=UrlFetchApp.fetch(GTM_APP_URL+path,{
+    method:'post',contentType:'application/json',
+    headers:{Authorization:'Bearer '+googleIdentityToken_()},
+    payload:JSON.stringify(payload),muteHttpExceptions:true
+  });
+  let data={};
+  try{data=JSON.parse(response.getContentText()||'{}');}
+  catch(error){throw Error('서버 응답을 읽을 수 없습니다. HTTP '+response.getResponseCode());}
+  if(response.getResponseCode()>=400)throw Error(data.error||data.message||('API '+response.getResponseCode()));
   return data;
+}
+function postRpc_(name,request) {
+  return postServer_('/api/internal/contents-engine/sheets/rpc',{rpc:name,params:request});
 }
 function verifyConnection(){
   const r=rpc_({action:'list',entity:'gtm_creators',data:{limit:1}});
-  SpreadsheetApp.getActive().toast('GTM 조회 연결 확인 · '+r.as_of,'Contents Engine',8);
+  SpreadsheetApp.getActive().toast('Google Workspace 연결 확인 · '+r.as_of,'Contents Engine',8);
 }
 function all_(entity,filters){
   let rows=[],offset=0;
@@ -133,7 +132,9 @@ function textCell_(v){return typeof v==='string'&&/^[=+@]/.test(v)?"'"+v:v;}
 function writeRows_(sheet,start,values){
   if(values.length)sheet.getRange(start,1,values.length,values[0].length).setValues(values.map(row=>row.map(textCell_)));
 }
-function workbook_(){return SpreadsheetApp.getActiveSpreadsheet();}
+function workbook_(){
+  return SpreadsheetApp.getActiveSpreadsheet()||SpreadsheetApp.openById(GTM_SPREADSHEET_ID);
+}
 function migrateLegacyRows_(sheet,c){
   const insertions=(c.legacyInsertions||[]).slice().sort((a,b)=>a-b);
   if(!insertions.length||sheet.getLastRow()<6)return 0;
@@ -322,15 +323,38 @@ function prepareWorkbook(){
   ss.toast('운영 시트와 원장 시트 구조를 업데이트했습니다.','Contents Engine',8);
   return schemaChanged;
 }
-function refreshSheet_(s,c,values,ctx){
+function mergeRefreshRows_(current,remote,c){
+  const idIndex=c.fields.length+1,remoteIds={};
+  remote.forEach(row=>{if(row[idIndex])remoteIds[String(row[idIndex])]=true;});
+  const dirtyById={},dirtyWithoutId=[];
+  current.forEach(row=>{
+    if(!dirty_(row,c))return;
+    const id=String(row[idIndex]||'');
+    if(id)dirtyById[id]=row;else dirtyWithoutId.push(row);
+  });
+  const merged=remote.map(row=>dirtyById[String(row[idIndex]||'')]||row);
+  Object.keys(dirtyById).forEach(id=>{
+    if(remoteIds[id])return;
+    const row=dirtyById[id].slice();
+    row[c.fields.length]='미반영 · 서버 목록에서 사라진 행 · 저장 전 확인 필요';
+    merged.push(row);
+  });
+  return {dirtyCount:Object.keys(dirtyById).length+dirtyWithoutId.length,rows:merged.concat(dirtyWithoutId)};
+}
+function refreshSheet_(s,c,remoteValues,ctx){
+  const merged=mergeRefreshRows_(rows_(s,c),remoteValues,c),values=merged.rows;
   const count=Math.max(values.length,s.getLastRow()-5,1);
   if(s.getMaxRows()<count+5)s.insertRowsAfter(s.getMaxRows(),count+5-s.getMaxRows());
   s.getRange(6,1,count,c.fields.length+6).clearContent();
   writeRows_(s,6,values);
   if(c.reviewMode)formatReviewRows_(s,c);
   formatPricingStrategyRows_(s,c);
-  s.getRange('A3').setValue('최근 동기화 '+ctx.perf.generated_at+' · 조회 범위 '+ctx.perf.start_at+' ~ '+ctx.perf.end_at);
+  s.getRange('A3').setValue(
+    '정상 동기화 '+ctx.perf.generated_at+' · 조회 범위 '+ctx.perf.start_at+' ~ '+ctx.perf.end_at+
+    (merged.dirtyCount?' · 미반영 편집 '+merged.dirtyCount+'행 보존':'')
+  ).setBackground('#d9ead3').setFontColor('#274e13');
   s.hideColumns(c.fields.length+2,5);
+  return merged.dirtyCount;
 }
 function installWorkbook(){
   const schemaChanged=prepareWorkbook();
@@ -345,46 +369,54 @@ function installWorkbook(){
   }
 }
 function installAutoSync(){
-  const schemaChanged=prepareWorkbook();
+  prepareWorkbook();
   const ss=workbook_(),handlers=['refreshAllFromTrigger','refreshOnOpen'];
   ScriptApp.getProjectTriggers().forEach(trigger=>{
     if(handlers.indexOf(trigger.getHandlerFunction())>=0)ScriptApp.deleteTrigger(trigger);
   });
-  ScriptApp.newTrigger('refreshAllFromTrigger').timeBased().everyMinutes(5).create();
+  ScriptApp.newTrigger('refreshAllFromTrigger').timeBased().everyMinutes(1).create();
   ScriptApp.newTrigger('refreshOnOpen').forSpreadsheet(ss).onOpen().create();
-  refreshAllCore_(ss,true,schemaChanged);
-  ss.toast('5분 주기와 파일 열기 자동 동기화를 설치했습니다.','Contents Engine',8);
+  refreshAllCore_(ss,true);
+  ss.toast('1분 주기와 파일 열기 자동 동기화를 설치했습니다.','Contents Engine',8);
 }
 function refreshOnOpen(event){refreshAllFromTrigger(event);}
 function refreshAllFromTrigger(event){
-  try{refreshAllCore_(event&&event.source?event.source:workbook_(),false,false);}
-  catch(error){console.error('Contents Engine automatic refresh skipped: '+error.message);}
+  const ss=event&&event.source?event.source:workbook_();
+  try{refreshAllCore_(ss,false);}
+  catch(error){markSyncFailure_(ss,error);console.error('Contents Engine automatic refresh failed: '+error.message);}
 }
-function refreshAll(){refreshAllCore_(workbook_(),true,false);}
-function dirtySheetNames_(ss){
-  return Object.keys(GTM_TABLES).filter(name=>{
+function refreshAll(){
+  const ss=workbook_();
+  try{refreshAllCore_(ss,true);}
+  catch(error){markSyncFailure_(ss,error);throw error;}
+}
+function markSyncFailure_(ss,error){
+  const message='동기화 실패 '+new Date().toISOString()+' · '+String(error&&error.message||error).slice(0,240);
+  Object.keys(GTM_TABLES).forEach(name=>{
     const s=ss.getSheetByName(name);
-    return s&&rows_(s,GTM_TABLES[name]).some(r=>dirty_(r,GTM_TABLES[name]));
+    if(s)s.getRange('A3').setValue(message).setBackground('#f4cccc').setFontColor('#990000');
   });
+  PropertiesService.getDocumentProperties().setProperty('GTM_LAST_SYNC_ERROR',message);
 }
-function refreshAllCore_(ss,showToast,forceRefresh){
+function refreshAllCore_(ss,showToast){
   const lock=LockService.getDocumentLock();lock.waitLock(30000);
   try{
     Object.keys(GTM_TABLES).forEach(name=>{
       if(!ss.getSheetByName(name))throw Error(name+' 시트가 없습니다. 먼저 시트 구조를 설치하세요.');
     });
-    const dirtySheets=forceRefresh?[]:dirtySheetNames_(ss);
     const ctx=context_();
+    const preserved=[];
     Object.keys(GTM_TABLES).forEach(name=>{
-      if(dirtySheets.indexOf(name)>=0)return;
       const c=GTM_TABLES[name],s=ss.getSheetByName(name),values=ctx.sheetRows[name].map(r=>row_(r,c,ctx));
-      refreshSheet_(s,c,values,ctx);
+      const dirtyCount=refreshSheet_(s,c,values,ctx);
+      if(dirtyCount)preserved.push(name+' '+dirtyCount+'행');
     });
     renderPerformance_(ss.getSheetByName('전체 성과'),ctx.perf);
     renderPerformanceFeed_(ss,ctx);
+    PropertiesService.getDocumentProperties().deleteProperty('GTM_LAST_SYNC_ERROR');
     if(showToast)ss.toast(
-      dirtySheets.length
-        ? '갱신 완료 · 미반영 편집 보존: '+dirtySheets.join(', ')
+      preserved.length
+        ? '갱신 완료 · DB 신규/변경 반영 · 로컬 편집 보존: '+preserved.join(', ')
         : '원장과 제품 성과 갱신 완료',
       'Contents Engine',8
     );
@@ -507,22 +539,7 @@ function reviewAction_(value){
   throw Error('Review Decision에서 Approve & Send, Request Revision, Skip 중 하나를 선택하세요.');
 }
 function requestImmediateDispatch_(dispatchId){
-  const raw=PropertiesService.getUserProperties().getProperty('GTM_CONFIG');
-  if(!raw)throw Error('GTM 연결 설정이 없습니다.');
-  const config=JSON.parse(raw),appUrl=String(config.app_url||'https://matchharper.com').replace(/\/+$/,'');
-  const response=UrlFetchApp.fetch(appUrl+'/api/internal/contents-engine/outreach/dispatch',{
-    method:'post',
-    contentType:'application/json',
-    headers:{Authorization:'Bearer '+config.token},
-    payload:JSON.stringify({dispatchId:dispatchId}),
-    muteHttpExceptions:true
-  });
-  if(response.getResponseCode()>=400){
-    let message='HTTP '+response.getResponseCode();
-    try{message=JSON.parse(response.getContentText()).error||message;}catch(error){}
-    throw Error(message);
-  }
-  const result=JSON.parse(response.getContentText());
+  const result=postServer_('/api/internal/contents-engine/outreach/dispatch',{dispatchId:dispatchId});
   if(result.ok===false){
     const failure=result.results&&result.results[0]&&result.results[0].error;
     throw Error(failure||result.error||'Gmail 발송에 실패했습니다.');
@@ -556,8 +573,7 @@ function saveOutreachReviewRows_(s,c,r,ctx){
       subject:String(values[indexes.subject]||''),
       body:String(values[indexes.body]||''),
       scheduled_at:scheduledAt,
-      review_note:values[indexes.note]===''?null:String(values[indexes.note]),
-      actor_email:Session.getActiveUser().getEmail()||null
+      review_note:values[indexes.note]===''?null:String(values[indexes.note])
     };
     const signature=JSON.stringify(request);
     request.request_id=values[c.fields.length+5]===signature&&values[c.fields.length+4]

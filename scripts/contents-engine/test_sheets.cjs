@@ -37,11 +37,15 @@ values[notesIndex]='local update';context.rpc_=()=>{throw Error('Row version con
 assert.throws(()=>context.saveSelected(),/Row version conflict/);assert.equal(values[notesIndex],'local update');assert.match(values[n],/conflict/);assert.equal(committed.notes,null);
 console.log('PASS conflict preserves local edits and does not overwrite the server');
 
-const cleanSheet={getLastRow:()=>5};
-const mixedWorkbook={getSheetByName:name=>name==='Creator Directory'?sheet:cleanSheet};
-assert.deepEqual(Array.from(context.dirtySheetNames_(mixedWorkbook)),['Creator Directory']);
-assert.match(context.refreshAllCore_.toString(),/dirtySheets\.indexOf\(name\)>=0/);
-console.log('PASS refresh preserves dirty sheets while allowing clean sheets to continue syncing');
+const dirtyLocal=values.slice(),remoteExisting=context.row_({...committed,notes:'server update'},c,ctx);
+const remoteNew=context.row_({...committed,id:'id-2',ref:2,name:'New DB creator',notes:null},c,ctx);
+const mergedRefresh=context.mergeRefreshRows_([dirtyLocal],[remoteExisting,remoteNew],c);
+assert.equal(mergedRefresh.dirtyCount,1);
+assert.equal(mergedRefresh.rows.length,2);
+assert.equal(mergedRefresh.rows[0][notesIndex],'local update');
+assert.equal(mergedRefresh.rows[1][c.fields.findIndex(field=>field[0]==='name')],'New DB creator');
+assert.doesNotMatch(context.refreshAllCore_.toString(),/dirtySheets/);
+console.log('PASS refresh preserves only dirty rows while continuing to add and update DB rows');
 
 assert.ok(!c.fields.some(field=>/[()]/.test(field[1])));
 assert.ok(!c.fields.some(field=>field[0]==='owner_id'));
@@ -126,6 +130,31 @@ assert.match(reviewC.helpText,/노란색 Review Decision/);
 assert.match(reviewC.helpText,/Approve & Send는 초록색으로 바뀝니다/);
 assert.equal(reviewC.fields.find(field=>field[0]==='review_action')[2],'decision');
 const bridgeSource=fs.readFileSync(__dirname+'/sheets-bridge.gs','utf8');
+assert.doesNotMatch(bridgeSource,/GTM_CONFIG|configureConnection|UserProperties/);
+assert.match(bridgeSource,/ScriptApp\.getIdentityToken\(\)/);
+assert.match(bridgeSource,/\/api\/internal\/contents-engine\/sheets\/rpc/);
+assert.match(bridgeSource,/Google Workspace 연결 확인/);
+assert.match(bridgeSource,/everyMinutes\(1\)/);
+assert.match(bridgeSource,/markSyncFailure_/);
+assert.match(bridgeSource,/SpreadsheetApp\.openById\(GTM_SPREADSHEET_ID\)/);
+let proxyCall=null;
+context.ScriptApp={getIdentityToken:()=> 'google-identity-token'};
+context.UrlFetchApp={fetch:(url,options)=>{
+ proxyCall={url,options};
+ return {getResponseCode:()=>200,getContentText:()=>JSON.stringify({rows:[],as_of:'2026-09-18T00:00:00Z'})};
+}};
+assert.deepEqual(
+ JSON.parse(JSON.stringify(context.postRpc_('gtm_sheet_view',{view:'creator_directory',limit:1,offset:0}))),
+ {rows:[],as_of:'2026-09-18T00:00:00Z'}
+);
+assert.equal(proxyCall.url,'https://matchharper.com/api/internal/contents-engine/sheets/rpc');
+assert.equal(proxyCall.options.headers.Authorization,'Bearer google-identity-token');
+assert.deepEqual(JSON.parse(proxyCall.options.payload),{
+ rpc:'gtm_sheet_view',params:{view:'creator_directory',limit:1,offset:0}
+});
+const manifest=JSON.parse(fs.readFileSync(__dirname+'/appsscript.json','utf8'));
+assert.ok(manifest.oauthScopes.includes('openid'));
+assert.ok(manifest.oauthScopes.includes('https://www.googleapis.com/auth/userinfo.email'));
 assert.match(bridgeSource,/whenFormulaSatisfied/);
 assert.match(bridgeSource,/fieldIndex_\(c,'sent_at'\)/);
 assert.match(bridgeSource,/Approve & Send/);

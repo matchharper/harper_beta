@@ -21,7 +21,7 @@ root += '''
 
 업무 테이블은 위 10개다. 여기에 GTM 제한 접근 키의 해시/만료를 보관하는 `gtm_access_tokens` 1개가 있다. 총 물리 테이블은 11개이며 모두 gtm_ 접두사다. 활동의 실제 변경 기록으로 감사·중복 실행 방지를 처리하며 별도 사고/판단 테이블은 만들지 않는다.
 
-팀원은 Sheets의 전체 성과·Creator Directory·Connected Creators·Outreach Log·협업·콘텐츠·집행·캠페인·포맷에서 시작한다. Directory는 전체 후보와 허용된 편집 필드, Connected Creators는 연결 이후 누적 협업·콘텐츠·비용·성과, Outreach Log는 메시지 초안·발송·수신 원문을 보여준다. 두 조인 화면은 읽기 전용이고 5분·파일 열기·수동 새로고침으로 DB를 다시 읽는다. DB UUID 대신 원장별 짧은 ref를 사용하고 수정/충돌 상태를 확인한다. 계정·활동·관측·비용 원본은 Agent의 상세 조회와 기록으로 같은 대상을 이어 사용한다. Sheet의 기본 칼럼은 모든 DB 칼럼의 복제본이 아니다.
+팀원은 Sheets의 전체 성과·Creator Directory·Connected Creators·Outreach Log·협업·콘텐츠·집행·캠페인·포맷에서 시작한다. Directory는 전체 후보와 허용된 편집 필드, Connected Creators는 연결 이후 누적 협업·콘텐츠·비용·성과, Outreach Log는 메시지 초안·발송·수신 원문을 보여준다. 두 조인 화면은 읽기 전용이고 1분·파일 열기·수동 새로고침으로 DB를 다시 읽는다. 미반영 편집은 해당 행만 보존하고 같은 탭의 DB 신규·변경 행은 계속 반영한다. DB UUID 대신 원장별 짧은 ref를 사용하고 수정/충돌 상태를 확인한다. 계정·활동·관측·비용 원본은 Agent의 상세 조회와 기록으로 같은 대상을 이어 사용한다. Sheet의 기본 칼럼은 모든 DB 칼럼의 복제본이 아니다.
 '''
 (D/'AGENTS.md').write_text(root)
 

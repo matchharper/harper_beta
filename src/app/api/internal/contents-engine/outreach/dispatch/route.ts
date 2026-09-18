@@ -4,15 +4,22 @@ import {
   verifyCronSecret,
   verifyGtmOutreachWriteToken,
 } from "@/lib/contentsEngine/outreach";
+import {
+  bearerToken,
+  verifyContentsEngineSheetsIdentity,
+} from "@/lib/contentsEngine/sheetsAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-function bearerToken(request: NextRequest) {
-  const authorization = request.headers.get("authorization");
-  return authorization?.startsWith("Bearer ")
-    ? authorization.slice(7).trim()
-    : "";
+async function canDispatchFromSheetOrGtmToken(token: string) {
+  if (!token) return false;
+  try {
+    await verifyContentsEngineSheetsIdentity(token);
+    return true;
+  } catch {
+    return verifyGtmOutreachWriteToken(token);
+  }
 }
 
 function isUuid(value: unknown): value is string {
@@ -26,8 +33,8 @@ function isUuid(value: unknown): value is string {
 
 export async function POST(request: NextRequest) {
   try {
-    const token = bearerToken(request);
-    if (!token || !(await verifyGtmOutreachWriteToken(token))) {
+    const token = bearerToken(request.headers.get("authorization"));
+    if (!(await canDispatchFromSheetOrGtmToken(token))) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const body = (await request.json().catch(() => ({}))) as {

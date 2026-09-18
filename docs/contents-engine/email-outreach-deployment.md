@@ -43,6 +43,8 @@ scripts/contents-engine/setup_gmail_pubsub.sh
 | `GTM_OUTREACH_GMAIL_PUBSUB_SERVICE_ACCOUNT` | 인증된 push 호출용 서비스 계정 이메일 |
 | `GTM_OUTREACH_SLACK_CHANNEL_ID` | 답장 알림을 받을 Slack 채널 ID |
 | `GTM_CONTENTS_ENGINE_SHEET_URL` | 운영 Contents Engine Sheet URL |
+| `GTM_CONTENTS_ENGINE_SERVER_TOKEN` | Sheet proxy가 기존 GTM RPC에 주입하는 서버 전용 제한 키. Sheet·Apps Script·팀원에게 공개하지 않음 |
+| `GTM_SHEETS_GOOGLE_OAUTH_CLIENT_IDS` | 운영 Apps Script Google Cloud 프로젝트의 OAuth client ID. 여러 개면 쉼표로 구분 |
 
 기존 `SUPABASE_SERVICE_ROLE_KEY`, `SLACK_BOT_TOKEN`, `CRON_SECRET`도 필요하다. Slack bot을 지정 채널에 초대하고 `chat:write` 권한을 확인한다.
 
@@ -50,13 +52,14 @@ scripts/contents-engine/setup_gmail_pubsub.sh
 
 1. 최초 구성은 `20260917075510_gtm_outreach_dispatches.sql`, 회신 분류·반송 보강은 `20260917090000_gtm_outreach_reply_triage.sql` migration을 순서대로 적용한다.
 2. Harper 앱을 배포해 승인 발송, Gmail push, watch renewal endpoint와 5분 복구 cron을 활성화한다.
-3. `sheets-bridge.gs`와 `sheet-columns.json`을 운영 Apps Script에 반영한다.
-4. Sheet에서 전체 새로고침을 실행해 `Outreach Review` 탭을 만든다.
-5. cron secret으로 Gmail watch endpoint를 한 번 호출하거나 첫 일일 cron 성공을 확인한다.
-6. 통제된 내부 수신 주소 한 건으로 준비 → `Approve & Send` → Gmail 발송 → 회신 → DB `message_received` → Slack 알림을 확인한다.
-7. 같은 Pub/Sub 메시지를 다시 전달해 DB 활동과 Slack 알림이 중복되지 않는지 확인한다.
-8. 통제된 영구 반송 영수증으로 정확한 수신 contact만 `bounced`가 되고 같은 영수증·Slack 알림이 중복되지 않는지 확인한다. 4.x 영수증은 contact를 막지 않아야 한다.
-9. 긍정·협상·질문·부정·게시 알림 샘플 회신이 compact Slack 형식과 Outreach Log에 표시되고, 게시 알림만으로 콘텐츠가 자동 게시 처리되지 않는지 확인한다.
+3. `sheets-bridge.gs`, `sheet-columns.json`, `appsscript.json`을 운영 Apps Script에 반영한다. manifest의 `openid`와 `userinfo.email` scope가 있어야 서버가 실행한 Workspace 팀원을 확인할 수 있다.
+4. 새 `Contents Engine Server Bridge` 제한 키를 발급해 Harper Production에만 저장하고, 예전 `Contents Engine Google Sheets` 키는 폐기한다. 그러면 기존 UserProperties에 남은 복사본도 사용할 수 없다. Apps Script OAuth client ID도 Production에 저장한 뒤 Sheet에서 `연결 확인`을 실행해 Google 권한만 승인한다. 개인 GTM 키나 연결 JSON은 입력하지 않는다.
+5. Sheet에서 전체 새로고침을 실행해 `Outreach Review` 탭을 만든다.
+6. cron secret으로 Gmail watch endpoint를 한 번 호출하거나 첫 일일 cron 성공을 확인한다.
+7. 통제된 내부 수신 주소 한 건으로 준비 → `Approve & Send` → Gmail 발송 → 회신 → DB `message_received` → Slack 알림을 확인한다.
+8. 같은 Pub/Sub 메시지를 다시 전달해 DB 활동과 Slack 알림이 중복되지 않는지 확인한다.
+9. 통제된 영구 반송 영수증으로 정확한 수신 contact만 `bounced`가 되고 같은 영수증·Slack 알림이 중복되지 않는지 확인한다. 4.x 영수증은 contact를 막지 않아야 한다.
+10. 긍정·협상·질문·부정·게시 알림 샘플 회신이 compact Slack 형식과 Outreach Log에 표시되고, 게시 알림만으로 콘텐츠가 자동 게시 처리되지 않는지 확인한다.
 
 ## 운영 흐름
 

@@ -1,7 +1,7 @@
 """Build the bound Google Apps Script from the reviewed Sheet contract.
 
-The generated file contains no credentials. Each authorized user stores their
-scoped GTM connection in Apps Script UserProperties at runtime.
+The generated files contain no credentials. Teammates authenticate with their
+Harper Google Workspace identity and the server owns the scoped GTM credential.
 """
 
 from pathlib import Path
@@ -22,12 +22,15 @@ def build() -> str:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument('--output', type=Path)
+    parser.add_argument('--manifest-output', type=Path)
     args = parser.parse_args()
     content = build()
     if args.output:
         args.output.write_text(content)
     else:
         print(content, end='')
+    if args.manifest_output:
+        args.manifest_output.write_text((ROOT / 'appsscript.json').read_text())
 
 
 if __name__ == '__main__':
