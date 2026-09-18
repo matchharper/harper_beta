@@ -903,7 +903,7 @@
         "read"
       ]
     ],
-    "helpText": "① 크리에이터·수신 이메일·템플릿·가격 전략·예상 비용·제목·본문을 확인하세요. 조회 이력이 없으면 예상 비용은 비워 두고 근거 부족으로 취급합니다. ② 노란색 Review Decision에서 결정을 선택하세요. Approve & Send는 초록색으로 바뀝니다. ③ 행을 선택하고 Contents Engine → Outreach Review 선택행 승인/반영을 실행하면 승인 건만 실제 발송됩니다.",
+    "helpText": "① 크리에이터·수신 이메일·템플릿·가격 전략·예상 비용·제목·본문을 확인하세요. 조회수 연동 전략인데 조회 이력이 없으면 예상 비용은 비워 두고 근거 부족으로 취급하며, 고정비 전략은 조회 이력 없이도 금액을 표시합니다. ② 노란색 Review Decision에서 결정을 선택하세요. Approve & Send는 초록색으로 바뀝니다. ③ 행을 선택하고 Contents Engine → Outreach Review 선택행 승인/반영을 실행하면 승인 건만 실제 발송됩니다.",
     "legacyInsertions": [
       4,
       5,
@@ -1237,7 +1237,7 @@
         "read"
       ]
     ],
-    "helpText": "가격 실험 조건을 관리합니다. base_plus_views는 업로드 기본비 + (측정 조회수 ÷ Views Per Unit × Amount Per Unit)으로 비례 계산합니다. 이미 콘텐츠에 지정된 버전의 금액 조건은 바꿀 수 없으며 새 버전을 만들어야 합니다."
+    "helpText": "가격 실험 조건을 관리합니다. base_plus_views는 업로드 기본비 + (측정 조회수 ÷ Views Per Unit × Amount Per Unit)으로 비례 계산합니다. 검토가 끝난 전략만 Status를 active로 바꿔 Outreach에 사용합니다. Outreach나 콘텐츠에 한 번 사용한 버전의 금액 조건은 바꿀 수 없으며 새 버전을 만들어야 합니다."
   },
   "콘텐츠": {
     "entity": "gtm_contents",
@@ -1298,6 +1298,16 @@
       [
         "platform_metrics_as_of",
         "Metrics As Of",
+        "read"
+      ],
+      [
+        "paid_amount",
+        "Paid Amount",
+        "read"
+      ],
+      [
+        "performance_conclusion",
+        "Performance Conclusion",
         "read"
       ],
       [
@@ -1485,7 +1495,11 @@
       "Cost Currency",
       "Measurement Status"
     ],
-    "helpText": "게시 콘텐츠의 공개 성과와 정산 상태입니다. 조회수·좋아요·작성자 제외 댓글은 자동 수집되며, 측정일이 지나면 고정된 가격 전략으로 지급액을 확정하고 Slack에 알립니다. Ref는 연결·감사용이라 뒤쪽에 배치했습니다."
+    "helpText": "게시 콘텐츠의 공개 성과와 정산 상태입니다. Paid Amount는 실제 지급·환불 증빙이 있는 순지급액만 표시합니다. Performance Conclusion은 최신 성과 리뷰를 🟢 Scale, 🟡 Retry, 🟠 Hold, 🔴 Stop, ⚪ 리뷰 전으로 시작하며 수치 임계값으로 자동 판정하지 않습니다. 고정비는 게시 후 확정하고, 조회수 연동 비용은 측정일이 지난 뒤 확정해 Slack에 알립니다. Ref는 연결·감사용이라 뒤쪽에 배치했습니다.",
+    "legacyInsertions": [
+      11,
+      12
+    ]
   },
   "집행": {
     "entity": "gtm_plans",

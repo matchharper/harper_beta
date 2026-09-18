@@ -1,9 +1,51 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildGtmContentCompensationSlackMessage,
   buildGtmOutreachDeliveryFailureSlackMessage,
   buildGtmOutreachReplySlackMessage,
 } from "@/lib/contentsEngine/slack";
+
+test("renders fixed compensation without implying that views determined it", () => {
+  const message = buildGtmContentCompensationSlackMessage(
+    {
+      amount: 150_000,
+      contentRef: 31,
+      costId: "cost-fixed",
+      costRef: 12,
+      currency: "KRW",
+      metricAsOf: "2026-09-18T04:20:00Z",
+      pricingModel: "fixed",
+      strategyName: "고정비 실험",
+      title: "Fixture content",
+      views: 0,
+    },
+    "https://docs.google.com/spreadsheets/d/fixture/edit"
+  );
+  const detail = message.blocks[1].text.text;
+  assert.match(detail, /고정 업로드 비용/);
+  assert.doesNotMatch(detail, /조회수 0/);
+});
+
+test("renders the measured views for performance-linked compensation", () => {
+  const message = buildGtmContentCompensationSlackMessage(
+    {
+      amount: 275_000,
+      contentRef: 32,
+      costId: "cost-variable",
+      costRef: 13,
+      currency: "KRW",
+      metricAsOf: "2026-09-18T04:20:00Z",
+      pricingModel: "base_plus_views",
+      strategyName: "조회수 실험",
+      title: "Fixture content",
+      views: 25_000,
+    },
+    "https://docs.google.com/spreadsheets/d/fixture/edit"
+  );
+  const detail = message.blocks[1].text.text;
+  assert.match(detail, /조회수 25,000/);
+});
 
 test("renders the newest reply prominently with creator context and timing", () => {
   const message = buildGtmOutreachReplySlackMessage(

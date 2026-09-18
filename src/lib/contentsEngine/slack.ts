@@ -37,6 +37,7 @@ type ContentCompensationNotification = {
   costRef: number | string;
   currency: string;
   metricAsOf: string;
+  pricingModel: "base_plus_views" | "fixed";
   strategyName: string;
   title: string;
   views: number;
@@ -247,6 +248,10 @@ export function buildGtmContentCompensationSlackMessage(
 ) {
   const amount = new Intl.NumberFormat("ko-KR").format(settlement.amount);
   const views = new Intl.NumberFormat("ko-KR").format(settlement.views);
+  const settlementBasis =
+    settlement.pricingModel === "fixed"
+      ? "*정산 기준* 고정 업로드 비용"
+      : `*측정 결과* 조회수 ${views} · ${slackDate(settlement.metricAsOf)}`;
   return {
     blocks: [
       {
@@ -265,7 +270,7 @@ export function buildGtmContentCompensationSlackMessage(
           type: "mrkdwn",
           text: [
             `*콘텐츠* ${escapeSlack(settlement.title)}`,
-            `*측정 결과* 조회수 ${views} · ${slackDate(settlement.metricAsOf)}`,
+            settlementBasis,
             `*가격 전략* ${escapeSlack(settlement.strategyName)}`,
             `*지급 예정* *${amount} ${escapeSlack(settlement.currency)}* · 비용 #${escapeSlack(settlement.costRef)}`,
             `<${sheetUrl}|콘텐츠·정산 근거 확인>`,

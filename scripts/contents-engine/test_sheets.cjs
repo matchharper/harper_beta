@@ -111,8 +111,10 @@ console.log('PASS Format Bank and Outreach Templates expose editable guidance, r
 
 const reviewC=config['Outreach Review'];
 assert.ok(reviewC);assert.equal(reviewC.view,'outreach_review');assert.equal(reviewC.reviewMode,true);
-assert.deepEqual(reviewC.fields.slice(0,7).map(field=>field[0]),[
- 'creator_name','primary_profile_url','recipient_email','outreach_template_name','subject','body','review_action'
+assert.deepEqual(reviewC.fields.slice(0,11).map(field=>field[0]),[
+ 'creator_name','primary_profile_url','recipient_email','outreach_template_name',
+ 'compensation_strategy_name','estimated_views','estimated_cost','compensation_currency',
+ 'subject','body','review_action'
 ]);
 assert.ok(!reviewC.fields.some(field=>field[0]==='primary_platform'));
 assert.ok(!reviewC.fields.some(field=>field[0]==='primary_handle'));
@@ -121,7 +123,7 @@ const reviewVisible=context.visible_({creator_name:'Fixture Creator',primary_pla
 assert.equal(reviewVisible[0],'Fixture Creator\nYouTube · @fixture');
 assert.equal(reviewVisible[1],'https://youtube.com/@fixture');
 assert.match(reviewC.helpText,/노란색 Review Decision/);
-assert.match(reviewC.helpText,/Approve & Send를 선택하면 셀이 초록색/);
+assert.match(reviewC.helpText,/Approve & Send는 초록색으로 바뀝니다/);
 assert.equal(reviewC.fields.find(field=>field[0]==='review_action')[2],'decision');
 const bridgeSource=fs.readFileSync(__dirname+'/sheets-bridge.gs','utf8');
 assert.match(bridgeSource,/whenFormulaSatisfied/);
@@ -144,3 +146,23 @@ assert.equal(context.reviewAction_('Request Revision'),'request_revision');
 assert.equal(context.reviewAction_('Skip'),'skip');
 assert.throws(()=>context.reviewAction_(''),/Review Decision/);
 console.log('PASS Outreach Review leads with the email decision context and requires one explicit human decision before the send path');
+
+const contentC=config['콘텐츠'];
+const settlementIndex=contentC.fields.findIndex(field=>field[0]==='settlement_status');
+assert.deepEqual(contentC.fields.slice(settlementIndex-2,settlementIndex+1).map(field=>field[0]),[
+ 'paid_amount','performance_conclusion','settlement_status'
+]);
+assert.deepEqual(contentC.legacyInsertions,[11,12]);
+assert.match(contentC.helpText,/Paid Amount는 실제 지급·환불 증빙이 있는 순지급액/);
+assert.match(contentC.helpText,/🟢 Scale, 🟡 Retry, 🟠 Hold, 🔴 Stop, ⚪ 리뷰 전/);
+assert.match(contentC.helpText,/고정비는 게시 후 확정/);
+assert.match(bridgeSource,/key==='performance_conclusion'/);
+assert.match(bridgeSource,/수치 임계값으로 자동 판정하지 않습니다/);
+const contentViewMigration=fs.readFileSync(
+ __dirname+'/../../supabase/migrations/20260918051000_gtm_content_sheet_paid_performance.sql','utf8'
+);
+assert.match(contentViewMigration,/gtm_net_paid\(allocated_cost\.payments\)/);
+assert.match(contentViewMigration,/allocation\.item ->> 'share'/);
+assert.match(contentViewMigration,/activity\.kind in \('performance_review', 'review_adopted'\)/);
+assert.match(contentViewMigration,/'⚪ 리뷰 전 · 저장된 성과 결론이 없습니다\.'/);
+console.log('PASS Content Sheet places paid amount and evidence-backed performance conclusion before settlement status');

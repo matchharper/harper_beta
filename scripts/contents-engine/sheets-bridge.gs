@@ -3,7 +3,7 @@
  * GTM_TABLES is generated from sheet-columns.json and inserted above this file.
  * Each teammate stores their own scoped GTM credential in UserProperties.
  */
-const GTM_SHEET_SCHEMA_VERSION='2026-09-18-v13';
+const GTM_SHEET_SCHEMA_VERSION='2026-09-18-v14';
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Contents Engine')
@@ -271,6 +271,7 @@ function prepareWorkbook(){
       const key=field[0],col=index+1;
       if(key==='body')s.setColumnWidth(col,440);
       else if(key==='subject')s.setColumnWidth(col,300);
+      else if(key==='performance_conclusion')s.setColumnWidth(col,360);
       else if(c.reviewMode&&key==='creator_name')s.setColumnWidth(col,240);
       else if(c.reviewMode&&key==='primary_profile_url')s.setColumnWidth(col,240);
       else if(key==='review_action')s.setColumnWidth(col,190);
@@ -295,6 +296,9 @@ function prepareWorkbook(){
         s.getRange(6,col,Math.max(1,s.getMaxRows()-5),1).setDataValidation(
           SpreadsheetApp.newDataValidation().requireValueInList(['fixed','base_plus_views'],true).setAllowInvalid(false).build()
         );
+      }
+      if(key==='performance_conclusion'){
+        s.getRange(5,col).setNote('가장 최근에 저장된 성과 리뷰를 표시합니다. 🟢 Scale=확대·반복, 🟡 Retry=변경 후 재시도, 🟠 Hold=보류, 🔴 Stop=중단, ⚪=리뷰 전 또는 방향 미정입니다. 제안과 팀원이 채택한 결론을 구분하며, 조회수 같은 수치 임계값으로 자동 판정하지 않습니다.');
       }
     });
     if(c.reviewMode)formatReviewRows_(s,c);

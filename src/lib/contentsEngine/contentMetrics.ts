@@ -9,18 +9,49 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 const INSTAGRAM_POST_ACTOR = "apify/instagram-post-scraper";
 const INSTAGRAM_COMMENT_ACTOR = "apify/instagram-comment-scraper";
 const MAX_COMMENT_RECORDS_PER_POST = 10_000;
+const POST_COLLECTION_CHARGE_CAP_USD = 5;
+const COMMENT_COLLECTION_CHARGE_CAP_USD = 25;
 
 type ContentTarget = {
-  account_id: string;
+  account_id: string | null;
   compensation_cost_id: string | null;
+  compensation_snapshot: Record<string, unknown>;
   compensation_strategy_id: string | null;
   id: string;
   platform_metrics_due_at: string | null;
   platform_metrics_finalized_at: string | null;
   platform_metrics_last_collected_at: string | null;
-  post_url: string;
+  post_url: string | null;
   published_at: string;
   ref: number;
+  title: string;
+};
+
+type CompensationSettlement = {
+  amount: number;
+  content_id: string;
+  content_ref: number;
+  cost_id: string;
+  cost_ref: number;
+  currency: string;
+  measured_views?: number | null;
+  metric_as_of?: string | null;
+  notify_needed: boolean;
+  strategy: Record<string, unknown>;
+  title: string;
+};
+
+type PendingCompensationNotification = {
+  amount: number;
+  content_id: string;
+  content_ref: number;
+  cost_id: string;
+  cost_ref: number;
+  currency: string;
+  measured_views: string | null;
+  metric_as_of: string | null;
+  metric_as_of_fallback: string | null;
+  strategy: Record<string, unknown>;
   title: string;
 };
 
@@ -89,6 +120,7 @@ function flattenComments(comments: InstagramComment[]) {
 
 function shouldCollect(target: ContentTarget, now: number) {
   if (!target.platform_metrics_last_collected_at) return true;
+  if (target.compensation_snapshot?.pricing_model === "fixed") return false;
   if (
     target.compensation_strategy_id &&
     !target.compensation_cost_id &&
@@ -107,7 +139,7 @@ async function loadInstagramTargets(limit: number) {
   const { data: rows, error } = await supabase
     .from("gtm_contents")
     .select(
-      "id,ref,title,post_url,published_at,account_id,compensation_strategy_id,compensation_cost_id,platform_metrics_due_at,platform_metrics_last_collected_at,platform_metrics_finalized_at"
+      "id,ref,title,post_url,published_at,account_id,compensation_strategy_id,compensation_snapshot,compensation_cost_id,platform_metrics_due_at,platform_metrics_last_collected_at,platform_metrics_finalized_at"
     )
     .is("archived_at", null)
     .not("published_at", "is", null)
@@ -118,7 +150,13 @@ async function loadInstagramTargets(limit: number) {
   const targets = ((rows ?? []) as ContentTarget[]).filter((row) =>
     shouldCollect(row, Date.now())
   );
-  const accountIds = [...new Set(targets.map((row) => row.account_id))];
+  const accountIds = [
+    ...new Set(
+      targets
+        .map((row) => row.account_id)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
   if (accountIds.length === 0) return [];
   const { data: accounts, error: accountsError } = await supabase
     .from("gtm_accounts")
@@ -129,7 +167,12 @@ async function loadInstagramTargets(limit: number) {
     ((accounts ?? []) as Account[]).map((account) => [account.id, account])
   );
   return targets
-    .map((target) => ({ target, account: accountById.get(target.account_id) }))
+    .map((target) => ({
+      target,
+      account: target.account_id
+        ? accountById.get(target.account_id)
+        : undefined,
+    }))
     .filter(
       (item): item is { target: ContentTarget; account: Account } =>
         Boolean(
@@ -141,14 +184,33 @@ async function loadInstagramTargets(limit: number) {
     .slice(0, limit);
 }
 
+async function loadDueFixedTargets(limit: number) {
+  const { data, error } = await adminClient()
+    .from("gtm_contents")
+    .select(
+      "id,ref,title,post_url,published_at,account_id,compensation_strategy_id,compensation_snapshot,compensation_cost_id,platform_metrics_due_at,platform_metrics_last_collected_at,platform_metrics_finalized_at"
+    )
+    .is("archived_at", null)
+    .is("compensation_cost_id", null)
+    .not("compensation_strategy_id", "is", null)
+    .not("published_at", "is", null)
+    .lte("platform_metrics_due_at", new Date().toISOString())
+    .contains("compensation_snapshot", { pricing_model: "fixed" })
+    .order("platform_metrics_due_at", { ascending: true })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as ContentTarget[];
+}
+
 async function writeMetrics(args: {
   asOf: string;
   content: ContentTarget;
   observations: MetricObservation[];
   postRunId: string;
-  commentRunId: string;
+  commentRunId: string | null;
+  warning?: string | null;
 }) {
-  const sourceRef = `apify:instagram:${args.postRunId}:${args.commentRunId}:${shortcode(
+  const sourceRef = `apify:instagram:${args.postRunId}:${args.commentRunId ?? "comments-unavailable"}:${shortcode(
     args.content.post_url
   )}`;
   const rows = args.observations.map((observation) => ({
@@ -173,7 +235,7 @@ async function writeMetrics(args: {
     .from("gtm_contents")
     .update({
       platform_metrics_last_collected_at: args.asOf,
-      platform_metrics_last_error: null,
+      platform_metrics_last_error: args.warning?.slice(0, 2000) ?? null,
     })
     .eq("id", args.content.id);
   if (updateError) throw new Error(updateError.message);
@@ -188,6 +250,60 @@ async function recordCollectionFailure(contentId: string, error: unknown) {
     .eq("id", contentId);
 }
 
+async function notifySettlement(
+  settlement: CompensationSettlement,
+  metricAsOf: string
+) {
+  const supabase = adminClient();
+  if (!settlement.notify_needed) return false;
+  let viewsValue = 0;
+  let viewsAsOf = metricAsOf;
+  if (settlement.strategy?.pricing_model !== "fixed") {
+    if (settlement.measured_views !== undefined) {
+      viewsValue = Number(settlement.measured_views ?? 0);
+      viewsAsOf = settlement.metric_as_of ?? metricAsOf;
+    } else {
+      const views = await supabase
+        .from("gtm_metric_snapshots")
+        .select("value,as_of")
+        .eq("content_id", settlement.content_id)
+        .eq("metric", "views")
+        .not("value", "is", null)
+        .order("as_of", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (views.error) throw new Error(views.error.message);
+      viewsValue = Number(views.data?.value ?? 0);
+      viewsAsOf = views.data?.as_of ?? metricAsOf;
+    }
+  }
+  const slack = await notifyGtmContentCompensation({
+    amount: settlement.amount,
+    contentRef: settlement.content_ref,
+    costId: settlement.cost_id,
+    costRef: settlement.cost_ref,
+    currency: settlement.currency,
+    metricAsOf: viewsAsOf,
+    pricingModel:
+      settlement.strategy?.pricing_model === "fixed"
+        ? "fixed"
+        : "base_plus_views",
+    strategyName: String(settlement.strategy?.name ?? "가격 전략"),
+    title: settlement.title,
+    views: viewsValue,
+  });
+  const notification = await supabase.rpc(
+    "gtm_record_compensation_slack_notification",
+    {
+      p_channel_id: slack.channel,
+      p_cost_id: settlement.cost_id,
+      p_slack_ts: slack.ts,
+    }
+  );
+  if (notification.error) throw new Error(notification.error.message);
+  return true;
+}
+
 async function finalizeIfDue(content: ContentTarget, asOf: string) {
   if (
     !content.compensation_strategy_id ||
@@ -197,71 +313,83 @@ async function finalizeIfDue(content: ContentTarget, asOf: string) {
   ) {
     return null;
   }
-  const supabase = adminClient();
-  const { data, error } = await supabase.rpc(
+  const { data, error } = await adminClient().rpc(
     "gtm_finalize_content_compensation",
     { p_content_id: content.id }
   );
   if (error) throw new Error(error.message);
-  const settlement = data as {
-    amount: number;
-    content_id: string;
-    content_ref: number;
-    cost_id: string;
-    cost_ref: number;
-    currency: string;
-    notify_needed: boolean;
-    strategy: Record<string, unknown>;
-    title: string;
-  };
-  if (settlement.notify_needed) {
-    const views = await supabase
-      .from("gtm_metric_snapshots")
-      .select("value,as_of")
-      .eq("content_id", content.id)
-      .eq("metric", "views")
-      .not("value", "is", null)
-      .order("as_of", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const slack = await notifyGtmContentCompensation({
-      amount: settlement.amount,
-      contentRef: settlement.content_ref,
-      costId: settlement.cost_id,
-      costRef: settlement.cost_ref,
-      currency: settlement.currency,
-      metricAsOf: views.data?.as_of ?? asOf,
-      strategyName: String(settlement.strategy?.name ?? "가격 전략"),
-      title: settlement.title,
-      views: Number(views.data?.value ?? 0),
-    });
-    const notification = await supabase.rpc(
-      "gtm_record_compensation_slack_notification",
-      {
-        p_channel_id: slack.channel,
-        p_cost_id: settlement.cost_id,
-        p_slack_ts: slack.ts,
-      }
-    );
-    if (notification.error) throw new Error(notification.error.message);
-  }
-  return settlement;
+  return data as CompensationSettlement;
 }
 
-export async function collectPublishedContentMetrics(args?: { limit?: number }) {
-  const targets = await loadInstagramTargets(
-    Math.max(1, Math.min(args?.limit ?? 50, 100))
+async function retryPendingCompensationNotifications(limit: number) {
+  const supabase = adminClient();
+  const { data, error } = await supabase.rpc(
+    "gtm_pending_compensation_notifications",
+    { p_limit: limit }
   );
+  if (error) throw new Error(error.message);
+  const pending = (data ?? []) as PendingCompensationNotification[];
+  let sentCount = 0;
+  let failedCount = 0;
+  for (const item of pending) {
+    try {
+      await notifySettlement(
+        {
+          amount: Number(item.amount),
+          content_id: item.content_id,
+          content_ref: item.content_ref,
+          cost_id: item.cost_id,
+          cost_ref: item.cost_ref,
+          currency: item.currency,
+          measured_views:
+            item.measured_views === null
+              ? null
+              : Number(item.measured_views),
+          metric_as_of: item.metric_as_of,
+          notify_needed: true,
+          strategy: item.strategy ?? {},
+          title: item.title,
+        },
+        item.metric_as_of_fallback ?? new Date().toISOString()
+      );
+      sentCount += 1;
+    } catch (error) {
+      failedCount += 1;
+      console.error("[contents-engine/content-metrics] Slack retry failed", {
+        contentId: item.content_id,
+        costId: item.cost_id,
+        error,
+      });
+    }
+  }
+  return { failed: failedCount, sent: sentCount };
+}
+
+async function collectInstagramMetrics(
+  targets: Array<{ account: Account; target: ContentTarget }>
+) {
   if (targets.length === 0) {
-    return { collected: 0, failed: 0, settled: 0, targets: 0 };
+    return {
+      commentCollectionError: null,
+      commentRunId: null,
+      postRunId: null,
+      results: [] as Array<{
+        contentRef: number;
+        error?: string;
+        settled?: boolean;
+        settlementError?: string;
+        warning?: string;
+      }>,
+    };
   }
   const token = getApifyApiToken("APIFY_CLIENT_KEY is required for content metrics");
-  const urls = targets.map(({ target }) => target.post_url);
-  const [postRun, commentRun] = await Promise.all([
+  const urls = targets.map(({ target }) => target.post_url as string);
+  const [postRunResult, commentRunResult] = await Promise.allSettled([
     callApifyActor({
       actorId: INSTAGRAM_POST_ACTOR,
       input: { dataDetailLevel: "detailedData", username: urls },
       maxRunWaitSeconds: 240,
+      maxTotalChargeUsd: POST_COLLECTION_CHARGE_CAP_USD,
       token,
       waitForFinishSeconds: 60,
     }),
@@ -273,22 +401,39 @@ export async function collectPublishedContentMetrics(args?: { limit?: number }) 
         resultsLimit: MAX_COMMENT_RECORDS_PER_POST,
       },
       maxRunWaitSeconds: 240,
+      maxTotalChargeUsd: COMMENT_COLLECTION_CHARGE_CAP_USD,
       token,
       waitForFinishSeconds: 60,
     }),
   ]);
-  const [posts, comments] = await Promise.all([
-    listApifyDatasetItems<InstagramPost>({
-      datasetId: postRun.defaultDatasetId,
-      limit: targets.length * 2,
-      token,
-    }),
-    listApifyDatasetItems<InstagramComment>({
-      datasetId: commentRun.defaultDatasetId,
-      limit: targets.length * MAX_COMMENT_RECORDS_PER_POST,
-      token,
-    }),
-  ]);
+  if (postRunResult.status === "rejected") throw postRunResult.reason;
+  const postRun = postRunResult.value;
+  const posts = await listApifyDatasetItems<InstagramPost>({
+    datasetId: postRun.defaultDatasetId,
+    limit: targets.length * 2,
+    token,
+  });
+  let commentRunId: string | null = null;
+  let comments: InstagramComment[] = [];
+  let commentCollectionError: string | null = null;
+  if (commentRunResult.status === "fulfilled") {
+    commentRunId = commentRunResult.value.id;
+    try {
+      comments = await listApifyDatasetItems<InstagramComment>({
+        datasetId: commentRunResult.value.defaultDatasetId,
+        limit: targets.length * MAX_COMMENT_RECORDS_PER_POST,
+        token,
+      });
+    } catch (error) {
+      commentCollectionError =
+        error instanceof Error ? error.message : "Comment collection failed";
+    }
+  } else {
+    commentCollectionError =
+      commentRunResult.reason instanceof Error
+        ? commentRunResult.reason.message
+        : "Comment collection failed";
+  }
   const postByShortcode = new Map(
     posts.map((post) => [
       post.shortCode || shortcode(post.inputUrl || post.url),
@@ -309,6 +454,8 @@ export async function collectPublishedContentMetrics(args?: { limit?: number }) 
     contentRef: number;
     error?: string;
     settled?: boolean;
+    settlementError?: string;
+    warning?: string;
   }> = [];
   for (const { account, target } of targets) {
     try {
@@ -326,13 +473,14 @@ export async function collectPublishedContentMetrics(args?: { limit?: number }) 
       const commentsCount = finiteMetric(post.commentsCount);
       const publicCoverageIncomplete =
         commentsCount !== null && publicComments.length < commentsCount;
-      const nonAuthorComments =
-        commentsCount === null
+      const nonAuthorComments = commentCollectionError
+        ? null
+        : commentsCount === null
           ? observedNonAuthorComments
           : Math.max(0, commentsCount - observedCreatorComments);
       await writeMetrics({
         asOf,
-        commentRunId: commentRun.id,
+        commentRunId,
         content: target,
         observations: [
           {
@@ -364,7 +512,9 @@ export async function collectPublishedContentMetrics(args?: { limit?: number }) 
             metric: "comments_non_author",
             value: nonAuthorComments,
             missingReason:
-              commentsCount === null
+              commentCollectionError
+                ? "comment_collection_failed"
+                : commentsCount === null
                 ? "public_comment_records_only"
                 : publicCoverageIncomplete
                   ? "platform_total_minus_observed_creator_comments"
@@ -372,24 +522,119 @@ export async function collectPublishedContentMetrics(args?: { limit?: number }) 
           },
         ],
         postRunId: postRun.id,
+        warning: commentCollectionError
+          ? `Comments unavailable: ${commentCollectionError}`
+          : null,
       });
-      const settlement = await finalizeIfDue(target, asOf);
-      results.push({ contentRef: target.ref, settled: Boolean(settlement) });
     } catch (error) {
       await recordCollectionFailure(target.id, error);
       results.push({
         contentRef: target.ref,
         error: error instanceof Error ? error.message : "Collection failed",
       });
+      continue;
+    }
+    try {
+      const settlement = await finalizeIfDue(target, asOf);
+      results.push({
+        contentRef: target.ref,
+        settled: Boolean(settlement),
+        ...(commentCollectionError
+          ? { warning: `Comments unavailable: ${commentCollectionError}` }
+          : {}),
+      });
+    } catch (error) {
+      results.push({
+        contentRef: target.ref,
+        settlementError:
+          error instanceof Error ? error.message : "Settlement failed",
+      });
     }
   }
   return {
-    collected: results.filter((result) => !result.error).length,
-    failed: results.filter((result) => result.error).length,
+    commentCollectionError,
+    commentRunId,
     postRunId: postRun.id,
-    commentRunId: commentRun.id,
     results,
-    settled: results.filter((result) => result.settled).length,
+  };
+}
+
+export async function collectPublishedContentMetrics(args?: { limit?: number }) {
+  const limit = Math.max(1, Math.min(args?.limit ?? 50, 100));
+  const targets = await loadInstagramTargets(limit);
+  let instagram: Awaited<ReturnType<typeof collectInstagramMetrics>>;
+  try {
+    instagram = await collectInstagramMetrics(targets);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Instagram collection failed";
+    await Promise.all(
+      targets.map(({ target }) => recordCollectionFailure(target.id, error))
+    );
+    instagram = {
+      commentCollectionError: null,
+      commentRunId: null,
+      postRunId: null,
+      results: targets.map(({ target }) => ({
+        contentRef: target.ref,
+        error: message,
+      })),
+    };
+  }
+
+  const fixedResults: Array<{
+    contentRef: number;
+    error?: string;
+    settled?: boolean;
+  }> = [];
+  const fixedTargets = await loadDueFixedTargets(limit);
+  const asOf = new Date().toISOString();
+  for (const target of fixedTargets) {
+    try {
+      const settlement = await finalizeIfDue(target, asOf);
+      fixedResults.push({
+        contentRef: target.ref,
+        settled: Boolean(settlement),
+      });
+    } catch (error) {
+      fixedResults.push({
+        contentRef: target.ref,
+        error: error instanceof Error ? error.message : "Settlement failed",
+      });
+    }
+  }
+
+  let notifications = { failed: 0, sent: 0 };
+  try {
+    notifications = await retryPendingCompensationNotifications(limit);
+  } catch (error) {
+    notifications.failed = 1;
+    console.error(
+      "[contents-engine/content-metrics] Slack retry scan failed",
+      error
+    );
+  }
+
+  const collectionFailures = instagram.results.filter(
+    (result) => result.error
+  ).length;
+  const settlementFailures =
+    instagram.results.filter((result) => result.settlementError).length +
+    fixedResults.filter((result) => result.error).length;
+  return {
+    collected: instagram.results.filter((result) => !result.error).length,
+    commentCollectionError: instagram.commentCollectionError,
+    commentRunId: instagram.commentRunId,
+    failed: collectionFailures + settlementFailures + notifications.failed,
+    fixedSettlementTargets: fixedTargets.length,
+    notificationFailures: notifications.failed,
+    notificationsSent: notifications.sent,
+    postRunId: instagram.postRunId,
+    results: instagram.results,
+    settled:
+      instagram.results.filter((result) => result.settled).length +
+      fixedResults.filter((result) => result.settled).length,
+    settlementFailures,
     targets: targets.length,
   };
 }

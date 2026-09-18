@@ -88,6 +88,7 @@ export async function callApifyActor(args: {
   actorId: string;
   input: Record<string, unknown>;
   maxRunWaitSeconds?: number;
+  maxTotalChargeUsd?: number;
   token: string;
   waitForFinishSeconds: number;
 }): Promise<ApifyRunResult> {
@@ -98,6 +99,16 @@ export async function callApifyActor(args: {
     `${APIFY_API_BASE_URL}/acts/${toApifyActorPath(args.actorId)}/runs`
   );
   url.searchParams.set("waitForFinish", String(args.waitForFinishSeconds));
+  if (
+    args.maxTotalChargeUsd !== undefined &&
+    Number.isFinite(args.maxTotalChargeUsd) &&
+    args.maxTotalChargeUsd > 0
+  ) {
+    url.searchParams.set(
+      "maxTotalChargeUsd",
+      String(args.maxTotalChargeUsd)
+    );
+  }
 
   const response = await fetch(url, {
     method: "POST",
