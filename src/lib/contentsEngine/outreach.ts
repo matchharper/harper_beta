@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
+import { stripQuotedEmailText } from "@/lib/email/parse";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import {
   findGmailMessageByRfcId,
@@ -222,6 +223,7 @@ type ReplyIngestResult = {
   body?: string;
   creator_name?: string;
   creator_ref?: number | string;
+  dispatch_id?: string;
   dispatch_ref?: number | string;
   from_email?: string;
   inserted?: boolean;
@@ -256,6 +258,19 @@ type DeliveryFailureIngestResult = {
   status?: string | null;
   subject?: string;
 };
+
+async function getOutreachDispatchSentAt(dispatchId: string | undefined) {
+  if (!dispatchId) return null;
+  const { data, error } = await adminClient()
+    .from("gtm_outreach_dispatches")
+    .select("sent_at")
+    .eq("id", dispatchId)
+    .maybeSingle();
+  if (error) {
+    throw new Error(error.message ?? "Failed to read outreach sent time");
+  }
+  return typeof data?.sent_at === "string" ? data.sent_at : null;
+}
 
 async function ingestReplyMessage(messageId: string) {
   const config = getGtmOutreachGmailConfig();
@@ -331,6 +346,8 @@ async function ingestReplyMessage(messageId: string) {
   if (!result.matched || !result.notify_needed || !result.activity_id) {
     return result;
   }
+  const newestReplyBody = stripQuotedEmailText(result.body ?? parsed.body);
+  const outboundSentAt = await getOutreachDispatchSentAt(result.dispatch_id);
   let triage;
   try {
     triage = await classifyOutreachReply({
@@ -338,7 +355,7 @@ async function ingestReplyMessage(messageId: string) {
       fromEmail: result.from_email ?? parsed.fromEmail,
       outboundBody: result.outbound_body ?? "",
       outboundSubject: result.outbound_subject ?? "",
-      replyBody: result.body ?? parsed.body,
+      replyBody: newestReplyBody,
       replySubject: result.subject ?? parsed.subject,
       selectionReason: result.selection_reason ?? "",
     });
@@ -357,11 +374,12 @@ async function ingestReplyMessage(messageId: string) {
   const slack = await notifyGtmOutreachReply({
     activityId: result.activity_id,
     activityRef: result.activity_ref ?? "",
-    body: result.body ?? parsed.body,
+    body: newestReplyBody,
     creatorName: result.creator_name ?? "Unknown creator",
     creatorRef: result.creator_ref ?? "",
     dispatchRef: result.dispatch_ref ?? "",
     fromEmail: result.from_email ?? parsed.fromEmail,
+    outboundSentAt,
     outboundSubject: result.outbound_subject ?? "",
     primaryHandle: result.primary_handle,
     receivedAt: result.received_at ?? parsed.receivedAt,

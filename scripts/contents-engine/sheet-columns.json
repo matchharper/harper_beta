@@ -748,6 +748,26 @@
         "read"
       ],
       [
+        "compensation_strategy_name",
+        "Pricing Strategy",
+        "read"
+      ],
+      [
+        "estimated_views",
+        "Estimated Views",
+        "read"
+      ],
+      [
+        "estimated_cost",
+        "Estimated Cost",
+        "read"
+      ],
+      [
+        "compensation_currency",
+        "Cost Currency",
+        "read"
+      ],
+      [
         "subject",
         "Final Subject",
         "text"
@@ -883,7 +903,13 @@
         "read"
       ]
     ],
-    "helpText": "① 크리에이터·수신 이메일·템플릿·제목·본문을 확인하세요. ② 노란색 Review Decision에서 Approve & Send, Request Revision, Skip 중 하나를 선택하세요. Approve & Send를 선택하면 셀이 초록색으로 바뀝니다. ③ 행을 선택하고 Contents Engine → Outreach Review 선택행 승인/반영을 실행해야 실제 반영됩니다."
+    "helpText": "① 크리에이터·수신 이메일·템플릿·가격 전략·예상 비용·제목·본문을 확인하세요. 조회 이력이 없으면 예상 비용은 비워 두고 근거 부족으로 취급합니다. ② 노란색 Review Decision에서 결정을 선택하세요. Approve & Send는 초록색으로 바뀝니다. ③ 행을 선택하고 Contents Engine → Outreach Review 선택행 승인/반영을 실행하면 승인 건만 실제 발송됩니다.",
+    "legacyInsertions": [
+      4,
+      5,
+      6,
+      7
+    ]
   },
   "Outreach Log": {
     "entity": "gtm_activities",
@@ -1129,110 +1155,337 @@
       ]
     ]
   },
-  "콘텐츠": {
-    "entity": "gtm_contents",
+  "Pricing Strategies": {
+    "entity": "gtm_compensation_strategies",
+    "view": "compensation_strategies",
+    "saveRpc": "gtm_compensation_strategy_save",
+    "frozenColumns": 4,
     "fields": [
       [
-        "ref",
-        "Ref",
+        "name",
+        "Strategy Name",
+        "text"
+      ],
+      [
+        "status",
+        "Status",
+        "text"
+      ],
+      [
+        "pricing_model",
+        "Pricing Model",
+        "text"
+      ],
+      [
+        "calculation_summary",
+        "Calculation",
         "read"
       ],
       [
+        "base_fee",
+        "Base Upload Fee",
+        "number"
+      ],
+      [
+        "measurement_window_days",
+        "Measurement Days",
+        "number"
+      ],
+      [
+        "views_per_unit",
+        "Views Per Unit",
+        "number"
+      ],
+      [
+        "amount_per_unit",
+        "Amount Per Unit",
+        "number"
+      ],
+      [
+        "currency",
+        "Currency",
+        "text"
+      ],
+      [
+        "assigned_content_count",
+        "Assigned Contents",
+        "read"
+      ],
+      [
+        "settled_content_count",
+        "Settled Contents",
+        "read"
+      ],
+      [
+        "notes",
+        "Notes",
+        "text"
+      ],
+      [
+        "version",
+        "Version",
+        "number"
+      ],
+      [
+        "ref",
+        "Strategy Ref",
+        "read"
+      ],
+      [
+        "updated_at",
+        "Updated At",
+        "read"
+      ]
+    ],
+    "helpText": "가격 실험 조건을 관리합니다. base_plus_views는 업로드 기본비 + (측정 조회수 ÷ Views Per Unit × Amount Per Unit)으로 비례 계산합니다. 이미 콘텐츠에 지정된 버전의 금액 조건은 바꿀 수 없으며 새 버전을 만들어야 합니다."
+  },
+  "콘텐츠": {
+    "entity": "gtm_contents",
+    "view": "contents",
+    "readOnly": true,
+    "frozenColumns": 3,
+    "fields": [
+      [
         "title",
-        "Content Name",
-        "text"
+        "Content",
+        "read"
       ],
       [
-        "collaboration_id",
-        "Collaboration Ref",
-        "gtm_collaborations"
-      ],
-      [
-        "campaign_id",
-        "Campaign Ref",
-        "gtm_campaigns"
-      ],
-      [
-        "format_id",
-        "Format Ref",
-        "gtm_formats"
-      ],
-      [
-        "production_status",
-        "Production Status",
-        "text"
-      ],
-      [
-        "publish_status",
-        "Publication Status",
-        "text"
+        "creator_name",
+        "Creator",
+        "read"
       ],
       [
         "post_url",
         "Post URL",
-        "text"
-      ],
-      [
-        "_signups",
-        "Attributed Signups (Selected Period)",
         "read"
       ],
       [
-        "_completed",
-        "Completed Onboarding Within 7 Days",
+        "platform",
+        "Platform",
         "read"
       ],
       [
-        "_direction",
-        "Adopted Direction",
+        "handle",
+        "Handle",
         "read"
-      ],
-      [
-        "plan_id",
-        "Plan Ref",
-        "gtm_plans"
-      ],
-      [
-        "creator_id",
-        "Creator Ref",
-        "gtm_creators"
-      ],
-      [
-        "account_id",
-        "Account Ref",
-        "gtm_accounts"
       ],
       [
         "published_at",
-        "Published At (ISO)",
-        "date"
-      ],
-      [
-        "_visitors",
-        "Attributed Visitors",
+        "Published At",
         "read"
       ],
       [
-        "_cost",
-        "Allocated Lifetime Cost",
+        "views",
+        "Views",
         "read"
       ],
       [
-        "_cpa",
-        "Provisional Cost per Completion",
+        "likes",
+        "Likes",
         "read"
       ],
       [
-        "_currency",
-        "Cost Currency",
+        "comments",
+        "Comments",
         "read"
       ],
       [
-        "_measurement",
-        "Measurement Status",
+        "comments_non_author",
+        "Comments Excluding Creator",
+        "read"
+      ],
+      [
+        "platform_metrics_as_of",
+        "Metrics As Of",
+        "read"
+      ],
+      [
+        "settlement_status",
+        "Settlement Status",
+        "read"
+      ],
+      [
+        "estimated_payable",
+        "Estimated Payable",
+        "read"
+      ],
+      [
+        "finalized_payable",
+        "Finalized Payable",
+        "read"
+      ],
+      [
+        "compensation_currency",
+        "Currency",
+        "read"
+      ],
+      [
+        "platform_metrics_due_at",
+        "Measurement Due At",
+        "read"
+      ],
+      [
+        "compensation_strategy_name",
+        "Pricing Strategy",
+        "read"
+      ],
+      [
+        "compensation_base_fee",
+        "Base Fee",
+        "read"
+      ],
+      [
+        "compensation_measurement_window_days",
+        "Measurement Days",
+        "read"
+      ],
+      [
+        "compensation_views_per_unit",
+        "Views Per Unit",
+        "read"
+      ],
+      [
+        "compensation_amount_per_unit",
+        "Amount Per Unit",
+        "read"
+      ],
+      [
+        "platform_metrics_last_collected_at",
+        "Last Collected At",
+        "read"
+      ],
+      [
+        "platform_metrics_last_error",
+        "Collection Error",
+        "read"
+      ],
+      [
+        "platform_metrics_finalized_at",
+        "Finalized At",
+        "read"
+      ],
+      [
+        "collaboration_title",
+        "Collaboration",
+        "read"
+      ],
+      [
+        "campaign_name",
+        "Campaign",
+        "read"
+      ],
+      [
+        "format_name",
+        "Format",
+        "read"
+      ],
+      [
+        "plan_name",
+        "Plan",
+        "read"
+      ],
+      [
+        "production_status",
+        "Production Status",
+        "read"
+      ],
+      [
+        "publish_status",
+        "Publish Status",
+        "read"
+      ],
+      [
+        "ref",
+        "Content Ref",
+        "read"
+      ],
+      [
+        "creator_ref",
+        "Creator Ref",
+        "read"
+      ],
+      [
+        "collaboration_ref",
+        "Collaboration Ref",
+        "read"
+      ],
+      [
+        "campaign_ref",
+        "Campaign Ref",
+        "read"
+      ],
+      [
+        "format_ref",
+        "Format Ref",
+        "read"
+      ],
+      [
+        "plan_ref",
+        "Plan Ref",
+        "read"
+      ],
+      [
+        "account_ref",
+        "Account Ref",
+        "read"
+      ],
+      [
+        "compensation_strategy_ref",
+        "Strategy Ref",
+        "read"
+      ],
+      [
+        "compensation_cost_ref",
+        "Cost Ref",
         "read"
       ]
-    ]
+    ],
+    "legacyFieldOrder": [
+      "ref",
+      "title",
+      "collaboration_id",
+      "campaign_id",
+      "format_id",
+      "production_status",
+      "publish_status",
+      "post_url",
+      "_signups",
+      "_completed",
+      "_direction",
+      "plan_id",
+      "creator_id",
+      "account_id",
+      "published_at",
+      "_visitors",
+      "_cost",
+      "_cpa",
+      "_currency",
+      "_measurement"
+    ],
+    "legacyHeaders": [
+      "Ref",
+      "Content Name",
+      "Collaboration Ref",
+      "Campaign Ref",
+      "Format Ref",
+      "Production Status",
+      "Publication Status",
+      "Post URL",
+      "Attributed Signups (Selected Period)",
+      "Completed Onboarding Within 7 Days",
+      "Adopted Direction",
+      "Plan Ref",
+      "Creator Ref",
+      "Account Ref",
+      "Published At (ISO)",
+      "Attributed Visitors",
+      "Allocated Lifetime Cost",
+      "Provisional Cost per Completion",
+      "Cost Currency",
+      "Measurement Status"
+    ],
+    "helpText": "게시 콘텐츠의 공개 성과와 정산 상태입니다. 조회수·좋아요·작성자 제외 댓글은 자동 수집되며, 측정일이 지나면 고정된 가격 전략으로 지급액을 확정하고 Slack에 알립니다. Ref는 연결·감사용이라 뒤쪽에 배치했습니다."
   },
   "집행": {
     "entity": "gtm_plans",

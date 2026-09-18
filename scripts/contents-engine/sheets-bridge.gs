@@ -3,7 +3,7 @@
  * GTM_TABLES is generated from sheet-columns.json and inserted above this file.
  * Each teammate stores their own scoped GTM credential in UserProperties.
  */
-const GTM_SHEET_SCHEMA_VERSION='2026-09-18-v12';
+const GTM_SHEET_SCHEMA_VERSION='2026-09-18-v13';
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Contents Engine')
@@ -262,7 +262,9 @@ function prepareWorkbook(){
     const oldFilter=s.getFilter();if(oldFilter)oldFilter.remove();
     s.getRange(5,1,Math.max(2,s.getMaxRows()-4),c.fields.length+1).createFilter();
     const dataRange=s.getRange(6,1,Math.max(1,s.getMaxRows()-5),width);
-    dataRange.clearDataValidations();
+    dataRange.clearDataValidations().setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP)
+      .setVerticalAlignment('middle');
+    s.setRowHeightsForced(6,Math.max(1,s.getMaxRows()-5),32);
     s.setColumnWidth(1,80);
     if(c.fields.length>1)s.setColumnWidth(2,180);
     c.fields.forEach((field,index)=>{
@@ -284,6 +286,16 @@ function prepareWorkbook(){
           .setNote('제목과 본문을 확인한 뒤 이 칼럼에서 결정을 선택하고, Contents Engine → Outreach Review 선택행 승인/반영을 실행하세요.');
       }
       else if(field[2]==='bool')s.getRange(6,col,Math.max(1,s.getMaxRows()-5),1).insertCheckboxes();
+      if(c.entity==='gtm_compensation_strategies'&&key==='status'){
+        s.getRange(6,col,Math.max(1,s.getMaxRows()-5),1).setDataValidation(
+          SpreadsheetApp.newDataValidation().requireValueInList(['draft','active','retired'],true).setAllowInvalid(false).build()
+        );
+      }
+      if(c.entity==='gtm_compensation_strategies'&&key==='pricing_model'){
+        s.getRange(6,col,Math.max(1,s.getMaxRows()-5),1).setDataValidation(
+          SpreadsheetApp.newDataValidation().requireValueInList(['fixed','base_plus_views'],true).setAllowInvalid(false).build()
+        );
+      }
     });
     if(c.reviewMode)formatReviewRows_(s,c);
     s.hideColumns(c.fields.length+2,5);
@@ -450,7 +462,10 @@ function saveSelected(){
       s.getRange(rowIndex,c.fields.length+5,1,2).setValues([[request.request_id,signature]]);
       SpreadsheetApp.flush();
       try{
-        const result=rpc_(request),saved=getRecord_(c,result.record.id);
+        const result=c.saveRpc
+          ?postRpc_(c.saveRpc,{id:request.id||null,expected_version:request.expected_version||null,data:request.data,request_id:request.request_id})
+          :rpc_(request);
+        const saved=getRecord_(c,result.record.id);
         ctx.refs[c.entity][saved.id]=saved.ref;writeRows_(s,rowIndex,[row_(saved,c,ctx)]);
       }catch(error){s.getRange(rowIndex,c.fields.length+1).setValue('미반영 · '+error.message);throw error;}
     }

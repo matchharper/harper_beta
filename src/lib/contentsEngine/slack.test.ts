@@ -5,16 +5,22 @@ import {
   buildGtmOutreachReplySlackMessage,
 } from "@/lib/contentsEngine/slack";
 
-test("renders a compact classified Slack reply with creator context", () => {
+test("renders the newest reply prominently with creator context and timing", () => {
   const message = buildGtmOutreachReplySlackMessage(
     {
       activityId: "activity-1",
       activityRef: 17,
-      body: "단가는 80만원이고 사용권 범위를 알려주세요.",
+      body: [
+        "단가는 80만원이고 사용권 범위를 알려주세요.",
+        "",
+        "2026년 9월 17일 (목) 오후 10:00, Harper <daniel@matchharper.com>님이 작성:",
+        "> 이전에 보낸 협업 제안 본문입니다.",
+      ].join("\n"),
       creatorName: "Fixture Creator",
       creatorRef: 12,
       dispatchRef: 8,
       fromEmail: "creator@example.com",
+      outboundSentAt: "2026-09-17T13:00:00.000Z",
       outboundSubject: "Harper 유료 협업 제안",
       primaryHandle: "@fixture",
       receivedAt: "2026-09-17T10:00:00Z",
@@ -25,11 +31,19 @@ test("renders a compact classified Slack reply with creator context", () => {
     "https://docs.google.com/spreadsheets/d/fixture/edit"
   );
   assert.match(message.text, /^🟡/);
-  assert.equal(message.blocks.length, 2);
-  const detail = message.blocks[1].text.text;
+  assert.equal(message.blocks.length, 3);
+  const replyBody = message.blocks[1].text.text;
+  assert.match(replyBody, /\*답장 내용\*/);
+  assert.match(replyBody, /> 단가는 80만원/);
+  assert.doesNotMatch(replyBody, /이전에 보낸 협업 제안/);
+  assert.doesNotMatch(replyBody, /daniel@matchharper\.com/);
+  const detail = message.blocks[2].text.text;
   assert.match(detail, /\*요약\*/);
   assert.match(detail, /#12 · Fixture Creator · @fixture/);
   assert.match(detail, /발송 #8/);
+  assert.match(detail, /\*문의 발송\*/);
+  assert.match(detail, /<!date\^1789650000\^/);
+  assert.match(detail, /\*회신 수신\*/);
   assert.match(detail, /Contents Engine에서 원문 보기/);
   assert.ok(detail.split("\n").length <= 5);
 });
@@ -44,6 +58,7 @@ test("escapes untrusted reply text before inserting it into Slack mrkdwn", () =>
       creatorRef: 13,
       dispatchRef: 9,
       fromEmail: "creator@example.com",
+      outboundSentAt: null,
       outboundSubject: "Subject",
       receivedAt: "2026-09-17T10:00:00Z",
       subject: "Reply",
@@ -52,10 +67,12 @@ test("escapes untrusted reply text before inserting it into Slack mrkdwn", () =>
     },
     "https://docs.google.com/spreadsheets/d/fixture/edit"
   );
-  const detail = message.blocks[1].text.text;
-  assert.doesNotMatch(detail, /<script>/);
-  assert.match(detail, /&lt;script&gt;/);
+  const replyBody = message.blocks[1].text.text;
+  const detail = message.blocks[2].text.text;
+  assert.doesNotMatch(replyBody, /<script>/);
+  assert.match(replyBody, /&lt;script&gt;/);
   assert.match(detail, /A&amp;B/);
+  assert.match(detail, /\*문의 발송\* 확인 불가/);
 });
 
 test("renders a compact permanent bounce alert with the exact recipient", () => {

@@ -1,4 +1,5 @@
 import type { OutreachReplyTriageType } from "@/lib/contentsEngine/replyTriage";
+import { stripQuotedEmailText } from "@/lib/email/parse";
 
 type OutreachReplyNotification = {
   activityId: string;
@@ -8,6 +9,7 @@ type OutreachReplyNotification = {
   creatorRef: number | string;
   dispatchRef: number | string;
   fromEmail: string;
+  outboundSentAt: string | null;
   outboundSubject: string;
   primaryHandle?: string | null;
   receivedAt: string;
@@ -28,6 +30,18 @@ type OutreachDeliveryFailureNotification = {
   subject: string;
 };
 
+type ContentCompensationNotification = {
+  amount: number;
+  contentRef: number | string;
+  costId: string;
+  costRef: number | string;
+  currency: string;
+  metricAsOf: string;
+  strategyName: string;
+  title: string;
+  views: number;
+};
+
 function requiredEnv(name: string) {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`${name} is required`);
@@ -39,6 +53,20 @@ function escapeSlack(value: unknown) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+function slackDate(value: string | null | undefined) {
+  const timestamp = Date.parse(String(value ?? ""));
+  if (!Number.isFinite(timestamp)) return "확인 불가";
+  const fallback = new Date(timestamp).toISOString();
+  return `<!date^${Math.floor(timestamp / 1000)}^{date_short_pretty} {time}|${fallback}>`;
+}
+
+function slackQuote(value: string) {
+  return escapeSlack(value)
+    .split("\n")
+    .map((line) => `> ${line || " "}`)
+    .join("\n");
 }
 
 const TRIAGE_PRESENTATION: Record<
@@ -59,7 +87,8 @@ export function buildGtmOutreachReplySlackMessage(
   sheetUrl: string
 ) {
   const presentation = TRIAGE_PRESENTATION[reply.triageType];
-  const preview = reply.body.replace(/\s+/g, " ").trim().slice(0, 320) || "(본문 없음)";
+  const preview =
+    stripQuotedEmailText(reply.body).trim().slice(0, 1200) || "(본문 없음)";
   const creatorIdentity = [
     `#${reply.creatorRef}`,
     reply.creatorName,
@@ -79,11 +108,18 @@ export function buildGtmOutreachReplySlackMessage(
         type: "section",
         text: {
           type: "mrkdwn",
+          text: `*답장 내용*\n${slackQuote(preview)}`,
+        },
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
           text: [
             `*요약* ${escapeSlack(reply.triageSummary)}`,
             `*대상* ${escapeSlack(creatorIdentity)} · 발송 #${escapeSlack(reply.dispatchRef)} · ${escapeSlack(reply.outboundSubject || "(발송 제목 없음)")}`,
-            `*회신* ${escapeSlack(reply.fromEmail)} · ${escapeSlack(reply.subject || "(제목 없음)")}`,
-            `> ${escapeSlack(preview)}`,
+            `*문의 발송* ${slackDate(reply.outboundSentAt)}`,
+            `*회신 수신* ${slackDate(reply.receivedAt)} · ${escapeSlack(reply.fromEmail)} · ${escapeSlack(reply.subject || "(제목 없음)")}`,
             `<${sheetUrl}|Contents Engine에서 원문 보기>`,
           ].join("\n"),
         },
@@ -200,6 +236,79 @@ export async function notifyGtmOutreachDeliveryFailure(
   if (!response.ok || !payload.ok) {
     throw new Error(
       `Slack delivery failure notification failed: ${payload.error ?? response.status}`
+    );
+  }
+  return { channel, ts: payload.ts ?? null };
+}
+
+export function buildGtmContentCompensationSlackMessage(
+  settlement: ContentCompensationNotification,
+  sheetUrl: string
+) {
+  const amount = new Intl.NumberFormat("ko-KR").format(settlement.amount);
+  const views = new Intl.NumberFormat("ko-KR").format(settlement.views);
+  return {
+    blocks: [
+      {
+        type: "header",
+        text: {
+          type: "plain_text",
+          text: `💰 크리에이터 지급액 확정 · 콘텐츠 #${settlement.contentRef}`.slice(
+            0,
+            150
+          ),
+        },
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: [
+            `*콘텐츠* ${escapeSlack(settlement.title)}`,
+            `*측정 결과* 조회수 ${views} · ${slackDate(settlement.metricAsOf)}`,
+            `*가격 전략* ${escapeSlack(settlement.strategyName)}`,
+            `*지급 예정* *${amount} ${escapeSlack(settlement.currency)}* · 비용 #${escapeSlack(settlement.costRef)}`,
+            `<${sheetUrl}|콘텐츠·정산 근거 확인>`,
+          ].join("\n"),
+        },
+      },
+    ],
+    text: `💰 콘텐츠 #${settlement.contentRef} 지급액 ${amount} ${settlement.currency} 확정`,
+  };
+}
+
+export async function notifyGtmContentCompensation(
+  settlement: ContentCompensationNotification
+) {
+  const token = requiredEnv("SLACK_BOT_TOKEN");
+  const channel = requiredEnv("GTM_OUTREACH_SLACK_CHANNEL_ID");
+  const sheetUrl =
+    process.env.GTM_CONTENTS_ENGINE_SHEET_URL?.trim() ||
+    "https://docs.google.com/spreadsheets/d/1-3QpEN19fFEiP6acBqLWMCOD483bWvJtPwwQ9KUqgEI/edit";
+  const message = buildGtmContentCompensationSlackMessage(settlement, sheetUrl);
+  const response = await fetch("https://slack.com/api/chat.postMessage", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json; charset=utf-8",
+    },
+    body: JSON.stringify({
+      blocks: message.blocks,
+      channel,
+      client_msg_id: settlement.costId,
+      text: message.text,
+      unfurl_links: false,
+      unfurl_media: false,
+    }),
+  });
+  const payload = (await response.json().catch(() => ({}))) as {
+    error?: string;
+    ok?: boolean;
+    ts?: string;
+  };
+  if (!response.ok || !payload.ok) {
+    throw new Error(
+      `Slack compensation notification failed: ${payload.error ?? response.status}`
     );
   }
   return { channel, ts: payload.ts ?? null };

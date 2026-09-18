@@ -1,6 +1,6 @@
 # 데이터 계약 — 일곱 원장과 내부 기록
 
-버전: 1.3 · 적용일: 2026-09-17 · 상태: 현재 운영 업무 테이블 11개와 공통 API 구현. 이메일 발송 실행 원장·메일함 cursor migration은 검증 완료 후 배포 전. [AGENTS.md](AGENTS.md)를 먼저 읽는다. 아래는 저장 의미와 운영 계약이며 실제 칼럼은 마지막 물리 목록, 호출은 Connections를 따른다.
+버전: 1.4 · 적용일: 2026-09-18 · 상태: 이메일 발송·가격 전략·Instagram 콘텐츠 지표·측정일 비용 확정까지 운영 중. [AGENTS.md](AGENTS.md)를 먼저 읽는다. 아래는 저장 의미와 운영 계약이며 실제 칼럼은 마지막 물리 목록, 호출은 Connections를 따른다.
 
 ## 공통 규칙
 
@@ -10,7 +10,7 @@
 
 기본 목록의 계산값은 별도 편집 원본이 아니다. 통화와 금액, 시각과 시간대를 명시한다. 미확인 금액·지표는 null이며 관측된 0과 다르다. 기본 화면은 사람이 한 대상에 대해 바로 결정해야 하는 식별·규모·활동·연락·다음 업무·최신성을 먼저 보여주고, 원본과 긴 이력은 상세에서 펼친다.
 
-현재 운영 데이터는 7개 기본 원장과 4개 보조 기록, 총 11개 업무 테이블이다. 이메일 발송 migration은 실제 외부 전송의 승인·정확한 원문·provider 결과·재시도 상태를 보존하는 `gtm_outreach_dispatches`를 다섯 번째 보조 기록으로 추가한다. 접근 키용 `gtm_access_tokens`와 Gmail cursor/watch 상태용 `gtm_outreach_mailboxes`는 내부 연결 테이블이다. 배포 후 업무 테이블은 12개, 내부 연결 테이블은 2개, 물리 테이블은 총 14개다.
+현재 운영 데이터는 가격 전략을 포함한 13개 업무 테이블과 접근 키·Gmail cursor용 내부 연결 테이블 2개다. `gtm_outreach_dispatches`는 외부 전송의 승인·정확한 원문·provider 결과·재시도 상태를, `gtm_compensation_strategies`는 여러 연락과 콘텐츠에서 재사용할 가격 실험 버전을 보존한다.
 
 ## 1. gtm_creators — 크리에이터
 
@@ -134,6 +134,8 @@ activities에는 메시지 전송 결과·provider thread/message ID 같은 실�
 
 `gtm_outreach_dispatches`는 transient Agent 판단이나 대화 계획이 아니다. Gmail이라는 외부 side effect를 정확히 한 번에 가깝게 실행하기 위해 다시 계산할 수 없는 팀원 승인과 당시 exact copy, provider identity, 재시도 상태를 보존한다. 준비 요청과 발송 요청 ID는 idempotent하며 승인 전에는 외부 전송이 없다. 실제 발송 성공 뒤에는 같은 원문을 append-only `message_sent` activity에도 기록해 일반 관계 타임라인과 템플릿 결과가 이어지게 한다.
 
+`gtm_compensation_strategies`의 한 행은 기본비·측정일수·조회수 단위 N·단위당 금액 M을 묶은 버전이다. 고정비형은 기본비만 쓴다. 사용 전 값은 고칠 수 있지만 콘텐츠에 지정된 버전의 경제 조건은 바꾸지 않는다. 콘텐츠에는 당시 조건의 JSON 스냅샷, 측정 예정일, 마지막 수집/오류, 확정 비용 연결을 저장한다. 공개 지표 관측은 `gtm_metric_snapshots`, 지급 의무는 기존 `gtm_costs`에 각각 한 번만 저장한다.
+
 `gtm_outreach_mailboxes`는 업무 원장이 아니라 Gmail history cursor, watch 만료, 마지막 동기화·오류만 보관하는 내부 연결 상태다. Sheet나 일반 GTM API에 노출하지 않는다.
 
 활동에는 불변 id/ref, 관련 원장 참조, 발생·기록 시각과 작성자를 둔다. 메시지 초안은 draft로 구분하고 실제 발송 결과는 그 초안 버전·원문 hash·provider ID를 참조한다. 대화 식별자는 사용 연결+provider thread ID 범위로 관리하며 같은 스레드의 새 협업도 조회할 수 있게 한다. 자동 동기화가 수동 기록과 같은 외부 메시지 ID를 발견하면 실제 메시지를 중복 적재하지 않고 출처를 보완한다. 일치가 불확실하면 내용을 보고 확인하며 추측으로 병합하지 않는다.
@@ -189,12 +191,13 @@ costs의 선금·잔금·환불은 해당 비용 한 건에 붙는 작은 지급
 - **gtm_outreach_templates**: `id`, `ref`, `name`, `status`, `campaign_id`, `channel`, `language`, `target_creator_profile`, `subject_template`, `opening_template`, `value_proposition`, `ask`, `offer_structure`, `follow_up_template`, `link_refs`, `usage_notes`, `template_version`, `owner_id`, `created_at`, `updated_at`, `created_by`, `updated_by`, `row_version`, `archived_at`.
 - **gtm_plans**: `id`, `ref`, `name`, `brief`, `target_market`, `target_audience`, `goal_metric`, `metric_version`, `goal_value`, `currency`, `cash_budget`, `contingency`, `labor_budget_minutes`, `start_at`, `end_at`, `timezone`, `owner_id`, `status`, `plan_document_ref`, `plan_version`, `action_items`, `created_at`, `updated_at`, `created_by`, `updated_by`, `row_version`, `archived_at`.
 - **gtm_accounts**: `id`, `ref`, `creator_id`, `owner_kind`, `platform`, `provider_scope`, `external_id`, `handle`, `profile_url`, `last_post_at`, `audience_summary`, `audience_evidence`, `source_ref`, `as_of`, `collected_at`, `valid_until`, `created_at`, `updated_at`, `created_by`, `updated_by`, `row_version`, `archived_at`.
-- **gtm_collaborations**: `id`, `ref`, `creator_id`, `plan_id`, `title`, `status`, `owner_id`, `contact_ref`, `terms`, `terms_version`, `agreed_at`, `due_at`, `closed_at`, `close_reason`, `action_items`, `previous_collaboration_id`, `origin_activity_id`, `created_at`, `updated_at`, `created_by`, `updated_by`, `row_version`, `archived_at`.
-- **gtm_contents**: `id`, `ref`, `title`, `creator_id`, `collaboration_id`, `plan_id`, `campaign_id`, `format_id`, `account_id`, `placement`, `distribution_type`, `content_group_id`, `brief_ref`, `brief_version`, `asset_refs`, `rights_source`, `target_market`, `target_audience`, `language`, `cta`, `destination_url`, `execution_reason`, `execution_snapshot`, `production_status`, `publish_status`, `due_at`, `scheduled_at`, `published_at`, `post_url`, `external_post_id`, `tracking_links`, `action_items`, `previous_content_id`, `origin_activity_id`, `reused_from_content_id`, `created_at`, `updated_at`, `created_by`, `updated_by`, `row_version`, `archived_at`.
+- **gtm_collaborations**: 기존 협업 칼럼과 `compensation_strategy_id`.
+- **gtm_contents**: 기존 콘텐츠 칼럼과 `compensation_strategy_id`, `compensation_snapshot`, `platform_metrics_due_at`, `platform_metrics_last_collected_at`, `platform_metrics_last_error`, `platform_metrics_finalized_at`, `compensation_cost_id`.
 - **gtm_activities**: `id`, `ref`, `entity`, `entity_id`, `kind`, `body`, `payload`, `occurred_at`, `source_ref`, `provider`, `connection_ref`, `external_id`, `thread_id`, `outreach_template_id`, `correction_of_id`, `request_id`, `created_at`, `updated_at`, `created_by`, `updated_by`, `row_version`, `archived_at`.
 - **gtm_metric_snapshots**: `id`, `ref`, `account_id`, `content_id`, `metric`, `value`, `unit`, `period_start`, `period_end`, `as_of`, `collected_at`, `source_ref`, `definition_version`, `value_kind`, `missing_reason`, `retention_until`, `created_at`, `updated_at`, `created_by`, `updated_by`, `row_version`, `archived_at`.
 - **gtm_costs**: `id`, `ref`, `plan_id`, `collaboration_id`, `kind`, `description`, `currency`, `base_currency`, `fx_rate`, `fx_source`, `expected_amount`, `agreed_amount`, `incurred_amount`, `labor_minutes`, `hourly_rate`, `measurement_basis`, `due_at`, `incurred_at`, `source_ref`, `payments`, `allocations`, `created_at`, `updated_at`, `created_by`, `updated_by`, `row_version`, `archived_at`.
-- **gtm_outreach_dispatches** (배포 전 migration): `id`, `ref`, `creator_id`, `collaboration_id`, `outreach_template_id`, `template_version`, `recipient_email`, `sender_email`, `subject`, `body`, `selection_reason`, `personalization_evidence`, `status`, `review_note`, `approved_by`, `approved_at`, `scheduled_at`, `next_attempt_at`, `sending_started_at`, `sent_at`, `replied_at`, `failed_at`, `attempt_count`, `last_error`, `provider`, `connection_ref`, `provider_message_id`, `provider_thread_id`, `rfc_message_id`, `draft_activity_id`, `prepare_request_id`, `prepare_input_hash`, `send_request_id`, `created_at`, `updated_at`, `created_by`, `updated_by`, `row_version`, `archived_at`.
+- **gtm_outreach_dispatches**: 기존 이메일 발송 칼럼과 `compensation_strategy_id`, `compensation_snapshot`, `estimated_views`, `estimated_cost`.
+- **gtm_compensation_strategies**: `id`, `ref`, `name`, `version`, `status`, `pricing_model`, `currency`, `base_fee`, `measurement_window_days`, `views_per_unit`, `amount_per_unit`, `notes`, 공통 변경 칼럼.
 - **gtm_access_tokens**: `id`, `name`, `token_hash`, `can_write`, `created_at`, `expires_at`, `revoked_at`, `last_used_at`.
 - **gtm_outreach_mailboxes** (배포 전 migration): `email`, `provider`, `history_id`, `watch_expiration`, `last_synced_at`, `last_error`, `created_at`, `updated_at`.
 
@@ -203,7 +206,7 @@ costs의 선금·잔금·환불은 해당 비용 한 건에 붙는 작은 지급
 
 list는 원장 행과 페이지네이션을 반환한다. `gtm_creators`는 `gtm_creator_overview`, plans는 비용 요약 뷰, formats는 `gtm_format_overview`, outreach templates는 `gtm_outreach_template_overview`를 사용한다. 크리에이터 기본 조회에는 플랫폼 계정, 팔로워, 최근 365일 게시물 수, 최근 게시, 연락 상태, 열린 협업/후속 업무, 최신 채택 방향, 자료 최신성이 포함된다. Format Bank와 Outreach Templates 기본 조회에는 편집 원본과 실제 사용 결과가 함께 포함된다. get은 이 기본 행과 계정별 원본·관련 활동을 붙이고 과거 이력이 더 필요하면 activities를 대상 필터로 추가 조회한다. performance는 제품 전체·일별·콘텐츠·공용 귀속을 반환한다. 기본 목록이 모든 원문과 시계열을 무제한 조인한다고 가정하지 않는다.
 
-Sheets의 크리에이터 화면은 View로 여러 원장을 합친다. `gtm_creator_directory_sheet_v1`은 전체 크리에이터와 대표 계정·연락·현재 진행을 합치고, `gtm_connected_creator_sheet_v1`은 실제 관계가 시작된 크리에이터에 협업·콘텐츠·비용 이력을 더하며, `gtm_outreach_sheet_v1`은 실제 draft/sent/received 활동을 크리에이터·협업·집행·사용 템플릿과 연결한다. 배포 전 `gtm_outreach_review_sheet_v1`은 dispatch의 정확한 발송본과 승인/전달 상태를 합친다. 제한 토큰을 검사하는 `gtm_sheet_view`가 이 읽기 View만 페이지 단위로 반환한다. Format Bank와 Outreach Templates는 각각 계산값이 붙은 기본 API 조회를 쓰며 편집 원본은 `gtm_formats`와 `gtm_outreach_templates`다. 일반 원본 변경은 기존 `gtm_api`, 이메일 준비·검토는 각각 제한된 전용 RPC와 행 버전 계약을 사용한다.
+Sheets의 크리에이터 화면은 View로 여러 원장을 합친다. 기존 Creator/Outreach View에 더해 `gtm_content_sheet_v1`이 공개 성과·가격·정산 상태를, `gtm_compensation_strategy_sheet_v1`이 가격 실험 조건과 사용 결과를 보여준다. 제한 토큰을 검사하는 `gtm_sheet_view`가 이 읽기 View만 페이지 단위로 반환한다. 가격 전략 편집은 전용 저장 RPC와 행 버전 계약을 사용한다.
 
 계정 수치의 표준 기록은 `metric='followers'`(누적, unit=`people`)와 `metric='published_content_count'`(기간, unit=`posts`, 정확한 365일 period_start/period_end)다. 값·단위·기간·as_of·collected_at·source_ref·definition_version을 함께 기록한다. 기본 조회의 `total_followers`와 `content_count_365d`는 플랫폼 계정 합계라 고유 사람 수나 고유 제작물 수가 아니다.
 

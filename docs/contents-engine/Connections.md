@@ -1,6 +1,6 @@
 # Connections.md
 
-버전: 1.8 · 적용일: 2026-09-18 · 상태: 11개 운영 시트, Outreach Review 승인, Gmail 발송/회신·분류·반송, Slack 알림 운영 중 · 관리: 데이터 연결 담당
+버전: 1.9 · 적용일: 2026-09-18 · 상태: 12개 운영 시트, Gmail outreach, Instagram 공개 지표 수집, 가격 전략·측정일 정산과 Slack 알림 운영 중 · 관리: 데이터 연결 담당
 
 ## 연결 상태
 
@@ -9,10 +9,10 @@
 | Supabase gtm_api | GTM 11개 업무 원장의 조회·변경·일괄 저장·UTM 발급·오늘 할 일·제품 집계. Format Bank와 Outreach Templates는 실제 사용·게시·회신 결과가 붙는 기본 조회까지 운영 | 임의 SQL, 원본 제품 사용자 조회, 발송/송금 실행 제공 안 함 |
 | 제품 성과 | logs + landing_logs + 인증 가입 연결 + 실제 온보딩 이벤트의 서버 집계 | 동일 UTM 재방문 수집 누락 가능; 관측된 명시적 UTM만 귀속 |
 | Notion | 기존 Contents Engine / Agents.md 아래 작업별 지침 | 토큰이나 개인 사용자 데이터 보관 장소 아님 |
-| Google Sheets | 전체 성과·Creator Directory·Connected Creators·Outreach Log·Format Bank·Outreach Templates·협업·콘텐츠·집행·캠페인과 5분/열기 자동 동기화 운영 중. `Outreach Review`에서 최종 제목·본문·발송 시각을 보고 승인/수정요청/건너뛰기를 선택 | 새 팀원은 첫 실행에서 Google 권한 승인과 본인 GTM 전용 키 연결 필요 |
+| Google Sheets | 기존 운영 화면과 `Pricing Strategies`, 성과·정산 중심 `콘텐츠`를 5분/열기 자동 동기화. `Outreach Review`에서 가격 전략·예상 비용·최종 원문을 보고 승인 | 새 팀원은 첫 실행에서 Google 권한 승인과 본인 GTM 전용 키 연결 필요 |
 | 크리에이터 발굴 | Agent가 접근 가능한 공개 출처와 제공 자료로 조사·저장 | 전 플랫폼 전수 발굴 API 미연결 |
 | 메일/DM | 이메일은 `daniel@matchharper.com` Gmail 메일함의 무료 별칭 `harper@matchharper.com`, 팀원 Sheet 승인, 중복 방지 발송, Gmail 회신 DB 저장, Slack 알림까지 사용. DM은 초안과 실제 메시지 기록만 지원 | 별칭은 별도 로그인·별도 받은편지함이 아니며 `daniel@matchharper.com`에서 발신·회신을 관리. Instagram/X/Threads/TikTok DM 자동화 미연결 |
-| 플랫폼 통계 | 원본 API/제출 통계 관측값 저장 계약 | YouTube/Meta/TikTok 전용 인증/API 미연결 |
+| 플랫폼 통계 | Apify의 Instagram 공개 게시물/댓글 수집기로 하루 한 번 필요한 게시물의 조회수·좋아요·전체 댓글·작성자 제외 공개 댓글을 저장. 측정일이 지난 가격 전략 콘텐츠는 비용을 확정하고 같은 Slack 채널에 알림 | Instagram의 비공개·삭제·노출 제한 댓글은 셀 수 없어 부분 공개 수치로 표시. YouTube/TikTok 등은 아직 자동 수집 미연결 |
 | 지급 | 비용·증빙·지급/환불 내역 대사 | 실제 송금 미연결 |
 | 정기 Agent·Metabase | 공통 API/지표를 재사용할 수 있음 | 스케줄·별도 Metabase 설치 미설정 |
 
@@ -71,7 +71,7 @@ Gmail의 구조화된 delivery-status 영수증은 일반 회신과 분리한다
 
 2026-09-17에 Google 권한 승인, 전용 키 연결, 조회, 전체 새로고침, 임시 포맷 한 건 저장, 동일 ID 재조회, 정확한 검증 행·감사 기록 제거, 다시 새로고침까지 확인했다. 같은 날 Format Bank·Outreach Templates 추가, 기존 Creator Directory 30개 행의 새 칼럼 안전 이관, 5분/열기 trigger와 오류율 0%, 부분 새로고침을 실제 시트에서 다시 확인했다. 검증용 업무 행은 남아 있지 않다. 현재 승인된 Outreach Template은 한국 개발·커리어 크리에이터용 email rate 문의형과 Instagram DM 관심 확인형 2건이며, 실제 draft/sent/reply 수치는 해당 원장과 Outreach Log에서 읽는다. 입력 수정은 즉시 DB에 쓰지 않고 ‘미반영’으로 표시하며 선택행 저장 메뉴를 누른다. 서버 변경과 충돌하면 로컬 수정은 남기고 재확인을 요구한다. 새로고침은 미반영 수정이 있는 시트를 보존하고 나머지 시트를 계속 갱신한다. 통신 결과가 불명확한 쓰기는 같은 요청 ID로 재시도한다. 숨김 ID/버전 칼럼과 조회값은 수정 경고를 표시한다.
 
-Creator Directory는 전체 후보의 조사 정보와 간단한 연락·연결 상태를 표시하고 허용된 크리에이터 원본 칼럼만 편집한다. 흰색 칸은 편집 가능하고 회색 칸은 Supabase 동기화 값이다. Owner와 Primary Platform 칼럼은 없으며 연결 플랫폼은 `Platforms`에 모으고 `Languages`는 Outreach Status·Last Contact At 바로 오른쪽에 둔다. Connected Creators는 실제 연락·협업 이력이 있는 크리에이터의 협업·콘텐츠·비용·성과·채택 방향을 모은 읽기 화면이다. Outreach Log는 메시지 초안·발송·수신 원문과 회신 분류·게시 확인 필요·반송·수동 발송 상태를 관계 정보와 함께 시간순으로 보여준다. Format Bank는 hook·제작 흐름·필수 장면·캡션·반복/중단 기준·대상·연락 각도와 사용량을, Outreach Templates는 캠페인·채널·대상·본문·제안·후속 문구와 발송/회신 결과를 보여준다. Outreach Review는 크리에이터·프로필 URL·수신 이메일·템플릿·제목·본문·결정을 앞쪽에 보여주고 팀원이 한 건씩 승인·수정요청·건너뛰기를 저장한다. 결정 칸은 검토 전 노란색이며 승인 선택 또는 실제 발송 시각이 있는 행은 초록색이다. 5분 주기와 파일 열기 trigger가 DB View/RPC를 다시 읽고, 미반영 편집이 있는 시트는 보존한 채 나머지 시트를 갱신한다. Gmail 회신은 DB와 Outreach Log에 반영되고 Slack `_growth_creators`에 짧은 분류와 함께 알린다.
+Creator Directory는 전체 후보의 조사 정보와 간단한 연락·연결 상태를 표시하고 허용된 크리에이터 원본 칼럼만 편집한다. 흰색 칸은 편집 가능하고 회색 칸은 Supabase 동기화 값이다. Owner와 Primary Platform 칼럼은 없으며 연결 플랫폼은 `Platforms`에 모으고 `Languages`는 Outreach Status·Last Contact At 바로 오른쪽에 둔다. Connected Creators는 실제 연락·협업 이력이 있는 크리에이터의 협업·콘텐츠·비용·성과·채택 방향을 모은 읽기 화면이다. Outreach Log는 메시지 초안·발송·수신 원문과 회신 분류·게시 확인 필요·반송·수동 발송 상태를 관계 정보와 함께 시간순으로 보여준다. Format Bank는 제작 기준을, Outreach Templates는 메시지 기준을, Pricing Strategies는 고정비 또는 기본비+조회수 연동 조건을 관리한다. Outreach Review는 크리에이터·프로필 URL·수신 이메일·템플릿·가격 전략·예상 비용·제목·본문·결정을 앞쪽에 보여준다. 콘텐츠 시트는 게시물 URL과 공개 지표·측정일·예상/확정 지급액을 앞에 두고 ref는 뒤에 둔다. 결정 칸은 검토 전 노란색이며 승인 선택 또는 실제 발송 시각이 있는 행은 초록색이다. 5분 주기와 파일 열기 trigger가 DB View/RPC를 다시 읽고, 미반영 편집이 있는 시트는 보존한 채 나머지 시트를 갱신한다. Gmail 회신과 측정일 지급액 확정은 Slack `_growth_creators`에 짧게 알린다.
 
 `gtm_access_tokens`는 접근 관리용 내부 테이블이다. 원본 키 대신 SHA-256 해시·이름·읽기/쓰기·만료/폐기를 저장한다. 초기에 로컬 Agent와 Sheets용 키를 별도로 90일 만료로 발급했다. 현재 권한은 GTM 전체 읽기 또는 전체 읽기/쓰기 단위이며 팀원별 행/연락처 단위 권한까지 분리하지 않았다.
 
