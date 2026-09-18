@@ -277,7 +277,7 @@ function prepareWorkbook(){
     dataRange.clearDataValidations().setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP)
       .setVerticalAlignment('middle');
     s.setRowHeightsForced(6,Math.max(1,s.getMaxRows()-5),32);
-    s.setColumnWidth(1,80);
+    s.setColumnWidth(1,c.entity==='gtm_compensation_strategies'?180:80);
     if(c.fields.length>1)s.setColumnWidth(2,180);
     c.fields.forEach((field,index)=>{
       const key=field[0],col=index+1;
