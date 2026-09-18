@@ -248,7 +248,7 @@
 
 ## 10. 실제 발송과 회신
 
-전용 이메일 발송·수신 동기화는 운영 중이다. DM은 계속 별도 수동 범위다. 다음 배포의 회신 분류·반송 보강은 [Connections.md](Connections.md)의 현재 상태를 따른다.
+전용 이메일 발송·수신 동기화, 회신 분류와 반송 처리는 운영 중이다. DM은 계속 별도 수동 범위다. 연결과 복구 기준은 [Connections.md](Connections.md)의 현재 상태를 따른다.
 
 1. Agent가 `gtm_outreach_prepare`로 사람별 수신자, `harper@matchharper.com` 발신자, active email template의 당시 version, 정확한 제목·본문을 준비한다. 준비는 발송이 아니다.
 2. 팀원은 `Outreach Review`에서 한 행씩 최종 제목·본문·예약 시각을 읽고 `Approve & Send`, `Request Revision`, `Skip` 중 하나를 선택해 저장한다. 셀 선택만으로는 보내지 않는다. `Request Revision`이면 Agent가 같은 dispatch의 제목/본문을 `revise`로 고쳐 `ready_for_review`에 다시 올리고 이전 초안과 요청은 활동 이력에 남긴다.

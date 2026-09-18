@@ -110,7 +110,15 @@ const bridgeSource=fs.readFileSync(__dirname+'/sheets-bridge.gs','utf8');
 assert.match(bridgeSource,/whenTextEqualTo\('Approve & Send'\)/);
 assert.match(bridgeSource,/setBackground\('#d9ead3'\)/);
 assert.match(bridgeSource,/WrapStrategy\.CLIP/);
-assert.match(bridgeSource,/setRowsHeight\(6,height,38\)/);
+assert.match(bridgeSource,/setRowHeightsForced\(6,height,38\)/);
+assert.match(bridgeSource,/getRange\(4,1,2,s\.getMaxColumns\(\)\)\.clearContent\(\)\.clearFormat\(\)\.clearDataValidations\(\)/);
+assert.match(bridgeSource,/addItem\('시트 구조 설치\/업데이트', 'installWorkbook'\)/);
+assert.match(bridgeSource,/refreshSheet_\(s,c,ctx\.sheetRows\[name\]\.map\(record=>row_\(record,c,ctx\)\),ctx\)/);
+assert.match(bridgeSource,/getRange\(2,1,1,Math\.max\(1,c\.frozenColumns\|\|2\)\)\.merge\(\)/);
+assert.ok(
+ bridgeSource.indexOf('s.setFrozenRows(0);s.setFrozenColumns(0);')<
+ bridgeSource.indexOf("s.getRange(2,1,1,Math.max(1,c.frozenColumns||2)).merge()")
+);
 assert.equal(context.reviewAction_('Approve & Send'),'approve');
 assert.equal(context.reviewAction_('Request Revision'),'request_revision');
 assert.equal(context.reviewAction_('Skip'),'skip');

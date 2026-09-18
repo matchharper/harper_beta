@@ -1,8 +1,6 @@
 # Creator email outreach 배포 체크리스트
 
-상태: 2026-09-17 운영 배포 완료. Workspace 별칭, Gmail domain-wide delegation, Pub/Sub push, Slack 알림, Supabase 원장, Apps Script와 11개 Sheet 탭을 실제 환경에서 확인함
-
-다음 배포 대상: `20260917090000_gtm_outreach_reply_triage.sql`, 앱의 GLM 5.3 Flash 회신 분류·구조화된 Gmail 반송 처리, Apps Script schema v8과 Outreach Log 추가 칼럼. 이 문장의 기능은 다음 배포와 실제 smoke test 전까지 운영 완료로 간주하지 않는다.
+상태: 2026-09-18 운영 배포 완료. Workspace 별칭, Gmail domain-wide delegation, Pub/Sub push, Slack 알림, Supabase 원장, 회신 분류·반송 처리, Apps Script와 11개 Sheet 탭을 실제 환경에 반영함
 
 ## 고정 발신 계정과 별칭
 

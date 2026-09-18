@@ -3,12 +3,12 @@
  * GTM_TABLES is generated from sheet-columns.json and inserted above this file.
  * Each teammate stores their own scoped GTM credential in UserProperties.
  */
-const GTM_SHEET_SCHEMA_VERSION='2026-09-18-v10';
+const GTM_SHEET_SCHEMA_VERSION='2026-09-18-v11';
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Contents Engine')
     .addItem('전체 새로고침', 'refreshAll')
-    .addItem('시트 구조 설치/업데이트', 'prepareWorkbook')
+    .addItem('시트 구조 설치/업데이트', 'installWorkbook')
     .addItem('자동 동기화 설치/복구', 'installAutoSync')
     .addItem('선택한 행 저장', 'saveSelected')
     .addItem('Outreach Review 선택행 승인/반영', 'saveOutreachReviewSelected')
@@ -178,7 +178,6 @@ function formatReviewRows_(sheet,c){
   sheet.getRange(6,1,height,c.fields.length+6)
     .setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP)
     .setVerticalAlignment('middle');
-  sheet.setRowsHeight(6,height,38);
   const creatorColumn=fieldIndex_(c,'creator_name')+1;
   sheet.getRange(6,creatorColumn,height,1)
     .setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
@@ -188,6 +187,7 @@ function formatReviewRows_(sheet,c){
     SpreadsheetApp.newDataValidation().requireValueInList(['Approve & Send','Request Revision','Skip'],true).setAllowInvalid(false).build()
   );
   setReviewDecisionFormatting_(sheet,decisionRange);
+  sheet.setRowHeightsForced(6,height,38);
 }
 function prepareWorkbook(){
   const ss=workbook_(),properties=PropertiesService.getDocumentProperties();
@@ -205,15 +205,16 @@ function prepareWorkbook(){
     if(s.getMaxColumns()<width)s.insertColumnsAfter(s.getMaxColumns(),width-s.getMaxColumns());
     if(s.getMaxRows()<6)s.insertRowsAfter(s.getMaxRows(),6-s.getMaxRows());
     s.showColumns(1,width);
+    s.setFrozenRows(0);s.setFrozenColumns(0);
     s.getRange(1,1,5,s.getMaxColumns()).breakApart();
     s.getRange(1,1).setValue(name).setFontSize(15).setFontWeight('bold');
     s.getRange(2,1).setValue(c.helpText||(c.view?'Automatically synced operating view. Read-only fields are rebuilt from Supabase.':'Supabase is canonical. Edit allowed fields, then save the selected row.'));
     if(c.reviewMode){
-      s.getRange(2,1,1,6).merge().setBackground('#fff2cc').setFontColor('#7f6000')
+      s.getRange(2,1,1,Math.max(1,c.frozenColumns||2)).merge().setBackground('#fff2cc').setFontColor('#7f6000')
         .setFontWeight('bold').setWrap(true).setVerticalAlignment('middle');
       s.setRowHeight(2,44);
     }
-    s.getRange(5,1,1,s.getMaxColumns()).clearContent().clearFormat();
+    s.getRange(4,1,2,s.getMaxColumns()).clearContent().clearFormat().clearDataValidations();
     s.getRange(5,1,1,width).setValues([c.fields.map(f=>f[1]).concat(meta)])
       .setBackground('#1f4e78').setFontColor('#ffffff').setFontWeight('bold').setWrap(true);
     s.setFrozenRows(5);s.setFrozenColumns(c.frozenColumns||2);
@@ -251,6 +252,27 @@ function prepareWorkbook(){
   ss.toast('운영 시트와 원장 시트 구조를 업데이트했습니다.','Contents Engine',8);
   return schemaChanged;
 }
+function refreshSheet_(s,c,values,ctx){
+  const count=Math.max(values.length,s.getLastRow()-5,1);
+  if(s.getMaxRows()<count+5)s.insertRowsAfter(s.getMaxRows(),count+5-s.getMaxRows());
+  s.getRange(6,1,count,c.fields.length+6).clearContent();
+  writeRows_(s,6,values);
+  if(c.reviewMode)formatReviewRows_(s,c);
+  s.getRange('A3').setValue('최근 동기화 '+ctx.perf.generated_at+' · 조회 범위 '+ctx.perf.start_at+' ~ '+ctx.perf.end_at);
+  s.hideColumns(c.fields.length+2,5);
+}
+function installWorkbook(){
+  const schemaChanged=prepareWorkbook();
+  if(!schemaChanged)return;
+  try{
+    const ss=workbook_(),ctx=context_(),name='Outreach Review',c=GTM_TABLES[name],s=ss.getSheetByName(name);
+    refreshSheet_(s,c,ctx.sheetRows[name].map(record=>row_(record,c,ctx)),ctx);
+    ss.toast('시트 구조 업데이트와 Outreach Review 재동기화를 완료했습니다.','Contents Engine',8);
+  }catch(error){
+    PropertiesService.getDocumentProperties().deleteProperty('GTM_SHEET_SCHEMA_VERSION');
+    throw error;
+  }
+}
 function installAutoSync(){
   const schemaChanged=prepareWorkbook();
   const ss=workbook_(),handlers=['refreshAllFromTrigger','refreshOnOpen'];
@@ -285,12 +307,7 @@ function refreshAllCore_(ss,showToast,forceRefresh){
     Object.keys(GTM_TABLES).forEach(name=>{
       if(dirtySheets.indexOf(name)>=0)return;
       const c=GTM_TABLES[name],s=ss.getSheetByName(name),values=ctx.sheetRows[name].map(r=>row_(r,c,ctx));
-      const count=Math.max(values.length,s.getLastRow()-5,1);
-      if(s.getMaxRows()<count+5)s.insertRowsAfter(s.getMaxRows(),count+5-s.getMaxRows());
-      s.getRange(6,1,count,c.fields.length+6).clearContent();writeRows_(s,6,values);
-      if(c.reviewMode)formatReviewRows_(s,c);
-      s.getRange('A3').setValue('최근 동기화 '+ctx.perf.generated_at+' · 조회 범위 '+ctx.perf.start_at+' ~ '+ctx.perf.end_at);
-      s.hideColumns(c.fields.length+2,5);
+      refreshSheet_(s,c,values,ctx);
     });
     renderPerformance_(ss.getSheetByName('전체 성과'),ctx.perf);
     renderPerformanceFeed_(ss,ctx);
