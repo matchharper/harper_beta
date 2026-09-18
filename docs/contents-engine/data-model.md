@@ -1,6 +1,6 @@
 # 데이터 계약 — 일곱 원장과 내부 기록
 
-버전: 1.4 · 적용일: 2026-09-18 · 상태: 이메일 발송·가격 전략·Instagram 콘텐츠 지표·측정일 비용 확정까지 운영 중. [AGENTS.md](AGENTS.md)를 먼저 읽는다. 아래는 저장 의미와 운영 계약이며 실제 칼럼은 마지막 물리 목록, 호출은 Connections를 따른다.
+버전: 1.5 · 적용일: 2026-09-18 · 상태: 이메일 발송·권장 가격 전략·Instagram 콘텐츠 지표·측정일 비용 확정까지 운영 중. [AGENTS.md](AGENTS.md)를 먼저 읽는다. 아래는 저장 의미와 운영 계약이며 실제 칼럼은 마지막 물리 목록, 호출은 Connections를 따른다.
 
 ## 공통 규칙
 
@@ -134,7 +134,7 @@ activities에는 메시지 전송 결과·provider thread/message ID 같은 실�
 
 `gtm_outreach_dispatches`는 transient Agent 판단이나 대화 계획이 아니다. Gmail이라는 외부 side effect를 정확히 한 번에 가깝게 실행하기 위해 다시 계산할 수 없는 팀원 승인과 당시 exact copy, provider identity, 재시도 상태를 보존한다. 준비 요청과 발송 요청 ID는 idempotent하며 승인 전에는 외부 전송이 없다. 실제 발송 성공 뒤에는 같은 원문을 append-only `message_sent` activity에도 기록해 일반 관계 타임라인과 템플릿 결과가 이어지게 한다.
 
-`gtm_compensation_strategies`의 한 행은 기본비·측정일수·조회수 단위 N·단위당 금액 M을 묶은 버전이다. 고정비형은 기본비만 쓴다. 사용 전 값은 고칠 수 있지만 콘텐츠에 지정된 버전의 경제 조건은 바꾸지 않는다. 콘텐츠에는 당시 조건의 JSON 스냅샷, 측정 예정일, 마지막 수집/오류, 확정 비용 연결을 저장한다. 공개 지표 관측은 `gtm_metric_snapshots`, 지급 의무는 기존 `gtm_costs`에 각각 한 번만 저장한다.
+`gtm_compensation_strategies`의 한 행은 기본비·측정일수·조회수 단위 N·단위당 금액 M을 묶은 버전이다. 고정비형은 기본비만 쓴다. 사용 전 값은 고칠 수 있지만 콘텐츠에 지정된 버전의 경제 조건은 바꾸지 않는다. `is_recommended`, `recommendation_reason`, `recommended_at`은 새 연락의 현재 권장 실험안 한 건과 그 근거를 보존한다. 권장 표시는 검증된 최적 ROI가 아니라 현재 운영 선택이다. 콘텐츠에는 당시 조건의 JSON 스냅샷, 측정 예정일, 마지막 수집/오류, 확정 비용 연결을 저장한다. 공개 지표 관측은 `gtm_metric_snapshots`, 지급 의무는 기존 `gtm_costs`에 각각 한 번만 저장한다.
 
 `gtm_outreach_mailboxes`는 업무 원장이 아니라 Gmail history cursor, watch 만료, 마지막 동기화·오류만 보관하는 내부 연결 상태다. Sheet나 일반 GTM API에 노출하지 않는다.
 
@@ -197,7 +197,7 @@ costs의 선금·잔금·환불은 해당 비용 한 건에 붙는 작은 지급
 - **gtm_metric_snapshots**: `id`, `ref`, `account_id`, `content_id`, `metric`, `value`, `unit`, `period_start`, `period_end`, `as_of`, `collected_at`, `source_ref`, `definition_version`, `value_kind`, `missing_reason`, `retention_until`, `created_at`, `updated_at`, `created_by`, `updated_by`, `row_version`, `archived_at`.
 - **gtm_costs**: `id`, `ref`, `plan_id`, `collaboration_id`, `kind`, `description`, `currency`, `base_currency`, `fx_rate`, `fx_source`, `expected_amount`, `agreed_amount`, `incurred_amount`, `labor_minutes`, `hourly_rate`, `measurement_basis`, `due_at`, `incurred_at`, `source_ref`, `payments`, `allocations`, `created_at`, `updated_at`, `created_by`, `updated_by`, `row_version`, `archived_at`.
 - **gtm_outreach_dispatches**: 기존 이메일 발송 칼럼과 `compensation_strategy_id`, `compensation_snapshot`, `estimated_views`, `estimated_cost`.
-- **gtm_compensation_strategies**: `id`, `ref`, `name`, `version`, `status`, `pricing_model`, `currency`, `base_fee`, `measurement_window_days`, `views_per_unit`, `amount_per_unit`, `notes`, 공통 변경 칼럼.
+- **gtm_compensation_strategies**: `id`, `ref`, `name`, `version`, `status`, `pricing_model`, `currency`, `base_fee`, `measurement_window_days`, `views_per_unit`, `amount_per_unit`, `is_recommended`, `recommendation_reason`, `recommended_at`, `notes`, 공통 변경 칼럼.
 - **gtm_access_tokens**: `id`, `name`, `token_hash`, `can_write`, `created_at`, `expires_at`, `revoked_at`, `last_used_at`.
 - **gtm_outreach_mailboxes** (배포 전 migration): `email`, `provider`, `history_id`, `watch_expiration`, `last_synced_at`, `last_error`, `created_at`, `updated_at`.
 

@@ -166,3 +166,13 @@ assert.match(contentViewMigration,/allocation\.item ->> 'share'/);
 assert.match(contentViewMigration,/activity\.kind in \('performance_review', 'review_adopted'\)/);
 assert.match(contentViewMigration,/'⚪ 리뷰 전 · 저장된 성과 결론이 없습니다\.'/);
 console.log('PASS Content Sheet places paid amount and evidence-backed performance conclusion before settlement status');
+
+const pricingC=config['Pricing Strategies'];
+assert.equal(pricingC.fields[0][0],'recommended_label');
+assert.deepEqual(pricingC.legacyInsertions,[0]);
+assert.match(pricingC.helpText,/현재 권장 실험안/);
+assert.match(pricingC.helpText,/ROI가 검증됐다는 뜻은 아닙니다/);
+assert.match(bridgeSource,/formatPricingStrategyRows_/);
+assert.match(bridgeSource,/⭐ 현재 권장 실험안/);
+assert.match(bridgeSource,/setConditionalFormatRules\(\[rule\]\)/);
+console.log('PASS Pricing Strategies keeps one prominent current recommendation with an explicit evidence limit');

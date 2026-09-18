@@ -1,6 +1,6 @@
 # Connections.md
 
-버전: 1.10 · 적용일: 2026-09-18 · 상태: 12개 운영 시트, Gmail outreach, Instagram 공개 지표 수집, 가격 전략·측정일 정산과 Slack 알림 운영 중 · 관리: 데이터 연결 담당
+버전: 1.11 · 적용일: 2026-09-18 · 상태: 12개 운영 시트, Gmail outreach, Instagram 공개 지표 수집, 권장 가격 전략·측정일 정산과 Slack 알림 운영 중 · 관리: 데이터 연결 담당
 
 ## 연결 상태
 
@@ -9,7 +9,7 @@
 | Supabase gtm_api | GTM 11개 업무 원장의 조회·변경·일괄 저장·UTM 발급·오늘 할 일·제품 집계. Format Bank와 Outreach Templates는 실제 사용·게시·회신 결과가 붙는 기본 조회까지 운영 | 임의 SQL, 원본 제품 사용자 조회, 발송/송금 실행 제공 안 함 |
 | 제품 성과 | logs + landing_logs + 인증 가입 연결 + 실제 온보딩 이벤트의 서버 집계 | 동일 UTM 재방문 수집 누락 가능; 관측된 명시적 UTM만 귀속 |
 | Notion | 기존 Contents Engine / Agents.md 아래 작업별 지침 | 토큰이나 개인 사용자 데이터 보관 장소 아님 |
-| Google Sheets | 기존 운영 화면과 `Pricing Strategies`, 성과·정산 중심 `콘텐츠`를 5분/열기 자동 동기화. `Outreach Review`에서 가격 전략·예상 비용·최종 원문을 보고 승인 | 새 팀원은 첫 실행에서 Google 권한 승인과 본인 GTM 전용 키 연결 필요 |
+| Google Sheets | 기존 운영 화면과 `Pricing Strategies`, 성과·정산 중심 `콘텐츠`를 5분/열기 자동 동기화. Pricing Strategies 첫 칼럼과 노란색 행에 현재 권장 실험안·추천 이유를 표시. `Outreach Review`에서 가격 전략·예상 비용·최종 원문을 보고 승인 | 새 팀원은 첫 실행에서 Google 권한 승인과 본인 GTM 전용 키 연결 필요 |
 | 크리에이터 발굴 | Agent가 접근 가능한 공개 출처와 제공 자료로 조사·저장 | 전 플랫폼 전수 발굴 API 미연결 |
 | 메일/DM | 이메일은 `daniel@matchharper.com` Gmail 메일함의 무료 별칭 `harper@matchharper.com`, 팀원 Sheet 승인, 중복 방지 발송, Gmail 회신 DB 저장, Slack 알림까지 사용. DM은 초안과 실제 메시지 기록만 지원 | 별칭은 별도 로그인·별도 받은편지함이 아니며 `daniel@matchharper.com`에서 발신·회신을 관리. Instagram/X/Threads/TikTok DM 자동화 미연결 |
 | 플랫폼 통계 | Apify의 Instagram 공개 게시물/댓글 수집기로 하루 한 번 필요한 게시물의 조회수·좋아요·전체 댓글과 전체 댓글에서 확인된 작성자 댓글을 뺀 값을 저장. 측정일이 지난 가격 전략 콘텐츠는 비용을 확정하고 크리에이터·콘텐츠 링크·세 지표·지급 예정액·짧은 LLM 성과 결론을 같은 Slack 채널에 알림 | 작성자 제외 댓글은 플랫폼 전체 수에서 수집기가 확인한 작성자 댓글만 뺀 값이라 일부 작성자 댓글을 놓칠 수 있으며 그 한계를 함께 표시. YouTube/TikTok 등은 아직 자동 수집 미연결 |

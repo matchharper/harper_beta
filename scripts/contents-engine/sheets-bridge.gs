@@ -3,7 +3,7 @@
  * GTM_TABLES is generated from sheet-columns.json and inserted above this file.
  * Each teammate stores their own scoped GTM credential in UserProperties.
  */
-const GTM_SHEET_SCHEMA_VERSION='2026-09-18-v14';
+const GTM_SHEET_SCHEMA_VERSION='2026-09-18-v15';
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Contents Engine')
@@ -228,6 +228,18 @@ function formatReviewRows_(sheet,c){
   setReviewDecisionFormatting_(sheet,decisionRange,c);
   sheet.setRowHeightsForced(6,height,38);
 }
+function formatPricingStrategyRows_(sheet,c){
+  if(c.entity!=='gtm_compensation_strategies')return;
+  const height=Math.max(1,sheet.getMaxRows()-5),width=c.fields.length+1;
+  const labelColumn=fieldIndex_(c,'recommended_label')+1;
+  const rule=SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied('=$A6="⭐ 현재 권장 실험안"')
+    .setBackground('#fff2cc').setFontColor('#7f6000').setBold(true)
+    .setRanges([sheet.getRange(6,1,height,width)]).build();
+  sheet.setConditionalFormatRules([rule]);
+  sheet.getRange(5,labelColumn).setBackground('#f4b400').setFontColor('#3d2c00')
+    .setNote('새 Outreach에 우선 적용할 현재 권장 실험안입니다. 검증된 최적 ROI를 뜻하지 않으며, 새 성과가 쌓이면 추천 이유와 함께 갱신합니다.');
+}
 function prepareWorkbook(){
   const ss=workbook_(),properties=PropertiesService.getDocumentProperties();
   const schemaChanged=properties.getProperty('GTM_SHEET_SCHEMA_VERSION')!==GTM_SHEET_SCHEMA_VERSION;
@@ -302,6 +314,7 @@ function prepareWorkbook(){
       }
     });
     if(c.reviewMode)formatReviewRows_(s,c);
+    formatPricingStrategyRows_(s,c);
     s.hideColumns(c.fields.length+2,5);
     s.setTabColor(c.view?'#6b7280':'#2563eb');
   });
@@ -315,6 +328,7 @@ function refreshSheet_(s,c,values,ctx){
   s.getRange(6,1,count,c.fields.length+6).clearContent();
   writeRows_(s,6,values);
   if(c.reviewMode)formatReviewRows_(s,c);
+  formatPricingStrategyRows_(s,c);
   s.getRange('A3').setValue('최근 동기화 '+ctx.perf.generated_at+' · 조회 범위 '+ctx.perf.start_at+' ~ '+ctx.perf.end_at);
   s.hideColumns(c.fields.length+2,5);
 }

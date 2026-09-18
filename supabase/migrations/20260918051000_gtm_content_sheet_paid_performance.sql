@@ -84,6 +84,16 @@ select
   case
     when performance_review.id is null then
       '⚪ 리뷰 전 · 저장된 성과 결론이 없습니다.'
+    when performance_review.rating is not null then concat(
+      case performance_review.rating
+        when 'good' then '🟢 좋음'
+        when 'mixed' then '🟡 보통'
+        when 'low' then '🔴 낮음'
+        else '⚪ 판단 보류'
+      end,
+      ' · ',
+      btrim(performance_review.body)
+    )
     else concat(
       case lower(coalesce(performance_review.direction, ''))
         when 'scale' then '🟢'
@@ -171,7 +181,8 @@ left join lateral (
     activity.id,
     activity.kind,
     activity.body,
-    activity.payload ->> 'direction' as direction
+    activity.payload ->> 'direction' as direction,
+    activity.payload ->> 'rating' as rating
   from public.gtm_activities activity
   where activity.entity = 'gtm_contents'
     and activity.entity_id = content.id

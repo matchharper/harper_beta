@@ -345,6 +345,8 @@ declare
   content public.gtm_contents;
   cost public.gtm_costs;
   views public.gtm_metric_snapshots;
+  likes public.gtm_metric_snapshots;
+  comments_non_author public.gtm_metric_snapshots;
   amount numeric;
   source text;
   plan_currency text;
@@ -374,6 +376,29 @@ begin
       if not found then
         raise exception 'A views observation at or after the due time is required';
       end if;
+      select * into likes from public.gtm_metric_snapshots metric
+      where metric.content_id = content.id and metric.metric = 'likes'
+        and metric.archived_at is null and metric.source_ref = views.source_ref
+      order by metric.created_at desc limit 1;
+      select * into comments_non_author from public.gtm_metric_snapshots metric
+      where metric.content_id = content.id and metric.metric = 'comments_non_author'
+        and metric.archived_at is null and metric.source_ref = views.source_ref
+      order by metric.created_at desc limit 1;
+    else
+      select * into views from public.gtm_metric_snapshots metric
+      where metric.content_id = content.id and metric.metric = 'views'
+        and metric.value is not null and metric.archived_at is null
+      order by metric.as_of desc, metric.created_at desc limit 1;
+      if found then
+        select * into likes from public.gtm_metric_snapshots metric
+        where metric.content_id = content.id and metric.metric = 'likes'
+          and metric.archived_at is null and metric.source_ref = views.source_ref
+        order by metric.created_at desc limit 1;
+        select * into comments_non_author from public.gtm_metric_snapshots metric
+        where metric.content_id = content.id and metric.metric = 'comments_non_author'
+          and metric.archived_at is null and metric.source_ref = views.source_ref
+        order by metric.created_at desc limit 1;
+      end if;
     end if;
     amount := public.gtm_compensation_amount(content.compensation_snapshot, views.value);
     if amount is null then raise exception 'Frozen compensation terms are incomplete'; end if;
@@ -398,6 +423,8 @@ begin
       jsonb_strip_nulls(jsonb_build_object(
         'strategy', content.compensation_snapshot,
         'views', views.value,
+        'likes', likes.value,
+        'comments_non_author', comments_non_author.value,
         'metric_as_of', views.as_of,
         'metric_source_ref', views.source_ref
       ))::text,
@@ -424,6 +451,7 @@ begin
       jsonb_strip_nulls(jsonb_build_object(
         'content_id', content.id, 'cost_id', cost.id,
         'amount', amount, 'currency', cost.currency, 'views', views.value,
+        'likes', likes.value, 'comments_non_author', comments_non_author.value,
         'metric_as_of', views.as_of, 'strategy', content.compensation_snapshot
       )),
       source, 'contents_engine', 'compensation', cost.id::text

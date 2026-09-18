@@ -1,4 +1,5 @@
 import type { OutreachReplyTriageType } from "@/lib/contentsEngine/replyTriage";
+import type { ContentPerformanceRating } from "@/lib/contentsEngine/performanceConclusion";
 import { stripQuotedEmailText } from "@/lib/email/parse";
 
 type OutreachReplyNotification = {
@@ -32,15 +33,21 @@ type OutreachDeliveryFailureNotification = {
 
 type ContentCompensationNotification = {
   amount: number;
+  commentsNonAuthor: number | null;
   contentRef: number | string;
   costId: string;
   costRef: number | string;
+  creatorName: string;
   currency: string;
+  likes: number | null;
   metricAsOf: string;
+  performanceRating: ContentPerformanceRating;
+  performanceReason: string;
+  postUrl: string | null;
   pricingModel: "base_plus_views" | "fixed";
   strategyName: string;
   title: string;
-  views: number;
+  views: number | null;
 };
 
 function requiredEnv(name: string) {
@@ -244,41 +251,40 @@ export async function notifyGtmOutreachDeliveryFailure(
 
 export function buildGtmContentCompensationSlackMessage(
   settlement: ContentCompensationNotification,
-  sheetUrl: string
+  _sheetUrl: string
 ) {
   const amount = new Intl.NumberFormat("ko-KR").format(settlement.amount);
-  const views = new Intl.NumberFormat("ko-KR").format(settlement.views);
-  const settlementBasis =
-    settlement.pricingModel === "fixed"
-      ? "*정산 기준* 고정 업로드 비용"
-      : `*측정 결과* 조회수 ${views} · ${slackDate(settlement.metricAsOf)}`;
+  const number = (value: number | null) =>
+    value === null ? "확인 불가" : new Intl.NumberFormat("ko-KR").format(value);
+  const rating = {
+    good: { emoji: "🟢", label: "좋음" },
+    mixed: { emoji: "🟡", label: "보통" },
+    low: { emoji: "🔴", label: "낮음" },
+    insufficient: { emoji: "⚪", label: "판단 보류" },
+  }[settlement.performanceRating];
+  let content = escapeSlack(settlement.title);
+  try {
+    const url = new URL(settlement.postUrl ?? "");
+    if (url.protocol === "https:") {
+      content = `<${escapeSlack(url.toString())}|${content}>`;
+    }
+  } catch {}
   return {
     blocks: [
-      {
-        type: "header",
-        text: {
-          type: "plain_text",
-          text: `💰 크리에이터 지급액 확정 · 콘텐츠 #${settlement.contentRef}`.slice(
-            0,
-            150
-          ),
-        },
-      },
       {
         type: "section",
         text: {
           type: "mrkdwn",
           text: [
-            `*콘텐츠* ${escapeSlack(settlement.title)}`,
-            settlementBasis,
-            `*가격 전략* ${escapeSlack(settlement.strategyName)}`,
-            `*지급 예정* *${amount} ${escapeSlack(settlement.currency)}* · 비용 #${escapeSlack(settlement.costRef)}`,
-            `<${sheetUrl}|콘텐츠·정산 근거 확인>`,
+            `💰 *${escapeSlack(settlement.creatorName)}* · ${content}`,
+            `조회 ${number(settlement.views)} · 좋아요 ${number(settlement.likes)} · 댓글 ${number(settlement.commentsNonAuthor)}`,
+            `지급 예정 *${amount} ${escapeSlack(settlement.currency)}*`,
+            `${rating.emoji} *${rating.label}* · ${escapeSlack(settlement.performanceReason)}`,
           ].join("\n"),
         },
       },
     ],
-    text: `💰 콘텐츠 #${settlement.contentRef} 지급액 ${amount} ${settlement.currency} 확정`,
+    text: `💰 ${settlement.creatorName} · ${settlement.title} · 지급 예정 ${amount} ${settlement.currency}`,
   };
 }
 

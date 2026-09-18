@@ -4,6 +4,11 @@ import {
   listApifyDatasetItems,
 } from "@/lib/apifyRest";
 import { notifyGtmContentCompensation } from "@/lib/contentsEngine/slack";
+import {
+  concludeContentPerformance,
+  insufficientContentPerformanceConclusion,
+  type ContentPerformanceConclusion,
+} from "@/lib/contentsEngine/performanceConclusion";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 
 const INSTAGRAM_POST_ACTOR = "apify/instagram-post-scraper";
@@ -39,6 +44,19 @@ type CompensationSettlement = {
   notify_needed: boolean;
   strategy: Record<string, unknown>;
   title: string;
+};
+
+type SettlementDisplay = {
+  comments_non_author: number | null;
+  creator_name: string;
+  finalized_payable: number | null;
+  id: string;
+  likes: number | null;
+  performance_conclusion: string | null;
+  platform_metrics_as_of: string | null;
+  post_url: string | null;
+  title: string;
+  views: number | null;
 };
 
 type PendingCompensationNotification = {
@@ -256,7 +274,14 @@ async function notifySettlement(
 ) {
   const supabase = adminClient();
   if (!settlement.notify_needed) return false;
-  let viewsValue = 0;
+  const display = await loadSettlementDisplay(settlement.content_id);
+  const conclusion = await loadOrCreatePerformanceConclusion({
+    costId: settlement.cost_id,
+    currency: settlement.currency,
+    display,
+    amount: settlement.amount,
+  });
+  let viewsValue: number | null = display.views;
   let viewsAsOf = metricAsOf;
   if (settlement.strategy?.pricing_model !== "fixed") {
     if (settlement.measured_views !== undefined) {
@@ -279,11 +304,17 @@ async function notifySettlement(
   }
   const slack = await notifyGtmContentCompensation({
     amount: settlement.amount,
+    commentsNonAuthor: display.comments_non_author,
     contentRef: settlement.content_ref,
     costId: settlement.cost_id,
     costRef: settlement.cost_ref,
+    creatorName: display.creator_name,
     currency: settlement.currency,
+    likes: display.likes,
     metricAsOf: viewsAsOf,
+    performanceRating: conclusion.rating,
+    performanceReason: conclusion.reason,
+    postUrl: display.post_url,
     pricingModel:
       settlement.strategy?.pricing_model === "fixed"
         ? "fixed"
@@ -302,6 +333,105 @@ async function notifySettlement(
   );
   if (notification.error) throw new Error(notification.error.message);
   return true;
+}
+
+async function loadSettlementDisplay(contentId: string) {
+  const { data, error } = await adminClient()
+    .from("gtm_content_sheet_v1")
+    .select(
+      "id,title,creator_name,post_url,views,likes,comments_non_author,platform_metrics_as_of,finalized_payable,performance_conclusion"
+    )
+    .eq("id", contentId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("Settled content display record not found");
+  return data as SettlementDisplay;
+}
+
+async function loadOrCreatePerformanceConclusion(args: {
+  amount: number;
+  costId: string;
+  currency: string;
+  display: SettlementDisplay;
+}) {
+  const supabase = adminClient();
+  const existing = await supabase
+    .from("gtm_activities")
+    .select("body,payload")
+    .eq("provider", "contents_engine")
+    .eq("connection_ref", "compensation-performance-review")
+    .eq("external_id", args.costId)
+    .maybeSingle();
+  if (existing.error) throw new Error(existing.error.message);
+  if (existing.data) {
+    return {
+      model: existing.data.payload?.model ?? null,
+      rating: existing.data.payload?.rating ?? "insufficient",
+      reason: existing.data.body,
+    } as ContentPerformanceConclusion;
+  }
+
+  const comparable = await supabase
+    .from("gtm_content_sheet_v1")
+    .select("id,views,likes,comments_non_author,finalized_payable")
+    .is("archived_at", null)
+    .neq("id", args.display.id)
+    .order("published_at", { ascending: false })
+    .limit(50);
+  if (comparable.error) throw new Error(comparable.error.message);
+
+  let conclusion: ContentPerformanceConclusion;
+  try {
+    conclusion = await concludeContentPerformance({
+      amount: args.amount,
+      commentsNonAuthor: args.display.comments_non_author,
+      comparableContents: (comparable.data ?? []).map((item: any) => ({
+        amount:
+          item.finalized_payable === null
+            ? null
+            : Number(item.finalized_payable),
+        commentsNonAuthor:
+          item.comments_non_author === null
+            ? null
+            : Number(item.comments_non_author),
+        likes: item.likes === null ? null : Number(item.likes),
+        views: item.views === null ? null : Number(item.views),
+      })),
+      creatorName: args.display.creator_name,
+      currency: args.currency,
+      likes: args.display.likes,
+      title: args.display.title,
+      views: args.display.views,
+    });
+  } catch (error) {
+    conclusion = insufficientContentPerformanceConclusion(error);
+  }
+
+  const insert = await supabase.from("gtm_activities").insert({
+    body: conclusion.reason,
+    connection_ref: "compensation-performance-review",
+    entity: "gtm_contents",
+    entity_id: args.display.id,
+    external_id: args.costId,
+    kind: "performance_review",
+    payload: {
+      amount: args.amount,
+      comments_non_author: args.display.comments_non_author,
+      cost_id: args.costId,
+      currency: args.currency,
+      likes: args.display.likes,
+      model: conclusion.model,
+      rating: conclusion.rating,
+      scope: "settlement_notification",
+      views: args.display.views,
+    },
+    provider: "contents_engine",
+    source_ref: `cost:${args.costId}`,
+  });
+  if (insert.error && insert.error.code !== "23505") {
+    throw new Error(insert.error.message);
+  }
+  return conclusion;
 }
 
 async function finalizeIfDue(content: ContentTarget, asOf: string) {

@@ -1160,7 +1160,13 @@
     "view": "compensation_strategies",
     "saveRpc": "gtm_compensation_strategy_save",
     "frozenColumns": 4,
+    "legacyInsertions": [0],
     "fields": [
+      [
+        "recommended_label",
+        "Current Recommendation",
+        "read"
+      ],
       [
         "name",
         "Strategy Name",
@@ -1222,6 +1228,16 @@
         "text"
       ],
       [
+        "recommendation_reason",
+        "Why Recommended",
+        "read"
+      ],
+      [
+        "recommended_at",
+        "Recommended At",
+        "read"
+      ],
+      [
         "version",
         "Version",
         "number"
@@ -1237,7 +1253,7 @@
         "read"
       ]
     ],
-    "helpText": "가격 실험 조건을 관리합니다. base_plus_views는 업로드 기본비 + (측정 조회수 ÷ Views Per Unit × Amount Per Unit)으로 비례 계산합니다. 검토가 끝난 전략만 Status를 active로 바꿔 Outreach에 사용합니다. Outreach나 콘텐츠에 한 번 사용한 버전의 금액 조건은 바꿀 수 없으며 새 버전을 만들어야 합니다."
+    "helpText": "⭐ 현재 권장 실험안을 새 Outreach의 기본 가격 조건으로 사용합니다. 이는 지금 선택한 운영안이며 ROI가 검증됐다는 뜻은 아닙니다. base_plus_views는 업로드 기본비 + (측정 조회수 ÷ Views Per Unit × Amount Per Unit)으로 비례 계산합니다. 사용한 버전의 금액 조건은 바꾸지 않고 새 버전을 만듭니다."
   },
   "콘텐츠": {
     "entity": "gtm_contents",
