@@ -3,7 +3,7 @@
  * GTM_TABLES is generated from sheet-columns.json and inserted above this file.
  * Each teammate stores their own scoped GTM credential in UserProperties.
  */
-const GTM_SHEET_SCHEMA_VERSION='2026-09-17-v9';
+const GTM_SHEET_SCHEMA_VERSION='2026-09-18-v10';
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Contents Engine')
@@ -101,10 +101,22 @@ function context_(){
   });
   return {records,sheetRows,refs,names,perf,metrics,creatorMetrics,reviews,reviewedAt};
 }
+function platformLabel_(value){
+  const labels={youtube:'YouTube',instagram:'Instagram',tiktok:'TikTok',twitter:'X',x:'X',threads:'Threads',linkedin:'LinkedIn'};
+  const key=String(value||'').trim();
+  return labels[key.toLowerCase()]||key;
+}
+function creatorReviewLabel_(r){
+  const name=String(r.creator_name||'').trim(),platform=platformLabel_(r.primary_platform);
+  let handle=String(r.primary_handle||'').trim();
+  if(handle&&handle[0]!=='@')handle='@'+handle;
+  const account=[platform,handle].filter(Boolean).join(' · ');
+  return account?name+'\n'+account:name;
+}
 function visible_(r,c,ctx){
   const m=ctx.metrics[r.id]||{},cm=ctx.creatorMetrics[r.id]||{},derived={_next:(r.action_items||[]).filter(x=>x.status==='open').map(x=>x.text).join(' / '),_direction:ctx.reviews[r.id]||'',_signups:m.signups,_completed:m.onboarding_completed_7d,_visitors:m.landing_visitors,_cost:m.allocated_lifetime_cost,_cpa:m.provisional_cost_per_completion,_currency:m.currency,_measurement:m.measurement_status,_creator_visitors:cm.tracked?cm.visitors:'',_creator_signups:cm.tracked?cm.signups:'',_creator_completed:cm.tracked?cm.completed:'',_creator_cost:cm.costSeen?cm.cost:'',_creator_currency:cm.currency||'',_creator_cpa:cm.cpa===undefined?'':cm.cpa,_creator_measurement:cm.measurement_status||'no_content'};
   return c.fields.map(([k,label,type])=>{
-    let value=k[0]==='_'?derived[k]:r[k];
+    let value=c.reviewMode&&k==='creator_name'?creatorReviewLabel_(r):(k[0]==='_'?derived[k]:r[k]);
     if(type.startsWith('gtm_'))value=value?(ctx.refs[type][value]||'연결 확인 필요'):'';
     if(Array.isArray(value))value=value.join(', ');
     return value===null||value===undefined?'':value;
@@ -161,6 +173,22 @@ function setReviewDecisionFormatting_(sheet,range){
   );
   sheet.setConditionalFormatRules(rules);
 }
+function formatReviewRows_(sheet,c){
+  const height=Math.max(1,sheet.getMaxRows()-5);
+  sheet.getRange(6,1,height,c.fields.length+6)
+    .setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP)
+    .setVerticalAlignment('middle');
+  sheet.setRowsHeight(6,height,38);
+  const creatorColumn=fieldIndex_(c,'creator_name')+1;
+  sheet.getRange(6,creatorColumn,height,1)
+    .setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
+  const decisionColumn=fieldIndex_(c,'review_action')+1;
+  const decisionRange=sheet.getRange(6,decisionColumn,height,1);
+  decisionRange.setBackground('#fff2cc').setFontWeight('bold').setDataValidation(
+    SpreadsheetApp.newDataValidation().requireValueInList(['Approve & Send','Request Revision','Skip'],true).setAllowInvalid(false).build()
+  );
+  setReviewDecisionFormatting_(sheet,decisionRange);
+}
 function prepareWorkbook(){
   const ss=workbook_(),properties=PropertiesService.getDocumentProperties();
   const schemaChanged=properties.getProperty('GTM_SHEET_SCHEMA_VERSION')!==GTM_SHEET_SCHEMA_VERSION;
@@ -199,6 +227,8 @@ function prepareWorkbook(){
       const key=field[0],col=index+1;
       if(key==='body')s.setColumnWidth(col,440);
       else if(key==='subject')s.setColumnWidth(col,300);
+      else if(c.reviewMode&&key==='creator_name')s.setColumnWidth(col,240);
+      else if(c.reviewMode&&key==='primary_profile_url')s.setColumnWidth(col,240);
       else if(key==='review_action')s.setColumnWidth(col,190);
       else if(/summary|history|notes|description|message|template|sequence|profile|offer|rule/.test(key))s.setColumnWidth(col,320);
       else if(/url|email|contact|audience|action|reason|hook|ask|link/.test(key))s.setColumnWidth(col,210);
@@ -210,15 +240,10 @@ function prepareWorkbook(){
       else if(field[2]==='decision'){
         s.getRange(5,col).setBackground('#f4b400').setFontColor('#3d2c00')
           .setNote('제목과 본문을 확인한 뒤 이 칼럼에서 결정을 선택하고, Contents Engine → Outreach Review 선택행 승인/반영을 실행하세요.');
-        const decisionRange=s.getRange(6,col,Math.max(1,s.getMaxRows()-5),1);
-        decisionRange
-          .setBackground('#fff2cc').setFontWeight('bold').setDataValidation(
-            SpreadsheetApp.newDataValidation().requireValueInList(['Approve & Send','Request Revision','Skip'],true).setAllowInvalid(false).build()
-          );
-        setReviewDecisionFormatting_(s,decisionRange);
       }
       else if(field[2]==='bool')s.getRange(6,col,Math.max(1,s.getMaxRows()-5),1).insertCheckboxes();
     });
+    if(c.reviewMode)formatReviewRows_(s,c);
     s.hideColumns(c.fields.length+2,5);
     s.setTabColor(c.view?'#6b7280':'#2563eb');
   });
@@ -263,6 +288,7 @@ function refreshAllCore_(ss,showToast,forceRefresh){
       const count=Math.max(values.length,s.getLastRow()-5,1);
       if(s.getMaxRows()<count+5)s.insertRowsAfter(s.getMaxRows(),count+5-s.getMaxRows());
       s.getRange(6,1,count,c.fields.length+6).clearContent();writeRows_(s,6,values);
+      if(c.reviewMode)formatReviewRows_(s,c);
       s.getRange('A3').setValue('최근 동기화 '+ctx.perf.generated_at+' · 조회 범위 '+ctx.perf.start_at+' ~ '+ctx.perf.end_at);
       s.hideColumns(c.fields.length+2,5);
     });

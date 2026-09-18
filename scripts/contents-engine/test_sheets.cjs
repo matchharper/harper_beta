@@ -94,15 +94,23 @@ console.log('PASS Format Bank and Outreach Templates expose editable guidance, r
 
 const reviewC=config['Outreach Review'];
 assert.ok(reviewC);assert.equal(reviewC.view,'outreach_review');assert.equal(reviewC.reviewMode,true);
-assert.deepEqual(reviewC.fields.slice(0,6).map(field=>field[0]),[
- 'creator_name','recipient_email','outreach_template_name','subject','body','review_action'
+assert.deepEqual(reviewC.fields.slice(0,7).map(field=>field[0]),[
+ 'creator_name','primary_profile_url','recipient_email','outreach_template_name','subject','body','review_action'
 ]);
+assert.ok(!reviewC.fields.some(field=>field[0]==='primary_platform'));
+assert.ok(!reviewC.fields.some(field=>field[0]==='primary_handle'));
+assert.equal(reviewC.fields.at(-5)[0],'ref');
+const reviewVisible=context.visible_({creator_name:'Fixture Creator',primary_platform:'youtube',primary_handle:'fixture',primary_profile_url:'https://youtube.com/@fixture'},reviewC,ctx);
+assert.equal(reviewVisible[0],'Fixture Creator\nYouTube · @fixture');
+assert.equal(reviewVisible[1],'https://youtube.com/@fixture');
 assert.match(reviewC.helpText,/노란색 Review Decision/);
 assert.match(reviewC.helpText,/Approve & Send를 선택하면 셀이 초록색/);
 assert.equal(reviewC.fields.find(field=>field[0]==='review_action')[2],'decision');
 const bridgeSource=fs.readFileSync(__dirname+'/sheets-bridge.gs','utf8');
 assert.match(bridgeSource,/whenTextEqualTo\('Approve & Send'\)/);
 assert.match(bridgeSource,/setBackground\('#d9ead3'\)/);
+assert.match(bridgeSource,/WrapStrategy\.CLIP/);
+assert.match(bridgeSource,/setRowsHeight\(6,height,38\)/);
 assert.equal(context.reviewAction_('Approve & Send'),'approve');
 assert.equal(context.reviewAction_('Request Revision'),'request_revision');
 assert.equal(context.reviewAction_('Skip'),'skip');

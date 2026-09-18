@@ -667,11 +667,16 @@
     "entity": "gtm_outreach_dispatches",
     "view": "outreach_review",
     "reviewMode": true,
-    "frozenColumns": 3,
+    "frozenColumns": 2,
     "fields": [
       [
         "creator_name",
-        "Creator Name",
+        "Creator",
+        "read"
+      ],
+      [
+        "primary_profile_url",
+        "Profile URL",
         "read"
       ],
       [
@@ -725,16 +730,6 @@
         "text"
       ],
       [
-        "primary_platform",
-        "Primary Platform",
-        "read"
-      ],
-      [
-        "primary_handle",
-        "Primary Handle",
-        "read"
-      ],
-      [
         "sender_email",
         "Sender Email",
         "read"
@@ -750,33 +745,8 @@
         "read"
       ],
       [
-        "ref",
-        "Dispatch Ref",
-        "read"
-      ],
-      [
-        "creator_ref",
-        "Creator Ref",
-        "read"
-      ],
-      [
-        "outreach_template_ref",
-        "Template Ref",
-        "read"
-      ],
-      [
         "template_version",
         "Template Version Used",
-        "read"
-      ],
-      [
-        "collaboration_ref",
-        "Collaboration Ref",
-        "read"
-      ],
-      [
-        "plan_ref",
-        "Plan Ref",
         "read"
       ],
       [
@@ -827,6 +797,31 @@
       [
         "created_at",
         "Prepared At",
+        "read"
+      ],
+      [
+        "ref",
+        "Dispatch Ref",
+        "read"
+      ],
+      [
+        "creator_ref",
+        "Creator Ref",
+        "read"
+      ],
+      [
+        "outreach_template_ref",
+        "Template Ref",
+        "read"
+      ],
+      [
+        "collaboration_ref",
+        "Collaboration Ref",
+        "read"
+      ],
+      [
+        "plan_ref",
+        "Plan Ref",
         "read"
       ]
     ],
