@@ -10,6 +10,11 @@ type SendResendEmailArgs = {
   to: string;
 };
 
+type ResendEmail = {
+  id?: string;
+  message_id?: string;
+};
+
 function readResendApiKey() {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   if (!apiKey) {
@@ -77,5 +82,33 @@ export async function sendResendEmail(args: SendResendEmailArgs) {
     );
   }
 
-  return data as { id?: string };
+  return data as ResendEmail;
+}
+
+export async function getResendEmail(emailId: string) {
+  const id = emailId.trim();
+  if (!id) throw new Error("A Resend email ID is required");
+
+  const response = await fetch(
+    `https://api.resend.com/emails/${encodeURIComponent(id)}`,
+    {
+      headers: {
+        Authorization: `Bearer ${readResendApiKey()}`,
+        "User-Agent": "harper-next-mailer/0.1",
+      },
+    }
+  );
+  const raw = await response.text().catch(() => "");
+  let data: unknown = raw;
+  try {
+    data = raw ? JSON.parse(raw) : {};
+  } catch {
+    data = { raw };
+  }
+  if (!response.ok) {
+    throw new Error(
+      `Failed to retrieve email: HTTP ${response.status} ${JSON.stringify(data)}`
+    );
+  }
+  return data as ResendEmail;
 }

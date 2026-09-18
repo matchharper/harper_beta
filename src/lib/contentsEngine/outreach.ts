@@ -2,15 +2,14 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { stripQuotedEmailText } from "@/lib/email/parse";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import {
-  findGmailMessageByRfcId,
   getGmailMessage,
   getGtmOutreachGmailConfig,
   listGmailHistory,
   listInboxMessageIds,
   parseGmailMessage,
-  sendGtmOutreachEmail,
   startGmailWatch,
 } from "@/lib/contentsEngine/gmail";
+import { sendGtmOutreachEmailWithResend } from "@/lib/contentsEngine/resend";
 import {
   classifyOutreachReply,
   unclassifiedOutreachReplyTriage,
@@ -80,24 +79,26 @@ export function verifyCronSecret(authorization: string | null) {
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
-function isRetryableGmailFailure(error: unknown) {
+function isRetryableResendFailure(error: unknown) {
   const message = errorMessage(error);
   return !(
-    /is required|does not match configured Gmail sender/i.test(message) ||
-    /Gmail API (400|401|403):/i.test(message)
+    /RESEND_API_KEY is required|Resend did not return/i.test(message) ||
+    /Failed to (send|retrieve) email: HTTP (400|401|403|404|422):/i.test(
+      message
+    )
   );
 }
 
 async function markSent(args: {
   dispatchId: string;
   messageId: string;
-  threadId: string;
+  rfcMessageId: string;
 }) {
   return rpcData<OutreachDispatch>(
     await adminClient().rpc("gtm_outreach_worker_mark_sent", {
       p_dispatch_id: args.dispatchId,
       p_provider_message_id: args.messageId,
-      p_provider_thread_id: args.threadId,
+      p_provider_thread_id: args.rfcMessageId,
       p_sent_at: new Date().toISOString(),
     })
   );
@@ -108,27 +109,23 @@ async function markFailed(dispatchId: string, error: unknown) {
     await adminClient().rpc("gtm_outreach_worker_mark_failed", {
       p_dispatch_id: dispatchId,
       p_error: errorMessage(error),
-      p_retryable: isRetryableGmailFailure(error),
+      p_retryable: isRetryableResendFailure(error),
     })
   );
 }
 
 async function deliverClaimedDispatch(dispatch: OutreachDispatch) {
   try {
-    const existing = await findGmailMessageByRfcId(dispatch.rfc_message_id);
-    const sent =
-      existing ??
-      (await sendGtmOutreachEmail({
-        body: dispatch.body,
-        from: dispatch.sender_email,
-        messageId: dispatch.rfc_message_id,
-        subject: dispatch.subject,
-        to: dispatch.recipient_email,
-      }));
+    const sent = await sendGtmOutreachEmailWithResend({
+      body: dispatch.body,
+      dispatchId: dispatch.id,
+      subject: dispatch.subject,
+      to: dispatch.recipient_email,
+    });
     await markSent({
       dispatchId: dispatch.id,
-      messageId: sent.id,
-      threadId: sent.threadId,
+      messageId: sent.emailId,
+      rfcMessageId: sent.messageId,
     });
     return { dispatchId: dispatch.id, ok: true } as const;
   } catch (error) {
