@@ -1,3 +1,4 @@
+import { MOCK_INTERVIEW_OPENING_PROMPT } from "@/lib/career/prompts/cases/mockInterviewPrompts";
 import {
   useCallback,
   useEffect,
@@ -221,6 +222,7 @@ function buildCallOpeningRecentConversationContext(
 function buildCallOpeningResponseInstruction(args: {
   interviewProgress?: CareerInterviewProgress | null;
   isInternalOpportunityCall?: boolean;
+  isMockInterview?: boolean;
   isOnboardingDone?: boolean;
   isConversationStarter?: boolean;
   locale?: string | null;
@@ -228,6 +230,7 @@ function buildCallOpeningResponseInstruction(args: {
   recentConversationContext?: string;
   t: CareerT;
 }) {
+  if (args.isMockInterview) return MOCK_INTERVIEW_OPENING_PROMPT;
   const {
     interviewProgress,
     isConversationStarter,
@@ -518,6 +521,7 @@ export const useCareerOnboardingVoice = ({
   const activeCallConversationStarterIdRef =
     useRef<CareerConversationStarterId | null>(null);
   const activeInternalCallRequestIdRef = useRef<string | null>(null);
+  const activeMockInterviewOpportunityIdRef = useRef<string | null>(null);
   const activeResumeCallNoteIdRef = useRef<string | null>(null);
   const activeCallIdRef = useRef<string | null>(null);
   const activeCallOnboardingCompletedAtStartRef = useRef(false);
@@ -695,6 +699,8 @@ export const useCareerOnboardingVoice = ({
                 activeCallConversationStarterIdRef.current ?? undefined,
               internalCallRequestId:
                 activeInternalCallRequestIdRef.current ?? undefined,
+              mockInterviewOpportunityId:
+                activeMockInterviewOpportunityIdRef.current ?? undefined,
               userMessage: userText,
               assistantMessage: assistantText,
               assistantEndedOnboarding: Boolean(args.assistantEndedOnboarding),
@@ -1468,7 +1474,13 @@ export const useCareerOnboardingVoice = ({
   // Realtime audio, then play the opening line once the call screen is live.
   const handleStartCallMode = useCallback(
     async (startArgs?: StartCallModeArgs) => {
-      if (onboardingBeginPending || callStartPending) return false;
+      if (
+        onboardingBeginPending ||
+        callStartPending ||
+        inputModeRef.current === "call" ||
+        callWrapUpPendingRef.current
+      )
+        return false;
 
       const customOpeningText =
         typeof startArgs === "string" ? startArgs : startArgs?.openingText;
@@ -1483,6 +1495,10 @@ export const useCareerOnboardingVoice = ({
         typeof startArgs === "object"
           ? (startArgs.internalCallRequestId?.trim() ?? null)
           : null;
+      const mockInterviewOpportunityId =
+        typeof startArgs === "object"
+          ? (startArgs.mockInterviewOpportunityId?.trim() ?? null)
+          : null;
       const resumeCallNoteId =
         typeof startArgs === "object"
           ? (startArgs.resumeCallNoteId?.trim() ?? null)
@@ -1490,6 +1506,7 @@ export const useCareerOnboardingVoice = ({
       activeCallConversationStarterIdRef.current = conversationStarterId;
       activeInternalCallRequestIdRef.current = internalCallRequestId;
       activeResumeCallNoteIdRef.current = resumeCallNoteId;
+      activeMockInterviewOpportunityIdRef.current = mockInterviewOpportunityId;
       activeCallIdRef.current = null;
       activeCallOnboardingCompletedAtStartRef.current = false;
       activeCallSessionIdRef.current = crypto.randomUUID();
@@ -1504,7 +1521,10 @@ export const useCareerOnboardingVoice = ({
         clearRealtimeTurnSyncState();
 
         const hasFocusedCallObjective = Boolean(
-          conversationStarterId || internalCallRequestId || resumeCallNoteId
+          conversationStarterId ||
+          internalCallRequestId ||
+          resumeCallNoteId ||
+          mockInterviewOpportunityId
         );
         const shouldBeginOnboarding =
           !hasFocusedCallObjective &&
@@ -1521,6 +1541,7 @@ export const useCareerOnboardingVoice = ({
             activeCallConversationStarterIdRef.current = null;
             activeInternalCallRequestIdRef.current = null;
             activeResumeCallNoteIdRef.current = null;
+            activeMockInterviewOpportunityIdRef.current = null;
             activeCallSessionIdRef.current = null;
             return false;
           }
@@ -1541,6 +1562,7 @@ export const useCareerOnboardingVoice = ({
         const openingInstructions = buildCallOpeningResponseInstruction({
           interviewProgress: callInterviewProgress,
           isInternalOpportunityCall: Boolean(internalCallRequestId),
+          isMockInterview: Boolean(mockInterviewOpportunityId),
           isOnboardingDone,
           isConversationStarter: Boolean(conversationStarterId),
           locale,
@@ -1554,6 +1576,7 @@ export const useCareerOnboardingVoice = ({
           initialResponseInstruction: openingInstructions,
           internalCallRequestId,
           resumeCallNoteId,
+          mockInterviewOpportunityId,
         });
         if (!callStarted) {
           if (shouldBeginOnboarding) {
@@ -1562,6 +1585,7 @@ export const useCareerOnboardingVoice = ({
           activeCallConversationStarterIdRef.current = null;
           activeInternalCallRequestIdRef.current = null;
           activeResumeCallNoteIdRef.current = null;
+          activeMockInterviewOpportunityIdRef.current = null;
           activeCallSessionIdRef.current = null;
           return false;
         }
@@ -1580,6 +1604,7 @@ export const useCareerOnboardingVoice = ({
           activeCallConversationStarterIdRef.current = null;
           activeInternalCallRequestIdRef.current = null;
           activeResumeCallNoteIdRef.current = null;
+          activeMockInterviewOpportunityIdRef.current = null;
           activeCallIdRef.current = null;
           activeCallOnboardingCompletedAtStartRef.current = false;
           activeCallSessionIdRef.current = null;
@@ -1628,6 +1653,8 @@ export const useCareerOnboardingVoice = ({
       const activeInternalCallRequestId =
         activeInternalCallRequestIdRef.current;
       const activeResumeCallNoteId = activeResumeCallNoteIdRef.current;
+      const activeMockInterviewOpportunityId =
+        activeMockInterviewOpportunityIdRef.current;
       const activeCallSessionId = activeCallSessionIdRef.current;
       const pendingUserText = lastRealtimeUserTextRef.current.trim();
       if (pendingUserText) {
@@ -1648,6 +1675,7 @@ export const useCareerOnboardingVoice = ({
         activeCallConversationStarterIdRef.current = null;
         activeInternalCallRequestIdRef.current = null;
         activeResumeCallNoteIdRef.current = null;
+        activeMockInterviewOpportunityIdRef.current = null;
         activeCallIdRef.current = null;
         activeCallOnboardingCompletedAtStartRef.current = false;
         activeCallSessionIdRef.current = null;
@@ -1666,6 +1694,7 @@ export const useCareerOnboardingVoice = ({
         activeCallConversationStarterIdRef.current = null;
         activeInternalCallRequestIdRef.current = null;
         activeResumeCallNoteIdRef.current = null;
+        activeMockInterviewOpportunityIdRef.current = null;
         activeCallIdRef.current = null;
         activeCallOnboardingCompletedAtStartRef.current = false;
         activeCallSessionIdRef.current = null;
@@ -1691,6 +1720,8 @@ export const useCareerOnboardingVoice = ({
                 activeCallConversationStarterId ?? undefined,
               internalCallRequestId: activeInternalCallRequestId ?? undefined,
               resumeCallNoteId: activeResumeCallNoteId ?? undefined,
+              mockInterviewOpportunityId:
+                activeMockInterviewOpportunityId ?? undefined,
               transcript: transcript.map((e) => ({
                 role: e.role,
                 text: e.text,
@@ -1877,6 +1908,7 @@ export const useCareerOnboardingVoice = ({
           activeCallConversationStarterIdRef.current = null;
           activeInternalCallRequestIdRef.current = null;
           activeResumeCallNoteIdRef.current = null;
+          activeMockInterviewOpportunityIdRef.current = null;
           activeCallIdRef.current = null;
           activeCallOnboardingCompletedAtStartRef.current = false;
           activeCallSessionIdRef.current = null;
@@ -1948,6 +1980,7 @@ export const useCareerOnboardingVoice = ({
     activeCallConversationStarterIdRef.current = null;
     activeInternalCallRequestIdRef.current = null;
     activeResumeCallNoteIdRef.current = null;
+    activeMockInterviewOpportunityIdRef.current = null;
     activeCallIdRef.current = null;
     activeCallOnboardingCompletedAtStartRef.current = false;
     activeCallSessionIdRef.current = null;
@@ -1980,5 +2013,6 @@ export const useCareerOnboardingVoice = ({
     resetOnboardingState,
     isAssistantSpeaking: realtimeSession.isAssistantSpeaking,
     isVoiceToolExecuting: realtimeSession.isToolExecuting,
+    voiceActiveToolNames: realtimeSession.activeToolNames,
   };
 };

@@ -1,3 +1,4 @@
+import MockInterviewStart from "./MockInterviewStart";
 import React, { ReactNode, useState } from "react";
 import { CareerOpportunityType, type CareerHistoryOpportunity } from "../types";
 import {
@@ -28,7 +29,7 @@ import { OpportunityType } from "@/lib/opportunityType";
 import { Badge } from "@/components/ui/badge";
 import { getOpportunityPostingStatus } from "./opportunityPostingStatus";
 import OpportunityPreferenceFit from "./OpportunityPreferenceFit";
-import { BareButton } from "@/components/ui/button";
+import { BareButton, MuteButton } from "@/components/ui/button";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 import { InternalOpportunityDecisionMenu } from "./InternalOpportunityDecisionActions";
@@ -541,6 +542,7 @@ export const HistoryOpportunityInlinePage = ({
   onInternalDecisionAction,
   onSavedStatusChange,
   onUpdateTalentMemo,
+  onStartMockInterview,
   pending,
   savedStatus,
 }: {
@@ -554,6 +556,7 @@ export const HistoryOpportunityInlinePage = ({
     action: CareerInternalOpportunityDecisionAction
   ) => void;
   onSavedStatusChange?: (value: CareerOpportunityManagementStatus) => void;
+  onStartMockInterview?: (opportunityId: string) => boolean | Promise<boolean>;
   onUpdateTalentMemo?: (
     item: CareerHistoryOpportunity,
     talentMemo: string | null
@@ -617,6 +620,20 @@ export const HistoryOpportunityInlinePage = ({
         onOpenLink={onOpenLink}
         onOpenOpportunityInfo={onOpenOpportunityInfo}
       />
+
+      <div className="mt-6 flex flex-wrap items-center gap-4 rounded-xl border border-neutral-1000-a05 bg-bg-floating p-4">
+        <p className="min-w-0 flex-1 basis-[240px] text-[13px] leading-6 text-neutral-muted">
+          {t(
+            "career.history.mock_interview.description",
+            "Harper와 실제 면접처럼 대화하며 이 포지션의 인터뷰를 준비해보세요."
+          )}
+        </p>
+        <MockInterviewStart
+          key={item.id}
+          item={item}
+          onStart={onStartMockInterview}
+        />
+      </div>
 
       <TalentRoleActivityTimeline
         item={item}

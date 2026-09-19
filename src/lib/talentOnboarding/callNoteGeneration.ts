@@ -51,6 +51,7 @@ export async function generateTalentCallNoteForWrapup(
     durationSeconds: number;
     endedAt?: string | null;
     onboardingCompletedAtStart?: boolean | null;
+    callPurposeContext?: string;
     preferredLocale?: string | null;
     startedAt?: string | null;
     transcript: CallNoteTranscriptInputEntry[];
@@ -73,6 +74,7 @@ export async function generateTalentCallNoteForWrapup(
 
   try {
     const analysis = await dependencies.analyze({
+      callPurposeContext: args.callPurposeContext,
       preferredLocale: args.preferredLocale,
       transcript: args.transcript,
     });
@@ -173,9 +175,7 @@ export async function updateTalentCallNoteForWrapup(
         ? storedDocument.file_name.trim() || "Harper call note"
         : previousCallNote.title;
     const previousKeyPoints =
-      previousCallNote.schema_version === 1
-        ? []
-        : previousCallNote.key_points;
+      previousCallNote.schema_version === 1 ? [] : previousCallNote.key_points;
 
     const document = await dependencies.update({
       admin: args.admin,

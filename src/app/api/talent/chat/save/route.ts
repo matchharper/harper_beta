@@ -1,3 +1,9 @@
+import {
+  readMockInterviewOpportunityId,
+  fetchMockInterviewContext,
+  MockInterviewRequestError,
+} from "@/lib/career/mockInterview";
+import { buildMockInterviewWrapupContext } from "@/lib/career/prompts/cases/mockInterviewPrompts";
 import { after, NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
@@ -53,6 +59,7 @@ type Body = {
   conversationStarterId?: string | null;
   conversationId: string;
   internalCallRequestId?: string | null;
+  mockInterviewOpportunityId?: string | null;
   locale?: string | null;
   userMessage?: string;
   assistantMessage?: string;
@@ -76,6 +83,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json()) as Body;
+    const mockInterviewOpportunityId = readMockInterviewOpportunityId(body);
     const isMobile = isMobileRequest(req);
     const promptTimeZone = resolveCareerRequestTimeZone(req, body.timeZone);
     const conversationId = sanitizeSingleLineDbText(body.conversationId, 80);
@@ -130,6 +138,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (mockInterviewOpportunityId) {
+      if (!isCallMode)
+        throw new MockInterviewRequestError(
+          "Mock interview requires call mode"
+        );
+      await fetchMockInterviewContext({
+        admin,
+        userId: user.id,
+        opportunityId: mockInterviewOpportunityId,
+      });
+    }
     const internalCallRequest = internalCallRequestId
       ? await fetchInternalOpportunityCallRequestById({
           admin,
@@ -180,6 +199,7 @@ export async function POST(req: NextRequest) {
       ]);
     const currentInsightContent = projectBriefsToLegacyInsights(currentBrief);
     const shouldAutoExtractInsights =
+      !mockInterviewOpportunityId &&
       !isInternalOpportunityCall &&
       !Boolean(talentSetting?.is_onboarding_done) &&
       Boolean(userMessageText) &&
@@ -399,7 +419,9 @@ export async function POST(req: NextRequest) {
       assistantEndedOnboarding,
     });
     const latestChecklistCoverage =
-      !isInternalOpportunityCall && !Boolean(talentSetting?.is_onboarding_done)
+      !mockInterviewOpportunityId &&
+      !isInternalOpportunityCall &&
+      !Boolean(talentSetting?.is_onboarding_done)
         ? await getCareerOnboardingChecklistCoverage({
             admin,
             conversationId,
@@ -422,10 +444,12 @@ export async function POST(req: NextRequest) {
           }
         : markerCompletion;
     const isCompleted =
+      !mockInterviewOpportunityId &&
       !isInternalOpportunityCall &&
       Boolean(insertedAssistantMessage) &&
       completion.completed;
-    const shouldApplyCompletion = isCompleted && !skipConversationWrites;
+    const shouldApplyCompletion =
+      !mockInterviewOpportunityId && isCompleted && !skipConversationWrites;
 
     if (!skipConversationWrites) {
       const now = new Date().toISOString();
@@ -497,6 +521,7 @@ export async function POST(req: NextRequest) {
           await buildCareerRealtimeSessionInstructions({
             conversationId,
             conversationStarterId,
+            mockInterviewOpportunityId,
             internalCallRequestId,
             preferredLocale: responseLocale,
             timeZone: promptTimeZone,
@@ -540,6 +565,11 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
+    if (error instanceof MockInterviewRequestError)
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status }
+      );
     const message =
       error instanceof Error ? error.message : "Failed to save chat messages";
     console.error("[ChatSave] Error:", error);

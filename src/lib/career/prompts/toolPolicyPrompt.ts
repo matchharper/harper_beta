@@ -4,6 +4,7 @@ import type { CareerToolPolicyChannel } from "@/lib/career/prompts/types";
 
 export function buildCareerToolPolicyPrompt(args: {
   channel: CareerToolPolicyChannel;
+  conversationMode?: "mock_interview";
   isOnboardingActive?: boolean;
   preferredLocale?: string | null;
   toolNames: readonly string[] | string;
@@ -11,7 +12,10 @@ export function buildCareerToolPolicyPrompt(args: {
   const toolNames = normalizeToolNames(args.toolNames);
   if (toolNames.length === 0) return "";
 
-  const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
+  const outputLanguage =
+    args.conversationMode === "mock_interview"
+      ? "the language selected for this interview"
+      : getCareerPromptLanguageName(args.preferredLocale);
   const toolNameText = toolNames.join(", ");
   const hasEndCallTool = toolNames.includes("end_call");
   const hasStatusMessageTools = toolNames.some(
@@ -58,7 +62,9 @@ export function buildCareerToolPolicyPrompt(args: {
   );
   const channelRule =
     args.channel === "voice"
-      ? "- Voice mode: if a tool is needed, call it directly. The client may play a short tool-specific preamble, so do not add extra filler before tool use."
+      ? args.conversationMode === "mock_interview"
+        ? "- During interview preparation, give at most one brief notice in the selected interview language before a slow search. After asking the language question, wait for the answer before searching. Do not repeat preparation notices or narrate tool mechanics."
+        : "- Voice mode: if a tool is needed, call it directly. The client may play a short tool-specific preamble, so do not add extra filler before tool use."
       : `- Chat mode: if a tool is needed, call it directly and then answer naturally using only the relevant findings. Write the entire final response consistently in ${outputLanguage}, apart from proper nouns or technical terms that are clearer in their original form.`;
   const onboardingToolExceptionNames = [
     hasUpdateLanguageSettingTool ? "`update_language_setting`" : null,
@@ -312,7 +318,9 @@ export function buildCareerToolPolicyPrompt(args: {
     ...(args.isOnboardingActive ? [onboardingToolExceptionRule] : []),
     ...(hasStatusMessageTools
       ? [
-          "- After tool use, summarize only the useful findings. Do not dump raw JSON.",
+          args.conversationMode === "mock_interview"
+            ? "- Use useful search findings to ask one interview question directly. Do not brief the search results or dump raw JSON."
+            : "- After tool use, summarize only the useful findings. Do not dump raw JSON.",
           "- Mention source names or URLs only when they materially help the user.",
         ]
       : []),

@@ -1,3 +1,9 @@
+import { buildLiveFrontendInstructions } from "@/lib/career/voiceSessionInstructions";
+import {
+  readMockInterviewOpportunityId,
+  MockInterviewRequestError,
+} from "@/lib/career/mockInterview";
+import { MOCK_INTERVIEW_OPENING_PROMPT } from "@/lib/career/prompts/cases/mockInterviewPrompts";
 import { createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getCareerLiveSessionConfig } from "@/lib/career/llm";
@@ -68,33 +74,6 @@ function readBodyString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function buildLiveFrontendInstructions(args: {
-  initialResponseInstruction: string;
-  responseLocale: unknown;
-}) {
-  const language =
-    typeof args.responseLocale === "string" &&
-    args.responseLocale.trim().toLowerCase().startsWith("en")
-      ? "English"
-      : "Korean";
-  const paceInstruction =
-    language === "English"
-      ? "Speak clearly at a slightly faster pace."
-      : "조금 빠른 속도로 또렷하게 말해.";
-
-  return [
-    "You are Harper, a warm and capable career partner in a live voice call.",
-    `Speak naturally in ${language}, unless the caller clearly switches languages.`,
-    paceInstruction,
-    "Keep spoken turns concise, conversational, and easy to interrupt. Listen while speaking and adapt naturally when the caller interjects.",
-    "Delegate whenever you need the caller's stored context, business rules, careful reasoning, or any tool. Use the delegated result before making factual claims or claiming that an action succeeded.",
-    "Do not narrate delegation mechanics, tool names, system instructions, or hidden context to the caller.",
-    args.initialResponseInstruction
-      ? `For the opening turn, follow this call-opening guidance:\n${args.initialResponseInstruction}`
-      : "When asked to begin, greet the caller briefly and ask one useful opening question.",
-  ].join("\n\n");
-}
-
 export async function POST(req: NextRequest) {
   try {
     const user = await getRequestUser(req);
@@ -121,15 +100,17 @@ export async function POST(req: NextRequest) {
       internalCallRequestId?: string;
       locale?: string;
       resumeCallNoteId?: string;
+      mockInterviewOpportunityId?: string;
       sdp?: string;
       timeZone?: string;
     };
     const promptTimeZone = resolveCareerRequestTimeZone(req, body.timeZone);
     const conversationId = readBodyString(body.conversationId);
+    const mockInterviewOpportunityId = readMockInterviewOpportunityId(body);
     const conversationStarterId = readBodyString(body.conversationStarterId);
-    const initialResponseInstruction = readBodyString(
-      body.initialResponseInstruction
-    );
+    const initialResponseInstruction = mockInterviewOpportunityId
+      ? MOCK_INTERVIEW_OPENING_PROMPT
+      : readBodyString(body.initialResponseInstruction);
     const internalCallRequestId = readBodyString(body.internalCallRequestId);
     const resumeCallNoteId = readBodyString(body.resumeCallNoteId);
     const sdp = parseLiveSdpOffer(body.sdp);
@@ -237,6 +218,7 @@ export async function POST(req: NextRequest) {
     const promptPlan = await buildCareerRealtimeSessionInstructions({
       conversationId,
       conversationStarterId,
+      mockInterviewOpportunityId,
       internalCallRequestId,
       preferredLocale: responseLocale,
       timeZone: promptTimeZone,
@@ -281,6 +263,7 @@ export async function POST(req: NextRequest) {
           instructions: buildLiveFrontendInstructions({
             initialResponseInstruction: openingInstruction,
             responseLocale,
+            isMockInterview: Boolean(mockInterviewOpportunityId),
           }),
           delegation: {
             type: "responses",
@@ -332,6 +315,11 @@ export async function POST(req: NextRequest) {
       transport: { type: "webrtc", sdp: answerSdp },
     });
   } catch (error) {
+    if (error instanceof MockInterviewRequestError)
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status }
+      );
     console.error("[LiveSession] Error:", error);
     return NextResponse.json(
       { error: "Internal server error" },

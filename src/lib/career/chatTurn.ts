@@ -1,3 +1,4 @@
+import { hydrateMockInterviewOffers } from "@/lib/career/mockInterviewOffers.server";
 import { after } from "next/server";
 import type { OpenAIResponsesReasoningEffort } from "@/lib/llm/responsesChatAdapter";
 import {
@@ -233,6 +234,7 @@ async function attachPostingPreviewsToMessages(args: {
   messages: TalentMessageResponse[];
   userId: string;
 }) {
+  args.messages = await hydrateMockInterviewOffers(args);
   const roleIdsByMessageId = new Map<number, string[]>();
 
   for (const message of args.messages) {

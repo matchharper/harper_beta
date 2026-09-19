@@ -18,6 +18,7 @@ type RealtimeControls = {
     initialResponseInstruction?: string | null;
     internalCallRequestId?: string | null;
     resumeCallNoteId?: string | null;
+    mockInterviewOpportunityId?: string | null;
   }) => Promise<boolean>;
   disconnect: () => void;
   getLastConnectFailure?: () => RealtimeConnectFailure | null;
@@ -416,6 +417,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
       initialResponseInstruction?: string | null;
       internalCallRequestId?: string | null;
       resumeCallNoteId?: string | null;
+      mockInterviewOpportunityId?: string | null;
     }) => {
       void logEnvironmentSnapshot();
       logVoiceDebug("start-call-mode");
@@ -432,6 +434,8 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
           initialResponseInstruction:
             options?.initialResponseInstruction ?? null,
           internalCallRequestId: options?.internalCallRequestId ?? null,
+          mockInterviewOpportunityId:
+            options?.mockInterviewOpportunityId ?? undefined,
           resumeCallNoteId: options?.resumeCallNoteId ?? null,
         });
         if (connected) {

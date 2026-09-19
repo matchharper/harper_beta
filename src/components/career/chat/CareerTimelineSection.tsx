@@ -401,7 +401,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
                   onStartCallMode={
                     onStartCallMode
                       ? (openingText) => {
-                          void onStartCallMode(openingText);
+                          return onStartCallMode(openingText);
                         }
                       : undefined
                   }
@@ -426,7 +426,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
                     onStartCallMode={
                       onStartCallMode
                         ? (openingText) => {
-                            void onStartCallMode(openingText);
+                            return onStartCallMode(openingText);
                           }
                         : undefined
                     }
@@ -454,7 +454,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
                   onStartCallMode={
                     onStartCallMode
                       ? (openingText) => {
-                          void onStartCallMode(openingText);
+                          return onStartCallMode(openingText);
                         }
                       : undefined
                   }

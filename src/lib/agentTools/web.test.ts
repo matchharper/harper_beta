@@ -91,8 +91,50 @@ test("web_search stores Exa text but returns only compact search metadata", asyn
 });
 
 test("web_search exposes ten results as its default and maximum", () => {
-  const maxResults = WEB_SEARCH_TOOL_DEFINITION.function.parameters.properties
-    .maxResults;
+  const maxResults =
+    WEB_SEARCH_TOOL_DEFINITION.function.parameters.properties.maxResults;
   assert.equal(maxResults.default, 10);
   assert.equal(maxResults.maximum, 10);
+});
+
+test("mock extraction requires execution context rather than model arguments", async () => {
+  for (const searchPurpose of [undefined, "mock_interview"] as const) {
+    let capturedQuery = "";
+    let capturedOptions: unknown;
+    await executeSharedWebSearch(
+      { query: "role interview experience", searchPurpose: "mock_interview" },
+      {
+        admin: {} as never,
+        searchPurpose,
+        exa: {
+          search: async (query: string, options: unknown) => {
+            capturedQuery = query;
+            capturedOptions = options;
+            return { results: [] };
+          },
+        } as never,
+      }
+    );
+    assert.equal(capturedQuery, "role interview experience");
+    const options = capturedOptions as {
+      contents: { highlights: { query?: string; maxCharacters: number } };
+      numResults: number;
+      type: string;
+    };
+    assert.equal(options.numResults, 10);
+    assert.equal(options.type, "auto");
+    if (searchPurpose) {
+      assert.equal(options.contents.highlights.maxCharacters, 2500);
+      assert.match(
+        options.contents.highlights.query ?? "",
+        /problem statements, constraints/
+      );
+      assert.match(
+        options.contents.highlights.query ?? "",
+        /when relevant to the role/
+      );
+    } else {
+      assert.deepEqual(options.contents.highlights, { maxCharacters: 500 });
+    }
+  }
 });
