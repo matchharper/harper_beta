@@ -12,6 +12,8 @@ import {
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import Image from "next/image";
 import UpdateNotesFeatureVote from "@/components/career/UpdateNotesFeatureVote";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
+import { useEffect } from "react";
 
 type CareerUpdateNotesPageProps = {
   notes: CareerUpdateNote[];
@@ -57,9 +59,14 @@ export const getStaticProps: GetStaticProps<
 export default function CareerUpdateNotesPage({
   notes,
 }: CareerUpdateNotesPageProps) {
+  const logCareerEvent = useCareerLogEvent();
   const { locale } = useMessages();
   const copy = PAGE_COPY[locale];
   const latestDate = notes[0]?.date;
+
+  useEffect(() => {
+    logCareerEvent("view_update_notes");
+  }, [logCareerEvent]);
 
   return (
     <DocumentPageShell

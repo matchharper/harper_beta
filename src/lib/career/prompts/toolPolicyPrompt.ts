@@ -91,7 +91,7 @@ export function buildCareerToolPolicyPrompt(args: {
       : "",
     ...(hasEndCallTool
       ? [
-          "- `end_call` takes no parameters. Use it only to end the live voice call after the final closing message, or when the user clearly asks to end, stop, or hang up. Do not include `_uiStatusMessage` with `end_call`.",
+          "- `end_call` takes no parameters. Call it immediately when the user clearly asks to end, stop, hang up, or says they are done for today. For an assistant-initiated ending, call it only after the user agrees. Include a short closing in the same response when possible; if speech and a function call cannot be combined, prioritize the tool because the client supplies a brief spoken fallback. Do not include `_uiStatusMessage` with `end_call`.",
         ]
       : []),
     ...(args.channel === "chat"
@@ -236,7 +236,7 @@ export function buildCareerToolPolicyPrompt(args: {
           "- action=resume: use when the user clearly wants Harper recommendation/contact to resume. It changes getExternalRecommendation to true.",
           "- Generic stop/unsubscribe ('이제 그만 받을게', 'unsubscribe', '메일 그만') is ambiguous: do not call; ask one scope clarifier. Never call with empty/trial args.",
           "- After the tool, explain the practical result: stop_external means only strong direct-connection contacts; stop_all means no matching contact; resume means strong opportunities and good-fit public postings can resume.",
-          "- After this tool returns, produce a normal user-facing chat reply. Do not expose field names unless the user specifically asks for technical details.",
+          "- After this tool returns, respond naturally in the current channel. Do not expose field names unless the user specifically asks for technical details.",
           "",
         ]
       : []),
@@ -259,7 +259,7 @@ export function buildCareerToolPolicyPrompt(args: {
                 "- Do not write subscription/contact actions or cadence/frequency changes through this tool; answer naturally instead.",
               ]),
           "- Do NOT call for one-off browsing, curiosity, informational searches, questions, hypotheticals, assistant summaries, duplicates, or aspirational/off-profile role mentions without explicit future intent.",
-          "- After this tool returns, produce a normal user-facing chat reply. Do not return an empty assistant message, and do not return only an onboarding marker.",
+          "- After this tool returns, respond naturally in the current channel. Do not return an empty assistant message, and do not return only an onboarding marker.",
           "- Trigger conditions: call ONLY when the user's latest statement directly maps to a writable field in this tool:",
           "1) talentUser.bio: explicit final Summary/About/Bio replacement, correction, or clear request; never infer it from assistant-only summaries.",
           "2) talentUser.location: explicit current primary base/residence only; not travel, past/target job location, desired work location, or relocation preference.",

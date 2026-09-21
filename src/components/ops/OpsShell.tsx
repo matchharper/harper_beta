@@ -29,7 +29,7 @@ type OpsNavItem = {
 };
 
 type OpsNavGroup = {
-  id: "system" | "matching" | "debugging" | "company";
+  id: "system" | "matching" | "debugging" | "company" | "gtm";
   label: string;
   items: OpsNavItem[];
 };
@@ -145,6 +145,12 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
     label: "디버깅",
     items: [
       {
+        description: "진행 중인 실험의 표본과 현재 결론 확인",
+        href: "/ops/debugging/ab-tests",
+        label: "A/B Test",
+        matchPrefix: "/ops/debugging/ab-tests",
+      },
+      {
         description: "company_workspace score와 quality label",
         href: "/ops/companies",
         label: "회사 관리",
@@ -155,6 +161,12 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         href: "/ops/debugging/matching",
         label: "매칭 지표",
         matchPrefix: "/ops/debugging/matching",
+      },
+      {
+        description: "talent 주요 기능 경험률과 주간 변화 확인",
+        href: "/ops/debugging/action-logs",
+        label: "액션 로그",
+        matchPrefix: "/ops/debugging/action-logs",
       },
       {
         description: "career 메일 발송·수신 본문 확인",
@@ -209,6 +221,18 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         href: "/ops/company/waiting",
         label: "대기",
         matchPrefix: "/ops/company/waiting",
+      },
+    ],
+  },
+  {
+    id: "gtm",
+    label: "GTM",
+    items: [
+      {
+        href: "/ops/gtm",
+        label: "GTM",
+        description: "GTM 업무 시트",
+        matchPrefix: "/ops/gtm",
       },
     ],
   },
@@ -556,6 +580,7 @@ export default function OpsShell({
   allowUtmViewer = false,
   children,
   compactHeader = false,
+  spreadsheet = false,
   title,
   navActions,
 }: {
@@ -563,6 +588,7 @@ export default function OpsShell({
   allowUtmViewer?: boolean;
   children: React.ReactNode;
   compactHeader?: boolean;
+  spreadsheet?: boolean;
   description?: React.ReactNode;
   title?: string;
   navActions?: React.ReactNode;
@@ -733,6 +759,36 @@ export default function OpsShell({
         <main className="relative mx-auto max-w-[1600px] px-4 py-5 lg:px-6">
           {children}
         </main>
+      </div>
+    );
+  }
+
+  if (spreadsheet) {
+    return (
+      <div className="flex h-svh flex-col overflow-hidden bg-white text-black">
+        <header className="flex min-h-12 shrink-0 items-center gap-5 overflow-x-auto border-b border-[#c9cdd2] bg-white px-4">
+          <Link href="/ops" className="shrink-0 text-sm font-semibold">
+            Harper Ops
+          </Link>
+          <nav aria-label="Ops 메뉴" className="flex h-12 shrink-0 items-center gap-1">
+            {OPS_NAV_GROUPS.map((group) => (
+              <Link
+                key={group.id}
+                href={group.items[0]?.href ?? "/ops"}
+                aria-current={activeNavGroup.id === group.id ? "page" : undefined}
+                className={cx(
+                  "flex h-12 items-center border-b-2 px-3 text-sm",
+                  activeNavGroup.id === group.id
+                    ? "border-[#1a73e8] text-[#1a73e8]"
+                    : "border-transparent text-black"
+                )}
+              >
+                {group.label}
+              </Link>
+            ))}
+          </nav>
+        </header>
+        <main className="min-h-0 flex-1">{children}</main>
       </div>
     );
   }

@@ -14,7 +14,7 @@ import {
   getCareerOpportunityManagementStatusOptions,
   type CareerOpportunityManagementStatus,
 } from "./savedOpportunityStatus";
-import { BareButton } from "@/components/ui/button";
+import { BareButton, MuteButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import { InternalOpportunityDecisionMenu } from "./InternalOpportunityDecisionActions";
 import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
@@ -48,14 +48,13 @@ const SavedManagementStatusDropdown = ({
         align="end"
         contentClassName="min-w-[190px]"
         trigger={
-          <BareButton
-            type="button"
+          <MuteButton
+            variant="transparent"
             aria-label={`${statusLabel} 상태 변경`}
             disabled={disabled}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-neutral-200 text-neutral-primary transition-colors hover:bg-neutral-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <EllipsisVertical className="h-4 w-4" />
-          </BareButton>
+          </MuteButton>
         }
       >
         {options.map((option) => (
@@ -125,16 +124,17 @@ const OpportunityListCard = ({
         onActivate={() => {
           onOpenDetail();
         }}
-        className="min-w-0 flex-1 cursor-pointer p-2 px-3 text-left"
+        className="min-w-0 flex-1 cursor-pointer pt-2 pb-3 px-3 text-left"
       >
         <OpportunityHeader
           item={item}
           onOpenCompanyInfo={onOpenCompanyInfo}
           onOpenOpportunityInfo={onOpenOpportunityInfo}
+          size="sm"
           extraComponent={<></>}
         />
 
-        <OpportunityRecommendationPreview item={item} />
+        {/* <OpportunityRecommendationPreview item={item} /> */}
         <UpcomingMeetingStrip
           meeting={item.upcomingMeeting}
           className="-mx-3 mt-3 rounded-none px-3"

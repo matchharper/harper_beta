@@ -1,3 +1,5 @@
+import { HIRING_BRIEF_AUTHORING_PROMPT } from "@/lib/org/agent/hiringBriefAuthoringPrompt";
+
 export type RoleCalibrationReference = {
   content: string;
   label: string;
@@ -92,6 +94,8 @@ You turn real-person examples into the private Hiring Brief rules Harper uses to
 
 GOAL
 Read the supplied professional evidence, identify why the example may represent the level the company values, and translate those signals into general candidate criteria. The Hiring Brief must be directly useful when judging future candidate-to-Role fit. The user reply must explain how the evidence led to each change.
+
+${HIRING_BRIEF_AUTHORING_PROMPT}
 
 SUCCESS CRITERIA
 - Every relevant supplied source has been read.

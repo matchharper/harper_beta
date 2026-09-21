@@ -45,6 +45,20 @@ test("allows candidate contact throughout an active company process", () => {
   assert.equal(canInitiateOrgCandidateContact("archived"), false);
 });
 
+test("blocks every ordinary company action in the Company-first intro stage", () => {
+  assert.equal(canInitiateOrgCandidateContact("company_intro"), false);
+  assert.equal(canCreateOrgCandidateContact("company_intro"), false);
+  assert.equal(canStopOrgCandidateProcess("company_intro"), false);
+  assert.equal(
+    shouldOpenOrgAcceptIntroDialog("company_intro", "custom:first-interview"),
+    false
+  );
+  assert.equal(
+    shouldOpenOrgStopCandidateDialog("company_intro", "process_stopped"),
+    false
+  );
+});
+
 test("requires renewed consent before every active move after a closure notice", () => {
   const candidate = { processClosureNoticeUnresolved: true };
 

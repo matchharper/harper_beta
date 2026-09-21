@@ -14,6 +14,7 @@ import {
   ListOrdered,
   Strikethrough,
   Trash2,
+  Underline,
 } from "lucide-react";
 import {
   type FormEvent,
@@ -104,7 +105,9 @@ export function normalizeMarkdownEditorLinkHref(value: string) {
   }
 }
 
-export function createMarkdownEditorExtensions() {
+export function createMarkdownEditorExtensions(
+  contentFormat: "markdown" | "html" = "markdown"
+) {
   return [
     StarterKit.configure({
       link: {
@@ -114,7 +117,7 @@ export function createMarkdownEditorExtensions() {
         openOnClick: false,
       },
       trailingNode: false,
-      underline: false,
+      underline: contentFormat === "html" ? {} : false,
     }),
     Image.configure({
       allowBase64: false,
@@ -166,6 +169,7 @@ export function MarkdownRichTextEditor({
   ariaLabel,
   autoFocus = false,
   className,
+  contentFormat = "markdown",
   disabled = false,
   onValueChange,
   placeholder,
@@ -175,6 +179,8 @@ export function MarkdownRichTextEditor({
   ariaLabel: string;
   autoFocus?: boolean;
   className?: string;
+  /** HTML is used for emails; existing documents retain their Markdown contract. */
+  contentFormat?: "markdown" | "html";
   disabled?: boolean;
   onValueChange: (value: string) => void;
   placeholder?: string;
@@ -196,7 +202,9 @@ export function MarkdownRichTextEditor({
   const editor = useEditor(
     {
       content: value,
-      contentType: "markdown",
+      contentType: contentFormat,
+      parseOptions:
+        contentFormat === "html" ? { preserveWhitespace: "full" } : undefined,
       editable,
       editorProps: {
         attributes: {
@@ -206,7 +214,7 @@ export function MarkdownRichTextEditor({
           spellcheck: "true",
         },
       },
-      extensions: createMarkdownEditorExtensions(),
+      extensions: createMarkdownEditorExtensions(contentFormat),
       immediatelyRender: false,
       onSelectionUpdate: () => {
         setEditingLink(false);
@@ -214,10 +222,14 @@ export function MarkdownRichTextEditor({
       },
       onUpdate: ({ editor: currentEditor, transaction }) => {
         if (!shouldEmitMarkdownEditorUpdate(transaction)) return;
-        onValueChangeRef.current(currentEditor.getMarkdown());
+        onValueChangeRef.current(
+          contentFormat === "html"
+            ? currentEditor.getHTML()
+            : currentEditor.getMarkdown()
+        );
       },
     },
-    []
+    [contentFormat]
   );
 
   const editorState = useEditorState({
@@ -233,6 +245,7 @@ export function MarkdownRichTextEditor({
       link: currentEditor?.isActive("link") ?? false,
       orderedList: currentEditor?.isActive("orderedList") ?? false,
       strike: currentEditor?.isActive("strike") ?? false,
+      underline: currentEditor?.isActive("underline") ?? false,
     }),
   });
 
@@ -242,12 +255,19 @@ export function MarkdownRichTextEditor({
   }, [editable, editor]);
 
   useEffect(() => {
-    if (!editor || editor.getMarkdown() === value) return;
+    if (
+      !editor ||
+      (contentFormat === "html" ? editor.getHTML() : editor.getMarkdown()) ===
+        value
+    )
+      return;
     editor.commands.setContent(value, {
-      contentType: "markdown",
+      contentType: contentFormat,
+      parseOptions:
+        contentFormat === "html" ? { preserveWhitespace: "full" } : undefined,
       emitUpdate: false,
     });
-  }, [editor, value]);
+  }, [editor, value, contentFormat]);
 
   useEffect(() => {
     if (!autoFocus || !editable || !editor) return;
@@ -352,6 +372,70 @@ export function MarkdownRichTextEditor({
       )}
       data-markdown-rich-text-editor=""
     >
+      {editable && contentFormat === "html" && (
+        <div
+          role="toolbar"
+          aria-label="메일 서식"
+          className="sticky top-0 z-10 flex flex-wrap items-center gap-1 border-b border-neutral-1000-a10 bg-white p-2"
+        >
+          <select
+            aria-label="메일 문단 서식"
+            value={textBlockStyle}
+            onChange={(event) =>
+              applyTextBlockStyle(event.target.value as TextBlockStyle)
+            }
+          >
+            {TEXT_BLOCK_STYLE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <FormatButton
+            active={editorState?.bold}
+            ariaLabel="굵게"
+            icon={<Bold className="size-4" />}
+            onClick={() => editor.chain().focus().toggleBold().run()}
+            title="굵게 (⌘/Ctrl+B)"
+          />
+          <FormatButton
+            active={editorState?.underline}
+            ariaLabel="밑줄"
+            icon={<Underline className="size-4" />}
+            onClick={() => editor.chain().focus().toggleUnderline().run()}
+            title="밑줄 (⌘/Ctrl+U)"
+          />
+          <FormatButton
+            active={editorState?.italic}
+            ariaLabel="기울임"
+            icon={<Italic className="size-4" />}
+            onClick={() => editor.chain().focus().toggleItalic().run()}
+            title="기울임 (⌘/Ctrl+I)"
+          />
+          <FormatButton
+            active={editorState?.bulletList}
+            ariaLabel="글머리 기호 목록"
+            icon={<List className="size-4" />}
+            onClick={() => editor.chain().focus().toggleBulletList().run()}
+            title="글머리 기호 목록"
+          />
+          <FormatButton
+            active={editorState?.orderedList}
+            ariaLabel="번호 목록"
+            icon={<ListOrdered className="size-4" />}
+            onClick={() => editor.chain().focus().toggleOrderedList().run()}
+            title="번호 목록"
+          />
+          <FormatButton
+            active={editorState?.link}
+            ariaLabel="링크"
+            disabled={editor.state.selection.empty}
+            icon={<Link2 className="size-4" />}
+            onClick={openLinkEditor}
+            title="링크 (⌘/Ctrl+K)"
+          />
+        </div>
+      )}
       {editable ? (
         <BubbleMenu
           editor={editor}
@@ -485,6 +569,15 @@ export function MarkdownRichTextEditor({
                 onClick={() => editor.chain().focus().toggleItalic().run()}
                 title="기울임 (⌘/Ctrl+I)"
               />
+              {contentFormat === "html" && (
+                <FormatButton
+                  active={editorState?.underline}
+                  ariaLabel="밑줄"
+                  icon={<Underline className="size-3.5" />}
+                  onClick={() => editor.chain().focus().toggleUnderline().run()}
+                  title="밑줄 (⌘/Ctrl+U)"
+                />
+              )}
               <FormatButton
                 active={editorState?.strike}
                 ariaLabel="취소선"

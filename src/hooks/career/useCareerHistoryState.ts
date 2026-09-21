@@ -29,6 +29,11 @@ import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { useMessages } from "@/i18n/useMessage";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
+import {
+  getLoadedHistoryFilterCount,
+  getLoadedHistoryFilterPageOffset,
+  mergeRefreshedHistoryFirstPage,
+} from "@/hooks/career/careerHistoryPageCache";
 
 const CAREER_HISTORY_PAGE_SIZE = 10;
 const CAREER_HISTORY_GC_TIME = 30 * 60_000;
@@ -65,11 +70,13 @@ type InitialCareerHistoryPage = {
 type FilteredPageState = {
   loading: boolean;
   nextOffset: number | null;
+  recoveryLoadedCount?: number;
 };
 
 type FilteredPageStateMap = Record<string, FilteredPageState | undefined>;
 
 type OpportunityFeedbackFollowUpRequestOptions = {
+  cancellationVersion?: number;
   delayMs?: number | null;
   feedback?: CareerHistoryOpportunityFeedback | null;
   feedbackReason?: string | null;
@@ -121,43 +128,6 @@ const getHistoryFilterKey = (
     return `saved:${filter.savedStage ?? "all"}`;
   }
   return filter.historyTab;
-};
-
-const isHistoryOpportunityInFilter = (
-  item: CareerHistoryOpportunity,
-  filter: CareerHistoryOpportunityPageFilter
-) => {
-  const bucket = getHistoryBucket(item);
-  if (filter.historyTab !== "saved") return bucket === filter.historyTab;
-  if (bucket !== "saved") return false;
-
-  const stage = item.savedStage ?? getDefaultSavedStage(item);
-  if (filter.savedStage === "all") return stage !== "hidden";
-  if (filter.savedStage) return stage === filter.savedStage;
-  return true;
-};
-
-const getLoadedFilterPageOffset = (
-  current: InfiniteData<CareerHistoryPage, number> | undefined,
-  filter: CareerHistoryOpportunityPageFilter
-) => {
-  const seen = new Set<string>();
-  let loadedCount = 0;
-
-  for (const page of current?.pages ?? []) {
-    for (const item of page.items) {
-      if (seen.has(item.id)) continue;
-      seen.add(item.id);
-      if (isHistoryOpportunityInFilter(item, filter)) {
-        loadedCount += 1;
-      }
-    }
-  }
-
-  return (
-    Math.floor(loadedCount / CAREER_HISTORY_PAGE_SIZE) *
-    CAREER_HISTORY_PAGE_SIZE
-  );
 };
 
 const cloneHistoryCounts = (
@@ -259,15 +229,26 @@ export function useCareerHistoryState(args: {
   const feedbackFollowUpRequestRef =
     useRef<OpportunityFeedbackFollowUpRequestOptions | null>(null);
   const feedbackFollowUpRunningRef = useRef(false);
+  // A chat can be sent before the feedback PATCH returns. Invalidate that late
+  // response so it cannot recreate a follow-up timer after the chat took over.
+  const feedbackFollowUpCancellationVersionRef = useRef(0);
   const feedbackFollowUpPendingSequenceRef = useRef(0);
   const feedbackActionSequenceRef = useRef(0);
+  const refreshLatestHistoryOpportunitiesRef = useRef<
+    (roleId?: string | null) => Promise<void>
+  >(async () => undefined);
 
-  const cancelPendingOpportunityFeedbackFollowUp = useCallback(() => {
+  const clearPendingOpportunityFeedbackFollowUpTimer = useCallback(() => {
     if (!feedbackFollowUpTimerRef.current) return;
     clearTimeout(feedbackFollowUpTimerRef.current);
     feedbackFollowUpTimerRef.current = null;
     feedbackFollowUpRequestRef.current = null;
   }, []);
+
+  const cancelPendingOpportunityFeedbackFollowUp = useCallback(() => {
+    feedbackFollowUpCancellationVersionRef.current += 1;
+    clearPendingOpportunityFeedbackFollowUpTimer();
+  }, [clearPendingOpportunityFeedbackFollowUpTimer]);
 
   const updateFilteredPageState = useCallback(
     (updater: (current: FilteredPageStateMap) => FilteredPageStateMap) => {
@@ -377,7 +358,7 @@ export function useCareerHistoryState(args: {
         }
 
         if (options?.refreshHistory) {
-          await queryClient.invalidateQueries({ queryKey });
+          await refreshLatestHistoryOpportunitiesRef.current();
         }
       } catch (error) {
         setHistoryUpdateError(
@@ -402,8 +383,6 @@ export function useCareerHistoryState(args: {
       onOpportunityFeedbackFollowUpPendingChanged,
       onPendingInternalOpportunityCallRequestChanged,
       onPendingInternalOpportunityCallRequestsChanged,
-      queryClient,
-      queryKey,
       tCareer,
     ]
   );
@@ -419,22 +398,34 @@ export function useCareerHistoryState(args: {
         return;
       }
 
-      cancelPendingOpportunityFeedbackFollowUp();
+      clearPendingOpportunityFeedbackFollowUpTimer();
       const delayMs =
         typeof options?.delayMs === "number" && Number.isFinite(options.delayMs)
           ? Math.max(0, Math.floor(options.delayMs))
           : CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_DELAY_MS;
-      feedbackFollowUpRequestRef.current = options ?? null;
+      const cancellationVersion =
+        options?.cancellationVersion ??
+        feedbackFollowUpCancellationVersionRef.current;
+      feedbackFollowUpRequestRef.current = {
+        ...(options ?? {}),
+        cancellationVersion,
+      };
       feedbackFollowUpTimerRef.current = setTimeout(() => {
         feedbackFollowUpTimerRef.current = null;
         const scheduledOptions =
           feedbackFollowUpRequestRef.current ?? undefined;
         feedbackFollowUpRequestRef.current = null;
+        if (
+          scheduledOptions?.cancellationVersion !==
+          feedbackFollowUpCancellationVersionRef.current
+        ) {
+          return;
+        }
         void requestOpportunityFeedbackFollowUp(scheduledOptions);
       }, delayMs);
     },
     [
-      cancelPendingOpportunityFeedbackFollowUp,
+      clearPendingOpportunityFeedbackFollowUpTimer,
       requestOpportunityFeedbackFollowUp,
     ]
   );
@@ -715,8 +706,7 @@ export function useCareerHistoryState(args: {
                           ...item,
                           activityTimelineLoaded: true,
                           confirmedMeetings: candidate.confirmedMeetings,
-                          talentRoleActivities:
-                            candidate.talentRoleActivities,
+                          talentRoleActivities: candidate.talentRoleActivities,
                         }
                       : item
                   );
@@ -908,7 +898,7 @@ export function useCareerHistoryState(args: {
             payload.pendingInternalOpportunityCallRequests
           );
         }
-        await queryClient.invalidateQueries({ queryKey });
+        await refreshLatestHistoryOpportunitiesRef.current();
         return true;
       } catch (error) {
         setHistoryUpdateError(
@@ -929,8 +919,6 @@ export function useCareerHistoryState(args: {
       historyOpportunityById,
       onPendingInternalOpportunityCallRequestsChanged,
       patchHistoryOpportunity,
-      queryClient,
-      queryKey,
       tCareer,
       upsertHistoryOpportunityLocally,
     ]
@@ -966,6 +954,8 @@ export function useCareerHistoryState(args: {
       const feedbackActionSequence = feedback
         ? (feedbackActionSequenceRef.current += 1)
         : feedbackActionSequenceRef.current;
+      const feedbackFollowUpCancellationVersion =
+        feedbackFollowUpCancellationVersionRef.current;
       const now = new Date().toISOString();
       const nextSavedStage =
         feedback === "positive"
@@ -1038,12 +1028,15 @@ export function useCareerHistoryState(args: {
           const shouldScheduleFollowUp =
             feedback &&
             followUpTrigger &&
+            feedbackFollowUpCancellationVersion ===
+              feedbackFollowUpCancellationVersionRef.current &&
             (feedbackActionSequence === feedbackActionSequenceRef.current ||
               followUpTrigger ===
                 CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback);
 
           if (shouldScheduleFollowUp) {
             scheduleOpportunityFeedbackFollowUp({
+              cancellationVersion: feedbackFollowUpCancellationVersion,
               delayMs: followUp?.delayMs,
               feedback: followUp?.feedback ?? feedback,
               feedbackReason: options?.feedbackReason ?? null,
@@ -1065,7 +1058,7 @@ export function useCareerHistoryState(args: {
           );
         }
         if (payload.historyShouldRefresh || !shouldUpdateHistoryCache) {
-          await queryClient.invalidateQueries({ queryKey });
+          await refreshLatestHistoryOpportunitiesRef.current();
         }
         return true;
       } catch (error) {
@@ -1104,8 +1097,6 @@ export function useCareerHistoryState(args: {
       onPendingInternalOpportunityCallRequestChanged,
       onPendingInternalOpportunityCallRequestsChanged,
       patchHistoryOpportunity,
-      queryClient,
-      queryKey,
       removeHistoryOpportunityLocally,
       restoreHistoryOpportunity,
       scheduleOpportunityFeedbackFollowUp,
@@ -1124,11 +1115,16 @@ export function useCareerHistoryState(args: {
       if (!previousItem) return;
 
       beginHistoryUpdate(normalizedOpportunityId);
+      const isNeutralExternalHide =
+        savedStage === "hidden" &&
+        previousItem.sourceType === "external" &&
+        previousItem.feedback === null;
       const nextItem: CareerHistoryOpportunity = {
         ...previousItem,
-        feedback: "positive",
+        feedback: isNeutralExternalHide ? null : "positive",
         savedStage,
-        talentRoleActivities: previousItem.activityTimelineLoaded
+        talentRoleActivities:
+          previousItem.activityTimelineLoaded && !isNeutralExternalHide
           ? [
               {
                 content: null,
@@ -1386,7 +1382,7 @@ export function useCareerHistoryState(args: {
         queryClient.setQueryData<InfiniteData<CareerHistoryPage, number>>(
           queryKey,
           (current) => {
-            const merged = mergePagesWithFirstPage(current, firstPage);
+            const merged = mergeRefreshedHistoryFirstPage(current, firstPage);
             if (!changedOpportunity) return merged;
 
             let replaced = false;
@@ -1443,6 +1439,11 @@ export function useCareerHistoryState(args: {
       userId,
     ]
   );
+
+  useEffect(() => {
+    refreshLatestHistoryOpportunitiesRef.current =
+      refreshLatestHistoryOpportunities;
+  }, [refreshLatestHistoryOpportunities]);
 
   const appendHistoryOpportunityPage = useCallback(
     (page: CareerHistoryPage, offset: number) => {
@@ -1522,15 +1523,27 @@ export function useCareerHistoryState(args: {
 
       const filterKey = getHistoryFilterKey(filter);
       const currentState = filteredPageStateRef.current[filterKey];
-      if (currentState?.loading || currentState?.nextOffset === null) return;
+      if (currentState?.loading) return;
 
       const currentData =
         queryClient.getQueryData<InfiniteData<CareerHistoryPage, number>>(
           queryKey
         );
+      const loadedCount = getLoadedHistoryFilterCount(currentData, filter);
+      if (
+        currentState?.nextOffset === null &&
+        currentState.recoveryLoadedCount === loadedCount
+      ) {
+        return;
+      }
+      const recoveringCompletedFilter = currentState?.nextOffset === null;
       const offset =
         currentState?.nextOffset ??
-        getLoadedFilterPageOffset(currentData, filter);
+        getLoadedHistoryFilterPageOffset(
+          currentData,
+          filter,
+          CAREER_HISTORY_PAGE_SIZE
+        );
       updateFilteredPageState((current) => ({
         ...current,
         [filterKey]: {
@@ -1552,6 +1565,10 @@ export function useCareerHistoryState(args: {
           [filterKey]: {
             loading: false,
             nextOffset: page.nextOffset,
+            recoveryLoadedCount:
+              recoveringCompletedFilter && page.nextOffset === null
+                ? loadedCount
+                : undefined,
           },
         }));
       } catch (error) {

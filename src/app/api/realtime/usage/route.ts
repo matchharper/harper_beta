@@ -2,8 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCareerRealtimeSessionConfig } from "@/lib/career/llm";
 import { insertRealtimeLlmUsageLog } from "@/lib/llm/usageLogging";
 import { getRequestUser } from "@/lib/supabaseServer";
+import { canUseCareerDevControls } from "@/lib/internalAccess";
+import {
+  assignCareerVoiceModel,
+  CAREER_REALTIME_MODEL,
+} from "@/lib/career/voiceModel";
 
 type RealtimeUsageLogBody = {
+  callSessionId?: unknown;
   conversationId?: unknown;
   eventType?: unknown;
   hadAudioInResponse?: unknown;
@@ -25,6 +31,12 @@ export async function POST(req: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (
+    !canUseCareerDevControls(user.email) &&
+    assignCareerVoiceModel(user.id) !== CAREER_REALTIME_MODEL
+  ) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   let body: RealtimeUsageLogBody;
   try {
@@ -44,6 +56,7 @@ export async function POST(req: NextRequest) {
       usage: body.usage ?? {},
     },
     meta: {
+      callSessionId: cleanString(body.callSessionId, 120) || null,
       conversationId: cleanString(body.conversationId, 120) || null,
       eventType: cleanString(body.eventType, 80) || "response.done",
       hadAudioInResponse:

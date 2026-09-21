@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { usePublicPageVisitLog } from "@/hooks/usePublicPageVisitLog";
 import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 
 const CONTACT_EMAIL = "chris@matchharper.com";
 const HARPER_COMPANY_NAME = "harper";
@@ -70,6 +71,7 @@ function isHarperOfficialJob(job: OfficialJobListItem) {
 }
 
 export default function AboutPage({ harperJobs, locale }: AboutPageProps) {
+  const logCareerEvent = useCareerLogEvent();
   const [aboutLocale, setAboutLocale] = useState<OfficialJobsLocale>(locale);
   const copy = ABOUT_COPY[aboutLocale];
   usePublicPageVisitLog();
@@ -77,6 +79,10 @@ export default function AboutPage({ harperJobs, locale }: AboutPageProps) {
     trackingEnabled: false,
   });
   const [isEmailCopied, setIsEmailCopied] = useState(false);
+
+  useEffect(() => {
+    logCareerEvent("view_about");
+  }, [logCareerEvent]);
 
   useEffect(() => {
     if (!isEmailCopied) return;

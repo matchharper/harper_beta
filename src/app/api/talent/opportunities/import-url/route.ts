@@ -45,7 +45,7 @@ function itemError(args: {
       error: careerT(
         args.locale,
         "career.api.opportunities.import_url_invalid",
-        "올바른 공고 링크를 입력해 주세요."
+        "올바른 포지션 링크를 입력해 주세요."
       ),
       ok: false as const,
     };
@@ -58,7 +58,7 @@ function itemError(args: {
       error: careerT(
         args.locale,
         "career.api.opportunities.import_url_details_required",
-        "공고에서 회사명과 포지션명을 확인하지 못했습니다. 두 항목을 직접 입력해 주세요."
+        "포지션에서 회사명과 포지션명을 확인하지 못했습니다. 두 항목을 직접 입력해 주세요."
       ),
       ok: false as const,
     };
@@ -69,7 +69,7 @@ function itemError(args: {
     error: careerT(
       args.locale,
       "career.api.opportunities.import_url_failed",
-      "공고를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요."
+      "포지션을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요."
     ),
     ok: false as const,
   };
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
           error: careerT(
             locale,
             "career.api.opportunities.import_url_batch_limit",
-            "공고는 한 번에 20개까지 저장할 수 있습니다."
+            "포지션은 한 번에 20개까지 저장할 수 있습니다."
           ),
         },
         { status: 400 }
@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
         error: careerT(
           locale,
           "career.api.opportunities.import_url_failed",
-          "공고를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요."
+          "포지션을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요."
         ),
       },
       { status: 500 }

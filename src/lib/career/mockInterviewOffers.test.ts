@@ -46,6 +46,7 @@ test("fresh and reloaded messages resolve only user-owned roles, with public car
           {
             id: "opportunity-id",
             roleId,
+            companyLogoUrl: "https://example.com/logo.png",
             companyName: "Company",
             title: "Role",
             sourceType,
@@ -55,7 +56,13 @@ test("fresh and reloaded messages resolve only user-owned roles, with public car
       }
     );
     assert.deepEqual(hydrated[0].mockInterviewOffers, [
-      { id: "opportunity-id", roleId, companyName: "Company", title: "Role" },
+      {
+        id: "opportunity-id",
+        roleId,
+        companyLogoUrl: "https://example.com/logo.png",
+        companyName: "Company",
+        title: "Role",
+      },
     ]);
     assert.deepEqual(hydrated[1].mockInterviewOffers, []);
     assert.equal(hydrated[0].content, messages[0].content);

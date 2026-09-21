@@ -50,128 +50,133 @@ export type SavedOpportunityBoardStatus = Exclude<
 const BOARD_AUTO_SCROLL_EDGE_PX = 72;
 const BOARD_AUTO_SCROLL_MAX_STEP_PX = 28;
 
-const SavedOpportunityBoardCard = ({
-  item,
-  locale,
-  pending,
-  dragging,
-  onDragEnd,
-  onDragStart,
-  onInternalDecisionAction,
-  onOpenDetail,
-}: {
-  item: CareerHistoryOpportunity;
-  locale: Locale;
-  pending: boolean;
-  dragging: boolean;
-  onDragEnd: () => void;
-  onDragStart: (event: React.DragEvent<HTMLDivElement>) => void;
-  onInternalDecisionAction?: (
-    action: CareerInternalOpportunityDecisionAction
-  ) => void;
-  onOpenDetail: () => void;
-}) => {
-  const t = useCareerT();
-  const recommendedAgo = formatRelativeTime(item.recommendedAt, locale);
-  const displayLocation = formatCareerLocation(item.location, locale);
-  const locationMeta = [displayLocation, item.workMode]
-    .filter(Boolean)
-    .join(" · ");
-  const isInternalOpportunity =
-    item.isInternal || item.sourceType === "internal";
-  const canChangeStatus =
-    !item.isInternal && canChangeCareerOpportunityManagementStatus(item);
+const SavedOpportunityBoardCard = React.memo(
+  function SavedOpportunityBoardCard({
+    item,
+    locale,
+    pending,
+    dragging,
+    onDragEnd,
+    onDragStart,
+    onInternalDecisionAction,
+    onOpenDetail,
+  }: {
+    item: CareerHistoryOpportunity;
+    locale: Locale;
+    pending: boolean;
+    dragging: boolean;
+    onDragEnd: () => void;
+    onDragStart: (event: React.DragEvent<HTMLDivElement>) => void;
+    onInternalDecisionAction?: (
+      action: CareerInternalOpportunityDecisionAction
+    ) => void;
+    onOpenDetail: () => void;
+  }) {
+    const t = useCareerT();
+    const recommendedAgo = formatRelativeTime(item.recommendedAt, locale);
+    const displayLocation = formatCareerLocation(item.location, locale);
+    const locationMeta = [displayLocation, item.workMode]
+      .filter(Boolean)
+      .join(" · ");
+    const isInternalOpportunity =
+      item.isInternal || item.sourceType === "internal";
+    const canChangeStatus =
+      !item.isInternal && canChangeCareerOpportunityManagementStatus(item);
 
-  return (
-    <div
-      draggable={!pending && canChangeStatus}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      className={cn(
-        "group relative w-full rounded-[8px] border border-neutral-1000-a05 bg-bg-floating text-left transition-colors hover:border-neutral-400 hover:bg-bg-weak",
-        pending && "cursor-not-allowed opacity-60",
-        dragging && "opacity-45"
-      )}
-    >
-      {item.isInternal && onInternalDecisionAction ? (
-        <InternalOpportunityDecisionMenu
-          className="absolute right-2 top-2 z-10"
-          item={item}
-          pending={pending}
-          onCard
-          onAction={onInternalDecisionAction}
-        />
-      ) : null}
-      <BareButton
-        type="button"
-        onClick={onOpenDetail}
-        disabled={pending}
-        className="w-full px-3 py-3 text-left disabled:cursor-not-allowed"
+    return (
+      <div
+        draggable={!pending && canChangeStatus}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        className={cn(
+          "group relative w-full rounded-[8px] border border-neutral-1000-a05 bg-bg-floating text-left transition-colors hover:border-neutral-400 hover:bg-bg-weak",
+          pending && "cursor-not-allowed opacity-60",
+          dragging && "opacity-45"
+        )}
       >
-        <div className="flex items-start gap-1">
-          {/* <GripVertical
+        {item.isInternal && onInternalDecisionAction ? (
+          <InternalOpportunityDecisionMenu
+            className="absolute right-2 top-2 z-10"
+            item={item}
+            pending={pending}
+            onCard
+            onAction={onInternalDecisionAction}
+          />
+        ) : null}
+        <BareButton
+          type="button"
+          onClick={onOpenDetail}
+          disabled={pending}
+          className="w-full px-3 py-3 text-left disabled:cursor-not-allowed"
+        >
+          <div className="flex items-start gap-1">
+            {/* <GripVertical
             className="mt-1 h-4 w-4 shrink-0 text-neutral-soft"
             strokeWidth={1.2}
           /> */}
-          <div className="min-w-0 flex-1">
-            <div
-              className={cn(
-                "flex min-w-0 items-center gap-2",
-                item.isInternal && onInternalDecisionAction && "pr-9"
-              )}
-            >
-              {item.companyLogoUrl ? (
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-neutral-1000-a05 bg-bg-default p-1">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={item.companyLogoUrl}
-                    alt={item.companyName}
-                    className="h-full w-full rounded-md object-cover"
-                  />
-                </span>
-              ) : (
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-black text-neutral-00">
-                  <Building2 className="h-3.5 w-3.5" />
-                </span>
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px] font-medium leading-5 text-neutral-primary">
-                  {item.companyName}
-                </div>
-                <div className="mt-0.5 line-clamp-2 text-[12px] leading-4 text-neutral-muted">
-                  {locationMeta}
-                </div>
-              </div>
-              {pending ? (
-                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-neutral-muted" />
-              ) : null}
-            </div>
-
-            <div className="mt-3 line-clamp-2 text-[14px] font-normal leading-5 text-neutral-primary">
-              {item.title}
-            </div>
-            <UpcomingMeetingStrip
-              meeting={item.upcomingMeeting}
-              className="-mx-3 mt-2 rounded-none px-3 py-1 text-[11px] leading-4"
-            />
-            {recommendedAgo || isInternalOpportunity ? (
-              <div className="mt-2 flex items-end justify-between gap-2 text-[12px] leading-4">
-                <span className="min-w-0 truncate text-neutral-muted">
-                  {recommendedAgo}
-                </span>
-                {isInternalOpportunity ? (
-                  <span className="shrink-0 font-medium text-primary">
-                    {t("career.history.saved_opportunity_board.0bo9zfr", "내부 기회")}
+            <div className="min-w-0 flex-1">
+              <div
+                className={cn(
+                  "flex min-w-0 items-center gap-2",
+                  item.isInternal && onInternalDecisionAction && "pr-9"
+                )}
+              >
+                {item.companyLogoUrl ? (
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-neutral-1000-a05 bg-bg-default p-1">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={item.companyLogoUrl}
+                      alt={item.companyName}
+                      className="h-full w-full rounded-md object-cover"
+                    />
                   </span>
+                ) : (
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-black text-neutral-00">
+                    <Building2 className="h-3.5 w-3.5" />
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] font-medium leading-5 text-neutral-primary">
+                    {item.companyName}
+                  </div>
+                  <div className="mt-0.5 line-clamp-2 text-[12px] leading-4 text-neutral-muted">
+                    {locationMeta}
+                  </div>
+                </div>
+                {pending ? (
+                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-neutral-muted" />
                 ) : null}
               </div>
-            ) : null}
+
+              <div className="mt-3 line-clamp-2 text-[14px] font-normal leading-5 text-neutral-primary">
+                {item.title}
+              </div>
+              <UpcomingMeetingStrip
+                meeting={item.upcomingMeeting}
+                className="-mx-3 mt-2 rounded-none px-3 py-1 text-[11px] leading-4"
+              />
+              {recommendedAgo || isInternalOpportunity ? (
+                <div className="mt-2 flex items-end justify-between gap-2 text-[12px] leading-4">
+                  <span className="min-w-0 truncate text-neutral-muted">
+                    {recommendedAgo}
+                  </span>
+                  {isInternalOpportunity ? (
+                    <span className="shrink-0 font-medium text-primary">
+                      {t(
+                        "career.history.saved_opportunity_board.0bo9zfr",
+                        "내부 기회"
+                      )}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
           </div>
-        </div>
-      </BareButton>
-    </div>
-  );
-};
+        </BareButton>
+      </div>
+    );
+  }
+);
 
 function SavedOpportunityBoard({
   columnLoadState,

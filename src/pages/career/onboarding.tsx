@@ -464,7 +464,7 @@ const getOfficialJobDoneAgentIntro = (
     return `I'm your career agent, so I can keep looking across a range of opportunities that may fit you over time. Since you came in through ${officialJobTitle}, I'll start with this role first, and guide the next step. A quick five-minute conversation is enough.`;
   }
 
-  return `저는 한 가지 공고만 처리하는 지원 폼이 아니라, 회원님에게 맞을 수 있는 다양한 기회를 함께 찾아보는 커리어 에이전트예요. 이번에는 ${officialJobTitle}로 들어오셨으니 5분 커리어 커피챗 이후 우선적으로 검토되실 수 있게 하겠습니다.`;
+  return `저는 한 가지 포지션만 처리하는 지원 폼이 아니라, 회원님에게 맞을 수 있는 다양한 기회를 함께 찾아보는 커리어 에이전트예요. 이번에는 ${officialJobTitle}로 들어오셨으니 5분 커리어 커피챗 이후 우선적으로 검토되실 수 있게 하겠습니다.`;
 };
 
 const getOfficialJobDoneReadyCopy = (

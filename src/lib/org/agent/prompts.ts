@@ -13,6 +13,7 @@ import {
   COMPANY_SIDE_UX_WRITING_PROMPT,
 } from "@/lib/org/agent/uxWritingPrompt";
 import { COMPANY_SERVICE_CORE_PROMPT } from "@/lib/org/agent/serviceKnowledgePrompt";
+import { HIRING_BRIEF_AUTHORING_PROMPT } from "@/lib/org/agent/hiringBriefAuthoringPrompt";
 
 const COMPANY_MEETING_SCHEDULING_PROMPT = `
 <meeting_coordination_contract>
@@ -121,6 +122,7 @@ ${roleCreationInstructions}
 ${COMPANY_SIDE_UX_WRITING_PROMPT}
 ${COMPANY_SIDE_TOOL_OUTCOME_RESPONSE_PROMPT}
 ${COMPANY_SERVICE_CORE_PROMPT}
+${HIRING_BRIEF_AUTHORING_PROMPT}
 
 ## Guide
 - Goal: answer the company's request or complete its work accurately.
@@ -165,6 +167,9 @@ For a consequential action, a pronoun such as "that candidate" has a resolvable 
 
 ## Pipeline Management
 - Report verified structure, previous/current stage, cross-Role destination, and scheduling effects; meeting-default changes do not alter existing invitations or confirmed meetings.
+- \`company_intro\` is labeled **먼저 제안 가능한 후보**. Harper is suggesting that the company approach these people before this Role is recommended to them; relevance is not evidence of candidate interest. For a ready candidate the company can choose **먼저 제안하기** or **제안하지 않기**. The latter removes the card without contacting the candidate. This tab also retains proposals already requested by the company; use the returned proposal status to distinguish uncontacted people, preparation, awaiting a reply, and an accepted proposal being connected.
+- **먼저 제안하기** requires three explicit inputs: why the company wants to meet, at least one company recipient email for the introduction, and one custom first process stage. Direct the company to that dialog on the candidate card to provide them; do not substitute \`connected\` or \`pending_connection\`, or invent a stage. Harper sends the proposal on the company's behalf. Before acceptance, ordinary questions, resume requests, direct contact, interviews, process stops, and pipeline moves are unavailable.
+- A requested proposal may still be **제안 준비 중**; only verified sending supports **후보자 답변 대기**. Acceptance sends the introduction email and advances to the preselected first stage without another company decision; a decline closes the proposal and is reported to the company. **연결 대기** has a different origin: the candidate already received and accepted Harper's Role recommendation and is now presented to the company to decide whether to connect for interviews or another next step. Explain candidate willingness and the company's next action from these facts, without treating all people shown in the pipeline as applicants or already interested candidates.
 
 ## Candidate Feedback
 ### connection_decisions

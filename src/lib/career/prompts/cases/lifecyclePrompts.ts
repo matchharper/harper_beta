@@ -17,6 +17,7 @@ import {
   type CareerTranscriptEntry,
 } from "@/lib/career/prompts/types";
 import type { InternalOpportunityCallRequest } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
+import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
 import { logger } from "@/utils/logger";
 
 export const CAREER_SESSION_START_NO_MESSAGE_MARKER = "__NO_SESSION_GREETING__";
@@ -142,6 +143,7 @@ export function buildCareerSessionStartTurnInstruction(args: {
 export function buildCareerCallWrapupTurnInstruction(args: {
   callNoteCreated?: boolean;
   callNoteUpdated?: boolean;
+  conversationStarterId?: CareerConversationStarterId | null;
   durationLabel: string | null;
   isBrief: boolean;
   isOnboardingDone?: boolean;
@@ -149,6 +151,7 @@ export function buildCareerCallWrapupTurnInstruction(args: {
   transcript: CareerTranscriptEntry[];
 }) {
   const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
+  const isCareerCoaching = args.conversationStarterId === "career_coaching";
   const lines = args.transcript
     .map((entry) => {
       const role = entry.role === "user" ? "User" : "Harper";
@@ -164,21 +167,36 @@ export function buildCareerCallWrapupTurnInstruction(args: {
     `- callLengthAssessment: ${args.isBrief ? "brief" : "substantial"}`,
     "",
     "Important tool instruction:",
-    "- During the live voice call, persistent write tools were not available. Inspect only the user's statements in the call transcript below.",
+    "- Persistent tools may already have been used during the live call. Compare the user's statements below with current state and never repeat a write that is already reflected.",
     "- If the user disclosed a clear recommendation/contact subscription action, call `update_setting` before writing the wrap-up: stop_external for external/public postings only, stop_all for all Harper matching contact, or resume for recommendation/contact restart.",
     "- If the user's wording is a generic stop/unsubscribe that could mean either external postings only or all Harper matching contact, do not call `update_setting`; ask one clarifying question only if it fits the short follow-up.",
     "- If the user disclosed a clear recommendation batch-size change, call `update_talent_profile` with recommendationBatchSize before writing the wrap-up.",
     "- If the user disclosed clear new durable context that is missing from current state, call `write_talent_context` before writing the wrap-up. Use `update_talent_profile` only for structured profile-row details or recommendation batch size.",
+    ...(isCareerCoaching
+      ? [
+          "- In this career-coaching call, write only durable user facts or decision criteria the user explicitly confirmed. Apply an explicit batch-size or subscription change through its designated tool. Do not store Harper's support plan itself as Memory, and do not save a hypothesis, an interpretation awaiting approval, or a merely proposed plan as settled context.",
+        ]
+      : []),
     "- These tool calls are optional. Skip them when there is no clear new writable information, the information is already saved, or the statement was only casual/uncertain.",
     "- Do not call search, recommendation, company research, service-help, open-role, or activity-reading tools in this wrap-up turn.",
     "",
     "Response instruction:",
     `- Write one short natural ${outputLanguage} follow-up message for the chat after the call ends.`,
-    "- 1-2 sentences, no heading, no bullets, no markdown card.",
-    "- Do not ask a new interview-style question. The call has ended.",
-    args.isOnboardingDone
-      ? "- If the call had useful substance, thank them and say Harper will reflect what they shared in future matching/search."
-      : "- Say briefly that Harper still needs a little more basic profile or preference context, and invite the user to continue from here in this chat. Do not imply the user must start another call.",
+    `- ${isCareerCoaching ? "1-3" : "1-2"} sentences, no heading, no bullets, no markdown card.`,
+    isCareerCoaching
+      ? "- Preserve the useful ending of the call: restate the concrete Harper support plan the user approved, or the genuinely consequential user action they agreed to. If Harper proposed a support plan but the call ended before the user approved it, clearly keep it as a proposal and ask only for that confirmation in chat. Do not invent a new task, agreement, criterion, or action."
+      : "- Do not ask a new interview-style question. The call has ended.",
+    ...(isCareerCoaching
+      ? [
+          "- Never turn journaling, reflection, arbitrary list-making, writing questions for oneself, undirected job browsing, or generic networking into the next action.",
+          "- If there was no approved plan or genuinely consequential action, briefly preserve the clarified decision or tradeoff without manufacturing homework.",
+        ]
+      : []),
+    isCareerCoaching
+      ? "- Do not append a generic promise about future matching or a warm closing task. Say only what the transcript and current state support."
+      : args.isOnboardingDone
+        ? "- If the call had useful substance, thank them and say Harper will reflect what they shared in future matching/search."
+        : "- Say briefly that Harper still needs a little more basic profile or preference context, and invite the user to continue from here in this chat. Do not imply the user must start another call.",
     "- Mention a call note only when the verified call-note fact below is present.",
     ...(args.callNoteCreated || args.callNoteUpdated
       ? [
@@ -189,7 +207,7 @@ export function buildCareerCallWrapupTurnInstruction(args: {
             : "- A call note for this conversation was successfully saved. Naturally tell the user that Harper organized this conversation into a call note and that they can find it under Documents in their profile.",
         ]
       : []),
-    "- Do not claim you updated settings/profile state unless the relevant tool was actually called and returned a successful change.",
+    "- Do not claim you updated settings, profile, Brief, or Memory unless the relevant tool was actually called and returned a successful change.",
     "",
     "[Call transcript for this wrap-up]",
     lines || "(no transcript text)",
@@ -247,6 +265,7 @@ export function appendCareerCallNoteOpenAction(args: {
 export function buildCareerCallWrapupFallbackFollowUp(args: {
   callNoteCreated?: boolean;
   callNoteUpdated?: boolean;
+  conversationStarterId?: CareerConversationStarterId | null;
   isBrief: boolean;
   isOnboardingDone?: boolean;
   preferredLocale?: string | null;
@@ -257,6 +276,12 @@ export function buildCareerCallWrapupFallbackFollowUp(args: {
       args.preferredLocale,
       "career.call.wrapup_fallback.onboarding_remaining",
       "아직 온보딩이 조금 남아 있어요. 통화가 끊긴 지점부터 이 채팅에서 이어서 마무리하면, 그 기준으로 좋은 기회를 찾아드릴게요."
+    );
+  } else if (args.conversationStarterId === "career_coaching") {
+    content = careerT(
+      args.preferredLocale,
+      "career.call.wrapup_fallback.career_coaching",
+      "오늘 이야기에서 선명해진 고민과 다음 방향은 이어서 참고할게요. 확인하지 않은 결론이나 할 일을 임의로 덧붙이지 않을게요."
     );
   } else if (args.isBrief) {
     content = careerT(

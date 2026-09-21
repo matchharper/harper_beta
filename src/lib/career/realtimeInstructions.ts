@@ -20,6 +20,7 @@ import {
 } from "@/lib/career/prompts";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import { getCareerConversationStarter } from "@/lib/career/prompts/conversationStarters";
+import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
 import {
   fetchRecentRecommendedOpportunitiesForPrompt,
   formatRecentRecommendedOpportunitiesForPrompt,
@@ -152,14 +153,24 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     conversationId: args.conversationId,
     limit: 12,
   });
+  const conversationStarterId = args.conversationStarterId?.trim();
+  const conversationStarterForRetrieval = conversationStarterId
+    ? getCareerConversationStarter(conversationStarterId, args.preferredLocale)
+    : null;
+  const memoryRetrievalInputs = visibleMessages
+    .slice(-6)
+    .map((message) => formatTalentMessageContentForLlmPrompt(message));
+  if (conversationStarterForRetrieval?.id === "career_coaching") {
+    memoryRetrievalInputs.push(
+      normalizeCareerPromptLocale(args.preferredLocale) === "en"
+        ? "Purpose of this conversation: continue the user's current career concern, tradeoffs between options, and previously confirmed career criteria and decision context"
+        : "이번 대화의 목적: 현재 커리어 고민, 선택지 사이의 트레이드오프, 이전에 확인한 커리어 기준과 결정 맥락을 이어서 이야기하기"
+    );
+  }
 
   const talentContextSnapshot = await fetchTalentContextPromptSnapshot({
     admin,
-    query: buildTalentMemoryRetrievalQuery(
-      visibleMessages
-        .slice(-6)
-        .map((message) => formatTalentMessageContentForLlmPrompt(message))
-    ),
+    query: buildTalentMemoryRetrievalQuery(memoryRetrievalInputs),
     userId: args.userId,
   });
   const currentInsightContent = projectBriefsToLegacyInsights(
@@ -184,7 +195,6 @@ export async function buildCareerRealtimeSessionInstructions(args: {
       : null,
     talentSettingStatus: talentSetting?.status ?? null,
   };
-  const conversationStarterId = args.conversationStarterId?.trim();
   const conversationStarter = conversationStarterId
     ? getCareerConversationStarter(
         conversationStarterId,

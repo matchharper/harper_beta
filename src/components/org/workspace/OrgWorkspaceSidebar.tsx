@@ -53,6 +53,8 @@ import { sortOrgRolesForRecentList } from "@/lib/org/recentRoles";
 import { ORG_PRODUCT_LABELS } from "@/lib/org/productVocabulary";
 import {
   getOrgRoleStatusFilterValue,
+  hasReachedOrgActiveRoleLimit,
+  ORG_ACTIVE_ROLE_LIMIT_MESSAGE,
   ORG_ROLE_STATUS_FILTER_OPTIONS,
   type OrgRoleStatus,
 } from "@/lib/org/roleStatus";
@@ -62,6 +64,7 @@ import { shouldAnimateOrganizationSidebarEntry } from "@/lib/org/sidebarTransiti
 import type { OrgMember, OrgRole, OrgWorkspace } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useToastStore } from "@/store/useToastStore";
 
 type OrgNavItem = {
   icon: ComponentType<{ className?: string; strokeWidth?: number }>;
@@ -263,20 +266,24 @@ function getNavItemClassName({
 
 function NavLink({
   active,
+  blocked = false,
   compact = false,
   href,
   icon: Icon,
   iconBackground = false,
   label,
   pendingConnectionCount,
+  onBlocked,
 }: {
   active: boolean;
+  blocked?: boolean;
   compact?: boolean;
   href: string;
   icon: ComponentType<{ className?: string }>;
   iconBackground?: boolean;
   label: string;
   pendingConnectionCount?: number;
+  onBlocked?: () => void;
 }) {
   const tooltipText =
     pendingConnectionCount !== undefined
@@ -284,10 +291,19 @@ function NavLink({
       : label;
   const link = (
     <Link
+      aria-disabled={blocked || undefined}
       aria-label={compact ? tooltipText : undefined}
       aria-current={active ? "page" : undefined}
-      className={getNavItemClassName({ active, compact })}
+      className={cn(
+        getNavItemClassName({ active, compact }),
+        blocked && "cursor-not-allowed opacity-45"
+      )}
       href={href}
+      onClick={(event) => {
+        if (!blocked) return;
+        event.preventDefault();
+        onBlocked?.();
+      }}
     >
       {iconBackground ? (
         <span className="relative z-20 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary-faded text-primary">
@@ -596,6 +612,7 @@ export function OrgWorkspaceSidebar({
   } = useOrgMobileNavigation();
   const previousPathname = usePreviousPathname();
   const signOut = useAuthStore((state) => state.signOut);
+  const addToast = useToastStore((state) => state.add);
   const [signOutPending, setSignOutPending] = useState(false);
   const [mobileOrganizationMenuOpen, setMobileOrganizationMenuOpen] =
     useState(false);
@@ -627,6 +644,9 @@ export function OrgWorkspaceSidebar({
   const topNav = primaryNav.filter((item) => item.location !== "bottom");
   const bottomNav = primaryNav.filter((item) => item.location === "bottom");
   const recentRoles = useMemo(() => sortOrgRolesForRecentList(roles), [roles]);
+  const roleCreationBlocked = hasReachedOrgActiveRoleLimit(roles);
+  const showRoleCreationLimitToast = () =>
+    addToast({ message: ORG_ACTIVE_ROLE_LIMIT_MESSAGE, variant: "error" });
   const visibleRecentRoleStatusSet = useMemo(
     () => new Set(visibleRecentRoleStatuses),
     [visibleRecentRoleStatuses]
@@ -788,11 +808,13 @@ export function OrgWorkspaceSidebar({
                     <NavLink
                       key={item.id}
                       active={activePage === item.id}
+                      blocked={item.id === "new-role" && roleCreationBlocked}
                       compact={compact}
                       href={navHref(item.id)}
                       icon={item.icon}
                       iconBackground={item.id === "new-role"}
                       label={item.label}
+                      onBlocked={showRoleCreationLimitToast}
                       pendingConnectionCount={
                         item.id === "inbox" ? pendingConnectionCount : undefined
                       }
@@ -1031,16 +1053,31 @@ export function OrgWorkspaceSidebar({
 
                     return (
                       <Link
+                        aria-disabled={
+                          item.id === "new-role" && roleCreationBlocked
+                            ? true
+                            : undefined
+                        }
                         aria-current={active ? "page" : undefined}
                         className={cn(
                           "flex h-9 items-center gap-2 rounded-md px-2 text-[14px] outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
                           active
                             ? "bg-bg-weak text-neutral-primary"
-                            : "text-neutral-muted hover:bg-bg-weak hover:text-neutral-primary"
+                            : "text-neutral-muted hover:bg-bg-weak hover:text-neutral-primary",
+                          item.id === "new-role" &&
+                            roleCreationBlocked &&
+                            "cursor-not-allowed opacity-45"
                         )}
                         href={navHref(item.id)}
                         key={item.id}
-                        onClick={closeNavigation}
+                        onClick={(event) => {
+                          if (item.id === "new-role" && roleCreationBlocked) {
+                            event.preventDefault();
+                            showRoleCreationLimitToast();
+                            return;
+                          }
+                          closeNavigation();
+                        }}
                       >
                         {item.id === "new-role" ? (
                           <span className="flex size-5 items-center justify-center rounded-full bg-primary-faded text-primary">

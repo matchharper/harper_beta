@@ -2,9 +2,9 @@
 
 import {
   BriefcaseBusiness,
+  Compass,
   Loader2,
   MessageCircleMore,
-  SlidersHorizontal,
 } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -39,7 +39,7 @@ type PendingAction =
   | null;
 
 type ConversationStarterIcon =
-  | "sliders-horizontal"
+  | "compass"
   | "message-circle-more";
 
 type ConversationStarterAction = {
@@ -49,8 +49,8 @@ type ConversationStarterAction = {
 
 const CONVERSATION_STARTER_ACTIONS: ConversationStarterAction[] = [
   {
-    id: "preference_update",
-    icon: "sliders-horizontal",
+    id: "career_coaching",
+    icon: "compass",
   },
   {
     id: "match_quality",
@@ -60,10 +60,10 @@ const CONVERSATION_STARTER_ACTIONS: ConversationStarterAction[] = [
 
 const STARTER_ICON_BY_NAME: Record<
   ConversationStarterIcon,
-  typeof SlidersHorizontal
+  typeof Compass
 > = {
+  compass: Compass,
   "message-circle-more": MessageCircleMore,
-  "sliders-horizontal": SlidersHorizontal,
 };
 
 type CareerT = ReturnType<typeof useCareerT>;
@@ -72,16 +72,16 @@ function getStarterDisplayCopy(
   t: CareerT,
   starterId: CareerConversationStarterId
 ) {
-  if (starterId === "preference_update") {
+  if (starterId === "career_coaching") {
     return {
       label: t(
         "career.common.conversation_starters.1sfi8z4",
-        "선호 조건 업데이트하기"
+        "커리어 고민과 다음 커리어에 대해서 이야기하기"
       ),
       labelKey: "career.common.conversation_starters.1sfi8z4",
       shortLabel: t(
         "career.common.conversation_starters.0o5blh4",
-        "선호 조건 업데이트"
+        "커리어 고민 이야기하기"
       ),
       shortLabelKey: "career.common.conversation_starters.0o5blh4",
     };

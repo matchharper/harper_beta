@@ -98,7 +98,7 @@ export default function TalentRoleActivityTimeline({
   };
 
   return (
-    <section className="mt-6 border-t border-neutral-1000-a05 pt-5">
+    <section className="mt-12">
       <div className="flex items-center gap-2 text-[14px] font-medium leading-5 text-neutral-primary">
         <StickyNote className="h-4 w-4" />
         <span>
@@ -266,7 +266,7 @@ export default function TalentRoleActivityTimeline({
                 >
                   <span
                     className={cn(
-                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-bg-weak text-neutral-muted",
+                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-bg-weak text-neutral-muted",
                       isMemo && "mt-0.5"
                     )}
                   >

@@ -2,6 +2,7 @@ import type { FormEvent, HTMLAttributes, ReactNode } from "react";
 import {
   ChevronLeft,
   ChevronRight,
+  Info,
   LoaderCircle,
   Pencil,
   Plus,
@@ -18,6 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Tooltips } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export type ReviewPipelineColumnShellProps = HTMLAttributes<HTMLElement> & {
@@ -66,6 +68,7 @@ export function ReviewPipelineColumnHeader({
   collapsed = false,
   compact = false,
   count,
+  description,
   label,
   onAdd,
   onCollapse,
@@ -78,6 +81,7 @@ export function ReviewPipelineColumnHeader({
   collapsed?: boolean;
   compact?: boolean;
   count: number;
+  description?: string;
   label: string;
   onAdd?: () => void;
   onCollapse?: () => void;
@@ -123,6 +127,18 @@ export function ReviewPipelineColumnHeader({
             )}
           >
             {label}
+            {description ? (
+              <Tooltips text={description}>
+                <span
+                  aria-label={`${label} 안내`}
+                  className="ml-1.5 inline-flex cursor-help align-middle text-neutral-soft hover:text-neutral-primary"
+                  role="img"
+                  tabIndex={0}
+                >
+                  <Info aria-hidden="true" className="size-3.5" />
+                </span>
+              </Tooltips>
+            ) : null}
             <span
               className={cn(
                 compact

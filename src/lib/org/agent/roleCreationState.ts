@@ -32,8 +32,18 @@ import {
   type OrgRoleCriterion,
 } from "@/lib/org/roleCriteria";
 import { stripOrgAgentCompanyInfoMarker } from "@/lib/org/agent/companyInfoMarker";
+import {
+  ORG_ACTIVE_ROLE_LIMIT,
+  ORG_ACTIVE_ROLE_LIMIT_MESSAGE,
+} from "@/lib/org/roleStatus";
 
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
+
+export type OrgActiveRoleLimitState = {
+  activeRoleCount: number;
+  activeRoleLimit: number;
+  limitReached: boolean;
+};
 
 export type RoleCreationConversationMetadata = {
   completedAt: string | null;
@@ -228,6 +238,32 @@ export async function updateRoleCreationConversationMetadata(args: {
   return next;
 }
 
+export async function fetchOrgActiveRoleLimitState(args: {
+  admin?: AdminClient;
+  workspaceId: string;
+}): Promise<OrgActiveRoleLimitState> {
+  const workspaceId = text(args.workspaceId);
+  if (!workspaceId) {
+    throw new OrgHttpError(400, "workspaceId is required");
+  }
+
+  const admin = args.admin ?? getSupabaseAdmin();
+  const { count, error } = await (admin.from("company_roles" as any) as any)
+    .select("role_id", { count: "exact", head: true })
+    .eq("company_workspace_id", workspaceId)
+    .eq("source_type", "internal")
+    .in("status", ["active", "open", "top_priority"])
+    .not("is_expired", "is", true);
+  if (error) throw error;
+
+  const activeRoleCount = Number(count ?? 0);
+  return {
+    activeRoleCount,
+    activeRoleLimit: ORG_ACTIVE_ROLE_LIMIT,
+    limitReached: activeRoleCount >= ORG_ACTIVE_ROLE_LIMIT,
+  };
+}
+
 export async function createOrResumeDraftRole(args: {
   draftRoleId: string;
   user: User;
@@ -269,6 +305,16 @@ export async function createOrResumeDraftRole(args: {
       existing.is_expired
     ) {
       throw new OrgHttpError(409, "draftRoleId is already in use");
+    }
+  }
+
+  if (!existing) {
+    const limitState = await fetchOrgActiveRoleLimitState({
+      admin,
+      workspaceId,
+    });
+    if (limitState.limitReached) {
+      throw new OrgHttpError(409, ORG_ACTIVE_ROLE_LIMIT_MESSAGE);
     }
   }
 

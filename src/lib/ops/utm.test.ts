@@ -55,8 +55,14 @@ test("UTM landing composition uses recorded country, device, and KST time", () =
       rate,
     })),
     [
+      { count: 0, key: "00-02", rate: 0 },
+      { count: 0, key: "03-05", rate: 0 },
+      { count: 0, key: "06-08", rate: 0 },
       { count: 2, key: "09-11", rate: 0.5 },
+      { count: 0, key: "12-14", rate: 0 },
+      { count: 0, key: "15-17", rate: 0 },
       { count: 1, key: "18-20", rate: 0.25 },
+      { count: 0, key: "21-23", rate: 0 },
       { count: 1, key: "unknown", rate: 0.25 },
     ]
   );

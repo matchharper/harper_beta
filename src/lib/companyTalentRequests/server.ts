@@ -169,6 +169,23 @@ function normalizedRelayContent(value: unknown, maxLength = 5_000) {
     .slice(0, maxLength);
 }
 
+async function assertCompanyIntroRequestIsNotPending(args: {
+  admin: UntypedAdmin;
+  talentId: string;
+  workspaceId: string;
+}) {
+  const { data, error } = await args.admin
+    .from("company_intro_candidates")
+    .select("id")
+    .eq("company_workspace_id", args.workspaceId)
+    .eq("talent_id", args.talentId)
+    .in("status", ["ready", "awaiting_talent", "connecting"])
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (data) throw new Error("company_intro_action_forbidden");
+}
+
 export async function createCompanyTalentContactDraft(args: {
   admin: UntypedAdmin;
   body: string;
@@ -188,6 +205,7 @@ export async function createCompanyTalentContactDraft(args: {
   if (args.expectsDocument !== (args.contactKind === "resume")) {
     throw new Error("company_talent_contact_kind_document_mismatch");
   }
+  await assertCompanyIntroRequestIsNotPending(args);
   const context = assertSafeProfessionalQuestion(args.requestContext);
   const { data, error } = await args.admin
     .from("company_talent_requests")

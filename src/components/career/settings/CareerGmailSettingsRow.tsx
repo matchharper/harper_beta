@@ -1,7 +1,12 @@
-import { Loader2, RefreshCw } from "lucide-react";
+import { Ellipsis, Loader2, MailSearch, RefreshCw, Unplug } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { showToast } from "@/components/toast/toast";
+import {
+  ActionDropdown,
+  ActionDropdownItem,
+} from "@/components/ui/action-dropdown";
+import { Badge } from "@/components/ui/badge";
 import { MuteButton } from "@/components/ui/button";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerProfileContext } from "@/components/career/CareerSidebarContext";
@@ -11,6 +16,7 @@ import {
   useGmailIntegration,
 } from "@/hooks/career/useGmailIntegration";
 import { useCareerT } from "@/i18n/useCareerT";
+import CareerProfileSourceCard from "./CareerProfileSourceCard";
 import GmailConnectionSuccessModal from "./GmailConnectionSuccessModal";
 
 const CareerGmailSettingsRow = () => {
@@ -25,14 +31,16 @@ const CareerGmailSettingsRow = () => {
   const gmailAnalysisRunning =
     gmailIntegration.pendingAction === "analyze" ||
     isGmailCareerHistoryAnalysisRunning(gmailIntegration.analysisStatus);
+  const connected = gmailIntegration.status === "active";
+  const busy = gmailIntegration.pendingAction !== null || gmailAnalysisRunning;
+  const showPrimaryConnectAction =
+    gmailIntegration.status === "not_connected" ||
+    gmailIntegration.status === "expired";
 
   const setGmailConnectionSuccessModalOpen = (open: boolean) => {
     const nextQuery = { ...router.query };
-    if (open) {
-      nextQuery[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM] = "success";
-    } else {
-      delete nextQuery[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM];
-    }
+    if (open) nextQuery[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM] = "success";
+    else delete nextQuery[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM];
     void router.replace(
       { pathname: router.pathname, query: nextQuery },
       undefined,
@@ -45,9 +53,11 @@ const CareerGmailSettingsRow = () => {
     try {
       const result = await gmailIntegration.connect();
       if (result?.connected) {
+        logCareerEvent("gmail_connect_succeeded");
         setGmailConnectionSuccessModalOpen(true);
       }
     } catch {
+      logCareerEvent("gmail_connect_failed");
       showToast({
         message: t(
           "career.profile.resume_links.gmail_connect_failed",
@@ -118,162 +128,135 @@ const CareerGmailSettingsRow = () => {
     }
   };
 
-  const handleGmailConnectionSuccessClose = () => {
-    if (gmailIntegration.pendingAction === "analyze") return;
-    logCareerEvent("close_resume_links_gmail_connected");
-    setGmailConnectionSuccessModalOpen(false);
+  const activate = () => {
+    if (busy || gmailIntegration.status === "loading") return;
+    if (gmailIntegration.status === "error") {
+      void handleGmailStatusRetry();
+      return;
+    }
+    if (connected) {
+      void handleGmailAnalyze();
+      return;
+    }
+    if (gmailIntegration.status === "disabled") {
+      void handleGmailDisconnect();
+      return;
+    }
+    void handleGmailConnect();
   };
 
-  const handleGmailConnectionSuccessImport = async () => {
-    logCareerEvent("import_resume_links_gmail_connected");
-    const started = await handleGmailAnalyze();
-    if (started) {
-      setGmailConnectionSuccessModalOpen(false);
-    }
-  };
+  const statusText = gmailAnalysisRunning
+    ? t("career.profile.resume_links.gmail_analysis_running", "읽어오는 중")
+    : gmailIntegration.analysisStatus === "failed"
+      ? t(
+          "career.profile.resume_links.gmail_analysis_failed_status",
+          "읽어오기 실패"
+        )
+      : connected
+        ? t("career.profile.resume_links.gmail_connected", "연결됨")
+        : gmailIntegration.status === "error"
+          ? t(
+              "career.profile.resume_links.gmail_status_retry",
+              "상태 다시 확인"
+            )
+          : gmailIntegration.status === "disabled"
+            ? t(
+                "career.profile.resume_links.gmail_disconnect_retry",
+                "연결 해제 재시도"
+              )
+            : gmailIntegration.status === "expired"
+              ? t("career.profile.resume_links.gmail_reconnect", "다시 연결")
+              : t("career.profile.resume_links.gmail_connect", "연동하기");
 
   return (
     <>
-      <div
-        aria-live="polite"
-        className="grid gap-0 sm:grid-cols-[9rem_minmax(0,1fr)] sm:items-start sm:gap-2"
-      >
-        <div className="flex min-h-9 w-full items-center gap-1 text-sm text-neutral-muted sm:w-36">
-          <Image
-            src="/images/logos/gmail.svg"
-            alt=""
-            width={16}
-            height={16}
-            className="h-4 w-4 rounded-[4px] object-contain"
-          />
-          <span className="truncate">Gmail</span>
-        </div>
-
-        <div className="flex min-h-9 min-w-0 flex-wrap items-center gap-2">
-          {gmailIntegration.status === "active" ? (
-            <span
-              className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${
-                gmailAnalysisRunning
-                  ? "bg-action-faded text-action"
-                  : gmailIntegration.analysisStatus === "failed"
-                    ? "bg-critical-faded text-critical"
-                    : "bg-positive-faded text-positive"
-              }`}
-            >
-              {gmailAnalysisRunning ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : null}
-              {gmailAnalysisRunning
-                ? t(
-                    "career.profile.resume_links.gmail_analysis_running",
-                    "읽어오는 중"
-                  )
-                : gmailIntegration.analysisStatus === "failed"
-                  ? t(
-                      "career.profile.resume_links.gmail_analysis_failed_status",
-                      "읽어오기 실패"
-                    )
-                  : t("career.profile.resume_links.gmail_connected", "연결됨")}
+      <CareerProfileSourceCard
+        icon={
+          gmailAnalysisRunning || gmailIntegration.status === "loading" ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <Image
+              src="/images/logos/gmail.svg"
+              alt=""
+              width={22}
+              height={22}
+              className="h-[22px] w-[22px] object-contain"
+            />
+          )
+        }
+        title="Gmail"
+        meta={showPrimaryConnectAction ? null : statusText}
+        muted={false}
+        className={
+          showPrimaryConnectAction
+            ? "border-primary/20 bg-primary-faded hover:border-primary/30 hover:bg-primary-faded"
+            : undefined
+        }
+        badge={
+          connected ? (
+            <Badge size="sm" tone="positive" variant="faded">
+              {t("career.profile.sources.connected", "연동")}
+            </Badge>
+          ) : showPrimaryConnectAction ? (
+            <span className="inline-flex rounded-[6px] bg-primary px-2 py-1 text-[11px] font-medium leading-none text-neutral-00">
+              {statusText}
             </span>
-          ) : null}
-
-          {gmailIntegration.status === "loading" ? (
-            <MuteButton
-              type="button"
-              size="sm"
-              disabled
-              aria-label={t(
-                "career.profile.resume_links.gmail_status_loading",
-                "Gmail 연결 상태 확인 중"
-              )}
-            >
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              {t("career.profile.resume_links.gmail_connect", "연동하기")}
-            </MuteButton>
-          ) : gmailIntegration.status === "error" ? (
-            <MuteButton
-              type="button"
-              size="sm"
-              onClick={() => void handleGmailStatusRetry()}
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              {t(
-                "career.profile.resume_links.gmail_status_retry",
-                "상태 다시 확인"
-              )}
-            </MuteButton>
-          ) : gmailIntegration.status === "active" ? (
-            <>
-              {!gmailIntegration.analysisUpdatedAt ? (
+          ) : null
+        }
+        onActivate={activate}
+        ariaLabel={`Gmail ${statusText}`}
+        action={
+          connected ? (
+            <ActionDropdown
+              align="start"
+              trigger={
                 <MuteButton
                   type="button"
                   size="sm"
-                  variant="dark"
-                  disabled={
-                    gmailIntegration.pendingAction !== null ||
-                    gmailAnalysisRunning
-                  }
-                  onClick={() => void handleGmailAnalyze()}
+                  variant="transparent"
+                  disabled={busy}
+                  aria-label={t(
+                    "career.profile.sources.gmail_actions",
+                    "Gmail 메뉴"
+                  )}
+                  className="h-7 min-h-7 w-7 px-0"
                 >
-                  {gmailIntegration.pendingAction === "analyze" ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : null}
-                  {t("career.profile.resume_links.gmail_analyze", "읽어오기")}
+                  <Ellipsis className="h-4 w-4" />
                 </MuteButton>
-              ) : null}
-              <MuteButton
-                type="button"
-                size="sm"
-                variant="transparent"
-                disabled={gmailIntegration.pendingAction !== null}
-                onClick={() => void handleGmailDisconnect()}
+              }
+            >
+              <ActionDropdownItem onSelect={() => void handleGmailAnalyze()}>
+                <MailSearch className="h-4 w-4" />
+                {t("career.profile.resume_links.gmail_analyze", "읽어오기")}
+              </ActionDropdownItem>
+              <ActionDropdownItem
+                tone="danger"
+                onSelect={() => void handleGmailDisconnect()}
               >
-                {gmailIntegration.pendingAction === "disconnect" ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : null}
+                <Unplug className="h-4 w-4" />
                 {t("career.profile.resume_links.gmail_disconnect", "연결 해제")}
-              </MuteButton>
-            </>
-          ) : gmailIntegration.status === "disabled" ? (
-            <MuteButton
-              type="button"
-              size="sm"
-              variant="warn"
-              disabled={gmailIntegration.pendingAction !== null}
-              onClick={() => void handleGmailDisconnect()}
-            >
-              {gmailIntegration.pendingAction === "disconnect" ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : null}
-              {t(
-                "career.profile.resume_links.gmail_disconnect_retry",
-                "연결 해제 재시도"
-              )}
-            </MuteButton>
-          ) : (
-            <MuteButton
-              type="button"
-              size="sm"
-              variant="dark"
-              disabled={gmailIntegration.pendingAction !== null}
-              onClick={() => void handleGmailConnect()}
-            >
-              {gmailIntegration.pendingAction === "connect" ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : null}
-              {gmailIntegration.status === "expired"
-                ? t("career.profile.resume_links.gmail_reconnect", "다시 연결")
-                : t("career.profile.resume_links.gmail_connect", "연동하기")}
-            </MuteButton>
-          )}
-        </div>
-      </div>
+              </ActionDropdownItem>
+            </ActionDropdown>
+          ) : gmailIntegration.status === "error" ? (
+            <RefreshCw className="m-1.5 h-3.5 w-3.5" aria-hidden="true" />
+          ) : null
+        }
+      />
 
       <GmailConnectionSuccessModal
         open={gmailConnectionSucceeded}
         pending={gmailIntegration.pendingAction === "analyze"}
-        onClose={handleGmailConnectionSuccessClose}
-        onImport={() => void handleGmailConnectionSuccessImport()}
+        onClose={() => {
+          if (gmailIntegration.pendingAction === "analyze") return;
+          logCareerEvent("close_resume_links_gmail_connected");
+          setGmailConnectionSuccessModalOpen(false);
+        }}
+        onImport={() => {
+          logCareerEvent("import_resume_links_gmail_connected");
+          void handleGmailAnalyze().then((started) => {
+            if (started) setGmailConnectionSuccessModalOpen(false);
+          });
+        }}
       />
     </>
   );

@@ -121,6 +121,10 @@ export const CAREER_REALTIME_VOICE_ONBOARDING_TOOL_NAMES: readonly string[] = [
 export const CAREER_REALTIME_VOICE_POST_ONBOARDING_TOOL_NAMES = [
   // 통화 종료는 Realtime voice 전용 로컬 tool로 처리한다.
   TALENT_TOOL_NAMES.END_CALL,
+  // 통화에서 사용자가 추천 범위나 수신 범위를 명시적으로 확정하면
+  // 채팅으로 돌려보내지 않고 같은 공통 writer로 바로 반영한다.
+  TALENT_TOOL_NAMES.UPDATE_SETTING,
+  TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
   // 통화 중 최신 외부 정보가 꼭 필요할 때.
   TALENT_TOOL_NAMES.WEB_SEARCH,
   // 통화 중 이미 추천된 opportunity를 짧게 확인할 때.

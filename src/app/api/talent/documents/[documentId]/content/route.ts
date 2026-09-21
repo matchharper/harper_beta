@@ -50,7 +50,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
       documentId: String(documentId ?? "").trim(),
       userId: user.id,
     });
-    if (!document || !isEditableGmailCareerHistory(document)) {
+    if (!document || (document.kind !== "document" && document.kind !== "resume")) {
       return noStoreJson({ error: "Document not found" }, { status: 404 });
     }
 

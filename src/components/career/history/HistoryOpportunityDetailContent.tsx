@@ -1,6 +1,9 @@
-import MockInterviewStart from "./MockInterviewStart";
 import React, { ReactNode, useState } from "react";
-import { CareerOpportunityType, type CareerHistoryOpportunity } from "../types";
+import {
+  CareerOpportunityType,
+  type CareerCallStartRequest,
+  type CareerHistoryOpportunity,
+} from "../types";
 import {
   getMetaItems,
   getOpportunityPanelTone,
@@ -52,6 +55,7 @@ import {
 import UpcomingMeetingStrip from "./UpcomingMeetingStrip";
 import TalentRoleActivityTimeline from "./TalentRoleActivityTimeline";
 import NewOpportunityCompanyRoleSwitcher from "./NewOpportunityCompanyRoleSwitcher";
+import HistoryOpportunityRoleActions from "./HistoryOpportunityRoleActions";
 
 export { getKnownCompanyDataText, parseFundingStageLabel };
 
@@ -91,14 +95,18 @@ export const OpportunityHeader = ({
   layout = "responsive",
   onOpenCompanyInfo,
   onOpenOpportunityInfo,
+  size = "default",
   extraComponent,
+  hideTags = false,
 }: {
   hideCompanyIdentity?: boolean;
   item: CareerHistoryOpportunity;
   layout?: "responsive" | "stacked";
   onOpenCompanyInfo?: (item: CareerHistoryOpportunity) => void;
   onOpenOpportunityInfo: (type: CareerOpportunityType) => void;
+  size?: "default" | "sm";
   extraComponent?: ReactNode;
+  hideTags?: boolean;
 }) => {
   const t = useCareerT();
   const { locale } = useMessages();
@@ -128,16 +136,19 @@ export const OpportunityHeader = ({
       typeof meta.value === "string" && meta.value.trim().length > 0
   );
   const stacked = layout === "stacked";
+  const compact = size === "sm";
 
   return (
     <div className="w-full">
-      <div className="mb-4 flex w-fit flex-wrap items-center gap-2">
-        <HistoryOpportunityInfoTag
-          item={item}
-          onOpenInfo={onOpenOpportunityInfo}
-        />
-        <HistoryOpportunityStatusTag item={item} />
-      </div>
+      {!hideTags && (
+        <div className="mb-4 flex w-fit flex-wrap items-center gap-2">
+          <HistoryOpportunityInfoTag
+            item={item}
+            onOpenInfo={onOpenOpportunityInfo}
+          />
+          <HistoryOpportunityStatusTag item={item} />
+        </div>
+      )}
 
       <div
         className={cn(
@@ -153,17 +164,30 @@ export const OpportunityHeader = ({
                 <img
                   src={item.companyLogoUrl}
                   alt={item.companyName}
-                  className="h-10 w-10 rounded-lg object-cover"
+                  className={cn(
+                    "object-cover",
+                    compact ? "h-8 w-8 rounded-md" : "h-10 w-10 rounded-lg"
+                  )}
                 />
               </div>
             ) : (
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-black text-neutral-00">
-                <Building2 className="h-4 w-4" />
+              <div
+                className={cn(
+                  "flex items-center justify-center bg-black text-neutral-00",
+                  compact ? "h-8 w-8 rounded-md" : "h-10 w-10 rounded-lg"
+                )}
+              >
+                <Building2 className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
               </div>
             ))}
 
           <div className="flex min-w-0 flex-col items-start w-full">
-            <div className="wrap-break-word text-[16px] font-medium leading-tight sm:text-lg">
+            <div
+              className={cn(
+                "wrap-break-word font-medium leading-tight",
+                compact ? "text-[14px] sm:text-base" : "text-[16px] sm:text-lg"
+              )}
+            >
               {item.title}
             </div>
             {!hideCompanyIdentity || postingStatus ? (
@@ -253,6 +277,7 @@ export const HistoryOpportunityOverview = ({
   onOpenCompanyInfo,
   onOpenLink,
   onOpenOpportunityInfo,
+  hideTags = false,
 }: {
   className?: string;
   hideCompanyIdentity?: boolean;
@@ -260,6 +285,7 @@ export const HistoryOpportunityOverview = ({
   onOpenCompanyInfo?: (item: CareerHistoryOpportunity) => void;
   onOpenLink: (url: string) => void;
   onOpenOpportunityInfo: (type: CareerOpportunityType) => void;
+  hideTags?: boolean;
 }) => {
   const t = useCareerT();
   const roleLink = item.href;
@@ -276,6 +302,7 @@ export const HistoryOpportunityOverview = ({
         item={item}
         onOpenCompanyInfo={onOpenCompanyInfo}
         onOpenOpportunityInfo={onOpenOpportunityInfo}
+        hideTags={hideTags}
       />
 
       {hasRecommendationContent && (
@@ -508,14 +535,13 @@ const OpportunityManagementStatusDropdown = ({
       align="end"
       contentClassName="min-w-[190px]"
       trigger={
-        <BareButton
-          type="button"
+        <MuteButton
+          variant="transparent"
           aria-label={`${statusLabel} 상태 변경`}
           disabled={disabled}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-neutral-200 text-neutral-primary transition-colors hover:bg-neutral-400 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <EllipsisVertical className="h-4 w-4" />
-        </BareButton>
+        </MuteButton>
       }
     >
       {options.map((option) => (
@@ -537,6 +563,7 @@ export const HistoryOpportunityInlinePage = ({
   item,
   onBack,
   onOpenCompanyInfo,
+  onOpenChat,
   onOpenLink,
   onOpenOpportunityInfo,
   onInternalDecisionAction,
@@ -544,24 +571,29 @@ export const HistoryOpportunityInlinePage = ({
   onUpdateTalentMemo,
   onStartMockInterview,
   pending,
+  roleActionsOnDesktop = true,
   savedStatus,
 }: {
   className?: string;
   item: CareerHistoryOpportunity;
   onBack: () => void;
   onOpenCompanyInfo?: (item: CareerHistoryOpportunity) => void;
+  onOpenChat?: () => void;
   onOpenLink: (url: string) => void;
   onOpenOpportunityInfo: (type: CareerOpportunityType) => void;
   onInternalDecisionAction?: (
     action: CareerInternalOpportunityDecisionAction
   ) => void;
   onSavedStatusChange?: (value: CareerOpportunityManagementStatus) => void;
-  onStartMockInterview?: (opportunityId: string) => boolean | Promise<boolean>;
+  onStartMockInterview?: (
+    request: CareerCallStartRequest
+  ) => boolean | Promise<boolean>;
   onUpdateTalentMemo?: (
     item: CareerHistoryOpportunity,
     talentMemo: string | null
   ) => void | Promise<void>;
   pending: boolean;
+  roleActionsOnDesktop?: boolean;
   savedStatus?: CareerOpportunityManagementStatus;
 }) => {
   const t = useCareerT();
@@ -615,55 +647,27 @@ export const HistoryOpportunityInlinePage = ({
       <UpcomingMeetingStrip meeting={item.upcomingMeeting} className="mb-4" />
 
       <HistoryOpportunityOverview
+        hideTags={true}
         item={item}
         onOpenCompanyInfo={onOpenCompanyInfo}
         onOpenLink={onOpenLink}
         onOpenOpportunityInfo={onOpenOpportunityInfo}
       />
 
-      <div className="mt-6 flex flex-wrap items-center gap-4 rounded-xl border border-neutral-1000-a05 bg-bg-floating p-4">
-        <p className="min-w-0 flex-1 basis-[240px] text-[13px] leading-6 text-neutral-muted">
-          {t(
-            "career.history.mock_interview.description",
-            "Harper와 실제 면접처럼 대화하며 이 포지션의 인터뷰를 준비해보세요."
-          )}
-        </p>
-        <MockInterviewStart
-          key={item.id}
-          item={item}
-          onStart={onStartMockInterview}
-        />
-      </div>
-
-      <TalentRoleActivityTimeline
-        item={item}
-        pending={pending}
-        onAddTalentMemo={onUpdateTalentMemo}
-      />
-
-      <div className="mt-6 border-t border-neutral-1000-a05 pt-5">
+      <div className="mt-2 flex justify-center items-center w-full">
         <BareButton
           type="button"
           onClick={() =>
             setDetailState({ itemId: item.id, open: !showDetails })
           }
-          className="inline-flex min-h-9 items-center gap-2 rounded-md border border-neutral-1000-a05 bg-bg-floating px-3 text-[13px] font-medium text-neutral-primary transition-colors hover:border-neutral-400 hover:bg-bg-weak"
+          className="inline-flex min-h-9 items-center gap-2 text-neutral-muted text-sm hover:text-neutral-primary underline underline-offset-1"
         >
           {showDetails
-            ? t(
-                "career.history.opportunity_detail_content.hide_detail",
-                "상세보기 접기"
-              )
+            ? t("career.history.opportunity_detail_content.hide_detail", "접기")
             : t(
                 "career.history.opportunity_detail_content.show_detail",
-                "상세보기"
+                "더보기"
               )}
-          <ChevronDown
-            className={cn(
-              "h-4 w-4 text-neutral-muted transition-transform",
-              showDetails && "rotate-180"
-            )}
-          />
         </BareButton>
       </div>
 
@@ -676,6 +680,20 @@ export const HistoryOpportunityInlinePage = ({
           className="mt-5"
         />
       )}
+
+      <TalentRoleActivityTimeline
+        item={item}
+        pending={pending}
+        onAddTalentMemo={onUpdateTalentMemo}
+      />
+
+      <HistoryOpportunityRoleActions
+        key={item.id}
+        className={cn("mt-10", !roleActionsOnDesktop && "md:hidden")}
+        item={item}
+        onOpenChat={onOpenChat}
+        onStartMockInterview={onStartMockInterview}
+      />
     </section>
   );
 };
@@ -686,22 +704,32 @@ const HistoryOpportunityDetailContent = ({
   canMoveNext = false,
   canMovePrev = false,
   onOpenCompanyInfo,
+  onOpenChat,
   onOpenLink,
   onOpenOpportunityInfo,
   onMoveNext,
   onMovePrev,
   onSelectCompanyOpportunity,
+  onStartMockInterview,
+  roleActionsOnDesktop = true,
+  showRoleActions = true,
 }: {
   item: CareerHistoryOpportunity;
   companyOpportunities?: readonly CareerHistoryOpportunity[];
   canMoveNext?: boolean;
   canMovePrev?: boolean;
   onOpenCompanyInfo?: (item: CareerHistoryOpportunity) => void;
+  onOpenChat?: () => void;
   onOpenLink: (url: string) => void;
   onOpenOpportunityInfo: (type: CareerOpportunityType) => void;
   onMoveNext?: () => void;
   onMovePrev?: () => void;
   onSelectCompanyOpportunity?: (item: CareerHistoryOpportunity) => void;
+  onStartMockInterview?: (
+    request: CareerCallStartRequest
+  ) => boolean | Promise<boolean>;
+  roleActionsOnDesktop?: boolean;
+  showRoleActions?: boolean;
 }) => {
   const hasCompanyRoleGroup =
     Boolean(onSelectCompanyOpportunity) && companyOpportunities.length > 1;
@@ -751,11 +779,19 @@ const HistoryOpportunityDetailContent = ({
               item={item}
               onOpenCompanyInfo={onOpenCompanyInfo}
               onOpenLink={onOpenLink}
-              className="px-5 pb-4"
+              className="px-5 pb-2"
             />
           </div>
         </InlinePanel>
       </div>
+
+      {showRoleActions ? <HistoryOpportunityRoleActions
+        key={item.id}
+        className={cn("mx-3 mt-5", !roleActionsOnDesktop && "md:hidden")}
+        item={item}
+        onOpenChat={onOpenChat}
+        onStartMockInterview={onStartMockInterview}
+      /> : null}
     </div>
   );
 };

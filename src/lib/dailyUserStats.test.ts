@@ -58,7 +58,6 @@ function makeDailyUserStatsReport(
     internalRecommendationCount: 0,
     jobs: [],
     jobsSummary: {
-      abtestRows: [],
       signupCount: 0,
       talkClickCount: 0,
       viewCount: 0,
@@ -561,10 +560,7 @@ test("daily Slack stats compare counts by percent and rates by percentage point"
     /레퍼럴 링크 복사 후 해당 링크로 다른 사람이 들어온 사람 수: 3명\(\+50\.0%\)/
   );
   assert.match(main, /회원 탈퇴: 0명\(-100\.0%\)/);
-  assert.match(
-    main,
-    /메일 오픈\(추정\): 72\/118개, 61\.0% \(\+11\.0%p\)/
-  );
+  assert.match(main, /메일 오픈\(추정\): 72\/118개, 61\.0% \(\+11\.0%p\)/);
   assert.match(main, /열람\(확인\): 345개\(-2\.0%\), 21\.9% \(-3\.3%p\)/);
   assert.match(main, /거절: 1개\(신규\), 전체 추천 대비 7\.1% \(\+7\.1%p\)/);
   assert.match(main, /opportunity_discovery_run failed 종료: 12개\(-36\.8%\)/);

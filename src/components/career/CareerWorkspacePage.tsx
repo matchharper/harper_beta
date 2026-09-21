@@ -75,6 +75,7 @@ const CareerWorkspacePage = ({
   const deliveryEmailHistoryLinkLoggedRef = useRef(false);
   const referralCaptureKeyRef = useRef("");
   const gmailCallbackHandledRef = useRef("");
+  const workspaceActionViewLogKeysRef = useRef(new Set<string>());
   const isRouterReady = router.isReady;
   const inviteToken =
     isRouterReady && typeof router.query.invite === "string"
@@ -366,6 +367,7 @@ const CareerWorkspacePage = ({
 
     void completeConnection()
       .then(() => {
+        logCareerEvent("gmail_connect_succeeded");
         notifyGmailIntegrationChanged();
         showToast({
           message: t(
@@ -377,6 +379,7 @@ const CareerWorkspacePage = ({
         clearCallbackQuery(true);
       })
       .catch(() => {
+        logCareerEvent("gmail_connect_failed");
         showToast({
           message: t(
             "career.profile.resume_links.gmail_callback_failed",
@@ -392,6 +395,7 @@ const CareerWorkspacePage = ({
     gmailConnectedAccountId,
     gmailConnectStatus,
     isRouterReady,
+    logCareerEvent,
     router,
     t,
     user,
@@ -429,6 +433,46 @@ const CareerWorkspacePage = ({
     needsOnboarding,
     officialJobsChatDraftSeed,
     router,
+    user,
+  ]);
+
+  useEffect(() => {
+    if (!isRouterReady || authLoading || !user) return;
+
+    const profileSection = getSingleQueryParam(router.query.profileSection);
+    const historyTab = getSingleQueryParam(router.query.historyTab);
+    const historyRoleId = getSingleQueryParam(router.query.id)?.trim();
+    const events: Array<{ key: string; type: string }> = [];
+
+    if (currentActiveTab === "profile" && profileSection === "brief") {
+      events.push({ key: "profile:brief", type: "view_profile_brief" });
+    }
+    if (currentActiveTab === "history" && historyTab === "saved") {
+      events.push({
+        key: "history:saved",
+        type: "view_history_saved_pipeline",
+      });
+      if (historyRoleId) {
+        events.push({
+          key: `history:saved:${historyRoleId}`,
+          type: "view_history_saved_detail",
+        });
+      }
+    }
+
+    for (const event of events) {
+      if (workspaceActionViewLogKeysRef.current.has(event.key)) continue;
+      workspaceActionViewLogKeysRef.current.add(event.key);
+      logCareerEvent(event.type);
+    }
+  }, [
+    authLoading,
+    currentActiveTab,
+    isRouterReady,
+    logCareerEvent,
+    router.query.historyTab,
+    router.query.id,
+    router.query.profileSection,
     user,
   ]);
 
@@ -477,6 +521,11 @@ const CareerWorkspacePage = ({
 
   const settingsPanelRequested = Boolean(user && requestedPanel === "settings");
   const settingsModalOpen = isSettingsModalOpen || settingsPanelRequested;
+  useEffect(() => {
+    if (!settingsModalOpen || !user) return;
+    logCareerEvent("view_settings");
+  }, [logCareerEvent, settingsModalOpen, user]);
+
   const handleCloseSettings = useCallback(() => {
     setIsSettingsModalOpen(false);
     setSettingsInitialTab(null);

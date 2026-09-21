@@ -99,7 +99,7 @@ const CareerCompanyWatchlistPanel = () => {
   );
 
   const handleBackToList = useCallback(() => {
-    void router.push(buildWatchlistLocation({ tab: activeTab }), undefined, {
+    void router.replace(buildWatchlistLocation({ tab: activeTab }), undefined, {
       shallow: true,
       scroll: false,
     });

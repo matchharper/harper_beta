@@ -35,7 +35,7 @@ test("warm intro prompt never exposes a prior company decline or reactivation", 
   assert.doesNotMatch(source, /buildSafeOrgIntroEmailDraft/);
 });
 
-test("warm intro prompt supports natural Korean and disambiguates recipient roles", () => {
+test("warm intro prompt supports warm, evidence-grounded introductions in both locales", () => {
   const source = readFileSync(
     new URL("./introEmail.ts", import.meta.url),
     "utf8"
@@ -51,7 +51,18 @@ test("warm intro prompt supports natural Korean and disambiguates recipient role
     source,
     /사람을 "후보자", "담당자"라고 부르거나 설명하지 마세요/
   );
-  assert.match(source, /candidateProfessionalSummary만 경력 근거로/);
+  assert.match(source, /두 사람을 연결하게 된 기쁨이 느껴지도록/);
+  assert.match(source, /회사와 포지션을 한 문장으로 짧게 설명/);
+  assert.match(source, /긍정적인 경험이나 강점을 한 문장으로 짧게 설명/);
+  assert.match(source, /왜 이 연결이 기대되는지 한 문장으로 설명/);
+  assert.match(source, /companySummary/);
+  assert.match(source, /roleSummary/);
+  assert.match(source, /connectionEvidence/);
+  assert.match(
+    source,
+    /Do not turn the email into a pitch deck or resume summary/
+  );
+  assert.match(source, /Do not emphasize location/);
   assert.match(source, /현재 쉬는 중, 미재직, 경력 공백/);
   assert.match(source, /이 포지션에 관심을 보였다는 확인된 사실/);
   assert.match(source, /companyUserRole/);
@@ -59,13 +70,20 @@ test("warm intro prompt supports natural Korean and disambiguates recipient role
   assert.match(source, /현재 이메일에서 대화를 이어가면 된다는 점/);
   assert.doesNotMatch(source, /must start exactly|must include exactly/i);
   assert.doesNotMatch(source, /반드시 정확히/);
-  assert.match(source, /Do not describe the company, the Role, its duties/);
+  assert.doesNotMatch(
+    source,
+    /Do not describe the company, the Role, its duties/
+  );
   assert.match(source, /buildOrgIntroSystemPrompt\(context\.locale\)/);
   assert.match(serverSource, /preferred_locale, setting_locale/);
   assert.match(serverSource, /parseCareerPromptLocale/);
   assert.match(serverSource, /locale: introLocale/);
   assert.match(serverSource, /talent_experiences/);
   assert.match(serverSource, /candidateProfessionalSummary/);
+  assert.match(serverSource, /args\.workspace\.company_description/);
+  assert.match(serverSource, /args\.workspace\.pitch/);
+  assert.match(serverSource, /args\.recommendation\.fit_reasons/);
+  assert.match(serverSource, /args\.role\.description/);
   assert.match(serverSource, /company_user_workspace/);
   assert.match(serverSource, /companyUserRole: args\.companyUser\.role/);
   assert.doesNotMatch(serverSource, /acceptanceReason: args\.acceptReason/);

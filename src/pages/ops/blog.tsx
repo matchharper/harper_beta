@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import type { BlogLocale } from "@/lib/blog";
 import type {
+  OpsBlogAnalytics,
   OpsBlogLocalizedContent,
   OpsBlogPost,
   OpsBlogResponse,
@@ -25,11 +26,13 @@ import {
   Search,
   Upload,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import Head from "next/head";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type BlogDraft = Omit<OpsBlogPost, "id"> & { id: string | null };
+type BlogView = "analytics" | "posts";
 
 type ThumbnailUploadResponse = {
   bucket: string;
@@ -46,6 +49,16 @@ const EMPTY_LOCALIZED_CONTENT: OpsBlogLocalizedContent = {
   seoTitle: "",
   title: "",
 };
+
+const BLOG_VIEW_TABS = [
+  { label: "글 관리", value: "posts" },
+  { label: "성과", value: "analytics" },
+] as const;
+
+const OpsBlogAnalyticsPanel = dynamic(
+  () => import("@/components/ops/blog/OpsBlogAnalytics"),
+  { ssr: false }
+);
 
 function getToday() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -126,7 +139,9 @@ function sortPosts(posts: OpsBlogPost[]) {
 export default function OpsBlogPage() {
   const [posts, setPosts] = useState<OpsBlogPost[]>([]);
   const [jobs, setJobs] = useState<OfficialJobListItem[]>([]);
+  const [analytics, setAnalytics] = useState<OpsBlogAnalytics | null>(null);
   const [draft, setDraft] = useState<BlogDraft>(() => createEmptyDraft());
+  const [view, setView] = useState<BlogView>("posts");
   const [locale, setLocale] = useState<BlogLocale>("ko");
   const [query, setQuery] = useState("");
   const [jobQuery, setJobQuery] = useState("");
@@ -145,6 +160,7 @@ export default function OpsBlogPage() {
         await fetchWithInternalAuth<OpsBlogResponse>("/api/internal/blog");
       setPosts(sortPosts(payload.posts));
       setJobs(payload.jobs);
+      setAnalytics(payload.analytics);
       setDraft((current) => {
         if (!current.id) return current;
         return payload.posts.find((post) => post.id === current.id) ?? current;
@@ -337,18 +353,43 @@ export default function OpsBlogPage() {
               <RefreshCw className={cx(loading && "animate-spin")} />
               새로고침
             </MuteButton>
-            <MuteButton
-              type="button"
-              variant="dark"
-              size="md"
-              onClick={startNewPost}
-            >
-              <FilePlus2 />새 글
-            </MuteButton>
+            {view === "posts" ? (
+              <MuteButton
+                type="button"
+                variant="dark"
+                size="md"
+                onClick={startNewPost}
+              >
+                <FilePlus2 />새 글
+              </MuteButton>
+            ) : null}
           </div>
         }
       >
-        <section className="grid gap-5 xl:grid-cols-[minmax(320px,0.72fr)_minmax(620px,1.28fr)]">
+        <Tabs
+          activeValue={view}
+          items={[...BLOG_VIEW_TABS]}
+          onValueChange={(value) => setView(value as BlogView)}
+          size="medium"
+          variant="bordered"
+        />
+
+        {view === "analytics" ? (
+          <div className="mt-5">
+            <OpsBlogAnalyticsPanel
+              analytics={analytics}
+              error={error}
+              loading={loading}
+            />
+          </div>
+        ) : null}
+
+        <section
+          className={cx(
+            "mt-5 grid gap-5 xl:grid-cols-[minmax(320px,0.72fr)_minmax(620px,1.28fr)]",
+            view !== "posts" && "hidden"
+          )}
+        >
           <aside className={cx(opsTheme.panel, "min-w-0 p-5")}>
             <div className="flex items-center justify-between gap-3">
               <div className="text-lg font-medium text-neutral-primary">

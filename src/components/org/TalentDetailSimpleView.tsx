@@ -35,6 +35,10 @@ import {
   AcceptIntroDialog,
   StopCandidateDialog,
 } from "@/components/org/OrgCandidateDecisionDialogs";
+import {
+  CompanyIntroPassDialog,
+  CompanyIntroRequestDialog,
+} from "@/components/org/CompanyIntroDecisionDialogs";
 import { InternalOnlySurface } from "@/components/org/internal/InternalOnlySurface";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
 import { formatKst } from "@/components/ops/career/utils";
@@ -57,6 +61,8 @@ import {
   useCreateOrgFeedItem,
   useDeleteOrgFeedItem,
   useOpenOrgResume,
+  usePassOrgCompanyIntro,
+  useRequestOrgCompanyIntro,
   useUpdateOrgConnectionConfirmationEmail,
   useUpdateOrgFeedItem,
 } from "@/hooks/org/useOrg";
@@ -81,13 +87,17 @@ import {
   CANDIDATE_DECISION_LABELS,
 } from "@/lib/org/candidateDecision";
 import { getOrgTalentDetailNavigationState } from "@/lib/org/detailNavigation";
-import { humanizeOrgStage } from "@/lib/org/pipelineStage";
+import {
+  humanizeOrgCompanyIntroStatus,
+  humanizeOrgStage,
+} from "@/lib/org/pipelineStage";
 import { convertSlackCandidateIntroToWebMarkdown } from "@/lib/org/agent/navigationMarkdown";
 import type {
   OrgOtherRoleFeedResponse,
   OrgTalentDetailResponse,
 } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
+import { useToastStore } from "@/store/useToastStore";
 import Face from "../common/Face";
 
 type ResourceLinkKind =
@@ -652,6 +662,62 @@ function CandidateDecisionActions({
           className="min-h-10 w-full"
         >
           {CANDIDATE_DECISION_LABELS.reject}
+        </MuteButton>
+      </div>
+    </section>
+  );
+}
+
+function CompanyIntroDecisionActions({
+  candidateName,
+  detail,
+  onPass,
+  onRequest,
+  pending,
+}: {
+  candidateName: string;
+  detail: OrgTalentDetailResponse;
+  onPass: () => void;
+  onRequest: () => void;
+  pending: boolean;
+}) {
+  if (!detail.companyIntro) return null;
+  if (detail.companyIntro.status !== "ready") {
+    return (
+      <section className="rounded-md bg-primary-faded px-4 py-4">
+        <div className="text-[15px] font-medium text-primary">
+          {humanizeOrgCompanyIntroStatus(detail.companyIntro)}
+        </div>
+        <p className="mt-1 text-[13px] leading-5 text-neutral-muted">
+          {detail.companyIntro.status === "connecting"
+            ? "후보자가 제안을 수락했습니다. 소개 이메일로 연결한 뒤 미리 정한 첫 단계로 이동합니다."
+            : "회사가 먼저 제안을 요청한 후보입니다. 수락하면 소개 이메일로 연결하고 미리 정한 첫 단계로 이동합니다."}{" "}
+          연결 전에는 추가 연락이나 인터뷰 요청을 할 수 없습니다.
+        </p>
+      </section>
+    );
+  }
+  return (
+    <section className="rounded-md border border-neutral-1000-a05 bg-bg-default px-4 py-4">
+      <div className="text-[16px] font-medium text-neutral-primary">
+        {candidateName}님에게 먼저 제안할까요?
+      </div>
+      <p className="mt-1 text-[13px] leading-5 text-neutral-muted">
+        아직 이 역할을 추천받지 않았고 관심 여부도 확인되지 않은 후보입니다.
+        만나고 싶은 이유를 적으면 Harper가 회사를 대신해 먼저 제안합니다.
+        후보자가 수락하면 소개 이메일로 연결하고 미리 정한 첫 단계로 이동합니다.
+      </p>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <MuteButton disabled={pending} onClick={onPass} size="md">
+          제안하지 않기
+        </MuteButton>
+        <MuteButton
+          disabled={pending}
+          onClick={onRequest}
+          size="md"
+          variant="dark"
+        >
+          먼저 제안하기
         </MuteButton>
       </div>
     </section>
@@ -1273,6 +1339,9 @@ export function TalentDetailSimpleView() {
   const detail = detailQuery.data;
   const members = detail?.members ?? bootstrap.members;
   const createCustomStage = useCreateOrgReviewStage();
+  const requestCompanyIntro = useRequestOrgCompanyIntro();
+  const passCompanyIntro = usePassOrgCompanyIntro();
+  const addToast = useToastStore((state) => state.add);
   const acceptStageId = selectedAcceptStageId;
   const canManageCandidates = permissions.canManageCandidates;
   const companyName = detail?.workspace.companyName ?? workspace.companyName;
@@ -1287,8 +1356,14 @@ export function TalentDetailSimpleView() {
   );
   const error = detailQuery.error instanceof Error ? detailQuery.error : null;
   const isLoading = detailQuery.isLoading;
-  const onAcceptCandidate = canManageCandidates ? acceptTalent : undefined;
-  const onRejectCandidate = canManageCandidates ? rejectTalent : undefined;
+  const canUseExistingCandidateActions =
+    canManageCandidates && detail?.capabilities.moveStage !== false;
+  const onAcceptCandidate = canUseExistingCandidateActions
+    ? acceptTalent
+    : undefined;
+  const onRejectCandidate = canUseExistingCandidateActions
+    ? rejectTalent
+    : undefined;
   const onRetry = () => void detailQuery.refetch();
   const open = detailOpen;
   const talentId = activeDetailTalentId || null;
@@ -1303,6 +1378,8 @@ export function TalentDetailSimpleView() {
     "profile"
   );
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [companyIntroRequestOpen, setCompanyIntroRequestOpen] = useState(false);
+  const [companyIntroPassOpen, setCompanyIntroPassOpen] = useState(false);
   const [resumeRequest, setResumeRequest] = useState<{
     documentId?: string | null;
     kind: "storage" | "link" | "document";
@@ -1332,7 +1409,7 @@ export function TalentDetailSimpleView() {
     currentUserEmail,
     workspaceId,
   });
-  const onMoveToPendingConnection = canManageCandidates
+  const onMoveToPendingConnection = canUseExistingCandidateActions
     ? () => setPendingConnectionDialogOpen(true)
     : undefined;
   const handleClose = () => {
@@ -1433,7 +1510,10 @@ export function TalentDetailSimpleView() {
     );
   };
   const showMobileDecisionActions = Boolean(
-    detail?.recommendation.stage === "pending_connection" && canManageCandidates
+    (detail?.recommendation.stage === "pending_connection" ||
+      (detail?.recommendation.stage === "company_intro" &&
+        detail.companyIntro?.status === "ready")) &&
+      canManageCandidates
   );
 
   return createPortal(
@@ -1477,25 +1557,43 @@ export function TalentDetailSimpleView() {
                 <div className="flex shrink-0 items-center gap-1">
                   <MuteButton
                     className="min-w-11 border-critical bg-critical text-neutral-00 hover:border-critical/90 hover:bg-critical/90 hover:text-neutral-00 active:bg-critical/80"
-                    disabled={decisionPending || !onRejectCandidate}
-                    onClick={() => setRejectDialogOpen(true)}
+                    disabled={
+                      decisionPending ||
+                      (detail?.recommendation.stage !== "company_intro" &&
+                        !onRejectCandidate)
+                    }
+                    onClick={() =>
+                      detail?.recommendation.stage === "company_intro"
+                        ? setCompanyIntroPassOpen(true)
+                        : setRejectDialogOpen(true)
+                    }
                     size="md"
                     type="button"
                     variant="transparent"
                   >
-                    {CANDIDATE_DECISION_LABELS.reject}
+                    {detail?.recommendation.stage === "company_intro"
+                      ? "제안하지 않기"
+                      : CANDIDATE_DECISION_LABELS.reject}
                   </MuteButton>
                   <MuteButton
                     className="min-w-11 border-positive bg-positive text-neutral-00 hover:border-positive/90 hover:bg-positive/90 hover:text-neutral-00 active:bg-positive/80"
                     disabled={
-                      decisionPending || !acceptStageId || !onAcceptCandidate
+                      decisionPending ||
+                      (detail?.recommendation.stage !== "company_intro" &&
+                        (!acceptStageId || !onAcceptCandidate))
                     }
-                    onClick={() => setAcceptDialogOpen(true)}
+                    onClick={() =>
+                      detail?.recommendation.stage === "company_intro"
+                        ? setCompanyIntroRequestOpen(true)
+                        : setAcceptDialogOpen(true)
+                    }
                     size="md"
                     type="button"
                     variant="transparent"
                   >
-                    {CANDIDATE_DECISION_LABELS.connect}
+                    {detail?.recommendation.stage === "company_intro"
+                      ? "먼저 제안하기"
+                      : CANDIDATE_DECISION_LABELS.connect}
                   </MuteButton>
                 </div>
               ) : null}
@@ -1632,24 +1730,27 @@ export function TalentDetailSimpleView() {
                       </div>
                     ) : (
                       <ProfilePane
-                        acceptDisabled={!acceptStageId || !canManageCandidates}
+                        acceptDisabled={
+                          !acceptStageId || !canUseExistingCandidateActions
+                        }
                         currentStage={detail.recommendation.stage}
                         decisionPending={decisionPending}
                         detail={detail}
                         onAcceptClick={
-                          canManageCandidates
+                          canUseExistingCandidateActions
                             ? () => setAcceptDialogOpen(true)
                             : undefined
                         }
                         onMoveToPendingConnection={onMoveToPendingConnection}
                         onRejectClick={
-                          canManageCandidates
+                          canUseExistingCandidateActions
                             ? () => setRejectDialogOpen(true)
                             : undefined
                         }
-                        onResumeClick={(kind, link, documentId) =>
-                          setResumeRequest({ documentId, kind, link })
-                        }
+                        onResumeClick={(kind, link, documentId) => {
+                          if (!detail.capabilities.viewResume) return;
+                          setResumeRequest({ documentId, kind, link });
+                        }}
                       />
                     )}
                   </div>
@@ -1660,7 +1761,7 @@ export function TalentDetailSimpleView() {
                     )}
                   >
                     <FeedPanel
-                      canManageCandidates={canManageCandidates}
+                      canManageCandidates={canUseExistingCandidateActions}
                       currentUserId={currentUserId}
                       detail={detail}
                       internalOpsAccess={internalOpsAccess}
@@ -1672,26 +1773,40 @@ export function TalentDetailSimpleView() {
               </div>
               <div className="hidden min-h-0 overflow-y-auto border-l border-neutral-1000-a05 bg-bg-default px-5 pt-5 pb-20 md:block">
                 <FeedPanel
-                  canManageCandidates={canManageCandidates}
+                  canManageCandidates={canUseExistingCandidateActions}
                   currentUserId={currentUserId}
                   decisionActions={
+                    detail.companyIntro ? (
+                      <CompanyIntroDecisionActions
+                        candidateName={title}
+                        detail={detail}
+                        onPass={() => setCompanyIntroPassOpen(true)}
+                        onRequest={() => setCompanyIntroRequestOpen(true)}
+                        pending={
+                          requestCompanyIntro.isPending ||
+                          passCompanyIntro.isPending
+                        }
+                      />
+                    ) : (
                     <CandidateDecisionActions
-                      acceptDisabled={!acceptStageId || !canManageCandidates}
+                      acceptDisabled={
+                        !acceptStageId || !canUseExistingCandidateActions
+                      }
                       candidateName={title}
                       currentStage={detail.recommendation.stage}
                       decisionPending={decisionPending}
                       onAcceptClick={
-                        canManageCandidates
+                        canUseExistingCandidateActions
                           ? () => setAcceptDialogOpen(true)
                           : undefined
                       }
                       onMoveToPendingConnection={onMoveToPendingConnection}
                       onRejectClick={
-                        canManageCandidates
+                        canUseExistingCandidateActions
                           ? () => setRejectDialogOpen(true)
                           : undefined
                       }
-                    />
+                    />)
                   }
                   detail={detail}
                   internalOpsAccess={internalOpsAccess}
@@ -1824,6 +1939,81 @@ export function TalentDetailSimpleView() {
         open={pendingConnectionDialogOpen && Boolean(detail)}
         pending={decisionPending}
         recipientEmail={detail?.talent.email}
+      />
+
+      <CompanyIntroRequestDialog
+        key={detail?.companyIntro?.id ?? "closed"}
+        candidateName={title}
+        defaultEmail={currentUserEmail}
+        members={members}
+        onClose={() => setCompanyIntroRequestOpen(false)}
+        onSubmit={async ({
+          companyAppeal,
+          introRecipientEmails,
+          newStageLabel,
+          nextStageId,
+        }) => {
+          if (!detail?.companyIntro) return;
+          try {
+            const stageId = newStageLabel
+              ? (
+                  await createCustomStage.mutateAsync({
+                    label: newStageLabel,
+                    roleId: detail.role.roleId,
+                    workspaceId,
+                  })
+                ).stage.id
+              : nextStageId;
+            if (!stageId) throw new Error("수락 후 첫 단계를 선택해 주세요.");
+            await requestCompanyIntro.mutateAsync({
+              companyAppeal,
+              introCandidateId: detail.companyIntro.id,
+              introRecipientEmails,
+              nextStageId: stageId,
+              workspaceId,
+            });
+            setCompanyIntroRequestOpen(false);
+            addToast({
+              message:
+                "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다.",
+              variant: "success",
+            });
+          } catch (error) {
+            addToast({
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "제안을 처리하지 못했습니다.",
+              variant: "error",
+            });
+            throw error;
+          }
+        }}
+        open={companyIntroRequestOpen && Boolean(detail?.companyIntro)}
+        pending={createCustomStage.isPending || requestCompanyIntro.isPending}
+        roleId={detail?.role.roleId ?? ""}
+        roleName={detail?.role.name ?? "해당 역할"}
+        stages={optionalBoard?.board?.stages ?? []}
+      />
+
+      <CompanyIntroPassDialog
+        candidateName={title}
+        onClose={() => setCompanyIntroPassOpen(false)}
+        onConfirm={async () => {
+          if (!detail?.companyIntro) return;
+          await passCompanyIntro.mutateAsync({
+            introCandidateId: detail.companyIntro.id,
+            workspaceId,
+          });
+          setCompanyIntroPassOpen(false);
+          addToast({
+            message: "후보자에게 제안하지 않고 목록에서 제외했습니다.",
+            variant: "success",
+          });
+          handleClose();
+        }}
+        open={companyIntroPassOpen && Boolean(detail?.companyIntro)}
+        pending={passCompanyIntro.isPending}
       />
 
       <StopCandidateDialog

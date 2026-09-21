@@ -2,6 +2,7 @@ import {
   CLAUDE_MODEL,
   GPT_56_LUNA_MODEL,
   OPENROUTER_GLM_53_FLASH_MODEL,
+  OPENROUTER_MUSE_SPARK_13_MODEL,
 } from "@/lib/llm/modelConfig";
 import type { ChatCompletionReasoningEffort } from "@/lib/llm/llm";
 import type { OpenAIResponsesReasoningEffort } from "@/lib/llm/responsesChatAdapter";
@@ -9,6 +10,7 @@ import type { OpenAIResponsesReasoningEffort } from "@/lib/llm/responsesChatAdap
 export const CAREER_TEXT_CHAT_MODEL_IDS = [
   CLAUDE_MODEL,
   OPENROUTER_GLM_53_FLASH_MODEL,
+  OPENROUTER_MUSE_SPARK_13_MODEL,
   GPT_56_LUNA_MODEL,
 ] as const;
 
@@ -38,6 +40,12 @@ export function resolveCareerTextChatModel(value: unknown): {
   if (model === OPENROUTER_GLM_53_FLASH_MODEL) {
     return {
       chatCompletionReasoningEffort: "high",
+      model,
+    };
+  }
+  if (model === OPENROUTER_MUSE_SPARK_13_MODEL) {
+    return {
+      chatCompletionReasoningEffort: "xhigh",
       model,
     };
   }

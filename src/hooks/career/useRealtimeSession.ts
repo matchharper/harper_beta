@@ -22,6 +22,7 @@ export type UseRealtimeSessionArgs = {
 };
 
 export type RealtimeConnectOptions = {
+  callSessionId?: string | null;
   conversationStarterId?: CareerConversationStarterId | null;
   initialResponseInstruction?: string | null;
   internalCallRequestId?: string | null;
@@ -236,6 +237,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   >(null);
   const lastConnectFailureRef = useRef<RealtimeConnectFailure | null>(null);
   const mockInterviewOpportunityIdRef = useRef<string | null>(null);
+  const callSessionIdRef = useRef<string | null>(null);
   const connectPromiseRef = useRef<Promise<boolean> | null>(null);
   const pendingConnectAbortControllerRef = useRef<AbortController | null>(null);
   const pendingConnectCancelRef = useRef<(() => void) | null>(null);
@@ -372,6 +374,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
         const res = await fetchWithAuth("/api/realtime/token", {
           method: "POST",
           body: JSON.stringify({
+            callSessionId: options?.callSessionId ?? undefined,
             conversationId,
             conversationStarterId: options?.conversationStarterId ?? undefined,
             initialResponseInstruction:
@@ -658,6 +661,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       const responseId =
         typeof response?.id === "string" ? response.id.trim() : "";
       const payload = {
+        callSessionId: callSessionIdRef.current,
         conversationId,
         eventType: options.eventType ?? "response.done",
         hadAudioInResponse: options.hadAudioInResponse,
@@ -846,6 +850,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
               channel: "voice",
               conversationId,
               name: functionCall.name,
+              responseLocale: locale,
               toolCallId: functionCall.callId,
               arguments: parsedArguments,
             }),
@@ -876,7 +881,13 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
 
       return outputs;
     },
-    [beginToolExecution, conversationId, fetchWithAuth, finishToolExecution]
+    [
+      beginToolExecution,
+      conversationId,
+      fetchWithAuth,
+      finishToolExecution,
+      locale,
+    ]
   );
 
   const getToolVoicePreamble = useCallback(
@@ -1390,6 +1401,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
 
       mockInterviewOpportunityIdRef.current =
         options?.mockInterviewOpportunityId?.trim() || null;
+      callSessionIdRef.current = options?.callSessionId?.trim() || null;
       setIsConnecting(true);
       lastConnectFailureRef.current = null;
       const attemptId = connectAttemptIdRef.current + 1;

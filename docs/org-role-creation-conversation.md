@@ -1,5 +1,8 @@
 # Company-side LLM 역할 생성 대화 모드 설계
 
+- Hiring Brief 공통 작성 계약:
+  [Company Role Hiring Brief 작성 가이드](./company/company-role-hiring-brief-authoring-guide-ko.md)
+
 ## 1. 목적과 범위
 
 `/org/new`에 회사 사용자가 Harper와 대화하며 역할을 새로 작성하거나 이미 등록된

@@ -10,6 +10,18 @@
   **company-side LLM**. Use this term consistently in code comments,
   documentation, and implementation discussions.
 
+## Company Role Hiring Brief authoring
+
+- Before creating, changing, reviewing, or directly writing a Role Hiring Brief
+  (`company_internal_roles.request` or its compatibility copy), read and follow
+  `docs/company/company-role-hiring-brief-authoring-guide-ko.md` in full.
+- This applies to new Role creation, ordinary Role edits, direct database work,
+  real-person profile calibration, prepared-profile feedback, scheduled refreshes,
+  prompt changes, and requests such as “Request 작성해”.
+- Treat that guide as the canonical authoring contract. Task-specific runbooks may
+  add evidence collection, authorization, execution, and write procedures, but
+  must not redefine the shared Hiring Brief rules.
+
 ## Company role fit recovery audit
 
 - Before planning, changing, or running a Wonderful Role non-fit review,
@@ -25,13 +37,15 @@
 
 ## Company-first talent selection
 
-- Before every company-first talent selection run, including shadow, dry-run,
-  manual, and scheduled execution, read
-  `docs/company/company-first-talent-recommendation-codex-runbook-ko.md` in full
-  during that run. Do not rely on having read it in an earlier run.
-- Treat
-  `docs/company/company-first-talent-recommendation-product-plan-ko.md` as the
-  product and state contract, and the Codex runbook as the execution contract.
+- Before planning, changing, reviewing, or running company-first talent search,
+  read both
+  `docs/company/company-first-talent-recommendation-product-plan-ko.md` and
+  `docs/company/company-first-talent-search-worker-implementation-plan-ko.md`
+  in full. Treat the first as the product and lifecycle contract and the second
+  as the Python Worker, scheduling, selection, and delivery contract.
+- `docs/company/company-first-talent-recommendation-codex-runbook-ko.md` is kept
+  only to interpret and reproduce the historical manual `v1` shadow calibration.
+  Do not use its commit procedure as a production or scheduled runner.
 - A selection run may create only the company-side `ready` artifact described
   by those documents. It must not create a candidate-visible recommendation,
   candidate message, email, follow-up, or normal pipeline stage; those begin

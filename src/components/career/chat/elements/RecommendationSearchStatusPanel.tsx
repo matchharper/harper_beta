@@ -178,12 +178,12 @@ export const RecommendationSearchStatusPanel = memo(
                 )
             : [
                 typeof candidateCount === "number"
-                  ? t("career.common.career.0dtwsdj", "{count}개 공고 검토", {
+                  ? t("career.common.career.0dtwsdj", "{count}개 포지션 검토", {
                       values: {
                         count: candidateCount,
                       },
                     })
-                  : t("career.common.career.152e0fk", "공고 검토 완료"),
+                  : t("career.common.career.152e0fk", "포지션 검토 완료"),
                 typeof recommendationCount === "number"
                   ? t("career.common.career.0beg208", "{count}개 추천", {
                       values: {

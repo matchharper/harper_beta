@@ -6,6 +6,7 @@ import {
   Building2,
   Calendar,
   CircleHelp,
+  Compass,
   FileText,
   GalleryVerticalEnd,
   House,
@@ -19,7 +20,6 @@ import {
   Settings2,
   ShieldAlert,
   ShieldCheck,
-  SlidersHorizontal,
   Sparkles,
   Star,
   User,
@@ -102,7 +102,7 @@ type StaticCopy = {
     recommendationSettingLabel: string;
     starters: Array<{
       label: string;
-      icon: "message" | "sliders";
+      icon: "message" | "compass";
     }>;
     callTitle: string;
     callDescription: string;
@@ -242,13 +242,12 @@ const COPY: Record<Locale, StaticCopy> = {
           icon: "message",
         },
         {
-          label: "선호 조건 업데이트하기",
-          icon: "sliders",
+          label: "커리어 고민과 다음 커리어에 대해서 이야기하기",
+          icon: "compass",
         },
       ],
       callTitle: "Harper와 5분 통화",
-      callDescription:
-        "변경된 사항이 있거나 요구사항이 있을 때 — 통화하면 빨라요",
+      callDescription: "커리어 고민이나 다음 방향을 편하게 이야기해보세요.",
       callCta: "통화 시작",
       newOpportunityTitle: "새로 받은 기회",
       newOpportunityCount: 4,
@@ -397,13 +396,13 @@ const COPY: Record<Locale, StaticCopy> = {
           icon: "message",
         },
         {
-          label: "Update preferences",
-          icon: "sliders",
+          label: "Talk about your career and what's next",
+          icon: "compass",
         },
       ],
       callTitle: "5-minute call with Harper",
       callDescription:
-        "When something changes or you have new requirements, a quick call is faster.",
+        "Talk through a career concern or what you want to do next.",
       callCta: "Start call",
       newOpportunityTitle: "New opportunities",
       newOpportunityCount: 4,
@@ -921,11 +920,11 @@ const StaticChatPanel = ({
   );
 };
 
-const StarterIcon = ({ type }: { type: "message" | "sliders" }) =>
+const StarterIcon = ({ type }: { type: "message" | "compass" }) =>
   type === "message" ? (
     <MessageCircleMore className="h-3.5 w-3.5" strokeWidth={1.8} />
   ) : (
-    <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.8} />
+    <Compass className="h-3.5 w-3.5" strokeWidth={1.8} />
   );
 
 const ConversationStarterRow = ({ copy }: { copy: StaticCopy }) => (

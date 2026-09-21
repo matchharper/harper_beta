@@ -12,7 +12,6 @@ import {
   type OfficialJobsLocale,
 } from "@/lib/officialJobs/copy";
 import { getOfficialJobsAnonymousId } from "@/lib/officialJobs/events";
-import { getOfficialJobsApplyHelpExperimentAbtestType } from "@/lib/officialJobs/experiment";
 import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import {
   CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
@@ -83,7 +82,6 @@ export default function OfficialJobsCtaLink({
 
   const handleClick: MouseEventHandler<HTMLAnchorElement> = (event) => {
     const resolvedAnonymousId = getOfficialJobsAnonymousId();
-    const experimentAbtestType = getOfficialJobsApplyHelpExperimentAbtestType();
     const activeExplicitUtmSource =
       readActiveCareerExplicitUtmSourceFromStorage();
     let careerLandingId = resolvedAnonymousId;
@@ -120,8 +118,7 @@ export default function OfficialJobsCtaLink({
     event.preventDefault();
     window.location.href = buildOfficialJobsLoginHref(
       careerLandingId,
-      careerHref,
-      experimentAbtestType
+      careerHref
     );
   };
 

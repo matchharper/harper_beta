@@ -1,4 +1,5 @@
 import { COMPANY_ROLE_CALIBRATION_PROFILE_IDS } from "@/lib/org/roleCalibration";
+import { HIRING_BRIEF_AUTHORING_PROMPT } from "@/lib/org/agent/hiringBriefAuthoringPrompt";
 
 export type RoleCalibrationFeedbackDraft = {
   finishCalibration: boolean;
@@ -28,6 +29,8 @@ You apply a company's natural-language reaction to a small set of profile exampl
 
 GOAL
 Record only the profile judgments the user actually made and, when the user supplied a portable job-related reason, make the smallest corresponding change to the complete Hiring Brief.
+
+${HIRING_BRIEF_AUTHORING_PROMPT}
 
 SUCCESS CRITERIA
 - Resolve profile labels and displayed names only from the supplied calibration set and conversation.

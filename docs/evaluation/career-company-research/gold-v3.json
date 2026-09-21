@@ -1,0 +1,34 @@
+{
+  "goldVersion": "v3",
+  "reviewType": "human qualitative rubric",
+  "outputContract": "fact-first stage-adaptive company brief, dated material-change flow, useful change or size visualizations, Harper interpretation, then talent-specific implications; no interview questions or exhaustive checklist",
+  "scoreScale": {
+    "0": "missing, misleading, generic, or unusable",
+    "1": "partially useful but missing material evidence, clarity, or decision-changing interpretation",
+    "2": "specific, evidence-aware, easy to scan, stage-appropriate, and useful for deciding whether to join"
+  },
+  "dimensions": [
+    "identity_and_scope",
+    "fact_layer_completeness_and_readability",
+    "stage_country_and_ownership_adaptation",
+    "source_quality_freshness_and_claim_linkage",
+    "epistemic_discipline",
+    "visualization_quality_when_useful",
+    "harper_insight_timing_and_career_leverage",
+    "personalized_career_leverage"
+  ],
+  "criticalFailures": [
+    "wrong_company_identity",
+    "unsupported_material_fact_or_number",
+    "private_user_data_sent_in_search_query_or_rendered",
+    "empty_or_broken_output",
+    "source_reference_mismatch",
+    "generic_personalization_without_talent_context",
+    "interview_question_or_exhaustive_checklist_rendered"
+  ],
+  "gate": {
+    "minimumAverageScore": 13,
+    "minimumPerCaseScore": 11,
+    "maximumCriticalFailures": 0
+  }
+}

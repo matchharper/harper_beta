@@ -71,6 +71,7 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import {
   notifyOrgCandidateAcceptedSlack,
   notifyOrgCandidateRejectedSlack,
+  notifyCompanyIntroTalentDeclinedSlack,
   notifyOrgMemberJoinedSlack,
 } from "@/lib/org/slack";
 import { TALENT_RESUME_BUCKET } from "@/lib/talentOnboarding/models";
@@ -114,8 +115,16 @@ type CompanyWorkspaceInvitationRow =
 type CompanyRoleRow = Database["public"]["Tables"]["company_roles"]["Row"];
 type CompanyRoleWithInternalRow = CompanyRoleRow & {
   company_internal_roles?:
-    | { criteria?: unknown; request?: string | null }
-    | Array<{ criteria?: unknown; request?: string | null }>
+    | {
+        criteria?: unknown;
+        is_company_first_search?: boolean | null;
+        request?: string | null;
+      }
+    | Array<{
+        criteria?: unknown;
+        is_company_first_search?: boolean | null;
+        request?: string | null;
+      }>
     | null;
 };
 type CompanyMemoryRow = Database["public"]["Tables"]["company_memories"]["Row"];
@@ -310,6 +319,7 @@ export type OrgWorkspaceLeaveResponse = {
 export type OrgBuiltInStageId =
   | "accepted"
   | "archived"
+  | "company_intro"
   | "pending_connection"
   | "connected"
   | "final_offer"
@@ -372,6 +382,23 @@ export type OrgBoardTalent = {
 };
 
 export type OrgBoardItem = {
+  capabilities: {
+    contactCandidate: boolean;
+    moveStage: boolean;
+    pass: boolean;
+    requestIntro: boolean;
+    scheduleInterview: boolean;
+    viewResume: boolean;
+  };
+  companyIntro: {
+    candidateSentAt: string | null;
+    companyAppeal: string | null;
+    id: string;
+    nextStageId: string | null;
+    requestedAt: string | null;
+    selectionReason: string;
+    status: "ready" | "awaiting_talent" | "connecting";
+  } | null;
   criteriaEvaluations: OrgCompanyCriteriaEvaluation[];
   createdAt: string;
   fitReasons: string[];
@@ -381,6 +408,7 @@ export type OrgBoardItem = {
   processClosureNoticeUnresolved: boolean;
   roleId: string;
   roleName: string | null;
+  source: "company_intro" | "recommendation";
   stage: OrgStageId;
   stageTag: string | null;
   talent: OrgBoardTalent;
@@ -404,6 +432,13 @@ export type OrgBoardResponse = {
   stages: OrgStage[];
   totalCount: number;
   workspaceId: string;
+};
+
+export type OrgCompanyIntroMutationResponse = {
+  deliveryRunId?: string | null;
+  introCandidateId: string;
+  ok: true;
+  status: string;
 };
 
 export type OrgBoardProfileLabelsResponse = {
@@ -545,6 +580,8 @@ export type OrgCompanyTalentRequestFeedItem = {
 };
 
 export type OrgTalentDetailResponse = {
+  capabilities: OrgBoardItem["capabilities"];
+  companyIntro: OrgBoardItem["companyIntro"];
   companyRequestHistory: OrgCompanyTalentRequestFeedItem[];
   connectionConfirmationEmails: OpsMatchingConnectionConfirmationEmail[];
   feed: OrgFeedItem[];
@@ -684,13 +721,17 @@ export type OrgStageChangeOptions = {
 };
 
 const CUSTOM_STAGE_ID_PREFIX = "custom:";
+const COMPANY_INTRO_RECOMMENDATION_PREFIX = "company-intro:";
 const CUSTOM_STAGE_TAG_PREFIX = "내부단계:";
 const ORG_BOARD_MAX_RECOMMENDATION_COUNT = 800;
 const ORG_BOARD_STAGE_DEPENDENCY_CAP = 1_000;
 export const ORG_ACCEPTED_TALENTS_PAGE_SIZE = 20;
 const MAX_ORG_ROLE_STAGE_LABEL_LENGTH = 40;
 const INTERNAL_ACCEPTED_STAGE_TAG = "내부:수락";
-const STAGE_TAG_BY_STAGE: Record<OrgBuiltInStageId, string> = {
+const STAGE_TAG_BY_STAGE: Record<
+  Exclude<OrgBuiltInStageId, "company_intro">,
+  string
+> = {
   accepted: INTERNAL_ACCEPTED_STAGE_TAG,
   archived: "내부:아카이브",
   pending_connection: "내부:연결대기",
@@ -720,6 +761,34 @@ function normalizeNullableText(value: unknown) {
 function getJsonRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return value as Record<string, unknown>;
+}
+
+function companyIntroRoleIsAvailable(
+  role: CompanyRoleWithInternalRow,
+  talentId?: string | null
+) {
+  const expiresAtMs = Date.parse(normalizeText(role.expires_at));
+  const information = getJsonRecord(role.information);
+  const testOnly = information.testOnly;
+  const isTestOnly =
+    testOnly === true ||
+    ["true", "1", "yes", "on"].includes(normalizeText(testOnly).toLowerCase());
+  const allowedFixtureTalentIds = Array.isArray(information.testTalentIds)
+    ? information.testTalentIds.map(normalizeText).filter(Boolean)
+    : [];
+  const internalRole = Array.isArray(role.company_internal_roles)
+    ? role.company_internal_roles[0]
+    : role.company_internal_roles;
+  return (
+    normalizeText(role.source_type).toLowerCase() === "internal" &&
+    internalRole?.is_company_first_search === true &&
+    ["active", "paused", "top_priority"].includes(
+      normalizeText(role.status).toLowerCase()
+    ) &&
+    role.is_expired !== true &&
+    (!Number.isFinite(expiresAtMs) || expiresAtMs > Date.now()) &&
+    (!isTestOnly || allowedFixtureTalentIds.includes(normalizeText(talentId)))
+  );
 }
 
 function normalizeLooseEmailList(value: unknown) {
@@ -1186,6 +1255,7 @@ function customTagKeyFromStageRow(row: RoleStageRow) {
 function buildStageLabel(stage: OrgStageId, customStages: RoleStageRow[]) {
   if (stage === "accepted") return "수락";
   if (stage === "archived") return "아카이브";
+  if (stage === "company_intro") return "먼저 제안 가능한 후보";
   if (stage === "pending_connection") return "연결 대기";
   if (stage === "connected") return "연결됨";
   if (stage === "final_offer") return "최종 오퍼";
@@ -1211,6 +1281,7 @@ function buildStageDestinationLabel(label: string) {
 
 function stageSortOrder(stage: OrgStageId, customStages: RoleStageRow[]) {
   if (stage === "accepted") return -1;
+  if (stage === "company_intro") return -0.5;
   if (stage === "pending_connection") return 0;
   if (stage === "connected") return 1;
   if (stage === "final_offer") return 10_000;
@@ -1332,7 +1403,7 @@ async function fetchWorkspaceById(
 ) {
   const { data, error } = await (admin.from("company_workspace" as any) as any)
     .select(
-      "company_workspace_id, company_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, is_internal, updated_at"
+      "company_workspace_id, company_name, published_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, is_internal, updated_at"
     )
     .eq("company_workspace_id", workspaceId)
     .maybeSingle();
@@ -2284,7 +2355,7 @@ async function fetchRoleRowsForWorkspace(
 ) {
   const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, source_type, type, location_text, work_mode, created_at, updated_at, is_expired, company_internal_roles(request, criteria)"
+      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, source_type, type, location_text, work_mode, created_at, updated_at, expires_at, information, is_expired, company_internal_roles(request, criteria, is_company_first_search)"
     )
     .eq("company_workspace_id", workspaceId)
     .eq("source_type", "internal")
@@ -2332,6 +2403,7 @@ function buildBoardStages(args: {
           },
         ]
       : []),
+    { id: "company_intro", label: "먼저 제안 가능한 후보", sortOrder: -0.5 },
     { id: "pending_connection", label: "연결 대기", sortOrder: 0 },
     { id: "connected", label: "연결됨", sortOrder: 1 },
     ...args.customStages.map((row) => {
@@ -2685,7 +2757,9 @@ async function fetchLatestProcessClosureNoticeAtByRecommendation(args: {
   admin: SupabaseAdminClient;
   recommendationIds: string[];
 }) {
-  const recommendationIds = uniqueTexts(args.recommendationIds);
+  const recommendationIds = uniqueTexts(args.recommendationIds).filter(
+    (id) => !id.startsWith(COMPANY_INTRO_RECOMMENDATION_PREFIX)
+  );
   if (recommendationIds.length === 0) return new Map<string, string>();
   const results = await Promise.all(
     chunkValues(recommendationIds).map(async (recommendationIdChunk) => {
@@ -2817,6 +2891,24 @@ export async function fetchOrgBoard(args: {
     fromDate: args.recommendedFromDate,
     toDate: args.recommendedToDate,
   });
+  let companyIntroQuery = (admin.from("company_intro_candidates" as any) as any)
+    .select(
+      "id, talent_id, role_id, selection_reason, presentation, status, recommendation_id, requested_at, company_appeal, next_stage_id, candidate_sent_at, selected_at, created_at, updated_at"
+    )
+    .eq("company_workspace_id", workspaceId)
+    .in("role_id", roleIds)
+    .in("status", ["ready", "awaiting_talent", "connecting"])
+    .order("selected_at", { ascending: false })
+    .limit(ORG_BOARD_MAX_RECOMMENDATION_COUNT);
+  if (dateRange.startIso) {
+    companyIntroQuery = companyIntroQuery.gte(
+      "selected_at",
+      dateRange.startIso
+    );
+  }
+  if (dateRange.endIso) {
+    companyIntroQuery = companyIntroQuery.lt("selected_at", dateRange.endIso);
+  }
   let recommendationQuery = (
     admin.from("talent_opportunity_recommendation" as any) as any
   )
@@ -2844,11 +2936,92 @@ export async function fetchOrgBoard(args: {
     );
   }
 
-  const { data: recommendations, error } = await recommendationQuery;
+  const [recommendationResult, introResult, workspace] = await Promise.all([
+    recommendationQuery,
+    companyIntroQuery,
+    fetchWorkspaceById(admin, workspaceId),
+  ]);
+  const { data: recommendations, error } = recommendationResult;
   if (error) throw error;
+  if (introResult.error) throw introResult.error;
+  if (!workspace) throw new OrgHttpError(404, "Workspace not found");
 
-  const recommendationRows = (recommendations ?? []) as RecommendationRow[];
-  const talentIds = uniqueTexts(recommendationRows.map((row) => row.talent_id));
+  type CompanyIntroBoardRow = {
+    candidate_sent_at: string | null;
+    company_appeal: string | null;
+    created_at: string;
+    id: string;
+    next_stage_id: string | null;
+    presentation: Json;
+    recommendation_id: string | null;
+    requested_at: string | null;
+    role_id: string;
+    selected_at: string;
+    selection_reason: string;
+    status: "ready" | "awaiting_talent" | "connecting";
+    talent_id: string;
+    updated_at: string;
+  };
+  const rawCompanyIntroRows = (introResult.data ??
+    []) as CompanyIntroBoardRow[];
+  const introTalentIds = uniqueTexts(
+    rawCompanyIntroRows.map((row) => row.talent_id)
+  );
+  const { data: introSettings, error: introSettingsError } =
+    introTalentIds.length
+      ? await (admin.from("talent_setting" as any) as any)
+          .select(
+            "user_id, profile_visibility, get_internal_recommendation, is_onboarding_done, blocked_companies"
+          )
+          .in("user_id", introTalentIds)
+      : { data: [], error: null };
+  if (introSettingsError) throw introSettingsError;
+  type CompanyIntroTalentSetting = {
+    blocked_companies: unknown;
+    get_internal_recommendation: boolean | null;
+    is_onboarding_done: boolean | null;
+    profile_visibility: string | null;
+    user_id: string;
+  };
+  const introSettingByTalentId = new Map<string, CompanyIntroTalentSetting>(
+    ((introSettings ?? []) as CompanyIntroTalentSetting[]).map((row) => [
+      row.user_id,
+      row,
+    ])
+  );
+  const companyNames = [workspace.company_name, workspace.published_name]
+    .map((value) => normalizeText(value).toLowerCase())
+    .filter(Boolean);
+  const companyIntroRows = rawCompanyIntroRows.filter((row) => {
+    const setting = introSettingByTalentId.get(row.talent_id);
+    const role = roleById.get(row.role_id);
+    const blockedCompanies = Array.isArray(setting?.blocked_companies)
+      ? setting.blocked_companies.map((value: unknown) =>
+          normalizeText(value).toLowerCase()
+        )
+      : [];
+    return (
+      setting?.is_onboarding_done === true &&
+      normalizeText(setting?.profile_visibility).toLowerCase() ===
+        "open_to_matches" &&
+      setting?.get_internal_recommendation !== false &&
+      Boolean(role && companyIntroRoleIsAvailable(role, row.talent_id)) &&
+      !blockedCompanies.some((name: string) => companyNames.includes(name))
+    );
+  });
+  const introRecommendationIds = new Set(
+    companyIntroRows.flatMap((row) =>
+      row.recommendation_id ? [row.recommendation_id] : []
+    )
+  );
+
+  const recommendationRows = (
+    (recommendations ?? []) as RecommendationRow[]
+  ).filter((row) => !introRecommendationIds.has(row.id));
+  const talentIds = uniqueTexts([
+    ...recommendationRows.map((row) => row.talent_id),
+    ...companyIntroRows.map((row) => row.talent_id),
+  ]);
   const [
     talentById,
     tagsByKey,
@@ -2895,17 +3068,107 @@ export async function fetchOrgBoard(args: {
   );
   const searchQuery = normalizeText(args.query).toLowerCase();
 
-  const items = recommendationRows.flatMap((row): OrgBoardItem[] => {
+  const recommendationItems = recommendationRows.flatMap(
+    (row): OrgBoardItem[] => {
+      const talent = talentById.get(row.talent_id);
+      if (!talent) return [];
+      const recentCompanies =
+        profileLabels.recentCompanies.get(row.talent_id) ?? [];
+      const recentSchools =
+        profileLabels.recentSchools.get(row.talent_id) ?? [];
+
+      if (searchQuery) {
+        const haystack = [
+          talent.name,
+          talent.email,
+          talent.headline,
+          roleById.get(row.role_id)?.name,
+          ...recentCompanies.flatMap((item) => [
+            item.label,
+            item.detail,
+            item.period,
+          ]),
+          ...recentSchools.flatMap((item) => [
+            item.label,
+            item.detail,
+            item.period,
+          ]),
+        ]
+          .map((value) => normalizeText(value).toLowerCase())
+          .join(" ");
+        if (!haystack.includes(searchQuery)) return [];
+      }
+
+      const stageRows = tagsByKey.get(`${row.talent_id}:${row.role_id}`) ?? [];
+      const stageInfo = getVisibleOrgStage({
+        connectedByOrgAction: connectedRecommendationIds.has(row.id),
+        customStageByTagKey,
+        feedback: row.feedback,
+        includeInternalAccepted,
+        isInternalRecommendation:
+          normalizeText(
+            roleById.get(row.role_id)?.source_type
+          ).toLowerCase() === "internal",
+        savedStage: row.saved_stage,
+        tags: stageRows,
+      });
+      if (!stageInfo) return [];
+      const currentStageRow = stageInfo.stageTag
+        ? stageRows.find(
+            (stageRow) =>
+              normalizeTagKey(stageRow.tag) ===
+              normalizeTagKey(stageInfo.stageTag)
+          )
+        : null;
+
+      return [
+        {
+          capabilities: {
+            contactCandidate: true,
+            moveStage: true,
+            pass: false,
+            requestIntro: false,
+            scheduleInterview: true,
+            viewResume: true,
+          },
+          companyIntro: null,
+          criteriaEvaluations:
+            criteriaEvaluationsByKey.get(`${row.talent_id}:${row.role_id}`) ??
+            [],
+          createdAt: row.created_at,
+          fitReasons: coerceJsonStringList(row.fit_reasons),
+          fitSummary: row.fit_summary ?? null,
+          recommendedAt: row.recommended_at,
+          recommendationId: row.id,
+          processClosureNoticeUnresolved: isOrgProcessClosureNoticeUnresolved({
+            currentStageChangedAt:
+              currentStageRow?.updated_at ?? currentStageRow?.created_at,
+            deliveredAt:
+              processClosureNoticeAtByRecommendation.get(row.id) ?? null,
+            savedStage: row.saved_stage,
+          }),
+          roleId: row.role_id,
+          roleName: roleById.get(row.role_id)?.name ?? null,
+          source: "recommendation",
+          stage: stageInfo.stage,
+          stageTag: stageInfo.stageTag,
+          talent: toBoardTalent(talent, { recentCompanies, recentSchools }),
+          talentId: row.talent_id,
+          upcomingMeeting: upcomingMeetingsByRecommendation.get(row.id) ?? null,
+          updatedAt: row.updated_at,
+        },
+      ];
+    }
+  );
+  const companyIntroItems = companyIntroRows.flatMap((row): OrgBoardItem[] => {
     const talent = talentById.get(row.talent_id);
     if (!talent) return [];
     const recentCompanies =
       profileLabels.recentCompanies.get(row.talent_id) ?? [];
     const recentSchools = profileLabels.recentSchools.get(row.talent_id) ?? [];
-
     if (searchQuery) {
       const haystack = [
         talent.name,
-        talent.email,
         talent.headline,
         roleById.get(row.role_id)?.name,
         ...recentCompanies.flatMap((item) => [
@@ -2923,55 +3186,49 @@ export async function fetchOrgBoard(args: {
         .join(" ");
       if (!haystack.includes(searchQuery)) return [];
     }
-
-    const stageRows = tagsByKey.get(`${row.talent_id}:${row.role_id}`) ?? [];
-    const stageInfo = getVisibleOrgStage({
-      connectedByOrgAction: connectedRecommendationIds.has(row.id),
-      customStageByTagKey,
-      feedback: row.feedback,
-      includeInternalAccepted,
-      isInternalRecommendation:
-        normalizeText(roleById.get(row.role_id)?.source_type).toLowerCase() ===
-        "internal",
-      savedStage: row.saved_stage,
-      tags: stageRows,
-    });
-    if (!stageInfo) return [];
-    const currentStageRow = stageInfo.stageTag
-      ? stageRows.find(
-          (stageRow) =>
-            normalizeTagKey(stageRow.tag) ===
-            normalizeTagKey(stageInfo.stageTag)
-        )
-      : null;
-
+    const canDecide = row.status === "ready";
     return [
       {
-        criteriaEvaluations:
-          criteriaEvaluationsByKey.get(`${row.talent_id}:${row.role_id}`) ?? [],
+        capabilities: {
+          contactCandidate: false,
+          moveStage: false,
+          pass: canDecide,
+          requestIntro: canDecide,
+          scheduleInterview: false,
+          viewResume: false,
+        },
+        companyIntro: {
+          candidateSentAt: row.candidate_sent_at,
+          companyAppeal: row.company_appeal,
+          id: row.id,
+          nextStageId: row.next_stage_id,
+          requestedAt: row.requested_at,
+          selectionReason: row.selection_reason,
+          status: row.status,
+        },
+        criteriaEvaluations: [],
         createdAt: row.created_at,
-        fitReasons: coerceJsonStringList(row.fit_reasons),
-        fitSummary: row.fit_summary ?? null,
-        recommendedAt: row.recommended_at,
-        recommendationId: row.id,
-        processClosureNoticeUnresolved: isOrgProcessClosureNoticeUnresolved({
-          currentStageChangedAt:
-            currentStageRow?.updated_at ?? currentStageRow?.created_at,
-          deliveredAt:
-            processClosureNoticeAtByRecommendation.get(row.id) ?? null,
-          savedStage: row.saved_stage,
-        }),
+        fitReasons: [],
+        fitSummary: row.selection_reason,
+        recommendedAt: row.selected_at,
+        recommendationId: `${COMPANY_INTRO_RECOMMENDATION_PREFIX}${row.id}`,
+        processClosureNoticeUnresolved: false,
         roleId: row.role_id,
         roleName: roleById.get(row.role_id)?.name ?? null,
-        stage: stageInfo.stage,
-        stageTag: stageInfo.stageTag,
-        talent: toBoardTalent(talent, { recentCompanies, recentSchools }),
+        source: "company_intro",
+        stage: "company_intro",
+        stageTag: null,
+        talent: {
+          ...toBoardTalent(talent, { recentCompanies, recentSchools }),
+          email: null,
+        },
         talentId: row.talent_id,
-        upcomingMeeting: upcomingMeetingsByRecommendation.get(row.id) ?? null,
+        upcomingMeeting: null,
         updatedAt: row.updated_at,
       },
     ];
   });
+  const items = [...companyIntroItems, ...recommendationItems];
 
   return {
     dependencyCompleteness: {
@@ -3183,10 +3440,17 @@ export async function fetchOrgBoardProfileLabels(args: {
 }): Promise<OrgBoardProfileLabelsResponse> {
   const admin = getSupabaseAdmin();
   const workspaceId = normalizeText(args.workspaceId);
-  const recommendationIds = uniqueTexts(args.recommendationIds);
+  const requestedIds = uniqueTexts(args.recommendationIds);
+  const companyIntroIds = requestedIds
+    .filter((id) => id.startsWith(COMPANY_INTRO_RECOMMENDATION_PREFIX))
+    .map((id) => id.slice(COMPANY_INTRO_RECOMMENDATION_PREFIX.length))
+    .filter(Boolean);
+  const recommendationIds = requestedIds.filter(
+    (id) => !id.startsWith(COMPANY_INTRO_RECOMMENDATION_PREFIX)
+  );
 
   if (!workspaceId) throw new OrgHttpError(400, "workspaceId is required");
-  if (recommendationIds.length > ORG_BOARD_MAX_RECOMMENDATION_COUNT) {
+  if (requestedIds.length > ORG_BOARD_MAX_RECOMMENDATION_COUNT) {
     throw new OrgHttpError(
       400,
       `recommendationIds must contain at most ${ORG_BOARD_MAX_RECOMMENDATION_COUNT} items`
@@ -3199,7 +3463,7 @@ export async function fetchOrgBoardProfileLabels(args: {
     user: args.user,
     workspaceId,
   });
-  if (recommendationIds.length === 0) {
+  if (requestedIds.length === 0) {
     return { items: [], workspaceId };
   }
 
@@ -3221,8 +3485,24 @@ export async function fetchOrgBoardProfileLabels(args: {
       return (data ?? []) as Array<{ id: string; talent_id: string }>;
     })
   );
+  const introResults = await Promise.all(
+    chunkValues(companyIntroIds).map(async (introIdChunk) => {
+      const { data, error } = await (
+        admin.from("company_intro_candidates" as any) as any
+      )
+        .select("id, talent_id")
+        .eq("company_workspace_id", workspaceId)
+        .in("id", introIdChunk)
+        .in("role_id", roleIds)
+        .in("status", ["ready", "awaiting_talent", "connecting"]);
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; talent_id: string }>;
+    })
+  );
   const talentIds = uniqueTexts(
-    recommendationResults.flat().map((row) => row.talent_id)
+    [...recommendationResults.flat(), ...introResults.flat()].map(
+      (row) => row.talent_id
+    )
   );
   const activeTalentById = await fetchTalentRows(admin, talentIds);
   const activeTalentIds = [...activeTalentById.keys()];
@@ -3241,6 +3521,422 @@ export async function fetchOrgBoardProfileLabels(args: {
   };
 }
 
+function normalizeCompanyIntroRpcResult(value: unknown) {
+  const result = getJsonRecord(value);
+  return {
+    deliveryRunId: normalizeNullableText(result.deliveryRunId),
+    introCandidateId: normalizeText(result.introCandidateId),
+    status: normalizeText(result.status),
+  };
+}
+
+async function assertNoPendingCompanyIntroCompanyAction(args: {
+  admin: SupabaseAdminClient;
+  talentId: string;
+  workspaceId: string;
+}) {
+  const { data, error } = await (
+    args.admin.from("company_intro_candidates" as any) as any
+  )
+    .select("id")
+    .eq("company_workspace_id", args.workspaceId)
+    .eq("talent_id", args.talentId)
+    .in("status", ["ready", "awaiting_talent", "connecting"])
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (data) {
+    throw new OrgHttpError(
+      409,
+      "먼저 제안 가능한 후보에게 추가로 연락하려면 연결이 완료되어야 합니다. 제안 전에는 먼저 제안하기 또는 제안하지 않기를 선택하고, 제안을 요청했다면 카드에서 진행 상태를 확인해 주세요."
+    );
+  }
+}
+
+export async function requestOrgCompanyIntro(args: {
+  companyAppeal: string;
+  introCandidateId: string;
+  introRecipientEmails: string[];
+  nextStageId: string;
+  user: User;
+  workspaceId: string;
+}): Promise<OrgCompanyIntroMutationResponse> {
+  const admin = getSupabaseAdmin();
+  const workspaceId = normalizeText(args.workspaceId);
+  const introCandidateId = normalizeText(args.introCandidateId);
+  const nextStageId = normalizeText(args.nextStageId);
+  const companyAppeal = String(args.companyAppeal ?? "").trim();
+  const introRecipientEmails = normalizeLooseEmailList(
+    args.introRecipientEmails
+  );
+  if (!workspaceId || !introCandidateId || !nextStageId) {
+    throw new OrgHttpError(400, "필수 제안 정보가 누락되었습니다.");
+  }
+  if (!companyAppeal) {
+    throw new OrgHttpError(
+      400,
+      "후보자에게 전할 회사의 관심 이유를 입력해 주세요."
+    );
+  }
+  if (
+    introRecipientEmails.length === 0 ||
+    introRecipientEmails.some((email) => !isValidEmailAddress(email))
+  ) {
+    throw new OrgHttpError(400, "CC로 연결할 회사 이메일을 확인해 주세요.");
+  }
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "manage_candidates",
+    user: args.user,
+    workspaceId,
+  });
+  await upsertOrgCompanyUser(admin, args.user);
+  const { data, error } = await (admin.rpc as any)("request_company_intro_v1", {
+    p_company_appeal: companyAppeal,
+    p_company_user_id: args.user.id,
+    p_company_workspace_id: workspaceId,
+    p_intro_candidate_id: introCandidateId,
+    p_intro_recipient_emails: introRecipientEmails,
+    p_next_stage_id: nextStageId,
+  });
+  if (error) {
+    const message = normalizeText(error.message);
+    if (message.includes("company_intro_talent_unavailable")) {
+      throw new OrgHttpError(
+        409,
+        "후보자의 공개 또는 추천 수신 설정이 바뀌어 먼저 제안할 수 없습니다."
+      );
+    }
+    if (message.includes("company_intro_not_requestable")) {
+      throw new OrgHttpError(
+        409,
+        "이미 처리되었거나 답변을 기다리는 후보자입니다."
+      );
+    }
+    throw error;
+  }
+  const result = normalizeCompanyIntroRpcResult(data);
+  if (result.status === "talent_unavailable") {
+    throw new OrgHttpError(
+      409,
+      "후보자의 공개 또는 추천 수신 설정이 바뀌어 먼저 제안할 수 없습니다."
+    );
+  }
+  if (result.status === "role_unavailable") {
+    throw new OrgHttpError(409, "현재 이 역할에는 먼저 제안할 수 없습니다.");
+  }
+  return {
+    deliveryRunId: result.deliveryRunId,
+    introCandidateId: result.introCandidateId || introCandidateId,
+    ok: true,
+    status: result.status || "requested",
+  };
+}
+
+export async function passOrgCompanyIntro(args: {
+  introCandidateId: string;
+  user: User;
+  workspaceId: string;
+}): Promise<OrgCompanyIntroMutationResponse> {
+  const admin = getSupabaseAdmin();
+  const workspaceId = normalizeText(args.workspaceId);
+  const introCandidateId = normalizeText(args.introCandidateId);
+  if (!workspaceId || !introCandidateId) {
+    throw new OrgHttpError(400, "제안할 후보자 정보가 누락되었습니다.");
+  }
+  await assertOrgWorkspacePermission({
+    admin,
+    permission: "manage_candidates",
+    user: args.user,
+    workspaceId,
+  });
+  await upsertOrgCompanyUser(admin, args.user);
+  const { data, error } = await (admin.rpc as any)("pass_company_intro_v1", {
+    p_company_user_id: args.user.id,
+    p_company_workspace_id: workspaceId,
+    p_intro_candidate_id: introCandidateId,
+  });
+  if (error) throw error;
+  const result = normalizeCompanyIntroRpcResult(data);
+  return {
+    introCandidateId: result.introCandidateId || introCandidateId,
+    ok: true,
+    status: result.status || "passed",
+  };
+}
+
+export async function decideTalentCompanyIntro(args: {
+  decision: "accept" | "decline";
+  emailAcceptanceConfirmation?: Json | null;
+  feedbackReason?: string | null;
+  recommendationId: string;
+  talentId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const { data, error } = await (admin.rpc as any)(
+    "decide_company_intro_request_v1",
+    {
+      p_decision: args.decision,
+      p_email_acceptance_confirmation: args.emailAcceptanceConfirmation ?? null,
+      p_feedback_reason: normalizeNullableText(args.feedbackReason),
+      p_recommendation_id: args.recommendationId,
+      p_talent_id: args.talentId,
+    }
+  );
+  if (error) throw error;
+  const result = getJsonRecord(data);
+  const status = normalizeText(result.status);
+  const decisionReason = normalizeText(result.reason);
+  if (status === "unavailable") {
+    if (decisionReason === "already_accepted") {
+      throw new OrgHttpError(409, "이미 수락되어 연결이 진행 중인 제안입니다.");
+    }
+    throw new OrgHttpError(
+      409,
+      "현재는 이 회사의 제안을 처리할 수 없습니다."
+    );
+  }
+  const introCandidateId = normalizeText(result.introCandidateId);
+  const workspaceId = normalizeText(result.companyWorkspaceId);
+  const roleId = normalizeText(result.roleId);
+  const nextStageId = normalizeText(result.nextStageId);
+  const decisionChanged = result.decisionChanged === true;
+
+  if (
+    args.decision === "accept" &&
+    status === "no_change" &&
+    decisionReason === "already_connected"
+  ) {
+    return {
+      ok: true as const,
+      status: "connected",
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  if (args.decision === "decline") {
+    if (
+      (decisionChanged || decisionReason === "talent_declined") &&
+      introCandidateId &&
+      workspaceId &&
+      roleId
+    ) {
+      try {
+        const [candidate, roleResult] = await Promise.all([
+          fetchOrgSlackTalent(admin, args.talentId),
+          (admin.from("company_roles" as any) as any)
+            .select("name")
+            .eq("role_id", roleId)
+            .maybeSingle(),
+        ]);
+        if (roleResult.error) throw roleResult.error;
+        await notifyCompanyIntroTalentDeclinedSlack({
+          candidateName: candidate?.name ?? candidate?.email ?? "후보자",
+          introCandidateId,
+          roleId,
+          roleName: normalizeText(roleResult.data?.name) || "해당 역할",
+          workspaceId,
+        });
+      } catch (slackError) {
+        console.error(
+          "[company-intro] decline Slack notification failed",
+          slackError
+        );
+      }
+    }
+    return {
+      ok: true as const,
+      status: "declined",
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  if (!introCandidateId || !workspaceId || !roleId || !nextStageId) {
+    throw new OrgHttpError(409, "Intro 연결 정보가 완전하지 않습니다.");
+  }
+  const { data: intro, error: introError } = await (
+    admin.from("company_intro_candidates" as any) as any
+  )
+    .select(
+      "id, requested_by_company_user_id, intro_recipient_emails, recommendation_id, status"
+    )
+    .eq("id", introCandidateId)
+    .eq("talent_id", args.talentId)
+    .maybeSingle();
+  if (introError) throw introError;
+  const requestedByCompanyUserId = normalizeText(
+    intro?.requested_by_company_user_id
+  );
+  if (!intro || !intro.recommendation_id) {
+    throw new OrgHttpError(409, "제안 담당자 정보를 찾을 수 없습니다.");
+  }
+  if (normalizeText(intro.status) === "connected") {
+    return {
+      ok: true as const,
+      status: "connected",
+      updatedAt: new Date().toISOString(),
+    };
+  }
+  if (normalizeText(intro.status) !== "connecting") {
+    throw new OrgHttpError(409, "현재는 이 제안을 연결할 수 없습니다.");
+  }
+  const { data: managingMemberships, error: managingMembershipsError } = await (
+    admin.from("company_user_workspace" as any) as any
+  )
+    .select("company_user_id, authority, created_at")
+    .eq("company_workspace_id", workspaceId);
+  if (managingMembershipsError) throw managingMembershipsError;
+  const managingMemberIds = (managingMemberships ?? [])
+    .filter(
+      (membership: { authority: string | null }) =>
+        getOrgPermissions(membership.authority).canManageCandidates
+    )
+    .sort(
+      (
+        left: { company_user_id: string; created_at: string },
+        right: { company_user_id: string; created_at: string }
+      ) =>
+        left.created_at.localeCompare(right.created_at) ||
+        left.company_user_id.localeCompare(right.company_user_id)
+    )
+    .map((membership: { company_user_id: string }) =>
+      normalizeText(membership.company_user_id)
+    )
+    .filter(Boolean);
+  const companyUserId = managingMemberIds.includes(requestedByCompanyUserId)
+    ? requestedByCompanyUserId
+    : managingMemberIds[0];
+  if (!companyUserId) {
+    throw new OrgHttpError(
+      409,
+      "연결을 이어갈 회사 담당자를 찾을 수 없습니다."
+    );
+  }
+  const { data: companyUser, error: companyUserError } = await (
+    admin.from("company_users" as any) as any
+  )
+    .select("user_id, email, name, profile_picture")
+    .eq("user_id", companyUserId)
+    .maybeSingle();
+  if (companyUserError) throw companyUserError;
+  if (!companyUser)
+    throw new OrgHttpError(409, "제안 담당자를 찾을 수 없습니다.");
+  const actor = {
+    app_metadata: {},
+    aud: "authenticated",
+    created_at: new Date(0).toISOString(),
+    email: companyUser.email ?? undefined,
+    id: companyUserId,
+    user_metadata: {
+      avatar_url: companyUser.profile_picture ?? undefined,
+      name: companyUser.name ?? undefined,
+    },
+  } as User;
+  const targetStage = buildCustomStageId(nextStageId);
+  try {
+    await setOrgCandidateStage({
+      companyIntroCandidateId: introCandidateId,
+      emailMode: "skip",
+      expectedPreviousStage: "pending_connection",
+      introEmails: Array.isArray(intro.intro_recipient_emails)
+        ? intro.intro_recipient_emails
+        : [],
+      recommendationId: intro.recommendation_id,
+      roleId,
+      stage: targetStage,
+      talentId: args.talentId,
+      user: actor,
+      workspaceId,
+    });
+  } catch (stageError) {
+    if (!(stageError instanceof OrgHttpError && stageError.status === 409)) {
+      throw stageError;
+    }
+    const expectedTag = buildCustomStageTag(nextStageId);
+    const { data: existingTag, error: tagError } = await (
+      admin.from("talent_opportunity_tag" as any) as any
+    )
+      .select("id")
+      .eq("talent_id", args.talentId)
+      .eq("opportunity_id", roleId)
+      .eq("tag", expectedTag)
+      .maybeSingle();
+    if (tagError) throw tagError;
+    if (!existingTag) throw stageError;
+  }
+  const { data: connectedIntro, error: connectedError } = await (
+    admin.from("company_intro_candidates" as any) as any
+  )
+    .update({
+      connected_at: new Date().toISOString(),
+      status: "connected",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", introCandidateId)
+    .eq("status", "connecting")
+    .select("id")
+    .maybeSingle();
+  if (connectedError) throw connectedError;
+  if (!connectedIntro) {
+    const { data: latestIntro, error: latestIntroError } = await (
+      admin.from("company_intro_candidates" as any) as any
+    )
+      .select("status")
+      .eq("id", introCandidateId)
+      .maybeSingle();
+    if (latestIntroError) throw latestIntroError;
+    if (normalizeText(latestIntro?.status) !== "connected") {
+      throw new OrgHttpError(
+        409,
+        "Intro 연결 상태가 변경되어 완료 여부를 확인할 수 없습니다."
+      );
+    }
+  }
+  return {
+    ok: true as const,
+    status: "connected",
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export async function retryConnectingCompanyIntros(args?: { limit?: number }) {
+  const admin = getSupabaseAdmin();
+  const requestedLimit = Number(args?.limit ?? 3);
+  const limit = Number.isFinite(requestedLimit)
+    ? Math.max(1, Math.min(Math.floor(requestedLimit), 10))
+    : 3;
+  const { data, error } = await (
+    admin.from("company_intro_candidates" as any) as any
+  )
+    .select("id, recommendation_id, talent_id")
+    .eq("status", "connecting")
+    .not("recommendation_id", "is", null)
+    .order("updated_at", { ascending: true })
+    .limit(limit);
+  if (error) throw error;
+
+  const rows = (data ?? []) as Array<{
+    id: string;
+    recommendation_id: string;
+    talent_id: string;
+  }>;
+  const results = await Promise.allSettled(
+    rows.map((row) =>
+      decideTalentCompanyIntro({
+        decision: "accept",
+        recommendationId: row.recommendation_id,
+        talentId: row.talent_id,
+      })
+    )
+  );
+
+  return {
+    attempted: rows.length,
+    failed: results.filter((result) => result.status === "rejected").length,
+    succeeded: results.filter((result) => result.status === "fulfilled").length,
+  };
+}
+
 async function fetchRecommendationForStage(args: {
   admin: SupabaseAdminClient;
   recommendationId: string;
@@ -3251,7 +3947,7 @@ async function fetchRecommendationForStage(args: {
     args.admin.from("talent_opportunity_recommendation" as any) as any
   )
     .select(
-      "id, talent_id, role_id, fit_summary, fit_reasons, feedback, feedback_at, saved_stage, recommended_at, created_at, updated_at"
+      "id, talent_id, role_id, opportunity_type, fit_summary, fit_reasons, feedback, feedback_at, saved_stage, recommended_at, created_at, updated_at"
     )
     .eq("id", args.recommendationId)
     .eq("role_id", args.roleId)
@@ -3383,6 +4079,23 @@ function buildOrgIntroDeliveryIdentity(args: {
       normalizedUuidHex.slice(20, 32),
     ].join("-"),
   };
+}
+
+function buildOrgIntroProgressId(introCandidateId: string) {
+  const digest = createHash("sha256")
+    .update(`org-intro-progress:${introCandidateId}`)
+    .digest("hex");
+  const uuidHex = digest.slice(0, 32).split("");
+  uuidHex[12] = "4";
+  uuidHex[16] = "8";
+  const normalizedUuidHex = uuidHex.join("");
+  return [
+    normalizedUuidHex.slice(0, 8),
+    normalizedUuidHex.slice(8, 12),
+    normalizedUuidHex.slice(12, 16),
+    normalizedUuidHex.slice(16, 20),
+    normalizedUuidHex.slice(20, 32),
+  ].join("-");
 }
 
 function getOrgIntroFromEmail() {
@@ -3518,10 +4231,22 @@ async function sendOrgIntroEmail(args: {
           candidateName:
             normalizeText(args.candidate.name) || candidateEmail.split("@")[0],
           candidateProfessionalSummary,
+          companySummary:
+            [args.workspace.company_description, args.workspace.pitch]
+              .map((value) => normalizeText(value))
+              .find(Boolean)
+              ?.slice(0, 1_200) ?? null,
           companyName: args.workspace.company_name,
           companyUserName: args.companyUser.name,
           companyUserRole: args.companyUser.role,
+          connectionEvidence: coerceJsonStringList(
+            args.recommendation.fit_reasons
+          )
+            .map((value) => value.slice(0, 600))
+            .slice(0, 4),
           locale: introLocale,
+          roleSummary:
+            normalizeText(args.role.description).slice(0, 1_600) || null,
           roleTitle: args.role.name,
           senderName: "Harper",
         });
@@ -3715,19 +4440,26 @@ async function upsertRecommendationProcessedStage(args: {
   stage: OrgStageId;
   talentId: string;
 }) {
-  const { error } = await (
+  const { data, error } = await (
     args.admin.from("talent_opportunity_recommendation" as any) as any
-  ).upsert(
-    {
+  )
+    .update({
       id: args.recommendationId,
       processed_stage: args.stage,
-      role_id: args.roleId,
-      talent_id: args.talentId,
       updated_at: new Date().toISOString(),
-    },
-    { onConflict: "id" }
-  );
+    })
+    .eq("id", args.recommendationId)
+    .eq("role_id", args.roleId)
+    .eq("talent_id", args.talentId)
+    .select("id")
+    .maybeSingle();
   if (error) throw error;
+  if (!data) {
+    throw new OrgHttpError(
+      409,
+      "Candidate recommendation changed before the stage update completed"
+    );
+  }
 }
 
 const ORG_CANDIDATE_ROLE_MOVE_STATUSES = new Set<
@@ -3841,6 +4573,7 @@ export async function moveOrgCandidateToRole(args: {
 
 export async function setOrgCandidateStage(args: {
   acceptReason?: string | null;
+  companyIntroCandidateId?: string | null;
   contactDirectly?: boolean;
   emailMode?: InternalConnectionConfirmationEmailMode;
   expectedPreviousStage?: OrgStageId;
@@ -3903,9 +4636,33 @@ export async function setOrgCandidateStage(args: {
   const roleRows = await fetchRoleRowsForWorkspace(admin, workspaceId);
   const role = roleRows.find((row) => row.role_id === roleId);
   if (!role) throw new OrgHttpError(404, "Role not found");
+  const stageRows = await fetchStageRowsForRole(admin, roleId);
+  validateStageForRole(stage, stageRows);
+  const recommendation = await fetchRecommendationForStage({
+    admin,
+    recommendationId,
+    roleId,
+    talentId,
+  });
+  const { data: companyIntro, error: companyIntroError } = await (
+    admin.from("company_intro_candidates" as any) as any
+  )
+    .select("id, next_stage_id, status")
+    .eq("company_workspace_id", workspaceId)
+    .eq("role_id", roleId)
+    .eq("talent_id", talentId)
+    .eq("recommendation_id", recommendationId)
+    .maybeSingle();
+  if (companyIntroError) throw companyIntroError;
+  const authorizedCompanyIntroTransition =
+    recommendation.opportunity_type === "intro_request" &&
+    companyIntro?.status === "connecting" &&
+    normalizeText(args.companyIntroCandidateId) === companyIntro.id &&
+    stage === buildCustomStageId(companyIntro.next_stage_id);
   if (
     candidateReengagementAppliesToStage(stage) &&
-    !internalCandidateRoleIsOpen(role)
+    !internalCandidateRoleIsOpen(role) &&
+    !authorizedCompanyIntroTransition
   ) {
     throw new OrgHttpError(
       409,
@@ -3914,6 +4671,7 @@ export async function setOrgCandidateStage(args: {
   }
   const assignedIntroEmails =
     canInitiateContact &&
+    !authorizedCompanyIntroTransition &&
     !contactDirectly &&
     !scheduleInterview &&
     !skipAutomaticContact
@@ -3923,15 +4681,29 @@ export async function setOrgCandidateStage(args: {
     ...requestedIntroEmails,
     ...assignedIntroEmails,
   ]);
-
-  const stageRows = await fetchStageRowsForRole(admin, roleId);
-  validateStageForRole(stage, stageRows);
-  const recommendation = await fetchRecommendationForStage({
-    admin,
-    recommendationId,
-    roleId,
-    talentId,
-  });
+  if (recommendation.opportunity_type === "intro_request") {
+    if (companyIntro?.status === "connecting") {
+      if (!authorizedCompanyIntroTransition) {
+        throw new OrgHttpError(
+          409,
+          "이 후보자와 연결이 완료되기 전에는 추가 연락이나 일반 단계 이동을 할 수 없습니다."
+        );
+      }
+    } else if (companyIntro?.status !== "connected") {
+      throw new OrgHttpError(
+        409,
+        "이 후보자와 연결이 완료되기 전에는 추가 연락이나 일반 단계 이동을 할 수 없습니다."
+      );
+    }
+  } else if (
+    companyIntro?.status === "awaiting_talent" ||
+    companyIntro?.status === "connecting"
+  ) {
+    throw new OrgHttpError(
+      409,
+      "이 후보자와 연결이 완료되기 전에는 추가 연락이나 일반 단계 이동을 할 수 없습니다."
+    );
+  }
   await assertOrgTalentVisibleInWorkspace({
     admin,
     recommendationId,
@@ -4005,7 +4777,8 @@ export async function setOrgCandidateStage(args: {
 
   if (
     args.expectedPreviousStage &&
-    previousStage !== args.expectedPreviousStage
+    previousStage !== args.expectedPreviousStage &&
+    !(authorizedCompanyIntroTransition && previousStage === stage)
   ) {
     throw new OrgHttpError(
       409,
@@ -4099,14 +4872,16 @@ export async function setOrgCandidateStage(args: {
     }
   }
 
-  const isIntroRequested = shouldSendOrgIntroEmail({
-    contactDirectly,
-    currentStage: previousStage,
-    nextStage: stage,
-    recipientCount: introEmails.length,
-    scheduleInterview,
-    skipAutomaticContact,
-  });
+  const isIntroRequested = authorizedCompanyIntroTransition
+    ? introEmails.length > 0
+    : shouldSendOrgIntroEmail({
+        contactDirectly,
+        currentStage: previousStage,
+        nextStage: stage,
+        recipientCount: introEmails.length,
+        scheduleInterview,
+        skipAutomaticContact,
+      });
   let introDelivery: {
     cc: string[];
     messageId: string;
@@ -4163,7 +4938,21 @@ export async function setOrgCandidateStage(args: {
       talent_id: talentId,
     });
 
-    if (insertError) throw insertError;
+    if (insertError) {
+      const duplicateDuringCompanyIntro =
+        authorizedCompanyIntroTransition && insertError.code === "23505";
+      if (!duplicateDuringCompanyIntro) throw insertError;
+      const { data: concurrentTag, error: concurrentTagError } = await (
+        admin.from("talent_opportunity_tag" as any) as any
+      )
+        .select("id")
+        .eq("talent_id", talentId)
+        .eq("opportunity_id", roleId)
+        .eq("tag", nextTag)
+        .maybeSingle();
+      if (concurrentTagError) throw concurrentTagError;
+      if (!concurrentTag) throw insertError;
+    }
 
     await upsertRecommendationProcessedStage({
       admin,
@@ -4226,9 +5015,7 @@ export async function setOrgCandidateStage(args: {
     workspaceId,
   } satisfies Record<string, unknown>;
 
-  const { error: progressError } = await (
-    admin.from("talent_progress" as any) as any
-  ).insert({
+  const progressRow = {
     company_user_id: args.user.id,
     kind: "org_stage_change",
     metadata: metadata as Json,
@@ -4237,7 +5024,16 @@ export async function setOrgCandidateStage(args: {
     talent_id: talentId,
     text,
     user_id: getUserEmail(args.user),
-  });
+    ...(authorizedCompanyIntroTransition && companyIntro
+      ? { id: buildOrgIntroProgressId(companyIntro.id) }
+      : {}),
+  };
+  const progressMutation = authorizedCompanyIntroTransition
+    ? (admin.from("talent_progress" as any) as any).upsert(progressRow, {
+        onConflict: "id",
+      })
+    : (admin.from("talent_progress" as any) as any).insert(progressRow);
+  const { error: progressError } = await progressMutation;
 
   if (progressError) throw progressError;
 
@@ -4458,6 +5254,11 @@ export async function createOrgTalentFeedItem(args: {
     workspaceId,
   });
   await upsertOrgCompanyUser(admin, args.user);
+  await assertNoPendingCompanyIntroCompanyAction({
+    admin,
+    talentId,
+    workspaceId,
+  });
   const roleRows = await fetchRoleRowsForWorkspace(admin, workspaceId);
   if (!roleRows.some((row) => row.role_id === roleId)) {
     throw new OrgHttpError(404, "Role not found");
@@ -5199,13 +6000,118 @@ export async function fetchOrgTalentDetail(args: {
     user: args.user,
     workspaceId,
   });
+  const requestedRecommendationId = normalizeNullableText(
+    args.recommendationId
+  );
+  const companyIntroId = requestedRecommendationId?.startsWith(
+    COMPANY_INTRO_RECOMMENDATION_PREFIX
+  )
+    ? requestedRecommendationId.slice(
+        COMPANY_INTRO_RECOMMENDATION_PREFIX.length
+      )
+    : null;
+  type CompanyIntroDetailRow = {
+    candidate_sent_at: string | null;
+    company_appeal: string | null;
+    created_at: string;
+    id: string;
+    next_stage_id: string | null;
+    recommendation_id: string | null;
+    requested_at: string | null;
+    role_id: string;
+    selected_at: string;
+    selection_reason: string;
+    status: "ready" | "awaiting_talent" | "connecting";
+    talent_id: string;
+    updated_at: string;
+  };
+  let companyIntro: CompanyIntroDetailRow | null = null;
+  let companyIntroSetting: {
+    blocked_companies: unknown;
+    get_internal_recommendation: boolean | null;
+    is_onboarding_done: boolean | null;
+    profile_visibility: string | null;
+  } | null = null;
+  {
+    let activeCompanyIntroQuery = (
+      admin.from("company_intro_candidates" as any) as any
+    )
+      .select(
+        "id, talent_id, role_id, selection_reason, status, recommendation_id, requested_at, company_appeal, next_stage_id, candidate_sent_at, selected_at, created_at, updated_at"
+      )
+      .eq("company_workspace_id", workspaceId)
+      .eq("talent_id", talentId)
+      .in("status", ["ready", "awaiting_talent", "connecting"])
+      .limit(1);
+    if (companyIntroId) {
+      activeCompanyIntroQuery = activeCompanyIntroQuery.eq(
+        "id",
+        companyIntroId
+      );
+    }
+    const { data, error } = await activeCompanyIntroQuery.maybeSingle();
+    if (error) throw error;
+    companyIntro = (data as CompanyIntroDetailRow | null) ?? null;
+    if (companyIntroId && !companyIntro) {
+      throw new OrgHttpError(404, "Talent not found");
+    }
+    if (
+      companyIntro &&
+      requestedRecommendationId &&
+      !companyIntroId &&
+      requestedRecommendationId !== companyIntro.recommendation_id
+    ) {
+      throw new OrgHttpError(404, "Talent not found");
+    }
+  }
+  if (companyIntro) {
+    const { data: setting, error: settingError } = await (
+      admin.from("talent_setting" as any) as any
+    )
+      .select(
+        "profile_visibility, get_internal_recommendation, is_onboarding_done, blocked_companies"
+      )
+      .eq("user_id", talentId)
+      .maybeSingle();
+    if (settingError) throw settingError;
+    companyIntroSetting = setting;
+    if (
+      setting?.is_onboarding_done !== true ||
+      normalizeText(setting?.profile_visibility).toLowerCase() !==
+        "open_to_matches" ||
+      setting?.get_internal_recommendation === false
+    ) {
+      throw new OrgHttpError(404, "Talent not found");
+    }
+  }
 
-  const recommendation = await fetchRecommendationForDetail({
-    admin,
-    recommendationId: normalizeNullableText(args.recommendationId),
-    roleId: normalizeNullableText(args.roleId),
-    talentId,
-  });
+  const recommendation = companyIntro?.recommendation_id
+    ? await fetchRecommendationForDetail({
+        admin,
+        recommendationId: companyIntro.recommendation_id,
+        roleId: companyIntro.role_id,
+        talentId,
+      })
+    : companyIntro
+      ? ({
+          created_at: companyIntro.created_at,
+          feedback: null,
+          feedback_at: null,
+          fit_reasons: [],
+          fit_summary: companyIntro.selection_reason,
+          id: companyIntro.id,
+          recommended_at: companyIntro.selected_at,
+          role_id: companyIntro.role_id,
+          saved_stage: null,
+          talent_id: companyIntro.talent_id,
+          updated_at: companyIntro.updated_at,
+        } as unknown as RecommendationRow)
+      : await fetchRecommendationForDetail({
+          admin,
+          recommendationId: requestedRecommendationId,
+          roleId: normalizeNullableText(args.roleId),
+          talentId,
+        });
   const [detailWorkspace, members, roleRows] = await Promise.all([
     fetchWorkspaceById(admin, workspaceId),
     fetchOrgMembers(admin, workspaceId),
@@ -5216,6 +6122,27 @@ export async function fetchOrgTalentDetail(args: {
     (row) => row.role_id === recommendation.role_id
   );
   if (!roleRow) throw new OrgHttpError(404, "Role not found");
+  if (companyIntro && !companyIntroRoleIsAvailable(roleRow, talentId)) {
+    throw new OrgHttpError(404, "Talent not found");
+  }
+  if (companyIntro && companyIntroSetting) {
+    const blockedCompanies = Array.isArray(
+      companyIntroSetting.blocked_companies
+    )
+      ? companyIntroSetting.blocked_companies.map((value) =>
+          normalizeText(value).toLowerCase()
+        )
+      : [];
+    const companyNames = [
+      detailWorkspace.company_name,
+      detailWorkspace.published_name,
+    ]
+      .map((value) => normalizeText(value).toLowerCase())
+      .filter(Boolean);
+    if (blockedCompanies.some((name) => companyNames.includes(name))) {
+      throw new OrgHttpError(404, "Talent not found");
+    }
+  }
   const [customStages, tagsByKey, connectedRecommendationIds] =
     await Promise.all([
       fetchCustomStages(admin, [recommendation.role_id]),
@@ -5229,23 +6156,26 @@ export async function fetchOrgTalentDetail(args: {
         roleIds: [recommendation.role_id],
       }),
     ]);
-  const stageInfo = getVisibleOrgStage({
-    connectedByOrgAction: connectedRecommendationIds.has(recommendation.id),
-    customStageByTagKey: new Map(
-      customStages.map((row) => [
-        customTagKeyFromStageRow(row),
-        buildCustomStageId(row.id),
-      ])
-    ),
-    feedback: recommendation.feedback,
-    includeInternalAccepted: hasOrgAllWorkspaceAccess(args.user),
-    isInternalRecommendation:
-      normalizeText(roleRow.source_type).toLowerCase() === "internal",
-    savedStage: recommendation.saved_stage,
-    tags:
-      tagsByKey.get(`${recommendation.talent_id}:${recommendation.role_id}`) ??
-      [],
-  });
+  const stageInfo = companyIntro
+    ? ({ stage: "company_intro", stageTag: null } as const)
+    : getVisibleOrgStage({
+        connectedByOrgAction: connectedRecommendationIds.has(recommendation.id),
+        customStageByTagKey: new Map(
+          customStages.map((row) => [
+            customTagKeyFromStageRow(row),
+            buildCustomStageId(row.id),
+          ])
+        ),
+        feedback: recommendation.feedback,
+        includeInternalAccepted: hasOrgAllWorkspaceAccess(args.user),
+        isInternalRecommendation:
+          normalizeText(roleRow.source_type).toLowerCase() === "internal",
+        savedStage: recommendation.saved_stage,
+        tags:
+          tagsByKey.get(
+            `${recommendation.talent_id}:${recommendation.role_id}`
+          ) ?? [],
+      });
   if (!stageInfo) throw new OrgHttpError(404, "Talent not found");
 
   const [
@@ -5713,6 +6643,34 @@ export async function fetchOrgTalentDetail(args: {
       ];
     });
   return {
+    capabilities: companyIntro
+      ? {
+          contactCandidate: false,
+          moveStage: false,
+          pass: companyIntro.status === "ready",
+          requestIntro: companyIntro.status === "ready",
+          scheduleInterview: false,
+          viewResume: false,
+        }
+      : {
+          contactCandidate: true,
+          moveStage: true,
+          pass: false,
+          requestIntro: false,
+          scheduleInterview: true,
+          viewResume: true,
+        },
+    companyIntro: companyIntro
+      ? {
+          candidateSentAt: companyIntro.candidate_sent_at,
+          companyAppeal: companyIntro.company_appeal,
+          id: companyIntro.id,
+          nextStageId: companyIntro.next_stage_id,
+          requestedAt: companyIntro.requested_at,
+          selectionReason: companyIntro.selection_reason,
+          status: companyIntro.status,
+        }
+      : null,
     companyRequestHistory,
     connectionConfirmationEmails,
     feed: sortOrgFeedItems([
@@ -5733,7 +6691,7 @@ export async function fetchOrgTalentDetail(args: {
         : null,
     profile: {
       bio: talent.bio ?? null,
-      documents: documents.map((document) => ({
+      documents: (companyIntro ? [] : documents).map((document) => ({
         contentType: document.content_type,
         createdAt: document.created_at,
         fileName: document.file_name,
@@ -5762,40 +6720,46 @@ export async function fetchOrgTalentDetail(args: {
       })),
       extras: buildProfileExtras(extras),
       location: resolveTalentLocation(talent),
-      registeredLinks,
+      registeredLinks: companyIntro ? [] : registeredLinks,
     },
     profileMarkdown: buildProfileMarkdown({
       educations,
       experiences,
       extras,
       talent:
-        primaryResume && !visiblePrimaryResume
+        companyIntro || (primaryResume && !visiblePrimaryResume)
           ? { ...talent, resume_text: null }
           : talent,
     }),
     recommendation: {
       fitReason:
+        companyIntro?.selection_reason ??
         sentAutoIntroRecommendation ??
         normalizeNullableText(fitCriteriaResult.data?.reason),
       recommendedAt: recommendation.recommended_at,
-      recommendationId: recommendation.id,
+      recommendationId: companyIntro
+        ? `${COMPANY_INTRO_RECOMMENDATION_PREFIX}${companyIntro.id}`
+        : recommendation.id,
       stage: stageInfo.stage,
     },
     resume: {
-      fileName:
-        visiblePrimaryResume?.file_name ??
-        (!primaryResume ? talent.resume_file_name : null) ??
-        null,
-      hasStorageFile: Boolean(
-        visiblePrimaryResume?.storage_path ??
-        (!primaryResume ? talent.resume_storage_path : null)
-      ),
-      links: registeredLinks,
+      fileName: companyIntro
+        ? null
+        : (visiblePrimaryResume?.file_name ??
+          (!primaryResume ? talent.resume_file_name : null) ??
+          null),
+      hasStorageFile: companyIntro
+        ? false
+        : Boolean(
+            visiblePrimaryResume?.storage_path ??
+            (!primaryResume ? talent.resume_storage_path : null)
+          ),
+      links: companyIntro ? [] : registeredLinks,
     },
     role: toRole(roleRow),
     talent: {
       bio: talent.bio ?? null,
-      email: talent.email ?? null,
+      email: companyIntro ? null : (talent.email ?? null),
       headline: talent.headline ?? null,
       name: talent.name ?? null,
       profilePicture: talent.profile_picture ?? null,
@@ -5832,6 +6796,11 @@ export async function openOrgResume(args: {
     admin,
     talentId,
     user: args.user,
+    workspaceId,
+  });
+  await assertNoPendingCompanyIntroCompanyAction({
+    admin,
+    talentId,
     workspaceId,
   });
 

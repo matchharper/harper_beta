@@ -1,4 +1,8 @@
 import type { BlogLocale, BlogSchemaType } from "@/lib/blog";
+import {
+  BLOG_CONVERSION_EVENT_PREFIX,
+  BLOG_VIEW_EVENT_PREFIX,
+} from "@/lib/blogMetrics";
 import type { OfficialJobListItem } from "@/lib/officialJobs";
 import { getPublicOfficialJobListItems } from "@/lib/officialJobs/server";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
@@ -38,6 +42,9 @@ const BLOG_POST_SELECT_COLUMNS = [
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const DEFAULT_AUTHOR_AVATAR_URL = "/images/logo.png";
 const DEFAULT_AUTHOR_NAME = "Harper";
+const BLOG_ANALYTICS_DAYS = 30;
+const BLOG_ANALYTICS_TIME_ZONE = "Asia/Seoul";
+const LANDING_LOG_BATCH_SIZE = 1_000;
 
 type LocalizedBlogInput = {
   content?: unknown;
@@ -76,6 +83,13 @@ type BlogPostRow = {
   updated_by: string | null;
 };
 
+type BlogLandingLogRow = {
+  created_at: string;
+  id: number;
+  local_id: string | null;
+  type: string | null;
+};
+
 export type OpsBlogLocalizedContent = {
   category: string;
   content: string;
@@ -105,7 +119,46 @@ export type OpsBlogPost = {
   updatedBy: string | null;
 };
 
+export type OpsBlogAnalyticsPostMetrics = {
+  allJobsOpens: number;
+  copyClicks: number;
+  ctaClickers: number;
+  ctaClicks: number;
+  jobOpens: number;
+  postOpens: number;
+  slug: string;
+  views: number;
+  visitors: number;
+};
+
+export type OpsBlogAnalyticsPost = OpsBlogAnalyticsPostMetrics & {
+  title: string;
+};
+
+export type OpsBlogAnalyticsSummary = Omit<
+  OpsBlogAnalyticsPostMetrics,
+  "slug"
+> & {
+  conversionRate: number | null;
+};
+
+export type OpsBlogAnalyticsDay = {
+  date: string;
+  posts: OpsBlogAnalyticsPostMetrics[];
+  summary: OpsBlogAnalyticsSummary;
+};
+
+export type OpsBlogAnalytics = {
+  daily: OpsBlogAnalyticsDay[];
+  from: string;
+  posts: OpsBlogAnalyticsPost[];
+  summary: OpsBlogAnalyticsSummary;
+  through: string;
+  timeZone: typeof BLOG_ANALYTICS_TIME_ZONE;
+};
+
 export type OpsBlogResponse = {
+  analytics: OpsBlogAnalytics;
   jobs: OfficialJobListItem[];
   posts: OpsBlogPost[];
 };
@@ -222,6 +275,229 @@ function normalizeSlug(value: unknown, field = "slug") {
   return slug;
 }
 
+function addDateOnly(dateOnly: string, days: number) {
+  const date = new Date(`${dateOnly}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function enumerateDates(from: string, through: string) {
+  const dates: string[] = [];
+  for (let date = from; date <= through; date = addDateOnly(date, 1)) {
+    dates.push(date);
+  }
+  return dates;
+}
+
+function toKoreaDateOnly(value: string | Date) {
+  const date = typeof value === "string" ? new Date(value) : value;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: BLOG_ANALYTICS_TIME_ZONE,
+    year: "numeric",
+  }).formatToParts(date);
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function emptyBlogPostMetrics(slug: string): OpsBlogAnalyticsPostMetrics {
+  return {
+    allJobsOpens: 0,
+    copyClicks: 0,
+    ctaClickers: 0,
+    ctaClicks: 0,
+    jobOpens: 0,
+    postOpens: 0,
+    slug,
+    views: 0,
+    visitors: 0,
+  };
+}
+
+type MutableBlogPostMetrics = OpsBlogAnalyticsPostMetrics & {
+  ctaClickerIds: Set<string>;
+  visitorIds: Set<string>;
+};
+
+function mutableBlogPostMetrics(slug: string): MutableBlogPostMetrics {
+  return {
+    ...emptyBlogPostMetrics(slug),
+    ctaClickerIds: new Set<string>(),
+    visitorIds: new Set<string>(),
+  };
+}
+
+function finalizeBlogPostMetrics(
+  metrics: MutableBlogPostMetrics
+): OpsBlogAnalyticsPostMetrics {
+  return {
+    allJobsOpens: metrics.allJobsOpens,
+    copyClicks: metrics.copyClicks,
+    ctaClickers: metrics.ctaClickerIds.size,
+    ctaClicks: metrics.ctaClicks,
+    jobOpens: metrics.jobOpens,
+    postOpens: metrics.postOpens,
+    slug: metrics.slug,
+    views: metrics.views,
+    visitors: metrics.visitorIds.size,
+  };
+}
+
+function summarizeBlogMetrics(
+  metrics: Iterable<MutableBlogPostMetrics>
+): OpsBlogAnalyticsSummary {
+  const visitorIds = new Set<string>();
+  const ctaClickerIds = new Set<string>();
+  const summary = {
+    allJobsOpens: 0,
+    copyClicks: 0,
+    ctaClicks: 0,
+    jobOpens: 0,
+    postOpens: 0,
+    views: 0,
+  };
+
+  for (const post of metrics) {
+    summary.allJobsOpens += post.allJobsOpens;
+    summary.copyClicks += post.copyClicks;
+    summary.ctaClicks += post.ctaClicks;
+    summary.jobOpens += post.jobOpens;
+    summary.postOpens += post.postOpens;
+    summary.views += post.views;
+    post.visitorIds.forEach((id) => visitorIds.add(id));
+    post.ctaClickerIds.forEach((id) => ctaClickerIds.add(id));
+  }
+
+  return {
+    ...summary,
+    conversionRate:
+      visitorIds.size > 0 ? ctaClickerIds.size / visitorIds.size : null,
+    ctaClickers: ctaClickerIds.size,
+    visitors: visitorIds.size,
+  };
+}
+
+type ParsedBlogEvent = {
+  kind:
+    | "all_jobs_open"
+    | "copy_click"
+    | "cta_click"
+    | "job_open"
+    | "post_open"
+    | "view";
+  slug: string;
+};
+
+function parseBlogEvent(type: string | null): ParsedBlogEvent | null {
+  if (!type) return null;
+
+  if (type.startsWith(BLOG_VIEW_EVENT_PREFIX)) {
+    const slug = type.slice(BLOG_VIEW_EVENT_PREFIX.length);
+    return SLUG_PATTERN.test(slug) ? { kind: "view", slug } : null;
+  }
+  if (type.startsWith(BLOG_CONVERSION_EVENT_PREFIX)) {
+    const slug = type.slice(BLOG_CONVERSION_EVENT_PREFIX.length);
+    return SLUG_PATTERN.test(slug) ? { kind: "cta_click", slug } : null;
+  }
+
+  const parts = type.split(":");
+  const prefix = parts[0];
+  const slug =
+    prefix === "blog_post_open" ? parts[2] : parts.length > 1 ? parts[1] : "";
+  if (!SLUG_PATTERN.test(slug)) return null;
+
+  if (prefix === "blog_post_open") return { kind: "post_open", slug };
+  if (prefix === "blog_copy_link") return { kind: "copy_click", slug };
+  if (prefix === "blog_job_open") return { kind: "job_open", slug };
+  if (prefix === "blog_all_jobs_open") {
+    return { kind: "all_jobs_open", slug };
+  }
+  return null;
+}
+
+function recordBlogEvent(
+  metrics: MutableBlogPostMetrics,
+  event: ParsedBlogEvent,
+  visitorId: string
+) {
+  if (event.kind === "view") {
+    metrics.views += 1;
+    metrics.visitorIds.add(visitorId);
+    return;
+  }
+  if (event.kind === "cta_click") {
+    metrics.ctaClicks += 1;
+    metrics.ctaClickerIds.add(visitorId);
+    return;
+  }
+  if (event.kind === "post_open") metrics.postOpens += 1;
+  if (event.kind === "copy_click") metrics.copyClicks += 1;
+  if (event.kind === "job_open") metrics.jobOpens += 1;
+  if (event.kind === "all_jobs_open") metrics.allJobsOpens += 1;
+}
+
+export function buildOpsBlogAnalytics(args: {
+  from: string;
+  logs: BlogLandingLogRow[];
+  postTitles: Record<string, string>;
+  through: string;
+}): OpsBlogAnalytics {
+  const dailyMetrics = new Map(
+    enumerateDates(args.from, args.through).map((date) => [
+      date,
+      new Map<string, MutableBlogPostMetrics>(),
+    ])
+  );
+  const overallMetrics = new Map<string, MutableBlogPostMetrics>();
+
+  for (const row of args.logs) {
+    const event = parseBlogEvent(row.type);
+    if (!event) continue;
+    const date = toKoreaDateOnly(row.created_at);
+    const day = dailyMetrics.get(date);
+    if (!day) continue;
+    const visitorId = row.local_id?.trim() || `event:${row.id}`;
+    const dailyPost = day.get(event.slug) ?? mutableBlogPostMetrics(event.slug);
+    const overallPost =
+      overallMetrics.get(event.slug) ?? mutableBlogPostMetrics(event.slug);
+
+    recordBlogEvent(dailyPost, event, visitorId);
+    recordBlogEvent(overallPost, event, visitorId);
+    day.set(event.slug, dailyPost);
+    overallMetrics.set(event.slug, overallPost);
+  }
+
+  const posts = Array.from(overallMetrics.values())
+    .map((metrics) => ({
+      ...finalizeBlogPostMetrics(metrics),
+      title: args.postTitles[metrics.slug] || metrics.slug,
+    }))
+    .sort(
+      (left, right) =>
+        right.visitors - left.visitors ||
+        right.ctaClickers - left.ctaClickers ||
+        left.title.localeCompare(right.title, "ko")
+    );
+
+  return {
+    daily: Array.from(dailyMetrics, ([date, metrics]) => ({
+      date,
+      posts: Array.from(metrics.values()).map(finalizeBlogPostMetrics),
+      summary: summarizeBlogMetrics(metrics.values()),
+    })),
+    from: args.from,
+    posts,
+    summary: summarizeBlogMetrics(overallMetrics.values()),
+    through: args.through,
+    timeZone: BLOG_ANALYTICS_TIME_ZONE,
+  };
+}
+
 export function getOpsBlogPublishedDate(now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-US", {
     day: "2-digit",
@@ -235,6 +511,48 @@ export function getOpsBlogPublishedDate(now = new Date()) {
       .map((part) => [part.type, part.value])
   );
   return `${values.year}-${values.month}-${values.day}`;
+}
+
+async function fetchOpsBlogAnalytics(
+  posts: OpsBlogPost[],
+  now = new Date()
+): Promise<OpsBlogAnalytics> {
+  const through = getOpsBlogPublishedDate(now);
+  const from = addDateOnly(through, -(BLOG_ANALYTICS_DAYS - 1));
+  const startIso = new Date(`${from}T00:00:00+09:00`).toISOString();
+  const endIso = new Date(
+    `${addDateOnly(through, 1)}T00:00:00+09:00`
+  ).toISOString();
+  const admin = getAdmin();
+  const logs: BlogLandingLogRow[] = [];
+
+  for (let offset = 0; ; offset += LANDING_LOG_BATCH_SIZE) {
+    const { data, error } = await admin
+      .from("landing_logs")
+      .select("id,local_id,type,created_at")
+      .like("type", "blog%")
+      .gte("created_at", startIso)
+      .lt("created_at", endIso)
+      .order("id", { ascending: true })
+      .range(offset, offset + LANDING_LOG_BATCH_SIZE - 1);
+    if (error)
+      throw new Error(error.message ?? "Failed to load blog analytics");
+    const page = (data ?? []) as BlogLandingLogRow[];
+    logs.push(...page);
+    if (page.length < LANDING_LOG_BATCH_SIZE) break;
+  }
+
+  return buildOpsBlogAnalytics({
+    from,
+    logs,
+    postTitles: Object.fromEntries(
+      posts.map((post) => [
+        post.slug,
+        post.localized.ko.title || post.localized.en.title || post.slug,
+      ])
+    ),
+    through,
+  });
 }
 
 export function buildOpsBlogSlugBase(title: string) {
@@ -366,9 +684,12 @@ export async function fetchOpsBlogPosts(): Promise<OpsBlogResponse> {
     throw new Error(postsResult.error.message ?? "Failed to load blog posts");
   }
 
+  const posts = ((postsResult.data ?? []) as BlogPostRow[]).map(toOpsBlogPost);
+
   return {
+    analytics: await fetchOpsBlogAnalytics(posts),
     jobs,
-    posts: ((postsResult.data ?? []) as BlogPostRow[]).map(toOpsBlogPost),
+    posts,
   };
 }
 

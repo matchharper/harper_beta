@@ -18,8 +18,8 @@ const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "CODE", "PRE"]);
 const PLACEHOLDER_PATTERN = /\{([a-zA-Z0-9_]+)\}/g;
 const PARTIAL_TRANSLATION_SOURCES = new Set([
   "더 이야기하고 더 좋은 연결 받기",
+  "커리어 고민과 다음 커리어에 대해서 이야기하기",
   "연결됨",
-  "선호 조건 업데이트하기",
   "저장함",
   "통화 시작",
 ]);

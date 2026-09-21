@@ -15,6 +15,9 @@ test("prepared-profile feedback stays distinct from new reference calibration", 
   );
   assert.match(prompt, /not connection acceptance or rejection decisions/);
   assert.match(prompt, /do not create preferences on their own/);
+  assert.match(prompt, /<hiring_brief_authoring_contract>/);
+  assert.match(prompt, /Never erase an established school bar/);
+  assert.match(prompt, /not an automatic preferred-company list/);
 });
 
 test("feedback parser accepts several explicit reviews with one complete brief", () => {

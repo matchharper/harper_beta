@@ -3,6 +3,7 @@ import "server-only";
 import type { User } from "@supabase/supabase-js";
 import {
   createOrResumeDraftRole,
+  fetchOrgActiveRoleLimitState,
   parseRoleCreationConversationMetadata,
   updateRoleCreationDraft,
   updateRoleCreationConversationMetadata,
@@ -46,6 +47,15 @@ export type SlackRoleCreationThread = {
   threadPermalink: string;
   webUrl: string;
 };
+
+export type SlackRoleCreationStartResult =
+  | SlackRoleCreationThread
+  | {
+      activeRoleCount: number;
+      activeRoleLimit: number;
+      limitReached: true;
+      status: "active_role_limit_reached";
+    };
 
 type InProgressSlackRoleCreation = {
   roleId: string;
@@ -355,7 +365,7 @@ export async function startSlackRoleCreation(args: {
   sourceSlackThreadId: string | null;
   user: User;
   workspaceId: string;
-}): Promise<SlackRoleCreationThread> {
+}): Promise<SlackRoleCreationStartResult> {
   const admin = getSupabaseAdmin();
   const sourceSlackThreadId = text(args.sourceSlackThreadId);
   if (!sourceSlackThreadId) {
@@ -376,6 +386,18 @@ export async function startSlackRoleCreation(args: {
     workspaceId: args.workspaceId,
   });
   if (existing) return existing;
+
+  const limitState = await fetchOrgActiveRoleLimitState({
+    admin,
+    workspaceId: args.workspaceId,
+  });
+  if (limitState.limitReached) {
+    return {
+      ...limitState,
+      limitReached: true,
+      status: "active_role_limit_reached",
+    };
+  }
 
   const roleId = crypto.randomUUID();
   await createOrResumeDraftRole({

@@ -6,6 +6,7 @@ import React, {
 } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { remarkUnderline } from "@/lib/markdown/remarkUnderline";
 import TurndownService from "turndown";
 import { POSTING_LINK_LABEL } from "@/lib/career/postingLinks";
 import { compactUrlLabel, isHarperOwnedUrl, isUrlText } from "@/lib/urlDisplay";
@@ -24,6 +25,10 @@ const turndownService = new TurndownService({
 });
 
 turndownService.remove(["script", "style"]);
+turndownService.addRule("underline", {
+  filter: "u",
+  replacement: (content) => `<u>${content}</u>`,
+});
 
 const HTML_BLOCK_TAG_PATTERN =
   /<(p|br|ul|ol|li|strong|em|a|h[1-6]|div|span|blockquote|pre|code|table|thead|tbody|tr|td|th)\b/i;
@@ -34,7 +39,8 @@ const INLINE_FORMAT_TRAILING_BREAKS_PATTERN =
 const TRAILING_INLINE_NODE_MARKER = "[[CAREER_TRAILING_INLINE_NODE]]";
 
 function looksLikeHtml(value: string) {
-  const trimmed = value.trim();
+  // Inline underline is part of our Markdown contract, not a full HTML document.
+  const trimmed = value.trim().replace(/<\/?u>/g, "");
   if (!trimmed) return false;
   return (
     HTML_BLOCK_TAG_PATTERN.test(trimmed) || HTML_PAIR_PATTERN.test(trimmed)
@@ -348,7 +354,7 @@ export default function RichText({
       data-career-i18n-skip="true"
     >
       <ReactMarkdown
-        remarkPlugins={[[remarkGfm, { singleTilde: false }]]}
+        remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkUnderline]}
         components={{
           h1: ({ children }) => (
             <h1 className="mt-5 text-base font-semibold leading-6 text-neutral-primary first:mt-0">
@@ -552,7 +558,7 @@ export default function RichText({
               className="mt-4 overflow-x-auto first:mt-0"
               data-rich-text-table="true"
             >
-              <table className="min-w-full border-collapse text-left text-sm leading-6 text-neutral-muted">
+              <table className="min-w-full border-collapse text-left text-sm leading-6 text-neutral-primary">
                 {children}
               </table>
             </div>
@@ -563,7 +569,7 @@ export default function RichText({
             </th>
           ),
           td: ({ children }) => (
-            <td className="border border-neutral-1000-a05 px-3 py-2 align-top">
+            <td className="border border-neutral-1000-a05 px-3 py-2 align-top text-neutral-primary [&_em]:text-neutral-primary [&_blockquote]:text-neutral-primary">
               {renderNodeWithHighlights(children, "td", trailingInlineNode)}
             </td>
           ),
@@ -595,6 +601,11 @@ export default function RichText({
               </code>
             );
           },
+          u: ({ children }) => (
+            <u className="decoration-1 underline-offset-4 text-neutral-primary">
+              {renderNodeWithHighlights(children, "u", trailingInlineNode)}
+            </u>
+          ),
           em: ({ children }) => (
             <em className="italic text-neutral-muted">
               {renderNodeWithHighlights(children, "em", trailingInlineNode)}

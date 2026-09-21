@@ -1,14 +1,10 @@
 import CareerLandingFooter from "@/components/landing/CareerLandingFooter";
-import {
-  OfficialJobsApplyHelpExperimentHead,
-  OfficialJobsApplyHelpTreatmentOnly,
-} from "@/components/jobs/OfficialJobsApplyHelpExperiment";
 import OfficialJobMarkdown from "@/components/jobs/OfficialJobMarkdown";
 import OfficialJobsCtaLink from "@/components/jobs/OfficialJobsCtaLink";
 import OfficialJobsEventTracker from "@/components/jobs/OfficialJobsEventTracker";
 import OfficialJobsHeader from "@/components/jobs/OfficialJobsHeader";
 import OfficialJobsReferralCta from "@/components/jobs/OfficialJobsReferralCta";
-import OfficialJobsTreatmentMessage from "@/components/jobs/OfficialJobsTreatmentMessage";
+import OfficialJobsApplyHelpMessage from "@/components/jobs/OfficialJobsApplyHelpMessage";
 import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
 import {
@@ -125,7 +121,6 @@ export default function OfficialJobDetailPage({
 
   return (
     <>
-      <OfficialJobsApplyHelpExperimentHead />
       <OfficialJobsEventTracker
         eventType="job_detail_view"
         jobSlug={job.slug}
@@ -234,12 +229,10 @@ export default function OfficialJobDetailPage({
                   {job.shortDescription}
                 </p>
                 <div className="mt-8 flex flex-col gap-2 w-full md:w-fit">
-                  <OfficialJobsApplyHelpTreatmentOnly>
-                    <OfficialJobsTreatmentMessage
-                      className="max-w-[440px] text-[14px] leading-6"
-                      locale={locale}
-                    />
-                  </OfficialJobsApplyHelpTreatmentOnly>
+                  <OfficialJobsApplyHelpMessage
+                    className="max-w-[440px] text-[14px] leading-6"
+                    locale={locale}
+                  />
                   <OfficialJobsCtaLink
                     className="bg-primary border-none"
                     job={job}

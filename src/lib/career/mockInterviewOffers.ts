@@ -3,6 +3,7 @@ import { isPostingRoleId, normalizePostingRoleId } from "./postingLinks";
 export type MockInterviewOffer = {
   id: string;
   roleId: string;
+  companyLogoUrl: string | null;
   companyName: string;
   title: string;
 };

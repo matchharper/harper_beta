@@ -4,6 +4,7 @@
 - 상태: summary·calibration·`sentAt + 12h` review·dual-channel 안내 production release 포함.
   실제 가동 상태는 migration preflight와 local listener status로 확인한다.
 - 반복 실행 계약: [Company Role Profile Calibration Codex 실행 계약](./company-role-profile-calibration-codex-runbook-ko.md)
+- Hiring Brief 공통 작성 계약: [Company Role Hiring Brief 작성 가이드](./company-role-hiring-brief-authoring-guide-ko.md)
 
 ## 1. 구현 목표
 

@@ -1,6 +1,7 @@
 import {
   ArrowRight,
   ChartNoAxesColumnIncreasing,
+  Info,
   LoaderCircle,
 } from "lucide-react";
 import Image from "next/image";
@@ -11,6 +12,10 @@ import {
   StopCandidateDialog,
 } from "@/components/org/OrgCandidateDecisionDialogs";
 import {
+  CompanyIntroPassDialog,
+  CompanyIntroRequestDialog,
+} from "@/components/org/CompanyIntroDecisionDialogs";
+import {
   getOrgCandidateDisplayName,
   formatOrgUpcomingMeetingTime,
   OrgCandidateStageMenu,
@@ -18,11 +23,19 @@ import {
 import { CardButton, MuteButton } from "@/components/ui/button";
 import { Tabs } from "@/components/ui/tabs";
 import {
+  humanizeOrgCompanyIntroStatus,
+  ORG_STAGE_DESCRIPTIONS,
+} from "@/lib/org/pipelineStage";
+import {
   useOrgJobsBoard,
   useOrgJobsCandidateActions,
   useOrgJobsNavigation,
 } from "@/hooks/org/useOrgJobs";
-import { useCreateOrgReviewStage } from "@/hooks/org/useOrg";
+import {
+  useCreateOrgReviewStage,
+  usePassOrgCompanyIntro,
+  useRequestOrgCompanyIntro,
+} from "@/hooks/org/useOrg";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import {
   getDisplayableCompanyLogoUrl,
@@ -39,6 +52,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { OrgBoardItem, OrgStage, OrgStageId } from "@/lib/org/server";
 import { Tooltips } from "../ui/tooltip";
+import { useToastStore } from "@/store/useToastStore";
 
 function getStageLabel(stage: OrgStage, roleName: string | null) {
   const prefix = roleName ? `${roleName} · ` : "";
@@ -49,6 +63,14 @@ function getStageLabel(stage: OrgStage, roleName: string | null) {
 
 function getBoardStageLabel(stage: OrgStage, roleName: string | null) {
   const label = getStageLabel(stage, roleName);
+  if (ORG_STAGE_DESCRIPTIONS[stage.id]) {
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        {label}
+        <Info aria-hidden="true" className="size-3.5 text-neutral-soft" />
+      </span>
+    );
+  }
   if (stage.id !== "accepted") return label;
 
   return (
@@ -247,7 +269,9 @@ export function OrgRoleTalentBoardCard({
   stages: OrgStage[];
 }) {
   const name = item.talent.name || item.talent.email || "이름 없음";
-  const isDecisionStage = item.stage === "pending_connection";
+  const isDecisionStage =
+    item.stage === "pending_connection" ||
+    (item.source === "company_intro" && item.companyIntro?.status === "ready");
   const showDecisionActions = canManageCandidates && isDecisionStage;
   const latestExperience = item.talent.recentCompanies[0] ?? null;
 
@@ -279,7 +303,10 @@ export function OrgRoleTalentBoardCard({
                 <time className="pt-0.5 text-[11px] font-normal text-neutral-soft">
                   {formatKstRelativeDate(item.recommendedAt)}
                 </time>
-                {!isDecisionStage && canManageCandidates && onMove ? (
+                {!isDecisionStage &&
+                item.capabilities.moveStage &&
+                canManageCandidates &&
+                onMove ? (
                   <div className="pointer-events-auto">
                     <OrgCandidateStageMenu
                       internalOpsAccess={internalOpsAccess}
@@ -311,6 +338,12 @@ export function OrgRoleTalentBoardCard({
 
         <TalentExperienceList item={item} />
 
+        {item.companyIntro ? (
+          <p className="mt-4 text-[13px] text-neutral-muted">
+            {humanizeOrgCompanyIntroStatus(item.companyIntro)}
+          </p>
+        ) : null}
+
         {item.processClosureNoticeUnresolved ? (
           <div className="-mx-4 mt-5 bg-critical px-4 py-1.5 text-[12px] font-medium text-neutral-00 sm:-mx-5 sm:px-5">
             프로세스 종료 안내됨
@@ -330,7 +363,9 @@ export function OrgRoleTalentBoardCard({
               size="md"
               variant="neutral"
             >
-              {CANDIDATE_DECISION_LABELS.reject}
+              {item.source === "company_intro"
+                ? "제안하지 않기"
+                : CANDIDATE_DECISION_LABELS.reject}
             </MuteButton>
             <MuteButton
               className="w-full"
@@ -339,7 +374,9 @@ export function OrgRoleTalentBoardCard({
               size="md"
               variant="dark"
             >
-              {CANDIDATE_DECISION_LABELS.connect}
+              {item.source === "company_intro"
+                ? "먼저 제안하기"
+                : CANDIDATE_DECISION_LABELS.connect}
               <ArrowRight className="size-4" />
             </MuteButton>
           </div>
@@ -370,6 +407,9 @@ export function OrgRoleTalentBoard({
   } = useOrgWorkspace();
   const members = bootstrap.members;
   const createCustomStage = useCreateOrgReviewStage();
+  const requestCompanyIntro = useRequestOrgCompanyIntro();
+  const passCompanyIntro = usePassOrgCompanyIntro();
+  const addToast = useToastStore((state) => state.add);
   const [activeStageId, setActiveStageId] = useState("");
   const [acceptRequest, setAcceptRequest] = useState<{
     item: OrgBoardItem;
@@ -377,6 +417,12 @@ export function OrgRoleTalentBoard({
     stage: OrgStageId;
   } | null>(null);
   const [stopItem, setStopItem] = useState<OrgBoardItem | null>(null);
+  const [companyIntroRequest, setCompanyIntroRequest] = useState<{
+    initialStageId?: string | null;
+    item: OrgBoardItem;
+  } | null>(null);
+  const [companyIntroPass, setCompanyIntroPass] =
+    useState<OrgBoardItem | null>(null);
   const visibleStages = useMemo(
     () =>
       (board?.stages ?? []).filter(
@@ -429,6 +475,14 @@ export function OrgRoleTalentBoard({
 
   const requestMove = (item: OrgBoardItem, stage: OrgStageId) => {
     if (!permissions.canManageCandidates || item.stage === stage) return;
+    if (item.source === "company_intro") {
+      if (item.companyIntro?.status !== "ready") return;
+      setCompanyIntroRequest({
+        initialStageId: stage.startsWith("custom:") ? stage : null,
+        item,
+      });
+      return;
+    }
     if (
       requestCandidateReengagementBeforeStageChange(item, stage, () =>
         continueMove(item, stage, "company_confirmed")
@@ -466,6 +520,7 @@ export function OrgRoleTalentBoard({
             className="min-w-max w-fit gap-0.5"
             items={visibleStages.map((stage) => ({
               label: getBoardStageLabel(stage, activeRole?.name ?? null),
+              tooltip: ORG_STAGE_DESCRIPTIONS[stage.id],
               value: stage.id,
             }))}
             onValueChange={setActiveStageId}
@@ -491,7 +546,11 @@ export function OrgRoleTalentBoard({
             internalOpsAccess={internalOpsAccess}
             item={item}
             key={item.recommendationId}
-            onAccept={() => requestMove(item, "connected")}
+            onAccept={() =>
+              item.source === "company_intro"
+                ? setCompanyIntroRequest({ item })
+                : requestMove(item, "connected")
+            }
             onMove={requestMove}
             onOpen={() =>
               selectTalent(
@@ -502,7 +561,11 @@ export function OrgRoleTalentBoard({
                   : "후보자 보드"
               )
             }
-            onReject={() => requestMove(item, "process_stopped")}
+            onReject={() =>
+              item.source === "company_intro"
+                ? setCompanyIntroPass(item)
+                : requestMove(item, "process_stopped")
+            }
             pending={isCandidateStagePending(item)}
             stages={board?.stages ?? []}
           />
@@ -596,6 +659,87 @@ export function OrgRoleTalentBoard({
         }}
         open={Boolean(stopItem)}
         pending={Boolean(stopItem && isCandidateStagePending(stopItem))}
+      />
+
+      <CompanyIntroRequestDialog
+        key={`${companyIntroRequest?.item.companyIntro?.id ?? "closed"}:${companyIntroRequest?.initialStageId ?? "default"}`}
+        candidateName={
+          companyIntroRequest
+            ? getOrgCandidateDisplayName(companyIntroRequest.item)
+            : ""
+        }
+        defaultEmail={currentUserEmail}
+        initialStageId={companyIntroRequest?.initialStageId}
+        members={members}
+        onClose={() => setCompanyIntroRequest(null)}
+        onSubmit={async ({
+          companyAppeal,
+          introRecipientEmails,
+          newStageLabel,
+          nextStageId,
+        }) => {
+          if (!companyIntroRequest?.item.companyIntro) return;
+          try {
+            const stageId = newStageLabel
+              ? (
+                  await createCustomStage.mutateAsync({
+                    label: newStageLabel,
+                    roleId: companyIntroRequest.item.roleId,
+                    workspaceId,
+                  })
+                ).stage.id
+              : nextStageId;
+            if (!stageId) throw new Error("수락 후 첫 단계를 선택해 주세요.");
+            await requestCompanyIntro.mutateAsync({
+              companyAppeal,
+              introCandidateId: companyIntroRequest.item.companyIntro.id,
+              introRecipientEmails,
+              nextStageId: stageId,
+              workspaceId,
+            });
+            setCompanyIntroRequest(null);
+            addToast({
+              message:
+                "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다.",
+              variant: "success",
+            });
+          } catch (error) {
+            addToast({
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "제안을 처리하지 못했습니다.",
+              variant: "error",
+            });
+            throw error;
+          }
+        }}
+        open={Boolean(companyIntroRequest)}
+        pending={createCustomStage.isPending || requestCompanyIntro.isPending}
+        roleId={companyIntroRequest?.item.roleId ?? ""}
+        roleName={companyIntroRequest?.item.roleName ?? "해당 역할"}
+        stages={board?.stages ?? []}
+      />
+
+      <CompanyIntroPassDialog
+        candidateName={
+          companyIntroPass ? getOrgCandidateDisplayName(companyIntroPass) : ""
+        }
+        onClose={() => setCompanyIntroPass(null)}
+        onConfirm={async () => {
+          if (!companyIntroPass?.companyIntro) return;
+          await passCompanyIntro.mutateAsync({
+            introCandidateId: companyIntroPass.companyIntro.id,
+            workspaceId,
+          });
+          setCompanyIntroPass(null);
+          addToast({
+            message: "후보자에게 제안하지 않고 목록에서 제외했습니다.",
+            variant: "success",
+          });
+        }}
+        open={Boolean(companyIntroPass)}
+        pending={passCompanyIntro.isPending}
       />
     </section>
   );

@@ -3,6 +3,7 @@
 - 문서 기준: 2026-09-08
 - 상태: event listener 로컬 구현과 연결됨, notification migration rollout 전
 - 구현 계획: [Company Role Profile Calibration 구현 계획](./company-role-profile-calibration-implementation-plan-ko.md)
+- Hiring Brief 공통 작성 계약: [Company Role Hiring Brief 작성 가이드](./company-role-hiring-brief-authoring-guide-ko.md)
 
 ## 1. 목적
 

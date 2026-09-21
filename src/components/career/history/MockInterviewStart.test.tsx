@@ -4,7 +4,10 @@ import { createRequire } from "node:module";
 import { JSDOM } from "jsdom";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import type { CareerHistoryOpportunity } from "../types";
+import type {
+  CareerCallStartRequest,
+  CareerHistoryOpportunity,
+} from "../types";
 
 test("tracked stages open a voice-only modal; cancel, failed start and retry preserve the target", async () => {
   const dom = new JSDOM(
@@ -55,6 +58,7 @@ test("tracked stages open a voice-only modal; cancel, failed start and retry pre
       let success = false;
       const item = {
         id: stage,
+        companyLogoUrl: null,
         companyName: "Example",
         title: "FDE",
         savedStage: stage,
@@ -65,8 +69,16 @@ test("tracked stages open a voice-only modal; cancel, failed start and retry pre
             <MockInterviewStart
               key={stage}
               item={item}
-              onStart={async (id: string) => {
-                calls.push(id);
+              onStart={async (request: CareerCallStartRequest) => {
+                assert.equal(typeof request, "object");
+                if (typeof request === "object") {
+                  calls.push(request.mockInterviewOpportunityId ?? "");
+                  assert.deepEqual(request.mockInterviewDisplay, {
+                    companyLogoUrl: null,
+                    companyName: "Example",
+                    roleTitle: "FDE",
+                  });
+                }
                 return success;
               }}
             />
@@ -75,17 +87,13 @@ test("tracked stages open a voice-only modal; cancel, failed start and retry pre
       );
       await act(async () => button("모의 인터뷰 해보기").click());
       assert.match(dom.window.document.body.textContent ?? "", /Example · FDE/);
-      assert.match(
-        dom.window.document.body.textContent ?? "",
-        /부정확할 수 있습니다/
-      );
       await act(async () => button("취소").click());
       assert.deepEqual(calls, []);
       await act(async () => button("모의 인터뷰 해보기").click());
-      await act(async () => button("음성으로 시작하기").click());
+      await act(async () => button("시작하기").click());
       assert.ok(dom.window.document.querySelector('[role="alert"]'));
       success = true;
-      await act(async () => button("음성으로 시작하기").click());
+      await act(async () => button("시작하기").click());
       assert.deepEqual(calls, [stage, stage]);
       assert.equal(dom.window.document.querySelector('[role="dialog"]'), null);
     }

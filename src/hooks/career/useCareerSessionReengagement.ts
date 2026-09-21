@@ -26,6 +26,7 @@ export type SessionReengagementPayload = {
     role?: string | null;
   } | null;
   insightUpdatedAt?: unknown;
+  hiddenExpiredExternalOpportunityCount?: unknown;
   opportunityRun?: CareerOpportunityRun | null;
   preferencesUpdatedAt?: unknown;
   skipped?: boolean;
@@ -160,6 +161,7 @@ export const useCareerAutomaticSessionReengagement = ({
   enqueueAssistantMessages,
   fetchWithAuth,
   onOpportunityRunChanged,
+  onHistoryOpportunitiesChanged,
   onTalentInsightsRefreshed,
   onTalentContextsRefreshed,
   onTalentPreferencesRefreshed,
@@ -172,6 +174,7 @@ export const useCareerAutomaticSessionReengagement = ({
   enqueueAssistantMessages: (rawMessages: unknown[]) => Promise<void>;
   fetchWithAuth: FetchWithAuth;
   onOpportunityRunChanged: (run: CareerOpportunityRun | null) => void;
+  onHistoryOpportunitiesChanged: () => void | Promise<void>;
   onTalentInsightsRefreshed: (insights: unknown, updatedAt: unknown) => void;
   onTalentContextsRefreshed: (payload: {
     talentBrief?: unknown;
@@ -220,6 +223,12 @@ export const useCareerAutomaticSessionReengagement = ({
 
       if (payload.opportunityRun) {
         onOpportunityRunChanged(payload.opportunityRun);
+      }
+      if (
+        typeof payload.hiddenExpiredExternalOpportunityCount === "number" &&
+        payload.hiddenExpiredExternalOpportunityCount > 0
+      ) {
+        await onHistoryOpportunitiesChanged();
       }
       if ("talentPreferences" in payload) {
         onTalentPreferencesRefreshed(
@@ -427,6 +436,7 @@ export const useCareerAutomaticSessionReengagement = ({
     enqueueAssistantMessages,
     fetchWithAuth,
     onOpportunityRunChanged,
+    onHistoryOpportunitiesChanged,
     onTalentInsightsRefreshed,
     onTalentContextsRefreshed,
     onTalentPreferencesRefreshed,

@@ -1,7 +1,7 @@
-import { X } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import TalentCareerModal from "@/components/common/TalentCareerModal";
+import CompanyJobsList from "./CompanyJobsList";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { getErrorMessage } from "@/hooks/career/careerHelpers";
 import { useCareerCompanyFollowContext } from "@/components/career/CareerSidebarContext";
@@ -11,25 +11,59 @@ import type {
   CompanyDetailPayload,
   CompanyWatchlistItem,
 } from "./watchlistTypes";
-import { BareButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
+import { FollowButton } from "./FollowButton";
+import type { CareerHistoryOpportunity } from "@/components/career/types";
+import { cn } from "@/lib/utils";
+import HistoryOpportunityRoleActions, {
+  COMPANY_DETAIL_ROLE_ACTIONS,
+} from "../history/HistoryOpportunityRoleActions";
 
 const DETAIL_QUERY_KEY = "career-company-watchlist-detail";
 
 type CareerCompanyDetailDrawerProps = {
   companyDbId: number | null;
+  roleId?: string | null;
+  mobileLayout?: boolean;
   onClose: () => void;
+  onOpenChat?: () => void;
   open: boolean;
+  opportunity?: CareerHistoryOpportunity | null;
+  showCompanyJobsInitially?: boolean;
   source?: string;
 };
 
 const CareerCompanyDetailDrawer = ({
   companyDbId,
+  roleId,
+  mobileLayout = false,
   onClose,
+  onOpenChat,
   open,
+  opportunity,
+  showCompanyJobsInitially = false,
   source = "position_company_detail",
 }: CareerCompanyDetailDrawerProps) => {
   const t = useCareerT();
+  const jobsSection = useRef<HTMLDivElement>(null);
+  const targetRoleId = roleId ?? opportunity?.roleId;
+  const companyJobsVisibilityKey = `${companyDbId ?? ""}:${targetRoleId ?? ""}`;
+  const [visibleCompanyJobsKey, setVisibleCompanyJobsKey] = useState<
+    string | null
+  >(null);
+  const companyJobsVisible =
+    open &&
+    (showCompanyJobsInitially ||
+      visibleCompanyJobsKey === companyJobsVisibilityKey);
+  const showCompanyJobs = () => {
+    setVisibleCompanyJobsKey(companyJobsVisibilityKey);
+    window.requestAnimationFrame(() =>
+      jobsSection.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      })
+    );
+  };
 
   const queryClient = useQueryClient();
   const { fetchWithAuth } = useCareerApi();
@@ -45,13 +79,12 @@ const CareerCompanyDetailDrawer = ({
   } | null>(null);
 
   const detailQuery = useQuery({
-    queryKey: [DETAIL_QUERY_KEY, userId, companyDbId, locale],
-    enabled: open && Boolean(user && companyDbId),
+    queryKey: [DETAIL_QUERY_KEY, userId, companyDbId, targetRoleId, locale],
+    enabled: open && Boolean(user && (companyDbId || targetRoleId)),
     queryFn: async () => {
-      const params = new URLSearchParams({
-        companyDbId: String(companyDbId ?? ""),
-        locale,
-      });
+      const params = new URLSearchParams({ locale });
+      if (companyDbId) params.set("companyDbId", String(companyDbId));
+      else if (targetRoleId) params.set("roleId", targetRoleId);
       const response = await fetchWithAuth(
         `/api/talent/company-watchlist?${params.toString()}`
       );
@@ -78,6 +111,7 @@ const CareerCompanyDetailDrawer = ({
 
   const handleClose = useCallback(() => {
     setActionError(null);
+    setVisibleCompanyJobsKey(null);
     onClose();
   }, [onClose]);
 
@@ -110,7 +144,7 @@ const CareerCompanyDetailDrawer = ({
 
         if (result.item) {
           queryClient.setQueryData(
-            [DETAIL_QUERY_KEY, userId, item.companyDbId, locale],
+            [DETAIL_QUERY_KEY, userId, companyDbId, targetRoleId, locale],
             { item: result.item }
           );
         }
@@ -133,91 +167,109 @@ const CareerCompanyDetailDrawer = ({
         setUpdatingCompanyId(null);
       }
     },
-    [locale, onUpdateCompanyFollow, queryClient, source, t, userId]
+    [
+      companyDbId,
+      targetRoleId,
+      locale,
+      onUpdateCompanyFollow,
+      queryClient,
+      source,
+      t,
+      userId,
+    ]
   );
-
-  useEffect(() => {
-    if (!open) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") handleClose();
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [handleClose, open]);
 
   const detailItem = detailQuery.data?.item ?? null;
   const loading =
     detailQuery.isLoading || (detailQuery.isFetching && !detailItem);
   const visibleActionError =
-    actionError && actionError.companyDbId === companyDbId
+    actionError && actionError.companyDbId === detailItem?.companyDbId
       ? actionError.message
       : "";
   const errorMessage =
     detailQuery.error instanceof Error ? detailQuery.error.message : "";
 
   return (
-    <AnimatePresence>
-      {open ? (
-        <div className="fixed inset-0 z-[80]">
-          <motion.button
-            type="button"
-            aria-label={"회사 정보 닫기"}
-            className="absolute inset-0 bg-black/25 backdrop-blur-[1px]"
-            onClick={handleClose}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.16, ease: "easeOut" }}
+    <TalentCareerModal
+      open={open}
+      modal={mobileLayout}
+      closeOnBackdrop={mobileLayout}
+      onClose={handleClose}
+      ariaLabel={t("career.company.jobs.company_detail", "회사 상세 정보")}
+      overlayClassName="z-[81] items-stretch justify-end p-0 sm:p-0"
+      backdropClassName={
+        mobileLayout
+          ? "bg-black/25 backdrop-blur-[1px]"
+          : "bg-transparent backdrop-blur-none"
+      }
+      panelClassName="flex h-dvh w-full max-w-[760px] flex-col rounded-none border-0 border-l border-neutral-1000-a05 bg-bg-floating data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100"
+      bodyClassName={cn(
+        "min-h-0 flex-1 overflow-y-auto overscroll-contain pb-8 pt-12",
+        mobileLayout ? "overflow-x-hidden px-4" : "px-5 sm:px-7"
+      )}
+    >
+      {errorMessage ? (
+        <p role="alert" className="mb-4 text-sm text-critical">
+          {errorMessage}
+        </p>
+      ) : null}
+      {mobileLayout && detailItem ? (
+        <div className="mb-3 flex justify-end">
+          <FollowButton
+            disabled={updatingCompanyId === detailItem.companyDbId}
+            following={detailItem.following}
+            onClick={(event) => handleToggleFollow(detailItem, event)}
           />
-          <motion.aside
-            role="dialog"
-            aria-modal="true"
-            aria-label={"회사 상세 정보"}
-            className="absolute right-0 top-0 flex h-full w-full max-w-[760px] flex-col border-l border-neutral-1000-a05 bg-bg-floating text-neutral-primary"
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ duration: 0.22, ease: "easeOut" }}
-          >
-            <div className="flex h-12 shrink-0 items-center justify-end border-b border-neutral-1000-a05 px-4">
-              <BareButton
-                type="button"
-                aria-label={"닫기"}
-                onClick={handleClose}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-muted transition-colors hover:bg-bg-weak hover:text-neutral-primary"
-              >
-                <X className="h-4 w-4" />
-              </BareButton>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-8 pt-4 sm:px-7">
-              {errorMessage ? (
-                <div className="mb-4 rounded-[8px] border border-critical/30 bg-critical-faded px-4 py-3 text-[13px] text-critical">
-                  {errorMessage}
-                </div>
-              ) : null}
-              <CompanyDetailView
-                item={detailItem}
-                loading={loading}
-                onBack={handleClose}
-                onToggleFollow={handleToggleFollow}
-                updating={
-                  detailItem
-                    ? updatingCompanyId === detailItem.companyDbId
-                    : false
-                }
-              />
-              {visibleActionError ? (
-                <div className="mt-4 rounded-[8px] border border-critical/30 bg-critical-faded px-4 py-3 text-[13px] text-critical">
-                  {visibleActionError}
-                </div>
-              ) : null}
-            </div>
-          </motion.aside>
         </div>
       ) : null}
-    </AnimatePresence>
+      {loading || detailItem ? (
+        <CompanyDetailView
+          item={detailItem}
+          loading={loading}
+          mobileLayout={mobileLayout}
+          onBack={handleClose}
+          onOpenChat={onOpenChat}
+          onToggleFollow={handleToggleFollow}
+          roleActionOpportunity={opportunity}
+          onShowCompanyJobs={showCompanyJobs}
+          updating={
+            detailItem ? updatingCompanyId === detailItem.companyDbId : false
+          }
+        />
+      ) : opportunity ? (
+        <section>
+          <h2 className="text-xl font-medium">{opportunity.companyName}</h2>
+          {opportunity.companyDescription && (
+            <p className="mt-4 whitespace-pre-wrap text-sm text-neutral-muted">
+              {opportunity.companyDescription}
+            </p>
+          )}
+          {mobileLayout && (
+            <HistoryOpportunityRoleActions
+              className="mt-6"
+              item={opportunity}
+              visibleActions={COMPANY_DETAIL_ROLE_ACTIONS}
+              onOpenChat={onOpenChat}
+              onShowCompanyJobs={showCompanyJobs}
+            />
+          )}
+        </section>
+      ) : null}
+      {visibleActionError && (
+        <p role="alert" className="mt-4 text-sm text-critical">
+          {visibleActionError}
+        </p>
+      )}
+      {companyJobsVisible ? (
+        <div ref={jobsSection}>
+          <CompanyJobsList
+            key={companyDbId ?? targetRoleId}
+            companyDbId={companyDbId ?? detailItem?.companyDbId}
+            roleId={targetRoleId}
+          />
+        </div>
+      ) : null}
+    </TalentCareerModal>
   );
 };
 

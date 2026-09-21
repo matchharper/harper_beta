@@ -54,6 +54,7 @@ import {
 } from "@/lib/talentOnboarding/callNoteGeneration";
 import { completeOpenCareerCheckInCalls } from "@/lib/talentOnboarding/careerCheckInCall";
 import { resolveCareerRequestTimeZone } from "@/lib/career/requestTimeZone";
+import { logCareerVoiceModelCallCompleted } from "@/lib/career/voiceExperiment.server";
 
 type TranscriptEntry = {
   role: "user" | "assistant";
@@ -539,6 +540,24 @@ export async function POST(request: NextRequest) {
         ? requestTranscript
         : savedTranscript;
     const transcriptStats = summarizeTranscript(resolvedTranscript);
+    if (callSessionId) {
+      await logCareerVoiceModelCallCompleted({
+        admin: supabase,
+        callKind: mockInterviewContext
+          ? "mock_interview"
+          : internalCallRequest
+            ? "internal_opportunity"
+            : resumeCallNoteId
+              ? "call_note_continuation"
+              : conversationStarter?.id || "onboarding",
+        callSessionId,
+        conversationId,
+        durationSeconds: safeDurationSeconds,
+        totalTurns: transcriptStats.totalTurns,
+        userId: user.id,
+        userTurns: transcriptStats.userTurns,
+      });
+    }
     const internalQuestionPlanComplete = internalCallRequest
       ? isInternalOpportunityCallQuestionPlanComplete(
         internalCallRequest.questionProgress,
@@ -745,7 +764,9 @@ export async function POST(request: NextRequest) {
           : body.onboardingCompletedAtStart,
         callPurposeContext: mockInterviewContext
           ? buildMockInterviewWrapupContext(mockInterviewContext)
-          : undefined,
+          : conversationStarter?.id === "career_coaching"
+            ? "This was a career coaching call. Preserve the user's concrete concern, important tradeoffs, explicitly confirmed decision criteria, and any concrete support plan they approved for Harper or consequential action they agreed to take. Do not turn Harper's unconfirmed hypothesis or proposed plan into a user fact, and do not invent generic homework."
+            : undefined,
         preferredLocale: responseLocale,
         startedAt: body.startedAt,
         transcript: resolvedTranscript,
@@ -795,6 +816,7 @@ export async function POST(request: NextRequest) {
       : buildCareerCallWrapupFallbackFollowUp({
         callNoteCreated,
         callNoteUpdated,
+        conversationStarterId: conversationStarter?.id,
         isBrief: briefConversation,
         isOnboardingDone: inferredOnboardingDone,
         preferredLocale: responseLocale,
@@ -848,6 +870,7 @@ export async function POST(request: NextRequest) {
             : buildCareerCallWrapupTurnInstruction({
               callNoteCreated,
               callNoteUpdated,
+              conversationStarterId: conversationStarter?.id,
               durationLabel,
               isBrief: briefConversation,
               isOnboardingDone: inferredOnboardingDone,

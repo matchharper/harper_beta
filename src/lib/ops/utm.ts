@@ -145,6 +145,36 @@ function toCompositionRows(
   );
 }
 
+function toTimeRangeCompositionRows(
+  counts: Map<string, { count: number; label: string }>,
+  total: number
+): OpsUtmLandingCompositionRow[] {
+  const timeRangeRows = OPS_UTM_TIME_RANGES.map(({ key, label }) => {
+    const value = counts.get(key);
+    const count = value?.count ?? 0;
+
+    return {
+      count,
+      key,
+      label,
+      rate: total > 0 ? count / total : 0,
+    };
+  });
+  const unknown = counts.get("unknown");
+
+  return unknown
+    ? [
+        ...timeRangeRows,
+        {
+          count: unknown.count,
+          key: "unknown",
+          label: unknown.label,
+          rate: total > 0 ? unknown.count / total : 0,
+        },
+      ]
+    : timeRangeRows;
+}
+
 function resolveCountryCode(countryLang: string | null) {
   const code = String(countryLang ?? "")
     .split("_")[0]
@@ -212,7 +242,7 @@ export function buildOpsUtmLandingComposition(
   return {
     countries: toCompositionRows(countryCounts, entries.length),
     devices: toCompositionRows(deviceCounts, entries.length),
-    timeRanges: toCompositionRows(timeRangeCounts, entries.length),
+    timeRanges: toTimeRangeCompositionRows(timeRangeCounts, entries.length),
     timeZone: "Asia/Seoul",
   };
 }

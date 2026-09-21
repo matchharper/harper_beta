@@ -1635,6 +1635,7 @@ function buildWorkspaceMessageBody(args: {
   return [
     ...AUTO_INTRO_WORKSPACE_OPENING,
     ...roleBlocks,
+    "----------",
     AUTO_INTRO_RESPONSE_GUIDANCE,
     buildAutoIntroWorkspaceActionGuidance({
       workspaceId: args.group.workspaceId,

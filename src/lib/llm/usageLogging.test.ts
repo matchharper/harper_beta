@@ -72,3 +72,15 @@ test("prices OpenRouter DeepSeek V4 Flash 0731", () => {
   assert.equal(cost?.pricingSource, "openrouter_pricing_2026_09_13");
   assert.equal(cost?.estimatedCostUsd, 0.00013);
 });
+
+test("prices OpenRouter Muse Spark 1.3", () => {
+  const usage = extractLlmTokenUsage({
+    usage: { input_tokens: 1_000, output_tokens: 500 },
+  });
+
+  const cost = estimateLlmUsageCost("meta/muse-spark-1.3", usage);
+  assert.equal(cost?.inputUsdPerMtok, 1.25);
+  assert.equal(cost?.outputUsdPerMtok, 4.25);
+  assert.equal(cost?.pricingSource, "openrouter_pricing_2026_09_15");
+  assert.equal(cost?.estimatedCostUsd, 0.003375);
+});

@@ -83,7 +83,8 @@ test("candidate progress metadata keeps review details without exposing raw enum
   );
 });
 
-test("company-side pipeline summary uses the three documented buckets", () => {
+test("company-side pipeline summary keeps Company-first intro separate", () => {
+  assert.equal(getOrgAgentPipelineBucket("company_intro"), "intro");
   assert.equal(getOrgAgentPipelineBucket("pending_connection"), "waiting");
   assert.equal(getOrgAgentPipelineBucket("connected"), "active");
   assert.equal(getOrgAgentPipelineBucket("custom:123"), "active");

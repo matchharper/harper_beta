@@ -74,6 +74,9 @@ test("organization-agent system prompt keeps compact behavior and safety contrac
   assert.match(prompt, /Copy opaque identifiers exactly/);
 
   assert.match(prompt, /## Writes/);
+  assert.match(prompt, /<hiring_brief_authoring_contract>/);
+  assert.match(prompt, /Never erase an established school bar/);
+  assert.match(prompt, /not an automatic preferred-company list/);
   assert.match(prompt, /Mutate only when the user explicitly asks/);
   assert.match(prompt, /0–6 concise, non-overlapping hiring dimensions/);
   assert.match(prompt, /## Hard constraints/);

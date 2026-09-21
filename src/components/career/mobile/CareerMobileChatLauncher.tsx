@@ -211,22 +211,24 @@ function CareerMobileChatLauncher({
     callConnectionStatus === "connected" ||
     callConnectionStatus === "reconnecting";
   const showMinimizedCall = isCallActive && !open;
+  const assistantResponsePending = Boolean(
+    chatPending ||
+    assistantTyping ||
+    activeThinkingLogs.length > 0 ||
+    sessionReengagementPending ||
+    opportunityFeedbackFollowUpPending ||
+    onboardingWrapupPending ||
+    callWrapUpPending
+  );
   const chatNotice = useCareerMobileChatNotice({
     conversationId,
     messages,
     open,
+    pending: assistantResponsePending,
     ready: !sessionPending && Boolean(conversationId),
   });
   const harperPreparing =
-    !open &&
-    !showMinimizedCall &&
-    (chatPending ||
-      assistantTyping ||
-      activeThinkingLogs.length > 0 ||
-      sessionReengagementPending ||
-      opportunityFeedbackFollowUpPending ||
-      onboardingWrapupPending ||
-      callWrapUpPending);
+    !open && !showMinimizedCall && assistantResponsePending;
   const resolvedPlaceholder =
     placeholder ??
     t(
@@ -346,7 +348,7 @@ function CareerMobileChatLauncher({
             <div className="h-[3px] w-10 rounded-full bg-black/20" />
           </div>
           {actionBar && !showMinimizedCall ? (
-            <div className="px-4 pt-1 pb-2">{actionBar}</div>
+            <div className="px-4 pt-1 pb-0.5">{actionBar}</div>
           ) : null}
           <div className="flex items-center gap-2 px-4 pb-3 pt-1">
             {showMinimizedCall ? (

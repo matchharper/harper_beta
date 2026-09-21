@@ -14,6 +14,8 @@ type TalentCareerModalProps = {
   footer?: React.ReactNode;
   ariaLabel?: string;
   closeOnBackdrop?: boolean;
+  /** Set false for a side panel that allows interacting with the workspace. */
+  modal?: boolean;
   showCloseButton?: boolean;
   /** 모바일 화면에서 모달을 화면 하단에 붙는 BottomSheet 형태로 표시한다. */
   mobileBottomSheet?: boolean;
@@ -41,6 +43,7 @@ const TalentCareerModal = ({
   footer,
   ariaLabel,
   closeOnBackdrop = true,
+  modal = true,
   showCloseButton = true,
   mobileBottomSheet = false,
   overlayClassName,
@@ -63,6 +66,7 @@ const TalentCareerModal = ({
 
   return (
     <DialogPrimitive.Root
+      modal={modal}
       open={open}
       onOpenChange={(next) => {
         if (!next) onClose();

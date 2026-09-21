@@ -28,6 +28,7 @@ import {
   CLAUDE_MODEL,
   GPT_56_LUNA_MODEL,
   OPENROUTER_GLM_53_FLASH_MODEL,
+  OPENROUTER_MUSE_SPARK_13_MODEL,
 } from "@/lib/llm/modelConfig";
 import { DEFAULT_OPPORTUNITY_DISCOVERY_AGENT_VARIANT } from "@/lib/opportunityDiscovery/types";
 import { useCareerDevSqlPromptHistoryStore } from "@/store/useCareerDevSqlPromptHistoryStore";
@@ -59,6 +60,11 @@ const devTextChatModelOptions: Array<{
     eventKey: "glm_5_3_flash_high",
     label: "OpenRouter · GLM 5.3 Flash · high",
     value: OPENROUTER_GLM_53_FLASH_MODEL,
+  },
+  {
+    eventKey: "muse_spark_1_3_xhigh",
+    label: "OpenRouter · Muse Spark 1.3 · xhigh",
+    value: OPENROUTER_MUSE_SPARK_13_MODEL,
   },
   {
     eventKey: "gpt_5_6_luna_xhigh",
@@ -622,7 +628,7 @@ export default function CareerHomeDevControls({
           ) : (
             <BriefcaseBusiness className="h-3.5 w-3.5" />
           )}
-          현재 데이터로 공고 추천
+          현재 데이터로 포지션 추천
         </MuteButton>
         <MuteButton
           onClick={() => void handleLogDevPrompt("text")}

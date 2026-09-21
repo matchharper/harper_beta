@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltips } from "@/components/ui/tooltip";
 import { useOpsUtmSourceDetail, useOpsUtmSources } from "@/hooks/ops/useOpsUtm";
 import { fetchWithOpsUtmAccess } from "@/lib/internalApiClient";
 import { isInternalEmail } from "@/lib/internalAccess";
@@ -37,20 +38,32 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/router";
 import {
   Check,
+  CircleHelp,
   Copy,
+  Laptop,
   LoaderCircle,
   Pencil,
   Plus,
   RefreshCw,
   Search,
+  Smartphone,
   Trash2,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   Bar,
   BarChart,
+  Cell,
   CartesianGrid,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -119,11 +132,7 @@ function ChartTooltip({
         {row.label}
       </div>
       <div className="mt-3 space-y-2 text-xs">
-        <MetricLine
-          color="bg-neutral-300"
-          label="Landing"
-          value={row.landing}
-        />
+        <MetricLine color="bg-neutral-300" label="유입" value={row.landing} />
         <MetricLine
           color="bg-action"
           label="가입"
@@ -194,59 +203,303 @@ function compactCompositionRows(
   ];
 }
 
-function LandingCompositionCard({
-  columnCount = 1,
-  maxRows = 4,
-  rows,
+function compositionTooltipText(row: OpsUtmLandingCompositionRow) {
+  return [
+    row.label,
+    formatRate(row.rate),
+    row.count.toLocaleString("ko-KR") + "회",
+  ].join(" · ");
+}
+
+function LandingCompositionPanel({
+  children,
   subtitle,
   title,
 }: {
-  columnCount?: 1 | 2;
-  maxRows?: number;
-  rows: OpsUtmLandingCompositionRow[];
+  children: ReactNode;
   subtitle?: string;
   title: string;
 }) {
-  const compactRows = compactCompositionRows(rows, maxRows);
-
   return (
-    <div className="rounded-md bg-bg-weak p-3">
+    <section className="rounded-lg border border-neutral-1000-a05 bg-bg-floating p-4">
       <div className="flex items-baseline justify-between gap-2">
-        <h4 className="text-xs font-medium text-neutral-primary">{title}</h4>
+        <h4 className="text-sm font-semibold text-neutral-primary">{title}</h4>
         {subtitle ? (
-          <span className="text-[10px] text-neutral-soft">{subtitle}</span>
+          <span className="text-[11px] text-neutral-soft">{subtitle}</span>
         ) : null}
       </div>
+      {children}
+    </section>
+  );
+}
+
+function EmptyCompositionState() {
+  return <div className="mt-5 text-xs text-neutral-soft">기록 없음</div>;
+}
+
+function CountryCompositionCard({
+  rows,
+}: {
+  rows: OpsUtmLandingCompositionRow[];
+}) {
+  const compactRows = compactCompositionRows(rows);
+
+  return (
+    <LandingCompositionPanel title="국가">
       {compactRows.length === 0 ? (
-        <div className="mt-3 text-xs text-neutral-soft">기록 없음</div>
+        <EmptyCompositionState />
       ) : (
-        <div
-          className={cx(
-            "mt-3 gap-x-3 gap-y-2.5",
-            columnCount === 2 ? "grid grid-cols-2" : "flex flex-col"
-          )}
-        >
+        <div className="mt-4 space-y-1.5">
           {compactRows.map((row) => (
-            <div key={row.key}>
-              <div className="flex items-center justify-between gap-3 text-[11px]">
-                <span className="min-w-0 truncate text-neutral-muted">
-                  {row.label}
-                </span>
-                <span className="shrink-0 tabular-nums text-neutral-primary">
-                  {row.count.toLocaleString("ko-KR")} · {formatRate(row.rate)}
-                </span>
-              </div>
-              <div className="mt-1 h-1 overflow-hidden rounded-full bg-neutral-1000-a05">
-                <div
-                  className="h-full rounded-full bg-neutral-800"
-                  style={{ width: `${Math.min(row.rate * 100, 100)}%` }}
-                />
-              </div>
-            </div>
+            <Tooltips
+              key={row.key}
+              side="top"
+              text={compositionTooltipText(row)}
+            >
+              <button
+                aria-label={compositionTooltipText(row)}
+                className="group w-full rounded-md px-1 py-1.5 text-left outline-none transition hover:bg-bg-weak focus-visible:ring-2 focus-visible:ring-neutral-800/30"
+                title={compositionTooltipText(row)}
+                type="button"
+              >
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  <span className="min-w-0 truncate text-neutral-muted">
+                    {row.label}
+                  </span>
+                  <span className="shrink-0 text-sm font-semibold tabular-nums text-neutral-primary">
+                    {formatRate(row.rate)}
+                  </span>
+                </div>
+                <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-bg-weak">
+                  <div
+                    className="h-full min-w-[3px] rounded-full bg-primary transition-[width] duration-200"
+                    style={{
+                      width: String(Math.min(row.rate * 100, 100)) + "%",
+                    }}
+                  />
+                </div>
+              </button>
+            </Tooltips>
           ))}
         </div>
       )}
+    </LandingCompositionPanel>
+  );
+}
+
+function TimeRangeCompositionCard({
+  rows,
+}: {
+  rows: OpsUtmLandingCompositionRow[];
+}) {
+  const timeRangeRows = rows.filter((row) => row.key !== "unknown");
+  const unknownRow = rows.find((row) => row.key === "unknown");
+  const highestRate = Math.max(...timeRangeRows.map((row) => row.rate), 0);
+
+  return (
+    <LandingCompositionPanel subtitle="KST" title="유입 시간대">
+      {timeRangeRows.length === 0 ? (
+        <EmptyCompositionState />
+      ) : (
+        <>
+          <div className="mt-4 grid grid-cols-4 gap-x-1.5 gap-y-3 sm:grid-cols-8">
+            {timeRangeRows.map((row) => {
+              const barHeight =
+                highestRate > 0
+                  ? String(Math.max((row.rate / highestRate) * 100, 6)) + "%"
+                  : "6%";
+
+              return (
+                <Tooltips
+                  key={row.key}
+                  side="top"
+                  text={compositionTooltipText(row)}
+                >
+                  <button
+                    aria-label={compositionTooltipText(row)}
+                    className="group flex min-h-[154px] flex-col items-center rounded-md px-1 pt-1.5 outline-none transition hover:bg-bg-weak focus-visible:ring-2 focus-visible:ring-neutral-800/30"
+                    title={compositionTooltipText(row)}
+                    type="button"
+                  >
+                    <span className="text-[11px] font-semibold tabular-nums text-neutral-primary">
+                      {formatRate(row.rate)}
+                    </span>
+                    <div className="mt-2 flex h-24 w-full items-end justify-center">
+                      <div
+                        className="w-7 rounded-t-md bg-primary transition-[height] duration-200 group-hover:bg-accent-600"
+                        style={{ height: barHeight }}
+                      />
+                    </div>
+                    <span className="mt-2 whitespace-nowrap text-[10px] text-neutral-muted">
+                      {row.label}
+                    </span>
+                  </button>
+                </Tooltips>
+              );
+            })}
+          </div>
+          {unknownRow ? (
+            <Tooltips side="top" text={compositionTooltipText(unknownRow)}>
+              <button
+                aria-label={compositionTooltipText(unknownRow)}
+                className="mt-3 rounded-md px-1.5 py-1 text-[11px] text-neutral-soft outline-none transition hover:bg-bg-weak hover:text-neutral-muted focus-visible:ring-2 focus-visible:ring-neutral-800/30"
+                title={compositionTooltipText(unknownRow)}
+                type="button"
+              >
+                시간 미확인 · {formatRate(unknownRow.rate)}
+              </button>
+            </Tooltips>
+          ) : null}
+        </>
+      )}
+    </LandingCompositionPanel>
+  );
+}
+
+const DEVICE_COMPOSITION_META = {
+  desktop: {
+    color: "var(--color-blue-600)",
+    Icon: Laptop,
+    order: 1,
+  },
+  mobile: {
+    color: "var(--color-primary)",
+    Icon: Smartphone,
+    order: 0,
+  },
+  unknown: {
+    color: "var(--color-neutral-500)",
+    Icon: CircleHelp,
+    order: 2,
+  },
+} as const;
+
+function getDeviceCompositionMeta(key: string) {
+  return (
+    DEVICE_COMPOSITION_META[key as keyof typeof DEVICE_COMPOSITION_META] ??
+    DEVICE_COMPOSITION_META.unknown
+  );
+}
+
+function DeviceCompositionTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload?: OpsUtmLandingCompositionRow }>;
+}) {
+  const row = payload?.[0]?.payload;
+  if (!active || !row) return null;
+
+  return (
+    <div className="rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 py-2 text-xs shadow-xl">
+      <div className="font-medium text-neutral-primary">{row.label}</div>
+      <div className="mt-1 text-neutral-muted">
+        {formatRate(row.rate)} · {row.count.toLocaleString("ko-KR")}회
+      </div>
     </div>
+  );
+}
+
+function DeviceCompositionCard({
+  rows,
+}: {
+  rows: OpsUtmLandingCompositionRow[];
+}) {
+  const deviceRows = [...rows]
+    .filter((row) => row.count > 0)
+    .sort(
+      (left, right) =>
+        getDeviceCompositionMeta(left.key).order -
+        getDeviceCompositionMeta(right.key).order
+    );
+  const dominantRow = deviceRows.reduce<OpsUtmLandingCompositionRow | null>(
+    (current, row) => (!current || row.rate > current.rate ? row : current),
+    null
+  );
+  const DominantIcon = dominantRow
+    ? getDeviceCompositionMeta(dominantRow.key).Icon
+    : null;
+
+  return (
+    <LandingCompositionPanel title="기기">
+      {deviceRows.length === 0 ? (
+        <EmptyCompositionState />
+      ) : (
+        <div className="mt-3">
+          <div className="relative mx-auto h-[172px] max-w-[230px]">
+            <ResponsiveContainer height="100%" width="100%">
+              <PieChart>
+                <Tooltip
+                  content={<DeviceCompositionTooltip />}
+                  cursor={false}
+                />
+                <Pie
+                  cx="50%"
+                  cy="50%"
+                  data={deviceRows}
+                  dataKey="rate"
+                  innerRadius={48}
+                  outerRadius={70}
+                  paddingAngle={2}
+                  stroke="var(--color-bg-floating)"
+                  strokeWidth={2}
+                >
+                  {deviceRows.map((row) => (
+                    <Cell
+                      fill={getDeviceCompositionMeta(row.key).color}
+                      key={row.key}
+                    />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+            {dominantRow && DominantIcon ? (
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                <DominantIcon
+                  aria-hidden
+                  className="h-5 w-5 text-neutral-primary"
+                />
+                <span className="mt-1 text-sm font-semibold tabular-nums text-neutral-primary">
+                  {formatRate(dominantRow.rate)}
+                </span>
+              </div>
+            ) : null}
+          </div>
+          <div className="mx-auto mt-1 flex max-w-[220px] items-center justify-center gap-2">
+            {deviceRows.map((row) => {
+              const { color, Icon } = getDeviceCompositionMeta(row.key);
+
+              return (
+                <Tooltips
+                  key={row.key}
+                  side="top"
+                  text={compositionTooltipText(row)}
+                >
+                  <button
+                    aria-label={compositionTooltipText(row)}
+                    className="flex h-10 w-10 items-center justify-center rounded-md outline-none transition hover:bg-bg-weak focus-visible:ring-2 focus-visible:ring-neutral-800/30"
+                    title={compositionTooltipText(row)}
+                    type="button"
+                  >
+                    <span
+                      aria-hidden
+                      className="mr-1 h-2 w-2 rounded-full"
+                      style={{ backgroundColor: color }}
+                    />
+                    <Icon
+                      aria-hidden
+                      className="h-4 w-4 text-neutral-primary"
+                    />
+                    <span className="sr-only">{row.label}</span>
+                  </button>
+                </Tooltips>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </LandingCompositionPanel>
   );
 }
 
@@ -286,18 +539,6 @@ function SourceListRow({
             </div>
           ) : null}
         </div>
-        <span
-          className={cx(
-            "shrink-0 rounded px-2 py-1 text-[10px] font-medium",
-            active
-              ? "bg-neutral-00/10 text-neutral-00"
-              : row.isRegistered
-                ? "bg-primary-faded text-primary"
-                : "bg-bg-weak text-neutral-muted"
-          )}
-        >
-          {row.isRegistered ? "등록" : "자동 감지"}
-        </span>
       </div>
       <div
         className={cx(
@@ -305,8 +546,8 @@ function SourceListRow({
           active ? "text-neutral-00/60" : "text-neutral-soft"
         )}
       >
-        <span>Landing {row.entryCount.toLocaleString("ko-KR")}</span>
-        <span>{formatDateTime(row.lastEnteredAt)}</span>
+        <span>총 유입 : {row.entryCount.toLocaleString("ko-KR")}</span>
+        <span>최근 유입 : {formatDateTime(row.lastEnteredAt)}</span>
       </div>
     </button>
   );
@@ -443,9 +684,7 @@ export default function OpsUtmWorkspace() {
     () => parseOpsUtmUrlState(router.query),
     [router.query]
   );
-  const query = router.isReady
-    ? readOpsUtmSearchQuery(router.query.q)
-    : "";
+  const query = router.isReady ? readOpsUtmSearchQuery(router.query.q) : "";
   const { filters, granularity, period } = urlState;
 
   useEffect(() => {
@@ -626,12 +865,7 @@ export default function OpsUtmWorkspace() {
 
   return (
     <div className="space-y-4">
-      <section
-        className={cx(
-          opsTheme.panel,
-          "p-5 shadow-[0_20px_55px_color-mix(in_srgb,var(--color-neutral-1000)_7%,transparent)]"
-        )}
-      >
+      <section>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h1 className="font-hedvig text-[2rem] leading-none tracking-[-0.06em] text-neutral-primary">
@@ -776,7 +1010,7 @@ export default function OpsUtmWorkspace() {
             </section>
           ) : (
             <>
-              <section className={cx(opsTheme.panel, "p-5")}>
+              <section className="py-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -799,9 +1033,6 @@ export default function OpsUtmWorkspace() {
                         {detail.source.description}
                       </p>
                     ) : null}
-                    <div className="mt-2 text-xs text-neutral-soft">
-                      최근 진입 {formatDateTime(detail.source.lastEnteredAt)}
-                    </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <MuteButton
@@ -841,15 +1072,6 @@ export default function OpsUtmWorkspace() {
 
                 <div className="mt-5 border-t border-neutral-1000-a05 pt-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <div className="text-sm font-medium text-neutral-primary">
-                        UTM 상세 필터
-                      </div>
-                      <p className="mt-1 text-xs leading-5 text-neutral-muted">
-                        Source 아래에서 Medium, Campaign, Content, Term 순으로
-                        유입을 좁혀 볼 수 있습니다.
-                      </p>
-                    </div>
                     {Object.keys(filters).length > 0 ? (
                       <MuteButton
                         onClick={() => navigate({ filters: {} })}
@@ -945,7 +1167,7 @@ export default function OpsUtmWorkspace() {
                 </div>
               </section>
 
-              <section className={cx(opsTheme.panel, "p-5")}>
+              <section>
                 <h3 className="text-base font-medium text-neutral-primary">
                   선택 기간 전환
                 </h3>
@@ -953,7 +1175,7 @@ export default function OpsUtmWorkspace() {
                   {[
                     {
                       color: "bg-neutral-300",
-                      label: "Landing",
+                      label: "유입",
                       metric: detail.totals.landing,
                     },
                     {
@@ -967,7 +1189,10 @@ export default function OpsUtmWorkspace() {
                       metric: detail.totals.onboardingCompleted,
                     },
                   ].map((item) => (
-                    <div className="rounded-md bg-bg-weak p-4" key={item.label}>
+                    <div
+                      className="rounded-md bg-bg-floating p-4"
+                      key={item.label}
+                    >
                       <div className="flex items-center gap-2 text-xs text-neutral-muted">
                         <span
                           className={cx("h-2.5 w-2.5 rounded-sm", item.color)}
@@ -992,7 +1217,7 @@ export default function OpsUtmWorkspace() {
               <section className={cx(opsTheme.panel, "overflow-hidden p-5")}>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                   <h3 className="text-base font-medium text-neutral-primary">
-                    {granularity === "day" ? "일별" : "주별"} Landing 구성
+                    {granularity === "day" ? "일별" : "주별"}
                   </h3>
                   <div className="flex flex-wrap gap-4 text-xs text-neutral-muted">
                     <ChartLegendItem color="bg-neutral-300" label="방문만" />
@@ -1057,25 +1282,21 @@ export default function OpsUtmWorkspace() {
                     </ResponsiveContainer>
                   </div>
                 </div>
-                <div className="mt-4 grid gap-3 border-t border-neutral-1000-a05 pt-4 md:grid-cols-3">
-                  <LandingCompositionCard
-                    rows={detail.landingComposition?.countries ?? []}
-                    title="국가"
-                  />
-                  <LandingCompositionCard
-                    columnCount={2}
-                    maxRows={8}
-                    rows={detail.landingComposition?.timeRanges ?? []}
-                    subtitle="KST"
-                    title="유입 시간대"
-                  />
-                  <LandingCompositionCard
-                    rows={detail.landingComposition?.devices ?? []}
-                    title="기기"
-                  />
-                </div>
               </section>
             </>
+          )}
+          {detail && (
+            <div className="mt-6 grid gap-4 pb-12 md:grid-cols-2 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.45fr)_minmax(0,0.95fr)]">
+              <CountryCompositionCard
+                rows={detail.landingComposition?.countries ?? []}
+              />
+              <TimeRangeCompositionCard
+                rows={detail.landingComposition?.timeRanges ?? []}
+              />
+              <DeviceCompositionCard
+                rows={detail.landingComposition?.devices ?? []}
+              />
+            </div>
           )}
         </main>
       </div>

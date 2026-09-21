@@ -7,6 +7,7 @@ process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-key";
 
 function baseRows(): DailyCompanyStatsSourceRows {
   return {
+    companyIntroCandidates: [],
     events: [],
     loginLogs: [],
     memberships: [],
@@ -204,6 +205,98 @@ test("company stats count current candidate stages and daily additions by unique
     formatDailyCompanyStatsSlackMessage(report),
     /\|수락 1> \(\+ 오늘 2명\) · 연결 대기 1 · 진행 중 2 \(\+ 오늘 1명\) · 거절 0/
   );
+});
+
+test("company stats show active company-first candidates only when present", async () => {
+  const {
+    compileDailyCompanyStatsReport,
+    formatDailyCompanyStatsSlackDetailMessages,
+    formatDailyCompanyStatsSlackMessage,
+  } = await import("@/lib/dailyCompanyStats");
+  const rows = baseRows();
+  rows.workspaces = [
+    { company_name: "Intro Co", company_workspace_id: "workspace-intro" },
+    { company_name: "Zero Co", company_workspace_id: "workspace-zero" },
+  ];
+  rows.roles = [
+    {
+      company_internal_roles: { is_auto: false },
+      company_workspace_id: "workspace-intro",
+      is_expired: false,
+      name: "Engineer",
+      role_id: "role-intro",
+      source_type: "internal",
+      status: "active",
+    },
+    {
+      company_internal_roles: { is_auto: false },
+      company_workspace_id: "workspace-zero",
+      is_expired: false,
+      name: "Designer",
+      role_id: "role-zero",
+      source_type: "internal",
+      status: "active",
+    },
+  ];
+  rows.companyIntroCandidates = [
+    {
+      company_workspace_id: "workspace-intro",
+      role_id: "role-intro",
+      selected_at: "2026-08-16T01:00:00.000Z",
+      status: "ready",
+      talent_id: "talent-ready",
+    },
+    {
+      company_workspace_id: "workspace-intro",
+      role_id: "role-intro",
+      selected_at: "2026-08-15T14:00:00.000Z",
+      status: "awaiting_talent",
+      talent_id: "talent-awaiting",
+    },
+    {
+      company_workspace_id: "workspace-intro",
+      role_id: "role-intro",
+      selected_at: "2026-08-16T02:00:00.000Z",
+      status: "connecting",
+      talent_id: "talent-connecting",
+    },
+    {
+      company_workspace_id: "workspace-intro",
+      role_id: "role-intro",
+      selected_at: "2026-08-16T03:00:00.000Z",
+      status: "connected",
+      talent_id: "talent-connected",
+    },
+    {
+      company_workspace_id: "workspace-intro",
+      role_id: "role-intro",
+      selected_at: "2026-08-16T04:00:00.000Z",
+      status: "passed",
+      talent_id: "talent-passed",
+    },
+  ];
+
+  const report = compileDailyCompanyStatsReport({ date: "2026-08-16", rows });
+  const introCompany = report.otherCompanies.find(
+    (company) => company.companyWorkspaceId === "workspace-intro"
+  );
+  const message = formatDailyCompanyStatsSlackMessage(report);
+  const detail = formatDailyCompanyStatsSlackDetailMessages(report).join("\n");
+
+  assert.equal(introCompany?.companyIntroCount, 3);
+  assert.equal(introCompany?.companyIntroTodayCount, 2);
+  assert.equal(introCompany?.roleStats[0]?.companyIntroCount, 3);
+  assert.equal(report.totals.companyIntroCount, 3);
+  assert.equal(report.totals.companyIntroTodayCount, 2);
+  assert.match(message, /- 전체 후보 상태: 먼저 제안 3명 · 수락자/);
+  assert.match(message, /• Intro Co — 먼저 제안 3명 \(\+ 오늘 2명\) · /);
+  assert.match(detail, /- 새로 먼저 제안된 후보 2명/);
+  assert.match(detail, /• Engineer \(active\) — 먼저 제안 3명 · /);
+  const zeroCompanyLine = message
+    .split("\n")
+    .find((line) => line.startsWith("• Zero Co —"));
+  assert.ok(zeroCompanyLine);
+  assert.doesNotMatch(zeroCompanyLine, /먼저 제안/);
 });
 
 test("company stats keep Harper acceptances separate from another role's later stage", async () => {
@@ -557,6 +650,8 @@ test("company stats include daily totals, linked acceptances, and thread details
     acceptedTodayCount: 1,
     activeRoleCount: 1,
     chatTodayCount: 1,
+    companyIntroCount: 0,
+    companyIntroTodayCount: 0,
     connectedCount: 0,
     connectedTodayCount: 0,
     memberCount: 2,

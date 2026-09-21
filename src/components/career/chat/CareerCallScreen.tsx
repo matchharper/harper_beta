@@ -14,6 +14,8 @@ import type {
 } from "../types";
 import { BareButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
+import { CompanyLogo } from "@/components/career/watchlist/CompanyLogo";
+import { getDisplayableCompanyLogoUrl } from "@/lib/imageUrl";
 
 /* ─── Waveform Dots ─── */
 
@@ -196,6 +198,7 @@ const CareerCallScreen = () => {
     isAssistantSpeaking,
     isVoiceToolExecuting,
     voiceActiveToolNames = [],
+    mockInterviewDisplay,
   } = useCareerCallContext();
 
   const getToolStatus = (toolName: string) => {
@@ -203,13 +206,25 @@ const CareerCallScreen = () => {
       case "web_search":
         return t("career.call.tool_status.web_search", "웹 검색 중...");
       case "read_recommended_opportunities":
-        return t("career.call.tool_status.recommendations", "기존 추천 조회 중...");
+        return t(
+          "career.call.tool_status.recommendations",
+          "기존 추천 조회 중..."
+        );
       case "get_role_context":
-        return t("career.call.tool_status.role_context", "포지션 상세 조회 중...");
+        return t(
+          "career.call.tool_status.role_context",
+          "포지션 상세 조회 중..."
+        );
       case "read_talent_context":
-        return t("career.call.tool_status.read_context", "사용자 정보 조회 중...");
+        return t(
+          "career.call.tool_status.read_context",
+          "사용자 정보 조회 중..."
+        );
       case "write_talent_context":
-        return t("career.call.tool_status.write_context", "사용자 정보 업데이트 중...");
+        return t(
+          "career.call.tool_status.write_context",
+          "사용자 정보 업데이트 중..."
+        );
       default:
         return t("career.call.tool_status.default", "요청 처리 중...");
     }
@@ -234,7 +249,7 @@ const CareerCallScreen = () => {
     "커리어 인터뷰를 임의로 종료할 수 있어요. 거의 다 왔으니 2~3개의 질문에만 추가로 대답해주시면 자동으로 종료됩니다."
   );
 
-  const showInterviewCallProgress = !isOnboardingDone;
+  const showInterviewCallProgress = !isOnboardingDone && !mockInterviewDisplay;
 
   const requestEndCall = useCallback(
     (options?: { forceCompleteOnboarding?: boolean }) => {
@@ -315,7 +330,31 @@ const CareerCallScreen = () => {
       <div className="flex flex-1 flex-col items-center justify-center pb-40">
         <span className="text-lg font-medium text-neutral-muted">Harper</span>
         <Face status={faceStatus} className="mt-4" aria-label="Harper" />
-        <span className="mt-4 text-sm tabular-nums text-neutral-soft">
+        {mockInterviewDisplay ? (
+          <div className="mt-5 flex max-w-[min(360px,calc(100vw-48px))] items-center gap-3 rounded-xl border border-neutral-1000-a05 bg-bg-floating px-3 py-2.5 text-left shadow-sm">
+            <CompanyLogo
+              logoUrl={getDisplayableCompanyLogoUrl(
+                mockInterviewDisplay.companyLogoUrl
+              )}
+              name={mockInterviewDisplay.companyName}
+              size="sm"
+            />
+            <div className="min-w-0">
+              <div className="truncate text-sm font-medium text-neutral-primary">
+                {mockInterviewDisplay.companyName}
+              </div>
+              <div className="mt-0.5 truncate text-xs text-neutral-muted">
+                {mockInterviewDisplay.roleTitle}
+              </div>
+            </div>
+          </div>
+        ) : null}
+        <span
+          className={cn(
+            "text-sm tabular-nums text-neutral-soft",
+            mockInterviewDisplay ? "mt-3" : "mt-4"
+          )}
+        >
           {timer}
         </span>
 

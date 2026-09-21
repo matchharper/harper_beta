@@ -1,0 +1,109 @@
+{
+  "task": "career-coaching-dialogue",
+  "datasetVersion": "v1",
+  "kind": "synthetic_challenge",
+  "createdAt": "2026-09-17",
+  "locale": "ko",
+  "cases": [
+    {
+      "id": "learning_stagnation",
+      "title": "학습 정체를 다음 기회 기준으로 바꾸기",
+      "profile": {
+        "current_location": "서울"
+      },
+      "preferences": {
+        "preferredLocale": "ko",
+        "getExternalRecommendation": true,
+        "profileVisibility": "open_to_matches",
+        "recommendationBatchSize": 3,
+        "talentSettingStatus": "active"
+      },
+      "structuredProfileText": "김민서는 B2B SaaS 회사에서 6년차 Product Manager로 일하고 있다. 최근 3년 동안 결제와 운영 자동화 제품을 맡았다. 현재 직급은 Senior PM이다.",
+      "talentContextSection": "## Search Brief\n- [B1] 다음 역할도 product ownership이 있는 PM 역할을 선호한다.\n- [B2] 현재 연봉보다 낮아지는 이동은 원하지 않는다.\n\n## Memory\n- [M1] 지금 회사와 동료에 대한 불만이 큰 것은 아니며, 좋은 기회라면 이직을 검토할 수 있다고 말했다.",
+      "recentConversationSection": "## 최근 대화\n- 두 달 전, 당장 퇴사할 계획은 없지만 성장 속도에 대한 고민이 있다고 말했다.",
+      "userTurns": [
+        "요즘 이직해야 하나 고민돼요. 회사가 싫은 건 아닌데, 배우는 속도가 확실히 느려졌어요.",
+        "역할 범위보다 주변에 배울 만한 동료가 적고 늘 비슷한 문제를 푸는 게 더 커요.",
+        "네. 연봉을 조금 더 받는 것보다 강한 동료와 새로운 문제를 만나는 게 지금은 중요해요. 다만 직급이 내려가는 건 싫고요.",
+        "회사 규모는 상관없어요. 작은 회사라도 대표가 결정을 다 쥐고 있으면 싫고, 제가 실질적으로 결정할 수 있는 범위가 있어야 해요.",
+        "맞아요. 강한 동료, 새로운 문제, 실질적인 의사결정 범위를 우선 기준으로 보고 싶어요. 앞으로 그런 기회는 한 번에 다섯 개 정도 보여주면 좋겠어요.",
+        "네, 그렇게 해주세요. 오늘은 여기까지 할게요."
+      ]
+    },
+    {
+      "id": "company_size_correction",
+      "title": "회사 규모 가설을 사용자의 교정에 따라 버리기",
+      "profile": {
+        "current_location": "서울"
+      },
+      "preferences": {
+        "preferredLocale": "ko",
+        "getExternalRecommendation": true,
+        "profileVisibility": "open_to_matches",
+        "recommendationBatchSize": 3,
+        "talentSettingStatus": "active"
+      },
+      "structuredProfileText": "박지훈은 대형 커머스 회사에서 8년차 데이터 분석가로 일하고 있다. 최근에는 추천 시스템과 가격 실험을 지원했다.",
+      "talentContextSection": "## Search Brief\n- [B1] 데이터로 제품 의사결정에 직접 영향을 주는 역할을 원한다.\n\n## Memory\n- [M1] 예전에 초기 스타트업의 빠른 실행 속도가 궁금하다고 말한 적이 있다.",
+      "recentConversationSection": "## 최근 대화\n- 지난 대화에서 스타트업과 대기업 중 어디가 더 맞을지 아직 모르겠다고 말했다.",
+      "userTurns": [
+        "대기업에서 제안이 하나 왔는데, 성장하려면 이번에는 스타트업으로 가야 하나 고민돼요.",
+        "그런데 사실 규모가 핵심은 아닌 것 같아요. 지금도 큰 회사라서 싫은 게 아니라 제가 의사결정을 못 하고 승인만 기다리는 게 답답한 거예요.",
+        "큰 회사여도 제품 방향에 실제로 영향을 줄 수 있고, 배울 만한 리더가 있으면 괜찮아요.",
+        "네. 스타트업을 선호 조건으로 두고 싶지는 않아요. 의사결정에 얼마나 가까운지와 리더에게 배울 수 있는지를 우선해서 보고 싶어요.",
+        "앞으로는 그 기준으로 기회를 봐주세요.",
+        "네, 그렇게 해주세요. 이제 통화를 끝내도 돼요."
+      ]
+    },
+    {
+      "id": "burnout_without_role_rejection",
+      "title": "번아웃 원인과 직무 선호를 분리하기",
+      "profile": {
+        "current_location": "서울"
+      },
+      "preferences": {
+        "preferredLocale": "ko",
+        "getExternalRecommendation": true,
+        "profileVisibility": "open_to_matches",
+        "recommendationBatchSize": 4,
+        "talentSettingStatus": "active"
+      },
+      "structuredProfileText": "이수진은 핀테크 회사의 7년차 Platform PM이다. 결제 인프라와 장애 대응 프로세스를 담당했고, 플랫폼 제품 도메인은 좋아한다고 말해왔다.",
+      "talentContextSection": "## Search Brief\n- [B1] Platform PM 또는 technical product 역할을 계속 고려한다.\n- [B2] 직접 연결 가능한 기회와 공개 채용 공고를 모두 받을 수 있다.\n\n## Memory\n- [M1] 복잡한 운영 문제를 제품으로 단순화하는 일을 좋아한다.",
+      "recentConversationSection": "## 최근 대화\n- 최근 몇 달 동안 업무 강도가 높았다고 짧게 언급했다.",
+      "userTurns": [
+        "요즘 너무 지쳐서 아예 PM을 그만해야 하나 싶어요. 밤에도 장애 연락이 오고 급한 수정이 계속 끼어들어요.",
+        "생각해보면 PM 일이 싫은 건 아니에요. 플랫폼 문제를 푸는 건 여전히 좋은데, 야간 온콜과 상시 인터럽트가 없는 팀이면 좋겠어요.",
+        "다만 지금 당장 적극적으로 이직 준비를 하는 것도 부담스러워요. 공고를 여러 개 받는 것보다 직접 연결 가능한 정말 강한 기회만 보고 싶어요.",
+        "네. 직무를 바꾸려는 건 아니고, 온콜 부담이 낮은 Platform PM 기회 중에서 연결 가능성이 높은 것만 먼저 보고 싶어요.",
+        "그 방식으로 해주세요. 오늘은 더 이야기하지 않아도 될 것 같아요.",
+        "네, 통화 마칠게요."
+      ]
+    },
+    {
+      "id": "offer_decision_action",
+      "title": "오퍼 결정을 바꾸는 하나의 실제 행동 제안",
+      "profile": {
+        "current_location": "서울"
+      },
+      "preferences": {
+        "preferredLocale": "ko",
+        "getExternalRecommendation": false,
+        "profileVisibility": "not_open",
+        "recommendationBatchSize": 3,
+        "talentSettingStatus": "passive"
+      },
+      "structuredProfileText": "최유나는 9년차 소프트웨어 엔지니어이며 현재 두 회사의 오퍼를 비교하고 있다. 백엔드와 데이터 플랫폼 경험이 있다.",
+      "talentContextSection": "## Search Brief\n- [B1] 다음 역할에서는 기술적으로 강한 동료와 높은 ownership을 중요하게 본다.\n\n## Memory\n- [M1] 안정성만을 이유로 성장 기회를 포기하고 싶지는 않다고 말했다.",
+      "recentConversationSection": "## 최근 대화\n- 이번 주 안에 두 오퍼 중 하나를 선택해야 한다고 말했다.",
+      "userTurns": [
+        "오퍼가 두 개 있는데 결정을 못 하겠어요. A는 연봉이 20퍼센트 높고 안정적이고, B는 새로운 AI 도메인이라 더 배울 것 같아요.",
+        "B의 동료들은 강해 보이는데 매니저와 팀 운영 방식은 잘 모르겠어요. 그게 제일 불안해요.",
+        "제가 알고 싶은 건 B 매니저가 실제로 권한을 주고 피드백을 잘하는 사람인지예요.",
+        "내일 B의 hiring manager와 마지막 통화가 있고, 결정 기한은 이틀 뒤예요. 지금 제가 할 딱 하나의 유용한 행동을 제안해주세요.",
+        "그냥 좋은 매니저인지 물으면 당연히 좋은 말만 할 것 같아요. 누구에게 무엇을 물어봐야 판단에 도움이 될까요?",
+        "좋아요. 그건 해볼게요. 오늘은 여기까지 할게요."
+      ]
+    }
+  ]
+}

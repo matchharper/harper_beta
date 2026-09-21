@@ -242,7 +242,7 @@ export default function CareerJobLinkImportButton() {
             payload.error ||
               t(
                 "career.history.job_link_import.failed",
-                "공고를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요."
+                "포지션을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요."
               )
           );
         }
@@ -309,7 +309,7 @@ export default function CareerJobLinkImportButton() {
             ? submitError.message
             : t(
                 "career.history.job_link_import.failed",
-                "공고를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요."
+                "포지션을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요."
               )
         );
       } finally {
@@ -330,7 +330,7 @@ export default function CareerJobLinkImportButton() {
 
   const buttonLabel = t(
     "career.history.job_link_import.button",
-    "공고 링크 추가"
+    "포지션 링크 추가"
   );
   const hasIncompleteRow = rows.some(
     (row) =>
@@ -363,10 +363,10 @@ export default function CareerJobLinkImportButton() {
         bodyClassName="min-h-0 overflow-y-auto"
         headerClassName="shrink-0"
         footerClassName="shrink-0"
-        title={t("career.history.job_link_import.title", "외부 공고 저장하기")}
+        title={t("career.history.job_link_import.title", "외부 포지션 저장하기")}
         description={t(
           "career.history.job_link_import.description",
-          "임의로 관심 공고를 추가할 수 있습니다. 여러 개를 한 번에 저장할 수 있습니다."
+          "임의로 관심 포지션을 추가할 수 있습니다. 여러 개를 한 번에 저장할 수 있습니다."
         )}
         footer={
           <div className="flex items-center justify-end gap-2">
@@ -458,7 +458,7 @@ export default function CareerJobLinkImportButton() {
                         variant="transparent"
                         aria-label={t(
                           "career.history.job_link_import.remove",
-                          "공고 삭제"
+                          "포지션 삭제"
                         )}
                         onClick={() => removeRow(row.clientId)}
                         disabled={submitting}
@@ -550,7 +550,7 @@ export default function CareerJobLinkImportButton() {
             disabled={submitting || rows.length >= MAX_IMPORT_ITEMS}
           >
             <Plus className="h-3.5 w-3.5" />
-            {t("career.history.job_link_import.add", "공고 추가")}
+            {t("career.history.job_link_import.add", "포지션 추가")}
           </MuteButton>
 
           {batchLimitExceeded ? (
@@ -560,7 +560,7 @@ export default function CareerJobLinkImportButton() {
             >
               {t(
                 "career.api.opportunities.import_url_batch_limit",
-                "공고는 한 번에 20개까지 저장할 수 있습니다."
+                "포지션은 한 번에 20개까지 저장할 수 있습니다."
               )}
             </p>
           ) : requestError ? (

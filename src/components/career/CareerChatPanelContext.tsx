@@ -4,6 +4,7 @@ import type {
   CallLiveTranscriptPlacement,
   CallTranscriptEntry,
   CareerCallStartRequest,
+  CareerMockInterviewCallDisplay,
   CareerInputMode,
   CareerHistoryOpportunity,
   CareerHistoryOpportunityFeedback,
@@ -59,6 +60,7 @@ export type CareerChatPanelContextValue = {
   initialChatDraft?: string;
   initialChatDraftKey?: string;
   initialChatOpportunityMention?: CareerOpportunityMention;
+  initialChatDraftReplace?: boolean;
   onboardingWrapupPending: boolean;
   thinkingLogsByMessageId: Record<string, string[]>;
   chatPending: boolean;
@@ -104,6 +106,14 @@ export type CareerChatPanelContextValue = {
     pendingAction?: CareerPendingActionReference;
     onError?: () => void;
   }) => void | Promise<void>;
+  onPrepareChatDraft?: (args: {
+    opportunityMention: CareerOpportunityMention;
+    text: string;
+  }) => void;
+  onShowSameCompanyRoles?: (
+    item: CareerHistoryOpportunity,
+    onOpenChat?: () => void
+  ) => void;
   onStartConversationStarter?: (args: {
     mode: CareerConversationStarterMode;
     starterId: CareerConversationStarterId;
@@ -120,9 +130,7 @@ export type CareerChatPanelContextValue = {
       savedStage?: CareerOpportunitySavedStage | null;
     }
   ) => boolean | void | Promise<boolean | void>;
-  onDeleteMessage?: (
-    messageId: string | number
-  ) => boolean | Promise<boolean>;
+  onDeleteMessage?: (messageId: string | number) => boolean | Promise<boolean>;
   onLoadOlderMessages: () => void | Promise<void>;
   onRegenerateOnboardingWrapup?: () => void | Promise<void>;
   forceCompletePending?: boolean;
@@ -167,7 +175,9 @@ export type CareerCallContextValue = Pick<
   | "onToggleVoiceMute"
   | "voiceMuted"
   | "voiceTranscript"
->;
+> & {
+  mockInterviewDisplay?: CareerMockInterviewCallDisplay | null;
+};
 
 export type CareerChatPanelCoreContextValue = Omit<
   CareerChatPanelContextValue,

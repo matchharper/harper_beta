@@ -2,7 +2,8 @@
 
 - 최초 adjudication: 2026-09-11
 - 현재 dataset/gold: `v1`
-- 상태: 수동 shadow calibration. Positive selection이 없는 guard-focused slice
+- 상태: v1 수동 guard calibration 유지 + production pipeline v2-pilot positive read-only shadow 1건 완료.
+  v2-pilot은 아직 frozen dataset/gold가 아님
 
 ## 목적과 평가 단위
 
@@ -26,15 +27,24 @@ adjudicate하면 별도 run으로 남긴다.
 
 ## Input contract와 canonical procedure
 
-제품·선정 계약은 다음 두 문서가 정본이다.
+`v1`이 동결됐을 때 사용한 제품·수동 선정 계약은 다음 두 문서다.
 
 - [회사 선확인 후보자 추천 · Intro 요청 구현 기획](../../company/company-first-talent-recommendation-product-plan-ko.md)
 - [회사 선확인 후보자 선정 Codex 런북](../../company/company-first-talent-recommendation-codex-runbook-ko.md)
 
-현재 canonical runner는 아직 없다. `v1`은 현재 Codex가 세 Role의 전체 private packet을 직접 읽고
+`v1`은 Codex가 세 Role의 전체 private packet을 직접 읽고
 adjudicate한 수동 절차다. Production capture는 Worker의
 `opp.utils.new_runtime.connect_read_only()`만 사용했다. Reply band는 canonical
 `fetch_talent_reply_confidences()`를 사용했고 별도 점수나 외부 LLM 호출은 없었다.
+
+Production target은
+[Company-first Talent Search Worker 구현 계획](../../company/company-first-talent-search-worker-implementation-plan-ko.md)의
+회사 단위 Python pipeline이며 runtime의 1차 local 구현은
+`harper_worker/opp/company_first_search/`에 있다. Canonical read-only runner는
+`harper_worker/llm_evals/company_first_talent_selection/run_shadow.py`다. 이 pipeline을 비교할 때는 `v1`
+input/gold를 덮어쓰지 않고 query planner·scorer·company-wide reranker·Slack writer를 포함한 새 dataset
+version과 gold를 별도로 동결한다. 현재 v2-pilot production snapshot은 local-only pilot이지 frozen fixture가
+아니므로 runtime code, unit contract test, 한 Role 결과만으로 rollout gate를 통과했다고 보지 않는다.
 
 각 run은 다음 순서를 따른다.
 
@@ -78,6 +88,23 @@ precision, selection yield 또는 회사 가치가 충분하다고 결론내리�
   trade-off만으로 다시 작성했다. 기존 fit reason의 private 관심·보상 언급과 일반적인 평가 형용사는
   company-facing copy로 재사용하지 않았다.
 
+## 2026-09-17 v2-pilot positive shadow
+
+- Harper의 paused Founding Engineer, AI Agent Role을 사용자가 명시적으로 허용한 read-only override로
+  실행했다. Role status, DB row, recommendation, ready ledger, Slack·이메일은 변경하거나 발송하지 않았다.
+- 최종 full run은 `30 retrieved → reply LOW 1 제외 → 29 scored → rerank pool 6 → selected 2`였다.
+  최대 3명을 채우지 않았고 scorer failure와 live-guard exclusion은 0건이었다.
+- 선택 후보는 모두 명시적 학력·경력 hard requirement와 production agent/full-stack 근거를 갖췄다. 회사가
+  먼저 ownership·근무 방식·역할 방향을 열어 판단할 구체적 이유를 reason에 포함했다.
+- reply HIGH와 UNKNOWN이 각각 선택됐고, reply HIGH인 다른 후보도 보상·seniority·근무 조건 충돌 때문에
+  제외됐다. 응답 가능성은 작은 tie-break로만 작동했다.
+- 연구 중심 production gap, 지나치게 senior한 scope·보상 충돌, 스타트업 실행 근거 부족은 최종 제외
+  사유로 작동했다. 운영상 paused 메모는 A/B/C 판단에 사용되지 않았다.
+- Full run latency는 368.2초, estimated LLM cost는 $0.0468이었다. 이후 SQL wildcard binding, derived alias
+  validation, fallback 100 cap, Planner completion cap·temperature, exact-output batch Profile loader를
+  개선했다. 최종 planner-only 재검증은 한 호출 23.6초, repair/fallback 없이 23명 retrieval에 성공했다.
+- 세부 aggregate와 해석은 [비식별 결과 보고서](./reports/2026-09-17-harper-agent-shadow.md)에 있다.
+
 ## Data provenance와 privacy
 
 표본은 2026-09-11 production read-only snapshot이다. 먼저 날짜 기반 hash seed로 active Role을 임의
@@ -96,10 +123,15 @@ model output을 넣지 않는다. 원문은 gitignored `private/runs/`에만 있
 - 첫 compact guard query가 candidate-origin progress를 누락했다. `v1` gold는 full packet에서 교정한 최종
   판단이며, canonical helper 구현 전에는 commit readiness의 증거가 아니다.
 - Company intro ledger와 canonical runner가 아직 없어 active intro count는 0으로 둔 shadow-only run이다.
+- 이후 local runtime에는 Company intro ledger schema와 canonical runner가 추가됐지만 migration 미적용
+  상태이며, v1 snapshot과 gold에는 소급 반영하지 않았다.
 - 세 회사·세 직무만 보았으므로 직군, locale, seniority, location 분포를 대표하지 않는다.
+- v2-pilot은 한 회사·한 Role positive case라 representative precision·recall이나 production latency를
+  추정하지 못한다. 최종 개선 후 full run latency는 아직 다시 측정하지 않았다.
 
 ## 변경 이력
 
 | 날짜 | 주요 변경 |
 | --- | --- |
+| 2026-09-17 | Canonical production read-only runner와 한 positive v2-pilot shadow 결과·한계 등록 |
 | 2026-09-11 | 세 production read-only Role run의 guard-focused v1 calibration과 수동 gold 등록 |

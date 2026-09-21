@@ -20,6 +20,7 @@ import type {
   CareerInternalOpportunityCallRequest,
   CareerMessage,
   CareerMessagePayload,
+  CareerMockInterviewCallDisplay,
   CareerOnboardingChecklistProgress,
   CareerOpportunityRun,
   CareerStage,
@@ -414,6 +415,8 @@ export const useCareerOnboardingVoice = ({
   const [onboardingPausePending, setOnboardingPausePending] = useState(false);
   const [callStartPending, setCallStartPending] = useState(false);
   const [callWrapUpPending, setCallWrapUpPending] = useState(false);
+  const [activeMockInterviewDisplay, setActiveMockInterviewDisplay] =
+    useState<CareerMockInterviewCallDisplay | null>(null);
   const [liveUserTranscriptPlacement, setLiveUserTranscriptPlacement] =
     useState<CallLiveTranscriptPlacement>("beforeCurrentAssistant");
   const callInterviewProgress = useMemo<CareerInterviewProgress>(() => {
@@ -1161,6 +1164,7 @@ export const useCareerOnboardingVoice = ({
     conversationId,
     fetchWithAuth,
     modelOverride: voiceModelOverride,
+    userId,
     onTranscript: handleRealtimeTranscript,
     onAssistantDelta: handleRealtimeAssistantDelta,
     onAssistantDone: handleRealtimeAssistantDone,
@@ -1499,6 +1503,10 @@ export const useCareerOnboardingVoice = ({
         typeof startArgs === "object"
           ? (startArgs.mockInterviewOpportunityId?.trim() ?? null)
           : null;
+      const mockInterviewDisplay =
+        mockInterviewOpportunityId && typeof startArgs === "object"
+          ? (startArgs.mockInterviewDisplay ?? null)
+          : null;
       const resumeCallNoteId =
         typeof startArgs === "object"
           ? (startArgs.resumeCallNoteId?.trim() ?? null)
@@ -1510,6 +1518,7 @@ export const useCareerOnboardingVoice = ({
       activeCallIdRef.current = null;
       activeCallOnboardingCompletedAtStartRef.current = false;
       activeCallSessionIdRef.current = crypto.randomUUID();
+      setActiveMockInterviewDisplay(null);
 
       setCallStartPending(true);
       let callStartedSuccessfully = false;
@@ -1572,6 +1581,7 @@ export const useCareerOnboardingVoice = ({
         });
 
         const callStarted = await startCallMode({
+          callSessionId: activeCallSessionIdRef.current,
           conversationStarterId,
           initialResponseInstruction: openingInstructions,
           internalCallRequestId,
@@ -1594,6 +1604,7 @@ export const useCareerOnboardingVoice = ({
         activeCallIdRef.current = crypto.randomUUID();
         activeCallOnboardingCompletedAtStartRef.current =
           Boolean(isOnboardingDone);
+        setActiveMockInterviewDisplay(mockInterviewDisplay);
         callStartedSuccessfully = true;
         suppressNextAssistantDoneRef.current = true;
         logCallOpeningResponseInstruction(openingInstructions);
@@ -1670,6 +1681,7 @@ export const useCareerOnboardingVoice = ({
       lastRealtimeUserTextRef.current = "";
       clearRealtimeTurnSyncState();
       endCallMode();
+      setActiveMockInterviewDisplay(null);
 
       if (!conversationId) {
         activeCallConversationStarterIdRef.current = null;
@@ -1970,6 +1982,7 @@ export const useCareerOnboardingVoice = ({
     setOnboardingPausePending(false);
     setCallStartPending(false);
     setCallWrapUpPending(false);
+    setActiveMockInterviewDisplay(null);
     callStartedAtRef.current = null;
     callWrapUpPendingRef.current = false;
     pendingAssistantDoneRef.current = null;
@@ -1993,6 +2006,7 @@ export const useCareerOnboardingVoice = ({
     onboardingWrapupPending,
     callStartPending,
     callWrapUpPending,
+    activeMockInterviewDisplay,
     onboardingPausePending,
     inputMode,
     voiceTranscript,

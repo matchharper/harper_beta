@@ -118,6 +118,7 @@ import {
 } from "./documentTool";
 import { executeConnectedGmailSearch } from "@/lib/integrations/gmail";
 import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
+import { fetchLatestInternalRoleRequestEntryPage } from "./internalRoleRequestEntryPage";
 
 export type TalentToolChannel = "chat" | "voice";
 
@@ -125,6 +126,7 @@ export type TalentToolExecutionContext = {
   searchPurpose?: "mock_interview";
   admin?: unknown;
   abortSignal?: AbortSignal;
+  channel?: TalentToolChannel;
   conversationId?: string;
   isMobile?: boolean | null;
   responseLocale?: string | null;
@@ -369,6 +371,18 @@ function getTalentToolResponseLanguage(
   context?: TalentToolExecutionContext | null
 ) {
   return getCareerPromptLanguageName(context?.responseLocale);
+}
+
+function getTalentToolActivitySource(
+  context?: TalentToolExecutionContext | null
+) {
+  return context?.channel === "voice" ? "voice" : "chat";
+}
+
+function getTalentToolCareerInteractionLabel(
+  context?: TalentToolExecutionContext | null
+) {
+  return context?.channel === "voice" ? "Career 통화" : "Career 채팅";
 }
 
 const normalizeToolLimit = (value: unknown, fallback: number) => {
@@ -1492,6 +1506,7 @@ function buildOpsCareerUserUrl(userId: string) {
 
 async function notifyHarperInternalRolePriorityReviewSlack(args: {
   admin: TalentAdminClient;
+  requestedAt: string;
   roleId: string;
   roleTitle?: string | null;
   userId: string;
@@ -1512,11 +1527,18 @@ async function notifyHarperInternalRolePriorityReviewSlack(args: {
   const name = optionalToolString(profile?.name) ?? emailName ?? "Unknown";
   const headline = optionalToolString(profile?.headline) ?? "-";
   const roleTitle = optionalToolString(args.roleTitle) ?? args.roleId;
+  const latestEntryPage = await fetchLatestInternalRoleRequestEntryPage({
+    admin: args.admin,
+    before: args.requestedAt,
+    email: optionalToolString(profile?.email),
+    userId: args.userId,
+  });
 
   const lines = [
     "*Harper internal role request*",
     `*Candidate*: ${formatSlackLink(buildOpsCareerUserUrl(args.userId), name)}`,
     `*Headline*: ${escapeSlackText(headline)}`,
+    `*Latest page before request*: ${latestEntryPage ?? "Unknown"}`,
     `*Role*: ${escapeSlackText(roleTitle)}`,
   ];
 
@@ -2083,6 +2105,7 @@ async function updateInternalRolePriorityReview(args: {
       try {
         await notifyHarperInternalRolePriorityReviewSlack({
           admin: args.admin as TalentAdminClient,
+          requestedAt,
           roleId,
           roleTitle,
           userId: args.userId,
@@ -2265,7 +2288,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.END_CALL]: {
     name: TALENT_TOOL_NAMES.END_CALL,
     description:
-      "End the current live voice call. Use only after you have already spoken the final short closing message, or when the user clearly asks to end, stop, or hang up the call. This tool ends only the live call session and does not change recommendation, email, account, or profile settings.",
+      "End the current live voice call. Call it immediately when the user clearly asks to end, stop, hang up, or says they are done for today. For an assistant-initiated normal ending, call it only after the user agrees to end. You may include one short spoken closing in the same response; if the provider cannot combine speech and a function call, prioritize calling this tool because the client supplies a brief closing fallback. This tool ends only the live call session and does not change recommendation, email, account, or profile settings.",
     parameters: {
       type: "object",
       properties: {},
@@ -2478,18 +2501,19 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.RESEARCH_COMPANY]: {
     name: TALENT_TOOL_NAMES.RESEARCH_COMPANY,
     description:
-      "Use this tool when the user GENUINELY wants to learn about a specific company (asking about culture, funding, team, business model, hiring landscape, etc.). It returns a synthesized company answer with citations when available.\n\nDo NOT call when:\n- Company name appears in passing or anecdotally (e.g., '내 친구도 토스 다녔어')\n- Company name is part of a JD/role question\n- User is just sharing their own experience at a company\n- User asks for an opinion comparing companies without asking for info ('A vs B 어디가 좋을까')\n\nOnly invoke when the user clearly wants company-specific depth.",
+      "Research a specific company when the user wants company information to decide whether to apply, interview or join. Investigate company identity, business trajectory, team, compensation and working life using public evidence; relate the findings to the user's known context. Returns the research directly in chat and saves a private document with a document card when saving succeeds. A recent company dossier may be reused while personal interpretation is generated afresh. For an ambiguous name, include only public disambiguating context such as product, geography, official domain or public role title in company_name. Do not call for a passing company mention, a personal anecdote, or a question answerable from a supplied role description. After execution, the prepared report is the response; do not generate a second answer.",
     parameters: {
       type: "object",
       properties: {
         company_name: {
           type: "string",
-          description: "Company name to investigate.",
+          description:
+            "Exact company name to investigate. If the name is ambiguous, add only public disambiguating context such as product, geography, official domain, or public role title.",
         },
         reason: {
           type: "string",
           description:
-            "Short reason from the user's request, such as concerns about culture, stability, funding, layoffs, or interview preparation.",
+            "The user's specific decision, concern, and target role when known, such as whether to apply, funding or layoff risk, culture, compensation, or interview preparation.",
         },
       },
       required: ["company_name"],
@@ -3464,7 +3488,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       required: ["action"],
       additionalProperties: false,
     },
-    channels: ["chat"],
+    channels: ["chat", "voice"],
     async execute(input, context) {
       const admin = context?.admin as any;
       const userId = context?.userId;
@@ -3473,6 +3497,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       }
 
       const existingSetting = await fetchTalentSetting({ admin, userId });
+      const interactionLabel = getTalentToolCareerInteractionLabel(context);
       const updatePayload: Parameters<typeof upsertTalentSetting>[0] = {
         admin,
         userId,
@@ -3499,7 +3524,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           });
         }
         summary =
-          "사용자가 Career 채팅에서 외부 공개 포지션 추천 중단을 요청했습니다.";
+          `사용자가 ${interactionLabel}에서 외부 공개 포지션 추천 중단을 요청했습니다.`;
       } else if (action === "stop_all") {
         const nextProfileVisibility = "dont_share";
         updatePayload.profileVisibility = nextProfileVisibility;
@@ -3517,7 +3542,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           });
         }
         summary =
-          "사용자가 Career 채팅에서 모든 Harper 매칭 연락 중단을 요청했습니다.";
+          `사용자가 ${interactionLabel}에서 모든 Harper 매칭 연락 중단을 요청했습니다.`;
       } else if (action === "resume") {
         const nextGetExternalRecommendation = true;
         const nextProfileVisibility = "exceptional_only";
@@ -3552,7 +3577,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           });
         }
         summary =
-          "사용자가 Career 채팅에서 Harper 추천 연락 재개를 요청했습니다.";
+          `사용자가 ${interactionLabel}에서 Harper 추천 연락 재개를 요청했습니다.`;
       } else {
         throw new TalentToolError("update_setting requires a valid action.");
       }
@@ -3574,7 +3599,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           eventType: "preferences_changed",
           impactLevel: "high",
           messageId: context?.userMessageId ?? null,
-          source: "chat",
+          source: getTalentToolActivitySource(context),
           summary: settingSummary,
           userId,
         });
@@ -3896,7 +3921,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       },
       additionalProperties: false,
     },
-    channels: ["chat"],
+    channels: ["chat", "voice"],
     async execute(input, context) {
       const admin = context?.admin as any;
       const userId = context?.userId;
@@ -4320,7 +4345,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           conversationId: context?.conversationId ?? null,
           eventType: "profile_updated",
           messageId: context?.userMessageId ?? null,
-          source: "chat",
+          source: getTalentToolActivitySource(context),
           summary: `User ${talentUserSummary}.`,
           userId,
         });
@@ -4336,7 +4361,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           conversationId: context?.conversationId ?? null,
           eventType: "profile_links_updated",
           messageId: context?.userMessageId ?? null,
-          source: "chat",
+          source: getTalentToolActivitySource(context),
           summary: `User added ${updatedProfileLinks.added.length} and deleted ${updatedProfileLinks.deleted.length} personal profile link(s).`,
           userId,
         });
@@ -4362,7 +4387,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           conversationId: context?.conversationId ?? null,
           eventType: rowMemoEventType,
           messageId: context?.userMessageId ?? null,
-          source: "chat",
+          source: getTalentToolActivitySource(context),
           summary: rowMemoSummary,
           userId,
         });
@@ -4380,8 +4405,8 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           conversationId: context?.conversationId ?? null,
           eventType: "preferences_changed",
           messageId: context?.userMessageId ?? null,
-          source: "chat",
-          summary: `사용자가 Career 채팅에서 Harper 추천을 한 번에 ${nextRecommendationBatchSize}개씩 받고 싶다고 요청했습니다.`,
+          source: getTalentToolActivitySource(context),
+          summary: `사용자가 ${getTalentToolCareerInteractionLabel(context)}에서 Harper 추천을 한 번에 ${nextRecommendationBatchSize}개씩 받고 싶다고 요청했습니다.`,
           userId,
         });
       }
@@ -4557,9 +4582,12 @@ export async function executeTalentTool(args: {
   }
 
   const shouldLog = args.logging !== false;
+  const executionContext = args.channel
+    ? { ...args.context, channel: args.channel }
+    : args.context;
 
   await insertToolUsageLogFromContext({
-    context: args.context,
+    context: executionContext,
     name: tool.name,
   });
 
@@ -4568,9 +4596,9 @@ export async function executeTalentTool(args: {
       input: {
         ...args.input,
         _context: {
-          conversationId: args.context?.conversationId,
-          userMessageId: args.context?.userMessageId,
-          userId: args.context?.userId,
+          conversationId: executionContext?.conversationId,
+          userMessageId: executionContext?.userMessageId,
+          userId: executionContext?.userId,
         },
       },
       name: tool.name,
@@ -4579,7 +4607,7 @@ export async function executeTalentTool(args: {
   }
   const startedAt = Date.now();
   try {
-    const rawResult = await tool.execute(args.input, args.context);
+    const rawResult = await tool.execute(args.input, executionContext);
     const result = withTalentToolAssistantInstruction(
       tool.name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS
         ? withRecommendJobPostingsAssistantInstruction(rawResult)

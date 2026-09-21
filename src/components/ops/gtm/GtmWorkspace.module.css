@@ -1,0 +1,376 @@
+.workspace {
+  display: flex;
+  flex-direction: column;
+  min-height: 400px;
+  height: 100%;
+  background: #fff;
+  color: #202124;
+  font-family: Arial, "Apple SD Gothic Neo", sans-serif;
+  font-size: 13px;
+}
+.toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  min-height: 48px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #c9cdd2;
+  background: #fff;
+}
+.toolbar input,
+.toolbar select,
+.form input,
+.form select,
+.form textarea {
+  color: #202124;
+  background: #fff;
+  border: 1px solid #b8bdc3;
+  border-radius: 3px;
+  padding: 6px 8px;
+  font: inherit;
+}
+.toolbar input:focus,
+.toolbar select:focus,
+.form input:focus,
+.form select:focus,
+.form textarea:focus {
+  outline: 2px solid #1a73e8;
+  outline-offset: -1px;
+}
+.select {
+  min-width: 210px;
+  max-width: 360px;
+  height: 32px;
+  font-weight: 500 !important;
+}
+.search {
+  width: 200px;
+  height: 32px;
+}
+.spacer {
+  flex: 1;
+}
+.autoSaveStatus {
+  color: #5f6368;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.grid {
+  flex: 1;
+  min-height: 200px;
+  overflow: hidden;
+  position: relative;
+}
+.status {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-height: 38px;
+  padding: 6px 12px;
+  border-top: 1px solid #c9cdd2;
+  background: #fff;
+  flex-wrap: wrap;
+}
+.reviewStatusCell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.error {
+  padding: 8px 12px;
+  background: #fce8e6;
+  color: #a50e0e;
+  border-bottom: 1px solid #dc7a73;
+}
+.notice {
+  padding: 8px 12px;
+  background: #e8f0fe;
+  color: #174ea6;
+  border-bottom: 1px solid #a5c1eb;
+}
+.form {
+  color: #202124;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.form label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 13px;
+}
+.form textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.columnList {
+  border: 1px solid #c9cdd2;
+  max-height: 46vh;
+  overflow: auto;
+}
+.columnItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-bottom: 1px solid #e0e3e6;
+}
+.columnItem:last-child {
+  border-bottom: 0;
+}
+.columnItem input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+}
+.rule {
+  display: grid;
+  grid-template-columns: 120px minmax(60px, 1fr) 42px 30px;
+  gap: 6px;
+  align-items: center;
+}
+.tabs {
+  display: flex;
+  gap: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #c9cdd2;
+}
+.dialog {
+  background: #fff !important;
+  color: #202124 !important;
+  border: 1px solid #b8bdc3 !important;
+  border-radius: 6px !important;
+  max-height: 90vh;
+  overflow: auto;
+}
+.detailGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  max-height: 65vh;
+  overflow: auto;
+}
+@media (max-width: 700px) {
+  .detailGrid {
+    grid-template-columns: 1fr;
+  }
+  .search {
+    width: 140px;
+  }
+  .select {
+    min-width: 170px;
+  }
+}
+.recordBody {
+  max-height: 62vh;
+  overflow: auto;
+  padding: 2px;
+}
+.collectionItem {
+  border: 1px solid #c9cdd2;
+  padding: 12px;
+  min-width: 0;
+}
+.collectionItem legend {
+  padding: 0 6px;
+  font-weight: 500;
+}
+.recordTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.recordTable th,
+.recordTable td {
+  padding: 8px;
+  text-align: left;
+  border: 1px solid #c9cdd2;
+}
+.recordTable th {
+  background: #f1f3f4;
+}
+.historyItem {
+  padding: 12px 0;
+  border-bottom: 1px solid #c9cdd2;
+  overflow-wrap: anywhere;
+}
+.historyItem p {
+  margin: 8px 0;
+}
+.facts {
+  font-size: 12px;
+}
+.facts div {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) 2fr;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid #e0e3e6;
+}
+.facts dd {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.currentValue {
+  padding: 6px 0;
+  font-size: 12px;
+  color: #174ea6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.recordDialog {
+  display: flex !important;
+  flex-direction: column;
+  height: 90vh;
+  overflow: hidden;
+}
+.recordDialog .recordBody {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+}
+.recordDialog > :not(.recordBody):not(.reviewFields) {
+  flex-shrink: 0;
+}
+.reviewFields {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.sidePanel {
+  inset: 0 0 0 auto !important;
+  width: min(900px, 100vw) !important;
+  max-width: 100vw !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  transform: none !important;
+  translate: 0 0;
+  border-radius: 0 !important;
+  padding: 22px;
+}
+.sidePanel[data-state="open"] {
+  animation: gtm-panel-in 220ms ease-out !important;
+}
+.sidePanel[data-state="closed"] {
+  animation: gtm-panel-out 180ms ease-in !important;
+}
+@keyframes gtm-panel-in {
+  from {
+    translate: 100% 0;
+  }
+  to {
+    translate: 0 0;
+  }
+}
+@keyframes gtm-panel-out {
+  to {
+    translate: 100% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidePanel {
+    animation: none !important;
+  }
+}
+.sidePanel > h2 {
+  padding-right: 30px;
+}
+.creatorSummary {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid #c9cdd2;
+  background: #f8f9fa;
+}
+.creatorSummary a {
+  color: #174ea6;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.creatorSummary span {
+  color: #5f6368;
+}
+.composer {
+  padding: 14px;
+  border: 1px solid #a5c1eb;
+  background: #fff;
+}
+.mailEditor :global(.tiptap) {
+  min-height: 220px;
+  cursor: text;
+}
+.mailDraft {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid #c9cdd2;
+  padding: 12px;
+}
+.mailMessage {
+  border: 1px solid #c9cdd2;
+  background: #fff;
+}
+.mailOutgoing {
+  border-left: 4px solid #5b8def;
+  background: #f4f7ff;
+}
+.mailIncoming {
+  border-left: 4px solid #d49b16;
+  background: #fff9e8;
+}
+.mailHeader {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px;
+  border-bottom: 1px solid rgb(32 33 36 / 12%);
+}
+.mailDirection,
+.mailSubject,
+.mediumText {
+  font-weight: 500;
+}
+.mailDirection {
+  display: inline-block;
+  margin-right: 7px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.mailOutgoing .mailDirection {
+  color: #174ea6;
+  background: #dfe9ff;
+}
+.mailIncoming .mailDirection {
+  color: #7a4f00;
+  background: #ffe9a8;
+}
+.mailSubject {
+  overflow-wrap: anywhere;
+}
+.mailHeader > div {
+  min-width: 0;
+}
+.mailHeader div div,
+.mailDraft div div {
+  font-size: 12px;
+  margin-top: 5px;
+}
+.receivedBody {
+  padding: 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 550px;
+  overflow-y: auto;
+}

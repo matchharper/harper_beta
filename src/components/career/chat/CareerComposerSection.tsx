@@ -79,6 +79,11 @@ import { MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES } from "@/lib/talentOnboarding/docu
 import CareerInitialOpportunitySearchStatus, {
   useInitialOpportunitySearchStatus,
 } from "@/components/career/CareerInitialOpportunitySearchStatus";
+import HistoryOpportunityRoleActions, {
+  COMPANY_DETAIL_ROLE_ACTIONS,
+} from "@/components/career/history/HistoryOpportunityRoleActions";
+import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
+import { shouldShowCareerComposerRoleActions } from "@/lib/career/composerRoleActions";
 
 const RECENT_CHAT_HISTORY_WINDOW_MS = 60 * 60 * 1000;
 const CAREER_COMPOSER_MAX_ROWS = 4;
@@ -110,6 +115,21 @@ const CareerComposerSection = ({
   const t = useCareerT();
   const router = useRouter();
   const opportunityMentionListId = useId();
+  const companyJobsOpportunity = useCareerWorkspaceUiStore(
+    (state) => state.companyJobsOpportunity
+  );
+  const currentRoleActionOpportunity = useCareerWorkspaceUiStore(
+    (state) => state.desktopRoleActionOpportunity
+  );
+  const currentRoleActionScope = useCareerWorkspaceUiStore(
+    (state) => state.desktopRoleActionScope
+  );
+
+  const desktopRoleActionOpportunity =
+    companyJobsOpportunity ?? currentRoleActionOpportunity;
+  const desktopRoleActionScope = companyJobsOpportunity
+    ? "company"
+    : currentRoleActionScope;
 
   const logCareerEvent = useCareerLogEvent();
   const { onRequestMoreOpenPositions } = useCareerSidebarContext();
@@ -130,6 +150,7 @@ const CareerComposerSection = ({
     initialChatDraft,
     initialChatDraftKey,
     initialChatOpportunityMention,
+    initialChatDraftReplace = false,
     onboardingBeginPending,
     onboardingWrapupPending,
     callStartPending = false,
@@ -187,6 +208,28 @@ const CareerComposerSection = ({
   const actionMenuFileInputRef = useRef<HTMLInputElement | null>(null);
   const pendingResumeRequestTokenRef = useRef<string | null>(null);
   const opportunityMentionHighlightRef = useRef<HTMLDivElement | null>(null);
+  const handleMobileActionMenuOpenChange = useCallback(
+    (open: boolean) => {
+      setMobileActionMenuOpen(open);
+      if (open) logCareerEvent("click_chat_composer_add");
+    },
+    [logCareerEvent]
+  );
+  const handleDesktopActionMenuOpenChange = useCallback(
+    (open: boolean) => {
+      setDesktopActionMenuOpen(open);
+      if (open) logCareerEvent("click_chat_composer_add");
+    },
+    [logCareerEvent]
+  );
+  const handleComposerActionMenuItemSelect = useCallback(
+    (item: ChatComposerActionMenuItem) => {
+      logCareerEvent("click_chat_composer_action_menu_item", {
+        actionId: item.id,
+      });
+    },
+    [logCareerEvent]
+  );
   const opportunityTokens =
     useChatComposerTokens<CareerComposerOpportunityMention>({
       onValueChange: setDraft,
@@ -314,12 +357,13 @@ const CareerComposerSection = ({
     appliedInitialDraftTextRef.current = initialDraftText;
 
     setDraft((currentDraft) => {
+      if (initialChatDraftReplace) return initialDraftText;
       if (currentDraft && currentDraft !== previousInitialDraftText) {
         return currentDraft;
       }
       return initialDraftText;
     });
-  }, [initialChatDraftKey, initialDraftText]);
+  }, [initialChatDraftKey, initialChatDraftReplace, initialDraftText]);
 
   useEffect(() => {
     const mentionLabel = initialChatOpportunityMention?.label.trim() ?? "";
@@ -1206,13 +1250,13 @@ const CareerComposerSection = ({
     {
       disabled: conversationStarterDisabled,
       icon: <PhoneCall />,
-      id: "conversation-starter-preference-update",
+      id: "conversation-starter-career-coaching",
       label: t(
         "career.common.conversation_starters.1sfi8z4",
-        "선호 조건 업데이트하기"
+        "커리어 고민과 다음 커리어에 대해서 이야기하기"
       ),
       loading: conversationStarterPending,
-      onSelect: () => void handleStartConversationStarter("preference_update"),
+      onSelect: () => void handleStartConversationStarter("career_coaching"),
     },
     {
       disabled: conversationStarterDisabled,
@@ -1239,6 +1283,23 @@ const CareerComposerSection = ({
             status={initialOpportunitySearchStatus}
             variant="composer"
           />
+        ) : null}
+        {desktopRoleActionOpportunity &&
+        shouldShowCareerComposerRoleActions(draft) ? (
+          <div
+            key={desktopRoleActionOpportunity.id}
+            className="hidden px-2 pb-2 md:block"
+          >
+            <HistoryOpportunityRoleActions
+              item={desktopRoleActionOpportunity}
+              variant="tags"
+              visibleActions={
+                desktopRoleActionScope === "company"
+                  ? COMPANY_DETAIL_ROLE_ACTIONS
+                  : undefined
+              }
+            />
+          </div>
         ) : null}
         <div
           className={cn(
@@ -1352,7 +1413,8 @@ const CareerComposerSection = ({
                 contentClassName="max-h-[min(32rem,70dvh)] overflow-y-auto overscroll-contain"
                 disabled={!user}
                 items={composerActionMenuItems}
-                onOpenChange={setMobileActionMenuOpen}
+                onItemSelect={handleComposerActionMenuItemSelect}
+                onOpenChange={handleMobileActionMenuOpenChange}
                 open={mobileActionMenuOpen}
               />
             }
@@ -1408,7 +1470,8 @@ const CareerComposerSection = ({
                   contentClassName="max-h-[min(32rem,70dvh)] overflow-y-auto overscroll-contain"
                   disabled={!user}
                   items={composerActionMenuItems}
-                  onOpenChange={setDesktopActionMenuOpen}
+                  onItemSelect={handleComposerActionMenuItemSelect}
+                  onOpenChange={handleDesktopActionMenuOpenChange}
                   open={desktopActionMenuOpen}
                 />
                 <ActionButton

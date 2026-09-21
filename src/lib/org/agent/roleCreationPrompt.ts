@@ -12,6 +12,7 @@ import {
   COMPANY_SIDE_UX_WRITING_PROMPT,
 } from "@/lib/org/agent/uxWritingPrompt";
 import { COMPANY_SERVICE_CORE_PROMPT } from "@/lib/org/agent/serviceKnowledgePrompt";
+import { HIRING_BRIEF_AUTHORING_PROMPT } from "@/lib/org/agent/hiringBriefAuthoringPrompt";
 
 function clip(value: unknown, max = 8_000) {
   return String(value ?? "")
@@ -48,6 +49,7 @@ ${surfaceGuidance}
 ${COMPANY_SIDE_UX_WRITING_PROMPT}
 ${COMPANY_SIDE_TOOL_OUTCOME_RESPONSE_PROMPT}
 ${COMPANY_SERVICE_CORE_PROMPT}
+${HIRING_BRIEF_AUTHORING_PROMPT}
 
 TOOL POLICY
 - Tools run one at a time. After each result, use the new state to decide whether another tool or a user-facing answer is next.

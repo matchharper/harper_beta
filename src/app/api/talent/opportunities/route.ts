@@ -48,6 +48,8 @@ import {
 } from "@/lib/career/internalOpportunityDecision";
 import { fetchPendingInternalOpportunityCallRequests } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
 import { careerT } from "@/lib/career/translatedCareerMessage";
+import { OpportunityType } from "@/lib/opportunityType";
+import { OrgHttpError } from "@/lib/org/server";
 
 const POSITION_TAB_INTERACTION_SOURCE = "position_tab";
 const IMMEDIATE_FEEDBACK_FOLLOW_UP_DELAY_MS = 500;
@@ -521,10 +523,7 @@ export async function PATCH(req: NextRequest) {
           })
         : null;
     responseLocale =
-      talentSetting?.preferred_locale ??
-      body.locale ??
-      responseLocale ??
-      null;
+      talentSetting?.preferred_locale ?? body.locale ?? responseLocale ?? null;
     let previousOpportunity: TalentOpportunityHistoryItem | null = null;
     if (
       action === "feedback" ||
@@ -566,7 +565,11 @@ export async function PATCH(req: NextRequest) {
     if (
       previousOpportunity?.sourceType === "internal" &&
       action === "feedback" &&
-      previousOpportunity.feedback !== null
+      previousOpportunity.feedback !== null &&
+      !(
+        previousOpportunity.opportunityType === OpportunityType.IntroRequest &&
+        previousOpportunity.feedback === body.feedback
+      )
     ) {
       return NextResponse.json(
         { error: "Internal role status cannot be changed." },
@@ -758,6 +761,7 @@ export async function PATCH(req: NextRequest) {
       action === "feedback" &&
       body.feedback === "positive" &&
       previousOpportunity?.sourceType === "internal" &&
+      previousOpportunity.opportunityType !== OpportunityType.IntroRequest &&
       (!isInternalRoleCandidateDecisionAvailable(previousOpportunity.status) ||
         previousOpportunity.isExpired)
     ) {
@@ -779,6 +783,11 @@ export async function PATCH(req: NextRequest) {
       previousOpportunity?.sourceType === "internal"
         ? "connected"
         : body.savedStage;
+    const isNeutralExternalHide =
+      action === "saved_stage" &&
+      savedStageForUpdate === "hidden" &&
+      previousOpportunity?.sourceType === "external" &&
+      previousOpportunity.feedback === null;
 
     const result = await updateTalentOpportunityHistoryItem({
       action,
@@ -788,6 +797,7 @@ export async function PATCH(req: NextRequest) {
       feedback: body.feedback,
       feedbackReason: body.feedbackReason,
       opportunityId,
+      recordTalentRoleActivity: !isNeutralExternalHide,
       savedStage: savedStageForUpdate,
       talentMemo: body.talentMemo,
       userId: user.id,
@@ -888,23 +898,29 @@ export async function PATCH(req: NextRequest) {
           activityInserted && opportunity?.sourceType === "external";
         if (
           opportunity?.sourceType === "internal" &&
-          body.feedback === "positive"
+          body.feedback === "positive" &&
+          opportunity.opportunityType !== OpportunityType.IntroRequest
         ) {
           shouldCreateInternalCallRequestOnFollowUp = true;
         }
 
         const isInternalAcceptance =
           opportunity?.sourceType === "internal" &&
-          body.feedback === "positive";
-        feedbackFollowUpTrigger = isInternalAcceptance
-          ? FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback
-          : shouldPromptAfterClearedPositionTab
-            ? FEEDBACK_FOLLOW_UP_TRIGGER.AllRecommendedOpportunitiesCleared
-            : opportunity?.sourceType === "internal"
-              ? FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback
-              : shouldScheduleDelayedFollowUp
-                ? FEEDBACK_FOLLOW_UP_TRIGGER.DelayedExternalFeedback
-                : null;
+          body.feedback === "positive" &&
+          opportunity.opportunityType !== OpportunityType.IntroRequest;
+        const isCompanyIntroDecision =
+          opportunity?.opportunityType === OpportunityType.IntroRequest;
+        feedbackFollowUpTrigger = isCompanyIntroDecision
+          ? null
+          : isInternalAcceptance
+            ? FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback
+            : shouldPromptAfterClearedPositionTab
+              ? FEEDBACK_FOLLOW_UP_TRIGGER.AllRecommendedOpportunitiesCleared
+              : opportunity?.sourceType === "internal"
+                ? FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback
+                : shouldScheduleDelayedFollowUp
+                  ? FEEDBACK_FOLLOW_UP_TRIGGER.DelayedExternalFeedback
+                  : null;
         feedbackFollowUpDelayMs = feedbackFollowUpTrigger
           ? feedbackFollowUpTrigger ===
             FEEDBACK_FOLLOW_UP_TRIGGER.DelayedExternalFeedback
@@ -984,6 +1000,18 @@ export async function PATCH(req: NextRequest) {
       error instanceof InternalRoleAcceptanceError &&
       error.reason === "target_role_unavailable"
     ) {
+      return NextResponse.json(
+        {
+          error: careerT(
+            responseLocale,
+            "career.api.opportunities.inactive_acceptance_forbidden",
+            "현재 종료되었거나 이용할 수 없는 포지션이라 연결을 수락할 수 없습니다."
+          ),
+        },
+        { status: 409 }
+      );
+    }
+    if (error instanceof OrgHttpError && error.status === 409) {
       return NextResponse.json(
         {
           error: careerT(

@@ -1,5 +1,29 @@
 [
   {
+    "date": "2026-09-21",
+    "tag": "NEW",
+    "ko": "특정 포지션에 맞춘 모의 인터뷰를 도와드립니다.",
+    "en": "You can now practice with a mock interview tailored to a specific position."
+  },
+  {
+    "date": "2026-09-21",
+    "tag": "NEW",
+    "ko": "다음 커리어 스텝을 고려할 때는 포지션만큼 회사도 중요합니다. 회사에 대해 물어보시면 판단에 도움이 되는 리서치 리포트를 작성해 드립니다.",
+    "en": "The company matters just as much as the position when considering your next career move. Ask Harper about a company, and it will create a research report to help you evaluate it."
+  },
+  {
+    "date": "2026-09-21",
+    "tag": "NEW",
+    "ko": "Harper가 바로 도와드릴 수 있는 내용을 채팅창 위에 먼저 제안하도록 했습니다.",
+    "en": "Harper now proactively suggests ways it can help above the chat, so you can get started right away."
+  },
+  {
+    "date": "2026-09-21",
+    "tag": "NEW",
+    "ko": "관심 있는 회사를 살펴볼 때, 그 회사의 전체 오픈 포지션을 확인하고 마음에 드는 포지션은 바로 저장할 수 있습니다.",
+    "en": "When exploring a company, you can now browse all of its open positions and save any role you’d like to revisit."
+  },
+  {
     "date": "2026-09-15",
     "tag": "FIXED",
     "ko": "이메일이 잘린 상태로 발송되던 문제를 해결했습니다.",

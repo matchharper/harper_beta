@@ -2,6 +2,7 @@ import { LoaderCircle } from "lucide-react";
 import { type DragEvent, type FormEvent, useMemo, useState } from "react";
 import { opsTheme } from "@/components/ops/theme";
 import { MuteButton } from "@/components/ui/button";
+import { ORG_STAGE_DESCRIPTIONS } from "@/lib/org/pipelineStage";
 import {
   Dialog,
   DialogContent,
@@ -22,6 +23,10 @@ import {
   StopCandidateDialog,
 } from "@/components/org/OrgCandidateDecisionDialogs";
 import {
+  CompanyIntroPassDialog,
+  CompanyIntroRequestDialog,
+} from "@/components/org/CompanyIntroDecisionDialogs";
+import {
   canDropOrgCandidateToStage,
   getOrgCandidateDisplayName,
   OrgCandidateCard,
@@ -35,6 +40,8 @@ import { isInternalDomainEmail } from "@/lib/internalAccess";
 import {
   useCreateOrgReviewStage,
   useDeleteOrgReviewStage,
+  usePassOrgCompanyIntro,
+  useRequestOrgCompanyIntro,
   useUpdateOrgReviewStage,
 } from "@/hooks/org/useOrg";
 import {
@@ -46,6 +53,7 @@ import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useOrgViewedRecommendations } from "@/hooks/org/useOrgViewedRecommendations";
 import type { OrgBoardItem, OrgStage, OrgStageId } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
+import { useToastStore } from "@/store/useToastStore";
 
 function getCustomStageDbId(stageId: OrgStageId) {
   return stageId.startsWith("custom:") ? stageId.slice("custom:".length) : "";
@@ -82,6 +90,12 @@ export function OrgPipeline() {
     stage: OrgStageId;
   } | null>(null);
   const [stopItem, setStopItem] = useState<OrgBoardItem | null>(null);
+  const [companyIntroRequest, setCompanyIntroRequest] = useState<{
+    initialStageId?: string | null;
+    item: OrgBoardItem;
+  } | null>(null);
+  const [companyIntroPass, setCompanyIntroPass] =
+    useState<OrgBoardItem | null>(null);
   const [draggedRecommendationId, setDraggedRecommendationId] = useState<
     string | null
   >(null);
@@ -95,6 +109,9 @@ export function OrgPipeline() {
   const [customStageActionError, setCustomStageActionError] = useState("");
   const [stageToDelete, setStageToDelete] = useState<OrgStage | null>(null);
   const createCustomStage = useCreateOrgReviewStage();
+  const requestCompanyIntro = useRequestOrgCompanyIntro();
+  const passCompanyIntro = usePassOrgCompanyIntro();
+  const addToast = useToastStore((state) => state.add);
   const updateCustomStage = useUpdateOrgReviewStage();
   const deleteCustomStage = useDeleteOrgReviewStage();
   const isCustomStageSubmitting =
@@ -140,6 +157,7 @@ export function OrgPipeline() {
       (board?.stages ?? []).filter(
         (stage) =>
           stage.id === "pending_connection" ||
+          stage.id === "company_intro" ||
           stage.id === "connected" ||
           Boolean(stage.roleId && stage.roleId === activeRoleId)
       ),
@@ -178,6 +196,14 @@ export function OrgPipeline() {
 
   const requestMove = (item: OrgBoardItem, stage: OrgStageId) => {
     if (!canManageCandidates || item.stage === stage) return;
+    if (item.source === "company_intro") {
+      if (item.companyIntro?.status !== "ready") return;
+      setCompanyIntroRequest({
+        initialStageId: stage.startsWith("custom:") ? stage : null,
+        item,
+      });
+      return;
+    }
     if (
       requestCandidateReengagementBeforeStageChange(item, stage, () =>
         continueMove(item, stage, "company_confirmed")
@@ -346,6 +372,7 @@ export function OrgPipeline() {
           compact
           className="shrink-0 !border-x-0"
           count={items.length}
+          description={ORG_STAGE_DESCRIPTIONS[stage.id]}
           label={stage.label}
           onAdd={canAddCustomStage ? openCreateCustomStageDialog : undefined}
           onEdit={
@@ -393,6 +420,8 @@ export function OrgPipeline() {
                 internalOpsAccess={internalOpsAccess}
                 item={item}
                 onMove={requestMove}
+                onPass={setCompanyIntroPass}
+                onRequestIntro={(item) => setCompanyIntroRequest({ item })}
                 onSelect={(selectedItem) => {
                   markViewed(selectedItem.recommendationId);
                   onSelect(selectedItem, items, stage.label);
@@ -580,6 +609,87 @@ export function OrgPipeline() {
           });
           setStopItem(null);
         }}
+      />
+
+      <CompanyIntroRequestDialog
+        key={`${companyIntroRequest?.item.companyIntro?.id ?? "closed"}:${companyIntroRequest?.initialStageId ?? "default"}`}
+        candidateName={
+          companyIntroRequest
+            ? getOrgCandidateDisplayName(companyIntroRequest.item)
+            : ""
+        }
+        defaultEmail={currentUserEmail}
+        initialStageId={companyIntroRequest?.initialStageId}
+        members={members}
+        onClose={() => setCompanyIntroRequest(null)}
+        onSubmit={async ({
+          companyAppeal,
+          introRecipientEmails,
+          newStageLabel,
+          nextStageId,
+        }) => {
+          if (!companyIntroRequest?.item.companyIntro) return;
+          try {
+            const stageId = newStageLabel
+              ? (
+                  await createCustomStage.mutateAsync({
+                    label: newStageLabel,
+                    roleId: companyIntroRequest.item.roleId,
+                    workspaceId,
+                  })
+                ).stage.id
+              : nextStageId;
+            if (!stageId) throw new Error("수락 후 첫 단계를 선택해 주세요.");
+            await requestCompanyIntro.mutateAsync({
+              companyAppeal,
+              introCandidateId: companyIntroRequest.item.companyIntro.id,
+              introRecipientEmails,
+              nextStageId: stageId,
+              workspaceId,
+            });
+            setCompanyIntroRequest(null);
+            addToast({
+              message:
+                "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다.",
+              variant: "success",
+            });
+          } catch (error) {
+            addToast({
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "제안을 처리하지 못했습니다.",
+              variant: "error",
+            });
+            throw error;
+          }
+        }}
+        open={Boolean(companyIntroRequest)}
+        pending={createCustomStage.isPending || requestCompanyIntro.isPending}
+        roleId={companyIntroRequest?.item.roleId ?? ""}
+        roleName={companyIntroRequest?.item.roleName ?? "해당 역할"}
+        stages={board?.stages ?? []}
+      />
+
+      <CompanyIntroPassDialog
+        candidateName={
+          companyIntroPass ? getOrgCandidateDisplayName(companyIntroPass) : ""
+        }
+        onClose={() => setCompanyIntroPass(null)}
+        onConfirm={async () => {
+          if (!companyIntroPass?.companyIntro) return;
+          await passCompanyIntro.mutateAsync({
+            introCandidateId: companyIntroPass.companyIntro.id,
+            workspaceId,
+          });
+          setCompanyIntroPass(null);
+          addToast({
+            message: "후보자에게 제안하지 않고 목록에서 제외했습니다.",
+            variant: "success",
+          });
+        }}
+        open={Boolean(companyIntroPass)}
+        pending={passCompanyIntro.isPending}
       />
     </section>
   );

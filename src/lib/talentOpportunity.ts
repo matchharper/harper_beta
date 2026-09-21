@@ -12,6 +12,7 @@ import {
   paginateNewOpportunityHistory,
 } from "@/lib/opportunityType";
 import { resolveCompanyLogoUrl } from "@/lib/imageUrl";
+import { decideTalentCompanyIntro } from "@/lib/org/server";
 
 type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 
@@ -1176,7 +1177,7 @@ const INACTIVE_ROLE_STATUSES = new Set([
   "inactive",
 ]);
 
-function isExpiredOpportunityRole(args: {
+export function isExpiredOpportunityRole(args: {
   expiresAt?: string | null;
   isExpired?: boolean | null;
   status?: string | null;
@@ -1255,6 +1256,90 @@ export async function archiveEndedInternalOpportunitiesForTalent(args: {
   return Number.isFinite(archivedCount) ? Math.max(0, archivedCount) : 0;
 }
 
+/**
+ * Expired external postings are no longer actionable. Keep the recommendation
+ * row for delivery de-duplication and the hidden archive, but do not turn its
+ * removal into a positive or negative preference signal.
+ */
+export async function hideExpiredUnansweredExternalOpportunities(args: {
+  admin: AdminClient;
+  userId: string;
+}) {
+  const { data, error } = await ((
+    args.admin.from("talent_opportunity_recommendation" as any) as any
+  )
+    .select(
+      `
+        id,
+        company_role:company_roles!inner (
+          expires_at,
+          is_expired,
+          source_type,
+          status
+        )
+      `
+    )
+    .eq("talent_id", args.userId)
+    .eq("company_role.source_type", "external")
+    .is("feedback", null)
+    .is("saved_stage", null) as any);
+
+  if (error) {
+    throw new Error(
+      error.message ?? "Failed to find expired external opportunities"
+    );
+  }
+
+  const recommendationIds = coerceJsonArray<{
+    company_role: {
+      expires_at: string | null;
+      is_expired: boolean | null;
+      source_type: string | null;
+      status: string | null;
+    } | null;
+    id: string | null;
+  }>(data)
+    .filter((row) => {
+      const role = Array.isArray(row.company_role)
+        ? row.company_role[0]
+        : row.company_role;
+      return Boolean(
+        role &&
+          role.source_type === "external" &&
+          isExpiredOpportunityRole({
+            expiresAt: role.expires_at,
+            isExpired: role.is_expired,
+            status: role.status,
+          })
+      );
+    })
+    .map((row) => String(row.id ?? "").trim())
+    .filter(Boolean);
+
+  if (recommendationIds.length === 0) return 0;
+
+  const { data: updatedRows, error: updateError } = await ((
+    args.admin.from("talent_opportunity_recommendation" as any) as any
+  )
+    .update({
+      saved_stage: "hidden",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("talent_id", args.userId)
+    .in("id", recommendationIds)
+    .is("feedback", null)
+    .is("saved_stage", null)
+    .select("id") as any);
+
+  if (updateError) {
+    throw new Error(
+      updateError.message ?? "Failed to hide expired external opportunities"
+    );
+  }
+
+  return coerceJsonArray<{ id: string }>(updatedRows).length;
+}
+
 export async function fetchRecentRecommendedOpportunitiesForPrompt(args: {
   admin: AdminClient;
   limit?: number;
@@ -1269,6 +1354,7 @@ export async function fetchRecentRecommendedOpportunitiesForPrompt(args: {
     (args.admin.from("talent_opportunity_recommendation" as any) as any)
       .select(TALENT_RECENT_RECOMMENDATION_PROMPT_SELECT)
       .eq("talent_id", args.userId)
+      .or("feedback.not.is.null,saved_stage.is.null,saved_stage.neq.hidden")
       .order("created_at", { ascending: false })
       .limit(limit) as any,
     (args.admin.from("meeting_schedules" as any) as any)
@@ -1327,6 +1413,7 @@ export async function fetchRecentRecommendedOpportunitiesForPrompt(args: {
     )
       .select(TALENT_RECENT_RECOMMENDATION_PROMPT_SELECT)
       .eq("talent_id", args.userId)
+      .or("feedback.not.is.null,saved_stage.is.null,saved_stage.neq.hidden")
       .in("id", extraMeetingRecommendationIds) as any);
     if (extraError) {
       throw new Error(
@@ -2902,6 +2989,34 @@ export async function updateTalentOpportunityHistoryItem(args: {
   }
 
   if (args.action === "feedback") {
+    if (args.feedback === "positive" || args.feedback === "negative") {
+      const { data: recommendationType, error: recommendationTypeError } =
+        await (
+          args.admin.from("talent_opportunity_recommendation" as any) as any
+        )
+          .select("opportunity_type")
+          .eq("id", opportunityId)
+          .eq("talent_id", args.userId)
+          .maybeSingle();
+      if (recommendationTypeError) throw recommendationTypeError;
+      if (
+        recommendationType?.opportunity_type === OpportunityType.IntroRequest
+      ) {
+        const decision = await decideTalentCompanyIntro({
+          decision: args.feedback === "positive" ? "accept" : "decline",
+          emailAcceptanceConfirmation:
+            args.emailAcceptanceConfirmation ?? null,
+          feedbackReason: args.feedbackReason ?? null,
+          recommendationId: opportunityId,
+          talentId: args.userId,
+        });
+        return {
+          ok: true,
+          opportunityId,
+          updatedAt: decision.updatedAt,
+        };
+      }
+    }
     if (
       args.feedback === "positive" &&
       (await acceptInternalRoleRecommendation({

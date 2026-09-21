@@ -961,6 +961,321 @@ export type Database = {
           },
         ];
       };
+      company_first_search_runs: {
+        Row: {
+          attempt_count: number;
+          available_at: string;
+          company_workspace_id: string;
+          contract_version: string;
+          created_at: string;
+          error_code: string | null;
+          error_message: string | null;
+          finished_at: string | null;
+          heartbeat_at: string | null;
+          id: string;
+          lease_expires_at: string | null;
+          lease_token: string | null;
+          model_manifest: Json;
+          query_plan: Json;
+          result: Json;
+          scheduled_slot: string;
+          selection_committed_at: string | null;
+          source_cutoff: string | null;
+          source_snapshot: Json;
+          started_at: string | null;
+          status: string;
+          trigger_reason: string;
+          updated_at: string;
+        };
+        Insert: {
+          attempt_count?: number;
+          available_at?: string;
+          company_workspace_id: string;
+          contract_version?: string;
+          created_at?: string;
+          error_code?: string | null;
+          error_message?: string | null;
+          finished_at?: string | null;
+          heartbeat_at?: string | null;
+          id?: string;
+          lease_expires_at?: string | null;
+          lease_token?: string | null;
+          model_manifest?: Json;
+          query_plan?: Json;
+          result?: Json;
+          scheduled_slot: string;
+          selection_committed_at?: string | null;
+          source_cutoff?: string | null;
+          source_snapshot?: Json;
+          started_at?: string | null;
+          status?: string;
+          trigger_reason?: string;
+          updated_at?: string;
+        };
+        Update: {
+          attempt_count?: number;
+          available_at?: string;
+          company_workspace_id?: string;
+          contract_version?: string;
+          created_at?: string;
+          error_code?: string | null;
+          error_message?: string | null;
+          finished_at?: string | null;
+          heartbeat_at?: string | null;
+          id?: string;
+          lease_expires_at?: string | null;
+          lease_token?: string | null;
+          model_manifest?: Json;
+          query_plan?: Json;
+          result?: Json;
+          scheduled_slot?: string;
+          selection_committed_at?: string | null;
+          source_cutoff?: string | null;
+          source_snapshot?: Json;
+          started_at?: string | null;
+          status?: string;
+          trigger_reason?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "company_first_search_runs_company_workspace_id_fkey";
+            columns: ["company_workspace_id"];
+            isOneToOne: false;
+            referencedRelation: "company_workspace";
+            referencedColumns: ["company_workspace_id"];
+          },
+        ];
+      };
+      company_first_slack_outbox: {
+        Row: {
+          attempt_count: number;
+          available_at: string;
+          blocks: Json;
+          candidate_ids: string[];
+          channel_id: string;
+          claimed_at: string | null;
+          chunk_index: number;
+          company_workspace_id: string;
+          created_at: string;
+          id: string;
+          idempotency_key: string;
+          last_error: string | null;
+          message_text: string;
+          role_ids: string[];
+          run_id: string;
+          sent_at: string | null;
+          slack_message_ts: string | null;
+          status: string;
+          updated_at: string;
+        };
+        Insert: {
+          attempt_count?: number;
+          available_at?: string;
+          blocks?: Json;
+          candidate_ids?: string[];
+          channel_id: string;
+          claimed_at?: string | null;
+          chunk_index?: number;
+          company_workspace_id: string;
+          created_at?: string;
+          id?: string;
+          idempotency_key: string;
+          last_error?: string | null;
+          message_text: string;
+          role_ids?: string[];
+          run_id: string;
+          sent_at?: string | null;
+          slack_message_ts?: string | null;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          attempt_count?: number;
+          available_at?: string;
+          blocks?: Json;
+          candidate_ids?: string[];
+          channel_id?: string;
+          claimed_at?: string | null;
+          chunk_index?: number;
+          company_workspace_id?: string;
+          created_at?: string;
+          id?: string;
+          idempotency_key?: string;
+          last_error?: string | null;
+          message_text?: string;
+          role_ids?: string[];
+          run_id?: string;
+          sent_at?: string | null;
+          slack_message_ts?: string | null;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "company_first_slack_outbox_channel_id_fkey";
+            columns: ["channel_id"];
+            isOneToOne: false;
+            referencedRelation: "company_slack_channels";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "company_first_slack_outbox_company_workspace_id_fkey";
+            columns: ["company_workspace_id"];
+            isOneToOne: false;
+            referencedRelation: "company_workspace";
+            referencedColumns: ["company_workspace_id"];
+          },
+          {
+            foreignKeyName: "company_first_slack_outbox_run_id_fkey";
+            columns: ["run_id"];
+            isOneToOne: false;
+            referencedRelation: "company_first_search_runs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      company_intro_candidates: {
+        Row: {
+          candidate_sent_at: string | null;
+          close_reason: string | null;
+          company_appeal: string | null;
+          company_workspace_id: string;
+          connected_at: string | null;
+          created_at: string;
+          delivery_run_id: string | null;
+          id: string;
+          intro_recipient_emails: string[];
+          next_stage_id: string | null;
+          presentation: Json;
+          recommendation_id: string | null;
+          requested_at: string | null;
+          requested_by_company_user_id: string | null;
+          revision: number;
+          role_fingerprint: string;
+          role_id: string;
+          selected_at: string;
+          selection_reason: string;
+          selection_run_id: string;
+          status: string;
+          talent_decision_at: string | null;
+          talent_fingerprint: string;
+          talent_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          candidate_sent_at?: string | null;
+          close_reason?: string | null;
+          company_appeal?: string | null;
+          company_workspace_id: string;
+          connected_at?: string | null;
+          created_at?: string;
+          delivery_run_id?: string | null;
+          id?: string;
+          intro_recipient_emails?: string[];
+          next_stage_id?: string | null;
+          presentation?: Json;
+          recommendation_id?: string | null;
+          requested_at?: string | null;
+          requested_by_company_user_id?: string | null;
+          revision?: number;
+          role_fingerprint: string;
+          role_id: string;
+          selected_at?: string;
+          selection_reason: string;
+          selection_run_id: string;
+          status?: string;
+          talent_decision_at?: string | null;
+          talent_fingerprint: string;
+          talent_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          candidate_sent_at?: string | null;
+          close_reason?: string | null;
+          company_appeal?: string | null;
+          company_workspace_id?: string;
+          connected_at?: string | null;
+          created_at?: string;
+          delivery_run_id?: string | null;
+          id?: string;
+          intro_recipient_emails?: string[];
+          next_stage_id?: string | null;
+          presentation?: Json;
+          recommendation_id?: string | null;
+          requested_at?: string | null;
+          requested_by_company_user_id?: string | null;
+          revision?: number;
+          role_fingerprint?: string;
+          role_id?: string;
+          selected_at?: string;
+          selection_reason?: string;
+          selection_run_id?: string;
+          status?: string;
+          talent_decision_at?: string | null;
+          talent_fingerprint?: string;
+          talent_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "company_intro_candidates_delivery_run_id_fkey";
+            columns: ["delivery_run_id"];
+            isOneToOne: true;
+            referencedRelation: "opportunity_discovery_run";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "company_intro_candidates_company_workspace_id_fkey";
+            columns: ["company_workspace_id"];
+            isOneToOne: false;
+            referencedRelation: "company_workspace";
+            referencedColumns: ["company_workspace_id"];
+          },
+          {
+            foreignKeyName: "company_intro_candidates_next_stage_id_fkey";
+            columns: ["next_stage_id"];
+            isOneToOne: false;
+            referencedRelation: "ops_matching_role_stages";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "company_intro_candidates_recommendation_id_fkey";
+            columns: ["recommendation_id"];
+            isOneToOne: true;
+            referencedRelation: "talent_opportunity_recommendation";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "company_intro_candidates_requested_by_company_user_id_fkey";
+            columns: ["requested_by_company_user_id"];
+            isOneToOne: false;
+            referencedRelation: "company_users";
+            referencedColumns: ["user_id"];
+          },
+          {
+            foreignKeyName: "company_intro_candidates_role_id_fkey";
+            columns: ["role_id"];
+            isOneToOne: false;
+            referencedRelation: "company_roles";
+            referencedColumns: ["role_id"];
+          },
+          {
+            foreignKeyName: "company_intro_candidates_selection_run_id_fkey";
+            columns: ["selection_run_id"];
+            isOneToOne: false;
+            referencedRelation: "company_first_search_runs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "company_intro_candidates_talent_id_fkey";
+            columns: ["talent_id"];
+            isOneToOne: false;
+            referencedRelation: "talent_users";
+            referencedColumns: ["user_id"];
+          },
+        ];
+      };
       company_conversation_summaries: {
         Row: {
           company_workspace_id: string;
@@ -1249,6 +1564,7 @@ export type Database = {
           created_at: string;
           criteria: Json;
           is_auto: boolean;
+          is_company_first_search: boolean;
           is_require_linkedin: boolean | null;
           is_require_resume: boolean | null;
           max_pending_talents: number | null;
@@ -1264,6 +1580,7 @@ export type Database = {
           created_at?: string;
           criteria?: Json;
           is_auto?: boolean;
+          is_company_first_search?: boolean;
           is_require_linkedin?: boolean | null;
           is_require_resume?: boolean | null;
           max_pending_talents?: number | null;
@@ -1279,6 +1596,7 @@ export type Database = {
           created_at?: string;
           criteria?: Json;
           is_auto?: boolean;
+          is_company_first_search?: boolean;
           is_require_linkedin?: boolean | null;
           is_require_resume?: boolean | null;
           max_pending_talents?: number | null;
@@ -8186,6 +8504,35 @@ export type Database = {
         };
         Returns: Json;
       };
+      decide_company_intro_request_v1: {
+        Args: {
+          p_decision: string;
+          p_email_acceptance_confirmation?: Json;
+          p_feedback_reason?: string;
+          p_recommendation_id: string;
+          p_talent_id: string;
+        };
+        Returns: Json;
+      };
+      pass_company_intro_v1: {
+        Args: {
+          p_company_user_id: string;
+          p_company_workspace_id: string;
+          p_intro_candidate_id: string;
+        };
+        Returns: Json;
+      };
+      request_company_intro_v1: {
+        Args: {
+          p_company_appeal: string;
+          p_company_user_id: string;
+          p_company_workspace_id: string;
+          p_intro_candidate_id: string;
+          p_intro_recipient_emails: string[];
+          p_next_stage_id: string;
+        };
+        Returns: Json;
+      };
       activate_slack_company_agent_update_proposal_v1: {
         Args: {
           p_proposal_id: string;
@@ -8321,6 +8668,10 @@ export type Database = {
           p_talent_id: string;
         };
         Returns: string;
+      };
+      company_first_outbox_is_deliverable_v1: {
+        Args: { p_outbox_id: string };
+        Returns: boolean;
       };
       claim_career_email_onboarding_lead: {
         Args: {

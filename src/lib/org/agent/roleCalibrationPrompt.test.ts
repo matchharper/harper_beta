@@ -15,6 +15,9 @@ test("calibration writer turns one reference into concrete bonuses and an eviden
   assert.match(prompt, /small set of non-exclusive bonuses/);
   assert.match(prompt, /no conclusion, concern, or follow-up about whether the reference person fits the Role/);
   assert.match(prompt, /operational candidate language/);
+  assert.match(prompt, /<hiring_brief_authoring_contract>/);
+  assert.match(prompt, /Never erase an established school bar/);
+  assert.match(prompt, /not an automatic preferred-company list/);
   assert.match(prompt, /narrowest useful interpretation/);
   assert.match(prompt, /save them as bonuses rather than requirements/);
   assert.match(prompt, /Matchable peer group/);

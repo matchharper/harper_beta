@@ -12,6 +12,8 @@ export const FETCH_LIMIT = 40;
 export const OPPORTUNITY_RUN_FETCH_LIMIT = 20;
 
 export type DebugTabId =
+  | "abTests"
+  | "actionLogs"
   | "calls"
   | "companyAnswerRetrieval"
   | "cost"
@@ -21,6 +23,8 @@ export type DebugTabId =
   | "orgAgentTools";
 
 export function debugTabTitle(tab: DebugTabId) {
+  if (tab === "abTests") return "A/B Test";
+  if (tab === "actionLogs") return "액션 로그";
   if (tab === "emails") return "메일 로그";
   if (tab === "calls") return "콜 로그";
   if (tab === "companyAnswerRetrieval") return "Company Answer Retrieval";
@@ -31,6 +35,8 @@ export function debugTabTitle(tab: DebugTabId) {
 }
 
 export function debugTabDescription(tab: DebugTabId) {
+  if (tab === "abTests") return "";
+  if (tab === "actionLogs") return "";
   if (tab === "emails") {
     return "career 유저에게 저장된 메일 본문과 internal role 제안 메일을 확인합니다.";
   }

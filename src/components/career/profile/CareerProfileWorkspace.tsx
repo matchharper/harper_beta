@@ -8,6 +8,8 @@ import {
 } from "../CareerSidebarContext";
 import CareerTalentContextSection from "./CareerTalentContextSection";
 import CareerTalentProfilePanel from "./CareerTalentProfilePanel";
+import { CareerDocumentDetail } from "@/components/career/documents/CareerDocumentDetail";
+import { getCareerDocumentHref } from "@/lib/career/documentLinks";
 import CareerCallNoteDetail from "./CareerCallNoteDetail";
 import CareerResumeLinksSettingsSection from "../settings/CareerResumeLinksSettingsSection";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
@@ -24,8 +26,6 @@ const isProfileSectionId = (
 type ProfileSectionItem = {
   id: ProfileSectionId;
   label: string;
-  title: string;
-  description: string[];
 };
 
 const getProfileSectionItems = (
@@ -34,17 +34,6 @@ const getProfileSectionItems = (
   {
     id: "profile",
     label: t("career.common.career_workspace_screen.0b0v9cr", "프로필"),
-    title: t("career.common.career_workspace_screen.0b0v9cr", "프로필"),
-    description: [
-      t(
-        "career.profile.career_profile_workspace.16e35ps",
-        "입력하신 정보와 대화내용을 바탕으로 Harper가 구성한 프로필입니다."
-      ),
-      t(
-        "career.profile.career_profile_workspace.116ofw4",
-        "이대로 회사 측에 전달되지는 않지만, 변경하고 싶으신 사항이 있는지 확인할 수 있습니다."
-      ),
-    ],
   },
   {
     id: "brief",
@@ -52,27 +41,10 @@ const getProfileSectionItems = (
       "career.profile.career_profile_workspace.search_brief_tab",
       "선호 기준"
     ),
-    title: t(
-      "career.profile.career_profile_workspace.search_brief_tab",
-      "선호 기준"
-    ),
-    description: [
-      t(
-        "career.profile.context.brief_description",
-        "Harper가 기회를 찾고 판단할 때 적용하는 현재 기준이에요. 회사에 직접적으로 공개되지않고 선호하시는 기회를 찾기 위해 사용되며, 사용해서 회원님을 더 잘 소개할 수 있을 때 일부 언급될 수 있습니다."
-      ),
-    ],
   },
   {
     id: "links",
     label: t("career.profile.career_profile_workspace.14bifvm", "이력서/링크"),
-    title: t("career.profile.career_profile_workspace.14bifvm", "이력서/링크"),
-    description: [
-      t(
-        "career.profile.career_profile_workspace.11os0vs",
-        "이력서와 나와 관련된 링크를 확인하고 수정할 수 있습니다."
-      ),
-    ],
   },
 ];
 
@@ -88,8 +60,6 @@ const CareerProfileWorkspace = ({
   const {
     loadTalentMemories,
     mutateTalentContexts,
-    savedResumeFileName,
-    savedResumeStoragePath,
     talentBrief = [],
     talentDocuments,
     talentContextsSaveError,
@@ -100,24 +70,7 @@ const CareerProfileWorkspace = ({
     talentMemoriesLoaded,
     talentMemoriesLoadPending,
   } = useCareerProfileContext();
-  const hasSavedResume = Boolean(savedResumeFileName || savedResumeStoragePath);
-
-  const sectionItems = useMemo(
-    () =>
-      getProfileSectionItems(t).map((item) =>
-        item.id === "links"
-          ? {
-              ...item,
-              attention: !hasSavedResume,
-              attentionLabel: t(
-                "career.profile.career_profile_workspace.0pv1jmq",
-                "저장된 이력서가 없습니다"
-              ),
-            }
-          : item
-      ),
-    [hasSavedResume, t]
-  );
+  const sectionItems = useMemo(() => getProfileSectionItems(t), [t]);
 
   const requestedProfileSection =
     typeof router.query.profileSection === "string"
@@ -128,9 +81,14 @@ const CareerProfileWorkspace = ({
       ? router.query.callNoteId.trim()
       : null;
 
+  const requestedDocumentId =
+    typeof router.query.documentId === "string"
+      ? router.query.documentId.trim()
+      : null;
+
   useEffect(() => {
-    if (requestedCallNoteId) onDetailOpen?.();
-  }, [onDetailOpen, requestedCallNoteId]);
+    if (requestedCallNoteId || requestedDocumentId) onDetailOpen?.();
+  }, [onDetailOpen, requestedCallNoteId, requestedDocumentId]);
 
   useEffect(() => {
     if (!router.isReady || requestedProfileSection !== "connections") return;
@@ -161,9 +119,10 @@ const CareerProfileWorkspace = ({
     [requestedCallNoteId, talentDocuments]
   );
 
-  const closeCallNote = useCallback(() => {
+  const closeDocumentDetail = useCallback(() => {
     const query = { ...router.query };
     delete query.callNoteId;
+    delete query.documentId;
     void router.replace(
       {
         pathname: router.pathname,
@@ -197,6 +156,7 @@ const CareerProfileWorkspace = ({
       logCareerEvent(`click_profile_section_${next}`);
       const query = { ...router.query };
       delete query.callNoteId;
+      delete query.documentId;
       void router.replace(
         {
           pathname: router.pathname,
@@ -213,6 +173,9 @@ const CareerProfileWorkspace = ({
     activeSection === "links" ? (
       <CareerResumeLinksSettingsSection
         onOpenCallNote={(document) => openCallNote(document.id)}
+        onOpenDocument={(document) =>
+          void router.push(getCareerDocumentHref(document.id))
+        }
       />
     ) : activeSection === "brief" ? (
       <CareerTalentContextSection
@@ -245,12 +208,30 @@ const CareerProfileWorkspace = ({
     );
   }
 
+  if (requestedDocumentId) {
+    const document = talentDocuments.find(
+      (item) => item.id === requestedDocumentId
+    );
+    return (
+      <CareerDocumentDetail
+        key={requestedDocumentId}
+        document={{
+          id: requestedDocumentId,
+          title:
+            document?.fileName ??
+            t("career.profile.documents.title", "내 문서"),
+        }}
+        onBack={closeDocumentDetail}
+      />
+    );
+  }
+
   if (requestedCallNoteId) {
     return (
       <CareerCallNoteDetail
         documentId={requestedCallNoteId}
         document={callNoteDocument}
-        onBack={closeCallNote}
+        onBack={closeDocumentDetail}
       />
     );
   }

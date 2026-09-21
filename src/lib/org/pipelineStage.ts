@@ -1,11 +1,31 @@
 import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
 
-export type OrgAgentPipelineBucket = "active" | "ended" | "waiting";
+export type OrgAgentPipelineBucket = "active" | "ended" | "intro" | "waiting";
 export const ORG_AGENT_RECOMMENDATION_ID_FILTER_MAX = 100;
+
+export const ORG_STAGE_DESCRIPTIONS: Record<string, string> = {
+  company_intro:
+    "아직 이 역할을 추천받지 않은 후보에게 회사가 먼저 제안할 수 있습니다. 제안을 요청하면 Harper가 연락하고, 후보자가 수락하면 연결합니다. 제안을 요청한 뒤에는 진행 상태가 표시됩니다.",
+  pending_connection:
+    "이미 이 역할을 추천받고 수락한 후보입니다. 회사가 연결을 수락하면 Harper가 소개 이메일로 연결해 인터뷰 등 다음 과정을 시작할 수 있습니다.",
+};
+
+export function humanizeOrgCompanyIntroStatus(intro: {
+  status: string;
+  candidateSentAt?: string | null;
+}) {
+  if (intro.status === "ready") return "아직 후보자에게 제안하지 않음";
+  if (intro.status === "connecting") return "후보자 수락 · 연결 준비 중";
+  if (intro.status === "awaiting_talent") {
+    return intro.candidateSentAt ? "후보자 답변 대기" : "제안 준비 중";
+  }
+  return "제안 상태 확인 필요";
+}
 
 const STAGE_LABELS: Record<string, string> = {
   accepted: "내부 수락",
   archived: "아카이브",
+  company_intro: "먼저 제안 가능한 후보",
   connected: "연결됨",
   final_offer: "최종 오퍼 단계",
   pending_connection: "연결 대기",
@@ -188,6 +208,7 @@ export function getOrgAgentPipelineBucket(
   stage: string | null | undefined
 ): OrgAgentPipelineBucket | null {
   const normalizedStage = normalized(stage);
+  if (normalizedStage === "company_intro") return "intro";
   if (normalizedStage === "pending_connection") return "waiting";
   if (normalizedStage === "process_stopped") return "ended";
   if (

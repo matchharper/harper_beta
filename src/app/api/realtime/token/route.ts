@@ -33,6 +33,16 @@ import {
   parseTalentCallNote,
 } from "@/lib/talentOnboarding/callNote";
 import { resolveCareerRequestTimeZone } from "@/lib/career/requestTimeZone";
+import { canUseCareerDevControls } from "@/lib/internalAccess";
+import {
+  assignCareerVoiceModel,
+  CAREER_REALTIME_MODEL,
+} from "@/lib/career/voiceModel";
+import {
+  logCareerVoiceModelExposure,
+  logCareerVoiceModelSessionAttempt,
+  logCareerVoiceModelSessionFailed,
+} from "@/lib/career/voiceExperiment.server";
 
 const TOKEN_RATE_LIMIT = new Map<string, { count: number; resetAt: number }>();
 const MAX_TOKENS_PER_MINUTE = 10;
@@ -165,6 +175,16 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const assignedModel = assignCareerVoiceModel(user.id);
+    if (
+      !canUseCareerDevControls(user.email) &&
+      assignedModel !== CAREER_REALTIME_MODEL
+    ) {
+      return NextResponse.json(
+        { error: "This user is not assigned to GPT-Realtime" },
+        { status: 403 }
+      );
+    }
 
     if (!checkRateLimit(user.id)) {
       return NextResponse.json(
@@ -175,6 +195,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json().catch(() => ({}));
     const {
+      callSessionId: rawCallSessionId,
       conversationId: rawConversationId,
       conversationStarterId: rawConversationStarterId,
       initialResponseInstruction: rawInitialResponseInstruction,
@@ -183,6 +204,7 @@ export async function POST(req: NextRequest) {
       locale: rawLocale,
       timeZone: rawTimeZone,
     } = body as {
+      callSessionId?: string;
       conversationId?: string;
       conversationStarterId?: string;
       initialResponseInstruction?: string;
@@ -193,6 +215,8 @@ export async function POST(req: NextRequest) {
       timeZone?: string;
     };
     const mockInterviewOpportunityId = readMockInterviewOpportunityId(body);
+    const callSessionId =
+      typeof rawCallSessionId === "string" ? rawCallSessionId.trim() : "";
     const promptTimeZone = resolveCareerRequestTimeZone(req, rawTimeZone);
     const conversationId = rawConversationId?.trim();
     const conversationStarterId =
@@ -356,37 +380,97 @@ export async function POST(req: NextRequest) {
       : realtimeToolSelection.toolVoicePreambles;
     const realtimeConfig = getCareerRealtimeSessionConfig();
     const safetyIdentifier = buildSafetyIdentifier(user.id);
-    const response = await createOpenAIRealtimeClientSecret({
-      safetyIdentifier,
-      body: buildOpenAIRealtimeSessionBody({
-        instructions,
-        realtimeConfig,
-        tools,
-        transcriptionLanguage,
-        transcriptionModel: realtimeConfig.transcriptionModel,
-        isMockInterview: Boolean(mockInterviewOpportunityId),
-      }),
+    const attemptLog = logCareerVoiceModelSessionAttempt({
+      admin,
+      callSessionId,
+      conversationId,
+      model: CAREER_REALTIME_MODEL,
+      userId: user.id,
     });
+    let response: Response;
+    try {
+      response = await createOpenAIRealtimeClientSecret({
+        safetyIdentifier,
+        body: buildOpenAIRealtimeSessionBody({
+          instructions,
+          realtimeConfig,
+          tools,
+          transcriptionLanguage,
+          transcriptionModel: realtimeConfig.transcriptionModel,
+          isMockInterview: Boolean(mockInterviewOpportunityId),
+        }),
+      });
+    } catch (error) {
+      await Promise.all([
+        attemptLog,
+        logCareerVoiceModelSessionFailed({
+          admin,
+          callSessionId,
+          conversationId,
+          failureType: "network_error",
+          model: CAREER_REALTIME_MODEL,
+          userId: user.id,
+        }),
+      ]);
+      throw error;
+    }
 
     if (!response.ok) {
       const err = await response.text().catch(() => "");
       console.error("[RealtimeToken] OpenAI session creation failed:", err);
+      await Promise.all([
+        attemptLog,
+        logCareerVoiceModelSessionFailed({
+          admin,
+          callSessionId,
+          conversationId,
+          failureType: "provider_error",
+          model: CAREER_REALTIME_MODEL,
+          status: response.status,
+          userId: user.id,
+        }),
+      ]);
       return NextResponse.json(
         { error: "Failed to create realtime session" },
         { status: 502 }
       );
     }
 
-    const data = await response.json();
+    const data = (await response.json().catch(() => null)) as {
+      client_secret?: { value?: unknown };
+      value?: unknown;
+    } | null;
 
-    const token = data.value ?? data.client_secret?.value;
+    const token = data?.value ?? data?.client_secret?.value;
     if (typeof token !== "string" || token.length === 0) {
       console.error("[RealtimeToken] OpenAI response did not include a token");
+      await Promise.all([
+        attemptLog,
+        logCareerVoiceModelSessionFailed({
+          admin,
+          callSessionId,
+          conversationId,
+          failureType: "invalid_response",
+          model: CAREER_REALTIME_MODEL,
+          userId: user.id,
+        }),
+      ]);
       return NextResponse.json(
         { error: "Failed to create realtime client secret" },
         { status: 502 }
       );
     }
+
+    await Promise.all([
+      attemptLog,
+      logCareerVoiceModelExposure({
+        admin,
+        callSessionId,
+        conversationId,
+        model: CAREER_REALTIME_MODEL,
+        userId: user.id,
+      }),
+    ]);
 
     return NextResponse.json({
       provider: realtimeConfig.provider,

@@ -51,7 +51,13 @@ export async function fetchWithInternalAuth<T>(
   };
 
   if (!response.ok) {
-    throw new Error(payload.error ?? "요청을 처리하지 못했습니다.");
+    // Keep the HTTP conflict boundary available to editors without parsing copy.
+    throw Object.assign(
+      new Error(payload.error ?? "요청을 처리하지 못했습니다."),
+      {
+        status: response.status,
+      }
+    );
   }
 
   return payload;

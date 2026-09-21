@@ -82,7 +82,7 @@ export type GmailCapability =
   | "not_connected";
 export type CareerConversationPromptMode =
   | "default"
-  | "preference_update"
+  | "career_coaching"
   | "match_quality"
   | "career_check_in"
   | "internal_opportunity_call"

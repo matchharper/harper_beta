@@ -146,7 +146,7 @@ const buildCareerOpportunityTypeMeta = (
         {
           label: t(
             "career.common.opportunity_type_meta.external_expired_posting",
-            "만료된 공고에요."
+            "만료된 포지션이에요."
           ),
           value:
             // career-i18n-skip-next-line stable feedback storage value
@@ -293,7 +293,7 @@ const buildCareerOpportunityTypeMeta = (
     info: {
       description: t(
         "career.common.opportunity_type_meta.0aqqdks",
-        "회사 측이 하퍼를 통해 회원님에게 직접 연결을 요청한 케이스입니다. 수락 여부를 확인한 뒤에만 연락처 공유와 후속 조율을 진행합니다."
+        "회원님의 open_to_matches 설정을 바탕으로 Harper가 먼저 프로필을 제안했고, 회사가 검토한 뒤 직접 Intro를 요청했습니다. 수락하면 회사 담당자와 바로 CC로 연결되고 회사가 정한 첫 단계로 이동합니다."
       ),
       title: t("career.common.opportunity_type_meta.1qbevng", "직접 연결 요청"),
     },
@@ -377,8 +377,8 @@ const buildCareerOpportunityTypeMeta = (
     panelToneClassName: "bg-bg-floating",
     positiveActionIcon: Handshake,
     positiveActionLabel: t(
-      "career.common.opportunity_type_meta.1n5sz4w",
-      "연결 수락"
+      "career.common.internal_connection_acceptance_modal.intro_submit",
+      "소개 수락"
     ),
     savedStageLabels: {
       applied: t(

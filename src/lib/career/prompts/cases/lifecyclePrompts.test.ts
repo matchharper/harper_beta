@@ -43,6 +43,30 @@ test("call wrap-up mentions only a verified saved call note", () => {
   );
 });
 
+test("career coaching wrap-up preserves only an agreed useful ending", () => {
+  const prompt = buildCareerCallWrapupTurnInstruction({
+    conversationStarterId: "career_coaching",
+    durationLabel: "8분 12초",
+    isBrief: false,
+    isOnboardingDone: true,
+    preferredLocale: "ko",
+    transcript: [
+      {
+        role: "user",
+        text: "다음에는 배울 수 있는 동료가 있는 팀을 우선해서 보고 싶어요.",
+      },
+    ],
+  });
+
+  assert.match(prompt, /concrete Harper support plan/);
+  assert.match(prompt, /user approved/);
+  assert.match(prompt, /Do not invent a new task/);
+  assert.match(prompt, /journaling/i);
+  assert.match(prompt, /durable user facts or decision criteria the user explicitly confirmed/);
+  assert.match(prompt, /Do not store Harper's support plan itself as Memory/);
+  assert.doesNotMatch(prompt, /reflect what they shared in future matching/);
+});
+
 test("call wrap-up fallback appends a localized saved call-note notice", () => {
   const korean = buildCareerCallWrapupFallbackFollowUp({
     callNoteCreated: true,

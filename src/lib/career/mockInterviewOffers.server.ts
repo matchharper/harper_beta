@@ -38,6 +38,7 @@ export async function hydrateMockInterviewOffers<
       offers = items.map((item) => ({
         id: item.id,
         roleId: item.roleId,
+        companyLogoUrl: item.companyLogoUrl,
         companyName: item.companyName,
         title: item.title,
       }));

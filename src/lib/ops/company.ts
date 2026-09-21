@@ -220,20 +220,20 @@ export type OpsCompanyWorkspaceUpdateResponse = {
   };
 };
 
-export type OpsCompanyRoleAutomationState = {
-  isAuto: boolean;
+export type OpsCompanyRoleCompanyFirstSearchState = {
+  isCompanyFirstSearch: boolean;
   roleId: string;
 };
 
-export type OpsCompanyRoleAutomationUpdateInput = {
-  isAuto: boolean;
+export type OpsCompanyRoleCompanyFirstSearchUpdateInput = {
+  isCompanyFirstSearch: boolean;
   roleId: string;
   workspaceId: string;
 };
 
-export type OpsCompanyRoleAutomationUpdateResponse = {
+export type OpsCompanyRoleCompanyFirstSearchUpdateResponse = {
   ok: true;
-  role: OpsCompanyRoleAutomationState & {
+  role: OpsCompanyRoleCompanyFirstSearchState & {
     updatedAt: string;
     workspaceId: string;
   };
@@ -991,9 +991,9 @@ export async function updateOpsCompanyWorkspace(
   };
 }
 
-export async function fetchOpsCompanyRoleAutomationStates(args: {
+export async function fetchOpsCompanyRoleCompanyFirstSearchStates(args: {
   roleIds: string[];
-}): Promise<OpsCompanyRoleAutomationState[]> {
+}): Promise<OpsCompanyRoleCompanyFirstSearchState[]> {
   const roleIds = Array.from(
     new Set(args.roleIds.map(normalizeText).filter(Boolean))
   );
@@ -1003,32 +1003,40 @@ export async function fetchOpsCompanyRoleAutomationStates(args: {
   const { data, error } = await (
     admin.from("company_internal_roles" as any) as any
   )
-    .select("role_id, is_auto")
+    .select("role_id, is_company_first_search")
     .in("role_id", roleIds);
 
   if (error) {
-    throw new Error(error.message ?? "Failed to load role automation states");
+    throw new Error(
+      error.message ?? "Failed to load role company-first search states"
+    );
   }
 
-  return coerceJsonArray<{ is_auto: boolean | null; role_id: string }>(data)
+  return coerceJsonArray<{
+    is_company_first_search: boolean | null;
+    role_id: string;
+  }>(data)
     .map((row) => ({
-      isAuto: row.is_auto === true,
+      isCompanyFirstSearch: row.is_company_first_search === true,
       roleId: normalizeText(row.role_id),
     }))
     .filter((row) => Boolean(row.roleId));
 }
 
-export async function updateOpsCompanyRoleAutomation(
-  args: OpsCompanyRoleAutomationUpdateInput & { admin?: AdminClient }
-): Promise<OpsCompanyRoleAutomationUpdateResponse> {
+export async function updateOpsCompanyRoleCompanyFirstSearch(
+  args: OpsCompanyRoleCompanyFirstSearchUpdateInput & { admin?: AdminClient }
+): Promise<OpsCompanyRoleCompanyFirstSearchUpdateResponse> {
   const admin = args.admin ?? getSupabaseAdmin();
   const roleId = normalizeText(args.roleId);
   const workspaceId = normalizeText(args.workspaceId);
 
   if (!workspaceId) throw new InternalApiError(400, "workspaceId is required");
   if (!roleId) throw new InternalApiError(400, "roleId is required");
-  if (typeof args.isAuto !== "boolean") {
-    throw new InternalApiError(400, "isAuto must be a boolean");
+  if (typeof args.isCompanyFirstSearch !== "boolean") {
+    throw new InternalApiError(
+      400,
+      "isCompanyFirstSearch must be a boolean"
+    );
   }
 
   const { data: role, error: roleError } = await (
@@ -1051,13 +1059,18 @@ export async function updateOpsCompanyRoleAutomation(
   const { data, error } = await (
     admin.from("company_internal_roles" as any) as any
   )
-    .update({ is_auto: args.isAuto, updated_at: now })
+    .update({
+      is_company_first_search: args.isCompanyFirstSearch,
+      updated_at: now,
+    })
     .eq("role_id", roleId)
-    .select("role_id, is_auto, updated_at")
+    .select("role_id, is_company_first_search, updated_at")
     .maybeSingle();
 
   if (error) {
-    throw new Error(error.message ?? "Failed to update role automation");
+    throw new Error(
+      error.message ?? "Failed to update role company-first search"
+    );
   }
   if (!data) {
     throw new InternalApiError(404, "Internal role settings not found");
@@ -1066,7 +1079,7 @@ export async function updateOpsCompanyRoleAutomation(
   return {
     ok: true,
     role: {
-      isAuto: data.is_auto === true,
+      isCompanyFirstSearch: data.is_company_first_search === true,
       roleId: normalizeText(data.role_id),
       updatedAt: String(data.updated_at ?? now),
       workspaceId,

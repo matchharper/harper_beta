@@ -186,6 +186,27 @@ export async function notifyOrgCandidateRejectedSlack(args: {
   );
 }
 
+export async function notifyCompanyIntroTalentDeclinedSlack(args: {
+  candidateName: string;
+  introCandidateId: string;
+  roleId: string;
+  roleName: string;
+  workspaceId: string;
+}) {
+  const text = [
+    `*${escapeSlackText(args.candidateName)}님이 제안을 거절했습니다.*`,
+    `- *Role*: ${escapeSlackText(args.roleName)}`,
+    "후보자의 의사를 반영해 이 요청을 종료했습니다. 별도의 회사 액션은 필요하지 않습니다.",
+  ].join("\n");
+  return postWorkspaceScopedOrgSlackMessage(
+    text,
+    args.workspaceId,
+    undefined,
+    args.roleId,
+    `company-intro-decision/${args.introCandidateId}/declined`
+  );
+}
+
 export async function notifyOrgMemberJoinedSlack(args: {
   user: OrgSlackUser;
   workspace: OrgSlackWorkspace;

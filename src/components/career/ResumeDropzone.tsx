@@ -2,6 +2,7 @@ import { FileText, Upload } from "lucide-react";
 import React, { useState, type ChangeEvent, type DragEvent } from "react";
 import { cn } from "@/lib/cn";
 import { MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES } from "@/lib/talentOnboarding/documentUploadLimits";
+import { CAREER_PROFILE_SOURCE_CARD_CLASS } from "@/components/career/settings/careerProfileSourceCardStyles";
 
 export type ResumeFileSelectSource = "dialog" | "drop";
 export type ResumeFileRejectReason = "file-size" | "file-type";
@@ -25,7 +26,7 @@ type ResumeDropzoneProps = {
   selectedDescription?: string;
   selectedTitle?: string;
   title: string;
-  variant?: "default" | "compact";
+  variant?: "default" | "compact" | "source-card";
 };
 
 const hasDraggedFiles = (event: DragEvent<HTMLElement>) =>
@@ -68,6 +69,7 @@ const ResumeDropzone = ({
 }: ResumeDropzoneProps) => {
   const [dragDepth, setDragDepth] = useState(0);
   const isCompact = variant === "compact";
+  const isSourceCard = variant === "source-card";
   const isSelected = Boolean(fileName);
   const isDragActive = dragDepth > 0 && !disabled;
   const visualTitle = isDragActive
@@ -150,10 +152,14 @@ const ResumeDropzone = ({
       onDragEnd={() => setDragDepth(0)}
       onDrop={handleDrop}
       className={cn(
-        "group relative flex w-full overflow-hidden rounded-[8px] border text-neutral-primary transition-[border-color,background-color,box-shadow,transform] duration-200",
-        isCompact
-          ? "min-h-[112px] items-center px-4 py-4 text-left"
-          : "min-h-[158px] flex-col items-center justify-center px-4 py-9 text-center",
+        isSourceCard
+          ? CAREER_PROFILE_SOURCE_CARD_CLASS
+          : "group relative flex w-full overflow-hidden rounded-[8px] border text-neutral-primary transition-[border-color,background-color,box-shadow,transform] duration-200",
+        isSourceCard
+          ? "flex-col items-start justify-between border-dashed p-3 text-left shadow-none"
+          : isCompact
+            ? "min-h-[112px] items-center px-4 py-4 text-left"
+            : "min-h-[158px] flex-col items-center justify-center px-4 py-9 text-center",
         disabled
           ? "cursor-not-allowed border-neutral-1000-a05 bg-bg-weak opacity-70"
           : "cursor-pointer",
@@ -178,30 +184,42 @@ const ResumeDropzone = ({
         aria-hidden="true"
         className={cn(
           "pointer-events-none flex min-w-0",
-          isCompact
-            ? "w-full items-center gap-3"
-            : "flex-col items-center justify-center gap-2"
+          isSourceCard
+            ? "h-full w-full flex-col items-start"
+            : isCompact
+              ? "w-full items-center gap-3"
+              : "flex-col items-center justify-center gap-2"
         )}
       >
         <span
           className={cn(
-            "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition-colors",
+            "flex shrink-0 items-center justify-center border transition-colors",
+            isSourceCard ? "h-9 w-9 rounded-[8px]" : "h-11 w-11 rounded-full",
             isDragActive
               ? "border-neutral-800 bg-neutral-1000 text-neutral-00"
               : "border-neutral-1000-a05 bg-bg-weak text-neutral-primary"
           )}
         >
           {isSelected && !isDragActive ? (
-            <FileText className="h-5 w-5" strokeWidth={1.6} />
+            <FileText
+              className={isSourceCard ? "h-4 w-4" : "h-5 w-5"}
+              strokeWidth={1.6}
+            />
           ) : (
-            <Upload className="h-5 w-5" strokeWidth={1.6} />
+            <Upload
+              className={isSourceCard ? "h-4 w-4" : "h-5 w-5"}
+              strokeWidth={1.6}
+            />
           )}
         </span>
 
-        <span className="min-w-0">
+        <span className={cn("min-w-0", isSourceCard && "mt-auto w-full")}>
           <span
             className={cn(
-              "block max-w-full truncate text-sm font-normal",
+              "block max-w-full truncate font-normal",
+              isSourceCard
+                ? "text-[13px] font-medium leading-[17px]"
+                : "text-sm",
               isDragActive ? "text-neutral-primary" : "text-neutral-primary"
             )}
           >
@@ -209,8 +227,11 @@ const ResumeDropzone = ({
           </span>
           <span
             className={cn(
-              "mt-1 block text-[13px] font-normal leading-5 text-neutral-muted",
-              isCompact ? "text-left" : "text-center"
+              "mt-1 block font-normal text-neutral-muted",
+              isSourceCard
+                ? "line-clamp-2 text-[11px] leading-4"
+                : "text-[13px] leading-5",
+              isCompact || isSourceCard ? "text-left" : "text-center"
             )}
           >
             {visualDescription}

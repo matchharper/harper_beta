@@ -598,7 +598,7 @@ const AccountSectionContent = ({
           ),
           description: t(
             "career.settings.career_settings_modal.pause_description",
-            "이제 Harper가 외부 공고를 주기적으로 추천하거나 새로운 연결 기회를 먼저 알려드리지 않습니다. 계정, 프로필, 이력서와 대화 기록은 그대로 보관되며 언제든 다시 켤 수 있습니다."
+            "이제 Harper가 외부 포지션을 주기적으로 추천하거나 새로운 연결 기회를 먼저 알려드리지 않습니다. 계정, 프로필, 이력서와 대화 기록은 그대로 보관되며 언제든 다시 켤 수 있습니다."
           ),
           title: t(
             "career.settings.career_settings_modal.pause_title",
@@ -612,7 +612,7 @@ const AccountSectionContent = ({
           ),
           closeAria: t(
             "career.settings.career_settings_modal.external_recommendation_off_close_aria",
-            "외부 공고 추천 중지 확인 닫기"
+            "외부 포지션 추천 중지 확인 닫기"
           ),
           confirm: t(
             "career.settings.career_settings_modal.external_recommendation_off_confirm",
@@ -620,11 +620,11 @@ const AccountSectionContent = ({
           ),
           description: t(
             "career.settings.career_settings_modal.external_recommendation_off_description",
-            "외부 공고는 더 이상 주기적으로 추천하지 않습니다. 다만 Harper를 통해 연결 가능한 적절한 내부 기회가 있으면 계속 추천해 드립니다."
+            "외부 포지션은 더 이상 주기적으로 추천하지 않습니다. 다만 Harper를 통해 연결 가능한 적절한 내부 기회가 있으면 계속 추천해 드립니다."
           ),
           title: t(
             "career.settings.career_settings_modal.external_recommendation_off_title",
-            "외부 공고 추천을 끌까요?"
+            "외부 포지션 추천을 끌까요?"
           ),
         };
 
@@ -1005,7 +1005,7 @@ const AccountSectionContent = ({
           mobileActionPlacement="trailing"
           title={t(
             "career.settings.career_settings_modal.external_recommendation_title",
-            "외부 공고 주기적으로 추천받기"
+            "외부 포지션 주기적으로 추천받기"
           )}
           action={
             <div className="flex min-h-9 items-center gap-2 sm:justify-end">
@@ -1015,7 +1015,7 @@ const AccountSectionContent = ({
                 onCheckedChange={handleExternalRecommendationChange}
                 aria-label={t(
                   "career.settings.career_settings_modal.external_recommendation_title",
-                  "외부 공고 주기적으로 추천받기"
+                  "외부 포지션 주기적으로 추천받기"
                 )}
               />
             </div>

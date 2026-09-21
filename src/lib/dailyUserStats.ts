@@ -4,10 +4,8 @@ import {
 } from "@/lib/adminEmailExclusions";
 import {
   isOfficialJobsLandingAbtestType,
-  OFFICIAL_JOBS_APPLY_HELP_VARIANTS,
   OFFICIAL_JOBS_LANDING_SOURCE,
   parseOfficialJobLandingLogType,
-  parseOfficialJobsApplyHelpVariant,
 } from "@/lib/officialJobs/landingLogs";
 import {
   OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE,
@@ -221,20 +219,10 @@ export type DailyUserStatsJobRow = {
 };
 
 export type DailyUserStatsJobsSummary = {
-  abtestRows: DailyUserStatsJobsAbtestRow[];
   signupCount: number;
   talkClickCount: number;
   viewCount: number;
   viewedJobCount: number;
-};
-
-export type DailyUserStatsJobsAbtestRow = {
-  ctaLabel: string;
-  entryCount: number;
-  helpVisible: boolean;
-  label: "A" | "B";
-  signupCount: number;
-  talkClickCount: number;
 };
 
 export type DailyUserStatsInternalConnectionResponseStats = {
@@ -594,11 +582,7 @@ export function countNewSignupReferralActivatedUsers(args: {
   for (const link of args.referralLinks) {
     const referrerUserId = String(link.referrer_user_id ?? "").trim();
     const token = String(link.token ?? "").trim();
-    if (
-      referrerUserId &&
-      token &&
-      firstCopiedAtByUserId.has(referrerUserId)
-    ) {
+    if (referrerUserId && token && firstCopiedAtByUserId.has(referrerUserId)) {
       referrerUserIdByToken.set(token, referrerUserId);
     }
   }
@@ -659,7 +643,7 @@ export function buildDailyUserStatsTestExclusions(args: {
 
 function getTalentRoleActivityRecommendation(row: TalentRoleActivityRow) {
   return Array.isArray(row.talent_opportunity_recommendation)
-    ? row.talent_opportunity_recommendation[0] ?? null
+    ? (row.talent_opportunity_recommendation[0] ?? null)
     : row.talent_opportunity_recommendation;
 }
 
@@ -702,10 +686,7 @@ export function buildMailOpenStats(args: {
     const resendEmailId = getJsonString(row.metadata, "resendEmailId");
     if (!resendEmailId) continue;
 
-    const firstOpenedAt = getJsonString(
-      row.metadata,
-      "resendFirstOpenedAt"
-    );
+    const firstOpenedAt = getJsonString(row.metadata, "resendFirstOpenedAt");
     const firstOpenedTimestamp = firstOpenedAt
       ? Date.parse(firstOpenedAt)
       : Number.NaN;
@@ -716,8 +697,7 @@ export function buildMailOpenStats(args: {
 
     openedByResendEmailId.set(
       resendEmailId,
-      (openedByResendEmailId.get(resendEmailId) ?? false) ||
-        openedWithinPeriod
+      (openedByResendEmailId.get(resendEmailId) ?? false) || openedWithinPeriod
     );
   }
 
@@ -973,19 +953,11 @@ function buildJobStats(args: {
   const pageViewLocalIds = new Set<string>();
   const talkClickLocalIds = new Set<string>();
   const viewsBySlug = new Map<string, Set<string>>();
-  const experimentVariantByLocalId = new Map<string, "a" | "b">();
   for (const log of args.landingLogs) {
     const localId = String(log.local_id ?? "").trim();
     if (!localId) continue;
 
     if (excludedLocalIds.has(localId)) continue;
-
-    const experimentVariant = parseOfficialJobsApplyHelpVariant(
-      log.abtest_type
-    );
-    if (experimentVariant && !experimentVariantByLocalId.has(localId)) {
-      experimentVariantByLocalId.set(localId, experimentVariant);
-    }
 
     if (
       isLandingLogEntryType(log.type) &&
@@ -1043,33 +1015,9 @@ function buildJobStats(args: {
       return a.title.localeCompare(b.title);
     });
 
-  const abtestRows: DailyUserStatsJobsAbtestRow[] =
-    OFFICIAL_JOBS_APPLY_HELP_VARIANTS.map((variantConfig) => {
-      const variantLocalIds = new Set(
-        Array.from(experimentVariantByLocalId.entries())
-          .filter(([, variant]) => variant === variantConfig.variant)
-          .map(([localId]) => localId)
-      );
-      const variantEntryLocalIds = new Set(
-        Array.from(pageViewLocalIds).filter((localId) =>
-          variantLocalIds.has(localId)
-        )
-      );
-
-      return {
-        ctaLabel: variantConfig.ctaLabel,
-        entryCount: variantEntryLocalIds.size,
-        helpVisible: variantConfig.helpVisible,
-        label: variantConfig.label,
-        signupCount: countIntersection(variantEntryLocalIds, signupLocalIds),
-        talkClickCount: countIntersection(variantLocalIds, talkClickLocalIds),
-      };
-    });
-
   return {
     rows,
     summary: {
-      abtestRows,
       signupCount: countIntersection(pageViewLocalIds, signupLocalIds),
       talkClickCount: talkClickLocalIds.size,
       viewCount: pageViewLocalIds.size,
@@ -1723,19 +1671,20 @@ async function buildUserStatsReport(args: {
         .order("updated_at", { ascending: true })
         .range(from, to)
     ),
-    fetchAllRows<TalentRoleActivityRow>((from, to) =>
-      (supabaseServer
-        .from("talent_role_activity")
-        .select(
-          "recommendation_id,kind,created_at,talent_opportunity_recommendation!inner(talent_id,role_id)"
-        )
-        .eq("kind", "saved_stage_changed")
-        .gte("created_at", startIso)
-        .lt("created_at", endIso)
-        .order("created_at", { ascending: true })
-        .range(from, to) as unknown as PromiseLike<
-        FetchPageResult<TalentRoleActivityRow>
-      >)
+    fetchAllRows<TalentRoleActivityRow>(
+      (from, to) =>
+        supabaseServer
+          .from("talent_role_activity")
+          .select(
+            "recommendation_id,kind,created_at,talent_opportunity_recommendation!inner(talent_id,role_id)"
+          )
+          .eq("kind", "saved_stage_changed")
+          .gte("created_at", startIso)
+          .lt("created_at", endIso)
+          .order("created_at", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<
+          FetchPageResult<TalentRoleActivityRow>
+        >
     ),
     fetchAllRows<CareerEmailMessageRow>((from, to) =>
       supabaseServer
@@ -1792,14 +1741,13 @@ async function buildUserStatsReport(args: {
     ),
     fetchAllRows<
       Pick<RecommendationRow, "created_at" | "role_id" | "talent_id">
-    >(
-      (from, to) =>
-        supabaseServer
-          .from("talent_opportunity_recommendation")
-          .select("talent_id,role_id,created_at")
-          .lt("created_at", noRecommendationObservationEndIso)
-          .order("created_at", { ascending: true })
-          .range(from, to)
+    >((from, to) =>
+      supabaseServer
+        .from("talent_opportunity_recommendation")
+        .select("talent_id,role_id,created_at")
+        .lt("created_at", noRecommendationObservationEndIso)
+        .order("created_at", { ascending: true })
+        .range(from, to)
     ),
     fetchAllRows<RecommendationRow>((from, to) =>
       supabaseServer
@@ -1815,9 +1763,7 @@ async function buildUserStatsReport(args: {
     fetchAllRows<ExternalNegativeFeedbackReasonRow>((from, to) =>
       supabaseServer
         .from("talent_opportunity_recommendation")
-        .select(
-          "id,talent_id,role_id,feedback_at,feedback_reason,updated_at"
-        )
+        .select("id,talent_id,role_id,feedback_at,feedback_reason,updated_at")
         .eq("opportunity_type", "external_jd")
         .in("feedback", ["dislike", "negative"])
         .gte("feedback_at", externalNegativeFeedbackReasonRange.startIso)
@@ -1828,9 +1774,7 @@ async function buildUserStatsReport(args: {
     fetchAllRows<ExternalNegativeFeedbackReasonRow>((from, to) =>
       supabaseServer
         .from("talent_opportunity_recommendation")
-        .select(
-          "id,talent_id,role_id,feedback_at,feedback_reason,updated_at"
-        )
+        .select("id,talent_id,role_id,feedback_at,feedback_reason,updated_at")
         .eq("opportunity_type", "external_jd")
         .in("feedback", ["dislike", "negative"])
         .is("feedback_at", null)
@@ -1967,13 +1911,11 @@ async function buildUserStatsReport(args: {
     ),
   ]);
 
-  const {
-    roleIds: testOnlyRoleIds,
-    talentIds: testFixtureTalentIds,
-  } = buildDailyUserStatsTestExclusions({
-    markerLogs: analyticsExcludedTalentLogs,
-    roles: testOnlyRoleRows,
-  });
+  const { roleIds: testOnlyRoleIds, talentIds: testFixtureTalentIds } =
+    buildDailyUserStatsTestExclusions({
+      markerLogs: analyticsExcludedTalentLogs,
+      roles: testOnlyRoleRows,
+    });
   for (const user of talentUsers) {
     if (!testFixtureTalentIds.has(user.user_id)) continue;
     const email = normalizeEmail(user.email);
@@ -2067,13 +2009,12 @@ async function buildUserStatsReport(args: {
     referralInteractionLogs,
     signupUserIds,
   });
-  const newSignupReferralActivatedCount =
-    countNewSignupReferralActivatedUsers({
-      referralInteractionLogs,
-      referralLinks: signupReferralLinks,
-      referralVisitLogs,
-      signupUserIds,
-    });
+  const newSignupReferralActivatedCount = countNewSignupReferralActivatedUsers({
+    referralInteractionLogs,
+    referralLinks: signupReferralLinks,
+    referralVisitLogs,
+    signupUserIds,
+  });
   const signedUpEmails = new Set(
     includedTalentUsers
       .filter((user) => signupUserIds.has(user.user_id))
@@ -2179,9 +2120,7 @@ async function buildUserStatsReport(args: {
   const includedSavedStageActivityRows = savedStageActivityRows.filter(
     (row) => {
       const recommendation = getTalentRoleActivityRecommendation(row);
-      return recommendation
-        ? isIncludedRecommendation(recommendation)
-        : false;
+      return recommendation ? isIncludedRecommendation(recommendation) : false;
     }
   );
   const includedFeedbackRows = dedupeRecommendationRows([
@@ -2759,16 +2698,6 @@ export function formatDailyUserStatsSlackMessages(
     report.jobsSummary.signupCount,
     report.jobsSummary.viewCount
   )})`;
-  const jobAbtestRows = report.jobsSummary.abtestRows.map(
-    (row) =>
-      `- ${row.label} (${row.ctaLabel}, 지원 안내 ${
-        row.helpVisible ? "있음" : "없음"
-      }): ${formatCount(row.entryCount)}명 진입, ${formatCount(
-        row.talkClickCount
-      )}명 ${row.ctaLabel} 클릭, ${formatCount(
-        row.signupCount
-      )}명 회원가입 (${formatRatio(row.signupCount, row.entryCount)})`
-  );
   const jobRows =
     report.jobs.length > 0
       ? report.jobs
@@ -2788,7 +2717,6 @@ export function formatDailyUserStatsSlackMessages(
       : "공고별 상세";
   const jobs = [
     jobSummary,
-    ...jobAbtestRows,
     `${jobRowsScope} (공고별 unique visitor, 공고 간 중복 포함)`,
     jobRows,
   ].join("\n");

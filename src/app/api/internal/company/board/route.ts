@@ -4,7 +4,7 @@ import {
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
 import { fetchOrgBoard, fetchOrgBootstrap } from "@/lib/org/server";
-import { fetchOpsCompanyRoleAutomationStates } from "@/lib/ops/company";
+import { fetchOpsCompanyRoleCompanyFirstSearchStates } from "@/lib/ops/company";
 
 export const runtime = "nodejs";
 
@@ -25,17 +25,22 @@ export async function GET(req: NextRequest) {
         workspaceId,
       }),
     ]);
-    const automationStates = await fetchOpsCompanyRoleAutomationStates({
-      roleIds: bootstrap.roles.map((role) => role.roleId),
-    });
-    const automationByRoleId = new Map(
-      automationStates.map((state) => [state.roleId, state.isAuto])
+    const companyFirstSearchStates =
+      await fetchOpsCompanyRoleCompanyFirstSearchStates({
+        roleIds: bootstrap.roles.map((role) => role.roleId),
+      });
+    const companyFirstSearchByRoleId = new Map(
+      companyFirstSearchStates.map((state) => [
+        state.roleId,
+        state.isCompanyFirstSearch,
+      ])
     );
     return NextResponse.json({
       board,
       roles: bootstrap.roles.map((role) => ({
         ...role,
-        isAuto: automationByRoleId.get(role.roleId) ?? false,
+        isCompanyFirstSearch:
+          companyFirstSearchByRoleId.get(role.roleId) ?? false,
       })),
       workspace: bootstrap.workspace,
     });

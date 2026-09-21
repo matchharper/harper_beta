@@ -3,9 +3,14 @@ import { getCareerLiveSessionConfig } from "@/lib/career/llm";
 import { canUseCareerDevControls } from "@/lib/internalAccess";
 import { insertLiveLlmUsageLog } from "@/lib/llm/usageLogging";
 import { getRequestUser } from "@/lib/supabaseServer";
+import {
+  assignCareerVoiceModel,
+  CAREER_LIVE_MODEL,
+} from "@/lib/career/voiceModel";
 
 type LiveUsageLogBody = {
   audioSeconds?: unknown;
+  callSessionId?: unknown;
   conversationId?: unknown;
   kind?: unknown;
   responseId?: unknown;
@@ -26,7 +31,10 @@ export async function POST(req: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!canUseCareerDevControls(user.email)) {
+  if (
+    !canUseCareerDevControls(user.email) &&
+    assignCareerVoiceModel(user.id) !== CAREER_LIVE_MODEL
+  ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -56,6 +64,7 @@ export async function POST(req: NextRequest) {
     response: kind === "delegation" ? { usage: body.usage } : undefined,
     usageKind: kind,
     meta: {
+      callSessionId: cleanString(body.callSessionId, 120) || null,
       conversationId: cleanString(body.conversationId, 120) || null,
       responseId: cleanString(body.responseId, 120) || null,
       status: cleanString(body.status, 80) || null,

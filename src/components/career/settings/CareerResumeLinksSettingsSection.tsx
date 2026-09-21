@@ -15,7 +15,7 @@ import {
 } from "@/components/career/settings/CareerDocumentSettingsModals";
 import CareerDocumentsSettingsSection from "@/components/career/settings/CareerDocumentsSettingsSection";
 import CareerProfileLinksSettingsSection from "@/components/career/settings/CareerProfileLinksSettingsSection";
-import CareerSavedResumeSettingsSection from "@/components/career/settings/CareerSavedResumeSettingsSection";
+import { CareerDocumentDetail } from "@/components/career/documents/CareerDocumentDetail";
 import CareerCallNoteDetail from "@/components/career/profile/CareerCallNoteDetail";
 import type { CareerTalentDocument } from "@/components/career/types";
 import { pickLinkedinProfileLink } from "@/hooks/career/careerHelpers";
@@ -29,8 +29,10 @@ const findDocumentById = (
 
 const CareerResumeLinksSettingsSection = ({
   onOpenCallNote,
+  onOpenDocument,
 }: {
   onOpenCallNote?: (document: CareerTalentDocument) => void;
+  onOpenDocument?: (document: CareerTalentDocument) => void;
 }) => {
   const t = useCareerT();
   const logCareerEvent = useCareerLogEvent();
@@ -42,6 +44,8 @@ const CareerResumeLinksSettingsSection = ({
     onSaveTalentProfile,
     onRefreshTalentProfileSources,
   } = useCareerProfileContext();
+  const [inlineDocument, setInlineDocument] =
+    useState<CareerTalentDocument | null>(null);
   const [isProcessingSourceUpdate, setIsProcessingSourceUpdate] =
     useState(false);
   const [sourceApplyConfirmMode, setSourceApplyConfirmMode] =
@@ -106,34 +110,6 @@ const CareerResumeLinksSettingsSection = ({
     return Boolean(nextLinkedinUrl && nextLinkedinUrl !== previousLinkedinUrl);
   }, [profileLinks, savedProfileLinks]);
 
-  const primaryResumeDocument = useMemo(
-    () =>
-      talentDocuments.find(
-        (document) => document.kind === "resume" && document.isPrimary
-      ) ??
-      talentDocuments.find((document) => document.kind === "resume") ??
-      null,
-    [talentDocuments]
-  );
-  const remainingDocuments = useMemo(
-    () =>
-      talentDocuments
-        .filter((document) => document.id !== primaryResumeDocument?.id)
-        .sort((left, right) => {
-          const leftTime = Date.parse(
-            left.kind === "call_note"
-              ? left.updatedAt || left.createdAt
-              : left.createdAt
-          );
-          const rightTime = Date.parse(
-            right.kind === "call_note"
-              ? right.updatedAt || right.createdAt
-              : right.createdAt
-          );
-          return rightTime - leftTime;
-        }),
-    [primaryResumeDocument?.id, talentDocuments]
-  );
   const documentPendingDelete = useMemo(
     () => findDocumentById(talentDocuments, documentPendingDeleteId),
     [documentPendingDeleteId, talentDocuments]
@@ -168,6 +144,7 @@ const CareerResumeLinksSettingsSection = ({
     if (saved && hasLinkedinChange) {
       setPendingPostUploadDialog({ type: "profile_apply" });
     }
+    return Boolean(saved);
   };
 
   const handleResumeUploadComplete = (requestCompleted: boolean) => {
@@ -202,6 +179,16 @@ const CareerResumeLinksSettingsSection = ({
     setInlineCallNoteDocumentId(document.id);
   };
 
+  if (inlineDocument) {
+    return (
+      <CareerDocumentDetail
+        key={inlineDocument.id}
+        document={{ id: inlineDocument.id, title: inlineDocument.fileName }}
+        onBack={() => setInlineDocument(null)}
+      />
+    );
+  }
+
   if (inlineCallNoteDocument) {
     return (
       <CareerCallNoteDetail
@@ -214,27 +201,24 @@ const CareerResumeLinksSettingsSection = ({
 
   return (
     <div className="pb-24">
-      <CareerSavedResumeSettingsSection
-        primaryResumeDocument={primaryResumeDocument}
+      <CareerDocumentsSettingsSection
+        documents={talentDocuments}
+        onAddDocument={() => setAddDocumentOpen(true)}
+        onOpenCallNote={handleOpenCallNote}
+        onOpenDocument={onOpenDocument ?? setInlineDocument}
+        onEditDocument={(document) => setDocumentPendingEditId(document.id)}
         onRenameDocument={openDocumentRename}
         onDeleteDocument={setDocumentPendingDeleteId}
         onUploadComplete={handleResumeUploadComplete}
       />
 
-      <CareerProfileLinksSettingsSection
-        hasUnsavedChanges={hasUnsavedLinkChanges}
-        onLinkedinRefresh={handleLinkedinRefresh}
-        onSave={() => void handleSaveLinks()}
-      />
-
-      <CareerDocumentsSettingsSection
-        documents={remainingDocuments}
-        onAddDocument={() => setAddDocumentOpen(true)}
-        onOpenCallNote={handleOpenCallNote}
-        onEditDocument={(document) => setDocumentPendingEditId(document.id)}
-        onRenameDocument={openDocumentRename}
-        onDeleteDocument={setDocumentPendingDeleteId}
-      />
+      <div className="mt-9">
+        <CareerProfileLinksSettingsSection
+          hasUnsavedChanges={hasUnsavedLinkChanges}
+          onLinkedinRefresh={handleLinkedinRefresh}
+          onSave={handleSaveLinks}
+        />
+      </div>
 
       <ProfileSourceApplyConfirmModal
         mode={sourceApplyConfirmMode}

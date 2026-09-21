@@ -21,6 +21,8 @@ import { createCareerPendingActionRef } from "@/lib/career/pendingActionRef.serv
 import { GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 import { resolveCareerRequestTimeZone } from "@/lib/career/requestTimeZone";
+import { careerT } from "@/lib/career/translatedCareerMessage";
+import { hideExpiredUnansweredExternalOpportunities } from "@/lib/talentOpportunity";
 
 const REENGAGEMENT_IDLE_MS = 12 * 60 * 60 * 1000; // 12시간
 const REENGAGEMENT_TEMPERATURE = 0.8;
@@ -66,6 +68,7 @@ async function finalizeSessionReengagement(args: {
   isReengagementAnchorCurrent: () => Promise<boolean>;
   isMobile?: boolean | null;
   now: string;
+  hiddenExpiredExternalOpportunityCount: number;
   result: CareerChatTurnResult;
   userId: string;
 }) {
@@ -76,6 +79,7 @@ async function finalizeSessionReengagement(args: {
     isReengagementAnchorCurrent,
     isMobile,
     now,
+    hiddenExpiredExternalOpportunityCount,
     result,
     userId,
   } = args;
@@ -124,6 +128,7 @@ async function finalizeSessionReengagement(args: {
     opportunityDiscoveryQueued: result.opportunityDiscoveryQueued,
     opportunityRun: result.opportunityRun,
     insightUpdatedAt: result.insightUpdatedAt,
+    hiddenExpiredExternalOpportunityCount,
     preferencesUpdatedAt: result.preferencesUpdatedAt,
     skipped: false,
     talentInsights: result.talentInsights,
@@ -356,6 +361,27 @@ export async function POST(req: NextRequest) {
     };
 
     const now = new Date().toISOString();
+    const hiddenExpiredExternalOpportunityCount =
+      await hideExpiredUnansweredExternalOpportunities({
+        admin,
+        userId: user.id,
+      });
+    const assistantMessagePrefix =
+      hiddenExpiredExternalOpportunityCount > 0
+        ? hiddenExpiredExternalOpportunityCount === 1
+          ? careerT(
+              talentSetting?.preferred_locale ?? null,
+              "career.api.session_reengagement.expired_external_hidden_one",
+              "만료된 포지션 {count}개를 목록에서 제외했어요.",
+              { values: { count: hiddenExpiredExternalOpportunityCount } }
+            )
+          : careerT(
+              talentSetting?.preferred_locale ?? null,
+              "career.api.session_reengagement.expired_external_hidden",
+              "만료된 포지션 {count}개를 목록에서 제외했어요.",
+              { values: { count: hiddenExpiredExternalOpportunityCount } }
+            )
+        : null;
     const pendingActionsSnapshot = talentSetting?.is_onboarding_done
       ? await fetchCareerReengagementPendingActions({
           admin,
@@ -414,6 +440,7 @@ export async function POST(req: NextRequest) {
               allowedToolNames: [],
               admin,
               assistantModel: GPT_56_LUNA_MODEL,
+              assistantMessagePrefix,
               assistantTemperature: REENGAGEMENT_TEMPERATURE,
               conversationId: conversation.id,
               isMobile,
@@ -438,6 +465,7 @@ export async function POST(req: NextRequest) {
               isReengagementAnchorCurrent,
               isMobile,
               now,
+              hiddenExpiredExternalOpportunityCount,
               result,
               userId: user.id,
             });
@@ -464,6 +492,7 @@ export async function POST(req: NextRequest) {
       allowedToolNames: [],
       admin,
       assistantModel: GPT_56_LUNA_MODEL,
+      assistantMessagePrefix,
       assistantTemperature: REENGAGEMENT_TEMPERATURE,
       conversationId: conversation.id,
       isMobile,
@@ -482,6 +511,7 @@ export async function POST(req: NextRequest) {
       isReengagementAnchorCurrent,
       isMobile,
       now,
+      hiddenExpiredExternalOpportunityCount,
       result,
       userId: user.id,
     });

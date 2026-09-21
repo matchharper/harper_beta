@@ -2,7 +2,7 @@ import { useRef, useState, type ReactNode } from "react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { MuteButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
-import type { CareerHistoryOpportunity } from "./types";
+import type { CareerCallStartRequest, CareerHistoryOpportunity } from "./types";
 
 export default function MockInterviewStart({
   item,
@@ -10,13 +10,16 @@ export default function MockInterviewStart({
   disabled = false,
   renderTrigger,
 }: {
-  item: Pick<CareerHistoryOpportunity, "id" | "companyName" | "title">;
+  item: Pick<
+    CareerHistoryOpportunity,
+    "id" | "companyLogoUrl" | "companyName" | "title"
+  >;
   disabled?: boolean;
   renderTrigger?: (props: {
     onClick: () => void;
     disabled: boolean;
   }) => ReactNode;
-  onStart?: (opportunityId: string) => boolean | Promise<boolean>;
+  onStart?: (request: CareerCallStartRequest) => boolean | Promise<boolean>;
 }) {
   const t = useCareerT();
   const [open, setOpen] = useState(false);
@@ -29,7 +32,17 @@ export default function MockInterviewStart({
     setPending(true);
     setFailed(false);
     try {
-      if (await onStart(item.id)) setOpen(false);
+      if (
+        await onStart({
+          mockInterviewOpportunityId: item.id,
+          mockInterviewDisplay: {
+            companyLogoUrl: item.companyLogoUrl,
+            companyName: item.companyName,
+            roleTitle: item.title,
+          },
+        })
+      )
+        setOpen(false);
       else setFailed(true);
     } catch {
       setFailed(true);
@@ -86,7 +99,7 @@ export default function MockInterviewStart({
         footer={
           <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2 sm:flex sm:justify-end">
             <MuteButton
-              size="lg"
+              size="md"
               disabled={pending}
               onClick={() => setOpen(false)}
             >
@@ -94,14 +107,14 @@ export default function MockInterviewStart({
             </MuteButton>
             <MuteButton
               variant="dark"
-              size="lg"
+              size="md"
               className="min-w-0 whitespace-normal"
               disabled={pending || disabled}
               onClick={() => void start()}
             >
               {pending
                 ? t("career.history.mock_interview.connecting", "연결 중...")
-                : t("career.history.mock_interview.start", "음성으로 시작하기")}
+                : t("career.history.mock_interview.start", "시작하기")}
             </MuteButton>
           </div>
         }
@@ -121,20 +134,6 @@ export default function MockInterviewStart({
               "선택한 포지션을 기준으로 Harper와 음성 면접을 연습합니다. 개인의 면접 역량 향상을 위한 연습이며, 이 기능이 인터뷰 내용을 기업이나 채용 담당자에게 전송하지는 않습니다."
             )}
           </p>
-          <div className="space-y-2 rounded-lg bg-bg-weak px-4 py-3 text-[13px] leading-[1.65] text-neutral-muted">
-            <p>
-              {t(
-                "career.history.mock_interview.accuracy",
-                "공개 자료를 바탕으로 구성한 질문은 실제 기출과 다르거나 부정확할 수 있습니다."
-              )}
-            </p>
-            <p>
-              {t(
-                "career.history.mock_interview.recording",
-                "대화는 일반 통화와 동일하게 기록과 콜노트로 저장됩니다."
-              )}
-            </p>
-          </div>
         </div>
       </TalentCareerModal>
     </>

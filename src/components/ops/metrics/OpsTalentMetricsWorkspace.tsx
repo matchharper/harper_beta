@@ -259,16 +259,9 @@ export default function OpsTalentMetricsWorkspace() {
     <div className="space-y-0">
       <header className="border-b border-neutral-1000-a05 pb-5 pt-2">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-          <div>
-            <div className={opsTheme.eyebrow}>System · Talent</div>
-            <h1 className="mt-1 font-hedvig text-[2rem] leading-none tracking-[-0.06em] text-neutral-primary">
-              Talent 지표
-            </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-muted">
-              활동량보다 실제 양면 연결을 중심에 두고, 같은 기간의
-              대화·유지·추천·온보딩 지표로 변화를 설명합니다.
-            </p>
-          </div>
+          <h1 className="mt-1 font-hedvig text-[2rem] leading-none tracking-[-0.06em] text-neutral-primary">
+            Talent 지표
+          </h1>
           <div className="flex flex-wrap items-center gap-2">
             {QUICK_RANGE_DAYS.map((days) => (
               <MuteButton

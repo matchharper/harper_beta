@@ -96,9 +96,7 @@ export function resolveActiveCareerExplicitUtmSource(
   return normalizedSource;
 }
 
-export function readActiveCareerExplicitUtmSourceFromStorage(
-  now = Date.now()
-) {
+export function readActiveCareerExplicitUtmSourceFromStorage(now = Date.now()) {
   if (typeof window === "undefined") return null;
 
   try {
@@ -172,11 +170,65 @@ export function readCareerUtmSourceFromQuery(
   );
 }
 
+const CAREER_REFERRER_SOURCE_BY_HOST: Array<{
+  hosts: string[];
+  source: "instagram" | "linkedin" | "seo" | "threads";
+}> = [
+  {
+    hosts: ["linkedin.com", "lnkd.in", "com.linkedin.android"],
+    source: "linkedin",
+  },
+  {
+    hosts: ["threads.com", "threads.net"],
+    source: "threads",
+  },
+  {
+    hosts: ["instagram.com", "l.instagram.com"],
+    source: "instagram",
+  },
+  {
+    hosts: [
+      "bing.com",
+      "daum.net",
+      "duckduckgo.com",
+      "google.com",
+      "google.co.kr",
+      "naver.com",
+      "search.naver.com",
+      "yahoo.com",
+    ],
+    source: "seo",
+  },
+];
+
+function hostnameMatches(hostname: string, candidate: string) {
+  return hostname === candidate || hostname.endsWith(`.${candidate}`);
+}
+
+/**
+ * Recovers a broad acquisition source when a visitor arrives without UTM
+ * parameters. Keep this intentionally coarse: the daily GTM report needs a
+ * dependable channel, while campaign-level detail remains the job of UTMs.
+ */
+export function readCareerSourceFromReferrer(value: unknown) {
+  const referrer = String(value ?? "").trim();
+  if (!referrer) return null;
+
+  try {
+    const hostname = new URL(referrer).hostname.toLowerCase();
+    for (const { hosts, source } of CAREER_REFERRER_SOURCE_BY_HOST) {
+      if (hosts.some((host) => hostnameMatches(hostname, host))) return source;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
 export function readCareerUtmParamsFromSearch(search: string) {
   const params = new URLSearchParams(search);
-  const hasExplicitUtm = CAREER_UTM_PARAM_KEYS.some((key) =>
-    params.has(key)
-  );
+  const hasExplicitUtm = CAREER_UTM_PARAM_KEYS.some((key) => params.has(key));
   if (!hasExplicitUtm && !params.has(CAREER_TM_SOURCE_QUERY_PARAM)) {
     return null;
   }

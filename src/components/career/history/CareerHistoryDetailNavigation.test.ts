@@ -26,6 +26,35 @@ test("opening a saved opportunity preserves the filtered list in browser history
   assert.doesNotMatch(openDetail, /mode: "replace"/);
 });
 
+test("saved detail visibility has no local selection that can drift from the URL", () => {
+  assert.doesNotMatch(source, /modalOpportunityId|setModalOpportunityId/);
+
+  const detailSelection = sourceBlock(
+    "// The URL is the single source of truth",
+    "const isCareerOnboardingComplete"
+  );
+
+  assert.match(detailSelection, /requestedOpportunity/);
+  assert.match(detailSelection, /activeTab === "saved"/);
+  assert.match(detailSelection, /activeTab === "archived"/);
+});
+
+test("history tabs and saved filters are derived directly from the URL", () => {
+  assert.doesNotMatch(source, /\[activeTab, setActiveTab\]/);
+  assert.doesNotMatch(source, /\[activeSavedStatus, setActiveSavedStatus\]/);
+
+  const routeSelection = sourceBlock(
+    "const currentHistoryTabQuery",
+    "const openChatTab"
+  );
+
+  assert.match(routeSelection, /isHistoryTabId\(requestedHistoryTab\)/);
+  assert.match(
+    routeSelection,
+    /getSavedOpportunityStatusFromQuery\(\s*currentSavedStageQuery\s*\)/
+  );
+});
+
 test("the detail back action removes the role id without changing the filter", () => {
   const closeDetail = sourceBlock(
     "const closeOpportunityModal",

@@ -12,11 +12,7 @@ import { useRouter } from "next/router";
 import type { ParsedUrlQuery } from "querystring";
 import { Copy, ExternalLink, Loader2, MailCheck } from "lucide-react";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
-import {
-  OfficialJobsApplyHelpExperimentHead,
-  OfficialJobsApplyHelpTreatmentOnly,
-} from "@/components/jobs/OfficialJobsApplyHelpExperiment";
-import OfficialJobsTreatmentMessage from "@/components/jobs/OfficialJobsTreatmentMessage";
+import OfficialJobsApplyHelpMessage from "@/components/jobs/OfficialJobsApplyHelpMessage";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 import {
   CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
@@ -37,7 +33,10 @@ import {
   OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM,
   OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH,
 } from "@/lib/officialJobs";
-import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
+import {
+  OFFICIAL_JOBS_LANDING_ABTEST_TYPE,
+  OFFICIAL_JOBS_LANDING_SOURCE,
+} from "@/lib/officialJobs/landingLogs";
 import { supabase } from "@/lib/supabase";
 import {
   captureTalentNetworkReferralFromCurrentLocation,
@@ -387,7 +386,7 @@ const CareerLoginContent = () => {
       officialJobsRoleTitleFromLoginQuery(router.query),
     [nextPath, router.query]
   );
-  const showOfficialJobsTreatmentMessage = Boolean(
+  const showOfficialJobsApplyHelpMessage = Boolean(
     (sourceParam === OFFICIAL_JOBS_LANDING_SOURCE && officialJobSlugParam) ||
     officialJobSlugFromNext
   );
@@ -403,7 +402,10 @@ const CareerLoginContent = () => {
     router.query[TALENT_NETWORK_REFERRAL_QUERY_KEY]
   ).trim();
   const localIdParam = getSingleQueryValue(router.query.lid).trim();
-  const abtestTypeParam = getSingleQueryValue(router.query.ab).trim();
+  const abtestTypeParam =
+    sourceParam === OFFICIAL_JOBS_LANDING_SOURCE
+      ? OFFICIAL_JOBS_LANDING_ABTEST_TYPE
+      : getSingleQueryValue(router.query.ab).trim();
   const buildResolvedNextPath = useCallback(() => {
     const origin =
       typeof window === "undefined"
@@ -676,7 +678,6 @@ const CareerLoginContent = () => {
 
   return (
     <>
-      <OfficialJobsApplyHelpExperimentHead />
       <Head>
         <title>Harper Career Login</title>
         <link rel="icon" href="/images/logo.ico" />
@@ -755,15 +756,13 @@ const CareerLoginContent = () => {
               </span>
             ))}
           </Text>
-          {showOfficialJobsTreatmentMessage ? (
-            <OfficialJobsApplyHelpTreatmentOnly>
-              <div className="mt-3 flex w-full max-w-[420px] justify-center">
-                <OfficialJobsTreatmentMessage
-                  className="text-center text-sm leading-5"
-                  locale={locale}
-                />
-              </div>
-            </OfficialJobsApplyHelpTreatmentOnly>
+          {showOfficialJobsApplyHelpMessage ? (
+            <div className="mt-3 flex w-full max-w-[420px] justify-center">
+              <OfficialJobsApplyHelpMessage
+                className="text-center text-sm leading-5"
+                locale={locale}
+              />
+            </div>
           ) : null}
 
           <div className="mt-7 w-full max-w-[420px] rounded-[22px] border border-neutral-1000-a05 bg-bg-floating/90 p-4 shadow-[0_18px_54px_rgba(31,28,26,0.07)] backdrop-blur-sm sm:p-6">

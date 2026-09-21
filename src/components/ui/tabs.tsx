@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { Tooltips } from "@/components/ui/tooltip";
 
 export type TabsVariant =
   | "bordered"
@@ -17,6 +18,7 @@ export interface TabItem {
   disabled?: boolean;
   icon?: React.ReactNode;
   label: React.ReactNode;
+  tooltip?: string;
   value: string;
 }
 
@@ -97,7 +99,7 @@ const Tabs = React.forwardRef<HTMLDivElement, TabsProps>(
       >
         {items.map((item) => {
           const selected = item.value === resolvedValue;
-          return (
+          const tab = (
             <button
               key={item.value}
               type="button"
@@ -139,6 +141,13 @@ const Tabs = React.forwardRef<HTMLDivElement, TabsProps>(
                 <span className="absolute bottom-[-1px] left-0 right-0 h-0.5 rounded-full bg-neutral-800" />
               ) : null}
             </button>
+          );
+          return item.tooltip ? (
+            <Tooltips key={item.value} text={item.tooltip}>
+              {tab}
+            </Tooltips>
+          ) : (
+            tab
           );
         })}
       </div>

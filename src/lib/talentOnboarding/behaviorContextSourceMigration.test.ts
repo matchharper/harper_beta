@@ -10,6 +10,13 @@ const migration = readFileSync(
   ),
   "utf8"
 );
+const neutralHiddenMigration = readFileSync(
+  path.join(
+    process.cwd(),
+    "supabase/migrations/20260918080423_exclude_neutral_hidden_recommendations_from_behavior_context.sql"
+  ),
+  "utf8"
+);
 
 test("retires only provenance-marked legacy behavior copies from Memory", () => {
   assert.match(
@@ -78,6 +85,22 @@ test("a recommendation exposure alone does not dirty Behavior Context", () => {
   assert.match(recommendationFunction, /new\.clicked_at is not null/);
   assert.match(recommendationFunction, /when tg_op = 'INSERT'/);
   assert.doesNotMatch(recommendationFunction, /array\[\s*'role_id', 'recommended_at'/);
+});
+
+test("a neutral hidden recommendation does not enqueue Behavior Context work", () => {
+  const recommendationFunction = neutralHiddenMigration.match(
+    /create or replace function public\.enqueue_recommendation_behavior_context_change\(\)[\s\S]*?\n\$\$;/
+  )?.[0];
+
+  assert.ok(recommendationFunction);
+  assert.match(
+    recommendationFunction,
+    /new\.feedback is null[\s\S]*new\.saved_stage = 'hidden'[\s\S]*return new/
+  );
+  assert.match(
+    recommendationFunction,
+    /old_recorded := not \([\s\S]*old\.saved_stage = 'hidden'/
+  );
 });
 
 test("all future discovery runs default to the unified context path", () => {

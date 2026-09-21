@@ -53,7 +53,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "start_role_creation",
       description:
-        "Start a dedicated Slack thread for one new role and hand the user's exact recent Slack context to the role-creation flow. Supply the exact role title established from the available context and the smallest number of recent messages needed to preserve the hiring request. Do not ask the user to restate a title that is already clear. The dedicated flow continues automatically. The result provides the exact required continuation link. This tool is Slack-only.",
+        "Start a dedicated Slack thread for one new role and hand the user's exact recent Slack context to the role-creation flow. Supply the exact role title established from the available context and the smallest number of recent messages needed to preserve the hiring request. Do not ask the user to restate a title that is already clear. The dedicated flow continues automatically. The result provides the exact required continuation link. If the workspace has reached its active-role limit, this creates nothing and returns the verified limit plus company-facing guidance. This tool is Slack-only.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -360,7 +360,7 @@ export const ORG_AGENT_TOOLS = [
           roleId: { description: "Exact role ID.", type: "string" },
           stage: {
             description:
-              "Only filter people when one specific stage was requested. Omit for whole-pipeline status/count questions. Built-in values: pending_connection=연결 대기, connected=진행 중, process_stopped=프로세스 종료. For a custom stage, use custom:<id> only when that exact ID is already available.",
+              "Only filter people when one specific stage was requested. Omit for whole-pipeline status/count questions. Built-in values: company_intro=먼저 제안 가능한 후보, pending_connection=연결 대기, connected=진행 중, process_stopped=프로세스 종료. For a custom stage, use custom:<id> only when that exact ID is already available.",
             maxLength: 100,
             type: "string",
           },

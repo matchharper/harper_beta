@@ -67,7 +67,7 @@ test("keeps a blocking request's subject distinct after completion", () => {
   );
 
   assert.match(html, /먼저 진행 중이던 검색 완료/);
-  assert.match(html, /(?:61개 공고 검토|Reviewed 61 postings)/);
+  assert.match(html, /(?:61개 포지션 검토|Reviewed 61 jobs)/);
   assert.match(html, /(?:4개 추천|4 recommendations)/);
   assert.match(html, /aria-live="polite"/);
   assert.doesNotMatch(html, /요청하신 검색 완료/);

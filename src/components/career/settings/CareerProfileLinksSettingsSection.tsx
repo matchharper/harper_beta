@@ -1,44 +1,32 @@
-import { Cable, Globe2, Loader2, Plus, RefreshCw, Save, X } from "lucide-react";
+import * as Popover from "@radix-ui/react-popover";
+import { Cable, Globe2, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
 import Image from "next/image";
-import {
-  useMemo,
-  type ChangeEvent,
-  type FocusEvent,
-  type KeyboardEvent,
-} from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { useCareerProfileContext } from "@/components/career/CareerSidebarContext";
 import { getCareerLinkLabels } from "@/components/career/constants";
 import { MuteButton } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { FieldLabel } from "@/components/ui/panel";
-import { Textarea } from "@/components/ui/textarea";
-import { Tooltips } from "@/components/ui/tooltip";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerT } from "@/i18n/useCareerT";
 import CareerGmailSettingsRow from "./CareerGmailSettingsRow";
+import CareerProfileSourceCard from "./CareerProfileSourceCard";
 
 const CAREER_LINK_ITEMS = [
   {
-    alt: "LinkedIn",
     iconSrc: "/images/logos/linkedin.svg",
     placeholder: "https://linkedin.com/in/username",
   },
   {
-    alt: "Github",
     iconSrc: "/images/logos/github.svg",
     placeholder: "https://github.com/username",
   },
   {
-    alt: "Google Scholar",
     iconSrc: "/images/logos/scholar.png",
     placeholder: "https://scholar.google.com/citations?user=",
   },
+  { iconSrc: null, placeholder: "https://yourname.com" },
   {
-    alt: "Website",
-    iconSrc: null,
-    placeholder: "https://yourname.com",
-  },
-  {
-    alt: "X.com",
     iconSrc: "/images/logos/xcom.png",
     placeholder: "https://x.com/username",
   },
@@ -46,103 +34,41 @@ const CAREER_LINK_ITEMS = [
 
 const LINKEDIN_LINK_INDEX = 0;
 
+type LinkEditorAnchor = number | "add";
+
+type LinkEditorState = {
+  anchor: LinkEditorAnchor;
+  index: number;
+} | null;
+
 const LinkItemIcon = ({ index }: { index: number }) => {
   const item = CAREER_LINK_ITEMS[index];
-
-  if (item?.iconSrc) {
-    const isLinkedin = index === LINKEDIN_LINK_INDEX;
-
-    return (
-      <Image
-        src={item.iconSrc}
-        alt={item.alt}
-        width={isLinkedin ? 19 : 16}
-        height={isLinkedin ? 19 : 16}
-        className={
-          isLinkedin
-            ? "h-[19px] w-[19px] rounded-[4px] object-contain"
-            : "h-4 w-4 rounded-[4px] object-contain"
-        }
-      />
-    );
+  if (!item?.iconSrc) {
+    return <Globe2 className="h-5 w-5" aria-hidden="true" />;
   }
+  return (
+    <Image
+      src={item.iconSrc}
+      alt=""
+      width={22}
+      height={22}
+      className="h-[22px] w-[22px] object-contain"
+    />
+  );
+};
 
-  return <Globe2 className="h-4 w-4 text-neutral-muted" aria-hidden="true" />;
+const getLinkHost = (value: string) => {
+  try {
+    return new URL(value).hostname.replace(/^www\./, "");
+  } catch {
+    return value;
+  }
 };
 
 type CareerProfileLinksSettingsSectionProps = {
   hasUnsavedChanges: boolean;
   onLinkedinRefresh: () => void;
-  onSave: () => void;
-};
-
-const COLLAPSED_LINK_FIELD_HEIGHT = 36;
-
-const resizeLinkField = (element: HTMLTextAreaElement, expanded: boolean) => {
-  element.style.height = `${COLLAPSED_LINK_FIELD_HEIGHT}px`;
-  if (!expanded) return;
-
-  element.style.height = "auto";
-  element.style.height = `${Math.max(
-    COLLAPSED_LINK_FIELD_HEIGHT,
-    element.scrollHeight
-  )}px`;
-};
-
-type ExpandingLinkFieldProps = {
-  disabled: boolean;
-  label: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-  value: string;
-};
-
-const ExpandingLinkField = ({
-  disabled,
-  label,
-  onChange,
-  placeholder,
-  value,
-}: ExpandingLinkFieldProps) => {
-  const handleChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
-    const normalizedValue = event.currentTarget.value.replace(/[\r\n]+/g, "");
-    event.currentTarget.value = normalizedValue;
-    onChange(normalizedValue);
-    resizeLinkField(event.currentTarget, true);
-  };
-
-  const handleFocus = (event: FocusEvent<HTMLTextAreaElement>) => {
-    resizeLinkField(event.currentTarget, true);
-  };
-
-  const handleBlur = (event: FocusEvent<HTMLTextAreaElement>) => {
-    resizeLinkField(event.currentTarget, false);
-  };
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    event.currentTarget.blur();
-  };
-
-  return (
-    <Textarea
-      rows={1}
-      value={value}
-      disabled={disabled}
-      inputMode="url"
-      autoCapitalize="none"
-      autoCorrect="off"
-      spellCheck={false}
-      aria-label={label}
-      onBlur={handleBlur}
-      onChange={handleChange}
-      onFocus={handleFocus}
-      onKeyDown={handleKeyDown}
-      placeholder={placeholder}
-      className="h-9 min-h-9 overflow-hidden px-2 py-2 text-sm leading-5 [overflow-wrap:anywhere] transition-[height,border-color,background-color]"
-    />
-  );
+  onSave: () => Promise<boolean>;
 };
 
 const CareerProfileLinksSettingsSection = ({
@@ -153,6 +79,7 @@ const CareerProfileLinksSettingsSection = ({
   const t = useCareerT();
   const careerLinkLabels = useMemo(() => getCareerLinkLabels(t), [t]);
   const logCareerEvent = useCareerLogEvent();
+  const [editor, setEditor] = useState<LinkEditorState>(null);
   const {
     profileLinks,
     profileSavePending,
@@ -160,133 +87,219 @@ const CareerProfileLinksSettingsSection = ({
     onAddProfileLink,
     onRemoveProfileLink,
   } = useCareerProfileContext();
+  const editingIndex = editor?.index ?? null;
+  const editingValue =
+    editingIndex === null ? "" : (profileLinks[editingIndex] ?? "");
+  const editingLabel =
+    editingIndex === null
+      ? ""
+      : (careerLinkLabels[editingIndex] ??
+        t("career.chat.career_timeline_section.0ong27a", "추가 링크"));
 
-  return (
-    <div>
-      <div className="flex items-center justify-between gap-3">
-        <FieldLabel
-          icon={<Cable className="h-4 w-4" />}
-          label={t("career.common.career.1ominm4", "내 정보")}
-        />
-        <MuteButton
-          type="button"
-          onClick={() => {
-            logCareerEvent("click_resume_links_add_link");
-            onAddProfileLink();
+  const handleSave = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!hasUnsavedChanges) {
+      setEditor(null);
+      return;
+    }
+    if (await onSave()) setEditor(null);
+  };
+
+  const handlePopoverOpenChange = (anchor: LinkEditorAnchor, open: boolean) => {
+    if (open) return;
+    setEditor((current) => (current?.anchor === anchor ? null : current));
+  };
+
+  const discardAddedLinkDraft = () => {
+    if (editor?.anchor !== "add") return;
+    onRemoveProfileLink(editor.index);
+  };
+
+  const editorContent =
+    editingIndex === null ? null : (
+      <Popover.Portal>
+        <Popover.Content
+          side="bottom"
+          align="start"
+          sideOffset={8}
+          collisionPadding={{
+            top: -10000,
+            right: 16,
+            bottom: -10000,
+            left: 16,
           }}
-          disabled={profileSavePending}
-          size="sm"
+          onEscapeKeyDown={discardAddedLinkDraft}
+          onInteractOutside={discardAddedLinkDraft}
+          onCloseAutoFocus={(event) => event.preventDefault()}
+          className="z-10050 w-[min(360px,calc(100vw-32px))] rounded-[10px] border border-neutral-1000-a05 bg-bg-floating p-3 text-neutral-primary shadow-[0_18px_40px_rgba(31,28,26,0.14)] outline-none"
         >
-          <Plus className="h-3.5 w-3.5" />
-          {t("career.chat.career_timeline_section.1gvzqes", "링크 추가")}
-        </MuteButton>
-      </div>
-      <div className="mt-2 space-y-2">
-        {profileLinks.map((link, index) => (
-          <div
-            key={`settings-profile-link-${index}`}
-            className="grid gap-0 sm:grid-cols-[9rem_minmax(0,1fr)] sm:items-start sm:gap-2"
-          >
-            <div className="flex min-h-9 w-full items-center justify-between gap-2 text-sm text-neutral-muted sm:w-36">
-              <div className="flex items-center gap-1">
-                <LinkItemIcon index={index} />
-                <span className="truncate">
-                  {careerLinkLabels[index] ??
-                    t(
-                      "career.chat.career_timeline_section.0ong27a",
-                      "추가 링크"
-                    )}
-                </span>
-              </div>
-              {index === LINKEDIN_LINK_INDEX ? (
-                <Tooltips
-                  text={t(
-                    "career.profile.resume_links.linkedin_refresh_tooltip",
-                    "업데이트된 링크드인 정보를 가져옵니다."
-                  )}
-                  side="top"
-                >
-                  <MuteButton
-                    type="button"
-                    onClick={onLinkedinRefresh}
-                    disabled={profileSavePending}
-                    aria-label={t(
-                      "career.profile.resume_links.linkedin_refresh_label",
-                      "링크드인 정보 새로고침"
-                    )}
-                    variant="neutral"
-                    size="sm"
-                  >
-                    {profileSavePending ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-3.5 w-3.5" />
-                    )}
-                  </MuteButton>
-                </Tooltips>
-              ) : null}
-            </div>
-            <div className="flex min-w-0 items-start gap-2">
-              <ExpandingLinkField
-                value={link}
-                onChange={(value) => onProfileLinkChange(index, value)}
-                placeholder={
-                  CAREER_LINK_ITEMS[index]?.placeholder ?? "https://"
-                }
-                label={
-                  careerLinkLabels[index] ??
-                  t("career.chat.career_timeline_section.0ong27a", "추가 링크")
-                }
+          <form onSubmit={(event) => void handleSave(event)}>
+            <label
+              htmlFor={`career-profile-link-${editingIndex}`}
+              className="text-[12px] font-medium text-neutral-primary"
+            >
+              {editingLabel}
+            </label>
+            <div className="mt-1.5 flex items-center gap-2">
+              <Input
+                id={`career-profile-link-${editingIndex}`}
+                autoFocus
+                value={editingValue}
                 disabled={profileSavePending}
+                inputMode="url"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                onChange={(event) =>
+                  onProfileLinkChange(
+                    editingIndex,
+                    event.target.value.replace(/[\r\n]+/g, "")
+                  )
+                }
+                placeholder={
+                  CAREER_LINK_ITEMS[editingIndex]?.placeholder ?? "https://"
+                }
+                className="h-9 min-w-0 flex-1 text-sm"
               />
-              {index >= CAREER_LINK_ITEMS.length ? (
+              {editingIndex === LINKEDIN_LINK_INDEX && editingValue.trim() ? (
                 <MuteButton
                   type="button"
-                  onClick={() => {
-                    logCareerEvent("click_resume_links_remove_link");
-                    onRemoveProfileLink(index);
-                  }}
+                  aria-label={t(
+                    "career.profile.resume_links.linkedin_refresh_label",
+                    "링크드인 정보 새로고침"
+                  )}
+                  onClick={onLinkedinRefresh}
                   disabled={profileSavePending}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </MuteButton>
+              ) : null}
+              {editingIndex >= CAREER_LINK_ITEMS.length ? (
+                <MuteButton
+                  type="button"
                   aria-label={t(
                     "career.settings.career_resume_links_settings_section.114mcb5",
                     "링크 삭제"
                   )}
+                  onClick={() => {
+                    logCareerEvent("click_resume_links_remove_link");
+                    onRemoveProfileLink(editingIndex);
+                    setEditor(null);
+                  }}
+                  disabled={profileSavePending}
                 >
-                  <X className="h-4 w-4" />
+                  <Trash2 className="h-4 w-4" />
                 </MuteButton>
               ) : null}
+              <MuteButton
+                type="submit"
+                variant="dark"
+                size="sm"
+                disabled={profileSavePending || !hasUnsavedChanges}
+              >
+                {profileSavePending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : null}
+                {t("career.profile.context.save", "저장")}
+              </MuteButton>
             </div>
-          </div>
-        ))}
+          </form>
+        </Popover.Content>
+      </Popover.Portal>
+    );
+
+  return (
+    <section>
+      <FieldLabel
+        icon={<Cable className="h-4 w-4" />}
+        label={t("career.common.career.1ominm4", "내 정보")}
+      />
+      <div className="mt-3 flex flex-wrap gap-3">
+        {profileLinks.map((link, index) => {
+          if (editor?.anchor === "add" && editor.index === index) return null;
+
+          const label =
+            careerLinkLabels[index] ??
+            t("career.chat.career_timeline_section.0ong27a", "추가 링크");
+          const hasLink = Boolean(link.trim());
+          const open = editor?.anchor === index;
+          return (
+            <Popover.Root
+              key={`settings-profile-link-${index}`}
+              open={open}
+              onOpenChange={(nextOpen) =>
+                handlePopoverOpenChange(index, nextOpen)
+              }
+            >
+              <Popover.Anchor asChild>
+                <div className="w-fit">
+                  <CareerProfileSourceCard
+                    icon={<LinkItemIcon index={index} />}
+                    title={label}
+                    meta={
+                      hasLink
+                        ? getLinkHost(link)
+                        : t("career.profile.sources.link_empty", "링크 추가")
+                    }
+                    muted={!hasLink}
+                    onActivate={() => setEditor({ anchor: index, index })}
+                    ariaLabel={t(
+                      "career.profile.sources.edit_link",
+                      "{label} 링크 편집",
+                      { values: { label } }
+                    )}
+                  />
+                </div>
+              </Popover.Anchor>
+              {open ? editorContent : null}
+            </Popover.Root>
+          );
+        })}
         <CareerGmailSettingsRow />
+        <Popover.Root
+          open={editor?.anchor === "add"}
+          onOpenChange={(open) => handlePopoverOpenChange("add", open)}
+        >
+          <Popover.Anchor asChild>
+            <div className="w-fit">
+              <CareerProfileSourceCard
+                icon={<Plus className="h-5 w-5" aria-hidden="true" />}
+                title={t(
+                  "career.chat.career_timeline_section.1gvzqes",
+                  "링크 추가"
+                )}
+                meta={t("career.profile.sources.custom_link", "직접 입력")}
+                className="border-dashed shadow-none"
+                onActivate={() => {
+                  if (editor?.anchor === "add") return;
+                  logCareerEvent("click_resume_links_add_link");
+                  const index = profileLinks.length;
+                  onAddProfileLink();
+                  setEditor({ anchor: "add", index });
+                }}
+              />
+            </div>
+          </Popover.Anchor>
+          {editor?.anchor === "add" ? editorContent : null}
+        </Popover.Root>
       </div>
 
-      <div className="mt-5 flex items-center gap-2">
-        {hasUnsavedChanges ? (
+      {!editor && hasUnsavedChanges ? (
+        <div className="mt-3">
           <MuteButton
             type="button"
             variant="dark"
-            onClick={onSave}
             disabled={profileSavePending}
+            onClick={() => void onSave()}
           >
             {profileSavePending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4" />
-            )}
-            {profileSavePending
-              ? t(
-                  "career.profile.career_profile_settings_section.08zy6at",
-                  "저장 중..."
-                )
-              : t(
-                  "career.profile.career_talent_profile_panel.0x4dx7a",
-                  "저장하기"
-                )}
+            ) : null}
+            {t("career.profile.context.save", "저장")}
           </MuteButton>
-        ) : null}
-      </div>
-    </div>
+        </div>
+      ) : null}
+    </section>
   );
 };
 

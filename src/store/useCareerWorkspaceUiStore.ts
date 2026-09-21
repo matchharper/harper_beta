@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import type { CareerHistoryOpportunity } from "@/components/career/types";
 
 export type CareerSavedHistoryDisplayMode = "list" | "board";
 
@@ -25,45 +26,70 @@ const normalizeSavedHistoryDisplayMode = (
 
 type CareerWorkspaceUiStoreState = {
   chatPanelWidthPct: number;
+  companyJobsOpportunity: CareerHistoryOpportunity | null;
+  companyJobsOnOpenChat: (() => void) | null;
+  setCompanyJobsOpportunity: (
+    item: CareerHistoryOpportunity | null,
+    onOpenChat?: () => void
+  ) => void;
+  desktopRoleActionOpportunity: CareerHistoryOpportunity | null;
+  desktopRoleActionScope: "role" | "company";
   savedHistoryDisplayMode: CareerSavedHistoryDisplayMode;
   setChatPanelWidthPct: (value: number) => void;
+  setDesktopRoleActionOpportunity: (
+    opportunity: CareerHistoryOpportunity | null,
+    scope?: "role" | "company"
+  ) => void;
   setSavedHistoryDisplayMode: (value: CareerSavedHistoryDisplayMode) => void;
 };
 
-export const useCareerWorkspaceUiStore =
-  create<CareerWorkspaceUiStoreState>()(
-    persist(
-      (set) => ({
-        chatPanelWidthPct: CAREER_CHAT_PANEL_DEFAULT_WIDTH_PCT,
-        savedHistoryDisplayMode: "list",
-        setChatPanelWidthPct: (value) =>
-          set({ chatPanelWidthPct: normalizeCareerChatPanelWidthPct(value) }),
-        setSavedHistoryDisplayMode: (value) =>
-          set({
-            savedHistoryDisplayMode: normalizeSavedHistoryDisplayMode(value),
-          }),
-      }),
-      {
-        name: "career-workspace-ui",
-        storage: createJSONStorage(() => localStorage),
-        partialize: (state) => ({
-          chatPanelWidthPct: state.chatPanelWidthPct,
-          savedHistoryDisplayMode: state.savedHistoryDisplayMode,
+export const useCareerWorkspaceUiStore = create<CareerWorkspaceUiStoreState>()(
+  persist(
+    (set) => ({
+      chatPanelWidthPct: CAREER_CHAT_PANEL_DEFAULT_WIDTH_PCT,
+      companyJobsOpportunity: null,
+      companyJobsOnOpenChat: null,
+      setCompanyJobsOpportunity: (item, onOpenChat) =>
+        set({
+          companyJobsOpportunity: item,
+          companyJobsOnOpenChat: item ? (onOpenChat ?? null) : null,
         }),
-        merge: (persistedState, currentState) => {
-          const state =
-            persistedState as Partial<CareerWorkspaceUiStoreState> | null;
+      desktopRoleActionOpportunity: null,
+      desktopRoleActionScope: "role",
+      savedHistoryDisplayMode: "list",
+      setChatPanelWidthPct: (value) =>
+        set({ chatPanelWidthPct: normalizeCareerChatPanelWidthPct(value) }),
+      setDesktopRoleActionOpportunity: (opportunity, scope = "role") =>
+        set({
+          desktopRoleActionOpportunity: opportunity,
+          desktopRoleActionScope: scope,
+        }),
+      setSavedHistoryDisplayMode: (value) =>
+        set({
+          savedHistoryDisplayMode: normalizeSavedHistoryDisplayMode(value),
+        }),
+    }),
+    {
+      name: "career-workspace-ui",
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        chatPanelWidthPct: state.chatPanelWidthPct,
+        savedHistoryDisplayMode: state.savedHistoryDisplayMode,
+      }),
+      merge: (persistedState, currentState) => {
+        const state =
+          persistedState as Partial<CareerWorkspaceUiStoreState> | null;
 
-          return {
-            ...currentState,
-            chatPanelWidthPct: normalizeCareerChatPanelWidthPct(
-              state?.chatPanelWidthPct
-            ),
-            savedHistoryDisplayMode: normalizeSavedHistoryDisplayMode(
-              state?.savedHistoryDisplayMode
-            ),
-          };
-        },
-      }
-    )
-  );
+        return {
+          ...currentState,
+          chatPanelWidthPct: normalizeCareerChatPanelWidthPct(
+            state?.chatPanelWidthPct
+          ),
+          savedHistoryDisplayMode: normalizeSavedHistoryDisplayMode(
+            state?.savedHistoryDisplayMode
+          ),
+        };
+      },
+    }
+  )
+);

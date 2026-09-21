@@ -1417,11 +1417,21 @@ export async function POST(req: NextRequest) {
                       preferredLocale: responseLocale,
                     });
                     if (cachedSnapshot) {
+                      const personalizedResult =
+                        await getOrCreateCompanySnapshot({
+                          admin,
+                          companyName,
+                          preferredLocale: responseLocale,
+                          reason: optionalToolString(toolInput.reason),
+                          recentSnapshot: cachedSnapshot,
+                          userId: user.id,
+                        });
+                      documentsChanged ||= Boolean(personalizedResult.snapshot.document);
                       const messageContent = stripPostgresUnsafeChars(
                         formatCompanySnapshotMessage({
                           preferredLocale: responseLocale,
                           reused: true,
-                          snapshot: cachedSnapshot,
+                          snapshot: personalizedResult.snapshot,
                         })
                       );
                       const { data: cacheMessage, error: cacheMessageError } =
@@ -1470,6 +1480,7 @@ export async function POST(req: NextRequest) {
                       reason: optionalToolString(toolInput.reason),
                       userId: user.id,
                     });
+                    documentsChanged ||= Boolean(result.snapshot.document);
                     const messageContent = stripPostgresUnsafeChars(
                       formatCompanySnapshotMessage({
                         preferredLocale: responseLocale,
@@ -1954,11 +1965,20 @@ export async function POST(req: NextRequest) {
               preferredLocale: responseLocale,
             });
             if (cachedSnapshot) {
+              const personalizedResult = await getOrCreateCompanySnapshot({
+                admin,
+                companyName,
+                preferredLocale: responseLocale,
+                reason: optionalToolString(toolInput.reason),
+                recentSnapshot: cachedSnapshot,
+                userId: user.id,
+              });
+              documentsChanged ||= Boolean(personalizedResult.snapshot.document);
               const messageContent = stripPostgresUnsafeChars(
                 formatCompanySnapshotMessage({
                   preferredLocale: responseLocale,
                   reused: true,
-                  snapshot: cachedSnapshot,
+                  snapshot: personalizedResult.snapshot,
                 })
               );
               const { data: cacheMessage, error: cacheMessageError } =
@@ -2017,6 +2037,7 @@ export async function POST(req: NextRequest) {
               reason: optionalToolString(toolInput.reason),
               userId: user.id,
             });
+            documentsChanged ||= Boolean(result.snapshot.document);
             const messageContent = stripPostgresUnsafeChars(
               formatCompanySnapshotMessage({
                 preferredLocale: responseLocale,

@@ -1,4 +1,6 @@
 import CareerCallProposalCard from "./CareerCallProposalCard";
+import { DocumentPreviewCards } from "./elements/DocumentPreviewCards";
+import { extractCareerDocumentLinks } from "@/lib/career/documentLinks";
 import MockInterviewStart from "../MockInterviewStart";
 import { stripMockInterviewMarkers } from "@/lib/career/mockInterviewOffers";
 import React, { type ReactNode } from "react";
@@ -432,9 +434,12 @@ const CareerMessageBubble = ({
   const assistantChoices = choiceBlockExtraction.choices;
   const reengagementActions = reengagementActionExtraction.actions;
   const internalCallRequestMarkers = internalCallRequestExtraction.markers;
+  const documentLinks = !isUser
+    ? extractCareerDocumentLinks(displayContent)
+    : { content: displayContent, documents: [] };
   const assistantContent = !isUser
     ? stripStandalonePostingLinksFromText(
-        stripMockInterviewMarkers(displayContent)
+        stripMockInterviewMarkers(documentLinks.content)
       )
     : displayContent;
   return (
@@ -516,6 +521,7 @@ const CareerMessageBubble = ({
             )}
           </>
         )}
+        {!isUser && <DocumentPreviewCards documents={documentLinks.documents} />}
         {!isUser && assistantChoices.length > 0 && (
           <ChatChoiceList
             choices={assistantChoices}
@@ -702,12 +708,7 @@ const CareerMessageBubble = ({
               <MockInterviewStart
                 item={offer}
                 disabled={isCallStartPending}
-                onStart={
-                  onStartCallMode
-                    ? (id) =>
-                        onStartCallMode({ mockInterviewOpportunityId: id })
-                    : undefined
-                }
+                onStart={onStartCallMode}
                 renderTrigger={(props) => (
                   <MuteButton
                     {...props}

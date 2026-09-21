@@ -12,8 +12,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
 import { isOrgInternalStage } from "@/lib/org/candidateDecision";
+import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
+import { humanizeOrgCompanyIntroStatus } from "@/lib/org/pipelineStage";
 import type { OrgBoardItem, OrgStage, OrgStageId } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
 
@@ -49,6 +50,13 @@ export function canDropOrgCandidateToStage(
   item: OrgBoardItem,
   stage: OrgStage
 ) {
+  if (item.source === "company_intro") {
+    return (
+      item.companyIntro?.status === "ready" &&
+      stage.id.startsWith("custom:") &&
+      stage.roleId === item.roleId
+    );
+  }
   return !stage.roleId || stage.roleId === item.roleId;
 }
 
@@ -68,6 +76,7 @@ export function OrgCandidateStageMenu({
   const availableStages = stages.filter(
     (stage) =>
       canDropOrgCandidateToStage(item, stage) &&
+      (item.source !== "company_intro" || stage.id.startsWith("custom:")) &&
       (!isOrgInternalStage(stage.id) ||
         (internalOpsAccess && stage.id === "archived"))
   );
@@ -116,6 +125,8 @@ export function OrgCandidateCard({
   internalOpsAccess = false,
   item,
   onMove,
+  onPass,
+  onRequestIntro,
   onSelect,
   pending,
   profileLabelsError,
@@ -127,6 +138,8 @@ export function OrgCandidateCard({
   internalOpsAccess?: boolean;
   item: OrgBoardItem;
   onMove?: (item: OrgBoardItem, stage: OrgStageId) => void;
+  onPass?: (item: OrgBoardItem) => void;
+  onRequestIntro?: (item: OrgBoardItem) => void;
   onSelect: (item: OrgBoardItem) => void;
   pending?: boolean;
   profileLabelsError?: boolean;
@@ -146,7 +159,12 @@ export function OrgCandidateCard({
     <div
       role="button"
       tabIndex={0}
-      draggable={canManageCandidates && !pending}
+      draggable={
+        canManageCandidates &&
+        !pending &&
+        (item.source !== "company_intro" ||
+          item.companyIntro?.status === "ready")
+      }
       onClick={() => onSelect(item)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -155,7 +173,11 @@ export function OrgCandidateCard({
         }
       }}
       onDragStart={(event) => {
-        if (!canManageCandidates) {
+        if (
+          !canManageCandidates ||
+          (item.source === "company_intro" &&
+            item.companyIntro?.status !== "ready")
+        ) {
           event.preventDefault();
           return;
         }
@@ -200,7 +222,7 @@ export function OrgCandidateCard({
             ) : null}
           </div>
         </div>
-        {canManageCandidates && onMove ? (
+        {canManageCandidates && onMove && item.capabilities.moveStage ? (
           <OrgCandidateStageMenu
             internalOpsAccess={internalOpsAccess}
             item={item}
@@ -250,10 +272,22 @@ export function OrgCandidateCard({
         <div className="-mx-3 mt-3 bg-critical px-3 py-1 text-[12px] font-medium text-neutral-00">
           결정이 필요합니다
         </div>
+      ) : item.companyIntro ? (
+        <div
+          className={cn(
+            "-mx-3 mt-3 px-3 py-1 text-[12px] font-medium",
+            item.companyIntro.status === "connecting"
+              ? "bg-positive-faded text-positive"
+              : "bg-primary-faded text-primary"
+          )}
+        >
+          {humanizeOrgCompanyIntroStatus(item.companyIntro)}
+        </div>
       ) : null}
       <div className="mt-3 flex flex-wrap gap-1.5">
         <span className="rounded-sm bg-bg-weak px-2 py-1 text-[11px] leading-4 text-neutral-muted">
-          추천 {formatKstRelativeDate(item.recommendedAt)}
+          {item.source === "company_intro" ? "회사에 제안" : "추천"}{" "}
+          {formatKstRelativeDate(item.recommendedAt)}
         </span>
         {/* {item.roleName && (
           <span className="rounded-sm bg-bg-weak px-2 py-1 text-[11px] leading-4 text-neutral-muted">
@@ -261,6 +295,33 @@ export function OrgCandidateCard({
           </span>
         )} */}
       </div>
+      {canManageCandidates &&
+      item.source === "company_intro" &&
+      item.companyIntro?.status === "ready" ? (
+        <div className="mt-3 grid grid-cols-2 gap-1.5">
+          <MuteButton
+            disabled={pending}
+            onClick={(event) => {
+              event.stopPropagation();
+              onPass?.(item);
+            }}
+            size="sm"
+          >
+            제안하지 않기
+          </MuteButton>
+          <MuteButton
+            disabled={pending}
+            onClick={(event) => {
+              event.stopPropagation();
+              onRequestIntro?.(item);
+            }}
+            size="sm"
+            variant="dark"
+          >
+            먼저 제안하기
+          </MuteButton>
+        </div>
+      ) : null}
       {pending && <ReviewPipelineCardPendingState />}
     </div>
   );

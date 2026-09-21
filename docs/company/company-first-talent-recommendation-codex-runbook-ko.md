@@ -1,13 +1,19 @@
 # 회사 선확인 후보자 선정: Codex 반복 실행 런북
 
+- 현재 상태: **과거 수동 shadow calibration 전용 문서. Production 예약 실행 계약이 아니다.**
+- 대체 정본: [Company-first Talent Search Worker 구현 계획](./company-first-talent-search-worker-implementation-plan-ko.md)
+- 보존 이유: `docs/evaluation/company-first-talent-selection/v1`의 수동 판단 절차와 결과를 해석하기 위함
+- 금지: 이 문서의 `commit` 절차나 예시 명령을 새 production run에 사용하지 않는다.
+
 - 문서 기준: 2026-09-11
-- 상태: 구현 예정 실행 계약. 현재 production runner가 존재한다는 뜻이 아니다.
+- 당시 상태: 구현 예정 Codex 실행 계약. 아래 본문은 2026-09-11 calibration 당시 계약을 그대로 보존한다.
 - 제품·상태 정본: [회사 선확인 후보자 추천 · Intro 요청 구현 기획](./company-first-talent-recommendation-product-plan-ko.md)
 - 범위: 한 회사의 company-first 후보를 0~3명 선정해 `company_intro/ready`로 반영하는 한 번의 실행
 - 제외: 회사의 `Request Intro` 이후 메일·후보자 응답·연결 실행, 정기 실행 요일과 시간
 
-이 문서는 **Codex가 매 company-first selection run을 시작할 때 전체를 다시 읽는 실행 계약**이다.
-이전 run에서 읽었거나 기억하고 있다는 이유로 생략하지 않는다. Dry-run, 수동 run, 정기 run 모두 같다.
+아래 본문은 **과거 Codex shadow calibration run**을 재현할 때만 전체를 다시 읽는 실행 계약이다.
+새 Worker production run은 이 문서를 읽어 실행하지 않으며, Worker 구현 계획의 versioned prompt와 Python
+contract를 따른다.
 
 현재는 구현 계획 단계이므로 아래에 적힌 runner interface가 실제 repository에 생기기 전까지 raw SQL로
 production ledger를 직접 쓰지 않는다. 구현 시 canonical helper를 하나 만들고 이 문서의 명령과 실제

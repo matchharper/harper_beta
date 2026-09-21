@@ -19,7 +19,11 @@ const SEARCH_LIST_ROW_INDEXES = [0, 1, 2] as const;
 export function resolveInitialOpportunitySearchStatus(
   run: CareerOpportunityRun | null
 ) {
-  if (!run || (run.status !== "queued" && run.status !== "running")) {
+  if (
+    !run ||
+    run.trigger !== "conversation_completed" ||
+    (run.status !== "queued" && run.status !== "running")
+  ) {
     return null;
   }
   return run.status;

@@ -5,11 +5,9 @@ import type { Json } from "@/types/database.types";
 import { buildLandingLoginEmailType } from "@/lib/landingLogTypes";
 import {
   buildOfficialJobLandingLogType,
-  getOfficialJobsApplyHelpAbtestType,
   mapOfficialJobEventToLandingEvent,
   OFFICIAL_JOBS_LANDING_ABTEST_TYPE,
   OFFICIAL_JOBS_LANDING_SOURCE,
-  parseOfficialJobsApplyHelpVariant,
 } from "@/lib/officialJobs/landingLogs";
 
 const OFFICIAL_JOB_EVENT_TYPES = new Set<OfficialJobEventType>([
@@ -23,7 +21,6 @@ const OFFICIAL_JOB_EVENT_TYPES = new Set<OfficialJobEventType>([
 ]);
 
 type OfficialJobEventBody = {
-  abtestType?: string | null;
   anonymousId?: string | null;
   eventType?: string | null;
   jobSlug?: string | null;
@@ -133,10 +130,6 @@ export async function POST(req: NextRequest) {
   const officialJobId = await resolveOfficialJobId(jobSlug);
   const anonymousId = normalizeOptionalString(body.anonymousId, 120);
   const userAgent = normalizeOptionalString(req.headers.get("user-agent"), 500);
-  const experimentVariant = parseOfficialJobsApplyHelpVariant(body.abtestType);
-  const officialJobsAbtestType = experimentVariant
-    ? getOfficialJobsApplyHelpAbtestType(experimentVariant)
-    : OFFICIAL_JOBS_LANDING_ABTEST_TYPE;
 
   if (user && anonymousId) {
     const { error: identifyError } = await supabaseServer
@@ -187,7 +180,7 @@ export async function POST(req: NextRequest) {
           landingEvent.event,
           landingEvent.jobSlug
         ),
-        abtest_type: officialJobsAbtestType,
+        abtest_type: OFFICIAL_JOBS_LANDING_ABTEST_TYPE,
         is_mobile: isMobileUserAgent(userAgent),
         country_lang: null,
       });
@@ -209,7 +202,7 @@ export async function POST(req: NextRequest) {
           user.email,
           OFFICIAL_JOBS_LANDING_SOURCE
         ),
-        abtest_type: officialJobsAbtestType,
+        abtest_type: OFFICIAL_JOBS_LANDING_ABTEST_TYPE,
         is_mobile: isMobileUserAgent(userAgent),
         country_lang: null,
       });

@@ -14,6 +14,7 @@ import type {
   OrgBoardResponse,
   OrgAcceptedTalentsResponse,
   OrgBootstrapResponse,
+  OrgCompanyIntroMutationResponse,
   OrgCompanyTalentRequestCancelResponse,
   OrgFeedCreateResponse,
   OrgFeedMutationResponse,
@@ -436,6 +437,55 @@ export function useSetOrgCandidateStage() {
         queryKey: queryKeys.org.meetingSchedulesAll,
       });
     },
+  });
+}
+
+export function useRequestOrgCompanyIntro() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: {
+      companyAppeal: string;
+      introCandidateId: string;
+      introRecipientEmails: string[];
+      nextStageId: string;
+      workspaceId: string;
+    }) =>
+      fetchWithInternalAuth<OrgCompanyIntroMutationResponse>(
+        "/api/org/company-intro",
+        {
+          body: JSON.stringify({ action: "request", ...args }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        }
+      ),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.org.boardAll }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.org.detailAll }),
+      ]),
+  });
+}
+
+export function usePassOrgCompanyIntro() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: {
+      introCandidateId: string;
+      workspaceId: string;
+    }) =>
+      fetchWithInternalAuth<OrgCompanyIntroMutationResponse>(
+        "/api/org/company-intro",
+        {
+          body: JSON.stringify({ action: "pass", ...args }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        }
+      ),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.org.boardAll }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.org.detailAll }),
+      ]),
   });
 }
 

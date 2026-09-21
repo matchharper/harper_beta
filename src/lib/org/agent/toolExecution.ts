@@ -93,6 +93,7 @@ import { humanizeOrgStage } from "@/lib/org/pipelineStage";
 import {
   getOrgRoleLifecycleUpdate,
   getOrgRoleStatusPresentation,
+  ORG_ACTIVE_ROLE_LIMIT_MESSAGE,
   parseOrgRoleMutationStatus,
 } from "@/lib/org/roleStatus";
 import {
@@ -140,6 +141,7 @@ import {
   type SlackRoleCreationExecutionContext,
 } from "@/lib/org/agent/slackRoleCreation";
 import {
+  fetchOrgActiveRoleLimitState,
   fetchRoleCreationState,
   getRoleCreationMissingFields,
   setRoleCreationNotification,
@@ -1762,6 +1764,31 @@ async function executeChangeRoleStatus(args: {
   }
 
   if (draftActivation) {
+    const limitState = await fetchOrgActiveRoleLimitState({
+      admin: args.admin,
+      workspaceId: args.workspaceId,
+    });
+    if (limitState.limitReached) {
+      args.state.fallbackReply = ORG_ACTIVE_ROLE_LIMIT_MESSAGE;
+      recordResult(args.state, {
+        callId: args.callId,
+        name: args.name,
+        status: "unchanged",
+        summary: "채용 중인 역할 수 제한으로 작성 중 역할을 등록하지 않음",
+      });
+      return {
+        activeRoleCount: limitState.activeRoleCount,
+        activeRoleLimit: limitState.activeRoleLimit,
+        created: false,
+        responseGuidance:
+          "Tell the user that the draft Role remains unchanged because the workspace already has the maximum number of active Roles, and invite them to contact the Harper team if they need to register another Role.",
+        roleName: role.name,
+        roleStatus: "draft",
+        status: "active_role_limit_reached",
+        userMessage: ORG_ACTIVE_ROLE_LIMIT_MESSAGE,
+      };
+    }
+
     let creationState = await fetchRoleCreationState({
       roleId: role.roleId,
       user: args.user,
@@ -3838,6 +3865,7 @@ function companyPipelineSourceStage(value: unknown, field: string): OrgStageId {
   if (
     stage === "accepted" ||
     stage === "archived" ||
+    stage === "company_intro" ||
     stage === "process_stopped"
   ) {
     return stage;
@@ -4180,7 +4208,10 @@ async function executeMoveCandidateStage(args: {
       })
     : { closed: false, recommendationId: null };
   const position =
-    activePosition ?? (closedState.closed ? latestPosition : null);
+    activePosition ??
+    (latestPosition?.stage === "company_intro" || closedState.closed
+      ? latestPosition
+      : null);
   if (!position) {
     throw new OrgAgentToolInputError(
       "The candidate is not currently active in this Role's company pipeline"
@@ -4190,6 +4221,11 @@ async function executeMoveCandidateStage(args: {
     position.stage,
     "currentStageId"
   );
+  if (currentStage === "company_intro") {
+    throw new OrgAgentToolInputError(
+      "먼저 제안 가능한 후보는 연결이 완료되기 전까지 일반 단계 이동을 할 수 없습니다. 제안 전이라면 후보자 카드의 먼저 제안하기에서 만나고 싶은 이유, 소개 이메일을 받을 담당자, 수락 후 첫 단계를 정해 주세요. 이미 제안을 요청했다면 카드에서 진행 상태를 확인해 주세요."
+    );
+  }
   const candidateName = text(talent.candidate.name) || "후보자";
   const scheduleInterview = args.input.scheduleInterview === true;
   if (
@@ -5804,6 +5840,24 @@ export async function executeOrgAgentTool(args: {
       user: args.user,
       workspaceId,
     });
+    if ("limitReached" in started) {
+      args.state.fallbackReply = ORG_ACTIVE_ROLE_LIMIT_MESSAGE;
+      recordResult(args.state, {
+        callId: args.callId,
+        name: args.name,
+        status: "unchanged",
+        summary: "채용 중인 역할 수 제한으로 새 역할을 등록하지 않음",
+      });
+      return {
+        activeRoleCount: started.activeRoleCount,
+        activeRoleLimit: started.activeRoleLimit,
+        created: false,
+        responseGuidance:
+          "Tell the user that no new Role was created because the workspace already has the maximum number of active Roles, and invite them to contact the Harper team if they need to register another Role.",
+        status: started.status,
+        userMessage: ORG_ACTIVE_ROLE_LIMIT_MESSAGE,
+      };
+    }
     args.state.requiredSlackContinuationLink = `<${started.threadPermalink}|새로운 채용 등록 이어가기>`;
     args.state.fallbackReply = [
       `${started.roleTitle} 역할 등록을 함께 시작할게요.`,

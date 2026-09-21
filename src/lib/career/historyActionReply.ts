@@ -21,6 +21,10 @@ import {
   type TalentOpportunityHistoryItem,
 } from "@/lib/talentOpportunity";
 import { searchInternalRolesForCareerTool } from "@/lib/career/internalRoleSearch";
+import {
+  fetchLatestUserAuthoredChatMessageId,
+  hasUserAuthoredChatMessageAfter,
+} from "@/lib/career/opportunityFeedbackFollowUpGuard";
 
 type TalentOpportunityFeedbackAction = "negative" | "positive";
 
@@ -57,7 +61,7 @@ function toFeedbackActivityItem(args: {
   );
   return {
     action: args.action,
-    createdAt: new Date().toISOString(),
+    createdAt: args.opportunity.feedbackAt ?? new Date().toISOString(),
     eventId: `current:${args.opportunity.id}`,
     fitSummary: reasonSignals.isOperationalOnly
       ? null
@@ -150,11 +154,31 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
         : [];
   if (items.length === 0) return null;
 
-  let internalOpportunityRejectionContext = "";
+  const latestFeedbackCreatedAt = items.reduce(
+    (latest, item) =>
+      !latest || item.createdAt > latest ? item.createdAt : latest,
+    ""
+  );
+  const latestUserMessageIdBeforeGeneration =
+    await fetchLatestUserAuthoredChatMessageId({
+      admin: args.admin,
+      conversationId,
+      userId: args.userId,
+    });
   if (
-    args.action === "negative" &&
-    opportunity?.sourceType === "internal"
+    latestFeedbackCreatedAt &&
+    (await hasUserAuthoredChatMessageAfter({
+      admin: args.admin,
+      after: latestFeedbackCreatedAt,
+      conversationId,
+      userId: args.userId,
+    }))
   ) {
+    return null;
+  }
+
+  let internalOpportunityRejectionContext = "";
+  if (args.action === "negative" && opportunity?.sourceType === "internal") {
     let hasSameCompanyReviewedAlternative = false;
     try {
       const matchedRoles = await searchInternalRolesForCareerTool({
@@ -215,18 +239,27 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
         }
       : {}),
     usageLabel: "career/chat:opportunity_feedback_followup",
-    shouldInsertAssistantMessage: usingFallbackOnly
-      ? undefined
-      : async () => {
-          const latestPendingItems =
-            await fetchPendingOpportunityFeedbackActivityItems({
+    shouldInsertAssistantMessage: async () => {
+      const [latestPendingItems, latestUserMessageId] = await Promise.all([
+        usingFallbackOnly
+          ? Promise.resolve(items)
+          : fetchPendingOpportunityFeedbackActivityItems({
               admin: args.admin,
               conversationId,
               limit: 10,
               userId: args.userId,
-            });
-          return latestPendingItems.length > 0;
-        },
+            }),
+        fetchLatestUserAuthoredChatMessageId({
+          admin: args.admin,
+          conversationId,
+          userId: args.userId,
+        }),
+      ]);
+      return (
+        latestPendingItems.length > 0 &&
+        latestUserMessageId === latestUserMessageIdBeforeGeneration
+      );
+    },
     userId: args.userId,
   });
 

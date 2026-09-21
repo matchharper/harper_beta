@@ -42,6 +42,11 @@ import {
   parseFundingStageLabel,
 } from "@/lib/career/fundingStage";
 import { logger } from "@/utils/logger";
+import HistoryOpportunityRoleActions, {
+  COMPANY_DETAIL_ROLE_ACTIONS,
+} from "@/components/career/history/HistoryOpportunityRoleActions";
+import type { CareerHistoryOpportunity } from "@/components/career/types";
+import { cn } from "@/lib/utils";
 
 const DetailSection = ({
   children,
@@ -343,17 +348,45 @@ const LinkPillIcon = ({ iconUrl }: { iconUrl: string }) => {
   );
 };
 
+type CompanyDetailLink = {
+  href: string;
+  iconUrl: string;
+  label: string;
+};
+
+const CompanyDetailLinks = ({ links }: { links: CompanyDetailLink[] }) => (
+  <div className="flex min-w-0 flex-wrap gap-2">
+    {links.map((link) => (
+      <Badge
+        onClick={() => window.open(link.href, "_blank")}
+        key={link.label}
+        icon={<LinkPillIcon iconUrl={link.iconUrl} />}
+      >
+        {link.label}
+      </Badge>
+    ))}
+  </div>
+);
+
 export const CompanyDetailView = ({
   item,
   loading,
+  mobileLayout = false,
   onBack,
+  onOpenChat,
   onToggleFollow,
+  roleActionOpportunity,
+  onShowCompanyJobs,
   updating,
 }: {
   item: CompanyWatchlistItem | null;
   loading: boolean;
+  mobileLayout?: boolean;
   onBack: () => void;
+  onOpenChat?: () => void;
   onToggleFollow: CompanyFollowClickHandler;
+  roleActionOpportunity?: CareerHistoryOpportunity | null;
+  onShowCompanyJobs?: () => void;
   updating: boolean;
 }) => {
   const t = useCareerT();
@@ -591,7 +624,12 @@ export const CompanyDetailView = ({
     leadershipQuery.isLoading || leadershipPeople.length > 0;
 
   return (
-    <section className="min-w-0">
+    <section
+      className={cn(
+        "min-w-0",
+        mobileLayout && "w-full max-w-full overflow-x-hidden"
+      )}
+    >
       {/* <ActionButton
         actionVariant="secondary"
         buttonRadius="rounded"
@@ -603,16 +641,30 @@ export const CompanyDetailView = ({
       </ActionButton> */}
 
       <header className="mt-4">
-        <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-          <div className="flex min-w-0 items-start gap-4">
-            <CompanyLogo logoUrl={item.logoUrl} name={item.name} size="lg" />
-            <div className="min-w-0">
+        <div
+          className={cn(
+            "flex flex-col gap-5",
+            !mobileLayout && "md:flex-row md:items-start md:justify-between"
+          )}
+        >
+          <div
+            className={cn(
+              "flex min-w-0 items-start",
+              mobileLayout ? "gap-3" : "gap-4"
+            )}
+          >
+            <CompanyLogo
+              logoUrl={item.logoUrl}
+              name={item.name}
+              size={mobileLayout ? "md" : "lg"}
+            />
+            <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <Text
                   as="h1"
                   variant="head1"
                   tone="primary"
-                  className="wrap-break-word text-[24px] md:text-[28px] font-semibold leading-8"
+                  className="wrap-break-word text-[22px] md:text-[24px] font-semibold leading-8"
                 >
                   {item.name}
                 </Text>
@@ -622,7 +674,14 @@ export const CompanyDetailView = ({
                   </span>
                 ) : null}
               </div>
-              <Text className="max-w-[780px] mt-2 text-[14px] line-clamp-4">
+              <Text
+                className={cn(
+                  "mt-2 max-w-[780px] text-[14px]",
+                  mobileLayout
+                    ? "line-clamp-3 break-words [overflow-wrap:anywhere]"
+                    : "truncate"
+                )}
+              >
                 {item.shortDescription ??
                   displayLocation ??
                   t(
@@ -631,29 +690,28 @@ export const CompanyDetailView = ({
                   )}
               </Text>
 
-              {links.length > 0 ? (
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {links.map((link) => (
-                    <Badge
-                      onClick={() => window.open(link.href, "_blank")}
-                      key={link.label}
-                      icon={<LinkPillIcon iconUrl={link.iconUrl} />}
-                    >
-                      {link.label}
-                    </Badge>
-                  ))}
+              {!mobileLayout && links.length > 0 ? (
+                <div className="mt-3">
+                  <CompanyDetailLinks links={links} />
                 </div>
               ) : null}
             </div>
           </div>
-          <div className="shrink-0 flex items-end justify-end">
-            <FollowButton
-              disabled={updating}
-              following={item.following}
-              onClick={(event) => onToggleFollow(item, event)}
-            />
-          </div>
+          {!mobileLayout ? (
+            <div className="flex shrink-0 items-end justify-end">
+              <FollowButton
+                disabled={updating}
+                following={item.following}
+                onClick={(event) => onToggleFollow(item, event)}
+              />
+            </div>
+          ) : null}
         </div>
+        {mobileLayout && links.length > 0 ? (
+          <div className="mt-3">
+            <CompanyDetailLinks links={links} />
+          </div>
+        ) : null}
       </header>
 
       <div className="mt-6 space-y-6">
@@ -671,19 +729,43 @@ export const CompanyDetailView = ({
           </div>
         ) : null}
         {companyDataRows.length > 0 ? (
-          <dl className="grid w-full min-w-[16.5rem] gap-y-3">
+          <dl
+            className={cn(
+              "grid w-full gap-y-3",
+              mobileLayout ? "min-w-0" : "min-w-[16.5rem]"
+            )}
+          >
             {companyDataRows.map((row) => (
               <div
                 key={row.label}
-                className="grid min-w-[16.5rem] grid-cols-[minmax(5rem,1fr)_minmax(20rem,4fr)] items-start gap-x-3 text-sm"
+                className={cn(
+                  "grid items-start gap-x-3 text-sm",
+                  mobileLayout
+                    ? "min-w-0 grid-cols-[7rem_minmax(0,1fr)]"
+                    : "min-w-[16.5rem] grid-cols-[minmax(5rem,1fr)_minmax(20rem,4fr)]"
+                )}
               >
-                <dt className="flex min-w-[5rem] items-start gap-1.5 wrap-break-word text-neutral-muted">
+                <dt
+                  className={cn(
+                    "flex items-start gap-1.5 text-neutral-muted",
+                    mobileLayout
+                      ? "min-w-0 whitespace-nowrap"
+                      : "min-w-[5rem] wrap-break-word"
+                  )}
+                >
                   <span className="mt-0.5 shrink-0" aria-hidden="true">
                     {row.icon}
                   </span>
                   <span>{row.label}</span>
                 </dt>
-                <dd className="min-w-[9rem] wrap-break-word font-normal text-neutral-primary">
+                <dd
+                  className={cn(
+                    "wrap-break-word font-normal text-neutral-primary",
+                    mobileLayout
+                      ? "min-w-0 [overflow-wrap:anywhere]"
+                      : "min-w-[9rem]"
+                  )}
+                >
                   {row.value}
                 </dd>
               </div>
@@ -708,7 +790,11 @@ export const CompanyDetailView = ({
               ) : null}
               <RichText
                 content={snapshotMarkdown}
-                className="text-neutral-primary/85"
+                className={cn(
+                  "text-neutral-primary/85",
+                  mobileLayout &&
+                    "max-w-full overflow-x-hidden [overflow-wrap:anywhere] [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto"
+                )}
               />
             </div>
           </DetailSection>
@@ -726,6 +812,16 @@ export const CompanyDetailView = ({
           //   </Text>
           // </DetailSection>
         )}
+
+        {mobileLayout && roleActionOpportunity ? (
+          <HistoryOpportunityRoleActions
+            className="mt-8"
+            item={roleActionOpportunity}
+            onOpenChat={onOpenChat}
+            visibleActions={COMPANY_DETAIL_ROLE_ACTIONS}
+            onShowCompanyJobs={onShowCompanyJobs}
+          />
+        ) : null}
 
         {item.specialities.length > 0 ? (
           <DetailSection

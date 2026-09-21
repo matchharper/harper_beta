@@ -8,6 +8,8 @@ export const OPENROUTER_DEEPSEEK_V4_FLASH_0731_MODEL =
   "deepseek/deepseek-v4-flash-0731" as const;
 
 export const OPENROUTER_GLM_53_FLASH_MODEL = "z-ai/glm-5.3-flash" as const;
+export const OPENROUTER_MUSE_SPARK_13_MODEL =
+  "meta/muse-spark-1.3" as const;
 export const OPENROUTER_ZAI_PROVIDER_SLUG = "z-ai" as const;
 
 export function isOpenRouterModel(model: string) {

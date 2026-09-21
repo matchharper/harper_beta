@@ -18,11 +18,15 @@ export function isOrgInternalStage(stage: OrgStageId) {
 }
 
 export function canInitiateOrgCandidateContact(stage: OrgStageId) {
-  return !isOrgInternalStage(stage) && stage !== "process_stopped";
+  return (
+    !isOrgInternalStage(stage) &&
+    stage !== "company_intro" &&
+    stage !== "process_stopped"
+  );
 }
 
 export function canCreateOrgCandidateContact(stage: OrgStageId) {
-  return !isOrgInternalStage(stage);
+  return !isOrgInternalStage(stage) && stage !== "company_intro";
 }
 
 type OrgActiveCompanyPosition = {
@@ -66,7 +70,11 @@ function currentOrgCompanyPosition<T extends OrgActiveCompanyPosition>(
 }
 
 export function canStopOrgCandidateProcess(stage: OrgStageId) {
-  return !isOrgInternalStage(stage) && stage !== "process_stopped";
+  return (
+    !isOrgInternalStage(stage) &&
+    stage !== "company_intro" &&
+    stage !== "process_stopped"
+  );
 }
 
 export function shouldOpenOrgCandidateReengagementDialog(

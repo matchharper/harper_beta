@@ -7,6 +7,15 @@ export const ORG_ROLE_STATUS_VALUES = [
   "deleted",
 ] as const;
 
+export const ORG_ACTIVE_ROLE_LIMIT = 5;
+export const ORG_ACTIVE_ROLE_LIMIT_MESSAGE = `현재 채용 중인 역할이 ${ORG_ACTIVE_ROLE_LIMIT}개여서 새 역할을 더 등록할 수 없어요. 추가 등록이 필요하면 Harper 팀에 문의해 주세요.`;
+
+const ORG_ACTIVE_ROLE_COUNTED_STATUSES = new Set([
+  "active",
+  "open",
+  "top_priority",
+]);
+
 export type OrgRoleStatus = (typeof ORG_ROLE_STATUS_VALUES)[number];
 export type OrgRoleLifecycleAction = "delete" | "pause" | "resume";
 
@@ -82,6 +91,23 @@ export function normalizeOrgRoleStatus(value: unknown): OrgRoleStatus {
   return ORG_ROLE_STATUS_VALUES.includes(normalized as OrgRoleStatus)
     ? (normalized as OrgRoleStatus)
     : "active";
+}
+
+export function isOrgRoleCountedAsActive(value: unknown) {
+  return ORG_ACTIVE_ROLE_COUNTED_STATUSES.has(
+    String(value ?? "")
+      .trim()
+      .toLowerCase()
+  );
+}
+
+export function hasReachedOrgActiveRoleLimit(
+  roles: ReadonlyArray<{ status: unknown }>
+) {
+  return (
+    roles.filter((role) => isOrgRoleCountedAsActive(role.status)).length >=
+    ORG_ACTIVE_ROLE_LIMIT
+  );
 }
 
 export function parseOrgRoleMutationStatus(

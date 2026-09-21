@@ -147,13 +147,19 @@ export const CAREER_LLM_CONFIG = {
     model: "gpt-live-1",
     voice: "cedar",
   },
-  // 회사 스냅샷이 캐시에 없을 때 OpenAI Responses API + web_search로 조사한다.
-  // createChatCompletionWithFallback 경로가 아니며, web_search tool을 쓰기 때문에
-  // 모델만 여기에서 공유한다.
+  // 회사 스냅샷이 캐시에 없을 때 Exa deep research로 넓게 조사하고,
+  // Luna Responses가 필요한 근거만 추가 검색한 뒤 합류 판단에 필요한 회사 사실을 종합한다.
+  // Luna 장애 시 같은 Responses 경로의 Terra로 fallback한다.
   // 사용처: src/lib/career/companySnapshot.ts 의 runCompanySnapshotResearch.
   companySnapshotResearch: {
-    fallbackModel: "gpt-4o",
-    primaryModel: "gpt-4.1",
+    fallbackModel: GPT_56_TERRA_MODEL,
+    primaryModel: GPT_56_LUNA_MODEL,
+  },
+  // 개인 경력의 경로 의존성과 다음 선택지는 공개 조사와 분리해 더 깊게 판단한다.
+  companySnapshotPersonalization: {
+    fallbackModel: GPT_56_LUNA_MODEL,
+    primaryModel: GPT_56_TERRA_MODEL,
+    reasoningEffort: "high" as const,
   },
   // 기존 프로필/대화에서 비어 있는 insight key만 채우는 내부 refresh 작업.
   // 모델은 assistant.primary/fallback을 쓰고 JSON 응답을 기대한다.

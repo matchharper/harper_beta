@@ -82,6 +82,7 @@ import {
   serializeNegativeFeedbackReason,
 } from "@/components/career/history/FeedbackModal";
 import { EXTERNAL_ALREADY_APPLIED_FEEDBACK_REASON } from "@/components/career/opportunityTypeMeta";
+import { shouldSyncMobileHistoryRoleId } from "@/lib/career/mobileHistoryNavigation";
 
 type JobsDisplayTab = CareerMobileHistoryJobsTab;
 
@@ -519,9 +520,7 @@ const CareerWorkspaceRoot = ({
               forceDesktopLayout && "min-h-0"
             )}
           >
-            <DocumentEditorPanelProvider
-              onOpenDocument={scrollRightPanelToTop}
-            >
+            <DocumentEditorPanelProvider onOpenDocument={scrollRightPanelToTop}>
               <div
                 className={cn(
                   "flex h-full min-h-[45svh] flex-col md:min-h-0",
@@ -661,6 +660,8 @@ const CareerWorkspaceMobileHistoryView = ({
   const [companyDetailCompanyDbId, setCompanyDetailCompanyDbId] = useState<
     number | null
   >(null);
+  const [companyDetailOpportunity, setCompanyDetailOpportunity] =
+    useState<CareerHistoryOpportunity | null>(null);
   const [infoOpportunityType, setInfoOpportunityType] =
     useState<CareerOpportunityType | null>(null);
   const [
@@ -676,6 +677,7 @@ const CareerWorkspaceMobileHistoryView = ({
   const [chatOpen, setChatOpen] = useState(false);
   const decidedOpportunityIdRef = useRef<string | null>(null);
   const loadingRoleIdRef = useRef<string | null>(null);
+  const workspaceNavigationPendingRef = useRef(false);
 
   const requestedRoleId = String(
     getSingleQueryValue(router.query.id) ?? ""
@@ -700,6 +702,7 @@ const CareerWorkspaceMobileHistoryView = ({
       }
     ) => {
       if (!router.isReady) return;
+      if (workspaceNavigationPendingRef.current) return;
 
       const locationState = getHistoryLocationState(nextTab);
       const roleId = String(options?.roleId ?? "").trim();
@@ -769,6 +772,7 @@ const CareerWorkspaceMobileHistoryView = ({
       void onMarkHistoryOpportunityClicked(item.id);
 
       if (item.companyDbId) {
+        setCompanyDetailOpportunity(item);
         setCompanyDetailCompanyDbId(item.companyDbId);
         return;
       }
@@ -872,11 +876,15 @@ const CareerWorkspaceMobileHistoryView = ({
   ]);
 
   useEffect(() => {
+    if (!currentOpportunity) return;
     if (
-      !router.isReady ||
-      jobsTab !== "new" ||
-      requestedRoleId ||
-      !currentOpportunity
+      !shouldSyncMobileHistoryRoleId({
+        currentOpportunityRoleId: currentOpportunity.roleId,
+        jobsTab,
+        requestedRoleId,
+        routerReady: router.isReady,
+        workspaceNavigationPending: workspaceNavigationPendingRef.current,
+      })
     ) {
       return;
     }
@@ -909,15 +917,18 @@ const CareerWorkspaceMobileHistoryView = ({
   const handleMobileNavigationChange = useCallback(
     (nextOption: CareerMobileTopBarOptionId) => {
       if (nextOption === "inbox") {
+        workspaceNavigationPendingRef.current = false;
         handleChangeJobsTab("new");
         return;
       }
 
       if (nextOption === "jobs") {
+        workspaceNavigationPendingRef.current = false;
         handleChangeJobsTab(jobsTab === "new" ? "saved" : jobsTab);
         return;
       }
 
+      workspaceNavigationPendingRef.current = true;
       onChangeTab(nextOption);
     },
     [handleChangeJobsTab, jobsTab, onChangeTab]
@@ -1152,7 +1163,12 @@ const CareerWorkspaceMobileHistoryView = ({
       const savedStage = getSavedStageForManagementStatus(status);
       if (!savedStage) return;
 
-      if (item.feedback === "positive") {
+      if (
+        item.feedback === "positive" ||
+        (savedStage === "hidden" &&
+          item.sourceType === "external" &&
+          item.feedback === null)
+      ) {
         void onUpdateHistoryOpportunitySavedStage(item.id, savedStage);
         return;
       }
@@ -1266,6 +1282,10 @@ const CareerWorkspaceMobileHistoryView = ({
         detailOpportunity={detailOpportunity}
         onCloseDetail={handleCloseDetail}
         onOpenCompanyInfo={handleOpenCompanyInfo}
+        onOpenChat={() => {
+          logCareerEvent("click_mobile_history_role_action_open_chat");
+          setChatOpen(true);
+        }}
         onOpenDetail={handleOpenDetail}
         onOpenLink={handleOpenLink}
         onOpenOpportunityInfo={handleOpenOpportunityInfo}
@@ -1353,8 +1373,19 @@ const CareerWorkspaceMobileHistoryView = ({
       ) : null}
       <CareerCompanyDetailDrawer
         companyDbId={companyDetailCompanyDbId}
+        mobileLayout
         open={companyDetailCompanyDbId !== null}
-        onClose={() => setCompanyDetailCompanyDbId(null)}
+        onClose={() => {
+          setCompanyDetailCompanyDbId(null);
+          setCompanyDetailOpportunity(null);
+        }}
+        onOpenChat={() => {
+          setCompanyDetailCompanyDbId(null);
+          setCompanyDetailOpportunity(null);
+          logCareerEvent("click_mobile_company_detail_role_action_open_chat");
+          setChatOpen(true);
+        }}
+        opportunity={companyDetailOpportunity}
         source="mobile_position_company_detail"
       />
     </>
@@ -1400,6 +1431,7 @@ const CareerWorkspaceMobileLayout = ({
     const startQuery = new URLSearchParams(window.location.search).get("start");
     return startQuery === "call" || startQuery === "chat";
   });
+  const closeChatForDocument = useCallback(() => setChatOpen(false), []);
   const [inquiryOpen, setInquiryOpen] = useState(false);
   const [pendingHistoryTarget, setPendingHistoryTarget] =
     useState<CareerWorkspaceHistoryTarget | null>(null);
@@ -1505,7 +1537,7 @@ const CareerWorkspaceMobileLayout = ({
                     </div>
                   ) : (
                     <div className="px-4 pb-[140px] pt-2">
-                      <CareerProfileWorkspace />
+                      <CareerProfileWorkspace onDetailOpen={closeChatForDocument} />
                     </div>
                   )}
                 </motion.div>

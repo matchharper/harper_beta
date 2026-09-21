@@ -40,6 +40,7 @@ type ChatComposerActionMenuProps = {
   contentClassName?: string;
   disabled?: boolean;
   items: ChatComposerActionMenuItem[];
+  onItemSelect?: (item: ChatComposerActionMenuItem) => void;
   onOpenChange?: (open: boolean) => void;
   open?: boolean;
   sideOffset?: number;
@@ -53,6 +54,7 @@ export function ChatComposerActionMenu({
   contentClassName,
   disabled = false,
   items,
+  onItemSelect,
   onOpenChange,
   open: controlledOpen,
   sideOffset = 10,
@@ -154,7 +156,10 @@ export function ChatComposerActionMenu({
                   )}
                   disabled={pickerItem.disabled}
                   onPointerDown={(event) => event.preventDefault()}
-                  onSelect={item.onSelect}
+                  onSelect={() => {
+                    onItemSelect?.(item);
+                    item.onSelect();
+                  }}
                   variant="sm"
                 >
                   <ChatComposerPickerItemContent

@@ -10,7 +10,10 @@ import {
   readMockInterviewOpportunityId,
 } from "./mockInterview";
 import { buildCareerConversationPromptPlan } from "./prompts/conversationPlan";
-import { MOCK_INTERVIEW_OPENING_PROMPT } from "./prompts/cases/mockInterviewPrompts";
+import {
+  buildMockInterviewPositionContext,
+  MOCK_INTERVIEW_OPENING_PROMPT,
+} from "./prompts/cases/mockInterviewPrompts";
 import { shouldUseCareerRealtimeOnboarding } from "./realtimeCallScope";
 
 const id = "11111111-1111-4111-8111-111111111111";
@@ -121,7 +124,10 @@ test("target and mock policy persist when rebuilding the prompt after an answer"
     }),
     false
   );
-  assert.match(MOCK_INTERVIEW_OPENING_PROMPT, /언어 질문 하나로 끝낸다/);
+  assert.match(
+    MOCK_INTERVIEW_OPENING_PROMPT,
+    /언어를 선택하라고 묻거나 영어로 할지 확인하지 말고/
+  );
 });
 
 test("ordinary calls do not carry the detailed mock policy", () => {
@@ -192,11 +198,8 @@ test("mock prompt projects only interview blocks despite unrelated assembly inpu
     );
     assert.match(text, /London/);
     assert.match(text, /Built a billing product/);
-    assert.match(
-      text,
-      /사용자 답변 전에는 검색하거나 면접 질문을 시작하지 않는다/
-    );
-    assert.match(text, /이미 선택한 면접 언어가 시작 언어보다 우선/);
+    assert.match(text, /정한 언어로 바로 연습을 시작/);
+    assert.match(text, /면접 언어를 사용자에게 묻지 말고/);
     assert.match(text, /이 질문만 한국어로/);
     assert.equal(plan.enabledToolNames.length, 6);
   }
@@ -275,14 +278,14 @@ test("voice transcription can retain a model without forcing a language", () => 
   }
 });
 
-test("Live frontend delegates position judgment and preserves interview language choice", () => {
+test("Live frontend delegates automatic language choice and preserves explicit switches", () => {
   const text = buildLiveFrontendInstructions({
     initialResponseInstruction: MOCK_INTERVIEW_OPENING_PROMPT,
     responseLocale: "ko",
     isMockInterview: true,
   });
-  assert.match(text, /Delegate before deciding whether to offer English/);
-  assert.match(text, /이미 선택한 면접 언어가 시작 언어보다 우선/);
+  assert.match(text, /Delegate before choosing the opening language/);
+  assert.match(text, /면접 언어를 사용자에게 묻지 말고/);
   assert.doesNotMatch(text, /unless the caller clearly switches languages/);
   const ordinary = buildLiveFrontendInstructions({
     initialResponseInstruction: "",
@@ -319,10 +322,25 @@ test("mock transcription hints Korean and English without fixing either language
   );
 });
 
-test("opening prioritizes language choice before search for English-market companies", () => {
-  assert.match(MOCK_INTERVIEW_OPENING_PROMPT, /영어권 기반 회사/);
-  assert.match(
-    MOCK_INTERVIEW_OPENING_PROMPT,
-    /검색·질문 준비 안내·면접 질문을 하지 않고 답변을 기다린다/
-  );
+test("opening chooses from saved language and role location without asking", () => {
+  assert.match(MOCK_INTERVIEW_OPENING_PROMPT, /설정 언어/);
+  assert.match(MOCK_INTERVIEW_OPENING_PROMPT, /Role location/);
+  assert.match(MOCK_INTERVIEW_OPENING_PROMPT, /영어로 할지 확인하지 말고/);
+});
+
+test("position context labels company data and keeps the complete role description", () => {
+  const fullDescription = `First responsibility\n\n${"Detailed requirement. ".repeat(600)}\nFinal responsibility`;
+  const text = buildMockInterviewPositionContext({
+    companyName: "Example",
+    companyDescription: "Builds developer tools.",
+    roleTitle: "Staff Engineer",
+    location: "Seoul",
+    jd: fullDescription,
+  });
+
+  assert.match(text, /### Role/);
+  assert.match(text, /### Company/);
+  assert.match(text, /Full role description:/);
+  assert.ok(text.includes(fullDescription));
+  assert.match(text, /Builds developer tools\./);
 });

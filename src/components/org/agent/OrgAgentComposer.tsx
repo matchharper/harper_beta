@@ -168,7 +168,9 @@ export function OrgAgentComposer({
   model,
   onModelChange,
   onSend,
+  onSubmitBlocked,
   roleId,
+  submitBlocked,
   workspaceId,
 }: {
   allowAttachments?: boolean;
@@ -183,7 +185,9 @@ export function OrgAgentComposer({
     mentions: OrgAgentMention[];
     message: string;
   }) => void | Promise<void>;
+  onSubmitBlocked?: () => void;
   roleId?: string | null;
+  submitBlocked?: boolean;
   workspaceId: string;
 }) {
   const mentionListId = useId();
@@ -420,6 +424,10 @@ export function OrgAgentComposer({
 
   const handleSubmit = async (event?: FormEvent) => {
     event?.preventDefault();
+    if (submitBlocked) {
+      onSubmitBlocked?.();
+      return;
+    }
     const serialized = serializeOrgAgentDraftMentionTokens(
       draft,
       mentionTokens.tokens
@@ -605,13 +613,17 @@ export function OrgAgentComposer({
               <MuteButton
                 type="submit"
                 aria-label="메시지 보내기"
+                aria-disabled={submitBlocked || undefined}
                 variant="primary"
-                className="rounded-full"
+                className={cn(
+                  "rounded-full",
+                  submitBlocked && "cursor-not-allowed opacity-40"
+                )}
                 disabled={
                   disabled ||
                   isStreaming ||
                   isPreparingAttachments ||
-                  (!draft.trim() && attachments.length === 0)
+                  (!submitBlocked && !draft.trim() && attachments.length === 0)
                 }
               >
                 {isStreaming || isPreparingAttachments ? (

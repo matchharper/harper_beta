@@ -237,6 +237,11 @@ Shared component catalog:
 | Editable document preview and right-side editor | `DocumentEditor` from `src/components/ui/document-editor.tsx` |
 | Interview availability calendar, split panel, and time option | `MeetingAvailabilityCalendar`, `MeetingAvailabilitySplitLayout`, `MeetingAvailabilityTimeButton` from `src/components/meetings/MeetingAvailabilityLayout.tsx` |
 | Chat internal-role and mock interview call proposals | `CareerCallProposalCard` from `src/components/career/chat/CareerCallProposalCard.tsx`; use shared `src/components/career/MockInterviewStart.tsx` for mock interview confirmation and start behavior |
+| Career saved Markdown document preview, copy and export | `CareerDocumentDetail` from `src/components/career/documents/CareerDocumentDetail.tsx`, opened at `/career/profile?profileSection=links&documentId=...` like call notes; chat links use `DocumentPreviewCards` with `CardButton`. Do not open saved documents in a modal. |
+| Career position actions | `HistoryOpportunityRoleActions`: use `variant="tags"` above the desktop composer for small white text-only actions without entrance animation; use the default list in mobile and detail content |
+| Career job previews in chat and company details | `CareerOpportunityPreviewCard` shares the logo, metadata, posting status, and optional Recommended/Fit badges; `CareerOpportunityPreviewModal` opens the detail with a Save action |
+| Career company details and jobs | `CareerCompanyDetailDrawer` composes `CompanyDetailView` and `CompanyJobsList` inside `TalentCareerModal`; jobs use 20-item infinite pagination |
+| Career profile sources and documents | `CareerProfileSourceCard` from `src/components/career/settings/CareerProfileSourceCard.tsx`; use the 136×148 card for profile links, connected sources, resumes, documents, and add/upload actions |
 | `/career` modal, confirmation, or bottom sheet | `TalentCareerModal` from `src/components/common/TalentCareerModal.tsx` |
 | Generic Radix dialog composition | `Dialog`, `DialogContent`, `DialogTitle`, and `DialogDescription` from `src/components/ui/dialog.tsx` |
 
@@ -245,7 +250,8 @@ and `MuteButton` actions through `TalentCareerModal` props. Use
 `closeOnBackdrop`, `showCloseButton`, and a guarded `onClose` for pending states;
 do not attach a separate `keydown` listener or render a custom full-screen
 backdrop. Use `mobileBottomSheet` when the confirmation should follow the Career
-mobile modal pattern.
+mobile modal pattern. Use `modal={false}` for desktop side panels whose adjacent
+workspace (including the chat composer) must remain interactive.
 
 새 UI의 button-shaped control에는 `MuteButton`만 쓴다. `Button`,
 `IconButton`, `ActionButton`은 기존 화면 호환을 위한 legacy component로
@@ -352,3 +358,28 @@ When touching old UI:
 5. Replace `gray-*` design aliases with `neutral-*` or `black`.
 6. Prefer `MuteButton`, `CardButton`, `Badge`, `Input`, `Select`, `Tabs`, and `Text` over local one-off components. Replace touched `Button`, `IconButton`, and `ActionButton` usages with `MuteButton` when practical.
 7. Replace touched `TextField` usages with an external label/message and `Input` or `Textarea`.
+
+## GTM spreadsheet workspace
+
+`/ops/gtm`은 사용자 요청에 따라 흰 배경, 확실한 셀 경계선, 밀도 높은 시트 형태를
+사용한다. 기존 Ops의 카드·배경·최대 너비를 적용하지 않는다. Ops 인증과 상단
+탭은 `OpsShell spreadsheet`를 통해 재사용한다.
+
+- 표 조작은 `src/components/ui/data-grid/DataGrid.tsx`와 CSS module을 재사용한다.
+  헤더 드래그/너비, 행 높이, 키보드 편집, 한글 조합, 셀 색상은 이 컴포넌트가 소유한다.
+- 컬럼 구성은 props로 전달하며 화면별 컬럼 배열을 컴포넌트에 하드코딩하지 않는다.
+- GTM의 원본 선택·연결 컬럼·저장·권한은 `src/lib/gtm/`와 workspace에서 연결한다.
+- dialog 인프라는 기존 `Dialog`를 사용한다. 시트 전용 흰 배경과 선명한 border는
+  이 workspace의 명시적인 디자인 예외다.
+
+GTM의 행 상세는 `RecordWorkspace`의 탭 구성과 `RecordField`, `CollectionEditor`를
+재사용한다. 반복 연락처/할 일/지급/파일 계약은 API 메타데이터가 제공하고, 연결 기록은
+실제 FK를 따른다. 외부 발송의 정확한 원문 검토는 `OutreachReviewDialog`가 소유한다.
+
+기록 상세와 발송본 검토는 오른쪽에서 열리는 흰색 패널로 표시한다. 기존 Dialog의
+focus trap/ESC/overlay를 재사용하되 가운데 정렬 translate를 해제한다. reduced-motion이면
+진입 애니메이션을 끈다. 크리에이터는 대화·메일과 콘텐츠 탭을 먼저 보여준다.
+
+메일 편집은 `EmailBody`가 기존 Tiptap `MarkdownRichTextEditor`의 `contentFormat="html"`
+모드를 사용한다. 상단 고정 서식 바에 제목·굵게·밑줄·목록·링크를 제공한다. 기존 문서의
+기본 Markdown 직렬화는 바꾸지 않는다. 보낸 HTML 미리보기는 sandbox iframe으로 격리한다.

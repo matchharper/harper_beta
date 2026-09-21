@@ -1,3 +1,5 @@
+import CareerCompanyJobsDrawer from "./watchlist/CareerCompanyJobsDrawer";
+import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
 import React, {
   useCallback,
   useEffect,
@@ -104,7 +106,7 @@ const getDevCurrentDataJobPostingRecommendationPrompt = (
 ) =>
   t(
     "career.common.career_flow_provider.0cjev5a",
-    "지금까지 저장된 내 프로필, 선호, 최근 피드백 데이터를 기준으로 지금 검토할 만한 공개 채용 공고를 추천해줘. 새로운 장기 선호는 저장하지 말고, 현재 데이터 기반으로 한 번만 찾아줘."
+    "지금까지 저장된 내 프로필, 선호, 최근 피드백 데이터를 기준으로 지금 검토할 만한 공개 채용 포지션을 추천해줘. 새로운 장기 선호는 저장하지 말고, 현재 데이터 기반으로 한 번만 찾아줘."
   );
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -185,6 +187,11 @@ export const CareerFlowProvider = ({
   const [unlinkedOpportunityRuns, setUnlinkedOpportunityRuns] = useState<
     CareerOpportunityRun[]
   >([]);
+  const [preparedChatDraft, setPreparedChatDraft] = useState<{
+    key: string;
+    opportunityMention: CareerOpportunityMention;
+    text: string;
+  } | null>(null);
   const [
     pendingInternalOpportunityCallRequest,
     setPendingInternalOpportunityCallRequest,
@@ -228,6 +235,9 @@ export const CareerFlowProvider = ({
     opportunityFeedbackFollowUpTrigger,
     setOpportunityFeedbackFollowUpTrigger,
   ] = useState<CareerOpportunityFeedbackFollowUpTrigger | null>(null);
+  // Close the timer-to-render gap: the send guard must lock synchronously when
+  // follow-up generation starts, before pending state reaches the composer.
+  const opportunityFeedbackFollowUpRunningRef = useRef(false);
   const refreshLatestHistoryOpportunitiesRef = useRef<
     ((roleId?: string | null) => void | Promise<void>) | null
   >(null);
@@ -486,11 +496,29 @@ export const CareerFlowProvider = ({
     [appendLatestMessagesToCache, appendMessage]
   );
 
+  const prepareChatDraft = useCallback(
+    (args: {
+      opportunityMention: CareerOpportunityMention;
+      text: string;
+    }) => {
+      setPreparedChatDraft({
+        ...args,
+        key: `history-role-action:${args.opportunityMention.roleId}:${Date.now()}`,
+      });
+    },
+    []
+  );
+
+  const showSameCompanyRoles = useCareerWorkspaceUiStore(
+    (state) => state.setCompanyJobsOpportunity
+  );
+
   const handleOpportunityFeedbackFollowUpPendingChanged = useCallback(
     (state: {
       pending: boolean;
       trigger: CareerOpportunityFeedbackFollowUpTrigger | null;
     }) => {
+      opportunityFeedbackFollowUpRunningRef.current = state.pending;
       setOpportunityFeedbackFollowUpPending(state.pending);
       setOpportunityFeedbackFollowUpTrigger(state.trigger);
     },
@@ -823,7 +851,13 @@ export const CareerFlowProvider = ({
       opportunityMentions?: CareerOpportunityMention[];
       onError?: () => void;
     }) => {
-      if (opportunityFeedbackFollowUpPending) return;
+      if (
+        opportunityFeedbackFollowUpRunningRef.current ||
+        opportunityFeedbackFollowUpPending
+      ) {
+        args.onError?.();
+        return;
+      }
       clearSessionReengagementAction();
       cancelPendingCompanyFollowUp();
       cancelPendingOpportunityFeedbackFollowUp();
@@ -1073,6 +1107,7 @@ export const CareerFlowProvider = ({
     onboardingWrapupPending: voiceOnboardingWrapupPending,
     callStartPending,
     callWrapUpPending,
+    activeMockInterviewDisplay,
     onboardingPausePending,
     inputMode,
     voiceTranscript,
@@ -1707,6 +1742,7 @@ export const CareerFlowProvider = ({
     conversationId,
     enqueueAssistantMessages,
     fetchWithAuth,
+    onHistoryOpportunitiesChanged: refreshLatestHistoryOpportunities,
     onOpportunityRunChanged: setOpportunityRun,
     onTalentInsightsRefreshed: handleTalentInsightsRefreshedFromChat,
     onTalentContextsRefreshed: handleTalentContextsRefreshedFromChat,
@@ -1822,9 +1858,15 @@ export const CareerFlowProvider = ({
       activeThinkingLogs,
       activeRecommendationSearchStatus,
       onCancelActiveRecommendationSearch: cancelActiveRecommendationSearch,
-      initialChatDraft: initialChatDraft?.trim() || undefined,
-      initialChatDraftKey: initialChatDraftKey?.trim() || undefined,
-      initialChatOpportunityMention: initialChatOpportunityMention ?? undefined,
+      initialChatDraft:
+        preparedChatDraft?.text.trim() || initialChatDraft?.trim() || undefined,
+      initialChatDraftKey:
+        preparedChatDraft?.key || initialChatDraftKey?.trim() || undefined,
+      initialChatOpportunityMention:
+        preparedChatDraft?.opportunityMention ??
+        initialChatOpportunityMention ??
+        undefined,
+      initialChatDraftReplace: Boolean(preparedChatDraft),
       onboardingWrapupPending,
       thinkingLogsByMessageId,
       chatPending,
@@ -1851,6 +1893,8 @@ export const CareerFlowProvider = ({
       onAddProfileLink: handleAddProfileLink,
       onProfileSubmit: handleProfileSubmit,
       onSendChatMessage: sendChatMessage,
+      onPrepareChatDraft: prepareChatDraft,
+      onShowSameCompanyRoles: showSameCompanyRoles,
       onStartConversationStarter: handleStartConversationStarter,
       onRunSessionReengagement: handleRunSessionReengagement,
       onUpdateHistoryOpportunityFeedback,
@@ -1909,6 +1953,8 @@ export const CareerFlowProvider = ({
       initialChatDraft,
       initialChatDraftKey,
       initialChatOpportunityMention,
+      preparedChatDraft,
+      prepareChatDraft,
       forceCompletePending,
       isOnboardingDone,
       interviewProgress,
@@ -1929,6 +1975,7 @@ export const CareerFlowProvider = ({
       resumeFile,
       setResumeFile,
       sendChatMessage,
+      showSameCompanyRoles,
       sessionReengagementPending,
       sessionReengagementActionMessageId,
       sessionError,
@@ -1941,6 +1988,7 @@ export const CareerFlowProvider = ({
 
   const callContextValue: CareerCallContextValue = useMemo(
     () => ({
+      mockInterviewDisplay: activeMockInterviewDisplay,
       callConnectionStatus: connectionStatus,
       callTranscriptEntries,
       isAssistantSpeaking,
@@ -1953,6 +2001,7 @@ export const CareerFlowProvider = ({
       voiceTranscript,
     }),
     [
+      activeMockInterviewDisplay,
       callTranscriptEntries,
       connectionStatus,
       handleEndCallMode,
@@ -2251,6 +2300,7 @@ export const CareerFlowProvider = ({
         value={workspaceContextValue}
       >
         {children}
+        <CareerCompanyJobsDrawer />
         <ProfileSourceApplyConfirmModal
           mode={profileSourceApplyConfirmMode}
           pending={profileSourceApplyPending}

@@ -19,6 +19,11 @@ export { OpportunityType as CareerOpportunityType };
 export type CareerStage = "profile" | "chat" | "completed";
 export type MessageRole = "assistant" | "user";
 export type CareerInputMode = "text" | "call";
+export type CareerMockInterviewCallDisplay = {
+  companyLogoUrl: string | null;
+  companyName: string;
+  roleTitle: string;
+};
 export type CareerCallStartRequest =
   | string
   | {
@@ -27,6 +32,7 @@ export type CareerCallStartRequest =
       internalCallRequestId?: string | null;
       openingText?: string;
       resumeCallNoteId?: string | null;
+      mockInterviewDisplay?: CareerMockInterviewCallDisplay | null;
       mockInterviewOpportunityId?: string | null;
     };
 export type CallLiveTranscriptPlacement =

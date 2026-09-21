@@ -95,3 +95,20 @@ test("keeps explicit double-tilde strikethrough support", () => {
 
   assert.match(html, /<del>이 문장은 취소<\/del>/);
 });
+
+test("renders underline with Markdown emphasis, quotes and inline code without enabling HTML", () => {
+  const html = renderToStaticMarkup(
+    <RichText
+      content={
+        '## 판단\n\n> 중요한 결론\n\n<u>다음 **선택지**</u>와 `production ML`\n\n`<u>literal</u>`\n\n<img src=x onerror="alert(1)">'
+      }
+    />
+  );
+  assert.match(html, /<h2/);
+  assert.match(html, /<blockquote/);
+  assert.match(html, /<u[^>]*>다음 <strong[^>]*>선택지<\/strong><\/u>/);
+  assert.match(html, /<code[^>]*>production ML<\/code>/);
+  assert.match(html, /&lt;u&gt;literal&lt;\/u&gt;/);
+  assert.doesNotMatch(html, /<img|<script/);
+  assert.match(html, /&lt;img/);
+});

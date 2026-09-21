@@ -7,6 +7,11 @@ import {
   recordResendEmailOpenedEvent,
   type ResendEmailOpenedEventPayload,
 } from "@/lib/email/openTracking";
+import {
+  ingestGtmResendDeliveryEvent,
+  isGtmResendDeliveryEventType,
+  type ResendDeliveryEventPayload,
+} from "@/lib/contentsEngine/resendDelivery";
 import { verifyResendWebhookSignature } from "@/lib/email/security";
 
 export const runtime = "nodejs";
@@ -70,6 +75,26 @@ export async function POST(req: Request) {
       const message =
         error instanceof Error ? error.message : "Failed to record email open";
       console.error("[email-webhook] open tracking failed", {
+        error: message,
+        svixId,
+      });
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+  }
+
+  if (isGtmResendDeliveryEventType(eventType)) {
+    try {
+      const result = await ingestGtmResendDeliveryEvent({
+        event: event as ResendDeliveryEventPayload,
+        providerEventId: svixId,
+      });
+      return NextResponse.json({ ok: true, ...result }, { status: 200 });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to record Resend delivery event";
+      console.error("[email-webhook] delivery event failed", {
         error: message,
         svixId,
       });

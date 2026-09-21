@@ -58,10 +58,12 @@ export class MobileChatNoticeStore {
     conversationKey: string | null;
     latestKey: string | null;
     open: boolean;
+    pending: boolean;
     ready: boolean;
     visibleMs: number;
   }) {
-    const { conversationKey, latestKey, open, ready, visibleMs } = args;
+    const { conversationKey, latestKey, open, pending, ready, visibleMs } =
+      args;
 
     if (conversationKey !== this.snapshot.conversationKey) {
       this.setSnapshot({
@@ -84,9 +86,7 @@ export class MobileChatNoticeStore {
       return;
     }
 
-    if (!latestKey) return;
-
-    if (open) {
+    if (open && latestKey) {
       this.setSnapshot({
         ...this.snapshot,
         lastSeenKey: latestKey,
@@ -96,6 +96,11 @@ export class MobileChatNoticeStore {
       });
       return;
     }
+
+    // A streamed text segment can stop typing while the overall turn is still
+    // running tools or preparing follow-up messages. Do not announce that
+    // Harper answered until the whole response has settled.
+    if (pending || !latestKey) return;
 
     if (latestKey === this.snapshot.lastSeenKey) return;
 
@@ -152,6 +157,7 @@ export function useCareerMobileChatNotice(args: {
   conversationId: string | null;
   messages: CareerMessage[];
   open: boolean;
+  pending: boolean;
   promptVisibleMs?: number;
   ready: boolean;
 }) {
@@ -159,6 +165,7 @@ export function useCareerMobileChatNotice(args: {
     conversationId,
     messages,
     open,
+    pending,
     promptVisibleMs = DEFAULT_PROMPT_VISIBLE_MS,
     ready,
   } = args;
@@ -179,10 +186,11 @@ export function useCareerMobileChatNotice(args: {
       conversationKey: conversationId,
       latestKey,
       open,
+      pending,
       ready,
       visibleMs: promptVisibleMs,
     });
-  }, [conversationId, latestKey, open, promptVisibleMs, ready, store]);
+  }, [conversationId, latestKey, open, pending, promptVisibleMs, ready, store]);
 
   useEffect(() => {
     const promptKey = snapshot.promptKey;
@@ -202,8 +210,8 @@ export function useCareerMobileChatNotice(args: {
   }, [store]);
 
   return {
-    hasUnread: Boolean(snapshot.unreadKey),
+    hasUnread: !pending && Boolean(snapshot.unreadKey),
     markRead,
-    showPrompt: Boolean(snapshot.promptKey && snapshot.unreadKey),
+    showPrompt: !pending && Boolean(snapshot.promptKey && snapshot.unreadKey),
   };
 }

@@ -49,6 +49,9 @@ test("guides compact adaptive role discovery without a fixed script", () => {
   assert.match(prompt, /treat missing evidence as uncertainty rather than failure/);
   assert.match(prompt, /criteria do not replace/);
   assert.match(prompt, /Translate vague traits into observable capabilities/);
+  assert.match(prompt, /<hiring_brief_authoring_contract>/);
+  assert.match(prompt, /Never erase an established school bar/);
+  assert.match(prompt, /not an automatic preferred-company list/);
 
   assert.match(prompt, /NEW-DRAFT CONVERSATION CADENCE/);
   assert.match(prompt, /save onsite and present it as `대면 근무`/);

@@ -107,6 +107,29 @@ test("dedicated re-engagement resolves prompt action keys to signed refs before 
   assert.match(chatTurn, /stripCareerReengagementActions\s*\(/);
 });
 
+test("re-engagement hides expired unanswered external postings before its message", () => {
+  assert.match(
+    reengagementRoute,
+    /hideExpiredUnansweredExternalOpportunities\s*\(/
+  );
+  assert.match(
+    reengagementRoute,
+    /hiddenExpiredExternalOpportunityCount > 0/
+  );
+  assert.match(
+    reengagementRoute,
+    /career\.api\.session_reengagement\.expired_external_hidden/
+  );
+  assert.equal(
+    (reengagementRoute.match(/assistantMessagePrefix,/g) ?? []).length,
+    2
+  );
+  assert.match(
+    chatTurn,
+    /assistantMessagePrefix[\s\S]*normalizedNoMessageContent = \[\s*assistantMessagePrefix/
+  );
+});
+
 test("normal career and re-engagement LLM context both keep at least 16 recent messages", () => {
   for (const source of [chatRoute, chatTurn, debugPrompts]) {
     assert.match(source, /recentLimit:\s*16/);

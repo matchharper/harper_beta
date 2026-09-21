@@ -20,6 +20,8 @@ import {
   fetchRecentMessages,
   fetchTalentSetting,
   fetchTalentStructuredProfile,
+  fetchTalentDocuments,
+  serializeTalentDocuments,
   fetchTalentUserProfile,
   getCareerOnboardingChecklistCoverage,
   getCareerOnboardingChecklistProgress,
@@ -134,6 +136,7 @@ export type RunCareerChatTurnArgs = {
   admin: TalentAdminClient;
   allowedToolNames?: readonly string[] | null;
   assistantModel?: string;
+  assistantMessagePrefix?: string | null;
   assistantOpenAIResponsesReasoningEffort?: OpenAIResponsesReasoningEffort;
   assistantTemperature?: number;
   assistantMessageType?: string;
@@ -319,6 +322,7 @@ function attachThinkingLogsToLastMessage<T extends { thinkingLogs?: string[] }>(
 async function buildTalentProfileSnapshot(args: {
   admin: TalentAdminClient;
   conversationId: string;
+  includeDocuments?: boolean;
   userId: string;
 }) {
   const [setting, brief, talentContextsUpdatedAt, talentProfile] =
@@ -361,7 +365,20 @@ async function buildTalentProfileSnapshot(args: {
     },
     talentInsights: normalizedInsights,
     talentBrief: brief.map(toTalentContextResponse),
-    talentProfile,
+    talentProfile: {
+      ...talentProfile,
+      ...(args.includeDocuments
+        ? {
+            documents: await serializeTalentDocuments({
+              admin: args.admin,
+              documents: await fetchTalentDocuments({
+                admin: args.admin,
+                userId: args.userId,
+              }),
+            }),
+          }
+        : {}),
+    },
     preferencesUpdatedAt: setting?.updated_at ?? null,
     insightUpdatedAt: talentContextsUpdatedAt,
     talentContextsUpdatedAt,
@@ -404,6 +421,9 @@ export async function runCareerChatTurn(
         ).trim();
   const proactiveContext = stripPostgresUnsafeChars(
     String(args.proactiveContext ?? "")
+  ).trim();
+  const assistantMessagePrefix = stripPostgresUnsafeChars(
+    String(args.assistantMessagePrefix ?? "")
   ).trim();
 
   const { data: conversation, error: conversationError } = await admin
@@ -787,6 +807,7 @@ export async function runCareerChatTurn(
   const preparedCompanySnapshotRef: {
     current: CompanySnapshotToolResult | null;
   } = { current: null };
+  let documentsChanged = false;
   let thinkingLogs: string[] = [];
   let pendingRecommendationPostingRoleIds: string[] = [];
   const recommendationReceiptRef: {
@@ -961,11 +982,20 @@ export async function runCareerChatTurn(
             preferredLocale: responseLocale,
           });
           if (cachedSnapshot) {
+            const personalizedResult = await getOrCreateCompanySnapshot({
+              admin,
+              companyName,
+              preferredLocale: responseLocale,
+              reason: optionalToolString(toolInput.reason),
+              recentSnapshot: cachedSnapshot,
+              userId,
+            });
+            documentsChanged ||= Boolean(personalizedResult.snapshot.document);
             const messageContent = stripPostgresUnsafeChars(
               formatCompanySnapshotMessage({
                 preferredLocale: responseLocale,
                 reused: true,
-                snapshot: cachedSnapshot,
+                snapshot: personalizedResult.snapshot,
               })
             );
             const { data: cacheMessage, error: cacheMessageError } = await admin
@@ -1021,6 +1051,7 @@ export async function runCareerChatTurn(
             reason: optionalToolString(toolInput.reason),
             userId,
           });
+          documentsChanged ||= Boolean(result.snapshot.document);
           const messageContent = stripPostgresUnsafeChars(
             formatCompanySnapshotMessage({
               preferredLocale: responseLocale,
@@ -1124,6 +1155,7 @@ export async function runCareerChatTurn(
     const profileSnapshot = await buildTalentProfileSnapshot({
       admin,
       conversationId,
+      includeDocuments: documentsChanged,
       userId,
     });
     const completed = options?.completed === true;
@@ -1212,10 +1244,18 @@ export async function runCareerChatTurn(
       })
     ).trim();
   }
-  const normalizedNoMessageContent = normalizeNoMessageContent(
+  let normalizedNoMessageContent = normalizeNoMessageContent(
     assistantTextSource,
     noMessageMarker
   );
+  if (assistantMessagePrefix) {
+    normalizedNoMessageContent = [
+      assistantMessagePrefix,
+      normalizedNoMessageContent,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+  }
   if (!normalizedNoMessageContent && noMessageMarker) {
     const profileSnapshot = await buildTalentProfileSnapshot({
       admin,

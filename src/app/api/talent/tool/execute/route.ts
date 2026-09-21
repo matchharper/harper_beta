@@ -18,6 +18,7 @@ type Body = {
   channel?: string;
   conversationId?: string;
   name?: string;
+  responseLocale?: string;
   toolCallId?: string;
 };
 
@@ -86,8 +87,13 @@ export async function POST(req: NextRequest) {
       name,
       context: {
         admin,
+        channel,
         searchPurpose,
         conversationId,
+        responseLocale:
+          typeof body.responseLocale === "string"
+            ? body.responseLocale
+            : null,
         scheduleAfter: (task) => after(task),
         toolCallId: String(body.toolCallId ?? "").trim() || null,
         userId: user.id,

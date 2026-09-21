@@ -3,6 +3,11 @@ import { supabaseServer } from "@/lib/supabaseServer";
 const BATCH_SIZE = 1_000;
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const ACTIVE_ROLE_STATUSES = new Set(["active", "top_priority"]);
+const ACTIVE_COMPANY_INTRO_STATUSES = new Set([
+  "ready",
+  "awaiting_talent",
+  "connecting",
+]);
 const DETAIL_ROLE_STATUSES = new Set(["active", "paused"]);
 const ACCEPTED_FEEDBACK_VALUES = new Set([
   "accepted",
@@ -84,6 +89,14 @@ type RecommendationRow = {
   talent_id: string;
 };
 
+type CompanyIntroCandidateRow = {
+  company_workspace_id: string;
+  role_id: string;
+  selected_at: string;
+  status: string;
+  talent_id: string;
+};
+
 type OpportunityTagRow = {
   id: string;
   opportunity_id: string | null;
@@ -122,6 +135,7 @@ export type DailyCompanyToolRow = {
 };
 
 export type DailyCompanyRoleStatsRow = DailyCompanyCandidateStats & {
+  companyIntroCount: number;
   roleId: string;
   roleName: string;
   roleStatus: string;
@@ -134,6 +148,8 @@ export type DailyCompanyStatsRow = {
   chatTodayCount: number;
   companyName: string;
   companyWorkspaceId: string;
+  companyIntroCount: number;
+  companyIntroTodayCount: number;
   connectedCount: number;
   connectedTodayCount: number;
   isAuto: boolean;
@@ -166,6 +182,8 @@ export type DailyCompanyStatsTotals = {
   acceptedTodayCount: number;
   activeRoleCount: number;
   chatTodayCount: number;
+  companyIntroCount: number;
+  companyIntroTodayCount: number;
   connectedCount: number;
   connectedTodayCount: number;
   memberCount: number;
@@ -191,6 +209,7 @@ export type DailyCompanyStatsReport = {
 };
 
 export type DailyCompanyStatsSourceRows = {
+  companyIntroCandidates: CompanyIntroCandidateRow[];
   events: CompanyEventRow[];
   loginLogs: LoginLogRow[];
   memberships: CompanyMembershipRow[];
@@ -627,6 +646,43 @@ export function compileDailyCompanyStatsReport(args: {
     ])
   );
 
+  const companyIntroTalentIdsByWorkspaceId = new Map<string, Set<string>>();
+  const companyIntroTodayTalentIdsByWorkspaceId = new Map<
+    string,
+    Set<string>
+  >();
+  const companyIntroTalentIdsByRoleId = new Map<string, Set<string>>();
+  for (const intro of args.rows.companyIntroCandidates) {
+    const workspaceId = text(intro.company_workspace_id);
+    const roleId = text(intro.role_id);
+    const talentId = text(intro.talent_id);
+    if (
+      !ACTIVE_COMPANY_INTRO_STATUSES.has(normalized(intro.status)) ||
+      !talentId ||
+      roleWorkspaceId.get(roleId) !== workspaceId
+    ) {
+      continue;
+    }
+
+    const workspaceTalents =
+      companyIntroTalentIdsByWorkspaceId.get(workspaceId) ?? new Set<string>();
+    workspaceTalents.add(talentId);
+    companyIntroTalentIdsByWorkspaceId.set(workspaceId, workspaceTalents);
+
+    const roleTalents =
+      companyIntroTalentIdsByRoleId.get(roleId) ?? new Set<string>();
+    roleTalents.add(talentId);
+    companyIntroTalentIdsByRoleId.set(roleId, roleTalents);
+
+    if (isInRange(intro.selected_at, startIso, endIso)) {
+      const todayTalents =
+        companyIntroTodayTalentIdsByWorkspaceId.get(workspaceId) ??
+        new Set<string>();
+      todayTalents.add(talentId);
+      companyIntroTodayTalentIdsByWorkspaceId.set(workspaceId, todayTalents);
+    }
+  }
+
   const membersByWorkspaceId = new Map<string, Set<string>>();
   const newMembersTodayByWorkspaceId = new Map<string, Set<string>>();
   const workspaceIdsByMemberId = new Map<string, Set<string>>();
@@ -962,6 +1018,10 @@ export function compileDailyCompanyStatsReport(args: {
       chatTodayCount: chatsToday.chat,
       companyName: text(workspace.company_name) || "회사명 없음",
       companyWorkspaceId: workspaceId,
+      companyIntroCount:
+        companyIntroTalentIdsByWorkspaceId.get(workspaceId)?.size ?? 0,
+      companyIntroTodayCount:
+        companyIntroTodayTalentIdsByWorkspaceId.get(workspaceId)?.size ?? 0,
       connectedCount: counts.connected,
       connectedTodayCount:
         connectedTodayByWorkspaceId.get(workspaceId)?.size ?? 0,
@@ -1007,6 +1067,9 @@ export function compileDailyCompanyStatsReport(args: {
             };
             return {
               acceptedCount: roleCounts.accepted,
+              companyIntroCount:
+                companyIntroTalentIdsByRoleId.get(text(role.role_id))?.size ??
+                0,
               connectedCount: roleCounts.connected,
               pendingConnectionCount: roleCounts.pending,
               rejectedCount: roleCounts.rejected,
@@ -1032,6 +1095,9 @@ export function compileDailyCompanyStatsReport(args: {
         current.acceptedTodayCount + company.acceptedTodayCount,
       activeRoleCount: current.activeRoleCount + company.activeRoleCount,
       chatTodayCount: current.chatTodayCount + company.chatTodayCount,
+      companyIntroCount: current.companyIntroCount + company.companyIntroCount,
+      companyIntroTodayCount:
+        current.companyIntroTodayCount + company.companyIntroTodayCount,
       connectedCount: current.connectedCount + company.connectedCount,
       connectedTodayCount:
         current.connectedTodayCount + company.connectedTodayCount,
@@ -1073,6 +1139,8 @@ export function compileDailyCompanyStatsReport(args: {
       acceptedTodayCount: 0,
       activeRoleCount: 0,
       chatTodayCount: 0,
+      companyIntroCount: 0,
+      companyIntroTodayCount: 0,
       connectedCount: 0,
       connectedTodayCount: 0,
       memberCount: 0,
@@ -1143,6 +1211,7 @@ export async function buildDailyCompanyStatsReport(
     return compileDailyCompanyStatsReport({
       date,
       rows: {
+        companyIntroCandidates: [],
         events: [],
         loginLogs: [],
         memberships: [],
@@ -1165,6 +1234,7 @@ export async function buildDailyCompanyStatsReport(
     messages,
     events,
     toolMessages,
+    companyIntroCandidates,
   ] = await Promise.all([
     fetchAllRows<CompanyRoleRow>((from, to) =>
       (supabaseServer.from("company_roles") as any)
@@ -1218,6 +1288,15 @@ export async function buildDailyCompanyStatsReport(
         .in("message_type", ["chat", "slack"])
         .gte("created_at", startIso)
         .lt("created_at", endIso)
+        .range(from, to)
+    ),
+    fetchAllRows<CompanyIntroCandidateRow>((from, to) =>
+      supabaseServer
+        .from("company_intro_candidates")
+        .select("company_workspace_id,role_id,talent_id,status,selected_at")
+        .in("company_workspace_id", workspaceIds)
+        .in("status", [...ACTIVE_COMPANY_INTRO_STATUSES])
+        .order("selected_at", { ascending: false })
         .range(from, to)
     ),
   ]);
@@ -1277,6 +1356,7 @@ export async function buildDailyCompanyStatsReport(
   return compileDailyCompanyStatsReport({
     date,
     rows: {
+      companyIntroCandidates,
       events,
       loginLogs,
       memberships,
@@ -1324,6 +1404,13 @@ function formatAcceptedLink(company: DailyCompanyStatsRow) {
 function formatCompanyLine(company: DailyCompanyStatsRow) {
   const prefix = `• ${escapeSlackText(company.companyName)} — `;
   const details = [
+    ...(company.companyIntroCount > 0
+      ? [
+          `먼저 제안 ${company.companyIntroCount}명${formatTodayIncrease(
+            company.companyIntroTodayCount
+          )}`,
+        ]
+      : []),
     formatAcceptedLink(company),
     `연결 대기 ${company.pendingConnectionCount}${formatTodayIncrease(
       company.pendingConnectionTodayCount
@@ -1347,6 +1434,9 @@ function formatRoleStatsLine(
     role.roleId
   )}|수락 ${role.acceptedCount}>`;
   const details = [
+    ...(role.companyIntroCount > 0
+      ? [`먼저 제안 ${role.companyIntroCount}명`]
+      : []),
     acceptedLink,
     `연결 대기 ${role.pendingConnectionCount}`,
     `진행 중 ${role.connectedCount}`,
@@ -1368,6 +1458,14 @@ export function formatDailyCompanyStatsSlackMessage(
     report.otherCompanies.length > 0
       ? report.otherCompanies.map(formatCompanyLine)
       : ["• 없음"];
+  const currentCompanyIntro =
+    report.totals.companyIntroCount > 0
+      ? `먼저 제안 ${report.totals.companyIntroCount}명 · `
+      : "";
+  const todayCompanyIntro =
+    report.totals.companyIntroTodayCount > 0
+      ? `먼저 제안 ${report.totals.companyIntroTodayCount}명 · `
+      : "";
   return [
     `🏢 [Daily Company Stats] ${report.date}`,
     "",
@@ -1375,8 +1473,8 @@ export function formatDailyCompanyStatsSlackMessage(
     `- 채팅 수: Slack ${report.totals.slackTodayCount}개 · web ${report.totals.chatTodayCount}개`,
     `- 전체 멤버 수: ${report.totals.memberCount}명 (+오늘 ${report.totals.newMemberTodayCount}명)`,
     `- 전체 active 상태 역할 수: ${report.totals.activeRoleCount}개 (+오늘 새 역할 ${report.totals.newRoleTodayCount}개)`,
-    `- 전체 후보 상태: 수락자 ${report.totals.acceptedCount}명 · 연결 대기 ${report.totals.pendingConnectionCount}명 · 진행 중 ${report.totals.connectedCount}명 · 거절 ${report.totals.rejectedCount}명`,
-    `- 오늘 신규 전환: 수락자 ${report.totals.acceptedTodayCount}명 · 연결 대기 ${report.totals.pendingConnectionTodayCount}명 · 연결됨 ${report.totals.connectedTodayCount}명 · 거절 ${report.totals.rejectedTodayCount}명`,
+    `- 전체 후보 상태: ${currentCompanyIntro}수락자 ${report.totals.acceptedCount}명 · 연결 대기 ${report.totals.pendingConnectionCount}명 · 진행 중 ${report.totals.connectedCount}명 · 거절 ${report.totals.rejectedCount}명`,
+    `- 오늘 신규 전환: ${todayCompanyIntro}수락자 ${report.totals.acceptedTodayCount}명 · 연결 대기 ${report.totals.pendingConnectionTodayCount}명 · 연결됨 ${report.totals.connectedTodayCount}명 · 거절 ${report.totals.rejectedTodayCount}명`,
     `- 지난 7일 신규 전환: 수락자 ${report.totals.rolling7Day.acceptedCount}명 · 연결 대기 ${report.totals.rolling7Day.pendingConnectionCount}명 · 연결됨 ${report.totals.rolling7Day.connectedCount}명 · 거절 ${report.totals.rolling7Day.rejectedCount}명`,
     "",
     `*Slack/직접 서빙 중 · ${report.servedCompanies.length}개*`,
@@ -1420,6 +1518,9 @@ function formatCompanyDetailLines(company: DailyCompanyStatsRow) {
         event.roleName
       )}`
     );
+  }
+  if (company.companyIntroTodayCount > 0) {
+    lines.push(`- 새로 먼저 제안된 후보 ${company.companyIntroTodayCount}명`);
   }
   if (company.pendingConnectionTodayCount > 0) {
     lines.push(

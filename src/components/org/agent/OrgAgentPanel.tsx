@@ -37,6 +37,11 @@ import {
   shouldShowOrgRoleQuickActions,
 } from "@/lib/org/roleQuickActions";
 import { splitRoleCreationCompletionSentences } from "@/lib/org/agent/roleCreationCompletionMessage";
+import {
+  hasReachedOrgActiveRoleLimit,
+  ORG_ACTIVE_ROLE_LIMIT_MESSAGE,
+} from "@/lib/org/roleStatus";
+import { useToastStore } from "@/store/useToastStore";
 import { cn } from "@/lib/utils";
 
 const ORG_AGENT_COMPOSER_DEFAULT_HEIGHT_PX = 148;
@@ -97,6 +102,7 @@ export function OrgAgentChatSurface({
   header?: ReactNode;
 }) {
   const { bootstrap, currentUser, user, workspace } = useOrgWorkspace();
+  const addToast = useToastStore((state) => state.add);
   const workspaceId = workspace.workspaceId;
   const mode =
     purpose === "role-creation"
@@ -105,6 +111,8 @@ export function OrgAgentChatSurface({
         ? "role"
         : "general";
   const initialRoleCreation = purpose === "role-creation" && !roleId;
+  const roleCreationBlocked =
+    initialRoleCreation && hasReachedOrgActiveRoleLimit(bootstrap.roles);
   const history = useOrgAgentMessageHistory({
     enabled: Boolean(workspaceId) && (mode === "general" || Boolean(roleId)),
     mode,
@@ -521,6 +529,12 @@ export function OrgAgentChatSurface({
             isStreaming={chat.isStreaming}
             model={model}
             onModelChange={handleModelChange}
+            onSubmitBlocked={() =>
+              addToast({
+                message: ORG_ACTIVE_ROLE_LIMIT_MESSAGE,
+                variant: "error",
+              })
+            }
             onSend={({ attachments, mentions, message }) => {
               setStickToBottom(true);
               return chat.sendMessage({
@@ -535,6 +549,7 @@ export function OrgAgentChatSurface({
               });
             }}
             roleId={roleId}
+            submitBlocked={roleCreationBlocked}
             workspaceId={workspaceId}
           />
         </div>

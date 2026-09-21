@@ -136,7 +136,7 @@ const CareerCallNoteDetail = ({
         </nav>
       </div>
 
-      <article className="min-h-[480px] rounded-xl border border-neutral-1000-a05 bg-bg-floating px-5 py-6 shadow-sm sm:px-8 sm:py-8 md:min-h-[calc(100svh-180px)]">
+      <article className="relative min-h-[480px] rounded-xl border border-neutral-1000-a05 bg-bg-floating px-5 py-6 shadow-sm sm:px-6 sm:py-6 md:min-h-[calc(100svh-180px)]">
         {loading ? (
           <div
             aria-live="polite"
@@ -162,22 +162,32 @@ const CareerCallNoteDetail = ({
           </div>
         ) : callNote ? (
           <div className="mx-auto w-full max-w-[800px]">
+            <div className="absolute top-3 right-3 flex shrink-0 flex-wrap items-start justify-end gap-2">
+              {/* <Badge
+                size="md"
+                variant="faded"
+                radius="full"
+                icon={<LockKeyhole className="h-3.5 w-3.5" />}
+                className="h-auto min-h-7 w-fit shrink-0 flex-row flex-nowrap gap-1.5 px-2.5 py-1 leading-4 whitespace-nowrap"
+              >
+                {t("career.profile.documents.call_note_read_only", "읽기 전용")}
+              </Badge> */}
+            </div>
             <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
-                <h1 className="text-lg font-medium leading-6 text-neutral-primary sm:text-xl">
+                <h1 className="text-base font-medium leading-5 text-neutral-primary sm:text-lg">
                   {title}
                 </h1>
                 <p className="mt-1.5 text-[13px] text-neutral-soft">
                   {[dateLabel, durationLabel].filter(Boolean).join(" · ")}
                 </p>
-              </div>
-              <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                 <MuteButton
                   type="button"
                   variant="primary"
                   size="sm"
                   disabled={!onStartCallMode || callStartPending}
                   onClick={handleResumeCall}
+                  className="mt-4"
                 >
                   {callStartPending ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -189,18 +199,6 @@ const CareerCallNoteDetail = ({
                     "콜 이어서 하기"
                   )}
                 </MuteButton>
-                <Badge
-                  size="md"
-                  variant="faded"
-                  radius="full"
-                  icon={<LockKeyhole className="h-3.5 w-3.5" />}
-                  className="h-auto min-h-7 w-fit shrink-0 flex-row flex-nowrap gap-1.5 px-2.5 py-1 leading-4 whitespace-nowrap"
-                >
-                  {t(
-                    "career.profile.documents.call_note_read_only",
-                    "읽기 전용"
-                  )}
-                </Badge>
               </div>
             </header>
 
@@ -209,7 +207,7 @@ const CareerCallNoteDetail = ({
                 <h2 className="text-sm text-neutral-primary">
                   {t("career.profile.documents.call_note_key_points", "요약")}
                 </h2>
-                <ul className="mt-3 grid gap-3 text-sm leading-6 text-neutral-primary">
+                <ul className="mt-3 grid gap-2 text-sm leading-6 text-neutral-primary">
                   {keyPoints.map((point, index) => (
                     <li key={`${index}-${point}`} className="flex gap-2.5">
                       <span

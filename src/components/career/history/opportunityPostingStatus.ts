@@ -63,7 +63,7 @@ export function getOpportunityPostingStatus(
   if (isCareerHistoryOpportunityExpired(item)) {
     return {
       isExpired: true,
-      label: t("career.history.posting.closed", "지난 공고."),
+      label: t("career.history.posting.closed", "지난 포지션."),
     };
   }
 

@@ -135,6 +135,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const mockInterviewOpportunityIdRef = useRef<string | null>(null);
+  const callSessionIdRef = useRef<string | null>(null);
   const connectPromiseRef = useRef<Promise<boolean> | null>(null);
   const connectAttemptIdRef = useRef(0);
   const pendingConnectAbortControllerRef = useRef<AbortController | null>(null);
@@ -247,7 +248,11 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
       void fetchWithAuth("/api/live/usage", {
         method: "POST",
         keepalive: true,
-        body: JSON.stringify({ conversationId, ...payload }),
+        body: JSON.stringify({
+          callSessionId: callSessionIdRef.current,
+          conversationId,
+          ...payload,
+        }),
       }).catch((error) => {
         console.warn("[LiveSession] Usage log failed:", error);
       });
@@ -750,6 +755,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
 
       mockInterviewOpportunityIdRef.current =
         options?.mockInterviewOpportunityId?.trim() || null;
+      callSessionIdRef.current = options?.callSessionId?.trim() || null;
       setIsConnecting(true);
       lastConnectFailureRef.current = null;
       latestAudioSecondsRef.current = null;
@@ -885,6 +891,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
             method: "POST",
             signal: abortController.signal,
             body: JSON.stringify({
+              callSessionId: options?.callSessionId ?? undefined,
               conversationId,
               conversationStarterId:
                 options?.conversationStarterId ?? undefined,
@@ -1085,6 +1092,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
     isConnecting,
     isAssistantSpeaking,
     isToolExecuting,
+    activeToolNames: [] as string[],
     partialTranscript,
     connectionStatus,
     connect,

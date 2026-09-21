@@ -10,6 +10,7 @@ import {
   wasRoleCreationConfirmationHandled,
 } from "@/lib/org/agent/roleCreationConfirmationState";
 import {
+  fetchOrgActiveRoleLimitState,
   fetchRoleCreationState,
   getRoleCreationMissingFields,
   type RoleCreationConversationMetadata,
@@ -25,6 +26,7 @@ import type {
   OrgRoleCreationChoice,
 } from "@/lib/org/agent/types";
 import { OrgHttpError } from "@/lib/org/server";
+import { ORG_ACTIVE_ROLE_LIMIT_MESSAGE } from "@/lib/org/roleStatus";
 import { notifyOrgRoleCreatedSlack } from "@/lib/org/slack";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type { Json } from "@/types/database.types";
@@ -319,6 +321,16 @@ export async function confirmRoleCreationChoice(args: {
       throw new OrgHttpError(409, "This confirmation is being processed");
     }
     throw new OrgHttpError(409, "This confirmation was already handled");
+  }
+
+  if (args.decision === "yes" && state.role.status !== "active") {
+    const limitState = await fetchOrgActiveRoleLimitState({
+      admin,
+      workspaceId,
+    });
+    if (limitState.limitReached) {
+      throw new OrgHttpError(409, ORG_ACTIVE_ROLE_LIMIT_MESSAGE);
+    }
   }
 
   const claimedMetadata = await claimConfirmation({

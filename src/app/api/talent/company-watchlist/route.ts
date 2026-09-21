@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isPostingRoleId } from "@/lib/career/postingLinks";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   fetchTalentSetting,
@@ -40,9 +41,22 @@ export async function GET(req: NextRequest) {
     }
 
     const admin = getTalentSupabaseAdmin();
-    const companyDbId =
+    let companyDbId =
       parseCompanyDbIdParam(req.nextUrl.searchParams.get("companyDbId")) ??
       parseCompanyDbIdParam(req.nextUrl.searchParams.get("company"));
+    const roleId = req.nextUrl.searchParams.get("roleId");
+    if (!companyDbId && roleId) {
+      if (!isPostingRoleId(roleId))
+        return NextResponse.json({ error: "Invalid role" }, { status: 400 });
+      const { data: role, error } = await admin
+        .from("company_roles")
+        .select("company_workspace:company_workspace!inner(company_db_id)")
+        .eq("role_id", roleId)
+        .maybeSingle();
+      if (error) throw error;
+      companyDbId = role?.company_workspace?.company_db_id ?? null;
+      if (!companyDbId) return NextResponse.json({ item: null, ok: true });
+    }
     const preferredLocale =
       (await fetchTalentSetting({ admin, userId: user.id }))
         ?.preferred_locale ??

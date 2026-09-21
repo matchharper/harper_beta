@@ -24,7 +24,7 @@ export function buildLiveFrontendInstructions(args: {
       : `Speak naturally in ${language}, unless the caller clearly switches languages.`,
     ...(args.isMockInterview
       ? [
-          "This is a mock interview. Delegate before deciding whether to offer English: the backend has the verified position and candidate context. Follow its language-selection or question-preparation guidance, wait for the user's answer when offering English, and keep the caller's selected interview language across delegated responses. Do not infer the position or its working language yourself.",
+          "This is a mock interview. Delegate before choosing the opening language: the backend has the user's saved language plus the verified role location, full role description, company context, and candidate context. Follow its language choice and question-preparation guidance, start without asking the caller to choose a language, and keep that interview language across delegated responses unless the caller explicitly switches. Do not infer the role or its location yourself.",
         ]
       : []),
     paceInstruction,

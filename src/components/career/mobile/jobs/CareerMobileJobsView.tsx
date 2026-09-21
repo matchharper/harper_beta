@@ -62,6 +62,7 @@ import type {
 import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
 import { normalizeHarperPublicImageUrl } from "@/lib/imageUrl";
 import CareerJobLinkImportButton from "@/components/career/history/CareerJobLinkImportButton";
+import HistoryOpportunityRoleActions from "@/components/career/history/HistoryOpportunityRoleActions";
 
 type CareerMobileJobsViewProps = {
   onChangeWorkspaceTab: (tab: CareerWorkspaceTab) => void;
@@ -94,6 +95,7 @@ type CareerMobileJobsViewProps = {
   detailOpportunity?: CareerHistoryOpportunity | null;
   onCloseDetail?: () => void;
   onOpenCompanyInfo?: (opportunity: CareerHistoryOpportunity) => void;
+  onOpenChat?: () => void;
   onOpenDetail?: (opportunity: CareerHistoryOpportunity) => void;
   onOpenLink?: (
     opportunity: CareerHistoryOpportunity,
@@ -156,6 +158,7 @@ export default function CareerMobileJobsView({
   detailOpportunity,
   onCloseDetail,
   onOpenCompanyInfo,
+  onOpenChat,
   onOpenDetail,
   onOpenLink,
   onOpenOpportunityInfo,
@@ -264,17 +267,21 @@ export default function CareerMobileJobsView({
     >
       <div className="relative flex flex-1 flex-col">
         {!isInboxTab ? (
-          <div className="sticky top-0 z-20 flex flex-col gap-2 bg-bg-basement px-3 py-2">
-            <TabBoxes
-              activeValue={tab}
-              items={statusTabItems}
-              onValueChange={setTab}
-              size="xs"
-              className="[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-            />
-            <div className="flex justify-end">
-              <CareerJobLinkImportButton />
+          <div className="sticky top-0 z-20 flex flex-col bg-transparent">
+            <div className="bg-bg-basement px-3 py-2">
+              <TabBoxes
+                activeValue={tab}
+                items={statusTabItems}
+                onValueChange={setTab}
+                size="xs"
+                className="[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+              />
             </div>
+            {!detailOpportunity ? (
+              <div className="flex justify-end bg-transparent px-3 py-2">
+                <CareerJobLinkImportButton />
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -303,6 +310,7 @@ export default function CareerMobileJobsView({
                   <MobileOpportunityDetailPanel
                     opportunity={selectedOpportunity}
                     onOpenCompanyInfo={onOpenCompanyInfo}
+                    onOpenChat={onOpenChat}
                     onOpenOpportunityInfo={onOpenOpportunityInfo}
                   />
                 </motion.div>
@@ -329,6 +337,7 @@ export default function CareerMobileJobsView({
                 )}
                 onBack={onCloseDetail ?? (() => undefined)}
                 onOpenCompanyInfo={onOpenCompanyInfo}
+                onOpenChat={onOpenChat}
                 onOpenLink={(url) => onOpenLink?.(detailOpportunity, url)}
                 onOpenOpportunityInfo={
                   onOpenOpportunityInfo ?? (() => undefined)
@@ -377,10 +386,12 @@ export default function CareerMobileJobsView({
 function MobileOpportunityDetailPanel({
   opportunity,
   onOpenCompanyInfo,
+  onOpenChat,
   onOpenOpportunityInfo,
 }: {
   opportunity: CareerHistoryOpportunity;
   onOpenCompanyInfo?: (opportunity: CareerHistoryOpportunity) => void;
+  onOpenChat?: () => void;
   onOpenOpportunityInfo?: (type: CareerOpportunityType) => void;
 }) {
   return (
@@ -408,6 +419,11 @@ function MobileOpportunityDetailPanel({
           onOpenCompanyInfo={onOpenCompanyInfo}
         />
         <RoleDescriptionSection opportunity={opportunity} />
+        <HistoryOpportunityRoleActions
+          className="mt-2 w-full"
+          item={opportunity}
+          onOpenChat={onOpenChat}
+        />
       </div>
     </section>
   );

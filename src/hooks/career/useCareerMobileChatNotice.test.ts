@@ -10,6 +10,7 @@ const update = (
     conversationKey: "conversation-1",
     latestKey: null,
     open: false,
+    pending: false,
     ready: true,
     visibleMs: 4_800,
     ...args,
@@ -70,6 +71,63 @@ test("shows the first assistant reply for a conversation that started empty", ()
   const snapshot = store.getSnapshot();
   assert.equal(snapshot.promptKey, "first-assistant-message");
   assert.equal(snapshot.unreadKey, "first-assistant-message");
+});
+
+test("waits for the whole assistant response to settle before showing a notice", () => {
+  const store = new MobileChatNoticeStore();
+
+  update(store, {
+    latestKey: "existing-assistant-message",
+  });
+  update(store, {
+    latestKey: "streamed-assistant-message",
+    pending: true,
+  });
+
+  assert.deepEqual(store.getSnapshot(), {
+    conversationKey: "conversation-1",
+    initialized: true,
+    lastSeenKey: "existing-assistant-message",
+    promptKey: null,
+    promptVisibleUntil: null,
+    unreadKey: null,
+  });
+
+  update(store, {
+    latestKey: "streamed-assistant-message",
+    pending: false,
+  });
+
+  const snapshot = store.getSnapshot();
+  assert.equal(snapshot.lastSeenKey, "streamed-assistant-message");
+  assert.equal(snapshot.promptKey, "streamed-assistant-message");
+  assert.equal(snapshot.unreadKey, "streamed-assistant-message");
+});
+
+test("does not notify after a pending response was already seen while open", () => {
+  const store = new MobileChatNoticeStore();
+
+  update(store, {
+    latestKey: "existing-assistant-message",
+  });
+  update(store, {
+    latestKey: "streamed-assistant-message",
+    open: true,
+    pending: true,
+  });
+  update(store, {
+    latestKey: "streamed-assistant-message",
+    pending: false,
+  });
+
+  assert.deepEqual(store.getSnapshot(), {
+    conversationKey: "conversation-1",
+    initialized: true,
+    lastSeenKey: "streamed-assistant-message",
+    promptKey: null,
+    promptVisibleUntil: null,
+    unreadKey: null,
+  });
 });
 
 test("re-baselines without a notice when the conversation changes", () => {

@@ -4495,10 +4495,7 @@ function formatAnswerDraft(args: {
     return careerT(
       locale,
       "career.job_posting_recommendations.answer.empty",
-      [
-        "지금 조건으로 바로 추천할 만한 external 채용공고를 찾지 못했습니다.",
-        "직무명, 지역, 근무 형태 중 하나를 조금 넓히면 다시 찾아볼 수 있습니다.",
-      ].join("\n")
+      "지금 조건으로 바로 추천할 만한 외부 포지션을 찾지 못했습니다.\n직무명, 지역, 근무 형태 중 하나를 조금 넓히면 다시 찾아볼 수 있습니다."
     );
   }
 
@@ -4524,7 +4521,7 @@ function formatAnswerDraft(args: {
       careerT(
         locale,
         "career.job_posting_recommendations.answer.supplemental_included",
-        "요청에 바로 맞는 공고가 {directCount}개라서, 완전히 일치하지는 않지만 좋은 공고 {supplementalCount}개를 함께 포함했습니다.",
+        "요청에 바로 맞는 포지션이 {directCount}개라서, 완전히 일치하지는 않지만 좋은 포지션 {supplementalCount}개를 함께 포함했습니다.",
         {
           values: {
             directCount,
@@ -4544,7 +4541,7 @@ function formatAnswerDraft(args: {
       careerT(
         locale,
         "career.job_posting_recommendations.answer.requested_count_trimmed",
-        "요청하신 {requestedCount}개를 한 번에 모두 보여드리기보다는, 지금은 바로 볼 만한 최대 {finalCount}개만 먼저 골랐습니다. 이후 주기 추천에서는 한 번에 최대 {batchLimit}개씩 더 넓게 찾아보되, 기준에 못 미치는 공고는 넣지 않겠습니다.",
+        "요청하신 {requestedCount}개를 한 번에 모두 보여드리기보다는, 지금은 바로 볼 만한 최대 {finalCount}개만 먼저 골랐습니다. 이후 주기 추천에서는 한 번에 최대 {batchLimit}개씩 더 넓게 찾아보되, 기준에 못 미치는 포지션은 넣지 않겠습니다.",
         {
           values: {
             batchLimit: CONTINUATION_RECOMMENDATION_BATCH_LIMIT,

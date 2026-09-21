@@ -10,6 +10,7 @@ import { buildReadTalentResponseGuide } from "@/lib/org/agent/talentResponseGuid
 import {
   compactOrgProgressMetadata,
   getOrgAgentPipelineBucket,
+  humanizeOrgCompanyIntroStatus,
   humanizeOrgEmploymentType,
   humanizeOrgMembershipRole,
   humanizeOrgProgressKind,
@@ -51,6 +52,7 @@ export type OrgAgentPipelineRoleCounts = {
   active: number;
   complete: boolean;
   ended: number;
+  intro: number;
   waiting: number;
 };
 
@@ -328,6 +330,10 @@ function compactBoardItem(
       talentId: item.talentId,
     },
     fitSummary: clip(item.fitSummary, 400) || null,
+    capabilities: item.capabilities,
+    companyIntroStatus: item.companyIntro
+      ? humanizeOrgCompanyIntroStatus(item.companyIntro)
+      : null,
     recommendationId: item.recommendationId,
     recommendedAt: item.recommendedAt,
     role: {
@@ -335,6 +341,7 @@ function compactBoardItem(
       roleId: item.roleId,
     },
     stage: item.stage,
+    source: item.source,
     updatedAt: item.updatedAt,
   };
 }
@@ -396,7 +403,7 @@ export async function fetchOrgAgentPipelineSnapshot(args: {
   const emptyCounts = new Map<string, OrgAgentPipelineRoleCounts>(
     roleIds.map((roleId) => [
       roleId,
-      { active: 0, complete: true, ended: 0, waiting: 0 },
+      { active: 0, complete: true, ended: 0, intro: 0, waiting: 0 },
     ])
   );
   if (roleIds.length === 0) {
@@ -466,7 +473,13 @@ export async function fetchOrgAgentPipelineSnapshot(args: {
   const countsByRoleId = new Map<string, OrgAgentPipelineRoleCounts>(
     roleIds.map((roleId) => [
       roleId,
-      { active: 0, complete: countsComplete, ended: 0, waiting: 0 },
+      {
+        active: 0,
+        complete: countsComplete,
+        ended: 0,
+        intro: 0,
+        waiting: 0,
+      },
     ])
   );
   for (const item of board.items) {
@@ -1916,6 +1929,7 @@ export async function readOrgAgentRole(args: {
     active: 0,
     complete: false,
     ended: 0,
+    intro: 0,
     waiting: 0,
   };
   const pipelineResult = {
@@ -1939,6 +1953,10 @@ export async function readOrgAgentRole(args: {
     people: {
       hasMore: peopleOffset + peopleItems.length < filteredItems.length,
       items: peopleItems.map((item) => ({
+        capabilities: item.capabilities,
+        companyIntroStatus: item.companyIntro
+          ? humanizeOrgCompanyIntroStatus(item.companyIntro)
+          : null,
         currentStageId: item.stage,
         currentStageLabel: humanizeOrgStage(
           item.stage,
@@ -1953,6 +1971,7 @@ export async function readOrgAgentRole(args: {
         headline: item.talent.headline,
         name: item.talent.name ?? item.talent.email ?? item.talentId,
         recommendedAt: item.recommendedAt,
+        source: item.source,
         stage: humanizeOrgStage(
           item.stage,
           snapshot.availableStages.find(
@@ -1986,6 +2005,7 @@ export async function readOrgAgentRole(args: {
       text: compactProgressText(row) || null,
     })),
     stageCounts: [
+      { count: bucketCounts.intro, stage: "먼저 제안 가능한 후보" },
       { count: bucketCounts.waiting, stage: "연결 대기" },
       { count: bucketCounts.active, stage: "진행 중" },
       { count: bucketCounts.ended, stage: "프로세스 종료" },

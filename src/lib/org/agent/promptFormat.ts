@@ -170,6 +170,7 @@ function formatTalentSearchResult(result: Record<string, any>) {
     (item: any) =>
       Array.isArray(item?.profileMatches) && item.profileMatches.length > 0
   );
+  const hasCompanyProposals = items.some((item: any) => item?.companyIntroStatus);
   return [
     "status=ok",
     pageLine(result),
@@ -186,6 +187,7 @@ function formatTalentSearchResult(result: Record<string, any>) {
           "current_company_stage_id",
           "current_company_stage",
           "fit",
+          ...(hasCompanyProposals ? ["proposal_status"] : []),
           ...(hasProfileMatches ? ["profile_matches"] : []),
           "recommended",
         ],
@@ -200,6 +202,7 @@ function formatTalentSearchResult(result: Record<string, any>) {
           item?.currentCompanyStage?.label ??
             humanizeOrgStage(item?.stage, item?.stageLabel),
           item?.fitSummary,
+          ...(hasCompanyProposals ? [item?.companyIntroStatus] : []),
           ...(hasProfileMatches
             ? [
                 Array.isArray(item?.profileMatches)
@@ -219,6 +222,7 @@ function formatTalentSearchResult(result: Record<string, any>) {
           100,
           100,
           400,
+          ...(hasCompanyProposals ? [100] : []),
           ...(hasProfileMatches ? [500] : []),
           10,
         ]
@@ -1016,6 +1020,7 @@ function formatRoleResult(result: Record<string, any>) {
           "current_stage_id",
           "stage",
           "fit",
+          "proposal_status",
           "recommended",
           "updated",
         ],
@@ -1027,10 +1032,11 @@ function formatRoleResult(result: Record<string, any>) {
           item?.currentStageId,
           item?.currentStageLabel ?? item?.stage,
           item?.fitSummary,
+          item?.companyIntroStatus,
           formatPromptDate(item?.recommendedAt),
           formatPromptDate(item?.updatedAt),
         ]),
-        [100, 160, 180, 240, 100, 100, 500, 10, 10]
+        [100, 160, 180, 240, 100, 100, 500, 100, 10, 10]
       )
     ),
     formatPromptSection(

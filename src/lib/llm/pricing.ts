@@ -104,6 +104,12 @@ const STATIC_MODEL_PRICING_USD_PER_MTOK: Record<string, LlmModelPricing> = {
     outputUsdPerMtok: 0.25,
     pricingSource: "openrouter_pricing_2026_09_01",
   },
+  "meta/muse-spark-1.3": {
+    cacheReadUsdPerMtok: 0.15,
+    inputUsdPerMtok: 1.25,
+    outputUsdPerMtok: 4.25,
+    pricingSource: "openrouter_pricing_2026_09_15",
+  },
   "openrouter:z-ai/glm-5.3-flash": {
     cacheReadUsdPerMtok: 0.015,
     effectiveModel: "z-ai/glm-5.3-flash",

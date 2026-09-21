@@ -14,6 +14,7 @@ type RealtimeControls = {
   partialTranscript: string;
   connectionStatus: "connected" | "reconnecting" | "disconnected";
   connect: (options?: {
+    callSessionId?: string | null;
     conversationStarterId?: CareerConversationStarterId | null;
     initialResponseInstruction?: string | null;
     internalCallRequestId?: string | null;
@@ -413,6 +414,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   // land on a dead call screen.
   const startCallMode = useCallback(
     async (options?: {
+      callSessionId?: string | null;
       conversationStarterId?: CareerConversationStarterId | null;
       initialResponseInstruction?: string | null;
       internalCallRequestId?: string | null;
@@ -430,6 +432,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
       if (realtimeControls) {
         realtimeControls.disconnect();
         const connected = await realtimeControls.connect({
+          callSessionId: options?.callSessionId ?? null,
           conversationStarterId: options?.conversationStarterId ?? null,
           initialResponseInstruction:
             options?.initialResponseInstruction ?? null,

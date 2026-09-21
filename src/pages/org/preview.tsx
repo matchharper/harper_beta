@@ -126,6 +126,15 @@ const previewBootstrap: OrgBootstrapResponse = {
 const previewInbox: OrgBoardResponse = {
   items: [
     {
+      capabilities: {
+        contactCandidate: true,
+        moveStage: true,
+        pass: false,
+        requestIntro: false,
+        scheduleInterview: true,
+        viewResume: true,
+      },
+      companyIntro: null,
       criteriaEvaluations: [
         {
           content: "AI 제품을 초기 단계부터 설계하고 출시한 경험이 있습니다.",
@@ -146,6 +155,7 @@ const previewInbox: OrgBoardResponse = {
       processClosureNoticeUnresolved: false,
       roleId: "preview-role-design",
       roleName: "Founding Product Designer",
+      source: "recommendation",
       stage: "pending_connection",
       stageTag: null,
       talent: {

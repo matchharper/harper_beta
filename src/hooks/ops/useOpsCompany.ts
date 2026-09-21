@@ -9,8 +9,8 @@ import type {
   OpsCompanyActivityResponse,
   OpsCompanyConversationsResponse,
   OpsCompanyMembersResponse,
-  OpsCompanyRoleAutomationUpdateInput,
-  OpsCompanyRoleAutomationUpdateResponse,
+  OpsCompanyRoleCompanyFirstSearchUpdateInput,
+  OpsCompanyRoleCompanyFirstSearchUpdateResponse,
   OpsCompanyWaitingResponse,
   OpsCompanyWorkspaceUpdateInput,
   OpsCompanyWorkspaceUpdateResponse,
@@ -21,7 +21,7 @@ import { queryKeys } from "@/lib/queryKeys";
 export const OPS_COMPANY_ACTIVITY_PAGE_SIZE = 20;
 export const OPS_COMPANY_CONVERSATION_PAGE_SIZE = 20;
 
-export type OpsCompanyRole = OrgRole & { isAuto: boolean };
+export type OpsCompanyRole = OrgRole & { isCompanyFirstSearch: boolean };
 
 export type OpsCompanyBoardResponse = {
   board: OrgBoardResponse;
@@ -135,12 +135,12 @@ export function useOpsCompanyBoard(args: {
   });
 }
 
-export function useUpdateOpsCompanyRoleAutomation() {
+export function useUpdateOpsCompanyRoleCompanyFirstSearch() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: OpsCompanyRoleAutomationUpdateInput) =>
-      fetchWithInternalAuth<OpsCompanyRoleAutomationUpdateResponse>(
+    mutationFn: (input: OpsCompanyRoleCompanyFirstSearchUpdateInput) =>
+      fetchWithInternalAuth<OpsCompanyRoleCompanyFirstSearchUpdateResponse>(
         "/api/internal/company/roles/automation",
         {
           method: "PATCH",
@@ -159,7 +159,10 @@ export function useUpdateOpsCompanyRoleAutomation() {
               ...current,
               roles: current.roles.map((role) =>
                 role.roleId === input.roleId
-                  ? { ...role, isAuto: input.isAuto }
+                  ? {
+                      ...role,
+                      isCompanyFirstSearch: input.isCompanyFirstSearch,
+                    }
                   : role
               ),
             }

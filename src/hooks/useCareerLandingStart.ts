@@ -11,6 +11,7 @@ import {
   buildCareerUtmLandingLogType,
   normalizeCareerUtmSource,
   persistCareerExplicitUtmSource,
+  readCareerSourceFromReferrer,
   readCareerUtmParamsFromSearch,
   readCareerUtmSourceFromQuery,
   readCareerUtmSourceFromSearch,
@@ -148,6 +149,8 @@ export function useCareerLandingStart({
     const querySource = readCareerUtmSourceFromQuery(router.query);
     if (querySource) return querySource;
     if (typeof window === "undefined") return CAREER_UTM_DEFAULT_SOURCE;
+    const referrerSource = readCareerSourceFromReferrer(document.referrer);
+    if (referrerSource) return referrerSource;
     return (
       normalizeCareerUtmSource(
         localStorage.getItem(CAREER_UTM_SOURCE_STORAGE_KEY)
@@ -221,11 +224,12 @@ export function useCareerLandingStart({
     if (authLoading || user) return;
 
     const querySource = readCareerUtmSourceFromSearch(window.location.search);
+    const referrerSource = readCareerSourceFromReferrer(document.referrer);
     const savedSource = normalizeCareerUtmSource(
       localStorage.getItem(CAREER_UTM_SOURCE_STORAGE_KEY)
     );
     const resolvedSource =
-      querySource ?? savedSource ?? CAREER_UTM_DEFAULT_SOURCE;
+      querySource ?? referrerSource ?? savedSource ?? CAREER_UTM_DEFAULT_SOURCE;
     const utmParams = readCareerUtmParamsFromSearch(window.location.search);
     const utmLogType = buildCareerUtmLandingLogType(utmParams);
     const addUtmLog = (localId: string, source: string) => {
@@ -297,14 +301,15 @@ export function useCareerLandingStart({
       return;
     }
 
-    if (savedId && querySource && querySource !== savedSource) {
+    const externalSource = querySource ?? referrerSource;
+    if (savedId && externalSource && externalSource !== savedSource) {
       localStorage.setItem(
         CAREER_LANDING_LAST_VISIT_AT_KEY,
         Date.now().toString()
       );
       void addLandingLog("new_session", {
         localId: savedId,
-        source: querySource,
+        source: externalSource,
       });
     }
   }, [

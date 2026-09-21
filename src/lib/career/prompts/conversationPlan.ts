@@ -15,7 +15,10 @@ import {
   buildMockInterviewPromptPlan,
   type MockInterviewContext,
 } from "./cases/mockInterviewPrompts";
-import { CAREER_VOICE_CALL_MODE_PROMPT } from "@/lib/career/prompts/cases/voicePrompts";
+import {
+  CAREER_FOCUSED_VOICE_CALL_PROMPT,
+  CAREER_VOICE_CALL_MODE_PROMPT,
+} from "@/lib/career/prompts/cases/voicePrompts";
 import {
   formatCareerPromptKoreanDateTime,
   interpolateCareerPromptText,
@@ -299,7 +302,9 @@ export function buildCareerConversationPromptPlan(args: {
   // 통화중일 때
   if (isVoiceCall) {
     const voiceRules = [
-      CAREER_VOICE_CALL_MODE_PROMPT,
+      conversationMode === "career_coaching"
+        ? CAREER_FOCUSED_VOICE_CALL_PROMPT
+        : CAREER_VOICE_CALL_MODE_PROMPT,
       getCareerInterruptHandlingPrompt(
         args.currentPreferences?.preferredLocale
       ),
@@ -327,7 +332,7 @@ export function buildCareerConversationPromptPlan(args: {
     }
 
     if (
-      conversationMode === "preference_update" ||
+      conversationMode === "career_coaching" ||
       conversationMode === "match_quality" ||
       conversationMode === "career_check_in"
     )

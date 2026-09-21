@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { resolveCareerTextChatModel } from "@/lib/career/textChatModelConfig";
+import { OPENROUTER_MUSE_SPARK_13_MODEL } from "@/lib/llm/modelConfig";
 
 process.env.OPENAI_API_KEY ||= "test-openai-key";
 process.env.OPENROUTER_API_KEY ||= "test-openrouter-key";
@@ -12,11 +14,15 @@ function asyncStream(items: unknown[]) {
   })();
 }
 
-test("routes DeepSeek V4 Flash 0731 to OpenRouter", async () => {
+test("routes OpenRouter catalog models to OpenRouter", async () => {
   const { getLlmChatProviderForModel, supportsSamplingParametersForModel } =
     await loadLlm();
   const model = "deepseek/deepseek-v4-flash-0731";
   assert.equal(getLlmChatProviderForModel(model), "openrouter");
+  assert.equal(
+    getLlmChatProviderForModel("meta/muse-spark-1.3"),
+    "openrouter"
+  );
   assert.equal(supportsSamplingParametersForModel(model), true);
 });
 
@@ -62,6 +68,38 @@ test("routes Z.ai models to OpenRouter with explicit reasoning effort", async ()
     allow_fallbacks: false,
     only: ["z-ai"],
   });
+});
+
+test("sends the Career Muse option to OpenRouter with xhigh reasoning", async () => {
+  const { createChatCompletionWithFallback, openrouterClient } =
+    await loadLlm();
+  const modelConfig = resolveCareerTextChatModel(
+    OPENROUTER_MUSE_SPARK_13_MODEL
+  );
+  const completions = openrouterClient.chat.completions as any;
+  const originalCreate = completions.create;
+  let receivedBody: Record<string, any> | null = null;
+  completions.create = async (body: Record<string, any>) => {
+    receivedBody = body;
+    return { choices: [{ message: { content: "ok" } }] };
+  };
+
+  try {
+    await createChatCompletionWithFallback({
+      buildRequest: () => ({ messages: [{ content: "hello", role: "user" }] }),
+      chatCompletionReasoning: modelConfig.chatCompletionReasoningEffort
+        ? { reasoningEffort: modelConfig.chatCompletionReasoningEffort }
+        : undefined,
+      model: modelConfig.model,
+    });
+  } finally {
+    completions.create = originalCreate;
+  }
+
+  assert.ok(receivedBody);
+  const requestBody = receivedBody as unknown as Record<string, any>;
+  assert.equal(requestBody.model, OPENROUTER_MUSE_SPARK_13_MODEL);
+  assert.deepEqual(requestBody.reasoning, { effort: "xhigh" });
 });
 
 test("preserves OpenRouter reasoning details across a tool call", async () => {
