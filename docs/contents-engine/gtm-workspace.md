@@ -1,8 +1,9 @@
 # GTM 웹 워크스페이스 구현 계약
 
-2026-09-21. 운영 Supabase의 GTM workspace·operations·메일·인증 통합 마이그레이션과 로컬 화면 연결을 완료했다.
-웹 코드는 아직 배포하지 않았으며, 로컬 주소는 `http://localhost:3000/ops/gtm`이다.
-Notion은 운영 DB 인증 전환과 웹 코드의 배포 전 상태를 구분해 갱신했다.
+2026-09-21. 운영 Supabase의 GTM workspace·operations·메일·인증 통합 마이그레이션과
+웹 배포를 완료했다. 운영 주소는 `https://matchharper.com/ops/gtm`이다.
+Notion의 [GTM Workspace 운영 가이드](https://app.notion.com/p/3e27277d26df81208635e61eda1a9d85)는
+현재 운영 동작을 기준으로 한다.
 
 ## 원칙
 
@@ -82,8 +83,9 @@ Contents Engine migration 이후 운영에 추가된 가격 전략/콘텐츠 Vie
 
 2026-09-21 사용자의 명시적 DB 적용 승인으로 workspace와 operations 두 마이그레이션을
 운영 Supabase에 하나의 트랜잭션으로 적용하고 이력을 기록했다. 기존 함수 정의는 적용 전
-별도로 보관했다. main push와 웹 코드 배포는 실행하지 않았다.
-웹 코드 배포에는 별도 명시적 배포 요청이 필요하다.
+별도로 보관했다. 같은 날 `main`의 웹 코드를 Vercel production에 배포하고 운영 주소의
+응답과 `gtm_workspace('catalog', '{}')`의 18개 시트·21개 원본을 확인했다. 이 완료 기록만으로
+마이그레이션을 다시 적용하지 않는다.
 
 ## 검증
 
@@ -212,10 +214,11 @@ API는 즉시 발송 helper까지 호출한다. 외부 발송·Slack은 서버 �
 발송 RFC ID가 일치한 누락 답장 1건을 기존 수신 RPC로 복구하고 Slack 알림 영수증을 기록했다.
 기존 Gmail 연결을 통한 로컬 `메일 동기화`도 성공했다.
 
-**웹/수신 코드 배포는 하지 않았다.** 운영 push의 `historyId.trim is not a function` 수정과
-새 자동 복구 경로는 다음 명시적 코드 배포 때 활성화된다. 로컬 개발은 기존 운영 watch
-endpoint를 `GTM_OUTREACH_REMOTE_SYNC_URL`로 사용할 수 있으며 운영 Gmail private key를
-로컬로 복사하지 않는다. 이 fallback은 배포 전의 기존 수신 동작을 호출한다.
+**웹/수신 코드는 2026-09-21 운영 배포했다.** 숫자 Gmail historyId 처리와 새 자동 복구
+경로가 운영에서 활성화됐다. Resend webhook은 기존 수신·열람 이벤트를 유지하면서 지연·반송·
+실패·스팸 신고 이벤트를 추가했다. 배포 뒤 Gmail watch를 갱신하고 신규 처리·알림 대기 건이
+없음을 확인했다. 로컬 개발은 운영 watch endpoint를 `GTM_OUTREACH_REMOTE_SYNC_URL`로
+사용할 수 있으며 운영 Gmail private key를 로컬로 복사하지 않는다.
 
 검증: 격리 DB 103개 검사, 현재 운영 스키마 대상 트랜잭션 통합 검증 36개, 메일/그리드
 단위·모의 전송 21개와 GTM 범위 ESLint가 통과했다. Next production build는 컴파일을

@@ -1,6 +1,8 @@
 # Creator email outreach 배포 체크리스트
 
-상태 (2026-09-21 확인): 기존 Resend 발송·Gmail watch·Slack 연결은 운영 중이다. GTM 웹과 새 수신/재시도·Resend 전달 이벤트 처리는 로컬 구현 및 DB 적용 완료, 코드 배포 전이다. 운영 push는 숫자 historyId 처리 오류가 확인되어 다음 코드 배포가 필요하다.
+상태 (2026-09-21 확인): GTM 웹, Resend 발송, Gmail watch·회신 수신, Slack 알림,
+수신 재시도와 Resend 전달 이벤트 처리가 운영 중이다. 숫자 Gmail historyId 수정도 운영 배포됐고,
+배포 뒤 watch 갱신과 0건 처리·0건 알림 대기를 확인했다.
 
 ## 고정 발신 계정
 
@@ -53,7 +55,8 @@ scripts/contents-engine/setup_gmail_pubsub.sh
 
 `matchharper.com` 발송 도메인은 2026-09-21 기준 verified이고 sending capability가 enabled다. 업무 메일에 필요하지 않은 open/click tracking은 꺼 두었다. `reply.matchharper.com`도 verified 상태다.
 
-현재 운영 webhook은 `email.received`, `email.opened`만 구독한다. 아래 네 이벤트는 새 route 코드가 배포된 뒤 기존 구독을 유지한 채 추가한다. 코드보다 먼저 켜면 현재 운영 route가 이벤트를 무시하고 200을 반환하므로 순서를 바꾸지 않는다.
+현재 운영 webhook은 `email.received`, `email.opened`와 아래 네 전달 이벤트를 함께 구독한다.
+route 코드 배포를 확인한 뒤 기존 구독을 유지한 채 추가했다.
 
 - `email.bounced`
 - `email.delivery_delayed`
@@ -83,7 +86,7 @@ Agent는 Supabase plugin에서 `gtm_workspace`의 `prepare_outreach` 또는 `pre
 승인한 행만 Resend로 발송한다. 즉시 호출과 예약 복구는 동일 dispatch ID 기반의
 idempotency key를 사용한다. Resend email ID, 실제 RFC Message-ID, Gmail message/thread ID는
 서로 다른 식별자다. Gmail 답장은 RFC In-Reply-To/References 또는 확인된 thread로 원본 발송과
-연결한다. 현재 운영의 Gmail push 오류는 소스에서 수정했지만 아직 배포하지 않았다.
+연결한다. 숫자 Gmail historyId를 처리하지 못하던 운영 오류는 2026-09-21 배포로 수정했다.
 
 새 구현에서는 받은 원문 저장과 Slack 재시도를 분리한다. Slack 실패가 이미 저장한 답장을
 유실시키지 않도록 미완료 알림을 DB에서 다시 읽는다. 숫자 historyId, 아카이브된 수신 메일,
