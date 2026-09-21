@@ -4,6 +4,7 @@ import {
   getGmailMessage,
   getGmailHistoryId,
   getGtmOutreachGmailConfig,
+  isGmailNotFoundError,
   listGmailHistory,
   listInboxMessageIds,
   parseGmailMessage,
@@ -238,7 +239,21 @@ type DeliveryFailureIngestResult = {
 async function ingestReplyMessage(messageId: string) {
   const config = getGtmOutreachGmailConfig();
   const mailbox = config.mailbox;
-  const message = await getGmailMessage(messageId);
+  let message;
+  try {
+    message = await getGmailMessage(messageId);
+  } catch (error) {
+    // Gmail can remove a message after it appears in a history or INBOX page.
+    // A stale ID must not block later replies from being collected and notified.
+    if (isGmailNotFoundError(error)) {
+      console.warn("[contents-engine/gmail] skipped missing message", {
+        mailbox,
+        messageId,
+      });
+      return { matched: false, skipped: true };
+    }
+    throw error;
+  }
   // Archiving a reply before push processing must not make it disappear.
   if (
     message.labelIds?.some((label) =>
@@ -491,7 +506,7 @@ export async function syncGtmOutreachGmailHistory(notificationHistoryId = "") {
       messageIds = await listInboxMessageIds();
     }
   } catch (error) {
-    if (!/Gmail API 404:/i.test(errorMessage(error))) throw error;
+    if (!isGmailNotFoundError(error)) throw error;
     messageIds = await listInboxMessageIds();
   }
 

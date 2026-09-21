@@ -116,6 +116,11 @@ async function gmailRequest<T>(
   return data as T;
 }
 
+export function isGmailNotFoundError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /Gmail API 404:/i.test(message);
+}
+
 function cleanHeader(value: string) {
   return value.replace(/[\r\n]+/g, " ").trim();
 }

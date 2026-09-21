@@ -91,6 +91,12 @@ export function stripQuotedEmailText(text: string) {
   for (const line of lines) {
     const trimmed = line.trim();
     if (/^On .+ wrote:$/i.test(trimmed)) break;
+    if (
+      EMAIL_ADDRESS_PATTERN.test(trimmed) &&
+      /(?:님이\s*)?작성\s*:$/i.test(trimmed)
+    ) {
+      break;
+    }
     if (/^From:\s/i.test(trimmed) && kept.length > 0) break;
     if (/^-{2,}\s*Original Message\s*-{2,}$/i.test(trimmed)) break;
     if (/^>/.test(trimmed)) continue;

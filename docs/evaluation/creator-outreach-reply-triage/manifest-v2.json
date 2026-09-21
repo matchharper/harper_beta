@@ -1,0 +1,71 @@
+{
+  "task": "creator-outreach-reply-triage",
+  "datasetVersion": "v2",
+  "datasetKind": "synthetic-challenge-set",
+  "createdAt": "2026-09-17T21:30:00+09:00",
+  "source": {
+    "productionBuilder": "src/lib/contentsEngine/replyTriageContract.ts",
+    "productionRuntime": "src/lib/contentsEngine/replyTriage.ts",
+    "productionDataUsed": false,
+    "databaseWrites": false
+  },
+  "artifacts": {
+    "gold": {
+      "path": "gold-v2.json",
+      "sha256": "50b37d39b61bd61d5fb314429b0d3453e527cbdc1f541a9c331c6207c522941c",
+      "containsProductionPII": false,
+      "tracked": true
+    }
+  },
+  "caseCount": 8,
+  "labelDistribution": {
+    "positive": 1,
+    "negotiation": 3,
+    "question": 1,
+    "negative": 1,
+    "published": 1,
+    "other": 1
+  },
+  "runner": {
+    "path": "scripts/evalCreatorOutreachReplyTriage.ts",
+    "status": "runner-ready"
+  },
+  "model": {
+    "id": "z-ai/glm-5.3-flash",
+    "provider": "OpenRouter/Z.AI",
+    "reasoning": "low",
+    "temperature": 0,
+    "providerFallback": false
+  },
+  "releaseGate": {
+    "structuralValid": 8,
+    "typeCorrect": 8,
+    "urlsExact": 8,
+    "criticalFailures": 0
+  },
+  "adjudication": {
+    "reviewedAt": "2026-09-17T21:30:00+09:00",
+    "unblinded": true,
+    "changes": [
+      {
+        "caseId": "CORT007",
+        "from": "question",
+        "to": "negotiation",
+        "reason": "The frozen prompt explicitly defines schedule and revision terms as negotiation; v1 gold contradicted that contract."
+      }
+    ]
+  },
+  "review": {
+    "status": "synthetic-gold-v2",
+    "releaseGateEligible": true,
+    "limitations": "Regression/challenge set, not a representative production estimate"
+  },
+  "latestRun": {
+    "createdAt": "2026-09-17T12:24:00.690Z",
+    "model": "z-ai/glm-5.3-flash",
+    "typeCorrect": "8/8",
+    "urlsExact": "8/8",
+    "criticalFailures": 0,
+    "rawArtifact": "runs/2026-09-17T122400690Z/result.json (gitignored)"
+  }
+}

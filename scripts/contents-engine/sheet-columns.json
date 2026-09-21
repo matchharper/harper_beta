@@ -1,0 +1,1640 @@
+{
+  "Creator Directory": {
+    "entity": "gtm_creators",
+    "view": "creator_directory",
+    "legacySheet": "크리에이터",
+    "frozenColumns": 3,
+    "fields": [
+      [
+        "ref",
+        "Ref",
+        "read"
+      ],
+      [
+        "name",
+        "Creator Name",
+        "text"
+      ],
+      [
+        "platforms",
+        "Platforms",
+        "read"
+      ],
+      [
+        "sheet_primary_handle",
+        "Primary Handle",
+        "read"
+      ],
+      [
+        "sheet_primary_profile_url",
+        "Primary Profile URL",
+        "read"
+      ],
+      [
+        "sheet_primary_email",
+        "Primary Email",
+        "read"
+      ],
+      [
+        "activity_regions",
+        "Activity Regions",
+        "array"
+      ],
+      [
+        "content_topics",
+        "Content Topics",
+        "array"
+      ],
+      [
+        "total_followers",
+        "Total Followers",
+        "read"
+      ],
+      [
+        "content_count_365d",
+        "Posts Last 365 Days",
+        "read"
+      ],
+      [
+        "latest_post_at",
+        "Latest Post At",
+        "read"
+      ],
+      [
+        "audience_summary",
+        "Audience Evidence Summary",
+        "read"
+      ],
+      [
+        "outreach_score",
+        "Outreach Score",
+        "number"
+      ],
+      [
+        "outreach_status",
+        "Outreach Status",
+        "read"
+      ],
+      [
+        "last_contact_at",
+        "Last Contact At",
+        "read"
+      ],
+      [
+        "languages",
+        "Languages",
+        "array"
+      ],
+      [
+        "current_collaboration_ref",
+        "Active Collaboration Ref",
+        "read"
+      ],
+      [
+        "current_collaboration_title",
+        "Active Collaboration",
+        "read"
+      ],
+      [
+        "current_collaboration_status",
+        "Active Collaboration Status",
+        "read"
+      ],
+      [
+        "sheet_current_plan_ref",
+        "Active Plan Ref",
+        "read"
+      ],
+      [
+        "sheet_current_plan_name",
+        "Active Plan",
+        "read"
+      ],
+      [
+        "next_action",
+        "Next Action",
+        "read"
+      ],
+      [
+        "next_action_due_at",
+        "Next Action Due At",
+        "read"
+      ],
+      [
+        "data_status",
+        "Data Status",
+        "read"
+      ],
+      [
+        "profile_metrics_as_of",
+        "Account Metrics As Of",
+        "read"
+      ],
+      [
+        "refresh_fields_text",
+        "Fields to Refresh",
+        "read"
+      ],
+      [
+        "account_summary",
+        "Platform Account Detail",
+        "read"
+      ],
+      [
+        "contact_summary",
+        "Contact Method Detail",
+        "read"
+      ],
+      [
+        "description",
+        "Content / Background",
+        "text"
+      ],
+      [
+        "do_not_contact",
+        "Do Not Contact",
+        "bool"
+      ],
+      [
+        "notes",
+        "Notes",
+        "text"
+      ]
+    ],
+    "legacyFieldOrder": [
+      "ref",
+      "name",
+      "owner_id",
+      "sheet_primary_platform",
+      "sheet_primary_handle",
+      "sheet_primary_profile_url",
+      "sheet_primary_email",
+      "platforms",
+      "activity_regions",
+      "languages",
+      "content_topics",
+      "total_followers",
+      "content_count_365d",
+      "latest_post_at",
+      "audience_summary",
+      "outreach_score",
+      "outreach_status",
+      "last_contact_at",
+      "current_collaboration_ref",
+      "current_collaboration_title",
+      "current_collaboration_status",
+      "sheet_current_plan_ref",
+      "sheet_current_plan_name",
+      "next_action",
+      "next_action_due_at",
+      "data_status",
+      "profile_metrics_as_of",
+      "refresh_fields_text",
+      "account_summary",
+      "contact_summary",
+      "description",
+      "do_not_contact",
+      "notes"
+    ],
+    "legacyHeaders": [
+      "Ref",
+      "Creator Name",
+      "Owner",
+      "Primary Platform",
+      "Primary Handle",
+      "Primary Profile URL",
+      "Primary Email",
+      "Platforms",
+      "Activity Regions (comma-separated)",
+      "Languages (comma-separated)",
+      "Content Topics (comma-separated)",
+      "Total Followers (May Overlap Across Platforms)",
+      "Posts in Last 365 Days (Cross-posts May Overlap)",
+      "Latest Post At",
+      "Audience Evidence Summary",
+      "Outreach Score (1-5)",
+      "Outreach Status",
+      "Last Contact At",
+      "Active Collaboration Ref",
+      "Active Collaboration",
+      "Active Collaboration Status",
+      "Active Plan Ref",
+      "Active Plan",
+      "Next Action",
+      "Next Action Due At",
+      "Data Status",
+      "Account Metrics As Of",
+      "Fields to Refresh",
+      "Platform Account Detail",
+      "Contact Method Detail",
+      "Content / Background",
+      "Do Not Contact",
+      "Notes"
+    ],
+    "helpText": "흰색 칸은 직접 수정한 뒤 선택행 저장이 가능합니다. 회색 칸은 Supabase에서 자동 동기화되는 읽기 전용 정보입니다. Platforms는 연결된 전체 플랫폼을 한 칸에 표시하고 Languages는 연락 상태 오른쪽에 있습니다."
+  },
+  "Connected Creators": {
+    "entity": "gtm_creators",
+    "view": "connected_creators",
+    "readOnly": true,
+    "frozenColumns": 3,
+    "fields": [
+      [
+        "ref",
+        "Creator Ref",
+        "read"
+      ],
+      [
+        "name",
+        "Creator Name",
+        "read"
+      ],
+      [
+        "owner_id",
+        "Owner",
+        "read"
+      ],
+      [
+        "sheet_primary_platform",
+        "Primary Platform",
+        "read"
+      ],
+      [
+        "sheet_primary_handle",
+        "Primary Handle",
+        "read"
+      ],
+      [
+        "sheet_primary_profile_url",
+        "Primary Profile URL",
+        "read"
+      ],
+      [
+        "sheet_primary_email",
+        "Primary Email",
+        "read"
+      ],
+      [
+        "activity_regions",
+        "Activity Regions",
+        "read"
+      ],
+      [
+        "languages",
+        "Languages",
+        "read"
+      ],
+      [
+        "content_topics",
+        "Content Topics",
+        "read"
+      ],
+      [
+        "total_followers",
+        "Total Followers (May Overlap Across Platforms)",
+        "read"
+      ],
+      [
+        "relationship_status",
+        "Relationship Status",
+        "read"
+      ],
+      [
+        "sheet_first_outreach_at",
+        "First Outreach At",
+        "read"
+      ],
+      [
+        "sheet_first_reply_at",
+        "First Reply At",
+        "read"
+      ],
+      [
+        "last_contact_at",
+        "Last Contact At",
+        "read"
+      ],
+      [
+        "collaboration_count",
+        "Collaborations",
+        "read"
+      ],
+      [
+        "agreed_collaboration_count",
+        "Agreed Collaborations",
+        "read"
+      ],
+      [
+        "closed_collaboration_count",
+        "Closed Collaborations",
+        "read"
+      ],
+      [
+        "current_collaboration_ref",
+        "Active Collaboration Ref",
+        "read"
+      ],
+      [
+        "current_collaboration_title",
+        "Active Collaboration",
+        "read"
+      ],
+      [
+        "current_collaboration_status",
+        "Active Collaboration Status",
+        "read"
+      ],
+      [
+        "sheet_current_plan_ref",
+        "Active Plan Ref",
+        "read"
+      ],
+      [
+        "sheet_current_plan_name",
+        "Active Plan",
+        "read"
+      ],
+      [
+        "next_action",
+        "Next Action",
+        "read"
+      ],
+      [
+        "next_action_due_at",
+        "Next Action Due At",
+        "read"
+      ],
+      [
+        "published_content_count",
+        "Published Contents",
+        "read"
+      ],
+      [
+        "last_published_at",
+        "Last Published At",
+        "read"
+      ],
+      [
+        "_creator_visitors",
+        "Attributed Visitors (Selected Period)",
+        "read"
+      ],
+      [
+        "_creator_signups",
+        "Attributed Signups (Selected Period)",
+        "read"
+      ],
+      [
+        "_creator_completed",
+        "Completed Onboarding Within 7 Days",
+        "read"
+      ],
+      [
+        "_creator_cost",
+        "Content-Allocated Lifetime Cost",
+        "read"
+      ],
+      [
+        "_creator_currency",
+        "Content Cost Currency",
+        "read"
+      ],
+      [
+        "_creator_cpa",
+        "Provisional Cost per Completion",
+        "read"
+      ],
+      [
+        "_creator_measurement",
+        "Performance Data Status",
+        "read"
+      ],
+      [
+        "lifetime_incurred_cost",
+        "Relationship Lifetime Incurred Cost",
+        "read"
+      ],
+      [
+        "lifetime_committed_cash",
+        "Relationship Lifetime Committed Cash",
+        "read"
+      ],
+      [
+        "lifetime_net_paid",
+        "Relationship Lifetime Net Paid",
+        "read"
+      ],
+      [
+        "relationship_cost_currency",
+        "Relationship Cost Currency",
+        "read"
+      ],
+      [
+        "incomplete_cost_items",
+        "Incomplete Cost Items",
+        "read"
+      ],
+      [
+        "latest_direction",
+        "Latest Adopted Direction",
+        "read"
+      ],
+      [
+        "latest_direction_reason",
+        "Latest Direction Reason",
+        "read"
+      ],
+      [
+        "collaboration_history_summary",
+        "Collaboration History",
+        "read"
+      ],
+      [
+        "content_history_summary",
+        "Content History",
+        "read"
+      ],
+      [
+        "data_status",
+        "Data Status",
+        "read"
+      ],
+      [
+        "refresh_fields_text",
+        "Fields to Refresh",
+        "read"
+      ],
+      [
+        "notes",
+        "Notes",
+        "read"
+      ]
+    ]
+  },
+  "Format Bank": {
+    "entity": "gtm_formats",
+    "legacySheet": "포맷",
+    "frozenColumns": 4,
+    "fields": [
+      [
+        "ref",
+        "Format Ref",
+        "read"
+      ],
+      [
+        "name",
+        "Format Name",
+        "text"
+      ],
+      [
+        "status",
+        "Status",
+        "text"
+      ],
+      [
+        "default_campaign_id",
+        "Default Campaign Ref",
+        "gtm_campaigns"
+      ],
+      [
+        "default_outreach_template_id",
+        "Default Outreach Template Ref",
+        "gtm_outreach_templates"
+      ],
+      [
+        "hook",
+        "Hook",
+        "text"
+      ],
+      [
+        "shot_sequence",
+        "Shot Sequence",
+        "text"
+      ],
+      [
+        "required_moment",
+        "Required Product Moment",
+        "text"
+      ],
+      [
+        "caption_template",
+        "Caption Template",
+        "text"
+      ],
+      [
+        "example_links",
+        "Example Links (comma-separated)",
+        "array"
+      ],
+      [
+        "replicate_rule",
+        "Replicate Rule",
+        "text"
+      ],
+      [
+        "kill_rule",
+        "Kill Rule",
+        "text"
+      ],
+      [
+        "target_creator_profile",
+        "Target Creator Profile",
+        "text"
+      ],
+      [
+        "cold_outreach_angle",
+        "Cold Outreach Angle",
+        "text"
+      ],
+      [
+        "description",
+        "Format Description",
+        "text"
+      ],
+      [
+        "guide_ref",
+        "Guide URL",
+        "text"
+      ],
+      [
+        "guide_version",
+        "Guide Version",
+        "text"
+      ],
+      [
+        "content_use_count",
+        "Content Uses",
+        "read"
+      ],
+      [
+        "published_content_count",
+        "Published Contents",
+        "read"
+      ],
+      [
+        "last_published_at",
+        "Last Published At",
+        "read"
+      ],
+      [
+        "owner_id",
+        "Owner",
+        "text"
+      ]
+    ],
+    "helpText": "Reusable production patterns. Keep creator-specific execution in Contents; edit white cells, then save the selected row."
+  },
+  "Outreach Templates": {
+    "entity": "gtm_outreach_templates",
+    "frozenColumns": 4,
+    "fields": [
+      [
+        "ref",
+        "Template Ref",
+        "read"
+      ],
+      [
+        "name",
+        "Template Name",
+        "text"
+      ],
+      [
+        "status",
+        "Status",
+        "text"
+      ],
+      [
+        "campaign_id",
+        "Campaign Ref",
+        "gtm_campaigns"
+      ],
+      [
+        "channel",
+        "Channel",
+        "text"
+      ],
+      [
+        "language",
+        "Language",
+        "text"
+      ],
+      [
+        "target_creator_profile",
+        "Target Creator Profile",
+        "text"
+      ],
+      [
+        "subject_template",
+        "Subject Template",
+        "text"
+      ],
+      [
+        "opening_template",
+        "DM / Email Opening",
+        "text"
+      ],
+      [
+        "value_proposition",
+        "Value Proposition",
+        "text"
+      ],
+      [
+        "ask",
+        "Ask / Deliverables",
+        "text"
+      ],
+      [
+        "offer_structure",
+        "Offer Structure",
+        "text"
+      ],
+      [
+        "follow_up_template",
+        "Follow-up Template",
+        "text"
+      ],
+      [
+        "link_refs",
+        "Links (comma-separated)",
+        "array"
+      ],
+      [
+        "usage_notes",
+        "Usage Notes",
+        "text"
+      ],
+      [
+        "template_version",
+        "Template Version",
+        "text"
+      ],
+      [
+        "default_format_count",
+        "Default Formats",
+        "read"
+      ],
+      [
+        "default_format_summary",
+        "Default Format List",
+        "read"
+      ],
+      [
+        "draft_count",
+        "Drafts Created",
+        "read"
+      ],
+      [
+        "sent_count",
+        "Messages Sent",
+        "read"
+      ],
+      [
+        "sent_thread_count",
+        "Sent Threads",
+        "read"
+      ],
+      [
+        "replied_thread_count",
+        "Replied Threads",
+        "read"
+      ],
+      [
+        "response_rate",
+        "Response Rate (%)",
+        "read"
+      ],
+      [
+        "last_sent_at",
+        "Last Sent At",
+        "read"
+      ],
+      [
+        "last_reply_at",
+        "Last Reply At",
+        "read"
+      ],
+      [
+        "owner_id",
+        "Owner",
+        "text"
+      ]
+    ],
+    "helpText": "Reusable starting points. Personalize each creator message; actual drafts, sends, replies, and rates are calculated from Outreach Log."
+  },
+  "Outreach Review": {
+    "entity": "gtm_outreach_dispatches",
+    "view": "outreach_review",
+    "reviewMode": true,
+    "frozenColumns": 2,
+    "fields": [
+      [
+        "creator_name",
+        "Creator",
+        "read"
+      ],
+      [
+        "primary_profile_url",
+        "Profile URL",
+        "read"
+      ],
+      [
+        "recipient_email",
+        "Recipient Email",
+        "read"
+      ],
+      [
+        "outreach_template_name",
+        "Template",
+        "read"
+      ],
+      [
+        "compensation_strategy_name",
+        "Pricing Strategy",
+        "read"
+      ],
+      [
+        "estimated_views",
+        "Estimated Views",
+        "read"
+      ],
+      [
+        "estimated_cost",
+        "Estimated Cost",
+        "read"
+      ],
+      [
+        "compensation_currency",
+        "Cost Currency",
+        "read"
+      ],
+      [
+        "subject",
+        "Final Subject",
+        "text"
+      ],
+      [
+        "body",
+        "Final Email Body",
+        "text"
+      ],
+      [
+        "review_action",
+        "Review Decision",
+        "decision"
+      ],
+      [
+        "selection_reason",
+        "Why This Template",
+        "read"
+      ],
+      [
+        "personalization_evidence",
+        "Personalization Evidence",
+        "read"
+      ],
+      [
+        "status",
+        "Delivery Status",
+        "read"
+      ],
+      [
+        "scheduled_at",
+        "Send At (ISO, blank = now)",
+        "date"
+      ],
+      [
+        "review_note",
+        "Review Note",
+        "text"
+      ],
+      [
+        "sender_email",
+        "Sender Email",
+        "read"
+      ],
+      [
+        "plan_name",
+        "Plan",
+        "read"
+      ],
+      [
+        "collaboration_title",
+        "Collaboration",
+        "read"
+      ],
+      [
+        "template_version",
+        "Template Version Used",
+        "read"
+      ],
+      [
+        "approved_by",
+        "Approved By",
+        "read"
+      ],
+      [
+        "approved_at",
+        "Approved At",
+        "read"
+      ],
+      [
+        "attempt_count",
+        "Send Attempts",
+        "read"
+      ],
+      [
+        "last_error",
+        "Last Send Error",
+        "read"
+      ],
+      [
+        "sent_at",
+        "Sent At",
+        "read"
+      ],
+      [
+        "replied_at",
+        "First Reply At",
+        "read"
+      ],
+      [
+        "provider_message_id",
+        "Gmail Message ID",
+        "read"
+      ],
+      [
+        "provider_thread_id",
+        "Gmail Thread ID",
+        "read"
+      ],
+      [
+        "created_by",
+        "Prepared By",
+        "read"
+      ],
+      [
+        "created_at",
+        "Prepared At",
+        "read"
+      ],
+      [
+        "ref",
+        "Dispatch Ref",
+        "read"
+      ],
+      [
+        "creator_ref",
+        "Creator Ref",
+        "read"
+      ],
+      [
+        "outreach_template_ref",
+        "Template Ref",
+        "read"
+      ],
+      [
+        "collaboration_ref",
+        "Collaboration Ref",
+        "read"
+      ],
+      [
+        "plan_ref",
+        "Plan Ref",
+        "read"
+      ]
+    ],
+    "helpText": "① 크리에이터·수신 이메일·템플릿·가격 전략·예상 비용·제목·본문을 확인하세요. 조회수 연동 전략인데 조회 이력이 없으면 예상 비용은 비워 두고 근거 부족으로 취급하며, 고정비 전략은 조회 이력 없이도 금액을 표시합니다. ② 노란색 Review Decision에서 결정을 선택하세요. Approve & Send는 초록색으로 바뀝니다. ③ 행을 선택하고 Contents Engine → Outreach Review 선택행 승인/반영을 실행하면 승인 건만 실제 발송됩니다.",
+    "legacyInsertions": [
+      4,
+      5,
+      6,
+      7
+    ]
+  },
+  "Outreach Log": {
+    "entity": "gtm_activities",
+    "view": "outreach_log",
+    "readOnly": true,
+    "frozenColumns": 4,
+    "fields": [
+      [
+        "ref",
+        "Outreach Ref",
+        "read"
+      ],
+      [
+        "occurred_at",
+        "Occurred At",
+        "read"
+      ],
+      [
+        "direction",
+        "Direction",
+        "read"
+      ],
+      [
+        "kind",
+        "Event",
+        "read"
+      ],
+      [
+        "creator_ref",
+        "Creator Ref",
+        "read"
+      ],
+      [
+        "creator_name",
+        "Creator Name",
+        "read"
+      ],
+      [
+        "primary_platform",
+        "Primary Platform",
+        "read"
+      ],
+      [
+        "primary_handle",
+        "Primary Handle",
+        "read"
+      ],
+      [
+        "collaboration_ref",
+        "Collaboration Ref",
+        "read"
+      ],
+      [
+        "collaboration_title",
+        "Collaboration",
+        "read"
+      ],
+      [
+        "plan_ref",
+        "Plan Ref",
+        "read"
+      ],
+      [
+        "plan_name",
+        "Plan",
+        "read"
+      ],
+      [
+        "channel",
+        "Channel",
+        "read"
+      ],
+      [
+        "counterparty",
+        "Counterparty",
+        "read"
+      ],
+      [
+        "subject",
+        "Subject",
+        "read"
+      ],
+      [
+        "body",
+        "Message",
+        "read"
+      ],
+      [
+        "thread_id",
+        "Thread ID",
+        "read"
+      ],
+      [
+        "source_ref",
+        "Evidence / Source",
+        "read"
+      ],
+      [
+        "provider",
+        "Provider",
+        "read"
+      ],
+      [
+        "external_id",
+        "External Message ID",
+        "read"
+      ],
+      [
+        "outreach_template_ref",
+        "Outreach Template Ref",
+        "read"
+      ],
+      [
+        "outreach_template_name",
+        "Outreach Template",
+        "read"
+      ],
+      [
+        "creator_outreach_status",
+        "Current Outreach Status",
+        "read"
+      ],
+      [
+        "next_action",
+        "Current Next Action",
+        "read"
+      ],
+      [
+        "next_action_due_at",
+        "Current Next Action Due At",
+        "read"
+      ],
+      [
+        "created_by",
+        "Recorded By",
+        "read"
+      ],
+      [
+        "reply_type",
+        "Reply Type",
+        "read"
+      ],
+      [
+        "reply_summary",
+        "Reply Summary",
+        "read"
+      ],
+      [
+        "reply_mentioned_urls",
+        "Reported URLs",
+        "read"
+      ],
+      [
+        "publication_candidate_content_ref",
+        "Publication Candidate Content Ref",
+        "read"
+      ],
+      [
+        "publication_candidate_tracking_ready",
+        "UTM Link Ready",
+        "read"
+      ],
+      [
+        "publication_verification_required",
+        "Publication Verification Needed",
+        "read"
+      ],
+      [
+        "delivery_status",
+        "Delivery Status",
+        "read"
+      ],
+      [
+        "manual_destination",
+        "Manual Destination",
+        "read"
+      ],
+      [
+        "delivery_diagnostic",
+        "Delivery Diagnostic",
+        "read"
+      ]
+    ],
+    "helpText": "Chronological message record. Inbound replies include GLM triage and a publication-review candidate; publication remains unconfirmed until a teammate verifies the live post.",
+    "help": [
+      "Delivery Status distinguishes manual_send_required drafts, temporary delivery errors, and permanent bounces.",
+      "Manual Destination is the profile or inbox URL for a team member to use when no verified email is available.",
+      "Permanent Gmail delivery failures mark only the exact recipient contact as bounced; temporary errors keep the contact usable."
+    ]
+  },
+  "협업": {
+    "entity": "gtm_collaborations",
+    "fields": [
+      [
+        "ref",
+        "Ref",
+        "read"
+      ],
+      [
+        "title",
+        "Collaboration Name",
+        "text"
+      ],
+      [
+        "creator_id",
+        "Creator Ref",
+        "gtm_creators"
+      ],
+      [
+        "plan_id",
+        "Plan Ref",
+        "gtm_plans"
+      ],
+      [
+        "status",
+        "Status",
+        "text"
+      ],
+      [
+        "owner_id",
+        "Owner",
+        "text"
+      ],
+      [
+        "due_at",
+        "Due At (ISO)",
+        "date"
+      ],
+      [
+        "terms",
+        "Terms",
+        "text"
+      ],
+      [
+        "_next",
+        "Open Actions",
+        "read"
+      ],
+      [
+        "_direction",
+        "Adopted Direction",
+        "read"
+      ]
+    ]
+  },
+  "Pricing Strategies": {
+    "entity": "gtm_compensation_strategies",
+    "view": "compensation_strategies",
+    "saveRpc": "gtm_compensation_strategy_save",
+    "frozenColumns": 4,
+    "legacyInsertions": [0],
+    "fields": [
+      [
+        "recommended_label",
+        "Current Recommendation",
+        "read"
+      ],
+      [
+        "name",
+        "Strategy Name",
+        "text"
+      ],
+      [
+        "status",
+        "Status",
+        "text"
+      ],
+      [
+        "pricing_model",
+        "Pricing Model",
+        "text"
+      ],
+      [
+        "calculation_summary",
+        "Calculation",
+        "read"
+      ],
+      [
+        "base_fee",
+        "Base Upload Fee",
+        "number"
+      ],
+      [
+        "measurement_window_days",
+        "Measurement Days",
+        "number"
+      ],
+      [
+        "views_per_unit",
+        "Views Per Unit",
+        "number"
+      ],
+      [
+        "amount_per_unit",
+        "Amount Per Unit",
+        "number"
+      ],
+      [
+        "currency",
+        "Currency",
+        "text"
+      ],
+      [
+        "assigned_content_count",
+        "Assigned Contents",
+        "read"
+      ],
+      [
+        "settled_content_count",
+        "Settled Contents",
+        "read"
+      ],
+      [
+        "notes",
+        "Notes",
+        "text"
+      ],
+      [
+        "recommendation_reason",
+        "Why Recommended",
+        "read"
+      ],
+      [
+        "recommended_at",
+        "Recommended At",
+        "read"
+      ],
+      [
+        "version",
+        "Version",
+        "number"
+      ],
+      [
+        "ref",
+        "Strategy Ref",
+        "read"
+      ],
+      [
+        "updated_at",
+        "Updated At",
+        "read"
+      ]
+    ],
+    "helpText": "⭐ 현재 권장 실험안을 새 Outreach의 기본 가격 조건으로 사용합니다. 이는 지금 선택한 운영안이며 ROI가 검증됐다는 뜻은 아닙니다. base_plus_views는 업로드 기본비 + (측정 조회수 ÷ Views Per Unit × Amount Per Unit)으로 비례 계산합니다. 사용한 버전의 금액 조건은 바꾸지 않고 새 버전을 만듭니다."
+  },
+  "콘텐츠": {
+    "entity": "gtm_contents",
+    "view": "contents",
+    "readOnly": true,
+    "frozenColumns": 3,
+    "fields": [
+      [
+        "title",
+        "Content",
+        "read"
+      ],
+      [
+        "creator_name",
+        "Creator",
+        "read"
+      ],
+      [
+        "post_url",
+        "Post URL",
+        "read"
+      ],
+      [
+        "platform",
+        "Platform",
+        "read"
+      ],
+      [
+        "handle",
+        "Handle",
+        "read"
+      ],
+      [
+        "published_at",
+        "Published At",
+        "read"
+      ],
+      [
+        "views",
+        "Views",
+        "read"
+      ],
+      [
+        "likes",
+        "Likes",
+        "read"
+      ],
+      [
+        "comments",
+        "Comments",
+        "read"
+      ],
+      [
+        "comments_non_author",
+        "Comments Excluding Creator",
+        "read"
+      ],
+      [
+        "platform_metrics_as_of",
+        "Metrics As Of",
+        "read"
+      ],
+      [
+        "paid_amount",
+        "Paid Amount",
+        "read"
+      ],
+      [
+        "performance_conclusion",
+        "Performance Conclusion",
+        "read"
+      ],
+      [
+        "settlement_status",
+        "Settlement Status",
+        "read"
+      ],
+      [
+        "estimated_payable",
+        "Estimated Payable",
+        "read"
+      ],
+      [
+        "finalized_payable",
+        "Finalized Payable",
+        "read"
+      ],
+      [
+        "compensation_currency",
+        "Currency",
+        "read"
+      ],
+      [
+        "platform_metrics_due_at",
+        "Measurement Due At",
+        "read"
+      ],
+      [
+        "compensation_strategy_name",
+        "Pricing Strategy",
+        "read"
+      ],
+      [
+        "compensation_base_fee",
+        "Base Fee",
+        "read"
+      ],
+      [
+        "compensation_measurement_window_days",
+        "Measurement Days",
+        "read"
+      ],
+      [
+        "compensation_views_per_unit",
+        "Views Per Unit",
+        "read"
+      ],
+      [
+        "compensation_amount_per_unit",
+        "Amount Per Unit",
+        "read"
+      ],
+      [
+        "platform_metrics_last_collected_at",
+        "Last Collected At",
+        "read"
+      ],
+      [
+        "platform_metrics_last_error",
+        "Collection Error",
+        "read"
+      ],
+      [
+        "platform_metrics_finalized_at",
+        "Finalized At",
+        "read"
+      ],
+      [
+        "collaboration_title",
+        "Collaboration",
+        "read"
+      ],
+      [
+        "campaign_name",
+        "Campaign",
+        "read"
+      ],
+      [
+        "format_name",
+        "Format",
+        "read"
+      ],
+      [
+        "plan_name",
+        "Plan",
+        "read"
+      ],
+      [
+        "production_status",
+        "Production Status",
+        "read"
+      ],
+      [
+        "publish_status",
+        "Publish Status",
+        "read"
+      ],
+      [
+        "ref",
+        "Content Ref",
+        "read"
+      ],
+      [
+        "creator_ref",
+        "Creator Ref",
+        "read"
+      ],
+      [
+        "collaboration_ref",
+        "Collaboration Ref",
+        "read"
+      ],
+      [
+        "campaign_ref",
+        "Campaign Ref",
+        "read"
+      ],
+      [
+        "format_ref",
+        "Format Ref",
+        "read"
+      ],
+      [
+        "plan_ref",
+        "Plan Ref",
+        "read"
+      ],
+      [
+        "account_ref",
+        "Account Ref",
+        "read"
+      ],
+      [
+        "compensation_strategy_ref",
+        "Strategy Ref",
+        "read"
+      ],
+      [
+        "compensation_cost_ref",
+        "Cost Ref",
+        "read"
+      ]
+    ],
+    "legacyFieldOrder": [
+      "ref",
+      "title",
+      "collaboration_id",
+      "campaign_id",
+      "format_id",
+      "production_status",
+      "publish_status",
+      "post_url",
+      "_signups",
+      "_completed",
+      "_direction",
+      "plan_id",
+      "creator_id",
+      "account_id",
+      "published_at",
+      "_visitors",
+      "_cost",
+      "_cpa",
+      "_currency",
+      "_measurement"
+    ],
+    "legacyHeaders": [
+      "Ref",
+      "Content Name",
+      "Collaboration Ref",
+      "Campaign Ref",
+      "Format Ref",
+      "Production Status",
+      "Publication Status",
+      "Post URL",
+      "Attributed Signups (Selected Period)",
+      "Completed Onboarding Within 7 Days",
+      "Adopted Direction",
+      "Plan Ref",
+      "Creator Ref",
+      "Account Ref",
+      "Published At (ISO)",
+      "Attributed Visitors",
+      "Allocated Lifetime Cost",
+      "Provisional Cost per Completion",
+      "Cost Currency",
+      "Measurement Status"
+    ],
+    "helpText": "게시 콘텐츠의 공개 성과와 정산 상태입니다. Paid Amount는 실제 지급·환불 증빙이 있는 순지급액만 표시합니다. Performance Conclusion은 최신 성과 리뷰를 🟢 Scale, 🟡 Retry, 🟠 Hold, 🔴 Stop, ⚪ 리뷰 전으로 시작하며 수치 임계값으로 자동 판정하지 않습니다. 고정비는 게시 후 확정하고, 조회수 연동 비용은 측정일이 지난 뒤 확정해 Slack에 알립니다. Ref는 연결·감사용이라 뒤쪽에 배치했습니다.",
+    "legacyInsertions": [
+      11,
+      12
+    ]
+  },
+  "집행": {
+    "entity": "gtm_plans",
+    "fields": [
+      [
+        "ref",
+        "Ref",
+        "read"
+      ],
+      [
+        "name",
+        "Plan Name",
+        "text"
+      ],
+      [
+        "status",
+        "Status",
+        "text"
+      ],
+      [
+        "target_market",
+        "Target Market",
+        "text"
+      ],
+      [
+        "target_audience",
+        "Target Audience",
+        "text"
+      ],
+      [
+        "cash_budget",
+        "Cash Budget",
+        "number"
+      ],
+      [
+        "currency",
+        "Currency",
+        "text"
+      ],
+      [
+        "goal_metric",
+        "Goal Metric",
+        "text"
+      ],
+      [
+        "goal_value",
+        "Goal Value",
+        "number"
+      ],
+      [
+        "owner_id",
+        "Owner",
+        "text"
+      ],
+      [
+        "available_cash",
+        "Available Cash",
+        "read"
+      ],
+      [
+        "committed_cash",
+        "Committed Cash",
+        "read"
+      ],
+      [
+        "incomplete_cost_items",
+        "Incomplete Cost Items",
+        "read"
+      ],
+      [
+        "brief",
+        "Plan Summary",
+        "text"
+      ]
+    ]
+  },
+  "캠페인": {
+    "entity": "gtm_campaigns",
+    "fields": [
+      [
+        "ref",
+        "Ref",
+        "read"
+      ],
+      [
+        "name",
+        "Campaign Name",
+        "text"
+      ],
+      [
+        "description",
+        "Topic / Description",
+        "text"
+      ],
+      [
+        "audience_brief",
+        "Audience",
+        "text"
+      ],
+      [
+        "value_proposition",
+        "Value Proposition",
+        "text"
+      ],
+      [
+        "guide_ref",
+        "Guide URL",
+        "text"
+      ],
+      [
+        "guide_version",
+        "Guide Version",
+        "text"
+      ],
+      [
+        "owner_id",
+        "Owner",
+        "text"
+      ]
+    ]
+  }
+}

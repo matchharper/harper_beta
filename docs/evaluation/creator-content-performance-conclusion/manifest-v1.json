@@ -1,0 +1,25 @@
+{
+    "task": "creator-content-performance-conclusion",
+    "datasetVersion": "v1",
+    "createdAt": "2026-09-18T00:00:00+09:00",
+    "source": "synthetic challenge cases authored for the production contract",
+    "caseCount": 4,
+    "goldDistribution": {
+        "good": 1,
+        "mixed": 1,
+        "low": 1,
+        "insufficient": 1
+    },
+    "canonicalRunner": "scripts/evalCreatorContentPerformanceConclusion.ts",
+    "model": "z-ai/glm-5.3-flash",
+    "reasoning": "low",
+    "temperature": 0,
+    "fixtureSha256": "2281b2721da027f329eaa7b2f3e83dfabd13224ba08a5fa39a123f3f0df02cdf",
+    "privacy": "de-identified synthetic only",
+    "latestGate": {
+        "createdAt": "2026-09-18T06:50:44.980Z",
+        "structureValid": "4/4",
+        "ratingCorrect": "4/4"
+    }
+}
+

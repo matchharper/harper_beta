@@ -1,0 +1,207 @@
+// Meaningful bridge regression checks without a Google account or production writes.
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const config=JSON.parse(fs.readFileSync(__dirname+'/sheet-columns.json','utf8'));
+const context={GTM_TABLES:config,console};vm.createContext(context);
+vm.runInContext(fs.readFileSync(__dirname+'/sheets-bridge.gs','utf8'),context);
+const c=config['Creator Directory'],n=c.fields.length;
+const outreachScoreIndex=c.fields.findIndex(field=>field[0]==='outreach_score');
+assert.ok(outreachScoreIndex>=0);assert.equal(c.fields[outreachScoreIndex][2],'number');
+let values=Array(n+6).fill('');values[1]='Bridge fixture';
+const sheet={getName:()=> 'Creator Directory',getLastRow:()=>6,getActiveRange:()=>({getRow:()=>6,getLastRow:()=>6}),
+ getRange:(r,col,height,width)=>({getValues:()=>[values.slice(col-1,col-1+(width||1))],
+ setValues:matrix=>{matrix[0].forEach((v,i)=>values[col-1+i]=v);},setValue:value=>{values[col-1]=value;}})};
+const workbook={toast(){},getSheetByName:()=>sheet};
+context.SpreadsheetApp={getActiveSheet:()=>sheet,getActive:()=>workbook,getActiveSpreadsheet:()=>workbook,flush(){}};
+context.LockService={getDocumentLock:()=>({waitLock(){},releaseLock(){}})};
+let issued=0;context.Utilities={getUuid:()=> 'request-'+(++issued)};
+const ctx={metrics:{},creatorMetrics:{},reviews:{},refs:{gtm_creators:{}},records:{}};
+context.context_=()=>ctx;
+let committed=null,firstAttempt=true,requests=[];
+context.rpc_=req=>{
+ if(req.action==='save'){
+  requests.push(JSON.stringify(req));
+  if(!committed)committed={id:'id-1',ref:1,row_version:1,name:req.data.name,activity_regions:['KR'],languages:['ko'],content_topics:['career'],account_summary:'youtube @fixture · followers 12345 · posts/365d 78',total_followers:12345,content_count_365d:78,contact_summary:'email: fixture@example.test [active]',outreach_status:'awaiting_reply',data_status:'current',refresh_fields_text:'',description:null,owner_id:null,do_not_contact:false,notes:null};
+  if(firstAttempt){firstAttempt=false;throw Error('unknown network result');}
+  return {record:committed};
+ }
+ return {record:committed};
+};
+context.getRecord_=()=>committed;
+assert.throws(()=>context.saveSelected(),/unknown network result/);
+assert.equal(values[1],'Bridge fixture');assert.match(values[n],/미반영/);
+context.saveSelected();assert.equal(issued,1);assert.equal(requests[0],requests[1]);assert.equal(values[n+1],'id-1');assert.equal(values[n],'저장됨');
+console.log('PASS unknown network result retries the same logical mutation and reloads server identity');
+
+const notesIndex=c.fields.findIndex(field=>field[0]==='notes');
+values[notesIndex]='local update';context.rpc_=()=>{throw Error('Row version conflict');};
+assert.throws(()=>context.saveSelected(),/Row version conflict/);assert.equal(values[notesIndex],'local update');assert.match(values[n],/conflict/);assert.equal(committed.notes,null);
+console.log('PASS conflict preserves local edits and does not overwrite the server');
+
+const dirtyLocal=values.slice(),remoteExisting=context.row_({...committed,notes:'server update'},c,ctx);
+const remoteNew=context.row_({...committed,id:'id-2',ref:2,name:'New DB creator',notes:null},c,ctx);
+const mergedRefresh=context.mergeRefreshRows_([dirtyLocal],[remoteExisting,remoteNew],c);
+assert.equal(mergedRefresh.dirtyCount,1);
+assert.equal(mergedRefresh.rows.length,2);
+assert.equal(mergedRefresh.rows[0][notesIndex],'local update');
+assert.equal(mergedRefresh.rows[1][c.fields.findIndex(field=>field[0]==='name')],'New DB creator');
+assert.doesNotMatch(context.refreshAllCore_.toString(),/dirtySheets/);
+console.log('PASS refresh preserves only dirty rows while continuing to add and update DB rows');
+
+assert.ok(!c.fields.some(field=>/[()]/.test(field[1])));
+assert.ok(!c.fields.some(field=>field[0]==='owner_id'));
+assert.ok(!c.fields.some(field=>field[0]==='sheet_primary_platform'));
+assert.equal(c.fields[2][0],'platforms');
+assert.equal(c.fields.findIndex(field=>field[0]==='languages'),c.fields.findIndex(field=>field[0]==='last_contact_at')+1);
+const oldFieldCount=c.legacyFieldOrder.length,legacyVisible=Array(oldFieldCount).fill('');
+const oldIndex=key=>c.legacyFieldOrder.indexOf(key);
+legacyVisible[oldIndex('ref')]=1;legacyVisible[oldIndex('name')]='Legacy creator';
+legacyVisible[oldIndex('owner_id')]='removed owner';legacyVisible[oldIndex('sheet_primary_platform')]='youtube';
+legacyVisible[oldIndex('platforms')]='youtube, instagram';legacyVisible[oldIndex('languages')]='ko, en';
+legacyVisible[oldIndex('outreach_status')]='awaiting_reply';legacyVisible[oldIndex('last_contact_at')]='2026-09-18';
+const legacyId='bd94d180-6d21-4cb2-91ef-72763151d2f6';
+const legacyRow=legacyVisible.concat(['미반영 · 메뉴에서 선택행 저장',legacyId,7,JSON.stringify(legacyVisible),'request-legacy','payload-legacy']);
+let migratedRow=null,maxColumns=legacyRow.length;
+const legacySheet={getName:()=> 'Creator Directory',getLastRow:()=>6,getMaxColumns:()=>maxColumns,
+ insertColumnsAfter:(after,count)=>{maxColumns+=count;},
+ getRange:(r,col,height,width)=>({
+  getValues:()=>[r===5?c.legacyHeaders.slice(col-1,col-1+width):legacyRow.slice(col-1,col-1+width)],
+  clearContent(){},setValues:matrix=>{migratedRow=matrix[0];}
+ })};
+assert.equal(context.migrateFieldOrderRows_(legacySheet,c),1);
+assert.equal(migratedRow.length,n+6);
+assert.equal(migratedRow[c.fields.findIndex(field=>field[0]==='outreach_status')],'awaiting_reply');
+assert.equal(migratedRow[c.fields.findIndex(field=>field[0]==='last_contact_at')],'2026-09-18');
+assert.equal(migratedRow[c.fields.findIndex(field=>field[0]==='platforms')],'youtube, instagram');
+assert.equal(migratedRow[c.fields.findIndex(field=>field[0]==='languages')],'ko, en');
+assert.equal(migratedRow[n],'미반영 · 메뉴에서 선택행 저장');assert.equal(migratedRow[n+1],legacyId);
+assert.equal(JSON.parse(migratedRow[n+3])[c.fields.findIndex(field=>field[0]==='platforms')],'youtube, instagram');
+assert.equal(migratedRow[n+4],'request-legacy');
+console.log('PASS Creator Directory schema upgrade remaps reordered fields without shifting IDs, versions, or unsaved edits');
+
+values=context.row_(committed,c,ctx);values[0]=999;
+assert.equal(context.dirty_(values,c),false);
+assert.equal(context.textCell_('=IMPORTXML("untrusted")'),'\'=IMPORTXML("untrusted")');
+assert.equal(context.textCell_(0),0);
+const stopIndex=c.fields.findIndex(field=>field[0]==='do_not_contact');
+assert.equal(context.visible_(committed,c,ctx)[stopIndex],false);
+assert.equal(context.visible_(committed,c,ctx)[c.fields.findIndex(field=>field[0]==='total_followers')],12345);
+assert.equal(context.visible_(committed,c,ctx)[c.fields.findIndex(field=>field[0]==='outreach_status')],'awaiting_reply');
+ctx.creatorMetrics['id-1']={tracked:1,visitors:42,signups:7,completed:3,costSeen:true,cost:900,currency:'USD',cpa:300,measurement_status:'observed_window'};
+const connectedC=config['Connected Creators'];
+assert.equal(context.visible_(committed,connectedC,ctx)[connectedC.fields.findIndex(field=>field[0]==='_creator_completed')],3);
+assert.equal(context.visible_(committed,connectedC,ctx)[connectedC.fields.findIndex(field=>field[0]==='_creator_cpa')],300);
+console.log('PASS read-only values do not mutate records; untrusted text is not executed as a formula; zero/false preserved');
+
+const formatC=config['Format Bank'],templateC=config['Outreach Templates'];
+assert.ok(formatC);assert.ok(templateC);assert.equal(config['포맷'],undefined);
+assert.equal(formatC.legacySheet,'포맷');
+ctx.refs.gtm_campaigns={'campaign-id':7};ctx.refs.gtm_outreach_templates={'template-id':9};
+const formatRow={id:'format-id',ref:3,name:'Creator-native role review',status:'active',
+ default_campaign_id:'campaign-id',default_outreach_template_id:'template-id',
+ example_links:['https://example.test/one','https://example.test/two'],content_use_count:4};
+const visibleFormat=context.visible_(formatRow,formatC,ctx);
+assert.equal(visibleFormat[formatC.fields.findIndex(field=>field[0]==='default_campaign_id')],7);
+assert.equal(visibleFormat[formatC.fields.findIndex(field=>field[0]==='default_outreach_template_id')],9);
+assert.equal(visibleFormat[formatC.fields.findIndex(field=>field[0]==='example_links')],'https://example.test/one, https://example.test/two');
+assert.equal(visibleFormat[formatC.fields.findIndex(field=>field[0]==='content_use_count')],4);
+assert.ok(templateC.fields.some(field=>field[0]==='response_rate'&&field[2]==='read'));
+assert.ok(config['Outreach Log'].fields.some(field=>field[0]==='outreach_template_name'));
+assert.ok(config['Outreach Log'].fields.some(field=>field[0]==='reply_type'));
+assert.ok(config['Outreach Log'].fields.some(field=>field[0]==='publication_verification_required'));
+assert.ok(config['Outreach Log'].fields.some(field=>field[0]==='delivery_status'));
+assert.ok(config['Outreach Log'].fields.some(field=>field[0]==='manual_destination'));
+assert.ok(config['Outreach Log'].fields.some(field=>field[0]==='delivery_diagnostic'));
+console.log('PASS Format Bank and Outreach Templates expose editable guidance, relations, arrays, and read-only usage');
+
+const reviewC=config['Outreach Review'];
+assert.ok(reviewC);assert.equal(reviewC.view,'outreach_review');assert.equal(reviewC.reviewMode,true);
+assert.deepEqual(reviewC.fields.slice(0,11).map(field=>field[0]),[
+ 'creator_name','primary_profile_url','recipient_email','outreach_template_name',
+ 'compensation_strategy_name','estimated_views','estimated_cost','compensation_currency',
+ 'subject','body','review_action'
+]);
+assert.ok(!reviewC.fields.some(field=>field[0]==='primary_platform'));
+assert.ok(!reviewC.fields.some(field=>field[0]==='primary_handle'));
+assert.equal(reviewC.fields.at(-5)[0],'ref');
+const reviewVisible=context.visible_({creator_name:'Fixture Creator',primary_platform:'youtube',primary_handle:'fixture',primary_profile_url:'https://youtube.com/@fixture'},reviewC,ctx);
+assert.equal(reviewVisible[0],'Fixture Creator\nYouTube · @fixture');
+assert.equal(reviewVisible[1],'https://youtube.com/@fixture');
+assert.match(reviewC.helpText,/노란색 Review Decision/);
+assert.match(reviewC.helpText,/Approve & Send는 초록색으로 바뀝니다/);
+assert.equal(reviewC.fields.find(field=>field[0]==='review_action')[2],'decision');
+const bridgeSource=fs.readFileSync(__dirname+'/sheets-bridge.gs','utf8');
+assert.doesNotMatch(bridgeSource,/GTM_CONFIG|configureConnection|UserProperties/);
+assert.match(bridgeSource,/ScriptApp\.getIdentityToken\(\)/);
+assert.match(bridgeSource,/\/api\/internal\/contents-engine\/sheets\/rpc/);
+assert.match(bridgeSource,/Google Workspace 연결 확인/);
+assert.match(bridgeSource,/everyMinutes\(1\)/);
+assert.match(bridgeSource,/markSyncFailure_/);
+assert.match(bridgeSource,/SpreadsheetApp\.openById\(GTM_SPREADSHEET_ID\)/);
+let proxyCall=null;
+context.ScriptApp={getIdentityToken:()=> 'google-identity-token'};
+context.UrlFetchApp={fetch:(url,options)=>{
+ proxyCall={url,options};
+ return {getResponseCode:()=>200,getContentText:()=>JSON.stringify({rows:[],as_of:'2026-09-18T00:00:00Z'})};
+}};
+assert.deepEqual(
+ JSON.parse(JSON.stringify(context.postRpc_('gtm_sheet_view',{view:'creator_directory',limit:1,offset:0}))),
+ {rows:[],as_of:'2026-09-18T00:00:00Z'}
+);
+assert.equal(proxyCall.url,'https://matchharper.com/api/internal/contents-engine/sheets/rpc');
+assert.equal(proxyCall.options.headers.Authorization,'Bearer google-identity-token');
+assert.deepEqual(JSON.parse(proxyCall.options.payload),{
+ rpc:'gtm_sheet_view',params:{view:'creator_directory',limit:1,offset:0}
+});
+const manifest=JSON.parse(fs.readFileSync(__dirname+'/appsscript.json','utf8'));
+assert.ok(manifest.oauthScopes.includes('openid'));
+assert.ok(manifest.oauthScopes.includes('https://www.googleapis.com/auth/userinfo.email'));
+assert.match(bridgeSource,/whenFormulaSatisfied/);
+assert.match(bridgeSource,/fieldIndex_\(c,'sent_at'\)/);
+assert.match(bridgeSource,/Approve & Send/);
+assert.match(bridgeSource,/setBackground\('#d9ead3'\)/);
+assert.match(bridgeSource,/clearWarningOnlyProtections_/);
+assert.match(bridgeSource,/WrapStrategy\.CLIP/);
+assert.match(bridgeSource,/setRowHeightsForced\(6,height,38\)/);
+assert.match(bridgeSource,/getRange\(4,1,2,s\.getMaxColumns\(\)\)\.clearContent\(\)\.clearFormat\(\)\.clearDataValidations\(\)/);
+assert.match(bridgeSource,/addItem\('시트 구조 설치\/업데이트', 'installWorkbook'\)/);
+assert.match(bridgeSource,/refreshSheet_\(s,c,ctx\.sheetRows\[name\]\.map\(record=>row_\(record,c,ctx\)\),ctx\)/);
+assert.match(bridgeSource,/getRange\(2,1,1,Math\.max\(1,c\.frozenColumns\|\|2\)\)\.merge\(\)/);
+assert.ok(
+ bridgeSource.indexOf('s.setFrozenRows(0);s.setFrozenColumns(0);')<
+ bridgeSource.indexOf("s.getRange(2,1,1,Math.max(1,c.frozenColumns||2)).merge()")
+);
+assert.equal(context.reviewAction_('Approve & Send'),'approve');
+assert.equal(context.reviewAction_('Request Revision'),'request_revision');
+assert.equal(context.reviewAction_('Skip'),'skip');
+assert.throws(()=>context.reviewAction_(''),/Review Decision/);
+console.log('PASS Outreach Review leads with the email decision context and requires one explicit human decision before the send path');
+
+const contentC=config['콘텐츠'];
+const settlementIndex=contentC.fields.findIndex(field=>field[0]==='settlement_status');
+assert.deepEqual(contentC.fields.slice(settlementIndex-2,settlementIndex+1).map(field=>field[0]),[
+ 'paid_amount','performance_conclusion','settlement_status'
+]);
+assert.deepEqual(contentC.legacyInsertions,[11,12]);
+assert.match(contentC.helpText,/Paid Amount는 실제 지급·환불 증빙이 있는 순지급액/);
+assert.match(contentC.helpText,/🟢 Scale, 🟡 Retry, 🟠 Hold, 🔴 Stop, ⚪ 리뷰 전/);
+assert.match(contentC.helpText,/고정비는 게시 후 확정/);
+assert.match(bridgeSource,/key==='performance_conclusion'/);
+assert.match(bridgeSource,/수치 임계값으로 자동 판정하지 않습니다/);
+const contentViewMigration=fs.readFileSync(
+ __dirname+'/../../supabase/migrations/20260918051000_gtm_content_sheet_paid_performance.sql','utf8'
+);
+assert.match(contentViewMigration,/gtm_net_paid\(allocated_cost\.payments\)/);
+assert.match(contentViewMigration,/allocation\.item ->> 'share'/);
+assert.match(contentViewMigration,/activity\.kind in \('performance_review', 'review_adopted'\)/);
+assert.match(contentViewMigration,/'⚪ 리뷰 전 · 저장된 성과 결론이 없습니다\.'/);
+console.log('PASS Content Sheet places paid amount and evidence-backed performance conclusion before settlement status');
+
+const pricingC=config['Pricing Strategies'];
+assert.equal(pricingC.fields[0][0],'recommended_label');
+assert.deepEqual(pricingC.legacyInsertions,[0]);
+assert.match(pricingC.helpText,/현재 권장 실험안/);
+assert.match(pricingC.helpText,/ROI가 검증됐다는 뜻은 아닙니다/);
+assert.match(bridgeSource,/formatPricingStrategyRows_/);
+assert.match(bridgeSource,/⭐ 현재 권장 실험안/);
+assert.match(bridgeSource,/setConditionalFormatRules\(\[rule\]\)/);
+console.log('PASS Pricing Strategies keeps one prominent current recommendation with an explicit evidence limit');
