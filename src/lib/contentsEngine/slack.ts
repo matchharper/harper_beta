@@ -1,4 +1,5 @@
 import type { OutreachReplyTriageType } from "@/lib/contentsEngine/replyTriage";
+import type { ContentPerformanceRating } from "@/lib/contentsEngine/performanceConclusion";
 import { stripQuotedEmailText } from "@/lib/email/parse";
 import { buildGtmCreatorWorkspaceUrl } from "@/lib/gtm/url";
 
@@ -31,6 +32,25 @@ type OutreachDeliveryFailureNotification = {
   recipientEmail: string;
   status?: string | null;
   subject: string;
+};
+
+type ContentCompensationNotification = {
+  amount: number;
+  commentsNonAuthor: number | null;
+  contentRef: number | string;
+  costId: string;
+  costRef: number | string;
+  creatorName: string;
+  currency: string;
+  likes: number | null;
+  metricAsOf: string;
+  performanceRating: ContentPerformanceRating;
+  performanceReason: string;
+  postUrl: string | null;
+  pricingModel: "base_plus_views" | "fixed";
+  strategyName: string;
+  title: string;
+  views: number | null;
 };
 
 function requiredEnv(name: string) {
@@ -256,6 +276,85 @@ export async function notifyGtmOutreachDeliveryFailure(
   if (!response.ok || !payload.ok) {
     throw new Error(
       `Slack delivery failure notification failed: ${payload.error ?? response.status}`
+    );
+  }
+  return { channel, ts: payload.ts ?? null };
+}
+
+export function buildGtmContentCompensationSlackMessage(
+  settlement: ContentCompensationNotification,
+  _workspaceUrl: string
+) {
+  const amount = new Intl.NumberFormat("ko-KR").format(settlement.amount);
+  const number = (value: number | null) =>
+    value === null ? "확인 불가" : new Intl.NumberFormat("ko-KR").format(value);
+  const rating = {
+    good: { emoji: "🟢", label: "좋음" },
+    mixed: { emoji: "🟡", label: "보통" },
+    low: { emoji: "🔴", label: "낮음" },
+    insufficient: { emoji: "⚪", label: "판단 보류" },
+  }[settlement.performanceRating];
+  let content = escapeSlack(settlement.title);
+  try {
+    const url = new URL(settlement.postUrl ?? "");
+    if (url.protocol === "https:") {
+      content = `<${escapeSlack(url.toString())}|${content}>`;
+    }
+  } catch {}
+  return {
+    blocks: [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: [
+            `💰 *${escapeSlack(settlement.creatorName)}* · ${content}`,
+            `조회 ${number(settlement.views)} · 좋아요 ${number(settlement.likes)} · 댓글 ${number(settlement.commentsNonAuthor)}`,
+            `지급 예정 *${amount} ${escapeSlack(settlement.currency)}*`,
+            `${rating.emoji} *${rating.label}* · ${escapeSlack(settlement.performanceReason)}`,
+          ].join("\n"),
+        },
+      },
+    ],
+    text: `💰 ${settlement.creatorName} · ${settlement.title} · 지급 예정 ${amount} ${settlement.currency}`,
+  };
+}
+
+export async function notifyGtmContentCompensation(
+  settlement: ContentCompensationNotification
+) {
+  const token = requiredEnv("SLACK_BOT_TOKEN");
+  const channel = requiredEnv("GTM_OUTREACH_SLACK_CHANNEL_ID");
+  const workspaceUrl =
+    process.env.GTM_WORKSPACE_URL?.trim() ||
+    "https://matchharper.com/ops/gtm";
+  const message = buildGtmContentCompensationSlackMessage(
+    settlement,
+    workspaceUrl
+  );
+  const response = await fetch("https://slack.com/api/chat.postMessage", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json; charset=utf-8",
+    },
+    body: JSON.stringify({
+      blocks: message.blocks,
+      channel,
+      client_msg_id: settlement.costId,
+      text: message.text,
+      unfurl_links: false,
+      unfurl_media: false,
+    }),
+  });
+  const payload = (await response.json().catch(() => ({}))) as {
+    error?: string;
+    ok?: boolean;
+    ts?: string;
+  };
+  if (!response.ok || !payload.ok) {
+    throw new Error(
+      `Slack compensation notification failed: ${payload.error ?? response.status}`
     );
   }
   return { channel, ts: payload.ts ?? null };
